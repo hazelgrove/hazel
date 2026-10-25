@@ -8,13 +8,13 @@ open Haz3lcore;
 open Util;
 
 /* unchanged helpers are the live module's */
-let parse = Web.ItemEdit.parse;
-let empty_body = Web.ItemEdit.empty_body;
-let brace_of = Web.ItemEdit.brace_of;
-let is_empty_body = Web.ItemEdit.is_empty_body;
-let is_module_body = Web.ItemEdit.is_module_body;
-let module_def = Web.ItemEdit.module_def;
-let blank_def = Web.ItemEdit.blank_def;
+let parse = EntryLayout.parse;
+let empty_body = EntryLayout.empty_body;
+let brace_of = EntryLayout.brace_of;
+let is_empty_body = EntryLayout.is_empty_body;
+let is_module_body = EntryLayout.is_module_body;
+let module_def = EntryLayout.module_def;
+let blank_def = EntryLayout.blank_def;
 
 /* item [d] is a `let` of a value, not of a module: its body takes local
    definitions */
@@ -25,20 +25,23 @@ let is_value = (d: Id.t, seg: Segment.t): bool =>
   | _ => false
   };
 
-let fresh_semi = Web.ItemEdit.fresh_semi;
-let first_tile_id = Web.ItemEdit.first_tile_id;
-let row_id = Web.ItemEdit.row_id;
-let text_of = Web.ItemEdit.text_of;
-let drop_suffix = Web.ItemEdit.drop_suffix;
-let member_core = Web.ItemEdit.member_core;
-let letin_core = Web.ItemEdit.letin_core;
+let fresh_semi = EntryLayout.fresh_semi;
+let first_tile_id = EntryLayout.first_tile_id;
+let row_id = EntryLayout.row_id;
+let text_of = EntryLayout.text_of;
+let drop_suffix = EntryLayout.drop_suffix;
+let member_core = EntryLayout.member_core;
+let letin_core = EntryLayout.letin_core;
 let kind_kw = Web.ItemEdit.kind_kw;
-let blank_text = Web.ItemEdit.blank_text;
-let template = Web.ItemEdit.template;
-let test_template = Web.ItemEdit.test_template;
-let space = Web.ItemEdit.space;
-let linebreak = Web.ItemEdit.linebreak;
-let spacing = Web.ItemEdit.spacing;
+let blank_text = (kind: OutlineRename.kind): string =>
+  kind == KModule ? "{}" : {js|¿|js};
+/* a new definition's text */
+let template = (kind: OutlineRename.kind, name: string): string =>
+  kind_kw(kind) ++ " " ++ name ++ " = " ++ blank_text(kind);
+let test_template = {js|test ¿ end|js};
+let space = EntryLayout.space;
+let linebreak = EntryLayout.linebreak;
+let spacing = EntryLayout.spacing;
 
 /* an item's place in its block, by line. It owns its first line's
    indentation, the comment lines directly above it (no blank line
@@ -655,8 +658,8 @@ let into_empty =
       : None;
   };
 
-let is_fun_head = Web.ItemEdit.is_fun_head;
-let wrapped_fun = Web.ItemEdit.wrapped_fun;
+let is_fun_head = ItemSpans.is_fun_head;
+let wrapped_fun = EntryLayout.wrapped_fun;
 
 /* [item] (in let-in form) as value [d]'s last local definition: just
    before its body's result, inside a function's lambda, spaced as the
@@ -964,8 +967,8 @@ let name_slot = (id: Id.t, seg: Segment.t): option(Id.t) =>
     List.find_opt(p => !Piece.is_secondary(p), pat) |> Option.map(Piece.id)
   );
 
-let text = Web.ItemEdit.text;
-let piece_text = Web.ItemEdit.piece_text;
+let text = EntryLayout.text;
+let piece_text = EntryLayout.piece_text;
 let name_at = Web.ItemEdit.name_at;
 let typed_name = Web.ItemEdit.typed_name;
 
@@ -999,7 +1002,35 @@ let refit =
     };
   };
 
-let with_binder = Web.ItemEdit.with_binder;
+/* [pat] with the first token reading [name] given id [id] */
+let with_binder = (name: string, id: Id.t, pat: Segment.t): Segment.t => {
+  let rec go = (found, seg: Segment.t) =>
+    List.fold_left_map(
+      (found, p: Piece.t) =>
+        switch (p) {
+        | Tile(t) when !found && Tile.label(t) == [name] => (
+            true,
+            Piece.Tile({
+              ...t,
+              id,
+            }),
+          )
+        | Tile(t) =>
+          let (found, children) = List.fold_left_map(go, found, t.children);
+          (
+            found,
+            Piece.Tile({
+              ...t,
+              children,
+            }),
+          );
+        | p => (found, p)
+        },
+      found,
+      seg,
+    );
+  snd(go(false, pat));
+};
 
 /* item [row] remade as a [kind]'s, named [name], keeping its id and its
    binding token's ([binder]). With [keep], its definition stays, and its
@@ -1085,7 +1116,7 @@ type renaming = {
 let plan_rename =
     (
       ~info_map: Lazy.t(Language.Statics.Map.t),
-      ~term: Language.Exp.t,
+      ~outline: Web.OutlineTree.t,
       ~seg: Lazy.t(Segment.t),
       row: Id.t,
       typed: string,
@@ -1093,7 +1124,7 @@ let plan_rename =
     : result(option(renaming), string) => {
   let (kw, rest) = OutlineEdit.split_typed(typed);
   let name = String.trim(rest);
-  switch (OutlineRename.find_item(row, term)) {
+  switch (OutlineRename.find_item(row, outline)) {
   | None => Error("this row has no name to change")
   | Some(it) =>
     let kind =
@@ -1149,7 +1180,7 @@ let apply_rename =
 type ctx =
   Web.ItemEdit.ctx = {
     mod_root: bool,
-    term: Language.Exp.t,
+    outline: Web.OutlineTree.t,
     info_map: Lazy.t(Language.Statics.Map.t),
     /* whether a module row is expanded: moves step over collapsed ones,
        and over modules the outline doesn't show (`let _ = {…}`) */
@@ -1158,10 +1189,11 @@ type ctx =
 
 /* row [fid]'s parent row in [term]'s outline, and its kind */
 let parent_row =
-    (term: Language.Exp.t, fid: Id.t): option((Id.t, OutlineTree.kind)) =>
-  switch (Option.map(List.rev, OutlineTree.trail_of(fid, term))) {
+    (outline: Web.OutlineTree.t, fid: Id.t)
+    : option((Id.t, OutlineTree.kind)) =>
+  switch (Option.map(List.rev, OutlineTree.trail_of(fid, outline))) {
   | Some([_, parent, ..._]) =>
-    Option.map(k => (parent, k), OutlineTree.kind_of(parent, term))
+    Option.map(k => (parent, k), OutlineTree.kind_of(parent, outline))
   | _ => None
   };
 
@@ -1172,7 +1204,7 @@ let edit =
   switch (e) {
   | Op((MoveUp | MoveDown) as op, fid) =>
     let owner =
-      switch (parent_row(ctx.term, fid)) {
+      switch (parent_row(ctx.outline, fid)) {
       | Some((parent, KModule)) => Some(parent)
       | _ => None
       };
@@ -1188,14 +1220,14 @@ let edit =
   | Op(Indent, fid) =>
     indent(
       ~mod_root=ctx.mod_root,
-      ~shown=id => OutlineTree.node_of(id, ctx.term) != None,
+      ~shown=id => OutlineTree.node_of(id, ctx.outline) != None,
       fid,
       seg,
     )
     |> Option.to_result(~none="it can't go in there")
   | Op(Outdent, fid) =>
     (
-      switch (parent_row(ctx.term, fid)) {
+      switch (parent_row(ctx.outline, fid)) {
       | Some((owner, KModule | KFn | KConst)) =>
         outdent(~mod_root=ctx.mod_root, ~owner, fid, seg)
       | _ => None
@@ -1209,7 +1241,7 @@ let edit =
     switch (
       plan_rename(
         ~info_map=ctx.info_map,
-        ~term=ctx.term,
+        ~outline=ctx.outline,
         ~seg=Lazy.from_val(seg),
         row,
         typed,

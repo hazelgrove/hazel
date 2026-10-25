@@ -32,6 +32,9 @@ module Scratchpad = {
     /* in the library's world (WorldSlide): the slide's module, whose
        members are what the slide stores */
     world: option(Id.t),
+    /* the main editor shows a request as the agent saw it */
+    [@sexp.default None] [@yojson.default None]
+    lens: option(AgentLens.t),
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -78,6 +81,7 @@ module Scratchpad = {
         lib: None,
         lib_gen: 0,
         world,
+        lens: None,
       }),
     dormant: false,
   };

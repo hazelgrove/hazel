@@ -10,21 +10,28 @@ module Persist = ScratchPersist;
 
 type code = Scratchpad.code;
 
-/* whether [term]'s outline names anything: a hydrating slide's
-   placeholder statics show only an unnamed ⇒ row */
-let named_outline = (term: Language.Exp.t): bool =>
+/* whether [program]'s statics are its own: a hydrating slide's are a
+   placeholder's, which know none of its named rows */
+let statics_ready = (program: Program.t): bool => {
+  let info_map = Program.statics(program).info_map;
   List.exists(
-    (n: OutlineTree.node) => n.o_label != "",
-    OutlineTree.of_term(term),
+    (n: OutlineTree.node) =>
+      n.o_label != ""
+      && (
+        switch (n.o_id) {
+        | Some(id) => Id.Map.mem(id, info_map)
+        | None => false
+        }
+      ),
+    OutlineTree.flatten(OutlineTree.rows(Program.outline(program))),
   );
+};
 
 /* a loaded slide's saved view, once statics can resolve it: against the
    placeholder, resolving drops pins */
 let saved_view = (~slide_key, code: code): option(Persist.side) =>
   switch (Hashtbl.find_opt(Persist.pending_pins, slide_key), code.program) {
-  | (Some(saved), Whole(editor))
-      when named_outline(editor.editor.statics.term) =>
-    Some(saved)
+  | (Some(saved), Whole(_)) when statics_ready(code.program) => Some(saved)
   | _ => None
   };
 
@@ -66,7 +73,9 @@ module Action = {
     /* a loaded slide's saved view and caret, restored once ready */
     | RestorePins
     | RestoreCaret(Point.t)
-    | AgentAction(Agent.Update.Action.t);
+    | AgentAction(Agent.Update.Action.t)
+    /* the run of the program View as agent shows */
+    | LensResult(EvalResult.Update.t);
 };
 
 open Action;
@@ -135,8 +144,14 @@ let item_of =
   );
 
 /* [code] showing [v]: its cells opened and closed to match */
-let realize = (~info_map, ~term, v: SlideView.t, code: code): code => {
-  let (view, program) = SlideView.realize(~info_map, ~term, v, code.program);
+let realize = (~info_map, v: SlideView.t, code: code): code => {
+  let (view, program) =
+    SlideView.realize(
+      ~info_map,
+      ~outline=Program.outline(code.program),
+      v,
+      code.program,
+    );
   {
     ...code,
     program,
@@ -147,17 +162,14 @@ let realize = (~info_map, ~term, v: SlideView.t, code: code): code => {
 /* change what the slide shows, then open and close cells to match;
    view changes are not undo steps */
 let view =
-    (f: (Language.Exp.t, Program.t, SlideView.t) => SlideView.t, code: code)
-    : Updated.t(code) => {
-  let statics = Program.statics(code.program);
+    (f: (OutlineTree.t, Program.t, SlideView.t) => SlideView.t, code: code)
+    : Updated.t(code) =>
   realize(
-    ~info_map=statics.info_map,
-    ~term=statics.term,
-    f(statics.term, code.program, code.view),
+    ~info_map=Program.statics(code.program).info_map,
+    f(Program.outline(code.program), code.program, code.view),
     code,
   )
   |> Updated.return(~historic=false);
-};
 
 /* a view change from the outline: the keys go to the cell the stack
    focuses, which a close can move. The vdom gives a closed cell's element
@@ -171,10 +183,8 @@ let outline_view = (f, code: code): Updated.t(code) => {
 /* after an edit to the whole program (agent, outline menu): the same
    view again, pins to vanished items dropped */
 let resync = (code: Scratchpad.code, program: Program.t): Scratchpad.code => {
-  let statics = Program.statics(program);
   realize(
-    ~info_map=statics.info_map,
-    ~term=statics.term,
+    ~info_map=Program.statics(program).info_map,
     code.view,
     {
       ...code,
@@ -292,7 +302,7 @@ let with_segment =
       switch (
         Divided.resplit(
           ~info_map=statics.info_map,
-          ~term=statics.term,
+          ~outline=Program.outline(Whole(editor)),
           editor,
           d,
         )
@@ -323,12 +333,15 @@ let with_segment =
 let item_ctx =
     (~settings: Settings.t, ~ctx_in=?, ~folds, program: Program.t)
     : ItemEdit.ctx => {
-  let term = fresh_term(program);
+  let outline = Program.outline(program);
   {
     mod_root: Program.root(program) == Haz3lcore.Sort.Mod,
-    term,
-    info_map: lazy(fresh_info_map(~settings, ~ctx_in?, program, term)),
-    is_open: id => OutlineTree.expanded(~folds, id, term),
+    outline,
+    info_map:
+      lazy(
+        fresh_info_map(~settings, ~ctx_in?, program, fresh_term(program))
+      ),
+    is_open: id => OutlineTree.expanded(~folds, id, outline),
   };
 };
 
@@ -390,7 +403,35 @@ let rerun = (program: Program.t): Program.t =>
     )
   };
 
-let update =
+/* a cell action on a whole program; while divided only its
+   whole-program result takes actions */
+let program_action =
+    (~settings: Settings.t, a: CellEditor.Update.t, program: Program.t)
+    : Updated.t(Program.t) =>
+  Updated.(
+    switch (program, a) {
+    | (Whole(editor), _) =>
+      let* editor = CellEditor.Update.update(~settings, a, editor);
+      Program.Whole(editor);
+    | (Divided(d), ResultAction(ra)) =>
+      let* result =
+        EvalResult.Update.update(
+          ~settings={
+            ...settings,
+            core: {
+              ...settings.core,
+              assist: false,
+            },
+          },
+          ra,
+          Divided.result(d),
+        );
+      Program.Divided(Divided.with_result(result, d));
+    | (Divided(_), MainEditor(_)) => return_quiet(program)
+    }
+  );
+
+let update_code =
     (
       ~settings: Settings.t,
       ~schedule_action: Action.t => unit,
@@ -485,7 +526,7 @@ let update =
         Program.of_close(
           Divided.resplit(
             ~info_map=new_ed.editor.statics.info_map,
-            ~term=new_ed.editor.statics.term,
+            ~outline=Program.outline(Whole(new_ed)),
             new_ed,
             d,
           ),
@@ -494,7 +535,7 @@ let update =
     };
   | FocusToggle(fid) =>
     outline_view(
-      (term, program, v) =>
+      (outline, program, v) =>
         if (List.mem(
               SlideView.{
                 p_id: fid,
@@ -522,7 +563,7 @@ let update =
             }
           ) {
           | Some(run) => SlideView.unpin(run.e_id, v)
-          | None => SlideView.pin(~term, fid, v)
+          | None => SlideView.pin(~outline, fid, v)
           };
         },
       code,
@@ -532,7 +573,7 @@ let update =
     /* the tests container: one cell for the run, or close it (or its
        members open one by one) */
     outline_view(
-      (term, program, v) => {
+      (outline, program, v) => {
         let (members, size) =
           switch (
             Focus.test_run_deep(
@@ -564,34 +605,37 @@ let update =
               singles,
             );
           Some(List.length(singles)) == size
-            ? v : SlideView.pin(~term, ~run=true, fid, v);
+            ? v : SlideView.pin(~outline, ~run=true, fid, v);
         };
       },
       code,
     )
   | FocusEnsure(fid) =>
     outline_view(
-      (term, program, v) =>
+      (outline, program, v) =>
         switch (program) {
         | Divided(d) when Divided.owner(fid, d) == None =>
-          SlideView.pin(~term, fid, v)
+          SlideView.pin(~outline, fid, v)
         | _ => v
         },
       code,
     )
     |> focusing(fid)
   | UnfocusDef =>
-    outline_view((term, _, v) => SlideView.discard(~term, v), code)
+    outline_view((outline, _, v) => SlideView.discard(~outline, v), code)
   | ZoomIn(fid) =>
-    outline_view((term, _, v) => SlideView.zoom_in(~term, fid, v), code)
+    outline_view(
+      (outline, _, v) => SlideView.zoom_in(~outline, fid, v),
+      code,
+    )
   | ZoomOut => outline_view((_, _, v) => SlideView.zoom_out(v), code)
   /* a world's library is its own items: the program level */
   | ShowLibrary(shown) when code.world != None =>
     outline_view(
-      (term, _, v) =>
+      (outline, _, v) =>
         shown
           ? SlideView.zoom_to(None, v)
-          : SlideView.zoom_in(~term, Option.get(code.world), v),
+          : SlideView.zoom_in(~outline, Option.get(code.world), v),
       code,
     )
   | ShowLibrary(shown) => show_library(shown, code)
@@ -659,22 +703,16 @@ let update =
        live program's, Page.carry_over), as view changes read them while
        typing; a snapshot nothing was carried into has none */
     let statics = Program.statics(code.program);
-    let (term, info_map) =
+    let info_map =
       Id.Map.is_empty(statics.info_map)
-        ? {
-          let term = fresh_term(code.program);
-          (
-            term,
-            fresh_info_map(
-              ~settings,
-              ~ctx_in=?ctx_in(code),
-              code.program,
-              term,
-            ),
-          );
-        }
-        : (statics.term, statics.info_map);
-    realize(~info_map, ~term, code.view, code) |> return(~historic=false);
+        ? fresh_info_map(
+            ~settings,
+            ~ctx_in=?ctx_in(code),
+            code.program,
+            fresh_term(code.program),
+          )
+        : statics.info_map;
+    realize(~info_map, code.view, code) |> return(~historic=false);
   | RestorePins =>
     /* each slide's saved view waits under its own key, so another
        slide hydrating first can't drop it */
@@ -682,17 +720,17 @@ let update =
     | Some(saved) =>
       Hashtbl.remove(Persist.pending_pins, slide_key);
       view(
-        (term, _, _) =>
+        (outline, _, _) =>
           Persist.resolve_view(
             switch (
               Option.bind(code.world, slide =>
-                OutlineTree.label_path(slide, term)
+                OutlineTree.label_path(slide, outline)
               )
             ) {
             | Some(root) => Persist.into_world(slide_key, root, saved)
             | None => saved
             },
-            term,
+            outline,
           ),
         code,
       );
@@ -729,36 +767,111 @@ let update =
   | CellAction(a) when to_library(a) => library_step(a)
   | Stack(id, side, a) => cell_update(id, side, a)
   | CellAction(a) =>
-    switch (code.program) {
-    | Whole(editor) =>
-      let* editor = CellEditor.Update.update(~settings, a, editor);
+    let* program = program_action(~settings, a, code.program);
+    program === code.program
+      ? code
+      : {
+        ...code,
+        program,
+      };
+  | LensResult(ra) =>
+    switch (code.lens) {
+    | Some(l) =>
+      let* program = program_action(~settings, ResultAction(ra), l.program);
       {
         ...code,
-        program: Whole(editor),
+        lens:
+          Some({
+            ...l,
+            program,
+          }),
       };
-    | Divided(d) =>
-      /* while divided only the whole-program result takes actions */
-      switch (a) {
-      | ResultAction(ra) =>
-        let* result =
-          EvalResult.Update.update(
-            ~settings={
-              ...settings,
-              core: {
-                ...settings.core,
-                assist: false,
-              },
-            },
-            ra,
-            Divided.result(d),
-          );
+    | None => code |> return_quiet
+    }
+  };
+};
+
+/* View as agent shows a request instead of the program: the program and
+   its view are the user's, untouched, and the agent keeps working on
+   them; what the user does to the shown request is dropped */
+let update =
+    (
+      ~settings: Settings.t,
+      ~schedule_action: Action.t => unit,
+      ~slide_key: string,
+      action: Action.t,
+      code: code,
+    )
+    : Updated.t(code) => {
+  let lens_of = (chat_id, seq) =>
+    switch (Id.Map.find_opt(chat_id, code.agent.chat_system.chat_map)) {
+    | Some(chat) =>
+      AgentLens.build(
+        ~settings=settings.core,
+        ~module_depth=settings.agent_globals.map_module_depth,
+        ~live=seq == None,
+        chat,
+        seq,
+      )
+    | None => None
+    };
+  let update_code =
+    update_code(~settings, ~schedule_action, ~slide_key, action);
+  switch (action, code.lens) {
+  | (AgentAction(ViewAsAgent(chat_id, seq)), _) =>
+    switch (lens_of(chat_id, seq)) {
+    | Some(_) as lens =>
+      Updated.return(
+        ~is_edit=false,
+        ~historic=false,
         {
           ...code,
-          program: Divided(Divided.with_result(result, d)),
-        };
-      | MainEditor(_) => code |> return_quiet
-      }
+          lens,
+        },
+      )
+    | None => Updated.return_quiet(code)
     }
+  | (AgentAction(LeaveAgentView), _) =>
+    Updated.return(
+      ~is_edit=false,
+      ~historic=false,
+      {
+        ...code,
+        lens: None,
+      },
+    )
+  | (AgentAction(_), Some(l)) =>
+    let updated = update_code(code);
+    let after = updated.model;
+    let followed =
+      Option.bind(
+        Id.Map.find_opt(l.chat, after.agent.chat_system.chat_map), chat =>
+        AgentLens.follow(
+          ~settings=settings.core,
+          ~module_depth=settings.agent_globals.map_module_depth,
+          chat,
+          l,
+        )
+      );
+    switch (followed) {
+    | Some(_) as lens => {
+        ...updated,
+        model: {
+          ...after,
+          lens,
+        },
+        recalculate: true,
+      }
+    | None => updated
+    };
+  /* the program's own run, and its restores, still land */
+  | (
+      CellAction(ResultAction(_)) | RestorePins | RestoreCaret(_) |
+      LensResult(_),
+      _,
+    )
+  | (_, None) => update_code(code)
+  | (_, Some(_)) => Updated.return_quiet(code)
   };
 };
 
@@ -781,37 +894,26 @@ let calc_entry_memo:
    slide's library items across slides too) */
 let spliced_parse = Haz3lcore.MakeTerm.Incr.mk_cache();
 
-let calculate_slide =
+/* a program's statics and run; its results come back through
+   [dispatch]. [world]: the slide's module when the program is the
+   library's world, which runs what its view ([zoom]) needs */
+let calculate_program =
     (
       ~settings,
       ~autoprobe_mode,
       /* the ⇓ toggle: the whole program's last expression, or the ⇒
          cell's, probed as an open drawer */
       ~tail_probe,
-      ~schedule_action: Action.t => unit,
       ~is_edited,
       ~statics_mode,
-      ~slide_key: string,
-      code: code,
+      ~calc_entry_memo,
+      ~dispatch: EvalResult.Update.t => unit,
+      ~world: option(Id.t),
+      ~zoom: list(Id.t),
+      program: Program.t,
     )
-    : code => {
-  let program = code.program;
-  /* restore a loaded slide's saved caret: the Move runs as its own
-     follow-up action, after this calculate builds measured */
-  switch (Hashtbl.find_opt(Persist.pending_caret, slide_key), code.world) {
-  /* a world slide's, once its members' cell is open */
-  | (Some(p), Some(slide)) =>
-    switch (program) {
-    | Divided(d) when Divided.cell(slide, d) != None =>
-      schedule_action(RestoreCaret(p))
-    | _ => ()
-    }
-  | (Some(p), None) => schedule_action(RestoreCaret(p))
-  | (None, _) => ()
-  };
-  if (Option.is_some(saved_view(~slide_key, code))) {
-    schedule_action(RestorePins);
-  };
+    : Program.t => {
+  let ctx = Option.map(_ => WorldSlide.ctx(), world);
   let worker_request = ref([]);
   let queue_worker =
     Some(
@@ -827,13 +929,9 @@ let calculate_slide =
     };
   /* a world runs what its view shows and what that needs, the library
      from the bake; the library's probes are its own items' */
-  let run =
-    Option.map(
-      _ => WorldSlide.run_statics(~zoom=code.view.zoom),
-      code.world,
-    );
+  let run = Option.map(_ => WorldSlide.run_statics(~zoom), world);
   let library_targets =
-    code.world == None
+    world == None
       ? LibraryDoc.targets(~settings) : Language.Sample.no_targets;
   let program =
     switch (program) {
@@ -848,7 +946,7 @@ let calculate_slide =
           ~is_edited,
           ~statics_mode,
           ~compositional=true,
-          ~ctx=?ctx_in(code),
+          ~ctx?,
           ~run?,
           ~show_value=false,
           ~extra_targets=library_targets,
@@ -866,7 +964,7 @@ let calculate_slide =
          the cell calculates, so this frame's run samples it */
       /* a world slide's members cell is its program's tail */
       let is_world_cell = (e: ScratchCell.t) =>
-        e.e_kind == Members && code.world == Some(e.e_id);
+        e.e_kind == Members && world == Some(e.e_id);
       let is_tail_cell = (e: ScratchCell.t) =>
         tail_probe && (e.e_kind == Headless({js|⇒|js}) || is_world_cell(e));
       let tail_root = (e: ScratchCell.t) =>
@@ -901,19 +999,18 @@ let calculate_slide =
             Haz3lcore.MakeTerm.semantic_term(
               ~root=Divided.root(d),
               /* a world's pieces are its editor's: one parse */
-              ~shared=
-                code.world == None ? spliced_parse : WorldSlide.parse_cache,
+              ~shared=world == None ? spliced_parse : WorldSlide.parse_cache,
               spliced,
             );
           let prev_items =
-            switch (Haz3lcore.DefStatics.cached(~ctx_in=?ctx_in(code), term)) {
+            switch (Haz3lcore.DefStatics.cached(~ctx_in=?ctx, term)) {
             | Some(p) => p.items
             | None => []
             };
           let ds =
             Haz3lcore.DefStatics.calc_auto(
               ~settings,
-              ~ctx_in=?ctx_in(code),
+              ~ctx_in=?ctx,
               ~probe_ids,
               term,
             );
@@ -1089,7 +1186,7 @@ let calculate_slide =
             | (_, None) when is_world_cell(e) =>
               Option.bind(
                 Haz3lcore.DefStatics.cached(
-                  ~ctx_in=?ctx_in(code),
+                  ~ctx_in=?ctx,
                   Divided.statics(d).term,
                 ),
                 ds =>
@@ -1185,8 +1282,7 @@ let calculate_slide =
       );
       Program.Divided(d);
     };
-  let dispatch = (_key, action) =>
-    schedule_action(CellAction(ResultAction(action)));
+  let dispatch = (_key, action) => dispatch(action);
   EvalRequest.request(
     worker_request^,
     ~pos_of_key=key => key,
@@ -1196,9 +1292,74 @@ let calculate_slide =
         dispatch(key, UpdateResult(ResultFail(Timeout)))
       ),
   );
+  program;
+};
+
+/* the lens's cells, memoized apart from the program's */
+let lens_entry_memo = Hashtbl.create(8);
+
+let calculate_slide =
+    (
+      ~settings,
+      ~autoprobe_mode,
+      ~tail_probe,
+      ~schedule_action: Action.t => unit,
+      ~is_edited,
+      ~statics_mode,
+      ~slide_key: string,
+      code: code,
+    )
+    : code => {
+  /* restore a loaded slide's saved caret: the Move runs as its own
+     follow-up action, after this calculate builds measured */
+  switch (Hashtbl.find_opt(Persist.pending_caret, slide_key), code.world) {
+  /* a world slide's, once its members' cell is open */
+  | (Some(p), Some(slide)) =>
+    switch (code.program) {
+    | Divided(d) when Divided.cell(slide, d) != None =>
+      schedule_action(RestoreCaret(p))
+    | _ => ()
+    }
+  | (Some(p), None) => schedule_action(RestoreCaret(p))
+  | (None, _) => ()
+  };
+  if (Option.is_some(saved_view(~slide_key, code))) {
+    schedule_action(RestorePins);
+  };
+  let calc =
+    calculate_program(
+      ~settings,
+      ~autoprobe_mode,
+      ~tail_probe,
+      ~world=code.world,
+      ~zoom=code.view.zoom,
+    );
   {
     ...code,
-    program,
+    program:
+      calc(
+        ~is_edited,
+        ~statics_mode,
+        ~calc_entry_memo,
+        ~dispatch=a => schedule_action(CellAction(ResultAction(a))),
+        code.program,
+      ),
+    lens:
+      Option.map(
+        (l: AgentLens.t) =>
+          {
+            ...l,
+            program:
+              calc(
+                ~is_edited=false,
+                ~statics_mode,
+                ~calc_entry_memo=lens_entry_memo,
+                ~dispatch=a => schedule_action(LensResult(a)),
+                l.program,
+              ),
+          },
+        code.lens,
+      ),
   };
 };
 

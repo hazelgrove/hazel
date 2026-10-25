@@ -312,7 +312,7 @@ module Selection = {
           OutlineTree.enclosing_row(
             ~info_map=statics.info_map,
             target_id,
-            statics.term,
+            Program.outline(Divided(d)),
           );
         /* the cell that holds [fid] once it's ensured */
         let j =
@@ -547,6 +547,69 @@ module View = {
   let stack_cache_lookup = (id: Haz3lcore.Id.t): option(cached_cell) =>
     List.assoc_opt(id, stack_cache^);
 
+  /* View as agent's banner: which request, stepping through them, live,
+     and the way back */
+  let lens_banner = (~inject: Update.t => 'a, l: AgentLens.t): Node.t => {
+    let go = a => inject(Workspace(AgentAction(a)));
+    let button = (~cls=[], ~title, ~enabled=true, label, a) =>
+      button(
+        ~attrs=
+          [
+            Attr.classes(["lens-button", ...cls]),
+            Attr.title(title),
+            Attr.on_click(_ => go(a)),
+          ]
+          @ (enabled ? [] : [Attr.disabled]),
+        [text(label)],
+      );
+    div(
+      ~attrs=[Attr.classes(["agent-lens-banner"])],
+      [
+        span(
+          ~attrs=[Attr.classes(["lens-title"])],
+          [text("Viewing as the agent")],
+        ),
+        span(
+          ~attrs=[Attr.classes(["lens-which"])],
+          [
+            text(
+              Printf.sprintf(
+                "request %d of %d%s",
+                l.seq,
+                l.count,
+                l.live ? {js| · live|js} : "",
+              ),
+            ),
+          ],
+        ),
+        button(
+          ~title="The request before",
+          ~enabled=l.seq > 1,
+          {js|‹|js},
+          ViewAsAgent(l.chat, Some(l.seq - 1)),
+        ),
+        button(
+          ~title="The request after",
+          ~enabled=l.seq < l.count,
+          {js|›|js},
+          ViewAsAgent(l.chat, Some(l.seq + 1)),
+        ),
+        button(
+          ~cls=l.live ? ["on"] : [],
+          ~title="Follow each new request",
+          "Live",
+          ViewAsAgent(l.chat, l.live ? Some(l.seq) : None),
+        ),
+        button(
+          ~cls=["leave"],
+          ~title="Back to your own view",
+          "Leave",
+          LeaveAgentView,
+        ),
+      ],
+    );
+  };
+
   let view =
       (
         ~globals,
@@ -616,17 +679,29 @@ module View = {
             editor,
           ),
         ]
-      | Code({program, view, world, _}) =>
+      | Code({program, view, world, lens, _}) =>
+        /* View as agent: the request's program in place of the user's,
+           read-only */
+        let (program, view, locked) =
+          switch (lens) {
+          | Some(l) => (l.program, l.view, true)
+          | None => (program, view, false)
+          };
+        let banner =
+          switch (lens) {
+          | Some(l) => [lens_banner(~inject, l)]
+          | None => []
+          };
         let stack_views = (d: Divided.t) => {
           let cells = Divided.cells(d);
-          let term = Divided.statics(d).term;
+          let outline = Program.outline(Divided(d));
           /* a cell's qualifier: the modules it's in, below a world
              slide's own (its folders and itself are the slide's place) */
           let qualifier_of = id => {
-            let path = OutlineTree.path_of(id, term);
+            let path = OutlineTree.path_of(id, outline);
             switch (
               Option.bind(world, slide =>
-                Option.bind(OutlineTree.trail_of(id, term), trail =>
+                Option.bind(OutlineTree.trail_of(id, outline), trail =>
                   ListUtil.findi_opt(m => m == slide, trail)
                 )
               )
@@ -637,7 +712,7 @@ module View = {
             };
           };
           /* the zoomed module as one cell: the breadcrumb names it */
-          let zoom_cell = SlideView.showing_zoom_cell(~term, view);
+          let zoom_cell = SlideView.showing_zoom_cell(~outline, view);
           let tests = EvalResult.Model.test_results(Divided.result(d));
           let focus =
             switch (selected, Divided.focused(d)) {
@@ -859,7 +934,7 @@ module View = {
                         a => inject(Workspace(Stack(e.e_id, side, a))),
                       ~selected=sel(side),
                       ~result_kind,
-                      ~locked=false,
+                      ~locked,
                       ~lines,
                       ~master?,
                       ~escape,
@@ -991,7 +1066,7 @@ module View = {
               ~signal=_ => Effect.Ignore,
               ~inject=_ => Effect.Ignore,
               ~selected=None,
-              ~locked=false,
+              ~locked,
               ~result_kind=`StatusLine,
               Divided.result(d),
             );
@@ -1009,9 +1084,27 @@ module View = {
           ];
         };
         switch (program) {
-        | Divided(d) => stack_views(d)
+        /* a request with nothing open: its map */
+        | Whole(_) when Option.is_some(lens) =>
+          banner
+          @ [
+            div(
+              ~attrs=[Attr.classes(["agent-lens-map"])],
+              [
+                text(
+                  Option.fold(
+                    ~none="",
+                    ~some=(l: AgentLens.t) => l.map,
+                    lens,
+                  ),
+                ),
+              ],
+            ),
+          ]
+        | Divided(d) => banner @ stack_views(d)
         | Whole(editor) =>
-          [
+          banner
+          @ [
             CellEditor.View.view(
               ~globals,
               ~signal=
@@ -1024,7 +1117,7 @@ module View = {
                 | Some(Selection.Cell(s)) => Some(s)
                 | _ => None
                 },
-              ~locked=false,
+              ~locked,
               ~lines=true,
               ~result_kind=`StatusLine,
               editor,

@@ -39,7 +39,6 @@ let view =
           ~agent_inject,
           ~signal,
           ~code_with_statics=editor.editor,
-          ~eval_result=editor.result,
         );
       | ScratchMode.Scratchpad.Drv(_) => placeholder
       };

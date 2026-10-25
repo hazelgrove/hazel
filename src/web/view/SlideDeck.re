@@ -381,6 +381,7 @@ let update =
             lib: None,
             lib_gen: 0,
             world,
+            lens: None,
           }),
           model,
         );
@@ -423,6 +424,7 @@ let update =
               lib: None,
               lib_gen: 0,
               world,
+              lens: None,
             }),
             model,
           )

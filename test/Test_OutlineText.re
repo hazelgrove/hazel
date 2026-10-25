@@ -26,7 +26,7 @@ let blank = ¿ in
 alpha;
 beta(alpha)|};
 
-let term = MakeTerm.Incr.term_of(CorpusUtil.seg_of(src));
+let term = CorpusUtil.outline_of(CorpusUtil.seg_of(src));
 let id = CorpusUtil.row_by_label(term);
 
 /* the program's lines ([of_]: another's), with [collapsed] rows folded
@@ -382,7 +382,7 @@ let enter = () => {
   let tests =
     List.filter_map(
       (n: O.node) => n.o_kind == KTest ? n.o_id : None,
-      O.flatten(O.of_term(term)),
+      O.flatten(O.rows(term)),
     );
   check(
     outcome,
@@ -629,7 +629,7 @@ let nesting = () => {
   let tests =
     List.filter_map(
       (n: O.node) => n.o_kind == KTest ? n.o_id : None,
-      O.flatten(O.of_term(term)),
+      O.flatten(O.rows(term)),
     );
   List.iter(
     ((label, want, got)) => check(outcome, label, want, got),
@@ -783,7 +783,7 @@ let nesting_lines = () => {
 
 /* a program with an empty module, a `use`, and a module in a module */
 let nested =
-  MakeTerm.Incr.term_of(
+  CorpusUtil.outline_of(
     CorpusUtil.seg_of(
       {|module A = {} in
 use Nat in
@@ -1204,7 +1204,7 @@ module M = {
 } in
 0|},
     );
-  let term = Web.Workspace.fresh_term(p);
+  let term = Web.Program.outline(p);
   let blank = label => C.blank_body(p, CorpusUtil.row_by_label(term, label));
   List.iter(
     ((label, want)) => check(bool, label, want, blank(label)),
@@ -1251,7 +1251,7 @@ let text_of = (code: Web.ScratchModel.Scratchpad.code) =>
 let caret_on = (code: Web.ScratchModel.Scratchpad.code): option(O.node) =>
   switch (C.text^) {
   | Some({line: Row(_, Some(Item(row))), _}) =>
-    O.node_of(row, Web.Workspace.fresh_term(code.program))
+    O.node_of(row, Web.Program.outline(code.program))
   | _ => None
   };
 
@@ -1269,11 +1269,11 @@ let reset = () => {
 /* a new test below a test, or first of a run: the caret on it */
 let new_tests = () => {
   let code = code_of("let a = 1 in\ntest a == 1 end;\ntest a > 0 end;\na");
-  let term = Web.Workspace.fresh_term(code.program);
+  let term = Web.Program.outline(code.program);
   let tests =
     List.filter_map(
       (n: O.node) => n.o_kind == KTest ? n.o_id : None,
-      O.flatten(O.of_term(term)),
+      O.flatten(O.rows(term)),
     );
   let first = List.nth(tests, 0);
   C.text :=
@@ -1315,10 +1315,10 @@ a|js},
          List.hd(
            List.filter_map(
              (n: O.node) => n.o_kind == KTest ? n.o_id : None,
-             O.flatten(O.of_term(Web.Workspace.fresh_term(code''.program))),
+             O.flatten(O.rows(Web.Program.outline(code''.program))),
            ),
          ),
-         Web.Workspace.fresh_term(code''.program),
+         Web.Program.outline(code''.program),
        ),
   );
   reset();
@@ -1357,8 +1357,7 @@ let at_name = testable(Fmt.(option(pair(string, int))), (==));
    editor's caret in it; keys typed on its line are the editor's there */
 let live_typing = () => {
   let code = code_of("let a = 1 in\nlet b = 2 in\na + b");
-  let a =
-    CorpusUtil.row_by_label(Web.Workspace.fresh_term(code.program), "a");
+  let a = CorpusUtil.row_by_label(Web.Program.outline(code.program), "a");
   let line = E.New(a, Below);
   C.text := Some(E.at(line));
   let made = update(Create(line, ""), code);
@@ -1414,8 +1413,7 @@ let live_leaving = () => {
   let src = "let a = 1 in\nlet b = 2 in\na + b";
   let start = () => {
     let code = code_of(src);
-    let a =
-      CorpusUtil.row_by_label(Web.Workspace.fresh_term(code.program), "a");
+    let a = CorpusUtil.row_by_label(Web.Program.outline(code.program), "a");
     let line = E.New(a, Below);
     C.text := Some(E.at(line));
     (line, run(Create(line, ""), code));
@@ -1476,7 +1474,7 @@ let live_leaving = () => {
     bool,
     "a name: row mode's cursor on its row",
     true,
-    C.cursor^ == O.label_path(d, Web.Workspace.fresh_term(code.program)),
+    C.cursor^ == O.label_path(d, Web.Program.outline(code.program)),
   );
   reset();
 };
@@ -1485,8 +1483,7 @@ let live_leaving = () => {
    its name, a next line below it */
 let first_member = () => {
   let code = code_of("module M = {\n  let a = 1;\n  let b = 2\n} in\nM.a");
-  let m =
-    CorpusUtil.row_by_label(Web.Workspace.fresh_term(code.program), "M");
+  let m = CorpusUtil.row_by_label(Web.Program.outline(code.program), "M");
   let line = E.New(m, First);
   C.text := Some(E.at(line));
   let code = typing(line, [Insert("z")], run(Create(line, ""), code));
@@ -1550,14 +1547,14 @@ M.a|js},
 let nesting_ops = () => {
   let src = "let a = 1 in\nmodule M = {\n  let x = 2\n} in\nlet bee = 4 in\nbee";
   let code = code_of(src);
-  let term = Web.Workspace.fresh_term(code.program);
+  let term = Web.Program.outline(code.program);
   let ck = Web.ScratchPersist.content_key("scratch", "t");
   let m_path =
     Option.get(O.label_path(CorpusUtil.row_by_label(term, "M"), term));
   Hashtbl.replace(Web.ScratchPersist.slide_folds, ck, [(m_path, true)]);
   /* the caret on [label]'s row, at column 2 */
   let on = (code: Web.ScratchModel.Scratchpad.code, label) => {
-    let term = Web.Workspace.fresh_term(code.program);
+    let term = Web.Program.outline(code.program);
     let id = CorpusUtil.row_by_label(term, label);
     C.text :=
       Some(
@@ -1632,8 +1629,7 @@ let shift = (from: E.line, to_: E.line, code) => {
    made it */
 let module_lines = () => {
   let code = code_of("let a = 1 in\na");
-  let a =
-    CorpusUtil.row_by_label(Web.Workspace.fresh_term(code.program), "a");
+  let a = CorpusUtil.row_by_label(Web.Program.outline(code.program), "a");
   let line = E.New(a, Below);
   C.text := Some(E.at(line));
   let code =
@@ -1718,8 +1714,7 @@ a|js}),
 let value_lines = () => {
   let src = "let f = fun x ->\n  x\nin\nf";
   let code = code_of(src);
-  let f =
-    CorpusUtil.row_by_label(Web.Workspace.fresh_term(code.program), "f");
+  let f = CorpusUtil.row_by_label(Web.Program.outline(code.program), "f");
   let below = E.New(f, Below);
   C.text := Some(E.at(below));
   let code = run(Create(below, ""), code);
@@ -1751,7 +1746,7 @@ f|js}),
   C.flash := 0;
   let into_x =
     E.New(
-      CorpusUtil.row_by_label(Web.Workspace.fresh_term(code.program), "f"),
+      CorpusUtil.row_by_label(Web.Program.outline(code.program), "f"),
       First,
     );
   let same = shift(below, into_x, code);
@@ -1775,8 +1770,7 @@ f|js}),
    start makes it a value again: still the step that made it */
 let live_kinds = () => {
   let code = code_of("let a = 1 in\na");
-  let a =
-    CorpusUtil.row_by_label(Web.Workspace.fresh_term(code.program), "a");
+  let a = CorpusUtil.row_by_label(Web.Program.outline(code.program), "a");
   let line = E.New(a, Below);
   C.text := Some(E.at(line));
   let code =
@@ -1822,7 +1816,7 @@ a|js}),
    of its own, its name typed in the header; named, it stays pinned */
 let live_in_stack = () => {
   let code = code_of("let a = 1 in\nlet b = 2 in\na + b");
-  let term = Web.Workspace.fresh_term(code.program);
+  let term = Web.Program.outline(code.program);
   let a = CorpusUtil.row_by_label(term, "a");
   let code =
     Web.Workspace.realize(
@@ -1830,10 +1824,9 @@ let live_in_stack = () => {
         Web.Workspace.fresh_info_map(
           ~settings=Web.Globals.Model.init().settings,
           code.program,
-          term,
+          Web.Workspace.fresh_term(code.program),
         ),
-      ~term,
-      Web.SlideView.pin(~term, a, code.view),
+      Web.SlideView.pin(~outline=term, a, code.view),
       code,
     );
   let line = E.New(a, Below);
@@ -1964,8 +1957,7 @@ let undo_after_drop = () => {
 /* a new definition below a in [src], made, and its line */
 let live_line = (src: string) => {
   let code = code_of(src);
-  let a =
-    CorpusUtil.row_by_label(Web.Workspace.fresh_term(code.program), "a");
+  let a = CorpusUtil.row_by_label(Web.Program.outline(code.program), "a");
   let line = E.New(a, Below);
   C.text := Some(E.at(line));
   (line, run(Create(line, ""), code));
@@ -2190,7 +2182,7 @@ let keys_wait = () => {
    flashes */
 let copy_and_delete = () => {
   let code = code_of("let a = 1 in\nlet b = 2 in\na + b");
-  let term = Web.Workspace.fresh_term(code.program);
+  let term = Web.Program.outline(code.program);
   let row = CorpusUtil.row_by_label(term);
   let on = label =>
     C.text :=
@@ -2219,7 +2211,7 @@ let copy_and_delete = () => {
     switch (caret) {
     | Some((id, 1)) =>
       id != row("a")
-      && O.node_of(id, Web.Workspace.fresh_term(copied.program))
+      && O.node_of(id, Web.Program.outline(copied.program))
       |> Option.map((n: O.node) => n.o_label) == Some("a")
     | _ => false
     },
@@ -2412,7 +2404,7 @@ let new_test_opens_run = () => {
   let label = (code: Web.ScratchModel.Scratchpad.code) =>
     Option.map((n: O.node) => n.o_label, caret_on(code));
   let code = code_of("let a = 1 in\ntest a == 1 end;\ntest a > 0 end;\na");
-  let term = Web.Workspace.fresh_term(code.program);
+  let term = Web.Program.outline(code.program);
   let row = CorpusUtil.row_by_label(term);
   let tests = Option.get(O.run_of(row("1"), term));
   check(bool, "folded to start", true, folded(tests));
@@ -2427,14 +2419,14 @@ let new_test_opens_run = () => {
   );
   reset();
   let code = code_of("let a = 1 in\ntest a == 1 end;\na");
-  let term = Web.Workspace.fresh_term(code.program);
+  let term = Web.Program.outline(code.program);
   let lone = CorpusUtil.row_by_label(term, "1");
   C.text :=
     Some(
       E.at(Row(Option.get(O.label_path(lone, term)), Some(Item(lone)))),
     );
   let code' = run(DefOp(NewTestBelow, lone), code);
-  let term' = Web.Workspace.fresh_term(code'.program);
+  let term' = Web.Program.outline(code'.program);
   check(
     bool,
     "a lone test's new neighbour: their run opened",
@@ -2473,7 +2465,7 @@ let test_menus = () => {
   let tests =
     List.filter_map(
       (n: O.node) => n.o_kind == KTest ? n.o_id : None,
-      O.flatten(O.of_term(term)),
+      O.flatten(O.rows(term)),
     );
   let (first, last) = (List.nth(tests, 0), List.nth(tests, 1));
   let on_test = Web.OutlineSidebar.menu_rows(~on, On_item(first, KTest));
@@ -2526,7 +2518,7 @@ let test_menus = () => {
 let esc_leaves = () => {
   let src = "let a = 1 in\nlet b = a + 1 in\nb";
   let code = code_of(src);
-  let term = Web.Workspace.fresh_term(code.program);
+  let term = Web.Program.outline(code.program);
   let a = CorpusUtil.row_by_label(term, "a");
   let line = E.Row(Option.get(O.label_path(a, term)), Some(Item(a)));
   /* the key's save has left text mode already */
@@ -2556,8 +2548,7 @@ let esc_leaves = () => {
     bool,
     "the cursor on its row",
     true,
-    C.cursor^
-    == O.label_path(a, Web.Workspace.fresh_term(saved.model.program)),
+    C.cursor^ == O.label_path(a, Web.Program.outline(saved.model.program)),
   );
   let kept = esc("B");
   check(
@@ -2610,7 +2601,7 @@ let esc_leaves = () => {
     bool,
     "the cursor on its row",
     true,
-    C.cursor^ == O.label_path(d, Web.Workspace.fresh_term(code.program)),
+    C.cursor^ == O.label_path(d, Web.Program.outline(code.program)),
   );
   reset();
 };
@@ -2693,7 +2684,7 @@ let kind_undo = () => {
   let m = U.run(U.mk(~src="let m = {\n  let x = 1\n} in\nm.x", ()), Refresh);
   let before = program(m);
   let row = U.row(m, "m");
-  let term = Web.Program.statics(U.program(m)).term;
+  let term = Web.Program.outline(U.program(m));
   C.text := None;
   let m =
     U.run(

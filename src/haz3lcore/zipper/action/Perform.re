@@ -256,11 +256,7 @@ let rec go =
       pasted
       |> maybe_reassoc_thorough
       |> LocalReformat.go(~before)
-      |> LocalReformat.go_region(~before_pieces)
-      /* re-indenting the pasted lines rebuilds every tile: what the paste
-         didn't change keeps its objects, which the parse, measure and
-         analysis caches key on, for the paste and its undo */
-      |> Zipper.restore_identity(~old=z);
+      |> LocalReformat.go_region(~before_pieces);
     switch (Parser.try_segment_paste(clipboard, z, ~root)) {
     | Some(z) => Ok(finish(z))
     | None =>
@@ -673,29 +669,7 @@ let rec go =
     )
     |> return(Cant_destruct)
   | Structural(a) =>
-    /* the editor's statics stand in for the tool's initial pass when they
-       describe this very program (CachedStatics.for_zipper); the new
-       program's statics are computed once and offered to the editor */
-    let run =
-      switch (CachedStatics.for_zipper(~settings, z, statics)) {
-      | Some(initial)
-          when initial.info_map != Language.Id.Map.empty && root == Sort.Exp =>
-        CompositionGo.Public.go_with_editor_statics(~settings, ~initial)
-      | _ => CompositionGo.Public.go(~root)
-      };
-    /* agent edits funnel pasted code through introduce with indentation
-       stripped; re-indent new lines like user Paste */
-    let before = LocalReformat.snapshot(~enabled=settings.auto_reindent, z);
-    let before_pieces =
-      LocalReformat.snapshot_pieces(~enabled=settings.auto_reindent, z);
-    switch (run(~syntax, ~z, ~a)) {
-    | Ok(z) =>
-      Ok(
-        z
-        |> LocalReformat.go(~before)
-        |> LocalReformat.go_region(~before_pieces),
-      )
-    | Error(_) as e => e
-    };
+    /* the editing kernel's: formatting is local, so no re-indent after */
+    CompositionGo.go(~settings, ~root, ~statics, z, a)
   };
 };

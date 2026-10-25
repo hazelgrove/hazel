@@ -79,7 +79,7 @@ let program_value_opens_tail = () => {
     let trail =
       List.find_map(
         (n: OutlineTree.node) => n.o_kind == KTrail ? n.o_id : None,
-        OutlineTree.of_term(Program.statics(Cells.program(m)).term),
+        OutlineTree.rows(Program.outline(Cells.program(m))),
       )
       |> Option.get;
     Divided.cell(trail, Cells.divided(m)) != None;

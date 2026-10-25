@@ -9,14 +9,13 @@ open CorpusUtil;
 module Focus = Web.ScratchMode.Focus;
 
 let statics_of = (seg: Segment.t) => {
-  let term = MakeTerm.go(seg).term;
   let (info_map, _) =
     Statics.mk(
       CoreSettings.on,
       Builtins.ctx_init(Some(Operators.default_mode)),
-      term,
+      MakeTerm.go(seg).term,
     );
-  (term, info_map);
+  (CorpusUtil.outline_of(seg), info_map);
 };
 
 /* focus [label]: header/body text, [bound] in the frozen ctx, exact splice */
@@ -31,8 +30,8 @@ let check_focus =
     )
     : unit => {
   let master = seg_of(src);
-  let (term, info_map) = statics_of(master);
-  let fid = row_by_label(term, label);
+  let (outline, info_map) = statics_of(master);
+  let fid = row_by_label(outline, label);
   switch (Focus.mk_entry(~root=Exp, ~info_map, fid, master)) {
   | None => failwith("mk_entry failed for " ++ label)
   | Some(e) =>
@@ -70,8 +69,8 @@ let check_focus =
 /* headerless items (tests, trailing bodies): symbol chip, body, splice */
 let check_headless = (~src, ~label, ~sym, ~body, ()): unit => {
   let master = seg_of(src);
-  let (term, info_map) = statics_of(master);
-  let fid = row_by_label(term, label);
+  let (outline, info_map) = statics_of(master);
+  let fid = row_by_label(outline, label);
   switch (Focus.mk_entry(~root=Exp, ~info_map, fid, master)) {
   | None => failwith("mk_entry failed for " ++ label)
   | Some(e) =>
@@ -92,7 +91,7 @@ let check_headless = (~src, ~label, ~sym, ~body, ()): unit => {
       bool,
       label ++ ": outline sym",
       true,
-      Web.SlideView.sym_of(fid, term) == Some(sym),
+      Web.SlideView.sym_of(fid, outline) == Some(sym),
     );
   };
 };
@@ -132,13 +131,13 @@ let use_boundary = () => {
   let src = "use Nat in\nlet a = 1 in\na + 2";
   check_headless(~src, ~label="", ~sym={js|⇒|js}, ~body="a + 2", ());
   let master = seg_of(src);
-  let (term, info_map) = statics_of(master);
+  let (outline, info_map) = statics_of(master);
   let mode = label =>
     Option.bind(
       Focus.mk_entry(
         ~root=Exp,
         ~info_map,
-        row_by_label(term, label),
+        row_by_label(outline, label),
         master,
       ),
       (e: Web.ScratchCell.t) =>
@@ -150,7 +149,7 @@ let use_boundary = () => {
     true,
     mode("") == Some(Nat) && mode("a") == Some(Nat),
   );
-  let use = row_by_label(term, "use Nat");
+  let use = row_by_label(outline, "use Nat");
   check(
     bool,
     "its row opens no cell",
@@ -170,9 +169,14 @@ let use_boundary = () => {
    counts its tests, and a slide owns only its own keys */
 let names_and_keys = () => {
   let master = seg_of("let add(x: Int, y: Int): Int = x + y in add(1, 2)");
-  let (term, info_map) = statics_of(master);
+  let (outline, info_map) = statics_of(master);
   switch (
-    Focus.mk_entry(~root=Exp, ~info_map, row_by_label(term, "add"), master)
+    Focus.mk_entry(
+      ~root=Exp,
+      ~info_map,
+      row_by_label(outline, "add"),
+      master,
+    )
   ) {
   | None => fail("no cell for add")
   | Some(e) =>
@@ -230,7 +234,7 @@ let names_and_keys = () => {
 let header_symbols = () => {
   let survey = (~root, name, src): int => {
     let seg = seg_of(~root, src);
-    let term = MakeTerm.Incr.term_of_root(~root, seg);
+    let outline = CorpusUtil.outline_of(~root, seg);
     let exceptions = ref(0);
     /* [in_module]: these rows are a module body's items */
     let rec walk = (~in_module, ns: list(Web.OutlineTree.node)) =>
@@ -240,7 +244,7 @@ let header_symbols = () => {
           | KTests => walk(~in_module, n.o_children)
           | kind =>
             switch (
-              Option.bind(n.o_id, id => Web.SlideView.sym_of(id, term)),
+              Option.bind(n.o_id, id => Web.SlideView.sym_of(id, outline)),
               Option.bind(n.o_id, id =>
                 Option.map(snd, Focus.headless_content_deep(~root, id, seg))
               ),
@@ -259,7 +263,7 @@ let header_symbols = () => {
           },
         ns,
       );
-    walk(~in_module=root == Sort.Mod, Web.OutlineTree.of_term(term));
+    walk(~in_module=root == Sort.Mod, Web.OutlineTree.rows(outline));
     exceptions^;
   };
   let module_last = "module M = {\n  let a = 1;\n  a + 1\n} in\nM.a";
@@ -293,12 +297,12 @@ let header_symbols = () => {
   );
   /* a pin opens the module's last item under the outline's symbol */
   let seg = seg_of(module_last);
-  let (term, info_map) = statics_of(seg);
+  let (outline, info_map) = statics_of(seg);
   let last =
     switch (
       List.find_map(
         (n: Web.OutlineTree.node) => n.o_kind == KStmt ? n.o_id : None,
-        Web.OutlineTree.flatten(Web.OutlineTree.of_term(term)),
+        Web.OutlineTree.flatten(Web.OutlineTree.rows(outline)),
       )
     ) {
     | Some(id) => id
@@ -307,8 +311,8 @@ let header_symbols = () => {
   switch (
     Web.SlideView.realize(
       ~info_map,
-      ~term,
-      Web.SlideView.pin(~term, last, Web.SlideView.init),
+      ~outline,
+      Web.SlideView.pin(~outline, last, Web.SlideView.init),
       Whole(Focus.cell_of_seg(seg)),
     )
   ) {
@@ -370,12 +374,12 @@ let tests = (
       `Quick,
       () => {
         let master = seg_of("let café = 1 in café");
-        let (term, info_map) = statics_of(master);
+        let (outline, info_map) = statics_of(master);
         switch (
           Focus.mk_entry(
             ~root=Exp,
             ~info_map,
-            row_by_label(term, "café"),
+            row_by_label(outline, "café"),
             master,
           )
         ) {

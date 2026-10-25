@@ -16,14 +16,15 @@ let inside = (text, id) => R.InsertInside(id, text);
 let edit =
     (~root=Sort.Exp, ~closed=false, e: Id.t => R.t, label, seg: Segment.t)
     : option((Segment.t, option(Id.t))) => {
-  let term = MakeTerm.Incr.term_of_root(~root, seg);
+  let outline = CorpusUtil.outline_of(~root, seg);
   let ctx: R.ctx = {
     mod_root: root == Sort.Mod,
-    term,
+    outline,
     info_map: lazy(Language.Statics.Map.empty),
-    is_open: id => !closed && Web.OutlineTree.expanded(~folds=[], id, term),
+    is_open: id =>
+      !closed && Web.OutlineTree.expanded(~folds=[], id, outline),
   };
-  Result.to_option(R.edit(ctx, e(row_by_label(term, label)), seg));
+  Result.to_option(R.edit(ctx, e(row_by_label(outline, label)), seg));
 };
 
 let ok = (desc, result: option('a)): 'a =>
@@ -67,9 +68,7 @@ let outline = (~root=Sort.Exp, src: string): list(string) => {
       ns,
     );
   labels(
-    Web.OutlineTree.of_term(
-      MakeTerm.Incr.term_of_root(~root, seg_of(~root, src)),
-    ),
+    Web.OutlineTree.rows(CorpusUtil.outline_of(~root, seg_of(~root, src))),
   );
 };
 
@@ -204,7 +203,7 @@ M.a|js},
       bool,
       "the new member is the row it lands on",
       true,
-      target == Some(row_by_label(MakeTerm.Incr.term_of(seg), "c")),
+      target == Some(row_by_label(CorpusUtil.outline_of(seg), "c")),
     )
   | None => fail("c refused")
   };
@@ -1006,7 +1005,7 @@ let unshown_module = () => {
   let u = "let a = 1 in\nlet _ = {\n  let x = 2\n} in\nlet b = 4 in\nb";
   check(list(string), "no row", ["a", "b"], outline(u));
   let seg = seg_of(u);
-  let term = MakeTerm.Incr.term_of(seg);
+  let outline = CorpusUtil.outline_of(seg);
   /* each `let`'s head, by its pattern */
   let head = name =>
     switch (
@@ -1029,8 +1028,8 @@ let unshown_module = () => {
     "expanded: a, not _",
     (true, false),
     (
-      Web.OutlineTree.expanded(~folds=[], head("a"), term),
-      Web.OutlineTree.expanded(~folds=[], head("_"), term),
+      Web.OutlineTree.expanded(~folds=[], head("a"), outline),
+      Web.OutlineTree.expanded(~folds=[], head("_"), outline),
     ),
   );
   cases([
@@ -1186,7 +1185,7 @@ M.a|js},
       switch (edit(op(NewTestBelow), "2", seg_of(src))) {
       | Some((seg, Some(target))) =>
         let rows =
-          Web.OutlineTree.(flatten(of_term(MakeTerm.Incr.term_of(seg))));
+          Web.OutlineTree.(flatten(rows(CorpusUtil.outline_of(seg))));
         let run =
           switch (
             List.find_opt(
@@ -1320,15 +1319,15 @@ let nesting = () => {
   );
   /* a statement: its row is its `;` */
   let stmt = seg_of("module M = {\n  let y = 3\n} in\n1 + 1;\nM.y");
-  let term = MakeTerm.Incr.term_of(stmt);
+  let outline = CorpusUtil.outline_of(stmt);
   let semi =
     List.find_map(
       (n: Web.OutlineTree.node) => n.o_kind == KStmt ? n.o_id : None,
-      Web.OutlineTree.(flatten(of_term(term))),
+      Web.OutlineTree.(flatten(rows(outline))),
     );
   let ctx: R.ctx = {
     mod_root: false,
-    term,
+    outline,
     info_map: lazy(Language.Statics.Map.empty),
     is_open: _ => true,
   };
@@ -1372,7 +1371,7 @@ let nesting = () => {
       bool,
       "it lands on b",
       true,
-      target == Some(row_by_label(MakeTerm.Incr.term_of(seg), "b")),
+      target == Some(row_by_label(CorpusUtil.outline_of(seg), "b")),
     )
   | None => fail("b refused")
   };
@@ -1593,6 +1592,55 @@ let offsets = () => {
   );
 };
 
+/* a statement opening a let chain, moved after an earlier member's edit
+   shifted it: the chain's level is reused at its new place */
+let shifted_chain = () => {
+  let root = Sort.Mod;
+  let seg =
+    seg_of(
+      ~root,
+      "let a = 1;\nlet x = 1 in\nlet y = x in\ny;\nlet b = 2;\nb",
+    );
+  let stmt = (seg: Segment.t) =>
+    Web.OutlineTree.(flatten(rows(CorpusUtil.outline_of(~root, seg))))
+    |> List.find_map((n: Web.OutlineTree.node) =>
+         n.o_kind == KStmt ? n.o_id : None
+       )
+    |> Option.get;
+  let move = seg => {
+    let outline = CorpusUtil.outline_of(~root, seg);
+    let ctx: R.ctx = {
+      mod_root: true,
+      outline,
+      info_map: lazy(Language.Statics.Map.empty),
+      is_open: _ => true,
+    };
+    Option.map(
+      ((s, _)) => text_of(s),
+      Result.to_option(R.edit(ctx, op(MoveDown, stmt(seg)), seg)),
+    );
+  };
+  /* the outline finds the row before the edit */
+  ignore(Web.ScratchFocus.find_path(~root, stmt(seg), seg));
+  /* a space typed into `let a = 1;`, the rest of the program kept */
+  let space =
+    switch (List.find(Piece.is_space, seg)) {
+    | Secondary(w) =>
+      Piece.Secondary({
+        ...w,
+        id: Id.mk(),
+      })
+    | _ => fail("no space")
+    };
+  let typed = [List.hd(seg), space, ...List.tl(seg)];
+  check(
+    option(string),
+    "as on a program read afresh",
+    move(seg_of(~root, text_of(typed))),
+    move(typed),
+  );
+};
+
 /* a `;` statement doesn't go into a member's body, where its `;` would
    end the member: Tab refuses it, and no new test goes there. A let-in
    definition's body takes one */
@@ -1676,10 +1724,10 @@ let set_apart = () => {
 /* ⌘⌫ on a row the outline refuses to delete leaves its cursor there */
 let refused_delete_cursor = (): unit => {
   let seg = seg_of("let f = fun x ->\n  let y = x + 1 in\n  y * 2\nin\nf(1)");
-  let term = MakeTerm.Incr.term_of(seg);
-  let rows = Web.OutlineTree.flatten(Web.OutlineTree.of_term(term));
+  let outline = CorpusUtil.outline_of(seg);
+  let rows = Web.OutlineTree.flatten(Web.OutlineTree.rows(outline));
   let path = (n: Web.OutlineTree.node) =>
-    Option.bind(n.o_id, id => Web.OutlineTree.label_path(id, term));
+    Option.bind(n.o_id, id => Web.OutlineTree.label_path(id, outline));
   /* f's ⇒ row; the program's own comes after it */
   let result =
     List.find((n: Web.OutlineTree.node) => n.o_kind == KTrail, rows);
@@ -1750,6 +1798,7 @@ let tests = (
     test_case("ops and their inverses keep blank lines", `Quick, gaps),
     test_case("a doc comment goes in and out whole", `Quick, doc_comments),
     test_case("an item keeps its indentation's offset", `Quick, offsets),
+    test_case("a let chain moved by an earlier edit", `Quick, shifted_chain),
     test_case("no statement into a member's body", `Quick, member_statements),
     test_case("comments set apart stay on their side", `Quick, set_apart),
   ],

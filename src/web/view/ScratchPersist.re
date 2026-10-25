@@ -196,18 +196,19 @@ let stage_side = (prefix: string, name: string): unit => {
 };
 
 /* the saved view against the loaded program's outline */
-let resolve_view = (saved: side, term: Language.Exp.t): SlideView.t => {
+let resolve_view = (saved: side, outline: OutlineTree.t): SlideView.t => {
   zoom:
     switch (
-      Option.bind(saved.zoom, path => OutlineTree.resolve_path(path, term))
+      Option.bind(saved.zoom, path => OutlineTree.resolve_path(path, outline))
     ) {
-    | Some(m) => OutlineTree.trail_of(m, term) |> Option.value(~default=[])
+    | Some(m) =>
+      OutlineTree.trail_of(m, outline) |> Option.value(~default=[])
     | None => []
     },
   pins:
     List.filter_map(
       ((path, run)) =>
-        OutlineTree.resolve_path(path, term)
+        OutlineTree.resolve_path(path, outline)
         |> Option.map(id =>
              SlideView.{
                p_id: id,
@@ -437,10 +438,10 @@ let save_current' = (prefix: string, model: Model.t): unit => {
       | Some(prev) => stamp_equal(prev, stamp)
       | None => false
       };
-    let term = Program.statics(program).term;
+    let outline = Program.outline(program);
     /* a world slide's module, as the outline paths it */
     let root =
-      Option.bind(world, slide => OutlineTree.label_path(slide, term));
+      Option.bind(world, slide => OutlineTree.label_path(slide, outline));
     Option.iter(Hashtbl.replace(world_roots, ck), root);
     let own = path =>
       switch (root) {
@@ -571,13 +572,13 @@ let save_current' = (prefix: string, model: Model.t): unit => {
         pins:
           List.filter_map(
             (p: SlideView.pin) =>
-              Option.bind(OutlineTree.label_path(p.p_id, term), own)
+              Option.bind(OutlineTree.label_path(p.p_id, outline), own)
               |> Option.map(path => (path, p.p_run)),
             view.pins,
           ),
         zoom:
           Option.bind(SlideView.zoom_root(view), m =>
-            Option.bind(OutlineTree.label_path(m, term), own)
+            Option.bind(OutlineTree.label_path(m, outline), own)
           )
           /* zoomed to the slide's module: its whole */
           |> (

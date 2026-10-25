@@ -1223,22 +1223,28 @@ and calc_plain_item =
     | None => ctx_in /* trailing exp: no hole in the map */
     };
   /* read the DEF's co_ctx: the item node may lack an InfoExp (e.g.
-     ModuleExp), and a silent [] would make items falsely clean */
+     ModuleExp), and a silent [] would make items falsely clean. a
+     function definition's is its desugared Fun's, which its parameters
+     bind */
   let free = {
     let src =
       switch (node.term) {
-      | Let(_, d, _)
-      | ModuleExp(_, d, _) => Some(d)
+      | Let(p, d, _) =>
+        switch (FunctionSugar.detect(p)) {
+        | Some((_, args, _)) => Some(FunctionSugar.fun_id(args))
+        | None => Some(Exp.rep_id(d))
+        }
+      | ModuleExp(_, d, _) => Some(Exp.rep_id(d))
       | Seq(e, _)
-      | Filter(Filter({pat: e, _}), _) => Some(e)
+      | Filter(Filter({pat: e, _}), _) => Some(Exp.rep_id(e))
       | TyAlias(_)
       | Filter(Residue(_), _) => None
-      | _ => Some(node)
+      | _ => Some(Exp.rep_id(node))
       };
     switch (src) {
     | None => []
     | Some(d) =>
-      switch (Statics.Map.lookup_exp(Exp.rep_id(d), map)) {
+      switch (Statics.Map.lookup_exp(d, map)) {
       | Some(info) => CoCtx.names(info.co_ctx)
       | None =>
         /* refuse to fail silent: treat as depending on everything */

@@ -26,6 +26,29 @@ let result = (p: t): EvalResult.Model.t =>
   | Divided(d) => Divided.result(d)
   };
 
+/* its outline: the entries the sidebar and the agent read, of the program
+   as semantics reads it, kept while the program's pieces are */
+let documents: Slot.t(Divided.t, Segment.t) = Slot.mk();
+let outline = (p: t): Outline.t =>
+  switch (p) {
+  | Whole(e) =>
+    let z = e.editor.editor.state.zipper;
+    Outline.of_source(
+      ~root=root(p),
+      switch (CachedSyntax.semantic_source(z, e.editor.editor.syntax)) {
+      | Some(seg) => seg
+      | None => MakeTerm.semantic_source(z)
+      },
+    );
+  | Divided(d) =>
+    Outline.of_source(
+      ~root=root(p),
+      Slot.get(~same=Divided.same_content, documents, d, () =>
+        Divided.document(d)
+      ),
+    )
+  };
+
 let statics = (p: t): CachedStatics.t =>
   switch (p) {
   | Whole(e) => e.editor.statics
@@ -171,7 +194,7 @@ let tail_target = (p: t): option(Id.t) =>
 
 /* the program's ⇒ row: its last expression, which the ⇓ toggle probes */
 let tail_row = (p: t): option(Id.t) =>
-  OutlineTree.of_term(statics(p).term)
+  OutlineTree.rows(outline(p))
   |> List.find_opt((n: OutlineTree.node) => n.o_kind == KTrail)
   |> Option.map((n: OutlineTree.node) => n.o_id)
   |> Option.join;

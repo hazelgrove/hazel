@@ -75,7 +75,10 @@ let stmt_rule = "no statement into a member's body";
    with no comment set apart between them: it couldn't come back to its
    side of the comment */
 let apart_rule = "nothing goes in across a comment set apart";
-let item_rules = [trivia_rule, stmt_rule, apart_rule];
+/* and a move between member and let-chain forms converts the item in
+   place, keeping its ids, where it went through text */
+let form_rule = "a move between forms keeps ids";
+let item_rules = [trivia_rule, stmt_rule, apart_rule, form_rule];
 
 type tally = {
   mutable programs: int,
@@ -257,13 +260,14 @@ let check_program =
     ) => {
   t.programs = t.programs + 1;
   let term = MakeTerm.Incr.term_of_root(~root, seg);
+  let outline = CorpusUtil.outline_of(~root, seg);
   let info_map = DefStatics.calc(~settings=CoreSettings.on, term).merged;
   let before = Id.Map.of_list(List.map(id => (id, ()), ids(seg)));
   let mod_root = root == Sort.Mod;
   let rows =
     List.filteri(
       (i, _) => i mod sample == 0,
-      List.filter_map((n: O.node) => n.o_id, O.flatten(O.of_term(term))),
+      List.filter_map((n: O.node) => n.o_id, O.flatten(O.rows(outline))),
     );
   let all = pieces(seg);
   let tiles =
@@ -323,7 +327,7 @@ let check_program =
     };
   let same = (~at=?, ~id=?, ~design=?, what, a, b, key) =>
     same(t, ~name, ~why=why(id), ~design?, ~at?, what, a, b, key);
-  let row_ids = O.row_ids(term);
+  let row_ids = O.row_ids(outline);
   same(
     "refusals",
     () => F0.refusals(~want=id => Id.Map.mem(id, row_ids), seg),
@@ -501,15 +505,16 @@ let check_program =
   if (edits) {
     let ctx: IE.ctx = {
       mod_root,
-      term,
+      outline,
       info_map: lazy(info_map),
-      is_open: id => O.expanded(~folds=[], id, term),
+      is_open: id => O.expanded(~folds=[], id, outline),
     };
     let made = r =>
       switch (r) {
       | Ok((s, row)) =>
         made_key(~before, s) ++ " -> " ++ row_key(~before, row)
-      | Error(why) => "refused: " ++ why
+      /* the kernel says why in its own words */
+      | Error(_) => "refused"
       };
     let made_opt = r =>
       switch (r) {
@@ -522,7 +527,7 @@ let check_program =
       && row_key(~before, ra) == row_key(~before, rb)
         ? Some(trivia_rule) : None;
     let stmt_row = id =>
-      switch (O.kind_of(id, term)) {
+      switch (O.kind_of(id, outline)) {
       | Some(KTest | KStmt) => true
       | _ => false
       };
@@ -535,15 +540,38 @@ let check_program =
     /* a comment set apart lies between row [id]'s item and the item
        above it, or below */
     let apart = (~up, id) =>
-      switch (IE.locate(~mod_root, id, seg)) {
+      switch (EntryLayout.locate(~mod_root, id, seg)) {
       | Some((b, j, _)) =>
         let k = up ? j : j + 1;
-        k > 0 && k < Array.length(b.sl) && !IE.under_item(b, k);
+        k > 0 && k < Array.length(b.sl) && !EntryLayout.under_item(b, k);
       | None => false
       };
+    /* the same text, whitespace aside, [b] keeping the ids [a] keeps and
+       more, landing on the same row or on one [a] made afresh */
+    let kept = ((s, row)) => {
+      let key = solid_key(~before, s);
+      let at = String.index(key, '@');
+      (
+        String.sub(key, 0, at),
+        String.split_on_char(
+          ',',
+          String.sub(key, at + 1, String.length(key) - at - 1),
+        ),
+        row_key(~before, row),
+      );
+    };
+    let converted = (a, b) => {
+      let (ta, ia, ra) = kept(a);
+      let (tb, ib, rb) = kept(b);
+      ta == tb
+      && List.for_all(id => List.mem(id, ib), ia)
+      && (ra == rb || ra == "fresh")
+        ? Some(form_rule) : None;
+    };
     let design = (~op=?, id, a, b) =>
       switch (op, a, b) {
       | (_, Ok(a), Ok(b)) when trivia(a, b) != None => trivia(a, b)
+      | (_, Ok(a), Ok(b)) when converted(a, b) != None => converted(a, b)
       | (Some(Web.OutlineEdit.Indent), Ok(_), Error(_)) when stmt_row(id) =>
         Some(stmt_rule)
       | (Some(Web.OutlineEdit.Indent | MoveUp), _, _)
@@ -898,10 +926,10 @@ let mega_4k = () =>
 let by_design = () => {
   let op = (~root=Sort.Exp, o, src, pick) => {
     let seg = CorpusUtil.seg_of(~root, src);
-    let term = MakeTerm.Incr.term_of_root(~root, seg);
+    let outline = CorpusUtil.outline_of(~root, seg);
     Option.map(
       ((s, _)) => text_of(s),
-      IE.apply(~mod_root=root == Sort.Mod, o, pick(term, seg), seg),
+      IE.apply(~mod_root=root == Sort.Mod, o, pick(outline, seg), seg),
     );
   };
   let row = (label, term, _) => CorpusUtil.row_by_label(term, label);
@@ -991,10 +1019,10 @@ let by_design = () => {
   );
   /* Alt-arrows too */
   let seg = CorpusUtil.seg_of(unfinished_before_others);
-  let term = MakeTerm.Incr.term_of_root(~root=Exp, seg);
+  let outline = CorpusUtil.outline_of(~root=Exp, seg);
   let ctx: IE.ctx = {
     mod_root: false,
-    term,
+    outline,
     info_map: lazy(Statics.Map.empty),
     is_open: _ => true,
   };

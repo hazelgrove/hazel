@@ -64,7 +64,7 @@ let max_empty_retries = 2;
 
 /** True iff [name] is allowed in [mode]. Edit allows everything; Plan
     blocks edit tools; Converse blocks edit + workbench + overlay tools
-    (only ViewTools like expand/collapse remain). The name lists derive
+    (only the view tools open and close remain). The name lists derive
     from [[AgentToolUtils.registry]]. */
 let tool_allowed_in_mode =
     (mode: AgentGlobals.Model.session_mode, name: string): bool =>
@@ -88,7 +88,7 @@ let enabled_tools =
         && tool_allowed_in_mode(mode, name)
       | None => true
       },
-    CompositionUtils.Public.tools,
+    CompositionUtils.tools,
   );
 // Exponential backoff
 let backoff_ms = (attempt: int): float => 1000.0 *. 2.0 ** float(attempt);
@@ -125,6 +125,43 @@ let request_chat_name =
     };
   };
   OpenRouter.Utils.start_chat(~key=api_key, ~payload, ~handler);
+};
+
+/* the chat's context as the settings and the editor's run have it */
+let refresh_context =
+    (
+      settings: Settings.t,
+      editor: CellEditor.Model.t,
+      model: Model.t,
+      chat_id: Id.t,
+    )
+    : Model.t =>
+  Utils.update_context(
+    ~session_mode=settings.agent_globals.session_mode,
+    ~view=AgentGlobals.view_settings(settings.agent_globals),
+    ~test_results=?EvalResult.Model.test_results(editor.result),
+    ~value=?EvalResult.Model.get_value(editor.result),
+    model,
+    editor.editor,
+    chat_id,
+  );
+
+/* the main request's messages, the request recorded on its chat
+   (SentView): what the payload carries is what the record holds */
+let main_request =
+    (chat_id: Id.t, model: Model.t)
+    : (Model.t, list(OpenRouter.Message.Model.t)) => {
+  let chat =
+    Chat.Utils.record_sent(
+      ChatSystem.Utils.find_chat(chat_id, model.chat_system),
+    );
+  (
+    {
+      ...model,
+      chat_system: ChatSystem.Utils.update_chat(chat, model.chat_system),
+    },
+    Chat.Utils.api_messages_for_openrouter(chat),
+  );
 };
 
 let send_llm_request =
@@ -265,15 +302,13 @@ let dispatch_send =
     )
   | (Some(api_key), Some(llm_id)) =>
     let main_flight_seq = model.main_llm_seq + 1;
+    let (model, messages) = main_request(chat_id, model);
     send_llm_request(
       ~api_key,
       ~payload=
         OpenRouter.Payload.Utils.mk_default(
           ~model_id=llm_id,
-          ~messages=
-            Chat.Utils.api_messages_for_openrouter(
-              ChatSystem.Utils.find_chat(chat_id, model.chat_system),
-            ),
+          ~messages,
           ~session_id=Some(Id.to_string(chat_id)),
           ~tools=enabled_tools(~mode=session_mode, model.prompting),
           ~reasoning=?
@@ -409,15 +444,19 @@ let handle_dispatch_send =
     let model = {
       ...model,
       pending_dispatch_send: None,
+      chat_system:
+        eval_settled(editor.result)
+          ? AgentToolExec.Tests.report(
+              ~chat_id,
+              EvalResult.Model.test_results(editor.result),
+              model.chat_system,
+            )
+          : {
+            AgentToolExec.Tests.pending := None;
+            model.chat_system;
+          },
     };
-    let model =
-      Utils.update_context(
-        ~session_mode=settings.agent_globals.session_mode,
-        ~test_results=?EvalResult.Model.test_results(editor.result),
-        model,
-        editor.editor,
-        chat_id,
-      );
+    let model = refresh_context(settings, editor, model, chat_id);
     (
       dispatch_send(
         ~api_key=settings.agent_globals.api_key,
@@ -663,14 +702,7 @@ let do_retry_api_send =
       schedule_action: Action.t => unit,
     )
     : (Model.t, Updated.t(CellEditor.Model.t)) => {
-  let model =
-    Utils.update_context(
-      ~session_mode=settings.agent_globals.session_mode,
-      ~test_results=?EvalResult.Model.test_results(editor.result),
-      model,
-      editor.editor,
-      chat_id,
-    );
+  let model = refresh_context(settings, editor, model, chat_id);
   if (Option.is_some(model.pending_ignore_main_reply_seq)) {
     (
       {
@@ -682,21 +714,18 @@ let do_retry_api_send =
     );
   } else {
     let main_flight_seq = model.main_llm_seq + 1;
-    let chat_system = model.chat_system;
     switch (
       settings.agent_globals.api_key,
       AgentGlobals.get_active_llm_id(settings.agent_globals),
     ) {
     | (Some(api_key), Some(llm_id)) =>
+      let (model, messages) = main_request(chat_id, model);
       send_llm_request(
         ~api_key,
         ~payload=
           OpenRouter.Payload.Utils.mk_default(
             ~model_id=llm_id,
-            ~messages=
-              Chat.Utils.api_messages_for_openrouter(
-                ChatSystem.Utils.find_chat(chat_id, chat_system),
-              ),
+            ~messages,
             ~session_id=Some(Id.to_string(chat_id)),
             ~tools=
               enabled_tools(
@@ -781,15 +810,13 @@ let retry_empty_response =
     ) {
     | (Some(api_key), Some(llm_id)) =>
       let main_flight_seq = model.main_llm_seq + 1;
+      let (model, messages) = main_request(chat_id, model);
       send_llm_request(
         ~api_key,
         ~payload=
           OpenRouter.Payload.Utils.mk_default(
             ~model_id=llm_id,
-            ~messages=
-              Chat.Utils.api_messages_for_openrouter(
-                ChatSystem.Utils.find_chat(chat_id, model.chat_system),
-              ),
+            ~messages,
             ~session_id=Some(Id.to_string(chat_id)),
             ~tools=
               enabled_tools(
