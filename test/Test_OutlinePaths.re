@@ -305,6 +305,14 @@ let successors = () => {
     };
   | _ => fail("expected module M")
   };
+  let e = term_of_text("let a = 1 in\ntest a == 1 end;\nlet b = 2 in\nb");
+  check(
+    bool,
+    "a run's only test: the row after its run",
+    true,
+    OutlineTree.successor(CorpusUtil.row_by_label(e, "1"), e)
+    == Some(CorpusUtil.row_by_label(e, "b")),
+  );
 };
 
 /* flipping Outline Arrows redraws the outline, all else unchanged */
@@ -668,7 +676,7 @@ let start_text = () => {
   check(bool, "F2 on a test", true, snd(press("F2", "1")) == at("1", 0));
 };
 
-/* runs of tests: in a module, at the top level, and a lone test */
+/* runs of tests: in a module, at the top level, and a lone test's */
 let runs = "let a = 1 in\nmodule M = {\n  let x = 1;\n  test x == 1 end;\n  test x == 2 end\n} in\ntest a == 1 end;\ntest a == 2 end;\nlet b = 2 in\ntest b == 2 end;\nb";
 
 /* the rows a slide with [folds] shows, by label (the ⇒ has none) */
@@ -684,22 +692,22 @@ let default_fold = () => {
   let row = CorpusUtil.row_by_label(e);
   check(
     list(string),
-    "runs folded, the rest open",
-    ["a", "M", "x", "tests", "tests", "b", "5", ""],
+    "runs folded, a lone test's too, the rest open",
+    ["a", "M", "x", "tests", "tests", "b", "tests", ""],
     shown(~folds=[], e),
   );
   let top = Option.get(OutlineTree.run_of(row("3"), e));
   check(
     list(string),
     "a run opened by hand",
-    ["a", "M", "x", "tests", "tests", "3", "4", "b", "5", ""],
+    ["a", "M", "x", "tests", "tests", "3", "4", "b", "tests", ""],
     shown(~folds=[(top, false)], e),
   );
   let m = Option.get(OutlineTree.label_path(row("M"), e));
   check(
     list(string),
     "a module folded by hand",
-    ["a", "M", "tests", "b", "5", ""],
+    ["a", "M", "tests", "b", "tests", ""],
     shown(~folds=[(m, true)], e),
   );
 };
@@ -759,7 +767,7 @@ let opened_run_kept = () => {
   check(
     list(string),
     "a test added in M's run: this one still open",
-    ["a", "M", "x", "tests", "tests", "4", "5", "b", "6", ""],
+    ["a", "M", "x", "tests", "tests", "4", "5", "b", "tests", ""],
     shown(~folds=ScratchPersist.folds(prefix, name), added),
   );
   flip();
@@ -863,6 +871,50 @@ let hinted_run = () => {
   };
 };
 
+/* a hinted test's row goes by its hint, an unhinted one by its number
+   among all the tests; in a module-rooted program's result too */
+let hinted_names = () => {
+  let labels = (~root=Sort.Exp, src) =>
+    List.map(
+      (n: OutlineTree.node) => n.o_label,
+      OutlineTree.flatten(
+        OutlineTree.rows(CorpusUtil.outline_of_text(~root, src)),
+      ),
+    );
+  check(
+    list(string),
+    "by hint, else by number",
+    ["f", "tests", "one", "2", "3", "", "tests", "4", ""],
+    labels(
+      "let f = fun x -> x + 1 in\n"
+      ++ "hint \"one\" test f(1) == 2 end;\n"
+      ++ "test f(2) == 3 end;\n"
+      ++ "hint \"\" test f(3) == 4 end;\n"
+      ++ "f(0);\n"
+      ++ "test f(4) == 5 end;\n"
+      ++ "f(0)",
+    ),
+  );
+  check(
+    list(string),
+    "a module-rooted program's result",
+    ["x", "tests", "x is one"],
+    labels(~root=Mod, "let x = 1;\nhint \"x is one\" test x == 1 end"),
+  );
+  check(
+    string,
+    "a long hint cut short",
+    {js|counts every element of…|js},
+    Web.OutlineSidebar.clipped("counts every element of a long list"),
+  );
+  check(
+    string,
+    "a short one whole",
+    "empty list",
+    Web.OutlineSidebar.clipped("empty list"),
+  );
+};
+
 /* the editor-caret mark goes where its row shows: a folded run's label,
    by its first test, as a folded module's row takes its members' */
 let mark_in_runs = () => {
@@ -893,8 +945,8 @@ let mark_in_runs = () => {
   );
   check(
     key,
-    "a lone test: its own row",
-    E.Item(row("5")),
+    "a lone test: its run's label",
+    E.Run(row("5")),
     C.shown_row(~folds=[], row("5"), e),
   );
   check(
@@ -1308,6 +1360,11 @@ let tests = [
       ),
       test_case("a run's tally", `Quick, tallies),
       test_case("a hinted test joins its run", `Quick, hinted_run),
+      test_case(
+        "a hinted test's row is named by its hint",
+        `Quick,
+        hinted_names,
+      ),
       test_case("the caret's mark in a folded run", `Quick, mark_in_runs),
       test_case(
         "a caret move keeps the outline, an edit its untouched entries",

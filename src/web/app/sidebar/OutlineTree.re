@@ -22,16 +22,21 @@ type node = {
   /* KTest: the Test term's own id, for result lookup (o_id is the
      enclosing item, the open/jump/restructure handle) */
   o_test: option(Id.t),
+  /* KTest: its hint (`hint "…" test … end`), the row's name */
+  o_hint: option(string),
   /* a named row's binding token, and its sort (Pat, TPat or MPat) */
   o_binder: option((Id.t, Sort.t)),
   o_children: list(node),
 };
 
-let row = (~id=?, ~label="", ~test=?, ~binder=?, ~kids=[], kind: kind): node => {
+let row =
+    (~id=?, ~label="", ~test=?, ~hint=?, ~binder=?, ~kids=[], kind: kind)
+    : node => {
   o_label: label,
   o_kind: kind,
   o_id: id,
   o_test: test,
+  o_hint: hint,
   o_binder: binder,
   o_children: kids,
 };
@@ -162,7 +167,7 @@ and entry_rows = (~top: bool, e: O.entry): list(node) => {
       ]
     | [] => []
     }
-  | Test => [row(~id, ~test=?e.test, KTest)]
+  | Test => [row(~id, ~test=?e.test, ~hint=?named(e.hint), KTest)]
   | Stmt when at_mod && hole_only(e) => []
   | Stmt => [row(~id, KStmt)]
   | Use =>
@@ -173,7 +178,11 @@ and entry_rows = (~top: bool, e: O.entry): list(node) => {
   /* a Mod root's result is a member, as the parser reads it */
   | Tail when at_mod =>
     switch (O.test_tile(e.lv, e.k), test_member(e)) {
-    | (Some(test), true) => [row(~id, ~test, KTest)]
+    | (Some(test), true) =>
+      let (c0, c1) = e.lv.spans[e.k].core;
+      let hint =
+        Option.join(Haz3lcore.EntryPath.test_of(e.lv, c0, c1)) |> named;
+      [row(~id, ~test, ~hint?, KTest)];
     | _ => hole_only(e) ? [] : [row(~id, KStmt)]
     }
   | Tail =>
@@ -241,6 +250,13 @@ and hole_only = (e: O.entry): bool =>
   | _ => false
   }
 
+/* a hint that names its test: an empty one doesn't */
+and named = (hint: option(string)): option(string) =>
+  switch (hint) {
+  | Some("") => None
+  | h => h
+  }
+
 and test_member = (e: O.entry): bool =>
   switch (O.content(O.core(e.lv, e.k))) {
   | [Tile(t)] =>
@@ -265,13 +281,13 @@ and use_type = (e: O.entry): option(string) =>
   | _ => None
   };
 
-/* each run of ≥2 tests, at any level, goes under a container row; a lone
-   test stays flat */
+/* each run of tests, at any level, a lone test's too, goes under a
+   container row at its tests' level */
 let rec group_tests = (ns: list(node)): list(node) =>
   switch (ns) {
   | [] => []
-  | [{o_kind: KTest, _} as t1, {o_kind: KTest, _} as t2, ...rest] =>
-    let (run, rest) = take_tests([t2, ...rest], [t1]);
+  | [{o_kind: KTest, _} as t, ...rest] =>
+    let (run, rest) = take_tests(rest, [t]);
     [
       row(~label="tests", ~kids=List.rev(run), KTests),
       ...group_tests(rest),
@@ -290,21 +306,20 @@ and take_tests = (ns, acc) =>
   | _ => (acc, ns)
   };
 
-/* number the tests in SOURCE order, program-wide */
-let number_tests = (ns: list(node)): list(node) => {
+/* name the tests: by hint, else by number in SOURCE order, program-wide
+   (a hinted test counts, so a hint added leaves the others' numbers) */
+let name_tests = (ns: list(node)): list(node) => {
   let k = ref(0);
-  let label = () => {
-    incr(k);
-    string_of_int(k^);
-  };
   let rec go = (ns: list(node)) =>
     List.map(
       n =>
         switch (n.o_kind) {
-        | KTest => {
+        | KTest =>
+          incr(k);
+          {
             ...n,
-            o_label: label(),
-          }
+            o_label: Option.value(n.o_hint, ~default=string_of_int(k^)),
+          };
         | _ => {
             ...n,
             o_children: go(n.o_children),
@@ -318,7 +333,7 @@ let number_tests = (ns: list(node)): list(node) => {
 /* the rows of a program's outline */
 let build = (o: O.t): list(node) => {
   Util.Swept.next_pass(entry_memo);
-  rows_of(~top=true, o.entries) |> group_tests |> number_tests;
+  rows_of(~top=true, o.entries) |> group_tests |> name_tests;
 };
 
 /* the outline the rows are of: a program's (Program.outline) */
@@ -418,11 +433,20 @@ let descendant_ids = (fid: Id.t, o: t): list(Id.t) =>
   };
 
 /* the row that takes [fid]'s place once it's deleted: the next sibling,
-   else the one before, else its parent */
+   else the one before, else its parent. A run's only test goes with its
+   run, which then takes the run's place */
 let successor = (fid: Id.t, o: t): option(Id.t) =>
   Option.bind(
     find(fid, o),
-    ((above, _)) => {
+    ((above, n)) => {
+      let (above, n) =
+        switch (Util.ListUtil.split_last_opt(above)) {
+        | Some((up, {o_kind: KTests, o_children: [_], _} as run)) => (
+            up,
+            run,
+          )
+        | _ => (above, n)
+        };
       let siblings =
         switch (Util.ListUtil.last_opt(above)) {
         | Some(parent) => parent.o_children
@@ -430,8 +454,8 @@ let successor = (fid: Id.t, o: t): option(Id.t) =>
         };
       let rec split = (before, xs: list(node)) =>
         switch (xs) {
-        | [n, ...rest] when n.o_id == Some(fid) => (before, rest)
-        | [n, ...rest] => split([n, ...before], rest)
+        | [m, ...rest] when m === n => (before, rest)
+        | [m, ...rest] => split([m, ...before], rest)
         | [] => (before, [])
         };
       let (before, after) = split([], siblings);

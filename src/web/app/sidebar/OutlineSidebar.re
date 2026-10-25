@@ -582,6 +582,14 @@ let live_label = (props: props, n: OutlineTree.node): OutlineTree.node =>
   | _ => n
   };
 
+/* a hinted test's name, past 24 characters cut short */
+let clipped = (s: string): string => {
+  let gs = Util.HazelString.graphemes(s);
+  Array.length(gs) <= 24
+    ? s
+    : String.concat("", Array.to_list(Array.sub(gs, 0, 23))) ++ {js|…|js};
+};
+
 /* documentation slides are named "Folder / Name": the name */
 let short_name = (s: string): string => {
   let n = String.length(s);
@@ -1029,8 +1037,10 @@ let rec node_view =
     };
   let label =
     div(
+      /* a hinted test's whole name, which its row may clip */
       ~attrs=
-        [
+        Option.to_list(Option.map(Attr.title, n.o_hint))
+        @ [
           clss(
             ["outline-label", kind_cls(n.o_kind)]
             @ (cursor ? ["outline-cursor"] : [])
@@ -1318,6 +1328,7 @@ and words = (n: OutlineTree.node, name_view) =>
   | KTests => [
       span(~attrs=[clss(["outline-synthetic"])], [text(n.o_label)]),
     ]
+  | KTest when n.o_hint != None => [name_view(clipped(n.o_label))]
   | _ => [name_view(n.o_label)]
   }
 
