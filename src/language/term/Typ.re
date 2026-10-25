@@ -292,7 +292,7 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
 /* The type an alias [name] defined as [def] stands for: [def], or the
    recursive type `rec name -> def` if [def] mentions [name]. */
 let recursive_def = (name: Var.t, def: t): t =>
-  List.mem(name, free_vars(def))
+  List.exists(String.equal(name), free_vars(def))
     ? Rec(Var(name) |> TPat.fresh, def) |> temp : def;
 
 /* A type member's name is in scope in its own definition, as in a module

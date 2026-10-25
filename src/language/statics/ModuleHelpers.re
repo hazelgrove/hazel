@@ -109,7 +109,7 @@ let item_exports = (item: Mod.t, ~later: list(Mod.t)): list((Var.t, Pat.t)) => {
   let later_names = collect_later_names(later);
   let of_pat = pat =>
     Pat.bound_vars(pat)
-    |> List.filter(name => !List.mem(name, later_names))
+    |> List.filter(name => !List.exists(String.equal(name), later_names))
     |> List.map(name => (name, pat_for_bound_name(name, pat)));
   switch (item.term) {
   | ModLet(pat, _) => of_pat(FunctionSugar.binder(pat))
@@ -128,7 +128,7 @@ let type_declared_later = (name: Var.t, later: list(Mod.t)): bool =>
   List.exists(
     (item: Mod.t) =>
       switch (item.term) {
-      | ModType({term: Var(n), _}, _) => n == name
+      | ModType({term: Var(n), _}, _) => String.equal(n, name)
       | _ => false
       },
     later,
@@ -195,7 +195,7 @@ let rec modlet_pat = (ana_labels: list((Var.t, Typ.t)), pat: Pat.t): Pat.t => {
   | None =>
     switch (pat.term) {
     | Var(name) =>
-      switch (List.assoc_opt(name, ana_labels)) {
+      switch (Util.ListUtil.assoc_opt_by(String.equal, name, ana_labels)) {
       | Some(expected_type) => Pat.fresh(Asc(pat, expected_type))
       | None => pat
       }
@@ -300,7 +300,10 @@ let lower =
     | [] => tail
     | [(item, exported, exported_type), ...rest] =>
       let item_labels =
-        List.filter(((name, _)) => List.mem(name, exported), ana_labels);
+        List.filter(
+          ((name, _)) => List.exists(String.equal(name), exported),
+          ana_labels,
+        );
       let body =
         switch (exported_type) {
         | Some(n) =>
@@ -394,7 +397,7 @@ let shadowed_type_names = (items: list(Mod.t)): list(Var.t) => {
 let module_sig_type =
     (~ctx: Ctx.t, items: list(Mod.t), m: StaticsBase.Map.t): list(Sig.t) => {
   let shadowed = shadowed_type_names(items);
-  let expand = n => List.mem(n, shadowed);
+  let expand = n => List.exists(String.equal(n), shadowed);
   let rec go = (ctx: Ctx.t, items: list(Mod.t), acc: list(Sig.t)) =>
     switch (items) {
     | [] => List.rev(acc)

@@ -1309,7 +1309,12 @@ and uexp_to_info_map =
         | (Sig(items), Label(name)) =>
           switch (Typ.sig_project_value(items, name)) {
           | Some(ty) => (Some(ty), [])
-          | None when List.mem(name, Sig.type_names(Sig.members(items))) => (
+          | None
+              when
+                List.exists(
+                  String.equal(name),
+                  Sig.type_names(Sig.members(items)),
+                ) => (
               None,
               [Mark.ModuleMemberIsType(name)],
             )
@@ -3927,7 +3932,7 @@ and utyp_to_info_map =
     | (LabelProjectionExpected(None), Label(_)) =>
       ok(Message.Type(Unknown(Internal) |> Typ.temp))
     | (ModuleMemberExpected(member, members), Label(name)) =>
-      List.mem(name, members)
+      List.exists(String.equal(name), members)
         ? ok(Message.Type(utyp))
         : err(
             ModuleTypeMemberNotFound(
