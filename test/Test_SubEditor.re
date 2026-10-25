@@ -521,6 +521,22 @@ let test_confine_allows_edit_inside = () => {
   );
 };
 
+/* A projector action that names its projector goes through whatever the
+   caret is doing: the eye of a livelit nested in another's splice sends
+   ToggleSyntax from that splice's sub-editor, with the caret elsewhere. */
+let test_confine_allows_toggle_syntax_outside = () => {
+  let (ed, case_id) = case_editor("case x ¦| A => 1 end");
+  let target = scrut_target(case_id);
+  check(
+    bool,
+    "ToggleSyntax with the caret outside the splice allowed",
+    true,
+    Option.is_some(
+      SubEditor.confine_pre(~target, ~action=Project(ToggleSyntax(0)), ed),
+    ),
+  );
+};
+
 let tests = (
   "SubEditor",
   [
@@ -584,6 +600,11 @@ let tests = (
       test_trim_keeps_user_mid_whitespace,
     ),
     test_case("mk scrut from case", `Quick, test_mk_scrut_from_case),
+    test_case(
+      "confine allows ToggleSyntax outside the splice",
+      `Quick,
+      test_confine_allows_toggle_syntax_outside,
+    ),
     test_case(
       "confine rejects edge delete",
       `Quick,
