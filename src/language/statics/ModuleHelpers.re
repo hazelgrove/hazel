@@ -55,13 +55,6 @@ let rec mpat_to_pat = (mp: MPat.t): Pat.t =>
   | _ => IdTagged.fast_copy(MPat.rep_id(mp), Pat.fresh(Wild))
   };
 
-let rec mpat_names = (mp: MPat.t): list(Var.t) =>
-  switch (mp.term) {
-  | Var(name) => [name]
-  | Asc(inner, _) => mpat_names(inner)
-  | _ => []
-  };
-
 let rec pat_for_bound_name = (name: Var.t, pat: Pat.t): Pat.t =>
   switch (pat.term) {
   | Var(n) when n == name => pat
@@ -91,7 +84,7 @@ let rec pat_for_bound_name = (name: Var.t, pat: Pat.t): Pat.t =>
 let item_bound_names = (item: Mod.t): list(Var.t) =>
   switch (item.term) {
   | ModLet(pat, _) => Pat.bound_vars(FunctionSugar.binder(pat))
-  | ModuleMod(mp, _) => mpat_names(mp)
+  | ModuleMod(mp, _) => Option.to_list(MPat.name(mp))
   | ModVal(x, _) => [x]
   | ModType(_, _)
   | ModExp(_)

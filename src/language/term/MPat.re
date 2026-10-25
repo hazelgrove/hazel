@@ -34,6 +34,16 @@ let show_cls: cls => string =
   | Var => "Module name"
   | Asc => "Annotated module name";
 
+/* The module name bound, if the pattern is well formed. */
+let rec name = (mp: t): option(Var.t) =>
+  switch (mp.term) {
+  | Var(x) => Some(x)
+  | Asc(inner, _) => name(inner)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_) => None
+  };
+
 let temp: term => t =
   term => {
     term,

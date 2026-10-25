@@ -74,19 +74,10 @@ let rec val_of_pat = (p: TermBase.Pat.t): option(member) =>
   | _ => None
   };
 
-let rec name_of_mpat = (mp: TermBase.MPat.t): option(Var.t) =>
-  switch (mp.term) {
-  | Var(x) => Some(x)
-  | Asc(inner, _) => name_of_mpat(inner)
-  | Invalid(_)
-  | EmptyHole
-  | MultiHole(_) => None
-  };
-
 let val_of_mpat = (mp: TermBase.MPat.t): option(member) =>
   switch (mp.term) {
   | Var(x) => Some(Val(x, TempGrammar.Typ.unknown(Internal)))
-  | Asc(inner, ty) => name_of_mpat(inner) |> Option.map(x => Val(x, ty))
+  | Asc(inner, ty) => MPat.name(inner) |> Option.map(x => Val(x, ty))
   | Invalid(_)
   | EmptyHole
   | MultiHole(_) => None
