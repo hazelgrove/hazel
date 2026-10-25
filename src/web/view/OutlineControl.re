@@ -684,6 +684,7 @@ let update =
     );
     code |> Updated.return_quiet;
   | DefOp(op, fid) =>
+    let from_menu = menu^;
     menu := None;
     let program = code.program;
     /* text mode's caret on the op's row */
@@ -699,6 +700,34 @@ let update =
         ~folds=Persist.folds(prefix, name),
         program,
       );
+    /* the op came from the row of [fid]'s run, a run of one, by its keys
+       or its menu: that row keeps the cursor and its fold. Its fold as
+       shown, if so */
+    let from_run = {
+      let run = OutlineTree.run_of(fid, ctx.outline);
+      let lone =
+        Option.bind(run, OutlineTree.node_at(_, ctx.outline))
+        |> Option.map(OutlineTree.item_of) == Some(Some(fid));
+      let at_row =
+        switch (from_menu, text^) {
+        | (Some((On_run(a, b, _), _, _)), _) => a == fid && b == fid
+        | (Some(_), _) => false
+        | (None, Some({line: Row(_, Some(Run(a))), _})) => a == fid
+        | (None, Some(_)) => false
+        | (None, None) => cursor^ == run
+        };
+      lone && at_row
+        ? Option.map(
+            path =>
+              OutlineTree.folded(
+                ~folds=Persist.folds(prefix, name),
+                path,
+                KTests,
+              ),
+            run,
+          )
+        : None;
+    };
     /* a delete leaves the cursor where the row was: its old path names
        another row when names repeat */
     let successor =
@@ -740,12 +769,42 @@ let update =
         | (None, _, _) => cursor := path
         };
       };
-      switch (op, target) {
-      | (Delete, _) when !typing || on_row => put(~fresh=col, successor)
-      | (MoveUp | MoveDown | Indent | Outdent, Some(_)) when !typing || on_row =>
+      /* the caret, or the cursor, onto the run at [path], folded as
+         [was] */
+      let put_run = (path, was) => {
+        if (OutlineTree.folded(
+              ~folds=Persist.folds(prefix, name),
+              path,
+              KTests,
+            )
+            != was) {
+          set_folded(~prefix, ~name, path, was);
+        };
+        let run = OutlineTree.node_at(path, new_outline);
+        switch (text^) {
+        | Some(t) =>
+          text :=
+            Some({
+              ...t,
+              line: Row(path, Option.bind(run, E.key_of_node)),
+              seq: next_seq(),
+            });
+          OutlineFollow.wanted := Option.bind(run, E.shown_of_node);
+        | None => cursor := Some(path)
+        };
+      };
+      let run_after =
+        Option.bind(target, t => OutlineTree.run_of(t, new_outline));
+      switch (op, target, from_run, run_after) {
+      | (Delete, _, _, _) when !typing || on_row || from_run != None =>
+        put(~fresh=col, successor)
+      | (MoveUp | MoveDown | Duplicate, _, Some(was), Some(path)) =>
+        put_run(path, was)
+      | (MoveUp | MoveDown | Indent | Outdent, Some(_), _, _)
+          when !typing || on_row =>
         put(target)
-      | (NewTestBelow | NewTestAbove, Some(_)) => put(~fresh=0, target)
-      | (Duplicate, Some(_)) when on_row => put(~fresh=col, target)
+      | (NewTestBelow | NewTestAbove, Some(_), _, _) => put(~fresh=0, target)
+      | (Duplicate, Some(_), _, _) when on_row => put(~fresh=col, target)
       | _ => ()
       };
       /* an item landing in a folded row unfolds it, so its row shows:
@@ -756,7 +815,12 @@ let update =
         unfold(~prefix, ~name, parent, new_outline)
       | _ => ()
       };
-      Option.iter(id => unfold_run(~prefix, ~name, id, new_outline), target);
+      if (from_run == None) {
+        Option.iter(
+          id => unfold_run(~prefix, ~name, id, new_outline),
+          target,
+        );
+      };
       /* a new item opens as a cell, as new definitions do */
       switch (op, target, code.program) {
       | (MoveUp | MoveDown | Indent | Outdent, _, _) => ()
