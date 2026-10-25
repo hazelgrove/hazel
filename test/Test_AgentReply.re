@@ -164,6 +164,34 @@ let transactions = [
     },
   ),
   test_case(
+    "tests go right under a definition of any form",
+    `Quick,
+    () => {
+      /* V: `let flip_x: Scene -> Scene =` whose body is a block */
+      let (program, _) =
+        reply(
+          "let a = 1 in\n?",
+          [
+            (
+              "insert",
+              [
+                ("before", "=>"),
+                (
+                  "code",
+                  "let flip_x: Int -> Int =\n  let neg(x: Int): Int = 0 - x in\n  neg\nin\nhint \"flip once\" test\n  flip_x(1) == -1\nend;\nhint \"flip twice\" test\n  flip_x(flip_x(1)) == 1\nend",
+                ),
+              ],
+            ),
+          ],
+        );
+      mentions(
+        "program",
+        "  neg\nin\nhint \"flip once\" test\n  flip_x(1) == -1\nend;\nhint \"flip twice\" test",
+        program,
+      );
+    },
+  ),
+  test_case(
     "a later call edits what an earlier one made",
     `Quick,
     () => {

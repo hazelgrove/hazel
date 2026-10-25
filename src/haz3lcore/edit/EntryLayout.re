@@ -510,7 +510,7 @@ let lay_in = (~indent: int, ps: Segment.t): Segment.t =>
 
    The gaps an op makes or closes are laid out by kind, never by what
    was there. In a program's top level and a module's members, one blank
-   line between entries, but a function's tests go right under it, and
+   line between entries, but a definition's tests go right under it, and
    right under each other. A test landing at the program's end starts a
    block of its own, unless it joins one there. A body's entries take one
    line each. A gap on one line stays a space */
@@ -527,18 +527,15 @@ let is_test = (lv: S.level, k: int): bool =>
 let house = (~ends: bool, b: block, j: int): int => {
   let lv = b.lv;
   let blank = i => breaks(b, b.sl[i].eol, b.sl[i + 1].lo) > 1;
-  /* test [i] is among tests set apart, not right under a function */
+  let is_def = i => EntryPath.entry(lv, i).kind == Def;
+  /* test [i] is among tests set apart, not right under a definition */
   let rec apart = i =>
     i == 0
     || blank(i - 1)
-    || (is_test(lv, i - 1) ? apart(i - 1) : !Outline.fn_at(lv, i - 1));
+    || (is_test(lv, i - 1) ? apart(i - 1) : !is_def(i - 1));
   let glued =
     is_test(lv, j + 1)
-    && (
-      ends
-        ? is_test(lv, j) && apart(j)
-        : is_test(lv, j) || Outline.fn_at(lv, j)
-    )
+    && (ends ? is_test(lv, j) && apart(j) : is_test(lv, j) || is_def(j))
     || EntryPath.entry(lv, j).kind == Use
     && EntryPath.entry(lv, j + 1).kind == Use;
   switch (lv.owner) {
