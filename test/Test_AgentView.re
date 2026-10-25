@@ -204,8 +204,8 @@ total([Rect(2., 3.)])|},
       "run",
       {|#› map · no errors · tests: 1 of 2 pass, 1 fail #
 let double(x) = ⋯ in  #› open below · 3 uses #
-test double(2) == 4 end;  #› ✓ #
-test ⋯ end;  #› ✗ #
+test double(2) == 4 end;  #› test#1 · ✓ #
+test ⋯ end;  #› test#2 · ✗ #
 double(5)  #› ⇒ 10 #
 
 #› open: double #
@@ -271,13 +271,13 @@ pad(1)|},
       "mod root",
       {|#› map · 1 error #
 let a = ⋯;  #› 3 uses #
-module N = { let b = ⋯; test b == 3 end; let c = ⋯ };  #› b: 2 uses · c: 1 error: Expecting type Int but got inconsistent type Bool · N: open below #
-test a == 1 end;  #› open below #
-print(a);
+module N = { let b = ⋯; test b == 3 end; let c = ⋯ };  #› b: 2 uses · N/test#1 · c: 1 error: Expecting type Int but got inconsistent type Bool · N: open below #
+test a == 1 end;  #› test#1 · open below #
+print(a);  #› stmt#1 #
 a + 1
 
 #› open: N #
-module N = { let b = 2; test b == 3 end; let c = b + true }
+module N = { let b = 2; test b == 3 end; let c = b + true }  #› N/test#1 #
 #›                                                   ^^^^ Expecting type Int but got inconsistent type Bool #
 
 #› open: test#1 #
@@ -923,7 +923,7 @@ let toggle_tests = [
       ...d,
       test_status: false,
     },
-    {js|== 2 end;  #› ✓ #|js},
+    {js|== 2 end;  #› test#1 · ✓ #|js},
   ),
   toggle_case(
     "the program's value",
@@ -955,7 +955,7 @@ let toggle_tests = [
       ...d,
       test_marks: false,
     },
-    {js|x + 1 end;  #› ✓ #|js},
+    {js|x + 1 end;  #› f/test#1 · ✓ #|js},
   ),
   toggle_case(
     "module depth",

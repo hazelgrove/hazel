@@ -457,6 +457,66 @@ let replace_definition_tests = (
   "AgentTools.ReplaceDefinition",
   [
     test_case(
+      "X:definition code starting `let X =` again is refused",
+      `Quick,
+      () => {
+        /* round 2's E3: the whole tail chain written as joined's
+           definition */
+        let seg =
+          Option.get(
+            EntryLayout.parse(
+              Option.get(CorpusUtil.mega_src("mega-1k.hz")),
+            ),
+          );
+        let statics_of =
+          CompositionGo.statics_of(
+            ~settings=CoreSettings.on,
+            ~root=Exp,
+            ~probe_ids=Id.Map.empty,
+          );
+        let mega =
+          CompositionGo.Reply.start(
+            ~root=Exp,
+            ~statics=lazy(statics_of(seg)),
+            ~statics_of,
+            seg,
+          );
+        let code' = "let joined = string_join(\" \", body) in\nlet tight = string_replace(\" -- \", joined, \"--\") in\nlet res = string_replace(\"--\", tight, \": \") in\nstring_trim(res)";
+        switch (
+          CompositionGo.Reply.add(
+            mega,
+            ~index=0,
+            Replace("LogCleaner/clean_entry/joined:definition", code'),
+          )
+        ) {
+        | Ok(_) => Alcotest.fail("replaced")
+        | Error(e) =>
+          check(
+            string,
+            "refusal",
+            "`LogCleaner/clean_entry/joined:definition` is what follows `=`; your code starts with `let joined =` again. To change only clean_entry's final expression, replace `LogCleaner/clean_entry/=>`.",
+            e,
+          )
+        };
+        switch (
+          CompositionGo.Reply.add(
+            reply_on("type T = Int in let x: T = 1 in x"),
+            ~index=0,
+            Replace("T:definition", "type T = Bool"),
+          )
+        ) {
+        | Ok(_) => Alcotest.fail("replaced T")
+        | Error(e) =>
+          check(
+            string,
+            "a type, at the top",
+            "`T:definition` is what follows `=`; your code starts with `type T =` again.",
+            e,
+          )
+        };
+      },
+    ),
+    test_case(
       "replace :definition with complex expression",
       `Quick,
       () => {
