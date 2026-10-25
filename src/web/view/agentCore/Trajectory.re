@@ -32,6 +32,9 @@ type section = {
   /* exactly as sent: the section's JSON in the body */
   raw: string,
   folded: bool,
+  /* false: shown for reading, but not in the selected request's body (an
+     earlier request's context, a message compacted away since) */
+  in_request: bool,
   children: list(section),
 };
 
@@ -178,13 +181,24 @@ let pretty_args = (args: string): string =>
   };
 
 let section =
-    (~folded=false, ~children=[], ~shown=?, kind, label, text, json): section => {
+    (
+      ~folded=false,
+      ~in_request=true,
+      ~children=[],
+      ~shown=?,
+      kind,
+      label,
+      text,
+      json,
+    )
+    : section => {
   kind,
   label,
   shown: Option.value(shown, ~default=text),
   text,
   raw: API.Json.to_string(json),
   folded,
+  in_request,
   children,
 };
 
@@ -196,10 +210,28 @@ let content = (json: API.Json.t): string =>
   | _ => ""
   };
 
+/* [until]: the last request that sent [m], when before the selected one */
 let message_section =
-    (m: Message.Model.t, json: API.Json.t, ~note: string): section => {
+    (m: Message.Model.t, json: API.Json.t, ~until: option(int)): section => {
+  let note =
+    switch (until) {
+    | Some(last) =>
+      Printf.sprintf(
+        {js| · sent until request %d · not in this request|js},
+        last,
+      )
+    | None => ""
+    };
   let s = (~folded=false, ~children=[], kind, label) =>
-    section(~folded, ~children, kind, label ++ note, content(json), json);
+    section(
+      ~folded,
+      ~in_request=until == None,
+      ~children,
+      kind,
+      label ++ note,
+      content(json),
+      json,
+    );
   switch (m.role) {
   | System(Prompt) => s(~folded=true, System, "System prompt")
   | System(DeveloperNotes) => s(Developer, "Developer notes")
@@ -262,15 +294,18 @@ let tidy = (s: string): string => {
   |> String.concat("\n");
 };
 
+/* a request carries only its own context; the earlier ones show where
+   they were sent, for reading */
 let context_section = (~selected: bool, seq: int, json: API.Json.t) =>
   section(
     ~folded=!selected,
+    ~in_request=selected,
     ~shown=tidy(content(json)),
     Context,
     Printf.sprintf(
-      "Context · request %d%s",
+      {js|Context · sent with request %d · %s|js},
       seq,
-      selected ? {js| · this request|js} : "",
+      selected ? "in this request" : "not in this request",
     ),
     content(json),
     json,
@@ -332,6 +367,60 @@ let head_sections = (seq: int, body: API.Json.t): list(section) => {
   ];
 };
 
+/* the system prompt, the tools and the request's fields, then the rest */
+let assemble = (seq: int, body: API.Json.t, messages: list(section)): t => {
+  seq,
+  body: API.Json.to_string(body),
+  sections:
+    switch (messages) {
+    | [{kind: System, _} as prompt, ...rest] =>
+      [prompt, ...head_sections(seq, body)] @ rest
+    | _ => head_sections(seq, body) @ messages
+    },
+};
+
+/* a message with no transcript message to name it: by its role */
+let role_section = (json: API.Json.t): section => {
+  let role = string_field("role", json);
+  section(
+    switch (role) {
+    | "user" => User
+    | "assistant" => Assistant
+    | "tool" => Result
+    | _ => System
+    },
+    "Message · " ++ role,
+    content(json),
+    json,
+  );
+};
+
+/* request [seq]'s window: exactly the messages its body carried, in
+   order, each section's JSON the body's own; its context last */
+let window = (chat: Chat.Model.t, seq: int): option(t) =>
+  Option.bind(List.find_opt((r: SentView.t) => r.seq == seq, chat.sent), r =>
+    Option.map(
+      ((body, parts)) => {
+        let last = List.length(parts) - 1;
+        assemble(
+          seq,
+          body,
+          List.mapi(
+            (i, (m: option(Message.Model.t), json)) =>
+              switch (m) {
+              | Some(m) => message_section(m, json, ~until=None)
+              | None when i == last =>
+                context_section(~selected=true, seq, json)
+              | None => role_section(json)
+              },
+            parts,
+          ),
+        );
+      },
+      rebuild(chat, r),
+    )
+  );
+
 /* request [seq]'s trajectory: the branch it was sent on, each message as
    the latest request on it up to [seq] sent it (one compacted away later
    still shows), and each request's context after the message it followed */
@@ -392,13 +481,7 @@ let build = (chat: Chat.Model.t, seq: int): option(t) => {
                   message_section(
                     m,
                     json,
-                    ~note=
-                      last < seq
-                        ? Printf.sprintf(
-                            {js| · sent until request %d|js},
-                            last,
-                          )
-                        : "",
+                    ~until=last < seq ? Some(last) : None,
                   ),
                 ]
               | None => []
@@ -413,17 +496,7 @@ let build = (chat: Chat.Model.t, seq: int): option(t) => {
               ),
           path,
         );
-      Some({
-        seq,
-        body: API.Json.to_string(body),
-        /* the system prompt, the tools, then the rest */
-        sections:
-          switch (messages) {
-          | [{kind: System, _} as prompt, ...rest] =>
-            [prompt, ...head_sections(seq, body)] @ rest
-          | _ => head_sections(seq, body) @ messages
-          },
-      });
+      Some(assemble(seq, body, messages));
     | _ => None
     }
   };

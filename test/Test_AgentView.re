@@ -1282,6 +1282,59 @@ let trajectory_tests = [
           t.sections,
         ),
       );
+      check(
+        list(bool),
+        "only this request's context is in it",
+        [false, false, true],
+        List.filter_map(
+          (s: T.section) => s.kind == Context ? Some(s.in_request) : None,
+          t.sections,
+        ),
+      );
+    },
+  ),
+  test_case(
+    "the exact window is the body's messages, one for one",
+    `Quick,
+    () => {
+      let (bodies, agent) =
+        drive([
+          ("open b", [[("open", targets(["b"]))], []]),
+          ("thanks", [[]]),
+        ]);
+      let chat = chat_of(agent);
+      List.iteri(
+        (i, body) => {
+          let t = Option.get(T.window(chat, i + 1));
+          let messages =
+            List.filter(
+              (s: T.section) => s.kind != Tools && s.kind != Request,
+              t.sections,
+            );
+          check(string, "the body", body, t.body);
+          check(
+            list(string),
+            Printf.sprintf("request %d's messages", i + 1),
+            messages_of(body),
+            List.map((s: T.section) => s.raw, messages),
+          );
+          check(
+            int,
+            "one context, last",
+            1,
+            List.length(
+              List.filter((s: T.section) => s.kind == Context, messages),
+            ),
+          );
+          check(
+            bool,
+            "all in the request",
+            true,
+            List.for_all((s: T.section) => s.in_request, t.sections),
+          );
+        },
+        bodies,
+      );
     },
   ),
   test_case(

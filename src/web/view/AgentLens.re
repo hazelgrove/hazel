@@ -4,7 +4,8 @@ open Util;
 /* View as agent: the main editor shows a request's view, read-only.
    Stacked: that request's program, exactly the agent's open entries as
    cells, the outline folded to its map. Sent: the view's text as sent.
-   Trajectory: everything sent over the API up to it. The user's program,
+   Trajectory: everything sent over the API up to it, or (Window) exactly
+   what it carried. The user's program,
    view and folds stay as they are; leaving drops this. Live, it follows
    each new request. */
 
@@ -12,7 +13,9 @@ open Util;
 type mode =
   | Stacked
   | Sent
-  | Trajectory;
+  | Trajectory
+  /* Trajectory's exact-window toggle: only what the request carried */
+  | Window;
 
 /* the mode last chosen, for the session */
 let last_mode = ref(Stacked);
@@ -92,8 +95,9 @@ let with_mode = (chat: Chat.Model.t, mode: mode, l: t): t => {
   mode,
   trajectory:
     switch (mode, l.trajectory) {
-    | (Trajectory, Some(_)) => l.trajectory
-    | (Trajectory, None) => Trajectory.build(chat, l.seq)
+    | (Trajectory | Window, Some(_)) when mode == l.mode => l.trajectory
+    | (Trajectory, _) => Trajectory.build(chat, l.seq)
+    | (Window, _) => Trajectory.window(chat, l.seq)
     | (Stacked | Sent, _) => None
     },
 };
