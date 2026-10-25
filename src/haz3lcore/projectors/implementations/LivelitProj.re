@@ -919,6 +919,24 @@ module M: Projector = {
 
   let record_field = MvuShape.record_field_open;
 
+  /* A splice anywhere in a model term: a field whose value the run gives */
+  let has_splice = (model: TermBase.Exp.t): bool => {
+    let found = ref(false);
+    let _ =
+      TermBase.Exp.map_term(
+        ~f_exp=
+          (continue, e: TermBase.Exp.t) =>
+            switch (e.term) {
+            | Splice(_) =>
+              found := true;
+              e;
+            | _ => continue(e)
+            },
+        model,
+      );
+    found^;
+  };
+
   /* The latest sampled value at some id (e.g. the model argument) */
   let latest_value = (samples: list(Sample.t)): option(TermBase.Exp.t) =>
     List.fold_left(
@@ -1253,6 +1271,12 @@ module M: Projector = {
           [Node.text(msg)],
         )
       };
+    /* the last good view dimmed, or nothing yet to show */
+    let err_or_pending = () =>
+      Node.div(
+        ~attrs=[Attr.classes(["livelit-pending"])],
+        Option.to_list(Hashtbl.find_opt(last_good_view, id)),
+      );
     let ok = (node: Node.t): Node.t => {
       Hashtbl.replace(last_good_view, id, node);
       node;
@@ -1382,6 +1406,13 @@ module M: Projector = {
           }
         );
       switch (evaluated) {
+      /* (^ticket(620)) Not run yet, and the model holds a splice: in the
+         syntax a splice is only its code, and the run is what turns it
+         into the ref the view reads, so a view that reads one fails here
+         until then. On a big slide that is the first many seconds. That
+         is waiting, not an error. */
+      | Error(_) when model_value == None && has_splice(model) =>
+        err_or_pending()
       | Error(e) => err(e)
       | Ok(html) when MvuShape.is_html(html) =>
         ok(
