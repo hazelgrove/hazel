@@ -28,42 +28,78 @@ module Print = {
 
 let prn = Printf.sprintf;
 
-let type_member_capture_string = names =>
+/* A message the cursor inspector also shows, as parts: printed to a string
+   here, rendered to a view there. */
+type part =
+  | Text(string)
+  | Code(string)
+  | Label(string)
+  | Type(Typ.t);
+
+let string_of_parts = (parts: list(part)): string =>
+  parts
+  |> List.map(
+       fun
+       | Text(s)
+       | Code(s)
+       | Label(s) => s
+       | Type(ty) => Print.typ(ty),
+     )
+  |> String.concat("");
+
+let type_member_capture_parts = (names: list(Var.t)): list(part) =>
   switch (names) {
-  | [name] =>
-    prn(
-      "Type variable %s collides with a type member of the same name in this signature; rename the type variable",
-      name,
-    )
+  | [name] => [
+      Text("Type variable "),
+      Code(name),
+      Text(
+        " collides with a type member of the same name in this signature; rename the type variable",
+      ),
+    ]
   | _ =>
-    prn(
-      "Type variables %s collide with type members of the same names in this signature; rename them",
-      String.concat(", ", names),
-    )
+    [Text("Type variables ")]
+    @ Util.ListUtil.join(Text(", "), List.map(name => Code(name), names))
+    @ [
+      Text(
+        " collide with type members of the same names in this signature; rename them",
+      ),
+    ]
   };
 
 /* [what] names the sort of member, e.g. "type member". */
-let member_not_found_string =
-    (what: string, {name, members}: Mark.member_not_found) =>
-  switch (members) {
-  | [] => prn("Module has no %s %s", what, name)
-  | _ =>
-    prn(
-      "Module has no %s %s; its %ss are %s",
-      what,
-      name,
-      what,
-      String.concat(", ", members),
-    )
-  };
+let member_not_found_parts =
+    (what: string, {name, members}: Mark.member_not_found): list(part) =>
+  [Text("Module has no " ++ what ++ " "), Label(name)]
+  @ (
+    switch (members) {
+    | [] => []
+    | _ => [
+        Text("; its " ++ what ++ "s are "),
+        ...Util.ListUtil.join(
+             Text(", "),
+             List.map(m => Label(m), members),
+           ),
+      ]
+    }
+  );
+
+let type_member_mismatch_parts = (name, ~expected, ~actual): list(part) => [
+  Text("Type member "),
+  Code(name),
+  Text(" is defined as "),
+  Type(actual),
+  Text(" but its signature declares "),
+  Type(expected),
+];
+
+let type_member_capture_string = names =>
+  string_of_parts(type_member_capture_parts(names));
+
+let member_not_found_string = (what, not_found) =>
+  string_of_parts(member_not_found_parts(what, not_found));
 
 let type_member_mismatch_string = (name, ~expected, ~actual) =>
-  prn(
-    "Type member %s is defined as %s but its signature declares %s",
-    name,
-    Print.typ(actual),
-    Print.typ(expected),
-  );
+  string_of_parts(type_member_mismatch_parts(name, ~expected, ~actual));
 
 let core_mark_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   let ana = Statics.ana_skip_explicit_nonlabel(ana);

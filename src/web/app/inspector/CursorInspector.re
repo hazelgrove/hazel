@@ -437,17 +437,16 @@ let common_ok_view =
 };
 
 /* [what] names the sort of member, e.g. "type member". */
-let member_not_found_view =
-    (what: string, {name, members}: Mark.member_not_found) =>
-  [text("Module has no " ++ what ++ " "), label_view(name)]
-  @ (
-    switch (members) {
-    | [] => []
-    | _ => [
-        text("; its " ++ what ++ "s are "),
-        ...ListUtil.join(text(", "), List.map(label_view, members)),
-      ]
-    }
+let parts_view = (~view_type, parts: list(Haz3lcore.ErrorPrint.part)) =>
+  List.map(
+    (part: Haz3lcore.ErrorPrint.part) =>
+      switch (part) {
+      | Text(s) => text(s)
+      | Code(s) => code(s)
+      | Label(s) => label_view(s)
+      | Type(ty) => view_type(ty)
+      },
+    parts,
   );
 
 let underdetermined_typ_view =
@@ -465,12 +464,15 @@ let underdetermined_typ_view =
       ...List.map(code, labels),
     ]
   | ModuleTypeMemberMissing(name, members) =>
-    member_not_found_view(
-      TypExpectation.module_member_to_string(TypeMember),
-      {
-        name,
-        members,
-      },
+    parts_view(
+      ~view_type,
+      Haz3lcore.ErrorPrint.member_not_found_parts(
+        TypExpectation.module_member_to_string(TypeMember),
+        {
+          name,
+          members,
+        },
+      ),
     )
   | ProdProjectionBadArgs({product, label}) =>
     let product_error =
@@ -537,39 +539,18 @@ let typ_ok_view = (~globals, cls: Cls.t, ok: Message.ok_typ) => {
   };
 };
 
-let type_member_capture_view = names =>
-  switch (names) {
-  | [name] => [
-      text("Type variable "),
-      code(name),
-      text(
-        " collides with a type member of the same name in this signature; rename the type variable",
-      ),
-    ]
-  | _ =>
-    [text("Type variables ")]
-    @ ListUtil.join(text(", "), List.map(code, names))
-    @ [
-      text(
-        " collide with type members of the same names in this signature; rename them",
-      ),
-    ]
-  };
-
-let type_member_mismatch_view = (~view_type, name, ~expected, ~actual) => [
-  text("Type member "),
-  code(name),
-  text(" is defined as "),
-  view_type(actual),
-  text(" but its signature declares "),
-  view_type(expected),
-];
-
 let typ_mark_err_view = (~globals, m: Mark.t) => {
   let view_type = view_type(~globals);
   switch (m) {
   | ModuleTypeMemberMismatch({name, expected, actual}) =>
-    type_member_mismatch_view(~view_type, name, ~expected, ~actual)
+    parts_view(
+      ~view_type,
+      Haz3lcore.ErrorPrint.type_member_mismatch_parts(
+        name,
+        ~expected,
+        ~actual,
+      ),
+    )
   | TypFreeTypeVariable(name) => [
       view_type(Var(name) |> Typ.fresh),
       text("not found"),
@@ -611,9 +592,12 @@ let typ_mark_err_view = (~globals, m: Mark.t) => {
       view_type(ty),
     ]
   | ModuleTypeMemberNotFound(member, not_found) =>
-    member_not_found_view(
-      TypExpectation.module_member_to_string(member),
-      not_found,
+    parts_view(
+      ~view_type,
+      Haz3lcore.ErrorPrint.member_not_found_parts(
+        TypExpectation.module_member_to_string(member),
+        not_found,
+      ),
     )
   | TypWantModule({name, typ}) => [
       code(name),
@@ -807,7 +791,12 @@ let exp_mark_err_view =
       ...ListUtil.join(text(", "), List.map(code, names)),
     ])
   | ModuleMemberNotFound(not_found) =>
-    div_err(member_not_found_view("member", not_found))
+    div_err(
+      parts_view(
+        ~view_type,
+        Haz3lcore.ErrorPrint.member_not_found_parts("member", not_found),
+      ),
+    )
   | ModuleMemberIsType(name) =>
     div_err([
       code(name),
@@ -821,8 +810,23 @@ let exp_mark_err_view =
       ...ListUtil.join(text(", "), List.map(code, names)),
     ])
   | ModuleTypeMemberMismatch({name, expected, actual}) =>
-    div_err(type_member_mismatch_view(~view_type, name, ~expected, ~actual))
-  | TypeMemberCapture(names) => div_err(type_member_capture_view(names))
+    div_err(
+      parts_view(
+        ~view_type,
+        Haz3lcore.ErrorPrint.type_member_mismatch_parts(
+          name,
+          ~expected,
+          ~actual,
+        ),
+      ),
+    )
+  | TypeMemberCapture(names) =>
+    div_err(
+      parts_view(
+        ~view_type,
+        Haz3lcore.ErrorPrint.type_member_capture_parts(names),
+      ),
+    )
   | BadLivelitModel(_) => div_err([text("Bad internal livelit model")])
   | BadTheorem(typ) =>
     div_err([
@@ -909,7 +913,12 @@ let exp_view =
     | Exp(AnaDeferralConsistent(ana)) =>
       div_ok([text("Expecting type"), view_type(~globals, ana)])
     | Exp(ModuleMemberNotFound(not_found)) =>
-      div_ok(member_not_found_view("member", not_found))
+      div_ok(
+        parts_view(
+          ~view_type=view_type(~globals),
+          Haz3lcore.ErrorPrint.member_not_found_parts("member", not_found),
+        ),
+      )
     | Exp(TypeMember(name, def)) =>
       div_ok([
         view_type(~globals, Var(name) |> Typ.fresh),
@@ -1140,7 +1149,13 @@ let tpat_view =
           text("Can't shadow existing type variable"),
           view_type(Var(name) |> Typ.fresh),
         ])
-      | TypeMemberCapture(names) => div_err(type_member_capture_view(names))
+      | TypeMemberCapture(names) =>
+        div_err(
+          parts_view(
+            ~view_type,
+            Haz3lcore.ErrorPrint.type_member_capture_parts(names),
+          ),
+        )
       | _ => div_err([text("Type pattern error")])
       }
     }
