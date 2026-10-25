@@ -1238,6 +1238,17 @@ TOGGLE_AT = """
 """
 
 
+SETTLED = "return !document.querySelector('.livelit-pending') && !document.body.innerText.includes('Running\u2026')"
+
+
+def settled(d):
+    """Wait for the slide's run to land. (^ticket(620)) A big Playground slide's first run takes many seconds on
+    GitHub's computers: a picture livelit, whose click does nothing, was called STUCK when its run landed during
+    the 12 s the sweep waits after the click, and its view went from pending to the picture."""
+    wait_for(d, SETTLED, 90)
+    time.sleep(0.5)
+
+
 def sweep_use(d, i):
     """Open use [i]'s eye, use its GUI once, close the eye: what happened."""
     at = d.js(TOGGLE_AT, [i]); time.sleep(0.6); at = d.js(TOGGLE_AT, [i])
@@ -1247,6 +1258,7 @@ def sweep_use(d, i):
     if not wait_for(d, "return !!document.querySelector('.livelit-syntax')", 15):
         return {"verdict": "ERROR", "why": "the eye opened no pane"}
     time.sleep(1.5)
+    settled(d)
     before = d.js(SWEEP_STATE, [i])
     c = d.js(SWEEP_CONTROL, [i]); time.sleep(0.6); c = d.js(SWEEP_CONTROL, [i])
     if not c or c["kind"] == "none":
