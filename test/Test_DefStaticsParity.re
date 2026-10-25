@@ -401,6 +401,40 @@ let spine_elab_is_whole_suffix = () => {
   );
 };
 
+/* probe targets equal monolithic statics' as sets: several probes per
+   item, which DefStatics gathers flat and monolithic statics by subterm */
+let probe_targets_as_sets = (): unit => {
+  let term =
+    MakeTerm.go(
+      CorpusUtil.seg_of(
+        "let a = 1 + 2 in\nlet b = (a * 3) + (a - 1) in\nlet c = b in\nb + a + c",
+      ),
+    ).
+      term;
+  let (map0, _) = Statics.mk_unmemoized(settings, DefStatics.ctx0, term);
+  let probe_ids =
+    Id.Map.fold(
+      (id, info, acc) =>
+        switch (info) {
+        | Info.InfoExp({user_term: {term: Var(_) | Atom(Int(_)), _}, _}) =>
+          Id.Map.add(id, (), acc)
+        | _ => acc
+        },
+      map0,
+      Id.Map.empty,
+    );
+  check(bool, "probes to place", true, Id.Map.cardinal(probe_ids) >= 8);
+  check(
+    list(string),
+    "parity",
+    [],
+    DefStaticsCheck.divergences(
+      ~settings,
+      DefStatics.calc(~settings, ~probe_ids, term),
+    ),
+  );
+};
+
 /* a probe in a fn body called only from a later item samples under
    compositional statics as under monolithic (fresh evaluations) */
 let probe_capture_parity = (): unit => {
@@ -716,6 +750,32 @@ let small = [
     "an unused function definition",
     `Quick,
     script("let f(x : Int) : Bool = x > 0 in\nlet g(y) = y in\n1", []),
+  ),
+  /* a function definition's parameters bind its uses, so the outer
+     names they shadow stay unused */
+  test_case(
+    "a parameter shadowing an unused binding",
+    `Quick,
+    script("let x = 1 in\nlet f(x) = x + 1 in\nf(2)", []),
+  ),
+  test_case(
+    "parameters shadowing unused bindings",
+    `Quick,
+    script(
+      "let x = 1 in\nlet y = 2 in\nlet f(x, (y, z)) : Int = x + y + z in\nf(1, (2, 3))",
+      [token("3", "4")],
+    ),
+  ),
+  /* a module member's chain splits into items too (members themselves
+     are exports, never unused) */
+  test_case(
+    "a parameter in a member's chain shadowing an unused binding",
+    `Quick,
+    script(
+      ~root=Mod,
+      "module M = {\n  let x = 1 in\n  let f(x) = x + 1 in\n  f(2)\n};\n1",
+      [],
+    ),
   ),
   test_case(
     "a module used in an alias's definition",
@@ -1308,6 +1368,7 @@ let tests = (
       spine_elab_is_whole_suffix,
     ),
     test_case("probe capture parity", `Quick, probe_capture_parity),
+    test_case("probe targets as sets", `Quick, probe_targets_as_sets),
     test_case("probe parity in a ModExp chain", `Quick, modexp_probe_parity),
     test_case("a ModExp chain moved", `Quick, modexp_chain_moved),
   ]

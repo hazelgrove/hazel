@@ -959,7 +959,7 @@ module Reply = {
     switch (Id.Map.find_opt(id, info_map)) {
     | Some(info) =>
       at
-      ++ ErrorPrint.string_of_marks(info, Info.marks_of(info))
+      ++ ErrorPrint.string_of_marks(~info_map, info, Info.marks_of(info))
       ++ " (in `"
       ++ ErrorPrint.term_string_of(info)
       ++ "`)"
