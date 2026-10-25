@@ -533,6 +533,31 @@ let replace_definition_tests = (
       },
     ),
     test_case(
+      "replace :definition with code spanning lines: on lines of its own",
+      `Quick,
+      () => {
+        check_rendered_exact(
+          "one line to many",
+          "let scale(k: Int): Int -> Int =\n  case k\n  | 0 => fun sc -> sc\n  | _ => fun sc -> sc * k\n  end\nin\nscale(2)(3)",
+          apply_and_render(
+            "let scale(k: Int): Int -> Int = fun sc -> sc in\nscale(2)(3)",
+            Replace(
+              "scale:definition",
+              "case k\n| 0 => fun sc -> sc\n| _ => fun sc -> sc * k\nend",
+            ),
+          ),
+        );
+        check_rendered_exact(
+          "many lines to one",
+          "let f(x) = x * 2 in\nf(1)",
+          apply_and_render(
+            "let f(x) =\n  x + 1\nin\nf(1)",
+            Replace("f:definition", "x * 2"),
+          ),
+        );
+      },
+    ),
+    test_case(
       "replace :definition with function",
       `Quick,
       () => {
@@ -4050,7 +4075,7 @@ let paste_funnel_tests = (
       "replace :definition strips then re-indents canonically", `Quick, () => {
       check_rendered_exact(
         "update_definition_indented",
-        "let a = fun x ->\n  x + 1 in a",
+        "let a = fun x ->\n  x + 1\nin a",
         apply_and_render(
           "let a = 1 in a",
           Replace("a:definition", "fun x ->\n  x + 1"),

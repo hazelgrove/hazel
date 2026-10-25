@@ -612,12 +612,99 @@ let entrywise = () => {
   );
 };
 
+/* a definition's new code, laid out by house style: spanning lines, on
+   lines of its own one level in, `in` alone below; on one line, on the
+   head's line, `in` ending it */
+let definition_layout = () => {
+  let def = (name, seg) =>
+    Option.get(K.part(~root=Exp, head(name, seg), Definition, seg));
+  let cased = "case sc\n| 0 => 0\n| _ => 1\nend";
+  let one = seg_of("let scale(k: Int): Int -> Int = fun sc -> sc in\nscale");
+  expect(
+    "one line to many",
+    "let scale(k: Int): Int -> Int =\n  case sc\n  | 0 => 0\n  | _ => 1\n  end\nin\nscale",
+    run(one, [Replace(def("scale", one), Text(cased))]),
+  );
+  let many = seg_of("let f(x) =\n  x + 1\nin\nf(1)");
+  expect(
+    "many lines to one",
+    "let f(x) = x * 2 in\nf(1)",
+    run(many, [Replace(def("f", many), Text("x * 2"))]),
+  );
+  expect(
+    "many lines to many",
+    "let f(x) =\n  case x\n  | _ => 1\n  end\nin\nf(1)",
+    run(many, [Replace(def("f", many), Text("case x\n| _ => 1\nend"))]),
+  );
+  expect(
+    "a function's heads stay on the head's line",
+    "let scale(k: Int): Int -> Int = fun sc ->\n  case sc\n  | 0 => 0\n  | _ => 1\n  end\nin\nscale",
+    run(
+      one,
+      [
+        Replace(
+          def("scale", one),
+          Text(
+            "fun sc ->\n  "
+            ++ String.concat("\n  ", String.split_on_char('\n', cased)),
+          ),
+        ),
+      ],
+    ),
+  );
+  expect(
+    "on one line, all of it",
+    "let scale(k: Int): Int -> Int = fun sc -> sc + k in\nscale",
+    run(one, [Replace(def("scale", one), Text("fun sc -> sc + k"))]),
+  );
+  let m = seg_of(members);
+  expect(
+    "a member: `;` ends its last line",
+    "module M = {\n  let x =\n    case 1\n    | _ => 2\n    end;\n  let y = 2\n} in\nM.y",
+    run(m, [Replace(def("x", m), Text("case 1\n| _ => 2\nend"))]),
+  );
+  expect(
+    "the last member",
+    "module M = {\n  let x = 1;\n  let y =\n    case 1\n    | _ => 2\n    end\n} in\nM.y",
+    run(m, [Replace(def("y", m), Text("case 1\n| _ => 2\nend"))]),
+  );
+  let lined =
+    seg_of("module M = {\n  let x =\n    1 + 1;\n  let y = 2\n} in\nM.y");
+  expect(
+    "a member, many lines to one",
+    "module M = {\n  let x = 3;\n  let y = 2\n} in\nM.y",
+    run(lined, [Replace(def("x", lined), Text("3"))]),
+  );
+  let body = seg_of("let f(x) =\n  let a = x in\n  a\nin\nf(1)");
+  expect(
+    "in a body: its indentation",
+    "let f(x) =\n  let a =\n    case x\n    | _ => 1\n    end\n  in\n  a\nin\nf(1)",
+    run(body, [Replace(def("a", body), Text("case x\n| _ => 1\nend"))]),
+  );
+  let top = seg_of(~root=Mod, "let x = 1;\nlet y = x + 1;\ny");
+  expect(
+    "a module-rooted program's member",
+    "let x =\n  case 1\n  | _ => 2\n  end;\nlet y = x + 1;\ny",
+    run(
+      ~root=Mod,
+      top,
+      [
+        Replace(
+          Option.get(K.part(~root=Mod, head("x", top), Definition, top)),
+          Text("case 1\n| _ => 2\nend"),
+        ),
+      ],
+    ),
+  );
+};
+
 let tests = (
   "EntryEdit",
   [
     test_case("insert", `Quick, insert),
     test_case("copy", `Quick, copy),
     test_case("replace", `Quick, replace),
+    test_case("a definition's layout", `Quick, definition_layout),
     test_case("token", `Quick, token),
     test_case("delete", `Quick, delete),
     test_case("move", `Quick, move),
