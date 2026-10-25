@@ -72,8 +72,8 @@ let insert = () => {
     run(seg, [Insert(After(a), Text("let c = 3"))]),
   );
   expect(
-    "a statement takes `;`",
-    "let a = 1 in\n\ntest a == 1 end;\n\nlet b = a + 1 in\nb",
+    "a statement takes `;`, right under the definition it follows",
+    "let a = 1 in\ntest a == 1 end;\n\nlet b = a + 1 in\nb",
     run(seg, [Insert(After(a), Text("test a == 1 end"))]),
   );
   expect(
@@ -538,8 +538,8 @@ let entrywise = () => {
     "an insert's entries, one at a time",
     [
       "let a = 1 in\n\nlet c = 3 in\n\nlet b = a + 1 in\nb",
-      "let a = 1 in\n\nlet c = 3 in\n\ntest c == 3 end;\n\nlet b = a + 1 in\nb",
-      "let a = 1 in\n\nlet c = 3 in\n\ntest c == 3 end;\n\nlet d = c + 1 in\n\nlet b = a + 1 in\nb",
+      "let a = 1 in\n\nlet c = 3 in\ntest c == 3 end;\n\nlet b = a + 1 in\nb",
+      "let a = 1 in\n\nlet c = 3 in\ntest c == 3 end;\n\nlet d = c + 1 in\n\nlet b = a + 1 in\nb",
     ],
     texts(c),
   );
@@ -588,7 +588,7 @@ let entrywise = () => {
     "a definition, then a statement",
     [
       "let a = 1 in\n\nlet c = 3 in\n\nlet b = a + 1 in\nb",
-      "let a = 1 in\n\nlet c = 3 in\n\ntest c == 3 end;\n\nlet b = a + 1 in\nb",
+      "let a = 1 in\n\nlet c = 3 in\ntest c == 3 end;\n\nlet b = a + 1 in\nb",
     ],
     texts(
       run(

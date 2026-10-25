@@ -395,6 +395,52 @@ let agent_workbench_tests = [
       );
     },
   ),
+  test_case(
+    "marking a subtask complete or failed moves on to the next",
+    `Quick,
+    () => {
+      module W = AgentWorkbench;
+      let apply = (model, action) =>
+        switch (W.Update.update(~model, ~action=BackendAction(action))) {
+        | Success(m) => m
+        | Failure(msg) => fail(msg)
+        };
+      let sub = title => W.Utils.SubtaskUtils.mk(~title, ~description="");
+      let task =
+        W.Utils.TaskUtils.mk(
+          ~title="Parent",
+          ~description="p",
+          ~subtasks=[sub("s1"), sub("s2"), sub("s3")],
+        );
+      let model =
+        List.fold_left(
+          apply,
+          W.Utils.MainUtils.init(),
+          [
+            CreateNewTask(task),
+            MarkActiveSubtaskComplete("did s1"),
+            MarkActiveSubtaskFailed("s2 failed"),
+          ],
+        );
+      let t =
+        W.Utils.TaskUtils.find_task(model, "Parent")
+        |> OptUtil.get_or_fail("task Parent");
+      check(option(string), "active", Some("s3"), t.active_subtask);
+      check(
+        list(option(string)),
+        "each subtask's own summary",
+        [Some("did s1"), Some("s2 failed"), None],
+        List.map(
+          (s: W.Model.subtask) =>
+            Option.map(
+              (c: W.Model.completion_info) => c.summary,
+              s.completion_info,
+            ),
+          W.Utils.TaskUtils.ordered_subtasks_of(t),
+        ),
+      );
+    },
+  ),
 ];
 
 let chat_messages_for_openrouter_tests = [

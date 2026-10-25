@@ -6,8 +6,8 @@ open Web;
 /* a reply's structural calls on the editing kernel: one transaction, its
    results by canonical path; tests addressed by hint; move */
 
-let mk_zipper = (code: string): Zipper.t =>
-  switch (Parser.to_zipper(~root=Exp, code)) {
+let mk_zipper = (~root=Sort.Exp, code: string): Zipper.t =>
+  switch (Parser.to_zipper(~root, code)) {
   | Some(z) => z
   | None => fail("unparseable: " ++ code)
   };
@@ -37,6 +37,7 @@ let tool_results = (agent: Agent.Model.t): list(AgentToolResult.tool_result) =>
 let run =
     (
       ~settings=Settings.Model.init,
+      ~root=Sort.Exp,
       code: string,
       replies: list(list(OpenRouter.Reply.Model.tool_call)),
     )
@@ -79,19 +80,20 @@ let run =
     };
   go(
     Agent.Utils.init(),
-    CellEditor.Model.mk(Editor.Model.mk(mk_zipper(code), ~root=Exp)),
+    CellEditor.Model.mk(Editor.Model.mk(mk_zipper(~root, code), ~root)),
     replies,
   );
 };
 
-let replies = (~settings=?, code, replies) =>
-  fst(run(~settings?, code, replies));
+let replies = (~settings=?, ~root=?, code, replies) =>
+  fst(run(~settings?, ~root?, code, replies));
 
 /* [calls] as one assistant reply on [code]: the program after, and the
    tool results in order */
 let reply =
     (
       ~settings=?,
+      ~root=?,
       code: string,
       calls: list((string, list((string, string)))),
     )
@@ -99,6 +101,7 @@ let reply =
   List.hd(
     replies(
       ~settings?,
+      ~root?,
       code,
       [List.mapi((i, (n, a)) => call(i, n, a), calls)],
     ),
@@ -159,6 +162,110 @@ let transactions = [
       mentions(
         "program",
         "  | Rect(_, _) => false\n  end\nin\nhint \"rect area\" test\n  area",
+        program,
+      );
+    },
+  ),
+  test_case(
+    "tests go right under a definition of any form",
+    `Quick,
+    () => {
+      /* V: `let flip_x: Scene -> Scene =` whose body is a block */
+      let (program, _) =
+        reply(
+          "let a = 1 in\n?",
+          [
+            (
+              "insert",
+              [
+                ("before", "=>"),
+                (
+                  "code",
+                  "let flip_x: Int -> Int =\n  let neg(x: Int): Int = 0 - x in\n  neg\nin\nhint \"flip once\" test\n  flip_x(1) == -1\nend;\nhint \"flip twice\" test\n  flip_x(flip_x(1)) == 1\nend",
+                ),
+              ],
+            ),
+          ],
+        );
+      mentions(
+        "program",
+        "  neg\nin\nhint \"flip once\" test\n  flip_x(1) == -1\nend;\nhint \"flip twice\" test",
+        program,
+      );
+    },
+  ),
+  test_case(
+    "a test the code sets apart by a blank line keeps it",
+    `Quick,
+    () => {
+      /* N2-Sonnet: "add, mark, count" exercises three functions */
+      let code = {|let add_task(title: String, tasks: [String]): [String] =
+  tasks @ [title]
+in
+hint "add to empty" test add_task("a", []) == ["a"] end;
+
+?|};
+      let (program, _) =
+        reply(
+          code,
+          [
+            (
+              "insert",
+              [
+                ("after", "\"add to empty\""),
+                (
+                  "code",
+                  "let count_open(tasks: [String]): Int =\n  case tasks\n  | [] => 0\n  | _ :: rest => 1 + count_open(rest)\n  end\nin\nhint \"count empty\" test count_open([]) == 0 end;\nhint \"count one\" test count_open([\"a\"]) == 1 end;\n\nhint \"add, mark, count\" test\n  count_open(add_task(\"a\", [])) == 1\nend",
+                ),
+              ],
+            ),
+          ],
+        );
+      mentions(
+        "program",
+        "  end\nin\nhint \"count empty\" test count_open([]) == 0 end;\nhint \"count one\" test count_open([\"a\"]) == 1 end;\n\nhint \"add, mark, count\" test",
+        program,
+      );
+      let (program, _) =
+        reply(
+          code,
+          [
+            (
+              "insert",
+              [
+                ("after", "\"add to empty\""),
+                (
+                  "code",
+                  "\nhint \"add twice\" test\n  add_task(\"b\", add_task(\"a\", [])) == [\"a\", \"b\"]\nend",
+                ),
+              ],
+            ),
+          ],
+        );
+      mentions(
+        "a leading blank line",
+        "== [\"a\"] end;\n\nhint \"add twice\" test",
+        program,
+      );
+      let (program, _) =
+        reply(
+          code,
+          [
+            (
+              "insert",
+              [
+                ("after", "\"add to empty\""),
+                (
+                  "code",
+                  "hint \"add twice\" test\n  add_task(\"b\", add_task(\"a\", [])) == [\"a\", \"b\"]\nend",
+                ),
+              ],
+            ),
+          ],
+        );
+      mentions(
+        "else glued",
+        "== [\"a\"] end;\nhint \"add twice\" test",
         program,
       );
     },
@@ -249,7 +356,11 @@ let transactions = [
       same_text("program unchanged", code, program);
       let second = List.nth(results, 1);
       check(bool, "the erring call failed", false, second.success);
-      mentions("its result", "it would add static errors", second.content);
+      mentions(
+        "its result",
+        "it would add 1 static error (0 before, 1 after), in: a (1).",
+        second.content,
+      );
       mentions("its result", "a:", second.content);
       mentions("the first", "Rolled back.", List.hd(results).content);
     },
@@ -1466,6 +1577,229 @@ let endings = [
   ),
 ];
 
+/* what the agent is sent for each tool result, in order */
+let sent = (agent: Agent.Model.t): list(string) =>
+  Chat.Utils.linearize(
+    ChatSystem.Utils.find_chat(agent.chat_system.current, agent.chat_system),
+  )
+  |> List.filter_map((m: Message.Model.t) =>
+       switch (m.role, m.api_message) {
+       | (ToolResult(_), Some(api)) => Some(api.content)
+       | _ => None
+       }
+     );
+
+let shapes_v = {|type Shape = + Circle(Int) + Rect(Int, Int) in
+let area(s: Shape): Int =
+  case s
+  | Circle(r) => 3 * r * r
+  | Rect(w, h) => w * h
+  end
+in
+hint "circle area" test area(Circle(2)) == 12 end;
+let side = 1 in
+?|};
+
+let messages = [
+  test_case(
+    "a type change that breaks uses is refused by where they are",
+    `Quick,
+    () => {
+      let (outs, agent) =
+        run(
+          shapes_v,
+          [
+            [
+              call(
+                0,
+                "replace",
+                [
+                  ("target", "Shape"),
+                  (
+                    "code",
+                    "type Shape = + Circle(Int, Bool) + Rect(Int, Int)",
+                  ),
+                ],
+              ),
+            ],
+          ],
+        );
+      same_text("program unchanged", shapes_v, fst(List.hd(outs)));
+      let content = List.hd(snd(List.hd(outs))).content;
+      mentions(
+        "the summary",
+        "Not applied: it would add 3 static errors (0 before, 3 after), in: area (2), \"circle area\" (1).\nChanging Shape breaks uses in: area, \"circle area\"; change them in the same reply.\n- area: ",
+        content,
+      );
+      mentions(
+        "the rollback, on a line of its own",
+        "`)\nNone of this reply's edits were applied: call 1 (replace) failed.",
+        content,
+      );
+      check(
+        string,
+        "what the agent is sent",
+        content,
+        List.hd(sent(agent)),
+      );
+    },
+  ),
+  test_case(
+    "an edit leaving the program's result empty says so",
+    `Quick,
+    () => {
+      let (_, results) =
+        reply(
+          shapes_v,
+          [("insert", [("after", "side"), ("code", "let top = 2")])],
+        );
+      mentions(
+        "its result",
+        "Static errors: none. The program's result is empty (`?`).",
+        List.hd(results).content,
+      );
+      let (_, results) =
+        reply(
+          "let a = 1 in a",
+          [("insert", [("after", "a"), ("code", "let b = 2")])],
+        );
+      check(
+        bool,
+        "not when it has one",
+        false,
+        has("is empty", List.hd(results).content),
+      );
+    },
+  ),
+  test_case(
+    "a path keeps working with the map's notes and escapes copied in",
+    `Quick,
+    () => {
+      let code = "let area(s: Int): Int = s in\nhint \"rect area\" test area(1) == 1 end;\ntest area(2) == 2 end;\narea(3)";
+      let ok = target => {
+        let (_, results) =
+          reply(code, [("delete", [("target", target)])]);
+        check(
+          bool,
+          target ++ " resolves: " ++ List.hd(results).content,
+          true,
+          List.hd(results).success,
+        );
+      };
+      ok({|"rect area" #› 1 use #|});
+      ok({|\"rect area\"|});
+      let refused = target =>
+        List.hd(snd(reply(code, [("delete", [("target", target)])]))).
+          content;
+      mentions("a misspelling", "Did you mean `area`?", refused("aera"));
+      mentions(
+        "a test's code with its #k",
+        "Did you mean `test#1`",
+        refused("test area(2) == 2 end#1"),
+      );
+      mentions(
+        "a part's word",
+        "Did you mean `area:definition`",
+        refused("area:definition+1"),
+      );
+    },
+  ),
+  test_case(
+    "a call making a second entry of a name says so",
+    `Quick,
+    () => {
+      let code = "let area(s: Int): Int = s in\nhint \"rect area\" test area(1) == 1 end;\narea(3)";
+      let (_, results) =
+        reply(
+          code,
+          [
+            (
+              "insert",
+              [
+                ("after", "\"rect area\""),
+                ("code", "hint \"rect area\" test area(2) == 2 end"),
+              ],
+            ),
+          ],
+        );
+      mentions(
+        "its result",
+        "There are now 2 entries named \"rect area\" in the program's top level: \"rect area\"#1, \"rect area\"#2.",
+        List.hd(results).content,
+      );
+      let (_, results) =
+        reply(
+          code,
+          [
+            (
+              "replace",
+              [
+                ("target", "\"rect area\""),
+                ("code", "hint \"rect area\" test area(2) == 2 end"),
+              ],
+            ),
+          ],
+        );
+      check(
+        bool,
+        "not for one replacing its own",
+        false,
+        has("There are now", List.hd(results).content),
+      );
+    },
+  ),
+  test_case(
+    "a reflowed replace lists only the lines it really changes",
+    `Quick,
+    () => {
+      /* E4: a check per line of its own, rewritten without two of them */
+      let code = "let f(n: Int): Int = n in\nlet check: () -> Bool = fun _ ->\n    (\n  f(1) == 1\n    )\n    && (\n  f(2) == 2\n    )\n    && (\n  f(3) == 3\n    )\nin\ncheck(())";
+      let (_, results) =
+        reply(
+          code,
+          [
+            (
+              "replace",
+              [
+                ("target", "check:definition"),
+                ("code", "fun _ ->\n  (f(1) == 1)\n  && (f(2) == 2)"),
+              ],
+            ),
+          ],
+        );
+      mentions(
+        "its result",
+        "Replaced check:definition.\n- && (\n- f(3) == 3\n- )\nStatic errors",
+        List.hd(results).content,
+      );
+    },
+  ),
+  test_case(
+    "a whole-entry replace keeps only the doc comment, not a header set apart",
+    `Quick,
+    () => {
+      /* E7 on Mega-Mod 1k: WateringTimer's header above pad came twice */
+      let code = "module W = {\n  # Watering Timer #\n  # formats minutes #\n\n  # two digits #\n  let pad = fun (n: Int) -> n;\n  let z = 1\n} in\nW.pad(1)";
+      let (program, _) =
+        reply(
+          code,
+          [
+            (
+              "replace",
+              [("target", "W/pad"), ("code", "let pad(n: Int): Int = n")],
+            ),
+          ],
+        );
+      check(
+        string,
+        "program",
+        "module W = {\n  # Watering Timer #\n  # formats minutes #\n\n  # two digits #\n  let pad(n: Int): Int = n;\n  let z = 1\n} in\nW.pad(1)",
+        program,
+      );
+    },
+  ),
+];
+
 let tests = [
   ("AgentReply.PromptExamples", prompt_examples),
   ("AgentReply.Transactions", transactions),
@@ -1478,4 +1812,5 @@ let tests = [
   ("AgentReply.Move", moves),
   ("AgentReply.Repro", repro),
   ("AgentReply.Endings", endings),
+  ("AgentReply.Messages", messages),
 ];
