@@ -17,10 +17,12 @@ module Print = {
     Printer.of_segment(~holes, ~caret=None, segment);
   };
 
+  /* parenthesized as the editor would print it: a tuple type standing
+     alone reads (A, B), not A, B; an unknown reads ? */
   let term = (term: Any.t): string => {
     let settings =
       ExpToSegment.Settings.of_core(~inline=false, CoreSettings.off);
-    term |> ExpToSegment.any_to_pretty(~settings) |> seg(~holes="");
+    term |> ExpToSegment.any_to_segment(~settings) |> seg(~holes="?");
   };
 
   let typ = (ty: Typ.t): string => term(Typ(ty));

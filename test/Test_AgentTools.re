@@ -2776,9 +2776,55 @@ let self_reference_errors = () => {
   );
 };
 
+/* a tuple type prints parenthesized wherever it stands, but a
+   constructor's argument keeps only the constructor's own parens */
+let printed_parens = () => {
+  let says = (code, expected) =>
+    check(
+      bool,
+      code ++ " says " ++ expected,
+      true,
+      List.exists(
+        CorpusUtil.contains(expected),
+        ErrorPrint.all(mk_statics(mk_zipper(code))),
+      ),
+    );
+  says(
+    "type Point = (Int, Int) in let p : (Point, Bool) = 1 in p",
+    "Expecting type (Point, Bool) but got inconsistent type Int",
+  );
+  says(
+    "let x : Int = ((1, true), 2) in x",
+    "inconsistent type ((Int, Bool), Int)",
+  );
+  says(
+    "let f : (Int, Int) -> Int = 1 in f",
+    "Expecting type (Int, Int) -> Int",
+  );
+  says(
+    "let f : Int -> (Int, Bool) = 1 in f",
+    "Expecting type Int -> (Int, Bool)",
+  );
+  says(
+    "type S = + A(Int, Bool) + B in let x : Int = A(1, true) in x",
+    "inconsistent type + A(Int, Bool) + B",
+  );
+  says(
+    "type S = + A(Int, Bool) + B in let x : Int = A in x",
+    "inconsistent type (Int, Bool) -> S",
+  );
+  says("let x : () = 1 in x", "Expecting type () but");
+  says("let x : Int = (?, ?) in x", "inconsistent type (?, ?)");
+  says(
+    "type S = + A(Int, Bool) + B in let f = fun (A(x, y): S) -> x in f",
+    "fun (A(x, y)) -> x",
+  );
+};
+
 let error_print_tests = (
   "ErrorPrint",
   [
+    test_case("tuple types print parenthesized", `Quick, printed_parens),
     test_case(
       "a module naming itself in its own body",
       `Quick,
