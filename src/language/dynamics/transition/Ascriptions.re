@@ -82,8 +82,9 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
           );
     | (Module(items), Sig(sig_items)) =>
       /* Sealing: keep the signature's value members, in signature order,
-         ascribing each to its declared type. A member the module lacks, or a
-         module still evaluating, leaves the ascription stuck. */
+         ascribing each to its declared type. A module still evaluating
+         leaves the ascription stuck. A member the module lacks is a hole:
+         statics allows that only when a hole item stands in for it. */
       let members =
         Sig.members(sig_items)
         |> Sig.dedup_last
@@ -94,14 +95,20 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
              }
            );
       let picked =
-        members
-        |> List.map(((x, ty)) =>
-             Mod.value_member(items, x)
-             |> Option.map(v =>
-                  Mod.fresh(ModVal(x, recur(Asc(v, ty) |> DHExp.fresh)))
-                )
-           )
-        |> Util.OptUtil.sequence;
+        Mod.value_bindings(items)
+        |> Option.map(bindings =>
+             members
+             |> List.map(((x, ty)) => {
+                  let d =
+                    switch (
+                      Util.ListUtil.assoc_opt_by(String.equal, x, bindings)
+                    ) {
+                    | Some(v) => recur(Asc(v, ty) |> DHExp.fresh)
+                    | None => DHExp.fresh(EmptyHole)
+                    };
+                  Mod.fresh(ModVal(x, d));
+                })
+           );
       switch (picked) {
       | Some(items') =>
         Some(

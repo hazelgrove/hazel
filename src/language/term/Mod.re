@@ -133,13 +133,6 @@ let value_bindings =
      )
   |> Util.OptUtil.sequence;
 
-/* Member [name] of a module value. */
-let value_member = (items: list(t), name: Var.t): option(TermBase.Exp.t) =>
-  Option.bind(
-    value_bindings(items),
-    List.find_map(((x, d)) => String.equal(x, name) ? Some(d) : None),
-  );
-
 /* Member [name] of a module, which may be stuck on an item: its value, if an
    evaluated item binds it and no item from the stuck one on binds it again. */
 let member = (items: list(t), name: Var.t): option(TermBase.Exp.t) => {

@@ -211,6 +211,17 @@ let test_pattern_binding_sealed =
     )
   });
 
+let test_sealing_hole_item =
+  test_case(
+    "Sealing a module with a hole item makes its missing members holes",
+    `Quick,
+    () => {
+    parse_and_evaluate_test(
+      "(1, ?)",
+      {|module M : { let x : Int; let y : Int } = { let x = 1; ? } in (M.x, M.y)|},
+    )
+  });
+
 let test_member_rebound_after_stuck_item =
   test_case("A member rebound after a stuck item stays stuck", `Quick, () => {
     parse_and_evaluate_test(
@@ -273,5 +284,6 @@ let tests = (
     test_sealing_drops_extras,
     test_sealing_nested,
     test_pattern_binding_sealed,
+    test_sealing_hole_item,
   ],
 );
