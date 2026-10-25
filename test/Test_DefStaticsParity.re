@@ -717,6 +717,32 @@ let small = [
     `Quick,
     script("let f(x : Int) : Bool = x > 0 in\nlet g(y) = y in\n1", []),
   ),
+  /* a function definition's parameters bind its uses, so the outer
+     names they shadow stay unused */
+  test_case(
+    "a parameter shadowing an unused binding",
+    `Quick,
+    script("let x = 1 in\nlet f(x) = x + 1 in\nf(2)", []),
+  ),
+  test_case(
+    "parameters shadowing unused bindings",
+    `Quick,
+    script(
+      "let x = 1 in\nlet y = 2 in\nlet f(x, (y, z)) : Int = x + y + z in\nf(1, (2, 3))",
+      [token("3", "4")],
+    ),
+  ),
+  /* a module member's chain splits into items too (members themselves
+     are exports, never unused) */
+  test_case(
+    "a parameter in a member's chain shadowing an unused binding",
+    `Quick,
+    script(
+      ~root=Mod,
+      "module M = {\n  let x = 1 in\n  let f(x) = x + 1 in\n  f(2)\n};\n1",
+      [],
+    ),
+  ),
   test_case(
     "a module used in an alias's definition",
     `Quick,
