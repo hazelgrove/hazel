@@ -150,7 +150,7 @@ let program_model = [
   "- a block's result: `=>` (`perimeter/=>`, what follows perimeter's local definitions; `=>` alone is the program's);",
   "- one of several same-named entries: `n#2`, the second in program order. An ambiguous path is refused with the choices listed.",
   "",
-  "After the last element, a **part**: `area:definition` (between `=` and its `in` or `;`, which you never write), `area:pattern` (between `let` and `=`). For `let f(x) = …`, the parameters are in the pattern, so `f:definition` is f's body.",
+  "After the last element, a **part**: `area:definition` (between `=` and its `in` or `;`, which you never write), `area:pattern` (between `let` and `=`). For `let f(x) = …`, `f:definition` is f's body; for `let f = fun x -> …`, from `fun`.",
   "Results, errors and the map name entries by these paths.",
   "",
   "### The view: a map, then open entries",

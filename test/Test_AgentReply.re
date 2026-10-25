@@ -1060,6 +1060,52 @@ let feedback = [
     },
   ),
   test_case(
+    "a parse error says where, with the text near it",
+    `Quick,
+    () => {
+      /* N2 Flash: record syntax got a raw `menhir: Failure(…)` */
+      let (_, results) =
+        reply(
+          "let a = 1 in a",
+          [
+            (
+              "insert",
+              [
+                ("after", "a"),
+                (
+                  "code",
+                  "type Task = { title: String, done: Bool } in\nlet t = 1",
+                ),
+              ],
+            ),
+          ],
+        );
+      let content = List.hd(results).content;
+      mentions(
+        "result",
+        "The code does not parse at line 1, column 15, near `type Task = { title: String, done:`.",
+        content,
+      );
+      mentions(
+        "the record hint",
+        "Hazel has no records: use a labeled tuple, `(title = String, done = Bool)`.",
+        content,
+      );
+      check(bool, "no raw parser text", false, has("Failure", content));
+      let (_, results) =
+        reply(
+          "let a = 1 in a",
+          [("insert", [("after", "a"), ("code", "let b = 1 +\n  (2 *")])],
+        );
+      check(
+        bool,
+        "no record hint elsewhere",
+        false,
+        has("records", List.hd(results).content),
+      );
+    },
+  ),
+  test_case(
     "a whole-entry replace keeps the comment above it",
     `Quick,
     () => {
@@ -1477,6 +1523,176 @@ in
   ),
 ];
 
+/* V Flash: `translate:definition` on a body of local definitions */
+let translate = {|let translate(sc: [Int], d: Int): [Int] =
+  let move(x: Int): Int = x + d in
+  let map(f, xs) =
+    case xs
+    | [] => []
+    | hd :: tl => f(hd) :: map(f, tl)
+    end
+  in
+  map(move, sc)
+in
+translate([1], 1)|};
+
+let definitions = [
+  test_case(
+    "`:definition` replaces a body of local definitions whole",
+    `Quick,
+    () => {
+      let (program, results) =
+        reply(
+          translate,
+          [
+            (
+              "replace",
+              [
+                ("target", "translate:definition"),
+                (
+                  "code",
+                  "let move(x: Int): Int = x - d in\nlet map(f, xs) =\n  case xs\n  | [] => []\n  | hd :: tl => f(hd) :: map(f, tl)\n  end\nin\nmap(move, sc)",
+                ),
+              ],
+            ),
+          ],
+        );
+      check(
+        string,
+        "program",
+        {|let translate(sc: [Int], d: Int): [Int] =
+  let move(x: Int): Int = x - d in
+  let map(f, xs) =
+    case xs
+    | [] => []
+    | hd :: tl => f(hd) :: map(f, tl)
+    end
+  in
+  map(move, sc)
+in
+translate([1], 1)|},
+        program,
+      );
+      mentions(
+        "result",
+        "Replaced translate:definition.",
+        List.hd(results).content,
+      );
+      let (program, _) =
+        reply(
+          translate,
+          [
+            (
+              "replace",
+              [("target", "translate:definition"), ("code", "sc")],
+            ),
+          ],
+        );
+      check(
+        string,
+        "to one line",
+        "let translate(sc: [Int], d: Int): [Int] = sc in\ntranslate([1], 1)",
+        program,
+      );
+    },
+  ),
+  test_case(
+    "parts within the body still name what they did",
+    `Quick,
+    () => {
+      let (program, _) =
+        reply(
+          translate,
+          [
+            (
+              "replace",
+              [("target", "translate/move:definition"), ("code", "x * d")],
+            ),
+            (
+              "replace",
+              [("target", "translate/move:pattern"), ("code", "move(x)")],
+            ),
+            (
+              "replace",
+              [("target", "translate/=>"), ("code", "map(move, [])")],
+            ),
+          ],
+        );
+      mentions("program", "  let move(x) = x * d in\n", program);
+      mentions("the result", "  map(move, [])\nin", program);
+    },
+  ),
+];
+
+/* code bringing several entries, laid out as an insert of them would be */
+let layout = [
+  test_case(
+    "a result's code with definitions: a blank line between entries",
+    `Quick,
+    () => {
+      /* N2 Flash: two `type … in` lines; S Flash: no blank line before
+         the result */
+      let (program, _) =
+        reply(
+          "let a = 1 in\n\n?",
+          [
+            (
+              "replace",
+              [
+                ("target", "=>"),
+                (
+                  "code",
+                  "type T = Int in\ntype U = [T] in\nlet b(x: T): U = [x]\nin\n\nhint \"b\" test b(1) == [1] end;\nlet c = b(a) in\nc",
+                ),
+              ],
+            ),
+          ],
+        );
+      check(
+        string,
+        "program",
+        "let a = 1 in\n\ntype T = Int in\n\ntype U = [T] in\n\nlet b(x: T): U = [x] in\n\nhint \"b\" test b(1) == [1] end;\n\nlet c = b(a) in\n\nc",
+        program,
+      );
+      let (program, _) =
+        reply(
+          "let a = 1 in\n?",
+          [("replace", [("target", "=>"), ("code", "a +\n1")])],
+        );
+      check(string, "an expression alone", "let a = 1 in\na +\n1", program);
+    },
+  ),
+  test_case(
+    "a one-line definition ends with ` in`, wherever it lands",
+    `Quick,
+    () => {
+      /* N2 Opus: `type Task = (String, Bool)` then `in` */
+      let (program, _) =
+        reply(
+          "?",
+          [
+            (
+              "insert",
+              [
+                ("first_in", "/"),
+                (
+                  "code",
+                  "type Task = (String, Bool)\nin\nlet f(t: Task): Task = t\nin\nhint \"f\" test f((\"a\", true)) == (\"a\", true) end",
+                ),
+              ],
+            ),
+          ],
+        );
+      check(
+        string,
+        "program",
+        "type Task = (String, Bool) in\n\nlet f(t: Task): Task = t in\n\nhint \"f\" test f((\"a\", true)) == (\"a\", true) end;\n\n?",
+        program,
+      );
+    },
+  ),
+];
+
 let endings = [
   test_case(
     "a trailing expression fills the program's empty result",
@@ -1690,6 +1906,152 @@ let messages = [
     },
   ),
   test_case(
+    "errors no one call wrote are the reply's, not its last call's",
+    `Quick,
+    () => {
+      /* V Sonnet: the Shape replace broke area; the refusal sat on the
+         insert after it */
+      let (outs, _) =
+        run(
+          shapes_v,
+          [
+            [
+              call(
+                0,
+                "replace",
+                [
+                  ("target", "Shape"),
+                  (
+                    "code",
+                    "type Shape = + Circle(Int, Bool) + Rect(Int, Int)",
+                  ),
+                ],
+              ),
+              call(
+                1,
+                "insert",
+                [("before", "area"), ("code", "let two = 2")],
+              ),
+            ],
+          ],
+        );
+      let results = snd(List.hd(outs));
+      let content = i => List.nth(results, i).AgentToolResult.content;
+      mentions(
+        "the refusal",
+        "Not applied: this reply's edits together would add 3 static errors",
+        content(1),
+      );
+      mentions(
+        "no one call blamed",
+        "None of this reply's edits were applied: they are checked as one change.",
+        content(1),
+      );
+      mentions(
+        "the other call",
+        "Rolled back. None of this reply's edits were applied: they are checked as one change (see call 2's result).",
+        content(0),
+      );
+      check(
+        bool,
+        "no call named as failed",
+        false,
+        has("failed", content(1)),
+      );
+    },
+  ),
+  test_case(
+    "uses the reply changed and still broken are said so",
+    `Quick,
+    () => {
+      /* V Flash: told to change uses in the same reply, which it had */
+      let (outs, _) =
+        run(
+          shapes_v,
+          [
+            [
+              call(
+                0,
+                "replace",
+                [
+                  ("target", "Shape"),
+                  (
+                    "code",
+                    "type Shape = + Circle(Int, Bool) + Rect(Int, Int)",
+                  ),
+                ],
+              ),
+              call(
+                1,
+                "replace",
+                [
+                  ("target", "area:definition"),
+                  (
+                    "code",
+                    "case s\n| Circle(r) => 3 * r * r\n| Rect(w, h) => w * h\nend",
+                  ),
+                ],
+              ),
+            ],
+          ],
+        );
+      let content =
+        String.concat(
+          "\n",
+          List.map(
+            (tr: AgentToolResult.tool_result) => tr.content,
+            snd(List.hd(outs)),
+          ),
+        );
+      mentions(
+        "the still-broken uses",
+        "Changing Shape breaks uses in: \"circle area\"; change them in the same reply.\nUses in area are still broken after this reply's changes to it.",
+        content,
+      );
+    },
+  ),
+  test_case(
+    "a definition's code dropping its `fun` head is told so",
+    `Quick,
+    () => {
+      /* E1 Flash: `update:definition` sent without `fun (m, action) ->` */
+      let (_, results) =
+        reply(
+          "let update = fun (m: Int, action: Int) ->\n  m + action\nin\nupdate(1, 2)",
+          [
+            (
+              "replace",
+              [("target", "update:definition"), ("code", "m * action")],
+            ),
+          ],
+        );
+      mentions(
+        "the hint",
+        "\n`update:definition` starts with `fun (m: Int, action: Int) ->`; the new code dropped it.\n",
+        List.hd(results).content,
+      );
+      let (_, results) =
+        reply(
+          "let update = fun (m: Int, action: Int) ->\n  m + action\nin\nupdate(1, 2)",
+          [
+            (
+              "replace",
+              [
+                ("target", "update:definition"),
+                ("code", "fun (m: Int, b: Int) -> m * action"),
+              ],
+            ),
+          ],
+        );
+      check(
+        bool,
+        "not when the code has one",
+        false,
+        has("dropped", List.hd(results).content),
+      );
+    },
+  ),
+  test_case(
     "an edit leaving the program's result empty says so",
     `Quick,
     () => {
@@ -1856,6 +2218,8 @@ let tests = [
   ("AgentReply.TestsByHint", tests_by_hint),
   ("AgentReply.Move", moves),
   ("AgentReply.Repro", repro),
+  ("AgentReply.Definitions", definitions),
+  ("AgentReply.Layout", layout),
   ("AgentReply.Endings", endings),
   ("AgentReply.Messages", messages),
 ];

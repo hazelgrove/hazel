@@ -162,7 +162,7 @@ let all: list(example) = [
   ),
   on_shapes(
     ~in_tool=true,
-    "Replace a function's body: for `let f(x) = …`, its definition",
+    "Replace a function's body",
     [
       call(
         "replace",

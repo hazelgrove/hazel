@@ -4084,10 +4084,11 @@ let paste_funnel_tests = (
     }),
     test_case("replace keeps the code's own indentation", `Quick, () => {
       /* formatting is local: new code keeps its lines' relative
-         indentation, at its place's */
+         indentation, at its place's; the gaps between the entries it
+         brings are house style */
       check_rendered_exact(
         "replace_indented",
-        "let a = 1 in let b = 2 in\n  a + b",
+        "let a = 1 in let b = 2 in\n\n  a + b",
         apply_and_render(
           "let a = 1 in a",
           Replace("=>", "let b = 2 in\n  a + b"),

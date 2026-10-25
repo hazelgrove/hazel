@@ -152,19 +152,54 @@ let unseparated = (code: string): bool => {
   go(lines);
 };
 
-/* why code didn't read: escapes, entries without separators, the batch
-   parser's note, a reserved binder */
+/* where the parser stopped in [code], and the text near it on its line:
+   the parsed text is the code trimmed, perhaps with its terminator */
+let stopped_at = (code: string, stop: MenhirParser.Interface.stop): string => {
+  let lines = Array.of_list(String.split_on_char('\n', String.trim(code)));
+  if (stop.line > Array.length(lines)) {
+    " at its end";
+  } else {
+    let l = lines[stop.line - 1];
+    let n = String.length(l);
+    let c = max(0, min(n, stop.column - 1));
+    /* not inside a UTF-8 character */
+    let inside = i => i < n && Char.code(l.[i]) land 0xC0 == 0x80;
+    let rec back = i => inside(i) ? back(i - 1) : i;
+    let rec on = i => inside(i) ? on(i + 1) : i;
+    let (lo, hi) = (back(max(0, c - 14)), on(min(n, c + 20)));
+    " at line "
+    ++ string_of_int(stop.line)
+    ++ ", column "
+    ++ string_of_int(stop.column)
+    ++ ", near `"
+    ++ String.trim(String.sub(l, lo, hi - lo))
+    ++ "`";
+  };
+};
+
+/* braces holding `name: …,`: record syntax, which Hazel hasn't */
+let record_braces =
+  StringUtil.regexp("\\{[ \n]*[a-z_][A-Za-z0-9_']*[ ]*:[^;{}]*,");
+
+/* why code didn't read: escapes, entries without separators, where the
+   parser stopped (else the batch parser's note), a reserved binder */
 let unreadable = (code: string): string =>
   escaped(code)
     ? {|`code` contains `\n` as two characters; write real line breaks (and plain quotes).|}
     : unseparated(code)
         ? "Entries in one `code` need `in` between them (`;` in a module); leave it off the last."
-        : "The code does not parse."
+        : "The code does not parse"
           ++ (
-            switch (FastParse.bail_note^) {
-            | Some(n) => " Parser: " ++ n ++ "."
-            | None => ""
+            switch (FastParse.bail_at^, FastParse.bail_note^) {
+            | (Some(stop), _) => stopped_at(code, stop) ++ "."
+            | (None, Some(n)) => ". Parser: " ++ n ++ "."
+            | (None, None) => "."
             }
+          )
+          ++ (
+            StringUtil.search(record_braces, code, 0) == None
+              ? ""
+              : " Hazel has no records: use a labeled tuple, `(title = String, done = Bool)`."
           )
           ++ (
             switch (reserved_binder(code)) {
@@ -399,17 +434,19 @@ let uses_in = (~root, ~info_map, seg: Segment.t, binder: Id.t): list(Id.t) =>
 let uses = (p: program, binder: Id.t): list(Id.t) =>
   uses_in(~root=p.root, ~info_map=Lazy.force(p.info_map), p.seg, binder);
 
+let node_pieces_at = (~root, seg: Segment.t, id: Id.t): Segment.t =>
+  switch (K.node(~root, id, seg)) {
+  | n => K.node_pieces(n)
+  | exception (K.Refused(_)) => []
+  };
+
 /* what [id] names in [seg]: an entry's pieces, or a node's */
 let pieces_at = (~root, seg: Segment.t, id: Id.t): Segment.t =>
   switch (P.find(~root, seg, id)) {
   | Some(steps) =>
     let (lv, k) = ListUtil.last(steps);
     S.core(lv, k);
-  | None =>
-    switch (K.node(~root, id, seg)) {
-    | n => K.node_pieces(n)
-    | exception (K.Refused(_)) => []
-    }
+  | None => node_pieces_at(~root, seg, id)
   };
 
 /* the tokens of [ps] that bind, each by its name */
@@ -792,12 +829,22 @@ let plan_call = (p: program, call: call): result(plan, string) => {
       | Some(c) => c ++ "\n" ++ code
       | None => code
       };
+    let op =
+      switch (f.part) {
+      | None => K.Replace(id, text(code))
+      | Some(pt) => ReplacePart(f.id, pt, text(code))
+      };
     let pl = {
-      ...plan(~target=f.id, Replaced(f.part), [Replace(id, text(code))]),
+      ...plan(~target=f.id, Replaced(f.part), [op]),
       kept_comment: comment != None,
     };
     let info_map = Lazy.force(p.info_map);
-    let binders = binders_in(~info_map, pieces_at(~root=p.root, p.seg, id));
+    /* a part is a node, though its root may head an entry */
+    let replaced =
+      f.part == None
+        ? pieces_at(~root=p.root, p.seg, id)
+        : node_pieces_at(~root=p.root, p.seg, id);
+    let binders = binders_in(~info_map, replaced);
     Ok({
       ...pl,
       rebinds:
@@ -1398,8 +1445,8 @@ module Reply = {
   };
 
   type failure = {
-    /* the tool call it concerns */
-    index: int,
+    /* the tool call it concerns; None: the reply's edits together */
+    index: option(int),
     message: string,
   };
 
@@ -1423,21 +1470,31 @@ module Reply = {
   let lines = (ls: list(string)): string =>
     String.concat("", List.map(l => "\n- " ++ l, ls));
 
-  /* the call that wrote piece [id]: the first it appears after; else the
-     last, whose change the error is in */
-  let author = (r: t, id: Id.t): made => {
+  /* the call that wrote piece [id]: the first it appears after */
+  let author = (r: t, id: Id.t): option(int) => {
     let has = (seg: Segment.t) =>
       Nav.find_path(~root=r.root, id, seg) != None;
-    switch (
-      List.find_opt(
-        (m: made) => !has(m.before) && has(m.change.program),
-        made(r),
-      )
-    ) {
-    | Some(m) => m
-    | None => List.hd(r.made)
-    };
+    List.find_map(
+      (m: made) =>
+        !has(m.before) && has(m.change.program) ? Some(m.index) : None,
+      made(r),
+    );
   };
+
+  /* the one call errors [ids] concern: the reply's only call, or the one
+     that wrote them all. Errors in code no call wrote (uses a type change
+     broke) are the reply's */
+  let concerns = (r: t, ids: list(Id.t)): option(int) =>
+    switch (r.made, ids) {
+    | ([m], _) => Some(m.index)
+    | (_, [id, ...rest]) =>
+      switch (author(r, id)) {
+      | Some(i) when List.for_all(id => author(r, id) == Some(i), rest) =>
+        Some(i)
+      | _ => None
+      }
+    | (_, []) => None
+    };
 
   /* the entries holding pieces [ids], by path */
   let where_all = (r: t, ids: list(Id.t)): string =>
@@ -1472,7 +1529,7 @@ module Reply = {
         | [] => None
         | found =>
           Some({
-            index: m.index,
+            index: Some(m.index),
             message:
               "Not deleted: it would leave uses dangling. Delete or change them first, in the same reply:"
               ++ lines(
@@ -1516,7 +1573,7 @@ module Reply = {
             | [] => None
             | ids =>
               Some({
-                index: m.index,
+                index: Some(m.index),
                 message:
                   "Not renamed to "
                   ++ name
@@ -1557,7 +1614,11 @@ module Reply = {
             |> List.concat_map(id =>
                  binders_in(
                    ~info_map=final.info_map,
-                   pieces_at(~root=r.root, m.change.program, id),
+                   switch (m.plan.what) {
+                   | Replaced(Some(_)) =>
+                     node_pieces_at(~root=r.root, m.change.program, id)
+                   | _ => pieces_at(~root=r.root, m.change.program, id)
+                   },
                  )
                );
           let name_of = (bs, b) =>
@@ -1603,7 +1664,7 @@ module Reply = {
           | [] => None
           | found =>
             Some({
-              index: m.index,
+              index: Some(m.index),
               message:
                 "Not replaced: uses outside it would change what they refer to. To rename a binder with its uses, use rename (with name for a parameter):"
                 ++ lines(
@@ -1724,10 +1785,98 @@ module Reply = {
   /* errors listed in full, past which they are counted */
   let shown_errors = 10;
 
-  /* a refusal for errors [fresh]: how many, by top-level entry, what a
-     type change breaks, then the first few */
+  /* the top-level entries the reply's calls changed, by path */
+  let changed_entries = (r: t): list(string) =>
+    List.concat_map(
+      (m: made) =>
+        List.map(
+          t => snd(top_entry(r, m.before, t)),
+          Option.to_list(m.plan.target),
+        )
+        @ List.concat_map(
+            (s: K.step) =>
+              List.map(
+                id => snd(top_entry(r, s.program, id)),
+                s.added @ List.map(snd, s.replaced),
+              ),
+            m.change.steps,
+          ),
+      made(r),
+    );
+
+  /* a `:definition` replace whose code dropped the definition's `fun`
+     heads, leaving their parameters unbound among [fresh]: which */
+  let dropped_heads = (r: t, fresh: list(Id.t)): list(string) => {
+    let final = Lazy.force(r.statics).info_map;
+    let free =
+      List.concat_map(
+        id =>
+          switch (Id.Map.find_opt(id, final)) {
+          | Some(info) =>
+            List.filter_map(
+              (m: Mark.t) =>
+                switch (m) {
+                | Free(x) => Some(x)
+                | _ => None
+                },
+              Info.marks_of(info),
+            )
+          | None => []
+          },
+        fresh,
+      );
+    let text = h => String.trim(Printer.of_segment(~holes="?", [h]));
+    let rec leading = (ps: Segment.t) =>
+      switch (ps) {
+      | [p, ...rest] when S.is_fun_head(p) => [p, ...leading(rest)]
+      | _ => []
+      };
+    let heads = (seg, head) =>
+      Option.map(
+        id =>
+          node_pieces_at(~root=r.root, seg, id)
+          |> List.filter(p => !Piece.is_secondary(p))
+          |> leading,
+        K.part(~root=r.root, head, Definition, seg),
+      );
+    free == []
+      ? []
+      : List.filter_map(
+          (m: made) =>
+            switch (m.plan.what, m.plan.target) {
+            | (Replaced(Some(Definition)), Some(head)) =>
+              switch (heads(m.before, head), heads(m.change.program, head)) {
+              | (Some([_, ..._] as old), Some([])) =>
+                binders_in(
+                  ~info_map=Lazy.force(r.start_statics).info_map,
+                  old,
+                )
+                |> List.exists(((x, _)) => List.mem(x, free))
+                  ? Some(
+                      Option.fold(
+                        ~none="The definition",
+                        ~some=p => "`" ++ p ++ ":definition`",
+                        path_string(~root=r.root, m.before, head),
+                      )
+                      ++ " starts with `"
+                      ++ String.concat(" ", List.map(text, old))
+                      ++ "`; the new code dropped it.",
+                    )
+                  : None
+              | _ => None
+              }
+            | _ => None
+            },
+          made(r),
+        );
+  };
+
+  /* a refusal for errors [fresh], the reply's edits together's when
+     [whole]: how many, by top-level entry, what a type change breaks, then
+     the first few */
   let new_errors_message =
-      (r: t, ~line: Id.t => string, ~n0, ~n1, fresh: list(Id.t)): string => {
+      (r: t, ~whole, ~line: Id.t => string, ~n0, ~n1, fresh: list(Id.t))
+      : string => {
     let seg = program(r);
     let groups =
       List.fold_left(
@@ -1744,8 +1893,17 @@ module Reply = {
       |> List.map((((_, path), n)) => (path, n));
     let count = List.length(fresh);
     let types = changed_types(r);
-    let broken = List.filter(((g, _)) => !List.mem(g, types), groups);
-    "Not applied: it would add "
+    let changed = changed_entries(r);
+    let (redone, broken) =
+      List.filter(((g, _)) => !List.mem(g, types), groups)
+      |> List.map(fst)
+      |> List.partition(g => List.mem(g, changed));
+    let names = String.concat(", ");
+    (
+      whole
+        ? "Not applied: this reply's edits together would add "
+        : "Not applied: it would add "
+    )
     ++ string_of_int(count)
     ++ (count == 1 ? " static error" : " static errors")
     ++ " ("
@@ -1767,9 +1925,18 @@ module Reply = {
         : "\nChanging "
           ++ String.concat(" and ", types)
           ++ " breaks uses in: "
-          ++ String.concat(", ", List.map(fst, broken))
+          ++ names(broken)
           ++ "; change them in the same reply."
     )
+    ++ (
+      types == [] || redone == []
+        ? ""
+        : "\nUses in "
+          ++ names(redone)
+          ++ " are still broken after this reply's changes to "
+          ++ (List.length(redone) == 1 ? "it." : "them.")
+    )
+    ++ String.concat("", List.map(h => "\n" ++ h, dropped_heads(r, fresh)))
     ++ lines(List.map(line, ListUtil.take(shown_errors, fresh)))
     ++ (
       count > shown_errors
@@ -1822,10 +1989,19 @@ module Reply = {
           ) {
           | Some(f) => Error(f)
           | None when r.checks.no_new_errors && fresh != [] =>
+            let index = concerns(r, fresh);
             Error({
-              index: author(r, List.hd(fresh)).index,
-              message: new_errors_message(r, ~line, ~n0, ~n1, fresh),
-            })
+              index,
+              message:
+                new_errors_message(
+                  r,
+                  ~whole=index == None,
+                  ~line,
+                  ~n0,
+                  ~n1,
+                  fresh,
+                ),
+            });
           | None => Ok()
           }
         };
@@ -1921,7 +2097,8 @@ let step_records = (~root, m: made): list(AgentToolResult.step) => {
     let (op, from, into) =
       switch (s.op) {
       | Insert(_) => ("insert", None, Option.bind(made, path(s.program)))
-      | Replace(x, _) => (
+      | Replace(x, _)
+      | ReplacePart(x, _, _) => (
           "replace",
           path(before, x),
           path(s.program, Option.value(made, ~default=x)),
