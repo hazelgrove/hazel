@@ -1293,6 +1293,8 @@ let api_settings = {
 let drive =
     (
       ~src=lens_src,
+      ~reasoning=?,
+      ~usage=?,
       turns: list((string, list(list((string, Yojson.Safe.t))))),
     )
     : (list(string), W.Agent.Model.t) => {
@@ -1368,10 +1370,10 @@ let drive =
                   },
                 calls,
               ),
-            usage: None,
-            reasoning: None,
+            usage,
+            reasoning,
           };
-          step(HandleLLMResponse(reply, chat_id, agent^.main_llm_seq, 0));
+          step(HandleLLMResponse(reply, chat_id, agent^.main_llm_seq, 6000));
           drain();
         },
         replies,
@@ -1401,6 +1403,19 @@ let messages_of = (body: string): list(string) =>
     }
   | _ => []
   };
+
+/* every section, depth first */
+let rec flatten = (ss: list(T.section)): list(T.section) =>
+  List.concat_map((s: T.section) => [s, ...flatten(s.children)], ss);
+
+/* the sections' JSON as sent, in order */
+let sent_lines = (ss: list(T.section)): list(string) =>
+  List.concat_map(T.lines, ss);
+
+let kind = testable(T.pp_kind, (==));
+
+let of_kind = (k: T.kind, ss) =>
+  List.filter((s: T.section) => s.kind == k, flatten(ss));
 
 let trajectory_tests = [
   test_case(
@@ -1443,7 +1458,7 @@ let trajectory_tests = [
       let t = Option.get(T.build(chat, 3));
       let last = Util.ListUtil.last(bodies);
       check(string, "the body", last, t.body);
-      let raws = List.map((s: T.section) => s.raw, t.sections);
+      let raws = sent_lines(t.sections);
       /* the last body's messages, in order, among the sections */
       let rec subseq = (want, got) =>
         switch (want, got) {
@@ -1475,12 +1490,7 @@ let trajectory_tests = [
         true,
         Util.ListUtil.take(3, kinds) == [System, Tools, Request],
       );
-      let calls =
-        List.concat_map(
-          (s: T.section) =>
-            List.filter((c: T.section) => c.kind == Call, s.children),
-          t.sections,
-        );
+      let calls = of_kind(Call, t.sections);
       check(
         list(string),
         "the call's arguments, exactly",
@@ -1489,20 +1499,17 @@ let trajectory_tests = [
       );
       check(
         list(bool),
-        "contexts folded but this request's",
-        [true, true, false],
-        List.filter_map(
-          (s: T.section) => s.kind == Context ? Some(s.folded) : None,
-          t.sections,
-        ),
+        "contexts folded",
+        [true, true, true],
+        List.map((s: T.section) => s.folded, of_kind(Context, t.sections)),
       );
       check(
         list(bool),
         "only this request's context is in it",
         [false, false, true],
-        List.filter_map(
-          (s: T.section) => s.kind == Context ? Some(s.in_request) : None,
-          t.sections,
+        List.map(
+          (s: T.section) => s.in_request,
+          of_kind(Context, t.sections),
         ),
       );
     },
@@ -1528,26 +1535,289 @@ let trajectory_tests = [
           check(string, "the body", body, t.body);
           check(
             list(string),
-            Printf.sprintf("request %d's messages", i + 1),
+            Printf.sprintf("request %d's messages, in order", i + 1),
             messages_of(body),
-            List.map((s: T.section) => s.raw, messages),
+            sent_lines(messages),
           );
           check(
             int,
-            "one context, last",
+            "one context",
             1,
-            List.length(
-              List.filter((s: T.section) => s.kind == Context, messages),
-            ),
+            List.length(of_kind(Context, messages)),
           );
           check(
             bool,
             "all in the request",
             true,
-            List.for_all((s: T.section) => s.in_request, t.sections),
+            List.for_all(
+              (s: T.section) => s.in_request,
+              flatten(t.sections),
+            ),
           );
         },
         bodies,
+      );
+    },
+  ),
+  test_case(
+    "a turn per user message, a round per request, the selected one open",
+    `Quick,
+    () => {
+      let (_, agent) =
+        drive([
+          ("open b", [[("open", targets(["b"]))], []]),
+          ("thanks", [[]]),
+        ]);
+      let chat = chat_of(agent);
+      let t = Option.get(T.build(chat, 2));
+      let turns = of_kind(User, t.sections);
+      check(
+        list(string),
+        "the turns, at the top",
+        ["User · 2 rounds"],
+        List.filter_map(
+          (s: T.section) => s.kind == User ? Some(s.label) : None,
+          t.sections,
+        ),
+      );
+      check(bool, "its turn open", false, List.hd(turns).folded);
+      let rounds = of_kind(Round, t.sections);
+      check(
+        list(string),
+        "the rounds",
+        ["Round 1 · 1 tool call", "Round 2 · this request"],
+        List.map((s: T.section) => s.label, rounds),
+      );
+      check(
+        list(bool),
+        "only the selected round open",
+        [true, false],
+        List.map((s: T.section) => s.folded, rounds),
+      );
+      /* round 1: its context, then the reply and the call's result */
+      check(
+        list(kind),
+        "round 1",
+        [Context, Assistant, Result],
+        List.map((s: T.section) => s.kind, List.hd(rounds).children),
+      );
+      /* request 2's reply came back after it: shown, not in it */
+      let reply = List.nth(rounds, 1).children;
+      check(
+        list(kind),
+        "round 2: its context, then its reply",
+        [Context, Assistant],
+        List.map((s: T.section) => s.kind, reply),
+      );
+      check(
+        list(bool),
+        "the reply not in this request",
+        [true, false],
+        List.map((s: T.section) => s.in_request, reply),
+      );
+      check(
+        bool,
+        "and labelled so",
+        true,
+        String.ends_with(
+          ~suffix="after this request",
+          List.nth(reply, 1).label,
+        ),
+      );
+      let r1 = List.hd(rounds).children;
+      check(
+        list(bool),
+        "calls and results folded, the assistant's text not",
+        [false, true, true],
+        List.map(
+          (s: T.section) => s.folded,
+          of_kind(Assistant, r1) @ of_kind(Call, r1) @ of_kind(Result, r1),
+        ),
+      );
+      /* the last request: the first turn folded, the second open */
+      let last = Option.get(T.build(chat, 3));
+      check(
+        list(bool),
+        "earlier turns fold",
+        [true, false],
+        List.filter_map(
+          (s: T.section) => s.kind == User ? Some(s.folded) : None,
+          last.sections,
+        ),
+      );
+      /* the window groups too, in the body's order */
+      let w = Option.get(T.window(chat, 3));
+      check(
+        list(string),
+        "the window's rounds",
+        ["Round 1 · 1 tool call", "Round 2", "Round 3 · this request"],
+        List.map((s: T.section) => s.label, of_kind(Round, w.sections)),
+      );
+    },
+  ),
+  test_case(
+    "thinking and usage: shown in their round, received, never sent",
+    `Quick,
+    () => {
+      let thought = "Two steps: open b, then say so.";
+      let (bodies, agent) =
+        drive(
+          ~reasoning=thought,
+          ~usage={
+            prompt_tokens: 19876,
+            completion_tokens: 212,
+            total_tokens: 20088,
+            cache_read_input_tokens: Some(15900),
+            cache_creation_input_tokens: None,
+            cost: Some(0.0123),
+            upstream_inference_cost: None,
+            cache_write_tokens: None,
+            model_id: None,
+          },
+          [("open b", [[("open", targets(["b"]))], []])],
+        );
+      let chat = chat_of(agent);
+      check(
+        bool,
+        "no body carries the thinking",
+        false,
+        List.exists(
+          b => Util.StringUtil.plain_search(thought, b, 0) >= 0,
+          bodies,
+        ),
+      );
+      let t = Option.get(T.build(chat, 2));
+      let rounds = of_kind(Round, t.sections);
+      check(
+        list(list(kind)),
+        "each round: context, thinking, reply, then usage",
+        [
+          [Context, Thinking, Assistant, Usage, Result],
+          [Context, Thinking, Assistant, Usage],
+        ],
+        List.map(
+          (r: T.section) => List.map((s: T.section) => s.kind, r.children),
+          rounds,
+        ),
+      );
+      let thinking = of_kind(Thinking, t.sections);
+      check(
+        list(string),
+        "the thought, labelled",
+        [
+          {js|Thinking · 6s · received, not sent back|js},
+          {js|Thinking · 6s · received, not sent back|js},
+        ],
+        List.map((s: T.section) => s.label, thinking),
+      );
+      check(string, "as received", thought, List.hd(thinking).text);
+      check(
+        bool,
+        "received, so not sent",
+        true,
+        List.for_all(
+          (s: T.section) => !s.sent && !s.in_request,
+          thinking @ of_kind(Usage, t.sections),
+        ),
+      );
+      check(
+        string,
+        "usage on its line",
+        {js|19.9k in · 212 out · cached: 15.9k · 0.012300 cr|js},
+        List.hd(of_kind(Usage, t.sections)).brief,
+      );
+      check(
+        bool,
+        "nor among the lines copied as sent",
+        false,
+        Util.StringUtil.plain_search(thought, T.to_lines(t), 0) >= 0,
+      );
+      check(
+        bool,
+        "nor in the exact window",
+        true,
+        of_kind(Thinking, Option.get(T.window(chat, 2)).sections) == [],
+      );
+    },
+  ),
+  test_case(
+    "a tool call folds to one line, a result to its first",
+    `Quick,
+    () => {
+      let line = (name, args) =>
+        W.ToolCallSummary.line({
+          id: "c",
+          name,
+          args,
+        });
+      let s = s => `String(s);
+      check(
+        list(string),
+        "lines",
+        [
+          {js|insert · after "area" · code: 2 lines|js},
+          {js|replace · scale:definition · code: 1 line|js},
+          {js|rename · format: minutes → mins|js},
+          {js|rename · c → total|js},
+          {js|open · b, c|js},
+          {js|frob · mode: fast · text: 3 lines · n: 3 · task: Plan it|js},
+        ],
+        [
+          line(
+            "insert",
+            `Assoc([
+              ("code", s("let x = 1 in\nlet y = 2 in")),
+              ("after", s("area")),
+            ]),
+          ),
+          line(
+            "replace",
+            `Assoc([
+              ("target", s("scale:definition")),
+              ("code", s("let scale = 2 in")),
+            ]),
+          ),
+          line(
+            "rename",
+            `Assoc([
+              ("target", s("format")),
+              ("name", s("minutes")),
+              ("to", s("mins")),
+            ]),
+          ),
+          line(
+            "rename",
+            `Assoc([("target", s("c")), ("to", s("total"))]),
+          ),
+          line("open", targets(["b", "c"])),
+          line(
+            "frob",
+            `Assoc([
+              ("mode", s("fast")),
+              ("text", s("a\nb\nc")),
+              ("n", `Int(3)),
+              ("task", `Assoc([("title", s("Plan it"))])),
+            ]),
+          ),
+        ],
+      );
+      let (_, agent) =
+        drive([("open b", [[("open", targets(["b"]))], []])]);
+      let t = Option.get(T.build(chat_of(agent), 2));
+      check(
+        list(string),
+        "the call's line in the trajectory",
+        [{js|open · b|js}],
+        List.map((s: T.section) => s.label, of_kind(Call, t.sections)),
+      );
+      let result = List.hd(of_kind(Result, t.sections));
+      check(
+        bool,
+        "the result's first line",
+        true,
+        result.brief != ""
+        && !String.contains(result.brief, '\n')
+        && Util.StringUtil.plain_search(result.brief, result.text, 0) == 0,
       );
     },
   ),

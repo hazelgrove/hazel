@@ -3298,6 +3298,14 @@
   color: var(--text-strong);
 }
 
+/* a tool call reads as a line, not a heading; a long one is cut short */
+#main .traj-k-call > .traj-summary .traj-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+
 #main .traj-k-user > .traj-summary .traj-label,
 #main .traj-k-assistant > .traj-summary .traj-label {
   color: var(--text-accent);
@@ -3358,11 +3366,24 @@
   margin: 0;
 }
 
-/* shown for reading, not in this request: on a tint, its line dimmed */
-#main .traj-sections > .traj-elsewhere {
+/* shown for reading, not in this request: on a tint, its line dimmed;
+   once, not again inside another */
+#main .traj-elsewhere {
   margin: 0 -0.5em;
   padding: 0 0.5em;
   background-color: color-mix(in srgb, var(--surface-shard) 16%, transparent);
+}
+
+#main .traj-elsewhere .traj-elsewhere {
+  margin-left: 0;
+  margin-right: 0;
+  padding: 0;
+  background-color: transparent;
+}
+
+/* thinking reads as the chat shows it */
+#main .traj-k-thinking > .traj-body > .traj-shown {
+  font-style: italic;
 }
 
 #main .traj-elsewhere > .traj-summary {
