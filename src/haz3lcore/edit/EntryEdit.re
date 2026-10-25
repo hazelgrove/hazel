@@ -791,9 +791,18 @@ let at_end = (c: ctx, place: place, seg: Segment.t): bool =>
 
 /* [program] with the gaps beside the entries holding [item]'s pieces
    (the entries an op landed) laid out by house style, or with [inner]
-   only those between them. [ends]: they land at the program's end */
+   only those between them. [ends]: they land at the program's end. A
+   blank line the code put between them, or [lead] above them, sets a
+   test below it apart */
 let settled =
-    (c: ctx, ~inner=false, ~ends=false, item: Segment.t, program: Segment.t)
+    (
+      c: ctx,
+      ~inner=false,
+      ~ends=false,
+      ~lead=false,
+      item: Segment.t,
+      program: Segment.t,
+    )
     : Segment.t => {
   let mine =
     List.fold_left(
@@ -821,8 +830,21 @@ let settled =
           inner
             ? List.init(k1 - k0, j => k0 + j)
             : List.init(k1 - k0 + 2, j => k0 - 1 + j);
+        let blank = j => L.breaks(b, b.sl[j].eol, b.sl[j + 1].lo) > 1;
+        let apart =
+          List.filter(
+            j =>
+              L.is_test(b.lv, j + 1)
+              && (j == k0 - 1 ? lead && !inner : j >= k0 && blank(j)),
+            List.init(k1 - k0 + 1, j => k0 - 1 + j),
+          );
         let seg =
-          L.settle(~ends=?ends && !inner ? Some(k0 - 1) : None, b, js);
+          L.settle(
+            ~ends=?ends && !inner ? Some(k0 - 1) : None,
+            ~apart,
+            b,
+            js,
+          );
         seg === b.seg ? program : rebuild(seg);
       };
     }
@@ -843,10 +865,30 @@ let insert =
     (c: ctx, op, place: place, src: source, seg: Segment.t): list(step) => {
   let mod_root = c.mod_root;
   let ends = at_end(c, place, seg);
+  /* code starting with a blank line */
+  let lead =
+    switch (src) {
+    | Text(txt) =>
+      let rec go = i =>
+        i < String.length(txt)
+        && (
+          txt.[i] == '\n' || (txt.[i] == ' ' || txt.[i] == '\t') && go(i + 1)
+        );
+      go(0);
+    | Template(_)
+    | Copy(_)
+    | Token(_) => false
+    };
   let lands = (~member, f) => {
     let (item, stmt, src_indent) = entry_of(c, ~member, src, seg);
     let program =
-      settled(c, ~ends, item, need(NoPlace, f(item, stmt, src_indent)));
+      settled(
+        c,
+        ~ends,
+        ~lead,
+        item,
+        need(NoPlace, f(item, stmt, src_indent)),
+      );
     let row = L.row_id(item);
     entrywise(
       c,

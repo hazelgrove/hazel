@@ -195,6 +195,82 @@ let transactions = [
     },
   ),
   test_case(
+    "a test the code sets apart by a blank line keeps it",
+    `Quick,
+    () => {
+      /* N2-Sonnet: "add, mark, count" exercises three functions */
+      let code = {|let add_task(title: String, tasks: [String]): [String] =
+  tasks @ [title]
+in
+hint "add to empty" test add_task("a", []) == ["a"] end;
+
+?|};
+      let (program, _) =
+        reply(
+          code,
+          [
+            (
+              "insert",
+              [
+                ("after", "\"add to empty\""),
+                (
+                  "code",
+                  "let count_open(tasks: [String]): Int =\n  case tasks\n  | [] => 0\n  | _ :: rest => 1 + count_open(rest)\n  end\nin\nhint \"count empty\" test count_open([]) == 0 end;\nhint \"count one\" test count_open([\"a\"]) == 1 end;\n\nhint \"add, mark, count\" test\n  count_open(add_task(\"a\", [])) == 1\nend",
+                ),
+              ],
+            ),
+          ],
+        );
+      mentions(
+        "program",
+        "  end\nin\nhint \"count empty\" test count_open([]) == 0 end;\nhint \"count one\" test count_open([\"a\"]) == 1 end;\n\nhint \"add, mark, count\" test",
+        program,
+      );
+      let (program, _) =
+        reply(
+          code,
+          [
+            (
+              "insert",
+              [
+                ("after", "\"add to empty\""),
+                (
+                  "code",
+                  "\nhint \"add twice\" test\n  add_task(\"b\", add_task(\"a\", [])) == [\"a\", \"b\"]\nend",
+                ),
+              ],
+            ),
+          ],
+        );
+      mentions(
+        "a leading blank line",
+        "== [\"a\"] end;\n\nhint \"add twice\" test",
+        program,
+      );
+      let (program, _) =
+        reply(
+          code,
+          [
+            (
+              "insert",
+              [
+                ("after", "\"add to empty\""),
+                (
+                  "code",
+                  "hint \"add twice\" test\n  add_task(\"b\", add_task(\"a\", [])) == [\"a\", \"b\"]\nend",
+                ),
+              ],
+            ),
+          ],
+        );
+      mentions(
+        "else glued",
+        "== [\"a\"] end;\nhint \"add twice\" test",
+        program,
+      );
+    },
+  ),
+  test_case(
     "a later call edits what an earlier one made",
     `Quick,
     () => {
