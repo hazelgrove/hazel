@@ -237,6 +237,7 @@ and hole_only = (e: O.entry): bool =>
   switch (O.content(O.core(e.lv, e.k))) {
   | []
   | [Grout(_)] => true
+  | [Tile(t)] => Tile.is_explicit_hole(t)
   | _ => false
   }
 
