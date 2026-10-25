@@ -1397,7 +1397,9 @@ let live_typing = () => {
     string,
     "in below a, a hole for its name",
     printed({js|let a = 1 in
+
 let ¿ = ¿ in
+
 let b = 2 in
 a + b|js}),
     text_of(code),
@@ -1408,7 +1410,9 @@ a + b|js}),
     string,
     "letters into the program",
     printed({js|let a = 1 in
+
 let ab = ¿ in
+
 let b = 2 in
 a + b|js}),
     text_of(code),
@@ -1523,6 +1527,7 @@ let first_member = () => {
     printed(
       {js|module M = {
   let z = ¿;
+
   let a = 1;
   let b = 2
 } in
@@ -1551,7 +1556,9 @@ M.a|js},
     printed(
       {js|module M = {
   let z = ¿;
+
   let ¿ = ¿;
+
   let a = 1;
   let b = 2
 } in
@@ -1575,7 +1582,7 @@ M.a|js},
    each: the caret goes with it, at its column; a folded module it goes
    into unfolds; no cell opens */
 let nesting_ops = () => {
-  let src = "let a = 1 in\nmodule M = {\n  let x = 2\n} in\nlet bee = 4 in\nbee";
+  let src = "let a = 1 in\nmodule M = {\n  let x = 2\n} in\n\nlet bee = 4 in\n\nbee";
   let code = code_of(src);
   let term = Web.Program.outline(code.program);
   let ck = Web.ScratchPersist.content_key("scratch", "t");
@@ -1614,7 +1621,7 @@ let nesting_ops = () => {
     string,
     "Tab: M's last member",
     printed(
-      "let a = 1 in\nmodule M = {\n  let x = 2;\n  let bee = 4\n} in\nbee",
+      "let a = 1 in\nmodule M = {\n  let x = 2;\n\n  let bee = 4\n} in\n\nbee",
     ),
     text_of(in_.model),
   );
@@ -1691,9 +1698,11 @@ let module_lines = () => {
     string,
     "a line inside M",
     printed({js|let a = 1 in
+
 module M = {
   let ¿ = ¿
 } in
+
 a|js}),
     text_of(code),
   );
@@ -1704,8 +1713,11 @@ a|js}),
     string,
     "out, just after M",
     printed({js|let a = 1 in
+
 module M = {} in
+
 let ¿ = ¿ in
+
 a|js}),
     text_of(out.model),
   );
@@ -1729,9 +1741,11 @@ a|js}),
     string,
     "named, Tab: back in, the name kept",
     printed({js|let a = 1 in
+
 module M = {
   let zq = ¿
 } in
+
 a|js}),
     text_of(code),
   );
@@ -1757,6 +1771,7 @@ let value_lines = () => {
   let ¿ = ¿ in
   x
 in
+
 f|js}),
     text_of(code),
   );
@@ -1768,7 +1783,9 @@ f|js}),
     printed({js|let f = fun x ->
   x
 in
+
 let y = ¿ in
+
 f|js}),
     text_of(code),
   );
@@ -1815,7 +1832,9 @@ let live_kinds = () => {
     string,
     "a type",
     printed({js|let a = 1 in
+
 type ¿ = ¿ in
+
 a|js}),
     text_of(typed.model),
   );
@@ -1825,7 +1844,9 @@ a|js}),
     string,
     "named",
     printed({js|let a = 1 in
+
 type T = ¿ in
+
 a|js}),
     text_of(code),
   );
@@ -1835,7 +1856,9 @@ a|js}),
     string,
     "a value again",
     printed({js|let a = 1 in
+
 let ¿ = ¿ in
+
 a|js}),
     text_of(back),
   );
@@ -1923,7 +1946,9 @@ let live_undo = () => {
     string,
     "named in the program",
     printed({js|let a = 1 in
+
 let new = ¿ in
+
 let b = 2 in
 a + b|js}),
     program(m),
@@ -1996,7 +2021,8 @@ let two = "let a = 1 in\nlet b = 2 in\na + b";
 /* the program with the new definition named [name] */
 let named_two = name =>
   printed(
-    "let a = 1 in\nlet " ++ name ++ {js| = ¿ in
+    "let a = 1 in\n\nlet " ++ name ++ {js| = ¿ in
+
 let b = 2 in
 a + b|js},
   );

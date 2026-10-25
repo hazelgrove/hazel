@@ -999,7 +999,7 @@ let insert_tests = (
         | Action(EditorAction(a)) =>
           check_rendered_exact(
             "insert_crlf_code",
-            "let a = 1 in let b = 2 in let c =\n  3 in a + b",
+            "let a = 1 in let b = 2 in let c =\n  3\nin a + b",
             apply_and_render("let a = 1 in let b = 2 in a + b", a),
           )
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
@@ -1030,7 +1030,7 @@ let insert_tests = (
       | Ok(z) =>
         check_rendered_exact(
           "boundary_append_separator",
-          "let a = 1 in let b = 2 in let c = 3 in?",
+          "let a = 1 in let b = 2 in let c = 3 in ?",
           render_zipper(z),
         )
       | Error(err) =>
@@ -3973,7 +3973,7 @@ let paste_funnel_tests = (
     test_case("replace strips then re-indents canonically", `Quick, () => {
       check_rendered_exact(
         "update_binding_clause_indented",
-        "let a =\n  2 in a",
+        "let a =\n  2\nin a",
         apply_and_render("let a = 1 in a", Replace("a", "let a =\n  2 in")),
       )
     }),
@@ -4371,8 +4371,7 @@ let whitespace_normalization_tests = (
           true,
           trailing_newlines(rendered) <= 1,
         );
-        /* the kernel lays each new entry out like its neighbours: on
-           this one-line chain, inline */
+        /* a one-line chain stays on its line */
         check_rendered_exact(
           "chained insert_after spacing",
           "let a = 1 in let b = 2 in let c = 3 in let d = 4 in ?",
@@ -4387,7 +4386,11 @@ let whitespace_normalization_tests = (
       | Ok(z) =>
         let rendered = render_zipper(z);
         check(bool, "no leading newline", false, leading_newline(rendered));
-        check_rendered_exact("prepend spacing", "let a = 2 in\n1", rendered);
+        check_rendered_exact(
+          "prepend spacing",
+          "let a = 2 in\n\n1",
+          rendered,
+        );
       | Error(err) =>
         Alcotest.fail("prepend failed: " ++ Action.Failure.show(err))
       }
@@ -4481,7 +4484,7 @@ let module_member_tests = (
     test_case("a livelit's members: insert last_in", `Quick, () =>
       check_rendered_exact(
         "livelit_member_insert",
-        "let ^pct = {\n  type T = Int;\n  let init = 50;\n  let step = 5\n} in\n^pct(1)",
+        "let ^pct = {\n  type T = Int;\n  let init = 50;\n\n  let step = 5\n} in\n^pct(1)",
         apply_and_render(
           livelit_src,
           Insert(LastIn("^pct"), "let step = 5"),
@@ -4695,10 +4698,11 @@ let module_member_tests = (
             "let m = {\n  let x = 1;\n  let y = 2\n} in m",
             Insert(After("m/x"), "let z = 9"),
           );
-        /* a new member takes its neighbours' spacing: no blank lines here */
+        /* a new member is parted from its neighbours by blank lines,
+           whatever theirs */
         check_rendered_exact(
           "member_blank_lines",
-          "let m = {\n  let x = 1;\n  let z = 9;\n  let y = 2\n} in m",
+          "let m = {\n  let x = 1;\n\n  let z = 9;\n\n  let y = 2\n} in m",
           result,
         );
       },
@@ -5078,7 +5082,7 @@ let member_rename_tests = (
     test_case("a member delete leaves no lone `;`", `Quick, () =>
       check_rendered_exact(
         "member_delete_multiline",
-        "let m = {\n  let x = 1;\n  let z = 3\n} in m",
+        "let m = {\n  let x = 1;\n\n  let z = 3\n} in m",
         apply_and_render(
           "let m = {\n  let x = 1;\n  let y = 2;\n  let z = 3\n} in m",
           Delete("m/y"),
@@ -5096,7 +5100,7 @@ let test_entry_tests = (
     test_case("after the binding at path", `Quick, () =>
       check_rendered_exact(
         "after_binding",
-        "let a = 1 in\ntest a == 1 end;\nlet b = 2 in\na + b",
+        "let a = 1 in\n\ntest a == 1 end;\n\nlet b = 2 in\na + b",
         apply_and_render(
           "let a = 1 in\nlet b = 2 in\na + b",
           Insert(After("a"), "test a == 1 end"),
@@ -5106,7 +5110,7 @@ let test_entry_tests = (
     test_case("after the last of its tests, in order", `Quick, () =>
       check_rendered_exact(
         "after_run",
-        "let a = 1 in\ntest a == 1 end;\ntest a > 0 end;\ntest a < 2 end;\ntest a != 3 end;\nlet b = 2 in\nb",
+        "let a = 1 in\ntest a == 1 end;\ntest a > 0 end;\ntest a < 2 end;\ntest a != 3 end;\n\nlet b = 2 in\nb",
         apply_chain_render(
           "let a = 1 in\ntest a == 1 end;\ntest a > 0 end;\nlet b = 2 in\nb",
           [
@@ -5135,7 +5139,7 @@ let test_entry_tests = (
       () => {
         check_rendered_exact(
           "no_path",
-          "let a = 1 in\ntest a == 1 end;\ntest a > 0 end;\na",
+          "let a = 1 in\ntest a == 1 end;\ntest a > 0 end;\n\na",
           apply_and_render(
             "let a = 1 in\ntest a == 1 end;\na",
             Insert(LastIn(""), "test a > 0 end"),
@@ -5143,7 +5147,7 @@ let test_entry_tests = (
         );
         check_rendered_exact(
           "no_path_no_bindings",
-          "test 1 + 1 == 2 end;\n1 + 1",
+          "test 1 + 1 == 2 end;\n\n1 + 1",
           apply_and_render(
             "1 + 1",
             Insert(LastIn(""), "test 1 + 1 == 2 end"),
@@ -5184,7 +5188,7 @@ let test_entry_tests = (
     test_case("a trailing `;` is dropped", `Quick, () =>
       check_rendered_exact(
         "wrapped",
-        "let a = 1 in\ntest a == 1 end;\na",
+        "let a = 1 in\n\ntest a == 1 end;\n\na",
         apply_and_render(
           "let a = 1 in\na",
           Insert(After("a"), "test a == 1 end;"),

@@ -4,7 +4,8 @@
    levels): module members, let chains, a definition's body. Four ops,
    each splicing one level (EntryLayout), so every untouched piece stays
    physically the same. Formatting is local: new code takes its place's
-   indentation and its neighbours' separators and blank lines. Semantics
+   indentation, and the gaps an op makes or closes are house style
+   (EntryLayout.settle), not its neighbours' layout. Semantics
    (which tokens a rename touches, whether an edit adds errors) lives in
    planners and checks above */
 open Util;
@@ -242,14 +243,12 @@ let unterminated = (txt: string): string => {
 };
 
 /* an entry's pieces from text, in a block's form, and whether it is a
-   statement. A definition spanning lines puts its `in` on a line of its
-   own when [alone] (its neighbours' layout) */
-let entry_text =
-    (~member: bool, ~alone, txt: string): option((Segment.t, bool)) => {
+   statement */
+let entry_text = (~member: bool, txt: string): option((Segment.t, bool)) => {
   let t = unterminated(txt);
   let def = takes_in(t);
   let letin = () =>
-    Option.map(L.lay_in(~alone, ~indent=0), L.letin_core(t ++ " in"));
+    Option.map(L.lay_in(~indent=0), L.letin_core(t ++ " in"));
   /* several entries take the last one's terminator, which the first word
      doesn't tell */
   let as_def = () => Option.map(ps => (ps, false), letin());
@@ -376,10 +375,9 @@ let reformed =
 };
 
 /* [ps] (entry [k] of [b]'s bare pieces) in a block's form: as it is, or
-   converted, an `in` laid out as [alone] says. A form [reformed] doesn't
+   converted, its `in` laid out by house style. A form [reformed] doesn't
    know goes through text, fresh ids, as it did before the kernel */
-let in_form =
-    (~member: bool, ~alone, b: L.block, k: int, ps: Segment.t): Segment.t =>
+let in_form = (~member: bool, b: L.block, k: int, ps: Segment.t): Segment.t =>
   if (member == b.in_module) {
     ps;
   } else {
@@ -401,7 +399,7 @@ let in_form =
             };
         need(~id=anchor(b, k), member ? NoMemberForm : NoPlace, via_text);
       };
-    member ? ps : L.lay_in(~alone, ~indent=L.item_indent(b, k), ps);
+    member ? ps : L.lay_in(~indent=L.item_indent(b, k), ps);
   };
 
 /* ---- nodes ---- */
@@ -697,15 +695,15 @@ let value_head = (c: ctx, ~stmt: bool, d: Id.t, seg: Segment.t) =>
 /* a source as an entry in a block's form: its pieces, whether it is a
    statement, and the indentation its lines were written at */
 let entry_of =
-    (c: ctx, ~member: bool, ~alone, src: source, seg: Segment.t)
+    (c: ctx, ~member: bool, src: source, seg: Segment.t)
     : (Segment.t, bool, option(int)) =>
   switch (src) {
   | Text(txt) =>
-    let (ps, stmt) = need(Unreadable, entry_text(~member, ~alone, txt));
+    let (ps, stmt) = need(Unreadable, entry_text(~member, txt));
     (ps, stmt, Some(0));
   | Template(t) =>
     let (ps, stmt) =
-      need(Unreadable, entry_text(~member, ~alone, template_text(t)));
+      need(Unreadable, entry_text(~member, template_text(t)));
     (unnamed(t) ? holed(ps) : ps, stmt, Some(0));
   | Copy(y) =>
     let e = entry(~mod_root=c.mod_root, y, seg);
@@ -713,7 +711,7 @@ let entry_of =
     let bare = L.bare(e.b, e.j);
     /* read again from its text, as the outline's duplicate always was:
        fresh ids, and what doesn't read refuses */
-    let txt = L.text_of(in_form(~member, ~alone, e.b, e.j, bare));
+    let txt = L.text_of(in_form(~member, e.b, e.j, bare));
     (
       need(
         ~id=y,
@@ -779,35 +777,76 @@ let member_form = (c: ctx, blk: block): bool =>
   | Top => c.mod_root
   };
 
-/* the let chain whose entries an entry at [place] goes among, for their
-   layout: a body's own, else its definition's. None for members, which
-   take no `in` */
-let chain_at =
-    (c: ctx, place: place, seg: Segment.t): option(ItemSpans.level) =>
+/* [place] is the program's end: above its top level's result, or last */
+let at_end = (c: ctx, place: place, seg: Segment.t): bool =>
   switch (place) {
-  | Before(y)
-  | After(y) => Some(entry(~mod_root=c.mod_root, y, seg).b.lv)
-  | FirstIn(Body(d))
-  | LastIn(Body(d)) =>
-    let e = entry(~mod_root=c.mod_root, d, seg);
-    Some(Option.value(ItemSpans.block(e.b.lv, e.j), ~default=e.b.lv));
-  | FirstIn(Top)
-  | LastIn(Top) => Some(ItemSpans.top(~root=c.root, seg))
-  | FirstIn(Members(_))
-  | LastIn(Members(_)) => None
+  | LastIn(Top) => true
+  | Before(y) =>
+    let e = entry(~mod_root=c.mod_root, y, seg);
+    e.b.lv.owner == Top && !e.b.in_module && !L.movable(e.b, e.j);
+  | After(_)
+  | FirstIn(_)
+  | LastIn(_) => false
   };
 
-/* an `in` at [place] has a line of its own (L.lay_in) */
-let alone_at = (c: ctx, place: place, seg: Segment.t, ()): bool =>
-  Option.fold(~none=true, ~some=L.in_alone, chain_at(c, place, seg));
+/* [program] with the gaps beside the entries holding [item]'s pieces
+   (the entries an op landed) laid out by house style, or with [inner]
+   only those between them. [ends]: they land at the program's end */
+let settled =
+    (c: ctx, ~inner=false, ~ends=false, item: Segment.t, program: Segment.t)
+    : Segment.t => {
+  let mine =
+    List.fold_left(
+      (m, p) => Piece.is_secondary(p) ? m : Id.Map.add(Piece.id(p), (), m),
+      Id.Map.empty,
+      item,
+    );
+  switch (Id.Map.choose_opt(mine)) {
+  | None => program
+  | Some((x, ())) =>
+    switch (L.locate(~mod_root=c.mod_root, x, program)) {
+    | None => program
+    | Some((b, _, rebuild)) =>
+      let holds = k => {
+        let (c0, c1) = b.lv.spans[k].core;
+        let rec go = i =>
+          i < c1 && (Id.Map.mem(Piece.id(b.arr[i]), mine) || go(i + 1));
+        go(c0);
+      };
+      switch (List.filter(holds, List.init(Array.length(b.sl), k => k))) {
+      | [] => program
+      | [k0, ..._] as ks =>
+        let k1 = ListUtil.last(ks);
+        let js =
+          inner
+            ? List.init(k1 - k0, j => k0 + j)
+            : List.init(k1 - k0 + 2, j => k0 - 1 + j);
+        let seg =
+          L.settle(~ends=?ends && !inner ? Some(k0 - 1) : None, b, js);
+        seg === b.seg ? program : rebuild(seg);
+      };
+    }
+  };
+};
+
+/* [program] with the gap where an entry was taken out, below entry
+   [above] (if any), laid out by house style */
+let closed = (c: ctx, ~above: option(Id.t), program: Segment.t): Segment.t =>
+  switch (Option.bind(above, a => L.locate(~mod_root=c.mod_root, a, program))) {
+  | Some((b, j, rebuild)) =>
+    let seg = L.settle(b, [j]);
+    seg === b.seg ? program : rebuild(seg);
+  | None => program
+  };
 
 let insert =
     (c: ctx, op, place: place, src: source, seg: Segment.t): list(step) => {
   let mod_root = c.mod_root;
+  let ends = at_end(c, place, seg);
   let lands = (~member, f) => {
-    let (item, stmt, src_indent) =
-      entry_of(c, ~member, ~alone=alone_at(c, place, seg), src, seg);
-    let program = need(NoPlace, f(item, stmt, src_indent));
+    let (item, stmt, src_indent) = entry_of(c, ~member, src, seg);
+    let program =
+      settled(c, ~ends, item, need(NoPlace, f(item, stmt, src_indent)));
     let row = L.row_id(item);
     entrywise(
       c,
@@ -871,7 +910,15 @@ let insert =
 let delete = (c: ctx, op, x: Id.t, seg: Segment.t): step => {
   let e = entry(~mod_root=c.mod_root, x, seg);
   whole(~id=x, e.b, e.j);
-  done_(~removed=[x], op, e.rebuild(L.remove(e.b, e.j)));
+  done_(
+    ~removed=[x],
+    op,
+    closed(
+      c,
+      ~above=L.above_anchor(e.b, e.j),
+      e.rebuild(L.remove(e.b, e.j)),
+    ),
+  );
 };
 
 let move = (c: ctx, op, x: Id.t, place: place, seg: Segment.t): step => {
@@ -886,11 +933,18 @@ let move = (c: ctx, op, x: Id.t, place: place, seg: Segment.t): step => {
   let inside = id => Nav.seg_contains_id(id, bare);
   /* out of its block, into another place: the item in its new form */
   let carry = (~member, f) => {
-    let item =
-      in_form(~member, ~alone=alone_at(c, place, seg), e.b, e.j, bare);
+    let item = in_form(~member, e.b, e.j, bare);
     let tk = need(~id=x, NoPlace, L.take_out(~mod_root, x, seg));
+    let tk = {
+      ...tk,
+      rest: closed(c, ~above=tk.above, tk.rest),
+    };
     let src_indent = L.start_indent(~mod_root, bare, seg);
-    moved(~focus=L.row_id(item), need(NoPlace, f(tk, item, src_indent)));
+    let ends = at_end(c, place, seg);
+    moved(
+      ~focus=L.row_id(item),
+      settled(c, ~ends, item, need(NoPlace, f(tk, item, src_indent))),
+    );
   };
   switch (place) {
   | Before(y)
@@ -911,7 +965,14 @@ let move = (c: ctx, op, x: Id.t, place: place, seg: Segment.t): step => {
     } else if (same && (after && t.j == e.j + 1 || !after && t.j == e.j - 1)) {
       /* past its neighbour: they trade places */
       whole(~id=y, t.b, t.j);
-      moved(~focus=Some(x), e.rebuild(L.swap(e.b, min(e.j, t.j))));
+      moved(
+        ~focus=Some(x),
+        settled(
+          c,
+          bare @ L.bare(t.b, t.j),
+          e.rebuild(L.swap(e.b, min(e.j, t.j))),
+        ),
+      );
     } else {
       carry(~member=t.b.in_module, (tk, item, src_indent) =>
         Option.bind(
@@ -920,17 +981,13 @@ let move = (c: ctx, op, x: Id.t, place: place, seg: Segment.t): step => {
             if (stmt && !b.stmts) {
               refuse(~id=y, NoStatement);
             };
-            let gap =
-              switch (tk.origin.gap) {
-              | Some(gap) => gap
-              | None => L.gap_at(b, ~below=after, j)
-              };
+            let at: L.landing = after ? Below(j) : Above(j);
             Some(
               rebuild(
                 L.put(
                   b,
-                  ~at=after ? Below(j) : Above(j),
-                  ~gap,
+                  ~at,
+                  ~lines=L.lines_at(b, at),
                   ~offset=tk.origin.offset,
                   ~src_indent,
                   ~member=b.in_module,
@@ -1059,6 +1116,30 @@ let token = (c: ctx, op, x: Id.t, txt: string, seg: Segment.t): step => {
   );
 };
 
+/* where the comment lines directly above [level]'s piece [i] start (no
+   blank line between): their first comment; [i] with none */
+let doc_start = (level: Segment.t, i: int): int => {
+  let arr = Array.of_list(level);
+  /* back from [j] over whitespace and comments, [lbs] linebreaks since
+     the last comment */
+  let rec go = (j, lbs, found) =>
+    if (j == 0) {
+      found;
+    } else {
+      let p = arr[j - 1];
+      if (ItemSpans.is_comment(p)) {
+        go(j - 1, 0, j - 1);
+      } else if (Piece.is_linebreak(p)) {
+        lbs >= 1 ? found : go(j - 1, lbs + 1, found);
+      } else if (Piece.is_space(p)) {
+        go(j - 1, lbs, found);
+      } else {
+        found;
+      };
+    };
+  go(i, 0, i);
+};
+
 /* an entry named by its anchor or first tile, rather than a node in it */
 let names_entry = (c: ctx, x: Id.t, seg: Segment.t): option(entry) =>
   switch (L.locate(~mod_root=c.mod_root, x, seg)) {
@@ -1089,13 +1170,7 @@ let replace = (c: ctx, op, x: Id.t, src: source, seg: Segment.t): list(step) =>
         (need(Unreadable, parse_at(Exp, txt)), Some(0));
       } else {
         let (item, stmt, src_indent) =
-          entry_of(
-            c,
-            ~member=e.b.in_module,
-            ~alone=() => L.in_alone(e.b.lv),
-            src,
-            seg,
-          );
+          entry_of(c, ~member=e.b.in_module, src, seg);
         if (stmt && !e.b.stmts) {
           refuse(~id=x, NoStatement);
         };
@@ -1121,7 +1196,9 @@ let replace = (c: ctx, op, x: Id.t, src: source, seg: Segment.t): list(step) =>
         ~removed=[x],
         ~focus=row,
         op,
-        e.rebuild(level),
+        tail
+          ? e.rebuild(level)
+          : settled(c, ~inner=true, item, e.rebuild(level)),
       );
     tail ? [step] : entrywise(c, item, step);
   | (_, None) =>
@@ -1136,8 +1213,15 @@ let replace = (c: ctx, op, x: Id.t, src: source, seg: Segment.t): list(step) =>
     let ps = need(~id=x, Unreadable, parse_at(n.sort, txt));
     let indent =
       Option.value(Nav.line_indent(~root=c.root, x, seg), ~default=0);
+    /* new code that starts with a comment replaces the comment lines
+       directly above the node */
+    let lo =
+      switch (ps) {
+      | [p, ..._] when ItemSpans.is_comment(p) => doc_start(n.level, n.lo)
+      | _ => n.lo
+      };
     let (pre, post) = (
-      ListUtil.truncate(n.lo, n.level),
+      ListUtil.truncate(lo, n.level),
       ListUtil.remove_first_n(n.hi + 1, n.level),
     );
     let level = pre @ L.unfused(pre, L.shift_by(indent, ps), post) @ post;

@@ -41,7 +41,13 @@ let template = (kind: OutlineRename.kind, name: string): string =>
 let test_template = {js|test ¿ end|js};
 let space = EntryLayout.space;
 let linebreak = EntryLayout.linebreak;
-let spacing = EntryLayout.spacing;
+/* the spacing after an item, for a new one beside it: as many
+   linebreaks, or one space between items on a line */
+let spacing = (trail: Segment.t): Segment.t =>
+  switch (List.filter(Piece.is_linebreak, trail)) {
+  | [] => trail == [] ? [] : [space()]
+  | lbs => List.map(_ => linebreak(), lbs)
+  };
 
 /* an item's place in its block, by line. It owns its first line's
    indentation, the comment lines directly above it (no blank line

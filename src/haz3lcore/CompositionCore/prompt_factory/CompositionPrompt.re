@@ -265,6 +265,7 @@ let formatting_rules = [
   "",
   "ALWAYS use line breaks when writing code. Hazel's formatter automatically indents wherever line breaks appear.",
   "Without line breaks, code will NOT be properly formatted and will be unreadable.",
+  "Break long lines: aim for under about 80 columns; put a test's expression on its own line.",
   "",
   "Good (with line breaks — Hazel indents automatically):",
   "```",

@@ -68,17 +68,18 @@ let insert = () => {
   let a = head("a", seg);
   expect(
     "text after an entry takes its form",
-    "let a = 1 in\nlet c = 3 in\nlet b = a + 1 in\nb",
+    "let a = 1 in\n\nlet c = 3 in\n\nlet b = a + 1 in\nb",
     run(seg, [Insert(After(a), Text("let c = 3"))]),
   );
   expect(
     "a statement takes `;`",
-    "let a = 1 in\ntest a == 1 end;\nlet b = a + 1 in\nb",
+    "let a = 1 in\n\ntest a == 1 end;\n\nlet b = a + 1 in\nb",
     run(seg, [Insert(After(a), Text("test a == 1 end"))]),
   );
   expect(
     "a template with a hole for its name",
     {js|let ¿ = ¿ in
+
 let a = 1 in
 let b = a + 1 in
 b|js},
@@ -88,14 +89,16 @@ b|js},
     "last in the top block: above its result",
     {js|let a = 1 in
 let b = a + 1 in
+
 type T = ¿ in
+
 b|js},
     run(seg, [Insert(LastIn(Top), Template(Type(Some("T"))))]),
   );
   let m = seg_of(members);
   expect(
     "into a module: member form, its indentation",
-    "module M = {\n  let x = 1;\n  let y = 2;\n  let z = 3\n} in\nM.y",
+    "module M = {\n  let x = 1;\n  let y = 2;\n\n  let z = 3\n} in\nM.y",
     run(
       m,
       [Insert(LastIn(Members(head("M", m))), Text("let z = 3 in"))],
@@ -103,7 +106,7 @@ b|js},
   );
   expect(
     "a text's lines take the place's indentation",
-    "module M = {\n  let w =\n    0;\n  let x = 1;\n  let y = 2\n} in\nM.y",
+    "module M = {\n  let w =\n    0;\n\n  let x = 1;\n  let y = 2\n} in\nM.y",
     run(
       m,
       [Insert(FirstIn(Members(head("M", m))), Text("let w =\n  0"))],
@@ -111,8 +114,8 @@ b|js},
   );
   let lined = seg_of("let a(x) =\n  x + 1\nin\nlet b = 2 in\nb");
   expect(
-    "a definition spanning lines: `in` on a line of its own, as its neighbours have it",
-    "let a(x) =\n  x + 1\nin\nlet c(y) =\n  y * 2\nin\nlet b = 2 in\nb",
+    "a definition spanning lines: `in` on a line of its own, blank lines around it",
+    "let a(x) =\n  x + 1\nin\n\nlet c(y) =\n  y * 2\nin\n\nlet b = 2 in\nb",
     run(
       lined,
       [Insert(After(head("a", lined)), Text("let c(y) =\n  y * 2"))],
@@ -120,8 +123,8 @@ b|js},
   );
   let ended = seg_of("let a(x) =\n  x + 1 in\nlet b = 2 in\nb");
   expect(
-    "or ending its last line, as they have it",
-    "let a(x) =\n  x + 1 in\nlet c(y) =\n  y * 2 in\nlet b = 2 in\nb",
+    "whatever its neighbours do",
+    "let a(x) =\n  x + 1 in\n\nlet c(y) =\n  y * 2\nin\n\nlet b = 2 in\nb",
     run(
       ended,
       [Insert(After(head("a", ended)), Text("let c(y) =\n  y * 2\nin"))],
@@ -167,7 +170,7 @@ let copy = () => {
   let c = run(seg, [Insert(After(b), Copy(b))]);
   expect(
     "a copy below its entry",
-    "let a = 1 in\nlet b = a + 1 in\nlet b = a + 1 in\nb",
+    "let a = 1 in\nlet b = a + 1 in\n\nlet b = a + 1 in\n\nb",
     c,
   );
   let before = tile_ids(seg);
@@ -193,7 +196,7 @@ let replace = () => {
   );
   let lined = seg_of("let a(x) =\n  x + 1\nin\nlet b = 2 in\nb");
   expect(
-    "spanning lines: `in` as its neighbours have it",
+    "spanning lines: `in` on a line of its own",
     "let a(x) =\n  x + 1\nin\nlet c(y) =\n  y\nin\nb",
     run(lined, [Replace(head("b", lined), Text("let c(y) =\n  y in"))]),
   );
@@ -202,6 +205,35 @@ let replace = () => {
     "a definition",
     "let a = 1 in\nlet b = a * 10 in\nb",
     run(seg, [Replace(def, Text("a * 10"))]),
+  );
+  /* a definition's doc comment: new code's own replaces it */
+  let doc = seg_of("let f(x) =\n  # old #\n  x + 1\nin\nf(1)");
+  let body = Option.get(K.part(~root=Exp, head("f", doc), Definition, doc));
+  expect(
+    "a definition with a comment of its own: it replaces the old",
+    "let f(x) =\n  # new #\n  x + 2\nin\nf(1)",
+    run(doc, [Replace(body, Text("# new #\nx + 2"))]),
+  );
+  expect(
+    "without one: the old stays",
+    "let f(x) =\n  # old #\n  x + 2\nin\nf(1)",
+    run(doc, [Replace(body, Text("x + 2"))]),
+  );
+  let apart = seg_of("let f(x) =\n  # set apart #\n\n  x + 1\nin\nf(1)");
+  expect(
+    "a comment set apart by a blank line stays",
+    "let f(x) =\n  # set apart #\n\n  # new #\n  x + 2\nin\nf(1)",
+    run(
+      apart,
+      [
+        Replace(
+          Option.get(
+            K.part(~root=Exp, head("f", apart), Definition, apart),
+          ),
+          Text("# new #\nx + 2"),
+        ),
+      ],
+    ),
   );
   let pat = Option.get(K.part(~root=Exp, b, Pattern, seg));
   expect(
@@ -314,7 +346,7 @@ let move = () => {
   let seg = seg_of(chain);
   let (a, b) = (head("a", seg), head("b", seg));
   let c = run(seg, [Move(a, After(b))]);
-  expect("past its neighbour", "let b = a + 1 in\nlet a = 1 in\nb", c);
+  expect("past its neighbour", "let b = a + 1 in\n\nlet a = 1 in\n\nb", c);
   check(
     bool,
     "ids kept",
@@ -335,7 +367,7 @@ let move = () => {
   let three = seg_of("let a = 1 in\nlet b = 2 in\nlet c = 3 in\nc");
   expect(
     "past two",
-    "let b = 2 in\nlet c = 3 in\nlet a = 1 in\nc",
+    "let b = 2 in\nlet c = 3 in\n\nlet a = 1 in\n\nc",
     run(three, [Move(head("a", three), After(head("c", three)))]),
   );
   /* a member out of its module, into the let chain around it, and back */
@@ -345,7 +377,7 @@ let move = () => {
   let out = run(m, [Move(x, After(head("M", m)))]);
   expect(
     "a member out: `;` to `in`",
-    "module M = {\n  let y = 2\n} in\nlet x = 1 in\nM.y",
+    "module M = {\n  let y = 2\n} in\n\nlet x = 1 in\n\nM.y",
     out,
   );
   check(
@@ -359,7 +391,11 @@ let move = () => {
       out.program,
       [Move(x, FirstIn(Members(head("M", out.program))))],
     );
-  expect("and back in: `in` to `;`", members, back);
+  expect(
+    "and back in: `in` to `;`",
+    "module M = {\n  let x = 1;\n\n  let y = 2\n} in\n\nM.y",
+    back,
+  );
   check(bool, "and back keeps them", true, keeps(x_pieces, back.program));
   /* a member spanning lines takes its `in` as the chain's others do */
   let moves_out = a_ends =>
@@ -371,8 +407,8 @@ let move = () => {
   let f_pieces = entry_pieces(~mod_root=false, f, lined);
   let out = run(lined, [Move(f, After(head("a", lined)))]);
   expect(
-    "a member spanning lines out: `in` on a line of its own, as its neighbours have it",
-    "let a(x) =\n  x + 1\nin\nlet f(y) =\n  y * 2\nin\nmodule M = {\n  let z = 1\n} in\nM.z",
+    "a member spanning lines out: `in` on a line of its own",
+    "let a(x) =\n  x + 1\nin\n\nlet f(y) =\n  y * 2\nin\n\nmodule M = {\n  let z = 1\n} in\nM.z",
     out,
   );
   check(bool, "it keeps its ids", true, keeps(f_pieces, out.program));
@@ -381,17 +417,21 @@ let move = () => {
       out.program,
       [Move(f, FirstIn(Members(head("M", out.program))))],
     );
-  expect("and back in: its `in` line goes", moves_out("\nin\n"), back);
+  expect(
+    "and back in: its `in` line goes",
+    "let a(x) =\n  x + 1\nin\n\nmodule M = {\n  let f(y) =\n    y * 2;\n\n  let z = 1\n} in\nM.z",
+    back,
+  );
   check(bool, "and back keeps them", true, keeps(f_pieces, back.program));
   let ended = seg_of(moves_out(" in\n"));
   expect(
-    "or ending its last line, as they have it",
-    "let a(x) =\n  x + 1 in\nlet f(y) =\n  y * 2 in\nmodule M = {\n  let z = 1\n} in\nM.z",
+    "whatever its neighbours do",
+    "let a(x) =\n  x + 1 in\n\nlet f(y) =\n  y * 2\nin\n\nmodule M = {\n  let z = 1\n} in\nM.z",
     run(ended, [Move(head("f", ended), After(head("a", ended)))]),
   );
   expect(
     "a copy out likewise",
-    "let f(y) =\n  y * 2\nin\n" ++ moves_out("\nin\n"),
+    "let f(y) =\n  y * 2\nin\n\n" ++ moves_out("\nin\n"),
     run(lined, [Insert(Before(head("a", lined)), Copy(f))]),
   );
   let body =
@@ -407,7 +447,7 @@ let move = () => {
   let tc = run(t, [Move(test, After(head("M", t)))]);
   expect(
     "a test out: it takes the chain's `;`",
-    "module M = {\n  let y = 2\n} in\ntest y == 2 end;\nM.y",
+    "module M = {\n  let y = 2\n} in\n\ntest y == 2 end;\n\nM.y",
     tc,
   );
   check(
@@ -451,12 +491,12 @@ let transaction = () => {
       seg,
       [Insert(After(a), Text("let c = 3")), Delete(head("b", seg))],
     );
-  expect("both, in order", "let a = 1 in\nlet c = 3 in\nb", c);
+  expect("both, in order", "let a = 1 in\n\nlet c = 3 in\n\nb", c);
   check(int, "a step per op", 2, List.length(c.steps));
   check(
     string,
     "each step's program",
-    "let a = 1 in\nlet c = 3 in\nlet b = a + 1 in\nb",
+    "let a = 1 in\n\nlet c = 3 in\n\nlet b = a + 1 in\nb",
     text_of(List.hd(c.steps).program),
   );
 };
@@ -497,9 +537,9 @@ let entrywise = () => {
     list(string),
     "an insert's entries, one at a time",
     [
-      "let a = 1 in\nlet c = 3 in\nlet b = a + 1 in\nb",
-      "let a = 1 in\nlet c = 3 in\ntest c == 3 end;\nlet b = a + 1 in\nb",
-      "let a = 1 in\nlet c = 3 in\ntest c == 3 end;\nlet d = c + 1 in\nlet b = a + 1 in\nb",
+      "let a = 1 in\n\nlet c = 3 in\n\nlet b = a + 1 in\nb",
+      "let a = 1 in\n\nlet c = 3 in\n\ntest c == 3 end;\n\nlet b = a + 1 in\nb",
+      "let a = 1 in\n\nlet c = 3 in\n\ntest c == 3 end;\n\nlet d = c + 1 in\n\nlet b = a + 1 in\nb",
     ],
     texts(c),
   );
@@ -519,8 +559,8 @@ let entrywise = () => {
     list(string),
     "members, one at a time",
     [
-      "module M = {\n  let x = 1;\n  let y = 2;\n  let z = 3\n} in\nM.y",
-      "module M = {\n  let x = 1;\n  let y = 2;\n  let z = 3;\n  let w = 4\n} in\nM.y",
+      "module M = {\n  let x = 1;\n  let y = 2;\n\n  let z = 3\n} in\nM.y",
+      "module M = {\n  let x = 1;\n  let y = 2;\n\n  let z = 3;\n\n  let w = 4\n} in\nM.y",
     ],
     texts(c),
   );
@@ -532,7 +572,7 @@ let entrywise = () => {
     "a replace's entries, one at a time",
     [
       "let a = 1 in\nlet b = a + 1 in\nb",
-      "let a = 1 in\nlet b = a + 1 in\nlet e = b in\nb",
+      "let a = 1 in\nlet b = a + 1 in\n\nlet e = b in\nb",
     ],
     texts(c),
   );
@@ -547,8 +587,8 @@ let entrywise = () => {
     list(string),
     "a definition, then a statement",
     [
-      "let a = 1 in\nlet c = 3 in\nlet b = a + 1 in\nb",
-      "let a = 1 in\nlet c = 3 in\ntest c == 3 end;\nlet b = a + 1 in\nb",
+      "let a = 1 in\n\nlet c = 3 in\n\nlet b = a + 1 in\nb",
+      "let a = 1 in\n\nlet c = 3 in\n\ntest c == 3 end;\n\nlet b = a + 1 in\nb",
     ],
     texts(
       run(

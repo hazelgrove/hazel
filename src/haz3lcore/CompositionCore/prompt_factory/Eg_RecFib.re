@@ -56,10 +56,12 @@ let fib = {|let fib(n: Int): Int =
       then 1
       else fib(n - 1) + fib(n - 2)|};
 
-let fib_tests = {|hint "zero" test fib(0) == 0 end;
-hint "one" test fib(1) == 1 end;
-hint "five" test fib(5) == 5 end;
-hint "ten" test fib(10) == 55 end|};
+let fib_tests = {|hint "base cases" test
+  fib(0) == 0 && fib(1) == 1
+end;
+hint "recursive cases" test
+  fib(5) == 5 && fib(10) == 55
+end|};
 
 let map_fib = {|let map_fib(ns: [Int]): [Int] =
   case ns
@@ -107,31 +109,30 @@ let fib_example = {
         call("replace", [("target", "=>"), ("code", "fib(10)")]),
         call(
           "mark_active_subtask_complete",
-          [("summary", "4 tests: base cases and fib(5), fib(10).")],
+          [("summary", "2 tests: base cases, and fib(5), fib(10).")],
         ),
         call(
           "mark_active_task_complete",
-          [("summary", "fib, with 4 passing tests.")],
+          [("summary", "fib, with 2 passing tests.")],
         ),
       ],
       /* the next example starts from its view */
       sees: None,
     },
   ],
-  final: "`fib` is implemented and its 4 tests pass: the base cases 0 and 1, and fib(5), fib(10).",
+  final: "`fib` is implemented and its 2 tests pass: the base cases 0 and 1, and fib(5), fib(10).",
 };
 
 let map_fib_example = {
   asks: "Add a helper that computes fib for a list of numbers",
-  program: fib ++ "\nin\n" ++ fib_tests ++ ";\nfib(10)",
+  program: fib ++ "\nin\n" ++ fib_tests ++ ";\n\nfib(10)",
   start:
     Some(
-      {|#› map · no errors · tests: 4 of 4 pass #
+      {|#› map · no errors · tests: 2 of 2 pass #
 let fib(n: Int): Int = ⋯ in  #› 7 uses #
-hint "zero" test fib(0) == 0 end;  #› ✓ #
-hint "one" test fib(1) == 1 end;  #› ✓ #
-hint "five" test fib(5) == 5 end;  #› ✓ #
-hint "ten" test fib(10) == 55 end;  #› ✓ #
+hint "base cases" test ⋯ end;  #› ✓ #
+hint "recursive cases" test ⋯ end;  #› ✓ #
+
 fib(10)  #› ⇒ 55 #|},
     ),
   steps: [
@@ -145,7 +146,7 @@ fib(10)  #› ⇒ 55 #|},
             ("after", "map_fib"),
             (
               "code",
-              "hint \"empty list\" test map_fib([]) == [] end;\nhint \"three values\" test map_fib([0, 1, 5]) == [0, 1, 5] end",
+              "hint \"empty list\" test map_fib([]) == [] end;\nhint \"three values\" test\n  map_fib([0, 1, 5]) == [0, 1, 5]\nend",
             ),
           ],
         ),
@@ -156,15 +157,15 @@ fib(10)  #› ⇒ 55 #|},
       ],
       sees:
         Some((
-          {|#› map · no errors · tests: 6 of 6 pass #
+          {|#› map · no errors · tests: 4 of 4 pass #
 let fib(n: Int): Int = ⋯ in  #› 7 uses #
-hint "zero" test fib(0) == 0 end;  #› ✓ #
-hint "one" test fib(1) == 1 end;  #› ✓ #
-hint "five" test fib(5) == 5 end;  #› ✓ #
-hint "ten" test fib(10) == 55 end;  #› ✓ #
+hint "base cases" test ⋯ end;  #› ✓ #
+hint "recursive cases" test ⋯ end;  #› ✓ #
+
 let map_fib(ns: [Int]): [Int] = ⋯ in  #› 4 uses #
 hint "empty list" test map_fib([]) == [] end;  #› ✓ #
-hint "three values" test map_fib([0, 1, 5]) == [0, 1, 5] end;  #› ✓ #
+hint "three values" test ⋯ end;  #› ✓ #
+
 map_fib([1, 2, 3, 4, 5])  #› ⇒ [1, 1, 2, 3, 5] #|},
           [],
         )),

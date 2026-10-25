@@ -78,7 +78,10 @@ let apart_rule = "nothing goes in across a comment set apart";
 /* and a move between member and let-chain forms converts the item in
    place, keeping its ids, where it went through text */
 let form_rule = "a move between forms keeps ids";
-let item_rules = [trivia_rule, stmt_rule, apart_rule, form_rule];
+/* and the gaps an op makes or closes are house style, not its
+   neighbours' layout: results may differ in whitespace alone */
+let house_rule = "house style";
+let item_rules = [trivia_rule, stmt_rule, apart_rule, form_rule, house_rule];
 
 type tally = {
   mutable programs: int,
@@ -568,6 +571,15 @@ let check_program =
       && (ra == rb || ra == "fresh")
         ? Some(form_rule) : None;
     };
+    let house = (a, b) =>
+      switch (a, b) {
+      | (Ok((sa, ra)), Ok((sb, rb)))
+          when
+            solid_key(~before, sa) == solid_key(~before, sb)
+            && row_key(~before, ra) == row_key(~before, rb) =>
+        Some(house_rule)
+      | _ => None
+      };
     let design = (~op=?, id, a, b) =>
       switch (op, a, b) {
       | (_, Ok(a), Ok(b)) when trivia(a, b) != None => trivia(a, b)
@@ -620,6 +632,7 @@ let check_program =
             same(
               ~at=sid,
               ~id,
+              ~design=house,
               label,
               () => IE0.edit(ctx, e, seg),
               () => IE.edit(ctx, e, seg),
