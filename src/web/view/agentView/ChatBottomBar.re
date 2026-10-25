@@ -671,7 +671,7 @@ let view =
           };
         let mode_explanation =
           switch (mode) {
-          | Converse => "Converse mode: pure conversation. Edits, overlay placement, and workbench tasks are disabled. Only view tools (expand / collapse) are allowed. Use this to discuss ideas, ask questions, and clarify intent without changing any state."
+          | Converse => "Converse mode: pure conversation. Edits, overlay placement, and workbench tasks are disabled. Only the view tools (open / close) are allowed. Use this to discuss ideas, ask questions, and clarify intent without changing any state."
           | Edit => "Edit mode: full latitude. All tools are enabled (subject to your per-tool toggles). The agent may plan, converse, place overlays, manage workbench tasks, and apply program edits."
           | Plan => "Plan mode: read-only with respect to program code. Edit tools are disabled; the agent is encouraged to inspect the codebase, converse with you in markdown, and build an explicit plan using the workbench (create / order tasks and subtasks). Switch to edit mode when ready to execute."
           };

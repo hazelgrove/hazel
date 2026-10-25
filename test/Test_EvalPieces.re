@@ -267,8 +267,8 @@ let mega = (~root, file, steps) =>
 
 /* a module's members of every kind, its value their bindings: a type
    member (none), a function, a destructuring, a sub-module, a sealed
-   one (whole in its member's piece), a let chain, a test, and a member
-   shadowing one the earlier ones read */
+   one, a let chain, a test, and a member shadowing one the earlier ones
+   read */
 let kinds = "type T = Int;
 let a : T = 1;
 let f(x) = x + a;
@@ -412,6 +412,16 @@ let exact_tests =
       script(kinds_in_module, kinds_steps(~above=["M"])),
     ),
     test_case(
+      "sealed modules: met, unmet (whole) and met again",
+      `Quick,
+      script(
+        "module M : {type T = Int; let x : T; let y : Int} = {\n  type T = Int;\n  let x = 0;\n  let y = x + 1\n} in\nM.y",
+        back_and_forth(~at=`First, "0", "5")
+        @ back_and_forth(~at=`Last, "Int", "Bool")
+        @ back_and_forth(~at=`Last, "y", "z"),
+      ),
+    ),
+    test_case(
       "a let chain: adds and removes",
       `Quick,
       script(
@@ -499,7 +509,14 @@ let member_edit = (~root, src, needle, repl, ()) => {
     );
   let st = statics_of(term_of(seg));
   let request = request_of(st);
-  let member = owner(id, Option.get(DefStatics.cached(term_of(seg))));
+  let ds = Option.get(DefStatics.cached(term_of(seg)));
+  let member = owner(id, ds);
+  check(
+    bool,
+    "a member's piece",
+    false,
+    List.exists((it: DefStatics.item) => it.d_id == member, ds.items),
+  );
   check(
     list(string),
     "re-encoded",
@@ -530,6 +547,16 @@ let encoding_tests = [
       "module Wrap = {\n"
       ++ list_src(~root=Mod)
       ++ "\n} in\nWrap.List.length([1])",
+      "0",
+      "5",
+    ),
+  ),
+  test_case(
+    "... a module sealed with a signature",
+    `Quick,
+    member_edit(
+      ~root=Exp,
+      "module M : {let x : Int; let y : Int} = {\n  let x = 0;\n  let y = x + 1\n} in\nM.y",
       "0",
       "5",
     ),

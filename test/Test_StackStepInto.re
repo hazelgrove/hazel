@@ -24,12 +24,12 @@ f(1) + g(2) + w(1) + r(2) + t + M.h(3) + M.k(4) + M.u|};
 let trail = (m: History.Model.t): Id.t =>
   List.find_map(
     (n: OutlineTree.node) => n.o_kind == KTrail ? n.o_id : None,
-    OutlineTree.of_term(Program.statics(Cells.program(m)).term),
+    OutlineTree.rows(Program.outline(Cells.program(m))),
   )
   |> Option.get;
 
 let member = (m: History.Model.t, label: string): Id.t =>
-  CorpusUtil.row(Program.statics(Cells.program(m)).term, ["M", label]);
+  CorpusUtil.row(Program.outline(Cells.program(m)), ["M", label]);
 
 /* open [rows] as cells, each with its statics, as a stack shows them */
 let opened = (rows: list(History.Model.t => Id.t)): History.Model.t => {

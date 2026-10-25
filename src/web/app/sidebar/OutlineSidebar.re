@@ -159,6 +159,8 @@ type props = {
   created: option((Language.Id.t, string)),
   /* refusals flashed on text mode's line: each new one replays it */
   flash: int,
+  /* row mode: a row op refused, the row and why */
+  refused: option((Language.Id.t, string)),
   /* every pin, shown or not: a hidden one gets a quiet mark */
   pinned: list(Language.Id.t),
   focused_entries: list((Language.Id.t, option(string))),
@@ -234,7 +236,7 @@ let leaving = evt =>
   !within_rows(evt)
   && Js_of_ocaml.(Js.to_bool(Js.Unsafe.coerce(Dom_html.document)##hasFocus));
 
-let focus_without_scroll = el =>
+let focus_without_scroll = (el): unit =>
   Js_of_ocaml.Js.Unsafe.coerce(el)##focus(
     Js_of_ocaml.Js.Unsafe.obj([|
       ("preventScroll", Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js._true)),
@@ -243,8 +245,10 @@ let focus_without_scroll = el =>
 
 /* a line's field holds the keys while it shows: it takes focus whenever
    focus is in the row list (after a save it refused, say) or nowhere (the
-   body, or the page itself). Its caret goes where the keys put it ([col]),
-   as it shows and as they put it there again ([seq]) */
+   body, or the page itself), but not from a selection made in the list
+   (a refusal's text), which focus would end. Its caret goes where the
+   keys put it ([col]), as it shows and as they put it there again
+   ([seq]) */
 module FieldFocus =
   Attr.Hooks.Make({
     module State = Unit;
@@ -257,14 +261,20 @@ module FieldFocus =
     let take = el => {
       open Js_of_ocaml;
       let active = Js.Unsafe.coerce(Dom_html.document)##.activeElement;
-      if (!Js.Opt.test(active)
-          || active ==
-          Js.Unsafe.coerce(Dom_html.document)##.body
-          || Js.to_string(active##.id) == "page"  /* where focus falls since dev's #2649 */
-          || Js.Opt.test(
-               active##closest(Js.string("#outline-sidebar .outline-body")),
-             )
-          && active != el) {
+      let rows = Js.Unsafe.coerce(el)##closest(Js.string(".outline-body"));
+      if ((
+            !Js.Opt.test(active)
+            || active ==
+            Js.Unsafe.coerce(Dom_html.document)##.body
+            || Js.to_string(active##.id) == "page"  /* where focus falls since dev's #2649 */
+            || Js.Opt.test(
+                 active##closest(
+                   Js.string("#outline-sidebar .outline-body"),
+                 ),
+               )
+            && active != el
+          )
+          && !(Js.Opt.test(rows) && Util.JsUtil.selection_within(rows))) {
         focus_without_scroll(el);
       };
     };
@@ -356,19 +366,38 @@ module HintPlace =
   });
 
 /* why the line's name can't be saved, in a bubble once a save has tried
-   it. Set before the name, its own place is where the line's text starts;
-   there all the while the line is typed on, so the field keeps its place
-   among the row's nodes */
-let edit_hint = (t: E.t): Node.t =>
+   it, or why a row op was refused. Set before the name, its own place is
+   where the line's text starts; there all the while the line is typed on,
+   so the field keeps its place among the row's nodes */
+let hint = (error: option(string)): Node.t =>
   span(
     ~attrs=[
       clss(
-        ["outline-edit-hint"] @ (t.error == None ? [] : ["outline-hint-on"]),
+        ["outline-edit-hint"] @ (error == None ? [] : ["outline-hint-on"]),
       ),
       Attr.create_hook("outline-hint-place", HintPlace.create()),
+      /* its text is selectable: a press there is its own, not the line's
+         (which keeps the keys in the field) */
+      Attr.on_mousedown(_ => Effect.Stop_propagation),
+      /* a click that selected nothing gives the field the keys back */
+      Attr.on_click(evt => {
+        open Js_of_ocaml;
+        let hint = Js.Unsafe.coerce(evt)##.currentTarget;
+        let rows = hint##closest(Js.string(".outline-body"));
+        if (!(Js.Opt.test(rows) && Util.JsUtil.selection_within(rows))) {
+          Js.Opt.iter(
+            hint##.parentElement##querySelector(
+              Js.string(".outline-edit-input"),
+            ),
+            focus_without_scroll,
+          );
+        };
+        Effect.Ignore;
+      }),
     ],
-    [text(Option.value(t.error, ~default=""))],
+    [text(Option.value(error, ~default=""))],
   );
+let edit_hint = (t: E.t): Node.t => hint(t.error);
 
 /* [t] as typed: a refusal shown follows it, gone once the name will do */
 let rechecked = (~check: E.t => option(string), t: E.t): E.t => {
@@ -593,6 +622,14 @@ let live_label = (props: props, n: OutlineTree.node): OutlineTree.node =>
     }
   | _ => n
   };
+
+/* a hinted test's name, past 24 characters cut short */
+let clipped = (s: string): string => {
+  let gs = Util.HazelString.graphemes(s);
+  Array.length(gs) <= 24
+    ? s
+    : String.concat("", Array.to_list(Array.sub(gs, 0, 23))) ++ {js|…|js};
+};
 
 /* documentation slides are named "Folder / Name": the name */
 let short_name = (s: string): string => {
@@ -1041,8 +1078,10 @@ let rec node_view =
     };
   let label =
     div(
+      /* a hinted test's whole name, which its row may clip */
       ~attrs=
-        [
+        Option.to_list(Option.map(Attr.title, n.o_hint))
+        @ [
           clss(
             ["outline-label", kind_cls(n.o_kind)]
             @ (cursor ? ["outline-cursor"] : [])
@@ -1182,6 +1221,14 @@ let rec node_view =
           ],
         ),
       ]
+      @ (
+        switch (tm, props.refused) {
+        | (None, Some((id, why))) when n.o_id == Some(id) => [
+            hint(Some(why)),
+          ]
+        | _ => []
+        }
+      )
       @ (
         switch (caret, props.created) {
         | (Some(d), _) when nameable(n) =>
@@ -1323,6 +1370,7 @@ and words = (n: OutlineTree.node, name_view) =>
   | KTests => [
       span(~attrs=[clss(["outline-synthetic"])], [text(n.o_label)]),
     ]
+  | KTest when n.o_hint != None => [name_view(clipped(n.o_label))]
   | _ => [name_view(n.o_label)]
   }
 
@@ -1420,13 +1468,25 @@ let menu_rows = (~on: handlers, at: E.menu_at): list(menu_row) => {
     );
   let test = (op, id) =>
     Item("New test below", None, () => on.text.op(op, id));
-  switch (at) {
-  | On_run(first, last, expanded) => [
-      expanded ? test(NewTestAbove, first) : test(NewTestBelow, last),
-    ]
-  | On_item(id, kind) =>
+  /* an item's own ops */
+  let ops = id => {
     let op = (~keys=?, o, label) =>
       Item(label, keys, () => on.text.op(o, id));
+    [
+      Divider,
+      op(~keys=mac ? {js|⌘D|js} : "Ctrl+D", Duplicate, "Duplicate"),
+      op(~keys=mac ? {js|⌥↑|js} : {js|Alt+↑|js}, MoveUp, "Move up"),
+      op(~keys=mac ? {js|⌥↓|js} : {js|Alt+↓|js}, MoveDown, "Move down"),
+      Divider,
+      op(~keys=mac ? {js|⌘⌫|js} : "Del", Delete, "Delete"),
+    ];
+  };
+  switch (at) {
+  /* a run of one's label acts on its test */
+  | On_run(first, last, expanded) =>
+    [expanded ? test(NewTestAbove, first) : test(NewTestBelow, last)]
+    @ (first == last ? ops(first) : [])
+  | On_item(id, kind) =>
     (
       kind == KModule
         ? [
@@ -1446,14 +1506,7 @@ let menu_rows = (~on: handlers, at: E.menu_at): list(menu_row) => {
       new_row(id, "New module below", "module "),
     ]
     @ (kind == KTest ? [test(NewTestBelow, id)] : [])
-    @ [
-      Divider,
-      op(~keys=mac ? {js|⌘D|js} : "Ctrl+D", Duplicate, "Duplicate"),
-      op(~keys=mac ? {js|⌥↑|js} : {js|Alt+↑|js}, MoveUp, "Move up"),
-      op(~keys=mac ? {js|⌥↓|js} : {js|Alt+↓|js}, MoveDown, "Move down"),
-      Divider,
-      op(~keys=mac ? {js|⌘⌫|js} : "Del", Delete, "Delete"),
-    ];
+    @ ops(id)
   };
 };
 
@@ -1629,7 +1682,18 @@ let keys =
       () => false,
       Js_of_ocaml.Js.to_bool,
     );
+  let is_field = el =>
+    Js_of_ocaml.Js.to_bool(
+      el##.classList##contains(Js_of_ocaml.Js.string("outline-edit-input")),
+    );
+  let target = Js_of_ocaml.Js.Unsafe.coerce(evt)##.target;
+  let rows = Js_of_ocaml.Js.Unsafe.coerce(evt)##.currentTarget;
+  /* text selected in the list (a refusal's), the field lacking the keys */
+  let list_selection = () =>
+    !is_field(target) && Util.JsUtil.selection_within(rows);
   let id_of = (r: visible_row) => r.r_node.o_id;
+  /* what the ops act on: a run of one's row, its test */
+  let item_of = (r: visible_row) => OutlineTree.item_of(r.r_node);
   let is_module = (r: visible_row) => r.r_node.o_kind == OutlineTree.KModule;
   /* the context menu at a row, as the editor opens its own */
   let open_menu = (r: visible_row) => {
@@ -1712,9 +1776,9 @@ let keys =
         },
       )
     | ("ArrowUp", true, false, Some(r)) =>
-      Option.map(id => on.def_op(MoveUp, id), id_of(r))
+      Option.map(id => on.def_op(MoveUp, id), item_of(r))
     | ("ArrowDown", true, false, Some(r)) =>
-      Option.map(id => on.def_op(MoveDown, id), id_of(r))
+      Option.map(id => on.def_op(MoveDown, id), item_of(r))
     | ("ArrowRight", true, false, Some(r)) when is_module(r) =>
       Option.map(on.zoom_in, id_of(r))
     /* out of the slide's top: the level above, if any */
@@ -1723,11 +1787,11 @@ let keys =
       Some(on.go_above(true))
     | ("ArrowLeft", true, false, _) => Some(on.zoom_out)
     | (_, false, true, Some(r)) when code == "KeyD" =>
-      Option.map(id => on.def_op(Duplicate, id), id_of(r))
+      Option.map(id => on.def_op(Duplicate, id), item_of(r))
     /* the cursor moves only once the delete lands (DefOp) */
     | ("Backspace", false, true, Some(r))
     | ("Delete", false, false, Some(r)) =>
-      Option.map(id => on.def_op(Delete, id), id_of(r))
+      Option.map(id => on.def_op(Delete, id), item_of(r))
     | _ => None
     };
   /* the level above navigates only: no menus, opens, moves or deletes,
@@ -1758,13 +1822,29 @@ let keys =
       Act(Effect.Ignore);
     | (_, _, None) => Pass(Effect.Ignore)
     | (_, _, Some((lines, at, t'))) =>
-      let field = Js_of_ocaml.Js.Unsafe.coerce(evt)##.target;
-      let in_field =
-        Js_of_ocaml.Js.to_bool(
-          field##.classList##contains(
-            Js_of_ocaml.Js.string("outline-edit-input"),
-          ),
-        );
+      /* a key (not a modifier) ends a selection in the list: the field
+         takes the keys back, this one first */
+      let modifier =
+        List.mem(key, ["Shift", "Alt", "Meta", "Control", "CapsLock"]);
+      let field =
+        if (!modifier && list_selection()) {
+          Util.JsUtil.clear_page_selection();
+          switch (
+            Js_of_ocaml.Js.Opt.to_option(
+              rows##querySelector(
+                Js_of_ocaml.Js.string(".outline-edit-input"),
+              ),
+            )
+          ) {
+          | Some(f) =>
+            focus_without_scroll(f);
+            f;
+          | None => target
+          };
+        } else {
+          target;
+        };
+      let in_field = is_field(field);
       let (start, stop): (int, int) =
         in_field
           ? (field##.selectionStart, field##.selectionEnd) : (t'.col, t'.col);
@@ -1934,6 +2014,9 @@ let keys =
      keys the menu takes must not build it */
   let act = (): verdict =>
     switch (on.text.get(), key, meta, cur) {
+    /* the browser copies it */
+    | (Some(_), "c" | "C", true, _) when list_selection() =>
+      Own(Effect.Ignore)
     | (Some(t), _, _, _) => text_key(t)
     | (None, "Enter", true, _)
     | (None, "F2", _, _) when !above_shown(props) =>
@@ -2195,17 +2278,20 @@ let visible_rows =
   Array.of_list(walk(None, root_path, roots));
 };
 
-let view = (~props: props, ~on: handlers, term: Language.Exp.t): Node.t => {
+let view = (~props: props, ~on: handlers, outline: OutlineTree.t): Node.t => {
   /* zoomed, the module's members are the top level; collapse paths
      stay rooted at the program */
   let (roots, root_path) =
     switch (props.zoom_root) {
     | Some(m) =>
-      switch (OutlineTree.node_of(m, term), OutlineTree.label_path(m, term)) {
+      switch (
+        OutlineTree.node_of(m, outline),
+        OutlineTree.label_path(m, outline),
+      ) {
       | (Some(n), Some(path)) => (n.o_children, path)
-      | _ => (OutlineTree.of_term(term), [])
+      | _ => (OutlineTree.rows(outline), [])
       }
-    | None => (OutlineTree.of_term(term), [])
+    | None => (OutlineTree.rows(outline), [])
     };
   /* a new member typed first or last inside a module shows it open */
   let opened =

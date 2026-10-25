@@ -24,9 +24,24 @@ let compositional = (~root, z: Zipper.t): Statics.Map.t =>
   ).
     info_map;
 
-/* the assistant's */
-let monolithic = (~root, z: Zipper.t): Statics.Map.t =>
-  CompositionGo.Public.mk_statics(~root, z);
+/* the whole program's at once */
+let monolithic = (~root, z: Zipper.t): Statics.Map.t => {
+  let term =
+    if (root == Sort.Mod) {
+      let (seg, masks) =
+        MakeTerm.semantic_segment(~root, MakeTerm.semantic_source(z));
+      MakeTerm.Incr.term_of_root(~masks, ~root, seg);
+    } else {
+      MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+    };
+  fst(
+    Statics.mk(
+      CoreSettings.on,
+      Builtins.ctx_init(Some(Operators.default_mode)),
+      term,
+    ),
+  );
+};
 
 let both = [("compositional", compositional), ("monolithic", monolithic)];
 

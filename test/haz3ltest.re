@@ -62,12 +62,15 @@ let (suite, exit_with_test_status) =
       Test_PatRootEditor.tests,
       Test_StackFocus.tests,
       Test_Restructure.tests,
+      Test_EntryEdit.tests,
       Test_StreamCollector.tests,
       Test_MegaCorpus.tests,
       Test_MeasuredChunks.tests,
       Test_ChunkViews.tests,
       Test_MakeTermIncr.tests,
       Test_ItemSpans.tests,
+      Test_EntryPath.tests,
+      Test_AgentView.tests,
       Test_CellsParity.tests,
       Test_EditLocality.tests,
       Test_DefStaticsParity.tests,
@@ -109,6 +112,8 @@ let (suite, exit_with_test_status) =
     @ Test_AgentTools.tests
     @ Test_AgentMultiTool.tests
     @ Test_AgentControlFlow.tests
+    @ Test_AgentPerf.tests
+    @ Test_AgentReply.tests
     @ [Test_AgentUX.tests]
     @ Test_ExpToSegment.all
     @ Test_Typ.tests

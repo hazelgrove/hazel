@@ -369,7 +369,8 @@ module Payload = {
         cache_control_provider_prefixes,
       );
 
-    let json_of_payload = (~payload: Model.t): Json.t => {
+    /* the request body, and each message as it is in it */
+    let body_parts = (~payload: Model.t): (Json.t, list(Json.t)) => {
       let cache_enabled = supports_cache_control(payload.model_id);
       /* Cache breakpoints are carried per-message via `cache_anchor`: the static
          dev-notes floor and the per-request advancing anchor on the last history
@@ -413,6 +414,15 @@ module Payload = {
           ]
         | None => base_fields
         };
+      (`Assoc(fields), messages_json);
+    };
+
+    /* the request body: what goes over the wire */
+    let body = (~payload: Model.t): Json.t => fst(body_parts(~payload));
+
+    let json_of_payload = (~payload: Model.t): Json.t => {
+      let (body, messages_json) = body_parts(~payload);
+      let cache_enabled = supports_cache_control(payload.model_id);
       /* Record which message indices carry a cache_control breakpoint on the
          wire, then stash the request-side metrics; the matching cache_read /
          cache_creation are logged together when the response usage is parsed. */
@@ -436,7 +446,7 @@ module Payload = {
         ~breakpoints,
         payload.messages,
       );
-      `Assoc(fields);
+      body;
     };
   };
 };
@@ -1023,6 +1033,12 @@ module Utils = {
       };
   };
 
+  /* a payload as the streaming request sends it */
+  let streaming = (payload: Payload.Model.t): Payload.Model.t => {
+    ...payload,
+    stream: true,
+  };
+
   let start_streaming_chat =
       (
         ~payload: Payload.Model.t,
@@ -1031,11 +1047,7 @@ module Utils = {
         ~on_done: unit => unit,
       )
       : API.streaming_handle => {
-    let streaming_payload = {
-      ...payload,
-      stream: true,
-    };
-    let body = Payload.Utils.json_of_payload(~payload=streaming_payload);
+    let body = Payload.Utils.json_of_payload(~payload=streaming(payload));
     API.request_streaming(
       ~with_credentials=false,
       ~method=POST,

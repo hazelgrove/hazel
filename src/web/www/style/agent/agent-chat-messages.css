@@ -2342,11 +2342,10 @@
   text-align: center;
 }
 
-/* Agent Context: program block matches tool diff segment styling */
+/* Agent Context: the context the latest request sent, verbatim */
 .agent-context-body {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
   align-items: stretch;
 }
 
@@ -2355,139 +2354,31 @@
   overflow-x: auto;
 }
 
-.agent-context-section {
-  flex-shrink: 0;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-  padding: 0.65em 0.75em;
-  background-color: var(--surface-default);
-  border-radius: 6px;
-  border: 0.6px solid var(--border-default);
+.agent-context-sent {
+  font-family: var(--code-font);
+  font-size: 0.75em;
+  line-height: 1.4;
+  white-space: pre;
+  width: max-content;
+  min-width: 100%;
   box-sizing: border-box;
-}
-
-.agent-context-section-title {
-  font-size: 0.72em;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-default);
-}
-
-.agent-context-code-scroll {
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
-  overflow-x: auto;
-  overflow-y: visible;
   padding: 0.5em 0.65em;
+  color: var(--text-default);
   background-color: var(--surface-raised);
   border-radius: 4px;
   border: 0.6px solid var(--border-default);
 }
 
-.agent-context-code {
-  display: block;
-  width: max-content;
-  min-width: 100%;
-}
-
-.agent-context-code.tool-call-diff-segment .code {
+.agent-context-request {
+  align-self: center;
   font-size: 0.75em;
+  color: var(--text-muted);
 }
 
 .agent-context-empty {
   font-size: 0.85em;
   color: var(--text-muted);
   font-style: italic;
-}
-
-.agent-context-static-ok {
-  font-size: 0.85em;
-  color: var(--text-success);
-}
-
-.agent-context-static-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35em;
-}
-
-.agent-context-static-line {
-  font-family: var(--code-font);
-  font-size: 0.78em;
-  line-height: 1.35;
-  color: var(--text-error-strong);
-  padding: 0.35em 0.45em;
-  background-color: var(--surface-raised);
-  border-radius: 4px;
-  border-left: 3px solid var(--border-error);
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.agent-context-muted {
-  font-size: 0.82em;
-  color: var(--text-muted);
-  line-height: 1.35;
-}
-
-.agent-context-test-summary {
-  font-size: 0.82em;
-  color: var(--text-default);
-  line-height: 1.35;
-  margin-bottom: 0.25em;
-}
-
-.agent-context-test-rows {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3em;
-}
-
-.agent-context-test-row {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 0.45em;
-  padding: 0.35em 0.45em;
-  border-radius: 4px;
-  background-color: var(--surface-raised);
-  font-size: 0.82em;
-}
-
-.agent-context-test-icon {
-  flex-shrink: 0;
-  width: 16px;
-  height: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.agent-context-test-icon svg {
-  width: 14px;
-  height: 14px;
-}
-
-.agent-context-test-pass .agent-context-test-icon svg {
-  fill: var(--text-success);
-}
-
-.agent-context-test-fail .agent-context-test-icon svg {
-  fill: var(--text-error);
-}
-
-.agent-context-test-indet .agent-context-test-icon svg {
-  fill: var(--text-muted);
-}
-
-.agent-context-test-label {
-  color: var(--text-default);
-  font-family: var(--code-font);
-  font-size: 0.92em;
 }
 
 /* Prompt and Developer Notes Display */
@@ -2992,13 +2883,6 @@
   white-space: normal;
 }
 
-/* Fold marker (⋱) in read-only code / agent context */
-.agent-context-body .fold-projector {
-  font-weight: 600;
-  color: var(--text-accent);
-  padding: 0 0.1em;
-}
-
 /* Per-assistant-turn token metadata chip. Sibling of .agent-message
    so it doesn't inherit prose typography. */
 .agent-token-chip {
@@ -3113,3 +2997,432 @@
   opacity: 1;
 }
 
+
+/* View as agent: the action on a turn, and the banner over the editor
+   while the editor shows a request's view */
+.agent-view-as {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  margin: 0.15em 0 0.5em;
+  font-size: 0.72em;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.agent-view-as:hover {
+  color: var(--text-default);
+}
+
+.agent-view-as svg {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+}
+
+#main .agent-lens-banner {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35em 0.6em;
+  padding: 0.35em 0.75em;
+  font-size: 0.8em;
+  color: var(--text-default);
+  background-color: var(--surface-highlight);
+}
+
+#main .agent-lens-banner > span {
+  white-space: nowrap;
+}
+
+#main .agent-lens-banner .lens-title {
+  font-weight: 600;
+}
+
+#main .agent-lens-banner .lens-which,
+#main .agent-lens-banner .lens-summary {
+  color: var(--text-muted);
+}
+
+#main .lens-button {
+  font: inherit;
+  padding: 0.1em 0.6em;
+  border: 0.6px solid var(--border-strong);
+  border-radius: 4px;
+  background-color: var(--surface-default);
+  color: var(--text-default);
+  cursor: pointer;
+}
+
+#main .lens-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+#main .lens-button.on {
+  background-color: var(--surface-accent);
+  color: var(--text-inverse);
+}
+
+/* copy: an icon, borderless, tinted on hover; a check for a second once
+   copied */
+#main .lens-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  margin: 0;
+  padding: 1px 2px;
+  border: 0;
+  border-radius: 3px;
+  font: inherit;
+  line-height: 1;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+#main .lens-copy:hover {
+  background-color: color-mix(in srgb, var(--surface-shard) 35%, transparent);
+  color: var(--text-default);
+}
+
+#main .lens-copy svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+#main .lens-copy .lens-copied-icon,
+#main .lens-copy.copied .lens-copy-icon {
+  display: none;
+}
+
+#main .lens-copy.copied .lens-copied-icon {
+  display: block;
+}
+
+#main .lens-copy.copied {
+  color: var(--text-success);
+}
+
+/* the controls keep together, to the right */
+#main .agent-lens-banner .lens-controls {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+}
+
+/* the three modes: segments on one track, the chosen one filled */
+#main .agent-lens-banner .lens-segments {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 5px;
+  background-color: color-mix(in srgb, var(--surface-shard) 27%, transparent);
+}
+
+#main .agent-lens-banner .lens-segment {
+  font: inherit;
+  margin: 0;
+  border: 0;
+  border-radius: 4px;
+  padding: 0.05em 0.6em;
+  background: transparent;
+  color: var(--text-default);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+#main .agent-lens-banner .lens-segment.active {
+  background-color: var(--primary-accent);
+  color: var(--cell-active);
+}
+
+#main .agent-lens-banner .lens-segment:hover:not(.active) {
+  background-color: color-mix(in srgb, var(--surface-shard) 45%, transparent);
+}
+
+#main .agent-lens-note {
+  padding: 0.75em 1em;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Stacked: the map the request sent, above the cells, a rule under it;
+   its head folds it */
+#main .agent-lens-map {
+  border-bottom: 1px solid var(--border-soft);
+}
+
+#main .lens-map-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5em;
+  width: 100%;
+  margin: 0;
+  padding: 0.35em 1em;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 0.8em;
+  color: var(--text-muted);
+  text-align: left;
+  cursor: pointer;
+}
+
+#main .lens-map-head:hover {
+  background-color: color-mix(in srgb, var(--surface-shard) 27%, transparent);
+}
+
+#main .lens-map-head .lens-map-chevron {
+  width: 0.8em;
+}
+
+#main .lens-map-head .lens-map-title {
+  color: var(--text-default);
+  font-weight: 600;
+}
+
+#main .agent-lens-map > .cell {
+  padding-bottom: 0.5em;
+}
+
+/* the map's notes: comments past their lines' ends, dimmed */
+#main .lens-map-notes {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+}
+
+#main .lens-map-note {
+  position: absolute;
+  white-space: pre;
+  font-family: var(--code-font);
+  font-size: var(--base-font-size);
+  color: var(--token-comment);
+  opacity: 0.75;
+}
+
+/* ⋯, a folded body: no sort, and nothing wrong with it */
+#main .agent-lens-map .token.Any {
+  color: var(--text-muted);
+}
+
+/* Sent view and Trajectory: monospace text, its copy buttons in a head */
+#main .agent-lens-panel {
+  padding: 0.5em 1em 4em;
+  color: var(--text-default);
+}
+
+#main .lens-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0.25em 0 0.5em;
+  font-size: 0.8em;
+}
+
+#main .lens-panel-head .lens-panel-title {
+  color: var(--text-muted);
+  margin-right: auto;
+}
+
+#main .lens-panel-note {
+  margin-top: -0.25em;
+  padding-bottom: 0.5em;
+  font-size: 0.8em;
+  color: var(--text-muted);
+}
+
+#main .agent-lens-panel pre {
+  margin: 0;
+  font-family: var(--code-font);
+  font-size: 0.85em;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+/* sections: a divider between them, a chevron that folds each */
+#main .traj-sections > .traj-section {
+  border-top: 1px solid var(--border-soft);
+}
+
+#main .traj-summary {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75em;
+  padding: 0.3em 0;
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+  font-size: 0.85em;
+  white-space: nowrap;
+}
+
+#main .traj-summary::-webkit-details-marker {
+  display: none;
+}
+
+#main .traj-summary::before {
+  content: "";
+  display: inline-block;
+  box-sizing: border-box;
+  width: 5px;
+  height: 5px;
+  flex: none;
+  align-self: center;
+  border-right: 1.3px solid currentColor;
+  border-bottom: 1.3px solid currentColor;
+  opacity: 0.55;
+  transform: rotate(-45deg);
+  transition: transform 0.12s ease-out;
+}
+
+#main .traj-section[open] > .traj-summary::before {
+  transform: rotate(45deg);
+}
+
+#main .traj-label {
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+/* a tool call reads as a line, not a heading; a long one is cut short */
+#main .traj-k-call > .traj-summary .traj-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+
+#main .traj-k-user > .traj-summary .traj-label,
+#main .traj-k-assistant > .traj-summary .traj-label {
+  color: var(--text-accent);
+}
+
+#main .traj-size {
+  color: var(--text-muted);
+}
+
+#main .traj-first {
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* nested sections (tool calls, tool definitions) one step in */
+#main .traj-body {
+  position: relative;
+  padding: 0 0 0.6em 13px;
+}
+
+#main .traj-body > .traj-section {
+  margin-top: 0.2em;
+}
+
+/* raw and copy, at the line's end: shown while the section is open, copy
+   also on hover, always holding their place so opening moves nothing */
+#main .traj-controls {
+  display: flex;
+  align-self: center;
+  align-items: center;
+  gap: 0.5em;
+  margin-left: auto;
+  padding-left: 0.5em;
+  font-size: 0.9em;
+  color: var(--text-muted);
+  visibility: hidden;
+}
+
+#main .traj-section[open] > .traj-summary > .traj-controls,
+#main .traj-summary:hover > .traj-controls {
+  visibility: visible;
+}
+
+#main .traj-section:not([open]) > .traj-summary .traj-raw-label {
+  visibility: hidden;
+}
+
+#main .traj-raw-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25em;
+  cursor: pointer;
+}
+
+#main .traj-raw-toggle {
+  margin: 0;
+}
+
+/* shown for reading, not in this request: on a tint, its line dimmed;
+   once, not again inside another */
+#main .traj-elsewhere {
+  margin: 0 -0.5em;
+  padding: 0 0.5em;
+  background-color: color-mix(in srgb, var(--surface-shard) 16%, transparent);
+}
+
+#main .traj-elsewhere .traj-elsewhere {
+  margin-left: 0;
+  margin-right: 0;
+  padding: 0;
+  background-color: transparent;
+}
+
+/* thinking reads as the chat shows it */
+#main .traj-k-thinking > .traj-body > .traj-shown {
+  font-style: italic;
+}
+
+#main .traj-elsewhere > .traj-summary {
+  opacity: 0.55;
+}
+
+#main .traj-shown,
+#main .traj-raw {
+  padding: 0.4em 0.6em;
+  border-radius: 4px;
+  background-color: var(--surface-code);
+}
+
+/* raw: the section's JSON in place of its reading form, children
+   included */
+#main .traj-raw,
+#main .traj-copy-raw {
+  display: none;
+}
+
+#main .traj-section:has(> .traj-summary .traj-raw-toggle:checked)
+  > .traj-body
+  > .traj-raw {
+  display: block;
+}
+
+#main .traj-controls:has(.traj-raw-toggle:checked) > .traj-copy-raw {
+  display: inline-flex;
+}
+
+#main .traj-section:has(> .traj-summary .traj-raw-toggle:checked)
+  > .traj-body
+  > :is(.traj-shown, .traj-section),
+#main .traj-controls:has(.traj-raw-toggle:checked) > .traj-copy-text {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #main .traj-summary::before {
+    transition: none;
+  }
+}

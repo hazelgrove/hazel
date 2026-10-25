@@ -108,7 +108,8 @@ let rows = (~root: Sort.t, z: Zipper.t): list((string, row)) => {
   module O = Web.OutlineTree;
   let st =
     CachedStatics.init_compositional(~settings, ~stitch=Fun.id, ~root, z);
-  let nodes = O.of_term(st.term);
+  let nodes =
+    O.rows(CorpusUtil.outline_of(~root, Zipper.unselect_and_zip(z)));
   let ids = O.collect(nodes);
   let badged =
     List.filter_map(

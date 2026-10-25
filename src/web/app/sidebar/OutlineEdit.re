@@ -905,9 +905,10 @@ let decide_row =
       );
     };
   let item = r.r_node.o_id;
-  /* an op on the line's item: never the ⇒, which stays last */
+  /* an op on the line's item (a run of one's test): never the ⇒, which
+     stays last */
   let op = o =>
-    switch (item) {
+    switch (OutlineTree.item_of(r.r_node)) {
     | Some(id) when r.r_node.o_kind != KTrail => Op(o, id)
     | _ => Flash
     };

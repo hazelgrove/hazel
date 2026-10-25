@@ -76,8 +76,8 @@ let owner = (id: Id.t, d: t): option(Cell.t) =>
 let cell = (id: Id.t, d: t): option(Cell.t) =>
   List.find_opt((e: Cell.t) => e.e_id == id, d.cells);
 
-let insert = (~term, entry: Cell.t, cells: list(Cell.t)): list(Cell.t) => {
-  let order = OutlineTree.collect(OutlineTree.of_term(term));
+let insert = (~outline, entry: Cell.t, cells: list(Cell.t)): list(Cell.t) => {
+  let order = OutlineTree.collect(OutlineTree.rows(outline));
   let rank = id =>
     Option.value(List.find_index(x => x == id, order), ~default=max_int);
   let r = rank(entry.e_id);
@@ -368,7 +368,7 @@ let close = (id: Id.t, d: t): after_close =>
 /* [mk]'s cell, cut from the base with [closing] folded back in, opens
    among [keeping] and becomes active */
 let open_among =
-    (~term, mk: Segment.t => option(Cell.t), closing, keeping, d: t)
+    (~outline, mk: Segment.t => option(Cell.t), closing, keeping, d: t)
     : option(t) => {
   let base = spliced(~root=root(d), d.base, closing);
   mk(base)
@@ -378,7 +378,7 @@ let open_among =
          {
            ...d,
            base,
-           cells: insert(~term, entry, keeping),
+           cells: insert(~outline, entry, keeping),
            active: Some((entry.e_id, Body)),
          },
        )
@@ -388,16 +388,23 @@ let open_among =
 /* opening a parent folds its open descendants back into it; an id inside
    an open cell opens nothing (the caller moves the caret there instead) */
 let open_ =
-    (~info_map, ~term, ~sym: option(string)=?, ~inner=false, id: Id.t, d: t)
+    (
+      ~info_map,
+      ~outline,
+      ~sym: option(string)=?,
+      ~inner=false,
+      id: Id.t,
+      d: t,
+    )
     : option(t) =>
   switch (owner(id, d)) {
   | Some(_) => None
   | None =>
-    let desc = OutlineTree.descendant_ids(id, term);
+    let desc = OutlineTree.descendant_ids(id, outline);
     let (closing, keeping) =
       List.partition((e: Cell.t) => List.mem(e.e_id, desc), d.cells);
     open_among(
-      ~term,
+      ~outline,
       entry(~root=root(d), ~info_map, ~sym?, ~inner, id),
       closing,
       keeping,
@@ -407,7 +414,7 @@ let open_ =
 
 /* [fid]'s test run as one cell, folding in members open alone; None if
    another open cell holds it */
-let open_run = (~info_map, ~term, fid: Id.t, d: t): option(t) => {
+let open_run = (~info_map, ~outline, fid: Id.t, d: t): option(t) => {
   let members =
     switch (Focus.test_run_deep(~root=root(d), fid, d.base)) {
     | Some((_, ms, _)) => ms
@@ -421,7 +428,7 @@ let open_run = (~info_map, ~term, fid: Id.t, d: t): option(t) => {
   List.exists(owns(fid), keeping)
     ? None
     : open_among(
-        ~term,
+        ~outline,
         Focus.mk_run_entry(~root=root(d), ~info_map, fid),
         alone,
         keeping,
@@ -432,7 +439,7 @@ let open_run = (~info_map, ~term, fid: Id.t, d: t): option(t) => {
 /* after an edit to the joined program (agent, outline menu): the same
    cells, cut from the edited program; cells whose item is gone close */
 let resplit =
-    (~info_map, ~term, editor: CellEditor.Model.t, d: t): after_close => {
+    (~info_map, ~outline, editor: CellEditor.Model.t, d: t): after_close => {
   let base = Focus.zip_of_cell(editor);
   let root = root(d);
   /* a cell the edit didn't touch keeps its editor (caret, selection); a
@@ -509,7 +516,7 @@ let resplit =
         {
           shell: editor,
           cells:
-            List.fold_left((acc, e) => insert(~term, e, acc), [], cells),
+            List.fold_left((acc, e) => insert(~outline, e, acc), [], cells),
           base,
           /* a cell the edit removed is no longer where the caret is */
           active:
@@ -732,29 +739,41 @@ let compact = (f: CellEditor.Model.t => CellEditor.Model.t, d: t): t => {
   statics: None,
 };
 
-/* [d]'s editors with the caches of [from]'s in the same place
-   (CellEditor.Model.with_caches_of): the shell's, and each open cell's
-   panes from [from]'s cell of the same item */
-let with_caches_of = (~from: t, d: t): t => {
-  let carry = (from, c) => CellEditor.Model.with_caches_of(~from, c);
-  {
-    ...d,
-    shell: carry(from.shell, d.shell),
-    cells:
-      List.map(
-        (e: Cell.t) =>
-          switch (cell(e.e_id, from)) {
-          | Some(c) => {
-              ...e,
-              e_header: carry(c.e_header, e.e_header),
-              e_body: carry(c.e_body, e.e_body),
-            }
-          | None => e
-          },
-        d.cells,
-      ),
-  };
+/* [d] with [carry] from each of [from]'s editors into [d]'s in the same
+   place: the shell's, and each open cell's panes from [from]'s cell of
+   the same item */
+let carry_from =
+    (
+      carry: (CellEditor.Model.t, CellEditor.Model.t) => CellEditor.Model.t,
+      from: t,
+      d: t,
+    )
+    : t => {
+  ...d,
+  shell: carry(from.shell, d.shell),
+  cells:
+    List.map(
+      (e: Cell.t) =>
+        switch (cell(e.e_id, from)) {
+        | Some(c) => {
+            ...e,
+            e_header: carry(c.e_header, e.e_header),
+            e_body: carry(c.e_body, e.e_body),
+          }
+        | None => e
+        },
+      d.cells,
+    ),
 };
+
+/* [d]'s editors with the caches of [from]'s
+   (CellEditor.Model.with_caches_of) */
+let with_caches_of = (~from: t, d: t): t =>
+  carry_from(
+    (from, c) => CellEditor.Model.with_caches_of(~from, c),
+    from,
+    d,
+  );
 
 /* the shell is the whole editor [d] was cut from: its caches to and from
    a whole editor */
@@ -766,28 +785,15 @@ let shell_caches_into = (d: t, e: CellEditor.Model.t): CellEditor.Model.t =>
   CellEditor.Model.with_caches_of(~from=d.shell, e);
 
 /* [d] showing [from]'s statics and run until it's analyzed
-   (CellEditor.Model.with_statics_of): the program's, and each open
-   cell's panes from [from]'s cell of the same item */
+   (CellEditor.Model.with_statics_of), editor by editor */
 let with_statics_of = (~from: t, d: t): t => {
-  let carry = (from, c) => CellEditor.Model.with_statics_of(~from, c);
-  {
-    ...d,
-    shell: carry(from.shell, d.shell),
-    cells:
-      List.map(
-        (e: Cell.t) =>
-          switch (cell(e.e_id, from)) {
-          | Some(c) => {
-              ...e,
-              e_header: carry(c.e_header, e.e_header),
-              e_body: carry(c.e_body, e.e_body),
-            }
-          | None => e
-          },
-        d.cells,
-      ),
-    statics: from.statics,
-  };
+  ...
+    carry_from(
+      (from, c) => CellEditor.Model.with_statics_of(~from, c),
+      from,
+      d,
+    ),
+  statics: from.statics,
 };
 
 /* the same, from and into a whole editor: its statics are the program's */

@@ -41,56 +41,30 @@ let run_agent_action = (code: string, a: Action.Structural.t) => {
   );
 };
 
-/** Runs a no-path insert_before / insert_after (the InsertAtProgramBoundary
-    action) as AgentToolCallHandler does. Before → prepend at program start;
-    After → append at program end (at a Mod root, members after the last). */
+/** Runs an insert at the top level ("" path): the code at the
+    program's start (Before) or end (After; at a Mod root, members after
+    the last, above a final expression). */
 let run_insert_at_program_boundary =
     (
       ~root=Sort.Exp,
       code: string,
-      direction: Action.Structural.insert_target,
+      place: Action.Structural.place,
       new_code: string,
     ) => {
   let z =
     root == Sort.Exp
       ? mk_zipper(code) : Zipper.unzip(CorpusUtil.seg_of(~root, code));
-  let statics = z => CompositionGo.Public.mk_statics(~root, z);
-  let initial_info_map = statics(z);
-  let before_pieces =
-    LocalReformat.snapshot_pieces(~enabled=CoreSettings.on.auto_reindent, z);
-  switch (
-    CompositionGo.Public.insert_at_boundary(
-      ~root,
-      ~info_map=initial_info_map,
-      direction,
-      z,
-      new_code,
-    )
-  ) {
-  | Error(e) => Error(e)
-  | Ok(new_z) =>
-    let new_statics = statics(new_z);
-    let old_errors = ErrorPrint.all(initial_info_map);
-    let new_errors = ErrorPrint.all(new_statics);
-    if (List.length(new_errors) > List.length(old_errors)) {
-      Error(
-        Action.Failure.Composition_action_failure(
-          "Static errors: " ++ String.concat(", ", new_errors),
-        ),
-      );
-    } else {
-      /* Mirror AgentToolCallHandler: boundary inserts normalize and
-         re-indent like the dispatch path. */
-      Ok(
-        CompositionGo.Local.PerformUtils.normalize_top_level(
-          ~root,
-          ~before=z,
-          Materialize.all(new_z, ~root),
-        )
-        |> LocalReformat.go_region(~before_pieces),
-      );
-    };
-  };
+  Perform.go(
+    ~settings=CoreSettings.on,
+    ~statics=CachedStatics.empty,
+    ~syntax=CachedSyntax.init(~root, z),
+    ~root,
+    Structural(Insert(place, new_code)),
+    {
+      zipper: z,
+      col_target: None,
+    },
+  );
 };
 
 /** Test-only string compare for rendered programs: keep [[StringUtil]] minimal;
@@ -182,6 +156,26 @@ let apply_chain_render =
   };
 };
 
+/* a reply on [code] with no calls yet, on the kernel */
+let reply_on = (~root=Sort.Exp, code: string): CompositionGo.Reply.t => {
+  let seg =
+    root == Sort.Exp
+      ? Zipper.unselect_and_zip(mk_zipper(code))
+      : CorpusUtil.seg_of(~root, code);
+  let statics_of =
+    CompositionGo.statics_of(
+      ~settings=CoreSettings.on,
+      ~root,
+      ~probe_ids=Id.Map.empty,
+    );
+  CompositionGo.Reply.start(
+    ~root,
+    ~statics=lazy(statics_of(seg)),
+    ~statics_of,
+    seg,
+  );
+};
+
 let expect_composition_failure =
     (code: string, a: Action.Structural.t, name: string) => {
   switch (run_agent_action(code, a)) {
@@ -211,8 +205,10 @@ let expect_any_failure = (code: string, a: Action.Structural.t, name: string) =>
 let edit_action_tests = (
   "AgentTools.EditActions",
   [
-    test_case("insert_before (no path) seeds empty program", `Quick, () => {
-      switch (run_insert_at_program_boundary("?", Before, "let a = 3 in")) {
+    test_case("insert first in the top level seeds empty program", `Quick, () => {
+      switch (
+        run_insert_at_program_boundary("?", Before(""), "let a = 3 in")
+      ) {
       | Ok(z) =>
         check_rendered(
           "insert_before_no_path",
@@ -226,11 +222,11 @@ let edit_action_tests = (
       }
     }),
     test_case(
-      "insert_before (no path) prepends to non-empty program", `Quick, () => {
+      "insert first in the top level prepends to non-empty program", `Quick, () => {
       switch (
         run_insert_at_program_boundary(
           "let a = 1 in a",
-          Before,
+          Before(""),
           "let x = 0 in",
         )
       ) {
@@ -247,22 +243,22 @@ let edit_action_tests = (
       }
     }),
     test_case(
-      "update_definition replaces def",
+      "replace :definition replaces def",
       `Quick,
       () => {
         let result =
-          apply_and_render("let a = 1 in a", Update(Definition, "a", "2"));
+          apply_and_render("let a = 1 in a", Replace("a:definition", "2"));
         check_rendered("update_definition", "let a = 2 in a", result);
       },
     ),
     test_case(
-      "update_body replaces body",
+      "replace => replaces the result",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let a = 1 in let b = 2 in a + b",
-            Update(Body, "b", "b + 1"),
+            Replace("=>", "b + 1"),
           );
         check_rendered(
           "update_body",
@@ -272,13 +268,13 @@ let edit_action_tests = (
       },
     ),
     test_case(
-      "update_pattern renames uses",
+      "rename renames uses",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let a = 1 in let b = a + 1 in b + a",
-            Update(Pattern, "a", "x"),
+            Rename("a", None, "x"),
           );
         check_rendered(
           "update_pattern",
@@ -288,13 +284,13 @@ let edit_action_tests = (
       },
     ),
     test_case(
-      "update_pattern renames in let def",
+      "rename renames in let def",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let x = 3 in let y = x in y",
-            Update(Pattern, "x", "z"),
+            Rename("x", None, "z"),
           );
         check_rendered(
           "update_pattern_let_def",
@@ -304,13 +300,13 @@ let edit_action_tests = (
       },
     ),
     test_case(
-      "update_binding_clause replaces binding",
+      "replace replaces binding",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let a = 1 in let b = 2 in a + b",
-            Update(BindingClause, "b", "let b = a + 2 in"),
+            Replace("b", "let b = a + 2 in"),
           );
         check_rendered(
           "update_binding_clause",
@@ -320,13 +316,13 @@ let edit_action_tests = (
       },
     ),
     test_case(
-      "insert_before adds binding",
+      "insert before adds binding",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let a = 1 in let b = 2 in a + b",
-            Insert(Before, "b", "let x = a in"),
+            Insert(Before("b"), "let x = a in"),
           );
         check_rendered(
           "insert_before",
@@ -336,13 +332,13 @@ let edit_action_tests = (
       },
     ),
     test_case(
-      "insert_after adds binding",
+      "insert after adds binding",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let a = 1 in let b = 2 in a + b",
-            Insert(After, "a", "let x = a in"),
+            Insert(After("a"), "let x = a in"),
           );
         check_rendered(
           "insert_after",
@@ -352,13 +348,13 @@ let edit_action_tests = (
       },
     ),
     test_case(
-      "delete_binding_clause removes binding",
+      "delete removes binding",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let a = 1 in let b = 2 in let c = 3 in a + c",
-            Delete(BindingClause, "b"),
+            Delete("b"),
           );
         check_rendered(
           "delete_binding_clause",
@@ -367,31 +363,23 @@ let edit_action_tests = (
         );
       },
     ),
-    test_case(
-      "delete_body replaces body with hole",
-      `Quick,
-      () => {
-        let result =
-          apply_and_render(
-            "let a = 1 in let b = 2 in a + b",
-            Delete(Body, "b"),
-          );
-        check_rendered("delete_body", "let a = 1 in let b = 2 in ?", result);
-      },
-    ),
   ],
 );
 
 /* ============================================================
-   2. INSERT_AT_PROGRAM_BOUNDARY — no-path insert_before / insert_after
+   2. INSERT_AT_PROGRAM_BOUNDARY — insert first or last in the top level
    ============================================================ */
 
 let insert_at_program_boundary_tests = (
   "AgentTools.InsertAtProgramBoundary",
   [
     test_case(
-      "insert_before (no path) on hole produces valid program", `Quick, () => {
-      switch (run_insert_at_program_boundary("?", Before, "let x = 5 in")) {
+      "insert first in the top level on hole produces valid program",
+      `Quick,
+      () => {
+      switch (
+        run_insert_at_program_boundary("?", Before(""), "let x = 5 in")
+      ) {
       | Ok(z) =>
         check_rendered(
           "boundary_before_hole",
@@ -399,15 +387,15 @@ let insert_at_program_boundary_tests = (
           render_zipper(z),
         )
       | Error(err) =>
-        Alcotest.fail("insert_before failed: " ++ Action.Failure.show(err))
+        Alcotest.fail("insert failed: " ++ Action.Failure.show(err))
       }
     }),
     test_case(
-      "insert_before (no path) seeds multi-binding program", `Quick, () => {
+      "insert first in the top level seeds multi-binding program", `Quick, () => {
       switch (
         run_insert_at_program_boundary(
           "?",
-          Before,
+          Before(""),
           "let a = 1 in let b = 2 in let c = a + b in",
         )
       ) {
@@ -418,14 +406,14 @@ let insert_at_program_boundary_tests = (
           render_zipper(z),
         )
       | Error(err) =>
-        Alcotest.fail("insert_before failed: " ++ Action.Failure.show(err))
+        Alcotest.fail("insert failed: " ++ Action.Failure.show(err))
       }
     }),
-    test_case("insert_before (no path) with function value", `Quick, () => {
+    test_case("insert first in the top level with function value", `Quick, () => {
       switch (
         run_insert_at_program_boundary(
           "?",
-          Before,
+          Before(""),
           "let f = fun x -> x + 1 in",
         )
       ) {
@@ -436,15 +424,15 @@ let insert_at_program_boundary_tests = (
           render_zipper(z),
         )
       | Error(err) =>
-        Alcotest.fail("insert_before failed: " ++ Action.Failure.show(err))
+        Alcotest.fail("insert failed: " ++ Action.Failure.show(err))
       }
     }),
     test_case(
-      "insert_before (no path) prepends to non-empty program", `Quick, () => {
+      "insert first in the top level prepends to non-empty program", `Quick, () => {
       switch (
         run_insert_at_program_boundary(
           "let b = 2 in b",
-          Before,
+          Before(""),
           "let a = 1 in",
         )
       ) {
@@ -455,27 +443,87 @@ let insert_at_program_boundary_tests = (
           render_zipper(z),
         )
       | Error(err) =>
-        Alcotest.fail("insert_before failed: " ++ Action.Failure.show(err))
+        Alcotest.fail("insert failed: " ++ Action.Failure.show(err))
       }
     }),
   ],
 );
 
 /* ============================================================
-   3. UPDATE_DEFINITION — complex definition replacement
+   3. REPLACE :definition — complex definition replacement
    ============================================================ */
 
-let update_definition_tests = (
-  "AgentTools.UpdateDefinition",
+let replace_definition_tests = (
+  "AgentTools.ReplaceDefinition",
   [
     test_case(
-      "update_definition with complex expression",
+      "X:definition code starting `let X =` again is refused",
+      `Quick,
+      () => {
+        /* round 2's E3: the whole tail chain written as joined's
+           definition */
+        let seg =
+          Option.get(
+            EntryLayout.parse(
+              Option.get(CorpusUtil.mega_src("mega-1k.hz")),
+            ),
+          );
+        let statics_of =
+          CompositionGo.statics_of(
+            ~settings=CoreSettings.on,
+            ~root=Exp,
+            ~probe_ids=Id.Map.empty,
+          );
+        let mega =
+          CompositionGo.Reply.start(
+            ~root=Exp,
+            ~statics=lazy(statics_of(seg)),
+            ~statics_of,
+            seg,
+          );
+        let code' = "let joined = string_join(\" \", body) in\nlet tight = string_replace(\" -- \", joined, \"--\") in\nlet res = string_replace(\"--\", tight, \": \") in\nstring_trim(res)";
+        switch (
+          CompositionGo.Reply.add(
+            mega,
+            ~index=0,
+            Replace("LogCleaner/clean_entry/joined:definition", code'),
+          )
+        ) {
+        | Ok(_) => Alcotest.fail("replaced")
+        | Error(e) =>
+          check(
+            string,
+            "refusal",
+            "`LogCleaner/clean_entry/joined:definition` is what follows `=`; your code starts with `let joined =` again. To change only clean_entry's final expression, replace `LogCleaner/clean_entry/=>`.",
+            e,
+          )
+        };
+        switch (
+          CompositionGo.Reply.add(
+            reply_on("type T = Int in let x: T = 1 in x"),
+            ~index=0,
+            Replace("T:definition", "type T = Bool"),
+          )
+        ) {
+        | Ok(_) => Alcotest.fail("replaced T")
+        | Error(e) =>
+          check(
+            string,
+            "a type, at the top",
+            "`T:definition` is what follows `=`; your code starts with `type T =` again.",
+            e,
+          )
+        };
+      },
+    ),
+    test_case(
+      "replace :definition with complex expression",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let a = 1 in let b = a in b",
-            Update(Definition, "b", "a + a * 2"),
+            Replace("b:definition", "a + a * 2"),
           );
         check_rendered(
           "update_def_complex",
@@ -485,13 +533,38 @@ let update_definition_tests = (
       },
     ),
     test_case(
-      "update_definition with function",
+      "replace :definition with code spanning lines: on lines of its own",
+      `Quick,
+      () => {
+        check_rendered_exact(
+          "one line to many",
+          "let scale(k: Int): Int -> Int =\n  case k\n  | 0 => fun sc -> sc\n  | _ => fun sc -> sc * k\n  end\nin\nscale(2)(3)",
+          apply_and_render(
+            "let scale(k: Int): Int -> Int = fun sc -> sc in\nscale(2)(3)",
+            Replace(
+              "scale:definition",
+              "case k\n| 0 => fun sc -> sc\n| _ => fun sc -> sc * k\nend",
+            ),
+          ),
+        );
+        check_rendered_exact(
+          "many lines to one",
+          "let f(x) = x * 2 in\nf(1)",
+          apply_and_render(
+            "let f(x) =\n  x + 1\nin\nf(1)",
+            Replace("f:definition", "x * 2"),
+          ),
+        );
+      },
+    ),
+    test_case(
+      "replace :definition with function",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let f = 1 in f",
-            Update(Definition, "f", "fun x -> x + 1"),
+            Replace("f:definition", "fun x -> x + 1"),
           );
         check_rendered(
           "update_def_function",
@@ -501,13 +574,13 @@ let update_definition_tests = (
       },
     ),
     test_case(
-      "update_definition first of three bindings",
+      "replace :definition first of three bindings",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let a = 1 in let b = 2 in let c = 3 in a + b + c",
-            Update(Definition, "a", "10"),
+            Replace("a:definition", "10"),
           );
         check_rendered(
           "update_def_first",
@@ -517,13 +590,13 @@ let update_definition_tests = (
       },
     ),
     test_case(
-      "update_definition last of three bindings",
+      "replace :definition last of three bindings",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let a = 1 in let b = 2 in let c = 3 in a + b + c",
-            Update(Definition, "c", "a * b"),
+            Replace("c:definition", "a * b"),
           );
         check_rendered(
           "update_def_last",
@@ -533,37 +606,37 @@ let update_definition_tests = (
       },
     ),
     test_case(
-      "update_definition with tuple",
+      "replace :definition with tuple",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let a = 1 in a",
-            Update(Definition, "a", "(1, 2, 3)"),
+            Replace("a:definition", "(1, 2, 3)"),
           );
         check_rendered("update_def_tuple", "let a = (1, 2, 3) in a", result);
       },
     ),
     test_case(
-      "update_definition with boolean",
+      "replace :definition with boolean",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let flag = 1 in flag",
-            Update(Definition, "flag", "true"),
+            Replace("flag:definition", "true"),
           );
         check_rendered("update_def_bool", "let flag = true in flag", result);
       },
     ),
     test_case(
-      "update_definition with string",
+      "replace :definition with string",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let msg = 1 in msg",
-            Update(Definition, "msg", {|"hello"|}),
+            Replace("msg:definition", {|"hello"|}),
           );
         check_rendered(
           "update_def_string",
@@ -573,13 +646,13 @@ let update_definition_tests = (
       },
     ),
     test_case(
-      "update_definition with list literal",
+      "replace :definition with list literal",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let xs = 1 in xs",
-            Update(Definition, "xs", "[1, 2, 3]"),
+            Replace("xs:definition", "[1, 2, 3]"),
           );
         check_rendered("update_def_list", "let xs = [1, 2, 3] in xs", result);
       },
@@ -588,121 +661,98 @@ let update_definition_tests = (
 );
 
 /* ============================================================
-   4. UPDATE_BODY — edge cases for body replacement
+   4. PARTS — :definition and the result =>
    ============================================================ */
 
-let update_body_tests = (
-  "AgentTools.UpdateBody",
+let body_part_tests = (
+  "AgentTools.Parts",
   [
-    test_case(
-      "named function edits still reject real type errors",
-      `Quick,
-      () => {
-        expect_any_failure(
-          "let f(x: Int) = x in 0",
-          Update(Definition, "f", "true + 1"),
-          "invalid function definition",
-        );
-        expect_any_failure(
-          "let f(x: Int) = x in 0",
-          Update(Body, "f", "true + 1"),
-          "invalid function continuation",
-        );
-      },
-    ),
+    test_case("named function edits still reject real type errors", `Quick, () => {
+      expect_any_failure(
+        "let f(x: Int) = x in 0",
+        Replace("f:definition", "true + 1"),
+        "invalid function definition",
+      )
+    }),
     test_case(
       "named function added after an annotated constant",
       `Quick,
       () => {
         let code = "type Model = Int in type Action = Int in let init : Model = 0 in ?";
-        let body = "let counter_update(m: Model, a: Action) = m + a in ?";
-        let result = apply_and_render(code, Update(Body, "init", body));
+        let result =
+          apply_and_render(
+            code,
+            Insert(
+              After("init"),
+              "let counter_update(m: Model, a: Action) = m + a",
+            ),
+          );
         check_rendered(
-          "counter update body",
-          "type Model = Int in type Action = Int in let init : Model = 0 in "
-          ++ body,
+          "counter update",
+          "type Model = Int in type Action = Int in let init : Model = 0 in let counter_update(m: Model, a: Action) = m + a in ?",
           result,
         );
       },
     ),
-    test_case(
-      "update_body of first binding",
-      `Quick,
-      () => {
-        let result =
-          apply_and_render(
-            "let a = 1 in let b = 2 in a + b",
-            Update(Body, "a", "a * 100"),
-          );
-        check_rendered("update_body_first", "let a = 1 in a * 100", result);
-      },
+    test_case(":definition of a sugared function is its body", `Quick, () =>
+      check_rendered(
+        "sugared_definition",
+        "let f(x) = x * 2 in f(2)",
+        apply_and_render(
+          "let f(x) = x + 1 in f(2)",
+          Replace("f:definition", "x * 2"),
+        ),
+      )
     ),
     test_case(
-      "update_body with hole",
-      `Quick,
-      () => {
-        let result =
-          apply_and_render(
-            "let a = 1 in let b = 2 in a + b",
-            Update(Body, "b", "?"),
-          );
-        check_rendered(
-          "update_body_hole",
-          "let a = 1 in let b = 2 in ?",
-          result,
-        );
-      },
+      ":body isn't a part: the refusal names :definition and /=>", `Quick, () =>
+      switch (
+        run_agent_action(
+          "let f = fun x -> x + 1 in f(2)",
+          Replace("f:body", "x * 2"),
+        )
+      ) {
+      | Error(Action.Failure.Composition_action_failure(msg)) =>
+        check(
+          string,
+          "refusal",
+          "`:body` isn't a part. Use `f:definition` (for `let f(x) = e` that is `e`), or `f/=>` for the result of a block of definitions.",
+          msg,
+        )
+      | _ => Alcotest.fail("expected a refusal")
+      }
     ),
     test_case(
-      "update_body to complex expression",
+      "/=> replaces a definition's result, its local definitions kept",
       `Quick,
-      () => {
-        let result =
-          apply_and_render(
-            "let a = 1 in let b = 2 in 0",
-            Update(Body, "b", "a + b + a * b"),
-          );
-        check_rendered(
-          "update_body_complex",
-          "let a = 1 in let b = 2 in a + b + a * b",
-          result,
-        );
-      },
-    ),
-    test_case(
-      "update_body replaces entire remainder",
-      `Quick,
-      () => {
-        let result =
-          apply_and_render(
-            "let a = 1 in let b = 2 in let c = 3 in a + b + c",
-            Update(Body, "a", "a"),
-          );
-        check_rendered(
-          "update_body_replaces_remainder",
-          "let a = 1 in a",
-          result,
-        );
-      },
+      () =>
+      check_rendered(
+        "local_result",
+        "let f(x) = let y = x + 1 in y * 3 in f(2)",
+        apply_and_render(
+          "let f(x) = let y = x + 1 in y * 2 in f(2)",
+          Replace("f/=>", "y * 3"),
+        ),
+      )
     ),
   ],
 );
 
 /* ============================================================
-   5. UPDATE_PATTERN — renaming and use-site propagation
+   5. RENAME — renaming and use-site propagation
    ============================================================ */
 
-let update_pattern_tests = (
-  "AgentTools.UpdatePattern",
+let rename_tests = (
+  "AgentTools.Rename",
   [
     test_case(
-      "update_pattern with type annotation",
+      "replace :pattern adds a type annotation",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let a = 1 in a + 1",
-            Update(Pattern, "a", "a : Int"),
+            Replace("a:pattern", "a : Int"),
           );
         check_rendered(
           "update_pat_annotated",
@@ -712,13 +762,13 @@ let update_pattern_tests = (
       },
     ),
     test_case(
-      "update_pattern renames a funlet head, call sites follow",
+      "rename renames a funlet head, call sites follow",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let f(x: Int): Int = x + 1 in f(2) + f(3)",
-            Update(Pattern, "f", "g(x: Int): Int"),
+            Rename("f", None, "g"),
           );
         check_rendered(
           "update_pat_funlet_rename",
@@ -728,7 +778,7 @@ let update_pattern_tests = (
       },
     ),
     test_case(
-      "update_pattern renames a funlet member helper (internal uses follow)",
+      "rename renames a funlet member helper (internal uses follow)",
       `Quick,
       () => {
         /* externally-referenced members (m.g) are rejected by design;
@@ -736,7 +786,7 @@ let update_pattern_tests = (
         let result =
           apply_and_render(
             "let m = {\n  let helper(x) = x + 1;\n  let g(y) = helper(y)\n} in m.g(2)",
-            Update(Pattern, "m/helper", "aux(x)"),
+            Rename("m/helper", None, "aux"),
           );
         check_rendered(
           "update_pat_funlet_member_rename",
@@ -746,13 +796,13 @@ let update_pattern_tests = (
       },
     ),
     test_case(
-      "update_pattern renames across multiple use sites",
+      "rename renames across multiple use sites",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let a = 1 in let b = a in let c = a + b in c + a",
-            Update(Pattern, "a", "x"),
+            Rename("a", None, "x"),
           );
         check_rendered(
           "update_pat_multi_uses",
@@ -762,13 +812,13 @@ let update_pattern_tests = (
       },
     ),
     test_case(
-      "update_pattern middle binding",
+      "rename middle binding",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let a = 1 in let b = a in let c = b in c",
-            Update(Pattern, "b", "m"),
+            Rename("b", None, "m"),
           );
         check_rendered(
           "update_pat_middle",
@@ -778,13 +828,13 @@ let update_pattern_tests = (
       },
     ),
     test_case(
-      "update_pattern last binding",
+      "rename last binding",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let a = 1 in let b = 2 in let c = a + b in c * 2",
-            Update(Pattern, "c", "result"),
+            Rename("c", None, "result"),
           );
         check_rendered(
           "update_pat_last",
@@ -794,15 +844,15 @@ let update_pattern_tests = (
       },
     ),
     test_case(
-      "update_pattern then update_definition resolves new binding path",
+      "rename then replace :definition resolves new binding path",
       `Quick,
       () => {
         let result =
           apply_chain_render(
             "let speed = 50 in speed",
             [
-              Update(Pattern, "speed", "velocity"),
-              Update(Definition, "velocity", "99"),
+              Rename("speed", None, "velocity"),
+              Replace("velocity:definition", "99"),
             ],
           );
         check_rendered(
@@ -816,20 +866,20 @@ let update_pattern_tests = (
 );
 
 /* ============================================================
-   6. UPDATE_BINDING_CLAUSE — whole-clause replacement
+   6. REPLACE — whole-entry replacement
    ============================================================ */
 
-let update_binding_clause_tests = (
-  "AgentTools.UpdateBindingClause",
+let replace_entry_tests = (
+  "AgentTools.ReplaceEntry",
   [
     test_case(
-      "update_binding_clause with annotation",
+      "replace with annotation",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let a = 1 in a",
-            Update(BindingClause, "a", "let a : Int = 42 in"),
+            Replace("a", "let a : Int = 42 in"),
           );
         check_rendered(
           "update_bc_annotation",
@@ -839,41 +889,37 @@ let update_binding_clause_tests = (
       },
     ),
     test_case(
-      "update_binding_clause path t on already-typed single binding",
+      "replace path t on already-typed single binding",
       `Quick,
       () => {
-        let code = "let t : Int = 42 in t";
+        let code = "let t : Int = 42 in 0";
         let result =
           apply_and_render(
             code,
-            Update(
-              BindingClause,
+            Replace(
               "t",
               "let double : Int -> Int = fun x -> x * 2 in\nlet result = double(5) in",
             ),
           );
         check_rendered(
           "update_bc_t_typed_single",
-          "let double : Int -> Int = fun x -> x * 2 in\nlet result = double(5) in t",
+          "let double : Int -> Int = fun x -> x * 2 in\nlet result = double(5) in 0",
           result,
         );
       },
     ),
     test_case(
-      "update_binding_clause def-nested t requires double/t not t",
+      "replace def-nested t requires double/t not t",
       `Quick,
       () => {
         let code = "let double = let t : Int = 42 in t in double";
         expect_any_failure(
           code,
-          Update(BindingClause, "t", "let t : Int = 99 in"),
+          Replace("t", "let t : Int = 99 in"),
           "def_nested_path_must_use_outer_slash_t",
         );
         let result =
-          apply_and_render(
-            code,
-            Update(BindingClause, "double/t", "let t : Int = 99 in"),
-          );
+          apply_and_render(code, Replace("double/t", "let t : Int = 99 in"));
         check_rendered(
           "update_bc_def_nested_t",
           "let double = let t : Int = 99 in t in double",
@@ -882,13 +928,13 @@ let update_binding_clause_tests = (
       },
     ),
     test_case(
-      "update_binding_clause introduces new binding",
+      "replace introduces new binding",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let a = 1 in let b = 2 in a + b",
-            Update(BindingClause, "a", "let a = 1 in let x = a + 10 in"),
+            Replace("a", "let a = 1 in let x = a + 10 in"),
           );
         check_rendered(
           "update_bc_multi",
@@ -898,13 +944,13 @@ let update_binding_clause_tests = (
       },
     ),
     test_case(
-      "update_binding_clause middle of chain",
+      "replace middle of chain",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let a = 1 in let b = 2 in let c = 3 in a + b + c",
-            Update(BindingClause, "b", "let b : Int = a * 2 in"),
+            Replace("b", "let b : Int = a * 2 in"),
           );
         check_rendered(
           "update_bc_middle",
@@ -924,13 +970,13 @@ let insert_tests = (
   "AgentTools.Insert",
   [
     test_case(
-      "insert_before first binding",
+      "insert before first binding",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let a = 1 in let b = 2 in a + b",
-            Insert(Before, "a", "let z = 0 in"),
+            Insert(Before("a"), "let z = 0 in"),
           );
         check_rendered(
           "insert_before_first",
@@ -940,13 +986,13 @@ let insert_tests = (
       },
     ),
     test_case(
-      "insert_after last binding",
+      "insert after last binding",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let a = 1 in let b = 2 in a + b",
-            Insert(After, "b", "let c = a + b in"),
+            Insert(After("b"), "let c = a + b in"),
           );
         check_rendered(
           "insert_after_last",
@@ -956,13 +1002,13 @@ let insert_tests = (
       },
     ),
     test_case(
-      "insert_before with annotated binding",
+      "insert before with annotated binding",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let a = 1 in let b = 2 in a + b",
-            Insert(Before, "b", "let x : Int = a in"),
+            Insert(Before("b"), "let x : Int = a in"),
           );
         check_rendered(
           "insert_before_annotated",
@@ -972,13 +1018,13 @@ let insert_tests = (
       },
     ),
     test_case(
-      "insert_after with function binding",
+      "insert after with function binding",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let a = 1 in a",
-            Insert(After, "a", "let f = fun x -> x + a in"),
+            Insert(After("a"), "let f = fun x -> x + a in"),
           );
         check_rendered(
           "insert_after_fun",
@@ -988,13 +1034,13 @@ let insert_tests = (
       },
     ),
     test_case(
-      "insert_before in three-binding chain",
+      "insert before in three-binding chain",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let a = 1 in let b = 2 in let c = 3 in a + b + c",
-            Insert(Before, "c", "let d = a + b in"),
+            Insert(Before("c"), "let d = a + b in"),
           );
         check_rendered(
           "insert_before_third",
@@ -1004,21 +1050,19 @@ let insert_tests = (
       },
     ),
     test_case(
-      "insert_after tool call strips leading indentation",
+      "insert after tool call strips leading indentation",
       `Quick,
       () => {
         let args: API.Json.t =
           `Assoc([
-            ("path", `String("b")),
+            ("after", `String("b")),
             ("code", `String("  let c = 3 in")),
           ]);
-        switch (
-          CompositionUtils.Public.action_of(~tool_name="insert_after", ~args)
-        ) {
+        switch (CompositionUtils.action_of(~tool_name="insert", ~args)) {
         | Action(EditorAction(a)) =>
           check_rendered_exact(
             "insert_indented_code",
-            "let a = 1 in let b = 2 in\n\nlet c = 3 in\na + b",
+            "let a = 1 in let b = 2 in let c = 3 in a + b",
             apply_and_render("let a = 1 in let b = 2 in a + b", a),
           )
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
@@ -1028,21 +1072,19 @@ let insert_tests = (
       },
     ),
     test_case(
-      "insert_after tool call normalizes CRLF linebreaks",
+      "insert after tool call normalizes CRLF linebreaks",
       `Quick,
       () => {
         let args: API.Json.t =
           `Assoc([
-            ("path", `String("b")),
-            ("code", `String("let c = 3 in\r\nlet d = 4 in")),
+            ("after", `String("b")),
+            ("code", `String("let c =\r\n  3")),
           ]);
-        switch (
-          CompositionUtils.Public.action_of(~tool_name="insert_after", ~args)
-        ) {
+        switch (CompositionUtils.action_of(~tool_name="insert", ~args)) {
         | Action(EditorAction(a)) =>
           check_rendered_exact(
             "insert_crlf_code",
-            "let a = 1 in let b = 2 in\n\nlet c = 3 in\n\nlet d = 4 in\na + b",
+            "let a = 1 in let b = 2 in let c =\n  3\nin a + b",
             apply_and_render("let a = 1 in let b = 2 in a + b", a),
           )
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
@@ -1051,44 +1093,42 @@ let insert_tests = (
         };
       },
     ),
-    test_case("insert_after last binding keeps line separator", `Quick, () => {
+    test_case("insert after last binding keeps line separator", `Quick, () => {
       check_rendered_exact(
         "insert_after_last_separator",
-        "let a = 1 in let b = 2 in\n\nlet c = 3 in\na + b",
+        "let a = 1 in let b = 2 in let c = 3 in a + b",
         apply_and_render(
           "let a = 1 in let b = 2 in a + b",
-          Insert(After, "b", "let c = 3 in"),
+          Insert(After("b"), "let c = 3 in"),
         ),
       )
     }),
-    test_case("insert_after (no path) appends on its own line", `Quick, () => {
+    test_case(
+      "insert last in the top level appends on its own line", `Quick, () => {
       switch (
         run_insert_at_program_boundary(
           "let a = 1 in let b = 2 in",
-          After,
+          After(""),
           "let c = 3 in",
         )
       ) {
       | Ok(z) =>
         check_rendered_exact(
           "boundary_append_separator",
-          "let a = 1 in let b = 2 in\n\nlet c = 3 in\n?",
+          "let a = 1 in let b = 2 in let c = 3 in ?",
           render_zipper(z),
         )
       | Error(err) =>
         Alcotest.fail("boundary append failed: " ++ Action.Failure.show(err))
       }
     }),
-    test_case("update_body over bare hole keeps `in` separated", `Quick, () => {
+    test_case("replace => over a bare hole keeps `in` separated", `Quick, () => {
       /* The hole grout sits flush against `in`; the replacement code
-         must not fuse into `inlet e = ...` */
+         must not fuse into `inx` */
       check_rendered_exact(
-        "update_body_hole_separator",
-        "let x = 1 in let e = 2 in x",
-        apply_and_render(
-          "let x = 1 in",
-          Update(Body, "x", "let e = 2 in x"),
-        ),
+        "result_hole_separator",
+        "let x = 1 in x",
+        apply_and_render("let x = 1 in ?", Replace("=>", "x")),
       )
     }),
   ],
@@ -1102,13 +1142,13 @@ let delete_tests = (
   "AgentTools.Delete",
   [
     test_case(
-      "delete_binding_clause first of three",
+      "delete first of three",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let a = 1 in let b = 2 in let c = 3 in b + c",
-            Delete(BindingClause, "a"),
+            Delete("a"),
           );
         check_rendered(
           "delete_bc_first",
@@ -1118,13 +1158,13 @@ let delete_tests = (
       },
     ),
     test_case(
-      "delete_binding_clause middle of three",
+      "delete middle of three",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let a = 1 in let b = 2 in let c = 3 in a + c",
-            Delete(BindingClause, "b"),
+            Delete("b"),
           );
         check_rendered(
           "delete_bc_middle",
@@ -1134,13 +1174,13 @@ let delete_tests = (
       },
     ),
     test_case(
-      "delete_binding_clause last of three",
+      "delete last of three",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let a = 1 in let b = 2 in let c = 3 in a + b",
-            Delete(BindingClause, "c"),
+            Delete("c"),
           );
         check_rendered(
           "delete_bc_last",
@@ -1150,45 +1190,33 @@ let delete_tests = (
       },
     ),
     test_case(
-      "delete_body first binding",
+      "replace :definition with ? clears a sugared function's body",
       `Quick,
       () => {
         let result =
           apply_and_render(
-            "let a = 1 in let b = 2 in a + b",
-            Delete(Body, "a"),
-          );
-        check_rendered("delete_body_first", "let a = 1 in ?", result);
-      },
-    ),
-    test_case(
-      "delete_body last binding",
-      `Quick,
-      () => {
-        let result =
-          apply_and_render(
-            "let a = 1 in let b = 2 in let c = 3 in a + b + c",
-            Delete(Body, "c"),
+            "let f(x) = x + 1 in let b = 2 in f(b)",
+            Replace("f:definition", "?"),
           );
         check_rendered(
-          "delete_body_last",
-          "let a = 1 in let b = 2 in let c = 3 in ?",
+          "clear_body",
+          "let f(x) = ? in let b = 2 in f(b)",
           result,
         );
       },
     ),
     test_case(
-      "delete Definition/Pattern unsupported",
+      "delete takes no part",
       `Quick,
       () => {
         expect_composition_failure(
           "let a = 1 in a",
-          Delete(Definition, "a"),
+          Delete("a:definition"),
           "delete_definition",
         );
         expect_composition_failure(
           "let a = 1 in a",
-          Delete(Pattern, "a"),
+          Delete("a:pattern"),
           "delete_pattern",
         );
       },
@@ -1203,31 +1231,31 @@ let delete_tests = (
 let static_error_tests = (
   "AgentTools.StaticErrorRejection",
   [
-    test_case("update_definition rejects type mismatch", `Quick, () => {
+    test_case("replace :definition rejects type mismatch", `Quick, () => {
       expect_composition_failure(
         "let a : Int = 1 in a + 1",
-        Update(Definition, "a", "true"),
+        Replace("a:definition", "true"),
         "type_mismatch_def",
       )
     }),
-    test_case("update_definition rejects unbound variable", `Quick, () => {
+    test_case("replace :definition rejects unbound variable", `Quick, () => {
       expect_composition_failure(
         "let a = 1 in a",
-        Update(Definition, "a", "nonexistent_var"),
+        Replace("a:definition", "nonexistent_var"),
         "unbound_var_def",
       )
     }),
-    test_case("insert_before rejects ill-typed binding", `Quick, () => {
+    test_case("insert before rejects ill-typed binding", `Quick, () => {
       expect_composition_failure(
         "let a = 1 in a",
-        Insert(Before, "a", "let x : Int = true in"),
+        Insert(Before("a"), "let x : Int = true in"),
         "insert_before_type_error",
       )
     }),
-    test_case("insert_after rejects ill-typed binding", `Quick, () => {
+    test_case("insert after rejects ill-typed binding", `Quick, () => {
       expect_composition_failure(
         "let a = 1 in a",
-        Insert(After, "a", "let x : String = 42 in"),
+        Insert(After("a"), "let x : String = 42 in"),
         "insert_after_type_error",
       )
     }),
@@ -1242,13 +1270,13 @@ let nested_definition_tests = (
   "AgentTools.NestedDefinitions",
   [
     test_case(
-      "update_definition nested child",
+      "replace :definition nested child",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let a = let b = 1 in b in a",
-            Update(Definition, "a/b", "42"),
+            Replace("a/b:definition", "42"),
           );
         check_rendered(
           "update_def_nested",
@@ -1258,13 +1286,13 @@ let nested_definition_tests = (
       },
     ),
     test_case(
-      "update_body of nested child",
+      "replace a nested block's result",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let a = let b = 1 in b + 1 in a",
-            Update(Body, "a/b", "b * 2"),
+            Replace("a/=>", "b * 2"),
           );
         check_rendered(
           "update_body_nested",
@@ -1274,13 +1302,13 @@ let nested_definition_tests = (
       },
     ),
     test_case(
-      "update_pattern of nested child",
+      "rename of nested child",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let a = let b = 1 in b + 1 in a",
-            Update(Pattern, "a/b", "c"),
+            Rename("a/b", None, "c"),
           );
         check_rendered(
           "update_pat_nested",
@@ -1296,7 +1324,7 @@ let nested_definition_tests = (
         let result =
           apply_and_render(
             "let a = let b = 1 in let c = 2 in c in a",
-            Delete(BindingClause, "a/b"),
+            Delete("a/b"),
           );
         check_rendered(
           "delete_bc_nested",
@@ -1306,13 +1334,13 @@ let nested_definition_tests = (
       },
     ),
     test_case(
-      "insert_after into nested scope",
+      "insert after into nested scope",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let a = let b = 1 in b in a",
-            Insert(After, "a/b", "let c = b + 1 in"),
+            Insert(After("a/b"), "let c = b + 1 in"),
           );
         check_rendered(
           "insert_after_nested",
@@ -1322,13 +1350,13 @@ let nested_definition_tests = (
       },
     ),
     test_case(
-      "insert_before into nested scope",
+      "insert before into nested scope",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let a = let b = 1 in b in a",
-            Insert(Before, "a/b", "let z = 0 in"),
+            Insert(Before("a/b"), "let z = 0 in"),
           );
         check_rendered(
           "insert_before_nested",
@@ -1347,38 +1375,38 @@ let nested_definition_tests = (
 let invalid_path_tests = (
   "AgentTools.InvalidPaths",
   [
-    test_case("update_definition with nonexistent path fails", `Quick, () => {
+    test_case("replace :definition with nonexistent path fails", `Quick, () => {
       expect_any_failure(
         "let a = 1 in a",
-        Update(Definition, "nonexistent", "2"),
+        Replace("nonexistent:definition", "2"),
         "nonexistent_path_def",
       )
     }),
-    test_case("update_body with nonexistent path fails", `Quick, () => {
+    test_case("replace :pattern with nonexistent path fails", `Quick, () => {
       expect_any_failure(
         "let a = 1 in a",
-        Update(Body, "nonexistent", "2"),
+        Replace("nonexistent:pattern", "2"),
         "nonexistent_path_body",
       )
     }),
-    test_case("delete_binding_clause with nonexistent path fails", `Quick, () => {
+    test_case("delete with nonexistent path fails", `Quick, () => {
       expect_any_failure(
         "let a = 1 in a",
-        Delete(BindingClause, "nonexistent"),
+        Delete("nonexistent"),
         "nonexistent_path_delete",
       )
     }),
-    test_case("insert_before with nonexistent path fails", `Quick, () => {
+    test_case("insert before with nonexistent path fails", `Quick, () => {
       expect_any_failure(
         "let a = 1 in a",
-        Insert(Before, "nonexistent", "let x = 1 in"),
+        Insert(Before("nonexistent"), "let x = 1 in"),
         "nonexistent_path_insert_before",
       )
     }),
-    test_case("insert_after with nonexistent path fails", `Quick, () => {
+    test_case("insert after with nonexistent path fails", `Quick, () => {
       expect_any_failure(
         "let a = 1 in a",
-        Insert(After, "nonexistent", "let x = 1 in"),
+        Insert(After("nonexistent"), "let x = 1 in"),
         "nonexistent_path_insert_after",
       )
     }),
@@ -1389,7 +1417,7 @@ let invalid_path_tests = (
         let long_path = String.concat("/", List.init(40, _ => "a"));
         expect_any_failure(
           "let a = 1 in a",
-          Update(Body, long_path, "2"),
+          Replace(long_path ++ ":definition", "2"),
           "long_repeated_path_segments",
         );
       },
@@ -1403,7 +1431,7 @@ let invalid_path_tests = (
       switch (
         run_agent_action(
           "let a = 1 in let b = 2 in a + b",
-          Delete(BindingClause, "nonexistent"),
+          Delete("nonexistent"),
         )
       ) {
       | Ok(_) => Alcotest.fail("Expected failure")
@@ -1411,9 +1439,9 @@ let invalid_path_tests = (
         let msg = Action.Failure.show(err);
         check(
           bool,
-          "error mentions 'Available paths'",
+          "error lists the entries there",
           true,
-          Util.StringUtil.plain_search("Available paths", msg, 0) >= 0,
+          Util.StringUtil.plain_search("Its entries:", msg, 0) >= 0,
         );
         check(
           bool,
@@ -1439,7 +1467,7 @@ let invalid_path_tests = (
       switch (
         run_agent_action(
           "let outer = let inner = 1 in inner in outer",
-          Delete(BindingClause, "inner"),
+          Delete("inner"),
         )
       ) {
       | Ok(_) => Alcotest.fail("Expected failure")
@@ -1457,430 +1485,198 @@ let invalid_path_tests = (
 );
 
 /* ============================================================
-   12. HIGH LEVEL NODE MAP — tree construction and queries
+   12. PATHS — the agent's paths, EntryPath's
    ============================================================ */
 
-let build_node_map = (code: string) => {
-  let z = mk_zipper(code);
-  let info_map = mk_statics(z);
-  switch (HighLevelNodeMap.build(z, info_map)) {
-  | Some(node_map) => node_map
-  | None => Alcotest.fail("Failed to build HighLevelNodeMap")
+/* a program's outline: what its paths name */
+let outline_of = (z: Zipper.t): Outline.t =>
+  Outline.of_program(~root=Exp, Zipper.unselect_and_zip(z));
+let build_node_map = (code: string): Outline.t =>
+  outline_of(mk_zipper(code));
+let path_id = (o: Outline.t, path: string): option(Id.t) =>
+  switch (Outline.resolve(o, path)) {
+  | Ok(e) => Some(e.id)
+  | Error(_) => None
+  };
+
+/* what [path] names in [code]: its entry's first name, else its path */
+let resolved = (code: string, path: string): option(string) => {
+  let seg = Zipper.unselect_and_zip(mk_zipper(code));
+  switch (EntryPath.resolve_string(~root=Exp, seg, path)) {
+  | Ok(f) =>
+    let (lv, k) = ListUtil.last(f.steps);
+    switch (EntryPath.entry(lv, k).binders) {
+    | [(x, _), ..._] => Some(x)
+    | [] =>
+      Option.map(
+        EntryPath.to_string,
+        EntryPath.describe(~root=Exp, seg, f.id),
+      )
+    };
+  | Error(_) => None
   };
 };
 
-let name_list = (nodes: list(HighLevelNodeMap.node)) =>
-  List.map((n: HighLevelNodeMap.node) => n.name, nodes);
+/* every entry's canonical path, in program order */
+let paths_of = (code: string): list(string) => {
+  let seg = Zipper.unselect_and_zip(mk_zipper(code));
+  List.map(
+    ((_, p)) => EntryPath.to_string(p),
+    EntryPath.entries(~root=Exp, seg),
+  );
+};
+
+let path_error = (code: string, path: string): string =>
+  switch (run_agent_action(code, Delete(path))) {
+  | Error(Composition_action_failure(msg)) => msg
+  | Error(e) => Action.Failure.show(e)
+  | Ok(_) => Alcotest.fail("resolved " ++ path)
+  };
 
 let high_level_node_map_tests = (
-  "HighLevelNodeMap",
+  "AgentTools.Paths",
   [
+    test_case("a let chain's entries", `Quick, () =>
+      check(
+        list(string),
+        "paths",
+        ["a", "b", "c", "=>"],
+        paths_of("let a = 1 in let b = 2 in let c = 3 in a + b + c"),
+      )
+    ),
+    test_case("a name resolves", `Quick, () =>
+      check(
+        option(string),
+        "b",
+        Some("b"),
+        resolved("let a = 1 in let b = 2 in let c = 3 in a + b + c", "b"),
+      )
+    ),
     test_case(
-      "top-level nodes from let chain",
+      "a duplicate name is ambiguous; #k picks in program order",
       `Quick,
       () => {
-        let node_map =
-          build_node_map("let a = 1 in let b = 2 in let c = 3 in a + b + c");
-        let top_level_ids = HighLevelNodeMap.gather_top_level(node_map);
-        let top_level_names =
-          List.map(
-            (id: Id.t) => HighLevelNodeMap.id_to_name(node_map, id),
-            top_level_ids,
-          )
-          |> List.sort(String.compare);
+        let code = "let n = 1 in let n = 2 in n";
+        check(option(string), "bare n", None, resolved(code, "n"));
+        check(option(string), "n#1", Some("n"), resolved(code, "n#1"));
+        check(list(string), "paths", ["n#1", "n#2", "=>"], paths_of(code));
+      },
+    ),
+    test_case("lets in a definition are under it", `Quick, () =>
+      check(
+        list(string),
+        "paths",
+        ["a", "a/b", "a/=>", "=>"],
+        paths_of("let a = let b = 1 in b in a"),
+      )
+    ),
+    test_case("a missing name resolves to nothing", `Quick, () =>
+      check(
+        option(string),
+        "missing",
+        None,
+        resolved("let a = 1 in a", "x"),
+      )
+    ),
+    test_case(
+      "nested names resolve, 3 deep",
+      `Quick,
+      () => {
+        let code = "let a = let b = let c = 1 in c in b in a";
+        check(option(string), "a/b", Some("b"), resolved(code, "a/b"));
+        check(option(string), "a/b/c", Some("c"), resolved(code, "a/b/c"));
+        check(option(string), "a.b.c", Some("c"), resolved(code, "a.b.c"));
+      },
+    ),
+    test_case("a typed binding by its name", `Quick, () =>
+      check(
+        option(string),
+        "t",
+        Some("t"),
+        resolved("let t : Int = 42 in t", "t"),
+      )
+    ),
+    test_case(
+      "a body chain's lets are siblings, not nested",
+      `Quick,
+      () => {
+        let code = "let double = 1 in let t : Int = 42 in t";
+        check(option(string), "t", Some("t"), resolved(code, "t"));
+        check(option(string), "double/t", None, resolved(code, "double/t"));
+      },
+    ),
+    test_case(
+      "a definition's lets need their outer name",
+      `Quick,
+      () => {
+        let code = "let double = let t : Int = 42 in t in double";
+        check(option(string), "bare t", None, resolved(code, "t"));
+        check(
+          option(string),
+          "double/t",
+          Some("t"),
+          resolved(code, "double/t"),
+        );
+      },
+    ),
+    test_case(
+      "a bare nested name suggests its path",
+      `Quick,
+      () => {
+        let msg =
+          path_error("let double = let t : Int = 42 in t in double", "t");
+        check(
+          bool,
+          "suggests double/t: " ++ msg,
+          true,
+          StringUtil.plain_search("Did you mean `double/t`", msg, 0) >= 0,
+        );
+      },
+    ),
+    test_case(
+      "a missing name lists the block's entries",
+      `Quick,
+      () => {
+        let msg =
+          path_error("let abc = 1 in let def = 2 in abc + def", "abd");
+        check(
+          bool,
+          "lists abc: " ++ msg,
+          true,
+          StringUtil.plain_search("Its entries: abc, def", msg, 0) >= 0,
+        );
+      },
+    ),
+    test_case(
+      "types and lets after a type chain",
+      `Quick,
+      () => {
         check(
           list(string),
-          "top-level names",
-          ["a", "b", "c"],
-          top_level_names,
+          "paths",
+          ["Board", "initial_board", "=>"],
+          paths_of("type Board = Int in let initial_board : Board = 1 in ?"),
         );
-      },
-    ),
-    test_case(
-      "path_to_id resolves simple names",
-      `Quick,
-      () => {
-        let node_map =
-          build_node_map("let a = 1 in let b = 2 in let c = 3 in a + b + c");
-        let id_b = HighLevelNodeMap.path_to_id(node_map, "b");
-        check(
-          string,
-          "path_to_id",
-          "b",
-          HighLevelNodeMap.id_to_name(node_map, id_b),
-        );
-      },
-    ),
-    test_case(
-      "duplicate sibling path is ambiguous; #k disambiguates",
-      `Quick,
-      () => {
-        let node_map = build_node_map("let n = 1 in let n = 2 in n");
-        check(
-          bool,
-          "bare duplicate path is ambiguous",
-          true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "n") == None,
-        );
-        let id_n1 = HighLevelNodeMap.path_to_id(node_map, "n#1");
-        let node = HighLevelNodeMap.find(node_map, id_n1);
-        check(int, "n#1 is sibling_idx 0", 0, node.sibling_idx);
-        check(
-          bool,
-          "path_to_id_opt matches path_to_id on #1",
-          true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "n#1") == Some(id_n1),
-        );
-      },
-    ),
-    test_case(
-      "children reflect nested lets in def",
-      `Quick,
-      () => {
-        let node_map = build_node_map("let a = let b = 1 in b in a");
-        let node_a = HighLevelNodeMap.path_to_node(node_map, "a");
-        let child_names =
-          HighLevelNodeMap.children_of(node_map, node_a) |> name_list;
-        check(list(string), "children names", ["b"], child_names);
-      },
-    ),
-    test_case(
-      "siblings include siblings at top level",
-      `Quick,
-      () => {
-        let node_map =
-          build_node_map("let a = 1 in let b = 2 in let c = 3 in c");
-        let node_b = HighLevelNodeMap.path_to_node(node_map, "b");
-        let sibling_names =
-          HighLevelNodeMap.siblings_of(node_map, node_b) |> name_list;
         check(
           list(string),
-          "siblings names",
-          ["a", "b", "c"],
-          sibling_names,
+          "chess",
+          [
+            "Color",
+            "PieceType",
+            "Piece",
+            "Square",
+            "Board",
+            "initial_board",
+            "=>",
+          ],
+          paths_of(
+            "type Color = + White + Black in type PieceType = + Pawn + Knight + Bishop + Rook + Queen + King in type Piece = (Color, PieceType) in type Square = + Empty + Occupied(Piece) in type Board = [[Square]] in let initial_board : Board = [[Occupied((White, Rook))]] in ?",
+          ),
         );
       },
     ),
-    test_case(
-      "path_to_id_opt returns None for missing path",
-      `Quick,
-      () => {
-        let node_map = build_node_map("let a = 1 in a");
-        check(
-          bool,
-          "missing path returns None",
-          true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "nonexistent") == None,
-        );
-      },
-    ),
-    test_case(
-      "path_to_id_opt returns Some for valid path",
-      `Quick,
-      () => {
-        let node_map = build_node_map("let a = 1 in a");
-        check(
-          bool,
-          "valid path returns Some",
-          true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "a") != None,
-        );
-      },
-    ),
-    test_case(
-      "nested path_to_id resolves child",
-      `Quick,
-      () => {
-        let node_map = build_node_map("let a = let b = 1 in b in a");
-        let id_b = HighLevelNodeMap.path_to_id(node_map, "a/b");
-        check(
-          string,
-          "nested path_to_id",
-          "b",
-          HighLevelNodeMap.id_to_name(node_map, id_b),
-        );
-      },
-    ),
-    test_case(
-      "parent_of returns correct parent",
-      `Quick,
-      () => {
-        let node_map = build_node_map("let a = let b = 1 in b in a");
-        let node_b = HighLevelNodeMap.path_to_node(node_map, "a/b");
-        switch (HighLevelNodeMap.parent_of(node_map, node_b)) {
-        | Some(parent) => check(string, "parent name", "a", parent.name)
-        | None => Alcotest.fail("Expected parent for nested node")
-        };
-      },
-    ),
-    test_case(
-      "parent_of top-level returns None",
-      `Quick,
-      () => {
-        let node_map = build_node_map("let a = 1 in let b = 2 in a + b");
-        let node_a = HighLevelNodeMap.path_to_node(node_map, "a");
-        check(
-          bool,
-          "top-level parent is None",
-          true,
-          HighLevelNodeMap.parent_of(node_map, node_a) == None,
-        );
-      },
-    ),
-    test_case(
-      "descendants_of returns nested levels",
-      `Quick,
-      () => {
-        let node_map =
-          build_node_map("let a = let b = let c = 1 in c in b in a");
-        let node_a = HighLevelNodeMap.path_to_node(node_map, "a");
-        let desc_levels = HighLevelNodeMap.descendants_of(node_map, node_a);
-        check(int, "descendants depth", 2, List.length(desc_levels));
-      },
-    ),
-    test_case(
-      "closest_valid_path_to_ill_path finds suggestion",
-      `Quick,
-      () => {
-        let node_map =
-          build_node_map("let abc = 1 in let def = 2 in abc + def");
-        let suggestion =
-          HighLevelNodeMap.closest_valid_path_to_ill_path(node_map, "abd");
-        check(string, "closest path suggestion", "abc", suggestion);
-      },
-    ),
-    test_case(
-      "path_to_id works for typed pattern let t : Int = ...",
-      `Quick,
-      () => {
-        let node_map = build_node_map("let t : Int = 42 in t");
-        let id_t = HighLevelNodeMap.path_to_id(node_map, "t");
-        check(
-          string,
-          "typed binding name",
-          "t",
-          HighLevelNodeMap.id_to_name(node_map, id_t),
-        );
-      },
-    ),
-    test_case(
-      "body-chain let: inner binding has top-level path name (not outer/inner)",
-      `Quick,
-      () => {
-        let node_map =
-          build_node_map("let double = 1 in let t : Int = 42 in t");
-        let id_t = HighLevelNodeMap.path_to_id(node_map, "t");
-        check(
-          string,
-          "t is sibling in map, not double/t",
-          "t",
-          HighLevelNodeMap.id_to_name(node_map, id_t),
-        );
-        check(
-          bool,
-          "double/t absent for body-nested sibling chain",
-          true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "double/t") == None,
-        );
-      },
-    ),
-    test_case(
-      "single-segment path does not match def-nested binding; use outer/t",
-      `Quick,
-      () => {
-        /* `let outer = 1 in let inner in body` puts `inner` in the body chain
-           (sibling of `outer`), so path `inner` is valid. Nesting must be in
-           the *definition*: `let outer = let inner ... in ... in body`. */
-        let node_map =
-          build_node_map("let double = let t : Int = 42 in t in double");
-        check(
-          bool,
-          "bare t not in map when def-nested",
-          true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "t") == None,
-        );
-        let id_nt = HighLevelNodeMap.path_to_id(node_map, "double/t");
-        check(
-          string,
-          "nested path resolves",
-          "t",
-          HighLevelNodeMap.id_to_name(node_map, id_nt),
-        );
-      },
-    ),
-    test_case(
-      "closest path for ill single-segment t prefers outer/t over outer",
-      `Quick,
-      () => {
-        let node_map =
-          build_node_map("let double = let t : Int = 42 in t in double");
-        let suggestion =
-          HighLevelNodeMap.closest_valid_path_to_ill_path(node_map, "t");
-        check(string, "suggest nested binding path", "double/t", suggestion);
-      },
-    ),
-    test_case(
-      "ascribed let after type chain lands in node map",
-      `Quick,
-      () => {
-        let code = "type Board = Int in let initial_board : Board = 1 in ?";
-        let node_map = build_node_map(code);
-        check(
-          bool,
-          "initial_board is in node map",
-          true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "initial_board") != None,
-        );
-        check(
-          bool,
-          "Board is also in node map",
-          true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "Board") != None,
-        );
-      },
-    ),
-    test_case(
-      "chess-style long type chain + ascribed let with list literal",
-      `Quick,
-      () => {
-        let code = "type Color = + White + Black in type PieceType = + Pawn + Knight + Bishop + Rook + Queen + King in type Piece = (Color, PieceType) in type Square = + Empty + Occupied(Piece) in type Board = [[Square]] in let initial_board : Board = [[Occupied((White, Rook))]] in ?";
-        let node_map = build_node_map(code);
-        let all_names =
-          Id.Map.bindings(node_map)
-          |> List.map(((_, n: HighLevelNodeMap.node)) => n.name)
-          |> List.sort(String.compare);
-        check(
-          list(string),
-          "all top-level binding names present",
-          ["Board", "Color", "Piece", "PieceType", "Square", "initial_board"],
-          all_names,
-        );
-      },
-    ),
-    test_case(
-      "build returns None for non-binding program",
-      `Quick,
-      () => {
-        let z = mk_zipper("1 + 2");
-        let info_map = mk_statics(z);
-        check(
-          bool,
-          "no bindings => None",
-          true,
-          HighLevelNodeMap.build(z, info_map) == None,
-        );
-      },
-    ),
-    test_case(
-      "deeply nested path resolution (3 levels)",
-      `Quick,
-      () => {
-        let node_map =
-          build_node_map("let a = let b = let c = 1 in c in b in a");
-        let id_c = HighLevelNodeMap.path_to_id(node_map, "a/b/c");
-        check(
-          string,
-          "deep nested path",
-          "c",
-          HighLevelNodeMap.id_to_name(node_map, id_c),
-        );
-      },
-    ),
-    test_case(
-      "gather_top_level with type alias",
-      `Quick,
-      () => {
-        let node_map = build_node_map("type T = Int in let a = 1 in a");
-        let top_level_ids = HighLevelNodeMap.gather_top_level(node_map);
-        let top_level_names =
-          List.map(
-            (id: Id.t) => HighLevelNodeMap.id_to_name(node_map, id),
-            top_level_ids,
-          )
-          |> List.sort(String.compare);
-        check(
-          list(string),
-          "type alias top-level",
-          ["T", "a"],
-          top_level_names,
-        );
-      },
-    ),
-    test_case(
-      "next_sibling_of wraps from last to first",
-      `Quick,
-      () => {
-        let node_map =
-          build_node_map("let a = 1 in let b = 2 in let c = 3 in a + b + c");
-        let node_c = HighLevelNodeMap.path_to_node(node_map, "c");
-        switch (HighLevelNodeMap.next_sibling_of(node_c)) {
-        | None => Alcotest.fail("expected wrap-around from c to a")
-        | Some(id) =>
-          check(
-            string,
-            "wraps to a",
-            "a",
-            HighLevelNodeMap.id_to_name(node_map, id),
-          )
-        };
-      },
-    ),
-    test_case(
-      "prev_sibling_of wraps from first to last",
-      `Quick,
-      () => {
-        let node_map =
-          build_node_map("let a = 1 in let b = 2 in let c = 3 in a + b + c");
-        let node_a = HighLevelNodeMap.path_to_node(node_map, "a");
-        switch (HighLevelNodeMap.prev_sibling_of(node_a)) {
-        | None => Alcotest.fail("expected wrap-around from a to c")
-        | Some(id) =>
-          check(
-            string,
-            "wraps to c",
-            "c",
-            HighLevelNodeMap.id_to_name(node_map, id),
-          )
-        };
-      },
-    ),
-    test_case(
-      "next_sibling_of steps forward within chain",
-      `Quick,
-      () => {
-        let node_map =
-          build_node_map("let a = 1 in let b = 2 in let c = 3 in a + b + c");
-        let node_b = HighLevelNodeMap.path_to_node(node_map, "b");
-        switch (HighLevelNodeMap.next_sibling_of(node_b)) {
-        | None => Alcotest.fail("expected b -> c")
-        | Some(id) =>
-          check(
-            string,
-            "b next is c",
-            "c",
-            HighLevelNodeMap.id_to_name(node_map, id),
-          )
-        };
-      },
-    ),
-    test_case(
-      "prev_sibling_of steps backward within chain",
-      `Quick,
-      () => {
-        let node_map =
-          build_node_map("let a = 1 in let b = 2 in let c = 3 in a + b + c");
-        let node_b = HighLevelNodeMap.path_to_node(node_map, "b");
-        switch (HighLevelNodeMap.prev_sibling_of(node_b)) {
-        | None => Alcotest.fail("expected b -> a")
-        | Some(id) =>
-          check(
-            string,
-            "b prev is a",
-            "a",
-            HighLevelNodeMap.id_to_name(node_map, id),
-          )
-        };
-      },
+    test_case("a program without bindings has just its result", `Quick, () =>
+      check(list(string), "paths", ["=>"], paths_of("1 + 2"))
     ),
   ],
 );
@@ -1889,43 +1685,36 @@ let high_level_node_map_tests = (
    13. COMPOSITION VIEW — print and fold rendering
    ============================================================ */
 
-let composition_view_print_tests = (
-  "CompositionView.print_zipper",
-  [
-    test_case("hole renders as question mark, not absence", `Quick, () =>
-      check_rendered(
-        "hole as question mark",
-        "let a = 1 in ?",
-        "let a = 1 in " |> mk_zipper |> CompositionView.Public.print_zipper,
-      )
-    ),
-    test_case("fold renders as folded, not as invocation", `Quick, () =>
-      check_rendered(
-        "fold as ellipsis",
-        {|let a = ⋱ in a|},
-        "let a = ^^fold(1) in a"
-        |> mk_zipper
-        |> CompositionView.Public.print_zipper,
-      )
-    ),
-    test_case("print_zipper preserves simple program", `Quick, () => {
-      check_rendered(
-        "simple program",
-        "let a = 1 in a",
-        "let a = 1 in a" |> mk_zipper |> CompositionView.Public.print_zipper,
-      )
-    }),
-    test_case("print_zipper preserves multi-binding", `Quick, () => {
-      check_rendered(
-        "multi-binding program",
-        "let a = 1 in let b = 2 in a + b",
-        "let a = 1 in let b = 2 in a + b"
-        |> mk_zipper
-        |> CompositionView.Public.print_zipper,
-      )
-    }),
-  ],
-);
+let composition_view_print_tests = {
+  let print = code =>
+    CompositionView.print_segment(Zipper.unselect_and_zip(mk_zipper(code)));
+  (
+    "CompositionView.print_segment",
+    [
+      test_case("hole renders as question mark, not absence", `Quick, () =>
+        check_rendered(
+          "hole as question mark",
+          "let a = 1 in ?",
+          print("let a = 1 in "),
+        )
+      ),
+      test_case("a fold prints as its invocation", `Quick, () =>
+        check_rendered(
+          "fold as invocation",
+          {|let a = ^^fold(1) in a|},
+          print("let a = ^^fold(1) in a"),
+        )
+      ),
+      test_case("a program prints as written", `Quick, () =>
+        check_rendered(
+          "multi-binding program",
+          "let a = 1 in let b = 2 in a + b",
+          print("let a = 1 in let b = 2 in a + b"),
+        )
+      ),
+    ],
+  );
+};
 
 /* ============================================================
    14. COMPOSITION UTILS — tool name -> action parsing
@@ -1939,228 +1728,113 @@ let composition_utils_tests = (
   "CompositionUtils.action_of",
   [
     test_case(
-      "parse update_definition tool call",
+      "parse the edit verbs",
       `Quick,
       () => {
-        let args = mk_json_args([("path", "a"), ("code", "42")]);
-        switch (
-          CompositionUtils.Public.action_of(
-            ~tool_name="update_definition",
-            ~args,
+        let parse = (tool_name, pairs) =>
+          switch (
+            CompositionUtils.action_of(~tool_name, ~args=mk_json_args(pairs))
+          ) {
+          | Action(EditorAction(a)) => Ok(a)
+          | Action(_) => Error("wrong action variant")
+          | DocsRequest(_) => Error("DocsRequest")
+          | Failure(msg) => Error(msg)
+          };
+        let is = (what, want: Action.Structural.t, got) =>
+          check(
+            bool,
+            what,
+            true,
+            switch (got) {
+            | Ok(a) => a == want
+            | Error(_) => false
+            },
+          );
+        is(
+          "insert after",
+          Insert(After("a"), "let b = 2"),
+          parse("insert", [("after", "a"), ("code", "let b = 2")]),
+        );
+        is(
+          "insert first_in the top level",
+          Insert(FirstIn(""), "let x = 1"),
+          parse("insert", [("first_in", ""), ("code", "let x = 1")]),
+        );
+        is(
+          "insert last_in a module",
+          Insert(LastIn("M"), "let x = 1"),
+          parse("insert", [("last_in", "M"), ("code", "let x = 1")]),
+        );
+        is(
+          "replace a part",
+          Replace("a:definition", "42"),
+          parse("replace", [("target", "a:definition"), ("code", "42")]),
+        );
+        is("delete", Delete("b"), parse("delete", [("target", "b")]));
+        is(
+          "move",
+          Move("a", Before("b")),
+          parse("move", [("target", "a"), ("before", "b")]),
+        );
+        is(
+          "rename",
+          Rename("x", None, "y"),
+          parse("rename", [("target", "x"), ("to", "y")]),
+        );
+        check(
+          bool,
+          "insert takes exactly one place",
+          true,
+          Result.is_error(
+            parse(
+              "insert",
+              [("after", "a"), ("before", "b"), ("code", "let c = 3")],
+            ),
           )
-        ) {
-        | Action(EditorAction(Update(Definition, "a", "42"))) => ()
-        | Action(_) => Alcotest.fail("Parsed to wrong action variant")
-        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
-        | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
-        };
+          && Result.is_error(parse("insert", [("code", "let c = 3")])),
+        );
+        List.iter(
+          old =>
+            check(
+              bool,
+              old ++ " is gone",
+              true,
+              Result.is_error(parse(old, [("path", "a"), ("code", "1")])),
+            ),
+          [
+            "update_definition",
+            "update_body",
+            "update_pattern",
+            "update_binding_clause",
+            "delete_binding_clause",
+            "delete_body",
+            "insert_after",
+            "insert_before",
+            "insert_test",
+          ],
+        );
       },
     ),
     test_case(
-      "parse update_body tool call",
+      "parse open and close",
       `Quick,
       () => {
-        let args = mk_json_args([("path", "b"), ("code", "x + 1")]);
+        let targets = `Assoc([("targets", `List([`String("a")]))]);
         switch (
-          CompositionUtils.Public.action_of(~tool_name="update_body", ~args)
+          CompositionUtils.action_of(~tool_name="open", ~args=targets),
+          CompositionUtils.action_of(~tool_name="close", ~args=targets),
+          CompositionUtils.action_of(
+            ~tool_name="close",
+            ~args=`Assoc([("all", `Bool(true))]),
+          ),
         ) {
-        | Action(EditorAction(Update(Body, "b", "x + 1"))) => ()
-        | Action(_) => Alcotest.fail("Parsed to wrong action variant")
-        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
-        | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
-        };
-      },
-    ),
-    test_case(
-      "parse update_pattern tool call",
-      `Quick,
-      () => {
-        let args = mk_json_args([("path", "x"), ("code", "y")]);
-        switch (
-          CompositionUtils.Public.action_of(
-            ~tool_name="update_pattern",
-            ~args,
-          )
-        ) {
-        | Action(EditorAction(Update(Pattern, "x", "y"))) => ()
-        | Action(_) => Alcotest.fail("Parsed to wrong action variant")
-        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
-        | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
-        };
-      },
-    ),
-    test_case(
-      "parse update_binding_clause tool call",
-      `Quick,
-      () => {
-        let args =
-          mk_json_args([("path", "a"), ("code", "let a : Int = 5 in")]);
-        switch (
-          CompositionUtils.Public.action_of(
-            ~tool_name="update_binding_clause",
-            ~args,
-          )
-        ) {
-        | Action(
-            EditorAction(Update(BindingClause, "a", "let a : Int = 5 in")),
+        | (
+            Action(AgentContextAction(OpenPaths(["a"]))),
+            Action(AgentContextAction(ClosePaths(["a"]))),
+            Action(AgentContextAction(CloseAllPaths)),
           ) =>
           ()
-        | Action(_) => Alcotest.fail("Parsed to wrong action variant")
-        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
-        | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
-        };
-      },
-    ),
-    test_case(
-      "parse insert_after tool call",
-      `Quick,
-      () => {
-        let args = mk_json_args([("path", "a"), ("code", "let b = 2 in")]);
-        switch (
-          CompositionUtils.Public.action_of(~tool_name="insert_after", ~args)
-        ) {
-        | Action(EditorAction(Insert(After, "a", "let b = 2 in"))) => ()
-        | Action(_) => Alcotest.fail("Parsed to wrong action variant")
-        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
-        | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
-        };
-      },
-    ),
-    test_case(
-      "parse insert_before tool call",
-      `Quick,
-      () => {
-        let args = mk_json_args([("path", "b"), ("code", "let x = 0 in")]);
-        switch (
-          CompositionUtils.Public.action_of(~tool_name="insert_before", ~args)
-        ) {
-        | Action(EditorAction(Insert(Before, "b", "let x = 0 in"))) => ()
-        | Action(_) => Alcotest.fail("Parsed to wrong action variant")
-        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
-        | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
-        };
-      },
-    ),
-    test_case(
-      "parse delete_binding_clause tool call",
-      `Quick,
-      () => {
-        let args = mk_json_args([("path", "b")]);
-        switch (
-          CompositionUtils.Public.action_of(
-            ~tool_name="delete_binding_clause",
-            ~args,
-          )
-        ) {
-        | Action(EditorAction(Delete(BindingClause, "b"))) => ()
-        | Action(_) => Alcotest.fail("Parsed to wrong action variant")
-        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
-        | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
-        };
-      },
-    ),
-    test_case(
-      "parse delete_body tool call",
-      `Quick,
-      () => {
-        let args = mk_json_args([("path", "c")]);
-        switch (
-          CompositionUtils.Public.action_of(~tool_name="delete_body", ~args)
-        ) {
-        | Action(EditorAction(Delete(Body, "c"))) => ()
-        | Action(_) => Alcotest.fail("Parsed to wrong action variant")
-        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
-        | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
-        };
-      },
-    ),
-    test_case(
-      "parse insert_after (no path) tool call → InsertAtProgramBoundary",
-      `Quick,
-      () => {
-        let args = mk_json_args([("code", "let x = 1 in")]);
-        switch (
-          CompositionUtils.Public.action_of(~tool_name="insert_after", ~args)
-        ) {
-        | Action(InsertAtProgramBoundary(After, "let x = 1 in")) => ()
-        | Action(_) => Alcotest.fail("Parsed to wrong action variant")
-        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
-        | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
-        };
-      },
-    ),
-    test_case(
-      "parse insert_before (no path) tool call → InsertAtProgramBoundary",
-      `Quick,
-      () => {
-        let args = mk_json_args([("code", "let x = 1 in")]);
-        switch (
-          CompositionUtils.Public.action_of(~tool_name="insert_before", ~args)
-        ) {
-        | Action(InsertAtProgramBoundary(Before, "let x = 1 in")) => ()
-        | Action(_) => Alcotest.fail("Parsed to wrong action variant")
-        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
-        | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
-        };
-      },
-    ),
-    test_case(
-      "parse insert_test tool call, with and without a path",
-      `Quick,
-      () => {
-        let parse = args =>
-          CompositionUtils.Public.action_of(~tool_name="insert_test", ~args);
-        switch (parse(mk_json_args([("path", "a"), ("code", "a == 1")]))) {
-        | Action(EditorAction(InsertTest(Some("a"), "a == 1"))) => ()
-        | _ => Alcotest.fail("insert_test with a path")
-        };
-        switch (parse(mk_json_args([("path", ""), ("code", "a == 1")]))) {
-        | Action(EditorAction(InsertTest(None, "a == 1"))) => ()
-        | _ => Alcotest.fail("insert_test with an empty path")
-        };
-      },
-    ),
-    test_case(
-      "parse insert_after with empty path → InsertAtProgramBoundary",
-      `Quick,
-      () => {
-        let args = mk_json_args([("path", ""), ("code", "let x = 1 in")]);
-        switch (
-          CompositionUtils.Public.action_of(~tool_name="insert_after", ~args)
-        ) {
-        | Action(InsertAtProgramBoundary(After, "let x = 1 in")) => ()
-        | Action(_) => Alcotest.fail("Parsed to wrong action variant")
-        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
-        | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
-        };
-      },
-    ),
-    test_case(
-      "parse expand tool call",
-      `Quick,
-      () => {
-        let args =
-          `Assoc([("paths", `List([`String("a"), `String("b")]))]);
-        switch (CompositionUtils.Public.action_of(~tool_name="expand", ~args)) {
-        | Action(AgentContextAction(Expand(["a", "b"]))) => ()
-        | Action(_) => Alcotest.fail("Parsed to wrong action variant")
-        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
-        | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
-        };
-      },
-    ),
-    test_case(
-      "parse collapse tool call",
-      `Quick,
-      () => {
-        let args = `Assoc([("paths", `List([`String("a")]))]);
-        switch (
-          CompositionUtils.Public.action_of(~tool_name="collapse", ~args)
-        ) {
-        | Action(AgentContextAction(Collapse(["a"]))) => ()
-        | Action(_) => Alcotest.fail("Parsed to wrong action variant")
-        | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
-        | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
+        | _ => Alcotest.fail("open/close parse")
         };
       },
     ),
@@ -2170,9 +1844,7 @@ let composition_utils_tests = (
       () => {
         let args =
           `Assoc([("paths", `List([`String("a"), `String("b")]))]);
-        switch (
-          CompositionUtils.Public.action_of(~tool_name="place_probe", ~args)
-        ) {
+        switch (CompositionUtils.action_of(~tool_name="place_probe", ~args)) {
         | Action(ProbeAction(PlaceProbe(["a", "b"]))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
         | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
@@ -2185,9 +1857,7 @@ let composition_utils_tests = (
       `Quick,
       () => {
         let args = `Assoc([("paths", `List([`String("result")]))]);
-        switch (
-          CompositionUtils.Public.action_of(~tool_name="remove_probe", ~args)
-        ) {
+        switch (CompositionUtils.action_of(~tool_name="remove_probe", ~args)) {
         | Action(ProbeAction(RemoveProbe(["result"]))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
         | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
@@ -2200,9 +1870,7 @@ let composition_utils_tests = (
       `Quick,
       () => {
         let args = `Assoc([("paths", `List([`String("f")]))]);
-        switch (
-          CompositionUtils.Public.action_of(~tool_name="toggle_probe", ~args)
-        ) {
+        switch (CompositionUtils.action_of(~tool_name="toggle_probe", ~args)) {
         | Action(ProbeAction(ToggleProbe(["f"]))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
         | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
@@ -2216,9 +1884,7 @@ let composition_utils_tests = (
       () => {
         let args =
           `Assoc([("paths", `List([`String("x"), `String("y")]))]);
-        switch (
-          CompositionUtils.Public.action_of(~tool_name="place_statics", ~args)
-        ) {
+        switch (CompositionUtils.action_of(~tool_name="place_statics", ~args)) {
         | Action(StaticsAction(PlaceStatics(["x", "y"]))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
         | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
@@ -2232,10 +1898,7 @@ let composition_utils_tests = (
       () => {
         let args = `Assoc([("paths", `List([`String("foo")]))]);
         switch (
-          CompositionUtils.Public.action_of(
-            ~tool_name="remove_statics",
-            ~args,
-          )
+          CompositionUtils.action_of(~tool_name="remove_statics", ~args)
         ) {
         | Action(StaticsAction(RemoveStatics(["foo"]))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
@@ -2250,10 +1913,7 @@ let composition_utils_tests = (
       () => {
         let args = `Assoc([("paths", `List([`String("bar")]))]);
         switch (
-          CompositionUtils.Public.action_of(
-            ~tool_name="toggle_statics",
-            ~args,
-          )
+          CompositionUtils.action_of(~tool_name="toggle_statics", ~args)
         ) {
         | Action(StaticsAction(ToggleStatics(["bar"]))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
@@ -2272,7 +1932,7 @@ let composition_utils_tests = (
             ("paths", `List([`String("n"), `String("m")])),
           ]);
         switch (
-          CompositionUtils.Public.action_of(
+          CompositionUtils.action_of(
             ~tool_name="place_syntax_projector",
             ~args,
           )
@@ -2293,7 +1953,7 @@ let composition_utils_tests = (
       () => {
         let args = `Assoc([("paths", `List([`String("x")]))]);
         switch (
-          CompositionUtils.Public.action_of(
+          CompositionUtils.action_of(
             ~tool_name="remove_syntax_projector",
             ~args,
           )
@@ -2315,7 +1975,7 @@ let composition_utils_tests = (
             ("paths", `List([`String("flag")])),
           ]);
         switch (
-          CompositionUtils.Public.action_of(
+          CompositionUtils.action_of(
             ~tool_name="toggle_syntax_projector",
             ~args,
           )
@@ -2342,7 +2002,7 @@ let composition_utils_tests = (
             ("paths", `List([`String("x")])),
           ]);
         switch (
-          CompositionUtils.Public.action_of(
+          CompositionUtils.action_of(
             ~tool_name="place_syntax_projector",
             ~args,
           )
@@ -2359,10 +2019,7 @@ let composition_utils_tests = (
       () => {
         let args = mk_json_args([]);
         switch (
-          CompositionUtils.Public.action_of(
-            ~tool_name="does_not_exist",
-            ~args,
-          )
+          CompositionUtils.action_of(~tool_name="does_not_exist", ~args)
         ) {
         | Action(_) => Alcotest.fail("Expected Failure for unknown tool")
         | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
@@ -2374,13 +2031,8 @@ let composition_utils_tests = (
       "missing required arg returns Failure",
       `Quick,
       () => {
-        let args = mk_json_args([("path", "a")]);
-        switch (
-          CompositionUtils.Public.action_of(
-            ~tool_name="update_definition",
-            ~args,
-          )
-        ) {
+        let args = mk_json_args([("target", "a")]);
+        switch (CompositionUtils.action_of(~tool_name="replace", ~args)) {
         | Action(_) => Alcotest.fail("Expected Failure for missing code arg")
         | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
         | Failure(_) => ()
@@ -2393,10 +2045,7 @@ let composition_utils_tests = (
       () => {
         let args = mk_json_args([("title", "My Task")]);
         switch (
-          CompositionUtils.Public.action_of(
-            ~tool_name="set_active_task",
-            ~args,
-          )
+          CompositionUtils.action_of(~tool_name="set_active_task", ~args)
         ) {
         | Action(WorkbenchAction(SetActiveTask("My Task"))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
@@ -2411,10 +2060,7 @@ let composition_utils_tests = (
       () => {
         let args = `Assoc([]);
         switch (
-          CompositionUtils.Public.action_of(
-            ~tool_name="unset_active_task",
-            ~args,
-          )
+          CompositionUtils.action_of(~tool_name="unset_active_task", ~args)
         ) {
         | Action(WorkbenchAction(UnsetActiveTask)) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
@@ -2429,7 +2075,7 @@ let composition_utils_tests = (
       () => {
         let args = mk_json_args([("summary", "All done")]);
         switch (
-          CompositionUtils.Public.action_of(
+          CompositionUtils.action_of(
             ~tool_name="mark_active_task_complete",
             ~args,
           )
@@ -2447,7 +2093,7 @@ let composition_utils_tests = (
       () => {
         let args = `Assoc([]);
         switch (
-          CompositionUtils.Public.action_of(
+          CompositionUtils.action_of(
             ~tool_name="mark_active_task_incomplete",
             ~args,
           )
@@ -2465,10 +2111,7 @@ let composition_utils_tests = (
       () => {
         let args = mk_json_args([("title", "Step 1")]);
         switch (
-          CompositionUtils.Public.action_of(
-            ~tool_name="set_active_subtask",
-            ~args,
-          )
+          CompositionUtils.action_of(~tool_name="set_active_subtask", ~args)
         ) {
         | Action(WorkbenchAction(SetActiveSubtask("Step 1"))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
@@ -2483,10 +2126,7 @@ let composition_utils_tests = (
       () => {
         let args = `Assoc([]);
         switch (
-          CompositionUtils.Public.action_of(
-            ~tool_name="unset_active_subtask",
-            ~args,
-          )
+          CompositionUtils.action_of(~tool_name="unset_active_subtask", ~args)
         ) {
         | Action(WorkbenchAction(UnsetActiveSubtask)) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
@@ -2501,7 +2141,7 @@ let composition_utils_tests = (
       () => {
         let args = mk_json_args([("summary", "Subtask done")]);
         switch (
-          CompositionUtils.Public.action_of(
+          CompositionUtils.action_of(
             ~tool_name="mark_active_subtask_complete",
             ~args,
           )
@@ -2520,7 +2160,7 @@ let composition_utils_tests = (
       () => {
         let args = `Assoc([]);
         switch (
-          CompositionUtils.Public.action_of(
+          CompositionUtils.action_of(
             ~tool_name="mark_active_subtask_incomplete",
             ~args,
           )
@@ -2548,7 +2188,9 @@ let sequential_operations_tests = (
       () => {
         let code = "let a = 1 in a";
         let z =
-          switch (run_agent_action(code, Insert(After, "a", "let b = 0 in"))) {
+          switch (
+            run_agent_action(code, Insert(After("a"), "let b = 0 in"))
+          ) {
           | Ok(z) => z
           | Error(err) =>
             Alcotest.fail("Insert failed: " ++ Action.Failure.show(err))
@@ -2565,7 +2207,7 @@ let sequential_operations_tests = (
             ~statics=CachedStatics.empty,
             ~syntax=CachedSyntax.init(z),
             ~root=Exp,
-            Structural(Update(Definition, "b", "a + 1")),
+            Structural(Replace("b:definition", "a + 1")),
             {
               zipper: z,
               col_target: None,
@@ -2586,12 +2228,12 @@ let sequential_operations_tests = (
       },
     ),
     test_case(
-      "update_definition then update_body",
+      "replace :definition, then =>",
       `Quick,
       () => {
         let code = "let a = 1 in let b = 2 in a + b";
         let z =
-          switch (run_agent_action(code, Update(Definition, "a", "10"))) {
+          switch (run_agent_action(code, Replace("a:definition", "10"))) {
           | Ok(z) => z
           | Error(err) =>
             Alcotest.fail(
@@ -2604,7 +2246,7 @@ let sequential_operations_tests = (
             ~statics=CachedStatics.empty,
             ~syntax=CachedSyntax.init(z),
             ~root=Exp,
-            Structural(Update(Body, "b", "a * b")),
+            Structural(Replace("=>", "a * b")),
             {
               zipper: z,
               col_target: None,
@@ -2623,16 +2265,15 @@ let sequential_operations_tests = (
       },
     ),
     test_case(
-      "update_body introduces nested recursive helper (regression: agent bug 1 / tools)",
+      "replace :definition introduces nested recursive helper (regression: agent bug 1 / tools)",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let f = fun x -> x in f(3)",
-            Update(
-              Body,
-              "f",
-              "let g = fun y -> if y == 0 then 0 else 1 + g(y - 1) in g(3)",
+            Replace(
+              "f:definition",
+              "fun x -> let g = fun y -> if y == 0 then 0 else 1 + g(y - 1) in g(3)",
             ),
           );
         check(
@@ -2652,13 +2293,13 @@ let sequential_operations_tests = (
       },
     ),
     test_case(
-      "insert_after a module member whose body is a case, with a case",
+      "insert after a module member whose body is a case, with a case",
       `Quick,
       () => {
         let prog = "module M = {\n  let a(i: Int): Int =\n    case i\n    | 0 => 1\n    | _ => 2\n    end\n} in\n1";
         let code = "let b(i: Int): Int =\n  case i\n  | 0 => 1\n  | _ => 2\n  end";
         switch (
-          try(run_agent_action(prog, Insert(After, "M/a", code))) {
+          try(run_agent_action(prog, Insert(After("M/a"), code))) {
           | exn => Alcotest.fail("raised: " ++ Printexc.to_string(exn))
           }
         ) {
@@ -2675,7 +2316,7 @@ let sequential_operations_tests = (
         let prog = "module M = {\n  let a(i: Int): Int =\n    case i\n    | 0 => 1\n    | _ => 2\n    end\n} in\n1";
         let code = "let b(i: Int): Int =\n  case i\n  | 0 => 1\n  | _ => 2\n  end;\nlet c(i: Int): Int =\n  case i\n  | 0 => 1\n  | _ => 2\n  end";
         switch (
-          try(run_agent_action(prog, Insert(After, "M/a", code))) {
+          try(run_agent_action(prog, Insert(After("M/a"), code))) {
           | exn => Alcotest.fail("raised: " ++ Printexc.to_string(exn))
           }
         ) {
@@ -2692,7 +2333,7 @@ let sequential_operations_tests = (
         let prog = "module Outer = {\n  module M = {\n    type T =\n      + A(Int)\n      + B;\n    \n    let a(i: T): Int =\n      case i\n      | A(n) => n\n      | B => 0\n      end\n  };\n  \n  let z = 1\n} in\n1";
         let code = "let heal(i: T): Int =\n  case i\n  | A(n) => n\n  | B => 0\n  end;\nlet blast(i: T): Int =\n  case i\n  | A(_) => 0\n  | B => 0\n  end";
         switch (
-          try(run_agent_action(prog, Insert(After, "Outer/M/a", code))) {
+          try(run_agent_action(prog, Insert(After("Outer/M/a"), code))) {
           | exn => Alcotest.fail("raised: " ++ Printexc.to_string(exn))
           }
         ) {
@@ -2703,7 +2344,7 @@ let sequential_operations_tests = (
       },
     ),
     test_case(
-      "insert_after a module member with TWO case members (dungeon run: Failure nth / Exp patterns)",
+      "insert after a module member with TWO case members (dungeon run: Failure nth / Exp patterns)",
       `Quick,
       () => {
         let prog = {js|module Creatures = {
@@ -2739,7 +2380,7 @@ let blast_amount(i: Item): Int =
           try(
             run_agent_action(
               prog,
-              Insert(After, "Creatures/Items/name", code),
+              Insert(After("Creatures/Items/name"), code),
             )
           ) {
           | exn => Alcotest.fail("raised: " ++ Printexc.to_string(exn))
@@ -2752,14 +2393,17 @@ let blast_amount(i: Item): Int =
       },
     ),
     test_case(
-      "insert_after a nested module member does not raise (dungeon run: Failure nth)",
+      "insert after a nested module member does not raise (dungeon run: Failure nth)",
       `Quick,
       () => {
         let code = "module Creatures = {\n  module Items = {\n    let name = fun i -> \"sword\";\n    let has = fun (i, c) -> true\n  };\n  let label = fun c -> \"x\"\n} in\n1";
         switch (
           run_agent_action(
             code,
-            Insert(After, "Creatures/Items/name", "let weight = fun i -> 3;"),
+            Insert(
+              After("Creatures/Items/name"),
+              "let weight = fun i -> 3;",
+            ),
           )
         ) {
         | Ok(_) => ()
@@ -2771,15 +2415,15 @@ let blast_amount(i: Item): Int =
       },
     ),
     test_case(
-      "update_binding_clause then insert_after new binding path resolves (regression: agent bug 2)",
+      "replace then insert after new binding path resolves (regression: agent bug 2)",
       `Quick,
       () => {
         let result =
           apply_chain_render(
             "let speed = 1 in 2",
             [
-              Update(BindingClause, "speed", "let is_winner = true in"),
-              Insert(After, "is_winner", "let score = 0 in"),
+              Replace("speed", "let is_winner = true in"),
+              Insert(After("is_winner"), "let score = 0 in"),
             ],
           );
         check_rendered(
@@ -2795,7 +2439,7 @@ let blast_amount(i: Item): Int =
       () => {
         let code = "let a = 1 in let b = 2 in let c = 3 in a + c";
         let z =
-          switch (run_agent_action(code, Delete(BindingClause, "b"))) {
+          switch (run_agent_action(code, Delete("b"))) {
           | Ok(z) => z
           | Error(err) =>
             Alcotest.fail("Delete failed: " ++ Action.Failure.show(err))
@@ -2806,7 +2450,7 @@ let blast_amount(i: Item): Int =
             ~statics=CachedStatics.empty,
             ~syntax=CachedSyntax.init(z),
             ~root=Exp,
-            Structural(Insert(Before, "c", "let d = a * 2 in")),
+            Structural(Insert(Before("c"), "let d = a * 2 in")),
             {
               zipper: z,
               col_target: None,
@@ -2832,7 +2476,7 @@ let blast_amount(i: Item): Int =
       () => {
         let code = "let a = 1 in let b = a in b";
         let z =
-          switch (run_agent_action(code, Update(Pattern, "a", "x"))) {
+          switch (run_agent_action(code, Rename("a", None, "x"))) {
           | Ok(z) => z
           | Error(err) =>
             Alcotest.fail("Rename failed: " ++ Action.Failure.show(err))
@@ -2848,7 +2492,7 @@ let blast_amount(i: Item): Int =
             ~statics=CachedStatics.empty,
             ~syntax=CachedSyntax.init(z),
             ~root=Exp,
-            Structural(Update(Definition, "x", "100")),
+            Structural(Replace("x:definition", "100")),
             {
               zipper: z,
               col_target: None,
@@ -2879,17 +2523,17 @@ let type_alias_tests = (
   "AgentTools.TypeAlias",
   [
     test_case(
-      "update_definition of type alias",
+      "replace :definition of type alias",
       `Quick,
       () => {
         let result =
           apply_and_render(
-            "type T = Int in let a : T = 1 in a",
-            Update(Definition, "T", "Bool"),
+            "type T = Int in let a = 1 in a",
+            Replace("T:definition", "Bool"),
           );
         check_rendered(
           "update_type_alias_def",
-          "type T = Bool in let a : T = 1 in a",
+          "type T = Bool in let a = 1 in a",
           result,
         );
       },
@@ -2899,21 +2543,18 @@ let type_alias_tests = (
       `Quick,
       () => {
         let result =
-          apply_and_render(
-            "type T = Int in let a = 1 in a",
-            Delete(BindingClause, "T"),
-          );
+          apply_and_render("type T = Int in let a = 1 in a", Delete("T"));
         check_rendered("delete_type_alias", "let a = 1 in a", result);
       },
     ),
     test_case(
-      "insert_before type alias",
+      "insert before type alias",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "type T = Int in let a : T = 1 in a",
-            Insert(Before, "T", "let z = 0 in"),
+            Insert(Before("T"), "let z = 0 in"),
           );
         check_rendered(
           "insert_before_type_alias",
@@ -2923,13 +2564,13 @@ let type_alias_tests = (
       },
     ),
     test_case(
-      "insert_after type alias",
+      "insert after type alias",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "type T = Int in let a : T = 1 in a",
-            Insert(After, "T", "let z = 0 in"),
+            Insert(After("T"), "let z = 0 in"),
           );
         check_rendered(
           "insert_after_type_alias",
@@ -2949,13 +2590,13 @@ let complex_program_tests = (
   "AgentTools.ComplexPrograms",
   [
     test_case(
-      "update_definition with if-else",
+      "replace :definition with if-else",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let a = 1 in let b = 2 in a + b",
-            Update(Definition, "b", "if a > 0 then 10 else 20"),
+            Replace("b:definition", "if a > 0 then 10 else 20"),
           );
         check_rendered(
           "update_def_ifelse",
@@ -2965,13 +2606,13 @@ let complex_program_tests = (
       },
     ),
     test_case(
-      "update_definition with let-in expression",
+      "replace :definition with let-in expression",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let a = 1 in a",
-            Update(Definition, "a", "let x = 2 in x + 1"),
+            Replace("a:definition", "let x = 2 in x + 1"),
           );
         check_rendered(
           "update_def_let_in",
@@ -2981,15 +2622,14 @@ let complex_program_tests = (
       },
     ),
     test_case(
-      "update_definition with recursive function",
+      "replace :definition with recursive function",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let f = fun x -> x in f(5)",
-            Update(
-              Definition,
-              "f",
+            Replace(
+              "f:definition",
               "fun x -> if x == 0 then 1 else x * f(x - 1)",
             ),
           );
@@ -3001,13 +2641,13 @@ let complex_program_tests = (
       },
     ),
     test_case(
-      "update_definition with module body (lowercase let)",
+      "replace :definition with module body (lowercase let)",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let m = 1 in m",
-            Update(Definition, "m", "{ let x = 1; let y = 2 }"),
+            Replace("m:definition", "{ let x = 1; let y = 2 }"),
           );
         check_rendered(
           "update_def_module",
@@ -3016,11 +2656,11 @@ let complex_program_tests = (
         );
       },
     ),
-    test_case("update_definition with capitalized module M", `Quick, () => {
+    test_case("replace :definition with capitalized module M", `Quick, () => {
       switch (
         run_agent_action(
           "module M = { let x = 1 } in M.x",
-          Update(Definition, "M", "{ let x = 10 }"),
+          Replace("M:definition", "{ let x = 10 }"),
         )
       ) {
       | Ok(z) =>
@@ -3039,14 +2679,11 @@ let complex_program_tests = (
       }
     }),
     test_case(
-      "delete_binding_clause removes capitalized module M",
+      "delete removes capitalized module M",
       `Quick,
       () => {
         let result =
-          apply_and_render(
-            "module M = { let x = 1 } in 42",
-            Delete(BindingClause, "M"),
-          );
+          apply_and_render("module M = { let x = 1 } in 42", Delete("M"));
         check_rendered("delete_module_M", "42", result);
       },
     ),
@@ -3057,7 +2694,7 @@ let complex_program_tests = (
         let result =
           apply_and_render(
             "let a = 1 in a",
-            Insert(After, "a", "let double = fun x -> x * 2 in"),
+            Insert(After("a"), "let double = fun x -> x * 2 in"),
           );
         check_rendered(
           "insert_function",
@@ -3067,17 +2704,13 @@ let complex_program_tests = (
       },
     ),
     test_case(
-      "update_binding_clause to annotated function",
+      "replace to annotated function",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let f = 1 in f",
-            Update(
-              BindingClause,
-              "f",
-              "let f : Int -> Int = fun x -> x + 1 in",
-            ),
+            Replace("f", "let f : Int -> Int = fun x -> x + 1 in"),
           );
         check_rendered(
           "update_bc_annotated_fun",
@@ -3090,119 +2723,19 @@ let complex_program_tests = (
 );
 
 /* ============================================================
-   18. AGENT CONTEXT — expand/collapse path management
+   18. AGENT CONTEXT — node-map paths the view relies on
    ============================================================ */
 
 let agent_context_tests = (
   "AgentContext",
   [
     test_case(
-      "init has empty expanded_paths",
-      `Quick,
-      () => {
-        let ctx = AgentContext.Utils.init();
-        check(list(string), "init paths", [], ctx.expanded_paths);
-      },
-    ),
-    test_case(
-      "add_paths appends paths",
-      `Quick,
-      () => {
-        let ctx = AgentContext.Utils.init();
-        let ctx = AgentContext.Utils.add_paths(["a", "b"], ctx);
-        check(
-          int,
-          "paths count after add",
-          2,
-          List.length(ctx.expanded_paths),
-        );
-        check(bool, "contains a", true, List.mem("a", ctx.expanded_paths));
-        check(bool, "contains b", true, List.mem("b", ctx.expanded_paths));
-      },
-    ),
-    test_case(
-      "remove_paths removes specified paths",
-      `Quick,
-      () => {
-        let ctx = AgentContext.Utils.init();
-        let ctx = AgentContext.Utils.add_paths(["a", "b", "c"], ctx);
-        let ctx = AgentContext.Utils.remove_paths(["b"], ctx);
-        check(
-          int,
-          "paths count after remove",
-          2,
-          List.length(ctx.expanded_paths),
-        );
-        check(
-          bool,
-          "still contains a",
-          true,
-          List.mem("a", ctx.expanded_paths),
-        );
-        check(bool, "b removed", false, List.mem("b", ctx.expanded_paths));
-      },
-    ),
-    test_case(
-      "expand action adds paths",
-      `Quick,
-      () => {
-        let ctx = AgentContext.Utils.init();
-        let ctx = AgentContext.Update.update(Expand(["x", "y"]), ctx);
-        check(int, "expanded count", 2, List.length(ctx.expanded_paths));
-      },
-    ),
-    test_case(
-      "collapse action removes paths",
-      `Quick,
-      () => {
-        let ctx = AgentContext.Utils.init();
-        let ctx = AgentContext.Update.update(Expand(["x", "y", "z"]), ctx);
-        let ctx = AgentContext.Update.update(Collapse(["y"]), ctx);
-        check(int, "after collapse", 2, List.length(ctx.expanded_paths));
-        check(bool, "y removed", false, List.mem("y", ctx.expanded_paths));
-      },
-    ),
-    test_case(
-      "freshen_paths removes stale paths",
-      `Quick,
-      () => {
-        let ctx = AgentContext.Utils.init();
-        let ctx = AgentContext.Utils.add_paths(["a", "nonexistent"], ctx);
-        let node_map = build_node_map("let a = 1 in a");
-        let ctx = AgentContext.Utils.freshen_paths(ctx, node_map);
-        check(
-          int,
-          "freshen removes stale",
-          1,
-          List.length(ctx.expanded_paths),
-        );
-        check(bool, "a remains", true, List.mem("a", ctx.expanded_paths));
-      },
-    ),
-    test_case(
-      "freshen_paths keeps valid module path M",
-      `Quick,
-      () => {
-        let ctx = AgentContext.Utils.init();
-        let ctx = AgentContext.Utils.add_paths(["M", "nonexistent"], ctx);
-        let node_map = build_node_map("module M = { let x = 1 } in M.x");
-        let ctx = AgentContext.Utils.freshen_paths(ctx, node_map);
-        check(int, "freshen keeps M", 1, List.length(ctx.expanded_paths));
-        check(bool, "M remains", true, List.mem("M", ctx.expanded_paths));
-      },
-    ),
-    test_case(
       "path M resolves for capitalized module",
       `Quick,
       () => {
         let node_map =
           build_node_map("module M = { let x = 1; let y = 2 } in M.x + M.y");
-        check(
-          bool,
-          "path M resolves",
-          true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "M") != None,
-        );
+        check(bool, "path M resolves", true, path_id(node_map, "M") != None);
       },
     ),
   ],
@@ -3212,9 +2745,116 @@ let agent_context_tests = (
    19. ERROR PRINT — static error reporting
    ============================================================ */
 
+/* a module naming itself in its own body: the free constructor and the
+   Dot on it say why, under either analysis */
+let self_reference_errors = () => {
+  let want = "`RunningSums` isn't in scope inside its own body; use `running_max` directly";
+  let mentions = (needle, e) => CorpusUtil.contains(needle, e);
+  let body = "module RunningSums = {\n  let running_max = 3;\n  let twice = RunningSums.running_max * 2\n}";
+  List.iter(
+    ((root: Sort.t, code)) => {
+      let term =
+        switch (Parser.to_zipper(~root, code)) {
+        | Some(z) => MakeTerm.from_zip_for_sem(z, ~root).term
+        | None => fail("Failed to parse: " ++ code)
+        };
+      List.iter(
+        ((what, info_map)) => {
+          let what = Sort.show(root) ++ " " ++ what;
+          let errors = ErrorPrint.all(info_map);
+          check(
+            bool,
+            what ++ ": says why",
+            true,
+            List.exists(mentions(want), errors),
+          );
+          check(
+            list(string),
+            what ++ ": nothing else",
+            [],
+            List.filter(e => !mentions(want, e), errors),
+          );
+        },
+        [
+          (
+            "monolithic",
+            fst(Statics.mk(CoreSettings.on, DefStatics.ctx0, term)),
+          ),
+          (
+            "DefStatics",
+            DefStatics.calc(~settings=CoreSettings.on, term).merged,
+          ),
+        ],
+      );
+    },
+    [
+      (Exp, body ++ " in\nRunningSums.twice"),
+      (Mod, body ++ ";\nRunningSums.twice"),
+    ],
+  );
+  let errors = ErrorPrint.all(mk_statics(mk_zipper("let y = Nope.x in y")));
+  check(
+    bool,
+    "another module's name stays undefined",
+    true,
+    List.exists(mentions("Constructor is not defined"), errors),
+  );
+};
+
+/* a tuple type prints parenthesized wherever it stands, but a
+   constructor's argument keeps only the constructor's own parens */
+let printed_parens = () => {
+  let says = (code, expected) =>
+    check(
+      bool,
+      code ++ " says " ++ expected,
+      true,
+      List.exists(
+        CorpusUtil.contains(expected),
+        ErrorPrint.all(mk_statics(mk_zipper(code))),
+      ),
+    );
+  says(
+    "type Point = (Int, Int) in let p : (Point, Bool) = 1 in p",
+    "Expecting type (Point, Bool) but got inconsistent type Int",
+  );
+  says(
+    "let x : Int = ((1, true), 2) in x",
+    "inconsistent type ((Int, Bool), Int)",
+  );
+  says(
+    "let f : (Int, Int) -> Int = 1 in f",
+    "Expecting type (Int, Int) -> Int",
+  );
+  says(
+    "let f : Int -> (Int, Bool) = 1 in f",
+    "Expecting type Int -> (Int, Bool)",
+  );
+  says(
+    "type S = + A(Int, Bool) + B in let x : Int = A(1, true) in x",
+    "inconsistent type + A(Int, Bool) + B",
+  );
+  says(
+    "type S = + A(Int, Bool) + B in let x : Int = A in x",
+    "inconsistent type (Int, Bool) -> S",
+  );
+  says("let x : () = 1 in x", "Expecting type () but");
+  says("let x : Int = (?, ?) in x", "inconsistent type (?, ?)");
+  says(
+    "type S = + A(Int, Bool) + B in let f = fun (A(x, y): S) -> x in f",
+    "fun (A(x, y)) -> x",
+  );
+};
+
 let error_print_tests = (
   "ErrorPrint",
   [
+    test_case("tuple types print parenthesized", `Quick, printed_parens),
+    test_case(
+      "a module naming itself in its own body",
+      `Quick,
+      self_reference_errors,
+    ),
     test_case(
       "well-typed program has no errors",
       `Quick,
@@ -3307,7 +2947,7 @@ let tool_json_tests = (
       "all tools have function type and name",
       `Quick,
       () => {
-        let tools = CompositionUtils.Public.tools;
+        let tools = CompositionUtils.tools;
         List.iter(
           (tool: API.Json.t) => {
             switch (API.Json.dot("type", tool)) {
@@ -3331,7 +2971,7 @@ let tool_json_tests = (
       "all tools have parameters with type=object",
       `Quick,
       () => {
-        let tools = CompositionUtils.Public.tools;
+        let tools = CompositionUtils.tools;
         List.iter(
           (tool: API.Json.t) => {
             switch (API.Json.dot("function", tool)) {
@@ -3355,22 +2995,22 @@ let tool_json_tests = (
       "expected tool count matches",
       `Quick,
       () => {
-        let tools = CompositionUtils.Public.tools;
-        /* 38 with read_docs: DocPacks is non-empty on this branch
-           (37 when the registry is empty and read_docs is not offered) */
-        check(int, "tool count", 38, List.length(tools));
+        let tools = CompositionUtils.tools;
+        /* 34 with read_docs: DocPacks is non-empty on this branch
+           (33 when the registry is empty and read_docs is not offered) */
+        check(int, "tool count", 34, List.length(tools));
       },
     ),
     test_case(
       "get_tool_name extracts name correctly",
       `Quick,
       () => {
-        let tools = CompositionUtils.Public.tools;
+        let tools = CompositionUtils.tools;
         let first_tool = List.nth(tools, 0);
         switch (get_tool_name(first_tool)) {
-        | Some("expand") => ()
+        | Some("open") => ()
         | Some(name) =>
-          Alcotest.fail("Expected 'expand', got '" ++ name ++ "'")
+          Alcotest.fail("Expected 'open', got '" ++ name ++ "'")
         | None => Alcotest.fail("get_tool_name returned None")
         };
       },
@@ -3379,7 +3019,7 @@ let tool_json_tests = (
       "get_tool_description returns non-empty for all tools",
       `Quick,
       () => {
-        let tools = CompositionUtils.Public.tools;
+        let tools = CompositionUtils.tools;
         List.iter(
           (tool: API.Json.t) => {
             switch (get_tool_description(tool)) {
@@ -3401,7 +3041,7 @@ let tool_json_tests = (
       "all tool names are unique",
       `Quick,
       () => {
-        let tools = CompositionUtils.Public.tools;
+        let tools = CompositionUtils.tools;
         let names = List.filter_map(get_tool_name, tools);
         let unique_names = List.sort_uniq(String.compare, names);
         check(
@@ -3413,21 +3053,12 @@ let tool_json_tests = (
       },
     ),
     test_case(
-      "edit tools have required path parameter",
+      "edit tools with a target require it",
       `Quick,
       () => {
-        /* insert_after / insert_before / insert_test are intentionally
-           excluded: their `path` is optional (omitting it inserts at the
-           program boundary, or after the last item for a test). */
-        let edit_tool_names = [
-          "update_definition",
-          "update_body",
-          "update_pattern",
-          "update_binding_clause",
-          "delete_binding_clause",
-          "delete_body",
-        ];
-        let tools = CompositionUtils.Public.tools;
+        /* insert takes a place instead */
+        let edit_tool_names = ["replace", "delete", "move", "rename"];
+        let tools = CompositionUtils.tools;
         List.iter(
           (tool: API.Json.t) => {
             switch (get_tool_name(tool)) {
@@ -3438,16 +3069,16 @@ let tool_json_tests = (
                 | Some(params) =>
                   switch (API.Json.dot("required", params)) {
                   | Some(`List(required)) =>
-                    let has_path =
+                    let has_target =
                       List.exists(
                         r =>
                           switch (r) {
-                          | `String("path") => true
+                          | `String("target") => true
                           | _ => false
                           },
                         required,
                       );
-                    check(bool, name ++ " requires path", true, has_path);
+                    check(bool, name ++ " requires target", true, has_target);
                   | _ => Alcotest.fail(name ++ " missing required field")
                   }
                 | None => Alcotest.fail(name ++ " missing parameters")
@@ -3473,7 +3104,7 @@ let tool_json_tests = (
           "remove_statics",
           "toggle_statics",
         ];
-        let tools = CompositionUtils.Public.tools;
+        let tools = CompositionUtils.tools;
         List.iter(
           (tool: API.Json.t) => {
             switch (get_tool_name(tool)) {
@@ -3511,8 +3142,7 @@ let tool_json_tests = (
       "tool registry covers exactly the declared tools",
       `Quick,
       () => {
-        let declared =
-          List.filter_map(get_tool_name, CompositionUtils.Public.tools);
+        let declared = List.filter_map(get_tool_name, CompositionUtils.tools);
         let registered = List.map(fst, Web.Agent.ToolUtils.registry);
         List.iter(
           name =>
@@ -3542,9 +3172,9 @@ let tool_json_tests = (
       () => {
         module ToolUtils = Web.Agent.ToolUtils;
         let cat = ToolUtils.category_of_tool;
-        check(string, "expand", "View", cat("expand"));
+        check(string, "open", "View", cat("open"));
         check(string, "place_probe", "View", cat("place_probe"));
-        check(string, "update_definition", "Edit", cat("update_definition"));
+        check(string, "replace", "Edit", cat("replace"));
         check(
           string,
           "create_new_task",
@@ -3562,17 +3192,7 @@ let tool_json_tests = (
         check(
           list(string),
           "edit tool names",
-          [
-            "update_definition",
-            "update_body",
-            "update_pattern",
-            "update_binding_clause",
-            "delete_binding_clause",
-            "delete_body",
-            "insert_after",
-            "insert_before",
-            "insert_test",
-          ],
+          ["insert", "replace", "delete", "move", "rename"],
           ToolUtils.edit_tool_names,
         );
         check(
@@ -3630,10 +3250,10 @@ let statics_refractor_tests = (
         let code = "let x = 1 in x";
         let z = mk_zipper(code);
         let info_map = mk_statics(z);
-        switch (HighLevelNodeMap.build(z, info_map)) {
+        switch (Some(outline_of(z))) {
         | None => Alcotest.fail("expected high-level node map")
         | Some(nm) =>
-          switch (HighLevelNodeMap.Public.path_to_id_opt(nm, "x")) {
+          switch (path_id(nm, "x")) {
           | None => Alcotest.fail("expected path x")
           | Some(id) =>
             let syntax = CachedSyntax.init(z);
@@ -3662,10 +3282,10 @@ let statics_refractor_tests = (
         let code = "let x = 1 in x";
         let z = mk_zipper(code);
         let info_map = mk_statics(z);
-        switch (HighLevelNodeMap.build(z, info_map)) {
+        switch (Some(outline_of(z))) {
         | None => Alcotest.fail("expected high-level node map")
         | Some(nm) =>
-          switch (HighLevelNodeMap.Public.path_to_id_opt(nm, "x")) {
+          switch (path_id(nm, "x")) {
           | None => Alcotest.fail("expected path x")
           | Some(id) =>
             let syntax = CachedSyntax.init(z);
@@ -3698,11 +3318,11 @@ let agent_tools_with_projectors_tests = (
   "AgentTools.WithProjectors",
   [
     test_case(
-      "update_definition replaces binding whose definition uses slider projector",
+      "replace :definition replaces binding whose definition uses slider projector",
       `Quick,
       () => {
         let code = {|let x = ^^slider(50) in x + 1|};
-        let result = apply_and_render(code, Update(Definition, "x", "100"));
+        let result = apply_and_render(code, Replace("x:definition", "100"));
         check_rendered(
           "slider projector def replaced",
           "let x = 100 in x + 1",
@@ -3711,12 +3331,12 @@ let agent_tools_with_projectors_tests = (
       },
     ),
     test_case(
-      "update_definition strips slider projector when new def is not an Int literal",
+      "replace :definition strips slider projector when new def is not an Int literal",
       `Quick,
       () => {
         let code = {|let speed = ^^slider(50) in speed|};
         let result =
-          apply_and_render(code, Update(Definition, "speed", "\"hello\""));
+          apply_and_render(code, Replace("speed:definition", "\"hello\""));
         check_rendered(
           "slider stripped for string def",
           "let speed = \"hello\" in speed",
@@ -3725,12 +3345,12 @@ let agent_tools_with_projectors_tests = (
       },
     ),
     test_case(
-      "update_definition replaces checkbox projector binding",
+      "replace :definition replaces checkbox projector binding",
       `Quick,
       () => {
         let code = {|let b = ^^check(true) in b|};
         let result =
-          apply_and_render(code, Update(Definition, "b", "false"));
+          apply_and_render(code, Replace("b:definition", "false"));
         check_rendered(
           "checkbox projector def replaced",
           "let b = false in b",
@@ -3739,11 +3359,11 @@ let agent_tools_with_projectors_tests = (
       },
     ),
     test_case(
-      "update_body works when a binding uses nested fold + slider projectors",
+      "replace => works when a binding uses nested fold + slider projectors",
       `Quick,
       () => {
         let code = {|let n = ^^fold(^^slider(10) + 1) in n|};
-        let result = apply_and_render(code, Update(Body, "n", "0"));
+        let result = apply_and_render(code, Replace("=>", "0"));
         check_rendered(
           "body update with nested projectors",
           "let n = ^^fold(^^slider(10) + 1) in 0",
@@ -3758,10 +3378,10 @@ let agent_tools_with_projectors_tests = (
         let code = {|let v = ^^slider(42) in v|};
         let z = mk_zipper(code);
         let info_map = mk_statics(z);
-        switch (HighLevelNodeMap.build(z, info_map)) {
+        switch (Some(outline_of(z))) {
         | None => Alcotest.fail("expected high-level node map")
         | Some(nm) =>
-          switch (HighLevelNodeMap.Public.path_to_id_opt(nm, "v")) {
+          switch (path_id(nm, "v")) {
           | None => Alcotest.fail("expected path v")
           | Some(id) =>
             let syntax = CachedSyntax.init(z);
@@ -3784,10 +3404,10 @@ let agent_tools_with_projectors_tests = (
         let code = {|let rows = ^^csv([]) in rows|};
         let z = mk_zipper(code);
         let info_map = mk_statics(z);
-        switch (HighLevelNodeMap.build(z, info_map)) {
+        switch (Some(outline_of(z))) {
         | None => Alcotest.fail("expected high-level node map")
         | Some(nm) =>
-          switch (HighLevelNodeMap.Public.path_to_id_opt(nm, "rows")) {
+          switch (path_id(nm, "rows")) {
           | None => Alcotest.fail("expected path rows")
           | Some(id) =>
             let syntax = CachedSyntax.init(z);
@@ -3800,43 +3420,6 @@ let agent_tools_with_projectors_tests = (
               )
             };
           }
-        };
-      },
-    ),
-  ],
-);
-
-/* ============================================================
-   GENERAL TREE — get_refs_to_after_pattern_edit vs get_refs_to
-   ============================================================ */
-
-let general_tree_refs_tests = (
-  "AgentTools.GeneralTreeRefs",
-  [
-    test_case(
-      "get_refs_to_after_pattern_edit matches get_refs_to when pre/post let info agree",
-      `Quick,
-      () => {
-        let code = "let k = 1 in k + k";
-        let z = mk_zipper(code);
-        let info_map = mk_statics(z);
-        switch (HighLevelNodeMap.build(z, info_map)) {
-        | None => Alcotest.fail("expected node map")
-        | Some(nm) =>
-          let node = HighLevelNodeMap.path_to_node(nm, "k");
-          let co_plain = GeneralTreeUtils.get_refs_to(node.info, info_map);
-          let co_hybrid =
-            GeneralTreeUtils.get_refs_to_after_pattern_edit(
-              ~pre_edit_let_info=node.info,
-              ~post_edit_let_info=node.info,
-              info_map,
-            );
-          check(
-            string,
-            "co_ctx same as plain get_refs_to",
-            CoCtx.show(co_plain),
-            CoCtx.show(co_hybrid),
-          );
         };
       },
     ),
@@ -3862,12 +3445,7 @@ let ascribed_binding_tests = (
       `Quick,
       () => {
         let node_map = build_node_map("let x : Int = 1 in x");
-        check(
-          bool,
-          "x present",
-          true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "x") != None,
-        );
+        check(bool, "x present", true, path_id(node_map, "x") != None);
       },
     ),
     test_case(
@@ -3875,18 +3453,8 @@ let ascribed_binding_tests = (
       `Quick,
       () => {
         let node_map = build_node_map("type T = Int in let x : T = 1 in x");
-        check(
-          bool,
-          "x present",
-          true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "x") != None,
-        );
-        check(
-          bool,
-          "T present",
-          true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "T") != None,
-        );
+        check(bool, "x present", true, path_id(node_map, "x") != None);
+        check(bool, "T present", true, path_id(node_map, "T") != None);
       },
     ),
     test_case(
@@ -3901,7 +3469,7 @@ let ascribed_binding_tests = (
           bool,
           "x present at end of type chain",
           true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "x") != None,
+          path_id(node_map, "x") != None,
         );
       },
     ),
@@ -3915,69 +3483,64 @@ let ascribed_binding_tests = (
           bool,
           "outer/inner present",
           true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "outer/inner") != None,
+          path_id(node_map, "outer/inner") != None,
         );
         check(
           bool,
           "bare inner not ambiguously at top level",
           true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "inner") == None,
+          path_id(node_map, "inner") == None,
         );
       },
     ),
     test_case(
-      "delete_binding_clause on simple ascribed let (body preserved, x becomes free)",
+      "delete on simple ascribed let (body preserved)",
       `Quick,
       () => {
-        let result =
-          apply_and_render(
-            "let x : Int = 1 in x + 1",
-            Delete(BindingClause, "x"),
-          );
-        check_rendered("delete ascribed x", "x + 1", result);
+        let result = apply_and_render("let x : Int = 1 in 2", Delete("x"));
+        check_rendered("delete ascribed x", "2", result);
       },
     ),
     test_case(
-      "delete_binding_clause on ascribed let in middle of chain",
+      "delete on ascribed let in middle of chain",
       `Quick,
       () => {
         let result =
           apply_and_render(
-            "let a = 1 in let b : Int = 2 in let c = 3 in a + b + c",
-            Delete(BindingClause, "b"),
+            "let a = 1 in let b : Int = 2 in let c = 3 in a + c",
+            Delete("b"),
           );
         check_rendered(
           "delete ascribed middle b",
-          "let a = 1 in let c = 3 in a + b + c",
+          "let a = 1 in let c = 3 in a + c",
           result,
         );
       },
     ),
     test_case(
-      "delete_binding_clause on ascribed let following type chain",
+      "delete on ascribed let following type chain",
       `Quick,
       () => {
         let result =
           apply_and_render(
-            "type T = Int in let x : T = 1 in x",
-            Delete(BindingClause, "x"),
+            "type T = Int in let x : T = 1 in 0",
+            Delete("x"),
           );
         check_rendered(
           "delete x after type chain",
-          "type T = Int in x",
+          "type T = Int in 0",
           result,
         );
       },
     ),
     test_case(
-      "delete_binding_clause on ascribed let with complex list-literal body",
+      "delete on ascribed let with complex list-literal body",
       `Quick,
       () => {
         /* Shape close to chess: ascribed let whose definition is a nested
            list literal of constructor applications. */
         let code = "type Color = + White + Black in type Board = [[Color]] in let initial : Board = [[White, Black], [Black, White]] in ?";
-        let result =
-          apply_and_render(code, Delete(BindingClause, "initial"));
+        let result = apply_and_render(code, Delete("initial"));
         check_rendered(
           "delete ascribed let with list-literal def",
           "type Color = + White + Black in type Board = [[Color]] in ?",
@@ -3986,11 +3549,11 @@ let ascribed_binding_tests = (
       },
     ),
     test_case(
-      "delete_body on ascribed let",
+      "replace => after an ascribed let",
       `Quick,
       () => {
         let result =
-          apply_and_render("let x : Int = 1 in x + 2", Delete(Body, "x"));
+          apply_and_render("let x : Int = 1 in x + 2", Replace("=>", "?"));
         check_rendered(
           "delete body of ascribed x",
           "let x : Int = 1 in ?",
@@ -3999,13 +3562,13 @@ let ascribed_binding_tests = (
       },
     ),
     test_case(
-      "update_definition on ascribed let preserves ascription",
+      "replace :definition on ascribed let preserves ascription",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let x : Int = 1 in x + 1",
-            Update(Definition, "x", "42"),
+            Replace("x:definition", "42"),
           );
         check_rendered(
           "update def of ascribed x",
@@ -4015,13 +3578,13 @@ let ascribed_binding_tests = (
       },
     ),
     test_case(
-      "update_binding_clause replaces whole let header incl. ascription",
+      "replace replaces whole let header incl. ascription",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let x : Int = 1 in x",
-            Update(BindingClause, "x", "let x : Float = 1.0 in"),
+            Replace("x", "let x : Float = 1.0 in"),
           );
         check_rendered(
           "update binding clause with new ascription",
@@ -4031,13 +3594,13 @@ let ascribed_binding_tests = (
       },
     ),
     test_case(
-      "insert_before ascribed let",
+      "insert before ascribed let",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let x : Int = 1 in x",
-            Insert(Before, "x", "let y : Int = 2 in"),
+            Insert(Before("x"), "let y : Int = 2 in"),
           );
         check_rendered(
           "insert ascribed let before ascribed let",
@@ -4047,13 +3610,13 @@ let ascribed_binding_tests = (
       },
     ),
     test_case(
-      "insert_after ascribed let",
+      "insert after ascribed let",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let x : Int = 1 in x",
-            Insert(After, "x", "let y : Int = 2 in"),
+            Insert(After("x"), "let y : Int = 2 in"),
           );
         check_rendered(
           "insert ascribed let after ascribed let",
@@ -4068,18 +3631,18 @@ let ascribed_binding_tests = (
       () => {
         /* Matches the live-reproducer setup: 5 type aliases + an ascribed let
            with a deeply nested list-literal body. Deleting every binding in
-           turn should end at an all-holes program. */
+           turn, users first, should end at an all-holes program. */
         let code = "type Color = + White + Black in type PieceType = + Pawn + Knight + Bishop + Rook + Queen + King in type Piece = (Color, PieceType) in type Square = + Empty + Occupied(Piece) in type Board = [[Square]] in let initial_board : Board = [[Occupied((White, Rook))]] in ?";
         let result =
           apply_chain_render(
             code,
             [
-              Delete(BindingClause, "Color"),
-              Delete(BindingClause, "PieceType"),
-              Delete(BindingClause, "Piece"),
-              Delete(BindingClause, "Square"),
-              Delete(BindingClause, "Board"),
-              Delete(BindingClause, "initial_board"),
+              Delete("initial_board"),
+              Delete("Board"),
+              Delete("Square"),
+              Delete("Piece"),
+              Delete("PieceType"),
+              Delete("Color"),
             ],
           );
         check_rendered("deleting all bindings leaves hole", "?", result);
@@ -4089,7 +3652,7 @@ let ascribed_binding_tests = (
       "verbatim chess program: Piece is present in node map",
       `Quick,
       () => {
-        /* Exact program from the live-editor repro. `delete_binding_clause Piece`
+        /* Exact program from the live-editor repro. `delete Piece`
            reportedly fails with "Path 'Piece' not found in node map" even though
            `type Piece = (Color, PieceType) in` is clearly present. This test
            reproduces the full program verbatim and asserts every top-level
@@ -4100,150 +3663,98 @@ let ascribed_binding_tests = (
           bool,
           "Color present",
           true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "Color") != None,
+          path_id(node_map, "Color") != None,
         );
         check(
           bool,
           "PieceType present",
           true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "PieceType") != None,
+          path_id(node_map, "PieceType") != None,
         );
         check(
           bool,
           "Piece present",
           true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "Piece") != None,
+          path_id(node_map, "Piece") != None,
         );
         check(
           bool,
           "Square present",
           true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "Square") != None,
+          path_id(node_map, "Square") != None,
         );
         check(
           bool,
           "Board present",
           true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "Board") != None,
+          path_id(node_map, "Board") != None,
         );
         check(
           bool,
           "initial_board present",
           true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "initial_board") != None,
+          path_id(node_map, "initial_board") != None,
         );
       },
     ),
     test_case(
-      "verbatim chess program: delete_binding_clause Piece succeeds",
+      "verbatim chess program: delete Piece finds it, and its use",
       `Quick,
       () => {
         /* Single action repro of the exact user flow: send the chess program,
            ask to delete `Piece`. Should succeed (the binding exists). */
         let code = "type Color = + White + Black in type PieceType = + Pawn + Knight + Bishop + Rook + Queen + King in type Piece = (Color, PieceType) in type Square = + Empty + Occupied(Piece) in type Board = [[Square]] in let initial_board : Board = [\n    [Occupied((White, Rook)), Occupied((White, Knight)), Occupied((White, Bishop)), Occupied((White, Queen)), Occupied((White, King)), Occupied((White, Bishop)), Occupied((White, Knight)), Occupied((White, Rook))],\n    [Occupied((White, Pawn)), Occupied((White, Pawn)), Occupied((White, Pawn)), Occupied((White, Pawn)), Occupied((White, Pawn)), Occupied((White, Pawn)), Occupied((White, Pawn)), Occupied((White, Pawn))],\n    [Empty, Empty, Empty, Empty, Empty, Empty, Empty, Empty],\n    [Empty, Empty, Empty, Empty, Empty, Empty, Empty, Empty],\n    [Empty, Empty, Empty, Empty, Empty, Empty, Empty, Empty],\n    [Empty, Empty, Empty, Empty, Empty, Empty, Empty, Empty],\n    [Occupied((Black, Pawn)), Occupied((Black, Pawn)), Occupied((Black, Pawn)), Occupied((Black, Pawn)), Occupied((Black, Pawn)), Occupied((Black, Pawn)), Occupied((Black, Pawn)), Occupied((Black, Pawn))],\n    [Occupied((Black, Rook)), Occupied((Black, Knight)), Occupied((Black, Bishop)), Occupied((Black, Queen)), Occupied((Black, King)), Occupied((Black, Bishop)), Occupied((Black, Knight)), Occupied((Black, Rook))]\n] in ?";
-        let result = apply_and_render(code, Delete(BindingClause, "Piece"));
-        /* We just assert the action didn't raise / didn't produce the "not
-           found" failure string. Any non-failure render is acceptable here —
-           this test is about proving the binding is discoverable. */
-        check(
-          bool,
-          "delete Piece did not emit 'not found in node map' failure",
-          false,
-          Util.StringUtil.plain_search("not found in node map", result, 0)
-          >= 0,
-        );
-      },
-    ),
-    test_case(
-      "get_diff after Delete(BindingClause) does not raise when path vanishes",
-      `Quick,
-      () => {
-        /* Regression for the live-editor bug the ascribed-binding suite couldn't
-           reach: `apply_and_render` only exercises [[Perform.go]], but the
-           agent's diff-rendering path calls [[CompositionGo.Local.get_diff]]
-           on (old_zipper, new_zipper) AFTER the delete has succeeded. That
-           code used to call [[path_to_id]] on the new node map, which
-           (correctly) no longer contains the deleted binding — so every
-           successful delete surfaced to the agent as a tool-call failure. */
-        let code = "type Color = + White + Black in type Piece = (Color, Color) in let x = 1 in x";
-        let old_z = mk_zipper(code);
-        switch (
-          Perform.go(
-            ~settings=CoreSettings.on,
-            ~statics=CachedStatics.empty,
-            ~syntax=CachedSyntax.init(old_z),
-            Structural(Delete(BindingClause, "Piece")),
-            {
-              zipper: old_z,
-              col_target: None,
-            },
-            ~root=Exp,
+        /* the binding is found; Square still uses it, so the delete is
+           refused naming that use */
+        switch (run_agent_action(code, Delete("Piece"))) {
+        | Error(Composition_action_failure(msg)) =>
+          check(
+            bool,
+            "names its use: " ++ msg,
+            true,
+            Util.StringUtil.plain_search("used at Square", msg, 0) >= 0,
           )
-        ) {
-        | Error(e) =>
-          Alcotest.fail("Delete itself failed: " ++ Action.Failure.show(e))
-        | Ok(new_z) =>
-          let syntax = CachedSyntax.init(old_z);
-          let diff =
-            CompositionGo.Local.get_diff(
-              old_z,
-              new_z,
-              Delete(BindingClause, "Piece"),
-              mk_statics,
-              ~old_syntax=syntax,
-              ~new_syntax=CachedSyntax.init(new_z),
-            );
-          switch (diff) {
-          | None => Alcotest.fail("get_diff returned None unexpectedly")
-          | Some((_old_seg, new_seg)) =>
-            check(
-              bool,
-              "new_segment is None for BindingClause delete",
-              true,
-              new_seg == None,
-            )
-          };
+        | Ok(_) => Alcotest.fail("deleted a type still in use")
+        | Error(e) => Alcotest.fail(Action.Failure.show(e))
         };
       },
     ),
     test_case(
-      "get_diff after Delete(BindingClause) on chess program does not raise",
+      "a delete's diff is its entry before, and nothing after",
       `Quick,
       () => {
-        /* Same bug, full chess program — matches the exact shape the user
-           captured in the live editor. */
-        let code = "type Color = + White + Black in type PieceType = + Pawn + Knight in type Piece = (Color, PieceType) in type Square = + Empty + Occupied(Piece) in type Board = [[Square]] in let initial_board : Board = [[Occupied((White, Pawn))]] in ?";
-        let old_z = mk_zipper(code);
+        let code = "type Color = + White + Black in type Piece = (Color, Color) in let x = 1 in x";
         switch (
-          Perform.go(
-            ~settings=CoreSettings.on,
-            ~statics=CachedStatics.empty,
-            ~syntax=CachedSyntax.init(old_z),
-            Structural(Delete(BindingClause, "Piece")),
-            {
-              zipper: old_z,
-              col_target: None,
-            },
-            ~root=Exp,
-          )
+          CompositionGo.Reply.add(reply_on(code), ~index=0, Delete("Piece"))
         ) {
-        | Error(e) =>
-          Alcotest.fail("Delete itself failed: " ++ Action.Failure.show(e))
-        | Ok(new_z) =>
-          let syntax = CachedSyntax.init(old_z);
-          /* Before fix, this raised:
-               Failure "Path \"Piece\" not found in node map ..."
-             Now should return Some((old, None)). */
-          let diff =
-            CompositionGo.Local.get_diff(
-              old_z,
-              new_z,
-              Delete(BindingClause, "Piece"),
-              mk_statics,
-              ~old_syntax=syntax,
-              ~new_syntax=CachedSyntax.init(new_z),
-            );
-          check(bool, "diff computation did not raise", true, diff != None);
+        | Error(e) => Alcotest.fail("delete failed: " ++ e)
+        | Ok(r) =>
+          let m = List.hd(CompositionGo.Reply.made(r));
+          check(
+            option(pair(string, option(string))),
+            "old entry, no new one",
+            Some(("type Piece = (Color, Color) in", None)),
+            CompositionGo.diff(~root=Exp, m),
+          );
+        };
+      },
+    ),
+    test_case(
+      "deleting a type still used is refused, naming its uses",
+      `Quick,
+      () => {
+        /* the chess program the live editor captured: Square uses Piece */
+        let code = "type Color = + White + Black in type PieceType = + Pawn + Knight in type Piece = (Color, PieceType) in type Square = + Empty + Occupied(Piece) in type Board = [[Square]] in let initial_board : Board = [[Occupied((White, Pawn))]] in ?";
+        switch (run_agent_action(code, Delete("Piece"))) {
+        | Ok(_) => Alcotest.fail("deleted a type still in use")
+        | Error(Composition_action_failure(msg)) =>
+          check(
+            bool,
+            "names the use: " ++ msg,
+            true,
+            Util.StringUtil.plain_search("Piece, used at Square", msg, 0) >= 0,
+          )
+        | Error(e) => Alcotest.fail(Action.Failure.show(e))
         };
       },
     ),
@@ -4275,11 +3786,11 @@ test fib(10) == 55 end;
 fib(10)|};
         let z = mk_zipper(code);
         let info_map = mk_statics(z);
-        switch (HighLevelNodeMap.build(z, info_map)) {
+        switch (Some(outline_of(z))) {
         | None =>
           Alcotest.fail("expected high-level node map for fib program")
         | Some(nm) =>
-          switch (HighLevelNodeMap.Public.path_to_id_opt(nm, "fib")) {
+          switch (path_id(nm, "fib")) {
           | None => Alcotest.fail("expected path fib to resolve")
           | Some(id) =>
             let syntax = CachedSyntax.init(z);
@@ -4291,7 +3802,7 @@ fib(10)|};
               true,
               Id.Map.cardinal(info_map2) > 0,
             );
-            switch (HighLevelNodeMap.build(z2, info_map2)) {
+            switch (Some(outline_of(z2))) {
             | None =>
               Alcotest.fail("node_map rebuild returned None after probe")
             | Some(_) => ()
@@ -4350,13 +3861,64 @@ let rename_and_path_safety_tests = (
   "AgentTools.RenameAndPathSafety",
   [
     test_case(
+      "rename refuses what has no name, and a non-name",
+      `Quick,
+      () => {
+        expect_failure_mentioning(
+          "let a = 1 in test a == 1 end; a",
+          Rename("test#1", None, "b"),
+          ["is a test", "only a definition, type or module"],
+          "rename_test",
+        );
+        expect_failure_mentioning(
+          "let ? = 5 in 3",
+          Rename("let#1", None, "x"),
+          ["binds no name"],
+          "rename_binderless",
+        );
+        expect_failure_mentioning(
+          "let a = 1 in a",
+          Rename("a", None, "B"),
+          ["is not a value's name"],
+          "rename_non_name",
+        );
+      },
+    ),
+    test_case(
+      "code that copies the view's `#› … #` comments is refused",
+      `Quick,
+      () => {
+        let why = {js|`#› … #` comments are added by Hazel|js};
+        expect_failure_mentioning(
+          "let a = 1 in a",
+          Insert(After("a"), {js|let b = a + 1  #› 1 use #|js}),
+          [why],
+          "insert_view_comment",
+        );
+        expect_failure_mentioning(
+          "let a = 1 in a",
+          Replace("a:definition", {js|2  #› ≡ 2 #|js}),
+          [why],
+          "replace_view_comment",
+        );
+        check_rendered(
+          "a program comment still goes in",
+          "let a = # one # 1 in a",
+          apply_and_render(
+            "let a = 1 in a",
+            Replace("a:definition", "# one # 1"),
+          ),
+        );
+      },
+    ),
+    test_case(
       "sanity: normal rename still works",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let a = 1 in let b = a + 1 in b + a",
-            Update(Pattern, "a", "q"),
+            Rename("a", None, "q"),
           );
         check_rendered(
           "rename_sanity",
@@ -4372,8 +3934,8 @@ let rename_and_path_safety_tests = (
       =>
         expect_failure_mentioning(
           "let x = 1 in let y = 2 in x + y",
-          Update(Pattern, "x", "y"),
-          ["already occurs", "\"y\""],
+          Rename("x", None, "y"),
+          ["Not renamed to y", "change what they refer to"],
           "rename_to_shadowing_name",
         )
       ),
@@ -4384,21 +3946,20 @@ let rename_and_path_safety_tests = (
       =>
         expect_failure_mentioning(
           "let a = 1 in let b = 2 in a + b",
-          Update(Pattern, "b", "a"),
-          ["already occurs", "\"a\""],
+          Rename("b", None, "a"),
+          ["Not renamed to a", "change what they refer to"],
           "rename_captures_outer_reference",
         )
       ),
-    test_case("tuple-pattern arity change is rejected", `Quick, ()
-      /* Old binds 2 names, new binds 3: old->new use-site mapping is
-         ambiguous, so this must hard-error instead of silently leaving
-         stale references. Definition is a hole so the pattern itself
-         stays statically OK and the arity check is what fires. */
+    test_case(
+      "tuple-pattern shape change leaving uses unbound is rejected", `Quick, ()
+      /* not a rename: the pattern is replaced, and the error check finds
+         x and y unbound */
       =>
         expect_failure_mentioning(
           "let (x, y) = ? in x + y",
-          Update(Pattern, "(x, y)", "(a, b, c)"),
-          ["Cannot rewrite use sites", "binds 2 name(s)", "binds 3"],
+          Replace("x:pattern", "(a, b, c)"),
+          ["static errors", "Variable x is not bound"],
           "rename_tuple_arity_mismatch",
         )
       ),
@@ -4407,10 +3968,7 @@ let rename_and_path_safety_tests = (
       `Quick,
       () => {
         let result =
-          apply_and_render(
-            "let ? = 5 in 3",
-            Update(Pattern, "{empty pattern hole}", "x"),
-          );
+          apply_and_render("let ? = 5 in 3", Replace("let#1:pattern", "x"));
         check_rendered("rename_hole_pattern", "let x = 5 in 3", result);
       },
     ),
@@ -4418,8 +3976,8 @@ let rename_and_path_safety_tests = (
       "ambiguous path to edit tool yields disambiguation error", `Quick, () =>
       expect_failure_mentioning(
         "let x = 1 in let x = 2 in x",
-        Update(Definition, "x", "9"),
-        ["ambiguous", "\"x#1\"", "\"x#2\""],
+        Replace("x:definition", "9"),
+        ["ambiguous", "x#1", "x#2"],
         "ambiguous_path_edit",
       )
     ),
@@ -4430,7 +3988,7 @@ let rename_and_path_safety_tests = (
         let result =
           apply_and_render(
             "let x = 1 in let x = 2 in x",
-            Update(Definition, "x#2", "9"),
+            Replace("x#2:definition", "9"),
           );
         check_rendered(
           "disambiguated_edit",
@@ -4448,64 +4006,47 @@ let rename_and_path_safety_tests = (
           bool,
           "bare shadowed path is None",
           true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "x") == None,
+          path_id(node_map, "x") == None,
         );
-        let id1 = HighLevelNodeMap.path_to_id_opt(node_map, "x#1");
-        let id2 = HighLevelNodeMap.path_to_id_opt(node_map, "x#2");
+        let id1 = path_id(node_map, "x#1");
+        let id2 = path_id(node_map, "x#2");
         check(bool, "x#1 resolves", true, id1 != None);
         check(bool, "x#2 resolves", true, id2 != None);
         check(bool, "x#1 and x#2 differ", true, id1 != id2);
-        switch (id1, id2) {
-        | (Some(id1), Some(id2)) =>
-          check(
-            int,
-            "x#1 is earliest (sibling_idx 0)",
-            0,
-            HighLevelNodeMap.find(node_map, id1).sibling_idx,
+        let order =
+          List.map(
+            (e: Outline.entry) => Some(e.id),
+            Outline.all(node_map),
           );
-          check(
-            int,
-            "x#2 is second (sibling_idx 1)",
-            1,
-            HighLevelNodeMap.find(node_map, id2).sibling_idx,
-          );
-        | _ => ()
-        };
+        check(
+          list(option(testable(Fmt.of_to_string(Id.str3), Id.equal))),
+          "x#1, then x#2, in program order",
+          [id1, id2],
+          List.filter(id => id == id1 || id == id2, order),
+        );
         check(
           bool,
           "out-of-range occurrence is None",
           true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "x#3") == None,
+          path_id(node_map, "x#3") == None,
         );
       },
     ),
     test_case(
-      "node map: path_to_id raises listing disambiguated paths",
+      "an ambiguous path's error lists the disambiguated paths",
       `Quick,
       () => {
-        let node_map = build_node_map("let x = 1 in let x = 2 in x");
-        switch (HighLevelNodeMap.path_to_id(node_map, "x")) {
-        | _ => Alcotest.fail("expected ambiguity failure for bare \"x\"")
-        | exception (Failure(msg)) =>
-          check(
-            bool,
-            "message flags ambiguity: " ++ msg,
-            true,
-            contains_str(~needle="ambiguous", msg),
-          );
-          check(
-            bool,
-            "message lists x#1: " ++ msg,
-            true,
-            contains_str(~needle="\"x#1\"", msg),
-          );
-          check(
-            bool,
-            "message lists x#2: " ++ msg,
-            true,
-            contains_str(~needle="\"x#2\"", msg),
-          );
-        };
+        let msg = path_error("let x = 1 in let x = 2 in x", "x");
+        List.iter(
+          needle =>
+            check(
+              bool,
+              "mentions " ++ needle ++ ": " ++ msg,
+              true,
+              contains_str(~needle, msg),
+            ),
+          ["ambiguous", "x#1", "x#2"],
+        );
       },
     ),
     test_case(
@@ -4517,7 +4058,7 @@ let rename_and_path_safety_tests = (
           bool,
           "unique path resolves",
           true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "b") != None,
+          path_id(node_map, "b") != None,
         );
       },
     ),
@@ -4532,42 +4073,40 @@ let paste_funnel_tests = (
   "AgentTools.PasteFunnel",
   [
     test_case(
-      "update_definition strips then re-indents canonically", `Quick, () => {
+      "replace :definition strips then re-indents canonically", `Quick, () => {
       check_rendered_exact(
         "update_definition_indented",
-        "let a = fun x ->\n  x + 1 in a",
+        "let a = fun x ->\n  x + 1\nin a",
         apply_and_render(
           "let a = 1 in a",
-          Update(Definition, "a", "fun x ->\n  x + 1"),
+          Replace("a:definition", "fun x ->\n  x + 1"),
         ),
       )
     }),
-    test_case("update_body strips per-line leading indentation", `Quick, () => {
+    test_case("replace keeps the code's own indentation", `Quick, () => {
+      /* formatting is local: new code keeps its lines' relative
+         indentation, at its place's */
       check_rendered_exact(
-        "update_body_indented",
-        "let a = 1 in let b = 2 in\na + b",
+        "replace_indented",
+        "let a = 1 in let b = 2 in\n  a + b",
         apply_and_render(
           "let a = 1 in a",
-          Update(Body, "a", "let b = 2 in\n  a + b"),
+          Replace("=>", "let b = 2 in\n  a + b"),
         ),
       )
     }),
-    test_case("update_pattern strips leading indentation", `Quick, () => {
+    test_case("rename strips leading indentation", `Quick, () => {
       check_rendered_exact(
         "update_pattern_indented",
         "let b = 1 in b",
-        apply_and_render("let a = 1 in a", Update(Pattern, "a", "  b")),
+        apply_and_render("let a = 1 in a", Rename("a", None, "  b")),
       )
     }),
-    test_case(
-      "update_binding_clause strips then re-indents canonically", `Quick, () => {
+    test_case("replace strips then re-indents canonically", `Quick, () => {
       check_rendered_exact(
         "update_binding_clause_indented",
-        "let a =\n  2 in a",
-        apply_and_render(
-          "let a = 1 in a",
-          Update(BindingClause, "a", "let a =\n  2 in"),
-        ),
+        "let a =\n  2\nin a",
+        apply_and_render("let a = 1 in a", Replace("a", "let a =\n  2 in")),
       )
     }),
     test_case("Perform-level insert strips leading indentation", `Quick, () => {
@@ -4575,17 +4114,17 @@ let paste_funnel_tests = (
          the trim must live at the paste funnel, not per tool arm */
       check_rendered_exact(
         "insert_perform_level_indented",
-        "let a = 1 in\n\nlet c = 3 in\na",
+        "let a = 1 in let c = 3 in a",
         apply_and_render(
           "let a = 1 in a",
-          Insert(After, "a", "  let c = 3 in"),
+          Insert(After("a"), "  let c = 3 in"),
         ),
       )
     }),
     test_case("insert of `let eval = ...` fails naming keyword", `Quick, () => {
       expect_failure_mentioning(
         "let a = 1 in a",
-        Insert(After, "a", "let eval = 1 in"),
+        Insert(After("a"), "let eval = 1 in"),
         [
           "Note: `eval` is a reserved keyword in Hazel and cannot be used as a variable name.",
         ],
@@ -4598,7 +4137,7 @@ let paste_funnel_tests = (
         "let a = 1 in let evalStep = 1 in a",
         apply_and_render(
           "let a = 1 in a",
-          Insert(After, "a", "let evalStep = 1 in"),
+          Insert(After("a"), "let evalStep = 1 in"),
         ),
       )
     }),
@@ -4608,7 +4147,7 @@ let paste_funnel_tests = (
         "let a = 1 in let f = fun n -> n(0) in a",
         apply_and_render(
           "let a = 1 in a",
-          Insert(After, "a", "let f = fun n -> n(0) in"),
+          Insert(After("a"), "let f = fun n -> n(0) in"),
         ),
       )
     }),
@@ -4620,7 +4159,7 @@ let paste_funnel_tests = (
         "let a = 1 in let f = fun n -> f(0) in a",
         apply_and_render(
           "let a = 1 in a",
-          Insert(After, "a", "let f = fun n -> f(0) in"),
+          Insert(After("a"), "let f = fun n -> f(0) in"),
         ),
       )
     }),
@@ -4631,18 +4170,17 @@ let paste_funnel_tests = (
         apply_and_render(
           "let a = 1 in a",
           Insert(
-            After,
-            "a",
+            After("a"),
             "let f : Int -> Int = fun n -> if n < 1 then 0 else f(n - 1) in",
           ),
         ),
       )
     }),
     test_case(
-      "update_body with annotated `let eval` fails naming keyword", `Quick, () => {
+      "replace => with annotated `let eval` fails naming keyword", `Quick, () => {
       expect_failure_mentioning(
         "let a = 1 in a",
-        Update(Body, "a", "let eval : Int -> Int = fun t -> t in ?"),
+        Replace("=>", "let eval : Int -> Int = fun t -> t in ?"),
         ["`eval` is a reserved keyword"],
         "update_body_let_eval",
       )
@@ -4657,7 +4195,7 @@ let paste_funnel_tests = (
         "let a = 1 in let msg = \"let eval\" in a",
         apply_and_render(
           "let a = 1 in a",
-          Insert(After, "a", "let msg = \"let eval\" in"),
+          Insert(After("a"), "let msg = \"let eval\" in"),
         ),
       )
     }),
@@ -4666,7 +4204,7 @@ let paste_funnel_tests = (
       switch (
         run_agent_action(
           "let a = 1 in a",
-          Insert(After, "a", "let b = unboundvar in"),
+          Insert(After("a"), "let b = unboundvar in"),
         )
       ) {
       | Ok(_) => Alcotest.fail("expected static-error failure")
@@ -4697,21 +4235,19 @@ let fn_sugar_tests = (
       "sugared fn is addressed by bare head name",
       `Quick,
       () => {
-        let node_map =
-          build_node_map("let contains(xs, y) = 1 in contains([], 2)");
-        let id = HighLevelNodeMap.path_to_id(node_map, "contains");
+        let code = "let contains(xs, y) = 1 in contains([], 2)";
+        let node_map = build_node_map(code);
         check(
-          string,
+          option(string),
           "name is bare head",
-          "contains",
-          HighLevelNodeMap.id_to_name(node_map, id),
+          Some("contains"),
+          resolved(code, "contains"),
         );
         check(
           bool,
           "full rendered pattern is not a path",
           true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "contains((xs, y))")
-          == None,
+          path_id(node_map, "contains((xs, y))") == None,
         );
       },
     ),
@@ -4720,25 +4256,15 @@ let fn_sugar_tests = (
       `Quick,
       () => {
         let nm1 = build_node_map("let inc(x) = x + 1 in inc(1)");
-        check(
-          bool,
-          "one-param path",
-          true,
-          HighLevelNodeMap.path_to_id_opt(nm1, "inc") != None,
-        );
+        check(bool, "one-param path", true, path_id(nm1, "inc") != None);
         let nm0 = build_node_map("let f() = 3 in f()");
-        check(
-          bool,
-          "zero-param path",
-          true,
-          HighLevelNodeMap.path_to_id_opt(nm0, "f") != None,
-        );
+        check(bool, "zero-param path", true, path_id(nm0, "f") != None);
         let nm_asc = build_node_map("let g(x): Int = x in g(1)");
         check(
           bool,
           "return-annotated path",
           true,
-          HighLevelNodeMap.path_to_id_opt(nm_asc, "g") != None,
+          path_id(nm_asc, "g") != None,
         );
       },
     ),
@@ -4751,24 +4277,14 @@ let fn_sugar_tests = (
           bool,
           "bare shared name is None",
           true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "f") == None,
+          path_id(node_map, "f") == None,
         );
-        check(
-          bool,
-          "f#1 resolves",
-          true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "f#1") != None,
-        );
-        check(
-          bool,
-          "f#2 resolves",
-          true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "f#2") != None,
-        );
+        check(bool, "f#1 resolves", true, path_id(node_map, "f#1") != None);
+        check(bool, "f#2 resolves", true, path_id(node_map, "f#2") != None);
         expect_failure_mentioning(
           "let f(x) = x in let f = 1 in f",
-          Update(Definition, "f", "9"),
-          ["ambiguous", "\"f#1\"", "\"f#2\""],
+          Replace("f:definition", "9"),
+          ["ambiguous", "f#1", "f#2"],
           "fn_sugar_ambiguous_edit",
         );
       },
@@ -4780,7 +4296,7 @@ let fn_sugar_tests = (
         let result =
           apply_and_render(
             "let f(x) = x in let f = 1 in f",
-            Update(Definition, "f#2", "9"),
+            Replace("f#2:definition", "9"),
           );
         check_rendered(
           "fn_sugar_hash_k_edit",
@@ -4790,13 +4306,13 @@ let fn_sugar_tests = (
       },
     ),
     test_case(
-      "update_definition replaces RHS of sugared fn",
+      "replace :definition replaces RHS of sugared fn",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let inc(x) = x + 1 in inc(3)",
-            Update(Definition, "inc", "x + 2"),
+            Replace("inc:definition", "x + 2"),
           );
         check_rendered(
           "fn_sugar_update_def",
@@ -4806,13 +4322,13 @@ let fn_sugar_tests = (
       },
     ),
     test_case(
-      "update_body on sugared fn",
+      "replace => after a sugared fn",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let inc(x) = x + 1 in inc(3)",
-            Update(Body, "inc", "inc(10)"),
+            Replace("=>", "inc(10)"),
           );
         check_rendered(
           "fn_sugar_update_body",
@@ -4822,13 +4338,13 @@ let fn_sugar_tests = (
       },
     ),
     test_case(
-      "update_binding_clause on sugared fn",
+      "replace on sugared fn",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let inc(x) = x + 1 in inc(3)",
-            Update(BindingClause, "inc", "let inc(x) = x * 2 in"),
+            Replace("inc", "let inc(x) = x * 2 in"),
           );
         check_rendered(
           "fn_sugar_update_clause",
@@ -4838,25 +4354,25 @@ let fn_sugar_tests = (
       },
     ),
     test_case(
-      "delete_binding_clause on sugared fn",
+      "delete on sugared fn",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let a = 1 in let inc(x) = x + 1 in a",
-            Delete(BindingClause, "inc"),
+            Delete("inc"),
           );
         check_rendered("fn_sugar_delete_clause", "let a = 1 in a", result);
       },
     ),
     test_case(
-      "update_pattern renames fn keeping params; call sites update",
+      "rename renames fn keeping params; call sites update",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let inc(x) = x + 1 in inc(3) + inc(4)",
-            Update(Pattern, "inc", "bump(x)"),
+            Rename("inc", None, "bump"),
           );
         check_rendered(
           "fn_sugar_rename_fn",
@@ -4866,13 +4382,13 @@ let fn_sugar_tests = (
       },
     ),
     test_case(
-      "update_pattern renames recursive sugared fn incl. recursive call",
+      "rename renames recursive sugared fn incl. recursive call",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let fact(n) = if n < 2 then 1 else n * fact(n - 1) in fact(4)",
-            Update(Pattern, "fact", "f(n)"),
+            Rename("fact", None, "f"),
           );
         check_rendered(
           "fn_sugar_rename_recursive",
@@ -4881,38 +4397,12 @@ let fn_sugar_tests = (
         );
       },
     ),
-    test_case(
-      "update_pattern renames a param only",
-      `Quick,
-      () => {
-        let result =
-          apply_and_render(
-            "let inc(x) = x + 1 in inc(3)",
-            Update(Pattern, "inc", "inc(z)"),
-          );
-        check_rendered(
-          "fn_sugar_rename_param",
-          "let inc(z) = z + 1 in inc(3)",
-          result,
-        );
-      },
-    ),
-    test_case(
-      "param rename leaves same-named outer var in body untouched",
-      `Quick,
-      () => {
-        /* body `+ x` refers to the outer x, not the param */
-        let result =
-          apply_and_render(
-            "let x = 1 in let f(x) = x + 1 in f(2) + x",
-            Update(Pattern, "f", "f(z)"),
-          );
-        check_rendered(
-          "fn_sugar_param_rename_no_capture",
-          "let x = 1 in let f(z) = z + 1 in f(2) + x",
-          result,
-        );
-      },
+    test_case("a pattern replace leaving uses unbound is refused", `Quick, () =>
+      expect_composition_failure(
+        "let inc(x) = x + 1 in inc(3)",
+        Replace("inc:pattern", "inc(z)"),
+        "param_replace_unbinds",
+      )
     ),
     test_case(
       "param-count change on sugared fn is rejected with bound-name counts",
@@ -4922,8 +4412,8 @@ let fn_sugar_tests = (
       =>
         expect_failure_mentioning(
           "let inc(x) = x + 1 in inc(3)",
-          Update(Pattern, "inc", "inc(a, b)"),
-          ["Cannot rewrite use sites", "binds 2 name(s)", "binds 3"],
+          Replace("inc:pattern", "inc(a, b)"),
+          ["static errors", "Variable x is not bound"],
           "fn_sugar_param_arity_mismatch",
         )
       ),
@@ -4934,10 +4424,10 @@ let fn_sugar_tests = (
         let code = "let f(x) = x + 1 in f(2)";
         let z = mk_zipper(code);
         let info_map = mk_statics(z);
-        switch (HighLevelNodeMap.build(z, info_map)) {
+        switch (Some(outline_of(z))) {
         | None => Alcotest.fail("expected high-level node map")
         | Some(nm) =>
-          switch (HighLevelNodeMap.Public.path_to_id_opt(nm, "f")) {
+          switch (path_id(nm, "f")) {
           | None => Alcotest.fail("expected path f")
           | Some(id) =>
             let syntax = CachedSyntax.init(z);
@@ -4954,16 +4444,13 @@ let fn_sugar_tests = (
       "syntax projector target of sugared fn is its definition",
       `Quick,
       () => {
-        let node_map = build_node_map("let f(x) = x + 1 in f(2)");
+        let seg =
+          Zipper.unselect_and_zip(mk_zipper("let f(x) = x + 1 in f(2)"));
         check(
           bool,
           "def target resolves",
           true,
-          HighLevelNodeMap.path_to_syntax_projector_target_id_opt(
-            node_map,
-            "f",
-          )
-          != None,
+          Web.AgentToolCallHandler.definition_id(~root=Exp, seg, "f") != None,
         );
       },
     ),
@@ -4999,15 +4486,15 @@ let whitespace_normalization_tests = (
       () => {
         /* Live-session symptom: blank lines grew at program end as edits
            near it repeated (each insert's magic-newline wrap left a \n).
-           (update_body over a hole adds no linebreaks — space-pad only —
+           (replacing a hole adds no linebreaks — space-pad only —
            so the accumulation shape is insert-driven.) */
         let rendered =
           apply_chain_render(
             "let a = 1 in ?",
             [
-              Insert(After, "a", "let b = 2 in"),
-              Insert(After, "b", "let c = 3 in"),
-              Insert(After, "c", "let d = 4 in"),
+              Insert(After("a"), "let b = 2 in"),
+              Insert(After("b"), "let c = 3 in"),
+              Insert(After("c"), "let d = 4 in"),
             ],
           );
         check(
@@ -5016,34 +4503,52 @@ let whitespace_normalization_tests = (
           true,
           trailing_newlines(rendered) <= 1,
         );
+        /* a one-line chain stays on its line */
         check_rendered_exact(
           "chained insert_after spacing",
-          "let a = 1 in\n\nlet b = 2 in\n\nlet c = 3 in\n\nlet d = 4 in\n?",
+          "let a = 1 in let b = 2 in let c = 3 in let d = 4 in ?",
           rendered,
         );
       },
     ),
     test_case("prepend leaves no leading blank line", `Quick, () => {
-      switch (run_insert_at_program_boundary("1", Before, "let a = 2 in")) {
+      switch (
+        run_insert_at_program_boundary("1", Before(""), "let a = 2 in")
+      ) {
       | Ok(z) =>
         let rendered = render_zipper(z);
         check(bool, "no leading newline", false, leading_newline(rendered));
-        check_rendered_exact("prepend spacing", "let a = 2 in\n1", rendered);
+        check_rendered_exact(
+          "prepend spacing",
+          "let a = 2 in\n\n1",
+          rendered,
+        );
       | Error(err) =>
         Alcotest.fail("prepend failed: " ++ Action.Failure.show(err))
       }
     }),
     test_case(
-      "one blank line between consecutive top-level bindings", `Quick, () => {
-      check_rendered_exact(
-        "inter-binding blank line",
-        "let a = 1 in let b = 2 in\n\nlet c = 3 in\na + b",
-        apply_and_render(
-          "let a = 1 in let b = 2 in a + b",
-          Insert(After, "b", "let c = 3 in"),
-        ),
-      )
-    }),
+      "a new binding takes its neighbours' spacing",
+      `Quick,
+      () => {
+        check_rendered_exact(
+          "inline chain",
+          "let a = 1 in let b = 2 in let c = 3 in a + b",
+          apply_and_render(
+            "let a = 1 in let b = 2 in a + b",
+            Insert(After("b"), "let c = 3 in"),
+          ),
+        );
+        check_rendered_exact(
+          "blank lines between",
+          "let a = 1 in\n\nlet b = 2 in\n\nlet c = 3 in\n\na + b",
+          apply_and_render(
+            "let a = 1 in\n\nlet b = 2 in\n\na + b",
+            Insert(After("b"), "let c = 3 in"),
+          ),
+        );
+      },
+    ),
     test_case(
       "normalization is idempotent across edits",
       `Quick,
@@ -5053,7 +4558,7 @@ let whitespace_normalization_tests = (
           "let a = 5 in\n\nlet b = 2 in a",
           apply_and_render(
             "let a = 1 in\n\nlet b = 2 in a",
-            Update(Definition, "a", "5"),
+            Replace("a:definition", "5"),
           ),
         );
         check_rendered_exact(
@@ -5061,7 +4566,7 @@ let whitespace_normalization_tests = (
           "let a = 6 in\n\nlet b = 2 in a",
           apply_chain_render(
             "let a = 1 in\n\nlet b = 2 in a",
-            [Update(Definition, "a", "5"), Update(Definition, "a", "6")],
+            [Replace("a:definition", "5"), Replace("a:definition", "6")],
           ),
         );
       },
@@ -5073,7 +4578,7 @@ let whitespace_normalization_tests = (
         let rendered =
           apply_and_render(
             "let a = 1 in\n# note #\nlet b = 2 in a",
-            Update(Definition, "a", "5"),
+            Replace("a:definition", "5"),
           );
         check(
           bool,
@@ -5091,20 +4596,41 @@ let whitespace_normalization_tests = (
    ============================================================ */
 
 /* Module MEMBER operations: paths descend into module literals
-   ("m/x", "^w/init"). The node map chains through the statics expansion
+   ("m/x"). The node map chains through the statics expansion
    (wrapper Let/TyAlias keyed by Mod item ids), so the same eight tools
    work at member granularity. */
+/* a livelit definition: its `^name` binds, its literal's members are
+   paths as a module's */
+let livelit_src = "let ^pct = {\n  type T = Int;\n  let init = 50\n} in\n^pct(1)";
+
 let module_member_tests = (
   "AgentTools.ModuleMembers",
   [
+    test_case("a livelit's member: replace :definition", `Quick, () =>
+      check_rendered_exact(
+        "livelit_member_def",
+        "let ^pct = {\n  type T = Int;\n  let init = 75\n} in\n^pct(1)",
+        apply_and_render(livelit_src, Replace("^pct/init:definition", "75")),
+      )
+    ),
+    test_case("a livelit's members: insert last_in", `Quick, () =>
+      check_rendered_exact(
+        "livelit_member_insert",
+        "let ^pct = {\n  type T = Int;\n  let init = 50;\n\n  let step = 5\n} in\n^pct(1)",
+        apply_and_render(
+          livelit_src,
+          Insert(LastIn("^pct"), "let step = 5"),
+        ),
+      )
+    ),
     test_case(
-      "update_definition on a member",
+      "replace :definition on a member",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let m = { let x = 1; let y = 2 } in m",
-            Update(Definition, "m/x", "5"),
+            Replace("m/x:definition", "5"),
           );
         check_rendered(
           "member_update_def",
@@ -5114,29 +4640,13 @@ let module_member_tests = (
       },
     ),
     test_case(
-      "update_definition on a livelit member",
-      `Quick,
-      () => {
-        let result =
-          apply_and_render(
-            "let ^w = { let x = 1; let y = 2 } in 3",
-            Update(Definition, "^w/y", "9"),
-          );
-        check_rendered(
-          "livelit_member_update_def",
-          "let ^w = { let x = 1; let y = 9 } in 3",
-          result,
-        );
-      },
-    ),
-    test_case(
-      "update_definition on a type member",
+      "replace :definition on a type member",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let m = { type T = Int; let x = 1 } in m",
-            Update(Definition, "m/T", "Bool"),
+            Replace("m/T:definition", "Bool"),
           );
         check_rendered(
           "member_update_type_def",
@@ -5146,13 +4656,13 @@ let module_member_tests = (
       },
     ),
     test_case(
-      "update_definition on a nested inner let",
+      "replace :definition on a nested inner let",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let m = { let x = let inner = 1 in inner; let y = 2 } in m",
-            Update(Definition, "m/x/inner", "7"),
+            Replace("m/x/inner:definition", "7"),
           );
         check_rendered(
           "member_nested_inner",
@@ -5162,13 +4672,13 @@ let module_member_tests = (
       },
     ),
     test_case(
-      "insert_after a middle member",
+      "insert after a middle member",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let m = { let x = 1; let y = 2 } in m",
-            Insert(After, "m/x", "let z = 9"),
+            Insert(After("m/x"), "let z = 9"),
           );
         check_rendered(
           "member_insert_after",
@@ -5178,13 +4688,13 @@ let module_member_tests = (
       },
     ),
     test_case(
-      "insert_after the last member",
+      "insert after the last member",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let m = { let x = 1; let y = 2 } in m",
-            Insert(After, "m/y", "let z = 9"),
+            Insert(After("m/y"), "let z = 9"),
           );
         check_rendered(
           "member_insert_after_last",
@@ -5194,13 +4704,13 @@ let module_member_tests = (
       },
     ),
     test_case(
-      "insert_before the first member",
+      "insert before the first member",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let m = { let x = 1; let y = 2 } in m",
-            Insert(Before, "m/x", "let z = 9"),
+            Insert(Before("m/x"), "let z = 9"),
           );
         check_rendered(
           "member_insert_before_first",
@@ -5216,7 +4726,7 @@ let module_member_tests = (
         let result =
           apply_and_render(
             "let m = { let x = 1; let y = 2; let z = 3 } in m",
-            Delete(BindingClause, "m/y"),
+            Delete("m/y"),
           );
         check_rendered(
           "member_delete_middle",
@@ -5232,7 +4742,7 @@ let module_member_tests = (
         let result =
           apply_and_render(
             "let m = { let x = 1; let y = 2 } in m",
-            Delete(BindingClause, "m/y"),
+            Delete("m/y"),
           );
         check_rendered(
           "member_delete_last",
@@ -5248,7 +4758,7 @@ let module_member_tests = (
         let result =
           apply_and_render(
             "let m = { let x = 1; let y = 2 } in m",
-            Delete(BindingClause, "m/x"),
+            Delete("m/x"),
           );
         check_rendered(
           "member_delete_first",
@@ -5258,13 +4768,13 @@ let module_member_tests = (
       },
     ),
     test_case(
-      "update_binding_clause replaces a whole member",
+      "replace replaces a whole member",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let m = { let x = 1; let y = 2 } in m",
-            Update(BindingClause, "m/x", "let w = 8"),
+            Replace("m/x", "let w = 8"),
           );
         check_rendered(
           "member_update_clause",
@@ -5274,13 +4784,13 @@ let module_member_tests = (
       },
     ),
     test_case(
-      "update_pattern renames member use sites",
+      "rename renames member use sites",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let m = { let x = 1; let y = x + 2 } in m",
-            Update(Pattern, "m/x", "base"),
+            Rename("m/x", None, "base"),
           );
         check_rendered(
           "member_rename",
@@ -5289,25 +4799,28 @@ let module_member_tests = (
         );
       },
     ),
-    test_case("update_body on a member errors clearly", `Quick, () => {
-      switch (
-        run_agent_action(
-          "let m = { let x = 1; let y = 2 } in m",
-          Update(Body, "m/x", "3"),
-        )
-      ) {
-      | Ok(_) => Alcotest.fail("expected member body update to be rejected")
-      | Error(Action.Failure.Composition_action_failure(msg)) =>
-        check(
-          bool,
-          "member_body_error_mentions_members",
-          true,
-          StringUtil.match(StringUtil.regexp("module member"), msg),
-        )
-      | Error(e) =>
-        Alcotest.fail("unexpected failure kind: " ++ Action.Failure.show(e))
-      }
-    }),
+    test_case(
+      "replace :definition on a member",
+      `Quick,
+      () => {
+        check_rendered(
+          "member_body",
+          "let m = { let x = 3; let y = 2 } in m",
+          apply_and_render(
+            "let m = { let x = 1; let y = 2 } in m",
+            Replace("m/x:definition", "3"),
+          ),
+        );
+        check_rendered(
+          "member_fun_body",
+          "let m = { let f = fun n -> n * 2; let y = 2 } in m",
+          apply_and_render(
+            "let m = { let f = fun n -> n + 1; let y = 2 } in m",
+            Replace("m/f:definition", "fun n -> n * 2"),
+          ),
+        );
+      },
+    ),
     test_case(
       "member blank-line policy on multiline modules",
       `Quick,
@@ -5315,13 +4828,13 @@ let module_member_tests = (
         let result =
           apply_and_render(
             "let m = {\n  let x = 1;\n  let y = 2\n} in m",
-            Insert(After, "m/x", "let z = 9"),
+            Insert(After("m/x"), "let z = 9"),
           );
-        /* One blank line between members; the renderer indents every line
-           of the module body (including the blank ones) by two spaces. */
+        /* a new member is parted from its neighbours by blank lines,
+           whatever theirs */
         check_rendered_exact(
           "member_blank_lines",
-          "let m = {\n  let x = 1;\n  \n  let z = 9;\n  \n  let y = 2\n} in m",
+          "let m = {\n  let x = 1;\n\n  let z = 9;\n\n  let y = 2\n} in m",
           result,
         );
       },
@@ -5333,7 +4846,7 @@ let module_member_tests = (
         let result =
           apply_and_render(
             "module M = { let x = 1; let y = 2 } in M.x",
-            Update(Pattern, "M/x", "z"),
+            Rename("M/x", None, "z"),
           );
         check_rendered(
           "member_rename_external",
@@ -5351,7 +4864,7 @@ let module_member_tests = (
         let big =
           String.concat(" + ", List.init(400, i => string_of_int(i)));
         switch (
-          run_agent_action("let a = 1 in ?", Update(Definition, "a", big))
+          run_agent_action("let a = 1 in ?", Replace("a:definition", big))
         ) {
         | Ok(_) => ()
         | Error(e) =>
@@ -5363,23 +4876,22 @@ let module_member_tests = (
       },
     ),
     test_case(
-      "oversized fallback chunk is rejected with guidance",
+      "an unreadable chunk is rejected with the parser's note",
       `Quick,
       () => {
-        /* Bare comma tuple: editor-parseable, Menhir-rejected even with
-           hole completion, so this reliably exercises the capped
-           fallback. */
+        /* Bare comma tuple: Menhir-rejected even with hole completion.
+           New code is read by the batch parser only */
         let big = String.concat(", ", List.init(900, i => string_of_int(i)));
         switch (
-          run_agent_action("let a = 1 in ?", Update(Definition, "a", big))
+          run_agent_action("let a = 1 in ?", Replace("a:definition", big))
         ) {
         | Ok(_) => Alcotest.fail("expected oversized fallback to be rejected")
         | Error(Action.Failure.Composition_action_failure(msg)) =>
           check(
             bool,
-            "chunk_cap_mentions_split",
+            "chunk_rejection_names_the_parser",
             true,
-            StringUtil.match(StringUtil.regexp("too large"), msg),
+            StringUtil.match(StringUtil.regexp("does not parse"), msg),
           )
         | Error(e) =>
           Alcotest.fail(
@@ -5395,7 +4907,7 @@ let module_member_tests = (
         let result =
           apply_and_render(
             "let m = { let x = 1; let x = 2 } in m",
-            Update(Definition, "m/x#2", "5"),
+            Replace("m/x#2:definition", "5"),
           );
         check_rendered(
           "member_hash_k",
@@ -5411,7 +4923,7 @@ let module_member_tests = (
         let result =
           apply_and_render(
             "let m = { test 1 == 1 end; let x = 1 } in m",
-            Update(Definition, "m/x", "5"),
+            Replace("m/x:definition", "5"),
           );
         check_rendered(
           "member_after_leading_test",
@@ -5458,65 +4970,59 @@ let mod_root_with = (line: string, by: list(string)): string =>
 let mod_root_tests = (
   "AgentTools.ModRoot",
   [
-    test_case("update_definition on a member", `Quick, () =>
+    test_case("replace :definition on a member", `Quick, () =>
       check_rendered(
         "mod_root_update_member_def",
         mod_root_with("  let b = a + 1;", ["  let b = a + 2;"]),
-        apply_at_mod_root(Update(Definition, "M/b", "a + 2")),
+        apply_at_mod_root(Replace("M/b:definition", "a + 2")),
       )
     ),
-    test_case("update_definition on a top-level binding", `Quick, () =>
+    test_case("replace :definition on a top-level binding", `Quick, () =>
       check_rendered(
         "mod_root_update_top_def",
         mod_root_with("let a = 5;", ["let a = 6;"]),
-        apply_at_mod_root(Update(Definition, "a", "6")),
+        apply_at_mod_root(Replace("a:definition", "6")),
       )
     ),
-    test_case("update_binding_clause on a member", `Quick, () =>
+    test_case("replace on a member", `Quick, () =>
       check_rendered(
         "mod_root_update_clause",
         mod_root_with("  let c : T = b", ["  let c : T = 7"]),
-        apply_at_mod_root(Update(BindingClause, "M/c", "let c : T = 7")),
+        apply_at_mod_root(Replace("M/c", "let c : T = 7")),
       )
     ),
-    test_case("update_body on a top-level binding is refused", `Quick, () =>
-      switch (run_at_mod_root(mod_root_program, Update(Body, "a", "1"))) {
-      | Error(Action.Failure.Composition_action_failure(msg)) =>
-        check(
-          bool,
-          "mod_root_body_refused",
-          true,
-          StringUtil.match(StringUtil.regexp("module member"), msg),
-        )
-      | Ok(_) => Alcotest.fail("expected the body update to be refused")
-      | Error(e) => Alcotest.fail("unexpected: " ++ Action.Failure.show(e))
-      }
+    test_case("replace :definition on a top-level binding", `Quick, () =>
+      check_rendered(
+        "mod_root_body",
+        mod_root_with("let a = 5;", ["let a = 1;"]),
+        apply_at_mod_root(Replace("a:definition", "1")),
+      )
     ),
     test_case(
-      "insert_after a member and a top-level binding",
+      "insert after a member and a top-level binding",
       `Quick,
       () => {
         check_rendered(
           "mod_root_insert_after_member",
           mod_root_with("  let a = 1;", ["  let a = 1;", "  let z = 3;"]),
-          apply_at_mod_root(Insert(After, "M/a", "let z = 3")),
+          apply_at_mod_root(Insert(After("M/a"), "let z = 3")),
         );
         check_rendered(
           "mod_root_insert_after_top",
           mod_root_with("let a = 5;", ["let a = 5;", "let z = 3;"]),
-          apply_at_mod_root(Insert(After, "a", "let z = 3")),
+          apply_at_mod_root(Insert(After("a"), "let z = 3")),
         );
       },
     ),
-    test_case("insert_before the first top-level binding", `Quick, () =>
+    test_case("insert before the first top-level binding", `Quick, () =>
       check_rendered(
         "mod_root_insert_before_top",
         "let z = 3;\n" ++ mod_root_program,
-        apply_at_mod_root(Insert(Before, "M", "let z = 3")),
+        apply_at_mod_root(Insert(Before("M"), "let z = 3")),
       )
     ),
     test_case(
-      "insert_test after a member, and with no path",
+      "a test inserted among members, and last in the top level",
       `Quick,
       () => {
         check_rendered(
@@ -5525,7 +5031,7 @@ let mod_root_tests = (
             "  let b = a + 1;",
             ["  let b = a + 1;", "  test b == 2 end;"],
           ),
-          apply_at_mod_root(InsertTest(Some("M/b"), "b == 2")),
+          apply_at_mod_root(Insert(After("M/b"), "test b == 2 end")),
         );
         /* after the last binding, before the trailing expression */
         check_rendered(
@@ -5534,12 +5040,12 @@ let mod_root_tests = (
             "let d : M.T = M.a + a;",
             ["let d : M.T = M.a + a;", "test d == 6 end;"],
           ),
-          apply_at_mod_root(InsertTest(None, "d == 6")),
+          apply_at_mod_root(Insert(LastIn(""), "test d == 6 end")),
         );
       },
     ),
     test_case(
-      "insert_after and insert_before with no path place members",
+      "insert first and last in the top level place members",
       `Quick,
       () => {
         let boundary = (d, code) =>
@@ -5564,7 +5070,7 @@ let mod_root_tests = (
             "let d : M.T = M.a + a;",
             ["let d : M.T = M.a + a;", "let z = 3;"],
           ),
-          boundary(After, "let z = 3"),
+          boundary(After(""), "let z = 3"),
         );
         check_rendered(
           "mod_root_boundary_after_several",
@@ -5572,32 +5078,47 @@ let mod_root_tests = (
             "let d : M.T = M.a + a;",
             ["let d : M.T = M.a + a;", "let y = 2;", "let z = y + 1;"],
           ),
-          boundary(After, "let y = 2;\nlet z = y + 1;"),
+          boundary(After(""), "let y = 2;\nlet z = y + 1;"),
         );
         check_rendered(
           "mod_root_boundary_before",
           "let z = 3;\n" ++ mod_root_program,
-          boundary(Before, "let z = 3"),
+          boundary(Before(""), "let z = 3"),
         );
       },
     ),
     test_case(
-      "delete_binding_clause on a member and a top level",
+      "delete on a member and a top level",
       `Quick,
       () => {
+        /* both are used: a delete leaving uses dangling is refused */
+        let refused = (path, at) =>
+          switch (run_at_mod_root(mod_root_program, Delete(path))) {
+          | Error(Action.Failure.Composition_action_failure(msg)) =>
+            check(
+              bool,
+              "refused naming " ++ at ++ ": " ++ msg,
+              true,
+              StringUtil.match(StringUtil.regexp("used at " ++ at), msg),
+            )
+          | Ok(z) =>
+            Alcotest.fail("deleted " ++ path ++ ": " ++ render_zipper(z))
+          | Error(e) => Alcotest.fail(Action.Failure.show(e))
+          };
+        refused("M/b", "M/c");
+        refused("a", "d");
         check_rendered(
           "mod_root_delete_member",
-          mod_root_with("  let b = a + 1;", []),
-          apply_at_mod_root(Delete(BindingClause, "M/b")),
-        );
-        check_rendered(
-          "mod_root_delete_top",
-          mod_root_with("let a = 5;", []),
-          apply_at_mod_root(Delete(BindingClause, "a")),
+          "module M = {\n  let a = 1;\n  let c = a\n};\nM.c",
+          apply_at_mod_root(
+            ~code=
+              "module M = {\n  let a = 1;\n  let b = a + 1;\n  let c = a\n};\nM.c",
+            Delete("M/b"),
+          ),
         );
       },
     ),
-    test_case("update_pattern on a member relabels M.a", `Quick, () =>
+    test_case("rename on a member relabels M.a", `Quick, () =>
       check_rendered(
         "mod_root_rename_member",
         mod_root_program
@@ -5608,32 +5129,47 @@ let mod_root_tests = (
            )
         |> StringUtil.replace(StringUtil.regexp("= a [+] 1"), _, "= aa + 1")
         |> StringUtil.replace(StringUtil.regexp("M[.]a"), _, "M.aa"),
-        apply_at_mod_root(Update(Pattern, "M/a", "aa")),
+        apply_at_mod_root(Rename("M/a", None, "aa")),
       )
     ),
-    test_case("update_pattern on a top-level binding leaves M.a", `Quick, () =>
+    test_case("rename on a top-level binding leaves M.a", `Quick, () =>
       check_rendered(
         "mod_root_rename_top",
         mod_root_with("let a = 5;", ["let z = 5;"])
         |> StringUtil.replace(StringUtil.regexp("M[.]a [+] a"), _, "M.a + z"),
-        apply_at_mod_root(Update(Pattern, "a", "z")),
+        apply_at_mod_root(Rename("a", None, "z")),
       )
     ),
   ],
 );
 
-/* update_pattern on a module member: its `M.x` labels follow, and a name
+/* rename of a module member: its `M.x` labels follow, and a name
    another member of the module has is refused */
 let member_rename_tests = (
   "AgentTools.MemberRename",
   [
+    test_case("a livelit's member", `Quick, () =>
+      check_rendered_exact(
+        "livelit_member_rename",
+        "let ^pct = {\n  type T = Int;\n  let start = 50\n} in\n^pct(1)",
+        apply_and_render(livelit_src, Rename("^pct/init", None, "start")),
+      )
+    ),
+    /* statics reads no binding in `let ^pct`, so its uses are unknown */
+    test_case("the livelit itself is refused", `Quick, () =>
+      switch (run_agent_action(livelit_src, Rename("^pct", None, "^pc"))) {
+      | Error(Action.Failure.Composition_action_failure(_)) => ()
+      | Ok(z) => Alcotest.fail("renamed: " ++ render_zipper(z))
+      | Error(e) => Alcotest.fail("unexpected: " ++ Action.Failure.show(e))
+      }
+    ),
     test_case("a nested member's Outer.Inner.x", `Quick, () =>
       check_rendered(
         "nested_member_rename",
         "module Outer = { module Inner = { let y = 1 }; let w = 1 } in Outer.Inner.y",
         apply_and_render(
           "module Outer = { module Inner = { let x = 1 }; let w = 1 } in Outer.Inner.x",
-          Update(Pattern, "Outer/Inner/x", "y"),
+          Rename("Outer/Inner/x", None, "y"),
         ),
       )
     ),
@@ -5643,7 +5179,7 @@ let member_rename_tests = (
         "let m = { let z = 1; let y = 2 } in m.z + m.y",
         apply_and_render(
           "let m = { let x = 1; let y = 2 } in m.x + m.y",
-          Update(Pattern, "m/x", "z"),
+          Rename("m/x", None, "z"),
         ),
       )
     ),
@@ -5653,7 +5189,7 @@ let member_rename_tests = (
         "module M = { let g(n) = n + 1 } in M.g(2)",
         apply_and_render(
           "module M = { let f(n) = n + 1 } in M.f(2)",
-          Update(Pattern, "M/f", "g(n)"),
+          Rename("M/f", None, "g"),
         ),
       )
     ),
@@ -5661,7 +5197,7 @@ let member_rename_tests = (
       switch (
         run_agent_action(
           "module M = { let x = 1; let y = 2 } in M.x + M.y",
-          Update(Pattern, "M/y", "x"),
+          Rename("M/y", None, "x"),
         )
       ) {
       | Error(Action.Failure.Composition_action_failure(msg)) =>
@@ -5669,7 +5205,7 @@ let member_rename_tests = (
           bool,
           "member_clash_refused",
           true,
-          StringUtil.match(StringUtil.regexp("already has a member"), msg),
+          StringUtil.match(StringUtil.regexp("Not renamed to x"), msg),
         )
       | Ok(z) => Alcotest.fail("renamed: " ++ render_zipper(z))
       | Error(e) => Alcotest.fail("unexpected: " ++ Action.Failure.show(e))
@@ -5678,41 +5214,40 @@ let member_rename_tests = (
     test_case("a member delete leaves no lone `;`", `Quick, () =>
       check_rendered_exact(
         "member_delete_multiline",
-        "let m = {\n  let x = 1;\n  \n  let z = 3\n} in m",
+        "let m = {\n  let x = 1;\n\n  let z = 3\n} in m",
         apply_and_render(
           "let m = {\n  let x = 1;\n  let y = 2;\n  let z = 3\n} in m",
-          Delete(BindingClause, "m/y"),
+          Delete("m/y"),
         ),
       )
     ),
   ],
 );
 
-/* insert_test: after the binding and the tests directly following it,
-   so tests keep source order in one run; with no path, after the last
-   item, before the trailing expression */
-let insert_test_tests = (
-  "AgentTools.InsertTest",
+/* tests: inserted after their function or after its last test; at the
+   end, last in the top level, above the result */
+let test_entry_tests = (
+  "AgentTools.Tests",
   [
     test_case("after the binding at path", `Quick, () =>
       check_rendered_exact(
         "after_binding",
-        "let a = 1 in\ntest a == 1 end;\nlet b = 2 in\na + b",
+        "let a = 1 in\ntest a == 1 end;\n\nlet b = 2 in\na + b",
         apply_and_render(
           "let a = 1 in\nlet b = 2 in\na + b",
-          InsertTest(Some("a"), "a == 1"),
+          Insert(After("a"), "test a == 1 end"),
         ),
       )
     ),
-    test_case("after the tests already following it, in order", `Quick, () =>
+    test_case("after the last of its tests, in order", `Quick, () =>
       check_rendered_exact(
         "after_run",
-        "let a = 1 in\ntest a == 1 end;\ntest a > 0 end;\ntest a < 2 end;\ntest a != 3 end;\nlet b = 2 in\nb",
+        "let a = 1 in\ntest a == 1 end;\ntest a > 0 end;\ntest a < 2 end;\ntest a != 3 end;\n\nlet b = 2 in\nb",
         apply_chain_render(
           "let a = 1 in\ntest a == 1 end;\ntest a > 0 end;\nlet b = 2 in\nb",
           [
-            InsertTest(Some("a"), "a < 2"),
-            InsertTest(Some("a"), "a != 3"),
+            Insert(After("test#2"), "test a < 2 end"),
+            Insert(After("test#3"), "test a != 3 end"),
           ],
         ),
       )
@@ -5724,33 +5259,36 @@ let insert_test_tests = (
         apply_chain_render(
           "let f = fun x ->\n  let y = x + 1 in\n  y * 2\nin\nf(1)",
           [
-            InsertTest(Some("f/y"), "y > x"),
-            InsertTest(Some("f/y"), "y != x"),
+            Insert(After("f/y"), "test y > x end"),
+            Insert(After("f/test#1"), "test y != x end"),
           ],
         ),
       )
     ),
     test_case(
-      "no path: after the last item, before the trailing expression",
+      "last in the top level: above the result",
       `Quick,
       () => {
         check_rendered_exact(
           "no_path",
-          "let a = 1 in\ntest a == 1 end;\ntest a > 0 end;\na",
+          "let a = 1 in\n\ntest a == 1 end;\ntest a > 0 end;\n\na",
           apply_and_render(
-            "let a = 1 in\ntest a == 1 end;\na",
-            InsertTest(None, "a > 0"),
+            "let a = 1 in\n\ntest a == 1 end;\na",
+            Insert(LastIn(""), "test a > 0 end"),
           ),
         );
         check_rendered_exact(
           "no_path_no_bindings",
-          "test 1 + 1 == 2 end;\n1 + 1",
-          apply_and_render("1 + 1", InsertTest(None, "1 + 1 == 2")),
+          "test 1 + 1 == 2 end;\n\n1 + 1",
+          apply_and_render(
+            "1 + 1",
+            Insert(LastIn(""), "test 1 + 1 == 2 end"),
+          ),
         );
       },
     ),
     test_case(
-      "at a member path, as a member after the member's tests",
+      "among a module's members",
       `Quick,
       () => {
         check_rendered(
@@ -5758,7 +5296,7 @@ let insert_test_tests = (
           "let m = { let x = 1; test x == 1 end; test x > 0 end; let y = 2 } in m",
           apply_and_render(
             "let m = {\n  let x = 1;\n  test x == 1 end;\n  let y = 2\n} in m",
-            InsertTest(Some("m/x"), "x > 0"),
+            Insert(After("m/test#1"), "test x > 0 end"),
           ),
         );
         check_rendered(
@@ -5766,7 +5304,7 @@ let insert_test_tests = (
           "let m = { let x = 1; test x == 1 end; test x > 0 end } in m",
           apply_and_render(
             "let m = { let x = 1; test x == 1 end } in m",
-            InsertTest(Some("m/x"), "x > 0"),
+            Insert(LastIn("m"), "test x > 0 end"),
           ),
         );
         check_rendered(
@@ -5774,18 +5312,18 @@ let insert_test_tests = (
           "let m = { test 1 == 1 end; let x = 1; test x > 0 end } in m",
           apply_and_render(
             "let m = { test 1 == 1 end; let x = 1 } in m",
-            InsertTest(Some("m/x"), "x > 0"),
+            Insert(After("m/x"), "test x > 0 end"),
           ),
         );
       },
     ),
-    test_case("code that is already a whole test is kept", `Quick, () =>
+    test_case("a trailing `;` is dropped", `Quick, () =>
       check_rendered_exact(
         "wrapped",
-        "let a = 1 in\ntest a == 1 end;\na",
+        "let a = 1 in\ntest a == 1 end;\n\na",
         apply_and_render(
           "let a = 1 in\na",
-          InsertTest(Some("a"), "test a == 1 end;"),
+          Insert(After("a"), "test a == 1 end;"),
         ),
       )
     ),
@@ -5793,7 +5331,7 @@ let insert_test_tests = (
       switch (
         run_agent_action(
           "let a = 1 in\na",
-          InsertTest(Some("nope"), "a == 1"),
+          Insert(After("nope"), "test a == 1 end"),
         )
       ) {
       | Ok(_) => Alcotest.fail("expected a bad path to be rejected")
@@ -5802,8 +5340,8 @@ let insert_test_tests = (
           bool,
           "names the path and the available ones",
           true,
-          StringUtil.match(StringUtil.regexp("\"nope\" not found"), msg)
-          && StringUtil.match(StringUtil.regexp("Available paths"), msg),
+          StringUtil.match(StringUtil.regexp("No entry \"nope\""), msg)
+          && StringUtil.match(StringUtil.regexp("Its entries: a"), msg),
         )
       | Error(e) =>
         Alcotest.fail("unexpected failure kind: " ++ Action.Failure.show(e))
@@ -5812,7 +5350,7 @@ let insert_test_tests = (
     test_case("a test that isn't a Bool is rejected", `Quick, () =>
       expect_composition_failure(
         "let a = 1 in\na",
-        InsertTest(Some("a"), "a + 1"),
+        Insert(After("a"), "test a + 1 end"),
         "non-Bool test",
       )
     ),
@@ -5824,15 +5362,15 @@ let tests = [
   paste_funnel_tests,
   edit_action_tests,
   insert_at_program_boundary_tests,
-  update_definition_tests,
-  update_body_tests,
-  update_pattern_tests,
-  update_binding_clause_tests,
+  replace_definition_tests,
+  body_part_tests,
+  rename_tests,
+  replace_entry_tests,
   module_member_tests,
   mod_root_tests,
   member_rename_tests,
   insert_tests,
-  insert_test_tests,
+  test_entry_tests,
   delete_tests,
   static_error_tests,
   nested_definition_tests,
@@ -5842,7 +5380,6 @@ let tests = [
   composition_utils_tests,
   statics_refractor_tests,
   agent_tools_with_projectors_tests,
-  general_tree_refs_tests,
   sequential_operations_tests,
   type_alias_tests,
   complex_program_tests,

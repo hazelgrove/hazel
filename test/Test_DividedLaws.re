@@ -18,8 +18,8 @@ let info_map_of = (~root=Sort.Exp, seg: Segment.t) =>
 let editor_of = (~root=Sort.Exp, seg: Segment.t): Web.CellEditor.Model.t =>
   Focus.cell_of_seg(~root, seg);
 
-let rows = (term: Exp.t): list(Id.t) =>
-  Web.OutlineTree.(collect(of_term(term)));
+let rows = (outline: Web.OutlineTree.t): list(Id.t) =>
+  Web.OutlineTree.(collect(rows(outline)));
 
 let probe = Refractors.mk_entry(ProjectorKind.Probe);
 let manuals = (e: Web.CellEditor.Model.t): list(Id.t) =>
@@ -40,12 +40,12 @@ let with_probe = (id: Id.t) => with_manuals(ms => [(id, probe), ...ms]);
    whole) */
 let split =
     (~root=Sort.Exp, ~onto=?, seg: Segment.t, label: string): Divided.t => {
-  let term = MakeTerm.Incr.term_of_root(~root, seg);
+  let outline = CorpusUtil.outline_of(~root, seg);
   switch (
     Divided.open_(
       ~info_map=info_map_of(~root, seg),
-      ~term,
-      row_by_label(term, label),
+      ~outline,
+      row_by_label(outline, label),
       Option.value(onto, ~default=Divided.of_whole(editor_of(~root, seg))),
     )
   ) {
@@ -59,7 +59,7 @@ let recut = (~root=Sort.Exp, edited: Segment.t, d: Divided.t): Divided.t =>
   switch (
     Divided.resplit(
       ~info_map=info_map_of(~root, edited),
-      ~term=MakeTerm.Incr.term_of_root(~root, edited),
+      ~outline=CorpusUtil.outline_of(~root, edited),
       editor_of(~root, edited),
       d,
     )
@@ -91,13 +91,13 @@ let set_body = (e: Web.CellEditor.Model.t, d: Divided.t): Divided.t => {
    root; returns how many rows opened */
 let roundtrip_rows = (~root=Sort.Exp, ~sample=1, seg: Segment.t): int => {
   let info_map = info_map_of(~root, seg);
-  let term = MakeTerm.Incr.term_of_root(~root, seg);
+  let outline = CorpusUtil.outline_of(~root, seg);
   let whole = Divided.of_whole(editor_of(~root, seg));
   let text = text_of(seg);
   let ids = Segment.ids(seg);
   List.fold_left(
     (opened, id) =>
-      switch (Divided.open_(~info_map, ~term, id, whole)) {
+      switch (Divided.open_(~info_map, ~outline, id, whole)) {
       | None => opened
       | Some(d) =>
         let joined = Divided.join(d);
@@ -113,7 +113,7 @@ let roundtrip_rows = (~root=Sort.Exp, ~sample=1, seg: Segment.t): int => {
         opened + 1;
       },
     0,
-    List.filteri((i, _) => i mod sample == 0, rows(term)),
+    List.filteri((i, _) => i mod sample == 0, rows(outline)),
   );
 };
 
@@ -204,7 +204,7 @@ let probes_follow = () => {
     true,
     List.mem(one, manuals(joined)),
   );
-  let f = row_by_label(MakeTerm.Incr.term_of(seg), "f");
+  let f = row_by_label(CorpusUtil.outline_of(seg), "f");
   switch (Divided.close(f, split(~onto=d, seg, "a"))) {
   | Still(d3) =>
     let joined = Divided.join(d3);
@@ -347,7 +347,7 @@ let resplit = () => {
   let seg = seg_of(src);
   let d = split(seg, "a");
   let joined = Focus.zip_of_cell(Divided.join(d));
-  let g = row_by_label(MakeTerm.Incr.term_of(joined), "g");
+  let g = row_by_label(CorpusUtil.outline_of(joined), "g");
   let edited = Focus.splice_def(~root=Exp, g, seg_of("x * 5"), joined);
   let d' = recut(edited, d);
   check(
@@ -362,7 +362,7 @@ let resplit = () => {
 /* agent edits act on the joined program; only the touched cell is re-cut */
 let agent_edit = () => {
   let seg = seg_of(src);
-  let term = MakeTerm.Incr.term_of(seg);
+  let outline = CorpusUtil.outline_of(seg);
   let d = split(~onto=split(seg, "a"), seg, "f");
   let before = Divided.cells(d);
   let z = Divided.join(d).editor.editor.state.zipper;
@@ -373,7 +373,7 @@ let agent_edit = () => {
         ~statics=CachedStatics.empty,
         ~syntax=CachedSyntax.init(z),
         ~root=Exp,
-        Structural(Update(Definition, "a", "5")),
+        Structural(Replace("a:definition", "5")),
         {
           zipper: z,
           col_target: None,
@@ -386,7 +386,7 @@ let agent_edit = () => {
   let d' = recut(edited, d);
   let cell = (label, cells) =>
     List.find(
-      (e: Web.ScratchCell.t) => e.e_id == row_by_label(term, label),
+      (e: Web.ScratchCell.t) => e.e_id == row_by_label(outline, label),
       cells,
     );
   check(
@@ -415,13 +415,13 @@ let rename = () => {
   let seg = seg_of(src);
   let d = split(~onto=split(seg, "a"), seg, "f");
   let joined = Focus.zip_of_cell(Divided.join(d));
-  let term = MakeTerm.Incr.term_of(joined);
+  let outline = CorpusUtil.outline_of(joined);
   let renamed =
     switch (
       Web.OutlineRename.rename(
         ~info_map=info_map_of(joined),
-        ~term,
-        row_by_label(term, "a"),
+        ~outline,
+        row_by_label(outline, "a"),
         "b",
         joined,
       )
@@ -461,7 +461,7 @@ let no_overlap = () => {
   let d = split(~onto=split(seg, "g"), seg, "f");
   check(int, "one cell", 1, List.length(Divided.cells(d)));
   check(string, "text kept", text_of(seg), text_of(Divided.document(d)));
-  let term = MakeTerm.Incr.term_of(seg);
+  let outline = CorpusUtil.outline_of(seg);
   check(
     bool,
     "a child of an open cell opens nothing",
@@ -469,8 +469,8 @@ let no_overlap = () => {
     Option.is_none(
       Divided.open_(
         ~info_map=info_map_of(seg),
-        ~term,
-        row_by_label(term, "g"),
+        ~outline,
+        row_by_label(outline, "g"),
         d,
       ),
     ),
@@ -514,7 +514,7 @@ let close_once = () => {
 let resplit_folds = () => {
   let src = "let y = 1;\nmodule B = {\n  let z = 2\n};\nB.z";
   let seg = seg_of(~root=Mod, src);
-  let y = row_by_label(MakeTerm.Incr.term_of_mod(seg), "y");
+  let y = row_by_label(CorpusUtil.outline_of(~root=Mod, seg), "y");
   let d =
     split(~root=Mod, ~onto=split(~root=Mod, seg, "y"), seg, "B")
     |> Divided.set_active(y, Divided.Body);
@@ -526,7 +526,7 @@ let resplit_folds = () => {
         ~is_open=_ => true,
         ~owner=None,
         ~up=false,
-        row_by_label(MakeTerm.Incr.term_of_mod(joined), "y"),
+        row_by_label(CorpusUtil.outline_of(~root=Mod, joined), "y"),
         joined,
       )
     ) {
@@ -649,7 +649,7 @@ let own_pieces = () => {
           kinds,
         ),
       0,
-      rows(MakeTerm.Incr.term_of(seg)),
+      rows(CorpusUtil.outline_of(seg)),
     );
   check(bool, "cells opened", true, opened >= 8);
 };
@@ -660,7 +660,7 @@ let mega = () => {
   check(
     int,
     "rows opened",
-    (List.length(rows(MakeTerm.Incr.term_of(seg))) + 3) / 4,
+    (List.length(rows(CorpusUtil.outline_of(seg))) + 3) / 4,
     roundtrip_rows(~sample=4, seg),
   );
 };
@@ -679,11 +679,11 @@ let headless_follows = () => {
     true,
     contains("a + 2", text_of(doc)),
   );
-  let term = MakeTerm.Incr.term_of(doc);
+  let outline = CorpusUtil.outline_of(doc);
   let (d, moves) =
     Divided.follow_headless(
-      ~rows=Web.OutlineTree.row_ids(term),
-      ~headless=Web.OutlineTree.headless_row_ids(term),
+      ~rows=Web.OutlineTree.row_ids(outline),
+      ~headless=Web.OutlineTree.headless_row_ids(outline),
       d,
     );
   check(bool, "the cell follows its new root", true, moves != []);

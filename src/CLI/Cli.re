@@ -184,6 +184,7 @@ let analyze_hazel =
             Diagnostic.format_error_with_location(
               ~source=program,
               ~path,
+              ~info_map=static_map,
               measured,
               info,
             )

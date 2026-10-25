@@ -26,7 +26,7 @@ let blank = ¿ in
 alpha;
 beta(alpha)|};
 
-let term = MakeTerm.Incr.term_of(CorpusUtil.seg_of(src));
+let term = CorpusUtil.outline_of(CorpusUtil.seg_of(src));
 let id = CorpusUtil.row_by_label(term);
 
 /* the program's lines ([of_]: another's), with [collapsed] rows folded
@@ -394,7 +394,7 @@ let enter = () => {
   let tests =
     List.filter_map(
       (n: O.node) => n.o_kind == KTest ? n.o_id : None,
-      O.flatten(O.of_term(term)),
+      O.flatten(O.rows(term)),
     );
   check(
     outcome,
@@ -417,7 +417,7 @@ let enter = () => {
   let stmt =
     List.find_map(
       (n: O.node) => n.o_kind == KStmt ? n.o_id : None,
-      O.flatten(O.of_term(term)),
+      O.flatten(O.rows(term)),
     );
   check(
     outcome,
@@ -652,12 +652,12 @@ let nesting = () => {
   let tests =
     List.filter_map(
       (n: O.node) => n.o_kind == KTest ? n.o_id : None,
-      O.flatten(O.of_term(term)),
+      O.flatten(O.rows(term)),
     );
   let semi =
     List.find_map(
       (n: O.node) => n.o_kind == KStmt ? n.o_id : None,
-      O.flatten(O.of_term(term)),
+      O.flatten(O.rows(term)),
     )
     |> Option.get;
   List.iter(
@@ -813,7 +813,7 @@ let nesting_lines = () => {
 
 /* a program with an empty module, a `use`, and a module in a module */
 let nested =
-  MakeTerm.Incr.term_of(
+  CorpusUtil.outline_of(
     CorpusUtil.seg_of(
       {|module A = {} in
 use Nat in
@@ -1234,7 +1234,7 @@ module M = {
 } in
 0|},
     );
-  let term = Web.Workspace.fresh_term(p);
+  let term = Web.Program.outline(p);
   let blank = label => C.blank_body(p, CorpusUtil.row_by_label(term, label));
   List.iter(
     ((label, want)) => check(bool, label, want, blank(label)),
@@ -1281,7 +1281,7 @@ let text_of = (code: Web.ScratchModel.Scratchpad.code) =>
 let caret_on = (code: Web.ScratchModel.Scratchpad.code): option(O.node) =>
   switch (C.text^) {
   | Some({line: Row(_, Some(Item(row))), _}) =>
-    O.node_of(row, Web.Workspace.fresh_term(code.program))
+    O.node_of(row, Web.Program.outline(code.program))
   | _ => None
   };
 
@@ -1299,11 +1299,11 @@ let reset = () => {
 /* a new test below a test, or first of a run: the caret on it */
 let new_tests = () => {
   let code = code_of("let a = 1 in\ntest a == 1 end;\ntest a > 0 end;\na");
-  let term = Web.Workspace.fresh_term(code.program);
+  let term = Web.Program.outline(code.program);
   let tests =
     List.filter_map(
       (n: O.node) => n.o_kind == KTest ? n.o_id : None,
-      O.flatten(O.of_term(term)),
+      O.flatten(O.rows(term)),
     );
   let first = List.nth(tests, 0);
   C.text :=
@@ -1345,10 +1345,10 @@ a|js},
          List.hd(
            List.filter_map(
              (n: O.node) => n.o_kind == KTest ? n.o_id : None,
-             O.flatten(O.of_term(Web.Workspace.fresh_term(code''.program))),
+             O.flatten(O.rows(Web.Program.outline(code''.program))),
            ),
          ),
-         Web.Workspace.fresh_term(code''.program),
+         Web.Program.outline(code''.program),
        ),
   );
   reset();
@@ -1387,8 +1387,7 @@ let at_name = testable(Fmt.(option(pair(string, int))), (==));
    editor's caret in it; keys typed on its line are the editor's there */
 let live_typing = () => {
   let code = code_of("let a = 1 in\nlet b = 2 in\na + b");
-  let a =
-    CorpusUtil.row_by_label(Web.Workspace.fresh_term(code.program), "a");
+  let a = CorpusUtil.row_by_label(Web.Program.outline(code.program), "a");
   let line = E.New(a, Below);
   C.text := Some(E.at(line));
   let made = update(Create(line, ""), code);
@@ -1398,7 +1397,9 @@ let live_typing = () => {
     string,
     "in below a, a hole for its name",
     printed({js|let a = 1 in
+
 let ¿ = ¿ in
+
 let b = 2 in
 a + b|js}),
     text_of(code),
@@ -1409,7 +1410,9 @@ a + b|js}),
     string,
     "letters into the program",
     printed({js|let a = 1 in
+
 let ab = ¿ in
+
 let b = 2 in
 a + b|js}),
     text_of(code),
@@ -1444,8 +1447,7 @@ let live_leaving = () => {
   let src = "let a = 1 in\nlet b = 2 in\na + b";
   let start = () => {
     let code = code_of(src);
-    let a =
-      CorpusUtil.row_by_label(Web.Workspace.fresh_term(code.program), "a");
+    let a = CorpusUtil.row_by_label(Web.Program.outline(code.program), "a");
     let line = E.New(a, Below);
     C.text := Some(E.at(line));
     (line, run(Create(line, ""), code));
@@ -1506,7 +1508,7 @@ let live_leaving = () => {
     bool,
     "a name: row mode's cursor on its row",
     true,
-    C.cursor^ == O.label_path(d, Web.Workspace.fresh_term(code.program)),
+    C.cursor^ == O.label_path(d, Web.Program.outline(code.program)),
   );
   reset();
 };
@@ -1515,8 +1517,7 @@ let live_leaving = () => {
    its name, a next line below it */
 let first_member = () => {
   let code = code_of("module M = {\n  let a = 1;\n  let b = 2\n} in\nM.a");
-  let m =
-    CorpusUtil.row_by_label(Web.Workspace.fresh_term(code.program), "M");
+  let m = CorpusUtil.row_by_label(Web.Program.outline(code.program), "M");
   let line = E.New(m, First);
   C.text := Some(E.at(line));
   let code = typing(line, [Insert("z")], run(Create(line, ""), code));
@@ -1526,6 +1527,7 @@ let first_member = () => {
     printed(
       {js|module M = {
   let z = ¿;
+
   let a = 1;
   let b = 2
 } in
@@ -1554,7 +1556,9 @@ M.a|js},
     printed(
       {js|module M = {
   let z = ¿;
+
   let ¿ = ¿;
+
   let a = 1;
   let b = 2
 } in
@@ -1578,16 +1582,16 @@ M.a|js},
    each: the caret goes with it, at its column; a folded module it goes
    into unfolds; no cell opens */
 let nesting_ops = () => {
-  let src = "let a = 1 in\nmodule M = {\n  let x = 2\n} in\nlet bee = 4 in\nbee";
+  let src = "let a = 1 in\nmodule M = {\n  let x = 2\n} in\n\nlet bee = 4 in\n\nbee";
   let code = code_of(src);
-  let term = Web.Workspace.fresh_term(code.program);
+  let term = Web.Program.outline(code.program);
   let ck = Web.ScratchPersist.content_key("scratch", "t");
   let m_path =
     Option.get(O.label_path(CorpusUtil.row_by_label(term, "M"), term));
   Hashtbl.replace(Web.ScratchPersist.slide_folds, ck, [(m_path, true)]);
   /* the caret on [label]'s row, at column 2 */
   let on = (code: Web.ScratchModel.Scratchpad.code, label) => {
-    let term = Web.Workspace.fresh_term(code.program);
+    let term = Web.Program.outline(code.program);
     let id = CorpusUtil.row_by_label(term, label);
     C.text :=
       Some(
@@ -1617,7 +1621,7 @@ let nesting_ops = () => {
     string,
     "Tab: M's last member",
     printed(
-      "let a = 1 in\nmodule M = {\n  let x = 2;\n  let bee = 4\n} in\nbee",
+      "let a = 1 in\nmodule M = {\n  let x = 2;\n\n  let bee = 4\n} in\n\nbee",
     ),
     text_of(in_.model),
   );
@@ -1662,8 +1666,7 @@ let shift = (from: E.line, to_: E.line, code) => {
    made it */
 let module_lines = () => {
   let code = code_of("let a = 1 in\na");
-  let a =
-    CorpusUtil.row_by_label(Web.Workspace.fresh_term(code.program), "a");
+  let a = CorpusUtil.row_by_label(Web.Program.outline(code.program), "a");
   let line = E.New(a, Below);
   C.text := Some(E.at(line));
   let code =
@@ -1695,9 +1698,11 @@ let module_lines = () => {
     string,
     "a line inside M",
     printed({js|let a = 1 in
+
 module M = {
   let ¿ = ¿
 } in
+
 a|js}),
     text_of(code),
   );
@@ -1708,8 +1713,11 @@ a|js}),
     string,
     "out, just after M",
     printed({js|let a = 1 in
+
 module M = {} in
+
 let ¿ = ¿ in
+
 a|js}),
     text_of(out.model),
   );
@@ -1733,9 +1741,11 @@ a|js}),
     string,
     "named, Tab: back in, the name kept",
     printed({js|let a = 1 in
+
 module M = {
   let zq = ¿
 } in
+
 a|js}),
     text_of(code),
   );
@@ -1748,8 +1758,7 @@ a|js}),
 let value_lines = () => {
   let src = "let f = fun x ->\n  x\nin\nf";
   let code = code_of(src);
-  let f =
-    CorpusUtil.row_by_label(Web.Workspace.fresh_term(code.program), "f");
+  let f = CorpusUtil.row_by_label(Web.Program.outline(code.program), "f");
   let below = E.New(f, Below);
   C.text := Some(E.at(below));
   let code = run(Create(below, ""), code);
@@ -1762,6 +1771,7 @@ let value_lines = () => {
   let ¿ = ¿ in
   x
 in
+
 f|js}),
     text_of(code),
   );
@@ -1773,7 +1783,9 @@ f|js}),
     printed({js|let f = fun x ->
   x
 in
+
 let y = ¿ in
+
 f|js}),
     text_of(code),
   );
@@ -1781,7 +1793,7 @@ f|js}),
   C.flash := 0;
   let into_x =
     E.New(
-      CorpusUtil.row_by_label(Web.Workspace.fresh_term(code.program), "f"),
+      CorpusUtil.row_by_label(Web.Program.outline(code.program), "f"),
       First,
     );
   let same = shift(below, into_x, code);
@@ -1805,8 +1817,7 @@ f|js}),
    start makes it a value again: still the step that made it */
 let live_kinds = () => {
   let code = code_of("let a = 1 in\na");
-  let a =
-    CorpusUtil.row_by_label(Web.Workspace.fresh_term(code.program), "a");
+  let a = CorpusUtil.row_by_label(Web.Program.outline(code.program), "a");
   let line = E.New(a, Below);
   C.text := Some(E.at(line));
   let code =
@@ -1821,7 +1832,9 @@ let live_kinds = () => {
     string,
     "a type",
     printed({js|let a = 1 in
+
 type ¿ = ¿ in
+
 a|js}),
     text_of(typed.model),
   );
@@ -1831,7 +1844,9 @@ a|js}),
     string,
     "named",
     printed({js|let a = 1 in
+
 type T = ¿ in
+
 a|js}),
     text_of(code),
   );
@@ -1841,7 +1856,9 @@ a|js}),
     string,
     "a value again",
     printed({js|let a = 1 in
+
 let ¿ = ¿ in
+
 a|js}),
     text_of(back),
   );
@@ -1852,7 +1869,7 @@ a|js}),
    of its own, its name typed in the header; named, it stays pinned */
 let live_in_stack = () => {
   let code = code_of("let a = 1 in\nlet b = 2 in\na + b");
-  let term = Web.Workspace.fresh_term(code.program);
+  let term = Web.Program.outline(code.program);
   let a = CorpusUtil.row_by_label(term, "a");
   let code =
     Web.Workspace.realize(
@@ -1860,10 +1877,9 @@ let live_in_stack = () => {
         Web.Workspace.fresh_info_map(
           ~settings=Web.Globals.Model.init().settings,
           code.program,
-          term,
+          Web.Workspace.fresh_term(code.program),
         ),
-      ~term,
-      Web.SlideView.pin(~term, a, code.view),
+      Web.SlideView.pin(~outline=term, a, code.view),
       code,
     );
   let line = E.New(a, Below);
@@ -1930,7 +1946,9 @@ let live_undo = () => {
     string,
     "named in the program",
     printed({js|let a = 1 in
+
 let new = ¿ in
+
 let b = 2 in
 a + b|js}),
     program(m),
@@ -1994,8 +2012,7 @@ let undo_after_drop = () => {
 /* a new definition below a in [src], made, and its line */
 let live_line = (src: string) => {
   let code = code_of(src);
-  let a =
-    CorpusUtil.row_by_label(Web.Workspace.fresh_term(code.program), "a");
+  let a = CorpusUtil.row_by_label(Web.Program.outline(code.program), "a");
   let line = E.New(a, Below);
   C.text := Some(E.at(line));
   (line, run(Create(line, ""), code));
@@ -2004,7 +2021,8 @@ let two = "let a = 1 in\nlet b = 2 in\na + b";
 /* the program with the new definition named [name] */
 let named_two = name =>
   printed(
-    "let a = 1 in\nlet " ++ name ++ {js| = ¿ in
+    "let a = 1 in\n\nlet " ++ name ++ {js| = ¿ in
+
 let b = 2 in
 a + b|js},
   );
@@ -2220,7 +2238,7 @@ let keys_wait = () => {
    flashes */
 let copy_and_delete = () => {
   let code = code_of("let a = 1 in\nlet b = 2 in\na + b");
-  let term = Web.Workspace.fresh_term(code.program);
+  let term = Web.Program.outline(code.program);
   let row = CorpusUtil.row_by_label(term);
   let on = label =>
     C.text :=
@@ -2249,7 +2267,7 @@ let copy_and_delete = () => {
     switch (caret) {
     | Some((id, 1)) =>
       id != row("a")
-      && O.node_of(id, Web.Workspace.fresh_term(copied.program))
+      && O.node_of(id, Web.Program.outline(copied.program))
       |> Option.map((n: O.node) => n.o_label) == Some("a")
     | _ => false
     },
@@ -2442,7 +2460,7 @@ let new_test_opens_run = () => {
   let label = (code: Web.ScratchModel.Scratchpad.code) =>
     Option.map((n: O.node) => n.o_label, caret_on(code));
   let code = code_of("let a = 1 in\ntest a == 1 end;\ntest a > 0 end;\na");
-  let term = Web.Workspace.fresh_term(code.program);
+  let term = Web.Program.outline(code.program);
   let row = CorpusUtil.row_by_label(term);
   let tests = Option.get(O.run_of(row("1"), term));
   check(bool, "folded to start", true, folded(tests));
@@ -2457,14 +2475,14 @@ let new_test_opens_run = () => {
   );
   reset();
   let code = code_of("let a = 1 in\ntest a == 1 end;\na");
-  let term = Web.Workspace.fresh_term(code.program);
+  let term = Web.Program.outline(code.program);
   let lone = CorpusUtil.row_by_label(term, "1");
   C.text :=
     Some(
       E.at(Row(Option.get(O.label_path(lone, term)), Some(Item(lone)))),
     );
   let code' = run(DefOp(NewTestBelow, lone), code);
-  let term' = Web.Workspace.fresh_term(code'.program);
+  let term' = Web.Program.outline(code'.program);
   check(
     bool,
     "a lone test's new neighbour: their run opened",
@@ -2474,6 +2492,52 @@ let new_test_opens_run = () => {
     ),
   );
   check(option(string), "the caret on it", Some("2"), label(code'));
+  reset();
+};
+
+/* a lone test is a run of one: moved or duplicated from its row, its
+   run opens and the cursor lands on it */
+let lone_test_ops = () => {
+  /* the items' order, not the gaps the kernel lays out */
+  let squeezed = code =>
+    String.split_on_char('\n', text_of(code))
+    |> List.filter(l => String.trim(l) != "")
+    |> String.concat("\n");
+  let folded = path =>
+    O.folded(~folds=Web.ScratchPersist.folds("scratch", "t"), path, KTests);
+  let code = code_of("let a = 1 in\nlet b = 2 in\ntest a == 1 end;\nb");
+  let term = Web.Program.outline(code.program);
+  let lone = CorpusUtil.row_by_label(term, "1");
+  check(
+    bool,
+    "its run starts folded",
+    true,
+    folded(Option.get(O.run_of(lone, term))),
+  );
+  let moved = run(DefOp(MoveUp, lone), code);
+  check(
+    string,
+    "moved up",
+    "let a = 1 in\ntest a == 1 end;\nlet b = 2 in\nb",
+    squeezed(moved),
+  );
+  let term' = Web.Program.outline(moved.program);
+  let path = Option.get(O.run_of(lone, term'));
+  check(bool, "its run opened", false, folded(path));
+  check(
+    bool,
+    "the cursor on it",
+    true,
+    C.cursor^ == O.label_path(lone, term'),
+  );
+  reset();
+  let copied = run(DefOp(Duplicate, lone), code);
+  check(
+    string,
+    "duplicated: a run of two",
+    "let a = 1 in\nlet b = 2 in\ntest a == 1 end;\ntest a == 1 end;\nb",
+    squeezed(copied),
+  );
   reset();
 };
 
@@ -2503,7 +2567,7 @@ let test_menus = () => {
   let tests =
     List.filter_map(
       (n: O.node) => n.o_kind == KTest ? n.o_id : None,
-      O.flatten(O.of_term(term)),
+      O.flatten(O.rows(term)),
     );
   let (first, last) = (List.nth(tests, 0), List.nth(tests, 1));
   let on_test = Web.OutlineSidebar.menu_rows(~on, On_item(first, KTest));
@@ -2550,13 +2614,218 @@ let test_menus = () => {
   );
 };
 
+/* a run of one's row, folded, acts on its test: ⌥↑/⌥↓, ⌘D and delete
+   from row mode's keys, text mode's and the menu; the row keeps the
+   cursor and its fold. A longer run's row does none of these */
+let lone_run_row_ops = () => {
+  let src = "let a = 1 in\nlet b = 2 in\ntest a == 1 end;\nlet c = 3 in\ntest c == 3 end;\ntest c > 0 end;\nc";
+  let code = code_of(src);
+  let term = Web.Program.outline(code.program);
+  let row = CorpusUtil.row_by_label(term);
+  let lone = row("1");
+  let lone_run = Option.get(O.run_of(lone, term));
+  let pair_run = Option.get(O.run_of(row("2"), term));
+  let ops =
+    testable(
+      Fmt.list(Fmt.of_to_string(((o, _)) => E.show_def_op(o))),
+      (==),
+    );
+  /* row mode: the key on [run]'s row, the ops it asks for */
+  let row_key = (run, key) => {
+    let asked = ref([]);
+    let on =
+      H.handlers(
+        ~cursor=ref(Some(run)),
+        ~def_op=
+          (o, id) => {
+            asked := [(o, id), ...asked^];
+            H.ignore;
+          },
+        (),
+      );
+    ignore(
+      Web.OutlineSidebar.keys(
+        ~props=H.props(),
+        ~on,
+        ~visible=H.visible(~folds=[], term),
+        key,
+      ),
+    );
+    asked^;
+  };
+  let keys = [
+    (E.MoveUp, H.keydown(~alt=true, "ArrowUp")),
+    (MoveDown, H.keydown(~alt=true, "ArrowDown")),
+    (Duplicate, H.keydown(~meta=true, ~code="KeyD", "d")),
+    (Delete, H.keydown("Delete")),
+  ];
+  List.iter(
+    ((o, key)) => {
+      check(
+        ops,
+        "row mode: " ++ E.show_def_op(o),
+        [(o, lone)],
+        row_key(lone_run, key),
+      );
+      check(ops, "a longer run's row: none", [], row_key(pair_run, key));
+    },
+    keys,
+  );
+  /* text mode: the key on [run]'s ghost line */
+  let line = (run, first) => E.Row(run, Some(Run(first)));
+  let text_keys = [
+    (E.MoveUp, k(~alt=true, "ArrowUp")),
+    (MoveDown, k(~alt=true, "ArrowDown")),
+    (Duplicate, k(~meta=true, ~code="KeyD", "d")),
+    (Delete, k(~meta=true, "Backspace")),
+  ];
+  List.iter(
+    ((o, key)) => {
+      check(
+        outcome,
+        "text mode: " ++ E.show_def_op(o),
+        Op(o, lone),
+        press(~of_=term, ~folds=[], ~on=line(lone_run, lone), "", key),
+      );
+      check(
+        outcome,
+        "a longer run's line: a flash",
+        Flash,
+        press(~of_=term, ~folds=[], ~on=line(pair_run, row("2")), "", key),
+      );
+    },
+    text_keys,
+  );
+  /* the menu */
+  let asked = ref([]);
+  let on = H.handlers(~ops=asked, ());
+  let menu = Web.OutlineSidebar.menu_rows(~on, On_run(lone, lone, false));
+  List.iter(
+    label =>
+      List.iter(
+        (r: Web.OutlineSidebar.menu_row) =>
+          switch (r) {
+          | Item(l, _, act) when l == label => ignore(act())
+          | _ => ()
+          },
+        menu,
+      ),
+    ["Move up", "Move down", "Duplicate", "Delete"],
+  );
+  check(
+    ops,
+    "the menu's",
+    [(Delete, lone), (Duplicate, lone), (MoveDown, lone), (MoveUp, lone)],
+    asked^,
+  );
+  check(
+    bool,
+    "a longer run's menu: no item ops",
+    false,
+    List.exists(
+      (r: Web.OutlineSidebar.menu_row) =>
+        switch (r) {
+        | Item("Duplicate", _, _) => true
+        | _ => false
+        },
+      Web.OutlineSidebar.menu_rows(~on, On_run(row("2"), row("3"), false)),
+    ),
+  );
+  /* the ops applied: the row keeps the cursor, folded */
+  let squeezed = code =>
+    String.split_on_char('\n', text_of(code))
+    |> List.filter(l => String.trim(l) != "")
+    |> String.concat("\n");
+  let folded = path =>
+    O.folded(~folds=Web.ScratchPersist.folds("scratch", "t"), path, KTests);
+  let after = (o, code') => {
+    let term' =
+      Web.Program.outline(code'.Web.ScratchModel.Scratchpad.program);
+    let run = O.run_of(lone, term');
+    check(
+      bool,
+      E.show_def_op(o) ++ ": the cursor on its run",
+      true,
+      run != None && C.cursor^ == run,
+    );
+    check(
+      bool,
+      E.show_def_op(o) ++ ": still folded",
+      true,
+      folded(Option.get(run)),
+    );
+  };
+  C.cursor := Some(lone_run);
+  let moved = run(DefOp(MoveUp, lone), code);
+  check(
+    string,
+    "moved up",
+    "let a = 1 in\ntest a == 1 end;\nlet b = 2 in\nlet c = 3 in\ntest c == 3 end;\ntest c > 0 end;\nc",
+    squeezed(moved),
+  );
+  after(MoveUp, moved);
+  reset();
+  C.cursor := Some(lone_run);
+  let down = run(DefOp(MoveDown, lone), code);
+  check(
+    string,
+    "moved down",
+    "let a = 1 in\nlet b = 2 in\nlet c = 3 in\ntest a == 1 end;\ntest c == 3 end;\ntest c > 0 end;\nc",
+    squeezed(down),
+  );
+  after(MoveDown, down);
+  reset();
+  /* from the menu, in text mode */
+  C.text := Some(E.at(line(lone_run, lone)));
+  C.menu := Some((On_run(lone, lone, false), 0., 0.));
+  let copied = run(DefOp(Duplicate, lone), code);
+  check(
+    string,
+    "duplicated",
+    "let a = 1 in\nlet b = 2 in\ntest a == 1 end;\ntest a == 1 end;\nlet c = 3 in\ntest c == 3 end;\ntest c > 0 end;\nc",
+    squeezed(copied),
+  );
+  let term' = Web.Program.outline(copied.program);
+  let run' = Option.get(O.run_of(lone, term'));
+  check(
+    bool,
+    "duplicated: the caret on its run, now of two",
+    true,
+    switch (C.text^) {
+    | Some({line: Row(p, Some(Run(a))), _}) => p == run' && a == lone
+    | _ => false
+    },
+  );
+  check(bool, "duplicated: still folded", true, folded(run'));
+  reset();
+  C.cursor := Some(lone_run);
+  let deleted = run(DefOp(Delete, lone), code);
+  check(
+    string,
+    "deleted",
+    "let a = 1 in\nlet b = 2 in\nlet c = 3 in\ntest c == 3 end;\ntest c > 0 end;\nc",
+    squeezed(deleted),
+  );
+  check(
+    bool,
+    "deleted: the cursor on the row after",
+    true,
+    C.cursor^
+    == O.label_path(
+         CorpusUtil.row_by_label(Web.Program.outline(deleted.program), "c"),
+         Web.Program.outline(deleted.program),
+       ),
+  );
+  reset();
+};
+
 /* Esc leaves in one press: a name that will do is saved; one that won't
    is dropped, the program as it was, its row flashing; a new
    definition's that won't goes with its definition */
 let esc_leaves = () => {
   let src = "let a = 1 in\nlet b = a + 1 in\nb";
   let code = code_of(src);
-  let term = Web.Workspace.fresh_term(code.program);
+  let term = Web.Program.outline(code.program);
   let a = CorpusUtil.row_by_label(term, "a");
   let line = E.Row(Option.get(O.label_path(a, term)), Some(Item(a)));
   /* the key's save has left text mode already */
@@ -2586,8 +2855,7 @@ let esc_leaves = () => {
     bool,
     "the cursor on its row",
     true,
-    C.cursor^
-    == O.label_path(a, Web.Workspace.fresh_term(saved.model.program)),
+    C.cursor^ == O.label_path(a, Web.Program.outline(saved.model.program)),
   );
   let kept = esc("B");
   check(
@@ -2640,7 +2908,7 @@ let esc_leaves = () => {
     bool,
     "the cursor on its row",
     true,
-    C.cursor^ == O.label_path(d, Web.Workspace.fresh_term(code.program)),
+    C.cursor^ == O.label_path(d, Web.Program.outline(code.program)),
   );
   reset();
 };
@@ -2723,7 +2991,7 @@ let kind_undo = () => {
   let m = U.run(U.mk(~src="let m = {\n  let x = 1\n} in\nm.x", ()), Refresh);
   let before = program(m);
   let row = U.row(m, "m");
-  let term = Web.Program.statics(U.program(m)).term;
+  let term = Web.Program.outline(U.program(m));
   C.text := None;
   let m =
     U.run(
@@ -2804,6 +3072,12 @@ let tests = (
     test_case("a folded run's keys", `Quick, run_fold_keys),
     test_case("a folded run in text mode", `Quick, run_text),
     test_case("a new test opens its run", `Quick, new_test_opens_run),
+    test_case("a lone test's moves and copies", `Quick, lone_test_ops),
+    test_case(
+      "a run of one's row acts on its test",
+      `Quick,
+      lone_run_row_ops,
+    ),
     test_case("menus offer a new test", `Quick, test_menus),
     test_case("a keyword typed first in a rename", `Quick, rename_keywords),
     test_case("Esc leaves in one press", `Quick, esc_leaves),

@@ -209,11 +209,11 @@ let stage_side = (prefix: string, name: string): unit => {
 
 /* the saved view against the loaded program's outline */
 let resolve_pins =
-    (saved: list((OutlineTree.path, bool)), term: Language.Exp.t)
+    (saved: list((OutlineTree.path, bool)), outline: OutlineTree.t)
     : list(SlideView.pin) =>
   List.filter_map(
     ((path, run)) =>
-      OutlineTree.resolve_path(path, term)
+      OutlineTree.resolve_path(path, outline)
       |> Option.map(id =>
            SlideView.{
              p_id: id,
@@ -222,18 +222,19 @@ let resolve_pins =
          ),
     saved,
   );
-let resolve_view = (saved: side, term: Language.Exp.t): SlideView.t => {
+let resolve_view = (saved: side, outline: OutlineTree.t): SlideView.t => {
   mode: saved.ux ? UX : Dev,
-  away_pins: Option.map(ps => resolve_pins(ps, term), saved.away),
+  away_pins: Option.map(ps => resolve_pins(ps, outline), saved.away),
   away_parked: saved.away_parked,
   zoom:
     switch (
-      Option.bind(saved.zoom, path => OutlineTree.resolve_path(path, term))
+      Option.bind(saved.zoom, path => OutlineTree.resolve_path(path, outline))
     ) {
-    | Some(m) => OutlineTree.trail_of(m, term) |> Option.value(~default=[])
+    | Some(m) =>
+      OutlineTree.trail_of(m, outline) |> Option.value(~default=[])
     | None => []
     },
-  pins: resolve_pins(saved.pins, term),
+  pins: resolve_pins(saved.pins, outline),
   parked: saved.parked,
 };
 
@@ -423,7 +424,7 @@ let save_current' = (prefix: string, model: Model.t): unit => {
   let sp = List.nth(model.scratchpads, model.current);
   switch (sp.dormant, sp.kind) {
   | (true, _) => () /* never write a placeholder over the stored slide */
-  | (false, Code({program, agent, view})) =>
+  | (false, Code({program, agent, view, _})) =>
     let stamp =
       switch (program) {
       | Divided(d) => Stacked(d)
@@ -478,11 +479,11 @@ let save_current' = (prefix: string, model: Model.t): unit => {
         }),
       );
     };
-    let term = Program.statics(program).term;
+    let outline = Program.outline(program);
     let paths = (pins: list(SlideView.pin)) =>
       List.filter_map(
         (p: SlideView.pin) =>
-          OutlineTree.label_path(p.p_id, term)
+          OutlineTree.label_path(p.p_id, outline)
           |> Option.map(path => (path, p.p_run)),
         pins,
       );
@@ -514,7 +515,7 @@ let save_current' = (prefix: string, model: Model.t): unit => {
         pins: paths(view.pins),
         zoom:
           Option.bind(SlideView.zoom_root(view), m =>
-            OutlineTree.label_path(m, term)
+            OutlineTree.label_path(m, outline)
           ),
         parked: view.parked,
         ux: view.mode == SlideView.UX,

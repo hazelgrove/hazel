@@ -554,7 +554,7 @@ let parsed_of_text =
   let fail = (): result(parsed, string) =>
     Error(Option.value(bail_note^, ~default="no note"));
   if (root == Sort.Mod) {
-    /* Module-member chunks (update_binding_clause on a member): parse
+    /* Module-member chunks (a member replaced whole): parse
        as a braced module body, then unwrap the brace tile. Chunks with
        spliced separators (leading/trailing ;) fail the wrap parse and
        fall back — they are small. A [chunk] spliced among members

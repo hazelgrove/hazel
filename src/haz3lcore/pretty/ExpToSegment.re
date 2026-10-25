@@ -829,7 +829,8 @@ and parenthesize_pat =
   | Ap(p1, p2) =>
     Ap(
       parenthesize_pat(p1) |> paren_pat_assoc_at(Precedence.ap),
-      parenthesize_pat(p2) |> paren_pat_at(Precedence.min),
+      parenthesize_pat(~already_paren=true, p2)
+      |> paren_pat_at(Precedence.min),
     )
     |> rewrap
   | MultiHole(xs) =>
@@ -964,10 +965,11 @@ and parenthesize_typ =
   | Sum(ts) =>
     Sum(
       ConstructorMap.map(
+        /* the constructor's own parens bracket its argument */
         ts =>
           ts
-          |> Option.map(parenthesize_typ)
-          |> Option.map(paren_typ_at(Precedence.type_plus)),
+          |> Option.map(parenthesize_typ(~already_paren=true))
+          |> Option.map(paren_typ_at(Precedence.min)),
         ts,
       ),
     )

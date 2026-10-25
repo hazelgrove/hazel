@@ -4201,7 +4201,8 @@ and uexp_to_info_map =
           | Sig(items) => Some(items)
           | _ => None
           };
-        let expanded = ModuleHelpers.lower(~ana_items, items);
+        let expanded =
+          ModuleHelpers.lower(~stable=Exp.rep_id(uexp), ~ana_items, items);
         let (expanded_info, expanded_elab, m) = go(expanded, m);
         /* The livelits the body binds: the LivelitEntries its lowering
            added in front of this context, newest first, the first of a

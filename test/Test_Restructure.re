@@ -16,14 +16,15 @@ let inside = (text, id) => R.InsertInside(id, text);
 let edit =
     (~root=Sort.Exp, ~closed=false, e: Id.t => R.t, label, seg: Segment.t)
     : option((Segment.t, option(Id.t))) => {
-  let term = MakeTerm.Incr.term_of_root(~root, seg);
+  let outline = CorpusUtil.outline_of(~root, seg);
   let ctx: R.ctx = {
     mod_root: root == Sort.Mod,
-    term,
+    outline,
     info_map: lazy(Language.Statics.Map.empty),
-    is_open: id => !closed && Web.OutlineTree.expanded(~folds=[], id, term),
+    is_open: id =>
+      !closed && Web.OutlineTree.expanded(~folds=[], id, outline),
   };
-  Result.to_option(R.edit(ctx, e(row_by_label(term, label)), seg));
+  Result.to_option(R.edit(ctx, e(row_by_label(outline, label)), seg));
 };
 
 let ok = (desc, result: option('a)): 'a =>
@@ -67,9 +68,7 @@ let outline = (~root=Sort.Exp, src: string): list(string) => {
       ns,
     );
   labels(
-    Web.OutlineTree.of_term(
-      MakeTerm.Incr.term_of_root(~root, seg_of(~root, src)),
-    ),
+    Web.OutlineTree.rows(CorpusUtil.outline_of(~root, seg_of(~root, src))),
   );
 };
 
@@ -90,24 +89,28 @@ let top_level = () => {
       ),
     [
       /* an implicit hole, not `?` */
-      ("a", NewBelow, Some([a, {js|let new_def = ¿ in|js}, b, t, tail])),
+      (
+        "a",
+        NewBelow,
+        Some([a, "", {js|let new_def = ¿ in|js}, "", b, t, tail]),
+      ),
       (
         "a",
         NewTypeBelow,
-        Some([a, {js|type NewType = ¿ in|js}, b, t, tail]),
+        Some([a, "", {js|type NewType = ¿ in|js}, "", b, t, tail]),
       ),
       (
         "a",
         NewModuleBelow,
-        Some([a, "module NewModule = {} in", b, t, tail]),
+        Some([a, "", "module NewModule = {} in", "", b, t, tail]),
       ),
-      ("a", Duplicate, Some([a, a, b, t, tail])),
-      ("a", MoveDown, Some([b, a, t, tail])),
+      ("a", Duplicate, Some([a, "", a, "", b, t, tail])),
+      ("a", MoveDown, Some([b, "", a, t, tail])),
       ("a", MoveUp, None),
-      ("b", MoveUp, Some([b, a, t, tail])),
+      ("b", MoveUp, Some([b, "", a, t, tail])),
       ("b", Delete, Some([a, t, tail])),
-      ("1", MoveUp, Some([a, t, b, tail])),
-      ("1", Delete, Some([a, b, tail])),
+      ("1", MoveUp, Some([a, t, "", b, "", tail])),
+      ("1", Delete, Some([a, b, "", tail])),
     ],
   );
 };
@@ -126,7 +129,9 @@ let members = () => {
       Some(
         {js|module M = {
   let a = 1;
+
   let new_def = ¿;
+
   let b = 2;
 } in
 M.a|js},
@@ -138,7 +143,7 @@ M.a|js},
       "a",
       op(Duplicate),
       Some(
-        "module M = {\n  let a = 1;\n  let a = 1;\n  let b = 2;\n} in\nM.a",
+        "module M = {\n  let a = 1;\n\n  let a = 1;\n\n  let b = 2;\n} in\nM.a",
       ),
     ),
     (
@@ -146,7 +151,7 @@ M.a|js},
       m,
       "b",
       op(MoveUp),
-      Some("module M = {\n  let b = 2;\n  let a = 1;\n} in\nM.a"),
+      Some("module M = {\n  let b = 2;\n\n  let a = 1;\n} in\nM.a"),
     ),
     (
       "the last member deleted",
@@ -164,6 +169,7 @@ M.a|js},
         {js|module M = {
   let a = 1;
   let b = 2;
+
   let c = ¿;
 } in
 M.a|js},
@@ -175,7 +181,7 @@ M.a|js},
       "M",
       inside("module N"),
       Some(
-        "module M = {\n  let a = 1;\n  let b = 2;\n  module N = {};\n} in\nM.a",
+        "module M = {\n  let a = 1;\n  let b = 2;\n\n  module N = {};\n} in\nM.a",
       ),
     ),
     ("a name that can't bind", m, "M", inside("1x"), None),
@@ -204,7 +210,7 @@ M.a|js},
       bool,
       "the new member is the row it lands on",
       true,
-      target == Some(row_by_label(MakeTerm.Incr.term_of(seg), "c")),
+      target == Some(row_by_label(CorpusUtil.outline_of(seg), "c")),
     )
   | None => fail("c refused")
   };
@@ -223,6 +229,7 @@ let unterminated_tail = () => {
         {js|module U = {
   let a = 1;
   let z = fun x -> x;
+
   let new_def = ¿
 } in U.a|js},
       ),
@@ -319,14 +326,14 @@ let across = () => {
 
 /* a module's last member, moved out, moves back in where it was */
 let back_in = () => {
-  let src = "let a = 1;\nmodule M = {\n  let x = 2\n};\nlet b = 4;\nb";
+  let src = "let a = 1;\n\nmodule M = {\n  let x = 2\n};\n\nlet b = 4;\n\nb";
   let step = (up, seg) =>
     fst(ok("x", edit(~root=Mod, op(up ? MoveUp : MoveDown), "x", seg)));
   let out = step(false, seg_of(~root=Mod, src));
   expect(
     ~root=Mod,
     "out leaves {}",
-    Some("let a = 1;\nmodule M = {};\nlet x = 2;\nlet b = 4;\nb"),
+    Some("let a = 1;\n\nmodule M = {};\n\nlet x = 2;\n\nlet b = 4;\n\nb"),
     Some(out),
   );
   check(string, "and back in", src, text_of(step(true, out)));
@@ -334,7 +341,7 @@ let back_in = () => {
 
 /* in then out again restores the program, and every step makes a term */
 let round_trip = () => {
-  let src = "module T = {\n  let a = 1;\n  let s = 2\n};\n\nmodule D = {\n  let x = 1\n};\n0";
+  let src = "module T = {\n  let a = 1;\n  let s = 2\n};\n\nmodule D = {\n  let x = 1\n};\n\n0";
   let step = (label, e, seg) => {
     let seg = fst(ok(label, edit(~root=Mod, e, label, seg)));
     ignore(MakeTerm.go_mod_root(seg));
@@ -350,7 +357,9 @@ let round_trip = () => {
   expect(
     ~root=Mod,
     "deleting a module's last member leaves no bare `;`",
-    Some("module T = {\n  let a = 1\n};\n\nmodule D = {\n  let x = 1\n};\n0"),
+    Some(
+      "module T = {\n  let a = 1\n};\n\nmodule D = {\n  let x = 1\n};\n\n0",
+    ),
     Some(step("s", op(Delete), seg)),
   );
 };
@@ -438,7 +447,7 @@ let refused = () => {
    like the rest, not a result: ops act on it, never on the module */
 let last_test = () => {
   let m = "let z = 0 in\nmodule M = {\n  let a = 1;\n  test 1 + 1 == 2 end\n} in\nM.a";
-  let swapped = "let z = 0 in\nmodule M = {\n  test 1 + 1 == 2 end;\n  let a = 1\n} in\nM.a";
+  let swapped = "let z = 0 in\nmodule M = {\n  test 1 + 1 == 2 end;\n\n  let a = 1\n} in\nM.a";
   let sole = "module M = {\n  test 1 == 1 end\n} in\n0";
   cases([
     (
@@ -472,7 +481,7 @@ let last_test = () => {
       sole,
       "1",
       op(Outdent),
-      Some("module M = {} in\ntest 1 == 1 end;\n0"),
+      Some("module M = {} in\n\ntest 1 == 1 end;\n\n0"),
     ),
     (
       "alone: nothing above it",
@@ -499,7 +508,7 @@ let layout = () => {
       c,
       "b",
       op(MoveUp),
-      Some("# about b #\nlet b = 2 in\n# about a #\nlet a = 1 in\nb"),
+      Some("# about b #\nlet b = 2 in\n\n# about a #\nlet a = 1 in\n\nb"),
     ),
     (
       "and go when they do",
@@ -513,14 +522,14 @@ let layout = () => {
       d,
       "b",
       op(MoveUp),
-      Some("let b = 2 in\n\n# section #\n\nlet a = 1 in\nb"),
+      Some("let b = 2 in\n\n# section #\n\nlet a = 1 in\n\nb"),
     ),
     (
       "member down",
       m,
       "a",
       op(MoveDown),
-      Some("module M = {\n  let b = 2;\n  let a = 1\n} in\nM.a"),
+      Some("module M = {\n  let b = 2;\n\n  let a = 1\n} in\nM.a"),
     ),
     (
       "first member deleted",
@@ -542,7 +551,7 @@ let layout = () => {
       "a",
       op(Duplicate),
       Some(
-        "module M = {\n  let a = 1;\n  let a = 1;\n  let b = 2\n} in\nM.a",
+        "module M = {\n  let a = 1;\n\n  let a = 1;\n\n  let b = 2\n} in\nM.a",
       ),
     ),
     (
@@ -554,6 +563,7 @@ let layout = () => {
         {js|module M = {
   let a = 1;
   let b = 2;
+
   let new_def = ¿
 } in
 M.a|js},
@@ -579,7 +589,7 @@ f(1)|js},
       "b",
       op(MoveUp),
       Some(
-        "let a = 1 in\nmodule M = {\n  let x = 2;\n  let y = 3;\n  let b = 4\n} in\nb",
+        "let a = 1 in\nmodule M = {\n  let x = 2;\n  let y = 3;\n\n  let b = 4\n} in\n\nb",
       ),
     ),
     (
@@ -588,7 +598,7 @@ f(1)|js},
       "x",
       op(MoveUp),
       Some(
-        "let a = 1 in\nlet x = 2 in\nmodule M = {\n  let y = 3\n} in\nlet b = 4 in\nb",
+        "let a = 1 in\n\nlet x = 2 in\n\nmodule M = {\n  let y = 3\n} in\nlet b = 4 in\nb",
       ),
     ),
     (
@@ -597,7 +607,7 @@ f(1)|js},
       "1",
       op(MoveUp),
       Some(
-        "let a = 1 in\ntest a == 1 end;\nmodule M = {\n  let y = 3\n} in\nlet b = 4 in\nb",
+        "let a = 1 in\ntest a == 1 end;\n\nmodule M = {\n  let y = 3\n} in\nlet b = 4 in\nb",
       ),
     ),
     (
@@ -606,7 +616,7 @@ f(1)|js},
       "1",
       op(MoveUp),
       Some(
-        "let a = 1 in\nmodule M = {\n  let y = 3;\n  test a == 1 end\n} in\nlet b = 4 in\nb",
+        "let a = 1 in\nmodule M = {\n  let y = 3;\n  test a == 1 end\n} in\n\nlet b = 4 in\nb",
       ),
     ),
     (
@@ -615,7 +625,7 @@ f(1)|js},
       "f",
       op(MoveDown),
       Some(
-        "module M = {\n  let f = fun x ->\n    x + 1;\n  let y = 3\n} in\nM.y",
+        "module M = {\n  let f = fun x ->\n    x + 1;\n\n  let y = 3\n} in\nM.y",
       ),
     ),
   ]);
@@ -634,7 +644,9 @@ let value_module = () => {
       Some(
         {js|let m = {
   let a = 1;
+
   let new_def = ¿;
+
   let b = 2
 } in
 m.a|js},
@@ -649,6 +661,7 @@ m.a|js},
         {js|let m = {
   let a = 1;
   let b = 2;
+
   let new_def = ¿
 } in
 m.a|js},
@@ -659,14 +672,16 @@ m.a|js},
       m,
       "a",
       op(MoveDown),
-      Some("let m = {\n  let b = 2;\n  let a = 1\n} in\nm.a"),
+      Some("let m = {\n  let b = 2;\n\n  let a = 1\n} in\nm.a"),
     ),
     (
       "a duplicated member",
       m,
       "a",
       op(Duplicate),
-      Some("let m = {\n  let a = 1;\n  let a = 1;\n  let b = 2\n} in\nm.a"),
+      Some(
+        "let m = {\n  let a = 1;\n\n  let a = 1;\n\n  let b = 2\n} in\nm.a",
+      ),
     ),
     (
       "the last member deleted",
@@ -680,12 +695,15 @@ m.a|js},
       m,
       "m",
       inside("c"),
-      Some({js|let m = {
+      Some(
+        {js|let m = {
   let a = 1;
   let b = 2;
+
   let c = ¿
 } in
-m.a|js}),
+m.a|js},
+      ),
     ),
   ]);
 };
@@ -693,7 +711,7 @@ m.a|js}),
 /* Alt↑↓ into a module bound by `let`, as into `module M = {…}`: the
    first member going down, the last going up, `{}` taking its only one */
 let into_value_module = () => {
-  let v = "let a = 1 in\nlet m = {\n  let x = 2;\n  let y = 3\n} in\nlet b = 4 in\nb";
+  let v = "let a = 1 in\n\nlet m = {\n  let x = 2;\n\n  let y = 3\n} in\n\nlet b = 4 in\n\nb";
   let e = "let a = 1 in\nlet e = {} in\nlet b = 2 in\nb";
   cases([
     (
@@ -702,7 +720,7 @@ let into_value_module = () => {
       "a",
       op(MoveDown),
       Some(
-        "let m = {\n  let a = 1;\n  let x = 2;\n  let y = 3\n} in\nlet b = 4 in\nb",
+        "let m = {\n  let a = 1;\n\n  let x = 2;\n\n  let y = 3\n} in\n\nlet b = 4 in\n\nb",
       ),
     ),
     (
@@ -711,7 +729,7 @@ let into_value_module = () => {
       "b",
       op(MoveUp),
       Some(
-        "let a = 1 in\nlet m = {\n  let x = 2;\n  let y = 3;\n  let b = 4\n} in\nb",
+        "let a = 1 in\n\nlet m = {\n  let x = 2;\n\n  let y = 3;\n\n  let b = 4\n} in\n\nb",
       ),
     ),
     (
@@ -720,7 +738,7 @@ let into_value_module = () => {
       "b",
       op(MoveUp),
       Some(
-        "let a = 1 in\nlet m = {\n  let x = 2;\n  # about b #\n  let b = 4\n} in\nb",
+        "let a = 1 in\nlet m = {\n  let x = 2;\n\n  # about b #\n  let b = 4\n} in\n\nb",
       ),
     ),
     (
@@ -735,7 +753,7 @@ let into_value_module = () => {
       e,
       "b",
       op(MoveUp),
-      Some("let a = 1 in\nlet e = {\n  let b = 2\n} in\nb"),
+      Some("let a = 1 in\nlet e = {\n  let b = 2\n} in\n\nb"),
     ),
     (
       "a test goes in as a bare member",
@@ -743,7 +761,7 @@ let into_value_module = () => {
       "1",
       op(MoveUp),
       Some(
-        "let a = 1 in\nlet m = {\n  let y = 3;\n  test a == 1 end\n} in\nlet b = 4 in\nb",
+        "let a = 1 in\nlet m = {\n  let y = 3;\n  test a == 1 end\n} in\n\nlet b = 4 in\nb",
       ),
     ),
     (
@@ -751,7 +769,7 @@ let into_value_module = () => {
       "let a = 1 in\ntype T = {} in\nlet b = 2 in\nb",
       "a",
       op(MoveDown),
-      Some("type T = {} in\nlet a = 1 in\nlet b = 2 in\nb"),
+      Some("type T = {} in\n\nlet a = 1 in\n\nlet b = 2 in\nb"),
     ),
     (
       "a module body inside an if is stepped over",
@@ -759,7 +777,7 @@ let into_value_module = () => {
       "a",
       op(MoveDown),
       Some(
-        "module M = if true then {} else {\n  let x = 2\n} in\nlet a = 1 in\nlet b = 2 in\nb",
+        "module M = if true then {} else {\n  let x = 2\n} in\n\nlet a = 1 in\n\nlet b = 2 in\nb",
       ),
     ),
   ]);
@@ -767,7 +785,7 @@ let into_value_module = () => {
     ~root=Mod,
     "in a module-rooted program, the `;`s stay put",
     Some(
-      "let a = 1;\nlet m = {\n  let x = 2;\n  let y = 3;\n  let b = 4\n};\nb",
+      "let a = 1;\nlet m = {\n  let x = 2;\n  let y = 3;\n\n  let b = 4\n};\n\nb",
     ),
     run(
       ~root=Mod,
@@ -793,21 +811,21 @@ let into_value_module = () => {
         v,
         "x",
         true,
-        "let a = 1 in\nlet x = 2 in\nlet m = {\n  let y = 3\n} in\nlet b = 4 in\nb",
+        "let a = 1 in\n\nlet x = 2 in\n\nlet m = {\n  let y = 3\n} in\n\nlet b = 4 in\n\nb",
       ),
       (
         Exp,
         v,
         "y",
         false,
-        "let a = 1 in\nlet m = {\n  let x = 2\n} in\nlet y = 3 in\nlet b = 4 in\nb",
+        "let a = 1 in\n\nlet m = {\n  let x = 2\n} in\n\nlet y = 3 in\n\nlet b = 4 in\n\nb",
       ),
       (
         Mod,
-        "let a = 1;\nlet m = {\n  let x = 2\n};\nlet b = 4;\nb",
+        "let a = 1;\nlet m = {\n  let x = 2\n};\n\nlet b = 4;\nb",
         "x",
         false,
-        "let a = 1;\nlet m = {};\nlet x = 2;\nlet b = 4;\nb",
+        "let a = 1;\nlet m = {};\n\nlet x = 2;\n\nlet b = 4;\nb",
       ),
     ],
   );
@@ -826,35 +844,35 @@ let use_rows = () => {
       src,
       "use Nat",
       op(MoveDown),
-      Some("let a = 1 in\nlet b = a + 2 in\nuse Nat in\nb"),
+      Some("let a = 1 in\n\nlet b = a + 2 in\n\nuse Nat in\n\nb"),
     ),
     (
       "up past a",
       src,
       "use Nat",
       op(MoveUp),
-      Some("use Nat in\nlet a = 1 in\nlet b = a + 2 in\nb"),
+      Some("use Nat in\n\nlet a = 1 in\n\nlet b = a + 2 in\nb"),
     ),
     (
       "b up out of its scope",
       src,
       "b",
       op(MoveUp),
-      Some("let a = 1 in\nlet b = a + 2 in\nuse Nat in\nb"),
+      Some("let a = 1 in\n\nlet b = a + 2 in\n\nuse Nat in\n\nb"),
     ),
     (
       "duplicated",
       src,
       "use Nat",
       op(Duplicate),
-      Some("let a = 1 in\nuse Nat in\nuse Nat in\nlet b = a + 2 in\nb"),
+      Some("let a = 1 in\nuse Nat in\nuse Nat in\n\nlet b = a + 2 in\nb"),
     ),
     (
       "deleted",
       src,
       "use Nat",
       op(Delete),
-      Some("let a = 1 in\nlet b = a + 2 in\nb"),
+      Some("let a = 1 in\n\nlet b = a + 2 in\nb"),
     ),
     (
       "a definition below",
@@ -864,7 +882,9 @@ let use_rows = () => {
       Some(
         {js|let a = 1 in
 use Nat in
+
 let new_def = ¿ in
+
 let b = a + 2 in
 b|js},
       ),
@@ -876,7 +896,9 @@ b|js},
       op(NewTestBelow),
       Some({js|let a = 1 in
 use Nat in
+
 test ¿ end;
+
 let b = a + 2 in
 b|js}),
     ),
@@ -885,14 +907,14 @@ b|js}),
       "use Nat in\n" ++ m ++ "M.x",
       "use Nat",
       op(MoveDown),
-      Some(m ++ "use Nat in\nM.x"),
+      Some(m ++ "\nuse Nat in\n\nM.x"),
     ),
     (
       "and going up",
       m ++ "use Nat in\nM.x",
       "use Nat",
       op(MoveUp),
-      Some("use Nat in\n" ++ m ++ "M.x"),
+      Some("use Nat in\n\n" ++ m ++ "\nM.x"),
     ),
   ]);
   /* in a function body: among its items, never out of it */
@@ -930,7 +952,9 @@ let signed_module = () => {
       m,
       "M",
       op(NewBelow),
-      Some(sg ++ mm ++ {js|let new_def = ¿ in
+      Some(sg ++ mm ++ {js|
+let new_def = ¿ in
+
 let b = 4 in
 M.x|js}),
     ),
@@ -939,17 +963,25 @@ M.x|js}),
       m,
       "M",
       op(Duplicate),
-      Some(sg ++ mm ++ mm ++ "let b = 4 in\nM.x"),
+      Some(sg ++ mm ++ "\n" ++ mm ++ "\nlet b = 4 in\nM.x"),
     ),
-    ("moved", m, "M", op(MoveUp), Some(mm ++ sg ++ "let b = 4 in\nM.x")),
-    ("deleted", m, "M", op(Delete), Some(sg ++ "let b = 4 in\nM.x")),
+    (
+      "moved",
+      m,
+      "M",
+      op(MoveUp),
+      Some(mm ++ "\n" ++ sg ++ "\nlet b = 4 in\nM.x"),
+    ),
+    ("deleted", m, "M", op(Delete), Some(sg ++ "\nlet b = 4 in\nM.x")),
     (
       "new below a member",
       m,
       "x",
       op(NewBelow),
       with_members({js|  let x = 1;
+
   let new_def = ¿;
+
   let y = 2|js}),
     ),
     (
@@ -957,14 +989,14 @@ M.x|js}),
       m,
       "x",
       op(MoveDown),
-      with_members("  let y = 2;\n  let x = 1"),
+      with_members("  let y = 2;\n\n  let x = 1"),
     ),
     (
       "a member duplicated",
       m,
       "x",
       op(Duplicate),
-      with_members("  let x = 1;\n  let x = 1;\n  let y = 2"),
+      with_members("  let x = 1;\n\n  let x = 1;\n\n  let y = 2"),
     ),
     ("a member deleted", m, "x", op(Delete), with_members("  let y = 2")),
     (
@@ -974,6 +1006,7 @@ M.x|js}),
       inside("z"),
       with_members({js|  let x = 1;
   let y = 2;
+
   let z = ¿|js}),
     ),
     (
@@ -983,7 +1016,7 @@ M.x|js}),
       op(MoveUp),
       Some(
         sg
-        ++ "module M : S = {\n  let x = 1;\n  let y = 2;\n  let b = 4\n} in\nM.x",
+        ++ "module M : S = {\n  let x = 1;\n  let y = 2;\n\n  let b = 4\n} in\n\nM.x",
       ),
     ),
     (
@@ -993,7 +1026,7 @@ M.x|js}),
       op(MoveDown),
       Some(
         sg
-        ++ "module M : S = {\n  let x = 1\n} in\nlet y = 2 in\nlet b = 4 in\nM.x",
+        ++ "module M : S = {\n  let x = 1\n} in\n\nlet y = 2 in\n\nlet b = 4 in\nM.x",
       ),
     ),
   ]);
@@ -1006,7 +1039,7 @@ let unshown_module = () => {
   let u = "let a = 1 in\nlet _ = {\n  let x = 2\n} in\nlet b = 4 in\nb";
   check(list(string), "no row", ["a", "b"], outline(u));
   let seg = seg_of(u);
-  let term = MakeTerm.Incr.term_of(seg);
+  let outline = CorpusUtil.outline_of(seg);
   /* each `let`'s head, by its pattern */
   let head = name =>
     switch (
@@ -1029,8 +1062,8 @@ let unshown_module = () => {
     "expanded: a, not _",
     (true, false),
     (
-      Web.OutlineTree.expanded(~folds=[], head("a"), term),
-      Web.OutlineTree.expanded(~folds=[], head("_"), term),
+      Web.OutlineTree.expanded(~folds=[], head("a"), outline),
+      Web.OutlineTree.expanded(~folds=[], head("_"), outline),
     ),
   );
   cases([
@@ -1039,21 +1072,23 @@ let unshown_module = () => {
       u,
       "a",
       op(MoveDown),
-      Some("let _ = {\n  let x = 2\n} in\nlet a = 1 in\nlet b = 4 in\nb"),
+      Some("let _ = {\n  let x = 2\n} in\n\nlet a = 1 in\n\nlet b = 4 in\nb"),
     ),
     (
       "up past it",
       u,
       "b",
       op(MoveUp),
-      Some("let a = 1 in\nlet b = 4 in\nlet _ = {\n  let x = 2\n} in\nb"),
+      Some(
+        "let a = 1 in\n\nlet b = 4 in\n\nlet _ = {\n  let x = 2\n} in\n\nb",
+      ),
     ),
     (
       "a named one takes it in",
       "let a = 1 in\nlet m = {\n  let x = 2\n} in\nlet b = 4 in\nb",
       "a",
       op(MoveDown),
-      Some("let m = {\n  let a = 1;\n  let x = 2\n} in\nlet b = 4 in\nb"),
+      Some("let m = {\n  let a = 1;\n\n  let x = 2\n} in\nlet b = 4 in\nb"),
     ),
   ]);
 };
@@ -1085,6 +1120,7 @@ a|js},
       Some({js|let a = 1 in
 test a == 1 end;
 test ¿ end;
+
 a|js}),
     ),
     (
@@ -1094,6 +1130,7 @@ a|js}),
       op(NewTestBelow),
       Some({js|let a = 1 in
 test ¿ end;
+
 let b = 2 in
 b|js}),
     ),
@@ -1137,6 +1174,7 @@ M.a|js},
   let a = 1;
   test a == 1 end;
   test a > 0 end;
+
   let new_def = ¿
 } in
 M.a|js},
@@ -1148,7 +1186,9 @@ M.a|js},
       "",
       op(NewTestBelow),
       Some({js|let a = 1 in
+
 test ¿ end;
+
 a|js}),
     ),
     (
@@ -1186,7 +1226,7 @@ M.a|js},
       switch (edit(op(NewTestBelow), "2", seg_of(src))) {
       | Some((seg, Some(target))) =>
         let rows =
-          Web.OutlineTree.(flatten(of_term(MakeTerm.Incr.term_of(seg))));
+          Web.OutlineTree.(flatten(rows(CorpusUtil.outline_of(seg))));
         let run =
           switch (
             List.find_opt(
@@ -1232,9 +1272,9 @@ M.a|js},
    place a level deeper; ⇧Tab: a module's last member out, just after it.
    Folded or empty, a module takes it all the same */
 let nesting = () => {
-  let x = "let a = 1 in\nmodule M = {\n  let x = 2;\n  let y = 3\n} in\nlet b = 4 in\nb";
-  let into_x = "let a = 1 in\nmodule M = {\n  let x = 2;\n  let y = 3;\n  let b = 4\n} in\nb";
-  let e = "let a = 1 in\nmodule E = {} in\nlet b = 2 in\nb";
+  let x = "let a = 1 in\n\nmodule M = {\n  let x = 2;\n  let y = 3\n} in\n\nlet b = 4 in\n\nb";
+  let into_x = "let a = 1 in\n\nmodule M = {\n  let x = 2;\n  let y = 3;\n\n  let b = 4\n} in\n\nb";
+  let e = "let a = 1 in\nmodule E = {} in\n\nlet b = 2 in\n\nb";
   cases([
     ("into a module", x, "b", op(Indent), Some(into_x)),
     ("and out again", into_x, "b", op(Outdent), Some(x)),
@@ -1243,7 +1283,7 @@ let nesting = () => {
       e,
       "b",
       op(Indent),
-      Some("let a = 1 in\nmodule E = {\n  let b = 2\n} in\nb"),
+      Some("let a = 1 in\nmodule E = {\n  let b = 2\n} in\n\nb"),
     ),
     (
       "a lone member out",
@@ -1282,7 +1322,7 @@ let nesting = () => {
       "let a = 1 in\nlet m = {\n  let x = 2\n} in\nlet b = 4 in\nb",
       "b",
       op(Indent),
-      Some("let a = 1 in\nlet m = {\n  let x = 2;\n  let b = 4\n} in\nb"),
+      Some("let a = 1 in\nlet m = {\n  let x = 2;\n\n  let b = 4\n} in\n\nb"),
     ),
     (
       "a test",
@@ -1290,7 +1330,7 @@ let nesting = () => {
       "1",
       op(Indent),
       Some(
-        "let a = 1 in\nmodule M = {\n  let y = 3;\n  test a == 1 end\n} in\nlet b = 4 in\nb",
+        "let a = 1 in\nmodule M = {\n  let y = 3;\n  test a == 1 end\n} in\n\nlet b = 4 in\nb",
       ),
     ),
     (
@@ -1299,7 +1339,7 @@ let nesting = () => {
       "1",
       op(Outdent),
       Some(
-        "let a = 1 in\nmodule M = {\n  let y = 3\n} in\ntest a == 1 end;\nlet b = 4 in\nb",
+        "let a = 1 in\nmodule M = {\n  let y = 3\n} in\n\ntest a == 1 end;\n\nlet b = 4 in\nb",
       ),
     ),
     (
@@ -1308,7 +1348,7 @@ let nesting = () => {
       "N",
       op(Indent),
       Some(
-        "module M = {\n  let y = 3;\n  module N = {\n    let z = 4\n  }\n} in\nM.y",
+        "module M = {\n  let y = 3;\n\n  module N = {\n    let z = 4\n  }\n} in\n\nM.y",
       ),
     ),
   ]);
@@ -1320,29 +1360,29 @@ let nesting = () => {
   );
   /* a statement: its row is its `;` */
   let stmt = seg_of("module M = {\n  let y = 3\n} in\n1 + 1;\nM.y");
-  let term = MakeTerm.Incr.term_of(stmt);
+  let outline = CorpusUtil.outline_of(stmt);
   let semi =
     List.find_map(
       (n: Web.OutlineTree.node) => n.o_kind == KStmt ? n.o_id : None,
-      Web.OutlineTree.(flatten(of_term(term))),
+      Web.OutlineTree.(flatten(rows(outline))),
     );
   let ctx: R.ctx = {
     mod_root: false,
-    term,
+    outline,
     info_map: lazy(Language.Statics.Map.empty),
     is_open: _ => true,
   };
   expect(
     "a statement",
-    Some("module M = {\n  let y = 3;\n  1 + 1\n} in\nM.y"),
+    Some("module M = {\n  let y = 3;\n  1 + 1\n} in\n\nM.y"),
     Option.bind(semi, id =>
       Result.to_option(R.edit(ctx, op(Indent, id), stmt))
       |> Option.map(fst)
     ),
   );
   /* a module-rooted program's members, and a signed module */
-  let md = "let a = 1;\nmodule M = {\n  let x = 2\n};\nlet b = 4;\nb";
-  let md_in = "let a = 1;\nmodule M = {\n  let x = 2;\n  let b = 4\n};\nb";
+  let md = "let a = 1;\n\nmodule M = {\n  let x = 2\n};\n\nlet b = 4;\n\nb";
+  let md_in = "let a = 1;\n\nmodule M = {\n  let x = 2;\n\n  let b = 4\n};\n\nb";
   expect(
     ~root=Mod,
     "module-rooted: in",
@@ -1358,7 +1398,7 @@ let nesting = () => {
   let sg = "type S = {\n  let x : Int\n} in\n";
   expect(
     "a signed module",
-    Some(sg ++ "module M : S = {\n  let x = 1;\n  let b = 4\n} in\nM.x"),
+    Some(sg ++ "module M : S = {\n  let x = 1;\n\n  let b = 4\n} in\n\nM.x"),
     run(
       op(Indent),
       "b",
@@ -1372,7 +1412,7 @@ let nesting = () => {
       bool,
       "it lands on b",
       true,
-      target == Some(row_by_label(MakeTerm.Incr.term_of(seg), "b")),
+      target == Some(row_by_label(CorpusUtil.outline_of(seg), "b")),
     )
   | None => fail("b refused")
   };
@@ -1381,8 +1421,8 @@ let nesting = () => {
 /* Tab into a value: its body's last local definition, just before the
    result (inside a function's lambda); ⇧Tab out again, just after it */
 let nesting_values = () => {
-  let f = "let f = fun x ->\n  let y = x + 1 in\n  y * 2\nin\nlet g = 5 in\nf(g)";
-  let f_in = "let f = fun x ->\n  let y = x + 1 in\n  let g = 5 in\n  y * 2\nin\nf(g)";
+  let f = "let f = fun x ->\n  let y = x + 1 in\n  y * 2\nin\n\nlet g = 5 in\n\nf(g)";
+  let f_in = "let f = fun x ->\n  let y = x + 1 in\n  let g = 5 in\n  y * 2\nin\n\nf(g)";
   cases([
     ("into a function", f, "g", op(Indent), Some(f_in)),
     ("and out again", f_in, "g", op(Outdent), Some(f)),
@@ -1391,28 +1431,28 @@ let nesting_values = () => {
       "let x = 1 + 2 in\nlet moved = 5 in\nx",
       "moved",
       op(Indent),
-      Some("let x = let moved = 5 in 1 + 2 in\nx"),
+      Some("let x = let moved = 5 in 1 + 2 in\n\nx"),
     ),
     (
       "on its own line when the body is",
       "let x =\n  1 + 2\nin\nlet moved = 5 in\nx",
       "moved",
       op(Indent),
-      Some("let x =\n  let moved = 5 in\n  1 + 2\nin\nx"),
+      Some("let x =\n  let moved = 5 in\n  1 + 2\nin\n\nx"),
     ),
     (
       "a one-line function",
       "let f = fun x -> x * 2 in\nlet g = 5 in\nf(g)",
       "g",
       op(Indent),
-      Some("let f = fun x -> let g = 5 in x * 2 in\nf(g)"),
+      Some("let f = fun x -> let g = 5 in x * 2 in\n\nf(g)"),
     ),
     (
       "out of a one-line body, onto a line of its own",
       "let x = let moved = 5 in 1 + 2 in\nx",
       "moved",
       op(Outdent),
-      Some("let x = 1 + 2 in\nlet moved = 5 in\nx"),
+      Some("let x = 1 + 2 in\n\nlet moved = 5 in\n\nx"),
     ),
     (
       "a member value",
@@ -1429,7 +1469,7 @@ let nesting_values = () => {
       "g",
       op(Outdent),
       Some(
-        "module M = {\n  let f = fun x ->\n    x;\n  let g = 5\n} in\nM.f(1)",
+        "module M = {\n  let f = fun x ->\n    x;\n\n  let g = 5\n} in\nM.f(1)",
       ),
     ),
     (
@@ -1437,7 +1477,7 @@ let nesting_values = () => {
       "let f = fun x -> fun y ->\n  x + y\nin\nlet g = 5 in\ng",
       "g",
       op(Indent),
-      Some("let f = fun x -> fun y ->\n  let g = 5 in\n  x + y\nin\ng"),
+      Some("let f = fun x -> fun y ->\n  let g = 5 in\n  x + y\nin\n\ng"),
     ),
     (
       "a function only in parentheses: refused",
@@ -1472,7 +1512,7 @@ let nesting_values = () => {
       "let f = fun x ->\n  x\nin\ntest f(1) == 1 end;\nf",
       "1",
       op(Indent),
-      Some("let f = fun x ->\n  test f(1) == 1 end;\n  x\nin\nf"),
+      Some("let f = fun x ->\n  test f(1) == 1 end;\n  x\nin\n\nf"),
     ),
   ]);
 };
@@ -1503,51 +1543,58 @@ let law = (~root=Sort.Exp, desc, src, (o, back), label, mid) =>
     walk(~root, src, [(o, label), (back, label)]),
   );
 
-/* an item takes the gap above it along (below it, first in its block),
-   and brings it back: blank lines stay where they were */
+/* the gaps an item leaves and lands in are house style: out and back
+   again, a house-style program is as it was */
 let gaps = () => {
   law(
     ~root=Mod,
     "a last member out and back",
-    "module M = {\n  let a = 1;\n\n  let b = 2\n};\nlet c = 3;\nc",
+    "module M = {\n  let a = 1;\n\n  let b = 2\n};\n\nlet c = 3;\n\nc",
     (MoveDown, MoveUp),
     "b",
-    "module M = {\n  let a = 1\n};\n\nlet b = 2;\nlet c = 3;\nc",
+    "module M = {\n  let a = 1\n};\n\nlet b = 2;\n\nlet c = 3;\n\nc",
   );
   /* blank lines inside a moved item stay blank */
   law(
     ~root=Mod,
     "a module into the module above and out",
-    "module A = {\n  let a = 1\n};\n\nmodule B = {\n  let b = 2;\n\n  let c = 3\n};\nA.a",
+    "module A = {\n  let a = 1\n};\n\nmodule B = {\n  let b = 2;\n\n  let c = 3\n};\n\nA.a",
     (MoveUp, MoveDown),
     "B",
-    "module A = {\n  let a = 1;\n\n  module B = {\n    let b = 2;\n\n    let c = 3\n  }\n};\nA.a",
+    "module A = {\n  let a = 1;\n\n  module B = {\n    let b = 2;\n\n    let c = 3\n  }\n};\n\nA.a",
   );
   law(
     ~root=Mod,
-    "into a body and out, the gap below it kept",
-    "module M = {\n  let f = fun x ->\n    x;\n  let g = 2;\n\n  let h = 3\n};\nM.h",
+    "into a body and out",
+    "module M = {\n  let f = fun x ->\n    x;\n\n  let g = 2;\n\n  let h = 3\n};\n\nM.h",
     (Indent, Outdent),
     "g",
-    "module M = {\n  let f = fun x ->\n    let g = 2 in\n    x;\n\n  let h = 3\n};\nM.h",
+    "module M = {\n  let f = fun x ->\n    let g = 2 in\n    x;\n\n  let h = 3\n};\n\nM.h",
   );
-  /* a blank line holding spaces, as a paste leaves it, comes back so */
-  law(
-    ~root=Mod,
+  /* a blank line holding spaces, as a paste leaves it, closes plain */
+  check(
+    list(option(string)),
     "a blank line with spaces on it",
-    "module M = {\n  let a = 1;\n  \n  let b = 2\n};\nlet c = 3;\nc",
-    (MoveDown, MoveUp),
-    "b",
-    "module M = {\n  let a = 1\n};\n  \nlet b = 2;\nlet c = 3;\nc",
+    [
+      Some("module M = {\n  let a = 1\n};\n\nlet b = 2;\n\nlet c = 3;\n\nc"),
+      Some(
+        "module M = {\n  let a = 1;\n\n  let b = 2\n};\n\nlet c = 3;\n\nc",
+      ),
+    ],
+    walk(
+      ~root=Mod,
+      "module M = {\n  let a = 1;\n  \n  let b = 2\n};\n\nlet c = 3;\n\nc",
+      [(MoveDown, "b"), (MoveUp, "b")],
+    ),
   );
   /* a module-rooted program's last member: back on a line of its own */
   law(
     ~root=Mod,
     "the last member of a module-rooted program",
-    "let start = 0;\nlet next = start + 1;\nlet after = next + 1",
+    "let start = 0;\n\nlet next = start + 1;\n\nlet after = next + 1",
     (Indent, Outdent),
     "after",
-    "let start = 0;\nlet next = let after = next + 1 in start + 1",
+    "let start = 0;\n\nlet next = let after = next + 1 in start + 1",
   );
 };
 
@@ -1555,20 +1602,20 @@ let gaps = () => {
    body on lines of its own, a constant's value on its own line below,
    a function's result after it; and comes back out whole */
 let doc_comments = () => {
-  let src = "let init = (1, 2) in\n\n# doc for f #\nlet f = fun x -> x in\n\n# doc for g #\nlet g = 2 in\nf";
+  let src = "let init = (1, 2) in\n\n# doc for f #\nlet f = fun x -> x in\n\n# doc for g #\nlet g = 2 in\n\nf";
   law(
     "into a constant",
     src,
     (Indent, Outdent),
     "f",
-    "let init =\n  # doc for f #\n  let f = fun x -> x in\n  (1, 2) in\n\n# doc for g #\nlet g = 2 in\nf",
+    "let init =\n  # doc for f #\n  let f = fun x -> x in\n  (1, 2) in\n\n# doc for g #\nlet g = 2 in\n\nf",
   );
   law(
     "into a function",
     src,
     (Indent, Outdent),
     "g",
-    "let init = (1, 2) in\n\n# doc for f #\nlet f = fun x ->\n  # doc for g #\n  let g = 2 in x in\nf",
+    "let init = (1, 2) in\n\n# doc for f #\nlet f = fun x ->\n  # doc for g #\n  let g = 2 in x in\n\nf",
   );
 };
 
@@ -1589,7 +1636,56 @@ let offsets = () => {
     "module M = {\n  let f = fun x ->\n    x;\n\n  let g = 1;\n\n    let h = 2\n};\nM.f",
     (Indent, Outdent),
     "g",
-    "module M = {\n  let f = fun x ->\n    let g = 1 in\n\n    x;\n\n    let h = 2\n};\nM.f",
+    "module M = {\n  let f = fun x ->\n    let g = 1 in\n    x;\n\n    let h = 2\n};\nM.f",
+  );
+};
+
+/* a statement opening a let chain, moved after an earlier member's edit
+   shifted it: the chain's level is reused at its new place */
+let shifted_chain = () => {
+  let root = Sort.Mod;
+  let seg =
+    seg_of(
+      ~root,
+      "let a = 1;\nlet x = 1 in\nlet y = x in\ny;\nlet b = 2;\nb",
+    );
+  let stmt = (seg: Segment.t) =>
+    Web.OutlineTree.(flatten(rows(CorpusUtil.outline_of(~root, seg))))
+    |> List.find_map((n: Web.OutlineTree.node) =>
+         n.o_kind == KStmt ? n.o_id : None
+       )
+    |> Option.get;
+  let move = seg => {
+    let outline = CorpusUtil.outline_of(~root, seg);
+    let ctx: R.ctx = {
+      mod_root: true,
+      outline,
+      info_map: lazy(Language.Statics.Map.empty),
+      is_open: _ => true,
+    };
+    Option.map(
+      ((s, _)) => text_of(s),
+      Result.to_option(R.edit(ctx, op(MoveDown, stmt(seg)), seg)),
+    );
+  };
+  /* the outline finds the row before the edit */
+  ignore(Web.ScratchFocus.find_path(~root, stmt(seg), seg));
+  /* a space typed into `let a = 1;`, the rest of the program kept */
+  let space =
+    switch (List.find(Piece.is_space, seg)) {
+    | Secondary(w) =>
+      Piece.Secondary({
+        ...w,
+        id: Id.mk(),
+      })
+    | _ => fail("no space")
+    };
+  let typed = [List.hd(seg), space, ...List.tl(seg)];
+  check(
+    option(string),
+    "as on a program read afresh",
+    move(seg_of(~root, text_of(typed))),
+    move(typed),
   );
 };
 
@@ -1649,7 +1745,7 @@ let set_apart = () => {
     src,
     (Indent, Outdent),
     "v",
-    "module H = {\n  let q = fun x ->\n    let v = 1 in\n\n    x;\n\n  # ===== STATE ===== #\n\n  let init = 0\n};\nH.v",
+    "module H = {\n  let q = fun x ->\n    let v = 1 in\n    x;\n\n  # ===== STATE ===== #\n\n  let init = 0\n};\nH.v",
   );
   expect(
     ~root=Mod,
@@ -1662,7 +1758,7 @@ let set_apart = () => {
     ~root=Mod,
     "no Alt into a module across it",
     Some(
-      "let b = 2;\n\n# ===== B ===== #\n\nmodule A = {\n  let a = 1\n};\nA.a",
+      "let b = 2;\n\n# ===== B ===== #\n\nmodule A = {\n  let a = 1\n};\n\nA.a",
     ),
     run(
       ~root=Mod,
@@ -1676,10 +1772,10 @@ let set_apart = () => {
 /* ⌘⌫ on a row the outline refuses to delete leaves its cursor there */
 let refused_delete_cursor = (): unit => {
   let seg = seg_of("let f = fun x ->\n  let y = x + 1 in\n  y * 2\nin\nf(1)");
-  let term = MakeTerm.Incr.term_of(seg);
-  let rows = Web.OutlineTree.flatten(Web.OutlineTree.of_term(term));
+  let outline = CorpusUtil.outline_of(seg);
+  let rows = Web.OutlineTree.flatten(Web.OutlineTree.rows(outline));
   let path = (n: Web.OutlineTree.node) =>
-    Option.bind(n.o_id, id => Web.OutlineTree.label_path(id, term));
+    Option.bind(n.o_id, id => Web.OutlineTree.label_path(id, outline));
   /* f's ⇒ row; the program's own comes after it */
   let result =
     List.find((n: Web.OutlineTree.node) => n.o_kind == KTrail, rows);
@@ -1750,6 +1846,7 @@ let tests = (
     test_case("ops and their inverses keep blank lines", `Quick, gaps),
     test_case("a doc comment goes in and out whole", `Quick, doc_comments),
     test_case("an item keeps its indentation's offset", `Quick, offsets),
+    test_case("a let chain moved by an earlier edit", `Quick, shifted_chain),
     test_case("no statement into a member's body", `Quick, member_statements),
     test_case("comments set apart stay on their side", `Quick, set_apart),
   ],

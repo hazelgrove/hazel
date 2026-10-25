@@ -97,7 +97,7 @@ let with_q = {
     Lazy.force(root == Mod ? at_mod : at_exp);
 };
 
-let term = m => Program.statics(Cells.program(m)).term;
+let term = m => Program.outline(Cells.program(m));
 let row = (m, path) => CorpusUtil.row(term(m), path);
 let doc = m =>
   Haz3lcore.Printer.of_segment(
@@ -107,11 +107,11 @@ let doc = m =>
   );
 
 /* List's rows in [term]'s outline */
-let rows = (term: Language.Exp.t): list(string) =>
+let rows = (outline: Web.OutlineTree.t): list(string) =>
   switch (
     List.find_opt(
       (n: OutlineTree.node) => n.o_label == "List",
-      OutlineTree.of_term(term),
+      OutlineTree.rows(outline),
     )
   ) {
   | Some(n) => List.map((n: OutlineTree.node) => n.o_label, n.o_children)
@@ -120,15 +120,15 @@ let rows = (term: Language.Exp.t): list(string) =>
 
 /* each member its own row, as the editor's statics show them with q */
 let per_member =
-    (~root=Haz3lcore.Sort.Mod, what: string, term: Language.Exp.t) => {
-  let want = rows(Program.statics(Cells.program(with_q(~root, ()))).term);
+    (~root=Haz3lcore.Sort.Mod, what: string, outline: Web.OutlineTree.t) => {
+  let want = rows(Program.outline(Cells.program(with_q(~root, ()))));
   check(
     bool,
     "q and the members below it are rows",
     true,
     List.mem("q", want) && List.mem("map", want),
   );
-  check(list(string), what ++ ": a row per member", want, rows(term));
+  check(list(string), what ++ ": a row per member", want, rows(outline));
 };
 
 /* the module's member items in the analysis last run on [term]'s
@@ -150,17 +150,17 @@ let undo_redo = (~root, ()) => {
   let typed_text = Test_Undo.text_of(m);
   let m = refresh(Cells.run(m, Test_Undo.undo));
   check(bool, "the key undone", true, Test_Undo.text_of(m) != typed_text);
-  let term = OutlineControl.outline_term(Cells.program(m));
-  per_member(~root, "undo", term);
+  let outline = Program.outline(Cells.program(m));
+  per_member(~root, "undo", outline);
   check(
     option(int),
     "the analysis: an item per member, and the exports",
-    Some(List.length(rows(term)) + 1),
-    member_items(term),
+    Some(List.length(rows(outline)) + 1),
+    member_items(Program.statics(Cells.program(m)).term),
   );
   let m = refresh(Cells.run(m, Test_Undo.redo));
   check(string, "the key redone", typed_text, Test_Undo.text_of(m));
-  per_member(~root, "redo", OutlineControl.outline_term(Cells.program(m)));
+  per_member(~root, "redo", Program.outline(Cells.program(m)));
 };
 
 let pin_kept = () => {

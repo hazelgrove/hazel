@@ -536,7 +536,9 @@ let test_before_semi = (semi: Id.t, seg: Segment.t): option(Id.t) =>
     List.find_map(
       (p: Piece.t) =>
         switch (p) {
-        | Tile(t) when Web.ScratchFocus.is_test_tile(t) => Some(t.id)
+        | Tile(t)
+            when Tile.token(t, 0) == "test" || Tile.token(t, 0) == "hint" =>
+          Some(t.id)
         | _ => None
         },
       List.rev(ListUtil.truncate(i, level)),
@@ -548,7 +550,8 @@ let test_before_semi = (semi: Id.t, seg: Segment.t): option(Id.t) =>
    (harmless: consumers test membership against outline ids) */
 let span_test_tile_id = (arr: array(Piece.t), sp: item_span): option(Id.t) =>
   switch (first_tile(arr, sp.sp_start, sp.sp_stop)) {
-  | Some(t) when Web.ScratchFocus.is_test_tile(t) => Some(t.id)
+  | Some(t) when Tile.token(t, 0) == "test" || Tile.token(t, 0) == "hint" =>
+    Some(t.id)
   | _ => None
   };
 

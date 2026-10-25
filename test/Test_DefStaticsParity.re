@@ -47,7 +47,7 @@ let op = (op: Web.OutlineEdit.def_op, path) =>
       Web.ItemEdit.apply(
         ~mod_root=root == Sort.Mod,
         op,
-        CorpusUtil.row(MakeTerm.Incr.term_of_root(~root, seg), path),
+        CorpusUtil.row(CorpusUtil.outline_of(~root, seg), path),
         seg,
       )
     ) {
@@ -60,14 +60,16 @@ let op = (op: Web.OutlineEdit.def_op, path) =>
    member across a module edge, Tab and ⇧Tab move it across levels */
 let edit_op = (op: Web.OutlineEdit.def_op, path) =>
   step((~root, seg) => {
-    let term = MakeTerm.Incr.term_of_root(~root, seg);
+    let outline = CorpusUtil.outline_of(~root, seg);
     let ctx: Web.ItemEdit.ctx = {
       mod_root: root == Sort.Mod,
-      term,
+      outline,
       info_map: lazy(Statics.Map.empty),
       is_open: _ => true,
     };
-    switch (Web.ItemEdit.edit(ctx, Op(op, CorpusUtil.row(term, path)), seg)) {
+    switch (
+      Web.ItemEdit.edit(ctx, Op(op, CorpusUtil.row(outline, path)), seg)
+    ) {
     | Ok((seg, _)) => seg
     | Error(why) =>
       fail("op failed at " ++ String.concat("/", path) ++ ": " ++ why)
@@ -399,6 +401,40 @@ let spine_elab_is_whole_suffix = () => {
   );
 };
 
+/* probe targets equal monolithic statics' as sets: several probes per
+   item, which DefStatics gathers flat and monolithic statics by subterm */
+let probe_targets_as_sets = (): unit => {
+  let term =
+    MakeTerm.go(
+      CorpusUtil.seg_of(
+        "let a = 1 + 2 in\nlet b = (a * 3) + (a - 1) in\nlet c = b in\nb + a + c",
+      ),
+    ).
+      term;
+  let (map0, _) = Statics.mk_unmemoized(settings, DefStatics.ctx0, term);
+  let probe_ids =
+    Id.Map.fold(
+      (id, info, acc) =>
+        switch (info) {
+        | Info.InfoExp({user_term: {term: Var(_) | Atom(Int(_)), _}, _}) =>
+          Id.Map.add(id, (), acc)
+        | _ => acc
+        },
+      map0,
+      Id.Map.empty,
+    );
+  check(bool, "probes to place", true, Id.Map.cardinal(probe_ids) >= 8);
+  check(
+    list(string),
+    "parity",
+    [],
+    DefStaticsCheck.divergences(
+      ~settings,
+      DefStatics.calc(~settings, ~probe_ids, term),
+    ),
+  );
+};
+
 /* a probe in a fn body called only from a later item samples under
    compositional statics as under monolithic (fresh evaluations) */
 let probe_capture_parity = (): unit => {
@@ -715,6 +751,32 @@ let small = [
     `Quick,
     script("let f(x : Int) : Bool = x > 0 in\nlet g(y) = y in\n1", []),
   ),
+  /* a function definition's parameters bind its uses, so the outer
+     names they shadow stay unused */
+  test_case(
+    "a parameter shadowing an unused binding",
+    `Quick,
+    script("let x = 1 in\nlet f(x) = x + 1 in\nf(2)", []),
+  ),
+  test_case(
+    "parameters shadowing unused bindings",
+    `Quick,
+    script(
+      "let x = 1 in\nlet y = 2 in\nlet f(x, (y, z)) : Int = x + y + z in\nf(1, (2, 3))",
+      [token("3", "4")],
+    ),
+  ),
+  /* a module member's chain splits into items too (members themselves
+     are exports, never unused) */
+  test_case(
+    "a parameter in a member's chain shadowing an unused binding",
+    `Quick,
+    script(
+      ~root=Mod,
+      "module M = {\n  let x = 1 in\n  let f(x) = x + 1 in\n  f(2)\n};\n1",
+      [],
+    ),
+  ),
   test_case(
     "a module used in an alias's definition",
     `Quick,
@@ -947,6 +1009,206 @@ let module_roots = [
   ),
 ];
 
+/* the ids a sealed module's analysis has, as the monolithic one's: the
+   lowerings agree on the ids they mint, signature copies' included */
+let keys_as_monolithic = (src, ()) => {
+  let term = MakeTerm.Incr.term_of_root(~root=Exp, CorpusUtil.seg_of(src));
+  let ds = DefStatics.calc(~settings, term);
+  let (mono, _) = Statics.mk_unmemoized(settings, DefStatics.ctx0, term);
+  let cls = (m, id) =>
+    switch (Id.Map.find_opt(id, m)) {
+    | Some(i) => Cls.show(Info.cls_of(i)) ++ " " ++ Id.str8(id)
+    | None => Id.str8(id)
+    };
+  let only = (a, b) =>
+    Id.Map.fold(
+      (id, _, acc) => Id.Map.mem(id, b) ? acc : [cls(a, id), ...acc],
+      a,
+      [],
+    );
+  check(list(string), "only monolithic", [], only(mono, ds.merged));
+  check(list(string), "only per member", [], only(ds.merged, mono));
+};
+
+/* a module ascribed with a signature keeps member granularity: its members
+   are analyzed against the signature, as the monolithic lowering does. a
+   signature the members don't meet (a member missing or extra, as part 1's
+   signatures are precise, or a type member defined otherwise) is reported
+   on the module, which is then analyzed whole */
+let sealed = (~root=?, ~eval=?, src, steps) =>
+  script(~root?, ~eval?, ~delta=true, src, steps);
+let sealed_modules = [
+  test_case("a sealed module's ids, met and not", `Quick, () =>
+    List.iter(
+      src => keys_as_monolithic(src, ()),
+      [
+        "type U = Int in\nmodule M : {type T = Int; let x : (T, U); let f : T -> Bool} = {\n  type T = Int;\n  let x = (1, 2);\n  let f(t) = t == 1\n} in\nM.f(fst(M.x))",
+        /* a member missing, a type member defined otherwise */
+        "module M : {type T = Int; let x : (T, T); let y : Int} = {\n  let x = (1, 2)\n} in\nM.x",
+        "module M : {type T = Int; let x : T} = {\n  type T = Bool;\n  let x = 1\n} in\nM.x",
+      ],
+    )
+  ),
+  test_case(
+    "a sealed module's member edit",
+    `Quick,
+    sealed(
+      "module M : {let x : Int; let a : Int; let y : Int} = {\n  let x = 180;\n  let a = 1;\n  let y = x + 1\n} in\n()",
+      /* the module and `x`: `a` and `y` reuse their maps */
+      [token("180", "181") |> analyzed(2), noop |> analyzed(0)],
+    ),
+  ),
+  test_case(
+    "a signature's member, used outside",
+    `Quick,
+    sealed(
+      "module M : {let x : Int; let y : Int} = {\n  let x = 180;\n  let y = x + 1\n} in\nM.y",
+      [token("180", "181") |> changes_value |> analyzed(2)],
+    ),
+  ),
+  test_case(
+    "a member the signature types differently",
+    `Quick,
+    sealed(
+      "module M : {let x : Int; let y : Bool} = {\n  let x = 1;\n  let y = x + 180\n} in\nM.y",
+      [token("180", "181") |> analyzed(2)],
+    ),
+  ),
+  test_case(
+    "a member's own annotation against the signature",
+    `Quick,
+    sealed(
+      "module M : {let x : Int; let w : Int} = {\n  let x : Bool = true;\n  let w = 180\n} in\nM.x",
+      [token("180", "181") |> analyzed(2)],
+    ),
+  ),
+  test_case(
+    "retyping the signature",
+    `Quick,
+    sealed(
+      "module M : {let x : Int} = {\n  let x = 180\n} in\nM.x",
+      [
+        token(~at=`First, ~keep_id=true, "Int", "Bool"),
+        token(~at=`First, ~keep_id=true, "Bool", "Int"),
+      ],
+    ),
+  ),
+  test_case(
+    "a signature's type member",
+    `Quick,
+    sealed(
+      "module M : {type T = Int; let x : T} = {\n  type T = Int;\n  let x = 180\n} in\nM.x",
+      [token("180", "181") |> changes_value |> analyzed(2)],
+    ),
+  ),
+  test_case(
+    "a signature through an alias",
+    `Quick,
+    sealed(
+      "type S = {let x : Int; let y : Int} in\nmodule M : S = {\n  let x = 180;\n  let y = 2\n} in\nM.x",
+      [token("180", "181") |> changes_value |> analyzed(2)],
+    ),
+  ),
+  test_case(
+    "a let-bound sealed module",
+    `Quick,
+    sealed(
+      "let m : {let x : Int; let y : Int} = {\n  let x = 180;\n  let y = 2\n} in\nm.x",
+      [token("180", "181") |> changes_value |> analyzed(2)],
+    ),
+  ),
+  test_case(
+    "a sealed sub-module",
+    `Quick,
+    sealed(
+      "module Outer : {module Inner : {let x : Int}; let y : Int} = {\n  module Inner = {let x = 180};\n  let y = 2\n} in\nOuter.Inner.x",
+      /* Outer, Inner (sealed by its expectation) and its x */
+      [token("180", "181") |> changes_value |> analyzed(3)],
+    ),
+  ),
+  test_case(
+    "a sealed slide at a module root",
+    `Quick,
+    sealed(
+      ~root=Mod,
+      "module Holes : {let target : Int; let other : Int} = {\n  let target = 42;\n  let other = 180;\n  target == 20 + 22\n};\n()",
+      [token("180", "181") |> analyzed(2)],
+    ),
+  ),
+  test_case(
+    "a sealed module's members of every kind",
+    `Quick,
+    sealed(
+      "module M : {type T = Int; let a : T; let f : Int -> Int; let b : Int; let c : Int; module N : {let d : Int}} = {\n  type T = Int;\n  let a = true;\n  let a : T = 1;\n  let f(x) = x + a;\n  let (b, c) = (2, 180);\n  module N = {let d = 4};\n  test f(1) == 2 end\n} in\nM.f(M.c)",
+      [
+        /* M and the destructuring */
+        token("180", "181") |> changes_value |> analyzed(2),
+        /* M, N and its d */
+        token("4", "5") |> analyzed(3),
+        /* M and the shadowed `a`, which is synthesized */
+        token("true", "false") |> analyzed(2),
+        /* the module's own signature retyped and back */
+        token(~at=`First, ~keep_id=true, "Int", "Bool"),
+        token(~at=`First, ~keep_id=true, "Bool", "Int"),
+      ],
+    ),
+  ),
+  /* unmet by name: the item whole */
+  test_case(
+    "a member the signature requires and the module lacks",
+    `Quick,
+    sealed(
+      "module M : {let x : Int; let z : Int} = {\n  let x = 180\n} in\nM.z",
+      [token("180", "181") |> analyzed(1)],
+    ),
+  ),
+  test_case(
+    "a member the signature lacks",
+    `Quick,
+    sealed(
+      "module M : {let x : Int} = {\n  let x = 1;\n  let y = 180\n} in\nM.x",
+      [token("180", "181") |> analyzed(1)],
+    ),
+  ),
+  /* by a type member's definition: the module item, its members and
+     exports tail, then the item whole */
+  test_case(
+    "a type member defined otherwise",
+    `Quick,
+    sealed(
+      "module M : {type T = Int; let x : T} = {\n  type T = Bool;\n  let x = 180\n} in\nM.x",
+      [
+        token("180", "181") |> analyzed(5),
+        /* met, then unmet again */
+        token(~at=`Last, ~keep_id=true, "Bool", "Int"),
+        token("181", "182") |> analyzed(2),
+        token(~at=`Last, ~keep_id=true, "Int", "Bool"),
+      ],
+    ),
+  ),
+  test_case(
+    "a hole binder may bind the missing member",
+    `Quick,
+    sealed(
+      "module M : {let x : Int; let y : Int} = {\n  let x = 180;\n  let ? = 2\n} in\nM.y",
+      [token("180", "181") |> analyzed(1)],
+    ),
+  ),
+  test_case(
+    "a member renamed out of and into its signature",
+    `Quick,
+    sealed(
+      "module M : {let x : Int; let y : Int} = {\n  let x = 1;\n  let y = 180\n} in\nM.x",
+      [
+        token(~at=`Last, ~keep_id=true, "y", "z"),
+        token("180", "181") |> analyzed(1),
+        token(~at=`Last, ~keep_id=true, "z", "y"),
+        token("181", "182") |> analyzed(2),
+      ],
+    ),
+  ),
+];
+
 /* a ModExp member that is a let chain is a level of items: an edit
    re-analyzes the module, the member's wrapper, the edited link and the
    links that use what it changed. a let chain in a definition is one item */
@@ -1106,6 +1368,7 @@ let tests = (
       spine_elab_is_whole_suffix,
     ),
     test_case("probe capture parity", `Quick, probe_capture_parity),
+    test_case("probe targets as sets", `Quick, probe_targets_as_sets),
     test_case("probe parity in a ModExp chain", `Quick, modexp_probe_parity),
     test_case("a ModExp chain moved", `Quick, modexp_chain_moved),
   ]
@@ -1113,6 +1376,7 @@ let tests = (
   @ type_deps
   @ literal_edits
   @ module_roots
+  @ sealed_modules
   @ modexp_chains
   @ corpus,
 );

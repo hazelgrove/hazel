@@ -199,6 +199,25 @@ module Update = {
     (ensure, selection);
   };
 
+  /* turning the program value on in a stack opens the ⇒ cell, where the
+     value shows (the ⇓ button and the settings both come here) */
+  let open_tail_cell = (editors: Editors.Model.t): option(Editors.Update.t) =>
+    switch (editors) {
+    | Scratch(m)
+    | Documentation(m) =>
+      switch (ScratchMode.Model.current_program(m)) {
+      | Some(Divided(_) as p) =>
+        Program.tail_row(p)
+        |> Option.map(id =>
+             Editors.Update.Scratch(Workspace(FocusEnsure(id)))
+           )
+      | _ => None
+      }
+    | Tutorial(_)
+    | Exercises(_)
+    | Config(_) => None
+    };
+
   let update_global =
       (
         ~import_log,
@@ -245,6 +264,14 @@ module Update = {
     | Set(action) =>
       let* settings =
         Settings.Update.update(~action, ~settings=model.globals.settings);
+      switch (action) {
+      | TailProbe when settings.tail_probe =>
+        Option.iter(
+          a => schedule_action(Editors(a)),
+          open_tail_cell(model.editors),
+        )
+      | _ => ()
+      };
       {
         ...model,
         globals: {
@@ -828,27 +855,69 @@ module Selection = {
   };
 };
 
-module View = {
-  /* the Cmd state a key event gives the model, when it may change it. The
-     listener's model is the last render's, which hasn't seen a press in
-     this frame: a press or release of Cmd always gives it (a release
-     dropped there left the Cmd-hover underline on), other keys a change */
-  let meta_change = (~rendered: bool, key: Key.t): option(bool) => {
-    let down = key.meta == Down;
-    switch (key.key) {
-    | D("Meta")
-    | U("Meta") => Some(down)
-    | _ => rendered == down ? None : Some(down)
+/* Whether Cmd is held, for the Cmd-hover underline. Document capture sees
+   every key first: the page's own listener misses keys a handler stops,
+   like Cmd+C in the editor. A window blur ends it: the release happens
+   elsewhere. */
+module MetaListener = {
+  /* bare Cmd only, so chords don't light the underline */
+  let held = (~meta: bool, ~ctrl: bool, ~alt: bool, ~shift: bool): bool =>
+    meta && !ctrl && !alt && !shift;
+
+  let dispatch: ref(bool => unit) = ref(_ => ());
+  let installed = ref(false);
+  let state = ref(false);
+  let set = (down: bool): unit =>
+    if (down != state^) {
+      state := down;
+      dispatch^(down);
+    };
+  let on_key = (e: Js.t(Dom_html.keyboardEvent)): Js.t(bool) => {
+    set(
+      held(
+        ~meta=Key.meta_held(e),
+        ~ctrl=Key.ctrl_held(e),
+        ~alt=Key.alt_held(e),
+        ~shift=Key.shift_held(e),
+      ),
+    );
+    Js._true;
+  };
+  let sync = (dispatch': bool => unit): unit => {
+    dispatch := dispatch';
+    if (! installed^) {
+      installed := true;
+      let listen = (target, event, f, capture) =>
+        ignore(
+          Dom_html.addEventListener(
+            target,
+            event,
+            Dom_html.handler(f),
+            Js.bool(capture),
+          ),
+        );
+      listen(Dom_html.document, Dom_html.Event.keydown, on_key, true);
+      listen(Dom_html.document, Dom_html.Event.keyup, on_key, true);
+      /* the window's own blur only: in capture it'd see every element's */
+      listen(
+        Dom_html.window,
+        Dom_html.Event.blur,
+        _ => {
+          set(false);
+          Js._true;
+        },
+        false,
+      );
     };
   };
+};
 
-  let handlers = (~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
+module View = {
+  let handlers = (~inject: Update.t => Ui_effect.t(unit)) => {
+    MetaListener.sync(down =>
+      Bonsai.Effect.Expert.handle(inject(Globals(SetMetaDown(down))))
+    );
     let handle_key_event = (key: Key.t): Effect.t(unit) => {
-      let meta_effects =
-        switch (meta_change(~rendered=model.globals.meta_down, key)) {
-        | Some(down) => [inject(Globals(SetMetaDown(down)))]
-        | None => []
-        };
       /* Skip page-level shortcuts when the user is typing in a form
          element (e.g. an <input>/<textarea>/<select> rendered by a
          HazelDOM sidebar app). (dev's #2649 took out the clipboard shim,
@@ -939,22 +1008,12 @@ module View = {
       Effect.(
         switch (page_action) {
         | Some(action) when !target_is_input =>
-          Many(
-            [Prevent_default, Stop_propagation, inject(action)]
-            @ meta_effects,
-          )
-        | _ => meta_effects == [] ? Ignore : Many(meta_effects)
+          Many([Prevent_default, Stop_propagation, inject(action)])
+        | _ => Ignore
         }
       );
     };
-    [
-      Key.listener(~f=handle_key_event),
-      /* A press on plain text leaves focus on #page itself. Don't move it
-         on from here: that would cancel the text selection being started.
-         Cmd goes up whatever the last render saw: a press may not have
-         rendered */
-      Attr.on_blur(_ => inject(Globals(SetMetaDown(false)))),
-    ];
+    [Key.listener(~f=handle_key_event)];
   };
 
   let nut_menu =
@@ -1059,14 +1118,6 @@ module View = {
         ScratchMode.Model.current_program(m)
         |> Option.map(p => {
              let tail = globals.settings.tail_probe;
-             /* in a stack, the value shows in the ⇒ cell: open it */
-             let open_tail =
-               switch (p, Program.tail_row(p)) {
-               | (Program.Divided(_), Some(id)) when !tail => [
-                   inject(Editors(Scratch(Workspace(FocusEnsure(id))))),
-                 ]
-               | _ => []
-               };
              EvalResult.View.dynamics(
                ~tail,
                ~stopped=
@@ -1076,10 +1127,7 @@ module View = {
                       Program.result(p),
                     )
                  != None,
-               ~toggle_tail=
-                 Effect.Many(
-                   [inject(Globals(Set(TailProbe)))] @ open_tail,
-                 ),
+               ~toggle_tail=inject(Globals(Set(TailProbe))),
                Program.result(p),
              );
            })
@@ -1245,7 +1293,7 @@ module View = {
       cursor.contextual_actions,
     );
     div(
-      ~attrs=[Attr.id("page"), ...handlers(~inject, model)],
+      ~attrs=[Attr.id("page"), ...handlers(~inject)],
       [FontSpecimen.view]
       @ main_view(~log_model, ~get_log_and, ~cursor, ~inject, model),
     );

@@ -10,21 +10,28 @@ module Persist = ScratchPersist;
 
 type code = Scratchpad.code;
 
-/* whether [term]'s outline names anything: a hydrating slide's
-   placeholder statics show only an unnamed ⇒ row */
-let named_outline = (term: Language.Exp.t): bool =>
+/* whether [program]'s statics are its own: a hydrating slide's are a
+   placeholder's, which know none of its named rows */
+let statics_ready = (program: Program.t): bool => {
+  let info_map = Program.statics(program).info_map;
   List.exists(
-    (n: OutlineTree.node) => n.o_label != "",
-    OutlineTree.of_term(term),
+    (n: OutlineTree.node) =>
+      n.o_label != ""
+      && (
+        switch (n.o_id) {
+        | Some(id) => Id.Map.mem(id, info_map)
+        | None => false
+        }
+      ),
+    OutlineTree.flatten(OutlineTree.rows(Program.outline(program))),
   );
+};
 
 /* a loaded slide's saved view, once statics can resolve it: against the
    placeholder, resolving drops pins */
 let saved_view = (~slide_key, code: code): option(Persist.side) =>
   switch (Hashtbl.find_opt(Persist.pending_pins, slide_key), code.program) {
-  | (Some(saved), Whole(editor))
-      when named_outline(editor.editor.statics.term) =>
-    Some(saved)
+  | (Some(saved), Whole(_)) when statics_ready(code.program) => Some(saved)
   | _ => None
   };
 
@@ -58,7 +65,13 @@ module Action = {
     /* a loaded slide's saved view and caret, restored once ready */
     | RestorePins
     | RestoreCaret(Point.t)
-    | AgentAction(Agent.Update.Action.t);
+    | AgentAction(Agent.Update.Action.t)
+    /* the run of the program View as agent shows */
+    | LensResult(EvalResult.Update.t)
+    | LensMode(AgentLens.mode)
+    /* the lens's map: its caret; edits are dropped */
+    | LensMap(CellEditor.Update.t)
+    | LensMapShown(bool);
 };
 
 open Action;
@@ -127,8 +140,14 @@ let item_of =
   );
 
 /* [code] showing [v]: its cells opened and closed to match */
-let realize = (~info_map, ~term, v: SlideView.t, code: code): code => {
-  let (view, program) = SlideView.realize(~info_map, ~term, v, code.program);
+let realize = (~info_map, v: SlideView.t, code: code): code => {
+  let (view, program) =
+    SlideView.realize(
+      ~info_map,
+      ~outline=Program.outline(code.program),
+      v,
+      code.program,
+    );
   {
     ...code,
     program,
@@ -139,17 +158,14 @@ let realize = (~info_map, ~term, v: SlideView.t, code: code): code => {
 /* change what the slide shows, then open and close cells to match;
    view changes are not undo steps */
 let view =
-    (f: (Language.Exp.t, Program.t, SlideView.t) => SlideView.t, code: code)
-    : Updated.t(code) => {
-  let statics = Program.statics(code.program);
+    (f: (OutlineTree.t, Program.t, SlideView.t) => SlideView.t, code: code)
+    : Updated.t(code) =>
   realize(
-    ~info_map=statics.info_map,
-    ~term=statics.term,
-    f(statics.term, code.program, code.view),
+    ~info_map=Program.statics(code.program).info_map,
+    f(Program.outline(code.program), code.program, code.view),
     code,
   )
   |> Updated.return(~historic=false);
-};
 
 /* a view change from the outline: the keys go to the cell the stack
    focuses, which a close can move. The vdom gives a closed cell's element
@@ -163,10 +179,8 @@ let outline_view = (f, code: code): Updated.t(code) => {
 /* after an edit to the whole program (agent, outline menu): the same
    view again, pins to vanished items dropped */
 let resync = (code: Scratchpad.code, program: Program.t): Scratchpad.code => {
-  let statics = Program.statics(program);
   realize(
-    ~info_map=statics.info_map,
-    ~term=statics.term,
+    ~info_map=Program.statics(program).info_map,
     code.view,
     {
       ...code,
@@ -270,7 +284,7 @@ let with_segment =
       switch (
         Divided.resplit(
           ~info_map=statics.info_map,
-          ~term=statics.term,
+          ~outline=Program.outline(Whole(editor)),
           editor,
           d,
         )
@@ -300,16 +314,44 @@ let with_segment =
    document, which the statics may lag */
 let item_ctx =
     (~settings: Settings.t, ~folds, program: Program.t): ItemEdit.ctx => {
-  let term = fresh_term(program);
+  let outline = Program.outline(program);
   {
     mod_root: Program.root(program) == Haz3lcore.Sort.Mod,
-    term,
-    info_map: lazy(fresh_info_map(~settings, program, term)),
-    is_open: id => OutlineTree.expanded(~folds, id, term),
+    outline,
+    info_map: lazy(fresh_info_map(~settings, program, fresh_term(program))),
+    is_open: id => OutlineTree.expanded(~folds, id, outline),
   };
 };
 
-let update =
+/* a cell action on a whole program; while divided only its
+   whole-program result takes actions */
+let program_action =
+    (~settings: Settings.t, a: CellEditor.Update.t, program: Program.t)
+    : Updated.t(Program.t) =>
+  Updated.(
+    switch (program, a) {
+    | (Whole(editor), _) =>
+      let* editor = CellEditor.Update.update(~settings, a, editor);
+      Program.Whole(editor);
+    | (Divided(d), ResultAction(ra)) =>
+      let* result =
+        EvalResult.Update.update(
+          ~settings={
+            ...settings,
+            core: {
+              ...settings.core,
+              assist: false,
+            },
+          },
+          ra,
+          Divided.result(d),
+        );
+      Program.Divided(Divided.with_result(result, d));
+    | (Divided(_), MainEditor(_)) => return_quiet(program)
+    }
+  );
+
+let update_code =
     (
       ~settings: Settings.t,
       ~schedule_action: Action.t => unit,
@@ -388,7 +430,7 @@ let update =
         Program.of_close(
           Divided.resplit(
             ~info_map=new_ed.editor.statics.info_map,
-            ~term=new_ed.editor.statics.term,
+            ~outline=Program.outline(Whole(new_ed)),
             new_ed,
             d,
           ),
@@ -397,7 +439,7 @@ let update =
     };
   | FocusToggle(fid) =>
     outline_view(
-      (term, program, v) =>
+      (outline, program, v) =>
         if (List.mem(
               SlideView.{
                 p_id: fid,
@@ -425,7 +467,7 @@ let update =
             }
           ) {
           | Some(run) => SlideView.unpin(run.e_id, v)
-          | None => SlideView.pin(~term, fid, v)
+          | None => SlideView.pin(~outline, fid, v)
           };
         },
       code,
@@ -435,7 +477,7 @@ let update =
     /* the tests container: one cell for the run, or close it (or its
        members open one by one) */
     outline_view(
-      (term, program, v) => {
+      (outline, program, v) => {
         let (members, size) =
           switch (
             Focus.test_run_deep(
@@ -467,66 +509,73 @@ let update =
               singles,
             );
           Some(List.length(singles)) == size
-            ? v : SlideView.pin(~term, ~run=true, fid, v);
+            ? v : SlideView.pin(~outline, ~run=true, fid, v);
         };
       },
       code,
     )
   | FocusEnsure(fid) =>
     outline_view(
-      (term, program, v) =>
+      (outline, program, v) =>
         switch (program) {
         | Divided(d) when Divided.owner(fid, d) == None =>
-          SlideView.pin(~term, fid, v)
+          SlideView.pin(~outline, fid, v)
         | _ => v
         },
       code,
     )
     |> focusing(fid)
   | UnfocusDef =>
-    outline_view((term, _, v) => SlideView.discard(~term, v), code)
+    outline_view((outline, _, v) => SlideView.discard(~outline, v), code)
   | ZoomIn(fid) =>
-    outline_view((term, _, v) => SlideView.zoom_in(~term, fid, v), code)
+    outline_view(
+      (outline, _, v) => SlideView.zoom_in(~outline, fid, v),
+      code,
+    )
   | ZoomOut => outline_view((_, _, v) => SlideView.zoom_out(v), code)
   | ZoomTo(m) => outline_view((_, _, v) => SlideView.zoom_to(m, v), code)
   | ShowWhole(parked) =>
     outline_view((_, _, v) => SlideView.park(parked, v), code)
   | OutlineMode(mode) =>
-    outline_view((term, _, v) => SlideView.set_mode(~term, mode, v), code)
+    outline_view(
+      (_, program, v) =>
+        SlideView.set_mode(~term=Program.statics(program).term, mode, v),
+      code,
+    )
   | ToggleUX(fid) =>
-    outline_view((term, _, v) => SlideView.toggle_ux(~term, fid, v), code)
+    outline_view(
+      (_, program, v) =>
+        SlideView.toggle_ux(~term=Program.statics(program).term, fid, v),
+      code,
+    )
   | RealizeView =>
     /* after undo: against the statics the restored program shows (the
        live program's, Page.carry_over), as view changes read them while
        typing; a snapshot nothing was carried into has none */
     let statics = Program.statics(code.program);
-    let (term, info_map) =
+    let info_map =
       Id.Map.is_empty(statics.info_map)
-        ? {
-          let term = fresh_term(code.program);
-          (term, fresh_info_map(~settings, code.program, term));
-        }
-        : (statics.term, statics.info_map);
-    realize(~info_map, ~term, code.view, code) |> return(~historic=false);
+        ? fresh_info_map(~settings, code.program, fresh_term(code.program))
+        : statics.info_map;
+    realize(~info_map, code.view, code) |> return(~historic=false);
   | RestorePins =>
     /* each slide's saved view waits under its own key, so another
        slide hydrating first can't drop it; a deep link's outline
        request goes over it, on the linked slide only */
     let link = DeepLink.outline_for(slide_key);
     switch (Hashtbl.find_opt(Persist.pending_pins, slide_key), code.program) {
-    | (saved, Whole(editor))
-        when
-          (saved != None || link != None)
-          && named_outline(editor.editor.statics.term) =>
+    | (saved, Whole(_))
+        when (saved != None || link != None) && statics_ready(code.program) =>
       Hashtbl.remove(Persist.pending_pins, slide_key);
       if (link != None) {
         DeepLink.outline_applied := true;
       };
       view(
-        (term, _, v) => {
+        (outline, program, v) => {
+          let term = Program.statics(program).term;
           let v =
             switch (saved) {
-            | Some(saved) => Persist.resolve_view(saved, term)
+            | Some(saved) => Persist.resolve_view(saved, outline)
             | None => v
             };
           switch (link) {
@@ -539,7 +588,7 @@ let update =
             switch (r.ux_rows) {
             | Some(labels) =>
               SlideView.set_ux_pins(
-                SlideView.rows_labeled(~term, ~norm=DeepLink.key, labels),
+                SlideView.rows_labeled(~outline, ~norm=DeepLink.key, labels),
                 v,
               )
             | None => v
@@ -571,36 +620,160 @@ let update =
     };
   | Stack(id, side, a) => cell_update(id, side, a)
   | CellAction(a) =>
-    switch (code.program) {
-    | Whole(editor) =>
-      let* editor = CellEditor.Update.update(~settings, a, editor);
+    let* program = program_action(~settings, a, code.program);
+    program === code.program
+      ? code
+      : {
+        ...code,
+        program,
+      };
+  | LensResult(ra) =>
+    switch (code.lens) {
+    | Some(l) =>
+      let* program = program_action(~settings, ResultAction(ra), l.program);
       {
         ...code,
-        program: Whole(editor),
+        lens:
+          Some({
+            ...l,
+            program,
+          }),
       };
-    | Divided(d) =>
-      /* while divided only the whole-program result takes actions */
-      switch (a) {
-      | ResultAction(ra) =>
-        let* result =
-          EvalResult.Update.update(
-            ~settings={
-              ...settings,
-              core: {
-                ...settings.core,
-                assist: false,
-              },
-            },
-            ra,
-            Divided.result(d),
-          );
+    | None => code |> return_quiet
+    }
+  /* handled in [update] */
+  | LensMode(_)
+  | LensMap(_)
+  | LensMapShown(_) => code |> return_quiet
+  };
+};
+
+/* View as agent shows a request instead of the program: the program and
+   its view are the user's, untouched, and the agent keeps working on
+   them; what the user does to the shown request is dropped */
+let update =
+    (
+      ~settings: Settings.t,
+      ~schedule_action: Action.t => unit,
+      ~slide_key: string,
+      action: Action.t,
+      code: code,
+    )
+    : Updated.t(code) => {
+  let lens_of = (chat_id, seq) =>
+    switch (Id.Map.find_opt(chat_id, code.agent.chat_system.chat_map)) {
+    | Some(chat) =>
+      AgentLens.build(
+        ~settings=settings.core,
+        ~view=AgentGlobals.view_settings(settings.agent_globals),
+        ~live=seq == None,
+        chat,
+        seq,
+      )
+    | None => None
+    };
+  let update_code =
+    update_code(~settings, ~schedule_action, ~slide_key, action);
+  switch (action, code.lens) {
+  | (AgentAction(ViewAsAgent(chat_id, seq)), _) =>
+    switch (lens_of(chat_id, seq)) {
+    | Some(_) as lens =>
+      Updated.return(
+        ~is_edit=false,
+        ~historic=false,
         {
           ...code,
-          program: Divided(Divided.with_result(result, d)),
-        };
-      | MainEditor(_) => code |> return_quiet
-      }
+          lens,
+        },
+      )
+    | None => Updated.return_quiet(code)
     }
+  | (LensMap(a), Some(l)) =>
+    switch (AgentLensMap.update(~settings, a, l.map)) {
+    | Some(u) => {
+        ...u,
+        is_edit: false,
+        historic: false,
+        model: {
+          ...code,
+          lens:
+            Some({
+              ...l,
+              map: u.model,
+            }),
+        },
+      }
+    | None => Updated.return_quiet(code)
+    }
+  | (LensMapShown(shown), Some(l)) =>
+    AgentLens.map_shown := shown;
+    Updated.return(
+      ~is_edit=false,
+      ~historic=false,
+      {
+        ...code,
+        lens:
+          Some({
+            ...l,
+            map_shown: shown,
+          }),
+      },
+    );
+  | (LensMode(mode), Some(l)) =>
+    AgentLens.last_mode := mode;
+    switch (Id.Map.find_opt(l.chat, code.agent.chat_system.chat_map)) {
+    | Some(chat) =>
+      Updated.return(
+        ~is_edit=false,
+        ~historic=false,
+        {
+          ...code,
+          lens: Some(AgentLens.with_mode(chat, mode, l)),
+        },
+      )
+    | None => Updated.return_quiet(code)
+    };
+  | (AgentAction(LeaveAgentView), _) =>
+    Updated.return(
+      ~is_edit=false,
+      ~historic=false,
+      {
+        ...code,
+        lens: None,
+      },
+    )
+  | (AgentAction(_), Some(l)) =>
+    let updated = update_code(code);
+    let after = updated.model;
+    let followed =
+      Option.bind(
+        Id.Map.find_opt(l.chat, after.agent.chat_system.chat_map), chat =>
+        AgentLens.follow(
+          ~settings=settings.core,
+          ~view=AgentGlobals.view_settings(settings.agent_globals),
+          chat,
+          l,
+        )
+      );
+    switch (followed) {
+    | Some(_) as lens => {
+        ...updated,
+        model: {
+          ...after,
+          lens,
+        },
+        recalculate: true,
+      }
+    | None => updated
+    };
+  /* the program's own run, and its restores, still land */
+  | (
+      CellAction(ResultAction(_)) | RestorePins | RestoreCaret(_) |
+      LensResult(_),
+      _,
+    )
+  | (_, None) => update_code(code)
+  | (_, Some(_)) => Updated.return_quiet(code)
   };
 };
 
@@ -619,40 +792,22 @@ let calc_entry_memo:
   ) =
   Hashtbl.create(8);
 
-let calculate =
+/* a program's statics and run; its results come back through
+   [dispatch] */
+let calculate_program =
     (
       ~settings,
       ~autoprobe_mode,
       /* the ⇓ toggle: the whole program's last expression, or the ⇒
          cell's, probed as an open drawer */
       ~tail_probe,
-      ~schedule_action: Action.t => unit,
       ~is_edited,
       ~statics_mode,
-      ~slide_key: string,
-      code: code,
+      ~calc_entry_memo,
+      ~dispatch: EvalResult.Update.t => unit,
+      program: Program.t,
     )
-    : code => {
-  let program = code.program;
-  /* restore a loaded slide's saved caret: the Move runs as its own
-     follow-up action, after this calculate builds measured */
-  switch (Hashtbl.find_opt(Persist.pending_caret, slide_key)) {
-  | Some(p) => schedule_action(RestoreCaret(p))
-  | None => ()
-  };
-  switch (program) {
-  | Whole(editor)
-      when
-        (
-          Hashtbl.mem(Persist.pending_pins, slide_key)
-          || DeepLink.outline_for(slide_key) != None
-        )
-        && named_outline(editor.editor.statics.term) =>
-    /* only once statics has a named outline: early hydration frames see
-       a placeholder (a lone unnamed ⇒ row), where resolving drops pins */
-    schedule_action(RestorePins)
-  | _ => ()
-  };
+    : Program.t => {
   let worker_request = ref([]);
   let queue_worker =
     Some(
@@ -1002,8 +1157,7 @@ let calculate =
       );
       Program.Divided(d);
     };
-  let dispatch = (_key, action) =>
-    schedule_action(CellAction(ResultAction(action)));
+  let dispatch = (_key, action) => dispatch(action);
   EvalRequest.request(
     worker_request^,
     ~pos_of_key=key => key,
@@ -1013,8 +1167,72 @@ let calculate =
         dispatch(key, UpdateResult(ResultFail(Timeout)))
       ),
   );
+  program;
+};
+
+/* the lens's cells, memoized apart from the program's */
+let lens_entry_memo = Hashtbl.create(8);
+
+let calculate =
+    (
+      ~settings,
+      ~autoprobe_mode,
+      ~tail_probe,
+      ~schedule_action: Action.t => unit,
+      ~is_edited,
+      ~statics_mode,
+      ~slide_key: string,
+      code: code,
+    )
+    : code => {
+  /* restore a loaded slide's saved caret: the Move runs as its own
+     follow-up action, after this calculate builds measured */
+  switch (Hashtbl.find_opt(Persist.pending_caret, slide_key)) {
+  | Some(p) => schedule_action(RestoreCaret(p))
+  | None => ()
+  };
+  switch (code.program) {
+  | Whole(_)
+      when
+        (
+          Hashtbl.mem(Persist.pending_pins, slide_key)
+          || DeepLink.outline_for(slide_key) != None
+        )
+        && statics_ready(code.program) =>
+    /* only once statics are the program's own: early hydration frames see
+       a placeholder's (a lone unnamed ⇒ row), where resolving drops pins */
+    schedule_action(RestorePins)
+  | _ => ()
+  };
+  let calc = calculate_program(~settings, ~autoprobe_mode, ~tail_probe);
   {
     ...code,
-    program,
+    program:
+      calc(
+        ~is_edited,
+        ~statics_mode,
+        ~calc_entry_memo,
+        ~dispatch=a => schedule_action(CellAction(ResultAction(a))),
+        code.program,
+      ),
+    lens:
+      Option.map(
+        (l: AgentLens.t) => {
+          let program =
+            calc(
+              ~is_edited=false,
+              ~statics_mode,
+              ~calc_entry_memo=lens_entry_memo,
+              ~dispatch=a => schedule_action(LensResult(a)),
+              l.program,
+            );
+          {
+            ...l,
+            program,
+            map: AgentLensMap.calculate(~settings, program, l.map),
+          };
+        },
+        code.lens,
+      ),
   };
 };

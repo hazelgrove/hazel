@@ -14,7 +14,7 @@ let none = _ => ignore;
 /* [src]'s rows as the sidebar lists them: every one shown unless
    [collapsed] (by label), or, given [folds], as a slide folds them */
 let visible =
-    (~collapsed: list(string)=[], ~folds=?, term: Language.Exp.t)
+    (~collapsed: list(string)=[], ~folds=?, outline: Web.OutlineTree.t)
     : array(S.visible_row) =>
   S.visible_rows(
     ~folded=
@@ -23,7 +23,7 @@ let visible =
         | Some(folds) => O.folded(~folds, path, n.o_kind)
         | None => List.mem(n.o_label, collapsed)
         },
-    O.of_term(term),
+    O.rows(outline),
   );
 
 /* text mode's state kept as OutlineControl keeps it, minus the program;
@@ -152,6 +152,7 @@ let props =
   cursor,
   created: None,
   flash: 0,
+  refused: None,
   pinned: [],
   focused_entries: [],
   error_items: [],

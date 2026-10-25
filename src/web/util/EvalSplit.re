@@ -277,8 +277,8 @@ let split_of = (it: DefStatics.item) =>
   | (Some(n), [_, ..._], Let(p, v, body)) =>
     switch (DefStatics.top_sum(n.n_sums)) {
     | Some({s_elab: Some(top), _}) =>
-      switch (DefStatics.module_literal_members(it.d_node)) {
-      | Some((_, def, members)) =>
+      switch (DefStatics.module_literal_members(~ctx=it.d_ctx_in, it.d_node)) {
+      | Some((_, def, members, _)) =>
         switch (Statics.Map.lookup_exp(Exp.rep_id(def), n.n_wrap)) {
         | Some(info) when info.elab_term === v =>
           Some((Members(members), n, v, p, body))

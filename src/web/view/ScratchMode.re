@@ -143,6 +143,8 @@ module Selection = {
     /* the open cells: the one Divided.active names has the focus */
     | Stack(CellEditor.Selection.t)
     | Drv(DerivationExerciseMode.Selection.t)
+    /* View as agent's map */
+    | LensMap(CellEditor.Selection.t)
     | TextBox;
 
   let get_cursor_info =
@@ -171,6 +173,14 @@ module Selection = {
           Update.Workspace(Stack(e.e_id, side, a));
         | None => empty
         }
+      | (LensMap(selection), Code({lens: Some(l), _})) =>
+        let+ a =
+          CellEditor.Selection.get_cursor_info(
+            ~inject=a => inject(Workspace(LensMap(a))),
+            ~selection,
+            l.map.editor,
+          );
+        Update.Workspace(LensMap(a));
       | (Drv(selection), Drv(m)) =>
         let+ a =
           DerivationExerciseMode.Selection.get_cursor_info(
@@ -184,6 +194,7 @@ module Selection = {
       | (Stack(_), Code({program: Whole(_), _}))
       | (Stack(_), Drv(_))
       | (Drv(_), Code(_))
+      | (LensMap(_), _)
       | (TextBox, _) => empty
       };
     cursor
@@ -286,7 +297,7 @@ module Selection = {
           OutlineTree.enclosing_row(
             ~info_map=statics.info_map,
             target_id,
-            statics.term,
+            Program.outline(Divided(d)),
           );
         /* the cell that holds [fid] once it's ensured */
         let j =
@@ -463,9 +474,15 @@ module Selection = {
   /* after an update, the selection follows the program between one
      editor and open cells */
   let follow = (selection: t, after: Model.t): t =>
-    switch (selection, Model.current_program(after)) {
-    | (Stack(_), Some(Whole(_))) => Cell(MainEditor)
-    | (Cell(MainEditor), Some(Divided(_))) => Stack(MainEditor)
+    switch (selection, Model.current_code(after)) {
+    | (Stack(_), Some({program: Whole(_), _})) => Cell(MainEditor)
+    | (Cell(MainEditor), Some({program: Divided(_), _})) =>
+      Stack(MainEditor)
+    /* the map left with the lens */
+    | (LensMap(_), Some({lens: None, program: Whole(_), _})) =>
+      Cell(MainEditor)
+    | (LensMap(_), Some({lens: None, program: Divided(_), _})) =>
+      Stack(MainEditor)
     | _ => selection
     };
 
@@ -565,12 +582,26 @@ module View = {
       ];
     } else {
       switch (current.kind) {
-      | Code({program, view, _}) =>
+      | Code({program, view, lens, _}) =>
+        /* View as agent: the request's program in place of the user's,
+           read-only */
+        let (program, view, locked) =
+          switch (lens) {
+          | Some(l) => (l.program, l.view, true)
+          | None => (program, view, false)
+          };
+        let banner =
+          switch (lens) {
+          | Some(l) => [
+              AgentLensView.banner(~go=a => inject(Workspace(a)), l),
+            ]
+          | None => []
+          };
         let stack_views = (d: Divided.t) => {
           let cells = Divided.cells(d);
-          let term = Divided.statics(d).term;
+          let outline = Program.outline(Divided(d));
           /* the zoomed module as one cell: the breadcrumb names it */
-          let zoom_cell = SlideView.showing_zoom_cell(~term, view);
+          let zoom_cell = SlideView.showing_zoom_cell(~outline, view);
           let tests = EvalResult.Model.test_results(Divided.result(d));
           let focus =
             switch (selected, Divided.focused(d)) {
@@ -625,7 +656,7 @@ module View = {
                   )
                 | _ =>
                   let qualifier =
-                    switch (OutlineTree.path_of(e.e_id, term)) {
+                    switch (OutlineTree.path_of(e.e_id, outline)) {
                     | [] => []
                     | path => [
                         span(
@@ -691,7 +722,9 @@ module View = {
                   let qual_cols = idx =>
                     switch (List.nth_opt(cells, idx)) {
                     | Some(e) =>
-                      switch (OutlineTree.path_of(e.ScratchCell.e_id, term)) {
+                      switch (
+                        OutlineTree.path_of(e.ScratchCell.e_id, outline)
+                      ) {
                       | [] => 0
                       | path => String.length(String.concat(".", path)) + 1
                       }
@@ -795,7 +828,7 @@ module View = {
                         a => inject(Workspace(Stack(e.e_id, side, a))),
                       ~selected=sel(side),
                       ~result_kind,
-                      ~locked=false,
+                      ~locked,
                       ~lines,
                       ~master?,
                       ~escape,
@@ -927,7 +960,7 @@ module View = {
               ~signal=_ => Effect.Ignore,
               ~inject=_ => Effect.Ignore,
               ~selected=None,
-              ~locked=false,
+              ~locked,
               ~result_kind=`StatusLine,
               Divided.result(d),
             );
@@ -944,12 +977,37 @@ module View = {
             div(~attrs=[Attr.classes(["stack-slack"])], []),
           ];
         };
-        switch (program) {
-        | Divided(d) =>
-          (SlideContent.get_content(current.name) |> Option.to_list)
+        /* Stacked: the map the request sent, above its cells */
+        let map = (l: AgentLens.t) =>
+          AgentLensView.map_panel(
+            ~globals,
+            ~go=a => inject(Workspace(a)),
+            ~signal=
+              fun
+              | MakeActive(s) => signal(MakeActive(LensMap(s))),
+            ~selected=
+              switch (selected) {
+              | Some(Selection.LensMap(s)) => Some(s)
+              | _ => None
+              },
+            l,
+          );
+        switch (program, lens) {
+        | (_, Some({mode: Sent, _} as l)) =>
+          banner @ [AgentLensView.sent(l)]
+        | (_, Some({mode: Trajectory | Window, _} as l)) =>
+          banner @ [AgentLensView.trajectory(l)]
+        /* a request with nothing open */
+        | (Whole(_), Some(l)) =>
+          banner @ [map(l), AgentLensView.nothing_open]
+        | (Divided(d), _) =>
+          banner
+          @ (Option.map(map, lens) |> Option.to_list)
+          @ (SlideContent.get_content(current.name) |> Option.to_list)
           @ stack_views(d)
-        | Whole(editor) =>
-          (SlideContent.get_content(current.name) |> Option.to_list)
+        | (Whole(editor), None) =>
+          banner
+          @ (SlideContent.get_content(current.name) |> Option.to_list)
           @ [
             CellEditor.View.view(
               ~globals,
@@ -963,7 +1021,7 @@ module View = {
                 | Some(Selection.Cell(s)) => Some(s)
                 | _ => None
                 },
-              ~locked=false,
+              ~locked,
               ~lines=true,
               ~result_kind=`StatusLine,
               editor,
