@@ -30,16 +30,6 @@ let size = (~cls=[], s: string): Node.t => {
   );
 };
 
-/* a section's first words, on one line */
-let first_words = (s: string): string => {
-  let words =
-    String.split_on_char(' ', String.map(c => c == '\n' ? ' ' : c, s))
-    |> List.filter(w => w != "");
-  let line =
-    String.concat(" ", ListUtil.take(min(12, List.length(words)), words));
-  String.length(line) > 80 ? String.sub(line, 0, 80) ++ {js|…|js} : line;
-};
-
 /* stroked in the text colour: two rounded squares, the back one showing
    past the front; once copied, a check */
 let stroked_icon = (cls: string, ds: list(string)): Node.t =>
@@ -368,48 +358,61 @@ let kind_class = (k: Trajectory.kind): string =>
     | Developer => "developer"
     | User => "user"
     | Context => "context"
+    | Round => "round"
+    | Thinking => "thinking"
     | Assistant => "assistant"
     | Call => "call"
     | Result => "result"
+    | Usage => "usage"
+    | Note => "note"
     | Summary => "summary"
     }
   );
 
 /* a section folds under its summary line: what it is, its size, its
-   first words, and its raw toggle and copy, shown while open (copy also on
-   hover) but always holding their place, so the line keeps its height */
+   gist, and its raw toggle and copy, shown while open (copy also on
+   hover) but always holding their place, so the line keeps its height.
+   What was never sent has no JSON to show raw */
 let rec section = (s: Trajectory.section): Node.t => {
   let controls =
     span(
       ~attrs=[Attr.classes(["traj-controls"])],
-      [
-        label(
-          ~attrs=[
-            Attr.classes(["traj-raw-label"]),
-            Attr.title("Show this section exactly as sent"),
-          ],
-          [
-            input(
-              ~attrs=[
-                Attr.type_("checkbox"),
-                Attr.classes(["traj-raw-toggle"]),
-              ],
-              (),
-            ),
-            text("raw"),
-          ],
-        ),
-        copy_button(
-          ~cls=["traj-copy-text"],
-          ~title="Copy exact bytes",
-          s.text,
-        ),
-        copy_button(
-          ~cls=["traj-copy-raw"],
-          ~title="Copy this section's JSON, exact bytes",
-          s.raw,
-        ),
-      ],
+      s.sent
+        ? [
+          label(
+            ~attrs=[
+              Attr.classes(["traj-raw-label"]),
+              Attr.title("Show this section exactly as sent"),
+            ],
+            [
+              input(
+                ~attrs=[
+                  Attr.type_("checkbox"),
+                  Attr.classes(["traj-raw-toggle"]),
+                ],
+                (),
+              ),
+              text("raw"),
+            ],
+          ),
+          copy_button(
+            ~cls=["traj-copy-text"],
+            ~title="Copy exact bytes",
+            s.text,
+          ),
+          copy_button(
+            ~cls=["traj-copy-raw"],
+            ~title="Copy this section's JSON, exact bytes",
+            s.raw,
+          ),
+        ]
+        : [
+          copy_button(
+            ~cls=["traj-copy-text"],
+            ~title="Copy, as kept: never sent",
+            s.text,
+          ),
+        ],
     );
   let pre = (cls, t) =>
     create("pre", ~attrs=[Attr.classes([cls])], [text(t)]);
@@ -419,7 +422,8 @@ let rec section = (s: Trajectory.section): Node.t => {
       [
         Attr.classes(
           ["traj-section", kind_class(s.kind)]
-          @ (s.in_request ? [] : ["traj-elsewhere"]),
+          @ (s.in_request ? [] : ["traj-elsewhere"])
+          @ (s.sent ? [] : ["traj-unsent"]),
         ),
       ]
       @ (s.folded ? [] : [Attr.create("open", "")]),
@@ -430,17 +434,14 @@ let rec section = (s: Trajectory.section): Node.t => {
         [
           span(~attrs=[Attr.classes(["traj-label"])], [text(s.label)]),
           size(~cls=["traj-size"], s.raw),
-          span(
-            ~attrs=[Attr.classes(["traj-first"])],
-            [text(first_words(s.text))],
-          ),
+          span(~attrs=[Attr.classes(["traj-first"])], [text(s.brief)]),
           controls,
         ],
       ),
       div(
         ~attrs=[Attr.classes(["traj-body"])],
         (s.shown == "" ? [] : [pre("traj-shown", s.shown)])
-        @ [pre("traj-raw", s.raw)]
+        @ (s.sent ? [pre("traj-raw", s.raw)] : [])
         @ List.map(section, s.children),
       ),
     ],
@@ -485,7 +486,7 @@ let trajectory = (l: AgentLens.t): Node.t =>
             text(
               l.mode == Window
                 ? "Exactly this request's body: its messages in order, its own context last."
-                : "A request carries every message and only its own context.",
+                : "A request carries every message and only its own context. Thinking and usage come back with a reply and are never sent.",
             ),
           ],
         ),
