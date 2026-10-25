@@ -421,9 +421,14 @@ let message_section =
 };
 
 /* a message no request sent: Hazel's line about an error, a retry or a
-   cancel (others never concern the API) */
+   cancel, or a reply set aside for a retry, with its thinking and usage
+   (others never concern the API) */
 let note_section = (m: Message.Model.t): list(section) =>
   switch (m.role) {
+  | Agent(_) when Option.is_none(m.api_message) =>
+    thinking(m)
+    @ [unsent(Note, "Empty reply · not sent back, retried", m.content)]
+    @ usage(m)
   | System(ApiFailure) => [unsent(Note, "Error · not sent", m.content)]
   | System(RetryNote) => [unsent(Note, "Retry · not sent", m.content)]
   | System(ResponseCancelled) => [

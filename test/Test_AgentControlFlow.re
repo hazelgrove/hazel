@@ -194,7 +194,7 @@ let test_handle_llm_response_ignored_for_stopped_flight = () => {
   let scheduled2 = ref([]);
   let after_late =
     run_update(
-      Agent.Update.Action.HandleLLMResponse(late, chat_id, 2, 0),
+      Agent.Update.Action.HandleLLMResponse(late, chat_id, 2, None),
       after_stop,
       scheduled2,
     );
