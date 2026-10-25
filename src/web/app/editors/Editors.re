@@ -5,6 +5,7 @@ module Model = {
   type mode =
     | Scratch
     | Documentation
+    | World
     | Exercises
     | Config
     | Tutorial;
@@ -13,6 +14,9 @@ module Model = {
   type t =
     | Scratch(ScratchMode.Model.t)
     | Documentation(ScratchMode.Model.t)
+    /* the world tree: the library, Documentation and Scratch as one
+       program (WorldDeck) */
+    | World(ScratchMode.Model.t)
     | Exercises(ExercisesMode.Model.t)
     | Config(ConfigurationMode.Model.t)
     | Tutorial(TutorialsMode.Model.t);
@@ -21,6 +25,7 @@ module Model = {
     fun
     | Scratch(_) => "Scratch"
     | Documentation(_) => "Documentation"
+    | World(_) => "World"
     | Config(_) => "Configuration"
     | Tutorial(_) => "Tutorial"
     | Exercises(_) => "Exercises";
@@ -34,7 +39,8 @@ module Model = {
   let supports_viewport_culling: t => bool =
     fun
     | Scratch(m)
-    | Documentation(m) =>
+    | Documentation(m)
+    | World(m) =>
       switch (List.nth_opt(m.scratchpads, m.current)) {
       | Some(sp) =>
         switch (sp.kind) {
@@ -77,6 +83,7 @@ module Model = {
     | Scratch(m) => "scratch:" ++ string_of_int(m.current) ++ cell(m)
     | Documentation(m) =>
       "documentation:" ++ string_of_int(m.current) ++ cell(m)
+    | World(m) => "world:" ++ string_of_int(m.current) ++ cell(m)
     | Tutorial(m) => "tutorial:" ++ string_of_int(m.current)
     | Config(m) => "config:" ++ string_of_int(m.current)
     | Exercises(m) => "exercises:" ++ string_of_int(m.current)
@@ -95,7 +102,8 @@ module Model = {
     };
     switch (model) {
     | Scratch(m)
-    | Documentation(m) => scratchpad_kind_class(m)
+    | Documentation(m)
+    | World(m) => scratchpad_kind_class(m)
     | Tutorial(_)
     | Exercises(_)
     /* config slides are always Code, never derivations */
@@ -196,6 +204,8 @@ module Store = {
       switch (mode) {
       | Scratch => Model.Scratch(load_scratch(~settings))
       | Documentation => Model.Documentation(load_documentation(~settings))
+      | World =>
+        Model.World(WorldSummaries.on_load(WorldDeck.load(~settings)))
       | Tutorial =>
         Model.Tutorial(
           TutorialsMode.Store.load(~settings, ~instructor_mode)
@@ -219,6 +229,9 @@ module Store = {
     | Model.Documentation(m) =>
       StoreMode.save(Documentation);
       ScratchMode.Persist.save_current("doc", m);
+    | Model.World(m) =>
+      StoreMode.save(World);
+      WorldDeck.save(m);
     | Model.Tutorial(m) =>
       StoreMode.save(Tutorial);
       TutorialsMode.Store.save(~instructor_mode, m);
@@ -268,7 +281,7 @@ module Update = {
       let* scratch =
         ScratchMode.Update.update(
           ~schedule_action=a => schedule_action(Scratch(a)),
-          ~is_documentation=false,
+          ~deck=ScratchModel.Scratch,
           ~settings=globals.settings,
           action,
           m,
@@ -289,11 +302,21 @@ module Update = {
         ScratchMode.Update.update(
           ~settings=globals.settings,
           ~schedule_action=a => schedule_action(Scratch(a)),
-          ~is_documentation=true,
+          ~deck=ScratchModel.Documentation,
           action,
           m,
         );
       Model.Documentation(scratch);
+    | (Scratch(action), World(m)) =>
+      let* scratch =
+        ScratchMode.Update.update(
+          ~settings=globals.settings,
+          ~schedule_action=a => schedule_action(Scratch(a)),
+          ~deck=ScratchModel.World,
+          action,
+          m,
+        );
+      Model.World(scratch);
     | (Tutorial(action), Tutorial(m)) =>
       let* exercises =
         TutorialsMode.Update.update(
@@ -315,6 +338,7 @@ module Update = {
     | (Tutorial(_), Exercises(_))
     | (Tutorial(_), Scratch(_))
     | (Tutorial(_), Documentation(_))
+    | (Tutorial(_), World(_))
     | (Tutorial(_), Config(_))
     | (Scratch(_), Exercises(_))
     | (Scratch(_), Tutorial(_))
@@ -323,9 +347,11 @@ module Update = {
     | (Exercises(_), Config(_))
     | (Exercises(_), Tutorial(_))
     | (Exercises(_), Documentation(_))
+    | (Exercises(_), World(_))
     | (Configuration(_), _) => model |> raise_invalid_action
     | (SwitchMode(Scratch), Scratch(_))
     | (SwitchMode(Documentation), Documentation(_))
+    | (SwitchMode(World), World(_))
     | (SwitchMode(Config), Config(_))
     | (SwitchMode(Exercises), Exercises(_)) => model |> return_quiet
     | (SwitchMode(Scratch), _) =>
@@ -334,6 +360,13 @@ module Update = {
     | (SwitchMode(Documentation), _) =>
       Model.Documentation(
         Store.load_documentation(~settings=globals.settings.core),
+      )
+      |> return
+    | (SwitchMode(World), _) =>
+      Model.World(
+        WorldSummaries.on_load(
+          WorldDeck.load(~settings=globals.settings.core),
+        ),
       )
       |> return
     | (SwitchMode(Config), _) =>
@@ -388,7 +421,7 @@ module Update = {
           ~schedule_action=a => schedule_action(Scratch(a)),
           ~settings,
           ~is_edited,
-          ~is_documentation=false,
+          ~deck=ScratchModel.Scratch,
           m,
         ),
       )
@@ -398,7 +431,17 @@ module Update = {
           ~schedule_action=a => schedule_action(Scratch(a)),
           ~settings,
           ~is_edited,
-          ~is_documentation=true,
+          ~deck=ScratchModel.Documentation,
+          m,
+        ),
+      )
+    | Model.World(m) =>
+      Model.World(
+        ScratchMode.Update.calculate(
+          ~schedule_action=a => schedule_action(Scratch(a)),
+          ~settings,
+          ~is_edited,
+          ~deck=ScratchModel.World,
           m,
         ),
       )
@@ -464,7 +507,8 @@ module Selection = {
         );
       let+ a = ci;
       Update.Scratch(a);
-    | (Scratch(selection), Documentation(m)) =>
+    | (Scratch(selection), Documentation(m))
+    | (Scratch(selection), World(m)) =>
       let ci =
         ScratchMode.Selection.get_cursor_info(
           ~inject=a => inject(Scratch(a)),
@@ -505,10 +549,12 @@ module Selection = {
     | (Scratch(_), Exercises(_))
     | (Exercises(_), Scratch(_))
     | (Exercises(_), Documentation(_))
+    | (Exercises(_), World(_))
     | (Exercises(_), Tutorial(_))
     | (Tutorial(_), Scratch(_))
     | (Tutorial(_), Exercises(_))
     | (Tutorial(_), Documentation(_))
+    | (Tutorial(_), World(_))
     | (Configuration(_), _)
     | (_, Config(_)) => empty
     };
@@ -525,7 +571,8 @@ module Selection = {
       |> Option.map(((x, y)) =>
            (Update.Configuration(x), Configuration(y))
          )
-    | Documentation(m) =>
+    | Documentation(m)
+    | World(m) =>
       ScratchMode.Selection.jump_to_tile(~settings, tile, m)
       |> Option.map(((x, y)) => (Update.Scratch(x), Scratch(y)))
     | Tutorial(m) =>
@@ -590,7 +637,8 @@ module Selection = {
   let default_selection =
     fun
     | Model.Scratch(_) => Scratch(Cell(MainEditor))
-    | Model.Documentation(_) => Scratch(Cell(MainEditor))
+    | Model.Documentation(_)
+    | Model.World(_) => Scratch(Cell(MainEditor))
     | Model.Config(_) => Scratch(Cell(MainEditor))
     | Model.Tutorial(_) => Tutorial(Cell(Tutorial.YourImpl, MainEditor))
     | Model.Exercises(_) =>
@@ -646,7 +694,8 @@ module View = {
         m,
       )
     // Add in the line numbering for Documentation editor
-    | Documentation(m) =>
+    | Documentation(m)
+    | World(m) =>
       ScratchMode.View.view(
         ~signal=
           fun
@@ -721,7 +770,8 @@ module View = {
         ~inject=x => inject(Update.Configuration(x)),
         s,
       )
-    | Documentation(s) =>
+    | Documentation(s)
+    | World(s) =>
       ScratchMode.View.file_menu(
         ~globals,
         ~inject=x => inject(Update.Scratch(x)),
@@ -753,6 +803,7 @@ module View = {
                 fun
                 | "Scratch" => inject(Update.SwitchMode(Scratch))
                 | "Documentation" => inject(Update.SwitchMode(Documentation))
+                | "World" => inject(Update.SwitchMode(World))
                 | "Tutorial" =>
                   // Default the sidebar to the task reference panel so
                   // tutorial users see the reference material on entry.
@@ -774,6 +825,7 @@ module View = {
                     switch (editors) {
                     | Scratch(_) => "Scratch"
                     | Documentation(_) => "Documentation"
+                    | World(_) => "World"
                     | Tutorial(_) => "Tutorial"
                     | Exercises(_) => "Exercises"
                     | Config(_) => "Configuration"
@@ -785,6 +837,7 @@ module View = {
               [
                 "Scratch",
                 "Documentation",
+                "World",
                 "Tutorial",
                 "Configuration",
                 "Exercises",
@@ -799,14 +852,21 @@ module View = {
       | Scratch(m) =>
         ScratchMode.View.top_bar(
           ~globals,
-          ~is_documentation=false,
+          ~deck=ScratchModel.Scratch,
           ~inject=a => Update.Scratch(a) |> inject,
           m,
         )
       | Documentation(m) =>
         ScratchMode.View.top_bar(
           ~globals,
-          ~is_documentation=true,
+          ~deck=ScratchModel.Documentation,
+          ~inject=a => Update.Scratch(a) |> inject,
+          m,
+        )
+      | World(m) =>
+        ScratchMode.View.top_bar(
+          ~globals,
+          ~deck=ScratchModel.World,
           ~inject=a => Update.Scratch(a) |> inject,
           m,
         )

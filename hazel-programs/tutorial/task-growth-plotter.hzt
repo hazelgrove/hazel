@@ -137,20 +137,20 @@ in
 
 # Water the entire field - advance all planted crops by one growth stage #
 let waterField(field: Field): Field =
-  map(field, fun row ->
-    map(row, fun cell -> waterCell(cell))
+  List.map(field, fun row ->
+    List.map(row, fun cell -> waterCell(cell))
   )
 in
 
 # Get a cell from the field at (row, col) #
 let getCell(field: Field, row: Row, col: Col): Cell =
-  nth(nth(field, row), col)
+  List.nth(List.nth(field, row), col)
 in
 
 # Update a cell at position (row, col) with a new value #
 let setCell(field: Field, targetRow: Row, targetCol: Col, newCell: Cell): Field =
-  mapi(field, fun (r, row) ->
-    mapi(row, fun (c, cell) ->
+  List.mapi(field, fun (r, row) ->
+    List.mapi(row, fun (c, cell) ->
       if r == targetRow && c == targetCol
       then newCell
       else cell
@@ -160,8 +160,8 @@ in
 
 # Create an empty n x m field #
 let makeField(rows: Int, cols: Int): Field =
-  map(range(0, rows - 1), fun _ ->
-    map(range(0, cols - 1), fun _ -> Empty)
+  List.map(List.range(0, rows - 1), fun _ ->
+    List.map(List.range(0, cols - 1), fun _ -> Empty)
   )
 in
 
@@ -212,13 +212,13 @@ in
 
 # Run multiple actions in sequence #
 let run(model: Model, actions: [Action]): Model =
-  fold_left(actions, fun (m, a) -> update(m, a), model)
+  List.fold_left(actions, fun (m, a) -> update(m, a), model)
 in
 
 # Count all planted crops #
 let countPlanted(field: Field): Int =
-  fold_left(field, fun (acc, row) ->
-    acc + fold_left(row, fun (acc2, cell) ->
+  List.fold_left(field, fun (acc, row) ->
+    acc + List.fold_left(row, fun (acc2, cell) ->
       if isPlanted(cell) then acc2 + 1 else acc2
     , 0)
   , 0)

@@ -5,16 +5,16 @@ Probes / Mapping over a List
 show_report version=1 id=b0000012-0012-0012-0012-000000000012
 
 @prompt
-A list holds a variable number of values of the same type, written `[a, b, c]`. Two operators build lists: `::` (cons) prepends an element, and `@` appends two lists (examples in the sidebar). `map` applies a function to each element. You can reference an existing function, or define a new one inline as an *anonymous function* with `fun`:
+A list holds a variable number of values of the same type, written `[a, b, c]`. Two operators build lists: `::` (cons) prepends an element, and `@` appends two lists (examples in the sidebar). `List.map` applies a function to each element. You can reference an existing function, or define a new one inline as an *anonymous function* with `fun`:
 ```hazelnostatics
-map([1, 2, 3], fun n -> n * 2)
+List.map([1, 2, 3], fun n -> n * 2)
 ```
 
 # Tasks
 
 1. Complete `garden` as a list of the four base water amounts: `250`, `180`, `50`, `200`. Once it is filled in, note how the values now appear in the rest of the program.
 2. As you finish this next part, pause to watch the values update: give every plant its 50 ml new-moon top-up by mapping over `garden`, adding 50 to each.
-3. Click the sample at the end of the `map` line, then press **Space**: you get one sample per element, one for each run of your anonymous function.
+3. Click the sample at the end of the `List.map` line, then press **Space**: you get one sample per element, one for each run of your anonymous function.
 
 @hint
 A list is `[a, b, c, d]`. Then an anonymous function `fun w -> ...` that adds 50.
@@ -33,15 +33,15 @@ A list of integers has type `[Int]`.
 
 ### Map and anonymous functions
 ```hazel
-map([1, 2, 3], fun n -> n + 1)
+List.map([1, 2, 3], fun n -> n + 1)
 ```
 `fun n -> ...` is a function with no name.
 
 ### More list functions
-- `length(xs)` how many elements
-- `nth(xs, 0)` the element at an index
-- `filter(xs, fun x -> x > 100)` keeps the elements that pass
-- `mapi(xs, ...)` is map, but the callback's pair also provides the index
+- `List.length(xs)` how many elements
+- `List.nth(xs, 0)` the element at an index
+- `List.filter(xs, fun x -> x > 100)` keeps the elements that pass
+- `List.mapi(xs, ...)` is `List.map`, but the callback's pair also provides the index
 
 @hints
 garden should be [250, 180, 50, 200]
@@ -49,7 +49,7 @@ Each watering can gains 50: [300, 230, 100, 250]
 
 @code
 let garden: [Int] = ¿ in
-let topped = map(
+let topped = List.map(
 garden, 
 ¿
 ) in

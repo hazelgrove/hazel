@@ -61,7 +61,6 @@ type t =
   | TupleExtensionRequiresTuples
   | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label))
   | ModuleMissingMembers(list(Var.t))
-  | ModuleExtraMembers(list(Var.t))
   /* `M.y` where the module has no value member y: on the label, while the
      dot carries a message. [type_member]: y is one of its type members. */
   | ModuleMemberNotFound({

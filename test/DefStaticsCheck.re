@@ -112,7 +112,7 @@ let divergences = (~settings, ~cold=true, t: DefStatics.t): list(string) => {
     Statics.mk_unmemoized(
       ~probe_ids=t.probe_ids,
       settings,
-      DefStatics.ctx0,
+      DefStatics.ctx0(),
       t.term,
     );
   /* monolithic lowering mints ids of its own each run, and a Mod

@@ -332,6 +332,10 @@ module Update = {
         ~is_edited: bool,
         /* the sample a probe drawer steps, if any */
         ~stepping: option(Sample.span_ref)=None,
+        /* probes outside the program, in code it runs (the library's) */
+        ~extra_targets: Sample.targets=Sample.no_targets,
+        /* how [statics] were cut from the analysis' (a world's run) */
+        ~run: option(Haz3lcore.WorldTree.run)=?,
         statics: Haz3lcore.CachedStatics.t,
         {
           cached_settings,
@@ -355,10 +359,15 @@ module Update = {
       |> Calc.set(settings, ~eq=CoreSettings.eq_ignoring_stepper_modals);
     let elab =
       Calc.set(~eq=Exp.fast_equal_with_lexemes, statics.elaborated, elab);
+    /* and probes outside the program whose code it runs (the library's) */
     let targets =
       Calc.set(
         ~eq=Id.Map.equal(Sample.equal_capture_spec),
-        statics.targets,
+        Id.Map.union(
+          (_, own, _) => Some(own),
+          statics.targets,
+          extra_targets,
+        ),
         cached_targets,
       );
 
@@ -370,6 +379,7 @@ module Update = {
       lazy(
         EvalInfo.of_info_map(
           ~probe_all=Calc.get_value(settings).probe_all,
+          ~external_ids=List.map(fst, Id.Map.bindings(extra_targets)),
           ~targets=Calc.get_value(targets),
           statics.info_map,
         )
@@ -393,7 +403,9 @@ module Update = {
             program:
               EvalSplit.program(
                 ~probe_all=settings.probe_all,
+                ~external_ids=List.map(fst, Id.Map.bindings(extra_targets)),
                 ~targets=Calc.get_value(targets),
+                ~run?,
                 statics,
               ),
             prev: UseResident,
@@ -568,7 +580,7 @@ module Update = {
         Model.Stepper(
           StepperView.Update.calculate(
             ~settings,
-            ~ctx=OldValue(ProbeSteps.ctx),
+            ~ctx=OldValue(ProbeSteps.ctx()),
             elab,
             stepper,
           ),

@@ -11,12 +11,12 @@ module S = ItemSpans;
 module Focus = FocusOracle;
 module IE = ItemEditOracle;
 
-/* the stdlib's sources, module bodies (Mod-rooted), where the repo has
-   them */
+/* the stdlib's sources (the world tree's top-level files), module bodies
+   (Mod-rooted), where the repo has them */
 let stdlib_corpus = (): list((string, string)) => {
   let dir =
-    Sys.file_exists("hazel-programs/stdlib")
-      ? "hazel-programs/stdlib" : "../hazel-programs/stdlib";
+    Sys.file_exists("hazel-programs/world")
+      ? "hazel-programs/world" : "../hazel-programs/world";
   switch (Sys.readdir(dir)) {
   | files =>
     files
@@ -683,7 +683,7 @@ let incomplete = () => {
 let corpus = () => {
   let t =
     run(
-      List.map(((p, s)) => (p, Sort.Exp, s), CorpusUtil.slide_corpus())
+      CorpusUtil.slide_corpus()
       @ List.map(
           ((f, root)) => (f, root, Option.get(CorpusUtil.mega_src(f))),
           /* Mega 2k and 4k repeat their shapes */
@@ -741,7 +741,7 @@ let memo = () => {
    apart: there Read may cut */
 let read_finished = () => {
   let programs =
-    List.map(((p, s)) => (p, Sort.Exp, s), CorpusUtil.slide_corpus())
+    CorpusUtil.slide_corpus()
     @ List.map(
         ((f, root)) => (f, root, Option.get(CorpusUtil.mega_src(f))),
         /* Mega 2k and 4k repeat their shapes */

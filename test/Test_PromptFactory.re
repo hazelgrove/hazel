@@ -236,8 +236,8 @@ let doc_examples_clean = () =>
   List.iter(
     assert_clean,
     [
-      /* HazelSyntaxNotes: mod builtin, float ops, pipeline */
-      "int_mod(7, 2)",
+      /* HazelSyntaxNotes: Int.mod, float ops, pipeline */
+      "Int.mod(7, 2)",
       "1.5 +. 2.5 ==. 4.0",
       "let inc(x) = x + 1 in 1 |> inc",
       /* HazelSyntaxNotes: polymorphic map */

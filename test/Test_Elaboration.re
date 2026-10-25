@@ -238,17 +238,17 @@ module PlainTests = {
 
   let deferral = () =>
     alco_check(
-      "string_sub(\"hello\", 1, _)",
+      "String.sub(\"hello\", 1, _)",
       Exp.(
         deferred_ap(
-          var("string_sub"),
+          dot(var("String"), label("sub")),
           [string("hello"), int(1), deferral(InAp)],
         )
       ),
       dhexp_of_uexp(
         Exp.(
           deferred_ap(
-            var("string_sub"),
+            dot(var("String"), label("sub")),
             [string("hello"), int(1), deferral(InAp)],
           )
         ),
@@ -257,12 +257,12 @@ module PlainTests = {
 
   let ap_deferral_single_argument = () =>
     alco_check(
-      "string_sub(\"hello\", 1, _)(2)",
+      "String.sub(\"hello\", 1, _)(2)",
       Exp.(
         ap(
           Forward,
           deferred_ap(
-            var("string_sub"),
+            dot(var("String"), label("sub")),
             [string("hello"), int(1), deferral(InAp)],
           ),
           int(2),
@@ -273,7 +273,7 @@ module PlainTests = {
           ap(
             Forward,
             deferred_ap(
-              var("string_sub"),
+              dot(var("String"), label("sub")),
               [string("hello"), int(1), deferral(InAp)],
             ),
             int(2),

@@ -2693,7 +2693,7 @@ let self_reference_errors = () => {
         [
           (
             "monolithic",
-            fst(Statics.mk(CoreSettings.on, DefStatics.ctx0, term)),
+            fst(Statics.mk(CoreSettings.on, DefStatics.ctx0(), term)),
           ),
           (
             "DefStatics",

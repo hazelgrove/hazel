@@ -866,7 +866,7 @@ let corpus = () =>
       run(
         ~deep=false,
         ~edits=true,
-        List.map(((p, s)) => (p, Sort.Exp, s), CorpusUtil.slide_corpus())
+        CorpusUtil.slide_corpus()
         @ List.map(
             ((p, s)) => (p, Sort.Mod, s),
             Test_ItemSpans.stdlib_corpus(),

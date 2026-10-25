@@ -10,6 +10,8 @@ Printexc.register_printer(exn => {
   }
 });
 
+StdlibBaked.install();
+
 /* alcotest's -q (--quick-tests) runs the quick tests without the per-edit
    checks below; the full suite runs them on every edit. A test whose own
    assertion is the statics check arms it itself (DefStaticsCheck.armed) */
@@ -64,6 +66,7 @@ let (suite, exit_with_test_status) =
       Test_EntryEdit.tests,
       Test_StreamCollector.tests,
       Test_MegaCorpus.tests,
+      Test_Stdlib.tests,
       Test_MeasuredChunks.tests,
       Test_ChunkViews.tests,
       Test_MakeTermIncr.tests,
@@ -73,6 +76,12 @@ let (suite, exit_with_test_status) =
       Test_CellsParity.tests,
       Test_EditLocality.tests,
       Test_DefStaticsParity.tests,
+      Test_MemberForm.tests,
+      Test_World.tests,
+      Test_WorldSlide.tests,
+      Test_WorldTree.tests,
+      Test_WorldDeck.tests,
+      Test_ModuleCtors.tests,
       Test_DefStaticsDelta.tests,
       Test_StaticsAncestry.tests,
       Test_ClickTeleport.tests,

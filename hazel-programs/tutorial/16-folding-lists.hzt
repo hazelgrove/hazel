@@ -5,34 +5,34 @@ Basics / Folding Lists
 show_report version=16 id=a0000015-0015-0015-0015-000000000015
 
 @prompt
-The built-in function `fold_left` processes a list element by element, accumulating a result. It has the signature `fold_left : ([T], (U, T) -> U, U) -> U`.
+The built-in function `List.fold_left` processes a list element by element, accumulating a result. It has the signature `List.fold_left : ([T], (U, T) -> U, U) -> U`.
 
 The third argument is the initial accumulator value, and the second argument is a function that takes the current accumulator and the next element and returns a new accumulator.
 
 For example:
 ```hazel
-fold_left([1, 2, 3], fun (acc, x) -> acc + x, 0)
+List.fold_left([1, 2, 3], fun (acc, x) -> acc + x, 0)
 ```
 
 Hazel also has a `++` operator for concatenating strings. For example, `"hello" ++ " world"` evaluates to `"hello world"`.
 
 ## Task
 
-Implement a function `join` of type `[String] -> String` that concatenates all strings in a list using `fold_left` and `++`.
+Implement a function `join` of type `[String] -> String` that concatenates all strings in a list using `List.fold_left` and `++`.
 
 @hint
-Use fold_left with ++ to concatenate strings
+Use List.fold_left with ++ to concatenate strings
 
 @reference
-### fold_left
+### List.fold_left
 ```hazelnostatics
-fold_left : ([T], (U, T) -> U, U) -> U
+List.fold_left : ([T], (U, T) -> U, U) -> U
 ```
 
 ---
 
 ```hazel
-fold_left(
+List.fold_left(
   [1, 2, 3],
   fun (acc, x) -> acc + x,
   0
@@ -48,7 +48,7 @@ fold_left(
 Use `_` to defer arguments:
 ```hazel
 let double =
-  map(_, fun x -> x * 2)
+  List.map(_, fun x -> x * 2)
 in
 double([1, 2, 3])
 ```

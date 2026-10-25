@@ -32,16 +32,16 @@ For example:
 
 ```hazel
 ["1", "5", "3"]
-|> map(_, int_of_string)
-|> map(_, fun n -> n * 2)
-|> filter(_, fun n -> n < 10)
+|> List.map(_, Int.of_string)
+|> List.map(_, fun n -> n * 2)
+|> List.filter(_, fun n -> n < 10)
 ```
 
 may be easier to read than
 
 ```hazel
-filter(map(map(["1", "5", "3"],
-  int_of_string),
+List.filter(List.map(List.map(["1", "5", "3"],
+  Int.of_string),
   fun n -> n * 2),
   fun n -> n < 10)
 ```
@@ -49,8 +49,8 @@ filter(map(map(["1", "5", "3"],
 # Task
 
 Using reverse function application, apply the following transformations to `ns` in the function `positive_floats`:
-1. Filter out negative numbers using `filter`.
-2. Convert each integer to a float using `float_of_int`.
+1. Filter out negative numbers using `List.filter`.
+2. Convert each integer to a float using `Float.of_int`.
 
 **Example**:
 ```hazelnostatics
@@ -77,7 +77,7 @@ sum(1, 2)
 Use `_` to defer arguments:
 ```hazel
 let double =
-  map(_, fun x -> x * 2)
+  List.map(_, fun x -> x * 2)
 in
 double([1, 2, 3])
 ```
@@ -90,16 +90,16 @@ double([1, 2, 3])
 |> (fun x -> x + 1)
 ```
 
-### filter
+### List.filter
 ```hazelnostatics
-filter : ([T], T -> Bool) -> [T]
+List.filter : ([T], T -> Bool) -> [T]
 ```
 
 ---
 
 Keep only elements that satisfy a predicate:
 ```hazel
-filter(
+List.filter(
   [1, 2, 3, 4, 5],
   fun x -> x > 2
 )
@@ -107,32 +107,32 @@ filter(
 
 ### Type Conversions
 ```hazelnostatics
-int_of_string : String -> Int
+Int.of_string : String -> Int
 ```
 ```hazelnostatics
-float_of_string : String -> Float
+Float.of_string : String -> Float
 ```
 ```hazelnostatics
-float_of_int : Int -> Float
+Float.of_int : Int -> Float
 ```
 ```hazelnostatics
-int_of_float : Float -> Int
+Int.of_float : Float -> Int
 ```
 
 ---
 
 Convert between primitive types using these built-ins:
 ```hazel
-int_of_string("42")
+Int.of_string("42")
 ```
 ```hazel
-float_of_string("3.14")
+Float.of_string("3.14")
 ```
 ```hazel
-float_of_int(7)
+Float.of_int(7)
 ```
 ```hazel
-int_of_float(3.99)
+Int.of_float(3.99)
 ```
 
 @hints

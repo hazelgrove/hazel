@@ -567,6 +567,7 @@ and Pat: {
         | Tuple(xs) => Tuple(List.map(pat_map_term, xs))
         | TupLabel(label, e) =>
           TupLabel(pat_map_term(label), pat_map_term(e))
+        | Dot(p1, p2) => Dot(pat_map_term(p1), pat_map_term(p2))
         | Parens(e) => Parens(pat_map_term(e))
         | Projector(data, p) => Projector(data, pat_map_term(p))
         | Asc(e, t) => Asc(pat_map_term(e), typ_map_term(t))

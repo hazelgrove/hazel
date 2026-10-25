@@ -1,0 +1,13 @@
+# (benchmark) emptyTable #
+let requires = [];
+let ensures = [
+  (enforced=("static"), "schema(t) is equal to []"),
+  (enforced=("no"), "nrows(t) is equal to 0")
+];
+# Hazel tables are lists; the empty table is the empty list of unit rows #
+let empty_table : [()] = [];
+
+test
+  empty_table == [] end;
+test
+  List.length(empty_table) == 0 end

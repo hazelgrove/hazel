@@ -648,21 +648,26 @@ let refusals =
         Option.value(way(id, st.lv.pieces[st.i]), ~default=[]),
       );
   };
-  /* [under]: the steps down to the projector the walk is in */
-  let rec walk = (~under: option(list(step)), level: Segment.t) =>
+  /* [under]: inside a projector, the steps down to it (None: not found,
+     as outside one). Found only for a wanted piece inside: most
+     projectors, a world's `⋯` stand-ins among them, hold none */
+  let rec walk =
+          (~under: option(Lazy.t(option(list(step)))), level: Segment.t) =>
     List.iter(
       (p: Piece.t) => {
         let id = Piece.id(p);
-        switch (under) {
-        | Some(path)
-            when
-              want(id) && Option.is_none(locate_along(id, below(path, id))) =>
-          out := Id.Map.add(id, Projected, out^)
-        | _ => ()
+        let path = () => Option.bind(under, Lazy.force);
+        if (want(id)) {
+          switch (path()) {
+          | Some(path)
+              when Option.is_none(locate_along(id, below(path, id))) =>
+            out := Id.Map.add(id, Projected, out^)
+          | _ => ()
+          };
         };
         switch (p) {
         | Tile(t) =>
-          if (Option.is_none(under) && want(id) && !Tile.is_complete(t)) {
+          if (want(id) && !Tile.is_complete(t) && Option.is_none(path())) {
             out := Id.Map.add(id, Unfinished, out^);
           };
           if (want(id) && is_use(t)) {
@@ -670,12 +675,14 @@ let refusals =
           };
           List.iter(walk(~under), t.children);
         | Projector(pr) =>
-          let path =
-            switch (under) {
-            | Some(path) => Some(below(path, id))
-            | None => find_path(~root, id, seg)
-            };
-          walk(~under=path, [pr.syntax]);
+          let inner =
+            lazy(
+              switch (path()) {
+              | Some(path) => Some(below(path, id))
+              | None => find_path(~root, id, seg)
+              }
+            );
+          walk(~under=Some(inner), [pr.syntax]);
         | Grout(_)
         | Secondary(_) => ()
         };

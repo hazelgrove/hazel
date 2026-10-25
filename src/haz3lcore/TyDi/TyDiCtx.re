@@ -107,20 +107,28 @@ let bound_constructor_aps =
 /* The named fields of a labeled tuple type or the value members of a
  * signature type, with their types (a signature's own manifest type members
  * are substituted into its member types). */
+/* the head only: a full normalize of every entry, per keystroke, would
+   expand each module's whole signature */
 let named_fields = (ctx: Ctx.t, typ: Typ.t): list((string, Typ.t)) =>
-  switch (Typ.normalize(ctx, typ) |> Typ.term_of) {
+  switch (Typ.weak_head_normalize(ctx, typ) |> Typ.term_of) {
   | Prod(ts) => List.filter_map(Typ.match_tup_label, ts)
+  /* one pass over the members (a projection per member was quadratic in
+     the signature, per keystroke), the last declaration of a name
+     winning */
   | Sig(items) =>
-    Sig.members(items)
-    |> Sig.dedup_last
-    |> List.filter_map((m: Sig.member) =>
+    let seen = Hashtbl.create(16);
+    Typ.sig_members_closed(items)
+    |> List.rev
+    |> List.filter_map(((m: Sig.member, ty)) =>
          switch (m) {
-         | Val(label, _) =>
-           Typ.sig_project_value(items, label)
-           |> Option.map(field_ty => (label, field_ty))
+         | Val(label, _) when !Hashtbl.mem(seen, label) =>
+           Hashtbl.add(seen, label, ());
+           Some((label, ty));
+         | Val(_)
          | TypeManifest(_) => None
          }
        )
+    |> List.rev;
   | _ => []
   };
 
@@ -202,7 +210,7 @@ let typ_context_entries = (ctx: Ctx.t): list(TyDiSuggestion.t) =>
  * builtin context. */
 let suggest_variable = (ci: Info.t): list(TyDiSuggestion.t) => {
   let ctx = Info.ctx_of(ci);
-  let ctx = Ctx.filter_shadowed(ctx); /* Remove shadowing */
+  let ctx = Ctx.filter_shadowed(ctx) |> Ctx.filter_internal;
   switch (ci) {
   | InfoExp({ana, _}) =>
     bound_variables(ana, ctx)
@@ -249,7 +257,7 @@ let suggest_lookahead_variable = (ci: Info.t): list(TyDiSuggestion.t) => {
     strategy,
   };
   let ctx = Info.ctx_of(ci);
-  let ctx = Ctx.filter_shadowed(ctx); /* Remove shadowing */
+  let ctx = Ctx.filter_shadowed(ctx) |> Ctx.filter_internal;
   switch (ci) {
   | InfoExp({ana, _}) =>
     let exp_refs = ty =>

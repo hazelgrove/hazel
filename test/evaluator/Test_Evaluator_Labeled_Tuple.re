@@ -25,7 +25,7 @@ let tests = (
       parse_and_evaluate_test(
         "5",
         {|let fn : (a=String) -> Int =
-  fun (a=a : String) -> string_length(a)
+  fun (a=a : String) -> String.length(a)
 in fn("hello")|},
       )
     }),
@@ -33,7 +33,7 @@ in fn("hello")|},
       parse_and_evaluate_test(
         "5",
         {|let fn : (a=String) -> Int =
-            fun (a : String) -> string_length(a)
+            fun (a : String) -> String.length(a)
           in fn("hello")|},
       )
     }),

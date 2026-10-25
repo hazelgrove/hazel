@@ -1,0 +1,46 @@
+type Student = (
+  name= String,
+  age= Int,
+  favorite_color= String
+);
+let students : [Student] = (
+  [
+    ("Bob", 12, "blue"),
+    ("Alice", 17, "green"),
+    ("Eve", 13, "red")
+  ]
+);
+
+# (benchmark) find #
+let requires = [
+  (enforced=("no"), "for all c in header(r), c is in header(t)"),
+  (enforced=("no"), "for all c in header(r), schema(r)[c] == schema(t)[c]")
+];
+let ensures = [
+  (enforced=("no"), "result is None or Some(n) where n in range(nrows(t))"),
+  (enforced=("no"), "if Some(n), then getRow(t, n) matches r on all fields in header(r)")
+];
+let find =
+  fun (t : [?], r : ?) ->
+    let is_match =
+      fun (row : ?) ->
+        let row_entries = to_lvs(row) in
+        let r_entries = to_lvs(r) in
+        List.all(
+          r_entries,
+          fun e ->
+            case List.find_opt(row_entries, fun e' -> e'.label == e.label)
+            | Some(e') => e'.value == e.value
+            | None => false
+            end
+        )
+        : Bool in
+    List.find_index(t, is_match) : (+ None + Some(Int));
+
+test
+  find(students, (age= 13)) == Some(2) end;
+
+# (idiomatic) Idiomatic way to do this is type safe but requires the user to project the labels manually #
+test
+  List.find_index(students, fun r -> r == (r ... (age= 13)))
+  == Some(2) end

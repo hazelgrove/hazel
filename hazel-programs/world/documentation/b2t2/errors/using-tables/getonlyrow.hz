@@ -1,0 +1,23 @@
+let tfilter = (
+  typfun row ->
+    fun (t1 : [row], pred : row -> Bool) -> List.filter(t1, pred)
+);
+type Student = (
+  name= String,
+  age= Int,
+  favorite_color= String
+);
+let students : [Student] = (
+  [
+    ("Bob", 12, "blue"),
+    ("Alice", 17, "green"),
+    ("Eve", 13, "red")
+  ]
+);
+let incorrect =
+  # No static error. Dynamic error `undefined.favorite_color`#
+  List.nth(tfilter@<Student>(students, fun r -> r.name == "Alice"), 1).favorite_color;
+let correct =
+  List.nth(tfilter@<Student>(students, fun r -> r.name == "Alice"), 0).favorite_color;
+test
+  correct == "green" end

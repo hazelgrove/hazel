@@ -25,9 +25,26 @@ let collect_module_refs_in_typ = (ctx: Ctx.t, id: Id.t, typ: Typ.t): CoCtx.t => 
   |> CoCtx.union;
 };
 
-/* Walk a Pat.t AST and collect module refs from any Asc(_, ann) sub-patterns. */
+/* The module a qualified constructor's path starts from (`M` of `M.N.A`) */
+let rec pat_path_head = (p: Pat.t): option((Var.t, Id.t)) =>
+  switch (p.term) {
+  | Var(name)
+  | Constructor(name, _) => Some((name, Pat.rep_id(p)))
+  | Parens(p)
+  | Dot(p, _) => pat_path_head(p)
+  | _ => None
+  };
+
+/* Walk a Pat.t AST and collect module refs from any Asc(_, ann) sub-patterns
+   and from the paths of qualified constructors (`M.A`). */
 let rec collect_pat_type_refs = (ctx: Ctx.t, pat: Pat.t): CoCtx.t =>
   switch (pat.term) {
+  | Dot(path, _) =>
+    switch (pat_path_head(path)) {
+    | Some((name, id)) when Ctx.lookup_var(ctx, name) != None =>
+      CoCtx.singleton(name, id, Unknown(Internal) |> Typ.temp)
+    | _ => CoCtx.empty
+    }
   | Asc(p, ann) =>
     CoCtx.union([
       collect_module_refs_in_typ(ctx, Typ.rep_id(ann), ann),
@@ -215,6 +232,7 @@ let rec modlet_pat =
     | ExplicitNonlabel
     | Atom(_)
     | Constructor(_)
+    | Dot(_)
     | Label(_) => pat
     }
   };
@@ -606,9 +624,9 @@ let assume_members = (sig_ty: Typ.t, items: list(Sig.t)): Typ.t =>
   | _ => sig_ty
   };
 
-/* Whether [items] define just the analyzed signature's members by name:
-   none missing (missing_items) and none extra (extra_members). A module's
-   member names are syntactic, so this needs no analysis. */
+/* Whether [items] define every member of the analyzed signature by name
+   (none missing_items would find; extra members are sealed away). A
+   module's member names are syntactic, so this needs no analysis. */
 let names_meet = (~ana_items: list(Sig.t), items: list(Mod.t)): bool => {
   let (values, types) =
     List.fold_left(
@@ -637,26 +655,8 @@ let names_meet = (~ana_items: list(Sig.t), items: list(Mod.t)): bool => {
       (VarSet.empty, VarSet.empty),
       Sig.members(ana_items),
     );
-  VarSet.equal(values, want_values) && VarSet.equal(types, want_types);
+  VarSet.subset(want_values, values) && VarSet.subset(want_types, types);
 };
-
-/* Members the module exports that the analyzed signature does not declare.
-   Until width subtyping lands, a signature must be precise. */
-let extra_members =
-    (~ana_items: option(list(Sig.t)), sig_ty: Typ.t): list(Var.t) =>
-  switch (ana_items, sig_ty.term) {
-  | (Some(ana_items), Sig(items)) =>
-    let have = Sig.members(items);
-    let want = Sig.members(ana_items);
-    let extra_values =
-      Sig.value_names(have)
-      |> List.filter(x => Sig.find_value(want, x) == None);
-    let extra_types =
-      Sig.type_names(have)
-      |> List.filter(t => Sig.find_type_def(want, t) == None);
-    extra_values @ extra_types;
-  | _ => []
-  };
 
 /* Mark each exported `type T = ...` whose definition differs from the
    manifest type the analyzed signature declares for T. Definitions with

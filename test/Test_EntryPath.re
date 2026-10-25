@@ -408,9 +408,9 @@ let corpora = (): list((string, Sort.t, Segment.t)) => {
     ),
   ]
   @ List.filter_map(
-      ((path, src)) =>
-        CorpusUtil.contains("docs/reference/module", path)
-          ? Some((path, Sort.Exp, seg_of(src))) : None,
+      ((path, root, src)) =>
+        CorpusUtil.contains("documentation/module", path)
+          ? Some((path, root, seg_of(~root, src))) : None,
       CorpusUtil.slide_corpus(),
     );
 };

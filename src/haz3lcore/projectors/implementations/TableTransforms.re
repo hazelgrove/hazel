@@ -95,6 +95,10 @@ let atom_cls_of_typ = (ty: Typ.t): option(Atom.cls) =>
   | _ => None
   };
 
+/* A library member as `List.map` parses: a projection off the module */
+let lib = (home: string, member: string): Exp.t =>
+  IdTagged.FreshGrammar.Exp.(dot(constructor(home, None), label(member)));
+
 /* Apply a list of transforms to a base expression, producing the
  * piped result: base |> transform1 |> transform2 |> ... */
 let apply_transforms = (base: Exp.t, transforms: list(transform)): Exp.t => {
@@ -102,7 +106,7 @@ let apply_transforms = (base: Exp.t, transforms: list(transform)): Exp.t => {
   let to_listwise = (t: transform): Exp.t =>
     switch (t) {
     | Rowwise(row_fn) =>
-      Exp.(deferred_ap(var("map"), [deferral(InAp), row_fn]))
+      Exp.(deferred_ap(lib("List", "map"), [deferral(InAp), row_fn]))
     | Listwise(expr) => expr
     };
   let transformations = List.map(to_listwise, transforms);
@@ -145,7 +149,9 @@ let drop_column = (column: string): transform => {
   );
 };
 
-let convert_column = (column: string, conversion_fn: string): transform => {
+/* the column's values through the library's converter, e.g. Float.of_int */
+let convert_column =
+    (column: string, ~from: Atom.cls, ~to_: Atom.cls): transform => {
   IdTagged.FreshGrammar.(
     Rowwise(
       Exp.(
@@ -158,7 +164,10 @@ let convert_column = (column: string, conversion_fn: string): transform => {
                 label(column),
                 ap(
                   Forward,
-                  var(conversion_fn),
+                  lib(
+                    Atom.show_cls(to_),
+                    "of_" ++ Atom.cls_string_lower(from),
+                  ),
                   dot(var("r"), label(column)),
                 ),
               ),
@@ -258,7 +267,7 @@ let group_by_column = (column: string): transform => {
     Listwise(
       Exp.(
         deferred_ap(
-          var("group_on_key"),
+          lib("List", "group_on_key"),
           [
             deferral(InAp),
             fn(
@@ -279,7 +288,7 @@ let filter_by_column = (op, column: string): transform => {
     Listwise(
       Exp.(
         deferred_ap(
-          var("filter"),
+          lib("List", "filter"),
           [
             deferral(InAp),
             fn(
@@ -302,7 +311,7 @@ let custom_filter = (): transform =>
     Listwise(
       Exp.(
         deferred_ap(
-          var("filter"),
+          lib("List", "filter"),
           [deferral(InAp), fn(Pat.var("row"), empty_hole(), None, None)],
         )
       ),
@@ -316,14 +325,14 @@ let string_match_filter = (column: string): transform =>
     Listwise(
       Exp.(
         deferred_ap(
-          var("filter"),
+          lib("List", "filter"),
           [
             deferral(InAp),
             fn(
               Pat.var("row"),
               ap(
                 Forward,
-                var("string_match"),
+                lib("String", "match"),
                 tuple([empty_hole(), dot(var("row"), label(column))]),
               ),
               None,
@@ -340,14 +349,14 @@ let drop_nones_column = (column: string): transform => {
     Listwise(
       Exp.(
         deferred_ap(
-          var("filter_map"),
+          lib("List", "filter_map"),
           [
             deferral(InAp),
             fn(
               Pat.var("row"),
               ap(
                 Forward,
-                var("option_map"),
+                lib("Option", "map"),
                 tuple([
                   dot(var("row"), label(column)),
                   fn(
@@ -447,18 +456,18 @@ let move_column =
 let sort_column =
     (column_type: option(Typ.t), header: string, descending: bool)
     : option(list(transform)) => {
-  let compare_fn =
+  switch (
     Option.bind(column_type, atom_cls_of_typ)
-    |> Option.map(Atom.compare_builtin)
-    |> Option.join;
-  switch (compare_fn) {
-  | Some(compare_fn_name) =>
+    |> Option.map(Atom.compare_module)
+    |> Option.join
+  ) {
+  | Some(compare_module) =>
     let cmp_call =
       IdTagged.FreshGrammar.(
         Exp.(
           ap(
             Forward,
-            var(compare_fn_name),
+            lib(compare_module, "compare"),
             tuple([
               dot(var("r1"), label(header)),
               dot(var("r2"), label(header)),
@@ -466,12 +475,12 @@ let sort_column =
           )
         )
       );
-    /* Descending wraps the comparator in invert_ord so one pass
+    /* Descending wraps the comparator in Ord.invert so one pass
      * of sort handles both directions — no separate reverse step. */
     let body =
       descending
         ? IdTagged.FreshGrammar.Exp.(
-            ap(Forward, var(BuiltinsADT.invert_ord.name), cmp_call)
+            ap(Forward, lib("Ord", "invert"), cmp_call)
           )
         : cmp_call;
     let sort_transform =
@@ -479,7 +488,7 @@ let sort_column =
         IdTagged.FreshGrammar.(
           Exp.(
             deferred_ap(
-              var("sort"),
+              lib("List", "sort"),
               [
                 fn(
                   Pat.tuple([Pat.var("r1"), Pat.var("r2")]),

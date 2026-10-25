@@ -142,73 +142,79 @@ let transform_tests = [
   test_case("drop_column", `Quick, () =>
     assert_transforms(
       [TableTransforms.drop_column("col")],
-      {|table |> map(_, omit_labels(_, `col`))|},
+      {|table |> List.map(_, omit_labels(_, `col`))|},
     )
   ),
   test_case("rename_column", `Quick, () =>
     assert_transforms(
       [TableTransforms.rename_column("old_col", "new_col")],
-      {|table |> map(_, fun r -> (omit_labels(r, `old_col`)) ... (new_col=r.old_col))|},
+      {|table |> List.map(_, fun r -> (omit_labels(r, `old_col`)) ... (new_col=r.old_col))|},
     )
   ),
   test_case("add_column", `Quick, () =>
     assert_transforms(
       [TableTransforms.add_column()],
-      {|table |> map(_, fun r -> r ... (?=?))|},
+      {|table |> List.map(_, fun r -> r ... (?=?))|},
     )
   ),
   test_case("convert_column", `Quick, () =>
     assert_transforms(
-      [TableTransforms.convert_column("price", "string_of_int")],
-      {|table |> map(_, fun r -> r ... (price=string_of_int(r.price)))|},
+      [
+        TableTransforms.convert_column(
+          "price",
+          ~from=Atom.Int,
+          ~to_=Atom.String,
+        ),
+      ],
+      {|table |> List.map(_, fun r -> r ... (price=String.of_int(r.price)))|},
     )
   ),
   test_case("clear_column", `Quick, () =>
     assert_transforms(
       [TableTransforms.clear_column("col")],
-      {|table |> map(_, fun r -> r ... (col=?))|},
+      {|table |> List.map(_, fun r -> r ... (col=?))|},
     )
   ),
   test_case("noop_column", `Quick, () =>
     assert_transforms(
       [TableTransforms.noop_column("col")],
-      {|table |> map(_, fun r -> r ... (col=r.col))|},
+      {|table |> List.map(_, fun r -> r ... (col=r.col))|},
     )
   ),
   test_case("group_by_column", `Quick, () =>
     assert_transforms(
       [TableTransforms.group_by_column("category")],
-      {|table |> group_on_key(_, fun row -> row.category)|},
+      {|table |> List.group_on_key(_, fun row -> row.category)|},
     )
   ),
   test_case("filter_by_column (equals)", `Quick, () =>
     assert_transforms(
       [TableTransforms.filter_by_column(Poly(Equals), "score")],
-      {|table |> filter(_, fun row -> row.score == ?)|},
+      {|table |> List.filter(_, fun row -> row.score == ?)|},
     )
   ),
   test_case("custom_filter (open predicate)", `Quick, () =>
     assert_transforms(
       [TableTransforms.custom_filter()],
-      {|table |> filter(_, fun row -> ?)|},
+      {|table |> List.filter(_, fun row -> ?)|},
     )
   ),
   test_case("string_match_filter", `Quick, () =>
     assert_transforms(
       [TableTransforms.string_match_filter("name")],
-      {|table |> filter(_, fun row -> string_match(?, row.name))|},
+      {|table |> List.filter(_, fun row -> String.match(?, row.name))|},
     )
   ),
   test_case("drop_nones_column", `Quick, () =>
     assert_transforms(
       [TableTransforms.drop_nones_column("optional_col")],
-      {|table |> filter_map(_, fun row -> option_map(row.optional_col, fun v -> row ... (optional_col=v)))|},
+      {|table |> List.filter_map(_, fun row -> Option.map(row.optional_col, fun v -> row ... (optional_col=v)))|},
     )
   ),
   test_case("provide_default_column", `Quick, () =>
     assert_transforms(
       [TableTransforms.provide_default_column("opt")],
-      {|table |> map(_, fun row -> row ... (opt=case row.opt | None => ?| Some(v) => v end))|},
+      {|table |> List.map(_, fun row -> row ... (opt=case row.opt | None => ?| Some(v) => v end))|},
     )
   ),
 ];
@@ -225,14 +231,14 @@ let sort_tests = [
       | Some(transforms) =>
         assert_transforms(
           transforms,
-          {|table |> sort(fun (r1, r2) -> int_compare(r1.age, r2.age), _)|},
+          {|table |> List.sort(fun (r1, r2) -> Int.compare(r1.age, r2.age), _)|},
         )
       | None => fail("Expected Some transforms for Int sort")
       };
     },
   ),
   test_case(
-    "sort_column: Int descending wraps comparator in invert_ord",
+    "sort_column: Int descending wraps comparator in Ord.invert",
     `Quick,
     () => {
       let int_ty = Typ.fresh(Atom(Int));
@@ -240,7 +246,7 @@ let sort_tests = [
       | Some(transforms) =>
         assert_transforms(
           transforms,
-          {|table |> sort(fun (r1, r2) -> invert_ord(int_compare(r1.age, r2.age)), _)|},
+          {|table |> List.sort(fun (r1, r2) -> Ord.invert(Int.compare(r1.age, r2.age)), _)|},
         )
       | None => fail("Expected Some transforms for descending sort")
       };
@@ -255,7 +261,7 @@ let sort_tests = [
       | Some(transforms) =>
         assert_transforms(
           transforms,
-          {|table |> sort(fun (r1, r2) -> float_compare(r1.price, r2.price), _)|},
+          {|table |> List.sort(fun (r1, r2) -> Float.compare(r1.price, r2.price), _)|},
         )
       | None => fail("Expected Some transforms for Float sort")
       };
@@ -437,7 +443,7 @@ let type_utility_tests = {
         | Some(t) =>
           assert_transforms(
             [t],
-            {|table |> map(_, select_labels(_, `b`, `a`, `c`))|},
+            {|table |> List.map(_, select_labels(_, `b`, `a`, `c`))|},
           )
         | None => fail("Expected Some transform for move")
         };

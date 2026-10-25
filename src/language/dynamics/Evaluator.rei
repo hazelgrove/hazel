@@ -20,6 +20,10 @@ let evaluate:
   ) =>
   (Exp.t, EvaluatorState.t);
 
+/* the value unfinished, closures kept: for values that go back into an
+   environment (the standard library's bindings) */
+let evaluate_raw: (~env: Environment.t(Exp.t), Exp.t) => Exp.t;
+
 let evaluate_and_limit:
   (
     ~step_limit: int,

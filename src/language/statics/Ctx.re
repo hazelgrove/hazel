@@ -292,7 +292,9 @@ let filter_shadowed = (ctx: t): t =>
      )
   |> (((kept, _, _)) => of_entries(~use_mode=ctx.use_mode, List.rev(kept)));
 
-let filter_stepper_filter_variables = (ctx: t): t =>
+/* without `$`-names: stepper filter variables and the standard library's
+   `$prim` */
+let filter_internal = (ctx: t): t =>
   ctx.entries
   |> List.filter(entry =>
        switch (entry) {

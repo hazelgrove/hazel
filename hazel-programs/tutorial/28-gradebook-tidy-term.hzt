@@ -35,9 +35,9 @@ Think about how to transform each row independently. What string operations coul
 - `Spring` — represents spring semester (term code `"SP"`)
 
 ### String Operations
-- `string_sub(s, start, len)` — extract substring (0-indexed)
-- `string_length(s)` — length of a string
-- `int_of_string(s)` — convert string to Int
+- `String.sub(s, start, len)` — extract substring (0-indexed)
+- `String.length(s)` — length of a string
+- `Int.of_string(s)` — convert string to Int
 
 ### Case Expression
    ```hazel
@@ -55,7 +55,7 @@ Think about how to transform each row independently. What string operations coul
    | (0, _) => "zero and something"
    | (n, s) =>
      "number "
-     ++ string_of_int(n)
+     ++ String.of_int(n)
      ++ " and string "
      ++ s
    end
@@ -76,13 +76,13 @@ else if x == 0 then 0
 else 1
 ```
 
-### map
+### List.map
 ```hazelnostatics
-map : ([T], T -> U) -> [U]
+List.map : ([T], T -> U) -> [U]
 ```
 Apply a function to each element:
 ```hazel
-map([1, 2, 3], fun x -> x + 1)
+List.map([1, 2, 3], fun x -> x + 1)
 ```
 
 
@@ -150,6 +150,6 @@ let test_data : [GradebookEntry] =
 let result = tidy_term(test_data) in
 test result . semester == [Fall, Spring] end;
 test result . year == [2025, 2020] end;
-test let columns = ^^probe(to_lvs(head(result)) . label) in
-  mem(columns, "semester")
-  && mem(columns, "year") && ! mem(columns, "term") end
+test let columns = ^^probe(to_lvs(List.head(result)) . label) in
+  List.mem(columns, "semester")
+  && List.mem(columns, "year") && ! List.mem(columns, "term") end

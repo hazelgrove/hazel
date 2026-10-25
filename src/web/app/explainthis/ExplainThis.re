@@ -1007,11 +1007,13 @@ let decide =
             ~fallback=basic,
             FunctionExp.functions_ap(~con_id, ~arg_id, ~pat_id, ~body_id),
           );
-        | Constructor(v, _) =>
+        | Constructor(v, _)
+        | Dot(_, {term: Label(v), _}) =>
           leveled(
             ~fallback=basic,
             FunctionExp.functions_ctr(~pat_id, ~body_id, ~name=v),
           )
+        | Dot(_)
         | TupLabel(_)
         | Invalid(_)
         | Parens(_)
@@ -1181,16 +1183,18 @@ let decide =
           let arg_id = IdTagged.rep_id(arg);
           let lets_ap =
             switch (x.term) {
-            | Constructor(_, _) =>
-              LetExp.lets_conap(~def_id, ~x_id, ~arg_id, ~pat_id)
+            | Constructor(_, _)
+            | Dot(_) => LetExp.lets_conap(~def_id, ~x_id, ~arg_id, ~pat_id)
             | _ => LetExp.lets_funap(~def_id, ~x_id, ~arg_id, ~pat_id)
             };
           leveled(~fallback=basic, lets_ap);
-        | Constructor(v, _) =>
+        | Constructor(v, _)
+        | Dot(_, {term: Label(v), _}) =>
           leveled(
             ~fallback=basic,
             LetExp.lets_ctr(~def_id, ~pat_id, ~name=v, ~body_id),
           )
+        | Dot(_)
         | TupLabel(_)
         | ExplicitNonlabel
         | Label(_)
@@ -1475,10 +1479,13 @@ let decide =
       let x_id = IdTagged.rep_id(x);
       let arg_id = IdTagged.rep_id(arg);
       switch (x.term) {
-      | Constructor(_, _) => get_message(AppPat.conaps(~x_id, ~arg_id))
+      | Constructor(_, _)
+      | Dot(_) => get_message(AppPat.conaps(~x_id, ~arg_id))
       | _ => get_message(AppPat.funaps(~x_id, ~arg_id))
       };
-    | Constructor(con, _) => get_message(TerminalPat.ctr(con))
+    | Constructor(con, _)
+    | Dot(_, {term: Label(con), _}) => get_message(TerminalPat.ctr(con))
+    | Dot(_) => Prose("Not a valid pattern")
     | Asc(pat, typ) =>
       let pat_id = IdTagged.rep_id(pat);
       let typ_id = IdTagged.rep_id(typ);

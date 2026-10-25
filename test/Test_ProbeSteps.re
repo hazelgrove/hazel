@@ -93,7 +93,7 @@ let eval = (~prev=IncrEval.empty, ~targets, z: Zipper.t) => {
   let (info_map, elab) = statics(z);
   let eval_info = EvalInfo.of_info_map(~probe_all=false, ~targets, info_map);
   let (_, state) =
-    Evaluator.evaluate(~prev, ~eval_info, ~env=Builtins.env_init, elab);
+    Evaluator.evaluate(~prev, ~eval_info, ~env=Builtins.env_init(), elab);
   (info_map, state);
 };
 
@@ -200,7 +200,7 @@ let starts = () => {
     samples(s),
   ) {
   | (Some(e), [sample]) =>
-    let (v, _) = Evaluator.evaluate(~env=Builtins.env_init, e);
+    let (v, _) = Evaluator.evaluate(~env=Builtins.env_init(), e);
     check(bool, "the sample's value", true, Exp.fast_equal(v, sample.value));
   | (None, _) => Alcotest.fail("no closed expression")
   | (_, _) => Alcotest.fail("expected one sample")

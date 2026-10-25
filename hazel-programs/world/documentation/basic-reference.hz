@@ -1,0 +1,153 @@
+# Hazel Language Quick Reference #
+
+# Empty holes stand for missing expressions, patterns, or types #
+let empty_hole = ¿;
+
+# Non-empty holes are the red boxes around type errors #
+# (you can still run programs with non-empty holes) #
+let non_empty_hole : Int = true;
+
+let warnings = (
+  # Warnings are orange boxes around unused variables #
+  (let x = 0 in 1),
+  # Prefixing a variable name with an underscore disables the warning... #
+  (let _x = 0 in 1),
+  # ...and so does the presence of an empty hole in the unused variable's scope #
+  (let x = 0 in ¿)
+);
+
+# Booleans #
+let bool: Bool = true;
+let operators = !true && false || true;
+
+let conditional = if !true then 1 else 2;
+
+# Integers #
+let num = 1 : Int; 
+let arithmetic = -num*1 + 2/3 - 4**5;
+let comparison =
+  (0 == 0, 0 < 1, 1 <= 1, 2 > 1, 1 >= 1 )
+;
+
+# Integers are unlimited by default #
+let big_num: Int = 10000000000000000000000000;
+# Use SInt for fixed-with system integers #
+let bad_num: SInt = 1000000000000000000000000;
+# Use Nat for non-negative integers #
+let nat : Nat = 5;
+
+# Floating Point Numbers #
+let float: Float = 0.1;
+let arithmetic = 0. *. 1. +. 2. /. 3. -. 4. **. 5.;
+let comparison =
+  (0. ==. 0., 0. <. 1., 1. <=. 1., 2. >. 1., 1. >=. 1.)
+;
+
+# "use" lets you set the default number format #
+# for literals and operators. #
+let natural = 
+  use Nat in 
+  1 + 2 * 5 
+;
+
+# Strings #
+let string = "Hello, world!"; 
+let concatenation  = string ++ " Goodbye.";
+let comparison = string == "Hello, world!";
+
+# Tuples (Destructured with let expressions) #
+let tuple : (Int, Bool, (Bool, Int)) =
+  (1, true, (false, 3));
+let (a, b, (c, d)) = tuple;
+
+# Functions (Take a single argument which can be a tuple) #
+let y : (Int, Int, Int) -> Int =
+  fun (m, x, b) -> m * x + b;
+
+# Recursive Functions (Arrow type annotation required) #
+let double_recursively : Int -> Int =
+  fun n ->
+    if n == 0
+    then 0
+    else double_recursively(n - 1) + 2
+;
+
+# Mutual Recursion (bind tuples of functions) #
+let (even : Int -> Bool, odd : Int -> Bool) = (
+  fun n -> if n == 0 then true else odd(n - 1),
+  fun n -> if n == 0 then false else even(n - 1)
+)
+;
+
+# Lists #
+let empty_list : [Int] = [];
+let non_empty_list : [Int] = 1::2::3::[];
+let list_literals : [Int] = [1, 2, 3];
+let length : [Int] -> Int =
+  fun xs ->
+    case xs
+    | [] => 0
+    | _hd::tl => 1 + length(tl)
+    end
+;
+let has_at_least_two_elements : [Int] -> Bool =
+  fun xs ->
+    case xs
+    | [] => false
+    | _::[] => false
+    | _::_::_ => true
+    end 
+;
+
+# Algebraic Data Types #
+type Exp =
+  + Var(String)
+  + Lam(String, Exp)
+  + Ap(Exp, Exp);
+let exp_equal: (Exp, Exp) -> Bool =
+  fun es ->
+    case es
+    | Var(x), Var(y) => x == y
+    | Lam(x1, e1), Lam(x2, e2) =>
+      x1 == x2 && exp_equal(e1, e2)
+    | Ap(e1, e2), Ap(e3, e4) =>
+      exp_equal(e1, e3) && exp_equal(e2, e4)
+    | _ => false
+    end
+;
+
+# Void is the built-in empty sum -- a type with no inhabitants. #
+# Eliminating a Void value is "absurd": it can stand in for any type. #
+let absurd : Void -> Int =
+  fun v -> case v end
+;
+
+# Polymorphic Functions #
+let poly_id: poly a -> a -> a =
+  typfun a -> fun x: a -> x
+;
+let
+  apply_both:
+  poly a -> poly b -> (poly c -> c -> c) -> ((a, b) -> (a, b))
+=
+  typfun a -> typfun b ->
+    fun f: poly c -> (c -> c) ->
+      fun (x, y): (a, b) -> (f@<a>(x), f@<b>(y))
+;
+let list_length: poly a -> [a] -> Int =
+  typfun a -> fun l : [a] ->
+    case l
+    | [] => 0
+    | _hd::tl => 1 + list_length@<a>(tl)
+    end
+;
+
+# Tests, separated by semicolons #
+test 2 + 2 == 4 end;
+test 3 + 3 == 6 end;
+test 2 + 2 == 5 end;
+
+# The program's value is its last expression's value. #
+# To see it, probe that expression: caret on it, Cmd/Ctrl+E. #
+¿
+

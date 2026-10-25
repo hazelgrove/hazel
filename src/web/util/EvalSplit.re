@@ -5,7 +5,8 @@
    without a walk. A module's value is its members' bindings, each in its
    member's piece, in a node of its own. A program DefStatics didn't
    analyze, or whose pieces don't account for every entry exactly once,
-   goes as one piece.
+   goes as one piece. A world's run is cut (WorldTree.run_cut): what
+   doesn't run has no piece, and a module run empty has one of its own.
 
    Which piece has an entry follows how DefStatics merges maps: an
    item's root entries (its chain's overlay) shadow the item's own map
@@ -35,6 +36,7 @@ type source =
   /* skip; per item, its root infos and their entries as projected */
   | Roots(list(Id.t), list((Id.t, list((Id.t, Info.t)), list(P.entry))))
   | Node(IdTagged.IdTag.t) /* a module value's annotation */
+  | Emptied(Exp.t, option(Mod.t)) /* the item's elab, and its binding */
   | Targets(Sample.targets)
   | Whole(Exp.t, Statics.Map.t, Sample.targets);
 
@@ -55,6 +57,7 @@ type chain_cache = {
 and members = {
   nest: DefStatics.nest,
   shadowed: list(Id.t),
+  cut: option(WorldTree.cut),
   cache: chain_cache,
   chain: P.chain,
   pieces: list((P.hash, string)),
@@ -466,9 +469,74 @@ let node_piece =
     (Node(annotation), Node(annotation): P.content, 0)
   );
 
+/* a module run empty's piece: its let with an empty module for its value
+   (WorldTree.apply), its binding likewise */
+let empty_piece =
+    (
+      acc: acc,
+      ~old: Hashtbl.t(P.key, cached),
+      ~into: Hashtbl.t(P.key, cached),
+      it: DefStatics.item,
+      ~src: option(Mod.t),
+    ) => {
+  let hollow: Exp.t =
+    switch (it.d_elab.term) {
+    | Let(p, def, body) => {
+        ...it.d_elab,
+        term:
+          Let(
+            p,
+            {
+              ...def,
+              term: Module([]),
+            },
+            body,
+          ),
+      }
+    | _ => raise(Unsplittable("a module run empty is not a let"))
+    };
+  let binding = lazy(Option.bind(src, src => bind(src, it, hollow)));
+  piece(
+    acc,
+    ~old,
+    ~into,
+    Empty(it.d_id),
+    ~holds=
+      fun
+      | Emptied(e, was) =>
+        e === it.d_elab && same_binding(was, Lazy.force(binding))
+      | _ => false,
+    ~make=() =>
+    (
+      Emptied(it.d_elab, Lazy.force(binding)),
+      Item({
+        hollow,
+        hole: it.d_hole,
+        entries: [],
+        binding: Lazy.force(binding),
+      }),
+      0,
+    )
+  );
+};
+
+/* the keys an item that doesn't run accounts for: those its pieces would
+   hold, its map's and its root entries', less those above */
+let dropped_keys =
+    (it: DefStatics.item, s: DefStatics.sum, ~shadowed: list(Id.t)): int => {
+  let has = id =>
+    Id.Map.mem(id, it.d_map) || List.mem_assoc(id, s.s_overlay);
+  Id.Map.cardinal(it.d_map)
+  + List.length(
+      List.filter(((id, _)) => !Id.Map.mem(id, it.d_map), s.s_overlay),
+    )
+  - List.length(List.filter(has, List.sort_uniq(compare, shadowed)));
+};
+
 /* [items]' pieces from [old]'s, and the chain's new cache. [shadowed]:
    the root keys of the items holding the chain, whose entries sit in
-   pieces above. [srcs]: a module's members, the items but the tail */
+   pieces above. [srcs]: a module's members, the items but the tail.
+   [cut]: which members run (the tail always does) */
 let rec chain =
         (
           acc: acc,
@@ -476,12 +544,16 @@ let rec chain =
           ~roots: P.key,
           ~shadowed: list(Id.t),
           ~srcs: list(Mod.t),
+          ~cut: option(WorldTree.cut),
           items: list(DefStatics.item),
           sums: list(DefStatics.sum),
         )
         : (P.chain, chain_cache) => {
   if (List.length(items) != List.length(sums)) {
     raise(Unsplittable("items and sums differ"));
+  };
+  if (Option.is_some(cut) && srcs == []) {
+    raise(Unsplittable("a cut of no module's members"));
   };
   let srcs =
     switch (srcs) {
@@ -505,7 +577,12 @@ let rec chain =
     pieces: Hashtbl.create(List.length(items) + 1),
     members: Hashtbl.create(4),
   };
-  let cut_item = ((it: DefStatics.item, s: DefStatics.sum), src) => {
+  let part = (src: option(Mod.t)): option(WorldTree.part) =>
+    switch (cut, src) {
+    | (Some(c), Some(m)) => Id.Map.find_opt(Mod.rep_id(m), c)
+    | _ => Some(Whole)
+    };
+  let cut_whole = (it: DefStatics.item, s: DefStatics.sum, src, ~inner_cut) => {
     let graft =
       switch (s.s_elab) {
       | Some(g) => g
@@ -513,11 +590,18 @@ let rec chain =
       };
     let skip = List.map(fst, s.s_overlay) @ shadowed;
     let key: P.key = Item(it.d_id);
-    switch (split_of(it)) {
-    | Some((nested, n, v, p, body)) =>
+    switch (split_of(it), inner_cut) {
+    | (Some((Links, _, _, _, _)), Some(_))
+    | (None, Some(_)) =>
+      raise(Unsplittable("a cut into a module kept whole"))
+    | (Some((nested, n, v, p, body)), _) =>
       let m =
         switch (Hashtbl.find_opt(old.members, it.d_id)) {
-        | Some(m) when m.nest === n && ids_equal(m.shadowed, skip) => m
+        | Some(m)
+            when
+              m.nest === n
+              && ids_equal(m.shadowed, skip)
+              && Option.equal(WorldTree.equal_cut, m.cut, inner_cut) => m
         | prior =>
           let inner = {
             witnessing: acc.witnessing,
@@ -539,12 +623,14 @@ let rec chain =
                 | Links => []
                 | Members(members) => members
                 },
+              ~cut=inner_cut,
               it.d_members,
               n.n_sums,
             );
           {
             nest: n,
             shadowed: skip,
+            cut: inner_cut,
             cache,
             chain: members,
             pieces: List.concat(inner.chunks),
@@ -592,9 +678,9 @@ let rec chain =
           slot,
           members: Some((finish, m.chain)),
         },
-        (it, s, t),
+        Some((it, s, t)),
       );
-    | None =>
+    | (None, None) =>
       let t = {
         graft,
         own: it.d_elab,
@@ -633,11 +719,36 @@ let rec chain =
           slot,
           members: None,
         },
-        (it, s, t),
+        Some((it, s, t)),
       );
     };
   };
-  let cuts = List.map2(cut_item, List.combine(items, sums), srcs);
+  /* an item that doesn't run has no piece; one run empty, a piece of its
+     own and no root entries */
+  let cut_item = ((it: DefStatics.item, s: DefStatics.sum), src) =>
+    switch (part(src)) {
+    | None =>
+      acc.keys = acc.keys + dropped_keys(it, s, ~shadowed);
+      None;
+    | Some(Empty) =>
+      acc.keys = acc.keys + dropped_keys(it, s, ~shadowed);
+      let slot =
+        empty_piece(acc, ~old=old.pieces, ~into=cache.pieces, it, ~src);
+      Some((
+        P.{
+          slot,
+          members: None,
+        },
+        None,
+      ));
+    | Some(Whole) => Some(cut_whole(it, s, src, ~inner_cut=None))
+    | Some(Inside(c)) => Some(cut_whole(it, s, src, ~inner_cut=Some(c)))
+    };
+  let cuts =
+    List.filter_map(
+      Fun.id,
+      List.map2(cut_item, List.combine(items, sums), srcs),
+    );
   let roots =
     roots_piece(
       acc,
@@ -645,7 +756,7 @@ let rec chain =
       ~into=cache.pieces,
       roots,
       ~skip=shadowed,
-      List.map(snd, cuts),
+      List.filter_map(snd, cuts),
     );
   (
     {
@@ -692,6 +803,7 @@ let whole_piece =
         statics.elaborated,
         EvalInfo.of_info_map(
           ~probe_all=acc.witnessing.probe_all,
+          ~external_ids=acc.witnessing.external_ids,
           ~targets,
           statics.info_map,
         ),
@@ -700,18 +812,30 @@ let whole_piece =
     )
   );
 
-/* [statics]' program in pieces, when its DefStatics analysis made it */
+/* [statics]' program in pieces, when its DefStatics analysis made it
+   ([run]: statics cut from that analysis' as the run says) */
 let split =
-    (acc: acc, doc: doc, ~targets: Sample.targets, statics: CachedStatics.t)
+    (
+      acc: acc,
+      doc: doc,
+      ~targets: Sample.targets,
+      ~run: option(WorldTree.run),
+      statics: CachedStatics.t,
+    )
     : P.layout => {
   let ds =
-    switch (DefStatics.cached(statics.term)) {
-    | Some(ds) when ds.merged === statics.info_map => ds
+    switch (DefStatics.last(statics.term)) {
+    | Some(ds) when Option.is_some(run) || ds.merged === statics.info_map => ds
     | _ => raise(Unsplittable("no analysis of these statics"))
     };
   /* the program is the top chain, finished as DefStatics.whole_elab */
+  let (whole, cut) =
+    switch (run) {
+    | Some({whole, cut}) => (whole, Some(cut))
+    | None => (statics.elaborated, None)
+    };
   switch (DefStatics.whole_elab(ds)) {
-  | Some(e) when e === statics.elaborated => ()
+  | Some(e) when e === whole => ()
   | Some(_) => raise(Unsplittable("an elaboration not DefStatics'"))
   | None => raise(Unsplittable("an elaboration gap"))
   };
@@ -728,6 +852,7 @@ let split =
         | Module(members) => members
         | _ => []
         },
+      ~cut,
       ds.items,
       ds.sums,
     );
@@ -746,8 +871,9 @@ let split =
     | _ => P.Chain
     };
   let targets = targets_piece(acc, doc, id, targets);
-  /* every key in exactly one piece, or the worker's map would differ */
-  if (acc.keys != Id.Map.cardinal(statics.info_map)) {
+  /* every key in exactly one piece (or what doesn't run), or the worker's
+     map would differ */
+  if (acc.keys != Id.Map.cardinal(ds.merged)) {
     raise(Unsplittable("pieces hold other keys than the statics"));
   };
   doc.top = cache;
@@ -759,11 +885,18 @@ let split =
 };
 
 /* the program [statics] elaborated, as pieces, its eval info projected
-   for [targets] as EvalInfo.of_info_map does */
+   for [targets] as EvalInfo.of_info_map does. [run]: a world's, [statics]
+   cut as it says */
 let program =
-    (~probe_all: bool, ~targets: Sample.targets, statics: CachedStatics.t)
+    (
+      ~probe_all: bool,
+      ~external_ids: list(Id.t)=[],
+      ~targets: Sample.targets,
+      ~run: option(WorldTree.run)=?,
+      statics: CachedStatics.t,
+    )
     : P.program => {
-  let witnessing = EvalInfo.witnessing(~probe_all, ~targets);
+  let witnessing = EvalInfo.witnessing(~probe_all, ~external_ids, ~targets);
   let doc = doc_for(Exp.rep_id(statics.term), witnessing);
   let acc = {
     witnessing,
@@ -772,7 +905,7 @@ let program =
   };
   encoded := [];
   let layout =
-    switch (split(acc, doc, ~targets, statics)) {
+    switch (split(acc, doc, ~targets, ~run, statics)) {
     | layout =>
       went_whole := None;
       layout;

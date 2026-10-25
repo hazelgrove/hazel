@@ -16,7 +16,7 @@ fun (x, y) -> f(1, x, 2, y)
 
 This lets you create new functions from existing ones:
 ```hazel
-let keep_small = filter(_, fun x -> x < 4) in
+let keep_small = List.filter(_, fun x -> x < 4) in
 keep_small([1, 2, 3, 4, 5])
 ```
 
@@ -42,7 +42,7 @@ sum(1, 2)
 Use `_` to defer arguments:
 ```hazel
 let double =
-  map(_, fun x -> x * 2)
+  List.map(_, fun x -> x * 2)
 in
 double([1, 2, 3])
 ```

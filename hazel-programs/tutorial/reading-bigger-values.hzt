@@ -25,7 +25,7 @@ The moonbloom drinks 1260 ml a week.
 type Care = (water = Int, weekly = Int) in
 type Card = (name = String, icon = String, care = Care, note = String) in
 let plant_card(name: String, icon: String, water: Int): Card =
-  let note = name ++ " drinks " ++ string_of_int(water) ++ "ml" in
+  let note = name ++ " drinks " ++ String.of_int(water) ++ "ml" in
   let card = (
     name = name,
     icon = icon,

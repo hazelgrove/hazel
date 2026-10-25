@@ -737,6 +737,9 @@ let test_eval_gate_gives_up_after_budget = () => {
 
 /* Settled evaluation: no wait, flag consumed on the first dispatch. */
 let test_eval_gate_settled_dispatches = () => {
+  /* tests that run first leave a refresh pending: they never yield to
+     its timer */
+  CodeWithStatics.StaticsDebounce.reset();
   AgentSend.max_eval_wait_attempts := 3;
   let agent = with_pending_dispatch(Agent.Utils.init());
   let chat_id = agent.chat_system.current;

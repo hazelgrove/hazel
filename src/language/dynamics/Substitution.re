@@ -20,9 +20,33 @@
   - Does not handle unbound variables correctly - these could get captured
  */
 
-let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
+/* How far to inline function values. A closed term needs them
+   everywhere; a term only shown (a result, a probe sample) inlines
+   them once: inside an inlined function, the functions it calls (and
+   records of functions) stay names. Inlining them there copies each
+   callee into every call site at every level of calls, which for a
+   stuck term over a module grows exponentially. A module shown stays
+   its name (`List.map`, not the library's whole List). */
+type fns =
+  | Inline
+  | Shown
+  | Named;
+
+let rec names_fn = (v: Exp.t): bool =>
+  switch (v.term) {
+  | Fun(_)
+  | FixF(_)
+  | BuiltinFun(_) => true
+  | Closure(_, v)
+  | TupLabel(_, v)
+  | Parens(v) => names_fn(v)
+  | Tuple(vs) => List.exists(names_fn, vs)
+  | _ => false
+  };
+
+let rec in_exp = (~fns=Inline, env: Environment.t(Exp.t), exp: Exp.t) =>
   Exp.map_term(
-    ~f_typ=_ => in_typ(env),
+    ~f_typ=_ => in_typ(~fns, env),
     ~f_exp=
       (cont, e) => {
         let (term, rewrap) = Exp.unwrap(e);
@@ -31,43 +55,56 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
         | Var(x) =>
           switch (Environment.lookup(env, x)) {
           | Some({term: Var(y), _}) when y == x => e
-          | Some(e) => e |> Exp.replace_all_ids |> in_exp(Environment.empty)
+          | Some({term: Module(_), _}) when fns != Inline => e
+          | Some(v) when fns == Named && names_fn(v) => e
+          | Some(v) =>
+            v
+            |> Exp.replace_all_ids
+            |> in_exp(
+                 ~fns=fns != Inline && names_fn(v) ? Named : fns,
+                 Environment.empty,
+               )
           | None => e
           }
 
         // Forms with environments: look up in new environment
-        | Closure(env, e) => in_exp(env, e)
+        | Closure(env, e) => in_exp(~fns, env, e)
         | Fun(p, e, t, n) =>
-          let t' = Option.map(in_typ(env), t);
-          let (env', p') = in_pat(env, env, p);
-          Fun(p', in_exp(env', e), t', n) |> rewrap;
+          let t' = Option.map(in_typ(~fns, env), t);
+          let (env', p') = in_pat(~fns, env, env, p);
+          Fun(p', in_exp(~fns, env', e), t', n) |> rewrap;
         | FixF(p, e, Some(env)) =>
-          let (env', p') = in_pat(env, env, p);
-          FixF(p', in_exp(env', e), None) |> rewrap;
+          let (env', p') = in_pat(~fns, env, env, p);
+          FixF(p', in_exp(~fns, env', e), None) |> rewrap;
 
         // Cases with binders: remove binder from env
         | Let(p, e1, e2) =>
-          let (env', p') = in_pat(env, env, p);
-          Let(p', in_exp(env', e1), in_exp(env', e2)) |> rewrap;
+          let (env', p') = in_pat(~fns, env, env, p);
+          Let(p', in_exp(~fns, env', e1), in_exp(~fns, env', e2)) |> rewrap;
         | Match(e, cases) =>
           Match(
-            in_exp(env, e),
+            in_exp(~fns, env, e),
             cases
             |> List.map(((p, e)) => {
-                 let (env', p') = in_pat(env, env, p);
-                 (p', in_exp(env', e));
+                 let (env', p') = in_pat(~fns, env, env, p);
+                 (p', in_exp(~fns, env', e));
                }),
           )
           |> rewrap
         | FixF(p, e, None) =>
-          let (env', p') = in_pat(env, env, p);
-          FixF(p', in_exp(env', e), None) |> rewrap;
+          let (env', p') = in_pat(~fns, env, env, p);
+          FixF(p', in_exp(~fns, env', e), None) |> rewrap;
         | Theorem(p, e1, e2) =>
-          let (env', p') = in_pat(env, env, p);
-          Theorem(p', in_exp(env', e1), in_exp(env', e2)) |> rewrap;
+          let (env', p') = in_pat(~fns, env, env, p);
+          Theorem(p', in_exp(~fns, env', e1), in_exp(~fns, env', e2))
+          |> rewrap;
         | Forall(pat, e) =>
-          let (env', pat') = in_pat(env, env, pat);
-          Forall(pat', in_exp(env', e)) |> rewrap;
+          let (env', pat') = in_pat(~fns, env, env, pat);
+          Forall(pat', in_exp(~fns, env', e)) |> rewrap;
+        /* a library module shown is its name, not its every member */
+        | Module(_)
+            when fns != Inline && Builtins.library_module_name(e) != None =>
+          Var(Option.get(Builtins.library_module_name(e))) |> rewrap
         | Module(items) =>
           /* Items scope sequentially: a pending item binds its name for the
              items that follow, so it shadows the substitution there. An
@@ -95,7 +132,7 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
                       List.fold_left(shadow, env, Pat.bound_vars(p)),
                       {
                         ...item,
-                        term: (ModLet(p, in_exp(env, e)): Mod.term),
+                        term: (ModLet(p, in_exp(~fns, env, e)): Mod.term),
                       },
                     )
                   | ModuleMod(mp, e) =>
@@ -108,21 +145,23 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
                       env',
                       {
                         ...item,
-                        term: (ModuleMod(mp, in_exp(env, e)): Mod.term),
+                        term: (
+                          ModuleMod(mp, in_exp(~fns, env, e)): Mod.term
+                        ),
                       },
                     );
                   | ModVal(x, e) => (
                       env,
                       {
                         ...item,
-                        term: (ModVal(x, in_exp(env, e)): Mod.term),
+                        term: (ModVal(x, in_exp(~fns, env, e)): Mod.term),
                       },
                     )
                   | ModExp(e) => (
                       env,
                       {
                         ...item,
-                        term: (ModExp(in_exp(env, e)): Mod.term),
+                        term: (ModExp(in_exp(~fns, env, e)): Mod.term),
                       },
                     )
                   | ModType(_, _)
@@ -184,6 +223,7 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
 // Updates a pattern to avoid variable capture
 and in_pat =
     (
+      ~fns=Inline,
       env_outer: Environment.t(Exp.t), // The environment outside the binding form, used in ProofOfs
       env_acc: Environment.t(Exp.t), // The environment being built up to avoid capture
       p: Pat.t,
@@ -211,21 +251,22 @@ and in_pat =
   | EmptyHole => (env_acc, p)
   | MultiHole(_) => (env_acc, p)
   | Constructor(_, _) => (env_acc, p)
+  | Dot(_) => (env_acc, p)
   | ExplicitNonlabel => (env_acc, p)
   | Label(_) => (env_acc, p)
 
   // Containers: recurse one at a time
   | Parens(p1) =>
-    let (env', p1') = in_pat(env_outer, env_acc, p1);
+    let (env', p1') = in_pat(~fns, env_outer, env_acc, p1);
     (env', Parens(p1') |> Pat.fresh);
   | Projector(data, p1) =>
-    let (env', p1') = in_pat(env_outer, env_acc, p1);
+    let (env', p1') = in_pat(~fns, env_outer, env_acc, p1);
     (env', Projector(data, p1') |> Pat.fresh);
   | Tuple(l) =>
     let (env', l') =
       List.fold_left(
         ((env_acc, l_acc), p) => {
-          let (env_new, p_new) = in_pat(env_outer, env_acc, p);
+          let (env_new, p_new) = in_pat(~fns, env_outer, env_acc, p);
           (env_new, l_acc @ [p_new]);
         },
         (env_acc, []),
@@ -236,7 +277,7 @@ and in_pat =
     let (env', l') =
       List.fold_left(
         ((env_acc, l_acc), p) => {
-          let (env_new, p_new) = in_pat(env_outer, env_acc, p);
+          let (env_new, p_new) = in_pat(~fns, env_outer, env_acc, p);
           (env_new, l_acc @ [p_new]);
         },
         (env_acc, []),
@@ -244,27 +285,27 @@ and in_pat =
       );
     (env', ListLit(l') |> Pat.fresh);
   | Cons(p1, p2) =>
-    let (env', p1') = in_pat(env_outer, env_acc, p1);
-    let (env'', p2') = in_pat(env_outer, env', p2);
+    let (env', p1') = in_pat(~fns, env_outer, env_acc, p1);
+    let (env'', p2') = in_pat(~fns, env_outer, env', p2);
     (env'', Cons(p1', p2') |> Pat.fresh);
   | Ap(p1, p2) =>
-    let (env', p1') = in_pat(env_outer, env_acc, p1);
-    let (env'', p2') = in_pat(env_outer, env', p2);
+    let (env', p1') = in_pat(~fns, env_outer, env_acc, p1);
+    let (env'', p2') = in_pat(~fns, env_outer, env', p2);
     (env'', Ap(p1', p2') |> Pat.fresh);
   | TupLabel(p1, p2) =>
-    let (env', p1') = in_pat(env_outer, env_acc, p1);
-    let (env'', p2') = in_pat(env_outer, env', p2);
+    let (env', p1') = in_pat(~fns, env_outer, env_acc, p1);
+    let (env'', p2') = in_pat(~fns, env_outer, env', p2);
     (env'', TupLabel(p1', p2') |> Pat.fresh);
   | Asc(p1, t) =>
-    let t' = in_typ(env_outer, t);
-    let (env', p1') = in_pat(env_outer, env_acc, p1);
+    let t' = in_typ(~fns, env_outer, t);
+    let (env', p1') = in_pat(~fns, env_outer, env_acc, p1);
     (env', Asc(p1', t') |> Pat.fresh);
   };
 }
 
-and in_typ = (env: Environment.t(Exp.t), typ: Typ.t) =>
+and in_typ = (~fns=Inline, env: Environment.t(Exp.t), typ: Typ.t) =>
   Typ.map_term(
-    ~f_exp=_ => in_exp(env),
+    ~f_exp=_ => in_exp(~fns, env),
     ~f_pat=
       (_, _) =>
         failwith("patterns should be handled separately in substitution"),

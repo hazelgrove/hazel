@@ -8,9 +8,9 @@ module Model = ScratchModel.Model;
 module Focus = ScratchFocus;
 module Persist = ScratchPersist;
 
-let slide_key = (~is_documentation, model: Model.t): string =>
+let slide_key = (~deck, model: Model.t): string =>
   Persist.content_key(
-    ScratchModel.prefix(~is_documentation),
+    ScratchModel.prefix(deck),
     List.nth(model.scratchpads, model.current).name,
   );
 
@@ -28,7 +28,7 @@ module Update = {
       (
         ~schedule_action,
         ~settings: Settings.t,
-        ~is_documentation: bool,
+        ~deck: ScratchModel.deck,
         action: t,
         model: Model.t,
       ) => {
@@ -41,11 +41,17 @@ module Update = {
           Workspace.update(
             ~settings,
             ~schedule_action=a => schedule_action(Workspace(a)),
-            ~slide_key=slide_key(~is_documentation, model),
+            ~slide_key=slide_key(~deck, model),
             a,
             code,
           );
-        Model.with_current_kind(Code(code), model);
+        let model = Model.with_current_kind(Code(code), model);
+        /* zoomed into another slide: it is current; a slide's `⋯`
+           opened: it loads */
+        deck == World
+          ? WorldDeck.follow_zoom(~settings=settings.core, model)
+            |> WorldDeck.load_unfolded(~settings)
+          : model;
       }
     | Outline(a) =>
       switch (Model.current_code(model)) {
@@ -55,7 +61,7 @@ module Update = {
           OutlineControl.update(
             ~settings,
             ~schedule_workspace=a => schedule_action(Workspace(a)),
-            ~prefix=ScratchModel.prefix(~is_documentation),
+            ~prefix=ScratchModel.prefix(deck),
             ~name=List.nth(model.scratchpads, model.current).name,
             a,
             code,
@@ -83,7 +89,7 @@ module Update = {
       SlideDeck.update(
         ~settings,
         ~schedule_action=a => schedule_action(Deck(a)),
-        ~is_documentation,
+        ~deck,
         a,
         model,
       )
@@ -95,7 +101,7 @@ module Update = {
         ~settings: Settings.t,
         ~schedule_action,
         ~is_edited,
-        ~is_documentation: bool,
+        ~deck: ScratchModel.deck,
         model: Model.t,
       )
       : Model.t => {
@@ -115,7 +121,7 @@ module Update = {
             ~schedule_action=a => schedule_action(Workspace(a)),
             ~is_edited,
             ~statics_mode,
-            ~slide_key=slide_key(~is_documentation, model),
+            ~slide_key=slide_key(~deck, model),
             code,
           ),
         )
@@ -142,6 +148,8 @@ module Selection = {
     | Cell(CellEditor.Selection.t)
     /* the open cells: the one Divided.active names has the focus */
     | Stack(CellEditor.Selection.t)
+    /* the program level's library document */
+    | Library(CellEditor.Selection.t)
     | Drv(DerivationExerciseMode.Selection.t)
     | TextBox;
 
@@ -151,6 +159,19 @@ module Selection = {
     let scratchpad = List.nth(model.scratchpads, model.current);
     let cursor =
       switch (selection, scratchpad.kind) {
+      /* while the library is shown, the keys are its */
+      | (
+          Cell(selection) | Stack(selection) | Library(selection),
+          Code({lib: Some(editor), _}),
+        ) =>
+        let+ a =
+          CellEditor.Selection.get_cursor_info(
+            ~inject=a => inject(Workspace(LibraryAction(a))),
+            ~selection,
+            editor,
+          );
+        Update.Workspace(LibraryAction(a));
+      | (Library(_), _) => empty
       | (Cell(selection), Code({program: Whole(editor), _})) =>
         let+ a =
           CellEditor.Selection.get_cursor_info(
@@ -260,6 +281,11 @@ module Selection = {
       (~settings, tile, model: Model.t): option((Update.t, t)) => {
     let scratchpad = List.nth(model.scratchpads, model.current);
     switch (scratchpad.kind) {
+    | Code({lib: Some(editor), _}) =>
+      CellEditor.Selection.jump_to_tile(tile, editor)
+      |> Option.map(((x, y)) =>
+           (Update.Workspace(LibraryAction(x)), Library(y))
+         )
     | Code({program: Whole(editor), _}) =>
       CellEditor.Selection.jump_to_tile(tile, editor)
       |> Option.map(((x, y)) =>
@@ -628,7 +654,32 @@ module View = {
       ];
     } else {
       switch (current.kind) {
-      | Code({program, view, lens, _}) =>
+      /* the program level: the library's document in the slide's place,
+         its probes drawing the slide's samples (its run is the library's) */
+      | Code({lib: Some(editor), program, _}) => [
+          CellEditor.View.view(
+            ~globals,
+            ~master=(
+              Program.result(program),
+              a => inject(Workspace(CellAction(ResultAction(a)))),
+            ),
+            ~signal=
+              fun
+              | MakeActive(selection) =>
+                signal(MakeActive(Library(selection))),
+            ~inject=a => inject(Workspace(LibraryAction(a))),
+            ~selected=
+              switch (selected) {
+              | Some(Selection.Cell(s) | Stack(s) | Library(s)) => Some(s)
+              | _ => None
+              },
+            ~locked=false,
+            ~lines=true,
+            ~result_kind=`NoResults,
+            editor,
+          ),
+        ]
+      | Code({program, view, world, lens, _}) =>
         /* View as agent: the request's program in place of the user's,
            read-only */
         let (program, view, locked) =
@@ -644,6 +695,22 @@ module View = {
         let stack_views = (d: Divided.t) => {
           let cells = Divided.cells(d);
           let outline = Program.outline(Divided(d));
+          /* a cell's qualifier: the modules it's in, below a world
+             slide's own (its folders and itself are the slide's place) */
+          let qualifier_of = id => {
+            let path = OutlineTree.path_of(id, outline);
+            switch (
+              Option.bind(world, slide =>
+                Option.bind(OutlineTree.trail_of(id, outline), trail =>
+                  ListUtil.findi_opt(m => m == slide, trail)
+                )
+              )
+            ) {
+            | Some((i, _)) =>
+              snd(ListUtil.split_n(min(i + 1, List.length(path)), path))
+            | None => path
+            };
+          };
           /* the zoomed module as one cell: the breadcrumb names it */
           let zoom_cell = SlideView.showing_zoom_cell(~outline, view);
           let tests = EvalResult.Model.test_results(Divided.result(d));
@@ -700,7 +767,7 @@ module View = {
                   )
                 | _ =>
                   let qualifier =
-                    switch (OutlineTree.path_of(e.e_id, outline)) {
+                    switch (qualifier_of(e.e_id)) {
                     | [] => []
                     | path => [
                         span(
@@ -766,9 +833,7 @@ module View = {
                   let qual_cols = idx =>
                     switch (List.nth_opt(cells, idx)) {
                     | Some(e) =>
-                      switch (
-                        OutlineTree.path_of(e.ScratchCell.e_id, outline)
-                      ) {
+                      switch (qualifier_of(e.ScratchCell.e_id)) {
                       | [] => 0
                       | path => String.length(String.concat(".", path)) + 1
                       }
@@ -1036,13 +1101,9 @@ module View = {
               ],
             ),
           ]
-        | Divided(d) =>
-          banner
-          @ (SlideContent.get_content(current.name) |> Option.to_list)
-          @ stack_views(d)
+        | Divided(d) => banner @ stack_views(d)
         | Whole(editor) =>
           banner
-          @ (SlideContent.get_content(current.name) |> Option.to_list)
           @ [
             CellEditor.View.view(
               ~globals,
@@ -1186,10 +1247,11 @@ module View = {
     [file_group_scratch, reset_group_scratch];
   };
 
-  let add_drv_slide_button = (~is_documentation, ~inject: Update.t => 'a) =>
+  let add_drv_slide_button = (~deck, ~inject: Update.t => 'a) =>
     Widgets.button(
       ~tooltip=
-        "Add New Derivation " ++ (is_documentation ? "Slide" : "Scratchpad"),
+        "Add New Derivation "
+        ++ (deck == ScratchModel.Scratch ? "Scratchpad" : "Slide"),
       Icons.entail,
       _ =>
       inject(Deck(AddDrvSlide))
@@ -1198,16 +1260,17 @@ module View = {
   let top_bar =
       (
         ~globals as _,
-        ~is_documentation: bool,
+        ~deck: ScratchModel.deck,
         ~inject: Update.t => 'a,
         model: Model.t,
       ) => {
-    let unit_name = is_documentation ? "Slide" : "Scratchpad";
+    let unit_name = deck == ScratchModel.Scratch ? "Scratchpad" : "Slide";
     let add_tooltip =
-      is_documentation ? "Add New Slide" : "Add New Code Scratchpad";
+      deck == ScratchModel.Scratch
+        ? "Add New Code Scratchpad" : "Add New Slide";
     EditorModeView.view(
       ~edit_buttons=true,
-      ~extra_edit_buttons=[add_drv_slide_button(~is_documentation, ~inject)],
+      ~extra_edit_buttons=[add_drv_slide_button(~deck, ~inject)],
       ~nav_buttons=false,
       ~unit_name,
       ~add_tooltip,

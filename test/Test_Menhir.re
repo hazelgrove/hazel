@@ -458,6 +458,15 @@ let tests =
          ascription (arrow types need parens), single-caret livelits.
          Equivalence against MakeTerm is the contract that matters. */
       menhir_maketerm_equivalent_test("multi-param fun", "fun a, b -> a + b"),
+      /* a module's constructors in patterns (Test_ModuleCtors) */
+      menhir_maketerm_equivalent_test(
+        "module constructor patterns",
+        "case x | M.A(y) => y | m.N.B => 0 | Int.C => 1 end",
+      ),
+      menhir_maketerm_equivalent_test(
+        "module constructor pattern in a fun",
+        "fun M.A(y), M.B -> y",
+      ),
       menhir_maketerm_equivalent_test(
         "a module's last member a hole",
         "let m = {\n  let a = 1;\n  ?\n} in m",

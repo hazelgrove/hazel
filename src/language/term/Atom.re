@@ -240,8 +240,10 @@ let compare_of_cls: cls => option(compare_entry) =
   | String => Some(Cmp(String, String.compare))
   | Bool => None;
 
-let compare_builtin = (cls: cls): option(string) =>
-  compare_of_cls(cls) |> Option.map(_ => cls_string_lower(cls) ++ "_compare");
+/* The library module whose `compare` orders the class (`Int.compare`),
+   for generated code */
+let compare_module = (cls: cls): option(string) =>
+  compare_of_cls(cls) |> Option.map(_ => show_cls(cls));
 
 let compare_builtins: list((string, compare_entry)) =
   all_of_cls

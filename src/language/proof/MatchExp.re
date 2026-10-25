@@ -346,6 +346,8 @@ and match_pat = (pat_r: Pat.t, pat: Pat.t): option(alphas) =>
     let* alphas2 = match_pat(e2, e4);
     Some(alphas1 @ alphas2);
   | (TupLabel(_, _), _) => None
+  | (Dot(_), Dot(_)) => Pat.fast_equal(pat_r, pat) ? Some([]) : None
+  | (Dot(_), _) => None
   }
 
 // TODO complete

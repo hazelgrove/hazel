@@ -51,6 +51,7 @@ let rec find_in_let =
       EmptyHole | Wild | Invalid(_) | MultiHole(_) | Atom(_) | Label(_) |
       ListLit(_) |
       Constructor(_) |
+      Dot(_) |
       Cons(_, _) |
       Ap(_, _) |
       ExplicitNonlabel,
@@ -155,7 +156,8 @@ let rec var_mention_upat = (name: string, upat: Pat.t): bool => {
   | Atom(_)
   | Label(_)
   | ExplicitNonlabel
-  | Constructor(_) => false
+  | Constructor(_)
+  | Dot(_) => false
   | Cons(up1, up2) =>
     var_mention_upat(name, up1) || var_mention_upat(name, up2)
   | ListLit(l)

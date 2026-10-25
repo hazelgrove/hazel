@@ -22,14 +22,18 @@ module Model = {
     syntax: CachedSyntax.t /* Calculated */
   };
 
-  let mk = (zipper: Zipper.t, ~root): t => {
+  /* [t_cache], [m_cache]: parse and layout caches shared with other
+     editors over mostly the same pieces (world slides' library) */
+  let mk_shared = (~t_cache=?, ~m_cache=?, zipper: Zipper.t, ~root): t => {
     root,
     state: {
       zipper,
       col_target: None,
     },
-    syntax: CachedSyntax.init(~root, zipper),
+    syntax: CachedSyntax.init(~root, ~t_cache?, ~m_cache?, zipper),
   };
+
+  let mk = (zipper: Zipper.t, ~root): t => mk_shared(zipper, ~root);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = {

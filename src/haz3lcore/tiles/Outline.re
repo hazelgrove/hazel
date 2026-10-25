@@ -55,6 +55,18 @@ let rec root_of = (seg: Segment.t): option(Id.t) =>
     }
   };
 
+/* a Mod root's member's root tile, as the parser reads it: its own,
+   parentheses and projectors included (MakeTerm gives a ModExp the
+   member's rep id) */
+let member_root = (seg: Segment.t): option(Id.t) =>
+  switch (content(seg)) {
+  | [] => None
+  | _ =>
+    try(Some(Segment.root_id(Segment.skel(seg), seg))) {
+    | _ => None
+    }
+  };
+
 let head_label = (p: Piece.t): option(Label.t) =>
   switch (p) {
   | Tile(t) => Some(Tile.label(t))
@@ -135,9 +147,10 @@ let entry_at =
   let parts = e.kind == Def ? parts(lv, k) : None;
   let id =
     switch (e.kind) {
-    | Tail => root_of(core(lv, k))
+    | Tail
     | Stmt
-    | Test when lv.sort == Sort.Mod => root_of(core(lv, k))
+    | Test when lv.sort == Sort.Mod => member_root(core(lv, k))
+    | Tail => root_of(core(lv, k))
     | _ => None
     };
   {

@@ -20,7 +20,7 @@ Some built-in functions and operators you may find useful are listed in the Task
 **Steps:** Convert the strings to floats, sum them, and divide by the length of the list.
 
 @hint
-Convert strings to floats with map, sum with fold_left, then divide by length
+Convert strings to floats with List.map, sum with List.fold_left, then divide by List.length
 
 @reference
 ### Syntax Recap
@@ -37,66 +37,66 @@ fun (acc, x) -> acc +. x
 
 ### Type Conversions
 ```hazelnostatics
-int_of_string : String -> Int
+Int.of_string : String -> Int
 ```
 ```hazelnostatics
-float_of_string : String -> Float
+Float.of_string : String -> Float
 ```
 ```hazelnostatics
-float_of_int : Int -> Float
+Float.of_int : Int -> Float
 ```
 ```hazelnostatics
-int_of_float : Float -> Int
+Int.of_float : Float -> Int
 ```
 
 ---
 
 Convert between primitive types using these built-ins:
 ```hazel
-int_of_string("42")
+Int.of_string("42")
 ```
 ```hazel
-float_of_string("3.14")
+Float.of_string("3.14")
 ```
 ```hazel
-float_of_int(7)
+Float.of_int(7)
 ```
 ```hazel
-int_of_float(3.99)
+Int.of_float(3.99)
 ```
 
-### map
+### List.map
 ```hazelnostatics
-map : ([T], T -> U) -> [U]
+List.map : ([T], T -> U) -> [U]
 ```
 
 ---
 
 Apply a function to each element:
 ```hazel
-map([1, 2, 3], fun x -> x + 1)
+List.map([1, 2, 3], fun x -> x + 1)
 ```
 
 
-### fold_left
+### List.fold_left
 ```hazelnostatics
-fold_left : ([T], (U, T) -> U, U) -> U
+List.fold_left : ([T], (U, T) -> U, U) -> U
 ```
 
 ---
 
 ```hazel
-fold_left(
+List.fold_left(
   [1, 2, 3],
   fun (acc, x) -> acc + x,
   0
 )
 ```
 
-### length
-`length : [T] -> Int` return the length of a list
+### List.length
+`List.length : [T] -> Int` return the length of a list
 ```hazel
-length([1.0, 2.0, 3.0])
+List.length([1.0, 2.0, 3.0])
 ```
 
 ### Float Arithmetic
