@@ -63,7 +63,8 @@ module Action = {
     | RestoreCaret(Point.t)
     | AgentAction(Agent.Update.Action.t)
     /* the run of the program View as agent shows */
-    | LensResult(EvalResult.Update.t);
+    | LensResult(EvalResult.Update.t)
+    | LensMode(AgentLens.mode);
 };
 
 open Action;
@@ -588,6 +589,8 @@ let update_code =
       };
     | None => code |> return_quiet
     }
+  /* handled in [update] */
+  | LensMode(_) => code |> return_quiet
   };
 };
 
@@ -631,6 +634,20 @@ let update =
       )
     | None => Updated.return_quiet(code)
     }
+  | (LensMode(mode), Some(l)) =>
+    AgentLens.last_mode := mode;
+    switch (Id.Map.find_opt(l.chat, code.agent.chat_system.chat_map)) {
+    | Some(chat) =>
+      Updated.return(
+        ~is_edit=false,
+        ~historic=false,
+        {
+          ...code,
+          lens: Some(AgentLens.with_mode(chat, mode, l)),
+        },
+      )
+    | None => Updated.return_quiet(code)
+    };
   | (AgentAction(LeaveAgentView), _) =>
     Updated.return(
       ~is_edit=false,

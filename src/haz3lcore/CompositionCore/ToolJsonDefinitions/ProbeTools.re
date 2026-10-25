@@ -20,11 +20,15 @@ result
 ```
 Calling place_probe(paths=["result"]) shows:
 ```
-#› map · no errors #
+#› program map · no errors #
+|}
+  ++ CompositionView.legend
+  ++ {|
 let double(x) = ⋯ in  #› 1 use #
 let result = ⋯ in  #› open below · 1 use #
 result  #› ⇒ 10 #
 
+#› open entries, in full #
 #› open: result #
 let result = ⟦double(5)⟧ in  #› ≡ 10 #
 ```

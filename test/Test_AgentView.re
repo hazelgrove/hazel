@@ -136,7 +136,9 @@ let format_tests = [
   test_case("the map: headers, ⋯ bodies, annotations", `Quick, () =>
     golden(
       "example",
-      {|#› map · 1 error #
+      "#› program map · 1 error #\n"
+      ++ CompositionView.legend
+      ++ {|
 type Shape = Circle(Float) + Rect(Float, Float) in
 let area(s: Shape): Float = ⋯ in  #› 1 use #
 let total(xs: [Shape]): Float = ⋯ in  #› 1 error: Expecting type Float but got inconsistent type Bool · 3 uses #
@@ -153,7 +155,9 @@ total([Rect(2., 3.)])|},
   test_case("an open entry follows the map, its error marked", `Quick, () =>
     golden(
       "total open",
-      {|#› map · 1 error #
+      "#› program map · 1 error #\n"
+      ++ CompositionView.legend
+      ++ {|
 type Shape = Circle(Float) + Rect(Float, Float) in
 let area(s: Shape): Float = ⋯ in  #› 1 use #
 let total(xs: [Shape]): Float = ⋯ in  #› open below · 1 error: Expecting type Float but got inconsistent type Bool · 3 uses #
@@ -165,6 +169,7 @@ module Geo = {
 hint "total of one circle" test total([Circle(1.)]) == 3.14 end;
 total([Rect(2., 3.)])
 
+#› open entries, in full #
 #› open: total #
 let total(xs: [Shape]): Float =
   case xs
@@ -179,7 +184,9 @@ in|},
   test_case("module depth is a setting", `Quick, () =>
     golden(
       "depth 1",
-      {|#› map · 1 error #
+      "#› program map · 1 error #\n"
+      ++ CompositionView.legend
+      ++ {|
 type Shape = Circle(Float) + Rect(Float, Float) in
 let area(s: Shape): Float = ⋯ in  #› 1 use #
 let total(xs: [Shape]): Float = ⋯ in  #› 1 error: Expecting type Float but got inconsistent type Bool · 3 uses #
@@ -202,12 +209,15 @@ total([Rect(2., 3.)])|},
   test_case("test results, the value, probes", `Quick, () =>
     golden(
       "run",
-      {|#› map · no errors · tests: 1 of 2 pass, 1 fail #
+      "#› program map · no errors · 1 of 2 tests pass, 1 fails #\n"
+      ++ CompositionView.legend
+      ++ {|
 let double(x) = ⋯ in  #› open below · 3 uses #
 test double(2) == 4 end;  #› ✓ #
 test ⋯ end;  #› ✗ #
 double(5)  #› ⇒ 10 #
 
+#› open entries, in full #
 #› open: double #
 let double(x) =
   let y = ⟦x + x⟧ in  #› ≡ 4 #
@@ -233,10 +243,13 @@ double(5)|},
     "an error at column 0: its marks right after the marker", `Quick, () =>
     golden(
       "column 0",
-      {|#› map · 1 error #
+      "#› program map · 1 error #\n"
+      ++ CompositionView.legend
+      ++ {|
 let g = ⋯ in  #› open below · 1 error: Expecting type Int but got inconsistent type Bool · 1 use #
 g
 
+#› open entries, in full #
 #› open: g #
 let g =
 true + 1 in
@@ -247,7 +260,9 @@ true + 1 in
   test_case("the map keeps a `fun` definition's parameters", `Quick, () =>
     golden(
       "fun heads",
-      {|#› map · no errors #
+      "#› program map · no errors #\n"
+      ++ CompositionView.legend
+      ++ {|
 let pad = fun (n: Int) -> ⋯ in  #› 1 use #
 module M = {
   let twice = fun f -> fun x -> ⋯;
@@ -269,13 +284,16 @@ pad(1)|},
   test_case("a module-rooted program; entries sharing a line", `Quick, () =>
     golden(
       "mod root",
-      {|#› map · 1 error #
+      "#› program map · 1 error #\n"
+      ++ CompositionView.legend
+      ++ {|
 let a = ⋯;  #› 3 uses #
 module N = { let b = ⋯; test b == 3 end; let c = ⋯ };  #› b: 2 uses · c: 1 error: Expecting type Int but got inconsistent type Bool · N: open below #
 test a == 1 end;  #› open below #
 print(a);
 a + 1
 
+#› open entries, in full #
 #› open: N #
 module N = { let b = 2; test b == 3 end; let c = b + true }
 #›                                                   ^^^^ Expecting type Int but got inconsistent type Bool #
@@ -296,11 +314,14 @@ a + 1|},
   test_case("nested entries open by path", `Quick, () =>
     golden(
       "nested",
-      {|#› map · no errors #
+      "#› program map · no errors #\n"
+      ++ CompositionView.legend
+      ++ {|
 let f(x) = ⋯ in  #› 1 use #
 module Geo = { module Units = { let cm = ⋯; let m = ⋯ } } in  #› Units: open below #
 f(1)
 
+#› open entries, in full #
 #› open: f/y #
 let y = x + 1 in
 
@@ -326,7 +347,9 @@ f(1)|},
     () =>
     golden(
       "livelit",
-      {|#› map · 1 error #
+      "#› program map · 1 error #\n"
+      ++ CompositionView.legend
+      ++ {|
 let ^pct = {  #› 1 error: "^pct" isn't a valid token #
   type T = Int;
   let init = ⋯  #› open below #
@@ -334,6 +357,7 @@ let ^pct = {  #› 1 error: "^pct" isn't a valid token #
 let m = { let a = ⋯; let b = ⋯ } in  #› a: 1 use · m: 1 use #
 m.a
 
+#› open entries, in full #
 #› open: ^pct/init #
 let init = 50|},
       render(
@@ -510,6 +534,14 @@ let cws_of = (src: string): W.CodeWithStatics.Model.t => {
   };
 };
 
+/* a request's inputs besides its messages */
+let request: W.SentView.request = {
+  model_id: "anthropic/claude-test",
+  reasoning: None,
+  mode: Edit,
+  disabled_tools: [],
+};
+
 /* the context refreshed from [cws] and a request sent */
 let send = (agent: W.Agent.Model.t, cws: W.CodeWithStatics.Model.t) => {
   let chat_id = agent.chat_system.current;
@@ -520,10 +552,10 @@ let send = (agent: W.Agent.Model.t, cws: W.CodeWithStatics.Model.t) => {
       cws,
       chat_id,
     );
-  let (agent, messages) = W.AgentSend.main_request(chat_id, agent);
+  let (agent, payload) = W.AgentSend.main_request(~request, chat_id, agent);
   (
     agent,
-    messages,
+    payload.messages,
     W.ChatSystem.Utils.find_chat(chat_id, agent.chat_system),
   );
 };
@@ -652,6 +684,7 @@ let record_tests = [
         root: Exp,
         program: Dropped,
         probes: 0,
+        request: None,
       };
       let rs =
         List.fold_left(
@@ -773,14 +806,16 @@ let lens_tests = [
       let (code, chat_id) = slide(~opened=[]);
       let code' = step(AgentAction(ViewAsAgent(chat_id, Some(1))), code);
       switch (code'.lens) {
-      | Some({program: Whole(_), map, _}) =>
+      | Some({program: Whole(_), sent, summary, _}) =>
         check(
           bool,
-          "the map, as sent",
+          "the view, as sent",
           true,
-          String.starts_with(~prefix={js|#› map|js}, map)
-          && Util.StringUtil.plain_search({js|let a = ⋯ in|js}, map, 0) >= 0,
-        )
+          String.starts_with(~prefix={js|#› program map|js}, sent)
+          && Util.StringUtil.plain_search({js|let a = ⋯ in|js}, sent, 0)
+          >= 0,
+        );
+        check(string, "the summary", "no errors", summary);
       | Some(_) => fail("cells")
       | None => fail("no lens")
       };
@@ -990,7 +1025,7 @@ let toggle_tests = [
             cws,
             chat_id,
           );
-        let (agent, _) = W.AgentSend.main_request(chat_id, agent);
+        let (agent, _) = W.AgentSend.main_request(~request, chat_id, agent);
         Option.get(
           Util.ListUtil.last_opt(
             W.ChatSystem.Utils.find_chat(chat_id, agent.chat_system).sent,
@@ -1013,7 +1048,365 @@ let toggle_tests = [
   ),
 ];
 
+/* Trajectory: what the lens shows is what AgentSend sent. The agent's
+   loop runs for real; only the HTTP request is replaced, by one that
+   keeps each body as start_streaming_chat would send it */
+module T = W.Trajectory;
+
+let llm: Util.OpenRouter.AvailableLLMs.Model.llm_info = {
+  id: "anthropic/claude-test",
+  name: "Test",
+  pricing: {
+    prompt: "0",
+    completion: "0",
+  },
+  context_length: None,
+  supports_reasoning: false,
+};
+
+let api_settings = {
+  ...W.Settings.Model.init,
+  agent_globals: {
+    ...W.Settings.Model.init.agent_globals,
+    api_key: Some("test-key"),
+    active_llm: Some(llm),
+  },
+};
+
+/* a chat driven through [W.Agent.Update.update]: each [turns] entry a
+   user message then the replies it gets, each reply a tool call list
+   (text when empty); the bodies sent, in order, and the agent after */
+let drive =
+    (
+      ~src=lens_src,
+      turns: list((string, list(list((string, Yojson.Safe.t))))),
+    )
+    : (list(string), W.Agent.Model.t) => {
+  let bodies = ref([]);
+  let saved = (
+    W.AgentSend.stream_chat^,
+    W.AgentSend.defer_dispatch_send^,
+    W.AgentSend.max_eval_wait_attempts^,
+  );
+  W.AgentSend.stream_chat :=
+    (
+      (~payload, ~key as _, ~on_chunk as _, ~on_done as _) => {
+        bodies :=
+          bodies^
+          @ [
+            Util.API.Json.to_string(
+              Util.OpenRouter.Payload.Utils.json_of_payload(
+                ~payload=Util.OpenRouter.Utils.streaming(payload),
+              ),
+            ),
+          ];
+        {abort: () => ()};
+      }
+    );
+  W.AgentSend.defer_dispatch_send := (thunk => thunk());
+  W.AgentSend.max_eval_wait_attempts := 0;
+  let queue = Queue.create();
+  let agent = W.Agent.Utils.init();
+  let chat_id = agent.chat_system.current;
+  /* named, so no naming request goes out */
+  let agent = {
+    ...agent,
+    chat_system:
+      W.ChatSystem.Update.update(
+        ChatAction(SetTitle("Trajectory test"), chat_id),
+        agent.chat_system,
+      )
+      |> W.ChatSystem.Update.get,
+  };
+  let ce = ref(W.CellEditor.Model.mk(cws_of(src).editor));
+  let agent = ref(agent);
+  let step = (a: W.Agent.Update.Action.t) => {
+    let (agent', ce') =
+      W.Agent.Update.update(a, agent^, ce^, api_settings, a =>
+        Queue.add(a, queue)
+      );
+    agent := agent';
+    ce := ce'.model;
+  };
+  let drain = () =>
+    while (!Queue.is_empty(queue)) {
+      switch (Queue.pop(queue)) {
+      /* the replies below stand in for the stream */
+      | StreamDelta(_) => ()
+      | a => step(a)
+      };
+    };
+  List.iteri(
+    (t, (says, replies)) => {
+      step(SendMessage(W.Message.Utils.mk_user_message(says), chat_id));
+      drain();
+      List.iteri(
+        (i, calls) => {
+          let reply: Util.OpenRouter.Reply.Model.t = {
+            content: calls == [] ? "Done." : "",
+            tool_calls:
+              List.mapi(
+                (j, (name, args)): Util.OpenRouter.Reply.Model.tool_call =>
+                  {
+                    id: Printf.sprintf("call-%d-%d-%d", t, i, j),
+                    name,
+                    args,
+                  },
+                calls,
+              ),
+            usage: None,
+            reasoning: None,
+          };
+          step(HandleLLMResponse(reply, chat_id, agent^.main_llm_seq, 0));
+          drain();
+        },
+        replies,
+      );
+    },
+    turns,
+  );
+  let (sc, dd, mw) = saved;
+  W.AgentSend.stream_chat := sc;
+  W.AgentSend.defer_dispatch_send := dd;
+  W.AgentSend.max_eval_wait_attempts := mw;
+  (bodies^, agent^);
+};
+
+let targets = paths =>
+  `Assoc([("targets", `List(List.map(p => `String(p), paths)))]);
+
+let chat_of = (agent: W.Agent.Model.t) =>
+  W.ChatSystem.Utils.find_chat(agent.chat_system.current, agent.chat_system);
+
+let messages_of = (body: string): list(string) =>
+  switch (Yojson.Safe.from_string(body)) {
+  | `Assoc(fs) =>
+    switch (List.assoc_opt("messages", fs)) {
+    | Some(`List(ms)) => List.map(Yojson.Safe.to_string, ms)
+    | _ => []
+    }
+  | _ => []
+  };
+
+let trajectory_tests = [
+  test_case(
+    "each request rebuilds to the body AgentSend sent",
+    `Quick,
+    () => {
+      let (bodies, agent) =
+        drive([
+          ("open b", [[("open", targets(["b"]))], []]),
+          (
+            "now c and a",
+            [[("open", targets(["c"])), ("close", targets(["b"]))], []],
+          ),
+        ]);
+      let chat = chat_of(agent);
+      check(int, "requests", 4, List.length(bodies));
+      check(int, "records", 4, List.length(chat.sent));
+      List.iteri(
+        (i, body) =>
+          check(
+            option(string),
+            Printf.sprintf("request %d", i + 1),
+            Some(body),
+            T.body(chat, i + 1),
+          ),
+        bodies,
+      );
+    },
+  ),
+  test_case(
+    "the trajectory shows every message as sent, contexts where they went",
+    `Quick,
+    () => {
+      let (bodies, agent) =
+        drive([
+          ("open b", [[("open", targets(["b"]))], []]),
+          ("thanks", [[]]),
+        ]);
+      let chat = chat_of(agent);
+      let t = Option.get(T.build(chat, 3));
+      let last = Util.ListUtil.last(bodies);
+      check(string, "the body", last, t.body);
+      let raws = List.map((s: T.section) => s.raw, t.sections);
+      /* the last body's messages, in order, among the sections */
+      let rec subseq = (want, got) =>
+        switch (want, got) {
+        | ([], _) => true
+        | ([w, ...ws], [g, ...gs]) =>
+          w == g ? subseq(ws, gs) : subseq(want, gs)
+        | (_, []) => false
+        };
+      check(
+        bool,
+        "messages in order",
+        true,
+        subseq(messages_of(last), raws),
+      );
+      /* the earlier requests' contexts too, in order */
+      check(
+        bool,
+        "each context",
+        true,
+        subseq(
+          List.map(b => Util.ListUtil.last(messages_of(b)), bodies),
+          raws,
+        ),
+      );
+      let kinds = List.map((s: T.section) => s.kind, t.sections);
+      check(
+        bool,
+        "prompt, tools, request first",
+        true,
+        Util.ListUtil.take(3, kinds) == [System, Tools, Request],
+      );
+      let calls =
+        List.concat_map(
+          (s: T.section) =>
+            List.filter((c: T.section) => c.kind == Call, s.children),
+          t.sections,
+        );
+      check(
+        list(string),
+        "the call's arguments, exactly",
+        [{|{"targets":["b"]}|}],
+        List.map((c: T.section) => c.text, calls),
+      );
+      check(
+        list(bool),
+        "contexts folded but this request's",
+        [true, true, false],
+        List.filter_map(
+          (s: T.section) => s.kind == Context ? Some(s.folded) : None,
+          t.sections,
+        ),
+      );
+    },
+  ),
+  test_case(
+    "the mode is kept for the session",
+    `Quick,
+    () => {
+      let (code, chat_id) = slide(~opened=["b"]);
+      let code = step(AgentAction(ViewAsAgent(chat_id, Some(1))), code);
+      let code = step(LensMode(Trajectory), code);
+      check(
+        bool,
+        "a trajectory",
+        true,
+        Option.is_some(
+          Option.bind(code.lens, (l: W.AgentLens.t) => l.trajectory),
+        ),
+      );
+      let code =
+        code
+        |> step(AgentAction(LeaveAgentView))
+        |> step(AgentAction(ViewAsAgent(chat_id, Some(1))));
+      check(
+        option(bool),
+        "still Trajectory",
+        Some(true),
+        Option.map((l: W.AgentLens.t) => l.mode == Trajectory, code.lens),
+      );
+      let code = step(LensMode(Stacked), code);
+      check(
+        option(bool),
+        "Stacked drops it",
+        Some(true),
+        Option.map((l: W.AgentLens.t) => l.trajectory == None, code.lens),
+      );
+    },
+  ),
+  test_case(
+    "Sent view: the agentEditorView, byte for byte",
+    `Quick,
+    () => {
+      let (code, chat_id) = slide(~opened=["b"]);
+      let code = step(AgentAction(ViewAsAgent(chat_id, Some(1))), code);
+      let r = Option.get(Util.ListUtil.last_opt(chat_of(code.agent).sent));
+      let l = Option.get(code.lens);
+      check(
+        bool,
+        "inside the context as sent",
+        true,
+        Util.StringUtil.plain_search(
+          "<agentEditorView>\n```\n" ++ l.sent ++ "\n```\n</agentEditorView>",
+          r.view,
+          0,
+        )
+        >= 0,
+      );
+    },
+  ),
+  /* the cost of storing bodies against rebuilding them;
+     HAZEL_MEASURE=1 prints it */
+  test_case(
+    "a request's record grows little; its body would grow with the chat",
+    `Quick,
+    () => {
+      let n = 35;
+      let (bodies, agent) =
+        drive(
+          List.init(n / 2 + 1, i =>
+            (
+              "turn " ++ string_of_int(i),
+              [[("open", targets([i mod 2 == 0 ? "b" : "c"]))], []],
+            )
+          ),
+        );
+      let chat = chat_of(agent);
+      let sexp_len = sx => String.length(Sexplib.Sexp.to_string(sx));
+      let records = sexp_len(W.Chat.Model.sexp_of_t(chat));
+      let without =
+        sexp_len(
+          W.Chat.Model.sexp_of_t({
+            ...chat,
+            sent:
+              List.map(
+                (r: W.SentView.t) =>
+                  {
+                    ...r,
+                    request: None,
+                  },
+                chat.sent,
+              ),
+          }),
+        );
+      let total = List.fold_left((n, b) => n + String.length(b), 0, bodies);
+      if (Sys.getenv_opt("HAZEL_MEASURE") == Some("1")) {
+        let t0 = Util.JsUtil.timestamp();
+        ignore(T.build(chat, List.length(bodies)));
+        Printf.printf(
+          "trajectory of the last request built in %.0f ms\n",
+          Util.JsUtil.timestamp() -. t0,
+        );
+        Printf.printf(
+          "%d requests: bodies %d bytes (largest %d); chat sexp %d, of it the request fields %d\n",
+          List.length(bodies),
+          total,
+          List.fold_left((m, b) => max(m, String.length(b)), 0, bodies),
+          records,
+          records - without,
+        );
+      };
+      check(bool, "30+ requests", true, List.length(bodies) >= 30);
+      check(
+        bool,
+        "the request fields: under 100 bytes each",
+        true,
+        records - without < 100 * List.length(bodies),
+      );
+    },
+  ),
+];
+
 let tests = (
   "AgentView",
-  format_tests @ open_set_tests @ record_tests @ lens_tests @ toggle_tests,
+  format_tests
+  @ open_set_tests
+  @ record_tests
+  @ lens_tests
+  @ toggle_tests
+  @ trajectory_tests,
 );

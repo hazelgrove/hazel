@@ -207,8 +207,8 @@ module Utils = {
     };
 
   /* [chat] with a record of the request about to be sent: its context as
-     the payload carries it */
-  let record_sent = (chat: Model.t): Model.t =>
+     the payload carries it, and the payload's other inputs */
+  let record_sent = (~request: SentView.request, chat: Model.t): Model.t =>
     switch (chat.context, chat.context_basis) {
     | (Some(context), Some(b)) =>
       let linear = linearize(chat);
@@ -235,6 +235,7 @@ module Utils = {
         root: b.b_root,
         program: Dropped,
         probes: b.b_probes,
+        request: Some(request),
       };
       {
         ...chat,

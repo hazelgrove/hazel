@@ -537,26 +537,40 @@ let strip_trailing_blank = (lines: list(string)): list(string) => {
   List.rev(drop(List.rev(drop(lines))));
 };
 
+/* the map's first line: its name, errors and tests */
 let summary = (ctx: ctx): string => {
   let errors = List.length(ctx.facts.error_ids);
   let tests =
     switch (ctx.facts.tests) {
     | Some(tr) when tr.total > 0 && ctx.settings.test_status =>
       Printf.sprintf(
-        "tests: %d of %d pass%s",
+        "%d of %s pass%s",
         tr.passing,
-        tr.total,
-        tr.failing > 0 ? Printf.sprintf(", %d fail", tr.failing) : "",
+        plural(tr.total, "test", "tests"),
+        switch (tr.failing) {
+        | 0 => ""
+        | 1 => ", 1 fails"
+        | n => Printf.sprintf(", %d fail", n)
+        },
       )
     | _ => ""
     };
   comment([
-    "map",
+    "program map",
     !ctx.settings.errors
       ? "" : errors > 0 ? plural(errors, "error", "errors") : "no errors",
     tests,
   ]);
 };
+
+/* what the view is, under its first line */
+let legend =
+  comment([
+    {js|The program as it is now, rebuilt each request (earlier views aren't kept): definitions folded to ⋯, open entries in full below; notes like this are Hazel's, not code.|js},
+  ]);
+
+/* above the first open entry */
+let open_divider = comment(["open entries, in full"]);
 
 /* the probes the view shows, with their values */
 let shown_refractors = (ctx: ctx) =>
@@ -570,7 +584,7 @@ let map_text = (ctx: ctx, o: O.t): string => {
   let lines = annotate(lines, find, notes) |> with_probes(ctx, find);
   String.concat(
     "\n",
-    [summary(ctx), ...strip_trailing_blank(Array.to_list(lines))],
+    [summary(ctx), legend, ...strip_trailing_blank(Array.to_list(lines))],
   );
 };
 
@@ -716,9 +730,10 @@ let render =
     "\n\n",
     [
       map_text(ctx, o),
-      ...List.map(
-           (e: O.entry) =>
-             comment(["open: " ++ O.path_string(e)])
+      ...List.mapi(
+           (i, e: O.entry) =>
+             (i == 0 ? open_divider ++ "\n" : "")
+             ++ comment(["open: " ++ O.path_string(e)])
              ++ "\n"
              ++ entry_text(ctx, e),
            open_entries(o, ctx.opened),

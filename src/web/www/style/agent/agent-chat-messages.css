@@ -3025,24 +3025,29 @@
   top: 0;
   z-index: 5;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.6em;
+  gap: 0.35em 0.6em;
   padding: 0.35em 0.75em;
   font-size: 0.8em;
   color: var(--text-default);
   background-color: var(--surface-highlight);
 }
 
+#main .agent-lens-banner > span {
+  white-space: nowrap;
+}
+
 #main .agent-lens-banner .lens-title {
   font-weight: 600;
 }
 
-#main .agent-lens-banner .lens-which {
+#main .agent-lens-banner .lens-which,
+#main .agent-lens-banner .lens-summary {
   color: var(--text-muted);
-  margin-right: auto;
 }
 
-#main .agent-lens-banner .lens-button {
+#main .lens-button {
   font: inherit;
   padding: 0.1em 0.6em;
   border: 0.6px solid var(--border-strong);
@@ -3052,21 +3057,211 @@
   cursor: pointer;
 }
 
-#main .agent-lens-banner .lens-button:disabled {
+#main .lens-button:disabled {
   opacity: 0.4;
   cursor: default;
 }
 
-#main .agent-lens-banner .lens-button.on {
+#main .lens-button.on {
   background-color: var(--surface-accent);
   color: var(--text-inverse);
 }
 
-/* a request with nothing open shows its map, as sent */
-#main .agent-lens-map {
-  font-family: var(--code-font);
-  white-space: pre;
-  overflow-x: auto;
-  padding: 0.75em 1em;
+/* the controls keep together, to the right */
+#main .agent-lens-banner .lens-controls {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+}
+
+/* the three modes: segments on one track, the chosen one filled */
+#main .agent-lens-banner .lens-segments {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 5px;
+  background-color: color-mix(in srgb, var(--surface-shard) 27%, transparent);
+}
+
+#main .agent-lens-banner .lens-segment {
+  font: inherit;
+  margin: 0;
+  border: 0;
+  border-radius: 4px;
+  padding: 0.05em 0.6em;
+  background: transparent;
   color: var(--text-default);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+#main .agent-lens-banner .lens-segment.active {
+  background-color: var(--primary-accent);
+  color: var(--cell-active);
+}
+
+#main .agent-lens-banner .lens-segment:hover:not(.active) {
+  background-color: color-mix(in srgb, var(--surface-shard) 45%, transparent);
+}
+
+#main .agent-lens-note {
+  padding: 0.75em 1em;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Sent view and Trajectory: monospace text, its copy buttons in a head */
+#main .agent-lens-panel {
+  padding: 0.5em 1em 4em;
+  color: var(--text-default);
+}
+
+#main .lens-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0.25em 0 0.5em;
+  font-size: 0.8em;
+}
+
+#main .lens-panel-head .lens-panel-title {
+  color: var(--text-muted);
+  margin-right: auto;
+}
+
+#main .agent-lens-panel pre {
+  margin: 0;
+  font-family: var(--code-font);
+  font-size: 0.85em;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+/* sections: a divider between them, a chevron that folds each */
+#main .traj-sections > .traj-section {
+  border-top: 1px solid var(--border-soft);
+}
+
+#main .traj-summary {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75em;
+  padding: 0.3em 0;
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+  font-size: 0.85em;
+  white-space: nowrap;
+}
+
+#main .traj-summary::-webkit-details-marker {
+  display: none;
+}
+
+#main .traj-summary::before {
+  content: "";
+  display: inline-block;
+  box-sizing: border-box;
+  width: 5px;
+  height: 5px;
+  flex: none;
+  align-self: center;
+  border-right: 1.3px solid currentColor;
+  border-bottom: 1.3px solid currentColor;
+  opacity: 0.55;
+  transform: rotate(-45deg);
+  transition: transform 0.12s ease-out;
+}
+
+#main .traj-section[open] > .traj-summary::before {
+  transform: rotate(45deg);
+}
+
+#main .traj-label {
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+#main .traj-k-user > .traj-summary .traj-label,
+#main .traj-k-assistant > .traj-summary .traj-label {
+  color: var(--text-accent);
+}
+
+#main .traj-size {
+  color: var(--text-muted);
+}
+
+#main .traj-first {
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* nested sections (tool calls, tool definitions) one step in */
+#main .traj-body {
+  position: relative;
+  padding: 0 0 0.6em 13px;
+}
+
+#main .traj-body > .traj-section {
+  margin-top: 0.2em;
+}
+
+/* raw and copy, at the line's end while the section is open */
+#main .traj-controls {
+  display: none;
+  align-items: center;
+  gap: 0.5em;
+  margin-left: auto;
+  padding-left: 0.5em;
+  font-size: 0.9em;
+  color: var(--text-muted);
+}
+
+#main .traj-section[open] > .traj-summary > .traj-controls {
+  display: flex;
+}
+
+#main .traj-raw-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25em;
+  cursor: pointer;
+}
+
+#main .traj-shown,
+#main .traj-raw {
+  padding: 0.4em 0.6em;
+  border-radius: 4px;
+  background-color: var(--surface-code);
+}
+
+/* raw: the section's JSON in place of its reading form, children
+   included */
+#main .traj-raw,
+#main .traj-copy-raw {
+  display: none;
+}
+
+#main .traj-section:has(> .traj-summary .traj-raw-toggle:checked)
+  > .traj-body
+  > .traj-raw,
+#main .traj-controls:has(.traj-raw-toggle:checked) > .traj-copy-raw {
+  display: block;
+}
+
+#main .traj-section:has(> .traj-summary .traj-raw-toggle:checked)
+  > .traj-body
+  > :is(.traj-shown, .traj-section),
+#main .traj-controls:has(.traj-raw-toggle:checked) > .traj-copy-text {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #main .traj-summary::before {
+    transition: none;
+  }
 }
