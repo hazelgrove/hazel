@@ -103,7 +103,15 @@ let wants = (term: Exp.t): Id.Map.t(want) => {
     | _ => 0
     };
   }
-  and of_block = (fbody: Exp.t): unit =>
+  and of_block = (fbody: Exp.t): unit => {
+    /* a curried function's body is under its last lambda:
+       `fun m -> fun a -> let with_drag = … in …` */
+    let rec peel = (e: Exp.t): Exp.t =>
+      switch (strip(e).term) {
+      | Fun(_, b, _, _) => peel(b)
+      | _ => e
+      };
+    let fbody = peel(fbody);
     if (of_exp(~top=false, fbody) > 0) {
       let rec last = (e: Exp.t): Exp.t =>
         switch (strip(e).term) {
@@ -116,7 +124,8 @@ let wants = (term: Exp.t): Id.Map.t(want) => {
         };
       let e = last(fbody);
       add(Exp.rep_id(strip(e)), tail(e));
-    }
+    };
+  }
   and def_kids = (def: Exp.t): unit =>
     switch (strip(def).term) {
     | Module(items) => ignore(of_mod(items))
