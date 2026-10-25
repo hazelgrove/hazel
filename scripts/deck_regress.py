@@ -32,6 +32,7 @@ import argparse
 import base64
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -574,7 +575,7 @@ def c_splice_cell_does_not_clip(d, log):
 # hand the face to that slider. The pane is an editor nested in the
 # projector, so only real clicks and keys reach it.
 
-KIDS_FRESH = "/fresh?slide=livelits-emotion-kids-choice&panel=none"
+KIDS_FRESH = "/fresh?slide=livelit-playground-emotion-kids-choice&panel=none"
 FACE_SVG = ("[...document.querySelectorAll('svg')].find(s => "
             "(s.getAttribute('viewBox') || '').startsWith('0 -80 200 '))")
 FACE_FILL = ("const s = %s; if (!s) return null; const p = [...s.querySelectorAll('path')]"
@@ -1011,7 +1012,7 @@ def c_eye_spacing(d, log):
     # Found by hand: hanging in the margin, the toggle covered the `=` of
     # `let x = ...` (and Overview's tuple `(`) by its own width.
     problems = []
-    for slide in ["livelits-overview", "livelits-emotion-kids-choice"]:
+    for slide in ["livelits-overview", "livelit-playground-emotion-kids-choice"]:
         d.goto(f"/fresh?slide={slide}&panel=none")
         assert wait_for(d, "return document.querySelectorAll('.livelit-syntax-toggle').length > 1", 120)
         time.sleep(3)
@@ -1084,7 +1085,7 @@ def c_reveal_choice(d, log):
     click_at(d, *d.js(press, ["triangle"]))
     time.sleep(5)
     assert d.js(glyph) == "triangle", f"the choice did not reach the page: {d.js(glyph)!r}"
-    d.goto("/?slide=livelits-emotion-kids-choice&panel=none")
+    d.goto("/?slide=livelit-playground-emotion-kids-choice&panel=none")
     assert wait_for(d, "return document.querySelectorAll('.livelit-syntax-toggle').length > 3", 120)
     time.sleep(2)
     drawn = d.js("return [...document.querySelectorAll('.livelit-eye-glyph')]"
@@ -1181,9 +1182,14 @@ def deck_slides():
 
 
 SWEEP_STATE = """
+  // (the toggle sits in the projectors' overlay layer, the GUI in the base layer: the GUI is the use nearest the toggle)
+  const near = t => { const tr = t.getBoundingClientRect(); let best = null, bd = 1e9;
+    for (const u of document.querySelectorAll('.user-livelit')) { const r = u.getBoundingClientRect();
+      const dd = Math.abs(r.top - tr.top) + Math.abs(r.left - tr.left); if (dd < bd) { bd = dd; best = u; } }
+    return best && (best.closest('.projector') || best); };
   const t = document.querySelectorAll('.livelit-syntax-toggle')[arguments[0]];
   if (!t) return null;
-  const pj = t.closest('.projector') || t.parentElement;
+  const pj = near(t);
   const pane = document.querySelector('.livelit-syntax');
   const gui = pj ? [...pj.querySelectorAll('svg, input, button, .livelit-splice, [style]')]
       .filter(e => !e.closest('.livelit-syntax') && !e.classList.contains('livelit-syntax-toggle'))
@@ -1194,8 +1200,13 @@ SWEEP_STATE = """
 """
 
 SWEEP_CONTROL = """
+  // (the toggle sits in the projectors' overlay layer, the GUI in the base layer: the GUI is the use nearest the toggle)
+  const near = t => { const tr = t.getBoundingClientRect(); let best = null, bd = 1e9;
+    for (const u of document.querySelectorAll('.user-livelit')) { const r = u.getBoundingClientRect();
+      const dd = Math.abs(r.top - tr.top) + Math.abs(r.left - tr.left); if (dd < bd) { bd = dd; best = u; } }
+    return best && (best.closest('.projector') || best); };
   const t = document.querySelectorAll('.livelit-syntax-toggle')[arguments[0]];
-  const pj = t && (t.closest('.projector') || t.parentElement);
+  const pj = t && near(t);
   if (!pj) return null;
   const outside = e => !e.closest('.livelit-syntax') && !e.classList.contains('livelit-syntax-toggle');
   const at = (e, kind) => { e.scrollIntoView({block: 'center'}); const r = e.getBoundingClientRect();
@@ -1306,8 +1317,9 @@ def main():
                 print(f"  ERROR {name}: {type(e).__name__}: {e}")
                 failures.append(name)
             if args.shots:
+                # (letters, digits, - and _ only: GitHub's artifact upload refuses a name with a colon in it)
                 d.shot(os.path.join(
-                    args.shots, name.replace(" ", "_")[:50] + ".png"))
+                    args.shots, re.sub(r"[^A-Za-z0-9_-]+", "_", name)[:60] + ".png"))
     finally:
         d.quit()
 
