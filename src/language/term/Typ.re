@@ -280,13 +280,48 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
            | Some(Val(_, ty)) => (bound, acc @ free_vars(~bound, ty))
            | Some(TypeManifest(name, ty)) => (
                [name, ...bound],
-               acc @ free_vars(~bound, ty),
+               acc @ free_vars(~bound=[name, ...bound], ty),
              )
            | None => (bound, acc)
            },
          (bound, []),
        )
     |> snd
+  };
+
+/* The type an alias [name] defined as [def] stands for: [def], or the
+   recursive type `rec name -> def` if [def] mentions [name]. */
+let recursive_def = (name: Var.t, def: t): t =>
+  List.mem(name, free_vars(def))
+    ? Rec(Var(name) |> TPat.fresh, def) |> temp : def;
+
+/* A type member's name is in scope in its own definition, as in a module
+   body: the item with a self-mentioning definition made recursive. */
+let sig_item_recursive = (item: Sig.t): Sig.t =>
+  switch (item.term) {
+  | SigType({term: Var(name), _}, _) =>
+    Sig.map_typ(recursive_def(name), item)
+  | _ => item
+  };
+
+let sig_member_of_item = (item: Sig.t): option(Sig.member) =>
+  Sig.member_of_item(sig_item_recursive(item));
+
+let sig_members = (items: list(Sig.t)): list(Sig.member) =>
+  List.filter_map(sig_member_of_item, items);
+
+/* Bind the type member declared by a signature item, if any. Signature
+   items scope sequentially: later items may mention earlier type members. */
+let extend_sig_item = (ctx: Ctx.t, item: Sig.t): Ctx.t =>
+  switch (sig_item_recursive(item).term) {
+  | SigType({term: Var(name), _} as tp, ty) =>
+    Ctx.extend_alias(ctx, name, IdTagged.rep_id(tp), ty)
+  | SigType(_, _)
+  | SigLet(_)
+  | SigModule(_)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_) => ctx
   };
 
 let var_count = ref(0);
@@ -428,6 +463,7 @@ let rec subst_impl = (~on_capture: Var.t => unit, s: t, x: TPat.t, ty: t): t => 
         switch (items) {
         | [] => []
         | [item, ...rest] =>
+          let item = sig_item_recursive(item);
           let item' = Sig.map_typ(subst(s, x), item);
           switch (sig_item_subst(~fv_s, str, item, rest)) {
           | Continue => [item', ...go(s, fv_s, rest)]
@@ -502,7 +538,7 @@ let sig_members_closed =
   let (_, rev) =
     List.fold_left(
       ((sigma, acc), item) =>
-        switch (Sig.member_of_item(item)) {
+        switch (sig_member_of_item(item)) {
         | Some(Val(x, ty)) => (
             sigma,
             [Sig.Val(x, apply_sig_subst(sigma, ty)), ...acc],
@@ -782,7 +818,8 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
        (holes, non-variable patterns) are dropped from the normal form. */
     let (_, rev) =
       List.fold_left(
-        ((ctx, acc), item: Sig.t) =>
+        ((ctx, acc), item: Sig.t) => {
+          let item = sig_item_recursive(item);
           switch (Sig.member_of_item(item)) {
           | Some(Val(_)) => (
               ctx,
@@ -790,9 +827,10 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
             )
           | Some(TypeManifest(_)) =>
             let item' = Sig.map_typ(normalize(ctx), item);
-            (Ctx.extend_sig_item(ctx, item'), [item', ...acc]);
+            (extend_sig_item(ctx, item'), [item', ...acc]);
           | None => (ctx, acc)
-          },
+          };
+        },
         (ctx, []),
         items,
       );
@@ -840,7 +878,7 @@ let has_fun_up_to_aliases = (ctx: Ctx.t, ty: t): bool => {
                      found || go(~depth=depth + 1, ctx, t),
                    )
                  | Some(TypeManifest(_)) => (
-                     Ctx.extend_sig_item(ctx, item),
+                     extend_sig_item(ctx, item),
                      found,
                    )
                  | None => (ctx, found)
@@ -897,7 +935,7 @@ let equal_up_to_aliases = (ctx: Ctx.t, a: t, b: t): bool => {
           switch (xs, ys) {
           | ([], []) => true
           | ([x, ...xs], [y, ...ys]) =>
-            switch (Sig.member_of_item(x), Sig.member_of_item(y)) {
+            switch (sig_member_of_item(x), sig_member_of_item(y)) {
             | (Some(Val(n1, t1)), Some(Val(n2, t2))) =>
               String.equal(n1, n2)
               && go(ctx, t1, t2)
@@ -1074,8 +1112,8 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     /* Exact consistency: the same value-member names and the same
        type-member names (order-insensitive), members pairwise consistent. */
     let xs = Sig.dedup_last_items(xs);
-    let mx = Sig.members(xs);
-    let my = Sig.members(ys) |> Sig.dedup_last;
+    let mx = sig_members(xs);
+    let my = sig_members(ys) |> Sig.dedup_last;
     let same_names = (a, b) =>
       List.equal(
         String.equal,
@@ -1091,7 +1129,7 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
         switch (items) {
         | [] => Some(List.rev(acc))
         | [item, ...items] =>
-          switch (Sig.member_of_item(item)) {
+          switch (sig_member_of_item(item)) {
           | Some(Val(x, t1)) =>
             let* t2 = Sig.find_value(my, x);
             let* t = meet(ctx, t1, t2);
@@ -1100,7 +1138,7 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
             let* d2 = Sig.find_type_def(my, n);
             let* d = meet(ctx, d1, d2);
             let item = Sig.map_typ(_ => d, item);
-            go_items(Ctx.extend_sig_item(ctx, item), items, [item, ...acc]);
+            go_items(extend_sig_item(ctx, item), items, [item, ...acc]);
           | None => go_items(ctx, items, acc)
           }
         };

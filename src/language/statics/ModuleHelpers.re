@@ -380,9 +380,7 @@ let module_sig_type =
     | [item, ...rest] =>
       switch (item.term) {
       | ModType({term: Var(name), _} as tpat, def) =>
-        let def_ty =
-          List.mem(name, Typ.free_vars(def))
-            ? Rec(Var(name) |> TPat.fresh, def) |> Typ.temp : def;
+        let def_ty = Typ.recursive_def(name, def);
         let ctx' = Ctx.extend_alias(ctx, name, TPat.rep_id(tpat), def_ty);
         let acc =
           type_declared_later(name, rest)
@@ -504,7 +502,12 @@ let check_ana_type_members =
             when
               !Typ.contains_unknown(expected)
               && !Typ.contains_unknown(def)
-              && !Typ.equal_up_to_aliases(info.ctx, def, expected) =>
+              && !
+                   Typ.equal_up_to_aliases(
+                     info.ctx,
+                     Typ.recursive_def(name, def),
+                     expected,
+                   ) =>
           let mark =
             Mark.ModuleTypeMemberMismatch({
               name,

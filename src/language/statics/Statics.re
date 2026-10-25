@@ -4194,6 +4194,7 @@ and utyp_to_info_map =
     let (_, m) =
       List.fold_left(
         ((ctx, m), item: Sig.t) => {
+          let ctx = Typ.extend_sig_item(ctx, item);
           let (_, _, m) =
             any_to_info_map(
               ~ctx,
@@ -4201,7 +4202,7 @@ and utyp_to_info_map =
               Sig(item),
               m,
             );
-          (Ctx.extend_sig_item(ctx, item), m);
+          (ctx, m);
         },
         (ctx, m),
         items,

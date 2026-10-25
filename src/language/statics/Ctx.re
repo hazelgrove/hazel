@@ -83,20 +83,6 @@ let extend_dummy_tvar = (ctx: t, tvar: TPat.t) =>
   | None => ctx
   };
 
-/* Bind the type member declared by a signature item, if any. Signature
-   items scope sequentially: later items may mention earlier type members. */
-let extend_sig_item = (ctx: t, item: TermBase.Sig.t): t =>
-  switch (item.term) {
-  | SigType({term: Var(name), _} as tp, ty) =>
-    extend_alias(ctx, name, IdTagged.rep_id(tp), ty)
-  | SigType(_, _)
-  | SigLet(_)
-  | SigModule(_)
-  | Invalid(_)
-  | EmptyHole
-  | MultiHole(_) => ctx
-  };
-
 let lookup_tvar = (ctx: t, name: string): option(kind) =>
   List.find_map(
     fun

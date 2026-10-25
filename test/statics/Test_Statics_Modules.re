@@ -1427,6 +1427,14 @@ m|},
     | _ => false,
   );
 
+/* ===== SIGNATURE SCOPING ===== */
+
+let test_recursive_sig_type_member =
+  no_marks_test(
+    "A signature's type member may mention itself",
+    {|module L : { type T = + Nil + Cons(Int, T); let empty : T; let push : (Int, T) -> T } = { type T = + Nil + Cons(Int, T); let empty = Nil; let push = fun (x, l) -> Cons(x, l) } in L.push(1, L.empty)|},
+  );
+
 let tests = (
   "Statics.Modules",
   [
@@ -1575,5 +1583,7 @@ let tests = (
     test_typfun_binder_capture_marked_on_binder,
     test_typfun_binder_without_collision_is_clean,
     test_alias_definition_capture_is_marked,
+    /* Signature scoping */
+    test_recursive_sig_type_member,
   ],
 );
