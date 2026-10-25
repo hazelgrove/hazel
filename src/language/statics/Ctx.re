@@ -141,6 +141,24 @@ let newest_var_or_ctr =
     ctx.entries,
   );
 
+/* The NEWEST binding of a name as a type or a value: the root of a dotted
+   path (`M.T`) is whichever was bound later. */
+let newest_tvar_or_var =
+    (ctx: t, name: string)
+    : option(
+        [
+          | `TVar(kind)
+          | `Var(var_entry)
+        ],
+      ) =>
+  List.find_map(
+    fun
+    | TVarEntry(v) when String.equal(v.name, name) => Some(`TVar(v.kind))
+    | VarEntry(v) when String.equal(v.name, name) => Some(`Var(v))
+    | _ => None,
+    ctx.entries,
+  );
+
 let lookup_ctr = (ctx: t, name: string): option(var_entry) =>
   List.find_map(
     fun

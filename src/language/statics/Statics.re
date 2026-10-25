@@ -3876,11 +3876,11 @@ and utyp_to_info_map =
         | {term: Prod(_), _} as ty_prod => ok(Message.Type(ty_prod))
         | ty_n =>
           switch (utyp.term) {
-          | Var(name) when Option.is_none(Ctx.lookup_tvar(ctx, name)) =>
+          | Var(name) =>
             /* A value variable: a module root only if its type is a
                signature, or unknown (it may be a module). */
-            switch (Ctx.lookup_var(ctx, name)) {
-            | Some({typ, _}) =>
+            switch (Ctx.newest_tvar_or_var(ctx, name)) {
+            | Some(`Var({typ, _})) =>
               switch (Typ.weak_head_normalize(ctx, typ).term) {
               | Unknown(_) => ok(Message.Type(typ))
               | _ =>
@@ -3891,6 +3891,7 @@ and utyp_to_info_map =
                   }),
                 )
               }
+            | Some(`TVar(_))
             | None => err(TypWantProduct(ty_n))
             }
           | _ => err(TypWantProduct(ty_n))

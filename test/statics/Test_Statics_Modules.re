@@ -1435,6 +1435,21 @@ let test_recursive_sig_type_member =
     {|module L : { type T = + Nil + Cons(Int, T); let empty : T; let push : (Int, T) -> T } = { type T = + Nil + Cons(Int, T); let empty = Nil; let push = fun (x, l) -> Cons(x, l) } in L.push(1, L.empty)|},
   );
 
+let test_alias_cycle_through_path =
+  has_mark_test(
+    "An alias cycle through a type path is an error, not a hang",
+    {|type A = B.x in type B = A in let y : A = 1 in y|},
+    fun
+    | Language.Mark.TypWantProduct(_) => true
+    | _ => false,
+  );
+
+let test_later_module_shadows_alias_in_path =
+  no_marks_test(
+    "A module bound after a same-named type alias roots its type paths",
+    {|type Point = (x = Int) in module Point = { type T = Int } in let p : Point.T = 1 in p|},
+  );
+
 let tests = (
   "Statics.Modules",
   [
@@ -1585,5 +1600,7 @@ let tests = (
     test_alias_definition_capture_is_marked,
     /* Signature scoping */
     test_recursive_sig_type_member,
+    test_alias_cycle_through_path,
+    test_later_module_shadows_alias_in_path,
   ],
 );

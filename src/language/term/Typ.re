@@ -655,26 +655,18 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t =>
     | ProdProjection(t, label) =>
       let (_, rewrap) = unwrap(ty);
       let default = Unknown(Internal) |> rewrap;
-      switch (label.term) {
-      | Label(l) =>
-        switch (path_sig(~rec_counter=rec_counter + 1, ctx, t)) {
-        | Some(items) =>
-          /* `M.T`: type member of a module path or of a signature alias. */
-          switch (sig_project_type(items, l)) {
-          | Some(ty') =>
-            weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty')
-          | None => default
-          }
-        | None =>
-          /* `P.x`: label of a labeled tuple type. */
-          let normalized_t =
-            weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t);
-          switch (normalized_t.term) {
-          | Prod(tys) => project_type(tys, l) |> Option.value(~default)
-          | _ => default // It would be better to do this via a more direct error recovery mechanism in statics
-          };
+      switch (label.term, path_head(~rec_counter=rec_counter + 1, ctx, t)) {
+      | (Label(l), Some({term: Sig(items), _})) =>
+        /* `M.T`: type member of a module path or of a signature alias. */
+        switch (sig_project_type(items, l)) {
+        | Some(ty') =>
+          weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty')
+        | None => default
         }
-      | _ => default
+      | (Label(l), Some({term: Prod(tys), _})) =>
+        /* `P.x`: label of a labeled tuple type. */
+        project_type(tys, l) |> Option.value(~default)
+      | _ => default // It would be better to do this via a more direct error recovery mechanism in statics
       };
     | Prod(ts) =>
       let (_, rewrap) = unwrap(ty);
@@ -700,55 +692,74 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t =>
     | _ => ty
     };
   }
-/* The signature items a module path denotes, if any. A path is a variable
-   naming a module (looked up in the value namespace once it is not a type
-   alias) or a projection of a value member out of another path. A type
-   alias whose expansion is a signature also counts, so `S.T` resolves on
-   `type S = { type T = Int }`. Never uses Ctx.lookup_alias: it returns an
-   invalid-hole type for unbound names, which would shadow the value
-   namespace. */
-and path_sig = (~rec_counter=0, ctx: Ctx.t, t: t): option(list(Sig.t)) =>
+/* What the left of a projection denotes, weak-head normalized: a module
+   path's signature, or the expansion of a type. A variable root is
+   whichever of a type and a value of that name was bound later; a value
+   root counts only if it is a module, so `m.x` is no type. A mid-path label
+   (`M.P.T`) names a sub-module, else a type member or a tuple label. Never
+   uses Ctx.lookup_alias: it returns an invalid-hole type for unbound
+   names, which would shadow the value namespace. */
+and path_head = (~rec_counter, ctx: Ctx.t, t: t): option(t) =>
   if (rec_counter > 1000) {
     None;
   } else {
+    let module_type = ty => {
+      let ty = head_type(~rec_counter, ctx, ty);
+      switch (term_of(ty)) {
+      | Sig(_) => Some(ty)
+      | _ => None
+      };
+    };
     switch (term_of(t)) {
     | Parens(t)
-    | Projector(_, t) => path_sig(~rec_counter=rec_counter + 1, ctx, t)
+    | Projector(_, t) => path_head(~rec_counter=rec_counter + 1, ctx, t)
     | Var(n) =>
-      switch (Ctx.lookup_tvar(ctx, n)) {
-      | Some(Singleton(alias)) => as_sig(~rec_counter, ctx, alias)
-      | Some(Abstract) => None
-      | None =>
-        switch (Ctx.lookup_var(ctx, n)) {
-        | Some({typ, _}) => as_sig(~rec_counter, ctx, typ)
-        | None => None
-        }
-      }
-    | ProdProjection(p, {term: Label(l), _}) =>
-      switch (path_sig(~rec_counter=rec_counter + 1, ctx, p)) {
-      | Some(items) =>
-        switch (sig_project_value(items, l)) {
-        | Some(ty) => as_sig(~rec_counter, ctx, ty)
-        | None => None
-        }
+      switch (Ctx.newest_tvar_or_var(ctx, n)) {
+      | Some(`TVar(_)) => Some(head_type(~rec_counter, ctx, t))
+      | Some(`Var({typ, _})) => module_type(typ)
       | None => None
       }
-    | _ => None
+    | ProdProjection(p, {term: Label(l), _}) =>
+      switch (path_head(~rec_counter=rec_counter + 1, ctx, p)) {
+      | Some({term: Sig(items), _}) =>
+        switch (sig_project_value(items, l)) {
+        | Some(ty) => module_type(ty)
+        | None =>
+          sig_project_type(items, l)
+          |> Option.map(head_type(~rec_counter, ctx))
+        }
+      | Some({term: Prod(tys), _}) =>
+        project_type(tys, l) |> Option.map(head_type(~rec_counter, ctx))
+      | _ => None
+      }
+    | ProdProjection(_) => None
+    | _ => Some(head_type(~rec_counter, ctx, t))
     };
   }
-and as_sig = (~rec_counter, ctx: Ctx.t, ty: t): option(list(Sig.t)) => {
+/* Weak head normal form, unrolling a recursive type once. */
+and head_type = (~rec_counter, ctx: Ctx.t, ty: t): t => {
   let ty = weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty);
-  let ty =
-    switch (term_of(ty)) {
-    | Rec(_) =>
-      weak_head_normalize(~rec_counter=rec_counter + 1, ctx, unroll(ty))
-    | _ => ty
-    };
   switch (term_of(ty)) {
+  | Rec(_) =>
+    weak_head_normalize(~rec_counter=rec_counter + 1, ctx, unroll(ty))
+  | _ => ty
+  };
+};
+
+/* The signature items a module path denotes, if any. A type alias whose
+   expansion is a signature also counts, so `S.T` resolves on
+   `type S = { type T = Int }`. */
+let path_sig = (ctx: Ctx.t, t: t): option(list(Sig.t)) =>
+  switch (path_head(~rec_counter=0, ctx, t)) {
+  | Some({term: Sig(items), _}) => Some(items)
+  | _ => None
+  };
+
+let as_sig = (ctx: Ctx.t, ty: t): option(list(Sig.t)) =>
+  switch (term_of(head_type(~rec_counter=0, ctx, ty))) {
   | Sig(items) => Some(items)
   | _ => None
   };
-};
 
 /* Value members of a signature whose own type is a signature: the
    sub-modules a type-level path may continue through (`M.P.T`). */
@@ -757,7 +768,7 @@ let sig_module_member_names = (ctx: Ctx.t, items: list(Sig.t)): list(Var.t) => {
   Sig.value_names(closed)
   |> List.filter(x =>
        switch (Sig.find_value(closed, x)) {
-       | Some(ty) => Option.is_some(as_sig(~rec_counter=0, ctx, ty))
+       | Some(ty) => Option.is_some(as_sig(ctx, ty))
        | None => false
        }
      );
