@@ -105,11 +105,11 @@ let top_level = () => {
         Some([a, "", "module NewModule = {} in", "", b, t, tail]),
       ),
       ("a", Duplicate, Some([a, "", a, "", b, t, tail])),
-      ("a", MoveDown, Some([b, "", a, t, tail])),
+      ("a", MoveDown, Some([b, "", a, "", t, tail])),
       ("a", MoveUp, None),
-      ("b", MoveUp, Some([b, "", a, t, tail])),
-      ("b", Delete, Some([a, t, tail])),
-      ("1", MoveUp, Some([a, t, "", b, "", tail])),
+      ("b", MoveUp, Some([b, "", a, "", t, tail])),
+      ("b", Delete, Some([a, "", t, tail])),
+      ("1", MoveUp, Some([a, "", t, "", b, "", tail])),
       ("1", Delete, Some([a, b, "", tail])),
     ],
   );
@@ -607,7 +607,7 @@ f(1)|js},
       "1",
       op(MoveUp),
       Some(
-        "let a = 1 in\ntest a == 1 end;\n\nmodule M = {\n  let y = 3\n} in\nlet b = 4 in\nb",
+        "let a = 1 in\n\ntest a == 1 end;\n\nmodule M = {\n  let y = 3\n} in\nlet b = 4 in\nb",
       ),
     ),
     (
@@ -616,7 +616,7 @@ f(1)|js},
       "1",
       op(MoveUp),
       Some(
-        "let a = 1 in\nmodule M = {\n  let y = 3;\n  test a == 1 end\n} in\n\nlet b = 4 in\nb",
+        "let a = 1 in\nmodule M = {\n  let y = 3;\n\n  test a == 1 end\n} in\n\nlet b = 4 in\nb",
       ),
     ),
     (
@@ -761,7 +761,7 @@ let into_value_module = () => {
       "1",
       op(MoveUp),
       Some(
-        "let a = 1 in\nlet m = {\n  let y = 3;\n  test a == 1 end\n} in\n\nlet b = 4 in\nb",
+        "let a = 1 in\nlet m = {\n  let y = 3;\n\n  test a == 1 end\n} in\n\nlet b = 4 in\nb",
       ),
     ),
     (
@@ -1129,6 +1129,7 @@ a|js}),
       "a",
       op(NewTestBelow),
       Some({js|let a = 1 in
+
 test ¿ end;
 
 let b = 2 in
@@ -1198,6 +1199,7 @@ a|js}),
       op(NewTestAbove),
       Some(
         {js|let a = 1 in
+
 test ¿ end;
 test a == 1 end;
 test a > 0 end;
@@ -1212,6 +1214,7 @@ a|js},
       Some(
         {js|module M = {
   let a = 1;
+
   test ¿ end;
   test a == 1 end;
   test a > 0 end
@@ -1330,7 +1333,7 @@ let nesting = () => {
       "1",
       op(Indent),
       Some(
-        "let a = 1 in\nmodule M = {\n  let y = 3;\n  test a == 1 end\n} in\n\nlet b = 4 in\nb",
+        "let a = 1 in\nmodule M = {\n  let y = 3;\n\n  test a == 1 end\n} in\n\nlet b = 4 in\nb",
       ),
     ),
     (
@@ -1374,7 +1377,7 @@ let nesting = () => {
   };
   expect(
     "a statement",
-    Some("module M = {\n  let y = 3;\n  1 + 1\n} in\n\nM.y"),
+    Some("module M = {\n  let y = 3;\n\n  1 + 1\n} in\n\nM.y"),
     Option.bind(semi, id =>
       Result.to_option(R.edit(ctx, op(Indent, id), stmt))
       |> Option.map(fst)

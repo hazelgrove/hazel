@@ -161,13 +161,13 @@ let transactions = [
         );
       mentions(
         "program",
-        "  | Rect(_, _) => false\n  end\nin\nhint \"rect area\" test\n  area",
+        "  | Rect(_, _) => false\n  end\nin\n\nlet perimeter",
         program,
       );
     },
   ),
   test_case(
-    "tests go right under a definition of any form",
+    "a test is parted from a definition of any form",
     `Quick,
     () => {
       /* V: `let flip_x: Scene -> Scene =` whose body is a block */
@@ -189,7 +189,7 @@ let transactions = [
         );
       mentions(
         "program",
-        "  neg\nin\nhint \"flip once\" test\n  flip_x(1) == -1\nend;\nhint \"flip twice\" test",
+        "  neg\nin\n\nhint \"flip once\" test\n  flip_x(1) == -1\nend;\nhint \"flip twice\" test",
         program,
       );
     },
@@ -223,7 +223,7 @@ hint "add to empty" test add_task("a", []) == ["a"] end;
         );
       mentions(
         "program",
-        "  end\nin\nhint \"count empty\" test count_open([]) == 0 end;\nhint \"count one\" test count_open([\"a\"]) == 1 end;\n\nhint \"add, mark, count\" test",
+        "  end\nin\n\nhint \"count empty\" test count_open([]) == 0 end;\nhint \"count one\" test count_open([\"a\"]) == 1 end;\n\nhint \"add, mark, count\" test",
         program,
       );
       let (program, _) =
@@ -264,7 +264,7 @@ hint "add to empty" test add_task("a", []) == ["a"] end;
           ],
         );
       mentions(
-        "else glued",
+        "else together",
         "== [\"a\"] end;\nhint \"add twice\" test",
         program,
       );
@@ -1319,6 +1319,50 @@ let prompt_examples = [
       Eg_RecFib.examples,
     )
   ),
+  test_case(
+    "the probe example",
+    `Quick,
+    () => {
+      open ToolExamples;
+      let view = (~opened=[], src) =>
+        Test_AgentView.render(~evaluate=true, ~opened, src);
+      mentions("the failing test", debug_failing, view(debug_program));
+      let probed =
+        StringUtil.replace(
+          StringUtil.regexp("a \\+ a in"),
+          debug_program,
+          "^^probe(a + a) in",
+        );
+      mentions("the probe", debug_seen, view(~opened=["mean"], probed));
+      let steps =
+        replies(
+          debug_program,
+          List.map(
+            c => example_calls([c]),
+            [debug_probe, debug_fix, debug_unprobe],
+          ),
+        );
+      List.iter(
+        ((_, results)) =>
+          List.iter(
+            (tr: AgentToolResult.tool_result) =>
+              check(
+                bool,
+                tr.tool_call.name ++ ": " ++ tr.content,
+                true,
+                tr.success,
+              ),
+            results,
+          ),
+        steps,
+      );
+      mentions(
+        "the fix",
+        {|hint "mean of two" test mean(2, 4) == 3 end;  #› ✓ #|},
+        view(fst(ListUtil.last(steps))),
+      );
+    },
+  ),
 ];
 
 /* a replayed session from an empty program: the layout around the
@@ -1418,6 +1462,7 @@ let area(s: Shape): Int =
   | Line(_, _) => 0
   end
 in
+
 hint "circle area" test area(Circle((0, 0), 2)) == 12 end;
 
 let double(n: Int): Int =

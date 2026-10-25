@@ -827,32 +827,12 @@ let member_form = (c: ctx, blk: block): bool =>
   | Top => c.mod_root
   };
 
-/* [place] is the program's end: above its top level's result, or last */
-let at_end = (c: ctx, place: place, seg: Segment.t): bool =>
-  switch (place) {
-  | LastIn(Top) => true
-  | Before(y) =>
-    let e = entry(~mod_root=c.mod_root, y, seg);
-    e.b.lv.owner == Top && !e.b.in_module && !L.movable(e.b, e.j);
-  | After(_)
-  | FirstIn(_)
-  | LastIn(_) => false
-  };
-
 /* [program] with the gaps beside the entries holding [item]'s pieces
    (the entries an op landed) laid out by house style, or with [inner]
-   only those between them. [ends]: they land at the program's end. A
-   blank line the code put between them, or [lead] above them, sets a
+   only those between them. A blank line the code put between them, or [lead] above them, sets a
    test below it apart */
 let settled =
-    (
-      c: ctx,
-      ~inner=false,
-      ~ends=false,
-      ~lead=false,
-      item: Segment.t,
-      program: Segment.t,
-    )
+    (c: ctx, ~inner=false, ~lead=false, item: Segment.t, program: Segment.t)
     : Segment.t => {
   let mine =
     List.fold_left(
@@ -888,13 +868,7 @@ let settled =
               && (j == k0 - 1 ? lead && !inner : j >= k0 && blank(j)),
             List.init(k1 - k0 + 1, j => k0 - 1 + j),
           );
-        let seg =
-          L.settle(
-            ~ends=?ends && !inner ? Some(k0 - 1) : None,
-            ~apart,
-            b,
-            js,
-          );
+        let seg = L.settle(~apart, b, js);
         seg === b.seg ? program : rebuild(seg);
       };
     }
@@ -914,7 +888,6 @@ let closed = (c: ctx, ~above: option(Id.t), program: Segment.t): Segment.t =>
 let insert =
     (c: ctx, op, place: place, src: source, seg: Segment.t): list(step) => {
   let mod_root = c.mod_root;
-  let ends = at_end(c, place, seg);
   /* code starting with a blank line */
   let lead =
     switch (src) {
@@ -932,13 +905,7 @@ let insert =
   let lands = (~member, f) => {
     let (item, stmt, src_indent) = entry_of(c, ~member, src, seg);
     let program =
-      settled(
-        c,
-        ~ends,
-        ~lead,
-        item,
-        need(NoPlace, f(item, stmt, src_indent)),
-      );
+      settled(c, ~lead, item, need(NoPlace, f(item, stmt, src_indent)));
     let row = L.row_id(item);
     entrywise(
       c,
@@ -1032,10 +999,9 @@ let move = (c: ctx, op, x: Id.t, place: place, seg: Segment.t): step => {
       rest: closed(c, ~above=tk.above, tk.rest),
     };
     let src_indent = L.start_indent(~mod_root, bare, seg);
-    let ends = at_end(c, place, seg);
     moved(
       ~focus=L.row_id(item),
-      settled(c, ~ends, item, need(NoPlace, f(tk, item, src_indent))),
+      settled(c, item, need(NoPlace, f(tk, item, src_indent))),
     );
   };
   switch (place) {
