@@ -158,9 +158,11 @@ earlier type members by name, and paths rooted at earlier modules
 (`module P : S; let x : P.T`), so:
 
 - `Typ.free_vars`, `Typ.subst` and `Typ.normalize` treat members as
-  sequential binders (`Typ.extend_sig_item` binds one in a context).
-  Member names cannot be alpha-renamed, so a substituted type with a free
-  variable named like a member would be captured by it. `subst` degrades the
+  sequential binders (`Typ.extend_sig_item` binds one in a context): a type
+  member binds its name everywhere after it, a value or module member only
+  where it roots a path. Member names cannot be alpha-renamed, so a
+  substituted type with a free variable named like a member would be
+  captured by it. `subst` degrades the
   items after that member to `?` and returns the member with its result;
   statics substitutes through `StaticsBase.subst_marked`, which turns that
   into `Mark.TypeMemberCapture`. A type argument is substituted as written

@@ -92,8 +92,8 @@ type t =
       actual: Typ.t,
     })
   /* A type substituted into a signature has a free variable named like one
-     of its manifest type members, which would capture it; Typ.subst degrades
-     the members after that one to `?` instead. Carries the colliding names. */
+     of its members, which would capture it; Typ.subst degrades the members
+     after that one to `?` instead. Carries the colliding names. */
   | TypeMemberCapture(list(Var.t))
   | BadToken(string)
   | BadLabel(Any.t)

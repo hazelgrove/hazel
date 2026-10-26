@@ -250,44 +250,81 @@ let match_tup_label = ty => {
   };
 };
 
-let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
+/* What a substituted name is bound as: a type variable, replaced wherever it
+   occurs, or a module, replaced only where it roots a path (`m.T`). */
+type binder = [
+  | `TVar
+  | `Var
+];
+
+/* The free variables of [ty] that substituting for a [binder] would
+   replace: every one for a type variable, only path roots for a module.
+   In a signature, a type member binds its name for its own definition and
+   the items after it; a value or module member binds it only as a path
+   root, for the items after it. */
+let rec free_vars =
+        (~binder: binder=`TVar, ~bound=[], ~bound_roots=[], ty: t)
+        : list(Var.t) => {
+  let go = free_vars(~binder, ~bound, ~bound_roots);
   switch (term_of(ty)) {
   | Unknown(_)
   | Atom(_)
   | DrvQuoteTy(_)
   | Label(_)
   | ExplicitNonlabel => []
-  | Var(v) => List.mem(v, bound) ? [] : [v]
+  | Var(v) =>
+    switch (binder) {
+    | `TVar when !List.mem(v, bound) => [v]
+    | `TVar
+    | `Var => []
+    }
   | Parens(ty)
-  | Projector(_, ty) => free_vars(~bound, ty)
-  | List(ty) => free_vars(~bound, ty)
+  | Projector(_, ty) => go(ty)
+  | List(ty) => go(ty)
   | ProdExtension(t1, t2)
-  | Arrow(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
-  | Sum(sm) => ConstructorMap.free_variables(free_vars(~bound), sm)
-  | Prod(tys) => List.concat_map(free_vars(~bound), tys)
-  | ProdProjection(t1, _) => free_vars(~bound, t1)
-  | TupLabel(_, ty) => free_vars(~bound, ty)
+  | Arrow(t1, t2) => go(t1) @ go(t2)
+  | Sum(sm) => ConstructorMap.free_variables(go, sm)
+  | Prod(tys) => List.concat_map(go, tys)
+  | ProdProjection(t1, _) =>
+    switch (term_of(t1)) {
+    | Var(v) => List.mem(v, bound) || List.mem(v, bound_roots) ? [] : [v]
+    | _ => go(t1)
+    }
+  | TupLabel(_, ty) => go(ty)
   | Rec(x, ty)
   | Poly(x, ty) =>
-    free_vars(~bound=(x |> TPat.tyvar_of_utpat |> Option.to_list) @ bound, ty)
+    free_vars(
+      ~binder,
+      ~bound=(x |> TPat.tyvar_of_utpat |> Option.to_list) @ bound,
+      ~bound_roots,
+      ty,
+    )
   | ProofOf(_) => []
   | Sig(items) =>
-    /* Type members bind their name for the items that follow. */
-    items
-    |> List.fold_left(
-         ((bound, acc), item) =>
-           switch (Sig.member_of_item(item)) {
-           | Some(Val(_, ty)) => (bound, acc @ free_vars(~bound, ty))
-           | Some(TypeManifest(name, ty)) => (
-               [name, ...bound],
-               acc @ free_vars(~bound=[name, ...bound], ty),
-             )
-           | None => (bound, acc)
-           },
-         (bound, []),
-       )
-    |> snd
+    let (_, _, acc) =
+      List.fold_left(
+        ((bound, bound_roots, acc), item) =>
+          switch (Sig.member_of_item(item)) {
+          | Some(Val(name, ty)) => (
+              bound,
+              [name, ...bound_roots],
+              acc @ free_vars(~binder, ~bound, ~bound_roots, ty),
+            )
+          | Some(TypeManifest(name, ty)) =>
+            let bound = [name, ...bound];
+            (
+              bound,
+              bound_roots,
+              acc @ free_vars(~binder, ~bound, ~bound_roots, ty),
+            );
+          | None => (bound, bound_roots, acc)
+          },
+        (bound, bound_roots, []),
+        items,
+      );
+    acc;
   };
+};
 
 /* The type an alias [name] defined as [def] stands for: [def], or the
    recursive type `rec name -> def` if [def] mentions [name]. */
@@ -392,17 +429,11 @@ let rec count_unknowns = (ty: t): int =>
 
 let contains_unknown = (ty: t): bool => count_unknowns(ty) > 0;
 
-/* What a substituted name is bound as: a type variable, replaced wherever it
-   occurs, or a module, replaced only where it roots a path (`m.T`). */
-type binder = [
-  | `TVar
-  | `Var
-];
-
 /* Whether substituting `s` for `x` continues past a signature item (see the
    `Sig` arm of [subst]). It stops at a member that shadows `x`, and at a
-   type member named like a free variable of `s`: that member captures `s`
-   if `x` occurs after it. */
+   member that would capture a free variable of `s`: a type member named
+   like any of [fv_s], a value or module member named like a path root in
+   [roots_s]. That member captures `s` if `x` occurs after it. */
 type sig_item_subst =
   | Continue
   | Stop
@@ -412,19 +443,25 @@ let sig_item_subst =
     (
       ~binder: binder,
       ~fv_s: list(Var.t),
+      ~roots_s: list(Var.t),
       x: Var.t,
       item: Sig.t,
       rest: list(Sig.t),
     )
-    : sig_item_subst =>
+    : sig_item_subst => {
+  let captures = n =>
+    List.exists(String.equal(x), free_vars(~binder, Sig(rest) |> temp))
+      ? Capture(n) : Stop;
   switch (binder, Sig.member_of_item(item)) {
   | (_, Some(TypeManifest(n, _)))
   | (`Var, Some(Val(n, _))) when String.equal(n, x) => Stop
   | (_, Some(TypeManifest(n, _))) when List.exists(String.equal(n), fv_s) =>
-    List.exists(String.equal(x), free_vars(Sig(rest) |> temp))
-      ? Capture(n) : Stop
+    captures(n)
+  | (_, Some(Val(n, _))) when List.exists(String.equal(n), roots_s) =>
+    captures(n)
   | _ => Continue
   };
+};
 
 /* Capture-avoiding substitution of `s` for `x` in `ty`.
 
@@ -435,9 +472,9 @@ let sig_item_subst =
    `fresh_var`) before recursing. The inner subst used for renaming is itself
    capture-avoiding, so repeated collisions are handled naturally.
 
-   A signature's type members bind too but cannot be renamed; see the `Sig`
-   arm. Returns, with the result, each type member that captured a free
-   variable of `s`. */
+   A signature's members bind too but cannot be renamed; see the `Sig`
+   arm. Returns, with the result, each member that captured a free variable
+   of `s`. */
 let rec subst =
         (~binder: binder=`TVar, s: t, x: TPat.t, ty: t): (t, list(Var.t)) =>
   switch (TPat.tyvar_of_utpat(x)) {
@@ -522,12 +559,12 @@ let rec subst =
         let (captured, t2) = go(s, captured, t2);
         (captured, ProdExtension(t1, t2) |> rewrap);
       | Sig(items) =>
-        /* A type member binds its name for the items after it, and that
-           name is also the member's label (`M.T`), so unlike Poly/Rec it
-           cannot be alpha-renamed. Where it would capture a free variable
-           of `s`, `x` is replaced by `?` in the items after it instead,
-           and the member is reported. */
-        let rec go_items = (s, fv_s, captured, items: list(Sig.t)) =>
+        /* A member binds its name for the items after it (see
+           [free_vars]), and that name is also the member's label (`M.T`),
+           so unlike Poly/Rec it cannot be alpha-renamed. Where it would
+           capture a free variable of `s`, `x` is replaced by `?` in the
+           items after it instead, and the member is reported. */
+        let rec go_items = (s, fv_s, roots_s, captured, items: list(Sig.t)) =>
           switch (items) {
           | [] => (captured, [])
           | [item, ...rest] =>
@@ -539,9 +576,10 @@ let rec subst =
                 (captured, Sig.map_typ(_ => ty, item));
               | None => (captured, item)
               };
-            switch (sig_item_subst(~binder, ~fv_s, str, item, rest)) {
+            switch (sig_item_subst(~binder, ~fv_s, ~roots_s, str, item, rest)) {
             | Continue =>
-              let (captured, rest) = go_items(s, fv_s, captured, rest);
+              let (captured, rest) =
+                go_items(s, fv_s, roots_s, captured, rest);
               (captured, [item', ...rest]);
             | Stop => (captured, [item', ...rest])
             | Capture(n) =>
@@ -549,13 +587,21 @@ let rec subst =
                 go_items(
                   Unknown(Internal) |> temp,
                   [],
+                  [],
                   captured @ [n],
                   rest,
                 );
               (captured, [item', ...rest]);
             };
           };
-        let (captured, items) = go_items(s, free_vars(s), captured, items);
+        let (captured, items) =
+          go_items(
+            s,
+            free_vars(s),
+            free_vars(~binder=`Var, s),
+            captured,
+            items,
+          );
         (captured, Sig(items) |> rewrap);
       };
     };
@@ -610,7 +656,7 @@ let apply_sig_subst =
 /* Each well-formed item with its member, closed: the members declared
    before it are substituted into its type, a type member for its name and a
    module for paths rooted at its name (`m.T`), except type members
-   [keep_local] names; with the type members that captured a substituted
+   [keep_local] names; with the members that captured a substituted
    definition, where `?` replaced it. */
 let sig_items_closed_captures =
     (~keep_local=_ => false, items: list(Sig.t))

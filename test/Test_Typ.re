@@ -778,6 +778,37 @@ let sig_tests = {
         },
       ),
       test_case(
+        "free_vars: a module member binds only the path roots after it",
+        `Quick,
+        () => {
+          let sm = (x, ty) =>
+            F.Sig.sig_module(F.MPat.asc(F.MPat.var(x), ty));
+          let p_u = F.Typ.prod_projection(F.Typ.var("P"), F.Typ.label("U"));
+          check(
+            list(string),
+            "path root bound",
+            [],
+            Typ.free_vars(
+              sg([sm("P", sg([st("U", ti)])), sv("y", p_u)]),
+            ),
+          );
+          check(
+            list(string),
+            "type variable free",
+            ["P"],
+            Typ.free_vars(
+              sg([sm("P", sg([])), sv("y", F.Typ.var("P"))]),
+            ),
+          );
+          check(
+            list(string),
+            "~binder=`Var: path roots only",
+            ["P"],
+            Typ.free_vars(~binder=`Var, F.Typ.arrow(p_u, F.Typ.var("Q"))),
+          );
+        },
+      ),
+      test_case(
         "member projection substitutes type members",
         `Quick,
         () => {

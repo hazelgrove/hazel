@@ -53,18 +53,18 @@ let codes = (names: list(Var.t)): list(part) =>
 let type_member_capture_parts = (names: list(Var.t)): list(part) =>
   switch (names) {
   | [name] => [
-      Text("Type variable "),
+      Text("Name "),
       Code(name),
       Text(
-        " collides with a type member of the same name in this signature; rename the type variable",
+        " collides with a member of the same name in this signature; rename it",
       ),
     ]
   | _ =>
-    [Text("Type variables ")]
+    [Text("Names ")]
     @ codes(names)
     @ [
       Text(
-        " collide with type members of the same names in this signature; rename them",
+        " collide with members of the same names in this signature; rename them",
       ),
     ]
   };

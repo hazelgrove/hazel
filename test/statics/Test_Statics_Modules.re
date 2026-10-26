@@ -1534,6 +1534,24 @@ let test_self_mentioning_sig_alias =
     Some(int()),
   );
 
+let test_type_argument_path_not_captured_by_sub_module =
+  fully_consistent_typecheck(
+    "A type argument's path is not captured by a same-named sub-module of the signature",
+    {|module N = { type U = Int } in
+let f : poly X -> (X -> { module N : { type U = Bool }; let v : X }) =
+  typfun X -> fun x -> { module N = { type U = Bool }; let v = x } in
+let m = f@<N.U>(1) in
+m.v + 1|},
+    Some(int()),
+  );
+
+let test_sub_module_path_does_not_collide_with_type =
+  no_marks_test(
+    "A path rooted at a signature's own sub-module does not collide with a same-named type",
+    {|type S = { module P : { type U = Int }; let y : P.U } in
+{ type P = Bool; let v : S = ? }|},
+  );
+
 let tests = (
   "Statics.Modules",
   [
@@ -1697,5 +1715,7 @@ let tests = (
     test_type_member_matches_through_alias,
     test_type_member_matches_reordered_signature,
     test_self_mentioning_sig_alias,
+    test_type_argument_path_not_captured_by_sub_module,
+    test_sub_module_path_does_not_collide_with_type,
   ],
 );
