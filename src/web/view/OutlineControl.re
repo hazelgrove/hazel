@@ -517,36 +517,23 @@ let remake =
   switch (to_) {
   | New(anchor, place) =>
     let program = code.program;
-    let doc = Program.document(program);
-    let ctx = Workspace.item_ctx(~settings, ~folds=[], program);
-    let (pat, col) =
+    let col =
       switch (keep_name, live_name(program, f.f_id)) {
-      | (true, Some({l_name, l_at, _})) when String.trim(l_name) != "" => (
-          ScratchFocus.find_pat(~root=Program.root(program), f.f_id, doc),
-          l_at,
-        )
-      | _ => (None, 0)
+      | (true, Some({l_name, l_at, _})) when String.trim(l_name) != "" => l_at
+      | _ => 0
       };
     let made =
-      Result.bind(
-        ItemEdit.edit(ctx, Op(Delete, f.f_id), doc), ~f=((seg, _)) =>
-        ItemEdit.edit(ctx, Blank(place, anchor, fst(E.new_kind(kw))), seg)
+      ItemEdit.remake(
+        ~mod_root=Program.root(program) == Sort.Mod,
+        ~keep=keep_name,
+        place,
+        anchor,
+        ItemEdit.rename_kind(fst(E.new_kind(kw))),
+        f.f_id,
+        Program.document(program),
       );
     switch (made, text^) {
     | (Ok((seg, Some(d))), Some(t)) =>
-      let seg =
-        Option.fold(
-          ~none=seg,
-          ~some=
-            p =>
-              ScratchFocus.splice_pat(
-                ~root=Program.root(program),
-                d,
-                p,
-                seg,
-              ),
-          pat,
-        );
       let code =
         live_until(
           ~settings,
