@@ -231,15 +231,6 @@ let dedup_last_by = (member: 'a => member, xs: list('a)): list('a) =>
    shadows an earlier one), preserving the order of the survivors. */
 let dedup_last: list(member) => list(member) = dedup_last_by(Fun.id);
 
-/* The well-formed items, keeping only the last of each name and kind. */
-let dedup_last_items = (items: list(t)): list(t) =>
-  items
-  |> List.filter_map(item =>
-       member_of_item(item) |> Option.map(m => (m, item))
-     )
-  |> dedup_last_by(fst)
-  |> List.map(snd);
-
 /* Lookups take the last member with the name: a later binding shadows an
    earlier one. */
 let find_value = (ms: list(member), name: Var.t): option(TermBase.Typ.t) =>

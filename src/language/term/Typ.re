@@ -344,9 +344,6 @@ let sig_item_recursive = (item: Sig.t): Sig.t =>
 let sig_member_of_item = (item: Sig.t): option(Sig.member) =>
   Sig.member_of_item(sig_item_recursive(item));
 
-let sig_members = (items: list(Sig.t)): list(Sig.member) =>
-  List.filter_map(sig_member_of_item, items);
-
 /* Bind the member declared by a signature item, if any. Signature items
    scope sequentially: later items may mention earlier type members, and
    paths rooted at earlier modules (`m.T`). */
