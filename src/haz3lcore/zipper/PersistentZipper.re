@@ -30,9 +30,9 @@ let of_text = (text: string): t => {
   backup_text: text,
 };
 
-/* Slide-source ingestion: indentation is the text's own spaces (the
-   editor no longer computes it at layout), so a committed .hz file keeps
-   its indentation; only line endings are normalized */
+/* Slide-source ingestion: indentation is the text's own spaces, so a
+   committed .hz file keeps its indentation; only line endings are
+   normalized */
 let of_slide_text = (text: string): t =>
   of_text(
     text
