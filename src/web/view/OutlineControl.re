@@ -40,15 +40,6 @@ let created: ref(option((Id.t, string))) = ref(None);
 /* the slide the state above belongs to */
 let owner: ref(option(string)) = ref(None);
 
-/* the folds of the level above the slide: its own, for the session */
-let above_folds: ref(OutlineTree.folds) = ref([]);
-/* row [path] of the level above's [outline]: its fold as shown, flipped */
-let fold_above = (outline: OutlineTree.t, path: OutlineTree.path): unit =>
-  Option.iter(
-    f => above_folds := OutlineTree.choose(path, f, above_folds^),
-    OutlineTree.flipped(~folds=above_folds^, path, outline),
-  );
-
 module Action = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -1173,27 +1164,8 @@ let same =
   && Option.equal((===), results, results')
   && rest == rest';
 
-/* a level above the slide (OutlineSidebar.above): whether it's shown in
-   the slide's place, the way up (true) and back, and its chip's click */
-type enclosing = {
-  e_above: OutlineSidebar.above,
-  e_shown: bool,
-  e_go: bool => Effect.t(unit),
-  e_chip: Effect.t(unit),
-};
-
-let level =
-    (~enclosing: option(enclosing), deck: option(deck))
-    : OutlineSidebar.level =>
-  switch (enclosing, deck) {
-  | (Some(e), Some(d)) when e.e_shown => Enclosing(e.e_above, slide_name(d))
-  | (Some(e), Some(_)) => InSlide(e.e_above)
-  | _ => Plain
-  };
-
 /* the outline of the slide's whole program in Scratch and Documentation,
-   else of the current editor's [statics] and [segment]: so too at a
-   level above the slide, for navigating only */
+   else of the current editor's [statics] and [segment] */
 let view =
     (
       ~arrows: bool,
@@ -1205,17 +1177,8 @@ let view =
       ~jump: Id.t => Effect.t(unit),
       ~leave: Effect.t(unit),
       ~statics_on: bool,
-      ~enclosing: option(enclosing)=?,
-      (),
     )
     : Node.t => {
-  let level = level(~enclosing, deck);
-  let deck =
-    switch (level) {
-    | Enclosing(_) => None
-    | Plain
-    | InSlide(_) => deck
-    };
   let program = program_of(deck);
   let statics =
     switch (program) {
@@ -1246,12 +1209,7 @@ let view =
     OutlineFollow.spot := spot(p, id);
   | _ => ()
   };
-  let folds =
-    switch (level) {
-    | Enclosing(_) => above_folds^
-    | Plain
-    | InSlide(_) => folds(deck)
-    };
+  let folds = folds(deck);
   let focused =
     switch (deck) {
     | Some((_, m)) => ScratchModel.Model.focused_names(m)
@@ -1298,7 +1256,6 @@ let view =
       created^,
       live,
       statics_on,
-      level,
     ),
   );
   Util.Slot.get(
@@ -1357,7 +1314,6 @@ let view =
         },
         folded: (path, n) => OutlineTree.folded(~folds, path, n.o_kind),
         header: {
-          h_level: level,
           h_program: name,
           h_trail:
             switch (slide_view) {
@@ -1473,21 +1429,8 @@ let view =
         toggle: id =>
           nested(id) ? jump(id) : inject_workspace(FocusToggle(id)),
         toggle_run: id => inject_workspace(FocusToggleRun(id)),
-        toggle_collapse: path =>
-          switch (level) {
-          | Enclosing(_) =>
-            Effect.Many([
-              Effect.of_sync_fun(fold_above(outline), path),
-              redraw,
-            ])
-          | Plain
-          | InSlide(_) => inject(Collapse(path))
-          },
+        toggle_collapse: path => inject(Collapse(path)),
         zoom_to: m => inject_workspace(ZoomTo(m)),
-        go_above: up =>
-          Option.fold(~none=Effect.Ignore, ~some=e => e.e_go(up), enclosing),
-        above_chip:
-          Option.fold(~none=Effect.Ignore, ~some=e => e.e_chip, enclosing),
         zoom_in: id => inject_workspace(ZoomIn(id)),
         show_whole: b => inject_workspace(ShowWhole(b)),
         discard: inject_workspace(UnfocusDef),
