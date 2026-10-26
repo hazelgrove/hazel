@@ -967,6 +967,79 @@ let as_sig = (ctx: Ctx.t, ty: t): option(list(Sig.t)) =>
   | _ => None
   };
 
+/* Bind [entry] without changing what the types already in [ctx] mean.
+   Those types name aliases and modules that are looked up where the types
+   are used, so a binding that shadows one would capture their mentions of
+   it. Those mentions, and the entry's own, are first replaced by what the
+   shadowed binding stood for: a path root (`N` in `N.T`) by the newest
+   alias or module of that name, a type by the newest alias. An abstract
+   type variable has nothing to stand for, so its mentions stay captured. */
+let extend_ctx = (ctx: Ctx.t, entry: Ctx.entry): Ctx.t => {
+  let root = name =>
+    switch (Ctx.newest_tvar_or_var(ctx, name)) {
+    | Some(`TVar(Ctx.Singleton(def))) => Some(def)
+    | Some(`Var({typ, _})) when Option.is_some(as_sig(ctx, typ)) =>
+      Some(typ)
+    | Some(`TVar(Ctx.Abstract))
+    | Some(`Var(_))
+    | None => None
+    };
+  let bare = name =>
+    switch (Ctx.lookup_tvar(ctx, name)) {
+    | Some(Ctx.Singleton(def)) => Some(def)
+    | Some(Ctx.Abstract)
+    | None => None
+    };
+  let shadowed: list((binder, Var.t, option(t))) =
+    switch (entry) {
+    | VarEntry({name, _}) => [(`Var, name, root(name))]
+    | TVarEntry({name, _}) => [
+        (`Var, name, root(name)),
+        (`TVar, name, bare(name)),
+      ]
+    | ConstructorEntry(_)
+    | LivelitEntry(_) => []
+    };
+  switch (
+    List.filter_map(
+      ((binder, name, def)) =>
+        Option.map(def => (binder, name, Lazy.from_val(def)), def),
+      shadowed,
+    )
+  ) {
+  | [] => Ctx.extend(ctx, entry)
+  | sigma =>
+    let close = ty => fst(apply_sig_subst(sigma, ty));
+    let close_entry = (entry: Ctx.entry): Ctx.entry =>
+      switch (entry) {
+      | VarEntry(v) =>
+        VarEntry({
+          ...v,
+          typ: close(v.typ),
+        })
+      | ConstructorEntry(c) =>
+        ConstructorEntry({
+          ...c,
+          typ: close(c.typ),
+        })
+      | TVarEntry({kind: Singleton(def), _} as v) =>
+        TVarEntry({
+          ...v,
+          kind: Singleton(close(def)),
+        })
+      | TVarEntry({kind: Abstract, _})
+      | LivelitEntry(_) => entry
+      };
+    Ctx.extend(
+      {
+        ...ctx,
+        entries: List.map(close_entry, ctx.entries),
+      },
+      close_entry(entry),
+    );
+  };
+};
+
 /* Value members of a signature whose own type is a signature: the
    sub-modules a type-level path may continue through (`M.P.T`). */
 let sig_module_member_names = (ctx: Ctx.t, items: list(Sig.t)): list(Var.t) => {

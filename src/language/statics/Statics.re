@@ -2033,13 +2033,13 @@ and uexp_to_info_map =
             };
           };
           let ctx_body =
-            Ctx.extend_tvar(
+            Typ.extend_ctx(
               ctx,
-              {
+              TVarEntry({
                 name,
                 id: TPat.rep_id(utpat),
                 kind: Abstract,
-              },
+              }),
             );
           (mode_body, ctx_body, capture_marks);
         | Some(_)
@@ -2565,6 +2565,15 @@ and uexp_to_info_map =
            variables to decide whether to make a recursive type or not. So we
            tentatively add an abtract type to the ctx, representing the
            speculative rec parameter. */
+        let extend_alias = ty =>
+          Typ.extend_ctx(
+            ctx,
+            TVarEntry({
+              name,
+              id: TPat.rep_id(typat),
+              kind: Singleton(ty),
+            }),
+          );
         let (ty_def, ctx_def, ctx_body) = {
           switch (utyp.term) {
           | _ when List.mem(name, Typ.free_vars(utyp)) =>
@@ -2572,14 +2581,9 @@ and uexp_to_info_map =
                use a different name than the alias for the recursive parameter */
             //let ty_rec = Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
             let ty_rec = Rec(Var(name) |> TPat.fresh, utyp) |> Typ.temp;
-            let ctx_def =
-              Ctx.extend_alias(ctx, name, TPat.rep_id(typat), ty_rec);
+            let ctx_def = extend_alias(ty_rec);
             (ty_rec, ctx_def, ctx_def);
-          | _ => (
-              utyp,
-              ctx,
-              Ctx.extend_alias(ctx, name, TPat.rep_id(typat), utyp),
-            )
+          | _ => (utyp, ctx, extend_alias(utyp))
           /* NOTE(yuchen): Below is an alternative implementation that attempts to
              add a rec whenever type alias is present. It may cause trouble to the
              runtime, so precede with caution. */
@@ -3227,7 +3231,7 @@ and upat_to_info_map =
           add(
             ~elab_syn_ty=unknown,
             ~marks=[Mark.DuplicateVar(name, unknown)],
-            ~ctx=Ctx.extend(ctx, entry),
+            ~ctx=Typ.extend_ctx(ctx, entry),
             ~constraint_=Coverage.Constraint.Truth,
             m,
           );
@@ -3235,7 +3239,7 @@ and upat_to_info_map =
         : add(
             ~elab_syn_ty=unknown,
             ~marks=[],
-            ~ctx=Ctx.extend(ctx, entry),
+            ~ctx=Typ.extend_ctx(ctx, entry),
             ~constraint_=Coverage.Constraint.Truth,
             m,
           );

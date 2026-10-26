@@ -469,6 +469,16 @@ let tests = (
         ),
       ),
     ),
+    fully_consistent_typecheck(
+      "A type alias shadowed later keeps its meaning in earlier annotations",
+      {|type T = Int in let x : T = 1 in type T = Bool in x + 1|},
+      Some(FTemp.Typ.int()),
+    ),
+    fully_consistent_typecheck(
+      "A type alias shadowed by a type function's variable keeps its meaning",
+      {|type X = Int in let a : X = 1 in (typfun X -> a + 1)@<Bool>|},
+      Some(FTemp.Typ.int()),
+    ),
     skip_known_bug(
       "Typ.weak_head_normalize infinite recursion", // https://github.com/hazelgrove/hazel/issues/1621
       "type y = y in type ? = y in ?",

@@ -1560,6 +1560,28 @@ let s : { module M : { let y : M.T } } = ? in
 s|},
   );
 
+let test_shadowed_module_keeps_earlier_paths =
+  fully_consistent_typecheck(
+    "A module shadowed later keeps its meaning in earlier type paths",
+    {|module N = { type U = Int } in
+let x : N.U = 1 in
+type A = N.U in
+module N = { type U = Bool } in
+let y : A = 2 in
+x + y|},
+    Some(int()),
+  );
+
+let test_shadowing_module_roots_later_paths =
+  fully_consistent_typecheck(
+    "A module shadowing another roots the type paths after it",
+    {|module N = { type U = Int } in
+module N = { type U = Bool } in
+let y : N.U = true in
+y && true|},
+    Some(bool()),
+  );
+
 let tests = (
   "Statics.Modules",
   [
@@ -1726,5 +1748,7 @@ let tests = (
     test_type_argument_path_not_captured_by_sub_module,
     test_sub_module_path_does_not_collide_with_type,
     test_module_member_not_in_scope_in_own_signature,
+    test_shadowed_module_keeps_earlier_paths,
+    test_shadowing_module_roots_later_paths,
   ],
 );
