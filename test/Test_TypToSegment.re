@@ -465,8 +465,33 @@ let count_tests =
       },
     ),
   ];
+/* Normalization strips Parens, so printing restores the ones a type needs,
+   including inside a signature's items. */
+let parens_tests = [
+  test_case(
+    "a signature item's arrow keeps its parentheses",
+    `Quick,
+    () => {
+      let int = Typ.temp(Atom(Int));
+      let arrow = (a, b) => Typ.temp(Arrow(a, b));
+      let f_ty = arrow(arrow(int, int), int);
+      check(
+        string,
+        "printed",
+        "{ let f:(Int -> Int) -> Int }",
+        TypToSegment.typ_to_segment(
+          ~settings,
+          Typ.temp(Sig([Sig.item_of_member(Val("f", f_ty))])),
+        )
+        |> Printer.of_segment(~holes="?", ~indent="", ~is_single_line=true),
+      );
+    },
+  ),
+];
+
 let tests = [
   ("TypToSegment.Regions", region_tests),
+  ("TypToSegment.Parens", parens_tests),
   (
     "TypToSegment.Ids",
     count_tests

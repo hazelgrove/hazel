@@ -964,7 +964,16 @@ and parenthesize_typ =
       ),
     )
     |> rewrap
-  | Sig(_) => term |> rewrap
+  | Sig(items) =>
+    Sig(
+      List.map(
+        Sig.map_typ(t =>
+          parenthesize_typ(t) |> paren_typ_at(Precedence.min)
+        ),
+        items,
+      ),
+    )
+    |> rewrap
   };
 }
 
