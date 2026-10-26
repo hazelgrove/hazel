@@ -508,6 +508,24 @@ let ghost_line = (e: entry): bool =>
   | Of_new(_) => false
   };
 
+/* line [j] and the column at its end */
+let end_of = (lines: array(entry), j: int): (line, int) => (
+  line_of(lines[j]),
+  ghost_line(lines[j]) ? 0 : len_of_line(lines[j]),
+);
+let to_end = (lines, j) => {
+  let (l, c) = end_of(lines, j);
+  Go(l, c, None);
+};
+let to_start = (lines: array(entry), j) => Go(line_of(lines[j]), 0, None);
+/* ↑↓ to line [j], at column [target] where it has one */
+let toward = (lines: array(entry), ~target: int, j: int) =>
+  Go(
+    line_of(lines[j]),
+    ghost_line(lines[j]) ? 0 : min(target, len_of_line(lines[j])),
+    Some(target),
+  );
+
 /* the row at [path] among the lines */
 let row_at =
     (lines: array(entry), path: OutlineTree.path): option(visible_row) =>
@@ -676,24 +694,12 @@ let live_key =
     };
   let len = units(name);
   let sel = anchor != col;
-  let to_end = j =>
-    Go(
-      line_of(lines[j]),
-      ghost_line(lines[j]) ? 0 : len_of_line(lines[j]),
-      None,
-    );
-  let to_start = j => Go(line_of(lines[j]), 0, None);
+  let to_end = to_end(lines);
+  let to_start = to_start(lines);
   let vertical = (~up, j) =>
-    if (j == at) {
-      Type(Step(up ? Left : Right, Edge));
-    } else {
-      let target = Option.value(t.col_target, ~default=col);
-      Go(
-        line_of(lines[j]),
-        ghost_line(lines[j]) ? 0 : min(target, len_of_line(lines[j])),
-        Some(target),
-      );
-    };
+    j == at
+      ? Type(Step(up ? Left : Right, Edge))
+      : toward(lines, ~target=Option.value(t.col_target, ~default=col), j);
   let at_side = (side: Direction.t) => side == Left ? col == 0 : col >= len;
   /* ←→ Home End: the caret by [r], or with Shift the selection's moving
      end; a character past the name's end goes on to the next line */
@@ -789,16 +795,7 @@ let live_key =
   /* ⌘⌫: the definition goes, named or not */
   | "Backspace" when p.meta =>
     switch (t.fresh) {
-    | Some(f) =>
-      Drop(
-        f.f_id,
-        at > 0
-          ? Some((
-              line_of(lines[at - 1]),
-              ghost_line(lines[at - 1]) ? 0 : len_of_line(lines[at - 1]),
-            ))
-          : None,
-      )
+    | Some(f) => Drop(f.f_id, at > 0 ? Some(end_of(lines, at - 1)) : None)
     | None => above()
     }
   | "Backspace" when p.ctrl => Swallow
@@ -821,10 +818,8 @@ let live_key =
         p.meta && !p.alt && !p.shift && String.lowercase_ascii(p.key) == "z" =>
     switch (t.fresh) {
     | Some(_) when at > 0 =>
-      Undo(
-        line_of(lines[at - 1]),
-        ghost_line(lines[at - 1]) ? 0 : len_of_line(lines[at - 1]),
-      )
+      let (l, c) = end_of(lines, at - 1);
+      Undo(l, c);
     | Some(_) => Page
     /* not in yet: the Enter that made it */
     | None => above()
@@ -876,34 +871,24 @@ let decide_row =
     )
     : outcome => {
   let n = Array.length(lines);
-  let ghost = j => ghost_line(lines[j]);
   let here_ghost = !nameable(r.r_node);
   /* a kind keyword typed first, shown apart, and the field's text */
   let (kw, value) =
     here_ghost
       ? ("", "") : split_typed(Option.value(t.pending, ~default=r.r_name));
   let len = units(value);
-  /* a line's length in its field */
-  let len_of = j => j == at ? len : len_of_line(lines[j]);
   let col =
     here_ghost ? 0 : caret.in_field ? caret.c_col : max(0, min(t.col, len));
   let sel = caret.in_field && caret.c_sel;
   /* the field's own key, or the model's while the field lacks the keys */
   let own = o => caret.in_field ? Field : o;
-  let to_end = j => Go(line_of(lines[j]), ghost(j) ? 0 : len_of(j), None);
-  let to_start = j => Go(line_of(lines[j]), 0, None);
+  let to_end = to_end(lines);
+  let to_start = to_start(lines);
   /* past the first or last line: to its start or end */
   let vertical = (~up, j) =>
-    if (j == at) {
-      Place(up ? 0 : len);
-    } else {
-      let target = Option.value(t.col_target, ~default=col);
-      Go(
-        line_of(lines[j]),
-        ghost(j) ? 0 : min(target, len_of(j)),
-        Some(target),
-      );
-    };
+    j == at
+      ? Place(up ? 0 : len)
+      : toward(lines, ~target=Option.value(t.col_target, ~default=col), j);
   let item = r.r_node.o_id;
   /* an op on the line's item (a run of one's test): never the ⇒, which
      stays last */
@@ -1009,10 +994,7 @@ let decide_row =
       Remove(
         id,
         at > 0
-          ? Some((
-              line_of(lines[at - 1]),
-              ghost(at - 1) ? 0 : len_of(at - 1),
-            ))
+          ? Some(end_of(lines, at - 1))
           : at < n - 1 ? Some((line_of(lines[at + 1]), 0)) : None,
       )
     /* rows never merge */
