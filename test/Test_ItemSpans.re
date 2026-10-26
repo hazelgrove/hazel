@@ -1,15 +1,13 @@
 open Alcotest;
 open Haz3lcore;
 
-/* ItemSpans against the rules it replaced (Focus and IE below), at every
-   level of the corpora (module members and definition bodies included):
-   Focus.item_spans for spans and cores, IE's slots for slots and lines,
-   Focus.line_indent for base_col, Segment.top_items for the top level's
-   cuts. Differences by design are named where they are allowed */
+/* ItemSpans at every level of the corpora (module members and definition
+   bodies included): slices partition each level, base_col is the line's
+   indentation, the top level cuts where Segment.top_items does, and find
+   reaches every span. Spans, cores and slots are checked directly on
+   hand-written programs */
 
 module S = ItemSpans;
-module Focus = FocusOracle;
-module IE = ItemEditOracle;
 
 /* the stdlib's sources, module bodies (Mod-rooted), where the repo has
    them */
@@ -48,8 +46,7 @@ let letin_members = [
     "a fun's let-in, then a statement",
     "let f = fun x -> let y = x + 100 in y;\nf(1);\nlet z = 2",
   ),
-  /* where Focus did cut after an `in`: a member that is a let chain,
-     whose items are a level of their own */
+  /* a member that is a let chain, whose items are a level of their own */
   ("a statement opening with a let-in", "let x = 1 in x;\nlet y = 2;\ny"),
   (
     "a module of a let chain",
@@ -97,8 +94,7 @@ let exp_shapes = [
   ),
 ];
 
-/* every piece's line indentation, as Focus.line_indent reads it, in one
-   walk */
+/* every piece's line indentation, in one walk */
 let indents = (seg: Segment.t): Hashtbl.t(Id.t, int) => {
   let tbl = Hashtbl.create(1024);
   let ind = ref(0);
@@ -137,26 +133,14 @@ type tally = {
   mutable programs: int,
   mutable levels: int,
   mutable spans: int,
-  mutable focus_checks: int,
-  mutable slot_checks: int,
-  mutable indent_checks: int,
   mutable diffs: list(string),
-  /* Focus cut after an `in` at a Mod level: decision 4 */
-  mutable mod_in: list(string),
-  /* Focus cut after an `…in` tile missing its `in` */
-  mutable open_in: list(string),
 };
 
 let tally = () => {
   programs: 0,
   levels: 0,
   spans: 0,
-  focus_checks: 0,
-  slot_checks: 0,
-  indent_checks: 0,
   diffs: [],
-  mod_in: [],
-  open_in: [],
 };
 
 let kind_name = (k: S.kind) =>
@@ -170,29 +154,12 @@ let kind_name = (k: S.kind) =>
 let sub = (arr: array(Piece.t), a: int, b: int): string =>
   CorpusUtil.text_of(Array.to_list(Array.sub(arr, a, max(0, b - a))));
 
-let is_directive = (t: Tile.t) =>
-  List.mem(Tile.token(t, 0), ["use", "hide", "eval", "pause", "debug"]);
-
-/* one level against Focus and IE */
+/* one level: its slices partition it, each core lies in its slice, and
+   base_col is the indentation of the line the core starts on */
 let check_level =
-    (
-      ~name: string,
-      ~indent_of: Hashtbl.t(Id.t, int),
-      ~nested: bool,
-      t: tally,
-      lv: S.level,
-    ) => {
+    (~name: string, ~indent_of: Hashtbl.t(Id.t, int), t: tally, lv: S.level) => {
   t.levels = t.levels + 1;
-  let arr = lv.pieces;
-  let len = Array.length(arr);
-  let at_mod = lv.sort == Sort.Mod;
-  let is_members =
-    switch (lv.owner) {
-    | Members(_) => true
-    | Top
-    | Chain(_)
-    | Block(_) => false
-    };
+  let len = Array.length(lv.pieces);
   let n = Array.length(lv.spans);
   t.spans = t.spans + n;
   let diff = what =>
@@ -200,7 +167,6 @@ let check_level =
       Printf.sprintf("%s [%s level]: %s", name, Sort.show(lv.sort), what),
       ...t.diffs,
     ];
-  /* the slices partition the level */
   Array.iteri(
     (k, sp: S.span) => {
       let lo_ok = k == 0 ? sp.lo == 0 : sp.lo == lv.spans[k - 1].hi;
@@ -209,225 +175,9 @@ let check_level =
       if (!lo_ok || !hi_ok || !(sp.lo <= c0 && c0 <= c1 && c1 <= sp.hi)) {
         diff(Printf.sprintf("span %d breaks the partition", k));
       };
-    },
-    lv.spans,
-  );
-  let sf =
-    Array.of_list(Focus.item_spans(~divided_only_tail=nested, lv.seg));
-  let m = Array.length(sf);
-  let content = (sp: Focus.item_span) => {
-    let rec go = i =>
-      i < sp.sp_stop && (!Piece.is_secondary(arr[i]) || go(i + 1));
-    go(sp.sp_start);
-  };
-  let hole_only = (sp: Focus.item_span) => {
-    let rec go = (i, found) =>
-      i >= sp.sp_stop
-        ? found
-        : (
-          switch (arr[i]) {
-          | Grout({shape: Convex, _}) when !found => go(i + 1, true)
-          | Secondary(_) => go(i + 1, found)
-          | _ => false
-          }
-        );
-    go(sp.sp_start, false);
-  };
-  /* Focus's last span that ItemSpans folds into the one before: comments
-     only, or at a Mod level the hole after a last `;` */
-  let kept =
-    m > 0 && (!content(sf[m - 1]) || at_mod && hole_only(sf[m - 1]))
-      ? m - 1 : m;
-  let mod_in =
-    at_mod
-    && Array.exists(
-         (sp: Focus.item_span) =>
-           sp.sp_kind == IDef
-           && (
-             switch (Focus.first_tile(arr, sp.sp_start, sp.sp_stop)) {
-             | Some(tl) => Tile.ends_with_in(tl)
-             | None => false
-             }
-           ),
-         sf,
-       );
-  let open_in =
-    Array.exists(
-      (p: Piece.t) =>
-        switch (p) {
-        | Tile(tl) => Tile.ends_with_in(tl) && !Segment.is_in_tile(p)
-        | _ => false
-        },
-      arr,
-    );
-  if (mod_in) {
-    t.mod_in = [name, ...t.mod_in];
-    /* where Focus cut after an `in`, ItemSpans has one member whose let
-       chain is a level of its own, checked as one */
-    Array.iter(
-      (f: Focus.item_span) =>
-        switch (Focus.first_tile(arr, f.sp_start, f.sp_stop)) {
-        | Some(tl) when f.sp_kind == IDef && Tile.ends_with_in(tl) =>
-          let at = i => Piece.id(arr[i]) == tl.id;
-          let held =
-            List.init(n, k => k)
-            |> List.exists(k => {
-                 let (c0, c1) = lv.spans[k].core;
-                 let rec has = i => i < c1 && (at(i) || has(i + 1));
-                 has(c0) && S.chain(lv, k) != None;
-               });
-          if (!held) {
-            diff("an `in` Focus cuts at, in no let chain");
-          };
-        | _ => ()
-        },
-      sf,
-    );
-  } else if (open_in) {
-    t.open_in = [name, ...t.open_in];
-  } else if (kept != n) {
-    diff(Printf.sprintf("%d spans, Focus %d", n, kept));
-  } else {
-    Array.iteri(
-      (k, sp: S.span) => {
-        t.focus_checks = t.focus_checks + 1;
-        let f = sf[k];
-        let ftile = Focus.first_tile(arr, f.sp_start, f.sp_stop);
-        let kind: S.kind =
-          switch (f.sp_kind, ftile) {
-          | (IDef, Some(tl)) when is_directive(tl) => Use
-          | (IDef, _) => Def
-          | (IStmt, _) => Stmt
-          | (ITail, _) => at_mod ? Stmt : Tail
-          };
-        let anchor =
-          switch (f.sp_id) {
-          | Some(id) => Some(id)
-          | None =>
-            let rec go = i =>
-              i >= f.sp_stop
-                ? None
-                : Piece.is_secondary(arr[i])
-                    ? go(i + 1) : Some(Piece.id(arr[i]));
-            go(f.sp_start);
-          };
-        let rec skip = i =>
-          i < f.sp_stop && Focus.is_edge_ws(arr[i]) ? skip(i + 1) : i;
-        let c0 = skip(f.sp_start);
-        let rec back = i =>
-          i > c0 && Focus.is_edge_ws(arr[i - 1]) ? back(i - 1) : i;
-        let c1 = back(Focus.before_semi(arr, f.sp_start, f.sp_stop));
-        let first =
-          Option.map((tl: Tile.t) => tl.id, Focus.first_tile(arr, c0, c1));
-        let row = Printf.sprintf("span %d `%s`", k, sub(arr, c0, c1));
-        if (kind != sp.kind) {
-          diff(row ++ ": kind " ++ kind_name(sp.kind));
-        };
-        if (anchor != Some(sp.anchor)) {
-          diff(row ++ ": anchor");
-        };
-        if ((c0, c1) != sp.core) {
-          diff(
-            Printf.sprintf(
-              "%s: core `%s`",
-              row,
-              sub(arr, fst(sp.core), snd(sp.core)),
-            ),
-          );
-        };
-        if (first != sp.first) {
-          diff(row ++ ": first tile");
-        };
-      },
-      lv.spans,
-    );
-    /* slots and lines: IE's slots over Focus's spans */
-    let b =
-      IE.block(~in_module=at_mod, ~body=is_members, ~bol=lv.bol, sf, lv.seg);
-    let line_start = i => i == 0 ? lv.bol : Piece.is_linebreak(arr[i - 1]);
-    if (Array.length(b.sl) != n) {
-      diff(Printf.sprintf("%d spans, IE %d slots", n, Array.length(b.sl)));
-    } else {
-      Array.iteri(
-        (k, sp: S.span) => {
-          t.slot_checks = t.slot_checks + 1;
-          let sl = b.sl[k];
-          if ((sl.lo, sl.term, sl.hi) != sp.slot) {
-            let (lo, term, hi) = sp.slot;
-            diff(
-              Printf.sprintf(
-                "span %d `%s`: slot (%d, %d, %d), IE (%d, %d, %d)",
-                k,
-                sub(arr, fst(sp.core), snd(sp.core)),
-                lo,
-                term,
-                hi,
-                sl.lo,
-                sl.term,
-                sl.hi,
-              ),
-            );
-          };
-          let whole =
-            line_start(sl.lo)
-            && (Piece.is_linebreak(arr[sl.hi - 1]) || sl.hi == len && lv.eol);
-          let want = whole ? Some((sl.lo, sl.hi)) : None;
-          if (want != sp.lines) {
-            diff(
-              Printf.sprintf(
-                "span %d `%s`: lines %s, slot (%d, %d)",
-                k,
-                sub(arr, fst(sp.core), snd(sp.core)),
-                switch (sp.lines) {
-                | Some((a, z)) => Printf.sprintf("(%d, %d)", a, z)
-                | None => "none"
-                },
-                sl.lo,
-                sl.hi,
-              ),
-            );
-          };
-          /* a module literal is IE's module definition, but `{}` */
-          let empty =
-            switch (sp.kind, IE.module_at(b, k)) {
-            | (Def, Some(head)) =>
-              switch (
-                Option.map(
-                  List.filter(p => !Piece.is_secondary(p)),
-                  Focus.find_def(head, lv.seg),
-                )
-              ) {
-              | Some([Tile(tl)]) => IE.is_empty_body(tl)
-              | _ => false
-              }
-            | _ => false
-            };
-          let module_def = IE.module_at(b, k) != None && !empty;
-          if (module_def != (sp.body != None)) {
-            diff(Printf.sprintf("span %d: module literal", k));
-          };
-        },
-        lv.spans,
-      );
-    };
-  };
-  /* base_col: the indentation of the line the core starts on */
-  Array.iteri(
-    (k, sp: S.span) => {
-      t.indent_checks = t.indent_checks + 1;
-      let id = Piece.id(arr[fst(sp.core)]);
+      let id = Piece.id(lv.pieces[c0]);
       if (Hashtbl.find_opt(indent_of, id) != Some(sp.base_col)) {
-        diff(
-          Printf.sprintf(
-            "span %d: base_col %d, line_indent %s",
-            k,
-            sp.base_col,
-            switch (Hashtbl.find_opt(indent_of, id)) {
-            | Some(i) => string_of_int(i)
-            | None => "none"
-            },
-          ),
-        );
+        diff(Printf.sprintf("span %d: base_col %d", k, sp.base_col));
       };
     },
     lv.spans,
@@ -438,18 +188,18 @@ let check_level =
 let check_program = (t: tally, ~name: string, ~root: Sort.t, seg: Segment.t) => {
   t.programs = t.programs + 1;
   let indent_of = indents(seg);
-  let rec walk = (~nested, lv: S.level) => {
-    check_level(~name, ~indent_of, ~nested, t, lv);
+  let rec walk = (lv: S.level) => {
+    check_level(~name, ~indent_of, t, lv);
     Array.iteri(
       (k, _) => {
-        Option.iter(walk(~nested=false), S.children(lv, k));
-        Option.iter(walk(~nested=true), S.block(lv, k));
+        Option.iter(walk, S.children(lv, k));
+        Option.iter(walk, S.block(lv, k));
       },
       lv.spans,
     );
   };
   let top = S.top(~root, seg);
-  walk(~nested=false, top);
+  walk(top);
   /* an expression level cuts no worse than top_items: at its cuts only */
   if (root != Sort.Mod) {
     let cuts =
@@ -513,21 +263,14 @@ let parse = (~root, src) =>
 
 let report = (what: string, t: tally) => {
   Printf.printf(
-    "ItemSpans %s: %d programs, %d levels, %d spans; %d Focus, %d IE, %d line_indent checks; %d diffs; Focus cuts after an `in` at a Mod level in %d levels, after an unfinished `…in` in %d\n",
+    "ItemSpans %s: %d programs, %d levels, %d spans; %d diffs\n",
     what,
     t.programs,
     t.levels,
     t.spans,
-    t.focus_checks,
-    t.slot_checks,
-    t.indent_checks,
     List.length(t.diffs),
-    List.length(t.mod_in),
-    List.length(t.open_in),
   );
   List.iter(d => Printf.printf("DIFF %s\n", d), List.rev(t.diffs));
-  List.iter(d => Printf.printf("MOD-IN %s\n", d), List.rev(t.mod_in));
-  List.iter(d => Printf.printf("OPEN-IN %s\n", d), List.rev(t.open_in));
 };
 
 let run = (programs: list((string, Sort.t, string))): tally => {
@@ -556,18 +299,7 @@ let shapes = () => {
     );
   report("shapes", t);
   check(int, "diffs", 0, List.length(t.diffs));
-  check(
-    list(string),
-    "Focus cuts after an `in` at a Mod level: let chains",
-    [
-      "a let chain among members",
-      "a let chain holding a module",
-      "a module of a let chain",
-      "a statement opening with a let-in",
-    ],
-    List.sort_uniq(compare, t.mod_in),
-  );
-  /* there the item runs to its `;`, a statement */
+  /* a member opening with a let-in runs to its `;`, a statement */
   let seg = CorpusUtil.seg_of(~root=Mod, "let x = 1 in x;\nlet y = 2;\ny");
   let top = S.top(~root=Mod, seg);
   check(
@@ -665,6 +397,92 @@ let chains = () => {
     "its block",
     ["def", "tail"],
     kinds(Option.get(S.block(members, 0))),
+  );
+};
+
+/* each span as (kind, core, slot, base_col): the slot's text with `|`
+   at its core's start and at its terminator's end, and `=` before it when
+   it is whole lines */
+let layout = (lv: S.level): list(string) =>
+  Array.to_list(lv.spans)
+  |> List.map((sp: S.span) => {
+       let (lo, term, hi) = sp.slot;
+       let (c0, c1) = sp.core;
+       Printf.sprintf(
+         "%s `%s` %s`%s|%s|%s` %d",
+         kind_name(sp.kind),
+         sub(lv.pieces, c0, c1),
+         sp.lines == None ? "" : "=",
+         sub(lv.pieces, lo, c0),
+         sub(lv.pieces, c0, term),
+         sub(lv.pieces, term, hi),
+         sp.base_col,
+       );
+     });
+
+let direct = () => {
+  let spans = (~root=Sort.Exp, src) =>
+    layout(S.top(~root, CorpusUtil.seg_of(~root, src)));
+  let expect = (name, want, got) => check(list(string), name, want, got);
+  expect(
+    "comments above go with the item below",
+    [
+      "def `let a = 1 in` =`# doc #\n|let a = 1 in|\n` 0",
+      "def `let b = 2 in` =`# two #\n# lines #\n|let b = 2 in|\n` 0",
+      "tail `a + b` =`|a + b|` 0",
+    ],
+    spans("# doc #\nlet a = 1 in\n# two #\n# lines #\nlet b = 2 in\na + b"),
+  );
+  expect(
+    "items sharing a line are not whole lines",
+    [
+      "def `let a =\n  1\nin` `|let a =\n  1\nin| ` 0",
+      "def `let b = 2 in` `|let b = 2 in|\n` 0",
+      "tail `b` =`|b|` 0",
+    ],
+    spans("let a =\n  1\nin let b = 2 in\nb"),
+  );
+  expect(
+    "indentation",
+    ["def `let a = 1 in` =`  |let a = 1 in|\n` 2", "tail `a` =`  |a|` 2"],
+    spans("  let a = 1 in\n  a"),
+  );
+  expect(
+    "statements end at their `;`",
+    [
+      "def `let f = fun x -> x in` =`|let f = fun x -> x in|\n` 0",
+      "stmt `f(1)` =`|f(1);|\n` 0",
+      "stmt `test f(1) == 1 end` =`|test f(1) == 1 end;|\n` 0",
+      "tail `f(2)` =`|f(2)|` 0",
+    ],
+    spans("let f = fun x -> x in\nf(1);\ntest f(1) == 1 end;\nf(2)"),
+  );
+  expect(
+    "a trailing comment is the tail's",
+    [
+      "def `let a = 1 in` =`|let a = 1 in|\n` 0",
+      "tail `a\n# end #` =`|a|\n` 0",
+    ],
+    spans("let a = 1 in\na\n# end #"),
+  );
+  let src = "let x = 1;\nmodule M = {\n  let y = 2;\n  let z = 3\n};\nM.z";
+  let top = S.top(~root=Mod, CorpusUtil.seg_of(~root=Mod, src));
+  expect(
+    "members end at their `;`",
+    [
+      "def `let x = 1` =`|let x = 1;|\n` 0",
+      "def `module M = {\n  let y = 2;\n  let z = 3\n}` =`|module M = {\n  let y = 2;\n  let z = 3\n};|\n` 0",
+      "stmt `M.z` =`|M.z|` 0",
+    ],
+    layout(top),
+  );
+  expect(
+    "a module's members",
+    [
+      "def `let y = 2` =`  |let y = 2;|\n` 2",
+      "def `let z = 3` =`  |let z = 3|\n` 2",
+    ],
+    layout(Option.get(S.children(top, 1))),
   );
 };
 
@@ -931,6 +749,7 @@ let tests = (
   [
     test_case("shapes", `Quick, shapes),
     test_case("let chains", `Quick, chains),
+    test_case("spans, cores and slots", `Quick, direct),
     test_case("incomplete programs", `Quick, incomplete),
     test_case("memoized on pieces", `Quick, memo),
     test_case("corpus", `Slow, corpus),

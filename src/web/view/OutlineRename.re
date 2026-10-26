@@ -135,14 +135,11 @@ let check_name = (kind, name: string): option(string) => {
   };
 };
 
-let relabel = Rename.relabel;
-
-/* the references to relabel as [it] is named [name], as a [kind]'s (its
-   own by default): none when nothing changes; else why not */
+/* the references to relabel as [it] is named [name], as a [kind]'s: none
+   when nothing changes; else why not */
 let prepare =
-    (~info_map: Lazy.t(Statics.Map.t), ~kind=?, it: item, name: string)
-    : result(option(list(Id.t)), string) => {
-  let kind = Option.value(kind, ~default=it.kind);
+    (~info_map: Lazy.t(Statics.Map.t), ~kind, it: item, name: string)
+    : result(option(list(Id.t)), string) =>
   switch (check_name(kind, name)) {
   | _ when it.old == name && kind == it.kind => Ok(None)
   | Some(why) => Error(why)
@@ -153,18 +150,4 @@ let prepare =
     | Some(why) => Error(why)
     | None => Ok(Some(refs))
     };
-  };
-};
-
-let rename =
-    (~info_map, ~outline, row: Id.t, name: string, seg: Segment.t)
-    : result(Segment.t, string) =>
-  switch (find_item(row, outline)) {
-  | None => Error("this row has no name to change")
-  | Some(it) =>
-    switch (prepare(~info_map=Lazy.from_val(info_map), it, name)) {
-    | Error(why) => Error(why)
-    | Ok(None) => Ok(seg)
-    | Ok(Some(refs)) => Ok(relabel([it.binder, ...refs], name, seg))
-    }
   };

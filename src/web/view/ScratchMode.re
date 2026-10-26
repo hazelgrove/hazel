@@ -232,25 +232,20 @@ module Selection = {
 
   /* the open cell holding [tile], and the caret's move there */
   let jump_in_divided = (tile, d: Divided.t): option((Update.t, t)) => {
-    let find = tile => {
-      let caret: CellEditor.Update.t =
-        MainEditor(Perform(Move(Goal(TileId(tile)))));
-      let in_cell = cell =>
-        Focus.seg_contains_id(tile, Focus.zip_of_cell(cell));
-      Divided.cells(d)
-      |> List.find_map((e: ScratchCell.t) =>
-           List.find_map(
-             side =>
-               in_cell(ScratchCell.pane(side, e))
-                 ? Some((
-                     Update.Workspace(Stack(e.e_id, side, caret)),
-                     Stack(MainEditor),
-                   ))
-                 : None,
-             [ScratchCell.Body, Header],
+    let find = tile =>
+      Divided.pane_of(tile, d)
+      |> Option.map(((e: ScratchCell.t, side)) =>
+           (
+             Update.Workspace(
+               Stack(
+                 e.e_id,
+                 side,
+                 MainEditor(Perform(Move(Goal(TileId(tile))))),
+               ),
+             ),
+             Stack(MainEditor),
            )
          );
-    };
     switch (find(tile)) {
     | Some(_) as found => found
     /* a run member's row is its `;`, outside the run's cell: go to its

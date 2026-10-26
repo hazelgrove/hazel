@@ -397,7 +397,7 @@ let reformed =
 
 /* [ps] (entry [k] of [b]'s bare pieces) in a block's form: as it is, or
    converted, its `in` laid out by house style. A form [reformed] doesn't
-   know goes through text, fresh ids, as it did before the kernel */
+   know goes through text, with fresh ids */
 let in_form = (~member: bool, b: L.block, k: int, ps: Segment.t): Segment.t =>
   if (member == b.in_module) {
     ps;

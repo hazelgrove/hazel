@@ -18,12 +18,12 @@ let kind_kw = (kind: OutlineRename.kind): string =>
   | KValue => "let"
   };
 
-/* a new definition of [kind], named, or with a hole for its name */
-let template = (kind: OutlineRename.kind, name: option(string)): K.template =>
+/* a new definition of [kind], a hole for its name */
+let blank = (kind: OutlineRename.kind): K.template =>
   switch (kind) {
-  | KType => Type(name)
-  | KModule => Module(name)
-  | KValue => Value(name)
+  | KType => Type(None)
+  | KModule => Module(None)
+  | KValue => Value(None)
   };
 
 /* the program and the row an edit lands on, or why not */
@@ -47,12 +47,11 @@ let rec first_of = (tries: list(unit => landed)): landed =>
   };
 
 /* the new definition's template for op [op] */
-let new_template = (~name=?, op: OutlineEdit.def_op): option(K.template) => {
-  let named = placeholder => Some(Option.value(name, ~default=placeholder));
+let new_template = (op: OutlineEdit.def_op): option(K.template) =>
   switch (op) {
-  | NewBelow => Some(Value(named("new_def")))
-  | NewTypeBelow => Some(Type(named("NewType")))
-  | NewModuleBelow => Some(Module(named("NewModule")))
+  | NewBelow => Some(Value(Some("new_def")))
+  | NewTypeBelow => Some(Type(Some("NewType")))
+  | NewModuleBelow => Some(Module(Some("NewModule")))
   | NewTestBelow
   | NewTestAbove => Some(Test)
   | Duplicate
@@ -62,69 +61,41 @@ let new_template = (~name=?, op: OutlineEdit.def_op): option(K.template) => {
   | Outdent
   | Delete => None
   };
-};
+
+/* beside entry [j] of block [b], row [fid]: below it, or above it, as
+   above a block's result, which stays last */
+let beside = (~above, b: L.block, j: int, fid: Id.t): K.place =>
+  above || !L.movable(b, j) && !b.in_module ? Before(fid) : After(fid);
 
 /* [op] on row [fid]'s entry, in its own block: a move swaps it with the
    entry beside it, never leaves the block. New entries go below, or above
-   a block's result, which stays last */
+   a block's result */
 let plan =
-    (~template=?, ~mod_root, op: OutlineEdit.def_op, fid: Id.t, seg)
+    (~mod_root, op: OutlineEdit.def_op, fid: Id.t, seg)
     : result(list(K.op), K.reason) =>
   switch (L.locate(~mod_root, fid, seg)) {
   | None => Error(Missing)
   | Some((b, j, _)) =>
     let n = Array.length(b.sl);
-    let trailing = !L.movable(b, j) && !b.in_module;
-    let beside = (~above) =>
-      above || trailing ? K.Before(fid) : K.After(fid);
-    switch (op, template) {
-    | (Delete, _) => Ok([Delete(fid)])
-    | (MoveUp, _) when j > 0 =>
-      Ok([Move(fid, Before(K.anchor(b, j - 1)))])
-    | (MoveDown, _) when j + 1 < n =>
-      Ok([Move(fid, After(K.anchor(b, j + 1)))])
-    | (MoveUp | MoveDown, _) => Error(Edge)
-    | (Indent | Outdent, _) => Error(NoPlace)
-    | (Duplicate, _) => Ok([Insert(After(fid), Copy(fid))])
-    | (_, Some(t)) =>
-      Ok([Insert(beside(~above=op == NewTestAbove), Template(t))])
-    | (_, None) =>
+    switch (op) {
+    | Delete => Ok([Delete(fid)])
+    | MoveUp when j > 0 => Ok([Move(fid, Before(K.anchor(b, j - 1)))])
+    | MoveDown when j + 1 < n => Ok([Move(fid, After(K.anchor(b, j + 1)))])
+    | MoveUp
+    | MoveDown => Error(Edge)
+    | Indent
+    | Outdent => Error(NoPlace)
+    | Duplicate => Ok([Insert(After(fid), Copy(fid))])
+    | _ =>
       switch (new_template(op)) {
       | Some(t) =>
-        Ok([Insert(beside(~above=op == NewTestAbove), Template(t))])
+        Ok([
+          Insert(beside(~above=op == NewTestAbove, b, j, fid), Template(t)),
+        ])
       | None => Error(NoPlace)
       }
     };
   };
-
-/* [op] on row [fid]: the new program and the row it lands on (none for
-   a delete or a swap) */
-let apply =
-    (
-      ~name: option(string)=?,
-      ~mod_root=false,
-      op: OutlineEdit.def_op,
-      fid: Id.t,
-      seg: Segment.t,
-    )
-    : option((Segment.t, option(Id.t))) => {
-  let template = Option.bind(name, name => new_template(~name, op));
-  switch (
-    Result.bind(
-      plan(~template?, ~mod_root, op, fid, seg),
-      ~f=run(~mod_root, seg),
-    )
-  ) {
-  | Ok((seg, row)) =>
-    switch (op) {
-    | Delete
-    | MoveUp
-    | MoveDown => Some((seg, None))
-    | _ => Some((seg, row))
-    }
-  | Error(_) => None
-  };
-};
 
 /* where the item holding [fid] sits, seen from its own block */
 type spot = {
@@ -215,9 +186,6 @@ let move_why =
     };
   };
 
-let move = (~mod_root, ~is_open, ~owner, ~up, fid, seg) =>
-  Result.ok(move_why(~mod_root, ~is_open, ~owner, ~up, fid, seg));
-
 /* Tab: the item holding [fid] into the item just above it, in place, a
    level deeper: a module's last member, or a value's last local
    definition. Only into a row the outline [shown]s, with no comment set
@@ -252,26 +220,9 @@ let outdent =
 /* how the outline edits a program's items, addressed by id */
 type t =
   | Op(OutlineEdit.def_op, Id.t)
-  /* as typed: a kind keyword first changes the item's kind */
-  | Rename(Id.t, string)
-  /* a new definition below the row: `name`, `type Name` or
-     `module Name` */
-  | Insert(Id.t, string)
-  /* the same, last inside a module */
-  | InsertInside(Id.t, string)
-  /* or first */
-  | InsertFirst(Id.t, string)
   /* a new definition with a hole for its name, below the row or first or
      last inside it, its name to be typed in the editor */
   | Blank(OutlineEdit.place, Id.t, OutlineTree.kind);
-
-/* the op that makes a new definition of [kind] below an item */
-let new_op = (kind: OutlineRename.kind): OutlineEdit.def_op =>
-  switch (kind) {
-  | KType => NewTypeBelow
-  | KModule => NewModuleBelow
-  | KValue => NewBelow
-  };
 
 let rename_kind = (kind: OutlineTree.kind): OutlineRename.kind =>
   switch (kind) {
@@ -279,8 +230,6 @@ let rename_kind = (kind: OutlineTree.kind): OutlineRename.kind =>
   | KModule => KModule
   | _ => KValue
   };
-
-let text = L.text;
 
 /* where item [id]'s name is typed: its pattern's first piece */
 let name_slot = (~mod_root: bool, id: Id.t, seg: Segment.t): option(Id.t) =>
@@ -369,21 +318,6 @@ let name_at = (~def: option(Id.t), z: Zipper.t): option((string, int, int)) => {
         : z.selection.focus == Left
             ? Some((name, lo, hi)) : Some((name, hi, lo));
     },
-  );
-};
-
-/* a typed name and the kind its keyword picks */
-let typed_name = (text: string): (OutlineTree.kind, string) => {
-  let (kind, prefix) = OutlineEdit.new_kind(text);
-  (
-    kind,
-    String.trim(
-      String.sub(
-        text,
-        String.length(prefix),
-        String.length(text) - String.length(prefix),
-      ),
-    ),
   );
 };
 
@@ -520,37 +454,53 @@ let parent_row =
   | _ => None
   };
 
-/* new definition [kind] named [name] (None: a hole) [place]d by row
-   [at]: below it, or first or last inside it, a module or (last) a value */
-let new_def =
-    (
-      ~mod_root: bool,
-      place: OutlineEdit.place,
-      at: Id.t,
-      kind: OutlineRename.kind,
-      name: option(string),
-      seg: Segment.t,
-    )
-    : landed => {
-  let t = template(kind, name);
+/* where a new definition [place]d by row [at] goes: below it, or first
+   or last inside it, a module or (last) a value */
+let new_place =
+    (~mod_root: bool, place: OutlineEdit.place, at: Id.t, seg: Segment.t)
+    : result(K.place, K.reason) => {
   let value = L.is_value(~mod_root, at, seg);
   switch (place) {
   | Below =>
-    Result.bind(
-      plan(~template=t, ~mod_root, new_op(kind), at, seg),
-      ~f=run(~mod_root, seg),
-    )
+    switch (L.locate(~mod_root, at, seg)) {
+    | Some((b, j, _)) => Ok(beside(~above=false, b, j, at))
+    | None => Error(Missing)
+    }
   | First when value => Error(NoPlace)
-  | First =>
-    run(~mod_root, seg, [Insert(FirstIn(Members(at)), Template(t))])
-  | Last =>
+  | First => Ok(FirstIn(Members(at)))
+  | Last => Ok(LastIn(value ? Body(at) : Members(at)))
+  };
+};
+
+/* new definition [kind], its name a hole, [place]d by row [at] */
+let new_def =
+    (~mod_root, place, at, kind: OutlineRename.kind, seg: Segment.t): landed =>
+  Result.bind(new_place(~mod_root, place, at, seg), ~f=p =>
+    run(~mod_root, seg, [Insert(p, Template(blank(kind)))])
+  );
+
+/* new definition [fid] remade where row [at] [place]s it, in one step:
+   [keep], moved there as it is; else a [kind]'s blank in its place */
+let remake =
+    (
+      ~mod_root,
+      ~keep: bool,
+      place,
+      at,
+      kind: OutlineRename.kind,
+      fid: Id.t,
+      seg: Segment.t,
+    )
+    : landed =>
+  Result.bind(new_place(~mod_root, place, at, seg), ~f=p =>
     run(
       ~mod_root,
       seg,
-      [Insert(LastIn(value ? Body(at) : Members(at)), Template(t))],
+      keep
+        ? [Move(fid, p)]
+        : [Delete(fid), Insert(p, Template(blank(kind)))],
     )
-  };
-};
+  );
 
 /* the new program and the row the edit lands on, or why not */
 let edit =
@@ -594,41 +544,7 @@ let edit =
   | Op(op, fid) =>
     Result.bind(plan(~mod_root, op, fid, seg), ~f=run(~mod_root, seg))
     |> why
-  | Rename(row, typed) =>
-    switch (
-      plan_rename(
-        ~mod_root,
-        ~info_map=ctx.info_map,
-        ~outline=ctx.outline,
-        ~seg=Lazy.from_val(seg),
-        row,
-        typed,
-      )
-    ) {
-    | Error(why) => Error(why)
-    | Ok(None) => Ok((seg, Some(row)))
-    | Ok(Some(rn)) =>
-      apply_rename(~mod_root, rn, row, seg)
-      |> Result.map(~f=seg => (seg, Some(row)))
-      |> Result.map_error(~f=K.describe)
-    }
-  | Insert(at, text)
-  | InsertInside(at, text)
-  | InsertFirst(at, text) =>
-    let (kind, name) = typed_name(text);
-    let rkind = rename_kind(kind);
-    switch (OutlineRename.check_name(rkind, name)) {
-    | Some(why) => Error(why)
-    | None =>
-      let place: OutlineEdit.place =
-        switch (e) {
-        | InsertInside(_) => Last
-        | InsertFirst(_) => First
-        | _ => Below
-        };
-      new_def(~mod_root, place, at, rkind, Some(name), seg) |> why;
-    };
   | Blank(place, at, kind) =>
-    new_def(~mod_root, place, at, rename_kind(kind), None, seg) |> why
+    new_def(~mod_root, place, at, rename_kind(kind), seg) |> why
   };
 };
