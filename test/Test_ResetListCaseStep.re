@@ -10,11 +10,13 @@ open Util;
  *
  * Gates: the frontier offers a visible step that lands on a tile of the
  * row; what TakeStep writes (`eval <source> at <n> end`) checks freshly
- * through the evaluator with no marks, and the checker's outgoing goal is
- * EXACTLY (Exp.fast_equal) the preview: the written goal with only the
- * step's source node replaced by one eval step of it. Identical
- * occurrences keep their own index; case bodies are written through the
- * same proof patch. Programs are particular; the stepper is driven
+ * through the evaluator with no marks. The 7a40 picker has no outgoing
+ * preview, so the checker's fresh outgoing goal is held to (a) exact
+ * agreement with the offered step taken at its source plus the checker's
+ * own trailing silent steps (shared Evaluator.advance_hidden), every
+ * other node untouched, and (b) literal expected goals where they are
+ * closed. Identical occurrences keep their own index; case bodies are
+ * written through the same proof patch. Programs are particular; the stepper is driven
  * through the same calculate pipeline as Theorems.re. */
 
 module SB = Web.StepperBase;
@@ -49,6 +51,16 @@ let rec_twice = {|let all_lists = fun (xs : [Int]) ->
   end
 in
 theorem every = forall (xs : [Int]) -> all_lists(xs) == all_lists(xs) proof ? in 0|};
+
+/* Two identical CLOSED occurrences: each step's outgoing goal is literal,
+   with only the selected copy reduced. */
+let rec_twice_nil = {|let all_lists = fun (xs : [Int]) ->
+  case xs
+  | [] => true
+  | _ :: t => all_lists(t)
+  end
+in
+theorem both = all_lists([]) == all_lists([]) proof ? in 0|};
 
 /* As Theorems.Update.calculate wires it in the APP: the goal is the
    statement's core as recorded (no Builtins env substitution, no re-id),
@@ -217,35 +229,13 @@ let replace_once = (~sub, ~by, s) => {
   go(0);
 };
 
-/* One eval step is the visible transition plus the checker's trailing
-   silent steps on the stepped subterm only (Evaluator.re: "take one
-   user-visible transition and again skip any trailing silent steps").
-   Bounded; exhaustion fails the test rather than guessing. */
-let trailing_silent = (~env, e: Exp.t): Exp.t => {
-  let rec go = (fuel, e) =>
-    if (fuel <= 0) {
-      Alcotest.fail("trailing silent steps: bound exhausted");
-    } else {
-      let take = s =>
-        switch (EvaluatorStep.take_step(s)) {
-        | Some(next) => go(fuel - 1, next)
-        | None => e
-        };
-      switch (EvaluatorStep.get_status(~settings=CoreSettings.on, e, env)) {
-      | AutoStep(s) => take(s)
-      | AvailableSteps([s, ..._])
-          when EvaluatorStep.get_step_kind(s) == Transition.VarLookup =>
-        take(s)
-      | AvailableSteps(_) => e
-      };
-    };
-  go(64, e);
-};
-
-/* The preview: the written goal with ONLY the step's source node replaced
-   by one eval step of it; every other node, including identical
-   occurrences, is untouched. */
-let preview_of = (m: Web.MissingStep.Model.t, step, label) => {
+/* Agreement, not an app preview (the 7a40 picker shows no outgoing goal;
+   it highlights the step's tile and writes `eval <source> at <n> end`):
+   the offered step taken at its source node, followed by the checker's
+   own trailing silent steps (the shared Evaluator.advance_hidden), with
+   every other node of the written goal, including identical occurrences,
+   untouched. The fresh checker outgoing must equal this exactly. */
+let offered_step_at_source = (m: Web.MissingStep.Model.t, step, label) => {
   let written = m.eval_exp |> Calc.get_saved_opt |> Option.get;
   let env = m.cached_env |> Calc.get_saved_opt |> Option.get;
   let source =
@@ -255,15 +245,63 @@ let preview_of = (m: Web.MissingStep.Model.t, step, label) => {
     };
   switch (EvaluatorStep.take_step(step)) {
   | Some(e) =>
-    ProofHacks.replace_exp_id(source, written, trailing_silent(~env, e))
+    switch (Evaluator.advance_hidden(~max_steps=64, ~env, e)) {
+    | Some((_, e)) => ProofHacks.replace_exp_id(source, written, e)
+    | None => Alcotest.fail(label ++ ": trailing silent steps exhausted")
+    }
   | None => Alcotest.fail(label ++ ": stepper cannot take the step")
   };
 };
 
+/* The operands of an `==` goal. */
+let eq_sides = (e: Exp.t): (Exp.t, Exp.t) =>
+  switch (Exp.term_of(e)) {
+  | BinOp(Poly(Equals), l, r) => (l, r)
+  | _ => Alcotest.fail("not an == goal")
+  };
+
+/* Which operand of the written `==` goal a duplicate's offered step writes
+   (its source), after checking that its highlight lands on the same
+   operand of the displayed goal. */
+let side_of = (label, m: Web.MissingStep.Model.t, step) => {
+  let (l, r) = eq_sides(m.eval_exp |> Calc.get_saved_opt |> Option.get);
+  let (dl, dr) = eq_sides(m.full_exp |> Calc.get_saved_opt |> Option.get);
+  let source = Web.MissingStep.Update.step_source(m, step) |> Option.get;
+  let side =
+    if (source == Exp.rep_id(l)) {
+      `Left;
+    } else if (source == Exp.rep_id(r)) {
+      `Right;
+    } else {
+      Alcotest.fail(label ++ ": source is neither operand");
+    };
+  check(
+    bool,
+    label ++ ": highlight is on the written operand",
+    true,
+    Web.MissingStep.Update.display_step_id(m, step)
+    == Exp.rep_id(side == `Left ? dl : dr),
+  );
+  side;
+};
+
+/* A literal expected outgoing goal. */
+let check_literal_outgoing = (label, ~expect, outgoing) => {
+  let exact =
+    Exp.fast_equal(outgoing, Test_Evaluator_Prelude.parse_exp(expect));
+  if (!exact) {
+    print_endline(
+      "CHECKER  " ++ label ++ ": " ++ Test_ProofMap.print_exp(outgoing),
+    );
+  };
+  check(bool, label ++ ": checker outgoing is `" ++ expect ++ "`", true, exact);
+};
+
 /* Write what TakeStep writes for `step` (`eval <at_exp> at <idx> end`,
    with at_exp asserted equal to `expect_text`) into the source, check it
-   freshly through the evaluator, and compare the checker's outgoing goal
-   with the stepper's own take of the offered step. */
+   freshly through the evaluator, and require the checker's outgoing goal
+   to agree exactly with the offered step taken at its source (and, where
+   given, to be a literal expected goal). */
 let written_checks =
     (
       label,
@@ -272,6 +310,9 @@ let written_checks =
       ~pick: list(EvaluatorStep.step) => option(EvaluatorStep.step),
       ~expect_text,
       ~expect_idx,
+      ~expect_outgoing: option(string)=?,
+      ~check_outgoing: Exp.t => unit=_ => (),
+      (),
     ) => {
   let root = app_root(src, name);
   let m = model_of(root);
@@ -317,14 +358,24 @@ let written_checks =
   );
   let outgoing =
     Test_ProofMap.require_exp(label ++ ": checker outgoing", entry.outgoing);
-  let preview = preview_of(m, step, label);
-  let exact = Exp.fast_equal(outgoing, preview);
+  let stepped = offered_step_at_source(m, step, label);
+  let exact = Exp.fast_equal(outgoing, stepped);
   if (!exact) {
     let pr = e => Test_ProofMap.print_exp(e);
     print_endline("CHECKER  " ++ label ++ ": " ++ pr(outgoing));
-    print_endline("STEPPER  " ++ label ++ ": " ++ pr(preview));
+    print_endline("STEPPED  " ++ label ++ ": " ++ pr(stepped));
   };
-  check(bool, label ++ ": checker outgoing == stepper preview", true, exact);
+  check(
+    bool,
+    label ++ ": checker outgoing == offered step taken at its source",
+    true,
+    exact,
+  );
+  Option.iter(
+    expect => check_literal_outgoing(label, ~expect, outgoing),
+    expect_outgoing,
+  );
+  check_outgoing(outgoing);
 };
 
 /* ---- Case body: TakeStep's write into an induction case's hole ------- */
@@ -378,8 +429,9 @@ let case_step = (root: SB.next_step, i): SB.next_step =>
 /* Take the case's first offered step as StepperBase's TakeStep does
    (written_target -> eval_step_term -> ReplaceProof patch on the case's
    hole), check the patched program freshly, and compare the written
-   step's outgoing goal with the stepper's preview, exactly. */
-let case_body_take = (~fixture, ~src, i, ~expect_text) => {
+   step's outgoing goal with the offered step taken at its source, and
+   with a literal expected goal, exactly. */
+let case_body_take = (~fixture, ~src, i, ~expect_text, ~expect_outgoing=?, ()) => {
   let z0 = parse_zipper(src);
   let (root, pm0) = app_run(zipper_exp(z0), "every");
   let label = fixture ++ " case " ++ string_of_int(i);
@@ -454,13 +506,22 @@ let case_body_take = (~fixture, ~src, i, ~expect_text) => {
   );
   let outgoing =
     Test_ProofMap.require_exp(label ++ ": checker outgoing", entry.outgoing);
-  let preview = preview_of(m, step, label);
-  let exact = Exp.fast_equal(outgoing, preview);
+  let stepped = offered_step_at_source(m, step, label);
+  let exact = Exp.fast_equal(outgoing, stepped);
   if (!exact) {
     print_endline("CHECKER  " ++ label ++ ": " ++ Test_ProofMap.print_exp(outgoing));
-    print_endline("STEPPER  " ++ label ++ ": " ++ Test_ProofMap.print_exp(preview));
+    print_endline("STEPPED  " ++ label ++ ": " ++ Test_ProofMap.print_exp(stepped));
   };
-  check(bool, label ++ ": checker outgoing == stepper preview", true, exact);
+  check(
+    bool,
+    label ++ ": checker outgoing == offered step taken at its source",
+    true,
+    exact,
+  );
+  Option.iter(
+    expect => check_literal_outgoing(label, ~expect, outgoing),
+    expect_outgoing,
+  );
   /* The other case is untouched by the write. */
   check(
     bool,
@@ -501,7 +562,7 @@ let tests = (
       offers_app("pos(e)", pos_skeleton, "t")
     ),
     test_case(
-      "recursive all_lists: written eval checks to the stepper's take",
+      "recursive all_lists: written eval checks freshly and agrees with the offered step",
       `Quick,
       () =>
       written_checks(
@@ -511,10 +572,11 @@ let tests = (
         ~pick=List.find_opt(not_lookup),
         ~expect_text="all_lists(xs)",
         ~expect_idx=0,
+        (),
       )
     ),
     test_case(
-      "non-recursive all_lists: written eval checks to the stepper's take",
+      "non-recursive all_lists: written eval checks freshly and agrees with the offered step",
       `Quick,
       () =>
       written_checks(
@@ -524,9 +586,10 @@ let tests = (
         ~pick=List.find_opt(not_lookup),
         ~expect_text="all_lists(xs)",
         ~expect_idx=0,
+        (),
       )
     ),
-    test_case("pos(e): written eval checks to the stepper's take", `Quick, () =>
+    test_case("pos(e): written eval checks freshly and agrees with the offered step", `Quick, () =>
       written_checks(
         "pos",
         pos_skeleton,
@@ -534,9 +597,10 @@ let tests = (
         ~pick=List.find_opt(not_lookup),
         ~expect_text="pos(e)",
         ~expect_idx=0,
+        (),
       )
     ),
-    test_case("closed: written eval checks to the stepper's take", `Quick, () =>
+    test_case("closed: written eval checks freshly and agrees with the offered step", `Quick, () =>
       written_checks(
         "closed",
         closed,
@@ -544,6 +608,8 @@ let tests = (
         ~pick=List.find_opt(not_lookup),
         ~expect_text="1 + 1",
         ~expect_idx=0,
+        ~expect_outgoing="2 == 2",
+        (),
       )
     ),
     test_case(
@@ -555,6 +621,8 @@ let tests = (
         ~src=rec_cases,
         0,
         ~expect_text="all_lists([])",
+        ~expect_outgoing="true == true",
+        (),
       )
     ),
     test_case(
@@ -566,6 +634,7 @@ let tests = (
         ~src=rec_cases,
         1,
         ~expect_text="all_lists(x :: t)",
+        (),
       )
     ),
     test_case(
@@ -577,6 +646,8 @@ let tests = (
         ~src=rec_cases_bare,
         0,
         ~expect_text="all_lists([])",
+        ~expect_outgoing="true == true",
+        (),
       )
     ),
     test_case(
@@ -588,17 +659,25 @@ let tests = (
         ~src=rec_cases_bare,
         1,
         ~expect_text="all_lists(x :: t)",
+        (),
       )
     ),
     test_case(
       "repeated all_lists(xs): each occurrence keeps its index",
       `Quick,
       () => {
-        let steps = steps_of(app_root(rec_twice, "every"));
+        let root = app_root(rec_twice, "every");
+        let steps = steps_of(root);
         show_steps("twice", steps);
         check(int, "two offered steps", 2, List.length(steps));
+        let sides =
+          List.mapi(
+            (i, s) => side_of("twice#" ++ string_of_int(i), model_of(root), s),
+            steps,
+          );
+        check(bool, "the two steps write different operands", true, List.nth(sides, 0) != List.nth(sides, 1));
         List.iteri(
-          (i, _) =>
+          (i, side) =>
             written_checks(
               "twice#" ++ string_of_int(i),
               rec_twice,
@@ -606,8 +685,55 @@ let tests = (
               ~pick=steps' => List.nth_opt(steps', i),
               ~expect_text="all_lists(xs)",
               ~expect_idx=i,
+              /* The other copy is untouched. */
+              ~check_outgoing=
+                outgoing => {
+                  let (l, r) = eq_sides(outgoing);
+                  check(
+                    bool,
+                    "twice#" ++ string_of_int(i) ++ ": other copy untouched",
+                    true,
+                    Exp.fast_equal(
+                      side == `Left ? r : l,
+                      Test_Evaluator_Prelude.parse_exp("all_lists(xs)"),
+                    ),
+                  );
+                },
+              (),
             ),
-          steps,
+          sides,
+        );
+      },
+    ),
+    test_case(
+      "repeated closed all_lists([]): only the written copy reduces",
+      `Quick,
+      () => {
+        let root = app_root(rec_twice_nil, "both");
+        let steps = steps_of(root);
+        check(int, "two offered steps", 2, List.length(steps));
+        let sides =
+          List.mapi(
+            (i, s) =>
+              side_of("twice-nil#" ++ string_of_int(i), model_of(root), s),
+            steps,
+          );
+        check(bool, "the two steps write different operands", true, List.nth(sides, 0) != List.nth(sides, 1));
+        List.iteri(
+          (i, side) =>
+            written_checks(
+              "twice-nil#" ++ string_of_int(i),
+              rec_twice_nil,
+              "both",
+              ~pick=steps' => List.nth_opt(steps', i),
+              ~expect_text="all_lists([])",
+              ~expect_idx=i,
+              ~expect_outgoing=
+                side == `Left
+                  ? "true == all_lists([])" : "all_lists([]) == true",
+              (),
+            ),
+          sides,
         );
       },
     ),

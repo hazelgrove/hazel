@@ -240,31 +240,25 @@ module Update = {
    * around it: `eval all_lists(xs) at <n> end`. Each offered step keeps
    * that source node of the written goal; the rest of the goal is
    * untouched, and nothing is mapped across a change of shape. */
+  /* Fail-closed bounds: more silent steps than this, or a source deeper
+   * in its occurrence list than this, offers nothing. */
   let max_silent_steps = 64;
   let max_occurrence_idx = 64;
 
-  let is_proof_silent = (s: EvaluatorStep.step): bool =>
-    EvaluatorStep.get_step_kind(s) == Transition.VarLookup;
-
-  /* The checker's eval step on `e` (Evaluator.re, `step`): hidden steps
-   * and a leading silent step, then the first available step. Bounded;
-   * None when the bound runs out or nothing visible remains. */
-  let checker_step = (~env, e: Exp.t): option(EvaluatorStep.step) => {
-    let rec go = (fuel, e) =>
-      fuel <= 0
-        ? None
-        : (
-          switch (EvaluatorStep.get_status(~settings=CoreSettings.on, e, env)) {
-          | AutoStep(s) => take(fuel, s)
-          | AvailableSteps([s, ..._]) when is_proof_silent(s) => take(fuel, s)
-          | AvailableSteps([s, ..._]) => Some(s)
-          | AvailableSteps([]) => None
-          }
-        )
-    and take = (fuel, s) =>
-      Option.bind(EvaluatorStep.take_step(s), go(fuel - 1));
-    go(max_silent_steps, e);
-  };
+  /* The checker's eval step on `e` (Evaluator.re, `step`): the shared
+   * silent steps (Evaluator.advance_hidden, bounded here), then the first
+   * available step. None when the bound runs out or nothing visible
+   * remains. */
+  let checker_step = (~env, e: Exp.t): option(EvaluatorStep.step) =>
+    switch (Evaluator.advance_hidden(~max_steps=max_silent_steps, ~env, e)) {
+    | Some((_, e)) =>
+      switch (EvaluatorStep.get_status(~settings=CoreSettings.on, e, env)) {
+      | AvailableSteps([s, ..._]) => Some(s)
+      | AvailableSteps([])
+      | AutoStep(_) => None
+      }
+    | None => None
+    };
 
   exception Ancestors(list(Exp.t));
 

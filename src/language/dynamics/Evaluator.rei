@@ -25,6 +25,19 @@ type limited_result =
  * checking (which needs typing context that EvalInfoMap deliberately omits).
  * Defaults to empty; callers without statics or in postMessage paths should
  * leave it empty (proof-checking becomes a no-op there). */
+/* Proof-level `eval` silent steps, shared by the checker's eval step and
+ * the stepper's step picker: hidden (AutoStep) transitions and a LEADING
+ * `VarLookup` (`is_proof_silent`), each collected as
+ * (input, justification, output) with the resulting expression.
+ * Unbounded unless `max_steps` is given (the checker passes none, and so
+ * always gets Some); with it, None once `max_steps` steps were taken and
+ * another remains. */
+let is_proof_silent: EvaluatorStep.step => bool;
+
+let advance_hidden:
+  (~max_steps: int=?, ~env: Environment.t(Exp.t), Exp.t) =>
+  option((list((Exp.t, string, Exp.t)), Exp.t));
+
 let evaluate:
   (
     ~prev: EvaluatorState.incr_eval=?,

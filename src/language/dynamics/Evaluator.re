@@ -58,6 +58,68 @@ module EvaluatorEVMode: {
 
 module Eval = Transition(EvaluatorEVMode);
 
+/* Proof-level `eval <exp> at <idx> end` silent steps, shared by the
+ * checker's eval step (below, `evaluate`'s Theorem hook) and the stepper's
+ * step picker (MissingStep).
+ *
+ * For proof-level `eval <exp> at <idx> end` the user's mental model of
+ * "one step" differs slightly from the UI stepper: they want to see
+ * meaningful β/δ-reductions only. In addition to the usual auto-hidden
+ * steps (RemoveParens, FixUnwrap, CaseApply with default settings, ...)
+ * we also silently advance through `VarLookup` steps, which are cosmetic
+ * (binding a name to its definition). */
+let is_proof_silent = (s: EvaluatorStep.step) =>
+  switch (EvaluatorStep.get_step_kind(s)) {
+  | VarLookup => true
+  | _ => false
+  };
+
+/* Collect each hidden transition as input / justification / output,
+ * then let the caller project the side that fits its position around
+ * the visible step. Unbounded unless `max_steps` is given; then None when
+ * `max_steps` steps were taken and another hidden step remains. */
+let advance_hidden =
+    (~max_steps: option(int)=?, ~env, e)
+    : option((list((Exp.t, string, Exp.t)), Exp.t)) => {
+  let out_of_steps = taken =>
+    switch (max_steps) {
+    | Some(max) => taken >= max
+    | None => false
+    };
+  let rec advance_hidden = (~taken, ~env, e) =>
+    switch (EvaluatorStep.get_status(~settings=CoreSettings.on, e, env)) {
+    | AutoStep(_) when out_of_steps(taken) => None
+    | AvailableSteps([s, ..._]) when is_proof_silent(s) && out_of_steps(taken) =>
+      None
+    | AutoStep(s) =>
+      switch (EvaluatorStep.take_step(s)) {
+      | Some(next) =>
+        switch (advance_hidden(~taken=taken + 1, ~env, next)) {
+        | Some((rest, outgoing)) =>
+          let justification =
+            s |> EvaluatorStep.get_step_kind |> stepper_justification;
+          Some(([(e, justification, next), ...rest], outgoing));
+        | None => None
+        }
+      | None => Some(([], e))
+      }
+    | AvailableSteps([s, ..._]) when is_proof_silent(s) =>
+      switch (EvaluatorStep.take_step(s)) {
+      | Some(next) =>
+        switch (advance_hidden(~taken=taken + 1, ~env, next)) {
+        | Some((rest, outgoing)) =>
+          let justification =
+            s |> EvaluatorStep.get_step_kind |> stepper_justification;
+          Some(([(e, justification, next), ...rest], outgoing));
+        | None => None
+        }
+      | None => Some(([], e))
+      }
+    | AvailableSteps(_) => Some(([], e))
+    };
+  advance_hidden(~taken=0, ~env, e);
+};
+
 let rec evaluate =
         // Constants
         (
@@ -109,46 +171,13 @@ let rec evaluate =
         SemanticCtx.of_program_state(ctx, env),
         goal,
       );
-    /* Single-step callback injected into ProofCheck.
-     *
-     * For proof-level `eval <exp> at <idx> end` the user's mental model
-     * of "one step" differs slightly from the UI stepper: they want to
-     * see meaningful β/δ-reductions only. In addition to the usual
-     * auto-hidden steps (RemoveParens, FixUnwrap, CaseApply with
-     * default settings, ...) we also silently advance through
-     * `VarLookup` steps, which are cosmetic (binding a name to its
-     * definition). We then take one user-visible transition and again
-     * skip any trailing silent steps. */
-    let is_proof_silent = (s: EvaluatorStep.step) =>
-      switch (EvaluatorStep.get_step_kind(s)) {
-      | VarLookup => true
-      | _ => false
-      };
-    /* Collect each hidden transition as input / justification / output,
-     * then let the caller project the side that fits its position around
-     * the visible step. */
-    let rec advance_hidden =
-            (~env, e): (list((Exp.t, string, Exp.t)), Exp.t) =>
-      switch (EvaluatorStep.get_status(~settings=CoreSettings.on, e, env)) {
-      | AutoStep(s) =>
-        switch (EvaluatorStep.take_step(s)) {
-        | Some(next) =>
-          let (rest, outgoing) = advance_hidden(~env, next);
-          let justification =
-            s |> EvaluatorStep.get_step_kind |> stepper_justification;
-          ([(e, justification, next), ...rest], outgoing);
-        | None => ([], e)
-        }
-      | AvailableSteps([s, ..._]) when is_proof_silent(s) =>
-        switch (EvaluatorStep.take_step(s)) {
-        | Some(next) =>
-          let (rest, outgoing) = advance_hidden(~env, next);
-          let justification =
-            s |> EvaluatorStep.get_step_kind |> stepper_justification;
-          ([(e, justification, next), ...rest], outgoing);
-        | None => ([], e)
-        }
-      | AvailableSteps(_) => ([], e)
+    /* Single-step callback injected into ProofCheck: the silent steps
+     * (top-level `advance_hidden`, unbounded here, so always Some), then
+     * one user-visible transition, and again any trailing silent steps. */
+    let advance_hidden = (~env, e): (list((Exp.t, string, Exp.t)), Exp.t) =>
+      switch (advance_hidden(~env, e)) {
+      | Some(advanced) => advanced
+      | None => ([], e)
       };
     let step: ProofCheck.step_fn = (
       (~env, e) => {
