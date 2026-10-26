@@ -41,8 +41,7 @@ let map_sharing = (f: 'a => 'a, xs: list('a)): list('a) => {
    pieces [within]; untouched subtrees stay the same values (the parse
    caches compare by identity) */
 let rec relabel_by =
-        (~within=_ => true, name_of: Id.t => option(string), seg: Segment.t)
-        : Segment.t =>
+        (~within, name_of: Id.t => option(string), seg: Segment.t): Segment.t =>
   map_sharing(relabel_piece_by(~within, name_of), seg)
 and relabel_piece_by = (~within, name_of, p: Piece.t): Piece.t =>
   switch (p) {
