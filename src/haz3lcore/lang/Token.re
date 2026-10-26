@@ -226,6 +226,7 @@ let base_typs = [
   "Float",
   "Int",
   "Nat",
+  "Rational",
   "SInt",
   "String",
   "Void",

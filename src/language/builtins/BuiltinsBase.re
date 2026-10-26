@@ -293,6 +293,30 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
       }),
     custom_statics: None,
   },
+  {
+    /* The rational n/d in lowest terms. */
+    name: "rat",
+    arg: Prod([int(), int()]),
+    ret: Atom(Rat),
+    imp: d =>
+      d
+      |> binary((d1, d2) => {
+           open Exp;
+           let-unbox n = (Atom(Int), d1);
+           let-unbox m = (Atom(Int), d2);
+           switch (Rational.make(n, m)) {
+           | Some(r) => Some(basic(Rat(r)))
+           | None =>
+             Some(
+               dynamic_error_hole(
+                 ap(Forward, builtin_fun("rat"), d),
+                 DivideByZero,
+               ),
+             )
+           };
+         }),
+    custom_statics: None,
+  },
 ];
 
 let string_fns: list(BuiltinsUtil.fn) = [

@@ -108,6 +108,7 @@ rule token =
     | ":" { COLON }
     (* Types *)
     | "Int" { INT_TYPE }
+    | "Rational" { RATIONAL_TYPE }
     | "Float" { FLOAT_TYPE }
     | "Bool" { BOOL_TYPE }
     | "String" { STRING_TYPE }

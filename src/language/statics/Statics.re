@@ -3135,6 +3135,16 @@ and upat_to_info_map =
           ~constraint_=Coverage.Constraint.String(string),
           m,
         )
+      // There are no rational literal patterns, so nothing to refine on
+      | L(Rat(r)) =>
+        add(
+          ~elab_term=Atom(Rat(r)) |> rewrap,
+          ~elab_syn_ty=Atom(Rat) |> Typ.temp,
+          ~marks=[],
+          ~ctx,
+          ~constraint_=Coverage.Constraint.Hole(None),
+          m,
+        )
       | R(BadInt(str)) =>
         add(
           ~elab_term=Invalid(str) |> rewrap,

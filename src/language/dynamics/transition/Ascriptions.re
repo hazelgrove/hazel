@@ -87,13 +87,15 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       | (Nat(_), Nat)
       | (Float(_), Float)
       | (SInt(_), SInt)
-      | (Bool(_), Bool) => Some(e)
+      | (Bool(_), Bool)
+      | (Rat(_), Rat) => Some(e)
       | (Int(_), _)
       | (String(_), _)
       | (Nat(_), _)
       | (Float(_), _)
       | (SInt(_), _)
-      | (Bool(_), _) => None
+      | (Bool(_), _)
+      | (Rat(_), _) => None
       }
     | (ListLit(ds), List(ty)) =>
       Some(

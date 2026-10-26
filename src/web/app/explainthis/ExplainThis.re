@@ -819,6 +819,7 @@ let get_doc =
       | Atom(Float(f)) => get_message(TerminalExp.float_exps(f))
       | Atom(String(s)) => get_message(TerminalExp.string_exps(s))
       | Atom(Nat(i)) => get_message(TerminalExp.nat_exps(i))
+      | Atom(Rat(r)) => get_message(TerminalExp.rational_exps(r))
       | ListLit(terms) =>
         get_message(
           ~format=
@@ -1383,6 +1384,7 @@ let get_doc =
         | Label(_)
         | ExplicitNonlabel
         | Projector(_)
+        | Atom(Rat(_)) // there are no rational literal patterns
         | Asc(_)
         | Where(_) => default // Shouldn't get hit?
         };
@@ -1982,6 +1984,7 @@ let get_doc =
         | Invalid(_) => default // Shouldn't get hit
         | Parens(_)
         | Projector(_)
+        | Atom(Rat(_)) // there are no rational literal patterns
         | Asc(_)
         | Where(_) => default // Shouldn't get hit?
         };
@@ -2730,8 +2733,9 @@ let get_doc =
         "Guarded pattern. Matches when the left pattern matches AND the boolean guard holds under its bindings; inside the body the guard is a citable `where` fact.",
       )
     | Parens(_)
-    | Projector(_) =>
-      // Shouldn't be hit?
+    | Projector(_)
+    | Atom(Rat(_)) =>
+      // Shouldn't be hit? (there are no rational literal patterns)
       default
     }
   | Some(InfoTyp({user_term: term, _} as typ_info)) =>
@@ -2748,6 +2752,7 @@ let get_doc =
     | Atom(Bool) => get_message(TerminalTyp.bool)
     | Atom(String) => get_message(TerminalTyp.str)
     | Atom(Nat) => get_message(TerminalTyp.nat)
+    | Atom(Rat) => get_message(TerminalTyp.rational)
     | List(elem) =>
       let elem_id = List.nth(IdTagged.ids(elem), 0);
       get_message(

@@ -77,6 +77,7 @@ let show_cls: cls => string =
   | Atom(String) => "String literal"
   | Atom(Nat) => "Natural number literal"
   | Atom(SInt) => "System integer literal"
+  | Atom(Rat) => "Rational number"
   | ListLit => "List literal"
   | Constructor => "Constructor"
   | Cons => "Cons"

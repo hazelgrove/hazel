@@ -98,6 +98,7 @@ open AST
 
 (* type tokens *)
 %token INT_TYPE
+%token RATIONAL_TYPE
 %token FLOAT_TYPE
 %token BOOL_TYPE
 %token STRING_TYPE
@@ -287,6 +288,7 @@ typ:
     | T_TYP; s = STRING { InvalidTyp(s) }
     | PROJECTOR_INVOKE; OPEN_PAREN; t = typ; CLOSE_PAREN; { t }
     | INT_TYPE { IntType }
+    | RATIONAL_TYPE { RationalType }
     | FLOAT_TYPE { FloatType }
     | BOOL_TYPE { BoolType }
     | STRING_TYPE { StringType }

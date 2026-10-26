@@ -462,6 +462,7 @@ and Typ: {
     | BoolType => bool()
     | StringType => string()
     | NatType => nat()
+    | RationalType => rational()
     | VoidType => parens(sum([]))
     | UnknownType(p) =>
       switch (p) {
@@ -529,6 +530,7 @@ and Typ: {
     | Atom(String) => StringType
     | Atom(Bool) => BoolType
     | Atom(Nat) => NatType
+    | Atom(Rat) => RationalType
     | Var(x) => TypVar(x)
     | Prod(ts) => TupleType(List.map(of_core, ts))
     | List(t) => ArrayType(of_core(t))

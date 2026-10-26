@@ -226,6 +226,7 @@ type form_id =
   | IntExp
   | SIntExp
   | NatExp
+  | RationalExp
   | FloatExp
   | StringExp
   | VarExp
@@ -284,6 +285,7 @@ type form_id =
   | IntTyp
   | SIntTyp
   | NatTyp
+  | RationalTyp
   | FloatTyp
   | BoolTyp
   | StrTyp
@@ -373,6 +375,7 @@ type group_id =
   | IntExp
   | SIntExp
   | NatExp
+  | RationalExp
   | FloatExp
   | StringExp
   | VarExp
@@ -435,6 +438,7 @@ type group_id =
   | IntTyp
   | SIntTyp
   | NatTyp
+  | RationalTyp
   | FloatTyp
   | BoolTyp
   | StrTyp

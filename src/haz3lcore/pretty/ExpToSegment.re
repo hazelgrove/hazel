@@ -231,6 +231,8 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
 
   // Binary operations are handled in Precedence.re
   | BinOp(op, _, _) => Precedence.of_bin_op(op)
+  // A rational displays as a division, so it is grouped like one
+  | Atom(Rat(_)) => Precedence.of_bin_op(Int(Divide))
 
   // Indivisible forms never need parentheses around them
   | Var(_)
@@ -297,7 +299,7 @@ let external_precedence_pat = (dp: Pat.t) =>
   | ExplicitNonlabel
   | Invalid(_)
   | Var(_)
-  | Atom(Bool(_) | Int(_) | SInt(_) | Float(_) | String(_) | Nat(_))
+  | Atom(Bool(_) | Int(_) | SInt(_) | Float(_) | String(_) | Nat(_) | Rat(_))
   | Constructor(_)
   | Label(_)
   | TupLabel(_) => Precedence.max
@@ -2119,6 +2121,18 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     wrap(exp, seg);
   | Undefined =>
     wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "undefined"))
+  /* The fraction text of Atom.to_literal, as integer tiles around a
+     division tile. Display only: it reparses as integer division. */
+  | Atom(Rat(r)) =>
+    go({
+      ...exp,
+      term:
+        BinOp(
+          Int(Divide),
+          Exp.fresh(Atom(Int(Rational.num(r)))),
+          Exp.fresh(Atom(Int(Rational.den(r)))),
+        ),
+    })
   | Atom(c) =>
     wrap(
       exp,
@@ -3169,6 +3183,8 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Int"))
   | Atom(SInt) =>
     wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "SInt"))
+  | Atom(Rat) =>
+    wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Rational"))
   | Atom(Float) =>
     wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Float"))
   | Atom(Bool) =>

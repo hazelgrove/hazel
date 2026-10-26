@@ -133,6 +133,9 @@ let rec match_exp =
   | (Atom(SInt(_)), _) => None
   | (Atom(Nat(i1)), Atom(Nat(i2))) when i1 == i2 => Some(ctx)
   | (Atom(Nat(_)), _) => None
+  | (Atom(Rat(r1)), Atom(Rat(r2))) when Rational.equal(r1, r2) =>
+    Some(ctx)
+  | (Atom(Rat(_)), _) => None
   | (ListLit(xs), ListLit(ys)) when List.length(xs) == List.length(ys) =>
     ListUtil.fold_left_opt(
       (ctx, (x, y)) => match_exp(alphas, ctx, x, y),
@@ -351,6 +354,8 @@ and match_pat = (pat_r: Pat.t, pat: Pat.t): option(alphas) =>
   | (Atom(SInt(_)), _) => None
   | (Atom(Nat(i1)), Atom(Nat(i2))) when i1 == i2 => Some([])
   | (Atom(Nat(_)), _) => None
+  | (Atom(Rat(r1)), Atom(Rat(r2))) when Rational.equal(r1, r2) => Some([])
+  | (Atom(Rat(_)), _) => None
   | (ListLit(xs), ListLit(ys)) when List.length(xs) == List.length(ys) =>
     ListUtil.fold_left_opt(
       (alphas, (x, y)) =>

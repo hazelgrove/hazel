@@ -81,6 +81,18 @@ let nat_exps = (i: Bigint.t): group => {
   forms: [nat_exp(i)],
 };
 
+let rational_exp = (r: Util.Rational.t): form => {
+  id: RationalExp,
+  syntactic_form: [Language.Atom.to_literal(Rat(r)) |> exp],
+  expandable_id: None,
+  explanation: "An exact rational number, shown as a fraction in lowest terms. Construct one with `rat(numerator, denominator)`.",
+  examples: [],
+};
+let rational_exps = (r: Util.Rational.t): group => {
+  id: RationalExp,
+  forms: [rational_exp(r)],
+};
+
 let float_exp = (f: float): form => {
   id: FloatExp,
   syntactic_form: [f |> string_of_float |> exp],

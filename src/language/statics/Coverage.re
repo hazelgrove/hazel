@@ -135,6 +135,7 @@ module Ctr = {
     | Atom(Float)
     | Atom(Nat)
     | Atom(String)
+    | Atom(Rat)
     | DrvQuoteTy(_)
     | Arrow(_)
     | Poly(_)
@@ -377,6 +378,8 @@ module UnseenPatternList: UnseenPatternList = {
         };
       cons_pat_t(boolTyp, unseen_pattern);
     | Unknown(_) => cons_pat_t(wild(), unseen_pattern)
+    // there are no rational literal patterns
+    | Atom(Rat) => cons_pat_t(wild(), unseen_pattern)
     | Atom(Int) =>
       cons_pat_t(
         // while the user is perfroming actions, parse errors can occur.
@@ -558,6 +561,7 @@ module UnseenPatternList: UnseenPatternList = {
       };
 
       cons_ctr(first_unused_str(""), col_type, unseen_pattern);
+    | Atom(Rat) => cons_wild(unseen_pattern)
     | Arrow(_)
     | Poly(_)
     | DrvQuoteTy(_)
@@ -622,6 +626,7 @@ module UnseenPatternList: UnseenPatternList = {
     | Atom(SInt) => cons_wild(unseen_pattern)
     | Atom(Float) => cons_wild(unseen_pattern)
     | Atom(String) => cons_wild(unseen_pattern)
+    | Atom(Rat) => cons_wild(unseen_pattern)
     | Arrow(_)
     | Poly(_)
     | DrvQuoteTy(_)

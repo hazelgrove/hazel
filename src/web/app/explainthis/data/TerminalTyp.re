@@ -34,6 +34,17 @@ let nat_typ: form = {
   };
 };
 
+let rational_typ: form = {
+  let explanation = "The `Rational` type classifies exact rational numbers, built with `rat(numerator, denominator)`.";
+  {
+    id: RationalTyp,
+    syntactic_form: [typ("Rational")],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
+
 let float_typ: form = {
   let explanation = "The `Float` type classifies 64-bit floating-point values according to the IEEE 754 standard.";
   {
@@ -109,6 +120,10 @@ let sint: group = {
 let nat: group = {
   id: NatTyp,
   forms: [nat_typ],
+};
+let rational: group = {
+  id: RationalTyp,
+  forms: [rational_typ],
 };
 
 let float: group = {

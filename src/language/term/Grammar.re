@@ -1198,6 +1198,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Atom(Nat),
       annotation: default_annotation(ann),
     };
+    let rational = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
+      term: Atom(Rat),
+      annotation: default_annotation(ann),
+    };
     let drv_typ = (~ann=?, s): typ_t(DefaultAnnotation.t) => {
       term: DrvQuoteTy(s),
       annotation: default_annotation(ann),

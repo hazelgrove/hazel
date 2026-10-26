@@ -1155,6 +1155,7 @@ let rec pretty_print = (ty: t): string =>
   | DrvQuoteTy(d) => DrvSort.to_string(d)
   | Atom(Nat) => "Nat"
   | Atom(SInt) => "SInt"
+  | Atom(Rat) => "Rational"
   | Var(tvar) => tvar
   | List(t) => "[" ++ pretty_print(t) ++ "]"
   | Arrow(t1, t2) => paren_pretty_print(t1) ++ " -> " ++ pretty_print(t2)

@@ -88,6 +88,7 @@ type typ =
   | FloatType
   | BoolType
   | NatType
+  | RationalType
   | VoidType
   | SumTyp(sumtype)
   | UnknownType(typ_provenance)
@@ -1370,7 +1371,8 @@ and shrink_typ: QCheck.Shrink.t(typ) =
         | StringType
         | FloatType
         | BoolType
-        | NatType => return(TupleType([]))
+        | NatType
+        | RationalType => return(TupleType([]))
         | VoidType
         | IndicationTyp(_)
         | UnknownType(_)

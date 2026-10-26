@@ -154,7 +154,9 @@ let zero_lit = (cls: Atom.cls): option(Exp.t) =>
   | Nat => Some(Exp.fresh(Atom(Nat(Bigint.zero))))
   | Float
   | Bool
-  | String => None
+  | String
+  /* Fail closed: Rat gets no side conditions here (separate R5 grant). */
+  | Rat => None
   };
 
 /* `e >= 0` (nonneg=true) or `e <= 0` (nonneg=false), at `cls`. */

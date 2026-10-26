@@ -602,6 +602,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
         //TODO: smarter number summarization?
         wrap_or(Atom(Int(n)), Bigint.to_string(n))
       | Atom(SInt(n)) => wrap_or(Atom(SInt(n)), string_of_int(n))
+      | Atom(Rat(r)) => wrap_or(Atom(Rat(r)), Atom.to_literal(Rat(r)))
       | Atom(Float(f)) =>
         Invalid(abbreviate_str(available^, string_of_float(f)))
 
@@ -1369,6 +1370,7 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
       | Atom(Int(n)) => wrap_or(Atom(Int(n)), Bigint.to_string(n))
       | Atom(Nat(n)) => wrap_or(Atom(Nat(n)), Bigint.to_string(n))
       | Atom(SInt(n)) => wrap_or(Atom(SInt(n)), string_of_int(n))
+      | Atom(Rat(r)) => wrap_or(Atom(Rat(r)), Atom.to_literal(Rat(r)))
       | Atom(Float(f)) =>
         Invalid(abbreviate_str(available^, string_of_float(f)))
       | Atom(String(s)) =>
@@ -1610,6 +1612,13 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
           indet_term_typ;
         } else {
           Atom(Float);
+        }
+      | Atom(Rat) =>
+        if (available^ < 8) {
+          available := available^ - 1;
+          indet_term_typ;
+        } else {
+          Atom(Rat);
         }
       | Atom(Bool) =>
         if (available^ < 4) {

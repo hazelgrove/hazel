@@ -104,7 +104,8 @@ let numeric_bin_op = (cls: Atom.cls, op: op_bin_num): option(op_bin) =>
   | Nat => Some(Nat(op))
   | Float => Some(Float(op_bin_float_of_num(op)))
   | Bool
-  | String => None
+  | String
+  | Rat => None
   };
 
 [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
@@ -138,12 +139,13 @@ let replace_literal =
     | Some(i) => L(SInt(i))
     | None => R(BadInt(Bigint.to_string(n)))
     }
-  | (Int(n), Some(Bool | String), None) => L(Int(n))
+  | (Int(n), Some(Bool | String | Rat), None) => L(Int(n))
   | (SInt(n), _, _) => L(SInt(n))
   | (Float(n), _, _) => L(Float(n))
   | (Bool(b), _, _) => L(Bool(b))
   | (String(s), _, _) => L(String(s))
   | (Nat(n), _, _) => L(Nat(n))
+  | (Rat(r), _, _) => L(Rat(r))
   };
 };
 

@@ -9,7 +9,8 @@ type cls =
   | Nat
   | Float
   | Bool
-  | String;
+  | String
+  | Rat;
 
 /* This type is like cls, but each variant is associated with a type, allowing
    us to use the ocaml type checker to check we're using payloads correctly */
@@ -19,7 +20,8 @@ type kind('a) =
   | Nat: kind(Bigint.t)
   | Float: kind(float)
   | Bool: kind(bool)
-  | String: kind(string);
+  | String: kind(string)
+  | Rat: kind(Rational.t);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =
@@ -32,7 +34,8 @@ type t =
         [@equal (a, b) => Printf.(sprintf("%f", a) == sprintf("%f", b))] float,
       )
   | Bool(bool)
-  | String(string);
+  | String(string)
+  | Rat(Rational.t);
 
 let cls_of_kind = (type a, kind: kind(a)): cls =>
   switch (kind) {
@@ -42,6 +45,7 @@ let cls_of_kind = (type a, kind: kind(a)): cls =>
   | Float => Float
   | Bool => Bool
   | String => String
+  | Rat => Rat
   };
 
 let cls_of_t: t => cls =
@@ -51,7 +55,8 @@ let cls_of_t: t => cls =
   | Nat(_) => Nat
   | Float(_) => Float
   | Bool(_) => Bool
-  | String(_) => String;
+  | String(_) => String
+  | Rat(_) => Rat;
 
 let cls_string_lower: cls => string =
   fun
@@ -60,7 +65,8 @@ let cls_string_lower: cls => string =
   | Nat => "nat"
   | Float => "float"
   | Bool => "bool"
-  | String => "string";
+  | String => "string"
+  | Rat => "rat";
 
 /* ========== MATCHING ========== */
 
@@ -78,6 +84,8 @@ let unbox = (type a, request: kind(a), e: t): option(a) =>
   | (Bool, _) => None
   | (String, String(s)) => Some(s)
   | (String, _) => None
+  | (Rat, Rat(r)) => Some(r)
+  | (Rat, _) => None
   };
 
 // Note[Matt]: return wrapper needed for polymorphic types
@@ -92,6 +100,7 @@ let unpack = (e: t): wrapper =>
   | Float(f) => V(f, Float)
   | Bool(b) => V(b, Bool)
   | String(s) => V(s, String)
+  | Rat(r) => V(r, Rat)
   };
 
 let repack = (type a, kind: kind(a), x: a): t =>
@@ -102,6 +111,7 @@ let repack = (type a, kind: kind(a), x: a): t =>
   | Float => Float(x)
   | Bool => Bool(x)
   | String => String(x)
+  | Rat => Rat(x)
   };
 
 // Mpte[Matt]: return wrapper needed for polymorphic types
@@ -116,6 +126,7 @@ let (let.cls) = (type b, cls: cls, f: cls_wrapper => b): b =>
   | Float => f(W(Float))
   | Bool => f(W(Bool))
   | String => f(W(String))
+  | Rat => f(W(Rat))
   };
 
 /* ========== CONVERSION ========== */
@@ -207,6 +218,11 @@ let convert =
     | Some(b) => L(b)
     | None => R(InvalidOperationError.InvalidOfString)
     }
+
+  /* No conversions to or from Rat are offered yet; see has_builtins. */
+  | (Rat, Rat) => L(v)
+  | (Rat, _)
+  | (_, Rat) => failwith("Atom.convert: no conversions involving Rat")
   };
 };
 
@@ -218,9 +234,27 @@ let to_literal = (e: t): string =>
   | Float(f) => Printf.sprintf("%f", f)
   | Bool(b) => b |> string_of_bool
   | String(s) => "\"" ++ s ++ "\""
+  /* Display text only: a fraction, never reparsed as a rational. */
+  | Rat(r) =>
+    Bigint.to_string(Rational.num(r))
+    ++ "/"
+    ++ Bigint.to_string(Rational.den(r))
   };
 
 /* ========== BUILTINS ========== */
+
+/* Whether a class takes part in the generated conversion and compare
+   builtins. Rat has none yet: its only public builtin is the rat
+   constructor. */
+let has_builtins: cls => bool =
+  fun
+  | Int
+  | SInt
+  | Nat
+  | Float
+  | Bool
+  | String => true
+  | Rat => false;
 
 type builtin =
   | OneFun(kind('a), kind('b), 'a => Either.t('b, InvalidOperationError.t))
@@ -248,7 +282,8 @@ let compare_of_cls: cls => option(compare_entry) =
   | Nat => Some(Cmp(Nat, Bigint.compare))
   | Float => Some(Cmp(Float, Float.compare))
   | String => Some(Cmp(String, String.compare))
-  | Bool => None;
+  | Bool => None
+  | Rat => None;
 
 let compare_builtin = (cls: cls): option(string) =>
   compare_of_cls(cls) |> Option.map(_ => cls_string_lower(cls) ++ "_compare");
@@ -263,7 +298,7 @@ let compare_builtins: list((string, compare_entry)) =
 let conversions_from = (from_: cls): list((string, cls)) =>
   all_of_cls
   |> List.filter_map(to_ =>
-       if (from_ == to_) {
+       if (from_ == to_ || !has_builtins(from_) || !has_builtins(to_)) {
          None;
        } else {
          Some((

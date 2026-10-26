@@ -185,6 +185,8 @@ let rec ty_comparable = (d1, d2) => {
     | (String(_), _) => false
     | (Float(_), Float(_)) => true
     | (Float(_), _) => false
+    | (Rat(_), Rat(_)) => true
+    | (Rat(_), _) => false
     }
   | (Atom(_), _) => false
   | (DrvQuote(_, t1), DrvQuote(_, t2)) => t1 == t2
@@ -294,6 +296,8 @@ let rec poly_equal = (d1, d2): option(bool) => {
       | (String(_), _) => false
       | (Float(f1), Float(f2)) => f1 == f2
       | (Float(_), _) => false
+      | (Rat(r1), Rat(r2)) => Rational.equal(r1, r2)
+      | (Rat(_), _) => false
       }
     )
     |> Option.some
