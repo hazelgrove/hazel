@@ -213,8 +213,10 @@ let find_seq_parent_in_exp =
  * and an elaborated Rational operator prints as the shared `+`, `*`, ...,
  * which reparses in the ambient (by default Int) mode. So a program write
  * spells every Rational node inside the reserved mode region
- * `(use Rational in ...)`, and every Int node inside such a region in
- * `(use Int in ...)`, which `use Rational` would otherwise re-kind. `use`,
+ * `(use Rational in ...)`, and every Int, Nat or SInt node inside a
+ * writer-created region of another mode in its own `(use Int in ...)`,
+ * `(use Nat in ...)` or `(use SInt in ...)`, which the enclosing `use`
+ * would otherwise re-kind. `use`,
  * the base type names, the operators and the literals cannot be rebound
  * by user code, so the text reparses to the same values and operator
  * kinds wherever it lands. In a region, a whole non-negative Rational is
@@ -224,12 +226,14 @@ let find_seq_parent_in_exp =
  * evaluated terms change. A rewritten atom's id moves to its replacement;
  * a wrapped operator keeps its own id. */
 let rational_as_source = (): ((Exp.t => Exp.t, Exp.t) => Exp.t) => {
-  let in_rat = ref(false);
-  let within = (rat: bool, f: unit => Exp.t): Exp.t => {
-    let outer = in_rat^;
-    in_rat := rat;
+  /* The use mode of the writer-created region being written, if any. None
+     outside one: the target program's own (ambient) mode is left as is. */
+  let mode = ref(None);
+  let within = (cls: Atom.cls, f: unit => Exp.t): Exp.t => {
+    let outer = mode^;
+    mode := Some(cls);
     let e = f();
-    in_rat := outer;
+    mode := outer;
     e;
   };
   let region = (cls: Atom.cls, body: Exp.t): Exp.t =>
@@ -241,21 +245,40 @@ let rational_as_source = (): ((Exp.t => Exp.t, Exp.t) => Exp.t) => {
       ? Atom(Int(Rational.num(r)))
       : BinOp(Int(Divide), int(Rational.num(r)), int(Rational.den(r)));
   };
+  /* Int, Nat and SInt nodes share literal and operator syntax, so the
+     enclosing `use` decides their class on reparse. */
+  let integral = (e: Exp.t): option(Atom.cls) =>
+    switch (e.term) {
+    | Atom(Int(_))
+    | BinOp(Int(_), _, _)
+    | UnOp(Int(_), _) => Some(Int)
+    | Atom(Nat(_))
+    | BinOp(Nat(_), _, _)
+    | UnOp(Nat(_), _) => Some(Nat)
+    | Atom(SInt(_))
+    | BinOp(SInt(_), _, _)
+    | UnOp(SInt(_), _) => Some(SInt)
+    | _ => None
+    };
   (continue, e: Exp.t) =>
     switch (e.term) {
-    | Atom(Rat(r)) when in_rat^ => {...e, term: rat_term(r)}
+    | Atom(Rat(r)) when mode^ == Some(Rat) => {...e, term: rat_term(r)}
     | Atom(Rat(r)) => {
         ...e,
         term: Parens(Exp.fresh(Use(Typ.fresh_atom(Rat), Exp.fresh(rat_term(r))))),
       }
     | BinOp(Rat(_), _, _)
     | UnOp(Rat(_), _) =>
-      in_rat^ ? continue(e) : region(Rat, within(true, () => continue(e)))
-    | BinOp(Int(_), _, _)
-    | UnOp(Int(_), _)
-    | Atom(Int(_)) when in_rat^ =>
-      region(Int, within(false, () => continue(e)))
-    | _ => continue(e)
+      mode^ == Some(Rat)
+        ? continue(e) : region(Rat, within(Rat, () => continue(e)))
+    | _ =>
+      switch (integral(e)) {
+      /* Inside a writer-created region of another mode, an integral node
+         keeps its own class in its own region. */
+      | Some(cls) when mode^ != None && mode^ != Some(cls) =>
+        region(cls, within(cls, () => continue(e)))
+      | _ => continue(e)
+      }
     };
 };
 
