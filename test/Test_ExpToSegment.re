@@ -1584,8 +1584,11 @@ let arb_segment_fixpoint =
   QCheck.Test.make(
     ~name="ExpToSegment: PreserveExact segment fixpoint on generated exps",
     ~count=50,
-    QCheck_Util.arb_exp(~minimal_idents=true, 5),
+    QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
     exp => {
+      /* Module items MakeTerm cannot mold yet; see
+         Test_Menhir.is_unsupported_mod_item. */
+      QCheck.assume(!Test_Menhir.has_unsupported_mod_item(exp));
       let text =
         exp
         |> ExpToSegment.exp_to_segment(
@@ -1647,10 +1650,11 @@ let arb_perturbed_fixpoint =
       "ExpToSegment: secondary-perturbed segment fixpoint on generated exps",
     ~count=50,
     QCheck.pair(
-      QCheck_Util.arb_exp(~minimal_idents=true, 5),
+      QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
       QCheck.small_nat,
     ),
     ((exp, seed)) => {
+      QCheck.assume(!Test_Menhir.has_unsupported_mod_item(exp));
       let text =
         exp
         |> ExpToSegment.exp_to_segment(
