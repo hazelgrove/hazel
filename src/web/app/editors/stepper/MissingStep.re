@@ -73,6 +73,10 @@ module Model = {
      * display (`<sum>([])`); eval overlay / `eval <exp> at <n>` quote
      * this form so inlined `FixF`s are not mistaken for auto-unwraps. */
     eval_exp: Calc.saved(Exp.t),
+    /* D73: for each offered step (in `next_steps` order), its source node
+     * in `eval_exp` — the subterm `eval ... at <n>` writes
+     * (Update.offered_steps). */
+    step_sources: Calc.saved(list(Id.t)),
     assumptions: Calc.saved(option(assumptions)),
     open_box,
     cached_env: Calc.saved(Environment.t(Exp.t)) // TODO[Matt]: remove this later, just to get env into view for now.
@@ -87,6 +91,7 @@ module Model = {
     selected_exp: Calc.Pending,
     full_exp: Calc.Pending,
     eval_exp: Calc.Pending,
+    step_sources: Calc.Pending,
     assumptions: Calc.Pending,
     open_box: NoneOpen,
     cached_env: Calc.Pending,
@@ -228,19 +233,172 @@ module Update = {
     | Calc.NewValue(x) => Calc.NewValue(f(x))
     };
 
-  /* Map an eval-step id from the written goal onto the displayed term
-   * so underlines land on `<sum>` rather than a vanished `Var`. */
-  let display_step_id = (model: Model.t, step: EvaluatorStep.step): Id.t => {
-    let display = model.full_exp |> Calc.get_saved_opt;
-    let written = model.eval_exp |> Calc.get_saved_opt;
-    let written_id = EvaluatorStep.get_step_id(step);
-    switch (written, display) {
-    | (Some(from), Some(onto)) =>
-      ProofHacks.map_rep_id(~from, ~onto, written_id)
-      |> Option.value(~default=written_id)
-    | _ => written_id
+  /* D73 Reset-list-case: a goal like `all_lists(xs) == true` offers only
+   * the VarLookup of `all_lists`, which the checker's eval step treats as
+   * proof-silent (Evaluator.re, advance_hidden). So a silent step is
+   * offered as the step the checker takes for the nearest WRITTEN subterm
+   * around it: `eval all_lists(xs) at <n> end`. Each offered step keeps
+   * that source node of the written goal; the rest of the goal is
+   * untouched, and nothing is mapped across a change of shape. */
+  let max_silent_steps = 64;
+  let max_occurrence_idx = 64;
+
+  let is_proof_silent = (s: EvaluatorStep.step): bool =>
+    EvaluatorStep.get_step_kind(s) == Transition.VarLookup;
+
+  /* The checker's eval step on `e` (Evaluator.re, `step`): hidden steps
+   * and a leading silent step, then the first available step. Bounded;
+   * None when the bound runs out or nothing visible remains. */
+  let checker_step = (~env, e: Exp.t): option(EvaluatorStep.step) => {
+    let rec go = (fuel, e) =>
+      fuel <= 0
+        ? None
+        : (
+          switch (EvaluatorStep.get_status(~settings=CoreSettings.on, e, env)) {
+          | AutoStep(s) => take(fuel, s)
+          | AvailableSteps([s, ..._]) when is_proof_silent(s) => take(fuel, s)
+          | AvailableSteps([s, ..._]) => Some(s)
+          | AvailableSteps([]) => None
+          }
+        )
+    and take = (fuel, s) =>
+      Option.bind(EvaluatorStep.take_step(s), go(fuel - 1));
+    go(max_silent_steps, e);
+  };
+
+  exception Ancestors(list(Exp.t));
+
+  /* The node with `id` and its enclosing expressions, nearest first. */
+  let self_and_ancestors = (id: Id.t, e: Exp.t): list(Exp.t) => {
+    let stack = ref([]);
+    switch (
+      Exp.map_term(
+        ~f_exp=
+          (cont, exp) => {
+            stack := [exp, ...stack^];
+            if (Exp.rep_id(exp) == id) {
+              raise(Ancestors(stack^));
+            };
+            let r = cont(exp);
+            stack := List.tl(stack^);
+            r;
+          },
+        e,
+      )
+    ) {
+    | exception (Ancestors(path)) => path
+    | _ => []
     };
   };
+
+  /* The `at <n>` under which the checker finds exactly the written node
+   * `at_exp`. ProofHacks.nth_exp_env is `nth_exp` on both sides
+   * env-substituted, then the match's id looked up in the written goal;
+   * `substituted` is the written goal substituted once by the caller. */
+  let checker_idx =
+      (~env, ~substituted: Exp.t, at_exp: Exp.t): option(int) => {
+    let target = Substitution.in_exp(env, at_exp);
+    let rec go = n =>
+      n > max_occurrence_idx
+        ? None
+        : (
+          switch (ProofHacks.nth_exp(target, n, substituted)) {
+          | Some(found) when Exp.rep_id(found) == Exp.rep_id(at_exp) =>
+            Some(n)
+          | Some(_) => go(n + 1)
+          | None => None
+          }
+        );
+    go(0);
+  };
+
+  /* Offered steps for the written goal, each with its written source node.
+   * A step whose source the checker could not locate is not offered. */
+  let offered_steps =
+      (~settings: CoreSettings.t, ~env, written: Exp.t)
+      : list((EvaluatorStep.step, Id.t)) => {
+    let candidates =
+      switch (EvaluatorStep.get_status(~settings, written, env)) {
+      | AutoStep(s) => [s]
+      | AvailableSteps(steps) => steps
+      };
+    let substituted = lazy(Substitution.in_exp(env, written));
+    let source = s =>
+      self_and_ancestors(EvaluatorStep.get_step_id(s), written)
+      |> List.find_map(at_exp =>
+           switch (checker_step(~env, at_exp)) {
+           | Some(step)
+               when
+                 checker_idx(~env, ~substituted=Lazy.force(substituted), at_exp)
+                 != None =>
+             Some((step, Exp.rep_id(at_exp)))
+           | _ => None
+           }
+         );
+    List.fold_left(
+      (acc, s) =>
+        switch (source(s)) {
+        | Some((_, id) as offered)
+            when !List.exists(((_, id')) => id' == id, acc) => [
+            offered,
+            ...acc,
+          ]
+        | _ => acc
+        },
+      [],
+      candidates,
+    )
+    |> List.rev;
+  };
+
+  /* `sources` is aligned with `steps`; anything else has no source. */
+  let source_in = (steps, sources: list(Id.t), step): option(Id.t) =>
+    List.length(steps) == List.length(sources)
+      ? List.combine(steps, sources) |> List.assq_opt(step) : None;
+
+  let step_source = (model: Model.t, step: EvaluatorStep.step): option(Id.t) =>
+    switch (model.next_steps, model.step_sources) {
+    | (Calculated(AvailableSteps(steps)), Calculated(sources)) =>
+      source_in(steps, sources, step)
+    | _ => None
+    };
+
+  /* What taking the step writes: its written source and the index the
+   * checker finds it under (`eval <at_exp> at <idx> end`). */
+  let written_target =
+      (model: Model.t, step: EvaluatorStep.step): option((Exp.t, int)) => {
+    open OptUtil.Syntax;
+    let* id = step_source(model, step);
+    let* written = model.eval_exp |> Calc.get_saved_opt;
+    let* env = model.cached_env |> Calc.get_saved_opt;
+    let* at_exp = ProofHacks.find_exp_id(id, written);
+    let* at_idx =
+      checker_idx(
+        ~env,
+        ~substituted=Substitution.in_exp(env, written),
+        at_exp,
+      );
+    Some((at_exp, at_idx));
+  };
+
+  /* Map a step's written source onto the displayed term so underlines
+   * land on `<sum>` rather than a vanished `Var`. */
+  let display_id_of =
+      (~written: Exp.t, ~display: Exp.t, source: Id.t): Id.t =>
+    ProofHacks.map_rep_id(~from=written, ~onto=display, source)
+    |> Option.value(~default=source);
+
+  let display_step_id = (model: Model.t, step: EvaluatorStep.step): Id.t =>
+    switch (
+      step_source(model, step),
+      model.eval_exp |> Calc.get_saved_opt,
+      model.full_exp |> Calc.get_saved_opt,
+    ) {
+    | (Some(source), Some(written), Some(display)) =>
+      display_id_of(~written, ~display, source)
+    | (Some(source), _, _) => source
+    | (None, _, _) => EvaluatorStep.get_step_id(step)
+    };
 
   let calculate =
       (
@@ -257,6 +415,7 @@ module Update = {
           selected_exp,
           full_exp,
           eval_exp: saved_eval_exp,
+          step_sources,
           selected_id,
           open_box,
           cached_env,
@@ -293,17 +452,21 @@ module Update = {
      * term already has `sum` inlined as `FixF`, and those hidden
      * FixUnwraps would otherwise collapse `get_status` to AutoStep and
      * wipe the overlay. */
-    let new_next_steps =
-      next_steps
+    /* D73: each offered step with its written source node. */
+    let offered =
+      Calc.saved_pair((step_sources, next_steps))
       |> {
         let.calc eval_exp = eval_exp
         and.calc ctx = ctx;
-        EvaluatorStep.get_status(
-          ~settings,
-          eval_exp,
-          SemanticCtx.get_env(ctx),
+        let offered =
+          offered_steps(~settings, ~env=SemanticCtx.get_env(ctx), eval_exp);
+        (
+          List.map(snd, offered),
+          EvaluatorStep.AvailableSteps(List.map(fst, offered)),
         );
       };
+    let step_sources = offered |> map_calc(fst);
+    let new_next_steps = offered |> map_calc(snd);
     let selected_id =
       // hacky way to get a currently-selected id
       {
@@ -352,9 +515,10 @@ module Update = {
       refls
       |> {
         let.calc exp = exp
-        and.calc eval_exp = eval_exp
         and.calc ctx = ctx
         and.calc new_next_steps = new_next_steps
+        and.calc eval_exp = eval_exp
+        and.calc step_sources = step_sources
         and.calc info_map = info_map;
         let next_steps =
           new_next_steps
@@ -364,11 +528,8 @@ module Update = {
             | EvaluatorStep.AvailableSteps(steps) => steps
           );
         let display_id = (s: EvaluatorStep.step) =>
-          ProofHacks.map_rep_id(
-            ~from=eval_exp,
-            ~onto=exp,
-            EvaluatorStep.get_step_id(s),
-          )
+          source_in(next_steps, step_sources, s)
+          |> Option.map(display_id_of(~written=eval_exp, ~display=exp))
           |> Option.value(~default=EvaluatorStep.get_step_id(s));
         ProofHacks.find_refls(~info_map, ~env=SemanticCtx.get_env(ctx), exp)
         |> List.filter(e =>
@@ -431,6 +592,7 @@ module Update = {
       assumptions: assumptions |> Calc.save,
       full_exp: exp |> Calc.save,
       eval_exp: eval_exp |> Calc.save,
+      step_sources: step_sources |> Calc.save,
       selected_exp: selected_exp |> Calc.save,
       selected_id: selected_id |> Calc.save,
       cached_env: cached_env |> Calc.save,

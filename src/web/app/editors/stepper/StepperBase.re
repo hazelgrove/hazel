@@ -1944,14 +1944,16 @@ and Stepper: {
       emit_wrapping_form(~arg_focus=HaveStep(Arg()), have_term(~exp))
     | AddContradiction(exp) => emit(contradiction_term(~exp))
     | TakeStep(idx) =>
-      switch (List.nth_opt(available_steps, idx)) {
-      | Some(step) =>
-        emit(
-          eval_step_term(
-            ~at_idx=EvaluatorStep.get_exp_idx(step),
-            ~at_exp=EvaluatorStep.get_at_exp(step),
-          ),
+      /* D73: write the step's source node in the written goal, at the
+       * index the checker locates it under
+       * (MissingStep.Update.written_target). */
+      switch (
+        Option.bind(
+          List.nth_opt(available_steps, idx),
+          MissingStep.Update.written_target(m),
         )
+      ) {
+      | Some((at_exp, at_idx)) => emit(eval_step_term(~at_idx, ~at_exp))
       | None => Ui_effect.Ignore
       }
     /* Reflexivity is the refl_eq axiom applied to the picked equality. */
