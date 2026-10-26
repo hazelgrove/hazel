@@ -175,7 +175,8 @@ let check_family_uniqueness = (): unit =>
    remold candidate when one fits the sort (storing that sort), and
    otherwise falls back to stored-sort Any with the Any-fallback mold
    (Parens: op wrapping one child; bin for operator-shaped tokens, op
-   otherwise). It emits TokInfix only where nothing else fits. */
+   with a kid between each pair of delimiters otherwise). It emits
+   TokInfix only where nothing else fits. */
 let check_classify = (sort: Sort.t, label: Label.t): unit => {
   let name = case_name(sort, label);
   let (id, stored) = Form.classify_label(sort, label);
@@ -227,7 +228,11 @@ let check_classify = (sort: Sort.t, label: Label.t): unit => {
           when
             Token.is_potential_operator(t) && !Token.is_potential_operand(t) =>
         Mold.mk_bin(Precedence.max, Sort.Any, [])
-      | _ => Mold.mk_op(Sort.Any, [])
+      | _ =>
+        Mold.mk_op(
+          Sort.Any,
+          List.init(List.length(label) - 1, ~f=_ => Sort.Any),
+        )
       };
     check(
       mold_testable,

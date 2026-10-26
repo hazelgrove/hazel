@@ -597,6 +597,24 @@ let tests = (
         ignore(statics(parse_exp("type y = x in type x = y in (1 : y)")))
       )
     ),
+    /* Properties skip terms that hit this loop
+       (QCheck_Util.skip_alias_loop). When this goes red, delete that. */
+    test_case(
+      "Known Bug: an alias that reaches itself through a module loops",
+      `Quick,
+      () =>
+      Alcotest.match_raises(
+        "statics",
+        fun
+        | Failure(msg) =>
+          String.is_suffix(msg, ~suffix="exceeded 1000 recursive calls")
+        | _ => false,
+        () =>
+        ignore(
+          statics(parse_exp("{ type y = x; module x = y; type z = x }")),
+        )
+      )
+    ),
     test_case(
       // https://github.com/hazelgrove/hazel/issues/1624
 

@@ -1886,8 +1886,11 @@ let arb_segment_fixpoint =
   QCheck.Test.make(
     ~name="ExpToSegment: PreserveExact segment fixpoint on generated exps",
     ~count=50,
-    QCheck_Util.arb_exp(~minimal_idents=true, 5),
+    QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
     exp => {
+      /* Module items MakeTerm cannot mold yet; see
+         Test_Menhir.is_unsupported_mod_item. */
+      QCheck.assume(!Test_Menhir.has_unsupported_mod_item(exp));
       let text =
         exp
         |> ExpToSegment.exp_to_segment(
@@ -1950,10 +1953,11 @@ let arb_perturbed_fixpoint =
       "ExpToSegment: secondary-perturbed segment fixpoint on generated exps",
     ~count=50,
     QCheck.pair(
-      QCheck_Util.arb_exp(~minimal_idents=true, 5),
+      QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
       QCheck.small_nat,
     ),
     ((exp, seed)) => {
+      QCheck.assume(!Test_Menhir.has_unsupported_mod_item(exp));
       let text =
         exp
         |> ExpToSegment.exp_to_segment(
@@ -1975,6 +1979,987 @@ let arb_perturbed_fixpoint =
       };
     },
   );
+
+/* Defensive printing reaches a fixpoint: reparsing what it prints gives a
+   term that prints the same, so the parens it adds don't pile up. */
+let defensive_print = (exp: Exp.t): string =>
+  print_seg(exp_to_segment(exp));
+
+let defensive_reprint = (text: string): option(string) =>
+  Parser.to_term(text, ~root=Exp) |> Option.map(~f=defensive_print);
+
+let defensive_print_stable_test = (name: string, text: string) =>
+  test_case(name, `Quick, () =>
+    switch (defensive_reprint(text)) {
+    | None => Alcotest.fail("Failed to parse " ++ text)
+    | Some(once) =>
+      check(
+        option(string),
+        "Defensive print is stable: " ++ once,
+        Some(once),
+        defensive_reprint(once),
+      )
+    }
+  );
+
+/* Invalid forms as they arise. A user types them: a generated program,
+   printed with line breaks, with the edits a person makes in the middle of
+   typing (a delimiter not typed yet, a stray name or literal, an operator
+   the grammar doesn't know, an extra operand, an unbalanced paren), read
+   back as the editor and the CLI read text. Evaluation makes more from
+   those: values put in for their free variables and holes, stepped a few
+   times. */
+module Typed = {
+  let delimiters = [
+    ")",
+    "]",
+    "}",
+    "in",
+    "then",
+    "else",
+    "=",
+    "->",
+    "=>",
+    "end",
+  ];
+  let strays = ["zz", "7", {|"s"|}, "true"];
+
+  let read = (text: string): option(Exp.t) =>
+    PersistentZipper.parse_text(~source="property", ~root=Exp, text)
+    |> Option.map(~f=z => MakeTerm.from_zip_for_sem(z, ~root=Exp).term);
+
+  /* The program as typed: laid out the way `hazel format` lays it out, or
+     with line breaks at some spaces, then edited one to three times. */
+  let text = (seed: int, exp: Exp.t): string => {
+    let st = Stdlib.Random.State.make([|seed|]);
+    let int = n => Stdlib.Random.State.int(st, max(n, 1));
+    let printed =
+      int(2) == 0
+        ? Printer.of_segment(
+            ~holes="?",
+            PrettySegment.prettify(
+              ~width=20 + int(60),
+              exp_to_segment(exp),
+            ),
+          )
+        : defensive_print(exp);
+    switch (FastParse.lex_with_gaps(printed)) {
+    | None => printed
+    | Some((tokens, trailing)) =>
+      let tokens =
+        List.map(tokens, ~f=(t: FastParse.tok) =>
+          String.equal(t.gap, " ") && int(4) == 0
+            ? {
+              ...t,
+              gap: "\n",
+            }
+            : t
+        );
+      let token = (text): FastParse.tok => {
+        gap: " ",
+        text,
+      };
+      let insert_at = (i, tok, tokens) =>
+        List.take(tokens, i) @ [tok] @ List.drop(tokens, i);
+      let edit = (tokens: list(FastParse.tok)) => {
+        let n = List.length(tokens);
+        switch (int(5)) {
+        | 0 =>
+          let at =
+            List.filter_mapi(tokens, ~f=(i, t) =>
+              List.mem(delimiters, t.text, ~equal=String.equal)
+                ? Some(i) : None
+            );
+          switch (at) {
+          | [] => tokens
+          | _ =>
+            let i = List.nth_exn(at, int(List.length(at)));
+            List.filteri(tokens, ~f=(j, _) => j != i);
+          };
+        | 1 =>
+          insert_at(
+            int(n + 1),
+            token(List.nth_exn(strays, int(List.length(strays)))),
+            tokens,
+          )
+        | 2 => insert_at(int(n + 1), token("!!!"), tokens)
+        | 3 => insert_at(int(n) + 1, token("w"), tokens)
+        | _ =>
+          insert_at(int(n + 1), token(int(2) == 0 ? "(" : ")"), tokens)
+        };
+      };
+      let rec edits = (k, tokens) =>
+        k == 0 ? tokens : edits(k - 1, edit(tokens));
+      String.concat(
+        List.map(edits(1 + int(3), tokens), ~f=(t: FastParse.tok) =>
+          t.gap ++ t.text
+        ),
+      )
+      ++ trailing;
+    };
+  };
+};
+
+/* Values put in for a typed program's free variables and holes, as
+   evaluation would, and a few steps taken from there. */
+module Evaluated = {
+  let values = [
+    "1",
+    {|"s"|},
+    "true",
+    "[1, 2]",
+    "(1, 2)",
+    "fun z -> z",
+    "(a=1)",
+  ];
+
+  let terms = (seed: int, typed: Exp.t): list(Exp.t) => {
+    let st = Stdlib.Random.State.make([|seed|]);
+    let value = () =>
+      Option.value_exn(
+        Parser.to_term(
+          List.nth_exn(
+            values,
+            Stdlib.Random.State.int(st, List.length(values)),
+          ),
+          ~root=Exp,
+        ),
+      );
+    let (_, elab) =
+      QCheck_Util.skip_alias_loop(() =>
+        Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), typed)
+      );
+    let filled =
+      Exp.map_term(
+        ~f_exp=
+          (continue, e) =>
+            switch (e.term) {
+            | EmptyHole => value()
+            | _ => continue(e)
+            },
+        /* Evaluation doesn't reach the holes in patterns and types. */
+        ~f_pat=(_, p) => p,
+        ~f_typ=(_, t) => t,
+        elab,
+      )
+      |> Substitution.in_exp(
+           Environment.of_list(
+             List.map(["x", "y", "zz", "w"], ~f=x => (x, value())),
+           ),
+         );
+    let step = (e: Exp.t) =>
+      switch (
+        EvaluatorStep.get_status(
+          ~settings=CoreSettings.on,
+          e,
+          Environment.empty,
+        )
+      ) {
+      | AutoStep(step) => EvaluatorStep.take_step(step)
+      | AvailableSteps([step, ..._]) => EvaluatorStep.take_step(step)
+      | AvailableSteps([]) => None
+      };
+    let rec go = (k, e, acc) =>
+      k == 0
+        ? acc
+        : (
+          switch (step(e)) {
+          | Some(e') => go(k - 1, e', [e', ...acc])
+          | None => acc
+          }
+        );
+    go(3, filled, [filled]);
+  };
+};
+
+/* A term with each multihole replaced by its tokens, for comparing terms
+   up to how a hole reads back: MakeTerm sorts and groups a hole's pieces
+   by the forms beside them (`^w^:Void x` reads `x` as a type, `"s":Nat w`
+   reads the `:` as an operator in a type hole), so the same tokens can
+   group differently inside a hole without anything outside it changing.
+   The tokens are compared, parens, spacing and the holes between them
+   aside (grout prints as `?`, and where it falls is the grouping too). */
+let holes_as_text = (e: Exp.t): Exp.t => {
+  let text = (hole: Any.t) =>
+    print_seg(
+      ExpToSegment.any_to_segment(~settings=exp_to_segment_settings, hole),
+    )
+    |> String.filter(~f=c => !Char.equal(c, '(') && !Char.equal(c, ')'))
+    |> String.split(~on=' ')
+    |> List.filter(~f=w => !String.is_empty(w) && !String.equal(w, "?"))
+    |> String.concat(~sep=" ");
+  Exp.map_term(
+    ~f_exp=
+      (continue, e) =>
+        switch (e.term) {
+        | MultiHole(_) => Exp.fresh(Invalid(text(Exp(e))))
+        | _ => continue(e)
+        },
+    ~f_pat=
+      (continue, p) =>
+        switch (p.term) {
+        | MultiHole(_) => Pat.fresh(Invalid(text(Pat(p))))
+        | _ => continue(p)
+        },
+    ~f_typ=
+      (continue, t) =>
+        switch (t.term) {
+        | Unknown(Hole(MultiHole(_))) =>
+          Typ.fresh(Unknown(Hole(Invalid(text(Typ(t))))))
+        | _ => continue(t)
+        },
+    ~f_tpat=
+      (continue, tp) =>
+        switch (tp.term) {
+        | MultiHole(_) => TPat.fresh(Invalid(text(TPat(tp))))
+        | _ => continue(tp)
+        },
+    e,
+  );
+};
+
+let some_annotation = (~f: IdTagged.IdTag.t => bool, e: Exp.t): bool => {
+  let found = ref(false);
+  let note = (ann: IdTagged.IdTag.t) =>
+    if (f(ann)) {
+      found := true;
+    };
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (continue, x) => {
+          note(x.annotation);
+          continue(x);
+        },
+      ~f_pat=
+        (continue, x) => {
+          note(x.annotation);
+          continue(x);
+        },
+      ~f_typ=
+        (continue, x) => {
+          note(x.annotation);
+          continue(x);
+        },
+      ~f_tpat=
+        (continue, x) => {
+          note(x.annotation);
+          continue(x);
+        },
+      ~f_rul=
+        (continue, x) => {
+          note(x.annotation);
+          continue(x);
+        },
+      ~f_mod=
+        (continue, x) => {
+          note(x.annotation);
+          continue(x);
+        },
+      ~f_sig=
+        (continue, x) => {
+          note(x.annotation);
+          continue(x);
+        },
+      ~f_mpat=
+        (continue, x) => {
+          note(x.annotation);
+          continue(x);
+        },
+      e,
+    );
+  found^;
+};
+
+/* Whether some tile in the term is missing a shard. */
+let is_incomplete = some_annotation(~f=ann => !List.is_empty(ann.incomplete));
+
+/* Whether a hole is joined by a keyword that continues a form (`in`,
+   `then`, `end`). The reader pairs it with an enclosing form that uses
+   it, even across parens (`let _ = (1 in 2) in 3` reads as an unfinished
+   `let`), so no text reads back as the hole (#2856). Only the no-crash
+   half is checked for these until `stray_keywords_read_back` can be
+   switched on. */
+let has_stray_keyword = {
+  let keywords =
+    List.concat_map(Form.forms, ~f=((_, def: Form.def)) =>
+      switch (def.label) {
+      | [_, ...rest] => List.filter(rest, ~f=Token.is_potential_operand)
+      | [] => []
+      }
+    );
+  some_annotation(~f=ann =>
+    switch (ann.lexeme) {
+    | Some(l) => List.mem(keywords, l, ~equal=String.equal)
+    | None => false
+    }
+  );
+};
+let stray_keywords_read_back = false;
+
+/* Reading text and printing what was read, Defensively. */
+let reprint = (text: string): option(string) =>
+  Typed.read(text) |> Option.map(~f=defensive_print);
+
+/* What printing an invalid form guarantees. Nothing crashes. A form with
+   nothing missing (stray tokens, an unknown operator, an extra operand)
+   prints stably, and its text reads back as the same term, holes compared
+   as text: printing doesn't change what the complete parts around a hole
+   mean (`f x + 1` printed as `f(x + 1)` reads back as an application).
+
+   A form missing a delimiter is completed by where its line breaks and
+   indentation put the closer, and Defensive printing doesn't keep layout,
+   so its first print may group it otherwise. That is the completion
+   reading layout as it should, not printing losing anything: from the
+   first print on, reading and printing again should hold still. It
+   doesn't yet (#2856: tokens lost in the parse, parens growing around an
+   unclosed paren in a type, case rules in an unclosed paren), so for
+   these only the no-crash half is checked until
+   `incomplete_reprints_hold` can be switched on. */
+let incomplete_reprints_hold = false;
+
+/* Whether a hole's later piece prints opening with `(`. The reader takes
+   that paren as an argument to the piece before it, on any line, so no
+   text reads back as the hole (#2856). Evaluation makes these: it
+   substitutes `(1, 2)` for `x` in a hole `w x`. Only the no-crash half is
+   checked for these until `paren_pieces_read_back` can be switched on. */
+let rec paren_after_hole_piece = (seg: Segment.t): bool =>
+  switch (seg) {
+  | [] => false
+  | [Grout({shape: Concave, _}), ...rest] =>
+    let opens_paren =
+      switch (List.drop_while(rest, ~f=Piece.is_secondary)) {
+      | [Tile(t), ..._] =>
+        switch (Tile.label(t)) {
+        | [token, ..._] => String.is_prefix(token, ~prefix="(")
+        | [] => false
+        }
+      | _ => false
+      };
+    opens_paren || paren_after_hole_piece(rest);
+  | [Tile(t), ...rest] =>
+    List.exists(t.children, ~f=paren_after_hole_piece)
+    || paren_after_hole_piece(rest)
+  | [_, ...rest] => paren_after_hole_piece(rest)
+  };
+let paren_pieces_read_back = false;
+
+/* Evaluation drops the marks of missing shards, so a term evaluated from an
+   incomplete parse says `~from_incomplete`. */
+let print_reads_back = (~from_incomplete=false, term: Exp.t): bool => {
+  let text = defensive_print(term);
+  switch (Typed.read(text)) {
+  | None => true
+  | Some(reread) =>
+    let text' = defensive_print(reread);
+    if (from_incomplete
+        || is_incomplete(term)
+        || !stray_keywords_read_back
+        && has_stray_keyword(term)
+        || !paren_pieces_read_back
+        && paren_after_hole_piece(exp_to_segment(term))) {
+      switch (reprint(text')) {
+      | Some(text'') when incomplete_reprints_hold =>
+        String.equal(text', text'')
+        || QCheck.Test.fail_reportf("Reprinted %s as %s", text', text'')
+      | Some(_)
+      | None => true
+      };
+    } else {
+      let same_term =
+        Canonicalize.roundtrip_eq.exp(
+          holes_as_text(Canonicalize.exp(term)),
+          holes_as_text(Canonicalize.exp(reread)),
+        );
+      String.equal(text, text')
+      && same_term
+      || QCheck.Test.fail_reportf(
+           "%s%s as %s",
+           same_term ? "Reprinted " : "Read back as another term: ",
+           text,
+           text',
+         );
+    };
+  };
+};
+
+let arb_typed_invalid_forms =
+  QCheck.Test.make(
+    ~name="ExpToSegment: typed invalid forms print stably and read back",
+    ~count=200,
+    QCheck.pair(
+      QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
+      QCheck.small_nat,
+    ),
+    ((exp, seed)) => {
+      let text = Typed.text(seed, exp);
+      switch (Typed.read(text)) {
+      | None => true
+      | Some(term) =>
+        let _ =
+          QCheck_Util.skip_alias_loop(() =>
+            Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term)
+          );
+        print_reads_back(term);
+      };
+    },
+  );
+
+let arb_evaluated_invalid_forms =
+  QCheck.Test.make(
+    ~name="ExpToSegment: evaluated invalid forms print stably and read back",
+    ~count=100,
+    QCheck.pair(
+      QCheck_Util.arb_exp_full(~minimal_idents=true, 4),
+      QCheck.small_nat,
+    ),
+    ((exp, seed)) =>
+    switch (Typed.read(Typed.text(seed, exp))) {
+    | None => true
+    | Some(typed) =>
+      List.for_all(
+        Evaluated.terms(seed, typed),
+        ~f=print_reads_back(~from_incomplete=is_incomplete(typed)),
+      )
+    }
+  );
+
+let defensive_print_stable_tests = (
+  "ExpToSegment: Defensive print stability",
+  [
+    defensive_print_stable_test(
+      "Module literal as a module's definition",
+      "module M = { let x = 1 } in M",
+    ),
+    defensive_print_stable_test(
+      "Parenthesized module literal",
+      "module M = ({ let x = 1 }) in M",
+    ),
+    defensive_print_stable_test(
+      "Module literal as a module item",
+      "module M = { module N = { let y = 1 }; let x = 1 } in M",
+    ),
+    defensive_print_stable_test(
+      "Multihole as a module item's definition",
+      "module M = { let x = 1 2 } in M",
+    ),
+    defensive_print_stable_test("Non-label after a dot", "x. ($_$)"),
+    defensive_print_stable_test(
+      "Parenthesized multihole pattern in a let",
+      "let (x y) = 1 in 2",
+    ),
+    defensive_print_stable_test(
+      "Parenthesized multihole pattern in a fun",
+      "fun (x y) -> 1",
+    ),
+    defensive_print_stable_test(
+      "Parenthesized multihole pattern in a case rule",
+      "case 1 | (x y) => 2 end",
+    ),
+    defensive_print_stable_test(
+      "Multihole pattern in a let",
+      "let x y = 1 in 2",
+    ),
+    defensive_print_stable_test(
+      "Multihole pattern in a module let",
+      "module M = { let x y = 1 } in 2",
+    ),
+    test_case("A module's last item takes no parens", `Quick, () =>
+      check(
+        option(string),
+        "reprinted",
+        Some("module M = { x !!! y } in 2"),
+        defensive_reprint("module M = { x !!! y } in 2"),
+      )
+    ),
+    test_case("An operator item followed by another", `Quick, () =>
+      check(
+        option(string),
+        "reprinted",
+        Some("module M = { x !!! y; 3 } in 2"),
+        defensive_reprint("module M = { x !!! y; 3 } in 2"),
+      )
+    ),
+    test_case("A last item holding a `;` keeps its parens", `Quick, () =>
+      check(
+        option(string),
+        "reprinted",
+        Some("module M = { let x = (1; 2) } in M"),
+        defensive_reprint("module M = { let x = (1; 2) } in M"),
+      )
+    ),
+    /* #2754's form parses with crossed braces; the parens printed for it
+       must still nest with the delimiters around them. */
+    test_case(
+      "Parens nest in a module missing a brace",
+      `Quick,
+      () => {
+        let nests = text => {
+          let closer = c =>
+            switch (c) {
+            | ')' => Some('(')
+            | '}' => Some('{')
+            | ']' => Some('[')
+            | _ => None
+            };
+          let rec go = (stack, chars) =>
+            switch (chars, stack) {
+            | ([], _) => true
+            | ([('(' | '{' | '[') as c, ...rest], _) =>
+              go([c, ...stack], rest)
+            | ([c, ...rest], [top, ...below]) =>
+              switch (closer(c)) {
+              | Some(o) when Char.equal(o, top) => go(below, rest)
+              | Some(_) => false
+              | None => go(stack, rest)
+              }
+            | ([_, ...rest], []) => go(stack, rest)
+            };
+          go([], String.to_list(text));
+        };
+        check(
+          option(bool),
+          "delimiters nest",
+          Some(true),
+          defensive_reprint("module M = { let x = 1 in x; 2 } in 2")
+          |> Option.map(~f=nests),
+        );
+      },
+    ),
+    /* Typed text missing delimiters prints back as typed, up to spacing,
+       and stays that way: the holes that stand in for a missing
+       delimiter's operands aren't printed, or they read back as part of
+       the operand before them (`let y` became `let (y ? ?) ? ?`). */
+    test_case("Incomplete forms reprint as typed", `Quick, () =>
+      List.iter(
+        ~f=
+          text => {
+            let unspaced = String.filter(~f=c => !Char.equal(c, ' '));
+            let once = defensive_reprint(text);
+            check(
+              option(string),
+              "reprinted: " ++ text,
+              Some(unspaced(text)),
+              Option.map(~f=unspaced, once),
+            );
+            check(
+              option(string),
+              "reprinted again: " ++ text,
+              once,
+              Option.bind(~f=defensive_reprint, once),
+            );
+          },
+        [
+          "let y",
+          "let y = 1",
+          "let y in 2",
+          "fun x",
+          "if 1",
+          "if 1 then 2",
+          "type t",
+          "type t = Int",
+          "module M",
+          "case 1 | x",
+          "module M = { let y } in M",
+          "module M = { let _; let y } in M",
+          "case 1",
+        ],
+      )
+    ),
+    /* While its `)` is still to be typed, a sum's constructor application
+       is still a variant, and printing doesn't supply the `)`. */
+    test_case(
+      "A constructor with an unclosed argument stays a variant", `Quick, () =>
+      List.iter(
+        ~f=
+          text => {
+            let has_variant_a = (ts: list(ConstructorMap.variant(Typ.t))) =>
+              List.exists(ts, ~f=v =>
+                switch (v) {
+                | Variant("A", _, Some(_)) => true
+                | Variant(_)
+                | BadEntry(_) => false
+                }
+              );
+            switch (Parser.to_term(text, ~root=Exp)) {
+            | Some({term: TyAlias(_, {term: Sum(ts), _}, _), _})
+                when has_variant_a(ts) =>
+              ()
+            | Some(e) => Alcotest.fail("A isn't a variant: " ++ Exp.show(e))
+            | None => Alcotest.fail("didn't parse: " ++ text)
+            };
+            /* Parens printing adds come in pairs; an invented `)` would
+               change the balance. */
+            let unclosed = t =>
+              String.count(t, ~f=Char.equal('('))
+              - String.count(t, ~f=Char.equal(')'));
+            check(
+              option(int),
+              "unclosed parens: " ++ text,
+              Some(unclosed(text)),
+              defensive_reprint(text) |> Option.map(~f=unclosed),
+            );
+          },
+        ["type T = + A(Int + B in 1", "type T = B + A(Int in 1"],
+      )
+    ),
+    /* A program is one long run of top-level pieces; stripping a missing
+       delimiter's shards walks it without a stack frame per piece. */
+    test_case(
+      "Stripping shards from a long program",
+      `Quick,
+      () => {
+        let n = 1_000_000;
+        let seg =
+          List.init(n, ~f=_ =>
+            Piece.Secondary(Haz3lcore.Secondary.mk_space(Id.mk()))
+          );
+        let masks =
+          Id.Map.singleton(
+            Id.mk(),
+            {
+              present: [0],
+              prefixes: [],
+            }: IdTagged.IdTag.incomplete_mask,
+          );
+        check(
+          int,
+          "pieces",
+          n,
+          List.length(ExpToSegment.strip_synthesized_shards(masks, seg)),
+        );
+      },
+    ),
+    /* A stranded prefix operator keeps its operand as a one-piece
+       multihole; with the operator it isn't atomic, so `.a` after it
+       doesn't move under the operator. */
+    test_case(
+      "A stranded prefix operator before a dot",
+      `Quick,
+      () => {
+        let one = Exp.fresh(Parens(Exp.fresh(Var("x"))));
+        let stranded = {
+          let hole = Exp.fresh(MultiHole([Exp(one)]));
+          {
+            ...hole,
+            annotation: {
+              ...hole.annotation,
+              lexeme: Some("-"),
+            },
+          };
+        };
+        check(
+          string,
+          "printed",
+          "(-(x)).a",
+          defensive_print(
+            Exp.fresh(Dot(stranded, Exp.fresh(Label("a")))),
+          ),
+        );
+      },
+    ),
+    /* Parens after another piece read back as a postfix `(…)`, so they
+       print next to it: `(A x)(x x)`, not `(A x) (x x)`. */
+    test_case(
+      "Juxtaposed parenthesized pieces",
+      `Quick,
+      () => {
+        let var = (x): Any.t => Typ(Typ.fresh(Var(x)));
+        let hole = pieces => Typ.fresh(Unknown(Hole(MultiHole(pieces))));
+        let ty =
+          hole([
+            Typ(hole([var("A"), var("x")])),
+            Typ(hole([var("x"), var("x")])),
+          ]);
+        let text =
+          defensive_print(Exp.fresh(Asc(Exp.fresh(EmptyHole), ty)));
+        check(
+          option(string),
+          "reprinted",
+          Some(text),
+          defensive_reprint(text),
+        );
+      },
+    ),
+    defensive_print_stable_test(
+      "A sum with a constructor application first",
+      "type T = + A(Int) + B in 1",
+    ),
+    /* Grout binds loosest, so a piece after another needs no parens, and
+       parens there would read back as an application of the piece before
+       it (`f(x + 1)`). */
+    test_case("Juxtaposed pieces read back as the same term", `Quick, () =>
+      List.iter(
+        ~f=
+          text => {
+            let term = Option.value_exn(Parser.to_term(text, ~root=Exp));
+            let printed = defensive_print(term);
+            check(
+              bool,
+              text ++ " reprinted as " ++ printed,
+              true,
+              Canonicalize.roundtrip_eq.exp(
+                Canonicalize.exp(term),
+                Canonicalize.exp(
+                  Option.value_exn(Parser.to_term(printed, ~root=Exp)),
+                ),
+              ),
+            );
+          },
+        ["f x + 1", "let x y :: z = 1 in 2", "f fun x -> x", "f x y"],
+      )
+    ),
+    /* Typed text the parser completes into a paren around a case rule. */
+    test_case("An unclosed paren before a case rule reads", `Quick, () =>
+      List.iter(["case x ( | a => 1 end", "case x (\n| a => 1 end"], ~f=text =>
+        check(bool, "read " ++ text, true, Option.is_some(Typed.read(text)))
+      )
+    ),
+    /* A hole as a module binder prints its pieces, not a bare `?`. */
+    test_case("A hole as a module binder reads back", `Quick, () =>
+      List.iter(
+        ["module B x = 1 in 2"],
+        ~f=text => {
+          let term = Option.value_exn(Typed.read(text));
+          check(bool, text, true, print_reads_back(term));
+        },
+      )
+    ),
+    test_case(
+      "A function in parens shows its argument type",
+      `Quick,
+      () => {
+        let f =
+          Exp.fresh(
+            Fun(
+              Pat.fresh(Wild),
+              Exp.fresh(Atom(String("s"))),
+              Some(Typ.fresh(Unknown(SynSwitch))),
+              None,
+            ),
+          );
+        check(
+          string,
+          "printed",
+          {|(fun _:(?) -> "s")|},
+          defensive_print(Exp.fresh(Parens(f))),
+        );
+      },
+    ),
+    test_case(
+      "An ascription in a hole keeps the next piece out of its type",
+      `Quick,
+      () => {
+        let piece = (text): Any.t =>
+          Exp(Option.value_exn(Typed.read(text)));
+        let hole =
+          Exp.fresh(
+            MultiHole([piece("x:[Bool]"), piece("[1, 2]")]): Exp.term,
+          );
+        check(bool, defensive_print(hole), true, print_reads_back(hole));
+      },
+    ),
+    test_case(
+      "A type pattern hole spaces its pieces evenly",
+      `Quick,
+      () => {
+        check(
+          option(string),
+          "reprint",
+          Some("type x  y  z = Int in 2"),
+          reprint("type x y z = Int in 2"),
+        );
+        let once = reprint("{ type ?    ^o^  Nat w ?:Bool");
+        check(
+          option(string),
+          "a module item reprints as itself",
+          once,
+          Option.bind(~f=reprint, once),
+        );
+      },
+    ),
+    test_case("A list in a type hole reprints as itself", `Quick, () =>
+      check(
+        option(string),
+        "reprint",
+        Some("x:(b || [1, 2])"),
+        reprint("x:(b || [1, 2])"),
+      )
+    ),
+    test_case("An elaborated module binding reads back", `Quick, () =>
+      List.iter(["module Z = `a` in ()", "module Z = (x=1) in Z.x"], ~f=text =>
+        List.iter(
+          Evaluated.terms(0, Option.value_exn(Typed.read(text))), ~f=term =>
+          check(bool, defensive_print(term), true, print_reads_back(term))
+        )
+      )
+    ),
+    /* `->` joins the hole at its own precedence, tighter than `+`. */
+    test_case("A hole joined by a known operator reads back", `Quick, () =>
+      List.iter(["w ? -> 1 + 2"], ~f=text =>
+        check(
+          bool,
+          text,
+          true,
+          print_reads_back(Option.value_exn(Typed.read(text))),
+        )
+      )
+    ),
+    /* An atomic value after `.` parses as a one-piece hole; it needs no
+       parens, or each reprint adds a pair. A projection stays as it is. */
+    test_case("An atomic value after a dot", `Quick, () =>
+      List.iter(["(). ()", {|"s" . "s"|}, "$_$ .A", "x. ($_$)"], ~f=text =>
+        check(option(string), text, Some(text), reprint(text))
+      )
+    ),
+    /* Known bugs in reading text (#2856): each test holds the current
+       behaviour and goes red once the bug is fixed. */
+    test_case(
+      "Known bug (#2856): a keyword joining a hole pairs with an enclosing form",
+      `Quick,
+      () =>
+      check(
+        bool,
+        "the hole reads back whole",
+        false,
+        !
+          is_incomplete(
+            Option.value_exn(Typed.read("let _ = (1 in 2) in 3")),
+          ),
+      )
+    ),
+    test_case(
+      "Known bug (#2856): a hole's piece opening with a paren reads as an argument",
+      `Quick,
+      () => {
+        let piece = (text): Any.t =>
+          Exp(Option.value_exn(Typed.read(text)));
+        let hole =
+          Exp.fresh(MultiHole([piece("w"), piece("(1, 2)")]): Exp.term);
+        check(
+          bool,
+          "the hole reads back",
+          false,
+          {
+            let text = defensive_print(hole);
+            Option.equal(String.equal, Some(text), reprint(text));
+          },
+        );
+      },
+    ),
+    test_case("Known bug (#2856): a typed token is lost", `Quick, () =>
+      check(
+        bool,
+        "the w survives",
+        false,
+        Option.value_map(
+          reprint("{ type ? x Nat w }"),
+          ~default=false,
+          ~f=String.is_substring(~substring=" w "),
+        ),
+      )
+    ),
+    test_case(
+      "Known bug (#2856): a case rule in an unclosed paren", `Quick, () =>
+      check(
+        bool,
+        "the rule keeps its =>",
+        false,
+        Option.value_map(
+          reprint("case x ( | a => 1 end"),
+          ~default=false,
+          ~f=String.is_substring(~substring="=>"),
+        ),
+      )
+    ),
+    test_case(
+      "Known bug (#2856): parens grow around an unclosed paren in a type",
+      `Quick,
+      () => {
+        let once = reprint("fun o^o:(?)  (Bool)(debug(x in ^x) w ?");
+        check(
+          bool,
+          "a reprint holds still",
+          false,
+          Option.equal(String.equal, once, Option.bind(~f=reprint, once)),
+        );
+      },
+    ),
+    test_case(
+      "Multihole pattern in a signature item",
+      `Quick,
+      () => {
+        let var = (x): Any.t => Pat(Pat.fresh(Var(x)));
+        let sig_let =
+          Sig.fresh(SigLet(Pat.fresh(MultiHole([var("x"), var("y")]))));
+        let text =
+          defensive_print(
+            Exp.fresh(
+              Asc(Exp.fresh(EmptyHole), Typ.fresh(Sig([sig_let]))),
+            ),
+          );
+        check(
+          option(string),
+          "reprinted",
+          Some(text),
+          defensive_reprint(text),
+        );
+      },
+    ),
+    /* The parser splits long text into pieces parsed separately; `...`
+       after the 100th character still extends the ascribed type. */
+    test_case("Long ascribed type with an extension", `Quick, () =>
+      check(
+        bool,
+        "parses as an ascription",
+        true,
+        switch (
+          Parser.to_term(
+            "x:("
+            ++ String.concat(~sep=" + ", List.init(14, ~f=_ => "Bool"))
+            ++ ") ... B",
+            ~root=Exp,
+          )
+        ) {
+        | Some({term: Asc(_), _}) => true
+        | _ => false
+        },
+      )
+    ),
+    test_case("Long type extension reprints as it reads", `Quick, () =>
+      check(
+        bool,
+        "the poly keeps its spacing",
+        true,
+        switch (
+          defensive_reprint(
+            "x:("
+            ++ String.concat(~sep=" + ", List.init(14, ~f=_ => "Bool"))
+            ++ ") ... (poly ? -> ())",
+          )
+        ) {
+        | Some(text) =>
+          String.is_substring(text, ~substring="(poly ? -> ())")
+        | None => false
+        },
+      )
+    ),
+    test_case(
+      "Constructor application outside a sum keeps its parens", `Quick, () =>
+      check(
+        option(string),
+        "printed",
+        Some("1:(A(y))"),
+        defensive_reprint("1:A(y)"),
+      )
+    ),
+    QCheck_alcotest.to_alcotest(~speed_level=`Slow, arb_typed_invalid_forms),
+    QCheck_alcotest.to_alcotest(
+      ~speed_level=`Slow,
+      arb_evaluated_invalid_forms,
+    ),
+  ],
+);
 
 let property_tests = (
   "Round-Trip: Property",
@@ -2082,5 +3067,6 @@ let all = [
   roundtrip_larger_programs,
   roundtrip_grout_string_tests,
   roundtrip_projector_tests,
+  defensive_print_stable_tests,
   property_tests,
 ];

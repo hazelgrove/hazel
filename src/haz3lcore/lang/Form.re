@@ -766,12 +766,16 @@ let family_mold_tbl: Hashtbl.t((family, Sort.t), Mold.t) = {
   tbl;
 };
 
+/* A form with no mold at a sort still has a kid between each pair of its
+   delimiters (a paren completed around a case rule, `case x (↵| a => 1
+   end`), read at any sort. */
 let unmolded_mold = (label: Label.t, sort: Sort.t): Mold.t =>
   switch (label) {
   | [t]
       when Token.is_potential_operator(t) && !Token.is_potential_operand(t) =>
     Mold.mk_bin(Precedence.max, sort, [])
-  | _ => Mold.mk_op(sort, [])
+  | _ =>
+    Mold.mk_op(sort, List.init(List.length(label) - 1, ~f=_ => Sort.Any))
   };
 
 /* The mold of a form at the tile's stored sort. Compound: the family

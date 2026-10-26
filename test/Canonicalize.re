@@ -225,13 +225,42 @@ let f_exp = (continue: Exp.t => Exp.t, e: Exp.t): Exp.t => {
       term: Atom(atom(a)),
     }
   | DynamicErrorHole(inner, _) => inner
+  /* Elaboration turns `module M = e in body` into a `let` of the variable
+     `M`, which prints as the `module` it came from. It also reads the
+     module's uses as variables, but they're written as constructors. */
+  | Let({term: Var(name), _} as p, def, body) when Token.is_ctr(name) => {
+      ...e,
+      term:
+        ModuleExp(
+          {
+            ...p,
+            term: Var(name),
+          },
+          def,
+          body,
+        ),
+    }
+  | Var(name) when Token.is_ctr(name) => {
+      ...e,
+      term: Constructor(name, None),
+    }
   | ExplicitNonlabel => {
       ...e,
       term: Deferral(OutsideAp),
     }
-  | Fun(p, body, _, _) => {
+  /* The printer shows a function's elaborated type as an ascription. */
+  | Fun(p, body, t, _) => {
       ...e,
-      term: Fun(p, body, None, None),
+      term:
+        Fun(
+          switch (t) {
+          | None => p
+          | Some(t) => Pat.fresh(Asc(p, t))
+          },
+          body,
+          None,
+          None,
+        ),
     }
   | TypFun(tp, body, _) => {
       ...e,
@@ -360,6 +389,16 @@ let f_pat = (continue: Pat.t => Pat.t, p: Pat.t): Pat.t => {
 let f_typ = (continue: Typ.t => Typ.t, t: Typ.t): Typ.t => {
   let t = continue(t);
   switch (t.term) {
+  /* Elaboration's unknown types print as `?`, which reads as a hole. */
+  | Unknown(SynSwitch | Internal) => {
+      ...t,
+      term: Unknown(Hole(EmptyHole)),
+    }
+  /* Elaboration makes an unbound type variable a hole of its name. */
+  | Unknown(Hole(Invalid(name))) when Token.is_typ_var(name) => {
+      ...t,
+      term: Var(name),
+    }
   | Prod(ts) => {
       ...t,
       term: Prod(List.map(~f=unwrap_labeled_singleton_typ, ts)),

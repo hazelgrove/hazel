@@ -6126,6 +6126,85 @@ let delim_prefix_class_tests = [
   ),
 ];
 
+/* The parens a hole keeps for a postfix `(…)` take an id of their own,
+   derived from the paren tile's, and carry that tile's incomplete mask
+   under it: the term's ids stay distinct (statics keys its info by id),
+   and a `)` not yet typed isn't printed. */
+let hole_parens_tests = {
+  let all_ids = (e: Language.Exp.t): list(Id.t) => {
+    let ids = ref([]);
+    let note = (ann: Language.IdTagged.IdTag.t) => ids := ann.ids @ ids^;
+    let _ =
+      Language.Exp.map_term(
+        ~f_exp=
+          (continue, x) => {
+            note(x.annotation);
+            continue(x);
+          },
+        ~f_pat=
+          (continue, x) => {
+            note(x.annotation);
+            continue(x);
+          },
+        ~f_typ=
+          (continue, x) => {
+            note(x.annotation);
+            continue(x);
+          },
+        ~f_tpat=
+          (continue, x) => {
+            note(x.annotation);
+            continue(x);
+          },
+        e,
+      );
+    ids^;
+  };
+  let term_of = acts =>
+    MakeTerm.from_zip_for_sem(perform(Zipper.init(), acts), ~root=Exp).term;
+  let distinct_ids = text =>
+    test_case(
+      "Distinct ids: " ++ text,
+      `Quick,
+      () => {
+        let ids = all_ids(term_of(mk(text ++ "¦")));
+        check(
+          int,
+          "distinct ids",
+          List.length(ids),
+          List.length(List.dedup_and_sort(ids, ~compare=Id.compare)),
+        );
+      },
+    );
+  [
+    distinct_ids("1:A(Int)"),
+    distinct_ids("1:a(b)"),
+    distinct_ids("x:a b(c"),
+    test_case(
+      "A `)` not yet typed isn't printed",
+      `Quick,
+      () => {
+        let term =
+          term_of(mk("x:a b(c)¦") @ [Destruct(Local(Left, ByChar))]);
+        let printed =
+          ExpToSegment.exp_to_segment(
+            ~settings=ExpToSegment.Settings.editable(~inline=true),
+            term,
+          )
+          |> Printer.of_segment(~holes="?", ~refractors=[]);
+        /* Parens printing adds come in pairs; `x:a b(c` has one open. */
+        check(
+          int,
+          "unclosed parens in " ++ printed,
+          1,
+          String.count(printed, ~f=Char.equal('('))
+          - String.count(printed, ~f=Char.equal(')')),
+        );
+      },
+    ),
+  ];
+};
+
 let tests = [
   ("Editing.PendingDelim", pending_delim_tests),
   ("Editing.DelimPrefixClass", delim_prefix_class_tests),
@@ -6163,4 +6242,5 @@ let tests = [
   ("Editing.CrossBoundary", cross_boundary_tests),
   ("Editing.InnerDestruct", inner_destruct_tests),
   ("Editing.Grapheme", grapheme_tests),
+  ("Editing.HoleParens", hole_parens_tests),
 ];

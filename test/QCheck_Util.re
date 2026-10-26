@@ -133,3 +133,26 @@ let arb_typ_full = (~minimal_idents=false, size: int) => {
     );
   set_print(show_core_typ, mapped);
 };
+
+/* Statics doesn't finish on a name whose type alias reaches back to it
+   through another binding (`{ type y = x; module x = y; type z = x }`,
+   #2570): normalizing hits its cap, or a name in a signature type
+   overflows the stack. A property skips such a term. Delete this when
+   #2686 and #2732 land and its pinned test in Test_Statics_Types goes
+   red. */
+let skip_alias_loop = (statics: unit => 'a): 'a => {
+  let capped = msg =>
+    List.mem(
+      [
+        "normalize exceeded 1000 recursive calls",
+        "weak_head_normalize exceeded 1000 recursive calls",
+      ],
+      msg,
+      ~equal=String.equal,
+    );
+  switch (statics()) {
+  | result => result
+  | exception (Failure(msg)) when capped(msg) => assume_fail()
+  | exception Stack_overflow => assume_fail()
+  };
+};

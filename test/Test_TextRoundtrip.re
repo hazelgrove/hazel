@@ -212,7 +212,29 @@ let arb_exp_roundtrip =
     },
   );
 
+let slow_parse_note_cases = [
+  test_case(
+    "A slow parse's note is one line",
+    `Quick,
+    () => {
+      let note =
+        PersistentZipper.slow_parse_note(
+          ~source="cli",
+          ~why="menhir: (Failure\n  \"at line 1\")",
+          "let x = f y in\nx",
+        );
+      check(
+        bool,
+        "no line break in " ++ note,
+        false,
+        String.contains(note, '\n'),
+      );
+    },
+  ),
+];
+
 let tests = [
+  ("TextRoundtrip.SlowParseNote", slow_parse_note_cases),
   ("TextRoundtrip.TextReproducers", text_reproducer_cases),
   ("TextRoundtrip.SoleHoles", sole_hole_cases),
   ("TextRoundtrip.DocSlides", doc_slide_cases),
