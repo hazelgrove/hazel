@@ -45,6 +45,7 @@ let (suite, _) =
     @ Test_Editing.tests
     @ [Test_EditorTransform.tests]
     @ [Test_RationalReadback.tests]
+    @ [Test_RationalIntegralModeReadback.tests]
     @ Test_Reassociate.tests
     @ Test_MultiProbe.tests
     @ [Test_SampleSelection.tests]
