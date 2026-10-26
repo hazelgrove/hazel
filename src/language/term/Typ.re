@@ -310,15 +310,30 @@ let sig_member_of_item = (item: Sig.t): option(Sig.member) =>
 let sig_members = (items: list(Sig.t)): list(Sig.member) =>
   List.filter_map(sig_member_of_item, items);
 
-/* Bind the type member declared by a signature item, if any. Signature
-   items scope sequentially: later items may mention earlier type members. */
+/* Bind the member declared by a signature item, if any. Signature items
+   scope sequentially: later items may mention earlier type members, and
+   paths rooted at earlier modules (`m.T`). */
 let extend_sig_item = (ctx: Ctx.t, item: Sig.t): Ctx.t =>
   switch (sig_item_recursive(item).term) {
   | SigType({term: Var(name), _} as tp, ty) =>
     Ctx.extend_alias(ctx, name, IdTagged.rep_id(tp), ty)
-  | SigType(_, _)
   | SigLet(_)
-  | SigModule(_)
+  | SigModule(_) =>
+    switch (Sig.member_of_item(item)) {
+    | Some(Val(name, typ)) =>
+      Ctx.extend(
+        ctx,
+        VarEntry({
+          name,
+          id: IdTagged.rep_id(item),
+          typ,
+          custom_statics: None,
+        }),
+      )
+    | Some(TypeManifest(_))
+    | None => ctx
+    }
+  | SigType(_, _)
   | Invalid(_)
   | EmptyHole
   | MultiHole(_) => ctx
@@ -377,21 +392,35 @@ let rec count_unknowns = (ty: t): int =>
 
 let contains_unknown = (ty: t): bool => count_unknowns(ty) > 0;
 
+/* What a substituted name is bound as: a type variable, replaced wherever it
+   occurs, or a module, replaced only where it roots a path (`m.T`). */
+type binder = [
+  | `TVar
+  | `Var
+];
+
 /* Whether substituting `s` for `x` continues past a signature item (see the
-   `Sig` arm of [subst]). It stops at a type member that shadows `x`, and at
-   one named like a free variable of `s`: that member captures `s` if `x`
-   occurs after it. */
+   `Sig` arm of [subst]). It stops at a member that shadows `x`, and at a
+   type member named like a free variable of `s`: that member captures `s`
+   if `x` occurs after it. */
 type sig_item_subst =
   | Continue
   | Stop
   | Capture(Var.t);
 
 let sig_item_subst =
-    (~fv_s: list(Var.t), x: Var.t, item: Sig.t, rest: list(Sig.t))
+    (
+      ~binder: binder,
+      ~fv_s: list(Var.t),
+      x: Var.t,
+      item: Sig.t,
+      rest: list(Sig.t),
+    )
     : sig_item_subst =>
-  switch (Sig.member_of_item(item)) {
-  | Some(TypeManifest(n, _)) when String.equal(n, x) => Stop
-  | Some(TypeManifest(n, _)) when List.exists(String.equal(n), fv_s) =>
+  switch (binder, Sig.member_of_item(item)) {
+  | (_, Some(TypeManifest(n, _)))
+  | (`Var, Some(Val(n, _))) when String.equal(n, x) => Stop
+  | (_, Some(TypeManifest(n, _))) when List.exists(String.equal(n), fv_s) =>
     List.exists(String.equal(x), free_vars(Sig(rest) |> temp))
       ? Capture(n) : Stop
   | _ => Continue
@@ -407,97 +436,139 @@ let sig_item_subst =
    capture-avoiding, so repeated collisions are handled naturally.
 
    A signature's type members bind too but cannot be renamed; see the `Sig`
-   arm. [on_capture] is told each member that captures a free variable of
-   `s`. */
-let rec subst_impl = (~on_capture: Var.t => unit, s: t, x: TPat.t, ty: t): t => {
-  let subst = subst_impl(~on_capture);
-  let avoid_capture = (tp2: TPat.t, body: t): (TPat.t, t) =>
-    switch (TPat.tyvar_of_utpat(tp2)) {
-    | Some(name) when List.mem(name, free_vars(s)) =>
-      let fresh = fresh_var(name);
-      let tp2': TPat.t = Var(fresh) |> TPat.fresh;
-      let body' = subst(Var(fresh) |> temp, tp2, body);
-      (tp2', body');
-    | _ => (tp2, body)
-    };
+   arm. Returns, with the result, each type member that captured a free
+   variable of `s`. */
+let rec subst =
+        (~binder: binder=`TVar, s: t, x: TPat.t, ty: t): (t, list(Var.t)) =>
   switch (TPat.tyvar_of_utpat(x)) {
+  | None => (ty, [])
   | Some(str) =>
-    let (term, rewrap) = Annotated.unwrap(ty);
-    switch (term) {
-    | Atom(_) => ty
-    | Label(name) => Grammar.Label(name) |> rewrap
-    | ExplicitNonlabel => ExplicitNonlabel |> rewrap
-    | Unknown(prov) => Unknown(prov) |> rewrap
-    | Arrow(ty1, ty2) =>
-      Arrow(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap
-    | Prod(tys) => Prod(List.map(subst(s, x), tys)) |> rewrap
-    | TupLabel(label, ty) => TupLabel(label, subst(s, x, ty)) |> rewrap
-    | Sum(sm) =>
-      Sum(ConstructorMap.map(Option.map(subst(s, x)), sm)) |> rewrap
-    | Poly(tp2, ty) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
-      Poly(tp2, ty) |> rewrap
-    | Poly(tp2, ty) =>
-      let (tp2', ty') = avoid_capture(tp2, ty);
-      Poly(tp2', subst(s, x, ty')) |> rewrap;
-    | Rec(tp2, ty) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
-      Rec(tp2, ty) |> rewrap
-    | Rec(tp2, ty) =>
-      let (tp2', ty') = avoid_capture(tp2, ty);
-      Rec(tp2', subst(s, x, ty')) |> rewrap;
-    | List(ty) => List(subst(s, x, ty)) |> rewrap
-    | Var(y) => str == y ? s : Var(y) |> rewrap
-    | Parens(ty) => Parens(subst(s, x, ty)) |> rewrap
-    | Projector(data, ty) => Projector(data, subst(s, x, ty)) |> rewrap
-    | ProdProjection(t1, t2) =>
-      ProdProjection(subst(s, x, t1), subst(s, x, t2)) |> rewrap
-    | ProdExtension(t1, t2) =>
-      ProdExtension(subst(s, x, t1), subst(s, x, t2)) |> rewrap
-    | ProofOf(e) => ProofOf(e) |> rewrap
-    | Sig(items) =>
-      /* A type member binds its name for the items after it, and that name
-         is also the member's label (`M.T`), so unlike Poly/Rec it cannot be
-         alpha-renamed. Where it would capture a free variable of `s`, `x` is
-         replaced by `?` in the items after it instead, and the member is
-         reported through [on_capture]. */
-      let rec go = (s, fv_s, items: list(Sig.t)) =>
-        switch (items) {
-        | [] => []
-        | [item, ...rest] =>
-          let item = sig_item_recursive(item);
-          let item' = Sig.map_typ(subst(s, x), item);
-          switch (sig_item_subst(~fv_s, str, item, rest)) {
-          | Continue => [item', ...go(s, fv_s, rest)]
-          | Stop => [item', ...rest]
-          | Capture(n) =>
-            on_capture(n);
-            [item', ...go(Unknown(Internal) |> temp, [], rest)];
+    let avoid_capture = (s: t, tp2: TPat.t, body: t): (TPat.t, t) =>
+      switch (TPat.tyvar_of_utpat(tp2)) {
+      | Some(name) when List.mem(name, free_vars(s)) =>
+        let fresh = fresh_var(name);
+        let tp2': TPat.t = Var(fresh) |> TPat.fresh;
+        let (body', _) = subst(Var(fresh) |> temp, tp2, body);
+        (tp2', body');
+      | _ => (tp2, body)
+      };
+    /* Threads the captures found so far. */
+    let rec go = (s: t, captured: list(Var.t), ty: t): (list(Var.t), t) => {
+      let (term, rewrap) = Annotated.unwrap(ty);
+      let go_one = (k: t => term, ty: t) => {
+        let (captured, ty) = go(s, captured, ty);
+        (captured, k(ty) |> rewrap);
+      };
+      switch (term) {
+      | Atom(_)
+      | Label(_)
+      | ExplicitNonlabel
+      | Unknown(_)
+      | ProofOf(_)
+      | DrvQuoteTy(_) => (captured, ty)
+      | Arrow(ty1, ty2) =>
+        let (captured, ty1) = go(s, captured, ty1);
+        let (captured, ty2) = go(s, captured, ty2);
+        (captured, Arrow(ty1, ty2) |> rewrap);
+      | Prod(tys) =>
+        let (captured, tys) = List.fold_left_map(go(s), captured, tys);
+        (captured, Prod(tys) |> rewrap);
+      | TupLabel(label, ty) => go_one(ty => TupLabel(label, ty), ty)
+      | Sum(sm) =>
+        let (captured, sm) =
+          List.fold_left_map(
+            (captured, variant: ConstructorMap.variant(t)) =>
+              switch (variant) {
+              | Variant(ctr, ann, Some(ty)) =>
+                let (captured, ty) = go(s, captured, ty);
+                (captured, ConstructorMap.Variant(ctr, ann, Some(ty)));
+              | Variant(_, _, None)
+              | BadEntry(_) => (captured, variant)
+              },
+            captured,
+            sm,
+          );
+        (captured, Sum(sm) |> rewrap);
+      | Poly(tp2, _)
+      | Rec(tp2, _) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) => (
+          captured,
+          ty,
+        )
+      | Poly(tp2, ty) =>
+        let (tp2', ty') = avoid_capture(s, tp2, ty);
+        go_one(ty => Poly(tp2', ty), ty');
+      | Rec(tp2, ty) =>
+        let (tp2', ty') = avoid_capture(s, tp2, ty);
+        go_one(ty => Rec(tp2', ty), ty');
+      | List(ty) => go_one(ty => List(ty), ty)
+      | Var(y) =>
+        switch (binder) {
+        | `TVar when String.equal(str, y) => (captured, s)
+        | `TVar
+        | `Var => (captured, ty)
+        }
+      | Parens(ty) => go_one(ty => Parens(ty), ty)
+      | Projector(data, ty) => go_one(ty => Projector(data, ty), ty)
+      | ProdProjection(t1, t2) =>
+        let (captured, t1) =
+          switch (binder, term_of(t1)) {
+          | (`Var, Var(y)) when String.equal(str, y) => (captured, s)
+          | _ => go(s, captured, t1)
           };
-        };
-      Sig(go(s, free_vars(s), items)) |> rewrap;
-    | DrvQuoteTy(_) => ty
+        let (captured, t2) = go(s, captured, t2);
+        (captured, ProdProjection(t1, t2) |> rewrap);
+      | ProdExtension(t1, t2) =>
+        let (captured, t1) = go(s, captured, t1);
+        let (captured, t2) = go(s, captured, t2);
+        (captured, ProdExtension(t1, t2) |> rewrap);
+      | Sig(items) =>
+        /* A type member binds its name for the items after it, and that
+           name is also the member's label (`M.T`), so unlike Poly/Rec it
+           cannot be alpha-renamed. Where it would capture a free variable
+           of `s`, `x` is replaced by `?` in the items after it instead,
+           and the member is reported. */
+        let rec go_items = (s, fv_s, captured, items: list(Sig.t)) =>
+          switch (items) {
+          | [] => (captured, [])
+          | [item, ...rest] =>
+            let item = sig_item_recursive(item);
+            let (captured, item') =
+              switch (Sig.typ_of_item(item)) {
+              | Some(ty) =>
+                let (captured, ty) = go(s, captured, ty);
+                (captured, Sig.map_typ(_ => ty, item));
+              | None => (captured, item)
+              };
+            switch (sig_item_subst(~binder, ~fv_s, str, item, rest)) {
+            | Continue =>
+              let (captured, rest) = go_items(s, fv_s, captured, rest);
+              (captured, [item', ...rest]);
+            | Stop => (captured, [item', ...rest])
+            | Capture(n) =>
+              let (captured, rest) =
+                go_items(
+                  Unknown(Internal) |> temp,
+                  [],
+                  captured @ [n],
+                  rest,
+                );
+              (captured, [item', ...rest]);
+            };
+          };
+        let (captured, items) = go_items(s, free_vars(s), captured, items);
+        (captured, Sig(items) |> rewrap);
+      };
     };
-  | None => ty
+    let (captured, ty) = go(s, [], ty);
+    (ty, captured);
   };
-};
-
-let subst = (s: t, x: TPat.t, ty: t): t =>
-  subst_impl(~on_capture=ignore, s, x, ty);
-
-/* [subst], with the type members on which it replaced `x` by `?` because
-   they would capture a free variable of `s`. */
-let subst_captures = (s: t, x: TPat.t, ty: t): (t, list(Var.t)) => {
-  let captured = ref([]);
-  let ty' =
-    subst_impl(~on_capture=n => captured := [n, ...captured^], s, x, ty);
-  (ty', List.rev(captured^));
-};
 
 let unroll = (ty: t): t =>
   switch (term_of(ty)) {
   | Rec(tp, ty_body) =>
     switch (TPat.tyvar_of_utpat(tp)) {
     | None => ty_body
-    | Some(_) => subst(ty, tp, ty_body)
+    | Some(_) => fst(subst(ty, tp, ty_body))
     }
   | _ => ty
   };
@@ -523,36 +594,47 @@ let rec unroll_to_non_rec = (ty: t): option(t) =>
   | _ => Some(ty)
   };
 
-/* Substitute each [(name, def)] for [name], latest binder first, with the
-   type members that captured a definition (see [subst_captures]). */
-let apply_sig_subst = (sigma: list((Var.t, t)), ty: t): (t, list(Var.t)) =>
+/* Substitute each [(binder, name, def)] for [name], latest binder first,
+   with the type members that captured a definition (see [subst]). */
+let apply_sig_subst =
+    (sigma: list((binder, Var.t, t)), ty: t): (t, list(Var.t)) =>
   List.fold_left(
-    ((ty, captured), (name, def)) => {
-      let (ty, c) = subst_captures(def, Var(name) |> TPat.fresh, ty);
+    ((ty, captured), (binder, name, def)) => {
+      let (ty, c) = subst(~binder, def, Var(name) |> TPat.fresh, ty);
       (ty, captured @ c);
     },
     (ty, []),
     sigma,
   );
 
-/* The well-formed members, each with the type members declared before it
-   substituted into its type, except those [keep_local] names; with the
-   type members that captured a substituted definition, where `?` replaced
-   it. */
-let sig_members_closed_captures =
+/* Each well-formed item with its member, closed: the members declared
+   before it are substituted into its type, a type member for its name and a
+   module for paths rooted at its name (`m.T`), except type members
+   [keep_local] names; with the type members that captured a substituted
+   definition, where `?` replaced it. */
+let sig_items_closed_captures =
     (~keep_local=_ => false, items: list(Sig.t))
-    : (list(Sig.member), list(Var.t)) => {
+    : (list((Sig.t, Sig.member)), list(Var.t)) => {
   let (_, rev, captured) =
     List.fold_left(
       ((sigma, acc, captured), item) =>
         switch (sig_member_of_item(item)) {
         | Some(Val(x, ty)) =>
           let (ty, c) = apply_sig_subst(sigma, ty);
-          (sigma, [Sig.Val(x, ty), ...acc], captured @ c);
+          (
+            [(`Var, x, ty), ...sigma],
+            [(item, Sig.Val(x, ty)), ...acc],
+            captured @ c,
+          );
         | Some(TypeManifest(name, def)) =>
           let (def, c) = apply_sig_subst(sigma, def);
-          let sigma = keep_local(name) ? sigma : [(name, def), ...sigma];
-          (sigma, [Sig.TypeManifest(name, def), ...acc], captured @ c);
+          let sigma =
+            keep_local(name) ? sigma : [(`TVar, name, def), ...sigma];
+          (
+            sigma,
+            [(item, Sig.TypeManifest(name, def)), ...acc],
+            captured @ c,
+          );
         | None => (sigma, acc, captured)
         },
       ([], [], []),
@@ -561,39 +643,45 @@ let sig_members_closed_captures =
   (List.rev(rev), captured);
 };
 
+let sig_members_closed_captures =
+    (~keep_local=?, items: list(Sig.t)): (list(Sig.member), list(Var.t)) => {
+  let (closed, captured) = sig_items_closed_captures(~keep_local?, items);
+  (List.map(snd, closed), captured);
+};
+
 let sig_members_closed =
     (~keep_local=?, items: list(Sig.t)): list(Sig.member) =>
   fst(sig_members_closed_captures(~keep_local?, items));
 
-/* The type carried by the last member [select] picks, closed as by
-   [sig_members_closed]. Of the other members, only the type definitions
-   before it are closed. */
-let sig_project =
-    (select: Sig.member => option(t), items: list(Sig.t)): option(t) => {
-  let (_, found) =
-    List.fold_left(
-      ((sigma, found), item) =>
-        switch (sig_member_of_item(item)) {
-        | Some(m) =>
-          let found =
-            switch (select(m)) {
-            | Some(ty) => Some((sigma, ty))
-            | None => found
-            };
-          switch (m) {
-          | TypeManifest(name, def) => (
-              [(name, fst(apply_sig_subst(sigma, def))), ...sigma],
-              found,
-            )
-          | Val(_) => (sigma, found)
-          };
-        | None => (sigma, found)
-        },
-      ([], None),
-      items,
+let sig_items_closed = (items: list(Sig.t)): list((Sig.t, Sig.member)) =>
+  fst(sig_items_closed_captures(items));
+
+/* Whether two signatures' members have the same value names and the same
+   type names, in any order. */
+let same_member_names = (a: list(Sig.member), b: list(Sig.member)): bool => {
+  let same = (a, b) =>
+    List.equal(
+      String.equal,
+      List.sort(String.compare, a),
+      List.sort(String.compare, b),
     );
-  Option.map(((sigma, ty)) => fst(apply_sig_subst(sigma, ty)), found);
+  same(Sig.value_names(a), Sig.value_names(b))
+  && same(Sig.type_names(a), Sig.type_names(b));
 };
+
+/* The type carried by the last member [select] picks, closed as by
+   [sig_members_closed]. */
+let sig_project =
+    (select: Sig.member => option(t), items: list(Sig.t)): option(t) =>
+  List.fold_left(
+    (found, m) =>
+      switch (select(m)) {
+      | Some(ty) => Some(ty)
+      | None => found
+      },
+    None,
+    sig_members_closed(items),
+  );
 
 /* The type of value member [name], closed as by [sig_members_closed]. */
 let sig_project_value = (items: list(Sig.t), name: Var.t): option(t) =>
@@ -875,18 +963,14 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
   | ProofOf(_) => ty // Todo: should we normalize this?
   | Sig(items) =>
     /* Signatures are dependent records: normalize each member in a context
-       extended with the type members declared before it. Malformed items
+       extended with the members declared before it. Malformed items
        (holes, non-variable patterns) are dropped from the normal form. */
     let (_, rev) =
       List.fold_left(
         ((ctx, acc), item: Sig.t) => {
           let item = sig_item_recursive(item);
           switch (Sig.member_of_item(item)) {
-          | Some(Val(_)) => (
-              ctx,
-              [Sig.map_typ(normalize(ctx), item), ...acc],
-            )
-          | Some(TypeManifest(_)) =>
+          | Some(_) =>
             let item' = Sig.map_typ(normalize(ctx), item);
             (extend_sig_item(ctx, item'), [item', ...acc]);
           | None => (ctx, acc)
@@ -991,30 +1075,22 @@ let equal_up_to_aliases = (ctx: Ctx.t, a: t, b: t): bool => {
       switch (term_of(a), term_of(b)) {
       | (Var(n1), Var(n2)) => n1 == n2 /* both unresolvable in ctx */
       | (Sig(xs), Sig(ys)) =>
-        /* Positional: type members bind their name for later items. */
-        let rec go_members = (ctx, xs: list(Sig.t), ys: list(Sig.t)) =>
-          switch (xs, ys) {
-          | ([], []) => true
-          | ([x, ...xs], [y, ...ys]) =>
-            switch (sig_member_of_item(x), sig_member_of_item(y)) {
-            | (Some(Val(n1, t1)), Some(Val(n2, t2))) =>
-              String.equal(n1, n2)
-              && go(ctx, t1, t2)
-              && go_members(ctx, xs, ys)
-            | (Some(TypeManifest(n1, d1)), Some(TypeManifest(n2, d2))) =>
-              String.equal(n1, n2)
-              && go(ctx, d1, d2)
-              && go_members(
-                   Ctx.extend_dummy_tvar(ctx, Var(n1) |> TPat.fresh),
-                   xs,
-                   ys,
-                 )
-            | (None, None) => go_members(ctx, xs, ys)
-            | _ => false
-            }
-          | _ => false
-          };
-        go_members(ctx, xs, ys);
+        /* Order-insensitive, as in [meet]: members are compared closed. */
+        let mx = sig_members_closed(xs) |> Sig.dedup_last;
+        let my = sig_members_closed(ys) |> Sig.dedup_last;
+        same_member_names(mx, my)
+        && List.for_all(
+             (m: Sig.member) =>
+               switch (m) {
+               | Val(x, t1) =>
+                 Sig.find_value(my, x)
+                 |> Option.fold(~none=false, ~some=go(ctx, t1))
+               | TypeManifest(n, t1) =>
+                 Sig.find_type_def(my, n)
+                 |> Option.fold(~none=false, ~some=go(ctx, t1))
+               },
+             mx,
+           );
       | (List(x), List(y)) => go(ctx, x, y)
       | (Arrow(x1, y1), Arrow(x2, y2)) =>
         go(ctx, x1, x2) && go(ctx, y1, y2)
@@ -1031,10 +1107,9 @@ let equal_up_to_aliases = (ctx: Ctx.t, a: t, b: t): bool => {
           go(Ctx.extend_dummy_tvar(ctx, tp1), x, y)
         | _ => fast_equal(a, b)
         }
-      /* Atoms, Unknowns, Labels, and anything alias-free: fast_equal
-         already said false above, and heads are now alias-resolved, so
-         differing constructors are genuinely unequal. */
-      | _ => false
+      /* Atoms, Unknowns, Labels: compared again now that their heads are
+         alias-resolved. */
+      | _ => fast_equal(a, b)
       };
     };
   go(~depth=0, ctx, a, b);
@@ -1091,16 +1166,19 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     let ctx = Ctx.extend_dummy_tvar(ctx, tp1);
     let ty1' =
       switch (TPat.tyvar_of_utpat(tp2)) {
-      | Some(x2) => subst(Var(x2) |> temp, tp1, ty1)
+      | Some(x2) => fst(subst(Var(x2) |> temp, tp1, ty1))
       | None => ty1
       };
     let+ ty_body = meet(ctx, ty1', ty2);
     Rec(tp1, ty_body) |> temp;
+  /* A signature alias that mentions itself is a Rec. */
+  | (Rec(_), Sig(_)) => meet'(unroll(ty1), ty2)
+  | (Sig(_), Rec(_)) => meet'(ty1, unroll(ty2))
   | (Rec(_), _) => None
   | (Poly(x1, ty1), Poly(x2, ty2)) =>
     let ty1' =
       switch (TPat.tyvar_of_utpat(x2)) {
-      | Some(x2) => subst(Var(x2) |> temp, x1, ty1)
+      | Some(x2) => fst(subst(Var(x2) |> temp, x1, ty1))
       | None => ty1
       };
     let ctx = Ctx.extend_dummy_tvar(ctx, x2);
@@ -1171,39 +1249,29 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   | (ExplicitNonlabel, _) => None
   | (Sig(xs), Sig(ys)) =>
     /* Exact consistency: the same value-member names and the same
-       type-member names (order-insensitive), members pairwise consistent. */
-    let xs = Sig.dedup_last_items(xs);
-    let mx = sig_members(xs);
-    let my = sig_members(ys) |> Sig.dedup_last;
-    let same_names = (a, b) =>
-      List.equal(
-        String.equal,
-        List.sort(String.compare, a),
-        List.sort(String.compare, b),
-      );
-    if (!same_names(Sig.value_names(mx), Sig.value_names(my))
-        || !same_names(Sig.type_names(mx), Sig.type_names(my))) {
+       type-member names (order-insensitive), members pairwise consistent.
+       Members are compared closed: each side's own order decides which of
+       its type members a member's type mentions. */
+    let cx = sig_items_closed(xs) |> Sig.dedup_last_by(snd);
+    let my = sig_members_closed(ys) |> Sig.dedup_last;
+    if (!same_member_names(List.map(snd, cx), my)) {
       None;
     } else {
-      /* Rebuild from the left operand's items so each keeps its form. */
-      let rec go_items = (ctx, items: list(Sig.t), acc) =>
-        switch (items) {
-        | [] => Some(List.rev(acc))
-        | [item, ...items] =>
-          switch (sig_member_of_item(item)) {
-          | Some(Val(x, t1)) =>
-            let* t2 = Sig.find_value(my, x);
-            let* t = meet(ctx, t1, t2);
-            go_items(ctx, items, [Sig.map_typ(_ => t, item), ...acc]);
-          | Some(TypeManifest(n, d1)) =>
-            let* d2 = Sig.find_type_def(my, n);
-            let* d = meet(ctx, d1, d2);
-            let item = Sig.map_typ(_ => d, item);
-            go_items(extend_sig_item(ctx, item), items, [item, ...acc]);
-          | None => go_items(ctx, items, acc)
-          }
-        };
-      let+ items = go_items(ctx, xs, []);
+      /* Rebuild from the left operand's items so each keeps its form, and
+         its type as written where the meet refines nothing. */
+      let+ items =
+        cx
+        |> List.map(((item, m: Sig.member)) => {
+             let (t1, t2) =
+               switch (m) {
+               | Val(x, t1) => (t1, Sig.find_value(my, x))
+               | TypeManifest(n, t1) => (t1, Sig.find_type_def(my, n))
+               };
+             let* t2 = t2;
+             let+ t = meet'(t1, t2);
+             equal(t, t1) ? item : Sig.map_typ(_ => t, item);
+           })
+        |> OptUtil.sequence;
       Sig(items) |> temp;
     };
   | (Sig(_), _) => None

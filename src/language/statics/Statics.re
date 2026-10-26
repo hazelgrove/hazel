@@ -1289,6 +1289,11 @@ and uexp_to_info_map =
               ...ty,
               term: List(inner'),
             };
+        | Rec(_) =>
+          switch (Typ.as_sig(ctx, ty)) {
+          | Some(items) => Sig(items) |> Typ.temp
+          | None => ty
+          }
         | _ => ty
         };
       };
@@ -1825,7 +1830,13 @@ and uexp_to_info_map =
       let (option_name, ty_body) = MatchedTyp.poly_pair_tolerant(ctx, fn.ty);
       switch (option_name) {
       | Some(name) =>
-        let (ty_syn, capture_marks) = subst_marked(utyp_norm, name, ty_body);
+        /* The argument as written, unless that is captured: an alias may
+           name a type member that its expansion does not. */
+        let (ty_syn, capture_marks) =
+          switch (Typ.subst(utyp, name, ty_body)) {
+          | (ty_syn, []) => (ty_syn, [])
+          | (_, [_, ..._]) => subst_marked(utyp_norm, name, ty_body)
+          };
         add(
           ~elab_term,
           ~elab_syn_ty=ty_syn,
@@ -2703,11 +2714,7 @@ and uexp_to_info_map =
     | Module(items) =>
       /* Mismatches land on definitions via `lower`'s annotations; add()
          checks the whole signature against ana. */
-      let ana_items =
-        switch (Typ.term_of(Typ.weak_head_normalize(ctx, ana))) {
-        | Sig(items) => Some(items)
-        | _ => None
-        };
+      let ana_items = Typ.as_sig(ctx, ana);
       let expanded = ModuleHelpers.lower(~ctx, ~ana_items, items);
       let (expanded_info, expanded_elab, m) = go(expanded, m);
       let m = ModuleHelpers.reclassify_expanded_module_items(items, m);

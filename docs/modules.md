@@ -154,22 +154,26 @@ pattern carries the optional `: Signature`), holes.
 `Typ.Sig(items)` is a first-class type. `Sig.re` exposes a member view
 (`Sig.members`: `Val(x, τ)` / `TypeManifest(T, τ)`), skipping holes and
 malformed items. A signature is a dependent record: later items may mention
-earlier type members by name, so:
+earlier type members by name, and paths rooted at earlier modules
+(`module P : S; let x : P.T`), so:
 
-- `Typ.free_vars`, `Typ.subst` and `Typ.normalize` treat type members as
-  sequential binders (`Ctx.extend_sig_item` binds one in a context).
+- `Typ.free_vars`, `Typ.subst` and `Typ.normalize` treat members as
+  sequential binders (`Typ.extend_sig_item` binds one in a context).
   Member names cannot be alpha-renamed, so a substituted type with a free
   variable named like a member would be captured by it. `subst` degrades the
-  items after that member to `?` and `Typ.subst_captures` names the member;
-  statics substitutes only through `StaticsBase.subst_marked`, which turns
-  that into `Mark.TypeMemberCapture`, and normalizes a type argument first so
-  an alias never collides — only an abstract type variable can.
+  items after that member to `?` and returns the member with its result;
+  statics substitutes through `StaticsBase.subst_marked`, which turns that
+  into `Mark.TypeMemberCapture`. A type argument is substituted as written
+  and, only if that captures, normalized, so an alias argument collides only
+  where its expansion still names the member.
 - `Typ.sig_project_value` / `Typ.sig_project_type` return a member's type
-  with the signature's earlier type members substituted, so `x : T` in
-  `{ type T = Int; let x : T }` projects to `Int`.
+  with the signature's earlier members substituted, so `x : T` in
+  `{ type T = Int; let x : T }` projects to `Int`, and `x : P.T` in
+  `{ module P : { type T = Int }; let x : P.T }` to `{ type T = Int }.T`.
 - `Typ.meet` on two signatures requires the same value-member names and the
-  same type-member names (order-insensitive) and meets members pairwise in a
-  context extended with the type members. A signature is inconsistent with
+  same type-member names (order-insensitive) and meets members pairwise,
+  each closed as by `sig_project_value`, so members are compared in the
+  outer context whatever order each side declares them in. A signature is inconsistent with
   every other type constructor, including `Prod`.
 - `Typ.path_sig` resolves a module path (`Var(M)`, `M.P`) to its signature's
   items: a type alias first, then a value variable whose type is a signature.

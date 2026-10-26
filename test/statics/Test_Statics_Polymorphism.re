@@ -46,6 +46,28 @@ let tests = (
       {|type y = Int in typfun y -> (? : y)|},
       FTemp.Typ.(Some(poly(TPat.var("y"), var("y")))),
     ),
+    test_case(
+      "A type application keeps an alias argument unexpanded",
+      `Quick,
+      () => {
+        let source = {|type Color = + Red + Green in
+let id = typfun A -> fun (x : A) -> x in
+let y : Int = id@<Color> in y|};
+        check(
+          Alcotest.list(testable_typ),
+          source,
+          [arrow(var("Color"), var("Color"))],
+          statics(parse_exp(source))
+          |> errors
+          |> List.concat_map(snd)
+          |> List.filter_map(
+               fun
+               | Language.Mark.ExpectationMismatch({syn, _}) => Some(syn)
+               | _ => None,
+             ),
+        );
+      },
+    ),
     inconsistent_typecheck(
       "Polymorphic Equality type inconsistency 1",
       {| 1 == 1. |} |> parse_exp,

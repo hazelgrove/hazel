@@ -66,7 +66,7 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
   | None => exp
   | Some(x) =>
     Exp.map_term(
-      ~f_typ=(_, typ) => Typ.subst(s, tpat, typ),
+      ~f_typ=(_, typ) => fst(Typ.subst(s, tpat, typ)),
       ~f_exp=
         (continue, exp) =>
           switch (term_of(exp)) {

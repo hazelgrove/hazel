@@ -842,21 +842,20 @@ let cyclic_path_tests = {
   );
 };
 
-let subst_captures_tests = {
+let subst_tests = {
   let ti = F.Typ.int();
   let a = F.TPat.var("a");
   let t_var = F.Typ.var("T");
   let a_to_int = F.Typ.arrow(F.Typ.var("a"), ti);
-  /* [subst_captures] names exactly the type members on which [subst]
-     degraded the items after them to `?`, and otherwise agrees with it. */
+  /* [subst] names exactly the type members on which it degraded the items
+     after them to `?`. */
   let case = (name, s, ty, expected) =>
     test_case(
       name,
       `Quick,
       () => {
-        let (ty', captured) = Typ.subst_captures(s, a, ty);
+        let (ty', captured) = Typ.subst(s, a, ty);
         check(list(string), "captured members", expected, captured);
-        check(typ, "agrees with subst", Typ.subst(s, a, ty), ty');
         check(
           bool,
           "degraded iff captured",
@@ -869,7 +868,7 @@ let subst_captures_tests = {
       },
     );
   (
-    "Typ.SubstCaptures",
+    "Typ.Subst",
     [
       case(
         "a clean substitution captures nothing",
@@ -926,15 +925,17 @@ let subst_captures_tests = {
             st("a", ti),
             sv("v", a_to_int),
           ]),
-          Typ.subst(
-            t_var,
-            a,
-            sg([
-              st("T", ti),
-              sv("u", a_to_int),
-              st("a", ti),
-              sv("v", a_to_int),
-            ]),
+          fst(
+            Typ.subst(
+              t_var,
+              a,
+              sg([
+                st("T", ti),
+                sv("u", a_to_int),
+                st("a", ti),
+                sv("v", a_to_int),
+              ]),
+            ),
           ),
         )
       ),
@@ -948,5 +949,5 @@ let tests = [
   diff_tests,
   sig_tests,
   cyclic_path_tests,
-  subst_captures_tests,
+  subst_tests,
 ];

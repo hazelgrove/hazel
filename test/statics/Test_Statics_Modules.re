@@ -1284,66 +1284,41 @@ let test_shorthand_member_mismatch_on_definition =
 
 /* ===== CYCLIC MEMBER PATHS ===== */
 
-/* `m.T` in the inner `m`'s own signature resolves to the inner `m`: the
-   path has no weak head normal form. */
-let is_type_member_mismatch_on_t: Language.Mark.t => bool =
-  fun
-  | ModuleTypeMemberMismatch({name: "T", _}) => true
-  | _ => false;
-
+/* `m.T` in a signature names the outer `m`, the one in scope there. Once
+   the inner `m` is bound, its member `m.T` names the inner `m` itself: the
+   path has no weak head normal form, and is `?` rather than a hang. */
 let test_cyclic_member_path_let =
-  single_mark_test(
-    "A signature naming a same-named outer binding is a type error, not a crash",
+  no_marks_test(
+    "A signature naming a same-named outer binding means the outer one, without a crash",
     {|let m = { type T = Int } in let m : { type T = m.T } = { type T = Int } in let y : m.T = 1 in y|},
-    is_type_member_mismatch_on_t,
   );
 
 let test_cyclic_member_path_module =
-  single_mark_test(
-    "The module form of a self-referential signature is a type error, not a crash",
+  no_marks_test(
+    "The module form of a signature naming a same-named outer module means the outer one, without a crash",
     {|module M = { type T = Int } in module M : { type T = M.T } = { type T = Int } in let y : M.T = 1 in y|},
-    is_type_member_mismatch_on_t,
   );
 
 /* ===== SUBSTITUTING INTO A SIGNATURE ===== */
 
 /* `f@<T>` where the alias T names Bool and the signature declares a type
-   member [member]: `m.v(1)` must report the same error whether or not the
-   member is also called T. */
-let alias_argument_source = member =>
-  Printf.sprintf(
+   member also called T: the argument is not captured, so `m.v(1)` passes an
+   Int where a Bool is expected. */
+let test_alias_argument_not_captured_by_member =
+  single_mark_test(
+    "An alias type argument is not captured by a same-named type member",
     {|type T = Bool in
-let f : poly a -> {type %s = Int; let v : a -> Int} =
-  typfun a -> {type %s = Int; let v = fun x -> 1} in
+let f : poly a -> {type T = Int; let v : a -> Int} =
+  typfun a -> {type T = Int; let v = fun x -> 1} in
 let m = f@<T> in
 m.v(1)|},
-    member,
-    member,
-  );
-
-let test_alias_argument_not_captured_by_member =
-  Alcotest.test_case(
-    "An alias type argument is not captured by a same-named type member",
-    `Quick,
-    () => {
-      let issues_of = member =>
-        statics(parse_exp(alias_argument_source(member)))
-        |> errors
-        |> List.map(((_, marks)) => Marks(marks));
-      let (colliding, control) = (issues_of("T"), issues_of("U"));
-      Alcotest.check(
-        Alcotest.neg(Alcotest.list(testable_issue)),
-        "control reports an error",
-        [],
-        control,
-      );
-      Alcotest.check(
-        Alcotest.list(testable_issue),
-        "the member's name does not change the marks",
-        control,
-        colliding,
-      );
-    },
+    fun
+    | ExpectationMismatch({ana, syn}) =>
+      switch (Language.Typ.term_of(ana), Language.Typ.term_of(syn)) {
+      | (Atom(Bool), Atom(Int)) => true
+      | _ => false
+      }
+    | _ => false,
   );
 
 /* `f@<X>` where X is a type parameter in scope and the signature declares a
@@ -1485,6 +1460,78 @@ let test_sig_closing_capture_is_marked =
     fun
     | Language.Mark.TypeMemberCapture(["U"]) => true
     | _ => false,
+  );
+
+let test_error_meet_compares_members_in_their_own_scope =
+  has_mark_test(
+    "Signatures whose same-named member means different types do not meet",
+    {|type T = Bool in
+type A = { let x : T; type T = Int } in
+type B = { type T = Int; let x : T } in
+let a : A = { let x = true; type T = Int } in
+let b : B = a in
+b.x + 1|},
+    fun
+    | ExpectationMismatch(_) => true
+    | _ => false,
+  );
+
+let test_meet_ignores_member_order =
+  fully_consistent_typecheck(
+    "Signatures declaring the same members in another order meet",
+    {|type A = { type T = Int; let x : T } in
+type B = { let x : Int; type T = Int } in
+let a : A = { type T = Int; let x = 1 } in
+let b : B = a in
+b.x + 1|},
+    Some(int()),
+  );
+
+let test_sig_module_member_roots_path =
+  fully_consistent_typecheck(
+    "A path in a signature is rooted at an earlier sub-module of it",
+    {|module P = { type U = Bool } in
+module M : { module P : { type U = Int }; let x : P.U } = { module P = { type U = Int }; let x = 3 } in
+M.x + 1|},
+    Some(int()),
+  );
+
+let test_error_sig_module_member_roots_path =
+  single_mark_test(
+    "A definition is checked against a path rooted at the signature's own sub-module",
+    {|module P = { type U = Bool } in
+module M : { module P : { type U = Int }; let x : P.U } = { module P = { type U = Int }; let x = true } in
+M.x|},
+    is_int_vs(Bool),
+  );
+
+let test_type_member_matches_through_alias =
+  Alcotest.test_case(
+    "A type member matches a declaration that names it through an alias",
+    `Quick,
+    () =>
+    List.iter(
+      source =>
+        Alcotest.(check(int))(source, 0, List.length(marks_of(source))),
+      [
+        {|type B = Bool in let m : { type A = B } = { type A = Bool } in m|},
+        {|type B = Bool in let m : { type A = Bool } = { type A = B } in m|},
+        {|type B = Int in let m : { type A = [B] } = { type A = [Int] } in m|},
+      ],
+    )
+  );
+
+let test_type_member_matches_reordered_signature =
+  no_marks_test(
+    "A type member defined as a signature matches one listing its members in another order",
+    {|module M : { type T = { let a : Int; let b : Int } } = { type T = { let b : Int; let a : Int } } in M|},
+  );
+
+let test_self_mentioning_sig_alias =
+  fully_consistent_typecheck(
+    "A signature alias that mentions itself types a module",
+    {|type S = { let n : Int; let f : S -> Int } in let m : S = { let n = 1; let f(s) = 2 } in m.n + 1|},
+    Some(int()),
   );
 
 let tests = (
@@ -1643,5 +1690,12 @@ let tests = (
     test_member_before_type_member_means_outer,
     test_member_before_type_member_mismatch,
     test_sig_closing_capture_is_marked,
+    test_error_meet_compares_members_in_their_own_scope,
+    test_meet_ignores_member_order,
+    test_sig_module_member_roots_path,
+    test_error_sig_module_member_roots_path,
+    test_type_member_matches_through_alias,
+    test_type_member_matches_reordered_signature,
+    test_self_mentioning_sig_alias,
   ],
 );
