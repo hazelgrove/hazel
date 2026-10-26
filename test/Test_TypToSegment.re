@@ -487,6 +487,26 @@ let parens_tests = [
       );
     },
   ),
+  test_case(
+    "a signature item's signature is not parenthesized",
+    `Quick,
+    () => {
+      let inner =
+        Typ.temp(
+          Sig([Sig.item_of_member(Val("x", Typ.temp(Atom(Int))))]),
+        );
+      check(
+        string,
+        "printed",
+        "{ let m:{ let x:Int } }",
+        TypToSegment.typ_to_segment(
+          ~settings,
+          Typ.temp(Sig([Sig.item_of_member(Val("m", inner))])),
+        )
+        |> Printer.of_segment(~holes="?", ~indent="", ~is_single_line=true),
+      );
+    },
+  ),
 ];
 
 let tests = [

@@ -351,7 +351,8 @@ let external_precedence_typ = (tp: Typ.t) =>
   | Parens(_)
   | Projector(_)
   | ProofOf(_)
-  | List(_) => Precedence.max
+  | List(_)
+  | Sig(_) => Precedence.max
 
   // Other forms
   | Prod([]) => Precedence.max // the atomic () unit-type token (#2296)
@@ -369,7 +370,6 @@ let external_precedence_typ = (tp: Typ.t) =>
 
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
   | Unknown(Hole(MultiHole(_))) => Precedence.min
-  | Sig(_) => Precedence.min
   };
 
 /* Conditional parenthesization helpers.
