@@ -10,6 +10,10 @@ let okc = "ok";
 let div_err = div(~attrs=[clss(["status", errc])]);
 let div_ok = div(~attrs=[clss(["status", okc])]);
 let div_warn = div(~attrs=[clss(["status", warnc])]);
+/* An unmarked node may delegate its failed check to children. */
+let div_info = (info: Info.t, content) =>
+  Info.meets_expectation(info)
+    ? div_ok(content) : div(~attrs=[clss(["status"])], content);
 let code_box_container = x =>
   div(~attrs=[clss(["code-box-container"])], [x]);
 /* When true, prefixes type displays with ":" (e.g. ": Int").
@@ -140,7 +144,7 @@ let core_mark_err_view =
   let view_type = view_type(~globals);
   let view_any = view_any(~globals);
   let ana = Statics.ana_skip_explicit_nonlabel(ana);
-  let expectation_view = (~ana: Typ.t, ~syn: Typ.t) =>
+  let type_expectation_view = (~ana: Typ.t, ~syn: Typ.t) =>
     switch (syn.term, ana.term) {
     | (Label(syn_l), Label(an_label)) => [
         code(syn_l),
@@ -170,6 +174,13 @@ let core_mark_err_view =
           ]
         }
       )
+    };
+  let expectation_view = (~ana, ~syn) =>
+    switch (
+      LabeledTupleStaticsHelpers.shape_mismatch_message(ctx, ~ana, ~syn)
+    ) {
+    | Some(message) => [text(message)]
+    | None => type_expectation_view(~ana, ~syn)
     };
   (
     switch (m) {
@@ -202,28 +213,45 @@ let core_mark_err_view =
       ]
     | IsMulti => [text("Broken expression")]
 
-    | TupleLabelError({malformed_labels, duplicate_labels, invalid_labels, _}) =>
-      (
-        List.is_empty(malformed_labels)
-          ? []
-          : [
-            text("Malformed labels: "),
-            ...List.map(view_any, malformed_labels),
-          ]
-      )
-      @ (
-        List.is_empty(duplicate_labels)
-          ? []
-          : [
-            text("Duplicate labels: "),
-            ...List.map(code, duplicate_labels),
-          ]
-      )
-      @ (
-        List.is_empty(invalid_labels)
-          ? []
-          : [text("Invalid labels: "), ...List.map(code, invalid_labels)]
-      )
+    | TupleLabelError({
+        malformed_labels,
+        duplicate_labels,
+        invalid_labels,
+        typ,
+      }) =>
+      let shape_message =
+        malformed_labels == [] && duplicate_labels == []
+          ? LabeledTupleStaticsHelpers.shape_mismatch_message(
+              ctx,
+              ~ana,
+              ~syn=typ,
+            )
+          : None;
+      switch (shape_message) {
+      | Some(message) => [text(message)]
+      | None =>
+        (
+          List.is_empty(malformed_labels)
+            ? []
+            : [
+              text("Malformed labels: "),
+              ...List.map(view_any, malformed_labels),
+            ]
+        )
+        @ (
+          List.is_empty(duplicate_labels)
+            ? []
+            : [
+              text("Duplicate labels: "),
+              ...List.map(code, duplicate_labels),
+            ]
+        )
+        @ (
+          List.is_empty(invalid_labels)
+            ? []
+            : [text("Invalid labels: "), ...List.map(code, invalid_labels)]
+        )
+      };
     | DuplicateVar(name, _) => [text("Duplicate Variable:"), code(name)]
     | DuplicateLabel(name, _) => [
         text("Duplicate Label:"),
@@ -297,7 +325,7 @@ let common_warn_view = (warning: Warning.t) => {
   | None => []
   };
 };
-let common_ok_view =
+let common_type_view =
     (
       ~globals,
       ~show_type_colon=true,
@@ -307,11 +335,20 @@ let common_ok_view =
       ~inferred_label: option(LabeledTuple.label),
       ~label_sort: bool,
       cls: Cls.t,
-      ok: Message.ok_common,
+      info: Info.t,
     ) => {
   let view_type = view_type(~globals);
+  let syn =
+    switch (info) {
+    | InfoExp({elab_syn_ty, _})
+    | InfoPat({elab_syn_ty, _}) => elab_syn_ty
+    | _ =>
+      failwith(
+        "CursorInspector.common_type_view: expected expression or pattern",
+      )
+    };
   (
-    switch (cls, ok) {
+    switch (cls, Info.expected_type(info)) {
     | (Pat(EmptyHole), _) when label_sort => []
     | (Exp(EmptyHole), _) when label_sort => []
     | (Pat(ExplicitNonlabel), _) when label_sort => [
@@ -323,28 +360,33 @@ let common_ok_view =
     | (Exp(MultiHole) | Pat(MultiHole), _) => [
         text("Expecting operator or delimiter"),
       ]
-    | (Exp(EmptyHole), Syn(_)) => [text("Fillable by any expression")]
-    | (Pat(EmptyHole), Syn(_)) => [text("Fillable by any pattern")]
-    | (Exp(EmptyHole), Ana(Consistent({ana, _}))) => [
+    | (Exp(EmptyHole), None) => [text("Fillable by any expression")]
+    | (Pat(EmptyHole), None) => [text("Fillable by any pattern")]
+    | (Exp(EmptyHole), Some(ana)) => [
         text("Fillable by any expression of type"),
         view_type(ana),
       ]
-    | (Pat(EmptyHole), Ana(Consistent({ana, _}))) => [
+    | (Pat(EmptyHole), Some(ana)) => [
         text("Fillable by any pattern of type"),
         view_type(ana),
       ]
-    | (_, Syn(syn)) =>
+    | (_, None) =>
       switch (syn.term) {
       | Label(l) => [label_view(l)]
       | _ => colon_prefix(show_type_colon) @ [view_type(syn)]
       }
-    | (Pat(Var) | Pat(Wild) | Pat(ApFunc), Ana(Consistent({ana, _}))) =>
+    | (_, Some(ana)) when !Info.meets_expectation(info) => [
+        text("Synthesizes"),
+        view_type(syn),
+        text("; expected"),
+        view_type(ana),
+      ]
+    | (Pat(Var) | Pat(Wild) | Pat(ApFunc), Some(ana)) =>
       /* Pat(ApFunc) is only produced by the `let f(args) = ...` function
          sugar (see FunctionSugar.re), where it denotes the function binder
          as a whole. Render it the same way as a plain variable binder. */
       colon_prefix(show_type_colon) @ [view_type(ana)]
-    | (_, Ana(Consistent({ana, syn, _})))
-        when Equality.semantic.typ(ana, syn) =>
+    | (_, Some(ana)) when Equality.semantic.typ(ana, syn) =>
       switch (syn.term) {
       | Label(l) => [label_view(l), text(" is a valid label")]
       | _ =>
@@ -377,7 +419,7 @@ let common_ok_view =
           }
         )
       }
-    | (_, Ana(Consistent({ana, syn, _}))) =>
+    | (_, Some(ana)) =>
       (
         switch (syn.term) {
         | Label(l) => [code(l), text(" is a valid label")]
@@ -412,12 +454,6 @@ let common_ok_view =
         | true => [text(" after reordering by labels ")]
         }
       )
-    | (_, Ana(InternallyInconsistent({ana, nomeet: tys}))) =>
-      [
-        text(elements_noun(cls) ++ " have inconsistent types:"),
-        ...ListUtil.join(text(","), List.map(view_type, tys)),
-      ]
-      @ [text("but consistent with expected"), view_type(ana)]
     }
   )
   @ (
@@ -775,6 +811,7 @@ let exp_view =
       message: Message.t,
       info: Info.exp,
     ) => {
+  let typing = Info.InfoExp(info);
   let introduced_labels =
     switch (info.label_inference) {
     | Some(MultiLabelInference({introduced_labels, _})) => introduced_labels
@@ -798,8 +835,9 @@ let exp_view =
   | false =>
     switch (message) {
     | Exp(Default) =>
-      div_ok(
-        common_ok_view(
+      div_info(
+        typing,
+        common_type_view(
           ~globals,
           ~show_type_colon,
           ~lifted_ty,
@@ -808,24 +846,13 @@ let exp_view =
           ~inferred_label,
           ~label_sort=info.label_sort,
           cls,
-          Message.Syn(info.elab_syn_ty),
+          typing,
         ),
       )
-    | Exp(AnaDeferralConsistent(ana)) =>
-      div_ok([text("Expecting type"), view_type(~globals, ana)])
-    | Exp(Common(ok)) =>
-      div_ok(
-        common_ok_view(
-          ~globals,
-          ~show_type_colon,
-          ~lifted_ty,
-          ~reordered,
-          ~introduced_labels,
-          ~inferred_label,
-          ~label_sort=info.label_sort,
-          cls,
-          ok,
-        ),
+    | Exp(ArgumentDeferral) =>
+      div_info(
+        typing,
+        [text("Expecting type"), view_type(~globals, info.ana)],
       )
     | Pat(_)
     | TypOk(_)
@@ -921,6 +948,7 @@ let pat_view =
       message: Message.t,
       info: Info.pat,
     ) => {
+  let typing = Info.InfoPat(info);
   let lifted_ty =
     switch (info.label_inference) {
     | Some(SingletonLabelInference(_)) => Some(info.ty)
@@ -939,17 +967,15 @@ let pat_view =
   marks != []
     ? pat_marks_err_view(~globals, ~show_type_colon, cls, marks, info)
     : {
-      let ok =
-        switch (message) {
-        | Pat(Default) => Message.Syn(info.elab_syn_ty)
-        | Pat(Common(ok)) => ok
-        | Exp(_)
-        | TypOk(_)
-        | TPatOk(_) =>
-          failwith("CursorInspector.pat_view: expected Message.Pat(...)")
-        };
+      switch (message) {
+      | Pat(Default) => ()
+      | Exp(_)
+      | TypOk(_)
+      | TPatOk(_) =>
+        failwith("CursorInspector.pat_view: expected Message.Pat(...)")
+      };
       let ok_view =
-        common_ok_view(
+        common_type_view(
           ~globals,
           ~show_type_colon,
           ~lifted_ty,
@@ -962,16 +988,16 @@ let pat_view =
           ~inferred_label,
           ~label_sort=info.label_sort,
           cls,
-          ok,
+          typing,
         );
       switch (info.warnings) {
       | [Pat(UnusedVar(name))] =>
         if (globals.settings.core.display_warnings) {
           div_warn(common_warn_view(WarningPat(UnusedVar(name))));
         } else {
-          div_ok(ok_view);
+          div_info(typing, ok_view);
         }
-      | _ => div_ok(ok_view)
+      | _ => div_info(typing, ok_view)
       };
     };
 };

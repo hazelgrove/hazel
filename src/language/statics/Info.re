@@ -233,6 +233,35 @@ let ctx_of: t => Ctx.t =
   | InfoMPat({ctx, _})
   | Secondary({ctx, _}) => ctx;
 
+/* Synthesis mode has no expected type. Explicit nonlabel wrappers describe
+   tuple syntax rather than an expectation on the wrapped value. */
+let expected_type = (info: t): option(Typ.t) => {
+  let rec expected = (typ: Typ.t) =>
+    switch (typ.term) {
+    | TupLabel({term: ExplicitNonlabel, _}, inner) => expected(inner)
+    | Unknown(SynSwitch) => None
+    | _ => Some(typ)
+    };
+  switch (info) {
+  | InfoExp({ana, _})
+  | InfoPat({ana, _}) => expected(ana)
+  | _ => None
+  };
+};
+
+/* Independent of local marks: a rule may have delegated a failed check to
+   children. An absent expectation is vacuously met. No judgment is stored. */
+let meets_expectation = (info: t): bool =>
+  switch (info) {
+  | InfoExp({ctx, elab_syn_ty, _})
+  | InfoPat({ctx, elab_syn_ty, _}) =>
+    switch (expected_type(info)) {
+    | None => true
+    | Some(ana) => Typ.is_consistent(ctx, ana, elab_syn_ty)
+    }
+  | _ => true
+  };
+
 let ancestors_of: t => ancestors =
   fun
   | InfoDrv(drv) => DrvInfo.ancestors_of(drv)

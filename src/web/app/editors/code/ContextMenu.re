@@ -177,46 +177,37 @@ let jump_to_binding_data =
   };
 
 let introduce_data =
-    (ci: option(Language.Info.t)): list(Menu.item(command)) =>
-  switch (ci) {
-  | Some(
-      Language.Info.InfoExp({
-        cls: Exp(EmptyHole),
-        message: Language.Message.Exp(Common(Ana(Consistent({ana, _})))),
-        ctx,
-        _,
-      }),
-    )
-      when
+    (ci: option(Language.Info.t)): list(Menu.item(command)) => {
+  let can_introduce =
+    switch (ci) {
+    | Some(Language.Info.InfoExp({cls: Exp(EmptyHole), ctx, _}) as info) =>
+      switch (Language.Info.expected_type(info)) {
+      | None => false
+      | Some(ana) =>
         Introduce.can_introduce_exp_type(
           Language.Typ.weak_head_normalize(ctx, ana),
-        ) => [
-      action_item(
-        ~shortcut=Shortcuts.introduce(),
-        "Introduce",
-        Action.Introduce,
-      ),
-    ]
-  | Some(
-      Language.Info.InfoPat({
-        cls: Pat(EmptyHole),
-        message: Language.Message.Pat(Common(Ana(Consistent({ana, _})))),
-        ctx,
-        _,
-      }),
-    )
-      when
+        )
+      }
+    | Some(Language.Info.InfoPat({cls: Pat(EmptyHole), ctx, _}) as info) =>
+      switch (Language.Info.expected_type(info)) {
+      | None => false
+      | Some(ana) =>
         Introduce.can_introduce_pat_type(
           Language.Typ.weak_head_normalize(ctx, ana),
-        ) => [
+        )
+      }
+    | _ => false
+    };
+  can_introduce
+    ? [
       action_item(
         ~shortcut=Shortcuts.introduce(),
         "Introduce",
         Action.Introduce,
       ),
     ]
-  | _ => []
-  };
+    : [];
+};
 
 /* Cut/Copy/Paste rows. Dispatch goes through CodeEditable's
  * clipboard-aware inject: Copy/Cut write the system clipboard before the

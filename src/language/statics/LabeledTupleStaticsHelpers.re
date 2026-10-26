@@ -4,11 +4,24 @@
 module Map = StaticsBase.Map;
 module Info = StaticsBase.Info;
 
-let decompose_label_mode = (ctx: Ctx.t, ana: Typ.t): (Typ.t, Typ.t) =>
-  switch (MatchedTyp.label(ctx, ana)) {
-  | Some((labmode, val_mode)) => (labmode, val_mode)
-  | _ => (Unknown(SynSwitch) |> Typ.temp, Unknown(Internal) |> Typ.temp)
-  };
+/* Apply a type-only alignment plan to syntax, retaining inferred labels
+   alongside the original nodes for the cursor inspector. */
+let align_elements = (~constructor, product: MatchedTyp.product, elements) => {
+  let elements = Array.of_list(elements);
+  List.map(
+    ((i, inferred)) => {
+      let element = elements[i];
+      (
+        inferred,
+        switch (inferred) {
+        | None => element
+        | Some(label) => constructor(label, element)
+        },
+      );
+    },
+    product.alignment,
+  );
+};
 
 /* Validate a label name against expected/duplicate label lists.
    Returns (elab_syn_ty, marks, is_invalid) for the label itself. */
@@ -129,6 +142,68 @@ let expected_labels_of_ana = (ctx: Ctx.t, ana: Typ.t): option(list(string)) =>
     )
   | _ => None
   };
+
+let labels_of_type = (ctx: Ctx.t, typ: Typ.t) =>
+  switch (Typ.weak_head_normalize(ctx, typ).term) {
+  | Prod(types) =>
+    Some(List.map(t => Typ.match_tup_label(t) |> Option.map(fst), types))
+  | _ => None
+  };
+
+/* A shared CLI/inspector explanation of tuple shape, independent of component
+   types. Actual labels come from the matching request, before error recovery
+   can discard them. Same-shape component failures keep the usual type message. */
+let tuple_shape_mismatch_message =
+    (ctx: Ctx.t, ~ana: Typ.t, ~actual_labels: list(option(string))) =>
+  switch (labels_of_type(ctx, ana)) {
+  | None => None
+  | Some(expected_labels) =>
+    let expected_names = List.filter_map(Fun.id, expected_labels);
+    let actual_names = List.filter_map(Fun.id, actual_labels);
+    let missing =
+      List.filter(n => !List.mem(n, actual_names), expected_names);
+    let unexpected =
+      List.filter(n => !List.mem(n, expected_names), actual_names);
+    if (List.length(expected_labels) == List.length(actual_labels)
+        && missing == []
+        && unexpected == []) {
+      None;
+    } else {
+      let count = labels => {
+        let n = List.length(labels);
+        Printf.sprintf("%d element%s", n, n == 1 ? "" : "s");
+      };
+      let labels = names =>
+        switch (names) {
+        | [] => ""
+        | names => " with labels " ++ String.concat(", ", names)
+        };
+      let extra = (what, names) =>
+        switch (names) {
+        | [] => ""
+        | [name] => Printf.sprintf("; %s label %s", what, name)
+        | names =>
+          Printf.sprintf("; %s labels %s", what, String.concat(", ", names))
+        };
+      Some(
+        Printf.sprintf(
+          "Expecting a tuple of %s%s but got %s%s%s%s",
+          count(expected_labels),
+          labels(expected_names),
+          count(actual_labels),
+          labels(actual_names),
+          extra("missing", missing),
+          extra("unexpected", unexpected),
+        ),
+      );
+    };
+  };
+
+let shape_mismatch_message = (ctx: Ctx.t, ~ana: Typ.t, ~syn: Typ.t) =>
+  labels_of_type(ctx, syn)
+  |> Option.bind(_, actual_labels =>
+       tuple_shape_mismatch_message(ctx, ~ana, ~actual_labels)
+     );
 
 /* Expand per-occurrence duplicate labels from unique duplicates. */
 let expand_duplicate_labels =
