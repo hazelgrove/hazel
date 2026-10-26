@@ -1,7 +1,9 @@
 # The livelits decks in a real Firefox: scripts/deck_regress.py, whose cases only a real pointer reaches (the
-# projector's event path, which the unit suite cannot). Not on every push: it builds the release bundle and walks
-# every slide, about 40 minutes. Run it by hand (Actions, "Livelit deck in Firefox", choose the branch), or push a
-# branch named deck/<anything>. GitHub's Ubuntu runners carry Firefox and geckodriver.
+# projector's event path, which the unit suite cannot). It builds the release bundle and walks every slide, about
+# 40 minutes, so it runs only on a push that touches the livelits (their projector, statics, sub-editors, slides
+# and programs) or the deck itself: to the livelits integration branches, or a branch named deck/<anything>. A
+# newer push to the same branch cancels the run still going. Or run it by hand (Actions, "Livelit deck in
+# Firefox", choose the branch). GitHub's Ubuntu runners carry Firefox and geckodriver.
 name: Livelit deck in Firefox
 
 on:
@@ -12,7 +14,22 @@ on:
         required: false
         default: "eye"
   push:
-    branches: ["deck/**"]
+    branches:
+      - "deck/**"
+      - "integration/livelits-modular-editors"
+      - "integration/livelits-splicerefs-full"
+    paths:
+      - "src/haz3lcore/projectors/**"
+      - "src/language/statics/UserLivelit.re"
+      - "src/web/app/editors/code/SubEditor.re"
+      - "src/livelitdemos/**"
+      - "hazel-programs/docs/livelits/**"
+      - "scripts/deck_regress.py"
+      - ".github/workflows/deck.yml"
+
+concurrency:
+  group: deck-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   Deck:
