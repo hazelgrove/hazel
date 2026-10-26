@@ -1238,15 +1238,18 @@ TOGGLE_AT = """
 """
 
 
-SETTLED = "return !document.querySelector('.livelit-pending') && !document.body.innerText.includes('Running\u2026')"
+SETTLED = "return !document.querySelector('.livelit-pending, #dynamics.running, #dynamics.pending')"
 
 
 def settled(d):
-    """Wait for the slide's run to land. (^ticket(620)) A big Playground slide's first run takes many seconds on
-    GitHub's computers: a picture livelit, whose click does nothing, was called STUCK when its run landed during
-    the 12 s the sweep waits after the click, and its view went from pending to the picture."""
-    wait_for(d, SETTLED, 90)
-    time.sleep(0.5)
+    """Wait for the slide's runs to land and stay landed for 1.5 s. (^ticket(620)) A picture livelit's click does
+    nothing, so the sweep waits the full 12 s after it; when a run landed in that window (the slide's first, or the
+    one a previous use's slider started) the view changed, and the use was called STUCK. After the first run the
+    status keeps its last outcome while another runs: #dynamics.running is what says one is under way."""
+    t, quiet = time.time(), 0
+    while time.time() - t < 90 and quiet < 3:
+        quiet = quiet + 1 if d.js(SETTLED) else 0
+        time.sleep(0.5)
 
 
 def sweep_use(d, i):
