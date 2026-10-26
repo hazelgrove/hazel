@@ -638,15 +638,17 @@ let sig_tests = {
         "meet keeps a shadowed type member an earlier item mentions",
         `Quick,
         () => {
-          let s = sg([st("T", ti), sv("x", F.Typ.var("T")), st("T", tb)]);
+          let s =
+            Typ.close(
+              ctx,
+              sg([st("T", ti), sv("x", F.Typ.var("T")), st("T", tb)]),
+            );
           check(
             option(typ),
             "x projects to Int",
             Some(ti),
             switch (Option.map(Typ.term_of, Typ.meet(ctx, s, s))) {
-            | Some(Sig(items)) =>
-              Typ.sig_project_value(items, "x")
-              |> Option.map(Typ.normalize(ctx))
+            | Some(Sig(items)) => Typ.sig_project_value(items, "x")
             | _ => None
             },
           );
@@ -766,58 +768,92 @@ let sig_tests = {
             sg([sv("x", ti)]),
             Typ.normalize(ctx, sg([sv("x", F.Typ.var("A"))])),
           );
+        },
+      ),
+      test_case(
+        "close substitutes the earlier type members into later items",
+        `Quick,
+        () =>
+        check(
+          typ,
+          "closed",
+          sg([st("T", ti), sv("x", ti)]),
+          Typ.close(ctx, sg([st("T", ti), sv("x", F.Typ.var("T"))])),
+        )
+      ),
+      test_case(
+        "close: a member before the type member means the outer alias, expanded",
+        `Quick,
+        () => {
+          let ctx = Ctx.extend_alias(ctx, "T", Id.invalid, tb);
           check(
             typ,
-            "member alias expanded",
-            sg([st("T", ti), sv("x", ti)]),
-            Typ.normalize(
+            "closed",
+            sg([sv("x", tb), st("T", ti)]),
+            Typ.close(ctx, sg([sv("x", F.Typ.var("T")), st("T", ti)])),
+          );
+        },
+      ),
+      test_case(
+        "close makes a self-mentioning type member recursive",
+        `Quick,
+        () => {
+          let pair_t = F.Typ.prod([ti, F.Typ.var("T")]);
+          let rec_t = F.Typ.rec_(F.TPat.var("T"), pair_t);
+          check(
+            typ,
+            "closed",
+            sg([st("T", rec_t), sv("x", rec_t)]),
+            Typ.close(
               ctx,
-              sg([st("T", ti), sv("x", F.Typ.var("T"))]),
+              sg([st("T", pair_t), sv("x", F.Typ.var("T"))]),
             ),
           );
         },
       ),
       test_case(
-        "free_vars respects type member binders",
-        `Quick,
-        () => {
-          check(
-            list(string),
-            "member bound",
-            [],
-            Typ.free_vars(sg([st("T", ti), sv("x", F.Typ.var("T"))])),
-          );
-          check(
-            list(string),
-            "outer alias free",
-            ["A"],
-            Typ.free_vars(sg([sv("x", F.Typ.var("A"))])),
-          );
-        },
-      ),
-      test_case(
-        "free_vars: a module member binds only the path roots after it",
+        "close roots a path at an earlier module member",
         `Quick,
         () => {
           let sm = (x, ty) =>
             F.Sig.sig_module(F.MPat.asc(F.MPat.var(x), ty));
           let p_u = F.Typ.prod_projection(F.Typ.var("P"), F.Typ.label("U"));
           check(
-            list(string),
-            "path root bound",
-            [],
-            Typ.free_vars(
+            typ,
+            "closed",
+            sg([sm("P", sg([st("U", ti)])), sv("y", ti)]),
+            Typ.close(
+              ctx,
               sg([sm("P", sg([st("U", ti)])), sv("y", p_u)]),
             ),
           );
+        },
+      ),
+      test_case(
+        "free_vars: a closed signature's members bind nothing",
+        `Quick,
+        () => {
           check(
             list(string),
-            "type variable free",
-            ["P"],
+            "outer alias free",
+            ["A"],
+            Typ.free_vars(sg([sv("x", F.Typ.var("A"))])),
+          );
+          check(
+            list(string),
+            "a member's mention is free until closed",
+            ["T"],
+            Typ.free_vars(sg([st("T", ti), sv("x", F.Typ.var("T"))])),
+          );
+          check(
+            list(string),
+            "closed: nothing free",
+            [],
             Typ.free_vars(
-              sg([sm("P", sg([])), sv("y", F.Typ.var("P"))]),
+              Typ.close(ctx, sg([st("T", ti), sv("x", F.Typ.var("T"))])),
             ),
           );
+          let p_u = F.Typ.prod_projection(F.Typ.var("P"), F.Typ.label("U"));
           check(
             list(string),
             "~binder=`Var: path roots only",
@@ -827,14 +863,14 @@ let sig_tests = {
         },
       ),
       test_case(
-        "member projection substitutes type members",
+        "member projection: the last member of a name",
         `Quick,
         () => {
-          let s = [st("T", ti), sv("x", F.Typ.var("T"))];
+          let s = [st("T", ti), sv("x", ti), st("T", tb)];
           check(
             opt_typ,
             "type member",
-            Some(ti),
+            Some(tb),
             Typ.sig_project_type(s, "T"),
           );
           check(
@@ -891,102 +927,111 @@ let cyclic_path_tests = {
   );
 };
 
+/* [fun_in] names the signature members the function is found under. */
+let fun_in_tests = {
+  let ctx = Builtins.ctx_init(None);
+  let ti = F.Typ.int();
+  let to_int = F.Typ.arrow(ti, ti);
+  let sm = (x, ty) => F.Sig.sig_module(F.MPat.asc(F.MPat.var(x), ty));
+  let members = (found: option(Typ.fun_in)) =>
+    Option.map((f: Typ.fun_in) => f.members, found);
+  (
+    "Typ.fun_in",
+    [
+      test_case("a type without a function has none", `Quick, () =>
+        check(
+          option(list(string)),
+          "none",
+          None,
+          members(Typ.fun_in(ctx, F.Typ.prod([ti, F.Typ.list(ti)]))),
+        )
+      ),
+      test_case("a function in a tuple is under no member", `Quick, () =>
+        check(
+          option(list(string)),
+          "no members",
+          Some([]),
+          members(Typ.fun_in(ctx, F.Typ.prod([ti, to_int]))),
+        )
+      ),
+      test_case(
+        "a function in a sub-module's member is under both members", `Quick, () =>
+        check(
+          option(list(string)),
+          "Inner.g",
+          Some(["Inner", "g"]),
+          members(
+            Typ.fun_in(
+              ctx,
+              sg([sm("Inner", sg([sv("g", to_int)])), sv("x", ti)]),
+            ),
+          ),
+        )
+      ),
+      test_case(
+        "an alias to a function is a function",
+        `Quick,
+        () => {
+          let ctx = Ctx.extend_alias(ctx, "F", Id.invalid, to_int);
+          check(
+            option(list(string)),
+            "through the alias",
+            Some([]),
+            members(Typ.fun_in(ctx, F.Typ.var("F"))),
+          );
+        },
+      ),
+    ],
+  );
+};
+
 let subst_tests = {
   let ti = F.Typ.int();
   let a = F.TPat.var("a");
   let t_var = F.Typ.var("T");
   let a_to_int = F.Typ.arrow(F.Typ.var("a"), ti);
-  /* [subst] names exactly the type members on which it degraded the items
-     after them to `?`. */
-  let case = (name, s, ty, expected) =>
-    test_case(
-      name,
-      `Quick,
-      () => {
-        let (ty', captured) = Typ.subst(s, a, ty);
-        check(list(string), "captured members", expected, captured);
-        check(
-          bool,
-          "degraded iff captured",
-          switch (expected) {
-          | [] => false
-          | _ => true
-          },
-          Typ.contains_unknown(ty') && !Typ.contains_unknown(ty),
-        );
-      },
+  let t_to_int = F.Typ.arrow(t_var, ti);
+  /* A closed signature's members bind nothing: [subst] substitutes into
+     each item, and a free name of `s` named like a member is the outer one. */
+  let case = (name, ty, expected) =>
+    test_case(name, `Quick, () =>
+      check(typ, "substituted", expected, Typ.subst(t_var, a, ty))
     );
   (
     "Typ.Subst",
     [
       case(
-        "a clean substitution captures nothing",
-        ti,
+        "a member named like a free variable of s does not capture it",
         sg([st("T", ti), sv("v", a_to_int)]),
-        [],
+        sg([st("T", ti), sv("v", t_to_int)]),
       ),
       case(
-        "a member named like a free variable of s captures the items after it",
-        t_var,
-        sg([st("T", ti), sv("v", a_to_int)]),
-        ["T"],
+        "a member's own definition is substituted into",
+        sg([sv("v", F.Typ.var("a")), st("T", F.Typ.var("a"))]),
+        sg([sv("v", t_var), st("T", t_var)]),
       ),
       case(
-        "a member named like x shadows it: nothing to capture",
-        t_var,
+        "a member named like x does not shadow it",
         sg([st("a", ti), sv("v", a_to_int)]),
-        [],
+        sg([st("a", ti), sv("v", t_to_int)]),
       ),
       case(
-        "a member declared after every use of x does not capture",
-        t_var,
-        sg([sv("v", a_to_int), st("T", ti)]),
-        [],
-      ),
-      case(
-        "a colliding member with no later use of x does not capture",
-        t_var,
-        sg([st("T", ti), sv("w", ti)]),
-        [],
-      ),
-      case(
-        "a capture inside a member's own signature type is found",
-        t_var,
-        sg([sv("m", sg([st("T", ti), sv("v", a_to_int)]))]),
-        ["T"],
-      ),
-      case(
-        "a type binder named like x shadows it: nothing to capture",
-        t_var,
+        "a type binder named like x shadows it",
         F.Typ.poly(a, sg([st("T", ti), sv("v", a_to_int)])),
-        [],
+        F.Typ.poly(a, sg([st("T", ti), sv("v", a_to_int)])),
+      ),
+      case(
+        "a member's signature type is substituted into",
+        sg([sv("m", sg([st("T", ti), sv("v", a_to_int)]))]),
+        sg([sv("m", sg([st("T", ti), sv("v", t_to_int)]))]),
       ),
       test_case(
-        "subst: a member rebinding x after a capture keeps its later uses",
+        "subst leaves a signature it touches nothing in equal to itself",
         `Quick,
-        () =>
-        check(
-          typ,
-          "substituted",
-          sg([
-            st("T", ti),
-            sv("u", F.Typ.arrow(F.Typ.unknown(Internal), ti)),
-            st("a", ti),
-            sv("v", a_to_int),
-          ]),
-          fst(
-            Typ.subst(
-              t_var,
-              a,
-              sg([
-                st("T", ti),
-                sv("u", a_to_int),
-                st("a", ti),
-                sv("v", a_to_int),
-              ]),
-            ),
-          ),
-        )
+        () => {
+          let s = sg([st("T", F.Typ.prod([ti, t_var]))]);
+          check(typ, "unchanged", s, Typ.subst(ti, a, s));
+        },
       ),
     ],
   );
@@ -994,6 +1039,7 @@ let subst_tests = {
 
 let tests = [
   meet_tests,
+  fun_in_tests,
   fast_equal_tests,
   diff_tests,
   sig_tests,

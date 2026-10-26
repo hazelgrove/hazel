@@ -55,23 +55,13 @@ type member =
   | Val(Var.t, TermBase.Typ.t)
   | TypeManifest(Var.t, TermBase.Typ.t);
 
-let rec var_of_pat = (p: TermBase.Pat.t): option(Var.t) =>
-  switch (p.term) {
-  | Var(x) => Some(x)
-  | Parens(p) => var_of_pat(p)
-  | _ => None
-  };
-
 let rec val_of_pat = (p: TermBase.Pat.t): option(member) =>
   switch (p.term) {
   | Parens(p) => val_of_pat(p)
-  | Var(x) => Some(Val(x, TempGrammar.Typ.unknown(Internal)))
-  | Asc(p', ty) =>
-    switch (var_of_pat(p')) {
-    | Some(x) => Some(Val(x, ty))
-    | None => None
-    }
-  | _ => None
+  | Asc(p', ty) => Pat.is_var(p') |> Option.map(x => Val(x, ty))
+  | _ =>
+    Pat.is_var(p)
+    |> Option.map(x => Val(x, TempGrammar.Typ.unknown(Internal)))
   };
 
 let val_of_mpat = (mp: TermBase.MPat.t): option(member) =>

@@ -44,7 +44,10 @@ let rec equal_mark: (Mark.t, Mark.t) => bool =
       j1 == j2 && List.equal(source_equal, s1, s2)
     | (DuplicateLabel(l1, t1), DuplicateLabel(l2, t2)) =>
       l1 == l2 && Typ.fast_equal(t1, t2)
-    | (CompareFun(t1), CompareFun(t2)) => Typ.fast_equal(t1, t2)
+    | (CompareFun({ty: t1, found: f1}), CompareFun({ty: t2, found: f2})) =>
+      Typ.fast_equal(t1, t2)
+      && Typ.fast_equal(f1.ty, f2.ty)
+      && List.equal(String.equal, f1.members, f2.members)
     | (DuplicateVar(n1, t1), DuplicateVar(n2, t2)) =>
       n1 == n2 && Typ.fast_equal(t1, t2)
     | (BadToken(s1), BadToken(s2)) => s1 == s2
@@ -119,8 +122,6 @@ let rec equal_mark: (Mark.t, Mark.t) => bool =
       ) =>
       String.equal(n1, n2) && Typ.fast_equal(t1, t2)
     | (ModuleExtraMembers(ns1), ModuleExtraMembers(ns2)) =>
-      List.equal(String.equal, ns1, ns2)
-    | (TypeMemberCapture(ns1), TypeMemberCapture(ns2)) =>
       List.equal(String.equal, ns1, ns2)
     | (
         ModuleTypeMemberMismatch({name: n1, expected: e1, actual: a1}),

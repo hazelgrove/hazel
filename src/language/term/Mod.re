@@ -52,6 +52,34 @@ let temp: term => t =
     annotation: IdTagged.IdTag.temp(),
   };
 
+/* The value pattern a binding item binds: a `let` item's binder, a
+   `module` item's name. */
+let binder = (item: t): option(TermBase.Pat.t) =>
+  switch (item.term) {
+  | ModLet(p, _) => Some(Pat.binder(p))
+  | ModuleMod(mp, _) => Some(MPat.to_pat(mp))
+  | ModVal(_, _)
+  | ModType(_, _)
+  | ModExp(_)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_) => None
+  };
+
+/* The value names an item binds for the items after it. */
+let bound_names = (item: t): list(Var.t) =>
+  switch (item.term) {
+  | ModVal(x, _) => [x]
+  | ModLet(_)
+  | ModuleMod(_)
+  | ModType(_, _)
+  | ModExp(_)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_) =>
+    binder(item) |> Option.map(Pat.bound_vars) |> Option.value(~default=[])
+  };
+
 /* ==================== Evaluated bindings (dynamics) ====================
    A module evaluates item by item; each evaluated binding becomes a ModVal
    item. */
@@ -133,6 +161,22 @@ let value_bindings =
      )
   |> Util.OptUtil.sequence;
 
+/* The bindings of two module values paired by name: None unless both are
+   values binding the same names. */
+let paired_bindings =
+    (items1: list(t), items2: list(t))
+    : option(list((TermBase.Exp.t, TermBase.Exp.t))) =>
+  switch (value_bindings(items1), value_bindings(items2)) {
+  | (Some(b1), Some(b2)) when List.length(b1) == List.length(b2) =>
+    b1
+    |> List.map(((x, v1)) =>
+         Util.ListUtil.assoc_opt_by(String.equal, x, b2)
+         |> Option.map(v2 => (v1, v2))
+       )
+    |> Util.OptUtil.sequence
+  | _ => None
+  };
+
 /* Member [name] of a module, which may be stuck on an item: its value, if an
    evaluated item binds it and no item from the stuck one on binds it again. */
 let member = (items: list(t), name: Var.t): option(TermBase.Exp.t) => {
@@ -142,12 +186,7 @@ let member = (items: list(t), name: Var.t): option(TermBase.Exp.t) => {
     | None => false
     | Some((item, rest)) =>
       List.exists(
-        (item: t) =>
-          switch (item.term) {
-          | ModLet(p, _) =>
-            List.exists(String.equal(name), Pat.bound_vars(p))
-          | _ => false
-          },
+        (item: t) => List.exists(String.equal(name), bound_names(item)),
         [item, ...rest],
       )
     };

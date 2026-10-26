@@ -76,6 +76,7 @@ type pat = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type typ = {
   user_term: Typ.t,
+  ty: Typ.t, /* the type the annotation denotes: [user_term] closed (Typ.close) */
   ancestors,
   ctx: Ctx.t,
   expects: TypExpectation.t,
@@ -104,6 +105,9 @@ type mod_ = {
   sort: Sort.t,
   ctx: Ctx.t,
   ancestors,
+  ty: option(Typ.t), /* of the binder a let or module item declares; a type item's definition */
+  co_ctx: CoCtx.t, /* of the item and the items after it, its bindings consumed */
+  scope_co_ctx: CoCtx.t /* of the items after it, which its bindings scope over */
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]

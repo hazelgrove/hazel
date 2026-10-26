@@ -49,3 +49,17 @@ let temp: term => t =
     term,
     annotation: IdTagged.IdTag.temp(),
   };
+
+/* The module name pattern as a value pattern, keeping its ids: a module
+   binding is a value binding at runtime. */
+let rec to_pat = (mp: t): TermBase.Pat.t => {
+  let at = (term: TermBase.Pat.term) =>
+    IdTagged.fast_copy(rep_id(mp), IdTagged.fresh(term));
+  switch (mp.term) {
+  | Var(name) => at(Var(name))
+  | Asc(inner, typ) => at(Asc(to_pat(inner), typ))
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_) => at(Wild)
+  };
+};

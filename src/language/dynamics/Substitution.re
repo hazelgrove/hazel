@@ -133,6 +133,13 @@ and in_mod_items =
                 term: (ModLet(p, in_exp(env, e)): Mod.term),
               },
             )
+          | ModuleMod(mp, e) => (
+              List.fold_left(shadow, env, Mod.bound_names(item)),
+              {
+                ...item,
+                term: (ModuleMod(mp, in_exp(env, e)): Mod.term),
+              },
+            )
           | ModVal(x, e) => (
               env,
               {
@@ -148,7 +155,6 @@ and in_mod_items =
               },
             )
           | ModType(_, _)
-          | ModuleMod(_, _)
           | Invalid(_)
           | EmptyHole
           | MultiHole(_) => (env, item)

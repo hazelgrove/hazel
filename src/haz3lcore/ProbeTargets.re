@@ -33,6 +33,29 @@ let rec target_subterm_ids =
     };
   | Some(InfoExp({user_term: {term: ModuleExp(_, def, _), _}, _})) =>
     target_subterm_ids(IdTagged.rep_id(def), info_map)
+  | Some(InfoMod({user_term: {term: ModLet(pat, def), _}, _})) =>
+    let def_targets =
+      target_subterm_ids(~drill_let=false, IdTagged.rep_id(def), info_map);
+    switch (Pat.function_sugar(pat)) {
+    | Some((_f_name, args, _ret_ty)) => def_targets @ [Pat.rep_id(args)]
+    | None => def_targets
+    };
+  | Some(
+      InfoMod({
+        user_term:
+          {term: ModuleMod(_, def) | ModExp(def) | ModVal(_, def), _},
+        _,
+      }),
+    ) =>
+    target_subterm_ids(IdTagged.rep_id(def), info_map)
+  | Some(
+      InfoMod({
+        user_term:
+          {term: ModType(_, _) | Invalid(_) | EmptyHole | MultiHole(_), _},
+        _,
+      }),
+    ) =>
+    []
 
   | Some(InfoExp({user_term: {term: Var(_), _} as v, _})) =>
     switch (Statics.Map.parent_term_of(info_map, IdTagged.rep_id(v))) {

@@ -246,10 +246,38 @@ let test_hole_item_dropped =
     parse_and_evaluate_test("{ let x = 2 }", {|{ let x = 1; ?; let x = 2 }|})
   });
 
+/* Polymorphic equality on module values compares members by name. */
+let test_equal_module_values =
+  test_case("Equal module values are equal", `Quick, () =>
+    parse_and_evaluate_test(
+      "true",
+      {|let m = { let name = ""; let age = 3 } in m == m|},
+    )
+  );
+
+let test_module_equality_matches_members_by_name =
+  test_case("Module equality matches members by name", `Quick, () =>
+    parse_and_evaluate_test(
+      "true",
+      {|{ let x = 1; let y = 2 } == { let y = 2; let x = 1 }|},
+    )
+  );
+
+let test_differing_module_values =
+  test_case("Module values with a differing member are not equal", `Quick, () =>
+    parse_and_evaluate_test(
+      "false",
+      {|{ let x = 1; let y = 2 } == { let x = 1; let y = 3 }|},
+    )
+  );
+
 let tests = (
   "Evaluator.Modules",
   [
     test_empty_module,
+    test_equal_module_values,
+    test_module_equality_matches_members_by_name,
+    test_differing_module_values,
     test_single_binding,
     test_multiple_bindings,
     test_shadowing,

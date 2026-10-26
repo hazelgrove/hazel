@@ -31,6 +31,11 @@ module Local = {
         // We won't fold/abstract away type definitions, so no need for this helper to handle them yet
         | _ => (Id.invalid, Id.invalid, Id.invalid)
         }
+      | InfoMod({user_term: {term: ModLet(pat, def), _}, _}) => (
+          Pat.rep_id(pat),
+          Exp.rep_id(def),
+          Id.invalid,
+        )
       | _ => (Id.invalid, Id.invalid, Id.invalid)
       };
     };
