@@ -1236,6 +1236,26 @@ let roundtrip_defensive_paren_tests = (
         );
       },
     ),
+    /* A sum is parenthesized in a type alias's definition; inside those
+       parens it isn't wrapped again. */
+    test_case(
+      {|Type alias sum stays put through print-parse cycles|},
+      `Quick,
+      () => {
+        let print = s =>
+          switch (Parser.to_term(s, ~root=Exp)) {
+          | Some(term) =>
+            ExpToSegment.exp_to_segment(
+              ~settings=ExpToSegment.Settings.editable(~inline=true),
+              term,
+            )
+            |> Printer.of_segment(~holes="?")
+          | None => Alcotest.fail("Failed to parse " ++ s)
+          };
+        let once = print({|type T = + A + B(Int) in 1|});
+        check(string, {|Second print|}, once, print(once));
+      },
+    ),
     /* A field that is itself a one-field tuple keeps its own parens:
        `((a=Int), Int)` and `(a=Int, Int)` are different types. */
     test_case(
