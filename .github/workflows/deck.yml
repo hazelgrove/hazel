@@ -1,6 +1,6 @@
 # The livelits decks in a real Firefox: scripts/deck_regress.py, whose cases only a real pointer reaches (the
-# projector's event path, which the unit suite cannot). It builds the release bundle and walks every slide, about
-# 40 minutes, so it runs only on a push that touches the livelits (their projector, statics, sub-editors, slides
+# projector's event path, which the unit suite cannot). It builds the release bundle and walks every slide: about
+# 40 minutes on #2635 and 2 hours on #2597 (which lacks #2469's livelit speedups), so it runs only on a push that touches the livelits (their projector, statics, sub-editors, slides
 # and programs) or the deck itself: to the livelits integration branches, or a branch named deck/<anything>. A
 # newer push to the same branch cancels the run still going. Or run it by hand (Actions, "Livelit deck in
 # Firefox", choose the branch). GitHub's Ubuntu runners carry Firefox and geckodriver.
@@ -35,7 +35,7 @@ jobs:
   Deck:
     name: Deck in Firefox
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 180
     permissions:
       contents: read
     steps:
@@ -59,7 +59,7 @@ jobs:
           firefox --version; geckodriver --version | head -1
           python3 scripts/deck_regress.py --port 8111 --only "${{ github.event.inputs.only || 'eye' }}" --shots deck-shots 2>&1 | tee deck.log
           exit ${PIPESTATUS[0]}
-        timeout-minutes: 90
+        timeout-minutes: 150
 
       - name: Keep the screenshots and the log
         if: ${{ always() }}
