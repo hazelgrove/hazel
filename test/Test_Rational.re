@@ -441,8 +441,123 @@ let decode_rejection =
     },
   );
 
+/* Hand-computed powers; None is the DivideByZero outcome. */
+let thirty = "1" ++ String.make(30, '0');
+let pow_table = [
+  (("-2", "3"), "3", Some(("-8", "27"))),
+  (("-2", "3"), "2", Some(("4", "9"))),
+  (("-2", "3"), "0", Some(("1", "1"))),
+  (("-2", "3"), "-3", Some(("-27", "8"))),
+  (("-2", "3"), "-2", Some(("9", "4"))),
+  (("2", "1"), "-1", Some(("1", "2"))),
+  (("-3", "2"), "-1", Some(("-2", "3"))),
+  (("1", "2"), "64", Some(("1", "18446744073709551616"))),
+  ((thirty, "1"), "2", Some(("1" ++ String.make(60, '0'), "1"))),
+  (("0", "1"), "5", Some(("0", "1"))),
+  (("0", "1"), "0", Some(("1", "1"))),
+  (("0", "1"), "-1", None),
+  (("0", "1"), "-" ++ thirty, None),
+  (("1", "1"), thirty, Some(("1", "1"))),
+  (("1", "1"), "-" ++ thirty, Some(("1", "1"))),
+  (("-1", "1"), thirty, Some(("1", "1"))),
+  (("-1", "1"), thirty ++ "1", Some(("-1", "1"))),
+  (("-1", "1"), "-" ++ thirty ++ "1", Some(("-1", "1"))),
+];
+
+let pow_cases =
+  test_case("pow table", `Quick, () =>
+    List.iter(
+      (((n, d), e, expected)) => {
+        let msg = n ++ "/" ++ d ++ " ** " ++ e;
+        let got = Rational.pow(r(n, d), big(e));
+        check(
+          option(pair(string, string)),
+          msg,
+          expected,
+          Option.map(parts, got),
+        );
+        Option.iter(check_canonical(msg), got);
+      },
+      pow_table,
+    )
+  );
+
+let pow_zero_zero_convention =
+  test_case(
+    "0 ** 0 follows Int's power (Bigint.pow)",
+    `Quick,
+    () => {
+      check(
+        string,
+        "Bigint.pow(0, 0)",
+        "1",
+        s(Bigint.pow(Bigint.zero, Bigint.zero)),
+      );
+      check(
+        option(rational),
+        "pow(0, 0)",
+        Some(Rational.one),
+        Rational.pow(Rational.zero, Bigint.zero),
+      );
+    },
+  );
+
+let pow_laws =
+  test_case("pow laws over the pool", `Quick, () =>
+    List.iter(
+      a =>
+        List.iter(
+          k => {
+            let e = Bigint.of_int(k);
+            let msg = Rational.show(a) ++ " ** " ++ string_of_int(k);
+            switch (Rational.pow(a, e), Rational.pow(a, Bigint.neg(e))) {
+            | (Some(p), Some(q)) =>
+              check_canonical(msg, p);
+              check(
+                rational,
+                msg ++ " times its reciprocal power",
+                Rational.one,
+                Rational.mul(p, q),
+              );
+              check(
+                option(rational),
+                msg ++ " = 1 / (a ** -k)",
+                Rational.inv(q),
+                Some(p),
+              );
+              check(
+                option(rational),
+                msg ++ " then * a",
+                Rational.pow(a, Bigint.of_int(k + 1)),
+                Some(Rational.mul(p, a)),
+              );
+            | (p, q) =>
+              check(rational, msg ++ ": only zero fails", Rational.zero, a);
+              check(
+                bool,
+                msg ++ ": a negative exponent fails",
+                true,
+                k != 0 && Option.is_none(p) != Option.is_none(q),
+              );
+            };
+          },
+          [(-3), (-2), (-1), 0, 1, 2, 3],
+        ),
+      pool,
+    )
+  );
+
 let tests = (
   "Rational",
   List.map(oracle_case, oracle)
-  @ [laws, neg_and_inv, to_float, roundtrip, decode_rejection],
+  @ [
+    laws,
+    neg_and_inv,
+    to_float,
+    roundtrip,
+    decode_rejection,
+    pow_cases,
+    pow_zero_zero_convention,
+    pow_laws,
+  ],
 );

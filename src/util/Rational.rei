@@ -29,6 +29,9 @@ let neg: t => t;
 let inv: t => option(t);
 /* None iff the divisor is zero. */
 let div: (t, t) => option(t);
+/* Exact integer power, for any exponent size. None iff the base is zero and
+   the exponent negative. pow(zero, 0) = one, as for Int's power. */
+let pow: (t, Bigint.t) => option(t);
 
 let equal: (t, t) => bool;
 /* Numeric order, as [Stdlib.compare]: negative, zero or positive. */

@@ -53,6 +53,38 @@ let inv = a =>
   Bigint.equal(a.num, Bigint.zero) ? None : Some(normalize(a.den, a.num));
 let div = (a, b) => Option.map(mul(a), inv(b));
 
+/* Square-and-multiply over the Bigint exponent itself (e >= 0): Bigint.pow
+   narrows its exponent to a machine int. */
+let bigint_pow = (base: Bigint.t, e: Bigint.t): Bigint.t => {
+  let two = Bigint.of_int(2);
+  let rec go = (base, e, acc) => {
+    let acc = Bigint.(equal(rem(e, two), zero)) ? acc : Bigint.(acc * base);
+    let e = Bigint.(e / two);
+    Bigint.(equal(e, zero)) ? acc : go(Bigint.(base * base), e, acc);
+  };
+  Bigint.(equal(e, zero)) ? Bigint.one : go(base, e, Bigint.one);
+};
+
+/* Powers of coprime parts stay coprime, so only the sign needs fixing. */
+let pow = (a, e) =>
+  if (Bigint.(e >= zero)) {
+    Some({
+      num: bigint_pow(a.num, e),
+      den: bigint_pow(a.den, e),
+    });
+  } else {
+    Option.map(
+      i => {
+        let e = Bigint.neg(e);
+        {
+          num: bigint_pow(i.num, e),
+          den: bigint_pow(i.den, e),
+        };
+      },
+      inv(a),
+    );
+  };
+
 /* Canonical form makes equality structural. */
 let equal = (a, b) =>
   Bigint.equal(a.num, b.num) && Bigint.equal(a.den, b.den);
