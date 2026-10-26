@@ -587,6 +587,10 @@ let tests = (
       {|let (B: ((rec ? -> (rec ? -> (+ ?))))) = A in a|},
       Some(FTemp.Typ.unknown(Internal)),
     ),
+    inconsistent_typecheck(
+      "A recursive occurrence under a differently named binder is not a hole",
+      parse_exp("fun (f : rec a -> (a, Int)) -> (f : rec b -> (Bool, Int))"),
+    ),
     test_case(
       "Type parse failure",
       `Quick,

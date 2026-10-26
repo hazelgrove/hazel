@@ -609,4 +609,31 @@ let diff_tests = (
   ],
 );
 
-let tests = [meet_tests, fast_equal_tests, diff_tests];
+let meet_rec_binder_tests = {
+  module F = IdTagged.FreshGrammar;
+  let ctx = Builtins.ctx_init(None);
+  let rec_ = (x, body) => F.Typ.rec_(F.TPat.var(x), body(F.Typ.var(x)));
+  let case = (name, ty1, ty2, expected) =>
+    test_case(name, `Quick, () =>
+      check(option(typ), name, expected, Typ.meet(ctx, ty1, ty2))
+    );
+  (
+    "Typ.meet on recursive types",
+    [
+      case(
+        "differently named binders are the same variable",
+        rec_("a", a => F.Typ.prod([a, F.Typ.int()])),
+        rec_("b", b => F.Typ.prod([b, F.Typ.int()])),
+        Some(rec_("a", a => F.Typ.prod([a, F.Typ.int()]))),
+      ),
+      case(
+        "a recursive occurrence is not a hole",
+        rec_("a", a => F.Typ.prod([a, F.Typ.int()])),
+        rec_("b", _ => F.Typ.prod([F.Typ.bool(), F.Typ.int()])),
+        None,
+      ),
+    ],
+  );
+};
+
+let tests = [meet_tests, meet_rec_binder_tests, fast_equal_tests, diff_tests];

@@ -810,14 +810,16 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   | (ProdExtension(_), _) => meet'(weak_head_normalize(ctx, ty1), ty2)
   | (_, ProdExtension(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
   | (Rec(tp1, ty1), Rec(tp2, ty2)) =>
-    let ctx = Ctx.extend_dummy_tvar(ctx, tp1);
-    let ty1' =
+    /* The bodies are compared under the one binder they share after
+       renaming, as the Poly arm does. */
+    let (tp, ty1') =
       switch (TPat.tyvar_of_utpat(tp2)) {
-      | Some(x2) => subst(Var(x2) |> temp, tp1, ty1)
-      | None => ty1
+      | Some(x2) => (tp2, subst(Var(x2) |> temp, tp1, ty1))
+      | None => (tp1, ty1)
       };
+    let ctx = Ctx.extend_dummy_tvar(ctx, tp);
     let+ ty_body = meet(ctx, ty1', ty2);
-    Rec(tp1, ty_body) |> temp;
+    Rec(tp, ty_body) |> temp;
   | (Rec(_), _) => None
   | (Poly(x1, ty1), Poly(x2, ty2)) =>
     let ty1' =
