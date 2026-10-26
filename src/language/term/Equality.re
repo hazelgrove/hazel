@@ -506,6 +506,11 @@ let equality =
     let any' = any(alphas_exp, alphas_typ);
     let mpat' = (mp1, mp2) =>
       Option.is_some(mpat(alphas_exp, alphas_typ, mp1, mp2));
+    let binds = (x, p: Pat.t) =>
+      switch (Annotated.term_of(p)) {
+      | Var(y) => String.equal(x, y)
+      | _ => false
+      };
     switch (m1 |> Annotated.term_of, m2 |> Annotated.term_of) {
     | (EmptyHole, EmptyHole) => true
     | (EmptyHole, _) => false
@@ -519,12 +524,8 @@ let equality =
     | (ModLet(p1, e1), ModLet(p2, e2)) =>
       pat_names_equal(alphas_exp, alphas_typ, p1, p2) && exp'(e1, e2)
     /* An evaluated binding equals the literal binding `let x = e`. */
-    | (ModVal(x1, e1), ModLet(p2, e2))
-    | (ModLet(p2, e2), ModVal(x1, e1)) =>
-      switch (Annotated.term_of(p2)) {
-      | Var(x2) => String.equal(x1, x2) && exp'(e1, e2)
-      | _ => false
-      }
+    | (ModVal(x1, e1), ModLet(p2, e2)) => binds(x1, p2) && exp'(e1, e2)
+    | (ModLet(p1, e1), ModVal(x2, e2)) => binds(x2, p1) && exp'(e1, e2)
     | (ModLet(_, _), _) => false
     | (ModType(tp1, t1), ModType(tp2, t2)) =>
       tpat'(tp1, tp2) && typ'(t1, t2)

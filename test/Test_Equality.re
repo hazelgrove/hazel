@@ -138,5 +138,42 @@ let tests = (
         );
       },
     ),
+    test_case(
+      "an evaluated module binding is alpha-equivalent to its literal binding, either side",
+      `Quick,
+      () => {
+        let literal =
+          Exp.fn(
+            Pat.var("y"),
+            Exp.module_([Mod.mod_let(Pat.var("x"), Exp.var("y"))]),
+            None,
+            None,
+          );
+        let evaluated =
+          Exp.fn(
+            Pat.var("z"),
+            Exp.module_([
+              {
+                ...Mod.mod_exp(Exp.var("z")),
+                term: ModVal("x", Exp.var("z")),
+              },
+            ]),
+            None,
+            None,
+          );
+        check(
+          bool,
+          "fun y -> {let x = y} === fun z -> {x = z}",
+          true,
+          Equality.semantic.exp(literal, evaluated),
+        );
+        check(
+          bool,
+          "fun z -> {x = z} === fun y -> {let x = y}",
+          true,
+          Equality.semantic.exp(evaluated, literal),
+        );
+      },
+    ),
   ],
 );
