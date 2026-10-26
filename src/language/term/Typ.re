@@ -641,17 +641,25 @@ let rec unroll_to_non_rec = (ty: t): option(t) =>
   };
 
 /* Substitute each [(binder, name, def)] for [name], latest binder first,
-   with the type members that captured a definition (see [subst]). */
+   with the members that captured a definition (see [subst]). Each [def] is
+   closed, so substituting it adds no member name to [ty], and only the
+   definitions of names free in [ty] are forced. */
 let apply_sig_subst =
-    (sigma: list((binder, Var.t, t)), ty: t): (t, list(Var.t)) =>
+    (sigma: list((binder, Var.t, Lazy.t(t))), ty: t): (t, list(Var.t)) => {
+  let fv = free_vars(ty);
   List.fold_left(
-    ((ty, captured), (binder, name, def)) => {
-      let (ty, c) = subst(~binder, def, Var(name) |> TPat.fresh, ty);
-      (ty, captured @ c);
-    },
+    ((ty, captured), (binder, name, def)) =>
+      if (List.exists(String.equal(name), fv)) {
+        let (ty, c) =
+          subst(~binder, Lazy.force(def), Var(name) |> TPat.fresh, ty);
+        (ty, captured @ c);
+      } else {
+        (ty, captured);
+      },
     (ty, []),
     sigma,
   );
+};
 
 /* Each well-formed item with its member, closed: the members declared
    before it are substituted into its type, a type member for its name and a
@@ -668,14 +676,15 @@ let sig_items_closed_captures =
         | Some(Val(x, ty)) =>
           let (ty, c) = apply_sig_subst(sigma, ty);
           (
-            [(`Var, x, ty), ...sigma],
+            [(`Var, x, Lazy.from_val(ty)), ...sigma],
             [(item, Sig.Val(x, ty)), ...acc],
             captured @ c,
           );
         | Some(TypeManifest(name, def)) =>
           let (def, c) = apply_sig_subst(sigma, def);
           let sigma =
-            keep_local(name) ? sigma : [(`TVar, name, def), ...sigma];
+            keep_local(name)
+              ? sigma : [(`TVar, name, Lazy.from_val(def)), ...sigma];
           (
             sigma,
             [(item, Sig.TypeManifest(name, def)), ...acc],
@@ -716,18 +725,34 @@ let same_member_names = (a: list(Sig.member), b: list(Sig.member)): bool => {
 };
 
 /* The type carried by the last member [select] picks, closed as by
-   [sig_members_closed]. */
+   [sig_members_closed]. Of the members before it, only those it mentions,
+   directly or through other members, are closed. */
 let sig_project =
-    (select: Sig.member => option(t), items: list(Sig.t)): option(t) =>
-  List.fold_left(
-    (found, m) =>
-      switch (select(m)) {
-      | Some(ty) => Some(ty)
-      | None => found
-      },
-    None,
-    sig_members_closed(items),
-  );
+    (select: Sig.member => option(t), items: list(Sig.t)): option(t) => {
+  let (_, found) =
+    List.fold_left(
+      ((sigma, found), item) =>
+        switch (sig_member_of_item(item)) {
+        | Some(m) =>
+          let found =
+            switch (select(m)) {
+            | Some(ty) => Some((sigma, ty))
+            | None => found
+            };
+          let (binder, name, ty) =
+            switch (m) {
+            | Val(x, ty) => (`Var, x, ty)
+            | TypeManifest(name, def) => (`TVar, name, def)
+            };
+          let closed = lazy(fst(apply_sig_subst(sigma, ty)));
+          ([(binder, name, closed), ...sigma], found);
+        | None => (sigma, found)
+        },
+      ([], None),
+      items,
+    );
+  Option.map(((sigma, ty)) => fst(apply_sig_subst(sigma, ty)), found);
+};
 
 /* The type of value member [name], closed as by [sig_members_closed]. */
 let sig_project_value = (items: list(Sig.t), name: Var.t): option(t) =>
