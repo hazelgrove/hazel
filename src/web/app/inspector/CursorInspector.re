@@ -550,6 +550,11 @@ let typ_mark_err_view = (~globals, m: Mark.t) => {
         ~actual,
       ),
     )
+  | TypeMemberCapture(names) =>
+    parts_view(
+      ~view_type,
+      Haz3lcore.ErrorPrint.type_member_capture_parts(names),
+    )
   | TypFreeTypeVariable(name) => [
       view_type(Var(name) |> Typ.fresh),
       text("not found"),
