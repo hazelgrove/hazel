@@ -2327,6 +2327,7 @@ let get_doc =
         | Float(Minus) // TODO[Matt]: finish
         | SInt(Minus)
         | Nat(Minus)
+        | Rat(Minus)
         | Int(Minus) =>
           let exp_id = List.nth(IdTagged.ids(exp), 0);
           get_message(
@@ -2346,35 +2347,46 @@ let get_doc =
         open OpExp;
         let (group, coloring_ids) =
           switch (op) {
+          /* Rat shares these forms: their text and examples are not
+             integer-specific (Float's forms use the same wording) */
           | Nat(Plus)
           | SInt(Plus)
+          | Rat(Plus)
           | Int(Plus) => (int_plus, int_plus_exp_coloring_ids)
           | Nat(Minus)
           | SInt(Minus)
+          | Rat(Minus)
           | Int(Minus) => (int_minus, int_minus_exp_coloring_ids)
           | Nat(Times)
           | SInt(Times)
+          | Rat(Times)
           | Int(Times) => (int_times, int_times_exp_coloring_ids)
           | Nat(Power)
           | SInt(Power)
+          | Rat(Power)
           | Int(Power) => (int_power, int_power_exp_coloring_ids)
           | Nat(Divide)
           | SInt(Divide)
+          | Rat(Divide)
           | Int(Divide) => (int_divide, int_divide_exp_coloring_ids)
           | Nat(LessThan)
           | SInt(LessThan)
+          | Rat(LessThan)
           | Int(LessThan) => (int_less_than, int_lt_exp_coloring_ids)
           | Nat(LessThanOrEqual)
           | SInt(LessThanOrEqual)
+          | Rat(LessThanOrEqual)
           | Int(LessThanOrEqual) => (
               int_less_than_equal,
               int_lte_exp_coloring_ids,
             )
           | Nat(GreaterThan)
           | SInt(GreaterThan)
+          | Rat(GreaterThan)
           | Int(GreaterThan) => (int_greater_than, int_gt_exp_coloring_ids)
           | Nat(GreaterThanOrEqual)
           | SInt(GreaterThanOrEqual)
+          | Rat(GreaterThanOrEqual)
           | Int(GreaterThanOrEqual) => (
               int_greater_than_equal,
               int_gte_exp_coloring_ids,

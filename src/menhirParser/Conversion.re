@@ -52,6 +52,7 @@ module Operators = {
     switch (op) {
     | Nat(op_int)
     | SInt(op_int)
+    | Rat(op_int)
     | Int(op_int) =>
       IntOp(
         switch (op_int) {
@@ -111,6 +112,7 @@ module Operators = {
     | Nat(i)
     | Float(i)
     | SInt(i)
+    | Rat(i)
     | Int(i) =>
       Int(
         switch (i) {

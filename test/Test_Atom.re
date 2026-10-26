@@ -138,7 +138,7 @@ let tests = (
       },
     ),
     test_case(
-      "Rat: the only public builtin is the constructor",
+      "Rat: public builtins are the constructor and operator parity",
       `Quick,
       () => {
         check(
@@ -168,14 +168,27 @@ let tests = (
         );
         let names = List.map(BuiltinsUtil.name_of_builtin, Builtins.builtins);
         check(bool, "rat exists", true, List.mem("rat", names));
+        /* Operator builtins exist for Rat as for Int/SInt/Nat (D7 parity);
+           conversions and compare stay suppressed. */
         let mentions_rat = name =>
           String.starts_with(~prefix="rat_", name)
-          || String.ends_with(~suffix="_rat", name);
+          || String.ends_with(~suffix="_rat", name)
+          || String.ends_with(~suffix="_of_rat", name);
         check(
           list(string),
-          "no rat_* or *_rat names",
-          [],
-          List.filter(mentions_rat, names),
+          "only operator rat_* names",
+          [
+            "rat_divide",
+            "rat_gt",
+            "rat_gte",
+            "rat_lt",
+            "rat_lte",
+            "rat_minus",
+            "rat_plus",
+            "rat_power",
+            "rat_times",
+          ],
+          List.filter(mentions_rat, names) |> List.sort(String.compare),
         );
       },
     ),

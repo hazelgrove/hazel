@@ -262,7 +262,10 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | DeferredAp(_)
   | TypAp(_) => Precedence.ap
   | UnOp(Bool(Not), _) => Precedence.not_
-  | UnOp(Int(Minus) | Nat(Minus) | Float(Minus) | SInt(Minus), _) => Precedence.neg
+  | UnOp(
+      Int(Minus) | Nat(Minus) | Float(Minus) | SInt(Minus) | Rat(Minus),
+      _,
+    ) => Precedence.neg
   | Cons(_) => Precedence.cons
   | Ap(Reverse, _, _) => Precedence.eqs
   | ListConcat(_) => Precedence.concat
@@ -738,7 +741,7 @@ let rec parenthesize =
       parenthesize(e) |> paren_at(Precedence.plus),
     )
     |> rewrap;
-  | UnOp((Int(Minus) | Nat(Minus) | SInt(Minus)) as op, e) =>
+  | UnOp((Int(Minus) | Nat(Minus) | SInt(Minus) | Rat(Minus)) as op, e) =>
     UnOp(op, parenthesize(e) |> paren_at(Precedence.neg)) |> rewrap
   | BinOp(op, e1, e2) =>
     (
@@ -2654,7 +2657,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let id = exp |> Exp.rep_id;
     let+ e = go(e);
     wrap(exp, [mk_form(Not, id, [])] @ e);
-  | UnOp(Int(Minus) | Nat(Minus) | SInt(Minus), e) =>
+  | UnOp(Int(Minus) | Nat(Minus) | SInt(Minus) | Rat(Minus), e) =>
     let id = exp |> Exp.rep_id;
     let+ e = go(e);
     wrap(exp, [mk_form(UnaryMinus, id, [])] @ e);

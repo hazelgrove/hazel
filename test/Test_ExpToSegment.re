@@ -277,6 +277,58 @@ let tests = (
         check(string, "Pause", serialized, {|pause 1 in 2|});
       },
     ),
+    /* A Rational atom displays as a division (D1), so it is grouped like
+       one wherever an operator would otherwise capture its parts. */
+    test_case(
+      "Rational atom grouping",
+      `Quick,
+      () => {
+        let rat = (n, d) =>
+          switch (Util.Rational.make(Bigint.of_int(n), Bigint.of_int(d))) {
+          | Some(r) => Language.Exp.fresh(Atom(Rat(r)))
+          | None => Alcotest.fail("zero denominator")
+          };
+        let third = rat(1, 3);
+        let print = e => print_seg(exp_to_segment(e));
+        module G = IdTagged.FreshGrammar.Exp;
+        check(
+          string,
+          "2 * Rat",
+          {|2 * (1 / 3)|},
+          print(G.bin_op(Rat(Times), G.int(2), third)),
+        );
+        check(
+          string,
+          "Rat * 2",
+          {|1 / 3 * 2|},
+          print(G.bin_op(Rat(Times), third, G.int(2))),
+        );
+        check(
+          string,
+          "-(Rat)",
+          {|- (1 / 3)|},
+          print(G.un_op(Rat(Minus), third)),
+        );
+        check(
+          string,
+          "Rat ** 2",
+          {|(1 / 3) ** 2|},
+          print(G.bin_op(Rat(Power), third, G.int(2))),
+        );
+        check(
+          string,
+          "2 / Rat",
+          {|2 / (1 / 3)|},
+          print(G.bin_op(Rat(Divide), G.int(2), third)),
+        );
+        check(
+          string,
+          "2 * negative Rat",
+          {|2 * (-1 / 3)|},
+          print(G.bin_op(Rat(Times), G.int(2), rat(-1, 3))),
+        );
+      },
+    ),
     test_case(
       "Right associativity",
       `Quick,

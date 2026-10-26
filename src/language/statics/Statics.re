@@ -2746,6 +2746,7 @@ and uexp_to_info_map =
         | Atom(Int) => Some(Int)
         | Atom(Float) => Some(Float)
         | Atom(SInt) => Some(SInt)
+        | Atom(Rat) => Some(Rat)
         | _ => None
         };
       let ctx' =
@@ -3135,14 +3136,21 @@ and upat_to_info_map =
           ~constraint_=Coverage.Constraint.String(string),
           m,
         )
-      // There are no rational literal patterns, so nothing to refine on
+      /* Coverage keys a rational pattern by its canonical num/den text:
+         injective on rationals (unlike the numerator alone, which 1/2 and
+         1/1 share) and, like Int, never exhaustive without a wildcard */
       | L(Rat(r)) =>
         add(
           ~elab_term=Atom(Rat(r)) |> rewrap,
           ~elab_syn_ty=Atom(Rat) |> Typ.temp,
           ~marks=[],
           ~ctx,
-          ~constraint_=Coverage.Constraint.Hole(None),
+          ~constraint_=
+            Coverage.Constraint.String(
+              Bigint.to_string(Rational.num(r))
+              ++ "/"
+              ++ Bigint.to_string(Rational.den(r)),
+            ),
           m,
         )
       | R(BadInt(str)) =>

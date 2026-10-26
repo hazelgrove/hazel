@@ -186,7 +186,8 @@ let bool_result_bin = (op: Operators.op_bin): bool =>
   | Poly(Equals | NotEquals) => true
   | Int(op)
   | SInt(op)
-  | Nat(op) =>
+  | Nat(op)
+  | Rat(op) =>
     switch (op) {
     | LessThan
     | LessThanOrEqual
@@ -221,6 +222,7 @@ let bool_result_un = (op: Operators.op_un): bool =>
   | Int(Minus)
   | Nat(Minus)
   | SInt(Minus)
+  | Rat(Minus)
   | Float(Minus) => false
   };
 

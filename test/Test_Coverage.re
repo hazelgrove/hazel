@@ -527,6 +527,116 @@ end|},
     [Marks([Redundant])],
   );
 
+/* Rational literal patterns are integer literals re-kinded by the
+   expected type, exactly as Nat literal patterns are */
+let rationals_exhaustive =
+  no_errors(
+    "Rationals: Exhaustive",
+    {|
+let x : Rational = ? in
+case x
+  | 1 => 1
+  | 2 => 2
+  | _ => 3
+end|},
+  );
+
+let rationals_non_exhaustive =
+  has_errors(
+    "Rationals: Non-Exhaustive",
+    {|
+let x : Rational = ? in
+{{{case x
+  | 1 => 1
+  | 2 => 2
+end}}}|},
+    [
+      Marks([
+        InexhaustiveMatch(
+          FTemp.Typ.unknown(Internal),
+          [],
+          Grammar.Pat(IdTagged.FreshGrammar.Pat.(wild())),
+        ),
+      ]),
+    ],
+  );
+
+let rationals_redundant =
+  has_errors(
+    "Rationals: Redundant",
+    {|
+let x : Rational = ? in
+case x
+  | 1 => 1
+  | 2 => 2
+  | {{{1}}} => 1
+  | _ => 3
+end|},
+    [Marks([Redundant])],
+  );
+
+/* Source patterns are whole, but a constructed non-whole rational pattern
+   must not be confused with a whole one sharing its numerator (1/2 vs 1):
+   no false redundancy and no false exhaustiveness. */
+let rational_marks = (first: Pat.t, second: Pat.t): list(Mark.t) => {
+  open IdTagged.FreshGrammar;
+  let e =
+    Exp.let_(
+      Pat.asc(Pat.var("x"), Typ.rational()),
+      Exp.empty_hole(),
+      Exp.match(
+        Exp.var("x"),
+        [(first, Exp.int(1)), (second, Exp.int(2))],
+      ),
+    );
+  statics(e) |> collect_errors |> Id.Map.bindings |> List.concat_map(snd);
+};
+
+let rat_pat = (n, d) =>
+  switch (Util.Rational.make(Bigint.of_int(n), Bigint.of_int(d))) {
+  | Some(r) => IdTagged.FreshGrammar.Pat.basic(Rat(r))
+  | None => Alcotest.fail("zero denominator")
+  };
+
+let is_redundant: Mark.t => bool =
+  fun
+  | Redundant => true
+  | _ => false;
+
+let is_inexhaustive: Mark.t => bool =
+  fun
+  | InexhaustiveMatch(_) => true
+  | _ => false;
+
+let rationals_non_whole =
+  test_case(
+    "Rationals: non-whole pattern keyed exactly",
+    `Quick,
+    () => {
+      let distinct =
+        rational_marks(rat_pat(1, 2), IdTagged.FreshGrammar.Pat.int(1));
+      check(
+        bool,
+        "1/2 then 1: not redundant",
+        false,
+        List.exists(is_redundant, distinct),
+      );
+      check(
+        bool,
+        "1/2 then 1: inexhaustive",
+        true,
+        List.exists(is_inexhaustive, distinct),
+      );
+      let same = rational_marks(rat_pat(1, 2), rat_pat(1, 2));
+      check(
+        bool,
+        "1/2 then 1/2: redundant",
+        true,
+        List.exists(is_redundant, same),
+      );
+    },
+  );
+
 let floats_exhaustive =
   no_errors(
     "Floats: Exhaustive",
@@ -1321,6 +1431,10 @@ let tests = (
     integers_non_exhaustive,
     integers_tuple_non_exhaustive,
     integers_redundant,
+    rationals_exhaustive,
+    rationals_non_exhaustive,
+    rationals_redundant,
+    rationals_non_whole,
     floats_exhaustive,
     floats_non_exhaustive,
     floats_tuple_non_exhaustive,

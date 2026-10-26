@@ -5,7 +5,8 @@ type mode =
   | Nat
   | Int
   | SInt
-  | Float;
+  | Float
+  | Rat;
 
 let default_mode = Int;
 
@@ -83,6 +84,7 @@ type op_un =
   | Nat(op_un_num)
   | SInt(op_un_num)
   | Float(op_un_num)
+  | Rat(op_un_num)
   | Bool(op_un_bool);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
@@ -90,6 +92,7 @@ type op_bin =
   | Int(op_bin_num)
   | SInt(op_bin_num)
   | Nat(op_bin_num)
+  | Rat(op_bin_num)
   | Float(op_bin_float)
   | Bool(op_bin_bool)
   | String(op_bin_string)
@@ -102,10 +105,10 @@ let numeric_bin_op = (cls: Atom.cls, op: op_bin_num): option(op_bin) =>
   | Int => Some(Int(op))
   | SInt => Some(SInt(op))
   | Nat => Some(Nat(op))
+  | Rat => Some(Rat(op))
   | Float => Some(Float(op_bin_float_of_num(op)))
   | Bool
-  | String
-  | Rat => None
+  | String => None
   };
 
 [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
@@ -125,6 +128,7 @@ let replace_literal =
   | (_, None, None) => L(lit)
   | (Int(n), Some(Int), _) => L(Int(n))
   | (Int(n), Some(Nat), _) => L(Nat(n))
+  | (Int(n), Some(Rat), _) => L(Rat(Rational.of_bigint(n)))
   | (Int(n), Some(Float), _) => L(Float(Bigint.to_float(n)))
   | (Int(n), Some(SInt), _) =>
     switch (Bigint.to_int(n)) {
@@ -133,13 +137,14 @@ let replace_literal =
     }
   | (Int(n), _, Some(Int)) => L(Int(n))
   | (Int(n), _, Some(Nat)) => L(Nat(n))
+  | (Int(n), _, Some(Rat)) => L(Rat(Rational.of_bigint(n)))
   | (Int(n), _, Some(Float)) => L(Float(Bigint.to_float(n)))
   | (Int(n), _, Some(SInt)) =>
     switch (Bigint.to_int(n)) {
     | Some(i) => L(SInt(i))
     | None => R(BadInt(Bigint.to_string(n)))
     }
-  | (Int(n), Some(Bool | String | Rat), None) => L(Int(n))
+  | (Int(n), Some(Bool | String), None) => L(Int(n))
   | (SInt(n), _, _) => L(SInt(n))
   | (Float(n), _, _) => L(Float(n))
   | (Bool(b), _, _) => L(Bool(b))
@@ -152,10 +157,16 @@ let replace_literal =
 let replace_un_op = (op: op_un, use_mode: option(mode)): op_un => {
   switch (op, use_mode) {
   | (op, None) => op
-  | (Int(op) | Nat(op) | Float(op) | SInt(op), Some(Int)) => Int(op)
-  | (Int(op) | Nat(op) | Float(op) | SInt(op), Some(SInt)) => SInt(op)
-  | (Int(op) | Nat(op) | Float(op) | SInt(op), Some(Nat)) => Nat(op)
-  | (Int(op) | Nat(op) | Float(op) | SInt(op), Some(Float)) => Float(op)
+  | (Int(op) | Nat(op) | Float(op) | SInt(op) | Rat(op), Some(Int)) =>
+    Int(op)
+  | (Int(op) | Nat(op) | Float(op) | SInt(op) | Rat(op), Some(SInt)) =>
+    SInt(op)
+  | (Int(op) | Nat(op) | Float(op) | SInt(op) | Rat(op), Some(Nat)) =>
+    Nat(op)
+  | (Int(op) | Nat(op) | Float(op) | SInt(op) | Rat(op), Some(Float)) =>
+    Float(op)
+  | (Int(op) | Nat(op) | Float(op) | SInt(op) | Rat(op), Some(Rat)) =>
+    Rat(op)
   | (Bool(op), _) => Bool(op)
   };
 };
@@ -167,8 +178,10 @@ let replace_bin_op = (op: op_bin, use_mode: option(mode)): op_bin => {
   | (Int(op), Some(Nat)) => Nat(op)
   | (Int(op), Some(Float)) => Float(op_bin_float_of_num(op))
   | (Int(op), Some(SInt)) => SInt(op)
+  | (Int(op), Some(Rat)) => Rat(op)
   | (SInt(op), _) => SInt(op)
   | (Nat(op), _) => Nat(op)
+  | (Rat(op), _) => Rat(op)
   | (Float(op), _) => Float(op)
   | (Bool(op), _) => Bool(op)
   | (String(op), _) => String(op)
@@ -189,6 +202,7 @@ let show_op_un_num: op_un_num => string =
 let show_unop: op_un => string =
   fun
   | Bool(op) => show_op_un_bool(op)
+  | Rat(Minus) => "Rational Negation"
   | Float(op)
   | Nat(op)
   | SInt(op)
@@ -239,7 +253,8 @@ let show_binop: op_bin => string =
   fun
   | Int(op)
   | SInt(op)
-  | Nat(op) => show_op_bin_num(op)
+  | Nat(op)
+  | Rat(op) => show_op_bin_num(op)
   | Float(op) => show_op_bin_float(op)
   | Bool(op) => show_op_bin_bool(op)
   | String(op) => show_op_bin_string(op)
@@ -300,7 +315,8 @@ let bin_op_to_string = (op: op_bin): string => {
   switch (op) {
   | SInt(op)
   | Int(op)
-  | Nat(op) => int_op_to_string(op)
+  | Nat(op)
+  | Rat(op) => int_op_to_string(op)
   | Float(op) => float_op_to_string(op)
   | Bool(op) => bool_op_to_string(op)
   | String(op) => string_op_to_string(op)
@@ -327,6 +343,7 @@ let semantics_of_un_op = (op: op_un): un_semantics =>
   | Float(Minus) => Defined(Float, Float, just(x => -. x))
   | SInt(Minus) => Defined(SInt, SInt, just(x => - x))
   | Nat(Minus) => Undefined("Cannot negate a natural number")
+  | Rat(Minus) => Defined(Rat, Rat, just(Rational.neg))
   | Bool(Not) => Defined(Bool, Bool, just(x => !x))
   };
 
@@ -360,6 +377,17 @@ let int_divide = (x, y) =>
   } else {
     Either.L(Bigint.(/)(x, y));
   };
+let rat_power = (x, y) =>
+  switch (Rational.pow(x, y)) {
+  | Some(r) => Either.L(r)
+  | None => Either.R(InvalidOperationError.DivideByZero)
+  };
+let rat_divide = (x, y) =>
+  switch (Rational.div(x, y)) {
+  | Some(r) => Either.L(r)
+  | None => Either.R(InvalidOperationError.DivideByZero)
+  };
+let rat_compare = (cmp, x, y) => cmp(Rational.compare(x, y), 0);
 let sint_divide = (x, y) =>
   if (y == 0) {
     Either.R(InvalidOperationError.DivideByZero);
@@ -401,6 +429,19 @@ let semantics_of_bin_op = (op: op_bin): bin_semantics =>
   | Nat(LessThanOrEqual) => Defined(Nat, Nat, Bool, just((<=)))
   | Nat(GreaterThan) => Defined(Nat, Nat, Bool, just((>)))
   | Nat(GreaterThanOrEqual) => Defined(Nat, Nat, Bool, just((>=)))
+
+  | Rat(Plus) => Defined(Rat, Rat, Rat, just(Rational.add))
+  | Rat(Minus) => Defined(Rat, Rat, Rat, just(Rational.sub))
+  | Rat(Times) => Defined(Rat, Rat, Rat, just(Rational.mul))
+  /* The exponent is an Int, so it may be negative */
+  | Rat(Power) => Defined(Rat, Int, Rat, rat_power)
+  | Rat(Divide) => Defined(Rat, Rat, Rat, rat_divide)
+  | Rat(LessThan) => Defined(Rat, Rat, Bool, just(rat_compare((<))))
+  | Rat(LessThanOrEqual) =>
+    Defined(Rat, Rat, Bool, just(rat_compare((<=))))
+  | Rat(GreaterThan) => Defined(Rat, Rat, Bool, just(rat_compare((>))))
+  | Rat(GreaterThanOrEqual) =>
+    Defined(Rat, Rat, Bool, just(rat_compare((>=))))
 
   | Float(Plus) => Defined(Float, Float, Float, just((+.)))
   | Float(Minus) => Defined(Float, Float, Float, just((-.)))
@@ -455,6 +496,15 @@ let op_name = (op: op_bin): string =>
   | Nat(LessThanOrEqual) => "nat_lte"
   | Nat(GreaterThan) => "nat_gt"
   | Nat(GreaterThanOrEqual) => "nat_gte"
+  | Rat(Plus) => "rat_plus"
+  | Rat(Minus) => "rat_minus"
+  | Rat(Times) => "rat_times"
+  | Rat(Power) => "rat_power"
+  | Rat(Divide) => "rat_divide"
+  | Rat(LessThan) => "rat_lt"
+  | Rat(LessThanOrEqual) => "rat_lte"
+  | Rat(GreaterThan) => "rat_gt"
+  | Rat(GreaterThanOrEqual) => "rat_gte"
   | Float(Plus) => "float_plus"
   | Float(Minus) => "float_minus"
   | Float(Times) => "float_times"
