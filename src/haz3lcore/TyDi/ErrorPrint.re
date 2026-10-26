@@ -47,6 +47,9 @@ let string_of_parts = (parts: list(part)): string =>
      )
   |> String.concat("");
 
+let codes = (names: list(Var.t)): list(part) =>
+  Util.ListUtil.join(Text(", "), List.map(name => Code(name), names));
+
 let type_member_capture_parts = (names: list(Var.t)): list(part) =>
   switch (names) {
   | [name] => [
@@ -58,7 +61,7 @@ let type_member_capture_parts = (names: list(Var.t)): list(part) =>
     ]
   | _ =>
     [Text("Type variables ")]
-    @ Util.ListUtil.join(Text(", "), List.map(name => Code(name), names))
+    @ codes(names)
     @ [
       Text(
         " collide with type members of the same names in this signature; rename them",
@@ -90,6 +93,23 @@ let type_member_mismatch_parts = (name, ~expected, ~actual): list(part) => [
   Type(actual),
   Text(" but its signature declares "),
   Type(expected),
+];
+
+let module_missing_members_parts = (names: list(Var.t)): list(part) => [
+  Text("Module is missing members required by its signature: "),
+  ...codes(names),
+];
+
+let module_extra_members_parts = (names: list(Var.t)): list(part) => [
+  Text("Module has members its signature does not declare: "),
+  ...codes(names),
+];
+
+let module_member_is_type_parts = (name: Var.t): list(part) => [
+  Code(name),
+  Text(
+    " is a type member of the module, not a value; use it in a type position",
+  ),
 ];
 
 let type_member_capture_string = names =>
@@ -206,19 +226,13 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
     prn("Theorem pattern is not of the form p : t, got %s", Print.typ(typ))
   | LabelNotFound(_, _) => "Label not found"
   | ModuleMissingMembers(names) =>
-    prn("Module is missing members: %s", String.concat(", ", names))
+    string_of_parts(module_missing_members_parts(names))
   | ModuleExtraMembers(names) =>
-    prn(
-      "Module has members its signature does not declare: %s",
-      String.concat(", ", names),
-    )
+    string_of_parts(module_extra_members_parts(names))
   | ModuleMemberNotFound(not_found) =>
     member_not_found_string("member", not_found)
   | ModuleMemberIsType(name) =>
-    prn(
-      "%s is a type member of the module, not a value; use it in a type position",
-      name,
-    )
+    string_of_parts(module_member_is_type_parts(name))
   | ModuleTypeMemberMismatch({name, expected, actual}) =>
     type_member_mismatch_string(name, ~expected, ~actual)
   | TypeMemberCapture(names) => type_member_capture_string(names)

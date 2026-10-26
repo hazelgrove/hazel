@@ -436,7 +436,6 @@ let common_ok_view =
   );
 };
 
-/* [what] names the sort of member, e.g. "type member". */
 let parts_view = (~view_type, parts: list(Haz3lcore.ErrorPrint.part)) =>
   List.map(
     (part: Haz3lcore.ErrorPrint.part) =>
@@ -786,10 +785,12 @@ let exp_mark_err_view =
       ...List.map(label_view, labels),
     ])
   | ModuleMissingMembers(names) =>
-    div_err([
-      text("Module is missing members required by its signature: "),
-      ...ListUtil.join(text(", "), List.map(code, names)),
-    ])
+    div_err(
+      parts_view(
+        ~view_type,
+        Haz3lcore.ErrorPrint.module_missing_members_parts(names),
+      ),
+    )
   | ModuleMemberNotFound(not_found) =>
     div_err(
       parts_view(
@@ -798,17 +799,19 @@ let exp_mark_err_view =
       ),
     )
   | ModuleMemberIsType(name) =>
-    div_err([
-      code(name),
-      text(
-        " is a type member of the module, not a value; use it in a type position",
+    div_err(
+      parts_view(
+        ~view_type,
+        Haz3lcore.ErrorPrint.module_member_is_type_parts(name),
       ),
-    ])
+    )
   | ModuleExtraMembers(names) =>
-    div_err([
-      text("Module has members its signature does not declare: "),
-      ...ListUtil.join(text(", "), List.map(code, names)),
-    ])
+    div_err(
+      parts_view(
+        ~view_type,
+        Haz3lcore.ErrorPrint.module_extra_members_parts(names),
+      ),
+    )
   | ModuleTypeMemberMismatch({name, expected, actual}) =>
     div_err(
       parts_view(
