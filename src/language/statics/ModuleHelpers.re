@@ -471,7 +471,7 @@ let has_hole_binder = (items: list(Mod.t)): bool =>
       switch (item.term) {
       | EmptyHole
       | MultiHole(_) => true
-      | ModLet(pat, _) => Pat.has_hole_binder(pat)
+      | ModLet(pat, _) => Pat.has_hole_binder(FunctionSugar.binder(pat))
       | ModuleMod(mp, _) => mpat_has_hole(mp)
       | ModType({term: EmptyHole | MultiHole(_), _}, _) => true
       | ModType(_)

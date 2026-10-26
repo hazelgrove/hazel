@@ -216,6 +216,15 @@ let test_error_non_binder_holes_do_not_assume =
     },
   );
 
+let test_error_shorthand_parameter_hole_does_not_assume =
+  has_mark_test(
+    "A hole parameter of the function shorthand does not stand in for members",
+    {|module M : { let x : Int; let f : Int -> Int } = { let f(?) = 1 } in M.x|},
+    fun
+    | Language.Mark.ModuleMissingMembers(["x"]) => true
+    | _ => false,
+  );
+
 /* ===== NESTED EXPECTATIONS ===== */
 
 /* The signature's expectations reach sub-modules and the variables inside
@@ -1543,6 +1552,7 @@ let tests = (
     test_holes_assume_missing_members,
     test_error_wildcard_binder_does_not_assume,
     test_error_non_binder_holes_do_not_assume,
+    test_error_shorthand_parameter_hole_does_not_assume,
     /* Nested expectations */
     test_nested_missing_member_localized,
     test_nested_type_member_mismatch_localized,
