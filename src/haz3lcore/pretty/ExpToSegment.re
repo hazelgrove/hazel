@@ -3151,7 +3151,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     let ids = List.tl(ids);
     let wrap_item = wrap_with_secondary(~secondary=settings.secondary);
     let+ items_pretty =
-      items
+      Typ.sig_display_items(items)
       |> List.map((item: Sig.t) =>
            switch (item.term) {
            | SigLet(p) =>

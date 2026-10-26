@@ -25,6 +25,18 @@ let label_view = (label: string): Node.t =>
     [text(Haz3lcore.Token.quote_label_when_necessary(label))],
   );
 
+let parts_view = (~view_type, parts: list(Haz3lcore.ErrorPrint.part)) =>
+  List.map(
+    (part: Haz3lcore.ErrorPrint.part) =>
+      switch (part) {
+      | Text(s) => text(s)
+      | Code(s) => code(s)
+      | Label(s) => label_view(s)
+      | Type(ty) => view_type(ty)
+      },
+    parts,
+  );
+
 let cls_view = (ci: Info.t): Node.t => {
   let cls = ci |> Info.cls_of;
   let cls_text =
@@ -229,7 +241,8 @@ let core_mark_err_view =
         text("Duplicate Label:"),
         label_view(name),
       ]
-    | CompareFun(ty) => [text("values cannot be compared:"), view_type(ty)]
+    | CompareFun(c) =>
+      parts_view(~view_type, Haz3lcore.ErrorPrint.compare_fun_parts(c))
     | ExpectationMismatch({ana, syn}) => expectation_view(~ana, ~syn)
     | NoMeet(PolyEq, tys)
     | NoMeet(_, tys) when ana.term == Unknown(SynSwitch) => [
@@ -266,7 +279,6 @@ let core_mark_err_view =
     | ModuleMemberNotFound(_)
     | ModuleMemberIsType(_)
     | ModuleTypeMemberMismatch(_)
-    | TypeMemberCapture(_)
     | BadOperator(_)
     | BadLivelitModel(_)
     | BadTheorem(_)
@@ -436,18 +448,6 @@ let common_ok_view =
   );
 };
 
-let parts_view = (~view_type, parts: list(Haz3lcore.ErrorPrint.part)) =>
-  List.map(
-    (part: Haz3lcore.ErrorPrint.part) =>
-      switch (part) {
-      | Text(s) => text(s)
-      | Code(s) => code(s)
-      | Label(s) => label_view(s)
-      | Type(ty) => view_type(ty)
-      },
-    parts,
-  );
-
 let underdetermined_typ_view =
     (~globals, underdetermined: Message.underdetermined_typ) => {
   let view_type = view_type(~globals);
@@ -549,11 +549,6 @@ let typ_mark_err_view = (~globals, m: Mark.t) => {
         ~expected,
         ~actual,
       ),
-    )
-  | TypeMemberCapture(names) =>
-    parts_view(
-      ~view_type,
-      Haz3lcore.ErrorPrint.type_member_capture_parts(names),
     )
   | TypFreeTypeVariable(name) => [
       view_type(Var(name) |> Typ.fresh),
@@ -826,13 +821,6 @@ let exp_mark_err_view =
           ~expected,
           ~actual,
         ),
-      ),
-    )
-  | TypeMemberCapture(names) =>
-    div_err(
-      parts_view(
-        ~view_type,
-        Haz3lcore.ErrorPrint.type_member_capture_parts(names),
       ),
     )
   | BadLivelitModel(_) => div_err([text("Bad internal livelit model")])
@@ -1157,13 +1145,6 @@ let tpat_view =
           text("Can't shadow existing type variable"),
           view_type(Var(name) |> Typ.fresh),
         ])
-      | TypeMemberCapture(names) =>
-        div_err(
-          parts_view(
-            ~view_type,
-            Haz3lcore.ErrorPrint.type_member_capture_parts(names),
-          ),
-        )
       | _ => div_err([text("Type pattern error")])
       }
     }
@@ -1174,7 +1155,15 @@ let view_of_info = (~globals, ci): list(Node.t) => {
   let wrapper = status_view => [term_view(~globals, ci), status_view];
   switch (ci) {
   | Secondary(_) => wrapper(div([]))
-  | InfoMod({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
+  | InfoMod({cls, ty: None, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
+  | InfoMod({cls: Mod(ModType) as cls, ty: Some(ty), _}) =>
+    wrapper(
+      div_ok([text(cls |> Cls.show), text("="), view_type(~globals, ty)]),
+    )
+  | InfoMod({cls, ty: Some(ty), _}) =>
+    wrapper(
+      div_ok([text(cls |> Cls.show), text(":"), view_type(~globals, ty)]),
+    )
   | InfoSig({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
   | InfoMPat({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
   | InfoExp({cls, message, _} as ie) =>

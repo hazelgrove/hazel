@@ -41,6 +41,13 @@ type tpat_var_err =
 
 /* A member a module path names that the module lacks, and the members of
    that sort it has. */
+/* Polymorphic equality at a type with a function in it, which has none. */
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type compare_fun = {
+  ty: Typ.t,
+  found: Typ.fun_in,
+};
+
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type member_not_found = {
   name: Var.t,
@@ -91,10 +98,6 @@ type t =
       expected: Typ.t,
       actual: Typ.t,
     })
-  /* A type substituted into a signature has a free variable named like one
-     of its members, which would capture it; Typ.subst degrades the members
-     after that one to `?` instead. Carries the colliding names. */
-  | TypeMemberCapture(list(Var.t))
   | BadToken(string)
   | BadLabel(Any.t)
   | InvalidLabel(LabeledTuple.label, list(LabeledTuple.label))
@@ -127,7 +130,7 @@ type t =
     })
   | IsDeferral(Exp.deferral_position)
   | FreeConstructor(Constructor.t)
-  | CompareFun(Typ.t)
+  | CompareFun(compare_fun)
   | NoMeet(meet_type, list(Typ.source))
   | Redundant
   | ExpectedConstructor

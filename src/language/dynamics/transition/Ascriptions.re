@@ -175,9 +175,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
           DHExp.rep_id(e),
           TypFun(
             tp,
-            recur(
-              Asc(body, fst(Typ.subst(new_ty, tp', t'))) |> DHExp.fresh,
-            ),
+            recur(Asc(body, Typ.subst(new_ty, tp', t')) |> DHExp.fresh),
             name,
           )
           |> DHExp.fresh,

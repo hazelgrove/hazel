@@ -274,6 +274,17 @@ module Namer = {
       | ModuleExp(mp, _, _) => mk_name_from_mpat(mp)
       | _ => raise(Failure("Not a valid expression to make a name from"))
       }
+    | InfoMod({user_term: item, _}) =>
+      switch (item.term) {
+      | ModLet(pat, _) => mk_name_from_pat(pat)
+      | ModType(tpat, _) => mk_name_from_tpat(tpat)
+      | ModuleMod(mp, _) => mk_name_from_mpat(mp)
+      | ModVal(name, _) => name
+      | ModExp(_) => "{expression}"
+      | Invalid(name) => name
+      | EmptyHole => "{empty module hole}"
+      | MultiHole(_) => "{multi module hole}"
+      }
     | _ => raise(Failure("Not a valid term to make a name from"))
     };
   };
@@ -508,24 +519,31 @@ let rec build_children =
       // 2. Find siblings (continuation after "in")
       build_children(exp_to_info(body), path, node_map, info_map);
     | Module(items) =>
-      /* Module literal: members become nodes at this path (children of the
-         enclosing binding). Statics checks module literals by expansion
-         into nested Let/TyAlias wrappers KEYED BY THE MOD ITEM IDS
-         (ModuleHelpers.lower; reclassify only rewrites cls), so the first
-         item's wrapper info chains through the remaining members exactly
-         like a top-level binding chain — the Let/TyAlias cases above walk
-         it, making members siblings of one another. Wrapper pat/def ids
-         are the members' real syntax ids, so downstream span selection
-         works unchanged. */
-      switch (items) {
-      | [] => node_map
-      | [first, ..._] =>
-        switch (Id.Map.find_opt(Mod.rep_id(first), info_map)) {
-        | Some(wrapper_info) =>
-          build_children(wrapper_info, path, node_map, info_map)
-        | None => node_map
-        }
-      }
+      /* Module literal: the binding items are nodes at this path, siblings
+         of one another like a binding chain, each with its definition's
+         nodes as children. A bare expression item is its expression. */
+      List.fold_left(
+        (node_map: t, item: Mod.t) =>
+          switch (item.term, Id.Map.find_opt(Mod.rep_id(item), info_map)) {
+          | (ModExp(e), _) =>
+            build_children(exp_to_info(e), path, node_map, info_map)
+          | (
+              ModLet(_, def) | ModuleMod(_, def) | ModVal(_, def),
+              Some(info),
+            ) =>
+            let new_path = path @ [Info.id_of(info)];
+            let node_map = init_node(info, new_path, node_map);
+            build_children(exp_to_info(def), new_path, node_map, info_map);
+          | (ModType(_, typ), Some(info)) =>
+            let new_path = path @ [Info.id_of(info)];
+            let node_map = init_node(info, new_path, node_map);
+            build_children(typ_to_info(typ), new_path, node_map, info_map);
+          | (ModLet(_) | ModuleMod(_) | ModVal(_) | ModType(_), None)
+          | (Invalid(_) | EmptyHole | MultiHole(_), _) => node_map
+          },
+        node_map,
+        items,
+      )
     | _ =>
       let es = Utils.child_expressions_of_exp(term);
       let es_mapped = List.map(exp_to_info, es);

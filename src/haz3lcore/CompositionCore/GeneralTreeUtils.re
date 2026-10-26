@@ -185,6 +185,35 @@ let subtree_of =
           ),
         )
       }
+    | InfoMod({user_term: item, _}) =>
+      /* A module item has no body. The statics of the requested parts are
+         reused as they are: an item is checked as part of its module. */
+      let roots =
+        switch (item.term) {
+        | ModLet(pat, def) =>
+          (of_pat ? [Pat.rep_id(pat)] : [])
+          @ (of_def ? [Exp.rep_id(def)] : [])
+        | ModType(tpat, def) =>
+          (of_pat ? [TPat.rep_id(tpat)] : [])
+          @ (of_def ? [Typ.rep_id(def)] : [])
+        | ModuleMod(mp, def) =>
+          (of_pat ? [MPat.rep_id(mp)] : [])
+          @ (of_def ? [Exp.rep_id(def)] : [])
+        | ModExp(def)
+        | ModVal(_, def) => of_def ? [Exp.rep_id(def)] : []
+        | Invalid(_)
+        | EmptyHole
+        | MultiHole(_) => []
+        };
+      Id.Map.filter(
+        (id, child) =>
+          List.mem(id, roots)
+          || List.exists(
+               root => List.mem(root, Info.ancestors_of(child)),
+               roots,
+             ),
+        orig_info_map,
+      );
     | _ => raise(Failure("Current node is not an expression"))
     };
 
@@ -226,6 +255,11 @@ let get_refs_to = (curr: Info.t, info_map: Id.Map.t(Info.t)): CoCtx.t => {
       ((var_name, _)) => !VarMap.contains(entire_coctx, var_name),
       body_coctx,
     );
+  | InfoMod({co_ctx, scope_co_ctx, _}) =>
+    VarMap.filter(
+      ((var_name, _)) => !VarMap.contains(co_ctx, var_name),
+      scope_co_ctx,
+    )
   | _ =>
     raise(
       Failure("Current node is not a let, type alias, or module expression"),
@@ -329,6 +363,30 @@ let get_refs_to_after_pattern_edit =
     | _ =>
       VarMap.filter(
         ((var_name, _)) => !VarMap.contains(entire_coctx, var_name),
+        body_coctx,
+      )
+    };
+  | (InfoMod(pre_item), InfoMod(item_after)) =>
+    let body_coctx = item_after.scope_co_ctx;
+    switch (pre_item.user_term.term, item_after.user_term.term) {
+    | (ModLet(p_old, _), ModLet(p_new, def))
+        when
+          Option.is_some(Pat.function_sugar(p_old))
+          && Option.is_some(Pat.function_sugar(p_new)) =>
+      let old_names = var_names_of_pat(p_old);
+      let head_name = var_names_of_pat(Pat.binder(p_old));
+      let def_refs =
+        switch (exp_to_info(def)) {
+        | InfoExp({co_ctx, _}) =>
+          VarMap.filter(((n, _)) => List.mem(n, old_names), co_ctx)
+        | _ => []
+        };
+      let body_refs =
+        VarMap.filter(((n, _)) => List.mem(n, head_name), body_coctx);
+      def_refs @ body_refs;
+    | _ =>
+      VarMap.filter(
+        ((var_name, _)) => !VarMap.contains(pre_item.co_ctx, var_name),
         body_coctx,
       )
     };
