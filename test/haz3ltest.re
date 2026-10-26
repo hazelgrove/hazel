@@ -16,6 +16,7 @@ let (suite, _) =
     [
       Test_ListUtil.tests,
       Test_OptUtil.tests,
+      Test_Rational.tests,
       Test_Atom.tests,
       Test_Operators.tests,
       Test_BuiltinsADT.tests,
