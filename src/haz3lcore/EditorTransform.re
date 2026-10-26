@@ -208,9 +208,60 @@ let find_seq_parent_in_exp =
  * ...) may leak into the written syntax. `of_core` folds `fun` bodies
  * into projector chips when show_fn_bodies is off, silently destroying
  * user code on every proof-side patch. */
+/* Rational values and operators have no source spelling of their own:
+ * result views print a Rational as `n/d`, which reparses as Int division,
+ * and an elaborated Rational operator prints as the shared `+`, `*`, ...,
+ * which reparses in the ambient (by default Int) mode. So a program write
+ * spells every Rational node inside the reserved mode region
+ * `(use Rational in ...)`, and every Int node inside such a region in
+ * `(use Int in ...)`, which `use Rational` would otherwise re-kind. `use`,
+ * the base type names, the operators and the literals cannot be rebound
+ * by user code, so the text reparses to the same values and operator
+ * kinds wherever it lands. In a region, a whole non-negative Rational is
+ * the bare literal (re-kinded to exactly that atom); any other is
+ * `n / d`. User source holds no Rational atoms or operators (there is no
+ * literal syntax, and only elaboration re-kinds), so only newly written
+ * evaluated terms change. A rewritten atom's id moves to its replacement;
+ * a wrapped operator keeps its own id. */
+let rational_as_source = (): ((Exp.t => Exp.t, Exp.t) => Exp.t) => {
+  let in_rat = ref(false);
+  let within = (rat: bool, f: unit => Exp.t): Exp.t => {
+    let outer = in_rat^;
+    in_rat := rat;
+    let e = f();
+    in_rat := outer;
+    e;
+  };
+  let region = (cls: Atom.cls, body: Exp.t): Exp.t =>
+    Exp.fresh(Parens(Exp.fresh(Use(Typ.fresh_atom(cls), body))));
+  let rat_term = (r: Rational.t): Exp.term => {
+    let int = n => Exp.fresh(Atom(Int(n)));
+    Bigint.equal(Rational.den(r), Bigint.one)
+    && Bigint.compare(Rational.num(r), Bigint.zero) >= 0
+      ? Atom(Int(Rational.num(r)))
+      : BinOp(Int(Divide), int(Rational.num(r)), int(Rational.den(r)));
+  };
+  (continue, e: Exp.t) =>
+    switch (e.term) {
+    | Atom(Rat(r)) when in_rat^ => {...e, term: rat_term(r)}
+    | Atom(Rat(r)) => {
+        ...e,
+        term: Parens(Exp.fresh(Use(Typ.fresh_atom(Rat), Exp.fresh(rat_term(r))))),
+      }
+    | BinOp(Rat(_), _, _)
+    | UnOp(Rat(_), _) =>
+      in_rat^ ? continue(e) : region(Rat, within(true, () => continue(e)))
+    | BinOp(Int(_), _, _)
+    | UnOp(Int(_), _)
+    | Atom(Int(_)) when in_rat^ =>
+      region(Int, within(false, () => continue(e)))
+    | _ => continue(e)
+    };
+};
+
 let exp_to_segment = (exp: Exp.t): Segment.t =>
   ExpToSegment.exp_to_segment(
-    exp,
+    Exp.map_term(~f_exp=rational_as_source(), exp),
     ~settings={
       ...ExpToSegment.Settings.editable(~inline=false),
       use_literal_lexemes: false,
@@ -317,7 +368,7 @@ let any_to_segment_editable = (a: Any.t): Segment.t =>
       ...ExpToSegment.Settings.editable(~inline=false),
       use_literal_lexemes: false,
     },
-    a,
+    Any.map_term(~f_exp=rational_as_source(), a),
   );
 
 let piece_is_secondary: Piece.t => bool =
