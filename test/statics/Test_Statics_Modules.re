@@ -1552,6 +1552,14 @@ let test_sub_module_path_does_not_collide_with_type =
 { type P = Bool; let v : S = ? }|},
   );
 
+let test_module_member_not_in_scope_in_own_signature =
+  no_marks_test(
+    "A module member's signature means the outer module of that name",
+    {|module M = { type T = Int } in
+let s : { module M : { let y : M.T } } = ? in
+s|},
+  );
+
 let tests = (
   "Statics.Modules",
   [
@@ -1717,5 +1725,6 @@ let tests = (
     test_self_mentioning_sig_alias,
     test_type_argument_path_not_captured_by_sub_module,
     test_sub_module_path_does_not_collide_with_type,
+    test_module_member_not_in_scope_in_own_signature,
   ],
 );

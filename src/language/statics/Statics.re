@@ -4215,15 +4215,26 @@ and utyp_to_info_map =
     let (_, m) =
       List.fold_left(
         ((ctx, m), item: Sig.t) => {
-          let ctx = Typ.extend_sig_item(ctx, item);
+          let ctx_after = Typ.extend_sig_item(ctx, item);
+          /* A type member's name is in scope in its own definition
+             (Typ.sig_item_recursive); a value or module member's is not. */
+          let ctx_item =
+            switch (item.term) {
+            | SigType(_) => ctx_after
+            | SigLet(_)
+            | SigModule(_)
+            | Invalid(_)
+            | EmptyHole
+            | MultiHole(_) => ctx
+            };
           let (_, _, m) =
             any_to_info_map(
-              ~ctx,
+              ~ctx=ctx_item,
               ~ancestors=ancestors_inclusive,
               Sig(item),
               m,
             );
-          (ctx, m);
+          (ctx_after, m);
         },
         (ctx, m),
         items,
