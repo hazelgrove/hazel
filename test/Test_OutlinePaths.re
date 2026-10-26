@@ -208,12 +208,12 @@ let cases = [
     () => {
       let db = Web.HazelDB.kv_save;
       db("scratch:Old", "blob");
-      db("scratch:Old:pins", "p");
+      db("scratch:Old:side", "p");
       db("scratch:Older", "other");
       ScratchPersist.rename_slide("scratch", "Old", "New");
       let get = Web.HazelDB.kv_get;
       check(bool, "blob moved", true, get("scratch:New") == Some("blob"));
-      check(bool, "pins moved", true, get("scratch:New:pins") == Some("p"));
+      check(bool, "side moved", true, get("scratch:New:side") == Some("p"));
       check(bool, "old gone", true, get("scratch:Old") == None);
       check(
         bool,
@@ -226,7 +226,7 @@ let cases = [
         bool,
         "deleted",
         true,
-        get("scratch:New") == None && get("scratch:New:pins") == None,
+        get("scratch:New") == None && get("scratch:New:side") == None,
       );
       check(
         bool,

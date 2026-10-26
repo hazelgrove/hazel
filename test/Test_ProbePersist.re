@@ -65,77 +65,6 @@ let key_roundtrip = () => {
   );
 };
 
-/* a slide saved under the keys :side replaced loads them, and its first
-   write folds them into :side */
-let legacy_side_keys = () => {
-  let seg = CorpusUtil.seg_of("let x = 1 in\nx + 2");
-  let probes = [(List.hd(Segment.ids(seg)), probe)];
-  let ck = Persist.content_key("legacytest", "s");
-  let x =
-    Web.OutlineTree.[
-      {
-        s_label: "x",
-        s_occ: 0,
-      },
-    ];
-  let ab_y =
-    Web.OutlineTree.[
-      {
-        s_label: "a b",
-        s_occ: 2,
-      },
-      {
-        s_label: "y",
-        s_occ: 1,
-      },
-    ];
-  List.iter(
-    ((suffix, v)) => Web.HazelDB.kv_save(ck ++ suffix, v),
-    [
-      (":caret", "3 5"),
-      (
-        ":pins",
-        {|(((pin_path(((s_label x)(s_occ 0))))(pin_run true))((pin_path(((s_label"a b")(s_occ 2))((s_label y)(s_occ 1))))(pin_run false)))|},
-      ),
-      (
-        ":view",
-        {|((vf_zoom((((s_label"a b")(s_occ 2))((s_label y)(s_occ 1)))))(vf_parked true))|},
-      ),
-      (
-        ":collapse",
-        {|((((s_label x)(s_occ 0)))(((s_label"a b")(s_occ 2))((s_label y)(s_occ 1))))|},
-      ),
-      (
-        ":probes",
-        Sexplib.Sexp.to_string(Refractors.RefractorList.sexp_of_t(probes)),
-      ),
-    ],
-  );
-  let expected =
-    Persist.{
-      caret: Some(Util.Point.mk(~row=3, ~col=5)),
-      pins: [(x, true), (ab_y, false)],
-      zoom: Some(ab_y),
-      parked: true,
-      collapse: [x, ab_y],
-      expand: [],
-      probes,
-    };
-  let read = () => Persist.read_side("legacytest", "s");
-  check(bool, "the old keys load", true, read() == expected);
-  Persist.write_side("legacytest", "s", side => side);
-  check(
-    bool,
-    "a write drops them",
-    true,
-    List.for_all(
-      sfx => Web.HazelDB.kv_get(ck ++ sfx) == None,
-      Persist.legacy_suffixes,
-    ),
-  );
-  check(bool, "and keeps what they held", true, read() == expected);
-};
-
 let save_then_load = () => {
   let m = load("probetest");
   let editor = Web.Program.whole(current_code(m).program);
@@ -243,7 +172,6 @@ let tests = (
   "ProbePersist",
   [
     test_case("probes key round trip", `Quick, key_roundtrip),
-    test_case("the keys :side replaced still load", `Quick, legacy_side_keys),
     test_case("save then load keeps probes", `Quick, save_then_load),
     test_case(
       "a bad roster drops the item keys",
