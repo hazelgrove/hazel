@@ -378,47 +378,79 @@ let unroll = (ty: t): t =>
   | _ => ty
   };
 
-/* ctx extended with type variable `entry`, keeping alias resolution
-   lexical. Aliases are expanded by name in the context of use, so an alias
-   definition already in ctx that mentions the name would come to mean the
-   new binding: in `type T = .. in type S = T in type T = (S)`, S would
-   become the second T and expanding T would loop. Such definitions are
+/* ctx extended with type variable `entry`, keeping type resolution
+   lexical. Types are expanded by name in the context of use, so a type
+   already in ctx that mentions the name would come to mean the new
+   binding: in `type T = .. in type S = T in type T = (S)`, S would become
+   the second T and expanding T would loop, and in `type T = Int in
+   let x : T = 1 in type T = Bool`, x would become a Bool. Such types are
    rewritten to what the name meant before: the alias it shadows, an
    invalid type if it was unbound, or unknown for a shadowed abstract type.
    Alias definitions then refer only to older bindings, so expanding
-   aliases terminates. */
+   aliases terminates. Variable and constructor types are rewritten only
+   when the name shadows a binding, and only those bound since it: the
+   others cannot mention it, or name it while it is unbound, an error
+   already. */
 let extend_tvar = (ctx: Ctx.t, entry: Ctx.tvar_entry): Ctx.t => {
+  let mentions_typ = ty => List.mem(entry.name, free_vars(ty));
   let mentions: Ctx.kind => bool =
     fun
-    | Singleton(ty) => List.mem(entry.name, free_vars(ty))
+    | Singleton(ty) => mentions_typ(ty)
     | Abstract => false;
   let stale =
     fun
     | Ctx.TVarEntry(e) => mentions(e.kind)
     | _ => false;
-  if (!mentions(entry.kind) && !List.exists(stale, ctx.entries)) {
+  let shadowed = Ctx.lookup_tvar(ctx, entry.name);
+  if (Option.is_none(shadowed)
+      && !mentions(entry.kind)
+      && !List.exists(stale, ctx.entries)) {
     Ctx.extend_tvar(ctx, entry);
   } else {
     let meant =
-      switch (Ctx.lookup_tvar(ctx, entry.name)) {
+      switch (shadowed) {
       | Some(Singleton(ty)) => ty
       | Some(Abstract) => Unknown(Internal) |> temp
       | None => Unknown(Hole(Invalid(entry.name))) |> temp
       };
+    let refresh_typ = ty =>
+      mentions_typ(ty)
+        ? subst(meant, Var(entry.name) |> TPat.fresh, ty) : ty;
     let refresh = (e: Ctx.tvar_entry): Ctx.tvar_entry =>
       switch (e.kind) {
       | Singleton(ty) when mentions(e.kind) => {
           ...e,
-          kind: Singleton(subst(meant, Var(entry.name) |> TPat.fresh, ty)),
+          kind: Singleton(refresh_typ(ty)),
         }
       | _ => e
       };
-    let entries =
-      List.map(
-        fun
-        | Ctx.TVarEntry(e) when mentions(e.kind) =>
-          Ctx.TVarEntry(refresh(e))
-        | e => e,
+    let (_, entries) =
+      List.fold_left_map(
+        (since_shadowed, e: Ctx.entry) =>
+          switch (e) {
+          | TVarEntry(t) => (
+              since_shadowed && !String.equal(t.name, entry.name),
+              mentions(t.kind) ? Ctx.TVarEntry(refresh(t)) : e,
+            )
+          | VarEntry(v) when since_shadowed && mentions_typ(v.typ) => (
+              since_shadowed,
+              VarEntry({
+                ...v,
+                typ: refresh_typ(v.typ),
+              }),
+            )
+          | ConstructorEntry(c) when since_shadowed && mentions_typ(c.typ) => (
+              since_shadowed,
+              ConstructorEntry({
+                ...c,
+                typ: refresh_typ(c.typ),
+              }),
+            )
+          | VarEntry(_)
+          | ConstructorEntry(_)
+          | LivelitEntry(_) => (since_shadowed, e)
+          },
+        Option.is_some(shadowed),
         ctx.entries,
       );
     Ctx.extend_tvar(

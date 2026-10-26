@@ -530,6 +530,36 @@ let x : A = 1 in
 1|},
       Some(FTemp.Typ.int()),
     ),
+    fully_consistent_typecheck(
+      "shadowed alias keeps its meaning in an earlier variable's annotation",
+      {|type T = Int in let x : T = 1 in type T = Bool in x + 1|},
+      Some(FTemp.Typ.int()),
+    ),
+    /* https://github.com/hazelgrove/hazel/issues/2478 */
+    test_case(
+      "an annotation is checked against the alias it named, not a later one",
+      `Quick,
+      () =>
+      check(
+        int,
+        "errors",
+        1,
+        List.length(
+          errors(
+            statics(
+              parse_exp(
+                {|type T = Int in let x : T = 1 in type T = Bool in !x|},
+              ),
+            ),
+          ),
+        ),
+      )
+    ),
+    fully_consistent_typecheck(
+      "type function variable shadowing an alias keeps an earlier annotation",
+      {|type X = Int in let a : X = 1 in (typfun X -> a + 1)@<Bool>|},
+      Some(FTemp.Typ.int()),
+    ),
     synthesizes(
       "self-loop alias under an anonymous alias (#1621)",
       "type y = y in type ? = y in ?",
