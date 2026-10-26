@@ -56,6 +56,19 @@ DECK = [
 ]
 
 
+def visible(v):
+    """A value read from the page, as a person sees it: without zero-width spaces. #2597's editor ends its text
+    with one, to keep its last row (#2635 adds it only when that row needs it), and the revealed model read
+    '^die(3)\u200b'."""
+    if isinstance(v, str):
+        return v.replace("\u200b", "")
+    if isinstance(v, list):
+        return [visible(x) for x in v]
+    if isinstance(v, dict):
+        return {k: visible(x) for k, x in v.items()}
+    return v
+
+
 class Driver:
     def __init__(self, port, wd_port):
         self.base = f"http://127.0.0.1:{wd_port}"
@@ -93,8 +106,8 @@ class Driver:
             return json.loads(e.read().decode())
 
     def js(self, script, args=None):
-        return self._req("POST", f"/session/{self.sid}/execute/sync",
-                         {"script": script, "args": args or []}).get("value")
+        return visible(self._req("POST", f"/session/{self.sid}/execute/sync",
+                                 {"script": script, "args": args or []}).get("value"))
 
     def goto(self, path):
         self._req("POST", f"/session/{self.sid}/url", {"url": self.origin + path})
