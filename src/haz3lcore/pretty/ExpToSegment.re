@@ -1098,12 +1098,10 @@ and parenthesize_typ =
   | DrvQuoteTy(_) => typ
 
   // Other forms
-  | Parens(t) =>
-    Parens(
-      parenthesize_typ(~already_paren=true, t)
-      |> paren_typ_at(Precedence.min),
-    )
-    |> rewrap
+  /* The content is already enclosed, so it isn't wrapped again: a sum,
+     which is wrapped wherever it is an operand, would gain a layer on each
+     print. */
+  | Parens(t) => Parens(parenthesize_typ(~already_paren=true, t)) |> rewrap
   | Projector(data, t) =>
     Projector(data, parenthesize_typ(t) |> paren_typ_at(Precedence.min))
     |> rewrap
@@ -1129,6 +1127,16 @@ and parenthesize_typ =
     } else {
       Parens(inner) |> Typ.fresh;
     };
+  | Prod([{term: TupLabel(_), _} as field]) =>
+    /* A labeled singleton prints as its field alone, so no tile would carry
+       the Prod's ids. Print it as the parenthesized field MakeTerm parses
+       `(a=T)` back to, the parens taking the Prod's ids; inside parens that
+       are already there the Prod has nothing to print as. */
+    let field =
+      parenthesize_typ(~already_paren=true, field)
+      |> paren_typ_at(Precedence.comma);
+    already_paren || !should_auto_wrap_tuple
+      ? field : Parens(field) |> rewrap;
   | Prod(ts) =>
     let inner =
       Prod(
