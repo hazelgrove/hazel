@@ -388,9 +388,11 @@ let unroll = (ty: t): t =>
    invalid type if it was unbound, or unknown for a shadowed abstract type.
    Alias definitions then refer only to older bindings, so expanding
    aliases terminates. Variable and constructor types are rewritten only
-   when the name shadows a binding, and only those bound since it: the
+   when the name shadows an alias, and only those bound since it: the
    others cannot mention it, or name it while it is unbound, an error
-   already. */
+   already. A variable of a shadowed abstract type keeps it, captured,
+   rather than becoming unknown, which would hide the mismatches it still
+   reports. */
 let extend_tvar = (ctx: Ctx.t, entry: Ctx.tvar_entry): Ctx.t => {
   let mentions_typ = ty => List.mem(entry.name, free_vars(ty));
   let mentions: Ctx.kind => bool =
@@ -402,7 +404,13 @@ let extend_tvar = (ctx: Ctx.t, entry: Ctx.tvar_entry): Ctx.t => {
     | Ctx.TVarEntry(e) => mentions(e.kind)
     | _ => false;
   let shadowed = Ctx.lookup_tvar(ctx, entry.name);
-  if (Option.is_none(shadowed)
+  let shadows_alias =
+    switch (shadowed) {
+    | Some(Singleton(_)) => true
+    | Some(Abstract)
+    | None => false
+    };
+  if (!shadows_alias
       && !mentions(entry.kind)
       && !List.exists(stale, ctx.entries)) {
     Ctx.extend_tvar(ctx, entry);
@@ -450,7 +458,7 @@ let extend_tvar = (ctx: Ctx.t, entry: Ctx.tvar_entry): Ctx.t => {
           | ConstructorEntry(_)
           | LivelitEntry(_) => (since_shadowed, e)
           },
-        Option.is_some(shadowed),
+        shadows_alias,
         ctx.entries,
       );
     Ctx.extend_tvar(

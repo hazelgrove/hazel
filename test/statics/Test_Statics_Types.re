@@ -560,6 +560,23 @@ let x : A = 1 in
       {|type X = Int in let a : X = 1 in (typfun X -> a + 1)@<Bool>|},
       Some(FTemp.Typ.int()),
     ),
+    test_case(
+      "a shadowed type function variable still types its earlier variables",
+      `Quick,
+      () =>
+      check(
+        int,
+        "errors",
+        1,
+        List.length(
+          errors(
+            statics(
+              parse_exp({|typfun T -> fun (t : T) -> typfun T -> t + 1|}),
+            ),
+          ),
+        ),
+      )
+    ),
     synthesizes(
       "self-loop alias under an anonymous alias (#1621)",
       "type y = y in type ? = y in ?",
