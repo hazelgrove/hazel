@@ -1265,9 +1265,22 @@ def settled(d):
         time.sleep(0.5)
 
 
+def toggle_at(d, i):
+    """Toggle [i]'s middle, [x, y]; None when there is none. A script that throws comes back as the driver's error
+    (a dict of three: error, message, stacktrace), which click_at(d, *at) spread into four arguments (run 40348823136,
+    on #2597's Full Body): tried again while the page is busy, else that error."""
+    at = None
+    for _ in range(5):
+        at = d.js(TOGGLE_AT, [i])
+        if at is None or (isinstance(at, list) and len(at) == 2):
+            return at
+        time.sleep(2)
+    raise RuntimeError(f"the toggle's place: {str(at.get('message', at) if isinstance(at, dict) else at)[:200]}")
+
+
 def sweep_use(d, i):
     """Open use [i]'s eye, use its GUI once, close the eye: what happened."""
-    at = d.js(TOGGLE_AT, [i]); time.sleep(0.6); at = d.js(TOGGLE_AT, [i])
+    at = toggle_at(d, i); time.sleep(0.6); at = toggle_at(d, i)
     if not at:
         return {"verdict": "ERROR", "why": "no toggle"}
     click_at(d, *at)
@@ -1303,7 +1316,7 @@ def sweep_use(d, i):
         else:
             # (nothing changed with the eye open: the same once more with it shut tells a control that does nothing from
             # here from a GUI that ignores its input while revealed)
-            at2 = d.js(TOGGLE_AT, [i])
+            at2 = toggle_at(d, i)
             if at2:
                 click_at(d, *at2)
                 wait_for(d, "return !document.querySelector('.livelit-syntax')", 10)
@@ -1326,7 +1339,7 @@ def sweep_use(d, i):
             ignored = shut1 is not None and shut1["gui"] != shut0["gui"]
             return {"control": c["kind"], "verdict": "IGNORED" if ignored else "no-op",
                     "why": "with the eye shut the same input changes the GUI; revealed, nothing" if ignored else ""}
-    at = d.js(TOGGLE_AT, [i])
+    at = toggle_at(d, i)
     if at:
         click_at(d, *at)
         wait_for(d, "return !document.querySelector('.livelit-syntax')", 10)
