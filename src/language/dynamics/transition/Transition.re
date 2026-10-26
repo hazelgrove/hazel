@@ -1453,10 +1453,19 @@ module Transition = (EV: EV_MODE) => {
               })
             | _ =>
               /* Fresh id: a probe on the module samples its value once, at
-                 this level. */
+                 this level. The new bindings scope over the items after
+                 this one, not the members already evaluated before it. */
               Step({
                 expr:
-                  subst_env(env'', Module(prefix' @ suffix) |> DHExp.fresh),
+                  switch (mode) {
+                  | `Environment =>
+                    subst_env(env'', Module(prefix' @ suffix) |> DHExp.fresh)
+                  | `Substitution =>
+                    Module(
+                      prefix' @ Substitution.in_mod_items(env'', suffix),
+                    )
+                    |> DHExp.fresh
+                  },
                 side_effects,
                 kind,
                 is_value: false,

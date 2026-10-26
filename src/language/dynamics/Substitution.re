@@ -68,51 +68,7 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
         | Forall(pat, e) =>
           let (env', pat') = in_pat(env, env, pat);
           Forall(pat', in_exp(env', e)) |> rewrap;
-        | Module(items) =>
-          /* A pending item shadows the substitution for the items after it;
-             it is not renamed, since its name is a member label. An evaluated
-             ModVal does not shadow: its binding step already substituted into
-             the items that follow. */
-          let shadow = (env, x) =>
-            Environment.extend(env, (x, Exp.fresh(Var(x))));
-          let (_, rev_items) =
-            List.fold_left(
-              ((env, acc), item: Mod.t) => {
-                let (env', item') =
-                  switch (item.term) {
-                  | ModLet(p, e) => (
-                      List.fold_left(shadow, env, Pat.bound_vars(p)),
-                      {
-                        ...item,
-                        term: (ModLet(p, in_exp(env, e)): Mod.term),
-                      },
-                    )
-                  | ModVal(x, e) => (
-                      env,
-                      {
-                        ...item,
-                        term: (ModVal(x, in_exp(env, e)): Mod.term),
-                      },
-                    )
-                  | ModExp(e) => (
-                      env,
-                      {
-                        ...item,
-                        term: (ModExp(in_exp(env, e)): Mod.term),
-                      },
-                    )
-                  | ModType(_, _)
-                  | ModuleMod(_, _)
-                  | Invalid(_)
-                  | EmptyHole
-                  | MultiHole(_) => (env, item)
-                  };
-                (env', [item', ...acc]);
-              },
-              (env, []),
-              items,
-            );
-          Module(List.rev(rev_items)) |> rewrap;
+        | Module(items) => Module(in_mod_items(env, items)) |> rewrap
 
         // Other cases: recurse
         | Invalid(_)
@@ -157,6 +113,53 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
       },
     exp,
   )
+
+/* A pending item shadows the substitution for the items after it; it is not
+   renamed, since its name is a member label. An evaluated ModVal does not
+   shadow: its binding step already substituted into the items that follow. */
+and in_mod_items =
+    (env: Environment.t(Exp.t), items: list(Mod.t)): list(Mod.t) => {
+  let shadow = (env, x) =>
+    Environment.extend(env, (x, Exp.fresh(Var(x))));
+  let (_, rev_items) =
+    List.fold_left(
+      ((env, acc), item: Mod.t) => {
+        let (env', item') =
+          switch (item.term) {
+          | ModLet(p, e) => (
+              List.fold_left(shadow, env, Pat.bound_vars(p)),
+              {
+                ...item,
+                term: (ModLet(p, in_exp(env, e)): Mod.term),
+              },
+            )
+          | ModVal(x, e) => (
+              env,
+              {
+                ...item,
+                term: (ModVal(x, in_exp(env, e)): Mod.term),
+              },
+            )
+          | ModExp(e) => (
+              env,
+              {
+                ...item,
+                term: (ModExp(in_exp(env, e)): Mod.term),
+              },
+            )
+          | ModType(_, _)
+          | ModuleMod(_, _)
+          | Invalid(_)
+          | EmptyHole
+          | MultiHole(_) => (env, item)
+          };
+        (env', [item', ...acc]);
+      },
+      (env, []),
+      items,
+    );
+  List.rev(rev_items);
+}
 
 // Updates a pattern to avoid variable capture
 and in_pat =

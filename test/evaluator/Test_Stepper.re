@@ -101,6 +101,24 @@ let tests = (
         ),
       )
     }),
+    /* As in the evaluator, where an evaluated member's closure never sees
+       the bindings after it. */
+    test_case(
+      "A module binding does not reach the members before it",
+      `Quick,
+      () => {
+        let source = {|{ let g = fun u -> h; let h = 1; let k = 2 }|};
+        check(
+          step_limited,
+          source ++ " is a value as written",
+          LimitedCompleted((
+            elaborate(parse_exp(source)),
+            EvaluatorState.empty,
+          )),
+          full_small_step_reduction(elaborate(parse_exp(source))),
+        );
+      },
+    ),
     /* The binding rewrites the whole module, but the step belongs to the item:
        that is what the stepper highlights and what the user clicks. */
     test_case(
