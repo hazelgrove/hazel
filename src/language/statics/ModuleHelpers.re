@@ -500,13 +500,13 @@ let extra_members =
    manifest type the analyzed signature declares for T. The mark lands on the
    definition type, or on the item if the type has no info of its own.
    Definitions with holes are not compared, to stay gradual. Also returns
-   whether any item was marked. */
+   the names of the marked type members. */
 let check_ana_type_members =
     (~ana_items: list(Sig.t), items: list(Mod.t), m: StaticsBase.Map.t)
-    : (StaticsBase.Map.t, bool) => {
+    : (StaticsBase.Map.t, list(Var.t)) => {
   let rec go = (items: list(Mod.t), m, marked) =>
     switch (items) {
-    | [] => (m, marked)
+    | [] => (m, List.rev(marked))
     | [item, ...rest] =>
       switch (item.term) {
       | ModType({term: Var(name), _}, def)
@@ -553,13 +553,13 @@ let check_ana_type_members =
                 m,
               )
             };
-          go(rest, m, true);
+          go(rest, m, [name, ...marked]);
         | _ => go(rest, m, marked)
         }
       | _ => go(rest, m, marked)
       }
     };
-  go(items, m, false);
+  go(items, m, []);
 };
 
 /* Inverse of `wrap_item` over the checked chain: rebuild the module items

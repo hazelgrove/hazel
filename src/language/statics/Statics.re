@@ -2716,7 +2716,7 @@ and uexp_to_info_map =
         switch (ana_items) {
         | None => (m, Sig(have) |> Typ.temp, [])
         | Some(ana_items) =>
-          let (m, type_member_marked) =
+          let (m, mismatched_types) =
             ModuleHelpers.check_ana_type_members(~ana_items, items, m);
           /* A hole among the items may bind the missing members: assume
              them. */
@@ -2746,7 +2746,10 @@ and uexp_to_info_map =
           /* A type-member mismatch is already marked on its definition. */
           (
             m,
-            type_member_marked ? ana : Sig(have) |> Typ.temp,
+            switch (mismatched_types) {
+            | [] => Sig(have) |> Typ.temp
+            | [_, ..._] => ana
+            },
             missing_marks @ extra_marks,
           );
         };
