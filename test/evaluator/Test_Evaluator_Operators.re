@@ -203,6 +203,42 @@ let tests = (
     test_case("Negative integer literal", `Quick, () =>
       evaluation_test("-8", int(-8), un_op(Int(Minus), int(8)))
     ),
+    /* Negation re-kinds by operand/analysis class (replace_un_op_cls):
+       `-` on a float is float negation, not an Int type error. */
+    test_case("Negative float literal, syn position", `Quick, () =>
+      parse_and_evaluate_test({|true|}, {|-1.5 ==. 0. -. 1.5|})
+    ),
+    test_case("Negation of float variable", `Quick, () =>
+      parse_and_evaluate_test({|true|}, {|let x = 2.5 in -x ==. 0. -. 2.5|})
+    ),
+    test_case("Float analysis retypes negated int literal", `Quick, () =>
+      parse_and_evaluate_test(
+        {|true|},
+        {|let x: Float = -5 in x ==. 0. -. 5.|},
+      )
+    ),
+    test_case("Negative int still Int under negation", `Quick, () =>
+      parse_and_evaluate_test({|0|}, {|-5 + 5|})
+    ),
+    test_case("Negation of parenthesized float expression", `Quick, () =>
+      parse_and_evaluate_test({|true|}, {|atan(0. -. 1.) ==. -(atan(1.))|})
+    ),
+    /* Under a `use` mode, a definitively-Int operand re-kinds negation
+       back to Int (was a float op stuck on the Int operand). The `let`
+       keeps the use-expression in synthetic position so the operand
+       peek, not the ana branch, decides. */
+    test_case("Int-ascribed operand negates under use Float", `Quick, () =>
+      parse_and_evaluate_test(
+        {|0|},
+        {|let n = (use Float in -3 : Int) in n + 3|},
+      )
+    ),
+    test_case("Bare literal under use Float still floats", `Quick, () =>
+      parse_and_evaluate_test(
+        {|true|},
+        {|let y = (use Float in -3) in y ==. 0. -. 3.|},
+      )
+    ),
     test_case("Inconsistent type ascription in subterm", `Quick, () =>
       parse_and_evaluate_test("1 + (4 : String)", {|1 + (4 : String)|})
     ),
