@@ -85,12 +85,37 @@ let to_zipper =
 /* Check if the zipper is at a "safe split point": top level with
    no incomplete tiles (empty backpack), caret between tokens,
    and we just inserted a whitespace char (ensuring we're at a real
-   token boundary, not mid-identifier like 't' before 'type'). */
-let is_split_point = (c: string, z: Zipper.t): bool =>
+   token boundary, not mid-identifier like 't' before 'type'). The left
+   side must also end in a tile expecting an operand of the root sort
+   (after `in` or `;`): what follows is then parsed alone at that sort.
+   After an operand, an infix's mold depends on it (the `...` in
+   `x : (T) ... U`), and after a type's `...` the operand is a type. */
+let is_split_point = (~root: Sort.t, c: string, z: Zipper.t): bool =>
   Token.is_secondary(c)
   && z.caret == Outer
-  && z.relatives.ancestors == []
-  && Zipper.local_missing_shards(z) == [];
+  && List.is_empty(z.relatives.ancestors)
+  && List.is_empty(Zipper.local_missing_shards(z))
+  && (
+    /* The last tile, in one pass with no copy of the prefix. */
+    switch (
+      List.fold(fst(z.relatives.siblings), ~init=None, ~f=(last, p) =>
+        switch (p) {
+        | Tile(_)
+        | Projector(_) => Some(p)
+        | Secondary(_)
+        | Grout(_) => last
+        }
+      )
+    ) {
+    | Some(Tile(t)) =>
+      switch (snd(Tile.nibs(t))) {
+      | {shape: Concave(_), sort} => sort == root
+      | {shape: Convex, _} => false
+      }
+    | Some(Projector(_) | Secondary(_) | Grout(_))
+    | None => false
+    }
+  );
 
 /* Strip trailing convex grout from a segment. This grout is the
    artifact of Zipper.init()'s initial placeholder that was never
@@ -143,7 +168,8 @@ let to_segment = (str: string, ~root): option(Segment.t) => {
         switch (current_z^) {
         | None => ()
         | Some(z) =>
-          if (chars_since_split^ >= min_segment_size && is_split_point(c, z)) {
+          if (chars_since_split^ >= min_segment_size
+              && is_split_point(~root, c, z)) {
             let z = Zipper.remold_regrout(Left, z, ~root);
             let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
             segments := [strip_trailing_grout(seg), ...segments^];
@@ -207,7 +233,7 @@ let fast_paste_blocker =
     Some("empty clipboard");
   } else if (z.caret != Outer) {
     Some("caret is inside a token");
-  } else if (Zipper.local_missing_shards(z) != []) {
+  } else if (!List.is_empty(Zipper.local_missing_shards(z))) {
     Some("incomplete tiles (missing shards) at the caret");
   } else if (Relatives.sort(~root, z.relatives) != Sort.Exp) {
     Some("caret sort is not Exp");
@@ -271,8 +297,8 @@ let can_splice_paste = (clipboard: string, z: Zipper.t, ~root): bool => {
   let len = String.length(clipboard);
   len > 0
   && z.caret == Outer
-  && z.relatives.ancestors == []
-  && Zipper.local_missing_shards(z) == []
+  && List.is_empty(z.relatives.ancestors)
+  && List.is_empty(Zipper.local_missing_shards(z))
   && Relatives.sort(~root, z.relatives) == Sort.Exp
   && has_balanced_delimiters(clipboard)
   && {

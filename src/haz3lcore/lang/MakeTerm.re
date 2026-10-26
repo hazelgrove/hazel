@@ -218,6 +218,40 @@ let kids_of_tiles = (tiles: tiles) =>
   |> Aba.map_a(kids_of_tile)
   |> Aba.join(Fn.id, kid => [kid])
   |> List.concat;
+/* Shard provenance from canonical completion: tile id -> shard mask
+ * (physically present indices + partially-typed prefixes). Empty
+ * unless parsing a canonically completed segment. OWNERSHIP: only
+ * go_impl / from_zip_for_sem may write it (set before the descent,
+ * reset after); everything else reads via get_incomplete. Not
+ * exception-safe: a raise mid-descent leaks the mask into the next
+ * parse, like the file's other accumulator refs. */
+let shard_masks: ref(Id.Map.t(IdTagged.IdTag.incomplete_mask)) =
+  ref(Id.Map.empty);
+
+/* The subset of this term's tiles that were completed, with their
+ * originally-present shards, for the annotation. */
+let get_incomplete = (ids: list(Id.t)): IdTagged.IdTag.incomplete_tiles =>
+  Id.Map.is_empty(shard_masks^)
+    ? []
+    : ids
+      |> List.filter_map(~f=id =>
+           Id.Map.find_opt(id, shard_masks^)
+           |> Option.map(~f=mask => (id, mask))
+         );
+
+/* The parens a hole keeps for a postfix `(…)` (`a(b)`, `A(Int)` outside a
+   sum) take an id of their own, derived from the paren tile's, so it is the
+   same on every parse but distinct from the hole's, which statics keys its
+   info by. They print as the paren tile, under its id, so they carry its
+   incomplete mask under that id, and a `)` not yet typed isn't printed. */
+let hole_parens_id = (paren_tile_id: Id.t): Id.t =>
+  Id.derive(~salt="hole-parens", paren_tile_id);
+
+let hole_parens_annotation = (id: Id.t): IdTagged.IdTag.t => {
+  ...IdTagged.IdTag.mk_internal([hole_parens_id(id)]),
+  incomplete: get_incomplete([id]),
+};
+
 let kids_of_unsorted =
   fun
   | Op(tiles) => kids_of_tiles(tiles)
@@ -259,27 +293,6 @@ let get_secondary = (ids: list(Id.t)): IdTagged.IdTag.secondary_runs =>
     }
   | [] => IdTagged.IdTag.empty_secondary
   };
-
-/* Shard provenance from canonical completion: tile id -> shard mask
- * (physically present indices + partially-typed prefixes). Empty
- * unless parsing a canonically completed segment. OWNERSHIP: only
- * go_impl / from_zip_for_sem may write it (set before the descent,
- * reset after); everything else reads via get_incomplete. Not
- * exception-safe: a raise mid-descent leaks the mask into the next
- * parse, like the file's other accumulator refs. */
-let shard_masks: ref(Id.Map.t(IdTagged.IdTag.incomplete_mask)) =
-  ref(Id.Map.empty);
-
-/* The subset of this term's tiles that were completed, with their
- * originally-present shards, for the annotation. */
-let get_incomplete = (ids: list(Id.t)): IdTagged.IdTag.incomplete_tiles =>
-  Id.Map.is_empty(shard_masks^)
-    ? []
-    : ids
-      |> List.filter_map(~f=id =>
-           Id.Map.find_opt(id, shard_masks^)
-           |> Option.map(~f=mask => (id, mask))
-         );
 
 /* Surface spelling of the token a *_term branch just parsed, when its
  * canonical print differs (int/float spellings, hole tokens). Set only
@@ -384,21 +397,29 @@ let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
                 term: Var(ctr),
                 annotation: {ids: ids_ctr, secondary: (inner_before, _), _},
               }),
-              Typ(u),
+              Typ({term: Parens(u), annotation: {incomplete, _}}),
             ]),
           ),
         ),
       annotation: {ids: ids_ap, secondary: (_, outer_after), _},
     } =>
     /* For constructor applications, use the inner before (constructor's leading space)
-       and outer after (trailing space on the whole application) for round-tripping */
+       and outer after (trailing space on the whole application) for round-tripping.
+       An argument whose `)` is still to be typed carries the parens' mask, so
+       the application prints without one. */
     Variant(
       ctr,
       {
         ids: ids_ctr @ ids_ap,
         secondary: (inner_before, outer_after),
       },
-      Some(u),
+      Some({
+        ...u,
+        annotation: {
+          ...u.annotation,
+          incomplete: u.annotation.incomplete @ incomplete,
+        },
+      }),
     )
   | t => BadEntry(t);
 
@@ -462,13 +483,6 @@ let all_exp_only = (~host: Sort.t, tm: unsorted): bool =>
   | [] => false
   | heads => List.for_all(~f=is_exp_only_head(~host), heads)
   };
-
-/* Is this kid a constructor-named type variable? (the head of a
-   potential sum-type constructor application) */
-let is_ctr_headed: Any.t => bool =
-  fun
-  | Typ({term: Var(name), _}) => Token.is_ctr(name)
-  | _ => false;
 
 let is_exp_kid: Any.t => bool =
   fun
@@ -1442,13 +1456,10 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
   | Post(l, tiles) as tm =>
     switch (tiles) {
     /* Type aps which would otherwise be parsed here are recognized in sum type parsing above */
-    | ([(id, (F(Compound(Parens | Ap)), [kid]))], [])
-        when get_incomplete([id]) != [] || !is_ctr_headed(l) =>
-      /* Keep the parens tile as a juxtaposed kid so it reprints
-         (hole() would drop it) — except for constructor-headed
-         post-parens (`A(Int)`), which must fall through bare: sum-type
-         parsing reads the MultiHole shape for ctor aps, and a Parens
-         node there prints as A((Int)). */
+    | ([(id, (F(Compound(Parens | Ap)), [kid]))], []) =>
+      /* Keep the parens tile as a juxtaposed kid so it reprints (hole()
+         would drop it, and `A(y)` would print as `A y`). parse_sum_term
+         reads `A(Int)` in a sum from this shape. */
       let t =
         switch (l) {
         | Typ(t) => t
@@ -1466,10 +1477,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
             MultiHole([
               Typ(t),
               Typ({
-                annotation: {
-                  ...IdTagged.IdTag.mk_internal([id]),
-                  incomplete: get_incomplete([id]),
-                },
+                annotation: hole_parens_annotation(id),
                 term: Parens(arg),
               }),
             ]),
