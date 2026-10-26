@@ -10,6 +10,10 @@ module Request = {
     expr: Language.Exp.t,
     eval_info_map: Language.EvalInfo.t,
     prev: Language.EvaluatorState.incr_eval,
+    /* Evaluate against the cache the worker kept from this key's last
+       run, in place of `prev` (see Held). The client of a worker sets it
+       and sends `prev` empty; the main-thread path passes `prev` itself. */
+    use_held_prev: bool,
   };
   [@deriving (show, sexp, yojson)]
   type batch = list((key, value));
@@ -37,7 +41,13 @@ module Response = {
 module ClientMessage = {
   [@deriving (show, sexp, yojson)]
   type t =
-    | Evaluate(Request.t);
+    | Evaluate(Request.t)
+    /* the request with every value the worker already holds replaced by a
+       reference (Util.ShareCodec); true: reset the worker's table first */
+    | EvaluateShared(bool, Request.t)
+    /* the client could not resolve a shared response: start the responses'
+       table over (the client asks for the evaluation again) */
+    | ResetResponses;
 };
 
 module ServerMessage = {
@@ -78,14 +88,25 @@ module ServerMessage = {
      * A TimeUtil.span rather than a Core one so the derived converters resolve;
      * see TimeUtil. */
     eval_time: TimeUtil.span,
+    /* The last item's final stream, applied just before the result. Posted
+       on its own, it reached the client as a separate message, and the
+       client drew it and the result in two frames. */
+    final_streams: list(stream),
   };
 
   [@deriving (show, sexp, yojson)]
   type t =
     | Ack(ack)
+    /* a shared request named a value this worker does not hold (it is new,
+       or its table was cleared): send it again in full */
+    | Resend(ack)
     | ReusePlan(reuse_plan)
     | Stream(stream)
-    | Result(result);
+    | Result(result)
+    /* a message with every value the client already holds replaced by a
+       reference (Util.ShareCodec), as requests are; true: the client resets
+       its table first */
+    | Shared(bool, t);
 };
 
 /* Candidate encodings for the worker payloads; `Marshal` is active (see
@@ -227,7 +248,7 @@ let error_response = exn =>
   };
 
 let evaluate_sync = (req_value: Request.value): Response.value => {
-  let Request.{expr, eval_info_map, prev} = req_value;
+  let Request.{expr, eval_info_map, prev, _} = req_value;
   switch (
     Language.Evaluator.evaluate(
       ~prev,
@@ -242,6 +263,52 @@ let evaluate_sync = (req_value: Request.value): Response.value => {
      * values) before serializing over postMessage. */
     Ok((result, Language.EvaluatorState.clear_transient(state)))
   };
+};
+
+/* The incremental cache stays in the worker. It is almost all of a result
+   (330 KB of Kids' Choice's 332 KB), and the client only ever sent it back
+   as the next request's `prev`; now the worker keeps each key's last
+   finished cache, answers with the state's cache emptied, and a request
+   with `use_held_prev` evaluates against what is kept. A restarted worker
+   keeps nothing, so its first run is a full one, which is correct. */
+module Held = {
+  let max_keys = 32;
+  let table: Hashtbl.t(key, Language.EvaluatorState.incr_eval) =
+    Hashtbl.create(8);
+
+  let clear = () => Hashtbl.reset(table);
+
+  let resolve = (key: key, v: Request.value): Request.value =>
+    v.use_held_prev
+      ? {
+        ...v,
+        prev:
+          Hashtbl.find_opt(table, key)
+          |> Option.value(~default=Language.IncrEval.empty),
+        use_held_prev: false,
+      }
+      : v;
+
+  /* Keep a finished run's cache and answer without it; a failed run keeps
+     nothing, as the client did (its next `prev` was empty). */
+  let keep = (key: key, response: Response.value): Response.value =>
+    switch (response) {
+    | Ok((result, state)) =>
+      if (Hashtbl.length(table) >= max_keys && !Hashtbl.mem(table, key)) {
+        Hashtbl.reset(table);
+      };
+      Hashtbl.replace(table, key, state.incr_eval);
+      Ok((
+        result,
+        {
+          ...state,
+          incr_eval: Language.IncrEval.empty,
+        },
+      ));
+    | Error(_) =>
+      Hashtbl.remove(table, key);
+      response;
+    };
 };
 
 type evaluation_start =
@@ -291,21 +358,58 @@ let initial_model = {
  * 3. Eval slices — `Stream` updates, then `Result`.
  * A newer request replaces `latest_request`; the next slice abandons stale work. */
 
+/* Incremental reuse pays for itself only past a certain program size:
+   the reuse pre-pass is a full evaluation-shaped walk and every
+   evaluated node runs a reuse check, which for a demo-sized program
+   (a few hundred statics entries) cost 2-3x the evaluation itself.
+   Below the threshold, evaluate from scratch. (Measured 2026-09-08 on
+   the graph livelit slide: 2.0s -> see the commit message.) */
+let incremental_min_statics = 2500;
+
+let wants_incremental = (req_value: Request.value): bool =>
+  Util.Id.Map.cardinal(req_value.eval_info_map.statics)
+  >= incremental_min_statics;
+
+/* the reuse plan computed for a batch item, handed to its evaluation so
+   the pre-pass runs once per request (keyed by the item's expr identity:
+   the plan and the evaluation see the same decoded request) */
+let planned_reuse:
+  ref(
+    list((Language.Exp.t, Language.IncrEval.t(Language.EvaluatorState.t))),
+  ) =
+  ref([]);
+
 let predict_reuse_for_request = ((key, req_value): (key, Request.value)) => {
-  let Request.{expr, eval_info_map, prev} = req_value;
+  let Request.{expr, eval_info_map, prev, _} = req_value;
   let stream =
-    switch (
-      Language.ReusePass.reuse_pass(
-        ~prev,
-        ~eval_info=eval_info_map,
-        ~env=Language.Builtins.env_init,
-        expr,
-      )
-    ) {
-    | exception _ => Language.IncrEval.empty
-    | stream => stream
+    if (!wants_incremental(req_value)) {
+      Language.IncrEval.empty;
+    } else {
+      switch (
+        Language.ReusePass.reuse_pass(
+          ~prev,
+          ~eval_info=eval_info_map,
+          ~env=Language.Builtins.env_init,
+          expr,
+        )
+      ) {
+      | exception _ => Language.IncrEval.empty
+      | stream => stream
+      };
     };
+  /* a superseded request's plan is never taken: keep only the newest
+     few so abandoned plans (whole reuse streams) don't accumulate */
+  planned_reuse :=
+    [(expr, stream), ...Util.ListUtil.take(3, planned_reuse^)];
   (key, stream);
+};
+
+let take_planned_reuse =
+    (expr: Language.Exp.t)
+    : option(Language.IncrEval.t(Language.EvaluatorState.t)) => {
+  let found = List.find_opt(((e, _)) => e === expr, planned_reuse^);
+  planned_reuse := List.filter(((e, _)) => e !== expr, planned_reuse^);
+  Option.map(snd, found);
 };
 
 /* Evaluator time accumulated for the request in flight, reported back in the
@@ -322,12 +426,14 @@ let timed_eval: 'a. (unit => 'a) => 'a =
   };
 
 let start_evaluation = (req_value: Request.value): evaluation_start => {
-  let Request.{expr, eval_info_map, prev} = req_value;
+  let Request.{expr, eval_info_map, prev, _} = req_value;
+  let planned = take_planned_reuse(expr);
   switch (
     Language.Evaluator.start_yielding_evaluation(
-      ~prev,
+      ~prev=wants_incremental(req_value) ? prev : Language.IncrEval.empty,
       ~eval_info=eval_info_map,
       ~env=Language.Builtins.env_init,
+      ~reuse_stream=?planned,
       expr,
     )
   ) {
@@ -346,19 +452,59 @@ let is_latest = (model, request_id) =>
 /* All worker→client messages cross postMessage in the Active encoding
  * (see ENCODING above): posting the live value graph overflows Chrome's
  * structured clone on deep results (#2368). */
+/* Responses are shared like requests (Util.ShareCodec, the other way): a
+   result the client already holds goes as a reference, so a release's
+   result carries what changed. Encoding the whole response was as much
+   of the worker's time per release as evaluating (Kids' Choice, 44 ms
+   profiled), and decoding it a main-thread cost on the way to the redraw.
+   The worker's sent-set starts over at first, when the client asks
+   (ResetResponses), when it grows past ShareCodec.max_entries, and after a
+   message too deep to walk, which is sent whole. */
+let response_reset = ref(true);
+let share_response = (msg: ServerMessage.t): ServerMessage.t => {
+  if (Util.ShareCodec.Client.size() > Util.ShareCodec.max_entries) {
+    response_reset := true;
+  };
+  let reset = response_reset^;
+  if (reset) {
+    Util.ShareCodec.Client.reset();
+  };
+  switch (Util.ShareCodec.Client.encode(msg)) {
+  | shared =>
+    response_reset := false;
+    ServerMessage.Shared(reset, shared);
+  | exception _ =>
+    response_reset := true;
+    msg;
+  };
+};
 let post_message = (msg: ServerMessage.t): unit =>
-  Js_of_ocaml.Worker.post_message(Active.encode_response(msg));
+  Js_of_ocaml.Worker.post_message(
+    Active.encode_response(share_response(msg)),
+  );
 
-let post_batch_result = (model, request_id, completed) =>
+/* A completed item's last stream, held for the result message when no item
+   follows it (see ServerMessage.result.final_streams). */
+let held_final_streams: ref(list(ServerMessage.stream)) = ref([]);
+
+let post_batch_result = (model, request_id, completed) => {
+  let final_streams =
+    List.filter(
+      (s: ServerMessage.stream) => s.request_id == request_id,
+      List.rev(held_final_streams^),
+    );
+  held_final_streams := [];
   if (is_latest(model, request_id)) {
     post_message(
       ServerMessage.Result({
         request_id,
         response: List.rev(completed),
         eval_time: eval_total^,
+        final_streams,
       }),
     );
   };
+};
 
 let post_stream_update =
     (
@@ -379,9 +525,39 @@ let post_stream_update =
     );
   };
 
-let flush_stream_update = (model, request_id, key, evaluation) => {
+/* Stream posts are THROTTLED: every posted update costs the client a
+   full update/calculate/render cycle, and un-throttled per-slice posts
+   flooded mega programs with hundreds of chunks (each ~O(program) on
+   the main thread). Undrained entries keep accumulating in the
+   evaluation's outbox; completion flushes unconditionally. */
+let last_stream_post: ref(float) = ref(0.);
+let stream_min_interval_ms = 100.;
+
+let flush_stream_update = (~force=false, model, request_id, key, evaluation) => {
+  let now: float = Js.Unsafe.global##.Date##now();
+  if (force || now -. last_stream_post^ >= stream_min_interval_ms) {
+    last_stream_post := now;
+    let update = Language.Evaluator.drain_streaming_outbox(evaluation);
+    post_stream_update(model, request_id, key, update);
+  };
+};
+
+/* At completion: what is left of the outbox, held for the result message
+   (or for the next item's start). */
+let hold_final_stream = (model, request_id, key, evaluation) => {
   let update = Language.Evaluator.drain_streaming_outbox(evaluation);
-  post_stream_update(model, request_id, key, update);
+  if (is_latest(model, request_id)
+      && !Language.IncrEval.outbox_is_empty(update)) {
+    held_final_streams :=
+      [
+        ServerMessage.{
+          request_id,
+          key,
+          update,
+        },
+        ...held_final_streams^,
+      ];
+  };
 };
 
 /* ACK must be cheap: the client treats missing ACK as a dead worker and will
@@ -414,12 +590,20 @@ let rec evaluate_next_batch_item = (model, request_id, completed, remaining) =>
     post_batch_result(model, request_id, completed);
     model;
   | [(key, req_value), ...remaining] =>
+    List.iter(
+      (st: ServerMessage.stream) =>
+        if (is_latest(model, st.request_id)) {
+          post_message(ServerMessage.Stream(st));
+        },
+      List.rev(held_final_streams^),
+    );
+    held_final_streams := [];
     switch (timed_eval(() => start_evaluation(req_value))) {
     | CompletedImmediately(response) =>
       evaluate_next_batch_item(
         model,
         request_id,
-        [(key, response), ...completed],
+        [(key, Held.keep(key, response)), ...completed],
         remaining,
       )
     | Yielding(evaluation) =>
@@ -435,7 +619,7 @@ let rec evaluate_next_batch_item = (model, request_id, completed, remaining) =>
           }),
       };
       model;
-    }
+    };
   }
 and begin_latest_batch = model =>
   switch (model.latest_request) {
@@ -450,7 +634,7 @@ and finish_current_item = (model, running, response) =>
   evaluate_next_batch_item(
     model,
     running.request_id,
-    [(running.key, response), ...running.completed],
+    [(running.key, Held.keep(running.key, response)), ...running.completed],
     running.remaining,
   )
 and plan_latest_batch = model =>
@@ -489,7 +673,7 @@ and run_scheduled_slice = model => {
     | exception exn =>
       finish_current_item(model, running, error_response(exn))
     | EvaluationCompleted(value) =>
-      flush_stream_update(
+      hold_final_stream(
         model,
         running.request_id,
         running.key,
@@ -520,6 +704,29 @@ and run_scheduled_slice = model => {
   };
 };
 
+/* Slices run back to back for up to this long before the worker yields
+   to its event loop. Yielding after every slice (5000 trampoline steps,
+   about 3 ms) paid the ~4 ms clamp on chained setTimeouts each time: on
+   the Scenes slide's woods, 1,292 slices spent 5.8 s between slices
+   against 4.2 s evaluating. A new request still gets in within this
+   budget. */
+let slice_time_budget_ms = 30.;
+let run_slices_for_budget = model => {
+  let t0 = Util.JsUtil.precise_timestamp();
+  let rec go = model => {
+    let next = run_scheduled_slice(model);
+    switch (next.runtime) {
+    | Idle => next
+    | Planning
+    | Starting
+    | Running(_) =>
+      Util.JsUtil.precise_timestamp() -. t0 < slice_time_budget_ms
+        ? go(next) : next
+    };
+  };
+  go(model);
+};
+
 let install_message_handler = () => {
   let model = ref(initial_model);
 
@@ -539,12 +746,19 @@ let install_message_handler = () => {
         }
         : next_model;
     if (should_schedule_slice) {
-      schedule_async(() => commit(run_scheduled_slice(model^)));
+      schedule_async(() => commit(run_slices_for_budget(model^)));
     };
   };
 
-  let on_request = (req: Active.request): unit => {
-    let ClientMessage.Evaluate(request) = Active.decode_request(req);
+  let start = (request: Request.t): unit => {
+    let request = {
+      ...request,
+      batch:
+        List.map(
+          ((key, v)) => (key, Held.resolve(key, v)),
+          request.batch,
+        ),
+    };
     post_ack(request);
     eval_total := Core.Time_ns.Span.zero;
     commit({
@@ -553,6 +767,21 @@ let install_message_handler = () => {
       runtime: Planning,
     });
   };
+  let on_request = (req: Active.request): unit =>
+    switch (Active.decode_request(req)) {
+    | ClientMessage.Evaluate(request) => start(request)
+    | ClientMessage.EvaluateShared(reset, request) =>
+      if (reset) {
+        Util.ShareCodec.Worker.reset();
+      };
+      switch (Util.ShareCodec.Worker.decode(request)) {
+      | request => start(request)
+      | exception _ =>
+        Util.ShareCodec.Worker.reset();
+        post_message(ServerMessage.Resend({request_id: request.request_id}));
+      };
+    | ClientMessage.ResetResponses => response_reset := true
+    };
 
   Js_of_ocaml.Worker.set_onmessage(on_request);
 };

@@ -176,13 +176,21 @@ module Model = {
     | _ => None
     };
 
-  /* Find the end of row offset position in grid units */
+  /* Find the end of row offset position in grid units. Starts after
+     any quiver offside boxes on the row (RowOffsets registry; quiver
+     renders first) — the extra gap leaves room for probe controls
+     drawn left of the sample chips. */
+  let stack_gap = 2;
   let offside_base =
       (~offset: int, measurement: Measured.measurement, measured: Measured.t)
-      : int =>
-    Measured.start_row_width(measurement, measured)
-    + offset
-    - measurement.origin.col;
+      : int => {
+    let standard = Measured.start_row_width(measurement, measured) + offset;
+    let after_quiver = {
+      let c = RowOffsets.claimed(~row=measurement.origin.row);
+      c == 0 ? 0 : c + stack_gap;
+    };
+    max(standard, after_quiver) - measurement.origin.col;
+  };
 
   /* Whether a statics error is anchored in the projector's own hidden
    * syntax — pieces between its splices, like a table row's comma —
@@ -406,10 +414,12 @@ let handle = (idx, kind, action: external_action): Action.t =>
   | Remove => Project(RemoveIndicated)
   | Escape(d) => Project(Escape(idx, d))
   | EscapeToLineEnd(kind) => Project(EscapeToLineEnd(idx, kind))
+  | ToggleSyntax => Project(ToggleSyntax(idx))
   | SetSyntax(f) => Project(SetSyntax(idx, kind, f))
   | SampleFocus(sc) => Project(SampleFocus(sc))
   | SetTerm(term, preserve_splices) =>
     Project(SetTerm(idx, term, preserve_splices))
+  | Unproject(seg) => Project(Unproject(idx, seg))
   | Probe(p) => Probe(p)
   | FocusById(_) => failwith("FocusById: intercepted in parent closure")
   };

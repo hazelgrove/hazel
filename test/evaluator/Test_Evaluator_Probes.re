@@ -41,12 +41,12 @@ let format_sample_value = (value: Exp.t): string => {
       ~settings={
         ...ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
         show_unknown_as_hole: false,
+        use_literal_lexemes: true,
         hole_tiles: false,
       },
       value |> DHExp.strip_ascriptions,
     );
-  let str =
-    Printer.of_segment(~holes="?", ~indent="", ~is_single_line=true, seg);
+  let str = Printer.of_segment(~holes="?", seg);
   StringUtil.replace(StringUtil.regexp("\n"), str, " ");
 };
 

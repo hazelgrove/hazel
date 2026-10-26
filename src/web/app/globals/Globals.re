@@ -67,6 +67,7 @@ module Action = {
     | Redo // global actions so they can be accessed by the command palette
     | Log(log)
     | SetMetaDown(bool)
+    | SetSettingsFilter(string)
     | UpdateVisibleRows(VisibleRows.t)
     | AppViewMsg(Haz3lcore.Id.t, Language.DHExp.t) // route msg through update_fn
     // InitAppView takes (id, source_result, model, update_fn, view_fn, subs_fn)
@@ -78,6 +79,10 @@ module Action = {
         Language.DHExp.t,
         Language.DHExp.t,
       )
+    | ToggleContextUnfold(string)
+    /* Gamma's right-click menu: open on an entry (its key, and where the
+       press was), or closed */
+    | SetContextMenu(option((string, int, int)))
     | RethrowException
     | ClearException
     | RestoreLastKnownGood;
@@ -99,6 +104,15 @@ module Model = {
        `Page.main_view`, which is the first place that knows both the mode and
        the slide -- an editor does not know it is on a slide at all. */
     slide_name: option(string),
+    /* the settings panel's filter text; not saved */
+    settings_filter: string,
+    /* Gamma's entries shown whole, on several lines, by
+       ContextInspector.entry_key; not saved, as the keys hold a session's
+       ids */
+    context_unfolded: list(string),
+    /* Gamma's right-click menu, open on one entry (by entry_key) at a
+       point of the window; not saved */
+    context_menu: option((string, int, int)),
     // Calculated:
     color_highlights: option(ColorSteps.colorMap),
     // Other:
@@ -126,6 +140,9 @@ module Model = {
     visible_rows: None,
     apps: AppStore.empty,
     slide_name: None,
+    settings_filter: "",
+    context_unfolded: [],
+    context_menu: None,
     color_highlights: None,
     inject_global: _ =>
       failwith("Cannot use inject_global outside of the main view function!"),

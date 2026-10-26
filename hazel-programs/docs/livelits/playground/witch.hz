@@ -1,0 +1,2222 @@
+# Witch #
+
+# Messed Up Dress Up's witch, on the Full Body figure. Her hat and #
+# long dress are one color, with a spider web on the dress and a belt, #
+# striped stockings and buckled boots. Her nose points left, out or #
+# right, as long as you like, and the mouth moves down to clear it. #
+# The skin choice starts at witch green. A tuxedo cat on her shoulder #
+# and a broom in her hand both start off, and each has its colors or #
+# its size. #
+
+# THE PICTURE, AS TYPES #
+
+# A point in the plane, x across and y down, as the drawing has it. #
+type Point = (Float, Float) in
+
+# A vertex is a point and, if it is one, the name of its anchor. #
+type Label = + Plain + Anchor(String) in
+type Vertex = (at = Point, label = Label) in
+
+# A closed polygon has a stroke and a fill; an open path a stroke only. #
+type Stroke = (width = Float, color = String) in
+type Shape =
+  + Polygon((name = String, points = [Vertex], stroke = Stroke, fill = String))
+  + Path((name = String, points = [Vertex], stroke = Stroke))
+in
+
+# A picture is its shapes, drawn in order: the first is underneath. #
+type Picture = [Shape] in
+
+# FOUND OR MISSING #
+
+# An anchor's point, if a shape has one of that name. #
+type Found = + Found(Point) + Missing in
+
+# A hairdo, as the buttons name it. #
+type Hair = + Short + Long + Curly in
+
+# A shirt's style, as its buttons name it. #
+type Style = + TShirt + LongSleeves + TankTop in
+
+# A hand's style, as its buttons name it. #
+type Hand = + Round + Mittens + Stars + Claws + Human + Alien in
+
+# An eye's style, as its buttons name it. #
+type EyeStyle = + PlainEyes + StarEyes + HeartEyes + XEyes in
+
+# Teeth and a tongue, as their buttons name them. #
+type Teeth = + NormalTeeth + SpikyTeeth + NoTeeth in
+type Tongue = + TongueIn + TongueOut + NoTongue in
+
+# DRAWING, AS A LIBRARY #
+
+# The editor, the picture viewer, the radio buttons, and the functions #
+# that place pieces by their anchors: one module, so its livelits are #
+# used by member name -- Drawing.^polygons, Drawing.^picture, #
+# Drawing.^choice. #
+
+module Drawing = {
+  let ^polygons = {
+    # The picture, and where the editor is: the shape being edited, the #
+    # point chosen in it (-1 for none), and a drag, held and whether it #
+    # has moved yet -- a press that does not move only chooses. #
+    type Model =
+      (shapes = Picture, current = Int, chosen = Int, held = Bool, moved = Bool);
+    type Action =
+      + Down(Int, Int) + MoveTo(Int, Int) + Up
+      + NewPolygon + NewPath + Toggle + Remove + Next + Prev
+      + SetName(String) + SetWidth(String) + SetStroke(String) + SetFill(String)
+      + SetAnchor(String);
+    type Expansion = Picture;
+
+    let init = Pure((shapes = [], current = -1, chosen = -1, held = false, moved = false));
+
+    # LISTS #
+    let len : [Shape] -> Int =
+      fun xs -> case xs | [] => 0 | _ :: tl => 1 + len(tl) end;
+    let count : [Vertex] -> Int =
+      fun xs -> case xs | [] => 0 | _ :: tl => 1 + count(tl) end;
+    let shape_at : (Picture, Int) -> Shape =
+      fun xs, i ->
+        case xs
+        | [] => Path((name = "", points = [], stroke = (width = 1., color = "black")))
+        | hd :: tl => if i <= 0 then hd else shape_at(tl, i - 1)
+        end;
+    let set_shape : (Picture, Int, Shape) -> Picture =
+      fun xs, i, s ->
+        case xs
+        | [] => []
+        | hd :: tl => if i <= 0 then s :: tl else hd :: set_shape(tl, i - 1, s)
+        end;
+    let drop_shape : (Picture, Int) -> Picture =
+      fun xs, i ->
+        case xs
+        | [] => []
+        | hd :: tl => if i <= 0 then tl else hd :: drop_shape(tl, i - 1)
+        end;
+    let vertex_at : ([Vertex], Int) -> Vertex =
+      fun xs, i ->
+        case xs
+        | [] => (at = (0., 0.), label = Plain)
+        | hd :: tl => if i <= 0 then hd else vertex_at(tl, i - 1)
+        end;
+    let set_vertex : ([Vertex], Int, Vertex) -> [Vertex] =
+      fun xs, i, v ->
+        case xs
+        | [] => []
+        | hd :: tl => if i <= 0 then v :: tl else hd :: set_vertex(tl, i - 1, v)
+        end;
+
+    # SHAPES #
+    let points_of : Shape -> [Vertex] =
+      fun s -> case s | Polygon(p) => p.points | Path(p) => p.points end;
+    let with_points : (Shape, [Vertex]) -> Shape =
+      fun s, vs ->
+        case s
+        | Polygon(p) => Polygon((name = p.name, points = vs, stroke = p.stroke, fill = p.fill))
+        | Path(p) => Path((name = p.name, points = vs, stroke = p.stroke))
+        end;
+    let name_of : Shape -> String =
+      fun s -> case s | Polygon(p) => p.name | Path(p) => p.name end;
+    let stroke_of : Shape -> Stroke =
+      fun s -> case s | Polygon(p) => p.stroke | Path(p) => p.stroke end;
+    let with_stroke : (Shape, Stroke) -> Shape =
+      fun s, k ->
+        case s
+        | Polygon(p) => Polygon((name = p.name, points = p.points, stroke = k, fill = p.fill))
+        | Path(p) => Path((name = p.name, points = p.points, stroke = k))
+        end;
+    let with_name : (Shape, String) -> Shape =
+      fun s, n ->
+        case s
+        | Polygon(p) => Polygon((name = n, points = p.points, stroke = p.stroke, fill = p.fill))
+        | Path(p) => Path((name = n, points = p.points, stroke = p.stroke))
+        end;
+    # Closing a path makes a polygon, filled white; opening a polygon #
+    # keeps its outline and drops the fill. #
+    let toggled : Shape -> Shape =
+      fun s ->
+        case s
+        | Polygon(p) => Path((name = p.name, points = p.points, stroke = p.stroke))
+        | Path(p) => Polygon((name = p.name, points = p.points, stroke = p.stroke, fill = "#ffffff"))
+        end;
+
+    # The point of the current shape within reach of a press, or -1. #
+    let near : ([Vertex], Float, Float, Int) -> Int =
+      fun vs, x, y, i ->
+        case vs
+        | [] => -1
+        | v :: tl =>
+          let (vx, vy) = v.at in
+          let dx = vx -. x in
+          let dy = vy -. y in
+          if dx *. dx +. dy *. dy <=. 64. then i else near(tl, x, y, i + 1)
+        end;
+
+    # Rebuild the model with some fields changed. #
+    let rebuild = fun (_m, shapes, current, chosen, held, moved) :
+        (Model, Picture, Int, Int, Bool, Bool) ->
+      (shapes = shapes, current = current, chosen = chosen, held = held, moved = moved);
+    let edit = fun (m, f) : (Model, Shape -> Shape) ->
+      if m.current < 0 then m
+      else rebuild((m, set_shape(m.shapes, m.current, f(shape_at(m.shapes, m.current))),
+               m.current, m.chosen, m.held, m.moved));
+
+    let update = fun m : Model -> fun a : Action -> Pure(
+      case a
+      | Down(px, py) =>
+        let x = float_of_int(px) in
+        let y = float_of_int(py) in
+        if m.current < 0 then
+          rebuild((m, m.shapes @ [Polygon((name = "shape", points = [(at = (x, y), label = Plain)],
+                                      stroke = (width = 2., color = "#333333"), fill = "#f2c94c"))],
+              len(m.shapes), 0, true, false))
+        else
+          let vs = points_of(shape_at(m.shapes, m.current)) in
+          let hit = near(vs, x, y, 0) in
+          if hit == -1 then
+            let added = with_points(shape_at(m.shapes, m.current), vs @ [(at = (x, y), label = Plain)]) in
+            rebuild((m, set_shape(m.shapes, m.current, added), m.current, count(vs), true, true))
+          else rebuild((m, m.shapes, m.current, hit, true, false))
+      | MoveTo(px, py) =>
+        if !m.held || m.chosen < 0 then m
+        else
+          let s = shape_at(m.shapes, m.current) in
+          let vs = points_of(s) in
+          let v = vertex_at(vs, m.chosen) in
+          let moved = with_points(s, set_vertex(vs, m.chosen,
+            (at = (float_of_int(px), float_of_int(py)), label = v.label))) in
+          rebuild((m, set_shape(m.shapes, m.current, moved), m.current, m.chosen, true, true))
+      | Up => rebuild((m, m.shapes, m.current, m.chosen, false, false))
+      | NewPolygon =>
+        rebuild((m, m.shapes @ [Polygon((name = "polygon", points = [], stroke = (width = 2., color = "#333333"), fill = "#9ecae1"))],
+            len(m.shapes), -1, false, false))
+      | NewPath =>
+        rebuild((m, m.shapes @ [Path((name = "path", points = [], stroke = (width = 2., color = "#333333")))],
+            len(m.shapes), -1, false, false))
+      | Toggle => edit((m, toggled))
+      | Remove =>
+        if m.current < 0 then m
+        else rebuild((m, drop_shape(m.shapes, m.current), m.current - 1, -1, false, false))
+      | Next =>
+        if len(m.shapes) == 0 then m
+        else rebuild((m, m.shapes, if m.current + 1 >= len(m.shapes) then 0 else m.current + 1, -1, false, false))
+      | Prev =>
+        if len(m.shapes) == 0 then m
+        else rebuild((m, m.shapes, if m.current <= 0 then len(m.shapes) - 1 else m.current - 1, -1, false, false))
+      | SetName(n) => edit((m, fun s -> with_name(s, n)))
+      | SetWidth(w) =>
+        edit((m, fun s -> with_stroke(s, (width = float_of_int(int_of_string(w)), color = stroke_of(s).color))))
+      | SetStroke(c) =>
+        edit((m, fun s -> with_stroke(s, (width = stroke_of(s).width, color = c))))
+      | SetFill(c) =>
+        edit((m, fun s ->
+          case s
+          | Polygon(p) => Polygon((name = p.name, points = p.points, stroke = p.stroke, fill = c))
+          | Path(_) => s
+          end))
+      | SetAnchor(n) =>
+        if m.chosen < 0 then m
+        else edit((m, fun s ->
+          let vs = points_of(s) in
+          let v = vertex_at(vs, m.chosen) in
+          with_points(s, set_vertex(vs, m.chosen,
+            (at = v.at, label = if n == "" then Plain else Anchor(n))))))
+      end);
+
+    # DRAWING #
+    let num = fun x : Float -> to_fixed(x, 1);
+    # each point followed by a space, the last too (a points list may end #
+    # with one); to_fixed itself, not num, which cost a call a number #
+    let coords : [Vertex] -> String =
+      fun vs ->
+        case vs
+        | [] => ""
+        | v :: tl =>
+          let (x, y) = v.at in
+          to_fixed(x, 1) ++ "," ++ to_fixed(y, 1) ++ " " ++ coords(tl)
+        end;
+    let shape_node = fun s : Shape ->
+      case s
+      | Polygon(p) =>
+        Html.node("polygon",
+          [Attr.create("points", coords(p.points)), Attr.create("fill", p.fill),
+           Attr.create("stroke", p.stroke.color),
+           Attr.create("stroke-width", num(p.stroke.width)),
+           Attr.create("stroke-linejoin", "round")], [])
+      | Path(p) =>
+        Html.node("polyline",
+          [Attr.create("points", coords(p.points)), Attr.create("fill", "none"),
+           Attr.create("stroke", p.stroke.color),
+           Attr.create("stroke-width", num(p.stroke.width)),
+           Attr.create("stroke-linejoin", "round"),
+           Attr.create("stroke-linecap", "round")], [])
+      end;
+    let shape_nodes : Picture -> [Html.T] =
+      fun ss -> case ss | [] => [] | s :: tl => shape_node(s) :: shape_nodes(tl) end;
+    # The current shape's points: a dot each, the chosen one coral, and #
+    # an anchor a diamond with its name beside it. #
+    let handle = fun (v, i, chosen) : (Vertex, Int, Int) ->
+      let (x, y) = v.at in
+      let fill = if i == chosen then "coral" else "teal" in
+      case v.label
+      | Plain =>
+        [Html.node("circle",
+           [Attr.create("cx", num(x)), Attr.create("cy", num(y)),
+            Attr.create("r", "5"), Attr.create("fill", fill)], [])]
+      | Anchor(n) =>
+        [Html.node("rect",
+           [Attr.create("x", num(x -. 5.)), Attr.create("y", num(y -. 5.)),
+            Attr.create("width", "10"), Attr.create("height", "10"),
+            Attr.create("fill", fill),
+            Attr.create("transform", "rotate(45 " ++ num(x) ++ " " ++ num(y) ++ ")")], []),
+         Html.node("text",
+           [Attr.create("x", num(x +. 9.)), Attr.create("y", num(y -. 7.)),
+            Attr.create("font-size", "11"),
+            Attr.create("font-family", "var(--code-font)")],
+           [Html.text(n)])]
+      end;
+    let handles : ([Vertex], Int, Int) -> [Html.T] =
+      fun vs, i, chosen ->
+        case vs | [] => [] | v :: tl => handle((v, i, chosen)) @ handles(tl, i + 1, chosen) end;
+
+    let control = fun (label, input) : (String, Html.T) ->
+      Html.node("label", [Attr.style([("display", "flex"), ("gap", "0.4em"), ("align-items", "center")])],
+        [Html.text(label), input]);
+    let button = fun (label, a) : (String, Action) ->
+      Html.button([Attr.on_click(a)], [Html.text(label)]);
+
+    let view = fun m : Model -> Pure(
+      let s = shape_at(m.shapes, m.current) in
+      let editing = m.current >= 0 in
+      let chosen_label =
+        if m.chosen < 0 then ""
+        else case vertex_at(points_of(s), m.chosen).label | Plain => "" | Anchor(n) => n end in
+      Html.div([Attr.style([("font-family", "var(--code-font)"), ("font-size", "0.8em")])], [
+        Html.node("svg",
+          [Attr.create("viewBox", "0 0 320 240"), Attr.width("320"), Attr.height("240"),
+           Attr.style([("border", "1px solid #ccc"), ("background", "#fafafa")]),
+           Attr.on_mouse_down_at(fun (x, y) -> Down(x, y)),
+           Attr.on_mouse_move_at(fun (x, y) -> MoveTo(x, y)),
+           Attr.on_mouse_up_at(fun _ -> Up)],
+          shape_nodes(m.shapes) @ (if editing then handles(points_of(s), 0, m.chosen) else [])),
+        Html.div([Attr.style([("display", "flex"), ("flex-wrap", "wrap"), ("gap", "0.4em"), ("margin", "0.4em 0")])],
+          [button(("new polygon", NewPolygon)), button(("new path", NewPath)),
+           button(("< shape", Prev)), button(("shape >", Next))]
+          @ (if editing then
+               [button((case s | Polygon(_) => "open it" | Path(_) => "close it" end, Toggle)),
+                button(("remove", Remove))]
+             else [])),
+        Html.div([Attr.style([("display", "flex"), ("flex-wrap", "wrap"), ("gap", "0.8em")])],
+          if !editing then [Html.text("no shape yet: click the drawing")]
+          else
+            [control(("name", Html.input([Attr.value(name_of(s)), Attr.on_input(fun v -> SetName(v))]))),
+             control(("width", Html.input([Attr.type_("range"), Attr.min("1"), Attr.max("12"),
+                       Attr.value(to_fixed(stroke_of(s).width, 0)),
+                       Attr.on_input(fun v -> SetWidth(v))]))),
+             control(("stroke", Html.input([Attr.type_("color"), Attr.value(stroke_of(s).color),
+                       Attr.on_input(fun v -> SetStroke(v))])))]
+            @ (case s
+               | Polygon(p) =>
+                 [control(("fill", Html.input([Attr.type_("color"), Attr.value(p.fill),
+                            Attr.on_input(fun v -> SetFill(v))])))]
+               | Path(_) => []
+               end)
+            @ (if m.chosen < 0 then []
+               else [control(("anchor", Html.input([Attr.value(chosen_label),
+                        Attr.placeholder("name this point"),
+                        Attr.on_input(fun v -> SetAnchor(v))])))])),
+        Html.div([Attr.style([("margin-top", "0.4em"), ("opacity", "0.7")])],
+          [Html.text(string_of_int(len(m.shapes)) ++ " shapes"
+            ++ (if editing then ", editing " ++ name_of(s) ++ " (" ++ string_of_int(count(points_of(s))) ++ " points)" else ""))])
+      ]));
+
+    let expand = Functional(fun m : Model -> m.shapes);
+    let shape = Block(46, 20)
+  };
+
+  # ^picture shows a picture it is given: its model is one splice, #
+  # the client's code for the picture, and its use means that #
+  # picture. A livelit cannot name the slide's own functions, so it #
+  # draws with its own few. #
+  let ^picture = {
+    type Model = (picture = SpliceRef);
+    type Action = ();
+    type Expansion = Picture;
+    let init = do p <- new_splice((AnyT, None)) in Pure((picture = p));
+    let update = fun m : Model -> fun _a : Action -> Pure(m);
+    let num = fun x : Float -> to_fixed(x, 1);
+    # each point followed by a space, the last too (a points list may end #
+    # with one); to_fixed itself, not num, which cost a call a number #
+    let coords : [Vertex] -> String =
+      fun vs ->
+        case vs
+        | [] => ""
+        | v :: tl =>
+          let (x, y) = v.at in
+          to_fixed(x, 1) ++ "," ++ to_fixed(y, 1) ++ " " ++ coords(tl)
+        end;
+    let shape_node = fun s : Shape ->
+      case s
+      | Polygon(p) =>
+        Html.node("polygon",
+          [Attr.create("points", coords(p.points)), Attr.create("fill", p.fill),
+           Attr.create("stroke", p.stroke.color),
+           Attr.create("stroke-width", num(p.stroke.width)),
+           Attr.create("stroke-linejoin", "round")], [])
+      | Path(p) =>
+        Html.node("polyline",
+          [Attr.create("points", coords(p.points)), Attr.create("fill", "none"),
+           Attr.create("stroke", p.stroke.color),
+           Attr.create("stroke-width", num(p.stroke.width)),
+           Attr.create("stroke-linejoin", "round"),
+           Attr.create("stroke-linecap", "round")], [])
+      end;
+    let shape_nodes : Picture -> [Html.T] =
+      fun ss -> case ss | [] => [] | s :: tl => shape_node(s) :: shape_nodes(tl) end;
+    # The frame: every point, with a margin, made the viewer's shape, #
+    # 320 by 440, about its middle. It fits the drawing, so a slide that #
+    # draws only a head shows the head large; a slide that wants its #
+    # frame to stay put while the drawing changes adds Drawing.frame. #
+    # A picture with a frame is shown framed: the box is the frame's, #
+    # whatever else it draws, and anything outside it is cut off. Its #
+    # points are not walked either: in the woods, that walk was over #
+    # half of the view's work. #
+    let vertices_of = fun s : Shape ->
+      case s | Polygon(p) => p.points | Path(p) => p.points end;
+    let grow = fun ((x0, y0, x1, y1), v) : ((Float, Float, Float, Float), Vertex) ->
+      let (x, y) = v.at in
+      ((if x -. 12. <. x0 then x -. 12. else x0),
+       (if y -. 12. <. y0 then y -. 12. else y0),
+       (if x +. 12. >. x1 then x +. 12. else x1),
+       (if y +. 12. >. y1 then y +. 12. else y1));
+    let grow_all : ((Float, Float, Float, Float), [Vertex]) -> (Float, Float, Float, Float) =
+      fun (b, vs) -> case vs | [] => b | v :: tl => grow_all((grow((b, v)), tl)) end;
+    let bounds : ((Float, Float, Float, Float), Picture) -> (Float, Float, Float, Float) =
+      fun (b, ss) ->
+        case ss | [] => b | s :: tl => bounds((grow_all((b, vertices_of(s))), tl)) end;
+    let framing : Picture -> Picture =
+      fun ss ->
+        case ss
+        | [] => []
+        | s :: tl =>
+          case s
+          | Path(p) => if p.name == "frame" then [s] else framing(tl)
+          | _ => framing(tl)
+          end
+        end;
+    let view_box = fun pic : Picture ->
+      let boxed = case framing(pic) | [] => pic | f => f end in
+      let start =
+        case boxed
+        | [] => (0., 0., 0., 0.)
+        | s :: _ =>
+          case vertices_of(s)
+          | [] => (0., 0., 0., 0.)
+          | v :: _ => let (x, y) = v.at in (x, y, x, y)
+          end
+        end in
+      let (x0, y0, x1, y1) = bounds((start, boxed)) in
+      let (w, h) = (x1 -. x0, y1 -. y0) in
+      let (w2, h2) =
+        if w *. 440. >. h *. 320. then (w, w *. 440. /. 320.) else (h *. 320. /. 440., h) in
+      num(x0 -. (w2 -. w) /. 2.) ++ " " ++ num(y0 -. (h2 -. h) /. 2.) ++ " "
+      ++ num(w2) ++ " " ++ num(h2);
+    let view = fun m : Model ->
+      do r <- eval_splice(m.picture) in
+      Pure(
+        case r
+        | Some(Val(pic)) =>
+          Html.node("svg",
+            [Attr.create("viewBox", view_box(pic)), Attr.width("320"),
+             Attr.height("440"),
+             Attr.style([("border", "1px solid #ccc"), ("background", "#fafafa")])],
+            shape_nodes(pic))
+        | _ =>
+          Html.div([Attr.style([("font-family", "var(--code-font)"), ("font-size", "0.8em")])],
+            [Html.text("no picture yet")])
+        end);
+    # A Macro: the picture is the client's code, so a use means it. #
+    let expand = Macro(fun m : Model -> (quote fun p -> p end, [m.picture]));
+    let shape = Block(34, 22)
+  };
+
+  # PLACING #
+
+  let points_of : Shape -> [Vertex] =
+    fun s -> case s | Polygon(p) => p.points | Path(p) => p.points end;
+  let with_points : (Shape, [Vertex]) -> Shape =
+    fun s, vs ->
+      case s
+      | Polygon(p) => Polygon((name = p.name, points = vs, stroke = p.stroke, fill = p.fill))
+      | Path(p) => Path((name = p.name, points = vs, stroke = p.stroke))
+      end;
+  let anchor_in : ([Vertex], String) -> Found =
+    fun vs, n ->
+      case vs
+      | [] => Missing
+      | v :: tl =>
+        case v.label
+        | Anchor(a) => if a == n then Found(v.at) else anchor_in(tl, n)
+        | Plain => anchor_in(tl, n)
+        end
+      end;
+  # The first shape in a picture with an anchor of that name has it. #
+  let anchor : (Picture, String) -> Found =
+    fun pic, n ->
+      case pic
+      | [] => Missing
+      | s :: tl =>
+        case anchor_in(points_of(s), n) | Found(p) => Found(p) | Missing => anchor(tl, n) end
+      end;
+  # Every point of every shape moved by (dx, dy). #
+  let shift_points : ([Vertex], Float, Float) -> [Vertex] =
+    fun vs, dx, dy ->
+      case vs
+      | [] => []
+      | v :: tl =>
+        let (x, y) = v.at in
+        (at = (x +. dx, y +. dy), label = v.label) :: shift_points(tl, dx, dy)
+      end;
+  let shift : (Picture, Float, Float) -> Picture =
+    fun pic, dx, dy ->
+      case pic
+      | [] => []
+      | s :: tl => with_points(s, shift_points(points_of(s), dx, dy)) :: shift(tl, dx, dy)
+      end;
+  # `under(piece, a, base, b)`: the piece moved so its anchor a lands on #
+  # the base's anchor b, drawn first, so the base is on top. Without #
+  # both anchors, the piece is left where it was drawn. #
+  let under : (Picture, String, Picture, String) -> Picture =
+    fun piece, a, base, b ->
+      case (anchor(piece, a), anchor(base, b))
+      | (Found((px, py)), Found((bx, by))) => shift(piece, bx -. px, by -. py) @ base
+      | _ => piece @ base
+      end;
+
+  # ^choice: one of several values, pressed like an old car radio's #
+  # buttons -- the configuration panel's, here as a library member. #
+  let ^choice = typfun A -> fun cases : [(String, A)] -> {
+    type Model = A;
+    type Action = A;
+    type Expansion = A;
+    let init = let (_, v) = head(cases) in Pure(v);
+    let update = fun _m : Model -> fun a : Action -> Pure(a);
+    let button = fun (label, v, pressed) : (String, A, Bool) ->
+      Html.button(
+        [Attr.class("choice-button"), Attr.disabled(pressed),
+         Attr.on_click(v)],
+        [Html.text(label)]);
+    let view = fun m : Model -> Pure(
+      Html.div(
+        [Attr.class("choice")],
+        map((cases, fun (label, v) : (String, A) ->
+          button((label, v, v == m))))));
+    let expand = Functional(fun m : Model -> m);
+    # As many lines as its buttons take, wrapped into rows 36 columns #
+    # wide: a button is about 3/4 of a column a letter, and 2 more for #
+    # its edges and the gap after it. #
+    let shape =
+      let rows = fun (cs, col, n) : ([(String, A)], Int, Int) ->
+        case cs
+        | [] => n
+        | (label, _) :: tl =>
+          let w = (3 * string_length(label) + 8) / 4 in
+          if col + w > 36 then rows((tl, w, n + 1))
+          else rows((tl, col + w, n))
+        end in
+      Block(36, rows((cases, 0, 1)))
+  };
+  # ^slider: a number in a range, set with a slider and labelled. #
+  let ^slider = fun (label, lo, hi) : (String, Int, Int) -> {
+    type Model = Int;
+    type Action = Int;
+    type Expansion = Int;
+    let init = Pure((lo + hi) / 2);
+    let update = fun _m : Model -> fun a : Action -> Pure(a);
+    let view = fun m : Model -> Pure(
+      Html.div(
+        [Attr.style([("display", "flex"), ("gap", "0.5em"), ("align-items", "center"),
+                     ("font-family", "var(--code-font)"), ("font-size", "0.8em")])],
+        [Html.span([Attr.style([("white-space", "nowrap")])], [Html.text(label)]),
+         Html.input([
+           Attr.type_("range"),
+           Attr.min(string_of_int(lo)), Attr.max(string_of_int(hi)),
+           Attr.value(string_of_int(m)),
+           Attr.style([("flex", "1"), ("min-width", "0")]),
+           Attr.on_input(fun s -> int_of_string(s))]),
+         Html.span([Attr.style([("white-space", "nowrap"), ("min-width", "3ch")])],
+           [Html.text(string_of_int(m))])]));
+    let expand = Functional(fun m : Model -> m);
+    let shape = Inline(34)
+  };
+
+  # A piece moved so its anchor a lands on the base's anchor b, or left #
+  # where it was drawn without both. Layering is up to the client: a #
+  # picture is drawn in order, so put the pieces in the order to stack. #
+  let placed : (Picture, String, Picture, String) -> Picture =
+    fun piece, a, base, b ->
+      case (anchor(piece, a), anchor(base, b))
+      | (Found((px, py)), Found((bx, by))) => shift(piece, bx -. px, by -. py)
+      | _ => piece
+      end;
+
+  # A picture mirrored left to right: a right shoe makes a left one. #
+  let mirror_points : [Vertex] -> [Vertex] =
+    fun vs ->
+      case vs
+      | [] => []
+      | v :: tl =>
+        let (x, y) = v.at in
+        (at = (0. -. x, y), label = v.label) :: mirror_points(tl)
+      end;
+  let mirrored : Picture -> Picture =
+    fun pic ->
+      case pic
+      | [] => []
+      | s :: tl => with_points(s, mirror_points(points_of(s))) :: mirrored(tl)
+      end;
+
+  # The shapes of a picture with that name. #
+  let named : (Picture, String) -> Picture =
+    fun pic, n ->
+      case pic
+      | [] => []
+      | s :: tl =>
+        let name = case s | Polygon(p) => p.name | Path(p) => p.name end in
+        if name == n then s :: named(tl, n) else named(tl, n)
+      end;
+
+  # A box for the picture: an invisible path along its diagonal, for a #
+  # slide whose frame should stay put while what it draws changes -- #
+  # the arms swinging, the eyes growing. ^picture shows exactly this #
+  # box (with its margin), and cuts off anything outside it. #
+  let frame = fun (x0, y0, x1, y1) : (Float, Float, Float, Float) ->
+    [Path((name = "frame",
+           points = [(at = (x0, y0), label = Plain), (at = (x1, y1), label = Plain)],
+           stroke = (width = 0., color = "none")))]
+} in
+
+# HELPERS #
+
+let fmin = fun (x, y) : (Float, Float) -> if x <. y then x else y in
+let fmax = fun (x, y) : (Float, Float) -> if x >. y then x else y in
+let fabs = fun x : Float -> if x <. 0. then 0. -. x else x in
+
+# Every point x-scaled about cx, and those below cy y-scaled. #
+let stretch_points : ([Vertex], Float, Float, Float, Float) -> [Vertex] =
+  fun (vs, cx, cy, sx, sy) ->
+    case vs
+    | [] => []
+    | v :: tl =>
+      let (x, y) = v.at in
+      (at = (cx +. (x -. cx) *. sx, if y >. cy then cy +. (y -. cy) *. sy else y),
+       label = v.label)
+      :: stretch_points((tl, cx, cy, sx, sy))
+    end in
+let stretch : (Picture, Float, Float, Float, Float) -> Picture =
+  fun (pic, cx, cy, sx, sy) ->
+    case pic
+    | [] => []
+    | sh :: tl =>
+      Drawing.with_points(sh, stretch_points((Drawing.points_of(sh), cx, cy, sx, sy)))
+      :: stretch((tl, cx, cy, sx, sy))
+    end in
+
+let snd = fun (_, b) : (Float, Float) -> b in
+
+# Every point moved sx times as far from (cx, cy) across, and sy #
+# times as far up or down: the picture scaled about that point. #
+let scale_points : ([Vertex], Float, Float, Float, Float) -> [Vertex] =
+  fun (vs, cx, cy, sx, sy) ->
+    case vs
+    | [] => []
+    | v :: tl =>
+      let (x, y) = v.at in
+      (at = (cx +. (x -. cx) *. sx, cy +. (y -. cy) *. sy), label = v.label)
+      :: scale_points((tl, cx, cy, sx, sy))
+    end in
+let scaled : (Picture, Float, Float, Float, Float) -> Picture =
+  fun (pic, cx, cy, sx, sy) ->
+    case pic
+    | [] => []
+    | sh :: tl =>
+      Drawing.with_points(sh, scale_points((Drawing.points_of(sh), cx, cy, sx, sy)))
+      :: scaled((tl, cx, cy, sx, sy))
+    end in
+
+# THE SHIRT #
+
+# A system of polygons: its editor draws the torsos, without sleeves -- #
+# a t-shirt's, and a tank top's with its straps over bare shoulders -- #
+# with the shoulders as anchors, where the arms come out. #
+
+let shirts = ^^livelit(Drawing.^polygons((
+  shapes = [
+    Polygon((
+      name = "shirt",
+      points = [
+        (at = (130., 40.), label = Plain),
+        (at = (160., 60.), label = Anchor("neck")),
+        (at = (190., 40.), label = Plain),
+        (at = (226., 50.), label = Anchor("right shoulder")),
+        (at = (224., 104.), label = Plain),
+        (at = (222., 206.), label = Anchor("right hip")),
+        (at = (98., 206.), label = Anchor("left hip")),
+        (at = (96., 104.), label = Plain),
+        (at = (94., 50.), label = Anchor("left shoulder"))
+      ],
+      stroke = (width = 3., color = "#2b4a6f"),
+      fill = "#5b8bd0")),
+    Polygon((
+      name = "tank",
+      points = [
+        (at = (136., 40.), label = Plain),
+        (at = (184., 40.), label = Plain),
+        (at = (226., 50.), label = Anchor("right shoulder")),
+        (at = (224., 104.), label = Plain),
+        (at = (96., 104.), label = Plain),
+        (at = (94., 50.), label = Anchor("left shoulder"))
+      ],
+      stroke = (width = 2., color = "#8a5a44"),
+      fill = "#f1c27d")),
+    Polygon((
+      name = "tank",
+      points = [
+        (at = (140., 40.), label = Plain),
+        (at = (160., 60.), label = Anchor("neck")),
+        (at = (180., 40.), label = Plain),
+        (at = (196., 40.), label = Plain),
+        (at = (204., 64.), label = Plain),
+        (at = (214., 86.), label = Plain),
+        (at = (224., 104.), label = Plain),
+        (at = (222., 206.), label = Anchor("right hip")),
+        (at = (98., 206.), label = Anchor("left hip")),
+        (at = (96., 104.), label = Plain),
+        (at = (106., 86.), label = Plain),
+        (at = (116., 64.), label = Plain),
+        (at = (124., 40.), label = Plain)
+      ],
+      stroke = (width = 3., color = "#2b4a6f"),
+      fill = "#5b8bd0")),
+    Path((
+      name = "stitching",
+      points = [
+        (at = (104., 194.), label = Plain),
+        (at = (216., 194.), label = Plain)
+      ],
+      stroke = (width = 1., color = "#dce8f7")))
+  ],
+  current = 0, chosen = -1, held = false, moved = false))) in
+
+# Messed Up Dress Up's shirt controls: its style, and its width and #
+# height. The style picks the torso; width and height stretch it about #
+# the neck, sideways and downward, starting at the size it is drawn. #
+# (a witch's dress: long sleeves, always) #
+let shirt_style = LongSleeves in
+let shirt_width = ^^livelit(Drawing.^slider("shirt width", 10, 120)(66)) in
+let shirt_height = ^^livelit(Drawing.^slider("shirt height", 20, 300)(146)) in
+
+let torso =
+  Drawing.named(shirts, case shirt_style | TankTop => "tank" | _ => "shirt" end)
+  @ Drawing.named(shirts, "stitching") in
+# The drawn torso is 66 from the neck to a shoulder, and 146 from the #
+# neck to the hips. #
+let shirt =
+  case Drawing.anchor(torso, "neck")
+  | Found((cx, cy)) =>
+    stretch((torso, cx, cy, float_of_int(shirt_width) /. 66.,
+             float_of_int(shirt_height) /. 146.))
+  | Missing => torso
+  end in
+
+# THE PANTS #
+
+# They hang from the shirt's hips, and are as wide. #
+
+let pants = ^^livelit(Drawing.^polygons((
+  shapes = [
+    Polygon((
+      name = "pants",
+      points = [
+        (at = (98., 45.), label = Anchor("left hip")),
+        (at = (222., 45.), label = Anchor("right hip")),
+        (at = (230., 195.), label = Plain),
+        (at = (202., 195.), label = Anchor("right foot")),
+        (at = (174., 195.), label = Plain),
+        (at = (160., 87.), label = Plain),
+        (at = (146., 195.), label = Plain),
+        (at = (118., 195.), label = Anchor("left foot")),
+        (at = (90., 195.), label = Plain)
+      ],
+      stroke = (width = 3., color = "#1f2a36"),
+      fill = "#34495e"))
+  ],
+  current = 0, chosen = -1, held = false, moved = false))) in
+
+# The pants' hips are as wide as the shirt's, so they take its width #
+# too: stretched sideways about their left hip, then hung from it, so #
+# both hips meet the shirt's. #
+let pants_at =
+  case Drawing.anchor(pants, "left hip")
+  | Found((lx, _)) =>
+    Drawing.placed(
+      stretch((pants, lx, 1000000., float_of_int(shirt_width) /. 66., 1.)),
+      "left hip", shirt, "left hip")
+  | Missing => Drawing.placed(pants, "left hip", shirt, "left hip")
+  end in
+let body = pants_at @ shirt in
+
+# THE NECK #
+
+# A rectangle as long as the slider says. Its base is the anchor that #
+# goes on the shirt's neck, and its top the one the chin goes on; each #
+# is in the middle of an edge. It is 16 longer than what shows: placed, #
+# it moves 8 down, under the collar, and the head 8 down over its top. #
+
+let neck_length = ^^livelit(Drawing.^slider("neck", 0, 60)(28)) in
+let neck : Picture =
+  let top = 0. -. float_of_int(neck_length) -. 16. in
+  [Polygon((
+    name = "neck",
+    points = [
+      (at = (-12., 0.), label = Plain),
+      (at = (0., 0.), label = Anchor("base")),
+      (at = (12., 0.), label = Plain),
+      (at = (12., top), label = Plain),
+      (at = (0., top), label = Anchor("top")),
+      (at = (-12., top), label = Plain)
+    ],
+    stroke = (width = 2., color = "#8a5a44"),
+    fill = "#f1c27d"))] in
+
+# THE HEAD #
+
+# A round face: its chin is the anchor that goes on the neck's top, #
+# and its crown the one the hair goes on. #
+
+let head = ^^livelit(Drawing.^polygons((
+  shapes = [
+    Polygon((
+      name = "head",
+      points = [
+        (at = (160.0, 84.0), label = Anchor("crown")),
+        (at = (178.0, 88.8), label = Plain),
+        (at = (191.2, 102.0), label = Plain),
+        (at = (196.0, 120.0), label = Plain),
+        (at = (191.2, 138.0), label = Plain),
+        (at = (178.0, 151.2), label = Plain),
+        (at = (160.0, 156.0), label = Anchor("chin")),
+        (at = (142.0, 151.2), label = Plain),
+        (at = (128.8, 138.0), label = Plain),
+        (at = (124.0, 120.0), label = Plain),
+        (at = (128.8, 102.0), label = Plain),
+        (at = (142.0, 88.8), label = Plain)
+      ],
+      stroke = (width = 2.0, color = "#8a5a44"),
+      fill = "#f1c27d"))
+  ],
+  current = 0, chosen = -1, held = false, moved = false))) in
+
+# THE SKIN #
+
+# Messed Up Dress Up's skin colors, the ones that mean something named #
+# for what they mean (smiley yellow, mad red, sick green, alien grey, #
+# witch green). Every shape drawn in the usual skin or its outline #
+# takes the chosen pair: one pass over the finished picture. (The #
+# third color, a shade darker, is for the witch's nose.) #
+
+# ^skin: one swatch per skin, in its own color, as in the game; the #
+# one in use is outlined. Ten of them are too many for a ^choice, #
+# whose width is fixed for seven short buttons. #
+let ^skin = {
+  type Model = (String, String, String);
+  type Action = (String, String, String);
+  type Expansion = (String, String, String);
+  let skins = [("peach", ("#f1c27d", "#8a5a44", "#cfa76c"), "black"),
+     ("smiley", ("#cfa000", "#6e5500", "#b28a00"), "black"),
+     ("mad", ("#dc143c", "#78091f", "#bd1134"), "white"),
+     ("sick", ("#8cbe32", "#4a6a14", "#78a32b"), "black"),
+     ("alien", ("#aab2ba", "#5a6168", "#9299a0"), "black"),
+     ("witch", ("#6fa34a", "#3a5a24", "#5f8c40"), "black"),
+     ("pale", ("#ffdbac", "#8a6a48", "#dbbc94"), "black"),
+     ("tan", ("#e0ac69", "#7a5228", "#c1945a"), "black"),
+     ("brown", ("#c68642", "#6a4018", "#aa7339"), "black"),
+     ("dark", ("#8d5524", "#4a2a10", "#79491f"), "white")];
+  let init = Pure(("#f1c27d", "#8a5a44", "#cfa76c"));
+  let update = fun _m : Model -> fun a : Action -> Pure(a);
+  let swatch = fun (name, v, text, m) : (String, (String, String, String), String, (String, String, String)) ->
+    let (fill, _, _) = v in
+    Html.button(
+      [Attr.on_click(v),
+       Attr.style([("background", fill), ("color", text),
+                   ("font-family", "var(--code-font)"), ("font-size", "0.72em"),
+                   ("border-radius", "3px"), ("padding", "0 0.3em"), ("cursor", "pointer"),
+                   ("border", if v == m then "2px solid var(--text-default)" else "1px solid #888")])],
+      [Html.text(name)]);
+  let view = fun m : Model -> Pure(
+    Html.div(
+      [Attr.style([("display", "flex"), ("gap", "0.25em"), ("align-items", "center")])],
+      map((skins, fun (name, v, text) : (String, (String, String, String), String) ->
+        swatch((name, v, text, m))))));
+  let expand = Functional(fun m : Model -> m);
+  let shape = Inline(43)
+} in
+
+let skin_colors = ^^livelit(^skin(("#6fa34a", "#3a5a24", "#5f8c40"))) in
+let (skin_fill, skin_ink, skin_shade) = skin_colors in
+let recolor = fun c : String ->
+  if c == "#f1c27d" then skin_fill else if c == "#8a5a44" then skin_ink else c in
+let skinned : Picture -> Picture =
+  fun ps ->
+    case ps
+    | [] => []
+    | Polygon(p) :: tl =>
+      Polygon((name = p.name, points = p.points,
+               stroke = (width = p.stroke.width, color = recolor(p.stroke.color)), fill = recolor(p.fill)))
+      :: skinned(tl)
+    | Path(p) :: tl =>
+      Path((name = p.name, points = p.points, stroke = (width = p.stroke.width, color = recolor(p.stroke.color))))
+      :: skinned(tl)
+    end in
+
+# THE HAIR #
+
+# Three hairdos side by side on one canvas, each with its own crown. #
+# Where each is drawn does not matter: the crown places it. Each is #
+# two shapes: the hairdo, drawn behind the head, and its top, drawn on #
+# the head -- the hair over the scalp, down to a fringe -- named the #
+# hairdo's name and "top". #
+
+let hairdos = ^^livelit(Drawing.^polygons((
+  shapes = [
+    Polygon((
+      name = "short",
+      points = [
+        (at = (15.0, 124.0), label = Plain),
+        (at = (13.0, 98.0), label = Plain),
+        (at = (23.0, 76.0), label = Plain),
+        (at = (41.0, 68.0), label = Plain),
+        (at = (55.0, 67.0), label = Plain),
+        (at = (69.0, 68.0), label = Plain),
+        (at = (87.0, 76.0), label = Plain),
+        (at = (97.0, 98.0), label = Plain),
+        (at = (95.0, 124.0), label = Plain),
+        (at = (55.0, 84.0), label = Anchor("crown"))
+      ],
+      stroke = (width = 2.0, color = "#3b2314"),
+      fill = "#6f4e37")),
+    Polygon((
+      name = "long",
+      points = [
+        (at = (116.0, 194.0), label = Plain),
+        (at = (114.0, 104.0), label = Plain),
+        (at = (126.0, 76.0), label = Plain),
+        (at = (146.0, 67.0), label = Plain),
+        (at = (160.0, 66.0), label = Plain),
+        (at = (174.0, 67.0), label = Plain),
+        (at = (194.0, 76.0), label = Plain),
+        (at = (206.0, 104.0), label = Plain),
+        (at = (204.0, 194.0), label = Plain),
+        (at = (184.0, 188.0), label = Plain),
+        (at = (188.0, 124.0), label = Plain),
+        (at = (160.0, 84.0), label = Anchor("crown")),
+        (at = (132.0, 124.0), label = Plain),
+        (at = (136.0, 188.0), label = Plain)
+      ],
+      stroke = (width = 2.0, color = "#111111"),
+      fill = "#2b2b2b")),
+    Polygon((
+      name = "curly",
+      points = [
+        (at = (221.0, 120.0), label = Plain),
+        (at = (215.0, 104.0), label = Plain),
+        (at = (221.0, 90.0), label = Plain),
+        (at = (217.0, 78.0), label = Plain),
+        (at = (229.0, 70.0), label = Plain),
+        (at = (235.0, 60.0), label = Plain),
+        (at = (249.0, 62.0), label = Plain),
+        (at = (257.0, 54.0), label = Plain),
+        (at = (265.0, 60.0), label = Plain),
+        (at = (273.0, 54.0), label = Plain),
+        (at = (281.0, 62.0), label = Plain),
+        (at = (295.0, 60.0), label = Plain),
+        (at = (301.0, 70.0), label = Plain),
+        (at = (313.0, 78.0), label = Plain),
+        (at = (309.0, 90.0), label = Plain),
+        (at = (315.0, 104.0), label = Plain),
+        (at = (309.0, 120.0), label = Plain),
+        (at = (265.0, 84.0), label = Anchor("crown"))
+      ],
+      stroke = (width = 2.0, color = "#7a2e10"),
+      fill = "#b5562b")),
+    Polygon((
+      name = "short top",
+      points = [
+        (at = (18.3, 112.2), label = Plain),
+        (at = (21.0, 104.2), label = Plain),
+        (at = (26.3, 95.9), label = Plain),
+        (at = (33.5, 89.3), label = Plain),
+        (at = (42.2, 84.8), label = Plain),
+        (at = (55.0, 82.5), label = Plain),
+        (at = (67.8, 84.8), label = Plain),
+        (at = (76.5, 89.3), label = Plain),
+        (at = (83.7, 95.9), label = Plain),
+        (at = (89.0, 104.2), label = Plain),
+        (at = (91.7, 112.2), label = Plain),
+        (at = (85.0, 110.0), label = Plain),
+        (at = (79.0, 103.0), label = Plain),
+        (at = (71.0, 105.0), label = Plain),
+        (at = (64.0, 99.0), label = Plain),
+        (at = (56.0, 104.0), label = Plain),
+        (at = (48.0, 99.0), label = Plain),
+        (at = (40.0, 104.0), label = Plain),
+        (at = (33.0, 100.0), label = Plain),
+        (at = (26.0, 106.0), label = Plain),
+        (at = (21.0, 113.0), label = Plain)
+      ],
+      stroke = (width = 2.0, color = "#3b2314"),
+      fill = "#6f4e37")),
+    Polygon((
+      name = "long top",
+      points = [
+        (at = (123.3, 112.2), label = Plain),
+        (at = (126.0, 104.2), label = Plain),
+        (at = (131.3, 95.9), label = Plain),
+        (at = (138.5, 89.3), label = Plain),
+        (at = (147.2, 84.8), label = Plain),
+        (at = (160.0, 82.5), label = Plain),
+        (at = (172.8, 84.8), label = Plain),
+        (at = (181.5, 89.3), label = Plain),
+        (at = (188.7, 95.9), label = Plain),
+        (at = (194.0, 104.2), label = Plain),
+        (at = (196.7, 112.2), label = Plain),
+        (at = (193.0, 112.0), label = Plain),
+        (at = (188.0, 103.0), label = Plain),
+        (at = (178.0, 98.0), label = Plain),
+        (at = (166.0, 97.0), label = Plain),
+        (at = (154.0, 100.0), label = Plain),
+        (at = (143.0, 105.0), label = Plain),
+        (at = (134.0, 111.0), label = Plain),
+        (at = (128.0, 118.0), label = Plain),
+        (at = (124.0, 124.0), label = Plain)
+      ],
+      stroke = (width = 2.0, color = "#111111"),
+      fill = "#2b2b2b")),
+    Polygon((
+      name = "curly top",
+      points = [
+        (at = (228.3, 112.2), label = Plain),
+        (at = (231.0, 104.2), label = Plain),
+        (at = (236.3, 95.9), label = Plain),
+        (at = (243.5, 89.3), label = Plain),
+        (at = (252.2, 84.8), label = Plain),
+        (at = (265.0, 82.5), label = Plain),
+        (at = (277.8, 84.8), label = Plain),
+        (at = (286.5, 89.3), label = Plain),
+        (at = (293.7, 95.9), label = Plain),
+        (at = (299.0, 104.2), label = Plain),
+        (at = (301.7, 112.2), label = Plain),
+        (at = (298.0, 110.0), label = Plain),
+        (at = (293.0, 102.0), label = Plain),
+        (at = (287.0, 106.0), label = Plain),
+        (at = (281.0, 99.0), label = Plain),
+        (at = (275.0, 104.0), label = Plain),
+        (at = (269.0, 98.0), label = Plain),
+        (at = (263.0, 103.0), label = Plain),
+        (at = (257.0, 98.0), label = Plain),
+        (at = (251.0, 104.0), label = Plain),
+        (at = (245.0, 99.0), label = Plain),
+        (at = (239.0, 105.0), label = Plain),
+        (at = (234.0, 101.0), label = Plain),
+        (at = (230.0, 110.0), label = Plain)
+      ],
+      stroke = (width = 2.0, color = "#7a2e10"),
+      fill = "#b5562b"))
+  ],
+  current = 1, chosen = -1, held = false, moved = false))) in
+
+let hairdo = ^^livelit(Drawing.^choice@<Hair>(
+  [("short", Short), ("long", Long), ("curly", Curly)])(Long)) in
+let hairdo_name = case hairdo | Short => "short" | Long => "long" | Curly => "curly" end in
+let hair =
+  Drawing.named(hairdos, hairdo_name) @ Drawing.named(hairdos, hairdo_name ++ " top") in
+
+# THE ARMS #
+
+# Three sliders, as Messed Up Dress Up has them: the arms' angle in #
+# degrees (0 is straight out, 90 straight down, -90 straight up), and #
+# their length and width. #
+
+let arm_angle = ^^livelit(Drawing.^slider("arms (up / down)", -180, 180)(55)) in
+let arm_length = ^^livelit(Drawing.^slider("arm length", 10, 600)(95)) in
+let arm_width = ^^livelit(Drawing.^slider("arm width", 3, 60)(16)) in
+
+let skin = "#f1c27d" in
+let skin_line = (width = 2., color = "#8a5a44") in
+let cloth = "#5b8bd0" in
+let cloth_line = (width = 3., color = "#2b4a6f") in
+
+# A band w wide from a to b: a rectangle, as a polygon. #
+let band = fun (name, (ax, ay), (bx, by), w, stroke, fill)
+    : (String, Point, Point, Float, Stroke, String) ->
+  let (dx, dy) = (bx -. ax, by -. ay) in
+  let d = sqrt(dx *. dx +. dy *. dy) in
+  let (nx, ny) =
+    if d <. 0.001 then (0., 0.) else (0. -. dy /. d *. w /. 2., dx /. d *. w /. 2.) in
+  Polygon((
+    name = name,
+    points = [
+      (at = (ax +. nx, ay +. ny), label = Plain),
+      (at = (bx +. nx, by +. ny), label = Plain),
+      (at = (bx -. nx, by -. ny), label = Plain),
+      (at = (ax -. nx, ay -. ny), label = Plain)],
+    stroke = stroke, fill = fill)) in
+
+# A disc of radius r about c: a polygon of 20 sides. #
+let ring : (Int, Point, Float) -> [Vertex] =
+  fun (i, (cx, cy), r) ->
+    if i == 20 then []
+    else
+      let t = 2. *. pi *. float_of_int(i) /. 20. in
+      (at = (cx +. r *. cos(t), cy +. r *. sin(t)), label = Plain)
+      :: ring((i + 1, (cx, cy), r)) in
+let disc = fun (name, c, r, stroke, fill) : (String, Point, Float, Stroke, String) ->
+  Polygon((name = name, points = ring((0, c, r)), stroke = stroke, fill = fill)) in
+
+# One arm, from a shoulder: side is 1 for the right, -1 for the left. #
+# It starts a little inside the shoulder, under the torso, and is four #
+# layers: the arm; the shirt's sleeve over its first 38%, as Messed Up #
+# Dress Up's t-shirt has it; the sleeve again without its outline, over #
+# the torso's edge, so sleeve and torso join; and the hand. #
+# THE HANDS #
+
+# Messed Up Dress Up's hand controls: the style, its size, and those #
+# only some styles read -- a human hand's fingers (5 is a hand; 1 a #
+# thumbs-up, 100 a fringe), an alien hand's, a star's points and how #
+# far it turns toward the next one, and the claws' number and their #
+# length as a percent of the usual -- and the hand's angle, about the #
+# wrist, in degrees (one for every style here, where the game keeps one #
+# per style). #
+
+let hand_style = ^^livelit(Drawing.^choice@<Hand>(
+  [("round", Round), ("mittens", Mittens), ("stars", Stars),
+   ("claws", Claws), ("human", Human), ("alien", Alien)])(Human)) in
+let hand_size = ^^livelit(Drawing.^slider("hand size", 2, 80)(14)) in
+let fingers = ^^livelit(Drawing.^slider("human fingers", 1, 100)(5)) in
+let alien_fingers = ^^livelit(Drawing.^slider("alien fingers", 1, 100)(3)) in
+let star_count = ^^livelit(Drawing.^slider("star points", 1, 100)(5)) in
+let star_turn = ^^livelit(Drawing.^slider("star turn (% to the next point)", 0, 100)(0)) in
+let claw_count = ^^livelit(Drawing.^slider("claws", 1, 100)(4)) in
+let claw_length = ^^livelit(Drawing.^slider("claw length", 20, 900)(100)) in
+let hand_angle = ^^livelit(Drawing.^slider("hand angle", 0, 360)(0)) in
+
+
+# Points around an ellipse about (cx, cy), n of them: 20 for a palm, #
+# 12 for a finger's small pad. Every point is drawn on each redraw, so #
+# a hand is as few as look round. #
+let oval : (Float, Float, Float, Float, Int, Int) -> [Point] =
+  fun (cx, cy, rx, ry, n, i) ->
+    if i == n then []
+    else
+      let t = 2. *. pi *. float_of_int(i) /. float_of_int(n) in
+      (cx +. rx *. cos(t), cy +. ry *. sin(t)) :: oval((cx, cy, rx, ry, n, i + 1)) in
+let ellipse = fun (cx, cy, rx, ry) : (Float, Float, Float, Float) ->
+  oval((cx, cy, rx, ry, 20, 0)) in
+let pad = fun (cx, cy, r) : (Float, Float, Float) -> oval((cx, cy, r, r, 12, 0)) in
+
+# Half a circle of radius h about (cx, cy), from angle a0, 5 points. #
+let arc : (Float, Float, Float, Float, Int) -> [Point] =
+  fun (cx, cy, h, a0, i) ->
+    if i == 5 then []
+    else
+      let t = a0 +. pi *. float_of_int(i) /. 4. in
+      (cx +. h *. cos(t), cy +. h *. sin(t)) :: arc((cx, cy, h, a0, i + 1)) in
+# A finger: a stroke from p to q, h either side, with round ends. #
+let capsule = fun ((x1, y1), (x2, y2), h) : (Point, Point, Float) ->
+  let d = atan2(y2 -. y1, x2 -. x1) in
+  arc((x2, y2, h, d -. pi /. 2., 0)) @ arc((x1, y1, h, d +. pi /. 2., 0)) in
+
+# A quadratic curve from a to c, pulled toward b: 6 points on it. #
+let quad : (Point, Point, Point, Int) -> [Point] =
+  fun ((ax, ay), (bx, by), (cx, cy), i) ->
+    if i > 5 then []
+    else
+      let t = float_of_int(i) /. 5. in
+      let u = 1. -. t in
+      (u *. u *. ax +. 2. *. u *. t *. bx +. t *. t *. cx,
+       u *. u *. ay +. 2. *. u *. t *. by +. t *. t *. cy)
+      :: quad(((ax, ay), (bx, by), (cx, cy), i + 1)) in
+
+# A finger, as the game has one: its angle from straight on (degrees), #
+# its length and width in units of the hand's size, a round pad at its #
+# tip (0 for none), and where it starts along the palm. #
+type Finger = (a = Float, len = Float, w = Float, tip = Float, base = Float) in
+let finger = fun (a, len, w) : (Float, Float, Float) ->
+  (a = a, len = len, w = w, tip = 0., base = 0.6) in
+
+# A human hand of five: four fingers, the middle one longest, and a #
+# thumb. #
+let five : [Finger] =
+  [finger((-36., 1.15, 0.25)), finger((-12., 1.35, 0.26)), finger((12., 1.25, 0.25)),
+   finger((35., 1.0, 0.23)), (a = -95., len = 0.85, w = 0.28, tip = 0., base = 0.5)] in
+
+# A human hand of n, thumb included: the n - 1 fingers fan out wider #
+# the more there are, and thinner, the middle ones longest, and the #
+# thumb just past the first. #
+let many_fingers = fun n : Int ->
+  let n = if n < 1 then 1 else if n > 100 then 100 else n in
+  let k = n - 1 in
+  let span =
+    if k <= 1 then 0.
+    else
+      fmin((300., 24. *. float_of_int(if k - 1 < 3 then k - 1 else 3)
+                  +. float_of_int(if k > 4 then k - 4 else 0) *. 9.)) in
+  let step = if k > 1 then span /. float_of_int(k - 1) else 0. in
+  let w = if k > 1 then fmax((0.05, fmin((0.26, 0.75 *. sin(step *. pi /. 360.))))) else 0.26 in
+  let fan : Int -> [Finger] =
+    fun i ->
+      if i == k then []
+      else
+        let a = if k > 1 then 0. -. span /. 2. +. float_of_int(i) *. step else 0. in
+        let t = if span >. 0. then fmax((a, 0. -. a)) /. (span /. 2.) else 0. in
+        finger((a, 1.3 -. 0.4 *. t, w)) :: fan(i + 1) in
+  fan(0) @ [(a = 0. -. fmin((span /. 2. +. 40., 175.)), len = 0.85, w = fmax((w, 0.12)),
+             tip = 0., base = 0.5)] in
+
+# An alien hand of n long, thin fingers, each with a round pad: 3 is a #
+# tree frog's, and more spread wider with smaller pads. #
+let alien_hand = fun n : Int ->
+  let n = if n < 1 then 1 else if n > 100 then 100 else n in
+  let span = if n <= 1 then 0. else fmin((330., 90. +. float_of_int(n - 3) *. 14.)) in
+  let step = if n > 1 then span /. float_of_int(n - 1) else 90. in
+  let half = sin(step *. pi /. 360.) in
+  let w = fmax((0.018, fmin((0.2, 0.55 *. half)))) in
+  let tip = fmax((0.03, fmin((0.36, 0.95 *. half)))) in
+  let fan : Int -> [Finger] =
+    fun i ->
+      if i == n then []
+      else
+        let a = if n > 1 then 0. -. span /. 2. +. float_of_int(i) *. step else 0. in
+        let t = if span >. 0. then fmax((a, 0. -. a)) /. (span /. 2.) else 0. in
+        (a = a, len = 2.15 -. 0.3 *. t, w = w, tip = tip, base = 0.6) :: fan(i + 1) in
+  fan(0) in
+
+let skin_ink = "#8a5a44" in
+let none = fun c : String -> (width = 0., color = c) in
+
+# A hand with fingers, of size r: a palm and its fingers, each drawn #
+# twice, first a little bigger in the outline's color, then in skin, #
+# so palm and fingers make one shape with one outline. #
+let fingered = fun (r, fs, palm) : (Float, [Finger], Float) ->
+  let layer = fun (fill, grow) : (String, Float) ->
+    let parts : [Finger] -> [([Point], String, Stroke)] =
+      fun fs ->
+        case fs
+        | [] => []
+        | f :: tl =>
+          let t = f.a *. pi /. 180. in
+          let (dx, dy) = (cos(t), sin(t)) in
+          let (b, e) = (r *. f.base, r *. f.base +. r *. f.len) in
+          let g = fmin((grow, r *. f.w *. 0.9)) in
+          (capsule(((dx *. b, dy *. b), (dx *. e, dy *. e), r *. f.w +. g)), fill, none(fill))
+          :: (if f.tip >. 0.
+              then [(pad((dx *. e, dy *. e, r *. f.tip +. g)), fill, none(fill))]
+              else [])
+          @ parts(tl)
+        end in
+    (ellipse((0., 0., r *. palm *. 1.05 +. grow, r *. palm +. grow)), fill, none(fill))
+    :: parts(fs) in
+  layer((skin_ink, 2.5)) @ layer((skin, 0.)) in
+
+# n hooked talons fanned out from a paw: each a curve out to a sharp #
+# hook and back, wide where it leaves the paw; k is the claws' length #
+# as a fraction of the usual. Up to 4 they keep the usual spacing; more #
+# fan out wider, nearly all the way round at 100, and get thinner, #
+# outline and all, so each still shows. #
+let talons = fun (r, k, n) : (Float, Float, Int) ->
+  let paw = r *. 0.7 in
+  let nf = float_of_int(n) in
+  let span = if n <= 4 then 118. *. (nf -. 1.) /. 3. else fmin((330., 118. +. (nf -. 4.) *. 20.)) in
+  let step = if n > 1 then span /. (nf -. 1.) else 0. in
+  # half a gap between neighbours, where they leave the paw #
+  let room = if n > 4 then paw *. 0.8 *. sin(step *. pi /. 360.) else 1000000. in
+  let line = if n > 4 then fmax((0.6, fmin((2., room *. 0.5)))) else 2. in
+  let one = fun deg : Float ->
+    let t = deg *. pi /. 180. in
+    let (dx, dy) = (cos(t), sin(t)) in
+    let len = r *. 1.4 *. k in
+    let w = fmax((r *. 0.03, fmin((r *. 0.25 *. fmin((1., 0.6 +. 0.4 *. k)), room *. 1.1)))) in
+    let hook = r *. 0.55 *. fmax((0.5, fmin((k, 2.)))) in
+    let p = fun (along, across) : (Float, Float) ->
+      (dx *. along -. dy *. across, dy *. along +. dx *. across) in
+    (quad((p((paw *. 0.8, 0. -. w)), p((paw +. len *. 0.75, 0. -. w *. 0.9)), p((paw +. len, hook)), 0))
+     @ quad((p((paw +. len, hook)), p((paw +. len *. 0.45, w *. 0.6)), p((paw *. 0.8, w)), 0)),
+     "#f4ecd6", (width = line, color = "#5c4a2e")) in
+  let fan : Int -> [([Point], String, Stroke)] =
+    fun i ->
+      if i == n then []
+      else one(0. -. 3. -. span /. 2. +. float_of_int(i) *. step) :: fan(i + 1) in
+  if n == 4 then [one(-62.), one(-22.), one(18.), one(56.)] else fan(0) in
+
+# A star of n points, the first straight up, then turned toward the #
+# next by turn (a fraction of the way there), with a dip between each #
+# two; a wide gap (1 or 2 points) dips in a rounded curve, so 1 is a #
+# teardrop and 2 a lens. Point i, then its dips j = 1 to dips. #
+let star_points : (Float, Int, Float, Int, Int) -> [Point] =
+  fun (r, n, turn, i, j) ->
+    if i == n then []
+    else
+      let gap = 2. *. pi /. float_of_int(n) in
+      let dips = if n >= 3 then 1 else if n == 2 then 2 else 5 in
+      let a = 0. -. pi /. 2. +. (turn +. float_of_int(i)) *. gap in
+      if j == 0 then (r *. 1.4 *. cos(a), r *. 1.4 *. sin(a)) :: star_points((r, n, turn, i, 1))
+      else if j > dips then star_points((r, n, turn, i + 1, 0))
+      else
+        let b = a +. gap *. float_of_int(j) /. float_of_int(dips + 1) in
+        (r *. 0.55 *. cos(b), r *. 0.55 *. sin(b)) :: star_points((r, n, turn, i, j + 1)) in
+
+# A hand of size r in its own frame, as shapes with their fills and #
+# outlines, by the style worn. #
+let hand_shapes = fun r : Float ->
+  case hand_style
+  | Round => [(ellipse((0., 0., r, r)), skin, skin_line)]
+  | Mittens =>
+    [(ellipse((0.4 *. r, 0., 1.2 *. r, 0.85 *. r)), skin, skin_line),
+     (ellipse((0.1 *. r, 0. -. 0.9 *. r, 0.35 *. r, 0.5 *. r)), skin, skin_line)]
+  | Stars =>
+    # many points get a thinner outline, so each still shows #
+    let line = if star_count > 5 then fmax((0.6, fmin((2., pi *. r *. 0.55 /. float_of_int(star_count))))) else 2. in
+    [(star_points((r, star_count, float_of_int(star_turn) /. 100., 0, 0)), skin, (width = line, color = skin_line.color))]
+  | Claws =>
+    talons((r, float_of_int(claw_length) /. 100., claw_count))
+    @ [(ellipse((0.1 *. r, 0., 0.85 *. r, 0.8 *. r)), skin, skin_line),
+       (ellipse((0. -. 0.1 *. r, 0.05 *. r, 0.32 *. r, 0.36 *. r)), "#c9966a", none("#c9966a"))]
+  | Human =>
+    fingered((r, if fingers == 5 then five else many_fingers(fingers), 0.75))
+  | Alien => fingered((r, alien_hand(alien_fingers), 0.55))
+  end in
+
+# The hand in its own frame, made once: both arms draw the same hand, #
+# turned about the wrist by the hand angle (a star turns its own points; #
+# a round hand looks the same however it turns). The two walks are side #
+# by side, not one inside the other: statics analyzes a recursive #
+# function's body three times, so one nested in another is analyzed #
+# nine times. #
+let hand_turn = float_of_int(hand_angle) *. pi /. 180. in
+let turn_points : [Point] -> [Point] =
+  fun ps ->
+    case ps
+    | [] => []
+    | (u, v) :: tl => (u *. cos(hand_turn) -. v *. sin(hand_turn), u *. sin(hand_turn) +. v *. cos(hand_turn)) :: turn_points(tl)
+    end in
+let turn_shapes : [([Point], String, Stroke)] -> [([Point], String, Stroke)] =
+  fun ss ->
+    case ss
+    | [] => []
+    | (ps, fill, stroke) :: tl => (turn_points(ps), fill, stroke) :: turn_shapes(tl)
+    end in
+let the_hand =
+  let hand = hand_shapes(float_of_int(hand_size)) in
+  case hand_style
+  | Stars => hand
+  | Round => hand
+  | _ => if hand_angle == 0 then hand else turn_shapes(hand)
+  end in
+
+# The hand at h, the end of an arm at angle a: x in the hand's frame #
+# runs along the arm, and y across it, mirrored on the left. #
+let hand_at = fun (side, a, (hx, hy)) : (Float, Float, Point) ->
+  let world : [Point] -> [Vertex] =
+    fun ps ->
+      case ps
+      | [] => []
+      | (u, v) :: tl =>
+        (at = (hx +. u *. side *. cos(a) -. v *. side *. sin(a),
+               hy +. u *. sin(a) +. v *. cos(a)),
+         label = Plain)
+        :: world(tl)
+      end in
+  let shapes : [([Point], String, Stroke)] -> Picture =
+    fun ss ->
+      case ss
+      | [] => []
+      | (ps, fill, stroke) :: tl =>
+        Polygon((name = "hand", points = world(ps), stroke = stroke, fill = fill))
+        :: shapes(tl)
+      end in
+  shapes(the_hand) in
+
+# How much of the arm its sleeve covers, by the shirt's style, as the #
+# game has it: a t-shirt's 38%, long sleeves' 95%, a tank top's none. #
+let sleeve = case shirt_style | TShirt => 0.38 | LongSleeves => 0.95 | TankTop => 0. end in
+let arm = fun (side, shoulder) : (Float, Found) ->
+  case shoulder
+  | Missing => ([], [], [], [])
+  | Found((sx, sy)) =>
+    let a = float_of_int(arm_angle) *. pi /. 180. in
+    let len = float_of_int(arm_length) in
+    let w = float_of_int(arm_width) in
+    let (rx, ry) = (sx -. side *. 12., sy +. 12.) in
+    let along = fun k : Float -> (rx +. side *. k *. len *. cos(a), ry +. k *. len *. sin(a)) in
+    ([band(("arm", (rx, ry), along(1.), w, skin_line, skin))],
+     (if sleeve >. 0.
+      then [band(("sleeve", (rx, ry), along(sleeve), w +. 14., cloth_line, cloth))]
+      else []),
+     # with no sleeve, the arm's own skin joins it to the bare shoulder #
+     (if sleeve >. 0.
+      then [band(("sleeve", (rx, ry), along(sleeve), w +. 9., (width = 0., color = cloth), cloth))]
+      else [band(("arm", (rx, ry), along(0.2), w -. 1., (width = 0., color = skin), skin))]),
+     hand_at((side, a, along(1.))))
+  end in
+
+# The part of a raised arm in front of the face: from where it clears #
+# the shirt's top, 14 above the shoulder as the game's collar is, out #
+# to the hand. It is drawn again after the head, as the game draws its #
+# arms over the face, with a little fill and no outline over where the #
+# copy starts, so no seam shows. An arm that never rises past the #
+# shirt's top has no such part. #
+let arm_front = fun (side, shoulder) : (Float, Found) ->
+  case shoulder
+  | Missing => []
+  | Found((sx, sy)) =>
+    let a = float_of_int(arm_angle) *. pi /. 180. in
+    let len = float_of_int(arm_length) in
+    let w = float_of_int(arm_width) in
+    let (rx, ry) = (sx -. side *. 12., sy +. 12.) in
+    let along = fun k : Float -> (rx +. side *. k *. len *. cos(a), ry +. k *. len *. sin(a)) in
+    let rise = 0. -. sin(a) *. len in
+    let clear = 26. +. w /. 2. *. fabs(cos(a)) in
+    if rise <=. clear then []
+    else
+      let k0 = clear /. rise in
+      let (k_in, k_out) = (fmax((0., k0 -. 3. /. len)), fmin((1., k0 +. 3. /. len))) in
+      [band(("arm", along(k0), along(1.), w, skin_line, skin)),
+       band(("arm", along(k_in), along(k_out), w -. 2., (width = 0., color = skin), skin))]
+      @ (if sleeve >. k0
+         then
+           [band(("sleeve", along(k0), along(sleeve), w +. 14., cloth_line, cloth)),
+            band(("sleeve", along(k_in), along(sleeve), w +. 11., (width = 0., color = cloth), cloth))]
+         else [])
+  end in
+
+# THE FACE, IN THE GAME'S UNITS #
+
+# The game's face units on the head drawn here: its head is 160 high #
+# about (100, 110.6), and this one runs from its crown to its chin. #
+# (Found once: every point of the face goes through to_head.) #
+let (crown_x, crown_y, face_scale) =
+  case (Drawing.anchor(head, "crown"), Drawing.anchor(head, "chin"))
+  | (Found((cx, cy)), Found((_, chin))) => (cx, cy, (chin -. cy) /. 160.)
+  | _ => (100., 30.6, 1.)
+  end in
+let to_head = fun (u, v) : (Float, Float) ->
+  (crown_x +. (u -. 100.) *. face_scale, crown_y +. (v -. 30.6) *. face_scale) in
+
+# A shape made in face units, as a polygon on the head. #
+let on_head : [Point] -> [Vertex] =
+  fun ps ->
+    case ps
+    | [] => []
+    | p :: tl => (at = to_head(p), label = Plain) :: on_head(tl)
+    end in
+let face_shape = fun (name, ps, width, ink, fill) : (String, [Point], Float, String, String) ->
+  Polygon((name = name, points = on_head(ps),
+           stroke = (width = width *. face_scale, color = ink), fill = fill)) in
+
+# n points around a circle of radius r about (x, y), squashed by k top #
+# to bottom and then turned by t (radians) about its middle. #
+let round_eye : (Float, Float, Float, Float, Float, Int, Int) -> [Point] =
+  fun (x, y, r, k, t, n, i) ->
+    if i == n then []
+    else
+      let a = 2. *. pi *. float_of_int(i) /. float_of_int(n) in
+      let (px, py) = (r *. cos(a), k *. r *. sin(a)) in
+      (x +. px *. cos(t) -. py *. sin(t), y +. px *. sin(t) +. py *. cos(t))
+      :: round_eye((x, y, r, k, t, n, i + 1)) in
+# THE EYES #
+
+# Messed Up Dress Up's eye controls: the style, the iris color, the #
+# size, the gap between the eyes, their shape and angle, an iris and #
+# eye whites around the pupil, and the shine. #
+
+let eye_style = ^^livelit(Drawing.^choice@<EyeStyle>(
+  [("plain", PlainEyes), ("stars", StarEyes), ("hearts", HeartEyes), ("x eyes", XEyes)])(PlainEyes)) in
+let iris_color = ^^livelit(Drawing.^choice@<String>(
+  [("blue", "#3b82f6"), ("green", "#22c55e"), ("brown", "#8b5a2b"),
+   ("gray", "#9ca3af"), ("purple", "#8b5cf6")])("#3b82f6")) in
+let eye_size = ^^livelit(Drawing.^slider("eye size", -35, 300)(50)) in
+let eye_gap = ^^livelit(Drawing.^slider("eye gap", 0, 200)(38)) in
+let eye_shape = ^^livelit(Drawing.^slider("eye shape (round / narrow)", 0, 100)(0)) in
+let eye_angle = ^^livelit(Drawing.^slider("eye angle", -60, 60)(0)) in
+let iris_size = ^^livelit(Drawing.^slider("iris size", 0, 150)(0)) in
+let eye_whites = ^^livelit(Drawing.^slider("eye whites", 0, 150)(0)) in
+let shine_size = ^^livelit(Drawing.^slider("shine size", 0, 150)(45)) in
+
+# A star of five points, r to its points, turned by t. #
+let star_eye : (Float, Float, Float, Float, Int) -> [Point] =
+  fun (x, y, r, t, i) ->
+    if i == 10 then []
+    else
+      let a = t -. pi /. 2. +. float_of_int(i) *. pi /. 5. in
+      let rr = if i == 1 || i == 3 || i == 5 || i == 7 || i == 9 then r *. 0.45 else r in
+      (x +. rr *. cos(a), y +. rr *. sin(a)) :: star_eye((x, y, r, t, i + 1)) in
+# A heart, r across from its middle, turned by t. #
+let heart_eye : (Float, Float, Float, Float, Int) -> [Point] =
+  fun (x, y, r, t, i) ->
+    if i == 24 then []
+    else
+      let a = 2. *. pi *. float_of_int(i) /. 24. in
+      let s3 = sin(a) *. sin(a) *. sin(a) in
+      let hx = r *. s3 in
+      let hy = 0. -. r /. 16. *. (13. *. cos(a) -. 5. *. cos(2. *. a) -. 2. *. cos(3. *. a) -. cos(4. *. a)) in
+      (x +. hx *. cos(t) -. hy *. sin(t), y +. hx *. sin(t) +. hy *. cos(t))
+      :: heart_eye((x, y, r, t, i + 1)) in
+# A stroke w wide from a to b, as a polygon. #
+let stroke_eye = fun ((ax, ay), (bx, by), w) : (Point, Point, Float) ->
+  let (dx, dy) = (bx -. ax, by -. ay) in
+  let d = sqrt(dx *. dx +. dy *. dy) in
+  let (nx, ny) = (0. -. dy /. d *. w /. 2., dx /. d *. w /. 2.) in
+  [(ax +. nx, ay +. ny), (bx +. nx, by +. ny), (bx -. nx, by -. ny), (ax -. nx, ay -. ny)] in
+
+# One eye at x, in face units, slanted by deg: the game's eye(). #
+let eye = fun (x, deg) : (Float, Float) ->
+  let y = 100. in
+  let r = float_of_int(6 + eye_size / 7) in
+  let t = deg *. pi /. 180. in
+  let turn = fun (px, py) : (Float, Float) ->
+    (x +. px *. cos(t) -. py *. sin(t), y +. px *. sin(t) +. py *. cos(t)) in
+  case eye_style
+  | XEyes =>
+    [face_shape(("eye", stroke_eye((turn((0. -. r, 0. -. r)), turn((r, r)), 3. +. r /. 6.)), 0., "black", "black")),
+     face_shape(("eye", stroke_eye((turn((0. -. r, r)), turn((r, 0. -. r)), 3. +. r /. 6.)), 0., "black", "black"))]
+  | StarEyes => [face_shape(("eye", star_eye((x, y, r *. 1.5, t, 0)), 2., "#e0a800", "#ffcc33"))]
+  | HeartEyes => [face_shape(("eye", heart_eye((x, y, r *. 1.4, t, 0)), 2., "#a01040", "#e0245e"))]
+  | PlainEyes =>
+    let k = 1. -. 0.88 *. float_of_int(eye_shape) /. 100. in
+    let iris_r = if iris_size > 0 then r +. float_of_int(iris_size) *. 0.25 else 0. in
+    let white_r =
+      if iris_r >. 0. && eye_whites > 0 then iris_r +. float_of_int(eye_whites) *. 0.25 else 0. in
+    let outer = if iris_r >. 0. then iris_r else r in
+    # the shine: toward the light, up and to the left, in the picture's #
+    # own frame, kept within half the eye #
+    let (wx, wy) = (-0.3 *. outer, -0.3 *. outer) in
+    let (ux, uy0) = (cos(t) *. wx +. sin(t) *. wy, (0. -. sin(t) *. wx +. cos(t) *. wy) /. k) in
+    let len = sqrt(ux *. ux +. uy0 *. uy0) in
+    let most = outer *. 0.55 in
+    let (ux, uy) = if len >. most then (ux *. most /. len, uy0 *. most /. len) else (ux, uy0) in
+    let (dx, dy) = (cos(t) *. ux -. sin(t) *. uy *. k, sin(t) *. ux +. cos(t) *. uy *. k) in
+    let shine_r = fmin((r *. float_of_int(shine_size) /. 150., outer *. k *. 0.45)) in
+    (if white_r >. 0. then [face_shape(("eye", round_eye((x, y, white_r, k, t, 20, 0)), 2., "black", "#ffffff"))] else [])
+    @ (if iris_r >. 0. then [face_shape(("eye", round_eye((x, y, iris_r, k, t, 20, 0)), 0., iris_color, iris_color))] else [])
+    @ [face_shape(("eye", round_eye((x, y, r, k, t, 16, 0)), 0., "black", "black"))]
+    @ (if shine_r >. 0.3
+       then [face_shape(("eye", round_eye((x +. dx, y +. dy, shine_r, 1., 0., 10, 0)), 0., "white", "white"))]
+       else [])
+  end in
+
+# How far one eye reaches to either side of its middle, as drawn: a #
+# plain eye's outermost ring (eye white, iris or pupil), squashed and #
+# slanted; a star's or heart's points; an x's two strokes. #
+let eye_half_w =
+  let r = float_of_int(6 + eye_size / 7) in
+  let t = float_of_int(eye_angle) *. pi /. 180. in
+  case eye_style
+  | XEyes => r *. (fabs(cos(t)) +. fabs(sin(t)))
+  | StarEyes => r *. 1.5
+  | HeartEyes => r *. 1.4
+  | PlainEyes =>
+    let k = 1. -. 0.88 *. float_of_int(eye_shape) /. 100. in
+    let iris_r = if iris_size > 0 then r +. float_of_int(iris_size) *. 0.25 else 0. in
+    let white_r =
+      if iris_r >. 0. && eye_whites > 0 then iris_r +. float_of_int(eye_whites) *. 0.25 else 0. in
+    let ring = if white_r >. 0. then white_r else if iris_r >. 0. then iris_r else r in
+    sqrt(ring *. cos(t) *. ring *. cos(t) +. ring *. k *. sin(t) *. ring *. k *. sin(t))
+  end in
+
+# ...and how far above and below it. #
+let eye_half_h =
+  let r = float_of_int(6 + eye_size / 7) in
+  let t = float_of_int(eye_angle) *. pi /. 180. in
+  case eye_style
+  | XEyes => r *. (fabs(cos(t)) +. fabs(sin(t)))
+  | StarEyes => r *. 1.5
+  | HeartEyes => r *. 1.4
+  | PlainEyes =>
+    let k = 1. -. 0.88 *. float_of_int(eye_shape) /. 100. in
+    let iris_r = if iris_size > 0 then r +. float_of_int(iris_size) *. 0.25 else 0. in
+    let white_r =
+      if iris_r >. 0. && eye_whites > 0 then iris_r +. float_of_int(eye_whites) *. 0.25 else 0. in
+    let ring = if white_r >. 0. then white_r else if iris_r >. 0. then iris_r else r in
+    sqrt(ring *. sin(t) *. ring *. sin(t) +. ring *. k *. cos(t) *. ring *. k *. cos(t))
+  end in
+
+# The eyes keep the eye gap between them, edge to edge, however big, #
+# narrow or slanted they are: each eye's middle is half the gap and its #
+# own half-width out from the face's middle line. The default gap, 38, #
+# puts the default eyes where they always were, 32 out. They are mirror #
+# images: the left slants by the angle, the right by its opposite, so #
+# the outer corners rise together. #
+let eye_dx = float_of_int(eye_gap) /. 2. +. eye_half_w in
+let eyes =
+  eye((100. -. eye_dx, float_of_int(eye_angle)))
+  @ eye((100. +. eye_dx, 0. -. float_of_int(eye_angle))) in
+
+# The head, wide enough for its eyes: at the eye line it reaches 8 past #
+# each eye's outer edge, or it is stretched sideways about its middle #
+# until it does. Where the outline crosses that line is found edge by #
+# edge, the last point joined back to the first. #
+let reach_at : ([Vertex], Float, Float) -> Float =
+  fun (vs, cx, y) ->
+    let first = case vs | [] => (cx, y) | v :: _ => v.at end in
+    let go : ([Vertex], Float) -> Float =
+      fun (ws, best) ->
+        case ws
+        | [] => best
+        | w :: tl =>
+          let (x1, y1) = w.at in
+          let (x2, y2) = case tl | [] => first | u :: _ => u.at end in
+          if (y1 -. y) *. (y2 -. y) <=. 0. && fabs(y2 -. y1) >. 0.0001 then
+            let x = x1 +. (x2 -. x1) *. (y -. y1) /. (y2 -. y1) in
+            go((tl, fmax((best, fabs(x -. cx)))))
+          else go((tl, best))
+        end in
+    go((vs, 0.)) in
+let head_reach =
+  case head | [] => 0. | h :: _ => reach_at((Drawing.points_of(h), crown_x, snd(to_head((100., 100.))))) end in
+let head_widen =
+  if head_reach >. 0. then fmax((1., (eye_dx +. eye_half_w +. 8.) *. face_scale /. head_reach)) else 1. in
+
+# ...and tall enough, as a deep mouth makes it longer (THE MOUTH): once #
+# the eyes reach 25% higher above the head's middle than the usual eyes #
+# do (23.6), its top half grows with them, so the hair, which grows with #
+# it, keeps its fringe above them. And the eyes stay 8 inside the outline #
+# all round, which grows the bottom half too: for 24 points around the #
+# eye, grown by 8, the half-height an ellipse as wide as the head needs #
+# to have the point (px, py) inside it, |py| / sqrt(1 - (px / a)^2), #
+# above the middle (s = -1) or below it (s = 1). In face units, of a #
+# head 80 from its middle to its crown and its chin. #
+let eye_need : (Float, Int) -> Float =
+  fun (s, i) ->
+    if i == 24 then 0.
+    else
+      let t = 2. *. pi *. float_of_int(i) /. 24. in
+      let px = eye_dx +. (eye_half_w +. 8.) *. cos(t) in
+      let py = 0. -. 10.6 +. (eye_half_h +. 8.) *. sin(t) in
+      let u = fmin((0.99, fabs(px) /. (80. *. head_widen))) in
+      let here = if py *. s >. 0. then fabs(py) /. sqrt(1. -. u *. u) else 0. in
+      fmax((here, eye_need((s, i + 1)))) in
+let head_lift =
+  let forehead = 80. *. (10.6 +. eye_half_h) /. (23.6 *. 1.25) in
+  fmax((0., fmax((forehead, eye_need((-1., 0)))) -. 80.)) in
+let head_drop = fmax((0., eye_need((1., 0)) -. 80.)) in
+let (head_cy, head_ry) = (crown_y +. 80. *. face_scale, 80. *. face_scale) in
+let fit_points : [Vertex] -> [Vertex] =
+  fun vs ->
+    case vs
+    | [] => []
+    | v :: tl =>
+      let (x, y) = v.at in
+      let grow = if y <. head_cy then head_lift else head_drop in
+      (at = (x, head_cy +. (y -. head_cy) *. (1. +. grow /. 80.)), label = v.label)
+      :: fit_points(tl)
+    end in
+let head =
+  case stretch((head, crown_x, 1000000., head_widen, 1.))
+  | [] => []
+  | h :: tl => Drawing.with_points(h, fit_points(Drawing.points_of(h))) :: tl
+  end in
+
+# Where the eyes reach down to, for the mouth to clear them (THE MOUTH): #
+# at x, in face units, the lowest point of the right eye's outline right #
+# above it -- and so of the left's, its mirror image -- or -1000 where #
+# no eye is. The outline is the eye's own polygon: a plain eye's #
+# outermost ring, a star's or heart's points, an x's two strokes. #
+let below_poly : ([Point], Float) -> Float =
+  fun (ps, x) ->
+    let first = case ps | [] => (x, 0.) | p :: _ => p end in
+    let go : ([Point], Float) -> Float =
+      fun (qs, best) ->
+        case qs
+        | [] => best
+        | (x1, y1) :: tl =>
+          let (x2, y2) = case tl | [] => first | q :: _ => q end in
+          if (x1 -. x) *. (x2 -. x) <=. 0. && fabs(x2 -. x1) >. 0.0001 then
+            go((tl, fmax((best, y1 +. (y2 -. y1) *. (x -. x1) /. (x2 -. x1)))))
+          else go((tl, best))
+        end in
+    go((ps, -1000.)) in
+let eye_outlines : [[Point]] =
+  let (x, y) = (100. +. eye_dx, 100.) in
+  let r = float_of_int(6 + eye_size / 7) in
+  let t = 0. -. float_of_int(eye_angle) *. pi /. 180. in
+  let turn = fun (px, py) : (Float, Float) ->
+    (x +. px *. cos(t) -. py *. sin(t), y +. px *. sin(t) +. py *. cos(t)) in
+  case eye_style
+  | XEyes =>
+    [stroke_eye((turn((0. -. r, 0. -. r)), turn((r, r)), 3. +. r /. 6.)),
+     stroke_eye((turn((0. -. r, r)), turn((r, 0. -. r)), 3. +. r /. 6.))]
+  | StarEyes => [star_eye((x, y, r *. 1.5, t, 0))]
+  | HeartEyes => [heart_eye((x, y, r *. 1.4, t, 0))]
+  | PlainEyes =>
+    let k = 1. -. 0.88 *. float_of_int(eye_shape) /. 100. in
+    let iris_r = if iris_size > 0 then r +. float_of_int(iris_size) *. 0.25 else 0. in
+    let white_r =
+      if iris_r >. 0. && eye_whites > 0 then iris_r +. float_of_int(eye_whites) *. 0.25 else 0. in
+    let ring = if white_r >. 0. then white_r else if iris_r >. 0. then iris_r else r in
+    [round_eye((x, y, ring, k, t, 20, 0))]
+  end in
+let eye_below = fun x : Float ->
+  let ax = 100. +. fabs(x -. 100.) in
+  let go : [[Point]] -> Float =
+    fun os -> case os | [] => -1000. | o :: tl => fmax((below_poly((o, ax)), go(tl))) end in
+  go(eye_outlines) in
+
+# THE WITCH #
+
+# Messed Up Dress Up's witch: her hat and dress in one color (purple, #
+# to start), a spider web on the dress, a trim on the hat's band and #
+# her stockings, boots and a belt; a witch's nose, pointing left, out #
+# or right, as long as its slider says; and, off to start, a tuxedo cat #
+# on her shoulder and a broom in her hand, each with its colors or its #
+# size. #
+
+let witch_colors = ^^livelit(Drawing.^choice@<(String, String)>(
+  [("purple", ("#6a2c91", "#3d1854")),
+   ("black", ("#1f1f22", "#000000")),
+   ("green", ("#2e7d32", "#174a1a")),
+   ("blue", ("#1e3a8a", "#0f1f4a")),
+   ("red", ("#b71c1c", "#5c0e0e")),
+   ("orange", ("#f28c28", "#8a4a10")),
+   ("pink", ("#ff69b4", "#8a3462"))])(("#6a2c91", "#3d1854"))) in
+let (witch_fill, witch_ink) = witch_colors in
+let web_color = ^^livelit(Drawing.^choice@<String>(
+  [("green", "#3fae4a"),
+   ("white", "#ffffff"),
+   ("silver", "#c0c0c0"),
+   ("orange", "#f28c28"),
+   ("black", "#1f1f22"),
+   ("lilac", "#b38bff")])("#3fae4a")) in
+let trim_color = ^^livelit(Drawing.^choice@<String>(
+  [("orange", "#f28c28"),
+   ("green", "#3fae4a"),
+   ("purple", "#6a2c91"),
+   ("black", "#1f1f22"),
+   ("white", "#ffffff"),
+   ("red", "#e53935")])("#f28c28")) in
+let boot_color = ^^livelit(Drawing.^choice@<String>(
+  [("black", "#1f1f22"),
+   ("purple", "#6a2c91"),
+   ("brown", "#4a2c17"),
+   ("red", "#b71c1c"),
+   ("green", "#2e7d32"),
+   ("white", "#ffffff")])("#1f1f22")) in
+let nose_dir = ^^livelit(Drawing.^choice@<Float>(
+  [("left", -1.),
+   ("out", 0.),
+   ("right", 1.)])(1.)) in
+let nose_length = ^^livelit(Drawing.^slider("witch nose length", 30, 400)(100)) in
+let cat_on = ^^livelit(Drawing.^choice@<Bool>(
+  [("no cat", false),
+   ("a cat on her shoulder", true)])(false)) in
+let cat_fur = ^^livelit(Drawing.^choice@<String>(
+  [("black", "#1f1f22"),
+   ("brown", "#6b4226"),
+   ("ginger", "#e8862a"),
+   ("grey", "#9ca3af"),
+   ("white", "#ffffff"),
+   ("purple", "#8b5cf6")])("#1f1f22")) in
+let cat_white = ^^livelit(Drawing.^choice@<String>(
+  [("white", "#ffffff"),
+   ("none", "none"),
+   ("cream", "#f7ead8"),
+   ("pink", "#ffd1dc"),
+   ("silver", "#c0c0c0"),
+   ("black", "#1f1f22")])("#ffffff")) in
+let cat_eyes = ^^livelit(Drawing.^choice@<String>(
+  [("green-gold", "#c6d43a"),
+   ("gold", "#e0a800"),
+   ("blue", "#3b82f6"),
+   ("green", "#22c55e"),
+   ("orange", "#f28c28")])("#c6d43a")) in
+let cat_nose = ^^livelit(Drawing.^choice@<String>(
+  [("pink", "#f4a0b0"),
+   ("hotpink", "#ff69b4"),
+   ("black", "#1f1f22"),
+   ("brown", "#8a4b1c")])("#f4a0b0")) in
+let cat_size = ^^livelit(Drawing.^slider("cat size", 10, 1000)(100)) in
+let broom_on = ^^livelit(Drawing.^choice@<Bool>(
+  [("no broom", false),
+   ("a broom in her hand", true)])(false)) in
+let broom_size = ^^livelit(Drawing.^slider("broom size", 10, 1000)(100)) in
+
+# How far the witch's nose hangs below its top, in face units: a side #
+# nose 1.1 of its height (30), one pointing out 1.3 of its height times #
+# its length. THE MOUTH moves down to clear it. #
+let nose_len = float_of_int(nose_length) /. 100. in
+let nose_out = nose_dir >. -0.5 && nose_dir <. 0.5 in
+let nose_hang = if nose_out then 1.3 *. nose_len else 1.1 in
+
+# THE MOUTH #
+
+let smile = ^^livelit(Drawing.^slider("smile", -100, 200)(85)) in
+let mouth_open = ^^livelit(Drawing.^slider("mouth open", 0, 300)(0)) in
+let teeth = ^^livelit(Drawing.^choice@<Teeth>(
+  [("normal teeth", NormalTeeth), ("spiky", SpikyTeeth), ("no teeth", NoTeeth)])(NormalTeeth)) in
+let spikes = ^^livelit(Drawing.^slider("spiky teeth", 0, 15)(5)) in
+let tongue = ^^livelit(Drawing.^choice@<Tongue>(
+  [("tongue in", TongueIn), ("sticking out", TongueOut), ("no tongue", NoTongue)])(TongueIn)) in
+let tongue_length = ^^livelit(Drawing.^slider("tongue length", 10, 300)(100)) in
+let tongue_width = ^^livelit(Drawing.^slider("tongue width", 30, 250)(100)) in
+let tongue_color = ^^livelit(Drawing.^choice@<String>(
+  [("pink", "#e75480"), ("rose", "#ff6f91"), ("red", "#d62f4b"), ("magenta", "#c71585"),
+   ("purple", "#8e44ad"), ("green", "#2ecc71"), ("blue", "#3b82f6")])("#e75480")) in
+# each tongue color darkened, for its outline (the game mixes in 45% #
+# black) #
+let tongue_line =
+  if tongue_color == "#e75480" then "#7f2e46"
+  else if tongue_color == "#ff6f91" then "#8c3d50"
+  else if tongue_color == "#d62f4b" then "#761a29"
+  else if tongue_color == "#c71585" then "#6d0c49"
+  else if tongue_color == "#8e44ad" then "#4e255f"
+  else if tongue_color == "#2ecc71" then "#19703e"
+  else "#204887" in
+
+
+# The lips. Each is a quadratic curve from the corner (60, 150) to the #
+# corner (140, 150), pulled toward a control point (100, c): a smile's #
+# control is below the corners, a frown's above. #
+let o = float_of_int(mouth_open) in
+let q = 110. +. 0.8 *. float_of_int(smile) in
+# Open, a smile's top lip flattens to a line and stops there while its #
+# bottom drops; a frown's bottom flattens and its top rises. #
+let (upper, lower) =
+  let gap = o *. 0.4 in
+  let t = fmin((1., o /. 100.)) in
+  let (u, l) = if q >=. 150. then (q +. (150. -. q) *. t, q +. gap) else (q -. gap, q +. (150. -. q) *. t) in
+  (fmin((u, l)), fmax((u, l))) in
+# A curve's highest point is halfway between the corners and control. #
+let lip_top = fun c : Float -> fmin((150., 75. +. c /. 2.)) -. 2.5 in
+# An opening frown would rise into the nose's place: the mouth moves #
+# down instead, by as much as its top rose. #
+let rise0 = if mouth_open == 0 then 0. else fmax((0., lip_top(q) -. lip_top(upper))) in
+# And big eyes close together reach down past its corners: it moves #
+# down until, all along its top curve as drawn (a smile's corners, a #
+# frown's middle, an open mouth's upper lip), it is 8 below the eyes #
+# right above it (THE EYES), as the game does. The usual eyes never #
+# move it. #
+let clear_of_eyes : Int -> Float =
+  fun i ->
+    if i > 40 then 0.
+    else
+      let x = 60. +. 2. *. float_of_int(i) in
+      let t = (x -. 60.) /. 80. in
+      let c = if mouth_open == 0 then q else upper in
+      let lip = 150. +. rise0 +. 2. *. t *. (1. -. t) *. (c -. 150.) -. 2.5 in
+      fmax((eye_below(x) +. 8. -. lip, clear_of_eyes(i + 1))) in
+# ...and the witch's nose: its bottom (106, the nose's top, and its #
+# hang) and 6 more, above the mouth's top as drawn. #
+let nose_clear =
+  let c = if mouth_open == 0 then q else upper in
+  fmax((0., 106. +. nose_hang *. 30. +. 6. -. (lip_top(c) +. rise0))) in
+let rise = rise0 +. fmax((clear_of_eyes(0), nose_clear)) in
+# The lip with control c, at x. #
+let lip_y = fun (c, x) : (Float, Float) ->
+  let t = (x -. 60.) /. 80. in
+  150. +. rise +. 2. *. t *. (1. -. t) *. (c -. 150.) in
+# Points along a lip from x0 to x1, n + 1 of them, each with dy added #
+# and kept between the lips. #
+let along_lip : (Float, Float, Float, Float, Int, Int) -> [Point] =
+  fun (c, x0, x1, dy, n, i) ->
+    if i > n then []
+    else
+      let x = x0 +. (x1 -. x0) *. float_of_int(i) /. float_of_int(n) in
+      let y = lip_y((c, x)) +. dy in
+      let y = if mouth_open == 0 then y else fmax((lip_y((upper, x)), fmin((lip_y((lower, x)), y)))) in
+      (x, y) :: along_lip((c, x0, x1, dy, n, i + 1)) in
+let reverse : [Point] -> [Point] =
+  fun ps -> case ps | [] => [] | p :: tl => reverse(tl) @ [p] end in
+# the lips' middles, and the mouth's depth between them #
+let top = if mouth_open == 0 then 75. +. q /. 2. +. rise else 75. +. upper /. 2. +. rise in
+let bottom = if mouth_open == 0 then top else 75. +. lower /. 2. +. rise in
+let depth = bottom -. top in
+
+# A tongue sticking out: a band with a round end, hanging over the #
+# lower lip, and a line down its middle. #
+let tongue_out =
+  let w = 26. *. float_of_int(tongue_width) /. 100. in
+  let len = 30. *. float_of_int(tongue_length) /. 100. in
+  let r = w /. 2. in
+  let y0 = if mouth_open == 0 then top -. 2. else fmax((top +. 2., bottom -. depth *. 0.4)) in
+  let y1 = bottom +. len in
+  let tip : Int -> [Point] =
+    fun i ->
+      if i > 8 then []
+      else
+        let a = pi *. float_of_int(i) /. 8. in
+        (100. -. r *. cos(a), y1 +. r *. sin(a)) :: tip(i + 1) in
+  [face_shape(("mouth", [(100. -. r, y0)] @ tip(0) @ [(100. +. r, y0)], 2., tongue_line, tongue_color)),
+   Path((name = "mouth",
+         points = on_head([(100., y0 +. 4.), (100., y0 +. (y1 +. r -. y0) *. 0.7)]),
+         stroke = (width = 2. *. face_scale, color = tongue_line)))] in
+
+# Spiky teeth: n triangles, along the lower lip pointing up and the #
+# upper pointing down, by turns. #
+let spiky : Int -> Picture =
+  fun j ->
+    if j > spikes then []
+    else
+      let d = float_of_int(spikes + 1) in
+      let x = 60. +. 80. *. float_of_int(j) /. d in
+      let up = j == 1 || j == 3 || j == 5 || j == 7 || j == 9 || j == 11 || j == 13 || j == 15 in
+      let y = lip_y((if up then lower else upper, x)) in
+      let tip = if up then y -. 10. else y +. 10. in
+      face_shape(("mouth", [(x -. 6., y), (x +. 6., y), (x, tip)], 2., "black", "white"))
+      :: spiky(j + 1) in
+
+let mouth =
+  let outline = along_lip((lower, 60., 140., 0., 12, 0)) @ reverse(along_lip((upper, 60., 140., 0., 12, 0))) in
+  let line = fun ps : [Point] ->
+    Path((name = "mouth", points = on_head(ps), stroke = (width = 5. *. face_scale, color = "black"))) in
+  if mouth_open == 0 then
+    (case tongue | TongueOut => tongue_out | _ => [] end)
+    @ [line(along_lip((q, 60., 140., 0., 12, 0)))]
+  else
+    let t = fmax((3., fmin((10., depth *. 0.2)))) in
+    [face_shape(("mouth", outline, 0., "#5c1a1a", "#5c1a1a"))]
+    @ (if depth >. 4.
+       then [face_shape(("mouth", round_eye((100., top +. depth *. 0.42, 22., depth *. 0.3 /. 22., 0., 16, 0)),
+                         0., "#160606", "#160606"))]
+       else [])
+    @ (case tongue
+       | NoTongue => []
+       | _ =>
+         let cy = bottom -. depth *. 0.06 in
+         let ry = fmax((3., depth *. 0.34)) in
+         let arc : Int -> [Point] =
+           fun i ->
+             if i > 10 then []
+             else
+               let a = pi *. float_of_int(i) /. 10. in
+               let x = 100. +. 27. *. cos(a) in
+               (x, fmax((lip_y((upper, x)), fmin((lip_y((lower, x)), cy -. ry *. sin(a)))))) :: arc(i + 1) in
+         [face_shape(("mouth", along_lip((lower, 73., 127., 0., 8, 0)) @ arc(0), 1.5, tongue_line, tongue_color))]
+       end)
+    @ (case teeth
+       | NormalTeeth =>
+         [face_shape(("mouth", along_lip((upper, 60., 140., 0., 12, 0))
+                               @ reverse(along_lip((upper, 60., 140., t, 12, 0))), 0., "white", "white")),
+          face_shape(("mouth", along_lip((lower, 60., 140., 0. -. t *. 0.85, 12, 0))
+                               @ reverse(along_lip((lower, 60., 140., 0., 12, 0))), 0., "white", "white"))]
+       | _ => []
+       end)
+    @ [line(outline @ [(60., 150. +. rise)])]
+    @ (case teeth | SpikyTeeth => spiky(1) | _ => [] end)
+    @ (case tongue | TongueOut => tongue_out | _ => [] end) in
+
+# A deep mouth stretches the head's lower half, as in the game: every #
+# point below the head's middle moves down, more the lower it is, by as #
+# much as the mouth needs below it (12 under the lower lip) or rose -- #
+# less what big eyes already stretched it (THE EYES): the head takes the #
+# larger of the two. #
+let stretch_by =
+  fmax((0., fmax((rise, bottom +. 2.5 +. 12. -. 190.6)) -. head_drop)) *. face_scale in
+let (head_cy, head_ry) = (crown_y +. 80. *. face_scale, 80. *. face_scale) in
+let stretch_head : [Vertex] -> [Vertex] =
+  fun vs ->
+    case vs
+    | [] => []
+    | v :: tl =>
+      let (x, y) = v.at in
+      (at = (x, if y >. head_cy then y +. stretch_by *. (y -. head_cy) /. head_ry else y),
+       label = v.label)
+      :: stretch_head(tl)
+    end in
+let head_shaped : Picture =
+  case head
+  | [] => []
+  | h :: tl => Drawing.with_points(h, stretch_head(Drawing.points_of(h))) :: tl
+  end in
+
+# HER THINGS #
+
+# Points as vertices, and shapes made of them. #
+let verts : [Point] -> [Vertex] =
+  fun ps -> case ps | [] => [] | p :: tl => (at = p, label = Plain) :: verts(tl) end in
+let shape = fun (name, ps, w, ink, fill) : (String, [Point], Float, String, String) ->
+  Polygon((name = name, points = verts(ps), stroke = (width = w, color = ink), fill = fill)) in
+let stroke_of = fun (name, ps, w, ink) : (String, [Point], Float, String) ->
+  Path((name = name, points = verts(ps), stroke = (width = w, color = ink))) in
+# n points round an oval about (cx, cy). #
+let oval_pts : (Float, Float, Float, Float, Int, Int) -> [Point] =
+  fun (cx, cy, rx, ry, n, i) ->
+    if i == n then []
+    else
+      let t = 2. *. pi *. float_of_int(i) /. float_of_int(n) in
+      (cx +. rx *. cos(t), cy +. ry *. sin(t)) :: oval_pts((cx, cy, rx, ry, n, i + 1)) in
+
+# Where the body is: the shirt's hips and neck, the legs' feet, the #
+# shoulders. #
+let at_or = fun (f, d) : (Found, Point) -> case f | Found(p) => p | Missing => d end in
+let (lhx, lhy) = at_or((Drawing.anchor(shirt, "left hip"), (100., 200.))) in
+let (rhx, rhy) = at_or((Drawing.anchor(shirt, "right hip"), (220., 200.))) in
+let (lfx, lfy) = at_or((Drawing.anchor(body, "left foot"), (130., 340.))) in
+let (rfx, rfy) = at_or((Drawing.anchor(body, "right foot"), (190., 340.))) in
+let (nkx, nky) = at_or((Drawing.anchor(shirt, "neck"), (160., 60.))) in
+let hip_y = (lhy +. rhy) /. 2. in
+let foot_y = (lfy +. rfy) /. 2. in
+let mid_x = (lhx +. rhx) /. 2. in
+let hip_half = (rhx -. lhx) /. 2. in
+
+# Her dress: the shirt with long sleeves, in her color (THE SHIRT's #
+# blue and its outline become hers), and a long skirt from the hips, #
+# flaring to a ragged hem 72% of the way down the legs. #
+let dressed : Picture -> Picture =
+  fun ps ->
+    let swap = fun c : String ->
+      if c == "#5b8bd0" then witch_fill else if c == "#2b4a6f" then witch_ink else c in
+    case ps
+    | [] => []
+    | Polygon(p) :: tl =>
+      Polygon((name = p.name, points = p.points,
+               stroke = (width = p.stroke.width, color = swap(p.stroke.color)), fill = swap(p.fill)))
+      :: dressed(tl)
+    | Path(p) :: tl =>
+      Path((name = p.name, points = p.points, stroke = (width = p.stroke.width, color = swap(p.stroke.color))))
+      :: dressed(tl)
+    end in
+let hem_y = hip_y +. 0.72 *. (foot_y -. hip_y) in
+let flare = hip_half +. 26. +. 0.25 *. (hem_y -. hip_y) in
+# the hem, right to left, a point every other step #
+let hem : (Int, Bool) -> [Point] =
+  fun (i, down) ->
+    if i > 18 then []
+    else
+      (mid_x +. flare -. float_of_int(i) *. flare /. 9., if down then hem_y +. 18. else hem_y)
+      :: hem((i + 1, !down)) in
+let skirt = [shape(("skirt", [(lhx, hip_y -. 10.), (rhx, hip_y -. 10.)] @ hem((0, false)), 2.5, witch_ink, witch_fill))] in
+
+# A spider web: eight threads out from its middle and three rings across #
+# them, in the web's color. A few on the dress, well inside it. #
+let web = fun (cx, cy, r) : (Float, Float, Float) ->
+  let around : (Float, Int) -> [Point] =
+    fun (f, i) ->
+      if i > 8 then []
+      else
+        let t = pi *. float_of_int(i) /. 4. in
+        (cx +. f *. r *. cos(t), cy +. f *. r *. sin(t)) :: around((f, i + 1)) in
+  let threads : Int -> Picture =
+    fun i ->
+      if i == 8 then []
+      else
+        let t = pi *. float_of_int(i) /. 4. in
+        stroke_of(("web", [(cx, cy), (cx +. r *. cos(t), cy +. r *. sin(t))], 1.2, web_color)) :: threads(i + 1) in
+  threads(0)
+  @ [stroke_of(("web", around((0.35, 0)), 1., web_color)), stroke_of(("web", around((0.65, 0)), 1., web_color)),
+     stroke_of(("web", around((0.95, 0)), 1., web_color))] in
+let torso_webs =
+  web((mid_x -. 0.42 *. hip_half, nky +. 0.48 *. (hip_y -. nky), 0.3 *. hip_half))
+  @ web((mid_x +. 0.42 *. hip_half, nky +. 0.48 *. (hip_y -. nky), 0.3 *. hip_half)) in
+let skirt_webs =
+  web((mid_x -. 0.5 *. flare, hip_y +. 0.42 *. (hem_y -. hip_y), 0.24 *. flare))
+  @ web((mid_x +. 0.5 *. flare, hip_y +. 0.42 *. (hem_y -. hip_y), 0.24 *. flare))
+  @ web((mid_x, hip_y +. 0.8 *. (hem_y -. hip_y), 0.18 *. flare)) in
+
+# A belt round her waist, a gold buckle in the middle. #
+let belt =
+  [shape(("belt", [(lhx -. 3., hip_y -. 16.), (rhx +. 3., hip_y -. 16.), (rhx +. 3., hip_y -. 4.),
+                   (lhx -. 3., hip_y -. 4.)], 2., "#000000", boot_color)),
+   stroke_of(("buckle", [(mid_x -. 11., hip_y -. 19.), (mid_x +. 11., hip_y -. 19.), (mid_x +. 11., hip_y -. 1.),
+                         (mid_x -. 11., hip_y -. 1.), (mid_x -. 11., hip_y -. 19.)], 4., "#f2c230")),
+   stroke_of(("buckle", [(mid_x -. 3., hip_y -. 10.), (mid_x +. 9., hip_y -. 10.)], 2.5, "#f2c230"))] in
+
+# Striped stockings, hip to foot: her skin, banded in the trim color. #
+let stocking = fun (x, y0, y1) : (Float, Float, Float) ->
+  let stripes : Float -> Picture =
+    fun y ->
+      if y >. y1 -. 9. then []
+      else
+        shape(("stocking", [(x -. 9., y), (x +. 9., y), (x +. 9., y +. 9.), (x -. 9., y +. 9.)], 0., trim_color, trim_color))
+        :: stripes(y +. 18.) in
+  shape(("leg", [(x -. 9., y0), (x +. 9., y0), (x +. 9., y1), (x -. 9., y1)], 2., "#8a5a44", "#f1c27d"))
+  :: stripes(y0) in
+let stockings = stocking((lfx, hip_y, lfy)) @ stocking((rfx, hip_y, rfy)) in
+
+# Her boots: ankle boots whose pointed toes curl up, a strap round the #
+# ankle and a gold buckle on its outside. #
+let boot = fun (side, fx, fy) : (Float, Float, Float) ->
+  let p = fun (x, y) : (Float, Float) -> (fx +. side *. x, fy +. y) in
+  [shape(("boot", [p((-12., -30.)), p((12., -30.)), p((13., 6.)), p((32., 12.)), p((48., 4.)), p((54., -2.)),
+                   p((50., 12.)), p((40., 26.)), p((-13., 26.))], 2.5, "#000000", boot_color)),
+   shape(("boot", [p((-13., -16.)), p((13., -16.)), p((13., -8.)), p((-13., -8.))], 0., "#2a2a2e", "#2a2a2e")),
+   stroke_of(("buckle", [p((1., -18.)), p((11., -18.)), p((11., -6.)), p((1., -6.)), p((1., -18.))], 2.6, "#f2c230"))] in
+let boots = boot((1., rfx, rfy)) @ boot((-1., lfx, lfy)) in
+
+# Her hat, in face units on the round head, grown with the head as the #
+# hair is: a wide brim just below the crown (wider for curly hair, so it #
+# covers it), a tall cone bent over at the tip, a band in the trim color #
+# and a gold buckle. #
+let hat_verts : [Point] -> [Vertex] =
+  fun ps ->
+    case ps
+    | [] => []
+    | (u, v) :: tl =>
+      (at = to_head((100. +. (u -. 100.) *. head_widen, 110.6 +. (v -. 110.6) *. (1. +. head_lift /. 80.))), label = Plain)
+      :: hat_verts(tl)
+    end in
+let hat_shape = fun (name, ps, w, ink, fill) : (String, [Point], Float, String, String) ->
+  Polygon((name = name, points = hat_verts(ps), stroke = (width = w *. face_scale, color = ink), fill = fill)) in
+let brim = case hairdo | Curly => 130. | _ => 128. end in
+let hat_here =
+  [hat_shape(("hat", oval_pts((100., 44., brim, 18., 28, 0)), 3., witch_ink, witch_fill)),
+   hat_shape(("hat", quad(((46., 42.), (72., -24.), (98., -84.), 0)) @ quad(((98., -84.), (112., -116.), (154., -126.), 0))
+                     @ quad(((154., -126.), (128., -104.), (122., -80.), 0)) @ quad(((122., -80.), (134., -20.), (154., 42.), 0))
+                     @ quad(((154., 42.), (100., 54.), (46., 42.), 0)), 3., witch_ink, witch_fill)),
+   hat_shape(("hat", quad(((52., 24.), (100., 34.), (149., 24.), 0)) @ quad(((152., 38.), (100., 48.), (49., 38.), 0)),
+              0., trim_color, trim_color)),
+   Path((name = "hat", points = hat_verts([(89., 25.), (111., 25.), (111., 41.), (89., 41.), (89., 25.)]),
+         stroke = (width = 3.5 *. face_scale, color = "#f2c230")))] in
+
+# Her nose, in face units on the head (106 is the nose's top, 30 its #
+# height and width), filled a shade darker than her skin, with warts #
+# that grow with it. Pointing left or right it widens out from the top #
+# of its bridge; pointing out, it hangs down the middle, nostrils at its #
+# point. #
+let nose_x = fun x : Float -> 100. +. nose_dir *. (0.06 *. 30. +. (x -. 0.06) *. 30. *. nose_len) in
+let np = fun (x, y) : (Float, Float) -> (nose_x(x), 106. +. 30. *. y) in
+let nl = 1.3 *. nose_len in
+let fp = fun (x, y) : (Float, Float) -> (100. +. x *. 30., 106. +. y *. 30.) in
+let wart = fun ((x, y), r) : (Point, Float) ->
+  face_shape(("wart", oval_pts((x, y, fmax((1.5, r *. 21. *. sqrt(nose_len))), fmax((1.5, r *. 21. *. sqrt(nose_len))), 12, 0)),
+              1.5, "#000000", skin_ink)) in
+let nose =
+  if nose_out then
+    [face_shape(("nose", quad((fp((-0.12, 0.)), fp((-0.26, 0.55 *. nl)), fp((-0.64, 0.86 *. nl)), 0))
+                         @ quad((fp((-0.64, 0.86 *. nl)), fp((-0.46, 1.03 *. nl)), fp((0., nl)), 0))
+                         @ quad((fp((0., nl)), fp((0.46, 1.03 *. nl)), fp((0.64, 0.86 *. nl)), 0))
+                         @ quad((fp((0.64, 0.86 *. nl)), fp((0.26, 0.55 *. nl)), fp((0.12, 0.)), 0)),
+                 3., "#000000", skin_shade)),
+     face_shape(("nose", oval_pts((91., 106. +. 27. *. nl, 3.7, 2.5, 10, 0)), 0., "#111111", "#111111")),
+     face_shape(("nose", oval_pts((109., 106. +. 27. *. nl, 3.7, 2.5, 10, 0)), 0., "#111111", "#111111")),
+     wart((fp((0.14, 0.45 *. nl)), 0.13)), wart((fp((-0.3, 0.74 *. nl)), 0.11))]
+  else
+    [face_shape(("nose", quad((np((0.06, 0.)), np((0.85, 0.3)), np((1.45, 0.86)), 0))
+                         @ quad((np((1.45, 0.86)), np((1.3, 1.)), np((1., 0.96)), 0))
+                         @ quad((np((1., 0.96)), np((0.55, 0.93)), np((0.22, 1.02)), 0))
+                         @ quad((np((0.22, 1.02)), np((0.06, 1.06)), np((0.04, 0.96)), 0)),
+                 3., "#000000", skin_shade)),
+     wart((np((0.6, 0.5)), 0.16)), wart((np((1.12, 0.84)), 0.12)), wart((np((0.36, 0.84)), 0.11))] in
+
+# A tuxedo cat sitting on her left shoulder: its tail hanging behind, #
+# its body, front paws and head with pointed ears, a white blaze, chest #
+# and paws (unless there is no tuxedo), its eyes and nose in their own #
+# colors -- grown or shrunk about where it sits. #
+let (lsx, lsy) = at_or((Drawing.anchor(body, "left shoulder"), (90., 40.))) in
+let (cx, cy) = (lsx +. 8., lsy -. 3.) in
+let tux = if cat_white == "none" then false else true in
+let cat_line = "#000000" in
+let cat_here =
+  [stroke_of(("cat", quad(((cx +. 8., cy -. 6.), (cx +. 34., cy +. 6.), (cx +. 24., cy +. 42.), 0)), 6., cat_fur)),
+   shape(("cat", oval_pts((cx, cy -. 17., 15., 18., 20, 0)), 1.5, cat_line, cat_fur))]
+  @ (if tux
+     then [shape(("cat", quad(((cx -. 9., cy -. 32.), (cx -. 3., cy -. 26.), (cx +. 3., cy -. 32.), 0))
+                         @ quad(((cx +. 3., cy -. 32.), (cx +. 6., cy -. 14.), (cx -. 3., cy -. 2.), 0))
+                         @ quad(((cx -. 3., cy -. 2.), (cx -. 12., cy -. 14.), (cx -. 9., cy -. 32.), 0)), 0., cat_white, cat_white))]
+     else [])
+  @ [shape(("cat", oval_pts((cx -. 8., cy -. 2., 5., 4., 12, 0)), 1.2, cat_line, if tux then cat_white else cat_fur)),
+     shape(("cat", oval_pts((cx +. 2., cy -. 2., 5., 4., 12, 0)), 1.2, cat_line, if tux then cat_white else cat_fur)),
+     shape(("cat", [(cx -. 15., cy -. 44.), (cx -. 13., cy -. 64.), (cx -. 4., cy -. 52.)], 1.5, cat_line, cat_fur)),
+     shape(("cat", [(cx +. 1., cy -. 52.), (cx +. 8., cy -. 64.), (cx +. 9., cy -. 44.)], 1.5, cat_line, cat_fur)),
+     shape(("cat", oval_pts((cx -. 3., cy -. 42., 13., 13., 20, 0)), 1.5, cat_line, cat_fur))]
+  @ (if tux
+     then [shape(("cat", [(cx -. 4.5, cy -. 50.), (cx -. 1.5, cy -. 50.), (cx +. 1., cy -. 36.)]
+                         @ quad(((cx +. 1., cy -. 36.), (cx -. 3., cy -. 31.), (cx -. 7., cy -. 36.), 0)), 0., cat_white, cat_white))]
+     else [])
+  @ [shape(("cat", oval_pts((cx -. 8., cy -. 43., 3.2, 3.8, 12, 0)), 0., cat_eyes, cat_eyes)),
+     shape(("cat", oval_pts((cx +. 2., cy -. 43., 3.2, 3.8, 12, 0)), 0., cat_eyes, cat_eyes)),
+     shape(("cat", oval_pts((cx -. 8., cy -. 43., 1., 3.2, 8, 0)), 0., "#111111", "#111111")),
+     shape(("cat", oval_pts((cx +. 2., cy -. 43., 1., 3.2, 8, 0)), 0., "#111111", "#111111")),
+     shape(("cat", [(cx -. 5., cy -. 37.), (cx -. 1., cy -. 37.), (cx -. 3., cy -. 35.)], 0., cat_nose, cat_nose))] in
+let cat =
+  if cat_on then
+    let k = float_of_int(cat_size) /. 100. in scaled((cat_here, cx, cy, k, k))
+  else [] in
+
+# A broom through her right hand (at the end of THE ARMS' arm): the #
+# stick, leaning a little, 120 above the hand and 52 below it, the #
+# bristles flaring out under a band in the trim color -- grown or shrunk #
+# about the hand, which closes round it. #
+let (rsx, rsy) = at_or((Drawing.anchor(body, "right shoulder"), (230., 40.))) in
+let (hx, hy) =
+  let a = float_of_int(arm_angle) *. pi /. 180. in
+  let len = float_of_int(arm_length) in
+  (rsx -. 12. +. len *. cos(a), rsy +. 12. +. len *. sin(a)) in
+let broom_here =
+  let (tx, ty) = (hx +. 16., hy -. 120.) in
+  let (bx, by) = (hx -. 8., hy +. 52.) in
+  let d = sqrt((bx -. tx) *. (bx -. tx) +. (by -. ty) *. (by -. ty)) in
+  let (ux, uy) = ((bx -. tx) /. d, (by -. ty) /. d) in
+  let bat = fun (along, across) : (Float, Float) -> (bx +. ux *. along -. uy *. across, by +. uy *. along +. ux *. across) in
+  [band(("broom", (tx, ty), (bx, by), 7., (width = 2., color = "#4a2f16"), "#8b5a2b")),
+   shape(("broom", [bat((0., 8.)), bat((58., 25.)), bat((66., 0.)), bat((58., -25.)), bat((0., -8.))], 2.5, "#8a6420", "#d9a441")),
+   stroke_of(("broom", [bat((4., -6.)), bat((58., -18.))], 1.5, "#a87a2a")),
+   stroke_of(("broom", [bat((4., -3.)), bat((58., -9.))], 1.5, "#a87a2a")),
+   stroke_of(("broom", [bat((4., 0.)), bat((58., 0.))], 1.5, "#a87a2a")),
+   stroke_of(("broom", [bat((4., 3.)), bat((58., 9.))], 1.5, "#a87a2a")),
+   stroke_of(("broom", [bat((4., 6.)), bat((58., 18.))], 1.5, "#a87a2a")),
+   band(("broom", bat((5., 9.)), bat((5., -9.)), 6., (width = 0., color = trim_color), trim_color))] in
+let broom =
+  if broom_on then
+    let k = float_of_int(broom_size) /. 100. in scaled((broom_here, hx, hy, k, k))
+  else [] in
+
+# THE PICTURE #
+
+# Stacked as the game stacks the witch: the neck; her striped stockings #
+# and buckled boots; the skirt and its webs; the arms and long sleeves, #
+# under the dress where they join it; the dress and its webs; the belt; #
+# the sleeves' fill; the back of the hair; the head, its eyes, mouth and #
+# nose; the top of the hair; the hat over it; the cat on her shoulder; #
+# raised arms again, over the face; the broom; and the hands, last, the #
+# one holding the broom closed round it. Then her colors: the dress's, #
+# and the skin's. #
+
+let neck_at = Drawing.shift(Drawing.placed(neck, "base", body, "neck"), 0., 8.) in
+let face_at = Drawing.shift(Drawing.placed(head_shaped @ eyes @ mouth @ nose, "chin", neck_at, "top"), 0., 8.) in
+let hair_fit =
+  case Drawing.anchor(hair, "crown")
+  | Found((hx, hy)) =>
+    scaled((hair, hx, hy +. 80. *. face_scale, head_widen, 1. +. head_lift /. 80.))
+  | Missing => hair
+  end in
+let hair_at = Drawing.placed(hair_fit, "crown", face_at, "crown") in
+# the hat was made where the head was drawn: moved as the face was #
+let hat =
+  case Drawing.anchor(face_at, "crown")
+  | Found((fx, fy)) => Drawing.shift(hat_here, fx -. crown_x, fy -. crown_y)
+  | Missing => hat_here
+  end in
+let (right_arm, right_sleeve, right_join, right_hand) =
+  arm((1., Drawing.anchor(body, "right shoulder"))) in
+let (left_arm, left_sleeve, left_join, left_hand) =
+  arm((-1., Drawing.anchor(body, "left shoulder"))) in
+let right_fist =
+  if broom_on then [disc(("hand", (hx, hy), float_of_int(hand_size), skin_line, skin))] else right_hand in
+# The picture's box, which ^picture shows and cuts off at: tall enough #
+# for the hat's tip as the slide opens. #
+let outfit =
+  Drawing.frame((0., -110.5, 320., 400.))
+  @ neck_at @ stockings @ boots @ skirt @ skirt_webs @ right_arm @ left_arm @ right_sleeve
+  @ left_sleeve @ shirt @ torso_webs @ belt @ right_join @ left_join
+  @ Drawing.named(hair_at, hairdo_name) @ face_at
+  @ Drawing.named(hair_at, hairdo_name ++ " top") @ hat @ cat
+  @ arm_front((1., Drawing.anchor(body, "right shoulder")))
+  @ arm_front((-1., Drawing.anchor(body, "left shoulder"))) @ broom @ right_fist @ left_hand in
+let ^^probe(drawn) = ^^livelit(Drawing.^picture((picture = (skinned(dressed(outfit)))))) in
+
+# Where her crown and her hands ended up. #
+(Drawing.anchor(drawn, "crown"), (hx, hy))
+
+# Press a color and the hat and dress change; turn the nose, or slide #
+# its length; put the cat on her shoulder and the broom in her hand, #
+# then grow or shrink them. #

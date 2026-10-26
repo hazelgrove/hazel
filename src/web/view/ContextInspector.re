@@ -7,79 +7,358 @@ let alias_view = (s: string): Node.t =>
 
 let jump_to = entry => Globals.Update.JumpToTile(Language.Ctx.get_id(entry));
 
-let context_entry_view = (~globals, entry: Language.Ctx.entry): Node.t => {
-  let view_type =
-    CodeViewable.view_typ(
-      ~globals,
-      ~settings={
-        secondary: AutoFormat,
-        parenthesization: Defensive,
-        label_format: QuoteWhenNecessary,
-        inline: true,
-        fold_case_clauses: false,
-        fold_fn_bodies: `NoFold,
-        hide_fixpoints: false,
-        show_ascriptions: true,
-        show_filters: false,
-        show_unknown_as_hole: true,
-        hole_tiles: false,
-        project_tables: false,
-      },
+/* Γ prints each entry's type whole, as tiles, at every redraw. On the
+   Scenes slide one entry, a module of livelit definitions, printed to
+   474,304 characters (91,567 type nodes; every member spells out Html.T
+   and the command types): 6 s to print and measure, and then the page
+   froze laying it out (^ticket(396)). The next largest entry on the
+   playground slides is 693 nodes. So past a budget an entry shows an
+   outline instead: a module's member names, else an ellipsis. */
+let typ_budget = 2000;
+
+let typ_within = (budget: int, ty: Language.Typ.t): bool => {
+  let count = ref(0);
+  let f = (cont, x: Language.Typ.t) => {
+    incr(count);
+    count^ > budget ? x : cont(x);
+  };
+  switch (Language.Typ.map_term(~f_typ=f, ty)) {
+  | _ => count^ <= budget
+  | exception _ => false
+  };
+};
+
+let outline_text = (ty: Language.Typ.t): string =>
+  switch (ty.term) {
+  | Sig(items) =>
+    "{ "
+    ++ (
+      Language.Sig.members(items)
+      |> List.map((m: Language.Sig.member) =>
+           switch (m) {
+           | Val(x, _) => "let " ++ x
+           | TypeManifest(x, _)
+           | TypeAbstract(x) => "type " ++ x
+           }
+         )
+      |> String.concat("; ")
+    )
+    ++ " }"
+  | _ => "…"
+  };
+
+let too_large_view = (ty: Language.Typ.t): Node.t =>
+  div(
+    ~attrs=[
+      clss(["typ-too-large"]),
+      Attr.title(
+        "This type has more than "
+        ++ string_of_int(typ_budget)
+        ++ " parts, too many to show here; click to go to its definition",
+      ),
+    ],
+    [text(outline_text(ty))],
+  );
+/* How types print in Gamma: on one line, as the bar prints them */
+let print_settings: Haz3lcore.ExpToSegment.Settings.t = {
+  secondary: AutoFormat,
+  parenthesization: Defensive,
+  label_format: QuoteWhenNecessary,
+  inline: true,
+  fold_case_clauses: false,
+  fold_fn_bodies: `NoFold,
+  hide_fixpoints: false,
+  show_ascriptions: true,
+  show_filters: false,
+  show_unknown_as_hole: true,
+  use_literal_lexemes: false,
+  hole_tiles: false,
+  project_tables: false,
+};
+
+/* About how many columns of code an entry shows on its one line: the
+   CSS's max-width (18em) in code columns, less the unfold toggle's. An
+   entry longer than this is cut off, and gets a toggle to show it whole. */
+let line_columns = 27;
+
+/* An unfolded entry lays its type out to this many columns. Gamma's box
+   has no width of its own (it is as wide as its entries), so an unfolded
+   entry widens it: up to 60 columns, fewer on a narrow window. */
+let unfold_columns = (globals: Globals.t): int => {
+  let px = float_of_int(Js_of_ocaml.Dom_html.window##.innerWidth) -. 64.;
+  max(
+    line_columns,
+    min(60, int_of_float(px /. globals.font_metrics.col_width) - 4),
+  );
+};
+
+/* Laid-out types, by entry and width. Only unfolded entries are laid out,
+   each once while its type stays the same object (as statics keeps an
+   unchanged context's types), so a big context costs nothing until an
+   entry is opened. */
+let laid_out:
+  Hashtbl.t((string, int), (Language.Typ.t, Haz3lcore.Segment.t)) =
+  Hashtbl.create(16);
+
+let lay_out = (~key, ~width, typ: Language.Typ.t): Haz3lcore.Segment.t =>
+  switch (Hashtbl.find_opt(laid_out, (key, width))) {
+  | Some((typ', seg)) when typ' === typ => seg
+  | _ =>
+    let seg =
+      typ
+      |> Haz3lcore.TypToSegment.typ_to_segment(
+           ~settings={
+             ...print_settings,
+             inline: false,
+           },
+         )
+      |> CodeViewable.lay_out(~width);
+    Hashtbl.replace(laid_out, (key, width), (typ, seg));
+    seg;
+  };
+
+/* Which entry an unfold is for. Not the binding's id alone: the prelude's
+   entries share one. The separator tells a type's name from a value's. */
+let entry_key = (~name, ~sep, entry: Language.Ctx.entry): string =>
+  sep ++ name ++ "@" ++ Haz3lcore.Id.to_string(Language.Ctx.get_id(entry));
+
+/* An entry with a type: its name, a separator and the type on one line,
+   cut off if it is long. A long one gets a toggle (not the row, whose
+   click jumps to the binding) that shows the type whole, laid out under
+   the name, so the names stay in a column. */
+let typ_entry_view =
+    (
+      ~globals: Globals.t,
+      ~classes=[],
+      ~name: string,
+      ~name_node: Node.t,
+      ~sep: string,
+      entry: Language.Ctx.entry,
+      typ: Language.Typ.t,
+    )
+    : Node.t =>
+  /* Past the budget, an outline, and nothing to unfold: printing it at
+     all is what froze the page (see typ_budget). Checked before the
+     type is printed, even on one line. */
+  if (!typ_within(typ_budget, typ)) {
+    div(
+      ~attrs=[
+        Attr.on_click(_ => globals.inject_global(jump_to(entry))),
+        clss(["context-entry", "code"] @ classes),
+      ],
+      [
+        div(~attrs=[clss(["unfold", "none"])], []),
+        name_node,
+        div(~attrs=[clss(["seperator"])], [text(sep)]),
+        too_large_view(typ),
+      ],
     );
+  } else {
+    let key = entry_key(~name, ~sep, entry);
+    let seg =
+      Haz3lcore.TypToSegment.typ_to_segment(~settings=print_settings, typ);
+    let columns =
+      Util.Unicode.length(name)
+      + String.length(sep)
+      + 2
+      + Util.Unicode.length(
+          Haz3lcore.Printer.of_segment(~is_single_line=true, seg),
+        );
+    let long = columns > line_columns;
+    let unfolded = long && List.mem(key, globals.context_unfolded);
+    let toggle =
+      long
+        ? div(
+            ~attrs=[
+              clss(["unfold"]),
+              Attr.title(
+                unfolded
+                  ? "Show on one line" : "Show in full, on several lines",
+              ),
+              Attr.on_click(_ =>
+                Effect.Many([
+                  Effect.Stop_propagation,
+                  globals.inject_global(ToggleContextUnfold(key)),
+                ])
+              ),
+            ],
+            [text(unfolded ? "\u{25BE}" : "\u{25B8}")],
+          )
+        : div(~attrs=[clss(["unfold", "none"])], []);
+    let sep = div(~attrs=[clss(["seperator"])], [text(sep)]);
+    /* The entry's right-click menu (^ticket(468)), in every way of offering
+       the full view the Colors slide can choose (gamma-unfold), and the only
+       one when the toggle is not drawn. Fixed at the press, over a backdrop
+       that closes it (ctx_view). */
+    let menu_item = (label, action) =>
+      div(
+        ~attrs=[
+          clss(["context-entry-menu-item"]),
+          Attr.on_click(_ =>
+            Effect.Many([
+              Effect.Stop_propagation,
+              globals.inject_global(SetContextMenu(None)),
+              globals.inject_global(action),
+            ])
+          ),
+        ],
+        [text(label)],
+      );
+    let menu =
+      switch (globals.context_menu) {
+      | Some((k, x, y)) when k == key => [
+          div(
+            ~attrs=[
+              clss(["context-entry-menu"]),
+              Attr.create(
+                "style",
+                Printf.sprintf("left: %dpx; top: %dpx;", x, y),
+              ),
+            ],
+            (
+              long
+                ? [
+                  menu_item(
+                    unfolded ? "Show on one line" : "Show in full",
+                    ToggleContextUnfold(key),
+                  ),
+                ]
+                : []
+            )
+            @ [menu_item("Go to definition", jump_to(entry))],
+          ),
+        ]
+      | _ => []
+      };
+    let attrs = unfolded_class => [
+      Attr.on_click(_ => globals.inject_global(jump_to(entry))),
+      Attr.on_contextmenu(evt =>
+        Effect.Many([
+          Effect.Stop_propagation,
+          Effect.Prevent_default,
+          globals.inject_global(
+            SetContextMenu(Some((key, evt##.clientX, evt##.clientY))),
+          ),
+        ])
+      ),
+      clss(["context-entry", "code"] @ classes @ unfolded_class),
+    ];
+    unfolded
+      ? div(
+          ~attrs=attrs(["unfolded"]),
+          [
+            div(~attrs=[clss(["entry-head"])], [toggle, name_node, sep]),
+            div(
+              ~attrs=[clss(["entry-typ"])],
+              [
+                CodeViewable.view_segment(
+                  ~globals,
+                  lay_out(~key, ~width=unfold_columns(globals), typ),
+                ),
+              ],
+            ),
+          ]
+          @ menu,
+        )
+      : div(
+          ~attrs=attrs([]),
+          [toggle, name_node, sep, CodeViewable.view_segment(~globals, seg)]
+          @ menu,
+        );
+  };
+
+let context_entry_view = (~globals, entry: Language.Ctx.entry): Node.t => {
   let div_name = div(~attrs=[clss(["name"])]);
   switch (entry) {
   | VarEntry({name, typ, _})
   | ConstructorEntry({name, typ, _}) =>
-    div(
-      ~attrs=[
-        Attr.on_click(_ => globals.inject_global(jump_to(entry))),
-        clss(["context-entry", "code"]),
-      ],
-      [
-        div_name([text(name)]),
-        div(~attrs=[clss(["seperator"])], [text(":")]),
-        view_type(typ),
-      ],
+    typ_entry_view(
+      ~globals,
+      ~name,
+      ~name_node=div_name([text(name)]),
+      ~sep=":",
+      entry,
+      typ,
     )
-  | TVarEntry({name, kind, _}) =>
+  | TVarEntry({name, kind: Singleton(ty), _}) =>
+    /* an alias, with what it stands for */
+    typ_entry_view(
+      ~globals,
+      ~name,
+      ~name_node=div_name([alias_view(name)]),
+      ~sep="::",
+      entry,
+      ty,
+    )
+  | TVarEntry({name, kind: Abstract, _}) =>
     div(
       ~attrs=[
         Attr.on_click(_ => globals.inject_global(jump_to(entry))),
         clss(["context-entry", "code"]),
       ],
       [
+        div(~attrs=[clss(["unfold", "none"])], []),
         div_name([alias_view(name)]),
         div(~attrs=[clss(["seperator"])], [text("::")]),
-        Kind.view(~globals, kind),
+        Kind.view(~globals, Abstract),
       ],
     )
   | LivelitEntry({name, expansion_t, _}) =>
-    div(
-      ~attrs=[
-        Attr.on_click(_ => globals.inject_global(jump_to(entry))),
-        clss(["context-entry", "code", "livelit-entry"]),
-      ],
-      [
-        div_name([text("^" ++ name)]),
-        div(~attrs=[clss(["seperator"])], [text(":")]),
-        view_type(expansion_t),
-      ],
+    typ_entry_view(
+      ~globals,
+      ~classes=["livelit-entry"],
+      ~name="^" ++ name,
+      ~name_node=div_name([text("^" ++ name)]),
+      ~sep=":",
+      entry,
+      expansion_t,
     )
   };
 };
 
-let ctx_view = (~globals, ctx: Language.Ctx.t): Node.t =>
+let ctx_view = (~globals: Globals.t, ctx: Language.Ctx.t): Node.t => {
+  /* While an entry's menu is open, a press anywhere else closes it. */
+  let backdrop =
+    switch (globals.context_menu) {
+    | Some(_) =>
+      let close = _ =>
+        Effect.Many([
+          Effect.Stop_propagation,
+          Effect.Prevent_default,
+          globals.inject_global(SetContextMenu(None)),
+        ]);
+      [
+        div(
+          ~attrs=[
+            clss(["context-menu-backdrop"]),
+            Attr.on_pointerdown(close),
+            Attr.on_contextmenu(close),
+          ],
+          [],
+        ),
+      ];
+    | None => []
+    };
   div(
-    ~attrs=[clss(["context-inspector"])],
-    List.map(
-      context_entry_view(~globals),
-      ctx
-      |> Language.Ctx.filter_shadowed
-      |> Language.Ctx.filter_stepper_filter_variables
-      |> (x => x.entries)
-      |> List.rev,
-    ),
+    /* how a long entry offers its full view: the Colors slide's choice
+       (gamma-unfold), which cursor-inspector.css branches on */
+    ~attrs=[
+      clss([
+        "context-inspector",
+        "unfold-" ++ ColorConfiguration.gamma_unfold^,
+      ]),
+    ],
+    backdrop
+    @ List.map(
+        context_entry_view(~globals),
+        ctx
+        |> Language.Ctx.filter_shadowed
+        |> Language.Ctx.filter_stepper_filter_variables
+        |> (x => x.entries)
+        |> List.rev,
+      ),
   );
+};
 
 let ctx_sorts_view = (~globals, ci: Language.Statics.Info.t) =>
   Language.Info.ctx_of(ci)

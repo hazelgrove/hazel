@@ -157,6 +157,14 @@ module Persist = {
   type slide_meta = {
     current: int,
     names: list(string),
+    /* The default slide names this browser has already been offered.
+       It is what lets reconcile_names tell a slide the user has never
+       seen from one they deleted on purpose. Empty means "not recorded
+       yet" -- a meta written before reconciliation existed, or one an
+       import wrote; the defaults list is never itself empty, so the two
+       cases do not collide. */
+    [@sexp.default []] [@yojson.default []]
+    known_defaults: list(string),
   };
 
   let meta_key = (prefix: string): string => prefix ++ ":_meta";
@@ -234,14 +242,24 @@ module Persist = {
      model is physically unchanged (edits rebuild the scratchpad record
      but reuse the agent field). */
   let last_saved_agent: Hashtbl.t(string, Agent.Model.t) = Hashtbl.create(8);
+  let last_agent_save_ts: Hashtbl.t(string, float) = Hashtbl.create(8);
 
   let save_current = (prefix: string, model: Model.t): unit => {
     let names = Model.scratchpad_names(model);
+    /* Carry the offered-defaults record forward: the model does not hold
+       it, and dropping it here would let reconcile_names resurrect a
+       slide the user deleted after their first visit. */
+    let known_defaults =
+      switch (load_meta(prefix)) {
+      | Some(m) => m.known_defaults
+      | None => []
+      };
     save_meta(
       prefix,
       {
         current: model.current,
         names,
+        known_defaults,
       },
     );
     let sp = List.nth(model.scratchpads, model.current);
@@ -263,14 +281,34 @@ module Persist = {
         )
       };
       let agent_key_str = prefix ++ ":" ++ sp.name;
+      /* the agent model changes on every streamed chunk, so a physical
+         equality gate saved (and serialized, several MB) many times a
+         second while the model spoke; gate on the fields that persist */
       let unchanged =
         switch (Hashtbl.find_opt(last_saved_agent, agent_key_str)) {
-        | Some(prev) => prev === agent
+        | Some(prev) =>
+          let prev: Agent.Model.t = prev;
+          prev === agent
+          || prev.chat_system === agent.chat_system
+          && prev.prompting === agent.prompting
+          && prev.active_timeline_node == agent.active_timeline_node
+          && prev.awaiting_response == agent.awaiting_response;
         | None => false
         };
-      if (!unchanged) {
+      /* while the agent works (tools landing every few hundred ms) one save
+         per 10 s is enough; the final save comes when it goes idle */
+      let busy =
+        agent.awaiting_response != None || agent.pending_dispatch_send != None;
+      let now = JsUtil.timestamp();
+      let recently =
+        switch (Hashtbl.find_opt(last_agent_save_ts, agent_key_str)) {
+        | Some(t) => now -. t < 10000.
+        | None => false
+        };
+      if (!unchanged && !(busy && recently)) {
         save_agent(prefix, sp.name, Agent.Persistent.persist(agent));
         Hashtbl.replace(last_saved_agent, agent_key_str, agent);
+        Hashtbl.replace(last_agent_save_ts, agent_key_str, now);
       };
     | (false, Drv(_)) =>
       switch (Scratchpad.persist(sp).kind) {
@@ -359,18 +397,114 @@ module Persist = {
     };
   };
 
+  let index_of = (x: string, xs: list(string)): option(int) => {
+    let rec go = (i, xs) =>
+      switch (xs) {
+      | [] => None
+      | [y, ...ys] => y == x ? Some(i) : go(i + 1, ys)
+      };
+    go(0, xs);
+  };
+
+  /* A slide added to Slides.re used to be invisible to anyone who had
+     opened the mode before: the saved name list won outright, so it
+     stayed frozen at whatever it was on that browser's first visit.
+
+     Reconcile splices in the defaults this browser has not been offered
+     yet, each landing in its default-order position rather than at the
+     end -- so "Fumola / 0. Big picture" arrives before "1. Values", not
+     after "Derivations". Saved order, renames and user-added slides are
+     left where they are, [current] follows its slide by name, and a
+     default the user deleted stays deleted, since it is in
+     known_defaults. On a meta from before this existed, known_defaults
+     is empty and we seed it from the defaults still present, which costs
+     one resurrection of anything deleted before the upgrade. */
+  let reconcile_names =
+      (~default_names: list(string), meta: slide_meta): slide_meta => {
+    let known =
+      switch (meta.known_defaults) {
+      | [] => List.filter(n => List.mem(n, meta.names), default_names)
+      | known => known
+      };
+    let pending = List.filter(n => !List.mem(n, known), default_names);
+    if (pending == []) {
+      {
+        ...meta,
+        known_defaults: default_names,
+      };
+    } else {
+      let present = n => List.mem(n, meta.names);
+      /* Anchor each new slide to the nearest default ahead of it that
+         this browser actually has, and emit it just after. That keeps it
+         beside the neighbour it is numbered against even if the saved
+         list has been reordered; nothing ahead of it means it goes
+         first. */
+      let anchor = (p: string): option(string) => {
+        let i = index_of(p, default_names) |> Option.value(~default=0);
+        let (_, found) =
+          List.fold_left(
+            ((j, found), d) =>
+              (j + 1, j < i && present(d) ? Some(d) : found),
+            (0, None),
+            default_names,
+          );
+        found;
+      };
+      let anchored = List.map(p => (anchor(p), p), pending);
+      let anchored_to = a =>
+        anchored |> List.filter(((x, _)) => x == a) |> List.map(snd);
+      let names =
+        anchored_to(None)
+        @ List.concat_map(n => [n, ...anchored_to(Some(n))], meta.names);
+      let current =
+        switch (
+          Option.bind(List.nth_opt(meta.names, meta.current), n =>
+            index_of(n, names)
+          )
+        ) {
+        | Some(i) => i
+        | None => min(meta.current, max(List.length(names) - 1, 0))
+        };
+      {
+        current,
+        names,
+        known_defaults: default_names,
+      };
+    };
+  };
+
   let load_all =
       (
         prefix: string,
         ~settings,
         ~default_names: list(string),
         ~default_current: int,
+        ~reconcile: bool,
       )
       : Model.t => {
     let (current, names) =
       switch (load_meta(prefix)) {
+      | Some(meta) when reconcile =>
+        let reconciled = reconcile_names(~default_names, meta);
+        if (reconciled != meta) {
+          save_meta(prefix, reconciled);
+        };
+        (reconciled.current, reconciled.names);
       | Some(meta) => (meta.current, meta.names)
-      | None => (default_current, default_names)
+      | None =>
+        /* Record the shipped list as offered now, so a slide deleted
+           later is not read back as one this browser never saw. */
+        if (reconcile) {
+          save_meta(
+            prefix,
+            {
+              current: default_current,
+              names: default_names,
+              known_defaults: default_names,
+            },
+          );
+        };
+        (default_current, default_names);
       };
     Model.{
       current,
@@ -469,6 +603,7 @@ module Persist = {
         {
           current,
           names,
+          known_defaults: [],
         },
       );
       List.iter(

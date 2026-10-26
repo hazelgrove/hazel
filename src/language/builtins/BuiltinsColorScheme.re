@@ -147,7 +147,6 @@ let role_groups: list((string, list(string))) = [
       "buffer",
       "derivation",
       "locked-cell",
-      "backpack-outline",
       "string",
       "comment",
       "selection",
@@ -222,6 +221,7 @@ let role_groups: list((string, list(string))) = [
       "drawer-fade",
     ],
   ),
+  ("completion", ["chip-text", "later-text", "later-text-at-caret"]),
   ("projector", ["textarea-text", "fold-background", "statics-arm"]),
   ("agent", ["banner", "banner-edge"]),
 ];
@@ -231,6 +231,14 @@ let role_groups: list((string, list(string))) = [
    you whether high contrast was ASKED for. */
 let polarity_field = "is-dark";
 let contrast_field = "is-high-contrast";
+
+/* Not part of a scheme: how a livelit's syntax toggle is drawn, Eye,
+   Triangle, Chevron or Nut (Web.ColorConfiguration turns it into the glyphs). The slide
+   adds it to its scheme at the end, `scheme ... (`livelit-reveal` = ..)`,
+   since this slide is the one place a reader configures the editor's look.
+   Kept out of ColorScheme itself so a slide saved before it existed, whose
+   own `theme_of` is annotated ColorScheme, still type-checks. */
+let reveal_field = "livelit-reveal";
 
 let scheme: list((string, Typ.t)) = [
   ("palette", var("ColorPalette")),
@@ -262,3 +270,40 @@ let type_aliases: list((string, Typ.t)) = [
 /* What the Colors slide is analyzed against. The alias rather than its
    expansion, so the buffer's error message names the type. */
 let typ: Typ.t = var("ColorScheme");
+
+/* What the slide as a whole yields: its scheme plus the toggle's look.
+   Spelled out rather than registered as a fifth name (see type_aliases);
+   its parts are still the named types, so a mismatch names them. */
+/* The toggle's look is a sum, + Eye + Triangle + Chevron + Nut, left structural rather
+   than registered under a name, for the same reason as above: its
+   constructors would otherwise be in scope in every program. The Colors
+   slide declares its own `type LivelitReveal = + Eye + Triangle + Chevron + Nut`, which
+   is consistent with this. */
+let reveal_type: Typ.t =
+  BuiltinsADT.sum_type([
+    ("Eye", None),
+    ("Triangle", None),
+    ("Chevron", None),
+    ("Nut", None),
+  ]);
+
+/* Not part of a scheme either: how Gamma offers a type too long for its
+   line in full, on several lines (^ticket(468)). + Always + OnHover +
+   RightClick: the entry's toggle always drawn, drawn while the pointer is
+   on the entry, or not drawn at all, leaving the entry's right-click menu,
+   which has it in every case. Structural, like reveal_type; the slide
+   declares its own `type GammaUnfold = + Always + OnHover + RightClick`. */
+let gamma_unfold_field = "gamma-unfold";
+
+let gamma_unfold_type: Typ.t =
+  BuiltinsADT.sum_type([
+    ("Always", None),
+    ("OnHover", None),
+    ("RightClick", None),
+  ]);
+
+let typ_with_reveal: Typ.t =
+  record(
+    scheme
+    @ [(reveal_field, reveal_type), (gamma_unfold_field, gamma_unfold_type)],
+  );

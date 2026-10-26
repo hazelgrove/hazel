@@ -136,22 +136,29 @@ module Store = {
 
   let load_scratch = (~settings) => {
     let (default_current, default_names) = scratch_defaults();
+    /* No reconcile: the scratch default is a seed ("Scratchpad 1"), not
+       shipped content, so splicing it back in would hand a fresh empty
+       pad to everyone who renamed or deleted theirs. */
     ScratchMode.Persist.load_all(
       "scratch",
       ~settings,
       ~default_names,
       ~default_current,
+      ~reconcile=false,
     )
     |> ScratchMode.integrate_share(~settings);
   };
 
   let load_documentation = (~settings) => {
     let (default_current, default_names) = doc_defaults();
+    /* Reconcile: these are shipped reference slides, so a browser that
+       has been here before still has to pick up ones added since. */
     ScratchMode.Persist.load_all(
       "doc",
       ~settings,
       ~default_names,
       ~default_current,
+      ~reconcile=true,
     );
   };
 
@@ -663,26 +670,6 @@ module View = {
         m,
       )
     };
-
-  /* Links into Config mode's slides, offered from every mode. */
-  let config_links = (~inject: Update.t => 'a) =>
-    NutMenu.item_group(
-      "Configuration",
-      List.map(
-        config_type =>
-          Widgets.button_named(
-            Icons.gear,
-            evt => {
-              NutMenu.dismiss(evt);
-              inject(Update.ShowConfig(config_type));
-            },
-            ~tooltip=
-              "Edit "
-              ++ ConfigurationMode.Model.config_name_of_type(config_type),
-          ),
-        ConfigurationMode.Model.all_of_config_type,
-      ),
-    );
 
   let file_menu = (~globals, ~inject, editors: Model.t) =>
     switch (editors) {

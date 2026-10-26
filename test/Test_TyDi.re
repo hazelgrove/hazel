@@ -131,6 +131,13 @@ let operand_tests = (
       ~code="let x : Bool = fa¦",
       ~expect=Some("lse"),
     ),
+    /* the derived Bool entry for "true" must suppress it when the
+     * expected type is inconsistent */
+    tydi_test(
+      ~name="true not suggested for Int",
+      ~code="let x : Int = tr¦",
+      ~expect=None,
+    ),
   ],
 );
 
@@ -146,6 +153,30 @@ let leading_form_tests = (
       ~name="test suggested for unit type",
       ~code="let t : () = te¦",
       ~expect=Some("st "),
+    ),
+    /* forall is a Bool-valued proposition (Statics.Forall) */
+    tydi_test(
+      ~name="forall suggested for Bool",
+      ~code="let b : Bool = fora¦",
+      ~expect=Some("ll "),
+    ),
+    tydi_test(
+      ~name="forall not suggested for Int",
+      ~code="let n : Int = fora¦",
+      ~expect=None,
+    ),
+    /* of_* forms now carry DrvQuoteTy self types, so they are
+     * suppressed where the expected type is inconsistent... */
+    tydi_test(
+      ~name="of_* not suggested for Int",
+      ~code="let n : Int = of_¦",
+      ~expect=None,
+    ),
+    /* ...but still suggested in unknown-type contexts */
+    tydi_test(
+      ~name="of_alfa_exp suggested in unknown context",
+      ~code="of_alfa_e¦",
+      ~expect=Some("xp "),
     ),
   ],
 );
@@ -165,6 +196,259 @@ let operator_tests = (
     ),
   ],
 );
+
+/* === Derived form-type tables (TyDiForms.Typ) ===
+ * The const-mono and infix self-type tables are derived from the
+ * grammar (lazily; forced once here). The golden sets below are the
+ * old manual tables; derivation must reproduce them (Unknown
+ * provenances normalized to Internal). */
+
+let typ_t =
+  Alcotest.testable(Fmt.using(Typ.show, Fmt.string), Typ.fast_equal);
+
+let of_infix_delim = Lazy.force(TyDiForms.Typ.of_infix_delim);
+let of_const_mono_delim = Lazy.force(TyDiForms.Typ.of_const_mono_delim);
+let of_leading_delim = Lazy.force(TyDiForms.Typ.of_leading_delim);
+
+let unk = Typ.temp(Unknown(Internal));
+let bool_ = Typ.temp(Atom(Bool));
+let int_ = Typ.temp(Atom(Int));
+let float_ = Typ.temp(Atom(Float));
+let string_ = Typ.temp(Atom(String));
+
+let golden_infix: list((string, Typ.t)) = [
+  ("|>", unk),
+  (",", Typ.temp(Prod([unk, unk]))),
+  ("::", Typ.temp(List(unk))),
+  ("@", Typ.temp(List(unk))),
+  (";", unk),
+  ("&&", bool_),
+  ("||", bool_),
+  ("==.", bool_),
+  ("==", bool_),
+  ("!=", bool_),
+  ("!=.", bool_),
+  ("<", bool_),
+  (">", bool_),
+  ("<=", bool_),
+  (">=", bool_),
+  ("<.", bool_),
+  (">.", bool_),
+  ("<=.", bool_),
+  (">=.", bool_),
+  ("+", int_),
+  ("-", int_),
+  ("*", int_),
+  ("/", int_),
+  ("**", int_),
+  ("+.", float_),
+  ("-.", float_),
+  ("*.", float_),
+  ("/.", float_),
+  ("**.", float_),
+  ("++", string_),
+];
+
+let golden_const_mono: list((string, Typ.t)) = [
+  ("true", bool_),
+  ("false", bool_),
+  ("\"\"", string_),
+  ("_", unk),
+];
+
+/* The old manual leading-delimiter entries (minus typfun, whose manual
+ * value contradicted derivation; see flagged_tests) */
+let golden_leading: list((string, Typ.t)) = [
+  ("fun ", Typ.temp(Arrow(unk, unk))),
+  ("test ", Typ.temp(Prod([]))),
+];
+
+/* Entries the derivation yields that the manual tables lacked
+ * (the drift the old header comment warned about) */
+let derived_new: list((string, Typ.t)) = [
+  ("()", Typ.temp(Prod([]))),
+  ("[]", Typ.temp(List(unk))),
+  /* `{}` is the empty module on this branch (Modules II), so as a
+     constant it is the empty signature, not the empty product. */
+  ("{}", Typ.temp(Sig([]))),
+];
+
+/* Non-trivial leading entries the manual table lacked */
+let derived_new_leading: list((string, Typ.t)) = [
+  ("[ ", Typ.temp(List(unk))),
+  ("forall ", bool_),
+  ("hint ", Typ.temp(Prod([]))),
+];
+
+let table_entry_test = (table, (tok, ty)) =>
+  Alcotest.test_case("entry [" ++ tok ++ "]", `Quick, () =>
+    Alcotest.check(
+      Alcotest.option(typ_t),
+      tok,
+      Some(ty),
+      List.assoc_opt(tok, table),
+    )
+  );
+
+let golden_infix_tests = (
+  "TyDiForms.GoldenInfix",
+  List.map(table_entry_test(of_infix_delim), golden_infix),
+);
+
+let golden_const_mono_tests = (
+  "TyDiForms.GoldenConstMono",
+  List.map(table_entry_test(of_const_mono_delim), golden_const_mono),
+);
+
+let golden_leading_tests = (
+  "TyDiForms.GoldenLeading",
+  List.map(table_entry_test(of_leading_delim), golden_leading),
+);
+
+let derived_new_tests = (
+  "TyDiForms.DerivedNew",
+  List.map(
+    table_entry_test(of_infix_delim @ of_const_mono_delim),
+    derived_new,
+  )
+  @ List.map(table_entry_test(of_leading_delim), derived_new_leading),
+);
+
+let absent = (table, tok) =>
+  Alcotest.check(
+    Alcotest.option(typ_t),
+    tok,
+    None,
+    List.assoc_opt(tok, table),
+  );
+
+let flagged_tests = (
+  "TyDiForms.Flagged",
+  [
+    /* The manual table claimed Bool for "\\/" but Exp-sort "\\/"
+     * (LogicalOrLegacy) has no Exp MakeTerm case and lowers to a
+     * hole, so its true self type is Unknown */
+    Alcotest.test_case("legacy \\/ derives Unknown, not Bool", `Quick, () =>
+      Alcotest.check(
+        Alcotest.option(typ_t),
+        "\\/",
+        Some(unk),
+        List.assoc_opt("\\/", of_infix_delim),
+      )
+    ),
+    /* "!" had a manual Bool entry but is not an infix delim in any
+     * sort, so the entry was dead: never a suggestion candidate */
+    Alcotest.test_case("prefix ! has no entry", `Quick, () =>
+      absent(of_infix_delim, "!")
+    ),
+    /* The manual leading table used Poly(Var(""), unk) for typfun;
+     * the minimal form's binder is a TPat hole. Behavior-identical:
+     * the unk body makes both consistent with exactly the Poly (and
+     * unknown) expectations. */
+    Alcotest.test_case("typfun derives Poly with hole binder", `Quick, () =>
+      Alcotest.check(
+        Alcotest.option(typ_t),
+        "typfun ",
+        Some(Typ.temp(Poly(TPat.temp(EmptyHole), unk))),
+        List.assoc_opt("typfun ", of_leading_delim),
+      )
+    ),
+    /* The manual leading table mapped the seven Drv of_* rows to
+     * Unknown; their minimal forms have real quote types. Behavior
+     * change: of_* is now suppressed where the expected type is
+     * inconsistent with DrvQuoteTy (see TyDi.LeadingForms). */
+    Alcotest.test_case("of_* derive DrvQuoteTy, not Unknown", `Quick, () =>
+      Alcotest.check(
+        Alcotest.list(Alcotest.option(typ_t)),
+        "of_*",
+        List.map(
+          (s: DrvSort.t) => Some(Typ.temp(DrvQuoteTy(s))),
+          [Jdmt, Ctx, Prop, Exp, Typ, Pat, TPat],
+        ),
+        List.map(
+          tok => List.assoc_opt(tok, of_leading_delim),
+          [
+            "of_jdmt ",
+            "of_ctx ",
+            "of_prop ",
+            "of_alfa_exp ",
+            "of_alfa_typ ",
+            "of_alfa_pat ",
+            "of_alfa_tpat ",
+          ],
+        ),
+      )
+    ),
+    /* "=" is deliberately untyped; see TyDiForms.Typ.deliberately_untyped */
+    Alcotest.test_case("labeled-tuple = has no entry", `Quick, () =>
+      absent(of_infix_delim, "=")
+    ),
+    /* "{" (module literal) and "proof_object" are deliberately
+     * untyped: their minimal-form types (Prod([]), ProofOf(<hole>))
+     * are inconsistent with the instances they are used to build */
+    Alcotest.test_case("module-literal { has no entry", `Quick, () =>
+      absent(of_leading_delim, "{ ")
+    ),
+    Alcotest.test_case("proof_object has no entry", `Quick, () =>
+      absent(of_leading_delim, "proof_object ")
+    ),
+    Alcotest.test_case("deliberately_untyped stays minimal", `Quick, () =>
+      Alcotest.check(
+        Alcotest.list(Alcotest.string),
+        "deliberately_untyped",
+        ["=", "{ ", "proof_object "],
+        TyDiForms.Typ.deliberately_untyped,
+      )
+    ),
+  ],
+);
+
+/* Every derived entry's token must be reachable through the
+ * Delims machinery for some suggestion sort, so entries can't
+ * outlive the grammar forms they were derived from */
+let suggestible_tests = {
+  let orphans = (table, delims) =>
+    table |> List.map(fst) |> List.filter(tok => !List.mem(tok, delims));
+  (
+    "TyDiForms.Suggestible",
+    [
+      Alcotest.test_case("infix entries are infix delims", `Quick, () =>
+        Alcotest.check(
+          Alcotest.list(Alcotest.string),
+          "orphans",
+          [],
+          orphans(
+            of_infix_delim,
+            TyDiForms.Delims.infix(Exp) @ TyDiForms.Delims.infix(Pat),
+          ),
+        )
+      ),
+      Alcotest.test_case("const-mono entries are operand delims", `Quick, () =>
+        Alcotest.check(
+          Alcotest.list(Alcotest.string),
+          "orphans",
+          [],
+          orphans(
+            of_const_mono_delim,
+            TyDiForms.Delims.const_mono(Exp)
+            @ TyDiForms.Delims.const_mono(Pat),
+          ),
+        )
+      ),
+      Alcotest.test_case("leading entries are leading delims", `Quick, () =>
+        Alcotest.check(
+          Alcotest.list(Alcotest.string),
+          "orphans",
+          [],
+          orphans(
+            of_leading_delim,
+            TyDiForms.Delims.leading(Exp) @ TyDiForms.Delims.leading(Pat),
+          ),
+        )
+      ),
+    ],
+  );
+};
 
 let type_tests = (
   "TyDi.Types",
@@ -400,6 +684,288 @@ let ci_sort_tests = (
   ],
 );
 
+/* TyDi.suggest(~prefix) skips qualified entries that cannot start with
+   the typed token. It must not change what set_buffer keeps: the
+   suggestions that start with the token, in order. Compared on the
+   qualified cases above and on the builtin modules (Html, Attr, Cmd, Sub),
+   whose signatures are what the skipping saves normalizing. */
+let prefix_pruning_is_exact = code => {
+  let actions = Test_Editing.mk(code);
+  let z = Test_Editing.perform(Zipper.init(), actions);
+  let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z, ~root=Exp);
+  let (info_map, _) =
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+  switch (Indicated.ci_for_completion(z, info_map), TyDi.token_to_left(z)) {
+  | (Some(ci), Some(tok)) =>
+    let kept = l =>
+      l
+      |> List.filter(({content, _}: TyDiSuggestion.t) =>
+           String.starts_with(~prefix=tok, content)
+         )
+      |> List.map(({content, _}: TyDiSuggestion.t) => content);
+    let all = kept(TyDi.suggest(ci, z));
+    check(list(string), code, all, kept(TyDi.suggest(~prefix=tok, ci, z)));
+    all;
+  | _ => fail("no completion point in " ++ code)
+  };
+};
+
+let prefix_pruning_tests = (
+  "TyDi.PrefixPruning",
+  [
+    test_case("same suggestions kept, with and without", `Quick, () => {
+      List.iter(
+        code => ignore(prefix_pruning_is_exact(code)),
+        [
+          "let mm : (empty=String) = (empty=\"\") in let x : String = mm¦",
+          "let mm : (double=Int -> Int) = (double=fun n -> n * 2) in let x : Int = mm¦",
+          "let math : (square=Int -> Int) = (square=fun n -> n * n) in let x : Int = ma¦",
+          "let mm : (count=Int) = (count=0) in let b : Bool = mm¦",
+          "let m = { type T = Int; let value = 1 } in m.va¦",
+          "let x : String = St¦",
+          "let x : Int = Str¦",
+          "let x : Bool = Li¦",
+          "let x : [Int] = Li¦",
+          "let x : Int = 12¦",
+          "let x = Ht¦",
+          "let x = Html¦",
+          "let x = At¦",
+          "let x = Cm¦",
+          "let x : Bool = Su¦",
+        ],
+      )
+    }),
+    /* The control: builtin modules do offer qualified suggestions, so
+       the comparison above covers entries the pruning keeps. */
+    test_case(
+      "a builtin module still completes",
+      `Quick,
+      () => {
+        let all = prefix_pruning_is_exact("let x = Ht¦");
+        check(
+          bool,
+          "some Html. suggestion",
+          true,
+          List.exists(c => String.starts_with(~prefix="Html.", c), all),
+        );
+      },
+    ),
+  ],
+);
+
+/* named_fields closes a signature's members in one pass. It must give what
+   the per-member Typ.sig_project_value it replaced gave: same labels, same
+   order, the same type for each (up to ids). Checked on the builtin modules,
+   where the one pass matters, and on signatures with abstract members and a
+   value declared twice. */
+let named_fields_by_projection = (ctx, typ) =>
+  switch (Typ.normalize(ctx, typ) |> Typ.term_of) {
+  | Sig(items) =>
+    Sig.members(items)
+    |> Sig.dedup_last
+    |> List.filter_map((m: Sig.member) =>
+         switch (m) {
+         | Val(label, _) =>
+           Typ.sig_project_value(items, label)
+           |> Option.map(ty => (label, ty))
+         | TypeManifest(_)
+         | TypeAbstract(_) => None
+         }
+       )
+  | _ => TyDiCtx.named_fields(ctx, typ)
+  };
+
+let same_fields = (what, ctx, typ) => {
+  let got = TyDiCtx.named_fields(ctx, typ);
+  let want = named_fields_by_projection(ctx, typ);
+  check(
+    list(string),
+    what ++ ": labels",
+    List.map(fst, want),
+    List.map(fst, got),
+  );
+  List.iter2(
+    ((label, w), (_, g)) =>
+      check(bool, what ++ "." ++ label, true, Typ.equal(w, g)),
+    want,
+    got,
+  );
+  List.length(got);
+};
+
+let named_fields_tests = (
+  "TyDi.NamedFields",
+  [
+    test_case(
+      "builtin modules: one pass is the projection",
+      `Quick,
+      () => {
+        let ctx = Builtins.ctx_init(Some(Int));
+        List.iter(
+          name =>
+            switch (Ctx.lookup_var(ctx, name)) {
+            | Some({typ, _}) =>
+              check(
+                bool,
+                name ++ " has members",
+                true,
+                same_fields(name, ctx, typ) > 0,
+              )
+            | None => fail("no builtin " ++ name)
+            },
+          ["Html", "Attr", "Cmd", "Sub"],
+        );
+      },
+    ),
+    test_case(
+      "abstract members and a repeated value",
+      `Quick,
+      () => {
+        let sig_of = code => {
+          let actions = Test_Editing.mk(code ++ "¦");
+          let z = Test_Editing.perform(Zipper.init(), actions);
+          let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z, ~root=Exp);
+          let (info_map, _) =
+            Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+          switch (Indicated.ci_for_completion(z, info_map)) {
+          | Some(ci) =>
+            let ctx = Info.ctx_of(ci);
+            switch (Ctx.lookup_var(ctx, "m")) {
+            | Some({typ, _}) => (ctx, typ)
+            | None => fail("no m in " ++ code)
+            };
+          | None => fail("no completion point in " ++ code)
+          };
+        };
+        List.iter(
+          code => {
+            let (ctx, typ) = sig_of(code);
+            check(
+              bool,
+              code ++ " has members",
+              true,
+              same_fields(code, ctx, typ) > 0,
+            );
+          },
+          [
+            "let m : { type T; type U = [T]; let x : T; let y : U -> T; let x : U } = ? in m",
+            "let m = { type T = Int; type U = (T, T); let a : U = (1, 2); let b = fun (u : U) -> 3 } in m",
+          ],
+        );
+      },
+    ),
+  ],
+);
+
+/* TyDiCtx.named_fields_cached reuses a module's fields across keystrokes
+   only while every name they were computed from resolves as it did. */
+let ctx_at = code => {
+  let actions = Test_Editing.mk(code);
+  let z = Test_Editing.perform(Zipper.init(), actions);
+  let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z, ~root=Exp);
+  let (info_map, _) =
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+  switch (Indicated.ci_for_completion(z, info_map)) {
+  | Some(ci) => Info.ctx_of(ci)
+  | None => fail("no completion point in " ++ code)
+  };
+};
+
+let html_typ = () =>
+  switch (Ctx.lookup_var(Builtins.ctx_init(Some(Int)), "Html")) {
+  | Some({typ, _}) => typ
+  | None => fail("no builtin Html")
+  };
+
+let same_as_uncached = (what, ctx, typ) => {
+  let got = TyDiCtx.named_fields_cached(ctx, typ);
+  let want = TyDiCtx.named_fields(ctx, typ);
+  check(
+    list(string),
+    what ++ ": labels",
+    List.map(fst, want),
+    List.map(fst, got),
+  );
+  List.iter2(
+    ((l, w), (_, g)) =>
+      check(bool, what ++ "." ++ l, true, Typ.equal(w, g)),
+    want,
+    got,
+  );
+};
+
+let fields_equal = (a, b) =>
+  List.length(a) == List.length(b)
+  && List.for_all2(
+       ((la, ta), (lb, tb)) => la == lb && Typ.equal(ta, tb),
+       a,
+       b,
+     );
+
+let fields_cache_tests = (
+  "TyDi.FieldsCache",
+  [
+    test_case(
+      "reused on the next keystroke",
+      `Quick,
+      () => {
+        TyDiCtx.fields_cache := [];
+        let typ = html_typ();
+        let a = ctx_at("let a = 1 in let x = Ht¦");
+        let b = ctx_at("let a = 1 in let bb = 2 in let x = Htm¦");
+        ignore(TyDiCtx.named_fields_cached(a, typ));
+        let hits = TyDiCtx.fields_cache_hits^;
+        same_as_uncached("second keystroke", b, typ);
+        check(int, "one reuse", hits + 1, TyDiCtx.fields_cache_hits^);
+      },
+    ),
+    test_case(
+      "shadowing Attr recomputes",
+      `Quick,
+      () => {
+        TyDiCtx.fields_cache := [];
+        let typ = html_typ();
+        let plain = ctx_at("let x = Ht¦");
+        let shadowed =
+          ctx_at("module Attr = { type T = Int } in let x = Ht¦");
+        ignore(TyDiCtx.named_fields_cached(plain, typ));
+        let hits = TyDiCtx.fields_cache_hits^;
+        same_as_uncached("Attr shadowed", shadowed, typ);
+        check(int, "no reuse", hits, TyDiCtx.fields_cache_hits^);
+        /* The control: shadowing Attr does change Html's fields, so a
+           reused answer would have been wrong, not merely redundant. */
+        check(
+          bool,
+          "the answer differs",
+          false,
+          fields_equal(
+            TyDiCtx.named_fields(plain, typ),
+            TyDiCtx.named_fields(shadowed, typ),
+          ),
+        );
+      },
+    ),
+    test_case(
+      "shadowing HTML recomputes",
+      `Quick,
+      () => {
+        TyDiCtx.fields_cache := [];
+        let typ = html_typ();
+        ignore(TyDiCtx.named_fields_cached(ctx_at("let x = Ht¦"), typ));
+        /* Html's fields are computed from HTML (with Attr, Sub, SpliceRef
+           and T), so shadowing it is a miss. */
+        let hits = TyDiCtx.fields_cache_hits^;
+        same_as_uncached(
+          "HTML shadowed",
+          ctx_at("type HTML = Int in let x = Ht¦"),
+          typ,
+        );
+        check(int, "no reuse", hits, TyDiCtx.fields_cache_hits^);
+      },
+    ),
+  ],
+);
+
 let tests = [
   dot_label_tests,
   variable_tests,
@@ -407,9 +973,18 @@ let tests = [
   operand_tests,
   leading_form_tests,
   operator_tests,
+  golden_infix_tests,
+  golden_const_mono_tests,
+  golden_leading_tests,
+  derived_new_tests,
+  flagged_tests,
+  suggestible_tests,
   type_tests,
   suppression_tests,
   qualified_tests,
+  prefix_pruning_tests,
+  named_fields_tests,
+  fields_cache_tests,
   base_typ_suppression_tests,
   ci_sort_tests,
 ];

@@ -219,6 +219,17 @@ let editor_positions = (eds: p('a)) =>
 let positioned_editors = state =>
   List.combine(editor_positions(state), editors(state));
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type persistent_spec = p(PersistentZipper.t);
+
+let of_persistent: persistent_spec => spec =
+  p =>
+    map(
+      p,
+      PersistentZipper.unpersist(~root=Exp),
+      PersistentZipper.unpersist(~root=Exp),
+    );
+
 let eds_of_spec =
     (
       {
@@ -560,6 +571,8 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | DeferredAp(_)
   | If(_)
   | Test(_)
+  | Quote(_)
+  | Unquote(_)
   | HintedTest(_)
   | Parens(_)
   | Projector(_)
@@ -595,6 +608,13 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
     let ebody' = append_exp(ebody, e2);
     {
       term: Let(p, edef, ebody'),
+      annotation:
+        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
+    };
+  | Bind(p, edef, ebody) =>
+    let ebody' = append_exp(ebody, e2);
+    {
+      term: Bind(p, edef, ebody'),
       annotation:
         Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
     };

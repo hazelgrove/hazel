@@ -253,7 +253,13 @@ let theme_key = (persistent: Model.persistent): string =>
 
 let apply_colors = (vars: list((string, string))): unit =>
   List.iter(
-    ((var, color)) => JsUtil.set_css_variable("--" ++ var, color),
+    ((var, color)) => {
+      JsUtil.set_css_variable("--" ++ var, color);
+      /* Gamma classes its box by this one (see gamma_unfold_target) */
+      if (var == ColorConfiguration.gamma_unfold_target) {
+        ColorConfiguration.gamma_unfold := color;
+      };
+    },
     vars,
   );
 

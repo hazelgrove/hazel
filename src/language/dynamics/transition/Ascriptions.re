@@ -42,9 +42,126 @@ let ctx_ref: ref(Ctx.t) = ref(Ctx.empty);
    one walks the module's signature, so the result is memoized per path;
    the builtin context is constant after set_ctx, which clears the memo. */
 let path_memo: Hashtbl.t((string, string), Typ.t) = Hashtbl.create(16);
+
+/* Whether a constructor's own type is consistent with the type it is
+   ascribed, remembered by the two types' Merkle hashes (TypHash). A
+   livelit's view builds a tree of Html nodes, each a constructor
+   application ascribed Html.T, and each asked is_consistent of two copies
+   of the whole Html sum type -- a full meet, every node, every step: 88% of
+   a Polygons click in Firefox. The copies are fresh objects, so physical
+   identity misses; their hashes do not. The builtin context is constant
+   (set_ctx clears this), and is_consistent ignores an Unknown's provenance,
+   as the hash does, so the answer depends only on the two hashes. */
+let consistent_memo: Hashtbl.t((int, int, int, int), bool) =
+  Hashtbl.create(64);
+let consistent_by_hash = (a: Typ.t, b: Typ.t, compute: unit => bool): bool =>
+  switch (TypHash.hash(a), TypHash.hash(b)) {
+  | (Some((a1, a2)), Some((b1, b2))) =>
+    let key = (a1, a2, b1, b2);
+    switch (Hashtbl.find_opt(consistent_memo, key)) {
+    | Some(r) => r
+    | None =>
+      let r = compute();
+      if (Hashtbl.length(consistent_memo) > 4096) {
+        Hashtbl.reset(consistent_memo);
+      };
+      Hashtbl.replace(consistent_memo, key, r);
+      r;
+    };
+  | _ => compute()
+  };
+/* Typ.unroll of a resolved type, remembered per type object. Every Html
+   node a view builds is ascribed Html.T, which resolves (path_memo) to the
+   same Rec over a sum of 47 constructors each time, and unrolling it
+   substitutes through the whole sum: on the Scenes slide's woods, a sixth
+   of the picture view's time was this one unrolling, done again for each
+   node. Unrolling depends only on the type. */
+let unroll_memo: Util.IdentityTable.t(Typ.t, Typ.t) =
+  Util.IdentityTable.create();
+let unrolled = (t: Typ.t): Typ.t =>
+  switch (Util.IdentityTable.find_opt(unroll_memo, t)) {
+  | Some(u) => u
+  | None =>
+    let u = Typ.unroll(t);
+    Util.IdentityTable.replace(unroll_memo, t, u);
+    u;
+  };
+/* Data values already found to have a type, by the type's hash. A push
+   through a value that already has the type gives the value back, but it
+   still walks all of it. A value is pushed through at every call of a
+   function whose parameter is annotated (`fun x : T -> ...`), so one value
+   given to several such functions is walked at each, and a recursive one
+   over a list is given the list's tail each time, so the walks over one
+   list add up to the square of its length. (A function annotated at its
+   let, `let f : A -> B = fun x -> ...`, is not pushed through on its
+   recursive calls.) Values are immutable, so once a walk gives a value
+   back, that value has the type for good, and the next push through it is
+   one lookup.
+
+   Keyed by the value's term, which a variable lookup keeps when it copies
+   the value's outer record (fast_copy). A list's tail is a new ListLit
+   (Unboxing) around the same OCaml list cells, so a list is keyed by its
+   cells, and when a list has the type, so has every tail of it. The
+   builtin context is constant (set_ctx clears this), as for
+   consistent_memo. */
+let has_type: ref(Util.IdentityTable.t(Obj.t, list((int, int)))) =
+  ref(Util.IdentityTable.create());
+/* Only values with parts are remembered: an atom or a bare constructor
+   is checked in one match, cheaper than a lookup, and remembering every
+   number in a picture's points cost more than it saved in Firefox. */
+let type_key = (d: DHExp.t): option(Obj.t) =>
+  switch (DHExp.term_of(d)) {
+  | ListLit([_, ..._] as ds) => Some(Obj.repr(ds))
+  | ListLit([])
+  | Atom(_)
+  | Constructor(_) => None
+  | term => Obj.is_block(Obj.repr(term)) ? Some(Obj.repr(term)) : None
+  };
+let known_to_have = (d: DHExp.t, t: Typ.t): bool =>
+  switch (type_key(d), TypHash.hash(t)) {
+  | (Some(k), Some(h)) =>
+    switch (Util.IdentityTable.find_opt(has_type^, k)) {
+    | Some(hs) => List.mem(h, hs)
+    | None => false
+    }
+  | _ => false
+  };
+let remember_has = (key: Obj.t, h: (int, int)): unit => {
+  let hs =
+    Util.IdentityTable.find_opt(has_type^, key) |> Option.value(~default=[]);
+  if (!List.mem(h, hs)) {
+    Util.IdentityTable.replace(has_type^, key, [h, ...hs]);
+  };
+};
+/* After a recursive push of Asc(e, t): if it gave e back, e has t. */
+let noted = (e: DHExp.t, t: Typ.t, r: option(DHExp.t)): option(DHExp.t) => {
+  switch (r, TypHash.hash(t)) {
+  | (Some(r'), Some(h)) when r' === e =>
+    switch (DHExp.term_of(e)) {
+    | ListLit([_, ..._] as ds) =>
+      let rec tails = (l: list(DHExp.t)) =>
+        switch (l) {
+        | [] => ()
+        | [_, ...tl] =>
+          remember_has(Obj.repr(l), h);
+          tails(tl);
+        };
+      tails(ds);
+    | _ =>
+      switch (type_key(e)) {
+      | Some(k) => remember_has(k, h)
+      | None => ()
+      }
+    }
+  | _ => ()
+  };
+  r;
+};
 let set_ctx = (ctx: Ctx.t) => {
   ctx_ref := ctx;
   Hashtbl.reset(path_memo);
+  Hashtbl.reset(consistent_memo);
+  has_type := Util.IdentityTable.create();
 };
 let resolve = (ctx: Ctx.t, t: Typ.t): Typ.t =>
   switch (Typ.term_of(t)) {
@@ -59,7 +176,25 @@ let resolve = (ctx: Ctx.t, t: Typ.t): Typ.t =>
   | _ => Typ.weak_head_normalize(ctx, t)
   };
 
-let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
+/* Whether pushing an ascription through a list's or tuple's parts gave
+   back the very same parts. Then the value already had the type -- plain
+   data, well typed, no function to wrap -- and the push gives the value
+   itself rather than a copy of it: the same objects, so what is kept by
+   identity downstream (the view's call memo) still knows them. Only a
+   recursive push can give a part back unchanged; a stepwise one wraps
+   each part in a new ascription. */
+let unchanged = (ds: list(DHExp.t), ds': list(DHExp.t)): bool =>
+  List.for_all2((d, d') => d === d', ds, ds');
+
+/* A recursive push through a value known to have the type gives it back
+   without walking it (has_type). */
+let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) =>
+  switch (DHExp.term_of(d)) {
+  | Asc(e, t) when recursive && known_to_have(e, t) => Some(e)
+  | Asc(e, t) when recursive => noted(e, t, step(~recursive, d))
+  | _ => step(~recursive, d)
+  }
+and step = (~recursive: bool, d: DHExp.t): option(DHExp.t) => {
   let ctx = ctx_ref^;
   let recur = (d: DHExp.t): DHExp.t =>
     if (recursive) {
@@ -73,7 +208,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
        which needs weak_head_normalize to get the structural form (Rec/Sum/Arrow).
        The ORIGINAL compact type `t` is preserved in newly created Asc nodes. */
     let t_resolved = resolve(ctx, t);
-    switch (DHExp.term_of(e), Typ.term_of(Typ.unroll(t_resolved))) {
+    switch (DHExp.term_of(e), Typ.term_of(unrolled(t_resolved))) {
     | (Asc(e', t'), _)
         // This is only necessary because sometimes we add two ascriptions and aren't marking it as a non-value
         when Typ.is_consistent(ctx, Typ.unroll(t), Typ.unroll(t')) =>
@@ -86,9 +221,12 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         )
       | None => None //TODO  This is an impossible case since we checked consistency
       }
-    | (e, Parens(t)) =>
-      // This is an impossible case since types should be normalized before coming to transitions
-      transition(~recursive, Asc(e |> DHExp.fresh, t) |> DHExp.fresh)
+    | (_, Parens(t)) =>
+      /* An impossible case: types are normalized before they come to
+         transitions. e as it is, not a fresh copy: its id is kept, as
+         everywhere here, and an e that already has the type comes back
+         as itself. */
+      transition(~recursive, Asc(e, t) |> DHExp.fresh)
     | (Closure(ce, d), t) =>
       transition(~recursive, Asc(d, t |> Typ.fresh) |> DHExp.fresh)
       |> Option.map(d => Closure(ce, d) |> DHExp.fresh)
@@ -105,13 +243,15 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       Some(recur(Asc(inner, t) |> DHExp.fresh))
     | (TupLabel(l, inner), TupLabel(_l2, inner_ty)) =>
       // TODO Figure out what to do if the labels don't match
-      Some(
-        IdTagged.fast_copy(
-          DHExp.rep_id(e),
-          TupLabel(l, recur(Asc(inner, inner_ty) |> DHExp.fresh))
-          |> DHExp.fresh,
-        ),
-      )
+      let inner' = recur(Asc(inner, inner_ty) |> DHExp.fresh);
+      inner' === inner
+        ? Some(e)
+        : Some(
+            IdTagged.fast_copy(
+              DHExp.rep_id(e),
+              TupLabel(l, inner') |> DHExp.fresh,
+            ),
+          );
     | (Module(items), Sig(sig_items)) when Mod.is_value_shape(items) =>
       /* Sealing: keep the signature's value members, in signature order,
          ascribing each to its declared type with the signature's own type
@@ -152,19 +292,13 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       | None => None
       };
     | (Tuple(es), Prod(tys)) when List.length(es) == List.length(tys) =>
-      Some(
-        IdTagged.fast_copy(
-          DHExp.rep_id(e),
-          Tuple(
-            List.map2(
-              (e, ty) => recur(Asc(e, ty) |> DHExp.fresh),
-              es,
-              tys,
-            ),
-          )
-          |> DHExp.fresh,
-        ),
-      )
+      let es' =
+        List.map2((e, ty) => recur(Asc(e, ty) |> DHExp.fresh), es, tys);
+      unchanged(es, es')
+        ? Some(e)
+        : Some(
+            IdTagged.fast_copy(DHExp.rep_id(e), Tuple(es') |> DHExp.fresh),
+          );
     | (_, Unknown(_)) => Some(e)
     | (Atom(value), Atom(typ)) =>
       switch (value, typ) {
@@ -182,24 +316,26 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       | (Bool(_), _) => None
       }
     | (ListLit(ds), List(ty)) =>
-      Some(
-        IdTagged.fast_copy(
-          DHExp.rep_id(e),
-          ListLit(List.map(d => recur(Asc(d, ty) |> DHExp.fresh), ds))
-          |> DHExp.fresh,
-        ),
-      )
+      let ds' = List.map(d => recur(Asc(d, ty) |> DHExp.fresh), ds);
+      unchanged(ds, ds')
+        ? Some(e)
+        : Some(
+            IdTagged.fast_copy(
+              DHExp.rep_id(e),
+              ListLit(ds') |> DHExp.fresh,
+            ),
+          );
     | (Cons(d1, d2), List(ty)) =>
-      Some(
-        IdTagged.fast_copy(
-          DHExp.rep_id(e),
-          Cons(
-            recur(Asc(d1, ty) |> DHExp.fresh),
-            recur(Asc(d2, t) |> DHExp.fresh),
-          )
-          |> DHExp.fresh,
-        ),
-      )
+      let d1' = recur(Asc(d1, ty) |> DHExp.fresh);
+      let d2' = recur(Asc(d2, t) |> DHExp.fresh);
+      d1' === d1 && d2' === d2
+        ? Some(e)
+        : Some(
+            IdTagged.fast_copy(
+              DHExp.rep_id(e),
+              Cons(d1', d2') |> DHExp.fresh,
+            ),
+          );
     | (TypFun(tp, body, name), Poly(tp', t')) =>
       let new_ty: Typ.t =
         switch (TPat.tyvar_of_utpat(tp)) {
@@ -252,34 +388,43 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         Sum(m) as sumt',
       )
         when
-          Typ.is_consistent(
-            ctx,
-            Typ.unroll(Typ.weak_head_normalize(ctx, sumt)),
-            sumt' |> Typ.temp,
+          consistent_by_hash(sumt, t, () =>
+            Typ.is_consistent(
+              ctx,
+              Typ.unroll(Typ.weak_head_normalize(ctx, sumt)),
+              sumt' |> Typ.temp,
+            )
           ) =>
       let entry = ConstructorMap.get_entry(c, m);
       switch (entry) {
       | Some(Some(t')) =>
-        Some(
-          IdTagged.fast_copy(
-            DHExp.rep_id(e),
-            Ap(Forward, con, recur(Asc(payload, t') |> DHExp.fresh))
-            |> DHExp.fresh,
-          ),
-        )
+        let payload' = recur(Asc(payload, t') |> DHExp.fresh);
+        payload' === payload
+          ? Some(e)
+          : Some(
+              IdTagged.fast_copy(
+                DHExp.rep_id(e),
+                Ap(Forward, con, payload') |> DHExp.fresh,
+              ),
+            );
       | Some(None)
       | None => None
       };
-    | (Constructor(_, Some(Some(t))), t')
+    | (Constructor(_, Some(Some(ct))), t')
+        /* by hash, keyed as for an applied constructor above (the
+           constructor's type and the ascription's): every Html leaf a
+           view builds asks this of the same two types */
         when
-          Typ.is_consistent(
-            ctx,
-            /* the constructor's own type may be a compact alias of a
-               recursive builtin sum (Null : JSON): resolve it the way
-               the ascription's type was, or the unrolled target never
-               reads as consistent and the cast sticks */
-            Typ.unroll(Typ.weak_head_normalize(ctx, t)),
-            t' |> Typ.temp,
+          consistent_by_hash(ct, t, () =>
+            Typ.is_consistent(
+              ctx,
+              /* the constructor's own type may be a compact alias of a
+                 recursive builtin sum (Null : JSON): resolve it the way
+                 the ascription's type was, or the unrolled target never
+                 reads as consistent and the cast sticks */
+              Typ.unroll(Typ.weak_head_normalize(ctx, ct)),
+              t' |> Typ.temp,
+            )
           ) =>
       Some(e)
     | (ProofObject(e1), ProofOf(e2)) when Exp.fast_equal(e1, e2) =>
@@ -287,6 +432,10 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         IdTagged.fast_copy(DHExp.rep_id(e), ProofObject(e1) |> DHExp.fresh),
       )
     | (Test(_), Prod([])) => Some(e)
+    /* A quotation is a value of type Exp. */
+    | (Quote(_), _)
+        when Typ.is_consistent(ctx, t, Typ.temp(Var("Exp"): Typ.term)) =>
+      Some(e)
     // These are non-value cases we're handling to process ascriptions as early as possible
     | (BinOp(bin_op, _, _), _) =>
       switch (Operators.semantics_of_bin_op(bin_op)) {
@@ -334,6 +483,15 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         IdTagged.fast_copy(
           DHExp.rep_id(e),
           Let(p, e1, Asc(e2, t) |> DHExp.fresh) |> DHExp.fresh,
+        ),
+      )
+    /* A bind's type IS its body's type -- both are M(b) -- so an
+       ascription on the whole pushes into the body, as Let's does. */
+    | (Bind(p, e1, e2), _) =>
+      Some(
+        IdTagged.fast_copy(
+          DHExp.rep_id(e),
+          Bind(p, e1, Asc(e2, t) |> DHExp.fresh) |> DHExp.fresh,
         ),
       )
     | (Seq(e1, e2), _) =>
@@ -399,6 +557,8 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Fun(_), _)
     | (TypFun(_), _)
     | (Test(_), _)
+    | (Quote(_), _)
+    | (Unquote(_), _)
     | (HintedTest(_), _)
     | (Cons(_), _)
     | (ProofObject(_), _)
@@ -410,9 +570,21 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
   };
 };
 
-let rec transition_multiple = (d: DHExp.t): DHExp.t => {
+let rec push_all = (d: DHExp.t): DHExp.t => {
   switch (transition(~recursive=true, d)) {
-  | Some(d'') => transition_multiple(d'')
+  | Some(d'') => push_all(d'')
   | None => d
   };
 };
+
+/* An ascription pushed all the way through a value. That builds a copy of
+   the value, every list cell and tuple field, in a single step, so it is
+   not even a step count, and a value crosses many typed boundaries. The
+   woods' picture, given to view_box(pic : Picture) and to shape_nodes,
+   was copied whole, 15,500 nodes, at each one. The copies were new
+   objects, so the view's call memo put each in form again for its keys,
+   three times a redraw.
+
+   A value that comes back unchanged already had the type, and is
+   remembered as having it (has_type), so it is walked once. */
+let transition_multiple = push_all;

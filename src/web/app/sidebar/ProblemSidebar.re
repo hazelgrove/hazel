@@ -58,10 +58,10 @@ let problem_status_view = (~globals, ci: Language.Info.t): Node.t =>
       message,
       ip,
     )
-  | InfoTyp({cls, marks, message, _}) =>
-    CursorInspector.typ_view(~globals, cls, ~marks, ~message)
-  | InfoTPat({cls, marks, message, _}) =>
-    CursorInspector.tpat_view(~globals, cls, ~marks, ~message)
+  | InfoTyp({cls, marks, message, ctx, _}) =>
+    CursorInspector.typ_view(~globals, ~ctx, cls, ~marks, ~message)
+  | InfoTPat({cls, marks, message, ctx, _}) =>
+    CursorInspector.tpat_view(~globals, ~ctx, cls, ~marks, ~message)
   /* InfoDrv has no marks and routes errors through its own renderer, so
      defer entirely to the cursor inspector's drv_view rather than building
      a generic problem-row from cls/marks/message like the cases above. */
@@ -153,7 +153,8 @@ let row_view =
   div(
     ~attrs=[
       clss(classes),
-      Attr.on_pointerdown(jump_to(~globals, jump_id)),
+      /* click, not pointerdown: a drag over the row selects its text */
+      Attr.on_click(jump_to(~globals, jump_id)),
       scroll_attr,
     ],
     [chevron] @ line_num @ [content],

@@ -31,6 +31,20 @@ type raw_livelit = {
      evaluates it at render time; `update`/`view` above are unused
      placeholders in that case. */
   user_def: option(TermBase.Exp.t),
+  /* A definition written `typfun A -> { ... }` takes a type argument:
+     its member types mention A, and it is used through an abbreviation
+     that supplies one, `let ^b = ^a@<T> in`. None for an ordinary
+     livelit, and for an abbreviation, whose types have T in place. */
+  tparam: option(string),
+  /* A definition written `fun p -> { ... }` takes value parameters, the
+     paper's (Sec. 2.4.1), and is used through an abbreviation that
+     supplies them, `let ^b = ^a(args) in`, whose arguments are closed.
+     false for an ordinary livelit, and for an abbreviation. */
+  vparam: bool,
+  /* What the livelit is at run time, where its expansion reaches its
+     definition: None is the variable `^name` its `let` binds; a module
+     member's is its projection, `Lib."^name"` (UserLivelit.requalify). */
+  runtime: option(TermBase.Exp.t),
 };
 
 // referenced in docs/livelits.md
@@ -87,4 +101,7 @@ let raw_of_builtin = (module B: BuiltinLivelit): raw_livelit => {
   },
   shape: B.shape,
   user_def: None,
+  tparam: None,
+  vparam: false,
+  runtime: None,
 };

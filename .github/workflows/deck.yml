@@ -1,0 +1,72 @@
+# The livelits decks in a real Firefox: scripts/deck_regress.py, whose cases only a real pointer reaches (the
+# projector's event path, which the unit suite cannot). It builds the release bundle and walks every slide: about
+# 40 minutes on #2635 and 2 hours on #2597 (which lacks #2469's livelit speedups), so it runs only on a push that touches the livelits (their projector, statics, sub-editors, slides
+# and programs) or the deck itself: to the livelits integration branches, or a branch named deck/<anything>. A
+# newer push to the same branch cancels the run still going. Or run it by hand (Actions, "Livelit deck in
+# Firefox", choose the branch). GitHub's Ubuntu runners carry Firefox and geckodriver.
+name: Livelit deck in Firefox
+
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Run just the cases whose names contain this (empty: every case)"
+        required: false
+        default: "eye"
+  push:
+    branches:
+      - "deck/**"
+      - "integration/livelits-modular-editors"
+      - "integration/livelits-splicerefs-full"
+    paths:
+      - "src/haz3lcore/projectors/**"
+      - "src/language/statics/UserLivelit.re"
+      - "src/web/app/editors/code/SubEditor.re"
+      - "src/livelitdemos/**"
+      - "hazel-programs/docs/livelits/**"
+      - "scripts/deck_regress.py"
+      - ".github/workflows/deck.yml"
+
+concurrency:
+  group: deck-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  Deck:
+    name: Deck in Firefox
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout the hazel repo
+        uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-hazel-toolchain
+
+      - name: Build Release
+        run: |
+          export DUNE_CACHE=enabled
+          opam exec -- dune build src --profile release
+
+      - name: Serve the build
+        run: |
+          nohup python3 scripts/dev_serve.py --port 8111 > serve.log 2>&1 &
+          for i in $(seq 1 60); do python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8111/', timeout=2)" && break; sleep 1; done
+
+      - name: Run the deck's cases
+        run: |
+          firefox --version; geckodriver --version | head -1
+          python3 scripts/deck_regress.py --port 8111 --only "${{ github.event.inputs.only || 'eye' }}" --shots deck-shots 2>&1 | tee deck.log
+          exit ${PIPESTATUS[0]}
+        timeout-minutes: 150
+
+      - name: Keep the screenshots and the log
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: deck-shots
+          path: |
+            deck-shots
+            deck.log
+            serve.log

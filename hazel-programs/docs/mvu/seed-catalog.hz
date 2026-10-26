@@ -161,13 +161,13 @@ in
 let view(model: Model): Html.T =
   # Day is the editor's own paper; night reuses the firefly's sky, so the two #
   # dark things in this example set share one palette #
-  let bg = if model.nightMode then "oklch(21% 0.04 300)" else "var(--SAND)" in
-  let fg = if model.nightMode then "oklch(80% 0.03 300)" else "var(--STONE)" in
-  let muted = if model.nightMode then "oklch(62% 0.03 300)" else "var(--BR3)" in
-  let rule = if model.nightMode then "oklch(38% 0.05 300)" else "var(--BR1)" in
-  let accent = if model.nightMode then "oklch(78% 0.10 300)" else "var(--BR4)" in
-  let card_bg = if model.nightMode then "oklch(26% 0.04 300)" else "var(--T1)" in
-  let band_bg = if model.nightMode then "oklch(25% 0.04 300)" else "var(--T2)" in
+  let bg = if model.nightMode then "oklch(21% 0.04 300)" else "var(--surface-code)" in
+  let fg = if model.nightMode then "oklch(80% 0.03 300)" else "var(--text-default)" in
+  let muted = if model.nightMode then "oklch(62% 0.03 300)" else "var(--text-muted)" in
+  let rule = if model.nightMode then "oklch(38% 0.05 300)" else "var(--border-soft)" in
+  let accent = if model.nightMode then "oklch(78% 0.10 300)" else "var(--text-strong)" in
+  let card_bg = if model.nightMode then "oklch(26% 0.04 300)" else "var(--surface-default)" in
+  let band_bg = if model.nightMode then "oklch(25% 0.04 300)" else "var(--surface-raised)" in
   let gold = "oklch(64% 0.14 90)" in
   let sidePad = ("padding", "0.7em 1em") in
   let ruleTop = ("border-top", "1px solid " ++ rule) in
@@ -262,8 +262,8 @@ let view(model: Model): Html.T =
         Html.div(
           [Attr.style([
             sidePad,
-            ("background", "var(--G0)"),
-            ("color", "var(--SAND)"),
+            ("background", "var(--surface-success)"),
+            ("color", "var(--surface-code)"),
             ("font-size", "0.75em"),
             ("text-align", "center")
           ])],
@@ -365,9 +365,9 @@ let view(model: Model): Html.T =
                     ("width", "100%"),
                     ("margin-top", "0.5em"),
                     ("padding", "0.4em"),
-                    ("background", "var(--G0)"),
-                    ("color", "var(--SAND)"),
-                    ("border", "1px solid var(--G0)"),
+                    ("background", "var(--surface-success)"),
+                    ("color", "var(--surface-code)"),
+                    ("border", "1px solid var(--border-success)"),
                     ("border-radius", "3px"),
                     ("cursor", "pointer"),
                     ("font-family", "inherit"),

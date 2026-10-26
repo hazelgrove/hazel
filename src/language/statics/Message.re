@@ -68,7 +68,10 @@ type ok_typ =
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type ok_tpat =
   | Empty
-  | Var(string);
+  | Var(string)
+  /* A type alias's name, and its definition as written: the cursor
+     inspector's full view shows both (#2674). */
+  | Alias(string, Typ.t);
 
 /* Single inspector payload for all sorts (non-error branch); errors use marks. */
 [@deriving (show({with_path: false}), sexp, yojson, eq)]

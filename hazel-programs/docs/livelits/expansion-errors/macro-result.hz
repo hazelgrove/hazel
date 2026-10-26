@@ -1,0 +1,25 @@
+# Expansion Type Errors, Macro 1: The Result #
+
+# A Macro expand returns code. Here it is the quotation #
+#   fun a -> a + 1 #
+# with one splice, a, whose code is the client's 1. Applied to its #
+# splice the code has type Int, but Expansion = String. The error is #
+# on the use, since the splice is the use's: #
+#   Applied to its splice, the expansion's code has type Int, but #
+#   the livelit declares Expansion = String #
+
+let ^inc = {
+  type Model = (a = SpliceRef);
+  type Action = Int;
+  type Expansion = String;
+  let init =
+    do a <- new_splice((IntT, Some(IntLit(1)))) in
+    Pure((a = a));
+  let update = fun m : Model -> fun _a : Action -> Pure(m);
+  let view = fun m : Model ->
+    do e <- editor((m.a, FixedWidth(6))) in
+    Pure(Html.div([], [Html.text("a = "), e]));
+  let expand = Macro(fun m : Model -> (quote fun a -> a + 1 end, [m.a]));
+  let shape = Inline(12)
+} in
+^^livelit(^inc((a = (1))))

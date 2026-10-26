@@ -86,6 +86,11 @@ let remold = (z: t, ~root): t => {
 let remold_regrout = (d: Direction.t, z: t, ~root): t =>
   z |> remold(~root) |> regrout(d);
 
+/* ~regrout=false skips the regrout: Parser.to_zipper ~by_run regrouts
+   once at the end instead of after every insertion. */
+let remold_maybe_regrout = (~regrout: bool, d: Direction.t, z: t, ~root): t =>
+  regrout ? remold_regrout(d, z, ~root) : remold(z, ~root);
+
 /* Rescan ancestor-level siblings: converts standalone monotiles that
  * match a parent ancestor's missing shards, giving them the parent's
  * ID, then absorbs them into the parent via reassemble_parent-style
@@ -98,9 +103,9 @@ let rescan_parent_shards = (z: t): t => {
     | None => []
     | Some(a) =>
       let all_shards = fst(a.shards) @ snd(a.shards);
-      List.init(List.length(a.label), Fun.id)
+      List.init(List.length(Ancestor.label(a)), Fun.id)
       |> List.filter(i => !List.mem(i, all_shards))
-      |> List.map(i => (List.nth(a.label, i), i));
+      |> List.map(i => (List.nth(Ancestor.label(a), i), i));
     };
   };
 
@@ -116,8 +121,8 @@ let rescan_parent_shards = (z: t): t => {
           Tile({
             ...t,
             id: a.id,
-            label: a.label,
-            mold: a.mold,
+            form: a.form,
+            sort: a.sort,
             shards: [idx],
           })
         | None => p
@@ -248,7 +253,10 @@ let rescan_parent_shards = (z: t): t => {
 let rescan_reassemble = (~with_parent=false, d: Direction.t, z: t, ~root): t => {
   let siblings = Siblings.rescan(z.relatives.siblings);
   let z =
-    if (siblings == z.relatives.siblings) {
+    /* Siblings.rescan hands back its argument exactly when nothing changed,
+       so identity is the whole test: a structural == would walk every
+       sibling and could never be the one to say "unchanged". */
+    if (siblings === z.relatives.siblings) {
       z;
     } else {
       let relatives =
@@ -328,8 +336,8 @@ let mk_remainder_piece = (tok: Token.t): Piece.t =>
   } else {
     Tile({
       id: Id.mk(),
-      label: [tok],
-      mold: Mold.mk_op(Sort.Any, []),
+      form: Form.Tok(tok),
+      sort: Sort.Any,
       shards: [0],
       children: [],
     });
@@ -385,11 +393,13 @@ let splittable_token = (p: Piece.t): option(Token.t) =>
  * have no mold to reuse and fall back to the generic monotile. */
 let split_piece = (p: Piece.t, tok: Token.t): Piece.t =>
   switch (p) {
-  | Tile({label: [_], shards: [0], _} as t) =>
+  | Tile({shards: [0], _} as t) when Tile.arity(t) == 1 =>
+    /* Tok at the source tile's stored sort, so mold_of lands on that
+     * sort's mold rather than the Any fallback mk_remainder_piece gives */
     Tile({
       ...t,
       id: Id.mk(),
-      label: [tok],
+      form: Form.Tok(tok),
     })
   | _ => mk_remainder_piece(tok)
   };
@@ -888,25 +898,25 @@ let do_until_linebreak =
   linebreak_on(d, generalized_neighbors(z))
     ? Some(z) : do_until(f, linebreak_on(d), z);
 
-let local_backpack = (z: t): list(Tile.t) =>
+let local_missing_shards = (z: t): list(Tile.t) =>
   Relatives.local_missing_shards(z.relatives);
 
-let backpack_hd = (z: t): option(Tile.t) =>
-  z |> local_backpack |> ListUtil.hd_opt;
+let missing_shards_hd = (z: t): option(Tile.t) =>
+  z |> local_missing_shards |> ListUtil.hd_opt;
 
-let backpack_find = (tok: Token.t, z: t): option(Tile.t) =>
+let find_missing_shard = (tok: Token.t, z: t): option(Tile.t) =>
   if (Form.is_ambiguous_polymorph(tok)) {
     /* Special case for ambiguous polymorphs. These tokens
        occur both on their own as infix ops and as delimiters of
        multi-delimiter forms. To give the singleton form a chance, we
        only match these to incomplete tiles to form their multi forms
        when they're on the top of the stack */
-    backpack_hd(z) |> Option.map(Tile.effective_label) == Some([tok])
-      ? backpack_hd(z) : None;
+    missing_shards_hd(z) |> Option.map(Tile.effective_label) == Some([tok])
+      ? missing_shards_hd(z) : None;
   } else {
     List.find_map(
       t => Tile.effective_label(t) == [tok] ? Some(t) : None,
-      local_backpack(z),
+      local_missing_shards(z),
     );
   };
 
@@ -964,21 +974,22 @@ let put_down_seg = (d: Direction.t, seg: Segment.t, z: t): t =>
   z |> put_down_core(seg) |> adj_pos(d);
 
 let can_put_down = z =>
-  switch (local_backpack(z)) {
+  switch (local_missing_shards(z)) {
   | [] => false
   | _ => z.caret == Outer
   };
 
-let put_down_target = (d: Direction.t, target: Tile.t, z: t, ~root): t =>
+let put_down_target =
+    (~regrout=true, d: Direction.t, target: Tile.t, z: t, ~root): t =>
   z
   |> put_down_core([Tile(target)])
-  |> remold_regrout(Left, ~root)
+  |> remold_maybe_regrout(~regrout, Left, ~root)
   |> adj_pos(d);
 
 let put_down = (z: t, ~root): option(t) =>
   z.caret == Outer
     ? {
-      let+ target = backpack_hd(z);
+      let+ target = missing_shards_hd(z);
       put_down_target(Left, target, z, ~root);
     }
     : None;
@@ -988,8 +999,10 @@ let delete = (d: Direction.t, z: t): option(t) =>
 
 let adjacent_monotile_id = (d: Direction.t, z: t): option(Id.t) =>
   switch (Siblings.neighbors(z.relatives.siblings)) {
-  | (Some(Tile({id, label: [_], _})), _) when d == Left => Some(id)
-  | (_, Some(Tile({id, label: [_], _}))) when d == Right => Some(id)
+  | (Some(Tile({id, _} as t)), _) when d == Left && Tile.arity(t) == 1 =>
+    Some(id)
+  | (_, Some(Tile({id, _} as t))) when d == Right && Tile.arity(t) == 1 =>
+    Some(id)
   | _ => None
   };
 

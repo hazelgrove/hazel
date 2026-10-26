@@ -213,3 +213,26 @@
 .highlight-code-f {
   fill: var(--text-doc-6);
 }
+/* A livelit use's own syntax (ExplainThis.livelit_use_syntax): one line
+   per model field, each line real code. A field wider than the sidebar
+   scrolls sideways rather than being clipped. */
+#explain-this .section.livelit-use .code,
+#explain-this .section.livelit-use .livelit-use-lines {
+  overflow-x: auto;
+  max-width: 100%;
+}
+#explain-this .livelit-use-line {
+  display: flex;
+  align-items: baseline;
+  white-space: nowrap;
+  font-family: var(--code-font);
+}
+#explain-this .livelit-use-label {
+  font-family: var(--code-font);
+}
+#explain-this .livelit-use-punct {
+  white-space: pre;
+}
+#explain-this .livelit-use-line.indent {
+  padding-left: 2ch;
+}

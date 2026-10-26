@@ -360,9 +360,7 @@ let expander_deco =
 
     let get_clss = segment =>
       switch (List.nth(segment, 0)) {
-      | Base.Tile({mold, _}) => [
-          "ci-header-" ++ Sort.to_string(mold.out) // TODO the brown on brown isn't the greatest... but okay
-        ]
+      | Base.Tile(t) => ["ci-header-" ++ Sort.to_string(Tile.mold(t).out)]
       | _ => []
       };
 
@@ -464,7 +462,7 @@ let example_view =
                   ~caption=None,
                   ~locked=true,
                   {
-                    term
+                    Lazy.force(term)
                     |> Zipper.unzip
                     |> Editor.Model.mk(~root=Exp)
                     |> CellEditor.Model.mk
@@ -634,28 +632,26 @@ let decide_deduction =
             |> List.map(
                  Base.map_piece(~f_piece=(cont, piece) => {
                    switch (piece) {
-                   | Tile(
-                       {
-                         children: [],
-                         mold:
-                           {
-                             nibs: ({shape: Convex, _}, {shape: Convex, _}),
-                             _,
-                           },
-                         _,
-                       } as t,
-                     ) =>
-                     let label = t.label |> List.hd;
+                   | Tile({children: [], _} as t)
+                       when
+                         switch (Tile.mold(t).nibs) {
+                         | ({shape: Convex, _}, {shape: Convex, _}) => true
+                         | _ => false
+                         } =>
+                     let label = Tile.label(t) |> List.hd;
                      let (_, syntax) = RuleVerify.Map.find(label, map);
+                     /* display-only markdown-link label swap; only
+                      * to_string reads this tile downstream */
                      Tile({
                        ...t,
-                       label: [
-                         Printf.sprintf(
-                           "[*%s*](%s)",
-                           label,
-                           syntax |> Drv.Any.rep_id |> Id.to_string,
+                       form:
+                         Form.Tok(
+                           Printf.sprintf(
+                             "[*%s*](%s)",
+                             label,
+                             syntax |> Drv.Any.rep_id |> Id.to_string,
+                           ),
                          ),
-                       ],
                      });
                    | _ => cont(piece)
                    }
@@ -840,6 +836,14 @@ let decide =
       | DrvQuote(_) =>
         Markdown(
           "A derivation-mode quotation embeds a derivation-mode term into a regular expression. There are 5 forms of quotation:\n1) `of_jdmt`\n2) `of_ctx`\n3) `of_prop`\n4) `of_alfa_exp`\n5) `of_alfa_typ`",
+        )
+      | Unquote(_) =>
+        Markdown(
+          "An antiquotation, inside a quotation: its body is an `Exp` computed where the quotation is written, and that code is spliced in here. Outside a quotation it is an error.",
+        )
+      | Quote(_) =>
+        Markdown(
+          "A quotation is code as a value, of type `Exp`. The body is not evaluated. A livelit's `Macro` expand returns a quotation, which is applied to the livelit's splices at each use. The body is checked in the builtin context only, so it cannot name a variable bound in your program: an expansion must be closed.",
         )
       | Invalid(_) => Prose("Not a valid expression")
       | DynamicErrorHole(_)
@@ -1303,6 +1307,10 @@ let decide =
         let exp1_id = IdTagged.rep_id(left);
         let exp2_id = IdTagged.rep_id(right);
         get_message(SeqExp.seqs(~exp1_id, ~exp2_id));
+      | Bind(pat, cmd, _body) =>
+        let pat_id = IdTagged.rep_id(bypass_parens_and_annot_pat(pat));
+        let cmd_id = IdTagged.rep_id(cmd);
+        get_message(BindExp.binds(~pat_id, ~cmd_id));
       | Filter(Filter({act: (Step, One), pat}), body) =>
         message_single(
           FilterExp.filter_pause(
@@ -1774,6 +1782,81 @@ type info = {
   deduction: info_deduction,
 };
 
+/* The livelit use at the cursor, as the syntax it is: its GUI stands in
+   for that syntax in the editor, so this is where a reader sees the
+   model the use carries, splices included. None elsewhere.
+
+   A model with several fields is laid out one field per line, which is
+   how it reads on a projector; code does not wrap, so a one-line use of
+   Color would run off the sidebar. Each field is printed on its own, so
+   the lines are real code, highlighted as code. */
+let livelit_use_syntax = (~globals: Globals.t, info: option(Info.t)) => {
+  let rec strip = (e: Exp.t): Exp.t =>
+    switch (e.term) {
+    | Parens(e)
+    | Projector(_, e) => strip(e)
+    | _ => e
+    };
+  let code = (e: Exp.t) =>
+    ExpToSegment.exp_to_segment(
+      e,
+      ~settings=
+        ExpToSegment.Settings.of_core(~inline=true, globals.settings.core),
+    )
+    |> CodeViewable.view_segment(~globals);
+  let line = (~indent=false, parts) =>
+    div(
+      ~attrs=[clss(["livelit-use-line"] @ (indent ? ["indent"] : []))],
+      parts,
+    );
+  let punct = s => span(~attrs=[clss(["livelit-use-punct"])], [text(s)]);
+  switch (info) {
+  | Some(InfoExp({user_term, _})) =>
+    switch (strip(user_term)) {
+    | {term: Ap(Forward, {term: LivelitName(name), _}, model), _} as use =>
+      switch (strip(model).term) {
+      | Tuple([_, _, ..._] as fields) =>
+        let n = List.length(fields);
+        Some(
+          div(
+            ~attrs=[clss(["livelit-use-lines"])],
+            [line([punct("^" ++ name ++ "(")])]
+            @ List.mapi(
+                (i, f: Exp.t) =>
+                  line(
+                    ~indent=true,
+                    /* A labeled field printed on its own loses the
+                       spaces the printer puts around `=` inside a tuple,
+                       so its label and value are printed apart. */
+                    (
+                      switch (f.term) {
+                      | TupLabel({term: Label(name), _}, v) => [
+                          span(
+                            ~attrs=[clss(["livelit-use-label"])],
+                            [text(name)],
+                          ),
+                          punct(" = "),
+                          code(v),
+                        ]
+                      | TupLabel(l, v) => [code(l), punct(" = "), code(v)]
+                      | _ => [code(f)]
+                      }
+                    )
+                    @ (i < n - 1 ? [punct(",")] : []),
+                  ),
+                fields,
+              )
+            @ [line([punct(")")])],
+          ),
+        );
+      | _ => Some(code(use))
+      }
+    | _ => None
+    }
+  | _ => None
+  };
+};
+
 let view =
     (
       ~globals: Globals.t,
@@ -1783,6 +1866,7 @@ let view =
     ) => {
   // This gets the info from the infomap before singleton autolabelling
   let info_cursor = Option.map(Info.pre_labeled_info, info.cursor);
+  let this_use = livelit_use_syntax(~globals, info_cursor);
   let (syn_form, (explanation, _), example) =
     view_doc(
       ~globals,
@@ -1844,9 +1928,25 @@ let view =
       ),
     ]
     @ (
+      switch (this_use) {
+      | Some(code) => [
+          section(~section_clss="livelit-use", ~title="This use", [code]),
+        ]
+      | None => []
+      }
+    )
+    @ (
       example == []
         ? []
-        : [section(~section_clss="examples", ~title="Examples", example)]
+        : [
+          section(
+            ~section_clss="examples",
+            /* Beside the use at the cursor, the generic example is the
+               other one. */
+            ~title=Option.is_some(this_use) ? "Another example" : "Examples",
+            example,
+          ),
+        ]
     ),
   );
 };
