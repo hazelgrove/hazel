@@ -10,10 +10,8 @@ type binding('v) = (int, 'v);
 let pp = (pp_v, f, map) =>
   iter((k, v) => Format.fprintf(f, "%d -> %a@\n", k, pp_v, v), map);
 
-/* Ptmap has no of_list. A key bound twice keeps its last binding, as with
-   Stdlib.Map.of_list. */
 let of_list = (bindings: list((int, 'v))): t('v) =>
-  List.fold(bindings, ~init=empty, ~f=(map, (k, v)) => add(k, v, map));
+  bindings |> Stdlib.List.to_seq |> of_seq;
 
 let sexp_of_t = (sexp_of_v: 'v => Sexp.t, map: t('v)): Sexp.t =>
   map |> bindings |> sexp_of_list(sexp_of_binding(sexp_of_v));
