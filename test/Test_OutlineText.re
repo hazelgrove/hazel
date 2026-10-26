@@ -1877,7 +1877,6 @@ let live_in_stack = () => {
         Web.Workspace.fresh_info_map(
           ~settings=Web.Globals.Model.init().settings,
           code.program,
-          Web.Workspace.fresh_term(code.program),
         ),
       Web.SlideView.pin(~outline=term, a, code.view),
       code,

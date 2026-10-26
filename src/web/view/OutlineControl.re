@@ -958,12 +958,7 @@ let update =
                        code.view.pins,
                      ) =>
             Workspace.realize(
-              ~info_map=
-                Workspace.fresh_info_map(
-                  ~settings,
-                  program,
-                  Workspace.fresh_term(program),
-                ),
+              ~info_map=Workspace.fresh_info_map(~settings, program),
               SlideView.pin(~outline, f.f_id, code.view),
               code,
             )
