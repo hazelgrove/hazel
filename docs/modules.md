@@ -178,7 +178,8 @@ earlier type members by name, and paths rooted at earlier modules
   outer context whatever order each side declares them in. A signature is inconsistent with
   every other type constructor, including `Prod`.
 - `Typ.path_sig` resolves a module path (`Var(M)`, `M.P`) to its signature's
-  items: a type alias first, then a value variable whose type is a signature.
+  items. A root is whichever of a type alias and a value variable of that
+  name was bound later; a value counts only if its type is a signature.
   `weak_head_normalize` uses it for `ProdProjection`, falling back to the
   labeled-tuple projection.
 
