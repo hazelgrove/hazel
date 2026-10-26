@@ -46,6 +46,7 @@ let (suite, _) =
     @ [Test_EditorTransform.tests]
     @ [Test_RationalReadback.tests]
     @ [Test_NumericCastLibrary.tests]
+    @ [Test_NumericCastProofPath.tests]
     @ Test_Reassociate.tests
     @ Test_MultiProbe.tests
     @ [Test_SampleSelection.tests]
