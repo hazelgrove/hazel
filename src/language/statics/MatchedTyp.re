@@ -1,106 +1,144 @@
-/*
-   Matched type judgements (▷): extract expected shapes from types after WHNF.
-   Prefer these over ad hoc `Typ.term_of` switches — parens, unknowns, SynSwitch.
- */
+type failure = {
+  ana: Typ.t,
+  syn: Typ.t,
+};
 
-open Util;
-open Either;
-open Typ;
+type product = {
+  types: list(Typ.t),
+  alignment: list((int, option(string))),
+};
 
-let rec arrow = (ctx, ty) =>
-  switch (term_of(weak_head_normalize(ctx, ty))) {
-  | Parens(ty) => arrow(ctx, ty)
-  | Arrow(ty_in, ty_out) => Some((ty_in, ty_out))
-  | Unknown(SynSwitch) =>
-    Some((Unknown(SynSwitch) |> temp, Unknown(SynSwitch) |> temp))
-  | _ => None
-  };
+type request('a) =
+  | Arrow: request((Typ.t, Typ.t))
+  | Poly: request((option(TPat.t), Typ.t))
+  | List: request(Typ.t)
+  | Product(list(option(string))): request(product)
+  | Label: request((Typ.t, Typ.t))
+  | Args(int): request(list(Typ.t));
 
-let arrow_tolerant = (ctx, ty) =>
-  arrow(ctx, ty)
-  |> Option.value(
-       ~default=(Unknown(Internal) |> temp, Unknown(Internal) |> temp),
-     );
+type handling('a, 'result) =
+  | Optional: handling('a, option('a))
+  | Report(failure => 'mark): handling('a, ('a, list('mark)));
 
-let rec poly_pair = (ctx, ty) =>
-  switch (term_of(weak_head_normalize(ctx, ty))) {
-  | Parens(ty) => poly_pair(ctx, ty)
-  | Poly(t, ty) => Some((Some(t), ty))
-  | Unknown(SynSwitch) => Some((None, Unknown(SynSwitch) |> temp))
-  | _ => None
-  };
-
-let poly_pair_tolerant = (ctx, ty) =>
-  poly_pair(ctx, ty)
-  |> Option.value(~default=(None, Unknown(Internal) |> temp));
-
-let rec prod_strict:
-  type a.
-    (Ctx.t, list(a), a => option((string, a)), Typ.t, (string, a) => a) =>
-    (list(a), option(list(Typ.t))) =
-  (ctx: Ctx.t, es, get_label_es, ty: Typ.t, constructor) => {
-    switch (term_of(weak_head_normalize(ctx, ty))) {
-    | Parens(ty) => prod_strict(ctx, es, get_label_es, ty, constructor)
-    | Prod(tys: list(Typ.t)) =>
-      if (List.length(es) != List.length(tys)) {
-        (es, None);
-      } else {
-        (
-          LabeledTuple.rearrange(
-            match_tup_label,
-            get_label_es,
-            tys,
-            es,
-            constructor,
+/* A failed judgment only establishes the outer structure of the expression,
+   not its component types. Report that structure using ordinary unknowns so
+   callers can use their existing expectation-mismatch diagnostic. */
+let required_type: type a. request(a) => Typ.t =
+  request => {
+    let unknown = Unknown(Internal) |> Typ.temp;
+    let term: Typ.term =
+      switch (request) {
+      | Arrow => Arrow(unknown, unknown)
+      | Poly => Poly(TPat.temp(EmptyHole), unknown)
+      | List => List(unknown)
+      | Product(labels) =>
+        Prod(
+          List.map(
+            label =>
+              switch (label) {
+              | None => unknown
+              | Some(name) =>
+                Typ.temp(TupLabel(Typ.temp(Label(name)), unknown))
+              },
+            labels,
           ),
-          Some(tys),
-        );
+        )
+      | Label => TupLabel(unknown, unknown)
+      | Args(n) => Prod(List.init(n, _ => unknown))
+      };
+    Typ.temp(term);
+  };
+
+/* Recovery is determined by the request, never by the diagnostic policy. */
+let unknown_parts: type a. (request(a), TermBase.type_provenance) => a =
+  (request, provenance) => {
+    let unknown = Unknown(provenance) |> Typ.temp;
+    switch (request) {
+    | Arrow => (unknown, unknown)
+    | Label => (unknown, unknown)
+    | Poly => (None, unknown)
+    | List => unknown
+    | Product(labels) => {
+        types: List.map(_ => unknown, labels),
+        alignment: List.mapi((i, _) => (i, None), labels),
       }
-    | Unknown(SynSwitch) => (
-        es,
-        Some(List.init(List.length(es), _ => Unknown(SynSwitch) |> temp)),
-      )
-    | _ => (es, None)
+    | Args(n) => List.init(n, _ => unknown)
     };
   };
 
-let prod = (ctx, es, get_label_es, ty, constructor) => {
-  let (es, tys_opt) = prod_strict(ctx, es, get_label_es, ty, constructor);
-  (
-    es,
-    tys_opt
-    |> Option.value(
-         ~default=List.init(List.length(es), _ => Unknown(Internal) |> temp),
-       ),
-  );
-};
-
-let rec list_strict = (ctx, ty) =>
-  switch (term_of(weak_head_normalize(ctx, ty))) {
-  | Parens(ty) => list_strict(ctx, ty)
-  | List(ty) => Some(ty)
-  | Unknown(SynSwitch) => Some(Unknown(SynSwitch) |> temp)
-  | _ => None
-  };
-
-let list_tolerant = (ctx, ty) =>
-  list_strict(ctx, ty) |> Option.value(~default=Unknown(Internal) |> temp);
-
-let rec args = (ctx, ty, arity): Either.t('a, int) => {
-  switch (term_of(weak_head_normalize(ctx, ty))) {
-  | Parens(ty) => args(ctx, ty, arity)
-  | Prod(tys) when List.length(tys) == arity => L(tys)
-  | Prod(tys) => R(List.length(tys))
-  | _ when arity == 1 => L([ty])
-  | Unknown(_) => L(List.init(arity, _ => Unknown(Internal) |> temp))
-  | _ => R(1)
+let align_product = (labels, types) => {
+  let indexed = List.mapi((i, label) => (label, i), labels);
+  let aligned =
+    LabeledTuple.rearrange(
+      Typ.match_tup_label,
+      ((label, i)) => Option.map(name => (name, (label, i)), label),
+      types,
+      indexed,
+      (name, (_, i)) => (Some(name), i),
+    );
+  let original = Array.of_list(labels);
+  {
+    types,
+    alignment:
+      List.map(
+        ((label, i)) => (i, original[i] == None ? label : None),
+        aligned,
+      ),
   };
 };
 
-let label = (ctx, ty): option((Typ.t, Typ.t)) =>
-  switch (term_of(weak_head_normalize(ctx, ty))) {
-  | TupLabel({term: Label(ml), _}, ty) => Some((Label(ml) |> temp, ty))
-  | Unknown(SynSwitch) =>
-    Some((Unknown(SynSwitch) |> temp, Unknown(SynSwitch) |> temp))
-  | _ => None
+/* Choose the components to extract (Arrow: input/output pair; List: element
+   type) and how to handle failure. These choices determine the return type:
+     match_type(ctx, Arrow, Optional, ty) -> Some((input, output)) or None
+     match_type(ctx, Arrow, Report(make_mark), ty) -> ((input, output), marks)
+   Report recovers unknown components on failure; make_mark({ana, syn}) chooses
+   the diagnostic for a concrete mismatch. Attach the returned marks in the
+   statics rule. Unknown inputs never produce a diagnostic. The GADT type
+   parameters enforce these return types; callers need no special syntax. */
+let rec match_type:
+  type a result. (Ctx.t, request(a), handling(a, result), Typ.t) => result =
+  (ctx, request, handling, typ) => {
+    let head = Typ.weak_head_normalize(ctx, typ);
+    switch (head.term) {
+    | Parens(inner) => match_type(ctx, request, handling, inner)
+    | _ =>
+      let parts: option(a) =
+        switch (request, head.term) {
+        | (Arrow, Arrow(input, output)) => Some((input, output))
+        | (Poly, Poly(binder, body)) => Some((Some(binder), body))
+        | (List, List(element)) => Some(element)
+        | (Label, TupLabel(label, value)) => Some((label, value))
+        | (Product(labels), Prod(types))
+            when List.length(labels) == List.length(types) =>
+          Some(align_product(labels, types))
+        | (Args(n), Prod(types)) when List.length(types) == n =>
+          Some(types)
+        | (Args(_), Prod(_)) => None
+        | (Args(1), _) => Some([typ])
+        | (Args(n), Unknown(_)) =>
+          Some(List.init(n, _ => Unknown(Internal) |> Typ.temp))
+        | (_, Unknown(SynSwitch)) =>
+          Some(unknown_parts(request, SynSwitch))
+        | _ => None
+        };
+      switch (handling) {
+      | Optional => parts
+      | Report(mark) =>
+        switch (parts, head.term) {
+        | (Some(parts), _) => (parts, [])
+        /* Unknowns are not concrete failures. Optional callers can still
+           distinguish them from a successful decomposition. */
+        | (None, Unknown(_)) => (unknown_parts(request, Internal), [])
+        | (None, _) => (
+            unknown_parts(request, Internal),
+            [
+              mark({
+                ana: typ,
+                syn: required_type(request),
+              }),
+            ],
+          )
+        }
+      };
+    };
   };

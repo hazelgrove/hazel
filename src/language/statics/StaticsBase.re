@@ -312,26 +312,6 @@ let should_emit_nomeet_mark =
   | None => true
   };
 
-let syn_ana_ok_common =
-    (ctx: Ctx.t, ty_ana: Typ.t, elab_syn_ty: Typ.t): Message.ok_common => {
-  let ana = ana_skip_explicit_nonlabel(ty_ana);
-  switch (ana.term) {
-  | Unknown(SynSwitch) => Message.Syn(elab_syn_ty)
-  | _ =>
-    switch (Typ.meet(ctx, ana, elab_syn_ty)) {
-    | None => Message.Syn(elab_syn_ty)
-    | Some(meet) =>
-      Message.Ana(
-        Message.Consistent({
-          ana,
-          syn: elab_syn_ty,
-          meet,
-        }),
-      )
-    }
-  };
-};
-
 let expectation_mismatch_mark =
     (ctx: Ctx.t, ana: Typ.t, elab_syn_ty: Typ.t): option(Mark.t) => {
   let ana' = ana_skip_explicit_nonlabel(ana);
@@ -349,6 +329,31 @@ let expectation_mismatch_mark =
         }),
       )
     }
+  };
+};
+
+/* Synthesis rules explicitly check their independent result. An existing
+   local error takes precedence over a secondary expectation mismatch. */
+let check_expectation = (~marks=[], ctx, ana, syn) =>
+  switch (marks) {
+  | [_, ..._] => marks
+  | [] => expectation_mismatch_mark(ctx, ana, syn) |> Option.to_list
+  };
+
+/* A single irrefutable pattern needs neither normalization nor coverage. */
+let exhaustiveness_marks = (ctx: Ctx.t, pat: Info.pat, result_ty: Typ.t) => {
+  let constraint_ = Info.pat_constraint(pat);
+  if (Coverage.Constraint.is_irrefutable(constraint_)) {
+    [];
+  } else {
+    let Coverage.CheckMatrix.{exhaustiveness, _} =
+      Coverage.check([constraint_], Typ.normalize(ctx, pat.ty));
+    switch (exhaustiveness) {
+    | Exhaustive => []
+    | Inexhaustive(unseen) => [
+        Mark.InexhaustiveMatch(result_ty, [], unseen),
+      ]
+    };
   };
 };
 

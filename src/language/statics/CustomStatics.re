@@ -229,6 +229,7 @@ let handle_tuple_operation =
       ~fn_info: Info.exp,
       ~ancestors: list(Id.t),
       ~ctx: Ctx.t,
+      ~ana: Typ.t,
       ~compute_result_type,
       m: Map.t,
       arg: Exp.t,
@@ -278,7 +279,7 @@ let handle_tuple_operation =
       add(
         ~elab_term=mk_builtin_ap_elab(~annotation, fn_info, arg_elab),
         ~elab_syn_ty=result_type,
-        ~marks=[],
+        ~marks=check_expectation(ctx, ana, result_type),
         ~co_ctx=CoCtx.union([fn_info.co_ctx, tup_info.co_ctx]),
         m,
       );
@@ -303,6 +304,7 @@ let project_labels_statics =
       ~fn_info: Info.exp,
       ~ancestors: list(Id.t),
       ~ctx: Ctx.t,
+      ~ana: Typ.t,
       m: Map.t,
       arg: Exp.t,
     ) => {
@@ -312,6 +314,7 @@ let project_labels_statics =
     ~fn_info,
     ~ancestors,
     ~ctx,
+    ~ana,
     ~compute_result_type=
       (labeled_tup_info, labels) => {
         let val_types =
@@ -340,6 +343,7 @@ let select_labels_statics =
       ~fn_info: Info.exp,
       ~ancestors: list(Id.t),
       ~ctx: Ctx.t,
+      ~ana: Typ.t,
       m: Map.t,
       arg: Exp.t,
     ) => {
@@ -349,6 +353,7 @@ let select_labels_statics =
     ~fn_info,
     ~ancestors,
     ~ctx,
+    ~ana,
     ~compute_result_type=
       (labeled_tup_info, labels) => {
         let val_types =
@@ -379,6 +384,7 @@ let omit_labels_statics =
       ~fn_info: Info.exp,
       ~ancestors: list(Id.t),
       ~ctx: Ctx.t,
+      ~ana: Typ.t,
       m: Map.t,
       arg: Exp.t,
     ) => {
@@ -388,6 +394,7 @@ let omit_labels_statics =
     ~fn_info,
     ~ancestors,
     ~ctx,
+    ~ana,
     ~compute_result_type=
       (labeled_tup_info, labels) => {
         let labels_to_drop = List.filter_map(Fun.id, labels);
@@ -426,6 +433,7 @@ let group_by_label_statics =
       ~fn_info: Info.exp,
       ~ancestors: list(Id.t),
       ~ctx: Ctx.t,
+      ~ana as _: Typ.t,
       m: Map.t,
       arg: Exp.t,
     ) => {
@@ -530,11 +538,16 @@ let to_lvs_statics =
       ~fn_info: Info.exp,
       ~ancestors as _: list(Id.t),
       ~ctx: Ctx.t,
+      ~ana: Typ.t,
       m: Map.t,
       arg: Exp.t,
     ) => {
   open S;
-  let (ty_in, ty_out) = MatchedTyp.arrow_tolerant(ctx, fn_info.ty);
+  let (ty_in, ty_out) =
+    MatchedTyp.match_type(ctx, Arrow, Optional, fn_info.ty)
+    |> Option.value(
+         ~default=(SynTy.unknown_internal(), SynTy.unknown_internal()),
+       );
   let (arg, _, m) = uexp_to_info_map(~ctx, ~ana=ty_in, arg, m);
 
   switch (Typ.normalize(ctx, arg.ty).term) {
@@ -552,18 +565,19 @@ let to_lvs_statics =
         )
         |> Option.value(~default=unknown);
 
+      let result_type =
+        IdTagged.FreshGrammar.Typ.(
+          list(
+            prod([
+              tup_label(label("label"), string()),
+              tup_label(label("value"), joined_typ),
+            ]),
+          )
+        );
       add(
         ~elab_term=mk_builtin_ap_elab(~annotation, fn_info, arg.elab_term),
-        ~elab_syn_ty=
-          IdTagged.FreshGrammar.Typ.(
-            list(
-              prod([
-                tup_label(label("label"), string()),
-                tup_label(label("value"), joined_typ),
-              ]),
-            )
-          ),
-        ~marks=[],
+        ~elab_syn_ty=result_type,
+        ~marks=check_expectation(ctx, ana, result_type),
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
         m,
       );
@@ -580,7 +594,7 @@ let to_lvs_statics =
     add(
       ~elab_term=mk_builtin_ap_elab(~annotation, fn_info, arg.elab_term),
       ~elab_syn_ty=ty_out,
-      ~marks=[],
+      ~marks=check_expectation(ctx, ana, ty_out),
       ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
       m,
     )
@@ -602,11 +616,16 @@ let omit_all_labels_statics =
       ~fn_info: Info.exp,
       ~ancestors as _: list(Id.t),
       ~ctx: Ctx.t,
+      ~ana: Typ.t,
       m: Map.t,
       arg: Exp.t,
     ) => {
   S.(
-    let (ty_in, ty_out) = MatchedTyp.arrow_tolerant(ctx, fn_info.ty);
+    let (ty_in, ty_out) =
+      MatchedTyp.match_type(ctx, Arrow, Optional, fn_info.ty)
+      |> Option.value(
+           ~default=(SynTy.unknown_internal(), SynTy.unknown_internal()),
+         );
     let (arg, _, m) = uexp_to_info_map(~ctx, ~ana=ty_in, arg, m);
 
     switch (Typ.normalize(ctx, arg.ty).term) {
@@ -621,10 +640,11 @@ let omit_all_labels_statics =
           entries,
         );
 
+      let result_type = Typ.to_product(entries);
       add(
         ~elab_term=mk_builtin_ap_elab(~annotation, fn_info, arg.elab_term),
-        ~elab_syn_ty=Typ.to_product(entries),
-        ~marks=[],
+        ~elab_syn_ty=result_type,
+        ~marks=check_expectation(ctx, ana, result_type),
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
         m,
       );
@@ -632,7 +652,7 @@ let omit_all_labels_statics =
       add(
         ~elab_term=mk_builtin_ap_elab(~annotation, fn_info, arg.elab_term),
         ~elab_syn_ty=ty_out,
-        ~marks=[],
+        ~marks=check_expectation(ctx, ana, ty_out),
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
         m,
       )
@@ -673,6 +693,7 @@ let analyze_args_syn =
 let custom_statics_deferred_ap =
     (
       ~ctx: Ctx.t,
+      ~ana: Typ.t,
       ~ancestors as _: list(Id.t),
       ~fn_info: Info.exp,
       kind: Ctx.custom_statics,
@@ -689,7 +710,8 @@ let custom_statics_deferred_ap =
 
       add(
         ~elab_syn_ty=Arrow(unknown, unknown) |> Typ.temp,
-        ~marks=[],
+        ~marks=
+          check_expectation(ctx, ana, Arrow(unknown, unknown) |> Typ.temp),
         ~co_ctx=CoCtx.union([fn_info.co_ctx, tup_info.co_ctx]),
         m,
       );
@@ -769,7 +791,8 @@ let custom_statics_deferred_ap =
 
       add(
         ~elab_syn_ty=Arrow(ty_in', unknown) |> Typ.temp,
-        ~marks=[],
+        ~marks=
+          check_expectation(ctx, ana, Arrow(ty_in', unknown) |> Typ.temp),
         ~co_ctx=combined_co_ctx,
         m,
       );

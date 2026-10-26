@@ -11,6 +11,7 @@
 let custom_statics_deferred_ap:
   (
     ~ctx: Ctx.t,
+    ~ana: Typ.t,
     ~ancestors: list(Id.t),
     ~fn_info: Info.exp,
     Ctx.custom_statics,
@@ -29,6 +30,7 @@ let custom_statics_ap:
     ~fn_info: Info.exp,
     ~ancestors: list(Id.t),
     ~ctx: Ctx.t,
+    ~ana: Typ.t,
     StaticsBase.Map.t,
     Exp.t
   ) =>
