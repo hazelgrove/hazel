@@ -106,6 +106,199 @@ let check_not_proven = (t: thm) =>
 
 let check_valid = errs => check(int, "valid program: no static errors", 0, errs);
 
+
+/* --- Bounded adaptive discovery (Reset-numeric-cast-proof-script-correction)
+ *
+ * Old-style `eval E at i end` takes ONE stepper step (ProofCheck
+ * eval_step_outgoing_result), so the number of steps a closed control
+ * needs is not known in advance. Root approved a bounded search: for
+ * n = 1..32, the script is n copies of the existing whole-goal pattern
+ * step `eval $lhs == $rhs at 0 end` (distinct named captures, so the two
+ * sides are never constrained equal), run through the REAL parser,
+ * statics, Evaluator and ProofCheck. Every attempt is printed. The search
+ * stops at the first mark, the first literal true/false, or -- for a
+ * positive -- the first goal whose sides are the same canonical Rational
+ * value, where `axiom refl_eq at 0 on $x == $x end` (linear `$x`) closes
+ * it. This is discovery, not a fixture run once; the FINAL script is
+ * printed literally and then asserted. */
+
+let step_text = "eval $lhs == $rhs at 0 end";
+let refl_text = "axiom refl_eq at 0 on $x == $x end";
+let max_steps = 32;
+
+type attempt = {
+  script: string,
+  status: string,
+  marks: string,
+  outgoing: string,
+  canonical_equal: bool,
+};
+
+/* `p / q` as printed for a Rational value. */
+let is_rat_value = (s: string): bool => {
+  let digits = d => {
+    let ok = ref(d != "");
+    String.iter(c => if (c < '0' || c > '9') {ok := false}, d);
+    ok^;
+  };
+  switch (String.split_on_char(' ', s)) {
+  | [n, "/", d] =>
+    let n =
+      String.length(n) > 1 && n.[0] == '-'
+        ? String.sub(n, 1, String.length(n) - 1) : n;
+    digits(n) && digits(d);
+  | _ => false
+  };
+};
+
+let run_attempt = (~prefix, name, stmt, script): attempt => {
+  let src =
+    library
+    ++ prefix
+    ++ "theorem "
+    ++ name
+    ++ " = "
+    ++ stmt
+    ++ " proof "
+    ++ script
+    ++ " in 0";
+  let (state, statics, elab) = Test_ProofMap.eval_with_proof(parse_exp(src));
+  let pm = EvaluatorState.get_proof_map(state);
+  let proof = Test_ProofMap.proof_of_named(name, elab);
+  let out =
+    switch (ProofMap.lookup(Proof.rep_id(proof), pm)) {
+    | Some({outgoing: Some(o), _}) => Some(o)
+    | _ => None
+    };
+  let canonical_equal =
+    switch (out) {
+    | Some(o) =>
+      switch (Exp.term_of(o)) {
+      | BinOp(_, a, b) =>
+        let (sa, sb) = (
+          I.one_line(Test_ProofMap.print_exp(a)),
+          I.one_line(Test_ProofMap.print_exp(b)),
+        );
+        sa == sb && is_rat_value(sa);
+      | _ => false
+      }
+    | None => false
+    };
+  let a = {
+    script,
+    status:
+      I.one_line(
+        ProofMap.show_full_status(ProofMap.full_status_of_proof(pm, proof)),
+      ),
+    marks:
+      switch (Test_ProofMap.find_marked_sub(pm, proof)) {
+      | Some((_, ms)) => I.one_line(String.concat("; ", List.map(ProofMark.show, ms)))
+      | None => ""
+      },
+    outgoing: I.opt_exp_str(out),
+    canonical_equal,
+  };
+  print_endline(
+    "ATTEMPT "
+    ++ name
+    ++ " static_errors="
+    ++ string_of_int(List.length(Statics.Map.error_ids(statics)))
+    ++ " status="
+    ++ a.status
+    ++ " outgoing=["
+    ++ a.outgoing
+    ++ "] canonical_equal="
+    ++ string_of_bool(a.canonical_equal)
+    ++ " marks=["
+    ++ a.marks
+    ++ "]\n  script: "
+    ++ script,
+  );
+  a;
+};
+
+type discovery =
+  | Final(int, attempt)
+  | Blocked(string, attempt);
+
+/* Runtime value of the closed statement in the same context. */
+let runtime = (~prefix, stmt: string): string => {
+  let src = library ++ prefix ++ stmt;
+  let (statics, elab) = Test_ProofMap.statics_and_elab(parse_exp(src));
+  let (v, _) = Evaluator.evaluate(~statics, ~env=Builtins.env_init, elab);
+  I.one_line(Test_ProofMap.print_exp(v));
+};
+
+let discover = (~prefix, ~positive, name, stmt): discovery => {
+  let rec go = n => {
+    let script = String.concat("; ", List.init(n, _ => step_text));
+    let a = run_attempt(~prefix, name, stmt, script);
+    if (a.marks != "") {
+      Blocked("mark after " ++ string_of_int(n) ++ " steps", a);
+    } else if (a.outgoing == "true" || a.outgoing == "false") {
+      Final(n, a);
+    } else if (positive && a.canonical_equal) {
+      Final(n, run_attempt(~prefix, name, stmt, script ++ "; " ++ refl_text));
+    } else if (n >= max_steps) {
+      Blocked("32-step bound", a);
+    } else {
+      go(n + 1);
+    };
+  };
+  let d = go(1);
+  print_endline(
+    switch (d) {
+    | Final(n, a) =>
+      "FINAL "
+      ++ name
+      ++ " eval_steps="
+      ++ string_of_int(n)
+      ++ " status="
+      ++ a.status
+      ++ " outgoing="
+      ++ a.outgoing
+      ++ " runtime="
+      ++ runtime(~prefix, stmt)
+      ++ "\n  literal script: "
+      ++ a.script
+    | Blocked(why, a) =>
+      "BLOCKED "
+      ++ name
+      ++ " ("
+      ++ why
+      ++ ") last status="
+      ++ a.status
+      ++ " outgoing="
+      ++ a.outgoing
+      ++ " marks=["
+      ++ a.marks
+      ++ "]"
+    },
+  );
+  d;
+};
+
+let check_positive = (~prefix, name, stmt) =>
+  switch (discover(~prefix, ~positive=true, name, stmt)) {
+  | Blocked(why, _) => Alcotest.fail(name ++ " blocked: " ++ why)
+  | Final(n, a) =>
+    check(bool, name ++ " used at least one eval step", true, n >= 1);
+    check(string, name ++ " marks", "", a.marks);
+    check(string, name ++ " outgoing", "true", a.outgoing);
+    check(string, name ++ " status", "Proven", a.status);
+    check(string, name ++ " runtime", "true", runtime(~prefix, stmt));
+  };
+
+let check_negative = (~prefix, name, stmt) =>
+  switch (discover(~prefix, ~positive=false, name, stmt)) {
+  | Blocked(why, _) => Alcotest.fail(name ++ " blocked control: " ++ why)
+  | Final(_, a) =>
+    check(string, name ++ " marks", "", a.marks);
+    check(string, name ++ " outgoing is literal false", "false", a.outgoing);
+    check(string, name ++ " status", "Refuted", a.status);
+    check(string, name ++ " runtime", "false", runtime(~prefix, stmt));
+  };
+
 let tests = (
   "NumericCastProofPath",
   [
@@ -128,60 +321,32 @@ let tests = (
       },
     ),
     test_case(
-      "closed instances (negative, zero, positive), normal context",
+      "closed instances (negative, zero, positive), normal context: adaptive stepwise eval",
       `Quick,
-      () => {
-        let inst = (nm, k) =>
-          "theorem "
-          ++ nm
-          ++ " = int_to_rat("
-          ++ k
-          ++ ") == rat("
-          ++ k
-          ++ ", 1) proof eval int_to_rat("
-          ++ k
-          ++ ") == rat("
-          ++ k
-          ++ ", 1) at 0 end in ";
-        let (errs, thms) =
-          observe(
-            ~label="closed normal",
-            inst("cn", "-7") ++ inst("cz", "0") ++ inst("cp", "12") ++ "0",
-            ["cn", "cz", "cp"],
-          );
-        check_valid(errs);
-        List.iter(check_proven, thms);
-      },
+      () =>
+        List.iter(
+          ((nm, k)) =>
+            check_positive(
+              ~prefix="",
+              nm,
+              "int_to_rat(" ++ k ++ ") == rat(" ++ k ++ ", 1)",
+            ),
+          [("cn", "-7"), ("cz", "0"), ("cp", "12")],
+        ),
     ),
     test_case(
-      "closed instances (negative, zero, positive) under use Rational",
+      "closed instances (negative, zero, positive) under use Rational: adaptive stepwise eval",
       `Quick,
-      () => {
-        let inst = (nm, k) =>
-          "theorem "
-          ++ nm
-          ++ " = int_to_rat("
-          ++ k
-          ++ ") == "
-          ++ k
-          ++ " proof eval int_to_rat("
-          ++ k
-          ++ ") == "
-          ++ k
-          ++ " at 0 end in ";
-        let (errs, thms) =
-          observe(
-            ~label="closed use Rational",
-            "use Rational in "
-            ++ inst("un", "-7")
-            ++ inst("uz", "0")
-            ++ inst("up", "12")
-            ++ "0",
-            ["un", "uz", "up"],
-          );
-        check_valid(errs);
-        List.iter(check_proven, thms);
-      },
+      () =>
+        List.iter(
+          ((nm, k)) =>
+            check_positive(
+              ~prefix="use Rational in ",
+              nm,
+              "int_to_rat(" ++ k ++ ") == " ++ k,
+            ),
+          [("un", "-7"), ("uz", "0"), ("up", "12")],
+        ),
     ),
     test_case(
       "citing the proved defining equation: explicit with, and automatic",
@@ -241,19 +406,22 @@ let tests = (
       },
     ),
     test_case(
-      "negatives: a wrong defining equation and a false closed instance",
+      "negatives: a wrong defining equation; false closed instances reach literal false",
       `Quick,
       () => {
         let (errs, thms) =
           observe(
             ~label="negatives",
-            "theorem wd = forall n: Int -> int_to_rat(n) == rat(n, 2) proof eval int_to_rat(n) at 0 end; axiom refl_eq at 0 on rat(n, 2) == rat(n, 2) end in "
-            ++ "theorem wc = int_to_rat(3) == rat(3, 2) proof eval int_to_rat(3) == rat(3, 2) at 0 end in 0",
-            ["wd", "wc"],
+            "theorem wd = forall n: Int -> int_to_rat(n) == rat(n, 2) proof eval int_to_rat(n) at 0 end; axiom refl_eq at 0 on rat(n, 2) == rat(n, 2) end in 0",
+            ["wd"],
           );
         check_valid(errs);
         check_not_proven(find(thms, "wd"));
-        check_not_proven(find(thms, "wc"));
+        /* a1a9ea44's wc (one whole-statement eval) was vacuous: Incomplete
+           from an unfinished one-step script. Replaced by discovery to an
+           actual literal false. */
+        check_negative(~prefix="", "wc", "int_to_rat(3) == rat(3, 2)");
+        check_negative(~prefix="use Rational in ", "wu", "int_to_rat(3) == 3 / 2");
       },
     ),
   ],
