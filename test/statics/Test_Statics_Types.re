@@ -454,6 +454,19 @@ let derive_typ_tests = [
   ),
 ];
 
+/* [source] analyzes with no marks anywhere. */
+let no_errors = (name, source) =>
+  test_case(name, `Quick, () =>
+    check(
+      list(string),
+      name,
+      [],
+      errors(statics(parse_exp(source)))
+      |> List.concat_map(snd)
+      |> List.map(Mark.show),
+    )
+  );
+
 let tests = (
   "Statics.Types",
   [
@@ -472,6 +485,10 @@ let tests = (
     skip_known_bug(
       "Typ.weak_head_normalize infinite recursion", // https://github.com/hazelgrove/hazel/issues/1621
       "type y = y in type ? = y in ?",
+    ),
+    no_errors(
+      "A type path to a member defined as an abstract type variable meets the variable",
+      "typfun U -> type P = (x = U) in fun (y : U) -> (y : P.x)",
     ),
     test_case(
       // https://github.com/hazelgrove/hazel/issues/1624

@@ -770,45 +770,47 @@ let equal_up_to_aliases = (ctx: Ctx.t, a: t, b: t): bool => {
    made large-sum programs quadratically slow downstream. */
 let canonicalize = (ctx: Ctx.t, ty: t): t =>
   normalize(~expand=_ => false, ctx, ty);
+/* [ty] without the parentheses, projector and explicit-nonlabel wrappers
+   around its head. */
+let rec unwrapped = (ty: t): t =>
+  switch (term_of(ty)) {
+  | Parens(ty)
+  | Projector(_, ty)
+  | TupLabel({term: ExplicitNonlabel, _}, ty) => unwrapped(ty)
+  | _ => ty
+  };
+
+/* Against `?` the other side is kept as written. Otherwise each side is
+   weak-head normalized before the structural arms, one side at a time so
+   that a side which reduces to `?` still meets the other as written; an
+   alias name is kept over its expansion when the meet is that expansion.
+   A variable that survives normalization is abstract. */
 let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   let meet' = meet(ctx);
+  let ty1 = unwrapped(ty1);
+  let ty2 = unwrapped(ty2);
+  let a = weak_head_normalize(ctx, ty1);
+  let b = weak_head_normalize(ctx, ty2);
+  let spelled = (written, reduced, met) =>
+    switch (met, term_of(written)) {
+    | (Some(m), Var(_)) when equal(weak_head_normalize(ctx, m), reduced) =>
+      Some(written)
+    | _ => met
+    };
   switch (term_of(ty1), term_of(ty2)) {
-  | (_, Parens(ty2))
-  | (_, Projector(_, ty2)) => meet'(ty1, ty2)
-  | (Parens(ty1), _)
-  | (Projector(_, ty1), _) => meet'(ty1, ty2)
-  | (TupLabel({term: ExplicitNonlabel, _}, ty1'), _) => meet'(ty1', ty2)
-  | (_, TupLabel({term: ExplicitNonlabel, _}, ty2')) => meet'(ty1, ty2')
   | (Unknown(p1), Unknown(p2)) =>
     Some(Unknown(meet_type_provenance(p1, p2)) |> temp)
   | (Unknown(_), _) => Some(ty2)
   | (_, Unknown(_)) => Some(ty1)
-  | (Var(n1), Var(n2)) =>
-    if (n1 == n2) {
-      Some(ty1);
-    } else {
-      let ty1' = Ctx.lookup_alias(ctx, n1);
-      let ty2' = Ctx.lookup_alias(ctx, n2);
-      switch (ty1', ty2') {
-      | (Some(ty1), Some(ty2)) => meet'(ty1, ty2)
-      | (Some(ty1), None) => meet'(ty1, ty2)
-      | (None, Some(ty2)) => meet'(ty1, ty2)
-      | (None, None) => None
-      };
-    }
-  | (Var(name), _) =>
-    let* ty_name = Ctx.lookup_alias(ctx, name);
-    let+ ty_meet = meet'(ty_name, ty2);
-    equal(ty_name, ty_meet) ? ty1 : ty_meet;
-  | (_, Var(name)) =>
-    let* ty_name = Ctx.lookup_alias(ctx, name);
-    let+ ty_meet = meet'(ty_name, ty1);
-    equal(ty_name, ty_meet) ? ty2 : ty_meet;
-  /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
-  | (ProdProjection(_), _) => meet'(weak_head_normalize(ctx, ty1), ty2)
-  | (_, ProdProjection(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
-  | (ProdExtension(_), _) => meet'(weak_head_normalize(ctx, ty1), ty2)
-  | (_, ProdExtension(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
+  | _ when a !== ty1 => spelled(ty1, a, meet'(a, ty2))
+  | _ when b !== ty2 => spelled(ty2, b, meet'(ty1, b))
+  | (Var(n1), Var(n2)) => String.equal(n1, n2) ? Some(ty1) : None
+  | (Var(_), _)
+  | (_, Var(_)) => None
+  /* Heads that weak_head_normalize always reduces. */
+  | (Parens(_) | Projector(_) | ProdProjection(_) | ProdExtension(_), _)
+  | (_, Parens(_) | Projector(_) | ProdProjection(_) | ProdExtension(_)) =>
+    None
   | (Rec(tp1, ty1), Rec(tp2, ty2)) =>
     let ctx = Ctx.extend_dummy_tvar(ctx, tp1);
     let ty1' =
@@ -856,26 +858,13 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     TupLabel(lab, ty) |> temp;
   | (TupLabel(_), _) => None
   | (Prod(tys1), Prod(tys2)) =>
-    let tys1 =
-      remove_duplicate_labels(
-        ~duplicate_labels=
-          LabeledTuple.get_duplicate_labels(match_tup_label, tys1),
-        tys1,
-      );
-    let tys2 =
-      remove_duplicate_labels(
-        ~duplicate_labels=
-          LabeledTuple.get_duplicate_labels(match_tup_label, tys2),
-        tys2,
-      );
-
     if (List.length(tys1) != List.length(tys2)) {
       None;
     } else {
       let* tys = ListUtil.map2_opt(meet', tys1, tys2);
       let+ tys = OptUtil.sequence(tys);
       Prod(tys) |> temp;
-    };
+    }
   | (Prod(_), _) => None
   | (Sum(sm1), Sum(sm2)) =>
     let+ sm' = ConstructorMap.meet(equal, meet(ctx), sm1, sm2);

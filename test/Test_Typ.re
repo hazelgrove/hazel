@@ -166,6 +166,72 @@ let meet_tests = (
   ],
 );
 
+let meet_alias_tests = {
+  module F = IdTagged.FreshGrammar;
+  let abstract = (ctx, name) =>
+    Ctx.extend_tvar(
+      ctx,
+      {
+        name,
+        id: Id.invalid,
+        kind: Abstract,
+      },
+    );
+  let alias = (ctx, name, def) =>
+    Ctx.extend_alias(ctx, name, Id.invalid, def);
+  let labeled = (l, ty) => F.Typ.tup_label(F.Typ.label(l), ty);
+  let ctx = abstract(abstract(Builtins.ctx_init(None), "U"), "V");
+  let ctx = alias(ctx, "P", F.Typ.prod([labeled("x", F.Typ.var("U"))]));
+  let ctx = alias(ctx, "X", F.Typ.int());
+  let ctx = alias(ctx, "Y", F.Typ.int());
+  let p_x = F.Typ.prod_projection(F.Typ.var("P"), F.Typ.label("x"));
+  let case = (name, expected, t1, t2) =>
+    test_case(name, `Quick, () =>
+      check(option(typ), name, expected, Typ.meet(ctx, t1, t2))
+    );
+  (
+    "Typ.meet through aliases",
+    [
+      case(
+        "an abstract variable meets a path to it",
+        Some(F.Typ.var("U")),
+        F.Typ.var("U"),
+        p_x,
+      ),
+      case(
+        "a path meets itself as its target",
+        Some(F.Typ.var("U")),
+        p_x,
+        p_x,
+      ),
+      case(
+        "an alias name is kept over its expansion",
+        Some(F.Typ.var("X")),
+        F.Typ.var("X"),
+        F.Typ.int(),
+      ),
+      case(
+        "two aliases of one type meet as the first name",
+        Some(F.Typ.var("X")),
+        F.Typ.var("X"),
+        F.Typ.var("Y"),
+      ),
+      case(
+        "an abstract variable does not meet another",
+        None,
+        F.Typ.var("U"),
+        F.Typ.var("V"),
+      ),
+      case(
+        "an abstract variable does not meet a base type",
+        None,
+        F.Typ.var("U"),
+        F.Typ.int(),
+      ),
+    ],
+  );
+};
+
 let fast_equal_tests = (
   "Typ.fast_equal",
   [
@@ -609,4 +675,4 @@ let diff_tests = (
   ],
 );
 
-let tests = [meet_tests, fast_equal_tests, diff_tests];
+let tests = [meet_tests, meet_alias_tests, fast_equal_tests, diff_tests];
