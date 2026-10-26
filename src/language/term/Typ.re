@@ -1393,26 +1393,36 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
        type-member names (order-insensitive), members pairwise consistent.
        Members are compared closed: each side's own order decides which of
        its type members a member's type mentions. */
-    let cx = sig_items_closed(xs) |> Sig.dedup_last_by(snd);
+    let cx = sig_items_closed(xs);
     let my = sig_members_closed(ys) |> Sig.dedup_last;
-    if (!same_member_names(List.map(snd, cx), my)) {
+    if (!same_member_names(List.map(snd, Sig.dedup_last_by(snd, cx)), my)) {
       None;
     } else {
       /* Rebuild from the left operand's items so each keeps its form, and
-         its type as written where the meet refines nothing. */
-      let+ items =
-        cx
-        |> List.map(((item, m: Sig.member)) => {
-             let (t1, t2) =
-               switch (m) {
-               | Val(x, t1) => (t1, Sig.find_value(my, x))
-               | TypeManifest(n, t1) => (t1, Sig.find_type_def(my, n))
-               };
-             let* t2 = t2;
-             let+ t = meet'(t1, t2);
-             equal(t, t1) ? item : Sig.map_typ(_ => t, item);
-           })
-        |> OptUtil.sequence;
+         its type as written where the meet refines nothing. A member a
+         later one shadows is kept as written, unmet: the items between
+         them may mention it. */
+      let rec go = (cx: list((Sig.t, Sig.member))) =>
+        switch (cx) {
+        | [] => Some([])
+        | [(item, m), ...rest] =>
+          let* item =
+            if (List.exists(((_, m')) => Sig.same_kind(m, m'), rest)) {
+              Some(item);
+            } else {
+              let (t1, t2) =
+                switch (m) {
+                | Val(x, t1) => (t1, Sig.find_value(my, x))
+                | TypeManifest(n, t1) => (t1, Sig.find_type_def(my, n))
+                };
+              let* t2 = t2;
+              let+ t = meet'(t1, t2);
+              equal(t, t1) ? item : Sig.map_typ(_ => t, item);
+            };
+          let+ rest = go(rest);
+          [item, ...rest];
+        };
+      let+ items = go(cx);
       Sig(items) |> temp;
     };
   | (Sig(_), _) => None

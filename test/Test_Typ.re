@@ -634,6 +634,24 @@ let sig_tests = {
           Typ.meet(ctx, sg([sv("x", ti)]), sg([sv("x", ti)])),
         )
       ),
+      test_case(
+        "meet keeps a shadowed type member an earlier item mentions",
+        `Quick,
+        () => {
+          let s = sg([st("T", ti), sv("x", F.Typ.var("T")), st("T", tb)]);
+          check(
+            option(typ),
+            "x projects to Int",
+            Some(ti),
+            switch (Option.map(Typ.term_of, Typ.meet(ctx, s, s))) {
+            | Some(Sig(items)) =>
+              Typ.sig_project_value(items, "x")
+              |> Option.map(Typ.normalize(ctx))
+            | _ => None
+            },
+          );
+        },
+      ),
       test_case("meet refines an unknown member", `Quick, () =>
         check(
           opt_typ,
