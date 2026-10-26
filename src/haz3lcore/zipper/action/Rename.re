@@ -74,29 +74,3 @@ and relabel_piece_by = (~within, name_of, p: Piece.t): Piece.t =>
     }
   | p => p
   };
-
-/* each tile in [ids] now reads [name] */
-let name_in = (ids: list(Id.t), name: string, id: Id.t): option(string) =>
-  List.mem(id, ids) ? Some(name) : None;
-let relabel = (ids: list(Id.t), name: string, seg: Segment.t): Segment.t =>
-  relabel_by(name_in(ids, name), seg);
-let relabel_piece = (ids: list(Id.t), name: string, p: Piece.t): Piece.t =>
-  relabel_piece_by(~within=_ => true, name_in(ids, name), p);
-
-/* [relabel] throughout [z], the caret kept (MapPiece descends into
-   tiles, not into a projector's syntax) */
-let relabel_zipper = (ids: list(Id.t), name: string, z: Zipper.t): Zipper.t =>
-  ids == []
-    ? z
-    : ZipperBase.MapPiece.go(
-        fun
-        | Piece.Tile({form: Tok(_), id, _} as t) when List.mem(id, ids) => [
-            Piece.Tile({
-              ...t,
-              form: Tok(name),
-            }),
-          ]
-        | Projector(_) as p => [relabel_piece(ids, name, p)]
-        | p => [p],
-        z,
-      );

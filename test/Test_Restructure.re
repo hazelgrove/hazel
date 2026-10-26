@@ -8,7 +8,7 @@ open CorpusUtil;
 module R = Web.ItemEdit;
 
 let op = (o, id) => R.Op(o, id);
-let inside = (text, id) => R.InsertInside(id, text);
+let inside = (kind, id) => R.Blank(Last, id, kind);
 
 /* [e] on the row labeled [label]: the new program and the row it lands
    on, or None where it's refused. Modules are open as the outline shows
@@ -161,58 +161,64 @@ M.a|js},
       Some("module M = {\n  let a = 1;\n} in\nM.a"),
     ),
     (
-      "a value typed inside, after the last `;`",
+      "a value made inside, after the last `;`",
       m,
       "M",
-      inside("c"),
+      inside(KConst),
       Some(
         {js|module M = {
   let a = 1;
   let b = 2;
 
-  let c = ¿;
+  let ¿ = ¿;
 } in
 M.a|js},
       ),
     ),
     (
-      "a module typed inside",
+      "a module made inside",
       m,
       "M",
-      inside("module N"),
+      inside(KModule),
       Some(
-        "module M = {\n  let a = 1;\n  let b = 2;\n\n  module N = {};\n} in\nM.a",
+        "module M = {\n  let a = 1;\n  let b = 2;\n\n  module ¿ = {};\n} in\nM.a",
       ),
     ),
-    ("a name that can't bind", m, "M", inside("1x"), None),
     (
       "an empty module's first member",
       e,
       "E",
-      inside("new_def"),
+      inside(KConst),
       Some({js|module E = {
-  let new_def = ¿
+  let ¿ = ¿
 } in 0|js}),
     ),
     (
       "and its first type",
       e,
       "E",
-      inside("type T"),
+      inside(KType),
       Some({js|module E = {
-  type T = ¿
+  type ¿ = ¿
 } in 0|js}),
     ),
   ]);
-  switch (edit(inside("c"), "M", seg_of(m))) {
-  | Some((seg, target)) =>
-    check(
-      bool,
-      "the new member is the row it lands on",
-      true,
-      target == Some(row_by_label(CorpusUtil.outline_of(seg), "c")),
-    )
-  | None => fail("c refused")
+  /* it lands on the new member, whose name is a hole to type it in */
+  switch (edit(inside(KConst), "M", seg_of(m))) {
+  | Some((seg, Some(target))) =>
+    let name = R.name_slot(~mod_root=false, target, seg);
+    let rec hole = (seg: Segment.t) =>
+      List.exists(
+        (p: Piece.t) =>
+          switch (p) {
+          | Grout(_) => Some(Piece.id(p)) == name
+          | Tile(t) => List.exists(hole, t.children)
+          | _ => false
+          },
+        seg,
+      );
+    check(bool, "it lands on the new member", true, hole(seg));
+  | _ => fail("refused")
   };
 };
 
@@ -221,16 +227,16 @@ let unterminated_tail = () => {
   let src = "module U = {\n  let a = 1;\n  let z = fun x -> x\n} in U.a";
   cases([
     (
-      "a member typed inside",
+      "a member made inside",
       src,
       "U",
-      inside("new_def"),
+      inside(KConst),
       Some(
         {js|module U = {
   let a = 1;
   let z = fun x -> x;
 
-  let new_def = ¿
+  let ¿ = ¿
 } in U.a|js},
       ),
     ),
@@ -691,16 +697,16 @@ m.a|js},
       Some("let m = {\n  let a = 1\n} in\nm.a"),
     ),
     (
-      "a member typed inside",
+      "a member made inside",
       m,
       "m",
-      inside("c"),
+      inside(KConst),
       Some(
         {js|let m = {
   let a = 1;
   let b = 2;
 
-  let c = ¿
+  let ¿ = ¿
 } in
 m.a|js},
       ),
@@ -1000,14 +1006,14 @@ M.x|js}),
     ),
     ("a member deleted", m, "x", op(Delete), with_members("  let y = 2")),
     (
-      "a member typed inside",
+      "a member made inside",
       m,
       "M",
-      inside("z"),
+      inside(KConst),
       with_members({js|  let x = 1;
   let y = 2;
 
-  let z = ¿|js}),
+  let ¿ = ¿|js}),
     ),
     (
       "b up into it",
@@ -1803,7 +1809,7 @@ let refused_delete_cursor = (): unit => {
       ~cursor,
       ~def_op=
         (op, id) => {
-          refused := R.apply(op, id, seg) == None;
+          refused := Result.is_error(CorpusUtil.outline_op(op, id, seg));
           Virtual_dom.Vdom.Effect.Ignore;
         },
       (),

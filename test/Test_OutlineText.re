@@ -2038,7 +2038,7 @@ let at_sel = option(triple(string, int, int));
 let editor_selected = (code: Web.ScratchModel.Scratchpad.code) =>
   switch (C.live_pane(code.program, fresh_def())) {
   | Some((_, z, _)) =>
-    Zipper.trim_selected_text(z, Web.ItemEdit.text(z.selection.content))
+    Zipper.trim_selected_text(z, EntryLayout.text(z.selection.content))
   | None => fail("no editor holds the name")
   };
 

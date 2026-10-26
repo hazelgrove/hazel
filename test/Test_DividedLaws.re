@@ -411,7 +411,7 @@ let rename = () => {
   let outline = CorpusUtil.outline_of(joined);
   let renamed =
     switch (
-      Web.OutlineRename.rename(
+      CorpusUtil.rename_row(
         ~info_map=info_map_of(joined),
         ~outline,
         row_by_label(outline, "a"),
@@ -514,17 +514,16 @@ let resplit_folds = () => {
   let joined = Focus.zip_of_cell(Divided.join(d));
   let edited =
     switch (
-      Web.ItemEdit.move(
-        ~mod_root=true,
+      CorpusUtil.outline_op(
+        ~root=Mod,
         ~is_open=_ => true,
-        ~owner=None,
-        ~up=false,
+        MoveDown,
         row_by_label(CorpusUtil.outline_of(~root=Mod, joined), "y"),
         joined,
       )
     ) {
-    | Some((seg, _)) => seg
-    | None => fail("move refused")
+    | Ok((seg, _)) => seg
+    | Error(why) => fail("move refused: " ++ why)
     };
   let d' = recut(~root=Mod, edited, d);
   let cells = Divided.cells(d');
