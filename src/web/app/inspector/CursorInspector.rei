@@ -40,6 +40,9 @@ let mod_view:
   ) =>
   Virtual_dom.Vdom.Node.t;
 
+let sig_view:
+  (Language.Cls.t, ~marks: list(Language.Mark.t)) => Virtual_dom.Vdom.Node.t;
+
 let tpat_view:
   (
     ~globals: Globals.t,

@@ -72,7 +72,7 @@ let lookup_tests = (
   "Sig.find_value and Sig.find_type_def",
   [
     test_case(
-      "the last member of a name",
+      "the first member of a name",
       `Quick,
       () => {
         let members =
@@ -84,7 +84,7 @@ let lookup_tests = (
         check(
           option(typ),
           "type member",
-          Some(bool),
+          Some(int),
           Sig.find_type_def(members, "T"),
         );
         check(

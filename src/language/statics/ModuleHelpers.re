@@ -56,14 +56,12 @@ let type_declared_later = (name: Var.t, later: list(Mod.t)): bool =>
 
 /* What the signature expects of each member, read in the body's context:
    an outer alias named like a type the body [declared] is expanded, so the
-   body's does not capture it. A later declaration of a name shadows an
-   earlier one. */
+   body's does not capture it. */
 let expected_members =
     (~ctx: Ctx.t, ~declared: list(Var.t), ana_items: list(Sig.t))
     : list(Sig.member) => {
   let expand = name => List.exists(String.equal(name), declared);
   Sig.members(ana_items)
-  |> Sig.dedup_last
   |> List.map((m: Sig.member) =>
        switch (m) {
        | Val(name, ty) => Sig.Val(name, Typ.normalize(~expand, ctx, ty))
@@ -174,6 +172,21 @@ let rec expected_pat_type =
   | Label(_) => None
   };
 };
+
+/* The items a body exports: of several bindings of a name and kind, the
+   last; an item that binds no member is kept. */
+let exports = (bound: list(Sig.t)): list(Sig.t) =>
+  List.rev(
+    Util.ListUtil.dedup_f(
+      (a, b) =>
+        switch (Sig.member_of_item(a), Sig.member_of_item(b)) {
+        | (Some(a), Some(b)) => Sig.same_kind(a, b)
+        | (None, _)
+        | (_, None) => false
+        },
+      List.rev(bound),
+    ),
+  );
 
 /* The analyzed signature's items the module does not define. */
 let missing_items =

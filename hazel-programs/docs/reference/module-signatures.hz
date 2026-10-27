@@ -99,6 +99,12 @@ module M : {let x : Int} = {
   let y = 2
 } in
 
+# 23a. Error: a member declared twice in a signature #
+let d : {let x : Int; let x : Bool} = {let x = 1} in
+
+# 23b. Error: a signature declares a member by name #
+let e : {let (a, b) : (Int, Int)} = {} in
+
 # 24. Error: extra member not allowed by empty signature #
 module M : {} = {let x = 1} in
 

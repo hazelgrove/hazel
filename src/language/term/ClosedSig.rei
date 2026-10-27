@@ -14,4 +14,4 @@ let items: t('a) => list('a);
 
 let map: ('a => 'b, t('a)) => t('b);
 
-let filter: ('a => bool, t('a)) => t('a);
+let filter: ('item => bool, t('item)) => t('item);

@@ -1092,8 +1092,8 @@ let equal_up_to_aliases = (ctx: Ctx.t, a: t, b: t): bool => {
       | (_, Sig(Open(_))) => raise(Sig.OpenSignature)
       | (Sig(sx), Sig(sy)) =>
         /* Order-insensitive, as in [meet]. */
-        let mx = Sig.closed_members(sx) |> Sig.dedup_last;
-        let my = Sig.closed_members(sy) |> Sig.dedup_last;
+        let mx = Sig.closed_members(sx);
+        let my = Sig.closed_members(sy);
         same_member_names(mx, my)
         && List.for_all(
              (m: Sig.member) =>
@@ -1141,11 +1141,12 @@ let canonicalize = (ctx: Ctx.t, ty: t): t =>
   normalize(~expand=_ => false, ctx, ty);
 
 /* An item of a signature as written, its closed form, and the context it is
-   read in: the one outside the signature extended with the earlier items,
-   closed. */
+   read in: the one outside the signature extended with the earlier members,
+   closed. An item that repeats an earlier member's name and kind, or a
+   `let` that names no member, has no closed form and binds nothing. */
 type sig_item_scope = {
   written: Sig.t,
-  closed: Sig.t,
+  closed: option(Sig.t),
   ctx: Ctx.t,
 };
 
@@ -1193,7 +1194,7 @@ let rec close = (ctx: Ctx.t, ty: t): t => {
 }
 and close_items = (ctx: Ctx.t, items: list(Sig.t)): ClosedSig.t(Sig.t) =>
   sig_item_scopes(ctx, items)
-  |> List.map(scope => scope.closed)
+  |> List.filter_map(scope => scope.closed)
   |> ClosedSig.of_items
 /* The type an alias [tp] defined as [def] stands for: [def] closed with
    the alias's own name abstract, recursive if it mentions itself. */
@@ -1223,11 +1224,28 @@ and sig_item_scopes = (ctx: Ctx.t, items: list(Sig.t)): list(sig_item_scope) => 
       item,
     );
   };
-  let (_, rev) =
+  /* The first item declaring a name and kind is the member. A later one,
+     and a `let` that names no member, are marked where they are written
+     (Statics) and are left out here. */
+  let (_, _, rev) =
     List.fold_left(
-      ((ctx, acc), written: Sig.t) => {
+      ((ctx, seen, acc), written: Sig.t) => {
         let closed = close_item(ctx, written);
-        let ctx_after = extend_sig_item(ctx, closed);
+        let (closed, seen, ctx_after) =
+          switch (Sig.read_item(closed)) {
+          | Member(m) when List.exists(Sig.same_kind(m), seen) => (
+              None,
+              seen,
+              ctx,
+            )
+          | Member(m) => (
+              Some(closed),
+              [m, ...seen],
+              extend_sig_item(ctx, closed),
+            )
+          | Incomplete => (Some(closed), seen, ctx)
+          | NotAName => (None, seen, ctx)
+          };
         /* A type member's name is in scope in its own definition; a value
            or module member's is not. */
         let read_in =
@@ -1241,6 +1259,7 @@ and sig_item_scopes = (ctx: Ctx.t, items: list(Sig.t)): list(sig_item_scope) => 
           };
         (
           ctx_after,
+          seen,
           [
             {
               written,
@@ -1251,7 +1270,7 @@ and sig_item_scopes = (ctx: Ctx.t, items: list(Sig.t)): list(sig_item_scope) => 
           ],
         );
       },
-      (ctx, []),
+      (ctx, [], []),
       items,
     );
   List.rev(rev);
@@ -1389,17 +1408,15 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
        type-member names (order-insensitive), members pairwise consistent,
        except that a hole item on one side stands for the members the
        other side has beyond it. The result is built from the left
-       operand's members, the last of each name, so each keeps its form,
-       and its type where the meet refines nothing; then the right's
-       members the left lacks; then a hole, if both sides keep one. */
+       operand's items, so each keeps its form, and its type as written
+       where the meet refines nothing; then the right's members the left
+       lacks; then a hole, if both sides keep one. */
     let xs = ClosedSig.items(xs);
     let ys = ClosedSig.items(ys);
     let x_items =
-      xs
-      |> List.filter(item => Option.is_some(Sig.member_of_item(item)))
-      |> Sig.dedup_last_items;
+      xs |> List.filter(item => Option.is_some(Sig.member_of_item(item)));
     let mx = Sig.members(x_items);
-    let my = Sig.members(ys) |> Sig.dedup_last;
+    let my = Sig.members(ys);
     let hole_x = Sig.has_hole_item(xs);
     let hole_y = Sig.has_hole_item(ys);
     let within = (a: list(Sig.member), b: list(Sig.member)) =>
@@ -1414,9 +1431,10 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     if (!(hole_y || within(mx, my)) || !(hole_x || within(my, mx))) {
       None;
     } else {
+      /* Rebuilt from the left operand's items so each keeps its form, and
+         its type as written where the meet refines nothing. */
       let meet_item = (item: Sig.t) =>
         switch (Sig.member_of_item(item)) {
-        | None => Some(item)
         | Some(m) =>
           let (t1, t2) =
             switch (m) {
@@ -1429,6 +1447,7 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
             let+ t = meet'(t1, t2);
             equal(t, t1) ? item : Sig.map_typ(_ => t, item);
           };
+        | None => Some(item)
         };
       let+ items = OptUtil.traverse(meet_item, x_items);
       let extra =

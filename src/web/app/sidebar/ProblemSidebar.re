@@ -68,7 +68,7 @@ let problem_status_view = (~globals, ci: Language.Info.t): Node.t =>
   | InfoDrv(ci) => DrvCursorInspector.drv_view(~globals, ci)
   | InfoMod({cls, marks, ty, _}) =>
     CursorInspector.mod_view(~globals, cls, ~marks, ~ty)
-  | InfoSig({cls, _})
+  | InfoSig({cls, marks, _}) => CursorInspector.sig_view(cls, ~marks)
   | InfoMPat({cls, _}) =>
     span(
       ~attrs=[clss(["problem-description"])],
