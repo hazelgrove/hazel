@@ -109,6 +109,7 @@ type t =
   | ExplicitNonlabel
   | TPatShadowsType(string, tpat_shadow_src)
   | TPatNotAVar(tpat_var_err)
+  | TPatNonContractive(string)
   | TypFreeTypeVariable(string)
   | TypDuplicateConstructor(Constructor.t)
   | TypDuplicateLabels(list(LabeledTuple.label), Typ.t)

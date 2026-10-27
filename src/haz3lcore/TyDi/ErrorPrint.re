@@ -251,6 +251,7 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   | TypWantConstructorFoundAp
   | TypParseFailure
   | TPatShadowsType(_)
+  | TPatNonContractive(_)
   | TPatNotAVar(_)
   | SigDuplicateMember(_)
   | SigLetNotAName => "(internal)"
@@ -343,6 +344,7 @@ let tpat_mark_string: Mark.t => string =
   fun
   | TPatNotAVar(_) => "Not a valid type name" //TODO: elaborate
   | TPatShadowsType(name, _) => "Can't shadow type " ++ name //TODO: elaborate
+  | TPatNonContractive(name) => "Type " ++ name ++ " is defined as itself"
   | _ => "(static error)";
 
 let string_of_marks = (info: Info.t, marks: list(Mark.t)): string =>
