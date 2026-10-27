@@ -256,6 +256,20 @@ let map_m2 = (f, xs, ys, m: Map.t) =>
 
 let syn = Unknown(SynSwitch) |> Typ.temp;
 
+/* The marks on an alias binder named `name` and the type the alias binds,
+   given its definition and the reading of it (Typ.recursive_def): a
+   self-loop is marked and binds `?`. */
+let alias_binding =
+    (name: Var.t, def: Typ.t, alias: Typ.alias_def): (list(Mark.t), Typ.t) =>
+  switch (alias) {
+  | Plain => ([], def)
+  | Recursive(ty_rec) => ([], ty_rec)
+  | SelfLoop => (
+      [Mark.TPatNonContractive(name)],
+      Unknown(Internal) |> Typ.temp,
+    )
+  };
+
 /* Type after hole fixing: best type consistent with analysis expectation and
    statics synthetic type (Typ.meet). On meet failure, prefer syn under
    synthesis and ana under analysis. */

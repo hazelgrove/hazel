@@ -296,6 +296,7 @@ let core_mark_err_view =
     | TypWantConstructorFoundAp
     | TypParseFailure
     | TPatShadowsType(_)
+    | TPatNonContractive(_)
     | TPatNotAVar(_) => [text("Type error")]
     }
   )
@@ -841,6 +842,7 @@ let exp_mark_err_view =
   | TypWantConstructorFoundAp
   | TypParseFailure
   | TPatShadowsType(_)
+  | TPatNonContractive(_)
   | TPatNotAVar(_) =>
     div_err([text("(internal) typ/tpat mark on expression")])
   | Redundant
@@ -1144,6 +1146,12 @@ let tpat_view =
         div_err([
           text("Can't shadow existing type variable"),
           view_type(Var(name) |> Typ.fresh),
+        ])
+      | TPatNonContractive(name) =>
+        div_err([
+          text("Type"),
+          view_type(Var(name) |> Typ.fresh),
+          text("is defined as itself"),
         ])
       | _ => div_err([text("Type pattern error")])
       }

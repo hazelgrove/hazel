@@ -454,6 +454,35 @@ let derive_typ_tests = [
   ),
 ];
 
+/* [name] in [source] is marked non-contractive. */
+let non_contractive_is_marked = (test_name, source, name) =>
+  test_case(test_name, `Quick, () =>
+    check(
+      bool,
+      name ++ " is marked non-contractive",
+      true,
+      errors(statics(parse_exp(source)))
+      |> List.concat_map(snd)
+      |> List.exists(
+           fun
+           | Mark.TPatNonContractive(a) => String.equal(a, name)
+           | _ => false,
+         ),
+    )
+  );
+
+/* The one static error in [source] is that [name] is marked non-contractive. */
+let only_non_contractive_mark = (test_name, source, name) =>
+  test_case(test_name, `Quick, () =>
+    check(
+      list(testable_issue),
+      "Static Errors",
+      [Marks([Mark.TPatNonContractive(name)])],
+      errors(statics(parse_exp(source)))
+      |> List.map(((_, ms)) => Marks(ms)),
+    )
+  );
+
 let tests = (
   "Statics.Types",
   [
@@ -479,9 +508,15 @@ let tests = (
       {|type X = Int in let a : X = 1 in (typfun X -> a + 1)@<Bool>|},
       Some(FTemp.Typ.int()),
     ),
-    skip_known_bug(
-      "Typ.weak_head_normalize infinite recursion", // https://github.com/hazelgrove/hazel/issues/1621
+    non_contractive_is_marked(
+      "A self-referential alias is marked and does not loop (#1621)",
       "type y = y in type ? = y in ?",
+      "y",
+    ),
+    reports_errors(
+      1,
+      "An alias cycle through another alias is the unbound name it was written with, not a loop (#2570)",
+      "type y = x in type x = y in (1 : y)",
     ),
     test_case(
       // https://github.com/hazelgrove/hazel/issues/1624
@@ -496,13 +531,6 @@ let tests = (
                 rec_(FTemp.TPat.var("y"), var("x")),
               )
             );
-          let mismatch =
-            Marks([
-              ExpectationMismatch({
-                ana: rec_type,
-                syn: FTemp.Typ.prod([]),
-              }),
-            ]);
           annotated_tree_test(
             "fun (() : rec x -> rec y -> x) -> []",
             FTemp.Typ.(arrow(rec_type, list(unknown(Internal)))),
@@ -510,10 +538,13 @@ let tests = (
               fn(
                 FIError.Pat.(
                   asc(
-                    tuple(~ann=Some(mismatch), []),
+                    tuple([]),
                     FIError.Typ.(
                       rec_(
-                        FIError.TPat.var("x"),
+                        FIError.TPat.var(
+                          ~ann=Some(Marks([TPatNonContractive("x")])),
+                          "x",
+                        ),
                         rec_(FIError.TPat.var("y"), var("x")),
                       )
                     ),
@@ -540,13 +571,6 @@ let tests = (
                 rec_(FTemp.TPat.empty_hole(), var("x")),
               )
             );
-          let mismatch =
-            Marks([
-              ExpectationMismatch({
-                ana: rec_type,
-                syn: FTemp.Typ.prod([]),
-              }),
-            ]);
           annotated_tree_test(
             "fun (() : rec x -> rec ? -> x) -> 132032.832758",
             FTemp.Typ.(arrow(rec_type, float())),
@@ -554,10 +578,13 @@ let tests = (
               fn(
                 FIError.Pat.(
                   asc(
-                    tuple(~ann=Some(mismatch), []),
+                    tuple([]),
                     FIError.Typ.(
                       rec_(
-                        FIError.TPat.var("x"),
+                        FIError.TPat.var(
+                          ~ann=Some(Marks([TPatNonContractive("x")])),
+                          "x",
+                        ),
                         rec_(FIError.TPat.empty_hole(), var("x")),
                       )
                     ),
@@ -711,6 +738,64 @@ let tests = (
       "an alias named like a module in scope is primed, so earlier paths keep the module",
       {|module M = { type U = Int } in let x : M.U = 1 in type M = Bool in x + 1|},
       Some(FTemp.Typ.int()),
+    ),
+    inconsistent_typecheck(
+      "A recursive occurrence under a differently named binder is not a hole",
+      parse_exp("fun (f : rec a -> (a, Int)) -> (f : rec b -> (Bool, Int))"),
+    ),
+    fully_consistent_typecheck(
+      "A tuple checks against a recursive alias and destructures through its unrolling",
+      "type T = (T, Int) in let x : T = (?, 3) in let (a, b) = x in b",
+      Some(FTemp.Typ.int()),
+    ),
+    fully_consistent_typecheck(
+      "A function checks against a recursive arrow alias, recursively, and applies through it",
+      "type T = Int -> T in let f : T = fun x -> f(x) in f(1)",
+      Some(FTemp.(Typ.(rec_(TPat.var("T"), arrow(int(), var("T")))))),
+    ),
+    fully_consistent_typecheck(
+      "A labeled tuple is rearranged against a recursive alias through its unrolling",
+      "type T = (next=T, val=Int) in let x : T = (val=3, next=?) in let (next=n, val=v) = x in v",
+      Some(FTemp.Typ.int()),
+    ),
+    fully_consistent_typecheck(
+      "Two recursive aliases of different period are the same type",
+      "type A = Int -> A in type B = Int -> Int -> B in let f : A = fun x -> f in let g : B = f in 0",
+      Some(FTemp.Typ.int()),
+    ),
+    fully_consistent_typecheck(
+      "A recursive alias checks against its other phase",
+      "type A = Int -> Int -> A in let f : A = fun x -> fun y -> f in let g : Int -> A = f in 0",
+      Some(FTemp.Typ.int()),
+    ),
+    only_non_contractive_mark(
+      "A written self-loop is marked once and is unknown to its uses",
+      "fun (y : rec x -> x) -> (y : Int)",
+      "x",
+    ),
+    only_non_contractive_mark(
+      "A self-loop in parentheses is marked once and does not loop",
+      "fun (y : rec x -> (x)) -> (y : Int)",
+      "x",
+    ),
+    only_non_contractive_mark(
+      "A self-loop under a binder is marked on the binder it loops to",
+      "fun (f : rec x -> rec y -> x) -> f(1)",
+      "x",
+    ),
+    inconsistent_typecheck(
+      "An argument is checked against the parameter type of a recursive arrow alias",
+      parse_exp("type T = Int -> T in fun (f : T) -> f(true)"),
+    ),
+    fully_consistent_typecheck(
+      "A constructor argument checks against a recursive alias through its unrolling",
+      "type T = (T, Int) in type L = + C(T) in let v : L = C(?, 2) in 0",
+      Some(FTemp.Typ.int()),
+    ),
+    only_non_contractive_mark(
+      "A module's type member defined as itself is marked once and is unknown to its uses",
+      "module M = { type T = T; let x : T = 1 } in M.x",
+      "T",
     ),
     test_case(
       "Type parse failure",

@@ -1,4 +1,5 @@
 /* Ascription Transitions */
+open Util.OptUtil.Syntax;
 
 /*
  Handles the transition of type ascriptions.
@@ -27,6 +28,10 @@
 let unchanged = (ds: list(DHExp.t), ds': list(DHExp.t)): bool =>
   List.for_all2((d, d') => d === d', ds, ds');
 
+/* [ty] unrolled; a non-contractive type is `?`, as everywhere. */
+let unrolled = (ty: Typ.t): Typ.t =>
+  Typ.unroll(ty) |> Option.value(~default=Unknown(Internal) |> Typ.temp);
+
 let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
   let recur = (d: DHExp.t): DHExp.t =>
     if (recursive) {
@@ -36,19 +41,15 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     };
   switch (DHExp.term_of(d)) {
   | Asc(e, t) =>
-    switch (DHExp.term_of(e), Typ.term_of(Typ.unroll(t))) {
-    | (Asc(e', t'), _)
-        // This is only necessary because sometimes we add two ascriptions and aren't marking it as a non-value
-        when Typ.is_consistent(Ctx.empty, Typ.unroll(t), Typ.unroll(t')) =>
-      switch (Typ.meet(Ctx.empty, Typ.unroll(t), Typ.unroll(t'))) {
-      | Some(t) =>
-        Some(
-          recur(
-            IdTagged.fast_copy(DHExp.rep_id(e), Asc(e', t) |> DHExp.fresh),
-          ),
-        )
-      | None => None //TODO  This is an impossible case since we checked consistency
-      }
+    let t_unrolled = unrolled(t);
+    switch (DHExp.term_of(e), Typ.term_of(t_unrolled)) {
+    | (Asc(e', t'), _) =>
+      // This is only necessary because sometimes we add two ascriptions and aren't marking it as a non-value
+      let t' = unrolled(t');
+      let+ t = Typ.meet(Ctx.empty, t_unrolled, t');
+      recur(
+        IdTagged.fast_copy(DHExp.rep_id(e), Asc(e', t) |> DHExp.fresh),
+      );
     | (_, Parens(t)) =>
       /* An impossible case: types are normalized before they come to
          transitions. e as it is, not a fresh copy: its id is kept, as
@@ -215,8 +216,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         ),
         Sum(m) as sumt',
       )
-        when
-          Typ.is_consistent(Ctx.empty, Typ.unroll(sumt), sumt' |> Typ.temp) =>
+        when Typ.is_consistent(Ctx.empty, unrolled(sumt), sumt' |> Typ.temp) =>
       let entry = ConstructorMap.get_entry(c, m);
       switch (entry) {
       | Some(Some(t')) =>
@@ -233,7 +233,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       | None => None
       };
     | (Constructor(_, Some(Some(t))), t')
-        when Typ.is_consistent(Ctx.empty, Typ.unroll(t), t' |> Typ.temp) =>
+        when Typ.is_consistent(Ctx.empty, unrolled(t), t' |> Typ.temp) =>
       Some(e)
     | (ProofObject(e1), ProofOf(e2)) when Exp.fast_equal(e1, e2) =>
       Some(
@@ -318,8 +318,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Filter(_), _)
     | (TyAlias(_), _)
     | (Theorem(_), _)
-    | (Forall(_), _)
-    | (Asc(_), _) => None
+    | (Forall(_), _) => None
     // These are non-value cases we don't want to handle
     | (EmptyHole, _)
     | (DynamicErrorHole(_), _)
@@ -351,7 +350,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Constructor(_), _)
     | (Module(_), _)
     | (ModuleExp(_), _) => None
-    }
+    };
   | _ => None
   };
 };

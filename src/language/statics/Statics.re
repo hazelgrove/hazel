@@ -357,9 +357,8 @@ and uexp_to_info_map =
       switch (Pat.get_num_of_vars(p), Exp.get_num_of_functions(def)) {
       | (Some(num_vars), Some(num_fns))
           when num_vars != 0 && num_vars == num_fns =>
-        let norm = Typ.weak_head_normalize(ctx, syn);
-        let arrow_like = t =>
-          Typ.is_arrow_like(Typ.weak_head_normalize(ctx, t));
+        let norm = MatchedTyp.head(ctx, syn);
+        let arrow_like = t => Typ.is_arrow_like(MatchedTyp.head(ctx, t));
         switch (norm |> Typ.term_of) {
         | Prod(syns) when List.length(syns) == num_vars =>
           syns |> List.for_all(arrow_like)
@@ -1369,7 +1368,7 @@ and uexp_to_info_map =
           ty_list,
         );
       let tuple_elab =
-        switch (Typ.weak_head_normalize(ctx, ana).term) {
+        switch (MatchedTyp.head(ctx, ana).term) {
         | Prod(ts) =>
           Tuple(
             LabeledTuple.rearrange(
@@ -2638,58 +2637,44 @@ and uexp_to_info_map =
         m,
       );
     | TyAlias(typat, utyp, body) =>
-      let m =
-        utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, typat, m)
-        |> snd;
       switch (typat.term) {
       | Var(name) when !Ctx.is_base_typ(name) =>
-        let (name, typat, utyp, body) =
+        /* The name the alias binds; the binder's info keeps the name as
+           written. */
+        let (bound, utyp, body) =
           switch (Typ.unshadow(ctx, name)) {
-          | None => (name, typat, utyp, body)
+          | None => (name, utyp, body)
           | Some(f) => (
               f(name),
-              TPat.rename(f, typat),
               Typ.rename_vars(f, utyp),
               Exp.rename_tvars(f, body),
             )
           };
-        /* NOTE(andrew): Currently, Typ.to_typ returns Unknown(TypeHole)
-           for any type variable reference not in its ctx. So any free variables
-           in the definition would be obliterated. But we need to check for free
-           variables to decide whether to make a recursive type or not. So we
-           tentatively add an abtract type to the ctx, representing the
-           speculative rec parameter. */
-        let extend_alias = ty =>
-          Ctx.extend_alias(ctx, name, TPat.rep_id(typat), ty);
+        let bind = ty =>
+          Ctx.extend_alias(ctx, bound, TPat.rep_id(typat), ty);
         let def = Typ.close(ctx, utyp);
-        let (ty_def, ctx_def, ctx_body) = {
-          switch (def.term) {
-          | _ when List.mem(name, Typ.free_vars(def)) =>
-            /* NOTE: When debugging type system issues it may be beneficial to
-               use a different name than the alias for the recursive parameter */
-            //let ty_rec = Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
-            let ty_rec = Rec(Var(name) |> TPat.fresh, def) |> Typ.temp;
-            let ctx_def = extend_alias(ty_rec);
-            (ty_rec, ctx_def, ctx_def);
-          | _ => (def, ctx, extend_alias(def))
-          /* NOTE(yuchen): Below is an alternative implementation that attempts to
-             add a rec whenever type alias is present. It may cause trouble to the
-             runtime, so precede with caution. */
-          // Typ.lookup_surface(ty_pre)
-          //   ? {
-          //     let ty_rec = Typ.Rec({item: ty_pre, name});
-          //     let ctx_def = Ctx.add_alias(ctx, name, utpat_id(typat), ty_rec);
-          //     (ty_rec, ctx_def, ctx_def);
-          //   }
-          //   : {
-          //     let ty = Term.Typ.to_typ(ctx, utyp);
-          //     (ty, ctx, Ctx.add_alias(ctx, name, utpat_id(typat), ty));
-          //   };
+        let alias = Typ.recursive_def(bound, def);
+        let (tpat_marks, ty_def) = alias_binding(name, def, alias);
+        let (ctx_def, ctx_body) =
+          switch (alias) {
+          | Typ.Plain => (ctx, bind(ty_def))
+          | Typ.Recursive(_)
+          | Typ.SelfLoop =>
+            let ctx_def = bind(ty_def);
+            (ctx_def, ctx_def);
           };
-        };
+        let m =
+          utpat_to_info_map(
+            ~ctx,
+            ~ancestors=ancestors_inclusive,
+            ~marks=tpat_marks,
+            typat,
+            m,
+          )
+          |> snd;
         let ctx_body =
           switch (Typ.get_sum_constructors(ctx, ty_def)) {
-          | Some(sm) => Ctx.add_ctrs(ctx_body, name, sm)
+          | Some(sm) => Ctx.add_ctrs(ctx_body, bound, sm)
           | None => ctx_body
           };
         let (
@@ -2699,7 +2684,7 @@ and uexp_to_info_map =
         ) =
           go(~ctx=ctx_body, ~ana, body, m);
         /* Make sure types don't escape their scope */
-        let ty_escape = Typ.subst(ty_def, typat, ty_body);
+        let ty_escape = Typ.subst(ty_def, Var(bound) |> TPat.fresh, ty_body);
         let m =
           utyp_to_info_map(
             ~ctx=ctx_def,
@@ -2726,6 +2711,9 @@ and uexp_to_info_map =
       | Invalid(_)
       | EmptyHole
       | MultiHole(_) =>
+        let m =
+          utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, typat, m)
+          |> snd;
         let (
           {co_ctx, probe_targets, elab_syn_ty: ty_body, _}: Info.exp,
           body_elab,
@@ -2749,7 +2737,7 @@ and uexp_to_info_map =
           ~probe_targets,
           m,
         );
-      };
+      }
     | Use(typ, body) =>
       let (typ, m) =
         utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, typ, m);
@@ -2996,8 +2984,12 @@ and uexp_to_info_map =
             (with_item(c, item, ModLet(f.p_elab, f.def_elab)), m);
           | ModType({term: Var(name), _} as tpat, def)
               when !Ctx.is_base_typ(name) =>
-            let m = utpat_to_info_map(~ctx, ~ancestors, tpat, m) |> snd;
-            let def_ty = Typ.recursive_def(name, Typ.close(ctx, def));
+            let def = Typ.close(ctx, def);
+            let (tpat_marks, def_ty) =
+              alias_binding(name, def, Typ.recursive_def(name, def));
+            let m =
+              utpat_to_info_map(~ctx, ~ancestors, ~marks=tpat_marks, tpat, m)
+              |> snd;
             let ctx_def =
               Typ.extend_ctx(
                 ctx,
@@ -4662,8 +4654,18 @@ and utyp_to_info_map =
       );
     add(m);
   | Rec({term: Var(name), _} as utpat, tbody) =>
+    let marks =
+      Option.is_none(Typ.unroll(utyp))
+        ? [Mark.TPatNonContractive(name)] : [];
     let m =
-      utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
+      utpat_to_info_map(
+        ~ctx,
+        ~ancestors=ancestors_inclusive,
+        ~marks,
+        utpat,
+        m,
+      )
+      |> snd;
     let (name, utyp, tbody) =
       switch (Typ.unshadow(ctx, name)) {
       | None => (name, utyp, tbody)
@@ -4735,7 +4737,8 @@ and utyp_to_info_map =
   };
 }
 and utpat_to_info_map =
-    (~ctx, ~ancestors, utpat: TPat.t, m: Map.t): (Info.tpat, Map.t) => {
+    (~ctx, ~ancestors, ~marks=[], utpat: TPat.t, m: Map.t)
+    : (Info.tpat, Map.t) => {
   let ids = IdTagged.ids(utpat);
   let term = IdTagged.term_of(utpat);
   let status_for_node =
@@ -4751,12 +4754,17 @@ and utpat_to_info_map =
     | MultiHole(_) => ([TPatNotAVar(Other)], None)
     };
   let add = m => {
-    let st = status_for_node(utpat);
+    let (own_marks, ok) = status_for_node(utpat);
+    let marks = marks @ own_marks;
     let info: Info.tpat = {
       cls: Cls.TPat(TPat.cls_of_term(utpat.term)),
       ancestors,
-      marks: fst(st),
-      message: Option.map(x => Message.TPatOk(x), snd(st)),
+      marks,
+      message:
+        switch (marks) {
+        | [] => Option.map(x => Message.TPatOk(x), ok)
+        | [_, ..._] => None
+        },
       warnings: [],
       ctx,
       user_term: utpat,

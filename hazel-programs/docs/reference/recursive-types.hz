@@ -1,0 +1,97 @@
+# Recursive Types #
+
+# A type alias may mention its own name. The alias then stands for a #
+# recursive type, and its values are built with its constructors: #
+type IntList = + Nil + Cons(Int, IntList) in
+let sum : IntList -> Int = fun l ->
+  case l
+  | Nil => 0
+  | Cons(h, t) => h + sum(t)
+  end in
+let ex1 = sum(Cons(1, Cons(2, Cons(3, Nil)))) in # 6 #
+
+# The recursion may pass through other type constructors, such as lists: #
+type Rose = + Node(Int, [Rose]) in
+let size : Rose -> Int = fun r ->
+  case r
+  | Node(_, kids) =>
+    let go : [Rose] -> Int = fun ks ->
+      case ks
+      | [] => 0
+      | k :: rest => size(k) + go(rest)
+      end in
+    1 + go(kids)
+  end in
+let ex2 = size(Node(1, [Node(2, []), Node(3, [Node(4, [])])])) in # 4 #
+
+# The recursion need not pass through a sum. A value is checked against a #
+# recursive type one unrolling at a time, so a tuple can be a chain, with #
+# a hole where it stops: #
+type Chain = (Int, Chain) in
+let c : Chain = (1, (2, ?)) in
+let (a, (b, _)) = c in
+let ex3 = a + b in # 3 #
+
+# A recursive function type. A stream is a function that gives the next #
+# element and the rest of the stream: #
+type Stream = () -> (Int, Stream) in
+let count : Int -> Stream = fun n -> fun () -> (n, count(n + 1)) in
+let (first, rest) = count(10)() in
+let (second, _) = rest() in
+let ex4 = (first, second) in # (10, 11) #
+
+# A recursive type and its unrolling are the same type, so either #
+# spelling works as an annotation: #
+let from_ten : () -> (Int, Stream) = count(10) in
+let (x, _) = from_ten() in
+let ex5 = x in # 10 #
+
+# Two spellings of the same infinite type are the same type, even when #
+# they unroll at different rates: #
+type Stream2 = () -> (Int, () -> (Int, Stream2)) in
+let by_twos : Stream2 = count(0) in
+let (_, after_zero) = by_twos() in
+let (one, _) = after_zero() in
+let ex6 = one in # 1 #
+
+# A function may take itself as an argument when its type says so: #
+type Self = Self -> Int in
+let apply_self : Self -> Int = fun f -> f(f) in
+let const_one : Self = fun _ -> 1 in
+let ex7 = apply_self(const_one) in # 1 #
+
+# The binder's name is not part of the type. A function over any list-like #
+# recursive sum, written with its own binder, takes an IntList: #
+let length : poly A -> (rec L -> + Nil + Cons(A, L)) -> Int =
+  typfun A -> fun l ->
+    case l
+    | Nil => 0
+    | Cons(_, t) => 1 + length@<A>(t)
+    end in
+let ex8 = length@<Int>(Cons(1, Cons(2, Cons(3, Nil)))) in # 3 #
+
+# The same for a recursive product, taken apart through its unrolling: #
+let first_of : poly A -> (rec P -> (A, P)) -> A =
+  typfun A -> fun (a, _) -> a in
+let ex9 = first_of@<Int>(c) in # 1 #
+
+# A recursive occurrence is the type itself, not a hole: a chain of Ints #
+# is not a chain of Bools, whatever the binders are called. #
+let not_a_chain : rec b -> (Bool, b) = c in # marked #
+
+# Rebinding a name in terms of its old binding is no cycle: the new alias #
+# is bound apart from the old one, so Num is still Int. #
+type Num = Int in
+type Alias = Num in
+type Num = Alias in
+let n : Num = 7 in
+let ex10 = n in # 7 #
+
+# An alias defined as itself alone stands for no type. It is marked where #
+# it is defined, and its uses are not marked again: #
+type Loop = Loop in
+let looped : Loop = 5 in
+let ex11 = looped in # 5 #
+
+# All output from examples: #
+(ex1, ex2, ex3, ex4, ex5, ex6, ex7, ex8, ex9, ex10, ex11)
