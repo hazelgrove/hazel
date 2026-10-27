@@ -68,8 +68,9 @@ module Model = {
      * instead of being skipped because the partial streaming state has
      * no theorems yet. */
     theorems_dynamics: Calc.saved(option(Dynamics.t)),
-    /* Request generation: minted whenever elab, settings or targets change
-     * (the inputs of an evaluation), including on the sync path and with
+    /* The request generation issued to this model (by the process-wide
+     * `fresh_generation`), whenever elab, settings or targets change (the
+     * inputs of an evaluation), including on the sync path and with
      * dynamics off. Replies tagged with any other generation are refused. */
     request_gen: int,
     requested: option(requested),
@@ -150,6 +151,18 @@ module Model = {
 
   let get_elaboration = (model: t): option(Exp.t) =>
     model.elab |> Calc.get_saved_opt;
+};
+
+/* Request generations come from one process-wide counter that lives outside
+ * every model. Undo/redo restores whole model snapshots, so a per-model
+ * counter would roll back and re-issue a tag that a request still in flight
+ * carries; this one never repeats within the process. It starts at 1, so a
+ * tag is never the model's initial 0 nor EvalRequest's unknown-key -1. A
+ * model only stores the tag it was issued. */
+let generation_counter = ref(0);
+let fresh_generation = (): int => {
+  incr(generation_counter);
+  generation_counter^;
 };
 
 module Update = {
@@ -347,7 +360,7 @@ module Update = {
      * capture that input. */
     let inputs_new =
       Calc.is_new(elab) || Calc.is_new(settings) || Calc.is_new(targets);
-    let request_gen = inputs_new ? request_gen + 1 : request_gen;
+    let request_gen = inputs_new ? fresh_generation() : request_gen;
     let requested =
       inputs_new
         ? Some(

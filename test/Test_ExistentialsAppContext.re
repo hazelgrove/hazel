@@ -405,12 +405,22 @@ let app_status = (m: EvalResult.Model.t, thm: Id.t): string =>
   | None => "absent"
   };
 
-/* SEAM: the callback constructors of the build under test. */
+/* SEAM: the callback constructors of the build under test. After the
+   repair, worker callbacks carry the generation of the request they answer
+   (taken from the captured request, as EvalRequest takes it from its batch).
+   The batch-1 control used the base's untagged constructors here. */
 module Wire = {
-  let ack = (_req: WorkerServer.Request.value, hold) =>
-    EvalResult.Update.UpdateStreamingEval(hold, IncrEval.empty_outbox);
-  let result = (_req: WorkerServer.Request.value, r) =>
-    EvalResult.Update.UpdateResult(r);
+  let ack = (req: WorkerServer.Request.value, hold) =>
+    EvalResult.Update.UpdateStreamingEval(hold, req.generation, IncrEval.empty_outbox);
+  let stream = (req: WorkerServer.Request.value) =>
+    EvalResult.Update.MergeStreamingEval(req.generation, IncrEval.empty_outbox);
+  let result = (req: WorkerServer.Request.value, r) =>
+    EvalResult.Update.UpdateResult(req.generation, r);
+  let timeout = (req: WorkerServer.Request.value) =>
+    EvalResult.Update.UpdateResult(
+      req.generation,
+      ProgramResult.ResultFail(ProgramResult.Timeout),
+    );
 };
 
 /* One completed run through the actual wiring: enqueue, ack, result. */
@@ -525,6 +535,265 @@ let witness_case = ((label, src, expect)) =>
     },
   );
 
+
+/* --- Shared helpers for cases 2 and 3 --------------------------------------- */
+
+/* Reused verbatim from the frozen freshness oracle (f76300ec): one definition
+   above a same-id theorem; the edit changes k's static type (Bool -> ?) and
+   j's value (40 + 1 -> 41 + 1), so a current-statics/old-env map differs from
+   both genuine maps. */
+let v1_src = {|let (k, j) : (Bool, Int) = (true, 40 + 1) in theorem t = k || j == 41 proof
+  induction k
+  | true => eval true || j == 41 at 0 end
+  | false => eval false || j == 41 at 0 end
+  end
+in 0|};
+
+/* The `?` type term, taken from a parse rather than constructed. */
+let unknown_typ_term = (): Typ.term => {
+  let found = ref(None);
+  let f_typ = (continue, t: Typ.t): Typ.t => {
+    switch (t.term) {
+    | Unknown(_) when found^ == None => found := Some(t.term)
+    | _ => ()
+    };
+    continue(t);
+  };
+  let _ =
+    TermBase.Exp.map_term(
+      ~f_typ,
+      Test_Evaluator_Prelude.parse_exp({|let x : ? = 1 in 0|}),
+    );
+  switch (found^) {
+  | Some(t) => t
+  | None => Alcotest.fail("no ? type term in the parsed annotation")
+  };
+};
+
+/* v1 -> v2, every id kept: Bool annotation -> ?, literal 40 -> 41. */
+let edit = (term: Exp.t): Exp.t => {
+  let f_typ = (continue, t: Typ.t): Typ.t =>
+    switch (t.term) {
+    | Atom(Bool) => {...t, term: unknown_typ_term()}
+    | _ => continue(t)
+    };
+  Test_Evaluator_Incremental.replace_int_lit(
+    ~from=40,
+    ~to_=41,
+    TermBase.Exp.map_term(~f_typ, term),
+  );
+};
+
+
+let dynamics_of_state = (state: EvaluatorState.t): Dynamics.t => {
+  probe_map: EvaluatorState.get_probes(state),
+  test_results: EvaluatorState.get_tests(state) |> TestResults.mk_results,
+  theorems: EvaluatorState.get_theorems(state),
+  proof_map: EvaluatorState.get_proof_map(state),
+};
+
+/* The deliberately MIXED reference: current statics paired with a previous
+   evaluation, through the real Theorems.Update.calculate. */
+let mixed_map = (cs: CachedStatics.t, state: EvaluatorState.t): ProofMap.t =>
+  Theorems.Update.calculate(
+    ~settings=Calc.NewValue(settings),
+    ~statics=Calc.NewValue(cs),
+    ~dynamics=Calc.NewValue(Some(dynamics_of_state(state))),
+    ~checked=Calc.NewValue(Some((cs, dynamics_of_state(state)))),
+    Theorems.Model.init,
+  ).
+    proof_map
+  |> Calc.get_saved(ProofMap.empty);
+
+let equiv = (a: ProofMap.t, b: ProofMap.t): bool => {
+  let (keys_equal, fields) = compare_maps(a, b);
+  keys_equal
+  && !
+       List.exists(
+         ((_, _, v)) =>
+           v == "MISSING"
+           || String.length(v) >= 4
+           && String.sub(v, 0, 4) == "DIFF",
+         fields,
+       );
+};
+
+let phase_of = (m: EvalResult.Model.t) =>
+  switch (Calc.get_value(m.result)) {
+  | ProgramResult.ResultPending(ProgramResult.AwaitingWorkerAck) => "AwaitingWorkerAck"
+  | ProgramResult.ResultPending(ProgramResult.Evaluating) => "Evaluating"
+  | ProgramResult.ResultOk(_) => "ResultOk"
+  | ProgramResult.ResultFail(_) => "ResultFail"
+  };
+
+let snap = (~label, ~prev, ~cur, ~mixed, m: EvalResult.Model.t): ProofMap.t => {
+  let pm = EvalResult.Model.proof_map(m);
+  obs(
+    "phase " ++ label,
+    "result="
+    ++ phase_of(m)
+    ++ " request_gen="
+    ++ string_of_int(EvalResult.Model.request_gen(m))
+    ++ " hold="
+    ++ (
+      switch (m.stepper_hold) {
+      | Some(h) => string_of_int(h)
+      | None => "none"
+      }
+    )
+    ++ " map_ids="
+    ++ show_ids(ids_of(pm))
+    ++ " highlight="
+    ++ show_ids(highlight_of(pm))
+    ++ " equiv_prev="
+    ++ string_of_bool(equiv(prev, pm))
+    ++ " equiv_current="
+    ++ string_of_bool(equiv(cur, pm))
+    ++ " equiv_mixed="
+    ++ string_of_bool(equiv(mixed, pm)),
+  );
+  pm;
+};
+
+/* --- Case 2: edit above a stable theorem id ---------------------------------- */
+
+let edit_case =
+  test_case(
+    "edit above stable theorem: pending/ack/stream/hold keep the genuine previous map; final = current",
+    `Quick,
+    () => {
+      queue := [];
+      let term1 = Test_Evaluator_Prelude.parse_exp(v1_src);
+      let cs1 = cached_statics(term1);
+      let cs2 = cached_statics(edit(term1));
+      let (thm1, _) = theorem_of(cs1);
+      let (thm2, _) = theorem_of(cs2);
+      let native1 = native_map(cs1);
+      let native2 = native_map(cs2);
+      check(list(string), "v1 static-valid", [], static_errors(cs1));
+      check(list(string), "v2 static-valid", [], static_errors(cs2));
+      check(string, "theorem id kept across the edit", Id.to_string(thm1), Id.to_string(thm2));
+      let (m, r1) = complete(cs1, EvalResult.Model.init);
+      let mixed = mixed_map(cs2, state_of_reply(r1));
+      let (_, fields_prev) = compare_maps(native1, mixed);
+      let (_, fields_cur) = compare_maps(native2, mixed);
+      let differing = fs =>
+        fs
+        |> List.filter(((_, _, v)) => v != "strict" && v != "semantic")
+        |> List.map(((id, f, _)) => id ++ "." ++ f);
+      obs("mixed", "vs_prev=" ++ show_ids(differing(fields_prev)) ++ " vs_current=" ++ show_ids(differing(fields_cur)));
+      check(bool, "fixture discriminates (mixed differs from previous)", false, equiv(native1, mixed));
+      check(bool, "fixture discriminates (mixed differs from current)", false, equiv(native2, mixed));
+      let p0 = snap(~label="v1-completed", ~prev=native1, ~cur=native1, ~mixed, m);
+      check(bool, "v1 completed = native v1", true, equiv(native1, p0));
+      let m = calc(~is_edited=true, cs2, m);
+      let req2 = last_request();
+      let p1 = snap(~label="v2-pending", ~prev=native1, ~cur=native2, ~mixed, m);
+      let m = upd(Wire.ack(req2, 7), m);
+      let m = calc(~is_edited=false, cs2, m);
+      let p2 = snap(~label="v2-ack-hold", ~prev=native1, ~cur=native2, ~mixed, m);
+      let m = upd(Wire.stream(req2), m);
+      let m = calc(~is_edited=false, cs2, m);
+      let m = upd(EvalResult.Update.ReleaseStepperHold(7), m);
+      let m = calc(~is_edited=false, cs2, m);
+      let p3 = snap(~label="v2-stream-hold-released", ~prev=native1, ~cur=native2, ~mixed, m);
+      let m = upd(Wire.result(req2, worker_reply(req2)), m);
+      let m = calc(~is_edited=false, cs2, m);
+      let p4 = snap(~label="v2-result", ~prev=native1, ~cur=native2, ~mixed, m);
+      check(bool, "pending: genuine previous map (never mixed)", true, equiv(native1, p1));
+      check(bool, "ack/hold: genuine previous map (never mixed)", true, equiv(native1, p2));
+      check(bool, "stream + hold release: genuine previous map (never mixed)", true, equiv(native1, p3));
+      check(bool, "final = current native", true, equiv(native2, p4));
+    },
+  );
+
+/* --- Case 3: undo restore, dynamics off, stale replies, two cells ------------ */
+
+let undo_case =
+  test_case(
+    "undo restore + dynamics-off re-mint cannot collide with an in-flight tag; stale events refused; cells mint distinct tags",
+    `Quick,
+    () => {
+      queue := [];
+      let term1 = Test_Evaluator_Prelude.parse_exp(v1_src);
+      let cs1 = cached_statics(term1);
+      let cs2 = cached_statics(edit(term1));
+      let native1 = native_map(cs1);
+      /* S0: v1 completed; its issued tag is g. */
+      let (m_g, _) = complete(cs1, EvalResult.Model.init);
+      let g = EvalResult.Model.request_gen(m_g);
+      let queued = List.length(queue^);
+      /* Unchanged input: no mint, no request. */
+      let m_same = calc(~is_edited=false, cs1, m_g);
+      check(bool, "unchanged input: same issued tag", true,
+        EvalResult.Model.request_gen(m_same) == g);
+      check(int, "unchanged input: no request", queued, List.length(queue^));
+      /* Edit: R1 issued with tag g1. */
+      let m1 = calc(~is_edited=true, cs2, m_g);
+      let r1 = last_request();
+      /* Undo: the whole S0 model value comes back (tag g), statics v1. */
+      let m_restored = m_g;
+      /* Dynamics off on the restored model: inputs changed, so a tag is minted. */
+      let off = {...settings, dynamics: false};
+      let m_off = calc(~settings=off, ~is_edited=false, cs1, m_restored);
+      let g_off = EvalResult.Model.request_gen(m_off);
+      obs(
+        "undo",
+        "g="
+        ++ string_of_int(g)
+        ++ " r1="
+        ++ string_of_int(r1.generation)
+        ++ " after_edit="
+        ++ string_of_int(EvalResult.Model.request_gen(m1))
+        ++ " restored="
+        ++ string_of_int(EvalResult.Model.request_gen(m_restored))
+        ++ " after_off="
+        ++ string_of_int(g_off),
+      );
+      check(bool, "restored model carries the old tag", true,
+        EvalResult.Model.request_gen(m_restored) == g);
+      check(bool, "dynamics-off mint is a fresh tag (not the in-flight R1's, not the restored one)",
+        true, g_off != r1.generation && g_off != g);
+      /* R1's reply arrives: it must be refused (physically unchanged model). */
+      let m_after = upd(Wire.result(r1, worker_reply(r1)), m_off);
+      check(bool, "in-flight R1 reply refused after undo + re-mint", true, m_after === m_off);
+      check(bool, "map still the genuine previous one", true,
+        equiv(native1, EvalResult.Model.proof_map(m_after)));
+      /* Stale R1 ack/stream/timeout on the post-edit model whose current
+         request is newer: refused. Then the current request's events. */
+      let m2 = calc(~is_edited=true, cs1, m1);
+      let r2 = last_request();
+      check(bool, "re-edit issues a fresh tag", true, r2.generation != r1.generation);
+      List.iter(
+        ((name, action)) =>
+          check(bool, "stale " ++ name ++ " refused", true, upd(action, m2) === m2),
+        [
+          ("ack", Wire.ack(r1, 9)),
+          ("stream", Wire.stream(r1)),
+          ("final", Wire.result(r1, worker_reply(r1))),
+          ("timeout", Wire.timeout(r1)),
+        ],
+      );
+      let m3 = upd(Wire.ack(r2, 11), m2);
+      check(bool, "current ack accepted", true, m3.stepper_hold == Some(11));
+      let m4 = upd(Wire.stream(r2), m3);
+      check(bool, "current stream accepted", true, m4 !== m3);
+      let m5 = upd(Wire.timeout(r2), calc(~is_edited=false, cs1, m4));
+      let m5 = calc(~is_edited=false, cs1, m5);
+      check(string, "current timeout accepted", "ResultFail", phase_of(m5));
+      /* Two independent cells mint distinct tags. */
+      let (ca, _) = complete(cs1, EvalResult.Model.init);
+      let (cb, _) = complete(cs2, EvalResult.Model.init);
+      let tags = [g, r1.generation, g_off, r2.generation,
+                  EvalResult.Model.request_gen(ca), EvalResult.Model.request_gen(cb)];
+      obs("tags", show_ids(List.map(string_of_int, tags)));
+      check(bool, "two cells: distinct tags", true,
+        EvalResult.Model.request_gen(ca) != EvalResult.Model.request_gen(cb));
+      check(int, "every issued tag in this case is unique",
+        List.length(tags), List.length(List.sort_uniq(compare, tags)));
+    },
+  );
+
 let tests = (
   "ExistentialsAppContext",
   List.map(
@@ -534,5 +803,6 @@ let tests = (
       ("witness3-alone", Test_ResetExistentials.alone, AloneExp),
       ("bad-witness2", Test_ResetExistentials.bad, BadExp),
     ],
-  ),
+  )
+  @ [edit_case, undo_case],
 );
