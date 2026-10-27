@@ -241,12 +241,14 @@ After checking:
   the module.
 
 `ModuleExp(mpat, def, body)` is checked as `Let(pat, def, body)` and
-elaborates to that `Let`. `Dot(e, x)` on a signature-typed `e` projects the
-value member; a member the signature lacks is reported on the label
+elaborates to that `Let`. `Dot(e, x)` on a signature-typed `e` is module
+member access, decided once from `e`'s type and sharing nothing with tuple
+projection after that: the label `x` is the member, at the member's type;
+a member the signature lacks is reported on the label
 (`ModuleMemberNotFound`, or `ModuleMemberIsType` when `x` names a type
-member) while the dot carries only a message, the way `M.Fake` in a type
-reports on `Fake`
-(`ModuleTypeMemberNotFound`). A hole item in the signature could declare
+member) while the dot carries the same as a message, the way `M.Fake` in a
+type reports on `Fake` (`ModuleTypeMemberNotFound`). A hole item in the
+signature could declare
 the member, so under one the projection is unknown and nothing is
 reported, in both positions. A value used as the root of a type path gets
 `TypWantModule`. In type position, `utyp_to_info_map` threads a context
