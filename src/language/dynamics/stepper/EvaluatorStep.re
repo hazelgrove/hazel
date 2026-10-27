@@ -133,6 +133,9 @@ let rec matches =
       | UnOp(op, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         UnOp(op, ctx) |> rewrap;
+      | Valued(ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Valued(ctx) |> rewrap;
       | BinOp1(op, ctx, d1) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         BinOp1(op, ctx, d1) |> rewrap;

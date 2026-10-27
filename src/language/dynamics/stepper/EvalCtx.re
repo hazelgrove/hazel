@@ -20,6 +20,7 @@ type term =
   | If2(DHExp.t, t, DHExp.t)
   | If3(DHExp.t, DHExp.t, t)
   | UnOp(Operators.op_un, t)
+  | Valued(t)
   | BinOp1(Operators.op_bin, t, DHExp.t)
   | BinOp2(Operators.op_bin, DHExp.t, t)
   | TupleExtension1(t, DHExp.t)
@@ -104,6 +105,9 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
     | UnOp(op, ctx) =>
       let d1 = compose(ctx, d);
       UnOp(op, d1) |> wrap;
+    | Valued(ctx) =>
+      let d1 = compose(ctx, d);
+      Valued(d1) |> wrap;
     | BinOp1(op, ctx, d2) =>
       let d1 = compose(ctx, d);
       BinOp(op, d1, d2) |> wrap;

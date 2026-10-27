@@ -130,7 +130,8 @@ type step_kind =
   | Ascription
   | RemoveTypeAlias
   | RemoveUse
-  | RemoveParens;
+  | RemoveParens
+  | Valuedness;
 
 type rule =
   | Step({
@@ -176,6 +177,98 @@ module type EV_MODE = {
     (requirements('a, 'c => 'b), requirement('c)) =>
     requirements(('a, 'c), 'b);
   let otherwise: (Environment.t(Exp.t), 'a) => requirements(unit, 'a);
+};
+
+/* `!!v` for a final form v (D37, D39; ported from October f0b9a277): what
+ * it steps to, or None if it is stuck. Functions are recognised before
+ * data, so a function-typed value never counts as a first-order atom:
+ * - a lambda whose parameter type is known becomes `forall (x : T) ->
+ *   !!(v(x))`. Forall is stuck, so this never becomes `true` by
+ *   evaluation;
+ * - an unknown parameter type, builtins, type functions and constructors
+ *   of function type are stuck;
+ * - atoms and nullary constructors are `true`; tuples, lists, conses,
+ *   labelled values and applied constructors are the `&&` of `!!` over
+ *   their parts;
+ * - anything else (errors, holes, indeterminate terms, and in particular
+ *   `forall`/`exists`) is stuck.
+ * Never `false`. One-way (D81): there is deliberately NO rewrite of
+ * `!!(forall x -> P)` or `!!(exists x -> P)`, so the converse of
+ * std_all/std_ex is never derivable by evaluation. */
+let rec valued_reduct = (v: DHExp.t): option(DHExp.t) => {
+  let all = (parts: list(DHExp.t)): DHExp.t =>
+    switch (List.rev(parts)) {
+    | [] => Atom(Bool(true)) |> DHExp.fresh
+    | [last, ...rest] =>
+      List.fold_left(
+        (acc, part) =>
+          BinOp(Bool(And), Valued(part) |> DHExp.fresh, acc) |> DHExp.fresh,
+        Valued(last) |> DHExp.fresh,
+        rest,
+      )
+    };
+  let is_function_type = (t: Typ.t) =>
+    switch (Typ.term_of(t)) {
+    | Arrow(_) => true
+    | _ => false
+    };
+  let known = (t: Typ.t) =>
+    switch (Typ.term_of(t)) {
+    | Unknown(_) => false
+    | _ => true
+    };
+  /* The lambda under a closure (the evaluator's form of a function value). */
+  let rec lambda = (v: DHExp.t) =>
+    switch (DHExp.term_of(v)) {
+    | Closure(_, v) => lambda(v)
+    | _ => v
+    };
+  switch (DHExp.term_of(lambda(v))) {
+  | Parens(v)
+  | Asc(v, _) => valued_reduct(v)
+  | Fun(_, _, Some(param_ty), _) when known(param_ty) =>
+    let used = ref([]);
+    let _ =
+      Exp.map_term(
+        ~f_exp=
+          (continue, e: Exp.t) => {
+            switch (e.term) {
+            | Var(y) => used := [y, ...used^]
+            | _ => ()
+            };
+            continue(e);
+          },
+        v,
+      );
+    let rec fresh = n => {
+      let x = "x" ++ (n == 0 ? "" : string_of_int(n));
+      List.mem(x, used^) ? fresh(n + 1) : x;
+    };
+    let x = fresh(0);
+    Some(
+      Forall(
+        Pat.fresh(Asc(Pat.fresh(Var(x)), param_ty)),
+        Valued(Ap(Forward, v, Var(x) |> DHExp.fresh) |> DHExp.fresh)
+        |> DHExp.fresh,
+      )
+      |> DHExp.fresh,
+    );
+  | Fun(_)
+  | FixF(_)
+  | TypFun(_)
+  | BuiltinFun(_) => None
+  | Constructor(_, Some(Some(t))) when known(t) && !is_function_type(t) =>
+    Some(Atom(Bool(true)) |> DHExp.fresh)
+  | Constructor(_) => None
+  | Atom(_)
+  | Label(_) => Some(Atom(Bool(true)) |> DHExp.fresh)
+  | Tuple(parts)
+  | ListLit(parts) => Some(all(parts))
+  | Cons(h, t) => Some(all([h, t]))
+  | TupLabel(_, v) => Some(all([v]))
+  | Ap(_, {term: Constructor(_), _}, arg) => Some(all([arg]))
+  | _ => None
+  };
 };
 
 module Transition = (EV: EV_MODE) => {
@@ -531,10 +624,19 @@ module Transition = (EV: EV_MODE) => {
     | Forall(_) =>
       let. _ = otherwise(env, d);
       Indet;
-    /* dep-A: stuck until the `!!` dynamics commit (dep-B). */
-    | Valued(_) =>
-      let. _ = otherwise(env, d);
-      Indet;
+    | Valued(d1) =>
+      let. _ = otherwise(env, d1 => Valued(d1) |> rewrap)
+      and. d1' = req_final(req(env), d1 => Valued(d1) |> wrap_ctx, d1);
+      switch (valued_reduct(d1')) {
+      | Some(expr) =>
+        Step({
+          expr,
+          side_effects: [],
+          kind: Valuedness,
+          is_value: false,
+        })
+      | None => Indet
+      };
     | TypFun(_)
     /* A lambda is a value whether or not its parameter carries a `where`
      * guard: the guard runs at APPLICATION, in PatternMatch. */
@@ -1369,7 +1471,8 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | FixClosure
   | MarkIncomparable
   | RecordTheorem
-  | RemoveParens => true;
+  | RemoveParens => true
+  | Valuedness => false;
 
 let stepper_justification: step_kind => string =
   fun
@@ -1419,6 +1522,7 @@ let stepper_justification: step_kind => string =
   | RemoveTypeAlias => "define type"
   | RemoveUse => "set use type"
   | RemoveParens => "remove parentheses"
+  | Valuedness => "valuedness"
   | Dot => "Labeled tuple access"
   | TupleExtension => "Tuple extension"
   | MarkIncomparable => "mark equality as incomparable";
