@@ -504,6 +504,11 @@
   flex-direction: row;
   align-items: center;
   gap: 0.3em;
+  /* Size the band to its own content and seat it at the row's bottom, so
+   * the translate below centres it on the boundary for rows of ANY height.
+   * Stretched to a tall (multi-line) row, it hung half the row's height
+   * below the boundary and out of the proof box (R-reset-list-step-0116-1). */
+  align-self: flex-end;
   transform: translateY(calc(50% + 0.5em));
   z-index: 1;
   /* Sit ON the separator line: opaque background plus side padding so
