@@ -670,6 +670,7 @@ let rec replace_exp =
         | Cons(_, _)
         | ListConcat(_, _)
         | UnOp(_, _)
+        | Valued(_)
         | BinOp(_, _, _)
         | BuiltinFun(_)
         | Asc(_, _)

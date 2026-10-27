@@ -531,6 +531,10 @@ module Transition = (EV: EV_MODE) => {
     | Forall(_) =>
       let. _ = otherwise(env, d);
       Indet;
+    /* dep-A: stuck until the `!!` dynamics commit (dep-B). */
+    | Valued(_) =>
+      let. _ = otherwise(env, d);
+      Indet;
     | TypFun(_)
     /* A lambda is a value whether or not its parameter carries a `where`
      * guard: the guard runs at APPLICATION, in PatternMatch. */

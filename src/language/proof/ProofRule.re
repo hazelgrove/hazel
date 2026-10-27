@@ -246,6 +246,7 @@ let rec bool_shape = (e: Exp.t): bool_shape =>
   | Atom(Bool(_)) => Boolean
   | Atom(Int(_) | Nat(_) | SInt(_) | Float(_) | String(_)) => NotBoolean
   | UnOp(op, _) => bool_result_un(op) ? Boolean : NotBoolean
+  | Valued(_) => Boolean
   | BinOp(op, _, _) => bool_result_bin(op) ? Boolean : NotBoolean
   | ListLit(_)
   | Tuple(_)

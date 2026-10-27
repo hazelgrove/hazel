@@ -249,6 +249,8 @@ let rec match_exp =
   | (UnOp(op1, e1), UnOp(op2, e2)) when op1 == op2 =>
     match_exp(alphas, ctx, e1, e2)
   | (UnOp(_, _), _) => None
+  | (Valued(e1), Valued(e2)) => match_exp(alphas, ctx, e1, e2)
+  | (Valued(_), _) => None
   | (BinOp(op1, e1, e2), BinOp(op2, e3, e4)) when op1 == op2 =>
     let* ctx = match_exp(alphas, ctx, e1, e3);
     match_exp(alphas, ctx, e2, e4);

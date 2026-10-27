@@ -88,6 +88,7 @@ open AST
 %token L_AND
 %token L_OR
 %token L_NOT
+%token VALUED
 (*bitwise ops*)
 %token COMMA
 %token COLON
@@ -181,7 +182,7 @@ open AST
 %right  CONS
 
 %left PLUS MINUS PLUS_FLOAT MINUS_FLOAT TUPLE_EXTENSION
-%left DIVIDE TIMES TIMES_FLOAT DIVIDE_FLOAT L_NOT
+%left DIVIDE TIMES TIMES_FLOAT DIVIDE_FLOAT L_NOT VALUED
 
 %right POWER POWER_FLOAT
 %nonassoc UMINUS   /* Unary minus (prefix) */
@@ -431,6 +432,7 @@ tpat:
 unExp:
     | MINUS; e = exp {UnOp(Int(Minus), e)} %prec UMINUS
     | L_NOT; e = exp {UnOp(Bool(Not), e)}
+    | VALUED; e = exp {Valued(e)}
 
 tupExpEntry:
     | e = exp {e}

@@ -721,6 +721,12 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
         )
 
       // Unary operations
+      | Valued(e) =>
+        handle_unary(
+          ~cost=2, // "!!"
+          ~make_term=e' => Valued(e'),
+          e,
+        )
       | UnOp(Bool(Not), e) =>
         handle_unary(
           ~cost=2, // "! " (op + space)

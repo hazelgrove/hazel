@@ -145,6 +145,7 @@ and exp =
   | TupleExp(list(exp))
   | BinExp(exp, bin_op, exp)
   | UnOp(op_un, exp)
+  | Valued(exp)
   | Let(pat, exp, exp)
   | Theorem(pat, exp, proof, exp)
   /* `fun p where g -> e` is `Fun(WherePat(p, g), e)` and
@@ -815,6 +816,12 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
           <+> {
             let* shrunk = shrink_exp(e);
             return(UnOp(op, shrunk));
+          }
+        | Valued(e) =>
+          return(e)
+          <+> {
+            let* shrunk = shrink_exp(e);
+            return(Valued(shrunk));
           }
         | Let(p, e1, e2) =>
           of_list([e1, e2])

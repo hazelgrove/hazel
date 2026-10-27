@@ -387,6 +387,8 @@ let equality =
     | (TupleExtension(_), _) => false
     | (UnOp(op1, e1), UnOp(op2, e2)) => op1 == op2 && exp'(e1, e2)
     | (UnOp(_, _), _) => false
+    | (Valued(e1), Valued(e2)) => exp'(e1, e2)
+    | (Valued(_), _) => false
     | (BinOp(op1, e11, e12), BinOp(op2, e21, e22)) =>
       op1 == op2 && exp'(e11, e21) && exp'(e12, e22)
     | (BinOp(_, _, _), _) => false

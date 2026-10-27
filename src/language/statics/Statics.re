@@ -805,6 +805,17 @@ and uexp_to_info_map =
         ~probe_targets=e.probe_targets,
         m,
       );
+    | Valued(e) =>
+      /* `!!e : Bool` for `e` of any type (D37; ported from October). */
+      let (e, e_elab, m) = go(~ana=syn, e, m);
+      add(
+        ~elab_term=Valued(e_elab) |> rewrap,
+        ~elab_syn_ty=Atom(Bool) |> Typ.temp,
+        ~marks=[],
+        ~co_ctx=e.co_ctx,
+        ~probe_targets=e.probe_targets,
+        m,
+      );
     | UnOp(op, e) =>
       let op = Operators.replace_un_op(op, ctx.use_mode); // Replace op if necessary due to `use`
       let op_semantics = Operators.semantics_of_un_op(op);

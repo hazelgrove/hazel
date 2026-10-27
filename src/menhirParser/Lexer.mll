@@ -102,6 +102,7 @@ rule token =
     (* Bool ops *)
     | "&&" { L_AND }
     | "||" { L_OR }
+    | "!!" { VALUED } (* standardness (D37); double negation is `! !e` *)
     | "!" { L_NOT }
     | "|" { TURNSTILE }
     | "," { COMMA }

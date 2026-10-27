@@ -364,6 +364,7 @@ type compound_form =
   | ProdExtension
   // UNARY PREFIX OPERATORS
   | Not
+  | ValuedOp
   | TypSumSingle
   | UnaryMinus
   // N-ARY OPS (on the semantics level)
@@ -509,6 +510,8 @@ let get: compound_form => t =
   | ProdExtension => mk_infix("...", Typ, P.ap)
   // UNARY PREFIX OPERATORS
   | Not => mk_prefix("!", Exp, P.not_)
+  /* `!!e` standardness (D37; October FormId ValuedOp). */
+  | ValuedOp => mk_prefix("!!", Exp, P.not_)
   | TypSumSingle => mk_prefix("+", Typ, P.or_)
   | UnaryMinus => mk_prefix("-", Exp, P.neg)
   // N-ARY OPS (on the semantics level)

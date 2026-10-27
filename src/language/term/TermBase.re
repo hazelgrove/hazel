@@ -505,6 +505,7 @@ and Exp: {
         | ListConcat(e1, e2) =>
           ListConcat(exp_map_term(e1), exp_map_term(e2))
         | UnOp(op, e) => UnOp(op, exp_map_term(e))
+        | Valued(e) => Valued(exp_map_term(e))
         | BinOp(op, e1, e2) =>
           BinOp(op, exp_map_term(e1), exp_map_term(e2))
         | BuiltinFun(str) => BuiltinFun(str)

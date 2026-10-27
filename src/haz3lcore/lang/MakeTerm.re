@@ -945,6 +945,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         switch (t) {
         | (["-"], []) => UnOp(Int(Minus), r)
         | (["!"], []) => UnOp(Bool(Not), r)
+        | (["!!"], []) => Valued(r)
         /* `fun p where g -> e` / `forall p where g -> e` come through
            HERE: the guard is the infix `where` (Form.re PatWhere) inside
            the Pat slot, so `pat` is `Where(p, g)`. No dedicated form. */

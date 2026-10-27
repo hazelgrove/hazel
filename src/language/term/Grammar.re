@@ -77,6 +77,10 @@ and exp_term('a) =
   | Projector(projector_data, exp_t('a))
   | Cons(exp_t('a), exp_t('a))
   | ListConcat(exp_t('a), exp_t('a))
+  /* `!!e`: e reaches a value hereditarily: data whose parts all do, or a
+   * function that does on every argument (D37, D39; ported from October
+   * 1b636607). Bool; never false. */
+  | Valued(exp_t('a))
   | UnOp(Operators.op_un, exp_t('a))
   | BinOp(Operators.op_bin, exp_t('a), exp_t('a))
   | BuiltinFun(string)
@@ -425,6 +429,7 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
         | ListConcat(e1, e2) =>
           ListConcat(map_exp_annotation(f, e1), map_exp_annotation(f, e2))
         | UnOp(op, e) => UnOp(op, map_exp_annotation(f, e))
+        | Valued(e) => Valued(map_exp_annotation(f, e))
         | BinOp(op, e1, e2) =>
           BinOp(op, map_exp_annotation(f, e1), map_exp_annotation(f, e2))
         | BuiltinFun(s) => BuiltinFun(s)
@@ -1039,6 +1044,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let un_op = (~ann=?, op, e): exp_t(DefaultAnnotation.t) => {
       term: UnOp(op, e),
+      annotation: default_annotation(ann),
+    };
+    let valued = (~ann=?, e): exp_t(DefaultAnnotation.t) => {
+      term: Valued(e),
       annotation: default_annotation(ann),
     };
     let bin_op = (~ann=?, op, e1, e2): exp_t(DefaultAnnotation.t) => {

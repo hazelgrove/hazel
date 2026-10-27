@@ -75,6 +75,7 @@ module Utils = {
     switch (Exp.term_of(term)) {
     | Fun(_, e, _, _)
     | UnOp(_, e)
+    | Valued(e)
     | Test(e)
     | Parens(e)
     | Filter(_, e)

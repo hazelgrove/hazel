@@ -350,6 +350,7 @@ and go =
   | HintedTest(e1, e2) => go_all([e1, e2])
   | BinOp(_, e1, e2) => go_all([e1, e2])
   | UnOp(_, e1) => go(~self, ~env, e1)
+  | Valued(e1) => go(~self, ~env, e1)
   | If(e1, e2, e3) => go_all([e1, e2, e3])
   | DeferredAp(fn, args) => go_all([fn, ...args])
   | Fun(p, body, _, _) =>

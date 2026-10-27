@@ -326,6 +326,7 @@ module rec Exp: {
     | TypAp(e, ty) => typ_ap(of_menhir_ast(e), Typ.of_menhir_ast(ty))
     | UnOp(op, e) =>
       un_op(Operators.op_un_of_menhir_ast(op), of_menhir_ast(e))
+    | Valued(e) => valued(of_menhir_ast(e))
     | DynamicErrorHole(e, s) =>
       dynamic_error_hole(
         of_menhir_ast(e),
@@ -391,6 +392,7 @@ module rec Exp: {
       Filter(FilterAction.of_core(act), of_core(pat), of_core(body))
     | TypAp(e, ty) => TypAp(of_core(e), Typ.of_core(ty))
     | UnOp(op, e) => UnOp(Operators.of_core_op_un(op), of_core(e))
+    | Valued(e) => Valued(of_core(e))
     | DynamicErrorHole(e, s) =>
       DynamicErrorHole(
         of_core(e),
