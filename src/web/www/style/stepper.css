@@ -213,8 +213,12 @@
   gap: 5px;
 }
 
-/* FR-exists-1 Witness box: same chrome as the rewrite box. */
+/* FR-exists-1 Witness box: same chrome as the rewrite box, but sized to
+   its content rather than stretched to the (wider) button row, so the
+   editor stays inside the pane at 640/800/1280. */
 .witness-box {
+  align-self: flex-start;
+  max-width: 30em;
   background-color: var(--menu-bkg);
   border-radius: 0 0 0.5em 0;
   outline: 0.6px solid var(--menu-outline);
@@ -223,6 +227,10 @@
   display: flex;
   flex-direction: column;
   gap: 5px;
+}
+
+.witness-box .inline-editor-wrapper {
+  min-width: 12em;
 }
 
 .witness-box .witness-refusal {
