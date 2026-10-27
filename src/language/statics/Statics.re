@@ -2207,9 +2207,21 @@ and uexp_to_info_map =
     | TypFun(utpat, body, tfname) =>
       let (name_expected_opt, item) =
         MatchedTyp.poly_pair_tolerant(ctx, ana);
-      let (mode_body, ctx_body) =
+      let m =
+        utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m)
+        |> snd;
+      let (utpat, body, mode_body, ctx_body) =
         switch (TPat.tyvar_of_utpat(utpat)) {
         | Some(name) when !Ctx.is_base_typ(name) =>
+          let (name, utpat, body) =
+            switch (Typ.unshadow(ctx, name)) {
+            | None => (name, utpat, body)
+            | Some(f) => (
+                f(name),
+                TPat.rename(f, utpat),
+                Exp.rename_tvars(f, body),
+              )
+            };
           let mode_body =
             switch (name_expected_opt) {
             | Some(name_expected) =>
@@ -2217,21 +2229,18 @@ and uexp_to_info_map =
             | None => item
             };
           let ctx_body =
-            Typ.extend_ctx(
+            Ctx.extend_tvar(
               ctx,
-              TVarEntry({
+              {
                 name,
                 id: TPat.rep_id(utpat),
                 kind: Abstract,
-              }),
+              },
             );
-          (mode_body, ctx_body);
+          (utpat, body, mode_body, ctx_body);
         | Some(_)
-        | None => (item, ctx)
+        | None => (utpat, body, item, ctx)
         };
-      let m =
-        utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m)
-        |> snd;
       let (body, body_elab, m) = go(~ctx=ctx_body, ~ana=mode_body, body, m);
       add(
         ~elab_term=TypFun(utpat, body_elab, tfname) |> rewrap,
@@ -2571,6 +2580,16 @@ and uexp_to_info_map =
         |> snd;
       switch (typat.term) {
       | Var(name) when !Ctx.is_base_typ(name) =>
+        let (name, typat, utyp, body) =
+          switch (Typ.unshadow(ctx, name)) {
+          | None => (name, typat, utyp, body)
+          | Some(f) => (
+              f(name),
+              TPat.rename(f, typat),
+              Typ.rename_vars(f, utyp),
+              Exp.rename_tvars(f, body),
+            )
+          };
         let ty_def = Typ.alias_def(ctx, typat, utyp);
         let ctx_def =
           Typ.extend_ctx(
@@ -4134,6 +4153,12 @@ and utyp_to_info_map =
   open TypExpectation;
   let ids = IdTagged.ids(utyp);
   let (term, rewrap) = Typ.unwrap(utyp);
+  /* A binder that reuses a name in scope is renamed with its scope. */
+  let unshadow = (utpat: TPat.t): option(string => string) =>
+    switch (TPat.tyvar_of_utpat(utpat)) {
+    | Some(name) => Typ.unshadow(ctx, name)
+    | None => None
+    };
   /* On the closed type the node denotes, so that a signature literal in a
      path is read closed. */
   let rec status_for_node =
@@ -4508,6 +4533,13 @@ and utyp_to_info_map =
       );
     add(~ty=Sum(List.rev(closed)) |> rewrap, m);
   | Poly(utpat, tbody) =>
+    let m =
+      utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
+    let (utpat, tbody) =
+      switch (unshadow(utpat)) {
+      | None => (utpat, tbody)
+      | Some(f) => (TPat.rename(f, utpat), Typ.rename_vars(f, tbody))
+      };
     let body_ctx = Ctx.extend_tvar_of_utpat(ctx, utpat, Abstract);
     let (body, m) =
       utyp_to_info_map(
@@ -4517,8 +4549,6 @@ and utyp_to_info_map =
         ~expects=TypeExpected,
         m,
       );
-    let m =
-      utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
     add(~ty=Poly(utpat, body.ty) |> rewrap, m);
   | ProofOf(e) =>
     let (_, _, m) =
@@ -4531,6 +4561,17 @@ and utyp_to_info_map =
       );
     add(~ty=utyp, m);
   | Rec(utpat, tbody) =>
+    let m =
+      utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
+    let (utpat, utyp, tbody) =
+      switch (unshadow(utpat)) {
+      | None => (utpat, utyp, tbody)
+      | Some(f) => (
+          TPat.rename(f, utpat),
+          Typ.rename_vars(f, utyp),
+          Typ.rename_vars(f, tbody),
+        )
+      };
     /* The body is read with the binder standing for the whole type,
        closed, so whatever it expands to is closed. */
     let ty = Typ.close(ctx, utyp);
@@ -4544,8 +4585,6 @@ and utyp_to_info_map =
         m,
       )
       |> snd;
-    let m =
-      utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
     add(~ty, m);
   | Sig(s) =>
     /* Written items scope sequentially, each read where the earlier ones

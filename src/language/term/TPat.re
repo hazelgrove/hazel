@@ -14,6 +14,17 @@ let rep_id: t => Id.t = IdTagged.rep_id;
 
 let fresh: term => t = IdTagged.fresh;
 
+/* The variable's name under `f`; holes are unchanged. */
+let rename = (f: string => string, tp: t): t => {
+  let (term, rewrap) = IdTagged.unwrap(tp);
+  switch (term) {
+  | Var(x) => (Var(f(x)): term) |> rewrap
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_) => tp
+  };
+};
+
 let hole = (tms: list(TermBase.Any.t)): TermBase.TPat.term =>
   switch (tms) {
   | [] => EmptyHole

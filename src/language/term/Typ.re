@@ -745,13 +745,68 @@ let as_sig = (ctx: Ctx.t, ty: t): option(ClosedSig.t(Sig.t)) =>
   | _ => None
   };
 
+/* Type variable names in a type, bound and free alike, path roots
+   included, under `f`. */
+let rename_vars = (f: string => string, ty: t): t =>
+  map_term(
+    ~f_typ=
+      (continue, ty) => {
+        let (term, rewrap) = unwrap(ty);
+        switch (term) {
+        | Var(x) => Var(f(x)) |> rewrap
+        | _ => continue(ty)
+        };
+      },
+    ~f_tpat=(_, tp) => TPat.rename(f, tp),
+    ty,
+  );
+
+/* Whether binding type name `name` over ctx would change what a type
+   already in ctx means: the name is bound as a type or as a module, so
+   mentions of it would come to mean the new binding, or an alias mentions
+   it while it is unbound. */
+let would_capture = (ctx: Ctx.t, name: string): bool =>
+  Option.is_some(Ctx.lookup_tvar(ctx, name))
+  || (
+    switch (Ctx.lookup_var(ctx, name)) {
+    | Some({typ, _}) => Option.is_some(as_sig(ctx, typ))
+    | None => false
+    }
+  )
+  || List.exists(
+       fun
+       | Ctx.TVarEntry({kind: Singleton(ty), _}) =>
+         List.mem(name, free_vars(ty))
+       | _ => false,
+       ctx.entries,
+     );
+
+/* When binding `name` over ctx would capture, the renaming of `name` to
+   the fresh name it binds under instead: the name primed until it would
+   not capture. A prime cannot occur in a written type name. Statics renames
+   the binder and its scope with it, so types already in ctx keep their
+   meaning, and the user's name stays wherever it is not reused. None when
+   the name binds as written. */
+let unshadow = (ctx: Ctx.t, name: string): option(string => string) =>
+  if (would_capture(ctx, name)) {
+    let rec fresh = n => would_capture(ctx, n) ? fresh(n ++ "'") : n;
+    let renamed = fresh(name ++ "'");
+    Some(x => String.equal(x, name) ? renamed : x);
+  } else {
+    None;
+  };
+
 /* Bind [entry] without changing what the types already in [ctx] mean.
    Those types name aliases and modules that are looked up where the types
    are used, so a binding that shadows one would capture their mentions of
    it. Those mentions, and the entry's own, are first replaced by what the
    shadowed binding stood for: a path root (`N` in `N.T`) by the newest
    alias or module of that name, a type by the newest alias. An abstract
-   type variable has nothing to stand for, so its mentions stay captured. */
+   type variable has nothing to stand for, so its mentions stay captured.
+   Statics renames a type binder that would capture (`unshadow`) and binds
+   it raw; this serves the bindings it cannot rename: a module's name,
+   whose scope is also an expression variable's, and a module's own type
+   member, whose name is its interface. */
 let extend_ctx = (ctx: Ctx.t, entry: Ctx.entry): Ctx.t => {
   let root = name =>
     switch (Ctx.newest_tvar_or_var(ctx, name)) {
