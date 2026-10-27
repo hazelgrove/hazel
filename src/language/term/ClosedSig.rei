@@ -14,4 +14,7 @@ let items: t('a) => list('a);
 
 let map: ('a => 'b, t('a)) => t('b);
 
-let filter: ('a => bool, t('a)) => t('a);
+let filter: ('item => bool, t('item)) => t('item);
+
+/* [f] applied to each item; None if any is. */
+let map_option: ('a => option('b), t('a)) => option(t('b));

@@ -54,7 +54,12 @@ Signature items are `let name : Type` (value member), `type T = Type`
 (manifest type member) and `module Name : Signature` (sub-module member,
 which may be capitalized). Items scope sequentially: `let x : T` may mention
 a `type T` declared earlier in the same signature. A member written `let x`
-or `module M` without a type has type `?`.
+or `module M` without a type has type `?`. A signature declares each member
+once: a later declaration of a name is an error (`SigDuplicateMember`) and
+the first is the member; value and module members share a namespace, type
+members have their own. A `let` item declares a member by name, so one whose
+pattern is not a name, `let (a, b) : (Int, Int)`, is an error
+(`SigLetNotAName`) and declares nothing.
 
 ```
 module Outer : { module Inner : { let x : Int }; let y : Int } =
@@ -292,7 +297,7 @@ parts for code that walks them (composition, probe targets). Sig items are
 | `src/language/statics/Ctx.re`           | `extend_sig_item`                                                  |
 | `src/language/statics/ModuleHelpers.re` | Lowering for type checking, signature synthesis, refolding         |
 | `src/language/statics/Statics.re`       | Module/ModuleExp cases, `Dot` on signatures, `M.T` in types        |
-| `src/language/statics/Mark.re`          | `ModuleMissingMembers`, `ModuleExtraMembers`, `ModuleTypeMemberMismatch`, `ModuleMemberNotFound`, `ModuleMemberIsType`, `ModuleTypeMemberNotFound`, `TypWantModule`, `TypeMemberCapture` |
+| `src/language/statics/Mark.re`          | `ModuleMissingMembers`, `ModuleExtraMembers`, `ModuleTypeMemberMismatch`, `ModuleMemberNotFound`, `ModuleMemberIsType`, `ModuleTypeMemberNotFound`, `TypWantModule`, `TypeMemberCapture`, `SigDuplicateMember`, `SigLetNotAName` |
 | `src/language/dynamics/transition/Transition.re` | Module evaluation, `Dot` on module values                 |
 | `src/language/dynamics/transition/Ascriptions.re` | Sealing a module value to a signature                    |
 | `src/language/dynamics/stepper/EvalCtx.re` | `ModuleItem`, `ModuleVal` evaluation contexts                   |

@@ -1870,6 +1870,192 @@ let test_evaluated_member_keeps_its_type =
     },
   );
 
+/* ===== SIGNATURE ITEMS ===== */
+
+/* A signature declares each member once, by name: a later declaration of
+   a name is marked, and the first is the member; a `let` whose pattern is
+   not a name is marked and declares nothing. Values and modules share a
+   namespace, type members have their own. */
+let duplicate_member = (member: Language.Sig.member, m: Language.Mark.t) =>
+  switch (m) {
+  | SigDuplicateMember(m) => Language.Sig.same_kind(m, member)
+  | _ => false
+  };
+let duplicate_value = name =>
+  duplicate_member(Val(name, Language.Typ.temp(Unknown(Internal))));
+let duplicate_type = name =>
+  duplicate_member(
+    TypeManifest(name, Language.Typ.temp(Unknown(Internal))),
+  );
+let not_a_name = (m: Language.Mark.t) =>
+  switch (m) {
+  | SigLetNotAName => true
+  | _ => false
+  };
+
+/* The one marked signature item, if exactly one item is marked. */
+let marked_sig_item = (source): option(Language.Sig.t) => {
+  let items =
+    Language.Id.Map.fold(
+      (_, info: Language.Info.t, acc) =>
+        switch (info) {
+        | InfoSig({user_term, marks: [_, ..._], _})
+            when
+              !
+                List.exists(
+                  (i: Language.Sig.t) =>
+                    Language.Sig.rep_id(i) == Language.Sig.rep_id(user_term),
+                  acc,
+                ) => [
+            user_term,
+            ...acc,
+          ]
+        | _ => acc
+        },
+      statics(parse_exp(source)),
+      [],
+    );
+  switch (items) {
+  | [item] => Some(item)
+  | _ => None
+  };
+};
+
+let test_duplicate_value_member =
+  single_mark_test(
+    "A value member declared twice is an error",
+    {|type S = { let x : Int; let x : Bool } in 1|},
+    duplicate_value("x"),
+  );
+
+let test_duplicate_value_member_on_later_item =
+  Alcotest.test_case(
+    "The later of two value declarations carries the mark",
+    `Quick,
+    () => {
+      let later =
+        switch (
+          marked_sig_item({|type S = { let x : Int; let x : Bool } in 1|})
+          |> Option.map(Language.Sig.member_of_item)
+        ) {
+        | Some(Some(Val("x", ty))) =>
+          switch (Language.Typ.term_of(ty)) {
+          | Atom(Bool) => true
+          | _ => false
+          }
+        | _ => false
+        };
+      Alcotest.(check(bool))("marked item is `let x : Bool`", true, later);
+    },
+  );
+
+let test_duplicate_manifest_type_member =
+  single_mark_test(
+    "A manifest type member declared twice is an error",
+    {|type S = { type T = Int; type T = Bool } in 1|},
+    duplicate_type("T"),
+  );
+
+let test_duplicate_module_member =
+  single_mark_test(
+    "A module member declared twice is an error",
+    {|type S = { module m : {}; module m : {} } in 1|},
+    duplicate_value("m"),
+  );
+
+let test_duplicate_value_and_module_member =
+  single_mark_test(
+    "A value and a module member share a namespace",
+    {|type S = { let m : Int; module m : {} } in 1|},
+    duplicate_value("m"),
+  );
+
+let test_value_and_type_member_same_name =
+  fully_consistent_typecheck(
+    "A value member and a type member may share a name",
+    {|type S = { let x : Int; type x = Int } in 1|},
+    Some(int()),
+  );
+
+let test_first_declaration_is_the_member =
+  single_mark_test(
+    "The first of two declarations is the member a module is checked against",
+    {|let m : { let x : Int; let x : Bool } = { let x = 1 } in m.x + 1|},
+    duplicate_value("x"),
+  );
+
+let test_later_declaration_is_not_the_member =
+  Alcotest.test_case(
+    "A module matching only the later declaration is marked against the first",
+    `Quick,
+    () => {
+      let marks =
+        marks_of(
+          {|let m : { let x : Int; let x : Bool } = { let x = true } in m.x|},
+        );
+      Alcotest.(check(bool))(
+        "a duplicate mark and an Int-vs-Bool mismatch",
+        true,
+        List.exists(duplicate_value("x"), marks)
+        && List.exists(is_int_vs(Bool), marks)
+        && List.length(marks) == 2,
+      );
+    },
+  );
+
+let test_first_type_member_scopes_later_items =
+  single_mark_test(
+    "Later items see the first declaration of a type member",
+    {|type S = { type T = Int; type T = Bool; let x : T } in let m : S = { type T = Int; let x = 1 } in m.x + 1|},
+    duplicate_type("T"),
+  );
+
+let test_sig_let_not_a_name =
+  single_mark_test(
+    "A signature `let` whose pattern is not a name is an error",
+    {|type S = { let (a, b) : (Int, Int) } in 1|},
+    not_a_name,
+  );
+
+let test_sig_let_wildcard_not_a_name =
+  single_mark_test(
+    "A signature `let _` is an error",
+    {|type S = { let _ : Int } in 1|},
+    not_a_name,
+  );
+
+let test_sig_let_hole_declares_nothing =
+  no_marks_test(
+    "A signature `let` with a hole for its name is not an error",
+    {|type S = { let ? : Int } in 1|},
+  );
+
+let test_sig_let_not_a_name_declares_nothing =
+  Alcotest.test_case(
+    "A `let` that is not a name declares no member",
+    `Quick,
+    () => {
+      let marks =
+        marks_of(
+          {|type S = { let (a, b) : (Int, Int) } in fun (m : S) -> m.a|},
+        );
+      Alcotest.(check(bool))(
+        "the item mark and a missing member",
+        true,
+        List.exists(not_a_name, marks)
+        && List.exists(
+             (m: Language.Mark.t) =>
+               switch (m) {
+               | ModuleMemberNotFound({name: "a", _}) => true
+               | _ => false
+               },
+             marks,
+           )
+        && List.length(marks) == 2,
+      );
+    },
+  );
+
 let tests = (
   "Statics.Modules",
   [
@@ -2014,6 +2200,20 @@ let tests = (
     test_shadowed_member_keeps_last_position,
     test_shadowed_member_checked_at_last_definition,
     test_shadowed_definition_not_checked_against_signature,
+    /* Signature items */
+    test_duplicate_value_member,
+    test_duplicate_value_member_on_later_item,
+    test_duplicate_manifest_type_member,
+    test_duplicate_module_member,
+    test_duplicate_value_and_module_member,
+    test_value_and_type_member_same_name,
+    test_first_declaration_is_the_member,
+    test_later_declaration_is_not_the_member,
+    test_first_type_member_scopes_later_items,
+    test_sig_let_not_a_name,
+    test_sig_let_wildcard_not_a_name,
+    test_sig_let_hole_declares_nothing,
+    test_sig_let_not_a_name_declares_nothing,
     test_shorthand_parameter_not_member,
     test_shorthand_member_mismatch_on_definition,
     /* Cyclic member paths */

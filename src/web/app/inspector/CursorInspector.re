@@ -296,7 +296,9 @@ let core_mark_err_view =
     | TypWantConstructorFoundAp
     | TypParseFailure
     | TPatShadowsType(_)
-    | TPatNotAVar(_) => [text("Type error")]
+    | TPatNotAVar(_)
+    | SigDuplicateMember(_)
+    | SigLetNotAName => [text("Type error")]
     }
   )
   @ (
@@ -837,8 +839,10 @@ let exp_mark_err_view =
   | TypWantConstructorFoundAp
   | TypParseFailure
   | TPatShadowsType(_)
-  | TPatNotAVar(_) =>
-    div_err([text("(internal) typ/tpat mark on expression")])
+  | TPatNotAVar(_)
+  | SigDuplicateMember(_)
+  | SigLetNotAName =>
+    div_err([text("(internal) typ/tpat/sig mark on expression")])
   | Redundant
   | ExpectedConstructor =>
     div_err([text("(internal) pattern-only mark on expression")])
@@ -1159,13 +1163,36 @@ let tpat_view =
   };
 };
 
+/* A signature item: its class, or the error the signature attributes to
+   it. */
+let sig_view = (cls: Cls.t, ~marks: list(Mark.t)): Node.t =>
+  switch (Mark.highest(marks)) {
+  | None => div_ok([text(cls |> Cls.show)])
+  | Some(SigDuplicateMember(member)) =>
+    let (kind, name) =
+      switch (member) {
+      | Val(name, _) => ("Member ", name)
+      | TypeManifest(name, _) => ("Type member ", name)
+      };
+    div_err([
+      text(kind),
+      code(name),
+      text(" is declared more than once in this signature"),
+    ]);
+  | Some(SigLetNotAName) =>
+    div_err([
+      text("Not a member name: a signature declares members one at a time"),
+    ])
+  | Some(_) => div_err([text("Signature error")])
+  };
+
 let view_of_info = (~globals, ci): list(Node.t) => {
   let wrapper = status_view => [term_view(~globals, ci), status_view];
   switch (ci) {
   | Secondary(_) => wrapper(div([]))
   | InfoMod({cls, marks, ty, _}) =>
     wrapper(mod_view(~globals, cls, ~marks, ~ty))
-  | InfoSig({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
+  | InfoSig({cls, marks, _}) => wrapper(sig_view(cls, ~marks))
   | InfoMPat({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
   | InfoExp({cls, message, _} as ie) =>
     wrapper(exp_view(~globals, cls, message, ie))

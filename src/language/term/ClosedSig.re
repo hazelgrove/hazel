@@ -10,3 +10,5 @@ let items = closed => closed;
 let map = List.map;
 
 let filter = List.filter;
+
+let map_option = (f, items) => List.map(f, items) |> OptUtil.sequence;

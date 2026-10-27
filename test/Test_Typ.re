@@ -866,14 +866,14 @@ let sig_tests = {
         },
       ),
       test_case(
-        "member projection: the last member of a name",
+        "member projection: the first member of a name",
         `Quick,
         () => {
           let s = [st("T", ti), sv("x", ti), st("T", tb)];
           check(
             opt_typ,
             "type member",
-            Some(tb),
+            Some(ti),
             Typ.sig_project_type(s, "T"),
           );
           check(

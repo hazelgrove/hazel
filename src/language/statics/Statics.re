@@ -3156,8 +3156,7 @@ and uexp_to_info_map =
           };
         };
       let (c, m) = go_items(~ctx, items, m);
-      /* A later binding of a name shadows an earlier one. */
-      let have_items = Sig.dedup_last_items(c.members);
+      let have_items = ModuleHelpers.exports(c.members);
       let (sig_items, marks) =
         switch (ana_items) {
         | None => (have_items, [])
@@ -4615,7 +4614,9 @@ and utyp_to_info_map =
     add(~ty, m);
   | Sig(s) =>
     /* Written items scope sequentially, each read where the earlier ones
-       are bound closed; closed items are independent. */
+       are bound closed; closed items are independent. The first item
+       declaring a name and kind is the member; a later one is marked and
+       binds nothing, as is a `let` whose pattern is not a name. */
     let (scoped, ty) =
       switch (s) {
       | Open(items) =>
@@ -4628,7 +4629,7 @@ and utyp_to_info_map =
           Sig(
             Closed(
               scopes
-              |> List.map((scope: Typ.sig_item_scope) => scope.closed)
+              |> List.filter_map((scope: Typ.sig_item_scope) => scope.closed)
               |> ClosedSig.of_items,
             ),
           )
@@ -4639,19 +4640,30 @@ and utyp_to_info_map =
           Typ.close(ctx, utyp),
         )
       };
-    let m =
+    let (_, m) =
       List.fold_left(
-        (m, (ctx, item)) => {
+        ((seen, m), (ctx, item: Sig.t)) => {
+          let (marks, seen) =
+            switch (Sig.read_item(item)) {
+            | Member(member) when List.exists(Sig.same_kind(member), seen) => (
+                [Mark.SigDuplicateMember(member)],
+                seen,
+              )
+            | Member(member) => ([], [member, ...seen])
+            | Incomplete => ([], seen)
+            | NotAName => ([Mark.SigLetNotAName], seen)
+            };
           let (_, _, m) =
-            any_to_info_map(
+            sig_to_info_map(
               ~ctx,
               ~ancestors=ancestors_inclusive,
-              Sig(item),
+              ~marks,
+              item,
               m,
             );
-          m;
+          (seen, m);
         },
-        m,
+        ([], m),
         scoped,
       );
     add(~ty, m);
@@ -4843,12 +4855,11 @@ and sig_to_info_map =
       ~ctx,
       ~ancestors,
       ~probe_ids: Id.Map.t(unit)=Id.Map.empty,
+      ~marks: list(Mark.t)=[],
       s_term: Sig.t,
       m: Map.t,
     )
     : (CoCtx.t, Any.t, Map.t) => {
-  /* NOTE: This function is only used for signature items that are not properly positioned in signatures.
-     Properly positioned signature items are handled in the signature cases of typ_to_info_map. */
   let ids = IdTagged.ids(s_term);
   let cls = Cls.Sig(Sig.cls_of_term(s_term.term));
   let add_sig_info = m =>
@@ -4861,6 +4872,7 @@ and sig_to_info_map =
         sort: Sig,
         ctx,
         ancestors,
+        marks,
       }),
       m,
     );
