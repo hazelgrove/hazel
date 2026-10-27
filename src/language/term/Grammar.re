@@ -314,6 +314,22 @@ and proof_term('a) =
    * and while it is unfinished the have carries the pending obligation
    * for <exp> itself. `assume` with a proof attached. */
   | Have(exp_t('a), proof_t('a), proof_t('a))
+  /* `== <target> by <justification> end`: a one-step relation chain. The
+   * only justifications accepted (others are marked) are `witness <v>`
+   * on an `exists` goal with target `true` (exI: leaves the instantiated
+   * body to prove) and a bare fact name (D76 steps-only citation, e.g.
+   * `== true by h end` for a D78 binder fact `h : !!x`). */
+  | RelEqBy(exp_t('a), proof_t('a))
+  /* `witness <v>`: justification only (inside `== true by … end`). */
+  | Witness(exp_t('a))
+  /* A bare fact name in proof position: justification only. */
+  | Cite(string)
+  /* `obtain x as h from E => <proof>`: existential elimination. `E` is a
+   * usable `exists (y : T) -> P` fact; `x` is a fresh proof-level
+   * variable and `h : P[x/y]` a fact, both scoped to the body, whose
+   * outgoing and obligations may not mention `x`. No witness is
+   * extracted or searched for. */
+  | Obtain(pat_t('a), pat_t('a), exp_t('a), proof_t('a))
 and proof_t('a) = Annotated.t(proof_term('a), 'a)
 and stepper_filter_kind_t('a) =
   | Filter(filter('a))
