@@ -41,41 +41,20 @@ let token = (~at=?, ~keep_id=?, needle, repl) =>
     }
   );
 
-let op = (op: Web.OutlineEdit.def_op, path) =>
-  step((~root, seg) =>
-    switch (
-      Web.ItemEdit.apply(
-        ~mod_root=root == Sort.Mod,
-        op,
-        CorpusUtil.row(CorpusUtil.outline_of(~root, seg), path),
-        seg,
-      )
-    ) {
-    | Some((seg, _)) => seg
-    | None => fail("op failed at " ++ String.concat("/", path))
-    }
-  );
-
-/* an outline op as its keys apply it (ItemEdit.edit): Alt↑↓ can carry a
-   member across a module edge, Tab and ⇧Tab move it across levels */
-let edit_op = (op: Web.OutlineEdit.def_op, path) =>
+/* an outline op as its keys apply it: with modules open (~open_), Alt↑↓
+   can carry a member across a module edge; Tab and ⇧Tab move it across
+   levels */
+let edit_op = (~open_=false, op: Web.OutlineEdit.def_op, path) =>
   step((~root, seg) => {
-    let outline = CorpusUtil.outline_of(~root, seg);
-    let ctx: Web.ItemEdit.ctx = {
-      mod_root: root == Sort.Mod,
-      outline,
-      info_map: lazy(Statics.Map.empty),
-      is_open: _ => true,
-    };
-    switch (
-      Web.ItemEdit.edit(ctx, Op(op, CorpusUtil.row(outline, path)), seg)
-    ) {
+    let row = CorpusUtil.row(CorpusUtil.outline_of(~root, seg), path);
+    switch (CorpusUtil.outline_op(~root, ~is_open=_ => open_, op, row, seg)) {
     | Ok((seg, _)) => seg
     | Error(why) =>
       fail("op failed at " ++ String.concat("/", path) ++ ": " ++ why)
     };
   });
-let move = (~up, path) => edit_op(up ? MoveUp : MoveDown, path);
+let op = (o, path) => edit_op(o, path);
+let move = (~up, path) => edit_op(~open_=true, up ? MoveUp : MoveDown, path);
 
 let evaluate = (~prev=IncrEval.empty, info_map, elab) =>
   Evaluator.evaluate(

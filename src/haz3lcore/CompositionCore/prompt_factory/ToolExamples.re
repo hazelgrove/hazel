@@ -66,9 +66,6 @@ let area(s: Shape): Int =
   | Rect(w, h) => w * h
   end
 in
-hint "rect area" test
-  area(Rect(2, 3)) == 6
-end;
 
 let perimeter(s: Shape): Int =
   let double(n: Int): Int = 2 * n in
@@ -94,6 +91,10 @@ let total(xs: [Shape]): Int =
   | x :: rest => area(x) + total(rest)
   end
 in
+
+hint "rect area" test
+  area(Rect(2, 3)) == 6
+end;
 hint "total of two" test
   total([Circle(1), Geo.unit]) == 4
 end;
@@ -111,23 +112,33 @@ let on_shapes = (~in_tool=false, intent, calls, results) => {
 let all: list(example) = [
   on_shapes(
     ~in_tool=true,
-    "Add a function and its test in one call, after another's tests: `in` between them, none after the last; its doc comment inside it, after its header",
+    "Add a function, its doc comment inside it after its header, and its test at the end, above the result",
     [
       call(
         "insert",
         [
-          ("after", "\"rect area\""),
+          ("after", "total"),
           (
             "code",
-            "let fits(s: Shape, box_w: Int, box_h: Int): Bool =\n  # whether s fits in a box_w by box_h box, turned if need be #\n  case s\n  | Circle(r) => 2 * r <= box_w && 2 * r <= box_h\n  | Rect(w, h) =>\n    w <= box_w && h <= box_h || h <= box_w && w <= box_h\n  end\nin\nhint \"turned to fit\" test\n  fits(Rect(3, 1), 1, 3)\nend",
+            "let fits(s: Shape, box_w: Int, box_h: Int): Bool =\n  # whether s fits in a box_w by box_h box, turned if need be #\n  case s\n  | Circle(r) => 2 * r <= box_w && 2 * r <= box_h\n  | Rect(w, h) =>\n    w <= box_w && h <= box_h || h <= box_w && w <= box_h\n  end",
+          ),
+        ],
+      ),
+      call(
+        "insert",
+        [
+          ("last_in", "/"),
+          (
+            "code",
+            "hint \"turned to fit\" test\n  fits(Rect(3, 1), 1, 3)\nend",
           ),
         ],
       ),
     ],
-    Some(["Added \"turned to fit\", fits."]),
+    Some(["Added fits.", "Added \"turned to fit\"."]),
   ),
   on_shapes(
-    "Add a unit test right after its function's last test; a short hint names it",
+    "Add a test after another, addressed by its hint; a short hint names it",
     [
       call(
         "insert",
@@ -138,22 +149,6 @@ let all: list(example) = [
       ),
     ],
     Some(["Added \"circle area\"."]),
-  ),
-  on_shapes(
-    "Add an integration test at the end, above the result",
-    [
-      call(
-        "insert",
-        [
-          ("last_in", "/"),
-          (
-            "code",
-            "hint \"scaled total\" test\n  total([Geo.scale(2, Geo.unit)]) == 4\nend",
-          ),
-        ],
-      ),
-    ],
-    Some(["Added \"scaled total\"."]),
   ),
   on_shapes(
     "Add a module member, first in the module",
@@ -167,7 +162,7 @@ let all: list(example) = [
   ),
   on_shapes(
     ~in_tool=true,
-    "Replace a function's body: for `let f(x) = …`, its definition",
+    "Replace a function's body",
     [
       call(
         "replace",
@@ -312,6 +307,35 @@ let all: list(example) = [
     None,
   ),
 ];
+
+/* the debugging use of a probe, for the prompt's section on checking
+   work: a failing test, a probe on the suspect definition, what its open
+   entry shows, the fix, then the probe removed */
+let debug_program = {|let mean(a: Int, b: Int): Int =
+  let total = a + a in
+  total / 2
+in
+hint "mean of two" test mean(2, 4) == 3 end;
+mean(2, 4)|};
+let debug_failing = {|hint "mean of two" test mean(2, 4) == 3 end;  #› ✗ #|};
+let debug_probe = {
+  tool: "place_probe",
+  args: [("paths", `List([`String("mean/total")]))],
+};
+let debug_seen = {|#› open: mean #
+let mean(a: Int, b: Int): Int =
+  let total = ⟦a + a⟧ in  #› ≡ 4 #
+  total / 2
+in|};
+let debug_fix =
+  call(
+    "replace",
+    [("target", "mean/total:definition"), ("code", "a + b")],
+  );
+let debug_unprobe = {
+  ...debug_probe,
+  tool: "remove_probe",
+};
 
 let for_tool = (tool: string): list(call) =>
   List.concat_map(

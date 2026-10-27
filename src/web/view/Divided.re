@@ -73,6 +73,18 @@ let owns = (id: Id.t, e: Cell.t): bool =>
 let owner = (id: Id.t, d: t): option(Cell.t) =>
   List.find_opt(owns(id), d.cells);
 
+let pane_of = (id: Id.t, d: t): option((Cell.t, Cell.side)) =>
+  List.find_map(
+    (e: Cell.t) =>
+      List.find_opt(
+        side =>
+          Focus.seg_contains_id(id, Focus.zip_of_cell(Cell.pane(side, e))),
+        [Cell.Body, Header],
+      )
+      |> Option.map(side => (e, side)),
+    d.cells,
+  );
+
 let cell = (id: Id.t, d: t): option(Cell.t) =>
   List.find_opt((e: Cell.t) => e.e_id == id, d.cells);
 
@@ -209,43 +221,23 @@ let caret_anchor = (d: t): option((Direction.t, Id.t)) =>
 
 /* the caret moves into the open cell holding [id], which becomes
    active; unchanged if no cell holds it */
-let place_caret = ((dir, id): (Direction.t, Id.t), d: t): t => {
-  /* the cell with the caret beside [id], and the side it is in */
-  let moved = (e: Cell.t) =>
-    List.find_map(
-      side => {
-        let c = Cell.pane(side, e);
-        List.mem(id, Segment.ids(Focus.zip_of_cell(c)))
-          ? Move.jump_to_side_of_id(dir, c.editor.editor.state.zipper, id)
-            |> Option.map(z =>
-                 (
-                   Cell.with_pane(
-                     side,
-                     CellEditor.Model.map_zipper(_ => z, c),
-                     e,
-                   ),
-                   side,
-                 )
-               )
-          : None;
-      },
-      [Body, Header],
-    );
-  let rec go = (before, cells: list(Cell.t)) =>
-    switch (cells) {
-    | [] => d
-    | [e, ...rest] =>
-      switch (moved(e)) {
-      | Some((e, side)) => {
-          ...d,
-          cells: List.rev(before) @ [e, ...rest],
-          active: Some((e.e_id, side)),
-        }
-      | None => go([e, ...before], rest)
-      }
+let place_caret = ((dir, id): (Direction.t, Id.t), d: t): t =>
+  switch (pane_of(id, d)) {
+  | Some((e, side)) =>
+    let c = Cell.pane(side, e);
+    switch (Move.jump_to_side_of_id(dir, c.editor.editor.state.zipper, id)) {
+    | Some(z) =>
+      let e' =
+        Cell.with_pane(side, CellEditor.Model.map_zipper(_ => z, c), e);
+      {
+        ...d,
+        cells: List.map(o => o === e ? e' : o, d.cells),
+        active: Some((e.e_id, side)),
+      };
+    | None => d
     };
-  go([], d.cells);
-};
+  | None => d
+  };
 
 /* one editor holding [seg] at [root]: the [probes] still anchored in it,
    the caret beside [anchor]; with [prev], an earlier editor's parse and

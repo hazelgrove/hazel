@@ -103,9 +103,9 @@ let fib_example = {
       sees: None,
     },
     {
-      says: "**Step 3 — Test it, right after it**, and make its value the result:",
+      says: "**Step 3 — Test it** at the end, above the result, and make its value the result:",
       calls: [
-        call("insert", [("after", "fib"), ("code", fib_tests)]),
+        call("insert", [("last_in", "/"), ("code", fib_tests)]),
         call("replace", [("target", "=>"), ("code", "fib(10)")]),
         call(
           "mark_active_subtask_complete",
@@ -125,13 +125,14 @@ let fib_example = {
 
 let map_fib_example = {
   asks: "Add a helper that computes fib for a list of numbers",
-  program: fib ++ "\nin\n" ++ fib_tests ++ ";\n\nfib(10)",
+  program: fib ++ "\nin\n\n" ++ fib_tests ++ ";\n\nfib(10)",
   start:
     Some(
       "#› program map · no errors · 2 of 2 tests pass #\n"
       ++ CompositionView.legend
       ++ {|
 let fib(n: Int): Int = ⋯ in  #› 7 uses #
+
 hint "base cases" test ⋯ end;  #› ✓ #
 hint "recursive cases" test ⋯ end;  #› ✓ #
 
@@ -139,13 +140,13 @@ fib(10)  #› ⇒ 55 #|},
     ),
   steps: [
     {
-      says: "`fib` is not open: its signature and tests say enough. **Add the helper** after fib's tests, before the result `=>`; its tests right after it; then make it the result. One reply:",
+      says: "`fib` is not open: its signature and tests say enough. **Add the helper** after `fib`, its tests with the others at the end, and make it the result. One reply:",
       calls: [
-        call("insert", [("before", "=>"), ("code", map_fib)]),
+        call("insert", [("after", "fib"), ("code", map_fib)]),
         call(
           "insert",
           [
-            ("after", "map_fib"),
+            ("last_in", "/"),
             (
               "code",
               "hint \"empty list\" test map_fib([]) == [] end;\nhint \"three values\" test\n  map_fib([0, 1, 5]) == [0, 1, 5]\nend",
@@ -163,10 +164,11 @@ fib(10)  #› ⇒ 55 #|},
           ++ CompositionView.legend
           ++ {|
 let fib(n: Int): Int = ⋯ in  #› 7 uses #
-hint "base cases" test ⋯ end;  #› ✓ #
-hint "recursive cases" test ⋯ end;  #› ✓ #
 
 let map_fib(ns: [Int]): [Int] = ⋯ in  #› 4 uses #
+
+hint "base cases" test ⋯ end;  #› ✓ #
+hint "recursive cases" test ⋯ end;  #› ✓ #
 hint "empty list" test map_fib([]) == [] end;  #› ✓ #
 hint "three values" test ⋯ end;  #› ✓ #
 
@@ -174,28 +176,8 @@ map_fib([1, 2, 3, 4, 5])  #› ⇒ [1, 1, 2, 3, 5] #|},
           [],
         )),
     },
-    {
-      says: "**Verify with a probe.** Placing it opens `map_fib`, with each probed expression's value after `≡`:",
-      calls: [
-        {
-          tool: "place_probe",
-          args: [("paths", `List([`String("map_fib")]))],
-        },
-      ],
-      sees: None,
-    },
-    {
-      says: "The values check out. **Clean up:**",
-      calls: [
-        {
-          tool: "remove_probe",
-          args: [("paths", `List([`String("map_fib")]))],
-        },
-      ],
-      sees: None,
-    },
   ],
-  final: "Added `map_fib`, which maps fib over a list; its 2 tests pass and the probe confirms [1, 1, 2, 3, 5].",
+  final: "Added `map_fib`, which maps fib over a list; its 2 tests pass.",
 };
 
 let examples = [fib_example, map_fib_example];
@@ -236,9 +218,9 @@ let self =
 ### Key patterns
 
 1. **Plan when it helps**: coarse workbench milestones for multi-turn work; none for quick edits.
-2. **Edit the smallest part**: replace `f:definition`, or `f/=>` past f's local definitions, rather than the whole entry; tests go right after their function.
+2. **Edit the smallest part**: replace `f:definition`, or `f/=>` past f's local definitions, rather than the whole entry.
 3. **One reply, one change**: calls that belong together go in one reply; they apply together or not at all.
 4. **Open only what you need**: signatures, tests and the map's annotations often say enough.
 5. **Rename and move with their tools**: `rename` updates every use; `move` keeps code, probes and identity. Don't delete and re-insert.
-6. **Verify**: tests and probes; check the errors and test results after each reply.
+6. **Check**: new behavior gets tests; read the errors and test results after each reply; probe to debug.
 7. **Communicate**: tell the user what was done, without naming tools.|};

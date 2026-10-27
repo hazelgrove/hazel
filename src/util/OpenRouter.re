@@ -813,6 +813,8 @@ module Utils = {
     type delta = {
       content_delta: string,
       reasoning_delta: string,
+      /* the chunk carried part of a tool call */
+      tool_call_delta: bool,
     };
 
     type t = {
@@ -868,13 +870,14 @@ module Utils = {
       };
     };
 
-    let absorb_tool_calls = (t: t, chunk: Json.t): unit =>
+    /* whether the chunk carried any */
+    let absorb_tool_calls = (t: t, chunk: Json.t): bool =>
       switch (Json.dot("choices", chunk)) {
-      | None => ()
+      | None => false
       | Some(choices) =>
         switch (Json.list(choices)) {
         | None
-        | Some([]) => ()
+        | Some([]) => false
         | Some([hd, ..._]) =>
           let container =
             switch (Json.dot("delta", hd)) {
@@ -882,15 +885,17 @@ module Utils = {
             | None => Json.dot("message", hd)
             };
           switch (container) {
-          | None => ()
+          | None => false
           | Some(d) =>
             switch (Json.dot("tool_calls", d)) {
-            | None => ()
+            | None => false
             | Some(tcs) =>
               switch (Json.list(tcs)) {
-              | None => ()
+              | None
+              | Some([]) => false
               | Some(tcs_list) =>
-                List.iter(tc => absorb_one_tool_call(t, tc), tcs_list)
+                List.iter(tc => absorb_one_tool_call(t, tc), tcs_list);
+                true;
               }
             }
           };
@@ -967,10 +972,11 @@ module Utils = {
       if (reasoning_delta != "") {
         Buffer.add_string(t.reasoning, reasoning_delta);
       };
-      absorb_tool_calls(t, chunk);
+      let tool_call_delta = absorb_tool_calls(t, chunk);
       {
         content_delta,
         reasoning_delta,
+        tool_call_delta,
       };
     };
 

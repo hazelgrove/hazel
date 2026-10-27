@@ -4085,10 +4085,11 @@ let paste_funnel_tests = (
     }),
     test_case("replace keeps the code's own indentation", `Quick, () => {
       /* formatting is local: new code keeps its lines' relative
-         indentation, at its place's */
+         indentation, at its place's; the gaps between the entries it
+         brings are house style */
       check_rendered_exact(
         "replace_indented",
-        "let a = 1 in let b = 2 in\n  a + b",
+        "let a = 1 in let b = 2 in\n\n  a + b",
         apply_and_render(
           "let a = 1 in a",
           Replace("=>", "let b = 2 in\n  a + b"),
@@ -5224,15 +5225,15 @@ let member_rename_tests = (
   ],
 );
 
-/* tests: inserted after their function or after its last test; at the
-   end, last in the top level, above the result */
+/* tests: inserted after an entry, parted from a definition, together
+   with a test; at the end, last in the top level, above the result */
 let test_entry_tests = (
   "AgentTools.Tests",
   [
     test_case("after the binding at path", `Quick, () =>
       check_rendered_exact(
         "after_binding",
-        "let a = 1 in\ntest a == 1 end;\n\nlet b = 2 in\na + b",
+        "let a = 1 in\n\ntest a == 1 end;\n\nlet b = 2 in\na + b",
         apply_and_render(
           "let a = 1 in\nlet b = 2 in\na + b",
           Insert(After("a"), "test a == 1 end"),
@@ -5320,7 +5321,7 @@ let test_entry_tests = (
     test_case("a trailing `;` is dropped", `Quick, () =>
       check_rendered_exact(
         "wrapped",
-        "let a = 1 in\ntest a == 1 end;\n\na",
+        "let a = 1 in\n\ntest a == 1 end;\n\na",
         apply_and_render(
           "let a = 1 in\na",
           Insert(After("a"), "test a == 1 end;"),

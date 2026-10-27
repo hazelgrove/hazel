@@ -50,13 +50,13 @@ let update =
     AgentSend.stop_agentic_loop(model, editor, schedule_action)
   | FlushPendingSend(chat_id) =>
     AgentSend.flush_pending_send(chat_id, model, editor, schedule_action)
-  | HandleLLMResponse(reply, chat_id, flight_seq, elapsed_ms) =>
+  | HandleLLMResponse(reply, chat_id, flight_seq, thinking_ms) =>
     let (m, e) =
       AgentResponse.handle_llm_response(
         reply,
         chat_id,
         flight_seq,
-        elapsed_ms,
+        thinking_ms,
         model,
         editor,
         settings,

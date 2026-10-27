@@ -612,7 +612,7 @@ module Reply = {
               ce,
               Some(r),
               List.rev([Edit(tc), ...slots]),
-              Some((i, message)),
+              Some((i, message, false)),
             )
           };
         | _ =>
@@ -631,7 +631,7 @@ module Reply = {
               ce,
               edits,
               List.rev([Done(msg), ...slots]),
-              Some((i, "")),
+              Some((i, "", false)),
             )
           | _ => go(i + 1, m, ce, edits, [Done(msg), ...slots])
           };
@@ -662,7 +662,7 @@ module Reply = {
           | exn =>
             report_tool_exn("reply", exn);
             Error({
-              index: 0,
+              index: None,
               message: Printexc.to_string(exn),
             });
           }
@@ -695,23 +695,42 @@ module Reply = {
               )
             );
           (ce, results, None);
+        /* the reply's edits together: on its last edit's result */
         | Error(f) => (
             cell_editor |> Updated.return_quiet,
             [],
-            Some((f.index, f.message)),
+            Some((
+              Option.value(
+                f.index,
+                ~default=
+                  Option.fold(
+                    ~none=0,
+                    ~some=(m: CompositionGo.made) => m.index,
+                    ListUtil.last_opt(CompositionGo.Reply.made(r)),
+                  ),
+              ),
+              f.message,
+              f.index == None,
+            )),
           )
         }
       };
-    let undone = f =>
-      "None of this reply's edits were applied: call "
-      ++ string_of_int(f + 1)
-      ++ " ("
-      ++ calls[f].name
-      ++ ") failed.";
-    let rolled_back = (f, tr: AgentToolResult.tool_result) => {
+    /* [see]: where the reply's own refusal is */
+    let undone = (~see=false, (f, _, whole)) => {
+      let call = "call " ++ string_of_int(f + 1);
+      "None of this reply's edits were applied: "
+      ++ (
+        whole
+          ? "they are checked as one change"
+            ++ (see ? " (see " ++ call ++ "'s result)" : "")
+          : call ++ " (" ++ calls[f].name ++ ") failed"
+      )
+      ++ ".";
+    };
+    let rolled_back = (fl, tr: AgentToolResult.tool_result) => {
       ...tr,
       success: false,
-      content: "Rolled back. " ++ undone(f),
+      content: "Rolled back. " ++ undone(~see=true, fl),
       content_is_payload: false,
     };
     let messages =
@@ -722,7 +741,7 @@ module Reply = {
             Message.Utils.mk_tool_result_message(
               AgentToolResult.mk_skipped(tc),
             )
-          | (Edit(tc), Some((f, message))) =>
+          | (Edit(tc), Some((f, message, _) as fl)) =>
             Message.Utils.mk_tool_result_message(
               f == i
                 ? failed(
@@ -730,9 +749,9 @@ module Reply = {
                     /* after a list, on a line of its own */
                     message
                     ++ (String.contains(message, '\n') ? "\n" : " ")
-                    ++ undone(f),
+                    ++ undone(fl),
                   )
-                : rolled_back(f, failed(tc, "")),
+                : rolled_back(fl, failed(tc, "")),
             )
           | (Edit(tc), None) =>
             Message.Utils.mk_tool_result_message(
@@ -742,9 +761,9 @@ module Reply = {
               ),
             )
           /* an overlay's change goes with the reply's edits */
-          | (Done({role: ToolResult(tr), _}), Some((f, _)))
+          | (Done({role: ToolResult(tr), _}), Some((f, _, _) as fl))
               when edits != None && f != i && tr.success && changes_editor(tr) =>
-            Message.Utils.mk_tool_result_message(rolled_back(f, tr))
+            Message.Utils.mk_tool_result_message(rolled_back(fl, tr))
           | (Done(msg), _) => msg
           },
         slots,
@@ -752,7 +771,7 @@ module Reply = {
     /* the same refusal as the last reply's: say so on the failed call */
     let messages =
       switch (failure) {
-      | Some((f, _))
+      | Some((f, _, _))
           when
             Repeats.again(
               ChatSystem.Utils.find_chat(chat_id, model.chat_system),

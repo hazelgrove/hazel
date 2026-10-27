@@ -4,7 +4,7 @@ let place_probe_description =
   {|
 Places probes on the bindings at the given paths to observe their runtime values.
 When a probe is active, the agent view shows evaluated values at line ends (e.g., `expr  #› ≡ value #`).
-This is a powerful debugging and verification tool — use it to check whether code behaves as expected.
+Use it to debug: when a test fails or a value surprises you, see what the code actually computes. Remove the probes you placed when done; leave one only to show the user something, and say so in your summary.
 Placing a probe opens its entry, so the results show.
 Values come from the evaluator; the next context refresh waits for evaluation to finish, so probe values are normally present immediately. A `∅` means the probed expression was never reached during evaluation (e.g. a branch not taken or a function never called) — that itself is useful evidence.
 
@@ -56,7 +56,7 @@ let place_probe: API.Json.t =
 let remove_probe_description =
   {|
 Removes probes from the bindings at the given paths.
-Use this to clean up probes after verifying code behavior.
+Use this to remove the probes you placed once done debugging.
 
 Parameters:
 paths: list(string) — paths to the bindings to remove probes from

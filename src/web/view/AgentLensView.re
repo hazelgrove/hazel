@@ -366,19 +366,22 @@ let kind_class = (k: Trajectory.kind): string =>
     | Usage => "usage"
     | Note => "note"
     | Summary => "summary"
+    | Response => "response"
     }
   );
 
 /* a section folds under its summary line: what it is, its size, its
    gist, and its raw toggle and copy, shown while open (copy also on
    hover) but always holding their place, so the line keeps its height.
-   What was never sent has no JSON to show raw */
+   What was never sent has no JSON to show raw; a response's parts have
+   their own */
 let rec section = (s: Trajectory.section): Node.t => {
   let controls =
     span(
       ~attrs=[Attr.classes(["traj-controls"])],
-      s.sent
-        ? [
+      switch (s.kind) {
+      | Response => []
+      | _ when s.sent => [
           label(
             ~attrs=[
               Attr.classes(["traj-raw-label"]),
@@ -406,13 +409,14 @@ let rec section = (s: Trajectory.section): Node.t => {
             s.raw,
           ),
         ]
-        : [
+      | _ => [
           copy_button(
             ~cls=["traj-copy-text"],
             ~title="Copy, as kept: never sent",
             s.text,
           ),
-        ],
+        ]
+      },
     );
   let pre = (cls, t) =>
     create("pre", ~attrs=[Attr.classes([cls])], [text(t)]);
@@ -485,7 +489,12 @@ let trajectory = (l: AgentLens.t): Node.t =>
           [
             text(
               l.mode == Window
-                ? "Exactly this request's body: its messages in order, its own context last."
+                ? Printf.sprintf(
+                    "What the model had in front of it for request %d: the request body%s",
+                    t.seq,
+                    t.replied
+                      ? ", then its own reasoning as it answered." : ".",
+                  )
                 : "A request carries every message and only its own context. Thinking and usage come back with a reply and are never sent.",
             ),
           ],

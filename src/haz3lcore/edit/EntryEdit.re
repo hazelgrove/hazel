@@ -52,13 +52,22 @@ type source =
      becomes the kind's blank */
   | Token(string);
 
+/* parts of a definition, as paths name them: its head, its pattern's
+   node, its definition's, and its body's: the definition past its `fun`
+   heads */
+[@deriving (show({with_path: false}), eq)]
+type part = EntryPath.part = | Pattern | Definition | Body | Head;
+
 /* Replace takes any node: an entry by its anchor (or first tile), else
    the term rooted at the piece, a case rule from its `|` through its
-   result; a token with Token */
+   result; a token with Token. ReplacePart takes a definition's part by
+   its head: a definition starting with a local entry is rooted at that
+   entry's head, which as Replace's id names the entry */
 [@deriving (show({with_path: false}), eq)]
 type op =
   | Insert(place, source)
   | Replace(Id.t, source)
+  | ReplacePart(Id.t, part, source)
   | Delete(Id.t)
   /* ids kept, converting `;` ⇄ `in` between member and let-chain forms */
   | Move(Id.t, place);
@@ -247,15 +256,27 @@ let unterminated = (txt: string): string => {
 let entry_text = (~member: bool, txt: string): option((Segment.t, bool)) => {
   let t = unterminated(txt);
   let def = takes_in(t);
-  let letin = () =>
-    Option.map(L.lay_in(~indent=0), L.letin_core(t ++ " in"));
   /* several entries take the last one's terminator, which the first word
      doesn't tell */
-  let as_def = () => Option.map(ps => (ps, false), letin());
-  let as_stmt = () => Option.map(ps => (ps, true), L.letin_core(t ++ ";"));
+  let read = (term, stmt) =>
+    Option.map(
+      ps => (L.lay_in(~indent=0, ps), stmt),
+      L.letin_core(t ++ term),
+    );
+  let as_def = () => read(" in", false);
+  let as_stmt = () => read(";", true);
+  /* the first reading's bail note, the telling one */
   let either = (a, b) =>
     switch (a()) {
-    | None => b()
+    | None =>
+      let (note, at) = FastParse.(bail_note^, bail_at^);
+      switch (b()) {
+      | None =>
+        FastParse.bail_note := note;
+        FastParse.bail_at := at;
+        None;
+      | found => found
+      };
     | found => found
     };
   member
@@ -376,7 +397,7 @@ let reformed =
 
 /* [ps] (entry [k] of [b]'s bare pieces) in a block's form: as it is, or
    converted, its `in` laid out by house style. A form [reformed] doesn't
-   know goes through text, fresh ids, as it did before the kernel */
+   know goes through text, with fresh ids */
 let in_form = (~member: bool, b: L.block, k: int, ps: Segment.t): Segment.t =>
   if (member == b.in_module) {
     ps;
@@ -597,11 +618,6 @@ let root_id = (ps: Segment.t): option(Id.t) =>
     | exception _ => Some(Piece.id(p))
     }
   };
-
-/* parts of a definition, as paths name them: its head, its pattern's
-   node, its definition's, and its body's: the definition past its `fun`
-   heads */
-type part = EntryPath.part = | Pattern | Definition | Body | Head;
 
 let rec past_fun_heads = (ps: Segment.t): Segment.t =>
   switch (ps) {
@@ -827,32 +843,12 @@ let member_form = (c: ctx, blk: block): bool =>
   | Top => c.mod_root
   };
 
-/* [place] is the program's end: above its top level's result, or last */
-let at_end = (c: ctx, place: place, seg: Segment.t): bool =>
-  switch (place) {
-  | LastIn(Top) => true
-  | Before(y) =>
-    let e = entry(~mod_root=c.mod_root, y, seg);
-    e.b.lv.owner == Top && !e.b.in_module && !L.movable(e.b, e.j);
-  | After(_)
-  | FirstIn(_)
-  | LastIn(_) => false
-  };
-
 /* [program] with the gaps beside the entries holding [item]'s pieces
    (the entries an op landed) laid out by house style, or with [inner]
-   only those between them. [ends]: they land at the program's end. A
-   blank line the code put between them, or [lead] above them, sets a
+   only those between them. A blank line the code put between them, or [lead] above them, sets a
    test below it apart */
 let settled =
-    (
-      c: ctx,
-      ~inner=false,
-      ~ends=false,
-      ~lead=false,
-      item: Segment.t,
-      program: Segment.t,
-    )
+    (c: ctx, ~inner=false, ~lead=false, item: Segment.t, program: Segment.t)
     : Segment.t => {
   let mine =
     List.fold_left(
@@ -888,13 +884,7 @@ let settled =
               && (j == k0 - 1 ? lead && !inner : j >= k0 && blank(j)),
             List.init(k1 - k0 + 1, j => k0 - 1 + j),
           );
-        let seg =
-          L.settle(
-            ~ends=?ends && !inner ? Some(k0 - 1) : None,
-            ~apart,
-            b,
-            js,
-          );
+        let seg = L.settle(~apart, b, js);
         seg === b.seg ? program : rebuild(seg);
       };
     }
@@ -914,7 +904,6 @@ let closed = (c: ctx, ~above: option(Id.t), program: Segment.t): Segment.t =>
 let insert =
     (c: ctx, op, place: place, src: source, seg: Segment.t): list(step) => {
   let mod_root = c.mod_root;
-  let ends = at_end(c, place, seg);
   /* code starting with a blank line */
   let lead =
     switch (src) {
@@ -932,13 +921,7 @@ let insert =
   let lands = (~member, f) => {
     let (item, stmt, src_indent) = entry_of(c, ~member, src, seg);
     let program =
-      settled(
-        c,
-        ~ends,
-        ~lead,
-        item,
-        need(NoPlace, f(item, stmt, src_indent)),
-      );
+      settled(c, ~lead, item, need(NoPlace, f(item, stmt, src_indent)));
     let row = L.row_id(item);
     entrywise(
       c,
@@ -1032,10 +1015,9 @@ let move = (c: ctx, op, x: Id.t, place: place, seg: Segment.t): step => {
       rest: closed(c, ~above=tk.above, tk.rest),
     };
     let src_indent = L.start_indent(~mod_root, bare, seg);
-    let ends = at_end(c, place, seg);
     moved(
       ~focus=L.row_id(item),
-      settled(c, ~ends, item, need(NoPlace, f(tk, item, src_indent))),
+      settled(c, item, need(NoPlace, f(tk, item, src_indent))),
     );
   };
   switch (place) {
@@ -1245,6 +1227,61 @@ let names_entry = (c: ctx, x: Id.t, seg: Segment.t): option(entry) =>
   | _ => None
   };
 
+/* the term rooted at piece [x] */
+let replace_node = (c: ctx, op, x: Id.t, src: source, seg: Segment.t): step => {
+  let n = node(~root=c.root, x, seg);
+  let txt =
+    switch (src) {
+    | Text(txt) => txt
+    | Copy(y) => L.text_of(node_pieces(node(~root=c.root, y, seg)))
+    | Template(_)
+    | Token(_) => refuse(~id=x, NoPlace)
+    };
+  let ps =
+    need(~id=x, Unreadable, parse_at(n.sort, txt))
+    |> (n.sort == Exp ? L.lay_in(~indent=0) : Fun.id);
+  let indent =
+    Option.value(Nav.line_indent(~root=c.root, x, seg), ~default=0);
+  /* new code that starts with a comment replaces the comment lines
+     directly above the node */
+  let lo =
+    switch (ps) {
+    | [p, ..._] when ItemSpans.is_comment(p) => doc_start(n.level, n.lo)
+    | _ => n.lo
+    };
+  let slice = (i, j) => ListUtil.slice(i, j - i, n.level);
+  let level =
+    switch (def_gaps(n)) {
+    /* a definition's code, laid out as one */
+    | Some(g) when !L.module_def(ps) =>
+      let head =
+        Option.value(Nav.line_indent(~root=c.root, g.head, seg), ~default=0);
+      slice(0, g.a)
+      @ L.lay_def(
+          ~indent=head,
+          ~at=indent,
+          ~in_=g.in_,
+          slice(g.a, lo),
+          ps,
+          slice(n.hi + 1, g.b),
+        )
+      @ ListUtil.remove_first_n(g.b, n.level);
+    | _ =>
+      let (pre, post) = (
+        ListUtil.truncate(lo, n.level),
+        ListUtil.remove_first_n(n.hi + 1, n.level),
+      );
+      pre @ L.unfused(pre, L.shift_by(indent, ps), post) @ post;
+    };
+  let made = Option.value(root_id(ps), ~default=x);
+  done_(
+    ~replaced=[(x, made)],
+    ~focus=Some(made),
+    op,
+    Nav.rebuild(~seg, n.up, level),
+  );
+};
+
 let replace = (c: ctx, op, x: Id.t, src: source, seg: Segment.t): list(step) =>
   switch (src, names_entry(c, x, seg)) {
   | (Token(txt), _) => [token(c, op, x, txt, seg)]
@@ -1259,7 +1296,10 @@ let replace = (c: ctx, op, x: Id.t, src: source, seg: Segment.t): list(step) =>
           | Template(_)
           | Token(_) => refuse(~id=x, Result)
           };
-        (need(Unreadable, parse_at(Exp, txt)), Some(0));
+        (
+          L.lay_in(~indent=0, need(Unreadable, parse_at(Exp, txt))),
+          Some(0),
+        );
       } else {
         let (item, stmt, src_indent) =
           entry_of(c, ~member=e.b.in_module, src, seg);
@@ -1288,73 +1328,29 @@ let replace = (c: ctx, op, x: Id.t, src: source, seg: Segment.t): list(step) =>
         ~removed=[x],
         ~focus=row,
         op,
-        tail
-          ? e.rebuild(level)
-          : settled(c, ~inner=true, item, e.rebuild(level)),
+        settled(c, ~inner=true, item, e.rebuild(level)),
       );
     tail ? [step] : entrywise(c, item, step);
-  | (_, None) =>
-    let n = node(~root=c.root, x, seg);
-    let txt =
-      switch (src) {
-      | Text(txt) => txt
-      | Copy(y) => L.text_of(node_pieces(node(~root=c.root, y, seg)))
-      | Template(_)
-      | Token(_) => refuse(~id=x, NoPlace)
-      };
-    let ps = need(~id=x, Unreadable, parse_at(n.sort, txt));
-    let indent =
-      Option.value(Nav.line_indent(~root=c.root, x, seg), ~default=0);
-    /* new code that starts with a comment replaces the comment lines
-       directly above the node */
-    let lo =
-      switch (ps) {
-      | [p, ..._] when ItemSpans.is_comment(p) => doc_start(n.level, n.lo)
-      | _ => n.lo
-      };
-    let slice = (i, j) => ListUtil.slice(i, j - i, n.level);
-    let level =
-      switch (def_gaps(n)) {
-      /* a definition's code, laid out as one */
-      | Some(g) when !L.module_def(ps) =>
-        let head =
-          Option.value(
-            Nav.line_indent(~root=c.root, g.head, seg),
-            ~default=0,
-          );
-        slice(0, g.a)
-        @ L.lay_def(
-            ~indent=head,
-            ~at=indent,
-            ~in_=g.in_,
-            slice(g.a, lo),
-            ps,
-            slice(n.hi + 1, g.b),
-          )
-        @ ListUtil.remove_first_n(g.b, n.level);
-      | _ =>
-        let (pre, post) = (
-          ListUtil.truncate(lo, n.level),
-          ListUtil.remove_first_n(n.hi + 1, n.level),
-        );
-        pre @ L.unfused(pre, L.shift_by(indent, ps), post) @ post;
-      };
-    let made = Option.value(root_id(ps), ~default=x);
-    [
-      done_(
-        ~replaced=[(x, made)],
-        ~focus=Some(made),
-        op,
-        Nav.rebuild(~seg, n.up, level),
-      ),
-    ];
+  | (_, None) => [replace_node(c, op, x, src, seg)]
   };
+
+let replace_part =
+    (c: ctx, op, head: Id.t, pt: part, src: source, seg: Segment.t)
+    : list(step) => {
+  let x = need(~id=head, Missing, part(~root=c.root, head, pt, seg));
+  switch (pt, src) {
+  | (Head, _)
+  | (_, Token(_)) => replace(c, op, x, src, seg)
+  | (Pattern | Definition | Body, _) => [replace_node(c, op, x, src, seg)]
+  };
+};
 
 /* an op's steps: one per entry it lands */
 let run = (c: ctx, seg: Segment.t, op: op): list(step) =>
   switch (op) {
   | Insert(place, src) => insert(c, op, place, src, seg)
   | Replace(x, src) => replace(c, op, x, src, seg)
+  | ReplacePart(h, pt, src) => replace_part(c, op, h, pt, src, seg)
   | Delete(x) => [delete(c, op, x, seg)]
   | Move(x, place) => [move(c, op, x, place, seg)]
   };

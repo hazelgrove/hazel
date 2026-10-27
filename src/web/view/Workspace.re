@@ -210,17 +210,24 @@ let fresh_term = (program: Program.t): Language.Exp.t => {
   | Divided(d) => MakeTerm.semantic_term(~root, Divided.document(d))
   };
 };
-let fresh_info_map =
-    (~settings: Settings.t, program: Program.t, term: Language.Exp.t)
-    : Language.Statics.Map.t =>
+/* [term]'s statics; none with statics off */
+let statics_of =
+    (~settings: Settings.t, ~probe_ids, term: Language.Exp.t): CachedStatics.t =>
   settings.core.statics
     ? CachedStatics.init_compositional_term(
         ~settings=settings.core,
-        ~probe_ids=Program.probe_ids(program),
+        ~probe_ids,
         term,
-      ).
-        info_map
-    : Id.Map.empty;
+      )
+    : CachedStatics.empty;
+let fresh_info_map =
+    (~settings: Settings.t, program: Program.t): Language.Statics.Map.t =>
+  statics_of(
+    ~settings,
+    ~probe_ids=Program.probe_ids(program),
+    fresh_term(program),
+  ).
+    info_map;
 
 /* the program after an outline edit: statics seeded now (the outline
    reads them), manual probes and the caret kept, cells re-cut; or the
@@ -256,20 +263,16 @@ let with_segment =
       Divided.shell_editor_of(~probes, ~anchor=caret, new_seg, d)
     };
   let statics =
-    settings.core.statics
-      ? Haz3lcore.CachedStatics.init_compositional_term(
-          ~settings=settings.core,
-          ~probe_ids=
-            CachedStatics.probe_ids_of_zipper(
-              fresh.editor.editor.state.zipper,
-            ),
-          MakeTerm.semantic_term(
-            ~root,
-            ~shared=fresh.editor.editor.syntax.t_cache,
-            new_seg,
-          ),
-        )
-      : Haz3lcore.CachedStatics.empty;
+    statics_of(
+      ~settings,
+      ~probe_ids=
+        CachedStatics.probe_ids_of_zipper(fresh.editor.editor.state.zipper),
+      MakeTerm.semantic_term(
+        ~root,
+        ~shared=fresh.editor.editor.syntax.t_cache,
+        new_seg,
+      ),
+    );
   let editor: CellEditor.Model.t = {
     editor: {
       ...fresh.editor,
@@ -318,7 +321,7 @@ let item_ctx =
   {
     mod_root: Program.root(program) == Haz3lcore.Sort.Mod,
     outline,
-    info_map: lazy(fresh_info_map(~settings, program, fresh_term(program))),
+    info_map: lazy(fresh_info_map(~settings, program)),
     is_open: id => OutlineTree.expanded(~folds, id, outline),
   };
 };
@@ -555,8 +558,7 @@ let update_code =
     let statics = Program.statics(code.program);
     let info_map =
       Id.Map.is_empty(statics.info_map)
-        ? fresh_info_map(~settings, code.program, fresh_term(code.program))
-        : statics.info_map;
+        ? fresh_info_map(~settings, code.program) : statics.info_map;
     realize(~info_map, code.view, code) |> return(~historic=false);
   | RestorePins =>
     /* each slide's saved view waits under its own key, so another

@@ -385,3 +385,53 @@ let outline_of_text = (~root: Sort.t=Exp, text: string): Outline.t =>
   | Some(z) => outline_of(~root, Zipper.unselect_and_zip(z))
   | None => failwith("parse failed: " ++ text)
   };
+
+/* outline op [op] on row [row], as the outline's keys run it: Alt↑↓
+   steps over modules unless [is_open] */
+let outline_op =
+    (
+      ~root=Sort.Exp,
+      ~is_open=_ => false,
+      op: Web.OutlineEdit.def_op,
+      row: Id.t,
+      seg: Segment.t,
+    )
+    : result((Segment.t, option(Id.t)), string) => {
+  let ctx: Web.ItemEdit.ctx = {
+    mod_root: root == Sort.Mod,
+    outline: outline_of(~root, seg),
+    info_map: lazy(Language.Statics.Map.empty),
+    is_open,
+  };
+  Web.ItemEdit.edit(ctx, Op(op, row), seg);
+};
+
+/* row [row] renamed [name] as the outline renames it */
+let rename_row =
+    (
+      ~root=Sort.Exp,
+      ~info_map: Language.Statics.Map.t,
+      ~outline: Web.OutlineTree.t,
+      row: Id.t,
+      name: string,
+      seg: Segment.t,
+    )
+    : result(Segment.t, string) => {
+  let mod_root = root == Sort.Mod;
+  switch (
+    Web.ItemEdit.plan_rename(
+      ~mod_root,
+      ~info_map=Lazy.from_val(info_map),
+      ~outline,
+      ~seg=Lazy.from_val(seg),
+      row,
+      name,
+    )
+  ) {
+  | Error(why) => Error(why)
+  | Ok(None) => Ok(seg)
+  | Ok(Some(rn)) =>
+    Web.ItemEdit.apply_rename(~mod_root, rn, row, seg)
+    |> Result.map_error(EntryEdit.describe)
+  };
+};

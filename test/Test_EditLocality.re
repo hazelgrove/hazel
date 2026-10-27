@@ -157,18 +157,18 @@ let undo = () => {
 let restructure = () => {
   let seg = Zipper.unselect_and_zip(Lazy.force(dew));
   switch (
-    Web.ItemEdit.apply(
+    CorpusUtil.outline_op(
       MoveDown,
       CorpusUtil.row(CorpusUtil.outline_of(seg), ["MetaRunner", "init"]),
       seg,
     )
   ) {
-  | Some((after, _)) => {
+  | Ok((after, _)) => {
       before: seg,
       after,
       fallbacks: 0,
     }
-  | None => fail("move failed")
+  | Error(why) => fail("move failed: " ++ why)
   };
 };
 
@@ -204,9 +204,9 @@ let agent_insert = () =>
 let agent_rename = () =>
   structural(Rename("Text/int_to_text", None, "render_int"));
 
-/* relabeling maps every piece: [final]'s binder and use */
+/* a rename as the outline runs it: [final]'s binder and use, each a
+   kernel token replace */
 let relabel = () => {
-  let z = Lazy.force(dew);
   let rec toks = (seg: Segment.t) =>
     List.concat_map(
       (p: Piece.t) =>
@@ -217,14 +217,21 @@ let relabel = () => {
         },
       seg,
     );
-  let before = Zipper.unselect_and_zip(z);
-  {
-    before,
-    after:
-      Zipper.unselect_and_zip(
-        Rename.relabel_zipper(toks(before), "outcome", z),
-      ),
-    fallbacks: 0,
+  let before = Zipper.unselect_and_zip(Lazy.force(dew));
+  let replace = id => EntryEdit.Replace(id, Token("outcome"));
+  switch (
+    EntryEdit.transaction(
+      ~root=Exp,
+      before,
+      List.map(replace, toks(before)),
+    )
+  ) {
+  | Ok(c) => {
+      before,
+      after: c.program,
+      fallbacks: 0,
+    }
+  | Error(r) => fail(EntryEdit.describe(r.reason))
   };
 };
 

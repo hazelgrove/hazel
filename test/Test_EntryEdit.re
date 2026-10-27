@@ -73,8 +73,8 @@ let insert = () => {
     run(seg, [Insert(After(a), Text("let c = 3"))]),
   );
   expect(
-    "a statement takes `;`, right under the definition it follows",
-    "let a = 1 in\ntest a == 1 end;\n\nlet b = a + 1 in\nb",
+    "a statement takes `;`, parted from the definition it follows",
+    "let a = 1 in\n\ntest a == 1 end;\n\nlet b = a + 1 in\nb",
     run(seg, [Insert(After(a), Text("test a == 1 end"))]),
   );
   expect(
@@ -539,8 +539,8 @@ let entrywise = () => {
     "an insert's entries, one at a time",
     [
       "let a = 1 in\n\nlet c = 3 in\n\nlet b = a + 1 in\nb",
-      "let a = 1 in\n\nlet c = 3 in\ntest c == 3 end;\n\nlet b = a + 1 in\nb",
-      "let a = 1 in\n\nlet c = 3 in\ntest c == 3 end;\n\nlet d = c + 1 in\n\nlet b = a + 1 in\nb",
+      "let a = 1 in\n\nlet c = 3 in\n\ntest c == 3 end;\n\nlet b = a + 1 in\nb",
+      "let a = 1 in\n\nlet c = 3 in\n\ntest c == 3 end;\n\nlet d = c + 1 in\n\nlet b = a + 1 in\nb",
     ],
     texts(c),
   );
@@ -589,7 +589,7 @@ let entrywise = () => {
     "a definition, then a statement",
     [
       "let a = 1 in\n\nlet c = 3 in\n\nlet b = a + 1 in\nb",
-      "let a = 1 in\n\nlet c = 3 in\ntest c == 3 end;\n\nlet b = a + 1 in\nb",
+      "let a = 1 in\n\nlet c = 3 in\n\ntest c == 3 end;\n\nlet b = a + 1 in\nb",
     ],
     texts(
       run(
@@ -699,6 +699,74 @@ let definition_layout = () => {
   );
 };
 
+/* a definition whose code starts with local entries: the whole right
+   side of its `=`, not its first local, whose head is the same piece */
+let definition_of_locals = () => {
+  let part = (~root=Sort.Exp, name, seg) =>
+    K.ReplacePart(head(name, seg), Definition, Text("x * 2"))
+    |> (op => run(~root, seg, [op]));
+  let one = seg_of("let f(x) =\n  let a = x in\n  a\nin\nf(1)");
+  expect("one local", "let f(x) = x * 2 in\nf(1)", part("f", one));
+  let many =
+    seg_of("let f(x) =\n  let a = x in\n  let b = a in\n  b\nin\nf(1)");
+  expect("several locals", "let f(x) = x * 2 in\nf(1)", part("f", many));
+  expect(
+    "new locals for old",
+    "let f(x) =\n  let c = x + 1 in\n  c * 2\nin\nf(1)",
+    run(
+      many,
+      [
+        ReplacePart(
+          head("f", many),
+          Definition,
+          Text("let c = x + 1 in\nc * 2"),
+        ),
+      ],
+    ),
+  );
+  expect(
+    "a local's `in` by house style",
+    "let f(x) =\n  let c = x + 1 in\n  c * 2\nin\nf(1)",
+    run(
+      one,
+      [
+        ReplacePart(
+          head("f", one),
+          Definition,
+          Text("let c = x + 1\nin\nc * 2"),
+        ),
+      ],
+    ),
+  );
+  let tested = seg_of("let f(x) =\n  test x == x end;\n  x\nin\nf(1)");
+  expect("a test first", "let f(x) = x * 2 in\nf(1)", part("f", tested));
+  let fn = seg_of("let f = fun x ->\n  let a = x in\n  a\nin\nf(1)");
+  expect(
+    "a `fun` head is the definition's",
+    "let f = fun y -> y in\nf(1)",
+    run(fn, [ReplacePart(head("f", fn), Definition, Text("fun y -> y"))]),
+  );
+  let m =
+    seg_of(
+      "module M = {\n  let f(x) =\n    let a = x in\n    let b = a in\n    b;\n  let y = 2\n} in\nM.y",
+    );
+  expect(
+    "a member",
+    "module M = {\n  let f(x) = x * 2;\n  let y = 2\n} in\nM.y",
+    part("f", m),
+  );
+  expect(
+    "a local's own definition",
+    "let f(x) =\n  let a = x in\n  let b = x * 2 in\n  b\nin\nf(1)",
+    part("b", many),
+  );
+  expect(
+    "the first local, whole, by its head",
+    "let f(x) =\n  let z = 0 in\n  let b = a in\n  b\nin\nf(1)",
+    run(many, [Replace(head("a", many), Text("let z = 0"))]),
+  );
+};
+
 let tests = (
   "EntryEdit",
   [
@@ -706,6 +774,7 @@ let tests = (
     test_case("copy", `Quick, copy),
     test_case("replace", `Quick, replace),
     test_case("a definition's layout", `Quick, definition_layout),
+    test_case("a definition of local entries", `Quick, definition_of_locals),
     test_case("token", `Quick, token),
     test_case("delete", `Quick, delete),
     test_case("move", `Quick, move),

@@ -25,7 +25,9 @@ type kind =
   | Usage
   /* an error, a retry or a cancel: Hazel's line in the chat */
   | Note
-  | Summary;
+  | Summary
+  /* Window: the reply the model wrote after the body, its thinking first */
+  | Response;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type section = {
@@ -56,6 +58,8 @@ type t = {
   /* the request's body, exactly as sent */
   body: string,
   sections: list(section),
+  /* its reply, or the error or cancel instead, was in when built */
+  replied: bool,
 };
 
 /* the transcript as it stood when [r] was sent: the branch from the root
@@ -266,7 +270,9 @@ type place =
   /* sent last by an earlier request */
   | Until(int)
   /* the reply to it, sent by later ones */
-  | After;
+  | After
+  /* Window: the reply to it, written after its body */
+  | Generated;
 
 let tokens = (n: int): string =>
   n >= 1000
@@ -274,22 +280,31 @@ let tokens = (n: int): string =>
 
 /* what came back with a reply besides the message: its thinking, before
    it, and its usage, after */
-let thinking = (m: Message.Model.t): list(section) =>
+let thinking = (~generated=false, m: Message.Model.t): list(section) =>
   switch (m.reasoning) {
-  | Some(r) => [
+  | Some(r) when String.trim(r) != "" =>
+    let s =
       unsent(
         Thinking,
         Printf.sprintf(
-          {js|Thinking%s · received, not sent back|js},
+          {js|Thinking%s · %s|js},
           switch (m.reasoning_duration_ms) {
           | Some(ms) => Printf.sprintf({js| · %ds|js}, (ms + 500) / 1000)
           | None => ""
           },
+          generated
+            ? "in the model's context while it wrote this reply; not kept for the next request"
+            : "received, not sent back",
         ),
         r,
-      ),
-    ]
-  | None => []
+      );
+    [
+      {
+        ...s,
+        folded: !generated,
+      },
+    ];
+  | _ => []
   };
 
 let usage = (m: Message.Model.t): list(section) =>
@@ -344,6 +359,7 @@ let message_section =
         last,
       )
     | After => {js| · after this request|js}
+    | Generated => {js| · sent back in later requests|js}
     };
   let s = (~folded=false, ~children=[], ~brief=?, kind, label) =>
     section(
@@ -403,7 +419,7 @@ let message_section =
         )
       | _ => []
       };
-    thinking(m)
+    thinking(~generated=place == Generated, m)
     @ [
       s(
         ~children=calls,
@@ -421,9 +437,14 @@ let message_section =
 };
 
 /* a message no request sent: Hazel's line about an error, a retry or a
-   cancel (others never concern the API) */
-let note_section = (m: Message.Model.t): list(section) =>
+   cancel, or a reply set aside for a retry, with its thinking and usage
+   (others never concern the API) */
+let note_section = (~generated=false, m: Message.Model.t): list(section) =>
   switch (m.role) {
+  | Agent(_) when Option.is_none(m.api_message) =>
+    thinking(~generated, m)
+    @ [unsent(Note, "Empty reply · not sent back, retried", m.content)]
+    @ usage(m)
   | System(ApiFailure) => [unsent(Note, "Error · not sent", m.content)]
   | System(RetryNote) => [unsent(Note, "Retry · not sent", m.content)]
   | System(ResponseCancelled) => [
@@ -452,7 +473,8 @@ let tidy = (s: string): string => {
 
 /* a request carries only its own context; the earlier ones show where
    they were sent, for reading */
-let context_section = (~selected: bool, seq: int, json: API.Json.t) =>
+let context_section =
+    (~window=false, ~selected: bool, seq: int, json: API.Json.t) =>
   section(
     ~folded=true,
     ~in_request=selected,
@@ -462,7 +484,9 @@ let context_section = (~selected: bool, seq: int, json: API.Json.t) =>
     Printf.sprintf(
       {js|Context · sent with request %d · %s|js},
       seq,
-      selected ? "in this request" : "not in this request",
+      window
+        ? "replaced by the next request's snapshot"
+        : selected ? "in this request" : "not in this request",
     ),
     content(json),
     json,
@@ -476,6 +500,15 @@ let rec lines = (s: section): list(string) =>
   | User => [s.raw, ...List.concat_map(lines, s.children)]
   | _ when !s.sent => []
   | _ => [s.raw]
+  };
+
+/* a reply's text, else its calls */
+let gist = (children: list(section)): string =>
+  switch (List.find_opt((c: section) => c.kind == Assistant, children)) {
+  | Some(a) when String.trim(a.text) != "" => first_words(a.text)
+  | Some(a) =>
+    String.concat("; ", List.map((c: section) => c.label, a.children))
+  | None => ""
   };
 
 let round_section = (~selected: int, seq: int, children: list(section)) => {
@@ -515,14 +548,7 @@ let round_section = (~selected: int, seq: int, children: list(section)) => {
         )
         @ (seq == selected ? ["this request"] : []),
       ),
-    /* the reply's text, else its calls */
-    brief:
-      switch (List.find_opt((c: section) => c.kind == Assistant, children)) {
-      | Some(a) when String.trim(a.text) != "" => first_words(a.text)
-      | Some(a) =>
-        String.concat("; ", List.map((c: section) => c.label, a.children))
-      | None => ""
-      },
+    brief: gist(children),
     shown: "",
     text,
     raw: text,
@@ -663,8 +689,10 @@ let head_sections = (seq: int, body: API.Json.t): list(section) => {
 };
 
 /* the system prompt, the tools and the request's fields, then the rest */
-let assemble = (seq: int, body: API.Json.t, messages: list(section)): t => {
+let assemble =
+    (~replied, seq: int, body: API.Json.t, messages: list(section)): t => {
   seq,
+  replied,
   body: API.Json.to_string(body),
   sections:
     switch (messages) {
@@ -697,47 +725,6 @@ let opens = (rs: list(SentView.t), id: Id.t): list(item) =>
     rs,
   );
 
-/* request [seq]'s window: exactly the messages its body carried, in
-   order, each section's JSON the body's own; its context last */
-let window = (chat: Chat.Model.t, seq: int): option(t) =>
-  Option.bind(List.find_opt((r: SentView.t) => r.seq == seq, chat.sent), r =>
-    Option.map(
-      ((body, parts)) => {
-        let last = List.length(parts) - 1;
-        let upto = List.filter((q: SentView.t) => q.seq <= seq, chat.sent);
-        assemble(
-          seq,
-          body,
-          group(
-            ~selected=seq,
-            List.concat(
-              List.mapi(
-                (i, (m: option(Message.Model.t), json)) =>
-                  switch (m) {
-                  | Some(m) =>
-                    List.map(
-                      s => Item(s),
-                      List.filter(
-                        (s: section) => s.sent,
-                        message_section(m, json, ~place=This),
-                      ),
-                    )
-                    @ opens(upto, m.id)
-                  | None when i == last => [
-                      Item(context_section(~selected=true, seq, json)),
-                    ]
-                  | None => [Item(role_section(json))]
-                  },
-                parts,
-              ),
-            ),
-          ),
-        );
-      },
-      rebuild(chat, r),
-    )
-  );
-
 /* the transcript after message [id] on the current branch */
 let rec following = (chat: Chat.Model.t, id: Id.t): list(Message.Model.t) =>
   switch (
@@ -752,6 +739,158 @@ let rec following = (chat: Chat.Model.t, id: Id.t): list(Message.Model.t) =>
     }
   | None => []
   };
+
+/* what came back for [r]: its reply, or the error or cancel instead,
+   before the next user message */
+let reply_of = (chat: Chat.Model.t, r: SentView.t): option(Message.Model.t) => {
+  let rec go = id =>
+    switch (
+      Option.bind(
+        Chat.Utils.find_message_opt(id, chat), (m: Message.Model.t) =>
+        Option.bind(m.current_child, c =>
+          Chat.Utils.find_message_opt(c, chat)
+        )
+      )
+    ) {
+    | Some(
+        {role: Agent(_) | System(ApiFailure | ResponseCancelled), _} as m,
+      ) =>
+      Some(m)
+    | Some({role: User, _})
+    | None => None
+    | Some(m) => go(m.id)
+    };
+  go(r.after);
+};
+
+/* whether request [seq]'s reply, or its error or cancel, is in */
+let replied = (chat: Chat.Model.t, seq: int): bool =>
+  switch (List.find_opt((r: SentView.t) => r.seq == seq, chat.sent)) {
+  | Some(r) => Option.is_some(reply_of(chat, r))
+  | None => false
+  };
+
+/* Window's last section: the reply to [r], written after its body, as
+   the model wrote it: its thinking, then its text and calls (usage
+   folded). Without a reply, a note saying why */
+let response = (chat: Chat.Model.t, r: SentView.t): section => {
+  let none = (label, text) => {
+    ...
+      unsent(
+        ~brief="",
+        Note,
+        Printf.sprintf({js|Response %d · %s|js}, r.seq, label),
+        text,
+      ),
+    folded: false,
+  };
+  switch (reply_of(chat, r)) {
+  | Some({role: Agent(_), _} as m) =>
+    let children =
+      switch (m.api_message) {
+      | Some(a) =>
+        message_section(
+          m,
+          OpenRouter.Message.Utils.json_of_message(a),
+          ~place=Generated,
+        )
+      | None => note_section(~generated=true, m)
+      };
+    /* its size: what the model wrote */
+    let text =
+      String.concat(
+        "\n",
+        List.filter_map(
+          (c: section) =>
+            switch (c.kind) {
+            | Usage => None
+            | _ => Some(c.sent ? c.raw : c.text)
+            },
+          children,
+        ),
+      );
+    {
+      kind: Response,
+      label:
+        Printf.sprintf(
+          {js|Response %d · generated in this window|js},
+          r.seq,
+        ),
+      brief: gist(children),
+      shown: "",
+      text,
+      raw: text,
+      folded: false,
+      in_request: false,
+      sent: false,
+      children,
+    };
+  | Some({role: System(ApiFailure), content, _}) =>
+    none("none · an error came back instead", content)
+  | Some({role: System(ResponseCancelled), content, _}) =>
+    none("none · cancelled", content)
+  | _ =>
+    none(
+      "not back yet",
+      "Still streaming, or none came back. Its thinking and reply show here once they are in.",
+    )
+  };
+};
+
+/* request [seq]'s window: exactly the messages its body carried, in
+   order, each section's JSON the body's own; its context last. Then the
+   reply, the rest of what the model had in front of it as it answered */
+let window = (chat: Chat.Model.t, seq: int): option(t) =>
+  Option.bind(List.find_opt((r: SentView.t) => r.seq == seq, chat.sent), r =>
+    Option.map(
+      ((body, parts)) => {
+        let last = List.length(parts) - 1;
+        let upto = List.filter((q: SentView.t) => q.seq <= seq, chat.sent);
+        let t =
+          assemble(
+            ~replied=Option.is_some(reply_of(chat, r)),
+            seq,
+            body,
+            group(
+              ~selected=seq,
+              List.concat(
+                List.mapi(
+                  (i, (m: option(Message.Model.t), json)) =>
+                    switch (m) {
+                    | Some(m) =>
+                      List.map(
+                        s => Item(s),
+                        List.filter(
+                          (s: section) => s.sent,
+                          message_section(m, json, ~place=This),
+                        ),
+                      )
+                      @ opens(upto, m.id)
+                    | None when i == last => [
+                        Item(
+                          context_section(
+                            ~window=true,
+                            ~selected=true,
+                            seq,
+                            json,
+                          ),
+                        ),
+                      ]
+                    | None => [Item(role_section(json))]
+                    },
+                  parts,
+                ),
+              ),
+            ),
+          );
+        {
+          ...t,
+          sections: t.sections @ [response(chat, r)],
+        };
+      },
+      rebuild(chat, r),
+    )
+  );
 
 /* request [seq]'s trajectory: the branch it was sent on, each message as
    the latest request on it up to [seq] sent it (one compacted away later
@@ -851,6 +990,7 @@ let build = (chat: Chat.Model.t, seq: int): option(t) => {
         );
       Some(
         assemble(
+          ~replied=Option.is_some(reply_of(chat, r)),
           seq,
           body,
           group(~selected=seq, List.concat_map(items, path) @ replied),

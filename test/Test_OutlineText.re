@@ -1877,7 +1877,6 @@ let live_in_stack = () => {
         Web.Workspace.fresh_info_map(
           ~settings=Web.Globals.Model.init().settings,
           code.program,
-          Web.Workspace.fresh_term(code.program),
         ),
       Web.SlideView.pin(~outline=term, a, code.view),
       code,
@@ -2038,7 +2037,7 @@ let at_sel = option(triple(string, int, int));
 let editor_selected = (code: Web.ScratchModel.Scratchpad.code) =>
   switch (C.live_pane(code.program, fresh_def())) {
   | Some((_, z, _)) =>
-    Zipper.trim_selected_text(z, Web.ItemEdit.text(z.selection.content))
+    Zipper.trim_selected_text(z, EntryLayout.text(z.selection.content))
   | None => fail("no editor holds the name")
   };
 

@@ -60,7 +60,6 @@ type side = {
   zoom: option(OutlineTree.path),
   parked: bool,
   collapse: list(OutlineTree.path),
-  [@sexp.default []]
   expand: list(OutlineTree.path),
   probes: Refractors.RefractorList.t,
   /* the outline's mode, and the other mode's pins and parked (dev mode,
@@ -90,63 +89,22 @@ let with_folds = (folds: OutlineTree.folds, side: side): side => {
 let side_key = (prefix: string, name: string): string =>
   content_key(prefix, name) ++ ":side";
 
-/* the keys :side replaced, read while it is missing */
-let legacy_suffixes = [
-  ":caret",
-  ":pins",
-  ":view",
-  ":mode",
-  ":collapse",
-  ":probes",
-];
-[@deriving of_sexp]
-type legacy_pin = {
-  pin_path: OutlineTree.path,
-  pin_run: bool,
-};
-[@deriving of_sexp]
-type legacy_view = {
-  vf_zoom: option(OutlineTree.path),
-  vf_parked: bool,
-};
-[@deriving of_sexp]
-type legacy_mode = {
-  mf_ux: bool,
-  mf_away: option(list(legacy_pin)),
-  mf_away_parked: bool,
+let no_side: side = {
+  caret: None,
+  pins: [],
+  zoom: None,
+  parked: false,
+  collapse: [],
+  expand: [],
+  probes: [],
+  ux: false,
+  away: None,
+  away_parked: false,
 };
 
 let read_side = (prefix: string, name: string): side =>
-  switch (HazelDB.kv_get_sexp(side_key(prefix, name), side_of_sexp)) {
-  | Some(side) => side
-  | None =>
-    let ck = content_key(prefix, name);
-    let get = (suffix, of_sexp, default) =>
-      HazelDB.kv_get_sexp(ck ++ suffix, of_sexp) |> Option.value(~default);
-    let view = HazelDB.kv_get_sexp(ck ++ ":view", legacy_view_of_sexp);
-    let mode = HazelDB.kv_get_sexp(ck ++ ":mode", legacy_mode_of_sexp);
-    {
-      caret:
-        Option.bind(HazelDB.kv_get(ck ++ ":caret"), txt =>
-          Scanf.sscanf_opt(txt, " %d %d", (row, col) => Point.mk(~row, ~col))
-        ),
-      pins:
-        get(":pins", list_of_sexp(legacy_pin_of_sexp), [])
-        |> List.map(p => (p.pin_path, p.pin_run)),
-      zoom: Option.bind(view, v => v.vf_zoom),
-      parked: Option.fold(~none=false, ~some=v => v.vf_parked, view),
-      collapse: get(":collapse", list_of_sexp(OutlineTree.path_of_sexp), []),
-      expand: [],
-      probes: get(":probes", Refractors.RefractorList.t_of_sexp, []),
-      ux: Option.fold(~none=false, ~some=m => m.mf_ux, mode),
-      away:
-        Option.bind(mode, m =>
-          Option.map(List.map(p => (p.pin_path, p.pin_run)), m.mf_away)
-        ),
-      away_parked:
-        Option.fold(~none=false, ~some=m => m.mf_away_parked, mode),
-    };
-  };
+  HazelDB.kv_get_sexp(side_key(prefix, name), side_of_sexp)
+  |> Option.value(~default=no_side);
 
 /* the last side record written per slide: the next write's base (what it
    doesn't update carries over) and its change gate */
@@ -163,16 +121,7 @@ let write_side = (prefix: string, name: string, update: side => side): unit => {
   let s = Sexplib.Sexp.to_string(sexp_of_side(side));
   if (s != prev_s) {
     Hashtbl.replace(last_side, ck, (side, s));
-    HazelDB.kv_batch(() => {
-      HazelDB.kv_save(side_key(prefix, name), s);
-      List.iter(
-        suffix =>
-          if (HazelDB.kv_get(ck ++ suffix) != None) {
-            HazelDB.kv_remove(ck ++ suffix);
-          },
-        legacy_suffixes,
-      );
-    });
+    HazelDB.kv_save(side_key(prefix, name), s);
   };
 };
 
@@ -336,7 +285,7 @@ let save_items = (prefix: string, name: string, z: Zipper.t): unit => {
 
 /* the keys a slide owns, exactly: its content key, its side keys, its item
    store. a name may itself contain `:`, so no prefix match */
-let side_suffixes = [":agent", ":side", ...legacy_suffixes];
+let side_suffixes = [":agent", ":side"];
 let slide_suffix = (ck: string, k: string): option(string) => {
   let n = String.length(ck);
   if (k == ck) {

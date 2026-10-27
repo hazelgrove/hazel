@@ -200,6 +200,44 @@ let request_of =
 /* the streaming request itself; tests capture payloads here */
 let stream_chat = ref(OpenRouter.Utils.start_streaming_chat);
 
+/* the clock a stream's thinking is timed by; tests set it */
+let clock: ref(unit => float) = ref(JsUtil.timestamp);
+
+/* a reply's thinking time: from its first reasoning delta to the first
+   delta with anything else (text or a tool call), or the stream's end */
+module Thinking = {
+  type t = {
+    started: option(float),
+    ended: option(float),
+    /* reasoning came first in a delta with other output: no time to tell */
+    unknown: bool,
+  };
+  let init = {
+    started: None,
+    ended: None,
+    unknown: false,
+  };
+  let observe = (~now: float, ~reasoning: bool, ~other: bool, t: t): t =>
+    switch (t.started, t.ended) {
+    | (None, _) when reasoning => {
+        started: Some(now),
+        ended: other ? Some(now) : None,
+        unknown: other,
+      }
+    | (Some(_), None) when other => {
+        ...t,
+        ended: Some(now),
+      }
+    | _ => t
+    };
+  let ms = (~finished: float, t: t): option(int) =>
+    switch (t.started) {
+    | Some(s) when !t.unknown =>
+      Some(int_of_float(Option.value(t.ended, ~default=finished) -. s))
+    | _ => None
+    };
+};
+
 let send_llm_request =
     (
       ~api_key: string,
@@ -210,11 +248,18 @@ let send_llm_request =
       ~main_flight_seq: int,
     )
     : unit => {
-  let send_started_at = JsUtil.timestamp();
   let acc = OpenRouter.Utils.StreamAccumulator.create();
+  let thinking = ref(Thinking.init);
   let on_chunk = (chunk: API.Json.t): unit => {
-    let {content_delta, reasoning_delta}: OpenRouter.Utils.StreamAccumulator.delta =
+    let {content_delta, reasoning_delta, tool_call_delta}: OpenRouter.Utils.StreamAccumulator.delta =
       OpenRouter.Utils.StreamAccumulator.feed(acc, chunk);
+    thinking :=
+      Thinking.observe(
+        ~now=clock^(),
+        ~reasoning=reasoning_delta != "",
+        ~other=content_delta != "" || tool_call_delta,
+        thinking^,
+      );
     /* Suppress empty deltas (many providers emit role-only or
        keepalive-style chunks). StreamDelta gating by flight_seq still
        happens in the reducer. */
@@ -231,7 +276,7 @@ let send_llm_request =
   };
   let on_done = (): unit => {
     pending_main_stream_handle := None;
-    let elapsed_ms = int_of_float(JsUtil.timestamp() -. send_started_at);
+    let thinking_ms = Thinking.ms(~finished=clock^(), thinking^);
     switch (OpenRouter.Utils.StreamAccumulator.finalize(acc)) {
     | OpenRouter.Model.Reply(reply) =>
       /* Stamp the requested model id onto usage so the per-message
@@ -251,7 +296,12 @@ let send_llm_request =
           ),
       };
       schedule_action(
-        Action.HandleLLMResponse(reply, chat_id, main_flight_seq, elapsed_ms),
+        Action.HandleLLMResponse(
+          reply,
+          chat_id,
+          main_flight_seq,
+          thinking_ms,
+        ),
       );
     | OpenRouter.Model.Error({message, code}) =>
       if (is_retryable_api_error(code) && retry_attempt < max_api_retries) {

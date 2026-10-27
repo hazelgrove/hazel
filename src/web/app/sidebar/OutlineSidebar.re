@@ -13,27 +13,9 @@ let clss = cs => Attr.classes(cs);
 module TestStatus = Language.TestStatus;
 module E = OutlineEdit;
 
-/* a level above the slide, whose outline is another document's, for
-   navigating only: its crumb's label, the crumb's title from the slide
-   and at the level, and a chip shown at it (label, title) */
-type above = {
-  a_label: string,
-  a_out: string,
-  a_here: string,
-  a_chip: option((string, string)),
-};
-
-/* where the outline is: a slide's, with a level above to zoom out to;
-   that level's, in the slide's place (its name); or neither */
-type level =
-  | Plain
-  | InSlide(above)
-  | Enclosing(above, string);
-
 /* the header row: the program and the zoom trail as a breadcrumb, and
    how many pins the current level shows or keeps parked */
 type header = {
-  h_level: level,
   h_program: string,
   h_trail: list((Language.Id.t, string)),
   h_open: int,
@@ -187,9 +169,6 @@ type handlers = {
   toggle_run: Language.Id.t => Effect.t(unit),
   toggle_collapse: OutlineTree.path => Effect.t(unit),
   zoom_to: option(Language.Id.t) => Effect.t(unit),
-  /* up to the level above (true), or back into the slide */
-  go_above: bool => Effect.t(unit),
-  above_chip: Effect.t(unit),
   zoom_in: Language.Id.t => Effect.t(unit),
   show_whole: bool => Effect.t(unit),
   discard: Effect.t(unit),
@@ -643,85 +622,6 @@ let short_name = (s: string): string => {
   };
 };
 
-/* the outline is the level above's, in the slide's place */
-let above_shown = (props: props): bool =>
-  switch (props.header.h_level) {
-  | Enclosing(_) => true
-  | Plain
-  | InSlide(_) => false
-  };
-
-/* the rows have keys, and a cursor and folds the model keeps: a slide's
-   rows, or the level above's, which has no stack */
-let keyed = (props: props): bool =>
-  props.stack_controls || above_shown(props);
-
-/* a way between the levels: up, back into the slide, the chip's, or none
-   (the crumb of where the outline is) */
-type level_go =
-  | Up
-  | Back
-  | Chip
-  | Here;
-
-let level_effect = (on: handlers, go: level_go): Effect.t(unit) =>
-  switch (go) {
-  | Up => on.go_above(true)
-  | Back => on.go_above(false)
-  | Chip => on.above_chip
-  | Here => Effect.Ignore
-  };
-
-/* the crumbs a level draws (label, title, click): in a slide before its
-   own, above it in their place */
-let level_crumbs = (level: level): list((string, string, level_go)) =>
-  switch (level) {
-  | Plain => []
-  | InSlide(a) => [(a.a_label, a.a_out, Up)]
-  | Enclosing(a, slide) => [
-      (a.a_label, a.a_here, Here),
-      (short_name(slide), "back into " ++ slide, Back),
-    ]
-  };
-
-let level_chip = (level: level): option((string, string)) =>
-  switch (level) {
-  | Enclosing(a, _) => a.a_chip
-  | Plain
-  | InSlide(_) => None
-  };
-
-/* the level above's rows after its document's (label, title): the
-   slide, to go back into */
-let level_rows = (level: level): list((string, string)) =>
-  switch (level) {
-  | Enclosing(_, slide) => [(short_name(slide), "back into " ++ slide)]
-  | Plain
-  | InSlide(_) => []
-  };
-
-let level_rows_view = (~on: handlers, level: level): list(Node.t) =>
-  List.map(
-    ((label, title)) =>
-      div(
-        ~attrs=[clss(["outline-leaf"])],
-        [
-          div(
-            ~attrs=[
-              clss(["outline-label", "ol-slide"]),
-              Attr.title(title),
-              Attr.on_click(_ => stop(level_effect(on, Back))),
-            ],
-            [
-              span(~attrs=[clss(["outline-glyph"])], [text({js|⊞|js})]),
-              text(label),
-            ],
-          ),
-        ],
-      ),
-    level_rows(level),
-  );
-
 /* a row's click: with a stack open, add or move to its cell (a jump would
    target the hidden master) */
 let show = (props: props, on: handlers, id: Language.Id.t): Effect.t(unit) =>
@@ -1120,7 +1020,7 @@ let rec node_view =
                 ),
               ])
             | (None, _) =>
-              keyed(props)
+              props.stack_controls
                 ? take_cursor(on, Some(row_path))
                 : Effect.Many([Effect.Prevent_default, take_focus])
             }
@@ -1176,7 +1076,7 @@ let rec node_view =
                 ? [
                   Attr.on_click(evt =>
                     stop(
-                      keyed(props)
+                      props.stack_controls
                         ? fold(~on, ~tm, row)
                         : Effect.of_sync_fun(
                             () => {
@@ -1320,7 +1220,7 @@ let rec node_view =
                the summary click dispatches the toggle and suppresses the
                native one */
             @ (
-              keyed(props)
+              props.stack_controls
                 ? [
                   Attr.on_click(_ =>
                     Effect.Many([
@@ -1781,10 +1681,6 @@ let keys =
       Option.map(id => on.def_op(MoveDown, id), item_of(r))
     | ("ArrowRight", true, false, Some(r)) when is_module(r) =>
       Option.map(on.zoom_in, id_of(r))
-    /* out of the slide's top: the level above, if any */
-    | ("ArrowLeft", true, false, _)
-        when props.header.h_trail == [] && props.header.h_level != Plain =>
-      Some(on.go_above(true))
     | ("ArrowLeft", true, false, _) => Some(on.zoom_out)
     | (_, false, true, Some(r)) when code == "KeyD" =>
       Option.map(id => on.def_op(Duplicate, id), item_of(r))
@@ -1793,25 +1689,6 @@ let keys =
     | ("Delete", false, false, Some(r)) =>
       Option.map(id => on.def_op(Delete, id), item_of(r))
     | _ => None
-    };
-  /* the level above navigates only: no menus, opens, moves or deletes,
-     nothing above it, and ⌥→ from any row goes back into the slide */
-  let above_key = () =>
-    switch (key, alt, meta) {
-    | (".", _, true)
-    | ("F10", _, _)
-    | (" ", _, _)
-    | ("ArrowUp" | "ArrowDown", true, _)
-    | ("ArrowLeft", true, _)
-    | ("Backspace" | "Delete", _, _) => Some(Effect.Ignore)
-    | (_, _, true) when code == "KeyD" => Some(Effect.Ignore)
-    | ("ArrowRight", true, false) => Some(on.go_above(false))
-    | _ => None
-    };
-  let row_key = () =>
-    switch (above_shown(props) ? above_key() : None) {
-    | Some(_) as eff => eff
-    | None => nav_key()
     };
   /* text mode: the outline as a text area of names (OutlineEdit) */
   let text_key = (t: E.t): verdict =>
@@ -2019,14 +1896,14 @@ let keys =
       Own(Effect.Ignore)
     | (Some(t), _, _, _) => text_key(t)
     | (None, "Enter", true, _)
-    | (None, "F2", _, _) when !above_shown(props) =>
+    | (None, "F2", _, _) =>
       switch (cur, n) {
       | (Some(r), _) => Act(start_text(~on, r))
       | (None, 0) => Pass(Effect.Ignore)
       | (None, _) => Act(start_text(~on, visible[0]))
       }
     | (None, _, _, _) =>
-      switch (row_key()) {
+      switch (nav_key()) {
       | Some(eff) => Act(eff)
       | None => Pass(Effect.Ignore)
       }
@@ -2111,46 +1988,6 @@ let header_view =
         crumbs,
       ),
     );
-  /* a level above: its crumb leads, or at it its crumbs and chip are all */
-  let level_nodes =
-    List.map(
-      ((label, title, go)) =>
-        span(
-          ~attrs=[
-            clss(
-              ["outline-crumb"] @ (go == Here ? ["outline-crumb-here"] : []),
-            ),
-            Attr.title(title),
-            Attr.on_click(_ => stop(level_effect(on, go))),
-          ],
-          [text(label)],
-        ),
-      level_crumbs(header.h_level),
-    );
-  let chip =
-    switch (level_chip(header.h_level)) {
-    | Some((label, title)) => [
-        span(
-          ~attrs=[
-            clss(["outline-crumb-chip"]),
-            Attr.title(title),
-            Attr.on_click(_ => stop(level_effect(on, Chip))),
-          ],
-          [text(label)],
-        ),
-      ]
-    | None => []
-    };
-  let crumb_nodes =
-    switch (header.h_level) {
-    | Plain => crumb_nodes
-    | InSlide(_) => List.concat_map(c => [c, sep], level_nodes) @ crumb_nodes
-    | Enclosing(_) =>
-      List.concat(
-        List.mapi((i, c) => i == 0 ? [c] : [sep, c], level_nodes),
-      )
-      @ chip
-    };
   let tail =
     header.h_open > 0
       ? [
@@ -2329,8 +2166,7 @@ let view = (~props: props, ~on: handlers, outline: OutlineTree.t): Node.t => {
       )
     | _ => None
     };
-  /* the level above has no stack, but its keys and its crumbs back */
-  let keyed = keyed(props);
+  let keyed = props.stack_controls;
   create(
     "details",
     ~attrs=
@@ -2400,17 +2236,14 @@ let view = (~props: props, ~on: handlers, outline: OutlineTree.t): Node.t => {
               ]
               : []
           ),
-        (
-          roots == []
-            ? [
-              div(
-                ~attrs=[clss(["outline-empty"])],
-                [text("no definitions")],
-              ),
-            ]
-            : rows_view(~props, ~on, ~tm, ~path=root_path, roots)
-        )
-        @ level_rows_view(~on, props.header.h_level),
+        roots == []
+          ? [
+            div(
+              ~attrs=[clss(["outline-empty"])],
+              [text("no definitions")],
+            ),
+          ]
+          : rows_view(~props, ~on, ~tm, ~path=root_path, roots),
       ),
     ]
     @ (

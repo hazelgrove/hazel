@@ -2790,29 +2790,6 @@ let for_make_term = (seg: Segment.t): (Segment.t, list(shard_record)) => {
  * re-molded (see [remolded]). parity with complete_segment_deep is
  * test-gated */
 
-/* [f(item)] from [cache], keyed by (sort, first piece id) and valid while
-   the item's pieces are physically the ones it was computed for */
-let by_pieces =
-    (
-      cache: Swept.t((Sort.t, Id.t), (Segment.t, 'r)),
-      ~sort: Sort.t,
-      f: Segment.t => 'r,
-      item: Segment.t,
-    )
-    : 'r =>
-  switch (item) {
-  | [] => f(item)
-  | [p, ..._] =>
-    let key = (sort, Piece.id(p));
-    switch (Swept.find_opt(cache, key)) {
-    | Some((ps, r)) when Segment.ptr_eq(ps, item) => r
-    | _ =>
-      let r = f(item);
-      Swept.replace(cache, key, (item, r));
-      r;
-    };
-  };
-
 /* each item's last completion, and what followed it (a member part's
    completion reads it). keyed by sort since items are read at Exp for
    decorations and at the root for semantics; shared by all editors */
