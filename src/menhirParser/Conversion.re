@@ -559,7 +559,12 @@ and Typ: {
     | Label(s) => LabelType(s)
     | ExplicitNonlabel => (ExplicitNonlabel: AST.typ)
     | TupLabel(t1, t2) => TupLabelType(of_core(t1), of_core(t2))
-    | ModuleVar(m) => TypVar(m)
+    | Path({root, modules, member}) =>
+      List.fold_left(
+        (acc: AST.typ, l) => AST.ProdProjection(acc, AST.LabelType(l)),
+        AST.TypVar(root),
+        modules @ [member],
+      )
     | ProdProjection(t1, t2) => ProdProjection(of_core(t1), of_core(t2))
     | ProdExtension(t1, t2) => ProdExtension(of_core(t1), of_core(t2))
     | Sum([]) => VoidType

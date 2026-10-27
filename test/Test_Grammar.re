@@ -158,7 +158,7 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
       | List => list(unknown(Hole(EmptyHole)))
       | Arrow => arrow(unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole)))
       | Var => var("x")
-      | ModuleVar => module_var("M")
+      | Path => path("M", [], "T")
       | Prod => prod([])
       | TupLabel =>
         tup_label(unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole)))

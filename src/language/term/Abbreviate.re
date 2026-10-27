@@ -1634,7 +1634,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
           available := available^ - 1; /* "=" */
           TupLabel(abbreviate_typ(t1), abbreviate_typ(t2));
         }
-      | ModuleVar(_) as t => t
+      | Path(_) as t => t
       | ProdProjection(t1, t2) =>
         if (available^ <= 3) {
           available := available^ - 1;

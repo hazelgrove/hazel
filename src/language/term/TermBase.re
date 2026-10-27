@@ -719,7 +719,7 @@ and Typ: {
               variants,
             ),
           )
-        | ModuleVar(_) as t => t
+        | Path(_) as t => t
         | ProdProjection(t1, t2) =>
           ProdProjection(typ_map_term(t1), typ_map_term(t2))
         | ProdExtension(t1, t2) =>

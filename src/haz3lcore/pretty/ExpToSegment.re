@@ -340,13 +340,13 @@ let external_precedence_typ = (tp: Typ.t) =>
   | Unknown(SynSwitch)
   | Unknown(Hole(EmptyHole))
   | Var(_)
-  | ModuleVar(_)
   | Atom(_)
   | DrvQuoteTy(_)
   | Label(_)
   | ExplicitNonlabel
   | TupLabel(_) => Precedence.max
-  | ProdProjection(_) => Precedence.dot
+  | ProdProjection(_)
+  | Path(_) => Precedence.dot
   | ProdExtension(_) => Precedence.ap
   // Same goes for forms which are already surrounded
   | Parens(_)
@@ -850,7 +850,7 @@ and parenthesize_typ =
   switch (term) {
   // Indivisible forms dont' change
   | Var(_)
-  | ModuleVar(_)
+  | Path(_)
   | Unknown(Hole(Invalid(_)))
   | Unknown(Internal)
   | Unknown(SynSwitch)
@@ -2958,8 +2958,8 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
           )
       };
     wrap(typ, seg);
-  | Var(v)
-  | ModuleVar(v) => wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, v))
+  | Var(v) => wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, v))
+  | Path(p) => typ_to_pretty(~settings, Typ.path_to_projection(p))
   | Atom(a) =>
     wrap(
       typ,

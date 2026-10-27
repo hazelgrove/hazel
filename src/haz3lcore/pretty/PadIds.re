@@ -134,7 +134,7 @@ let rec pad_variant_anns = (ty: Typ.t): Typ.t => {
     | Rec(tp, t) => Rec(tp, pad_variant_anns(t))
     | Poly(tp, t) => Poly(tp, pad_variant_anns(t))
     | Projector(d, t) => Projector(d, pad_variant_anns(t))
-    | ModuleVar(_) as t => t
+    | Path(_) as t => t
     | ProdProjection(t1, t2) =>
       ProdProjection(pad_variant_anns(t1), pad_variant_anns(t2))
     | ProdExtension(t1, t2) =>

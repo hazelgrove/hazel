@@ -101,10 +101,11 @@ and typ_term('a) =
   | Atom(Atom.cls)
   | DrvQuoteTy(DrvSort.t)
   | Var(string)
-  /* The root of a module type path, `M` in `M.T`: a value variable, not a
-     type variable. Statics gives it to a projection's root when the type is
-     closed (Typ.close); it is not written. */
-  | ModuleVar(string)
+  /* A module type path, `M.N.T`: the module variable, the sub-modules
+     stepped through, and the member named last. Statics closes a written
+     projection chain rooted at a module to it (Typ.close); it is not
+     written, and prints as the chain. */
+  | Path(typ_path)
   | List(typ_t('a))
   | Arrow(typ_t('a), typ_t('a))
   | Sum(ConstructorMap.t(typ_t('a)))
@@ -121,6 +122,11 @@ and typ_term('a) =
   | ProdExtension(typ_t('a), typ_t('a))
   | Sig(list(sig_t('a)))
 and typ_t('a) = Annotated.t(typ_term('a), 'a)
+and typ_path = {
+  root: string,
+  modules: list(string),
+  member: string,
+}
 and tpat_term('a) =
   | Invalid(string)
   | EmptyHole
@@ -373,7 +379,7 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
         | Atom(c) => Atom(c)
         | DrvQuoteTy(s) => DrvQuoteTy(s)
         | Var(s) => Var(s)
-        | ModuleVar(s) => ModuleVar(s)
+        | Path(p) => Path(p)
         | List(t) => List(map_typ_annotation(f, t))
         | Arrow(t1, t2) =>
           Arrow(map_typ_annotation(f, t1), map_typ_annotation(f, t2))
@@ -945,8 +951,13 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: ProdProjection(t1, t2),
       annotation: default_annotation(ann),
     };
-    let module_var = (~ann=?, m): typ_t(DefaultAnnotation.t) => {
-      term: ModuleVar(m),
+    let path = (~ann=?, root, modules, member): typ_t(DefaultAnnotation.t) => {
+      term:
+        Path({
+          root,
+          modules,
+          member,
+        }),
       annotation: default_annotation(ann),
     };
     let prod_extension = (~ann=?, t1, t2): typ_t(DefaultAnnotation.t) => {

@@ -274,7 +274,7 @@ and in_typ = (env: Environment.t(Exp.t), typ: Typ.t) =>
         | Rec(_, _)
         | Poly(_, _)
         | ProdProjection(_, _)
-        | ModuleVar(_)
+        | Path(_)
         | ProdExtension(_, _)
         | ProofOf(_)
         | DrvQuoteTy(_) => cont(t)

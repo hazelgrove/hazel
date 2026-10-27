@@ -4185,7 +4185,7 @@ and utyp_to_info_map =
     | (TypeExpected | ProductExpected, ProdProjection(pty, l)) =>
       let whole_path =
         switch (expects) {
-        | ProductExpected => Typ.path_sig(ctx, Typ.close_root(ctx, utyp))
+        | ProductExpected => Typ.projection_left_sig(ctx, utyp)
         | _ => None
         };
       /* The projected type, or [missing] when the label names nothing. */
@@ -4200,11 +4200,7 @@ and utyp_to_info_map =
           )
         | None => ok(Message.TypeUnderdetermined(missing))
         };
-      switch (
-        whole_path,
-        Typ.path_sig(ctx, Typ.close_root(ctx, pty)),
-        l.term,
-      ) {
+      switch (whole_path, Typ.projection_left_sig(ctx, pty), l.term) {
       | (Some(items), _, _) =>
         /* A module path (`M.P`) used as the left of a further projection. */
         ok(Message.Type(Sig(items) |> Typ.temp))
@@ -4290,7 +4286,7 @@ and utyp_to_info_map =
         )
       }
     | (ProductExpected, _) =>
-      switch (Typ.path_sig(ctx, Typ.close_root(ctx, utyp))) {
+      switch (Typ.projection_left_sig(ctx, utyp)) {
       | Some(items) =>
         /* A module variable used as the left of a type projection. */
         ok(Message.Type(Sig(items) |> Typ.temp))
@@ -4412,7 +4408,7 @@ and utyp_to_info_map =
   | DrvQuoteTy(_) => add(m)
   | Atom(_) => add(m)
   | Var(_)
-  | ModuleVar(_) =>
+  | Path(_) =>
     /* Names are resolved in this function's status rules */
     add(m)
   | List(t)
@@ -4447,7 +4443,7 @@ and utyp_to_info_map =
     add(m);
   | ProdProjection(t, label) =>
     let label_expects: TypExpectation.t =
-      switch (Typ.path_sig(ctx, Typ.close_root(ctx, t))) {
+      switch (Typ.projection_left_sig(ctx, t)) {
       | Some(items) =>
         /* In the middle of a path (`M.P.T`) the label names a sub-module;
            at the end it names a type member. */

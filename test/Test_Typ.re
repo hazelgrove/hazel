@@ -844,8 +844,49 @@ let sig_tests = {
           check(
             typ,
             "a module's name roots as a module variable",
-            F.Typ.prod_projection(F.Typ.module_var("M"), F.Typ.label("U")),
+            F.Typ.path("M", [], "U"),
             Typ.close(Ctx.extend(ctx, module_entry), m_u),
+          );
+          let m_n_u =
+            F.Typ.prod_projection(
+              F.Typ.prod_projection(F.Typ.var("M"), F.Typ.label("N")),
+              F.Typ.label("U"),
+            );
+          let nested: Ctx.entry =
+            VarEntry({
+              name: "M",
+              id: Id.mk(),
+              typ:
+                sg([
+                  F.Sig.sig_module(
+                    F.MPat.asc(F.MPat.var("N"), sg([st("U", ti)])),
+                  ),
+                  st(
+                    "P",
+                    F.Typ.prod([F.Typ.tup_label(F.Typ.label("x"), ti)]),
+                  ),
+                ]),
+              custom_statics: None,
+            });
+          check(
+            typ,
+            "a sub-module step is part of the path",
+            F.Typ.path("M", ["N"], "U"),
+            Typ.close(Ctx.extend(ctx, nested), m_n_u),
+          );
+          let m_p_x =
+            F.Typ.prod_projection(
+              F.Typ.prod_projection(F.Typ.var("M"), F.Typ.label("P")),
+              F.Typ.label("x"),
+            );
+          check(
+            typ,
+            "a label after the member projects its type as a tuple",
+            F.Typ.prod_projection(
+              F.Typ.path("M", [], "P"),
+              F.Typ.label("x"),
+            ),
+            Typ.close(Ctx.extend(ctx, nested), m_p_x),
           );
           let s_u = F.Typ.prod_projection(F.Typ.var("S"), F.Typ.label("U"));
           check(
@@ -883,8 +924,7 @@ let sig_tests = {
               Typ.close(ctx, sg([st("T", ti), sv("x", F.Typ.var("T"))])),
             ),
           );
-          let p_u =
-            F.Typ.prod_projection(F.Typ.module_var("P"), F.Typ.label("U"));
+          let p_u = F.Typ.path("P", [], "U");
           check(
             list(string),
             "module_vars: path roots only",
