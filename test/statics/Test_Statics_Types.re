@@ -492,6 +492,41 @@ let defined_as_itself = (name, source, defined_as_themselves, error_count) =>
     },
   );
 
+/* Every type the inspector shows, read back in the scope it is shown in,
+   means the same type: each name in a displayed type still means there
+   what it meant where the type was closed. Reading back is what a reader
+   does with the display: a path is the chain it prints as, and the type is
+   closed again where the cursor is. */
+let displayed_types_read_back = (name, source) =>
+  test_case(name, `Quick, () =>
+    statics(parse_exp(source))
+    |> Id.Map.iter((id, info: Info.t) =>
+         if (id == Info.id_of(info)) {
+           switch (info) {
+           | InfoExp({ty, ctx, _})
+           | InfoPat({ty, ctx, _}) =>
+             let as_written =
+               Typ.map_term(
+                 ~f_typ=
+                   (continue, t) =>
+                     switch (Typ.term_of(t)) {
+                     | Path(p) => Typ.path_to_projection(p)
+                     | _ => continue(t)
+                     },
+                 ty,
+               );
+             check(
+               testable_typ,
+               Typ.pretty_print(ty) ++ " read back in scope",
+               Typ.normalize(ctx, ty),
+               Typ.normalize(ctx, Typ.close(ctx, as_written)),
+             );
+           | _ => ()
+           };
+         }
+       )
+  );
+
 let tests = (
   "Statics.Types",
   [
@@ -764,8 +799,32 @@ let tests = (
         ),
       ),
     ),
+    displayed_types_read_back(
+      "displayed types read back: an alias shadowing an alias",
+      "type T = Int in let x : T = 1 in type T = Bool in let y : T = true in (x, y)",
+    ),
+    displayed_types_read_back(
+      "displayed types read back: a type function shadowing a type function",
+      "typfun T -> fun (t : T) -> typfun T -> fun (u : T) -> (t, u)",
+    ),
+    displayed_types_read_back(
+      "displayed types read back: a module shadowing a module",
+      "module M = { type T = Int } in let x : M.T = 1 in module M = { type T = Bool } in let y : M.T = true in (x, y)",
+    ),
+    displayed_types_read_back(
+      "displayed types read back: an alias shadowing a module",
+      "module M = { type T = Int } in let x : M.T = 1 in type M = Bool in let y : M = true in (x, y)",
+    ),
+    displayed_types_read_back(
+      "displayed types read back: a module shadowing an alias",
+      "type M = Bool in let y : M = true in module M = { type T = Int } in let x : M.T = 1 in (x, y)",
+    ),
+    displayed_types_read_back(
+      "displayed types read back: nested paths and a signature alias",
+      "module M = { module N = { type T = Int } } in type S = { type U = Bool } in let z : M.N.T = 1 in let w : S.U = true in (z, w)",
+    ),
     fully_consistent_typecheck(
-      "an alias named like a module in scope captures no earlier path, which roots at the module variable",
+      "an alias named like a module in scope is primed, so paths keep reading as the module",
       {|module M = { type U = Int } in let x : M.U = 1 in type M = Bool in x + 1|},
       Some(FTemp.Typ.int()),
     ),

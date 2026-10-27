@@ -1178,18 +1178,15 @@ let unshadow_tests = {
         )
       ),
       test_case(
-        "a name bound to a module binds as written: paths root at module variables",
-        `Quick,
-        () =>
+        "a name bound to a module is primed: its paths print by it", `Quick, () =>
         check(
-          bool,
-          "no renaming",
-          true,
-          Option.is_none(
-            Typ.unshadow(
-              Ctx.extend(Ctx.empty, module_("M", [st("U", F.Typ.int())])),
-              "M",
-            ),
+          string,
+          "M",
+          "M'",
+          renaming(
+            Ctx.extend(Ctx.empty, module_("M", [st("U", F.Typ.int())])),
+            "M",
+            "M",
           ),
         )
       ),

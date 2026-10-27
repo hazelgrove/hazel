@@ -828,13 +828,21 @@ let rename_vars = (f: string => string, ty: t): t =>
     ty,
   );
 
-/* Whether binding type name `name` over ctx would change what a type
-   already in ctx means: the name is bound as a type, so mentions of it
-   would come to mean the new binding, or an alias mentions it while it is
-   unbound. A module variable is not captured: paths root at it by
-   a path, not by name in the type namespace. */
+/* Whether a type binder named `name` would reuse a name that the types in
+   scope read by: `name` is bound as a type, or as a module, whose paths
+   print by it, or an alias mentions it while it is unbound. A type closed
+   earlier keeps its meaning either way; what binding under the same name
+   would break is reading it where it is shown. Statics binds such a name
+   under a fresh one (`unshadow`), so every name in a displayed type still
+   means in that scope what it meant where the type was closed. */
 let would_capture = (ctx: Ctx.t, name: string): bool =>
   Option.is_some(Ctx.lookup_tvar(ctx, name))
+  || (
+    switch (Ctx.lookup_var(ctx, name)) {
+    | Some({typ, _}) => Option.is_some(as_sig(ctx, typ))
+    | None => false
+    }
+  )
   || List.exists(
        fun
        | Ctx.TVarEntry({kind: Singleton(ty), _}) =>
