@@ -357,6 +357,24 @@ let refuted_control =
 let alias_call = "exists([1, 2], fun (x : Int) -> x > 1)";
 let any_call = "any([1, 2], fun (x : Int) -> x > 1)";
 
+/* B1 (independent review): a first-order witness built with a PARTIAL
+   builtin is not standard, so the existential must not become Proven,
+   even though `refl_eq` closes the instantiated body. Control: a literal
+   witness is Proven by the same proof shape. */
+let b1_head =
+  "theorem w = exists (n : Int) -> n == (head([]) : Int) proof\n"
+  ++ "  == true by witness (head([]) : Int) end;\n"
+  ++ "  axiom refl_eq at 0 on (head([]) : Int) == (head([]) : Int) end\nin 0";
+
+let b1_tail =
+  "theorem w = exists (l : [Int]) -> l == (tail([]) : [Int]) proof\n"
+  ++ "  == true by witness (tail([]) : [Int]) end;\n"
+  ++ "  axiom refl_eq at 0 on (tail([]) : [Int]) == (tail([]) : [Int]) end\nin 0";
+
+let b1_control =
+  "theorem w = exists (n : Int) -> n == 3 proof\n"
+  ++ "  == true by witness 3 end;\n  axiom refl_eq at 0 on 3 == 3 end\nin 0";
+
 let roundtrip_programs = [
   ("exists", "exists (n : Int) -> n * n == 9"),
   ("valued", "!!(1, [2])"),
@@ -549,6 +567,19 @@ let tests = (
       let w4 = node(o4, "w", RelEqBy);
       check(list(string), "case variable accepted as a witness", [], refused_rules(w4));
       check(bool, "shadowing case variable is not auto-standard", true, pending(w4) >= 1);
+    }),
+    test_case("B1: partial-builtin first-order witness is never Proven (literal control is)", `Quick, () => {
+      let c = observe("b1_control", b1_control);
+      valid("b1_control", c);
+      check(string, "control: literal witness + refl_eq", "Proven", full(c, "w"));
+      List.iter(
+        ((label, src)) => {
+          let o = observe(label, src);
+          valid(label, o);
+          check(bool, label ++ ": not Proven", false, full(o, "w") == "Proven");
+        },
+        [("b1_head", b1_head), ("b1_tail", b1_tail)],
+      );
     }),
     test_case("existing status untouched: a witness-free false proof is still Refuted", `Quick, () => {
       let o = observe("refuted_control", refuted_control);
