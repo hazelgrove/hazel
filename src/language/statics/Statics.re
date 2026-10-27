@@ -2270,9 +2270,21 @@ and uexp_to_info_map =
     | TypFun(utpat, body, tfname) =>
       let (name_expected_opt, item) =
         MatchedTyp.poly_pair_tolerant(ctx, ana);
-      let (mode_body, ctx_body) =
+      let m =
+        utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m)
+        |> snd;
+      let (utpat, body, mode_body, ctx_body) =
         switch (TPat.tyvar_of_utpat(utpat)) {
         | Some(name) when !Ctx.is_base_typ(name) =>
+          let (name, utpat, body) =
+            switch (Typ.unshadow(ctx, name)) {
+            | None => (name, utpat, body)
+            | Some(f) => (
+                f(name),
+                TPat.rename(f, utpat),
+                Exp.rename_tvars(f, body),
+              )
+            };
           let mode_body =
             switch (name_expected_opt) {
             | Some(name_expected) =>
@@ -2280,21 +2292,18 @@ and uexp_to_info_map =
             | None => item
             };
           let ctx_body =
-            Typ.extend_ctx(
+            Ctx.extend_tvar(
               ctx,
-              TVarEntry({
+              {
                 name,
                 id: TPat.rep_id(utpat),
                 kind: Abstract,
-              }),
+              },
             );
-          (mode_body, ctx_body);
+          (utpat, body, mode_body, ctx_body);
         | Some(_)
-        | None => (item, ctx)
+        | None => (utpat, body, item, ctx)
         };
-      let m =
-        utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m)
-        |> snd;
       let (body, body_elab, m) = go(~ctx=ctx_body, ~ana=mode_body, body, m);
       add(
         ~elab_term=TypFun(utpat, body_elab, tfname) |> rewrap,
@@ -2634,6 +2643,16 @@ and uexp_to_info_map =
         |> snd;
       switch (typat.term) {
       | Var(name) when !Ctx.is_base_typ(name) =>
+        let (name, typat, utyp, body) =
+          switch (Typ.unshadow(ctx, name)) {
+          | None => (name, typat, utyp, body)
+          | Some(f) => (
+              f(name),
+              TPat.rename(f, typat),
+              Typ.rename_vars(f, utyp),
+              Exp.rename_tvars(f, body),
+            )
+          };
         /* NOTE(andrew): Currently, Typ.to_typ returns Unknown(TypeHole)
            for any type variable reference not in its ctx. So any free variables
            in the definition would be obliterated. But we need to check for free
@@ -2641,14 +2660,7 @@ and uexp_to_info_map =
            tentatively add an abtract type to the ctx, representing the
            speculative rec parameter. */
         let extend_alias = ty =>
-          Typ.extend_ctx(
-            ctx,
-            TVarEntry({
-              name,
-              id: TPat.rep_id(typat),
-              kind: Singleton(ty),
-            }),
-          );
+          Ctx.extend_alias(ctx, name, TPat.rep_id(typat), ty);
         let def = Typ.close(ctx, utyp);
         let (ty_def, ctx_def, ctx_body) = {
           switch (def.term) {
@@ -4596,6 +4608,17 @@ and utyp_to_info_map =
       );
     add(m);
   | Poly({term: Var(name), _} as utpat, tbody) =>
+    let m =
+      utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
+    let (name, utpat, tbody) =
+      switch (Typ.unshadow(ctx, name)) {
+      | None => (name, utpat, tbody)
+      | Some(f) => (
+          f(name),
+          TPat.rename(f, utpat),
+          Typ.rename_vars(f, tbody),
+        )
+      };
     let body_ctx =
       Ctx.extend_tvar(
         ctx,
@@ -4614,8 +4637,6 @@ and utyp_to_info_map =
         m,
       )
       |> snd;
-    let m =
-      utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
     add(m); // TODO: check with andrew
   | Poly(utpat, tbody) =>
     let m =
@@ -4641,6 +4662,15 @@ and utyp_to_info_map =
       );
     add(m);
   | Rec({term: Var(name), _} as utpat, tbody) =>
+    let m =
+      utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
+    let (name, utyp, tbody) =
+      switch (Typ.unshadow(ctx, name)) {
+      | None => (name, utyp, tbody)
+      | Some(f) =>
+        let utyp = Typ.rename_vars(f, utyp);
+        (f(name), utyp, Typ.rename_vars(f, tbody));
+      };
     let body_ctx =
       Ctx.extend_tvar(
         ctx,
@@ -4659,8 +4689,6 @@ and utyp_to_info_map =
         m,
       )
       |> snd;
-    let m =
-      utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
     add(m); // TODO: check with andrew
   | Rec(utpat, tbody) =>
     let m =

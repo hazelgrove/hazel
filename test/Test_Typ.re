@@ -1037,6 +1037,150 @@ let subst_tests = {
   );
 };
 
+let unshadow_tests = {
+  let abstract = (name): Ctx.tvar_entry => {
+    name,
+    id: Id.mk(),
+    kind: Abstract,
+  };
+  let module_ = (name, items): Ctx.entry =>
+    VarEntry({
+      name,
+      id: Id.mk(),
+      typ: sg(items),
+      custom_statics: None,
+    });
+  let renaming = (ctx, name) =>
+    switch (Typ.unshadow(ctx, name)) {
+    | None => fail(name ++ " binds as written")
+    | Some(f) => f
+    };
+  (
+    "Typ.unshadow",
+    [
+      test_case("a name not in scope binds as written", `Quick, () =>
+        check(
+          bool,
+          "no renaming",
+          true,
+          Option.is_none(Typ.unshadow(Ctx.empty, "T")),
+        )
+      ),
+      test_case(
+        "a name in scope is primed, and only that name is renamed",
+        `Quick,
+        () => {
+          let f = renaming(Ctx.extend_tvar(Ctx.empty, abstract("T")), "T");
+          check(string, "T", "T'", f("T"));
+          check(string, "U", "U", f("U"));
+        },
+      ),
+      test_case("the prime is repeated until the name is fresh", `Quick, () =>
+        check(
+          string,
+          "T",
+          "T''",
+          renaming(
+            Ctx.extend_tvar(Ctx.empty, abstract("T"))
+            |> Ctx.extend_tvar(_, abstract("T'")),
+            "T",
+            "T",
+          ),
+        )
+      ),
+      test_case("a name an alias mentions while unbound is primed", `Quick, () =>
+        check(
+          string,
+          "T",
+          "T'",
+          renaming(
+            Ctx.extend_alias(Ctx.empty, "S", Id.mk(), Var("T") |> Typ.temp),
+            "T",
+            "T",
+          ),
+        )
+      ),
+      test_case(
+        "a name bound to a module is primed, since paths root at it",
+        `Quick,
+        () =>
+        check(
+          string,
+          "M",
+          "M'",
+          renaming(
+            Ctx.extend(Ctx.empty, module_("M", [st("U", F.Typ.int())])),
+            "M",
+            "M",
+          ),
+        )
+      ),
+      test_case(
+        "a name bound to a value that is no module binds as written",
+        `Quick,
+        () =>
+        check(
+          bool,
+          "no renaming",
+          true,
+          Option.is_none(
+            Typ.unshadow(
+              Ctx.extend(
+                Ctx.empty,
+                VarEntry({
+                  name: "a",
+                  id: Id.mk(),
+                  typ: F.Typ.int(),
+                  custom_statics: None,
+                }),
+              ),
+              "a",
+            ),
+          ),
+        )
+      ),
+      test_case(
+        "Typ.rename_vars renames a binder, its occurrences and path roots",
+        `Quick,
+        () =>
+        check(
+          typ,
+          "poly T -> (T, T.U, U)",
+          Poly(
+            Var("T'") |> TPat.temp,
+            Prod([
+              Var("T'") |> Typ.temp,
+              F.Typ.prod_projection(
+                Var("T'") |> Typ.temp,
+                F.Typ.label("U"),
+              ),
+              Var("U") |> Typ.temp,
+            ])
+            |> Typ.temp,
+          )
+          |> Typ.temp,
+          Typ.rename_vars(
+            renaming(Ctx.extend_tvar(Ctx.empty, abstract("T")), "T"),
+            Poly(
+              Var("T") |> TPat.temp,
+              Prod([
+                Var("T") |> Typ.temp,
+                F.Typ.prod_projection(
+                  Var("T") |> Typ.temp,
+                  F.Typ.label("U"),
+                ),
+                Var("U") |> Typ.temp,
+              ])
+              |> Typ.temp,
+            )
+            |> Typ.temp,
+          ),
+        )
+      ),
+    ],
+  );
+};
+
 let tests = [
   meet_tests,
   fun_in_tests,
@@ -1045,4 +1189,5 @@ let tests = [
   sig_tests,
   cyclic_path_tests,
   subst_tests,
+  unshadow_tests,
 ];
