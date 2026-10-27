@@ -159,6 +159,70 @@ let test_tuple_projection_class =
     },
   );
 
+let test_tuple_label_not_found_on_label =
+  Alcotest.test_case(
+    "A missing tuple label is reported on the label, not on the dot",
+    `Quick,
+    () => {
+      let check_source = src => {
+        Alcotest.(check(bool))(
+          "label marked: " ++ src,
+          true,
+          List.exists(
+            fun
+            | Language.Mark.LabelNotFound("y", ["x"]) => true
+            | _ => false,
+            marks_at(src, is_label("y")),
+          ),
+        );
+        Alcotest.(check(bool))(
+          "dot unmarked, with a message: " ++ src,
+          true,
+          exp_infos_at(src, is_dot)
+          |> List.for_all((info: Language.Info.exp) =>
+               switch (info.marks, info.message) {
+               | ([], Exp(TupleLabelNotFound("y", ["x"]))) => true
+               | _ => false
+               }
+             ),
+        );
+      };
+      check_source({|let t = (x = 1) in t.y|});
+      check_source({|let ts = [(x = 1)] in ts.y|});
+    },
+  );
+
+let test_tuple_label_at_element_type =
+  Alcotest.test_case(
+    "The label of `t.x` is at the element's type; a column's label at the element's",
+    `Quick,
+    () => {
+      /* The tuple comes from an annotation, so the only expression label
+         named x is the projection's. */
+      let label_type = src =>
+        exp_infos_at(src, is_label("x"))
+        |> List.map((info: Language.Info.exp) =>
+             Language.Typ.term_of(info.ty)
+           );
+      Alcotest.(check(bool))(
+        "tuple",
+        true,
+        switch (label_type({|fun (t : (x = Int)) -> t.x|})) {
+        | [Atom(Int)] => true
+        | _ => false
+        },
+      );
+      Alcotest.(check(bool))(
+        "list column",
+        true,
+        switch (label_type({|fun (ts : [(x = Int)]) -> ts.x|})) {
+        | [Atom(Int)] => true
+        | _ => false
+        },
+      );
+    },
+  );
+
 let test_type_member_as_value_dot_message =
   Alcotest.test_case(
     "Accessing a type member as a value: the dot says what the label says",
@@ -2199,6 +2263,8 @@ let tests = (
     test_no_type_members_mark,
     test_member_label_is_the_member,
     test_tuple_projection_class,
+    test_tuple_label_not_found_on_label,
+    test_tuple_label_at_element_type,
     test_type_member_as_value_dot_message,
     test_submodule_not_found_mark,
     test_value_used_as_module_path_mark,
