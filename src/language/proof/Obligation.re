@@ -24,6 +24,13 @@ type discharge =
    * evaluated to the literal `true`. Replayable in the stepper by
    * construction. */
   | Evaluated
+  /* A witness's standardness side condition `!!v` (exI), discharged by
+   * the structural standardness rules: `v` is a variable bound by a
+   * quantifier or `obtain` (D80 / someStd), a literal, a tuple/list of
+   * standard parts, a whitelisted TOTAL Int/Bool operation on standard
+   * operands, or a lambda whose body is standard for a standard
+   * parameter (std_fun). Builtins and everything else fail closed. */
+  | Structural
   /* Nothing in scope covers it. */
   | Pending;
 
@@ -76,6 +83,7 @@ let remote_fact = (ob: t): option((Var.t, Exp.t)) =>
        )
   | Local(_)
   | Evaluated
+  | Structural
   | Pending => None
   };
 
@@ -84,5 +92,6 @@ let is_pending = (ob: t): bool =>
   | Pending => true
   | Local(_)
   | Remote(_)
-  | Evaluated => false
+  | Evaluated
+  | Structural => false
   };

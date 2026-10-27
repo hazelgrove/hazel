@@ -104,6 +104,7 @@ let discharge_label = (ob: Obligation.t): string =>
   | Pending => "pending — nothing in scope covers this"
   | Evaluated => "discharged by evaluation"
   | Local(_) => "discharged by an inline subproof"
+  | Structural => "discharged by the standardness rules (binder origin / total form)"
   | Remote(_) =>
     switch (Obligation.remote_fact(ob)) {
     | Some((name, _)) => "discharged by " ++ fact_source(name)
@@ -116,6 +117,7 @@ let discharge_class = (ob: Obligation.t): string =>
   | Pending => "pending"
   | Evaluated => "evaluated"
   | Local(_) => "local"
+  | Structural => "structural"
   | Remote(_) => "remote"
   };
 

@@ -146,10 +146,14 @@ let rec proof_is_clean = (pm: t, proof: Proof.t): bool =>
  *
  * Mirrors the stepper's expression-validity convention
  * (`true` / `false` / unknown). */
-/* Does the proof contain a witness step (`== true by witness v end`)?
- * That step STRENGTHENS the goal: `P[v]` suffices for `exists x -> P`,
- * but `P[v]` being false refutes nothing (a wrong witness is not a
- * disproof). So a proof containing one can never read as `false`. */
+/* Does the proof's own GOAL FRAME contain a witness step
+ * (`== true by witness v end`)? That step STRENGTHENS the goal: `P[v]`
+ * suffices for `exists x -> P`, but `P[v]` being false refutes nothing (a
+ * wrong witness is not a disproof). So such a proof never reads as
+ * `false`. The frame is the chain whose outgoing is this proof's: `;`,
+ * parens and the goal-preserving wrappers. A `have` SUBPROOF proves a
+ * different goal and is not part of it (its own status is computed with
+ * its own frame). Proofs without a witness step are unaffected. */
 let rec has_witness_step = (proof: Proof.t): bool =>
   switch (proof.term) {
   | RelEqBy(_, j) =>
@@ -178,7 +182,7 @@ let rec has_witness_step = (proof: Proof.t): bool =>
   | Alias(_, _, p)
   | Revert(_, _, p)
   | Obtain(_, _, _, p) => has_witness_step(p)
-  | Have(_, sub, body) => has_witness_step(sub) || has_witness_step(body)
+  | Have(_, _sub, body) => has_witness_step(body)
   | Induction(_, _, cases) =>
     List.exists(((_, body)) => has_witness_step(body), cases)
   };

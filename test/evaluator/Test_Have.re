@@ -253,6 +253,7 @@ let test_split_discharges_in_true_branch = () => {
         | Remote(_) => true
         | Local(_)
         | Evaluated
+        | Structural
         | Pending => false
         },
       obs,

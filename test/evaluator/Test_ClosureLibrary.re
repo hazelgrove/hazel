@@ -797,6 +797,8 @@ let test_channel_distribution = () => {
             | Remote(_) => (r + 1, e, l, p)
             | Evaluated => (r, e + 1, l, p)
             | Local(_) => (r, e, l + 1, p)
+            /* Witness standardness only; no witness in these programs. */
+            | Structural => (r, e, l + 1, p)
             | Pending => (r, e, l, p + 1)
             },
           (r, e, l, p),

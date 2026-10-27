@@ -206,6 +206,23 @@ let out = (e: ProofMap.entry) =>
 let pending = (e: ProofMap.entry) =>
   List.filter(Obligation.is_pending, e.obligations) |> List.length;
 
+/* The witness's standardness side condition `!!v` and how it was
+   discharged ("Evaluated", "Structural", "(Remote …)", "Pending"). */
+let std_discharge = (e: ProofMap.entry): string =>
+  switch (
+    List.find_opt(
+      (o: Obligation.t) =>
+        switch (o.goal.term) {
+        | Valued(_) => true
+        | _ => false
+        },
+      e.obligations,
+    )
+  ) {
+  | Some(o) => Obligation.show_discharge(o.discharge)
+  | None => "NO !!v OBLIGATION"
+  };
+
 /* --- programs ------------------------------------------------------- */
 
 let sq9 = "exists (n : Int) -> n * n == 9";
@@ -238,6 +255,9 @@ let lambda_divergent =
 
 let lambda_total =
   "theorem w = exists (f : Int -> Int) -> f(1) == f(1) proof == true by witness fun (k : Int) -> k end in 0";
+
+let lambda_partial =
+  "theorem w = exists (f : Int -> Int) -> f(1) == f(1) proof == true by witness fun (k : Int) -> 1 / k end in 0";
 
 let open_scoped =
   "theorem w = forall (m : Int) -> exists (n : Int) -> n == m + 1 proof\n"
@@ -340,7 +360,7 @@ let fn_obtained =
   ++ "  obtain k as hk from he =>\n  == true by witness k end;\n  == true by hk end\nin 0";
 
 let fn_program =
-  "let idf = fun (k : Int) -> k in\n"
+  "let idf = fun (k : Int) -> 1 / k in\n"
   ++ "theorem w = exists (g : Int -> Int) -> g(0) == 0 proof == true by witness idf end in 0";
 
 let fn_case_shadow =
@@ -418,7 +438,8 @@ let tests = (
       let w = node(o, "w", RelEqBy);
       check(list(string), "no refusal", [], refused_rules(w));
       check(string, "instantiated body", "3 * 3 == 9", out(w));
-      check(int, "no obligations (first-order)", 0, List.length(w.obligations));
+      check(string, "!!3 discharged by evaluation", "Evaluated", std_discharge(w));
+      check(int, "nothing pending", 0, pending(w));
       check(int, "receipt", 1, List.length(w.substitutions));
       check(string, "full", "Proven", full(o, "w"));
     }),
@@ -459,7 +480,7 @@ let tests = (
       check(bool, "pending obligation", true, pending(w) >= 1);
       check(bool, "not Proven", false, full(o, "w") == "Proven");
     }),
-    test_case("lambda with divergent body refused; total lambda leaves !! pending", `Quick, () => {
+    test_case("lambda with divergent body refused; std_fun for a total lambda; partial lambda pending", `Quick, () => {
       let o = observe("lambda_divergent", lambda_divergent);
       let w = node(o, "w", RelEqBy);
       check(bool, "divergent lambda refused as divergent", true,
@@ -467,8 +488,11 @@ let tests = (
       let o2 = observe("lambda_total", lambda_total);
       let w2 = node(o2, "w", RelEqBy);
       check(list(string), "total lambda accepted", [], refused_rules(w2));
-      check(bool, "!!v obligation pending (functions are not auto-standard)", true, pending(w2) >= 1);
-      check(bool, "not Proven", false, full(o2, "w") == "Proven");
+      check(string, "std_fun: !!(fun k -> k) structural", "Structural", std_discharge(w2));
+      let o3 = observe("lambda_partial", lambda_partial);
+      let w3 = node(o3, "w", RelEqBy);
+      check(string, "fun k -> 1 / k is not standard", "Pending", std_discharge(w3));
+      check(bool, "not Proven", false, full(o3, "w") == "Proven");
     }),
     test_case("open scoped witness over a forall binder (D80 auto)", `Quick, () => {
       let o = observe("open_scoped", open_scoped);
@@ -476,7 +500,8 @@ let tests = (
       let w = node(o, "w", RelEqBy);
       check(list(string), "accepted", [], refused_rules(w));
       check(string, "instantiated", "m + 1 == m + 1", out(w));
-      check(int, "no obligations", 0, List.length(w.obligations));
+      check(string, "!!(m + 1) by the structural rules", "Structural", std_discharge(w));
+      check(int, "nothing pending", 0, pending(w));
     }),
     test_case("capturing witness refused", `Quick, () => {
       let o = observe("capture", capture);
@@ -511,7 +536,12 @@ let tests = (
     test_case("obtain: unknown / unavailable fact refused", `Quick, () => {
       let o = observe("obtain_unknown", obtain_unknown);
       check(bool, "static error", true, o.errors != []);
-      check(list(string), "unknown", ["obtain"], refused_rules(node(o, "t", Obtain)));
+      check(
+        list(string),
+        "unknown name (capture-aware citation path)",
+        ["(UnknownEquality \"nope\")"],
+        List.map(ProofMark.show, node(o, "t", Obtain).marks),
+      );
       let o2 = observe("obtain_unavailable", obtain_unavailable);
       check(list(string), "spelled-out but not a fact", ["obtain"], refused_rules(node(o2, "t", Obtain)));
     }),
@@ -553,20 +583,21 @@ let tests = (
       valid("fn_stmt_binder", o);
       let w = node(o, "w", RelEqBy);
       check(list(string), "accepted", [], refused_rules(w));
-      check(int, "no !!f obligation", 0, List.length(w.obligations));
+      check(string, "!!f: quantifier origin", "Structural", std_discharge(w));
+      check(int, "nothing pending", 0, pending(w));
       let o2 = observe("fn_obtained", fn_obtained);
       valid("fn_obtained", o2);
       let ws = nodes(o2, "w", RelEqBy);
-      check(int, "obtained k: no obligation", 0, List.length(List.hd(ws).obligations));
+      check(string, "!!k: obtain origin (someStd)", "Structural", std_discharge(List.hd(ws)));
       check(string, "full", "Proven", full(o2, "w"));
       let o3 = observe("fn_program", fn_program);
       let w3 = node(o3, "w", RelEqBy);
       check(list(string), "program lambda accepted as a witness", [], refused_rules(w3));
-      check(bool, "but its !!v stays pending", true, pending(w3) >= 1);
+      check(string, "its !!v stays pending", "Pending", std_discharge(w3));
       let o4 = observe("fn_case_shadow", fn_case_shadow);
       let w4 = node(o4, "w", RelEqBy);
       check(list(string), "case variable accepted as a witness", [], refused_rules(w4));
-      check(bool, "shadowing case variable is not auto-standard", true, pending(w4) >= 1);
+      check(string, "shadowing case variable is not auto-standard", "Pending", std_discharge(w4));
     }),
     test_case("B1: partial-builtin first-order witness is never Proven (literal control is)", `Quick, () => {
       let c = observe("b1_control", b1_control);
@@ -580,6 +611,24 @@ let tests = (
         },
         [("b1_head", b1_head), ("b1_tail", b1_tail)],
       );
+    }),
+    test_case("structural standardness judgement: total forms only, builtins fail closed", `Quick, () => {
+      let ctx =
+        SemanticCtx.of_ctx_and_env(
+          Builtins.ctx_init(Some(Operators.default_mode)),
+          Builtins.env_init,
+        );
+      let std = (~ctx=ctx, src) => ProofCheck.std_structural(ctx, parse_exp(src));
+      check(bool, "literal", true, std("3"));
+      check(bool, "tuple/list", true, std("(1, [true, false])"));
+      check(bool, "Int arithmetic on literals", true, std("1 + 2 * 3"));
+      check(bool, "division", false, std("6 / 2"));
+      check(bool, "builtin head", false, std("head([1])"));
+      check(bool, "std_fun total body", true, std("fun (k : Int) -> k + 1"));
+      check(bool, "std_fun partial body", false, std("fun (k : Int) -> 1 / k"));
+      check(bool, "untyped parameter", false, std("fun k -> k"));
+      check(bool, "unmarked variable", false, std("x"));
+      check(bool, "marked variable", true, std(~ctx=SemanticCtx.mark_standard(ctx, ["x"]), "x + 1"));
     }),
     test_case("existing status untouched: a witness-free false proof is still Refuted", `Quick, () => {
       let o = observe("refuted_control", refuted_control);

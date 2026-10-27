@@ -125,7 +125,12 @@ let tests = (
           model;
       switch (opened.open_box) {
       | WitnessOpen({editor, _}) =>
-        check(string, "blank", "", text(editor.editor.state.zipper))
+        check(
+          string,
+          "blank (nothing typed: an empty hole only)",
+          "",
+          Printer.of_zipper(~holes="", editor.editor.state.zipper),
+        )
       | _ => Alcotest.fail("Witness box not open")
       };
       let closed =

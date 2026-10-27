@@ -1489,20 +1489,47 @@ let var_names = (e: Exp.t): list(Var.t) => {
   acc^;
 };
 
-/* D80 automatic standardness for a witness of FIRST-ORDER type: with the
-   quantified/obtained binders standard, a structurally total term of
-   such a type is standard once its domain conditions hold (those are
-   incurred separately). Deliberately narrow: atoms, and lists/tuples of
-   them. Functions, ADTs, unknown and polymorphic types instead carry the
-   `!!v` obligation. */
-let rec first_order = (ty: Typ.t): bool =>
-  switch (Typ.term_of(ty)) {
+/* Structural standardness (fail closed). `e` is env-substituted, so
+   program names are already inlined: a remaining variable is a checker
+   binder, and only quantifier/`obtain` binders count (D80, someStd).
+   Total forms only: literals, tuples/lists of standard parts, Int
+   `+ - *` and comparisons, Bool `&& || !`, and a lambda whose body is
+   standard when its (typed, single) parameter is (std_fun). Builtins,
+   division, `==` at unknown type, constructors, closures and everything
+   else are NOT standard by this rule. */
+let rec std_structural = (ctx: SemanticCtx.t, e: Exp.t): bool => {
+  let go = std_structural(ctx);
+  switch (e.term) {
+  | Parens(e) => go(e)
+  | Var(x) => SemanticCtx.is_standard_var(ctx, x)
   | Atom(_) => true
-  | Parens(t)
-  | List(t) => first_order(t)
-  | Prod(ts) => List.for_all(first_order, ts)
+  | Tuple(es)
+  | ListLit(es) => List.for_all(go, es)
+  | Cons(a, b) => go(a) && go(b)
+  | BinOp(
+      Int(
+        Plus | Minus | Times | LessThan | LessThanOrEqual | GreaterThan |
+        GreaterThanOrEqual,
+      ),
+      a,
+      b,
+    )
+  | BinOp(Bool(And | Or), a, b) => go(a) && go(b)
+  | UnOp(Int(Minus), a)
+  | UnOp(Bool(Not), a) => go(a)
+  | Fun(p, body, _, _) =>
+    switch (single_binder(p)) {
+    | Some((x, Some(_))) =>
+      std_structural(
+        SemanticCtx.add_entry(ctx, Id.mk(), x, Typ.fresh(Unknown(Internal)), None)
+        |> SemanticCtx.mark_standard(_, [x]),
+        body,
+      )
+    | _ => false
+    }
   | _ => false
   };
+};
 
 /* `== true by witness v end` on an incoming `exists (y : T) -> P` (exI,
    kernel table: std v ⟹ P v ⟹ Ex P). Never establishes the existential
@@ -1581,26 +1608,27 @@ let witness_step =
                 c => incur_obligation(~step, ~ctx, ~origin, c),
                 conditions,
               );
-            /* D80 / someStd: a bare variable whose current binding is a
-             * quantifier or `obtain` binder is standard at ANY type,
-             * including functions. Program values are inlined by the
-             * substitution above, so they never reach this case. */
-            let logical_var =
-              switch (strip_parens_exp(v_sub).term) {
-              | Var(x) => SemanticCtx.is_standard_var(ctx, x)
-              | _ => false
+            /* exI side condition `!!v`, for EVERY witness, with its
+             * actual discharge: an in-scope fact, closed evaluation of
+             * `!!v` (dep-B valued_reduct), or the structural rules above.
+             * Never inferred from the binder's type. */
+            let std_goal = Exp.fresh(Valued(v_sub));
+            let discharge =
+              switch (discharge_goal(~step, ~ctx, std_goal)) {
+              | Obligation.Pending =>
+                std_structural(ctx, v_sub)
+                  ? Obligation.Structural : Obligation.Pending
+              | d => d
               };
-            let standard =
-              first_order(expected) || logical_var
-                ? []
-                : [
-                  incur_obligation(
-                    ~step,
-                    ~ctx,
-                    ~origin,
-                    Exp.fresh(Valued(v_sub)),
-                  ),
-                ];
+            let standard = [
+              Obligation.{
+                origin,
+                bindings: SemanticCtx.get_ctx(ctx).entries,
+                goal: std_goal,
+                display_goal: Exp.fresh(Valued(v)),
+                discharge,
+              },
+            ];
             /* A function-valued witness is spliced in parenthesized so the
                instantiated body reads back as `(fun k -> k)(1)`, not
                `fun k -> k(1)` (Parens are transparent to the checker). */
@@ -1624,6 +1652,29 @@ let witness_step =
       };
     }
   | _ => refuse("A witness needs an `exists` goal here.")
+  };
+};
+
+/* A fact NAME resolved for citation (`== true by h end`, `obtain … from h`)
+   through the same capture-aware theorem context `axiom` uses
+   (ProofCtx.of_theorem_ctx): the innermost entry of that name, refused
+   if a later binder rebound a name it mentions. */
+let usable_named_fact =
+    (ctx: SemanticCtx.t, name: string): result(Exp.t, ProofMark.t) => {
+  let pctx =
+    ProofCtx.of_theorem_ctx(~builtins=[], SemanticCtx.get_ctx(ctx));
+  switch (List.find_opt((e: ProofCtx.entry) => e.name == name, pctx)) {
+  | None => Error(ProofMark.UnknownEquality(name))
+  | Some(e) when e.is_captured =>
+    Error(
+      refused(
+        "captured",
+        "`"
+        ++ name
+        ++ "` mentions a name rebound since it was stated, so it cannot be cited here.",
+      ),
+    )
+  | Some(e) => Ok(e.exp)
   };
 };
 
@@ -2126,20 +2177,20 @@ let rec check =
             ),
           );
         | Cite(h) =>
-          switch (Ctx.lookup_theorem(SemanticCtx.get_ctx(ctx), h)) {
-          | Some({prop: Some(prop), _})
+          switch (usable_named_fact(ctx, h)) {
+          | Ok(prop)
               when
                 Exp.fast_equal(strip_eq_true(prop), strip_eq_true(goal)) =>
             let outgoing = Some(Exp.temp(Atom(Bool(true))));
             (outgoing, record(id, incoming, outgoing, ProofMap.empty));
-          | Some(_) =>
+          | Ok(_) =>
             pass([
               refused(
                 "cite",
                 "`" ++ h ++ "` does not state the current goal.",
               ),
             ])
-          | None => pass([ProofMark.UnknownEquality(h)])
+          | Error(mark) => pass([mark])
           }
         | _ =>
           pass([
@@ -2181,7 +2232,21 @@ let rec check =
       incoming,
       record(~marks, id, incoming, incoming, ProofMap.empty),
     );
-    let fact = cited_fact(~ctx, e);
+    /* A NAME goes through the capture-aware citation path; a spelled-out
+     * proposition must be FOUND among the facts (`lookup_fact`). */
+    let resolved: result(Exp.t, ProofMark.t) =
+      switch (strip_parens_exp(e).term) {
+      | Var(name) => usable_named_fact(ctx, name)
+      | _ =>
+        let fact = e |> Substitution.in_exp(SemanticCtx.get_env(ctx));
+        switch (lookup_fact(ctx, fact)) {
+        | Some(_) => Ok(fact)
+        | None =>
+          Error(
+            refused("obtain", "No fact in scope states this existential."),
+          )
+        };
+      };
     switch (incoming, Pat.get_var(x), Pat.get_var(h)) {
     | (None, _, _) => pass([ProofMark.MissingIncoming])
     | (_, None, _)
@@ -2193,15 +2258,14 @@ let rec check =
         ),
       ])
     | (Some(goal), Some(xn), Some(hn)) =>
-      switch (lookup_fact(ctx, fact), strip_parens_exp(fact).term) {
-      | (None, _) =>
-        pass([
-          refused(
-            "obtain",
-            "No fact in scope states this existential.",
-          ),
-        ])
-      | (Some(_), Exists(bp, p_body)) =>
+      let shape =
+        switch (resolved) {
+        | Ok(f) => Ok(strip_parens_exp(f).term)
+        | Error(m) => Error(m)
+        };
+      switch (resolved, shape) {
+      | (Error(mark), _) => pass([mark])
+      | (Ok(_), Ok(Exists(bp, p_body))) =>
         switch (single_binder(bp)) {
         | None =>
           pass([
@@ -2277,7 +2341,7 @@ let rec check =
             };
           };
         }
-      | (Some(_), _) =>
+      | (Ok(_), _) =>
         pass([refused("obtain", "This fact is not an `exists`.")])
       }
     }

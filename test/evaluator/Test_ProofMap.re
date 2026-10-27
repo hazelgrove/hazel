@@ -818,6 +818,7 @@ let test_nested_assume_discharges_remote = () => {
         | Remote(_) => true
         | Local(_)
         | Evaluated
+        | Structural
         | Pending => false
         },
       all,
