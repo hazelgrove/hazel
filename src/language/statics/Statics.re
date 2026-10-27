@@ -251,6 +251,7 @@ and uexp_to_info_map =
         ~inferred_label: option(string)=None,
         ~label_sort=false,
         ~dot_labels: list(string)=[],
+        ~cls: Cls.t=Cls.Exp(Exp.cls_of_term(user_term.term)),
         m: Map.t,
       )
       : (Info.exp, Exp.t, Map.t) => {
@@ -270,7 +271,6 @@ and uexp_to_info_map =
           },
         message,
       );
-    let cls = Cls.Exp(Exp.cls_of_term(uexp.term));
     let ty = fixed_typ(ctx, ana, elab_syn_ty);
     let self_id = Exp.rep_id(user_term);
     let probe_targets =
@@ -1530,276 +1530,207 @@ and uexp_to_info_map =
 
     | Dot(e1, e2) =>
       let (info_e1, e1_elab, m) = go(~ana=syn, e1, m);
-      /* Dot looks through one List level (column projection over a list
-         of labeled tuples), so the element head must be resolved too. */
-      let whnf_dot = ty => {
-        let ty = Typ.weak_head_normalize(ctx, ty);
-        switch (Typ.term_of(ty)) {
-        | List(inner) =>
-          let inner' = Typ.weak_head_normalize(ctx, inner);
-          inner' === inner
-            ? ty
-            : {
-              ...ty,
-              term: List(inner'),
-            };
-        | Rec(_) =>
-          switch (Typ.as_sig(ctx, ty)) {
-          | Some(items) => Sig(items) |> Typ.temp
-          | None => ty
-          }
-        | _ => ty
-        };
-      };
-      let e1_ty = whnf_dot(info_e1.ty);
-      let available_labels =
-        switch (e1_ty.term) {
-        | Prod(ts) =>
-          List.filter_map(Typ.match_tup_label, ts) |> List.map(fst)
-        | List({term: Prod(ts), _}) =>
-          List.filter_map(Typ.match_tup_label, ts) |> List.map(fst)
-        | Sig(items) => Sig.value_names(Sig.members(items))
-        | _ => []
-        };
-      /* `M.y`: the type of the module's value member y. When there is none,
-         the label is marked and the dot carries a message instead. */
-      let (module_member, label_marks) =
-        switch (e1_ty.term, e2.term) {
-        | (Sig(items), Label(name)) =>
-          switch (Typ.sig_project_value(items, name)) {
-          | Some(ty) => (Some(ty), [])
-          | None
-              when
-                List.exists(
-                  String.equal(name),
-                  Sig.type_names(Sig.members(items)),
-                ) => (
-              None,
-              [Mark.ModuleMemberIsType(name)],
-            )
-          | None => (
-              None,
-              [
-                Mark.ModuleMemberNotFound({
-                  name,
-                  members: available_labels,
-                }),
-              ],
-            )
-          }
-        | _ => (None, [])
-        };
-
-      /* Analyze label child, then patch with label_sort, dot_labels,
-         and correct self (Label produces UnexpectedLabelSort by default,
-         but in dot position it should be Just(Label(name))) */
-      let (info_e2, elab_e2, m) =
+      /* The label child, in dot position. A `Label` is a label here, with
+         [marks] and [message] of its own; anything else is analyzed as an
+         expression and tagged as being in label position. [labels] are
+         what could stand here, for completion. */
+      let label_child = (~marks, ~message=?, ~elab_syn_ty, labels, m) =>
         switch (e2.term) {
-        | Label(name) =>
+        | Label(_) =>
           add(
             ~user_term=e2,
             ~elab_term=e2,
             ~ancestors=ancestors_inclusive,
             ~ctx,
             ~ana=syn,
-            ~elab_syn_ty=Label(name) |> Typ.temp,
-            ~marks=label_marks,
+            ~elab_syn_ty,
+            ~marks,
+            ~message?,
             ~co_ctx=CoCtx.empty,
             ~label_inference=None,
             ~inferred_label=None,
-            ~dot_labels=available_labels,
+            ~dot_labels=labels,
             ~label_sort=true,
             ~warnings=[],
             m,
           )
         | _ =>
-          /* Malformed label — analyze via go to cover sub-expression IDs */
           let (info_e2, elab_e2, m) = go(~ana=syn, e2, m);
           (
             info_e2,
             elab_e2,
             m
             |> set_label_sort_exp(_, e2, true)
-            |> set_dot_labels_exp(_, e2, available_labels),
+            |> set_dot_labels_exp(_, e2, labels),
           );
         };
-
-      let dot_elab = Dot(e1_elab, elab_e2) |> rewrap;
-      let dot_co_ctx = CoCtx.union([info_e1.co_ctx, info_e2.co_ctx]);
-      let dot_probe_targets =
-        SubexpProbeTargets.union_all([
-          info_e1.probe_targets,
-          info_e2.probe_targets,
-        ]);
-
-      let (ty, m) = {
-        switch (info_e1.ty.term, info_e2.ty.term) {
-        | (Unknown(_), Label(name)) =>
-          // This is so that the statics will result in Unknown(Internal)
-          let ty =
-            Prod([
-              TupLabel(
-                Label(name) |> Typ.temp,
-                Unknown(Internal) |> Typ.temp,
-              )
-              |> Typ.temp,
-            ])
-            |> Typ.temp;
-          let (_, _, m) = go(~ana=ty, e1, m);
-          (ty, m);
-        | _ => (e1_ty, m)
-        };
-      };
-      switch (ty.term) {
-      | Prod(_)
-      | Sig(_) =>
-        switch (e2.term) {
-        | Label(name) =>
-          /* A tuple's labeled element, or a module's value member. */
-          let member =
-            switch (ty.term) {
-            | Prod(ts) =>
-              LabeledTuple.find_label(Typ.match_tup_label, ts, name)
-              |> Option.map((t: Typ.t) =>
-                   switch (t.term) {
-                   | TupLabel(_, typ) => typ
-                   | _ => t
-                   }
-                 )
-            | _ => module_member
-            };
-          switch (member, ty.term) {
-          | (Some(typ), _) =>
-            add(
-              ~elab_term=dot_elab,
-              ~elab_syn_ty=typ,
-              ~marks=[],
-              ~dot_labels=available_labels,
-              ~co_ctx=dot_co_ctx,
-              ~probe_targets=dot_probe_targets,
-              m,
-            )
-          | (None, Sig(_)) =>
-            add(
-              ~elab_term=dot_elab,
-              ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
-              ~marks=[],
-              ~message=
-                Message.Exp(
-                  ModuleMemberNotFound({
-                    name,
-                    members: available_labels,
-                  }),
-                ),
-              ~dot_labels=available_labels,
-              ~co_ctx=dot_co_ctx,
-              ~probe_targets=dot_probe_targets,
-              m,
-            )
-          | (None, _) =>
-            add(
-              ~elab_term=dot_elab,
-              ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
-              ~marks=[LabelNotFound(name, available_labels)],
-              ~dot_labels=available_labels,
-              ~co_ctx=dot_co_ctx,
-              ~probe_targets=dot_probe_targets,
-              m,
-            )
-          };
-        | EmptyHole =>
-          add(
-            ~elab_term=dot_elab,
-            ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+      let dot =
+          (
+            ~cls=?,
             ~marks=[],
-            ~dot_labels=available_labels,
-            ~co_ctx=dot_co_ctx,
-            ~probe_targets=dot_probe_targets,
-            m,
-          )
-        | _ =>
-          add(
-            ~elab_term=dot_elab,
-            ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
-            ~marks=[BadLabel(Exp(e2))],
-            ~dot_labels=available_labels,
-            ~co_ctx=dot_co_ctx,
-            ~probe_targets=dot_probe_targets,
-            m,
-          )
-        }
-      | List({term: Prod(ts), _}) =>
-        let labels =
-          List.filter_map(Typ.match_tup_label, ts) |> List.map(fst);
-
+            ~message=?,
+            ~elab_syn_ty,
+            labels,
+            (info_e2, elab_e2, m): (Info.exp, Exp.t, Map.t),
+          ) =>
+        add(
+          ~cls?,
+          ~elab_term=Dot(e1_elab, elab_e2) |> rewrap,
+          ~elab_syn_ty,
+          ~marks,
+          ~message?,
+          ~dot_labels=labels,
+          ~co_ctx=CoCtx.union([info_e1.co_ctx, info_e2.co_ctx]),
+          ~probe_targets=
+            SubexpProbeTargets.union_all([
+              info_e1.probe_targets,
+              info_e2.probe_targets,
+            ]),
+          m,
+        );
+      let unknown = Unknown(Internal) |> Typ.temp;
+      switch (Typ.as_sig(ctx, info_e1.ty)) {
+      | Some(items) =>
+        /* `m.x`: the module's value member x. A missing member, or a type
+           member named as a value, is marked on the label; the dot carries
+           the same as a message. */
+        let members = Sig.members(items);
+        let labels = Sig.value_names(members);
+        let dot = (~marks=?, ~message=?, ~elab_syn_ty, child) =>
+          dot(
+            ~cls=Cls.Exp(ModuleProjection),
+            ~marks?,
+            ~message?,
+            ~elab_syn_ty,
+            labels,
+            child,
+          );
         switch (e2.term) {
         | Label(name) =>
-          let element: option(Typ.t) =
-            LabeledTuple.find_label(Typ.match_tup_label, ts, name);
-          switch (element) {
-          | Some({term: TupLabel(_, typ), _})
-          | Some(typ) =>
-            add(
-              ~elab_term=dot_elab,
-              ~elab_syn_ty=List(typ) |> Typ.fresh,
-              ~marks=[],
-              ~dot_labels=available_labels,
-              ~co_ctx=dot_co_ctx,
-              ~probe_targets=dot_probe_targets,
-              m,
-            )
+          switch (Sig.find_value(members, name)) {
+          | Some(ty) =>
+            label_child(~marks=[], ~elab_syn_ty=ty, labels, m)
+            |> dot(~elab_syn_ty=ty)
           | None =>
-            add(
-              ~elab_term=dot_elab,
-              ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
-              ~marks=[LabelNotFound(name, labels)],
-              ~dot_labels=available_labels,
-              ~co_ctx=dot_co_ctx,
-              ~probe_targets=dot_probe_targets,
+            let (mark, message) =
+              switch (Sig.find_type_def(members, name)) {
+              | Some(_) => (
+                  Mark.ModuleMemberIsType(name),
+                  Message.ModuleMemberIsType(name),
+                )
+              | None =>
+                let not_found: Mark.member_not_found = {
+                  name,
+                  members: labels,
+                };
+                (
+                  Mark.ModuleMemberNotFound(not_found),
+                  Message.ModuleMemberNotFound(not_found),
+                );
+              };
+            label_child(
+              ~marks=[mark],
+              ~elab_syn_ty=Label(name) |> Typ.temp,
+              labels,
               m,
             )
-          };
+            |> dot(~message=Message.Exp(message), ~elab_syn_ty=unknown);
+          }
         | EmptyHole =>
-          add(
-            ~elab_term=dot_elab,
-            ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
-            ~marks=[],
-            ~dot_labels=available_labels,
-            ~co_ctx=dot_co_ctx,
-            ~probe_targets=dot_probe_targets,
-            m,
-          )
+          label_child(~marks=[], ~elab_syn_ty=unknown, labels, m)
+          |> dot(~elab_syn_ty=unknown)
         | _ =>
-          add(
-            ~elab_term=dot_elab,
-            ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
-            ~marks=[BadLabel(Exp(e2))],
-            ~dot_labels=available_labels,
-            ~co_ctx=dot_co_ctx,
-            ~probe_targets=dot_probe_targets,
-            m,
-          )
+          label_child(~marks=[], ~elab_syn_ty=unknown, labels, m)
+          |> dot(~marks=[BadLabel(Exp(e2))], ~elab_syn_ty=unknown)
         };
-      | List({term: Unknown(_), _}) =>
-        add(
-          ~elab_term=dot_elab,
-          ~elab_syn_ty=List(Unknown(Internal) |> Typ.temp) |> Typ.temp,
-          ~marks=[],
-          ~dot_labels=available_labels,
-          ~co_ctx=dot_co_ctx,
-          ~probe_targets=dot_probe_targets,
-          m,
-        )
-      | _ =>
-        add(
-          ~elab_term=dot_elab,
-          ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
-          ~marks=[DotOperatorRequiresTuple],
-          ~dot_labels=available_labels,
-          ~co_ctx=dot_co_ctx,
-          ~probe_targets=dot_probe_targets,
-          m,
-        )
+      | None =>
+        /* `t.x`: the labeled element x of a tuple, or the column x of a
+           list of tuples, so the element head is resolved too. */
+        let whnf_dot = ty => {
+          let ty = Typ.weak_head_normalize(ctx, ty);
+          switch (Typ.term_of(ty)) {
+          | List(inner) =>
+            let inner' = Typ.weak_head_normalize(ctx, inner);
+            inner' === inner
+              ? ty
+              : {
+                ...ty,
+                term: List(inner'),
+              };
+          | _ => ty
+          };
+        };
+        let e1_ty = whnf_dot(info_e1.ty);
+        let labels =
+          switch (e1_ty.term) {
+          | Prod(ts)
+          | List({term: Prod(ts), _}) =>
+            List.filter_map(Typ.match_tup_label, ts) |> List.map(fst)
+          | _ => []
+          };
+        let label_child = (~elab_syn_ty, m) =>
+          label_child(~marks=[], ~elab_syn_ty, labels, m);
+        let dot =
+            (~cls=Cls.Exp(TupleProjection), ~marks=[], ~elab_syn_ty, child) =>
+          dot(~cls, ~marks, ~elab_syn_ty, labels, child);
+        let (ty, m) =
+          switch (info_e1.ty.term, e2.term) {
+          | (Unknown(_), Label(name)) =>
+            /* The left is a tuple with at least this label. */
+            let ty =
+              Prod([TupLabel(Label(name) |> Typ.temp, unknown) |> Typ.temp])
+              |> Typ.temp;
+            let (_, _, m) = go(~ana=ty, e1, m);
+            (ty, m);
+          | _ => (e1_ty, m)
+          };
+        let element = (ts, name) =>
+          LabeledTuple.find_label(Typ.match_tup_label, ts, name)
+          |> Option.map((t: Typ.t) =>
+               switch (t.term) {
+               | TupLabel(_, typ) => typ
+               | _ => t
+               }
+             );
+        switch (ty.term, e2.term) {
+        | (Prod(ts), Label(name)) =>
+          let child = label_child(~elab_syn_ty=Label(name) |> Typ.temp, m);
+          switch (element(ts, name)) {
+          | Some(typ) => child |> dot(~elab_syn_ty=typ)
+          | None =>
+            child
+            |> dot(
+                 ~marks=[LabelNotFound(name, labels)],
+                 ~elab_syn_ty=unknown,
+               )
+          };
+        | (List({term: Prod(ts), _}), Label(name)) =>
+          let child = label_child(~elab_syn_ty=Label(name) |> Typ.temp, m);
+          switch (element(ts, name)) {
+          | Some(typ) => child |> dot(~elab_syn_ty=List(typ) |> Typ.fresh)
+          | None =>
+            child
+            |> dot(
+                 ~marks=[LabelNotFound(name, labels)],
+                 ~elab_syn_ty=unknown,
+               )
+          };
+        | (Prod(_) | List({term: Prod(_), _}), EmptyHole) =>
+          label_child(~elab_syn_ty=unknown, m) |> dot(~elab_syn_ty=unknown)
+        | (Prod(_) | List({term: Prod(_), _}), _) =>
+          label_child(~elab_syn_ty=unknown, m)
+          |> dot(~marks=[BadLabel(Exp(e2))], ~elab_syn_ty=unknown)
+        | (List({term: Unknown(_), _}), _) =>
+          label_child(~elab_syn_ty=unknown, m)
+          |> dot(~elab_syn_ty=List(unknown) |> Typ.temp)
+        | _ =>
+          label_child(~elab_syn_ty=unknown, m)
+          |> dot(
+               ~cls=Cls.Exp(Dot),
+               ~marks=[DotOperatorRequiresTuple],
+               ~elab_syn_ty=unknown,
+             )
+        };
       };
     | Test(e) =>
       let (e, e_elab, m) = go(~ana=Atom(Bool) |> Typ.temp, e, m);

@@ -1058,8 +1058,23 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, (d1, d2) => Dot(d1, d2) |> rewrap)
       and. d1' = req_final(req(env), d1 => Dot1(d1, d2) |> wrap_ctx, d1)
       and. d2' = req_final(req(env), d2 => Dot2(d1, d2) |> wrap_ctx, d2);
-      switch (DHExp.term_of(d2')) {
-      | Label(name) as lab =>
+      switch (DHExp.term_of(d2'), DHExp.term_of(d1')) {
+      /* `m.x`: the module's member x. A module stuck on an item keeps its
+         environment for the rest. */
+      | (Label(name), Module(items))
+      | (Label(name), Closure(_, {term: Module(items), _})) =>
+        switch (Mod.member(items, name)) {
+        | Some(v) =>
+          Step({
+            expr: v,
+            side_effects: [],
+            kind: Dot,
+            is_value: true,
+            at: None,
+          })
+        | None => Indet
+        }
+      | (Label(name) as lab, _) =>
         switch (Unboxing.unbox(LabeledTupleProjection(name), d1')) {
         | Matches(d1'') =>
           switch (DHExp.term_of(d1'')) {
@@ -1114,20 +1129,6 @@ module Transition = (EV: EV_MODE) => {
               is_value: false,
               at: None,
             });
-          | Module(items)
-          /* A module stuck on an item keeps its environment for the rest. */
-          | Closure(_, {term: Module(items), _}) =>
-            switch (Mod.member(items, name)) {
-            | Some(v) =>
-              Step({
-                expr: v,
-                side_effects: [],
-                kind: Dot,
-                is_value: true,
-                at: None,
-              })
-            | None => Indet
-            }
           | _ => Indet
           }
         | _ => Indet

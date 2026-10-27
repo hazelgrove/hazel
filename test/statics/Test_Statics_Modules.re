@@ -22,6 +22,23 @@ let marks_at = (source, pred: Language.Info.t => bool): list(Language.Mark.t) =>
     List.concat_map(((_, info)) => Language.Info.marks_of(info), matches)
   };
 
+/* The expression infos on the nodes satisfying [pred]; fails if no node
+   does. */
+let exp_infos_at =
+    (source, pred: Language.Info.t => bool): list(Language.Info.exp) =>
+  switch (
+    Language.Id.Map.bindings(statics(parse_exp(source)))
+    |> List.filter_map(((_, info: Language.Info.t)) =>
+         switch (info) {
+         | InfoExp(e) when pred(info) => Some(e)
+         | _ => None
+         }
+       )
+  ) {
+  | [] => Alcotest.fail("No node matches the predicate in " ++ source)
+  | infos => infos
+  };
+
 /* Assert that some mark in the program satisfies [pred]. */
 let has_mark_test = (name, source, pred: Language.Mark.t => bool) =>
   Alcotest.test_case(name, `Quick, () =>
@@ -87,6 +104,72 @@ let test_member_not_found_on_label =
         true,
         List.is_empty(marks_at(src, is_dot)),
       );
+    },
+  );
+
+let test_member_label_is_the_member =
+  Alcotest.test_case(
+    "The label of `m.x` is a label at the member's type, under a module projection",
+    `Quick,
+    () => {
+      let src = {|let m = { let x = 1 } in m.x|};
+      let label =
+        exp_infos_at(src, is_label("x"))
+        |> List.for_all((info: Language.Info.exp) =>
+             switch (info.cls, Language.Typ.term_of(info.ty)) {
+             | (Exp(Label), Atom(Int)) => true
+             | _ => false
+             }
+           );
+      let projection =
+        exp_infos_at(src, is_dot)
+        |> List.for_all((info: Language.Info.exp) =>
+             switch (info.cls) {
+             | Exp(ModuleProjection) => true
+             | _ => false
+             }
+           );
+      Alcotest.(check(bool))("label x : Int", true, label);
+      Alcotest.(check(bool))("dot is a module projection", true, projection);
+    },
+  );
+
+let test_tuple_projection_class =
+  Alcotest.test_case(
+    "A dot on a labeled tuple is a labeled tuple projection; on an Int, a dot",
+    `Quick,
+    () => {
+      let class_of_dot = src =>
+        exp_infos_at(src, is_dot)
+        |> List.map((info: Language.Info.exp) => info.cls);
+      Alcotest.(check(bool))(
+        "tuple",
+        true,
+        class_of_dot({|let t = (x = 1) in t.x|}) == [Exp(TupleProjection)],
+      );
+      Alcotest.(check(bool))(
+        "int",
+        true,
+        class_of_dot({|let n = 1 in n.x|}) == [Exp(Dot)],
+      );
+    },
+  );
+
+let test_type_member_as_value_dot_message =
+  Alcotest.test_case(
+    "Accessing a type member as a value: the dot says what the label says",
+    `Quick,
+    () => {
+      let src = {|let m = { type T = Int } in m.T|};
+      let agrees =
+        exp_infos_at(src, is_dot)
+        |> List.for_all((info: Language.Info.exp) =>
+             switch (info.message) {
+             | Exp(ModuleMemberIsType("T")) => true
+             | _ => false
+             }
+           );
+      Alcotest.(check(bool))("dot message", true, agrees);
     },
   );
 
@@ -1949,6 +2032,9 @@ let tests = (
     test_dot_on_non_module_mark,
     test_type_member_not_found_mark,
     test_no_type_members_mark,
+    test_member_label_is_the_member,
+    test_tuple_projection_class,
+    test_type_member_as_value_dot_message,
     test_submodule_not_found_mark,
     test_value_used_as_module_path_mark,
     test_unknown_typed_root_is_not_an_error,

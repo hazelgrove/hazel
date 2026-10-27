@@ -27,11 +27,10 @@ type ok_common =
 type exp =
   | Default
   | AnaDeferralConsistent(Typ.t)
-  /* `M.y` where the module has no member y: the dot's payload; the error is
-     on the label. */
+  /* `m.y` where the module has no member y, or `m.T` where T is a type
+     member: the dot's payload; the error is on the label. */
   | ModuleMemberNotFound(Mark.member_not_found)
-  /* A module's `type T = …` item: the type member it declares. */
-  | TypeMember(Var.t, Typ.t)
+  | ModuleMemberIsType(Var.t)
   | Common(ok_common);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
