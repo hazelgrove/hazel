@@ -31,6 +31,9 @@ type exp =
      member: the dot's payload; the error is on the label. */
   | ModuleMemberNotFound(Mark.member_not_found)
   | ModuleMemberIsType(Var.t)
+  /* `t.y` where the tuple has no label y: the dot's payload; the error is
+     on the label. */
+  | TupleLabelNotFound(LabeledTuple.label, list(LabeledTuple.label))
   | Common(ok_common);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
