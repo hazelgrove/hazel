@@ -213,6 +213,23 @@
   gap: 5px;
 }
 
+/* FR-exists-1 Witness box: same chrome as the rewrite box. */
+.witness-box {
+  background-color: var(--menu-bkg);
+  border-radius: 0 0 0.5em 0;
+  outline: 0.6px solid var(--menu-outline);
+  box-shadow: 0px 10px 20px var(--menu-shadow);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.witness-box .witness-refusal {
+  color: var(--err-text, #b00020);
+  max-width: 32em;
+}
+
 /* STEPPER (OLD) */
 
 .stepper-justification {

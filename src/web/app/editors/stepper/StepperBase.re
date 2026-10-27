@@ -895,6 +895,9 @@ and Stepper: {
   /* `have` differs from the other three: it wraps with a SECOND hole,
    * the subproof, so the inserted text is `have ? proof ? => ?`. */
   let have_term: (~exp: Exp.t) => TermBase.Proof.term;
+  /* FR-exists-1: the Witness box's commit, `== true by witness <v> end`;
+   * exposed so the one-edit commit is testable without the view. */
+  let witness_term: (~exp: Exp.t) => TermBase.Proof.term;
   /* Exposed for the same reason: the caret jump that lands the user in a
    * freshly inserted form's argument slot keys off this id, so the
    * "insert with a hole, then focus the hole" contract is testable
@@ -1677,6 +1680,15 @@ and Stepper: {
   let contradiction_term = (~exp: Exp.t): TermBase.Proof.term =>
     Contradiction(exp |> embed_exp, None);
 
+  /* `== true by witness <exp> end` (FR-exists-1). Terminal like
+   * `contradiction`: the step leaves the instantiated body as the goal
+   * of the next row; nothing else is written. */
+  let witness_term = (~exp: Exp.t): TermBase.Proof.term =>
+    RelEqBy(
+      Exp.fresh(Atom(Bool(true))),
+      Proof.fresh(Witness(exp |> embed_exp)),
+    );
+
   let induction_term = (~scrut: option(Exp.t)): TermBase.Proof.term =>
     Induction(
       scrut
@@ -1957,6 +1969,9 @@ and Stepper: {
     | AddHave(exp) =>
       emit_wrapping_form(~arg_focus=HaveStep(Arg()), have_term(~exp))
     | AddContradiction(exp) => emit(contradiction_term(~exp))
+    /* FR-exists-1: one source edit; the checker's outgoing (the
+     * instantiated body) becomes the next row's goal. */
+    | AddWitness(exp) => emit(witness_term(~exp))
     | TakeStep(idx) =>
       /* D73: write the step's source node in the written goal, at the
        * index the checker locates it under

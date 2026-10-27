@@ -48,6 +48,14 @@ module Model = {
        inserted step's argument is edited in place (docs/prover-
        obligations.md §3.4: menus only ever PICK, never EDIT). */
     | ProofFormPicksOpen({form: proof_form})
+    /* FR-exists-1: `== true by witness <v> end` on an `exists` goal. A
+       blank inline expression editor (the same CodeEditable input as the
+       rewrite box); nothing is written until the user commits, and the
+       commit is one source edit (StepperBase `AddWitness`). */
+    | WitnessOpen({
+        editor: CodeEditable.Model.t,
+        cached_exp: Calc.saved(Exp.t),
+      })
     | NoneOpen;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -103,6 +111,101 @@ module Model = {
     |> OptUtil.get(() => EmptyHole |> Exp.fresh);
 };
 
+/* FR-exists-1 Witness box: the goal's binder and the honest pre-commit
+   verdict, as pure functions (the view and the UI tests share them). */
+module WitnessCheck = {
+  /* `None`: the goal is not an `exists`. `Some(None)`: a pattern binder.
+     `Some(Some((name, declared type)))` otherwise. */
+  let goal_binder =
+      (goal: option(Exp.t)): option(option((Var.t, option(Typ.t)))) => {
+    let rec strip = (e: Exp.t) =>
+      switch (e.term) {
+      | Parens(e) => strip(e)
+      | _ => e
+      };
+    switch (Option.map(strip, goal)) {
+    | Some({term: Exists(bp, _), _}) => Some(ProofCheck.single_binder(bp))
+    | _ => None
+    };
+  };
+
+  /* Builtin type ctx only: a user type alias is not unfolded by this
+     PRE-check (the checker, which has the full ctx, decides on commit). */
+  let tyctx = Builtins.ctx_init(Some(Operators.default_mode));
+  let show_ty = (t: Typ.t) => Typ.pretty_print(Typ.normalize(tyctx, t));
+
+  /* (label, verdict): commit is offered only for `Ok`. Nothing here
+     decides the step; the checker re-checks typing, standardness and
+     capture after commit. */
+  let verdict =
+      (
+        ~binder: option(option((Var.t, option(Typ.t)))),
+        ~has_errors: bool,
+        ~v_ty: option(Typ.t),
+        v: Exp.t,
+      )
+      : (string, result(Exp.t, string)) => {
+    let is_hole =
+      switch (v.term) {
+      | EmptyHole
+      | MultiHole(_) => true
+      | _ => false
+      };
+    switch (binder) {
+    | None => (
+        "Witness",
+        Error(
+          "This goal is no longer an `exists`; the witness cannot be used here.",
+        ),
+      )
+    | Some(None) => (
+        "Witness",
+        Error(
+          "Only a single-variable `exists (x : T) -> …` takes a witness here.",
+        ),
+      )
+    | Some(Some((y, None))) => (
+        "Witness for " ++ y,
+        Error(
+          "The binder has no declared type; annotate it as `exists ("
+          ++ y
+          ++ " : T) -> …`.",
+        ),
+      )
+    | Some(Some((y, Some(t)))) =>
+      let label = "Witness for " ++ y ++ " : " ++ show_ty(t);
+      if (is_hole) {
+        (label, Error("Type a value of type " ++ show_ty(t) ++ "."));
+      } else if (has_errors) {
+        (label, Error("The witness has a static error."));
+      } else {
+        switch (v_ty) {
+        | Some(vt)
+            when
+              Typ.fast_equal(
+                Typ.normalize(tyctx, vt),
+                Typ.normalize(tyctx, t),
+              ) => (
+            label,
+            Ok(v),
+          )
+        | Some(vt) => (
+            label,
+            Error(
+              "The witness has type "
+              ++ show_ty(vt)
+              ++ "; the binder needs "
+              ++ show_ty(t)
+              ++ ".",
+            ),
+          )
+        | None => (label, Error("The witness's type is unknown."))
+        };
+      };
+    };
+  };
+};
+
 module Update = {
   open Updated;
 
@@ -113,7 +216,9 @@ module Update = {
     | UpdateResult(bool)
     | RewriteEditorAction(CodeEditable.Update.t)
     | AxiomBoxAction(AxiomsBox.Update.t)
-    | ToggleProofFormPicks(Model.proof_form);
+    | ToggleProofFormPicks(Model.proof_form)
+    | ToggleWitness
+    | WitnessEditorAction(CodeEditable.Update.t);
 
   let update = (~settings, action, model: Model.t): Updated.t(Model.t) => {
     switch (action, model.open_box) {
@@ -122,6 +227,7 @@ module Update = {
         switch (model.open_box) {
         | NoneOpen
         | RewritesOpen(_)
+        | WitnessOpen(_)
         | ProofFormPicksOpen(_) => Model.AxiomsOpen(AxiomsBox.Model.init)
         | AxiomsOpen(_) => Model.NoneOpen
         };
@@ -135,6 +241,7 @@ module Update = {
         switch (model.open_box) {
         | NoneOpen
         | AxiomsOpen(_)
+        | WitnessOpen(_)
         | ProofFormPicksOpen(_) =>
           Model.RewritesOpen({
             editor:
@@ -191,6 +298,7 @@ module Update = {
         | NoneOpen
         | AxiomsOpen(_)
         | RewritesOpen(_)
+        | WitnessOpen(_)
         | ProofFormPicksOpen(_) => Model.ProofFormPicksOpen({form: form})
         };
       Model.{
@@ -198,6 +306,39 @@ module Update = {
         open_box,
       }
       |> Updated.return_quiet(~recalculate=true, ~logged=true);
+    /* Toggle: opens a BLANK editor every time (no prefill, no search). */
+    | (ToggleWitness, _) =>
+      let open_box =
+        switch (model.open_box) {
+        | WitnessOpen(_) => Model.NoneOpen
+        | NoneOpen
+        | AxiomsOpen(_)
+        | RewritesOpen(_)
+        | ProofFormPicksOpen(_) =>
+          Model.WitnessOpen({
+            editor:
+              CodeEditable.Model.mk(
+                Editor.Model.mk(Zipper.init(), ~root=Exp),
+              ),
+            cached_exp: Calc.Pending,
+          })
+        };
+      Model.{
+        ...model,
+        open_box,
+      }
+      |> Updated.return_quiet(~recalculate=true, ~logged=true);
+    | (WitnessEditorAction(action), WitnessOpen({editor, _} as w)) =>
+      let* new_editor = CodeEditable.Update.update(~settings, action, editor);
+      Model.{
+        ...model,
+        open_box:
+          Model.WitnessOpen({
+            ...w,
+            editor: new_editor,
+          }),
+      };
+    | (WitnessEditorAction(_), _) => model |> Updated.raise_invalid_action
     };
   };
 
@@ -208,7 +349,9 @@ module Update = {
     | UpdateResult(_)
     | RewriteEditorAction(_)
     | AxiomBoxAction(_)
-    | ToggleProofFormPicks(_) => false
+    | ToggleProofFormPicks(_)
+    | ToggleWitness
+    | WitnessEditorAction(_) => false
     };
   };
 
@@ -567,6 +710,29 @@ module Update = {
         AxiomsOpen(
           AxiomsBox.Update.calculate(~info_map, ~ctx, ~selected_exp, m),
         )
+      | WitnessOpen({editor, cached_exp}) =>
+        /* Typed in the row's own scope, so quantified/obtained names in
+           scope are known to the witness's statics. */
+        let editor =
+          CodeEditable.Update.calculate(
+            ~settings,
+            ~is_edited=true,
+            ~is_dynamic_term=true,
+            ~dynamics=Dynamics.Map.empty,
+            ~stitch=x => x,
+            ~ctx=Calc.get_value(ctx) |> SemanticCtx.get_ctx,
+            editor,
+          );
+        let cached_exp =
+          Calc.set(
+            ~eq=Exp.fast_equal_with_lexemes,
+            CodeEditable.Model.get_statics(editor).term,
+            cached_exp,
+          );
+        Model.WitnessOpen({
+          editor,
+          cached_exp: cached_exp |> Calc.save,
+        });
       /* Nothing to calculate: a pick list holds no editor, and its
          candidates come from `assumptions`, computed above. */
       | ProofFormPicksOpen(_) as picks => picks
@@ -602,7 +768,8 @@ module Selection = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | RewriteEditor(CodeEditable.Selection.t)
-    | AxiomBoxSelection(AxiomsBox.Selection.t);
+    | AxiomBoxSelection(AxiomsBox.Selection.t)
+    | WitnessEditor(CodeEditable.Selection.t);
 
   let get_cursor_info =
       (~inject, ~selection: t, model: Model.t): cursor(Update.t) => {
@@ -620,6 +787,15 @@ module Selection = {
       let+ ci = AxiomsBox.Selection.get_cursor_info(~selection, m);
       Update.AxiomBoxAction(ci);
     | (AxiomBoxSelection(_), _) => empty
+    | (WitnessEditor(selection), WitnessOpen({editor, _})) =>
+      let+ ci =
+        CodeEditable.Selection.get_cursor_info(
+          ~inject=a => inject(Update.WitnessEditorAction(a)),
+          ~selection,
+          editor,
+        );
+      Update.WitnessEditorAction(ci);
+    | (WitnessEditor(_), _) => empty
     };
   };
 };
@@ -656,6 +832,8 @@ module View = {
        subproof hole becomes its own picker row inside the nested box. */
     | AddHave(Exp.t)
     | AddContradiction(Exp.t)
+    /* FR-exists-1: commit `== true by witness <exp> end` here. */
+    | AddWitness(Exp.t)
     | MakeActive(Selection.t)
     | TakeStep(int)
     | Refl(int);
@@ -789,6 +967,13 @@ module View = {
         ProofCheck.funext_binder(~info_map, ~env, full_exp);
       };
 
+      /* The goal's `exists` binder, if the goal is an existential: the
+         Witness button and box key off it. `Some((name, declared type))`
+         for a single-variable binder; a pattern binder gives
+         `Some(None)`. */
+      let witness_goal =
+        WitnessCheck.goal_binder(model.full_exp |> Calc.get_saved_opt);
+
       let show_function_body_button = {
         Calc.get_saved_exc(model.selected_exp)
         == Some(Calc.get_saved_exc(model.full_exp))
@@ -919,6 +1104,12 @@ module View = {
             proof_button(~callback=inject(ToggleAxioms), "Assumptions ▼"),
           ]
           @ wrapping_form_buttons
+          @ (
+            /* FR-exists-1: offered exactly on an `exists` goal. */
+            Option.is_some(witness_goal)
+              ? [proof_button(~callback=inject(ToggleWitness), "Witness ▼")]
+              : []
+          )
           @ [
             proof_button(
               ~callback=inject(ToggleProofFormPicks(Contradiction)),
@@ -1121,6 +1312,72 @@ module View = {
                           ]
                         };
                       },
+                    ),
+                  ];
+                | WitnessOpen({editor, _}) =>
+                  let statics = CodeEditable.Model.get_statics(editor);
+                  let v = statics.term;
+                  let (label, verdict) =
+                    WitnessCheck.verdict(
+                      ~binder=witness_goal,
+                      ~has_errors=statics.error_ids != [],
+                      ~v_ty=Statics.Map.ty_of(Exp.rep_id(v), statics.info_map),
+                      v,
+                    );
+                  [
+                    div_c(
+                      "witness-box",
+                      [
+                        Node.text(label ++ ": "),
+                        div_c(
+                          "inline-editor-wrapper",
+                          [
+                            CodeEditable.View.view(
+                              ~globals,
+                              ~signal=
+                                fun
+                                | MakeActive =>
+                                  signal(MakeActive(WitnessEditor())),
+                              ~edit_mode=
+                                EditMode.Editable({
+                                  inject: x =>
+                                    inject(WitnessEditorAction(x)),
+                                  escape: _ => Ui_effect.Ignore,
+                                  take_focus: _ => Ui_effect.Ignore,
+                                  focus:
+                                    switch (selected) {
+                                    | Some(WitnessEditor ()) => Some()
+                                    | _ => None
+                                    },
+                                }),
+                              ~dynamics=Dynamics.Map.empty,
+                              editor,
+                            ),
+                          ],
+                        ),
+                      ]
+                      @ (
+                        switch (verdict) {
+                        | Ok(v) => [
+                            Widgets.button(
+                              ~clss=["proof-button"],
+                              Node.text("Use witness"),
+                              ~tooltip=
+                                "Write `== true by witness … end`; the instantiated body is left to prove",
+                              _ =>
+                              Ui_effect.Many([
+                                globals.inject_global(
+                                  Set(Evaluation(ForceShowRecord)),
+                                ),
+                                signal(AddWitness(v)),
+                              ])
+                            ),
+                          ]
+                        | Error(msg) => [
+                            div_c("witness-refusal", [Node.text(msg)]),
+                          ]
+                        },
+                      ),
                     ),
                   ];
                 | ProofFormPicksOpen({form}) =>
