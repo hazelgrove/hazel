@@ -330,29 +330,23 @@ let non_contractive = (ty: t): bool => {
 
 /* What a type alias [name] stands for, given its definition. A definition
    that mentions [name] is the recursive type `rec name -> def`; one that
-   reduces to [name] alone is a self-loop and stands for no type. An alias
-   already in ctx cannot mention [name] (see `unshadow`), so the definition
-   is read as written. */
+   is [name] alone is the non-contractive `rec name -> name`, which no
+   value has. An alias already in ctx cannot mention [name] (see
+   `unshadow`), so the definition is read as written. */
 [@deriving show({with_path: false})]
 type alias_def =
   | Plain
-  | Recursive(t)
-  | SelfLoop;
+  | Recursive(t);
 
 let recursive_def = (name: Var.t, def: t): alias_def =>
-  if (List.exists(String.equal(name), free_vars(def))) {
-    let ty_rec = Rec(Var(name) |> TPat.fresh, def) |> temp;
-    non_contractive(ty_rec) ? SelfLoop : Recursive(ty_rec);
-  } else {
-    Plain;
-  };
+  List.exists(String.equal(name), free_vars(def))
+    ? Recursive(Rec(Var(name) |> TPat.fresh, def) |> temp) : Plain;
 
-/* The type an alias stands for; a self-loop is `?`, as everywhere. */
+/* The type an alias stands for. */
 let alias_type = (name: Var.t, def: t): t =>
   switch (recursive_def(name, def)) {
   | Plain => def
   | Recursive(ty_rec) => ty_rec
-  | SelfLoop => Unknown(Internal) |> temp
   };
 
 /* Bind the member declared by a closed signature item, if any. Written
@@ -749,15 +743,15 @@ and path_head = (~rec_counter, ctx: Ctx.t, t: t): option(t) =>
     | _ => Some(head_type(~rec_counter, ctx, t))
     };
   }
-/* Weak head normal form, a recursive type unrolled, a non-contractive one
-   `?`. */
+/* Weak head normal form, a recursive type unrolled. A non-contractive one
+   has no unrolling and stays a Rec, which has no shape. */
 and head_type = (~rec_counter, ctx: Ctx.t, ty: t): t => {
   let ty = weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty);
   switch (term_of(ty)) {
   | Rec(_) =>
     switch (unroll(ty)) {
     | Some(ty) => weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty)
-    | None => Unknown(Internal) |> temp
+    | None => ty
     }
   | _ => ty
   };
@@ -1330,10 +1324,6 @@ let rec meet =
   | (_, ProdProjection(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
   | (ProdExtension(_), _) => meet'(weak_head_normalize(ctx, ty1), ty2)
   | (_, ProdExtension(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
-  /* A non-contractive type is marked where it is written and is `?` here,
-     as in every consumer. */
-  | (Rec(_), _) when non_contractive(ty1) => Some(ty2)
-  | (_, Rec(_)) when non_contractive(ty2) => Some(ty1)
   | (Rec(tp1, body1), Rec(tp2, body2)) =>
     /* The bodies are compared under the one binder they share after
        renaming, as the Poly arm does. Two recursive types that spell the
@@ -1353,7 +1343,8 @@ let rec meet =
       )
     };
   /* A recursive type meets a structural one, a signature alias that
-     mentions itself included, through its unrolling. */
+     mentions itself included, through its unrolling; a non-contractive
+     type has no unrolling and meets nothing. */
   | (Rec(_), _) =>
     through_unrolling(ty1, ty2, (~seen, ty1') => meet(~seen, ctx, ty1', ty2))
   | (_, Rec(_)) =>

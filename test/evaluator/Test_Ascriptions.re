@@ -30,15 +30,6 @@ let tests = (
       },
     ),
     test_case(
-      "a value ascribed to a non-contractive type is given back",
-      `Quick,
-      () => {
-        let v = parse_and_evaluate("[1, 2]");
-        let t = typ("rec x -> x");
-        check(bool, "the same object", true, push(v, t) === v);
-      },
-    ),
-    test_case(
       "a value with a function in it is still wrapped",
       `Quick,
       () => {

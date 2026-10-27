@@ -2588,13 +2588,13 @@ and uexp_to_info_map =
             )
           };
         let closed = Typ.close_alias(ctx, bound, utyp);
-        let (tpat_marks, ty_def) =
+        let (warnings, ty_def) =
           alias_binding(name, closed, Typ.recursive_def(bound, closed));
         let m =
           utpat_to_info_map(
             ~ctx,
             ~ancestors=ancestors_inclusive,
-            ~marks=tpat_marks,
+            ~warnings,
             typat,
             m,
           )
@@ -2931,11 +2931,10 @@ and uexp_to_info_map =
           | ModType({term: Var(name), _} as tpat, def)
               when !Ctx.is_base_typ(name) =>
             let closed = Typ.close_alias(ctx, name, def);
-            let (tpat_marks, def_ty) =
+            let (warnings, def_ty) =
               alias_binding(name, closed, Typ.recursive_def(name, closed));
             let m =
-              utpat_to_info_map(~ctx, ~ancestors, ~marks=tpat_marks, tpat, m)
-              |> snd;
+              utpat_to_info_map(~ctx, ~ancestors, ~warnings, tpat, m) |> snd;
             let ctx_def =
               Typ.extend_ctx(
                 ctx,
@@ -4576,19 +4575,16 @@ and utyp_to_info_map =
       );
     add(~ty=utyp, m);
   | Rec(utpat, tbody) =>
-    let marks =
+    let warnings =
       switch (TPat.tyvar_of_utpat(utpat)) {
-      | Some(name) when Option.is_none(Typ.unroll(utyp)) => [
-          Mark.TPatNonContractive(name),
-        ]
-      | Some(_)
+      | Some(name) => Warning.type_binding(name, utyp)
       | None => []
       };
     let m =
       utpat_to_info_map(
         ~ctx,
         ~ancestors=ancestors_inclusive,
-        ~marks,
+        ~warnings,
         utpat,
         m,
       )
@@ -4674,7 +4670,7 @@ and utyp_to_info_map =
   };
 }
 and utpat_to_info_map =
-    (~ctx, ~ancestors, ~marks=[], utpat: TPat.t, m: Map.t)
+    (~ctx, ~ancestors, ~warnings=[], utpat: TPat.t, m: Map.t)
     : (Info.tpat, Map.t) => {
   let ids = IdTagged.ids(utpat);
   let term = IdTagged.term_of(utpat);
@@ -4691,18 +4687,13 @@ and utpat_to_info_map =
     | MultiHole(_) => ([TPatNotAVar(Other)], None)
     };
   let add = m => {
-    let (own_marks, ok) = status_for_node(utpat);
-    let marks = marks @ own_marks;
+    let (marks, ok) = status_for_node(utpat);
     let info: Info.tpat = {
       cls: Cls.TPat(TPat.cls_of_term(utpat.term)),
       ancestors,
       marks,
-      message:
-        switch (marks) {
-        | [] => Option.map(x => Message.TPatOk(x), ok)
-        | [_, ..._] => None
-        },
-      warnings: [],
+      message: Option.map(x => Message.TPatOk(x), ok),
+      warnings,
       ctx,
       user_term: utpat,
     };
@@ -4911,7 +4902,18 @@ and sig_to_info_map =
       );
     (CoCtx.empty, Sig(s_term), add_sig_info(m));
   | SigType(tp, t) =>
-    let (_, _, m) = any_to_info_map(~ctx, ~ancestors, TPat(tp), m);
+    let warnings =
+      switch (tp.term) {
+      | Var(name) =>
+        Warning.type_binding(
+          name,
+          Typ.alias_type(name, Typ.close_alias(ctx, name, t)),
+        )
+      | EmptyHole
+      | Invalid(_)
+      | MultiHole(_) => []
+      };
+    let m = utpat_to_info_map(~ctx, ~ancestors, ~warnings, tp, m) |> snd;
     let (_, _, m) = any_to_info_map(~ctx, ~ancestors, Typ(t), m);
     (CoCtx.empty, Sig(s_term), add_sig_info(m));
   | SigModule(mp) =>

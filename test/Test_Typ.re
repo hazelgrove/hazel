@@ -1274,10 +1274,9 @@ let alias_def =
     Fmt.using(Typ.show_alias_def, Fmt.string),
     (a: Typ.alias_def, b: Typ.alias_def) =>
     switch (a, b) {
-    | (Plain, Plain)
-    | (SelfLoop, SelfLoop) => true
+    | (Plain, Plain) => true
     | (Recursive(a), Recursive(b)) => Typ.fast_equal(a, b)
-    | (Plain | Recursive(_) | SelfLoop, _) => false
+    | (Plain | Recursive(_), _) => false
     }
   );
 
@@ -1326,16 +1325,18 @@ let recursive_def_tests = {
         ),
       ),
       case(
-        "the alias alone is a self-loop",
+        "the alias alone is the non-contractive recursive type",
         "T",
         F.Typ.var("T"),
-        Typ.SelfLoop,
+        Typ.Recursive(F.Typ.rec_(F.TPat.var("T"), F.Typ.var("T"))),
       ),
       case(
-        "the alias in parentheses is a self-loop",
+        "the alias in parentheses is the non-contractive recursive type",
         "T",
         F.Typ.parens(F.Typ.var("T")),
-        Typ.SelfLoop,
+        Typ.Recursive(
+          F.Typ.rec_(F.TPat.var("T"), F.Typ.parens(F.Typ.var("T"))),
+        ),
       ),
     ],
   );
@@ -1429,11 +1430,11 @@ let meet_rec_tests = {
         None,
       ),
       case(
-        "a non-contractive type is unknown",
+        "a self-loop meets nothing",
         ctx,
         F.Typ.rec_(F.TPat.var("x"), F.Typ.var("x")),
         F.Typ.int(),
-        Some(F.Typ.int()),
+        None,
       ),
       case(
         "through the alias name",

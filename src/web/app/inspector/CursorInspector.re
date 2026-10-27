@@ -296,7 +296,6 @@ let core_mark_err_view =
     | TypWantConstructorFoundAp
     | TypParseFailure
     | TPatShadowsType(_)
-    | TPatNonContractive(_)
     | TPatNotAVar(_)
     | SigDuplicateMember(_)
     | SigLetNotAName => [text("Type error")]
@@ -842,7 +841,6 @@ let exp_mark_err_view =
   | TypWantConstructorFoundAp
   | TypParseFailure
   | TPatShadowsType(_)
-  | TPatNonContractive(_)
   | TPatNotAVar(_)
   | SigDuplicateMember(_)
   | SigLetNotAName =>
@@ -1132,7 +1130,13 @@ let mod_view =
   };
 
 let tpat_view =
-    (~globals, _: Cls.t, ~marks: list(Mark.t), ~message: option(Message.t))
+    (
+      ~globals: Globals.t,
+      _: Cls.t,
+      ~marks: list(Mark.t),
+      ~message: option(Message.t),
+      ~warnings: list(Warning.list_item),
+    )
     : Node.t => {
   let view_type = view_type(~globals);
   switch (marks) {
@@ -1141,7 +1145,15 @@ let tpat_view =
     | Some(TPatOk(Message.Empty)) =>
       div_ok([text("Fillable with a new alias")])
     | Some(TPatOk(Var(name))) =>
-      div_ok([ContextInspector.alias_view(name)])
+      switch (warnings) {
+      | [TPat(NonContractive(_))] when globals.settings.core.display_warnings =>
+        div_warn([
+          text("Warning: Type"),
+          view_type(Var(name) |> Typ.fresh),
+          text("is defined as itself."),
+        ])
+      | _ => div_ok([ContextInspector.alias_view(name)])
+      }
     | Some(Pat(_) | Exp(_) | TypOk(_)) =>
       div_err([text("(internal) expected TPatOk")])
     | None => div_err([text("(internal) missing tpat ok payload")])
@@ -1168,12 +1180,6 @@ let tpat_view =
         div_err([
           text("Can't shadow existing type variable"),
           view_type(Var(name) |> Typ.fresh),
-        ])
-      | TPatNonContractive(name) =>
-        div_err([
-          text("Type"),
-          view_type(Var(name) |> Typ.fresh),
-          text("is defined as itself"),
         ])
       | _ => div_err([text("Type pattern error")])
       }
@@ -1218,8 +1224,8 @@ let view_of_info = (~globals, ci): list(Node.t) => {
     wrapper(pat_view(~globals, cls, message, ip))
   | InfoTyp({cls, marks, message, _}) =>
     wrapper(typ_view(~globals, cls, ~marks, ~message))
-  | InfoTPat({cls, marks, message, _}) =>
-    wrapper(tpat_view(~globals, cls, ~marks, ~message))
+  | InfoTPat({cls, marks, message, warnings, _}) =>
+    wrapper(tpat_view(~globals, cls, ~marks, ~message, ~warnings))
   | InfoDrv(ci) => wrapper(DrvCursorInspector.drv_view(~globals, ci))
   };
 };

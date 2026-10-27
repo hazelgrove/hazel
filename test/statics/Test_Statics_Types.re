@@ -454,33 +454,42 @@ let derive_typ_tests = [
   ),
 ];
 
-/* [name] in [source] is marked non-contractive. */
-let non_contractive_is_marked = (test_name, source, name) =>
-  test_case(test_name, `Quick, () =>
-    check(
-      bool,
-      name ++ " is marked non-contractive",
-      true,
-      errors(statics(parse_exp(source)))
-      |> List.concat_map(snd)
-      |> List.exists(
-           fun
-           | Mark.TPatNonContractive(a) => String.equal(a, name)
-           | _ => false,
-         ),
-    )
-  );
-
-/* The one static error in [source] is that [name] is marked non-contractive. */
-let only_non_contractive_mark = (test_name, source, name) =>
-  test_case(test_name, `Quick, () =>
-    check(
-      list(testable_issue),
-      "Static Errors",
-      [Marks([Mark.TPatNonContractive(name)])],
-      errors(statics(parse_exp(source)))
-      |> List.map(((_, ms)) => Marks(ms)),
-    )
+/* [source] warns that the types [defined_as_themselves] are, and has
+   [error_count] errors. */
+let defined_as_itself = (name, source, defined_as_themselves, error_count) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let map = statics(parse_exp(source));
+      let warned =
+        Id.Map.fold(
+          (id, info, acc) =>
+            id == Info.id_of(info)
+              ? List.filter_map(
+                  fun
+                  | Warning.TPat(NonContractive(name)) => Some(name)
+                  | Pat(_) => None,
+                  Info.warnings_of(info),
+                )
+                @ acc
+              : acc,
+          map,
+          [],
+        );
+      check(
+        list(string),
+        "types defined as themselves",
+        defined_as_themselves,
+        List.sort(String.compare, warned),
+      );
+      check(
+        int,
+        "errors",
+        error_count,
+        List.length(Statics.Map.error_ids(map)),
+      );
+    },
   );
 
 let tests = (
@@ -508,10 +517,23 @@ let tests = (
       {|type X = Int in let a : X = 1 in (typfun X -> a + 1)@<Bool>|},
       Some(FTemp.Typ.int()),
     ),
-    non_contractive_is_marked(
-      "A self-referential alias is marked and does not loop (#1621)",
+    defined_as_itself(
+      "A self-referential alias is warned and does not loop (#1621)",
       "type y = y in type ? = y in ?",
-      "y",
+      ["y"],
+      0,
+    ),
+    defined_as_itself(
+      "No value has a type defined as itself",
+      "type T = T in let a : T = 1 in let b : T = [1] in let c : T = fun x -> x in (a, b, c)",
+      ["T"],
+      3,
+    ),
+    defined_as_itself(
+      "A variable or hole of a type defined as itself is that type",
+      "type T = T in fun (x : T) -> ((x : T), (? : T))",
+      ["T"],
+      0,
     ),
     reports_errors(
       1,
@@ -531,6 +553,13 @@ let tests = (
                 rec_(FTemp.TPat.var("y"), var("x")),
               )
             );
+          let mismatch =
+            Marks([
+              ExpectationMismatch({
+                ana: rec_type,
+                syn: FTemp.Typ.prod([]),
+              }),
+            ]);
           annotated_tree_test(
             "fun (() : rec x -> rec y -> x) -> []",
             FTemp.Typ.(arrow(rec_type, list(unknown(Internal)))),
@@ -538,13 +567,10 @@ let tests = (
               fn(
                 FIError.Pat.(
                   asc(
-                    tuple([]),
+                    tuple(~ann=Some(mismatch), []),
                     FIError.Typ.(
                       rec_(
-                        FIError.TPat.var(
-                          ~ann=Some(Marks([TPatNonContractive("x")])),
-                          "x",
-                        ),
+                        FIError.TPat.var("x"),
                         rec_(FIError.TPat.var("y"), var("x")),
                       )
                     ),
@@ -571,6 +597,13 @@ let tests = (
                 rec_(FTemp.TPat.empty_hole(), var("x")),
               )
             );
+          let mismatch =
+            Marks([
+              ExpectationMismatch({
+                ana: rec_type,
+                syn: FTemp.Typ.prod([]),
+              }),
+            ]);
           annotated_tree_test(
             "fun (() : rec x -> rec ? -> x) -> 132032.832758",
             FTemp.Typ.(arrow(rec_type, float())),
@@ -578,13 +611,10 @@ let tests = (
               fn(
                 FIError.Pat.(
                   asc(
-                    tuple([]),
+                    tuple(~ann=Some(mismatch), []),
                     FIError.Typ.(
                       rec_(
-                        FIError.TPat.var(
-                          ~ann=Some(Marks([TPatNonContractive("x")])),
-                          "x",
-                        ),
+                        FIError.TPat.var("x"),
                         rec_(FIError.TPat.empty_hole(), var("x")),
                       )
                     ),
@@ -768,20 +798,23 @@ let tests = (
       "type A = Int -> Int -> A in let f : A = fun x -> fun y -> f in let g : Int -> A = f in 0",
       Some(FTemp.Typ.int()),
     ),
-    only_non_contractive_mark(
-      "A written self-loop is marked once and is unknown to its uses",
+    defined_as_itself(
+      "A written self-loop is warned on its binder and meets no other type",
       "fun (y : rec x -> x) -> (y : Int)",
-      "x",
+      ["x"],
+      1,
     ),
-    only_non_contractive_mark(
-      "A self-loop in parentheses is marked once and does not loop",
+    defined_as_itself(
+      "A self-loop in parentheses is warned and does not loop",
       "fun (y : rec x -> (x)) -> (y : Int)",
-      "x",
+      ["x"],
+      1,
     ),
-    only_non_contractive_mark(
-      "A self-loop under a binder is marked on the binder it loops to",
-      "fun (f : rec x -> rec y -> x) -> f(1)",
-      "x",
+    defined_as_itself(
+      "A self-loop under a binder is warned on the binder it loops to",
+      "fun (f : rec x -> rec y -> x) -> f",
+      ["x"],
+      0,
     ),
     inconsistent_typecheck(
       "An argument is checked against the parameter type of a recursive arrow alias",
@@ -792,10 +825,17 @@ let tests = (
       "type T = (T, Int) in type L = + C(T) in let v : L = C(?, 2) in 0",
       Some(FTemp.Typ.int()),
     ),
-    only_non_contractive_mark(
-      "A module's type member defined as itself is marked once and is unknown to its uses",
+    defined_as_itself(
+      "A module's type member defined as itself is warned, and no value has it",
       "module M = { type T = T; let x : T = 1 } in M.x",
-      "T",
+      ["T"],
+      1,
+    ),
+    defined_as_itself(
+      "A signature's type member defined as itself is warned",
+      "module type S = { type T = T } in 1",
+      ["T"],
+      0,
     ),
     test_case(
       "Type parse failure",
