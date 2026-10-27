@@ -815,42 +815,18 @@ body.sample-resizing * {
   position: relative;
 }
 
-/* The table sits in the drawer as a card: its own fill (proj-table.css),
- * edged in the drawer's color, rounded, barely lifted. Separate borders,
- * because collapsed ones ignore border-radius. ProbeProj reserves one code
- * line per table row (TableRenderer.drawer_rows), so body rows stay one
- * line tall. The card's top edge lies on the drawer's edge, the inset line
- * under the stripe's clear 2px top border, so it leaves the probed term's
- * underline whole; the card then ends about 3px past its rows, within the
- * next line's leading. */
-.below-wrapper .rich-drawer table.table {
-  border: 1px solid var(--probe-drawer-edge);
-  border-radius: 6px;
-  border-collapse: separate;
-  border-spacing: 0;
-  box-shadow: 0 1px 2px color-mix(in oklch, var(--SHADOW) 25%, transparent);
+/* The table is a card (proj-table.css), edged here in the drawer's color.
+ * ProbeProj reserves one code line per table row (TableRenderer.drawer_rows),
+ * so body rows stay one line tall. The card's top edge lies on the drawer's
+ * edge, the inset line under the stripe's clear 2px top border, so it leaves
+ * the probed term's underline whole; the card then ends about 3px past its
+ * rows, within the next line's leading. */
+.below-wrapper .rich-drawer {
+  --table-card-edge: var(--probe-drawer-edge);
 }
 
-/* Header: small-caps labels in the UI font, a size down from the cells,
- * over a light rule. The size is set on the <th> so its padding and line
- * box follow the labels; the rest of the type sits on the label (weight
- * and color from proj-table.css), the ⋮ and the "+", not on the <th>, so
- * it does not leak into the column menu nested there, which takes the
- * size back. */
-.below-wrapper .rich-drawer .table th {
-  font-size: 0.85em;
-  padding: 3px 1.6ch 1px;
-  background-color: var(--df-bg);
-  border-bottom: 1px solid var(--border-raised);
-  text-align: left;
-}
-
-.below-wrapper .rich-drawer .table th .column-label {
-  font-family: var(--ui-font), sans-serif;
-  font-variant-caps: all-small-caps;
-  letter-spacing: 0.06em;
-}
-
+/* The column menu nested in a <th> takes back the size the card's header
+ * sets (proj-table.css). */
 .below-wrapper .rich-drawer .table th .column-menu {
   font-size: 1rem;
 }
@@ -882,62 +858,9 @@ body.sample-resizing * {
   background-color: var(--df-hover-bg);
 }
 
-/* Cells padded in code-font units; none vertically (rows stay one line). */
-.below-wrapper .rich-drawer .table td {
-  padding: 0 1.6ch;
-  font-family: var(--code-font);
-  text-align: left;
-}
-
 /* the filler cell under "+" */
 .below-wrapper .rich-drawer .table td:empty {
   padding: 0;
-}
-
-/* Number columns, header included (TableCore tags them `numeric`). */
-.below-wrapper .rich-drawer .table .numeric {
-  text-align: right;
-}
-
-/* A very light zebra in the palette's lightest surface; hover stays on top. */
-.below-wrapper .rich-drawer .table tbody tr:nth-child(even) {
-  background-color: var(--surface-default);
-}
-
-.below-wrapper .rich-drawer .table tbody tr:hover {
-  background-color: var(--df-hover-bg);
-}
-
-/* Round the fills in the card's corners to its inner radius. The table
- * does not clip them (overflow would trap the column menus, and would
- * break the sticky header below). */
-.below-wrapper .rich-drawer .table th:first-child {
-  border-top-left-radius: 5px;
-}
-
-.below-wrapper .rich-drawer .table th:last-child {
-  border-top-right-radius: 5px;
-}
-
-.below-wrapper .rich-drawer .table tbody tr:last-child td:first-child {
-  border-bottom-left-radius: 5px;
-}
-
-.below-wrapper .rich-drawer .table tbody tr:last-child td:last-child {
-  border-bottom-right-radius: 5px;
-}
-
-/* High contrast (see proj-table.css): keep the header's heavier ink rule,
- * and stroke rows on their cells, since separate borders drop the row
- * borders proj-table.css draws. */
-@container style(--hazel-contrast: high) {
-  .below-wrapper .rich-drawer .table th {
-    border-bottom: 2px solid var(--border-inverse);
-  }
-
-  .below-wrapper .rich-drawer .table tbody tr:not(:last-child) td {
-    border-bottom: 1px solid var(--border-inverse);
-  }
 }
 
 /* Reserved rows match content exactly when the rich view fits, so nothing
