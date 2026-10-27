@@ -915,7 +915,13 @@ let exp_view =
           Haz3lcore.ErrorPrint.member_not_found_parts("member", not_found),
         ),
       )
-
+    | Exp(ModuleMemberIsType(name)) =>
+      div_ok(
+        parts_view(
+          ~view_type=view_type(~globals),
+          Haz3lcore.ErrorPrint.module_member_is_type_parts(name),
+        ),
+      )
     | Exp(Common(ok)) =>
       div_ok(
         common_ok_view(

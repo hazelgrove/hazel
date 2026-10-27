@@ -18,6 +18,10 @@ type cls =
   | TupleExtension
   | Tuple
   | Dot
+  /* A Dot whose left side is a module or a labeled tuple: classes statics
+     gives, not term forms. */
+  | ModuleProjection
+  | TupleProjection
   | Var
   | Let
   | Theorem
@@ -203,6 +207,8 @@ let show_cls: cls => string =
   | TupLabel => "Tuple Item"
   | TupleExtension => "Tuple Extension"
   | Dot => "Dot operator"
+  | ModuleProjection => "Module projection"
+  | TupleProjection => "Labeled tuple projection"
   | Var => "Variable reference"
   | Let => "Let expression"
   | Theorem => "Theorem expression"
