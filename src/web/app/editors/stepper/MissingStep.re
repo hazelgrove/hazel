@@ -359,6 +359,34 @@ module Update = {
 
   /* What taking the step writes: its written source and the index the
    * checker finds it under (`eval <at_exp> at <idx> end`). */
+  /* R-reset-list-step-0116-2: the printer does not parenthesise a lambda
+   * or fixpoint in an application's function position, so the selector
+   * `(fun x -> b)(a)` was written as `fun x -> b(a)`, which reads back as
+   * a different term (the application moves into the body) and the checker
+   * could not find it. The written selector parenthesises those heads;
+   * Parens are transparent to the checker's locator
+   * (Equality.ignoring_ascriptions), so the same node is selected. */
+  let quote_selector = (e: Exp.t): Exp.t =>
+    Exp.map_term(
+      ~f_exp=
+        (cont, e) => {
+          let e = cont(e);
+          switch (Exp.term_of(e)) {
+          | Ap(d, f, a) =>
+            switch (Exp.term_of(f)) {
+            | Fun(_)
+            | FixF(_) => {
+                ...e,
+                term: Ap(d, Exp.fresh(Parens(f)), a),
+              }
+            | _ => e
+            }
+          | _ => e
+          };
+        },
+      e,
+    );
+
   let written_target =
       (model: Model.t, step: EvaluatorStep.step): option((Exp.t, int)) => {
     open OptUtil.Syntax;
@@ -372,7 +400,7 @@ module Update = {
         ~substituted=Substitution.in_exp(env, written),
         at_exp,
       );
-    Some((at_exp, at_idx));
+    Some((quote_selector(at_exp), at_idx));
   };
 
   /* Map a step's written source onto the displayed term so underlines
