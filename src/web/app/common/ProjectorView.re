@@ -132,20 +132,38 @@ module Model = {
         ~indicated: option(Indicated.piece),
         ~selection_ids: list(Id.t),
         ~info: ProjectorBase.info,
+        ~statics: Language.Statics.Map.t,
         ~id: Id.t,
         ~sort: Sort.t,
       )
       : status => {
-    sort,
-    error:
-      Option.map(Language.Info.is_error, info.statics)
-      |> Option.value(~default=false),
-    warning:
-      Option.map(Language.Info.is_warning, info.statics)
-      |> Option.value(~default=false),
-    kind: p.kind,
-    indication: editor_active ? indication(indicated, id) : None,
-    selected: editor_active ? List.mem(id, selection_ids) : false,
+    let static_info =
+      switch (info.statics, p.kind) {
+      | (Some(_), _) => info.statics
+      | (None, ProjectorCore.Kind.Fold) =>
+        let seg = Piece.unparenthesize(p.syntax);
+        switch (
+          try(Some(Segment.root_id(Segment.skel(seg), seg))) {
+          | _ => None
+          }
+        ) {
+        | Some(root_id) => Language.Statics.Map.lookup(root_id, statics)
+        | None => None
+        };
+      | (None, _) => None
+      };
+    {
+      sort,
+      error:
+        Option.map(Language.Info.is_error, static_info)
+        |> Option.value(~default=false),
+      warning:
+        Option.map(Language.Info.is_warning, static_info)
+        |> Option.value(~default=false),
+      kind: p.kind,
+      indication: editor_active ? indication(indicated, id) : None,
+      selected: editor_active ? List.mem(id, selection_ids) : false,
+    };
   };
 
   let mk =
@@ -178,6 +196,7 @@ module Model = {
               ~indicated,
               ~selection_ids,
               ~info,
+              ~statics,
               ~id,
             ),
           statics_map: statics,

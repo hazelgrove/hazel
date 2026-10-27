@@ -55,6 +55,8 @@ let (suite, _) =
     @ [Test_VarHighlight.tests]
     @ [Test_GradingReport.tests]
     @ [Test_Derivation.tests]
+    @ [Test_SlicingExamples.tests]
+    @ [Test_TypeSlicingUI.tests]
     @ Test_DerivationCase.tests,
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");

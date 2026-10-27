@@ -81,9 +81,10 @@ let extreme_measures = (id: Id.t, data: t, measured: Measured.t) =>
 
 /* The segment corresponding to the `id` term */
 let segment = (id: Id.t, data: t): option(Segment.t) => {
-  let+ {base_seg, skel, _} = Id.Map.find_opt(id, data);
+  let* {base_seg, skel, _} = Id.Map.find_opt(id, data);
   let (l, r) = Skel.range(skel);
-  ListUtil.sublist((l, r + 1), base_seg);
+  l >= 0 && l <= r && r < List.length(base_seg)
+    ? Some(ListUtil.sublist((l, r + 1), base_seg)) : None;
 };
 
 let get_term_rows =

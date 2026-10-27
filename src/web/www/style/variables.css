@@ -98,6 +98,7 @@
   /* CODE DECO */
 
   --caret-color: var(--R1);
+  --caret-color-secondary: oklch(58% 0.2 250);
   --error-hole-stroke: var(--R1);
 
   /* CODE TOKENS */

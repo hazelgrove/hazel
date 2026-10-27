@@ -1541,12 +1541,12 @@ and uexp_to_info_map =
              inside variants) for `DHExp.ty_comparable`.
            - Prior explicit ascriptions (`ty = Some(Some(_))`) are
              preserved as-is. */
-        let poly_schema =
+        let written_schema =
           switch (Ctx.lookup_ctr(ctx, ctr)) {
-          | Some({typ: {term: Poly(_), _} as schema, _}) =>
-            Some(Typ.normalize(ctx, schema))
+          | Some({typ: {term: Poly(_), _} as schema, _}) => Some(schema)
           | _ => None
           };
+        let poly_schema = Option.map(Typ.normalize(ctx), written_schema);
         let type_args =
           ty == None
             ? ConstructorStaticsHelpers.instantiation_args_for(ctx, ctr, ana)
@@ -1577,7 +1577,7 @@ and uexp_to_info_map =
            type is the schema's body with the args substituted —
            not the schema itself. */
         let elab_syn_ty =
-          switch (type_args, poly_schema) {
+          switch (type_args, written_schema) {
           | ([_, ..._], Some({term: Poly(binder, body), _})) =>
             let binders = TPat.binders_of(binder);
             if (List.length(binders) == List.length(type_args)) {
@@ -1589,9 +1589,11 @@ and uexp_to_info_map =
           };
         /* Manually emit ExpectationMismatch based on the clean syn_res
            (not ctor_ty), since ctor_ty has already been reconciled with ana
-           and would otherwise silently meet. */
+           and would otherwise silently meet. An implicitly instantiated
+           constructor is checked at its instantiation, not at its schema. */
+        let checked_syn = type_args == [] ? syn_res : elab_syn_ty;
         let marks_res =
-          switch (expectation_mismatch_mark(ctx, ana, syn_res)) {
+          switch (expectation_mismatch_mark(ctx, ana, checked_syn)) {
           | None => marks_res
           | Some(m) when marks_res == [] => [m]
           | Some(_) => marks_res
@@ -2255,8 +2257,7 @@ and uexp_to_info_map =
           [cons.elab_syn_ty, alt.elab_syn_ty],
           branch_ids,
         );
-      let result_ty =
-        fixed_typ(ctx, ana, syn_if) |> Typ.normalize(ctx) |> Typ.all_ids_temp;
+      let result_ty = fixed_typ(ctx, ana, syn_if) |> Typ.all_ids_temp;
       let elab =
         If(
           cond_elab,
@@ -2390,9 +2391,7 @@ and uexp_to_info_map =
         ]);
       /* Build elaboration with ascriptions on branch bodies */
       let result_ty =
-        fixed_typ(ctx, ana, syn_ty_match)
-        |> Typ.normalize(ctx)
-        |> Typ.all_ids_temp;
+        fixed_typ(ctx, ana, syn_ty_match) |> Typ.all_ids_temp;
       let e_tys = List.map(Info.exp_ty, es);
       let es_elabs =
         List.map2(
@@ -4904,3 +4903,53 @@ let mk =
 
 let mk = (~ana=Typ.temp(Unknown(SynSwitch)), core: CoreSettings.t, ctx, exp) =>
   core.statics ? mk(ana, ctx, exp) : (Id.Map.empty, Exp.fresh(Tuple([])));
+
+let mk_typ = (core: CoreSettings.t, ctx, typ: Typ.t): Map.t =>
+  if (core.statics) {
+    let (_, m) = utyp_to_info_map(~ctx, ~ancestors=[], typ, Id.Map.empty);
+    let m_ref = ref(m);
+    let _ =
+      Grammar.map_typ_annotation(
+        ({ids, _}: IdTagged.IdTag.t) => {
+          let info_opt =
+            List.find_map(id => Id.Map.find_opt(id, m_ref^), ids);
+          switch (info_opt) {
+          | Some(info) => m_ref := add_missing_info(ids, info, m_ref^)
+          | None => ()
+          };
+          ();
+        },
+        typ,
+      );
+    m_ref^;
+  } else {
+    Id.Map.empty;
+  };
+
+module Slice = Slice;
+
+let slice_map =
+    (
+      ~info_map: Map.t,
+      ~root_exp: Exp.t,
+      ~focus=None,
+      ~direction=`Syn,
+      query: Typ.t,
+    )
+    : Slice.result =>
+  Slice.slice(~info_map, ~root_exp, ~focus, ~direction, query);
+
+let slice =
+    (
+      ~ctx=Ctx.empty_pre_elaboration,
+      ~ana=Typ.temp(Unknown(SynSwitch)),
+      ~focus=None,
+      ~direction=`Syn,
+      exp: Exp.t,
+      query: Typ.t,
+    )
+    : Slice.result => {
+  let (_, _, m) =
+    uexp_to_info_map(~ana, ~ctx, ~ancestors=[], exp, Id.Map.empty);
+  slice_map(~info_map=m, ~root_exp=exp, ~focus, ~direction, query);
+};

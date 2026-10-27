@@ -21,14 +21,16 @@ let caret_base_path = (side, shape): list(SvgUtil.Path.cmd) =>
 
 let main =
     (
+      ~id: string,
+      ~base_cls: list(string),
       ~font_metrics: FontMetrics.t,
       ~profile as {shape, side, origin}: Profile.t,
     ) =>
   DecUtil.code_svg(
     ~font_metrics,
     ~origin,
-    ~id="caret",
-    ~base_cls=["blink"],
+    ~id,
+    ~base_cls,
     ~path_cls=["caret-path"],
     /* A smaller scale causes scroll-to-caret issues */
     ~scale=1.0,
@@ -39,6 +41,8 @@ let main =
 
 let view =
     (
+      ~id="caret",
+      ~base_cls=["caret", "blink"],
       ~measured: Haz3lcore.Measured.t,
       ~font_metrics: FontMetrics.t,
       z: Haz3lcore.Zipper.t,
@@ -56,6 +60,8 @@ let view =
     | _ => Right
     };
   main(
+    ~id,
+    ~base_cls,
     ~font_metrics,
     ~profile={
       side,

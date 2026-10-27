@@ -9,10 +9,22 @@ let empty_cell_editor_persistent = (~root): CellEditor.Model.persistent => {
   result: EvalResult.Model.init |> EvalResult.Model.persist,
 };
 
+let cell_editor_of_source = (src: string): CellEditor.Model.persistent => {
+  editor:
+    PersistentSegment.restore_from_backup_text(src, ~root=Exp)
+    |> PersistentZipper.persist
+    |> Editor.Model.mk_persistent(~root=Exp),
+  result: EvalResult.Model.init |> EvalResult.Model.persist,
+};
+
 let startup: PersistentData.t = {
   scratch: (
     0,
-    [("Scratchpad 1", empty_cell_editor_persistent(~root=Exp))],
+    List.map(
+      ((name, src)) => (name, cell_editor_of_source(src)),
+      SlicingExamples.all,
+    )
+    @ [("Scratchpad", empty_cell_editor_persistent(~root=Exp))],
   ),
   documentation: (
     0,
@@ -97,6 +109,32 @@ let default_documentation_slide_name =
     find_documentation_slide(name),
   );
 };
+
+let find_scratch_slide = (name: string): option(CellEditor.Model.persistent) =>
+  startup.scratch
+  |> snd
+  |> List.find_opt(((n, _)) => n == name)
+  |> Option.map(snd);
+
+let default_scratch_slide_name =
+    (name: string): CellEditor.Model.persistent =>
+  OptUtil.get(
+    () => empty_cell_editor_persistent(~root=Exp),
+    find_scratch_slide(name),
+  );
+
+let default_slide_name =
+    (prefix: string, name: string): CellEditor.Model.persistent =>
+  prefix == "scratch"
+    ? default_scratch_slide_name(name) : default_documentation_slide_name(name);
+
+let slide_is_blank = (slide: CellEditor.Model.persistent): bool =>
+  String.trim(slide.editor.zipper.backup_text) == "";
+
+let stored_slide_or_default =
+    (prefix: string, name: string, stored: CellEditor.Model.persistent)
+    : CellEditor.Model.persistent =>
+  slide_is_blank(stored) ? default_slide_name(prefix, name) : stored;
 
 /* Derivation slides included in the Documentation mode under the
    "Derivations" section. The section prefix makes the slide names split

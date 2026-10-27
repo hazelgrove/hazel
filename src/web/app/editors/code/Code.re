@@ -151,14 +151,27 @@ let view =
     };
 
   let of_projector = (pr: Base.projector) => {
-    /* Read-only viewers (e.g. agent context) pass an empty shape map; folds
-       would render as invisible whitespace. Show the standard fold glyph. */
     switch (pr.kind) {
     | ProjectorCore.Kind.Fold when Id.Map.is_empty(shape_map) =>
+      let seg = Piece.unparenthesize(pr.syntax);
+      let sort =
+        switch (Segment.sort_of(Segment.skel(seg), seg)) {
+        | sort => sort
+        | exception _ => Sort.Exp
+        };
+      let fold_text =
+        FoldProj.t_of_sexp(Sexplib.Sexp.of_string(pr.model)).text;
       span(
-        ~attrs=[Attr.classes(["token", "fold-projector", "mono"])],
-        [text({|⋱|})],
-      )
+        ~attrs=[
+          Attr.classes([
+            "projector",
+            "fold",
+            "inline-fold",
+            Sort.show(sort),
+          ]),
+        ],
+        [text(fold_text)],
+      );
     | _ =>
       let indent = measure_of(Projector(pr)).last.col;
       let size = DeferredLinebreaks.of_projector(pr, shape_map);

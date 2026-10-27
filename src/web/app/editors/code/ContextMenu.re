@@ -483,20 +483,37 @@ let refractor_actions_data =
 
 /* Get menu sections - each section is separated by a divider.
    This is the single source of truth for menu structure. */
+type parts = {
+  jump_to_binding: bool,
+  select_term: bool,
+  introduce: bool,
+  refractors: bool,
+  projectors: bool,
+};
+
+let all_parts = {
+  jump_to_binding: true,
+  select_term: true,
+  introduce: true,
+  refractors: true,
+  projectors: true,
+};
+
 let get_sections =
-    (~info_map: Language.Statics.Map.t, z: Zipper.t)
+    (~showing=all_parts, ~info_map: Language.Statics.Map.t, z: Zipper.t)
     : list(list(menu_item_data)) => {
   let ci = Indicated.ci_of(z, info_map);
-
+  let incl = (b, xs) => b ? xs : [];
   [
     /* Section 1: Navigation & Selection */
-    jump_to_binding_data(ci) @ select_current_term_data(),
+    incl(showing.jump_to_binding, jump_to_binding_data(ci))
+    @ incl(showing.select_term, select_current_term_data()),
     /* Section 2: Refactoring */
-    introduce_data(ci),
+    incl(showing.introduce, introduce_data(ci)),
     /* Section 3: Probes/Statics (refractors) */
-    refractor_actions_data(~ci, info_map, z),
+    incl(showing.refractors, refractor_actions_data(~ci, info_map, z)),
     /* Section 4: Projectors (fold, livelits) */
-    Projectors.actions_data(z, info_map),
+    incl(showing.projectors, Projectors.actions_data(z, info_map)),
   ]
   |> List.filter(section => section != []);
 };

@@ -389,8 +389,8 @@ module Persist = {
             editor:
               (
                 switch (e) {
-                | Some(e) => e
-                | None => Init.default_documentation_slide_name(name)
+                | Some(e) => Init.stored_slide_or_default(prefix, name, e)
+                | None => Init.default_slide_name(prefix, name)
                 }
               )
               |> CellEditor.Model.unpersist(~settings),
@@ -439,7 +439,7 @@ module Persist = {
           kind:
             Code({
               editor:
-                Init.default_documentation_slide_name(name)
+                Init.default_slide_name(prefix, name)
                 |> CellEditor.Model.unpersist(~settings),
               agent,
             }),
@@ -458,7 +458,14 @@ module Persist = {
       : Model.t => {
     let (current, names) =
       switch (load_meta(prefix)) {
-      | Some(meta) => (meta.current, meta.names)
+      | Some(meta) => (
+          meta.current,
+          meta.names
+          @ List.filter(
+              name => !List.mem(name, meta.names),
+              default_names,
+            ),
+        )
       | None => (default_current, default_names)
       };
     Model.{

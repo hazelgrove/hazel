@@ -221,3 +221,15 @@
 .highlight-code-g {
   fill: var(--highlight-g);
 }
+
+.section.type-slicing .slice-query {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.4em;
+  margin: 0.3em 0;
+}
+
+.section.type-slicing .slice-query .code {
+  display: inline;
+}

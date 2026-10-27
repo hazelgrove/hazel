@@ -269,6 +269,7 @@ let view =
       ~cursor: Cursor.cursor(Editors.Update.t),
       ~explain_this_inject,
       ~explainThisModel: ExplainThisModel.t,
+      ~type_slicing_focuses,
       ~log_model: LogSidebar.Model.t,
       ~log_count: int,
       ~editors_inject,
@@ -300,6 +301,7 @@ let view =
                 ~globals,
                 ~inject=explain_this_inject,
                 ~explainThisModel,
+                ~type_slicing_focuses,
                 {
                   cursor: cursor.info,
                   deduction: derivation_info,

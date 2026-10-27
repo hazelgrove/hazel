@@ -2,7 +2,7 @@
 
 /* Turn off caret when text projector is focused */
 /* TODO: Generalize this logic to other projectors */
-.code-deco:has(~ .projectors .projector.text *:focus) #caret .caret-path {
+.code-deco:has(~ .projectors .projector.text *:focus) .caret .caret-path {
   fill: #0000;
 }
 

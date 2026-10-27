@@ -6,8 +6,8 @@ open Js_of_ocaml;
  * (https://aerotwist.com/blog/flip-your-animations/).
  *
  * From the client perspective, it suffices to call the request
- * method with a list of the DOM element ids to animate, as well
- * as some animation settings (keyframes, duration, easing).
+ * method with a list of DOM element ids or CSS selectors to animate,
+ * as well as some animation settings (keyframes, duration, easing).
  *
  * Some common keyframes are provided in the module at the bottom */
 
@@ -111,8 +111,7 @@ type change =
 
 /* Specify a transition for an element */
 type transition = {
-  /* A unique id used as attribute for
-   * the relevant DOM element */
+  /* A unique id attribute or CSS selector for the relevant DOM element. */
   id: string,
   /* The animation function recieves the diffs
    * for the element's position and scale across a
@@ -145,12 +144,20 @@ let animate_elem = (({box, animate, _}, elem, new_box)): unit =>
   | (None, None) => ()
   };
 
+let elem_of_target =
+    (id: string): option(Js_of_ocaml.Js.t(Dom_html.element)) =>
+  String.length(id) > 0 && (id.[0] == '.' || id.[0] == '#')
+    ? Dom_html.document##querySelector(Js_of_ocaml.Js.string(id))
+      |> Js_of_ocaml.Js.Opt.to_option
+      |> Option.map(Js_of_ocaml.Js.Unsafe.coerce)
+    : JsUtil.get_elem_by_id_opt(id);
+
 let filter_visible_elements = (tracked_elems: list(transition_internal)) => {
   let client_height = client_height();
   let inner_height = inner_height();
   List.filter_map(
     (tr: transition_internal) => {
-      switch (JsUtil.get_elem_by_id_opt(tr.id)) {
+      switch (elem_of_target(tr.id)) {
       | None => None
       | Some(elem) =>
         let new_box = box_of(elem);
@@ -177,7 +184,7 @@ let request = (transitions: list(transition)): unit => {
       ({id, animate}: transition) =>
         {
           id,
-          box: Option.map(box_of, JsUtil.get_elem_by_id_opt(id)),
+          box: Option.map(box_of, elem_of_target(id)),
           animate,
         },
       transitions,

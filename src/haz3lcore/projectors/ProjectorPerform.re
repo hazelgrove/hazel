@@ -23,9 +23,18 @@ open OptUtil.Syntax;
  * neighboring infix operation was added which binds tighter. Again,
  * this is the same as would happen if unparenthesizing a subterm. */
 
-let init = (kind: ProjectorCore.Kind.t, seg: Base.segment): option(syntax) =>
+let init_as =
+    (~sort: Sort.t, kind: ProjectorCore.Kind.t, seg: Base.segment)
+    : option(syntax) =>
   /* Projected syntax always gets parenthesized, but only the contents
    * of those parentheses are passed to the projector implementations  */
+  switch (MakeTerm.for_projection_as(~sort, seg)) {
+  | None => None
+  | Some(any) =>
+    ProjectorInit.init(kind, Segment.parenthesize(~sort, seg), any)
+  };
+
+let init = (kind: ProjectorCore.Kind.t, seg: Base.segment): option(syntax) =>
   switch (MakeTerm.for_projection(seg)) {
   | None => None
   | Some(any) => ProjectorInit.init(kind, Segment.parenthesize(seg), any)

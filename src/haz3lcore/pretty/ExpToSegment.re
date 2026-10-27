@@ -2213,7 +2213,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   | Projector({kind, model}, e) =>
     let id = exp |> Exp.rep_id;
     let+ inner_seg = go(e);
-    let syntax = Segment.parenthesize(inner_seg);
+    let syntax = Segment.parenthesize(~sort=Sort.Exp, inner_seg);
     wrap(
       exp,
       [Piece.Projector(ProjectorCore.mk(~id, kind, syntax, model))],
@@ -2550,7 +2550,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
   | Projector({kind, model}, p) =>
     let id = pat |> Pat.rep_id;
     let+ inner_seg = go(p);
-    let syntax = Segment.parenthesize(inner_seg);
+    let syntax = Segment.parenthesize(~sort=Sort.Pat, inner_seg);
     wrap(
       pat,
       [Piece.Projector(ProjectorCore.mk(~id, kind, syntax, model))],
@@ -2802,7 +2802,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
   | Projector({kind, model}, t) =>
     let id = typ |> Typ.rep_id;
     let+ inner_seg = go(t);
-    let syntax = Segment.parenthesize(inner_seg);
+    let syntax = Segment.parenthesize(~sort=Sort.Typ, inner_seg);
     wrap(
       typ,
       [Piece.Projector(ProjectorCore.mk(~id, kind, syntax, model))],
@@ -2833,6 +2833,11 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     wrap(typ, [mk_form(TypFun, id, [tp])] @ t);
   | TypParamAp(t1, t2) =>
     let id = typ |> Typ.rep_id;
+    let t2 =
+      switch (Typ.term_of(t2)) {
+      | Prod(_) => Parens(t2) |> Typ.temp
+      | _ => t2
+      };
     let+ t1 = go(t1)
     and+ t2 = go(t2);
     wrap(typ, t1 @ [mk_form(ApTyp, id, [t2])]);
