@@ -1252,7 +1252,8 @@ let rec peel_stmt_binders =
     /* `forall p where g -> _` is `Forall(Where(p, g), _)`: the binder's
      * restriction rides on its pattern and is installed here. */
     let ctx =
-      SemanticCtx.add_from_pattern(ctx, p, Typ.fresh(Unknown(Internal)));
+      SemanticCtx.add_from_pattern(ctx, p, Typ.fresh(Unknown(Internal)))
+      |> SemanticCtx.mark_standard(_, Pat.bound_vars(p));
     peel_stmt_binders(add_pat_where_facts(ctx, p), body);
   | _ => (ctx, goal)
   };
@@ -1580,8 +1581,17 @@ let witness_step =
                 c => incur_obligation(~step, ~ctx, ~origin, c),
                 conditions,
               );
+            /* D80 / someStd: a bare variable whose current binding is a
+             * quantifier or `obtain` binder is standard at ANY type,
+             * including functions. Program values are inlined by the
+             * substitution above, so they never reach this case. */
+            let logical_var =
+              switch (strip_parens_exp(v_sub).term) {
+              | Var(x) => SemanticCtx.is_standard_var(ctx, x)
+              | _ => false
+              };
             let standard =
-              first_order(expected)
+              first_order(expected) || logical_var
                 ? []
                 : [
                   incur_obligation(
@@ -1824,7 +1834,9 @@ let rec check =
       | Some(_) =>
         switch (peel_binder(incoming)) {
         | Some((p, t, guard, inner)) =>
-          let ctx' = SemanticCtx.add_from_pattern(ctx, p, t);
+          let ctx' =
+            SemanticCtx.add_from_pattern(ctx, p, t)
+            |> SemanticCtx.mark_standard(_, Pat.bound_vars(p));
           /* A restricted binder's `where` guard becomes a hypothesis for
            * the sub-proof — free, sound intro (§2.2). */
           let ctx' =
@@ -1948,7 +1960,9 @@ let rec check =
           switch (ProofHacks.dhpat_extend_ctx(pat, domain, Ctx.empty)) {
           | None => (incoming, ctx, [ProofMark.MalformedFunext])
           | Some(_) =>
-            let ctx' = SemanticCtx.add_from_pattern(ctx, pat, domain);
+            let ctx' =
+              SemanticCtx.add_from_pattern(ctx, pat, domain)
+              |> SemanticCtx.mark_standard(_, Pat.bound_vars(pat));
             let arg = pat |> ProofHacks.pat_to_exp;
             /* `ctx'` env, not `ctx`: it maps the funext binder to itself
              * (`y |-> Var(y)`), which Substitution leaves alone, so the
@@ -2223,7 +2237,10 @@ let rec check =
           } else {
             let ty =
               Option.value(~default=Typ.fresh(Unknown(Internal)), ty);
-            let ctx' = SemanticCtx.add_entry(ctx, Id.mk(), xn, ty, None);
+            /* someStd: the obtained variable is standard. */
+            let ctx' =
+              SemanticCtx.add_entry(ctx, Id.mk(), xn, ty, None)
+              |> SemanticCtx.mark_standard(_, [xn]);
             let hyp =
               p_body
               |> Substitution.in_exp(
@@ -2482,6 +2499,12 @@ let rec check =
           },
           SemanticCtx.get_env(ctx),
         );
+      /* Keep the standardness of the OTHER binders; `x` is re-quantified
+       * and becomes standard again only when the body re-peels it. */
+      let ctx' = {
+        ...ctx',
+        std: List.filter(n => n != x, ctx.std),
+      };
       let (out_body, m) =
         check(~step, ~info_map, ~ctx=ctx', Some(body_goal), body);
       /* Discharged when the body reduces the re-quantified goal to

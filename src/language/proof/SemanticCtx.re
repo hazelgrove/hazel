@@ -20,6 +20,14 @@ open Util;
 type t = {
   ctx: Ctx.t,
   env: Environment.t(Exp.t),
+  /* Names whose CURRENT binding has a logical origin that makes it
+     standard (D80: quantifier binders range over standard values, any
+     type; kernel someStd: an obtained variable is standard). Only the
+     checker's statement/proof `forall`, `funext` and `obtain` binders
+     are marked; every other (re)binding of a name -- program values,
+     induction case variables, function parameters -- removes it, so a
+     shadowed name is never standard by accident. */
+  std: list(Var.t),
 };
 
 let free_name = (t: t, base: Var.t): Var.t =>
@@ -32,6 +40,7 @@ let of_ctx_and_env: (Ctx.t, Environment.t(Exp.t)) => t =
   (ctx, env) => {
     ctx,
     env,
+    std: [],
   };
 
 /* Entry point from a PROGRAM STATE: a `Ctx.t` produced by the statics
@@ -68,10 +77,11 @@ let of_program_state = (ctx: Ctx.t, env: Environment.t(Exp.t)): t => {
       ),
   },
   env,
+  std: [],
 };
 
 let add_entry: (t, Id.t, Var.t, Typ.t, option(Exp.t)) => t =
-  ({ctx, env}, id, name, typ, value) => {
+  ({ctx, env, std}, id, name, typ, value) => {
     let ctx =
       Ctx.extend(
         ctx,
@@ -87,6 +97,7 @@ let add_entry: (t, Id.t, Var.t, Typ.t, option(Exp.t)) => t =
     {
       ctx,
       env,
+      std: List.filter(n => n != name, std),
     };
   };
 
@@ -104,7 +115,9 @@ let add_entry_free_name =
   );
 };
 
-let add_from_pattern = ({ctx, env}: t, pattern: Pat.t, pat_typ: Typ.t) => {
+let add_from_pattern =
+    ({ctx, env, std}: t, pattern: Pat.t, pat_typ: Typ.t) => {
+  let bound = pattern |> Pat.bindings |> Binding.variable_names;
   let ctx =
     ProofHacks.dhpat_extend_ctx(pattern, pat_typ, ctx)
     |> Option.value(~default=ctx);
@@ -120,6 +133,7 @@ let add_from_pattern = ({ctx, env}: t, pattern: Pat.t, pat_typ: Typ.t) => {
   {
     ctx,
     env,
+    std: List.filter(n => !List.mem(n, bound), std),
   };
 };
 
@@ -191,6 +205,15 @@ let facts = (t: t): list((Var.t, Id.t, Exp.t)) =>
        | None => None
        }
      );
+
+/* Mark the names `bound` (just introduced by a quantifier or `obtain`
+   binder) as standard; see the `std` field. */
+let mark_standard = (t: t, bound: list(Var.t)): t => {
+  ...t,
+  std: bound @ List.filter(n => !List.mem(n, bound), t.std),
+};
+
+let is_standard_var = (t: t, x: Var.t): bool => List.mem(x, t.std);
 
 let get_ctx = (t: t): Ctx.t => t.ctx;
 let get_env = (t: t): Environment.t(Exp.t) => t.env;

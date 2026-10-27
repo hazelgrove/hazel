@@ -328,6 +328,35 @@ let std_pattern =
 let cite_alone =
   "theorem s = true ==> (forall (x : Bool) -> !!x) proof assume true => forall (x : Bool !! h) => h in 0";
 
+/* D80 logical origin: a quantifier- or obtain-bound FUNCTION variable is
+   standard; a program lambda or an induction case variable is not. */
+let fn_stmt_binder =
+  "theorem w = forall (f : Int -> Int) -> exists (g : Int -> Int) -> g(0) == f(0) proof\n"
+  ++ "  == true by witness f end\nin 0";
+
+let fn_obtained =
+  "theorem w = (exists (h : Int -> Int) -> h(0) == 0) ==> (exists (g : Int -> Int) -> g(0) == 0) proof\n"
+  ++ "  assume (exists (h : Int -> Int) -> h(0) == 0) as he =>\n"
+  ++ "  obtain k as hk from he =>\n  == true by witness k end;\n  == true by hk end\nin 0";
+
+let fn_program =
+  "let idf = fun (k : Int) -> k in\n"
+  ++ "theorem w = exists (g : Int -> Int) -> g(0) == 0 proof == true by witness idf end in 0";
+
+let fn_case_shadow =
+  "theorem w = forall (f : Int -> Int) -> forall (fs : [Int -> Int]) -> exists (g : Int -> Int) -> g(0) == g(0) proof\n"
+  ++ "  induction fs\n  | [] => ?\n  | f :: t => == true by witness f end\n  end\nin 0";
+
+/* Existing-status control: a proof with NO witness step still reads
+   Refuted when it computes the goal to `false`. */
+let refuted_control =
+  "theorem r = 1 == 2 proof eval 1 == 2 at 0 end in 0";
+
+/* Keyword receipt: the global builtin `exists` (alias of `any`,
+   BuiltinsList) as baseline source would call it. */
+let alias_call = "exists([1, 2], fun (x : Int) -> x > 1)";
+let any_call = "any([1, 2], fun (x : Int) -> x > 1)";
+
 let roundtrip_programs = [
   ("exists", "exists (n : Int) -> n * n == 9"),
   ("valued", "!!(1, [2])"),
@@ -449,7 +478,7 @@ let tests = (
       check(list(string), "not exists", ["witness"], refused_rules(node(o2, "w", RelEqBy)));
       check(bool, "not Proven", false, full(o2, "w") == "Proven");
     }),
-    test_case("obtain: fresh x and h : P[x], Proven", `Quick, () => {
+    test_case("obtain: fresh x and h : P[x], Proven (under the BASELINE ungated assume; not D47/D51 evidence)", `Quick, () => {
       let o = observe("obtain_ok", obtain_ok);
       valid("obtain_ok", o);
       check(list(string), "obtain accepted", [], refused_rules(node(o, "t", Obtain)));
@@ -500,6 +529,55 @@ let tests = (
       check(bool, "exp-level", true, observe("std_exp", std_exp_level).errors != []);
       check(bool, "pattern without type", true, observe("std_pattern", std_pattern).errors != []);
       check(bool, "bare citation as a step", true, observe("cite_alone", cite_alone).errors != []);
+    }),
+    test_case("D80 origin: quantifier/obtain function variables are standard; program lambda and case variable are not", `Quick, () => {
+      let o = observe("fn_stmt_binder", fn_stmt_binder);
+      valid("fn_stmt_binder", o);
+      let w = node(o, "w", RelEqBy);
+      check(list(string), "accepted", [], refused_rules(w));
+      check(int, "no !!f obligation", 0, List.length(w.obligations));
+      let o2 = observe("fn_obtained", fn_obtained);
+      valid("fn_obtained", o2);
+      let ws = nodes(o2, "w", RelEqBy);
+      check(int, "obtained k: no obligation", 0, List.length(List.hd(ws).obligations));
+      check(string, "full", "Proven", full(o2, "w"));
+      let o3 = observe("fn_program", fn_program);
+      let w3 = node(o3, "w", RelEqBy);
+      check(list(string), "program lambda accepted as a witness", [], refused_rules(w3));
+      check(bool, "but its !!v stays pending", true, pending(w3) >= 1);
+      let o4 = observe("fn_case_shadow", fn_case_shadow);
+      let w4 = node(o4, "w", RelEqBy);
+      check(list(string), "case variable accepted as a witness", [], refused_rules(w4));
+      check(bool, "shadowing case variable is not auto-standard", true, pending(w4) >= 1);
+    }),
+    test_case("existing status untouched: a witness-free false proof is still Refuted", `Quick, () => {
+      let o = observe("refuted_control", refuted_control);
+      valid("refuted_control", o);
+      check(string, "full", "Refuted", full(o, "r"));
+    }),
+    test_case("keyword receipt: builtin `exists` call vs `any`", `Quick, () => {
+      check(string, "any still works", "true", eval_print(any_call));
+      let alias =
+        switch (Haz3lcore.Parser.to_term(alias_call, ~root=Exp)) {
+        | None => "PARSE FAILURE"
+        | Some(e) =>
+          let (statics, elab) =
+            Statics.mk(
+              CoreSettings.on,
+              Builtins.ctx_init(Some(Operators.default_mode)),
+              e,
+            );
+          let errs = Haz3lcore.ErrorPrint.all(statics);
+          let (r, _) = Evaluator.evaluate(~env=Builtins.env_init, elab);
+          "parsed as "
+          ++ Exp.show_cls(Exp.cls_of_term(e.term))
+          ++ "; static errors "
+          ++ string_of_int(List.length(errs))
+          ++ "; value "
+          ++ print_exp(r);
+        };
+      print_endline("EXISTS alias-call " ++ alias_call ++ " => " ++ alias);
+      check(bool, "the alias call no longer evaluates to true (collision)", true, alias != "true");
     }),
     test_case("one-way standardness: no quantifier rewrite, no enumeration", `Quick, () => {
       check(string, "!!3", "true", eval_print("!!3"));
