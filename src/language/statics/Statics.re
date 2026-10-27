@@ -1668,11 +1668,17 @@ and uexp_to_info_map =
             List.filter_map(Typ.match_tup_label, ts) |> List.map(fst)
           | _ => []
           };
-        let label_child = (~elab_syn_ty, m) =>
-          label_child(~marks=[], ~elab_syn_ty, labels, m);
+        let label_child = (~marks=[], ~elab_syn_ty, m) =>
+          label_child(~marks, ~elab_syn_ty, labels, m);
         let dot =
-            (~cls=Cls.Exp(TupleProjection), ~marks=[], ~elab_syn_ty, child) =>
-          dot(~cls, ~marks, ~elab_syn_ty, labels, child);
+            (
+              ~cls=Cls.Exp(TupleProjection),
+              ~marks=[],
+              ~message=?,
+              ~elab_syn_ty,
+              child,
+            ) =>
+          dot(~cls, ~marks, ~message?, ~elab_syn_ty, labels, child);
         let (ty, m) =
           switch (info_e1.ty.term, e2.term) {
           | (Unknown(_), Label(name)) =>
@@ -1692,29 +1698,29 @@ and uexp_to_info_map =
                | _ => t
                }
              );
+        /* The element named: the label at the element's type, the dot at
+           the type [projected] from it. A label the tuple lacks is marked on
+           the label, and the dot carries the same as a message. */
+        let project = (ts, name, ~projected) =>
+          switch (element(ts, name)) {
+          | Some(typ) =>
+            label_child(~elab_syn_ty=typ, m)
+            |> dot(~elab_syn_ty=projected(typ))
+          | None =>
+            label_child(
+              ~marks=[LabelNotFound(name, labels)],
+              ~elab_syn_ty=Label(name) |> Typ.temp,
+              m,
+            )
+            |> dot(
+                 ~message=Message.Exp(TupleLabelNotFound(name, labels)),
+                 ~elab_syn_ty=unknown,
+               )
+          };
         switch (ty.term, e2.term) {
-        | (Prod(ts), Label(name)) =>
-          let child = label_child(~elab_syn_ty=Label(name) |> Typ.temp, m);
-          switch (element(ts, name)) {
-          | Some(typ) => child |> dot(~elab_syn_ty=typ)
-          | None =>
-            child
-            |> dot(
-                 ~marks=[LabelNotFound(name, labels)],
-                 ~elab_syn_ty=unknown,
-               )
-          };
+        | (Prod(ts), Label(name)) => project(ts, name, ~projected=Fun.id)
         | (List({term: Prod(ts), _}), Label(name)) =>
-          let child = label_child(~elab_syn_ty=Label(name) |> Typ.temp, m);
-          switch (element(ts, name)) {
-          | Some(typ) => child |> dot(~elab_syn_ty=List(typ) |> Typ.fresh)
-          | None =>
-            child
-            |> dot(
-                 ~marks=[LabelNotFound(name, labels)],
-                 ~elab_syn_ty=unknown,
-               )
-          };
+          project(ts, name, ~projected=typ => List(typ) |> Typ.fresh)
         | (Prod(_) | List({term: Prod(_), _}), EmptyHole) =>
           label_child(~elab_syn_ty=unknown, m) |> dot(~elab_syn_ty=unknown)
         | (Prod(_) | List({term: Prod(_), _}), _) =>

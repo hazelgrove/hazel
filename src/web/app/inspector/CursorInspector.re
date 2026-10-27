@@ -309,6 +309,13 @@ let core_mark_err_view =
   );
 };
 
+let label_not_found_view = (name, labels): list(Node.t) => [
+  text("Label "),
+  label_view(name),
+  text(" not found in tuple's labels: "),
+  ...List.map(label_view, labels),
+];
+
 let common_warn_view = (warning: Warning.t) => {
   switch (warning) {
   | WarningPat(UnusedVar(name)) => [
@@ -780,12 +787,7 @@ let exp_mark_err_view =
     }
   | BadOperator(msg) => div_err([text("Invalid operator: "), text(msg)])
   | LabelNotFound(name, labels) =>
-    div_err([
-      text("Label "),
-      label_view(name),
-      text(" not found in tuple's labels: "),
-      ...List.map(label_view, labels),
-    ])
+    div_err(label_not_found_view(name, labels))
   | ModuleMissingMembers(names) =>
     div_err(
       parts_view(
@@ -919,6 +921,8 @@ let exp_view =
           Haz3lcore.ErrorPrint.member_not_found_parts("member", not_found),
         ),
       )
+    | Exp(TupleLabelNotFound(name, labels)) =>
+      div_ok(label_not_found_view(name, labels))
     | Exp(ModuleMemberIsType(name)) =>
       div_ok(
         parts_view(
