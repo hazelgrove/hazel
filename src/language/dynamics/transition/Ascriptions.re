@@ -28,9 +28,13 @@ open Util.OptUtil.Syntax;
 let unchanged = (ds: list(DHExp.t), ds': list(DHExp.t)): bool =>
   List.for_all2((d, d') => d === d', ds, ds');
 
-/* [ty] unrolled; a non-contractive type is `?`, as everywhere. */
-let unrolled = (ty: Typ.t): Typ.t =>
-  Typ.unroll(ty) |> Option.value(~default=Unknown(Internal) |> Typ.temp);
+/* Whether [ty_rec], unrolled, is consistent with [ty]. A non-contractive
+   type has no unrolling and is consistent with nothing. */
+let unrolled_consistent = (ty_rec: Typ.t, ty: Typ.t): bool =>
+  switch (Typ.unroll(ty_rec)) {
+  | Some(ty_rec) => Typ.is_consistent(Ctx.empty, ty_rec, ty)
+  | None => false
+  };
 
 let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
   let recur = (d: DHExp.t): DHExp.t =>
@@ -41,11 +45,13 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     };
   switch (DHExp.term_of(d)) {
   | Asc(e, t) =>
-    let t_unrolled = unrolled(t);
+    /* A non-contractive type ascribes nothing, so the ascription is
+       stuck. */
+    let* t_unrolled = Typ.unroll(t);
     switch (DHExp.term_of(e), Typ.term_of(t_unrolled)) {
     | (Asc(e', t'), _) =>
       // This is only necessary because sometimes we add two ascriptions and aren't marking it as a non-value
-      let t' = unrolled(t');
+      let* t' = Typ.unroll(t');
       let+ t = Typ.meet(Ctx.empty, t_unrolled, t');
       recur(
         IdTagged.fast_copy(DHExp.rep_id(e), Asc(e', t) |> DHExp.fresh),
@@ -216,7 +222,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         ),
         Sum(m) as sumt',
       )
-        when Typ.is_consistent(Ctx.empty, unrolled(sumt), sumt' |> Typ.temp) =>
+        when unrolled_consistent(sumt, sumt' |> Typ.temp) =>
       let entry = ConstructorMap.get_entry(c, m);
       switch (entry) {
       | Some(Some(t')) =>
@@ -233,7 +239,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       | None => None
       };
     | (Constructor(_, Some(Some(t))), t')
-        when Typ.is_consistent(Ctx.empty, unrolled(t), t' |> Typ.temp) =>
+        when unrolled_consistent(t, t' |> Typ.temp) =>
       Some(e)
     | (ProofObject(e1), ProofOf(e2)) when Exp.fast_equal(e1, e2) =>
       Some(

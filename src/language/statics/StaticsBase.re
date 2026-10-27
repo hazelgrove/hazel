@@ -256,18 +256,14 @@ let map_m2 = (f, xs, ys, m: Map.t) =>
 
 let syn = Unknown(SynSwitch) |> Typ.temp;
 
-/* The marks on an alias binder named `name` and the type the alias binds,
-   given its definition and the reading of it (Typ.recursive_def): a
-   self-loop is marked and binds `?`. */
+/* The warnings on an alias binder named `name` and the type the alias
+   binds, given its definition and the reading of it (Typ.recursive_def). */
 let alias_binding =
-    (name: Var.t, def: Typ.t, alias: Typ.alias_def): (list(Mark.t), Typ.t) =>
+    (name: Var.t, def: Typ.t, alias: Typ.alias_def)
+    : (list(Warning.list_item), Typ.t) =>
   switch (alias) {
   | Plain => ([], def)
-  | Recursive(ty_rec) => ([], ty_rec)
-  | SelfLoop => (
-      [Mark.TPatNonContractive(name)],
-      Unknown(Internal) |> Typ.temp,
-    )
+  | Recursive(ty_rec) => (Warning.type_binding(name, ty_rec), ty_rec)
   };
 
 /* Type after hole fixing: best type consistent with analysis expectation and

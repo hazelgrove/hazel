@@ -8,15 +8,16 @@ open Util;
 open Either;
 open Typ;
 
-/* [ty] in weak head normal form, a recursive type unrolled, a
-   non-contractive one `?`. */
+/* [ty] in weak head normal form, a recursive type unrolled. A
+   non-contractive one has no unrolling and stays a Rec, which has no
+   shape. */
 let head = (ctx: Ctx.t, ty: Typ.t): Typ.t => {
   let ty = weak_head_normalize(ctx, ty);
   switch (term_of(ty)) {
   | Rec(_) =>
     switch (unroll(ty)) {
     | Some(ty) => weak_head_normalize(ctx, ty)
-    | None => Unknown(Internal) |> temp
+    | None => ty
     }
   | _ => ty
   };

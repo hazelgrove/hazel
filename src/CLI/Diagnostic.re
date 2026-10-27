@@ -46,6 +46,7 @@ let suffix_from_column = (line: string, start_col: int): string =>
 let warning_string = (item: Language.Warning.list_item): string =>
   switch (item) {
   | Pat(UnusedVar(name)) => "unused variable: " ++ name
+  | TPat(NonContractive(name)) => "type " ++ name ++ " is defined as itself"
   };
 
 /* Format a single diagnostic (error or warning) in Rust-style with source

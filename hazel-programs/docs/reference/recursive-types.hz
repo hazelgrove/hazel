@@ -77,7 +77,7 @@ let ex9 = first_of@<Int>(c) in # 1 #
 
 # A recursive occurrence is the type itself, not a hole: a chain of Ints #
 # is not a chain of Bools, whatever the binders are called. #
-let not_a_chain : rec b -> (Bool, b) = c in # marked #
+let _ : rec b -> (Bool, b) = c in # marked #
 
 # Rebinding a name in terms of its old binding is no cycle: the new alias #
 # is bound apart from the old one, so Num is still Int. #
@@ -87,11 +87,10 @@ type Num = Alias in
 let n : Num = 7 in
 let ex10 = n in # 7 #
 
-# An alias defined as itself alone stands for no type. It is marked where #
-# it is defined, and its uses are not marked again: #
+# An alias defined as itself alone is a type no value has. Its name is #
+# warned where it is defined, and a value given that type is marked: #
 type Loop = Loop in
-let looped : Loop = 5 in
-let ex11 = looped in # 5 #
+let _ : Loop = 5 in # marked #
 
 # All output from examples: #
-(ex1, ex2, ex3, ex4, ex5, ex6, ex7, ex8, ex9, ex10, ex11)
+(ex1, ex2, ex3, ex4, ex5, ex6, ex7, ex8, ex9, ex10)

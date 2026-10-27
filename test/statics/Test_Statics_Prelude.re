@@ -150,7 +150,6 @@ let rec equal_mark: (Mark.t, Mark.t) => bool =
     | (TPatShadowsType(s1, src1), TPatShadowsType(s2, src2)) =>
       s1 == s2 && src1 == src2
     | (TPatNotAVar(e1), TPatNotAVar(e2)) => e1 == e2
-    | (TPatNonContractive(a), TPatNonContractive(b)) => String.equal(a, b)
     | _ => false
     };
 
