@@ -1071,6 +1071,10 @@ and Stepper: {
     | Generalize(_, _)
     | Revert(_, _, _)
     | Have(_, _, _)
+    | RelEqBy(_, _)
+    | Witness(_)
+    | Cite(_)
+    | Obtain(_, _, _, _)
     | Seq(_, _) => false
     };
 
@@ -1127,6 +1131,12 @@ and Stepper: {
     /* `have` owns TWO proof children; HaveStep descends into both on its
      * own `calculate` pass, one nested stepper each. */
     | Have(_, _, _) => Some(HaveStep(HaveStep.init(init_step)))
+    /* No dedicated row (yet): the form's own text carries it, as for
+     * `alias`. */
+    | RelEqBy(_, _)
+    | Witness(_)
+    | Cite(_)
+    | Obtain(_, _, _, _)
     | EmptyHole
     | Invalid(_)
     | MultiHole(_)
@@ -1759,6 +1769,10 @@ and Stepper: {
     | AxiomStep(_)
     | AlgebriteStep(_)
     | Contradiction(_, _)
+    | RelEqBy(_, _)
+    | Witness(_)
+    | Cite(_)
+    | Obtain(_, _, _, _)
     | EvalStep(_) => None
     };
 
