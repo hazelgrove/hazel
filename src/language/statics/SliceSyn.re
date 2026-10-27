@@ -790,7 +790,7 @@ and syn_tlam =
   };
 }
 
-and syn_fix = (env: env, e: Exp.t, p: Pat.t, body: Exp.t, query: Typ.t): t => {
+and syn_fix = (env: env, _e: Exp.t, p: Pat.t, body: Exp.t, query: Typ.t): t => {
   let ps = slice_pat(env, p, ~query, ~demands=SliceGamma.empty);
   {
     kept: true,
