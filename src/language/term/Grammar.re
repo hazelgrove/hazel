@@ -61,6 +61,9 @@ and exp_term('a) =
      `forall p -> g ==> e` lives in the checker/rule reading
      (ProofRule.exp_to_rule / ProofCheck). */
   | Forall(pat_t('a), exp_t('a))
+  /* `exists p -> e` (D75: primitive, not sugar; false when every
+     instance is false). Statics as Forall; never computed (Indet). */
+  | Exists(pat_t('a), exp_t('a))
   | FixF(pat_t('a), exp_t('a), option(Environment.t(exp_t('a))))
   | TyAlias(tpat_t('a), typ_t('a), exp_t('a))
   | Use(typ_t('a), exp_t('a))
@@ -382,6 +385,8 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
           )
         | Forall(p, e) =>
           Forall(map_pat_annotation(f, p), map_exp_annotation(f, e))
+        | Exists(p, e) =>
+          Exists(map_pat_annotation(f, p), map_exp_annotation(f, e))
         | FixF(p, e, _) =>
           FixF(map_pat_annotation(f, p), map_exp_annotation(f, e), None)
         | TyAlias(p, t, e) =>
@@ -961,6 +966,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let forall = (~ann=?, p, e): exp_t(DefaultAnnotation.t) => {
       term: Forall(p, e),
+      annotation: default_annotation(ann),
+    };
+    let exists = (~ann=?, p, e): exp_t(DefaultAnnotation.t) => {
+      term: Exists(p, e),
       annotation: default_annotation(ann),
     };
     /* `forall p where g -> e` / `fun p where g -> e` are sugar for a

@@ -100,6 +100,7 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
   | FixF(_, body, _)
   | Fun(_, body, _, _) => l |> find_fn(name, body)
   | Forall(_, body) => l |> find_fn(name, body)
+  | Exists(_, body) => l |> find_fn(name, body)
   | TupLabel(_, u1)
   | TypAp(u1, _)
   | Parens(u1)
@@ -272,7 +273,8 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | DynamicErrorHole(u, _) => var_mention(name, u)
   | FixF(args, body, _) =>
     var_mention_upat(name, args) ? false : var_mention(name, body)
-  | Forall(args, body) =>
+  | Forall(args, body)
+  | Exists(args, body) =>
     var_mention_upat(name, args) ? false : var_mention(name, body)
   | Closure(_, u) => var_mention(name, u)
   | BuiltinFun(_) => false
@@ -339,7 +341,8 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | Fun(args, body, _, _)
   | FixF(args, body, _) =>
     var_mention_upat(name, args) ? false : var_applied(name, body)
-  | Forall(args, body) =>
+  | Forall(args, body)
+  | Exists(args, body) =>
     var_mention_upat(name, args) ? false : var_applied(name, body)
   | ListLit(l)
   | Tuple(l) =>
@@ -461,7 +464,8 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   | FixF(args, body, _)
   | Fun(args, body, _, _) =>
     var_mention_upat(name, args) ? false : tail_check(name, body)
-  | Forall(args, body) =>
+  | Forall(args, body)
+  | Exists(args, body) =>
     var_mention_upat(name, args) ? false : tail_check(name, body)
   | Let(p, def, body) =>
     var_mention_upat(name, p) || var_mention(name, def)

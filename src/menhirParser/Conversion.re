@@ -247,6 +247,7 @@ module rec Exp: {
         of_menhir_ast(e2),
       )
     | ForallExp(p, e) => forall(Pat.of_menhir_ast(p), of_menhir_ast(e))
+    | ExistsExp(p, e) => exists(Pat.of_menhir_ast(p), of_menhir_ast(e))
     | FixF(p, e) => fix_f(Pat.of_menhir_ast(p), of_menhir_ast(e), None)
     | TypFun(t, e) =>
       typ_fun(TPat.of_menhir_ast(t), of_menhir_ast(e), None)
@@ -365,6 +366,7 @@ module rec Exp: {
     | Theorem(p, e1, pf, e2) =>
       Theorem(Pat.of_core(p), of_core(e1), Proof.of_core(pf), of_core(e2))
     | Forall(p, e) => ForallExp(Pat.of_core(p), Exp.of_core(e))
+    | Exists(p, e) => ExistsExp(Pat.of_core(p), Exp.of_core(e))
     | FixF(p, e, _) => FixF(Pat.of_core(p), of_core(e))
     | TypFun(tp, e, _) => TypFun(TPat.of_core(tp), of_core(e))
     | Undefined => Undefined

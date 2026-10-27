@@ -116,6 +116,7 @@ open AST
 %token IMPLIES
 %token WHERE
 %token FORALL
+%token EXISTS
 %token FUNEXT
 %token THEOREM
 %token PROOF
@@ -384,6 +385,8 @@ forallPat:
 
 forallExp:
     | FORALL; p = forallPat; DASH_ARROW; e = exp; { ForallExp (p, e) }
+    (* `exists p -> e` (D75 primitive): the same binder slot as forall. *)
+    | EXISTS; p = forallPat; DASH_ARROW; e = exp; { ExistsExp (p, e) }
 
 (* Proof case: `| <pat> => <proof>`, the PRul analogue of `rul`. *)
 prul:

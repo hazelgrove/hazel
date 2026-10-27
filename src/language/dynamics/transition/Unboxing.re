@@ -242,6 +242,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         Let(_) |
         Theorem(_) |
         Forall(_) |
+        Exists(_) |
         Fun(_, _, _, _) |
         TypAp(_) |
         FixF(_) |

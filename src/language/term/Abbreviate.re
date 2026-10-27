@@ -1181,6 +1181,36 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           };
         }
 
+      | Exists(p, e) =>
+        if (available^ < 6) {
+          available := available^ - ellipsis_cost;
+          Invalid(flat_ellipses);
+        } else if (available^ <= 6) {
+          Invalid("exists");
+        } else if (available^ <= 7) {
+          Invalid("exists…");
+        } else if (available^ <= 8) {
+          Invalid("exists…→");
+        } else if (available^ <= 9) {
+          Invalid("exists…→…");
+        } else {
+          available := available^ - 7;
+          let p' = abbreviate_pat(p);
+          if (available^ > 4) {
+            available := available^ - 4;
+            let e' = abbreviate_exp(e);
+            Exists(p', e');
+          } else {
+            Exists(
+              p',
+              {
+                ...e,
+                term: indet_term,
+              },
+            );
+          };
+        }
+
       | Closure(env, exp) =>
         handle_unary(
           ~cost=1, // space between terms

@@ -466,6 +466,7 @@ let unhandled_reason = (e: Exp.t): string =>
   | FixF(_)
   | Let(_)
   | Forall(_)
+  | Exists(_)
   | TyAlias(_)
   | Module(_)
   | ModuleExp(_) => "under a binder: the position's variables are not in the directed fact's vocabulary (v1 refuses)"

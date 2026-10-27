@@ -22,6 +22,7 @@ type cls =
   | Let
   | Theorem
   | Forall
+  | Exists
   | FixF
   | TyAlias
   | Use
@@ -145,6 +146,7 @@ let rec cls_of_term: type a. Grammar.exp_term(a) => cls =
   | Let(_) => Let
   | Theorem(_) => Theorem
   | Forall(_) => Forall
+  | Exists(_) => Exists
   | FixF(_) => FixF
   | TyAlias(_) => TyAlias
   | Use(_) => Use
@@ -206,6 +208,7 @@ let show_cls: cls => string =
   | Let => "Let expression"
   | Theorem => "Theorem expression"
   | Forall => "Forall expression"
+  | Exists => "Exists expression"
   | FixF => "Fixpoint operator"
   | TyAlias => "Type Alias definition"
   | Use => "Specify number format to use"
@@ -296,6 +299,7 @@ let rec is_fun = (e: t) => {
   | Let(_)
   | Theorem(_)
   | Forall(_)
+  | Exists(_)
   | FixF(_)
   | TyAlias(_)
   | Use(_)
@@ -366,6 +370,7 @@ let rec is_tuple_of_functions = (e: t) =>
     | Let(_)
     | Theorem(_)
     | Forall(_)
+    | Exists(_)
     | FixF(_)
     | TyAlias(_)
     | Use(_)
@@ -434,6 +439,7 @@ let rec get_num_of_functions = (e: t) =>
     | Let(_)
     | Theorem(_)
     | Forall(_)
+    | Exists(_)
     | Filter(_)
     | TyAlias(_)
     | Use(_)

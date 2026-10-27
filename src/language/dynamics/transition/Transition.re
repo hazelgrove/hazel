@@ -624,6 +624,11 @@ module Transition = (EV: EV_MODE) => {
     | Forall(_) =>
       let. _ = otherwise(env, d);
       Indet;
+    /* D75: an existential is never computed (no enumeration, no witness
+       search); it stays indeterminate like Forall. */
+    | Exists(_) =>
+      let. _ = otherwise(env, d);
+      Indet;
     | Valued(d1) =>
       let. _ = otherwise(env, d1 => Valued(d1) |> rewrap)
       and. d1' = req_final(req(env), d1 => Valued(d1) |> wrap_ctx, d1);

@@ -395,6 +395,7 @@ type compound_form =
   | TypFun
   | Poly
   | Forall
+  | Exists
   | Rec
   | Rule
   | Pipeline
@@ -548,6 +549,8 @@ let get: compound_form => t =
    * the infix pattern `where` (PatWhere) inside this form's Pat slot, so
    * the binder is `Forall(Where(p, g), e)`. Same for `fun` above. */
   | Forall => mk_pre_c(L, ["forall", "->"], P.fun_, Exp, [Pat])
+  /* `exists p -> e` (D75 primitive): the binder twin of `forall`. */
+  | Exists => mk_pre_c(L, ["exists", "->"], P.fun_, Exp, [Pat])
   | Rec => mk_pre_c(L, ["rec", "->"], P.fun_, Typ, [TPat])
   | Rule =>
     mk(L, ["|", "=>"], Mold.mk_bin'(P.rule_sep, Rul, Exp, [Pat], Exp))

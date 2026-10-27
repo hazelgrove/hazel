@@ -521,7 +521,8 @@ let occurs_free_any =
       | Theorem(p, stmt, _, body) =>
         go_pat(bound, p);
         under(Pat.bound_vars(p) @ bound, [stmt, body]);
-      | Forall(p, body) =>
+      | Forall(p, body)
+      | Exists(p, body) =>
         go_pat(bound, p);
         /* A `where` guard on the binder pattern is an Exp under the
            binder, like the body. */

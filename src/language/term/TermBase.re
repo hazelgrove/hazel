@@ -484,6 +484,7 @@ and Exp: {
             exp_map_term(e2),
           )
         | Forall(p, e) => Forall(pat_map_term(p), exp_map_term(e))
+        | Exists(p, e) => Exists(pat_map_term(p), exp_map_term(e))
         | FixF(p, e, env) => FixF(pat_map_term(p), exp_map_term(e), env)
         | TyAlias(tp, t, e) =>
           TyAlias(tpat_map_term(tp), typ_map_term(t), exp_map_term(e))

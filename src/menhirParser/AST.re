@@ -154,6 +154,7 @@ and exp =
      constructors. */
   | Fun(pat, exp, option(string))
   | ForallExp(pat, exp)
+  | ExistsExp(pat, exp)
   | CaseExp(exp, list((pat, exp)))
   | Label(string)
   | ExplicitNonlabel
@@ -878,6 +879,16 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
           <+> {
             let* shrunk = shrink_pat(pat);
             return(ForallExp(shrunk, e));
+          }
+        | ExistsExp(pat, e) =>
+          return(e)
+          <+> {
+            let* shrunk = shrink_exp(e);
+            return(ExistsExp(pat, shrunk));
+          }
+          <+> {
+            let* shrunk = shrink_pat(pat);
+            return(ExistsExp(shrunk, e));
           }
         | Fun(p, e, name) =>
           return(e)

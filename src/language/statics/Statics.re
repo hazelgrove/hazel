@@ -1996,6 +1996,24 @@ and uexp_to_info_map =
           SubexpProbeTargets.union_all([p.probe_targets, e.probe_targets]),
         m,
       );
+    /* `exists p -> e` (D75): typed exactly as Forall (binder scope, body
+       analysed against Bool, result Bool, non-computable warning outside
+       a theorem). */
+    | Exists(p, e) =>
+      let (p, p_elab, m) =
+        go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, p, m);
+      let (e, e_elab, m) =
+        go(~ctx=p.ctx, ~ana=Atom(Bool) |> Typ.temp, e, m);
+      add(
+        ~elab_term=Exists(p_elab, e_elab) |> rewrap,
+        ~elab_syn_ty=Atom(Bool) |> Typ.temp,
+        ~marks=[],
+        ~warnings=forall_warnings,
+        ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx),
+        ~probe_targets=
+          SubexpProbeTargets.union_all([p.probe_targets, e.probe_targets]),
+        m,
+      );
     | TypFun(utpat, body, tfname) =>
       let (name_expected_opt, item) =
         MatchedTyp.poly_pair_tolerant(ctx, ana);

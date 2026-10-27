@@ -68,6 +68,9 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
         | Forall(pat, e) =>
           let (env', pat') = in_pat(env, env, pat);
           Forall(pat', in_exp(env', e)) |> rewrap;
+        | Exists(pat, e) =>
+          let (env', pat') = in_pat(env, env, pat);
+          Exists(pat', in_exp(env', e)) |> rewrap;
 
         // Other cases: recurse
         | Invalid(_)

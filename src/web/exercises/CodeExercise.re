@@ -697,6 +697,7 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | TypFun(_)
   | FixF(_)
   | Forall(_)
+  | Exists(_)
   | Tuple(_)
   | TupLabel(_)
   | Label(_)

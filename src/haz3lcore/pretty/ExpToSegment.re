@@ -270,6 +270,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Fun(_)
   | FixF(_)
   | Forall(_)
+  | Exists(_)
   | Tuple([]) => Precedence.max // the atomic () token (#2296)
   | Tuple(_) => Precedence.comma
   | Seq(_) => Precedence.semi
@@ -556,6 +557,12 @@ let rec parenthesize =
     |> rewrap
   | Forall(p, e) =>
     Forall(
+      parenthesize_pat(p) |> paren_pat_at(Precedence.min),
+      parenthesize(e) |> paren_assoc_at(Precedence.fun_),
+    )
+    |> rewrap
+  | Exists(p, e) =>
+    Exists(
       parenthesize_pat(p) |> paren_pat_at(Precedence.min),
       parenthesize(e) |> paren_assoc_at(Precedence.fun_),
     )
@@ -2343,6 +2350,11 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let+ p = pat_to_pretty(~settings: Settings.t, p)
     and+ e = go(e);
     wrap(exp, [mk_form(Forall, id, [p])] @ e);
+  | Exists(p, e) =>
+    let id = exp |> Exp.rep_id;
+    let+ p = pat_to_pretty(~settings: Settings.t, p)
+    and+ e = go(e);
+    wrap(exp, [mk_form(Exists, id, [p])] @ e);
   | TypFun(tp, e, _) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;

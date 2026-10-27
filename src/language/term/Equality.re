@@ -303,6 +303,13 @@ let equality =
       | None => false
       }
     | (Forall(_, _), _) => false
+    | (Exists(p1, e1), Exists(p2, e2)) =>
+      switch (pat'(p1, p2)) {
+      | Some(alphas_exp') =>
+        exp(Alphas.combine(alphas_exp', alphas_exp), alphas_typ, e1, e2)
+      | None => false
+      }
+    | (Exists(_, _), _) => false
 
     // Forms with environments. (Note fix also has an environment and is handled above.)
     | (Closure(env1, e1), Closure(env2, e2)) when closures_by_id =>

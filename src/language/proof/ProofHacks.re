@@ -633,6 +633,22 @@ let rec replace_exp =
             )
             |> rewrap;
           }
+        | Exists(p, e) =>
+          if (is_bound(p)) {
+            if (uses_blacklist_var(
+                  exp,
+                  restrict_blacklist(p, blacklist_vars),
+                )) {
+              raise(BlacklistVarFound);
+            };
+            exp;
+          } else {
+            Exists(
+              replace_pat(p, restrict_blacklist(p, blacklist_vars)),
+              replace_exp(e, restrict_blacklist(p, blacklist_vars)),
+            )
+            |> rewrap;
+          }
         /* Variables: check if in blacklist */
         | Var(x) when List.mem(x, blacklist_vars) => raise(BlacklistVarFound)
         | Var(_) => continue(exp)

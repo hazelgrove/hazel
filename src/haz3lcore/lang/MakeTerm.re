@@ -951,6 +951,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
            the Pat slot, so `pat` is `Where(p, g)`. No dedicated form. */
         | (["fun", "->"], [Pat(pat)]) => Fun(pat, r, None, None)
         | (["forall", "->"], [Pat(pat)]) => Forall(pat, r)
+        | (["exists", "->"], [Pat(pat)]) => Exists(pat, r)
         | (["fix", "->"], [Pat(pat)]) => FixF(pat, r, None)
         | (["typfun", "->"], [TPat(tpat)]) => TypFun(tpat, r, None)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
