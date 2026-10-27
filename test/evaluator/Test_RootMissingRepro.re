@@ -143,6 +143,7 @@ and violations_of_kind =
   | AxiomStep(_)
   | AlgebriteStep(_)
   | ContradictionStep(_)
+  | WitnessStep(_)
   | EvalStep(_) => []
   };
 

@@ -112,6 +112,63 @@ let msg_of = r =>
   | Error(m) => m
   };
 
+/* F1: the stepper's row projection of a written proof (same calculate
+   the app runs; proof map from the big-step checker with statics). */
+let rows_after = (src: string) => {
+  let e = parse_exp(src);
+  let (state, _, elab) = Test_ProofMap.eval_with_proof(e);
+  let proof =
+    switch (Test_ProofMap.find_theorem_proof(elab)) {
+    | Some(p) => p
+    | None => Alcotest.fail("no proof")
+    };
+  let pm = EvaluatorState.get_proof_map(state);
+  Test_StepperBase.test_calculate(
+    ~exp=parse_exp(sq9),
+    ~ctx=Builtins.ctx_init(Some(Operators.default_mode)),
+    ~ana=IdTagged.FreshGrammar.Typ.bool(),
+    ~proof=Util.Calc.NewValue(proof),
+    ~proof_map=Util.Calc.NewValue(pm),
+    Test_StepperBase.mk_missing_step(),
+  );
+};
+
+/* F2: the APP's evaluation path (WorkerServer.evaluate_sync, as
+   EvalResult calls it on the main thread), not a direct
+   Evaluator.evaluate(~statics). */
+let worker_proof_map = (src: string): (ProofMap.t, Proof.t) => {
+  let (statics, elab) =
+    Statics.mk(
+      CoreSettings.on,
+      Builtins.ctx_init(Some(Operators.default_mode)),
+      parse_exp(src),
+    );
+  let eval_info_map =
+    EvalInfo.of_info_map(
+      ~probe_all=false,
+      ~targets=Sample.no_targets,
+      statics,
+    );
+  switch (
+    WorkerServer.evaluate_sync({
+      expr: elab,
+      eval_info_map,
+      prev: IncrEval.empty,
+    })
+  ) {
+  | Ok((_, state)) => (
+      EvaluatorState.get_proof_map(state),
+      theorem_proof(elab),
+    )
+  | Error(_) => Alcotest.fail("worker evaluation error")
+  };
+};
+
+let full3 =
+  "theorem w = "
+  ++ sq9
+  ++ " proof\n== true by witness 3 end;\neval 3 * 3 at 0 end;\neval 9 == 9 at 0 end\nin 0";
+
 let tests = (
   "ResetExistentialWitnessUI",
   [
@@ -170,6 +227,83 @@ let tests = (
       check(string, "instantiated body", "2 * 2 == 9", RE.out(RE.node(o, "w", Proof.RelEqBy)));
       check(bool, "not Proven", false, RE.full(o, "w") == "Proven");
       check(bool, "not Refuted", false, RE.full(o, "w") == "Refuted");
+    }),
+    test_case("F1 row projection: the witness row's next row is P[v]", `Quick, () => {
+      let (_, _, after) = commit_patch(~src=hole_src, "3");
+      switch (rows_after(text(after))) {
+      | SB.NextStep({step_kind: WitnessStep(_), next_step, _}) =>
+        switch (next_step) {
+        | SB.MissingStep(m, _) =>
+          check(
+            string,
+            "next row goal",
+            "3 * 3 == 9",
+            m.full_exp |> Util.Calc.get_saved_opt |> Option.map(RE.print_exp)
+            |> Option.value(~default="-"),
+          )
+        | _ => Alcotest.fail("expected a missing-step row for P[v]")
+        }
+      | _ => Alcotest.fail("expected NextStep(WitnessStep) row")
+      };
+    }),
+    test_case("F1 full flow rows: witness 3 then two evals finishes", `Quick, () => {
+      let rec last = (ns: SB.next_step) =>
+        switch (ns) {
+        | SB.NextStep({next_step, _}) => last(next_step)
+        | other => other
+        };
+      /* Every chain ends in the trailing picker row (`MissingStep(_,
+         Finished)`); a completed proof's trailing row has goal `true`. */
+      switch (rows_after(full3) |> last) {
+      | SB.MissingStep(m, SB.Finished) =>
+        check(
+          string,
+          "trailing row goal after witness 3, eval, eval",
+          "true",
+          m.full_exp
+          |> Util.Calc.get_saved_opt
+          |> Option.map(RE.print_exp)
+          |> Option.value(~default="-"),
+        )
+      | SB.MissingStep(_, _) => Alcotest.fail("trailing row not terminal")
+      | SB.Finished => Alcotest.fail("no trailing row")
+      | SB.NextStep(_) => Alcotest.fail("unreachable")
+      };
+    }),
+    test_case("F2 APP PATH (WorkerServer.evaluate_sync): witness 3 + evals Proven, witness 2 not", `Quick, () => {
+      let (pm, proof) = worker_proof_map(full3);
+      List.iter(
+        (n: Proof.t) =>
+          switch (ProofMap.lookup(Proof.rep_id(n), pm)) {
+          | Some(e) =>
+            print_endline(
+              "WITNESSUI worker node "
+              ++ Proof.show_cls(Proof.cls_of_term(n.term))
+              ++ " out: "
+              ++ (e.outgoing |> Option.map(RE.print_exp) |> Option.value(~default="-"))
+              ++ " | marks: "
+              ++ String.concat("; ", List.map(ProofMark.show, e.marks)),
+            )
+          | None => ()
+          },
+        RE.proof_nodes(proof),
+      );
+      check(
+        string,
+        "witness 3 + evals via the app path",
+        "Proven",
+        ProofMap.show_full_status(ProofMap.full_status_of_proof(pm, proof)),
+      );
+      let (pm2, proof2) =
+        worker_proof_map(
+          "theorem w = " ++ sq9 ++ " proof == true by witness 2 end; eval 2 * 2 at 0 end; eval 4 == 9 at 0 end in 0",
+        );
+      check(
+        bool,
+        "witness 2 not Proven via the app path",
+        false,
+        ProofMap.full_status_of_proof(pm2, proof2) == ProofMap.Proven,
+      );
     }),
     test_case("honest pre-commit verdicts", `Quick, () => {
       let (label, r) = verdict(~goal_src=sq9, "3");

@@ -218,7 +218,9 @@
    editor stays inside the pane at 640/800/1280. */
 .witness-box {
   align-self: flex-start;
-  max-width: 30em;
+  /* Never wider than the viewport minus the pane's own inset (F3); the
+     label wraps and the editor shrinks to its minimum. */
+  max-width: min(30em, calc(100vw - 4em));
   background-color: var(--menu-bkg);
   border-radius: 0 0 0.5em 0;
   outline: 0.6px solid var(--menu-outline);
@@ -230,7 +232,8 @@
 }
 
 .witness-box .inline-editor-wrapper {
-  min-width: 12em;
+  min-width: 6em;
+  max-width: 100%;
 }
 
 .witness-box .witness-refusal {

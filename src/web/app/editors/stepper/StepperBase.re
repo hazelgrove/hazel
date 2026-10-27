@@ -34,6 +34,7 @@ and step_kind_model =
   | EvalStep(EvalStep.model'(next_step))
   /* `contradiction` is terminal, like EvalStep: no nested stepper. */
   | ContradictionStep(ContradictionStep.model'(next_step))
+  | WitnessStep(WitnessStep.model'(next_step))
   /* The wrapping proof forms (`assume` / `revert` / `generalize`): like
    * ForallStep they own a body proof, so their models embed a nested
    * stepper. */
@@ -170,6 +171,7 @@ type step_kind_action =
   | AlgebriteStep(AlgebriteStep.action'(step_action))
   | EvalStep(EvalStep.action'(step_action))
   | ContradictionStep(ContradictionStep.action'(step_action))
+  | WitnessStep(WitnessStep.action'(step_action))
   | AssumeStep(AssumeStep.action'(step_action))
   | HaveStep(HaveStep.action'(step_action))
   | RevertStep(RevertStep.action'(step_action))
@@ -190,6 +192,7 @@ type step_kind_focus =
   | AlgebriteStep(AlgebriteStep.focus'(step_focus))
   | EvalStep(EvalStep.focus'(step_focus))
   | ContradictionStep(ContradictionStep.focus'(step_focus))
+  | WitnessStep(WitnessStep.focus'(step_focus))
   | AssumeStep(AssumeStep.focus'(step_focus))
   | HaveStep(HaveStep.focus'(step_focus))
   | RevertStep(RevertStep.focus'(step_focus))
@@ -222,6 +225,7 @@ module rec StepKind:
   module AlgebriteStep = AlgebriteStep.F(Stepper);
   module EvalStep = EvalStep.F(Stepper);
   module ContradictionStep = ContradictionStep.F(Stepper);
+   module WitnessStep = WitnessStep.F(Stepper);
   module AssumeStep = AssumeStep.F(Stepper);
   module HaveStep = HaveStep.F(Stepper);
   module RevertStep = RevertStep.F(Stepper);
@@ -258,6 +262,9 @@ module rec StepKind:
       | (ContradictionStep(a), ContradictionStep(m)) =>
         let* s = ContradictionStep.update(~settings, a, m);
         (ContradictionStep(s): model);
+      | (WitnessStep(a), WitnessStep(m)) =>
+        let* s = WitnessStep.update(~settings, a, m);
+        (WitnessStep(s): model);
       | (AssumeStep(a), AssumeStep(m)) =>
         let* s = AssumeStep.update(~settings, a, m);
         (AssumeStep(s): model);
@@ -275,6 +282,7 @@ module rec StepKind:
           AlgebriteStep(_) |
           EvalStep(_) |
           ContradictionStep(_) |
+          WitnessStep(_) |
           AssumeStep(_) |
           RevertStep(_) |
           GeneralizeStep(_) |
@@ -295,6 +303,7 @@ module rec StepKind:
     | AlgebriteStep(action) => AlgebriteStep.can_undo(action)
     | EvalStep(action) => EvalStep.can_undo(action)
     | ContradictionStep(action) => ContradictionStep.can_undo(action)
+    | WitnessStep(action) => WitnessStep.can_undo(action)
     | AssumeStep(action) => AssumeStep.can_undo(action)
     | HaveStep(action) => HaveStep.can_undo(action)
     | RevertStep(action) => RevertStep.can_undo(action)
@@ -354,6 +363,9 @@ module rec StepKind:
     | ContradictionStep(m) =>
       let+ m = calculate_with(ContradictionStep.calculate, m);
       (ContradictionStep(m): model);
+    | WitnessStep(m) =>
+      let+ m = calculate_with(WitnessStep.calculate, m);
+      (WitnessStep(m): model);
     | AssumeStep(m) =>
       let+ m = calculate_with(AssumeStep.calculate, m);
       (AssumeStep(m): model);
@@ -428,6 +440,14 @@ module rec StepKind:
             m,
           );
         (ContradictionStep(focus_info): action);
+      | (WitnessStep(focus), WitnessStep(m)) =>
+        let+ focus_info =
+          WitnessStep.get_cursor_info(
+            ~inject=x => inject(WitnessStep(x): action),
+            ~focus,
+            m,
+          );
+        (WitnessStep(focus_info): action);
       | (AssumeStep(focus), AssumeStep(m)) =>
         let+ focus_info =
           AssumeStep.get_cursor_info(
@@ -465,6 +485,7 @@ module rec StepKind:
           AlgebriteStep(_) |
           EvalStep(_) |
           ContradictionStep(_) |
+          WitnessStep(_) |
           AssumeStep(_) |
           RevertStep(_) |
           GeneralizeStep(_) |
@@ -605,6 +626,23 @@ module rec StepKind:
           },
         ~inject=x => inject(ContradictionStep(x)),
         ~take_focus=x => take_focus(ContradictionStep(x)),
+        m,
+      )
+    | WitnessStep(m) =>
+      WitnessStep.view_content(
+        ~globals,
+        ~hide_stepper,
+        ~is_toplevel,
+        ~proof,
+        ~edit_syntax,
+        ~main_editor,
+        ~focus=
+          switch (focus) {
+          | Some(WitnessStep(f)) => Some(f)
+          | _ => None
+          },
+        ~inject=x => inject(WitnessStep(x)),
+        ~take_focus=x => take_focus(WitnessStep(x)),
         m,
       )
     | AssumeStep(m) =>
@@ -802,6 +840,23 @@ module rec StepKind:
           },
         ~inject=x => inject(ContradictionStep(x)),
         ~take_focus=x => take_focus(ContradictionStep(x)),
+        ~hide_stepper,
+        ~is_toplevel,
+        ~proof,
+        ~edit_syntax,
+        m,
+      )
+    | WitnessStep(m) =>
+      WitnessStep.view_justification(
+        ~globals,
+        ~focus=
+          switch (focus) {
+          | Some(WitnessStep(f)) => Some(f)
+          | Some(_)
+          | None => None
+          },
+        ~inject=x => inject(WitnessStep(x)),
+        ~take_focus=x => take_focus(WitnessStep(x)),
         ~hide_stepper,
         ~is_toplevel,
         ~proof,
@@ -1134,9 +1189,9 @@ and Stepper: {
     /* `have` owns TWO proof children; HaveStep descends into both on its
      * own `calculate` pass, one nested stepper each. */
     | Have(_, _, _) => Some(HaveStep(HaveStep.init(init_step)))
-    /* No dedicated row (yet): the form's own text carries it, as for
-     * `alias`. */
-    | RelEqBy(_, _)
+    /* `== true by … end`: a terminal row whose outgoing is the next row. */
+    | RelEqBy(_, _) => Some(WitnessStep())
+    /* A justification on its own is not a step (the checker marks it). */
     | Witness(_)
     | Cite(_)
     | Obtain(_, _, _, _)
@@ -1160,6 +1215,7 @@ and Stepper: {
     | (AlgebriteStep(_), AlgebriteStep(_))
     | (EvalStep(_), EvalStep(_))
     | (Contradiction(_), ContradictionStep(_))
+    | (RelEqBy(_, _), WitnessStep(_))
     | (Forall(_, _), ForallStep(_))
     | (Funext(_, _), FunextStep(_))
     | (Induction(_, _, _), InductionStep(_))
