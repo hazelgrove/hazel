@@ -19,7 +19,15 @@ let request =
       ~dispatch: ('pos, EvalResult.Update.t) => unit,
       ~on_timeout: WorkerServer.Request.batch => unit,
     )
-    : unit =>
+    : unit => {
+  /* Each reply is tagged with the generation of the request it answers,
+   * taken from this batch, so EvalResult can refuse replies for a request
+   * it has since superseded. */
+  let gen_of_key = key =>
+    switch (List.assoc_opt(key, batch)) {
+    | Some((v: WorkerServer.Request.value)) => v.generation
+    | None => (-1)
+    };
   WorkerClient.request(
     batch,
     ~on_result=
@@ -33,7 +41,10 @@ let request =
             })
           | Error(e) => ResultFail(e)
           };
-        dispatch(pos_of_key(key), EvalResult.Update.UpdateResult(result));
+        dispatch(
+          pos_of_key(key),
+          EvalResult.Update.UpdateResult(gen_of_key(key), result),
+        );
       }),
     ~on_timeout,
     ~on_ack=
@@ -45,6 +56,7 @@ let request =
           pos,
           EvalResult.Update.UpdateStreamingEval(
             gen,
+            gen_of_key(key),
             Language.IncrEval.outbox_of_completed(stream),
           ),
         );
@@ -58,5 +70,9 @@ let request =
         ();
       }),
     ~on_stream=(key, stream) =>
-    dispatch(pos_of_key(key), EvalResult.Update.MergeStreamingEval(stream))
+    dispatch(
+      pos_of_key(key),
+      EvalResult.Update.MergeStreamingEval(gen_of_key(key), stream),
+    ),
   );
+};

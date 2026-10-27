@@ -186,7 +186,7 @@ module Update = {
           || action
           |> (
             fun
-            | ResultAction(UpdateResult(_)) => true
+            | ResultAction(UpdateResult(_, _)) => true
             | _ => false
           ) =>
       let cell = Tutorial.get_stitched(pos, model.cells);
@@ -280,6 +280,15 @@ module Update = {
         stitched_elabs,
         model.cells,
       );
+    /* A timeout marks every cell, each with the request generation it had
+     * when this batch was enqueued (never read when the timeout fires), so
+     * a cell that has since re-requested refuses it. */
+    let timeout_gens =
+      Tutorial.map_stitched(
+        (_, cell: CellEditor.Model.t) =>
+          EvalResult.Model.request_gen(cell.result),
+        cells,
+      );
     EvalRequest.request(
       worker_request^,
       ~pos_of_key=Tutorial.pos_of_key,
@@ -290,14 +299,14 @@ module Update = {
         _ =>
           ignore(
             Tutorial.map_stitched(
-              (pos, _) =>
+              (pos, gen) =>
                 schedule_action(
                   Editor(
                     pos,
-                    ResultAction(UpdateResult(ResultFail(Timeout))),
+                    ResultAction(UpdateResult(gen, ResultFail(Timeout))),
                   ),
                 ),
-              model.cells,
+              timeout_gens,
             ),
           ),
     );

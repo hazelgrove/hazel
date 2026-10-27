@@ -120,40 +120,16 @@ let advance_hidden =
   advance_hidden(~taken=0, ~env, e);
 };
 
-let rec evaluate =
-        // Constants
-        (
-          ~prev: EvaluatorState.incr_eval=IncrEval.empty,
-          ~reused_ids: Id.Map.t(unit),
-          ~eval_info: EvalInfo.t,
-          ~statics: Statics.Map.t=Id.Map.empty,
-          // Call Stack
-          ~in_closure=?,
-          ~call_stack: CallStack.state,
-          // Inputs
-          ~reuse_map: IncrEval.reuse_map,
-          env,
-          exp: DHExp.t,
-          // Outputs
-          ~parent_state: ref(EvaluatorState.t),
-          ~outbox: option(ref(IncrEval.outbox(EvaluatorState.t))),
-          ~current_top_id: option(Id.t),
-        )
-        : Trampoline.t(DHExp.t) => {
-  /* NOTE: This trampoline looks like it only returns an expression, but
-   * it also mutates the parent_state and outbox references while it's
-   * running. */
-
-  let evaluate = evaluate(~prev, ~reused_ids, ~eval_info, ~statics, ~outbox);
-  let expr_id = DHExp.rep_id(exp);
-  /* Big-step proof checking hook. When we first see a Theorem, walk its
-   * proof term through ProofCheck and merge the resulting proof map into
-   * state. The small-step `Transition` logic (also reachable through
-   * Decompose / TakeStep / ValueChecker) deliberately ignores proofs,
-   * keeping proof-checking a strictly big-step concern. `statics` defaults
-   * to empty on postMessage/streaming paths, where this becomes a no-op. */
+/* Check one Theorem node's proof (and the definition obligations at its
+ * site) against the given statics and env; None for any other node or when
+ * there are no statics. Shared by the evaluator's big-step hook and the
+ * main-thread re-check in Theorems, which has the real statics that the
+ * postMessage/streaming evaluation paths do not. */
+let check_theorem_proof =
+    (~statics: Statics.Map.t, ~env, exp: DHExp.t): option(ProofMap.t) =>
   switch (exp.term) {
-  | Theorem(_, goal, proof, _) =>
+  | Theorem(_, goal, proof, _) when !Id.Map.is_empty(statics) =>
+    let expr_id = DHExp.rep_id(exp);
     let ctx =
       switch (Statics.Map.lookup_exp(expr_id, statics)) {
       | Some({ctx, _}) => ctx
@@ -228,12 +204,47 @@ let rec evaluate =
         ~ctx=SemanticCtx.of_program_state(ctx, env),
         (),
       );
-    parent_state :=
-      EvaluatorState.merge_proof_map(
-        parent_state^,
-        ProofMap.union(def_pm, pm),
-      );
-  | _ => ()
+    Some(ProofMap.union(def_pm, pm));
+  | _ => None
+  };
+
+let rec evaluate =
+        // Constants
+        (
+          ~prev: EvaluatorState.incr_eval=IncrEval.empty,
+          ~reused_ids: Id.Map.t(unit),
+          ~eval_info: EvalInfo.t,
+          ~statics: Statics.Map.t=Id.Map.empty,
+          // Call Stack
+          ~in_closure=?,
+          ~call_stack: CallStack.state,
+          // Inputs
+          ~reuse_map: IncrEval.reuse_map,
+          env,
+          exp: DHExp.t,
+          // Outputs
+          ~parent_state: ref(EvaluatorState.t),
+          ~outbox: option(ref(IncrEval.outbox(EvaluatorState.t))),
+          ~current_top_id: option(Id.t),
+        )
+        : Trampoline.t(DHExp.t) => {
+  /* NOTE: This trampoline looks like it only returns an expression, but
+   * it also mutates the parent_state and outbox references while it's
+   * running. */
+
+  let evaluate = evaluate(~prev, ~reused_ids, ~eval_info, ~statics, ~outbox);
+  let expr_id = DHExp.rep_id(exp);
+  /* Big-step proof checking hook. When we first see a Theorem, walk its
+   * proof term through ProofCheck and merge the resulting proof map into
+   * state. The small-step `Transition` logic (also reachable through
+   * Decompose / TakeStep / ValueChecker) deliberately ignores proofs,
+   * keeping proof-checking a strictly big-step concern. `statics` defaults
+   * to empty on postMessage/streaming paths, where this is a no-op
+   * (check_theorem_proof returns None). */
+  switch (check_theorem_proof(~statics, ~env, exp)) {
+  | Some(pm) =>
+    parent_state := EvaluatorState.merge_proof_map(parent_state^, pm)
+  | None => ()
   };
   /* Only key outbox.current by ids from the elaborated program.
    * Stepped intermediates use Id.invalid (targets empty / probes off) or

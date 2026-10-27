@@ -10,6 +10,10 @@ module Request = {
     expr: Language.Exp.t,
     eval_info_map: Language.EvalInfo.t,
     prev: Language.EvaluatorState.incr_eval,
+    /* The requesting EvalResult's request generation. The worker never
+     * reads it; EvalRequest uses it to tag the replies for this key so the
+     * model can refuse ones from a superseded request. */
+    generation: int,
   };
   [@deriving (show, sexp, yojson)]
   type batch = list((key, value));
@@ -221,7 +225,7 @@ let error_response = exn =>
   };
 
 let evaluate_sync = (req_value: Request.value): Response.value => {
-  let Request.{expr, eval_info_map, prev} = req_value;
+  let Request.{expr, eval_info_map, prev, _} = req_value;
   switch (
     Language.Evaluator.evaluate(
       ~prev,
@@ -283,7 +287,7 @@ let initial_model = {
  * A newer request replaces `latest_request`; the next slice abandons stale work. */
 
 let predict_reuse_for_request = ((key, req_value): (key, Request.value)) => {
-  let Request.{expr, eval_info_map, prev} = req_value;
+  let Request.{expr, eval_info_map, prev, _} = req_value;
   let stream =
     switch (
       Language.ReusePass.reuse_pass(
@@ -300,7 +304,7 @@ let predict_reuse_for_request = ((key, req_value): (key, Request.value)) => {
 };
 
 let start_evaluation = (req_value: Request.value): evaluation_start => {
-  let Request.{expr, eval_info_map, prev} = req_value;
+  let Request.{expr, eval_info_map, prev, _} = req_value;
   switch (
     Language.Evaluator.start_yielding_evaluation(
       ~prev,

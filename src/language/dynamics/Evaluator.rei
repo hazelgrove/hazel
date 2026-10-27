@@ -38,6 +38,14 @@ let advance_hidden:
   (~max_steps: int=?, ~env: Environment.t(Exp.t), Exp.t) =>
   option((list((Exp.t, string, Exp.t)), Exp.t));
 
+/* Check one Theorem node's proof, plus the definition obligations at its
+ * site, against the given statics and env. None for any other node, or when
+ * `statics` is empty (the evaluator's own hook is then a no-op). Used by the
+ * evaluator's big-step hook and by the main-thread re-check in Theorems. */
+let check_theorem_proof:
+  (~statics: Statics.Map.t, ~env: Environment.t(Exp.t), Exp.t) =>
+  option(ProofMap.t);
+
 let evaluate:
   (
     ~prev: EvaluatorState.incr_eval=?,

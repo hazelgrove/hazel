@@ -10,6 +10,26 @@ open Language;
 /* This file follows conventions in [docs/ui-architecture.md] */
 
 module Model = {
+  /* The input of the latest evaluation request this cell minted: its
+   * generation and the statics (elab, info_map), settings and targets it
+   * was built from, captured at enqueue. */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type requested = {
+    requested_gen: int,
+    requested_statics: Haz3lcore.CachedStatics.t,
+    requested_settings: CoreSettings.t,
+    requested_targets: Sample.targets,
+  };
+
+  /* A completed evaluation paired with the statics of the SAME request:
+   * the only input the main-thread proof re-check (Theorems) reads. */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type checked = {
+    checked_gen: int,
+    checked_statics: Haz3lcore.CachedStatics.t,
+    checked_dynamics: Dynamics.t,
+  };
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type display =
     | Evaluation(Calc.saved(option((Exp.t, CodeSelectable.Model.t))))
@@ -48,6 +68,16 @@ module Model = {
      * instead of being skipped because the partial streaming state has
      * no theorems yet. */
     theorems_dynamics: Calc.saved(option(Dynamics.t)),
+    /* Request generation: minted whenever elab, settings or targets change
+     * (the inputs of an evaluation), including on the sync path and with
+     * dynamics off. Replies tagged with any other generation are refused. */
+    request_gen: int,
+    requested: option(requested),
+    /* Written only by a completed result for the current generation (or
+     * the sync path in the same pass). While a newer request is pending,
+     * or after it fails, the previous pair stays, so the proof map stays
+     * the genuinely previous one. */
+    checked: Calc.saved(option(checked)),
   };
 
   let init = {
@@ -67,6 +97,9 @@ module Model = {
     stepper_hold: None,
     stepper_hold_stale: false,
     theorems_dynamics: Calc.Pending,
+    request_gen: 0,
+    requested: None,
+    checked: Calc.Pending,
   };
 
   let probe_results = (model: t): option(Sample.Map.t) =>
@@ -85,15 +118,13 @@ module Model = {
     | None => Dynamics.Map.mk(Sample.Map.empty)
     };
 
-  /* Proof-check results produced by the big-step evaluator for this cell
-   * (empty if evaluation hasn't completed or the cell contains no
-   * theorems). Consumed by the cursor inspector to show incoming/outgoing
-   * expressions on proof sub-terms. */
+  /* Proof-check results for this cell: the main-thread map Theorems
+   * computes with the real statics (empty until it has been calculated, or
+   * if the cell contains no theorems). Consumed by the cursor inspector to
+   * show incoming/outgoing expressions on proof sub-terms, and by the
+   * editor's proof-error highlights. */
   let proof_map = (model: t): ProofMap.t =>
-    model.dynamics
-    |> Calc.get_saved(None)
-    |> Option.map((d: Dynamics.t) => d.proof_map)
-    |> Option.value(~default=ProofMap.empty);
+    model.theorems.proof_map |> Calc.get_saved(ProofMap.empty);
 
   /* The incremental cache produced by the most recently completed evaluation.
    * Exposed so the code editor can tint the background behind ids that the
@@ -115,6 +146,8 @@ module Model = {
   let pending_eval_ids = (model: t): list(Id.t) =>
     eval_is_pending(model) ? model.pending_eval_ids : [];
 
+  let request_gen = (model: t): int => model.request_gen;
+
   let get_elaboration = (model: t): option(Exp.t) =>
     model.elab |> Calc.get_saved_opt;
 };
@@ -128,9 +161,11 @@ module Update = {
     | StepperAction(StepperView.Update.t)
     | StepperProofPatch(Haz3lcore.EditorTransform.patch)
     | EvalEditorAction(CodeSelectable.Update.t)
-    | UpdateResult(ProgramResult.t(ProgramResult.inner))
-    | UpdateStreamingEval(int, IncrEval.outbox(EvaluatorState.t))
-    | MergeStreamingEval(IncrEval.outbox(EvaluatorState.t))
+    /* Worker callbacks carry the request generation they answer. */
+    | UpdateResult(int, ProgramResult.t(ProgramResult.inner))
+    /* (hold generation, request generation, stream) */
+    | UpdateStreamingEval(int, int, IncrEval.outbox(EvaluatorState.t))
+    | MergeStreamingEval(int, IncrEval.outbox(EvaluatorState.t))
     | ReleaseStepperHold(int)
     | TheoremsAction(Theorems.Update.t);
 
@@ -140,9 +175,9 @@ module Update = {
     | StepperAction(action) => StepperView.Update.can_undo(action)
     | StepperProofPatch(_) => true
     | EvalEditorAction(action) => CodeSelectable.Update.can_undo(action)
-    | UpdateResult(_) => false
-    | UpdateStreamingEval(_, _)
-    | MergeStreamingEval(_)
+    | UpdateResult(_, _) => false
+    | UpdateStreamingEval(_, _, _)
+    | MergeStreamingEval(_, _)
     | ReleaseStepperHold(_) => false
     | TheoremsAction(action) => Theorems.Update.can_undo(action)
     };
@@ -199,7 +234,12 @@ module Update = {
         ...model,
         theorems,
       };
-    | (UpdateResult(result), _) =>
+    /* Refuse callbacks for a request this cell has since superseded. */
+    | (UpdateResult(gen, _), _)
+    | (UpdateStreamingEval(_, gen, _), _)
+    | (MergeStreamingEval(gen, _), _) when gen != model.request_gen =>
+      model |> Updated.return_quiet
+    | (UpdateResult(_, result), _) =>
       {
         ...model,
         result: Calc.NewValue(result),
@@ -212,7 +252,7 @@ module Update = {
         stepper_hold: None,
       }
       |> Updated.return_quiet
-    | (UpdateStreamingEval(hold_gen, stream), _) =>
+    | (UpdateStreamingEval(hold_gen, _, stream), _) =>
       /* Worker ReusePlan arrives here (via on_ack). Snapshot it for the
        * frozen debug tint; also seed the streaming outbox / pending worklist.
        * Hold the theorem steppers on the dynamics they last saw until the
@@ -240,7 +280,7 @@ module Update = {
           : model
       )
       |> Updated.return_quiet
-    | (MergeStreamingEval(stream), _) =>
+    | (MergeStreamingEval(_, stream), _) =>
       let current =
         model.streaming_outbox
         |> Calc.get_saved(None)
@@ -279,6 +319,9 @@ module Update = {
           stepper_hold,
           stepper_hold_stale,
           theorems_dynamics,
+          request_gen,
+          requested,
+          checked,
         }: Model.t,
       ) => {
     // Check whether settings / elab / targets have changed
@@ -298,6 +341,24 @@ module Update = {
         statics.targets,
         cached_targets,
       );
+
+    /* Mint a request generation exactly when an evaluation input changes
+     * (the same condition under which `result` below is recomputed), and
+     * capture that input. */
+    let inputs_new =
+      Calc.is_new(elab) || Calc.is_new(settings) || Calc.is_new(targets);
+    let request_gen = inputs_new ? request_gen + 1 : request_gen;
+    let requested =
+      inputs_new
+        ? Some(
+            {
+              Model.requested_gen: request_gen,
+              requested_statics: statics,
+              requested_settings: Calc.get_value(settings),
+              requested_targets: Calc.get_value(targets),
+            },
+          )
+        : requested;
 
     /* Previous incremental map, if the last evaluation produced one. Pull
      * from the saved field so it survives intermediate pending states
@@ -328,6 +389,7 @@ module Update = {
             expr: elab,
             eval_info_map,
             prev: prev_incr,
+            generation: request_gen,
           });
           ProgramResult.awaiting_worker_ack;
         // Using the main thread:
@@ -337,6 +399,7 @@ module Update = {
               expr: elab,
               eval_info_map,
               prev: prev_incr,
+              generation: request_gen,
             })
           ) {
           | Ok((exp, state)) =>
@@ -435,6 +498,29 @@ module Update = {
         | (ProgramResult.ResultOk({state, _}), _) =>
           Some(dynamics_of_state(state))
         };
+      };
+
+    /* The proof re-check's input: a completed result for the current
+     * generation, paired with the statics captured when that request was
+     * made. Pending, streaming, held or failed states leave it unchanged. */
+    let checked: Calc.t(option(Model.checked)) =
+      switch (result, requested) {
+      | (NewValue(ProgramResult.ResultOk({state, _})), Some(r))
+          when r.requested_gen == request_gen =>
+        Calc.NewValue(
+          Some(
+            {
+              Model.checked_gen: request_gen,
+              checked_statics: r.requested_statics,
+              checked_dynamics: dynamics_of_state(state),
+            },
+          ),
+        )
+      | _ =>
+        switch (checked) {
+        | Calc.Pending => Calc.NewValue(None)
+        | Calc.Calculated(c) => Calc.OldValue(c)
+        }
       };
 
     let incr_eval =
@@ -552,6 +638,17 @@ module Update = {
                ~settings,
                ~statics,
                ~dynamics=theorems_dynamics,
+               ~checked=
+                 {
+                   let pair =
+                     Option.map((c: Model.checked) =>
+                       (c.checked_statics, c.checked_dynamics)
+                     );
+                   switch (checked) {
+                   | NewValue(c) => Calc.NewValue(pair(c))
+                   | OldValue(c) => Calc.OldValue(pair(c))
+                   };
+                 },
              )
         : theorems;
 
@@ -573,6 +670,9 @@ module Update = {
         stepper_hold,
         stepper_hold_stale,
         theorems_dynamics: theorems_dynamics |> Calc.save,
+        request_gen,
+        requested,
+        checked: checked |> Calc.save,
       }: Model.t
     );
   };

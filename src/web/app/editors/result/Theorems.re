@@ -140,6 +140,9 @@ module Update = {
         ~settings: Calc.t(CoreSettings.t),
         ~statics: Calc.t(Haz3lcore.CachedStatics.t),
         ~dynamics: Calc.t(option(Dynamics.t)),
+        /* A completed evaluation paired with the statics of the same
+         * request (EvalResult.Model.checked): the proof map's only input. */
+        ~checked: Calc.t(option((Haz3lcore.CachedStatics.t, Dynamics.t))),
         {thm_map, thms, proof_map: prev_proof_map}: Model.t,
       ) => {
     let settings' = {
@@ -176,16 +179,44 @@ module Update = {
       }
       |> Calc.old_if_same'(thms);
 
-    /* Lift the big-step ProofMap into a Calc-tracked value so changes to
-     * the underlying dynamics propagate exactly once into each theorem's
-     * stepper. Shared across all theorems in this cell. */
+    /* The cell's ProofMap, as a Calc-tracked value so changes propagate
+     * exactly once into each theorem's stepper. Shared across all theorems
+     * in this cell. The evaluation paths carry no statics, so their map
+     * lacks types and pattern constraints; instead each recorded theorem
+     * is re-checked here, on the main thread, through the evaluator's own
+     * checker, with its elaborated node (found by the recorded id) and its
+     * recorded env. Both come from `checked`: a completed evaluation and
+     * the statics of the SAME request, so current statics are never paired
+     * with an older or partial env; while a newer request is pending the
+     * previous map stays. Recorded oldest first, so a later theorem's
+     * entries win, as in the evaluator. A theorem whose node is not in that
+     * elaboration contributes nothing. */
     let proof_map_calc =
       prev_proof_map
       |> {
-        let.calc dynamics = dynamics;
-        switch (dynamics) {
+        let.calc checked = checked;
+        switch (checked) {
         | None => ProofMap.empty
-        | Some(d: Dynamics.t) => d.proof_map
+        | Some((statics: Haz3lcore.CachedStatics.t, d: Dynamics.t)) =>
+          List.fold_left(
+            (acc, (id, _, env, _)) =>
+              switch (Exp.find_by_id(id, statics.elaborated)) {
+              | Some(node) =>
+                switch (
+                  Evaluator.check_theorem_proof(
+                    ~statics=statics.info_map,
+                    ~env,
+                    node,
+                  )
+                ) {
+                | Some(pm) => ProofMap.union(acc, pm)
+                | None => acc
+                }
+              | None => acc
+              },
+            ProofMap.empty,
+            List.rev(d.theorems),
+          )
         };
       };
     let proof_map = proof_map_calc |> Calc.get_value;
