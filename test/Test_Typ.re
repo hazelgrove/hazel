@@ -830,6 +830,36 @@ let sig_tests = {
         },
       ),
       test_case(
+        "close decides a path root's namespace: module variable or type alias",
+        `Quick,
+        () => {
+          let module_entry: Ctx.entry =
+            VarEntry({
+              name: "M",
+              id: Id.mk(),
+              typ: sg([st("U", ti)]),
+              custom_statics: None,
+            });
+          let m_u = F.Typ.prod_projection(F.Typ.var("M"), F.Typ.label("U"));
+          check(
+            typ,
+            "a module's name roots as a module variable",
+            F.Typ.prod_projection(F.Typ.module_var("M"), F.Typ.label("U")),
+            Typ.close(Ctx.extend(ctx, module_entry), m_u),
+          );
+          let s_u = F.Typ.prod_projection(F.Typ.var("S"), F.Typ.label("U"));
+          check(
+            typ,
+            "a signature alias roots as a type variable",
+            s_u,
+            Typ.close(
+              Ctx.extend_alias(ctx, "S", Id.invalid, sg([st("U", ti)])),
+              s_u,
+            ),
+          );
+        },
+      ),
+      test_case(
         "free_vars: a closed signature's members bind nothing",
         `Quick,
         () => {
@@ -853,12 +883,19 @@ let sig_tests = {
               Typ.close(ctx, sg([st("T", ti), sv("x", F.Typ.var("T"))])),
             ),
           );
-          let p_u = F.Typ.prod_projection(F.Typ.var("P"), F.Typ.label("U"));
+          let p_u =
+            F.Typ.prod_projection(F.Typ.module_var("P"), F.Typ.label("U"));
           check(
             list(string),
-            "~binder=`Var: path roots only",
+            "module_vars: path roots only",
             ["P"],
-            Typ.free_vars(~binder=`Var, F.Typ.arrow(p_u, F.Typ.var("Q"))),
+            Typ.module_vars(F.Typ.arrow(p_u, F.Typ.var("Q"))),
+          );
+          check(
+            list(string),
+            "free_vars: a module root is not a type variable",
+            ["Q"],
+            Typ.free_vars(F.Typ.arrow(p_u, F.Typ.var("Q"))),
           );
         },
       ),
@@ -1101,17 +1138,18 @@ let unshadow_tests = {
         )
       ),
       test_case(
-        "a name bound to a module is primed, since paths root at it",
+        "a name bound to a module binds as written: paths root at module variables",
         `Quick,
         () =>
         check(
-          string,
-          "M",
-          "M'",
-          renaming(
-            Ctx.extend(Ctx.empty, module_("M", [st("U", F.Typ.int())])),
-            "M",
-            "M",
+          bool,
+          "no renaming",
+          true,
+          Option.is_none(
+            Typ.unshadow(
+              Ctx.extend(Ctx.empty, module_("M", [st("U", F.Typ.int())])),
+              "M",
+            ),
           ),
         )
       ),

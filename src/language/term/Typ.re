@@ -25,6 +25,7 @@ type cls =
   | Poly
   | ProofOf
   | ProdProjection
+  | ModuleVar
   | ProdExtension
   | Sig;
 
@@ -100,6 +101,7 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | Poly(_) => Poly
   | ProofOf(_) => ProofOf
   | ProdProjection(_) => ProdProjection
+  | ModuleVar(_) => ModuleVar
   | ProdExtension(_) => ProdExtension
   | Sig(_) => Sig;
 
@@ -127,6 +129,7 @@ let show_cls: cls => string =
   | Poly => "Type quantifier"
   | ProofOf => "Proof type"
   | ProdProjection => "Tuple projection"
+  | ModuleVar => "Module variable"
   | ProdExtension => "Tuple extension"
   | Sig => "Signature type";
 
@@ -143,6 +146,7 @@ let rec is_arrow = (typ: t) => {
   | Label(_)
   | ExplicitNonlabel
   | Prod(_)
+  | ModuleVar(_)
   | Var(_)
   | Sum(_)
   | Poly(_)
@@ -168,6 +172,7 @@ let rec has_fun = (typ: t) =>
   | DrvQuoteTy(_)
   | Label(_)
   | ExplicitNonlabel
+  | ModuleVar(_)
   | Var(_) => false
   | List(t) => has_fun(t)
   | Rec(_, t) => has_fun(t)
@@ -260,22 +265,16 @@ type binder = [
 /* The free variables of [ty] that substituting for a [binder] would
    replace: every one for a type variable, only path roots for a module.
    A signature's members bind nothing: see [close]. */
-let rec free_vars =
-        (~binder: binder=`TVar, ~bound=[], ~bound_roots=[], ty: t)
-        : list(Var.t) => {
-  let go = free_vars(~binder, ~bound, ~bound_roots);
+let rec free_vars = (~bound=[], ty: t): list(Var.t) => {
+  let go = free_vars(~bound);
   switch (term_of(ty)) {
   | Unknown(_)
   | Atom(_)
   | DrvQuoteTy(_)
   | Label(_)
-  | ExplicitNonlabel => []
-  | Var(v) =>
-    switch (binder) {
-    | `TVar when !List.mem(v, bound) => [v]
-    | `TVar
-    | `Var => []
-    }
+  | ExplicitNonlabel
+  | ModuleVar(_) => []
+  | Var(v) => List.mem(v, bound) ? [] : [v]
   | Parens(ty)
   | Projector(_, ty) => go(ty)
   | List(ty) => go(ty)
@@ -283,20 +282,11 @@ let rec free_vars =
   | Arrow(t1, t2) => go(t1) @ go(t2)
   | Sum(sm) => ConstructorMap.free_variables(go, sm)
   | Prod(tys) => List.concat_map(go, tys)
-  | ProdProjection(t1, _) =>
-    switch (term_of(t1)) {
-    | Var(v) => List.mem(v, bound) || List.mem(v, bound_roots) ? [] : [v]
-    | _ => go(t1)
-    }
+  | ProdProjection(t1, _) => go(t1)
   | TupLabel(_, ty) => go(ty)
   | Rec(x, ty)
   | Poly(x, ty) =>
-    free_vars(
-      ~binder,
-      ~bound=(x |> TPat.tyvar_of_utpat |> Option.to_list) @ bound,
-      ~bound_roots,
-      ty,
-    )
+    free_vars(~bound=(x |> TPat.tyvar_of_utpat |> Option.to_list) @ bound, ty)
   | ProofOf(_) => []
   | Sig(items) =>
     List.concat_map(
@@ -391,6 +381,7 @@ let rec count_unknowns = (ty: t): int =>
   | Unknown(_) => 1
   | Atom(_)
   | DrvQuoteTy(_)
+  | ModuleVar(_)
   | Var(_) => 0
   | Arrow(t1, t2) => count_unknowns(t1) + count_unknowns(t2)
   | Prod(tys) =>
@@ -430,6 +421,39 @@ let rec count_unknowns = (ty: t): int =>
   };
 
 let contains_unknown = (ty: t): bool => count_unknowns(ty) > 0;
+
+/* The module variables rooting the paths in a type. */
+let rec module_vars = (ty: t): list(Var.t) =>
+  switch (term_of(ty)) {
+  | ModuleVar(m) => [m]
+  | Unknown(_)
+  | Atom(_)
+  | DrvQuoteTy(_)
+  | Label(_)
+  | ExplicitNonlabel
+  | Var(_)
+  | ProofOf(_) => []
+  | Parens(ty)
+  | Projector(_, ty)
+  | List(ty)
+  | TupLabel(_, ty)
+  | Rec(_, ty)
+  | Poly(_, ty) => module_vars(ty)
+  | ProdExtension(t1, t2)
+  | Arrow(t1, t2)
+  | ProdProjection(t1, t2) => module_vars(t1) @ module_vars(t2)
+  | Sum(sm) => ConstructorMap.free_variables(module_vars, sm)
+  | Prod(tys) => List.concat_map(module_vars, tys)
+  | Sig(items) =>
+    List.concat_map(
+      (m: Sig.member) =>
+        switch (m) {
+        | Val(_, ty)
+        | TypeManifest(_, ty) => module_vars(ty)
+        },
+      Sig.members(items),
+    )
+  };
 
 /* Capture-avoiding substitution of `s` for `x` in `ty`.
 
@@ -503,13 +527,13 @@ let rec subst = (~binder: binder=`TVar, s: t, x: TPat.t, ty: t): t =>
         }
       | Parens(ty) => Parens(go(ty)) |> rewrap
       | Projector(data, ty) => Projector(data, go(ty)) |> rewrap
-      | ProdProjection(t1, t2) =>
-        let t1 =
-          switch (binder, term_of(t1)) {
-          | (`Var, Var(y)) when String.equal(str, y) => s
-          | _ => go(t1)
-          };
-        ProdProjection(t1, go(t2)) |> rewrap;
+      | ModuleVar(y) =>
+        switch (binder) {
+        | `Var when String.equal(str, y) => s
+        | `Var
+        | `TVar => ty
+        }
+      | ProdProjection(t1, t2) => ProdProjection(go(t1), go(t2)) |> rewrap
       | ProdExtension(t1, t2) => ProdExtension(go(t1), go(t2)) |> rewrap
       | Sig(items) => Sig(List.map(Sig.map_typ(go), items)) |> rewrap
       };
@@ -535,11 +559,18 @@ let rec unroll = (ty: t): option(t) =>
 /* Substitute each [(binder, name, def)] for [name], latest binder first.
    Only the definitions of names free in [ty] are forced. */
 let apply_sig_subst = (sigma: list((binder, Var.t, Lazy.t(t))), ty: t): t => {
-  let fv = free_vars(ty);
+  let type_vars = free_vars(ty);
+  let module_vars = module_vars(ty);
   List.fold_left(
-    (ty, (binder, name, def)) =>
-      List.exists(String.equal(name), fv)
-        ? subst(~binder, Lazy.force(def), Var(name) |> TPat.fresh, ty) : ty,
+    (ty, (binder, name, def)) => {
+      let mentioned =
+        switch (binder) {
+        | `TVar => type_vars
+        | `Var => module_vars
+        };
+      List.exists(String.equal(name), mentioned)
+        ? subst(~binder, Lazy.force(def), Var(name) |> TPat.fresh, ty) : ty;
+    },
     ty,
     sigma,
   );
@@ -717,11 +748,12 @@ and path_head = (~rec_counter, ctx: Ctx.t, t: t): option(t) =>
     | Parens(t)
     | Projector(_, t) => path_head(~rec_counter=rec_counter + 1, ctx, t)
     | Var(n) =>
-      switch (Ctx.newest_tvar_or_var(ctx, n)) {
-      | Some(`TVar(_)) => Some(head_type(~rec_counter, ctx, t))
-      | Some(`Var({typ, _})) => module_type(typ)
-      | None => None
-      }
+      Option.is_some(Ctx.lookup_tvar(ctx, n))
+        ? Some(head_type(~rec_counter, ctx, t)) : None
+    | ModuleVar(n) =>
+      Option.bind(Ctx.lookup_var(ctx, n), (v: Ctx.var_entry) =>
+        module_type(v.typ)
+      )
     | ProdProjection(p, {term: Label(l), _}) =>
       switch (path_head(~rec_counter=rec_counter + 1, ctx, p)) {
       | Some({term: Sig(items), _}) =>
@@ -768,8 +800,8 @@ let as_sig = (ctx: Ctx.t, ty: t): option(list(Sig.t)) =>
   | _ => None
   };
 
-/* Type variable names in a type, bound and free alike, path roots
-   included, under `f`. */
+/* Type variable names in a type, bound and free alike, under `f`. Module
+   variables are not type variables and are left alone. */
 let rename_vars = (f: string => string, ty: t): t =>
   map_term(
     ~f_typ=
@@ -785,17 +817,12 @@ let rename_vars = (f: string => string, ty: t): t =>
   );
 
 /* Whether binding type name `name` over ctx would change what a type
-   already in ctx means: the name is bound as a type or as a module, so
-   mentions of it would come to mean the new binding, or an alias mentions
-   it while it is unbound. */
+   already in ctx means: the name is bound as a type, so mentions of it
+   would come to mean the new binding, or an alias mentions it while it is
+   unbound. A module variable is not captured: paths root at it by
+   `ModuleVar`, not by name in the type namespace. */
 let would_capture = (ctx: Ctx.t, name: string): bool =>
   Option.is_some(Ctx.lookup_tvar(ctx, name))
-  || (
-    switch (Ctx.lookup_var(ctx, name)) {
-    | Some({typ, _}) => Option.is_some(as_sig(ctx, typ))
-    | None => false
-    }
-  )
   || List.exists(
        fun
        | Ctx.TVarEntry({kind: Singleton(ty), _}) =>
@@ -832,12 +859,9 @@ let unshadow = (ctx: Ctx.t, name: string): option(string => string) =>
    member, whose name is its interface. */
 let extend_ctx = (ctx: Ctx.t, entry: Ctx.entry): Ctx.t => {
   let root = name =>
-    switch (Ctx.newest_tvar_or_var(ctx, name)) {
-    | Some(`TVar(Ctx.Singleton(def))) => Some(def)
-    | Some(`Var({typ, _})) when Option.is_some(as_sig(ctx, typ)) =>
-      Some(typ)
-    | Some(`TVar(Ctx.Abstract))
-    | Some(`Var(_))
+    switch (Ctx.lookup_var(ctx, name)) {
+    | Some({typ, _}) when Option.is_some(as_sig(ctx, typ)) => Some(typ)
+    | Some(_)
     | None => None
     };
   let bare = name =>
@@ -849,10 +873,7 @@ let extend_ctx = (ctx: Ctx.t, entry: Ctx.entry): Ctx.t => {
   let shadowed: list((binder, Var.t, option(t))) =
     switch (entry) {
     | VarEntry({name, _}) => [(`Var, name, root(name))]
-    | TVarEntry({name, _}) => [
-        (`Var, name, root(name)),
-        (`TVar, name, bare(name)),
-      ]
+    | TVarEntry({name, _}) => [(`TVar, name, bare(name))]
     | ConstructorEntry(_)
     | LivelitEntry(_) => []
     };
@@ -924,7 +945,8 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
     | Some(ty) => normalize(ctx, ty)
     | None => ty
     }
-  | Var(_) => ty
+  | Var(_)
+  | ModuleVar(_)
   | Unknown(_)
   | Atom(_)
   | DrvQuoteTy(_)
@@ -1005,6 +1027,7 @@ let fun_in = (ctx: Ctx.t, ty: t): option(fun_in) => {
             members,
             ty,
           })
+        | ModuleVar(_) => None
         | Var(x) =>
           switch (Ctx.lookup_alias(ctx, x)) {
           | Some(t) => go(~members, ctx, t)
@@ -1136,6 +1159,7 @@ let rec close = (ctx: Ctx.t, ty: t): t => {
   | DrvQuoteTy(_)
   | Label(_)
   | ExplicitNonlabel
+  | ModuleVar(_)
   | Var(_)
   | ProofOf(_) => ty
   | Parens(t) => Parens(close(ctx, t)) |> rewrap
@@ -1145,7 +1169,7 @@ let rec close = (ctx: Ctx.t, ty: t): t => {
   | Prod(ts) => Prod(List.map(close(ctx), ts)) |> rewrap
   | TupLabel(l, t) => TupLabel(l, close(ctx, t)) |> rewrap
   | ProdProjection(t1, t2) =>
-    ProdProjection(close(ctx, t1), close(ctx, t2)) |> rewrap
+    ProdProjection(close_root(ctx, t1), close(ctx, t2)) |> rewrap
   | ProdExtension(t1, t2) =>
     ProdExtension(close(ctx, t1), close(ctx, t2)) |> rewrap
   | Sum(sm) =>
@@ -1157,6 +1181,21 @@ let rec close = (ctx: Ctx.t, ty: t): t => {
   | Sig(items) => Sig(close_items(ctx, items)) |> rewrap
   };
 }
+/* The left of a projection, closed. A written name there is a module
+   variable when the newest binding of the name is a value: the one place
+   the namespace of a path root is decided. */
+and close_root = (ctx: Ctx.t, t: t): t =>
+  switch (term_of(t)) {
+  | Var(n) =>
+    switch (Ctx.newest_tvar_or_var(ctx, n)) {
+    | Some(`Var(_)) =>
+      let (_, rewrap) = unwrap(t);
+      ModuleVar(n) |> rewrap;
+    | Some(`TVar(_))
+    | None => t
+    }
+  | _ => close(ctx, t)
+  }
 and close_items = (ctx: Ctx.t, items: list(Sig.t)): list(Sig.t) => {
   let type_members = Sig.type_names(Sig.members(items));
   let is_type_member = n => List.exists(String.equal(n), type_members);
@@ -1280,6 +1319,9 @@ let rec meet =
     let* ty_name = Ctx.lookup_alias(ctx, name);
     let+ ty_meet = meet'(ty_name, ty1);
     equal(ty_name, ty_meet) ? ty2 : ty_meet;
+  /* A module variable is a path root, not a type: nothing meets it. */
+  | (ModuleVar(_), _)
+  | (_, ModuleVar(_)) => None
   /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
   | (ProdProjection(_), _) => meet'(weak_head_normalize(ctx, ty1), ty2)
   | (_, ProdProjection(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
@@ -1431,6 +1473,7 @@ let rec match_synswitch = (t1: t, t2: t) => {
   | (Label(_), _)
   | (ExplicitNonlabel, _)
   | (Var(_), _)
+  | (ModuleVar(_), _)
   | (Rec(_), _)
   | (ProofOf(_), _)
   | (ProdProjection(_), _)
@@ -1511,6 +1554,7 @@ let rec is_syn = (ty: t): bool =>
   | Atom(_)
   | DrvQuoteTy(_)
   | Label(_)
+  | ModuleVar(_)
   | Var(_)
   | Rec(_)
   | Poly(_)
@@ -1535,6 +1579,7 @@ let rec is_ana_atom = (ty: t) =>
   | Unknown(_)
   | ExplicitNonlabel
   | Label(_)
+  | ModuleVar(_)
   | Var(_)
   | Rec(_)
   | Poly(_)
@@ -1562,6 +1607,7 @@ let rec is_syn_plus = (ty: t): bool =>
   | DrvQuoteTy(_)
   | ExplicitNonlabel
   | Label(_)
+  | ModuleVar(_)
   | Var(_)
   | Rec(_)
   | List(_)
@@ -1594,6 +1640,7 @@ let rec needs_parens = (ty: t): bool =>
   | DrvQuoteTy(_)
   | List(_) /* is already wrapped in [] */
   | ProofOf(_)
+  | ModuleVar(_)
   | Var(_) => false
   | ProdProjection(_, _)
   | ProdExtension(_, _)
@@ -1650,6 +1697,7 @@ let rec pretty_print = (ty: t): string =>
          ts,
        )
     ++ ")"
+  | ModuleVar(m) => m
   | ProdProjection(t, label) =>
     pretty_print(t) ++ "." ++ pretty_print(label)
   | ProdExtension(t, label) =>
@@ -1766,6 +1814,7 @@ let all_ids = (ty: t): list(Id.t) => {
     | DrvQuoteTy(_)
     | Label(_)
     | ExplicitNonlabel
+    | ModuleVar(_)
     | Var(_)
     | ProofOf(_) => ()
     /* Syntactic, not `Sig.members`: an item whose name is a hole still
@@ -1839,6 +1888,8 @@ let rec diff =
   | (Label(_), _) => get_ids()
   | (ExplicitNonlabel, ExplicitNonlabel) => []
   | (ExplicitNonlabel, _) => get_ids()
+  | (ModuleVar(m1), ModuleVar(m2)) when m1 == m2 => []
+  | (ModuleVar(_), _) => get_ids()
   | (Var(v1), Var(v2)) when v1 == v2 => []
   | (Var(name), _) =>
     switch (expand(name)) {

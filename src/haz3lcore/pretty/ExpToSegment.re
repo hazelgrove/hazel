@@ -340,6 +340,7 @@ let external_precedence_typ = (tp: Typ.t) =>
   | Unknown(SynSwitch)
   | Unknown(Hole(EmptyHole))
   | Var(_)
+  | ModuleVar(_)
   | Atom(_)
   | DrvQuoteTy(_)
   | Label(_)
@@ -849,6 +850,7 @@ and parenthesize_typ =
   switch (term) {
   // Indivisible forms dont' change
   | Var(_)
+  | ModuleVar(_)
   | Unknown(Hole(Invalid(_)))
   | Unknown(Internal)
   | Unknown(SynSwitch)
@@ -2956,7 +2958,8 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
           )
       };
     wrap(typ, seg);
-  | Var(v) => wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, v))
+  | Var(v)
+  | ModuleVar(v) => wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, v))
   | Atom(a) =>
     wrap(
       typ,

@@ -2,20 +2,15 @@
    signature expects of its items, what the body exports, and how the two
    compare. Signature types are closed (Typ.close). */
 
-/* Collect module variable references from type annotations.
-   For M.T (= ProdProjection(Var("M"), Label("T"))), free_vars returns ["M"].
-   We filter to names that are expression variables (not type aliases). */
-let collect_module_refs_in_typ = (ctx: Ctx.t, id: Id.t, typ: Typ.t): CoCtx.t => {
-  Typ.free_vars(typ)
-  |> List.filter_map(name =>
-       switch (Ctx.lookup_var(ctx, name)) {
-       | Some(_) =>
-         Some(CoCtx.singleton(name, id, Unknown(Internal) |> Typ.temp))
-       | None => None
-       }
+/* The module variables a written annotation refers to, as co-context
+   entries: the roots of its paths, which closing it decides. */
+let collect_module_refs_in_typ = (ctx: Ctx.t, id: Id.t, typ: Typ.t): CoCtx.t =>
+  Typ.close(ctx, typ)
+  |> Typ.module_vars
+  |> List.map(name =>
+       CoCtx.singleton(name, id, Unknown(Internal) |> Typ.temp)
      )
   |> CoCtx.union;
-};
 
 /* Walk a Pat.t AST and collect module refs from any Asc(_, ann) sub-patterns. */
 let rec collect_pat_type_refs = (ctx: Ctx.t, pat: Pat.t): CoCtx.t =>

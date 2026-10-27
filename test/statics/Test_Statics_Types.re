@@ -765,7 +765,7 @@ let tests = (
       ),
     ),
     fully_consistent_typecheck(
-      "an alias named like a module in scope is primed, so earlier paths keep the module",
+      "an alias named like a module in scope captures no earlier path, which roots at the module variable",
       {|module M = { type U = Int } in let x : M.U = 1 in type M = Bool in x + 1|},
       Some(FTemp.Typ.int()),
     ),

@@ -101,6 +101,10 @@ and typ_term('a) =
   | Atom(Atom.cls)
   | DrvQuoteTy(DrvSort.t)
   | Var(string)
+  /* The root of a module type path, `M` in `M.T`: a value variable, not a
+     type variable. Statics gives it to a projection's root when the type is
+     closed (Typ.close); it is not written. */
+  | ModuleVar(string)
   | List(typ_t('a))
   | Arrow(typ_t('a), typ_t('a))
   | Sum(ConstructorMap.t(typ_t('a)))
@@ -369,6 +373,7 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
         | Atom(c) => Atom(c)
         | DrvQuoteTy(s) => DrvQuoteTy(s)
         | Var(s) => Var(s)
+        | ModuleVar(s) => ModuleVar(s)
         | List(t) => List(map_typ_annotation(f, t))
         | Arrow(t1, t2) =>
           Arrow(map_typ_annotation(f, t1), map_typ_annotation(f, t2))
@@ -938,6 +943,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let prod_projection = (~ann=?, t1, t2): typ_t(DefaultAnnotation.t) => {
       term: ProdProjection(t1, t2),
+      annotation: default_annotation(ann),
+    };
+    let module_var = (~ann=?, m): typ_t(DefaultAnnotation.t) => {
+      term: ModuleVar(m),
       annotation: default_annotation(ann),
     };
     let prod_extension = (~ann=?, t1, t2): typ_t(DefaultAnnotation.t) => {

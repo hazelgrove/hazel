@@ -1573,7 +1573,8 @@ let decide =
       };
     | Var(c) when Info.typ_is_constructor_expected(typ_info) =>
       get_message(SumTyp.sum_typ_nullary_constructor_defs(c))
-    | Var(v) => get_message(TerminalTyp.var(v))
+    | Var(v)
+    | ModuleVar(v) => get_message(TerminalTyp.var(v))
     | Sum(_) => get_message(SumTyp.labelled_sum_typs)
     | Unknown(Hole(Invalid(_))) => Prose("Not a type or type operator")
     | ProdProjection(_) => get_message(DotTyp.dot)

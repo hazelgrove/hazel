@@ -152,7 +152,10 @@ optional `: Type`), `SigType(tpat, typ)`, `SigModule(mpat)` (the module name
 pattern carries the optional `: Signature`), holes.
 
 **Expression level**: `Module(list(mod_t))`, `ModuleExp(mpat, exp, exp)`.
-**Type level**: `Sig(list(sig_t))`, `ProdProjection(typ, typ)` (`M.T`).
+**Type level**: `Sig(list(sig_t))`, `ProdProjection(typ, typ)` (`M.T`), whose
+root `Typ.close` turns into `ModuleVar(M)` when `M`'s newest binding is a
+value: the one place a path root's namespace is decided. `ModuleVar` is never
+written; it prints as `M`.
 
 ### Signature types
 

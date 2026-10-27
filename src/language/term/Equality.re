@@ -696,6 +696,8 @@ let equality =
       | Free => x == y
       | NotEquiv => false
       }
+    | (ModuleVar(x), ModuleVar(y)) => x == y
+    | (ModuleVar(_), _) => false
     | (Var(_), _) => false
 
     // Holes: equal if provenance is ignored
