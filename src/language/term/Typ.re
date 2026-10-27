@@ -558,12 +558,11 @@ let same_member_names = (a: list(Sig.member), b: list(Sig.member)): bool => {
   && same(Sig.type_names(a), Sig.type_names(b));
 };
 
-/* The type of value member [name]; a later member shadows an earlier one. */
+/* The type of value member [name]. */
 let sig_project_value = (items: list(Sig.t), name: Var.t): option(t) =>
   Sig.find_value(Sig.members(items), name);
 
-/* The definition of type member [name]; a later member shadows an earlier
-   one. */
+/* The definition of type member [name]. */
 let sig_project_type = (items: list(Sig.t), name: Var.t): option(t) =>
   Sig.find_type_def(Sig.members(items), name);
 
@@ -1071,8 +1070,8 @@ let equal_up_to_aliases = (ctx: Ctx.t, a: t, b: t): bool => {
       | (Var(n1), Var(n2)) => n1 == n2 /* both unresolvable in ctx */
       | (Sig(xs), Sig(ys)) =>
         /* Order-insensitive, as in [meet]. */
-        let mx = Sig.members(xs) |> Sig.dedup_last;
-        let my = Sig.members(ys) |> Sig.dedup_last;
+        let mx = Sig.members(xs);
+        let my = Sig.members(ys);
         same_member_names(mx, my)
         && List.for_all(
              (m: Sig.member) =>
@@ -1173,13 +1172,29 @@ and close_items = (ctx: Ctx.t, items: list(Sig.t)): list(Sig.t) => {
       item,
     );
   };
-  let (_, rev) =
+  /* The first item declaring a name and kind is the member. A later one,
+     and a `let` that names no member, are marked where they are written
+     (Statics) and are left out here. */
+  let (_, _, rev) =
     List.fold_left(
-      ((ctx, acc), item) => {
+      ((ctx, seen, acc), item) => {
         let item = close_item(ctx, item);
-        (extend_sig_item(ctx, item), [item, ...acc]);
+        switch (Sig.read_item(item)) {
+        | Member(m) when List.exists(Sig.same_kind(m), seen) => (
+            ctx,
+            seen,
+            acc,
+          )
+        | Member(m) => (
+            extend_sig_item(ctx, item),
+            [m, ...seen],
+            [item, ...acc],
+          )
+        | Incomplete => (ctx, seen, [item, ...acc])
+        | NotAName => (ctx, seen, acc)
+        };
       },
-      (ctx, []),
+      (ctx, [], []),
       items,
     );
   List.rev(rev);
@@ -1375,35 +1390,25 @@ let rec meet =
         item => Option.map(m => (item, m), Sig.member_of_item(item)),
         xs,
       );
-    let my = Sig.members(ys) |> Sig.dedup_last;
-    if (!same_member_names(List.map(snd, Sig.dedup_last_by(snd, cx)), my)) {
+    let my = Sig.members(ys);
+    if (!same_member_names(List.map(snd, cx), my)) {
       None;
     } else {
-      /* Rebuild from the left operand's items so each keeps its form, and
-         its type as written where the meet refines nothing. A member a
-         later one shadows is kept as written, unmet: the items between
-         them may mention it. */
-      let rec go = (cx: list((Sig.t, Sig.member))) =>
-        switch (cx) {
-        | [] => Some([])
-        | [(item, m), ...rest] =>
-          let* item =
-            if (List.exists(((_, m')) => Sig.same_kind(m, m'), rest)) {
-              Some(item);
-            } else {
-              let (t1, t2) =
-                switch (m) {
-                | Val(x, t1) => (t1, Sig.find_value(my, x))
-                | TypeManifest(n, t1) => (t1, Sig.find_type_def(my, n))
-                };
-              let* t2 = t2;
-              let+ t = meet'(t1, t2);
-              equal(t, t1) ? item : Sig.map_typ(_ => t, item);
-            };
-          let+ rest = go(rest);
-          [item, ...rest];
-        };
-      let+ items = go(cx);
+      /* Rebuilt from the left operand's items so each keeps its form, and
+         its type as written where the meet refines nothing. */
+      let+ items =
+        cx
+        |> List.map(((item, m): (Sig.t, Sig.member)) => {
+             let (t1, t2) =
+               switch (m) {
+               | Val(x, t1) => (t1, Sig.find_value(my, x))
+               | TypeManifest(n, t1) => (t1, Sig.find_type_def(my, n))
+               };
+             let* t2 = t2;
+             let+ t = meet'(t1, t2);
+             equal(t, t1) ? item : Sig.map_typ(_ => t, item);
+           })
+        |> Util.OptUtil.sequence;
       Sig(items) |> temp;
     };
   | (Sig(_), _) => None

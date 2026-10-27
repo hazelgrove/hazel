@@ -3179,8 +3179,7 @@ and uexp_to_info_map =
           };
         };
       let (c, m) = go_items(~ctx, items, m);
-      /* A later binding of a name shadows an earlier one. */
-      let have = Sig.dedup_last_by(snd, c.members);
+      let have = ModuleHelpers.exports(c.members);
       let (elab_syn_ty, marks) =
         switch (ana_items) {
         | None => (Sig(List.map(fst, have)) |> Typ.temp, [])
@@ -4701,12 +4700,28 @@ and utyp_to_info_map =
       utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
     add(m); // TODO: check with andrew
   | Sig(items) =>
-    let (_, m) =
+    /* Items scope sequentially: a type member is in scope for later items,
+       and in its own definition. The first item declaring a name and kind
+       is the member; a later one is marked and binds nothing, as is a
+       `let` whose pattern is not a name. */
+    let (_, _, m) =
       List.fold_left(
-        ((ctx, m), item: Sig.t) => {
-          let ctx_after = Typ.extend_sig_item(ctx, item);
-          /* A type member's name is in scope in its own definition; a value
-             or module member's is not. */
+        ((ctx, seen, m), item: Sig.t) => {
+          let (marks, seen, ctx_after) =
+            switch (Sig.read_item(item)) {
+            | Member(member) when List.exists(Sig.same_kind(member), seen) => (
+                [Mark.SigDuplicateMember(member)],
+                seen,
+                ctx,
+              )
+            | Member(member) => (
+                [],
+                [member, ...seen],
+                Typ.extend_sig_item(ctx, item),
+              )
+            | Incomplete => ([], seen, ctx)
+            | NotAName => ([Mark.SigLetNotAName], seen, ctx)
+            };
           let ctx_item =
             switch (item.term) {
             | SigType(_) => ctx_after
@@ -4717,15 +4732,16 @@ and utyp_to_info_map =
             | MultiHole(_) => ctx
             };
           let (_, _, m) =
-            any_to_info_map(
+            sig_to_info_map(
               ~ctx=ctx_item,
               ~ancestors=ancestors_inclusive,
-              Sig(item),
+              ~marks,
+              item,
               m,
             );
-          (ctx_after, m);
+          (ctx_after, seen, m);
         },
-        (ctx, m),
+        (ctx, [], m),
         items,
       );
     add(m);
@@ -4911,12 +4927,11 @@ and sig_to_info_map =
       ~ctx,
       ~ancestors,
       ~probe_ids: Id.Map.t(unit)=Id.Map.empty,
+      ~marks: list(Mark.t)=[],
       s_term: Sig.t,
       m: Map.t,
     )
     : (CoCtx.t, Any.t, Map.t) => {
-  /* NOTE: This function is only used for signature items that are not properly positioned in signatures.
-     Properly positioned signature items are handled in the signature cases of typ_to_info_map. */
   let ids = IdTagged.ids(s_term);
   let cls = Cls.Sig(Sig.cls_of_term(s_term.term));
   let add_sig_info = m =>
@@ -4929,6 +4944,7 @@ and sig_to_info_map =
         sort: Sig,
         ctx,
         ancestors,
+        marks,
       }),
       m,
     );

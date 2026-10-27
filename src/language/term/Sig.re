@@ -45,43 +45,70 @@ let temp: term => t =
 
 /* ==================== Member view ====================
    A signature type is a dependent record: later items may mention earlier
-   type members by their bare name. A member is a well-formed item (holes,
-   invalid items and non-variable patterns are skipped). Canonical items are
+   type members by their bare name. Canonical items are
    `SigLet(Asc(Var x, τ))`, `SigModule(Asc(Var m, τ))` and
-   `SigType(Var T, τ)`. A `module m : S` member is a value member. */
+   `SigType(Var T, τ)`; a `module m : S` member is a value member. In a
+   closed signature (Typ.close) every item declares a member, and no two
+   members share a name and kind. */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type member =
   | Val(Var.t, TermBase.Typ.t)
   | TypeManifest(Var.t, TermBase.Typ.t);
 
-let rec val_of_pat = (p: TermBase.Pat.t): option(member) =>
+/* What a written item declares. */
+[@deriving show({with_path: false})]
+type reading =
+  | Member(member)
+  /* A hole or invalid piece where the member would be named. */
+  | Incomplete
+  /* A `let` whose pattern is not a name, `let (a, b) : (Int, Int)`. */
+  | NotAName;
+
+let rec read_pat = (p: TermBase.Pat.t): reading =>
   switch (p.term) {
-  | Parens(p) => val_of_pat(p)
-  | Asc(p', ty) => Pat.is_var(p') |> Option.map(x => Val(x, ty))
-  | _ =>
-    Pat.is_var(p)
-    |> Option.map(x => Val(x, TempGrammar.Typ.unknown(Internal)))
+  | Parens(p) => read_pat(p)
+  | Asc(p, ty) =>
+    switch (read_pat(p)) {
+    | Member(Val(x, _)) => Member(Val(x, ty))
+    | reading => reading
+    }
+  | Var(x) => Member(Val(x, TempGrammar.Typ.unknown(Internal)))
+  | EmptyHole
+  | MultiHole(_)
+  | Invalid(_) => Incomplete
+  | _ => NotAName
   };
 
-let val_of_mpat = (mp: TermBase.MPat.t): option(member) =>
+let read_mpat = (mp: TermBase.MPat.t): reading =>
   switch (mp.term) {
-  | Var(x) => Some(Val(x, TempGrammar.Typ.unknown(Internal)))
-  | Asc(inner, ty) => MPat.name(inner) |> Option.map(x => Val(x, ty))
+  | Var(x) => Member(Val(x, TempGrammar.Typ.unknown(Internal)))
+  | Asc(inner, ty) =>
+    switch (MPat.name(inner)) {
+    | Some(x) => Member(Val(x, ty))
+    | None => Incomplete
+    }
   | Invalid(_)
   | EmptyHole
-  | MultiHole(_) => None
+  | MultiHole(_) => Incomplete
   };
 
-let member_of_item = (item: t): option(member) =>
+let read_item = (item: t): reading =>
   switch (item.term) {
-  | SigLet(p) => val_of_pat(p)
-  | SigModule(mp) => val_of_mpat(mp)
-  | SigType({term: Var(name), _}, ty) => Some(TypeManifest(name, ty))
+  | SigLet(p) => read_pat(p)
+  | SigModule(mp) => read_mpat(mp)
+  | SigType({term: Var(name), _}, ty) => Member(TypeManifest(name, ty))
   | SigType(_, _)
   | Invalid(_)
   | EmptyHole
-  | MultiHole(_) => None
+  | MultiHole(_) => Incomplete
+  };
+
+let member_of_item = (item: t): option(member) =>
+  switch (read_item(item)) {
+  | Member(m) => Some(m)
+  | Incomplete
+  | NotAName => None
   };
 
 let members = (items: list(t)): list(member) =>
@@ -184,23 +211,23 @@ let typ_of_item = (item: t): option(TermBase.Typ.t) => {
 };
 
 let value_names = (ms: list(member)): list(Var.t) =>
-  ms
-  |> List.filter_map(
-       fun
-       | Val(x, _) => Some(x)
-       | TypeManifest(_) => None,
-     )
-  |> Util.ListUtil.dedup_f(String.equal);
+  List.filter_map(
+    fun
+    | Val(x, _) => Some(x)
+    | TypeManifest(_) => None,
+    ms,
+  );
 
 let type_names = (ms: list(member)): list(Var.t) =>
-  ms
-  |> List.filter_map(
-       fun
-       | TypeManifest(x, _) => Some(x)
-       | Val(_) => None,
-     )
-  |> Util.ListUtil.dedup_f(String.equal);
+  List.filter_map(
+    fun
+    | TypeManifest(x, _) => Some(x)
+    | Val(_) => None,
+    ms,
+  );
 
+/* Whether two members are the same name of the same kind: values and
+   modules share a namespace, type members have their own. */
 let same_kind = (a: member, b: member) =>
   switch (a, b) {
   | (Val(x, _), Val(y, _))
@@ -209,38 +236,20 @@ let same_kind = (a: member, b: member) =>
   | (TypeManifest(_), Val(_)) => false
   };
 
-let dedup_last_by = (member: 'a => member, xs: list('a)): list('a) =>
-  List.rev(
-    Util.ListUtil.dedup_f(
-      (a, b) => same_kind(member(a), member(b)),
-      List.rev(xs),
-    ),
-  );
-
-/* Keep only the last member of each name and kind (a later binding
-   shadows an earlier one), preserving the order of the survivors. */
-let dedup_last: list(member) => list(member) = dedup_last_by(Fun.id);
-
-/* Lookups take the last member with the name: a later binding shadows an
-   earlier one. */
 let find_value = (ms: list(member), name: Var.t): option(TermBase.Typ.t) =>
-  List.fold_left(
-    (acc, m) =>
-      switch (m) {
-      | Val(x, ty) when String.equal(x, name) => Some(ty)
-      | _ => acc
-      },
-    None,
+  List.find_map(
+    fun
+    | Val(x, ty) when String.equal(x, name) => Some(ty)
+    | Val(_)
+    | TypeManifest(_) => None,
     ms,
   );
 
 let find_type_def = (ms: list(member), name: Var.t): option(TermBase.Typ.t) =>
-  List.fold_left(
-    (acc, m) =>
-      switch (m) {
-      | TypeManifest(x, ty) when String.equal(x, name) => Some(ty)
-      | _ => acc
-      },
-    None,
+  List.find_map(
+    fun
+    | TypeManifest(x, ty) when String.equal(x, name) => Some(ty)
+    | Val(_)
+    | TypeManifest(_) => None,
     ms,
   );

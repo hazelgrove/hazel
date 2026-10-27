@@ -94,7 +94,6 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
          statics allows that only when a hole item stands in for it. */
       let members =
         Sig.members(sig_items)
-        |> Sig.dedup_last
         |> List.filter_map((m: Sig.member) =>
              switch (m) {
              | Val(x, ty) => Some((x, ty))

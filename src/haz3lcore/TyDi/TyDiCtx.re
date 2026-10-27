@@ -112,7 +112,6 @@ let named_fields = (ctx: Ctx.t, typ: Typ.t): list((string, Typ.t)) =>
   | Prod(ts) => List.filter_map(Typ.match_tup_label, ts)
   | Sig(items) =>
     Sig.members(items)
-    |> Sig.dedup_last
     |> List.filter_map((m: Sig.member) =>
          switch (m) {
          | Val(label, field_ty) => Some((label, field_ty))

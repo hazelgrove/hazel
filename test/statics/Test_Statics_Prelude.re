@@ -110,6 +110,9 @@ let rec equal_mark: (Mark.t, Mark.t) => bool =
       Mark.equal_member_not_found(nf1, nf2)
     | (ModuleMemberIsType(n1), ModuleMemberIsType(n2)) =>
       String.equal(n1, n2)
+    | (SigDuplicateMember(m1), SigDuplicateMember(m2)) =>
+      Sig.same_kind(m1, m2)
+    | (SigLetNotAName, SigLetNotAName) => true
     | (
         ModuleTypeMemberNotFound(mm1, nf1),
         ModuleTypeMemberNotFound(mm2, nf2),

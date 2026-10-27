@@ -73,7 +73,6 @@ let expected_value_types =
   | Some(items) =>
     let expand = name => List.exists(String.equal(name), declared);
     Sig.members(items)
-    |> Sig.dedup_last
     |> List.filter_map((m: Sig.member) =>
          switch (m) {
          | Val(name, ty) => Some((name, Typ.normalize(~expand, ctx, ty)))
@@ -131,6 +130,17 @@ let rec expected_pat_type =
   | Constructor(_)
   | Label(_) => None
   };
+
+/* The members a body exports, with the items that bind them: of several
+   bindings of a name and kind, the last. */
+let exports =
+    (bound: list((Sig.t, Sig.member))): list((Sig.t, Sig.member)) =>
+  List.rev(
+    Util.ListUtil.dedup_f(
+      ((_, a), (_, b)) => Sig.same_kind(a, b),
+      List.rev(bound),
+    ),
+  );
 
 /* The analyzed signature's items the module does not define. */
 let missing_items =
