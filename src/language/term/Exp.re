@@ -122,6 +122,15 @@ let strip_projectors =
     _,
   );
 
+/* Type variable names in the types and type binders of an expression,
+   bound and free alike, under `f`. */
+let rename_tvars = (f: string => string, e: t): t =>
+  map_term(
+    ~f_typ=(_, ty) => Typ.rename_vars(f, ty),
+    ~f_tpat=(_, tp) => TPat.rename(f, tp),
+    e,
+  );
+
 let rec cls_of_term: type a. Grammar.exp_term(a) => cls =
   fun
   | Invalid(_) => Invalid

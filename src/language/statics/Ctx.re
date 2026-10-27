@@ -60,7 +60,8 @@ let extend_tvar = (ctx: t, tvar_entry: tvar_entry): t =>
   extend(ctx, TVarEntry(tvar_entry));
 
 /* Raw: an alias bound here can capture earlier aliases' references to its
-   name. Statics binds type names with Typ.extend_tvar/extend_alias. */
+   name. Statics binds a type binder's name after Typ.unshadow has made it
+   fresh, and a module's name with Typ.extend_alias. */
 let extend_alias = (ctx: t, name: string, id: Id.t, ty: TermBase.Typ.t): t =>
   extend_tvar(
     ctx,

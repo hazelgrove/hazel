@@ -256,6 +256,86 @@ let alias_cycle_tests = {
   );
 };
 
+let unshadow_tests = {
+  let abstract = (name): Ctx.tvar_entry => {
+    name,
+    id: Id.mk(),
+    kind: Abstract,
+  };
+  let renaming = (ctx, name) =>
+    switch (Typ.unshadow(ctx, name)) {
+    | None => fail(name ++ " binds as written")
+    | Some(f) => f
+    };
+  (
+    "Typ.unshadow",
+    [
+      test_case("a name not in scope binds as written", `Quick, () =>
+        check(
+          bool,
+          "no renaming",
+          true,
+          Option.is_none(Typ.unshadow(Ctx.empty, "T")),
+        )
+      ),
+      test_case(
+        "a name in scope is primed, and only that name is renamed",
+        `Quick,
+        () => {
+          let f = renaming(Ctx.extend_tvar(Ctx.empty, abstract("T")), "T");
+          check(string, "T", "T'", f("T"));
+          check(string, "U", "U", f("U"));
+        },
+      ),
+      test_case("the prime is repeated until the name is fresh", `Quick, () =>
+        check(
+          string,
+          "T",
+          "T''",
+          renaming(
+            Ctx.extend_tvar(Ctx.empty, abstract("T"))
+            |> Ctx.extend_tvar(_, abstract("T'")),
+            "T",
+            "T",
+          ),
+        )
+      ),
+      test_case("a name an alias mentions while unbound is primed", `Quick, () =>
+        check(
+          string,
+          "T",
+          "T'",
+          renaming(
+            Ctx.extend_alias(Ctx.empty, "S", Id.mk(), Var("T") |> Typ.temp),
+            "T",
+            "T",
+          ),
+        )
+      ),
+      test_case(
+        "Typ.rename_vars renames a binder and its occurrences", `Quick, () =>
+        check(
+          typ,
+          "poly T -> (T, U)",
+          Poly(
+            Var("T'") |> TPat.temp,
+            Prod([Var("T'") |> Typ.temp, Var("U") |> Typ.temp]) |> Typ.temp,
+          )
+          |> Typ.temp,
+          Typ.rename_vars(
+            renaming(Ctx.extend_tvar(Ctx.empty, abstract("T")), "T"),
+            Poly(
+              Var("T") |> TPat.temp,
+              Prod([Var("T") |> Typ.temp, Var("U") |> Typ.temp]) |> Typ.temp,
+            )
+            |> Typ.temp,
+          ),
+        )
+      ),
+    ],
+  );
+};
+
 let testable_id = testable(Fmt.using(Id.show, Fmt.string), (==));
 let diff_tests = (
   "Typ.diff",
@@ -670,4 +750,10 @@ let diff_tests = (
   ],
 );
 
-let tests = [meet_tests, fast_equal_tests, alias_cycle_tests, diff_tests];
+let tests = [
+  meet_tests,
+  fast_equal_tests,
+  alias_cycle_tests,
+  unshadow_tests,
+  diff_tests,
+];

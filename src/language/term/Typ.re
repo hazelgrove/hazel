@@ -378,21 +378,67 @@ let unroll = (ty: t): t =>
   | _ => ty
   };
 
+/* Type variable names in a type, bound and free alike, under `f`. */
+let rename_vars = (f: string => string, ty: t): t =>
+  map_term(
+    ~f_typ=
+      (continue, ty) => {
+        let (term, rewrap) = unwrap(ty);
+        switch (term) {
+        | Var(x) => Var(f(x)) |> rewrap
+        | _ => continue(ty)
+        };
+      },
+    ~f_tpat=(_, tp) => TPat.rename(f, tp),
+    ty,
+  );
+
+/* Whether binding `name` over ctx would change what a type already in
+   ctx means: the name is bound, or an alias mentions it while it is
+   unbound. */
+let would_capture = (ctx: Ctx.t, name: string): bool =>
+  Option.is_some(Ctx.lookup_tvar(ctx, name))
+  || List.exists(
+       fun
+       | Ctx.TVarEntry({kind: Singleton(ty), _}) =>
+         List.mem(name, free_vars(ty))
+       | _ => false,
+       ctx.entries,
+     );
+
+/* When binding `name` over ctx would capture, the renaming of `name` to
+   the fresh name it binds under instead: the name primed until it would
+   not capture. A prime cannot occur in a written type name. Statics renames
+   the binder and its scope with it, so types already in ctx keep their
+   meaning, and the user's name stays wherever it is not reused. None when
+   the name binds as written. */
+let unshadow = (ctx: Ctx.t, name: string): option(string => string) =>
+  if (would_capture(ctx, name)) {
+    let rec fresh = n => would_capture(ctx, n) ? fresh(n ++ "'") : n;
+    let renamed = fresh(name ++ "'");
+    Some(x => String.equal(x, name) ? renamed : x);
+  } else {
+    None;
+  };
+
 /* ctx extended with type variable `entry`, keeping type resolution
    lexical. Types are expanded by name in the context of use, so a type
    already in ctx that mentions the name would come to mean the new
    binding: in `type T = .. in type S = T in type T = (S)`, S would become
    the second T and expanding T would loop, and in `type T = Int in
-   let x : T = 1 in type T = Bool`, x would become a Bool. Such types are
-   rewritten to what the name meant before: the alias it shadows, an
-   invalid type if it was unbound, or unknown for a shadowed abstract type.
-   Alias definitions then refer only to older bindings, so expanding
-   aliases terminates. Variable and constructor types are rewritten only
-   when the name shadows an alias, and only those bound since it: the
-   others cannot mention it, or name it while it is unbound, an error
-   already. A variable of a shadowed abstract type keeps it, captured,
-   rather than becoming unknown, which would hide the mismatches it still
-   reports. */
+   let x : T = 1 in type T = Bool`, x would become a Bool. Statics renames
+   type binders that would capture (`unshadow`) and binds them raw, so this
+   serves the binding it cannot rename, a module's name, whose scope is
+   also that of an expression variable. Such types are rewritten to what
+   the name meant
+   before: the alias it shadows, an invalid type if it was unbound, or
+   unknown for a shadowed abstract type. Alias definitions then refer only
+   to older bindings, so expanding aliases terminates. Variable and
+   constructor types are rewritten only when the name shadows an alias,
+   and only those bound since it: the others cannot mention it, or name it
+   while it is unbound, an error already. A variable of a shadowed abstract
+   type keeps it, captured, rather than becoming unknown, which would hide
+   the mismatches it still reports. */
 let extend_tvar = (ctx: Ctx.t, entry: Ctx.tvar_entry): Ctx.t => {
   let mentions_typ = ty => List.mem(entry.name, free_vars(ty));
   let mentions: Ctx.kind => bool =
