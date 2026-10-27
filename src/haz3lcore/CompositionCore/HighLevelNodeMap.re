@@ -238,6 +238,7 @@ module Namer = {
     | Label(name) => name
     | Parens(pat)
     | Where(pat, _)
+    | StdNamed(pat, _)
     | Asc(pat, _) => mk_name_from_pat(pat)
     | Cons(pat1, pat2) =>
       mk_name_from_pat(pat1) ++ "::" ++ mk_name_from_pat(pat2)

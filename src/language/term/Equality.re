@@ -617,6 +617,15 @@ let equality =
       | None => None
       }
     | (Where(_, _), _) => None
+    /* D78 `p !! h`: the fact name is part of the syntax (a different
+       name is a different binder), but it binds nothing in the value
+       namespace. */
+    | (StdNamed(p1', h1), StdNamed(p2', h2)) =>
+      switch (h1.term, h2.term) {
+      | (Var(a), Var(b)) when a == b => pat'(p1', p2')
+      | _ => None
+      }
+    | (StdNamed(_, _), _) => None
     };
   }
   and typ =
@@ -1043,6 +1052,18 @@ let equality =
       | (Have(e1, s1, b1), Have(e2, s2, b2)) =>
         exp'(e1, e2) && proof'(s1, s2) && proof'(b1, b2)
       | (Have(_, _, _), _) => false
+      | (RelEqBy(t1, j1), RelEqBy(t2, j2)) => exp'(t1, t2) && proof'(j1, j2)
+      | (RelEqBy(_, _), _) => false
+      | (Witness(e1), Witness(e2)) => exp'(e1, e2)
+      | (Witness(_), _) => false
+      | (Cite(h1), Cite(h2)) => h1 == h2
+      | (Cite(_), _) => false
+      | (Obtain(x1, h1, e1, b1), Obtain(x2, h2, e2, b2)) =>
+        Option.is_some(pat'(x1, x2))
+        && Option.is_some(pat'(h1, h2))
+        && exp'(e1, e2)
+        && proof'(b1, b2)
+      | (Obtain(_, _, _, _), _) => false
       };
     proof'(p1, p2);
   };

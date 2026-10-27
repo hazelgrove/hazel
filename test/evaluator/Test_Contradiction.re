@@ -73,6 +73,7 @@ let rec dump = (pm: ProofMap.t, p: Proof.t, ind: string): string => {
     | Forall(_, b)
     | Funext(_, b)
     | Assume(_, _, b)
+    | Obtain(_, _, _, b)
     | Generalize(_, b)
     | Revert(_, _, b) => [dump(pm, b, ind ++ "  ")]
     | Induction(_, _, cases) =>
@@ -138,6 +139,7 @@ let rec find_contradiction = (p: Proof.t): option(Proof.t) =>
   | Funext(_, b)
   | Assume(_, _, b)
   | Alias(_, _, b)
+  | Obtain(_, _, _, b)
   | Generalize(_, b)
   | Revert(_, _, b) => find_contradiction(b)
   | Induction(_, _, cases) =>
@@ -152,6 +154,9 @@ let rec find_contradiction = (p: Proof.t): option(Proof.t) =>
   | MultiHole(_)
   | AxiomStep(_)
   | AlgebriteStep(_)
+  | RelEqBy(_, _)
+  | Witness(_)
+  | Cite(_)
   | EvalStep(_) => None
   };
 

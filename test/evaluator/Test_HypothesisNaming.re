@@ -91,6 +91,7 @@ let rec find_revert = (p: Proof.t): option(Proof.t) =>
   | Funext(_, b)
   | Assume(_, _, b)
   | Alias(_, _, b)
+  | Obtain(_, _, _, b)
   | Generalize(_, b) => find_revert(b)
   | Have(_, sub, b) =>
     switch (find_revert(sub)) {
@@ -105,6 +106,9 @@ let rec find_revert = (p: Proof.t): option(Proof.t) =>
   | AxiomStep(_)
   | AlgebriteStep(_)
   | Contradiction(_)
+  | RelEqBy(_, _)
+  | Witness(_)
+  | Cite(_)
   | EvalStep(_) => None
   };
 

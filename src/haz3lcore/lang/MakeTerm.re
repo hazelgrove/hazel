@@ -1356,6 +1356,8 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
       ret(Tuple(tuple_children));
     | None =>
       switch (tiles) {
+      /* D78 `p !! h` (Form.re PatStdName). */
+      | ([(_id, (["!!"], []))], []) => ret(StdNamed(l, r))
       | ([(_id, (["="], []))], []) =>
         switch (l.term) {
         | Wild =>
@@ -1971,6 +1973,11 @@ and proof_term: unsorted => (TermBase.Proof.term, list(Id.t)) = {
             at_exp,
           }),
         )
+      | (["==", "by", "end"], [Exp(target), Proof(just)]) =>
+        ret(RelEqBy(target, just))
+      /* A bare fact name where a proof is expected: only meaningful as a
+       * `by` justification (D76); statics/checker mark it elsewhere. */
+      | ([t], []) when Token.is_var(t) => ret(Cite(t))
       | (["induction", "end"], [PRul({term, annotation: {ids, _}})]) =>
         /* Induction: body is a PRul term holding (scrut, cases).
            Its `|`/`=>` tile ids are ABSORBED here (cf. the `Match`
@@ -2032,6 +2039,17 @@ and proof_term: unsorted => (TermBase.Proof.term, list(Id.t)) = {
      * Pre form's operand, the subproof a Proof-sorted child. */
     | ([(_id, (["have", "proof", "=>"], [Exp(e), Proof(sub)]))], []) =>
       ret(Have(e, sub, body))
+    | (
+        [(_id, (["obtain", "as", "from", "=>"], [Pat(x), Pat(h), Exp(e)]))],
+        [],
+      ) =>
+      ret(Obtain(x, h, e, body))
+    | _ => ret(hole(tm))
+    }
+  /* `witness <v>`: the Proof-sorted prefix whose operand is an Exp. */
+  | Pre(tiles, Exp(v)) as tm =>
+    switch (tiles) {
+    | ([(_id, (["witness"], []))], []) => ret(Witness(v))
     | _ => ret(hole(tm))
     }
   | Bin(Proof(p1), tiles, Proof(p2)) as tm =>

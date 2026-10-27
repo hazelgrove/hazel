@@ -333,6 +333,8 @@ and match_pat = (pat_r: Pat.t, pat: Pat.t): option(alphas) =>
      look through it, exactly as for an ascription. */
   | (Where(p1, _), _) => match_pat(p1, pat)
   | (_, Where(p2, _)) => match_pat(pat_r, p2)
+  | (StdNamed(p1, _), _) => match_pat(p1, pat)
+  | (_, StdNamed(p2, _)) => match_pat(pat_r, p2)
   | (Invalid(x), Invalid(y)) when x == y => Some([])
   | (Invalid(_), _) => None
   | (EmptyHole, EmptyHole) => Some([])

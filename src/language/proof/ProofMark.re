@@ -132,7 +132,16 @@ type t =
    * a bare quantified variable never carries this mark. */
   | PossiblyDivergentScrutinee
   /* Induction: zero cases were given. */
-  | InductionEmptyCases;
+  | InductionEmptyCases
+  /* A witness / obtain / `== … by … end` / D78-binder step that does not
+   * apply (wrong goal, ill-typed or non-standard witness, capture,
+   * escape, unknown fact, unsupported shape). The step is refused: the
+   * goal passes through unchanged. `rule` names the check, `reason` is
+   * the user-facing text. */
+  | ProverStepRefused({
+      rule: string,
+      reason: string,
+    });
 
 /* Declaration-order tag index, derived by ppx_variants_conv. */
 let compare = (a: t, b: t): int =>

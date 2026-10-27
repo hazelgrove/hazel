@@ -106,6 +106,8 @@ let match_pattern =
   | Projector(_, p) => recur(p, d)
   | Asc(p, t1) =>
     recur(p, Ascriptions.transition_multiple(Asc(d, t1) |> DHExp.fresh))
+  /* D78 `p !! h`: matches as `p` (the fact name binds no value). */
+  | StdNamed(p, _) => recur(p, d)
   | Where(p, g) =>
     /* Structural match first, then the guard under those bindings. */
     switch (recur(p, d)) {

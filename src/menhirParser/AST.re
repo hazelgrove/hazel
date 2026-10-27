@@ -114,6 +114,8 @@ and pat =
   | AscPat(pat, typ)
   /* Guarded pattern `p where g` (Grammar.re Pat.Where). */
   | WherePat(pat, exp)
+  /* D78 binder `p !! h` (Grammar.re Pat.StdNamed). */
+  | StdNamedPat(pat, pat)
   | EmptyHolePat
   | WildPat
   | AtomPat(Language.Atom.t)
@@ -214,6 +216,12 @@ and proof =
      §3.3): the asserted proposition, its proof, and the body it is a
      hypothesis for. */
   | ProofHave(exp, proof, proof)
+  /* `== <target> by <justification> end`, `witness <v>`, a cited fact
+     name, and `obtain x as h from E => <proof>`. */
+  | ProofRelEqBy(exp, proof)
+  | ProofWitness(exp)
+  | ProofCite(string)
+  | ProofObtain(pat, pat, exp, proof)
   /* (equality, at_idx, at_exp) — argument order follows the surface
      syntax `axiom <equality> at <at_idx> on <at_exp> end`. */
   | ProofAxiom(exp, exp, exp)
@@ -1223,6 +1231,12 @@ and shrink_pat: QCheck.Shrink.t(pat) =
           <+> {
             let* shrunk = shrink_pat(p);
             return(WherePat(shrunk, g));
+          }
+        | StdNamedPat(p, h) =>
+          return(p)
+          <+> {
+            let* shrunk = shrink_pat(p);
+            return(StdNamedPat(shrunk, h));
           }
         | ApPat(p1, p2) =>
           {

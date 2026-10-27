@@ -314,6 +314,7 @@ let external_precedence_pat = (dp: Pat.t) =>
   | Ap(_) => Precedence.ap
   | Asc(_) => Precedence.asc
   | Where(_) => Precedence.pat_where
+  | StdNamed(_) => Precedence.pat_where
   | Tuple([]) => Precedence.max // the atomic () token (#2296)
   | Tuple(_) => Precedence.comma
 
@@ -368,7 +369,11 @@ let external_precedence_proof = (p: Proof.t) =>
   | AlgebriteStep(_)
   | EvalStep(_)
   | Contradiction(_)
+  | RelEqBy(_, _)
+  | Cite(_)
   | Induction(_, _, _) => Precedence.max
+  | Witness(_)
+  | Obtain(_, _, _, _) => Precedence.fun_
   | Seq(_, _) => Precedence.semi
   | Forall(_, _)
   | Funext(_, _)
@@ -890,6 +895,12 @@ and parenthesize_pat =
       parenthesize_exp(g) |> paren_exp_at(Precedence.pat_where),
     )
     |> rewrap
+  | StdNamed(p, h) =>
+    StdNamed(
+      parenthesize_pat(p) |> paren_pat_assoc_at(Precedence.pat_where),
+      parenthesize_pat(h) |> paren_pat_at(Precedence.pat_where),
+    )
+    |> rewrap
   };
 }
 
@@ -1170,6 +1181,13 @@ and parenthesize_proof =
   /* The asserted proposition sits in its own child slot, so it defends at
    * `min` like assume's argument; both proof children are plain slots. */
   | Have(e, sub, body) => Have(go_exp(e), go(sub), go(body)) |> rewrap
+  /* `== t by j end` is fully delimited; the witness argument is the
+     prefix form's right operand, defended like a forall body. */
+  | RelEqBy(t, j) => RelEqBy(go_exp(t), go(j)) |> rewrap
+  | Witness(e) => Witness(go_exp(~level=Precedence.fun_, e)) |> rewrap
+  | Cite(_) => proof
+  | Obtain(x, h, e, body) =>
+    Obtain(go_pat(x), go_pat(h), go_exp(e), go(body)) |> rewrap
   | AxiomStep({at_idx, at_exp, direction, equality, instantiation}) =>
     AxiomStep({
       at_idx: go_exp(at_idx),
@@ -3069,6 +3087,11 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
     let+ p = go(p)
     and+ g = exp_to_pretty(~settings: Settings.t, g);
     wrap(pat, p @ [mk_form(PatWhere, id, [])] @ g);
+  | StdNamed(p, h) =>
+    let id = pat |> Pat.rep_id;
+    let+ p = go(p)
+    and+ h = go(h);
+    wrap(pat, p @ [mk_form(PatStdName, id, [])] @ h);
   };
 }
 and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
@@ -3657,6 +3680,20 @@ and proof_to_pretty = (~settings: Settings.t, p: Proof.t): pretty => {
     and+ sub = proof_to_pretty(~settings, sub)
     and+ b = proof_to_pretty(~settings, body);
     wrap(p, [mk_form(ProofHave, id, [e, sub])] @ b);
+  | RelEqBy(t, j) =>
+    let+ t = exp_to_pretty(~settings, t)
+    and+ j = proof_to_pretty(~settings, j);
+    wrap(p, [mk_form(ProofRelEqBy, id, [t, j])]);
+  | Witness(e) =>
+    let+ e = exp_to_pretty(~settings, e);
+    wrap(p, [mk_form(ProofWitness, id, [])] @ e);
+  | Cite(h) => p_just(wrap(p, text_to_pretty(id, Sort.Proof, h)))
+  | Obtain(x, h, e, body) =>
+    let+ x = pat_to_pretty(~settings, x)
+    and+ h = pat_to_pretty(~settings, h)
+    and+ e = exp_to_pretty(~settings, e)
+    and+ b = proof_to_pretty(~settings, body);
+    wrap(p, [mk_form(ProofObtain, id, [x, h, e])] @ b);
   | AxiomStep({at_idx, at_exp, direction, equality, instantiation}) =>
     let+ eq = exp_to_pretty(~settings, equality)
     and+ i = exp_to_pretty(~settings, at_idx)

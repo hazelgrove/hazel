@@ -55,6 +55,9 @@ let rec find_proofs = (pred: Proof.t => bool, p: Proof.t): list(Proof.t) => {
     | AxiomStep(_)
     | AlgebriteStep(_)
     | Contradiction(_)
+    | RelEqBy(_, _)
+    | Witness(_)
+    | Cite(_)
     | EvalStep(_) => []
     | Seq(a, b) => find_proofs(pred, a) @ find_proofs(pred, b)
     | Induction(_, _, cases) =>
@@ -64,6 +67,7 @@ let rec find_proofs = (pred: Proof.t => bool, p: Proof.t): list(Proof.t) => {
     | Funext(_, body)
     | Assume(_, _, body)
     | Alias(_, _, body)
+    | Obtain(_, _, _, body)
     | Generalize(_, body)
     | Revert(_, _, body) => find_proofs(pred, body)
     | Have(_, sub, body) => find_proofs(pred, sub) @ find_proofs(pred, body)

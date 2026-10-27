@@ -288,6 +288,7 @@ let rec find_have = (p: Proof.t): option(Proof.t) =>
   | Funext(_, b)
   | Assume(_, _, b)
   | Alias(_, _, b)
+  | Obtain(_, _, _, b)
   | Generalize(_, b)
   | Revert(_, _, b)
   | Parens(b) => find_have(b)
@@ -306,6 +307,9 @@ let rec find_have = (p: Proof.t): option(Proof.t) =>
   | MultiHole(_)
   | AxiomStep(_)
   | AlgebriteStep(_)
+  | RelEqBy(_, _)
+  | Witness(_)
+  | Cite(_)
   | EvalStep(_)
   | Contradiction(_) => None
   };

@@ -1386,7 +1386,8 @@ let get_doc =
         | ExplicitNonlabel
         | Projector(_)
         | Asc(_)
-        | Where(_) => default // Shouldn't get hit?
+        | Where(_)
+        | StdNamed(_) => default // Shouldn't get hit?
         };
       | Label(name) =>
         get_message(
@@ -1985,7 +1986,8 @@ let get_doc =
         | Parens(_)
         | Projector(_)
         | Asc(_)
-        | Where(_) => default // Shouldn't get hit?
+        | Where(_)
+        | StdNamed(_) => default // Shouldn't get hit?
         };
       | Theorem(pat, thm, pf, body) =>
         let pat_id = List.nth(IdTagged.ids(pat), 0);
@@ -2042,6 +2044,10 @@ let get_doc =
             ),
           ForallExp.forall,
         );
+      | Exists(_) =>
+        simple(
+          "Existential `exists (x : T) -> P` (D75): true when some standard x of type T makes P true. Never computed; prove it with `== true by witness <v> end`, use it with `obtain`.",
+        )
       | FixF(pat, body, _) =>
         message_single(
           FixFExp.single(
@@ -2730,6 +2736,10 @@ let get_doc =
     | Where(_) =>
       simple(
         "Guarded pattern. Matches when the left pattern matches AND the boolean guard holds under its bindings; inside the body the guard is a citable `where` fact.",
+      )
+    | StdNamed(_) =>
+      simple(
+        "Binder with a named standardness fact (D78): in a proof `forall (x : T !! h) =>`, `h` names the fact `!!x` for the body.",
       )
     | Parens(_)
     | Projector(_) =>

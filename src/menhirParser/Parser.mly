@@ -123,6 +123,10 @@ open AST
 %token ASSUME
 %token GENERALIZE
 %token HAVE
+%token BY
+%token WITNESS
+%token OBTAIN
+%token FROM
 %token REVERT
 %token INDUCTION
 %token ALIAS
@@ -344,6 +348,8 @@ pat:
        just this pattern in the ordinary `fun`/`forall` binder slot --
        there are no dedicated productions for them. *)
     | p1 = pat; WHERE; g = exp;  { WherePat(p1, g) }
+    (* D78 binder `x : T !! h`. *)
+    | p1 = pat; VALUED; h = pat;  { StdNamedPat(p1, h) }
     | p1 = pat; COLON; t1 = typ;  { AscPat(p1, t1) }
     (* | p1 = pat; AS; p2 = pat; { AsPat(p1, p2) } *)
     | p1 = pat; CONS; p2 = pat { ConsPat(p1, p2) } 
@@ -392,6 +398,11 @@ forallExp:
 prul:
     | TURNSTILE; p = pat; EQUAL_ARROW; pf = proof; { (p, pf) }
 
+(* The `by` slot of `== t by j end`: `witness v` or a bare fact name. *)
+justification:
+    | WITNESS; e = exp { ProofWitness(e) }
+    | x = IDENT { ProofCite(x) }
+
 proof:
     | QUESTION { EmptyHoleProof }
     | pf1 = proof; SEMI_COLON; pf2 = proof { ProofSeq(pf1, pf2) }
@@ -402,6 +413,8 @@ proof:
     | ALIAS; x = pat; SINGLE_EQUAL; e = exp; EQUAL_ARROW; pf = proof { ProofAlias(x, e, pf) } %prec PROOF_PRE
     | GENERALIZE; e = exp; EQUAL_ARROW; pf = proof { ProofGeneralize(e, pf) } %prec PROOF_PRE
     | HAVE; e = exp; PROOF; sub = proof; EQUAL_ARROW; pf = proof { ProofHave(e, sub, pf) } %prec PROOF_PRE
+    | OBTAIN; x = pat; AS; h = pat; FROM; e = exp; EQUAL_ARROW; pf = proof { ProofObtain(x, h, e, pf) } %prec PROOF_PRE
+    | DOUBLE_EQUAL; t = exp; BY; j = justification; END { ProofRelEqBy(t, j) }
     | REVERT; e = exp; EQUAL_ARROW; pf = proof { ProofRevert(e, pf) } %prec PROOF_PRE
     | REVERT; e = exp; WITH; v = exp; SINGLE_EQUAL; i = exp; EQUAL_ARROW; pf = proof { ProofRevertWith(e, v, i, pf) } %prec PROOF_PRE
     | AXIOM; eq = exp; AT; idx = exp; ON; ae = exp; END { ProofAxiom(eq, idx, ae) }

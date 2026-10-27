@@ -131,6 +131,12 @@ and pat_term('a) =
      `Forall(Where(p, g), e)`, produced by the ordinary `fun`/`forall`
      tile with this infix in its Pat slot. */
   | Where(pat_t('a), exp_t('a))
+  /* `p !! h` (D78, decided "binder"): names the standardness fact `h : !!x`
+     of a proof `forall (x : T !! h) =>` binder. Binds what `p` binds; `h`
+     lives in the THEOREM namespace only. Accepted only as the typed
+     single-variable binder of a proof `forall` (statics marks it
+     elsewhere). */
+  | StdNamed(pat_t('a), pat_t('a))
 and pat_t('a) = Annotated.t(pat_term('a), 'a)
 and typ_term('a) =
   | Unknown(type_provenance('a))
@@ -591,6 +597,17 @@ and map_proof_annotation: 'a 'b. ('a => 'b, proof_t('a)) => proof_t('b) =
               inst,
             ),
           )
+        | RelEqBy(t, j) =>
+          RelEqBy(map_exp_annotation(f, t), map_proof_annotation(f, j))
+        | Witness(e) => Witness(map_exp_annotation(f, e))
+        | Cite(h) => Cite(h)
+        | Obtain(x, h, e, body) =>
+          Obtain(
+            map_pat_annotation(f, x),
+            map_pat_annotation(f, h),
+            map_exp_annotation(f, e),
+            map_proof_annotation(f, body),
+          )
         | Have(e, sub, body) =>
           Have(
             map_exp_annotation(f, e),
@@ -633,6 +650,8 @@ and map_pat_annotation: 'a 'b. ('a => 'b, pat_t('a)) => pat_t('b) =
           Asc(map_pat_annotation(f, p), map_typ_annotation(f, t))
         | Where(p, g) =>
           Where(map_pat_annotation(f, p), map_exp_annotation(f, g))
+        | StdNamed(p, h) =>
+          StdNamed(map_pat_annotation(f, p), map_pat_annotation(f, h))
         },
       annotation: new_annotation,
     };
@@ -1197,6 +1216,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       annotation: default_annotation(ann),
     };
 
+    let std_named = (~ann=?, p, h): pat_t(DefaultAnnotation.t) => {
+      term: StdNamed(p, h),
+      annotation: default_annotation(ann),
+    };
     let where_ = (~ann=?, p, g): pat_t(DefaultAnnotation.t) => {
       term: Where(p, g),
       annotation: default_annotation(ann),
@@ -1520,6 +1543,22 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let have = (~ann=?, e, sub, body): proof_t(DefaultAnnotation.t) => {
       term: Have(e, sub, body),
+      annotation: default_annotation(ann),
+    };
+    let rel_eq_by = (~ann=?, t, j): proof_t(DefaultAnnotation.t) => {
+      term: RelEqBy(t, j),
+      annotation: default_annotation(ann),
+    };
+    let witness = (~ann=?, e): proof_t(DefaultAnnotation.t) => {
+      term: Witness(e),
+      annotation: default_annotation(ann),
+    };
+    let cite = (~ann=?, h): proof_t(DefaultAnnotation.t) => {
+      term: Cite(h),
+      annotation: default_annotation(ann),
+    };
+    let obtain = (~ann=?, x, h, e, body): proof_t(DefaultAnnotation.t) => {
+      term: Obtain(x, h, e, body),
       annotation: default_annotation(ann),
     };
   };

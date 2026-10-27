@@ -164,6 +164,10 @@ rule token =
     | "axiom" {AXIOM}
     | "rewrite" {REWRITE}
     | "with" {WITH}
+    | "by" {BY}
+    | "witness" {WITNESS}
+    | "obtain" {OBTAIN}
+    | "from" {FROM}
     | "at" {AT}
     | "on" {ON}
     | "poly" {POLY}

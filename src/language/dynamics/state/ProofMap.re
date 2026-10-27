@@ -124,6 +124,12 @@ let rec proof_is_clean = (pm: t, proof: Proof.t): bool =>
      * must not read as a clean proof (docs/prover-obligations.md §3.3). */
     | Have(_, sub, body) =>
       proof_is_clean(pm, sub) && proof_is_clean(pm, body)
+    /* The justification is part of the step (checked and marked at the
+     * `==` node); a standalone witness/citation is marked by the checker. */
+    | RelEqBy(_, _)
+    | Witness(_)
+    | Cite(_) => true
+    | Obtain(_, _, _, body) => proof_is_clean(pm, body)
     | Induction(_, _, cases) =>
       List.for_all(((_, body)) => proof_is_clean(pm, body), cases)
     }
@@ -140,6 +146,43 @@ let rec proof_is_clean = (pm: t, proof: Proof.t): bool =>
  *
  * Mirrors the stepper's expression-validity convention
  * (`true` / `false` / unknown). */
+/* Does the proof contain a witness step (`== true by witness v end`)?
+ * That step STRENGTHENS the goal: `P[v]` suffices for `exists x -> P`,
+ * but `P[v]` being false refutes nothing (a wrong witness is not a
+ * disproof). So a proof containing one can never read as `false`. */
+let rec has_witness_step = (proof: Proof.t): bool =>
+  switch (proof.term) {
+  | RelEqBy(_, j) =>
+    let rec is_witness = (j: Proof.t) =>
+      switch (j.term) {
+      | Parens(j) => is_witness(j)
+      | Witness(_) => true
+      | _ => false
+      };
+    is_witness(j);
+  | EmptyHole
+  | Invalid(_)
+  | MultiHole(_)
+  | AxiomStep(_)
+  | AlgebriteStep(_)
+  | EvalStep(_)
+  | Contradiction(_)
+  | Witness(_)
+  | Cite(_) => false
+  | Seq(p1, p2) => has_witness_step(p1) || has_witness_step(p2)
+  | Parens(p)
+  | Forall(_, p)
+  | Funext(_, p)
+  | Assume(_, _, p)
+  | Generalize(_, p)
+  | Alias(_, _, p)
+  | Revert(_, _, p)
+  | Obtain(_, _, _, p) => has_witness_step(p)
+  | Have(_, sub, body) => has_witness_step(sub) || has_witness_step(body)
+  | Induction(_, _, cases) =>
+    List.exists(((_, body)) => has_witness_step(body), cases)
+  };
+
 let status_of_proof = (pm: t, proof: Proof.t): option(bool) =>
   switch (lookup(Proof.rep_id(proof), pm)) {
   | Some({outgoing: Some(e), _})
@@ -150,7 +193,8 @@ let status_of_proof = (pm: t, proof: Proof.t): option(bool) =>
   | Some({outgoing: Some(e), _})
       when
         Exp.fast_equal(e, Exp.temp(Atom(Bool(false))))
-        && proof_is_clean(pm, proof) =>
+        && proof_is_clean(pm, proof)
+        && !has_witness_step(proof) =>
     Some(false)
   | _ => None
   };
@@ -183,6 +227,10 @@ let rec obligations_of_proof = (pm: t, proof: Proof.t): list(Obligation.t) => {
     | Contradiction(_) => []
     | Have(_, sub, body) =>
       obligations_of_proof(pm, sub) @ obligations_of_proof(pm, body)
+    | RelEqBy(_, _)
+    | Witness(_)
+    | Cite(_) => []
+    | Obtain(_, _, _, body) => obligations_of_proof(pm, body)
     | Induction(_, _, cases) =>
       List.concat_map(((_, body)) => obligations_of_proof(pm, body), cases)
     }
@@ -211,6 +259,10 @@ let rec rep_ids_of_proof = (proof: Proof.t): list(Id.t) =>
     | Revert(_, _, body) => rep_ids_of_proof(body)
     | Contradiction(_) => []
     | Have(_, sub, body) => rep_ids_of_proof(sub) @ rep_ids_of_proof(body)
+    | RelEqBy(_, _)
+    | Witness(_)
+    | Cite(_) => []
+    | Obtain(_, _, _, body) => rep_ids_of_proof(body)
     | Induction(_, _, cases) =>
       List.concat_map(((_, body)) => rep_ids_of_proof(body), cases)
     }

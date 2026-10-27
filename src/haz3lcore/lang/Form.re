@@ -351,6 +351,7 @@ type compound_form =
   | ConsExp
   | ConsPat
   | PatWhere
+  | PatStdName
   | Typeann
   | TupleLabeledExp
   | TupleLabeledPat
@@ -454,7 +455,10 @@ type compound_form =
      and friends sit after `ProofRevert` for the same reason. */
   | ProofAssumeAs
   | ProofInductionAs
-  | ProofAlias;
+  | ProofAlias
+  | ProofRelEqBy
+  | ProofWitness
+  | ProofObtain;
 
 let get: compound_form => t =
   fun
@@ -498,6 +502,10 @@ let get: compound_form => t =
    * `fun _ where _ -> _` / `forall _ where _ -> _` prefix tiles remain;
    * this is the general pattern-position form. */
   | PatWhere => mk_infix("where", Pat, ~l=Pat, ~r=Exp, P.pat_where)
+  /* D78 binder `x : T !! h`: names the standardness fact of a proof
+     `forall` binder (Grammar.re Pat.StdNamed). Same precedence as `where`,
+     looser than the ascription, so `x : T !! h` is `(x : T) !! h`. */
+  | PatStdName => mk_infix("!!", Pat, ~l=Pat, ~r=Pat, P.pat_where)
   | Typeann => mk_infix(":", Pat, ~l=Pat, ~r=Typ, P.asc)
   | TupleLabeledExp => mk_infix("=", Exp, P.lab)
   | TupleLabeledPat => mk_infix("=", Pat, P.lab)
@@ -669,6 +677,16 @@ let get: compound_form => t =
       [Exp, Exp, Exp],
     )
   | ProofEval => mk_op_c(L, ["eval", "at", "end"], Proof, [Exp, Exp])
+  /* `== <target> by <justification> end` (Grammar.re Proof.RelEqBy). The
+     justification slot is Proof-sorted: `witness <v>` or a fact name. */
+  | ProofRelEqBy =>
+    mk_op_c(L, ["==", "by", "end"], Proof, [Exp, Proof])
+  /* `witness <v>`: a Proof-sorted prefix whose operand is an Exp, so
+     `witness` is a keyword only where a proof is expected. */
+  | ProofWitness => mk_pre_c'(L, ["witness"], P.fun_, Proof, [], Exp)
+  /* `obtain x as h from E => <proof>` (existential elimination). */
+  | ProofObtain =>
+    mk_pre_c(L, ["obtain", "as", "from", "=>"], P.fun_, Proof, [Pat, Pat, Exp])
   | ProofInduction => mk_op_c(L, ["induction", "end"], Proof, [PRul])
   /* `induction <scrut> as <name> | ... end`.
    *

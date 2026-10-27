@@ -201,8 +201,12 @@ let rec proof_contains = (~origin: Id.t, p: Proof.t): bool =>
     | AxiomStep(_)
     | AlgebriteStep(_)
     | Contradiction(_)
+    | RelEqBy(_, _)
+    | Witness(_)
+    | Cite(_)
     | EvalStep(_) => false
     | Seq(a, b) => proof_contains(~origin, a) || proof_contains(~origin, b)
+    | Obtain(_, _, _, body)
     | Parens(body)
     | Forall(_, body)
     | Funext(_, body)
@@ -237,7 +241,14 @@ let rec case_vars_to = (~origin: Id.t, ~acc: list(Var.t), p: Proof.t) =>
     | AxiomStep(_)
     | AlgebriteStep(_)
     | Contradiction(_)
+    | RelEqBy(_, _)
+    | Witness(_)
+    | Cite(_)
     | EvalStep(_) => acc
+    /* Like a case binder, an obtained variable is step-local: a goal
+       mentioning it must not float out of the `obtain`. */
+    | Obtain(x, _, _, body) =>
+      case_vars_to(~origin, ~acc=Pat.bound_vars(x) @ acc, body)
     | Seq(a, b) =>
       proof_contains(~origin, a)
         ? case_vars_to(~origin, ~acc, a) : case_vars_to(~origin, ~acc, b)
@@ -375,7 +386,9 @@ let rec scope_body_containing = (~origin: Id.t, p: Proof.t): option(Proof.t) =>
   | Assume(_, _, body)
   | Generalize(_, body)
   | Alias(_, _, body)
-  | Revert(_, _, body) => proof_contains(~origin, body) ? Some(body) : None
+  | Revert(_, _, body)
+  | Obtain(_, _, _, body) =>
+    proof_contains(~origin, body) ? Some(body) : None
   | Have(_, sub, body) =>
     proof_contains(~origin, body)
       ? Some(body) : proof_contains(~origin, sub) ? Some(sub) : None
@@ -397,6 +410,9 @@ let rec scope_body_containing = (~origin: Id.t, p: Proof.t): option(Proof.t) =>
   | AxiomStep(_)
   | AlgebriteStep(_)
   | Contradiction(_)
+  | RelEqBy(_, _)
+  | Witness(_)
+  | Cite(_)
   | EvalStep(_) => None
   };
 

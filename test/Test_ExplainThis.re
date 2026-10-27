@@ -139,6 +139,14 @@ let representatives = (cls: Proof.cls): list(Proof.t) =>
       Proof.fresh(Contradiction(some_exp(), inst())),
     ]
   | Have => [Proof.fresh(Have(some_exp(), hole_proof(), hole_proof()))]
+  | RelEqBy => [
+      Proof.fresh(RelEqBy(some_exp(), Proof.fresh(Witness(some_exp())))),
+    ]
+  | Witness => [Proof.fresh(Witness(some_exp()))]
+  | Cite => [Proof.fresh(Cite("h"))]
+  | Obtain => [
+      Proof.fresh(Obtain(some_pat(), some_pat(), some_exp(), hole_proof())),
+    ]
   /* Parens are transparent: their doc IS the inner form's, so the
      representative wraps a form that has a worked example. */
   | Parens => [
@@ -151,7 +159,12 @@ let example_free = (cls: Proof.cls): bool =>
   switch (cls) {
   | Invalid
   | EmptyHole
-  | MultiHole => true
+  | MultiHole
+  /* Existential forms: compiler scaffolding docs, no worked example yet. */
+  | RelEqBy
+  | Witness
+  | Cite
+  | Obtain => true
   | Seq
   | AxiomStep
   | AlgebriteStep

@@ -2925,6 +2925,9 @@ and upat_to_info_map =
       ~ana: Typ.t=Unknown(Internal) |> Typ.temp,
       ~under_ascription: bool=false,
       ~probe_ids: Id.Map.t(unit)=Id.Map.empty,
+      /* True only for the binder of a proof `forall`: the one position a
+         D78 `x : T !! h` binder is accepted (Pat.std_binder). */
+      ~std_binder: bool=false,
       upat: Pat.t,
       m: Map.t,
     )
@@ -3023,6 +3026,7 @@ and upat_to_info_map =
         ~duplicate_bindings=[],
         ~ana=ana,
         ~under_ascription=false,
+        ~std_binder=false,
         upat: Pat.t,
         m: Map.t,
       ) => {
@@ -3035,6 +3039,7 @@ and upat_to_info_map =
       ~ana,
       ~under_ascription,
       ~probe_ids,
+      ~std_binder,
       upat,
       m: Map.t,
     );
@@ -3702,7 +3707,8 @@ and upat_to_info_map =
         m,
       )
     | Parens(p) =>
-      let (p, p_elab, m) = go(~ctx, ~ana, p, ~duplicate_bindings, m);
+      let (p, p_elab, m) =
+        go(~ctx, ~ana, ~std_binder, p, ~duplicate_bindings, m);
       add(
         ~elab_term=Parens(p_elab) |> rewrap,
         ~elab_syn_ty=p.elab_syn_ty,
@@ -3787,6 +3793,27 @@ and upat_to_info_map =
         ~elab_term=Asc(p_elab, Typ.normalize(ctx, ann.user_term)) |> rewrap,
         ~elab_syn_ty=ann_ty,
         ~marks=[],
+        ~ctx=p.ctx,
+        ~probe_targets=p.probe_targets,
+        ~constraint_=p.constraint_,
+        m,
+      );
+    | StdNamed(p, h) =>
+      /* D78 binder `x : T !! h`: types exactly as `p`; `h` names a fact
+         (theorem namespace), so it is walked for its info and its ctx is
+         discarded, as for an `as` name. Accepted only as the typed
+         single-variable binder of a proof `forall`. */
+      let (p, p_elab, m) = go(~ctx, ~ana, p, ~duplicate_bindings, m);
+      let (_, h_elab, m) = go(~ctx, ~co_ctx=CoCtx.empty, h, m);
+      let accepted = std_binder && Option.is_some(Pat.std_binder(upat));
+      let refused =
+        Mark.ProverFormRefused(
+          "`x : T !! h` names a standardness fact only as the typed single-variable binder of a proof `forall` (D78)",
+        );
+      add(
+        ~elab_term=StdNamed(p_elab, h_elab) |> rewrap,
+        ~elab_syn_ty=p.elab_syn_ty,
+        ~marks=accepted ? p.marks : p.marks @ [refused],
         ~ctx=p.ctx,
         ~probe_targets=p.probe_targets,
         ~constraint_=p.constraint_,
@@ -4522,7 +4549,10 @@ and mpat_to_info_map =
   };
 }
 and proof_to_info_map =
-    (~ctx, ~ancestors, p_term: Proof.t, m: Map.t): (CoCtx.t, Any.t, Map.t) => {
+    /* `in_by`: this proof is the justification slot of `== t by j end`,
+       the only place `witness <v>` and a bare fact name are accepted. */
+    (~ctx, ~ancestors, ~in_by=false, p_term: Proof.t, m: Map.t)
+    : (CoCtx.t, Any.t, Map.t) => {
   /* Every expression reachable from a proof is inside a theorem block, so
      the non-computable forms (`forall`, function `==`) are legal there.
      Shadow the recursive entry point rather than threading the flag
@@ -4574,7 +4604,8 @@ and proof_to_info_map =
     switch (pat.term) {
     | Parens(p1)
     /* `forall (x : Int) where g -> _`: look through the restriction. */
-    | Where(p1, _) => binder_typ_of_pat(x, p1)
+    | Where(p1, _)
+    | StdNamed(p1, _) => binder_typ_of_pat(x, p1)
     | Asc(p1, ty) =>
       switch (p1.term) {
       | Var(y) when y == x => Some(ty)
@@ -5103,12 +5134,29 @@ and proof_to_info_map =
         ~ctx,
         ~co_ctx=CoCtx.empty,
         ~ancestors=ancestors_inclusive,
+        ~std_binder=true,
         pat,
         m,
       );
+    /* D78 `forall (x : T !! h) =>`: `h : !!x` enters the THEOREM
+       namespace for the body only (the checker installs the same fact
+       under the same name, ProofCheck's Forall arm). */
+    let body_ctx =
+      switch (Pat.std_binder(pat)) {
+      | Some((x, _, h)) =>
+        Ctx.extend_theorem(
+          pat_info.ctx,
+          {
+            name: h,
+            id: IdTagged.rep_id(pat),
+            prop: Some(Exp.fresh(Valued(Exp.fresh(Var(x))))),
+          },
+        )
+      | None => pat_info.ctx
+      };
     let (_, body_elab, m) =
       any_to_info_map(
-        ~ctx=pat_info.ctx,
+        ~ctx=body_ctx,
         ~ancestors=ancestors_inclusive,
         Proof(body),
         m,
@@ -5492,6 +5540,203 @@ and proof_to_info_map =
         Have(e_elab, proof_of_any(sub_elab), proof_of_any(body_elab)),
       );
     (CoCtx.empty, Proof(elab), add_proof_info(m));
+  | RelEqBy(target, just) =>
+    /* `== <target> by <justification> end`. Statics does not track
+       goals, so the target is only typed as a proposition; the checker
+       decides whether the step applies. */
+    let (_, target_elab, m) =
+      uexp_to_info_map(
+        ~ctx,
+        ~ana=Atom(Bool) |> Typ.temp,
+        ~ancestors=ancestors_inclusive,
+        target,
+        m,
+      );
+    let rec strip = (j: Proof.t) =>
+      switch (j.term) {
+      | Parens(j) => strip(j)
+      | _ => j
+      };
+    let accepted =
+      switch (strip(just).term) {
+      | Witness(_)
+      | Cite(_) => true
+      | _ => false
+      };
+    let (_, just_elab, m) =
+      proof_to_info_map(
+        ~ctx,
+        ~ancestors=ancestors_inclusive,
+        ~in_by=accepted,
+        just,
+        m,
+      );
+    let marks =
+      accepted
+        ? []
+        : [
+          Mark.ProverFormRefused(
+            "`== … by … end` accepts only `witness <v>` or a fact name here",
+          ),
+        ];
+    let elab = rewrap(RelEqBy(target_elab, proof_of_any(just_elab)));
+    (CoCtx.empty, Proof(elab), add_proof_info(~marks, m));
+  | Witness(v) =>
+    /* The witness is an ordinary expression in the enclosing scope; its
+       type against the existential's binder is checked by the checker,
+       which knows the goal. */
+    let (_, v_elab, m) =
+      uexp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, v, m);
+    let marks =
+      in_by
+        ? []
+        : [
+          Mark.ProverFormRefused(
+            "`witness <v>` is a justification: write `== true by witness <v> end`",
+          ),
+        ];
+    (CoCtx.empty, Proof(rewrap(Witness(v_elab))), add_proof_info(~marks, m));
+  | Cite(h) =>
+    let marks =
+      if (!in_by) {
+        [
+          Mark.ProverFormRefused(
+            "a fact name alone is not a proof step: write `== true by "
+            ++ h
+            ++ " end`",
+          ),
+        ];
+      } else if (Option.is_none(Ctx.lookup_theorem(ctx, h))) {
+        [Mark.FreeHypothesis(h)];
+      } else {
+        [];
+      };
+    (CoCtx.empty, Proof(p_term), add_proof_info(~marks, m));
+  | Obtain(x, h, e, body) =>
+    /* `obtain x as h from E => body`. `E` is a fact: a bare fact NAME
+       (walked as in `revert`, Free repaired to FreeHypothesis) or a
+       spelled-out proposition. The statement, when known, gives the
+       binder type of `x`. */
+    let (e_elab, stmt, m) = {
+      let head = unwrap_head(e);
+      switch (head.term) {
+      | Var(name) =>
+        let entry = Ctx.lookup_theorem(ctx, name);
+        let known = Option.is_some(entry);
+        let scratch_ctx =
+          Ctx.extend(
+            ctx,
+            VarEntry({
+              name,
+              id: Id.invalid,
+              typ: Unknown(Internal) |> Typ.temp,
+              custom_statics: None,
+            }),
+          );
+        let (_, e_elab, m) =
+          uexp_to_info_map(
+            ~ctx=known ? scratch_ctx : ctx,
+            ~ancestors=ancestors_inclusive,
+            e,
+            m,
+          );
+        let m =
+          known
+            ? m
+            : replace_free_mark(
+                IdTagged.rep_id(head),
+                Mark.FreeHypothesis(name),
+                m,
+              );
+        let stmt =
+          switch (entry) {
+          | Some({prop: Some(prop), _}) => Some(prop)
+          | _ => None
+          };
+        (e_elab, stmt, m);
+      | _ =>
+        let (_, e_elab, m) =
+          uexp_to_info_map(
+            ~ctx,
+            ~ana=Atom(Bool) |> Typ.temp,
+            ~ancestors=ancestors_inclusive,
+            e,
+            m,
+          );
+        (e_elab, Some(e), m);
+      };
+    };
+    let rec strip_exp = (e: Exp.t) =>
+      switch (e.term) {
+      | Parens(e) => strip_exp(e)
+      | _ => e
+      };
+    let binder_ty =
+      switch (Option.map(strip_exp, stmt)) {
+      | Some({term: Exists(bp, _), _}) =>
+        switch (Pat.term_of(bp)) {
+        | Asc(_, ty) => Some(ty)
+        | Parens({term: Asc(_, ty), _}) => Some(ty)
+        | _ => None
+        }
+      | _ => None
+      };
+    let (x_info, x_elab, m) =
+      upat_to_info_map(
+        ~is_synswitch=false,
+        ~ctx,
+        ~co_ctx=CoCtx.empty,
+        ~ancestors=ancestors_inclusive,
+        ~ana=
+          Option.value(~default=Unknown(Internal) |> Typ.temp, binder_ty),
+        x,
+        m,
+      );
+    /* `as <name>`: theorem namespace only, ctx discarded. */
+    let (_, h_elab, m) =
+      upat_to_info_map(
+        ~is_synswitch=false,
+        ~ctx,
+        ~co_ctx=CoCtx.empty,
+        ~ancestors=ancestors_inclusive,
+        h,
+        m,
+      );
+    let marks =
+      switch (Pat.get_var(x), Pat.get_var(h)) {
+      | (Some(_), Some(_)) => []
+      | _ => [
+          Mark.ProverFormRefused(
+            "`obtain x as h from E =>` takes a single variable and a fact name",
+          ),
+        ]
+      };
+    let body_ctx =
+      switch (Pat.get_var(h)) {
+      | Some(name) =>
+        /* The statement `P[x/y]` is the checker's (it substitutes
+           capture-safely); statics only records that the name is
+           bound here. */
+        Ctx.extend_theorem(
+          x_info.ctx,
+          {
+            name,
+            id: IdTagged.rep_id(p_term),
+            prop: None,
+          },
+        )
+      | None => x_info.ctx
+      };
+    let (_, body_elab, m) =
+      any_to_info_map(
+        ~ctx=body_ctx,
+        ~ancestors=ancestors_inclusive,
+        Proof(body),
+        m,
+      );
+    let elab =
+      rewrap(Obtain(x_elab, h_elab, e_elab, proof_of_any(body_elab)));
+    (CoCtx.empty, Proof(elab), add_proof_info(~marks, m));
   };
 };
 

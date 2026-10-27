@@ -389,6 +389,7 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
     | Asc(dhp, ty1) => dhpat_var_entry(dhp, ty1)
     /* `p where g` binds what `p` binds at the same type. */
     | Where(dhp, _) => dhpat_var_entry(dhp, ty)
+    | StdNamed(dhp, _) => dhpat_var_entry(dhp, ty)
     };
   };
   let+ l = dhpat_var_entry(dhpat, ty);
@@ -437,7 +438,8 @@ let rec get_inductive_hypotheses = (~tyctx, m, t, pat) => {
     get_inductive_hypotheses_inner(~tyctx, m, t, e1)
     @ get_inductive_hypotheses_inner(~tyctx, m, t, e2)
   | Asc(e, _)
-  | Where(e, _) => get_inductive_hypotheses_inner(~tyctx, m, t, e)
+  | Where(e, _)
+  | StdNamed(e, _) => get_inductive_hypotheses_inner(~tyctx, m, t, e)
   | Label(_) => []
   | TupLabel(l, e) =>
     get_inductive_hypotheses_inner(~tyctx, m, t, l)

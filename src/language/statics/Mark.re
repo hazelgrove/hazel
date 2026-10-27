@@ -107,7 +107,11 @@ type t =
   | DuplicateLabel(LabeledTuple.label, Typ.t)
   | DuplicateVar(string, Typ.t)
   | FreeHypothesis(Var.t)
-  | AxiomSlotNotHypothesis(Grammar.any_t(IdTagged.IdTag.t));
+  | AxiomSlotNotHypothesis(Grammar.any_t(IdTagged.IdTag.t))
+  /* A prover form used outside the shape it is accepted in (D78 binder
+     `x : T !! h` off a proof `forall`; `witness`/fact name outside
+     `== … by … end`; an unsupported justification). Carries the reason. */
+  | ProverFormRefused(string);
 
 /* Declaration-order tag index, derived by ppx_variants_conv. */
 let compare = (a: t, b: t): int =>

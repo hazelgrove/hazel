@@ -622,6 +622,16 @@ and Proof: {
       revert(Exp.of_menhir_ast(e), of_menhir_ast(body))
     | ProofHave(e, sub, body) =>
       have(Exp.of_menhir_ast(e), of_menhir_ast(sub), of_menhir_ast(body))
+    | ProofRelEqBy(t, j) => rel_eq_by(Exp.of_menhir_ast(t), of_menhir_ast(j))
+    | ProofWitness(e) => witness(Exp.of_menhir_ast(e))
+    | ProofCite(h) => cite(h)
+    | ProofObtain(x, h, e, body) =>
+      obtain(
+        Pat.of_menhir_ast(x),
+        Pat.of_menhir_ast(h),
+        Exp.of_menhir_ast(e),
+        of_menhir_ast(body),
+      )
     | ProofRevertWith(e, v, i, body) =>
       revert(
         ~instantiation=Some((Exp.of_menhir_ast(v), Exp.of_menhir_ast(i))),
@@ -722,6 +732,11 @@ and Proof: {
     | Generalize(e, body) => ProofGeneralize(Exp.of_core(e), of_core(body))
     | Have(e, sub, body) =>
       ProofHave(Exp.of_core(e), of_core(sub), of_core(body))
+    | RelEqBy(t, j) => ProofRelEqBy(Exp.of_core(t), of_core(j))
+    | Witness(e) => ProofWitness(Exp.of_core(e))
+    | Cite(h) => ProofCite(h)
+    | Obtain(x, h, e, body) =>
+      ProofObtain(Pat.of_core(x), Pat.of_core(h), Exp.of_core(e), of_core(body))
     | Revert(e, None, body) => ProofRevert(Exp.of_core(e), of_core(body))
     | Revert(e, Some((v, i)), body) =>
       ProofRevertWith(
@@ -787,6 +802,7 @@ and Pat: {
     | AtomPat(c) => basic(c)
     | AscPat(p, t) => parens(asc(of_menhir_ast(p), Typ.of_menhir_ast(t)))
     | WherePat(p, g) => where_(of_menhir_ast(p), Exp.of_menhir_ast(g))
+    | StdNamedPat(p, h) => std_named(of_menhir_ast(p), of_menhir_ast(h))
     | VarPat(x) => var(x)
     | ConstructorPat(x, ty) =>
       constructor(x, Option.map(Option.map(Typ.of_menhir_ast), ty))
@@ -823,6 +839,7 @@ and Pat: {
     | MultiHole(_) => raise(Failure("MultiHole not supported"))
     | Asc(p, t) => AscPat(of_core(p), Typ.of_core(t))
     | Where(p, g) => WherePat(of_core(p), Exp.of_core(g))
+    | StdNamed(p, h) => StdNamedPat(of_core(p), of_core(h))
     | Parens(p) => of_core(p)
     | Label(s) => LabelPat(s)
     | ExplicitNonlabel => ExplicitNonlabel

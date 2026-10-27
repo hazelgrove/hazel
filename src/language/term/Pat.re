@@ -18,7 +18,8 @@ type cls =
   | ApFunc
   | ApCons
   | Asc
-  | Where;
+  | Where
+  | StdNamed;
 
 include TermBase.Pat;
 
@@ -62,7 +63,8 @@ let cls_of_term: Grammar.pat_term('a) => cls =
   | Ap({term: Constructor(_), _}, _) => ApCons
   | Ap(_) => ApFunc
   | Asc(_) => Asc
-  | Where(_) => Where;
+  | Where(_) => Where
+  | StdNamed(_) => StdNamed;
 
 let show_cls: cls => string =
   fun
@@ -89,7 +91,8 @@ let show_cls: cls => string =
   | ApCons => "Constructor application"
   | ApFunc => "Function definition"
   | Asc => "Annotation"
-  | Where => "Guarded pattern";
+  | Where => "Guarded pattern"
+  | StdNamed => "Binder with named standardness fact";
 
 let rec is_var = (pat: t): option(Var.t) => {
   switch (pat.term) {
@@ -99,6 +102,7 @@ let rec is_var = (pat: t): option(Var.t) => {
   /* `p where g` binds exactly what `p` binds: transparent here, like
      Asc. The guard is carried for dynamics + proofs, not for binding. */
   | Where(pat, _)
+  | StdNamed(pat, _)
   | Asc(pat, _) => is_var(pat)
   | Var(v) => Some(v)
   | Invalid(_)
@@ -124,6 +128,7 @@ let rec is_tuple_of_vars = (pat: t) =>
     | Projector(_, pat)
     | Asc(pat, _)
     | Where(pat, _)
+    | StdNamed(pat, _)
     | TupLabel(_, pat) => is_tuple_of_vars(pat)
     | Tuple(pats) => pats |> List.for_all(x => x |> is_var |> Option.is_some)
     | Label(_)
@@ -149,6 +154,7 @@ let rec get_var = (pat: t) => {
   | Var(x) => Some(x)
   | Asc(x, _)
   | Where(x, _) => get_var(x)
+  | StdNamed(x, _) => get_var(x)
   | Invalid(_)
   | EmptyHole
   | MultiHole(_)
@@ -169,6 +175,7 @@ let rec get_fun_var = (pat: t) => {
   | Parens(pat)
   | Projector(_, pat)
   | Where(pat, _)
+  | StdNamed(pat, _)
   | TupLabel(_, pat) => get_fun_var(pat)
   | Asc(pat, t1) =>
     if (Typ.is_arrow(t1) || Typ.is_poly(t1)) {
@@ -201,6 +208,7 @@ let rec get_bindings = (pat: t) =>
     | Projector(_, pat)
     | Asc(pat, _)
     | Where(pat, _)
+    | StdNamed(pat, _)
     | TupLabel(_, pat) => get_bindings(pat)
     | Tuple(pats) =>
       let vars = pats |> List.map(get_var);
@@ -233,6 +241,7 @@ let rec get_num_of_vars = (pat: t) =>
     | Projector(_, pat)
     | Asc(pat, _)
     | Where(pat, _)
+    | StdNamed(pat, _)
     | TupLabel(_, pat) => get_num_of_vars(pat)
     | Tuple(pats) => is_tuple_of_vars(pat) ? Some(List.length(pats)) : None
     | Label(_)
@@ -263,6 +272,7 @@ let rec get_num_of_vars = (pat: t) =>
 let rec is_guarded = (p: t): bool =>
   switch (p |> term_of) {
   | Where(_, _) => true
+  | StdNamed(p, _)
   | Parens(p)
   | Projector(_, p)
   | Asc(p, _)
@@ -316,6 +326,7 @@ let rec bindings = (dp: t): Binding.s =>
   | Constructor(_) => []
   | Asc(y, _)
   | Where(y, _)
+  | StdNamed(y, _)
   | Parens(y)
   | Projector(_, y)
   | TupLabel(_, y) => bindings(y)
@@ -356,4 +367,29 @@ let get_duplicate_bindings = (pat: t) => {
     binding => {List.length(List.filter(x => x == binding, bindings)) > 1},
     bindings,
   );
+};
+
+/* D78 binder (decided "binder"): the typed single-variable shape
+   `(x : T !! h)`, parens-transparent, as (x, T, h). Anything else --
+   pattern binders, an omitted type -- is an unresolved surface and
+   returns None (refused, never guessed). */
+let rec std_binder = (p: t): option((Var.t, Typ.t, Var.t)) => {
+  let rec strip = (p: t) =>
+    switch (p.term) {
+    | Parens(p) => strip(p)
+    | _ => p
+    };
+  switch (p.term) {
+  | Parens(p) => std_binder(p)
+  | StdNamed(b, h) =>
+    switch (strip(b).term, strip(h).term) {
+    | (Asc(x, ty), Var(h)) =>
+      switch (strip(x).term) {
+      | Var(x) => Some((x, ty, h))
+      | _ => None
+      }
+    | _ => None
+    }
+  | _ => None
+  };
 };

@@ -16,6 +16,10 @@ type cls =
   | Contradiction
   | Have
   | Alias
+  | RelEqBy
+  | Witness
+  | Cite
+  | Obtain
   | Parens;
 
 include TermBase.Proof;
@@ -50,6 +54,10 @@ let rec cls_of_term: Grammar.proof_term('a) => cls =
   | Contradiction(_) => Contradiction
   | Have(_, _, _) => Have
   | Alias(_, _, _) => Alias
+  | RelEqBy(_, _) => RelEqBy
+  | Witness(_) => Witness
+  | Cite(_) => Cite
+  | Obtain(_, _, _, _) => Obtain
   | EvalStep(_) => EvalStep;
 
 let show_cls: cls => string =
@@ -69,6 +77,10 @@ let show_cls: cls => string =
   | Contradiction => "Contradiction step"
   | Alias => "Alias step"
   | Have => "Have step"
+  | RelEqBy => "Relation step (== … by … end)"
+  | Witness => "Witness justification"
+  | Cite => "Fact citation"
+  | Obtain => "Obtain step"
   | Parens => "Parenthesized proof"
   | EvalStep => "Eval step";
 
@@ -174,6 +186,15 @@ let rec fast_equal = (p1: t, p2: t): bool => {
     Equality.syntactic.exp(e1, e2)
     && fast_equal(s1, s2)
     && fast_equal(b1, b2)
+  | (RelEqBy(t1, j1), RelEqBy(t2, j2)) =>
+    Equality.syntactic.exp(t1, t2) && fast_equal(j1, j2)
+  | (Witness(e1), Witness(e2)) => Equality.syntactic.exp(e1, e2)
+  | (Cite(h1), Cite(h2)) => h1 == h2
+  | (Obtain(x1, h1, e1, b1), Obtain(x2, h2, e2, b2)) =>
+    Equality.syntactic.pat(x1, x2)
+    && Equality.syntactic.pat(h1, h2)
+    && Equality.syntactic.exp(e1, e2)
+    && fast_equal(b1, b2)
   | (EmptyHole, _)
   | (Invalid(_), _)
   | (MultiHole(_), _)
@@ -188,6 +209,10 @@ let rec fast_equal = (p1: t, p2: t): bool => {
   | (Revert(_, _, _), _)
   | (Contradiction(_, _), _)
   | (Have(_, _, _), _)
+  | (RelEqBy(_, _), _)
+  | (Witness(_), _)
+  | (Cite(_), _)
+  | (Obtain(_, _, _, _), _)
   | (Alias(_, _, _), _)
   | (EvalStep(_), _) => false
   };
@@ -218,6 +243,10 @@ let rec has_hole = (p: t): bool =>
   /* Both children count: an unfinished `have` subproof is exactly the
      state the "prove here" action leaves behind. */
   | Have(_, sub, body) => has_hole(sub) || has_hole(body)
+  | RelEqBy(_, j) => has_hole(j)
+  | Witness(_)
+  | Cite(_) => false
+  | Obtain(_, _, _, body) => has_hole(body)
   | EvalStep(_) => false
   };
 
@@ -320,4 +349,8 @@ let rec args_have_hole = (p: t): bool =>
   /* The asserted proposition is the have's own argument; its subproof is
    * a nested proof and reports its own holes (cf. Induction bodies). */
   | Have(e, _, _) => exp_has_hole(e)
+  | RelEqBy(t, _) => exp_has_hole(t)
+  | Witness(e) => exp_has_hole(e)
+  | Cite(_) => false
+  | Obtain(x, h, e, _) => pat_has_hole(x) || pat_has_hole(h) || exp_has_hole(e)
   };

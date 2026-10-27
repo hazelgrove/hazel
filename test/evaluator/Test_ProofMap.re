@@ -276,6 +276,7 @@ let rec find_marked_sub =
     | Funext(_, body)
     | Assume(_, _, body)
     | Alias(_, _, body)
+    | Obtain(_, _, _, body)
     | Generalize(_, body)
     | Revert(_, _, body) => find_marked_sub(pm, body)
     | Have(_, sub, body) =>
@@ -300,6 +301,9 @@ let rec find_marked_sub =
     | AxiomStep(_)
     | AlgebriteStep(_)
     | Contradiction(_)
+    | RelEqBy(_, _)
+    | Witness(_)
+    | Cite(_)
     | EvalStep(_) => None
     };
   };

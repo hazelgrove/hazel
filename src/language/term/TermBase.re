@@ -666,6 +666,7 @@ and Pat: {
         /* The guard is an ordinary expression: recur into it with the
            same f_exp everything else uses. */
         | Where(p, g) => Where(pat_map_term(p), exp_map_term(g))
+        | StdNamed(p, h) => StdNamed(pat_map_term(p), pat_map_term(h))
         },
     };
     x |> f_pat(rec_call);
@@ -1532,6 +1533,16 @@ and Proof: {
           )
         | Have(e, sub, body) =>
           Have(exp_map_term(e), proof_map_term(sub), proof_map_term(body))
+        | RelEqBy(t, j) => RelEqBy(exp_map_term(t), proof_map_term(j))
+        | Witness(e) => Witness(exp_map_term(e))
+        | Cite(h) => Cite(h)
+        | Obtain(x, h, e, body) =>
+          Obtain(
+            pat_map_term(x),
+            pat_map_term(h),
+            exp_map_term(e),
+            proof_map_term(body),
+          )
         },
     };
     x |> f_proof(proof_map_term);

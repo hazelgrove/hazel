@@ -101,6 +101,7 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   | Free(name) => "Variable " ++ name ++ " is not bound"
   | FreeHypothesis(name) => "Hypothesis " ++ name ++ " is not in scope"
   | AxiomSlotNotHypothesis(_) => "Axiom slot must reference a hypothesis by name"
+  | ProverFormRefused(reason) => reason
   | InexhaustiveMatch(_) => "Match is not exhaustive"
   | IsDeferral(InAp) => "(internal)"
   | IsDeferral(_) => "Unused deferral"

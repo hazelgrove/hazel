@@ -121,6 +121,10 @@ let rec dump_proof = (pm: ProofMap.t, p: Proof.t, indent: string): string => {
     | AxiomStep(_) => "axiom"
     | AlgebriteStep(_) => "rewrite"
     | EvalStep(_) => "eval"
+    | RelEqBy(_, _) => "relation"
+    | Witness(_) => "witness"
+    | Cite(_) => "cite"
+    | Obtain(_) => "obtain"
     | Have(_, _, _) => "have"
     | Alias(_) => "alias"
     };
@@ -143,6 +147,7 @@ let rec dump_proof = (pm: ProofMap.t, p: Proof.t, indent: string): string => {
     | Forall(_, b)
     | Assume(_, _, b)
     | Alias(_, _, b)
+    | Obtain(_, _, _, b)
     | Generalize(_, b)
     | Revert(_, _, b) => [dump_proof(pm, b, indent ++ "  ")]
     | Induction(_, _, cases) =>
@@ -438,6 +443,7 @@ let test_true_branch_is_really_closed = () => {
     | Induction(_, _, _) => Some(p)
     | Assume(_, _, b)
     | Forall(_, b)
+    | Obtain(_, _, _, b)
     | Generalize(_, b)
     | Revert(_, _, b) => find_induction(b)
     | Seq(a, b) =>
@@ -651,6 +657,7 @@ let test_zero_case_closes_by_ex_falso = () => {
     | Revert(_, _, _) => Some(p)
     | Assume(_, _, b)
     | Forall(_, b)
+    | Obtain(_, _, _, b)
     | Generalize(_, b) => find_revert(b)
     | Seq(a, b) =>
       switch (find_revert(a)) {

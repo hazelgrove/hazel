@@ -201,6 +201,10 @@ and in_pat =
   | Where(p1, g) =>
     let (env', p1') = in_pat(env_outer, env_acc, p1);
     (env', Where(p1', in_exp(env', g)) |> Pat.fresh);
+  /* D78 `p !! h`: `h` is a fact name, not a value binder. */
+  | StdNamed(p1, h) =>
+    let (env', p1') = in_pat(env_outer, env_acc, p1);
+    (env', StdNamed(p1', h) |> Pat.fresh);
   };
 }
 

@@ -1483,6 +1483,9 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
           };
         }
 
+      /* D78 `p !! h`: abbreviate the binder; the fact name is kept. */
+      | StdNamed(p, h) => StdNamed(abbreviate_pat(p), h)
+
       /* `p where g`: same shape as Asc, but the right child is an Exp. */
       | Where(p, g) =>
         if (available^ < 3) {

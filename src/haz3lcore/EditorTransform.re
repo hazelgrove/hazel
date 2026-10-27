@@ -102,7 +102,11 @@ let rewrite_proof =
           | AxiomStep(_)
           | AlgebriteStep(_)
           | Contradiction(_)
+          | RelEqBy(_, _)
+          | Witness(_)
+          | Cite(_)
           | EvalStep(_) => p.term
+          | Obtain(x, h, e, body) => Obtain(x, h, e, walk(body))
           | Seq(p1, p2) => Seq(walk(p1), walk(p2))
           | Parens(inner) => Parens(walk(inner))
           | Induction(e, as_name, cases) =>
@@ -165,7 +169,8 @@ let rec find_seq_parent =
   | Assume(_, _, inner)
   | Generalize(_, inner)
   | Alias(_, _, inner)
-  | Revert(_, _, inner) => find_seq_parent(~target_id, inner)
+  | Revert(_, _, inner)
+  | Obtain(_, _, _, inner) => find_seq_parent(~target_id, inner)
   | Have(_, sub, body) =>
     switch (find_seq_parent(~target_id, sub)) {
     | Some(_) as r => r
@@ -179,6 +184,9 @@ let rec find_seq_parent =
   | AxiomStep(_)
   | AlgebriteStep(_)
   | Contradiction(_)
+  | RelEqBy(_, _)
+  | Witness(_)
+  | Cite(_)
   | EvalStep(_) => None
   };
 

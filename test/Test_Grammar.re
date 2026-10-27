@@ -66,6 +66,7 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
           empty_hole(),
         )
       | Forall => forall(Pat.empty_hole(), empty_hole())
+      | Exists => exists(Pat.empty_hole(), empty_hole())
       | FixF => fix_f(Pat.empty_hole(), empty_hole(), None)
       | TyAlias =>
         ty_alias(
@@ -91,6 +92,7 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | Parens => parens(empty_hole())
       | Cons => cons(empty_hole(), empty_hole())
       | UnOp(op) => un_op(op, empty_hole())
+      | Valued => valued(empty_hole())
       | BinOp(op) => bin_op(op, empty_hole(), empty_hole())
       | BuiltinFun => builtin_fun("string_compare")
       | Match => match(empty_hole(), [])
@@ -136,6 +138,7 @@ let sample_pattern = (cls_pat: Pat.cls): Grammar.UnitGrammar.pat => {
       | ApFunc => ap(empty_hole(), empty_hole())
       | Asc => asc(empty_hole(), Typ.string())
       | Where => where_(var("x"), Exp.bool(true))
+      | StdNamed => std_named(asc(var("x"), Typ.bool()), var("h"))
       | Wild => wild()
       | ExplicitNonlabel => explicit_non_label()
       | Projector =>

@@ -80,6 +80,7 @@ let (suite, _) =
     @ Test_DerivationCase.tests
     @ Test_PromptFactory.tests
     @ [Test_ExplainThis.tests]
+    @ [Test_ResetExistentials.tests]
     @ [Test_SubEditor.tests],
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");

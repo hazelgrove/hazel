@@ -595,6 +595,8 @@ let rec of_pat = (pat: Pat.t): t => {
      that arm (ProofCheck.add_where_facts). Dropping it here is what
      keeps `case_eq` well-formed. */
   | Where(p, _) => of_pat(p)
+  /* D78 `p !! h`: the fact name is not part of the value. */
+  | StdNamed(p, _) => of_pat(p)
   };
 };
 

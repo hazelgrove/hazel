@@ -819,4 +819,21 @@ let rec single = (p: Proof.t): Simple.t =>
       ~sub_id=Proof.rep_id(sub),
       ~body_id=Proof.rep_id(body),
     )
+  /* Compiler scaffolding only (no dedicated ExplainThis forms yet). */
+  | RelEqBy(_, _) => {
+      ...invalid,
+      explanation: "A one-step relation `== true by <justification> end`: `witness <v>` on an `exists` goal leaves the instantiated body to prove; a fact name closes a goal it states.",
+    }
+  | Witness(_) => {
+      ...invalid,
+      explanation: "A witness justification: only meaningful as `== true by witness <v> end` on an `exists` goal.",
+    }
+  | Cite(_) => {
+      ...invalid,
+      explanation: "A fact name standing alone. It is only meaningful as the justification of `== true by <name> end`, which closes a goal the named fact states.",
+    }
+  | Obtain(_, _, _, _) => {
+      ...invalid,
+      explanation: "`obtain x as h from E => …`: use the existential fact E with a fresh x and the fact h about it; the result may not mention x.",
+    }
   };

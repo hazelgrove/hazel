@@ -272,6 +272,7 @@ let pat_provenance = (~source_id: Id.t, ~flag: flag, pat: Pat.t): reuse_map => {
     /* `p where g` binds what `p` binds, at the same projection path;
        the guard contributes no bindings. */
     | Where(p, _) => go(path, p)
+    | StdNamed(p, _) => go(path, p)
     | Asc(p, _) => go([Ascribed, ...path], p)
     | TupLabel(label, p) => go([TupleLabel(pat_label(label)), ...path], p)
     | Ap(ctr, p) =>

@@ -108,6 +108,7 @@ let message = (~globals, m: ProofMark.t): list(Node.t) => {
       text("."),
     ]
   | ExpectedForallGoal => [text("Expected a `forall` goal here.")]
+  | ProverStepRefused({reason, _}) => [text(reason)]
   | ExpectedFunEqGoal => [
       text("Expected a goal of the form `f == g` between two functions."),
     ]

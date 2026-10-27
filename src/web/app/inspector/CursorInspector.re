@@ -340,6 +340,7 @@ let core_mark_err_view =
     | AxiomSlotNotHypothesis(_) => [
         text("Axiom slot must be a hypothesis name"),
       ]
+    | ProverFormRefused(reason) => [text(reason)]
     }
   )
   @ (
@@ -843,6 +844,7 @@ let exp_mark_err_view =
     div_err([code(name), text(" is not a hypothesis in scope")])
   | AxiomSlotNotHypothesis(_) =>
     div_err([text("Axiom slot must be a hypothesis name")])
+  | ProverFormRefused(reason) => div_err([text(reason)])
   };
 };
 

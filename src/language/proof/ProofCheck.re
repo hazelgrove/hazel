@@ -941,6 +941,7 @@ let add_pat_where_facts = (ctx: SemanticCtx.t, p: Pat.t): SemanticCtx.t =>
 let rec pat_head_key = (p: Pat.t): option(string) =>
   switch (p |> Pat.term_of) {
   | Where(p, _)
+  | StdNamed(p, _)
   | Parens(p)
   | Projector(_, p)
   | Asc(p, _)
@@ -1399,6 +1400,223 @@ let cited_fact = (~ctx: SemanticCtx.t, e: Exp.t): Exp.t => {
   };
 };
 
+/* --- Existentials (D75 primitive, D81 one-way) and D78 binder facts --- */
+
+let refused = (rule, reason) => ProofMark.ProverStepRefused({rule, reason});
+
+let rec strip_parens_exp = (e: Exp.t): Exp.t =>
+  switch (e.term) {
+  | Parens(e) => strip_parens_exp(e)
+  | _ => e
+  };
+
+let rec strip_parens_pat = (p: Pat.t): Pat.t =>
+  switch (p.term) {
+  | Parens(p) => strip_parens_pat(p)
+  | _ => p
+  };
+
+let rec strip_parens_proof = (p: Proof.t): Proof.t =>
+  switch (p.term) {
+  | Parens(p) => strip_parens_proof(p)
+  | _ => p
+  };
+
+/* A single-variable binder: (name, declared type if ascribed). Pattern
+   binders are an unresolved surface and give None. */
+let single_binder = (p: Pat.t): option((Var.t, option(Typ.t))) =>
+  switch (strip_parens_pat(p).term) {
+  | Var(y) => Some((y, None))
+  | Asc(x, ty) =>
+    switch (strip_parens_pat(x).term) {
+    | Var(y) => Some((y, Some(ty)))
+    | _ => None
+    }
+  | _ => None
+  };
+
+/* Does `x` occur as a variable anywhere in `e`? Over-approximates free
+   occurrence (a bound occurrence also counts), which is the safe side
+   for every use below. */
+let mentions_var = (x: Var.t, e: Exp.t): bool => {
+  let found = ref(false);
+  let _: Exp.t =
+    Exp.map_term(
+      ~f_exp=
+        (continue, e: Exp.t) => {
+          switch (e.term) {
+          | Var(y) when y == x => found := true
+          | _ => ()
+          };
+          continue(e);
+        },
+      e,
+    );
+  found^;
+};
+
+/* Every name bound by a pattern anywhere inside `e`. */
+let bound_names = (e: Exp.t): list(Var.t) => {
+  let acc = ref([]);
+  let _: Exp.t =
+    Exp.map_term(
+      ~f_pat=
+        (continue, p: Pat.t) => {
+          acc := Pat.bound_vars(p) @ acc^;
+          continue(p);
+        },
+      e,
+    );
+  acc^;
+};
+
+/* All variable names occurring in `e` (free or bound; conservative). */
+let var_names = (e: Exp.t): list(Var.t) => {
+  let acc = ref([]);
+  let _: Exp.t =
+    Exp.map_term(
+      ~f_exp=
+        (continue, e: Exp.t) => {
+          switch (e.term) {
+          | Var(y) => acc := [y, ...acc^]
+          | _ => ()
+          };
+          continue(e);
+        },
+      e,
+    );
+  acc^;
+};
+
+/* D80 automatic standardness for a witness of FIRST-ORDER type: with the
+   quantified/obtained binders standard, a structurally total term of
+   such a type is standard once its domain conditions hold (those are
+   incurred separately). Deliberately narrow: atoms, and lists/tuples of
+   them. Functions, ADTs, unknown and polymorphic types instead carry the
+   `!!v` obligation. */
+let rec first_order = (ty: Typ.t): bool =>
+  switch (Typ.term_of(ty)) {
+  | Atom(_) => true
+  | Parens(t)
+  | List(t) => first_order(t)
+  | Prod(ts) => List.for_all(first_order, ts)
+  | _ => false
+  };
+
+/* `== true by witness v end` on an incoming `exists (y : T) -> P` (exI,
+   kernel table: std v ⟹ P v ⟹ Ex P). Never establishes the existential
+   by itself: the outgoing goal is the capture-safely instantiated body
+   P[v/y], which later steps must still reduce to `true`; std v is
+   checked by the instantiation gate (divergence refuses) plus either the
+   first-order D80 rule or an explicit `!!v` obligation. Returns
+   (outgoing, marks, obligations, substitutions). */
+let witness_step =
+    (
+      ~step: step_fn,
+      ~info_map: Statics.Map.t,
+      ~ctx: SemanticCtx.t,
+      ~origin: Id.t,
+      goal: Exp.t,
+      v: Exp.t,
+    )
+    : (Exp.t, list(ProofMark.t), list(Obligation.t), list((string, Exp.t))) => {
+  let refuse = reason => (goal, [refused("witness", reason)], [], []);
+  switch (strip_parens_exp(goal).term) {
+  | Exists(bp, body) =>
+    switch (single_binder(bp)) {
+    | None =>
+      refuse(
+        "Only a single-variable `exists (y : T) -> P` takes a witness here.",
+      )
+    | Some((_, None)) =>
+      refuse(
+        "The existential's binder has no declared type, so the witness cannot be typed. Annotate it: `exists (y : T) -> …`.",
+      )
+    | Some((y, Some(ty))) =>
+      let tyctx = SemanticCtx.get_ctx(ctx);
+      let expected = Typ.normalize(tyctx, ty);
+      let got =
+        Statics.Map.ty_of(Exp.rep_id(v), info_map)
+        |> Option.map(Typ.normalize(tyctx));
+      let unknown = (t: Typ.t) =>
+        switch (Typ.term_of(t)) {
+        | Unknown(_) => true
+        | _ => false
+        };
+      switch (got) {
+      | None => refuse("The witness has no type information.")
+      | Some(t) when unknown(t) || unknown(expected) =>
+        refuse("The witness's type is unknown; it must have the binder's type.")
+      | Some(t) when !Typ.fast_equal(t, expected) =>
+        refuse("The witness does not have the binder's type.")
+      | Some(_) =>
+        let v_sub = v |> Substitution.in_exp(SemanticCtx.get_env(ctx));
+        let captured =
+          List.exists(
+            n => List.mem(n, bound_names(body)),
+            var_names(v_sub),
+          );
+        if (captured) {
+          refuse(
+            "Substituting this witness would capture one of its variables under a binder in the body.",
+          );
+        } else {
+          switch (instantiation_gate(~info_map, ~ctx, [(y, v)])) {
+          | Error(_) =>
+            (
+              goal,
+              [
+                ProofMark.PossiblyDivergentInstantiation({
+                  equality: "witness",
+                  var: y,
+                }),
+              ],
+              [],
+              [],
+            )
+          | Ok(conditions) =>
+            let domain =
+              List.map(
+                c => incur_obligation(~step, ~ctx, ~origin, c),
+                conditions,
+              );
+            let standard =
+              first_order(expected)
+                ? []
+                : [
+                  incur_obligation(
+                    ~step,
+                    ~ctx,
+                    ~origin,
+                    Exp.fresh(Valued(v_sub)),
+                  ),
+                ];
+            /* A function-valued witness is spliced in parenthesized so the
+               instantiated body reads back as `(fun k -> k)(1)`, not
+               `fun k -> k(1)` (Parens are transparent to the checker). */
+            let spliced =
+              switch (strip_parens_exp(v_sub).term) {
+              | Fun(_)
+              | FixF(_)
+              | TypFun(_)
+              | Closure(_) => Exp.fresh(Parens(v_sub))
+              | _ => v_sub
+              };
+            let instantiated =
+              body
+              |> Substitution.in_exp(
+                   Environment.extend(Environment.empty, (y, spliced)),
+                 )
+              |> Exp.replace_all_ids;
+            (instantiated, [], domain @ standard, [(y, v_sub)]);
+          };
+        };
+      };
+    }
+  | _ => refuse("A witness needs an `exists` goal here.")
+  };
+};
+
 let rec check =
         (
           ~step: step_fn=no_step,
@@ -1597,7 +1815,7 @@ let rec check =
         ProofMap.empty,
       ),
     );
-  | Forall(_pat, body) =>
+  | Forall(pat, body) =>
     /* The proof's pattern nominally renames the binder; following the UI's
      * ForallStep we use the binder from the incoming goal. */
     let (body_incoming, ctx', binder_marks) =
@@ -1614,7 +1832,73 @@ let rec check =
             | Some(g) => add_where_facts(ctx', g)
             | None => ctx'
             };
-          (Some(inner), ctx', []);
+          /* D78 `forall (x : T !! h) =>`: install `h : !!x` for the body
+           * only (D80: quantified binders range over standard values).
+           * Only when the written binder IS the goal's binder (same
+           * name; same type if the goal declares one), else refused and
+           * nothing is installed. */
+          let (ctx', std_marks) =
+            switch (Pat.std_binder(pat)) {
+            | None => (ctx', [])
+            | Some((x, ty, h)) =>
+              switch (single_binder(p)) {
+              | Some((y, gty)) when y == x =>
+                let same_type =
+                  switch (gty) {
+                  | None => true
+                  | Some(gty) =>
+                    let tyctx = SemanticCtx.get_ctx(ctx);
+                    Typ.fast_equal(
+                      Typ.normalize(tyctx, gty),
+                      Typ.normalize(tyctx, ty),
+                    );
+                  };
+                same_type
+                  ? (
+                    SemanticCtx.add_hypothesis_named(
+                      ctx',
+                      h,
+                      Exp.fresh(Valued(Exp.fresh(Var(y)))),
+                    )
+                    |> fst,
+                    [],
+                  )
+                  : (
+                    ctx',
+                    [
+                      refused(
+                        "std-binder",
+                        "The binder's type differs from the goal's binder type, so `"
+                        ++ h
+                        ++ "` is not installed.",
+                      ),
+                    ],
+                  );
+              | Some(_) => (
+                  ctx',
+                  [
+                    refused(
+                      "std-binder",
+                      "`"
+                      ++ x
+                      ++ "` is not the goal's binder name, so `"
+                      ++ h
+                      ++ "` is not installed.",
+                    ),
+                  ],
+                )
+              | None => (
+                  ctx',
+                  [
+                    refused(
+                      "std-binder",
+                      "Only a single-variable goal binder can carry a named standardness fact.",
+                    ),
+                  ],
+                )
+              }
+            };
+          (Some(inner), ctx', std_marks);
         /* Recovery: no binder to peel — mark it, but let the body keep
          * working on the goal as-is. */
         | None => (incoming, ctx, [ProofMark.ExpectedForallGoal])
@@ -1785,6 +2069,201 @@ let rec check =
     let (out_body, m) =
       check(~step, ~info_map, ~ctx=ctx', body_incoming, body);
     (out_body, record(~obligations, id, incoming, out_body, m));
+  | RelEqBy(target, just) =>
+    /* `== <target> by <justification> end`. Supported: target `true` with
+     * `witness v` on an `exists` goal (exI, see `witness_step`), or with
+     * a fact NAME whose statement is the goal itself (D76: a citation is
+     * the one-step chain `== true by h end`). Anything else is refused
+     * and the goal passes through. */
+    let pass = marks => (
+      incoming,
+      record(~marks, id, incoming, incoming, ProofMap.empty),
+    );
+    switch (incoming) {
+    | None => pass([ProofMark.MissingIncoming])
+    | Some(goal) =>
+      let is_true =
+        Exp.fast_equal(
+          strip_parens_exp(target),
+          Exp.temp(Atom(Bool(true))),
+        );
+      if (!is_true) {
+        pass([
+          refused(
+            "rel-eq-by",
+            "Only `== true by … end` is supported here.",
+          ),
+        ]);
+      } else {
+        switch (strip_parens_proof(just).term) {
+        | Witness(v) =>
+          let (outgoing, marks, obligations, substitutions) =
+            witness_step(~step, ~info_map, ~ctx, ~origin=id, goal, v);
+          (
+            Some(outgoing),
+            record(
+              ~marks,
+              ~obligations,
+              ~substitutions,
+              id,
+              incoming,
+              Some(outgoing),
+              ProofMap.empty,
+            ),
+          );
+        | Cite(h) =>
+          switch (Ctx.lookup_theorem(SemanticCtx.get_ctx(ctx), h)) {
+          | Some({prop: Some(prop), _})
+              when
+                Exp.fast_equal(strip_eq_true(prop), strip_eq_true(goal)) =>
+            let outgoing = Some(Exp.temp(Atom(Bool(true))));
+            (outgoing, record(id, incoming, outgoing, ProofMap.empty));
+          | Some(_) =>
+            pass([
+              refused(
+                "cite",
+                "`" ++ h ++ "` does not state the current goal.",
+              ),
+            ])
+          | None => pass([ProofMark.UnknownEquality(h)])
+          }
+        | _ =>
+          pass([
+            refused(
+              "rel-eq-by",
+              "`== … by … end` accepts only `witness <v>` or a fact name here.",
+            ),
+          ])
+        };
+      };
+    };
+  | Witness(_)
+  | Cite(_) =>
+    /* A justification outside `== … by … end`: refused, pass-through. */
+    (
+      incoming,
+      record(
+        ~marks=[
+          refused(
+            "justification",
+            "This is a justification: write `== true by … end` around it.",
+          ),
+        ],
+        id,
+        incoming,
+        incoming,
+        ProofMap.empty,
+      ),
+    )
+  | Obtain(x, h, e, body) =>
+    /* `obtain x as h from E => body` (∃-elim; kernel someEx/someStd):
+     * E must be an in-scope fact `exists (y : T) -> P` — resolved by name
+     * or spelled out, and FOUND among the facts, never just written. `x`
+     * is a fresh proof-level variable (standard by someStd) and
+     * `h : P[x/y]` a fact, both scoped to the body. No witness is
+     * extracted or searched for. The body's outgoing, and any pending
+     * obligation it exports, may not mention `x` (no escape). */
+    let pass = marks => (
+      incoming,
+      record(~marks, id, incoming, incoming, ProofMap.empty),
+    );
+    let fact = cited_fact(~ctx, e);
+    switch (incoming, Pat.get_var(x), Pat.get_var(h)) {
+    | (None, _, _) => pass([ProofMark.MissingIncoming])
+    | (_, None, _)
+    | (_, _, None) =>
+      pass([
+        refused(
+          "obtain",
+          "`obtain x as h from E =>` takes a single variable and a fact name.",
+        ),
+      ])
+    | (Some(goal), Some(xn), Some(hn)) =>
+      switch (lookup_fact(ctx, fact), strip_parens_exp(fact).term) {
+      | (None, _) =>
+        pass([
+          refused(
+            "obtain",
+            "No fact in scope states this existential.",
+          ),
+        ])
+      | (Some(_), Exists(bp, p_body)) =>
+        switch (single_binder(bp)) {
+        | None =>
+          pass([
+            refused(
+              "obtain",
+              "Only a single-variable `exists` can be obtained from here.",
+            ),
+          ])
+        | Some((y, ty)) =>
+          let in_ctx =
+            Option.is_some(Ctx.lookup_var(SemanticCtx.get_ctx(ctx), xn));
+          let in_facts =
+            List.exists(
+              ((_, _, f)) => mentions_var(xn, f),
+              SemanticCtx.facts(ctx),
+            );
+          if (in_ctx || mentions_var(xn, goal) || in_facts) {
+            pass([
+              refused(
+                "obtain",
+                "`" ++ xn ++ "` is not fresh here; choose a new name.",
+              ),
+            ]);
+          } else if (List.mem(xn, bound_names(p_body))) {
+            pass([
+              refused(
+                "obtain",
+                "`"
+                ++ xn
+                ++ "` would be captured by a binder in the existential's body.",
+              ),
+            ]);
+          } else {
+            let ty =
+              Option.value(~default=Typ.fresh(Unknown(Internal)), ty);
+            let ctx' = SemanticCtx.add_entry(ctx, Id.mk(), xn, ty, None);
+            let hyp =
+              p_body
+              |> Substitution.in_exp(
+                   Environment.extend(
+                     Environment.empty,
+                     (y, Exp.fresh(Var(xn))),
+                   ),
+                 );
+            let (ctx', _) = SemanticCtx.add_hypothesis_named(ctx', hn, hyp);
+            let (out_body, m) =
+              check(~step, ~info_map, ~ctx=ctx', incoming, body);
+            let escaped_obligation =
+              ProofMap.obligations_of_proof(m, body)
+              |> List.exists((o: Obligation.t) =>
+                   Obligation.is_pending(o) && mentions_var(xn, o.goal)
+                 );
+            let escaped_outgoing =
+              switch (out_body) {
+              | Some(o) => mentions_var(xn, o)
+              | None => false
+              };
+            if (escaped_outgoing || escaped_obligation) {
+              let marks = [
+                refused(
+                  "obtain-escape",
+                  "`"
+                  ++ xn
+                  ++ "` escapes its `obtain`: the result may not mention it.",
+                ),
+              ];
+              (incoming, record(~marks, id, incoming, incoming, m));
+            } else {
+              (out_body, record(id, incoming, out_body, m));
+            };
+          };
+        }
+      | (Some(_), _) =>
+        pass([refused("obtain", "This fact is not an `exists`.")])
+      }
+    }
   | Have(e, sub, body) =>
     /* `have <exp> proof <subproof> => <body>` — the CUT rule, and the
      * target of §3.3's "prove here" exit (docs/prover-obligations.md).
