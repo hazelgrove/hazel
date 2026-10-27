@@ -449,24 +449,25 @@ let count_tests =
         check_count(
           "an empty sig prints from rep_id",
           1,
-          Sig([]) |> Typ.temp,
+          Sig(Open([])) |> Typ.temp,
         );
         let sig_item = (): Sig.t => Sig.temp(EmptyHole);
         check_count(
           "a one-item sig prints from rep_id",
           1,
-          Sig([sig_item()]) |> Typ.temp,
+          Sig(Open([sig_item()])) |> Typ.temp,
         );
         check_count(
           "a three-item sig needs two separators plus rep_id",
           3,
-          Sig([sig_item(), sig_item(), sig_item()]) |> Typ.temp,
+          Sig(Open([sig_item(), sig_item(), sig_item()])) |> Typ.temp,
         );
       },
     ),
   ];
 /* Normalization strips Parens, so printing restores the ones a type needs,
    including inside a signature's items. */
+let closed = items => Typ.temp(Sig(Closed(ClosedSig.of_items(items))));
 let parens_tests = [
   test_case(
     "a signature item's arrow keeps its parentheses",
@@ -481,7 +482,7 @@ let parens_tests = [
         "{ let f:(Int -> Int) -> Int }",
         TypToSegment.typ_to_segment(
           ~settings,
-          Typ.temp(Sig([Sig.item_of_member(Val("f", f_ty))])),
+          closed([Sig.item_of_member(Val("f", f_ty))]),
         )
         |> Printer.of_segment(~holes="?", ~indent="", ~is_single_line=true),
       );
@@ -492,16 +493,14 @@ let parens_tests = [
     `Quick,
     () => {
       let inner =
-        Typ.temp(
-          Sig([Sig.item_of_member(Val("x", Typ.temp(Atom(Int))))]),
-        );
+        closed([Sig.item_of_member(Val("x", Typ.temp(Atom(Int))))]);
       check(
         string,
         "printed",
         "{ let m:{ let x:Int } }",
         TypToSegment.typ_to_segment(
           ~settings,
-          Typ.temp(Sig([Sig.item_of_member(Val("m", inner))])),
+          closed([Sig.item_of_member(Val("m", inner))]),
         )
         |> Printer.of_segment(~holes="?", ~indent="", ~is_single_line=true),
       );

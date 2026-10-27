@@ -801,7 +801,15 @@ in 1|},
           let_(
             Pat.asc(
               Pat.var("m"),
-              Typ.sig_([Sig.sig_let(Pat.asc(Pat.var("x"), Typ.int()))]),
+              Language.Typ.temp(
+                Sig(
+                  Closed(
+                    Language.ClosedSig.of_items([
+                      Sig.sig_let(Pat.asc(Pat.var("x"), Typ.int())),
+                    ]),
+                  ),
+                ),
+              ),
             ),
             module_([Mod.mod_let(Pat.var("x"), int(1))]),
             var("m"),

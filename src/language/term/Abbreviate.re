@@ -1740,12 +1740,18 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
           e,
         )
       | Projector(data, t) => Projector(data, abbreviate_typ(t))
-      | Sig(items) =>
+      | Sig(s) =>
         if (available^ <= 2) {
-          Sig([]);
+          Sig(Open([]));
         } else {
           available := available^ - 2; /* { } */
-          Sig(List.map(abbreviate_sig_item, items));
+          Sig(
+            switch (s) {
+            | Open(items) => Open(List.map(abbreviate_sig_item, items))
+            | Closed(items) =>
+              Closed(ClosedSig.map(abbreviate_sig_item, items))
+            },
+          );
         }
       };
     let result = rewrap(term);

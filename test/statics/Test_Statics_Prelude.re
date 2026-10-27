@@ -3,6 +3,10 @@ open Language;
 
 let testable_typ = testable(Fmt.using(Typ.show, Fmt.string), Typ.fast_equal);
 
+/* An expected type is written as source: read it as statics reads a written
+   type, its signatures closed. */
+let expected_typ = Typ.close(Builtins.ctx_init(Some(Int)));
+
 [@deriving show({with_path: false})]
 type issue =
   | Marks(list(Mark.t));
@@ -246,7 +250,7 @@ let annotated_tree_test = (name, expected_type, expected_error_tree) => {
   Alcotest.check(
     testable_typ,
     "Expected Type",
-    expected_type,
+    expected_typ(expected_type),
     Option.get(typ),
   );
 };
@@ -284,7 +288,7 @@ let check_fully_consistent = (~normalize=false, serialized, expected) => {
   Alcotest.check(
     Alcotest.option(testable_typ),
     serialized,
-    expected,
+    Option.map(expected_typ, expected),
     synthesized_type(~normalize, s, exp),
   );
 };
@@ -306,7 +310,7 @@ let synthesizes = (~normalize=false, name, serialized, expected) =>
       Alcotest.check(
         Alcotest.option(testable_typ),
         serialized,
-        expected,
+        Option.map(expected_typ, expected),
         synthesized_type(~normalize, statics(exp), exp),
       );
     },

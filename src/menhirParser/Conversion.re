@@ -522,7 +522,7 @@ and Typ: {
     | ProofOfType(e) => proof_of(Exp.of_menhir_ast(e))
     | Sig(items) => {
         annotation: false,
-        term: Sig(List.map(SigItem.of_menhir_ast, items)),
+        term: Sig(Open(List.map(SigItem.of_menhir_ast, items))),
       }
     | IndicationTyp(t) => {
         annotation: true,
@@ -578,7 +578,9 @@ and Typ: {
     /* Same as DrvQuote in the Exp case: no menhir syntax for Drv types. */
     | DrvQuoteTy(_) => raise(Failure("DrvQuoteTy not supported"))
     | Projector(_, t) => of_core(t)
-    | Sig(items) => Sig(List.map(SigItem.of_core, items))
+    | Sig(Open(items)) => Sig(List.map(SigItem.of_core, items))
+    | Sig(Closed(items)) =>
+      Sig(List.map(SigItem.of_core, Language.ClosedSig.items(items)))
     };
   };
 }

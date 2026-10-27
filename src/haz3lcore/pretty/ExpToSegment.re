@@ -964,16 +964,16 @@ and parenthesize_typ =
       ),
     )
     |> rewrap
-  | Sig(items) =>
+  | Sig(s) =>
+    let item =
+      Sig.map_typ(t => parenthesize_typ(t) |> paren_typ_at(Precedence.min));
     Sig(
-      List.map(
-        Sig.map_typ(t =>
-          parenthesize_typ(t) |> paren_typ_at(Precedence.min)
-        ),
-        items,
-      ),
+      switch (s) {
+      | Open(items) => Open(List.map(item, items))
+      | Closed(items) => Closed(ClosedSig.map(item, items))
+      },
     )
-    |> rewrap
+    |> rewrap;
   };
 }
 
@@ -3137,13 +3137,13 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
           ),
       );
     };
-  | Sig([]) =>
+  | Sig(s) when List.is_empty(Sig.written_items(s)) =>
     /* Empty sig: {} */
     wrap(
       typ,
       text_to_pretty(typ |> Typ.rep_id, Sort.Typ, Token.empty_module),
     )
-  | Sig(items) =>
+  | Sig(s) =>
     /* Non-empty sig: { let x : Int; type T = Bool; ... } */
     let ids =
       IdTagged.ids(typ) |> PadIds.pad_ids(PadIds.necessary_ids(typ));
@@ -3151,7 +3151,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     let ids = List.tl(ids);
     let wrap_item = wrap_with_secondary(~secondary=settings.secondary);
     let+ items_pretty =
-      Typ.sig_display_items(items)
+      Typ.sig_display_items(s)
       |> List.map((item: Sig.t) =>
            switch (item.term) {
            | SigLet(p) =>

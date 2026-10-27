@@ -80,13 +80,14 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
               TupLabel(l, inner') |> DHExp.fresh,
             ),
           );
-    | (Module(items), Sig(sig_items)) =>
+    | (Module(_), Sig(Open(_))) => raise(Typ.OpenSignature)
+    | (Module(items), Sig(Closed(sig_items))) =>
       /* Sealing: keep the signature's value members, in signature order,
          ascribing each to its declared type. A module still evaluating
          leaves the ascription stuck. A member the module lacks is a hole:
          statics allows that only when a hole item stands in for it. */
       let members =
-        Sig.members(sig_items)
+        Sig.members(ClosedSig.items(sig_items))
         |> Sig.dedup_last
         |> List.filter_map((m: Sig.member) =>
              switch (m) {

@@ -1383,11 +1383,11 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
     | ([(_id, (F(Compound(ModBody)), [Sig(body)]))], []) =>
       /* SigBody: parse signature body, similar to ModBody in exp_term */
       switch (body) {
-      | {term: EmptyHole, _} => ret(Sig([]))
+      | {term: EmptyHole, _} => ret(Sig(Open([])))
       | {annotation: {ids, _}, term: MultiHole(_)} =>
         adopted_ids := ids @ adopted_ids^;
-        (Sig(flatten_sig(body)), ids);
-      | _ => ret(Sig(flatten_sig(body)))
+        (Sig(Open(flatten_sig(body))), ids);
+      | _ => ret(Sig(Open(flatten_sig(body))))
       }
     | ([(_id, tile)], []) =>
       /* Atomic type spellings (base atoms, Void, Drv quote types):
@@ -1400,7 +1400,8 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       ret(
         switch (base_atom, tile) {
         | (_, (F(f), [])) when is_empty_tuple_form(f) => Prod([])
-        | (_, (F(Tok(t)), [])) when Token.is_empty_module(t) => Sig([])
+        | (_, (F(Tok(t)), [])) when Token.is_empty_module(t) =>
+          Sig(Open([]))
         | (Some(term), _) => term
         | (_, (F(Tok("_")), [])) => ExplicitNonlabel
         | (_, (F(Compound(ProofOf)), [Exp(exp)])) => ProofOf(exp)

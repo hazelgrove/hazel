@@ -147,41 +147,55 @@ optional `: Type`), `SigType(tpat, typ)`, `SigModule(mpat)` (the module name
 pattern carries the optional `: Signature`), holes.
 
 **Expression level**: `Module(list(mod_t))`, `ModuleExp(mpat, exp, exp)`.
-**Type level**: `Sig(list(sig_t))`, `ProdProjection(typ, typ)` (`M.T`).
+**Type level**: `Sig(signature)`, `ProdProjection(typ, typ)` (`M.T`), where
+`signature` is `Open(list(sig_t))` or `Closed(ClosedSig.t(sig_t))`.
 
 ### Signature types
 
-`Typ.Sig(items)` is a first-class type. `Sig.re` exposes a member view
-(`Sig.members`: `Val(x, τ)` / `TypeManifest(T, τ)`), skipping holes and
-malformed items. A signature is a dependent record: later items may mention
-earlier type members by name, and paths rooted at earlier modules
-(`module P : S; let x : P.T`), so:
+`Typ.Sig` is a first-class type, in one of two readings. `Sig.re` exposes a
+member view (`Sig.members`: `Val(x, τ)` / `TypeManifest(T, τ)`), skipping
+holes and malformed items.
 
-- `Typ.free_vars`, `Typ.subst` and `Typ.normalize` treat members as
-  sequential binders (`Typ.extend_sig_item` binds one in a context): a type
-  member binds its name everywhere after it, a value or module member only
-  where it roots a path. Member names cannot be alpha-renamed, so a
-  substituted type with a free variable named like a member would be
-  captured by it. `subst` degrades the
-  items after that member to `?` and returns the member with its result;
-  statics substitutes through `StaticsBase.subst_marked`, which turns that
-  into `Mark.TypeMemberCapture`. A type argument is substituted as written
-  and, only if that captures, normalized, so an alias argument collides only
-  where its expansion still names the member.
-- `Typ.sig_project_value` / `Typ.sig_project_type` return a member's type
-  with the signature's earlier members substituted, so `x : T` in
-  `{ type T = Int; let x : T }` projects to `Int`, and `x : P.T` in
-  `{ module P : { type T = Int }; let x : P.T }` to `{ type T = Int }.T`.
+- **Open** is a signature as written. Its items scope sequentially: a later
+  item may mention an earlier type member by name, or root a path at an
+  earlier module member (`module P : S; let x : P.T`). The parser and
+  `MakeTerm` produce only open signatures.
+- **Closed** is the reading statics works with. Each item's type is written
+  in terms of the context outside the signature, so the items are
+  independent of one another and of their order, and a member's name binds
+  nothing in its siblings. `ClosedSig.t` is abstract: `Typ.close` builds one
+  from written items, and module synthesis builds the module's own
+  signature from members it typed outside the module. Nothing else should
+  call `ClosedSig.of_items` outside tests.
+
+`Typ.close` closes a type where statics reads it from the syntax (an
+annotation's `Info.typ.ty`, alias definitions, type arguments, module
+ascriptions). It substitutes earlier type members into later items, resolves
+paths rooted at earlier module members, makes a self-mentioning type member
+recursive, and expands an outer alias named like a sibling type member.
+`Typ.sig_item_scopes` gives each written item the context it is read in, so
+closing and the cursor inspector's walk over the written items agree.
+Closing a closed signature closes each member alone, never re-reading it as
+mentioning a sibling.
+
+The type operations that read members (`subst`, `normalize`, `meet`,
+`equal_up_to_aliases`, `fun_in`, `as_sig`, `path_sig` and path
+normalization) take closed signatures only, and raise `Typ.OpenSignature` on
+an open one: that is a bug in where a type was read, not a user error.
+Printing, id collection and other syntactic walks accept both readings.
+
 - `Typ.meet` on two signatures requires the same value-member names and the
-  same type-member names (order-insensitive) and meets members pairwise,
-  each closed as by `sig_project_value`, so members are compared in the
-  outer context whatever order each side declares them in. A signature is inconsistent with
-  every other type constructor, including `Prod`.
-- `Typ.path_sig` resolves a module path (`Var(M)`, `M.P`) to its signature's
-  items. A root is whichever of a type alias and a value variable of that
-  name was bound later; a value counts only if its type is a signature.
-  `weak_head_normalize` uses it for `ProdProjection`, falling back to the
-  labeled-tuple projection.
+  same type-member names (order-insensitive) and meets members pairwise. A
+  signature is inconsistent with every other type constructor, including
+  `Prod`.
+- `Typ.path_sig` resolves a module path (`Var(M)`, `M.P`) to its closed
+  signature. A root is whichever of a type alias and a value variable of
+  that name was bound later; a value counts only if its type is a
+  signature. `weak_head_normalize` uses it for `ProdProjection`, falling
+  back to the labeled-tuple projection.
+- `Typ.sig_display_items` prints an open signature as written. In a closed
+  one, a member type equal to an earlier type member's definition is
+  printed by that member's name.
 
 ### Statics
 

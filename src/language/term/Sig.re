@@ -87,6 +87,14 @@ let member_of_item = (item: t): option(member) =>
 let members = (items: list(t)): list(member) =>
   List.filter_map(member_of_item, items);
 
+/* The items of a signature type, open or closed, for a traversal that does
+   not read a member's type in scope: printing, collecting ids, counting. */
+let written_items = (s: TermBase.signature): list(t) =>
+  switch (s) {
+  | Open(items) => items
+  | Closed(items) => ClosedSig.items(items)
+  };
+
 let item_of_member = (m: member): t =>
   switch (m) {
   | Val(x, ty) => TempGrammar.(Sig.sig_let(Pat.asc(Pat.var(x), ty)))

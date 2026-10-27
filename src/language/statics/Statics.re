@@ -1546,7 +1546,7 @@ and uexp_to_info_map =
             };
         | Rec(_) =>
           switch (Typ.as_sig(ctx, ty)) {
-          | Some(items) => Sig(items) |> Typ.temp
+          | Some(items) => Sig(Closed(items)) |> Typ.temp
           | None => ty
           }
         | _ => ty
@@ -1559,14 +1559,16 @@ and uexp_to_info_map =
           List.filter_map(Typ.match_tup_label, ts) |> List.map(fst)
         | List({term: Prod(ts), _}) =>
           List.filter_map(Typ.match_tup_label, ts) |> List.map(fst)
-        | Sig(items) => Sig.value_names(Sig.members(items))
+        | Sig(Closed(items)) =>
+          Sig.value_names(Sig.members(ClosedSig.items(items)))
         | _ => []
         };
       /* `M.y`: the type of the module's value member y. When there is none,
          the label is marked and the dot carries a message instead. */
       let (module_member, label_marks) =
         switch (e1_ty.term, e2.term) {
-        | (Sig(items), Label(name)) =>
+        | (Sig(Closed(items)), Label(name)) =>
+          let items = ClosedSig.items(items);
           switch (Typ.sig_project_value(items, name)) {
           | Some(ty) => (Some(ty), [])
           | None
@@ -1587,7 +1589,7 @@ and uexp_to_info_map =
                 }),
               ],
             )
-          }
+          };
         | _ => (None, [])
         };
 
@@ -2791,7 +2793,7 @@ and uexp_to_info_map =
         )
       };
     | Module(items) =>
-      let ana_items = Typ.as_sig(ctx, ana);
+      let ana_items = Typ.as_sig(ctx, ana) |> Option.map(ClosedSig.items);
       let declared = ModuleHelpers.declared_type_names(items);
       let expected =
         ModuleHelpers.expected_value_types(~ctx, ~declared, ana_items);
@@ -3179,9 +3181,9 @@ and uexp_to_info_map =
       let (c, m) = go_items(~ctx, items, m);
       /* A later binding of a name shadows an earlier one. */
       let have = Sig.dedup_last_by(snd, c.members);
-      let (elab_syn_ty, marks) =
+      let (sig_items, marks) =
         switch (ana_items) {
-        | None => (Sig(List.map(fst, have)) |> Typ.temp, [])
+        | None => (List.map(fst, have), [])
         | Some(ana_items) =>
           let have_items = List.map(fst, have);
           /* A hole among the items may bind the missing members: assume
@@ -3215,19 +3217,20 @@ and uexp_to_info_map =
                  Option.map(m => (item, m), Sig.member_of_item(item))
                );
           (
-            Sig(
-              ModuleHelpers.sealed(
-                ~ctx,
-                ~ana_items,
-                ~checked=c.checked,
-                ~mismatched_types=c.mismatched_types,
-                have,
-              ),
-            )
-            |> Typ.temp,
+            ModuleHelpers.sealed(
+              ~ctx,
+              ~ana_items,
+              ~checked=c.checked,
+              ~mismatched_types=c.mismatched_types,
+              have,
+            ),
             missing_marks @ extra_marks,
           );
         };
+      /* Each member is typed outside the module (see [export]), and a
+         missing one as the closed signature declares it. */
+      let elab_syn_ty =
+        Sig(Closed(ClosedSig.of_items(sig_items))) |> Typ.temp;
       add(
         ~elab_term=Module(c.items) |> rewrap,
         ~elab_syn_ty,
@@ -4265,16 +4268,17 @@ and utyp_to_info_map =
       switch (whole_path, Typ.path_sig(ctx, pty), l.term) {
       | (Some(items), _, _) =>
         /* A module path (`M.P`) used as the left of a further projection. */
-        ok(Message.Type(Sig(items) |> Typ.temp))
+        ok(Message.Type(Sig(Closed(items)) |> Typ.temp))
       | (None, Some(items), Label(l)) =>
         /* `M.T`: a type member of a module path or signature alias. */
+        let items = ClosedSig.items(items);
         projected(
           Typ.sig_project_type(items, l),
           Message.ModuleTypeMemberMissing(
             l,
             Sig.type_names(Sig.members(items)),
           ),
-        )
+        );
       | (None, Some(_), _) =>
         ok(
           Message.TypeUnderdetermined(
@@ -4351,7 +4355,7 @@ and utyp_to_info_map =
       switch (Typ.path_sig(ctx, utyp)) {
       | Some(items) =>
         /* A module variable used as the left of a type projection. */
-        ok(Message.Type(Sig(items) |> Typ.temp))
+        ok(Message.Type(Sig(Closed(items)) |> Typ.temp))
       | None =>
         switch (Typ.weak_head_normalize(ctx, utyp)) {
         | {term: Prod(_), _} as ty_prod => ok(Message.Type(ty_prod))
@@ -4506,6 +4510,7 @@ and utyp_to_info_map =
     let label_expects: TypExpectation.t =
       switch (Typ.path_sig(ctx, t)) {
       | Some(items) =>
+        let items = ClosedSig.items(items);
         /* In the middle of a path (`M.P.T`) the label names a sub-module;
            at the end it names a type member. */
         switch (expects) {
@@ -4519,7 +4524,7 @@ and utyp_to_info_map =
             TypeMember,
             Sig.type_names(Sig.members(items)),
           )
-        }
+        };
       | None =>
         switch (Typ.weak_head_normalize(ctx, t).term) {
         | Prod(ts) =>
@@ -4675,33 +4680,33 @@ and utyp_to_info_map =
     let m =
       utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
     add(m); // TODO: check with andrew
-  | Sig(items) =>
-    let (_, m) =
+  | Sig(s) =>
+    /* Written items scope sequentially, each read where the earlier ones
+       are bound closed; closed items are independent. */
+    let scoped =
+      switch (s) {
+      | Open(items) =>
+        Typ.sig_item_scopes(ctx, items)
+        |> List.map((scope: Typ.sig_item_scope) =>
+             (scope.ctx, scope.written)
+           )
+      | Closed(items) =>
+        List.map(item => (ctx, item), ClosedSig.items(items))
+      };
+    let m =
       List.fold_left(
-        ((ctx, m), item: Sig.t) => {
-          let ctx_after = Typ.extend_sig_item(ctx, item);
-          /* A type member's name is in scope in its own definition; a value
-             or module member's is not. */
-          let ctx_item =
-            switch (item.term) {
-            | SigType(_) => ctx_after
-            | SigLet(_)
-            | SigModule(_)
-            | Invalid(_)
-            | EmptyHole
-            | MultiHole(_) => ctx
-            };
+        (m, (ctx, item)) => {
           let (_, _, m) =
             any_to_info_map(
-              ~ctx=ctx_item,
+              ~ctx,
               ~ancestors=ancestors_inclusive,
               Sig(item),
               m,
             );
-          (ctx_after, m);
+          m;
         },
-        (ctx, m),
-        items,
+        m,
+        scoped,
       );
     add(m);
   };

@@ -7,6 +7,10 @@ open Typ;
 let val_ = (x, ty) => Sig.sig_let(Pat.asc(Pat.var(x), ty));
 let type_ = (t, ty) => Sig.sig_type(TPat.var(t), ty);
 let mod_ = (x, ty) => Sig.sig_module(MPat.asc(MPat.var(x), ty));
+/* A signature already closed: its items' names mean what they do outside
+   it, which written source cannot always say. */
+let closed_sig_ = items =>
+  Language.Typ.temp(Sig(Closed(Language.ClosedSig.of_items(items))));
 
 let marks_of = (source): list(Language.Mark.t) =>
   statics(parse_exp(source)) |> errors |> List.concat_map(snd);
@@ -584,7 +588,11 @@ let test_item_types =
       Alcotest.check(
         Alcotest.list(Alcotest.option(testable_typ)),
         "item types",
-        [Some(sig_([type_("Id", int())])), Some(int()), Some(bool())],
+        [
+          Some(expected_typ(sig_([type_("Id", int())]))),
+          Some(int()),
+          Some(bool()),
+        ],
         item_types,
       );
     },
@@ -1598,7 +1606,7 @@ typfun T -> f@<T>|},
         TPat.var("T"),
         arrow(
           var("T"),
-          sig_([val_("v", var("T")), type_("T", var("T"))]),
+          closed_sig_([val_("v", var("T")), type_("T", var("T"))]),
         ),
       ),
     ),
@@ -1699,7 +1707,7 @@ let test_evaluated_member_keeps_its_type =
       Alcotest.check(
         Alcotest.option(testable_typ),
         "closed signature",
-        Some(sig_([val_("x", int()), val_("y", int())])),
+        Some(expected_typ(sig_([val_("x", int()), val_("y", int())]))),
         Language.Statics.Map.ty_of(Language.Exp.rep_id(exp), statics(exp)),
       );
     },

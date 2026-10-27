@@ -30,6 +30,11 @@ type cls =
 
 include TermBase.Typ;
 
+/* An open signature reached an operation that reads a signature's members.
+   Those read only closed signatures, which Typ.close makes where a type is
+   read from the syntax; an open one there is a bug in that reading. */
+exception OpenSignature;
+
 let term_of: t => term = IdTagged.term_of;
 let unwrap: t => (term, term => t) = IdTagged.unwrap;
 let rep_id: t => Id.t = IdTagged.rep_id;
@@ -180,14 +185,14 @@ let rec has_fun = (typ: t) =>
     )
   | Prod(tys) => List.exists(has_fun, tys)
   | ProdExtension(t1, t2) => has_fun(t1) || has_fun(t2)
-  | Sig(items) =>
+  | Sig(s) =>
     List.exists(
       (m: Sig.member) =>
         switch (m) {
         | Val(_, ty) => has_fun(ty)
         | TypeManifest(_) => false
         },
-      Sig.members(items),
+      Sig.members(Sig.written_items(s)),
     )
   };
 
@@ -298,14 +303,14 @@ let rec free_vars =
       ty,
     )
   | ProofOf(_) => []
-  | Sig(items) =>
+  | Sig(s) =>
     List.concat_map(
       (m: Sig.member) =>
         switch (m) {
         | Val(_, ty)
         | TypeManifest(_, ty) => go(ty)
         },
-      Sig.members(items),
+      Sig.members(Sig.written_items(s)),
     )
   };
 };
@@ -389,7 +394,7 @@ let rec count_unknowns = (ty: t): int =>
   | TupLabel(_, ty) => count_unknowns(ty)
   | ProdProjection(ty1, _) => count_unknowns(ty1)
   | ProdExtension(ty1, ty2) => count_unknowns(ty1) + count_unknowns(ty2)
-  | Sig(items) =>
+  | Sig(s) =>
     List.fold_left(
       (acc, m: Sig.member) =>
         switch (m) {
@@ -397,7 +402,7 @@ let rec count_unknowns = (ty: t): int =>
         | TypeManifest(_, ty) => acc + count_unknowns(ty)
         },
       0,
-      Sig.members(items),
+      Sig.members(Sig.written_items(s)),
     )
   };
 
@@ -483,7 +488,10 @@ let rec subst = (~binder: binder=`TVar, s: t, x: TPat.t, ty: t): t =>
           };
         ProdProjection(t1, go(t2)) |> rewrap;
       | ProdExtension(t1, t2) => ProdExtension(go(t1), go(t2)) |> rewrap
-      | Sig(items) => Sig(List.map(Sig.map_typ(go), items)) |> rewrap
+      /* Closed members are independent, so a substitution reaches each. */
+      | Sig(Closed(items)) =>
+        Sig(Closed(ClosedSig.map(Sig.map_typ(go), items))) |> rewrap
+      | Sig(Open(_)) => raise(OpenSignature)
       };
     };
     go(ty);
@@ -648,9 +656,10 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t =>
       let (_, rewrap) = unwrap(ty);
       let default = Unknown(Internal) |> rewrap;
       switch (label.term, path_head(~rec_counter=rec_counter + 1, ctx, t)) {
-      | (Label(l), Some({term: Sig(items), _})) =>
+      | (_, Some({term: Sig(Open(_)), _})) => raise(OpenSignature)
+      | (Label(l), Some({term: Sig(Closed(items)), _})) =>
         /* `M.T`: type member of a module path or of a signature alias. */
-        switch (sig_project_type(items, l)) {
+        switch (sig_project_type(ClosedSig.items(items), l)) {
         | Some(ty') =>
           weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty')
         | None => default
@@ -698,7 +707,8 @@ and path_head = (~rec_counter, ctx: Ctx.t, t: t): option(t) =>
     let module_type = ty => {
       let ty = head_type(~rec_counter, ctx, ty);
       switch (term_of(ty)) {
-      | Sig(_) => Some(ty)
+      | Sig(Closed(_)) => Some(ty)
+      | Sig(Open(_)) => raise(OpenSignature)
       | _ => None
       };
     };
@@ -713,13 +723,15 @@ and path_head = (~rec_counter, ctx: Ctx.t, t: t): option(t) =>
       }
     | ProdProjection(p, {term: Label(l), _}) =>
       switch (path_head(~rec_counter=rec_counter + 1, ctx, p)) {
-      | Some({term: Sig(items), _}) =>
+      | Some({term: Sig(Open(_)), _}) => raise(OpenSignature)
+      | Some({term: Sig(Closed(items)), _}) =>
+        let items = ClosedSig.items(items);
         switch (sig_project_value(items, l)) {
         | Some(ty) => module_type(ty)
         | None =>
           sig_project_type(items, l)
           |> Option.map(head_type(~rec_counter, ctx))
-        }
+        };
       | Some({term: Prod(tys), _}) =>
         project_type(tys, l) |> Option.map(head_type(~rec_counter, ctx))
       | _ => None
@@ -741,15 +753,17 @@ and head_type = (~rec_counter, ctx: Ctx.t, ty: t): t => {
 /* The signature items a module path denotes, if any. A type alias whose
    expansion is a signature also counts, so `S.T` resolves on
    `type S = { type T = Int }`. */
-let path_sig = (ctx: Ctx.t, t: t): option(list(Sig.t)) =>
+let path_sig = (ctx: Ctx.t, t: t): option(ClosedSig.t(Sig.t)) =>
   switch (path_head(~rec_counter=0, ctx, t)) {
-  | Some({term: Sig(items), _}) => Some(items)
+  | Some({term: Sig(Closed(items)), _}) => Some(items)
+  | Some({term: Sig(Open(_)), _}) => raise(OpenSignature)
   | _ => None
   };
 
-let as_sig = (ctx: Ctx.t, ty: t): option(list(Sig.t)) =>
+let as_sig = (ctx: Ctx.t, ty: t): option(ClosedSig.t(Sig.t)) =>
   switch (term_of(head_type(~rec_counter=0, ctx, ty))) {
-  | Sig(items) => Some(items)
+  | Sig(Closed(items)) => Some(items)
+  | Sig(Open(_)) => raise(OpenSignature)
   | _ => None
   };
 
@@ -888,15 +902,20 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
   | Poly(name, ty) =>
     Poly(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
   | ProofOf(_) => ty // Todo: should we normalize this?
-  | Sig(items) =>
+  | Sig(Closed(items)) =>
     /* Malformed items (holes, non-variable patterns) are dropped from the
        normal form. */
     Sig(
-      items
-      |> List.filter(item => Option.is_some(Sig.member_of_item(item)))
-      |> List.map(Sig.map_typ(normalize(ctx))),
+      Closed(
+        items
+        |> ClosedSig.filter(item =>
+             Option.is_some(Sig.member_of_item(item))
+           )
+        |> ClosedSig.map(Sig.map_typ(normalize(ctx))),
+      ),
     )
     |> rewrap
+  | Sig(Open(_)) => raise(OpenSignature)
   };
 };
 
@@ -945,15 +964,16 @@ let fun_in = (ctx: Ctx.t, ty: t): option(fun_in) => {
         | DrvQuoteTy(_)
         | Label(_)
         | ExplicitNonlabel => None
-        | Sig(items) =>
+        | Sig(Closed(items)) =>
           List.find_map(
             (m: Sig.member) =>
               switch (m) {
               | Val(x, t) => go(~members=members @ [x], ctx, t)
               | TypeManifest(_) => None
               },
-            Sig.members(items),
+            Sig.members(ClosedSig.items(items)),
           )
+        | Sig(Open(_)) => raise(OpenSignature)
         | List(t) => go(~members, ctx, t)
         | Rec(tp, t) => go(~members, Ctx.extend_dummy_tvar(ctx, tp), t)
         | Sum(sm) =>
@@ -998,10 +1018,12 @@ let equal_up_to_aliases = (ctx: Ctx.t, a: t, b: t): bool => {
       let b = weak_head_normalize(ctx, b);
       switch (term_of(a), term_of(b)) {
       | (Var(n1), Var(n2)) => n1 == n2 /* both unresolvable in ctx */
-      | (Sig(xs), Sig(ys)) =>
+      | (Sig(Open(_)), _)
+      | (_, Sig(Open(_))) => raise(OpenSignature)
+      | (Sig(Closed(xs)), Sig(Closed(ys))) =>
         /* Order-insensitive, as in [meet]. */
-        let mx = Sig.members(xs) |> Sig.dedup_last;
-        let my = Sig.members(ys) |> Sig.dedup_last;
+        let mx = Sig.members(ClosedSig.items(xs)) |> Sig.dedup_last;
+        let my = Sig.members(ClosedSig.items(ys)) |> Sig.dedup_last;
         same_member_names(mx, my)
         && List.for_all(
              (m: Sig.member) =>
@@ -1048,6 +1070,15 @@ let equal_up_to_aliases = (ctx: Ctx.t, a: t, b: t): bool => {
 let canonicalize = (ctx: Ctx.t, ty: t): t =>
   normalize(~expand=_ => false, ctx, ty);
 
+/* An item of a signature as written, its closed form, and the context it is
+   read in: the one outside the signature extended with the earlier items,
+   closed. */
+type sig_item_scope = {
+  written: Sig.t,
+  closed: Sig.t,
+  ctx: Ctx.t,
+};
+
 /* [ty] with every signature in it closed: each member's type written in
    terms of the context outside its signature alone, so the members are
    independent and the signature is a record. Signature items are written
@@ -1084,10 +1115,18 @@ let rec close = (ctx: Ctx.t, ty: t): t => {
     Rec(tp, close(Ctx.extend_dummy_tvar(ctx, tp), t)) |> rewrap
   | Poly(tp, t) =>
     Poly(tp, close(Ctx.extend_dummy_tvar(ctx, tp), t)) |> rewrap
-  | Sig(items) => Sig(close_items(ctx, items)) |> rewrap
+  | Sig(Open(items)) => Sig(Closed(close_items(ctx, items))) |> rewrap
+  /* Already closed: its members are independent, so each is closed alone,
+     never re-read as mentioning a sibling. */
+  | Sig(Closed(items)) =>
+    Sig(Closed(ClosedSig.map(Sig.map_typ(close(ctx)), items))) |> rewrap
   };
 }
-and close_items = (ctx: Ctx.t, items: list(Sig.t)): list(Sig.t) => {
+and close_items = (ctx: Ctx.t, items: list(Sig.t)): ClosedSig.t(Sig.t) =>
+  sig_item_scopes(ctx, items)
+  |> List.map(scope => scope.closed)
+  |> ClosedSig.of_items
+and sig_item_scopes = (ctx: Ctx.t, items: list(Sig.t)): list(sig_item_scope) => {
   let type_members = Sig.type_names(Sig.members(items));
   let is_type_member = n => List.exists(String.equal(n), type_members);
   let close_item = (ctx, item: Sig.t) => {
@@ -1104,9 +1143,31 @@ and close_items = (ctx: Ctx.t, items: list(Sig.t)): list(Sig.t) => {
   };
   let (_, rev) =
     List.fold_left(
-      ((ctx, acc), item) => {
-        let item = close_item(ctx, item);
-        (extend_sig_item(ctx, item), [item, ...acc]);
+      ((ctx, acc), written: Sig.t) => {
+        let closed = close_item(ctx, written);
+        let ctx_after = extend_sig_item(ctx, closed);
+        /* A type member's name is in scope in its own definition; a value
+           or module member's is not. */
+        let read_in =
+          switch (written.term) {
+          | SigType(_) => ctx_after
+          | SigLet(_)
+          | SigModule(_)
+          | Invalid(_)
+          | EmptyHole
+          | MultiHole(_) => ctx
+          };
+        (
+          ctx_after,
+          [
+            {
+              written,
+              closed,
+              ctx: read_in,
+            },
+            ...acc,
+          ],
+        );
       },
       (ctx, []),
       items,
@@ -1114,30 +1175,34 @@ and close_items = (ctx: Ctx.t, items: list(Sig.t)): list(Sig.t) => {
   List.rev(rev);
 };
 
-/* The items of a closed signature as displayed: a member's type that is an
-   earlier type member's definition is written by that member's name. */
-let sig_display_items = (items: list(Sig.t)): list(Sig.t) => {
-  let (_, rev) =
-    List.fold_left(
-      ((defined, acc), item: Sig.t) => {
-        let named = ty =>
-          List.find_opt(((_, def)) => fast_equal(def, ty), defined)
-          |> Option.map(((name, _)) => Var(name) |> temp)
-          |> Option.value(~default=ty);
-        let item = Sig.map_typ(named, item);
-        let defined =
-          switch (Sig.member_of_item(item)) {
-          | Some(TypeManifest(name, def)) => [(name, def), ...defined]
-          | Some(Val(_))
-          | None => defined
-          };
-        (defined, [item, ...acc]);
-      },
-      ([], []),
-      items,
-    );
-  List.rev(rev);
-};
+/* The items of a signature as displayed. An open signature is shown as
+   written. In a closed one, a member's type that is an earlier type
+   member's definition is written by that member's name. */
+let sig_display_items = (s: TermBase.signature): list(Sig.t) =>
+  switch (s) {
+  | Open(items) => items
+  | Closed(items) =>
+    let (_, rev) =
+      List.fold_left(
+        ((defined, acc), item: Sig.t) => {
+          let named = ty =>
+            List.find_opt(((_, def)) => fast_equal(def, ty), defined)
+            |> Option.map(((name, _)) => Var(name) |> temp)
+            |> Option.value(~default=ty);
+          let item = Sig.map_typ(named, item);
+          let defined =
+            switch (Sig.member_of_item(item)) {
+            | Some(TypeManifest(name, def)) => [(name, def), ...defined]
+            | Some(Val(_))
+            | None => defined
+            };
+          (defined, [item, ...acc]);
+        },
+        ([], []),
+        ClosedSig.items(items),
+      );
+    List.rev(rev);
+  };
 let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   let meet' = meet(ctx);
   switch (term_of(ty1), term_of(ty2)) {
@@ -1262,45 +1327,41 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   // We would prefer for this to be a sort difference and never appear in a meet.
   // These get marked in statics but that does not remove them from the utyp's propagated on parents.
   | (ExplicitNonlabel, _) => None
-  | (Sig(xs), Sig(ys)) =>
+  | (Sig(Closed(xs)), Sig(Closed(ys))) =>
     /* Exact consistency: the same value-member names and the same
        type-member names (order-insensitive), members pairwise consistent. */
-    let cx =
-      List.filter_map(
-        item => Option.map(m => (item, m), Sig.member_of_item(item)),
+    let xs =
+      ClosedSig.filter(
+        item => Option.is_some(Sig.member_of_item(item)),
         xs,
       );
-    let my = Sig.members(ys) |> Sig.dedup_last;
-    if (!same_member_names(List.map(snd, Sig.dedup_last_by(snd, cx)), my)) {
+    let mx = Sig.members(ClosedSig.items(xs));
+    let my = Sig.members(ClosedSig.items(ys)) |> Sig.dedup_last;
+    if (!same_member_names(Sig.dedup_last(mx), my)) {
       None;
     } else {
       /* Rebuild from the left operand's items so each keeps its form, and
          its type as written where the meet refines nothing. A member a
-         later one shadows is kept as written, unmet: the items between
-         them may mention it. */
-      let rec go = (cx: list((Sig.t, Sig.member))) =>
-        switch (cx) {
-        | [] => Some([])
-        | [(item, m), ...rest] =>
-          let* item =
-            if (List.exists(((_, m')) => Sig.same_kind(m, m'), rest)) {
-              Some(item);
-            } else {
-              let (t1, t2) =
-                switch (m) {
-                | Val(x, t1) => (t1, Sig.find_value(my, x))
-                | TypeManifest(n, t1) => (t1, Sig.find_type_def(my, n))
-                };
-              let* t2 = t2;
-              let+ t = meet'(t1, t2);
-              equal(t, t1) ? item : Sig.map_typ(_ => t, item);
+         later one shadows is kept as written, unmet. */
+      let meet_item = (~later, item: Sig.t) =>
+        switch (Sig.member_of_item(item)) {
+        | Some(m) when !List.exists(Sig.same_kind(m), Sig.members(later)) =>
+          let (t1, t2) =
+            switch (m) {
+            | Val(x, t1) => (t1, Sig.find_value(my, x))
+            | TypeManifest(n, t1) => (t1, Sig.find_type_def(my, n))
             };
-          let+ rest = go(rest);
-          [item, ...rest];
+          let* t2 = t2;
+          let+ t = meet'(t1, t2);
+          equal(t, t1) ? item : Sig.map_typ(_ => t, item);
+        | Some(_)
+        | None => Some(item)
         };
-      let+ items = go(cx);
-      Sig(items) |> temp;
+      let+ items = ClosedSig.map_option(meet_item, xs);
+      Sig(Closed(items)) |> temp;
     };
+  | (Sig(Open(_)), _)
+  | (_, Sig(Open(_))) => raise(OpenSignature)
   | (Sig(_), _) => None
   };
 };
@@ -1568,7 +1629,7 @@ let rec pretty_print = (ty: t): string =>
   | Poly(tv, t) =>
     "poly " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)
   | ProofOf(_e) => "yes <e> indeed"
-  | Sig(items) =>
+  | Sig(s) =>
     let sig_item_str = (item: Sig.t) =>
       switch (item.term) {
       | SigLet(p) =>
@@ -1605,10 +1666,7 @@ let rec pretty_print = (ty: t): string =>
       | MultiHole(_) => "?"
       };
     "{ "
-    ++ String.concat(
-         "; ",
-         List.map(sig_item_str, sig_display_items(items)),
-       )
+    ++ String.concat("; ", List.map(sig_item_str, sig_display_items(s)))
     ++ " }";
   }
 and ctr_pretty_print =
@@ -1676,10 +1734,10 @@ let all_ids = (ty: t): list(Id.t) => {
     | ProofOf(_) => ()
     /* Syntactic, not `Sig.members`: an item whose name is a hole still
        prints. */
-    | Sig(items) =>
+    | Sig(s) =>
       List.iter(
         item => Option.iter(collect_ann_ids, Sig.typ_of_item(item)),
-        items,
+        Sig.written_items(s),
       )
     };
   };

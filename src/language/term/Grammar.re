@@ -115,8 +115,13 @@ and typ_term('a) =
   | ProofOf(exp_t('a))
   | ProdProjection(typ_t('a), typ_t('a))
   | ProdExtension(typ_t('a), typ_t('a))
-  | Sig(list(sig_t('a)))
+  | Sig(signature('a))
 and typ_t('a) = Annotated.t(typ_term('a), 'a)
+/* A signature type as written, its items scoping sequentially (a later item
+   may mention an earlier type member), or closed (Typ.close). */
+and signature('a) =
+  | Open(list(sig_t('a)))
+  | Closed(ClosedSig.t(sig_t('a)))
 and tpat_term('a) =
   | Invalid(string)
   | EmptyHole
@@ -396,7 +401,10 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
             map_typ_annotation(f, t1),
             map_typ_annotation(f, t2),
           )
-        | Sig(items) => Sig(List.map(map_sig_annotation(f), items))
+        | Sig(Open(items)) =>
+          Sig(Open(List.map(map_sig_annotation(f), items)))
+        | Sig(Closed(items)) =>
+          Sig(Closed(ClosedSig.map(map_sig_annotation(f), items)))
         },
       annotation: new_annotation,
     };
@@ -933,7 +941,7 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       annotation: default_annotation(ann),
     };
     let sig_ = (~ann=?, items): typ_t(DefaultAnnotation.t) => {
-      term: Sig(items),
+      term: Sig(Open(items)),
       annotation: default_annotation(ann),
     };
     let prod_projection = (~ann=?, t1, t2): typ_t(DefaultAnnotation.t) => {

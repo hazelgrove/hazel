@@ -613,6 +613,8 @@ module F = IdTagged.FreshGrammar;
 let sv = (x, ty) => F.Sig.sig_let(F.Pat.asc(F.Pat.var(x), ty));
 let st = (t, ty) => F.Sig.sig_type(F.TPat.var(t), ty);
 let sg = items => F.Typ.sig_(items);
+/* A signature already closed, as Typ.close leaves one. */
+let cs = items => Typ.temp(Sig(Closed(ClosedSig.of_items(items))));
 
 /* Signature types: consistency is exact (same member names), normalization
    keeps the Sig constructor, and member projection substitutes the
@@ -630,8 +632,8 @@ let sig_tests = {
         check(
           opt_typ,
           "same",
-          Some(sg([sv("x", ti)])),
-          Typ.meet(ctx, sg([sv("x", ti)]), sg([sv("x", ti)])),
+          Some(cs([sv("x", ti)])),
+          Typ.meet(ctx, cs([sv("x", ti)]), cs([sv("x", ti)])),
         )
       ),
       test_case(
@@ -648,7 +650,8 @@ let sig_tests = {
             "x projects to Int",
             Some(ti),
             switch (Option.map(Typ.term_of, Typ.meet(ctx, s, s))) {
-            | Some(Sig(items)) => Typ.sig_project_value(items, "x")
+            | Some(Sig(Closed(items))) =>
+              Typ.sig_project_value(ClosedSig.items(items), "x")
             | _ => None
             },
           );
@@ -658,8 +661,8 @@ let sig_tests = {
         check(
           opt_typ,
           "refined",
-          Some(sg([sv("x", ti)])),
-          Typ.meet(ctx, sg([sv("x", ti)]), sg([sv("x", tu)])),
+          Some(cs([sv("x", ti)])),
+          Typ.meet(ctx, cs([sv("x", ti)]), cs([sv("x", tu)])),
         )
       ),
       test_case("meet is exact: no width", `Quick, () =>
@@ -669,8 +672,8 @@ let sig_tests = {
           None,
           Typ.meet(
             ctx,
-            sg([sv("x", ti)]),
-            sg([sv("x", ti), sv("y", tb)]),
+            cs([sv("x", ti)]),
+            cs([sv("x", ti), sv("y", tb)]),
           ),
         )
       ),
@@ -679,18 +682,18 @@ let sig_tests = {
           opt_typ,
           "names differ",
           None,
-          Typ.meet(ctx, sg([sv("x", ti)]), sg([sv("y", ti)])),
+          Typ.meet(ctx, cs([sv("x", ti)]), cs([sv("y", ti)])),
         )
       ),
       test_case("meet matches members by name, left order", `Quick, () =>
         check(
           opt_typ,
           "reordered",
-          Some(sg([sv("x", ti), sv("y", tb)])),
+          Some(cs([sv("x", ti), sv("y", tb)])),
           Typ.meet(
             ctx,
-            sg([sv("x", ti), sv("y", tb)]),
-            sg([sv("y", tb), sv("x", ti)]),
+            cs([sv("x", ti), sv("y", tb)]),
+            cs([sv("y", tb), sv("x", ti)]),
           ),
         )
       ),
@@ -698,11 +701,11 @@ let sig_tests = {
         check(
           opt_typ,
           "type member",
-          Some(sg([st("T", ti), sv("x", F.Typ.var("T"))])),
+          Some(cs([st("T", ti), sv("x", F.Typ.var("T"))])),
           Typ.meet(
             ctx,
-            sg([st("T", ti), sv("x", F.Typ.var("T"))]),
-            sg([st("T", ti), sv("x", F.Typ.var("T"))]),
+            cs([st("T", ti), sv("x", F.Typ.var("T"))]),
+            cs([st("T", ti), sv("x", F.Typ.var("T"))]),
           ),
         )
       ),
@@ -711,7 +714,7 @@ let sig_tests = {
           opt_typ,
           "manifest differ",
           None,
-          Typ.meet(ctx, sg([st("T", ti)]), sg([st("T", tb)])),
+          Typ.meet(ctx, cs([st("T", ti)]), cs([st("T", tb)])),
         )
       ),
       test_case(
@@ -723,19 +726,19 @@ let sig_tests = {
             bool,
             "sig vs prod",
             false,
-            Typ.is_consistent(ctx, sg([sv("x", ti)]), prod),
+            Typ.is_consistent(ctx, cs([sv("x", ti)]), prod),
           );
           check(
             bool,
             "prod vs sig",
             false,
-            Typ.is_consistent(ctx, prod, sg([sv("x", ti)])),
+            Typ.is_consistent(ctx, prod, cs([sv("x", ti)])),
           );
           check(
             bool,
             "empty sig vs unit",
             false,
-            Typ.is_consistent(ctx, sg([]), F.Typ.prod([])),
+            Typ.is_consistent(ctx, cs([]), F.Typ.prod([])),
           );
         },
       ),
@@ -746,14 +749,14 @@ let sig_tests = {
           check(
             opt_typ,
             "sig meet ?",
-            Some(sg([sv("x", ti)])),
-            Typ.meet(ctx, sg([sv("x", ti)]), tu),
+            Some(cs([sv("x", ti)])),
+            Typ.meet(ctx, cs([sv("x", ti)]), tu),
           );
           check(
             opt_typ,
             "? meet sig",
-            Some(sg([sv("x", ti)])),
-            Typ.meet(ctx, tu, sg([sv("x", ti)])),
+            Some(cs([sv("x", ti)])),
+            Typ.meet(ctx, tu, cs([sv("x", ti)])),
           );
         },
       ),
@@ -765,8 +768,8 @@ let sig_tests = {
           check(
             typ,
             "alias expanded",
-            sg([sv("x", ti)]),
-            Typ.normalize(ctx, sg([sv("x", F.Typ.var("A"))])),
+            cs([sv("x", ti)]),
+            Typ.normalize(ctx, cs([sv("x", F.Typ.var("A"))])),
           );
         },
       ),
@@ -777,7 +780,7 @@ let sig_tests = {
         check(
           typ,
           "closed",
-          sg([st("T", ti), sv("x", ti)]),
+          cs([st("T", ti), sv("x", ti)]),
           Typ.close(ctx, sg([st("T", ti), sv("x", F.Typ.var("T"))])),
         )
       ),
@@ -789,7 +792,7 @@ let sig_tests = {
           check(
             typ,
             "closed",
-            sg([sv("x", tb), st("T", ti)]),
+            cs([sv("x", tb), st("T", ti)]),
             Typ.close(ctx, sg([sv("x", F.Typ.var("T")), st("T", ti)])),
           );
         },
@@ -803,7 +806,7 @@ let sig_tests = {
           check(
             typ,
             "closed",
-            sg([st("T", rec_t), sv("x", rec_t)]),
+            cs([st("T", rec_t), sv("x", rec_t)]),
             Typ.close(
               ctx,
               sg([st("T", pair_t), sv("x", F.Typ.var("T"))]),
@@ -821,7 +824,7 @@ let sig_tests = {
           check(
             typ,
             "closed",
-            sg([sm("P", sg([st("U", ti)])), sv("y", ti)]),
+            cs([sm("P", cs([st("U", ti)])), sv("y", ti)]),
             Typ.close(
               ctx,
               sg([sm("P", sg([st("U", ti)])), sv("y", p_u)]),
@@ -882,6 +885,30 @@ let sig_tests = {
           check(opt_typ, "missing", None, Typ.sig_project_value(s, "nope"));
         },
       ),
+      test_case(
+        "close reads a closed signature's members alone, not in order",
+        `Quick,
+        () => {
+          let s = cs([st("T", ti), sv("x", F.Typ.var("T"))]);
+          check(typ, "x keeps the outer T", s, Typ.close(ctx, s));
+        },
+      ),
+      test_case(
+        "an operation reading an open signature's members raises",
+        `Quick,
+        () => {
+          let s = sg([sv("x", ti)]);
+          check_raises("subst", Typ.OpenSignature, () =>
+            ignore(Typ.subst(ti, F.TPat.var("a"), s))
+          );
+          check_raises("normalize", Typ.OpenSignature, () =>
+            ignore(Typ.normalize(ctx, s))
+          );
+          check_raises("meet", Typ.OpenSignature, () =>
+            ignore(Typ.meet(ctx, s, cs([sv("x", ti)])))
+          );
+        },
+      ),
       test_case("pretty printing", `Quick, () =>
         check(
           string,
@@ -898,7 +925,7 @@ let sig_tests = {
    path has no weak head normal form. */
 let cyclic_path_tests = {
   let m_t = F.Typ.prod_projection(F.Typ.var("m"), F.Typ.label("T"));
-  let self_sig = F.Typ.sig_([F.Sig.sig_type(F.TPat.var("T"), m_t)]);
+  let self_sig = cs([F.Sig.sig_type(F.TPat.var("T"), m_t)]);
   let ctx =
     Ctx.extend(
       Builtins.ctx_init(None),
@@ -963,7 +990,7 @@ let fun_in_tests = {
           members(
             Typ.fun_in(
               ctx,
-              sg([sm("Inner", sg([sv("g", to_int)])), sv("x", ti)]),
+              cs([sm("Inner", cs([sv("g", to_int)])), sv("x", ti)]),
             ),
           ),
         )
@@ -1002,34 +1029,34 @@ let subst_tests = {
     [
       case(
         "a member named like a free variable of s does not capture it",
-        sg([st("T", ti), sv("v", a_to_int)]),
-        sg([st("T", ti), sv("v", t_to_int)]),
+        cs([st("T", ti), sv("v", a_to_int)]),
+        cs([st("T", ti), sv("v", t_to_int)]),
       ),
       case(
         "a member's own definition is substituted into",
-        sg([sv("v", F.Typ.var("a")), st("T", F.Typ.var("a"))]),
-        sg([sv("v", t_var), st("T", t_var)]),
+        cs([sv("v", F.Typ.var("a")), st("T", F.Typ.var("a"))]),
+        cs([sv("v", t_var), st("T", t_var)]),
       ),
       case(
         "a member named like x does not shadow it",
-        sg([st("a", ti), sv("v", a_to_int)]),
-        sg([st("a", ti), sv("v", t_to_int)]),
+        cs([st("a", ti), sv("v", a_to_int)]),
+        cs([st("a", ti), sv("v", t_to_int)]),
       ),
       case(
         "a type binder named like x shadows it",
-        F.Typ.poly(a, sg([st("T", ti), sv("v", a_to_int)])),
-        F.Typ.poly(a, sg([st("T", ti), sv("v", a_to_int)])),
+        F.Typ.poly(a, cs([st("T", ti), sv("v", a_to_int)])),
+        F.Typ.poly(a, cs([st("T", ti), sv("v", a_to_int)])),
       ),
       case(
         "a member's signature type is substituted into",
-        sg([sv("m", sg([st("T", ti), sv("v", a_to_int)]))]),
-        sg([sv("m", sg([st("T", ti), sv("v", t_to_int)]))]),
+        cs([sv("m", cs([st("T", ti), sv("v", a_to_int)]))]),
+        cs([sv("m", cs([st("T", ti), sv("v", t_to_int)]))]),
       ),
       test_case(
         "subst leaves a signature it touches nothing in equal to itself",
         `Quick,
         () => {
-          let s = sg([st("T", F.Typ.prod([ti, t_var]))]);
+          let s = cs([st("T", F.Typ.prod([ti, t_var]))]);
           check(typ, "unchanged", s, Typ.subst(ti, a, s));
         },
       ),
