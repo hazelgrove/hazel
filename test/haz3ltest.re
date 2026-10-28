@@ -21,6 +21,7 @@ let (suite, _) =
       Test_BuiltinsADT.tests,
       Test_ResetListCaseStep.tests,
       Test_ResetListDemoRepairs.tests,
+      Test_ResetListIHGesture.tests,
       Test_CsvUtil.tests,
       Test_Grammar.tests,
       Test_Abbreviate.tests,
