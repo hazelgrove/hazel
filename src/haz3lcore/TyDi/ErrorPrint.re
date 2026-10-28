@@ -50,25 +50,6 @@ let string_of_parts = (parts: list(part)): string =>
 let codes = (names: list(Var.t)): list(part) =>
   Util.ListUtil.join(Text(", "), List.map(name => Code(name), names));
 
-let type_member_capture_parts = (names: list(Var.t)): list(part) =>
-  switch (names) {
-  | [name] => [
-      Text("Name "),
-      Code(name),
-      Text(
-        " collides with a member of the same name in this signature; rename it",
-      ),
-    ]
-  | _ =>
-    [Text("Names ")]
-    @ codes(names)
-    @ [
-      Text(
-        " collide with members of the same names in this signature; rename them",
-      ),
-    ]
-  };
-
 /* [what] names the sort of member, e.g. "type member". */
 let member_not_found_parts =
     (what: string, {name, members}: Mark.member_not_found): list(part) =>
@@ -112,8 +93,27 @@ let module_member_is_type_parts = (name: Var.t): list(part) => [
   ),
 ];
 
-let type_member_capture_string = names =>
-  string_of_parts(type_member_capture_parts(names));
+let compare_fun_parts = ({ty, found}: Mark.compare_fun): list(part) =>
+  [Text("Values of type "), Type(ty), Text(" cannot be compared: ")]
+  @ (
+    switch (found.members) {
+    | [] when Typ.fast_equal(ty, found.ty) => [
+        Text("functions have no equality"),
+      ]
+    | [] => [
+        Text("the function type "),
+        Type(found.ty),
+        Text(" has no equality"),
+      ]
+    | members => [
+        Text("member "),
+        Code(String.concat(".", members)),
+        Text(" has the function type "),
+        Type(found.ty),
+        Text(", which has no equality"),
+      ]
+    }
+  );
 
 let member_not_found_string = (what, not_found) =>
   string_of_parts(member_not_found_parts(what, not_found));
@@ -138,8 +138,7 @@ let core_mark_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   | UnexpectedLabelSort(_) => "Unexpected label sort"
   | BadToken(token) => prn("\"%s\" isn't a valid token", token)
   | IsMulti => "Broken expression"
-  | CompareFun(ty) =>
-    prn("values of type %s cannot be compared", Print.typ(ty))
+  | CompareFun(c) => string_of_parts(compare_fun_parts(c))
   | FreeConstructor(_name) => prn("Constructor is not defined")
   | ExpectationMismatch({ana, syn}) => expectation(ana, syn)
   | NoMeet(PolyEq, tys)
@@ -235,7 +234,6 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
     string_of_parts(module_member_is_type_parts(name))
   | ModuleTypeMemberMismatch({name, expected, actual}) =>
     type_member_mismatch_string(name, ~expected, ~actual)
-  | TypeMemberCapture(names) => type_member_capture_string(names)
   | IsLivelitName({name, _}) =>
     switch (Ctx.lookup_livelit(ctx, name)) {
     | None => "Livelit unbound and not found"
@@ -324,14 +322,12 @@ let typ_mark_string: Mark.t => string =
     prn("%s is a value of type %s, not a module", name, Print.typ(typ))
   | ModuleTypeMemberMismatch({name, expected, actual}) =>
     type_member_mismatch_string(name, ~expected, ~actual)
-  | TypeMemberCapture(names) => type_member_capture_string(names)
   | _ => "(static error)";
 
 let tpat_mark_string: Mark.t => string =
   fun
   | TPatNotAVar(_) => "Not a valid type name" //TODO: elaborate
   | TPatShadowsType(name, _) => "Can't shadow type " ++ name //TODO: elaborate
-  | TypeMemberCapture(names) => type_member_capture_string(names)
   | _ => "(static error)";
 
 let string_of_marks = (info: Info.t, marks: list(Mark.t)): string =>
@@ -364,6 +360,11 @@ let string_of_marks = (info: Info.t, marks: list(Mark.t)): string =>
       | Some(m) => tpat_mark_string(m)
       | None => ""
       }
+    }
+  | InfoMod({ctx, _}) =>
+    switch (Mark.highest(marks)) {
+    | Some(m) => exp_mark_to_string(ctx, Unknown(Internal) |> Typ.temp, m)
+    | None => "(static error)"
     }
   | _ => "(static error)"
   };

@@ -25,6 +25,18 @@ let label_view = (label: string): Node.t =>
     [text(Haz3lcore.Token.quote_label_when_necessary(label))],
   );
 
+let parts_view = (~view_type, parts: list(Haz3lcore.ErrorPrint.part)) =>
+  List.map(
+    (part: Haz3lcore.ErrorPrint.part) =>
+      switch (part) {
+      | Text(s) => text(s)
+      | Code(s) => code(s)
+      | Label(s) => label_view(s)
+      | Type(ty) => view_type(ty)
+      },
+    parts,
+  );
+
 let cls_view = (ci: Info.t): Node.t => {
   let cls = ci |> Info.cls_of;
   let cls_text =
@@ -229,7 +241,8 @@ let core_mark_err_view =
         text("Duplicate Label:"),
         label_view(name),
       ]
-    | CompareFun(ty) => [text("values cannot be compared:"), view_type(ty)]
+    | CompareFun(c) =>
+      parts_view(~view_type, Haz3lcore.ErrorPrint.compare_fun_parts(c))
     | ExpectationMismatch({ana, syn}) => expectation_view(~ana, ~syn)
     | NoMeet(PolyEq, tys)
     | NoMeet(_, tys) when ana.term == Unknown(SynSwitch) => [
@@ -266,7 +279,6 @@ let core_mark_err_view =
     | ModuleMemberNotFound(_)
     | ModuleMemberIsType(_)
     | ModuleTypeMemberMismatch(_)
-    | TypeMemberCapture(_)
     | BadOperator(_)
     | BadLivelitModel(_)
     | BadTheorem(_)
@@ -436,18 +448,6 @@ let common_ok_view =
   );
 };
 
-let parts_view = (~view_type, parts: list(Haz3lcore.ErrorPrint.part)) =>
-  List.map(
-    (part: Haz3lcore.ErrorPrint.part) =>
-      switch (part) {
-      | Text(s) => text(s)
-      | Code(s) => code(s)
-      | Label(s) => label_view(s)
-      | Type(ty) => view_type(ty)
-      },
-    parts,
-  );
-
 let underdetermined_typ_view =
     (~globals, underdetermined: Message.underdetermined_typ) => {
   let view_type = view_type(~globals);
@@ -550,11 +550,6 @@ let typ_mark_err_view = (~globals, m: Mark.t) => {
         ~actual,
       ),
     )
-  | TypeMemberCapture(names) =>
-    parts_view(
-      ~view_type,
-      Haz3lcore.ErrorPrint.type_member_capture_parts(names),
-    )
   | TypFreeTypeVariable(name) => [
       view_type(Var(name) |> Typ.fresh),
       text("not found"),
@@ -631,6 +626,11 @@ let rec automatic_inserted_labels_pat =
   | _ => []
   };
 
+let inexhaustive_view = (~globals, what: string, example): list(Node.t) => [
+  text(what ++ " is inexhaustive. An example of a missing pattern is "),
+  view_any(~globals, example),
+];
+
 let exp_mark_err_view =
     (~globals, ~show_type_colon=true, cls: Cls.t, m: Mark.t, info: Info.exp) => {
   let introduced_labels =
@@ -647,7 +647,6 @@ let exp_mark_err_view =
     };
   let inferred_label = info.inferred_label;
   let view_type = view_type(~globals);
-  let view_any = view_any(~globals);
   let ctx = info.ctx;
   let ana = info.ana;
   let common_from_core = () =>
@@ -666,7 +665,7 @@ let exp_mark_err_view =
     );
   switch (m) {
   | Free(name) => div_err([code(name), text("not found")])
-  | InexhaustiveMatch(_, inner_marks, example) =>
+  | InexhaustiveMatch(inner_marks, example) =>
     let cls_str = Cls.show(cls);
     let additional =
       switch (
@@ -679,28 +678,20 @@ let exp_mark_err_view =
       | _ => None
       };
     switch (additional) {
-    | None =>
-      div_err([
-        text(
-          cls_str ++ " is inexhaustive. An example of a missing pattern is ",
-        ),
-        view_any(example),
-      ])
+    | None => div_err(inexhaustive_view(~globals, cls_str, example))
     | Some(tys) =>
-      let cls_str = String.uncapitalize_ascii(cls_str);
       div_err([
         div_err([
           text(elements_noun(cls) ++ " have inconsistent types:"),
           ...ListUtil.join(text(","), List.map(view_type, tys)),
         ])
         |> code_box_container,
-        text(
-          "; "
-          ++ cls_str
-          ++ " is inexhaustive. An example of a missing pattern is ",
-        ),
-        view_any(example),
-      ]);
+        ...inexhaustive_view(
+             ~globals,
+             "; " ++ String.uncapitalize_ascii(cls_str),
+             example,
+           ),
+      ])
     };
   | IsDeferral(InAp) =>
     div_err([
@@ -828,13 +819,6 @@ let exp_mark_err_view =
         ),
       ),
     )
-  | TypeMemberCapture(names) =>
-    div_err(
-      parts_view(
-        ~view_type,
-        Haz3lcore.ErrorPrint.type_member_capture_parts(names),
-      ),
-    )
   | BadLivelitModel(_) => div_err([text("Bad internal livelit model")])
   | BadTheorem(typ) =>
     div_err([
@@ -927,12 +911,7 @@ let exp_view =
           Haz3lcore.ErrorPrint.member_not_found_parts("member", not_found),
         ),
       )
-    | Exp(TypeMember(name, def)) =>
-      div_ok([
-        view_type(~globals, Var(name) |> Typ.fresh),
-        text("is equal to"),
-        view_type(~globals, def),
-      ])
+
     | Exp(Common(ok)) =>
       div_ok(
         common_ok_view(
@@ -1119,6 +1098,23 @@ let typ_view =
     }
   };
 
+let mod_view =
+    (~globals, cls: Cls.t, ~marks: list(Mark.t), ~ty: option(Typ.t)): Node.t =>
+  switch (Mark.highest(marks)) {
+  | Some(InexhaustiveMatch(_, example)) =>
+    div_err(inexhaustive_view(~globals, Cls.show(cls), example))
+  | Some(_) => div_err([text("Type error")])
+  | None =>
+    let cls_text = text(Cls.show(cls));
+    switch (cls, ty) {
+    | (_, None) => div_ok([cls_text])
+    | (Mod(ModType), Some(ty)) =>
+      div_ok([cls_text, text("="), view_type(~globals, ty)])
+    | (_, Some(ty)) =>
+      div_ok([cls_text, text(":"), view_type(~globals, ty)])
+    };
+  };
+
 let tpat_view =
     (~globals, _: Cls.t, ~marks: list(Mark.t), ~message: option(Message.t))
     : Node.t => {
@@ -1157,13 +1153,6 @@ let tpat_view =
           text("Can't shadow existing type variable"),
           view_type(Var(name) |> Typ.fresh),
         ])
-      | TypeMemberCapture(names) =>
-        div_err(
-          parts_view(
-            ~view_type,
-            Haz3lcore.ErrorPrint.type_member_capture_parts(names),
-          ),
-        )
       | _ => div_err([text("Type pattern error")])
       }
     }
@@ -1174,7 +1163,8 @@ let view_of_info = (~globals, ci): list(Node.t) => {
   let wrapper = status_view => [term_view(~globals, ci), status_view];
   switch (ci) {
   | Secondary(_) => wrapper(div([]))
-  | InfoMod({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
+  | InfoMod({cls, marks, ty, _}) =>
+    wrapper(mod_view(~globals, cls, ~marks, ~ty))
   | InfoSig({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
   | InfoMPat({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
   | InfoExp({cls, message, _} as ie) =>

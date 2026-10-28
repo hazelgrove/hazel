@@ -133,6 +133,13 @@ and in_mod_items =
                 term: (ModLet(p, in_exp(env, e)): Mod.term),
               },
             )
+          | ModuleMod(mp, e) => (
+              List.fold_left(shadow, env, Mod.bound_names(item)),
+              {
+                ...item,
+                term: (ModuleMod(mp, in_exp(env, e)): Mod.term),
+              },
+            )
           | ModVal(x, e) => (
               env,
               {
@@ -148,7 +155,6 @@ and in_mod_items =
               },
             )
           | ModType(_, _)
-          | ModuleMod(_, _)
           | Invalid(_)
           | EmptyHole
           | MultiHole(_) => (env, item)
@@ -273,8 +279,11 @@ and in_typ = (env: Environment.t(Exp.t), typ: Typ.t) =>
         | DrvQuoteTy(_) => cont(t)
         // The item types only: the generic traversal would also visit the
         // item patterns
-        | Sig(items) =>
-          Sig(List.map(Sig.map_typ(in_typ(env)), items)) |> rewrap
+        | Sig(Open(items)) =>
+          Sig(Open(List.map(Sig.map_typ(in_typ(env)), items))) |> rewrap
+        | Sig(Closed(items)) =>
+          Sig(Closed(ClosedSig.map(Sig.map_typ(in_typ(env)), items)))
+          |> rewrap
         };
       },
     typ,

@@ -268,7 +268,7 @@ let golden_leading: list((string, Typ.t)) = [
 let derived_new: list((string, Typ.t)) = [
   ("()", Typ.temp(Prod([]))),
   ("[]", Typ.temp(List(unk))),
-  ("{}", Typ.temp(Sig([]))),
+  ("{}", Typ.temp(Sig(Closed(ClosedSig.of_items([]))))),
 ];
 
 /* Non-trivial leading entries the manual table lacked */

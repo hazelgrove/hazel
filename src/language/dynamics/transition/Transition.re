@@ -1392,25 +1392,9 @@ module Transition = (EV: EV_MODE) => {
       | (prefix, Some((item, suffix))) =>
         let rebuild = (item: Mod.t) =>
           Module(prefix @ [item] @ suffix) |> rewrap;
-        switch (item.term) {
-        | ModExp(d1) =>
-          let. _ = otherwise(env, d1 => rebuild(Mod.with_def(item, d1)))
-          and. _ =
-            req_final(
-              req(env),
-              d1 => ModuleItem(prefix, item, d1, suffix) |> wrap_ctx,
-              d1,
-            );
-          Step({
-            expr: Module(prefix @ suffix) |> rewrap,
-            side_effects: [],
-            kind: ModuleDiscardExp,
-            is_value: List.is_empty(suffix),
-            /* A bare expression item has no syntax of its own; the step
-               stays on the module. */
-            at: None,
-          });
-        | ModLet(dp, d1) =>
+        /* A binding item: its definition evaluated, then matched against
+           the pattern, the bindings scoping over the items after it. */
+        let bind = (dp: Pat.t, d1) => {
           let. _ = otherwise(env, d1 => rebuild(Mod.with_def(item, d1)))
           and. d1' =
             req_final(
@@ -1473,7 +1457,34 @@ module Transition = (EV: EV_MODE) => {
               })
             };
           };
-        /* A hole item binds nothing, as `1; ?; 2` sequences past its hole. */
+        };
+        switch (item.term) {
+        | ModExp(d1) =>
+          let. _ = otherwise(env, d1 => rebuild(Mod.with_def(item, d1)))
+          and. _ =
+            req_final(
+              req(env),
+              d1 => ModuleItem(prefix, item, d1, suffix) |> wrap_ctx,
+              d1,
+            );
+          Step({
+            expr: Module(prefix @ suffix) |> rewrap,
+            side_effects: [],
+            kind: ModuleDiscardExp,
+            is_value: List.is_empty(suffix),
+            /* A bare expression item has no syntax of its own; the step
+               stays on the module. */
+            at: None,
+          });
+        | ModLet(dp, d1) => bind(dp, d1)
+        /* A `module` item is elaborated to a `let` item before reaching
+           dynamics, as ModuleExp is to Let. */
+        | ModuleMod(_, _) =>
+          let. _ = otherwise(env, d);
+          Indet;
+        /* A hole or type item binds nothing, as `1; ?; 2` sequences past
+           its hole. */
+        | ModType(_, _)
         | Invalid(_)
         | EmptyHole
         | MultiHole(_) =>
@@ -1485,10 +1496,9 @@ module Transition = (EV: EV_MODE) => {
             is_value: List.is_empty(suffix),
             at: Some(Mod.rep_id(item)),
           });
-        /* Elaboration drops type items and turns `module` items into lets. */
-        | ModType(_, _)
-        | ModuleMod(_, _)
         | ModVal(_, _) =>
+          /* Never pending: split_pending takes evaluated bindings as the
+             prefix. */
           let. _ = otherwise(env, d);
           Indet;
         };

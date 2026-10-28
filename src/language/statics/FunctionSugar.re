@@ -26,82 +26,12 @@
      - `autolabel_singleton_tuple` (in Statics.re) which lifts values into
        singleton labeled tuples,
      - `ModuleExp(mp, def, body)` (in Statics.re) which expands to
-       `Let(mpat_to_pat(mp), def, body)`,
-     - `ModuleHelpers.lower` which lowers module bodies to nested
-       Let/TyAlias wrappers for type checking.
+       `Let(MPat.to_pat(mp), def, body)`.
 
    All of these reuse the id (and formatting secondary) of the surface
    term for the desugared outer term by going through `Exp.unwrap`, so
    that statics on the desugared form populates the info map under the
    user's original ids. */
-
-/* Match `Ap(Var(f), args)`, the inner head of the sugar. The name may carry
-   an ascription, `Ap(Asc(Var(f), ty), args)`, as `ModuleHelpers.modlet_pat`
-   produces.
-
-   For the nullary form `f()`, the parser tags the empty tuple with
-   `Id.nullary_ap_flag` so it can be distinguished from a 0-tuple
-   literal. We replace that placeholder with a real deterministic id
-   so the args pattern is well-formed once it becomes a `Fun`
-   parameter. */
-let match_inner_binder = (pat: Pat.t): option((Pat.t, Pat.t)) =>
-  switch (IdTagged.term_of(pat)) {
-  | Ap(fn, args) =>
-    switch (IdTagged.term_of(fn)) {
-    | Var(_)
-    | Asc({term: Var(_), _}, _) =>
-      let args =
-        if (Id.is_nullary_ap_flag(IdTagged.ids(args))) {
-          (Tuple([]): Pat.term)
-          |> IdTagged.fresh_deterministic(Pat.rep_id(fn));
-        } else {
-          args;
-        };
-      Some((fn, args));
-    | _ => None
-    }
-  | _ => None
-  };
-
-/* Detect whether a let-binder has the form `f(args)` or
-   `f(args): Ret`, returning the function name pattern, argument
-   pattern, and optional return-type annotation. */
-let detect = (pat: Pat.t): option((Pat.t, Pat.t, option(Typ.t))) => {
-  let (inner_pat, ret_ty) =
-    switch (IdTagged.term_of(pat)) {
-    | Asc(inner, ret_ty) => (inner, Some(ret_ty))
-    | _ => (pat, None)
-    };
-  match_inner_binder(inner_pat)
-  |> Option.map(((fn, args)) => (fn, args, ret_ty));
-};
-
-/* The pattern that names the binding: the function name for the sugar, the
-   pattern itself otherwise. */
-let binder = (pat: Pat.t): Pat.t =>
-  switch (detect(pat)) {
-  | Some((f_name, _, _)) => f_name
-  | None => pat
-  };
-
-/* The sugar with its function name transformed by [f], keeping the argument
-   pattern and the return-type annotation; any other pattern is unchanged. */
-let map_binder = (f: Pat.t => Pat.t, pat: Pat.t): Pat.t => {
-  let rewrap = (p: Pat.t, term: Pat.term): Pat.t => {
-    ...p,
-    term,
-  };
-  let inner = (p: Pat.t): Pat.t =>
-    switch (IdTagged.term_of(p)) {
-    | Ap(fn, args) => rewrap(p, Ap(f(fn), args))
-    | _ => p
-    };
-  switch (detect(pat), IdTagged.term_of(pat)) {
-  | (None, _) => pat
-  | (Some(_), Asc(p, ret_ty)) => rewrap(pat, Asc(inner(p), ret_ty))
-  | (Some(_), _) => inner(pat)
-  };
-};
 
 /* Build the desugared expression:
 
@@ -113,6 +43,19 @@ let map_binder = (f: Pat.t => Pat.t, pat: Pat.t): Pat.t => {
    The `Fun` and (optional) `Asc` wrappers use fresh deterministic ids
    derived from adjacent surface ids, keeping the rewrite stable across
    runs. */
+let desugared_fun =
+    (~args: Pat.t, ~ret_ty: option(Typ.t), ~def: Exp.t): Exp.t => {
+  let def_in_fun =
+    switch (ret_ty) {
+    | Some(ty) =>
+      (Asc(def, ty): Exp.term)
+      |> IdTagged.fresh_deterministic(Typ.rep_id(ty))
+    | None => def
+    };
+  (Fun(args, def_in_fun, None, None): Exp.term)
+  |> IdTagged.fresh_deterministic(Pat.rep_id(args));
+};
+
 let rewrite =
     (
       ~orig_let: Exp.t,
@@ -123,18 +66,8 @@ let rewrite =
       ~body: Exp.t,
     )
     : Exp.t => {
-  let def_in_fun =
-    switch (ret_ty) {
-    | Some(ty) =>
-      (Asc(def, ty): Exp.term)
-      |> IdTagged.fresh_deterministic(Typ.rep_id(ty))
-    | None => def
-    };
-  let fun_exp: Exp.t =
-    (Fun(args, def_in_fun, None, None): Exp.term)
-    |> IdTagged.fresh_deterministic(Pat.rep_id(args));
   let (_, rewrap) = Exp.unwrap(orig_let);
-  rewrap(Let(f_name, fun_exp, body));
+  rewrap(Let(f_name, desugared_fun(~args, ~ret_ty, ~def), body));
 };
 
 /* After statics has processed the desugared `Let`, the info map is

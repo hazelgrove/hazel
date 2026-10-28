@@ -54,6 +54,22 @@ module Local = {
             ),
           )
         }
+      | InfoMod({user_term: item, _}) =>
+        let part =
+          switch (inner_term) {
+          | Pat => Mod.pat(item)
+          | Def => Mod.def(item)
+          | Body => None
+          };
+        switch (part) {
+        | Some(part) => Any.rep_id(part)
+        | None =>
+          raise(
+            Failure(
+              "Module members end at their `;` and have no body; a bare expression or hole item has no pattern",
+            ),
+          )
+        };
       | _ =>
         raise(
           Failure(
@@ -63,13 +79,11 @@ module Local = {
       };
     };
 
-    /* Module members are nodes whose info is the statics expansion's
-       Let/TyAlias wrapper, reclassified to a Mod cls. Their pat/def ids are
-       real syntax; their "body" is the expansion continuation (the REST of
-       the members), which must never be an edit target. */
+    /* Module members are nodes of their own. Their pat/def ids are real
+       syntax; they end at their `;` and have no body to edit. */
     let is_module_member = (node: node): bool =>
       switch (node.info) {
-      | InfoExp({cls: Mod(_), _}) => true
+      | InfoMod(_) => true
       | _ => false
       };
 

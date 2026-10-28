@@ -811,13 +811,6 @@ let decide =
     | _ => Prose("Signature item")
     }
   | Some(InfoMPat(_)) => Prose("Module name")
-  | Some(InfoExp({cls: Mod(ModLet), _})) =>
-    message_single(ModLetDecl.single)
-  | Some(InfoExp({cls: Mod(ModType), _})) =>
-    message_single(ModTypeDecl.single)
-  | Some(InfoExp({cls: Mod(ModuleMod), _})) =>
-    message_single(ModuleKeywordDecl.single)
-  | Some(InfoExp({cls: Mod(_), _})) => Prose("Module item")
   | Some(InfoExp({user_term: term, _})) =>
     let rec get_message_exp = (term): decision =>
       switch ((term: Exp.term)) {

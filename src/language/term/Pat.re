@@ -252,6 +252,43 @@ let rec bindings = (dp: t): Binding.s =>
   | Ap(_, dp1) => bindings(dp1)
   };
 
+/* The function-definition sugar `f(args)` or `f(args) : ret`: the name,
+   the argument pattern and the return type. The name may carry an
+   ascription. A nullary `f()` carries `Id.nullary_ap_flag` on its argument
+   tuple, replaced by a deterministic id so the arguments are a well-formed
+   pattern once they become a function's. */
+let function_sugar = (pat: t): option((t, t, option(TermBase.Typ.t))) => {
+  let (inner, ret_ty) =
+    switch (term_of(pat)) {
+    | Asc(inner, ret_ty) => (inner, Some(ret_ty))
+    | _ => (pat, None)
+    };
+  switch (term_of(inner)) {
+  | Ap(fn, args) =>
+    switch (term_of(fn)) {
+    | Var(_)
+    | Asc({term: Var(_), _}, _) =>
+      let args =
+        if (Id.is_nullary_ap_flag(IdTagged.ids(args))) {
+          (Tuple([]): term) |> IdTagged.fresh_deterministic(rep_id(fn));
+        } else {
+          args;
+        };
+      Some((fn, args, ret_ty));
+    | _ => None
+    }
+  | _ => None
+  };
+};
+
+/* The pattern that names the binding: the function name for the sugar, the
+   pattern itself otherwise. */
+let binder = (pat: t): t =>
+  switch (function_sugar(pat)) {
+  | Some((f_name, _, _)) => f_name
+  | None => pat
+  };
+
 let bound_vars = (dp: t): list(Var.t) =>
   dp |> bindings |> List.map((b: Binding.t) => b.name);
 

@@ -56,6 +56,8 @@ type typ_t = Grammar.typ_t(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type typ_term = Grammar.typ_term(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
+type signature = Grammar.signature(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
 type tpat_t = Grammar.tpat_t(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type tpat_term = Grammar.tpat_term(IdTagged.IdTag.t);
@@ -726,23 +728,25 @@ and Typ: {
         | Rec(tp, t) => Rec(tpat_map_term(tp), typ_map_term(t))
         | Poly(tp, t) => Poly(tpat_map_term(tp), typ_map_term(t))
         | ProofOf(e) => ProofOf(exp_map_term(e))
-        | Sig(items) =>
+        | Sig(s) =>
+          let item_map_term =
+            Sig.map_term(
+              ~f_exp,
+              ~f_pat,
+              ~f_typ,
+              ~f_tpat,
+              ~f_rul,
+              ~f_mod,
+              ~f_sig,
+              ~f_mpat,
+              ~f_any,
+            );
           Sig(
-            List.map(
-              Sig.map_term(
-                ~f_exp,
-                ~f_pat,
-                ~f_typ,
-                ~f_tpat,
-                ~f_rul,
-                ~f_mod,
-                ~f_sig,
-                ~f_mpat,
-                ~f_any,
-              ),
-              items,
-            ),
-          )
+            switch (s) {
+            | Open(items) => Open(List.map(item_map_term, items))
+            | Closed(items) => Closed(ClosedSig.map(item_map_term, items))
+            },
+          );
         },
     };
     x |> f_typ(rec_call);

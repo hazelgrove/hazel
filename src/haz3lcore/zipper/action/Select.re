@@ -714,33 +714,9 @@ let is_rule_tile =
   | Piece.Tile({form: Form.Compound(Rule), _}) => true
   | _ => false;
 
-/* Check if id has a module item cls (ModLet, ModType, etc.).
- * Module items are elaborated as nested Lets, so they need
- * special handling to avoid escalating between siblings. */
-let has_mod_cls = (id, info_map) =>
-  switch (Id.Map.find_opt(id, info_map)) {
-  | Some(
-      Language.Statics.Info.InfoExp({
-        cls: Mod(ModLet | ModType | ModuleMod | ModExp),
-        _,
-      }),
-    ) =>
-    true
-  | _ => false
-  };
-
-/* Check if from_id is the body of the definition at parent_id.
- * Returns false for module items (elaborated as nested Lets
- * where each item appears as the "body" of the previous). */
+/* Check if from_id is the body of the definition at parent_id. */
 let is_def_body = (from_id, parent_id, info_map) =>
   switch (Language.Statics.Map.lookup(parent_id, info_map)) {
-  | Some(
-      Language.Statics.Info.InfoExp({
-        cls: Mod(ModLet | ModType | ModuleMod),
-        _,
-      }),
-    ) =>
-    false
   | Some(
       Language.Statics.Info.InfoExp({
         user_term: {term: Let(_, _, body) | TyAlias(_, _, body), _},
@@ -777,9 +753,8 @@ let parent_of_indicated = (z: t, term_data, info_map) => {
 /* Escalate from a fully-matched selection to its parent.
  * Priority order:
  * 1. Def body → parent def (include body in selection)
- * 2. Module item → enclosing module tile {…}
- * 3. Inside case rule → enclosing rule tile |=>
- * 4. Default → parent term from info_map ancestors */
+ * 2. Inside case rule → enclosing rule tile |=>
+ * 3. Default → parent term from info_map ancestors */
 let escalate_from_term =
     (root_id: Id.t, parent_id: Id.t, z: t, term_data: TermData.t, info_map) =>
   if (is_def_body(root_id, parent_id, info_map)) {
@@ -790,9 +765,6 @@ let escalate_from_term =
       parent_id,
       z,
     );
-  } else if (has_mod_cls(root_id, info_map)) {
-    let* p = Zipper.parent(z);
-    select_as_parent(Piece.id(p), z, term_data, info_map);
   } else {
     /* Find the closest enclosing rule tile in left siblings.
      * Left siblings are in document order, so reverse to

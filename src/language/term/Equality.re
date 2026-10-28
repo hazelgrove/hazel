@@ -743,9 +743,17 @@ let equality =
     | (ProdExtension(_), _) => false
     | (ProofOf(e1), ProofOf(e2)) => exp'(e1, e2)
     | (ProofOf(_), _) => false
-    | (Sig(items1), Sig(items2)) =>
-      List.length(items1) == List.length(items2)
-      && List.for_all2(sig_(alphas_exp, alphas_typ), items1, items2)
+    | (Sig(s1), Sig(s2)) =>
+      let items = (items1, items2) =>
+        List.length(items1) == List.length(items2)
+        && List.for_all2(sig_(alphas_exp, alphas_typ), items1, items2);
+      switch (s1, s2) {
+      | (Open(items1), Open(items2)) => items(items1, items2)
+      | (Closed(c1), Closed(c2)) =>
+        items(ClosedSig.items(c1), ClosedSig.items(c2))
+      | (Open(_), Closed(_))
+      | (Closed(_), Open(_)) => false
+      };
     | (Sig(_), _) => false
     | (DrvQuoteTy(s1), DrvQuoteTy(s2)) => s1 == s2
     | (DrvQuoteTy(_), _) => false

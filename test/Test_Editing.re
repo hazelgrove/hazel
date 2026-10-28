@@ -1686,6 +1686,24 @@ else f|});
     ~goal={|(1 + (§2 + 3¦)|},
   ),
   test(
+    ~name="Select term from a module item's definition selects the item",
+    ~acts=
+      mk({|let m = { let x = ¦1; let y = 2 } in m|})
+      @ [Action.Select(Term(Current)), Action.Select(Term(Current))],
+    ~goal={|let m = { §let x = 1¦; let y = 2 } in m|},
+  ),
+  test(
+    ~name="Select term from a selected module item selects the module",
+    ~acts=
+      mk({|let m = { let x = ¦1; let y = 2 } in m|})
+      @ [
+        Action.Select(Term(Current)),
+        Action.Select(Term(Current)),
+        Action.Select(Term(Current)),
+      ],
+    ~goal={|let m = §{ let x = 1; let y = 2 }¦ in m|},
+  ),
+  test(
     ~name="Select term with let binding does not select body",
     ~acts=mk({|¦let x = 1 in x|}) @ [Action.Select(Term(Current))],
     ~goal={|§let x = 1 in¦ x|},

@@ -747,6 +747,38 @@ let update_pattern_tests = (
       },
     ),
     test_case(
+      "update_pattern renames a member (internal uses follow)",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let m = {\n  let x = 1;\n  let y = x\n} in m.y",
+            Update(Pattern, "m/x", "z"),
+          );
+        check_rendered(
+          "update_pat_member_rename",
+          "let m = {\n  let z = 1;\n  let y = z\n} in m.y",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "update_pattern renames a member with no use sites",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let m = {\n  let x = 1\n} in 42",
+            Update(Pattern, "m/x", "z"),
+          );
+        check_rendered(
+          "update_pat_unused_member_rename",
+          "let m = {\n  let z = 1\n} in 42",
+          result,
+        );
+      },
+    ),
+    test_case(
       "update_pattern renames across multiple use sites",
       `Quick,
       () => {
