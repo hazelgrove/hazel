@@ -4,6 +4,51 @@ open Test_Evaluator_Prelude;
 let tests = (
   "Evaluator.Fixpoints",
   [
+    /* The binder's ascription is how the fixpoint re-checks at its own type,
+       so the copies an unroll makes keep it. */
+    test_case(
+      "An unrolled fixpoint keeps its binder's ascription",
+      `Quick,
+      () => {
+        let bare = ref(0);
+        let rec go = (n, e: Language.Exp.t) => {
+          let _ =
+            Language.Exp.map_term(
+              ~f_exp=
+                (continue, e: Language.Exp.t) => {
+                  switch (e.term) {
+                  | FixF({term: Var(_), _}, _, _) => bare := bare^ + 1
+                  | _ => ()
+                  };
+                  continue(e);
+                },
+              e,
+            );
+          switch (n < 10 ? single_step(e) : None) {
+          | Some(e) => go(n + 1, e)
+          | None => ()
+          };
+        };
+        go(0, elaborate(parse_exp("let f = fun _ -> f in f(1)")));
+        check(int, "fixpoints with a bare binder", 0, bare^);
+      },
+    ),
+    /* A recursive call runs under the function's own environment, not the
+       caller's: the inner `y = 100` must not reach the body's `y`. */
+    test_case(
+      "A recursive call sees the function's environment",
+      `Quick,
+      () => {
+        let program = "let y = 1 in let f = fun x -> if x == 0 then y else (let y = 100 in f(x - 1)) in f(1)";
+        parse_and_evaluate_test(~msg="evaluator", "1", program);
+        check(
+          step_limited,
+          "stepper",
+          LimitedCompleted((parse_exp("1"), Language.EvaluatorState.empty)),
+          full_small_step_reduction(elaborate(parse_exp(program))),
+        );
+      },
+    ),
     test_case("Inconsistent type in fixpoint pattern", `Quick, () =>
       parse_and_evaluate_test("[] : ()", {|fix () -> []|})
     ),

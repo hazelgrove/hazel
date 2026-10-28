@@ -252,10 +252,64 @@ let hole_parens_annotation = (id: Id.t): IdTagged.IdTag.t => {
   incomplete: get_incomplete([id]),
 };
 
+/* A one-argument application that falls back to a hole keeps its parens
+   as a Parens node around the argument: the bare kids alone would print as
+   `b c`, losing the `( )` tile (`x:a b(c) + 1` strands the type `b(c)` in
+   expression position, where it has no form). */
+let paren_kid = (id: Id.t, kid: Any.t): Any.t => {
+  let annotation = hole_parens_annotation(id);
+  switch (kid) {
+  | Exp(e) =>
+    Exp({
+      annotation,
+      term: Parens(e),
+    })
+  | Pat(p) =>
+    Pat({
+      annotation,
+      term: Parens(p),
+    })
+  | Typ(t) =>
+    Typ({
+      annotation,
+      term: Parens(t),
+    })
+  | _ => kid
+  };
+};
 let kids_of_unsorted =
   fun
   | Op(tiles) => kids_of_tiles(tiles)
   | Pre(tiles, r) => kids_of_tiles(tiles) @ [r]
+  | Post(l, ([(id, (F(Compound(Parens | Ap)), [kid]))], [])) => [
+      l,
+      paren_kid(id, kid),
+    ]
+  /* `f()` falling back to a hole: the `()` has no kid, so keep it as a unit
+     in the head's sort (`?:1() l]` would otherwise print as `?:1 l]`). */
+  | Post(l, ([(id, (F(f), []))], [])) when is_empty_tuple_form(f) => {
+      let annotation = hole_parens_annotation(id);
+      [
+        l,
+        switch (l) {
+        | Pat(_) =>
+          Pat({
+            annotation,
+            term: Tuple([]),
+          })
+        | Typ(_) =>
+          Typ({
+            annotation,
+            term: Prod([]),
+          })
+        | _ =>
+          Exp({
+            annotation,
+            term: Tuple([]),
+          })
+        },
+      ];
+    }
   | Post(l, tiles) => [l] @ kids_of_tiles(tiles)
   | Bin(l, tiles, r) => [l] @ kids_of_tiles(tiles) @ [r];
 
@@ -1148,7 +1202,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
             }
           | F(Compound(Pipeline)) => Ap(Reverse, r, l)
           | F(Compound(ListConcat)) => ListConcat(l, r)
-          | F(f) when op_lexeme(f) != None =>
+          | F(f) when Option.is_some(op_lexeme(f)) =>
             /* Unknown infix operator: kids survive as a MultiHole and
                the operator token as its lexeme (printed back by
                ExpToSegment; elaborated as a stuck application). The
@@ -1164,7 +1218,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | _ => ret(hole(tm))
       }
     }
-  | Bin(_, ([(_id, (F(f), []))], []), _) as tm when op_lexeme(f) != None => {
+  | Bin(_, ([(_id, (F(f), []))], []), _) as tm
+      when Option.is_some(op_lexeme(f)) => {
       /* Unknown infix operator between mixed-sort kids (e.g. the : in
          `? : ? t ?` parses as Bin(Exp, [:], Typ) in a typ context, so
          the same-sort Bin patterns above cannot match) */
@@ -1172,7 +1227,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       Option.iter(~f=set_lexeme, op_lexeme(f));
       ret(hole(tm));
     }
-  | Pre(([(_id, (F(f), []))], []), _) as tm when op_lexeme(f) != None => {
+  | Pre(([(_id, (F(f), []))], []), _) as tm
+      when Option.is_some(op_lexeme(f)) => {
       /* Stranded prefix op; printed back by the 1-kid MultiHole op
          branches */
       Option.iter(~f=set_lexeme, op_lexeme(f));
@@ -1278,7 +1334,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
   | Bin(Pat(p), tiles, Typ(ty)) as tm =>
     switch (tiles) {
     | ([(_id, (F(Compound(TypeAsc)), []))], []) => ret(Asc(p, ty))
-    | ([(_id, (F(f), []))], []) when op_lexeme(f) != None =>
+    | ([(_id, (F(f), []))], []) when Option.is_some(op_lexeme(f)) =>
       /* Unknown infix operator (see the exp Bin fallthrough) */
       Option.iter(~f=set_lexeme, op_lexeme(f));
       ret(hole(tm));
@@ -1335,7 +1391,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
           );
         }
       | ([(_id, (F(Compound(Cons)), []))], []) => ret(Cons(l, r))
-      | ([(_id, (F(f), []))], []) when op_lexeme(f) != None =>
+      | ([(_id, (F(f), []))], []) when Option.is_some(op_lexeme(f)) =>
         /* Unknown infix operator (see the exp Bin fallthrough) */
         Option.iter(~f=set_lexeme, op_lexeme(f));
         ret(hole(tm));
@@ -1363,14 +1419,15 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
         set_lexeme("-");
         ret(hole(tm));
       }
-    | ([(_id, (F(f), []))], []) when op_lexeme(f) != None =>
+    | ([(_id, (F(f), []))], []) when Option.is_some(op_lexeme(f)) =>
       /* Stranded prefix op; printed back by the 1-kid MultiHole op
          branches */
       Option.iter(~f=set_lexeme, op_lexeme(f));
       ret(hole(tm));
     | _ => ret(hole(tm))
     }
-  | Bin(_, ([(_id, (F(f), []))], []), _) as tm when op_lexeme(f) != None => {
+  | Bin(_, ([(_id, (F(f), []))], []), _) as tm
+      when Option.is_some(op_lexeme(f)) => {
       /* Unknown infix operator between mixed-sort kids (e.g. the : in
          `? : ? t ?` parses as Bin(Exp, [:], Typ) in a typ context, so
          the same-sort Bin patterns above cannot match) */
@@ -1378,7 +1435,8 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
       Option.iter(~f=set_lexeme, op_lexeme(f));
       ret(hole(tm));
     }
-  | Pre(([(_id, (F(f), []))], []), _) as tm when op_lexeme(f) != None => {
+  | Pre(([(_id, (F(f), []))], []), _) as tm
+      when Option.is_some(op_lexeme(f)) => {
       /* Stranded prefix op; printed back by the 1-kid MultiHole op
          branches */
       Option.iter(~f=set_lexeme, op_lexeme(f));
@@ -1493,7 +1551,9 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
     ret(Poly(tpat, t))
   | Pre(([(_id, (F(Compound(Rec)), [TPat(tpat)]))], []), Typ(t)) =>
     ret(Rec(tpat, t))
-  | Pre(tiles, Typ({term: Sum(t0), annotation: {ids, _}})) as tm =>
+  /* `Void` is the empty sum as an atom, not a `+ A + B` tail to splice:
+     `+ Void` is one bad entry, as Menhir reads it. */
+  | Pre(tiles, Typ({term: Sum([_, ..._] as t0), annotation: {ids, _}})) as tm =>
     /* Case for leading prefix + preceeding a sum */
     switch (tiles) {
     | ([(_, (F(Compound(SumSingle)), []))], []) =>
@@ -1507,7 +1567,8 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       ret(Sum([parse_sum_term(t)]))
     | _ => ret(hole(tm))
     }
-  | Bin(Typ(t1), tiles, Typ(t2)) as tm when is_typ_bsum(tiles) != None =>
+  | Bin(Typ(t1), tiles, Typ(t2)) as tm
+      when Option.is_some(is_typ_bsum(tiles)) =>
     switch (is_typ_bsum(tiles)) {
     | Some(between_kids) =>
       ret(Sum(List.map(~f=parse_sum_term, [t1] @ between_kids @ [t2])))
@@ -1561,14 +1622,15 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         }
       | ([(_id, (F(Compound(TupleExtension)), []))], []) =>
         ret(ProdExtension(l, r))
-      | ([(_id, (F(f), []))], []) when op_lexeme(f) != None =>
+      | ([(_id, (F(f), []))], []) when Option.is_some(op_lexeme(f)) =>
         /* Unknown infix operator (see the exp Bin fallthrough) */
         Option.iter(~f=set_lexeme, op_lexeme(f));
         ret(hole(tm));
       | _ => ret(hole(tm))
       }
     }
-  | Bin(_, ([(_id, (F(f), []))], []), _) as tm when op_lexeme(f) != None => {
+  | Bin(_, ([(_id, (F(f), []))], []), _) as tm
+      when Option.is_some(op_lexeme(f)) => {
       /* Unknown infix operator between mixed-sort kids (e.g. the : in
          `? : ? t ?` parses as Bin(Exp, [:], Typ) in a typ context, so
          the same-sort Bin patterns above cannot match) */
@@ -1576,7 +1638,8 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       Option.iter(~f=set_lexeme, op_lexeme(f));
       ret(hole(tm));
     }
-  | Pre(([(_id, (F(f), []))], []), _) as tm when op_lexeme(f) != None => {
+  | Pre(([(_id, (F(f), []))], []), _) as tm
+      when Option.is_some(op_lexeme(f)) => {
       /* Stranded prefix op; printed back by the 1-kid MultiHole op
          branches */
       Option.iter(~f=set_lexeme, op_lexeme(f));

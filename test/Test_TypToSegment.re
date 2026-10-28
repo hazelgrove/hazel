@@ -515,6 +515,31 @@ let labeled_singleton_ids_emitted =
     },
   );
 
+/* A bad sum entry went unparenthesized, so `+ (_=T)` printed as `+ _=T`
+   and the singleton Prod's ids were on no tile. */
+let labeled_singleton_sum_entry_ids_emitted =
+  test_case(
+    "labeled singleton sum entry's ids are emitted",
+    `Quick,
+    () => {
+      let {dynamic_ids, emitted, _} =
+        dynamic_ids_and_printed(
+          ~static_typ=IdTagged.FreshGrammar.Typ.prod([]),
+          ~dynamic_typ=
+            Typ.fresh(
+              Sum([
+                ConstructorMap.BadEntry(
+                  IdTagged.FreshGrammar.Typ.(
+                    prod([tup_label(explicit_non_label(), var("t"))])
+                  ),
+                ),
+              ]),
+            ),
+        );
+      check(bool, "subset", true, Id.Set.subset(dynamic_ids, emitted));
+    },
+  );
+
 let tests = [
   ("TypToSegment.Regions", region_tests),
   (
@@ -526,6 +551,7 @@ let tests = [
       QCheck_alcotest.to_alcotest(qcheck_fully_dynamic_colours_everything),
       QCheck_alcotest.to_alcotest(qcheck_identical_colours_nothing),
       QCheck_alcotest.to_alcotest(qcheck_prepared_ids_are_sufficient),
+      labeled_singleton_sum_entry_ids_emitted,
     ],
   ),
 ];

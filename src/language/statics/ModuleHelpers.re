@@ -166,15 +166,32 @@ let value_exports = (items: list(Mod.t)): list(value_export) => {
   go(items);
 };
 
-let labeled_tuple_exp = (exports: list(value_export)): Exp.t => {
+/* The export record has no source position, so its ids are derived from
+   the module's: the same on every statics run, so the incremental cache
+   can hit them, and distinct from the module's own id. A later item's
+   binding of a name shadows the earlier export, but one item can bind a
+   name twice (`let (x, x) = …`), so each field's ids carry its position
+   as well as its name. */
+let labeled_tuple_exp =
+    (~module_id: Id.t, exports: list(value_export)): Exp.t => {
+  let mk = (salt, term: Exp.term): Exp.t =>
+    IdTagged.mk_internal(
+      [Id.derive(~salt="module-export:" ++ salt, module_id)],
+      term,
+    );
   let fields =
     exports
-    |> List.map(~f=({name, _}) =>
-         Exp.fresh(
-           TupLabel(Exp.fresh(Label(name)), Exp.fresh(Var(name))),
-         )
-       );
-  Exp.fresh(Tuple(fields));
+    |> List.mapi(~f=(i, {name, _}) => {
+         let at = string_of_int(i) ++ ":" ++ name;
+         mk(
+           "field:" ++ at,
+           TupLabel(
+             mk("label:" ++ at, Label(name)),
+             mk("var:" ++ at, Var(name)),
+           ),
+         );
+       });
+  mk("record", Tuple(fields));
 };
 
 let extract_ana_labels = (ana: Typ.t): list((Var.t, Typ.t)) =>
@@ -297,6 +314,10 @@ let modlet_pat = (ana_labels: list((Var.t, Typ.t)), pat: Pat.t): Pat.t =>
   | Asc(_) => pat
   };
 
+/* The expression a hole item lowers to, under an id derived from the item. */
+let hole_item_exp = (item: Mod.t, term: Exp.term): Exp.t =>
+  IdTagged.fresh_deterministic(Mod.rep_id(item), term);
+
 let wrap_item =
     (~ana_labels: list((Var.t, Typ.t)), item: Mod.t, body: Exp.t): Exp.t =>
   switch (item.term) {
@@ -310,28 +331,53 @@ let wrap_item =
       Mod.rep_id(item),
       Exp.fresh(TyAlias(tpat, typ, body)),
     )
-  | ModExp(e) => Exp.fresh(Let(Pat.fresh(Wild), e, body))
+  /* Every wrapper carries its item's id, as ModLet/ModType's do: the first
+     item's wrapper is the module's elaborated root, and a fresh id there is
+     a node no user position names. */
+  | ModExp(e) =>
+    IdTagged.fast_copy(
+      Mod.rep_id(item),
+      Exp.fresh(Let(Pat.fresh(Wild), e, body)),
+    )
   | ModuleMod(mp, def) =>
     IdTagged.fast_copy(
       Mod.rep_id(item),
       Exp.fresh(Let(mpat_to_pat(mp), def, body)),
     )
+  /* A hole item IS the hole, but the wrapper needs the item's id (see
+     ModExp), so the hole takes an id derived from it; its marks are copied
+     back onto the item by reclassify_expanded_module_items. */
   | EmptyHole =>
-    let e: Exp.t =
-      IdTagged.fast_copy(Mod.rep_id(item), Exp.fresh(EmptyHole));
-    Exp.fresh(Let(Pat.fresh(Wild), e, body));
+    IdTagged.fast_copy(
+      Mod.rep_id(item),
+      Exp.fresh(
+        Let(Pat.fresh(Wild), hole_item_exp(item, EmptyHole), body),
+      ),
+    )
   | Invalid(s) =>
-    let e: Exp.t =
-      IdTagged.fast_copy(Mod.rep_id(item), Exp.fresh(Invalid(s)));
-    Exp.fresh(Let(Pat.fresh(Wild), e, body));
+    IdTagged.fast_copy(
+      Mod.rep_id(item),
+      Exp.fresh(
+        Let(Pat.fresh(Wild), hole_item_exp(item, Invalid(s)), body),
+      ),
+    )
   | MultiHole(es) =>
-    let e: Exp.t =
-      IdTagged.fast_copy(Mod.rep_id(item), Exp.fresh(MultiHole(es)));
-    Exp.fresh(Let(Pat.fresh(Wild), e, body));
+    IdTagged.fast_copy(
+      Mod.rep_id(item),
+      Exp.fresh(
+        Let(Pat.fresh(Wild), hole_item_exp(item, MultiHole(es)), body),
+      ),
+    )
   };
 
 let lower =
-    (~ctx: Ctx.t, ~ana: option(Typ.t)=?, items: list(Mod.t)): lowered => {
+    (
+      ~ctx: Ctx.t,
+      ~ana: option(Typ.t)=?,
+      ~module_id: Id.t,
+      items: list(Mod.t),
+    )
+    : lowered => {
   let ana_labels =
     switch (ana) {
     | Some(ana) => extract_ana_labels(ana)
@@ -342,7 +388,7 @@ let lower =
     expanded:
       List.fold_right(
         ~f=wrap_item(~ana_labels),
-        ~init=labeled_tuple_exp(value_exports),
+        ~init=labeled_tuple_exp(~module_id, value_exports),
         items,
       ),
     value_exports,
@@ -350,38 +396,73 @@ let lower =
   };
 };
 
-/* Recursively strip ascription annotations from module patterns
-   in let/tyalias expressions. */
-let rec strip_module_sig_pats = (exp: Exp.t): Exp.t => {
+/* Strip ascriptions from the patterns of a lowered module's item chain.
+   Lowering adds ascriptions from the module's signature and its module
+   patterns; `keep` names the ascriptions the user wrote on item patterns
+   (`{ let y : T = … }`), which stay, or the module elaborates to a different
+   type than the user's code has. An item's definition is left alone: a nested
+   module is stripped when it is lowered, and stripping the definition would
+   drop the user's own ascriptions (`{ let y = (let z : T = e in z) }`). */
+let rec strip_module_sig_pats = (~keep=Id.Set.empty, exp: Exp.t): Exp.t => {
   let (term, rewrap) = Exp.unwrap(exp);
   switch (term) {
-  | Let({term: Asc(p, _), _}, def, body) =>
-    Let(
-      strip_module_sig_pats_in_pat(p),
-      strip_module_sig_pats(def),
-      strip_module_sig_pats(body),
-    )
-    |> rewrap
   | Let(p, def, body) =>
     Let(
-      strip_module_sig_pats_in_pat(p),
-      strip_module_sig_pats(def),
-      strip_module_sig_pats(body),
+      strip_module_sig_pats_in_pat(~keep, p),
+      def,
+      strip_module_sig_pats(~keep, body),
     )
     |> rewrap
   | TyAlias(tpat, typ, body) =>
-    TyAlias(tpat, typ, strip_module_sig_pats(body)) |> rewrap
-  | Parens(inner) => Parens(strip_module_sig_pats(inner)) |> rewrap
+    TyAlias(tpat, typ, strip_module_sig_pats(~keep, body)) |> rewrap
+  | Parens(inner) => Parens(strip_module_sig_pats(~keep, inner)) |> rewrap
   | _ => exp
   };
 }
-and strip_module_sig_pats_in_pat = (pat: Pat.t): Pat.t => {
+and strip_module_sig_pats_in_pat = (~keep=Id.Set.empty, pat: Pat.t): Pat.t => {
   let (term, rewrap) = Pat.unwrap(pat);
   switch (term) {
-  | Asc(inner, _) => strip_module_sig_pats_in_pat(inner)
-  | Parens(inner) => Parens(strip_module_sig_pats_in_pat(inner)) |> rewrap
+  | Asc(inner, t) when Id.Set.mem(Pat.rep_id(pat), keep) =>
+    Asc(strip_module_sig_pats_in_pat(~keep, inner), t) |> rewrap
+  | Asc(inner, _) => strip_module_sig_pats_in_pat(~keep, inner)
+  | Parens(inner) =>
+    Parens(strip_module_sig_pats_in_pat(~keep, inner)) |> rewrap
   | _ => pat
   };
+};
+
+/* Ids of the ascriptions the user wrote on a module binder (`module M : S`),
+   which mpat_to_pat gives the binder's own ids. */
+let rec mpat_ascriptions = (acc: Id.Set.t, mp: MPat.t): Id.Set.t =>
+  switch (mp.term) {
+  | Asc(inner, _) =>
+    mpat_ascriptions(Id.Set.add(MPat.rep_id(mp), acc), inner)
+  | _ => acc
+  };
+
+/* Ids of the ascriptions the user wrote on module items' binders: `let`
+   patterns and module binders. */
+let user_item_ascriptions = (items: list(Mod.t)): Id.Set.t => {
+  let acc = ref(Id.Set.empty);
+  let rec go = (p: Pat.t) =>
+    switch (Pat.term_of(p)) {
+    | Asc(inner, _) =>
+      acc := Id.Set.add(Pat.rep_id(p), acc^);
+      go(inner);
+    | Parens(inner) => go(inner)
+    | _ => ()
+    };
+  List.iter(
+    ~f=
+      (item: Mod.t) =>
+        switch (item.term) {
+        | ModLet(pat, _) => go(pat)
+        | ModuleMod(mp, _) => acc := mpat_ascriptions(acc^, mp)
+        | _ => ()
+        },
+    items,
+  );
+  acc^;
 };
 
 /* Restores a module body's ID when it's been lost during tuple elaboration.
@@ -402,11 +483,29 @@ let rec restore_module_body_id = (~id, exp: Exp.t): Exp.t => {
 /* Rewrite InfoExp cls for expanded module items to keep cursor inspector labels. */
 let reclassify_expanded_module_items =
     (items: list(Mod.t), m: StaticsBase.Map.t) =>
-  List.fold_left(
+  List.fold(
     ~f=
       (m, item: Mod.t) => {
         let ids = IdTagged.ids(item);
         let mod_cls = Cls.Mod(Mod.cls_of_term(item.term));
+        /* A hole item's own marks (a bad token, say) were recorded on the hole
+           under its derived id; the item shows them. */
+        let hole_marks =
+          switch (item.term) {
+          | EmptyHole
+          | Invalid(_)
+          | MultiHole(_) =>
+            switch (
+              StaticsBase.Map.lookup_exp(
+                Exp.rep_id(hole_item_exp(item, EmptyHole)),
+                m,
+              )
+            ) {
+            | Some(hole) => hole.marks
+            | None => []
+            }
+          | _ => []
+          };
         switch (StaticsBase.Map.lookup_exp(IdTagged.rep_id(item), m)) {
         | Some(info) =>
           StaticsBase.Map.add_info(
@@ -414,6 +513,7 @@ let reclassify_expanded_module_items =
             Info.InfoExp({
               ...info,
               cls: mod_cls,
+              marks: info.marks @ hole_marks,
             }),
             m,
           )
@@ -438,6 +538,14 @@ let module_actual_type =
          let ty =
            switch (StaticsBase.Map.lookup_pat(Pat.rep_id(pat), m)) {
            | Some({ty, ctx: pat_ctx, _}) =>
+             /* The member's type is the one its name is bound at, which
+                is not always the pattern's: `let y = (y=1)` puns, binding
+                `y : Int`, and the lowered `let` does the same. */
+             let ty =
+               switch (Ctx.lookup_var(pat_ctx, name)) {
+               | Some({typ, _}) => typ
+               | None => ty
+               };
              /* Scope escape: only module-LOCAL aliases must be inlined
                 (they are unbound outside the braces); globals/builtins
                 stay compact per the type-normalization invariant. */
@@ -445,7 +553,7 @@ let module_actual_type =
                ~expand=n => List.mem(local_names, n, ~equal=String.equal),
                pat_ctx,
                ty,
-             )
+             );
            | None => Typ.temp(Unknown(Internal))
            };
          TupLabel(Label(name) |> Typ.temp, ty) |> Typ.temp;
@@ -454,18 +562,26 @@ let module_actual_type =
 };
 
 /* Post-process expanded module elaboration to hide expansion-only wrappers. */
-let module_elab = (~module_exp_id: Id.t, expanded_elab: Exp.t): Exp.t =>
+let module_elab =
+    (~module_exp_id: Id.t, ~keep=Id.Set.empty, expanded_elab: Exp.t): Exp.t =>
   expanded_elab
-  |> strip_module_sig_pats
+  |> strip_module_sig_pats(~keep)
   |> restore_module_body_id(~id=module_exp_id);
 
-/* Rebuild ModuleExp elaboration with direct def elaboration preserved. */
-let moduleexp_elab = (~def_elab_direct: Exp.t, expanded_elab: Exp.t): Exp.t => {
+/* Rebuild ModuleExp elaboration with direct def elaboration preserved. The
+   binder keeps the signature the user wrote (`module M : S = e in …`). */
+let moduleexp_elab =
+    (~mp: MPat.t, ~def_elab_direct: Exp.t, expanded_elab: Exp.t): Exp.t => {
+  let keep = mpat_ascriptions(Id.Set.empty, mp);
   let (expanded_term, expanded_rewrap) = Exp.unwrap(expanded_elab);
   switch (expanded_term) {
   | Let(p_elab, _, body_elab) =>
-    Let(strip_module_sig_pats_in_pat(p_elab), def_elab_direct, body_elab)
+    Let(
+      strip_module_sig_pats_in_pat(~keep, p_elab),
+      def_elab_direct,
+      body_elab,
+    )
     |> expanded_rewrap
-  | _ => strip_module_sig_pats(expanded_elab)
+  | _ => strip_module_sig_pats(~keep, expanded_elab)
   };
 };
