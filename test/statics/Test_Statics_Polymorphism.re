@@ -120,5 +120,52 @@ let y : Int = id@<Color> in y|};
       "Polymorphic Equality type contains arrow 7",
       {| type T2 = +A(Int->Int)+B in B == B |} |> parse_exp,
     ),
+    /* The binder is bound at its own id, so a use of the variable finds it. */
+    test_case(
+      "A poly-bound type variable's use resolves to its binder",
+      `Quick,
+      () => {
+        let map = statics(parse_exp({|let f : poly a -> a -> a = ? in f|}));
+        let binders =
+          Language.Id.Map.fold(
+            (id, info, acc) =>
+              switch (info) {
+              | Language.Info.InfoTPat({user_term: {term: Var("a"), _}, _}) => [
+                  id,
+                  ...acc,
+                ]
+              | _ => acc
+              },
+            map,
+            [],
+          );
+        let sites =
+          Language.Id.Map.fold(
+            (_, info, acc) =>
+              switch (info) {
+              | Language.Info.InfoTyp({user_term: {term: Var("a"), _}, _}) => [
+                  Language.Info.get_binding_site(info),
+                  ...acc,
+                ]
+              | _ => acc
+              },
+            map,
+            [],
+          );
+        check(Alcotest.int, "two uses", 2, List.length(sites));
+        check(
+          Alcotest.bool,
+          "each use finds the binder",
+          true,
+          List.for_all(
+            fun
+            | Some(id) =>
+              List.exists(b => Language.Id.compare(id, b) == 0, binders)
+            | None => false,
+            sites,
+          ),
+        );
+      },
+    ),
   ],
 );

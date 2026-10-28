@@ -2306,14 +2306,14 @@ and uexp_to_info_map =
         ~probe_targets=body.probe_targets,
         m,
       );
-    | Let(p, def, body) when Option.is_some(FunctionSugar.detect(p)) =>
+    | Let(p, def, body) when Option.is_some(Pat.function_sugar(p)) =>
       /* Syntactic sugar: `let f(x: Int, y): Ret = def` desugars to
          `let f = fun (x: Int, y) -> (def : Ret)`. Build the rewrite and
          delegate to the regular Let machinery by recursing; patch up
          the info map for pattern ids that vanish in the rewrite
          (the Ap wrapper and optional outer Asc). Same structural
          pattern as `ModuleExp` expansion above. */
-      let (f_name, args, ret_ty) = Option.get(FunctionSugar.detect(p));
+      let (f_name, args, ret_ty) = Option.get(Pat.function_sugar(p));
       let rewritten =
         FunctionSugar.rewrite(
           ~orig_let=uexp,
@@ -2922,7 +2922,7 @@ and uexp_to_info_map =
           switch (item.term) {
           | ModLet(p, def) =>
             let (binder, def, sugar) =
-              switch (FunctionSugar.detect(p)) {
+              switch (Pat.function_sugar(p)) {
               | Some((f_name, args, ret_ty)) => (
                   f_name,
                   FunctionSugar.desugared_fun(~args, ~ret_ty, ~def),
@@ -4574,7 +4574,7 @@ and utyp_to_info_map =
       );
     add(~ty=Sum(List.rev(closed)) |> rewrap, m);
   | Poly(utpat, tbody) =>
-    let body_ctx = Ctx.extend_dummy_tvar(ctx, utpat);
+    let body_ctx = Ctx.extend_tvar_of_utpat(ctx, utpat, Abstract);
     let (body, m) =
       utyp_to_info_map(
         tbody,
@@ -4597,23 +4597,10 @@ and utyp_to_info_map =
       );
     add(~ty=utyp, m);
   | Rec(utpat, tbody) =>
-    /* The body is read with the binder standing for the whole type, but
-       closed with it abstract, as the binder of the closed type. */
-    let body_ctx =
-      switch (utpat.term) {
-      | Var(name) =>
-        Ctx.extend_tvar(
-          ctx,
-          {
-            name,
-            id: TPat.rep_id(utpat),
-            kind: Singleton(utyp),
-          },
-        )
-      | Invalid(_)
-      | EmptyHole
-      | MultiHole(_) => ctx
-      };
+    /* The body is read with the binder standing for the whole type,
+       closed, so whatever it expands to is closed. */
+    let ty = Typ.close(ctx, utyp);
+    let body_ctx = Ctx.extend_tvar_of_utpat(ctx, utpat, Singleton(ty));
     let m =
       utyp_to_info_map(
         tbody,
@@ -4625,7 +4612,7 @@ and utyp_to_info_map =
       |> snd;
     let m =
       utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
-    add(~ty=Typ.close(ctx, utyp), m);
+    add(~ty, m);
   | Sig(s) =>
     /* Written items scope sequentially, each read where the earlier ones
        are bound closed; closed items are independent. */
