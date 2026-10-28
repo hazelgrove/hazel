@@ -1130,6 +1130,16 @@ let test_capitalized_dot_access =
     Some(int()),
   );
 
+/* A module name is checked as the pattern it binds (`MPat.to_pat`). */
+let test_invalid_module_name_is_a_bad_token =
+  single_mark_test(
+    "An invalid module name is marked as a bad token",
+    {|module 1 = { let x = 1 } in 2|},
+    fun
+    | BadToken("1") => true
+    | _ => false,
+  );
+
 /* A capitalized name resolves to its newest binding: a module bound after
    the JSON type's `List` constructor shadows it, as any later binding
    shadows an earlier one. */
@@ -2163,6 +2173,7 @@ let tests = (
     test_module_keyword_returns_module,
     test_capitalized_dot_access,
     test_module_shadowing_a_constructor,
+    test_invalid_module_name_is_a_bad_token,
     /* Module keyword annotation tests */
     test_module_keyword_sig_annotation,
     test_error_module_keyword_sig_mismatch,

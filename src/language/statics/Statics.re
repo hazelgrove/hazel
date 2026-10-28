@@ -2977,8 +2977,6 @@ and uexp_to_info_map =
               };
             (with_item(c, item, ModLet(f.p_elab, f.def_elab)), m);
           | ModuleMod(mp, def) =>
-            let (_, _, m) =
-              any_to_info_map(~ctx, ~ancestors, ~probe_ids, MPat(mp), m);
             let (f, c, m) =
               binding_item(
                 ~ctx,
@@ -3246,16 +3244,7 @@ and uexp_to_info_map =
         m,
       );
     | ModuleExp(mp, def, body) =>
-      /* Expand module M = def in body → let M = def in body.
-         Process the MPat for cursor info, then expand to Let and type-check. */
-      let (_, _, m) =
-        any_to_info_map(
-          ~ctx,
-          ~ancestors=ancestors_inclusive,
-          ~probe_ids,
-          MPat(mp),
-          m,
-        );
+      /* Expand module M = def in body → let M = def in body. */
       let pat = MPat.to_pat(mp);
       let expanded =
         IdTagged.fast_copy(

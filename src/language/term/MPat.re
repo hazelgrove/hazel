@@ -51,15 +51,15 @@ let temp: term => t =
   };
 
 /* The module name pattern as a value pattern, keeping its ids: a module
-   binding is a value binding at runtime. */
+   binding is a value binding, checked and matched as one. */
 let rec to_pat = (mp: t): TermBase.Pat.t => {
   let at = (term: TermBase.Pat.term) =>
     IdTagged.fast_copy(rep_id(mp), IdTagged.fresh(term));
   switch (mp.term) {
   | Var(name) => at(Var(name))
   | Asc(inner, typ) => at(Asc(to_pat(inner), typ))
-  | Invalid(_)
-  | EmptyHole
-  | MultiHole(_) => at(Wild)
+  | Invalid(token) => at(Invalid(token))
+  | EmptyHole => at(EmptyHole)
+  | MultiHole(tms) => at(MultiHole(tms))
   };
 };
