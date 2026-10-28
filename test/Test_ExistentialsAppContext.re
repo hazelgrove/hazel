@@ -434,6 +434,39 @@ let complete = (cs: CachedStatics.t, m: EvalResult.Model.t) => {
   (calc(~is_edited=false, cs, m), reply);
 };
 
+/* Reusable for other tests (e.g. the integrated witness UI test): run one
+   source through the ACTUAL app path (editor statics, EvalResult wiring,
+   real WorkerServer reply, Theorems, EvalResult.Model.proof_map) and return
+   what the app shows next to the raw worker map. Depends only on this
+   module and Test_ResetExistentials, never on a UI test. */
+type app = {
+  statics: CachedStatics.t,
+  model: EvalResult.Model.t,
+  theorem: Id.t,
+  proof: Proof.t,
+  /* What both CellEditor consumers read. */
+  accessor: ProofMap.t,
+  /* The worker's own (no-statics) map: empty after the repair. */
+  worker: ProofMap.t,
+  status: string,
+};
+
+let app_of_source = (src: string): app => {
+  queue := [];
+  let statics = cached_statics(Test_Evaluator_Prelude.parse_exp(src));
+  let (theorem, proof) = theorem_of(statics);
+  let (model, reply) = complete(statics, EvalResult.Model.init);
+  {
+    statics,
+    model,
+    theorem,
+    proof,
+    accessor: EvalResult.Model.proof_map(model),
+    worker: EvaluatorState.get_proof_map(state_of_reply(reply)),
+    status: app_status(model, theorem),
+  };
+};
+
 let rel_eq_by_node = (proof: Proof.t): option(Proof.t) =>
   Test_ResetExistentials.proof_nodes(proof)
   |> List.find_opt((n: Proof.t) =>
@@ -455,16 +488,12 @@ let witness_case = ((label, src, expect)) =>
     label ++ ": actual app map/status = native real statics",
     `Quick,
     () => {
-      queue := [];
-      let cs = cached_statics(Test_Evaluator_Prelude.parse_exp(src));
-      let (thm, proof) = theorem_of(cs);
+      let a = app_of_source(src);
+      let (cs, thm, proof, worker, accessor, status) =
+        (a.statics, a.theorem, a.proof, a.worker, a.accessor, a.status);
       let native = native_map(cs);
-      let (m, reply) = complete(cs, EvalResult.Model.init);
-      let worker = EvaluatorState.get_proof_map(state_of_reply(reply));
-      let accessor = EvalResult.Model.proof_map(m);
       let native_status =
         ProofMap.show_full_status(ProofMap.full_status_of_proof(native, proof));
-      let status = app_status(m, thm);
       let witness_out = pm =>
         switch (rel_eq_by_node(proof)) {
         | Some(n) =>
