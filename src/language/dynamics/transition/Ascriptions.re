@@ -69,8 +69,14 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       )
     | (TupLabel({term: ExplicitNonlabel, _}, inner), _) =>
       Some(recur(Asc(inner, t) |> DHExp.fresh))
+    /* Different labels: the value doesn't have the type, so the cast
+       stays, as for every other mismatch below. Pushing it inside kept the
+       value's label and silently changed the type (`(x=e) : (y=T)` stepped
+       to `(x=e:T)`). */
+    | (TupLabel({term: Label(a), _}, _), TupLabel({term: Label(b), _}, _))
+        when a != b =>
+      None
     | (TupLabel(l, inner), TupLabel(_l2, inner_ty)) =>
-      // TODO Figure out what to do if the labels don't match
       let inner' = recur(Asc(inner, inner_ty) |> DHExp.fresh);
       inner' === inner
         ? Some(e)

@@ -355,27 +355,6 @@ let dynamic_ids_and_printed =
   };
 };
 
-/* Carved out of the two properties below: `Typ.all_ids` reaches into a
-   `proof_of`'s expression, including type annotations the printer hides, and
-   printing that expression mints ids the type padding never supplied, so
-   neither direction holds for it yet. */
-let contains_proof_of = (typ: Typ.t): bool => {
-  let found = ref(false);
-  let _ =
-    Typ.map_term(
-      ~f_typ=
-        (cont, ty) => {
-          switch (Typ.term_of(ty)) {
-          | ProofOf(_) => found := true
-          | _ => ()
-          };
-          cont(ty);
-        },
-      typ,
-    );
-  found^;
-};
-
 /* SOUNDNESS. Every id in the set must appear somewhere in the segment. An id that
    appears nowhere describes nothing, and means the dynamic_ids and the segment were
    computed from different types. */
@@ -388,7 +367,6 @@ let qcheck_dynamic_ids_are_emitted =
       QCheck_Util.arb_typ_full(~minimal_idents=false, 5),
     ),
     ((static_typ, dynamic_typ)) => {
-      QCheck.assume(!contains_proof_of(dynamic_typ));
       let {dynamic_ids, emitted, _} =
         dynamic_ids_and_printed(~static_typ, ~dynamic_typ);
       Id.Set.subset(dynamic_ids, emitted);
@@ -417,7 +395,6 @@ let qcheck_fully_dynamic_colours_everything =
         | _ => true
         },
       );
-      QCheck.assume(!contains_proof_of(dynamic_typ));
       let {dynamic_ids, tiles, _} =
         dynamic_ids_and_printed(
           ~static_typ=Typ.fresh(Unknown(Internal)),
@@ -513,6 +490,31 @@ let labeled_singleton_ids_emitted =
     },
   );
 
+/* A bad sum entry went unparenthesized, so `+ (_=T)` printed as `+ _=T`
+   and the singleton Prod's ids were on no tile. */
+let labeled_singleton_sum_entry_ids_emitted =
+  test_case(
+    "labeled singleton sum entry's ids are emitted",
+    `Quick,
+    () => {
+      let {dynamic_ids, emitted, _} =
+        dynamic_ids_and_printed(
+          ~static_typ=IdTagged.FreshGrammar.Typ.prod([]),
+          ~dynamic_typ=
+            Typ.fresh(
+              Sum([
+                ConstructorMap.BadEntry(
+                  IdTagged.FreshGrammar.Typ.(
+                    prod([tup_label(explicit_non_label(), var("t"))])
+                  ),
+                ),
+              ]),
+            ),
+        );
+      check(bool, "subset", true, Id.Set.subset(dynamic_ids, emitted));
+    },
+  );
+
 let tests = [
   ("TypToSegment.Regions", region_tests),
   (
@@ -524,6 +526,7 @@ let tests = [
       QCheck_alcotest.to_alcotest(qcheck_fully_dynamic_colours_everything),
       QCheck_alcotest.to_alcotest(qcheck_identical_colours_nothing),
       QCheck_alcotest.to_alcotest(qcheck_prepared_ids_are_sufficient),
+      labeled_singleton_sum_entry_ids_emitted,
     ],
   ),
 ];

@@ -161,30 +161,18 @@ let menhir_maketerm_print_equivalent_test = (name: string, exp: AST.exp) =>
  * We generate an expression, convert it to the core representation, convert it to a segment,
  * serialize it, parse it with MakeTerm, and parse it with Menhir.
  */
-/* Module items the two parsers still disagree on. A bare `case` raises in
-   MakeTerm: `case … end` has no Mod mold, so `remold_tile` leaves it and its
-   kids alone, and the `| =>` inside keeps the empty-`in_` Any mold that
-   `Form.Molds.get` handed it. The `…-in` binder forms and parenthesized
-   sequences instead hit the `;`-absorption ambiguity in `modItemExp`.
-   Parenthesizing or nesting the item avoids both — only a bare item is
-   affected. Each shape is pinned by a skipped test below; see
-   hazelgrove/hazel#TODO. Generated terms containing one are discarded rather
-   than judged, so the generator keeps its full coverage everywhere else. */
+/* Module items the two parsers still disagree on: the `…-in` binder forms.
+   Inside `{ }` the editor molds `let` as a module-item `let … =`, which has no
+   `in` shard, so `{ let y = 1 in y }` is a module let whose definition is
+   `1 in y` (`in` left as an unknown infix), where Menhir reads an expression
+   item. Which reading is intended is undecided. Parenthesizing the item
+   avoids it. Pinned by skipped tests below; generated terms containing one are
+   discarded rather than judged. */
 let is_unsupported_mod_item = (e: Exp.t): bool =>
   switch (Exp.term_of(e)) {
-  | Match(_)
   | Let(_)
   | ModuleExp(_)
-  | TyAlias(_)
-  /* A generated `Seq` item is bare and only gains its parens when printed,
-     so both shapes have to be listed. The others are fine parenthesized —
-     `{ (case … end) }` agrees. */
-  | Seq(_) => true
-  | Parens(inner) =>
-    switch (Exp.term_of(inner)) {
-    | Seq(_) => true
-    | _ => false
-    }
+  | TyAlias(_) => true
   | _ => false
   };
 
@@ -216,81 +204,8 @@ let has_unsupported_mod_item = (e: Exp.t): bool => {
   found^;
 };
 
-/* A singleton pattern tuple prints as `(_=p)`, so a nested one prints as
-   `(_=(_=p))` — which parses back nested, while Canonicalize flattens it to a
-   single `(_=p)`. Telling the two apart needs to know whether a TupLabel sits
-   in a direct tuple field, which the canonical form does not record; node ids
-   cannot stand in for it, because a real parse may share an id between a node
-   and its child while a generated term never does. Pinned by skipped tests
-   below; see hazelgrove/hazel#TODO. */
-let rec is_singleton_tuple_pat = (p: Pat.t): bool =>
-  switch (Pat.term_of(p)) {
-  | Tuple([_]) => true
-  | Parens(inner) => is_singleton_tuple_pat(inner)
-  | _ => false
-  };
-
-let has_nested_singleton_tuple_pat = (e: Exp.t): bool => {
-  let found = ref(false);
-  let _ =
-    TermBase.Exp.map_term(
-      ~f_exp=(cont, e) => cont(e),
-      ~f_pat=
-        (cont, p) => {
-          switch (Pat.term_of(p)) {
-          | Tuple([inner]) when is_singleton_tuple_pat(inner) =>
-            found := true
-          | _ => ()
-          };
-          cont(p);
-        },
-      ~f_typ=(cont, t) => cont(t),
-      e,
-    );
-  found^;
-};
-
-/* `Void` is sugar for the empty sum, so `+ Void` is a sum whose entry is
-   itself a sum — and the two parsers splice that entry differently, one
-   keeping a BadEntry and the other flattening it away. `+ Int`, `+ A` and
-   `+ ?` all agree; it is only the nested-sum entry. See
-   hazelgrove/hazel#TODO. */
-let has_sum_entry_sum = (e: Exp.t): bool => {
-  let found = ref(false);
-  let _ =
-    TermBase.Exp.map_term(
-      ~f_exp=(cont, e) => cont(e),
-      ~f_pat=(cont, p) => cont(p),
-      ~f_typ=
-        (cont, t) => {
-          switch (Typ.term_of(t)) {
-          | Sum(variants) =>
-            List.iter(
-              variant =>
-                switch (variant) {
-                | ConstructorMap.BadEntry(inner) =>
-                  switch (Typ.term_of(inner)) {
-                  | Sum(_) => found := true
-                  | _ => ()
-                  }
-                | _ => ()
-                },
-              variants,
-            )
-          | _ => ()
-          };
-          cont(t);
-        },
-      e,
-    );
-  found^;
-};
-
 /* Shapes the Menhir properties do not judge. */
-let is_carved_out = (e: Exp.t): bool =>
-  has_unsupported_mod_item(e)
-  || has_nested_singleton_tuple_pat(e)
-  || has_sum_entry_sum(e);
+let is_carved_out = (e: Exp.t): bool => has_unsupported_mod_item(e);
 
 let qcheck_menhir_maketerm_equivalent_test =
   QCheck.Test.make(
@@ -543,11 +458,8 @@ let tests =
         "Unit mid cons chain",
         "fun x :: () :: y -> 1",
       ),
-      /* PRE-EXISTING divergence (not the UNIT gap): on an ascribed cons
-         chain MakeTerm binds : to the last ELEMENT (Cons(x, Asc(y, T)))
-         while funAscElem ascribes the whole chain. Surfaced while
-         pinning the UNIT fix; needs its own decision. */
-      skip_menhir_maketerm_equivalent_test(
+      /* Ascription binds to the cons element in both parsers. */
+      menhir_maketerm_equivalent_test(
         "Ascribed cons-chain parameter (element vs chain binding)",
         "fun x :: y : [T] -> 1",
       ),
@@ -1144,24 +1056,23 @@ let ex5 = list_of_mylist(x) in
 (ex1, ex2, ex3, ex4, ex5)
     |},
       ),
-      // This fails because MakeTerm can't handle left to right keyword prefixes.
-      skip_menhir_maketerm_equivalent_test(
+      menhir_maketerm_equivalent_test(
         "Prefixed keyword parses",
         {|let ? = ina in ?|},
       ),
-      skip_menhir_maketerm_equivalent_test(
+      menhir_maketerm_equivalent_test(
         "Sum type messed up in make term",
         {|type ? = rec ? -> + Aramj -> Bool in ?|},
       ),
-      skip_menhir_maketerm_equivalent_test(
+      menhir_maketerm_equivalent_test(
         "List concat and typap",
         {|type ? = (+ Ulog, () -> Float) in let (()) = (()) in 0.001536|},
       ),
-      skip_menhir_maketerm_equivalent_test(
+      menhir_maketerm_equivalent_test(
         "Sum in product in typeap",
         {|((fun _ -> b)) @< [(+ Kfgii, Float)] >|},
       ),
-      skip_menhir_maketerm_equivalent_test(
+      menhir_maketerm_equivalent_test(
         "Non-unique constructors currently throws in equality",
         {|type ? = ((+ ? + ?)) in []|},
       ),
@@ -1230,8 +1141,7 @@ let ex5 = list_of_mylist(x) in
         "Module keyword capitalized",
         {|module M = { let x = 1; let y = 2 } in M.x|},
       ),
-      /* Menhir produces Constructor("M") for M in M.x, MakeTerm produces Var("M") */
-      skip_menhir_maketerm_equivalent_test(
+      menhir_maketerm_equivalent_test(
         "Module keyword with prod annotation",
         {|module M : (x=Int) = { let x = 1 } in M.x|},
       ),
@@ -1243,8 +1153,7 @@ let ex5 = list_of_mylist(x) in
         "Module keyword in module body",
         {|{ module Inner = { let x = 1 }; let y = Inner.x }|},
       ),
-      /* Menhir produces Constructor("Outer") for Outer in Outer.Inner.x, MakeTerm produces Var("Outer") */
-      skip_menhir_maketerm_equivalent_test(
+      menhir_maketerm_equivalent_test(
         "Nested module keyword",
         {|module Outer = { module Inner = { let x = 10 } } in Outer.Inner.x|},
       ),
@@ -1626,19 +1535,15 @@ let dumps = [
     },
   ),
   /* Menhir 85 classes (MakeTerm vs Menhir on the same printed string). */
-  /* Skipped: pre-existing molding bug, not specific to this generator.
-     `case … end` has no Mod mold, so inside `{ }` it is a molding barrier
-     (`remold_tile` returning None keeps a tile without visiting its
-     children). The `| =>` inside keeps the Any fallback mold that
-     `Form.Molds.get` hands it — whose `in_` is empty despite the tile having
-     a child — and MakeTerm raises indexing it. Remolding every kid fixes it
-     but costs ~4x on the editor parser. See hazelgrove/hazel#TODO. */
-  skip_menhir_maketerm_equivalent_test(
+  /* `case … end` has no Mod mold, so inside `{ }` its `| =>` used to keep
+     the Any fallback mold (empty `in_`) and MakeTerm raised indexing it;
+     remold now revisits kids carrying a stale mold. */
+  menhir_maketerm_equivalent_test(
     "REPRO Menhir85 case as module item",
     {|{ case _ | _ => 1 end }|},
   ),
-  /* Same ledger, `;`-absorption rather than molding: the `…-in` binder forms
-     and a parenthesized sequence disagree as bare module items. */
+  /* Skipped: the `…-in` binder forms disagree as bare module items (see
+     is_unsupported_mod_item). */
   skip_menhir_maketerm_equivalent_test(
     "REPRO Menhir85 let-in as module item",
     {|{ let y = 1 in y }|},
@@ -1651,22 +1556,24 @@ let dumps = [
     "REPRO Menhir85 tyalias-in as module item",
     {|{ type t = Int in 1 }|},
   ),
-  skip_menhir_maketerm_equivalent_test(
+  /* The `;` inside parens is a sequence in both parsers (it used to keep a
+     module-separator mold from being typed inside the braces). */
+  menhir_maketerm_equivalent_test(
     "REPRO Menhir85 parenthesized sequence as module item",
     {|{ (9; 8) }|},
   ),
-  /* Nested singleton tuple patterns: printed `(_=(_=p))` reparses nested,
-     Canonicalize flattens. Same ledger as the module items above. */
-  skip_menhir_maketerm_equivalent_test(
+  /* Nested singleton tuple patterns `(_=(_=p))` agree in both parsers. */
+  menhir_maketerm_equivalent_test(
     "REPRO Menhir85 nested singleton tuple pattern in fun",
     {|fun (_=(_=?)) -> 1|},
   ),
-  skip_menhir_maketerm_equivalent_test(
+  menhir_maketerm_equivalent_test(
     "REPRO Menhir85 nested singleton tuple pattern in case rule",
     {|case _ | (_=(_=?)) => ? end|},
   ),
-  /* `Void` is the empty sum, so this is a sum entry that is itself a sum. */
-  skip_menhir_maketerm_equivalent_test(
+  /* `Void` is the empty sum, so this is a sum entry that is itself a sum:
+     both parsers keep it as one bad entry. */
+  menhir_maketerm_equivalent_test(
     "REPRO Menhir85 Void as a bare sum entry",
     {|1 : (+ Void)|},
   ),

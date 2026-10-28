@@ -159,15 +159,29 @@ let value_exports = (items: list(Mod.t)): list(value_export) => {
   go(items);
 };
 
-let labeled_tuple_exp = (exports: list(value_export)): Exp.t => {
+/* The export record has no source position, so its ids are derived from
+   the module's: the same on every statics run, so the incremental cache
+   can hit them, and distinct from the module's own id. Export names are
+   unique (a later binding of a name shadows the earlier export). */
+let labeled_tuple_exp =
+    (~module_id: Id.t, exports: list(value_export)): Exp.t => {
+  let mk = (salt, term: Exp.term): Exp.t =>
+    IdTagged.mk_internal(
+      [Id.derive(~salt="module-export:" ++ salt, module_id)],
+      term,
+    );
   let fields =
     exports
     |> List.map(({name, _}) =>
-         Exp.fresh(
-           TupLabel(Exp.fresh(Label(name)), Exp.fresh(Var(name))),
+         mk(
+           "field:" ++ name,
+           TupLabel(
+             mk("label:" ++ name, Label(name)),
+             mk("var:" ++ name, Var(name)),
+           ),
          )
        );
-  Exp.fresh(Tuple(fields));
+  mk("record", Tuple(fields));
 };
 
 let rec strip_typ_parens = (ty: Typ.t): Typ.t =>
@@ -283,6 +297,10 @@ let modlet_pat = (ana_labels: list((Var.t, Typ.t)), pat: Pat.t): Pat.t =>
   | _ => pat
   };
 
+/* The expression a hole item lowers to, under an id derived from the item. */
+let hole_item_exp = (item: Mod.t, term: Exp.term): Exp.t =>
+  IdTagged.fresh_deterministic(Mod.rep_id(item), term);
+
 let wrap_item =
     (~ana_labels: list((Var.t, Typ.t)), item: Mod.t, body: Exp.t): Exp.t =>
   switch (item.term) {
@@ -296,28 +314,53 @@ let wrap_item =
       Mod.rep_id(item),
       Exp.fresh(TyAlias(tpat, typ, body)),
     )
-  | ModExp(e) => Exp.fresh(Let(Pat.fresh(Wild), e, body))
+  /* Every wrapper carries its item's id, as ModLet/ModType's do: the first
+     item's wrapper is the module's elaborated root, and a fresh id there is
+     a node no user position names. */
+  | ModExp(e) =>
+    IdTagged.fast_copy(
+      Mod.rep_id(item),
+      Exp.fresh(Let(Pat.fresh(Wild), e, body)),
+    )
   | ModuleMod(mp, def) =>
     IdTagged.fast_copy(
       Mod.rep_id(item),
       Exp.fresh(Let(mpat_to_pat(mp), def, body)),
     )
+  /* A hole item IS the hole, but the wrapper needs the item's id (see
+     ModExp), so the hole takes an id derived from it; its marks are copied
+     back onto the item by reclassify_expanded_module_items. */
   | EmptyHole =>
-    let e: Exp.t =
-      IdTagged.fast_copy(Mod.rep_id(item), Exp.fresh(EmptyHole));
-    Exp.fresh(Let(Pat.fresh(Wild), e, body));
+    IdTagged.fast_copy(
+      Mod.rep_id(item),
+      Exp.fresh(
+        Let(Pat.fresh(Wild), hole_item_exp(item, EmptyHole), body),
+      ),
+    )
   | Invalid(s) =>
-    let e: Exp.t =
-      IdTagged.fast_copy(Mod.rep_id(item), Exp.fresh(Invalid(s)));
-    Exp.fresh(Let(Pat.fresh(Wild), e, body));
+    IdTagged.fast_copy(
+      Mod.rep_id(item),
+      Exp.fresh(
+        Let(Pat.fresh(Wild), hole_item_exp(item, Invalid(s)), body),
+      ),
+    )
   | MultiHole(es) =>
-    let e: Exp.t =
-      IdTagged.fast_copy(Mod.rep_id(item), Exp.fresh(MultiHole(es)));
-    Exp.fresh(Let(Pat.fresh(Wild), e, body));
+    IdTagged.fast_copy(
+      Mod.rep_id(item),
+      Exp.fresh(
+        Let(Pat.fresh(Wild), hole_item_exp(item, MultiHole(es)), body),
+      ),
+    )
   };
 
 let lower =
-    (~ctx: Ctx.t, ~ana: option(Typ.t)=?, items: list(Mod.t)): lowered => {
+    (
+      ~ctx: Ctx.t,
+      ~ana: option(Typ.t)=?,
+      ~module_id: Id.t,
+      items: list(Mod.t),
+    )
+    : lowered => {
   let ana_labels =
     switch (ana) {
     | Some(ana) => extract_ana_labels(ana)
@@ -329,7 +372,7 @@ let lower =
       List.fold_right(
         wrap_item(~ana_labels),
         items,
-        labeled_tuple_exp(value_exports),
+        labeled_tuple_exp(~module_id, value_exports),
       ),
     value_exports,
     type_exports: collect_type_exports(ctx, items),
@@ -337,37 +380,58 @@ let lower =
 };
 
 /* Recursively strip ascription annotations from module patterns
-   in let/tyalias expressions. */
-let rec strip_module_sig_pats = (exp: Exp.t): Exp.t => {
+   in let/tyalias expressions. Lowering adds ascriptions from the module's
+   signature and its module patterns; `keep` names the ascriptions the user
+   wrote on item patterns (`{ let y : T = … }`), which stay, or the module
+   elaborates to a different type than the user's code has. */
+let rec strip_module_sig_pats = (~keep=Id.Set.empty, exp: Exp.t): Exp.t => {
   let (term, rewrap) = Exp.unwrap(exp);
   switch (term) {
-  | Let({term: Asc(p, _), _}, def, body) =>
-    Let(
-      strip_module_sig_pats_in_pat(p),
-      strip_module_sig_pats(def),
-      strip_module_sig_pats(body),
-    )
-    |> rewrap
   | Let(p, def, body) =>
     Let(
-      strip_module_sig_pats_in_pat(p),
-      strip_module_sig_pats(def),
-      strip_module_sig_pats(body),
+      strip_module_sig_pats_in_pat(~keep, p),
+      strip_module_sig_pats(~keep, def),
+      strip_module_sig_pats(~keep, body),
     )
     |> rewrap
   | TyAlias(tpat, typ, body) =>
-    TyAlias(tpat, typ, strip_module_sig_pats(body)) |> rewrap
-  | Parens(inner) => Parens(strip_module_sig_pats(inner)) |> rewrap
+    TyAlias(tpat, typ, strip_module_sig_pats(~keep, body)) |> rewrap
+  | Parens(inner) => Parens(strip_module_sig_pats(~keep, inner)) |> rewrap
   | _ => exp
   };
 }
-and strip_module_sig_pats_in_pat = (pat: Pat.t): Pat.t => {
+and strip_module_sig_pats_in_pat = (~keep=Id.Set.empty, pat: Pat.t): Pat.t => {
   let (term, rewrap) = Pat.unwrap(pat);
   switch (term) {
-  | Asc(inner, _) => strip_module_sig_pats_in_pat(inner)
-  | Parens(inner) => Parens(strip_module_sig_pats_in_pat(inner)) |> rewrap
+  | Asc(inner, t) when Id.Set.mem(Pat.rep_id(pat), keep) =>
+    Asc(strip_module_sig_pats_in_pat(~keep, inner), t) |> rewrap
+  | Asc(inner, _) => strip_module_sig_pats_in_pat(~keep, inner)
+  | Parens(inner) =>
+    Parens(strip_module_sig_pats_in_pat(~keep, inner)) |> rewrap
   | _ => pat
   };
+};
+
+/* Ids of the ascriptions the user wrote on module-item `let` patterns. */
+let user_item_ascriptions = (items: list(Mod.t)): Id.Set.t => {
+  let acc = ref(Id.Set.empty);
+  let rec go = (p: Pat.t) =>
+    switch (Pat.term_of(p)) {
+    | Asc(inner, _) =>
+      acc := Id.Set.add(Pat.rep_id(p), acc^);
+      go(inner);
+    | Parens(inner) => go(inner)
+    | _ => ()
+    };
+  List.iter(
+    (item: Mod.t) =>
+      switch (item.term) {
+      | ModLet(pat, _) => go(pat)
+      | _ => ()
+      },
+    items,
+  );
+  acc^;
 };
 
 /* Restores a module body's ID when it's been lost during tuple elaboration.
@@ -392,6 +456,24 @@ let reclassify_expanded_module_items =
     (m, item: Mod.t) => {
       let ids = IdTagged.ids(item);
       let mod_cls = Cls.Mod(Mod.cls_of_term(item.term));
+      /* A hole item's own marks (a bad token, say) were recorded on the hole
+         under its derived id; the item shows them. */
+      let hole_marks =
+        switch (item.term) {
+        | EmptyHole
+        | Invalid(_)
+        | MultiHole(_) =>
+          switch (
+            StaticsBase.Map.lookup_exp(
+              Exp.rep_id(hole_item_exp(item, EmptyHole)),
+              m,
+            )
+          ) {
+          | Some(hole) => hole.marks
+          | None => []
+          }
+        | _ => []
+        };
       switch (StaticsBase.Map.lookup_exp(IdTagged.rep_id(item), m)) {
       | Some(info) =>
         StaticsBase.Map.add_info(
@@ -399,6 +481,7 @@ let reclassify_expanded_module_items =
           Info.InfoExp({
             ...info,
             cls: mod_cls,
+            marks: info.marks @ hole_marks,
           }),
           m,
         )
@@ -423,6 +506,14 @@ let module_actual_type =
          let ty =
            switch (StaticsBase.Map.lookup_pat(Pat.rep_id(pat), m)) {
            | Some({ty, ctx: pat_ctx, _}) =>
+             /* The member's type is the one its name is bound at, which
+                is not always the pattern's: `let y = (y=1)` puns, binding
+                `y : Int`, and the lowered `let` does the same. */
+             let ty =
+               switch (Ctx.lookup_var(pat_ctx, name)) {
+               | Some({typ, _}) => typ
+               | None => ty
+               };
              /* Scope escape: only module-LOCAL aliases must be inlined
                 (they are unbound outside the braces); globals/builtins
                 stay compact per the type-normalization invariant. */
@@ -430,7 +521,7 @@ let module_actual_type =
                ~expand=n => List.mem(n, local_names),
                pat_ctx,
                ty,
-             )
+             );
            | None => Typ.temp(Unknown(Internal))
            };
          TupLabel(Label(name) |> Typ.temp, ty) |> Typ.temp;
@@ -439,9 +530,10 @@ let module_actual_type =
 };
 
 /* Post-process expanded module elaboration to hide expansion-only wrappers. */
-let module_elab = (~module_exp_id: Id.t, expanded_elab: Exp.t): Exp.t =>
+let module_elab =
+    (~module_exp_id: Id.t, ~keep=Id.Set.empty, expanded_elab: Exp.t): Exp.t =>
   expanded_elab
-  |> strip_module_sig_pats
+  |> strip_module_sig_pats(~keep)
   |> restore_module_body_id(~id=module_exp_id);
 
 /* Rebuild ModuleExp elaboration with direct def elaboration preserved. */

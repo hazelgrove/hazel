@@ -376,14 +376,45 @@ let rec evaluate =
         exp: DHExp.t,
       )
       : Trampoline.t(DHExp.t) => {
+    /* Runtime rewrites keep the node's id: an ascription pushes casts into
+       an `if` and evaluates the result under the `if`'s id. A cache entry
+       is about the node as elaborated, so it is only recorded or reused
+       when that is what is being evaluated, or a cast type changed by an
+       edit elsewhere (`[proof_object 0 end, if $_$ then _ else _]`, 0 -> 1)
+       is served stale. */
+    let rec unclose = (e: DHExp.t) =>
+      switch (DHExp.term_of(e)) {
+      | Closure(_, d) => unclose(d)
+      | _ => e
+      };
+    /* Closures share the node's id too, but only bind its free variables,
+       which reuse_map already accounts for; evaluation also names the
+       functions it binds, which changes nothing about them. */
+    let same_as_elaborated =
+      Equality.(
+        equality({
+          ...syntactic_settings,
+          ignore_parens: true,
+          ignore_projectors: true,
+          ignore_function_names: true,
+        })
+      ).
+        exp;
+    let as_elaborated =
+      switch (EvalInfo.find_opt(expr_id, eval_info)) {
+      | Some(info) => same_as_elaborated(unclose(exp), info.elab_term)
+      | None => false
+      };
     switch (
-      IncrEval.reuse_check(
-        ~call_stack,
-        ~prev,
-        ~reuse_map,
-        ~eval_info,
-        ~id=expr_id,
-      )
+      as_elaborated
+        ? IncrEval.reuse_check(
+            ~call_stack,
+            ~prev,
+            ~reuse_map,
+            ~eval_info,
+            ~id=expr_id,
+          )
+        : None
     ) {
     | Some(entry) =>
       // Evaluation cache hit: reuse previous result
@@ -418,7 +449,7 @@ let rec evaluate =
 
       // Record incremental entry if required
       let info_snapshot =
-        if (call_stack != []) {
+        if (call_stack != [] || !as_elaborated) {
           None;
         } else {
           EvalInfo.find_opt(expr_id, eval_info);

@@ -37,10 +37,23 @@ in fn("hello")|},
           in fn("hello")|},
       )
     }),
+    /* A field whose label differs from the type's keeps its cast, labels
+       and all: the value doesn't have that type. (This used to relabel
+       silently, giving `(a=3 : Bool, b="" : Float)`.) */
     test_case("Inconsistent labels", `Quick, () => {
-      parse_and_evaluate_test(
-        {|(a=3 : Bool, b= "": Float)|}, // TODO This is a bug
-        {|(a=3, b="") : (c=Bool, d=Float)|},
+      evaluation_test(
+        "(a=3, b=\"\") : (c=Bool, d=Float)",
+        tuple([
+          asc(
+            tup_label(label("a"), int(3)),
+            Typ.tup_label(Typ.label("c"), Typ.bool()),
+          ),
+          asc(
+            tup_label(label("b"), string("")),
+            Typ.tup_label(Typ.label("d"), Typ.float()),
+          ),
+        ]),
+        elaborate(parse_exp({|(a=3, b="") : (c=Bool, d=Float)|})),
       )
     }),
     test_case("Dot operation for missing label", `Quick, () =>
