@@ -853,9 +853,9 @@ let sig_module_member_names = (ctx: Ctx.t, items: list(Sig.t)): list(Var.t) => {
      );
 };
 
-/* ~expand restricts which alias names get expanded (default: all). Used
-   by module lowering to expand only module-LOCAL aliases when a member
-   type escapes its scope, keeping global/builtin aliases compact. */
+/* ~expand restricts which alias names get expanded (default: all): a
+   signature's expectations expand only the type names the module body
+   declares, keeping outer aliases as written. */
 let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t => {
   if (rec_counter > 1000) {
     failwith("normalize exceeded 1000 recursive calls");

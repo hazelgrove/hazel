@@ -121,8 +121,6 @@ definition is a signature also supports `S.T`. `P.x` on a labeled tuple
   drops them (see Dynamics).
 - **Abstract type members.** Signatures cannot yet declare `type T` without a
   definition, so there is no sealing of representations and no path types.
-- **Comparing modules with `==`** is a runtime incomparable result; statics
-  does not reject it yet.
 - `open` / `include` (issues #2260, #2261).
 
 ## Architecture
@@ -230,8 +228,9 @@ After checking:
   marked on the definition (`Mark.ModuleTypeMemberMismatch`).
 - `ModuleHelpers.missing_items` / `extra_members` produce
   `Mark.ModuleMissingMembers` / `Mark.ModuleExtraMembers` on the module node.
-- A bare expression item shares its ids with its expression (`MakeTerm`):
-  the expression's info is the item's, and its parent is the module.
+- A bare expression item shares its ids with its expression (`Mod.of_exp`,
+  from both parsers): the expression's info is the item's, and its parent is
+  the module.
 
 `ModuleExp(mpat, def, body)` is checked as `Let(pat, def, body)` and
 elaborates to that `Let`. `Dot(e, x)` on a signature-typed `e` projects the
@@ -243,6 +242,8 @@ reports on `Fake`
 `TypWantModule`. In type position, `utyp_to_info_map` threads a context
 through signature items and resolves `M.T` through `Typ.path_sig`; TyDi
 receives the member names via `ModuleMemberExpected`.
+`==` on a module whose members include a function is `Mark.CompareFun`,
+which names the member (`Typ.fun_in`).
 
 ### Dynamics
 
@@ -251,7 +252,8 @@ item's definition is evaluated (evaluation contexts `EvalCtx.ModuleItem` and
 `EvalCtx.ModuleVal`), its pattern is matched, the bindings extend the
 environment for the remaining items, and each bound name becomes a
 `ModVal(x, v)` item (replacing an earlier binding of the same name). Type
-items and bare expressions are discarded once evaluated. A module whose items
+items and bare expressions are discarded once evaluated; a `module` item is
+elaborated to a `let` item before it reaches dynamics. A module whose items
 are all `ModVal` is a value.
 
 `Dot` on a module value returns the named binding. Ascribing a module value
@@ -259,6 +261,8 @@ to a signature (`Ascriptions.re`) keeps the signature's value members in
 signature order, ascribes each to its declared type, and drops the rest;
 type members have no runtime content. `ModVal` items compare equal to the
 literal binding `let x = v` (`Equality.re`), and display as `let x = v`.
+Two module values compare under `==` and `!=` member by name
+(`Mod.paired_bindings`, in `DHExp.ty_comparable` and `DHExp.poly_equal`).
 
 ### Sort Fallback Patterns, Forms and Decorations
 
@@ -285,14 +289,15 @@ parts for code that walks them (composition, probe targets). Sig items are
 | --------------------------------------- | ------------------------------------------------------------------ |
 | `src/language/term/Sort.re`             | Sort enum with `Mod`, `Sig`, and `MPat`                            |
 | `src/language/term/Grammar.re`          | `mod_term` (incl. `ModVal`), `sig_term`, `mpat_term`, `Module`/`ModuleExp`, `Sig` |
-| `src/language/term/Sig.re`              | Sig term utilities and the member view                             |
+| `src/language/term/Sig.re`              | Sig term utilities, the member view, `closed` and `items`          |
+| `src/language/term/ClosedSig.re`, `.rei` | Closed signature items, abstract                                  |
 | `src/language/term/Mod.re`              | Mod term utilities and evaluated-binding helpers                   |
 | `src/language/term/MPat.re`             | MPat term utilities                                                |
-| `src/language/term/Typ.re`              | Sig normalization, meet, member projection, `path_sig`             |
-| `src/language/statics/Ctx.re`           | `extend_sig_item`                                                  |
-| `src/language/statics/ModuleHelpers.re` | Lowering for type checking, signature synthesis, refolding         |
+| `src/language/term/Typ.re`              | `close`, `sig_item_scopes`, `alias_def`, `extend_ctx`, Sig meet and normalization, `path_sig`, `fun_in` |
+| `src/language/statics/Ctx.re`           | `newest_var_or_ctr`, `newest_tvar_or_var`: the newest binding of a capitalized name, and of a path root |
+| `src/language/statics/ModuleHelpers.re` | Signature expectations per binder (`expected_members`, `expected_pat_type`), `sealed`, missing and extra members, module references in written types |
 | `src/language/statics/Statics.re`       | Module/ModuleExp cases, `Dot` on signatures, `M.T` in types        |
-| `src/language/statics/Mark.re`          | `ModuleMissingMembers`, `ModuleExtraMembers`, `ModuleTypeMemberMismatch`, `ModuleMemberNotFound`, `ModuleMemberIsType`, `ModuleTypeMemberNotFound`, `TypWantModule`, `TypeMemberCapture` |
+| `src/language/statics/Mark.re`          | `ModuleMissingMembers`, `ModuleExtraMembers`, `ModuleTypeMemberMismatch`, `ModuleMemberNotFound`, `ModuleMemberIsType`, `ModuleTypeMemberNotFound`, `TypWantModule`, `CompareFun` |
 | `src/language/dynamics/transition/Transition.re` | Module evaluation, `Dot` on module values                 |
 | `src/language/dynamics/transition/Ascriptions.re` | Sealing a module value to a signature                    |
 | `src/language/dynamics/stepper/EvalCtx.re` | `ModuleItem`, `ModuleVal` evaluation contexts                   |

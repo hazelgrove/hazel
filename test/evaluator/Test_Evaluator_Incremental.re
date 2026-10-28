@@ -910,10 +910,10 @@ let test_pbt_regression_unit_pat_dup_label_dh_let = () => {
  * "frozen" decoration set.
  *
  * Background:
- *   A module elaborates to a `Module` whose items keep their surface ids
- *   (`ModuleHelpers.refold_module_elab`). When the evaluator hits module
- *   `c` on run 2 and finds its cached entry, it short-circuits and marks
- *   only that one id as reused (`IncrEval.mark_reused`). The inner items
+ *   A module elaborates to a `Module` whose items keep their surface ids.
+ *   When the evaluator hits module `c` on run 2 and finds its cached entry,
+ *   it short-circuits and marks only that one id as reused
+ *   (`IncrEval.mark_reused`). The inner items
  *   `let x = fib(b)`, `let y = fib(b)`, `let z = x + y` are never visited
  *   during evaluation, so the UI must derive frozen ids by walking the
  *   reuse plan rather than visited output.
