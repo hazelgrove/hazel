@@ -107,14 +107,64 @@ let check_mark_free = (msg, pm, proof) =>
     )
   };
 
+/* CONTRACT CHANGE (standardness completion; docs/standardness-completion.md):
+ * originally every obligation in the proof counted, so any recorded
+ * obligation failed "contradiction incurs nothing". Since the finish stage,
+ * each fixture's `assume P =>` intro records its D47/D51 `!!P` gate (a
+ * premise of the ASSUME, discharged or Pending), which is not something
+ * the contradiction step incurs. The contradiction contract is unchanged:
+ * no ORDINARY obligation anywhere, and the `contradiction` node itself
+ * records none. Gates are printed with their discharge. */
 let check_no_obligations = (msg, pm, proof) => {
   let obs = ProofMap.obligations_of_proof(pm, proof);
-  if (obs != []) {
+  let is_gate = (ob: Obligation.t) =>
+    switch (ob.goal.term) {
+    | Valued(_) => true
+    | _ => false
+    };
+  List.iter(
+    (ob: Obligation.t) =>
+      if (is_gate(ob)) {
+        print_endline(
+          "CONTRA gate "
+          ++ msg
+          ++ " | "
+          ++ Obligation.show_discharge(ob.discharge)
+          ++ " | "
+          ++ Test_ProofMap.print_exp(ob.display_goal),
+        );
+      },
+    obs,
+  );
+  let ordinary = List.filter(ob => !is_gate(ob), obs);
+  if (ordinary != []) {
     Alcotest.fail(
       msg
-      ++ ": expected no obligations, got "
-      ++ string_of_int(List.length(obs)),
+      ++ ": expected no ordinary obligations, got "
+      ++ string_of_int(List.length(ordinary)),
     );
+  };
+  let contradiction_obligations =
+    Test_ResetExistentials.proof_nodes(proof)
+    |> List.filter((p: Proof.t) =>
+         switch (p.term) {
+         | Contradiction(_) => true
+         | _ => false
+         }
+       )
+    |> List.fold_left(
+         (n, p: Proof.t) =>
+           n
+           + (
+             switch (ProofMap.lookup(Proof.rep_id(p), pm)) {
+             | Some(e) => List.length(e.obligations)
+             | None => 0
+             }
+           ),
+         0,
+       );
+  if (contradiction_obligations != 0) {
+    Alcotest.fail(msg ++ ": the contradiction step recorded an obligation");
   };
 };
 

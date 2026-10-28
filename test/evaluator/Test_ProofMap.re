@@ -984,7 +984,32 @@ let test_forall_where_parse_and_rule = () => {
  * B — and NO obligation is incurred. A complete proof goes through with
  * full status Proven and zero obligations. */
 let test_impl_intro_via_assume = () => {
-  let src = {|theorem t = forall x -> x == 2 ==> x + 1 == 3 proof assume x == 2 => axiom assume at 0 on x end; eval 2 + 1 at 0 end; axiom refl_eq at 0 on 3 == 3 end in t|};
+  /* CONTRACT CHANGE (G1-prime, docs/standardness-completion.md): the
+     original fixture binds `x` UNTYPED (`forall x -> ...`) and expected its
+     `!!(x == 2)` gate discharged and the theorem Proven. An untyped `x` is
+     not Int evidence, so that gate now stays Pending (shown as not proven).
+     The same proof over `forall (x : Int)` keeps the original contract;
+     the untyped original is asserted as the Pending limit below. */
+  let untyped = {|theorem t = forall x -> x == 2 ==> x + 1 == 3 proof assume x == 2 => axiom assume at 0 on x end; eval 2 + 1 at 0 end; axiom refl_eq at 0 on 3 == 3 end in t|};
+  let (state_u, _, elab_u) = untyped |> parse_exp |> eval_with_proof;
+  let pm_u = EvaluatorState.get_proof_map(state_u);
+  let proof_u = proof_of(elab_u);
+  Alcotest.check(
+    Alcotest.bool,
+    "untyped x: the !!(x == 2) gate stays Pending",
+    true,
+    List.exists(
+      Obligation.is_pending,
+      ProofMap.obligations_of_proof(pm_u, proof_u),
+    ),
+  );
+  Alcotest.check(
+    Alcotest.bool,
+    "untyped x: not Proven",
+    false,
+    ProofMap.full_status_of_proof(pm_u, proof_u) == ProofMap.Proven,
+  );
+  let src = {|theorem t = forall (x : Int) -> x == 2 ==> x + 1 == 3 proof assume x == 2 => axiom assume at 0 on x end; eval 2 + 1 at 0 end; axiom refl_eq at 0 on 3 == 3 end in t|};
   let (state, _, elab) = src |> parse_exp |> eval_with_proof;
   let pm = EvaluatorState.get_proof_map(state);
   let proof = proof_of(elab);
