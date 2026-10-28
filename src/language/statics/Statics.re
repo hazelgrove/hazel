@@ -691,7 +691,7 @@ and uexp_to_info_map =
       let t_ty = t.ty;
       let (e, e_elab, m) = go(~ana=t_ty, ~ctx=t.ctx, e, m);
       let typ_refs =
-        ModuleHelpers.collect_module_refs_in_typ(ctx, Typ.rep_id(t2), t_ty);
+        ModuleHelpers.collect_module_refs_in_typ(ctx, Typ.rep_id(t2), t2);
       add(
         ~elab_term=Asc(e_elab, Typ.normalize(ctx, t_ty)) |> rewrap,
         ~elab_syn_ty=t_ty,
@@ -2659,7 +2659,7 @@ and uexp_to_info_map =
           go(~ctx=ctx_body, ~ana, body, m);
         /* Make sure types don't escape their scope */
         let ty_escape = Typ.subst(ty_def, typat, ty_body);
-        let (def_info, m) =
+        let (_, m) =
           utyp_to_info_map(
             ~ctx=ctx_def,
             ~ancestors=ancestors_inclusive,
@@ -2670,7 +2670,7 @@ and uexp_to_info_map =
           ModuleHelpers.collect_module_refs_in_typ(
             ctx,
             Typ.rep_id(utyp),
-            def_info.ty,
+            utyp,
           );
         add(
           ~elab_term=body_elab,
@@ -2690,13 +2690,13 @@ and uexp_to_info_map =
           m,
         ) =
           go(~ctx, ~ana, body, m);
-        let (def_info, m) =
+        let (_, m) =
           utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utyp, m);
         let typ_refs =
           ModuleHelpers.collect_module_refs_in_typ(
             ctx,
             Typ.rep_id(utyp),
-            def_info.ty,
+            utyp,
           );
         add(
           ~elab_term=body_elab,
@@ -3020,7 +3020,7 @@ and uexp_to_info_map =
                 ModuleHelpers.collect_module_refs_in_typ(
                   ctx,
                   Typ.rep_id(def),
-                  def_info.ty,
+                  def,
                 ),
                 c.co_ctx,
               ]);

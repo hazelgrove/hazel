@@ -2,8 +2,8 @@
    signature expects of its items, what the body exports, and how the two
    compare. Signature types are closed (Typ.close). */
 
-/* The module variables a closed type [typ] at [id] refers to as path roots
-   (`M` in `M.T`): its free variables that are bound as values. */
+/* The module variables a type [typ], as written at [id], refers to as path
+   roots (`M` in `M.T`): its free variables that are bound as values. */
 let collect_module_refs_in_typ = (ctx: Ctx.t, id: Id.t, typ: Typ.t): CoCtx.t => {
   Typ.free_vars(typ)
   |> List.filter_map(name =>
@@ -21,7 +21,7 @@ let rec collect_pat_type_refs = (ctx: Ctx.t, pat: Pat.t): CoCtx.t =>
   switch (pat.term) {
   | Asc(p, ann) =>
     CoCtx.union([
-      collect_module_refs_in_typ(ctx, Typ.rep_id(ann), Typ.close(ctx, ann)),
+      collect_module_refs_in_typ(ctx, Typ.rep_id(ann), ann),
       collect_pat_type_refs(ctx, p),
     ])
   | Tuple(ps)

@@ -298,15 +298,46 @@ let rec free_vars =
       ty,
     )
   | ProofOf(_) => []
-  | Sig(s) =>
+  | Sig(Closed(items)) =>
     List.concat_map(
       (m: Sig.member) =>
         switch (m) {
         | Val(_, ty)
         | TypeManifest(_, ty) => go(ty)
         },
-      Sig.closed_members(s),
+      Sig.members(ClosedSig.items(items)),
     )
+  /* Written items scope sequentially: a later item may mention an earlier
+     type member or root a path at an earlier value member, and a type
+     member's name is in scope in its own definition. */
+  | Sig(Open(items)) =>
+    let (_, _, vs) =
+      List.fold_left(
+        ((bound, bound_roots, acc), item: Sig.t) => {
+          let member = Sig.member_of_item(item);
+          let bound =
+            switch (member) {
+            | Some(TypeManifest(name, _)) => [name, ...bound]
+            | Some(Val(_))
+            | None => bound
+            };
+          let vs =
+            switch (Sig.typ_of_item(item)) {
+            | Some(ty) => free_vars(~binder, ~bound, ~bound_roots, ty)
+            | None => []
+            };
+          let bound_roots =
+            switch (member) {
+            | Some(Val(name, _)) => [name, ...bound_roots]
+            | Some(TypeManifest(_))
+            | None => bound_roots
+            };
+          (bound, bound_roots, acc @ vs);
+        },
+        (bound, bound_roots, []),
+        items,
+      );
+    vs;
   };
 };
 

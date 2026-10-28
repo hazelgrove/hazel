@@ -926,11 +926,31 @@ let sig_tests = {
           check_raises("has_fun", Sig.OpenSignature, () =>
             ignore(Typ.has_fun(s))
           );
-          check_raises("free_vars", Sig.OpenSignature, () =>
-            ignore(Typ.free_vars(s))
-          );
           check_raises("count_unknowns", Sig.OpenSignature, () =>
             ignore(Typ.count_unknowns(s))
+          );
+        },
+      ),
+      test_case(
+        "free_vars scopes an open signature's items sequentially",
+        `Quick,
+        () => {
+          let p_t = F.Typ.prod_projection(F.Typ.var("P"), F.Typ.label("T"));
+          check(
+            list(string),
+            "an outer path root and an outer alias; sibling-bound names are not free",
+            ["P", "Q"],
+            Typ.free_vars(
+              sg([
+                sv("x", p_t),
+                F.Sig.sig_module(
+                  F.MPat.asc(F.MPat.var("P"), sg([st("T", tb)])),
+                ),
+                sv("y", p_t),
+                st("T", F.Typ.var("Q")),
+                sv("z", F.Typ.var("T")),
+              ]),
+            ),
           );
         },
       ),
