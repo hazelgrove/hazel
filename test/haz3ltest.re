@@ -83,6 +83,7 @@ let (suite, _) =
     @ [Test_ResetExistentials.tests]
     @ [Test_ResetExistentialWitnessUI.tests]
     @ [Test_ResetStandardnessGates.tests]
+    @ [Test_ResetStandardnessCorrections.tests]
     @ [Test_ExistentialsAppContext.tests]
     @ [Test_SubEditor.tests],
   );
