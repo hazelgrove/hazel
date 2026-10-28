@@ -316,7 +316,54 @@ let checker_cases = [
     /* The SAME written goal `1 == 1` is an obligation of the have node,
        but recorded under the have's extended context (different binding
        ids): so it is the id criterion that refuses, not a goal mismatch. */
-    let have_obs = RE.node(o, "t", Proof.Have).obligations;
+    /* Select the actual `Have` CONSTRUCTOR: `RE.node(_, _, Proof.Have)`
+       matched the enclosing Parens first (Parens reports its inner
+       class), whose entry carries no obligations (b4 author defect). */
+    let have_node =
+      RE.proof_nodes(RE.theorem(o, "t"))
+      |> List.find_opt((p: Proof.t) =>
+           switch (p.term) {
+           | Have(_, _, _) => true
+           | _ => false
+           }
+         );
+    let have_obs =
+      switch (have_node) {
+      | Some(p) =>
+        switch (ProofMap.lookup(Proof.rep_id(p), o.pm)) {
+        | Some(e) => e.obligations
+        | None => []
+        }
+      | None => Alcotest.fail("no Have node")
+      };
+    /* The clause's own context: the With node's recorded bindings are not
+       stored, so compare against the theorem's proof context size via the
+       have premise-2 obligation itself: it must carry the `have`
+       hypothesis, which the clause's (enclosing) context does not. */
+    List.iter(
+      (ob: Obligation.t) =>
+        print_endline(
+          "WITHBIND have-obligation "
+          ++ String.trim(RE.print_exp(ob.display_goal))
+          ++ " | "
+          ++ Obligation.show_discharge(ob.discharge)
+          ++ " | bindings "
+          ++ string_of_int(List.length(ob.bindings))
+          ++ " entries; theorem entries: "
+          ++ String.concat(
+               ",",
+               List.filter_map(
+                 (e: Ctx.entry) =>
+                   switch (e) {
+                   | TheoremEntry({name, _}) => Some(name)
+                   | _ => None
+                   },
+                 ob.bindings,
+               ),
+             ),
+        ),
+      have_obs,
+    );
     check(bool, "the have node records `1 == 1` (same goal as the clause)", true,
       List.exists(goal_is("1 == 1"), have_obs));
     check(bool, "...under bindings that include the have hypothesis (absent from the clause's context)", true,
