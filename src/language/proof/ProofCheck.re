@@ -1590,28 +1590,59 @@ let std_stat_nodes = ref(0);
 let std_stat_certifications = ref(0);
 let std_stat_certification_nodes = ref(0);
 let std_stat_cache_hits = ref(0);
+let std_stat_cpu = ref(0.0);
+let std_stat_obligation_cpu = ref(0.0);
+let std_stat_obligations = ref(0);
 let std_stats_reset = () => {
+  std_stat_cpu := 0.0;
+  std_stat_obligation_cpu := 0.0;
+  std_stat_obligations := 0;
   std_stat_nodes := 0;
   std_stat_certifications := 0;
   std_stat_certification_nodes := 0;
   std_stat_cache_hits := 0;
 };
 
+/* An argument EVIDENTLY of type `t` (so an ascribed binder's pattern
+   ascription cannot get stuck, Ascriptions.transition): an Unknown target,
+   a variable whose context type is `t`, a literal of that atom class, or a
+   literal tuple/list of evidently typed parts. Otherwise no evidence. */
+let rec std_evident_type = (tyctx: Ctx.t, arg: Exp.t, t: Typ.t): bool => {
+  let t = Typ.normalize(tyctx, t);
+  switch (Typ.term_of(t), strip_parens_exp(arg).term) {
+  | (Unknown(_), _) => true
+  | (_, Var(x)) =>
+    switch (Ctx.lookup_var(tyctx, x)) {
+    | Some({typ, _}) => Typ.fast_equal(Typ.normalize(tyctx, typ), t)
+    | None => false
+    }
+  | (Atom(cls), Atom(a)) => Atom.cls_of_t(a) == cls
+  | (Prod(ts), Tuple(args)) =>
+    List.length(ts) == List.length(args)
+    && List.for_all2((a, t) => std_evident_type(tyctx, a, t), args, ts)
+  | (List(t1), ListLit(args)) =>
+    List.for_all(a => std_evident_type(tyctx, a, t1), args)
+  | _ => false
+  };
+};
+
 /* Irrefutable binder for a beta/recursive application: a variable or
-   wildcard (optionally ascribed), or a tuple of those matched against an
-   actual LITERAL tuple of the same arity (a product parameter type alone
-   is not evidence: an Unknown-typed standard argument need not be a
-   tuple). Guarded, constructor, list and literal patterns can fail. */
-let rec std_irrefutable = (p: Pat.t, arg: Exp.t): bool =>
+   wildcard (ascribed only at an argument evidently of that type), or a
+   tuple of those matched against an actual LITERAL tuple of the same arity
+   (a product parameter type alone is not evidence: an Unknown-typed
+   standard argument need not be a tuple). Guarded, constructor, list and
+   literal patterns can fail. */
+let rec std_irrefutable = (~tyctx: Ctx.t, p: Pat.t, arg: Exp.t): bool =>
   switch (p.term) {
-  | Parens(p)
-  | Asc(p, _) => std_irrefutable(p, arg)
+  | Parens(p) => std_irrefutable(~tyctx, p, arg)
+  | Asc(p, t) =>
+    std_evident_type(tyctx, arg, t) && std_irrefutable(~tyctx, p, arg)
   | Var(_)
   | Wild => true
   | Tuple(ps) =>
     switch (strip_parens_exp(arg).term) {
     | Tuple(args) when List.length(args) == List.length(ps) =>
-      List.for_all2(std_irrefutable, ps, args)
+      List.for_all2(std_irrefutable(~tyctx), ps, args)
     | _ => false
     }
   | _ => false
@@ -1860,12 +1891,12 @@ let rec std_judge =
           List.find(((n, _, _)) => n == s, selfs);
         let ev = evidence(p, Some(arg));
         go(arg)
-        && std_irrefutable(p, arg)
+        && std_irrefutable(~tyctx, p, arg)
         && List.for_all(x => List.mem(x, ev), entry_ev);
       /* Beta: an irrefutable parameter bound to a standard argument. */
       | Fun(p, body, _, _) when depth < std_max_depth =>
         go(arg)
-        && std_irrefutable(p, arg)
+        && std_irrefutable(~tyctx, p, arg)
         && under(
              ~selfs,
              ~depth=depth + 1,
@@ -1882,7 +1913,7 @@ let rec std_judge =
           let names = Pat.bound_vars(p);
           let ev = evidence(p, Some(arg));
           go(arg)
-          && std_irrefutable(p, arg)
+          && std_irrefutable(~tyctx, p, arg)
           && certified(head(f))
           && std_judge(
                ~selfs=[
@@ -1924,16 +1955,21 @@ let rec std_judge =
   };
 };
 
-let std_structural = (ctx: SemanticCtx.t, e: Exp.t): bool =>
-  std_judge(
-    ~selfs=[],
-    ~lists=[],
-    ~depth=0,
-    ~budget=ref(std_node_budget),
-    ~certs=ref([]),
-    ctx,
-    e,
-  );
+let std_structural = (ctx: SemanticCtx.t, e: Exp.t): bool => {
+  let t0 = Sys.time();
+  let r =
+    std_judge(
+      ~selfs=[],
+      ~lists=[],
+      ~depth=0,
+      ~budget=ref(std_node_budget),
+      ~certs=ref([]),
+      ctx,
+      e,
+    );
+  std_stat_cpu := std_stat_cpu^ +. (Sys.time() -. t0);
+  r;
+};
 
 /* The fact ids of the in-scope facts that are NOT captured, through the
    same capture-aware entries `axiom` uses (ProofCtx.of_theorem_ctx lists
@@ -1984,6 +2020,8 @@ let standardness_obligation =
       e: Exp.t,
     )
     : Obligation.t => {
+  let t0 = Sys.time();
+  incr(std_stat_obligations);
   let goal = Exp.fresh(Valued(e));
   let premise =
     switch (strip_parens_exp(e).term) {
@@ -1999,6 +2037,7 @@ let standardness_obligation =
       std_structural(ctx, e) ? Obligation.Structural : Obligation.Pending
     | (d, _) => d
     };
+  std_stat_obligation_cpu := std_stat_obligation_cpu^ +. (Sys.time() -. t0);
   Obligation.{
     origin,
     bindings: SemanticCtx.get_ctx(ctx).entries,

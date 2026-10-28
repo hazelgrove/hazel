@@ -125,13 +125,13 @@ let u1_std_scrut =
 /* Computed scrutinee: no standardness for its case variables. */
 let u1_computed_scrut =
   u1_prelude
-  ++ "theorem c = forall xs: [Int] -> len(xs @ [1]) == len(xs @ [1]) proof induction xs @ [1] | [] => ? | x :: t => axiom len_cons at 0 on len(x :: t) end; ? end in 0";
+  ++ "theorem c = forall xs: [Int] -> len(xs @ [1 / 0]) == len(xs @ [1 / 0]) proof induction xs @ [1 / 0] | [] => ? | x :: t => axiom len_cons at 0 on len(x :: t) end; ? end in 0";
 
 /* Rebinding: a computed-scrutinee case variable `x` shadows a standard
    statement binder `x`; it must not inherit that standardness. */
 let u1_shadow =
   u1_prelude
-  ++ "theorem c = forall x: Int -> forall xs: [Int] -> len(xs @ [x]) == len(xs @ [x]) proof induction xs @ [x] | [] => ? | x :: t => axiom len_cons at 0 on len(x :: t) end; ? end in 0";
+  ++ "theorem c = forall x: Int -> forall xs: [Int] -> len(xs @ [x / 0]) == len(xs @ [x / 0]) proof induction xs @ [x / 0] | [] => ? | x :: t => axiom len_cons at 0 on len(x :: t) end; ? end in 0";
 
 /* The `!!` gates recorded at the case's `axiom len_cons` step, as
    "display: discharge" (x then t). */

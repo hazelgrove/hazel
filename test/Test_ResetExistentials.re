@@ -684,5 +684,25 @@ let tests = (
       check(bool, "exists with all-false body not computed", true, not_bool(eval_print("exists (n : Int) -> false")));
       check(bool, "!!lambda is a forall, not true", true, eval_print("!!(fun (k : Int) -> k)") != "true");
     }),
+    /* Receipt (no assertion): standardness-judgement CPU accumulated
+       over every core test above in this process, versus the process CPU
+       so far. */
+    test_case("receipt: standardness judgement CPU share of this group", `Quick, () =>
+      print_endline(
+        "CORE std cpu "
+        ++ Printf.sprintf("%.3f", ProofCheck.std_stat_cpu^)
+        ++ "s in "
+        ++ string_of_int(ProofCheck.std_stat_nodes^)
+        ++ " nodes, "
+        ++ string_of_int(ProofCheck.std_stat_certifications^)
+        ++ " certifications | obligations "
+        ++ string_of_int(ProofCheck.std_stat_obligations^)
+        ++ " taking "
+        ++ Printf.sprintf("%.3f", ProofCheck.std_stat_obligation_cpu^)
+        ++ "s | process cpu "
+        ++ Printf.sprintf("%.3f", Sys.time())
+        ++ "s",
+      )
+    ),
   ],
 );
