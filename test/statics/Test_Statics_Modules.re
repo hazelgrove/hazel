@@ -233,15 +233,18 @@ let test_error_shorthand_parameter_hole_does_not_assume =
 
 /* The signature's expectations reach sub-modules and the variables inside
    destructuring patterns, so a problem is reported where it is. */
-let is_int_vs = (syn_cls, m: Language.Mark.t) =>
+let is_atom_vs = (ana_cls, syn_cls, m: Language.Mark.t) =>
   switch (m) {
   | ExpectationMismatch({ana, syn}) =>
     switch (Language.Typ.term_of(ana), Language.Typ.term_of(syn)) {
-    | (Atom(Int), Atom(c)) => Language.Atom.equal_cls(c, syn_cls)
+    | (Atom(a), Atom(s)) =>
+      Language.Atom.equal_cls(a, ana_cls)
+      && Language.Atom.equal_cls(s, syn_cls)
     | _ => false
     }
   | _ => false
   };
+let is_int_vs = is_atom_vs(Int);
 
 let test_nested_missing_member_localized =
   single_mark_test(
@@ -1769,6 +1772,14 @@ let h = fun (m : S) -> m == m in h|},
     | _ => false,
   );
 
+/* A `rec` binder stands for its closed type in the body, so a member typed
+   by it is read without reaching an open signature. */
+let test_rec_signature_binder_is_closed =
+  no_marks_test(
+    "A signature under a rec binder is read with the binder closed",
+    {|let x : rec T -> { let next : T } = ? in x|},
+  );
+
 /* ===== ANNOTATED MEMBERS ===== */
 
 let is_annotation: Language.Info.t => bool =
@@ -1810,6 +1821,28 @@ let test_annotated_member_checked_alongside_type_member =
         )
         && List.exists(is_int_vs(Bool), marks_at(src, is_annotation)),
       );
+    },
+  );
+
+/* ===== UNANNOTATED COMPONENTS ===== */
+
+/* The signature says nothing about `b`, so its slot in the expectation is a
+   SynSwitch that the definition should fill with Int; a failed meet on `a`
+   drops it instead, and the use of `b` goes unchecked. Skipped until
+   https://github.com/hazelgrove/hazel/issues/2742 is fixed on dev, and
+   fails once it is. */
+let test_unannotated_component_keeps_definition_type =
+  Alcotest.test_case(
+    "An unannotated component keeps its definition's type when a sibling mismatches (#2742, skipped)",
+    `Quick,
+    () => {
+      let src = {|module M : { let a : Int; let s : String } = { let (a, b) = (true, 1); let s = b } in M|};
+      let is_b: Language.Info.t => bool =
+        fun
+        | InfoExp({user_term: {term: Var("b"), _}, _}) => true
+        | _ => false;
+      List.exists(is_atom_vs(String, Int), marks_at(src, is_b))
+        ? Alcotest.fail("#2742 is fixed: drop the skip") : Alcotest.skip();
     },
   );
 
@@ -2005,8 +2038,10 @@ let tests = (
     test_member_typed_through_substituted_member,
     test_shadowed_alias_closes_members_without_capture,
     test_sub_module_path_function_cannot_be_compared,
+    test_rec_signature_binder_is_closed,
     test_annotated_member_checked_against_signature,
     test_annotated_member_checked_alongside_type_member,
+    test_unannotated_component_keeps_definition_type,
     test_evaluated_member_keeps_its_type,
     test_error_meet_compares_members_in_their_own_scope,
     test_meet_ignores_member_order,
