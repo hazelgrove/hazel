@@ -599,6 +599,42 @@ let test_qualified_type_nested_alias_with_sibling =
     Some(int()),
   );
 
+/* One item binding a name twice exports it twice; every node of the
+   elaboration still needs its own id. */
+let test_duplicate_binder_export_ids =
+  Alcotest.test_case(
+    "Export fields of a doubly bound name get distinct ids",
+    `Quick,
+    () => {
+      let e = parse_exp({|{ let (x, x) = (1, 2) }|});
+      let m = statics(e);
+      switch (Language.Statics.Map.lookup_exp(Language.Exp.rep_id(e), m)) {
+      | None => Alcotest.fail("no info for the module")
+      | Some(info) =>
+        let seen = Hashtbl.create(64);
+        let twice = ref([]);
+        let _ =
+          Language.Exp.map_term(
+            ~f_exp=
+              (continue, e: Language.Exp.t) => {
+                List.iter(
+                  id => {
+                    if (Hashtbl.mem(seen, id)) {
+                      twice := [Language.Id.to_string(id), ...twice^];
+                    };
+                    Hashtbl.replace(seen, id, ());
+                  },
+                  Language.IdTagged.ids(e),
+                );
+                continue(e);
+              },
+            info.elab_term,
+          );
+        Alcotest.(check(list(string)))("ids used twice", [], twice^);
+      };
+    },
+  );
+
 /* Type alias shadowing: nested modules should be able to shadow outer type aliases */
 let test_type_alias_shadowing_in_nested_module =
   fully_consistent_typecheck(
@@ -707,5 +743,6 @@ let tests = (
     test_type_alias_shadowing_in_nested_module,
     test_type_alias_shadowing_sequential,
     test_type_alias_shadowing_nested_module,
+    test_duplicate_binder_export_ids,
   ],
 );

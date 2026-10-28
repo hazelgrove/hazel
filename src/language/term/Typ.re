@@ -1030,6 +1030,7 @@ let rec meet =
   | (ProofOf(_), _) => None
   // We would prefer for this to be a sort difference and never appear in a meet.
   // These get marked in statics but that does not remove them from the utyp's propagated on parents.
+  | (ExplicitNonlabel, ExplicitNonlabel) => Some(ty1)
   | (ExplicitNonlabel, _) => None
   | (Sig(_), _) => None
   };

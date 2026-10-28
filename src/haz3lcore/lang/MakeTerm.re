@@ -212,10 +212,77 @@ let kids_of_tiles = (tiles: tiles) =>
   |> Aba.map_a(kids_of_tile)
   |> Aba.join(Fun.id, kid => [kid])
   |> List.concat;
+/* A one-argument application that falls back to a hole keeps its parens
+   as a Parens node around the argument: the bare kids alone would print as
+   `b c`, losing the `( )` tile (`x:a b(c) + 1` strands the type `b(c)` in
+   expression position, where it has no form). The hole keeps the tile's
+   id, so the Parens node takes one derived from it. */
+let paren_kid = (id: Id.t, kid: Any.t): Any.t => {
+  let annotation =
+    IdTagged.IdTag.mk_internal([Id.derive(~salt="hole-parens", id)]);
+  switch (kid) {
+  | Exp(e) =>
+    Exp({
+      annotation,
+      term: Parens(e),
+    })
+  | Pat(p) =>
+    Pat({
+      annotation,
+      term: Parens(p),
+    })
+  | Typ(t) =>
+    Typ({
+      annotation,
+      term: Parens(t),
+    })
+  | _ => kid
+  };
+};
+/* Is this kid a constructor-named type variable? (the head of a
+   potential sum-type constructor application) */
+let is_ctr_headed: Any.t => bool =
+  fun
+  | Typ({term: Var(name), _}) => Token.is_ctr(name)
+  | _ => false;
+
 let kids_of_unsorted =
   fun
   | Op(tiles) => kids_of_tiles(tiles)
   | Pre(tiles, r) => kids_of_tiles(tiles) @ [r]
+  /* Not a constructor head (`A(Int)`): sum-type parsing reads that bare
+     MultiHole shape as a constructor application. */
+  | Post(l, ([(id, (F(Compound(Parens | Ap)), [kid]))], []))
+      when !is_ctr_headed(l) => [
+      l,
+      paren_kid(id, kid),
+    ]
+  /* `f()` falling back to a hole: the `()` has no kid, so keep it as a unit
+     in the head's sort (`?:1() l]` would otherwise print as `?:1 l]`). */
+  | Post(l, ([(id, (F(f), []))], [])) when is_empty_tuple_form(f) => {
+      let annotation =
+        IdTagged.IdTag.mk_internal([Id.derive(~salt="hole-parens", id)]);
+      [
+        l,
+        switch (l) {
+        | Pat(_) =>
+          Pat({
+            annotation,
+            term: Tuple([]),
+          })
+        | Typ(_) =>
+          Typ({
+            annotation,
+            term: Prod([]),
+          })
+        | _ =>
+          Exp({
+            annotation,
+            term: Tuple([]),
+          })
+        },
+      ];
+    }
   | Post(l, tiles) => [l] @ kids_of_tiles(tiles)
   | Bin(l, tiles, r) => [l] @ kids_of_tiles(tiles) @ [r];
 
@@ -449,13 +516,6 @@ let all_exp_only = (~host: Sort.t, tm: unsorted): bool =>
   | [] => false
   | heads => List.for_all(is_exp_only_head(~host), heads)
   };
-
-/* Is this kid a constructor-named type variable? (the head of a
-   potential sum-type constructor application) */
-let is_ctr_headed: Any.t => bool =
-  fun
-  | Typ({term: Var(name), _}) => Token.is_ctr(name)
-  | _ => false;
 
 let is_exp_kid: Any.t => bool =
   fun
@@ -1470,7 +1530,9 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
     ret(Poly(tpat, t))
   | Pre(([(_id, (F(Compound(Rec)), [TPat(tpat)]))], []), Typ(t)) =>
     ret(Rec(tpat, t))
-  | Pre(tiles, Typ({term: Sum(t0), annotation: {ids, _}})) as tm =>
+  /* `Void` is the empty sum as an atom, not a `+ A + B` tail to splice:
+     `+ Void` is one bad entry, as Menhir reads it. */
+  | Pre(tiles, Typ({term: Sum([_, ..._] as t0), annotation: {ids, _}})) as tm =>
     /* Case for leading prefix + preceeding a sum */
     switch (tiles) {
     | ([(_, (F(Compound(SumSingle)), []))], []) =>

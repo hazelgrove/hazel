@@ -406,6 +406,32 @@ let tests =
           ();
         },
       ),
+      /* A one-argument application or `()` that falls back to a hole keeps
+         its parens as a node of its own, which must not share the hole's
+         id. */
+      test_case("A hole's parens kid has its own id", `Quick, () =>
+        List.iter(
+          (s: string) => {
+            let ids = ref([]);
+            let _ =
+              Language.Grammar.map_exp_annotation(
+                (a: Language.IdTagged.IdTag.t) => {
+                  ids := a.ids @ ids^;
+                  a;
+                },
+                parse_exp(s),
+              );
+            check(
+              Alcotest.int,
+              "ids shared between nodes in " ++ s,
+              0,
+              List.length(ids^)
+              - List.length(List.sort_uniq(Language.Id.compare, ids^)),
+            );
+          },
+          ["x:a b(c) + 1", "x:a b() + 1"],
+        )
+      ),
       /* Invalid tokens: fixed junk examples (not a full invalid-string grammar).
          Print Invalid(s) as bare `s`; MakeTerm rebuilds Invalid(s). */
       ...List.map(

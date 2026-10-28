@@ -1115,17 +1115,28 @@ and parenthesize_typ =
     /* Same sort trap, but a sum has no single protectable operand: an invalid
        face anywhere in a bare sum pulls the whole ascription out of Typ sort
        (`?:+^w^` loses even the ascription). `?:(+^w^)` agrees. */
-    /* A constructor's argument is already inside the constructor's `(…)`,
-       so a labeled or tuple argument isn't wrapped again. */
+    /* Bad entries are parenthesized too, or `+ (_=T)` printed its singleton
+       bare and dropped the Prod's ids. A constructor's argument is already
+       inside the constructor's `(…)`, so a labeled or tuple argument isn't
+       wrapped again. */
     let inner =
       Sum(
-        ConstructorMap.map(
-          ts =>
-            ts
-            |> Option.map(t =>
-                 parenthesize_typ(~already_paren=true, t)
-                 |> paren_typ_at(Precedence.min)
-               ),
+        List.map(
+          fun
+          | ConstructorMap.Variant(c, ann, Some(t)) =>
+            ConstructorMap.Variant(
+              c,
+              ann,
+              Some(
+                parenthesize_typ(~already_paren=true, t)
+                |> paren_typ_at(Precedence.min),
+              ),
+            )
+          | Variant(_, _, None) as v => v
+          | BadEntry(t) =>
+            BadEntry(
+              parenthesize_typ(t) |> paren_typ_at(Precedence.type_plus),
+            ),
           ts,
         ),
       )
@@ -1355,6 +1366,26 @@ let should_add_space = (s1, s2) =>
 
 let text_to_pretty = (id, sort, str): pretty => {
   let (form, sort) = Form.classify_label(sort, [str]);
+  p_just([
+    Tile({
+      id,
+      form,
+      sort,
+      shards: [0],
+      children: [],
+    }),
+  ]);
+};
+
+/* A module item's own token (a hole or invalid item): the editor molds it at
+   Mod and, with no Mod form, as the bare expression item it is (remold_mod's
+   Exp fallback), so `{ ? }` keeps an Exp `?` rather than an Any one. */
+let mod_item_token_to_pretty = (id, str): pretty => {
+  let (form, sort) =
+    switch (Form.classify_label(Sort.Mod, [str])) {
+    | (_, Sort.Any) => Form.classify_label(Sort.Exp, [str])
+    | fs => fs
+    };
   p_just([
     Tile({
       id,
@@ -2722,7 +2753,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
              let item_id = item |> Mod.rep_id;
              let seg =
                switch (hole_lexeme(item.annotation)) {
-               | Some(tok) => text_to_pretty(item_id, Sort.Mod, tok)
+               | Some(tok) => mod_item_token_to_pretty(item_id, tok)
                | None => [
                    Grout({
                      id: item_id,
@@ -3485,7 +3516,7 @@ and mod_to_pretty = (~settings: Settings.t, item: Mod.t): pretty => {
   | EmptyHole =>
     let seg =
       switch (hole_lexeme(item.annotation)) {
-      | Some(tok) => text_to_pretty(item |> Mod.rep_id, Sort.Mod, tok)
+      | Some(tok) => mod_item_token_to_pretty(item |> Mod.rep_id, tok)
       | None => [
           Grout({
             id: item |> Mod.rep_id,

@@ -37,6 +37,29 @@ let show_core_exp = exp =>
  * failure output. The `Typ.show` deriver prints the whole IdTagged record,
  * which buries the type in annotation noise.
  */
+/* Types with each `proof_of` erased to `?`, for properties that compare
+   types. A theorem's binder has a `proof_of` type quoting its proposition,
+   which elaboration and stepping both rewrite, and a join of a `proof_of`
+   with `?` can come out as either, so any generated theorem can make two
+   types differ only there. Proofs are to be separated from expressions
+   (#2753). */
+let erase_proof_props = (ty: Typ.t): Typ.t =>
+  Typ.map_term(
+    ~f_typ=
+      (continue, t: Typ.t) =>
+        switch (t.term) {
+        | ProofOf(_) => {
+            ...t,
+            term: Unknown(Internal),
+          }
+        | _ => continue(t)
+        },
+    ty,
+  );
+
+let erase_proof_props_in_exp = (e: Exp.t): Exp.t =>
+  Exp.map_term(~f_typ=(_, t) => erase_proof_props(t), e);
+
 let show_core_typ = typ =>
   typ
   |> TypToSegment.typ_to_segment(

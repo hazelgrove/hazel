@@ -151,5 +151,11 @@ let tests = (
     test_nested_module_keyword,
     test_module_keyword_annotated,
     test_module_keyword_sig_annotated,
+    test_case("An ascription inside an item's definition stays", `Quick, () => {
+      parse_and_evaluate_test(
+        "?:Int",
+        {|let m = { let y = (let z : Int = ? in z) } in m.y|},
+      )
+    }),
   ],
 );

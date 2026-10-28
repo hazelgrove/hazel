@@ -22,7 +22,7 @@ open Util;
     */
 
 type unboxed_tfun =
-  | TypFun(TPat.t, Exp.t, option(string));
+  | TypFun(TPat.t, Exp.t, option(string), option(Environment.t(Exp.t)));
 
 [@deriving show({with_path: false})]
 type unboxed_fun =
@@ -178,9 +178,9 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
 
     /* TypFun-like things can look like the following when values */
     | (TypFun, Closure(env', {term: TypFun(utpat, tfbody, name), _})) =>
-      Matches(TypFun(utpat, Closure(env', tfbody) |> Exp.fresh, name))
+      Matches(TypFun(utpat, tfbody, name, Some(env')))
     | (TypFun, TypFun(utpat, tfbody, name)) =>
-      Matches(TypFun(utpat, tfbody, name))
+      Matches(TypFun(utpat, tfbody, name, None))
     /* Forms that are the wrong type of value - these cases indicate an error */
     | (
         _,

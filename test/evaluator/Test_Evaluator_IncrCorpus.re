@@ -58,7 +58,6 @@ let tests = (
               let exp = MakeTerm.go(seg).term;
               for (literal_index in 0 to edits_per_program - 1) {
                 Test_Evaluator_Properties.check_incremental_against_fresh_after_edit(
-                  ~values_only=true,
                   ~step_limit=200000,
                   ~compared,
                   ~literal_index,
