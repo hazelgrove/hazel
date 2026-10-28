@@ -449,6 +449,35 @@ let test_bare_item_in_a_hole_is_its_expression =
     },
   );
 
+let test_item_scope_references_are_variables =
+  Alcotest.test_case(
+    "A module item's scope co-context holds only variable references",
+    `Quick,
+    () => {
+      let s = statics(parse_exp({|{ let x = 1; let y = x }|}));
+      let is_var_ref = (entry: Language.CoCtx.entry) =>
+        switch (Language.Id.Map.find_opt(entry.id, s)) {
+        | Some(InfoExp({user_term: {term: Var(_), _}, _})) => true
+        | _ => false
+        };
+      let refs =
+        Language.Id.Map.bindings(s)
+        |> List.concat_map(((_, info: Language.Info.t)) =>
+             switch (info) {
+             | InfoMod({scope_co_ctx, _}) =>
+               List.concat_map(snd, scope_co_ctx)
+             | _ => []
+             }
+           );
+      Alcotest.(check(bool))("some reference", false, List.is_empty(refs));
+      Alcotest.(check(bool))(
+        "every reference is a variable",
+        true,
+        List.for_all(is_var_ref, refs),
+      );
+    },
+  );
+
 let test_type_member_compared_outside_the_body =
   has_mark_test(
     "A type member is compared against the signature's definition read outside the body",
@@ -2021,6 +2050,7 @@ let tests = (
     test_item_types,
     test_item_infos_are_module_items,
     test_bare_item_in_a_hole_is_its_expression,
+    test_item_scope_references_are_variables,
     /* Sig annotation tests */
     test_empty_sig_annotation,
     test_matching_sig_annotation,

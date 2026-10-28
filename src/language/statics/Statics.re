@@ -2781,10 +2781,28 @@ and uexp_to_info_map =
           ctx,
           ty,
         );
-      let exported_value_names =
-        items
-        |> List.concat_map(Mod.bound_names)
-        |> Util.ListUtil.dedup_f(String.equal);
+      /* Each item with the names it exports: those it binds that no later
+         item rebinds. */
+      let exports: Id.Map.t(list(Var.t)) =
+        List.fold_right(
+          (item: Mod.t, (by_item, rebound)) => {
+            let names = Mod.bound_names(item);
+            (
+              Id.Map.add(
+                Mod.rep_id(item),
+                List.filter(x => !Sets.StringSet.mem(x, rebound), names),
+                by_item,
+              ),
+              Sets.StringSet.add_seq(List.to_seq(names), rebound),
+            );
+          },
+          items,
+          (Id.Map.empty, Sets.StringSet.empty),
+        )
+        |> fst;
+      let exported_by = (item: Mod.t): list(Var.t) =>
+        Id.Map.find_opt(Mod.rep_id(item), exports)
+        |> Option.value(~default=[]);
       let add_item =
           (~ctx, ~marks=[], ~ty, ~co_ctx, ~scope_co_ctx, item: Mod.t, m) =>
         add_info(
@@ -2815,26 +2833,25 @@ and uexp_to_info_map =
       };
       /* A binding item, bound over the items after it. [p] binds the
          names it exports; [member] forms the exported item of each. Only
-         the names no later item rebinds are exported, so only they are
-         expected anything of. */
+         the exported names are expected anything of, and they are used by
+         being exported. */
       let binding_item =
           (
             ~ctx,
             ~member: (Var.t, Typ.t) => Sig.t,
             ~go_rest,
-            ~rest: list(Mod.t),
             item: Mod.t,
             p: Pat.t,
             def: Exp.t,
             m,
           )
           : (let_finished, checked_items, Map.t) => {
-        let rebound = List.concat_map(Mod.bound_names, rest);
+        let exported = exported_by(item);
         let expected =
           List.filter(
             (m: Sig.member) =>
               switch (m) {
-              | Val(x, _) => !List.exists(String.equal(x), rebound)
+              | Val(x, _) => List.exists(String.equal(x), exported)
               | TypeManifest(_) => true
               },
             expected,
@@ -2854,12 +2871,21 @@ and uexp_to_info_map =
           );
         let (b, m) = let_binding(~ctx, ~ancestors, ~ana_pat, p, def, m);
         let (c, m) = go_rest(~ctx=b.ctx_scope, m);
+        let export_uses =
+          exported
+          |> List.map(name =>
+               CoCtx.singleton(
+                 name,
+                 Exp.rep_id(uexp),
+                 Unknown(Internal) |> Typ.temp,
+               )
+             );
         let (f, m) =
           let_finish(
             ~ctx,
             ~ancestors,
             b,
-            ~scope_co_ctx=c.co_ctx,
+            ~scope_co_ctx=CoCtx.union([c.co_ctx, ...export_uses]),
             ~scope_ty=Unknown(Internal) |> Typ.temp,
             m,
           );
@@ -2906,17 +2932,7 @@ and uexp_to_info_map =
               members: [],
               checked: [],
               mismatched_types: [],
-              /* The exports are used by being exported. */
-              co_ctx:
-                exported_value_names
-                |> List.map(name =>
-                     CoCtx.singleton(
-                       name,
-                       Exp.rep_id(uexp),
-                       Unknown(Internal) |> Typ.temp,
-                     )
-                   )
-                |> CoCtx.union,
+              co_ctx: CoCtx.empty,
               probe_targets: SubexpProbeTargets.empty,
             },
             m,
@@ -2940,7 +2956,6 @@ and uexp_to_info_map =
                 ~ctx,
                 ~member=(x, ty) => Sig.item_of_member(Val(x, ty)),
                 ~go_rest,
-                ~rest,
                 item,
                 binder,
                 def,
@@ -2961,7 +2976,6 @@ and uexp_to_info_map =
                 ~ctx,
                 ~member=Sig.module_item,
                 ~go_rest,
-                ~rest,
                 item,
                 MPat.to_pat(mp),
                 def,
