@@ -1611,7 +1611,8 @@ let std_stats_reset = () => {
    Unknown is an evidence TARGET only for binder ascriptions; operand
    checks always ask for a concrete class. No application / `if` / `case`
    result is evidence. Otherwise no evidence. */
-let rec std_evident_type = (tyctx: Ctx.t, arg: Exp.t, t: Typ.t): bool => {
+let rec std_evident_type =
+        (~excluded: list(Var.t)=[], tyctx: Ctx.t, arg: Exp.t, t: Typ.t): bool => {
   let int_t = Typ.temp(Atom(Int));
   let bool_t = Typ.temp(Atom(Bool));
   let t = Typ.normalize(tyctx, t);
@@ -1625,12 +1626,12 @@ let rec std_evident_type = (tyctx: Ctx.t, arg: Exp.t, t: Typ.t): bool => {
   | (Atom(cls), Atom(a)) => Atom.cls_of_t(a) == cls
   | (Prod(ts), Tuple(args)) =>
     List.length(ts) == List.length(args)
-    && List.for_all2((a, t) => std_evident_type(tyctx, a, t), args, ts)
+    && List.for_all2((a, t) => std_evident_type(~excluded, tyctx, a, t), args, ts)
   | (List(t1), ListLit(args)) =>
-    List.for_all(a => std_evident_type(tyctx, a, t1), args)
+    List.for_all(a => std_evident_type(~excluded, tyctx, a, t1), args)
   | (Atom(Int), BinOp(Int(Plus | Minus | Times), a, b)) =>
-    std_evident_type(tyctx, a, int_t) && std_evident_type(tyctx, b, int_t)
-  | (Atom(Int), UnOp(Int(Minus), a)) => std_evident_type(tyctx, a, int_t)
+    std_evident_type(~excluded, tyctx, a, int_t) && std_evident_type(~excluded, tyctx, b, int_t)
+  | (Atom(Int), UnOp(Int(Minus), a)) => std_evident_type(~excluded, tyctx, a, int_t)
   | (
       Atom(Bool),
       BinOp(
@@ -1639,21 +1640,45 @@ let rec std_evident_type = (tyctx: Ctx.t, arg: Exp.t, t: Typ.t): bool => {
         b,
       ),
     ) =>
-    std_evident_type(tyctx, a, int_t) && std_evident_type(tyctx, b, int_t)
+    std_evident_type(~excluded, tyctx, a, int_t) && std_evident_type(~excluded, tyctx, b, int_t)
   | (Atom(Bool), BinOp(Bool(And | Or | Implies), a, b)) =>
-    std_evident_type(tyctx, a, bool_t) && std_evident_type(tyctx, b, bool_t)
-  | (Atom(Bool), UnOp(Bool(Not), a)) => std_evident_type(tyctx, a, bool_t)
+    std_evident_type(~excluded, tyctx, a, bool_t) && std_evident_type(~excluded, tyctx, b, bool_t)
+  | (Atom(Bool), UnOp(Bool(Not), a)) => std_evident_type(~excluded, tyctx, a, bool_t)
   | (Atom(Bool), BinOp(Poly(Equals | NotEquals), a, b)) =>
-    std_same_atom_class(tyctx, a, b)
+    std_same_atom_class(~excluded, tyctx, a, b)
+  /* Elimination of an EXISTING precise arrow type: a context-bound
+     function variable (not a recursive self-name, `excluded`) declared
+     `dom -> cod` with no Unknown anywhere, applied to an argument
+     evidently of `dom`, has class `cod`. The function's STANDARDNESS is
+     judged separately (std_judge's application arm). No lambda, fixpoint,
+     `if` or `case` result is evidence. */
+  | (_, Ap(Forward, f, a)) =>
+    switch (strip_parens_exp(f).term) {
+    | Var(h) when !List.mem(h, excluded) =>
+      switch (Ctx.lookup_var(tyctx, h)) {
+      | Some({typ, _}) =>
+        let typ = Typ.normalize(tyctx, typ);
+        switch (Typ.term_of(typ)) {
+        | Arrow(dom, cod) =>
+          !Typ.contains_unknown(typ)
+          && Typ.fast_equal(Typ.normalize(tyctx, cod), t)
+          && std_evident_type(~excluded, tyctx, a, dom)
+        | _ => false
+        };
+      | None => false
+      }
+    | _ => false
+    }
   | _ => false
   };
 }
 /* Both operands evidently of one concrete atom class (`==` / `!=`). */
-and std_same_atom_class = (tyctx: Ctx.t, a: Exp.t, b: Exp.t): bool =>
+and std_same_atom_class =
+    (~excluded: list(Var.t)=[], tyctx: Ctx.t, a: Exp.t, b: Exp.t): bool =>
   List.exists(
     (cls: Atom.cls) => {
       let t = Typ.temp(Atom(cls));
-      std_evident_type(tyctx, a, t) && std_evident_type(tyctx, b, t);
+      std_evident_type(~excluded, tyctx, a, t) && std_evident_type(~excluded, tyctx, b, t);
     },
     [Atom.Int, Atom.SInt, Atom.Nat, Atom.Float, Atom.Bool, Atom.String],
   );
@@ -1664,17 +1689,19 @@ and std_same_atom_class = (tyctx: Ctx.t, a: Exp.t, b: Exp.t): bool =>
    (a product parameter type alone is not evidence: an Unknown-typed
    standard argument need not be a tuple). Guarded, constructor, list and
    literal patterns can fail. */
-let rec std_irrefutable = (~tyctx: Ctx.t, p: Pat.t, arg: Exp.t): bool =>
+let rec std_irrefutable =
+        (~excluded=[], ~tyctx: Ctx.t, p: Pat.t, arg: Exp.t): bool =>
   switch (p.term) {
-  | Parens(p) => std_irrefutable(~tyctx, p, arg)
+  | Parens(p) => std_irrefutable(~excluded, ~tyctx, p, arg)
   | Asc(p, t) =>
-    std_evident_type(tyctx, arg, t) && std_irrefutable(~tyctx, p, arg)
+    std_evident_type(~excluded, tyctx, arg, t)
+    && std_irrefutable(~excluded, ~tyctx, p, arg)
   | Var(_)
   | Wild => true
   | Tuple(ps) =>
     switch (strip_parens_exp(arg).term) {
     | Tuple(args) when List.length(args) == List.length(ps) =>
-      List.for_all2(std_irrefutable(~tyctx), ps, args)
+      List.for_all2(std_irrefutable(~excluded, ~tyctx), ps, args)
     | _ => false
     }
   | _ => false
@@ -1720,7 +1747,9 @@ let rec std_judge =
   } else {
     let go = std_judge(~selfs, ~lists, ~depth, ~budget, ~certs, ctx);
     let tyctx = SemanticCtx.get_ctx(ctx);
-    let evident = (a, t) => std_evident_type(tyctx, a, t);
+    let self_names = List.map(((n, _, _)) => n, selfs);
+    let evident = (a, t) =>
+      std_evident_type(~excluded=self_names, tyctx, a, t);
     let is_list_typ = (t: Typ.t) =>
       switch (Typ.term_of(Typ.normalize(tyctx, t))) {
       | List(_) => true
@@ -1869,7 +1898,7 @@ let rec std_judge =
       && go(b)
     /* `==` / `!=`: both operands evidently of the same concrete atom class. */
     | BinOp(Poly(Equals | NotEquals), a, b)
-        when std_same_atom_class(tyctx, a, b) =>
+        when std_same_atom_class(~excluded=self_names, tyctx, a, b) =>
       go(a) && go(b)
     | UnOp(Int(Minus), a) => evident(a, Typ.temp(Atom(Int))) && go(a)
     | UnOp(Bool(Not), a) => evident(a, Typ.temp(Atom(Bool))) && go(a)
@@ -1961,12 +1990,12 @@ let rec std_judge =
           List.find(((n, _, _)) => n == s, selfs);
         let ev = evidence(p, Some(arg));
         go(arg)
-        && std_irrefutable(~tyctx, p, arg)
+        && std_irrefutable(~excluded=self_names, ~tyctx, p, arg)
         && List.for_all(x => List.mem(x, ev), entry_ev);
       /* Beta: an irrefutable parameter bound to a standard argument. */
       | Fun(p, body, _, _) when depth < std_max_depth =>
         go(arg)
-        && std_irrefutable(~tyctx, p, arg)
+        && std_irrefutable(~excluded=self_names, ~tyctx, p, arg)
         && under(
              ~selfs,
              ~depth=depth + 1,
@@ -1983,7 +2012,7 @@ let rec std_judge =
           let names = Pat.bound_vars(p);
           let ev = evidence(p, Some(arg));
           go(arg)
-          && std_irrefutable(~tyctx, p, arg)
+          && std_irrefutable(~excluded=self_names, ~tyctx, p, arg)
           && certified(head(f))
           && std_judge(
                ~selfs=[
@@ -2016,9 +2045,28 @@ let rec std_judge =
              );
         | _ => false
         }
-      /* Kernel std_fun application: a standard function at a standard
-         argument. Builtins and anything else fail closed. */
-      | _ => go(f) && go(arg)
+      /* Kernel std_fun application: a standard function VARIABLE at a
+         standard argument that is evidently of the variable's PRECISE
+         declared domain (no Unknown): a standard function is only known
+         to be standard at standard values of its domain, and Unknown is
+         no evidence (G1-double-prime). Builtins, other heads and
+         imprecise domains fail closed. */
+      | Var(h) =>
+        go(f)
+        && go(arg)
+        && (
+          switch (Ctx.lookup_var(tyctx, h)) {
+          | Some({typ, _}) =>
+            switch (Typ.term_of(Typ.normalize(tyctx, typ))) {
+            | Arrow(dom, _) =>
+              let dom = Typ.normalize(tyctx, dom);
+              !Typ.contains_unknown(dom) && evident(arg, dom);
+            | _ => false
+            }
+          | None => false
+          }
+        )
+      | _ => false
       }
     | _ => false
     };
@@ -3173,7 +3221,16 @@ let rec check =
         |> List.filter_map(((name, _id, fact)) =>
              is_where_name(name) && mentions_x(fact) ? Some(fact) : None
            );
-      let binder = Pat.fresh(Var(x));
+      /* The re-quantified binder carries x's EXISTING Ctx type when it is
+         precise (normalized, no Unknown); otherwise it stays untyped. No
+         inference from the goal. */
+      let binder =
+        switch (Ctx.lookup_var(base_ctx, x)) {
+        | Some({typ, _})
+            when !Typ.contains_unknown(Typ.normalize(base_ctx, typ)) =>
+          Pat.fresh(Asc(Pat.fresh(Var(x)), Typ.normalize(base_ctx, typ)))
+        | _ => Pat.fresh(Var(x))
+        };
       let body_goal =
         switch (guards) {
         | [] => Exp.fresh(Forall(binder, goal))

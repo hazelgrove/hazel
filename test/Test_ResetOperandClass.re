@@ -45,6 +45,84 @@ let negative = (label, lam, bad) =>
     check(bool, label, false, j);
   });
 
+/* Judgement in a context with `h : Int -> Int` and `x : Int` standard,
+   `k : Int -> Int` NOT standard, `g : ? -> ?` standard, and `u` standard
+   but untyped (no Ctx type). */
+let judge_in_fn_ctx = src => {
+  let int_t = Typ.temp(Atom(Int));
+  let arrow = Typ.temp(Arrow(int_t, int_t));
+  let unknown_arrow =
+    Typ.temp(Arrow(Typ.temp(Unknown(Internal)), Typ.temp(Unknown(Internal))));
+  let ctx =
+    SemanticCtx.of_ctx_and_env(
+      Builtins.ctx_init(Some(Operators.default_mode)),
+      Builtins.env_init,
+    );
+  let ctx =
+    List.fold_left(
+      (c, (x, t)) => SemanticCtx.add_entry(c, Id.mk(), x, t, None),
+      ctx,
+      [("h", arrow), ("k", arrow), ("g", unknown_arrow), ("x", int_t)],
+    )
+    |> SemanticCtx.mark_standard(_, ["h", "g", "x", "u"]);
+  ProofCheck.std_structural(ctx, Test_Evaluator_Prelude.parse_exp(src));
+};
+
+let fn_unit = (label, src, expected) =>
+  test_case("fn-ctx judgement " ++ label, `Quick, () => {
+    let j = judge_in_fn_ctx(src);
+    print_endline("OPC fn-ctx " ++ label ++ " | " ++ src ++ " | judgement " ++ string_of_bool(j));
+    check(bool, label, expected, j);
+  });
+
+/* A witness route whose gate is reported raw; a refused witness is NOT a
+   gate observation. */
+let route_gate = (label, src, expected) =>
+  test_case("route " ++ label ++ ": gate " ++ expected, `Quick, () => {
+    let (o, d) = RS.run(label, src);
+    let full = RE.full(o, "w");
+    print_endline(
+      "OPC route "
+      ++ label
+      ++ " | gate "
+      ++ d
+      ++ (d == "NO !!v OBLIGATION" ? " (witness refused: no gate observed)" : "")
+      ++ " | static errors "
+      ++ string_of_int(List.length(o.errors))
+      ++ " | full "
+      ++ full,
+    );
+    RE.valid(label, o);
+    check(string, label, expected, d);
+    if (expected != "Structural") {
+      check(bool, label ++ " not Proven", false, full == "Proven");
+    };
+  });
+
+/* Generalize: the re-quantified binder keeps x's precise Ctx type. The
+   witness gate `!!(acc + 1)` reads acc's class AFTER generalize + forall. */
+let gen_typed =
+  "theorem w = forall acc: Int -> exists (n : Int) -> n == acc + 1 proof generalize acc => forall acc => == true by witness acc + 1 end; axiom refl_eq at 0 on acc + 1 == acc + 1 end in 0";
+let gen_typed_before =
+  "theorem w = forall acc: Int -> exists (n : Int) -> n == acc + 1 proof == true by witness acc + 1 end; axiom refl_eq at 0 on acc + 1 == acc + 1 end in 0";
+let gen_unknown =
+  "theorem w = forall acc -> exists (n : Int) -> n == acc + 1 proof generalize acc => forall acc => == true by witness acc + 1 end; axiom refl_eq at 0 on acc + 1 == acc + 1 end in 0";
+let gen_shadow =
+  "theorem w = forall acc: Int -> exists (n : Int) -> n == acc + 1 proof generalize acc => forall acc => == true by witness case [acc] | acc :: _ => acc + 1 | _ => 0 end end; ? end in 0";
+let gen_capture =
+  "theorem w = forall acc: Int -> acc == 1 ==> acc == 1 proof assume acc == 1 as h => generalize acc => forall acc => == true by h end in 0";
+
+/* ADDENDUM-6 (reviewer): application of a standard typed function
+   variable needs evidence of its precise domain at the actual argument. */
+let fn_untyped_arg =
+  "theorem w = forall (f : Int -> Int) -> forall y -> exists (n : Int) -> n == f(y) proof == true by witness f(y) end; axiom refl_eq at 0 on f(y) == f(y) end in 0";
+let fn_typed_arg =
+  "theorem w = forall (f : Int -> Int) -> forall (y : Int) -> exists (n : Int) -> n == f(y) proof == true by witness f(y) end; axiom refl_eq at 0 on f(y) == f(y) end in 0";
+let fn_literal_arg =
+  "theorem w = forall (f : Int -> Int) -> exists (n : Int) -> n == f(0) proof == true by witness f(0) end; axiom refl_eq at 0 on f(0) == f(0) end in 0";
+let fn_result_arith =
+  "theorem w = forall (f : Int -> Int) -> exists (n : Int) -> n == f(0) + 1 proof == true by witness f(0) + 1 end; axiom refl_eq at 0 on f(0) + 1 == f(0) + 1 end in 0";
+
 let positive = (label, src) =>
   test_case("positive " ++ label ++ ": std", `Quick, () => {
     let j = judge(src);
@@ -129,6 +207,38 @@ let tests = (
       RE.valid("sumh_int_list_limitation", o);
       check(string, "fail-closed limitation", "Pending", d);
     }),
+    /* Generalize type preservation (final closure). */
+    route_gate("generalize_typed_acc_before", gen_typed_before, "Structural"),
+    route_gate("generalize_typed_acc_after", gen_typed, "Structural"),
+    route_gate("generalize_unknown_acc_stays_unknown", gen_unknown, "Pending"),
+    route_gate("generalize_case_binder_shadow", gen_shadow, "Pending"),
+    test_case("generalize capture: the assumed fact about the old acc is unavailable", `Quick, () => {
+      let o = RE.observe("generalize_capture", gen_capture);
+      print_endline("OPC generalize_capture | full " ++ RE.full(o, "w") ++ " | static errors " ++ string_of_int(List.length(o.errors)));
+      check(bool, "not Proven", false, RE.full(o, "w") == "Proven");
+    }),
+    /* Standard typed function variable application (final closure +
+       ADDENDUM-6). */
+    route_gate("fn_var_untyped_arg", fn_untyped_arg, "Pending"),
+    route_gate("fn_var_typed_arg", fn_typed_arg, "Structural"),
+    route_gate("fn_var_literal_arg", fn_literal_arg, "Structural"),
+    route_gate("fn_var_result_arith", fn_result_arith, "Structural"),
+    fn_unit("h(0) + 1", "h(0) + 1", true),
+    fn_unit("h(h(0)) + 1", "h(h(0)) + 1", true),
+    fn_unit("h(x) == 0", "h(x) == 0", true),
+    fn_unit("h(true) + 1 (literal domain mismatch)", "h(true) + 1", false),
+    fn_unit("h(true) alone (domain mismatch)", "h(true)", false),
+    fn_unit("fun (y : ?) -> h(y) (Unknown actual)", "fun (y : ?) -> h(y)", false),
+    fn_unit("h(0) && true (codomain mismatch)", "h(0) && true", false),
+    fn_unit("g(0) + 1 (imprecise arrow)", "g(0) + 1", false),
+    fn_unit("g(0) alone (imprecise domain)", "g(0)", false),
+    fn_unit("k(0) + 1 (function not standard)", "k(0) + 1", false),
+    fn_unit("(fun z -> z)(0) + 1 (lambda result: no inference)", "(fun z -> z)(0) + 1", false),
+    /* Core 21 companion: a STANDARD Int-typed variable is evidence; the
+       same mark on an untyped `u` is not (core 21's original assertion
+       stays as recorded). */
+    fn_unit("x + 1 (x : Int, standard)", "x + 1", true),
+    fn_unit("u + 1 (u standard, untyped)", "u + 1", false),
     positive("literal_arith", "1 + 2 * 3"),
     positive("literal_unary_minus", "-(4)"),
     positive("literal_not", "!true"),
