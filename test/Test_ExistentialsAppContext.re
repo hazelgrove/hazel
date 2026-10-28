@@ -884,5 +884,22 @@ let tests = (
       ("assume-pending-std-premise", Test_ResetStandardnessGates.curry, PendingStdExp),
     ],
   )
-  @ [edit_case, undo_case],
+  @ [edit_case, undo_case]
+  /* U-c (D56): the theorem score counts only Proven; a proof with a
+     pending condition scores 0, a Proven one 1 (actual app model). */
+  @ [
+    test_case("D56 score: Proven scores 1, pending condition scores 0", `Quick, () => {
+      let proven = app_of_source(Test_ResetExistentials.positive);
+      let pending = app_of_source(Test_ResetStandardnessGates.curry);
+      let score = (a: app) => Theorems.Model.get_score(a.model.theorems);
+      let show = s =>
+        switch (s) {
+        | Some((c, t)) => Printf.sprintf("%.0f/%.0f", c, t)
+        | None => "none"
+        };
+      obs("score", "proven=" ++ show(score(proven)) ++ " pending=" ++ show(score(pending)));
+      check(string, "Proven theorem scores 1/1", "1/1", show(score(proven)));
+      check(string, "pending-condition theorem scores 0/1", "0/1", show(score(pending)));
+    }),
+  ],
 );

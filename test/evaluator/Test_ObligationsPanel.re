@@ -130,6 +130,35 @@ let test_repro_status_is_proven_modulo = () => {
   );
 };
 
+/* U-a (D56, standardness completion): a MIXED proof, one condition met
+ * and one pending. The chip counts only the pending one; the met one is
+ * still listed with its receipt (provenance kept), after the pending row. */
+let test_d56_mixed_met_and_pending = () => {
+  let (pm, proof) =
+    run(
+      {|let loop : Int -> Int = fun k -> loop(k) in theorem t = forall (n : Int) -> (n == 1) ==> (loop(0) == 0) ==> 1 == 1 proof assume n == 1 => assume loop(0) == 0 => eval 1 == 1 at 0 end in t|},
+    );
+  let status = ProofMap.full_status_of_proof(pm, proof);
+  str_check(
+    "chip counts only the pending condition",
+    "not proven: 1 pending condition",
+    ObligationsPanel.status_label(status),
+  );
+  str_check("not-proven chip", "unknown", ObligationsPanel.status_class(status));
+  let g = ObligationsPanel.group_of(~pm, ~proofs=[proof]);
+  int_check("both conditions listed", 2, List.length(g.proof));
+  bool_check(
+    "pending row first",
+    true,
+    Obligation.is_pending(List.nth(g.proof, 0)),
+  );
+  str_check(
+    "the met condition keeps its receipt",
+    "Structural",
+    Obligation.show_discharge(List.nth(g.proof, 1).discharge),
+  );
+};
+
 /* A proof with no obligations at all is plain Proven; a hole is
  * Incomplete. */
 let test_status_proven_and_incomplete = () => {
@@ -698,6 +727,11 @@ let test_float_discharges_after_recheck = () => {
 let tests = (
   "ObligationsPanel",
   [
+    test_case(
+      "D56: mixed met + pending -- count only pending, met receipt kept",
+      `Quick,
+      test_d56_mixed_met_and_pending,
+    ),
     test_case(
       "float is available at a theorem binder, all three exits live",
       `Quick,
