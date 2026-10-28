@@ -3139,17 +3139,44 @@ and uexp_to_info_map =
               m,
             );
           | Invalid(_)
-          | EmptyHole
-          | MultiHole(_) =>
-            let (co_ctx, _, m) =
-              mod_to_info_map(
+          | EmptyHole =>
+            let (c, m) = go_rest(~ctx, m);
+            let m =
+              add_item(
                 ~ctx,
-                ~ancestors=ancestors_inclusive,
-                ~probe_ids,
+                ~ty=None,
+                ~co_ctx=c.co_ctx,
+                ~scope_co_ctx=c.co_ctx,
                 item,
                 m,
               );
+            (with_item(c, item, item.term), m);
+          | MultiHole(tms) =>
+            /* A hole item binds nothing. As an expression hole, it keeps
+               only its expression children, elaborated: the others are
+               written syntax, which an elaborated term does not carry. */
+            let (co_ctxs, tms_elab, m) =
+              multi(~ctx, ~ancestors, ~probe_ids, m, tms);
+            let co_ctx = CoCtx.union(co_ctxs);
             let (c, m) = go_rest(~ctx, m);
+            let m =
+              add_item(
+                ~ctx,
+                ~ty=None,
+                ~co_ctx=CoCtx.union([co_ctx, c.co_ctx]),
+                ~scope_co_ctx=c.co_ctx,
+                item,
+                m,
+              );
+            let exps =
+              List.filter(
+                (any: Any.t) =>
+                  switch (any) {
+                  | Exp(_) => true
+                  | _ => false
+                  },
+                tms_elab,
+              );
             (
               with_item(
                 {
@@ -3157,7 +3184,7 @@ and uexp_to_info_map =
                   co_ctx: CoCtx.union([co_ctx, c.co_ctx]),
                 },
                 item,
-                item.term,
+                MultiHole(exps),
               ),
               m,
             );
@@ -3452,9 +3479,21 @@ and upat_to_info_map =
   let default_case = () =>
     switch (term) {
     | MultiHole(tms) =>
-      let (_, _, m) =
+      let (_, tms_elab, m) =
         multi(~ctx, ~ancestors=ancestors_inclusive, ~probe_ids, m, tms);
+      /* Only the pattern children are elaborated; the others are written
+         syntax, which an elaborated term does not carry. */
+      let pats =
+        List.filter(
+          (any: Any.t) =>
+            switch (any) {
+            | Pat(_) => true
+            | _ => false
+            },
+          tms_elab,
+        );
       add(
+        ~elab_term=MultiHole(pats) |> rewrap,
         ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
         ~marks=[IsMulti],
         ~ctx,

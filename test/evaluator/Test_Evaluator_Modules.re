@@ -246,6 +246,33 @@ let test_hole_item_dropped =
     parse_and_evaluate_test("{ let x = 2 }", {|{ let x = 1; ?; let x = 2 }|})
   });
 
+/* Built by hand: the parser does not put a pattern inside a hole item. */
+let test_hole_item_annotation_closed =
+  test_case(
+    "A hole item's written annotation does not reach a type application",
+    `Quick,
+    () => {
+      open Language.IdTagged.FreshGrammar;
+      let annotated =
+        Pat.asc(
+          Pat.var("x"),
+          Typ.sig_([Sig.sig_let(Pat.asc(Pat.var("y"), Typ.var("T")))]),
+        );
+      let body =
+        Exp.module_([
+          Mod.mod_let(Pat.var("z"), Exp.int(1)),
+          Mod.multi_hole([Language.Grammar.Pat(annotated)]),
+        ]);
+      evaluation_test(
+        "the hole item is dropped",
+        parse_exp("{ let z = 1 }"),
+        elaborate(
+          Exp.typ_ap(Exp.typ_fun(TPat.var("T"), body, None), Typ.int()),
+        ),
+      );
+    },
+  );
+
 /* Polymorphic equality on module values compares members by name. */
 let test_equal_module_values =
   test_case("Equal module values are equal", `Quick, () =>
@@ -295,6 +322,7 @@ let tests = (
     test_member_rebound_after_stuck_item,
     test_member_before_stuck_item,
     test_hole_item_dropped,
+    test_hole_item_annotation_closed,
     test_case("Nested modules", `Quick, () => {
       parse_and_evaluate_test(
         "{ let m = { let y = 1 } }",
