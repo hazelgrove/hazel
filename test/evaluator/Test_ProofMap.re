@@ -988,11 +988,31 @@ let test_impl_intro_via_assume = () => {
   let (state, _, elab) = src |> parse_exp |> eval_with_proof;
   let pm = EvaluatorState.get_proof_map(state);
   let proof = proof_of(elab);
+  /* D47/D51 (finish stage): the intro records exactly its `!!(x == 2)`
+     gate, discharged; nothing else. */
+  let all = ProofMap.obligations_of_proof(pm, proof);
+  let gate = (ob: Obligation.t) =>
+    switch (ob.goal.term) {
+    | Valued(_) => true
+    | _ => false
+    };
   Alcotest.check(
     Alcotest.int,
-    "intro incurs ZERO obligations",
+    "intro incurs no ordinary obligation",
     0,
-    List.length(ProofMap.obligations_of_proof(pm, proof)),
+    List.length(List.filter(ob => !gate(ob), all)),
+  );
+  Alcotest.check(
+    Alcotest.int,
+    "intro records exactly its D47 gate",
+    1,
+    List.length(List.filter(gate, all)),
+  );
+  Alcotest.check(
+    Alcotest.bool,
+    "the gate is discharged",
+    false,
+    List.exists(Obligation.is_pending, all),
   );
   Alcotest.check(
     Alcotest.bool,

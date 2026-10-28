@@ -185,8 +185,24 @@ let check_mark_free = (msg, pm, proof): unit =>
     Alcotest.fail(msg ++ " should be mark-free\n" ++ dump(pm, proof));
   };
 
+/* A D47/D51/D80 standardness gate (`!!e`): recorded on assume intros and
+   quantified instantiations since the finish stage. Counted apart from
+   the ordinary obligations, and required to be discharged. */
+let is_std_gate = (ob: Obligation.t): bool =>
+  switch (ob.goal.term) {
+  | Valued(_) => true
+  | _ => false
+  };
+
 let check_obligation_count = (msg, expected, pm, proof): unit => {
-  let obs = ProofMap.obligations_of_proof(pm, proof);
+  let all = ProofMap.obligations_of_proof(pm, proof);
+  let gates = List.filter(is_std_gate, all);
+  if (List.exists(Obligation.is_pending, gates)) {
+    Alcotest.fail(
+      msg ++ ": a standardness gate is Pending\n" ++ dump(pm, proof),
+    );
+  };
+  let obs = List.filter(ob => !is_std_gate(ob), all);
   if (List.length(obs) != expected) {
     Alcotest.fail(
       msg
@@ -599,18 +615,28 @@ let test_pin_parens_defeat_assume_intro = () => {
         partial_proof(["a1 != 0", "b1 != 0"], "a1 * b1 != 0"),
       ),
     );
-  let obs = ProofMap.obligations_of_proof(pm, proof);
+  /* D47/D51 contract (finish stage): grouping parens no longer defeat
+     the intro. The nested antecedent is INTRODUCED, so nothing is baked,
+     and each intro records its `!!` gate, discharged. */
+  let all = ProofMap.obligations_of_proof(pm, proof);
+  let gates = List.filter(is_std_gate, all);
   Alcotest.check(
     Alcotest.int,
-    "the parenthesised nested antecedent is baked, not introduced",
-    1,
-    List.length(obs),
+    "the parenthesised nested antecedent is introduced, not baked",
+    0,
+    List.length(List.filter(ob => !is_std_gate(ob), all)),
+  );
+  Alcotest.check(
+    Alcotest.int,
+    "one D47 gate per introduced antecedent",
+    2,
+    List.length(gates),
   );
   Alcotest.check(
     Alcotest.bool,
-    "and its obligation goes Pending",
-    true,
-    List.for_all(Obligation.is_pending, obs),
+    "and the gates are discharged",
+    false,
+    List.exists(Obligation.is_pending, gates),
   );
   /* Control: the same statement without the parens introduces both
      antecedents free of charge. */
@@ -787,19 +813,31 @@ let all_workload: list((string, string)) =
     );
 
 let test_channel_distribution = () => {
+  /* Standardness gates (`!!e`, finish stage) are their own bucket and
+     must all be discharged; the four channels below count the ordinary
+     obligations exactly as before. */
+  let gates_pending = ref(0);
+  let gates_total = ref(0);
   let (remote, evaluated, local, pending) =
     List.fold_left(
       ((r, e, l, p), (name, src)) => {
         let (pm, proof) = run_named(name, src);
         List.fold_left(
           ((r, e, l, p), ob: Obligation.t) =>
-            switch (ob.discharge) {
-            | Remote(_) => (r + 1, e, l, p)
-            | Evaluated => (r, e + 1, l, p)
-            | Local(_) => (r, e, l + 1, p)
-            /* Witness standardness only; no witness in these programs. */
-            | Structural => (r, e, l + 1, p)
-            | Pending => (r, e, l, p + 1)
+            if (is_std_gate(ob)) {
+              incr(gates_total);
+              if (Obligation.is_pending(ob)) {
+                incr(gates_pending);
+              };
+              (r, e, l, p);
+            } else {
+              switch (ob.discharge) {
+              | Remote(_) => (r + 1, e, l, p)
+              | Evaluated => (r, e + 1, l, p)
+              | Local(_) => (r, e, l + 1, p)
+              | Structural => (r, e, l, p)
+              | Pending => (r, e, l, p + 1)
+              };
             },
           (r, e, l, p),
           ProofMap.obligations_of_proof(pm, proof),
@@ -808,6 +846,18 @@ let test_channel_distribution = () => {
       (0, 0, 0, 0),
       all_workload,
     );
+  print_endline(
+    "closure-library standardness gates: total="
+    ++ string_of_int(gates_total^)
+    ++ " pending="
+    ++ string_of_int(gates_pending^),
+  );
+  Alcotest.check(
+    Alcotest.int,
+    "standardness gates: none pending",
+    0,
+    gates_pending^,
+  );
   print_endline(
     "closure-library channel distribution (docs/prover-obligations.md "
     ++ "4.3): total="

@@ -49,13 +49,13 @@ let refl_partial =
    funext example: the lambda's synthesized type and the parameter-type
    field the elaboration stores. Printed only. */
 let type_info_receipt = (label, src) => {
+  let user = Test_Evaluator_Prelude.parse_exp(src);
   let (statics, elab) =
     Statics.mk(
       CoreSettings.on,
       Builtins.ctx_init(Some(Operators.default_mode)),
-      Test_Evaluator_Prelude.parse_exp(src),
+      user,
     );
-  let user = Test_Evaluator_Prelude.parse_exp(src);
   let show_ty = t => Typ.pretty_print(t);
   let _ =
     Exp.map_term(

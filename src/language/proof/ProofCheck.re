@@ -1043,12 +1043,28 @@ let rec arrow_domain_syntactic =
         (~env: Environment.t(Exp.t), e: Exp.t): option(Typ.t) =>
   switch (e |> Exp.term_of) {
   | Parens(inner) => arrow_domain_syntactic(~env, inner)
-  | Fun(_, _, Some(t), _) =>
-    switch (Typ.term_of(t)) {
-    | Arrow(d, _) => Some(d)
+  /* The type field is the PARAMETER type (Statics elaborates
+   * `Fun(p, e, Some(p.ty), n)`), i.e. already the domain. When it is
+   * missing or unknown, the parameter's own written ascription is the
+   * only other precise source; otherwise the domain is Unknown and the
+   * D80 funext guard fails closed. Nothing is guessed from the body. */
+  | Fun(p, _, field, _) =>
+    let rec ascribed = (p: Pat.t) =>
+      switch (p.term) {
+      | Parens(p) => ascribed(p)
+      | Asc(_, t) => Some(t)
+      | _ => None
+      };
+    let known = (t: Typ.t) =>
+      switch (Typ.term_of(t)) {
+      | Unknown(_) => false
+      | _ => true
+      };
+    switch (field, ascribed(p)) {
+    | (Some(t), _) when known(t) => Some(t)
+    | (_, Some(t)) => Some(t)
     | _ => Some(Typ.fresh(Unknown(Internal)))
-    }
-  | Fun(_, _, None, _) => Some(Typ.fresh(Unknown(Internal)))
+    };
   /* A closure/fix wrapper around a lambda still denotes a function. */
   | Closure(_, inner)
   | FixF(_, inner, _) => arrow_domain_syntactic(~env, inner)
@@ -1834,6 +1850,35 @@ let usable_named_fact =
   };
 };
 
+/* The builtin `refl_eq` (Axioms.v), not a user theorem that happens to
+   be called `refl_eq`: a user theorem of that name is a statement-bearing
+   theorem entry and shadows the builtin (whose entry carries no
+   statement). Primitive reflexivity holds at ANY term (D81), so its
+   instantiation needs no standardness. */
+let canonical_refl = (ctx: SemanticCtx.t, equality: Exp.t): bool =>
+  switch (exp_to_equality_name(equality)) {
+  | Some("refl_eq") =>
+    switch (Ctx.lookup_theorem(SemanticCtx.get_ctx(ctx), "refl_eq")) {
+    | Some({prop: Some(_), _}) => false
+    | Some({prop: None, _})
+    | None => true
+    }
+  | _ => false
+  };
+
+/* D80: every instantiation of a quantified binder (matched or written
+   `with`) must be standard. One shared `!!e` obligation per
+   instantiation, with its actual discharge; unresolved stays Pending. */
+let instantiation_standardness =
+    (~step, ~ctx: SemanticCtx.t, ~origin: Id.t, instantiations) =>
+  List.map(
+    ((_, e)) => {
+      let e_sub = e |> Substitution.in_exp(SemanticCtx.get_env(ctx));
+      standardness_obligation(~step, ~ctx, ~origin, ~display=e, e_sub);
+    },
+    instantiations,
+  );
+
 let rec check =
         (
           ~step: step_fn=no_step,
@@ -1930,6 +1975,16 @@ let rec check =
               List.map(
                 incur_obligation(~step, ~ctx, ~origin=id),
                 dedup_conditions(condition_goals @ domain_conditions),
+              )
+              @ (
+                canonical_refl(ctx, equality)
+                  ? []
+                  : instantiation_standardness(
+                      ~step,
+                      ~ctx,
+                      ~origin=id,
+                      instantiations,
+                    )
               );
             (Some(out), [], obligations);
           }
@@ -2852,7 +2907,13 @@ let rec check =
                     List.map(
                       incur_obligation(~step, ~ctx, ~origin=id),
                       dedup_conditions(domain_conditions),
-                    ),
+                    )
+                    @ instantiation_standardness(
+                        ~step,
+                        ~ctx,
+                        ~origin=id,
+                        [(x, inst)],
+                      ),
                   ))
                 }
               };
