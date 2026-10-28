@@ -411,7 +411,19 @@ let test_pos_add_partial = () =>
 let test_pow_pos_partial = () => {
   check_partial("pow_pos_proved", src_pow_pos, 1);
   let (pm, proof) = run_named("pow_pos_proved", src_pow_pos);
-  switch (ProofMap.obligations_of_proof(pm, proof)) {
+  let all = ProofMap.obligations_of_proof(pm, proof);
+  /* D47/D51 (finish stage): each introduced antecedent (`a1 > 0`,
+     `b1 >= 0`) records its `!!` gate, discharged by the structural rules
+     (standard statement binders, Int comparisons). Counted apart from the
+     ordinary obligation below, which is unchanged. */
+  Alcotest.check(
+    Alcotest.list(Alcotest.string),
+    "the two D47 gates are discharged Structural",
+    ["Structural", "Structural"],
+    List.filter(is_std_gate, all)
+    |> List.map((ob: Obligation.t) => Obligation.show_discharge(ob.discharge)),
+  );
+  switch (List.filter(ob => !is_std_gate(ob), all)) {
   | [ob] =>
     Test_ProofMap.check_exp(
       "pow_pos's split emits the ** domain condition",

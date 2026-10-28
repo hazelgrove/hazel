@@ -1052,7 +1052,23 @@ let test_conditional_rule_closed_discharges = () => {
   let (state, _, elab) = src |> parse_exp |> eval_with_proof;
   let pm = EvaluatorState.get_proof_map(state);
   let use_proof = proof_of_named("u", elab);
-  let obs = ProofMap.obligations_of_proof(pm, use_proof);
+  /* D80 (finish stage): the quantified instantiation `x := 2` records its
+     `!!2` standardness gate, discharged by closed evaluation. Counted apart
+     from the instantiated guard below, which is unchanged. */
+  let gate = (ob: Obligation.t) =>
+    switch (ob.goal.term) {
+    | Valued(_) => true
+    | _ => false
+    };
+  let all = ProofMap.obligations_of_proof(pm, use_proof);
+  Alcotest.check(
+    Alcotest.list(Alcotest.string),
+    "the D80 instantiation gate !!2 is discharged by evaluation",
+    ["Evaluated"],
+    List.filter(gate, all)
+    |> List.map((ob: Obligation.t) => Obligation.show_discharge(ob.discharge)),
+  );
+  let obs = List.filter(ob => !gate(ob), all);
   Alcotest.check(
     Alcotest.int,
     "the use site incurs one obligation",
