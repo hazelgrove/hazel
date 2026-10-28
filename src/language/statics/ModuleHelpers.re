@@ -38,17 +38,6 @@ let rec collect_pat_type_refs = (ctx: Ctx.t, pat: Pat.t): CoCtx.t =>
   | _ => CoCtx.empty
   };
 
-/* Whether a later item declares type member [name] again. */
-let type_declared_later = (name: Var.t, later: list(Mod.t)): bool =>
-  List.exists(
-    (item: Mod.t) =>
-      switch (item.term) {
-      | ModType({term: Var(n), _}, _) => String.equal(n, name)
-      | _ => false
-      },
-    later,
-  );
-
 /* Type names the body declares. The exported signature is closed: these
    are expanded in the exported member types. */
 let declared_type_names = (items: list(Mod.t)): list(Var.t) =>
@@ -60,6 +49,10 @@ let declared_type_names = (items: list(Mod.t)): list(Var.t) =>
        }
      )
   |> Util.ListUtil.dedup_f(String.equal);
+
+/* Whether a later item declares type member [name] again. */
+let type_declared_later = (name: Var.t, later: list(Mod.t)): bool =>
+  List.exists(String.equal(name), declared_type_names(later));
 
 /* What the signature expects of each member, read in the body's context:
    an outer alias named like a type the body [declared] is expanded, so the
