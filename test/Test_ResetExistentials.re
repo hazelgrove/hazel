@@ -367,6 +367,13 @@ let fn_case_shadow =
   "theorem w = forall (f : Int -> Int) -> forall (fs : [Int -> Int]) -> exists (g : Int -> Int) -> g(0) == g(0) proof\n"
   ++ "  induction fs\n  | [] => ?\n  | f :: t => == true by witness f end\n  end\nin 0";
 
+/* Computed scrutinee whose standardness is not shown (a partial lambda
+   element): its case variable `f`, shadowing the standard statement `f`,
+   must not inherit standardness. */
+let fn_case_shadow_computed =
+  "theorem w = forall (f : Int -> Int) -> forall (fs : [Int -> Int]) -> exists (g : Int -> Int) -> g(0) == g(0) proof\n"
+  ++ "  induction [fun (k : Int) -> 1 / k] @ fs\n  | [] => ?\n  | f :: t => == true by witness f end\n  end\nin 0";
+
 /* Existing-status control: a proof with NO witness step still reads
    Refuted when it computes the goal to `false`. */
 let refuted_control =
@@ -597,7 +604,15 @@ let tests = (
       let o4 = observe("fn_case_shadow", fn_case_shadow);
       let w4 = node(o4, "w", RelEqBy);
       check(list(string), "case variable accepted as a witness", [], refused_rules(w4));
-      check(string, "shadowing case variable is not auto-standard", "Pending", std_discharge(w4));
+      /* U1 contract: induction on the STANDARD binder `fs` makes its case
+         variable `f` standard (kernel induct), even though it shadows the
+         statement's `f`. */
+      check(string, "case variable of a standard scrutinee is standard (U1)", "Structural", std_discharge(w4));
+      let o5 = observe("fn_case_shadow_computed", fn_case_shadow_computed);
+      valid("fn_case_shadow_computed", o5);
+      let w5 = node(o5, "w", RelEqBy);
+      check(list(string), "computed-scrutinee case variable accepted as a witness", [], refused_rules(w5));
+      check(string, "computed (non-standard) scrutinee: shadowing case variable stays Pending", "Pending", std_discharge(w5));
     }),
     test_case("B1: partial-builtin first-order witness is never Proven (literal control is)", `Quick, () => {
       let c = observe("b1_control", b1_control);

@@ -106,13 +106,43 @@ let check_mark_free = (msg, pm, proof) =>
     Alcotest.fail(msg ++ "\n--- proof dump ---\n" ++ dump(pm, proof, ""))
   };
 
-let check_no_obligations = (msg, pm, proof) =>
+/* Since the existentials finish stage, assume intros and quantified
+   instantiations record D47/D80 standardness gates (`!!e`). They are
+   counted apart and must all be DISCHARGED; the original "no ordinary
+   obligations" assertion is unchanged. Gate kinds are printed. */
+let check_no_obligations = (msg, pm, proof) => {
+  let all = ProofMap.obligations_of_proof(pm, proof);
+  let is_gate = (ob: Obligation.t) =>
+    switch (ob.goal.term) {
+    | Valued(_) => true
+    | _ => false
+    };
+  List.iter(
+    (ob: Obligation.t) =>
+      if (is_gate(ob)) {
+        print_endline(
+          "EQUIV gate "
+          ++ Obligation.show_discharge(ob.discharge)
+          ++ " | "
+          ++ Obligation.show(ob)
+          |> (s => String.length(s) > 160 ? String.sub(s, 0, 160) : s),
+        );
+      },
+    all,
+  );
   Alcotest.check(
     Alcotest.int,
     msg,
     0,
-    List.length(ProofMap.obligations_of_proof(pm, proof)),
+    List.length(List.filter(ob => !is_gate(ob), all)),
   );
+  Alcotest.check(
+    Alcotest.int,
+    msg ++ ": standardness gates all discharged (pending count)",
+    0,
+    List.length(List.filter(Obligation.is_pending, List.filter(is_gate, all))),
+  );
+};
 
 let has_pattern_not_found = (pm, proof) =>
   has_mark_kind(
