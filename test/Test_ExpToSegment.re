@@ -2961,6 +2961,49 @@ let defensive_print_stable_tests = (
   ],
 );
 
+/* A recursive `let` elaborates to a fixpoint, which printing hides when
+   asked, whether or not ascriptions show. */
+let hidden_fixpoint_tests = (
+  "ExpToSegment: Hidden fixpoints",
+  List.map(
+    [true, false],
+    ~f=show_ascriptions => {
+      let name =
+        "Recursive let hides its fixpoint, ascriptions "
+        ++ (show_ascriptions ? "shown" : "hidden");
+      test_case(
+        name,
+        `Quick,
+        () => {
+          let src = "let f = fun x -> if x == 0 then 0 else f(x - 1) in f(3)";
+          let (_, elab) =
+            Statics.mk(
+              CoreSettings.on,
+              Builtins.ctx_init(Some(Int)),
+              Option.value_exn(Parser.to_term(src, ~root=Exp)),
+            );
+          let printed =
+            ExpToSegment.exp_to_segment(
+              ~settings={
+                ...exp_to_segment_settings,
+                show_ascriptions,
+                hide_fixpoints: true,
+              },
+              elab,
+            )
+            |> print_seg;
+          check(
+            bool,
+            "no fix in " ++ printed,
+            false,
+            String.is_substring(printed, ~substring="fix"),
+          );
+        },
+      );
+    },
+  ),
+);
+
 let property_tests = (
   "Round-Trip: Property",
   [
@@ -3068,5 +3111,6 @@ let all = [
   roundtrip_grout_string_tests,
   roundtrip_projector_tests,
   defensive_print_stable_tests,
+  hidden_fixpoint_tests,
   property_tests,
 ];

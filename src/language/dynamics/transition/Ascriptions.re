@@ -43,6 +43,16 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     } else {
       d;
     };
+  /* A cast pushed onto a part that is itself a cast composes with it, as a
+     cast on a cast does here, so the result doesn't depend on which cast
+     arrives first, and the stepper and the evaluator agree. */
+  let ascribe = (part: DHExp.t, ty: Typ.t): DHExp.t => {
+    let d = Asc(part, ty) |> DHExp.fresh;
+    switch (DHExp.term_of(part)) {
+    | Asc(_) => transition(d) |> Option.value(~default=d)
+    | _ => d
+    };
+  };
   switch (DHExp.term_of(d)) {
   | Asc(e, t) =>
     /* A self-loop ascribes nothing, so the ascription is stuck. */
@@ -69,15 +79,21 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         IdTagged.fast_copy(
           DHExp.rep_id(e),
           IdTagged.FreshGrammar.(
-            Exp.(fn(Pat.(asc(p, t1)), asc(body, t2), closure_ty, name))
+            Exp.(fn(Pat.(asc(p, t1)), ascribe(body, t2), closure_ty, name))
           ),
         ),
       )
     | (TupLabel({term: ExplicitNonlabel, _}, inner), _) =>
-      Some(recur(Asc(inner, t) |> DHExp.fresh))
+      Some(recur(ascribe(inner, t)))
+    /* Different labels: the value doesn't have the type, so the cast
+       stays, as for every other mismatch below. Pushing it inside kept the
+       value's label and silently changed the type (`(x=e) : (y=T)` stepped
+       to `(x=e:T)`). */
+    | (TupLabel({term: Label(a), _}, _), TupLabel({term: Label(b), _}, _))
+        when !LabeledTuple.match_labels(a, b) =>
+      None
     | (TupLabel(l, inner), TupLabel(_l2, inner_ty)) =>
-      // TODO Figure out what to do if the labels don't match
-      let inner' = recur(Asc(inner, inner_ty) |> DHExp.fresh);
+      let inner' = recur(ascribe(inner, inner_ty));
       phys_equal(inner', inner)
         ? Some(e)
         : Some(
@@ -88,9 +104,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
           );
     | (Tuple(es), Prod(tys)) when List.length(es) == List.length(tys) =>
       let es' =
-        List.map2_exn(es, tys, ~f=(e, ty) =>
-          recur(Asc(e, ty) |> DHExp.fresh)
-        );
+        List.map2_exn(~f=(e, ty) => recur(ascribe(e, ty)), es, tys);
       unchanged(es, es')
         ? Some(e)
         : Some(
@@ -113,7 +127,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       | (Bool(_), _) => None
       }
     | (ListLit(ds), List(ty)) =>
-      let ds' = List.map(~f=d => recur(Asc(d, ty) |> DHExp.fresh), ds);
+      let ds' = List.map(~f=d => recur(ascribe(d, ty)), ds);
       unchanged(ds, ds')
         ? Some(e)
         : Some(
@@ -123,8 +137,8 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
             ),
           );
     | (Cons(d1, d2), List(ty)) =>
-      let d1' = recur(Asc(d1, ty) |> DHExp.fresh);
-      let d2' = recur(Asc(d2, t) |> DHExp.fresh);
+      let d1' = recur(ascribe(d1, ty));
+      let d2' = recur(ascribe(d2, t));
       phys_equal(d1', d1) && phys_equal(d2', d2)
         ? Some(e)
         : Some(
@@ -144,7 +158,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
           DHExp.rep_id(e),
           TypFun(
             tp,
-            recur(Asc(body, Typ.subst(new_ty, tp', t')) |> DHExp.fresh),
+            recur(ascribe(body, Typ.subst(new_ty, tp', t'))),
             name,
           )
           |> DHExp.fresh,
@@ -154,11 +168,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       Some(
         IdTagged.fast_copy(
           DHExp.rep_id(e),
-          If(
-            recur(cond),
-            recur(Asc(e1, t) |> DHExp.fresh),
-            recur(Asc(e2, t) |> DHExp.fresh),
-          )
+          If(recur(cond), recur(ascribe(e1, t)), recur(ascribe(e2, t)))
           |> DHExp.fresh,
         ),
       )
@@ -168,10 +178,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
           DHExp.rep_id(e),
           Match(
             scrut,
-            List.map(
-              ~f=((p, body)) => (p, Asc(body, t) |> DHExp.fresh),
-              rules,
-            ),
+            List.map(~f=((p, body)) => (p, ascribe(body, t)), rules),
           )
           |> DHExp.fresh,
         ),
@@ -188,7 +195,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       let entry = ConstructorMap.get_entry(c, m);
       switch (entry) {
       | Some(Some(t')) =>
-        let payload' = recur(Asc(payload, t') |> DHExp.fresh);
+        let payload' = recur(ascribe(payload, t'));
         phys_equal(payload', payload)
           ? Some(e)
           : Some(
@@ -243,10 +250,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       Some(
         IdTagged.fast_copy(
           DHExp.rep_id(e),
-          ListConcat(
-            recur(Asc(d1, t) |> DHExp.fresh),
-            recur(Asc(d2, t) |> DHExp.fresh),
-          )
+          ListConcat(recur(ascribe(d1, t)), recur(ascribe(d2, t)))
           |> DHExp.fresh,
         ),
       )
@@ -254,28 +258,28 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       Some(
         IdTagged.fast_copy(
           DHExp.rep_id(e),
-          Let(p, e1, Asc(e2, t) |> DHExp.fresh) |> DHExp.fresh,
+          Let(p, e1, ascribe(e2, t)) |> DHExp.fresh,
         ),
       )
     | (Seq(e1, e2), _) =>
       Some(
         IdTagged.fast_copy(
           DHExp.rep_id(e),
-          Seq(e1, Asc(e2, t) |> DHExp.fresh) |> DHExp.fresh,
+          Seq(e1, ascribe(e2, t)) |> DHExp.fresh,
         ),
       )
     | (Parens(pe), _) =>
       Some(
         IdTagged.fast_copy(
           DHExp.rep_id(e),
-          Parens(Asc(pe, t) |> DHExp.fresh) |> DHExp.fresh,
+          Parens(ascribe(pe, t)) |> DHExp.fresh,
         ),
       )
     | (Projector(data, pe), _) =>
       Some(
         IdTagged.fast_copy(
           DHExp.rep_id(e),
-          Projector(data, Asc(pe, t) |> DHExp.fresh) |> DHExp.fresh,
+          Projector(data, ascribe(pe, t)) |> DHExp.fresh,
         ),
       )
     // We _could_ do this, but it would be a bit weird

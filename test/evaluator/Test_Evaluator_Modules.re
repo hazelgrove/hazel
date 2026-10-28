@@ -159,5 +159,40 @@ let tests = (
     test_case("Junk between two bindings", `Quick, () => {
       parse_and_evaluate_test("(a=1)", {|{ let a = 1 x let b = 2 }|})
     }),
+    test_case("An ascription inside an item's definition stays", `Quick, () => {
+      parse_and_evaluate_test(
+        "?:Int",
+        {|let m = { let y = (let z : Int = ? in z) } in m.y|},
+      )
+    }),
+    /* `M : S` casts the module to `S`, so its `f` returns an Int or fails
+       its cast; without the cast, the call returned the string. */
+    test_case(
+      "A module binder's signature casts the module",
+      `Quick,
+      () => {
+        let returns_the_string = src =>
+          switch (parse_and_evaluate(src).term) {
+          | Atom(String("s")) => true
+          | _ => false
+          };
+        check(
+          bool,
+          "module item",
+          false,
+          returns_the_string(
+            {|let m : ? = { let f = fun x -> "s" } in module N = { module M : { let f : Int -> Int } = m } in N.M.f(1)|},
+          ),
+        );
+        check(
+          bool,
+          "module ... in",
+          false,
+          returns_the_string(
+            {|let m : ? = { let f = fun x -> "s" } in module M : { let f : Int -> Int } = m in M.f(1)|},
+          ),
+        );
+      },
+    ),
   ],
 );

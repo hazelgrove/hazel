@@ -1303,16 +1303,28 @@ and parenthesize_typ =
     )
     |> rewrap
   | Sum(ts) =>
-    /* A constructor's argument is already inside the constructor's `(…)`,
-       so a labeled or tuple argument isn't wrapped again. */
+    /* Bad entries are parenthesized too, or `+ (_=T)` printed its singleton
+       bare and dropped the Prod's ids. A constructor's argument is already
+       inside the constructor's `(…)`, so a labeled or tuple argument isn't
+       wrapped again. */
     Sum(
-      ConstructorMap.map(
-        ts =>
-          ts
-          |> Option.map(~f=t =>
-               parenthesize_typ(~already_paren=true, t)
-               |> paren_typ_at(Precedence.min)
-             ),
+      List.map(
+        ~f=
+          fun
+          | ConstructorMap.Variant(c, ann, Some(t)) =>
+            ConstructorMap.Variant(
+              c,
+              ann,
+              Some(
+                parenthesize_typ(~already_paren=true, t)
+                |> paren_typ_at(Precedence.min),
+              ),
+            )
+          | Variant(_, _, None) as v => v
+          | BadEntry(t) =>
+            BadEntry(
+              parenthesize_typ(t) |> paren_typ_at(Precedence.type_plus),
+            ),
         ts,
       ),
     )
@@ -1590,6 +1602,26 @@ let should_add_space = (s1, s2) =>
 
 let text_to_pretty = (id, sort, str): pretty => {
   let (form, sort) = Form.classify_label(sort, [str]);
+  p_just([
+    Tile({
+      id,
+      form,
+      sort,
+      shards: [0],
+      children: [],
+    }),
+  ]);
+};
+
+/* A module item's own token (a hole or invalid item): the editor molds it at
+   Mod and, with no Mod form, as the bare expression item it is (remold_mod's
+   Exp fallback), so `{ ? }` keeps an Exp `?` rather than an Any one. */
+let mod_item_token_to_pretty = (id, str): pretty => {
+  let (form, sort) =
+    switch (Form.classify_label(Sort.Mod, [str])) {
+    | (_, Sort.Any) => Form.classify_label(Sort.Exp, [str])
+    | fs => fs
+    };
   p_just([
     Tile({
       id,
@@ -2489,12 +2521,12 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       ]
       @ r,
     );
-  | MultiHole([x]) when op_lexeme(exp.annotation) != None =>
+  | MultiHole([x]) when Option.is_some(op_lexeme(exp.annotation)) =>
     /* Stranded prefix op (see MakeTerm's Pre captures) */
     let op = Option.value_exn(op_lexeme(exp.annotation));
     let+ x = any_to_pretty(~settings, x);
     wrap(exp, [pre_op_tile(exp |> Exp.rep_id, Sort.Exp, op), ...x]);
-  | MultiHole([l, r]) when op_lexeme(exp.annotation) != None =>
+  | MultiHole([l, r]) when Option.is_some(op_lexeme(exp.annotation)) =>
     /* Unknown infix operator (see MakeTerm's exp Bin fallthrough) */
     let op = Option.value_exn(op_lexeme(exp.annotation));
     let id = exp |> Exp.rep_id;
@@ -2984,7 +3016,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
              let item_id = item |> Mod.rep_id;
              let seg =
                switch (hole_lexeme(item.annotation)) {
-               | Some(tok) => text_to_pretty(item_id, Sort.Mod, tok)
+               | Some(tok) => mod_item_token_to_pretty(item_id, tok)
                | None => [
                    Grout({
                      id: item_id,
@@ -3246,12 +3278,12 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
       pat,
       [Piece.Projector(ProjectorCore.mk(~id, kind, syntax, model))],
     );
-  | MultiHole([x]) when op_lexeme(pat.annotation) != None =>
+  | MultiHole([x]) when Option.is_some(op_lexeme(pat.annotation)) =>
     /* Stranded prefix op (see MakeTerm's Pre captures) */
     let op = Option.value_exn(op_lexeme(pat.annotation));
     let+ x = any_to_pretty(~settings, x);
     wrap(pat, [pre_op_tile(pat |> Pat.rep_id, Sort.Pat, op), ...x]);
-  | MultiHole([l, r]) when op_lexeme(pat.annotation) != None =>
+  | MultiHole([l, r]) when Option.is_some(op_lexeme(pat.annotation)) =>
     /* Unknown infix operator in pattern position (see MakeTerm's pat
        Bin fallthrough) */
     let op = Option.value_exn(op_lexeme(pat.annotation));
@@ -3360,12 +3392,14 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
         }
       },
     )
-  | Unknown(Hole(MultiHole([x]))) when op_lexeme(typ.annotation) != None =>
+  | Unknown(Hole(MultiHole([x])))
+      when Option.is_some(op_lexeme(typ.annotation)) =>
     /* Stranded prefix op (see MakeTerm's Pre captures) */
     let op = Option.value_exn(op_lexeme(typ.annotation));
     let+ x = any_to_pretty(~settings, x);
     wrap(typ, [pre_op_tile(typ |> Typ.rep_id, Sort.Typ, op), ...x]);
-  | Unknown(Hole(MultiHole([l, r]))) when op_lexeme(typ.annotation) != None =>
+  | Unknown(Hole(MultiHole([l, r])))
+      when Option.is_some(op_lexeme(typ.annotation)) =>
     /* Unknown infix operator in type position (see MakeTerm's typ Bin
        fallthrough) */
     let op = Option.value_exn(op_lexeme(typ.annotation));
@@ -3701,7 +3735,7 @@ and mod_to_pretty = (~settings: Settings.t, item: Mod.t): pretty => {
   | EmptyHole =>
     let seg =
       switch (hole_lexeme(item.annotation)) {
-      | Some(tok) => text_to_pretty(item |> Mod.rep_id, Sort.Mod, tok)
+      | Some(tok) => mod_item_token_to_pretty(item |> Mod.rep_id, tok)
       | None => [
           Grout({
             id: item |> Mod.rep_id,

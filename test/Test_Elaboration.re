@@ -886,6 +886,55 @@ in 1|},
         ();
       },
     ),
+    /* A binder typed by an alias of the function's whole type is the
+       function's type, so the fixpoint's body needs no cast. */
+    test_case(
+      "A recursive function typed by an alias gets no body cast",
+      `Quick,
+      () => {
+        let casts = ref(0);
+        let _ =
+          Language.Exp.map_term(
+            ~f_exp=
+              (continue, e: Language.Exp.t) => {
+                switch (e.term) {
+                | FixF(_, {term: Asc(_), _}, _) => casts := casts^ + 1
+                | _ => ()
+                };
+                continue(e);
+              },
+            dhexp_of_uexp(
+              parse_exp(
+                "type F = Int -> Int in let f : F = fun n -> if n == 0 then 0 else f(n - 1) in f(10)",
+              ),
+            ),
+          );
+        check(int, "fixpoint bodies with a cast", 0, casts^);
+      },
+    ),
+    /* An alias is erased at runtime, so a cast must not name one. */
+    test_case(
+      "A recursive function's ascriptions name no type alias",
+      `Quick,
+      () => {
+        let aliases = ref([]);
+        let _ =
+          Language.Exp.map_term(
+            ~f_typ=
+              (continue, t: Language.Typ.t) => {
+                switch (t.term) {
+                | Var(a) => aliases := [a, ...aliases^]
+                | _ => ()
+                };
+                continue(t);
+              },
+            dhexp_of_uexp(
+              parse_exp("type T = Int in let f = fun (x : T) -> (x, f) in f"),
+            ),
+          );
+        check(list(string), "type variables", [], aliases^);
+      },
+    ),
   ];
 };
 module MenhirElaborationTests = {

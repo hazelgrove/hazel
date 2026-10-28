@@ -238,29 +238,6 @@ module Transition = (EV: EV_MODE) => {
   open DHExp;
   open IdTagged.FreshGrammar.Exp;
 
-  /* Helper function to wrap a closure around an expression. Required for functions, but also for
-     things like if-then-else expressions where the scrutinee is indet, and for hole closures.
-
-     is_value: true because the Closure-wrapped expression is already fully evaluated
-     (all requirements were resolved by req_final). Re-evaluating it would redundantly
-     traverse sub-expressions, which (a) is wasteful and (b) causes spurious probe samples
-     when indeterminate return values from recursive calls are re-traversed at wrong call
-     stack depths. See Test_Evaluator_Probes "Recursive indet" tests. */
-  let wrap_closure_when_done = (~in_closure, expr, env, r: rule) =>
-    switch (in_closure, r) {
-    | (_, Step(_)) => r
-    | (None, Constructor | Indet | Value) =>
-      Step({
-        expr: closure(env, expr),
-        side_effects: [],
-        kind: WrapClosure,
-        is_value: true,
-      })
-    | (Some(f), Constructor | Indet | Value) =>
-      f();
-      r;
-    };
-
   /* Extract function name from a function expression (including closures).
      Used to record the name in the call stack for better debugging. */
   let rec get_fn_name_from_expr = (d: DHExp.t): option(string) =>
@@ -452,15 +429,12 @@ module Transition = (EV: EV_MODE) => {
 
   let transition =
       (
-        req:
-          (~in_closure: unit => unit=?, Environment.t(Exp.t), DHExp.t) =>
-          EV.inner_result,
+        req: (Environment.t(Exp.t), DHExp.t) => EV.inner_result,
         ~mode: [
            | `Substitution
            | `Environment
          ],
         ~targets: Sample.targets=Sample.no_targets,
-        ~in_closure=?,
         env: Environment.t(Exp.t), // Environment is empty in substitution mode
         d,
       )
@@ -475,16 +449,28 @@ module Transition = (EV: EV_MODE) => {
     let generated = term =>
       Id.Map.is_empty(targets) ? Exp.temp(term) : Exp.fresh(term);
 
-    let (let.wrap_closure) = ((env, d'), f: unit => rule) =>
-      switch (mode) {
-      | `Environment => wrap_closure_when_done(~in_closure, d', env, f())
-      | `Substitution => f()
+    let (let.wrap_closure) = ((env, expr), f: unit => rule) =>
+      switch (mode, f()) {
+      | (`Substitution, r)
+      | (`Environment, Step(_) as r) => r
+      | (`Environment, Constructor | Indet | Value) =>
+        Step({
+          expr: closure(env, expr),
+          side_effects: [],
+          kind: WrapClosure,
+          is_value: true,
+        })
       };
 
-    let subst_env = (env, d) =>
+    /* Environment mode evaluates `expr` under `env` on the next step
+       (`SetEnv`). Substitution mode writes `env` into the term. */
+    let under_env = (env, expr, side_effects) =>
       switch (mode) {
-      | `Environment => generated(Closure(env, d))
-      | `Substitution => d |> Substitution.in_exp(env)
+      | `Environment => (
+          expr,
+          [EvaluatorState.SetEnv(env), ...side_effects],
+        )
+      | `Substitution => (expr |> Substitution.in_exp(env), side_effects)
       };
 
     // Transition rules
@@ -548,34 +534,47 @@ module Transition = (EV: EV_MODE) => {
       | DoesNotMatch => Indet
       | Matches(env') =>
         let env' = Environment.add_bindings(env, env');
+        let (expr, side_effects) =
+          under_env(
+            env',
+            d2,
+            [
+              RecordPatMatch({
+                pat: dp,
+                rhs: d1,
+                samples,
+              }),
+            ],
+          );
         Step({
-          expr: subst_env(env', d2),
-          side_effects: [
-            RecordPatMatch({
-              pat: dp,
-              rhs: d1,
-              samples,
-            }),
-          ],
+          expr,
+          side_effects,
           kind: LetBind(matches_str),
           is_value: false,
         });
       };
 
-    | Theorem({term: Var(n), _} as dp, e, d1) =>
+    | Theorem(dp, e, d1) when Option.is_some(Pat.theorem_binder(dp)) =>
+      let n = Option.value_exn(Pat.theorem_binder(dp));
       let. _ = otherwise(env, d);
       let e' = Substitution.in_exp(env, e);
       let env' = Environment.extend(env, (n, generated(ProofObject(e'))));
+      let (expr, side_effects) =
+        under_env(
+          env',
+          d1,
+          [
+            RecordTheorem(DHExp.rep_id(d), n, env, e'),
+            RecordPatMatch({
+              pat: dp,
+              rhs: e,
+              samples: [],
+            }),
+          ],
+        );
       Step({
-        expr: subst_env(env', d1),
-        side_effects: [
-          RecordTheorem(DHExp.rep_id(d), n, env, e'),
-          RecordPatMatch({
-            pat: dp,
-            rhs: e,
-            samples: [],
-          }),
-        ],
+        expr,
+        side_effects,
         kind: TheoremBind,
         is_value: false,
       });
@@ -587,10 +586,10 @@ module Transition = (EV: EV_MODE) => {
       Indet;
     | ProofObject(e) =>
       let. _ = otherwise(env, d);
-      let e' = Substitution.in_exp(env, e);
       switch (mode) {
       | `Substitution => Value
       | `Environment =>
+        let e' = Substitution.in_exp(env, e);
         Step({
           expr: d,
           side_effects: [
@@ -598,7 +597,7 @@ module Transition = (EV: EV_MODE) => {
           ],
           kind: RecordTheorem,
           is_value: true,
-        })
+        });
       };
     // Note[Matt]: we could make this spin, but for now it's indet
     | Forall(_) =>
@@ -623,9 +622,7 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d);
       let env' =
         switch (Pat.is_var(dp)) {
-        | Some(v) => [
-            (v, FixF(Var(v) |> Pat.fresh, d1, fix_env) |> rewrap),
-          ]
+        | Some(v) => [(v, FixF(dp, d1, fix_env) |> rewrap)]
         | None =>
           // If the pattern is not a single variable, we need to unpack the results of inner evaulations
           List.map(
@@ -635,16 +632,25 @@ module Transition = (EV: EV_MODE) => {
             Pat.bindings(dp),
           )
         };
-      let env'' = Environment.add_bindings(env, env');
+      /* The body runs where the fixpoint was defined, not where it is
+         called. */
+      let env'' =
+        Environment.add_bindings(Option.value(fix_env, ~default=env), env');
+      let (expr, side_effects) =
+        under_env(
+          env'',
+          d1,
+          [
+            RecordPatMatch({
+              pat: dp,
+              rhs: d1,
+              samples: [],
+            }),
+          ],
+        );
       Step({
-        expr: subst_env(env'', d1),
-        side_effects: [
-          RecordPatMatch({
-            pat: dp,
-            rhs: d1,
-            samples: [],
-          }),
-        ],
+        expr,
+        side_effects,
         kind: FixUnwrap,
         is_value: false,
       });
@@ -700,22 +706,28 @@ module Transition = (EV: EV_MODE) => {
       and. d' = req_final(req(env), d => TypAp(d, tau) |> wrap_ctx, d);
       let-unbox typfun = (TypFun, d');
       switch (typfun) {
-      | TypFun(utpat, tfbody, name) =>
+      | TypFun(utpat, tfbody, name, closure_env) =>
         /* Rule ITTLam */
-        Step({
-          expr:
-            DHExp.assign_name_if_none(
-              /* Inherit name for user clarity */
-              DHExp.ty_subst(tau, utpat, tfbody),
-              Option.map(
-                ~f=x => x ++ "@<" ++ Typ.pretty_print(tau) ++ ">",
-                name,
-              ),
+        let substituted =
+          DHExp.assign_name_if_none(
+            /* Inherit name for user clarity */
+            DHExp.ty_subst(tau, utpat, tfbody),
+            Option.map(
+              ~f=x => x ++ "@<" ++ Typ.pretty_print(tau) ++ ">",
+              name,
             ),
-          side_effects: [],
+          );
+        let (expr, side_effects) =
+          switch (closure_env) {
+          | Some(env) => under_env(env, substituted, [])
+          | None => (substituted, [])
+          };
+        Step({
+          expr,
+          side_effects,
           kind: TypFunAp,
           is_value: false,
-        })
+        });
       };
     | DeferredAp(d1, ds) =>
       let. _ = otherwise(env, (d1, ds) => DeferredAp(d1, ds) |> rewrap)
@@ -763,18 +775,24 @@ module Transition = (EV: EV_MODE) => {
           | DoesNotMatch => Indet
           | Matches(added_env) =>
             let env'' = Environment.add_bindings(replacement_env, added_env);
+            let (expr, side_effects) =
+              under_env(
+                env'',
+                d3,
+                [
+                  RecordStackFrame(fn_name, Some(d2'), fn_def_id),
+                  /* Use pre-req_final `d2` so dirty propagation walks the
+                   * source tree's stable ids (cache entries live at those). */
+                  RecordPatMatch({
+                    pat: dp,
+                    rhs: d2,
+                    samples: matches.samples,
+                  }),
+                ],
+              );
             Step({
-              expr: subst_env(env'', d3),
-              side_effects: [
-                RecordStackFrame(fn_name, Some(d2'), fn_def_id),
-                /* Use pre-req_final `d2` so dirty propagation walks the
-                 * source tree's stable ids (cache entries live at those). */
-                RecordPatMatch({
-                  pat: dp,
-                  rhs: d2,
-                  samples: matches.samples,
-                }),
-              ],
+              expr,
+              side_effects,
               kind: FunAp,
               is_value: false,
             });
@@ -785,23 +803,25 @@ module Transition = (EV: EV_MODE) => {
           | IndetMatch
           | DoesNotMatch => Indet
           | Matches(added_env) =>
+            let (expr, side_effects) =
+              under_env(
+                Environment.add_bindings(Environment.empty, added_env),
+                d3,
+                [
+                  RecordStackFrame(fn_name, Some(d2'), fn_def_id),
+                  RecordPatMatch({
+                    pat: dp,
+                    rhs: d2,
+                    samples: matches.samples,
+                  }),
+                ],
+              );
             Step({
-              expr:
-                subst_env(
-                  Environment.add_bindings(Environment.empty, added_env),
-                  d3,
-                ),
-              side_effects: [
-                RecordStackFrame(fn_name, Some(d2'), fn_def_id),
-                RecordPatMatch({
-                  pat: dp,
-                  rhs: d2,
-                  samples: matches.samples,
-                }),
-              ],
+              expr,
+              side_effects,
               kind: FunAp,
               is_value: false,
-            })
+            });
           };
         | FunNoEnv(_) => Indet
         | BuiltinFun(ident) =>
@@ -1195,48 +1215,36 @@ module Transition = (EV: EV_MODE) => {
       );
       switch (next_rule(rules)) {
       | Some((dp, env', d2, samples)) =>
+        let (expr, side_effects) =
+          under_env(
+            Environment.add_bindings(env, env'),
+            d2,
+            /* Use the pre-req_final scrutinee `d1` (not `d1'`) so dirty
+             * propagation walks its stable source ids, which carry cache
+             * entries. */
+            [
+              RecordPatMatch({
+                pat: dp,
+                rhs: d1,
+                samples,
+              }),
+            ],
+          );
         Step({
-          expr: subst_env(Environment.add_bindings(env, env'), d2),
-          /* Use the pre-req_final scrutinee `d1` (not `d1'`) so dirty
-           * propagation walks its stable source ids, which carry cache
-           * entries. */
-          side_effects: [
-            RecordPatMatch({
-              pat: dp,
-              rhs: d1,
-              samples,
-            }),
-          ],
+          expr,
+          side_effects,
           kind: CaseApply,
           is_value: false,
-        })
+        });
       | None =>
         let.wrap_closure _ = (env, Match(d1', rules) |> rewrap);
         Indet;
       };
-    | Closure(env', d) =>
-      // HACK [Matt] This ref is a hack to ensure that we don't get into an infinite loop
-      // where we keep deleting and re-adding closures around forms that need closures
-      // e.g. functions.
-      let needs_closure = ref(false);
-      let in_closure = () => needs_closure := true;
-      let. _ = otherwise(env, d => Closure(env', d) |> rewrap)
-      and. d' =
-        req_final(
-          req(~in_closure, env'),
-          d1 => Closure(env', d1) |> wrap_ctx,
-          d,
-        );
-      if (needs_closure^ || Poly.equal(mode, `Substitution)) {
-        Constructor;
-      } else {
-        Step({
-          expr: d',
-          side_effects: [],
-          kind: CompleteClosure,
-          is_value: true,
-        });
-      };
+    | Closure(_) =>
+      /* A closure packages an environment with a finished term (a function
+       * value, or a stuck result). It is not a redex. */
+      let. _ = otherwise(env, d);
+      Constructor;
     | MultiHole(_) =>
       let. _ = otherwise(env, d);
       let.wrap_closure _ = (env, d);

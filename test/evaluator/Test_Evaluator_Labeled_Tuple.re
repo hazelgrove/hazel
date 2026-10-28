@@ -18,8 +18,32 @@ let tests = (
     test_case("Ascription removal for labels in let pattern", `Quick, () => {
       parse_and_evaluate_test("(a=1)", {|let x : (a=Int) = (a=1) in x|})
     }),
+    /* Both entries are kept. The second `a` is not field `b`, so its cast
+       to `b`'s type stays rather than relabeling the value. */
+    /* An empty label matches any label, so the cast is pushed in. */
+    test_case("A cast to a label pushes into a wildcard label", `Quick, () =>
+      evaluation_test(
+        "(=1) : (a=Int)",
+        tup_label(label(""), int(1)),
+        asc(
+          tup_label(label(""), int(1)),
+          Typ.tup_label(Typ.label("a"), Typ.int()),
+        ),
+      )
+    ),
     test_case("Repeated label ascribed to a labeled tuple type", `Quick, () =>
-      parse_and_evaluate_test("(a=1, a=2)", {|((a=1, a=2) : (a=Int, b=Int))|})
+      check(
+        dhexp_typ,
+        "((a=1, a=2) : (a=Int, b=Int))",
+        tuple([
+          tup_label(label("a"), int(1)),
+          asc(
+            tup_label(label("a"), int(2)),
+            Typ.tup_label(Typ.label("b"), Typ.int()),
+          ),
+        ]),
+        parse_and_evaluate({|((a=1, a=2) : (a=Int, b=Int))|}),
+      )
     ),
     test_case("Labeled tuple field access", `Quick, () =>
       parse_and_evaluate_test("1", {|(a=1,b=2).a|})
@@ -40,10 +64,23 @@ in fn("hello")|},
           in fn("hello")|},
       )
     }),
+    /* A field whose label differs from the type's keeps its cast, labels
+       and all: the value doesn't have that type, so it isn't relabelled
+       (`(a=3 : Bool, b="" : Float)`). */
     test_case("Inconsistent labels", `Quick, () => {
-      parse_and_evaluate_test(
-        {|(a=3 : Bool, b= "": Float)|}, // TODO This is a bug
-        {|(a=3, b="") : (c=Bool, d=Float)|},
+      evaluation_test(
+        "(a=3, b=\"\") : (c=Bool, d=Float)",
+        tuple([
+          asc(
+            tup_label(label("a"), int(3)),
+            Typ.tup_label(Typ.label("c"), Typ.bool()),
+          ),
+          asc(
+            tup_label(label("b"), string("")),
+            Typ.tup_label(Typ.label("d"), Typ.float()),
+          ),
+        ]),
+        elaborate(parse_exp({|(a=3, b="") : (c=Bool, d=Float)|})),
       )
     }),
     test_case("Dot operation for missing label", `Quick, () =>
