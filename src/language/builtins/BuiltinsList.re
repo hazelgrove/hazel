@@ -2802,16 +2802,6 @@ let go: ([?], [?], [?]) -> [?] =
       },
     },
     {
-      str: {|any|}, //alias
-      name: "exists",
-      arg:
-        Prod([list(unknown(Internal)), arrow(unknown(Internal), bool())]),
-      ret: Atom(Bool),
-      imp: {
-        Fresh.(Exp.(var("any")));
-      },
-    },
-    {
       str: {|all|}, //alias
       name: "for_all",
       arg:
