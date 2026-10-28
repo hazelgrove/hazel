@@ -2354,37 +2354,12 @@ and uexp_to_info_map =
         ~probe_targets=body.probe_targets,
         m,
       );
-    | Let(p, def, body) when Option.is_some(Pat.function_sugar(p)) =>
-      /* Syntactic sugar: `let f(x: Int, y): Ret = def` desugars to
-         `let f = fun (x: Int, y) -> (def : Ret)`. Build the rewrite and
-         delegate to the regular Let machinery by recursing; patch up
-         the info map for pattern ids that vanish in the rewrite
-         (the Ap wrapper and optional outer Asc). Same structural
-         pattern as `ModuleExp` expansion above. */
-      let (f_name, args, ret_ty) = Option.get(Pat.function_sugar(p));
-      let rewritten =
-        FunctionSugar.rewrite(
-          ~orig_let=uexp,
-          ~f_name,
-          ~args,
-          ~ret_ty,
-          ~def,
-          ~body,
-        );
-      let (rewritten_info, rewritten_elab, m) = go(~ana, rewritten, m);
-      let m = FunctionSugar.add_binder_infos(m, ~user_pat=p, ~f_name);
-      add(
-        ~elab_term=rewritten_elab,
-        ~elab_syn_ty=rewritten_info.elab_syn_ty,
-        ~marks=rewritten_info.marks,
-        ~co_ctx=rewritten_info.co_ctx,
-        ~probe_targets=rewritten_info.probe_targets,
-        m,
-      );
     | Let(p, def, body) =>
-      let (b, m) = let_binding(~ctx, p, def, m);
+      let (binder, def) = FunctionSugar.binding(p, def);
+      let (b, m) = let_binding(~ctx, binder, def, m);
       let (body, body_elab, m) = go(~ctx=b.ctx_scope, ~ana, body, m);
       let (f, m) = let_finish(~ctx, b, ~scope_co_ctx=body.co_ctx, m);
+      let m = FunctionSugar.add_binder_infos(m, ~user_pat=p);
       add(
         ~elab_term=Let(f.p_elab, f.def_elab, body_elab) |> rewrap,
         ~elab_syn_ty=body.elab_syn_ty,
@@ -2950,15 +2925,7 @@ and uexp_to_info_map =
           let ancestors = [Mod.rep_id(item), ...ancestors_inclusive];
           switch (item.term) {
           | ModLet(p, def) =>
-            let (binder, def, sugar) =
-              switch (Pat.function_sugar(p)) {
-              | Some((f_name, args, ret_ty)) => (
-                  f_name,
-                  FunctionSugar.desugared_fun(~args, ~ret_ty, ~def),
-                  Some(f_name),
-                )
-              | None => (p, def, None)
-              };
+            let (binder, def) = FunctionSugar.binding(p, def);
             let (f, c, m) =
               binding_item(
                 ~ctx,
@@ -2969,12 +2936,7 @@ and uexp_to_info_map =
                 def,
                 m,
               );
-            let m =
-              switch (sugar) {
-              | Some(f_name) =>
-                FunctionSugar.add_binder_infos(m, ~user_pat=p, ~f_name)
-              | None => m
-              };
+            let m = FunctionSugar.add_binder_infos(m, ~user_pat=p);
             (with_item(c, item, ModLet(f.p_elab, f.def_elab)), m);
           | ModuleMod(mp, def) =>
             let (f, c, m) =

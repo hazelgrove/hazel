@@ -18,64 +18,42 @@
 
    The desugaring is handled entirely within the statics pass: the
    surface parser produces `Let(Ap(Var(f), args), def, body)` (optionally
-   wrapped in `Asc(_, ret_ty)`), and the `Let` case of `Statics.re`
-   delegates to `rewrite` below to build an equivalent `Let(f, fun ..., body)`.
+   wrapped in `Asc(_, ret_ty)`), and the `Let` and `ModLet` cases of
+   `Statics.re` check the binding [binding] gives, then fill in the
+   binder's own nodes with [add_binder_infos]. */
 
-   This is structurally analogous to other sugar handlers in the statics
-   pipeline:
-     - `autolabel_singleton_tuple` (in Statics.re) which lifts values into
-       singleton labeled tuples,
-     - `ModuleExp(mp, def, body)` (in Statics.re) which expands to
-       `Let(MPat.to_pat(mp), def, body)`.
+/* The binding `let p = def` makes: for the shorthand, the function's
+   name bound to
 
-   All of these reuse the id (and formatting secondary) of the surface
-   term for the desugared outer term by going through `Exp.unwrap`, so
-   that statics on the desugared form populates the info map under the
-   user's original ids. */
+       Fun(args, (def : ret_ty)?, None, None)
 
-/* Build the desugared expression:
-
-       Let(f_name, Fun(args, (def : ret_ty)?, None, None), body)
-
-   The outer `Let` is produced via `Exp.unwrap` on the surface `Let`,
-   which preserves its ids and secondary (formatting) so that statics
-   on the rewrite populates the info map under the user-facing id.
-   The `Fun` and (optional) `Asc` wrappers use fresh deterministic ids
-   derived from adjacent surface ids, keeping the rewrite stable across
-   runs. */
-let desugared_fun =
-    (~args: Pat.t, ~ret_ty: option(Typ.t), ~def: Exp.t): Exp.t => {
-  let def_in_fun =
-    switch (ret_ty) {
-    | Some(ty) =>
-      (Asc(def, ty): Exp.term)
-      |> IdTagged.fresh_deterministic(Typ.rep_id(ty))
-    | None => def
-    };
-  (Fun(args, def_in_fun, None, None): Exp.term)
-  |> IdTagged.fresh_deterministic(Pat.rep_id(args));
-};
-
-let rewrite =
+   and otherwise the binding as written. The `Fun` and (optional) `Asc`
+   wrappers use fresh deterministic ids derived from adjacent surface
+   ids, keeping the rewrite stable across runs. */
+let binding = (p: Pat.t, def: Exp.t): (Pat.t, Exp.t) =>
+  switch (Pat.function_sugar(p)) {
+  | Some((f_name, args, ret_ty)) =>
+    let def_in_fun =
+      switch (ret_ty) {
+      | Some(ty) =>
+        (Asc(def, ty): Exp.term)
+        |> IdTagged.fresh_deterministic(Typ.rep_id(ty))
+      | None => def
+      };
     (
-      ~orig_let: Exp.t,
-      ~f_name: Pat.t,
-      ~args: Pat.t,
-      ~ret_ty: option(Typ.t),
-      ~def: Exp.t,
-      ~body: Exp.t,
-    )
-    : Exp.t => {
-  let (_, rewrap) = Exp.unwrap(orig_let);
-  rewrap(Let(f_name, desugared_fun(~args, ~ret_ty, ~def), body));
-};
+      f_name,
+      (Fun(args, def_in_fun, None, None): Exp.term)
+      |> IdTagged.fresh_deterministic(Pat.rep_id(args)),
+    );
+  | None => (p, def)
+  };
 
-/* After statics has processed the desugared `Let`, the info map is
-   missing entries for ids that only exist in the original binder
-   pattern -- the `Ap(f, args)` wrapper and the optional outer
-   `Asc(..., ret_ty)`. Populate those entries using the info already
-   computed for the function name, since both sub-trees denote the
-   same binder and share type and context with `f_name`.
+/* After statics has processed the binding, the info map is missing
+   entries for ids that only exist in the shorthand's binder pattern --
+   the `Ap(f, args)` wrapper and the optional outer `Asc(..., ret_ty)`.
+   Populate those entries using the info already computed for the
+   function name, since both sub-trees denote the same binder and share
+   type and context with it. A binding written plainly needs nothing.
 
    We also copy the ana type into `ty` so that the cursor inspector
    shows the binder's type directly (e.g. `: Int -> Int`) rather than
@@ -84,10 +62,12 @@ let rewrite =
    inspector renders them with the same clean "var-like" shape
    regardless of whether the user wrote a return-type annotation. */
 let add_binder_infos =
-    (m: StaticsBase.Map.t, ~user_pat: Pat.t, ~f_name: Pat.t)
-    : StaticsBase.Map.t => {
-  let f_id = Pat.rep_id(f_name);
-  switch (StaticsBase.Map.lookup_pat(f_id, m)) {
+    (m: StaticsBase.Map.t, ~user_pat: Pat.t): StaticsBase.Map.t => {
+  switch (
+    Option.bind(Pat.function_sugar(user_pat), ((f_name, _, _)) =>
+      StaticsBase.Map.lookup_pat(Pat.rep_id(f_name), m)
+    )
+  ) {
   | None => m
   | Some(f_info) =>
     let binder_info: Info.pat = {
