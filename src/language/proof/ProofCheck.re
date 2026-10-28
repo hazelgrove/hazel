@@ -685,11 +685,39 @@ let has_fixpoint = (goal: Exp.t): bool => {
   found^;
 };
 
+/* Does a term contain a dynamic error (e.g. the `1 / 0` failure)? */
+let has_dynamic_error = (e: Exp.t): bool => {
+  let found = ref(false);
+  let _: Exp.t =
+    Exp.map_term(
+      ~f_exp=
+        (continue, e) =>
+          switch (Exp.term_of(e)) {
+          | DynamicErrorHole(_) =>
+            found := true;
+            e;
+          | _ => continue(e)
+          },
+      e,
+    );
+  found^;
+};
+
+/* Iterate the injected single step. It STOPS at the first step whose
+ * result contains a dynamic error: the evaluator marks an error step final
+ * only within one run, so re-entering it here re-steps the error hole's
+ * payload into a freshly nested error hole on every call, printing the
+ * same and never progressing (measured: `!!(1 / 0)` took all 1000 fuel
+ * steps, ~28 ms each, test/Test_ResetClosedEvalCost.re). Fail-closed: both
+ * callers act only on a literal `true` (discharge) or `false`
+ * (contradiction), and a term holding an error hole is neither, so
+ * stopping can only leave a goal Pending. */
 let rec eval_via_step = (~step: step_fn, ~env, ~fuel: int, e: Exp.t): Exp.t =>
   if (fuel <= 0) {
     e;
   } else {
     switch (step(~env, e)) {
+    | Some({outgoing, _}) when has_dynamic_error(outgoing) => outgoing
     | Some({outgoing, _}) =>
       eval_via_step(~step, ~env, ~fuel=fuel - 1, outgoing)
     | None => e

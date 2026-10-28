@@ -2,11 +2,15 @@
    discharge channel on `!!(1 / 0)` (recD: ~40.65 s for this one goal).
    TEST-LOCAL instrumentation only: the evaluator's injected step function
    (Evaluator.re, `check_theorem_proof`) is rebuilt here verbatim around a
-   counter, and `ProofCheck.eval_via_step` is run with the production fuel.
-   Receipts per goal: steps taken, steps whose output is structurally equal
-   to their input (no progress), the first such step, CPU, printed size of
-   the first/last terms, and the final result. Positive closed evaluation
-   is the control. Nothing here changes production code. */
+   counter. Batch b1 (before std-c2) measured `!!(1 / 0)` and `1 / 0 == 1`
+   at 1000 steps / ~28 s each, none structurally equal to its input: each
+   re-entry nests one more dynamic-error hole around the same payload.
+   std-c2 stops at the first dynamic error. Each case here runs the OLD
+   loop (a test-local replica) and the production loop on the same goal
+   and requires the SAME discharge verdict; the error cases also require
+   the production loop to stop early. `error_then_discarded_arg` is the
+   discriminating control: its expected `false` under the OLD loop is a
+   prediction from the nesting mechanism, measured here. */
 open Alcotest;
 open Language;
 
@@ -53,101 +57,101 @@ let real_step: ProofCheck.step_fn =
 type trace = {
   steps: int,
   no_progress: int,
-  first_no_progress: option(int),
   cpu: float,
-  first_size: int,
-  last_size: int,
   result: string,
 };
 
-let measure = (goal: Exp.t): trace => {
+/* TEST-LOCAL replica of the pre-std-c2 loop (no early stop), so the
+   production loop's verdict can be compared with the old one on the same
+   goal and the same real step function. */
+let rec old_loop = (~step: ProofCheck.step_fn, ~env, ~fuel, e: Exp.t): Exp.t =>
+  if (fuel <= 0) {
+    e;
+  } else {
+    switch (step(~env, e)) {
+    | Some({outgoing, _}) => old_loop(~step, ~env, ~fuel=fuel - 1, outgoing)
+    | None => e
+    };
+  };
+
+let measure = (~old: bool, goal: Exp.t): trace => {
   let steps = ref(0);
   let no_progress = ref(0);
-  let first_np = ref(None);
-  let last = ref(goal);
   let counting: ProofCheck.step_fn =
     (~env, e) => {
       let r = real_step(~env, e);
       incr(steps);
       switch (r) {
-      | Some({outgoing, _}) =>
-        if (Exp.fast_equal(outgoing, e)) {
-          incr(no_progress);
-          if (first_np^ == None) {
-            first_np := Some(steps^);
-          };
-        };
-        last := outgoing;
-      | None => ()
+      | Some({outgoing, _}) when Exp.fast_equal(outgoing, e) =>
+        incr(no_progress)
+      | _ => ()
       };
       r;
     };
   let t0 = Sys.time();
+  let run = old ? old_loop : ProofCheck.eval_via_step;
   let result =
-    ProofCheck.eval_via_step(
+    run(
       ~step=counting,
       ~env=Builtins.env_init,
       ~fuel=ProofCheck.closed_eval_fuel,
       goal,
     );
-  let cpu = Sys.time() -. t0;
   {
     steps: steps^,
     no_progress: no_progress^,
-    first_no_progress: first_np^,
-    cpu,
-    first_size: String.length(RE.print_exp(goal)),
-    last_size: String.length(RE.print_exp(last^)),
+    cpu: Sys.time() -. t0,
     result: RE.print_exp(result),
   };
 };
 
-let receipt = (label, src) => {
-  let goal = elab(src);
-  let t = measure(goal);
+let line = (label, which, src, t) =>
   print_endline(
     Printf.sprintf(
-      "EVALCOST %s | %s | steps %d | no-progress %d (first at %s) | cpu %.3fs | size %d -> %d | result %s",
+      "EVALCOST %s | %s | %s | steps %d | no-progress %d | cpu %.3fs | result %s",
       label,
+      which,
       src,
       t.steps,
       t.no_progress,
-      t.first_no_progress |> Option.map(string_of_int) |> Option.value(~default="-"),
       t.cpu,
-      t.first_size,
-      t.last_size,
       String.length(t.result) > 200 ? String.sub(t.result, 0, 200) ++ "…" : t.result,
     ),
   );
-  t;
-};
+
+/* Old loop vs production loop on one goal: the discharge verdict (literal
+   `true` or not) must be identical; `~bounded` additionally requires the
+   production loop to stop within a few steps. */
+let compare = (~bounded=false, label, src, expected_true) =>
+  test_case(
+    label ++ ": old and production loops agree" ++ (bounded ? "; production bounded" : ""),
+    `Quick,
+    () => {
+      let goal = elab(src);
+      let o = measure(~old=true, goal);
+      line(label, "old", src, o);
+      let p = measure(~old=false, goal);
+      line(label, "production", src, p);
+      check(bool, label ++ ": old verdict", expected_true, o.result == "true");
+      check(bool, label ++ ": production verdict", expected_true, p.result == "true");
+      if (bounded) {
+        check(bool, label ++ ": production stops within 5 steps", true, p.steps <= 5);
+      };
+    },
+  );
 
 let tests = (
   "ResetClosedEvalCost",
   [
-    test_case("measure !!(1 / 0): never evaluates to true", `Quick, () => {
-      let t = receipt("partial", "!!(1 / 0)");
-      check(bool, "not discharged", true, t.result != "true");
-    }),
-    test_case("measure 1 / 0 == 1 (closed, partial)", `Quick, () => {
-      let t = receipt("partial_eq", "1 / 0 == 1");
-      check(bool, "not discharged", true, t.result != "true");
-    }),
-    test_case("control !!3 evaluates to true", `Quick, () => {
-      let t = receipt("std_literal", "!!3");
-      check(string, "true", "true", t.result);
-    }),
-    test_case("control !!(1, [2]) evaluates to true", `Quick, () => {
-      let t = receipt("std_tuple", "!!(1, [2])");
-      check(string, "true", "true", t.result);
-    }),
-    test_case("control 2 * 3 == 6 evaluates to true", `Quick, () => {
-      let t = receipt("closed_arith", "2 * 3 == 6");
-      check(string, "true", "true", t.result);
-    }),
-    test_case("control 6 / 2 == 3 evaluates to true", `Quick, () => {
-      let t = receipt("closed_div", "6 / 2 == 3");
-      check(string, "true", "true", t.result);
-    }),
+    compare(~bounded=true, "partial", "!!(1 / 0)", false),
+    compare(~bounded=true, "partial_eq", "1 / 0 == 1", false),
+    compare(~bounded=true, "error_then_discarded_arg", "(fun (x : Int) -> true)(1 / 0)", false),
+    compare(~bounded=true, "builtin_domain_error", "int_of_string(\"abc\") == 1", false),
+    compare("untaken_partial_branch", "if false then 1 / 0 == 1 else true", true),
+    compare("std_literal", "!!3", true),
+    compare("std_tuple", "!!(1, [2])", true),
+    compare("closed_arith", "2 * 3 == 6", true),
+    compare("closed_div", "6 / 2 == 3", true),
+    compare("closed_false", "2 * 3 == 7", false),
   ],
 );
