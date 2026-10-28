@@ -1569,7 +1569,7 @@ and uexp_to_info_map =
         switch (e1_ty.term, e2.term) {
         | (Sig(Closed(items)), Label(name)) =>
           let items = ClosedSig.items(items);
-          switch (Typ.sig_project_value(items, name)) {
+          switch (Sig.find_value(Sig.members(items), name)) {
           | Some(ty) => (Some(ty), [])
           | None
               when
@@ -4246,7 +4246,7 @@ and utyp_to_info_map =
         /* `M.T`: a type member of a module path or signature alias. */
         let items = ClosedSig.items(items);
         projected(
-          Typ.sig_project_type(items, l),
+          Sig.find_type_def(Sig.members(items), l),
           Message.ModuleTypeMemberMissing(
             l,
             Sig.type_names(Sig.members(items)),

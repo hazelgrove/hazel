@@ -651,7 +651,7 @@ let sig_tests = {
             Some(ti),
             switch (Option.map(Typ.term_of, Typ.meet(ctx, s, s))) {
             | Some(Sig(Closed(items))) =>
-              Typ.sig_project_value(ClosedSig.items(items), "x")
+              Sig.find_value(Sig.members(ClosedSig.items(items)), "x")
             | _ => None
             },
           );
@@ -863,26 +863,6 @@ let sig_tests = {
             ["P"],
             Typ.free_vars(~binder=`Var, F.Typ.arrow(p_u, F.Typ.var("Q"))),
           );
-        },
-      ),
-      test_case(
-        "member projection: the last member of a name",
-        `Quick,
-        () => {
-          let s = [st("T", ti), sv("x", ti), st("T", tb)];
-          check(
-            opt_typ,
-            "type member",
-            Some(tb),
-            Typ.sig_project_type(s, "T"),
-          );
-          check(
-            opt_typ,
-            "value member",
-            Some(ti),
-            Typ.sig_project_value(s, "x"),
-          );
-          check(opt_typ, "missing", None, Typ.sig_project_value(s, "nope"));
         },
       ),
       test_case(

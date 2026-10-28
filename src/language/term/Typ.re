@@ -569,15 +569,6 @@ let same_member_names = (a: list(Sig.member), b: list(Sig.member)): bool => {
   && same(Sig.type_names(a), Sig.type_names(b));
 };
 
-/* The type of value member [name]; a later member shadows an earlier one. */
-let sig_project_value = (items: list(Sig.t), name: Var.t): option(t) =>
-  Sig.find_value(Sig.members(items), name);
-
-/* The definition of type member [name]; a later member shadows an earlier
-   one. */
-let sig_project_type = (items: list(Sig.t), name: Var.t): option(t) =>
-  Sig.find_type_def(Sig.members(items), name);
-
 /* Type Equality: This coincides with alpha equivalence for normalized types.
    Other types may be equivalent but this will not detect so if they are not normalized. */
 let fast_equal = Equality.semantic.typ;
@@ -673,7 +664,7 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t =>
       switch (label.term, path_head(~rec_counter=rec_counter + 1, ctx, t)) {
       | (Label(l), Some({term: Sig(s), _})) =>
         /* `M.T`: type member of a module path or of a signature alias. */
-        switch (sig_project_type(ClosedSig.items(Sig.closed(s)), l)) {
+        switch (Sig.find_type_def(Sig.closed_members(s), l)) {
         | Some(ty') =>
           weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty')
         | None => default
@@ -737,11 +728,11 @@ and path_head = (~rec_counter, ctx: Ctx.t, t: t): option(t) =>
     | ProdProjection(p, {term: Label(l), _}) =>
       switch (path_head(~rec_counter=rec_counter + 1, ctx, p)) {
       | Some({term: Sig(s), _}) =>
-        let items = ClosedSig.items(Sig.closed(s));
-        switch (sig_project_value(items, l)) {
+        let members = Sig.closed_members(s);
+        switch (Sig.find_value(members, l)) {
         | Some(ty) => module_type(ty)
         | None =>
-          sig_project_type(items, l)
+          Sig.find_type_def(members, l)
           |> Option.map(head_type(~rec_counter, ctx))
         };
       | Some({term: Prod(tys), _}) =>

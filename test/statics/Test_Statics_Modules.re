@@ -1513,7 +1513,7 @@ let test_typfun_binder_info_consistent =
       Alcotest.(check(bool))(
         "every X binder is OK",
         true,
-        infos != []
+        !List.is_empty(infos)
         && List.for_all(
              fun
              | ([], Some(Language.Message.TPatOk(_))) => true
