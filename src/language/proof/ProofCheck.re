@@ -3188,6 +3188,17 @@ and check_induction =
     };
   /* Walk each case, collecting body outgoings and the accumulated
    * proof-map entries. */
+  /* Kernel `induct` (kernel-table.tex:222): the constructor arguments
+   * of a STANDARD scrutinee are standard. Only when the scrutinee itself
+   * is shown standard (a quantifier/obtain binder, a case variable of an
+   * enclosing standard split, or a structurally standard term) are the
+   * case's pattern variables marked; a computed scrutinee gives them no
+   * standardness, and they stay unmarked (gates on them stay Pending). */
+  let scrut_standard =
+    std_structural(
+      ctx,
+      scrut |> Substitution.in_exp(SemanticCtx.get_env(ctx)),
+    );
   let (outgoings, pat_constraints, _prev_pats, m_acc) =
     List.fold_left(
       ((outs, constraints, prev_pats, m), (pat, body)) => {
@@ -3209,6 +3220,9 @@ and check_induction =
           };
         /* 2. Extend ctx with pat bindings. */
         let ctx' = SemanticCtx.add_from_pattern(ctx, pat, scrut_ty);
+        let ctx' =
+          scrut_standard
+            ? SemanticCtx.mark_standard(ctx', Pat.bound_vars(pat)) : ctx';
         /* 2a. Add the case-equality hypothesis scrut == pat, unless it's
          *     captured by the newly-added variables. */
         let added_vars = pat |> Pat.bindings |> Binding.variable_names;

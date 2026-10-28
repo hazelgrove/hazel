@@ -159,6 +159,40 @@ let tests = (
       check(string, "len_cons lemma", "Proven", RE.full(o, "len_cons"));
       check(list(string), "case gates", ["!! x: Structural", "!! t: Structural"], len_cons_gates(o));
     }),
+    test_case("U1 receipt: Equivalence-inductions programs, every obligation and its discharge", `Quick, () => {
+      module E = Test_Equiv_Inductions;
+      List.iter(
+        ((name, src)) => {
+          let (pm, proof) = E.run_named(name, src);
+          List.iter(
+            (ob: Obligation.t) =>
+              print_endline(
+                "CORR equiv "
+                ++ name
+                ++ " | "
+                ++ RE.print_exp(ob.display_goal)
+                ++ " | "
+                ++ Obligation.show_discharge(ob.discharge),
+              ),
+            ProofMap.obligations_of_proof(pm, proof),
+          );
+          print_endline(
+            "CORR equiv "
+            ++ name
+            ++ " full: "
+            ++ ProofMap.show_full_status(ProofMap.full_status_of_proof(pm, proof)),
+          );
+        },
+        [
+          ("lenfold", E.prelude_a ++ E.lemmas_a ++ E.thm_a ++ "lenfold"),
+          ("lenfoldf", E.prelude_a ++ E.lemmas_a ++ E.thm_a_fwd ++ "lenfoldf"),
+          ("lenfa", E.prelude_fu ++ E.lemmas_fu ++ E.thm_fu ++ "lenfa"),
+          ("snoc", E.prelude_b ++ E.lemmas_b ++ E.snoc ++ "snoc"),
+          ("invol", E.prelude_b ++ E.lemmas_b ++ E.snoc ++ E.invol ++ "invol"),
+          ("round", E.prelude_c ++ E.lemmas_c ++ E.round ++ "round"),
+        ],
+      );
+    }),
     test_case("U1 computed scrutinee: case variables are not standard by origin", `Quick, () => {
       let o = RE.observe("u1_computed_scrut", u1_computed_scrut);
       RE.valid("u1_computed_scrut", o);
