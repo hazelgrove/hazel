@@ -31,22 +31,42 @@ theorem every = forall(xs:([Int])) -> all_lists(xs) == true proof induction xs
 end in
 0|};
 
-/* Statics errors anywhere in a program (Info.show contains the error). */
+/* Statics error kinds anywhere in a program, read DIRECTLY from each
+   erroneous id's marks (Info.marks_of). The earlier version stringified the
+   whole Info with Info.show (recursive ctx included) for every error id; all
+   runs that stalled were exactly the runs with statics errors (integrator
+   hypothesis, 2026-10-28), so that stringification is the suspect, not
+   statics. Semantics unchanged: FreeHypothesis / AxiomSlotNotHypothesis /
+   other. */
 let statics_errors = (statics: Statics.Map.t): list(string) =>
   Statics.Map.error_ids(statics)
   |> List.filter_map(id => Statics.Map.lookup(id, statics))
-  |> List.map(info => {
-       let s = Info.show(info);
-       let k =
-         ["FreeHypothesis", "AxiomSlotNotHypothesis"]
-         |> List.filter(k =>
-              switch (Str.search_forward(Str.regexp_string(k), s, 0)) {
-              | _ => true
-              | exception Not_found => false
-              }
-            );
-       k == [] ? "other" : String.concat("+", k);
-     });
+  |> List.concat_map(info =>
+       switch (Info.marks_of(info)) {
+       | [] => ["other"]
+       | marks =>
+         List.map(
+           (m: Mark.t) =>
+             switch (m) {
+             | FreeHypothesis(_) => "FreeHypothesis"
+             | AxiomSlotNotHypothesis(_) => "AxiomSlotNotHypothesis"
+             | _ => "other"
+             },
+           marks,
+         )
+       }
+     );
+
+/* A checker mark's constructor name, without stringifying its payload
+   (PatternNotFound/NothingToStep carry whole expressions). */
+let mark_tag = (m: ProofMark.t): string =>
+  switch (m) {
+  | UnknownEquality(name) => "UnknownEquality(" ++ name ++ ")"
+  | RuleDoesNotApply(_) => "RuleDoesNotApply"
+  | PatternNotFound(_) => "PatternNotFound"
+  | NothingToStep(_) => "NothingToStep"
+  | _ => "other"
+  };
 
 /* The row's checker facts (MissingStep.assumptions = ProofCtx of the
    row's semantic ctx) and which are active on `sel` (AxiomsBox filter). */
@@ -131,7 +151,7 @@ let checker_marks = (~quote, label, src) => {
     };
   let (marks, outgoing) =
     switch (ProofMap.lookup(Proof.rep_id(written), pm1)) {
-    | Some(e) => (List.map(ProofMark.show, e.marks), Option.fold(~none="-", ~some=pr, e.outgoing))
+    | Some(e) => (List.map(mark_tag, e.marks), Option.fold(~none="-", ~some=pr, e.outgoing))
     | None => (["<no proof-map entry>"], "-")
     };
   observe(label ++ " CHECKER marks: [" ++ String.concat("; ", marks) ++ "] outgoing: " ++ outgoing);
@@ -149,7 +169,9 @@ let small_target = (src, target) =>
 let statics_only = (label, src) => {
   let t0 = Sys.time();
   let (st, _) = Test_ProofMap.statics_and_elab(LC.zipper_exp(LC.parse_zipper(src)));
+  observe(Printf.sprintf("%s CHECKPOINT after statics_and_elab (cpu %.2fs)", label, Sys.time() -. t0));
   let errs = statics_errors(st);
+  observe(Printf.sprintf("%s CHECKPOINT after error classification (cpu %.2fs)", label, Sys.time() -. t0));
   observe(
     Printf.sprintf(
       "%s STATICS errors: [%s] (cpu %.2fs)",
@@ -161,34 +183,87 @@ let statics_only = (label, src) => {
   errs;
 };
 
+/* APP checker on the written program: Test_ExistentialsAppContext's
+   main-thread recheck with paired statics (the accessor both CellEditor
+   consumers read). Marks on the `axiom ih` node and the app status. */
+let is_ih_axiom = (p: Proof.t) =>
+  switch (p.term) {
+  | AxiomStep({equality, _}) =>
+    switch (Exp.term_of(equality)) {
+    | Var("ih") => true
+    | _ => false
+    }
+  | _ => false
+  };
+
+let app_marks = (~quote, label, src) => {
+  let (_, z1, active) = ih_write(~quote, label, src);
+  check(bool, label ++ ": ih offered (stepper)", true, List.mem("ih", active));
+  let t0 = Sys.time();
+  let a = Test_ExistentialsAppContext.app_of_source(LC.zipper_text(z1));
+  observe(Printf.sprintf("%s CHECKPOINT after app_of_source (cpu %.2fs)", label, Sys.time() -. t0));
+  let node =
+    switch (List.find_opt(is_ih_axiom, Test_ResetExistentials.proof_nodes(a.proof))) {
+    | Some(n) => n
+    | None => Alcotest.fail(label ++ ": no axiom ih node")
+    };
+  let marks = List.map(mark_tag, ProofMap.marks_of(Proof.rep_id(node), a.accessor));
+  let out =
+    switch (ProofMap.lookup(Proof.rep_id(node), a.accessor)) {
+    | Some(e) => Option.fold(~none="-", ~some=pr, e.outgoing)
+    | None => "<no app entry>"
+    };
+  let serr = statics_errors(a.statics.info_map);
+  observe(
+    Printf.sprintf(
+      "%s APP marks: [%s] outgoing: %s | app status %s | statics errors [%s] (cpu %.2fs)",
+      label,
+      String.concat("; ", marks),
+      out,
+      a.status,
+      String.concat(", ", serr),
+      Sys.time() -. t0,
+    ),
+  );
+  (marks, serr);
+};
+
 let tests = (
   "ResetListIHGesture",
   [
     /* 0 */ test_case("STATICS prefix (Matt x:: xs, no ih yet)", `Quick, () =>
       check(bool, "prefix: no FreeHypothesis", false, List.mem("FreeHypothesis", statics_only("prefix-shadow", DR.matt_prefix)))
     ),
+    /* 1: pre-fix (c1 on c2f5/e7473b88) this case hit a 300s wall-clock
+       bound during lid-closed sleep; post-fix contract: ih is known. */
     /* 1 */ test_case("STATICS reduced: x:: xs, axiom ih on all_lists(xs)", `Quick, () =>
-      check(bool, "reduced-shadow: predicted FreeHypothesis", true, List.mem("FreeHypothesis", statics_only("reduced-shadow", small_target(DR.matt_prefix, "all_lists(xs)"))))
+      check(bool, "reduced-shadow: post-fix ih known (no FreeHypothesis)", false, List.mem("FreeHypothesis", statics_only("reduced-shadow", small_target(DR.matt_prefix, "all_lists(xs)"))))
     ),
     /* 2 */ test_case("STATICS reduced: x:: t, axiom ih on all_lists(t)", `Quick, () =>
-      check(bool, "reduced-control: predicted FreeHypothesis", true, List.mem("FreeHypothesis", statics_only("reduced-control", small_target(control_prefix, "all_lists(t)"))))
+      check(bool, "reduced-control: post-fix ih known (no FreeHypothesis)", false, List.mem("FreeHypothesis", statics_only("reduced-control", small_target(control_prefix, "all_lists(t)"))))
     ),
-    /* 3 */ test_case("STATICS Matt exact production write (timed)", `Quick, () => {
-      let (_, z1, active) = ih_write(~quote=false, "exact-shadow", DR.matt_prefix);
+    /* 3 */ test_case("STATICS Matt exact write as production now writes it (quoted)", `Quick, () => {
+      let (_, z1, active) = ih_write(~quote=true, "exact-shadow", DR.matt_prefix);
       check(bool, "exact-shadow: ih offered", true, List.mem("ih", active));
-      check(bool, "exact-shadow: predicted FreeHypothesis", true, List.mem("FreeHypothesis", statics_only("exact-shadow", LC.zipper_text(z1))));
+      check(bool, "exact-shadow: post-fix ih known (no FreeHypothesis)", false, List.mem("FreeHypothesis", statics_only("exact-shadow", LC.zipper_text(z1))));
     }),
-    /* 4 */ test_case("CHECKER x:: xs production write: predicted PatternNotFound", `Quick, () =>
-      check(bool, "shadow-prod: PatternNotFound", true, has("PatternNotFound", checker_marks(~quote=false, "shadow-prod", DR.matt_prefix)))
-    ),
-    /* 5 */ test_case("CHECKER x:: xs quoted write: predicted no checker marks", `Quick, () =>
-      check(list(string), "shadow-quoted: checker marks", [], checker_marks(~quote=true, "shadow-quoted", DR.matt_prefix))
-    ),
-    /* 6 */ test_case("CHECKER x:: t production write: predicted PatternNotFound", `Quick, () =>
-      check(bool, "control-prod: PatternNotFound", true, has("PatternNotFound", checker_marks(~quote=false, "control-prod", control_prefix)))
-    ),
-    /* 7 */ test_case("CHECKER x:: t quoted write: predicted no checker marks", `Quick, () =>
-      check(list(string), "control-quoted: checker marks", [], checker_marks(~quote=true, "control-quoted", control_prefix))
-    ),
+    /* 4 */ test_case("APP x:: xs, old unquoted write (control): predicted PatternNotFound", `Quick, () => {
+      let (marks, _) = app_marks(~quote=false, "shadow-old", DR.matt_prefix);
+      check(bool, "shadow-old: PatternNotFound", true, has("PatternNotFound", marks));
+    }),
+    /* 5 */ test_case("APP x:: xs, production (quoted) write: no app marks, no statics error", `Quick, () => {
+      let (marks, serr) = app_marks(~quote=true, "shadow-new", DR.matt_prefix);
+      check(list(string), "shadow-new: app marks on axiom ih", [], marks);
+      check(bool, "shadow-new: no FreeHypothesis", false, List.mem("FreeHypothesis", serr));
+    }),
+    /* 6 */ test_case("APP x:: t, old unquoted write (control): predicted PatternNotFound", `Quick, () => {
+      let (marks, _) = app_marks(~quote=false, "control-old", control_prefix);
+      check(bool, "control-old: PatternNotFound", true, has("PatternNotFound", marks));
+    }),
+    /* 7 */ test_case("APP x:: t, production (quoted) write: no app marks, no statics error", `Quick, () => {
+      let (marks, serr) = app_marks(~quote=true, "control-new", control_prefix);
+      check(list(string), "control-new: app marks on axiom ih", [], marks);
+      check(bool, "control-new: no FreeHypothesis", false, List.mem("FreeHypothesis", serr));
+    }),
   ],
 );

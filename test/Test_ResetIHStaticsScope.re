@@ -13,9 +13,12 @@ let observe = s => print_endline("OBSERVED " ++ s);
 let statics_errors = Test_ResetListIHGesture.statics_errors;
 
 let free_hyp = (label, src): bool => {
+  let t0 = Sys.time();
   let (st, _) =
     Test_ProofMap.statics_and_elab(Test_Evaluator_Prelude.parse_exp(src));
+  observe(Printf.sprintf("%s CHECKPOINT after statics_and_elab (cpu %.2fs)", label, Sys.time() -. t0));
   let errs = statics_errors(st);
+  observe(Printf.sprintf("%s CHECKPOINT after error classification (cpu %.2fs)", label, Sys.time() -. t0));
   observe(label ++ " statics errors: [" ++ String.concat(", ", errs) ++ "]");
   List.mem("FreeHypothesis", errs);
 };
@@ -122,7 +125,31 @@ theorem t = forall xs : [Int] -> forall k : Int -> len(xs) + k == k + len(xs) pr
 end in 0|},
       )
     ),
-    /* 13 */ test_case("helper parity: the checker's alias is the moved function", `Quick, () =>
+    /* 13 (L1, fail-closed): the pattern rebinds the goal's outer `h`, so the
+       checker's goal-dependent capture filter (ProofHacks.replace_exp,
+       BlacklistVarFound) drops the IH. Statics, which does not track the
+       goal, shows the name; the APP checker must still refuse the citation
+       (UnknownEquality "ih") and the theorem must not be Proven. The name
+       never becomes a usable fact. */
+    test_case("fail-closed: statics shows ih but the checker's capture filter drops it", `Quick, () => {
+      let src = {|let len = fun (xs : [Int]) -> case xs | [] => 0 | _ :: t => 1 + len(t) end in
+theorem t = forall h : Int -> forall xs : [Int] -> len(xs) + h == h + len(xs) proof induction xs
+| [] => ?
+| h :: t => axiom ih at 0 on len(t) + h end
+end in 0|};
+      check(bool, "L1: statics shows the ih name", false, free_hyp("L1-capture", src));
+      let a = Test_ExistentialsAppContext.app_of_source(src);
+      let marks =
+        Test_ResetExistentials.proof_nodes(a.proof)
+        |> List.filter(Test_ResetListIHGesture.is_ih_axiom)
+        |> List.concat_map((n: Proof.t) =>
+             List.map(Test_ResetListIHGesture.mark_tag, ProofMap.marks_of(Proof.rep_id(n), a.accessor))
+           );
+      observe("L1-capture APP marks on axiom ih: [" ++ String.concat("; ", marks) ++ "] status " ++ a.status);
+      check(bool, "L1: app checker marks UnknownEquality ih", true, Test_ResetListIHGesture.has("UnknownEquality", marks));
+      check(bool, "L1: theorem not Proven", false, a.status == "Proven");
+    }),
+    /* 14 */ test_case("helper parity: the checker's alias is the moved function", `Quick, () =>
       check(
         bool,
         "ProofHacks.get_inductive_hypotheses == InductiveHypotheses.get_inductive_hypotheses",
