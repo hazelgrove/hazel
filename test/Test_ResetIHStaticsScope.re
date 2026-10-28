@@ -175,17 +175,22 @@ theorem t = forall xs : [Int] -> forall k : Int -> len(xs) + k == k + len(xs) pr
 end in 0|},
       )
     ),
-    /* 13 (L1, fail-closed). ProofHacks.replace_exp raises BlacklistVarFound
-       only at a binder INSIDE the goal; the case goal (scrut := pattern) and
-       each IH (scrut := sub-pattern) use the same goal and blacklist, and the
-       IH's replacement free vars are a subset of the case's. So capture that
-       drops the IH also drops the case goal: the expected fail-closed verdict
-       is MissingIncoming on the case's steps, never a usable fact. Here the
-       goal's inner `forall t` body uses the outer `h`, and the pattern
-       `h :: t` substitutes `t` under that binder: capture. (The first L1
-       fixture had no inner binder; its MissingIncoming was not shown to be
-       capture.) */
-    test_case("fail-closed: capture drops the case goal and ih; statics shows the name", `Quick, () => {
+    /* 13 (L1, fail-closed). By the time the induction runs, the leading
+       foralls are already peeled, so `h`, `xs` and `t` are free Vars of the
+       goal. The case goal is `replace_exp(goal, xs := h :: t)` with the
+       pattern's variables [h; t] as the blacklist, and the `Var(x) when
+       List.mem(x, blacklist_vars)` arm raises BlacklistVarFound on the
+       goal's outer `h`/`t`: a syntactic name clash with the pattern, not
+       capture under an inner binder. The case goal is refused, so the
+       expected verdict is MissingIncoming on axiom ih (the Induction and []
+       nodes keep their incoming). This pins only this clash. Source reading
+       suggests statics and the checker can still disagree on fresh goal
+       nodes or an incomplete co_ctx (where `uses_blacklist_var` sees an
+       empty co_ctx); that path also fails closed but is NOT exercised here,
+       so this is not a claim that every capture is closed. (The first L1
+       fixture had no clashing names; its MissingIncoming was not this
+       mechanism.) */
+    test_case("fail-closed: pattern-name clash drops the case goal and ih; statics shows the name", `Quick, () => {
       let src = {|let len = fun (xs : [Int]) -> case xs | [] => 0 | _ :: t => 1 + len(t) end in
 theorem th = forall h : Int -> forall xs : [Int] -> forall t : Int -> len(xs) + h + t == t + h + len(xs) proof induction xs
 | [] => ?
@@ -193,11 +198,14 @@ theorem th = forall h : Int -> forall xs : [Int] -> forall t : Int -> len(xs) + 
 end in 0|};
       check(bool, "L1: statics shows the ih name", false, free_hyp("L1-capture", src));
       let tags = l1_trace("L1-capture", src);
-      check(bool, "L1: axiom ih is marked MissingIncoming (case goal refused by capture)", true, List.mem("MissingIncoming", tags));
+      check(bool, "L1: axiom ih is marked MissingIncoming (case goal refused by the blacklist clash)", true, List.mem("MissingIncoming", tags));
     }),
-    /* 13b twin: same shape, outer variable renamed `k`, no capture. The case
-       goal forms and the checker accepts `ih` (discriminates L1). */
-    test_case("fail-closed twin: no capture, the checker accepts ih", `Quick, () => {
+    /* 13b twin: same shape, outer variables renamed `k`/`u`, so nothing in
+       the goal clashes with `h :: t`. The case goal forms and the checker
+       resolves `ih`: no MissingIncoming and no UnknownEquality(ih). (Raw
+       receipt a5: the remaining mark is PatternNotFound; `len(t)` does not
+       occur literally in the case goal `len(h :: t) + k + u == ...`.) */
+    test_case("fail-closed twin: no name clash, the checker resolves ih", `Quick, () => {
       let src = {|let len = fun (xs : [Int]) -> case xs | [] => 0 | _ :: t => 1 + len(t) end in
 theorem th = forall k : Int -> forall xs : [Int] -> forall u : Int -> len(xs) + k + u == u + k + len(xs) proof induction xs
 | [] => ?
@@ -206,6 +214,7 @@ end in 0|};
       check(bool, "L1-twin: statics shows the ih name", false, free_hyp("L1-twin", src));
       let tags = l1_trace("L1-twin", src);
       check(bool, "L1-twin: no MissingIncoming on axiom ih", false, List.mem("MissingIncoming", tags));
+      check(bool, "L1-twin: no UnknownEquality(ih) on axiom ih", false, List.mem("UnknownEquality(ih)", tags));
     }),
     /* 15 */ test_case("helper parity: the checker's alias is the moved function", `Quick, () =>
       check(
