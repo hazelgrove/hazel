@@ -86,10 +86,8 @@ let rec equal_mark: (Mark.t, Mark.t) => bool =
       ) =>
       Typ.fast_equal(a1, a2) && Typ.fast_equal(s1, s2)
     | (Free(v1), Free(v2)) => Var.equal(v1, v2)
-    | (InexhaustiveMatch(ty1, ms1, ex1), InexhaustiveMatch(ty2, ms2, ex2)) =>
-      Typ.fast_equal(ty1, ty2)
-      && List.equal(equal_mark, ms1, ms2)
-      && Any.fast_equal(ex1, ex2)
+    | (InexhaustiveMatch(ms1, ex1), InexhaustiveMatch(ms2, ex2)) =>
+      List.equal(equal_mark, ms1, ms2) && Any.fast_equal(ex1, ex2)
     | (IsDeferral(p1), IsDeferral(p2)) => p1 == p2
     | (IsBadPartialAp(e1), IsBadPartialAp(e2)) => equal_partial_ap(e1, e2)
     | (BuiltinError(b1), BuiltinError(b2)) => equal_builtin(b1, b2)

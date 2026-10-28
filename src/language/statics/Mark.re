@@ -66,7 +66,7 @@ type t =
   | BuiltinError(error_builtin)
   | Free(Var.t)
   | IsBadPartialAp(error_partial_ap)
-  | InexhaustiveMatch(Typ.t, list(t), Grammar.any_t(IdTagged.IdTag.t))
+  | InexhaustiveMatch(list(t), Grammar.any_t(IdTagged.IdTag.t))
   | InvalidUseMode({
       bad_typ: Typ.t,
       inner_typ: Typ.t,

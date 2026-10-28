@@ -465,18 +465,11 @@ and uexp_to_info_map =
       m,
     );
   };
-  /* The binding completed once its scope, of co-context [scope_co_ctx]
-     and type [scope_ty], is analyzed: the pattern as bound over it, and the
-     definition as a fixpoint where it is recursive. */
+  /* The binding completed once its scope, of co-context [scope_co_ctx], is
+     analyzed: the pattern as bound over it, and the definition as a fixpoint
+     where it is recursive. */
   let let_finish =
-      (
-        ~ctx,
-        ~ancestors=ancestors_inclusive,
-        b: let_binding,
-        ~scope_co_ctx,
-        ~scope_ty: Typ.t,
-        m,
-      )
+      (~ctx, ~ancestors=ancestors_inclusive, b: let_binding, ~scope_co_ctx, m)
       : (let_finished, Map.t) => {
     let (p_ana, p_elab, m) =
       upat_to_info_map(
@@ -499,7 +492,7 @@ and uexp_to_info_map =
         switch (exhaustiveness) {
         | Exhaustive => []
         | Inexhaustive(unseen_pattern) => [
-            Mark.InexhaustiveMatch(scope_ty, [], unseen_pattern),
+            Mark.InexhaustiveMatch([], unseen_pattern),
           ]
         };
       };
@@ -2296,7 +2289,7 @@ and uexp_to_info_map =
           switch (exhaustiveness) {
           | Exhaustive => []
           | Inexhaustive(unseen_pattern) => [
-              Mark.InexhaustiveMatch(syn_ty_fun, [], unseen_pattern),
+              Mark.InexhaustiveMatch([], unseen_pattern),
             ]
           };
         };
@@ -2391,14 +2384,7 @@ and uexp_to_info_map =
     | Let(p, def, body) =>
       let (b, m) = let_binding(~ctx, p, def, m);
       let (body, body_elab, m) = go(~ctx=b.ctx_scope, ~ana, body, m);
-      let (f, m) =
-        let_finish(
-          ~ctx,
-          b,
-          ~scope_co_ctx=body.co_ctx,
-          ~scope_ty=body.elab_syn_ty,
-          m,
-        );
+      let (f, m) = let_finish(~ctx, b, ~scope_co_ctx=body.co_ctx, m);
       add(
         ~elab_term=Let(f.p_elab, f.def_elab, body_elab) |> rewrap,
         ~elab_syn_ty=body.elab_syn_ty,
@@ -2615,7 +2601,7 @@ and uexp_to_info_map =
         switch (exhaustiveness) {
         | Exhaustive => marks_match
         | Inexhaustive(unseen_pattern) => [
-            Mark.InexhaustiveMatch(syn_ty_match, marks_match, unseen_pattern),
+            Mark.InexhaustiveMatch(marks_match, unseen_pattern),
           ]
         };
       let add_pattern_redundancy =
@@ -2909,7 +2895,6 @@ and uexp_to_info_map =
             ~ancestors,
             b,
             ~scope_co_ctx=CoCtx.union([c.co_ctx, ...export_uses]),
-            ~scope_ty=Unknown(Internal) |> Typ.temp,
             m,
           );
         let members =

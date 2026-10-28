@@ -665,7 +665,7 @@ let exp_mark_err_view =
     );
   switch (m) {
   | Free(name) => div_err([code(name), text("not found")])
-  | InexhaustiveMatch(_, inner_marks, example) =>
+  | InexhaustiveMatch(inner_marks, example) =>
     let cls_str = Cls.show(cls);
     let additional =
       switch (
@@ -1101,7 +1101,7 @@ let typ_view =
 let mod_view =
     (~globals, cls: Cls.t, ~marks: list(Mark.t), ~ty: option(Typ.t)): Node.t =>
   switch (Mark.highest(marks)) {
-  | Some(InexhaustiveMatch(_, _, example)) =>
+  | Some(InexhaustiveMatch(_, example)) =>
     div_err(inexhaustive_view(~globals, Cls.show(cls), example))
   | Some(_) => div_err([text("Type error")])
   | None =>
