@@ -194,6 +194,11 @@ let rec find_contradiction = (p: Proof.t): option(Proof.t) =>
   | Revert(_, _, b) => find_contradiction(b)
   | Induction(_, _, cases) =>
     List.find_map(((_, b)) => find_contradiction(b), cases)
+  | With(body, _, by) =>
+    switch (find_contradiction(body)) {
+    | Some(_) as s => s
+    | None => find_contradiction(by)
+    }
   | Have(_, sub, body) =>
     switch (find_contradiction(sub)) {
     | Some(_) as s => s

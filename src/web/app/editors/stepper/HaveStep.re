@@ -87,10 +87,23 @@ let init = init_step => {
   body_stepper: init_step,
 };
 
+/* D54 side-condition clause `<step> with <cond> by <proof> end` is the
+ * same two-premise shape and reuses this step: the CONDITION plays the
+ * proposition (child 0 of both tiles), the CLAUSE PROOF plays the
+ * subproof (checked in the enclosing scope, ProofCheck's With arm), and
+ * the STEP plays the body -- but WITHOUT any added hypothesis: a clause
+ * introduces nothing, it only discharges one of its step's conditions. */
+let is_with = (proof: option(Proof.t)): bool =>
+  switch (proof) {
+  | Some({term: With(_, _, _), _}) => true
+  | _ => false
+  };
+
 /* The proposition, read from syntax (single source of truth). */
 let arg_of_proof = (proof: option(Proof.t)): option(Exp.t) =>
   switch (proof) {
-  | Some({term: Have(e, _, _), _}) => Some(e)
+  | Some({term: Have(e, _, _), _})
+  | Some({term: With(_, e, _), _}) => Some(e)
   | _ => None
   };
 
@@ -101,13 +114,15 @@ let arg_of_proof = (proof: option(Proof.t)): option(Exp.t) =>
  * its structure. */
 let sub_of_proof = (p: Proof.t): Proof.t =>
   switch (p) {
-  | {term: Have(_, sub, _), _} => sub
+  | {term: Have(_, sub, _), _}
+  | {term: With(_, _, sub), _} => sub
   | p => p
   };
 
 let body_of_proof = (p: Proof.t): Proof.t =>
   switch (p) {
-  | {term: Have(_, _, body), _} => body
+  | {term: Have(_, _, body), _}
+  | {term: With(body, _, _), _} => body
   | p => p
   };
 
@@ -309,12 +324,12 @@ module F =
         ~take_focus as _: focus => Ui_effect.t(unit),
         ~hide_stepper as _: Ui_effect.t(unit),
         ~is_toplevel as _: bool,
-        ~proof as _: option(Proof.t),
+        ~proof: option(Proof.t),
         ~edit_syntax as
           _: Haz3lcore.EditorTransform.patch => Ui_effect.t(unit),
         _: model,
       ) =>
-    WebUtil.Node.text("Have");
+    WebUtil.Node.text(is_with(proof) ? "With" : "Have");
 
   let view_content =
       (
@@ -394,7 +409,10 @@ module F =
         );
       [
         premise(
-          ~header=[WebUtil.Node.text("proof of "), goal_code(header_goal)],
+          ~header=[
+            WebUtil.Node.text(is_with(proof) ? "with clause, proof of " : "proof of "),
+            goal_code(header_goal),
+          ],
           rows,
         ),
       ];
@@ -429,7 +447,9 @@ module F =
       [
         premise(
           ~header=[
-            WebUtil.Node.text("with `have`, proof of "),
+            WebUtil.Node.text(
+              is_with(proof) ? "the step, proof of " : "with `have`, proof of ",
+            ),
             goal_code(
               model.body_exp |> Calc.get_saved_exc(~print="have body_exp"),
             ),
@@ -440,7 +460,7 @@ module F =
     };
     ProofFormView.view_arg(
       ~globals,
-      ~label="Have: ",
+      ~label=is_with(proof) ? "With: " : "Have: ",
       ~proof,
       ~main_editor,
       ~focused=
@@ -453,7 +473,8 @@ module F =
       ~take_focus=() => take_focus(Arg()),
       arg_of_proof(proof),
     )
-    @ sub_box
-    @ body_box;
+    /* A clause reads step-first: the step, then the proof of its
+       condition. */
+    @ (is_with(proof) ? body_box @ sub_box : sub_box @ body_box);
   };
 };

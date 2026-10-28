@@ -424,6 +424,7 @@ proof:
     | OBTAIN; x = pat; AS; h = pat; FROM; e = exp; EQUAL_ARROW; pf = proof { ProofObtain(x, h, e, pf) } %prec PROOF_PRE
     | DOUBLE_EQUAL; t = exp; BY; j = justification; END { ProofRelEqBy(t, j) }
     | pf = proof; WITH; c = exp; BY; by = proof; END { ProofWith(pf, c, by) }
+    | OPEN_PAREN; pf = proof; CLOSE_PAREN { ProofParens(pf) }
     | REVERT; e = exp; EQUAL_ARROW; pf = proof { ProofRevert(e, pf) } %prec PROOF_PRE
     | REVERT; e = exp; WITH; v = exp; SINGLE_EQUAL; i = exp; EQUAL_ARROW; pf = proof { ProofRevertWith(e, v, i, pf) } %prec PROOF_PRE
     | AXIOM; eq = exp; AT; idx = exp; ON; ae = exp; END { ProofAxiom(eq, idx, ae) }

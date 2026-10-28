@@ -1114,6 +1114,7 @@ and Stepper: {
   let rec is_hole_proof = (p: Proof.t): bool =>
     switch (p.term) {
     | Parens(inner) => is_hole_proof(inner)
+    | With(_, _, _) => false
     | EmptyHole
     | Invalid(_)
     | MultiHole(_) => true
@@ -1143,6 +1144,12 @@ and Stepper: {
     switch (proof_head.term) {
     /* Transparent: the parens do not have a step kind of their own. */
     | Parens(inner) => kind_of_proof(inner)
+    /* D54 clause `<step> with <cond> by <proof> end`: a two-premise row
+       rendered by HaveStep (its row carries the With node's own marks, so
+       a refused clause shows its reason; the clause proof gets its own
+       nested rows, the step its own region). Row edits inside either
+       region patch by id, so the wrapper and clause survive. */
+    | With(_, _, _) => Some(HaveStep(HaveStep.init(init_step)))
     | AxiomStep({direction, _}) =>
       Some(
         AxiomStep({
@@ -1222,7 +1229,8 @@ and Stepper: {
     | (Assume(_, _, _), AssumeStep(_))
     | (Revert(_, _, _), RevertStep(_))
     | (Generalize(_, _), GeneralizeStep(_))
-    | (Have(_, _, _), HaveStep(_)) => sk
+    | (Have(_, _, _), HaveStep(_))
+    | (With(_, _, _), HaveStep(_)) => sk
     | _ => kind_of_proof(proof_head) |> Option.value(~default=sk)
     };
 
@@ -1817,6 +1825,9 @@ and Stepper: {
   let rec form_arg_id = (t: TermBase.Proof.term): option(Id.t) =>
     switch (t) {
     | Parens(inner) => form_arg_id(inner.term)
+    /* The clause's condition is child 0 of `with … by … end`, the same
+       slot as have's proposition. */
+    | With(_, cond, _) => Some(Exp.rep_id(cond))
     | Assume(e, _, _)
     | Alias(_, e, _)
     | Revert(e, _, _)

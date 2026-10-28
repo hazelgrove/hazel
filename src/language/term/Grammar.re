@@ -1477,6 +1477,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Seq(p1, p2),
       annotation: default_annotation(ann),
     };
+    let parens = (~ann=?, p): proof_t(DefaultAnnotation.t) => {
+      term: Parens(p),
+      annotation: default_annotation(ann),
+    };
     let axiom_step =
         (
           ~ann=?,

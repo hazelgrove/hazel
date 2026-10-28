@@ -836,4 +836,8 @@ let rec single = (p: Proof.t): Simple.t =>
       ...invalid,
       explanation: "`obtain x as h from E => …`: use the existential fact E with a fresh x and the fact h about it; the result may not mention x.",
     }
+  | With(_, _, _) => {
+      ...invalid,
+      explanation: "A side-condition clause `<step> with <condition> by <proof> end`: the proof after `by` establishes a condition the step leaves pending. It counts only when the condition matches one of that step's own pending conditions and the proof is complete; parenthesize the step to attach the clause to an outer step.",
+    }
   };

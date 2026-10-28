@@ -50,6 +50,13 @@ let status_class = (status: ProofMap.full_status): string =>
   | Incomplete => "unknown"
   };
 
+/* D56/D59 (with clauses): a section's count badge counts only the
+ * PENDING conditions; met ones (automatic receipts, or a clause's
+ * `Local` discharge) stay listed below as receipts but are not counted.
+ * No badge when nothing is pending. */
+let pending_count = (obs: list(Obligation.t)): int =>
+  List.length(List.filter(Obligation.is_pending, obs));
+
 /* --- grouping ------------------------------------------------------- */
 
 /* Obligations as the panel groups them: those incurred by steps of this
@@ -107,7 +114,7 @@ let discharge_label = (ob: Obligation.t): string =>
   switch (ob.discharge) {
   | Pending => "pending — nothing in scope covers this"
   | Evaluated => "discharged by evaluation"
-  | Local(_) => "discharged by an inline subproof"
+  | Local(_) => "discharged by its with clause"
   | Structural => "discharged by the standardness rules (binder origin / total form)"
   | Remote(_) =>
     switch (Obligation.remote_fact(ob)) {
@@ -727,10 +734,15 @@ let section =
             ~attrs=[clss(["obligation-section-title"])],
             [
               text(title),
-              span(
-                ~attrs=[clss(["obligation-count"])],
-                [text(string_of_int(List.length(obs)))],
-              ),
+              ...switch (pending_count(obs)) {
+                 | 0 => []
+                 | n => [
+                     span(
+                       ~attrs=[clss(["obligation-count"])],
+                       [text(string_of_int(n))],
+                     ),
+                   ]
+                 },
             ],
           ),
           ...List.map(

@@ -632,6 +632,7 @@ and Proof: {
         Exp.of_menhir_ast(e),
         of_menhir_ast(body),
       )
+    | ProofParens(p) => parens(of_menhir_ast(p))
     | ProofWith(body, cond, by) =>
       with_clause(
         of_menhir_ast(body),

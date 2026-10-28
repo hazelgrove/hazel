@@ -126,6 +126,7 @@ let rec dump_proof = (pm: ProofMap.t, p: Proof.t, indent: string): string => {
     | Cite(_) => "cite"
     | Obtain(_) => "obtain"
     | Have(_, _, _) => "have"
+    | With(_, _, _) => "with"
     | Alias(_) => "alias"
     };
   let here =

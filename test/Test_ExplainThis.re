@@ -147,6 +147,7 @@ let representatives = (cls: Proof.cls): list(Proof.t) =>
   | Obtain => [
       Proof.fresh(Obtain(some_pat(), some_pat(), some_exp(), hole_proof())),
     ]
+  | With => [Proof.fresh(With(hole_proof(), some_exp(), hole_proof()))]
   /* Parens are transparent: their doc IS the inner form's, so the
      representative wraps a form that has a worked example. */
   | Parens => [
@@ -164,7 +165,9 @@ let example_free = (cls: Proof.cls): bool =>
   | RelEqBy
   | Witness
   | Cite
-  | Obtain => true
+  | Obtain
+  /* D54 clause: compiler scaffolding doc, no worked example yet. */
+  | With => true
   | Seq
   | AxiomStep
   | AlgebriteStep

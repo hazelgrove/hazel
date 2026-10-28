@@ -293,6 +293,11 @@ let rec find_have = (p: Proof.t): option(Proof.t) =>
   | Generalize(_, b)
   | Revert(_, _, b)
   | Parens(b) => find_have(b)
+  | With(b, _, by) =>
+    switch (find_have(b)) {
+    | Some(_) as r => r
+    | None => find_have(by)
+    }
   | Induction(_, _, cases) =>
     List.fold_left(
       (acc, (_, b)) =>

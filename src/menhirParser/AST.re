@@ -224,6 +224,9 @@ and proof =
   | ProofObtain(pat, pat, exp, proof)
   /* `<step> with <condition> by <proof> end` (D54). */
   | ProofWith(proof, exp, proof)
+  /* `( <proof> )`: grouping, needed to attach a with clause to an outer
+     step (the tile grammar's `ParensProof`). */
+  | ProofParens(proof)
   /* (equality, at_idx, at_exp) — argument order follows the surface
      syntax `axiom <equality> at <at_idx> on <at_exp> end`. */
   | ProofAxiom(exp, exp, exp)

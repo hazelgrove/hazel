@@ -93,6 +93,11 @@ let rec find_revert = (p: Proof.t): option(Proof.t) =>
   | Alias(_, _, b)
   | Obtain(_, _, _, b)
   | Generalize(_, b) => find_revert(b)
+  | With(b, _, by) =>
+    switch (find_revert(b)) {
+    | Some(_) as r => r
+    | None => find_revert(by)
+    }
   | Have(_, sub, b) =>
     switch (find_revert(sub)) {
     | Some(_) as r => r

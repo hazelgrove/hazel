@@ -279,6 +279,11 @@ let rec find_marked_sub =
     | Obtain(_, _, _, body)
     | Generalize(_, body)
     | Revert(_, _, body) => find_marked_sub(pm, body)
+    | With(body, _, by) =>
+      switch (find_marked_sub(pm, body)) {
+      | Some(_) as s => s
+      | None => find_marked_sub(pm, by)
+      }
     | Have(_, sub, body) =>
       switch (find_marked_sub(pm, sub)) {
       | Some(_) as s => s

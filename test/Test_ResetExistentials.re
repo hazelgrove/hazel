@@ -32,6 +32,7 @@ let rec proof_nodes = (p: Proof.t): list(Proof.t) =>
     | Revert(_, _, b)
     | Obtain(_, _, _, b) => proof_nodes(b)
     | Have(_, s, b) => proof_nodes(s) @ proof_nodes(b)
+    | With(b, _, p) => proof_nodes(b) @ proof_nodes(p)
     | RelEqBy(_, j) => proof_nodes(j)
     | Induction(_, _, cases) =>
       List.concat_map(((_, b)) => proof_nodes(b), cases)
