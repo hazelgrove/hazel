@@ -85,6 +85,7 @@ let (suite, _) =
     @ [Test_ResetStandardnessGates.tests]
     @ [Test_ResetStandardnessCorrections.tests]
     @ [Test_ResetRecursiveStandardness.tests]
+    @ [Test_ResetOperandClass.tests]
     @ [Test_ExistentialsAppContext.tests]
     @ [Test_SubEditor.tests],
   );
