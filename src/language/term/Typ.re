@@ -543,14 +543,14 @@ let rec unroll_to_non_rec = (ty: t): option(t) =>
   | _ => Some(ty)
   };
 
-/* Substitute each [(binder, name, def)] for [name], latest binder first.
-   Only the definitions of names free in [ty] are forced. */
-let apply_sig_subst = (sigma: list((binder, Var.t, Lazy.t(t))), ty: t): t => {
+/* Substitute each [(binder, name, def)] for [name] where it is free in
+   [ty], latest binder first. */
+let apply_sig_subst = (sigma: list((binder, Var.t, t)), ty: t): t => {
   let fv = free_vars(ty);
   List.fold_left(
     (ty, (binder, name, def)) =>
       List.exists(String.equal(name), fv)
-        ? subst(~binder, Lazy.force(def), Var(name) |> TPat.fresh, ty) : ty,
+        ? subst(~binder, def, Var(name) |> TPat.fresh, ty) : ty,
     ty,
     sigma,
   );
@@ -803,8 +803,7 @@ let extend_ctx = (ctx: Ctx.t, entry: Ctx.entry): Ctx.t => {
     };
   switch (
     List.filter_map(
-      ((binder, name, def)) =>
-        Option.map(def => (binder, name, Lazy.from_val(def)), def),
+      ((binder, name, def)) => Option.map(def => (binder, name, def), def),
       shadowed,
     )
   ) {
