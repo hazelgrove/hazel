@@ -1691,6 +1691,43 @@ M.x|},
     is_int_vs(Bool),
   );
 
+/* The middle of a path names a sub-module; only its end names a type. */
+let test_sub_module_path_middle_is_a_module =
+  Alcotest.test_case(
+    "The middle of a module path is read as a module",
+    `Quick,
+    () => {
+      let src = {|module M = { module P = { type U = Int } } in
+let f = fun (x : M.P.U) -> x in f|};
+      let message_of_path_to =
+          (label: string, info: Language.Info.t)
+          : option(option(Language.Message.t)) =>
+        switch (info) {
+        | InfoTyp({
+            user_term: {term: ProdProjection(_, {term: Label(l), _}), _},
+            message,
+            _,
+          })
+            when String.equal(l, label) =>
+          Some(message)
+        | _ => None
+        };
+      switch (
+        Language.Id.Map.bindings(statics(parse_exp(src)))
+        |> List.find_map(((_, info)) => message_of_path_to("P", info))
+      ) {
+      | Some(Some(Language.Message.TypOk(Type(ty)))) =>
+        Alcotest.check(
+          testable_typ,
+          "M.P is P's signature",
+          closed_sig_([type_("U", int())]),
+          ty,
+        )
+      | _ => Alcotest.fail("M.P is not read as a type")
+      };
+    },
+  );
+
 let test_type_member_matches_through_alias =
   Alcotest.test_case(
     "A type member matches a declaration that names it through an alias",
@@ -2194,6 +2231,7 @@ let tests = (
     test_meet_ignores_member_order,
     test_sig_module_member_roots_path,
     test_error_sig_module_member_roots_path,
+    test_sub_module_path_middle_is_a_module,
     test_type_member_matches_through_alias,
     test_type_member_matches_reordered_signature,
     test_self_mentioning_sig_alias,

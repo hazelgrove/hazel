@@ -4558,11 +4558,7 @@ and utyp_to_info_map =
         }
       };
     let (label, m) = go(~expects=label_expects, label, m);
-    add(
-      ~expects=TypeExpected,
-      ~ty=ProdProjection(t.ty, label.ty) |> rewrap,
-      m,
-    );
+    add(~ty=ProdProjection(t.ty, label.ty) |> rewrap, m);
   | ProdExtension(t1, t2) =>
     let (t1, m) = go(~expects=ProductExpected, t1, m);
     let (t2, m) = go(~expects=ProductExpected, t2, m);
