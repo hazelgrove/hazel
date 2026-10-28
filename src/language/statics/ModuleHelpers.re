@@ -241,32 +241,31 @@ let extra_members =
 };
 
 /* The module's type under the signature it is checked against: each
-   member [checked] against the signature on its item at the type the
-   signature gives it where the two disagree, that disagreement having been
-   reported there; any other member at its own type, so the module as a
-   whole reports the disagreement. */
+   member [checked] against the signature on its item at the type
+   [expected] gives it where the two disagree, that disagreement having
+   been reported there; any other member at its own type, so the module as
+   a whole reports the disagreement. */
 let sealed =
     (
       ~ctx: Ctx.t,
-      ~ana_items: list(Sig.t),
+      ~expected: list(Sig.member),
       ~checked: list(Var.t),
       ~mismatched_types: list(Var.t),
       have: list(Sig.t),
     )
     : list(Sig.t) => {
-  let want = Sig.members(ana_items);
   have
   |> List.map(item =>
        switch (Sig.member_of_item(item)) {
        | Some(Val(x, ty)) when List.exists(String.equal(x), checked) =>
-         switch (Sig.find_value(want, x)) {
+         switch (Sig.find_value(expected, x)) {
          | Some(expected) =>
            Sig.map_typ(_ => StaticsBase.fixed_typ(ctx, expected, ty), item)
          | None => item
          }
        | Some(TypeManifest(name, _))
            when List.exists(String.equal(name), mismatched_types) =>
-         switch (Sig.find_type_def(want, name)) {
+         switch (Sig.find_type_def(expected, name)) {
          | Some(expected) => Sig.map_typ(_ => expected, item)
          | None => item
          }

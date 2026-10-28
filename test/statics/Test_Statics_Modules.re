@@ -1938,6 +1938,33 @@ let test_evaluated_module_binding_recloses_earlier_members =
     },
   );
 
+let test_outer_alias_member_exported_expanded =
+  Alcotest.test_case(
+    "A member typed at an outer alias is exported expanded beside the body's own type of that name",
+    `Quick,
+    () => {
+      let exp =
+        parse_exp(
+          "type T = Bool in module M : { let x : T } = { type T = Int; let x = 1 } in M.x && true",
+        );
+      let body_ty =
+        Language.Id.Map.bindings(statics(exp))
+        |> List.find_map(((_, info: Language.Info.t)) =>
+             switch (info) {
+             | InfoExp({user_term: {term: Module(_), _}, elab_syn_ty, _}) =>
+               Some(elab_syn_ty)
+             | _ => None
+             }
+           );
+      Alcotest.check(
+        Alcotest.option(testable_typ),
+        "body type",
+        Some(expected_typ(sig_([type_("T", int()), val_("x", bool())]))),
+        body_ty,
+      );
+    },
+  );
+
 let tests = (
   "Statics.Modules",
   [
@@ -2125,5 +2152,6 @@ let tests = (
     test_shadowing_module_roots_later_paths,
     test_folded_sig_pattern_checked_alike,
     test_evaluated_module_binding_recloses_earlier_members,
+    test_outer_alias_member_exported_expanded,
   ],
 );

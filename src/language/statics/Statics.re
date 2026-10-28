@@ -3190,7 +3190,7 @@ and uexp_to_info_map =
           (
             ModuleHelpers.sealed(
               ~ctx,
-              ~ana_items,
+              ~expected,
               ~checked=c.checked,
               ~mismatched_types=c.mismatched_types,
               have_items,
