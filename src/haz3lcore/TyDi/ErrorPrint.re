@@ -361,6 +361,11 @@ let string_of_marks = (info: Info.t, marks: list(Mark.t)): string =>
       | None => ""
       }
     }
+  | InfoMod({ctx, _}) =>
+    switch (Mark.highest(marks)) {
+    | Some(m) => exp_mark_to_string(ctx, Unknown(Internal) |> Typ.temp, m)
+    | None => "(static error)"
+    }
   | _ => "(static error)"
   };
 

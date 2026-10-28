@@ -93,4 +93,56 @@ let bound_names_tests = (
   ],
 );
 
-let tests = [member_tests, bound_names_tests];
+let parts_tests = {
+  let e = F.Exp.var("v");
+  let ty = F.Typ.int();
+  let p = F.Pat.var("x");
+  let mp = F.MPat.var("M");
+  let tp = F.TPat.var("T");
+  let id_of = part => Option.map(Any.rep_id, part) |> Option.map(Id.show);
+  let check_parts = (name, item, ~pat, ~def) => {
+    check(option(string), name ++ ": pat", pat, id_of(Mod.pat(item)));
+    check(option(string), name ++ ": def", def, id_of(Mod.def(item)));
+  };
+  (
+    "Mod.pat and Mod.def",
+    [
+      test_case(
+        "the written parts of each item kind",
+        `Quick,
+        () => {
+          let e_id = Some(Id.show(Exp.rep_id(e)));
+          let ty_id = Some(Id.show(Typ.rep_id(ty)));
+          check_parts(
+            "let",
+            F.Mod.mod_let(p, e),
+            ~pat=Some(Id.show(Pat.rep_id(p))),
+            ~def=e_id,
+          );
+          check_parts(
+            "module",
+            F.Mod.module_mod(mp, e),
+            ~pat=Some(Id.show(MPat.rep_id(mp))),
+            ~def=e_id,
+          );
+          check_parts(
+            "type",
+            F.Mod.mod_type(tp, ty),
+            ~pat=Some(Id.show(TPat.rep_id(tp))),
+            ~def=ty_id,
+          );
+          check_parts("expression", F.Mod.mod_exp(e), ~pat=None, ~def=e_id);
+          check_parts(
+            "evaluated binding",
+            Mod.fresh(ModVal("x", e)),
+            ~pat=None,
+            ~def=e_id,
+          );
+          check_parts("hole", Mod.fresh(EmptyHole), ~pat=None, ~def=None);
+        },
+      ),
+    ],
+  );
+};
+
+let tests = [member_tests, bound_names_tests, parts_tests];

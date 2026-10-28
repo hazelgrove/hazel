@@ -840,13 +840,13 @@ let sig_tests = {
             list(string),
             "outer alias free",
             ["A"],
-            Typ.free_vars(sg([sv("x", F.Typ.var("A"))])),
+            Typ.free_vars(cs([sv("x", F.Typ.var("A"))])),
           );
           check(
             list(string),
-            "a member's mention is free until closed",
+            "a closed member mentioning a sibling's name means the outer one",
             ["T"],
-            Typ.free_vars(sg([st("T", ti), sv("x", F.Typ.var("T"))])),
+            Typ.free_vars(cs([st("T", ti), sv("x", F.Typ.var("T"))])),
           );
           check(
             list(string),
@@ -886,6 +886,19 @@ let sig_tests = {
         },
       ),
       test_case(
+        "close: a nested signature's same-named type member does not make the outer one recursive",
+        `Quick,
+        () => {
+          let inner = sg([st("T", ti), sv("x", F.Typ.var("T"))]);
+          check(
+            typ,
+            "closed",
+            cs([st("T", cs([st("T", ti), sv("x", ti)]))]),
+            Typ.close(ctx, sg([st("T", inner)])),
+          );
+        },
+      ),
+      test_case(
         "close reads a closed signature's members alone, not in order",
         `Quick,
         () => {
@@ -898,24 +911,46 @@ let sig_tests = {
         `Quick,
         () => {
           let s = sg([sv("x", ti)]);
-          check_raises("subst", Typ.OpenSignature, () =>
+          check_raises("subst", Sig.OpenSignature, () =>
             ignore(Typ.subst(ti, F.TPat.var("a"), s))
           );
-          check_raises("normalize", Typ.OpenSignature, () =>
+          check_raises("normalize", Sig.OpenSignature, () =>
             ignore(Typ.normalize(ctx, s))
           );
-          check_raises("meet", Typ.OpenSignature, () =>
+          check_raises("meet", Sig.OpenSignature, () =>
             ignore(Typ.meet(ctx, s, cs([sv("x", ti)])))
+          );
+          check_raises("meet against a non-signature", Sig.OpenSignature, () =>
+            ignore(Typ.meet(ctx, s, ti))
+          );
+          check_raises("has_fun", Sig.OpenSignature, () =>
+            ignore(Typ.has_fun(s))
+          );
+          check_raises("free_vars", Sig.OpenSignature, () =>
+            ignore(Typ.free_vars(s))
+          );
+          check_raises("count_unknowns", Sig.OpenSignature, () =>
+            ignore(Typ.count_unknowns(s))
           );
         },
       ),
-      test_case("pretty printing", `Quick, () =>
-        check(
-          string,
-          "printed",
-          "{ let x : Int; type T = Int }",
-          Typ.pretty_print(sg([sv("x", ti), st("T", ti)])),
-        )
+      test_case(
+        "pretty printing",
+        `Quick,
+        () => {
+          check(
+            string,
+            "as written",
+            "{ let x : Int; type T = Int }",
+            Typ.pretty_print(sg([sv("x", ti), st("T", ti)])),
+          );
+          check(
+            string,
+            "closed members as they are",
+            "{ type T = Int; let x : Int }",
+            Typ.pretty_print(cs([st("T", ti), sv("x", ti)])),
+          );
+        },
       ),
     ],
   );

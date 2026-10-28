@@ -87,13 +87,28 @@ let member_of_item = (item: t): option(member) =>
 let members = (items: list(t)): list(member) =>
   List.filter_map(member_of_item, items);
 
-/* The items of a signature type, open or closed, for a traversal that does
-   not read a member's type in scope: printing, collecting ids, counting. */
-let written_items = (s: TermBase.signature): list(t) =>
+/* An open signature reached an operation that reads its members' types.
+   Those read closed signatures only; Typ.close makes one where a type is
+   read from the syntax, so an open one here is a bug in that reading. */
+exception OpenSignature;
+
+/* The items of a signature in either reading, for a syntactic walk that
+   does not read a member's type: printing, collecting ids, counting. */
+let items = (s: TermBase.signature): list(t) =>
   switch (s) {
   | Open(items) => items
   | Closed(items) => ClosedSig.items(items)
   };
+
+/* The items of a closed signature, for an operation that reads their types. */
+let closed = (s: TermBase.signature): ClosedSig.t(t) =>
+  switch (s) {
+  | Open(_) => raise(OpenSignature)
+  | Closed(items) => items
+  };
+
+let closed_members = (s: TermBase.signature): list(member) =>
+  members(ClosedSig.items(closed(s)));
 
 let item_of_member = (m: member): t =>
   switch (m) {
@@ -217,17 +232,25 @@ let same_kind = (a: member, b: member) =>
   | (TypeManifest(_), Val(_)) => false
   };
 
-let dedup_last_by = (member: 'a => member, xs: list('a)): list('a) =>
+let dedup_last_by = (member: 'a => option(member), xs: list('a)): list('a) =>
   List.rev(
     Util.ListUtil.dedup_f(
-      (a, b) => same_kind(member(a), member(b)),
+      (a, b) =>
+        switch (member(a), member(b)) {
+        | (Some(a), Some(b)) => same_kind(a, b)
+        | (None, _)
+        | (_, None) => false
+        },
       List.rev(xs),
     ),
   );
 
 /* Keep only the last member of each name and kind (a later binding
    shadows an earlier one), preserving the order of the survivors. */
-let dedup_last: list(member) => list(member) = dedup_last_by(Fun.id);
+let dedup_last: list(member) => list(member) = dedup_last_by(Option.some);
+
+/* [dedup_last] on items; an item that declares no member is kept. */
+let dedup_last_items: list(t) => list(t) = dedup_last_by(member_of_item);
 
 /* Lookups take the last member with the name: a later binding shadows an
    earlier one. */

@@ -55,24 +55,21 @@ module Local = {
           )
         }
       | InfoMod({user_term: item, _}) =>
-        switch (item.term, inner_term) {
-        | (ModLet(pat, _), Pat) => Pat.rep_id(pat)
-        | (ModLet(_, def), Def)
-        | (ModuleMod(_, def), Def)
-        | (ModExp(def), Def)
-        | (ModVal(_, def), Def) => Exp.rep_id(def)
-        | (ModType(tpat, _), Pat) => TPat.rep_id(tpat)
-        | (ModType(_, def), Def) => Typ.rep_id(def)
-        | (ModuleMod(mp, _), Pat) => MPat.rep_id(mp)
-        | (ModExp(_) | ModVal(_, _), Pat)
-        | (Invalid(_) | EmptyHole | MultiHole(_), Pat | Def)
-        | (_, Body) =>
+        let part =
+          switch (inner_term) {
+          | Pat => Mod.pat(item)
+          | Def => Mod.def(item)
+          | Body => None
+          };
+        switch (part) {
+        | Some(part) => Any.rep_id(part)
+        | None =>
           raise(
             Failure(
               "Module members end at their `;` and have no body; a bare expression or hole item has no pattern",
             ),
           )
-        }
+        };
       | _ =>
         raise(
           Failure(

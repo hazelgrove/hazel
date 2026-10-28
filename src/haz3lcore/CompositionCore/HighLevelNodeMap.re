@@ -527,19 +527,22 @@ let rec build_children =
           switch (item.term, Id.Map.find_opt(Mod.rep_id(item), info_map)) {
           | (ModExp(e), _) =>
             build_children(exp_to_info(e), path, node_map, info_map)
-          | (
-              ModLet(_, def) | ModuleMod(_, def) | ModVal(_, def),
-              Some(info),
-            ) =>
-            let new_path = path @ [Info.id_of(info)];
-            let node_map = init_node(info, new_path, node_map);
-            build_children(exp_to_info(def), new_path, node_map, info_map);
-          | (ModType(_, typ), Some(info)) =>
-            let new_path = path @ [Info.id_of(info)];
-            let node_map = init_node(info, new_path, node_map);
-            build_children(typ_to_info(typ), new_path, node_map, info_map);
-          | (ModLet(_) | ModuleMod(_) | ModVal(_) | ModType(_), None)
-          | (Invalid(_) | EmptyHole | MultiHole(_), _) => node_map
+          | (_, Some(info)) =>
+            let def_info =
+              switch (Mod.def(item)) {
+              | Some(Exp(def)) => Some(exp_to_info(def))
+              | Some(Typ(typ)) => Some(typ_to_info(typ))
+              | Some(_)
+              | None => None
+              };
+            switch (def_info) {
+            | Some(def_info) =>
+              let new_path = path @ [Info.id_of(info)];
+              let node_map = init_node(info, new_path, node_map);
+              build_children(def_info, new_path, node_map, info_map);
+            | None => node_map
+            };
+          | (_, None) => node_map
           },
         node_map,
         items,

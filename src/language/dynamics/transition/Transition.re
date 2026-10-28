@@ -1477,7 +1477,11 @@ module Transition = (EV: EV_MODE) => {
             at: None,
           });
         | ModLet(dp, d1) => bind(dp, d1)
-        | ModuleMod(mp, d1) => bind(MPat.to_pat(mp), d1)
+        /* A `module` item is elaborated to a `let` item before reaching
+           dynamics, as ModuleExp is to Let. */
+        | ModuleMod(_, _) =>
+          let. _ = otherwise(env, d);
+          Indet;
         /* A hole or type item binds nothing, as `1; ?; 2` sequences past
            its hole. */
         | ModType(_, _)

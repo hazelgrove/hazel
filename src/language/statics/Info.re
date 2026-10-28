@@ -105,6 +105,7 @@ type mod_ = {
   sort: Sort.t,
   ctx: Ctx.t,
   ancestors,
+  marks: list(Mark.t),
   ty: option(Typ.t), /* of the binder a let or module item declares; a type item's definition */
   co_ctx: CoCtx.t, /* of the item and the items after it, its bindings consumed */
   scope_co_ctx: CoCtx.t /* of the items after it, which its bindings scope over */
@@ -269,9 +270,9 @@ let marks_of: t => list(Mark.t) =
   | InfoExp({marks, _})
   | InfoPat({marks, _}) => marks
   | InfoTyp({marks, _})
-  | InfoTPat({marks, _}) => marks
+  | InfoTPat({marks, _})
+  | InfoMod({marks, _}) => marks
   | InfoDrv(_) /* Drv errors are tracked separately via DrvInfo.error_of. */
-  | InfoMod(_)
   | InfoSig(_)
   | InfoMPat(_)
   | Secondary(_) => [];

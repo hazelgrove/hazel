@@ -30,11 +30,6 @@ type cls =
 
 include TermBase.Typ;
 
-/* An open signature reached an operation that reads a signature's members.
-   Those read only closed signatures, which Typ.close makes where a type is
-   read from the syntax; an open one there is a bug in that reading. */
-exception OpenSignature;
-
 let term_of: t => term = IdTagged.term_of;
 let unwrap: t => (term, term => t) = IdTagged.unwrap;
 let rep_id: t => Id.t = IdTagged.rep_id;
@@ -192,7 +187,7 @@ let rec has_fun = (typ: t) =>
         | Val(_, ty) => has_fun(ty)
         | TypeManifest(_) => false
         },
-      Sig.members(Sig.written_items(s)),
+      Sig.closed_members(s),
     )
   };
 
@@ -264,7 +259,7 @@ type binder = [
 
 /* The free variables of [ty] that substituting for a [binder] would
    replace: every one for a type variable, only path roots for a module.
-   A signature's members bind nothing: see [close]. */
+   A closed signature's members bind nothing: see [close]. */
 let rec free_vars =
         (~binder: binder=`TVar, ~bound=[], ~bound_roots=[], ty: t)
         : list(Var.t) => {
@@ -310,29 +305,18 @@ let rec free_vars =
         | Val(_, ty)
         | TypeManifest(_, ty) => go(ty)
         },
-      Sig.members(Sig.written_items(s)),
+      Sig.closed_members(s),
     )
   };
 };
 
-/* The type an alias [name] defined as [def] stands for: [def], or the
-   recursive type `rec name -> def` if [def] mentions [name]. */
-let recursive_def = (name: Var.t, def: t): t =>
-  List.exists(String.equal(name), free_vars(def))
-    ? Rec(Var(name) |> TPat.fresh, def) |> temp : def;
-
-/* Bind the member declared by a signature item, if any. Signature items
-   scope sequentially: later items may mention earlier type members, and
-   paths rooted at earlier modules (`m.T`). */
+/* Bind the member declared by a closed signature item, if any. Written
+   items scope sequentially: later items may mention earlier type members,
+   and root paths at earlier modules (`m.T`). */
 let extend_sig_item = (ctx: Ctx.t, item: Sig.t): Ctx.t =>
   switch (item.term) {
   | SigType({term: Var(name), _} as tp, ty) =>
-    Ctx.extend_alias(
-      ctx,
-      name,
-      IdTagged.rep_id(tp),
-      recursive_def(name, ty),
-    )
+    Ctx.extend_alias(ctx, name, IdTagged.rep_id(tp), ty)
   | SigLet(_)
   | SigModule(_) =>
     switch (Sig.member_of_item(item)) {
@@ -402,7 +386,7 @@ let rec count_unknowns = (ty: t): int =>
         | TypeManifest(_, ty) => acc + count_unknowns(ty)
         },
       0,
-      Sig.members(Sig.written_items(s)),
+      Sig.closed_members(s),
     )
   };
 
@@ -489,9 +473,9 @@ let rec subst = (~binder: binder=`TVar, s: t, x: TPat.t, ty: t): t =>
         ProdProjection(t1, go(t2)) |> rewrap;
       | ProdExtension(t1, t2) => ProdExtension(go(t1), go(t2)) |> rewrap
       /* Closed members are independent, so a substitution reaches each. */
-      | Sig(Closed(items)) =>
-        Sig(Closed(ClosedSig.map(Sig.map_typ(go), items))) |> rewrap
-      | Sig(Open(_)) => raise(OpenSignature)
+      | Sig(s) =>
+        Sig(Closed(ClosedSig.map(Sig.map_typ(go), Sig.closed(s))))
+        |> rewrap
       };
     };
     go(ty);
@@ -656,10 +640,9 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t =>
       let (_, rewrap) = unwrap(ty);
       let default = Unknown(Internal) |> rewrap;
       switch (label.term, path_head(~rec_counter=rec_counter + 1, ctx, t)) {
-      | (_, Some({term: Sig(Open(_)), _})) => raise(OpenSignature)
-      | (Label(l), Some({term: Sig(Closed(items)), _})) =>
+      | (Label(l), Some({term: Sig(s), _})) =>
         /* `M.T`: type member of a module path or of a signature alias. */
-        switch (sig_project_type(ClosedSig.items(items), l)) {
+        switch (sig_project_type(ClosedSig.items(Sig.closed(s)), l)) {
         | Some(ty') =>
           weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty')
         | None => default
@@ -707,8 +690,7 @@ and path_head = (~rec_counter, ctx: Ctx.t, t: t): option(t) =>
     let module_type = ty => {
       let ty = head_type(~rec_counter, ctx, ty);
       switch (term_of(ty)) {
-      | Sig(Closed(_)) => Some(ty)
-      | Sig(Open(_)) => raise(OpenSignature)
+      | Sig(_) => Some(ty)
       | _ => None
       };
     };
@@ -723,9 +705,8 @@ and path_head = (~rec_counter, ctx: Ctx.t, t: t): option(t) =>
       }
     | ProdProjection(p, {term: Label(l), _}) =>
       switch (path_head(~rec_counter=rec_counter + 1, ctx, p)) {
-      | Some({term: Sig(Open(_)), _}) => raise(OpenSignature)
-      | Some({term: Sig(Closed(items)), _}) =>
-        let items = ClosedSig.items(items);
+      | Some({term: Sig(s), _}) =>
+        let items = ClosedSig.items(Sig.closed(s));
         switch (sig_project_value(items, l)) {
         | Some(ty) => module_type(ty)
         | None =>
@@ -755,15 +736,13 @@ and head_type = (~rec_counter, ctx: Ctx.t, ty: t): t => {
    `type S = { type T = Int }`. */
 let path_sig = (ctx: Ctx.t, t: t): option(ClosedSig.t(Sig.t)) =>
   switch (path_head(~rec_counter=0, ctx, t)) {
-  | Some({term: Sig(Closed(items)), _}) => Some(items)
-  | Some({term: Sig(Open(_)), _}) => raise(OpenSignature)
+  | Some({term: Sig(s), _}) => Some(Sig.closed(s))
   | _ => None
   };
 
 let as_sig = (ctx: Ctx.t, ty: t): option(ClosedSig.t(Sig.t)) =>
   switch (term_of(head_type(~rec_counter=0, ctx, ty))) {
-  | Sig(Closed(items)) => Some(items)
-  | Sig(Open(_)) => raise(OpenSignature)
+  | Sig(s) => Some(Sig.closed(s))
   | _ => None
   };
 
@@ -902,12 +881,12 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
   | Poly(name, ty) =>
     Poly(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
   | ProofOf(_) => ty // Todo: should we normalize this?
-  | Sig(Closed(items)) =>
+  | Sig(s) =>
     /* Malformed items (holes, non-variable patterns) are dropped from the
        normal form. */
     Sig(
       Closed(
-        items
+        Sig.closed(s)
         |> ClosedSig.filter(item =>
              Option.is_some(Sig.member_of_item(item))
            )
@@ -915,7 +894,6 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
       ),
     )
     |> rewrap
-  | Sig(Open(_)) => raise(OpenSignature)
   };
 };
 
@@ -964,16 +942,15 @@ let fun_in = (ctx: Ctx.t, ty: t): option(fun_in) => {
         | DrvQuoteTy(_)
         | Label(_)
         | ExplicitNonlabel => None
-        | Sig(Closed(items)) =>
+        | Sig(s) =>
           List.find_map(
             (m: Sig.member) =>
               switch (m) {
               | Val(x, t) => go(~members=members @ [x], ctx, t)
               | TypeManifest(_) => None
               },
-            Sig.members(ClosedSig.items(items)),
+            Sig.closed_members(s),
           )
-        | Sig(Open(_)) => raise(OpenSignature)
         | List(t) => go(~members, ctx, t)
         | Rec(tp, t) => go(~members, Ctx.extend_dummy_tvar(ctx, tp), t)
         | Sum(sm) =>
@@ -1019,11 +996,11 @@ let equal_up_to_aliases = (ctx: Ctx.t, a: t, b: t): bool => {
       switch (term_of(a), term_of(b)) {
       | (Var(n1), Var(n2)) => n1 == n2 /* both unresolvable in ctx */
       | (Sig(Open(_)), _)
-      | (_, Sig(Open(_))) => raise(OpenSignature)
-      | (Sig(Closed(xs)), Sig(Closed(ys))) =>
+      | (_, Sig(Open(_))) => raise(Sig.OpenSignature)
+      | (Sig(sx), Sig(sy)) =>
         /* Order-insensitive, as in [meet]. */
-        let mx = Sig.members(ClosedSig.items(xs)) |> Sig.dedup_last;
-        let my = Sig.members(ClosedSig.items(ys)) |> Sig.dedup_last;
+        let mx = Sig.closed_members(sx) |> Sig.dedup_last;
+        let my = Sig.closed_members(sy) |> Sig.dedup_last;
         same_member_names(mx, my)
         && List.for_all(
              (m: Sig.member) =>
@@ -1126,18 +1103,31 @@ and close_items = (ctx: Ctx.t, items: list(Sig.t)): ClosedSig.t(Sig.t) =>
   sig_item_scopes(ctx, items)
   |> List.map(scope => scope.closed)
   |> ClosedSig.of_items
+/* The type an alias [tp] defined as [def] stands for: [def] closed with
+   the alias's own name abstract, recursive if it mentions itself. */
+and alias_def = (ctx: Ctx.t, tp: TPat.t, def: t): t =>
+  switch (TPat.tyvar_of_utpat(tp)) {
+  | None => close(ctx, def)
+  | Some(name) =>
+    let def = close(Ctx.extend_dummy_tvar(ctx, tp), def);
+    List.exists(String.equal(name), free_vars(def))
+      ? Rec(Var(name) |> TPat.fresh, def) |> temp : def;
+  }
 and sig_item_scopes = (ctx: Ctx.t, items: list(Sig.t)): list(sig_item_scope) => {
   let type_members = Sig.type_names(Sig.members(items));
   let is_type_member = n => List.exists(String.equal(n), type_members);
   let close_item = (ctx, item: Sig.t) => {
-    let item =
+    let closed =
       switch (item.term) {
-      | SigType({term: Var(name), _}, _) =>
-        Sig.map_typ(recursive_def(name), item)
-      | _ => item
+      | SigType(tp, _) => alias_def(ctx, tp)
+      | SigLet(_)
+      | SigModule(_)
+      | Invalid(_)
+      | EmptyHole
+      | MultiHole(_) => close(ctx)
       };
     Sig.map_typ(
-      ty => normalize(~expand=is_type_member, ctx, close(ctx, ty)),
+      ty => normalize(~expand=is_type_member, ctx, closed(ty)),
       item,
     );
   };
@@ -1175,34 +1165,6 @@ and sig_item_scopes = (ctx: Ctx.t, items: list(Sig.t)): list(sig_item_scope) => 
   List.rev(rev);
 };
 
-/* The items of a signature as displayed. An open signature is shown as
-   written. In a closed one, a member's type that is an earlier type
-   member's definition is written by that member's name. */
-let sig_display_items = (s: TermBase.signature): list(Sig.t) =>
-  switch (s) {
-  | Open(items) => items
-  | Closed(items) =>
-    let (_, rev) =
-      List.fold_left(
-        ((defined, acc), item: Sig.t) => {
-          let named = ty =>
-            List.find_opt(((_, def)) => fast_equal(def, ty), defined)
-            |> Option.map(((name, _)) => Var(name) |> temp)
-            |> Option.value(~default=ty);
-          let item = Sig.map_typ(named, item);
-          let defined =
-            switch (Sig.member_of_item(item)) {
-            | Some(TypeManifest(name, def)) => [(name, def), ...defined]
-            | Some(Val(_))
-            | None => defined
-            };
-          (defined, [item, ...acc]);
-        },
-        ([], []),
-        ClosedSig.items(items),
-      );
-    List.rev(rev);
-  };
 let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   let meet' = meet(ctx);
   switch (term_of(ty1), term_of(ty2)) {
@@ -1329,23 +1291,22 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   | (ExplicitNonlabel, _) => None
   | (Sig(Closed(xs)), Sig(Closed(ys))) =>
     /* Exact consistency: the same value-member names and the same
-       type-member names (order-insensitive), members pairwise consistent. */
+       type-member names (order-insensitive), members pairwise consistent.
+       The result is built from the left operand's members, the last of
+       each name, so each keeps its form, and its type where the meet
+       refines nothing. */
     let xs =
-      ClosedSig.filter(
-        item => Option.is_some(Sig.member_of_item(item)),
-        xs,
-      );
-    let mx = Sig.members(ClosedSig.items(xs));
+      ClosedSig.items(xs)
+      |> List.filter(item => Option.is_some(Sig.member_of_item(item)))
+      |> Sig.dedup_last_items;
     let my = Sig.members(ClosedSig.items(ys)) |> Sig.dedup_last;
-    if (!same_member_names(Sig.dedup_last(mx), my)) {
+    if (!same_member_names(Sig.members(xs), my)) {
       None;
     } else {
-      /* Rebuild from the left operand's items so each keeps its form, and
-         its type as written where the meet refines nothing. A member a
-         later one shadows is kept as written, unmet. */
-      let meet_item = (~later, item: Sig.t) =>
+      let meet_item = (item: Sig.t) =>
         switch (Sig.member_of_item(item)) {
-        | Some(m) when !List.exists(Sig.same_kind(m), Sig.members(later)) =>
+        | None => Some(item)
+        | Some(m) =>
           let (t1, t2) =
             switch (m) {
             | Val(x, t1) => (t1, Sig.find_value(my, x))
@@ -1354,14 +1315,12 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
           let* t2 = t2;
           let+ t = meet'(t1, t2);
           equal(t, t1) ? item : Sig.map_typ(_ => t, item);
-        | Some(_)
-        | None => Some(item)
         };
-      let+ items = ClosedSig.map_option(meet_item, xs);
-      Sig(Closed(items)) |> temp;
+      let+ items = OptUtil.traverse(meet_item, xs);
+      Sig(Closed(ClosedSig.of_items(items))) |> temp;
     };
   | (Sig(Open(_)), _)
-  | (_, Sig(Open(_))) => raise(OpenSignature)
+  | (_, Sig(Open(_))) => raise(Sig.OpenSignature)
   | (Sig(_), _) => None
   };
 };
@@ -1666,7 +1625,7 @@ let rec pretty_print = (ty: t): string =>
       | MultiHole(_) => "?"
       };
     "{ "
-    ++ String.concat("; ", List.map(sig_item_str, sig_display_items(s)))
+    ++ String.concat("; ", List.map(sig_item_str, Sig.items(s)))
     ++ " }";
   }
 and ctr_pretty_print =
@@ -1737,7 +1696,7 @@ let all_ids = (ty: t): list(Id.t) => {
     | Sig(s) =>
       List.iter(
         item => Option.iter(collect_ann_ids, Sig.typ_of_item(item)),
-        Sig.written_items(s),
+        Sig.items(s),
       )
     };
   };

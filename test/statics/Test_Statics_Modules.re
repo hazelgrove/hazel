@@ -354,6 +354,86 @@ let test_cons_binder_mismatch_localized =
     String,
   );
 
+/* Expectations on one component that cannot be met together: the names
+   whose expectation is dropped are not sealed at the signature's type, so
+   the module reports the disagreement. */
+let test_list_binder_every_component_checked =
+  inconsistent_typecheck(
+    "A list-destructured member the signature types differently is reported",
+    parse_exp(
+      {|module M : { let a : Int; let b : Bool } = { let [a, b] = [1, 2] } in M.b|},
+    ),
+  );
+
+let test_cons_binder_tail_checked =
+  inconsistent_typecheck(
+    "A cons-destructured tail the signature types differently is reported",
+    parse_exp(
+      {|module M : { let a : Int; let rest : [Bool] } = { let a :: rest = [1, 2] } in M|},
+    ),
+  );
+
+let is_item: Language.Info.t => bool =
+  fun
+  | InfoMod(_) => true
+  | _ => false;
+
+let test_refutable_item_pattern_reported_on_item =
+  Alcotest.test_case(
+    "A refutable item pattern is reported on the item",
+    `Quick,
+    () => {
+      let src = {|{ let 1 = 2; let y = 3 }|};
+      Alcotest.(check(int))("one mark", 1, List.length(marks_of(src)));
+      Alcotest.(check(bool))(
+        "inexhaustive, on the item",
+        true,
+        List.exists(
+          fun
+          | Language.Mark.InexhaustiveMatch(_) => true
+          | _ => false,
+          marks_at(src, is_item),
+        ),
+      );
+    },
+  );
+
+let test_bare_item_parent_is_the_module =
+  Alcotest.test_case(
+    "A bare expression item's parent is the module",
+    `Quick,
+    () => {
+      let exp = parse_exp({|{ let y = 1; y + 1 }|});
+      let s = statics(exp);
+      let parent_of_sum =
+        Language.Id.Map.bindings(s)
+        |> List.find_map(((id, info: Language.Info.t)) =>
+             switch (info) {
+             | InfoExp({user_term: {term: BinOp(_), _}, _}) =>
+               Some(Language.Statics.Map.parent_term_of(s, id))
+             | _ => None
+             }
+           );
+      Alcotest.(check(bool))(
+        "the module",
+        true,
+        switch (parent_of_sum) {
+        | Some(Some(Exp({term: Module(_), _}))) => true
+        | _ => false
+        },
+      );
+    },
+  );
+
+let test_type_member_compared_outside_the_body =
+  has_mark_test(
+    "A type member is compared against the signature's definition read outside the body",
+    {|type A = Int in module M : { type T = A } = { type A = Bool; type T = A } in M|},
+    fun
+    | Language.Mark.ModuleTypeMemberMismatch({name: "T", _}) => true
+    | _ => false,
+  );
+
 /* ===== WELL-TYPED MODULE TESTS ===== */
 
 /* Test empty module */
@@ -1081,6 +1161,50 @@ let test_error_qualified_type_unknown =
   );
 
 /* Signature alias type member */
+let test_signature_literal_in_a_type_path =
+  fully_consistent_typecheck(
+    ~normalize=true,
+    "A signature literal is a module path",
+    {|let f = fun (x : { type T = Int }.T) -> x in f|},
+    Some(arrow(int(), int())),
+  );
+
+let test_parenthesized_signature_literal_in_a_type_path =
+  fully_consistent_typecheck(
+    ~normalize=true,
+    "A parenthesized signature literal is a module path",
+    {|let y : ({ type T = Int }).T = 1 in y|},
+    Some(int()),
+  );
+
+/* The type walk builds each annotation's type from its children's. */
+let test_annotation_types_are_the_annotations_closed =
+  Alcotest.test_case(
+    "An annotation's type is the annotation closed",
+    `Quick,
+    () => {
+      let src = {|let m : { module P : { type T = Int }; let x : (P.T, [P.T]) -> { let y : P.T }; let s : + A(P.T) + B } = ? in
+let f : poly a -> (a, { type U = a; let u : U }) -> a = ? in f|};
+      let s = statics(parse_exp(src));
+      let not_closed =
+        Language.Id.Map.bindings(s)
+        |> List.filter_map(((_, info: Language.Info.t)) =>
+             switch (info) {
+             | InfoTyp({user_term, ty, ctx, _})
+                 when
+                   !
+                     Language.Typ.fast_equal(
+                       ty,
+                       Language.Typ.close(ctx, user_term),
+                     ) =>
+               Some(Language.Typ.pretty_print(user_term))
+             | _ => None
+             }
+           );
+      Alcotest.(check(list(string)))("annotations", [], not_closed);
+    },
+  );
+
 let test_qualified_type_sig_alias =
   fully_consistent_typecheck(
     "Qualified type access: signature alias",
@@ -1790,6 +1914,11 @@ let tests = (
     test_labeled_tuple_binder_ok,
     test_nested_tuple_binder_mismatch_localized,
     test_cons_binder_mismatch_localized,
+    test_list_binder_every_component_checked,
+    test_cons_binder_tail_checked,
+    test_refutable_item_pattern_reported_on_item,
+    test_bare_item_parent_is_the_module,
+    test_type_member_compared_outside_the_body,
     /* Type error tests */
     test_error_sig_type_mismatch,
     test_error_sig_partial_mismatch,
@@ -1828,6 +1957,9 @@ let tests = (
     test_qualified_type_lowercase,
     test_qualified_type_also_used_inside,
     test_error_qualified_type_unknown,
+    test_signature_literal_in_a_type_path,
+    test_parenthesized_signature_literal_in_a_type_path,
+    test_annotation_types_are_the_annotations_closed,
     test_qualified_type_sig_alias,
     /* Qualified type access aliasing tests */
     test_qualified_type_var_alias,

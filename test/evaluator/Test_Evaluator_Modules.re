@@ -246,6 +246,24 @@ let test_hole_item_dropped =
     parse_and_evaluate_test("{ let x = 2 }", {|{ let x = 1; ?; let x = 2 }|})
   });
 
+/* Elaboration makes every `module` item a `let` item; one reaching the
+   evaluator, with its signature as written, is stuck rather than a crash. */
+let test_module_item_before_elaboration_is_stuck =
+  test_case(
+    "An un-elaborated module item is stuck",
+    `Quick,
+    () => {
+      module F = Language.IdTagged.FreshGrammar;
+      let item =
+        F.Mod.module_mod(
+          F.MPat.asc(F.MPat.var("M"), F.Typ.sig_([])),
+          F.Exp.module_([]),
+        );
+      let d = F.Exp.module_([item]);
+      evaluation_test("stuck", d, d);
+    },
+  );
+
 /* Polymorphic equality on module values compares members by name. */
 let test_equal_module_values =
   test_case("Equal module values are equal", `Quick, () =>
@@ -295,6 +313,7 @@ let tests = (
     test_member_rebound_after_stuck_item,
     test_member_before_stuck_item,
     test_hole_item_dropped,
+    test_module_item_before_elaboration_is_stuck,
     test_case("Nested modules", `Quick, () => {
       parse_and_evaluate_test(
         "{ let m = { let y = 1 } }",

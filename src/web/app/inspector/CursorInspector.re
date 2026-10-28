@@ -626,6 +626,11 @@ let rec automatic_inserted_labels_pat =
   | _ => []
   };
 
+let inexhaustive_view = (~globals, what: string, example): list(Node.t) => [
+  text(what ++ " is inexhaustive. An example of a missing pattern is "),
+  view_any(~globals, example),
+];
+
 let exp_mark_err_view =
     (~globals, ~show_type_colon=true, cls: Cls.t, m: Mark.t, info: Info.exp) => {
   let introduced_labels =
@@ -642,7 +647,6 @@ let exp_mark_err_view =
     };
   let inferred_label = info.inferred_label;
   let view_type = view_type(~globals);
-  let view_any = view_any(~globals);
   let ctx = info.ctx;
   let ana = info.ana;
   let common_from_core = () =>
@@ -674,28 +678,20 @@ let exp_mark_err_view =
       | _ => None
       };
     switch (additional) {
-    | None =>
-      div_err([
-        text(
-          cls_str ++ " is inexhaustive. An example of a missing pattern is ",
-        ),
-        view_any(example),
-      ])
+    | None => div_err(inexhaustive_view(~globals, cls_str, example))
     | Some(tys) =>
-      let cls_str = String.uncapitalize_ascii(cls_str);
       div_err([
         div_err([
           text(elements_noun(cls) ++ " have inconsistent types:"),
           ...ListUtil.join(text(","), List.map(view_type, tys)),
         ])
         |> code_box_container,
-        text(
-          "; "
-          ++ cls_str
-          ++ " is inexhaustive. An example of a missing pattern is ",
-        ),
-        view_any(example),
-      ]);
+        ...inexhaustive_view(
+             ~globals,
+             "; " ++ String.uncapitalize_ascii(cls_str),
+             example,
+           ),
+      ])
     };
   | IsDeferral(InAp) =>
     div_err([
@@ -915,12 +911,7 @@ let exp_view =
           Haz3lcore.ErrorPrint.member_not_found_parts("member", not_found),
         ),
       )
-    | Exp(TypeMember(name, def)) =>
-      div_ok([
-        view_type(~globals, Var(name) |> Typ.fresh),
-        text("is equal to"),
-        view_type(~globals, def),
-      ])
+
     | Exp(Common(ok)) =>
       div_ok(
         common_ok_view(
@@ -1107,6 +1098,23 @@ let typ_view =
     }
   };
 
+let mod_view =
+    (~globals, cls: Cls.t, ~marks: list(Mark.t), ~ty: option(Typ.t)): Node.t =>
+  switch (Mark.highest(marks)) {
+  | Some(InexhaustiveMatch(_, _, example)) =>
+    div_err(inexhaustive_view(~globals, Cls.show(cls), example))
+  | Some(_) => div_err([text("Type error")])
+  | None =>
+    let cls_text = text(Cls.show(cls));
+    switch (cls, ty) {
+    | (_, None) => div_ok([cls_text])
+    | (Mod(ModType), Some(ty)) =>
+      div_ok([cls_text, text("="), view_type(~globals, ty)])
+    | (_, Some(ty)) =>
+      div_ok([cls_text, text(":"), view_type(~globals, ty)])
+    };
+  };
+
 let tpat_view =
     (~globals, _: Cls.t, ~marks: list(Mark.t), ~message: option(Message.t))
     : Node.t => {
@@ -1155,15 +1163,8 @@ let view_of_info = (~globals, ci): list(Node.t) => {
   let wrapper = status_view => [term_view(~globals, ci), status_view];
   switch (ci) {
   | Secondary(_) => wrapper(div([]))
-  | InfoMod({cls, ty: None, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
-  | InfoMod({cls: Mod(ModType) as cls, ty: Some(ty), _}) =>
-    wrapper(
-      div_ok([text(cls |> Cls.show), text("="), view_type(~globals, ty)]),
-    )
-  | InfoMod({cls, ty: Some(ty), _}) =>
-    wrapper(
-      div_ok([text(cls |> Cls.show), text(":"), view_type(~globals, ty)]),
-    )
+  | InfoMod({cls, marks, ty, _}) =>
+    wrapper(mod_view(~globals, cls, ~marks, ~ty))
   | InfoSig({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
   | InfoMPat({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
   | InfoExp({cls, message, _} as ie) =>

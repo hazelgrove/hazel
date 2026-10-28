@@ -39,8 +39,6 @@ type tpat_var_err =
   | Other
   | NotCapitalized;
 
-/* A member a module path names that the module lacks, and the members of
-   that sort it has. */
 /* Polymorphic equality at a type with a function in it, which has none. */
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type compare_fun = {
@@ -48,6 +46,8 @@ type compare_fun = {
   found: Typ.fun_in,
 };
 
+/* A member a module path names that the module lacks, and the members of
+   that sort it has. */
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type member_not_found = {
   name: Var.t,

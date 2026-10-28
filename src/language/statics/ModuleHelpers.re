@@ -2,9 +2,8 @@
    signature expects of its items, what the body exports, and how the two
    compare. Signature types are closed (Typ.close). */
 
-/* Collect module variable references from type annotations.
-   For M.T (= ProdProjection(Var("M"), Label("T"))), free_vars returns ["M"].
-   We filter to names that are expression variables (not type aliases). */
+/* The module variables a closed type [typ] at [id] refers to as path roots
+   (`M` in `M.T`): its free variables that are bound as values. */
 let collect_module_refs_in_typ = (ctx: Ctx.t, id: Id.t, typ: Typ.t): CoCtx.t => {
   Typ.free_vars(typ)
   |> List.filter_map(name =>
@@ -17,12 +16,12 @@ let collect_module_refs_in_typ = (ctx: Ctx.t, id: Id.t, typ: Typ.t): CoCtx.t => 
   |> CoCtx.union;
 };
 
-/* Walk a Pat.t AST and collect module refs from any Asc(_, ann) sub-patterns. */
+/* The module variables the annotations in [pat] refer to. */
 let rec collect_pat_type_refs = (ctx: Ctx.t, pat: Pat.t): CoCtx.t =>
   switch (pat.term) {
   | Asc(p, ann) =>
     CoCtx.union([
-      collect_module_refs_in_typ(ctx, Typ.rep_id(ann), ann),
+      collect_module_refs_in_typ(ctx, Typ.rep_id(ann), Typ.close(ctx, ann)),
       collect_pat_type_refs(ctx, p),
     ])
   | Tuple(ps)
@@ -62,64 +61,114 @@ let declared_type_names = (items: list(Mod.t)): list(Var.t) =>
      )
   |> Util.ListUtil.dedup_f(String.equal);
 
-/* What the signature expects of each value member. An outer alias named
-   like a type the body [declared] is expanded, so the body's does not
-   capture it. */
-let expected_value_types =
-    (~ctx: Ctx.t, ~declared: list(Var.t), ana_items: option(list(Sig.t)))
-    : list((Var.t, Typ.t)) =>
-  switch (ana_items) {
-  | None => []
-  | Some(items) =>
-    let expand = name => List.exists(String.equal(name), declared);
-    Sig.members(items)
-    |> Sig.dedup_last
-    |> List.filter_map((m: Sig.member) =>
-         switch (m) {
-         | Val(name, ty) => Some((name, Typ.normalize(~expand, ctx, ty)))
-         | TypeManifest(_) => None
-         }
-       );
-  };
+/* What the signature expects of each member, read in the body's context:
+   an outer alias named like a type the body [declared] is expanded, so the
+   body's does not capture it. A later declaration of a name shadows an
+   earlier one. */
+let expected_members =
+    (~ctx: Ctx.t, ~declared: list(Var.t), ana_items: list(Sig.t))
+    : list(Sig.member) => {
+  let expand = name => List.exists(String.equal(name), declared);
+  Sig.members(ana_items)
+  |> Sig.dedup_last
+  |> List.map((m: Sig.member) =>
+       switch (m) {
+       | Val(name, ty) => Sig.Val(name, Typ.normalize(~expand, ctx, ty))
+       | TypeManifest(name, ty) =>
+         Sig.TypeManifest(name, Typ.normalize(~expand, ctx, ty))
+       }
+     );
+};
 
-/* The expectation on a binder pattern, assembled from the expectations on
-   the names it binds: none when it binds none of them. A component the
-   signature says nothing about is left to synthesis. */
+/* An expectation on a binder pattern and the names it holds to it. */
+type pat_expectation = {
+  ty: Typ.t,
+  names: list(Var.t),
+};
+
+/* Expectations on one component, met in order. One that does not meet the
+   expectation so far is dropped with its names, so the signature it comes
+   from is reported on the module as a whole. */
+let meet_expectations =
+    (~ctx: Ctx.t, es: list(option(pat_expectation)))
+    : option(pat_expectation) =>
+  List.fold_left(
+    (acc, e) =>
+      switch (acc, e) {
+      | (None, e) => e
+      | (acc, None) => acc
+      | (Some(acc), Some(e)) =>
+        switch (Typ.meet(ctx, acc.ty, e.ty)) {
+        | Some(ty) =>
+          Some({
+            ty,
+            names: acc.names @ e.names,
+          })
+        | None => Some(acc)
+        }
+      },
+    None,
+    es,
+  );
+
+/* The expectation on a binder pattern, assembled from the signature's
+   expectations on the names it binds: none when it binds none of them. A
+   component the signature says nothing about is left to synthesis. */
 let rec expected_pat_type =
-        (expected: list((Var.t, Typ.t)), pat: Pat.t): option(Typ.t) =>
+        (~ctx: Ctx.t, expected: list(Sig.member), pat: Pat.t)
+        : option(pat_expectation) => {
+  let go = expected_pat_type(~ctx, expected);
+  let list_of = (e: pat_expectation) => {
+    ...e,
+    ty: List(e.ty) |> Typ.temp,
+  };
   switch (pat.term) {
-  | Var(x) => Util.ListUtil.assoc_opt_by(String.equal, x, expected)
+  | Var(x) =>
+    Sig.find_value(expected, x)
+    |> Option.map(ty =>
+         {
+           ty,
+           names: [x],
+         }
+       )
   | Asc(p, _)
   | Parens(p)
-  | Projector(_, p) => expected_pat_type(expected, p)
+  | Projector(_, p) => go(p)
   | TupLabel({term: Label(l), _}, p) =>
-    expected_pat_type(expected, p)
-    |> Option.map(ty => TupLabel(Label(l) |> Typ.temp, ty) |> Typ.temp)
+    go(p)
+    |> Option.map(e =>
+         {
+           ...e,
+           ty: TupLabel(Label(l) |> Typ.temp, e.ty) |> Typ.temp,
+         }
+       )
   | Tuple(ps) =>
-    let tys = List.map(expected_pat_type(expected), ps);
-    List.exists(Option.is_some, tys)
-      ? Some(
-          Prod(
-            List.map(
-              Option.value(~default=Unknown(SynSwitch) |> Typ.temp),
-              tys,
+    let es = List.map(go, ps);
+    List.exists(Option.is_some, es)
+      ? Some({
+          ty:
+            Prod(
+              List.map(
+                Option.fold(
+                  ~none=Unknown(SynSwitch) |> Typ.temp,
+                  ~some=(e: pat_expectation) =>
+                  e.ty
+                ),
+                es,
+              ),
+            )
+            |> Typ.temp,
+          names:
+            List.concat_map(
+              Option.fold(~none=[], ~some=(e: pat_expectation) => e.names),
+              es,
             ),
-          )
-          |> Typ.temp,
-        )
+        })
       : None;
   | Cons(p1, p2) =>
-    switch (
-      expected_pat_type(expected, p1),
-      expected_pat_type(expected, p2),
-    ) {
-    | (Some(e1), _) => Some(List(e1) |> Typ.temp)
-    | (None, Some(e2)) => Some(e2)
-    | (None, None) => None
-    }
+    meet_expectations(~ctx, [Option.map(list_of, go(p1)), go(p2)])
   | ListLit(ps) =>
-    List.find_map(expected_pat_type(expected), ps)
-    |> Option.map(e => List(e) |> Typ.temp)
+    meet_expectations(~ctx, List.map(p => Option.map(list_of, go(p)), ps))
   | TupLabel(_, _)
   | Ap(_, _)
   | Invalid(_)
@@ -131,6 +180,7 @@ let rec expected_pat_type =
   | Constructor(_)
   | Label(_) => None
   };
+};
 
 /* The analyzed signature's items the module does not define. */
 let missing_items =
@@ -201,27 +251,27 @@ let sealed =
       ~ana_items: list(Sig.t),
       ~checked: list(Var.t),
       ~mismatched_types: list(Var.t),
-      have: list((Sig.t, Sig.member)),
+      have: list(Sig.t),
     )
     : list(Sig.t) => {
   let want = Sig.members(ana_items);
   have
-  |> List.map(((item, m): (Sig.t, Sig.member)) =>
-       switch (m) {
-       | Val(x, ty) when List.exists(String.equal(x), checked) =>
+  |> List.map(item =>
+       switch (Sig.member_of_item(item)) {
+       | Some(Val(x, ty)) when List.exists(String.equal(x), checked) =>
          switch (Sig.find_value(want, x)) {
          | Some(expected) =>
            Sig.map_typ(_ => StaticsBase.fixed_typ(ctx, expected, ty), item)
          | None => item
          }
-       | Val(_) => item
-       | TypeManifest(name, _)
+       | Some(TypeManifest(name, _))
            when List.exists(String.equal(name), mismatched_types) =>
          switch (Sig.find_type_def(want, name)) {
          | Some(expected) => Sig.map_typ(_ => expected, item)
          | None => item
          }
-       | TypeManifest(_) => item
+       | Some(Val(_) | TypeManifest(_))
+       | None => item
        }
      );
 };

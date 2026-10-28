@@ -189,22 +189,10 @@ let subtree_of =
       /* A module item has no body. The statics of the requested parts are
          reused as they are: an item is checked as part of its module. */
       let roots =
-        switch (item.term) {
-        | ModLet(pat, def) =>
-          (of_pat ? [Pat.rep_id(pat)] : [])
-          @ (of_def ? [Exp.rep_id(def)] : [])
-        | ModType(tpat, def) =>
-          (of_pat ? [TPat.rep_id(tpat)] : [])
-          @ (of_def ? [Typ.rep_id(def)] : [])
-        | ModuleMod(mp, def) =>
-          (of_pat ? [MPat.rep_id(mp)] : [])
-          @ (of_def ? [Exp.rep_id(def)] : [])
-        | ModExp(def)
-        | ModVal(_, def) => of_def ? [Exp.rep_id(def)] : []
-        | Invalid(_)
-        | EmptyHole
-        | MultiHole(_) => []
-        };
+        List.filter_map(
+          ((wanted, part)) => wanted ? Option.map(Any.rep_id, part) : None,
+          [(of_pat, Mod.pat(item)), (of_def, Mod.def(item))],
+        );
       Id.Map.filter(
         (id, child) =>
           List.mem(id, roots)

@@ -66,6 +66,33 @@ let binder = (item: t): option(TermBase.Pat.t) =>
   | MultiHole(_) => None
   };
 
+/* The parts of an item as written: what it binds, and what it binds it to.
+   A bare expression item is its expression; an evaluated binding has no
+   written pattern. */
+let pat = (item: t): option(TermBase.Any.t) =>
+  switch (item.term) {
+  | ModLet(p, _) => Some(Pat(p))
+  | ModuleMod(mp, _) => Some(MPat(mp))
+  | ModType(tp, _) => Some(TPat(tp))
+  | ModVal(_, _)
+  | ModExp(_)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_) => None
+  };
+
+let def = (item: t): option(TermBase.Any.t) =>
+  switch (item.term) {
+  | ModLet(_, e)
+  | ModuleMod(_, e)
+  | ModExp(e)
+  | ModVal(_, e) => Some(Exp(e))
+  | ModType(_, ty) => Some(Typ(ty))
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_) => None
+  };
+
 /* The value names an item binds for the items after it. */
 let bound_names = (item: t): list(Var.t) =>
   switch (item.term) {

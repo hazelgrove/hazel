@@ -163,26 +163,31 @@ holes and malformed items.
 - **Closed** is the reading statics works with. Each item's type is written
   in terms of the context outside the signature, so the items are
   independent of one another and of their order, and a member's name binds
-  nothing in its siblings. `ClosedSig.t` is abstract: `Typ.close` builds one
-  from written items, and module synthesis builds the module's own
-  signature from members it typed outside the module. Nothing else should
-  call `ClosedSig.of_items` outside tests.
+  nothing in its siblings. `ClosedSig.t` is abstract: building one asserts
+  that of its items.
 
 `Typ.close` closes a type where statics reads it from the syntax (an
 annotation's `Info.typ.ty`, alias definitions, type arguments, module
 ascriptions). It substitutes earlier type members into later items, resolves
-paths rooted at earlier module members, makes a self-mentioning type member
-recursive, and expands an outer alias named like a sibling type member.
-`Typ.sig_item_scopes` gives each written item the context it is read in, so
-closing and the cursor inspector's walk over the written items agree.
-Closing a closed signature closes each member alone, never re-reading it as
-mentioning a sibling.
+paths rooted at earlier module members, and expands an outer alias named
+like a sibling type member. A type member's definition is read by
+`Typ.alias_def`, as a `type` alias's and a module's `type` item's are:
+closed with its own name abstract, then made recursive if it mentions
+itself. `Typ.sig_item_scopes` gives each written item the context it is
+read in, so closing and the cursor inspector's walk over the written items
+agree. Closing a closed signature closes each member alone, never
+re-reading it as mentioning a sibling. `utyp_to_info_map` builds each
+node's closed type from its children's, so a type is closed once, where it
+is read.
 
-The type operations that read members (`subst`, `normalize`, `meet`,
-`equal_up_to_aliases`, `fun_in`, `as_sig`, `path_sig` and path
-normalization) take closed signatures only, and raise `Typ.OpenSignature` on
-an open one: that is a bug in where a type was read, not a user error.
-Printing, id collection and other syntactic walks accept both readings.
+`Sig.closed` gives the items of a closed signature and raises
+`Sig.OpenSignature` on an open one. Every operation that reads a member's
+type (`has_fun`, `free_vars`, `count_unknowns`, `subst`, `normalize`,
+`meet`, `equal_up_to_aliases`, `fun_in`, `as_sig`, `path_sig`, path
+normalization and runtime sealing) goes through it, so an open signature
+reaching one is a bug in where the type was read, not a user error.
+`Sig.items` gives the items in either reading, for syntactic walks:
+printing, id collection, counting.
 
 - `Typ.meet` on two signatures requires the same value-member names and the
   same type-member names (order-insensitive) and meets members pairwise. A
@@ -193,38 +198,40 @@ Printing, id collection and other syntactic walks accept both readings.
   that name was bound later; a value counts only if its type is a
   signature. `weak_head_normalize` uses it for `ProdProjection`, falling
   back to the labeled-tuple projection.
-- `Typ.sig_display_items` prints an open signature as written. In a closed
-  one, a member type equal to an earlier type member's definition is
-  printed by that member's name.
+- A closed signature prints its members as they are: a written
+  `{ type T = Int; let x : T }` displays as `{ type T = Int; let x : Int }`.
 
 ### Statics
 
-The `Module(items)` case in `Statics.re` type-checks the body through
-`ModuleHelpers.lower`, which turns the items into nested `Let`/`TyAlias`
-wrappers carrying the item ids (so the `Let` machinery, recursion detection
-and pattern checking are reused, and the cursor inspector sees each item).
-When the module is analyzed against a signature, each bare variable binder is
-annotated with its expected member type (`ModuleHelpers.modlet_pat`), so
-mismatches land on definitions. The annotation reaches variables inside
-destructuring patterns (`let (a, b) = …` is checked as `(a : Int, b : Int)`,
-so a wrong component is reported on that component) and `module Inner = …`
-items, which receive the sub-signature the outer signature declares for them
-(a member the sub-module lacks is reported inside it). A binder the user
-annotated keeps its annotation. `refold_module_elab` strips the synthetic
-ascriptions again by walking the user's pattern and its elaboration together.
+The `Module(items)` case in `Statics.re` checks the body item by item. A
+`let` or `module` item is bound by the `Let` arm's `let_binding` and
+`let_finish`, so recursion detection, pattern checking and exhaustiveness
+are the `let`'s; its marks (an inexhaustive pattern) land on the item.
+When the module is analyzed against a signature,
+`ModuleHelpers.expected_members` reads the signature's members in the
+body's context (an outer alias named like a type the body declares is
+expanded), and `ModuleHelpers.expected_pat_type` assembles from them the
+expectation on each binder pattern with the names it holds to it: a
+component the signature says nothing about is left to synthesis, and where
+two expectations on one component cannot be met together the later names
+are left unconstrained, so the module as a whole reports the disagreement.
+The definition is analyzed against the pattern's own type with the
+expectation filling what the pattern leaves open, so a user annotation is
+checked against the signature on the annotation and the definition against
+the annotation. Only names no later item rebinds are expected anything of.
 After checking:
 
-- `ModuleHelpers.module_sig_type` reads the module's signature back from the
-  recorded pattern infos, in source order, keeping exported type members
-  compact and inlining only shadowed ones.
-- `ModuleHelpers.check_ana_type_members` marks the definition type of a
-  `type T = ...` item that differs from the signature's
-  (`Mark.ModuleTypeMemberMismatch`).
+- The module's type is `ModuleHelpers.sealed`: a member checked against
+  the signature on its item takes the signature's type where the two
+  disagree (the disagreement having been reported there); any other member
+  keeps its own, so the module-level meet reports it. The exported
+  signature is closed: the body's own type names are expanded in it.
+- A `type T = ...` item whose definition differs from the signature's is
+  marked on the definition (`Mark.ModuleTypeMemberMismatch`).
 - `ModuleHelpers.missing_items` / `extra_members` produce
   `Mark.ModuleMissingMembers` / `Mark.ModuleExtraMembers` on the module node.
-- `ModuleHelpers.refold_module_elab` rebuilds the elaborated `Module` from
-  the checked chain: definitions keep their elaboration, synthetic binder
-  annotations are stripped, type items are dropped.
+- A bare expression item shares its ids with its expression (`MakeTerm`):
+  the expression's info is the item's, and its parent is the module.
 
 `ModuleExp(mpat, def, body)` is checked as `Let(pat, def, body)` and
 elaborates to that `Let`. `Dot(e, x)` on a signature-typed `e` projects the
@@ -263,13 +270,12 @@ Menhir parser's `ModuleExp`/`ModItemModule` structure with `Conversion.re`'s
 
 ### Cursor Inspector and Statics Info
 
-Mod items inside `Module` expressions are stored as `InfoExp` with a
-`Cls.Mod(...)` class (the expanded `Let`/`TyAlias` shares the item id). After
-checking, `ModuleHelpers.reclassify_expanded_module_items` rewrites the class
-and replaces the wrapper's type (the type of the rest of the chain) with the
-member the item declares: the bound pattern's type for `let`/`module` items,
-the declared type for `type` items. Sig items are `InfoSig`. `InfoMod` is
-used only for mispositioned items.
+Module items are `InfoMod`, carrying the member the item declares (the
+bound pattern's type for `let`/`module` items, the declared type for `type`
+items), the item's marks and co-contexts. Items are ancestors of their
+patterns and definitions. `Mod.pat` and `Mod.def` give an item's written
+parts for code that walks them (composition, probe targets). Sig items are
+`InfoSig`.
 
 ---
 

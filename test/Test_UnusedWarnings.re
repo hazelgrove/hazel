@@ -173,6 +173,11 @@ let tests = (
       [],
     ),
     check_unused(
+      "module: a signature's own module member is not a use",
+      "module P = { type T = Int } in let m : { module P : { type T = Bool }; let x : P.T } = { module P = { type T = Bool }; let x = true } in m",
+      ["P"],
+    ),
+    check_unused(
       "module: used via qualified type in expression ascription",
       "module M = { type T = Int } in (5 : M.T) + 0",
       [],

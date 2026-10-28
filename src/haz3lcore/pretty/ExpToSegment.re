@@ -3137,7 +3137,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
           ),
       );
     };
-  | Sig(s) when List.is_empty(Sig.written_items(s)) =>
+  | Sig(s) when List.is_empty(Sig.items(s)) =>
     /* Empty sig: {} */
     wrap(
       typ,
@@ -3151,7 +3151,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     let ids = List.tl(ids);
     let wrap_item = wrap_with_secondary(~secondary=settings.secondary);
     let+ items_pretty =
-      Typ.sig_display_items(s)
+      Sig.items(s)
       |> List.map((item: Sig.t) =>
            switch (item.term) {
            | SigLet(p) =>

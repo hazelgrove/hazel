@@ -71,7 +71,7 @@ let necessary_ids: Typ.t => int =
     /* one id per variant; the single-variant form prints from rep_id */
     | Sum(tys) => max(1, List.length(tys))
     /* rep_id for the braces, then one id per `;` between items */
-    | Sig(s) => max(1, List.length(Sig.written_items(s)))
+    | Sig(s) => max(1, List.length(Sig.items(s)))
     /* one grout id between entries */
     | Unknown(Hole(MultiHole(es))) => max(0, List.length(es) - 1)
     /* every other form prints from rep_id alone */
