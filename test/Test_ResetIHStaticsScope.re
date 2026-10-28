@@ -29,6 +29,56 @@ let known = (label, src) =>
 let unknown = (label, src) =>
   check(bool, label ++ ": `ih` stays out of scope", true, free_hyp(label, src));
 
+/* App checker on `src`: for every proof node, its constructor, whether the
+   app accessor has an incoming goal for it, and its mark names (no
+   expression or Info is stringified). Returns the axiom-ih node's marks. */
+let node_kind = (p: Proof.t): string =>
+  switch (p.term) {
+  | Induction(_) => "Induction"
+  | AxiomStep(_) => "AxiomStep"
+  | EvalStep(_) => "EvalStep"
+  | Seq(_) => "Seq"
+  | EmptyHole => "Hole"
+  | _ => "other"
+  };
+
+let l1_trace = (label, src) => {
+  let a = Test_ExistentialsAppContext.app_of_source(src);
+  let nodes = Test_ResetExistentials.proof_nodes(a.proof);
+  List.iter(
+    (n: Proof.t) =>
+      observe(
+        Printf.sprintf(
+          "%s node %s incoming=%s marks=[%s]",
+          label,
+          node_kind(n),
+          switch (ProofMap.lookup(Proof.rep_id(n), a.accessor)) {
+          | Some({incoming: Some(_), _}) => "present"
+          | Some({incoming: None, _}) => "MISSING"
+          | None => "no-entry"
+          },
+          String.concat(
+            "; ",
+            List.map(
+              Test_ResetListIHGesture.mark_tag,
+              ProofMap.marks_of(Proof.rep_id(n), a.accessor),
+            ),
+          ),
+        ),
+      ),
+    nodes,
+  );
+  observe(label ++ " app status " ++ a.status);
+  nodes
+  |> List.filter(Test_ResetListIHGesture.is_ih_axiom)
+  |> List.concat_map((n: Proof.t) =>
+       List.map(
+         Test_ResetListIHGesture.mark_tag,
+         ProofMap.marks_of(Proof.rep_id(n), a.accessor),
+       )
+     );
+};
+
 let list_lemma = {|let len = fun (xs : [Int]) -> case xs | [] => 0 | _ :: t => 1 + len(t) end in
 theorem t = forall xs : [Int] -> len(xs) == len(xs) proof induction xs
 |}
@@ -125,31 +175,39 @@ theorem t = forall xs : [Int] -> forall k : Int -> len(xs) + k == k + len(xs) pr
 end in 0|},
       )
     ),
-    /* 13 (L1, fail-closed): the pattern rebinds the goal's outer `h`, so the
-       checker's goal-dependent capture filter (ProofHacks.replace_exp,
-       BlacklistVarFound) drops the IH. Statics, which does not track the
-       goal, shows the name; the APP checker must still refuse the citation
-       (UnknownEquality "ih") and the theorem must not be Proven. The name
-       never becomes a usable fact. */
-    test_case("fail-closed: statics shows ih but the checker's capture filter drops it", `Quick, () => {
+    /* 13 (L1, fail-closed). ProofHacks.replace_exp raises BlacklistVarFound
+       only at a binder INSIDE the goal; the case goal (scrut := pattern) and
+       each IH (scrut := sub-pattern) use the same goal and blacklist, and the
+       IH's replacement free vars are a subset of the case's. So capture that
+       drops the IH also drops the case goal: the expected fail-closed verdict
+       is MissingIncoming on the case's steps, never a usable fact. Here the
+       goal's inner `forall t` body uses the outer `h`, and the pattern
+       `h :: t` substitutes `t` under that binder: capture. (The first L1
+       fixture had no inner binder; its MissingIncoming was not shown to be
+       capture.) */
+    test_case("fail-closed: capture drops the case goal and ih; statics shows the name", `Quick, () => {
       let src = {|let len = fun (xs : [Int]) -> case xs | [] => 0 | _ :: t => 1 + len(t) end in
-theorem t = forall h : Int -> forall xs : [Int] -> len(xs) + h == h + len(xs) proof induction xs
+theorem th = forall h : Int -> forall xs : [Int] -> forall t : Int -> len(xs) + h + t == t + h + len(xs) proof induction xs
 | [] => ?
-| h :: t => axiom ih at 0 on len(t) + h end
+| h :: t => axiom ih at 0 on len(t) end
 end in 0|};
       check(bool, "L1: statics shows the ih name", false, free_hyp("L1-capture", src));
-      let a = Test_ExistentialsAppContext.app_of_source(src);
-      let marks =
-        Test_ResetExistentials.proof_nodes(a.proof)
-        |> List.filter(Test_ResetListIHGesture.is_ih_axiom)
-        |> List.concat_map((n: Proof.t) =>
-             List.map(Test_ResetListIHGesture.mark_tag, ProofMap.marks_of(Proof.rep_id(n), a.accessor))
-           );
-      observe("L1-capture APP marks on axiom ih: [" ++ String.concat("; ", marks) ++ "] status " ++ a.status);
-      check(bool, "L1: app checker marks UnknownEquality ih", true, Test_ResetListIHGesture.has("UnknownEquality", marks));
-      check(bool, "L1: theorem not Proven", false, a.status == "Proven");
+      let tags = l1_trace("L1-capture", src);
+      check(bool, "L1: axiom ih is marked MissingIncoming (case goal refused by capture)", true, List.mem("MissingIncoming", tags));
     }),
-    /* 14 */ test_case("helper parity: the checker's alias is the moved function", `Quick, () =>
+    /* 13b twin: same shape, outer variable renamed `k`, no capture. The case
+       goal forms and the checker accepts `ih` (discriminates L1). */
+    test_case("fail-closed twin: no capture, the checker accepts ih", `Quick, () => {
+      let src = {|let len = fun (xs : [Int]) -> case xs | [] => 0 | _ :: t => 1 + len(t) end in
+theorem th = forall k : Int -> forall xs : [Int] -> forall u : Int -> len(xs) + k + u == u + k + len(xs) proof induction xs
+| [] => ?
+| h :: t => axiom ih at 0 on len(t) end
+end in 0|};
+      check(bool, "L1-twin: statics shows the ih name", false, free_hyp("L1-twin", src));
+      let tags = l1_trace("L1-twin", src);
+      check(bool, "L1-twin: no MissingIncoming on axiom ih", false, List.mem("MissingIncoming", tags));
+    }),
+    /* 15 */ test_case("helper parity: the checker's alias is the moved function", `Quick, () =>
       check(
         bool,
         "ProofHacks.get_inductive_hypotheses == InductiveHypotheses.get_inductive_hypotheses",

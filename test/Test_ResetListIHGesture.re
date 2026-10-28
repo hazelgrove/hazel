@@ -62,10 +62,9 @@ let statics_errors = (statics: Statics.Map.t): list(string) =>
 let mark_tag = (m: ProofMark.t): string =>
   switch (m) {
   | UnknownEquality(name) => "UnknownEquality(" ++ name ++ ")"
-  | RuleDoesNotApply(_) => "RuleDoesNotApply"
-  | PatternNotFound(_) => "PatternNotFound"
-  | NothingToStep(_) => "NothingToStep"
-  | _ => "other"
+  | ProverStepRefused({rule, reason}) =>
+    "ProverStepRefused(" ++ rule ++ ": " ++ reason ++ ")"
+  | _ => ProofMark.Variants.to_name(m)
   };
 
 /* The row's checker facts (MissingStep.assumptions = ProofCtx of the
