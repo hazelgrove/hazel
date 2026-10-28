@@ -1064,6 +1064,9 @@ let equality =
         && exp'(e1, e2)
         && proof'(b1, b2)
       | (Obtain(_, _, _, _), _) => false
+      | (With(b1, c1, p1), With(b2, c2, p2)) =>
+        proof'(b1, b2) && exp'(c1, c2) && proof'(p1, p2)
+      | (With(_, _, _), _) => false
       };
     proof'(p1, p2);
   };

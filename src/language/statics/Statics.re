@@ -5540,6 +5540,29 @@ and proof_to_info_map =
         Have(e_elab, proof_of_any(sub_elab), proof_of_any(body_elab)),
       );
     (CoCtx.empty, Proof(elab), add_proof_info(m));
+  | With(body, cond, by) =>
+    /* `<step> with <condition> by <proof> end` (D54). The step, the
+       condition (a proposition, analyzed against Bool) and the clause
+       proof all live in the step's own context: the condition is about
+       the step's obligations, which are checked BEFORE anything the step
+       introduces, so neither sees the step's own hypotheses. */
+    let (_, body_elab, m) =
+      any_to_info_map(~ctx, ~ancestors=ancestors_inclusive, Proof(body), m);
+    let (_, cond_elab, m) =
+      uexp_to_info_map(
+        ~ctx,
+        ~ana=Atom(Bool) |> Typ.temp,
+        ~ancestors=ancestors_inclusive,
+        cond,
+        m,
+      );
+    let (_, by_elab, m) =
+      any_to_info_map(~ctx, ~ancestors=ancestors_inclusive, Proof(by), m);
+    let elab =
+      rewrap(
+        With(proof_of_any(body_elab), cond_elab, proof_of_any(by_elab)),
+      );
+    (CoCtx.empty, Proof(elab), add_proof_info(m));
   | RelEqBy(target, just) =>
     /* `== <target> by <justification> end`. Statics does not track
        goals, so the target is only typed as a proposition; the checker

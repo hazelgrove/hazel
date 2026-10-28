@@ -122,6 +122,7 @@ let rewrite_proof =
           | Generalize(e, body) => Generalize(e, walk(body))
           | Revert(e, inst, body) => Revert(e, inst, walk(body))
           | Have(e, sub, body) => Have(e, walk(sub), walk(body))
+          | With(body, cond, by) => With(walk(body), cond, walk(by))
           },
       };
     };
@@ -175,6 +176,11 @@ let rec find_seq_parent =
     switch (find_seq_parent(~target_id, sub)) {
     | Some(_) as r => r
     | None => find_seq_parent(~target_id, body)
+    }
+  | With(body, _, by) =>
+    switch (find_seq_parent(~target_id, body)) {
+    | Some(_) as r => r
+    | None => find_seq_parent(~target_id, by)
     }
   | Induction(_, _, cases) =>
     List.find_map(((_, body)) => find_seq_parent(~target_id, body), cases)

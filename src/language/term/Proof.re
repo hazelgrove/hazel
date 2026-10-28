@@ -20,6 +20,7 @@ type cls =
   | Witness
   | Cite
   | Obtain
+  | With
   | Parens;
 
 include TermBase.Proof;
@@ -58,6 +59,7 @@ let rec cls_of_term: Grammar.proof_term('a) => cls =
   | Witness(_) => Witness
   | Cite(_) => Cite
   | Obtain(_, _, _, _) => Obtain
+  | With(_, _, _) => With
   | EvalStep(_) => EvalStep;
 
 let show_cls: cls => string =
@@ -81,6 +83,7 @@ let show_cls: cls => string =
   | Witness => "Witness justification"
   | Cite => "Fact citation"
   | Obtain => "Obtain step"
+  | With => "Side-condition clause (with … by … end)"
   | Parens => "Parenthesized proof"
   | EvalStep => "Eval step";
 
@@ -195,6 +198,10 @@ let rec fast_equal = (p1: t, p2: t): bool => {
     && Equality.syntactic.pat(h1, h2)
     && Equality.syntactic.exp(e1, e2)
     && fast_equal(b1, b2)
+  | (With(b1, c1, p1), With(b2, c2, p2)) =>
+    fast_equal(b1, b2)
+    && Equality.syntactic.exp(c1, c2)
+    && fast_equal(p1, p2)
   | (EmptyHole, _)
   | (Invalid(_), _)
   | (MultiHole(_), _)
@@ -213,6 +220,7 @@ let rec fast_equal = (p1: t, p2: t): bool => {
   | (Witness(_), _)
   | (Cite(_), _)
   | (Obtain(_, _, _, _), _)
+  | (With(_, _, _), _)
   | (Alias(_, _, _), _)
   | (EvalStep(_), _) => false
   };
@@ -247,6 +255,8 @@ let rec has_hole = (p: t): bool =>
   | Witness(_)
   | Cite(_) => false
   | Obtain(_, _, _, body) => has_hole(body)
+  /* Both: an unfinished clause proof is a hole like an unfinished have. */
+  | With(body, _, by) => has_hole(body) || has_hole(by)
   | EvalStep(_) => false
   };
 
@@ -353,4 +363,6 @@ let rec args_have_hole = (p: t): bool =>
   | Witness(e) => exp_has_hole(e)
   | Cite(_) => false
   | Obtain(x, h, e, _) => pat_has_hole(x) || pat_has_hole(h) || exp_has_hole(e)
+  /* The written condition is the clause's own argument. */
+  | With(_, cond, _) => exp_has_hole(cond)
   };

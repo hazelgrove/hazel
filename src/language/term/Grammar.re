@@ -336,6 +336,13 @@ and proof_term('a) =
    * outgoing and obligations may not mention `x`. No witness is
    * extracted or searched for. */
   | Obtain(pat_t('a), pat_t('a), exp_t('a), proof_t('a))
+  /* `<step> with <condition> by <proof> end` (D54/D76): a side-condition
+   * clause written under a step. Kept in source (D59 hybrid): the step's
+   * obligations are recomputed on every check and a clause whose proof
+   * is complete discharges the obligation its condition matches
+   * (`Obligation.Local`). The part after `by` is always a proof (D76).
+   * One clause per node; several clauses nest, innermost first. */
+  | With(proof_t('a), exp_t('a), proof_t('a))
 and proof_t('a) = Annotated.t(proof_term('a), 'a)
 and stepper_filter_kind_t('a) =
   | Filter(filter('a))
@@ -613,6 +620,12 @@ and map_proof_annotation: 'a 'b. ('a => 'b, proof_t('a)) => proof_t('b) =
             map_exp_annotation(f, e),
             map_proof_annotation(f, sub),
             map_proof_annotation(f, body),
+          )
+        | With(body, cond, by) =>
+          With(
+            map_proof_annotation(f, body),
+            map_exp_annotation(f, cond),
+            map_proof_annotation(f, by),
           )
         },
       annotation: new_annotation,
@@ -1559,6 +1572,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let obtain = (~ann=?, x, h, e, body): proof_t(DefaultAnnotation.t) => {
       term: Obtain(x, h, e, body),
+      annotation: default_annotation(ann),
+    };
+    let with_clause = (~ann=?, body, cond, by): proof_t(DefaultAnnotation.t) => {
+      term: With(body, cond, by),
       annotation: default_annotation(ann),
     };
   };

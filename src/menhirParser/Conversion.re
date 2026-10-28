@@ -632,6 +632,12 @@ and Proof: {
         Exp.of_menhir_ast(e),
         of_menhir_ast(body),
       )
+    | ProofWith(body, cond, by) =>
+      with_clause(
+        of_menhir_ast(body),
+        Exp.of_menhir_ast(cond),
+        of_menhir_ast(by),
+      )
     | ProofRevertWith(e, v, i, body) =>
       revert(
         ~instantiation=Some((Exp.of_menhir_ast(v), Exp.of_menhir_ast(i))),
@@ -737,6 +743,8 @@ and Proof: {
     | Cite(h) => ProofCite(h)
     | Obtain(x, h, e, body) =>
       ProofObtain(Pat.of_core(x), Pat.of_core(h), Exp.of_core(e), of_core(body))
+    | With(body, cond, by) =>
+      ProofWith(of_core(body), Exp.of_core(cond), of_core(by))
     | Revert(e, None, body) => ProofRevert(Exp.of_core(e), of_core(body))
     | Revert(e, Some((v, i)), body) =>
       ProofRevertWith(

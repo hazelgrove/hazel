@@ -374,6 +374,8 @@ let external_precedence_proof = (p: Proof.t) =>
   | Induction(_, _, _) => Precedence.max
   | Witness(_)
   | Obtain(_, _, _, _) => Precedence.fun_
+  /* The D54 clause is a postfix at application precedence. */
+  | With(_, _, _) => Precedence.ap
   | Seq(_, _) => Precedence.semi
   | Forall(_, _)
   | Funext(_, _)
@@ -1188,6 +1190,11 @@ and parenthesize_proof =
   | Cite(_) => proof
   | Obtain(x, h, e, body) =>
     Obtain(go_pat(x), go_pat(h), go_exp(e), go(body)) |> rewrap
+  /* The clause is a tight postfix: a step looser than application (a
+     wrapping form or `;`) is parenthesized, or the clause would reattach
+     to its last step; a nested clause (application level) prints flat. */
+  | With(body, cond, by) =>
+    With(go_at(Precedence.ap + 1, body), go_exp(cond), go(by)) |> rewrap
   | AxiomStep({at_idx, at_exp, direction, equality, instantiation}) =>
     AxiomStep({
       at_idx: go_exp(at_idx),
@@ -3694,6 +3701,11 @@ and proof_to_pretty = (~settings: Settings.t, p: Proof.t): pretty => {
     and+ e = exp_to_pretty(~settings, e)
     and+ b = proof_to_pretty(~settings, body);
     wrap(p, [mk_form(ProofObtain, id, [x, h, e])] @ b);
+  | With(body, cond, by) =>
+    let+ b = proof_to_pretty(~settings, body)
+    and+ c = exp_to_pretty(~settings, cond)
+    and+ pr = proof_to_pretty(~settings, by);
+    wrap(p, b @ [mk_form(ProofWith, id, [c, pr])]);
   | AxiomStep({at_idx, at_exp, direction, equality, instantiation}) =>
     let+ eq = exp_to_pretty(~settings, equality)
     and+ i = exp_to_pretty(~settings, at_idx)

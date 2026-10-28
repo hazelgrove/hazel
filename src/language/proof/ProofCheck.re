@@ -2330,6 +2330,50 @@ let instantiation_standardness =
     instantiations,
   );
 
+/* --- D54 side-condition clauses (`<step> with <c> by <proof> end`) ----
+ *
+ * D59 hybrid: the clause is source; the step's obligations are recomputed
+ * on every check and the clause is MATCHED against them. A clause matches
+ * an obligation recorded on its step's own node when (1) the written
+ * condition, env-substituted like every obligation goal, equals the
+ * obligation's goal under the existing exact discipline (`lookup_fact`'s
+ * `== true` normalisation, grouping parentheses ignored as in
+ * `uncaptured_fact_id`), and (2) the obligation was recorded in exactly
+ * the clause's own context (the same entries, by id), so a condition can
+ * never be read under a different binding of its names. */
+let drop_exp_parens = (e: Exp.t): Exp.t =>
+  Exp.map_term(
+    ~f_exp=
+      (continue, e: Exp.t) =>
+        switch (e.term) {
+        | Parens(inner) => continue(inner)
+        | _ => continue(e)
+        },
+    e,
+  );
+
+let clause_matches =
+    (~ctx: SemanticCtx.t, cond_goal: Exp.t, ob: Obligation.t): bool => {
+  let norm = e => drop_exp_parens(strip_eq_true(e));
+  let entries = SemanticCtx.get_ctx(ctx).entries;
+  Exp.fast_equal(norm(cond_goal), norm(ob.goal))
+  && List.length(entries) == List.length(ob.bindings)
+  && List.for_all2(
+       (a, b) => Id.compare(Ctx.get_id(a), Ctx.get_id(b)) == 0,
+       entries,
+       ob.bindings,
+     );
+};
+
+/* The step a clause is written under: grouping parentheses and inner
+ * clauses are transparent (`s with c1 by p1 end with c2 by p2 end`). */
+let rec clause_step = (p: Proof.t): Proof.t =>
+  switch (p.term) {
+  | Parens(inner)
+  | With(inner, _, _) => clause_step(inner)
+  | _ => p
+  };
+
 let rec check =
         (
           ~step: step_fn=no_step,
@@ -3033,6 +3077,67 @@ let rec check =
         pass([refused("obtain", "This fact is not an `exists`.")])
       }
     }
+  | With(body, cond, by) =>
+    /* D54/D59 side-condition clause. The step is checked exactly as if
+     * the clause were absent (same goal, same context; the clause never
+     * changes the goal). The clause proof is checked against its written
+     * condition in the step's own context (BEFORE anything the step
+     * introduces), and its obligations, marks and holes stay in the map.
+     *
+     * Discharge: a PENDING obligation on the step's node that the
+     * condition matches (`clause_matches`) becomes `Local(<clause proof>)`
+     * only when the clause proof is complete: it reaches literal `true`,
+     * its subtree is mark-free and hole-free, and it leaves no pending
+     * obligation of its own. Otherwise the obligation stays Pending.
+     * Automatic discharges (Remote / Evaluated / Structural) are kept as
+     * they are. A clause matching no obligation of its step (wrong
+     * condition, wrong scope, stale after an edit) is refused, so the
+     * proof cannot read as Proven. */
+    let (out, m_body) = check(~step, ~info_map, ~ctx, incoming, body);
+    let cond_goal = cond |> Substitution.in_exp(SemanticCtx.get_env(ctx));
+    let (out_by, m_by) =
+      check(~step, ~info_map, ~ctx, Some(cond_goal), by);
+    let complete =
+      switch (out_by) {
+      | Some(o) =>
+        Exp.fast_equal(o, Exp.temp(Atom(Bool(true))))
+        && ProofMap.proof_is_clean(m_by, by)
+        && !Proof.has_hole(by)
+        && ProofMap.pending_obligations(m_by, by) == []
+      | None => false
+      };
+    let step_id = Proof.rep_id(clause_step(body));
+    let (m_body, matched) =
+      switch (ProofMap.lookup(step_id, m_body)) {
+      | None => (m_body, false)
+      | Some(entry) =>
+        let matched =
+          List.exists(clause_matches(~ctx, cond_goal), entry.obligations);
+        let obligations =
+          List.map(
+            (ob: Obligation.t) =>
+              complete
+              && Obligation.is_pending(ob)
+              && clause_matches(~ctx, cond_goal, ob)
+                ? Obligation.{...ob, discharge: Local(Proof.rep_id(by))}
+                : ob,
+            entry.obligations,
+          );
+        (
+          ProofMap.add(step_id, ProofMap.{...entry, obligations}, m_body),
+          matched,
+        );
+      };
+    let marks =
+      matched
+        ? []
+        : [
+          refused(
+            "with",
+            "This condition is not an obligation of the step it is written under (check the condition, and parenthesize the step if the clause belongs to an outer one).",
+          ),
+        ];
+    (out, record(~marks, id, incoming, out, ProofMap.union(m_body, m_by)));
   | Have(e, sub, body) =>
     /* `have <exp> proof <subproof> => <body>` — the CUT rule, and the
      * target of §3.3's "prove here" exit (docs/prover-obligations.md).

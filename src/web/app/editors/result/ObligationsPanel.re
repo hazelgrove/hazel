@@ -222,6 +222,8 @@ let rec proof_contains = (~origin: Id.t, p: Proof.t): bool =>
     | Revert(_, _, body) => proof_contains(~origin, body)
     | Have(_, sub, body) =>
       proof_contains(~origin, sub) || proof_contains(~origin, body)
+    | With(body, _, by) =>
+      proof_contains(~origin, body) || proof_contains(~origin, by)
     | Induction(_, _, cases) =>
       List.exists(((_, body)) => proof_contains(~origin, body), cases)
     }
@@ -274,6 +276,10 @@ let rec case_vars_to = (~origin: Id.t, ~acc: list(Var.t), p: Proof.t) =>
       proof_contains(~origin, sub)
         ? case_vars_to(~origin, ~acc, sub)
         : case_vars_to(~origin, ~acc, body)
+    /* A clause binds nothing: follow whichever side holds the origin. */
+    | With(body, _, by) =>
+      proof_contains(~origin, by)
+        ? case_vars_to(~origin, ~acc, by) : case_vars_to(~origin, ~acc, body)
     | Induction(_, _, cases) =>
       switch (
         List.find_opt(((_, body)) => proof_contains(~origin, body), cases)
@@ -410,6 +416,10 @@ let rec scope_body_containing = (~origin: Id.t, p: Proof.t): option(Proof.t) =>
     }
   /* Parens are not a scope — look straight through them. */
   | Parens(inner) => scope_body_containing(~origin, inner)
+  /* Nor is a clause's step; the clause PROOF is a subproof of its own. */
+  | With(body, _, by) =>
+    proof_contains(~origin, by)
+      ? Some(by) : scope_body_containing(~origin, body)
   | EmptyHole
   | Invalid(_)
   | MultiHole(_)

@@ -458,7 +458,12 @@ type compound_form =
   | ProofAlias
   | ProofRelEqBy
   | ProofWitness
-  | ProofObtain;
+  | ProofObtain
+  /* D54 side-condition clause, LAST: its leading `with` expands only in
+     a Proof context (the postfix's left nib), where no other form leads
+     with `with`; inside the five interior-`with` steps the context is
+     Exp, so their `with` stays an interior delimiter. */
+  | ProofWith;
 
 let get: compound_form => t =
   fun
@@ -709,7 +714,13 @@ let get: compound_form => t =
    * `=>` of the other wrapping forms, and the label triple is unique, so
    * this parses without a new keyword. */
   | ProofHave =>
-    mk_pre_c(L, ["have", "proof", "=>"], P.fun_, Proof, [Exp, Proof]);
+    mk_pre_c(L, ["have", "proof", "=>"], P.fun_, Proof, [Exp, Proof])
+  /* `<step> with <condition> by <proof> end` (D54/D76): a postfix on the
+     step at application precedence, so it binds INNERMOST (`a; b with …`
+     and `assume P => s with …` attach to the last step; parenthesize the
+     step for the outer reading), as the October `ProofWith` did. */
+  | ProofWith =>
+    mk_post_c(L, ["with", "by", "end"], P.ap, Proof, [Exp, Proof]);
 
 let forms: list((compound_form, t)) =
   List.map(f => (f, get(f)), all_of_compound_form);

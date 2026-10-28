@@ -2057,6 +2057,14 @@ and proof_term: unsorted => (TermBase.Proof.term, list(Id.t)) = {
     | ([(_id, ([";"], []))], []) => ret(Seq(p1, p2))
     | _ => ret(hole(tm))
     }
+  /* `<step> with <condition> by <proof> end` (D54): the postfix's left
+     operand is the step, its children the condition and clause proof. */
+  | Post(Proof(body), tiles) as tm =>
+    switch (tiles) {
+    | ([(_id, (["with", "by", "end"], [Exp(cond), Proof(by)]))], []) =>
+      ret(With(body, cond, by))
+    | _ => ret(hole(tm))
+    }
   | (Pre(_) | Post(_) | Bin(_)) as tm => ret(hole(tm));
 }
 

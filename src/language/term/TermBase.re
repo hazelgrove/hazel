@@ -1543,6 +1543,8 @@ and Proof: {
             exp_map_term(e),
             proof_map_term(body),
           )
+        | With(body, cond, by) =>
+          With(proof_map_term(body), exp_map_term(cond), proof_map_term(by))
         },
     };
     x |> f_proof(proof_map_term);

@@ -130,6 +130,9 @@ let rec proof_is_clean = (pm: t, proof: Proof.t): bool =>
     | Witness(_)
     | Cite(_) => true
     | Obtain(_, _, _, body) => proof_is_clean(pm, body)
+    /* A clause is part of the proof: a marked clause proof (or a refused,
+     * unmatched clause, marked on the With node itself) is not clean. */
+    | With(body, _, by) => proof_is_clean(pm, body) && proof_is_clean(pm, by)
     | Induction(_, _, cases) =>
       List.for_all(((_, body)) => proof_is_clean(pm, body), cases)
     }
@@ -183,6 +186,8 @@ let rec has_witness_step = (proof: Proof.t): bool =>
   | Revert(_, _, p)
   | Obtain(_, _, _, p) => has_witness_step(p)
   | Have(_, _sub, body) => has_witness_step(body)
+  /* The clause proves a side condition, not the goal. */
+  | With(body, _, _by) => has_witness_step(body)
   | Induction(_, _, cases) =>
     List.exists(((_, body)) => has_witness_step(body), cases)
   };
@@ -235,6 +240,10 @@ let rec obligations_of_proof = (pm: t, proof: Proof.t): list(Obligation.t) => {
     | Witness(_)
     | Cite(_) => []
     | Obtain(_, _, _, body) => obligations_of_proof(pm, body)
+    /* The step's obligations (a matched one now `Local`), then the clause
+     * proof's own unresolved obligations. */
+    | With(body, _, by) =>
+      obligations_of_proof(pm, body) @ obligations_of_proof(pm, by)
     | Induction(_, _, cases) =>
       List.concat_map(((_, body)) => obligations_of_proof(pm, body), cases)
     }
@@ -267,6 +276,7 @@ let rec rep_ids_of_proof = (proof: Proof.t): list(Id.t) =>
     | Witness(_)
     | Cite(_) => []
     | Obtain(_, _, _, body) => rep_ids_of_proof(body)
+    | With(body, _, by) => rep_ids_of_proof(body) @ rep_ids_of_proof(by)
     | Induction(_, _, cases) =>
       List.concat_map(((_, body)) => rep_ids_of_proof(body), cases)
     }

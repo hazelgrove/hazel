@@ -159,6 +159,14 @@ open AST
 /* Flat sequences - tighter than structural forms */
 %right SEMI_COLON
 
+/* D54 side-condition clause `<proof> with <cond> by <proof> end`: a tight
+   postfix (Precedence.ap in the segment parser), so on lookahead WITH
+   after a complete proof the parser SHIFTS -- the clause attaches to the
+   innermost step (`a; b with …`, `assume P => s with …`). WITH elsewhere
+   follows an exp (the five interior-`with` steps), where no conflict
+   arises, so this precedence only resolves the postfix's own conflicts. */
+%nonassoc WITH
+
 /* Module item expression reduction: higher than SEMI_COLON so that inside
    module bodies, the parser reduces exp to modItemExp rather than shifting
    ';' for Seq. This only affects the modItemExp production. */
@@ -415,6 +423,7 @@ proof:
     | HAVE; e = exp; PROOF; sub = proof; EQUAL_ARROW; pf = proof { ProofHave(e, sub, pf) } %prec PROOF_PRE
     | OBTAIN; x = pat; AS; h = pat; FROM; e = exp; EQUAL_ARROW; pf = proof { ProofObtain(x, h, e, pf) } %prec PROOF_PRE
     | DOUBLE_EQUAL; t = exp; BY; j = justification; END { ProofRelEqBy(t, j) }
+    | pf = proof; WITH; c = exp; BY; by = proof; END { ProofWith(pf, c, by) }
     | REVERT; e = exp; EQUAL_ARROW; pf = proof { ProofRevert(e, pf) } %prec PROOF_PRE
     | REVERT; e = exp; WITH; v = exp; SINGLE_EQUAL; i = exp; EQUAL_ARROW; pf = proof { ProofRevertWith(e, v, i, pf) } %prec PROOF_PRE
     | AXIOM; eq = exp; AT; idx = exp; ON; ae = exp; END { ProofAxiom(eq, idx, ae) }
