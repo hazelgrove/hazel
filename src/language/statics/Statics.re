@@ -4828,9 +4828,10 @@ and mod_to_info_map =
     let (_, _, m) = any_to_info_map(~ctx, ~ancestors, Typ(t), m);
     (CoCtx.empty, Mod(m_term), add_mod_info(m));
   | ModExp(e) =>
+    /* Its expression's info is the item's: they share ids. */
     let (co_ctx, _, m) =
       any_to_info_map(~ctx, ~ancestors, ~probe_ids, Exp(e), m);
-    (co_ctx, Mod(m_term), add_mod_info(m));
+    (co_ctx, Mod(m_term), m);
   | ModuleMod(mp, e) =>
     let (_, _, m) =
       any_to_info_map(~ctx, ~ancestors, ~probe_ids, MPat(mp), m);

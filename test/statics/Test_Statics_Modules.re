@@ -428,6 +428,27 @@ let test_bare_item_parent_is_the_module =
     },
   );
 
+let test_bare_item_in_a_hole_is_its_expression =
+  Alcotest.test_case(
+    "A bare expression item in a hole keeps its expression's info",
+    `Quick,
+    () => {
+      let e = parse_exp({|1 + true|});
+      let s =
+        statics(
+          Language.Exp.fresh(MultiHole([Mod(Language.Mod.of_exp(e))])),
+        );
+      Alcotest.(check(bool))(
+        "an expression info at the expression's id",
+        true,
+        switch (Language.Id.Map.find_opt(Language.Exp.rep_id(e), s)) {
+        | Some(InfoExp(_)) => true
+        | _ => false
+        },
+      );
+    },
+  );
+
 let test_type_member_compared_outside_the_body =
   has_mark_test(
     "A type member is compared against the signature's definition read outside the body",
@@ -1999,6 +2020,7 @@ let tests = (
     test_dot_on_sig_with_type_member,
     test_item_types,
     test_item_infos_are_module_items,
+    test_bare_item_in_a_hole_is_its_expression,
     /* Sig annotation tests */
     test_empty_sig_annotation,
     test_matching_sig_annotation,
