@@ -33,6 +33,15 @@ type let_finished = {
   probe_targets: SubexpProbeTargets.t,
 };
 
+/* `type T = def`, analyzed before the scope it binds over: see
+   [uexp_to_info_map]'s `alias_binding`. */
+type alias_binding = {
+  ty_def: Typ.t,
+  ctx_scope: Ctx.t, /* binds the alias and its constructors */
+  def_info: Info.typ,
+  typ_refs: CoCtx.t /* the modules the definition names */
+};
+
 /* The items of a module body checked in order: see [uexp_to_info_map]'s
    `Module` arm. */
 type checked_items = {
@@ -559,6 +568,47 @@ and uexp_to_info_map =
             p_ana.probe_targets,
             b.def.probe_targets,
           ]),
+      },
+      m,
+    );
+  };
+  /* `type T = def` before the scope it binds over is analyzed: the
+     definition is read with its own name abstract, then bound with its
+     constructors over the scope. */
+  let alias_binding =
+      (
+        ~ctx,
+        ~ancestors=ancestors_inclusive,
+        typat: TPat.t,
+        name: Var.t,
+        utyp: Typ.t,
+        m,
+      )
+      : (alias_binding, Map.t) => {
+    let ty_def = Typ.alias_def(ctx, typat, utyp);
+    let ctx_def =
+      Typ.extend_ctx(
+        ctx,
+        TVarEntry({
+          name,
+          id: TPat.rep_id(typat),
+          kind: Singleton(ty_def),
+        }),
+      );
+    let ctx_scope =
+      switch (Typ.get_sum_constructors(ctx, ty_def)) {
+      | Some(sm) => Ctx.add_ctrs(ctx_def, name, sm)
+      | None => ctx_def
+      };
+    let (def_info, m) = utyp_to_info_map(~ctx=ctx_def, ~ancestors, utyp, m);
+    let typ_refs =
+      ModuleHelpers.collect_module_refs_in_typ(ctx, Typ.rep_id(utyp), utyp);
+    (
+      {
+        ty_def,
+        ctx_scope,
+        def_info,
+        typ_refs,
       },
       m,
     );
@@ -2641,47 +2691,20 @@ and uexp_to_info_map =
         |> snd;
       switch (typat.term) {
       | Var(name) when !Ctx.is_base_typ(name) =>
-        let ty_def = Typ.alias_def(ctx, typat, utyp);
-        let ctx_def =
-          Typ.extend_ctx(
-            ctx,
-            TVarEntry({
-              name,
-              id: TPat.rep_id(typat),
-              kind: Singleton(ty_def),
-            }),
-          );
-        let ctx_body =
-          switch (Typ.get_sum_constructors(ctx, ty_def)) {
-          | Some(sm) => Ctx.add_ctrs(ctx_def, name, sm)
-          | None => ctx_def
-          };
+        let (a, m) = alias_binding(~ctx, typat, name, utyp, m);
         let (
           {co_ctx, probe_targets, elab_syn_ty: ty_body, _}: Info.exp,
           body_elab,
           m,
         ) =
-          go(~ctx=ctx_body, ~ana, body, m);
+          go(~ctx=a.ctx_scope, ~ana, body, m);
         /* Make sure types don't escape their scope */
-        let ty_escape = Typ.subst(ty_def, typat, ty_body);
-        let (_, m) =
-          utyp_to_info_map(
-            ~ctx=ctx_def,
-            ~ancestors=ancestors_inclusive,
-            utyp,
-            m,
-          );
-        let typ_refs =
-          ModuleHelpers.collect_module_refs_in_typ(
-            ctx,
-            Typ.rep_id(utyp),
-            utyp,
-          );
+        let ty_escape = Typ.subst(a.ty_def, typat, ty_body);
         add(
           ~elab_term=body_elab,
           ~elab_syn_ty=ty_escape,
           ~marks=[],
-          ~co_ctx=CoCtx.union([co_ctx, typ_refs]),
+          ~co_ctx=CoCtx.union([co_ctx, a.typ_refs]),
           ~probe_targets,
           m,
         );
@@ -2985,23 +3008,7 @@ and uexp_to_info_map =
           | ModType({term: Var(name), _} as tpat, def)
               when !Ctx.is_base_typ(name) =>
             let m = utpat_to_info_map(~ctx, ~ancestors, tpat, m) |> snd;
-            let def_ty = Typ.alias_def(ctx, tpat, def);
-            let ctx_def =
-              Typ.extend_ctx(
-                ctx,
-                TVarEntry({
-                  name,
-                  id: TPat.rep_id(tpat),
-                  kind: Singleton(def_ty),
-                }),
-              );
-            let ctx_body =
-              switch (Typ.get_sum_constructors(ctx, def_ty)) {
-              | Some(sm) => Ctx.add_ctrs(ctx_def, name, sm)
-              | None => ctx_def
-              };
-            let (def_info, m) =
-              utyp_to_info_map(~ctx=ctx_def, ~ancestors, def, m);
+            let (a, m) = alias_binding(~ctx, ~ancestors, tpat, name, def, m);
             /* The last declaration of the name is the member the signature
                sees; a definition with holes is not compared, to stay
                gradual. The mark lands on the definition. */
@@ -3011,20 +3018,25 @@ and uexp_to_info_map =
                   when
                     !ModuleHelpers.type_declared_later(name, rest)
                     && !Typ.contains_unknown(expected)
-                    && !Typ.contains_unknown(def_ty)
-                    && !Typ.equal_up_to_aliases(ctx_def, def_ty, expected) => (
+                    && !Typ.contains_unknown(a.ty_def)
+                    && !
+                         Typ.equal_up_to_aliases(
+                           a.ctx_scope,
+                           a.ty_def,
+                           expected,
+                         ) => (
                   [name],
                   add_info(
                     IdTagged.ids(def),
                     Info.InfoTyp({
-                      ...def_info,
+                      ...a.def_info,
                       marks: [
                         ModuleTypeMemberMismatch({
                           name,
                           expected,
                           actual: def,
                         }),
-                        ...def_info.marks,
+                        ...a.def_info.marks,
                       ],
                       message: None,
                     }),
@@ -3033,20 +3045,12 @@ and uexp_to_info_map =
                 )
               | _ => ([], m)
               };
-            let (c, m) = go_rest(~ctx=ctx_body, m);
-            let co_ctx =
-              CoCtx.union([
-                ModuleHelpers.collect_module_refs_in_typ(
-                  ctx,
-                  Typ.rep_id(def),
-                  def,
-                ),
-                c.co_ctx,
-              ]);
+            let (c, m) = go_rest(~ctx=a.ctx_scope, m);
+            let co_ctx = CoCtx.union([a.typ_refs, c.co_ctx]);
             let m =
               add_item(
                 ~ctx,
-                ~ty=Some(def_ty),
+                ~ty=Some(a.ty_def),
                 ~co_ctx,
                 ~scope_co_ctx=c.co_ctx,
                 item,
@@ -3058,7 +3062,7 @@ and uexp_to_info_map =
                 ...c,
                 members: [
                   Sig.item_of_member(
-                    TypeManifest(name, export(ctx, def_ty)),
+                    TypeManifest(name, export(ctx, a.ty_def)),
                   ),
                   ...c.members,
                 ],
