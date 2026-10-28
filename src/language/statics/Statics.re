@@ -396,9 +396,10 @@ and uexp_to_info_map =
       | _ => def_ana
       };
     let is_rec = is_recursive(p, def, rec_check_ty);
-    let (def, def_elab, m) =
+    let (def, def_elab, def_ty, m) =
       if (!is_rec) {
-        go(~ctx, ~ana=def_ana, def, m);
+        let (def, def_elab, m) = go(~ctx, ~ana=def_ana, def, m);
+        (def, def_elab, def.ty, m);
       } else {
         let (def_base, _, _) = go(~ctx=p_syn.ctx, ~ana=def_ana, def, m);
         /* Analyze pattern to incorporate def type into ctx */
@@ -428,13 +429,17 @@ and uexp_to_info_map =
             Prod(tys) |> Typ.temp;
           | ((_, _), _) => ana_ty_fn((def_base.ty, def_base2.ty), def_ana)
           };
-        go(~ctx=def_ctx, ~ana, def, m);
+        let (def, def_elab, m) = go(~ctx=def_ctx, ~ana, def, m);
+        /* The pattern is bound at the definition's type with the pattern at
+           its own type; the analysis under the recursive binding places the
+           definition's marks and elaborates it. */
+        (def, def_elab, def_base.ty, m);
       };
     let ty_p =
       switch (ana_pat) {
-      | None => def.ty
+      | None => def_ty
       | Some(expected) =>
-        Typ.meet(ctx, expected, def.ty) |> Option.value(~default=expected)
+        Typ.meet(ctx, expected, def_ty) |> Option.value(~default=expected)
       };
     let (p_scope, _, _) =
       go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=ty_p, p, m);
