@@ -33,16 +33,6 @@
    that statics on the desugared form populates the info map under the
    user's original ids. */
 
-/* Match `Ap(Var(f), args)`, the inner head of the sugar. The name may carry
-   an ascription, `Ap(Asc(Var(f), ty), args)`.
-
-   For the nullary form `f()`, the parser tags the empty tuple with
-   `Id.nullary_ap_flag` so it can be distinguished from a 0-tuple
-   literal. We replace that placeholder with a real deterministic id
-   so the args pattern is well-formed once it becomes a `Fun`
-   parameter. */
-let detect = Pat.function_sugar;
-
 /* Build the desugared expression:
 
        Let(f_name, Fun(args, (def : ret_ty)?, None, None), body)

@@ -146,7 +146,7 @@ module Utils = {
                  statics, so the ancestor chain reaches this Let via the
                  synthetic Fun wrapper rather than pat/def/body directly;
                  any chain position is necessarily inside the binding. */
-              if (Option.is_some(FunctionSugar.detect(pat))
+              if (Option.is_some(Pat.function_sugar(pat))
                   || Id.equal(def_id, Info.id_of(departure_point))
                   || Id.equal(body_id, Info.id_of(departure_point))
                   || Id.equal(pat_id, Info.id_of(departure_point))) {

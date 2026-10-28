@@ -26,7 +26,7 @@ let rec target_subterm_ids =
       let def_targets =
         target_subterm_ids(~drill_let=false, IdTagged.rep_id(def), info_map);
       /* Function-sugar keeps params in the binder, so anchor the args pattern too. */
-      switch (FunctionSugar.detect(pat)) {
+      switch (Pat.function_sugar(pat)) {
       | Some((_f_name, args, _ret_ty)) => def_targets @ [Pat.rep_id(args)]
       | None => def_targets
       };

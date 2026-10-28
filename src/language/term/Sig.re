@@ -140,6 +140,14 @@ let map_typ = (f: TermBase.Typ.t => TermBase.Typ.t, item: t): t => {
         ...p,
         term: (Parens(pat_map(p')): TermBase.Pat.term),
       }
+    | Projector(d, p') => {
+        ...p,
+        term: (Projector(d, pat_map(p')): TermBase.Pat.term),
+      }
+    | TupLabel(l, p') => {
+        ...p,
+        term: (TupLabel(l, pat_map(p')): TermBase.Pat.term),
+      }
     | Var(x) =>
       switch (refined()) {
       | Some(ty) => {
@@ -192,7 +200,9 @@ let typ_of_item = (item: t): option(TermBase.Typ.t) => {
   let rec of_pat = (p: TermBase.Pat.t) =>
     switch (p.term) {
     | Asc(_, ty) => Some(ty)
-    | Parens(p) => of_pat(p)
+    | Parens(p)
+    | Projector(_, p)
+    | TupLabel(_, p) => of_pat(p)
     | _ => None
     };
   switch (item.term) {

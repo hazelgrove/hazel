@@ -1742,7 +1742,12 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
       | Projector(data, t) => Projector(data, abbreviate_typ(t))
       | Sig(s) =>
         if (available^ <= 2) {
-          Sig(Open([]));
+          Sig(
+            switch (s) {
+            | Open(_) => Open([])
+            | Closed(_) => Closed(ClosedSig.of_items([]))
+            },
+          );
         } else {
           available := available^ - 2; /* { } */
           Sig(
