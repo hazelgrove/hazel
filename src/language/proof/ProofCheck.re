@@ -1605,9 +1605,15 @@ let std_stats_reset = () => {
 
 /* An argument EVIDENTLY of type `t` (so an ascribed binder's pattern
    ascription cannot get stuck, Ascriptions.transition): an Unknown target,
-   a variable whose context type is `t`, a literal of that atom class, or a
-   literal tuple/list of evidently typed parts. Otherwise no evidence. */
+   a variable whose context type is `t`, a literal of that atom class, a
+   literal tuple/list of evidently typed parts, or (G1-prime operand class)
+   an Int/Bool operation of that result class over evidenced operands.
+   Unknown is an evidence TARGET only for binder ascriptions; operand
+   checks always ask for a concrete class. No application / `if` / `case`
+   result is evidence. Otherwise no evidence. */
 let rec std_evident_type = (tyctx: Ctx.t, arg: Exp.t, t: Typ.t): bool => {
+  let int_t = Typ.temp(Atom(Int));
+  let bool_t = Typ.temp(Atom(Bool));
   let t = Typ.normalize(tyctx, t);
   switch (Typ.term_of(t), strip_parens_exp(arg).term) {
   | (Unknown(_), _) => true
@@ -1622,9 +1628,35 @@ let rec std_evident_type = (tyctx: Ctx.t, arg: Exp.t, t: Typ.t): bool => {
     && List.for_all2((a, t) => std_evident_type(tyctx, a, t), args, ts)
   | (List(t1), ListLit(args)) =>
     List.for_all(a => std_evident_type(tyctx, a, t1), args)
+  | (Atom(Int), BinOp(Int(Plus | Minus | Times), a, b)) =>
+    std_evident_type(tyctx, a, int_t) && std_evident_type(tyctx, b, int_t)
+  | (Atom(Int), UnOp(Int(Minus), a)) => std_evident_type(tyctx, a, int_t)
+  | (
+      Atom(Bool),
+      BinOp(
+        Int(LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual),
+        a,
+        b,
+      ),
+    ) =>
+    std_evident_type(tyctx, a, int_t) && std_evident_type(tyctx, b, int_t)
+  | (Atom(Bool), BinOp(Bool(And | Or | Implies), a, b)) =>
+    std_evident_type(tyctx, a, bool_t) && std_evident_type(tyctx, b, bool_t)
+  | (Atom(Bool), UnOp(Bool(Not), a)) => std_evident_type(tyctx, a, bool_t)
+  | (Atom(Bool), BinOp(Poly(Equals | NotEquals), a, b)) =>
+    std_same_atom_class(tyctx, a, b)
   | _ => false
   };
-};
+}
+/* Both operands evidently of one concrete atom class (`==` / `!=`). */
+and std_same_atom_class = (tyctx: Ctx.t, a: Exp.t, b: Exp.t): bool =>
+  List.exists(
+    (cls: Atom.cls) => {
+      let t = Typ.temp(Atom(cls));
+      std_evident_type(tyctx, a, t) && std_evident_type(tyctx, b, t);
+    },
+    [Atom.Int, Atom.SInt, Atom.Nat, Atom.Float, Atom.Bool, Atom.String],
+  );
 
 /* Irrefutable binder for a beta/recursive application: a variable or
    wildcard (ascribed only at an argument evidently of that type), or a
@@ -1688,6 +1720,7 @@ let rec std_judge =
   } else {
     let go = std_judge(~selfs, ~lists, ~depth, ~budget, ~certs, ctx);
     let tyctx = SemanticCtx.get_ctx(ctx);
+    let evident = (a, t) => std_evident_type(tyctx, a, t);
     let is_list_typ = (t: Typ.t) =>
       switch (Typ.term_of(Typ.normalize(tyctx, t))) {
       | List(_) => true
@@ -1732,7 +1765,10 @@ let rec std_judge =
       };
     /* Judge `body` with `names` bound and standard; `listed` of them hold
        lists. Rebinding drops names from `selfs` and stale list facts. */
-    let under = (~selfs, ~depth, ~listed, names: list(Var.t), body: Exp.t) =>
+    /* `types`: declared types of TYPED binders (quantifier / lambda
+       parameter), kept as class evidence; other names are Unknown. */
+    let under =
+        (~selfs, ~depth, ~listed, ~types=[], names: list(Var.t), body: Exp.t) =>
       std_judge(
         ~selfs=List.filter(((s, _, _)) => !List.mem(s, names), selfs),
         ~lists=listed @ List.filter(x => !List.mem(x, names), lists),
@@ -1741,7 +1777,14 @@ let rec std_judge =
         ~certs,
         List.fold_left(
           (c, x) =>
-            SemanticCtx.add_entry(c, Id.mk(), x, Typ.fresh(Unknown(Internal)), None),
+            SemanticCtx.add_entry(
+              c,
+              Id.mk(),
+              x,
+              List.assoc_opt(x, types)
+              |> Option.value(~default=Typ.fresh(Unknown(Internal))),
+              None,
+            ),
           ctx,
           names,
         )
@@ -1799,10 +1842,14 @@ let rec std_judge =
     | Atom(_) => true
     | Tuple(es)
     | ListLit(es) => List.for_all(go, es)
-    | Cons(a, b)
+    /* G1-prime: standardness does not establish a class. Every typed
+       operation needs ACTUAL operand class evidence (std_evident_type at a
+       concrete class); list operations need actual list evidence
+       (`list_ev`). Unknown is never evidence. */
+    | Cons(a, b) => list_ev(b) && go(a) && go(b)
     /* Canonical list concatenation (the `@` node, not a name): two
-       standard lists give a standard list. */
-    | ListConcat(a, b) => go(a) && go(b)
+       standard, list-evidenced lists give a standard list. */
+    | ListConcat(a, b) => list_ev(a) && list_ev(b) && go(a) && go(b)
     | BinOp(
         Int(
           Plus | Minus | Times | LessThan | LessThanOrEqual | GreaterThan |
@@ -1810,15 +1857,24 @@ let rec std_judge =
         ),
         a,
         b,
-      )
-    | BinOp(Bool(And | Or | Implies), a, b) => go(a) && go(b)
-    /* `==` / `!=` on standard operands at an EVIDENTLY first-order type. */
+      ) =>
+      evident(a, Typ.temp(Atom(Int)))
+      && evident(b, Typ.temp(Atom(Int)))
+      && go(a)
+      && go(b)
+    | BinOp(Bool(And | Or | Implies), a, b) =>
+      evident(a, Typ.temp(Atom(Bool)))
+      && evident(b, Typ.temp(Atom(Bool)))
+      && go(a)
+      && go(b)
+    /* `==` / `!=`: both operands evidently of the same concrete atom class. */
     | BinOp(Poly(Equals | NotEquals), a, b)
-        when evident_first_order(a) || evident_first_order(b) =>
+        when std_same_atom_class(tyctx, a, b) =>
       go(a) && go(b)
-    | UnOp(Int(Minus), a)
-    | UnOp(Bool(Not), a) => go(a)
-    | If(c, a, b) => go(c) && go(a) && go(b)
+    | UnOp(Int(Minus), a) => evident(a, Typ.temp(Atom(Int))) && go(a)
+    | UnOp(Bool(Not), a) => evident(a, Typ.temp(Atom(Bool))) && go(a)
+    | If(c, a, b) =>
+      evident(c, Typ.temp(Atom(Bool))) && go(c) && go(a) && go(b)
     /* A covered case over a standard scrutinee, every rule (guard and
        body) judged. Covered = an UNGUARDED catch-all, or `[]` plus an
        unguarded `p :: q` over a scrutinee KNOWN to be a list. ADT
@@ -1870,7 +1926,14 @@ let rec std_judge =
     | Exists(p, body) =>
       switch (single_binder(p)) {
       | Some((x, Some(t))) =>
-        under(~selfs, ~depth, ~listed=is_list_typ(t) ? [x] : [], [x], body)
+        under(
+          ~selfs,
+          ~depth,
+          ~listed=is_list_typ(t) ? [x] : [],
+          ~types=[(x, t)],
+          [x],
+          body,
+        )
       | _ => false
       }
     /* std_fun for a lambda VALUE: typed single parameter; body standard
@@ -1879,7 +1942,14 @@ let rec std_judge =
     | Fun(p, body, _, _) =>
       switch (single_binder(p)) {
       | Some((x, Some(t))) =>
-        under(~selfs, ~depth, ~listed=is_list_typ(t) ? [x] : [], [x], body)
+        under(
+          ~selfs,
+          ~depth,
+          ~listed=is_list_typ(t) ? [x] : [],
+          ~types=[(x, t)],
+          [x],
+          body,
+        )
       | _ => false
       }
     | Ap(Forward, f, arg) =>

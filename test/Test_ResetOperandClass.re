@@ -110,6 +110,25 @@ let tests = (
     negative("unknown_if_condition", "fun (y : ?) -> if y then 1 else 2", "3"),
     negative("unknown_concat_left", "fun (y : ?) -> y @ [1]", "2"),
     negative("unknown_cons_tail", "fun (y : ?) -> 1 :: y", "2"),
+    /* Declared-type mismatches (statics-invalid programs; the judgement
+       alone must still refuse them). */
+    negative("typed_bool_in_int_plus", "fun (b : Bool) -> b + 1", "true"),
+    negative("typed_int_not", "fun (x : Int) -> !x", "0"),
+    negative("typed_int_if_condition", "fun (x : Int) -> if x then 1 else 2", "0"),
+    negative("typed_int_cons_tail", "fun (x : Int) -> 1 :: x", "0"),
+    /* LIMITATION control (fail-closed; NOT recursion-proof evidence): an
+       application operand (`h + sumh(t)`) has no class evidence, so even a
+       well-typed list argument stays Pending. */
+    test_case("LIMITATION sumh([1, 2]): application operand gives no class evidence, Pending", `Quick, () => {
+      let (o, d) =
+        RS.run(
+          "sumh_int_list_limitation",
+          sumh
+          ++ "theorem w = exists (n : Int) -> n == sumh([1, 2]) proof == true by witness sumh([1, 2]) end; axiom refl_eq at 0 on sumh([1, 2]) == sumh([1, 2]) end in 0",
+        );
+      RE.valid("sumh_int_list_limitation", o);
+      check(string, "fail-closed limitation", "Pending", d);
+    }),
     positive("literal_arith", "1 + 2 * 3"),
     positive("literal_unary_minus", "-(4)"),
     positive("literal_not", "!true"),
