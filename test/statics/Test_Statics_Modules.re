@@ -1870,6 +1870,49 @@ let test_evaluated_member_keeps_its_type =
     },
   );
 
+let test_folded_sig_pattern_checked_alike =
+  Alcotest.test_case(
+    "A folded signature pattern checks the module like the written one",
+    `Quick,
+    () => {
+      let plain =
+        parse_exp(
+          "module M : { let x : Int } = { let x = true } in M.x && true",
+        );
+      let folded =
+        Language.Exp.map_term(
+          ~f_pat=
+            (cont, p: Language.Pat.t) =>
+              switch (p.term) {
+              | Asc(_, _) =>
+                Language.Pat.fresh(
+                  Projector(
+                    {
+                      kind: Fold,
+                      model: "",
+                    },
+                    p,
+                  ): Language.Pat.term,
+                )
+              | _ => cont(p)
+              },
+          plain,
+        );
+      let marks = e => statics(e) |> errors |> List.concat_map(snd);
+      Alcotest.(check(bool))(
+        "the written one has marks",
+        false,
+        List.is_empty(marks(plain)),
+      );
+      Alcotest.check(
+        testable_issue,
+        "same marks",
+        Marks(marks(plain)),
+        Marks(marks(folded)),
+      );
+    },
+  );
+
 let tests = (
   "Statics.Modules",
   [
@@ -2055,5 +2098,6 @@ let tests = (
     test_module_member_not_in_scope_in_own_signature,
     test_shadowed_module_keeps_earlier_paths,
     test_shadowing_module_roots_later_paths,
+    test_folded_sig_pattern_checked_alike,
   ],
 );

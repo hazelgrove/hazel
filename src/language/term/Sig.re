@@ -55,14 +55,28 @@ type member =
   | Val(Var.t, TermBase.Typ.t)
   | TypeManifest(Var.t, TermBase.Typ.t);
 
-let rec val_of_pat = (p: TermBase.Pat.t): option(member) =>
+/* The type a `let` item's pattern is written with: its annotation, under
+   parentheses, projectors and labels. */
+let rec typ_of_pat = (p: TermBase.Pat.t): option(TermBase.Typ.t) =>
   switch (p.term) {
-  | Parens(p) => val_of_pat(p)
-  | Asc(p', ty) => Pat.is_var(p') |> Option.map(x => Val(x, ty))
-  | _ =>
-    Pat.is_var(p)
-    |> Option.map(x => Val(x, TempGrammar.Typ.unknown(Internal)))
+  | Asc(_, ty) => Some(ty)
+  | Parens(p)
+  | Projector(_, p)
+  | TupLabel(_, p) => typ_of_pat(p)
+  | _ => None
   };
+
+let val_of_pat = (p: TermBase.Pat.t): option(member) =>
+  Pat.is_var(p)
+  |> Option.map(x =>
+       Val(
+         x,
+         Option.value(
+           typ_of_pat(p),
+           ~default=TempGrammar.Typ.unknown(Internal),
+         ),
+       )
+     );
 
 let val_of_mpat = (mp: TermBase.MPat.t): option(member) =>
   switch (mp.term) {
@@ -196,17 +210,9 @@ let map_typ = (f: TermBase.Typ.t => TermBase.Typ.t, item: t): t => {
 };
 
 /* The type an item is written with, the one [map_typ] maps. */
-let typ_of_item = (item: t): option(TermBase.Typ.t) => {
-  let rec of_pat = (p: TermBase.Pat.t) =>
-    switch (p.term) {
-    | Asc(_, ty) => Some(ty)
-    | Parens(p)
-    | Projector(_, p)
-    | TupLabel(_, p) => of_pat(p)
-    | _ => None
-    };
+let typ_of_item = (item: t): option(TermBase.Typ.t) =>
   switch (item.term) {
-  | SigLet(p) => of_pat(p)
+  | SigLet(p) => typ_of_pat(p)
   | SigType(_, ty) => Some(ty)
   | SigModule({term: Asc(_, ty), _}) => Some(ty)
   | SigModule(_)
@@ -214,7 +220,6 @@ let typ_of_item = (item: t): option(TermBase.Typ.t) => {
   | EmptyHole
   | MultiHole(_) => None
   };
-};
 
 let value_names = (ms: list(member)): list(Var.t) =>
   ms

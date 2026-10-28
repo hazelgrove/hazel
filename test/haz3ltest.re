@@ -55,6 +55,7 @@ let (suite, exit_with_test_status) =
     @ Test_ExpToSegment.all
     @ Test_Typ.tests
     @ Test_Mod.tests
+    @ Test_Sig.tests
     @ Test_Statics.tests
     @ Test_Elaboration.tests
     @ Test_Evaluator.tests
