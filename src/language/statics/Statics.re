@@ -3089,7 +3089,7 @@ and uexp_to_info_map =
           | ModVal(x, e) =>
             let (e, e_elab, m) = go(~ctx, ~ancestors, ~ana=syn, e, m);
             let ctx_rest =
-              Ctx.extend(
+              Typ.extend_ctx(
                 ctx,
                 VarEntry({
                   name: x,

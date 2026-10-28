@@ -1913,6 +1913,31 @@ let test_folded_sig_pattern_checked_alike =
     },
   );
 
+let test_evaluated_module_binding_recloses_earlier_members =
+  Alcotest.test_case(
+    "An evaluated module binding re-closes the members before it",
+    `Quick,
+    () => {
+      module F = Language.IdTagged.FreshGrammar;
+      let modval = (x, e) => Language.Mod.fresh(ModVal(x, e));
+      let exp =
+        F.Exp.module_([
+          modval("P", parse_exp("{ type T = Int }")),
+          modval("f", parse_exp("fun (y : P.T) -> y")),
+          modval("P", parse_exp("{ type T = Bool }")),
+          F.Mod.mod_let(F.Pat.var("z"), parse_exp("f(true)")),
+        ]);
+      Alcotest.(check(bool))(
+        "f(true) is Bool against Int",
+        true,
+        switch (statics(exp) |> errors |> List.concat_map(snd)) {
+        | [m] => is_int_vs(Bool, m)
+        | _ => false
+        },
+      );
+    },
+  );
+
 let tests = (
   "Statics.Modules",
   [
@@ -2099,5 +2124,6 @@ let tests = (
     test_shadowed_module_keeps_earlier_paths,
     test_shadowing_module_roots_later_paths,
     test_folded_sig_pattern_checked_alike,
+    test_evaluated_module_binding_recloses_earlier_members,
   ],
 );
