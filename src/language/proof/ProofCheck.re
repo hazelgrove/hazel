@@ -1578,65 +1578,244 @@ let rec evident_first_order = (e: Exp.t): bool =>
   | _ => false
   };
 
-let rec std_structural = (ctx: SemanticCtx.t, e: Exp.t): bool => {
-  let go = std_structural(ctx);
-  switch (e.term) {
-  | Parens(e) => go(e)
-  | Var(x) => SemanticCtx.is_standard_var(ctx, x)
-  | Atom(_) => true
-  | Tuple(es)
-  | ListLit(es) => List.for_all(go, es)
-  | Cons(a, b) => go(a) && go(b)
-  | BinOp(
-      Int(
-        Plus | Minus | Times | LessThan | LessThanOrEqual | GreaterThan |
-        GreaterThanOrEqual,
-      ),
-      a,
-      b,
-    )
-  | BinOp(Bool(And | Or | Implies), a, b) => go(a) && go(b)
-  /* `==` / `!=` on standard operands at an EVIDENTLY first-order type:
-     one side is a literal or an Int/Bool computation, which fixes the
-     type (two bare variables could be functions: fail closed). */
-  | BinOp(Poly(Equals | NotEquals), a, b)
-      when evident_first_order(a) || evident_first_order(b) =>
-    go(a) && go(b)
-  /* Forward std_all / std_ex (D81, one-way): `!!(forall x. P)` and
-     `!!(exists x. P)` from `forall x. !!P`, derived here structurally for
-     the body with the (typed, single) binder standard. Never the
-     converse; no rewrite of the quantified proposition itself. */
-  | Forall(p, body)
-  | Exists(p, body) =>
-    switch (single_binder(p)) {
-    | Some((x, Some(_))) =>
-      std_structural(
-        SemanticCtx.add_entry(ctx, Id.mk(), x, Typ.fresh(Unknown(Internal)), None)
-        |> SemanticCtx.mark_standard(_, [x]),
-        body,
-      )
-    | _ => false
-    }
-  | UnOp(Int(Minus), a)
-  | UnOp(Bool(Not), a) => go(a)
-  /* Kernel std_fun application: a standard function applied to a
-     standard argument is standard. The head must itself be shown
-     standard (a quantified/obtained function, or a lambda by std_fun);
-     builtins and fixpoints are not, so they fail closed. */
-  | Ap(Forward, f, arg) => go(f) && go(arg)
-  | Fun(p, body, _, _) =>
-    switch (single_binder(p)) {
-    | Some((x, Some(_))) =>
-      std_structural(
-        SemanticCtx.add_entry(ctx, Id.mk(), x, Typ.fresh(Unknown(Internal)), None)
-        |> SemanticCtx.mark_standard(_, [x]),
-        body,
-      )
-    | _ => false
-    }
+/* Work bound for one structural-standardness judgement: a shared node
+   budget (every node visited, and every descent certification, consumes
+   it) and a nesting limit on Fun/FixF judgements. Exhausting either fails
+   closed (not standard). */
+let std_node_budget = 4000;
+let std_certification_cost = 50;
+let std_max_depth = 16;
+
+/* Irrefutable binder for a beta/recursive application: a variable or
+   wildcard (optionally ascribed), or a tuple of those whose arity is
+   fixed by the actual argument (a literal tuple) or by the parameter's
+   own product type. Guarded (`where`), constructor, list and literal
+   patterns can fail to match, so they are not accepted. */
+let rec std_irrefutable =
+        (p: Pat.t, ty: option(Typ.t), arg: option(Exp.t)): bool =>
+  switch (p.term) {
+  | Parens(p) => std_irrefutable(p, ty, arg)
+  | Var(_)
+  | Wild => true
+  | Asc(p, t) => std_irrefutable(p, Some(t), arg)
+  | Tuple(ps) =>
+    let n = List.length(ps);
+    let shape_known =
+      switch (Option.map(e => strip_parens_exp(e).term, arg)) {
+      | Some(Tuple(args)) => List.length(args) == n
+      | _ =>
+        switch (Option.map(Typ.term_of, ty)) {
+        | Some(Prod(ts)) => List.length(ts) == n
+        | _ => false
+        }
+      };
+    shape_known && List.for_all(q => std_irrefutable(q, None, None), ps);
   | _ => false
   };
+
+/* Coverage of a `case`: an UNGUARDED catch-all rule, or both a `[]` rule
+   and an unguarded `p :: q` rule over variables/wildcards. Guarded rows
+   never count. ADT constructor sets are NOT checked (so a case over a
+   user sum type is not shown covered: fail closed). */
+let std_covered = (rules: list((Pat.t, Exp.t))): bool => {
+  let rec bare = (p: Pat.t) =>
+    switch (p.term) {
+    | Parens(p)
+    | Asc(p, _) => bare(p)
+    | _ => p
+    };
+  let var_or_wild = (p: Pat.t) =>
+    switch (bare(p).term) {
+    | Var(_)
+    | Wild => true
+    | _ => false
+    };
+  let pats = List.map(fst, rules);
+  List.exists(var_or_wild, pats)
+  || List.exists(
+       (p: Pat.t) =>
+         switch (bare(p).term) {
+         | ListLit([]) => true
+         | _ => false
+         },
+       pats,
+     )
+  && List.exists(
+       (p: Pat.t) =>
+         switch (bare(p).term) {
+         | Cons(h, t) => var_or_wild(h) && var_or_wild(t)
+         | _ => false
+         },
+       pats,
+     );
 };
+
+/* `selfs`: the recursive self-names whose descent was certified by
+   StructuralRecursion.check; they are usable ONLY as the head of a direct
+   application (never bare), and any rebinding removes them. */
+let rec std_judge =
+        (
+          ~selfs: list(Var.t),
+          ~depth: int,
+          ~budget: ref(int),
+          ctx: SemanticCtx.t,
+          e: Exp.t,
+        )
+        : bool => {
+  budget := budget^ - 1;
+  if (budget^ < 0) {
+    false;
+  } else {
+    let go = std_judge(~selfs, ~depth, ~budget, ctx);
+    /* Judge `body` with `names` bound and standard (a quantifier binder,
+       a case variable of a standard scrutinee, or a parameter applied to
+       a standard argument); rebinding drops them from `selfs`. */
+    let under = (~selfs, ~depth, names: list(Var.t), body: Exp.t) =>
+      std_judge(
+        ~selfs=List.filter(s => !List.mem(s, names), selfs),
+        ~depth,
+        ~budget,
+        List.fold_left(
+          (c, x) =>
+            SemanticCtx.add_entry(c, Id.mk(), x, Typ.fresh(Unknown(Internal)), None),
+          ctx,
+          names,
+        )
+        |> SemanticCtx.mark_standard(_, names),
+        body,
+      );
+    let rec head = (f: Exp.t) =>
+      switch (f.term) {
+      | Parens(f)
+      | Closure(_, f) => head(f)
+      | _ => f
+      };
+    switch (e.term) {
+    | Parens(e) => go(e)
+    | Var(x) =>
+      !List.mem(x, selfs) && SemanticCtx.is_standard_var(ctx, x)
+    | Atom(_) => true
+    | Tuple(es)
+    | ListLit(es) => List.for_all(go, es)
+    | Cons(a, b)
+    /* Canonical list concatenation (the `@` node, not a name): two
+       standard lists give a standard list. */
+    | ListConcat(a, b) => go(a) && go(b)
+    | BinOp(
+        Int(
+          Plus | Minus | Times | LessThan | LessThanOrEqual | GreaterThan |
+          GreaterThanOrEqual,
+        ),
+        a,
+        b,
+      )
+    | BinOp(Bool(And | Or | Implies), a, b) => go(a) && go(b)
+    /* `==` / `!=` on standard operands at an EVIDENTLY first-order type:
+       one side is a literal or an Int/Bool computation, which fixes the
+       type (two bare variables could be functions: fail closed). */
+    | BinOp(Poly(Equals | NotEquals), a, b)
+        when evident_first_order(a) || evident_first_order(b) =>
+      go(a) && go(b)
+    | UnOp(Int(Minus), a)
+    | UnOp(Bool(Not), a) => go(a)
+    | If(c, a, b) => go(c) && go(a) && go(b)
+    /* Every rule of a covered case over a standard scrutinee: the rule's
+       pattern variables are standard (kernel induct), its guard (if any)
+       and its body must be standard. All branches are judged. */
+    | Match(scrut, rules) =>
+      go(scrut)
+      && std_covered(rules)
+      && List.for_all(
+           ((p, body)) => {
+             let names = Pat.bound_vars(p);
+             (
+               switch (Exp.pat_guard(p)) {
+               | None => true
+               | Some(g) => under(~selfs, ~depth, names, g)
+               }
+             )
+             && under(~selfs, ~depth, names, body);
+           },
+           rules,
+         )
+    /* Forward std_all / std_ex (D81, one-way): `!!(forall x. P)` and
+       `!!(exists x. P)` from `forall x. !!P`, derived here structurally for
+       the body with the (typed, single) binder standard. Never the
+       converse; no rewrite of the quantified proposition itself. */
+    | Forall(p, body)
+    | Exists(p, body) =>
+      switch (single_binder(p)) {
+      | Some((x, Some(_))) => under(~selfs, ~depth, [x], body)
+      | _ => false
+      }
+    /* std_fun for a lambda VALUE: typed single parameter, body standard
+       for a standard argument (a returned partial lambda fails here). */
+    | Fun(p, body, _, _) =>
+      switch (single_binder(p)) {
+      | Some((x, Some(_))) => under(~selfs, ~depth, [x], body)
+      | _ => false
+      }
+    | Ap(Forward, f, arg) =>
+      switch (head(f).term) {
+      /* A certified recursive call (descent verified for the enclosing
+         fixpoint): standard at a standard argument, by well-founded
+         induction on the certified descent. */
+      | Var(s) when List.mem(s, selfs) => go(arg)
+      /* Beta: an irrefutable parameter bound to a standard argument. */
+      | Fun(p, body, field, _) when depth < std_max_depth =>
+        go(arg)
+        && std_irrefutable(p, field, Some(arg))
+        && under(~selfs, ~depth=depth + 1, Pat.bound_vars(p), body)
+      /* Recursion: descent certified by StructuralRecursion.check AND a
+         standard body (all branches) with the parameter standard and the
+         self-name usable only as a certified call head. */
+      | FixF(self_p, fbody, _) when depth < std_max_depth =>
+        budget := budget^ - std_certification_cost;
+        switch (Pat.get_var(self_p), head(fbody).term) {
+        | (Some(s), Fun(p, body, field, _))
+            when
+              budget^ >= 0
+              && Result.is_ok(StructuralRecursion.check(head(f))) =>
+          let names = Pat.bound_vars(p);
+          go(arg)
+          && std_irrefutable(p, field, Some(arg))
+          && std_judge(
+               ~selfs=
+                 List.filter(
+                   x => !List.mem(x, names),
+                   [s, ...List.filter(x => x != s, selfs)],
+                 ),
+               ~depth=depth + 1,
+               ~budget,
+               List.fold_left(
+                 (c, x) =>
+                   SemanticCtx.add_entry(
+                     c,
+                     Id.mk(),
+                     x,
+                     Typ.fresh(Unknown(Internal)),
+                     None,
+                   ),
+                 ctx,
+                 names,
+               )
+               |> SemanticCtx.mark_standard(_, names),
+               body,
+             );
+        | _ => false
+        };
+      /* Kernel std_fun application: a standard function (a quantified/
+         obtained function, or a lambda by std_fun) at a standard argument.
+         Builtins and anything else fail closed. */
+      | _ => go(f) && go(arg)
+      }
+    | _ => false
+    };
+  };
+};
+
+let std_structural = (ctx: SemanticCtx.t, e: Exp.t): bool =>
+  std_judge(~selfs=[], ~depth=0, ~budget=ref(std_node_budget), ctx, e);
 
 /* The fact ids of the in-scope facts that are NOT captured, through the
    same capture-aware entries `axiom` uses (ProofCtx.of_theorem_ctx lists
