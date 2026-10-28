@@ -110,9 +110,65 @@ let type_info_receipt = (label, src) => {
   ();
 };
 
+/* U1: induction case variables. Kernel `induct` (kernel-table.tex:222):
+   the constructor arguments of a STANDARD scrutinee are standard. A
+   computed scrutinee is not standard by that rule. */
+let u1_prelude =
+  "let len = fun xs -> case xs | [] => 0 | _ :: t => 1 + len(t) end in\n"
+  ++ "theorem len_cons = forall h: Int -> forall t: [Int] -> len(h :: t) == 1 + len(t) proof eval len(h :: t) at 0 end; axiom refl_eq at 0 on 1 + len(t) == 1 + len(t) end in\n";
+
+/* Standard scrutinee (a statement binder): the case's `x`, `t`. */
+let u1_std_scrut =
+  u1_prelude
+  ++ "theorem c = forall xs: [Int] -> len(xs) == len(xs) proof induction xs | [] => axiom refl_eq at 0 on len([]) == len([]) end | x :: t => axiom len_cons at 0 on len(x :: t) end; ? end in 0";
+
+/* Computed scrutinee: no standardness for its case variables. */
+let u1_computed_scrut =
+  u1_prelude
+  ++ "theorem c = forall xs: [Int] -> len(xs @ [1]) == len(xs @ [1]) proof induction xs @ [1] | [] => ? | x :: t => axiom len_cons at 0 on len(x :: t) end; ? end in 0";
+
+/* Rebinding: a computed-scrutinee case variable `x` shadows a standard
+   statement binder `x`; it must not inherit that standardness. */
+let u1_shadow =
+  u1_prelude
+  ++ "theorem c = forall x: Int -> forall xs: [Int] -> len(xs @ [x]) == len(xs @ [x]) proof induction xs @ [x] | [] => ? | x :: t => axiom len_cons at 0 on len(x :: t) end; ? end in 0";
+
+/* The `!!` gates recorded at the case's `axiom len_cons` step, as
+   "display: discharge" (x then t). */
+let len_cons_gates = (o: RE.obs) =>
+  RE.nodes(o, "c", Proof.AxiomStep)
+  |> List.concat_map((e: ProofMap.entry) => e.obligations)
+  |> List.filter((ob: Obligation.t) =>
+       switch (ob.goal.term) {
+       | Valued(_) => true
+       | _ => false
+       }
+     )
+  |> List.map((ob: Obligation.t) =>
+       RE.print_exp(ob.display_goal)
+       ++ ": "
+       ++ Obligation.show_discharge(ob.discharge)
+     );
+
 let tests = (
   "ResetStandardnessCorrections",
   [
+    test_case("U1 standard scrutinee: len_cons at the case's x, t has !!x, !!t discharged", `Quick, () => {
+      let o = RE.observe("u1_std_scrut", u1_std_scrut);
+      RE.valid("u1_std_scrut", o);
+      check(string, "len_cons lemma", "Proven", RE.full(o, "len_cons"));
+      check(list(string), "case gates", ["!! x: Structural", "!! t: Structural"], len_cons_gates(o));
+    }),
+    test_case("U1 computed scrutinee: case variables are not standard by origin", `Quick, () => {
+      let o = RE.observe("u1_computed_scrut", u1_computed_scrut);
+      RE.valid("u1_computed_scrut", o);
+      check(list(string), "case gates", ["!! x: Pending", "!! t: Pending"], len_cons_gates(o));
+    }),
+    test_case("U1 rebinding: a case x shadowing a standard binder x stays Pending", `Quick, () => {
+      let o = RE.observe("u1_shadow", u1_shadow);
+      RE.valid("u1_shadow", o);
+      check(list(string), "case gates", ["!! x: Pending", "!! t: Pending"], len_cons_gates(o));
+    }),
     test_case("C1 negative: higher-order funext on a fresh (post-witness) goal is refused", `Quick, () => {
       let o = RE.observe("ho_fresh", ho_fresh);
       RE.valid("ho_fresh", o);
