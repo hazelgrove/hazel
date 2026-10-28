@@ -643,7 +643,19 @@ let tests = (
       check(bool, "std_fun partial body", false, std("fun (k : Int) -> 1 / k"));
       check(bool, "untyped parameter", false, std("fun k -> k"));
       check(bool, "unmarked variable", false, std("x"));
-      check(bool, "marked variable", true, std(~ctx=SemanticCtx.mark_standard(ctx, ["x"]), "x + 1"));
+      check(bool, "marked variable alone", true, std(~ctx=SemanticCtx.mark_standard(ctx, ["x"]), "x"));
+      /* CONTRACT CHANGE (G1-prime, ADDENDUM-5; compatibility table in
+         docs): this assertion was originally
+           check(bool, "marked variable", true, std(~ctx=mark_standard(ctx, ["x"]), "x + 1"))
+         and passed before g1p-1. A standard variable with NO type is not
+         evidence of Int (Unknown is never class evidence), so `x + 1`
+         over an untyped `x` is refused; the same expression over a
+         standard `x : Int` is standard. */
+      check(bool, "marked but untyped variable in x + 1: refused (Unknown is not Int)", false, std(~ctx=SemanticCtx.mark_standard(ctx, ["x"]), "x + 1"));
+      let typed_ctx =
+        SemanticCtx.add_entry(ctx, Id.mk(), "x", Typ.fresh(Atom(Int)), None)
+        |> SemanticCtx.mark_standard(_, ["x"]);
+      check(bool, "marked x : Int in x + 1: standard", true, std(~ctx=typed_ctx, "x + 1"));
     }),
     test_case("existing status untouched: a witness-free false proof is still Refuted", `Quick, () => {
       let o = observe("refuted_control", refuted_control);
@@ -684,25 +696,5 @@ let tests = (
       check(bool, "exists with all-false body not computed", true, not_bool(eval_print("exists (n : Int) -> false")));
       check(bool, "!!lambda is a forall, not true", true, eval_print("!!(fun (k : Int) -> k)") != "true");
     }),
-    /* Receipt (no assertion): standardness-judgement CPU accumulated
-       over every core test above in this process, versus the process CPU
-       so far. */
-    test_case("receipt: standardness judgement CPU share of this group", `Quick, () =>
-      print_endline(
-        "CORE std cpu "
-        ++ Printf.sprintf("%.3f", ProofCheck.std_stat_cpu^)
-        ++ "s in "
-        ++ string_of_int(ProofCheck.std_stat_nodes^)
-        ++ " nodes, "
-        ++ string_of_int(ProofCheck.std_stat_certifications^)
-        ++ " certifications | obligations "
-        ++ string_of_int(ProofCheck.std_stat_obligations^)
-        ++ " taking "
-        ++ Printf.sprintf("%.3f", ProofCheck.std_stat_obligation_cpu^)
-        ++ "s | process cpu "
-        ++ Printf.sprintf("%.3f", Sys.time())
-        ++ "s",
-      )
-    ),
   ],
 );

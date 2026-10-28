@@ -25,24 +25,28 @@ let status_label = (status: ProofMap.full_status): string =>
   switch (status) {
   | Proven => "proven true"
   | Refuted => "disproven"
-  /* The asterisk is the point: the goal did reach `true`, but only
-   * granted the pending obligations. */
+  /* D56 (gaps): a proof with pending conditions is NOT proven. The chip
+   * says so and quietly counts the gaps; the rows below list the pending
+   * conditions first so they can be found. `ProvenModulo` stays the
+   * internal carrier (the goal reached `true` granted those conditions),
+   * but nothing user-facing says "proven" for it. */
   | ProvenModulo(obs) =>
-    "proven* ("
+    "not proven: "
     ++ string_of_int(List.length(obs))
     ++ " pending "
-    ++ (List.length(obs) == 1 ? "obligation" : "obligations")
-    ++ ")"
+    ++ (List.length(obs) == 1 ? "condition" : "conditions")
   | Incomplete => "incomplete"
   };
 
-/* Class suffixes are kept in sync with theorems.css. `true`/`false`/
- * `unknown` are the pre-existing three; `modulo` is new. */
+/* Class suffixes are kept in sync with theorems.css. D56: pending
+ * conditions take the not-proven (`unknown`) chip, never the green-tinted
+ * `modulo` one, which read as an asterisked pass; the label carries the
+ * count. */
 let status_class = (status: ProofMap.full_status): string =>
   switch (status) {
   | Proven => "true"
   | Refuted => "false"
-  | ProvenModulo(_) => "modulo"
+  | ProvenModulo(_)
   | Incomplete => "unknown"
   };
 

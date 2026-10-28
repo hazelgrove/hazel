@@ -481,7 +481,11 @@ let rel_eq_by_node = (proof: Proof.t): option(Proof.t) =>
 type expect =
   | ProvenExp
   | AloneExp
-  | BadExp;
+  | BadExp
+  /* D56 (standardness completion): the goal closes granted a Pending `!!`
+     condition. The app status carries it as ProvenModulo internally; the
+     user-facing chip says NOT proven and counts the pending conditions. */
+  | PendingStdExp;
 
 let witness_case = ((label, src, expect)) =>
   test_case(
@@ -560,6 +564,48 @@ let witness_case = ((label, src, expect)) =>
       | BadExp =>
         check(bool, label ++ ": never Proven or Refuted", true,
           status != "Proven" && status != "Refuted")
+      | PendingStdExp =>
+        let full =
+          switch (Id.Map.find_opt(thm, a.model.theorems.thm_map)) {
+          | Some(t) => Calc.get_saved_opt(t.full_status)
+          | None => None
+          };
+        switch (full) {
+        | Some(ProofMap.ProvenModulo(pend) as s) =>
+          let label_text = ObligationsPanel.status_label(s);
+          obs(
+            label,
+            "d56_chip="
+            ++ ObligationsPanel.status_class(s)
+            ++ " d56_label="
+            ++ label_text
+            ++ " pending="
+            ++ String.concat(
+                 "; ",
+                 List.map(
+                   (ob: Obligation.t) =>
+                     Test_ResetExistentials.print_exp(ob.display_goal),
+                   pend,
+                 ),
+               ),
+          );
+          check(bool, label ++ ": a pending !! condition", true,
+            List.exists(
+              (ob: Obligation.t) =>
+                switch (ob.goal.term) {
+                | Valued(_) => true
+                | _ => false
+                },
+              pend,
+            ));
+          check(string, label ++ ": D56 chip is the not-proven one", "unknown",
+            ObligationsPanel.status_class(s));
+          check(bool, label ++ ": D56 label says not proven", true,
+            String.length(label_text) >= 10
+            && String.sub(label_text, 0, 10) == "not proven");
+        | _ =>
+          Alcotest.fail(label ++ ": expected a pending condition, got " ++ status)
+        };
       };
     },
   );
@@ -831,6 +877,11 @@ let tests = (
       ("witness3", Test_ResetExistentials.positive, ProvenExp),
       ("witness3-alone", Test_ResetExistentials.alone, AloneExp),
       ("bad-witness2", Test_ResetExistentials.bad, BadExp),
+      /* Refusals and pending conditions through the actual app path. */
+      ("divergent-witness", Test_ResetExistentials.divergent, BadExp),
+      ("partial-lambda-witness", Test_ResetExistentials.lambda_partial, BadExp),
+      ("unknown-domain-arg-witness", Test_ResetOperandClass.fn_untyped_arg, PendingStdExp),
+      ("assume-pending-std-premise", Test_ResetStandardnessGates.curry, PendingStdExp),
     ],
   )
   @ [edit_case, undo_case],

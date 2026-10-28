@@ -144,6 +144,62 @@ let check_no_obligations = (msg, pm, proof) => {
   );
 };
 
+/* CONTRACT CHANGE (standardness completion, G1-prime / ADDENDUM-5; the
+ * per-example compatibility-loss table is docs/standardness-completion.md).
+ * These theorems were Proven before the operand-class rule: a `!!` gate on
+ * an inlined RECURSIVE function result (`1 + len(t)`, `rev(t) @ [x]`,
+ * `1 + to_int(m)`) used an application result as Int/list evidence, which
+ * D65/D66 and ADDENDUM-5 rule out (no result-type inference, Unknown is
+ * never class evidence). The gate now stays Pending, so the theorem is
+ * ProvenModulo (shown as Pending, not Proven), with NO ordinary obligation
+ * and every Pending gate naming the recursive function. */
+let check_limited_by_recursive_gates =
+    (msg, ~fn_name: string, ~gates: int, pm, proof) => {
+  let all = ProofMap.obligations_of_proof(pm, proof);
+  let is_gate = (ob: Obligation.t) =>
+    switch (ob.goal.term) {
+    | Valued(_) => true
+    | _ => false
+    };
+  let pending = List.filter(Obligation.is_pending, List.filter(is_gate, all));
+  List.iter(
+    (ob: Obligation.t) =>
+      print_endline(
+        "EQUIV limit "
+        ++ msg
+        ++ " | pending gate "
+        ++ String.map(c => c == '\n' ? ' ' : c, print_exp(ob.display_goal)),
+      ),
+    pending,
+  );
+  Alcotest.check(
+    Alcotest.int,
+    msg ++ ": no ordinary obligation",
+    0,
+    List.length(List.filter(ob => !is_gate(ob), all)),
+  );
+  Alcotest.check(Alcotest.int, msg ++ ": pending recursive gates", gates, List.length(pending));
+  Alcotest.check(
+    Alcotest.bool,
+    msg ++ ": every pending gate is on the inlined " ++ fn_name,
+    true,
+    List.for_all(
+      (ob: Obligation.t) =>
+        Str.string_match(Str.regexp(".*" ++ fn_name), String.map(c => c == '\n' ? ' ' : c, print_exp(ob.display_goal)), 0),
+      pending,
+    ),
+  );
+  Alcotest.check(
+    Alcotest.bool,
+    msg ++ ": ProvenModulo (not Proven)",
+    true,
+    switch (ProofMap.full_status_of_proof(pm, proof)) {
+    | ProofMap.ProvenModulo(_) => true
+    | _ => false
+    },
+  );
+};
+
 let has_pattern_not_found = (pm, proof) =>
   has_mark_kind(
     pm,
@@ -255,12 +311,8 @@ let test_generalized_accumulator_proves = () => {
   let (pm, proof) =
     run_named("lenfold", prelude_a ++ lemmas_a ++ thm_a ++ "lenfold");
   check_mark_free("the generalized len/fold proof is mark-free", pm, proof);
-  check_no_obligations("no obligations", pm, proof);
-  check_proven(
-    "acc + len(xs) == fold_left(xs, add1, acc) is Proven",
-    pm,
-    proof,
-  );
+  /* Originally: check_no_obligations + check_proven ("... is Proven"). */
+  check_limited_by_recursive_gates("lenfold", ~fn_name="len", ~gates=1, pm, proof);
 };
 
 /* THE TOTALITY PAYOFF: the same headline theorem closing the OTHER way.
@@ -284,12 +336,9 @@ let test_forward_ih_accumulator_proves = () => {
     false,
     has_possibly_divergent(pm, proof),
   );
-  check_no_obligations("no obligations", pm, proof);
-  check_proven(
-    "forward-IH version closes on refl_eq at fold_left == fold_left",
-    pm,
-    proof,
-  );
+  /* Originally: check_no_obligations + check_proven ("forward-IH
+     version closes on refl_eq at fold_left == fold_left"). */
+  check_limited_by_recursive_gates("lenfoldf", ~fn_name="len", ~gates=1, pm, proof);
 };
 
 /* `fold_cons` proves by eval alone -- the last hole in the A family is
@@ -456,12 +505,9 @@ let test_uncurried_accumulator_hole_free = () => {
   let (pm, proof) =
     run_named("lenfa", prelude_fu ++ lemmas_fu ++ thm_fu ++ "lenfa");
   check_mark_free("hole-free accumulator proof is mark-free", pm, proof);
-  check_no_obligations("no obligations", pm, proof);
-  check_proven(
-    "acc + len(xs) == fa((xs, acc)) is Proven with no hole lemmas",
-    pm,
-    proof,
-  );
+  /* Originally: check_no_obligations + check_proven ("acc + len(xs) ==
+     fa((xs, acc)) is Proven with no hole lemmas"). */
+  check_limited_by_recursive_gates("lenfa", ~fn_name="len", ~gates=1, pm, proof);
 };
 
 /* --- B. reverse involution -------------------------------------------- */
@@ -534,11 +580,9 @@ let test_snoc_proves = () => {
   let (pm, proof) =
     run_named("snoc", prelude_b ++ lemmas_b ++ snoc ++ "snoc");
   check_mark_free("the snoc induction is mark-free", pm, proof);
-  check_proven(
-    "rev(xs @ [x]) == x :: rev(xs) is Proven (induction on xs)",
-    pm,
-    proof,
-  );
+  /* Originally: check_proven ("rev(xs @ [x]) == x :: rev(xs) is Proven
+     (induction on xs)"). */
+  check_limited_by_recursive_gates("snoc", ~fn_name="rev", ~gates=1, pm, proof);
 };
 
 /* ...and with snoc in hand the involution is a short induction. */
@@ -546,8 +590,9 @@ let test_reverse_involution_proves = () => {
   let (pm, proof) =
     run_named("invol", prelude_b ++ lemmas_b ++ snoc ++ invol ++ "invol");
   check_mark_free("the involution proof is mark-free", pm, proof);
-  check_no_obligations("no obligations", pm, proof);
-  check_proven("rev(rev(xs)) == xs is Proven", pm, proof);
+  /* Originally: check_no_obligations + check_proven ("rev(rev(xs)) == xs
+     is Proven"). */
+  check_limited_by_recursive_gates("invol", ~fn_name="rev", ~gates=1, pm, proof);
 };
 
 /* --- C. Nat round trip ------------------------------------------------- */
@@ -631,12 +676,43 @@ let test_nat_round_trip_proven_modulo = () => {
   let (pm, proof) =
     run_named("round", prelude_c ++ lemmas_c ++ round ++ "round");
   check_mark_free("the round-trip proof is mark-free", pm, proof);
-  let obs = ProofMap.obligations_of_proof(pm, proof);
+  /* CONTRACT CHANGE (see check_limited_by_recursive_gates): originally
+     "exactly one obligation" over ALL obligations. The positivity guard
+     is still the one ORDINARY obligation; the `!!` gates on the inlined
+     recursive `to_int` (an ADT recursion, not certified) are Pending and
+     are counted separately. */
+  let is_gate = (ob: Obligation.t) =>
+    switch (ob.goal.term) {
+    | Valued(_) => true
+    | _ => false
+    };
+  let all = ProofMap.obligations_of_proof(pm, proof);
+  let obs = List.filter(ob => !is_gate(ob), all);
+  List.iter(
+    (ob: Obligation.t) =>
+      print_endline(
+        "EQUIV limit round | gate "
+        ++ Obligation.show_discharge(ob.discharge)
+        ++ " "
+        ++ String.map(c => c == '\n' ? ' ' : c, print_exp(ob.display_goal)),
+      ),
+    List.filter(is_gate, all),
+  );
   Alcotest.check(
     Alcotest.int,
-    "exactly one obligation (of_s's positivity guard)",
+    "exactly one ordinary obligation (of_s's positivity guard)",
     1,
     List.length(obs),
+  );
+  Alcotest.check(
+    Alcotest.bool,
+    "every pending gate is on the inlined to_int",
+    true,
+    List.for_all(
+      (ob: Obligation.t) =>
+        Str.string_match(Str.regexp(".*to_int"), String.map(c => c == '\n' ? ' ' : c, print_exp(ob.display_goal)), 0),
+      List.filter(Obligation.is_pending, List.filter(is_gate, all)),
+    ),
   );
   Alcotest.check(
     Alcotest.bool,

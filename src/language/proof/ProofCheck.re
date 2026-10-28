@@ -1585,24 +1585,6 @@ let rec evident_first_order = (e: Exp.t): bool =>
 let std_node_budget = 4000;
 let std_max_depth = 16;
 
-/* Observational counters (tests/receipts only; no semantic effect). */
-let std_stat_nodes = ref(0);
-let std_stat_certifications = ref(0);
-let std_stat_certification_nodes = ref(0);
-let std_stat_cache_hits = ref(0);
-let std_stat_cpu = ref(0.0);
-let std_stat_obligation_cpu = ref(0.0);
-let std_stat_obligations = ref(0);
-let std_stats_reset = () => {
-  std_stat_cpu := 0.0;
-  std_stat_obligation_cpu := 0.0;
-  std_stat_obligations := 0;
-  std_stat_nodes := 0;
-  std_stat_certifications := 0;
-  std_stat_certification_nodes := 0;
-  std_stat_cache_hits := 0;
-};
-
 /* An argument EVIDENTLY of type `t` (so an ascribed binder's pattern
    ascription cannot get stuck, Ascriptions.transition): an Unknown target,
    a variable whose context type is `t`, a literal of that atom class, a
@@ -1741,7 +1723,6 @@ let rec std_judge =
         )
         : bool => {
   budget := budget^ - 1;
-  incr(std_stat_nodes);
   if (budget^ < 0) {
     false;
   } else {
@@ -1850,13 +1831,9 @@ let rec std_judge =
       } else {
         let key = (Exp.rep_id(fix), size^);
         switch (List.assoc_opt(key, certs^)) {
-        | Some(ok) =>
-          incr(std_stat_cache_hits);
-          ok;
+        | Some(ok) => ok
         | None =>
           budget := budget^ - size^;
-          incr(std_stat_certifications);
-          std_stat_certification_nodes := std_stat_certification_nodes^ + size^;
           let ok = Result.is_ok(StructuralRecursion.check(fix));
           certs := [(key, ok), ...certs^];
           ok;
@@ -2073,21 +2050,16 @@ let rec std_judge =
   };
 };
 
-let std_structural = (ctx: SemanticCtx.t, e: Exp.t): bool => {
-  let t0 = Sys.time();
-  let r =
-    std_judge(
-      ~selfs=[],
-      ~lists=[],
-      ~depth=0,
-      ~budget=ref(std_node_budget),
-      ~certs=ref([]),
-      ctx,
-      e,
-    );
-  std_stat_cpu := std_stat_cpu^ +. (Sys.time() -. t0);
-  r;
-};
+let std_structural = (ctx: SemanticCtx.t, e: Exp.t): bool =>
+  std_judge(
+    ~selfs=[],
+    ~lists=[],
+    ~depth=0,
+    ~budget=ref(std_node_budget),
+    ~certs=ref([]),
+    ctx,
+    e,
+  );
 
 /* The fact ids of the in-scope facts that are NOT captured, through the
    same capture-aware entries `axiom` uses (ProofCtx.of_theorem_ctx lists
@@ -2138,8 +2110,6 @@ let standardness_obligation =
       e: Exp.t,
     )
     : Obligation.t => {
-  let t0 = Sys.time();
-  incr(std_stat_obligations);
   let goal = Exp.fresh(Valued(e));
   let premise =
     switch (strip_parens_exp(e).term) {
@@ -2155,7 +2125,6 @@ let standardness_obligation =
       std_structural(ctx, e) ? Obligation.Structural : Obligation.Pending
     | (d, _) => d
     };
-  std_stat_obligation_cpu := std_stat_obligation_cpu^ +. (Sys.time() -. t0);
   Obligation.{
     origin,
     bindings: SemanticCtx.get_ctx(ctx).entries,

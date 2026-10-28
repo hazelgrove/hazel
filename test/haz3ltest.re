@@ -87,6 +87,7 @@ let (suite, _) =
     @ [Test_ResetRecursiveStandardness.tests]
     @ [Test_ResetOperandClass.tests]
     @ [Test_ResetExistsAliasRetirement.tests]
+    @ [Test_ResetClosedEvalCost.tests]
     @ [Test_ExistentialsAppContext.tests]
     @ [Test_SubEditor.tests],
   );

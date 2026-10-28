@@ -21,7 +21,8 @@ module Model = {
      * additionally distinguishes ProvenModulo — the goal reached `true`
      * but pending obligations remain (docs/prover-obligations.md §3.1).
      * `proof_mark` above is left exactly as it was: it is the legacy
-     * bool status and still what `get_score` grades on. */
+     * bool status. `get_score` grades on THIS status (D56: a proof with
+     * pending conditions is not proven, so it does not score). */
     full_status: Calc.saved(ProofMap.full_status),
     /* The theorem's STATEMENT as written, lifted from the same syntax
      * node as `proof`. The obligations panel's float-to-binder action
@@ -67,8 +68,11 @@ module Model = {
           +. (
             switch (Id.Map.find_opt(id, model.thm_map)) {
             | Some(thm) =>
-              Calc.get_saved_opt(thm.proof_mark) |> Option.join == Some(true)
-                ? 1.0 : 0.0
+              switch (Calc.get_saved_opt(thm.full_status)) {
+              | Some(ProofMap.Proven) => 1.0
+              | Some(_)
+              | None => 0.0
+              }
             | None => 0.0
             }
           ),

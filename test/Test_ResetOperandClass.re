@@ -107,8 +107,20 @@ let gen_typed_before =
   "theorem w = forall acc: Int -> exists (n : Int) -> n == acc + 1 proof == true by witness acc + 1 end; axiom refl_eq at 0 on acc + 1 == acc + 1 end in 0";
 let gen_unknown =
   "theorem w = forall acc -> exists (n : Int) -> n == acc + 1 proof generalize acc => forall acc => == true by witness acc + 1 end; axiom refl_eq at 0 on acc + 1 == acc + 1 end in 0";
-let gen_shadow =
+/* HISTORICAL (g1pC, fa1cbafb): this fixture was MALFORMED -- a stray
+   third `end` gives the static error "Variable end is not bound", so its
+   Pending gate was not a shadow observation. Kept verbatim as evidence. */
+let gen_shadow_malformed =
   "theorem w = forall acc: Int -> exists (n : Int) -> n == acc + 1 proof generalize acc => forall acc => == true by witness case [acc] | acc :: _ => acc + 1 | _ => 0 end end; ? end in 0";
+/* Corrected shadow pair (statics-clean): after `generalize acc => forall
+   acc` the outer `acc : Int` is evidence; a CASE binder named `acc`
+   shadows it with no class evidence (case binders are Unknown to the
+   judgement), so `acc + 1` under the shadow fails closed. The companion
+   differs only in the binder's name. */
+let gen_shadow =
+  "theorem w = forall acc: Int -> exists (n : Int) -> n == acc + 1 proof generalize acc => forall acc => == true by witness (case [acc] | acc :: _ => acc + 1 | _ => 0 end) end; ? in 0";
+let gen_no_shadow =
+  "theorem w = forall acc: Int -> exists (n : Int) -> n == acc + 1 proof generalize acc => forall acc => == true by witness (case [acc] | a :: _ => acc + 1 | _ => 0 end) end; ? in 0";
 let gen_capture =
   "theorem w = forall acc: Int -> acc == 1 ==> acc == 1 proof assume acc == 1 as h => generalize acc => forall acc => == true by h end in 0";
 
@@ -211,7 +223,13 @@ let tests = (
     route_gate("generalize_typed_acc_before", gen_typed_before, "Structural"),
     route_gate("generalize_typed_acc_after", gen_typed, "Structural"),
     route_gate("generalize_unknown_acc_stays_unknown", gen_unknown, "Pending"),
+    test_case("HISTORICAL malformed shadow fixture: static error, not a shadow observation", `Quick, () => {
+      let o = RE.observe("generalize_shadow_malformed", gen_shadow_malformed);
+      print_endline("OPC generalize_shadow_malformed | static errors " ++ string_of_int(List.length(o.errors)));
+      check(bool, "statics reject it", true, o.errors != []);
+    }),
     route_gate("generalize_case_binder_shadow", gen_shadow, "Pending"),
+    route_gate("generalize_case_binder_no_shadow", gen_no_shadow, "Structural"),
     test_case("generalize capture: the assumed fact about the old acc is unavailable", `Quick, () => {
       let o = RE.observe("generalize_capture", gen_capture);
       print_endline("OPC generalize_capture | full " ++ RE.full(o, "w") ++ " | static errors " ++ string_of_int(List.length(o.errors)));

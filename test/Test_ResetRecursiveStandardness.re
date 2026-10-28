@@ -1,7 +1,7 @@
 /* Recursive-result standardness and canonical `@` (std_judge).
    One test case per program, so no early assertion hides another. Every
-   case prints its witness `!!v` discharge kind, the judgement counters
-   (nodes, certifications, certification nodes, cache hits) and CPU time.
+   case prints its witness `!!v` discharge kind and its (test-local) CPU
+   time.
    Shape evidence: a nil/cons case is covered only over an expression
    KNOWN to be a list (literal/cons/concat, a list-typed variable, a cons
    tail, a list-evidenced parameter); a tuple binder only against a
@@ -63,7 +63,6 @@ let witness_gate = (o: RE.obs) =>
 /* Observe one program with counters and timing; return the witness
    gate's discharge ("NO !!v OBLIGATION" when the witness was refused). */
 let run = (label, src) => {
-  ProofCheck.std_stats_reset();
   let t0 = Sys.time();
   let o = RE.observe(label, src);
   let dt = Sys.time() -. t0;
@@ -80,14 +79,6 @@ let run = (label, src) => {
     ++ d
     ++ " | static errors "
     ++ string_of_int(List.length(o.errors))
-    ++ " | nodes "
-    ++ string_of_int(ProofCheck.std_stat_nodes^)
-    ++ " certs "
-    ++ string_of_int(ProofCheck.std_stat_certifications^)
-    ++ " cert-nodes "
-    ++ string_of_int(ProofCheck.std_stat_certification_nodes^)
-    ++ " cache-hits "
-    ++ string_of_int(ProofCheck.std_stat_cache_hits^)
     ++ " | cpu "
     ++ Printf.sprintf("%.3f", dt)
     ++ "s",
@@ -146,12 +137,19 @@ let tests = (
        on a mismatched value (Ascriptions.transition), so it is not erased:
        annotated recursive definitions stay Pending. */
     pending("len_annotated_return_ascription_limitation", wit(~decls=len_ann, ~ty="Int", ~v="len(xs)")),
-    positive("len_unannotated_list_arg", wit(~decls=len_un, ~ty="Int", ~v="len(xs)")),
+    /* CONTRACT CHANGE (G1-prime, ADDENDUM-5; compatibility table in docs):
+       originally `positive(...)`, Structural at rec-3. `1 + len(t)` adds
+       an APPLICATION result, and no application / recursive result is
+       class evidence (no result-type inference), so it fails closed. */
+    pending("len_unannotated_list_arg_operand_class_limitation", wit(~decls=len_un, ~ty="Int", ~v="len(xs)")),
     /* rev: the unannotated witness is refused for its Unknown element
        type, so rev is read through Equivalence `snoc`'s own gates. */
-    test_case("positive rev via Equivalence snoc: every !! gate printed, none Pending", `Quick, () => {
+    /* CONTRACT CHANGE (G1-prime; compatibility table in docs): originally
+       "every !! gate printed, none Pending". `rev(t) @ [x]` concatenates
+       an APPLICATION result, which is not list evidence, so exactly the
+       inlined-rev gate stays Pending; every other snoc gate is Structural. */
+    test_case("LIMITATION rev via Equivalence snoc: only the inlined rev gate is Pending", `Quick, () => {
       module E = Test_Equiv_Inductions;
-      ProofCheck.std_stats_reset();
       let (pm, proof) =
         E.run_named("snoc", E.prelude_b ++ E.lemmas_b ++ E.snoc ++ "snoc");
       let gates =
@@ -173,11 +171,29 @@ let tests = (
         gates,
       );
       check(bool, "gates present", true, gates != []);
-      check(int, "pending gates", 0, List.length(List.filter(Obligation.is_pending, gates)));
+      let pending = List.filter(Obligation.is_pending, gates);
+      check(int, "pending gates", 1, List.length(pending));
+      check(
+        bool,
+        "the pending gate is the inlined recursive rev",
+        true,
+        List.for_all(
+          (ob: Obligation.t) => {
+            let s =
+              String.map(c => c == '\n' ? ' ' : c, RE.print_exp(ob.display_goal));
+            Str.string_match(Str.regexp(".*rev"), s, 0);
+          },
+          pending,
+        ),
+      );
     }),
     positive("concat", wit(~decls="", ~ty="[Int]", ~v="xs @ [1]")),
-    positive(
-      "rebinding_inner_lambda",
+    /* CONTRACT CHANGE (rec-3 ascribed-binder evidence; compatibility table
+       in docs): originally `positive(...)`. The inner `(fun (r : Int) ->
+       r)(r(t))` ascribes an application result, which has no evident
+       type, so the beta step fails closed. */
+    pending(
+      "rebinding_inner_lambda_ascribed_binder_limitation",
       wit(
         ~decls="let r = fun xs -> case xs | [] => 0 | _ :: t => (fun (r : Int) -> r)(r(t)) end in\n",
         ~ty="Int",

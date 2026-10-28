@@ -62,29 +62,31 @@ let repro_group = () => {
 
 /* --- status mapping (§3.1's third outcome) --------------------------- */
 
-/* The four statuses get four distinct chip classes; ProvenModulo is
- * neither the proven nor the incomplete one. */
+/* CONTRACT CHANGE (D56 gaps, standardness completion): originally
+ * ProvenModulo had its own green-tinted `modulo` class, distinct from
+ * Incomplete. A proof with pending conditions is not proven, so it now
+ * takes the not-proven `unknown` chip; it is still never the proven one. */
 let test_status_classes_distinct = () => {
   let cls = ObligationsPanel.status_class;
   str_check("Proven", "true", cls(ProofMap.Proven));
   str_check("Refuted", "false", cls(ProofMap.Refuted));
   str_check("Incomplete", "unknown", cls(ProofMap.Incomplete));
-  str_check("ProvenModulo", "modulo", cls(ProofMap.ProvenModulo([])));
+  str_check("ProvenModulo", "unknown", cls(ProofMap.ProvenModulo([])));
   bool_check(
     "Refuted is distinct from Incomplete",
     true,
     cls(ProofMap.Refuted) != cls(ProofMap.Incomplete),
   );
   bool_check(
-    "ProvenModulo is distinct from Proven and Incomplete",
+    "ProvenModulo is never the proven chip",
     true,
-    cls(ProofMap.ProvenModulo([])) != cls(ProofMap.Proven)
-    && cls(ProofMap.ProvenModulo([])) != cls(ProofMap.Incomplete),
+    cls(ProofMap.ProvenModulo([])) != cls(ProofMap.Proven),
   );
 };
 
-/* The label carries the asterisk and the pending count, singular or
- * plural. */
+/* CONTRACT CHANGE (D56): originally "proven* (N pending obligation[s])".
+ * The label now says not proven and quietly counts pending conditions,
+ * singular or plural. */
 let test_status_labels = () => {
   let (_, _, g) = repro_group();
   let pending = List.filter(Obligation.is_pending, g.proof);
@@ -97,19 +99,19 @@ let test_status_labels = () => {
   );
   str_check(
     "one pending",
-    "proven* (1 pending obligation)",
+    "not proven: 1 pending condition",
     ObligationsPanel.status_label(ProvenModulo(pending)),
   );
   str_check(
     "two pending",
-    "proven* (2 pending obligations)",
+    "not proven: 2 pending conditions",
     ObligationsPanel.status_label(ProvenModulo(pending @ pending)),
   );
 };
 
 /* End to end: the repro theorem's goal reaches `true` but one obligation
  * is pending, so the chip is the ProvenModulo one — while the legacy
- * bool status (which `Theorems.get_score` still grades on) is unchanged
+ * bool status (no longer what `Theorems.get_score` grades on, D56) is unchanged
  * at `Some(true)`. */
 let test_repro_status_is_proven_modulo = () => {
   let (pm, proof, _) = repro_group();
