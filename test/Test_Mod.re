@@ -145,4 +145,50 @@ let parts_tests = {
   );
 };
 
-let tests = [member_tests, bound_names_tests, parts_tests];
+let of_exp_tests = {
+  let id = testable(Fmt.using(Id.show, Fmt.string), Id.equal);
+  (
+    "Mod.of_exp",
+    [
+      test_case(
+        "a menhir-parsed bare expression item is its expression",
+        `Quick,
+        () => {
+          let (exp, _) =
+            MenhirParser.Conversion.Exp.get_indicated_ids(
+              MenhirParser.Conversion.Exp.of_menhir_ast(
+                MenhirParser.Interface.parse_program("{ let x = 1; x + 1 }"),
+              ),
+            );
+          let item_and_exp_ids =
+            switch (exp.term) {
+            | Module(items) =>
+              List.filter_map(
+                (item: Mod.t) =>
+                  switch (item.term) {
+                  | ModExp(e) => Some((Mod.rep_id(item), Exp.rep_id(e)))
+                  | _ => None
+                  },
+                items,
+              )
+            | _ => []
+            };
+          check(
+            bool,
+            "there is a bare expression item",
+            false,
+            List.is_empty(item_and_exp_ids),
+          );
+          check(
+            list(pair(id, id)),
+            "shared ids",
+            List.map(((i, _)) => (i, i), item_and_exp_ids),
+            item_and_exp_ids,
+          );
+        },
+      ),
+    ],
+  );
+};
+
+let tests = [member_tests, bound_names_tests, parts_tests, of_exp_tests];

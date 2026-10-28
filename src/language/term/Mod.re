@@ -18,6 +18,10 @@ let rep_id: t => Id.t = IdTagged.rep_id;
 
 let fresh: term => t = IdTagged.fresh;
 
+/* A bare expression item is its expression: they share ids. */
+let of_exp = (e: TermBase.Exp.t): t =>
+  IdTagged.mk_internal(IdTagged.ids(e), ModExp(e): term);
+
 let hole = (tms: list(TermBase.Any.t)): TermBase.Mod.term =>
   switch (tms) {
   | [] => EmptyHole

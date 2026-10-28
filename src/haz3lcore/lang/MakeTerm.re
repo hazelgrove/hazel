@@ -125,8 +125,8 @@ let rec flatten_mod = (m: TermBase.Mod.t): list(TermBase.Mod.t) =>
     |> List.map(
          fun
          | Grammar.Mod(m) => flatten_mod(m)
-         | Grammar.Exp(e) => [Mod.fresh(ModExp(e))]
-         | other => [Mod.fresh(ModExp(Exp.fresh(MultiHole([other]))))],
+         | Grammar.Exp(e) => [Mod.of_exp(e)]
+         | other => [Mod.of_exp(Exp.fresh(MultiHole([other])))],
        )
     |> List.flatten
   | ModLet(_, _)

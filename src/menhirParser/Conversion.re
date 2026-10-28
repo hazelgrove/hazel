@@ -454,6 +454,18 @@ module rec Exp: {
         },
         indicated_exp,
       );
+    let e =
+      Exp.map_term(
+        ~f_mod=
+          (cont, item) => {
+            let item = cont(item);
+            switch (item.term) {
+            | ModExp(e) => Mod.of_exp(e)
+            | _ => item
+            };
+          },
+        e,
+      );
     let ids = Dynarray.to_list(indicated_ids);
     (e, ids);
   };
