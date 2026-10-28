@@ -662,6 +662,29 @@ let co_ctx_of_closed_run = (goal: Exp.t): CoCtx.t => {
 
 let is_closed = (goal: Exp.t): bool => co_ctx_of_closed_run(goal) == [];
 
+/* D66: automatic evaluation never runs a fixpoint. After env-inlining,
+ * every recursive function a goal can call is a `FixF` node in it
+ * (written in the goal, a user closure's, or a builtin's), so a `FixF`
+ * anywhere in a closed goal keeps channel 2 from taking any step: the
+ * goal stays Pending. Channel 1 (fact lookup) and explicit steps (`eval`,
+ * `contradiction`) are unaffected. (Reused verbatim from bf2f20de.) */
+let has_fixpoint = (goal: Exp.t): bool => {
+  let found = ref(false);
+  let _: Exp.t =
+    Exp.map_term(
+      ~f_exp=
+        (continue, e) =>
+          switch (Exp.term_of(e)) {
+          | FixF(_) =>
+            found := true;
+            e;
+          | _ => continue(e)
+          },
+      goal,
+    );
+  found^;
+};
+
 let rec eval_via_step = (~step: step_fn, ~env, ~fuel: int, e: Exp.t): Exp.t =>
   if (fuel <= 0) {
     e;
@@ -680,7 +703,7 @@ let discharge_goal =
   switch (lookup_fact(ctx, goal)) {
   | Some(fact_id) => Obligation.Remote(fact_id)
   | None =>
-    if (is_closed(goal)) {
+    if (is_closed(goal) && !has_fixpoint(goal)) {
       let result =
         eval_via_step(
           ~step,
@@ -1158,6 +1181,39 @@ let rec fun_param_syntactic =
 
 /* `Some(domain)` when `goal` is `l == r` at an arrow type; the two sides
  * come back too, so the caller can build the pointwise `l(x) == r(x)`. */
+/* D80 (S′) has functional extensionality ONLY at first-order argument
+ * types. A domain is first-order when, after normalization, it is built
+ * from atoms, lists, tuples/labelled tuples and sums of first-order
+ * payloads (recursive types through their own bound variable). Arrows,
+ * unknown/hole types, polymorphism and unresolved type variables fail
+ * closed. */
+let first_order_domain = (tyctx: Ctx.t, ty: Typ.t): bool => {
+  let rec go = (bound: list(string), t: Typ.t) =>
+    switch (Typ.term_of(t)) {
+    | Atom(_)
+    | Label(_)
+    | ExplicitNonlabel => true
+    | Parens(t)
+    | List(t) => go(bound, t)
+    | TupLabel(_, t) => go(bound, t)
+    | Prod(ts) => List.for_all(go(bound), ts)
+    | Sum(variants) =>
+      List.for_all(
+        v =>
+          switch (v) {
+          | ConstructorMap.Variant(_, _, None) => true
+          | ConstructorMap.Variant(_, _, Some(t)) => go(bound, t)
+          | ConstructorMap.BadEntry(_) => false
+          },
+        variants,
+      )
+    | Rec({term: Var(a), _}, body) => go([a, ...bound], body)
+    | Var(a) => List.mem(a, bound)
+    | _ => false
+    };
+  go([], Typ.normalize(tyctx, ty));
+};
+
 let rec funext_goal =
         (~info_map: Statics.Map.t, ~env: Environment.t(Exp.t), goal: Exp.t)
         : option((Exp.t, Exp.t, Typ.t)) =>
@@ -1497,6 +1553,15 @@ let var_names = (e: Exp.t): list(Var.t) => {
    standard when its (typed, single) parameter is (std_fun). Builtins,
    division, `==` at unknown type, constructors, closures and everything
    else are NOT standard by this rule. */
+let rec evident_first_order = (e: Exp.t): bool =>
+  switch (e.term) {
+  | Parens(e) => evident_first_order(e)
+  | Atom(_)
+  | BinOp(Int(_) | Bool(_), _, _)
+  | UnOp(_, _) => true
+  | _ => false
+  };
+
 let rec std_structural = (ctx: SemanticCtx.t, e: Exp.t): bool => {
   let go = std_structural(ctx);
   switch (e.term) {
@@ -1514,9 +1579,35 @@ let rec std_structural = (ctx: SemanticCtx.t, e: Exp.t): bool => {
       a,
       b,
     )
-  | BinOp(Bool(And | Or), a, b) => go(a) && go(b)
+  | BinOp(Bool(And | Or | Implies), a, b) => go(a) && go(b)
+  /* `==` / `!=` on standard operands at an EVIDENTLY first-order type:
+     one side is a literal or an Int/Bool computation, which fixes the
+     type (two bare variables could be functions: fail closed). */
+  | BinOp(Poly(Equals | NotEquals), a, b)
+      when evident_first_order(a) || evident_first_order(b) =>
+    go(a) && go(b)
+  /* Forward std_all / std_ex (D81, one-way): `!!(forall x. P)` and
+     `!!(exists x. P)` from `forall x. !!P`, derived here structurally for
+     the body with the (typed, single) binder standard. Never the
+     converse; no rewrite of the quantified proposition itself. */
+  | Forall(p, body)
+  | Exists(p, body) =>
+    switch (single_binder(p)) {
+    | Some((x, Some(_))) =>
+      std_structural(
+        SemanticCtx.add_entry(ctx, Id.mk(), x, Typ.fresh(Unknown(Internal)), None)
+        |> SemanticCtx.mark_standard(_, [x]),
+        body,
+      )
+    | _ => false
+    }
   | UnOp(Int(Minus), a)
   | UnOp(Bool(Not), a) => go(a)
+  /* Kernel std_fun application: a standard function applied to a
+     standard argument is standard. The head must itself be shown
+     standard (a quantified/obtained function, or a lambda by std_fun);
+     builtins and fixpoints are not, so they fail closed. */
+  | Ap(Forward, f, arg) => go(f) && go(arg)
   | Fun(p, body, _, _) =>
     switch (single_binder(p)) {
     | Some((x, Some(_))) =>
@@ -1528,6 +1619,79 @@ let rec std_structural = (ctx: SemanticCtx.t, e: Exp.t): bool => {
     | _ => false
     }
   | _ => false
+  };
+};
+
+/* The fact ids of the in-scope facts that are NOT captured, through the
+   same capture-aware entries `axiom` uses (ProofCtx.of_theorem_ctx lists
+   exactly the theorem entries with a statement, in the same
+   innermost-first order as SemanticCtx.facts). */
+let uncaptured_fact_id = (ctx: SemanticCtx.t, goal: Exp.t): option(Id.t) => {
+  /* Grouping parentheses carry no meaning (`!!(…)` needs them in the
+     written premise); they are removed on both sides before comparing. */
+  let drop_parens = (e: Exp.t): Exp.t =>
+    Exp.map_term(
+      ~f_exp=
+        (continue, e: Exp.t) =>
+          switch (e.term) {
+          | Parens(inner) => continue(inner)
+          | _ => continue(e)
+          },
+      e,
+    );
+  let goal = drop_parens(strip_eq_true(goal));
+  let facts = SemanticCtx.facts(ctx);
+  let pctx =
+    ProofCtx.of_theorem_ctx(~builtins=[], SemanticCtx.get_ctx(ctx));
+  let rec zip = (fs, ps) =>
+    switch (fs, ps) {
+    | ([(_, id, fact), ...fs], [(p: ProofCtx.entry), ...ps]) =>
+      !p.is_captured
+      && Exp.fast_equal(drop_parens(strip_eq_true(fact)), goal)
+        ? Some(id) : zip(fs, ps)
+    | _ => None
+    };
+  zip(facts, pctx);
+};
+
+/* The shared standardness side condition `!!e` (witness exI, assume
+   D47/D51 gate). Channels, in order: an in-scope fact or closed
+   evaluation (`discharge_goal`, closed channel under the D66 no-FixF
+   gate); for `forall`/`exists`, an uncaptured in-scope PREMISE
+   `forall x. !!P` stating the body's standardness (forward std_all /
+   std_ex, one-way); the structural rules. Otherwise Pending — never
+   assumed. `ctx` is the context the condition is checked in (for an
+   assume gate, the one BEFORE the assumption). */
+let standardness_obligation =
+    (
+      ~step: step_fn,
+      ~ctx: SemanticCtx.t,
+      ~origin: Id.t,
+      ~display: Exp.t,
+      e: Exp.t,
+    )
+    : Obligation.t => {
+  let goal = Exp.fresh(Valued(e));
+  let premise =
+    switch (strip_parens_exp(e).term) {
+    | Forall(p, body)
+    | Exists(p, body) =>
+      uncaptured_fact_id(ctx, Exp.fresh(Forall(p, Exp.fresh(Valued(body)))))
+    | _ => None
+    };
+  let discharge =
+    switch (discharge_goal(~step, ~ctx, goal), premise) {
+    | (Obligation.Pending, Some(fact_id)) => Obligation.Remote(fact_id)
+    | (Obligation.Pending, None) =>
+      std_structural(ctx, e) ? Obligation.Structural : Obligation.Pending
+    | (d, _) => d
+    };
+  Obligation.{
+    origin,
+    bindings: SemanticCtx.get_ctx(ctx).entries,
+    goal,
+    display_goal: Exp.fresh(Valued(display)),
+    discharge,
   };
 };
 
@@ -1612,22 +1776,14 @@ let witness_step =
              * actual discharge: an in-scope fact, closed evaluation of
              * `!!v` (dep-B valued_reduct), or the structural rules above.
              * Never inferred from the binder's type. */
-            let std_goal = Exp.fresh(Valued(v_sub));
-            let discharge =
-              switch (discharge_goal(~step, ~ctx, std_goal)) {
-              | Obligation.Pending =>
-                std_structural(ctx, v_sub)
-                  ? Obligation.Structural : Obligation.Pending
-              | d => d
-              };
             let standard = [
-              Obligation.{
-                origin,
-                bindings: SemanticCtx.get_ctx(ctx).entries,
-                goal: std_goal,
-                display_goal: Exp.fresh(Valued(v)),
-                discharge,
-              },
+              standardness_obligation(
+                ~step,
+                ~ctx,
+                ~origin,
+                ~display=v,
+                v_sub,
+              ),
             ];
             /* A function-valued witness is spliced in parenthesized so the
                instantiated body reads back as `(fun k -> k)(1)`, not
@@ -2005,6 +2161,19 @@ let rec check =
       | Some(goal) =>
         switch (funext_goal(~info_map, ~env, goal)) {
         | None => (incoming, ctx, [ProofMark.ExpectedFunEqGoal])
+        | Some((_, _, domain))
+            when !first_order_domain(SemanticCtx.get_ctx(ctx), domain) => (
+            incoming,
+            ctx,
+            [
+              refused(
+                "funext-domain",
+                "Functional extensionality is only available at first-order argument types (D80); this domain is "
+                ++ Typ.pretty_print(domain)
+                ++ ".",
+              ),
+            ],
+          )
         | Some((l, r, domain)) =>
           /* The binder must be something we can actually bind, else the
            * pointwise goal would mention a name nothing introduces. */
@@ -2087,12 +2256,17 @@ let rec check =
     let intro_consequent =
       switch (incoming) {
       | Some(goal) =>
-        switch (goal |> Exp.term_of) {
+        /* Grouping parentheses are transparent (as for every other
+         * peeling site, and as October's D47/D51 gate reads the goal):
+         * `A ==> (B ==> C)` introduces B at the inner step. */
+        switch (strip_parens_exp(goal) |> Exp.term_of) {
         | BinOp(Bool(Implies), a, b)
             when
               Exp.fast_equal(
-                a |> Substitution.in_exp(SemanticCtx.get_env(ctx)),
-                hyp,
+                strip_parens_exp(
+                  a |> Substitution.in_exp(SemanticCtx.get_env(ctx)),
+                ),
+                strip_parens_exp(hyp),
               ) =>
           Some(b)
         | _ => None
@@ -2103,7 +2277,15 @@ let rec check =
      * hypothesis is added, so an assume never discharges itself). */
     let obligations =
       switch (intro_consequent) {
-      | Some(_) => []
+      /* D47/D51: introducing `P ==> Q` needs `!!P` (material implication
+       * is only sound for a standard antecedent; Curry). Recorded as a
+       * real obligation, checked in the PRE-assumption context `ctx` —
+       * the new hypothesis can never discharge its own gate — and
+       * accepted even when unresolved: it then stays Pending and the
+       * theorem cannot be plain Proven. */
+      | Some(_) => [
+          standardness_obligation(~step, ~ctx, ~origin=id, ~display=e, hyp),
+        ]
       | None => [
           Obligation.{
             origin: id,

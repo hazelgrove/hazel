@@ -521,7 +521,7 @@ let tests = (
       check(list(string), "not exists", ["witness"], refused_rules(node(o2, "w", RelEqBy)));
       check(bool, "not Proven", false, full(o2, "w") == "Proven");
     }),
-    test_case("obtain: fresh x and h : P[x], Proven (under the BASELINE ungated assume; not D47/D51 evidence)", `Quick, () => {
+    test_case("obtain: fresh x and h : P[x], Proven (assume gate !!(exists n -> n == 5) now discharged structurally)", `Quick, () => {
       let o = observe("obtain_ok", obtain_ok);
       valid("obtain_ok", o);
       check(list(string), "obtain accepted", [], refused_rules(node(o, "t", Obtain)));
