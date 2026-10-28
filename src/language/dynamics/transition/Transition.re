@@ -246,19 +246,57 @@ module Transition = (EV: EV_MODE) => {
      traverse sub-expressions, which (a) is wasteful and (b) causes spurious probe samples
      when indeterminate return values from recursive calls are re-traversed at wrong call
      stack depths. See Test_Evaluator_Probes "Recursive indet" tests. */
+  /* Whether a final form still needs its environment. A function always
+     does: applying it reads its closure. Anything else does only while it
+     mentions a variable `env` binds (a stuck `case … => x end`), outside
+     any nested closure, which binds its own. Mentions ignore shadowing,
+     which can only keep a closure that could have gone.
+
+     Both wrapping and dropping a closure ask this same question, so a
+     closure that was dropped is never added back when its body is
+     evaluated again: no wrap/unwrap loop. */
+  let needs_env = (env: Environment.t(Exp.t), expr: DHExp.t): bool =>
+    switch (DHExp.term_of(expr)) {
+    | Fun(_)
+    | TypFun(_) => true
+    /* A closure carries the env its body needs (`let` steps to one that
+       extends this env), so it never needs an enclosing one. */
+    | Closure(_) => false
+    | _ =>
+      exception Mentions;
+      switch (
+        TermBase.Exp.map_term(
+          ~f_exp=
+            (continue, e: Exp.t) =>
+              switch (e.term) {
+              | Var(x) when Environment.lookup(env, x) != None =>
+                raise(Mentions)
+              | Closure(_) => e
+              | _ => continue(e)
+              },
+          expr,
+        )
+      ) {
+      | _ => false
+      | exception Mentions => true
+      };
+    };
+
+  /* `in_closure` is true for the immediate body of a closure: that closure
+     already holds this env, and keeps itself if the body needs it, so the
+     body doesn't wrap a second one. */
   let wrap_closure_when_done = (~in_closure, expr, env, r: rule) =>
     switch (in_closure, r) {
     | (_, Step(_)) => r
-    | (None, Constructor | Indet | Value) =>
+    | (Some(true), Constructor | Indet | Value) => r
+    | (_, Constructor | Indet | Value) when !needs_env(env, expr) => r
+    | (_, Constructor | Indet | Value) =>
       Step({
         expr: closure(env, expr),
         side_effects: [],
         kind: WrapClosure,
         is_value: true,
       })
-    | (Some(f), Constructor | Indet | Value) =>
-      f();
-      r;
     };
 
   /* Extract function name from a function expression (including closures).
@@ -453,7 +491,7 @@ module Transition = (EV: EV_MODE) => {
   let transition =
       (
         req:
-          (~in_closure: unit => unit=?, Environment.t(Exp.t), DHExp.t) =>
+          (~in_closure: bool=?, Environment.t(Exp.t), DHExp.t) =>
           EV.inner_result,
         ~mode: [
            | `Substitution
@@ -559,7 +597,8 @@ module Transition = (EV: EV_MODE) => {
         });
       };
 
-    | Theorem({term: Var(n), _} as dp, e, d1) =>
+    | Theorem(dp, e, d1) when Pat.theorem_binder(dp) != None =>
+      let n = Option.get(Pat.theorem_binder(dp));
       let. _ = otherwise(env, d);
       let e' = Substitution.in_exp(env, e);
       let env' = Environment.extend(env, (n, generated(ProofObject(e'))));
@@ -588,8 +627,13 @@ module Transition = (EV: EV_MODE) => {
       switch (mode) {
       | `Substitution => Value
       | `Environment =>
+        /* The proof is a value, but its body still names the environment:
+           step to the substituted body (already computed for the record),
+           as Substitution mode does, or `let y = () in proof_object y end`
+           big-steps to `proof_object y end` and small-steps to
+           `proof_object () end`. */
         Step({
-          expr: d,
+          expr: ProofObject(e') |> rewrap,
           side_effects: [
             RecordTheorem(DHExp.rep_id(d), "<anon theorem>", env, e'),
           ],
@@ -1203,19 +1247,17 @@ module Transition = (EV: EV_MODE) => {
         Indet;
       };
     | Closure(env', d) =>
-      // HACK [Matt] This ref is a hack to ensure that we don't get into an infinite loop
-      // where we keep deleting and re-adding closures around forms that need closures
-      // e.g. functions.
-      let needs_closure = ref(false);
-      let in_closure = () => needs_closure := true;
+      /* The body is evaluated as this closure's (in_closure), so it doesn't
+         wrap its own; once it is final, the closure stays exactly when the
+         body needs env' (see needs_env), and is dropped otherwise. */
       let. _ = otherwise(env, d => Closure(env', d) |> rewrap)
       and. d' =
         req_final(
-          req(~in_closure, env'),
+          req(~in_closure=true, env'),
           d1 => Closure(env', d1) |> wrap_ctx,
           d,
         );
-      if (needs_closure^ || mode == `Substitution) {
+      if (mode == `Substitution || needs_env(env', d')) {
         Constructor;
       } else {
         Step({
