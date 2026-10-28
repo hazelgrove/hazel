@@ -1928,7 +1928,18 @@ and Stepper: {
       emit_wrapping_form(~arg_focus=FunextStep(Arg()), funext_term(~binder))
     | AddInduction(scrut) => emit(induction_term(~scrut))
     | AddAxiomStep(_name, at_idx, at_exp, direction, equality) =>
-      emit(axiom_step_term(~at_idx, ~at_exp, ~direction, ~equality))
+      /* R-reset-list-step-0116-5: quote the selected node as the eval
+       * writer does (R-2), so a lambda/fix head is parenthesised and the
+       * written `on` target reads back as the same node; the index was
+       * computed on the unquoted node. */
+      emit(
+        axiom_step_term(
+          ~at_idx,
+          ~at_exp=MissingStep.Update.quote_selector(at_exp),
+          ~direction,
+          ~equality,
+        ),
+      )
     | AddAlgebriteStep(at_idx, at_exp, with_exp) =>
       emit(algebrite_step_term(~at_idx, ~at_exp, ~with_exp))
     | AddAssume(exp) =>

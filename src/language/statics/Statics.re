@@ -4959,25 +4959,55 @@ and proof_to_info_map =
       };
     let case_eq_of = (pat: Pat.t): Exp.t =>
       Exp.fresh(BinOp(Poly(Equals), scrut_elab, Exp.of_pat(pat)));
-    let body_ctx_of = (pat_ctx: Ctx.t, pat: Pat.t): Ctx.t =>
-      switch (as_name_var) {
-      | Some(h) =>
+    let body_ctx_of = (pat_ctx: Ctx.t, pat: Pat.t, m: Map.t): Ctx.t => {
+      let ctx =
+        switch (as_name_var) {
+        | Some(h) =>
+          Ctx.extend_theorem(
+            pat_ctx,
+            {
+              name: h,
+              id: IdTagged.rep_id(pat),
+              prop: Some(case_eq_of(pat)),
+            },
+          )
+        | None => pat_ctx
+        };
+      /* Visibility of the checker-installed `ih` (ProofCheck.check_induction):
+         the SAME candidate helper with the same inputs — scrutinee type
+         (the checker reads it back as Map.ty_of of the scrutinee), the
+         pattern, the map after the pattern pass — installed after the case
+         equation, as the checker does. Name only: the statement depends on
+         the goal and is the checker's (prop: None is never read as a fact;
+         see SemanticCtx.facts / ProofCtx.of_theorem_ctx). Where the checker's
+         goal-dependent capture filter drops every candidate, statics still
+         shows the name and the checker marks the citation (fail-closed). */
+      switch (
+        InductiveHypotheses.get_inductive_hypotheses(
+          ~tyctx=ctx,
+          m,
+          scrut_info.ty,
+          pat,
+        )
+      ) {
+      | [] => ctx
+      | [_, ..._] =>
         Ctx.extend_theorem(
-          pat_ctx,
+          ctx,
           {
-            name: h,
+            name: "ih",
             id: IdTagged.rep_id(pat),
-            prop: Some(case_eq_of(pat)),
+            prop: None,
           },
         )
-      | None => pat_ctx
       };
+    };
     let (body_elabs, m) =
       List.fold_left2(
         ((elabs, m), (pat_info: Info.pat, pat), body) => {
           let (_, body_elab, m) =
             any_to_info_map(
-              ~ctx=body_ctx_of(pat_info.ctx, pat),
+              ~ctx=body_ctx_of(pat_info.ctx, pat, m),
               ~ancestors=ancestors_inclusive,
               Proof(body),
               m,

@@ -141,25 +141,53 @@ let checker_marks = (~quote, label, src) => {
 let has = (k, marks) =>
   List.exists(m => switch (Str.search_forward(Str.regexp_string(k), m, 0)) { | _ => true | exception Not_found => false }, marks);
 
+/* Reduced statics fixture: the same program with a SMALL `axiom ih`
+   target written as text (statics does not locate targets). */
+let small_target = (src, target) =>
+  LC.replace_once(~sub="; ?", ~by="; axiom ih at 0 on " ++ target ++ " end", src);
+
+let statics_only = (label, src) => {
+  let t0 = Sys.time();
+  let (st, _) = Test_ProofMap.statics_and_elab(LC.zipper_exp(LC.parse_zipper(src)));
+  let errs = statics_errors(st);
+  observe(
+    Printf.sprintf(
+      "%s STATICS errors: [%s] (cpu %.2fs)",
+      label,
+      String.concat(", ", errs),
+      Sys.time() -. t0,
+    ),
+  );
+  errs;
+};
+
 let tests = (
   "ResetListIHGesture",
   [
-    test_case("STATICS x:: xs (Matt): FreeHypothesis after the ih write", `Quick, () =>
-      statics_verdict("shadow", DR.matt_prefix)
+    /* 0 */ test_case("STATICS prefix (Matt x:: xs, no ih yet)", `Quick, () =>
+      check(bool, "prefix: no FreeHypothesis", false, List.mem("FreeHypothesis", statics_only("prefix-shadow", DR.matt_prefix)))
     ),
-    test_case("STATICS x:: t (control): FreeHypothesis after the ih write", `Quick, () =>
-      statics_verdict("control", control_prefix)
+    /* 1 */ test_case("STATICS reduced: x:: xs, axiom ih on all_lists(xs)", `Quick, () =>
+      check(bool, "reduced-shadow: predicted FreeHypothesis", true, List.mem("FreeHypothesis", statics_only("reduced-shadow", small_target(DR.matt_prefix, "all_lists(xs)"))))
     ),
-    test_case("CHECKER x:: xs, production write: predicted PatternNotFound", `Quick, () =>
+    /* 2 */ test_case("STATICS reduced: x:: t, axiom ih on all_lists(t)", `Quick, () =>
+      check(bool, "reduced-control: predicted FreeHypothesis", true, List.mem("FreeHypothesis", statics_only("reduced-control", small_target(control_prefix, "all_lists(t)"))))
+    ),
+    /* 3 */ test_case("STATICS Matt exact production write (timed)", `Quick, () => {
+      let (_, z1, active) = ih_write(~quote=false, "exact-shadow", DR.matt_prefix);
+      check(bool, "exact-shadow: ih offered", true, List.mem("ih", active));
+      check(bool, "exact-shadow: predicted FreeHypothesis", true, List.mem("FreeHypothesis", statics_only("exact-shadow", LC.zipper_text(z1))));
+    }),
+    /* 4 */ test_case("CHECKER x:: xs production write: predicted PatternNotFound", `Quick, () =>
       check(bool, "shadow-prod: PatternNotFound", true, has("PatternNotFound", checker_marks(~quote=false, "shadow-prod", DR.matt_prefix)))
     ),
-    test_case("CHECKER x:: xs, quoted write: predicted no checker marks", `Quick, () =>
+    /* 5 */ test_case("CHECKER x:: xs quoted write: predicted no checker marks", `Quick, () =>
       check(list(string), "shadow-quoted: checker marks", [], checker_marks(~quote=true, "shadow-quoted", DR.matt_prefix))
     ),
-    test_case("CHECKER x:: t, production write: predicted PatternNotFound", `Quick, () =>
+    /* 6 */ test_case("CHECKER x:: t production write: predicted PatternNotFound", `Quick, () =>
       check(bool, "control-prod: PatternNotFound", true, has("PatternNotFound", checker_marks(~quote=false, "control-prod", control_prefix)))
     ),
-    test_case("CHECKER x:: t, quoted write: predicted no checker marks", `Quick, () =>
+    /* 7 */ test_case("CHECKER x:: t quoted write: predicted no checker marks", `Quick, () =>
       check(list(string), "control-quoted: checker marks", [], checker_marks(~quote=true, "control-quoted", control_prefix))
     ),
   ],

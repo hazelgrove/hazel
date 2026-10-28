@@ -22,6 +22,7 @@ let (suite, _) =
       Test_ResetListCaseStep.tests,
       Test_ResetListDemoRepairs.tests,
       Test_ResetListIHGesture.tests,
+      Test_ResetIHStaticsScope.tests,
       Test_CsvUtil.tests,
       Test_Grammar.tests,
       Test_Abbreviate.tests,
