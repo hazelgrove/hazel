@@ -143,6 +143,61 @@ let tests = (
         };
       },
     ),
+    /* The item is rendered as its expression, so the step highlights that;
+       the stepper refreshes every id after a step, so the comparison is
+       within one state. */
+    test_case(
+      "Discarding a bare expression item is anchored on the expression",
+      `Quick,
+      () => {
+        let discard_step = exp =>
+          steps(exp)
+          |> List.find_opt(step =>
+               switch (EvaluatorStep.get_step_kind(step)) {
+               | ModuleDiscardExp => true
+               | _ => false
+               }
+             );
+        let rec to_discard = (fuel, exp) =>
+          switch (discard_step(exp), steps(exp)) {
+          | (Some(step), _) => Some((exp, step))
+          | (None, [first, ..._]) when fuel > 0 =>
+            Option.bind(
+              EvaluatorStep.take_step(first),
+              to_discard(fuel - 1),
+            )
+          | (None, _) => None
+          };
+        switch (
+          to_discard(
+            10,
+            elaborate(parse_exp({|{ let a = 1; a + 1; let b = 2 }|})),
+          )
+        ) {
+        | Some((exp, step)) =>
+          let expression_id =
+            switch (Exp.term_of(exp)) {
+            | Module(items) =>
+              List.find_map(
+                (item: Mod.t) =>
+                  switch (item.term) {
+                  | ModExp(e) => Some(Exp.rep_id(e))
+                  | _ => None
+                  },
+                items,
+              )
+            | _ => None
+            };
+          check(
+            option(id),
+            "the expression item",
+            expression_id,
+            Some(EvaluatorStep.get_step_id(step)),
+          );
+        | None => fail("expected a discard step")
+        };
+      },
+    ),
     /* Binding `N` and then `z` before `N`'s body is evaluated substitutes
        the body into `z`, so the same pending item appears twice. The stepper
        selects a step by id, so each copy's step needs its own. */
@@ -224,10 +279,13 @@ let tests = (
               EvaluatorStep.take_step(first) |> Option.iter(go(fuel - 1));
             };
           };
-        go(
-          20,
-          elaborate(parse_exp({|{ (); let x = 1 + 1; let y = x * 2 }|}))
-          |> Exp.replace_all_ids,
+        List.iter(
+          source =>
+            go(20, elaborate(parse_exp(source)) |> Exp.replace_all_ids),
+          [
+            {|{ (); let x = 1 + 1; let y = x * 2 }|},
+            {|{ let x = 1 + 1; (); let y = x * 2 }|},
+          ],
         );
       },
     ),

@@ -1461,7 +1461,7 @@ module Transition = (EV: EV_MODE) => {
         switch (item.term) {
         | ModExp(d1) =>
           let. _ = otherwise(env, d1 => rebuild(Mod.with_def(item, d1)))
-          and. _ =
+          and. d1' =
             req_final(
               req(env),
               d1 => ModuleItem(prefix, item, d1, suffix) |> wrap_ctx,
@@ -1472,9 +1472,8 @@ module Transition = (EV: EV_MODE) => {
             side_effects: [],
             kind: ModuleDiscardExp,
             is_value: List.is_empty(suffix),
-            /* A bare expression item has no syntax of its own; the step
-               stays on the module. */
-            at: None,
+            /* The item is rendered as its expression. */
+            at: Some(DHExp.rep_id(d1')),
           });
         | ModLet(dp, d1) => bind(dp, d1)
         /* Elaboration turns a `module` item into a `let` item, as
