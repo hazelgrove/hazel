@@ -773,7 +773,7 @@ let tests = (
     ),
     test_case("Implies_E (modus ponens)", `Quick, test_implies_e_correct),
     test_case("Falsity_E correct", `Quick, test_falsity_e_correct),
-    /* rule_set membership */
+    /* substitution under binders / glb on recursive types */
     test_case(
       "E_Case_L: inner case rebinding x",
       `Quick,
@@ -800,6 +800,7 @@ let tests = (
       `Quick,
       test_s_if_gt_rec_branches,
     ),
+    /* rule_set membership */
     test_case(
       "PropositionalLogic rule_set membership",
       `Quick,

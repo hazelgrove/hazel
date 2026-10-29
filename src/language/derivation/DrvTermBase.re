@@ -572,7 +572,8 @@ and Typ: {
     let is_shadow = (p: tpat_t) =>
       switch (IdTagged.term_of(p)) {
       | Var(x') => String.equal(x', x)
-      | _ => false
+      | Hole(_)
+      | Quote(_) => false
       };
     let subst' = p => is_shadow(p) ? Fun.id : subst;
     switch (term) {
