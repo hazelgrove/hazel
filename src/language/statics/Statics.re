@@ -268,7 +268,10 @@ and uexp_to_info_map =
     (info, elab_term, add_info(IdTagged.ids(user_term), InfoExp(info), m));
   };
   let ancestors_inclusive = [Exp.rep_id(uexp)] @ ancestors;
-  let ancestors = (); // Deliberately shadowed so there's no risk of using it by mistake
+  // Deliberately shadowed so there's no risk of using it by mistake. Nothing
+  // reads it, which is the point, so it is exempt from the unused warning.
+  [@warning "-26"]
+  let ancestors = ();
   let go =
       (
         ~ctx=ctx,
@@ -1823,7 +1826,7 @@ and uexp_to_info_map =
         CustomStatics.custom_statics_deferred_ap(
           ~elab_term=DeferredAp(fn_elab, args) |> rewrap,
           ~ctx,
-          ~ancestors,
+          ~ancestors=ancestors_inclusive,
           ~fn_info=fn,
           kind,
           (module
