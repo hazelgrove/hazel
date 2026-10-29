@@ -266,30 +266,21 @@ module Make =
   };
 };
 
-let introduce = (ci: option(Info.t), z: Zipper.t) => {
+let introduce = (ci: option(Info.t), z: Zipper.t) =>
   switch (ci) {
-  | None => None
-  | Some(
-      InfoExp({
-        cls: Exp(EmptyHole),
-        message: Exp(Common(Ana(Consistent({ana, _})))),
-        ctx,
-        _,
-      }),
-    ) =>
-    module IE = Make(IntroduceExp);
-    IE.introduce(z, Typ.weak_head_normalize(ctx, ana), ctx);
-
-  | Some(
-      InfoPat({
-        cls: Pat(EmptyHole),
-        message: Pat(Common(Ana(Consistent({ana, _})))),
-        ctx,
-        _,
-      }),
-    ) =>
-    module IP = Make(IntroducePat);
-    IP.introduce(z, Typ.weak_head_normalize(ctx, ana), ctx);
+  | Some(InfoExp({cls: Exp(EmptyHole), ctx, _}) as info) =>
+    switch (Info.expected_type(info)) {
+    | None => None
+    | Some(ana) =>
+      module IE = Make(IntroduceExp);
+      IE.introduce(z, Typ.weak_head_normalize(ctx, ana), ctx);
+    }
+  | Some(InfoPat({cls: Pat(EmptyHole), ctx, _}) as info) =>
+    switch (Info.expected_type(info)) {
+    | None => None
+    | Some(ana) =>
+      module IP = Make(IntroducePat);
+      IP.introduce(z, Typ.weak_head_normalize(ctx, ana), ctx);
+    }
   | _ => None
   };
-};

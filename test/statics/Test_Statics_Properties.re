@@ -141,8 +141,9 @@ let qcheck_elaboration_preserves_type_disabled =
    number-literal replacement, constructor ADT resolution, label inference --
    agree on both sides.
 
-   Bare labels are skipped: a bare label has no type outside its enclosing
-   product type. */
+   Label syntax (including the explicit nonlabel marker) is skipped: it has
+   no standalone type outside its enclosing labeled element. The enclosing
+   element and its value are still checked. */
 type syn_disagreement = {
   sub: Language.Exp.t,
   parent_ty: Typ.t,
@@ -168,7 +169,8 @@ let syn_and_elab_of =
 
 let is_bare_label = (e: Language.Exp.t): bool =>
   switch (Exp.term_of(e)) {
-  | Label(_) => true
+  | Label(_)
+  | ExplicitNonlabel => true
   | _ => false
   };
 

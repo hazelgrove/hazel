@@ -31,16 +31,25 @@ let prn = Printf.sprintf;
 let core_mark_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   let ana = Statics.ana_skip_explicit_nonlabel(ana);
   let expectation = (ana: Typ.t, syn: Typ.t) =>
-    prn(
-      "Expecting type %s but got inconsistent type %s",
-      Print.typ(ana),
-      Print.typ(syn),
-    );
+    switch (
+      LabeledTupleStaticsHelpers.shape_mismatch_message(ctx, ~ana, ~syn)
+    ) {
+    | Some(message) => message
+    | None =>
+      prn(
+        "Expecting type %s but got inconsistent type %s",
+        Print.typ(ana),
+        Print.typ(syn),
+      )
+    };
   switch (m) {
   | BadLabel(_)
   | InvalidLabel(_, _) => "Invalid label"
   | DuplicateLabel(_, _) => "Duplicate label"
   | DuplicateVar(_, _) => "Duplicate variable"
+  | TupleLabelError({malformed_labels: [], duplicate_labels: [], typ, _}) =>
+    LabeledTupleStaticsHelpers.shape_mismatch_message(ctx, ~ana, ~syn=typ)
+    |> Option.value(~default="Invalid tuple label")
   | TupleLabelError(_) => "Invalid tuple label"
   | UnexpectedLabelSort(_) => "Unexpected label sort"
   | BadToken(token) => prn("\"%s\" isn't a valid token", token)
