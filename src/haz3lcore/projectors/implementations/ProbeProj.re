@@ -953,8 +953,9 @@ let ap_head = (statics: Language.Statics.Info.t): option(Exp.t) =>
  * latter covers higher-order and partial-application calls. */
 let can_step_into = (statics: Language.Statics.Info.t, sample: Sample.t): bool => {
   let fn_var_name =
-    switch (ap_head(statics)) {
-    | Some({term: Var(name), _}) => Some(name)
+    switch (statics) {
+    | InfoExp({user_term: {term: Ap(_, {term: Var(name), _}, _), _}, _}) =>
+      Some(name)
     | _ => None
     };
   let is_builtin = name =>

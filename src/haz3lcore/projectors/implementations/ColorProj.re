@@ -62,8 +62,8 @@ module Literal = {
      rewrites only the three leaves, under their wrappers, so every id and any
      projector on a component survives. Changing kind replaces the
      constructor token too, and is the only thing that does; the leaves are
-     then written bare, since a projector on an `Int` byte does not carry over
-     to a `Float` channel. */
+     then written bare (each keeping its own id), since a projector on an
+     `Int` byte does not carry over to a `Float` channel. */
   let decompose =
       (e: Language.Exp.t): option((literal, literal => Language.Exp.t)) => {
     let (ap, rewrap_ap) = through_wrappers(e);
@@ -105,8 +105,8 @@ module Literal = {
             ...e,
             term: Atom(v),
           };
-          let set = (orig, leaf, rewrap, v) =>
-            kept ? rewrap(atom(leaf, v)) : atom(orig, v);
+          let set = (leaf, rewrap, v) =>
+            kept ? rewrap(atom(leaf, v)) : atom(leaf, v);
           /* Minted at the call site: a hoisted FreshGrammar id passes statics
              and then faults in `Highlight.of_tile` on a shard mismatch. */
           let ctr = kept ? ctr : rewrap_ctr(C.ctr(name));
@@ -120,9 +120,9 @@ module Literal = {
                   ...tup,
                   term:
                     Tuple([
-                      set(e1, a1, rewrap1, v1),
-                      set(e2, a2, rewrap2, v2),
-                      set(e3, a3, rewrap3, v3),
+                      set(a1, rewrap1, v1),
+                      set(a2, rewrap2, v2),
+                      set(a3, rewrap3, v3),
                     ]),
                 }),
               ),

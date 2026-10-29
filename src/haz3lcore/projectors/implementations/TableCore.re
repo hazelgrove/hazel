@@ -59,8 +59,11 @@ let rec normalize_row = (e: Exp.t): Exp.t =>
   | _ => e
   };
 
-let parse_table = (exp: Exp.t): option(table_data) =>
+let rec parse_table = (exp: Exp.t): option(table_data) =>
   switch (exp.term) {
+  /* `^^table(([...]))`: the list itself may sit under Parens or a fold. */
+  | Parens(inner)
+  | Projector(_, inner) => parse_table(inner)
   | ListLit(es) =>
     let data =
       List.map(

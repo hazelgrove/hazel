@@ -135,6 +135,33 @@ let tests = (
   "TableCore.parse_table",
   [
     test_case(
+      "Wrapped list: Parens and a projector around the whole list",
+      `Quick,
+      () => {
+        let list =
+          elaborate_and_find_list({|let t = [(a=1, b=2), (a=3, b=4)] in t|});
+        let (module F) = ProjectorInit.to_module(Fold);
+        let model =
+          switch (F.init(Exp(list))) {
+          | Some(m) => m
+          | None => Alcotest.fail("fold should init on a list")
+          };
+        let wrapped =
+          Language.IdTagged.FreshGrammar.Exp.parens({
+            ...list,
+            term:
+              Projector(
+                {
+                  kind: Fold,
+                  model,
+                },
+                Language.IdTagged.FreshGrammar.Exp.parens(list),
+              ),
+          });
+        assert_table_shape("wrapped list", ["a", "b"], 2, wrapped);
+      },
+    ),
+    test_case(
       "Folded row: the projector is transparent",
       `Quick,
       () => {

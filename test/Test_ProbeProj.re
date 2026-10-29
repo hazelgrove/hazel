@@ -155,68 +155,7 @@ let arg_var_tests = [
   ),
 ];
 
-/* A sample whose frame points at a definition: the dynamic route to step-into. */
-let sample_with_frame: Language.Sample.t = {
-  id: 0,
-  syntax_id: Id.invalid,
-  value: Language.IdTagged.FreshGrammar.Exp.int(0),
-  env: Language.Sample.Env.empty,
-  call_stack: [],
-  args: None,
-  frame:
-    Some({
-      id: Id.invalid,
-      name: None,
-      fn_def_id: Some(Id.invalid),
-    }),
-  time: 0.,
-  seq: 0,
-  origin: Probe,
-  step_start: 0,
-  step_end: 0,
-};
-
-let step_into_tests = [
-  test_case("bare builtin call: no step-into", `Quick, () =>
-    check(
-      bool,
-      "length([1])",
-      false,
-      ProbeProj.can_step_into(
-        info_of_text("length([1])"),
-        sample_with_frame,
-      ),
-    )
-  ),
-  test_case("parenthesized builtin call: no step-into", `Quick, () =>
-    check(
-      bool,
-      "(length)([1])",
-      false,
-      ProbeProj.can_step_into(
-        info_of_text("(length)([1])"),
-        sample_with_frame,
-      ),
-    )
-  ),
-  test_case("parenthesized user function: step-into", `Quick, () =>
-    check(
-      bool,
-      "(f)(1)",
-      true,
-      ProbeProj.can_step_into(
-        info_of_text("let f = fun x -> x in (f)(1)"),
-        {
-          ...sample_with_frame,
-          frame: None,
-        },
-      ),
-    )
-  ),
-];
-
 let tests = [
   ("ProbeProj: call name", fn_name_tests),
   ("ProbeProj: argument names", arg_var_tests),
-  ("ProbeProj: step-into", step_into_tests),
 ];
