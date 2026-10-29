@@ -83,22 +83,6 @@ let extend_dummy_tvar = (ctx: t, tvar: TPat.t) =>
   | None => ctx
   };
 
-/* [tvar]'s variable bound at its own id, for the body of a binder read from
-   the syntax; a hole binds nothing. */
-let extend_tvar_of_utpat = (ctx: t, tvar: TPat.t, kind: kind): t =>
-  switch (TPat.tyvar_of_utpat(tvar)) {
-  | Some(name) =>
-    extend_tvar(
-      ctx,
-      {
-        name,
-        id: TPat.rep_id(tvar),
-        kind,
-      },
-    )
-  | None => ctx
-  };
-
 let lookup_tvar = (ctx: t, name: string): option(kind) =>
   List.find_map(
     fun

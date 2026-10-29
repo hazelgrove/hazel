@@ -4568,7 +4568,7 @@ and utyp_to_info_map =
       );
     add(~ty=Sum(List.rev(closed)) |> rewrap, m);
   | Poly(utpat, tbody) =>
-    let body_ctx = Ctx.extend_tvar_of_utpat(ctx, utpat, Abstract);
+    let body_ctx = Typ.extend_tvar_of_utpat(ctx, utpat, Abstract);
     let (body, m) =
       utyp_to_info_map(
         tbody,
@@ -4594,7 +4594,7 @@ and utyp_to_info_map =
     /* The body is read with the binder standing for the whole type,
        closed, so whatever it expands to is closed. */
     let ty = Typ.close(ctx, utyp);
-    let body_ctx = Ctx.extend_tvar_of_utpat(ctx, utpat, Singleton(ty));
+    let body_ctx = Typ.extend_tvar_of_utpat(ctx, utpat, Singleton(ty));
     let m =
       utyp_to_info_map(
         tbody,

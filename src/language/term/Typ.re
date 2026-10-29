@@ -341,35 +341,6 @@ let rec free_vars =
   };
 };
 
-/* Bind the member declared by a closed signature item, if any. Written
-   items scope sequentially: later items may mention earlier type members,
-   and root paths at earlier modules (`m.T`). */
-let extend_sig_item = (ctx: Ctx.t, item: Sig.t): Ctx.t =>
-  switch (item.term) {
-  | SigType({term: Var(name), _} as tp, ty) =>
-    Ctx.extend_alias(ctx, name, IdTagged.rep_id(tp), ty)
-  | SigLet(_)
-  | SigModule(_) =>
-    switch (Sig.member_of_item(item)) {
-    | Some(Val(name, typ)) =>
-      Ctx.extend(
-        ctx,
-        VarEntry({
-          name,
-          id: IdTagged.rep_id(item),
-          typ,
-          custom_statics: None,
-        }),
-      )
-    | Some(TypeManifest(_))
-    | None => ctx
-    }
-  | SigType(_, _)
-  | Invalid(_)
-  | EmptyHole
-  | MultiHole(_) => ctx
-  };
-
 let var_count = ref(0);
 let fresh_var = (var_name: string) => {
   let x = var_count^;
@@ -827,6 +798,59 @@ let extend_ctx = (ctx: Ctx.t, entry: Ctx.entry): Ctx.t => {
   };
 };
 
+/* Bind the member declared by a closed signature item, if any. Written
+   items scope sequentially: later items may mention earlier type members,
+   and root paths at earlier modules (`m.T`). A member named like an outer
+   alias or module leaves the earlier members' meaning alone. */
+let extend_sig_item = (ctx: Ctx.t, item: Sig.t): Ctx.t =>
+  switch (item.term) {
+  | SigType({term: Var(name), _} as tp, ty) =>
+    extend_ctx(
+      ctx,
+      TVarEntry({
+        name,
+        id: IdTagged.rep_id(tp),
+        kind: Singleton(ty),
+      }),
+    )
+  | SigLet(_)
+  | SigModule(_) =>
+    switch (Sig.member_of_item(item)) {
+    | Some(Val(name, typ)) =>
+      extend_ctx(
+        ctx,
+        VarEntry({
+          name,
+          id: IdTagged.rep_id(item),
+          typ,
+          custom_statics: None,
+        }),
+      )
+    | Some(TypeManifest(_))
+    | None => ctx
+    }
+  | SigType(_, _)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_) => ctx
+  };
+
+/* [tvar]'s variable bound at its own id, for the body of a binder read
+   from the syntax; a hole binds nothing. */
+let extend_tvar_of_utpat = (ctx: Ctx.t, tvar: TPat.t, kind: Ctx.kind): Ctx.t =>
+  switch (TPat.tyvar_of_utpat(tvar)) {
+  | Some(name) =>
+    extend_ctx(
+      ctx,
+      TVarEntry({
+        name,
+        id: TPat.rep_id(tvar),
+        kind,
+      }),
+    )
+  | None => ctx
+  };
+
 /* Value members of a signature whose own type is a signature: the
    sub-modules a type-level path may continue through (`M.P.T`). */
 let sig_module_member_names = (ctx: Ctx.t, items: list(Sig.t)): list(Var.t) => {
@@ -1097,9 +1121,9 @@ let rec close = (ctx: Ctx.t, ty: t): t => {
   | Sum(sm) =>
     Sum(ConstructorMap.map(Option.map(close(ctx)), sm)) |> rewrap
   | Rec(tp, t) =>
-    Rec(tp, close(Ctx.extend_dummy_tvar(ctx, tp), t)) |> rewrap
+    Rec(tp, close(extend_tvar_of_utpat(ctx, tp, Abstract), t)) |> rewrap
   | Poly(tp, t) =>
-    Poly(tp, close(Ctx.extend_dummy_tvar(ctx, tp), t)) |> rewrap
+    Poly(tp, close(extend_tvar_of_utpat(ctx, tp, Abstract), t)) |> rewrap
   | Sig(Open(items)) => Sig(Closed(close_items(ctx, items))) |> rewrap
   /* Already closed: its members are independent, so each is closed alone,
      never re-read as mentioning a sibling. */
@@ -1117,7 +1141,7 @@ and alias_def = (ctx: Ctx.t, tp: TPat.t, def: t): t =>
   switch (TPat.tyvar_of_utpat(tp)) {
   | None => close(ctx, def)
   | Some(name) =>
-    let def = close(Ctx.extend_dummy_tvar(ctx, tp), def);
+    let def = close(extend_tvar_of_utpat(ctx, tp, Abstract), def);
     List.exists(String.equal(name), free_vars(def))
       ? Rec(Var(name) |> TPat.fresh, def) |> temp : def;
   }

@@ -1739,6 +1739,28 @@ let f = fun (x : M.P.U) -> x in f|};
     },
   );
 
+/* Binding a member or a binder named like an outer alias leaves what the
+   earlier members mean alone: both `y.U` are the outer `T`. */
+let test_type_member_named_like_outer_alias_keeps_earlier_paths =
+  fully_consistent_typecheck(
+    "A type member named like an outer alias keeps the earlier members' paths",
+    {|type T = Int in
+module y = { type U = T } in
+let f = fun (m : { let a : y.U; type T = Bool; let b : y.U }) -> m.a + m.b in
+f({ let a = 1; type T = Bool; let b = 2 })|},
+    Some(int()),
+  );
+
+let test_poly_binder_named_like_outer_alias_keeps_paths =
+  fully_consistent_typecheck(
+    "A poly binder named like an outer alias keeps the paths in its body",
+    {|type T = Int in
+module y = { type U = T } in
+let f : poly T -> { let v : y.U } -> Int = typfun T -> fun m -> m.v + 1 in
+f@<Bool>({ let v = 1 })|},
+    Some(int()),
+  );
+
 /* `type T = T` is read as `rec T -> T`; unrolling it makes no progress. */
 let test_self_looping_type_member_is_a_mismatch =
   has_mark_test(
@@ -2255,6 +2277,8 @@ let tests = (
     test_error_sig_module_member_roots_path,
     test_sub_module_path_middle_is_a_module,
     test_self_looping_type_member_is_a_mismatch,
+    test_type_member_named_like_outer_alias_keeps_earlier_paths,
+    test_poly_binder_named_like_outer_alias_keeps_paths,
     test_type_member_matches_through_alias,
     test_type_member_matches_reordered_signature,
     test_self_mentioning_sig_alias,
