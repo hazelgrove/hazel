@@ -2696,7 +2696,7 @@ and uexp_to_info_map =
       let (typ, m) =
         utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, typ, m);
       let use_mode: option(Operators.mode) =
-        switch (typ.user_term |> Typ.weak_head_normalize(ctx) |> Typ.term_of) {
+        switch (typ.ty |> Typ.weak_head_normalize(ctx) |> Typ.term_of) {
         | Atom(Nat) => Some(Nat)
         | Atom(Int) => Some(Int)
         | Atom(Float) => Some(Float)

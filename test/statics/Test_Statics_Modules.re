@@ -191,6 +191,12 @@ let test_unknown_typed_root_is_not_an_error =
     {|let n : ? = 1 in let y : n.T = 2 in y|},
   );
 
+let test_signature_literal_in_use_path =
+  no_marks_test(
+    "A signature literal's type member names a `use` mode",
+    {|use {type T = Int}.T in 1|},
+  );
+
 /* ===== HOLE BINDERS ===== */
 
 /* A hole among the items could still become the members the signature
@@ -2386,5 +2392,6 @@ let tests = (
     test_evaluated_module_binding_recloses_earlier_members,
     test_outer_alias_member_exported_expanded,
     test_type_member_as_value_dot_not_missing,
+    test_signature_literal_in_use_path,
   ],
 );
