@@ -482,6 +482,12 @@ let rec parenthesize =
   let should_auto_wrap_tuple = parenthesization == Defensive;
   let (term, rewrap) = Exp.unwrap(exp);
   switch (term) {
+  /* Implicit polymorphism's type applications and abstractions are, like
+     casts, the elaboration's and not the program's. */
+  | TypAp(e, _)
+  | TypFun(_, e, _)
+      when !show_ascriptions && Id.is_implicit(Exp.rep_id(exp)) =>
+    parenthesize(e)
   // Indivisible forms dont' change
   | Var(_)
   | Invalid(_)

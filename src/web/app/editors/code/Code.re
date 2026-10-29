@@ -96,6 +96,7 @@ let view =
          The default leaves the mold sort unchanged. */
       ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
       ~buffer_ids: list(Id.t),
+      ~hidden_hole: option(Id.t)=None,
       segment: Segment.t,
     ) => {
   module DeferredLinebreaks = Measured.MkDeferredLinebreaks();
@@ -205,6 +206,7 @@ let view =
           | clss => [span(~attrs=[Attr.classes(clss)], nodes)]
           };
         }
+      | Grout(g) when hidden_hole == Some(g.id) => []
       | Grout(g) => [of_grout(g)]
       | Secondary(s) => [of_secondary(s)]
       | Projector(pr) => [of_projector(pr)],
