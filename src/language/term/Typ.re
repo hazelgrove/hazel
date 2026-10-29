@@ -687,8 +687,8 @@ and path_head = (~rec_counter, ctx: Ctx.t, t: t): option(t) =>
       switch (path_head(~rec_counter=rec_counter + 1, ctx, p)) {
       | Some({term: Sig(s), _}) =>
         let members = Sig.closed_members(s);
-        switch (Sig.find_value(members, l)) {
-        | Some(ty) => module_type(ty)
+        switch (Option.bind(Sig.find_value(members, l), module_type)) {
+        | Some(ty) => Some(ty)
         | None =>
           Sig.find_type_def(members, l)
           |> Option.map(head_type(~rec_counter, ctx))
@@ -851,17 +851,19 @@ let extend_tvar_of_utpat = (ctx: Ctx.t, tvar: TPat.t, kind: Ctx.kind): Ctx.t =>
   | None => ctx
   };
 
-/* Value members of a signature whose own type is a signature: the
-   sub-modules a type-level path may continue through (`M.P.T`). */
+/* Members of a signature a type-level path may continue through
+   (`M.P.T`): value members whose type is a signature, and type members
+   defined as one. */
 let sig_module_member_names = (ctx: Ctx.t, items: list(Sig.t)): list(Var.t) => {
   let members = Sig.members(items);
-  Sig.value_names(members)
-  |> List.filter(x =>
-       switch (Sig.find_value(members, x)) {
-       | Some(ty) => Option.is_some(as_sig(ctx, ty))
-       | None => false
-       }
-     );
+  let is_module = ty => Option.is_some(as_sig(ctx, ty));
+  let modules = (names, find) =>
+    List.filter(
+      x => Option.fold(~none=false, ~some=is_module, find(members, x)),
+      names,
+    );
+  modules(Sig.value_names(members), Sig.find_value)
+  @ modules(Sig.type_names(members), Sig.find_type_def);
 };
 
 /* ~expand restricts which alias names get expanded (default: all): a

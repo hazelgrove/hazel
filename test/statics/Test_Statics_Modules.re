@@ -1761,6 +1761,23 @@ f@<Bool>({ let v = 1 })|},
     Some(int()),
   );
 
+/* The middle of a path may be a type member defined as a signature. */
+let test_type_member_signature_continues_path =
+  fully_consistent_typecheck(
+    "A type member defined as a signature continues a path",
+    {|module M = { type S = { type U = Int } } in
+let f = fun (x : M.S.U) -> x + 1 in f(1)|},
+    Some(int()),
+  );
+
+let test_type_member_behind_same_named_value_continues_path =
+  fully_consistent_typecheck(
+    "A path continues through a type member named like a value member",
+    {|let f = fun (m : { let x : Int; type x = { type U = Bool } }) -> fun (y : m.x.U) -> y && true in
+f({ let x = 1; type x = { type U = Bool } })(true)|},
+    Some(bool()),
+  );
+
 /* `type T = T` is read as `rec T -> T`; unrolling it makes no progress. */
 let test_self_looping_type_member_is_a_mismatch =
   has_mark_test(
@@ -2279,6 +2296,8 @@ let tests = (
     test_self_looping_type_member_is_a_mismatch,
     test_type_member_named_like_outer_alias_keeps_earlier_paths,
     test_poly_binder_named_like_outer_alias_keeps_paths,
+    test_type_member_signature_continues_path,
+    test_type_member_behind_same_named_value_continues_path,
     test_type_member_matches_through_alias,
     test_type_member_matches_reordered_signature,
     test_self_mentioning_sig_alias,
