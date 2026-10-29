@@ -64,7 +64,10 @@ let set_local_storage: (string, string) => unit;
 let get_local_storage: string => option(string);
 let set_css_variable: (string, string) => unit;
 let prompt: (string, string) => option(string);
-let font_metrics_from_specimen: unit => (float, float);
+/** The height of #font-specimen's glyph box, rather than its line box. */
+let specimen_text_height: (~default: float) => float;
+/** A column's width, a row's height and its text box's height. */
+let font_metrics_from_specimen: unit => (float, float, float);
 let code_viewport_geometry: unit => option((float, float));
 let on_dpr_change: (unit => unit) => unit;
 module QueryParams: {
