@@ -1087,6 +1087,25 @@ let subst_tests = {
         cs([sv("m", cs([st("T", ti), sv("v", a_to_int)]))]),
         cs([sv("m", cs([st("T", ti), sv("v", t_to_int)]))]),
       ),
+      case(
+        "a variant's payload is substituted into",
+        F.Typ.sum([
+          ConstructorMap.Variant(
+            "A",
+            ConstructorMap.empty_variant_ann,
+            Some(F.Typ.var("a")),
+          ),
+          ConstructorMap.Variant("B", ConstructorMap.empty_variant_ann, None),
+        ]),
+        F.Typ.sum([
+          ConstructorMap.Variant(
+            "A",
+            ConstructorMap.empty_variant_ann,
+            Some(t_var),
+          ),
+          ConstructorMap.Variant("B", ConstructorMap.empty_variant_ann, None),
+        ]),
+      ),
       test_case(
         "subst leaves a signature it touches nothing in equal to itself",
         `Quick,

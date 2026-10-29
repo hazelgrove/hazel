@@ -458,20 +458,7 @@ let rec subst = (~binder: binder=`TVar, s: t, x: TPat.t, ty: t): t =>
       | Arrow(ty1, ty2) => Arrow(go(ty1), go(ty2)) |> rewrap
       | Prod(tys) => Prod(List.map(go, tys)) |> rewrap
       | TupLabel(label, ty) => TupLabel(label, go(ty)) |> rewrap
-      | Sum(sm) =>
-        Sum(
-          List.map(
-            (variant: ConstructorMap.variant(t)) =>
-              switch (variant) {
-              | Variant(ctr, ann, Some(ty)) =>
-                ConstructorMap.Variant(ctr, ann, Some(go(ty)))
-              | Variant(_, _, None)
-              | BadEntry(_) => variant
-              },
-            sm,
-          ),
-        )
-        |> rewrap
+      | Sum(sm) => Sum(ConstructorMap.map(Option.map(go), sm)) |> rewrap
       | Poly(tp2, _)
       | Rec(tp2, _)
           when
