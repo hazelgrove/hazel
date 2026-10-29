@@ -83,19 +83,51 @@ let rec exp_to_pat = (exp: Exp.t): Pat.t => {
   | Invalid(x) => rewrap(Invalid(x))
   | EmptyHole => rewrap(EmptyHole)
   | MultiHole(xs) => rewrap(MultiHole(xs))
-  | Atom(Bool(b)) => rewrap(Atom(Bool(b)))
-  | Atom(Int(i)) => rewrap(Atom(Int(i)))
-  | Atom(Float(f)) => rewrap(Atom(Float(f)))
-  | Atom(String(s)) => rewrap(Atom(String(s)))
+  /* `_` in expression position parses as a deferral */
+  | Deferral(_) => rewrap(Wild)
+  | Atom(a) => rewrap(Atom(a))
   | ListLit(xs) => rewrap(ListLit(List.map(exp_to_pat, xs)))
   | Constructor(c, t) => rewrap(Constructor(c, t))
   | Cons(e1, e2) => rewrap(Cons(exp_to_pat(e1), exp_to_pat(e2)))
   | Var(x) => rewrap(Var(x))
   | Tuple(xs) => rewrap(Tuple(List.map(exp_to_pat, xs)))
+  | Label(l) => rewrap(Label(l))
+  | ExplicitNonlabel => rewrap(ExplicitNonlabel)
+  | TupLabel(l, e) => rewrap(TupLabel(exp_to_pat(l), exp_to_pat(e)))
   | Parens(e) => rewrap(Parens(exp_to_pat(e)))
+  | Projector(data, e) => rewrap(Projector(data, exp_to_pat(e)))
   | Ap(_, e1, e2) => rewrap(Ap(exp_to_pat(e1), exp_to_pat(e2)))
   | Asc(e, t1) => rewrap(Asc(exp_to_pat(e), t1))
-  | _ => MultiHole([Exp(exp)]) |> Pat.fresh
+  | DynamicErrorHole(_)
+  | Undefined
+  | DrvQuote(_)
+  | Fun(_)
+  | TypFun(_)
+  | Dot(_)
+  | LivelitName(_)
+  | Let(_)
+  | Theorem(_)
+  | ProofObject(_)
+  | Forall(_)
+  | FixF(_)
+  | TyAlias(_)
+  | Use(_)
+  | TypAp(_)
+  | DeferredAp(_)
+  | If(_)
+  | Seq(_)
+  | Test(_)
+  | HintedTest(_)
+  | Filter(_)
+  | Closure(_)
+  | ListConcat(_)
+  | UnOp(_)
+  | BinOp(_)
+  | BuiltinFun(_)
+  | Match(_)
+  | TupleExtension(_)
+  | Module(_)
+  | ModuleExp(_) => MultiHole([Exp(exp)]) |> Pat.fresh
   };
 };
 
@@ -199,12 +231,12 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
       let* l =
         List.map(dhp => {dhpat_var_entry(dhp, t)}, l) |> OptUtil.sequence;
       Some(List.concat(l));
-    | Ap({term: Constructor(name, _), _}, dhp) =>
+    | Ap(f, dhp) =>
+      let* name = Pat.ctr_name(f);
       let* ctrs = Typ.get_sum_constructors(ctx, ty);
       let* typ = ConstructorMap.get_entry(name, ctrs);
       let* typ' = typ;
       dhpat_var_entry(dhp, typ');
-    | Ap(_) => None
     | EmptyHole
     | Wild
     | Invalid(_)
@@ -264,10 +296,26 @@ and get_inductive_hypotheses_inner' = (m, t, pat) => {
   (is_correct_type ? [pat] : []) @ get_inductive_hypotheses(m, t, pat);
 }
 and get_inductive_hypotheses_inner = (m, t, pat) =>
+  /* Wrappers share their inner pattern's type, so only the innermost one
+     counts as a hypothesis. */
   switch (pat |> Pat.term_of) {
-  | Parens(x) => get_inductive_hypotheses_inner(m, t, x)
-  | Asc(e, _) => get_inductive_hypotheses_inner(m, t, e)
-  | _ => get_inductive_hypotheses_inner'(m, t, pat)
+  | Parens(x)
+  | Projector(_, x)
+  | Asc(x, _) => get_inductive_hypotheses_inner(m, t, x)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | Wild
+  | ExplicitNonlabel
+  | Atom(_)
+  | ListLit(_)
+  | Constructor(_)
+  | Cons(_)
+  | Var(_)
+  | Tuple(_)
+  | Label(_)
+  | TupLabel(_)
+  | Ap(_) => get_inductive_hypotheses_inner'(m, t, pat)
   };
 
 exception BlacklistVarFound;

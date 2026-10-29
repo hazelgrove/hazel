@@ -5,6 +5,35 @@ open Test_Evaluator_Prelude;
 open IdTagged.FreshGrammar;
 open Exp;
 
+/* Names carried by the Fun / TypFun nodes of an evaluation result. */
+let fn_names = (d: Language.Exp.t): list(option(string)) => {
+  let names = ref([]);
+  let _ =
+    Language.Exp.map_term(
+      ~f_exp=
+        (continue, e: Language.Exp.t) => {
+          switch (e.term) {
+          | Fun(_, _, _, n)
+          | TypFun(_, _, n) => names := [n, ...names^]
+          | _ => ()
+          };
+          continue(e);
+        },
+      d,
+    );
+  List.rev(names^);
+};
+
+let names_function_test = (name, src, expected) =>
+  test_case(name, `Quick, () =>
+    check(
+      Alcotest.(list(option(string))),
+      src,
+      [Some(expected)],
+      fn_names(parse_and_evaluate(src)),
+    )
+  );
+
 let tests = (
   "Evaluator.Functions",
   [
@@ -172,6 +201,34 @@ Ok(Lam("yo", Var("yo"))))|},
             [deferral(InAp)],
           ),
           int(42),
+        ),
+      )
+    ),
+    names_function_test(
+      "Parenthesized let-bound function keeps its name",
+      {|let f = (fun x -> x) in f|},
+      "f",
+    ),
+    names_function_test(
+      "Folded let-bound function keeps its name",
+      {|let f = ^^fold(fun x -> x) in f|},
+      "f",
+    ),
+    names_function_test(
+      "Ascribed let-bound function keeps its name",
+      {|let f = (fun x -> x : Int -> Int) in f|},
+      "f",
+    ),
+    test_case("Type application names a parenthesized body", `Quick, () =>
+      check(
+        Alcotest.(list(option(string))),
+        "assign_name_if_none through Parens",
+        [Some("f@<Int>")],
+        fn_names(
+          DHExp.assign_name_if_none(
+            parens(fn(Pat.var("x"), var("x"), None, None)),
+            Some("f@<Int>"),
+          ),
         ),
       )
     ),

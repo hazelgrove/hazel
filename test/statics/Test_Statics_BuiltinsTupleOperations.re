@@ -1283,6 +1283,34 @@ module OmitAllLabels = {
   ];
 };
 
+/* A parenthesized or folded builtin head must keep its custom statics. */
+module CustomStaticsHead = {
+  let reports_missing_labels = (name, src) =>
+    test_case(
+      name,
+      `Quick,
+      () => {
+        let marks = List.concat_map(snd, errors(statics(parse_exp(src))));
+        let reported =
+          List.exists(
+            fun
+            | Language.Mark.BuiltinError(ToLvsMissingLabelsOnTuple(_)) => true
+            | _ => false,
+            marks,
+          );
+        Alcotest.(check(bool))(
+          "ToLvsMissingLabelsOnTuple reported",
+          true,
+          reported,
+        );
+      },
+    );
+  let tests = [
+    reports_missing_labels("parenthesized to_lvs head", {|(to_lvs)(1)|}),
+    reports_missing_labels("folded to_lvs head", {|^^fold(to_lvs)(1)|}),
+  ];
+};
+
 module FromLvs = {
   let tests = [
     fully_consistent_typecheck(
@@ -1305,4 +1333,5 @@ let tests = [
   ("Statics.Builtins.omit_labels", OmitLabels.tests),
   ("Statics.Builtins.omit_all_labels", OmitAllLabels.tests),
   ("Statics.Builtins.from_lvs", FromLvs.tests),
+  ("Statics.Builtins.custom_statics_head", CustomStaticsHead.tests),
 ];

@@ -13,7 +13,7 @@ type t = {
 };
 
 let rec exp_to_rule = (exp: Exp.t): t =>
-  switch (exp |> Exp.term_of) {
+  switch (exp |> Exp.strip_wrappers |> Exp.term_of) {
   | Forall(p, e) =>
     let bindings' =
       ProofHacks.dhpat_extend_ctx(p, Typ.temp(Unknown(Internal)), Ctx.empty)
