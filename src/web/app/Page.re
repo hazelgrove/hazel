@@ -148,13 +148,12 @@ module Update = {
         model: Model.t,
       ) => {
     switch (action) {
-    /* Measuring the font must not scroll: it happens at load, again when
-       web fonts settle (the #font-specimen size observer), and on zoom,
-       none of which is the user moving the caret. Asking for a caret
-       scroll here jumped the editor back to the caret after the user had
-       scrolled away, and a click aimed below landed on something else.
-       Startup reveals the caret once on its own (Main.scroll_to_caret
-       starts true). */
+    /* Measuring the font happens at load, again when web fonts settle (the
+       #font-specimen size observer), and on zoom, none of which is the user
+       moving the caret. New metrics move the caret, so keep it in view if it
+       was; but a caret the user has scrolled away from stays where it is
+       (an unconditional scroll here jumped the view back to it, and a click
+       aimed below landed on something else). */
     | SetFontMetrics(fm) =>
       {
         ...model,
@@ -163,7 +162,7 @@ module Update = {
           font_metrics: fm,
         },
       }
-      |> Updated.return_quiet
+      |> Updated.return_quiet(~scroll=IfCaretVisible)
     | Set(action) =>
       let* settings =
         Settings.Update.update(~action, ~settings=model.globals.settings);
@@ -190,7 +189,7 @@ module Update = {
           },
         },
       }
-      |> Updated.return(~scroll_active=false);
+      |> Updated.return(~scroll=Never);
     | JumpToTile(id) =>
       let jump =
         Editors.Selection.jump_to_tile(
@@ -411,7 +410,7 @@ module Update = {
         ...model,
         selection,
       }
-      |> Updated.return(~is_edit=false, ~scroll_active=false, ~historic=false)
+      |> Updated.return(~is_edit=false, ~scroll=Never, ~historic=false)
     | Benchmark(Start) =>
       List.iter(a => schedule_action(Editors(a)), Benchmark.actions_1);
       schedule_action(Benchmark(Finish));
