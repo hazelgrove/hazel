@@ -874,6 +874,29 @@ let extend_tvar_of_utpat = (ctx: Ctx.t, tvar: TPat.t, kind: Ctx.kind): Ctx.t =>
   | None => ctx
   };
 
+/* Bind the binder of a `Rec` or `Poly` for a walk over its [bodies]. Only
+   a body that names something other than the binder can look up an entry
+   that mentions the binder's name, so only then does the binding go
+   through extend_ctx. A recursive alias's `Rec` binder is the alias's own
+   name, which is bound wherever the alias is used; this keeps that from
+   rewriting the context at every use. */
+let extend_binder = (ctx: Ctx.t, tp: TPat.t, bodies: list(t)): Ctx.t =>
+  switch (TPat.tyvar_of_utpat(tp)) {
+  | None => ctx
+  | Some(name) =>
+    let entry: Ctx.entry =
+      TVarEntry({
+        name,
+        id: TPat.rep_id(tp),
+        kind: Abstract,
+      });
+    List.exists(
+      body => List.exists(v => !String.equal(v, name), free_vars(body)),
+      bodies,
+    )
+      ? extend_ctx(ctx, entry) : Ctx.extend(ctx, entry);
+  };
+
 /* Members of a signature a type-level path may continue through
    (`M.P.T`), as path_head reads them: value members whose type is a
    signature, type members defined as a signature or a labeled tuple, and
@@ -947,14 +970,9 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
   | Sum(ts) =>
     Sum(ConstructorMap.map(Option.map(normalize(ctx)), ts)) |> rewrap
   | Rec(tpat, ty) =>
-    /* NOTE: Dummy tvar added has fake id but shouldn't matter
-       as in current implementation Recs do not occur in the
-       surface syntax, so we won't try to jump to them. */
-    Rec(tpat, normalize(extend_tvar_of_utpat(ctx, tpat, Abstract), ty))
-    |> rewrap
+    Rec(tpat, normalize(extend_binder(ctx, tpat, [ty]), ty)) |> rewrap
   | Poly(name, ty) =>
-    Poly(name, normalize(extend_tvar_of_utpat(ctx, name, Abstract), ty))
-    |> rewrap
+    Poly(name, normalize(extend_binder(ctx, name, [ty]), ty)) |> rewrap
   | ProofOf(_) => ty // Todo: should we normalize this?
   | Sig(s) =>
     /* An item that declares no member is dropped from the normal form,
@@ -1027,8 +1045,7 @@ let fun_in = (ctx: Ctx.t, ty: t): option(fun_in) => {
             Sig.closed_members(s),
           )
         | List(t) => go(~members, ctx, t)
-        | Rec(tp, t) =>
-          go(~members, extend_tvar_of_utpat(ctx, tp, Abstract), t)
+        | Rec(tp, t) => go(~members, extend_binder(ctx, tp, [t]), t)
         | Sum(sm) =>
           List.find_map(
             fun
@@ -1103,7 +1120,7 @@ let equal_up_to_aliases = (ctx: Ctx.t, a: t, b: t): bool => {
       | (Poly(tp1, x), Poly(tp2, y)) =>
         switch (TPat.tyvar_of_utpat(tp1), TPat.tyvar_of_utpat(tp2)) {
         | (Some(n1), Some(n2)) when n1 == n2 =>
-          go(extend_tvar_of_utpat(ctx, tp1, Abstract), x, y)
+          go(extend_binder(ctx, tp1, [x, y]), x, y)
         | _ => fast_equal(a, b)
         }
       /* Atoms, Unknowns, Labels: compared again now that their heads are
@@ -1164,10 +1181,9 @@ let rec close = (ctx: Ctx.t, ty: t): t => {
     ProdExtension(close(ctx, t1), close(ctx, t2)) |> rewrap
   | Sum(sm) =>
     Sum(ConstructorMap.map(Option.map(close(ctx)), sm)) |> rewrap
-  | Rec(tp, t) =>
-    Rec(tp, close(extend_tvar_of_utpat(ctx, tp, Abstract), t)) |> rewrap
+  | Rec(tp, t) => Rec(tp, close(extend_binder(ctx, tp, [t]), t)) |> rewrap
   | Poly(tp, t) =>
-    Poly(tp, close(extend_tvar_of_utpat(ctx, tp, Abstract), t)) |> rewrap
+    Poly(tp, close(extend_binder(ctx, tp, [t]), t)) |> rewrap
   | Sig(Open(items)) => Sig(Closed(close_items(ctx, items))) |> rewrap
   /* Already closed: its members are independent, so each is closed alone,
      never re-read as mentioning a sibling. */
@@ -1185,7 +1201,7 @@ and alias_def = (ctx: Ctx.t, tp: TPat.t, def: t): t =>
   switch (TPat.tyvar_of_utpat(tp)) {
   | None => close(ctx, def)
   | Some(name) =>
-    let def = close(extend_tvar_of_utpat(ctx, tp, Abstract), def);
+    let def = close(extend_binder(ctx, tp, [def]), def);
     List.exists(String.equal(name), free_vars(def))
       ? Rec(Var(name) |> TPat.fresh, def) |> temp : def;
   }
@@ -1281,12 +1297,12 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   | (ProdExtension(_), _) => meet'(weak_head_normalize(ctx, ty1), ty2)
   | (_, ProdExtension(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
   | (Rec(tp1, ty1), Rec(tp2, ty2)) =>
-    let ctx = extend_tvar_of_utpat(ctx, tp1, Abstract);
     let ty1' =
       switch (TPat.tyvar_of_utpat(tp2)) {
       | Some(x2) => subst(Var(x2) |> temp, tp1, ty1)
       | None => ty1
       };
+    let ctx = extend_binder(ctx, tp1, [ty1', ty2]);
     let+ ty_body = meet(ctx, ty1', ty2);
     Rec(tp1, ty_body) |> temp;
   /* A signature alias that mentions itself is a Rec; a self-loop unrolls
@@ -1302,7 +1318,7 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
       | Some(x2) => subst(Var(x2) |> temp, x1, ty1)
       | None => ty1
       };
-    let ctx = extend_tvar_of_utpat(ctx, x2, Abstract);
+    let ctx = extend_binder(ctx, x2, [ty1', ty2]);
     let+ ty_body = meet(ctx, ty1', ty2);
     Poly(x2, ty_body) |> temp;
   /* Note for above: `subst` is capture-avoiding (see its definition),
