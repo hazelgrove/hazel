@@ -44,7 +44,7 @@ SRC = 'src'
 # needs design judgement and does not belong in a mechanical migration. This
 # list is a ratchet: it may shrink, never grow.
 KNOWN_DANGLING = {
-    'G5', 'R4', 'TXT2', 'UI-Background', 'font-mono', 'light-text-color', 'main-text-color', 'mono-font',
+    'G5', 'R4', 'TXT2', 'font-mono', 'light-text-color', 'main-text-color', 'mono-font',
     'shard-label', 'text-disabled', 'text-primary', 'ui-text',
 }
 
