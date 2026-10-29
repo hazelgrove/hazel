@@ -629,26 +629,6 @@ module View = {
       )
     };
 
-  /* Links into Config mode's slides, offered from every mode. */
-  let config_links = (~inject: Update.t => 'a) =>
-    NutMenu.item_group(
-      "Configuration",
-      List.map(
-        config_type =>
-          Widgets.button_named(
-            Icons.gear,
-            evt => {
-              NutMenu.dismiss(evt);
-              inject(Update.ShowConfig(config_type));
-            },
-            ~tooltip=
-              "Edit "
-              ++ ConfigurationMode.Model.config_name_of_type(config_type),
-          ),
-        ConfigurationMode.Model.all_of_config_type,
-      ),
-    );
-
   let file_menu = (~globals, ~inject, editors: Model.t) =>
     switch (editors) {
     | Scratch(s) =>
