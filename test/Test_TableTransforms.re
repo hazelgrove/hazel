@@ -9,6 +9,7 @@ let testable_exp =
       equality({
         ...syntactic_settings,
         ignore_parens: true,
+        ignore_projectors: true,
         ignore_function_names: true,
       }).
         exp

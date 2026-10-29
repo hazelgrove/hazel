@@ -362,9 +362,7 @@ and match_tpat = (tpat_r: TPat.t, tpat: TPat.t): option(unit) =>
     Some();
   } else {
     None;
-  }
-
-and match_rul = (_ctx: match_ctx, _rul_r: Rul.t, _rul: Rul.t): option(match_ctx) => None /* TODO */ /* }*/;
+  };
 
 let substitute_exp = (sub: match_ctx, exp: Exp.t): Exp.t =>
   Substitution.in_exp(
@@ -377,8 +375,6 @@ let substitute_exp = (sub: match_ctx, exp: Exp.t): Exp.t =>
     ),
     exp,
   );
-
-let match_exp' = match_exp;
 
 /* TODO[Matt]: we can probably make this faster by avoiding substituting
    if we know it doesn't match */

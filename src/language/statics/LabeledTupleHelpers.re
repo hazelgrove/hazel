@@ -5,7 +5,7 @@
 /* Align an elaborated expression with an expected labeled tuple type.
    Recursively rearranges and wraps tuple elements to match the expected labels. */
 let rec align_exp = (ctx: Ctx.t, expected_ty: Typ.t, exp: Exp.t): Exp.t =>
-  switch (Typ.term_of(Typ.normalize(ctx, expected_ty))) {
+  switch (Typ.term_of(Typ.weak_head_normalize(ctx, expected_ty))) {
   | Prod(tys) =>
     let align_entry = (expected_entry, exp_entry) =>
       switch (Typ.match_tup_label(expected_entry)) {
@@ -79,7 +79,7 @@ let rec align_exp = (ctx: Ctx.t, expected_ty: Typ.t, exp: Exp.t): Exp.t =>
 
 /* Check if an elaborated expression already matches the expected labeled tuple shape. */
 let rec is_aligned_exp = (ctx: Ctx.t, expected_ty: Typ.t, exp: Exp.t): bool =>
-  switch (Typ.term_of(Typ.normalize(ctx, expected_ty))) {
+  switch (Typ.term_of(Typ.weak_head_normalize(ctx, expected_ty))) {
   | Prod(tys) =>
     switch (exp.term) {
     | Parens(_) => false

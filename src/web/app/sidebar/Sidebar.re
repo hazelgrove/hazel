@@ -20,14 +20,6 @@ let switch_to = (~globals: Globals.t, panel: SidebarModel.Settings.panel, _) =>
     Effect.Prevent_default,
   ]);
 
-let switch_assistant = (~globals: Globals.t, _) =>
-  Effect.Many([
-    globals.inject_global(Set(Sidebar(ToggleShow))),
-    Effect.Stop_propagation,
-    /* Keep editor focus when collapsing/expanding the sidebar. */
-    Effect.Prevent_default,
-  ]);
-
 let tab_of =
     (
       ~panel: SidebarModel.Settings.panel,
@@ -86,6 +78,15 @@ let log_control_tab = (~globals: Globals.t): Node.t =>
     ~globals,
   );
 
+let settings_tab = (~globals: Globals.t): Node.t =>
+  tab_of(
+    ~panel=Settings,
+    ~cls=["settings-button"],
+    ~icon=Icons.gear,
+    ~tooltip="Switch to Settings",
+    ~globals,
+  );
+
 let debug_info_tab = (~globals: Globals.t): Node.t =>
   tab_of(
     ~panel=DebugInfo,
@@ -93,6 +94,30 @@ let debug_info_tab = (~globals: Globals.t): Node.t =>
     ~icon=Icons.info,
     ~tooltip="Switch to Debug Info Panel",
     ~globals,
+  );
+
+/* Not a panel: a click saves the session's coverage. Only coverage builds
+   have one. */
+let coverage_tab: option(Node.t) =
+  Option.map(
+    download =>
+      div(
+        ~attrs=[clss(["coverage-button"])],
+        [
+          tab(
+            Icons.export,
+            ~tooltip="Download coverage (.coverage files)",
+            _ =>
+              Effect.Many([
+                Effect.of_sync_fun(download, ()),
+                Effect.Stop_propagation,
+                Effect.Prevent_default,
+              ]),
+            false,
+          ),
+        ],
+      ),
+    CoverageExport.download,
   );
 
 let problems_tab_icon =
@@ -157,38 +182,44 @@ let problems_tab =
     ~globals,
   );
 
-let collapse_tab = (~globals: Globals.t): Node.t => {
-  let tooltip =
-    globals.settings.sidebar.show ? "Collapse Sidebar" : "Expand Sidebar";
-  let icon = globals.settings.sidebar.show ? Icons.collapse : Icons.expand;
-  div(
-    ~attrs=[clss(["collapse-button"])],
-    [tab(icon, ~tooltip, switch_assistant(~globals), false)],
+let task_reference_tab = (~globals: Globals.t): Node.t =>
+  tab_of(
+    ~panel=TaskReference,
+    ~cls=["task-reference-button"],
+    ~icon=Icons.info,
+    ~tooltip="Switch to Task Reference",
+    ~globals,
   );
-};
 
 let persistent_view =
     (
       ~globals: Globals.t,
       ~counts: list((SidebarModel.Settings.problem_category, int)),
+      ~tutorial_reference: option(TutorialReferencePanel.context),
     ) =>
   div(
     ~attrs=[Attr.id("persistent")],
     [
       div(
         ~attrs=[clss(["tabs"])],
-        [
+        (
+          Option.is_some(tutorial_reference)
+            ? [task_reference_tab(~globals)] : []
+        )
+        @ [
           explain_this_tab(~globals),
           assistant_tab(~globals),
           probes_tab(~globals),
           problems_tab(~globals, ~counts),
+          settings_tab(~globals),
         ]
         @ (
           globals.settings.show_log_panel ? [log_control_tab(~globals)] : []
         )
         @ (
           globals.settings.show_debug_panel ? [debug_info_tab(~globals)] : []
-        ),
+        )
+        @ Option.to_list(coverage_tab),
       ),
     ],
   );
@@ -294,6 +325,7 @@ let view =
       ~problem_editors:
          list((option(string), list(CodeWithStatics.Model.t))),
       ~signal,
+      ~tutorial_reference: option(TutorialReferencePanel.context),
     ) => {
   let problem_collection =
     Haz3lcore.ProblemCollection.make(
@@ -320,13 +352,21 @@ let view =
      doesn't show up as "in a derivation" via the stale model.pos. */
   let derivation_info =
     Editors.Selection.get_derivation_info(~selection, editors);
+  /* If the user left tutorial mode while the TaskReference panel was
+     active, fall back to LanguageDocumentation so they don't stare at
+     an empty panel for a tab that no longer exists. */
+  let active_panel: SidebarModel.Settings.panel =
+    switch (globals.settings.sidebar.panel, tutorial_reference) {
+    | (TaskReference, None) => LanguageDocumentation
+    | (p, _) => p
+    };
   let sub =
     globals.settings.sidebar.show
       ? div(
           ~attrs=[Attr.id("side-bar"), Attr.tabindex(1)],
           [
             resize_handle(),
-            switch (globals.settings.sidebar.panel) {
+            switch (active_panel) {
             | LanguageDocumentation =>
               ExplainThis.view(
                 ~globals,
@@ -358,7 +398,19 @@ let view =
                 ~cursor,
                 ~collection=problem_collection,
               )
+            | TaskReference =>
+              switch (tutorial_reference) {
+              | Some(context) =>
+                TutorialReferencePanel.view(
+                  ~globals,
+                  ~explain_this_inject,
+                  ~editor,
+                  context,
+                )
+              | None => div([text("No task reference available.")])
+              }
             | DebugInfo => DebugSidebar.view(~globals, ~cursor)
+            | Settings => SettingsPanel.view(~globals, ~editors_inject)
             },
           ],
         )
@@ -368,6 +420,6 @@ let view =
       };
   div(
     ~attrs=[Attr.id("sidebars")],
-    [sub, persistent_view(~globals, ~counts)],
+    [sub, persistent_view(~globals, ~counts, ~tutorial_reference)],
   );
 };

@@ -136,6 +136,7 @@ let view =
   let send_message = _ => {
     let message_content = String.trim(current_text);
     if (String.length(message_content) > 0) {
+      ChatScrollPin.request := true; /* a sent prompt re-pins the list */
       let user_message = Message.Utils.mk_user_message(message_content);
       Effect.Many([
         agent_inject(
@@ -253,36 +254,8 @@ let view =
         "",
         user_facing_messages,
       );
-    JsUtil.focus_clipboard_shim();
-    Js.Opt.iter(
-      Dom_html.document##getElementById(Js.string("clipboard-shim")),
-      clipboard_shim_el => {
-        let clipboard_shim = Js.Unsafe.coerce(clipboard_shim_el);
-        clipboard_shim##.value := Js.string(formatted_text);
-        ignore(clipboard_shim##select);
-        ignore(
-          Dom_html.document##execCommand(
-            Js.string("copy"),
-            Js.bool(false),
-            Js.Opt.empty,
-          ),
-        );
-      },
-    );
-    Js.Opt.iter(
-      Dom_html.document##getElementById(Js.string("copy-toast")),
-      toast => {
-        toast##.classList##add(Js.string("show"));
-        ignore(
-          Dom_html.window##setTimeout(
-            Js.wrap_callback(() => {
-              toast##.classList##remove(Js.string("show"))
-            }),
-            2000.0,
-          ),
-        );
-      },
-    );
+    JsUtil.copy_text(formatted_text);
+    JsUtil.show_copy_toast();
     Effect.Stop_propagation;
   };
 

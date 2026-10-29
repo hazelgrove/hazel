@@ -24,6 +24,7 @@ let undefined_exp: form = {
   {
     id: UndefinedExp,
     syntactic_form: [exp("undefined")],
+    colorings: [],
     expandable_id: None,
     explanation,
     examples: [undefined_ex_1, undefined_ex_2],

@@ -19,22 +19,21 @@ let hinted_test_exp_coloring_ids =
   (Piece.id(exp_body), body_id),
   (Piece.id(hint), hint_id),
 ];
-let hinted_test_exp: form = {
-  let explanation = "The [*hint*](%s) is displayed in the \"Implementation Grading\" section. If the [*body*](%s) of the test evalutes to `true`, the test passes. Otherwise, the test fails.";
-  {
-    id: HintedTestExp,
-    syntactic_form: [
-      mk_hinted_test([
-        [space(), hint, space()],
-        [space(), exp_body, space()],
-      ]),
-    ],
-    expandable_id: None,
-    explanation,
-    examples: [hinted_test_true_ex, hinted_test_false_ex],
-  };
-};
-let tests: group = {
+let hinted_test_exp_form = [
+  mk_hinted_test([[space(), hint, space()], [space(), exp_body, space()]]),
+];
+let hinted_test_exp = (~hint_id: Id.t, ~body_id: Id.t): form => {
   id: HintedTestExp,
-  forms: [hinted_test_exp],
+  syntactic_form: hinted_test_exp_form,
+  colorings: hinted_test_exp_coloring_ids(~body_id, ~hint_id),
+  expandable_id: None,
+  explanation:
+    Printf.sprintf(
+      "The [*hint*](%s) is displayed in the \"Implementation Grading\" section. If the [*body*](%s) of the test evaluates to `true`, the test passes. Otherwise, the test fails.",
+      Id.to_string(hint_id),
+      Id.to_string(body_id),
+    ),
+  examples: [hinted_test_true_ex, hinted_test_false_ex],
 };
+let tests = (~hint_id: Id.t, ~body_id: Id.t): group =>
+  singleton(hinted_test_exp(~hint_id, ~body_id));

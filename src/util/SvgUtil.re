@@ -1,5 +1,32 @@
 open Virtual_dom.Vdom;
 
+let icon_size = 20.;
+
+/* Takes a list of paths as strings, a viewport as a string, and an optional
+   (string) transform to apply to each. */
+let simple_icon = (~transform="", ~view: string, ds: list(string)) =>
+  Node.create_svg(
+    "svg",
+    ~attrs=
+      Attr.[
+        create("viewBox", view),
+        create("width", Printf.sprintf("%fpx", icon_size)),
+        create("height", Printf.sprintf("%fpx", icon_size)),
+        create("preserveAspectRatio", "none"),
+      ],
+    List.map(
+      d =>
+        Node.create_svg(
+          "path",
+          ~attrs=
+            [Attr.create("d", d)]
+            @ (transform == "" ? [] : [Attr.create("transform", transform)]),
+          [],
+        ),
+      ds,
+    ),
+  );
+
 module Point = {
   type t = {
     x: float,
@@ -68,16 +95,8 @@ module Path = {
       x: Float.of_int(x),
       y: Float.of_int(y),
     });
-  let l_ = (~dx, ~dy) =>
-    L_({
-      dx: Float.of_int(dx),
-      dy: Float.of_int(dy),
-    });
   let h = (~x) => H({x: Float.of_int(x)});
-  let h_ = (~dx) => H_({dx: Float.of_int(dx)});
   let v = (~y) => V({y: Float.of_int(y)});
-  let v_ = (~dy) => V_({dy: Float.of_int(dy)});
-
   let scale_cmd = (~scale_x=1., ~scale_y=1.) =>
     fun
     | (Z | M(_) | L(_) | H(_) | V(_) | A_(_)) as cmd => cmd
@@ -94,28 +113,10 @@ module Path = {
     | H_({dx}) => H_({dx: scale_x *. dx})
     | V_({dy}) => V_({dy: scale_y *. dy});
 
-  let scale = s => List.map(scale_cmd(~scale_x=s, ~scale_y=s));
   let scale_x = s => List.map(scale_cmd(~scale_x=s));
   let scale_y = s => List.map(scale_cmd(~scale_y=s));
 
   let reverse = List.rev_map(scale_cmd(~scale_x=-1., ~scale_y=-1.));
-
-  let translate_cmd = (v: Vector.t) =>
-    fun
-    | (Z | M_(_) | L_(_) | H_(_) | V_(_) | A_(_)) as cmd => cmd
-    | M({x, y}) =>
-      M({
-        x: x +. v.dx,
-        y: y +. v.dy,
-      })
-    | L({x, y}) =>
-      L({
-        x: x +. v.dx,
-        y: y +. v.dy,
-      })
-    | H({x}) => H({x: x +. v.dx})
-    | V({y}) => V({y: y +. v.dy});
-  let translate = v => List.map(translate_cmd(v));
 
   let string_of_flag =
     fun

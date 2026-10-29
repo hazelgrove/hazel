@@ -42,11 +42,6 @@ let evaluation_test =
     evaluate(unevaluated),
   );
 
-let evaluate_probes = unevaluated => {
-  let (_, state) = Evaluator.evaluate(~env=Builtins.env_init, unevaluated);
-  state |> EvaluatorState.get_probes;
-};
-
 let parse_exp = (s: string) => {
   switch (Haz3lcore.Parser.to_term(s, ~root=Exp)) {
   | Some(e) => e

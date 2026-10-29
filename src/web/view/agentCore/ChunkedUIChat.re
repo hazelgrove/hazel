@@ -73,12 +73,40 @@ module Utils = {
     };
   };
 
-  let curr_last_chunk = (model: Model.t): Model.chunk => {
-    model.log
-    |> List.rev
-    |> ListUtil.hd_opt
-    |> OptUtil.get_or_fail("No last chunk found");
-  };
+  let curr_last_chunk = (model: Model.t): option(Model.chunk) =>
+    model.log |> List.rev |> ListUtil.hd_opt;
+
+  /* Extend the agent response in progress, or open one: a chat may begin
+     with an agent message (a replayed run, a chat trimmed by compaction),
+     so no message may assume a chunk before it. */
+  let with_agent_chunk =
+      (
+        model: Model.t,
+        f: Model.agent_response_chunk => Model.agent_response_chunk,
+      )
+      : Model.t =>
+    switch (curr_last_chunk(model)) {
+    | Some(AgentResponseChunk(chunk)) => {
+        ...model,
+        log:
+          (model.log |> List.rev |> List.tl |> List.rev)
+          @ [Model.AgentResponseChunk(f(chunk))],
+      }
+    | _ => {
+        ...model,
+        log:
+          model.log
+          @ [
+            Model.AgentResponseChunk(
+              f({
+                content: [],
+                agent_reasoning: [],
+                tool_results: [],
+              }),
+            ),
+          ],
+      }
+    };
 
   let mk = (chat: Chat.Model.t): Model.t => {
     // Converts a list of messages into a list of displayable chunks.
@@ -103,28 +131,15 @@ module Utils = {
           };
           convert_helper(rest, updated_model);
         | Agent(_) =>
-          switch (curr_last_chunk(acc_model)) {
-          | AgentResponseChunk(agent_response_chunk) =>
-            let agent_response_chunk = {
-              ...agent_response_chunk,
-              content: agent_response_chunk.content @ [message],
-            };
-            let log =
-              (acc_model.log |> List.rev |> List.tl |> List.rev)
-              @ [Model.AgentResponseChunk(agent_response_chunk)];
-            let acc_model = {
-              ...acc_model,
-              log,
-            };
-            convert_helper(rest, acc_model);
-          | _ =>
-            let chunk = mk_agent_response_chunk(message);
-            let updated_model = {
-              ...acc_model,
-              log: acc_model.log @ [chunk],
-            };
-            convert_helper(rest, updated_model);
-          }
+          convert_helper(
+            rest,
+            with_agent_chunk(acc_model, c =>
+              {
+                ...c,
+                content: c.content @ [message],
+              }
+            ),
+          )
         | System(Prompt) =>
           let updated_model = {
             ...acc_model,
@@ -144,25 +159,16 @@ module Utils = {
           };
           convert_helper(rest, updated_model);
         | ToolResult(tool_result) =>
-          let curr_last_chunk = curr_last_chunk(acc_model);
-          let updated_agent_chunk =
-            switch (curr_last_chunk) {
-            | AgentResponseChunk(agent_response_chunk) => {
-                ...agent_response_chunk,
-                content: agent_response_chunk.content @ [message],
-                tool_results:
-                  agent_response_chunk.tool_results @ [tool_result],
+          convert_helper(
+            rest,
+            with_agent_chunk(acc_model, c =>
+              {
+                ...c,
+                content: c.content @ [message],
+                tool_results: c.tool_results @ [tool_result],
               }
-            | _ => failwith("Expected AgentResponseChunk before ToolResult")
-            };
-          let updated_log =
-            (acc_model.log |> List.rev |> List.tl |> List.rev)
-            @ [Model.AgentResponseChunk(updated_agent_chunk)];
-          let updated_model = {
-            ...acc_model,
-            log: updated_log,
-          };
-          convert_helper(rest, updated_model);
+            ),
+          )
         | System(ApiFailure) =>
           let chunk = Model.ErrorMessage(message.content);
           let updated_model = {
@@ -182,32 +188,15 @@ module Utils = {
           };
           convert_helper(rest, updated_model);
         | System(RetryNote) =>
-          switch (curr_last_chunk(acc_model)) {
-          | AgentResponseChunk(agent_response_chunk) =>
-            let agent_response_chunk = {
-              ...agent_response_chunk,
-              content: agent_response_chunk.content @ [message],
-            };
-            let log =
-              (acc_model.log |> List.rev |> List.tl |> List.rev)
-              @ [Model.AgentResponseChunk(agent_response_chunk)];
-            let updated_model = {
-              ...acc_model,
-              log,
-            };
-            convert_helper(rest, updated_model);
-          | UserMessage(_)
-          | CompactionNotice(_)
-          | ErrorMessage(_)
-          | ResponseCancelledMessage(_)
-          | SlashCommandOutputMessage(_) =>
-            let chunk = mk_agent_response_chunk(message);
-            let updated_model = {
-              ...acc_model,
-              log: acc_model.log @ [chunk],
-            };
-            convert_helper(rest, updated_model);
-          }
+          convert_helper(
+            rest,
+            with_agent_chunk(acc_model, c =>
+              {
+                ...c,
+                content: c.content @ [message],
+              }
+            ),
+          )
         | System(ResponseCancelled) =>
           let chunk = Model.ResponseCancelledMessage(message.content);
           let updated_model = {

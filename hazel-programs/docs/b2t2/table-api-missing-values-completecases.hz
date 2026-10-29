@@ -1,0 +1,59 @@
+type OptInt = + None + Some(Int) in
+type OptString = + None + Some(String) in
+type StudentMissing = (
+  name= String,
+  age= OptInt,
+  favorite_color= OptString
+) in
+let studentsMissing : [StudentMissing] = (
+  [
+    ("Bob", None, Some("blue")),
+    ("Alice", Some(17), Some("green")),
+    ("Eve", Some(13), None)
+  ]
+) in
+
+# (benchmark) takes a runtime String column name and finds the #
+# column dynamically with to_lvs. #
+# Unlike the projection version, the requires constraint is not enforced. #
+let requires = [(enforced=("no"), "c is in header(t)")] in
+let ensures = [
+  (enforced=("no"), "length(bs) is equal to nrows(t)")
+] in
+let complete_cases =
+  fun (t : [?], c : String) ->
+    map(
+      t,
+      fun r ->
+        # The scrutinee is annotated so Some/None resolve to the builtin Option rather than the OptInt/OptString constructors defined above #
+        case ((to_lvs(r) |> find_opt(_, fun e -> e.label == c)) : Option)
+        | Some(e) => ! (e.value == (None : Option))
+        | None => false
+        end
+    )
+    : [Bool] in
+test
+  complete_cases(studentsMissing, "age") == [false, true, true] end;
+
+# (idiomatic) Instead of taking a colName we're taking a project function to make it type-safe. #
+# This only works for option columns #
+let requires = [(enforced=("static"), "c is in header(t)")] in
+let ensures = [
+  (enforced=("no"), "length(bs) is equal to nrows(t)")
+] in
+let complete_cases =
+  typfun R ->
+    typfun C ->
+      fun (t : [R], project : (R -> + None + Some(C))) ->
+        map(
+          t,
+          fun (r : R) ->
+            case project(r)
+            | Some(_) => true
+            | None => false
+            end
+        )
+        : [Bool] in
+test
+  complete_cases@<StudentMissing>@<Int>(studentsMissing, fun r -> r.age)
+  == [false, true, true] : [Bool] end

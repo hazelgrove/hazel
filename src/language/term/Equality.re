@@ -67,6 +67,11 @@ type settings = {
   type_alpha: bool, // Alpha equivalence over type variables
   exp_alpha: bool, // Alpha equivalence over expression variables
   ignore_parens: bool,
+  /* Unwrap term-level Projector wrappers. Historically bundled into
+     ignore_parens; split out so differential tests can be strict on
+     parens placement while still seeing through projectors (the menhir
+     pipeline erases ^^triggers, so its terms never carry them). */
+  ignore_projectors: bool,
   ignore_ascriptions: bool,
   ignore_dynamic_errors: bool,
   ignore_function_types: bool,
@@ -94,6 +99,7 @@ let equality =
         type_alpha,
         exp_alpha,
         ignore_parens,
+        ignore_projectors,
         ignore_ascriptions,
         ignore_dynamic_errors,
         ignore_function_types,
@@ -131,8 +137,8 @@ let equality =
     | (_, DynamicErrorHole(x, _)) when ignore_dynamic_errors => exp'(e1, x)
     | (Parens(x), _) when ignore_parens => exp'(x, e2)
     | (_, Parens(x)) when ignore_parens => exp'(e1, x)
-    | (Projector(_, x), _) when ignore_parens => exp'(x, e2)
-    | (_, Projector(_, x)) when ignore_parens => exp'(e1, x)
+    | (Projector(_, x), _) when ignore_projectors => exp'(x, e2)
+    | (_, Projector(_, x)) when ignore_projectors => exp'(e1, x)
     | (Asc(x, _), _) when ignore_ascriptions => exp'(x, e2)
     | (_, Asc(x, _)) when ignore_ascriptions => exp'(e1, x)
     | (Filter(_, x), _) when ignore_filters => exp'(x, e2)
@@ -452,6 +458,15 @@ let equality =
       List.length(ps1) == List.length(ps2) && List.for_all2(pne, ps1, ps2)
     | (TupLabel(l1, p1), TupLabel(l2, p2)) => pne(l1, l2) && pne(p1, p2)
     | (Constructor(c1, _), Constructor(c2, _)) => c1 == c2
+    /* Non-name-binding pattern forms still need structural equality —
+       without these, identical literal/list/cons member patterns
+       compared unequal (reflexivity bug caught by the Menhir/MakeTerm
+       equivalence property). */
+    | (Atom(c1), Atom(c2)) => c1 == c2
+    | (Cons(h1, t1), Cons(h2, t2)) => pne(h1, h2) && pne(t1, t2)
+    | (ListLit(ps1), ListLit(ps2)) =>
+      List.length(ps1) == List.length(ps2) && List.for_all2(pne, ps1, ps2)
+    | (Ap(f1, a1), Ap(f2, a2)) => pne(f1, f2) && pne(a1, a2)
     | _ => false
     };
   }
@@ -502,8 +517,8 @@ let equality =
     // Wrappers when ignored: unwrap.
     | (Parens(x), _) when ignore_parens => pat'(x, p2)
     | (_, Parens(x)) when ignore_parens => pat'(p1, x)
-    | (Projector(_, x), _) when ignore_parens => pat'(x, p2)
-    | (_, Projector(_, x)) when ignore_parens => pat'(p1, x)
+    | (Projector(_, x), _) when ignore_projectors => pat'(x, p2)
+    | (_, Projector(_, x)) when ignore_projectors => pat'(p1, x)
     | (Asc(x, _), _) when ignore_ascriptions => pat'(x, p2)
     | (_, Asc(x, _)) when ignore_ascriptions => pat'(p1, x)
 
@@ -610,8 +625,8 @@ let equality =
     // Wrappers when ignored: unwrap.
     | (Parens(x), _) when ignore_parens => typ'(x, t2)
     | (_, Parens(x)) when ignore_parens => typ'(t1, x)
-    | (Projector(_, x), _) when ignore_parens => typ'(x, t2)
-    | (_, Projector(_, x)) when ignore_parens => typ'(t1, x)
+    | (Projector(_, x), _) when ignore_projectors => typ'(x, t2)
+    | (_, Projector(_, x)) when ignore_projectors => typ'(t1, x)
     | (TupLabel({term: ExplicitNonlabel, _}, t1), _)
         when ignore_explicit_unlabelling =>
       typ'(t1, t2)
@@ -893,6 +908,7 @@ let syntactic_settings = {
   type_alpha: false,
   exp_alpha: false,
   ignore_parens: false,
+  ignore_projectors: false,
   ignore_dynamic_errors: false,
   ignore_ascriptions: false,
   ignore_function_types: false,
@@ -915,6 +931,7 @@ let semantic_settings = {
   type_alpha: true,
   exp_alpha: true,
   ignore_parens: true,
+  ignore_projectors: true,
   ignore_dynamic_errors: false,
   ignore_ascriptions: false,
   ignore_function_types: false,

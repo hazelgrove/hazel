@@ -17,6 +17,16 @@
  either by returning `Some(e)` directly, or by using `IdTagged.fast_copy(DHExp.rep_id(e), ...)`
  when constructing a new expression structure.
  */
+/* Whether pushing an ascription through a list's or tuple's parts gave
+   back the very same parts. Then the value already had the type -- plain
+   data, well typed, no function to wrap -- and the push gives the value
+   itself rather than a copy of it: no new nodes, and the same objects for
+   anything downstream that keeps values by identity. Only a recursive
+   push (transition_multiple) can give a part back unchanged; a stepwise
+   one wraps each part in a new ascription. */
+let unchanged = (ds: list(DHExp.t), ds': list(DHExp.t)): bool =>
+  List.for_all2((d, d') => d === d', ds, ds');
+
 let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
   let recur = (d: DHExp.t): DHExp.t =>
     if (recursive) {
@@ -27,16 +37,24 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
   switch (DHExp.term_of(d)) {
   | Asc(e, t) =>
     switch (DHExp.term_of(e), Typ.term_of(Typ.unroll(t))) {
-    | (Asc(e, t'), _)
+    | (Asc(e', t'), _)
         // This is only necessary because sometimes we add two ascriptions and aren't marking it as a non-value
         when Typ.is_consistent(Ctx.empty, Typ.unroll(t), Typ.unroll(t')) =>
       switch (Typ.meet(Ctx.empty, Typ.unroll(t), Typ.unroll(t'))) {
-      | Some(t) => Some(recur(Asc(e, t) |> DHExp.fresh))
+      | Some(t) =>
+        Some(
+          recur(
+            IdTagged.fast_copy(DHExp.rep_id(e), Asc(e', t) |> DHExp.fresh),
+          ),
+        )
       | None => None //TODO  This is an impossible case since we checked consistency
       }
-    | (e, Parens(t)) =>
-      // This is an impossible case since types should be normalized before coming to transitions
-      transition(~recursive, Asc(e |> DHExp.fresh, t) |> DHExp.fresh)
+    | (_, Parens(t)) =>
+      /* An impossible case: types are normalized before they come to
+         transitions. e as it is, not a fresh copy: its id is kept, as
+         everywhere here, and an e that already has the type comes back
+         as itself. */
+      transition(~recursive, Asc(e, t) |> DHExp.fresh)
     | (Closure(ce, d), t) =>
       transition(~recursive, Asc(d, t |> Typ.fresh) |> DHExp.fresh)
       |> Option.map(d => Closure(ce, d) |> DHExp.fresh)
@@ -53,27 +71,23 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       Some(recur(Asc(inner, t) |> DHExp.fresh))
     | (TupLabel(l, inner), TupLabel(_l2, inner_ty)) =>
       // TODO Figure out what to do if the labels don't match
-      Some(
-        IdTagged.fast_copy(
-          DHExp.rep_id(e),
-          TupLabel(l, recur(Asc(inner, inner_ty) |> DHExp.fresh))
-          |> DHExp.fresh,
-        ),
-      )
-    | (Tuple(es), Prod(tys)) when List.length(es) == List.length(tys) =>
-      Some(
-        IdTagged.fast_copy(
-          DHExp.rep_id(e),
-          Tuple(
-            List.map2(
-              (e, ty) => recur(Asc(e, ty) |> DHExp.fresh),
-              es,
-              tys,
+      let inner' = recur(Asc(inner, inner_ty) |> DHExp.fresh);
+      inner' === inner
+        ? Some(e)
+        : Some(
+            IdTagged.fast_copy(
+              DHExp.rep_id(e),
+              TupLabel(l, inner') |> DHExp.fresh,
             ),
-          )
-          |> DHExp.fresh,
-        ),
-      )
+          );
+    | (Tuple(es), Prod(tys)) when List.length(es) == List.length(tys) =>
+      let es' =
+        List.map2((e, ty) => recur(Asc(e, ty) |> DHExp.fresh), es, tys);
+      unchanged(es, es')
+        ? Some(e)
+        : Some(
+            IdTagged.fast_copy(DHExp.rep_id(e), Tuple(es') |> DHExp.fresh),
+          );
     | (_, Unknown(_)) => Some(e)
     | (Atom(value), Atom(typ)) =>
       switch (value, typ) {
@@ -91,24 +105,26 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       | (Bool(_), _) => None
       }
     | (ListLit(ds), List(ty)) =>
-      Some(
-        IdTagged.fast_copy(
-          DHExp.rep_id(e),
-          ListLit(List.map(d => recur(Asc(d, ty) |> DHExp.fresh), ds))
-          |> DHExp.fresh,
-        ),
-      )
+      let ds' = List.map(d => recur(Asc(d, ty) |> DHExp.fresh), ds);
+      unchanged(ds, ds')
+        ? Some(e)
+        : Some(
+            IdTagged.fast_copy(
+              DHExp.rep_id(e),
+              ListLit(ds') |> DHExp.fresh,
+            ),
+          );
     | (Cons(d1, d2), List(ty)) =>
-      Some(
-        IdTagged.fast_copy(
-          DHExp.rep_id(e),
-          Cons(
-            recur(Asc(d1, ty) |> DHExp.fresh),
-            recur(Asc(d2, t) |> DHExp.fresh),
-          )
-          |> DHExp.fresh,
-        ),
-      )
+      let d1' = recur(Asc(d1, ty) |> DHExp.fresh);
+      let d2' = recur(Asc(d2, t) |> DHExp.fresh);
+      d1' === d1 && d2' === d2
+        ? Some(e)
+        : Some(
+            IdTagged.fast_copy(
+              DHExp.rep_id(e),
+              Cons(d1', d2') |> DHExp.fresh,
+            ),
+          );
     | (TypFun(tp, body, name), Poly(tp', t')) =>
       let new_ty: Typ.t =
         switch (TPat.tyvar_of_utpat(tp)) {
@@ -165,13 +181,15 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       let entry = ConstructorMap.get_entry(c, m);
       switch (entry) {
       | Some(Some(t')) =>
-        Some(
-          IdTagged.fast_copy(
-            DHExp.rep_id(e),
-            Ap(Forward, con, recur(Asc(payload, t') |> DHExp.fresh))
-            |> DHExp.fresh,
-          ),
-        )
+        let payload' = recur(Asc(payload, t') |> DHExp.fresh);
+        payload' === payload
+          ? Some(e)
+          : Some(
+              IdTagged.fast_copy(
+                DHExp.rep_id(e),
+                Ap(Forward, con, payload') |> DHExp.fresh,
+              ),
+            );
       | Some(None)
       | None => None
       };
