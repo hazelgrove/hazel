@@ -71,7 +71,6 @@ let section_label = (s: section): string =>
 type t =
   | Undo
   | Redo
-  | TydiAssistant
   | GoToDefinition
   | GoToPreviousProblem
   | GoToNextProblem
@@ -146,12 +145,6 @@ let meta = (a: t): action_meta =>
       section: General,
       mdIcon: "redo",
       default_binding: Bound([Meta, Shift], "z"),
-    }
-  | TydiAssistant => {
-      label: "TyDi Assistant",
-      section: General,
-      mdIcon: "assistant",
-      default_binding: Bound([Meta], "/"),
     }
   | GoToDefinition => {
       label: "Go to Definition",
