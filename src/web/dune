@@ -79,6 +79,8 @@
 (executable
  (name main)
  (modules Main)
+ (instrumentation
+  (backend bisect_ppx))
  (libraries ppx_yojson_conv.expander web)
  (modes js)
  (preprocess
@@ -93,6 +95,8 @@
 (executable
  (name worker)
  (modules Worker)
+ (instrumentation
+  (backend bisect_ppx))
  (libraries workerServer)
  (modes js)
  (preprocess

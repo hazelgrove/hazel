@@ -107,9 +107,9 @@ report the `make coverage-web-diff` output alongside its findings.
 
 ## How it works
 
-- Every library under `src/` already declares `(instrumentation (backend
-  bisect_ppx))`, so `--instrument-with bisect_ppx` instruments the web bundle
-  too.
+- Every library under `src/`, and the `main` and `worker` executables, declare
+  `(instrumentation (backend bisect_ppx))`, so `--instrument-with bisect_ppx`
+  instruments the web bundle too.
 - Under js_of_ocaml, bisect writes nothing at exit. The page pulls the
   counters out itself through `CoverageHook` (`src/web/util/`).
   `HAZEL_WEB_COVERAGE=1` selects the variant that calls `Bisect.Runtime`. Every
