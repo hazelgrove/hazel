@@ -166,15 +166,10 @@ module Update = {
         };
       | None => Updated.return_quiet(model)
       }
-    | Editor(pos, ResultAction(_) as action)
+    | Editor(pos, ResultAction(result_action) as action)
         when
           Tutorial.is_editable(pos, ~instructor_mode)
-          || action
-          |> (
-            fun
-            | ResultAction(UpdateResult(_)) => true
-            | _ => false
-          ) =>
+          || EvalResult.Update.applies_to_read_only(result_action) =>
       let cell = Tutorial.get_stitched(pos, model.cells);
       let* new_cell = CellEditor.Update.update(~settings, action, cell);
       {
