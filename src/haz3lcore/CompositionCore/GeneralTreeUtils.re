@@ -202,10 +202,8 @@ let get_refs_to = (curr: Info.t, info_map: Id.Map.t(Info.t)): CoCtx.t => {
   | InfoExp(info) =>
     let entire_coctx = info.co_ctx;
     let body_coctx =
-      switch (Exp.term_of(info.user_term)) {
-      | Let(_, _, body)
-      | TyAlias(_, _, body)
-      | ModuleExp(_, _, body) =>
+      switch (binding_of(info.user_term)) {
+      | Some({body, _}) =>
         switch (exp_to_info(body)) {
         | InfoExp({co_ctx, _}) => co_ctx
         | _ =>
@@ -213,7 +211,7 @@ let get_refs_to = (curr: Info.t, info_map: Id.Map.t(Info.t)): CoCtx.t => {
             Failure("Body of let/type alias/module is not an expression"),
           )
         }
-      | _ =>
+      | None =>
         raise(
           Failure(
             "Current node is not a let, type alias, or module expression",
@@ -250,8 +248,8 @@ let rec var_names_of_pat = (pat: Pat.t): list(string) => {
   | Atom(_)
   | Constructor(_, _)
   | Label(_)
-  | Projector(_, _)
   | ExplicitNonlabel => []
+  | Projector(_, pat) => var_names_of_pat(pat)
   };
 };
 
@@ -272,10 +270,8 @@ let get_refs_to_after_pattern_edit =
   | (InfoExp(pre_let), InfoExp(term_after)) =>
     let entire_coctx = pre_let.co_ctx;
     let body_coctx =
-      switch (Exp.term_of(term_after.user_term)) {
-      | Let(_, _, body)
-      | TyAlias(_, _, body)
-      | ModuleExp(_, _, body) =>
+      switch (binding_of(term_after.user_term)) {
+      | Some({body, _}) =>
         switch (exp_to_info(body)) {
         | InfoExp({co_ctx, _}) => co_ctx
         | _ =>
@@ -283,7 +279,7 @@ let get_refs_to_after_pattern_edit =
             Failure("Body of let/type alias/module is not an expression"),
           )
         }
-      | _ =>
+      | None =>
         raise(
           Failure(
             "Current node is not a let, type alias, or module expression",

@@ -5,10 +5,13 @@
 open Util;
 open Language;
 
-/* Walk ancestors outermost-to-innermost, picking the def of the
- * enclosing Let / first component of a Seq / the bare expression at the cursor
- * (types aren't probeable); fall back to the cursor's own piece. A Test target
- * is rewritten to its body (unwrap_test) to probe the boolean condition. */
+/* Walk ancestors outermost-to-innermost, passing through the bodies of
+ * definition forms (DefForm: let, type, use, theorem, module, filters) and
+ * Seqs, picking the evaluated def of the enclosing definition / first
+ * component of a Seq / the bare expression at the cursor (types, theorem
+ * propositions and filter patterns aren't probed); fall back to the cursor's
+ * own piece. A Test target is rewritten to its body (unwrap_test) to probe the
+ * boolean condition. */
 let toplevel_def_body_id = (~statics: Statics.Map.t, ~id: Id.t): option(Id.t) => {
   open Language;
 
@@ -26,12 +29,13 @@ let toplevel_def_body_id = (~statics: Statics.Map.t, ~id: Id.t): option(Id.t) =>
 
   let probe_for_piece = (id: Id.t): option(Id.t) =>
     switch (Statics.Map.lookup(id, statics)) {
-    | Some(InfoExp({user_term: {term: Let(_, def, _), _}, _})) =>
-      Some(IdTagged.rep_id(def))
     | Some(InfoExp({user_term: {term: Seq(e1, _), _}, _})) =>
       Some(IdTagged.rep_id(e1))
-    | Some(InfoExp({user_term: {term: TyAlias(_), _}, _})) => None
-    | Some(InfoExp({user_term, _})) => Some(IdTagged.rep_id(user_term))
+    | Some(InfoExp({user_term, _})) =>
+      switch (DefForm.parts(user_term)) {
+      | Some({value, _}) => Option.map(IdTagged.rep_id, value)
+      | None => Some(IdTagged.rep_id(user_term))
+      }
     | _ => None
     };
 
@@ -49,12 +53,6 @@ let toplevel_def_body_id = (~statics: Statics.Map.t, ~id: Id.t): option(Id.t) =>
             List.nth(ancestors, idx - 1);
           };
         switch (Statics.Map.lookup(anc_id, statics)) {
-        | Some(InfoExp({user_term: {term: Let(_, def, body), _}, _})) =>
-          if (Id.equal(child_id, IdTagged.rep_id(body))) {
-            walk(idx - 1);
-          } else {
-            Some(IdTagged.rep_id(def));
-          }
         | Some(InfoExp({user_term: {term: Seq(e1, e2), _}, _})) =>
           let e1_id = IdTagged.rep_id(e1);
           let e2_id = IdTagged.rep_id(e2);
@@ -63,11 +61,12 @@ let toplevel_def_body_id = (~statics: Statics.Map.t, ~id: Id.t): option(Id.t) =>
           } else {
             Some(e1_id);
           };
-        | Some(InfoExp({user_term: {term: TyAlias(_, _, body), _}, _})) =>
-          if (Id.equal(child_id, IdTagged.rep_id(body))) {
-            walk(idx - 1);
-          } else {
-            None;
+        | Some(InfoExp({user_term, _})) =>
+          switch (DefForm.parts(user_term)) {
+          | Some({body, _}) when Id.equal(child_id, IdTagged.rep_id(body)) =>
+            walk(idx - 1)
+          | Some({value, _}) => Option.map(IdTagged.rep_id, value)
+          | None => Some(anc_id)
           }
         | _ => Some(anc_id)
         };

@@ -1722,9 +1722,74 @@ let lexeme_edit_test =
     },
   );
 
+/* EvalWorklist marks the top-level leaves pending, walking through every
+ * definition form (not just let/seq): a program led by `type`, `use`,
+ * `theorem`, `module` or a stepper filter used to mark the whole program as
+ * one pending leaf, so nothing cleared until evaluation finished. */
+let worklist_prefixes = [
+  "type T = Int in",
+  "use Float in",
+  "theorem t = true in",
+  "module M = {let a = 1} in",
+  "hide 1 in",
+];
+
+/* The expected leaves: evaluated definitions down the chain (a module's
+   body, the let's def) and the final body. */
+let rec expected_leaves = (e: Exp.t): list(Exp.t) =>
+  switch (Exp.term_of(e)) {
+  | Let(_, def, body)
+  | ModuleExp(_, def, body) => [def, ...expected_leaves(body)]
+  | TyAlias(_, _, body)
+  | Use(_, body)
+  | Theorem(_, _, body)
+  | Filter(_, body) => expected_leaves(body)
+  | _ => [e]
+  };
+
+let worklist_pending_leaves_test = prefix =>
+  test_case(
+    "Worklist: pending leaves under `" ++ prefix ++ "`",
+    `Quick,
+    () => {
+      let exp = parse_exp(prefix ++ " let x = 1 in x + 2");
+      let (info_map, _) = statics_and_elab(exp);
+      let pending = EvalWorklist.pending_ids(info_map);
+      check(
+        bool,
+        "the program root is not one pending leaf",
+        false,
+        List.mem(Exp.rep_id(exp), pending),
+      );
+      /* (a module literal's members add further leaves of their own) */
+      check(
+        list(string),
+        "evaluated defs and the final body are pending",
+        [],
+        expected_leaves(exp)
+        |> List.map(Exp.rep_id)
+        |> List.filter(id => !List.mem(id, pending))
+        |> List.map(Id.to_string),
+      );
+      /* every pending id clears once evaluation has completed */
+      let (_, _, incr) = eval_incr(exp);
+      check(
+        list(string),
+        "no pending ids remain after evaluation",
+        [],
+        EvalWorklist.remove_streamed_ids(
+          IncrEval.outbox_of_completed(incr),
+          EvalWorklist.pending_ids(info_map),
+        )
+        |> List.map(Id.to_string),
+      );
+    },
+  );
+
 let tests = (
   "Evaluator.Incremental",
-  [
+  List.map(worklist_pending_leaves_test, worklist_prefixes)
+  @ [
     lexeme_edit_test,
     test_case(
       "Top-level cast call: incremental reuse preserves result",

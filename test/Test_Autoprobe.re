@@ -238,6 +238,42 @@ let tyalias_tests = [
   ),
 ];
 
+/* Every definition form (DefForm) is transparent to the Caret-mode walk, not
+ * just let and type: a program led by `use`, `theorem`, `module` or a stepper
+ * filter used to anchor on the whole program (Caret acted like All). */
+let definition_form_tests = [
+  auto(
+    ~name="use: cursor in later let's def probes that def",
+    ~input="use Float in let x = ¦5 in x + 1",
+    ~probed="5",
+  ),
+  auto(
+    ~name="theorem: cursor in later let's def probes that def",
+    ~input="theorem t = true in let x = ¦5 in x + 1",
+    ~probed="5",
+  ),
+  auto(
+    ~name="theorem: cursor in body probes body",
+    ~input="theorem t = true in ¦x + 1",
+    ~probed="x + 1",
+  ),
+  auto(
+    ~name="theorem: cursor on keyword does not probe the whole program",
+    ~input="¦theorem t = true in x + 1",
+    ~probed="<none>",
+  ),
+  auto(
+    ~name="module: cursor in later let's def probes that def",
+    ~input="module M = {let a = 1} in let x = ¦5 in x + 1",
+    ~probed="5",
+  ),
+  auto(
+    ~name="filter: cursor in later let's def probes that def",
+    ~input="hide 1 in let x = ¦5 in x + 1",
+    ~probed="5",
+  ),
+];
+
 /* fn-def sugar anchors the param pattern separately
  * (function_sugar_param_anchor) so params probe on the header line. */
 let param_anchor_tests = [
@@ -366,6 +402,116 @@ let step_into_tests = [
   ),
 ];
 
+/* Function-position heads seen through Parens/Projector wrappers: probing the
+ * function name of `(f)(2)` probes the call, and step-into resolves the
+ * callee statically, as for a bare `f(2)`. */
+let head_program = (program: string) => {
+  let zipper =
+    switch (Parser.to_zipper(~root=Exp, program)) {
+    | Some(z) => z
+    | None => fail("parse: " ++ program)
+    };
+  let MakeTerm.{term, _} = MakeTerm.go(Zipper.unselect_and_zip(zipper));
+  let (info_map, _) =
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+  let syntax = CachedSyntax.mk(~info_map, ~dyn_map=Id.Map.empty, zipper);
+  let render = id =>
+    switch (TermData.segment(id, syntax.term_data)) {
+    | Some(seg) =>
+      Printer.of_segment(~holes=" ", ~indent="", ~is_single_line=true, seg)
+    | None => "<not-in-syntax>"
+    };
+  let find = (pred: Exp.t => bool): Id.t =>
+    switch (
+      Id.Map.fold(
+        (id, info, acc) =>
+          switch (acc, info) {
+          | (None, Info.InfoExp({user_term, _})) when pred(user_term) =>
+            Some(id)
+          | _ => acc
+          },
+        info_map,
+        None,
+      )
+    ) {
+    | Some(id) => id
+    | None => fail("no matching term in: " ++ program)
+    };
+  (info_map, render, find);
+};
+
+let head_target = (~name, ~fn, ~program, ~probed) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let (info_map, render, find) = head_program(program);
+      let var_id =
+        find(e =>
+          switch (IdTagged.term_of(e)) {
+          | Var(n) => n == fn
+          | _ => false
+          }
+        );
+      check(
+        list(string),
+        "probed",
+        probed,
+        ProbeTargets.target_subterm_ids(var_id, info_map) |> List.map(render),
+      );
+    },
+  );
+
+let static_step_into = (~name, ~program, ~body) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let (info_map, render, find) = head_program(program);
+      let ap_id =
+        find(e =>
+          switch (IdTagged.term_of(e)) {
+          | Ap(_) => true
+          | _ => false
+          }
+        );
+      check(
+        string,
+        "body",
+        body,
+        switch (ProbePerform.static_callee_body_id(info_map, ap_id)) {
+        | Some(id) => render(id)
+        | None => "<none>"
+        },
+      );
+    },
+  );
+
+let wrapped_head_tests = [
+  head_target(
+    ~name="probing f in f(2) probes the call",
+    ~fn="f",
+    ~program="let f(x: Int): Int = x + 1 in f(2)",
+    ~probed=["f(2)"],
+  ),
+  head_target(
+    ~name="probing f in (f)(2) probes the call",
+    ~fn="f",
+    ~program="let f(x: Int): Int = x + 1 in (f)(2)",
+    ~probed=["(f)(2)"],
+  ),
+  static_step_into(
+    ~name="static step-into: bare function position",
+    ~program="let f(x: Int): Int = x + 1 in f(2)",
+    ~body="x + 1",
+  ),
+  static_step_into(
+    ~name="static step-into: parenthesized function position",
+    ~program="let f(x: Int): Int = x + 1 in (f)(2)",
+    ~body="x + 1",
+  ),
+];
+
 /* "All" mode: one root multiprobe expands to a probe per source row across
  * the whole program. Unlike Test_MultiProbe, which narrows via
  * target_subterm_ids (covering only the first definition). */
@@ -439,4 +585,6 @@ let tests = [
   ("Autoprobe.FunctionSugar", function_sugar_tests),
   ("Autoprobe.BareExpression", bare_expression_tests),
   ("Autoprobe.TyAlias", tyalias_tests),
+  ("Autoprobe.DefinitionForms", definition_form_tests),
+  ("Autoprobe.WrappedHeads", wrapped_head_tests),
 ];

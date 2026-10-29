@@ -72,9 +72,13 @@ module Utils = {
     | Use(_, e)
     | TypAp(e, _)
     | TypFun(_, e, _)
-    | DeferredAp(e, _)
+    | Projector(_, e)
+    | ProofObject(e)
+    | Forall(_, e)
     | HintedTest(e, _) => [e]
+    | DeferredAp(e, args) => [e, ...args]
     | Let(_, e1, e2)
+    | Theorem(_, e1, e2)
     | Seq(e1, e2)
     | Ap(_, e1, e2)
     | Dot(e1, e2)
@@ -100,10 +104,6 @@ module Utils = {
     | LivelitName(_)
     | TyAlias(_)
     | ExplicitNonlabel
-    | Theorem(_, _, _)
-    | ProofObject(_)
-    | Forall(_, _)
-    | Projector(_, _)
     | Var(_)
     | Module(_) => []
     | ModuleExp(_, def, body) => [def, body]
@@ -111,17 +111,56 @@ module Utils = {
     };
   };
 
+  /* A binding node of the map: a definition form (Language.DefForm) that
+     binds a name to a definition, with the ids of its binder and definition.
+     Theorem, use and the stepper filters are definition forms too but not
+     nodes (use and filters bind nothing; a theorem's definition is a
+     proposition, which the agent's edit paths such as
+     GeneralTreeUtils.subtree_of don't handle); build_children walks
+     through them without adding a node. */
+  type binding = {
+    binder: Id.t,
+    def: Id.t,
+    body: Exp.t,
+  };
+
+  let binding_of = (term: Exp.t): option(binding) =>
+    switch (Exp.term_of(term)) {
+    | Let(pat, def, body) =>
+      Some({
+        binder: Pat.rep_id(pat),
+        def: Exp.rep_id(def),
+        body,
+      })
+    | TyAlias(tpat, tdef, body) =>
+      Some({
+        binder: TPat.rep_id(tpat),
+        def: Typ.rep_id(tdef),
+        body,
+      })
+    | ModuleExp(mp, def, body) =>
+      Some({
+        binder: MPat.rep_id(mp),
+        def: Exp.rep_id(def),
+        body,
+      })
+    | Theorem(_)
+    | Use(_)
+    | Filter(_) => None
+    /* not a definition form (DefForm.parts is None) */
+    | _ => None
+    };
+
   let top_level_term_of =
       (~start_point: Info.t, ~info_map: Id.Map.t(Info.t)): option(Info.t) => {
+    /* Any definition form at or around the cursor nominates: only its
+       oldest ancestor (the program root) is used to build the map, so a
+       cursor on e.g. a leading `theorem` still yields the bindings after
+       it. */
     let initial_nominee =
       switch (start_point) {
-      | InfoExp({user_term: term, _}) =>
-        switch (Exp.term_of(term)) {
-        | Let(_) => Some(start_point) // if it is a let binding, then this term is a nominee
-        | TyAlias(_) => Some(start_point) // if it is a type binding, then this term is a nominee
-        | ModuleExp(_) => Some(start_point) // if it is a module binding, then this term is a nominee
-        | _ => None
-        }
+      | InfoExp({user_term: term, _}) when DefForm.is_def_form(term) =>
+        Some(start_point)
       | _ => None
       };
 
@@ -137,19 +176,23 @@ module Utils = {
         let nominee =
           switch (candidate) {
           | InfoExp({user_term: term, _}) =>
-            switch (Exp.term_of(term)) {
-            | Let(pat, def, body) =>
-              let pat_id = Pat.rep_id(pat);
-              let def_id = Exp.rep_id(def);
-              let body_id = Exp.rep_id(body);
+            let departure_id = Info.id_of(departure_point);
+            switch (binding_of(term)) {
+            | Some({binder, def, body}) =>
               /* Fn-sugar lets desugar to Let(f, Fun(args, def), body) in
                  statics, so the ancestor chain reaches this Let via the
                  synthetic Fun wrapper rather than pat/def/body directly;
                  any chain position is necessarily inside the binding. */
-              if (Option.is_some(FunctionSugar.detect(pat))
-                  || Id.equal(def_id, Info.id_of(departure_point))
-                  || Id.equal(body_id, Info.id_of(departure_point))
-                  || Id.equal(pat_id, Info.id_of(departure_point))) {
+              let is_sugar =
+                switch (Exp.term_of(term)) {
+                | Let(pat, _, _) =>
+                  Option.is_some(FunctionSugar.detect(pat))
+                | _ => false
+                };
+              if (is_sugar
+                  || Id.equal(def, departure_id)
+                  || Id.equal(Exp.rep_id(body), departure_id)
+                  || Id.equal(binder, departure_id)) {
                 // if it is, then set this is as the new nominee for the top-level node
                 Some(
                   candidate,
@@ -157,30 +200,9 @@ module Utils = {
               } else {
                 nominee;
               };
-            | TyAlias(tpat, tdef, body) =>
-              let tpat_id = TPat.rep_id(tpat);
-              let tdef_id = Typ.rep_id(tdef);
-              let body_id = Exp.rep_id(body);
-              if (Id.equal(tdef_id, Info.id_of(departure_point))
-                  || Id.equal(body_id, Info.id_of(departure_point))
-                  || Id.equal(tpat_id, Info.id_of(departure_point))) {
-                Some(candidate);
-              } else {
-                nominee;
-              };
-            | ModuleExp(mp, def, body) =>
-              let mp_id = MPat.rep_id(mp);
-              let def_id = Exp.rep_id(def);
-              let body_id = Exp.rep_id(body);
-              if (Id.equal(def_id, Info.id_of(departure_point))
-                  || Id.equal(body_id, Info.id_of(departure_point))
-                  || Id.equal(mp_id, Info.id_of(departure_point))) {
-                Some(candidate);
-              } else {
-                nominee;
-              };
-            | _ => nominee
-            }
+            | None when DefForm.is_def_form(term) => Some(candidate)
+            | None => nominee
+            };
           | _ => nominee
           };
         search_for_top_level_node(
@@ -242,7 +264,8 @@ module Namer = {
     | Atom(_) => "{atom}"
     | ExplicitNonlabel => "{explicit nonlabel}"
     | Invalid(_) => "{invalid}"
-    | Projector(_, _) => "{projector}"
+    /* a projector (e.g. a fold) on the binder is a view; name what it wraps */
+    | Projector(_, pat) => mk_name_from_pat(pat)
     };
   };
 
@@ -689,12 +712,7 @@ let binding_id_to_syntax_projector_target_id =
   | Some(node) =>
     switch (node.info) {
     | InfoExp({user_term: term, _}) =>
-      switch (Exp.term_of(term)) {
-      | Let(_, def, _) => Some(Exp.rep_id(def))
-      | TyAlias(_, typ, _) => Some(Typ.rep_id(typ))
-      | ModuleExp(_, def, _) => Some(Exp.rep_id(def))
-      | _ => None
-      }
+      Option.map(({def, _}: Utils.binding) => def, Utils.binding_of(term))
     | _ => None
     }
   };

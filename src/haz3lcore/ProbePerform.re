@@ -483,6 +483,32 @@ let function_sugar_param_anchor =
   climb(Info.ancestors_of(ci));
 };
 
+/* Tier 1 of step-into (static): resolve the callee of the application at
+ * ap_id via its name's let-binding (fn position is a let-bound var, possibly
+ * parenthesized or folded). */
+let static_callee_body_id =
+    (info_map: Statics.Map.t, ap_id: Id.t): option(Id.t) => {
+  let rec unwrap = (e: Exp.t): Exp.t =>
+    switch (e.term) {
+    | Parens(e)
+    | Projector(_, e) => unwrap(e)
+    | _ => e
+    };
+  let* ci_ap = Statics.Map.lookup(ap_id, info_map);
+  let* binding_id =
+    switch (ci_ap) {
+    | InfoExp({user_term: {term: Ap(_, fun_expr, _), _}, _}) =>
+      switch (unwrap(fun_expr)) {
+      | {term: Var(_), _} as var =>
+        let* ci_var = Statics.Map.lookup(IdTagged.rep_id(var), info_map);
+        Info.get_binding_site(ci_var);
+      | _ => None
+      }
+    | _ => None
+    };
+  Statics.Map.enclosing_let_of_binding(~statics=info_map, ~binding_id);
+};
+
 /* Step-into is sample-level: a sample with call_stack [a,b,c] gives the body
  * stack [ap_id,a,b,c]. Sets pending_focus; CellEditor's second calculate pass
  * (once worker dynamics land) resolves it and FocusEffect schedules DOM focus. */
@@ -496,22 +522,7 @@ let step_into_call_stack =
     )
     : option(Zipper.t) => {
   let ap_id = frame.id;
-  /* Tier 1 (static): resolve the fn via its name's let-binding (fn position is a let-bound var). */
-  let static_body_id = {
-    let* ci_ap = Statics.Map.lookup(ap_id, info_map);
-    let* binding_id =
-      switch (ci_ap) {
-      | InfoExp({
-          user_term: {term: Ap(_, {term: Var(_), _} as fun_expr, _), _},
-          _,
-        }) =>
-        let* ci_var =
-          Statics.Map.lookup(IdTagged.rep_id(fun_expr), info_map);
-        Info.get_binding_site(ci_var);
-      | _ => None
-      };
-    Statics.Map.enclosing_let_of_binding(~statics=info_map, ~binding_id);
-  };
+  let static_body_id = static_callee_body_id(info_map, ap_id);
   /* Tier 2 (dynamic): fall back to the frame's recorded fn_def_id, for higher-order calls where the static binding site is only a parameter. */
   let* body_id =
     switch (static_body_id) {

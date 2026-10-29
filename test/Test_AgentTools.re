@@ -747,6 +747,18 @@ let update_pattern_tests = (
       },
     ),
     test_case(
+      "update_pattern on a folded binder renames its use sites",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let ^^fold(a) = 1 in a + 1",
+            Update(Pattern, "a", "x"),
+          );
+        check_rendered("update_pat_folded", "let x = 1 in x + 1", result);
+      },
+    ),
+    test_case(
       "update_pattern renames across multiple use sites",
       `Quick,
       () => {
@@ -1637,6 +1649,90 @@ let high_level_node_map_tests = (
         let node_a = HighLevelNodeMap.path_to_node(node_map, "a");
         let desc_levels = HighLevelNodeMap.descendants_of(node_map, node_a);
         check(int, "descendants depth", 2, List.length(desc_levels));
+      },
+    ),
+    /* Bindings after (or inside) non-node forms must stay in the map: the
+       walk used to stop at theorem (and in DeferredAp args / projectors). */
+    test_case(
+      "bindings after a theorem are top-level nodes",
+      `Quick,
+      () => {
+        let node_map =
+          build_node_map(
+            "theorem t = true in let a = 1 in let b = 2 in a + b",
+          );
+        let top_level_names =
+          HighLevelNodeMap.gather_top_level(node_map)
+          |> List.map(HighLevelNodeMap.id_to_name(node_map))
+          |> List.sort(String.compare);
+        check(list(string), "top-level names", ["a", "b"], top_level_names);
+        check(
+          bool,
+          "b resolves",
+          true,
+          HighLevelNodeMap.path_to_id_opt(node_map, "b") != None,
+        );
+      },
+    ),
+    test_case(
+      "node map builds with the cursor on a leading theorem",
+      `Quick,
+      () => {
+        let z =
+          Move.to_start(mk_zipper("theorem t = true in let a = 1 in a"));
+        switch (HighLevelNodeMap.build(z, mk_statics(z))) {
+        | None => Alcotest.fail("no node map with the cursor on `theorem`")
+        | Some(node_map) =>
+          check(
+            bool,
+            "a resolves",
+            true,
+            HighLevelNodeMap.path_to_id_opt(node_map, "a") != None,
+          )
+        };
+      },
+    ),
+    test_case(
+      "bindings after use and hide are top-level nodes",
+      `Quick,
+      () => {
+        let node_map =
+          build_node_map("use Float in hide 1 in let a = 1 in a");
+        check(
+          bool,
+          "a resolves",
+          true,
+          HighLevelNodeMap.path_to_id_opt(node_map, "a") != None,
+        );
+      },
+    ),
+    test_case(
+      "bindings in deferred-application args are nested nodes",
+      `Quick,
+      () => {
+        let node_map =
+          build_node_map(
+            "let f = fun (x, y) -> x in let g = f(_, let a = 1 in a) in g",
+          );
+        check(
+          bool,
+          "g/a resolves",
+          true,
+          HighLevelNodeMap.path_to_id_opt(node_map, "g/a") != None,
+        );
+      },
+    ),
+    test_case(
+      "bindings inside a folded projector are nested nodes",
+      `Quick,
+      () => {
+        let node_map = build_node_map("let g = ^^fold(let a = 1 in a) in g");
+        check(
+          bool,
+          "g/a resolves",
+          true,
+          HighLevelNodeMap.path_to_id_opt(node_map, "g/a") != None,
+        );
       },
     ),
     test_case(
