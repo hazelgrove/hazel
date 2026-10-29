@@ -134,8 +134,7 @@ Each budget is a ratchet, and the failure message says which way it tripped:
 
 The test log prints each count (`PERF …`). Step counts can't see a step that
 got slower, such as extra work inside one step, so time evaluator hot-path
-changes separately (e.g. `hazel bench-eval` before and after). The `/perf` and
-`/bench-compare` comment commands are disabled.
+changes separately (e.g. `hazel bench-eval` before and after).
 
 ## Troubleshooting
 
