@@ -155,10 +155,11 @@ tab on Github](https://github.com/hazelgrove/hazel/actions).
 
 `.github/workflows/ci.yml` runs on **every branch push** and in the merge queue.
 It does no work itself; it calls `.github/workflows/checks.yml`, which is where
-the two checks live:
+the three checks live. They run in parallel:
 
-- **Fast checks** — formatting, the strict-warning gate (`make ci-check`), and
-  the suite under alcotest's `-q` filter, which skips the `Slow`-tagged cases.
+- **Static checks** — formatting and the strict-warning gate (`make ci-check`).
+- **Fast checks** — the suite under alcotest's `-q` filter, which skips the
+  `Slow`-tagged cases.
 - **Full tests** — the full suite including the `Slow` QCheck property tests,
   plus the Codecov upload. This is the authoritative check.
 
@@ -166,13 +167,13 @@ the two checks live:
 `Slow`-tagged cases are the large majority of the suite's runtime. If you want
 that signal before opening a PR, run `make test` locally.
 
-Both jobs render a table of results into their own job summary, reachable from
+`Fast checks` and `Full tests` render a table of results into their own job summary, reachable from
 the run page. They deliberately create no `Test Report` check of their own: a
 check run belongs to a commit rather than to a workflow, and GitHub picks which
 of the commit's check suites it joins, which used to file the test results under
 `Deploy branch preview`.
 
-`.github/workflows/fork-ci.yml` runs the same two checks for **pull requests
+`.github/workflows/fork-ci.yml` runs the same checks for **pull requests
 from forks**, which push no branch here and so never reach `ci.yml`. It skips
 only the Codecov upload, since a fork gets no secrets.
 

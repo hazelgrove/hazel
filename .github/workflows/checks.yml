@@ -2,11 +2,14 @@
 # and by fork-ci.yml (pull requests from forks). Defined once here so the two
 # entry points differ only in what triggers them.
 #
-# Two jobs, no `needs:` between them: they start together, and either can be
-# re-run alone. The split is by cost, not by concern -- `Fast checks` bundles
-# formatting, warnings and the quick suite because each extra job re-installs
-# the toolchain, which costs more than the work those checks do. Revisit if
-# the build ever becomes an artifact the jobs can share.
+# Three jobs, no `needs:` between them: they start together, and any can be
+# re-run alone. `Static checks` (formatting and strict warnings) is split from
+# `Fast checks` (the quick suite) even though each job re-installs the
+# toolchain: the warnings check builds in the release profile and the quick
+# suite in the dev profile, so they share no build output, and running them
+# side by side takes the warnings build off the merge queue's critical path.
+# Actions minutes are free for this public repository; wall-clock time is
+# what contributors wait on. Both are required checks for `dev`.
 name: Checks
 
 on:
@@ -24,8 +27,8 @@ on:
         required: false
 
 jobs:
-  Fast:
-    name: Fast checks
+  Static:
+    name: Static checks
     runs-on: ubuntu-latest
     # Without this, GitHub's 360-min default applies.
     timeout-minutes: 45
@@ -44,11 +47,24 @@ jobs:
 
       # Strict warnings over src and test/. dune's release profile promotes them
       # to errors; @check type-checks both trees without linking, so this costs
-      # no second js_of_ocaml build (issue #2456).
+      # no js_of_ocaml build (issue #2456).
       - name: Check warnings
         run: |
           export DUNE_CACHE=enabled
           opam exec -- make ci-check
+
+  Fast:
+    name: Fast checks
+    runs-on: ubuntu-latest
+    # Without this, GitHub's 360-min default applies.
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout the hazel repo
+        uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-hazel-toolchain
 
       # alcotest's -q filter drops the Slow-tagged cases, which dominate the
       # full suite's wall clock. That is what makes a test signal here, rather
@@ -87,7 +103,8 @@ jobs:
           # Deploy's, so the test results rendered under "Deploy branch preview"
           # and a red suite made the deploy look broken. The summary is the only
           # placement that is actually ours to choose. Nothing is lost as a
-          # gate: `Fast checks` and `Full tests` are the statuses to require,
+          # gate: `Static checks`, `Fast checks` and `Full tests` are the
+          # statuses to require,
           # and the steps above already fail them.
 
   Full:
