@@ -2204,11 +2204,28 @@ let get_current = (~settings, info: info) => {
   };
 };
 
-/* The active rich renderer's rendering of the indicated sample's value,
- * if that renderer still applies to it. */
+/* In Many mode with more than one sample, the drawer shows each sample's
+   rich view side by side: these samples' values. */
+let many_values = (~settings, info: info): option(list(Exp.t)) =>
+  switch (settings.window, info.dynamics, info.statics) {
+  | (Many, Some(di), Some(statics)) =>
+    let ap_id = Sample.Focus.cur_var_ap(statics);
+    switch (select_samples(~settings, ~id=info.id, ~ap_id, di)) {
+    | [_, _, ..._] as samples =>
+      Some(List.map((s: Sample.t) => s.value, samples))
+    | _ => None
+    };
+  | _ => None
+  };
+
+/* The active rich renderer's rendering of `exp` (by default the indicated
+ * sample's value), if that renderer still applies to it. A preview gets the
+ * renderer's empty model, so it shows none of the live view's open menus. */
 let rich_content =
     (
       ~settings,
+      ~exp=?,
+      ~preview=false,
       model: probe_model,
       info: info,
       ~local: action => Ui_effect.t(unit),
@@ -2217,12 +2234,15 @@ let rich_content =
       ~sort,
     )
     : option(Node.t) =>
-  switch (model.active_renderer, get_current(~settings, info)) {
+  switch (
+    model.active_renderer,
+    exp == None ? get_current(~settings, info) : exp,
+  ) {
   | (Some(pm), Some(exp)) =>
     switch (find(RichProbe.renderer_id_of_model(pm))) {
     | Some(renderer) when renderer.can_handle(sort, exp) =>
       renderer.render_model(
-        pm,
+        preview ? renderer.empty_model : pm,
         ~info,
         ~exp,
         ~view_seg,
@@ -2270,7 +2290,7 @@ let rich_drawer_view =
   );
 
 /* Rows the active rich renderer wants in the drawer, when it applies to
- * the indicated value. */
+ * the indicated value (in Many mode, the tallest of the samples' views). */
 let rich_drawer_rows = (model: probe_model, info: info): option(int) => {
   let sort =
     switch (info.statics) {
@@ -2281,9 +2301,15 @@ let rich_drawer_rows = (model: probe_model, info: info): option(int) => {
   | Some(pm) =>
     switch (
       find(RichProbe.renderer_id_of_model(pm)),
+      many_values(~settings=Settings.s^, info),
       get_current(~settings=Settings.s^, info),
     ) {
-    | (Some(r), Some(exp)) => r.drawer_rows(sort, exp)
+    | (Some(r), Some(values), _) =>
+      switch (List.filter_map(r.drawer_rows(sort), values)) {
+      | [] => None
+      | rows => Some(List.fold_left(max, 0, rows))
+      }
+    | (Some(r), None, Some(exp)) => r.drawer_rows(sort, exp)
     | _ => None
     }
   | None when model.auto_rich =>
@@ -2519,16 +2545,73 @@ module M: Projector = {
       );
     /* In drawer mode an active rich renderer replaces the sample view in
      * the drawer itself; inline mode embeds small rich views in the chip. */
+    let rich_of = (~exp=?, ~preview=?, ()) =>
+      rich_content(
+        ~settings,
+        ~exp?,
+        ~preview?,
+        model,
+        info,
+        ~local,
+        ~parent,
+        ~view_seg,
+        ~sort,
+      );
+    /* Many mode: each sample's view side by side. The indicated sample's is
+       live; the others are previews, and a click focuses their sample. */
+    let rich_samples = (data: offside_data) => {
+      let samples = List.concat(data.groups);
+      let live_id =
+        switch (indicated_sample(data.ctx)) {
+        | Some(s) when List.exists((x: Sample.t) => x.id == s.id, samples) =>
+          Some(s.id)
+        | _ => ListUtil.hd_opt(samples) |> Option.map((s: Sample.t) => s.id)
+        };
+      let view = (sample: Sample.t) => {
+        let live = Some(sample.id) == live_id;
+        rich_of(~exp=sample.value, ~preview=!live, ())
+        |> Option.map(node =>
+             live
+               ? div(
+                   ~attrs=[Attr.classes(["rich-sample", "live"])],
+                   [node],
+                 )
+               : div(
+                   ~attrs=[
+                     Attr.classes(["rich-sample"]),
+                     Attr.title("Focus this sample"),
+                     Attr.on_pointerdown(_ =>
+                       data.ctx.parent(
+                         SampleFocus(
+                           Capture(
+                             Sample.capture_of_sample(sample),
+                             data.ctx.ap_id,
+                           ),
+                         ),
+                       )
+                     ),
+                   ],
+                   [node],
+                 )
+           );
+      };
+      switch (List.filter_map(view, samples)) {
+      | [] => Option.none
+      | views =>
+        Option.some(div(~attrs=[Attr.classes(["rich-samples"])], views))
+      };
+    };
     let rich_drawer =
       drawer && rich_in_drawer(model, info)
-        ? rich_content(
-            ~settings,
-            model,
-            info,
-            ~local,
-            ~parent,
-            ~view_seg,
-            ~sort,
+        ? (
+            switch (data_opt) {
+            | Some(data)
+                when
+                  settings.window == Many
+                  && List.length(List.concat(data.groups)) > 1 =>
+              rich_samples(data)
+            | _ => rich_of()
+            }
           )
           |> Option.map(content =>
                rich_drawer_view(

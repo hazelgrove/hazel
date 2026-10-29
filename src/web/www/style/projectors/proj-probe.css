@@ -825,6 +825,32 @@ body.sample-resizing * {
   --table-card-edge: var(--probe-drawer-edge);
 }
 
+/* Many mode: each sample's view side by side, as sample chips are. The
+ * indicated sample's view is live; the others are previews, dimmed, and a
+ * click focuses their sample. */
+.below-wrapper .rich-drawer .rich-samples {
+  display: flex;
+  align-items: flex-start;
+  gap: 2ch;
+}
+
+.below-wrapper .rich-drawer .rich-sample {
+  flex: none;
+}
+
+.below-wrapper .rich-drawer .rich-sample:not(.live) {
+  opacity: 0.55;
+  cursor: pointer;
+}
+
+.below-wrapper .rich-drawer .rich-sample:not(.live):hover {
+  opacity: 0.8;
+}
+
+.below-wrapper .rich-drawer .rich-sample:not(.live) > * {
+  pointer-events: none;
+}
+
 /* The column menu nested in a <th> takes back the size the card's header
  * sets (proj-table.css). */
 .below-wrapper .rich-drawer .table th .column-menu {
