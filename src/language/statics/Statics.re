@@ -3224,16 +3224,8 @@ and uexp_to_info_map =
           )
         | _ => m
         };
-      let def_ana =
-        switch (pat.term) {
-        | Asc(_, typ) => Typ.close(ctx, typ)
-        | _ => syn
-        };
-      let (_, def_elab_direct, m) = go(~ana=def_ana, def, m);
-      let moduleexp_elab =
-        ModuleHelpers.moduleexp_elab(~def_elab_direct, expanded_elab);
       add(
-        ~elab_term=moduleexp_elab,
+        ~elab_term=expanded_elab,
         ~elab_syn_ty=expanded_info.elab_syn_ty,
         ~marks=[],
         ~co_ctx=expanded_info.co_ctx,

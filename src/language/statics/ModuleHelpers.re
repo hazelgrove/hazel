@@ -262,15 +262,3 @@ let sealed =
        }
      );
 };
-
-/* Rebuild ModuleExp elaboration with direct def elaboration preserved. The
-   binder keeps its (normalized) signature ascription: that is what seals the
-   module at runtime. */
-let moduleexp_elab = (~def_elab_direct: Exp.t, expanded_elab: Exp.t): Exp.t => {
-  let (expanded_term, expanded_rewrap) = Exp.unwrap(expanded_elab);
-  switch (expanded_term) {
-  | Let(p_elab, _, body_elab) =>
-    Let(p_elab, def_elab_direct, body_elab) |> expanded_rewrap
-  | _ => expanded_elab
-  };
-};
