@@ -354,6 +354,8 @@ let start = default_model => {
   };
 };
 
+CoverageExport.install();
+
 switch (JsUtil.Fragment.get_current()) {
 | Some("debug") => DebugMode.go()
 | _ =>

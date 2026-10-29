@@ -5,11 +5,14 @@ type theory. You can find the relevant papers and more motivation at [the Hazel
 website](https://hazel.org/).
 
 You can try Hazel online: the 
-[dev](https://hazel.org/build/dev) branch is the main branch at the
+[dev](https://build.hazel.org/dev/) branch is the main branch at the
 moment. Every other branch that has been pushed to GitHub and successfully builds
 can also be accessed at:
 
-  `https://hazel.org/build/<branch_name>`
+  `https://build.hazel.org/<branch_name>/`
+
+How hazel.org and these previews are hosted (Cloudflare Pages and R2) is described in
+[docs/deployment.md](docs/deployment.md).
 
 <!-- TODO: include some screenshots / animated GIFs once the UI stabilizes -->
 
@@ -66,7 +69,7 @@ to be served using some other server of your choice.
 Every branch that has been pushed to GitHub and successfully builds
 can also be accessed at the following URL (once the GitHub action is finished building and deploying it):
 
-  `https://hazel.org/build/<branch_name>`
+  `https://build.hazel.org/<branch_name>/`
 
 ### Hazel CLI
 Although Hazel is primarily designed as an integrated development environment, we do have a Hazel CLI executable called `hazel` available for basic tasks at the terminal. Further information is available in the [CLI README](src/CLI/README.md).
