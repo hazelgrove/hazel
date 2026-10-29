@@ -58,6 +58,32 @@ let daisy = watering_amount("daisy", 160, New) in
 let rose = watering_amount("rose", 170, New) in
 ^^probe(fern + orchid + cactus + lily + daisy + rose)
 
+@solution
+type MoonPhase = New + Waxing + Full + Waning in
+let watering_amount(
+  _name: String,
+  base: Int,
+  phase: MoonPhase): Int =
+  let adjust =
+    case phase
+    | New => 50
+    | Waxing => 20
+    | Full => -30
+    | _ => 0
+    end
+  in
+  base + adjust
+in
+# ledger (ml): fern 220, orchid 230, cactus 50, #
+#              lily 220, daisy 210, rose 140    #
+let fern = watering_amount("fern", 250, Full) in
+let orchid = watering_amount("orchid", 180, New) in
+let cactus = watering_amount("cactus", 50, Waning) in
+let lily = watering_amount("lily", 200, Waxing) in
+let daisy = watering_amount("daisy", 160, New) in
+let rose = watering_amount("rose", 170, Full) in
+^^probe(fern + orchid + cactus + lily + daisy + rose)
+
 @test
 hint "the watering total comes to 1070"
 test answer == 1070 end
