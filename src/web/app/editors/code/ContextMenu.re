@@ -1,3 +1,4 @@
+open Js_of_ocaml;
 open Haz3lcore;
 open Util;
 open Util.OptUtil.Syntax;
@@ -20,18 +21,17 @@ module Model = Menu;
 let menu_height_estimate = 260.0; /* px */
 let menu_width_estimate = 180.0; /* px - based on min-width: 160px + padding */
 
-/* CSS class for the editor menu's open direction. The column menu has its
- * own `cm-*` class scheme keyed to th-anchored transforms, so this mapping
- * stays local to the editor menu. */
-let direction_class = (dir: Menu.open_direction): string =>
+/* `data-open` value for the editor menu's open direction, read by the CSS
+ * that hangs the menu off its anchor. The column menu has its own `cm-*`
+ * class scheme keyed to th-anchored transforms, so this mapping stays local
+ * to the editor menu. */
+let direction_name = (dir: Menu.open_direction): string =>
   switch (dir) {
-  | {vertical: `Down, horizontal: `Right} => "open-down-right"
-  | {vertical: `Down, horizontal: `Left} => "open-down-left"
-  | {vertical: `Up, horizontal: `Right} => "open-up-right"
-  | {vertical: `Up, horizontal: `Left} => "open-up-left"
+  | {vertical: `Down, horizontal: `Right} => "down-right"
+  | {vertical: `Down, horizontal: `Left} => "down-left"
+  | {vertical: `Up, horizontal: `Right} => "up-right"
+  | {vertical: `Up, horizontal: `Left} => "up-left"
   };
-
-let caret_menu_gap = 0.0;
 
 let caret_bottom_offset = (font_metrics: FontMetrics.t): float => {
   let row_height = font_metrics.row_height;
@@ -39,23 +39,16 @@ let caret_bottom_offset = (font_metrics: FontMetrics.t): float => {
   row_height +. shadow;
 };
 
-let pos_style =
-    (
-      point: Point.t,
-      font_metrics: FontMetrics.t,
-      direction: Menu.open_direction,
-    )
-    : string => {
-  let left = Float.of_int(point.col) *. font_metrics.col_width;
-  let caret_top = Float.of_int(point.row) *. font_metrics.row_height;
-  let caret_bottom = caret_top +. caret_bottom_offset(font_metrics);
-  let top =
-    switch (direction.vertical) {
-    | `Down => caret_bottom +. caret_menu_gap
-    | `Up => caret_top -. caret_menu_gap
-    };
-  Printf.sprintf("position: absolute; left: %fpx; top: %fpx;", left, top);
-};
+/* The menu's anchor spans the caret's row, from its top to the bottom of
+ * its shadow, in the editor's coordinates. A menu opening down hangs from
+ * its bottom, one opening up from its top. */
+let anchor_style = (point: Point.t, font_metrics: FontMetrics.t): string =>
+  Printf.sprintf(
+    "left: %fpx; top: %fpx; height: %fpx;",
+    Float.of_int(point.col) *. font_metrics.col_width,
+    Float.of_int(point.row) *. font_metrics.row_height,
+    caret_bottom_offset(font_metrics),
+  );
 
 /* ============================================================
  * Menu item builders
@@ -515,45 +508,144 @@ module WithContext = {
  * View
  * ============================================================ */
 
-/* Pick a direction by treating the caret as a zero-size anchor at
- * (caret_left, caret_bottom) in viewport coordinates, then routing
- * through the shared `Menu.{space_from, direction_of}` helpers. */
-let get_direction =
-    (point: Point.t, font_metrics: FontMetrics.t): Menu.open_direction => {
-  let container_opt =
-    try(Some(JsUtil.get_elem_by_selector(".code-container"))) {
-    | _ => None
-    };
-  switch (container_opt) {
-  | None => {
-      vertical: `Down,
-      horizontal: `Right,
-    }
-  | Some(container) =>
-    let rect = container##getBoundingClientRect;
-    let caret_left =
-      rect##.left +. Float.of_int(point.col) *. font_metrics.col_width;
-    let caret_top =
-      rect##.top +. Float.of_int(point.row + 1) *. font_metrics.row_height;
-    let space =
-      Menu.space_from(
-        ~anchor_top=caret_top,
-        ~anchor_bot=caret_top,
-        ~anchor_left=caret_left,
-        ~anchor_right=caret_left,
-      );
-    Menu.direction_of(
-      ~menu_height=menu_height_estimate,
-      ~menu_width=menu_width_estimate,
-      space,
-    );
+/* The menu is drawn in the browser's top layer, as a popover.
+ *
+ * An editor can sit inside an isolated stacking context or a clipped box (a
+ * result cell, a proof's inline editors). A menu laid out in such an editor
+ * can't paint or catch clicks outside it, whatever its z-index, so
+ * page-level UI such as the sidebar covers it. The top layer is above every
+ * stacking context and outside every clip. The menu keeps its place in the
+ * DOM, so its events still bubble through the editor that opened it.
+ *
+ * The popover is the full-viewport backdrop, and the menu is its child. Its
+ * parent is a zero-width anchor at the caret, laid out in the editor.
+ * Top-layer elements are positioned against the viewport, so the hook below
+ * measures the anchor on every render, picks the direction from the space
+ * around it, and hands both to the CSS (`--menu-left`, `--menu-top`,
+ * `data-open`).
+ *
+ * The hook also owns ContextMenuListener (outside clicks and menu keys)
+ * while the menu is in the DOM. Every editor renders, but only the one with
+ * an open menu has the hook, so no other editor's render can switch the
+ * listener off. */
+module Layer = {
+  type input = {
+    on_close: unit => Ui_effect.t(unit),
+    handle_key: string => option(Ui_effect.t(unit)),
   };
+
+  /* The hook instance that last claimed the listener. An instance destroyed
+   * after another one has claimed it must not release it. */
+  let owner = ref(0);
+  let next_id = ref(0);
+
+  let place = (layer: Js.t(Dom_html.element)): unit =>
+    switch (
+      Js.Opt.to_option(layer##.parentNode)
+      |> Option.map(n => Js.Opt.to_option(Dom_html.CoerceTo.element(n)))
+      |> Option.join
+    ) {
+    | None => ()
+    | Some(anchor) =>
+      let dir =
+        Menu.direction_from_elem(
+          ~menu_height=menu_height_estimate,
+          ~menu_width=menu_width_estimate,
+          anchor,
+        );
+      let rect = anchor##getBoundingClientRect;
+      let top =
+        switch (dir.vertical) {
+        | `Down => rect##.bottom
+        | `Up => rect##.top
+        };
+      let set_px = (name, v) =>
+        layer##.style##setProperty(
+          Js.string(name),
+          Js.string(Printf.sprintf("%fpx", v)),
+          Js.undefined,
+        )
+        |> ignore;
+      set_px("--menu-left", rect##.left);
+      set_px("--menu-top", top);
+      layer##setAttribute(
+        Js.string("data-open"),
+        Js.string(direction_name(dir)),
+      );
+    };
+
+  let show = (layer: Js.t(Dom_html.element)): unit => {
+    let el = Js.Unsafe.coerce(layer);
+    if (Js.to_bool(el##.isConnected)
+        && Js.Optdef.test(el##.showPopover)
+        && !Js.to_bool(el##matches(Js.string(":popover-open")))) {
+      Js.Unsafe.meth_call(el, "showPopover", [||]);
+    };
+  };
+
+  /* Whether a press landed on the backdrop itself (not the menu) outside
+   * the editor that owns the menu. */
+  let press_outside_editor = (evt: Js.t(Dom_html.pointerEvent)): bool =>
+    switch (
+      Js.Opt.to_option(evt##.target),
+      Js.Opt.to_option(evt##.currentTarget),
+    ) {
+    | (Some(target), Some(layer)) when target == layer =>
+      switch (JsUtil.find_ancestor_with_class(layer, "code-editor")) {
+      | None => true
+      | Some(editor) =>
+        let r = editor##getBoundingClientRect;
+        let x = Float.of_int(evt##.clientX)
+        and y = Float.of_int(evt##.clientY);
+        x < r##.left || x > r##.right || y < r##.top || y > r##.bottom;
+      }
+    | _ => false
+    };
+
+  let claim = ({on_close, handle_key}: input, id: int): unit => {
+    owner := id;
+    ContextMenuListener.sync(~menu_open=true, ~on_close, ~handle_key, ());
+  };
+
+  module Hook =
+    Attr.Hooks.Make({
+      module State = Int;
+      module Input = {
+        type t = input;
+        let sexp_of_t = (_: t) => Sexplib0.Sexp.Atom("context-menu-layer");
+        let combine = (_: t, second: t) => second;
+      };
+      let init = (_: Input.t, _) => {
+        incr(next_id);
+        next_id^;
+      };
+      /* Placed before it is shown, so it never paints at the origin. */
+      let on_mount = (input: Input.t, id: State.t, layer) => {
+        place(layer);
+        show(layer);
+        claim(input, id);
+      };
+      /* Re-shown in case the node was moved, which hides a popover. */
+      let update =
+          (~old_input as _: Input.t, ~new_input: Input.t, id: State.t, layer) => {
+        place(layer);
+        show(layer);
+        claim(new_input, id);
+      };
+      let destroy = ({on_close, _}: Input.t, id: State.t, _) =>
+        if (owner^ == id) {
+          owner := 0;
+          ContextMenuListener.sync(~menu_open=false, ~on_close, ());
+        };
+    });
 };
 
 let view =
     (
       ~inject: command => Ui_effect.t(unit),
       ~inject_menu: Menu.action => Ui_effect.t(unit),
+      ~on_close: unit => Ui_effect.t(unit),
+      ~handle_key: string => option(Ui_effect.t(unit)),
       ~syntax: Haz3lcore.CachedSyntax.t,
       ~info_map: Language.Statics.Map.t,
       ~elaborated: Language.Exp.t,
@@ -576,16 +668,43 @@ let view =
   if (menu_items == []) {
     div([]);
   } else {
-    let direction = get_direction(caret_point, font_metrics);
-    let dir_class = direction_class(direction);
-    let style = pos_style(caret_point, font_metrics, direction);
-
     div(
       ~attrs=[
-        Attr.classes(["context-menu", "nut-menu", dir_class]),
-        Attr.create("style", style),
+        Attr.classes(["context-menu-anchor"]),
+        Attr.create("style", anchor_style(caret_point, font_metrics)),
       ],
-      [div_c("group", [div_c("contents", menu_items)])],
+      [
+        div(
+          ~attrs=[
+            Attr.classes(["context-menu-backdrop"]),
+            Attr.create("popover", "manual"),
+            /* The menu is fixed to the viewport, so scrolling closes it. */
+            Attr.on_wheel(_ => on_close()),
+            /* ContextMenuListener closes the menu on any press outside it.
+               A press on the backdrop over the editor that owns the menu
+               also reaches the editor, to move the caret there; elsewhere
+               (sidebar, other cells, top bar) it only closes the menu. */
+            Attr.on_pointerdown(evt =>
+              Layer.press_outside_editor(evt)
+                ? Virtual_dom.Vdom.Effect.Stop_propagation
+                : Virtual_dom.Vdom.Effect.Ignore
+            ),
+            Attr.create_hook(
+              "context-menu-layer",
+              Layer.Hook.create({
+                on_close,
+                handle_key,
+              }),
+            ),
+          ],
+          [
+            div(
+              ~attrs=[Attr.classes(["context-menu", "nut-menu"])],
+              [div_c("group", [div_c("contents", menu_items)])],
+            ),
+          ],
+        ),
+      ],
     );
   };
 };
