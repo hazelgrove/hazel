@@ -61,5 +61,28 @@ test
   == ""
 end
 
+@solution
+# Extracts the first section from a garden path. #
+let grove_name(path: String): String =
+  nth(string_split("/", path), 1)
+
+
+in
+
+test
+  grove_name("/moonlit-grove/ferns/watering")
+  == "moonlit-grove"
+end;
+
+test
+  grove_name("/night-garden/herbs/rosemary")
+  == "night-garden"
+end;
+
+test
+  grove_name("/")
+  == ""
+end
+
 @test
 0
