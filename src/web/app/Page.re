@@ -43,6 +43,7 @@ module Store = {
       Editors.Store.load(
         ~settings=globals.settings.core,
         ~instructor_mode=globals.settings.instructor_mode,
+        ~link=DeepLink.current().place,
       );
     let explain_this = ExplainThisModel.Store.load();
     {
@@ -238,6 +239,66 @@ module Update = {
         },
       }
       |> return_quiet
+    | FollowDeepLink(link) =>
+      DeepLink.action(link)
+      |> Option.iter(a => schedule_action(Globals(ActiveEditor(a))));
+      {
+        ...model,
+        globals: {
+          ...model.globals,
+          settings: DeepLink.settings(link, model.globals.settings),
+        },
+      }
+      |> return(~historic=false, ~scroll_active=false);
+    | CopyDeepLink({position, text}) =>
+      /* A documentation slide has a name to point at. Anywhere else the link
+         carries the editor's text, and lands in a new scratchpad. */
+      let target: DeepLink.target =
+        switch (model.editors) {
+        | Documentation(m) =>
+          Documentation(List.nth(m.scratchpads, m.current).name)
+        | Scratch(m) =>
+          Scratchpad({
+            name: List.nth(m.scratchpads, m.current).name,
+            text,
+          })
+        | Tutorial(m) =>
+          Scratchpad({
+            name: TutorialsMode.Model.get_current(m).editors.module_name,
+            text,
+          })
+        | Exercises(m) =>
+          Scratchpad({
+            name:
+              ExercisesMode.Model.get_exercise_module_name(
+                List.nth(m.exercises, m.current),
+              ),
+            text,
+          })
+        | Config(m) =>
+          Scratchpad({
+            name:
+              ConfigurationMode.Model.config_name_of_type(
+                List.nth(m.configs, m.current) |> fst,
+              ),
+            text,
+          })
+        };
+      let url =
+        DeepLink.url({
+          place:
+            Some({
+              target,
+              position: Some(position),
+            }),
+          panel:
+            Some(
+              model.globals.settings.sidebar.show
+                ? Open(model.globals.settings.sidebar.panel) : Closed,
+            ),
+        });
+      JsUtil.copy_text(url);
+      model |> return_quiet;
     | UpdateVisibleRows(visible_rows) =>
       {
         ...model,
