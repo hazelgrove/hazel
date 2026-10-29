@@ -175,5 +175,24 @@ let tests = (
         );
       },
     ),
+    test_case(
+      "module let with a labeled pattern equals itself",
+      `Quick,
+      () => {
+        let labeled =
+          Exp.module_([
+            Mod.mod_let(
+              Pat.tuple([Pat.tup_label(Pat.label("a"), Pat.var("x"))]),
+              Exp.tuple([Exp.tup_label(Exp.label("a"), Exp.int(1))]),
+            ),
+          ]);
+        check(
+          bool,
+          "{let (a=x) = (a=1)} === {let (a=x) = (a=1)}",
+          true,
+          Language.Exp.fast_equal(labeled, labeled),
+        );
+      },
+    ),
   ],
 );
