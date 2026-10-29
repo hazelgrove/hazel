@@ -434,6 +434,17 @@ let tests =
         )
       ),
       test_case(
+        "Signature of only a hole keeps the hole as an item", `Quick, () =>
+        exp_check(
+          let_(
+            Pat.asc(Pat.var("m"), Typ.sig_([Sig.empty_hole()])),
+            empty_hole(),
+            var("m"),
+          ),
+          {|let m : { ? } = ? in m|},
+        )
+      ),
+      test_case(
         "map_term reaches a nested signature's items",
         `Quick,
         () => {

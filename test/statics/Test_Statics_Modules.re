@@ -251,6 +251,18 @@ let test_signature_hole_type_member_in_path =
     {|let f = fun (m : { let x : Int; ? }) -> fun (y : m.T) -> y in f|},
   );
 
+let test_hole_signature_declares_type_member =
+  no_marks_test(
+    "A signature of only a hole stands in for a type member a path names",
+    {|fun (m : { ? }) -> (1 : m.T)|},
+  );
+
+let test_hole_signature_declares_module_members =
+  no_marks_test(
+    "A signature of only a hole stands in for the module's members",
+    {|let m : { ? } = { let x = 1 } in m|},
+  );
+
 let test_error_wildcard_binder_does_not_assume =
   has_mark_test(
     "A wildcard binder does not stand in for missing members",
@@ -2393,5 +2405,7 @@ let tests = (
     test_outer_alias_member_exported_expanded,
     test_type_member_as_value_dot_not_missing,
     test_signature_literal_in_use_path,
+    test_hole_signature_declares_type_member,
+    test_hole_signature_declares_module_members,
   ],
 );

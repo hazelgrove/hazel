@@ -1383,7 +1383,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
     | ([(_id, (F(Compound(ModBody)), [Sig(body)]))], []) =>
       /* SigBody: parse signature body, similar to ModBody in exp_term */
       switch (body) {
-      | {term: EmptyHole, _} => ret(Sig(Open([])))
+      | {term: EmptyHole, _} => ret(Sig(Open([body])))
       | {annotation: {ids, _}, term: MultiHole(_)} =>
         adopted_ids := ids @ adopted_ids^;
         (Sig(Open(flatten_sig(body))), ids);
