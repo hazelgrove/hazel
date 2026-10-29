@@ -34,6 +34,31 @@
   background-color: var(--cell-active);
 }
 
+/* past the whole program's end, room for its last line to scroll to the
+   top (and for a drawer there to clear the bottom bar); with ⇓ on, the
+   last line's drawer runs on into it in its own color */
+#main .tail-slack {
+  flex: 0 0 auto;
+  height: calc(100% - var(--row-height-px, 1.45em));
+  background-color: var(--cell-active);
+}
+
+/* the program's drawer starts half a row down (proj-probe.css): the
+   stripe's color starts there too */
+#main .tail-slack.drawer {
+  background: linear-gradient(
+    var(--cell-active) 0 calc(0.5 * var(--row-height-px, 1.45em)),
+    var(--surface-raised) 0
+  );
+}
+
+/* set by ScrollWidth on each element that reads it (cells, drawer
+   stripes): not inherited, so a change restyles only those */
+@property --main-scroll-width {
+  syntax: "*";
+  inherits: false;
+}
+
 :is(#main.Scratch,
 #main.Documentation,
 #main.Configuration):not(.Derivations) .cell {
@@ -438,4 +463,154 @@
 .point-num-input {
   width: 50px;
   font-size: 12px;
+}
+/* note shown under a result whose value was truncated for display
+   (over the display budget; elided subtrees render as holes) */
+.cell-result .result-truncated-note {
+  font-size: 11px;
+  opacity: 0.65;
+  padding: 2px 16px 4px;
+  font-family: var(--code-font, monospace);
+  color: var(--text-muted);
+}
+
+/* the stacked cells of Scratch and Documentation slides, and the frame a
+   slide shows while it loads */
+
+#main .focus-header.focus-header-sym .focus-sym-word {
+  margin-left: 0.5em;
+  font-style: italic;
+}
+
+/* the program the ⇒ result belongs to, in the named headers' ink */
+#main .focus-header.focus-header-sym .focus-sym-name {
+  margin-right: 0.5em;
+  font-weight: normal;
+  color: var(--text-default);
+}
+
+/* editor panes carry no borders in outline modes — the outline
+   sidebar owns the left divider, headers own the entry rules */
+#main.Scratch .cell,
+#main.Documentation .cell {
+  border-left: none;
+}
+
+/* focused-definition header band (the `name : type` pat editor):
+   distinguished by background, not rules — top border only between
+   entries (the topmost header has no preceding body) */
+#main .focus-header {
+  background: var(--surface-raised);
+  display: flex;
+  align-items: baseline;
+}
+
+/* module-path chip; reads as one path with the name, so the header
+   cell's own inset collapses after it */
+#main .focus-header .focus-qualifier {
+  padding-left: 16px;
+  opacity: 0.5;
+  font-family: var(--code-font, monospace);
+  white-space: nowrap;
+}
+
+#main .focus-header .focus-qualifier ~ * .cell-item {
+  padding: 0 16px 0 1px;
+}
+
+/* stacked body cells keep the master editor's lighter surface: the
+   generic cell-background rule matches `#main > * > .code-editor`,
+   but stack cells sit one wrapper deeper (`.focus-body > .cell`). */
+:is(#main.Scratch, #main.Documentation)
+  > .focus-body
+  > .cell
+  > .code-editor {
+  background-color: var(--cell-active);
+}
+
+/* trailing slack below the stack: jump targets can align to the
+   viewport top even near the program's end */
+#main .stack-slack {
+  flex: 0 0 auto;
+  height: calc(100% - 6em);
+}
+
+#main .focus-body ~ .focus-header {
+  border-top: 0.6px solid var(--border-default);
+}
+
+#main .focus-header .cell {
+  background: transparent;
+  border: none;
+}
+
+/* the standard cell inset is 16px all around; the header keeps only
+   the horizontal share */
+#main .focus-header .cell-item {
+  padding: 0 16px;
+}
+
+/* headerless entries (statements, the trailing ⇒): a static symbol
+   chip where the header editor would be */
+/* text starts where the named headers' does: their cell-item's 16px */
+#main .focus-header.focus-header-sym .focus-sym {
+  padding: 1px 16px;
+  font-family: var(--code-font, monospace);
+}
+
+#main .focus-header.focus-header-sym .focus-sym-mark,
+#main .focus-header.focus-header-sym .focus-sym-word {
+  font-weight: bold;
+  opacity: 0.55;
+}
+
+/* slide-loading frame (SwitchSlide paints this before hydration) */
+#main .slide-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 40vh;
+  color: var(--text-accent);
+  opacity: 0.7;
+  font-family: var(--code-font, monospace);
+}
+
+/* the boot-screen spinner (loading.css markup), scaled down;
+   .loader's ring rule is global, only the scoped bits need mirrors */
+#main .slide-loading .spinner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 12px;
+  font-size: 0.6em;
+}
+
+#main .slide-loading .spinner .loader {
+  width: 40px;
+  height: 40px;
+  border-width: 5px;
+}
+
+#main .slide-loading .spinner .nut-container {
+  background-color: var(--nut-menu);
+  border-radius: 10em;
+  width: 1.6em;
+  height: 1.6em;
+  position: fixed;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+#main .slide-loading .spinner img {
+  width: 1em;
+  animation: rotation 0.75s linear infinite;
+  animation-direction: reverse;
+}
+
+/* the whole-program result, live below the stack */
+#main .stack-result {
+  border-top: 0.6px solid var(--border-default);
+  background: var(--surface-raised);
 }

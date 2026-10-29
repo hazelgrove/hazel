@@ -28,6 +28,8 @@ exception Mismatch;
 
 /* Why the last of_text call bailed — fallback telemetry and debugging. */
 let bail_note: ref(option(string)) = ref(None);
+/* where the menhir parse of the bailed attempt's text stopped */
+let bail_at: ref(option(MenhirParser.Interface.stop)) = ref(None);
 let note = msg => bail_note := Some(msg);
 
 type tok = {
@@ -216,13 +218,14 @@ let weave =
   /* Fast-path half of the `¿` convention (MarkerParse is the
      recovering-parser half): markers become Grout directly in the weave. */
   let implicit_hole = Token.implicit_hole_marker;
+  let concave_hole = Token.concave_hole_marker;
   let expect_hole = (): (string, string) => {
     if (idx^ >= Array.length(toks)) {
       note("segment expects a hole but source tokens are exhausted");
       raise(Mismatch);
     };
     let t = toks[idx^];
-    if (t.text == "?" || t.text == implicit_hole) {
+    if (t.text == "?" || t.text == implicit_hole || t.text == concave_hole) {
       incr(idx);
       (t.gap, t.text);
     } else {
@@ -489,11 +492,20 @@ let attempt =
   switch (lex_with_gaps(text)) {
   | None => None
   | Some((tokens, trailing_gap)) =>
-    switch (MenhirParser.Interface.parse_program(text)) {
+    switch (MenhirParser.Interface.program_or_stop(text)) {
     | exception e =>
       note("menhir: " ++ Printexc.to_string(e));
       None;
-    | ast =>
+    | Error(stop) =>
+      bail_at := Some(stop);
+      note(
+        "menhir: syntax error at line "
+        ++ string_of_int(stop.line)
+        ++ ", column "
+        ++ string_of_int(stop.column),
+      );
+      None;
+    | Ok(ast) =>
       let term =
         Language.Grammar.map_exp_annotation(
           _ => Language.IdTagged.IdTag.fresh(),
@@ -543,33 +555,64 @@ let parsed_of_text =
     (
       ~materialize: materialize=(_, _) => None,
       ~collect_refractors: bool=false,
+      ~chunk: bool=false,
       ~root: Sort.t,
       text: string,
     )
     : result(parsed, string) => {
   bail_note := None;
+  bail_at := None;
   let attempt = attempt(~collect_refractors);
   let fail = (): result(parsed, string) =>
     Error(Option.value(bail_note^, ~default="no note"));
   if (root == Sort.Mod) {
-    /* Module-member chunks (update_binding_clause on a member): parse
+    /* Module-member chunks (a member replaced whole): parse
        as a braced module body, then unwrap the brace tile. Chunks with
        spliced separators (leading/trailing ;) fail the wrap parse and
-       fall back — they are small. */
-    switch (attempt(~materialize, "{" ++ String.trim(text) ++ "}")) {
-    | Some({segment: [Tile({children: [inner], _} as bt)], refractors})
-        when Tile.has_label(bt, ["{", "}"]) =>
-      Ok({
-        segment: inner,
-        refractors,
-      })
-    | _ =>
-      /* keep the attempt's own note when it bailed; the generic wrap
-         message only describes a successful parse of the wrong shape */
-      if (bail_note^ == None) {
-        note("mod-root wrap did not yield a single module body");
+       fall back — they are small. A [chunk] spliced among members
+       (paste) keeps its edge whitespace, and one ending with a member's
+       `;` or an open slot (`let z =`) parses with a hole after it, which
+       is then stripped */
+    let body = chunk ? text : String.trim(text);
+    let unbraced = (wrapped: string): option(parsed) =>
+      switch (attempt(~materialize, wrapped)) {
+      | Some({segment: [Tile({children: [inner], _} as bt)], refractors})
+          when Tile.has_label(bt, ["{", "}"]) =>
+        Some({
+          segment: inner,
+          refractors,
+        })
+      | _ => None
       };
-      fail();
+    switch (unbraced("{" ++ body ++ "}")) {
+    | Some(p) => Ok(p)
+    | None =>
+      let first_note = (bail_note^, bail_at^);
+      switch (
+        chunk
+          ? Option.bind(unbraced("{" ++ body ++ " ?}"), p =>
+              Option.map(
+                segment =>
+                  {
+                    ...p,
+                    segment,
+                  },
+                strip_appended_hole(p.segment),
+              )
+            )
+          : None
+      ) {
+      | Some(p) => Ok(p)
+      | None =>
+        /* keep the attempt's own note when it bailed; the generic wrap
+           message only describes a successful parse of the wrong shape */
+        bail_note := fst(first_note);
+        bail_at := snd(first_note);
+        if (bail_note^ == None) {
+          note("mod-root wrap did not yield a single module body");
+        };
+        fail();
+      };
     };
   } else if (root != Sort.Exp) {
     note("root sort is not fast-parseable (Exp and Mod only)");
@@ -580,7 +623,7 @@ let parsed_of_text =
     | None =>
       /* keep the first attempt's bail note: the retry's failure mode
          (usually "menhir: parse error on text + ?") is less telling */
-      let first_note = bail_note^;
+      let first_note = (bail_note^, bail_at^);
       switch (attempt(~materialize, text ++ " ?")) {
       | Some(p) =>
         switch (strip_appended_hole(p.segment)) {
@@ -590,11 +633,13 @@ let parsed_of_text =
             segment,
           })
         | None =>
-          bail_note := first_note;
+          bail_note := fst(first_note);
+          bail_at := snd(first_note);
           fail();
         }
       | None =>
-        bail_note := first_note;
+        bail_note := fst(first_note);
+        bail_at := snd(first_note);
         fail();
       };
     };

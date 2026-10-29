@@ -137,6 +137,8 @@ let shapes =
     _ => Some(Nib.Shape.(Convex, Convex)),
   );
 
+/* (kept on #2635: ProjectorPerform's SetSyntax leaves a single convex
+   piece unparenthesized) */
 let is_convex = (p: t): bool =>
   switch (shapes(p)) {
   | Some((Convex, Convex)) => true

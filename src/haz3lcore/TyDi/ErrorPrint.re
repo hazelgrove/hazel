@@ -17,10 +17,12 @@ module Print = {
     Printer.of_segment(~holes, ~caret=None, segment);
   };
 
+  /* parenthesized as the editor would print it: a tuple type standing
+     alone reads (A, B), not A, B; an unknown reads ? */
   let term = (term: Any.t): string => {
     let settings =
       ExpToSegment.Settings.of_core(~inline=false, CoreSettings.off);
-    term |> ExpToSegment.any_to_pretty(~settings) |> seg(~holes="");
+    term |> ExpToSegment.any_to_segment(~settings) |> seg(~holes="?");
   };
 
   let typ = (ty: Typ.t): string => term(Typ(ty));
@@ -41,6 +43,22 @@ let member_mismatch_string = (~what, name, ~expected, ~actual) =>
 
 let type_member_mismatch_string = (name, ~expected, ~actual) =>
   member_mismatch_string(~what="Type member ", name, ~expected, ~actual);
+
+let type_member_capture_string = names =>
+  switch (names) {
+  | [name] =>
+    prn(
+      "Type variable %s collides with a type member named %s in this signature, so %s cannot be mentioned inside it; rename the type variable",
+      name,
+      name,
+      name,
+    )
+  | _ =>
+    prn(
+      "Type variables %s collide with type members of the same names in this signature, so they cannot be mentioned inside it; rename them",
+      String.concat(", ", names),
+    )
+  };
 
 let core_mark_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   let ana = Statics.ana_skip_explicit_nonlabel(ana);
@@ -228,6 +246,7 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
     }
   | ModuleTypeMemberMismatch({name, expected, actual}) =>
     type_member_mismatch_string(name, ~expected, ~actual)
+  | TypeMemberCapture(names) => type_member_capture_string(names)
   | IsLivelitName({name, _}) =>
     switch (Ctx.lookup_livelit(ctx, name)) {
     | None => "Livelit unbound and not found"
@@ -340,15 +359,17 @@ let typ_mark_string: Mark.t => string =
     prn("%s is a value of type %s, not a module", name, Print.typ(typ))
   | ModuleTypeMemberMismatch({name, expected, actual}) =>
     type_member_mismatch_string(name, ~expected, ~actual)
+  | TypeMemberCapture(names) => type_member_capture_string(names)
   | _ => "(static error)";
 
 let tpat_mark_string: Mark.t => string =
   fun
   | TPatNotAVar(_) => "Not a valid type name" //TODO: elaborate
   | TPatShadowsType(name, _) => "Can't shadow type " ++ name //TODO: elaborate
+  | TypeMemberCapture(names) => type_member_capture_string(names)
   | _ => "(static error)";
 
-let string_of_marks = (info: Info.t, marks: list(Mark.t)): string =>
+let marks_string = (info: Info.t, marks: list(Mark.t)): string =>
   switch (info) {
   | InfoDrv(drv) =>
     switch (DrvInfo.error_of(drv)) {
@@ -382,6 +403,91 @@ let string_of_marks = (info: Info.t, marks: list(Mark.t)): string =>
   | _ => "(static error)"
   };
 
+/* `M.x` inside module M's own body, where M isn't bound yet: what the
+   free constructor (or the Dot on it) should say instead. M is an
+   ancestor binding the constructor's name to a module literal: a
+   `module M =`, or the let a module member lowers to */
+let self_reference = (~info_map, info: Info.t): option(string) => {
+  let free_ctor = (i: Info.t) =>
+    List.find_map(
+      (m: Mark.t) =>
+        switch (m) {
+        | FreeConstructor(name) => Some(name)
+        | _ => None
+        },
+      Info.marks_of(i),
+    );
+  let (ctor, member) =
+    switch (info) {
+    | InfoExp({user_term: {term: Dot(e1, e2), _}, _}) => (
+        Option.bind(Id.Map.find_opt(Exp.rep_id(e1), info_map), free_ctor),
+        Some(e2),
+      )
+    | InfoExp(_) =>
+      let dot =
+        Option.bind(
+          Info.parent_id_of(info),
+          Statics.Map.lookup_exp(_, info_map),
+        );
+      (
+        free_ctor(info),
+        switch (dot) {
+        | Some({user_term: {term: Dot(e1, e2), _}, _})
+            when Exp.rep_id(e1) == Info.id_of(info) =>
+          Some(e2)
+        | _ => None
+        },
+      );
+    | _ => (None, None)
+    };
+  let rec is_module = (e: Exp.t) =>
+    switch (e.term) {
+    | Module(_) => true
+    | Parens(e) => is_module(e)
+    | _ => false
+    };
+  let rec mpat_var = (mp: MPat.t) =>
+    switch (mp.term) {
+    | Var(x) => Some(x)
+    | Asc(mp, _) => mpat_var(mp)
+    | _ => None
+    };
+  let names_module = (name, i: Info.t) =>
+    switch (i) {
+    | InfoExp({user_term: {term: Let(p, def, _), _}, _}) =>
+      Pat.get_var(p) == Some(name) && is_module(def)
+    | InfoExp({user_term: {term: ModuleExp(mp, def, _), _}, _}) =>
+      mpat_var(mp) == Some(name) && is_module(def)
+    | _ => false
+    };
+  let encloses = name =>
+    List.exists(
+      id =>
+        Option.fold(
+          ~none=false,
+          ~some=names_module(name),
+          Id.Map.find_opt(id, info_map),
+        ),
+      Info.ancestors(~info_map, info),
+    );
+  switch (ctor) {
+  | Some(name) when encloses(name) =>
+    let direct =
+      switch (Option.map((e: Exp.t) => e.term, member)) {
+      | Some(Var(x) | Label(x)) => prn("; use `%s` directly", x)
+      | _ => ""
+      };
+    Some(prn("`%s` isn't in scope inside its own body%s", name, direct));
+  | _ => None
+  };
+};
+
+let string_of_marks = (~info_map, info: Info.t, marks: list(Mark.t)): string =>
+  switch (self_reference(~info_map, info)) {
+  | Some(message) => message
+  | None => marks_string(info, marks)
+  };
+
 let format_error = (term, error) =>
   prn("Error in term:\n  %s\nNature of error: %s", term, error);
 
@@ -407,6 +513,9 @@ let all = (info_map: Statics.Map.t): list(string) => {
   |> List.sort_uniq(compare)
   |> List.map(info => {
        let term = term_string_of(info);
-       format_error(term, string_of_marks(info, Info.marks_of(info)));
+       format_error(
+         term,
+         string_of_marks(~info_map, info, Info.marks_of(info)),
+       );
      });
 };

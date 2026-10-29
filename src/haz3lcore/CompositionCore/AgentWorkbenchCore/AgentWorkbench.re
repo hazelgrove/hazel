@@ -571,6 +571,58 @@ module Update = {
       | None => Failure("No active task to unset active subtask from")
       };
     };
+
+    /* the active subtask closed as [status]; the next open one becomes
+       active */
+    let close_active_subtask =
+        (~model: t, ~what: string, ~summary: string, ~status): Action.result =>
+      switch (MainUtils.active_task(model)) {
+      | None => Failure("No active task to mark subtask " ++ what)
+      | Some(task) =>
+        switch (TaskUtils.active_subtask(task)) {
+        | None => Failure("No active subtask to mark " ++ what)
+        | Some(subtask) =>
+          let clock_it = JsUtil.timestamp();
+          let task =
+            TaskUtils.write_subtask(
+              ~task,
+              ~subtask={
+                ...subtask,
+                completion_info:
+                  Some({
+                    summary,
+                    elapsed_time: clock_it -. subtask.metadata.began_at,
+                    status,
+                  }),
+                metadata: {
+                  ...subtask.metadata,
+                  completed_at: Some(clock_it),
+                  last_updated_at: clock_it,
+                },
+              },
+            );
+          let task = {
+            ...task,
+            active_subtask: TaskUtils.get_next_incomplete_subtask_title(task),
+          };
+          let task =
+            switch (TaskUtils.active_subtask(task)) {
+            | Some(next) =>
+              TaskUtils.write_subtask(
+                ~task,
+                ~subtask={
+                  ...next,
+                  metadata: {
+                    ...next.metadata,
+                    began_at: clock_it,
+                  },
+                },
+              )
+            | None => task
+            };
+          write_task(~model, ~task);
+        }
+      };
   };
 
   let update = (~model: Model.t, ~action: Action.action): Action.result => {
@@ -795,41 +847,12 @@ module Update = {
           UpdateUtils.write_task(~model, ~task);
         }
       | MarkActiveSubtaskComplete(summary) =>
-        switch (MainUtils.active_task(model)) {
-        | None => Failure("No active task to mark subtask complete")
-        | Some(active_task) =>
-          switch (TaskUtils.active_subtask(active_task)) {
-          | None => Failure("No active subtask to mark complete")
-          | Some(active_subtask) =>
-            let clock_it = JsUtil.timestamp();
-            let updated_subtask = {
-              ...active_subtask,
-              completion_info:
-                Some({
-                  summary,
-                  elapsed_time: clock_it -. active_subtask.metadata.began_at,
-                  status: Completed,
-                }),
-              metadata: {
-                ...active_subtask.metadata,
-                completed_at: Some(clock_it),
-                last_updated_at: clock_it,
-              },
-            };
-            let updated_task =
-              TaskUtils.write_subtask(
-                ~task={
-                  ...active_task,
-                  active_subtask:
-                    Utils.TaskUtils.get_next_incomplete_subtask_title(
-                      active_task,
-                    ),
-                },
-                ~subtask=updated_subtask,
-              );
-            UpdateUtils.write_task(~model, ~task=updated_task);
-          }
-        }
+        UpdateUtils.close_active_subtask(
+          ~model,
+          ~what="complete",
+          ~summary,
+          ~status=Completed,
+        )
       | MarkActiveSubtaskIncomplete =>
         /*
          - Clears the completion info of the active subtask in the active task
@@ -859,41 +882,12 @@ module Update = {
           }
         }
       | MarkActiveSubtaskFailed(reason) =>
-        switch (MainUtils.active_task(model)) {
-        | None => Failure("No active task to mark subtask failed")
-        | Some(active_task) =>
-          switch (TaskUtils.active_subtask(active_task)) {
-          | None => Failure("No active subtask to mark failed")
-          | Some(active_subtask) =>
-            let clock_it = JsUtil.timestamp();
-            let updated_subtask = {
-              ...active_subtask,
-              completion_info:
-                Some({
-                  summary: reason,
-                  elapsed_time: clock_it -. active_subtask.metadata.began_at,
-                  status: Failed,
-                }),
-              metadata: {
-                ...active_subtask.metadata,
-                completed_at: Some(clock_it),
-                last_updated_at: clock_it,
-              },
-            };
-            let updated_task =
-              TaskUtils.write_subtask(
-                ~task={
-                  ...active_task,
-                  active_subtask:
-                    Utils.TaskUtils.get_next_incomplete_subtask_title(
-                      active_task,
-                    ),
-                },
-                ~subtask=updated_subtask,
-              );
-            UpdateUtils.write_task(~model, ~task=updated_task);
-          }
-        }
+        UpdateUtils.close_active_subtask(
+          ~model,
+          ~what="failed",
+          ~summary=reason,
+          ~status=Failed,
+        )
       | MarkActiveTaskFailed(reason) =>
         switch (MainUtils.active_task(model)) {
         | None => Failure("No active task to mark failed")

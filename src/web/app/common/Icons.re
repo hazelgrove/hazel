@@ -476,15 +476,6 @@ let cat_edit =
     ],
   );
 
-let cat_read =
-  simple_icon(
-    ~view="0 0 24 24",
-    [
-      "M12 5c-5.5 0-9.5 7-9.5 7s4 7 9.5 7 9.5-7 9.5-7-4-7-9.5-7zm0 11a4 4 0 110-8 4 4 0 010 8z",
-      "M12 10a2 2 0 100 4 2 2 0 000-4z",
-    ],
-  );
-
 let cat_view =
   simple_icon(
     ~view="0 0 24 24",

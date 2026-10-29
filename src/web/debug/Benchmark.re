@@ -45,7 +45,9 @@ let str_to_inserts = (str: string): list(Editors.Update.t) =>
     String.length(str),
     i => {
       let c = String.sub(str, i, 1);
-      Editors.Update.Scratch(CellAction(MainEditor(Perform(Insert(c)))));
+      Editors.Update.Scratch(
+        Workspace(CellAction(MainEditor(Perform(Insert(c))))),
+      );
     },
   );
 

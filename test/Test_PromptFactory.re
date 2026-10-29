@@ -308,6 +308,8 @@ let doc_examples_clean = () =>
       "module M = { type T = Int } in\nlet x : M.T = 6 in x",
       /* HazelSyntaxNotes: mutual recursion via tuple binding */
       "let (even : Int -> Bool, odd : Int -> Bool) =\n  (fun n -> if n == 0 then true else odd(n - 1),\n   fun n -> if n == 0 then false else even(n - 1))\nin\neven(4)",
+      /* HazelSyntaxNotes: holes in a signature */
+      "let f(x: ?): ? = x + 1 in\nf(5)",
       /* implicit recursive type alias */
       "type MyList = Nil + Cons(Int, MyList) in\nlet x : MyList = Cons(1, Cons(2, Cons(3, Nil))) in x",
       /* CompositionPrompt: projector concrete syntax */

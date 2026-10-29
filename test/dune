@@ -9,6 +9,9 @@
 
 (rule
  (alias runtest)
+ (deps
+  (glob_files modaudit/*.hz)
+  (glob_files golden/*.txt))
  (action
   (setenv
    IDB_STUB
@@ -20,6 +23,9 @@
 
 (rule
  (alias test-quick)
+ (deps
+  (glob_files modaudit/*.hz)
+  (glob_files golden/*.txt))
  (action
   (setenv
    IDB_STUB

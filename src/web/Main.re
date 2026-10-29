@@ -38,7 +38,7 @@ let seed_visible_rows =
   let page = model.model.current.current;
   let needed =
     Editors.Model.supports_viewport_culling(page.editors)
-    && page.globals.settings.autoprobe_mode != Haz3lcore.AutoProbe.Off
+    && Globals.VisibleRows.tracked(page.globals.settings)
     && Option.is_none(page.globals.visible_rows);
   if (needed) {
     switch (JsUtil.code_viewport_geometry()) {
@@ -292,7 +292,7 @@ let start = default_model => {
       () => {
         if (scroll_to_caret.contents) {
           scroll_to_caret := false;
-          JsUtil.scroll_cursor_into_view_if_needed();
+          CaretReveal.reveal();
         } else {
           ();
         };
@@ -330,8 +330,8 @@ let start = default_model => {
         /* stagger multi-row offside displays clear of code and of each
            other (top-down priority, first-fit), per code container */
         ProbeStagger.update(~font_metrics);
-        /* after the displays are placed: its read sees where they are,
-           and shares their layout */
+        /* it only writes now: its measuring waits for AfterLayout, so
+           where it sits among these updates does not matter */
         ScrollWidth.update(
           ~measured,
           ~refractor_rows=editor.syntax.refractor_rows,
@@ -339,9 +339,33 @@ let start = default_model => {
           ~font_metrics,
           ~visible_rows=model.model.current.current.globals.visible_rows,
         );
+        OutlineFollow.update();
         SampleAnchor.consume();
         seed_visible_rows(model, ~dispatch=a =>
           app_inject(a) |> Bonsai.Effect.Expert.handle
+        );
+        DrawerRows.update(
+          ~row_height=font_metrics.row_height,
+          ~relayout=
+            () =>
+              app_inject(Page.Update.Globals(RelayoutDrawers))
+              |> Bonsai.Effect.Expert.handle,
+          /* a step taken: once the drawer has its rows, show the new step */
+          ~reveal=
+            ProbeSteps.reveal^
+              ? Some(
+                  () => {
+                    ProbeSteps.reveal := false;
+                    JsUtil.reveal_last(".probe-stepper .step-border");
+                  },
+                )
+              : None,
+        );
+        JsUtil.observe_drawer_width(~report=cols =>
+          if (cols != Haz3lcore.ProbeProj.Settings.s^.drawer.width) {
+            app_inject(Page.Update.Globals(UpdateDrawerWidth(cols)))
+            |> Bonsai.Effect.Expert.handle;
+          }
         );
         model.model.current.current.globals.settings.core.statics
           ? Animation.go() : ();

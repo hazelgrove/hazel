@@ -53,7 +53,10 @@ let vars_of: Exp.t => list(Var.t) =
 let anon: 'a. IdTagged.t('a) => IdTagged.t('a) =
   t => {
     ...t,
-    annotation: IdTagged.IdTag.mk_internal([Id.invalid]),
+    annotation: {
+      ...IdTagged.IdTag.mk_internal([Id.invalid]),
+      lexeme: t.annotation.lexeme,
+    },
   };
 let anon_f:
   'a.

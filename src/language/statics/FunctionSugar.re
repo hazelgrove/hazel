@@ -105,6 +105,10 @@ let map_binder = (f: Pat.t => Pat.t, pat: Pat.t): Pat.t => {
   };
 };
 
+/* the id of [rewrite]'s Fun: its info is the definition's, parameters
+   bound */
+let fun_id = (args: Pat.t): Id.t => Id.next(Pat.rep_id(args));
+
 /* Build the desugared expression:
 
        Let(f_name, Fun(args, (def : ret_ty)?, None, None), body)
@@ -133,11 +137,27 @@ let rewrite =
     | None => def
     };
   let fun_exp: Exp.t =
-    (Fun(args, def_in_fun, None, None): Exp.term)
-    |> IdTagged.fresh_deterministic(Pat.rep_id(args));
+    IdTagged.mk_internal(
+      [fun_id(args)],
+      Fun(args, def_in_fun, None, None): Exp.term,
+    );
   let (_, rewrap) = Exp.unwrap(orig_let);
   rewrap(Let(f_name, fun_exp, body));
 };
+
+/* [rewrite]'s Fun back to the definition as written, whose ids the text
+   holds; None for any other expression */
+let written = (e: Exp.t): option(Exp.t) =>
+  switch (e.term) {
+  | Fun(args, def, _, _) when Id.equal(Exp.rep_id(e), fun_id(args)) =>
+    switch (def.term) {
+    | Asc(inner, ty)
+        when Id.equal(Exp.rep_id(def), Id.next(Typ.rep_id(ty))) =>
+      Some(inner)
+    | _ => Some(def)
+    }
+  | _ => None
+  };
 
 /* After statics has processed the desugared `Let`, the info map is
    missing entries for ids that only exist in the original binder
