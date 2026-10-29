@@ -1,0 +1,51 @@
+# A compact MVU app: the constellation shows the Model/Msg update loop #
+# while the running app renders in the Projectors sidebar. #
+# (Fuller apps live in hazel-programs/docs/mvu/.) #
+
+type Model = Int in
+type Msg = Inc + Dec + Reset in
+
+let init : Model = 0 in
+
+let update(model: Model, msg: Msg): Model =
+  case msg
+  | Inc => model + 1
+  | Dec => model - 1
+  | Reset => 0
+  end
+in
+
+let btn : (String, Msg) -> HTML =
+  fun (label, msg) ->
+    Button(
+      [OnClick(msg),
+       Style([("padding", "0.3em 0.7em"), ("cursor", "pointer")])],
+      [Text(label)]
+    )
+in
+
+let view(model: Model): HTML =
+  Div(
+    [Style([("display", "flex"), ("gap", "0.5em"), ("align-items", "center"),
+            ("padding", "0.6em")])],
+    [Int(model), btn("+", Inc), btn("-", Dec), btn("0", Reset)]
+  )
+in
+
+let subs(_model: Model): Sub = SubNone in
+
+hint "inc adds one"
+test update(0, Inc) == 1 end;
+
+hint "reset zeroes"
+test update(41, Reset) == 0 end;
+
+let noCmd(f: (Model, Msg) -> Model): (Model, Msg) -> (Model, Cmd) =
+  fun (model, msg) -> (f(model, msg), CmdNone)
+in
+
+# The app runtime calls view/subs outside the main evaluation, so probe #
+# samples for them come from this direct call.                          #
+let _boot : (HTML, Sub) = (view(update(init, Inc)), subs(init)) in
+
+^^html_sidebar((init, noCmd(update), view, subs))

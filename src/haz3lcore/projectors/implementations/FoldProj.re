@@ -33,6 +33,7 @@ module M: Projector = {
   let init = _ => Some(default);
 
   let focusable = Focusable.non;
+  let dynamics = false;
   let elaborate_syntax = false;
 
   let placeholder = (m, _) =>

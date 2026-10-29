@@ -38,7 +38,7 @@ let live_renderer =
 let table_exp = mk_table([[("x", G.int(1)), ("y", G.int(2))]]);
 
 let initial_pm =
-  switch (live_renderer.init_model(Sort.Exp, table_exp)) {
+  switch (live_renderer.init_model(~statics=None, Sort.Exp, table_exp)) {
   | Some(pm) => pm
   | None => failwith("init_model should succeed on a valid table")
   };

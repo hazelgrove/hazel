@@ -26,6 +26,15 @@ let update =
     )
     : (Model.t, Updated.t(CellEditor.Model.t)) => {
   switch (action) {
+  | DirectEdit(tool_name, args) =>
+    AgentToolExec.execute_direct(
+      ~tool_name,
+      ~args,
+      ~model,
+      ~cell_editor=editor,
+      ~settings,
+      ~chat_id=model.chat_system.current,
+    )
   | ChatSystemAction(chat_archive_action) =>
     let chat_system =
       ChatSystem.Update.update(chat_archive_action, model.chat_system);
@@ -56,6 +65,13 @@ let update =
     )
   | StopAgenticLoop =>
     AgentSend.stop_agentic_loop(model, editor, schedule_action)
+  | CatchUpAgent =>
+    AgentSend.stop_agentic_loop(
+      ~flush_pending=false,
+      model,
+      editor,
+      schedule_action,
+    )
   | FlushPendingSend(chat_id) =>
     AgentSend.flush_pending_send(chat_id, model, editor, schedule_action)
   | HandleLLMResponse(reply, chat_id, flight_seq, elapsed_ms) =>
@@ -76,6 +92,39 @@ let update =
       schedule_action,
     );
     (m, e);
+  | ReplayToolCalls(tool_calls) =>
+    let chat_id = model.chat_system.current;
+    let reply: OpenRouter.Reply.Model.t = {
+      content: "",
+      tool_calls,
+      usage: None,
+      reasoning: None,
+    };
+    AgentResponse.handle_llm_response(
+      reply,
+      chat_id,
+      model.main_llm_seq,
+      0,
+      model,
+      editor,
+      settings,
+      schedule_action,
+    );
+  | ReplayStreamTick => (
+      {
+        ...model,
+        pending_assistant_reasoning: model.pending_assistant_reasoning ++ " ",
+      },
+      editor |> Updated.return_quiet,
+    )
+  | ReplayBegin(label) => (
+      Utils.append_message(
+        ~chat_id=model.chat_system.current,
+        Message.Utils.mk_user_message(label),
+        model,
+      ),
+      editor |> Updated.return_quiet,
+    )
   | HandleCompactionLLMReply(reply, chat_id, flight_seq) =>
     let (m, e) =
       AgentCompaction.handle_compaction_reply(
@@ -242,7 +291,8 @@ let update =
       | Some(_) => model.restore_editor_state
       };
     let new_zipper = Zipper.unzip(~direction=Right, segment);
-    let new_editor_model = Editor.Model.mk(new_zipper, ~root=Exp);
+    let new_editor_model =
+      Editor.Model.mk(new_zipper, ~root=editor.editor.editor.root);
     let new_code_with_statics = CodeWithStatics.Model.mk(new_editor_model);
     (
       {
@@ -260,7 +310,8 @@ let update =
     switch (model.restore_editor_state) {
     | Some(saved_segment) =>
       let new_zipper = Zipper.unzip(~direction=Right, saved_segment);
-      let new_editor_model = Editor.Model.mk(new_zipper, ~root=Exp);
+      let new_editor_model =
+        Editor.Model.mk(new_zipper, ~root=editor.editor.editor.root);
       let new_code_with_statics = CodeWithStatics.Model.mk(new_editor_model);
       (
         {
@@ -279,7 +330,8 @@ let update =
   | LoadSegmentIntoEditor(segment) =>
     // Replace editor with segment by converting to zipper
     let new_zipper = Zipper.unzip(~direction=Right, segment);
-    let new_editor_model = Editor.Model.mk(new_zipper, ~root=Exp);
+    let new_editor_model =
+      Editor.Model.mk(new_zipper, ~root=editor.editor.editor.root);
     let new_code_with_statics = CodeWithStatics.Model.mk(new_editor_model);
     (
       model,
@@ -365,6 +417,7 @@ let update =
       editor |> Updated.return,
     );
   | StreamDelta(_chat_id, flight_seq, content_delta, reasoning_delta) =>
+    CanvasTrajectory.tick();
     /* Late deltas from a stream the user Stopped or superseded are
        dropped. The same seq-gate protects HandleLLMResponse / ApiError. */
     switch (model.pending_ignore_main_reply_seq) {
@@ -382,6 +435,6 @@ let update =
         },
         editor |> Updated.return_quiet,
       )
-    }
+    };
   };
 };

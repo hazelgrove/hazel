@@ -1,0 +1,111 @@
+# Range Picker: an interval on a 0..100 bar with two handles.          #
+# Press anywhere on the bar and drag: the nearer handle follows. A use  #
+# expands to Range(low, high); `overlap` and `within` compare ranges,   #
+# and `show` draws any Range on the same bar.                           #
+
+type Range = + Range(Int, Int) in
+
+let ^range = {
+  # (low, high, dragging: 0 the low handle, 1 the high handle, -1 none) #
+  type Model = (Int, Int, Int);
+  type Action = + Down(Int) + MoveTo(Int) + Up;
+
+  let init : Model = (25, 75, -1);
+
+  # the bar runs from x = 8 to x = 175 #
+  let s : Int -> String = string_of_int;
+
+  let x_of(v: Int): Int = 8 + 167 * v / 100;
+
+  let v_of(x: Int): Int =
+    let v = (x - 8) * 100 / 167 in
+    if v < 0 then 0 else if v > 100 then 100 else v;
+
+  let update((lo, hi, drag): Model, a: Action): Model =
+    case a
+    | Down(x) =>
+      (lo, hi, if abs(x - x_of(lo)) <= abs(x - x_of(hi)) then 0 else 1)
+    | MoveTo(x) =>
+      let v = v_of(x) in
+      if drag == 0 then (if v < hi then v else hi, hi, drag)
+      else if drag == 1 then (lo, if v > lo then v else lo, drag)
+      else (lo, hi, drag)
+    | Up => (lo, hi, -1)
+    end;
+
+  let handle(v: Int, held: Bool): HTML =
+    Node("circle",
+      [Create("cx", s(x_of(v))), Create("cy", "8"), Create("r", "6"),
+       Create("fill", if held then "#e9c182" else "#465d72"),
+       Create("stroke", "#a6d3ee"), Create("stroke-width", "2")],
+      []);
+
+  let view((lo, hi, drag): Model): HTML =
+    Div(
+      [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif"), ("display", "flex"), ("align-items", "center"), ("gap", "4px"),
+              ("font-family", "var(--code-font)"), ("font-size", "0.75em")])],
+      [Node("svg",
+         [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif"), ("cursor", "ew-resize")]), Create("viewBox", "0 0 183 16"), Width("183"), Height("16"),
+
+          OnMouseDownAt(fun (x: Int, _) -> Down(x)),
+          OnMouseMoveAt(fun (x: Int, _) -> MoveTo(x)),
+          OnMouseUpAt(fun _ -> Up)],
+         [Node("rect",
+            [Create("x", "8"), Create("y", "5"), Create("width", "167"),
+             Create("height", "6"), Create("rx", "3"), Create("fill", "#405a70")],
+            []),
+          Node("rect",
+            [Create("x", s(x_of(lo))), Create("y", "5"),
+             Create("width", s(x_of(hi) - x_of(lo))), Create("height", "6"),
+             Create("fill", "#a6d3ee")],
+            []),
+          handle(lo, drag == 0),
+          handle(hi, drag == 1)]),
+       Span([Style([("min-width", "44px"), ("text-align", "right")])],
+            [Text(s(lo) ++ "-" ++ s(hi))])]);
+
+  let expand((lo, hi, _): Model): Range = Range(lo, hi);
+
+  let wrap(v: Range): Model =
+    case v
+    | Range(lo, hi) => (lo, hi, -1)
+    end;
+
+  let shape : LivelitShape = Inline(23)
+} in
+
+let show(v: Range): HTML = ^range.view(^range.wrap(v)) in
+
+let width(r: Range): Int =
+  case r
+  | Range(lo, hi) => hi - lo
+  end
+in
+
+# The part two ranges share; Range(0, 0) when they don't touch #
+let overlap(a: Range, b: Range): Range =
+  case (a, b)
+  | (Range(l1, h1), Range(l2, h2)) =>
+    let lo = if l1 > l2 then l1 else l2 in
+    let hi = if h1 < h2 then h1 else h2 in
+    if lo <= hi then Range(lo, hi) else Range(0, 0)
+  end
+in
+
+let within(inner: Range, outer: Range): Bool =
+  case (inner, outer)
+  | (Range(l1, h1), Range(l2, h2)) => l1 >= l2 && h1 <= h2
+  end
+in
+
+# The pressure a valve is rated for, and what a test run observed (bar) #
+let rated : Range = ^^livelit(^range((20, 80, -1))) in
+let observed : Range = ^^livelit(^range((35, 90, -1))) in
+
+test width(Range(20, 80)) == 60 end;
+test overlap(Range(20, 80), Range(35, 90)) == Range(35, 80) end;
+test overlap(Range(0, 10), Range(20, 30)) == Range(0, 0) end;
+test within(Range(30, 40), Range(20, 80)) end;
+test !within(Range(10, 40), Range(20, 80)) end;
+
+(safe=within(observed, rated), shared=show(overlap(observed, rated)))

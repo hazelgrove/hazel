@@ -31,8 +31,10 @@ let view =
   // rows for stale-path detection and cmd/ctrl-click jump targets.
   let node_map: option(HighLevelNodeMap.t) = {
     let z = code_with_statics.editor.state.zipper;
-    let info_map = CompositionGo.Public.mk_statics(z);
-    HighLevelNodeMap.build(z, info_map);
+    let root = code_with_statics.editor.root;
+    !Id.Map.is_empty(code_with_statics.statics.info_map)
+      ? HighLevelNodeMap.build_for(z, code_with_statics.statics)
+      : CompositionGo.Public.node_map_of(~root, z);
   };
   let current_chat_id = chat_system.current;
   let current_chat = ChatSystem.Utils.find_chat(current_chat_id, chat_system);

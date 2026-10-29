@@ -1083,12 +1083,13 @@ module AvailableLLMs = {
   };
 
   // FP Lab-curated recommendations: (exact OpenRouter id, tagline).
+  // Versions checked against /api/v1/models on 2026-10-06.
   let recommended_entries: list((string, string)) = [
-    ("anthropic/claude-opus-4.6", "Most capable"),
-    ("anthropic/claude-sonnet-4.6", "High quality and speedy"),
-    ("google/gemini-3-flash-preview", "Best balance of quality and cost"),
+    ("anthropic/claude-opus-5.5", "Most capable"),
+    ("anthropic/claude-sonnet-5.5", "High quality and speedy"),
+    ("google/gemini-3.8-flash", "Best balance of quality and cost"),
     ("xiaomi/mimo-v2-pro", "Highly capable and affordable"),
-    ("google/gemma-4-31b-it", "Great cheap model"),
+    ("openai/gpt-6-luna", "Fast and affordable"),
   ];
 
   let recommended_tagline = (info: Model.llm_info): option(string) =>

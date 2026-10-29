@@ -51,8 +51,9 @@ let apply_overlay_action =
     )
     : Result.t((Model.t, CodeWithStatics.Model.t)) => {
   let z = editor.editor.state.zipper;
-  let info_map = CompositionGo.Public.mk_statics(z);
-  switch (HighLevelNodeMap.build(z, info_map)) {
+  let root = editor.editor.root;
+  let info_map = CompositionGo.Public.mk_statics(~root, z);
+  switch (CompositionGo.Public.node_map_of(~root, z)) {
   | None =>
     Error(
       Failure.Info(
@@ -60,7 +61,7 @@ let apply_overlay_action =
       ),
     )
   | Some(node_map) =>
-    let syntax = CachedSyntax.init(z);
+    let syntax = CachedSyntax.init(~root, z);
     let (new_z, paths_to_expand, n_changed, unresolved) =
       List.fold_left(
         ((z, expanded, n_changed, unresolved), path) =>
@@ -89,12 +90,12 @@ let apply_overlay_action =
           tool_label
           ++ " tool did not update the program: no path produced a change."
           ++ unresolved_sfx
-          ++ " Paths must be **HighLevelNodeMap binding paths** (e.g. \"map\", \"outer/inner\" for nested lets, \"M/helper\" for module members, \"name#k\" for duplicates).",
+          ++ " Paths must be **HighLevelNodeMap binding paths** (e.g. \"map\", \"outer/inner\" for nested lets, \"M/helper\" or \"^graph/update\" for module/livelit members, \"name#k\" for duplicates).",
         ),
       );
     } else {
-      let new_z = Materialize.all(new_z, ~root=Exp);
-      let new_editor_model = Editor.Model.mk(new_z, ~root=Exp);
+      let new_z = Materialize.all(new_z, ~root);
+      let new_editor_model = Editor.Model.mk(new_z, ~root);
       let new_cws =
         CodeWithStatics.Model.mk(~dynamics=editor.dynamics, new_editor_model);
 
@@ -135,6 +136,9 @@ let update =
       chat_id: Id.t,
     )
     : Result.t((Model.t, CodeWithStatics.Model.t)) => {
+  /* stamp agent activity so the canvas paces the resulting updates
+     into distinct beats (CanvasBuffer) */
+  CanvasBuffer.note_agent_action();
   switch (action) {
   | EditorAction(agent_editor_action) =>
     let action = Action.Structural(agent_editor_action);
@@ -153,7 +157,12 @@ let update =
         agent,
         CodeWithStatics.Model.{
           editor: updated_editor,
-          statics: editor.statics,
+          /* the old statics describe the program BEFORE this edit: kept,
+             they made the tool's canvas snapshot blank (its beat showed
+             nothing) and the content landed later as an anonymous state
+             change. Empty = the snapshot computes this program's (a
+             DefStatics memo hit) and the editor's calculate refreshes. */
+          statics: CachedStatics.empty,
           dynamics: editor.dynamics,
           context_menu: editor.context_menu,
         },
@@ -174,59 +183,43 @@ let update =
   | LanguageServerAction(_) =>
     Error(Failure.Info("LanguageServerAction is not implemented yet"))
   | InsertAtProgramBoundary(direction, code) =>
-    /* No-path variant of insert_before/insert_after.
-       - Before: move caret to program start, then paste code (prepend).
-       - After: move caret to program end, then paste code (append).
-       For an empty program (just `?`), either boundary effectively
-       seeds the program with the provided code. */
+    /* No-path variant of insert_before/insert_after: the code at the
+       program's start (Before) or end (After), at a Mod root as members
+       (CompositionGo.Public.insert_at_boundary). For an empty program
+       (just `?`), either boundary effectively seeds the program with the
+       provided code. */
     let z = editor.editor.state.zipper;
+    let root = editor.editor.root;
     /* the editor's statics for this program when it has them; the new
-       program's statics computed once, the editor's way, and offered to it */
-    let full_statics = (z: Zipper.t): CachedStatics.t =>
-      Util.PerfTimer.time("statics", () =>
-        CachedStatics.init(
-          ~settings=settings.core,
-          ~is_dynamic_term=false,
-          ~stitch=x => x,
-          ~root=Exp,
-          z,
-        )
-      );
+       program's computed the editor's way, per item (the editor's
+       recompute is a DefStatics memo hit) */
+    let eff_settings =
+      Language.CoreSettings.{
+        ...settings.core,
+        probe_all: settings.core.probe_all && !Util.AgentPulse.in_burst(),
+      };
     let initial_info_map =
-      switch (
-        CachedStatics.for_zipper(~settings=settings.core, z, editor.statics)
-      ) {
-      | Some(st) when st.info_map != Id.Map.empty => st.info_map
-      | _ => full_statics(z).info_map
-      };
-    let z_at_boundary =
-      switch ((direction: Action.Structural.insert_target)) {
-      | Before => Move.to_start(z)
-      | After => Move.to_end(z)
-      };
+      editor.statics.info_map != Id.Map.empty
+        ? editor.statics.info_map
+        : CompositionGo.Public.statics_for(~settings=eff_settings, ~root, z);
     /* inserted code arrives indentation-stripped; re-indent its new
        lines like user Paste */
     let before_pieces =
-      LocalReformat.snapshot_pieces(
-        ~enabled=settings.core.auto_reindent,
-        z_at_boundary,
-      );
+      LocalReformat.snapshot_pieces(~enabled=settings.core.auto_reindent, z);
     switch (
-      CompositionGo.Local.PerformUtils.introduce(
-        ~fast=true,
-        ~keep_edge_ws=true,
-        z_at_boundary,
-        "\n" ++ code ++ "\n",
-      )
+      CompositionGo.Public.insert_at_boundary(~root, direction, z, code)
     ) {
     | Error(Action.Failure.Composition_action_failure(msg)) =>
       Error(Failure.Info(msg))
     | Error(_) =>
       Error(Failure.Info("Failed to insert code at program boundary"))
     | Ok(new_z) =>
-      let new_full = full_statics(new_z);
-      CachedStatics.offer(~settings=settings.core, new_z, new_full);
-      let new_statics = new_full.info_map;
+      let new_statics =
+        CompositionGo.Public.statics_for(
+          ~settings=eff_settings,
+          ~root,
+          new_z,
+        );
       let old_errors = ErrorPrint.all(initial_info_map);
       let new_errors = ErrorPrint.all(new_statics);
       if (List.length(new_errors) > List.length(old_errors)) {
@@ -240,11 +233,13 @@ let update =
       } else {
         let final_z =
           CompositionGo.Local.PerformUtils.normalize_top_level(
+            ~root,
             ~before=z,
-            Materialize.all(new_z, ~root=Exp),
+            CompositionGo.Local.mentions_trigger(code)
+              ? Materialize.all(new_z, ~root) : new_z,
           )
           |> LocalReformat.go_region(~before_pieces);
-        let new_editor_model = Editor.Model.mk(final_z, ~root=Exp);
+        let new_editor_model = Editor.Model.mk(final_z, ~root);
         let new_code_with_statics =
           CodeWithStatics.Model.mk(new_editor_model);
         CodeWithStatics.StaticsDebounce.force_on_next := true;

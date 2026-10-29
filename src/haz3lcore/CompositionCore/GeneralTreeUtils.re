@@ -28,10 +28,10 @@ let subtree_of =
         Id.Map.filter(
           (id, child) =>
             List.mem(id, roots)
-            || List.exists(
-                 root => List.mem(root, Info.ancestors_of(child)),
-                 roots,
-               ),
+            || {
+              let above = Info.ancestors(~info_map=orig_info_map, child);
+              List.exists(root => List.mem(root, above), roots);
+            },
           orig_info_map,
         );
       | Let(pat, def, body) =>
@@ -222,8 +222,8 @@ let get_refs_to = (curr: Info.t, info_map: Id.Map.t(Info.t)): CoCtx.t => {
       };
     // Find variables that appear in body_coctx but not in entire_coctx
     // Effectively takes the set difference of body_coctx and entire_coctx
-    VarMap.filter(
-      ((var_name, _)) => !VarMap.contains(entire_coctx, var_name),
+    CoCtx.filter_names(
+      var_name => !CoCtx.contains(entire_coctx, var_name),
       body_coctx,
     );
   | _ =>
@@ -233,16 +233,17 @@ let get_refs_to = (curr: Info.t, info_map: Id.Map.t(Info.t)): CoCtx.t => {
   };
 };
 
-let rec var_names_of_pat = (pat: Pat.t): list(string) => {
+/* a pattern's vars, each with its binder */
+let rec var_binders_of_pat = (pat: Pat.t): list((string, Id.t)) => {
   switch (pat.term) {
-  | Var(name) => [name]
+  | Var(name) => [(name, Pat.rep_id(pat))]
   | Ap(pat1, pat2)
   | TupLabel(pat1, pat2)
-  | Cons(pat1, pat2) => var_names_of_pat(pat1) @ var_names_of_pat(pat2)
+  | Cons(pat1, pat2) => var_binders_of_pat(pat1) @ var_binders_of_pat(pat2)
   | Parens(pat)
-  | Asc(pat, _) => var_names_of_pat(pat)
+  | Asc(pat, _) => var_binders_of_pat(pat)
   | ListLit(pats)
-  | Tuple(pats) => List.concat_map(var_names_of_pat, pats)
+  | Tuple(pats) => List.concat_map(var_binders_of_pat, pats)
   | Invalid(_)
   | EmptyHole
   | MultiHole(_)
@@ -254,6 +255,9 @@ let rec var_names_of_pat = (pat: Pat.t): list(string) => {
   | ExplicitNonlabel => []
   };
 };
+
+let var_names_of_pat = (pat: Pat.t): list(string) =>
+  List.map(fst, var_binders_of_pat(pat));
 
 /** After a pattern edit, the post-edit [[Let]]'s [[co_ctx]] can already treat
     stale body spellings (old pattern name) as outer/free, so they wrongly
@@ -320,15 +324,15 @@ let get_refs_to_after_pattern_edit =
       let def_refs =
         switch (exp_to_info(def)) {
         | InfoExp({co_ctx, _}) =>
-          VarMap.filter(((n, _)) => List.mem(n, old_names), co_ctx)
-        | _ => []
+          CoCtx.filter_names(n => List.mem(n, old_names), co_ctx)
+        | _ => CoCtx.empty
         };
       let body_refs =
-        VarMap.filter(((n, _)) => String.equal(n, head_name), body_coctx);
-      def_refs @ body_refs;
+        CoCtx.filter_names(n => String.equal(n, head_name), body_coctx);
+      CoCtx.union([def_refs, body_refs]);
     | _ =>
-      VarMap.filter(
-        ((var_name, _)) => !VarMap.contains(entire_coctx, var_name),
+      CoCtx.filter_names(
+        var_name => !CoCtx.contains(entire_coctx, var_name),
         body_coctx,
       )
     };
@@ -341,12 +345,15 @@ let get_refs_to_after_pattern_edit =
   };
 };
 
-let get_var_names_from_pat = (curr: Info.t): list(string) => {
+let var_binders_of_info = (curr: Info.t): list((string, Id.t)) => {
   switch (curr) {
-  | InfoPat({user_term: term, _}) => var_names_of_pat(term)
+  | InfoPat({user_term: term, _}) => var_binders_of_pat(term)
   | _ => raise(Failure("Pat is not a pattern"))
   };
 };
+
+let get_var_names_from_pat = (curr: Info.t): list(string) =>
+  List.map(fst, var_binders_of_info(curr));
 
 /** True iff [name] occurs as an expression variable or a pattern binder
     within the subtree rooted at the term with [root_id] (per statics ancestor
@@ -356,7 +363,7 @@ let name_occurs_within =
     (~root_id: Id.t, ~info_map: Id.Map.t(Info.t), name: string): bool => {
   Id.Map.exists(
     (_id, info: Info.t) =>
-      List.mem(root_id, Info.ancestors_of(info))
+      List.mem(root_id, Info.ancestors(~info_map, info))
       && (
         switch (info) {
         | InfoExp({user_term, _}) =>
@@ -377,7 +384,13 @@ let name_occurs_within =
 };
 
 let update_use_sites_of_var =
-    (z: Zipper.t, co_ctx: CoCtx.t, old_name: string, new_name: string)
+    (
+      ~root=Sort.Exp,
+      z: Zipper.t,
+      co_ctx: CoCtx.t,
+      old_name: string,
+      new_name: string,
+    )
     : Zipper.t => {
   /*
    Updates the use sites of the given variables in the co-context.
@@ -393,7 +406,7 @@ let update_use_sites_of_var =
             let id = entry.CoCtx.id;
             switch (Select.tile(id, acc_z')) {
             | Some(z') =>
-              switch (Parser.to_zipper(~root=Exp, ~zipper_init=z', new_name)) {
+              switch (Parser.to_zipper(~root, ~zipper_init=z', new_name)) {
               | Some(z'') => z''
               | None => z'
               }
@@ -407,12 +420,13 @@ let update_use_sites_of_var =
         acc_z;
       },
     z,
-    co_ctx,
+    CoCtx.to_list(co_ctx),
   );
 };
 
 let update_use_sites_of_pat =
     (
+      ~root: Sort.t,
       ~z: Zipper.t,
       ~co_ctx: CoCtx.t,
       ~old_names: list(string),
@@ -441,7 +455,7 @@ let update_use_sites_of_pat =
   | Some(pairs) =>
     List.fold_left(
       (acc_z, (old_name, new_name)) =>
-        update_use_sites_of_var(acc_z, co_ctx, old_name, new_name),
+        update_use_sites_of_var(~root, acc_z, co_ctx, old_name, new_name),
       z,
       pairs,
     )

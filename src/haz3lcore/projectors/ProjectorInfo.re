@@ -61,8 +61,24 @@ let utility: ProjectorBase.utility = {
   };
 };
 
+/* the ⇓ toggle's probe: the probe on [tail] (Refractors.tail_target)
+   while it keeps the bare model, as it does when a pin or step-into makes
+   it manual. its drawer is drawn after the program's last line and
+   reserves no rows */
+let is_program_value =
+    (
+      ~tail: option(Id.t),
+      id: Id.t,
+      kind: ProjectorCore.Kind.t,
+      model: string,
+    )
+    : bool =>
+  tail == Some(id) && kind == Probe && ProbeProj.is_bare(model);
+
 let mk_info =
     (
+      ~stepping: option(ProjectorBase.stepping)=None,
+      ~tail: option(Id.t)=None,
       p: Piece.projector,
       ~sample_focus: Sample.Focus.t,
       ~statics: Statics.Map.t,
@@ -92,6 +108,7 @@ let mk_info =
       });
     | None => None
     },
+  dynamics_at: id => Dynamics.Map.lookup(id, dynamics),
   elaborated: {
     let (module P) = ProjectorInit.to_module(p.kind);
     if (P.elaborate_syntax) {
@@ -107,6 +124,12 @@ let mk_info =
       None;
     };
   },
+  stepping:
+    switch (stepping) {
+    | Some(st) when st.span.probe_id == p.id => stepping
+    | _ => None
+    },
+  program_value: is_program_value(~tail, p.id, p.kind, p.model),
   utility,
 };
 
@@ -122,7 +145,14 @@ module ShapeMapSemantics = {
       : (ProjectorCore.Shape.t, option(ProjectorBase.error)) => {
     let (module P) = ProjectorInit.to_module(p.kind);
     let info = mk_info(p, ~sample_focus, ~statics, ~dynamics, ~elaborated);
-    (P.placeholder(p.model, info), P.error(p.model, info));
+    /* A sidebar-docked projector leaves only a chip at the code site, so
+     * the base editor reserves the chip's footprint, not the projector's. */
+    let shape =
+      switch (p.placement) {
+      | Sidebar => ProjectorChip.shape(p)
+      | Inline => P.placeholder(p.model, info)
+      };
+    (shape, P.error(p.model, info));
   };
 
   let mk =

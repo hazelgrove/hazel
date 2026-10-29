@@ -252,11 +252,15 @@ let rec go =
     let before = LocalReformat.snapshot(~enabled=settings.auto_reindent, z);
     let before_pieces =
       LocalReformat.snapshot_pieces(~enabled=settings.auto_reindent, z);
-    let finish = z =>
-      z
+    let finish = pasted =>
+      pasted
       |> maybe_reassoc_thorough
       |> LocalReformat.go(~before)
-      |> LocalReformat.go_region(~before_pieces);
+      |> LocalReformat.go_region(~before_pieces)
+      /* re-indenting the pasted lines rebuilds every tile: what the paste
+         didn't change keeps its objects, which the parse, measure and
+         analysis caches key on, for the paste and its undo */
+      |> Zipper.restore_identity(~old=z);
     switch (Parser.try_segment_paste(clipboard, z, ~root)) {
     | Some(z) => Ok(finish(z))
     | None =>
@@ -359,7 +363,13 @@ let rec go =
     /* accepting a TyDi suggestion inserts delimiter text like typing
        it, but via a separate path from the Insert arm */
     LocalReformat.around_res(~enabled=settings.auto_reindent, z, z =>
-      Buffer.go(~ci=Indicated.ci_for_completion(z, statics.info_map), a, z)
+      Buffer.go(
+        ~root,
+        ~seg=?CachedSyntax.semantic_source(z, syntax),
+        ~ci=Indicated.ci_for_completion(z, statics.info_map),
+        a,
+        z,
+      )
     )
   | Project(a) =>
     let refractor_list =
@@ -567,9 +577,44 @@ let rec go =
       |> Option.map(maybe_reassoc)
     )
     |> return(Cant_insert)
-  | ApplyCompletion(Next) =>
+  | Refactor(k) =>
+    Refactor.go(~info_map=statics.info_map, ~term=statics.term, k, z)
+    |> Option.map(
+         LocalReformat.go_refactor(~enabled=settings.auto_reindent),
+       )
+    |> return(Cant_refactor)
+  | RefactorGesture(g) =>
     switch (
-      CompletionQuery.chip_at_caret(z)
+      Refactor.gesture(~info_map=statics.info_map, ~term=statics.term, g, z)
+    ) {
+    | Some(k) =>
+      /* negate toggles: invoked from then/else, the caret lands on
+         the OPPOSITE delimiter (the arm you moved now lives there),
+         so repeating the gesture flips back */
+      let toggle =
+        switch (k, Indicated.index(z), Indicated.shard_index(z)) {
+        | (NegateIf, Some(tile), Some(shard)) when shard == 1 || shard == 2 =>
+          Some((tile, 3 - shard))
+        | _ => None
+        };
+      Refactor.go(~info_map=statics.info_map, ~term=statics.term, k, z)
+      |> Option.map(z' =>
+           switch (toggle) {
+           | Some((tile, shard)) =>
+             Move.jump_to_shard(z', tile, shard) |> Option.value(~default=z')
+           | None => z'
+           }
+         )
+      |> Option.map(
+           LocalReformat.go_refactor(~enabled=settings.auto_reindent),
+         )
+      |> return(Cant_refactor);
+    | None => Error(Cant_refactor)
+    }
+  | ApplyCompletion(Next) =>
+    let seg = CachedSyntax.semantic_source(z, syntax);
+    switch (
+      CompletionQuery.chip_at_caret(~root, ~seg?, z)
       |> Option.bind(_, CompletionQuery.tab_text(z))
     ) {
     | None => Error(Cant_put_down)
@@ -594,7 +639,7 @@ let rec go =
         );
       /* Preserve the positions of existing operand holes and their spaces
          on both sides of the caret while the parser reassembles the tile. */
-      let protect_right = CompletionQuery.accepts_right_hole(z);
+      let protect_right = CompletionQuery.accepts_right_hole(~root, ~seg?, z);
       let protect =
         List.map(
           fun
@@ -640,7 +685,7 @@ let rec go =
         },
       )
       |> return(Cant_put_down);
-    }
+    };
   | ApplyCompletion(All) => Ok(Materialize.all(z, ~root))
   | ApplyCompletion(One(id)) =>
     Materialize.one(z, ~root, id)
@@ -662,27 +707,24 @@ let rec go =
     )
     |> return(Cant_destruct)
   | Structural(a) =>
-    /* the editor's statics stand in for the tool's initial pass when they
-       describe this very program (CachedStatics.for_zipper); the new
-       program's statics are computed once and offered to the editor */
-    let run =
-      switch (CachedStatics.for_zipper(~settings, z, statics)) {
-      | Some(initial) when initial.info_map != Language.Id.Map.empty =>
-        CompositionGo.Public.go_with_editor_statics(~settings, ~initial)
-      | _ => CompositionGo.Public.go
-      };
     /* agent edits funnel pasted code through introduce with indentation
        stripped; re-indent new lines like user Paste */
-    let before = LocalReformat.snapshot(~enabled=settings.auto_reindent, z);
-    let before_pieces =
-      LocalReformat.snapshot_pieces(~enabled=settings.auto_reindent, z);
-    switch (run(~syntax, ~z, ~a)) {
+    let (before, before_pieces) =
+      Util.PerfTimer.time("reformat-snapshot", () =>
+        (
+          LocalReformat.snapshot(~enabled=settings.auto_reindent, z),
+          LocalReformat.snapshot_pieces(~enabled=settings.auto_reindent, z),
+        )
+      );
+    switch (CompositionGo.Public.go(~settings, ~root, ~syntax, ~z, ~a)) {
     | Ok(z) =>
-      Ok(
-        z
-        |> LocalReformat.go(~before)
-        |> LocalReformat.go_region(~before_pieces),
-      )
+      let final =
+        PerfTimer.time("reformat", () =>
+          z
+          |> LocalReformat.go(~before)
+          |> LocalReformat.go_region(~before_pieces)
+        );
+      Ok(final);
     | Error(_) as e => e
     };
   };

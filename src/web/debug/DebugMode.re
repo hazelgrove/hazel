@@ -6,6 +6,12 @@ type action =
   | ClearStore;
 
 let perform = (action: action): unit => {
+  let reload = () => {
+    Js_of_ocaml.Dom_html.window##.location##replace(
+      Js_of_ocaml.Js.string("#"),
+    );
+    Js_of_ocaml.Dom_html.window##.location##reload;
+  };
   switch (action) {
   | TurnOffDynamics =>
     let settings = Settings.Store.load();
@@ -16,12 +22,9 @@ let perform = (action: action): unit => {
         dynamics: false,
       },
     });
-  | ClearStore => HazelDB.clear_all()
+    reload();
+  | ClearStore => HazelDB.clear_all(~callback=reload, ())
   };
-  Js_of_ocaml.Dom_html.window##.location##replace(
-    Js_of_ocaml.Js.string("#"),
-  );
-  Js_of_ocaml.Dom_html.window##.location##reload;
 };
 
 let btn = (caption, action) => {
@@ -42,7 +45,7 @@ let view = {
   Node.(
     div([
       btn("turn off dynamics", TurnOffDynamics),
-      btn("clear local storage (LOSE ALL DATA!)", ClearStore),
+      btn("clear editor storage (keep API keys)", ClearStore),
     ])
   );
 };

@@ -30,6 +30,10 @@ type t = {
   meta: held,
   ctrl: held,
   alt: held,
+  /* Tag of the DOM element the keydown originated from, e.g. "INPUT",
+     "TEXTAREA", "SELECT", "BODY". Listeners use this to skip handling
+     when the user is typing into a form element. */
+  target_tag: option(string),
 };
 
 let get_key = evt =>
@@ -53,14 +57,27 @@ let to_held: bool => held = b => b ? Down : Up;
 let get_code = evt =>
   Js.to_string(Js.Optdef.get(evt##.code, () => Js.string("")));
 
+/* a target without a tag (a synthesized event's) has none */
+let get_target_tag = (evt): option(string) =>
+  switch (Js.Opt.to_option(evt##.target)) {
+  | None => None
+  | Some(el) =>
+    Js.Optdef.to_option(Js.Unsafe.coerce(el)##.tagName)
+    |> Option.map(Js.to_string)
+  };
+
 let mk = (dir, evt): t => {
-  key: key_of(dir, evt),
-  code: get_code(evt),
-  sys: Os.is_mac^ ? Mac : PC,
-  shift: to_held(shift_held(evt)),
-  meta: to_held(meta_held(evt)),
-  ctrl: to_held(ctrl_held(evt)),
-  alt: to_held(alt_held(evt)),
+  let target_tag = get_target_tag(evt);
+  {
+    key: key_of(dir, evt),
+    code: get_code(evt),
+    sys: Os.is_mac^ ? Mac : PC,
+    shift: to_held(shift_held(evt)),
+    meta: to_held(meta_held(evt)),
+    ctrl: to_held(ctrl_held(evt)),
+    alt: to_held(alt_held(evt)),
+    target_tag,
+  };
 };
 
 /* Keyboard event handler for focusable components.

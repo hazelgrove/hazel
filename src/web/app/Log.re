@@ -30,11 +30,24 @@ module Entry = {
     (JsUtil.timestamp(), update);
   };
 
-  let save = ((ts, action): t) =>
-    DB.add(
-      Printf.sprintf("%.0f", ts),
-      (ts, action) |> sexp_of_t |> Sexplib.Sexp.to_string,
-    );
+  let save = ((ts, action): t) => {
+    let t0 = JsUtil.timestamp();
+    let s = (ts, action) |> sexp_of_t |> Sexplib.Sexp.to_string;
+    let ms = JsUtil.timestamp() -. t0;
+    if (ms > 50.) {
+      Js_of_ocaml.Firebug.console##warn(
+        Js_of_ocaml.Js.string(
+          Printf.sprintf(
+            "slow log entry: %.0fms, %d chars: %s",
+            ms,
+            String.length(s),
+            String.sub(s, 0, min(160, String.length(s))),
+          ),
+        ),
+      );
+    };
+    DB.add(Printf.sprintf("%.0f", ts), s);
+  };
 
   let s_of_sexp_opt = (sexp: Sexplib.Sexp.t): list(option(t)) =>
     switch (sexp) {

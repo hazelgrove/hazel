@@ -30,13 +30,11 @@ let of_text = (text: string): t => {
   backup_text: text,
 };
 
-/* Slide-source ingestion: committed .hz text keeps human indentation,
-   but Hazel computes indentation at layout time and renders literal
-   leading spaces ON TOP of it (doubled, drifting) — so slide text is
-   flattened here. The strip is blind per-line; slide sources must not
-   contain multi-line string literals. */
+/* Slide-source ingestion: indentation is the text's own spaces (the
+   editor no longer computes it at layout), so a committed .hz file keeps
+   its indentation; only line endings are normalized */
 let of_slide_text = (text: string): t =>
-  of_text(StringUtil.trim_leading(text));
+  of_text(StringUtil.normalize_line_endings(text));
 
 /* Fast-first text→zipper, shared by persistence load and the CLI:
    FastParse (linear, complete terms) with pin collection, then the

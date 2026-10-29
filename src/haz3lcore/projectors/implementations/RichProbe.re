@@ -21,8 +21,10 @@ module type RichProbe = {
 
   let update: (model, action) => model;
   /* Parse an expression into its domain-specific value representation.
-     This extracts the structured data needed for interactive visualization. */
-  let parse: (Sort.t, Exp.t) => option(value);
+     This extracts the structured data needed for interactive visualization.
+     ~statics is the probed expression's info (type + context), for
+     renderers that apply by TYPE rather than by value shape. */
+  let parse: (~statics: option(Info.t), Sort.t, Exp.t) => option(value);
   /* Whether a parsed value is positive evidence that this renderer should
      be picked AUTOMATICALLY (auto-rich embeds, wells). Explicit picks ignore
      it. Lets a renderer decline vacuous matches (an empty list parses as an
@@ -74,14 +76,15 @@ type packed_action =
 
 type packed_renderer = {
   id: string,
-  can_handle: (Sort.t, Exp.t) => bool,
+  can_handle: (~statics: option(Info.t), Sort.t, Exp.t) => bool,
   /* can_handle AND the renderer's auto_applies — the predicate every
      automatic renderer pick goes through */
-  auto_applies: (Sort.t, Exp.t) => bool,
-  init_model: (Sort.t, Exp.t) => option(packed_model),
+  auto_applies: (~statics: option(Info.t), Sort.t, Exp.t) => bool,
+  init_model:
+    (~statics: option(Info.t), Sort.t, Exp.t) => option(packed_model),
   empty_model: packed_model,
   update_model: (packed_model, packed_action) => packed_model,
-  drawer_rows: (Sort.t, Exp.t) => option(int),
+  drawer_rows: (~statics: option(Info.t), Sort.t, Exp.t) => option(int),
   render_model:
     (
       packed_model,
@@ -147,24 +150,26 @@ let pack_renderer =
     };
   {
     id,
-    can_handle: (sort, exp) => Option.is_some(R.parse(sort, exp)),
-    auto_applies: (sort, exp) =>
-      switch (R.parse(sort, exp)) {
+    can_handle: (~statics, sort, exp) =>
+      Option.is_some(R.parse(~statics, sort, exp)),
+    auto_applies: (~statics, sort, exp) =>
+      switch (R.parse(~statics, sort, exp)) {
       | Some(v) => R.auto_applies(v)
       | None => false
       },
-    init_model: (sort, exp) =>
-      R.parse(sort, exp) |> Option.map(v => PModel(id, model_id, R.init(v))),
+    init_model: (~statics, sort, exp) =>
+      R.parse(~statics, sort, exp)
+      |> Option.map(v => PModel(id, model_id, R.init(v))),
     empty_model: PModel(id, model_id, R.empty),
-    drawer_rows: (sort, exp) =>
-      R.parse(sort, exp) |> Option.map(R.drawer_rows),
+    drawer_rows: (~statics, sort, exp) =>
+      R.parse(~statics, sort, exp) |> Option.map(R.drawer_rows),
     update_model: (pm, pa) =>
       switch (cast_model(pm), cast_action(pa)) {
       | (Some(m), Some(a)) => PModel(id, model_id, R.update(m, a))
       | _ => pm
       },
     render_model: (pm, ~info, ~exp, ~view_seg, ~local, ~parent, ~sort, ()) =>
-      switch (cast_model(pm), R.parse(sort, exp)) {
+      switch (cast_model(pm), R.parse(~statics=info.statics, sort, exp)) {
       | (Some(m), Some(value)) =>
         Some(
           R.render(

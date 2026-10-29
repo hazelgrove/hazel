@@ -35,6 +35,7 @@ module Local = {
       EditTools.delete_body,
       EditTools.insert_after,
       EditTools.insert_before,
+      EditTools.insert_test,
       WorkbenchTools.create_new_task,
       WorkbenchTools.set_active_task,
       WorkbenchTools.unset_active_task,
@@ -56,7 +57,7 @@ module Local = {
 
   /** Read an optional string field: None when absent or empty-string, Some otherwise.
       Empty-string is treated as absent so LLMs that emit `"path": ""` still hit the
-      no-path branch of insert_before/insert_after. */
+      no-path branch of insert_before/insert_after/insert_test. */
   let get_optional_string = (args: API.Json.t, field: string): option(string) => {
     switch (API.Json.dot(field, args)) {
     | Some(`String("")) => None
@@ -181,6 +182,13 @@ module Local = {
               | Some(path) => EditorAction(Insert(Before, path, code))
               | None => InsertAtProgramBoundary(Before, code)
               };
+            | "insert_test" =>
+              EditorAction(
+                InsertTest(
+                  get_optional_string(args, "path"),
+                  get_string(args, "code"),
+                ),
+              )
             | "delete_binding_clause" =>
               EditorAction(Delete(BindingClause, get_string(args, "path")))
             | "delete_body" =>

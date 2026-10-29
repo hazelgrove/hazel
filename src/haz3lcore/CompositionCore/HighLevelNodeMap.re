@@ -132,6 +132,12 @@ module Utils = {
               ~nominee: option(Info.t),
             ) => {
       switch (candidates) {
+      | [candidate, ...rest] when !Id.Map.mem(candidate, info_map) =>
+        search_for_top_level_node(
+          ~candidates=rest,
+          ~departure_point,
+          ~nominee,
+        )
       | [candidate, ...rest] =>
         let candidate = Id.Map.find(candidate, info_map);
         let nominee =
@@ -193,7 +199,7 @@ module Utils = {
     };
 
     search_for_top_level_node(
-      ~candidates=Info.ancestors_of(start_point),
+      ~candidates=Info.ancestors(~info_map, start_point),
       ~departure_point=start_point,
       ~nominee=initial_nominee,
     );
@@ -203,7 +209,7 @@ module Utils = {
       (info: Info.t, info_map: Id.Map.t(Info.t)): Info.t => {
     switch (
       {
-        let* id = ListUtil.hd_opt(List.rev(Info.ancestors_of(info)));
+        let* id = ListUtil.last_opt(Info.ancestors(~info_map, info));
         Id.Map.find_opt(id, info_map);
       }
     ) {
@@ -297,18 +303,25 @@ module MoveOffWhitespaceHelper = {
   };
 
   let rec move_to_non_whitespace =
-          (z: Zipper.t, d: Direction.t): option(Zipper.t) => {
+          (~info_map=?, z: Zipper.t, d: Direction.t): option(Zipper.t) => {
     /*
      Iteratively move the cursor to the left.
      If moving left becomes stagnant, try and move right.
+     With [info_map], also past pieces it has no term for (a Mod root's
+     member `;`).
      */
-    is_on_whitespace(z)
+    let off_term =
+      switch (info_map) {
+      | Some(m) => Indicated.ci_of(z, m) == None
+      | None => false
+      };
+    is_on_whitespace(z) || off_term
       ? {
         switch (Move.by_char(d, z)) {
-        | Some(z') => move_to_non_whitespace(z', d)
+        | Some(z') => move_to_non_whitespace(~info_map?, z', d)
         | None =>
           if (d == Left) {
-            move_to_non_whitespace(z, Right);
+            move_to_non_whitespace(~info_map?, z, Right);
           } else {
             None;
           }
@@ -412,11 +425,12 @@ let prev_sibling_of = (node: node): option(Id.t) => {
   };
 };
 
-let lowest_enclosing_node_of = (info: Info.t, node_map: t): option(node) => {
+let lowest_enclosing_node_of =
+    (~info_map: Id.Map.t(Info.t), info: Info.t, node_map: t): option(node) => {
   switch (Id.Map.find_opt(Info.id_of(info), node_map)) {
   | Some(node) => Some(node)
   | None =>
-    let ancestors = Info.ancestors_of(info);
+    let ancestors = Info.ancestors(~info_map, info);
     List.find_map(
       (ancestor: Id.t) => Id.Map.find_opt(ancestor, node_map),
       ancestors,
@@ -471,61 +485,44 @@ let rec build_children =
   let exp_to_info = (term: Exp.t): Info.t =>
     Utils.exp_to_info(term, info_map);
 
-  let typ_to_info = (term: Typ.t): Info.t =>
-    Utils.typ_to_info(term, info_map);
-
   switch (candidate) {
   | InfoExp({user_term: term, _}) =>
     switch (Exp.term_of(term)) {
-    | Let(_, def, body) =>
-      // Add this node to the node map
-      let new_path = path @ [Info.id_of(candidate)];
-      let node_map = init_node(candidate, new_path, node_map);
-      // 1. Find children
-      let node_map =
-        build_children(exp_to_info(def), new_path, node_map, info_map);
-      // 2. Find siblings
-      // use "old" path for siblings!!
-      build_children(exp_to_info(body), path, node_map, info_map);
-    // It is also useful to add type defintions to the def-structured AST
-    | TyAlias(_, typ, body) =>
-      // Add this node to the node map
-      let new_path = path @ [Info.id_of(candidate)];
-      let node_map = init_node(candidate, new_path, node_map);
-      // 1. Find children (although, not sure if necessary for type defs)
-      let node_map =
-        build_children(typ_to_info(typ), new_path, node_map, info_map);
-      // 2. Find siblings
-      // use "old" path for siblings!!
-      build_children(exp_to_info(body), path, node_map, info_map);
-    | ModuleExp(_, def, body) =>
-      // Add this node to the node map (module M = def in body)
-      let new_path = path @ [Info.id_of(candidate)];
-      let node_map = init_node(candidate, new_path, node_map);
-      // 1. Find children (the module body)
-      let node_map =
-        build_children(exp_to_info(def), new_path, node_map, info_map);
-      // 2. Find siblings (continuation after "in")
+    /* a module statement as its chain holds it (`let _ = e in`, from a
+       Mod root's items, which have no Module info to read them from):
+       not a binding, as the Module case below skips it */
+    | Let(_, def, body)
+        when
+          switch (Id.Map.find_opt(Exp.rep_id(def), info_map)) {
+          | Some(InfoExp({cls: Mod(_), _})) => true
+          | _ => false
+          } =>
+      build_children(exp_to_info(body), path, node_map, info_map)
+    | Let(_, _, body)
+    | TyAlias(_, _, body)
+    | ModuleExp(_, _, body) =>
+      let node_map = build_binding(candidate, path, node_map, info_map);
+      // Siblings: the continuation, at the "old" path
       build_children(exp_to_info(body), path, node_map, info_map);
     | Module(items) =>
       /* Module literal: members become nodes at this path (children of the
          enclosing binding). Statics checks module literals by expansion
          into nested Let/TyAlias wrappers KEYED BY THE MOD ITEM IDS
-         (ModuleHelpers.lower; reclassify only rewrites cls), so the first
-         item's wrapper info chains through the remaining members exactly
-         like a top-level binding chain — the Let/TyAlias cases above walk
-         it, making members siblings of one another. Wrapper pat/def ids
-         are the members' real syntax ids, so downstream span selection
-         works unchanged. */
-      switch (items) {
-      | [] => node_map
-      | [first, ..._] =>
-        switch (Id.Map.find_opt(Mod.rep_id(first), info_map)) {
-        | Some(wrapper_info) =>
-          build_children(wrapper_info, path, node_map, info_map)
-        | None => node_map
-        }
-      }
+         (ModuleHelpers.lower; reclassify only rewrites cls), whose pat/def
+         ids are the members' real syntax ids, so downstream span selection
+         works unchanged. Each binding member's wrapper is a node; other
+         items (tests, a Mod root's trailing expression) are wrapped under
+         fresh ids and make none. */
+      List.fold_left(
+        (node_map, item: Mod.t) =>
+          switch (item.term, Id.Map.find_opt(Mod.rep_id(item), info_map)) {
+          | (ModLet(_) | ModType(_) | ModuleMod(_), Some(wrapper)) =>
+            build_binding(wrapper, path, node_map, info_map)
+          | _ => node_map
+          },
+        node_map,
+        items,
+      )
     | _ =>
       let es = Utils.child_expressions_of_exp(term);
       let es_mapped = List.map(exp_to_info, es);
@@ -538,6 +535,39 @@ let rec build_children =
         es_mapped,
       );
     }
+  | _ => node_map
+  };
+}
+/* a binding's node, and the bindings in its definition below it */
+and build_binding =
+    (
+      candidate: Info.t,
+      path: list(Id.t),
+      node_map: t,
+      info_map: Id.Map.t(Info.t),
+    )
+    : t => {
+  let new_path = path @ [Info.id_of(candidate)];
+  let node_map = init_node(candidate, new_path, node_map);
+  switch (candidate) {
+  | InfoExp({
+      user_term: {term: Let(_, def, _) | ModuleExp(_, def, _), _},
+      _,
+    }) =>
+    build_children(
+      Utils.exp_to_info(def, info_map),
+      new_path,
+      node_map,
+      info_map,
+    )
+  // It is also useful to add type defintions to the def-structured AST
+  | InfoExp({user_term: {term: TyAlias(_, typ, _), _}, _}) =>
+    build_children(
+      Utils.typ_to_info(typ, info_map),
+      new_path,
+      node_map,
+      info_map,
+    )
   | _ => node_map
   };
 };
@@ -886,7 +916,7 @@ let node_of_cursor =
   switch (
     {
       let* valid_zipper =
-        MoveOffWhitespaceHelper.move_to_non_whitespace(z, Left);
+        MoveOffWhitespaceHelper.move_to_non_whitespace(~info_map, z, Left);
       Indicated.ci_of(valid_zipper, info_map);
     }
   ) {
@@ -897,19 +927,31 @@ let node_of_cursor =
       ),
     )
   | Some(info) =>
-    switch (lowest_enclosing_node_of(info, node_map)) {
+    switch (lowest_enclosing_node_of(~info_map, info, node_map)) {
     | Some(node) => node
     | None => raise(Failure("No lowest enclosing node found for cursor"))
     }
   };
 };
 
-let build = (zipper: Zipper.t, info_map: Id.Map.t(Info.t)): option(t) => {
+let rec build = (zipper: Zipper.t, info_map: Id.Map.t(Info.t)): option(t) =>
+  /* the ancestor walk and the descent assume a whole-program map; on a
+     per-item map (an ancestor absent, a module item's surrogate
+     scaffolding stripped) the answer is "no map here", not a crash —
+     callers holding a compositional record use [build_for] */
+  try(build_whole(zipper, info_map)) {
+  | Not_found => None
+  }
+and build_whole = (zipper: Zipper.t, info_map: Id.Map.t(Info.t)): option(t) => {
   // Move to a valid, non-secondary, non-grout, non-convex term
   switch (
     {
       let* valid_zipper =
-        MoveOffWhitespaceHelper.move_to_non_whitespace(zipper, Left);
+        MoveOffWhitespaceHelper.move_to_non_whitespace(
+          ~info_map,
+          zipper,
+          Left,
+        );
       let* current_term = Indicated.ci_of(valid_zipper, info_map);
       Utils.top_level_term_of(~start_point=current_term, ~info_map);
     }
@@ -943,6 +985,197 @@ let build = (zipper: Zipper.t, info_map: Id.Map.t(Info.t)): option(t) => {
   };
 };
 
+/* ===== ITEMS CONVERGENCE (plans/agent-items-convergence.md) =====
+   The same node map, built from the per-item statics engine: each
+   top-level item (DefStatics.item) is a binding chain element whose own
+   map is complete and consistently rooted at the item, so [build_children]
+   run on an item's map yields exactly the item's subtree; the item chain
+   supplies the sibling order; module-literal members are nested items and
+   land as children of the enclosing binding, as before. */
+/* items whose own map could not answer the walk (Not_found), by root
+   constructor — observability for the parity tests */
+let items_fallbacks: ref(list(string)) = ref([]);
+
+let build_from_items = (ds: DefStatics.t): option(t) => {
+  /* an empty editor derives nothing (the monolithic build finds no
+     indicated term there); tools then report Cant_derive, not a path miss */
+  let empty =
+    switch (Exp.term_of(ds.term)) {
+    | EmptyHole => true
+    | _ => false
+    };
+  let first_root =
+    empty
+      ? None
+      : List.find_map(
+          (it: DefStatics.item) => Id.Map.find_opt(it.d_id, it.d_map),
+          ds.items,
+        );
+  switch (first_root) {
+  | None => None
+  | Some(root_info) =>
+    let dummy_root = Id.mk();
+    let node_map: t =
+      Id.Map.singleton(
+        dummy_root,
+        {
+          info: root_info,
+          path: [dummy_root],
+          children: [],
+          siblings: [],
+          sibling_idx: (-1),
+          name: "{dummy root}",
+        }: node,
+      );
+    /* an item root walked by its DEFINITION only: the item's map covers
+       the definition but not the hollow body (the chain supplies what the
+       body continuation used to: the siblings). Non-binding roots (test
+       statements, the trailing expression) walk the children the map
+       knows. */
+    let walk_root =
+        (info: Info.t, path: list(Id.t), acc: t, map: Id.Map.t(Info.t)): t => {
+      let descend_exp = (e: Exp.t, at: list(Id.t), acc: t): t =>
+        switch (Id.Map.find_opt(Exp.rep_id(e), map)) {
+        | Some(i) =>
+          switch (build_children(i, at, acc, map)) {
+          | nm => nm
+          | exception Not_found =>
+            items_fallbacks := ["inner", ...items_fallbacks^];
+            acc;
+          }
+        | None => acc
+        };
+      switch (info) {
+      | InfoExp({user_term, _}) =>
+        switch (Exp.term_of(user_term)) {
+        | Let(_, def, _)
+        | ModuleExp(_, def, _) =>
+          let node_path = path @ [Info.id_of(info)];
+          let acc = init_node(info, node_path, acc);
+          descend_exp(def, node_path, acc);
+        | TyAlias(_, typ, _) =>
+          let node_path = path @ [Info.id_of(info)];
+          let acc = init_node(info, node_path, acc);
+          switch (Id.Map.find_opt(Typ.rep_id(typ), map)) {
+          | Some(ti) =>
+            switch (build_children(ti, node_path, acc, map)) {
+            | nm => nm
+            | exception Not_found => acc
+            }
+          | None => acc
+          };
+        | _ =>
+          Utils.child_expressions_of_exp(user_term)
+          |> List.fold_left((acc, e) => descend_exp(e, path, acc), acc)
+        }
+      | _ => acc
+      };
+    };
+    /* the node's info must name the REAL syntax, the way monolithic
+       statics would: the analyzed root is the hollow node, a module
+       item's definition is a surrogate for the literal, and a memoized
+       item's own node keeps the body it had when last analyzed. Only the
+       head (pat, def) of [d_node] is current, so the chain is re-spined:
+       each root's body becomes the next root (members end in the exports
+       tail, like the monolithic expansion). */
+    let rec respine = (items: list(DefStatics.item)): list(Exp.t) =>
+      switch (items) {
+      | [] => []
+      | [it] => [it.d_node]
+      | [it, ...rest] =>
+        let rest = respine(rest);
+        let next = List.hd(rest);
+        let node: Exp.t = it.d_node;
+        let term: Exp.term =
+          switch (node.term) {
+          | Let(p, d, _) => Let(p, d, next)
+          | TyAlias(tp, ty, _) => TyAlias(tp, ty, next)
+          | ModuleExp(mp, d, _) => ModuleExp(mp, d, next)
+          | Seq(e, _) => Seq(e, next)
+          | t => t
+          };
+        [
+          {
+            ...node,
+            term,
+          },
+          ...rest,
+        ];
+      };
+    /* a module's items pair in order with the members they lower
+       (DefStatics.step_chain's srcs; the exports tail with none). A
+       member binding nothing (a test, a statement, a hole) is no node,
+       as in [build_children]'s Module case */
+    let members = (e: Exp.t): list(Mod.t) =>
+      switch (DefStatics.strip(e).term) {
+      | Module(members) => members
+      | _ => []
+      };
+    let binds = (src: option(Mod.t)): bool =>
+      switch (src) {
+      | None
+      | Some({term: ModLet(_) | ModType(_) | ModuleMod(_), _}) => true
+      | Some(_) => false
+      };
+    let rec add_items =
+            (
+              path: list(Id.t),
+              srcs: list(Mod.t),
+              items: list(DefStatics.item),
+              node_map: t,
+            )
+            : t => {
+      let rec go = (srcs, items, acc) =>
+        switch (items) {
+        | [] => acc
+        | [(it, node), ...items] =>
+          let (src, srcs) =
+            switch (srcs) {
+            | [src, ...srcs] => (Some(src), srcs)
+            | [] => (None, [])
+            };
+          go(srcs, items, binds(src) ? add_item(path, it, node, acc) : acc);
+        };
+      go(srcs, List.combine(items, respine(items)), node_map);
+    }
+    and add_item =
+        (path: list(Id.t), it: DefStatics.item, node: Exp.t, acc: t): t =>
+      switch (Id.Map.find_opt(it.d_id, it.d_map)) {
+      | None => acc
+      | Some(analyzed) =>
+        let info =
+          switch (analyzed) {
+          | Info.InfoExp(e) =>
+            Info.InfoExp({
+              ...e,
+              user_term: node,
+            })
+          | other => other
+          };
+        switch (it.d_members) {
+        | [] => walk_root(info, path, acc, it.d_map)
+        | items =>
+          /* a module binding analyzed member-granularly: the parent
+             map does not describe the literal's body — the node, then
+             the members as its children, each from its own map */
+          let node_path = path @ [Info.id_of(info)];
+          let acc = init_node(info, node_path, acc);
+          let srcs =
+            switch (node.term) {
+            | Let(_, def, _)
+            | ModuleExp(_, def, _) => members(def)
+            | _ => []
+            };
+          add_items(node_path, srcs, items, acc);
+        };
+      };
+    let node_map =
+      add_items([dummy_root], members(ds.term), ds.items, node_map);
+    let node_map = build_siblings_and_trim(node_map);
+    Some(Id.Map.remove(dummy_root, node_map));
+  };
+};
+
 module Public = {
   /*
    ================================
@@ -973,3 +1206,21 @@ module Public = {
     // Useful for post-edit checks and operations
     node_of_cursor;
 };
+
+/* the node map for an editor's statics record: from the spine when the
+   record is compositional, else the monolithic ancestor walk */
+let items_memo: ref(option((DefStatics.t, option(t)))) = ref(None);
+let build_for = (z: Zipper.t, statics: CachedStatics.t): option(t) =>
+  switch (statics.items) {
+  | Some(ds) =>
+    /* pure in the items record; the canvas asks twice per render and
+       renders on every update */
+    switch (items_memo^) {
+    | Some((ds', m)) when ds' === ds => m
+    | _ =>
+      let m = build_from_items(ds);
+      items_memo := Some((ds, m));
+      m;
+    }
+  | None => build(z, statics.info_map)
+  };
