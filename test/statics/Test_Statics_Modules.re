@@ -1738,6 +1738,16 @@ let f = fun (x : M.P.U) -> x in f|};
     },
   );
 
+/* `type T = T` is read as `rec T -> T`; unrolling it makes no progress. */
+let test_self_looping_type_member_is_a_mismatch =
+  has_mark_test(
+    "A self-looping type member checked against a signature is a mismatch",
+    {|let g = fun (m : { type T = T; let v : T }) -> (m.v : { let q : Int }) in g|},
+    fun
+    | Language.Mark.ExpectationMismatch(_) => true
+    | _ => false,
+  );
+
 let test_type_member_matches_through_alias =
   Alcotest.test_case(
     "A type member matches a declaration that names it through an alias",
@@ -2243,6 +2253,7 @@ let tests = (
     test_sig_module_member_roots_path,
     test_error_sig_module_member_roots_path,
     test_sub_module_path_middle_is_a_module,
+    test_self_looping_type_member_is_a_mismatch,
     test_type_member_matches_through_alias,
     test_type_member_matches_reordered_signature,
     test_self_mentioning_sig_alias,

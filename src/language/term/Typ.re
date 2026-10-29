@@ -1234,9 +1234,12 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
       };
     let+ ty_body = meet(ctx, ty1', ty2);
     Rec(tp1, ty_body) |> temp;
-  /* A signature alias that mentions itself is a Rec. */
-  | (Rec(_), Sig(_)) => meet'(unroll(ty1), ty2)
-  | (Sig(_), Rec(_)) => meet'(ty1, unroll(ty2))
+  /* A signature alias that mentions itself is a Rec; a self-loop unrolls
+     to nothing. */
+  | (Rec(_), Sig(_)) =>
+    Option.bind(unroll_to_non_rec(ty1), ty1 => meet'(ty1, ty2))
+  | (Sig(_), Rec(_)) =>
+    Option.bind(unroll_to_non_rec(ty2), ty2 => meet'(ty1, ty2))
   | (Rec(_), _) => None
   | (Poly(x1, ty1), Poly(x2, ty2)) =>
     let ty1' =
