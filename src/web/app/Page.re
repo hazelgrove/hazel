@@ -229,6 +229,15 @@ module Update = {
             },
           }
           |> return_quiet
+    | SetSettingsFilter(settings_filter) =>
+      {
+        ...model,
+        globals: {
+          ...model.globals,
+          settings_filter,
+        },
+      }
+      |> return_quiet
     | UpdateVisibleRows(visible_rows) =>
       {
         ...model,
@@ -729,27 +738,13 @@ module View = {
     };
     [
       Key.listener(~f=handle_key_event),
-      Attr.on_blur(_ => {
-        /* Leave focus alone when it is moving INTO a projector. An
-           interactive projector (the keybinding recorder) needs to hold
-           focus; without this guard it receives focus and has it taken back
-           in the same frame, so it can never capture a key. */
-        if (! JsUtil.projector_holds_focus^) {
-          JsUtil.focus_clipboard_shim();
-        };
+      /* A press on plain text leaves focus on #page itself. Don't move it
+         on from here: that would cancel the text selection being started. */
+      Attr.on_blur(_ =>
         model.globals.meta_down
           ? Effect.Many([inject(Globals(SetMetaDown(false)))])
-          : Effect.Ignore;
-      }),
-      Attr.on_focus(_ => {
-        /* Focus events bubble here, so without this guard focusing a
-           projector is undone immediately: an interactive projector (the
-           keybinding recorder) could never hold focus or capture a key. */
-        if (! JsUtil.projector_holds_focus^) {
-          JsUtil.focus_clipboard_shim();
-        };
-        Effect.Ignore;
-      }),
+          : Effect.Ignore
+      ),
     ];
   };
 
@@ -764,13 +759,11 @@ module View = {
         div(
           ~attrs=[Attr.class_("nut-menu")],
           [
-            submenu(
+            button(
+              Icons.gear,
+              _ =>
+                globals.inject_global(Set(Sidebar(SwitchPanel(Settings)))),
               ~tooltip="Settings",
-              ~icon=Icons.gear,
-              [
-                Editors.View.config_links(~inject),
-                ...NutMenu.settings_menu(~globals),
-              ],
             ),
             submenu(
               ~tooltip="File",
@@ -968,7 +961,7 @@ module View = {
     );
     div(
       ~attrs=[Attr.id("page"), ...handlers(~inject, model)],
-      [FontSpecimen.view, JsUtil.clipboard_shim]
+      [FontSpecimen.view]
       @ main_view(~log_model, ~get_log_and, ~cursor, ~inject, model),
     );
   };
