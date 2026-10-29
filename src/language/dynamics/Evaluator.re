@@ -29,10 +29,18 @@ module EvaluatorEVMode: {
   type requirement('a) = Trampoline.t('a);
   type requirements('a, 'b) = Trampoline.t(('a, 'b));
 
-  let req_final = (f, _, x) => {
-    let.trampoline x = Next(() => f(x));
-    Trampoline.return(x);
-  };
+  let req_final = (f, _, x: DHExp.t) =>
+    switch (x.term) {
+    /* THROWAWAY TEST: a deliberate slowdown, for the performance report */
+    | Cons(_) =>
+      let rec bounce = (n, k) =>
+        n == 0 ? k() : Trampoline.Next(() => bounce(n - 1, k));
+      let.trampoline x = bounce(40, () => f(x));
+      Trampoline.return(x);
+    | _ =>
+      let.trampoline x = Next(() => f(x));
+      Trampoline.return(x);
+    };
 
   let rec req_all_final = (f, i, xs) =>
     switch (xs) {
