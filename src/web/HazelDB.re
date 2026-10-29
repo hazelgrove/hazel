@@ -17,7 +17,22 @@ module IDBStore = Ezjs_idb.Store(StringTr, StringTr);
 
 type db = Ezjs_min.t(Types.iDBDatabase);
 
-let db_name = "hazel";
+/* One database per git branch, so builds of different branches served from
+   the same origin (every preview on build.hazel.org) keep separate saved
+   state: a branch that changes a persisted type can't clobber, or be
+   clobbered by, another branch's data (#2204, and see #2454). `dev`, and
+   builds made outside a git checkout or from a detached HEAD, keep the
+   original name, so existing saved state there is untouched. The branch is
+   baked in at build time by scripts/build-info.sh. */
+let db_name_for_branch = (branch: string): string =>
+  switch (branch) {
+  | "dev"
+  | "unknown"
+  | "HEAD" => "hazel"
+  | branch => "hazel:" ++ branch
+  };
+
+let db_name = db_name_for_branch(BuildInfo.branch);
 let log_table = "log";
 let kv_table = "kv";
 
