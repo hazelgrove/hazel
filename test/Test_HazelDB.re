@@ -15,7 +15,7 @@ let name_tests =
     ),
     ("a branch named like a default", "main", "hazel:main"),
   ]
-  |> List.map(((name, branch, expected)) =>
+  |> List.map(~f=((name, branch, expected)) =>
        test_case(name, `Quick, () =>
          check(string, branch, expected, HazelDB.db_name_for_branch(branch))
        )
