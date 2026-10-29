@@ -589,7 +589,7 @@ let view =
                the probes we just cleared */
             =>
               Effect.Many([
-                globals.inject_global(Set(SetAutoprobe(AutoProbe.Off))),
+                globals.inject_global(Set(ApplyAutoprobe(AutoProbe.Off))),
                 globals.inject_global(ActiveEditor(Probe(RemoveAll))),
               ])
             ),

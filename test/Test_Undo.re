@@ -53,6 +53,11 @@ let text_of = (model: History.Model.t): string =>
   |> Haz3lcore.Zipper.zip
   |> Haz3lcore.Printer.of_segment(~holes="?", ~refractors=[]);
 
+let set = (a: Settings.Update.t): Page.Update.t => Globals(Set(a));
+let hover: Page.Update.t =
+  set(ExplainThis(SetHighlight(Hover(Haz3lcore.Id.mk()))));
+let unset_hover: Page.Update.t = set(ExplainThis(SetHighlight(UnsetHover)));
+
 let undo_len = (model: History.Model.t) => List.length(model.undo_stack);
 let redo_len = (model: History.Model.t) => List.length(model.redo_stack);
 
@@ -177,6 +182,118 @@ let tests = (
           t1,
           text_of(m4),
         );
+      },
+    ),
+    test_case(
+      "ExplainThis hover leaves undo and redo untouched",
+      `Quick,
+      () => {
+        let m0 = mk_model();
+        let t0 = text_of(m0);
+        let m1 = apply(m0, insert("1"));
+        let t1 = text_of(m1);
+        let m2 = apply(apply(m1, hover), unset_hover);
+        check(int, "hover pushed no undo entry", 1, undo_len(m2));
+        let m3 = apply(m2, undo);
+        check(string, "one undo reverts the edit", t0, text_of(m3));
+        /* Mousing over the ExplainThis panel after an undo used to clear
+           the redo stack ("Cannot redo"). */
+        let m4 = apply(apply(m3, hover), unset_hover);
+        check(int, "hover preserved the redo stack", 1, redo_len(m4));
+        check(int, "hover pushed no undo entry", 0, undo_len(m4));
+        let m5 = apply(m4, redo);
+        check(string, "redo still works after hover", t1, text_of(m5));
+      },
+    ),
+    test_case(
+      "panel toggles and settings applied on the user's behalf are not undoable",
+      `Quick,
+      () => {
+        let m0 = mk_model();
+        let m1 = apply(m0, insert("1"));
+        let m2 = apply(m1, undo);
+        let m3 =
+          List.fold_left(
+            apply,
+            m2,
+            [
+              /* what Page.update schedules on entering a Probes lesson */
+              set(ApplyAutoprobe(All)),
+              set(SetShortcutOverrides([("Undo", None)])),
+              set(Sidebar(ToggleShow)),
+              set(ShowDebugPanel),
+            ],
+          );
+        check(
+          bool,
+          "the settings did change",
+          true,
+          m3.current.globals.settings.autoprobe_mode == All,
+        );
+        check(int, "no undo entry pushed", 0, undo_len(m3));
+        check(int, "redo stack preserved", 1, redo_len(m3));
+      },
+    ),
+    test_case(
+      "deliberate settings toggles and edits are still undoable",
+      `Quick,
+      () => {
+        let m0 = mk_model();
+        let m1 = apply(m0, set(Statics));
+        check(int, "Statics toggle pushed an undo entry", 1, undo_len(m1));
+        let m2 = apply(m1, undo);
+        check(
+          bool,
+          "undo restores the Statics setting",
+          m0.current.globals.settings.core.statics,
+          m2.current.globals.settings.core.statics,
+        );
+        let m3 = apply(apply(m2, hover), insert("1"));
+        check(int, "an edit after hover still pushes", 1, undo_len(m3));
+        check(int, "and still clears redo", 0, redo_len(m3));
+      },
+    ),
+    test_case(
+      "the probe toolbar's auto-probe toggle is undoable",
+      `Quick,
+      () => {
+        let m0 = mk_model();
+        let before = m0.current.globals.settings.autoprobe_mode;
+        let m1 = apply(m0, set(SetAutoprobe(All)));
+        check(int, "toolbar toggle pushed an undo entry", 1, undo_len(m1));
+        let m2 = apply(m1, undo);
+        check(
+          bool,
+          "undo restores the previous auto-probe mode",
+          true,
+          m2.current.globals.settings.autoprobe_mode == before,
+        );
+      },
+    ),
+    test_case(
+      "hover is not an edit and is not logged",
+      `Quick,
+      () => {
+        let updated =
+          Settings.Update.update(
+            ~action=ExplainThis(SetHighlight(Hover(Haz3lcore.Id.mk()))),
+            ~settings=Settings.Model.init,
+          );
+        check(bool, "not historic", false, updated.historic);
+        check(
+          bool,
+          "not an edit (no autosave/recompute)",
+          false,
+          updated.is_edit,
+        );
+        check(bool, "not logged", false, updated.logged);
+        let sidebar =
+          Settings.Update.update(
+            ~action=Sidebar(ToggleShow),
+            ~settings=Settings.Model.init,
+          );
+        check(bool, "sidebar toggle not historic", false, sidebar.historic);
+        check(bool, "sidebar toggle still autosaved", true, sidebar.is_edit);
       },
     ),
   ],

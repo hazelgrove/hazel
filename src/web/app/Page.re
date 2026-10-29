@@ -440,7 +440,7 @@ module Update = {
       };
     TutorialSlideInit.maybe_apply_on_change(
       ~autoprobe=model.globals.settings.autoprobe_mode,
-      ~set_autoprobe=m => schedule_action(Globals(Set(SetAutoprobe(m)))),
+      ~set_autoprobe=m => schedule_action(Globals(Set(ApplyAutoprobe(m)))),
       lesson,
     );
     model;
