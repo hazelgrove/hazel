@@ -3,6 +3,18 @@ open Language;
 open Language.Statics;
 open HighLevelNodeMap.Utils;
 
+/* The entries of [info_map] at [roots] and below them. */
+let subtree_under = (roots: list(Id.t), info_map: Id.Map.t(Info.t)) =>
+  Id.Map.filter(
+    (id, child) =>
+      List.exists(Id.equal(id), roots)
+      || List.exists(
+           root => List.exists(Id.equal(root), Info.ancestors_of(child)),
+           roots,
+         ),
+    info_map,
+  );
+
 let subtree_of =
     (
       ~info: Info.t,
@@ -25,15 +37,7 @@ let subtree_of =
           (of_pat ? [Pat.rep_id(pat)] : [])
           @ (of_def ? [Exp.rep_id(def)] : [])
           @ (of_body ? [Exp.rep_id(body)] : []);
-        Id.Map.filter(
-          (id, child) =>
-            List.mem(id, roots)
-            || List.exists(
-                 root => List.mem(root, Info.ancestors_of(child)),
-                 roots,
-               ),
-          orig_info_map,
-        );
+        subtree_under(roots, orig_info_map);
       | Let(pat, def, body) =>
         let pat_info = pat_to_pat(pat, orig_info_map);
         let def_info = exp_to_exp(def, orig_info_map);
@@ -193,15 +197,7 @@ let subtree_of =
           ((wanted, part)) => wanted ? Option.map(Any.rep_id, part) : None,
           [(of_pat, Mod.pat(item)), (of_def, Mod.def(item))],
         );
-      Id.Map.filter(
-        (id, child) =>
-          List.mem(id, roots)
-          || List.exists(
-               root => List.mem(root, Info.ancestors_of(child)),
-               roots,
-             ),
-        orig_info_map,
-      );
+      subtree_under(roots, orig_info_map);
     | _ => raise(Failure("Current node is not an expression"))
     };
 
