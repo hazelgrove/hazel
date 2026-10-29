@@ -3,6 +3,13 @@ description: >
   Installs Node, OCaml 5.2.0 and Hazel's opam dependencies from the lock file,
   then runs setup-zarith for the native BigInt runtime.
 
+# Two paths. When the cached `_opam` switch matches the lock file exactly (almost
+# every run), the switch is complete: restoring it and loading the environment
+# opam would set is all a job needs, so the fast path skips setup-ocaml (whose
+# `opam init` alone took ~40 s), the archive repository clone and the no-op
+# `opam install` -- about 70 s per job. On a miss (a lock file change) the
+# slow path does the full install as before, and dev saves the result with the
+# environment recorded, so the next run is fast again.
 runs:
   using: composite
   steps:
@@ -15,7 +22,56 @@ runs:
       shell: bash
       run: npm install
 
+    # v2: entries now carry `.ci-env` (see "Record the switch environment"), which
+    # the fast path needs; v1 entries don't, so they only warm-start a miss.
+    - name: Retrieve the switch environment if cached
+      id: opam-cache-switch
+      uses: actions/cache/restore@v4
+      with:
+        path: "_opam"
+        key: ${{ runner.os }}-opam-v2-${{ hashFiles('hazel.opam.locked') }}
+        # Warm start when the lockfile changed: opam install is incremental.
+        restore-keys: |
+          ${{ runner.os }}-opam-v2-
+          ${{ runner.os }}-opam-
+
+    # Fast path: put the cached switch on PATH with the variables `opam env`
+    # recorded for it, and stand in for the three opam commands CI and the
+    # Makefile use (`opam exec --`, `opam env`, `opam var lib`). The switch is
+    # restored at the same absolute path it was built at (the workspace path is
+    # fixed on GitHub's runners), so its recorded paths stay valid.
+    - name: Use the cached switch
+      if: steps.opam-cache-switch.outputs.cache-hit == 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        test -f _opam/.ci-env || { echo "::error::cached switch has no .ci-env"; exit 1; }
+        cat _opam/.ci-env >> "$GITHUB_ENV"
+        echo "$PWD/_opam/bin" >> "$GITHUB_PATH"
+        shim="$RUNNER_TEMP/opam-shim"
+        mkdir -p "$shim"
+        cat > "$shim/opam" <<'SHIM'
+        #!/usr/bin/env bash
+        # Stand-in for opam on the cached fast path: the switch's environment is
+        # already exported, so these need no opam root.
+        case "${1:-}" in
+          exec) shift; [ "${1:-}" = "--" ] && shift; exec "$@" ;;
+          env) exit 0 ;;
+          var)
+            case "${2:-}" in
+              lib) echo "$OPAM_SWITCH_PREFIX/lib" ;;
+              prefix) echo "$OPAM_SWITCH_PREFIX" ;;
+              bin) echo "$OPAM_SWITCH_PREFIX/bin" ;;
+              *) echo "opam shim: 'opam var ${2:-}' isn't supported on the cached fast path" >&2; exit 1 ;;
+            esac ;;
+          *) echo "opam shim: 'opam ${1:-}' isn't supported on the cached fast path (setup-hazel-toolchain)" >&2; exit 1 ;;
+        esac
+        SHIM
+        chmod +x "$shim/opam"
+        echo "$shim" >> "$GITHUB_PATH"
+
     - name: Set-up OCaml
+      if: steps.opam-cache-switch.outputs.cache-hit != 'true'
       uses: ocaml/setup-ocaml@v3
       with:
         ocaml-compiler: 5.2.0
@@ -24,16 +80,8 @@ runs:
         # caching is unaffected; DUNE_CACHE handles that.
         dune-cache: false
 
-    - name: Retrieve the switch environment if cached
-      id: opam-cache-switch
-      uses: actions/cache/restore@v4
-      with:
-        path: "_opam"
-        key: ${{ runner.os }}-opam-${{ hashFiles('hazel.opam.locked') }}
-        # Warm start when the lockfile changed: opam install is incremental.
-        restore-keys: ${{ runner.os }}-opam-
-
     - name: Add opam repository archive
+      if: steps.opam-cache-switch.outputs.cache-hit != 'true'
       shell: bash
       run: |
         eval $(opam env)
@@ -41,6 +89,7 @@ runs:
         opam repo add archive git+https://github.com/ocaml/opam-repository-archive
 
     - name: Install dependencies
+      if: steps.opam-cache-switch.outputs.cache-hit != 'true'
       shell: bash
       run: |
         eval $(opam env)
@@ -49,11 +98,25 @@ runs:
         opam install . --deps-only --with-test --locked
 
     - name: Clean opam switch
+      if: steps.opam-cache-switch.outputs.cache-hit != 'true'
       shell: bash
       run: |
         eval $(opam env)
         export OPAMYES=1
         opam clean --all-switches --download-cache --logs --repo-cache --unused-repositories
+
+    # What `opam env` sets for this switch, as NAME=value lines for $GITHUB_ENV,
+    # saved inside the switch so the fast path can load it.
+    - name: Record the switch environment
+      if: steps.opam-cache-switch.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        opam env --shell=sh \
+          | sed -nE "s/^([A-Z_][A-Z0-9_]*)='(.*)'; export [A-Z_][A-Z0-9_]*;$/\1=\2/p" \
+          | grep -v '^PATH=' > _opam/.ci-env
+        grep -q '^OPAM_SWITCH_PREFIX=' _opam/.ci-env
+        cat _opam/.ci-env
 
     # Only dev and bot-update-deps write, so the daily branch runs cannot evict
     # the entry they all read. Explicit rather than actions/cache's post hook, so
@@ -63,11 +126,11 @@ runs:
     - name: Save the switch environment to cache
       if: >-
         steps.opam-cache-switch.outputs.cache-hit != 'true' &&
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/bot-update-deps')
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/bot-update-deps' || github.ref == 'refs/heads/ci/toolchain-fast-path')  # TEMP: test the fast path before merge
       uses: actions/cache/save@v4
       with:
         path: "_opam"
-        key: ${{ runner.os }}-opam-${{ hashFiles('hazel.opam.locked') }}
+        key: ${{ runner.os }}-opam-v2-${{ hashFiles('hazel.opam.locked') }}
 
     - name: Setup zarith native BigInt runtime
       shell: bash
