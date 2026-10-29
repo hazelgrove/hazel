@@ -9,7 +9,8 @@
 # suite in the dev profile, so they share no build output, and running them
 # side by side takes the warnings build off the merge queue's critical path.
 # Actions minutes are free for this public repository; wall-clock time is
-# what contributors wait on. Both are required checks for `dev`.
+# what contributors wait on. Which checks are required is set in the `dev`
+# ruleset (Settings -> Rules), not here.
 name: Checks
 
 on:
