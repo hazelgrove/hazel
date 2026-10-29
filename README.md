@@ -24,6 +24,8 @@ If you already have `ocaml` version 5.2.0, at least version 2.0 of `opam`, and a
 - `make deps`
 - `make dev`
 
+We also recommend installing the [GitHub CLI](https://cli.github.com/) (`gh`) and logging in with `gh auth login`: the build uses it to link the build label in the top bar to your branch's open PR. See [INSTALL.md](INSTALL.md#install-and-set-up-the-github-cli-gh).
+
 ### Long Version
 
 If the above pre-requisites don't apply, please follow the step-by-step installation instructions contained in [INSTALL.md](INSTALL.md).
