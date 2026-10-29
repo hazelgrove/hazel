@@ -151,11 +151,18 @@ let add_binder_infos =
         }),
         m,
       );
+    /* Every Ap on the spine is part of the binder: `f(x)(y)` has an
+       inner `f(x)` node the caret can rest on. */
+    let rec add_spine = (pat, m) =>
+      switch (IdTagged.term_of(pat)) {
+      | Ap(fn, _) => add_spine(fn, add_for(pat, m))
+      | _ => m
+      };
     switch (IdTagged.term_of(user_pat)) {
     | Asc(inner, _) =>
       let m = add_for(user_pat, m);
-      add_for(inner, m);
-    | _ => add_for(user_pat, m)
+      add_spine(inner, m);
+    | _ => add_spine(user_pat, m)
     };
   };
 };

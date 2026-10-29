@@ -187,6 +187,14 @@ let tests = (
       "let answer(): Int = 42 in answer()",
     ),
     info_map_preserves_ids(
+      "ids preserved: curried (inner f(x) node)",
+      "let f(x: Int)(y: Int) = x + y in f(3)(4)",
+    ),
+    info_map_preserves_ids(
+      "ids preserved: curried with return type and nullary group",
+      "let f(x: Int)()(z: Int): Int = x + z in f(3)()(4)",
+    ),
+    info_map_preserves_ids(
       "ids preserved: recursive",
       "let fact(n: Int): Int = if n == 0 then 1 else n * fact(n - 1) in fact(3)",
     ),
@@ -204,6 +212,11 @@ let tests = (
       "binder info: Asc wrapper with return type",
       "let f(x: Int, y: Int): Int = x + y in f(3, 4)",
       arrow(prod([int(), int()]), int()),
+    ),
+    fully_consistent_typecheck(
+      "curried module member keeps its function type when a param shadows it",
+      {|module M = { let g(x: Int)(g: Bool): Int = x } in M.g(1)(true)|},
+      Some(int()),
     ),
   ],
 );
