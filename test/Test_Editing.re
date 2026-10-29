@@ -32,16 +32,51 @@ let default_settings = {
   statics: true,
 };
 
+/* An action reads its pre-state's statics. The semantic term, and so its
+ * statics, depend only on the caret-free source, so a state with the same
+ * source as the last one derived (after a move or a selection) reuses its
+ * statics, as the editor does. The last state outlives a perform call
+ * because tests often chain states one action per call. */
+type derived = {
+  source: Segment.t,
+  statics: Lazy.t(CachedStatics.t),
+};
+
+let last_derived: ref(option((Language.CoreSettings.t, Zipper.t, derived))) =
+  ref(None);
+
+let derive = (~settings: Language.CoreSettings.t, z: Zipper.t): derived => {
+  let source = lazy(MakeTerm.semantic_source(z));
+  let derived =
+    switch (last_derived^) {
+    | Some((s, last_z, last))
+        when
+          s == settings && (last_z === z || last.source == Lazy.force(source)) => last
+    | _ =>
+      let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+      {
+        source: Lazy.force(source),
+        statics:
+          lazy(
+            CachedStatics.init_from_term(
+              ~settings,
+              ~is_dynamic_term=true,
+              term,
+            )
+          ),
+      };
+    };
+  last_derived := Some((settings, z, derived));
+  derived;
+};
+
 let perform =
     (~settings=default_settings, zip: Zipper.t, actions: list(Action.t))
     : Zipper.t => {
-  let perform = (a: Action.t, z: Zipper.t) => {
-    let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
-    let statics =
-      CachedStatics.init_from_term(~settings, ~is_dynamic_term=true, term);
+  let perform = (a: Action.t, z: Zipper.t) =>
     Perform.go(
       ~settings,
-      ~statics,
+      ~statics=Lazy.force(derive(~settings, z).statics),
       ~syntax=CachedSyntax.init(z),
       a,
       {
@@ -49,7 +84,6 @@ let perform =
         col_target: None,
       },
     );
-  };
   List.fold_left(
     (z: Zipper.t, a: Action.t) =>
       switch (perform(a, z, ~root=Exp)) {
@@ -57,8 +91,9 @@ let perform =
         /* Term construction must be total on every reachable editor state
          * (statics/display consume it after every action). Checking here
          * (rather than only on the pre-state of the NEXT action) means the
-         * final state of every test is covered too. */
-        switch (MakeTerm.from_zip_for_sem(z, ~root=Exp)) {
+         * final state of every test is covered too. derive builds the term
+         * unless the source is unchanged from the last state derived. */
+        switch (derive(~settings, z)) {
         | _ => z
         | exception e =>
           print_endline("Zipper: " ++ Zipper.show(z));
@@ -129,28 +164,20 @@ let move_point = (~row: int=0, ~col: int, ()): Action.t =>
     ),
   );
 
+/* Split on the one caret: the text, and how many chars follow the caret */
+let split_one_caret = (init: string): (string, int) =>
+  switch (StringUtil.plain_split(init, caret_char)) {
+  | [before, after] => (before ++ after, List.length(Token.to_list(after)))
+  | _ => Alcotest.fail("Expected exactly one caret in: " ++ init)
+  };
+
 let mk = (init: string): list(Action.t) => {
   /* Builds actions from a string with ¦ for caret position.
    * Does not support § — use mk_zipper for selections. */
-  let chars = Token.to_list(init);
-  if (List.exists(c => c == selection_char, chars)) {
+  if (List.exists(c => c == selection_char, Token.to_list(init))) {
     Alcotest.fail("mk() does not support §. Use mk_zipper(): " ++ init);
   };
-  let rec split =
-          (before: list(string), rest: list(string))
-          : (list(string), list(string)) =>
-    switch (rest) {
-    | [] => Alcotest.fail("Failed to find caret in: " ++ init)
-    | [hd, ...tl] =>
-      if (hd == caret_char) {
-        (List.rev(before), tl);
-      } else {
-        split([hd, ...before], tl);
-      }
-    };
-  let (before, after) = split([], chars);
-  let clean = Token.of_list(before @ after);
-  let chars_after_caret = List.length(after);
+  let (clean, chars_after_caret) = split_one_caret(init);
   string_to_ltr_actions(clean) @ mv_l_char(chars_after_caret);
 };
 
@@ -161,7 +188,8 @@ let mk = (init: string): list(Action.t) => {
  * 1. Create two single-caret versions of the input string
  *    - version_a: caret at the § position (anchor)
  *    - version_b: caret at the ¦ position (focus)
- * 2. Build zippers from both via mk + perform
+ * 2. Build zippers for both: type their shared text once, then move
+ *    the caret left to each version's caret
  * 3. Get Point.t coordinates from each via Measured
  * 4. Apply Select(PointToPoint) to create the selection */
 let mk_zipper = (~settings=default_settings, init: string): Zipper.t => {
@@ -189,8 +217,12 @@ let mk_zipper = (~settings=default_settings, init: string): Zipper.t => {
     let version_b =
       chars |> List.filter(c => c != selection_char) |> Token.of_list;
     /* Build zippers */
-    let z_a = mk(version_a) |> perform(~settings, Zipper.init());
-    let z_b = mk(version_b) |> perform(~settings, Zipper.init());
+    let (text, after_anchor) = split_one_caret(version_a);
+    let (_, after_focus) = split_one_caret(version_b);
+    let typed =
+      string_to_ltr_actions(text) |> perform(~settings, Zipper.init());
+    let z_a = mv_l_char(after_anchor) |> perform(~settings, typed);
+    let z_b = mv_l_char(after_focus) |> perform(~settings, typed);
     /* Get caret Points from each */
     let measured_a = CachedSyntax.init(z_a).measured;
     let measured_b = CachedSyntax.init(z_b).measured;
@@ -215,22 +247,16 @@ let test = (~name, ~acts, ~goal): test_case(_) =>
 /* Parse a string with caret position using Parser.to_zipper (no auto-indent).
  * This is useful for tests that need to start from a specific state
  * without the double-indentation issue from mk(). */
-let parse_with_caret = (init: string): Zipper.t => {
-  /* Split on caret to get before and after */
-  let parts = StringUtil.plain_split(init, caret_char);
-  switch (parts) {
-  | [before, after] =>
-    let full_str = before ++ after;
-    switch (Parser.to_zipper(~root=Exp, full_str)) {
-    | None => Alcotest.fail("Failed to parse: " ++ full_str)
-    | Some(z) =>
-      /* Move cursor to the caret position (count chars in 'after') */
-      let chars_after = List.length(Token.to_list(after));
-      /* Use mv_l to generate move actions, then perform them */
-      mv_l(chars_after) |> perform(z);
-    };
-  | _ => Alcotest.fail("Expected exactly one caret in: " ++ init)
+let parse_text = (text: string): Zipper.t =>
+  switch (Parser.to_zipper(~root=Exp, text)) {
+  | None => Alcotest.fail("Failed to parse: " ++ text)
+  | Some(z) => z
   };
+
+let parse_with_caret = (init: string): Zipper.t => {
+  let (text, chars_after) = split_one_caret(init);
+  /* Use mv_l to generate move actions, then perform them */
+  mv_l(chars_after) |> perform(parse_text(text));
 };
 
 /* Like mk_zipper but builds the buffer via Parser (no auto-indent), so it
@@ -261,8 +287,12 @@ let parse_zipper = (~settings=default_settings, init: string): Zipper.t => {
     /* version_b: remove §, keep ¦ */
     let version_b =
       chars |> List.filter(c => c != selection_char) |> Token.of_list;
-    let z_a = parse_with_caret(version_a);
-    let z_b = parse_with_caret(version_b);
+    /* the same text with the caret in two places: parsed once */
+    let (text, after_anchor) = split_one_caret(version_a);
+    let (_, after_focus) = split_one_caret(version_b);
+    let parsed = parse_text(text);
+    let z_a = mv_l(after_anchor) |> perform(parsed);
+    let z_b = mv_l(after_focus) |> perform(parsed);
     let measured_a = CachedSyntax.init(z_a).measured;
     let measured_b = CachedSyntax.init(z_b).measured;
     let anchor_pt = Zipper.Caret.point(measured_a, z_a);
@@ -377,6 +407,17 @@ let basic_tests = [
     ~name="Paste multiline body-less chain keeps layout",
     ~acts=mk("¦") @ [Paste("let a = 1 in\nlet b = 2 in")],
     ~goal="let a = 1 in\nlet b = 2 in¦?",
+  ),
+  /* A linebreak at either edge of the clipboard is pasted too */
+  test(
+    ~name="Paste ending in a linebreak keeps it",
+    ~acts=mk("¦x") @ [Paste("let a = 1 in\n")],
+    ~goal="let a = 1 in\n¦x",
+  ),
+  test(
+    ~name="Paste starting with a linebreak keeps it",
+    ~acts=mk("let a = 1 in¦") @ [Paste("\na")],
+    ~goal="let a = 1 in\na¦",
   ),
   test(
     ~name="Paste plaintext into token at Inner caret",
