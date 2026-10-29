@@ -5,6 +5,172 @@ open Js_of_ocaml;
 
 module C = Language.BuiltinsADT.Color;
 
+/* Reading and writing the literal the picker edits. Outside `M` so the
+   round trip can be tested without going through the view. */
+module Literal = {
+  /* In the literal's own units: bytes stay bytes, so reading an `Rgb` does not
+     lose a step through OKLCH before anything is touched. */
+  [@deriving (show({with_path: false}), eq)]
+  type literal =
+    | LOklch(float, float, float)
+    | LRgb(int, int, int);
+
+  /* Parens and projectors (a slider on one component, say) can wrap any
+     layer of the literal. Returns the term under them and a function that
+     puts a replacement back under the same wrappers, so reading and writing
+     see through exactly the same chain. */
+  let rec through_wrappers =
+          (e: Language.Exp.t)
+          : (Language.Exp.t, Language.Exp.t => Language.Exp.t) =>
+    switch (e.term) {
+    | Parens(inner) =>
+      let (core, rewrap) = through_wrappers(inner);
+      (
+        core,
+        (
+          c => {
+            ...e,
+            term: Parens(rewrap(c)),
+          }
+        ),
+      );
+    | Projector(data, inner) =>
+      let (core, rewrap) = through_wrappers(inner);
+      (
+        core,
+        (
+          c => {
+            ...e,
+            term: Projector(data, rewrap(c)),
+          }
+        ),
+      );
+    | _ => (e, Fun.id)
+    };
+
+  let byte_of = (v): option(int) => Bigint.to_int(v);
+
+  let same_kind = (a: literal, b: literal): bool =>
+    switch (a, b) {
+    | (LOklch(_), LOklch(_))
+    | (LRgb(_), LRgb(_)) => true
+    | (LOklch(_), LRgb(_))
+    | (LRgb(_), LOklch(_)) => false
+    };
+
+  /* The literal `e` holds, and how to write another in its place. Same kind
+     rewrites only the three leaves, under their wrappers, so every id and any
+     projector on a component survives. Changing kind replaces the
+     constructor token too, and is the only thing that does; the leaves are
+     then written bare (each keeping its own id), since a projector on an
+     `Int` byte does not carry over to a `Float` channel. */
+  let decompose =
+      (e: Language.Exp.t): option((literal, literal => Language.Exp.t)) => {
+    let (ap, rewrap_ap) = through_wrappers(e);
+    switch (ap.term) {
+    | Ap(Forward, ctr, arg) =>
+      let (ctr_core, rewrap_ctr) = through_wrappers(ctr);
+      let (tup, rewrap_tup) = through_wrappers(arg);
+      switch (ctr_core.term, tup.term) {
+      | (Constructor(name, _), Tuple([e1, e2, e3])) =>
+        let (a1, rewrap1) = through_wrappers(e1);
+        let (a2, rewrap2) = through_wrappers(e2);
+        let (a3, rewrap3) = through_wrappers(e3);
+        let current =
+          switch (name, a1.term, a2.term, a3.term) {
+          | ("Oklch", Atom(Float(l)), Atom(Float(c)), Atom(Float(h))) =>
+            Some(LOklch(l, c, h))
+          | ("Rgb", Atom(Int(r)), Atom(Int(g)), Atom(Int(b))) =>
+            switch (byte_of(r), byte_of(g), byte_of(b)) {
+            | (Some(r), Some(g), Some(b)) => Some(LRgb(r, g, b))
+            | _ => None
+            }
+          | _ => None
+          };
+        let write = (current: literal, l: literal): Language.Exp.t => {
+          let kept = same_kind(current, l);
+          let (name, v1, v2, v3) =
+            switch (l) {
+            | LOklch(l, c, h) =>
+              Language.Atom.("Oklch", Float(l), Float(c), Float(h))
+            | LRgb(r, g, b) =>
+              Language.Atom.(
+                "Rgb",
+                Int(Bigint.of_int(r)),
+                Int(Bigint.of_int(g)),
+                Int(Bigint.of_int(b)),
+              )
+            };
+          let atom = (e: Language.Exp.t, v): Language.Exp.t => {
+            ...e,
+            term: Atom(v),
+          };
+          let set = (leaf, rewrap, v) =>
+            kept ? rewrap(atom(leaf, v)) : atom(leaf, v);
+          /* Minted at the call site: a hoisted FreshGrammar id passes statics
+             and then faults in `Highlight.of_tile` on a shard mismatch. */
+          let ctr = kept ? ctr : rewrap_ctr(C.ctr(name));
+          rewrap_ap({
+            ...ap,
+            term:
+              Ap(
+                Forward,
+                ctr,
+                rewrap_tup({
+                  ...tup,
+                  term:
+                    Tuple([
+                      set(a1, rewrap1, v1),
+                      set(a2, rewrap2, v2),
+                      set(a3, rewrap3, v3),
+                    ]),
+                }),
+              ),
+          });
+        };
+        current |> Option.map(l => (l, write(l)));
+      | _ => None
+      };
+    | _ => None
+    };
+  };
+
+  let of_any = (any: Language.Any.t): option(literal) =>
+    switch (any) {
+    | Exp(e) => decompose(e) |> Option.map(fst)
+    | Pat(_)
+    | Typ(_)
+    | TPat(_)
+    | Rul(_)
+    | Drv(_)
+    | Mod(_)
+    | Sig(_)
+    | MPat(_)
+    | Any(_) => None
+    };
+
+  /* The projector's syntax with `l` written in place of its literal. */
+  let put = (info: ProjectorBase.info, l: literal): Base.segment => {
+    let rewrite = (e: Language.Exp.t): Language.Exp.t =>
+      switch (decompose(e)) {
+      | Some((_, write)) => write(l)
+      | None => e
+      };
+    switch (
+      info.utility.lift_syntax(
+        ~inline=true,
+        fun
+        | Exp(e) => Exp(rewrite(e))
+        | other => other,
+        info.syntax,
+      )
+    ) {
+    | Some(s) => s
+    | None => failwith("Color: Put: lift failed")
+    };
+  };
+};
+
 /* A picker over the two color literals, `Oklch(l, c, h)` and `Rgb(r, g, b)`.
    Closed it is a one-character swatch; open, its surface follows the literal,
    because the two are not the same kind of thing. Oklch has unbounded chroma
@@ -98,60 +264,16 @@ module M: Projector = {
 
   /* --- reading and writing the literal --- */
 
-  let rec unparen = (e: Language.Exp.t): Language.Exp.t =>
-    switch (e.term) {
-    | Parens(inner) => unparen(inner)
-    | _ => e
-    };
-
-  /* In the literal's own units: bytes stay bytes, so reading an `Rgb` does not
-     lose a step through OKLCH before anything is touched. */
-  type literal =
-    | LOklch(float, float, float)
-    | LRgb(int, int, int);
+  open Literal;
 
   let form_of_literal =
     fun
     | LOklch(_) => AsOklch
     | LRgb(_) => AsRgb;
 
-  let byte_of = (v): option(int) => Bigint.to_int(v);
-
-  let literal_of = (e: Language.Exp.t): option(literal) =>
-    switch (unparen(e).term) {
-    | Ap(Forward, ctr, arg) =>
-      switch (unparen(ctr).term, unparen(arg).term) {
-      | (Constructor("Oklch", _), Tuple([l, c, h])) =>
-        switch (unparen(l).term, unparen(c).term, unparen(h).term) {
-        | (Atom(Float(l)), Atom(Float(c)), Atom(Float(h))) =>
-          Some(LOklch(l, c, h))
-        | _ => None
-        }
-      | (Constructor("Rgb", _), Tuple([r, g, b])) =>
-        switch (unparen(r).term, unparen(g).term, unparen(b).term) {
-        | (Atom(Int(r)), Atom(Int(g)), Atom(Int(b))) =>
-          switch (byte_of(r), byte_of(g), byte_of(b)) {
-          | (Some(r), Some(g), Some(b)) => Some(LRgb(r, g, b))
-          | _ => None
-          }
-        | _ => None
-        }
-      | _ => None
-      }
-    | _ => None
-    };
-
-  let literal_of_any = (any: Language.Any.t): option(literal) =>
-    switch (any) {
-    | Exp(e) => literal_of(e)
-    | _ => None
-    };
-
   let literal_of_info = (info: info): literal =>
     switch (
-      info.syntax
-      |> info.utility.seg_to_term
-      |> OptUtil.and_then(literal_of_any)
+      info.syntax |> info.utility.seg_to_term |> OptUtil.and_then(of_any)
     ) {
     | Some(t) => t
     | None => failwith("Color: Get: not an Oklch or Rgb literal")
@@ -159,16 +281,14 @@ module M: Projector = {
 
   let form_of_info = (info: info): form =>
     switch (
-      info.syntax
-      |> info.utility.seg_to_term
-      |> OptUtil.and_then(literal_of_any)
+      info.syntax |> info.utility.seg_to_term |> OptUtil.and_then(of_any)
     ) {
     | Some(l) => form_of_literal(l)
     | None => AsOklch
     };
 
   let init = (any: Language.Any.t) =>
-    switch (literal_of_any(any)) {
+    switch (of_any(any)) {
     | Some(_) => Some(init_model)
     | None => None
     };
@@ -216,63 +336,6 @@ module M: Projector = {
     | Some(t) => t
     | None => components_of_literal(literal_of_info(info))
     };
-
-  /* Same form rewrites only the three leaves, so every id survives. Changing
-     form replaces the constructor token too, and is the only thing that does. */
-  let put = (info: info, l: literal): Base.segment => {
-    let same_form = form_of_info(info) == form_of_literal(l);
-    let (v1, v2, v3) =
-      switch (l) {
-      | LOklch(l, c, h) => Language.Atom.(Float(l), Float(c), Float(h))
-      | LRgb(r, g, b) =>
-        Language.Atom.(
-          Int(Bigint.of_int(r)),
-          Int(Bigint.of_int(g)),
-          Int(Bigint.of_int(b)),
-        )
-      };
-    let set = (e: Language.Exp.t, v): Language.Exp.t => {
-      ...e,
-      term: Atom(v),
-    };
-    /* Minted at the call site: a hoisted FreshGrammar id passes statics and
-       then faults in `Highlight.of_tile` on a shard mismatch. */
-    let ctr = () =>
-      C.ctr(
-        switch (l) {
-        | LOklch(_) => "Oklch"
-        | LRgb(_) => "Rgb"
-        },
-      );
-    let rewrite = (e: Language.Exp.t): Language.Exp.t =>
-      switch (e.term) {
-      | Ap(d, c, {term: Tuple([el, ec, eh]), _} as tup) => {
-          ...e,
-          term:
-            Ap(
-              d,
-              same_form ? c : ctr(),
-              {
-                ...tup,
-                term: Tuple([set(el, v1), set(ec, v2), set(eh, v3)]),
-              },
-            ),
-        }
-      | _ => e
-      };
-    switch (
-      info.utility.lift_syntax(
-        ~inline=true,
-        fun
-        | Exp(e) => Exp(rewrite(e))
-        | other => other,
-        info.syntax,
-      )
-    ) {
-    | Some(s) => s
-    | None => failwith("Color: Put: lift failed")
-    };
-  };
 
   /* --- text formats --- */
 

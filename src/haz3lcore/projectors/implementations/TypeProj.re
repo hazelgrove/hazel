@@ -43,7 +43,13 @@ module M: Projector = {
     | Exp(_)
     | Pat(_) => Some(Expected)
     | Any () => Some(Expected) /* Grout don't have sorts rn */
-    | _ => None
+    | Typ(_)
+    | TPat(_)
+    | Rul(_)
+    | Drv(_)
+    | Mod(_)
+    | Sig(_)
+    | MPat(_) => None
     };
   };
 

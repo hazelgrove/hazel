@@ -1970,7 +1970,89 @@ let depth_count_tests = [
   ),
 ];
 
+/* === Projected content ===
+   A projector piece (a slider on a literal, say) is an operand like any
+   tile, so it counts as content on either side of a junction. Each test
+   parses `input`, then replaces every tile spelled `projected` with a
+   slider projector over it before completing. */
+let project_token = (token: string, seg: Segment.t): Segment.t => {
+  let (module S) = ProjectorInit.to_module(Slider);
+  let model =
+    switch (S.init(Exp(Language.IdTagged.FreshGrammar.Exp.int(1)))) {
+    | Some(m) => m
+    | None => fail("slider should init on an int")
+    };
+  List.map(
+    Base.map_piece(~f_piece=(rec_call, p: Piece.t) =>
+      switch (p) {
+      | Tile(t) when Tile.label(t) == [token] =>
+        Piece.Projector(ProjectorCore.mk(Slider, p, model))
+      | _ => rec_call(p)
+      }
+    ),
+    seg,
+  );
+};
+
+let rec has_projector = (seg: Segment.t): bool =>
+  List.exists(
+    (p: Piece.t) =>
+      switch (p) {
+      | Projector(_) => true
+      | Tile(t) => List.exists(has_projector, t.children)
+      | Grout(_)
+      | Secondary(_) => false
+      },
+    seg,
+  );
+
+let projected_content_test = (~name, ~input, ~projected, ~expected) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let seg = project_token(projected, must_parse(input));
+      check(bool, "fixture has a projector", true, has_projector(seg));
+      let result =
+        CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
+      check(
+        string_testable,
+        name,
+        expected,
+        print_seg(result.completed_seg),
+      );
+      check(
+        Alcotest.int,
+        "no incomplete",
+        0,
+        count_incomplete_deep(result.completed_seg),
+      );
+    },
+  );
+
+let projected_content_tests = [
+  projected_content_test(
+    ~name="let missing equals drops before a projected definition",
+    ~input="let x 1 in 2",
+    ~projected="1",
+    ~expected="let x =^^slider(1) in 2",
+  ),
+  projected_content_test(
+    ~name="if missing then drops before a projected branch",
+    ~input="if true 1 else 2",
+    ~projected="1",
+    ~expected="if true then^^slider(1) else 2",
+  ),
+  projected_content_test(
+    ~name="deleted else restored before a projected branch",
+    ~input="if true then 1 2",
+    ~projected="2",
+    ~expected="if true then 1 else^^slider(2)",
+  ),
+];
+
 let tests: list((string, list(Alcotest.test_case(unit)))) = [
+  ("CanonicalCompletion: projected-content", projected_content_tests),
   (
     "CanonicalCompletion: depth",
     run_completion_tests(depth_tests) @ depth_count_tests,
