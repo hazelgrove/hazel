@@ -224,6 +224,10 @@ let start = default_model => {
 
   // Other Initialization
   let on_startup = (schedule_action, ()): unit => {
+    /* Identify non-dev builds in the page title */
+    if (!BuildMeta.is_clean_dev) {
+      Dom_html.document##.title := Js.string("hazel · " ++ BuildMeta.label);
+    };
     Os.is_mac :=
       Dom_html.window##.navigator##.platform##toUpperCase##indexOf(
         Js.string("MAC"),
@@ -349,6 +353,8 @@ let start = default_model => {
     );
   };
 };
+
+CoverageExport.install();
 
 switch (JsUtil.Fragment.get_current()) {
 | Some("debug") => DebugMode.go()
