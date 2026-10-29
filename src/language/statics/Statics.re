@@ -1103,6 +1103,8 @@ and uexp_to_info_map =
         LabeledTupleStaticsHelpers.collect_malformed_labels(
           ~has_tup_label=
             (e: Info.exp) =>
+              /* Asc is opaque here on purpose: an ascribed entry is not a
+                 bare labeled entry of this tuple. */
               switch (Exp.strip_wrappers(e.user_term).term) {
               | TupLabel(_, _) => true
               | _ => false
@@ -1629,7 +1631,7 @@ and uexp_to_info_map =
         );
       };
     | Ap(dir, fn, arg) =>
-      switch (Exp.strip_wrappers(fn).term) {
+      switch (fn.term) {
       | LivelitName(s) =>
         // refer to livelit context to find types
         switch (Ctx.lookup_livelit(ctx, s)) {
@@ -3539,6 +3541,8 @@ and upat_to_info_map =
         LabeledTupleStaticsHelpers.collect_malformed_labels(
           ~has_tup_label=
             (e: Info.pat) =>
+              /* Asc is opaque here on purpose: an ascribed entry is not a
+                 bare labeled entry of this tuple. */
               switch (Pat.strip_wrappers(e.user_term).term) {
               | TupLabel(_, _) => true
               | _ => false

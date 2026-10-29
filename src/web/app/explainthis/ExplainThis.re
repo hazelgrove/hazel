@@ -1233,7 +1233,7 @@ let decide =
         let x_id = IdTagged.rep_id(x);
         let arg_id = IdTagged.rep_id(arg);
         let basic = group => get_message(group);
-        switch (Exp.ctr_name(x), Exp.strip_wrappers(x).term) {
+        switch (Exp.ctr_name(x), x.term) {
         | (Some(v), _) => basic(AppExp.conaps(~name=v, ~x_id, ~arg_id))
         | (None, LivelitName(_)) => basic(AppExp.livelitaps(~x_id, ~arg_id))
         | (None, _) => basic(AppExp.funaps(~x_id, ~arg_id))

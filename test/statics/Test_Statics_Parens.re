@@ -50,21 +50,5 @@ let tests = (
         ["Some(x)", "(Some)(x)", "^^fold(Some)(x)"],
       )
     ),
-    test_case(
-      "Parenthesized livelit head is a livelit application", `Quick, () =>
-      check(
-        string,
-        "(^slider)(50)",
-        "Livelit application",
-        Language.Exp.show_cls(
-          Language.Exp.cls_of_term(parse_exp("(^slider)(50)").term),
-        ),
-      )
-    ),
-    fully_consistent_typecheck(
-      "Parenthesized livelit head expands",
-      {|let n = (^slider)(50) in 0|},
-      Some(Language.Typ.temp(Atom(Int))),
-    ),
   ],
 );

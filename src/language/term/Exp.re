@@ -125,8 +125,8 @@ let strip_projectors =
 /* Parens and Projector are transparent: elaboration keeps both, so code
    that inspects the head or shape of an expression must look through them.
    Asc is NOT stripped here; whether an ascription is transparent depends on
-   the call site. Polymorphic in the annotation so cls_of_term can use it. */
-let rec strip_wrappers = (e: Grammar.exp_t('a)): Grammar.exp_t('a) =>
+   the call site. */
+let rec strip_wrappers = (e: t): t =>
   switch (e.term) {
   | Parens(e)
   | Projector(_, e) => strip_wrappers(e)
@@ -206,7 +206,7 @@ let rec cls_of_term: type a. Grammar.exp_term(a) => cls =
   | TyAlias(_) => TyAlias
   | Use(_) => Use
   | Ap(_, e1, _) =>
-    switch (strip_wrappers(e1).term) {
+    switch (e1.term) {
     | LivelitName(_) => LivelitAp
     | _ => Ap
     }

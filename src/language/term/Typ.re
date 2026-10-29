@@ -575,16 +575,47 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
    ("x", Some(T)) and `let x` gives ("x", None), looking through Parens and
    Projector on both the item and the bound variable. Other patterns
    declare no field. */
-let sig_let_field = (pat: Pat.t): option((Var.t, option(t))) =>
+let sig_let_field = (pat: Pat.t): option((Var.t, option(t))) => {
+  let var_of = (p: Pat.t): option(Var.t) =>
+    switch (Pat.strip_wrappers(p).term) {
+    | Var(name) => Some(name)
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | Wild
+    | ExplicitNonlabel
+    | Atom(_)
+    | ListLit(_)
+    | Constructor(_)
+    | Cons(_)
+    | Tuple(_)
+    | Label(_)
+    | TupLabel(_)
+    | Parens(_)
+    | Projector(_)
+    | Ap(_)
+    | Asc(_) => None
+    };
   switch (Pat.strip_wrappers(pat).term) {
   | Var(name) => Some((name, None))
-  | Asc(p, typ) =>
-    switch (Pat.strip_wrappers(p).term) {
-    | Var(name) => Some((name, Some(typ)))
-    | _ => None
-    }
-  | _ => None
+  | Asc(p, typ) => var_of(p) |> Option.map(name => (name, Some(typ)))
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | Wild
+  | ExplicitNonlabel
+  | Atom(_)
+  | ListLit(_)
+  | Constructor(_)
+  | Cons(_)
+  | Tuple(_)
+  | Label(_)
+  | TupLabel(_)
+  | Parens(_)
+  | Projector(_)
+  | Ap(_) => None
   };
+};
 
 /* ~expand restricts which alias names get expanded (default: all). Used
    by module lowering to expand only module-LOCAL aliases when a member
