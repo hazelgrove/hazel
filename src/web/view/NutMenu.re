@@ -106,6 +106,12 @@ let semantics = (~globals: Globals.t): section => {
       "Enable type-directed feedback",
     ),
     toggle(
+      "Warnings",
+      globals.settings.core.display_warnings,
+      DisplayWarnings,
+      "Show warnings, such as unused variables, in the code, the inspector and the problems panel",
+    ),
+    toggle(
       "Code completion",
       globals.settings.core.assist,
       Assist,

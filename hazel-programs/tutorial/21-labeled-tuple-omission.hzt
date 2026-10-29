@@ -61,6 +61,12 @@ let drop_secrets = fun t ->
 in
 drop_secrets((not_secret="public information", secret="to redact"))
 
+@solution
+let drop_secrets = fun t ->
+  omit_labels(t, `secret`)
+in
+drop_secrets((not_secret="public information", secret="to redact"))
+
 @test
 test drop_secrets((not_secret="public information", secret="to redact")) == (not_secret="public information") end;
 let t = (a=1, b=2, c=3, secret=123) in
