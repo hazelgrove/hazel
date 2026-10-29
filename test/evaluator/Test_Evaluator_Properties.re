@@ -225,7 +225,7 @@ let qcheck_pattern_equivalence_test =
   );
 
 /* Carved out until `is_more_precise` compares recursive types as trees
-   (Alexander's equirecursive stack): a `rec` whose binder its body never
+   (the equirecursive stack, #2736, #2737, #2740): a `rec` whose binder its body never
    uses (`rec x -> ?`, or an invalid binder) is its body, so a step that
    sees through it (`_ : (rec x -> ?)` to `_`, type `?`) looks less precise. */
 let has_rec_with_unused_binder = (ty: Typ.t): bool => {
@@ -265,7 +265,7 @@ let has_rec_with_unused_binder = (ty: Typ.t): bool => {
   found^;
 };
 
-/* Carved out for now (proofs are to be separated from expressions): a
+/* Carved out for now (proofs are to be separated from expressions, #2753): a
    `proof_of e end` type quoting a variable the program binds. The type
    escapes the binder (`let y = 1 in proof_object y end : proof_of y end`),
    and the step that substitutes `y` changes it to `proof_of 1 end`, which
@@ -723,7 +723,8 @@ let incremental_reused_function_regression_test =
     )
   );
 
-/* The carved-out preservation class, pinned (skipped until the fix). */
+/* The carved-out preservation class, pinned (skipped until #2736, #2737
+   and #2740 land). */
 let preservation_rec_unused_binder_pin =
   test_case(
     "Preservation: `?` is as precise as `rec x -> ?` (carved out)", `Quick, () => {
@@ -745,7 +746,7 @@ let preservation_rec_unused_binder_pin =
   });
 
 /* The carved-out proof_of class, pinned (skipped until proofs are separated
-   from expressions). */
+   from expressions, #2753). */
 let preservation_proof_of_escaping_binder_pin =
   test_case(
     "Preservation: let y = 1 in proof_object y end (carved out)", `Quick, () => {

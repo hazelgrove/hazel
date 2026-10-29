@@ -222,7 +222,7 @@ let differing_subs =
   results^;
 };
 
-/* Carved out (wontfix here; modules are being reworked, see #2717): a
+/* Carved out (#2752; modules are being reworked, see #2717): a
    `module x = def in body` whose definition mentions `x`. The binding is
    checked non-recursively but elaborates to a plain `let`, which a fresh run
    checks as recursive, so a `proof_of` quoting it differs between the two.
@@ -437,7 +437,7 @@ let regression_tests = [
 ];
 
 /* The carved-out class, pinned (skipped until module bindings
-   elaborate to something that re-checks as non-recursive). */
+   elaborate to something that re-checks as non-recursive; #2752). */
 let self_referencing_module_binding_pin =
   Alcotest.test_case(
     "Sub-expression synthesis: proof_object of a self-referencing module binding (wontfix, carved out)",

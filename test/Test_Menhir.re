@@ -165,7 +165,7 @@ let menhir_maketerm_print_equivalent_test = (name: string, exp: AST.exp) =>
    Inside `{ }` the editor molds `let` as a module-item `let … =`, which has no
    `in` shard, so `{ let y = 1 in y }` is a module let whose definition is
    `1 in y` (`in` left as an unknown infix), where Menhir reads an expression
-   item. Which reading is intended is undecided. Parenthesizing the item
+   item. Which reading is intended is undecided (#2754). Parenthesizing the item
    avoids it. Pinned by skipped tests below; generated terms containing one are
    discarded rather than judged. */
 let is_unsupported_mod_item = (e: Exp.t): bool =>
@@ -1542,8 +1542,8 @@ let dumps = [
     "REPRO Menhir85 case as module item",
     {|{ case _ | _ => 1 end }|},
   ),
-  /* Skipped: the `…-in` binder forms disagree as bare module items (see
-     is_unsupported_mod_item). */
+  /* Skipped: the `…-in` binder forms disagree as bare module items (#2754;
+     see is_unsupported_mod_item). */
   skip_menhir_maketerm_equivalent_test(
     "REPRO Menhir85 let-in as module item",
     {|{ let y = 1 in y }|},
