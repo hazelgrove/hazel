@@ -81,6 +81,11 @@ type Book = (title=String, author=String, year=Int) in
 let get_authors : [Book] -> [String] =¿  in
 get_authors(^^table([(title="Dune", author="Herbert", year=1965), (title="Neuromancer", author="Gibson", year=1984)]))
 
+@solution
+type Book = (title=String, author=String, year=Int) in
+let get_authors : [Book] -> [String] = fun books -> books.author in
+get_authors(^^table([(title="Dune", author="Herbert", year=1965), (title="Neuromancer", author="Gibson", year=1984)]))
+
 @test
 test get_authors([(title="Dune", author="Herbert", year=1965), (title="Neuromancer", author="Gibson", year=1984)]) == ["Herbert", "Gibson"] end;
 test get_authors([(title="Foundation", author="Asimov", year=1951)]) == ["Asimov"] end

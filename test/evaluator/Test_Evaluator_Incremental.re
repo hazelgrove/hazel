@@ -334,19 +334,21 @@ let check_probe_samples_survive_edit =
 /* Pins: probe samples captured on run 1 (e.g. on the unedited `fib(u)`
  * probes) must be replayed into the FINAL incremental result after an
  * id-preserving edit (here: rewriting `fib(u+1)` to `fib(u)`). The magic
- * number 2582 in `test y == 2582` is just a literal near this program's fib
- * outputs (with u=15 and fib(0)=fib(1)=1, fib(u+1)=1597, fib(17)=2584);
- * whether the in-program `test` passes is irrelevant to the regression. */
+ * number 32 in `test y == 32` is just a literal near this program's fib
+ * outputs (with u=6 and fib(0)=fib(1)=1, fib(u+1)=21, fib(8)=34);
+ * whether the in-program `test` passes is irrelevant to the regression.
+ * u is small because only evaluation time grows with it: the cache
+ * entries, reuse plan and probe samples are the same at u=15. */
 let test_reused_probe_samples_survive_final_incremental_result = () =>
   check_probe_samples_survive_edit(
     ~src=
-      {|let u = 15 in
+      {|let u = 6 in
 let fib = fun x ->
   if x < 2 then 1 else fib(x-1) + fib(x-2) in
 let x = ^^probe(fib(u)) in
 print(x);
 let y = ^^probe(fib(u+1)) in
-test y == 2582 end;
+test y == 32 end;
 let z = fib(u) in
 print(z);
 let w = ^^probe(fib(u+2)) in
@@ -361,30 +363,31 @@ let u = ^^probe(fib(u+3)) in
   );
 
 /* Pins: editing only a `test` expression's literal must not drop reused
- * probe samples on the probes downstream of it. The magic number 2584 is
- * this program's fib output (with u=16 and fib(0)=fib(1)=1, y = fib(u+1) =
- * fib(17) = 2584); the edit bumps it to 2585 so only the test literal's
- * token changes while every probe's subtree keeps its ids. */
+ * probe samples on the probes downstream of it. The magic number 34 is
+ * this program's fib output (with u=7 and fib(0)=fib(1)=1, y = fib(u+1) =
+ * fib(8) = 34); the edit bumps it to 35 so only the test literal's token
+ * changes while every probe's subtree keeps its ids. u is small for the
+ * same reason as above (the same reuse as at u=16). */
 let test_test_literal_edit_preserves_downstream_reused_probes = () =>
   check_probe_samples_survive_edit(
     ~src=
-      {|let u = 16 in
+      {|let u = 7 in
 let fib' = fun x ->
   if x < 2 then 1 else fib'(x-1) + fib'(x-2) in
 let fib = fun ^^probe(x) -> fib'(x) in
 let x = ^^probe(fib(u)) in
 print(x);
 let y = ^^probe(fib(u+1)) in
-test y == 2584 end;
+test y == 34 end;
 let z = fib(u) in
 print(z);
 let w = ^^probe(fib(u-2)) in
 let u = ^^probe(fib(u+1)) in
 (x,y,z,w)|},
     ~parse_fail="could not parse test-literal probe regression program",
-    /* 2584 occurs exactly once in the source, so the replace-everywhere
+    /* 34 occurs exactly once in the source, so the replace-everywhere
      * helper is equivalent to the old replace-first traversal. */
-    ~edit=exp => replace_int_lit(~from=2584, ~to_=2585, exp),
+    ~edit=exp => replace_int_lit(~from=34, ~to_=35, exp),
     ~count_msg="test literal edit preserves probe sample count",
     ~targets_msg=
       "each current probe target has samples after test literal edit",

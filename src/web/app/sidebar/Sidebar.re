@@ -96,6 +96,30 @@ let debug_info_tab = (~globals: Globals.t): Node.t =>
     ~globals,
   );
 
+/* Not a panel: a click saves the session's coverage. Only coverage builds
+   have one. */
+let coverage_tab: option(Node.t) =
+  Option.map(
+    download =>
+      div(
+        ~attrs=[clss(["coverage-button"])],
+        [
+          tab(
+            Icons.export,
+            ~tooltip="Download coverage (.coverage files)",
+            _ =>
+              Effect.Many([
+                Effect.of_sync_fun(download, ()),
+                Effect.Stop_propagation,
+                Effect.Prevent_default,
+              ]),
+            false,
+          ),
+        ],
+      ),
+    CoverageExport.download,
+  );
+
 let problems_tab_icon =
     (counts: list((SidebarModel.Settings.problem_category, int))): Node.t => {
   open SidebarModel.Settings;
@@ -194,7 +218,8 @@ let persistent_view =
         )
         @ (
           globals.settings.show_debug_panel ? [debug_info_tab(~globals)] : []
-        ),
+        )
+        @ Option.to_list(coverage_tab),
       ),
     ],
   );
