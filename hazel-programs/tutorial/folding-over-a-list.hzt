@@ -35,5 +35,11 @@ fold_left(watering_cans, fun (a, b) ->
 ¿
 , 0)
 
+@solution
+let watering_cans = [250, 180, 50, 200] in
+fold_left(watering_cans, fun (a, b) ->
+a + b
+, 0)
+
 @test
 test answer == 680 end
