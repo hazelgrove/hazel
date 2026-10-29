@@ -1412,3 +1412,41 @@ let arb_exp = (~minimal_idents=false, size) =>
     ~shrink=shrink_exp,
     gen_exp_sized(~minimal_idents, size),
   );
+
+/* The editor keeps a refractor trigger's parens around a prefix or infix
+   target (Segment.refractor_needs_parens): spliced bare, `^^probe(1 + 2) * 3`
+   would regroup as `1 + 2 * 3` (#2442). The grammar keeps them too, so both
+   parsers read the same term. Other projector triggers stay unwrapped. */
+let refractor_target = (trigger: string, e: exp): exp => {
+  let is_refractor =
+    switch (Language.Token.of_projector_invoke_base(trigger)) {
+    | Some(name) =>
+      switch (Language.ProjectorKind.of_name_opt(name)) {
+      | Some(kind) => Language.ProjectorKind.is_refractor(kind)
+      | None => false
+      }
+    | None => false
+    };
+  switch (e) {
+  | BinExp(_)
+  | UnOp(_)
+  | Let(_)
+  | Theorem(_)
+  | Fun(_)
+  | ForallExp(_)
+  | PipelineExp(_)
+  | FixF(_)
+  | Asc(_)
+  | Filter(_)
+  | Seq(_)
+  | TypFun(_)
+  | Cons(_)
+  | ListConcat(_)
+  | If(_)
+  | TyAlias(_)
+  | Use(_)
+  | TupleExtension(_)
+  | ModuleExp(_) when is_refractor => ParenExp(e)
+  | _ => e
+  };
+};
