@@ -2554,8 +2554,14 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
                @ e,
              );
            | MultiHole(es) =>
-             let+ es = es |> List.map(any_to_pretty(~settings)) |> all;
-             wrap_item(item, List.flatten(es));
+             let+ seg =
+               multihole_to_pretty(
+                 ~settings,
+                 ~sort=Sort.Mod,
+                 item.annotation,
+                 es,
+               );
+             wrap_item(item, seg);
            }
          )
       |> all;
@@ -3193,8 +3199,14 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
                ),
              )
            | MultiHole(es) =>
-             let+ es = es |> List.map(any_to_pretty(~settings)) |> all;
-             wrap_item(item, List.flatten(es));
+             let+ seg =
+               multihole_to_pretty(
+                 ~settings,
+                 ~sort=Sort.Sig,
+                 item.annotation,
+                 es,
+               );
+             wrap_item(item, seg);
            }
          )
       |> all;

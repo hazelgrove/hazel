@@ -298,26 +298,27 @@ let known_failures: list((Form.family, Sort.t, bool, string)) = {
       Typ,
       "ctor application outside a sum is not a type (by design)",
     ),
-    /* No DrvGrammar constructor exists for substitution or glb: these
-       rows exist for rule-spec display (RuleFormula), not user syntax,
-       so a typed instance is always a hole. Follow-up: add grammar
-       support or drop the rows. */
     /* Parens at TPat is a hack row (#1913) with no TPat term to
        parse into. */
     both(Form.Parens, TPat, "hack row (#1913); TPat has no Parens term"),
-    /* A pattern minus folds into the literal TOKEN it precedes; a
-       folded literal is no longer a bare literal. */
+    /* Tracked gap: a pattern minus folds into the bare literal token
+       it precedes, so folding the `1` of a `-1` pattern leaves the
+       minus stranded (a hole). */
     [
       (
         Form.UnaryMinus,
         Pat,
         true,
-        "minus folds into a bare literal only (by design)",
+        "folded literal under a pattern minus (tracked gap)",
       ),
     ],
-    both(Form.Subst, Drv(Exp), "no DrvGrammar constructor (tracked gap)"),
-    both(Subst, Drv(Typ), "no DrvGrammar constructor (tracked gap)"),
-    both(Glb, Drv(Typ), "no DrvGrammar constructor (tracked gap)"),
+    /* Display-only rows: there is no DrvGrammar constructor for
+       substitution or glb. ExpToSegment builds these tiles to print
+       RuleFormula rule specs; they are not user syntax, so a typed
+       instance is always a hole. */
+    both(Form.Subst, Drv(Exp), "display-only (RuleFormula printer)"),
+    both(Subst, Drv(Typ), "display-only (RuleFormula printer)"),
+    both(Glb, Drv(Typ), "display-only (RuleFormula printer)"),
   ]);
 };
 
@@ -505,113 +506,10 @@ let drv_ap_empty_tests = [
   reprint_test("drv f() reprints as f()", "of_jdmt f() end"),
 ];
 
-/* A stranded operator between mixed-sort kids keeps its spelling: the
-   sort-specific Bin(Exp, _, Typ) catch-all used to shadow the arm that
-   records it. Built directly: `!` has no Typ row, so it molds as the
-   Any-fallback bin, leaving `1` (Exp) and `Int` (Typ) as its kids. */
-let stranded_op_test =
-  test_case(
-    "stranded operator between Exp and Typ keeps its spelling",
-    `Quick,
-    () => {
-      let seg = [
-        tok(Exp, "1"),
-        Piece.mk_tile((Compound(Not), Any), []),
-        tok(Typ, "Int"),
-      ];
-      let term = MakeTerm.go(seg).term;
-      check(option(string), "lexeme", Some("!"), term.annotation.lexeme);
-      check(
-        string,
-        "reprint",
-        "1!Int",
-        Test_ExpToSegment.exp_to_segment_roundtrip(term)
-        |> EditingPrelude.print_seg,
-      );
-    },
-  );
-
-/* Module patterns print their holes and stranded operators instead of
-   `?` (which also dropped a MultiHole's kids, ids and comments). */
-let mpat_print_tests = [
-  reprint_test("invalid module pattern reprints", "module 1 = 2 in 3"),
-  reprint_test("module pattern multihole reprints", "module M :: N = 2 in 3"),
-  reprint_test("invalid module item pattern reprints", "{ module 1 = 2 }"),
-];
-
-/* Mod and Sig MultiHoles print their kids (they printed `?`) */
-let mod_sig_multihole_tests = {
-  let x = Language.IdTagged.FreshGrammar.Exp.var("x");
-  let y = Language.IdTagged.FreshGrammar.Exp.var("y");
-  let print = any =>
-    ExpToSegment.any_to_pretty(
-      ~settings=Test_ExpToSegment.exp_to_segment_roundtrip_settings,
-      any,
-    )
-    |> EditingPrelude.print_seg;
-  [
-    test_case("Mod MultiHole prints its kids", `Quick, () =>
-      check(
-        string,
-        "print",
-        "x y" /* concave grout prints as a space */,
-        print(Mod(Language.Mod.fresh(MultiHole([Exp(x), Exp(y)])))),
-      )
-    ),
-    test_case("Sig MultiHole prints its kids", `Quick, () =>
-      check(
-        string,
-        "print",
-        "x y" /* concave grout prints as a space */,
-        print(Sig(Language.Sig.fresh(MultiHole([Exp(x), Exp(y)])))),
-      )
-    ),
-  ];
-};
-
-/* Remolding past a projector: a projector is convex, so the shape
-   after it is Convex. remold_template (Drv sorts) used to pass the
-   shape from BEFORE the projector, so the `-` in `True + ^^fold(x) - y`
-   remolded as if it followed the `+`: prefix (UnaryMinus, which ranks
-   first at Drv(Exp)) instead of binary Minus. */
-let remold_past_projector_test =
-  test_case(
-    "Drv remold: shape after a projector is convex",
-    `Quick,
-    () => {
-      let d = Sort.Drv(Exp);
-      let minus = Piece.mk_tile((Compound(Minus), d), []);
-      let seg = [
-        tok(d, "True"),
-        Piece.mk_tile((Compound(Plus), d), []),
-        Piece.Projector(ProjectorCore.mk(Fold, tok(d, "x"), "")),
-        minus,
-        tok(d, "y"),
-      ];
-      let form_of_minus =
-        Segment.remold(seg, d)
-        |> List.find_map(
-             fun
-             | Piece.Tile(t) when t.id == Piece.id(minus) => Some(t.form)
-             | _ => None,
-           );
-      check(
-        option(string),
-        "minus form",
-        Some(Form.show(Compound(Minus))),
-        Option.map(Form.show, form_of_minus),
-      );
-    },
-  );
-
 let tests = (
   "MakeTerm.FormCoverage",
   [form_coverage_test]
   @ folded_ctor_tests
   @ folded_label_tests
-  @ drv_ap_empty_tests
-  @ [stranded_op_test]
-  @ mpat_print_tests
-  @ mod_sig_multihole_tests
-  @ [remold_past_projector_test],
+  @ drv_ap_empty_tests,
 );

@@ -385,10 +385,10 @@ let rec typ_ctr_name = (t: Typ.t): option(string) =>
 /* A variant's annotation is the visible head's (the projector's, when
  * folded), so statics lands on the piece the user sees. */
 let parse_sum_term = (t: Typ.t): ConstructorMap.variant(Typ.t) =>
-  switch (t) {
-  | {annotation: {ids, secondary, _}, _} when typ_ctr_name(t) != None =>
+  switch (typ_ctr_name(t), t) {
+  | (Some(ctr), {annotation: {ids, secondary, _}, _}) =>
     Variant(
-      Option.get(typ_ctr_name(t)),
+      ctr,
       {
         ids,
         secondary: to_variant_secondary(secondary),
@@ -399,35 +399,28 @@ let parse_sum_term = (t: Typ.t): ConstructorMap.variant(Typ.t) =>
      until they are reimplemented as their own sort, we must prevent these from being parsed
      into types, where they can go on to mess with statics. Thus we let them fall through to
      be parsed as multiholes, and then recognize them when we parse sum type definitions */
-  | {
-      term:
-        Unknown(
-          Hole(
-            MultiHole([
-              Typ(
-                {
-                  annotation: {ids: ids_ctr, secondary: (inner_before, _), _},
-                  _,
-                } as head,
-              ),
-              Typ(u),
-            ]),
-          ),
-        ),
-      annotation: {ids: ids_ap, secondary: (_, outer_after), _},
-    }
-      when typ_ctr_name(head) != None =>
-    /* For constructor applications, use the inner before (constructor's leading space)
-       and outer after (trailing space on the whole application) for round-tripping */
-    Variant(
-      Option.get(typ_ctr_name(head)),
+  | (
+      None,
       {
-        ids: ids_ctr @ ids_ap,
-        secondary: (inner_before, outer_after),
+        term: Unknown(Hole(MultiHole([Typ(head), Typ(u)]))),
+        annotation: {ids: ids_ap, secondary: (_, outer_after), _},
       },
-      Some(u),
-    )
-  | t => BadEntry(t)
+    ) =>
+    switch (typ_ctr_name(head), head.annotation) {
+    | (Some(ctr), {ids: ids_ctr, secondary: (inner_before, _), _}) =>
+      /* For constructor applications, use the inner before (constructor's leading space)
+         and outer after (trailing space on the whole application) for round-tripping */
+      Variant(
+        ctr,
+        {
+          ids: ids_ctr @ ids_ap,
+          secondary: (inner_before, outer_after),
+        },
+        Some(u),
+      )
+    | (None, _) => BadEntry(t)
+    }
+  | (None, _) => BadEntry(t)
   };
 
 /* The token of a single-token form (grout's pseudo-token " " excluded):
@@ -1245,8 +1238,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           | F(Compound(StringConcat)) => BinOp(String(Concat), l, r)
           | F(Compound(TupleExtension)) => TupleExtension(l, r)
           | F(Compound(TupleLabeled)) =>
-            switch (l.term) {
-            | Deferral(_) =>
+            switch (l.term, exp_label_name(l)) {
+            | (Deferral(_), _) =>
               TupLabel(
                 {
                   annotation: l.annotation,
@@ -1254,8 +1247,9 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
                 },
                 r,
               ) // Unlabeled tuple using deferred ap in tuplabel
-            | Var(name)
-            | Constructor(name, None) =>
+            | (Label(_) | EmptyHole, _) => TupLabel(l, r)
+            /* a name, possibly folded */
+            | (_, Some(name)) =>
               TupLabel(
                 {
                   annotation: l.annotation,
@@ -1263,17 +1257,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
                 },
                 r,
               )
-            | Label(_) => TupLabel(l, r)
-            | EmptyHole => TupLabel(l, r)
-            | Projector(_) when exp_label_name(l) != None =>
-              TupLabel(
-                {
-                  annotation: l.annotation,
-                  term: Label(Option.get(exp_label_name(l))),
-                },
-                r,
-              )
-            | _ =>
+            | (_, None) =>
               /* Wrapper shares the inner term's ids but no secondary
                  (the inner term's own wrap emits it); a fresh inner
                  would churn ids and drop secondary on every roundtrip */
@@ -1286,9 +1270,10 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
               )
             }
           | F(Compound(Dot)) =>
-            switch (r.term) {
-            | Var(name)
-            | Constructor(name, _) =>
+            switch (r.term, exp_label_name(r)) {
+            | (Label(_) | EmptyHole, _) => Dot(l, r)
+            /* a name, possibly folded */
+            | (_, Some(name)) =>
               Dot(
                 l,
                 {
@@ -1296,17 +1281,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
                   term: Label(name),
                 },
               )
-            | Label(_) => Dot(l, r)
-            | EmptyHole => Dot(l, r)
-            | Projector(_) when exp_label_name(r) != None =>
-              Dot(
-                l,
-                {
-                  annotation: r.annotation,
-                  term: Label(Option.get(exp_label_name(r))),
-                },
-              )
-            | _ =>
+            | (_, None) =>
               /* See the TupLabel case above */
               Dot(
                 l,
@@ -1447,8 +1422,8 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
     | None =>
       switch (tiles) {
       | ([(_id, (F(Compound(TupleLabeled)), []))], []) =>
-        switch (l.term) {
-        | Wild =>
+        switch (l.term, pat_label_name(l)) {
+        | (Wild, _) =>
           ret(
             TupLabel(
               {
@@ -1458,8 +1433,9 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
               r,
             ),
           ) // Unlabeled tuple using deferred ap in tuplabel
-        | Var(name)
-        | Constructor(name, None) =>
+        | (Label(_) | EmptyHole, _) => ret(TupLabel(l, r))
+        /* a name, possibly folded */
+        | (_, Some(name)) =>
           ret(
             TupLabel(
               {
@@ -1469,19 +1445,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
               r,
             ),
           )
-        | Label(_) => ret(TupLabel(l, r))
-        | EmptyHole => ret(TupLabel(l, r))
-        | Projector(_) when pat_label_name(l) != None =>
-          ret(
-            TupLabel(
-              {
-                annotation: l.annotation,
-                term: Label(Option.get(pat_label_name(l))),
-              },
-              r,
-            ),
-          )
-        | _ =>
+        | (_, None) =>
           let (e_term, rewrap) = IdTagged.unwrap(l);
           ret(
             TupLabel(
@@ -1669,10 +1633,11 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       switch (tiles) {
       | ([(_id, (F(Compound(TypeArrow)), []))], []) => ret(Arrow(l, r))
       | ([(_id, (F(Compound(TupleLabeled)), []))], []) =>
-        switch (l.term) {
-        | Var(_)
-        | Projector(_) when typ_label_name(l) != None =>
-          let name = Option.get(typ_label_name(l));
+        switch (l.term, typ_label_name(l)) {
+        | (Label(_), _)
+        | (_, None) => ret(TupLabel(l, r))
+        /* a name, possibly folded */
+        | (_, Some(name)) =>
           ret(
             TupLabel(
               {
@@ -1681,14 +1646,14 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
               },
               r,
             ),
-          );
-        | _ => ret(TupLabel(l, r))
+          )
         }
       | ([(_id, (F(Compound(Dot)), []))], []) =>
-        switch (r.term) {
-        | Var(_)
-        | Projector(_) when typ_label_name(r) != None =>
-          let name = Option.get(typ_label_name(r));
+        switch (r.term, typ_label_name(r)) {
+        | (Label(_), _)
+        | (_, None) => ret(ProdProjection(l, r))
+        /* a name, possibly folded */
+        | (_, Some(name)) =>
           ret(
             ProdProjection(
               l,
@@ -1697,8 +1662,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
                 term: Label(name),
               },
             ),
-          );
-        | _ => ret(ProdProjection(l, r))
+          )
         }
       | ([(_id, (F(Compound(TupleExtension)), []))], []) =>
         ret(ProdExtension(l, r))
