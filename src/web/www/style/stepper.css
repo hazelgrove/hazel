@@ -126,12 +126,18 @@
   position: absolute;
 }
 
-/* Every result row is an isolated stacking context. Raise the active proof
- * row (and any containing result rows) so later placeholder/target siblings
- * cannot paint over its controls or an open assumptions/rewrite panel. */
-.cell-result:has(.missing-step-overlay-align) {
+/* Every result row is an isolated stacking context, so a later sibling row
+ * (or editor layers up to --projector-overlay-z, e.g. .code-text) would paint
+ * over the active proof row's controls and an open assumptions/rewrite panel.
+ * Raise the nested row above them; only nested rows, so the outermost proof
+ * stays an ordinary isolated cell and the page's context menu stays on top. */
+.cell-result .cell-result:has(.missing-step-overlay-align) {
   position: relative;
-  z-index: var(--context-inspector-z);
+  z-index: var(--proof-step-raised-z);
+}
+
+.cell-result .cell-result:has(.axiom-box, .rewrite-box) {
+  z-index: var(--proof-step-panel-z);
 }
 
 .proof-context-box {
