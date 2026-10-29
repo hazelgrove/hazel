@@ -1,9 +1,15 @@
 HTML_DIR="$(shell pwd)/_build/default/src/web/www"
 SERVER="http://0.0.0.0:8000/"
 
-.PHONY: all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt watch watch-release release release-student echo-html-dir serve serve2 repl test clean setup-zarith
+.PHONY: all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt rei watch watch-release release release-student echo-html-dir serve serve2 hot repl test test-quick watch-test coverage generate-coverage-html coverage-web coverage-web-report coverage-web-diff ci ci-quick ci-check ci-extended lint-css update-css-defaults dead-code dead-code-json dead-code-summary clean setup-zarith install-hooks
 
 all: dev
+
+install-hooks:
+	@if [ "$$(git config --get core.hooksPath)" != "scripts/git-hooks" ]; then \
+		git config core.hooksPath scripts/git-hooks; \
+		echo "Installed git hooks (core.hooksPath -> scripts/git-hooks)."; \
+	fi
 
 # Install native BigInt runtime for zarith_stubs_js to fix WebWorker postMessage serialization.
 # The vendored runtime.js uses native JS BigInt (from zarith_stubs_js v0.17.0) which survives
@@ -12,7 +18,7 @@ setup-zarith:
 	@echo "Installing native BigInt zarith runtime..."
 	@cp vendor/zarith_native_bigint_runtime.js "$$(opam var lib)/zarith_stubs_js/runtime.js"
 
-deps:
+deps: install-hooks
 	opam repo add archive git+https://github.com/ocaml/opam-repository-archive
 	opam update
 	opam install ./hazel.opam.locked --deps-only --with-test --with-doc
@@ -28,9 +34,11 @@ change-deps:
 
 setup-instructor:
 	cp src/web/exercises/settings/ExerciseSettings_instructor.re src/web/exercises/settings/ExerciseSettings.re
+	cp src/web/exercises/settings/TutorialSettings_instructor.re src/web/exercises/settings/TutorialSettings.re
 
-setup-student: 
+setup-student:
 	cp src/web/exercises/settings/ExerciseSettings_student.re src/web/exercises/settings/ExerciseSettings.re
+	cp src/web/exercises/settings/TutorialSettings_student.re src/web/exercises/settings/TutorialSettings.re
 
 dev-helper: setup-zarith
 	dune fmt --auto-promote || true
@@ -42,6 +50,14 @@ dev-student: setup-student dev-helper
 
 fmt:
 	dune fmt --auto-promote
+
+# Generate a starter interface for a module, from the signature the compiler
+# already inferred: make rei FILE=src/util/Tree.re
+# A .rei is what makes warning 32 (unused value) work for that module -- see
+# scripts/gen_rei.sh for what to trim by hand afterwards.
+rei:
+	@test -n "$(FILE)" || (echo "usage: make rei FILE=src/util/Tree.re" && exit 1)
+	@scripts/gen_rei.sh $(FILE)
 
 watch: setup-instructor setup-zarith
 	dune build @ocaml-index @src/fmt --auto-promote src --profile dev --watch
@@ -85,12 +101,87 @@ coverage:
 	dune runtest --instrument-with bisect_ppx --force
 	bisect-ppx-report summary
 
+# Report definitions that nothing references, using the .ocaml-index files dune
+# already builds. See scripts/find_dead_code.py for the predicate and its limits.
+# Analyses whichever ExerciseSettings/TutorialSettings variant is currently in
+# place; deliberately does not run setup-instructor, which would flip a student
+# checkout. Do not point this at a bisect_ppx-instrumented build.
+lint-css:
+	python3 scripts/lint_css_roles.py
+
+# Rewrites style/theme-generated.css from the Colors slide's light scheme, so a
+# default is byte-identical to the value the theme will set. Read the diff: an
+# unexplained line in it is the bug.
+update-css-defaults:
+	UPDATE_CSS_DEFAULTS=1 ./run_tests test 'ColorConfiguration' -q
+
+dead-code:
+	dune build @ocaml-index --profile dev
+	python3 scripts/find_dead_code.py --no-build
+
+dead-code-json:
+	dune build @ocaml-index --profile dev
+	python3 scripts/find_dead_code.py --no-build --format=json
+
+dead-code-summary:
+	dune build @ocaml-index --profile dev
+	python3 scripts/find_dead_code.py --no-build --format=markdown
+
+# The CI entry points. Unlike `test` / `test-quick`, none of these
+# --auto-promote: a violation in CI should be reported, not rewritten into a
+# checkout that is thrown away.
+
+# No `dune build --profile dev` first: dev is the lax profile (`-warn-error -A`,
+# see the (env) stanzas in src/*/dune), so it caught nothing the release build
+# misses, and runtest builds its own dependencies.
 ci: setup-zarith
-	dune build --profile dev
 	dune runtest --instrument-with bisect_ppx --force
-	
+
+# alcotest's -q filter, which skips the Slow-tagged QCheck tests that dominate
+# the suite's runtime.
+ci-quick: setup-zarith
+	dune build @test-quick --profile dev
+
+# The strict-warning gate (issue #2456): release promotes warnings to errors,
+# and @check reaches test/ -- which no release build covers -- by type-checking
+# without linking, so it costs no second js_of_ocaml build of the test bundle.
+ci-check:
+	dune build @check --profile release
+
+# The weekly extended run (.github/workflows/extended-tests.yml). QCHECK_LONG
+# puts qcheck-core in long mode, where it multiplies every ~count, max_gen and
+# max_fail by QCHECK_LONG_FACTOR -- which the caller sets, so with it unset this
+# is just `ci` without the instrumentation. No bisect_ppx: coverage is the
+# per-push `ci` run's job, and instrumenting only makes a multi-hour run slower.
+#
+# --force because the runtest alias is otherwise cached, and dune does not track
+# QCHECK_* as a dependency of the rule (there is no (env_var) in test/dune), so
+# an env-only change would be a no-op against a cached result.
+ci-extended: setup-zarith
+	QCHECK_LONG=1 dune runtest --force
+
 generate-coverage-html:
 	bisect-ppx-report html
+
+# Browser-session coverage (docs/browser-coverage.md): an instrumented dev build
+# with a download-coverage button on the sidebar rail; serve it with `make serve`.
+coverage-web: setup-instructor setup-zarith
+	HAZEL_WEB_COVERAGE=1 dune build @src/fmt --auto-promote src --profile dev --instrument-with bisect_ppx
+
+# COVERAGE_DIR is the folder the session's .coverage files were saved to.
+coverage-web-report:
+	$(if $(COVERAGE_DIR),,$(error set COVERAGE_DIR to the folder of downloaded .coverage files))
+	bisect-ppx-report html --coverage-path $(COVERAGE_DIR) -o _coverage-web
+	bisect-ppx-report summary --coverage-path $(COVERAGE_DIR)
+
+# Of the lines this branch changed under src/ (vs BASE), which did the session
+# never run? For reviewing behavioral PRs; see docs/browser-coverage.md.
+BASE ?= origin/dev
+coverage-web-diff:
+	$(if $(COVERAGE_DIR),,$(error set COVERAGE_DIR to the folder of downloaded .coverage files))
+	mkdir -p _coverage-web
+	bisect-ppx-report cobertura --coverage-path $(COVERAGE_DIR) _coverage-web/cobertura.xml
+	python3 scripts/coverage_diff.py _coverage-web/cobertura.xml $(BASE)
 
 clean:
 	dune clean

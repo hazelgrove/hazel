@@ -1,0 +1,109 @@
+/* PROJECTOR: KEYBINDING */
+
+.projector.keybinding .kb-widget {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.15em;
+  cursor: pointer;
+}
+
+/* The transparent native input that actually holds focus and receives keys.
+   Laid over the whole widget so a click anywhere lands on it: the browser
+   focuses it on mousedown, which happens before the editor's own re-render,
+   and virtual_dom patches it in place so focus survives each capture. */
+.projector.keybinding .keybinding-capture {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: transparent;
+  caret-color: transparent;
+  cursor: pointer;
+  outline: none;
+  font: inherit;
+}
+
+/* Keycaps. Shortcuts read as caps everywhere else they are shown, and inline
+   in code this is far narrower than spelling out "cmd+shift+z". */
+.projector.keybinding .kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.15em;
+  padding: 0 0.25em;
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  background: var(--surface-default);
+  color: var(--text-default);
+  font-size: 0.85em;
+  line-height: 1.35;
+}
+
+/* Modifiers sit slightly back from the key they modify. */
+.projector.keybinding .kbd-mod {
+  color: var(--text-strong);
+}
+
+/* Unbound: a muted dash, not prose, so an unset row is no wider than the
+   code around it. */
+.projector.keybinding .kbd-none {
+  border-style: dashed;
+  border-bottom-width: 1px;
+  background: transparent;
+  color: var(--text-strong);
+}
+
+/* Capturing. The widget holds focus here, so it has to look different from
+   idle or "press a key now" is invisible. */
+.projector.keybinding .kbd-rec {
+  border-color: var(--border-error);
+  background: transparent;
+  color: var(--text-error);
+  animation: keybinding-pulse 1.1s ease-in-out infinite;
+}
+.projector.keybinding .kb-widget.keybinding-recording {
+  outline: 1px dashed var(--border-error);
+  outline-offset: 1px;
+  border-radius: 3px;
+}
+
+@keyframes keybinding-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* Removing a shortcut needs its own control: every key that could mean
+   "none" is itself bindable. Sits above the capture overlay so it stays
+   clickable, and is padded to a real hit target. */
+.projector.keybinding .keybinding-clear {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.1em;
+  padding: 0 0.2em;
+  border-radius: 3px;
+  color: var(--text-strong);
+  opacity: 0.5;
+  cursor: pointer;
+}
+.projector.keybinding:hover .keybinding-clear {
+  opacity: 0.85;
+}
+.projector.keybinding .keybinding-clear:hover {
+  opacity: 1;
+  background: var(--surface-raised);
+  color: var(--text-error);
+}

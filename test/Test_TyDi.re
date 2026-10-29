@@ -131,6 +131,13 @@ let operand_tests = (
       ~code="let x : Bool = fa¦",
       ~expect=Some("lse"),
     ),
+    /* the derived Bool entry for "true" must suppress it when the
+     * expected type is inconsistent */
+    tydi_test(
+      ~name="true not suggested for Int",
+      ~code="let x : Int = tr¦",
+      ~expect=None,
+    ),
   ],
 );
 
@@ -146,6 +153,30 @@ let leading_form_tests = (
       ~name="test suggested for unit type",
       ~code="let t : () = te¦",
       ~expect=Some("st "),
+    ),
+    /* forall is a Bool-valued proposition (Statics.Forall) */
+    tydi_test(
+      ~name="forall suggested for Bool",
+      ~code="let b : Bool = fora¦",
+      ~expect=Some("ll "),
+    ),
+    tydi_test(
+      ~name="forall not suggested for Int",
+      ~code="let n : Int = fora¦",
+      ~expect=None,
+    ),
+    /* of_* forms now carry DrvQuoteTy self types, so they are
+     * suppressed where the expected type is inconsistent... */
+    tydi_test(
+      ~name="of_* not suggested for Int",
+      ~code="let n : Int = of_¦",
+      ~expect=None,
+    ),
+    /* ...but still suggested in unknown-type contexts */
+    tydi_test(
+      ~name="of_alfa_exp suggested in unknown context",
+      ~code="of_alfa_e¦",
+      ~expect=Some("xp "),
     ),
   ],
 );
@@ -165,6 +196,257 @@ let operator_tests = (
     ),
   ],
 );
+
+/* === Derived form-type tables (TyDiForms.Typ) ===
+ * The const-mono and infix self-type tables are derived from the
+ * grammar (lazily; forced once here). The golden sets below are the
+ * old manual tables; derivation must reproduce them (Unknown
+ * provenances normalized to Internal). */
+
+let typ_t =
+  Alcotest.testable(Fmt.using(Typ.show, Fmt.string), Typ.fast_equal);
+
+let of_infix_delim = Lazy.force(TyDiForms.Typ.of_infix_delim);
+let of_const_mono_delim = Lazy.force(TyDiForms.Typ.of_const_mono_delim);
+let of_leading_delim = Lazy.force(TyDiForms.Typ.of_leading_delim);
+
+let unk = Typ.temp(Unknown(Internal));
+let bool_ = Typ.temp(Atom(Bool));
+let int_ = Typ.temp(Atom(Int));
+let float_ = Typ.temp(Atom(Float));
+let string_ = Typ.temp(Atom(String));
+
+let golden_infix: list((string, Typ.t)) = [
+  ("|>", unk),
+  (",", Typ.temp(Prod([unk, unk]))),
+  ("::", Typ.temp(List(unk))),
+  ("@", Typ.temp(List(unk))),
+  (";", unk),
+  ("&&", bool_),
+  ("||", bool_),
+  ("==.", bool_),
+  ("==", bool_),
+  ("!=", bool_),
+  ("!=.", bool_),
+  ("<", bool_),
+  (">", bool_),
+  ("<=", bool_),
+  (">=", bool_),
+  ("<.", bool_),
+  (">.", bool_),
+  ("<=.", bool_),
+  (">=.", bool_),
+  ("+", int_),
+  ("-", int_),
+  ("*", int_),
+  ("/", int_),
+  ("**", int_),
+  ("+.", float_),
+  ("-.", float_),
+  ("*.", float_),
+  ("/.", float_),
+  ("**.", float_),
+  ("++", string_),
+];
+
+let golden_const_mono: list((string, Typ.t)) = [
+  ("true", bool_),
+  ("false", bool_),
+  ("\"\"", string_),
+  ("_", unk),
+];
+
+/* The old manual leading-delimiter entries (minus typfun, whose manual
+ * value contradicted derivation; see flagged_tests) */
+let golden_leading: list((string, Typ.t)) = [
+  ("fun ", Typ.temp(Arrow(unk, unk))),
+  ("test ", Typ.temp(Prod([]))),
+];
+
+/* Entries the derivation yields that the manual tables lacked
+ * (the drift the old header comment warned about) */
+let derived_new: list((string, Typ.t)) = [
+  ("()", Typ.temp(Prod([]))),
+  ("[]", Typ.temp(List(unk))),
+  ("{}", Typ.temp(Prod([]))),
+];
+
+/* Non-trivial leading entries the manual table lacked */
+let derived_new_leading: list((string, Typ.t)) = [
+  ("[ ", Typ.temp(List(unk))),
+  ("forall ", bool_),
+  ("hint ", Typ.temp(Prod([]))),
+];
+
+let table_entry_test = (table, (tok, ty)) =>
+  Alcotest.test_case("entry [" ++ tok ++ "]", `Quick, () =>
+    Alcotest.check(
+      Alcotest.option(typ_t),
+      tok,
+      Some(ty),
+      List.assoc_opt(tok, table),
+    )
+  );
+
+let golden_infix_tests = (
+  "TyDiForms.GoldenInfix",
+  List.map(table_entry_test(of_infix_delim), golden_infix),
+);
+
+let golden_const_mono_tests = (
+  "TyDiForms.GoldenConstMono",
+  List.map(table_entry_test(of_const_mono_delim), golden_const_mono),
+);
+
+let golden_leading_tests = (
+  "TyDiForms.GoldenLeading",
+  List.map(table_entry_test(of_leading_delim), golden_leading),
+);
+
+let derived_new_tests = (
+  "TyDiForms.DerivedNew",
+  List.map(
+    table_entry_test(of_infix_delim @ of_const_mono_delim),
+    derived_new,
+  )
+  @ List.map(table_entry_test(of_leading_delim), derived_new_leading),
+);
+
+let absent = (table, tok) =>
+  Alcotest.check(
+    Alcotest.option(typ_t),
+    tok,
+    None,
+    List.assoc_opt(tok, table),
+  );
+
+let flagged_tests = (
+  "TyDiForms.Flagged",
+  [
+    /* The manual table claimed Bool for "\\/" but Exp-sort "\\/"
+     * (LogicalOrLegacy) has no Exp MakeTerm case and lowers to a
+     * hole, so its true self type is Unknown */
+    Alcotest.test_case("legacy \\/ derives Unknown, not Bool", `Quick, () =>
+      Alcotest.check(
+        Alcotest.option(typ_t),
+        "\\/",
+        Some(unk),
+        List.assoc_opt("\\/", of_infix_delim),
+      )
+    ),
+    /* "!" had a manual Bool entry but is not an infix delim in any
+     * sort, so the entry was dead: never a suggestion candidate */
+    Alcotest.test_case("prefix ! has no entry", `Quick, () =>
+      absent(of_infix_delim, "!")
+    ),
+    /* The manual leading table used Poly(Var(""), unk) for typfun;
+     * the minimal form's binder is a TPat hole. Behavior-identical:
+     * the unk body makes both consistent with exactly the Poly (and
+     * unknown) expectations. */
+    Alcotest.test_case("typfun derives Poly with hole binder", `Quick, () =>
+      Alcotest.check(
+        Alcotest.option(typ_t),
+        "typfun ",
+        Some(Typ.temp(Poly(TPat.temp(EmptyHole), unk))),
+        List.assoc_opt("typfun ", of_leading_delim),
+      )
+    ),
+    /* The manual leading table mapped the seven Drv of_* rows to
+     * Unknown; their minimal forms have real quote types. Behavior
+     * change: of_* is now suppressed where the expected type is
+     * inconsistent with DrvQuoteTy (see TyDi.LeadingForms). */
+    Alcotest.test_case("of_* derive DrvQuoteTy, not Unknown", `Quick, () =>
+      Alcotest.check(
+        Alcotest.list(Alcotest.option(typ_t)),
+        "of_*",
+        List.map(
+          (s: DrvSort.t) => Some(Typ.temp(DrvQuoteTy(s))),
+          [Jdmt, Ctx, Prop, Exp, Typ, Pat, TPat],
+        ),
+        List.map(
+          tok => List.assoc_opt(tok, of_leading_delim),
+          [
+            "of_jdmt ",
+            "of_ctx ",
+            "of_prop ",
+            "of_alfa_exp ",
+            "of_alfa_typ ",
+            "of_alfa_pat ",
+            "of_alfa_tpat ",
+          ],
+        ),
+      )
+    ),
+    /* "=" is deliberately untyped; see TyDiForms.Typ.deliberately_untyped */
+    Alcotest.test_case("labeled-tuple = has no entry", `Quick, () =>
+      absent(of_infix_delim, "=")
+    ),
+    /* "{" (module literal) and "proof_object" are deliberately
+     * untyped: their minimal-form types (Prod([]), ProofOf(<hole>))
+     * are inconsistent with the instances they are used to build */
+    Alcotest.test_case("module-literal { has no entry", `Quick, () =>
+      absent(of_leading_delim, "{ ")
+    ),
+    Alcotest.test_case("proof_object has no entry", `Quick, () =>
+      absent(of_leading_delim, "proof_object ")
+    ),
+    Alcotest.test_case("deliberately_untyped stays minimal", `Quick, () =>
+      Alcotest.check(
+        Alcotest.list(Alcotest.string),
+        "deliberately_untyped",
+        ["=", "{ ", "proof_object "],
+        TyDiForms.Typ.deliberately_untyped,
+      )
+    ),
+  ],
+);
+
+/* Every derived entry's token must be reachable through the
+ * Delims machinery for some suggestion sort, so entries can't
+ * outlive the grammar forms they were derived from */
+let suggestible_tests = {
+  let orphans = (table, delims) =>
+    table |> List.map(fst) |> List.filter(tok => !List.mem(tok, delims));
+  (
+    "TyDiForms.Suggestible",
+    [
+      Alcotest.test_case("infix entries are infix delims", `Quick, () =>
+        Alcotest.check(
+          Alcotest.list(Alcotest.string),
+          "orphans",
+          [],
+          orphans(
+            of_infix_delim,
+            TyDiForms.Delims.infix(Exp) @ TyDiForms.Delims.infix(Pat),
+          ),
+        )
+      ),
+      Alcotest.test_case("const-mono entries are operand delims", `Quick, () =>
+        Alcotest.check(
+          Alcotest.list(Alcotest.string),
+          "orphans",
+          [],
+          orphans(
+            of_const_mono_delim,
+            TyDiForms.Delims.const_mono(Exp)
+            @ TyDiForms.Delims.const_mono(Pat),
+          ),
+        )
+      ),
+      Alcotest.test_case("leading entries are leading delims", `Quick, () =>
+        Alcotest.check(
+          Alcotest.list(Alcotest.string),
+          "orphans",
+          [],
+          orphans(
+            of_leading_delim,
+            TyDiForms.Delims.leading(Exp) @ TyDiForms.Delims.leading(Pat),
+          ),
+        )
+      ),
+    ],
+  );
+};
 
 let type_tests = (
   "TyDi.Types",
@@ -384,6 +666,12 @@ let tests = [
   operand_tests,
   leading_form_tests,
   operator_tests,
+  golden_infix_tests,
+  golden_const_mono_tests,
+  golden_leading_tests,
+  derived_new_tests,
+  flagged_tests,
+  suggestible_tests,
   type_tests,
   suppression_tests,
   qualified_tests,

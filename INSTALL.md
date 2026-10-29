@@ -94,7 +94,7 @@ You can use either a global opam switch or a switch local to the Hazel source di
   ```
 
 - Install OCaml 5.2.0 (see the
-  ["Current version" section of `Updating.md`](docs/Updating-OCaml-Version.md) for
+  ["Current version" section of `Updating-OCaml-Version.md`](docs/Updating-OCaml-Version.md) for
   why we may not use the newest version of OCaml).
 
   ```sh
@@ -134,6 +134,36 @@ If you are working on multiple OCaml projects, it may be helpful to set up a loc
   ```
 
   NOTE: We do not recommend cloning using https, because this will not allow you to contribute back to Hazel without going through some even more awkward hoops. If you want to quickly get Hazel cloned without setting up SSH keys, we recommend using the [GitHub Desktop application](https://github.com/apps/desktop) or the Visual Studio Code command "Git Clone", which will set things up for you in the background.
+
+## Install and Set Up the GitHub CLI (`gh`)
+
+The build uses `gh` to find the open pull request for your current branch and
+link to it from the build label in the top bar. It's optional (without it, the
+build just leaves the PR link off), but it's also handy for working with PRs
+(e.g. `gh pr checkout <number>`), so we recommend it.
+
+- Install `gh`:
+
+  - If you are on MacOS:
+
+    ```sh
+    brew install gh
+    ```
+
+  - If you are on Ubuntu or WSL + Ubuntu, follow the
+    [official instructions for Debian/Ubuntu](https://github.com/cli/cli/blob/trunk/docs/install_linux.md#debian).
+
+- Log in to GitHub, choosing `GitHub.com` and `SSH` when prompted:
+
+  ```sh
+  gh auth login
+  ```
+
+- Check that it worked:
+
+  ```sh
+  gh auth status
+  ```
 
 ## Install Library Dependencies
 

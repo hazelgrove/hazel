@@ -30,13 +30,3 @@ type t('a) =
 
 let awaiting_worker_ack = ResultPending(AwaitingWorkerAck);
 let evaluating = ResultPending(Evaluating);
-
-let get_dhexp = (r: inner) => r.result;
-let get_state = (r: inner) => r.state;
-
-let map = (f: 'a => 'b, r: t('a)) =>
-  switch (r) {
-  | ResultOk(a) => ResultOk(f(a))
-  | ResultFail(e) => ResultFail(e)
-  | ResultPending(phase) => ResultPending(phase)
-  };

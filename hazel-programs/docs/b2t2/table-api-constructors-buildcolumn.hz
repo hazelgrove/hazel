@@ -1,0 +1,101 @@
+type Student = (
+  name= String,
+  age= Int,
+  favorite_color= String
+) in
+let students : [Student] = (
+  [
+    ("Bob", 12, "blue"),
+    ("Alice", 17, "green"),
+    ("Eve", 13, "red")
+  ]
+) in
+
+# (benchmark) This version more closely matches the TableAPI and takes a string column. Given the lack of row polymorphism no constraints are ensured #
+let requires = [
+  (enforced=("no"), "c is not in header(t1)")
+] in
+let ensures = [
+  (enforced=("live"), "schema(r) is equal to schema(t1)"),
+  (enforced=("live"), "header(t2) is equal to concat(header(t1), [c])"),
+  (enforced=("live"), "for all c' in header(t1), schema(t2)[c'] is equal to schema(t1)[c']"),
+  (enforced=("live"), "schema(t2)[c] is equal to the sort of v"),
+  (enforced=("no"), "nrows(t2) is equal to nrows(t1)")
+] in
+#Lack of first class labels requires writing this with from_lvs and to_lvs. With a known column the higher-order version should be used#
+let build_column =
+  fun (t : [?], c : String, f : ? -> ?) ->
+    map(t, fun (r) -> from_lvs(to_lvs(r) @ [(c, f(r))])) in
+# Examples #
+test
+  build_column(
+    students,
+    "is-teenager",
+    fun student -> student.age > 12 && student.age < 20
+  )
+  == (
+    [
+      ("Bob", 12, "blue", false),
+      ("Alice", 17, "green", true),
+      ("Eve", 13, "red", true)
+    ]
+    : (
+      [
+        (
+          name= String,
+          age= Int,
+          favorite_color= String,
+          `is-teenager`= Bool
+        )
+      ]
+    )
+  ) end;
+
+# (idiomatic) This version is a higher order function that takes a function for constructing the resulting row offering more type safety #
+let requires = [
+  (enforced=("no"), "c is not in header(t1)")
+] in
+let ensures = [
+  (enforced=("static"), "schema(r) is equal to schema(t1)"),
+  (enforced=("static"), "header(t2) is equal to concat(header(t1), [c])"), # Assuming user passes tuple extension #
+  (enforced=("static"), "for all c' in header(t1), schema(t2)[c'] is equal to schema(t1)[c']"), # Assuming user passes tuple extension #
+  (enforced=("static"), "schema(t2)[c] is equal to the sort of v"), # Assuming user passes tuple extension #
+  (enforced=("no"), "nrows(t2) is equal to nrows(t1)")
+] in
+let build_column =
+  typfun r ->
+    typfun v ->
+      typfun r' ->
+        fun (t : [r], c : ((r, v) -> r'), f : (r -> v)) ->
+          map(t, fun r -> c(r, f(r))) : [r'] in
+# Examples #
+test
+  build_column@<Student>@<Bool>@<(
+    (
+      name= String,
+      age= Int,
+      favorite_color= String,
+      `is-teenager`= Bool
+    )
+  )>(
+    students,
+    fun (s, b) -> s ... (`is-teenager`= b),
+    fun student -> student.age > 12 && student.age < 20
+  )
+  == (
+    [
+      ("Bob", 12, "blue", false),
+      ("Alice", 17, "green", true),
+      ("Eve", 13, "red", true)
+    ]
+    : (
+      [
+        (
+          name= String,
+          age= Int,
+          favorite_color= String,
+          `is-teenager`= Bool
+        )
+      ]
+    )
+  ) end

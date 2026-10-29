@@ -1,0 +1,77 @@
+type OptInt = + None + Some(Int) in
+type OptString = + None + Some(String) in
+type StudentMissing = (
+  name= String,
+  age= OptInt,
+  favorite_color= OptString
+) in
+let studentsMissing : [StudentMissing] = (
+  [
+    ("Bob", None, Some("blue")),
+    ("Alice", Some(17), Some("green")),
+    ("Eve", Some(13), None)
+  ]
+) in
+
+# (benchmark) fillna #
+let requires = [
+  (enforced=("no"), "c is in header(t1)"),
+  (enforced=("no"), "v is of sort schema(t1)[c]")
+] in
+let ensures = [
+  (enforced=("live"), "schema(t2) is equal to schema(t1)"),
+  (enforced=("no"), "nrows(t2) is equal to nrows(t1)")
+] in
+let fillna =
+  fun (t1 : [?], c : String, v) ->
+    let rows = map(t1, to_lvs) in
+    let mapped =
+      map(
+        rows,
+        fun entries ->
+          from_lvs(
+            filter(entries, fun e -> e.label != c)
+            @ [
+              case option_bind(
+                find_opt(entries, fun e -> e.label == c),
+                fun x -> x.value
+              )
+              | None => (label= c, value= v)
+              | Some(v) => (label= c, value= v)
+              end
+            ]
+          )
+      )
+      : [?] in
+    mapped in
+test
+  fillna(studentsMissing, "favorite_color", "white")
+  == [
+    ("Bob", None, "blue"),
+    ("Alice", Some(17), "green"),
+    ("Eve", Some(13), "white")
+  ]
+  : [(name= String, age= OptInt, favorite_color= String)] end;
+
+# (idiomatic) The idiomatic way to do this would be to just map the column. This gives you the schema safety. #
+test
+  map(
+    studentsMissing,
+    fun (r : StudentMissing) ->
+      r
+      ... (
+        favorite_color=
+        case r.favorite_color
+        | None => "white"
+        | Some(v) => v
+        end
+      )
+  )
+  == [
+    ("Bob", None, "blue"),
+    ("Alice", Some(17), "green"),
+    ("Eve", Some(13), "white")
+  ]
+  : [
+    (name= String, age= OptInt, favorite_color= String)
+  ] end

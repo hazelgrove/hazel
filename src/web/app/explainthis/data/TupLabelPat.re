@@ -16,22 +16,24 @@ let labeled_example_2: example = {
 let lab = pat("x");
 let p = pat("p");
 
-let labeled_exps_coloring_ids =
+let labeled_pats_coloring_ids =
     (~label_id: Id.t, ~pat_id: Id.t): list((Id.t, Id.t)) => [
   (Piece.id(lab), label_id),
   (Piece.id(p), pat_id),
 ];
-let labeled_pat: form = {
-  let explanation = "Assigns a [*label*](%s) to an [*pattern*](%s) appearing as an element within a tuple. Labeled tuple items cannot exist outside of a tuple. Labeled tuple items that are not contained within a tuple are autmatically converted into a singleton tuple.";
-  {
-    id: LabeledPat,
-    syntactic_form: [lab, labeled_pat(), p],
-    expandable_id: None,
-    explanation,
-    examples: [labeled_example_1, labeled_example_2],
-  };
-};
-let labeled_pats: group = {
+let labeled_pat_form = [lab, labeled_pat(), p];
+let labeled_pat = (~label_id: Id.t, ~pat_id: Id.t): form => {
   id: LabeledPat,
-  forms: [labeled_pat],
+  syntactic_form: labeled_pat_form,
+  colorings: labeled_pats_coloring_ids(~label_id, ~pat_id),
+  expandable_id: None,
+  explanation:
+    Printf.sprintf(
+      "Assigns a [*label*](%s) to an [*pattern*](%s) appearing as an element within a tuple. Labeled tuple items cannot exist outside of a tuple. Labeled tuple items that are not contained within a tuple are automatically converted into a singleton tuple.",
+      Id.to_string(label_id),
+      Id.to_string(pat_id),
+    ),
+  examples: [labeled_example_1, labeled_example_2],
 };
+let labeled_pats = (~label_id: Id.t, ~pat_id: Id.t): group =>
+  singleton(labeled_pat(~label_id, ~pat_id));

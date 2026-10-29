@@ -1,21 +1,10 @@
-open Haz3lcore;
-open Language;
+/* The B2T2 datasheet is markdown, not a program: the slide is a single
+   TextArea projector holding the file's content. The blob is wrapped as
+   `^^text("...")` slide TEXT (linebreaks \n-escaped — the content has
+   no quotes or backslashes to escape), so it loads through the same
+   text path as every other slide and the trigger materializes the
+   projector. */
 let content = [%blob "Datasheet.md"];
 
-let content: string = content |> Util.StringUtil.escape_linebreaks;
-let string_exp = IdTagged.FreshGrammar.Exp.string(content);
-let z =
-  ProjectorInit.init(
-    TextArea,
-    Segment.parenthesize(
-      ExpToSegment.exp_to_segment(
-        ~settings=ExpToSegment.Settings.editable(~inline=true),
-        string_exp,
-      ),
-    ),
-    Exp(string_exp),
-  )
-  |> Option.get
-  |> (p => [p])
-  |> Zipper.unzip;
-let slide = ("B2T2 / Datasheet", PersistentSegment.persist(z));
+let slide_text: string =
+  "^^text(\"" ++ Util.StringUtil.escape_linebreaks(content) ++ "\")";

@@ -67,6 +67,7 @@ module Action = {
     | Redo // global actions so they can be accessed by the command palette
     | Log(log)
     | SetMetaDown(bool)
+    | SetSettingsFilter(string)
     | UpdateVisibleRows(VisibleRows.t)
     | RethrowException
     | ClearException
@@ -82,6 +83,8 @@ module Model = {
     font_metrics: FontMetrics.t,
     meta_down: bool,
     visible_rows: option(VisibleRows.t),
+    /* the settings panel's filter text; not saved */
+    settings_filter: string,
     // Calculated:
     color_highlights: option(ColorSteps.colorMap),
     // Other:
@@ -107,6 +110,7 @@ module Model = {
     font_metrics,
     meta_down: false,
     visible_rows: None,
+    settings_filter: "",
     color_highlights: None,
     inject_global: _ =>
       failwith("Cannot use inject_global outside of the main view function!"),
@@ -146,27 +150,6 @@ module Update = {
   let calculate = (color_highlights, model: Model.t): Model.t => {
     ...model,
     color_highlights,
-  };
-
-  let can_undo = (action: t) => {
-    switch (action) {
-    | SetFontMetrics(_) => false
-    | Set(action) => Settings.Update.can_undo(action)
-    | SetAgentGlobals(_) => true
-    | JumpToTile(_) => false
-    | InitImportAll(_) => true
-    | FinishImportAll(_) => true
-    | ExportForInit => false
-    | ActiveEditor(_) => false
-    | Undo => false
-    | Redo => false
-    | SetMetaDown(_) => false
-    | UpdateVisibleRows(_) => false
-    | Log(_) => false
-    | RethrowException => false
-    | ClearException => false
-    | RestoreLastKnownGood => false
-    };
   };
 };
 
