@@ -19,6 +19,8 @@ let combine_opt: (list('a), list('b)) => option(list(('a, 'b)));
 /** Same as `intersperse`. */
 let join: ('x, list('x)) => list('x);
 let hd_opt: list('a) => option('a);
+/** Folds the function from the first element; `None` for `[]`. */
+let reduce: (('a, 'a) => 'a, list('a)) => option('a);
 let split_n_opt: (int, list('x)) => option((list('x), list('x)));
 let split_n: (int, list('x)) => (list('x), list('x));
 /** `split_sublist_opt(i, j, xs)` is `(xs[0, i), xs[i, j), xs[j, ..))`. */

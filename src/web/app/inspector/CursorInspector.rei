@@ -6,6 +6,8 @@ let exp_view:
   (
     ~globals: Globals.t,
     ~show_type_colon: bool=?,
+    ~live_typing_info: option(Language.Info.t)=?,
+    ~static_info: option(Language.Info.t)=?,
     Language.Cls.t,
     Language.Message.t,
     Language.Info.exp
@@ -16,6 +18,8 @@ let pat_view:
   (
     ~globals: Globals.t,
     ~show_type_colon: bool=?,
+    ~live_typing_info: option(Language.Info.t)=?,
+    ~static_info: option(Language.Info.t)=?,
     Language.Cls.t,
     Language.Message.t,
     Language.Info.pat
