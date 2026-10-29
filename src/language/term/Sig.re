@@ -101,6 +101,19 @@ let member_of_item = (item: t): option(member) =>
 let members = (items: list(t)): list(member) =>
   List.filter_map(member_of_item, items);
 
+/* A hole item could declare any member. */
+let is_hole = (item: t): bool =>
+  switch (item.term) {
+  | EmptyHole
+  | MultiHole(_) => true
+  | SigLet(_)
+  | SigType(_)
+  | SigModule(_)
+  | Invalid(_) => false
+  };
+
+let has_hole_item = (items: list(t)): bool => List.exists(is_hole, items);
+
 /* An open signature reached an operation that reads its members' types.
    Those read closed signatures only; Typ.close makes one where a type is
    read from the syntax, so an open one here is a bug in that reading. */

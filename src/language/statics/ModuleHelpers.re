@@ -210,19 +210,23 @@ let has_hole_binder = (items: list(Mod.t)): bool =>
     items,
   );
 
-/* Members the module exports that the analyzed signature does not declare. */
+/* Members the module exports that the analyzed signature does not declare;
+   none when a hole item in the signature could declare them. */
 let extra_members =
-    (~ana_items: list(Sig.t), have: list(Sig.t)): list(Var.t) => {
-  let have = Sig.members(have);
-  let want = Sig.members(ana_items);
-  let extra_values =
-    Sig.value_names(have)
-    |> List.filter(x => Option.is_none(Sig.find_value(want, x)));
-  let extra_types =
-    Sig.type_names(have)
-    |> List.filter(t => Option.is_none(Sig.find_type_def(want, t)));
-  extra_values @ extra_types;
-};
+    (~ana_items: list(Sig.t), have: list(Sig.t)): list(Var.t) =>
+  if (Sig.has_hole_item(ana_items)) {
+    [];
+  } else {
+    let have = Sig.members(have);
+    let want = Sig.members(ana_items);
+    let extra_values =
+      Sig.value_names(have)
+      |> List.filter(x => Option.is_none(Sig.find_value(want, x)));
+    let extra_types =
+      Sig.type_names(have)
+      |> List.filter(t => Option.is_none(Sig.find_type_def(want, t)));
+    extra_values @ extra_types;
+  };
 
 /* The module's type under the signature it is checked against: each
    member [checked] against the signature on its item at the type

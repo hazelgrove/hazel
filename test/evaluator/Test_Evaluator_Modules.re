@@ -191,6 +191,17 @@ let test_sealing_drops_extras =
     )
   });
 
+let test_sealing_keeps_extras_under_a_signature_hole =
+  test_case(
+    "Sealing keeps the members a hole item in the signature could declare",
+    `Quick,
+    () =>
+    parse_and_evaluate_test(
+      "{ let x = 1; let y = 2 }",
+      {|module M : { let x : Int; ? } = { let x = 1; let y = 2 } in M|},
+    )
+  );
+
 /* Sealing applies to sub-modules declared in the signature */
 let test_sealing_nested =
   test_case("Sealing applies to a sub-module member", `Quick, () => {
@@ -338,6 +349,7 @@ let tests = (
     test_module_keyword_sig_annotated,
     test_sig_type_member_erased,
     test_sealing_drops_extras,
+    test_sealing_keeps_extras_under_a_signature_hole,
     test_sealing_nested,
     test_pattern_binding_sealed,
     test_sealing_hole_item,

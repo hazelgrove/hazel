@@ -183,6 +183,14 @@ let test_holes_assume_missing_members =
     )
   );
 
+/* The mirror of a hole binder: a hole item in the signature may declare
+   the members the module adds. */
+let test_signature_hole_declares_extra_members =
+  no_marks_test(
+    "A hole item in the signature stands in for the module's extra members",
+    {|let m : { let x : Int; ? } = { let x = 1; let y = 2 } in m|},
+  );
+
 let test_error_wildcard_binder_does_not_assume =
   has_mark_test(
     "A wildcard binder does not stand in for missing members",
@@ -2177,6 +2185,7 @@ let tests = (
     test_unknown_typed_root_is_not_an_error,
     /* Hole binders */
     test_holes_assume_missing_members,
+    test_signature_hole_declares_extra_members,
     test_error_wildcard_binder_does_not_assume,
     test_error_non_binder_holes_do_not_assume,
     test_error_shorthand_parameter_hole_does_not_assume,

@@ -228,6 +228,9 @@ After checking:
   marked on the definition (`Mark.ModuleTypeMemberMismatch`).
 - `ModuleHelpers.missing_items` / `extra_members` produce
   `Mark.ModuleMissingMembers` / `Mark.ModuleExtraMembers` on the module node.
+  A hole in a binding position of the module stands in for the members it
+  lacks, and a hole item in the signature for the members it does not
+  declare; neither is reported.
 - A bare expression item shares its ids with its expression (`Mod.of_exp`,
   from both parsers): the expression's info is the item's, and its parent is
   the module.
@@ -258,7 +261,9 @@ module whose items are all `ModVal` is a value.
 
 `Dot` on a module value returns the named binding. Ascribing a module value
 to a signature (`Ascriptions.re`) keeps the signature's value members in
-signature order, ascribes each to its declared type, and drops the rest;
+signature order, ascribes each to its declared type, and drops the rest,
+unless a hole item in the signature could declare them, when they stay as
+they are;
 type members have no runtime content. `ModVal` items compare equal to the
 literal binding `let x = v` (`Equality.re`), and display as `let x = v`.
 Two module values compare under `==` and `!=` member by name

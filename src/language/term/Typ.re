@@ -916,13 +916,13 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
     Poly(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
   | ProofOf(_) => ty // Todo: should we normalize this?
   | Sig(s) =>
-    /* Malformed items (holes, non-variable patterns) are dropped from the
-       normal form. */
+    /* An item that declares no member is dropped from the normal form,
+       except a hole, which could declare any. */
     Sig(
       Closed(
         Sig.closed(s)
         |> ClosedSig.filter(item =>
-             Option.is_some(Sig.member_of_item(item))
+             Option.is_some(Sig.member_of_item(item)) || Sig.is_hole(item)
            )
         |> ClosedSig.map(Sig.map_typ(normalize(ctx))),
       ),
@@ -1328,16 +1328,32 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   | (ExplicitNonlabel, _) => None
   | (Sig(Closed(xs)), Sig(Closed(ys))) =>
     /* Exact consistency: the same value-member names and the same
-       type-member names (order-insensitive), members pairwise consistent.
-       The result is built from the left operand's members, the last of
-       each name, so each keeps its form, and its type where the meet
-       refines nothing. */
-    let xs =
-      ClosedSig.items(xs)
+       type-member names (order-insensitive), members pairwise consistent,
+       except that a hole item on one side stands for the members the
+       other side has beyond it. The result is built from the left
+       operand's members, the last of each name, so each keeps its form,
+       and its type where the meet refines nothing; then the right's
+       members the left lacks; then a hole, if both sides keep one. */
+    let xs = ClosedSig.items(xs);
+    let ys = ClosedSig.items(ys);
+    let x_items =
+      xs
       |> List.filter(item => Option.is_some(Sig.member_of_item(item)))
       |> Sig.dedup_last_items;
-    let my = Sig.members(ClosedSig.items(ys)) |> Sig.dedup_last;
-    if (!same_member_names(Sig.members(xs), my)) {
+    let mx = Sig.members(x_items);
+    let my = Sig.members(ys) |> Sig.dedup_last;
+    let hole_x = Sig.has_hole_item(xs);
+    let hole_y = Sig.has_hole_item(ys);
+    let within = (a: list(Sig.member), b: list(Sig.member)) =>
+      List.for_all(
+        x => Option.is_some(Sig.find_value(b, x)),
+        Sig.value_names(a),
+      )
+      && List.for_all(
+           t => Option.is_some(Sig.find_type_def(b, t)),
+           Sig.type_names(a),
+         );
+    if (!(hole_y || within(mx, my)) || !(hole_x || within(my, mx))) {
       None;
     } else {
       let meet_item = (item: Sig.t) =>
@@ -1349,12 +1365,26 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
             | Val(x, t1) => (t1, Sig.find_value(my, x))
             | TypeManifest(n, t1) => (t1, Sig.find_type_def(my, n))
             };
-          let* t2 = t2;
-          let+ t = meet'(t1, t2);
-          equal(t, t1) ? item : Sig.map_typ(_ => t, item);
+          switch (t2) {
+          | None => Some(item)
+          | Some(t2) =>
+            let+ t = meet'(t1, t2);
+            equal(t, t1) ? item : Sig.map_typ(_ => t, item);
+          };
         };
-      let+ items = OptUtil.traverse(meet_item, xs);
-      Sig(Closed(ClosedSig.of_items(items))) |> temp;
+      let+ items = OptUtil.traverse(meet_item, x_items);
+      let extra =
+        my
+        |> List.filter((m: Sig.member) =>
+             switch (m) {
+             | Val(x, _) => Option.is_none(Sig.find_value(mx, x))
+             | TypeManifest(n, _) =>
+               Option.is_none(Sig.find_type_def(mx, n))
+             }
+           )
+        |> List.map(Sig.item_of_member);
+      let hole = hole_x && hole_y ? [TempGrammar.Sig.empty_hole()] : [];
+      Sig(Closed(ClosedSig.of_items(items @ extra @ hole))) |> temp;
     };
   | (Sig(Open(_)), _)
   | (_, Sig(Open(_))) => raise(Sig.OpenSignature)
