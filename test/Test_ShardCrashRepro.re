@@ -799,23 +799,23 @@ let tests = {
   (name, cases @ drawer_tests);
 };
 
-/* Slow: each replays its edits on the 56-line task30 program, evaluating it
-   with every probe on after each step, after parsing task30 with the typing
-   parser */
+/* Quick despite their cost (each replays its edits on the 56-line task30
+   program, evaluating it with every probe on after each step): they pin
+   user-reported crashes, and merges are gated on the quick set only */
 let fidelity_tests = [
-  test_case("task30: select row, type col (mei/P3)", `Slow, () =>
+  test_case("task30: select row, type col (mei/P3)", `Quick, () =>
     action_fidelity_case(
       "select+type",
       [Action.Insert("c"), Action.Insert("o"), Action.Insert("l")],
     )
   ),
-  test_case("task30: select row, arrow right (William)", `Slow, () =>
+  test_case("task30: select row, arrow right (William)", `Quick, () =>
     action_fidelity_case(
       "select+arrow",
       [Action.Move(Local(Right, ByChar))],
     )
   ),
-  test_case("task30: select, delete, retype, rapid delete (P3)", `Slow, () =>
+  test_case("task30: select, delete, retype, rapid delete (P3)", `Quick, () =>
     action_fidelity_case(
       "select+del+retype+del",
       [
