@@ -202,6 +202,17 @@ let test_sealing_keeps_extras_under_a_signature_hole =
     )
   );
 
+let test_signature_hole_member_projected =
+  test_case(
+    "A member a hole item in the signature could declare is projected",
+    `Quick,
+    () =>
+    parse_and_evaluate_test(
+      "2",
+      {|let m : { let x : Int; ? } = { let x = 1; let y = 2 } in m.y|},
+    )
+  );
+
 /* Sealing applies to sub-modules declared in the signature */
 let test_sealing_nested =
   test_case("Sealing applies to a sub-module member", `Quick, () => {
@@ -350,6 +361,7 @@ let tests = (
     test_sig_type_member_erased,
     test_sealing_drops_extras,
     test_sealing_keeps_extras_under_a_signature_hole,
+    test_signature_hole_member_projected,
     test_sealing_nested,
     test_pattern_binding_sealed,
     test_sealing_hole_item,

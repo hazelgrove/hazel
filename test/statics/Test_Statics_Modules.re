@@ -191,6 +191,32 @@ let test_signature_hole_declares_extra_members =
     {|let m : { let x : Int; ? } = { let x = 1; let y = 2 } in m|},
   );
 
+let test_signature_hole_member_is_unknown =
+  Alcotest.test_case(
+    "A member a hole item in the signature could declare is unknown",
+    `Quick,
+    () =>
+    List.iter(
+      ((source, ty)) => check_fully_consistent(source, Some(ty)),
+      [
+        (
+          {|let m : { let x : Int; ? } = { let x = 1; let y = 2 } in m.y + 1|},
+          int(),
+        ),
+        (
+          {|let m : { let x : Int; ? } = { let x = 1; let y = 2 } in m.y && true|},
+          bool(),
+        ),
+      ],
+    )
+  );
+
+let test_signature_hole_type_member_in_path =
+  no_marks_test(
+    "A hole item in the signature stands in for a type member a path names",
+    {|let f = fun (m : { let x : Int; ? }) -> fun (y : m.T) -> y in f|},
+  );
+
 let test_error_wildcard_binder_does_not_assume =
   has_mark_test(
     "A wildcard binder does not stand in for missing members",
@@ -2186,6 +2212,8 @@ let tests = (
     /* Hole binders */
     test_holes_assume_missing_members,
     test_signature_hole_declares_extra_members,
+    test_signature_hole_member_is_unknown,
+    test_signature_hole_type_member_in_path,
     test_error_wildcard_binder_does_not_assume,
     test_error_non_binder_holes_do_not_assume,
     test_error_shorthand_parameter_hole_does_not_assume,

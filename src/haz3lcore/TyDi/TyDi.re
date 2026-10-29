@@ -64,7 +64,7 @@ let suggest = (ci: Info.t, z: Zipper.t): list(t) => {
   | InfoTyp({
       expects:
         TypExpectation.LabelProjectionExpected(Some(labels)) |
-        TypExpectation.ModuleMemberExpected(_, labels),
+        TypExpectation.ModuleMemberExpected(_, {listed: labels, _}),
       _,
     })
       when labels != [] =>

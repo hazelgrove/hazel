@@ -1612,7 +1612,13 @@ and uexp_to_info_map =
         | _ => []
         };
       /* `M.y`: the type of the module's value member y. When there is none,
-         the label is marked and the dot carries a message instead. */
+         the label is marked and the dot carries a message instead, unless a
+         hole item in the signature could declare y: then y is unknown. */
+      let hole_member =
+        switch (e1_ty.term) {
+        | Sig(Closed(items)) => Sig.has_hole_item(ClosedSig.items(items))
+        | _ => false
+        };
       let (module_member, label_marks) =
         switch (e1_ty.term, e2.term) {
         | (Sig(Closed(items)), Label(name)) =>
@@ -1628,6 +1634,7 @@ and uexp_to_info_map =
               None,
               [Mark.ModuleMemberIsType(name)],
             )
+          | None when hole_member => (None, [])
           | None => (
               None,
               [
@@ -1735,13 +1742,17 @@ and uexp_to_info_map =
               ~elab_term=dot_elab,
               ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
               ~marks=[],
-              ~message=
-                Message.Exp(
-                  ModuleMemberNotFound({
-                    name,
-                    members: available_labels,
-                  }),
-                ),
+              ~message=?
+                hole_member
+                  ? None
+                  : Some(
+                      Message.Exp(
+                        ModuleMemberNotFound({
+                          name,
+                          members: available_labels,
+                        }),
+                      ),
+                    ),
               ~dot_labels=available_labels,
               ~co_ctx=dot_co_ctx,
               ~probe_targets=dot_probe_targets,
@@ -4382,15 +4393,15 @@ and utyp_to_info_map =
         ? ok(Message.Type(ty)) : err(InvalidLabel(name, labels))
     | (LabelProjectionExpected(None), Label(_)) =>
       ok(Message.Type(Unknown(Internal) |> Typ.temp))
-    | (ModuleMemberExpected(member, members), Label(name)) =>
-      List.exists(String.equal(name), members)
+    | (ModuleMemberExpected(member, {listed, hole}), Label(name)) =>
+      hole || List.exists(String.equal(name), listed)
         ? ok(Message.Type(ty))
         : err(
             ModuleTypeMemberNotFound(
               member,
               {
                 name,
-                members,
+                members: listed,
               },
             ),
           )
@@ -4482,16 +4493,23 @@ and utyp_to_info_map =
         let items = ClosedSig.items(items);
         /* In the middle of a path (`M.P.T`) the label names a sub-module;
            at the end it names a type member. */
+        let hole = Sig.has_hole_item(items);
         switch (expects) {
         | ProductExpected =>
           ModuleMemberExpected(
             SubModule,
-            Typ.sig_module_member_names(ctx, items),
+            {
+              listed: Typ.sig_module_member_names(ctx, items),
+              hole,
+            },
           )
         | _ =>
           ModuleMemberExpected(
             TypeMember,
-            Sig.type_names(Sig.members(items)),
+            {
+              listed: Sig.type_names(Sig.members(items)),
+              hole,
+            },
           )
         };
       | None =>

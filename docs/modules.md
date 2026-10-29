@@ -241,7 +241,9 @@ value member; a member the signature lacks is reported on the label
 (`ModuleMemberNotFound`, or `ModuleMemberIsType` when `x` names a type
 member) while the dot carries only a message, the way `M.Fake` in a type
 reports on `Fake`
-(`ModuleTypeMemberNotFound`). A value used as the root of a type path gets
+(`ModuleTypeMemberNotFound`). A hole item in the signature could declare
+the member, so under one the projection is unknown and nothing is
+reported, in both positions. A value used as the root of a type path gets
 `TypWantModule`. In type position, `utyp_to_info_map` threads a context
 through signature items and resolves `M.T` through `Typ.path_sig`; TyDi
 receives the member names via `ModuleMemberExpected`.
