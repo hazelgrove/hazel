@@ -450,11 +450,6 @@ let paren_typ_at =
       ? Typ.fresh(Parens(typ)) : typ
   };
 
-/* An invalid face is an Exp-sorted tile, so a bare one on the LEFT of a type
-   infix drags the type out of Typ sort: `^w^ -> Int` molds to an Exp MultiHole
-   and loses the arrow, while `(^w^) -> Int` is an Arrow to both parsers. The
-   right operand is already coerced to a type. Precedence can't cover this —
-   an invalid hole is atomic, so it never trips `paren_typ_at`. */
 /* `lab=e` has no delimiters of its own, so a labeled field whose value is
    itself labeled prints as `_=_=e`, which does not parse. Parenthesize the
    inner one. Precedence cannot express this: TupLabel is atomic everywhere
@@ -473,6 +468,11 @@ let paren_nested_tup_label_pat =
   | _ => p
   };
 
+/* An invalid face is an Exp-sorted tile, so a bare one on the LEFT of a type
+   infix drags the type out of Typ sort: `^w^ -> Int` molds to an Exp MultiHole
+   and loses the arrow, while `(^w^) -> Int` is an Arrow to both parsers. The
+   right operand is already coerced to a type. Precedence can't cover this —
+   an invalid hole is atomic, so it never trips `paren_typ_at`. */
 let paren_invalid_typ_lhs =
     (~parenthesization: Settings.parenthesization, typ: Typ.t): Typ.t =>
   switch (parenthesization, typ.term) {
@@ -2038,8 +2038,12 @@ let paren_for_mod_item =
     (~parenthesization: Settings.parenthesization, e: Exp.t): Exp.t =>
   paren_at(~parenthesization, Precedence.semi, e);
 
-/* Module items skip exp-level parenthesize, so pats need the singleton
-   TuplePat → (_=p) rewrite here before pretty-printing. */
+/* The singleton TuplePat → (_=p) rewrite for a module item's pattern.
+   parenthesize's Module case does it on the usual path, but a bare item
+   (any_to_segment's Mod case, mod_to_pretty) is never parenthesized, nor is
+   a module nested inside one, which mod_to_pretty prints through
+   exp_to_pretty. Both printers call this; after parenthesize it changes
+   nothing. */
 let parenthesize_pat_for_print = (~settings: Settings.t, p: Pat.t): Pat.t =>
   parenthesize_pat(
     ~parenthesization=settings.parenthesization,

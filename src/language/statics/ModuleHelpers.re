@@ -408,24 +408,21 @@ and strip_module_sig_pats_in_pat = (~keep=Id.Set.empty, pat: Pat.t): Pat.t => {
 
 /* Ids of the ascriptions the user wrote on module-item `let` patterns. */
 let user_item_ascriptions = (items: list(Mod.t)): Id.Set.t => {
-  let acc = ref(Id.Set.empty);
-  let rec go = (p: Pat.t) =>
+  let rec go = (acc, p: Pat.t) =>
     switch (Pat.term_of(p)) {
-    | Asc(inner, _) =>
-      acc := Id.Set.add(Pat.rep_id(p), acc^);
-      go(inner);
-    | Parens(inner) => go(inner)
-    | _ => ()
+    | Asc(inner, _) => go(Id.Set.add(Pat.rep_id(p), acc), inner)
+    | Parens(inner) => go(acc, inner)
+    | _ => acc
     };
-  List.iter(
-    (item: Mod.t) =>
+  List.fold_left(
+    (acc, item: Mod.t) =>
       switch (item.term) {
-      | ModLet(pat, _) => go(pat)
-      | _ => ()
+      | ModLet(pat, _) => go(acc, pat)
+      | _ => acc
       },
+    Id.Set.empty,
     items,
   );
-  acc^;
 };
 
 /* Restores a module body's ID when it's been lost during tuple elaboration.
