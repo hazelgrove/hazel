@@ -158,10 +158,11 @@ tab on Github](https://github.com/hazelgrove/hazel/actions).
 
 `.github/workflows/ci.yml` runs on **every branch push** and in the merge queue.
 It does no work itself; it calls `.github/workflows/checks.yml`, which is where
-the two checks live:
+the three checks live. They run in parallel:
 
-- **Fast checks** — formatting, the strict-warning gate (`make ci-check`), and
-  the suite under alcotest's `-q` filter, which skips the `Slow`-tagged cases.
+- **Static checks** — formatting and the strict-warning gate (`make ci-check`).
+- **Fast checks** — the suite under alcotest's `-q` filter, which skips the
+  `Slow`-tagged cases.
 - **Full tests** — the full suite including the `Slow` QCheck property tests,
   plus the Codecov upload. This is the authoritative check.
 
@@ -169,18 +170,19 @@ the two checks live:
 `Slow`-tagged cases are the large majority of the suite's runtime. If you want
 that signal before opening a PR, run `make test` locally.
 
-Both jobs render a table of results into their own job summary, reachable from
+`Fast checks` and `Full tests` render a table of results into their own job summary, reachable from
 the run page. They deliberately create no `Test Report` check of their own: a
 check run belongs to a commit rather than to a workflow, and GitHub picks which
 of the commit's check suites it joins, which used to file the test results under
 `Deploy branch preview`.
 
-`.github/workflows/fork-ci.yml` runs the same two checks for **pull requests
+`.github/workflows/fork-ci.yml` runs the same checks for **pull requests
 from forks**, which push no branch here and so never reach `ci.yml`. It skips
 only the Codecov upload, since a fork gets no secrets.
 
 `.github/workflows/deploy.yml` runs on **every branch push** and builds in
-`release` mode, deploying to `https://hazel.org/build/<branch name>`.
+`release` mode, deploying to `https://build.hazel.org/<branch name>/` (see
+[docs/deployment.md](docs/deployment.md)).
 Deliberately not gated on the checks: a red suite should not stop you looking at
 your branch.
 
@@ -193,14 +195,13 @@ job summary.
 All of them share `.github/actions/setup-hazel-toolchain`, which is where the
 OCaml version and the opam switch cache live.
 
-Builds prior to July 2024 are archived at `https://hazel.org/build-pre-july2024/<branch name>`.
-
-Note for core team: If another archive needs to be performed, make sure to redeploy the following
-branches manually since we refer to them in various public material (websites and
-published papers):
-
-  dev
-  livelits
+Builds from before July 2024, once a separate archive, are served alongside the
+rest at `https://build.hazel.org/<branch name>/`; old
+`hazel.org/build-pre-july2024/…` and `hazel.org/build/…` links redirect there.
+Branch names starting with `_` are reserved and never deployed:
+`build.hazel.org/_archive/` holds builds cited in published material, such as
+the PLDI '21 livelits build behind `hazel.org/livelits`, so no push can
+overwrite them.
 
 ## Developer Documentation
 There is some developer documentation available in the `docs` directory, though it is far from complete and comprehensive. 
