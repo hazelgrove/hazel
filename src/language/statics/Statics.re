@@ -3144,7 +3144,7 @@ and uexp_to_info_map =
                   co_ctx: CoCtx.union([co_ctx, c.co_ctx]),
                 },
                 item,
-                MultiHole(exps),
+                Mod.hole(exps),
               ),
               m,
             );
@@ -3444,7 +3444,7 @@ and upat_to_info_map =
           tms_elab,
         );
       add(
-        ~elab_term=MultiHole(pats) |> rewrap,
+        ~elab_term=Pat.hole(pats) |> rewrap,
         ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
         ~marks=[IsMulti],
         ~ctx,

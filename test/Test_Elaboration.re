@@ -781,6 +781,45 @@ in 1|},
         dhexp_of_uexp(parse_exp({|{ type T = Int; let x = 1 }|})),
       )
     ),
+    /* Built by hand: the parser does not put a pattern or a type inside a
+       hole. */
+    test_case("A hole item keeps only its expression children", `Quick, () =>
+      alco_check(
+        "a hole item with a pattern child",
+        Exp.(
+          module_([Mod.mod_let(Pat.var("x"), int(1)), Mod.empty_hole()])
+        ),
+        dhexp_of_uexp(
+          Exp.(
+            module_([
+              Mod.mod_let(Pat.var("x"), int(1)),
+              Mod.multi_hole([Grammar.Pat(Pat.var("y"))]),
+            ])
+          ),
+        ),
+      )
+    ),
+    test_case("A hole pattern keeps only its pattern children", `Quick, () =>
+      Alcotest.(check(bool))(
+        "a hole pattern with a type child is an empty hole",
+        true,
+        switch (
+          dhexp_of_uexp(
+            Exp.(
+              let_(
+                Pat.multi_hole([Grammar.Typ(Typ.int())]),
+                int(2),
+                int(1),
+              )
+            ),
+          ).
+            term
+        ) {
+        | Let({term: EmptyHole, _}, _, _) => true
+        | _ => false
+        },
+      )
+    ),
     test_case("Module in let binding elaborates in place", `Quick, () =>
       alco_check(
         {|let m = { let x = 1 } in m.x|},
