@@ -1,7 +1,7 @@
 HTML_DIR="$(shell pwd)/_build/default/src/web/www"
 SERVER="http://0.0.0.0:8000/"
 
-.PHONY: all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt rei watch watch-release release release-student echo-html-dir serve serve2 hot repl test test-quick watch-test coverage generate-coverage-html ci ci-quick ci-check ci-extended lint-css update-css-defaults dead-code dead-code-json dead-code-summary clean setup-zarith install-hooks
+.PHONY: all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt rei watch watch-release release release-student echo-html-dir serve serve2 hot repl test test-quick watch-test coverage generate-coverage-html coverage-web coverage-web-report coverage-web-diff ci ci-quick ci-check ci-extended lint-css update-css-defaults dead-code dead-code-json dead-code-summary clean setup-zarith install-hooks
 
 all: dev
 
@@ -162,6 +162,26 @@ ci-extended: setup-zarith
 
 generate-coverage-html:
 	bisect-ppx-report html
+
+# Browser-session coverage (docs/browser-coverage.md): an instrumented dev build
+# with a download-coverage button on the sidebar rail; serve it with `make serve`.
+coverage-web: setup-instructor setup-zarith
+	HAZEL_WEB_COVERAGE=1 dune build @src/fmt --auto-promote src --profile dev --instrument-with bisect_ppx
+
+# COVERAGE_DIR is the folder the session's .coverage files were saved to.
+coverage-web-report:
+	$(if $(COVERAGE_DIR),,$(error set COVERAGE_DIR to the folder of downloaded .coverage files))
+	bisect-ppx-report html --coverage-path $(COVERAGE_DIR) -o _coverage-web
+	bisect-ppx-report summary --coverage-path $(COVERAGE_DIR)
+
+# Of the lines this branch changed under src/ (vs BASE), which did the session
+# never run? For reviewing behavioral PRs; see docs/browser-coverage.md.
+BASE ?= origin/dev
+coverage-web-diff:
+	$(if $(COVERAGE_DIR),,$(error set COVERAGE_DIR to the folder of downloaded .coverage files))
+	mkdir -p _coverage-web
+	bisect-ppx-report cobertura --coverage-path $(COVERAGE_DIR) _coverage-web/cobertura.xml
+	python3 scripts/coverage_diff.py _coverage-web/cobertura.xml $(BASE)
 
 clean:
 	dune clean
