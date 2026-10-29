@@ -206,7 +206,7 @@ let tests = (
       },
     ),
     test_case(
-      "automatic settings updates are not undoable",
+      "panel toggles and settings applied on the user's behalf are not undoable",
       `Quick,
       () => {
         let m0 = mk_model();
@@ -217,7 +217,8 @@ let tests = (
             apply,
             m2,
             [
-              set(SetAutoprobe(All)),
+              /* what Page.update schedules on entering a Probes lesson */
+              set(ApplyAutoprobe(All)),
               set(SetShortcutOverrides([("Undo", None)])),
               set(Sidebar(ToggleShow)),
               set(ShowDebugPanel),
@@ -250,6 +251,23 @@ let tests = (
         let m3 = apply(apply(m2, hover), insert("1"));
         check(int, "an edit after hover still pushes", 1, undo_len(m3));
         check(int, "and still clears redo", 0, redo_len(m3));
+      },
+    ),
+    test_case(
+      "the probe toolbar's auto-probe toggle is undoable",
+      `Quick,
+      () => {
+        let m0 = mk_model();
+        let before = m0.current.globals.settings.autoprobe_mode;
+        let m1 = apply(m0, set(SetAutoprobe(All)));
+        check(int, "toolbar toggle pushed an undo entry", 1, undo_len(m1));
+        let m2 = apply(m1, undo);
+        check(
+          bool,
+          "undo restores the previous auto-probe mode",
+          true,
+          m2.current.globals.settings.autoprobe_mode == before,
+        );
       },
     ),
     test_case(

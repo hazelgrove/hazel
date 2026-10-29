@@ -174,6 +174,9 @@ module Update = {
     | CompletionDisplay(CompletionDisplay.t)
     | AutoprobeMode
     | SetAutoprobe(Haz3lcore.AutoProbe.t)
+    /* Same effect as SetAutoprobe, but applied on the user's behalf rather
+       than chosen by them, so it stays out of undo history. */
+    | ApplyAutoprobe(Haz3lcore.AutoProbe.t)
     | SampleStickyInPlace
     | ToggleLineNumbers
     | ToggleRelativeLineNumbers
@@ -201,7 +204,7 @@ module Update = {
     | Transient;
 
   /* Exhaustive on purpose: a new action has to choose its kind. */
-  let kind: t => kind =
+  let kind_of: t => kind =
     fun
     | Captions
     | SecondaryIcons
@@ -219,6 +222,8 @@ module Update = {
     | FlipAnimations
     | CompletionDisplay(_)
     | AutoprobeMode
+    /* The probe toolbar's Off/All segmented toggle (ProbeControls). */
+    | SetAutoprobe(_)
     | ToggleLineNumbers
     | ToggleRelativeLineNumbers
     | ShowRowLines
@@ -248,9 +253,13 @@ module Update = {
     | ExplainThis(ToggleShowFeedback | SetHighlight(Toggle))
     /* Toggling the undo cap should not itself occupy an undo slot. */
     | CapUndoStack
-    /* Set automatically on entering/leaving a Probes lesson (Page.update),
-       and by Clear All alongside a historic probe removal. */
-    | SetAutoprobe(_)
+    /* Sent on entering/leaving a Probes lesson (Page.update, via
+       TutorialSlideInit) and by the probe bar's Clear All (SampleFocusBar),
+       just before its historic Probe(RemoveAll). Known limitation: undoing
+       Clear All restores the probes but not auto-probe, since this update
+       lands before the RemoveAll snapshot; fixing that needs Clear All to
+       be one combined action. */
+    | ApplyAutoprobe(_)
     /* Re-sent after every evaluation of the Shortcuts config slide. */
     | SetShortcutOverrides(_)
     /* '/' sticky-dropdown mode: a ProbeProj ref, not a Settings field.
@@ -260,7 +269,7 @@ module Update = {
     | ExplainThis(SetHighlight(Hover(_) | UnsetHover)) => Transient;
 
   let return_for = (action: t, settings: Model.t): Updated.t(Model.t) =>
-    switch (kind(action)) {
+    switch (kind_of(action)) {
     | Undoable => Updated.return(~scroll_active=false, settings)
     | NotUndoable =>
       Updated.return(~scroll_active=false, ~historic=false, settings)
@@ -578,7 +587,8 @@ module Update = {
               }
             ),
         }
-      | SetAutoprobe(mode) => {
+      | SetAutoprobe(mode)
+      | ApplyAutoprobe(mode) => {
           ...settings,
           autoprobe_mode: mode,
         }
