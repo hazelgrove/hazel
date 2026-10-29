@@ -372,6 +372,9 @@ and Exp: {
         ~f_typ,
         ~f_tpat,
         ~f_rul,
+        ~f_mod,
+        ~f_sig,
+        ~f_mpat,
         ~f_any,
       );
     let rec_call = ({term, _} as exp: t) => {

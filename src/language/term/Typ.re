@@ -310,6 +310,40 @@ let rec count_unknowns = (ty: t): int =>
 
 let contains_unknown = (ty: t): bool => count_unknowns(ty) > 0;
 
+/* Invalid type holes anywhere in the type. They lex as Exp-sorted tiles, so a
+   type carrying one can be dragged out of Typ sort; printers use this to
+   decide on defensive parens. */
+let rec contains_invalid = (ty: t): bool =>
+  switch (ty.term) {
+  | Unknown(Hole(Invalid(_))) => true
+  | Unknown(_)
+  | Atom(_)
+  | DrvQuoteTy(_)
+  | Var(_)
+  | ExplicitNonlabel
+  | Label(_)
+  | ProofOf(_)
+  | Sig(_) => false
+  | Arrow(t1, t2)
+  | ProdProjection(t1, t2)
+  | ProdExtension(t1, t2) => contains_invalid(t1) || contains_invalid(t2)
+  | Prod(tys) => List.exists(contains_invalid, tys)
+  | Sum(sm) =>
+    List.exists(
+      fun
+      | ConstructorMap.BadEntry(ty) => contains_invalid(ty)
+      | Variant(_, _, ty) =>
+        Option.fold(~none=false, ~some=contains_invalid, ty),
+      sm,
+    )
+  | Rec(_, ty)
+  | Poly(_, ty)
+  | List(ty)
+  | Parens(ty)
+  | Projector(_, ty)
+  | TupLabel(_, ty) => contains_invalid(ty)
+  };
+
 /* Capture-avoiding substitution of `s` for `x` in `ty`.
 
    When recursing under a type binder `Poly(tp2, body)` or `Rec(tp2, body)`
@@ -890,6 +924,7 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   | (ProofOf(_), _) => None
   // We would prefer for this to be a sort difference and never appear in a meet.
   // These get marked in statics but that does not remove them from the utyp's propagated on parents.
+  | (ExplicitNonlabel, ExplicitNonlabel) => Some(ty1)
   | (ExplicitNonlabel, _) => None
   | (Sig(_), _) => None
   };

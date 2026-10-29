@@ -212,10 +212,71 @@ let kids_of_tiles = (tiles: tiles) =>
   |> Aba.map_a(kids_of_tile)
   |> Aba.join(Fun.id, kid => [kid])
   |> List.concat;
+/* A one-argument application that falls back to a hole keeps its parens
+   as a Parens node around the argument: the bare kids alone would print as
+   `b c`, losing the `( )` tile (`x:a b(c) + 1` strands the type `b(c)` in
+   expression position, where it has no form). */
+let paren_kid = (id: Id.t, kid: Any.t): Any.t => {
+  let annotation = IdTagged.IdTag.mk_internal([id]);
+  switch (kid) {
+  | Exp(e) =>
+    Exp({
+      annotation,
+      term: Parens(e),
+    })
+  | Pat(p) =>
+    Pat({
+      annotation,
+      term: Parens(p),
+    })
+  | Typ(t) =>
+    Typ({
+      annotation,
+      term: Parens(t),
+    })
+  | _ => kid
+  };
+};
 let kids_of_unsorted =
   fun
   | Op(tiles) => kids_of_tiles(tiles)
   | Pre(tiles, r) => kids_of_tiles(tiles) @ [r]
+  /* Not a constructor head (`A(Int)`): sum-type parsing reads that bare
+     MultiHole shape as a constructor application. */
+  | Post(l, ([(id, (F(Compound(Parens | Ap)), [kid]))], []))
+      when
+        switch (l) {
+        | Typ({term: Var(name), _}) => !Token.is_ctr(name)
+        | _ => true
+        } => [
+      l,
+      paren_kid(id, kid),
+    ]
+  /* `f()` falling back to a hole: the `()` has no kid, so keep it as a unit
+     in the head's sort (`?:1() l]` would otherwise print as `?:1 l]`). */
+  | Post(l, ([(id, (F(f), []))], [])) when is_empty_tuple_form(f) => {
+      let annotation = IdTagged.IdTag.mk_internal([id]);
+      [
+        l,
+        switch (l) {
+        | Pat(_) =>
+          Pat({
+            annotation,
+            term: Tuple([]),
+          })
+        | Typ(_) =>
+          Typ({
+            annotation,
+            term: Prod([]),
+          })
+        | _ =>
+          Exp({
+            annotation,
+            term: Tuple([]),
+          })
+        },
+      ];
+    }
   | Post(l, tiles) => [l] @ kids_of_tiles(tiles)
   | Bin(l, tiles, r) => [l] @ kids_of_tiles(tiles) @ [r];
 
@@ -1470,7 +1531,9 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
     ret(Poly(tpat, t))
   | Pre(([(_id, (F(Compound(Rec)), [TPat(tpat)]))], []), Typ(t)) =>
     ret(Rec(tpat, t))
-  | Pre(tiles, Typ({term: Sum(t0), annotation: {ids, _}})) as tm =>
+  /* `Void` is the empty sum as an atom, not a `+ A + B` tail to splice:
+     `+ Void` is one bad entry, as Menhir reads it. */
+  | Pre(tiles, Typ({term: Sum([_, ..._] as t0), annotation: {ids, _}})) as tm =>
     /* Case for leading prefix + preceeding a sum */
     switch (tiles) {
     | ([(_, (F(Compound(SumSingle)), []))], []) =>
@@ -1600,6 +1663,15 @@ and mod_ = unsorted => {
 and mod_term: unsorted => TermBase.Mod.term = {
   let ret = (term: TermBase.Mod.term) => term;
   let hole = unsorted => Mod.hole(kids_of_unsorted(unsorted));
+  let as_mod_exp = (tm: unsorted): TermBase.Mod.term => {
+    let e = exp(tm);
+    switch (e.term) {
+    | EmptyHole
+    | MultiHole(_) => hole(tm)
+    | Invalid(s) => Invalid(s)
+    | _ => ModExp(e)
+    };
+  };
   fun
   | Op(tiles) as tm =>
     switch (tiles) {
@@ -1613,8 +1685,11 @@ and mod_term: unsorted => TermBase.Mod.term = {
         let e = exp(Op(tiles));
         switch (e.term) {
         | EmptyHole
-        | MultiHole(_)
-        | Invalid(_) => ret(hole(tm))
+        | MultiHole(_) => ret(hole(tm))
+        /* Keep face/invalid tiles: kids_of_unsorted is empty for a leaf
+           invalid, so Mod.hole would erase the token and `{ o^o }` would
+           disagree with Menhir. */
+        | Invalid(s) => ret(Invalid(s))
         | _ => ret(ModExp(e))
         };
       }
@@ -1641,11 +1716,10 @@ and mod_term: unsorted => TermBase.Mod.term = {
   /* ModType: type t = T - the tpat is inside the tile, type is the body */
   | Pre(([(_id, (F(Compound(ModType)), [TPat(tp)]))], []), Typ(ty)) =>
     ret(ModType(tp, ty))
-  /* Expression-level structures (binary ops, prefix, postfix) - wrap as ModExp */
-  | Bin(Exp(_), _, Exp(_)) as tm => ret(ModExp(exp(tm)))
-  | Pre(_, Exp(_)) as tm => ret(ModExp(exp(tm)))
-  | Post(Exp(_), _) as tm => ret(ModExp(exp(tm)))
-  | (Pre(_) | Post(_) | Bin(_)) as tm => ret(hole(tm));
+  /* Wrap as ModExp whenever `exp` can form a real term (including
+     `e:T` = Bin(Exp, Typ)); only true leftovers become a hole, which
+     flatten_mod would split into separate items. */
+  | (Bin(_) | Pre(_) | Post(_)) as tm => ret(as_mod_exp(tm));
 }
 and sig_ = unsorted => {
   let term = sig_term(unsorted);

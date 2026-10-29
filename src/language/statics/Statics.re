@@ -309,7 +309,15 @@ and uexp_to_info_map =
   // This lifts an expression into a singleton labeled tuple by rewriting the syntax in the Statics Map.
   let autolabel_singleton_tuple = (uexp: Exp.t, inner_ty, l, m) => {
     let (term, rewrap) = Exp.unwrap(uexp);
-    let original_expression = Exp.fresh(term);
+    /* The lifted value and its field are recorded in the info map, so their
+       ids are derived from the value's own: the same on every run, so the
+       incremental cache can hit them. */
+    let derived = (salt, term: Exp.term): Exp.t =>
+      IdTagged.mk_internal(
+        [Id.derive(~salt="autolabel:" ++ salt, Exp.rep_id(uexp))],
+        term,
+      );
+    let original_expression = derived("value", term);
     let (inner_info, _, m) =
       uexp_to_info_map(
         ~ctx,
@@ -329,11 +337,14 @@ and uexp_to_info_map =
     let elaborated_exp =
       rewrap(
         Tuple([
-          TupLabel(Label(l) |> Exp.fresh, original_expression) |> Exp.fresh,
+          derived(
+            "field",
+            TupLabel(derived("label", Label(l)), original_expression),
+          ),
         ]),
       );
 
-    let (info, _, m) =
+    let (info, tuple_elab, m) =
       uexp_to_info_map(
         ~ctx,
         ~ana,
@@ -354,6 +365,14 @@ and uexp_to_info_map =
     };
 
     let m = add_info(IdTagged.ids(elaborated_exp), InfoExp(info), m);
+    /* The program has the tuple at this id, so the entry records the
+       tuple's elaboration and its type; the rest (marks, message) stays the
+       value's, for the cursor. */
+    let inner_for_source = {
+      ...inner_for_source,
+      elab_term: tuple_elab,
+      elab_syn_ty: info.elab_syn_ty,
+    };
     let m = add_info(IdTagged.ids(uexp), InfoExp(inner_for_source), m);
     (info, elaborated_exp, m);
   };
@@ -438,6 +457,26 @@ and uexp_to_info_map =
       let (e, e_elab, m) = go(~ana=t_ty, ~ctx=t.ctx, e, m);
       let typ_refs =
         ModuleHelpers.collect_module_refs_in_typ(ctx, Typ.rep_id(t2), t2);
+      /* A non-tuple ascribed a labeled singleton is lifted into it, as a
+         `let` with the same pattern ascription does: `e : (x=T)` elaborates
+         like `let p : (x=T) = e in p`. A bare `lab=e` is not a tuple either,
+         so `(x=1) : (y=Int)` lifts to `(y=(x=1))`, as analysis already does
+         for parsed `(x=1)`. Tuples keep their own labels here. */
+      let rec unparens = (e: Exp.t) =>
+        switch (Exp.term_of(e)) {
+        | Parens(e) => unparens(e)
+        | _ => e
+        };
+      let e_elab =
+        switch (
+          Typ.term_of(Typ.weak_head_normalize(ctx, t_ty)),
+          Exp.term_of(unparens(e_elab)),
+        ) {
+        | (Prod([{term: TupLabel(_), _}]), Tuple(_)) => e_elab
+        | (Prod([{term: TupLabel(_), _}]), _) =>
+          LabeledTupleHelpers.align_exp_if_needed(ctx, t_ty, e_elab)
+        | _ => e_elab
+        };
       add(
         ~elab_term=Asc(e_elab, Typ.normalize(ctx, t2)) |> rewrap,
         ~elab_syn_ty=t_ty,
@@ -741,7 +780,13 @@ and uexp_to_info_map =
          negation instead of locking the operand to Int. */
       let op =
         switch (Typ.is_ana_atom(ana)) {
-        | Some(_) as ana_cls => Operators.replace_un_op_cls(op, ana_cls, None)
+        | Some(Int | Nat | Float | SInt) as ana_cls =>
+          Operators.replace_un_op_cls(op, ana_cls, None)
+        /* A non-numeric class (`- 33` analyzed against Bool, as in
+           `proof_object - 33 end`) says nothing about which negation this
+           is; decide by the operand, as a fresh synthesis of the same term
+           would. */
+        | Some(Bool | String)
         | None =>
           let (peek, _, _) = go(~ana=syn, e, m);
           Operators.replace_un_op_cls(
@@ -1262,18 +1307,29 @@ and uexp_to_info_map =
         m,
       )
     | BuiltinFun(string) =>
-      let (syn_b, marks_b) =
-        switch (Ctx.lookup_var(Builtins.ctx_init(None), string)) {
-        | None => (SynTy.unknown_internal(), [Mark.Free(string)])
-        | Some(var) => (var.typ, [])
-        };
-      add(
-        ~elab_term=BuiltinFun(string) |> rewrap,
-        ~elab_syn_ty=syn_b,
-        ~marks=marks_b,
-        ~co_ctx=CoCtx.empty,
-        m,
-      );
+      switch (Ctx.lookup_var(Builtins.ctx_init(None), string)) {
+      | Some(var) =>
+        add(
+          ~elab_term=BuiltinFun(string) |> rewrap,
+          ~elab_syn_ty=var.typ,
+          ~marks=[],
+          ~co_ctx=CoCtx.empty,
+          m,
+        )
+      | None =>
+        /* Dynamics raises InvalidBuiltin for any name outside
+           Builtins.forms_init, so an unknown one must not stay a BuiltinFun.
+           Invalid is Indet under Transition and synthesizes the same
+           Unknown(Internal). Not Var, which would resolve against an
+           enclosing binding of the same name. */
+        add(
+          ~elab_term=Invalid(string) |> rewrap,
+          ~elab_syn_ty=SynTy.unknown_internal(),
+          ~marks=[Mark.Free(string)],
+          ~co_ctx=CoCtx.empty,
+          m,
+        )
+      }
 
     | Dot(e1, e2) =>
       let (info_e1, e1_elab, m) = go(~ana=syn, e1, m);
@@ -1931,7 +1987,11 @@ and uexp_to_info_map =
             ]
           };
         };
-      let elab_term = Fun(p_elab, e_elab, Some(p.ty), n) |> rewrap;
+      /* Normalize like every other elaborated type position: `p.ty` is a meet
+         with the analyzed type, so it can still carry surface-only sugar —
+         `Parens`, aliases, or a `Sig` whose `SigLet` items hold patterns. */
+      let elab_term =
+        Fun(p_elab, e_elab, Some(Typ.normalize(ctx, p.ty)), n) |> rewrap;
       add(
         ~elab_term,
         ~elab_syn_ty=syn_ty_fun,
@@ -2199,10 +2259,29 @@ and uexp_to_info_map =
            * introduced into the cached closure value. */
           let fun_id = Exp.rep_id(def_elab);
           let def_elab = IdTagged.fresh_deterministic(fun_id, def_elab.term);
+          /* `fix` types itself from its binder's annotation, so an
+             unannotated `let f = fun _ -> f` would elaborate to a fixpoint
+             that re-checks as `?`. Annotate the binder with the type the
+             name is bound at, as `let f : ? -> ? = …` already gets. */
+          let p_fix =
+            switch (Pat.term_of(p_elab)) {
+            | Asc(_) => p_elab
+            | _ => Asc(p_elab, ty_p_ana) |> Pat.fresh
+            };
+          /* Ascribe the body as the FixF rule does when it differs from the
+             binder (`let x = fun y -> x`: `? -> (? -> ?)` against `? -> ?`),
+             so re-elaborating the fixpoint leaves it unchanged. */
+          let def_elab =
+            Typ.fast_equal(def.elab_syn_ty, ty_p_ana)
+              ? def_elab
+              : IdTagged.fresh_deterministic(
+                  Exp.rep_id(def_elab),
+                  Asc(def_elab, ty_p_ana): Exp.term,
+                );
           let fixf =
             IdTagged.mk_internal(
               [fun_id],
-              FixF(p_elab, def_elab, None): Exp.term,
+              FixF(p_fix, def_elab, None): Exp.term,
             );
           /* The InfoExp at fun_id was written when `go` traversed the
            * surface Fun above; its co_ctx contains the Fun's free vars,
@@ -2218,9 +2297,14 @@ and uexp_to_info_map =
             | Some(Info.InfoExp(info)) =>
               add_info(
                 [fun_id],
+                /* The program has the FixF at this id, so record it (and the
+                   type it synthesizes, its binder's) as the elab_term too:
+                   evaluation and the cache see the FixF. */
                 Info.InfoExp({
                   ...info,
                   co_ctx: CoCtx.mk(ctx, p_ana.ctx, info.co_ctx),
+                  elab_term: fixf,
+                  elab_syn_ty: ty_p_ana,
                 }),
                 m,
               )
@@ -2246,14 +2330,32 @@ and uexp_to_info_map =
           ]),
         m,
       );
-    | Theorem({term: Var(_), _} as p, e1, e2) =>
+    | Theorem(p, e1, e2) when Pat.theorem_binder(p) != None =>
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
       let (e1', e1_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
+      /* The binder may sit in parens or an explicit-nonlabel singleton
+         (`theorem (_=x)`); analyze it against the proof type in the same
+         shape, so the name it binds gets the proof type. */
+      let rec binder_ana = (p: Pat.t, ty: Typ.t): Typ.t =>
+        switch (p.term) {
+        | Parens(p)
+        | TupLabel(_, p) => binder_ana(p, ty)
+        | Tuple([{term: TupLabel(_, p), _}]) =>
+          Prod([
+            TupLabel(Typ.temp(ExplicitNonlabel), binder_ana(p, ty))
+            |> Typ.temp,
+          ])
+          |> Typ.temp
+        | Tuple([p]) => Prod([binder_ana(p, ty)]) |> Typ.temp
+        | _ => ty
+        };
       let (p', _, _) =
         go_pat(
           ~is_synswitch=false,
           ~co_ctx=CoCtx.empty,
-          ~ana=Typ.fresh(ProofOf(e1)),
+          /* Quote the elaborated proposition, matching what ProofObject
+             synthesizes. */
+          ~ana=binder_ana(p, Typ.fresh(ProofOf(e1_elab))),
           p,
           m,
         );
@@ -2307,7 +2409,12 @@ and uexp_to_info_map =
       let (_, e_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e, m);
       add(
         ~elab_term=ProofObject(e_elab) |> rewrap,
-        ~elab_syn_ty=Typ.temp(ProofOf(e)),
+        /* Quote the elaborated body, matching `elab_term`: statics on an
+           elaborated program yields `proof_of e_elab`, so quoting the user
+           term left `proof_of` types unstable under re-elaboration and broke
+           the `fast_equal` side condition on the (ProofObject, ProofOf)
+           ascription rule. */
+        ~elab_syn_ty=Typ.temp(ProofOf(e_elab)),
         ~marks=[],
         ~co_ctx=CoCtx.empty,
         m,
@@ -2319,8 +2426,14 @@ and uexp_to_info_map =
       let (p'', p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=e'.co_ctx, ~ana, p, m);
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
-      let elab_term =
-        FixF(p_elab, Asc(e_elab, p'.ty) |> Exp.fresh, env) |> rewrap;
+      /* Ascribe only when it would change the body's type; wrapping
+         unconditionally added an `Asc` layer per elaboration pass.
+         `fast_equal` drops identity casts only, never a consistency cast
+         such as `?` => Int. */
+      let body_elab =
+        Typ.fast_equal(e'.elab_syn_ty, p'.ty)
+          ? e_elab : Asc(e_elab, p'.ty) |> Exp.fresh;
+      let elab_term = FixF(p_elab, body_elab, env) |> rewrap;
       add(
         ~elab_term,
         ~elab_syn_ty=p'.elab_syn_ty,
@@ -2698,9 +2811,37 @@ and uexp_to_info_map =
          annotations, and the Module's own add() checks the overall type against
          ana. Using ~ana here would double-count type inconsistencies (once on
          the expansion's inner tuple, once on the Module expression). */
-      let lowered = ModuleHelpers.lower(~ctx, ~ana, items);
+      let lowered =
+        ModuleHelpers.lower(~ctx, ~ana, ~module_id=Exp.rep_id(uexp), items);
       let (expanded_info, expanded_elab, m) = go(lowered.expanded, m);
       let m = ModuleHelpers.reclassify_expanded_module_items(items, m);
+      /* Each item's recorded elab_term is a suffix of the module's
+         elaboration, which carries the module's id on its export record
+         (restore_module_body_id). Match it, or a trailing `type` item, whose
+         elab_term is just that record, stays rooted at the lowering's fresh
+         id. */
+      let m =
+        List.fold_left(
+          (m, item: Mod.t) =>
+            switch (StaticsBase.Map.lookup_exp(Mod.rep_id(item), m)) {
+            | Some(info) =>
+              StaticsBase.Map.add_info(
+                IdTagged.ids(item),
+                Info.InfoExp({
+                  ...info,
+                  elab_term:
+                    ModuleHelpers.restore_module_body_id(
+                      ~id=Exp.rep_id(uexp),
+                      info.elab_term,
+                    ),
+                }),
+                m,
+              )
+            | None => m
+            },
+          m,
+          items,
+        );
       /* Build actual Prod type from module's exported bindings, rather than
          using expanded_info.ty which masks width errors via fixed_typ. */
       let actual_ty =
@@ -2712,6 +2853,7 @@ and uexp_to_info_map =
       let module_elab =
         ModuleHelpers.module_elab(
           ~module_exp_id=Exp.rep_id(uexp),
+          ~keep=ModuleHelpers.user_item_ascriptions(items),
           expanded_elab,
         );
       add(
@@ -3214,7 +3356,10 @@ and upat_to_info_map =
         );
       (p, p_elab, add_info(ids, InfoPat(p), m));
     | ExplicitNonlabel =>
+      /* Bare `_` in pat sort is ExplicitNonlabel at the MakeTerm tip, but
+         PatternMatch expects Wild. Elaborate like Wild; keep the mark. */
       add(
+        ~elab_term=Wild |> rewrap,
         ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
         ~marks=[ExplicitNonlabel],
         ~ctx,
@@ -3602,15 +3747,24 @@ and upat_to_info_map =
     | Constructor(ctr, ty) =>
       let (syn_ctr, cms_ctr) =
         ConstructorStaticsHelpers.syn_marks_ctr(ctx, ctr, ana, ty);
+      /* A resolved annotation wins, mirroring syn_marks_ctr's precedence, so
+         the type we record and the one we bake into elab_term agree.
+         Some(None) falls through: it is an unresolved slot that `ana` may
+         still fill, not a resolution to nothing. */
       let elab_ty =
-        switch (
-          ConstructorStaticsHelpers.ctr_ana_typ(ctx, ana, ctr),
-          Ctx.lookup_ctr(ctx, ctr),
-        ) {
-        | (Some(ana_ty), _) => Some(Typ.normalize(ctx, ana_ty))
-        | (_, Some({typ: elab_syn_ty, _})) =>
-          Some(Typ.normalize(ctx, elab_syn_ty))
-        | _ => None
+        switch (ty) {
+        | Some(Some(ann_ty)) => Some(Typ.normalize(ctx, ann_ty))
+        | Some(None)
+        | None =>
+          switch (
+            ConstructorStaticsHelpers.ctr_ana_typ(ctx, ana, ctr),
+            Ctx.lookup_ctr(ctx, ctr),
+          ) {
+          | (Some(ana_ty), _) => Some(Typ.normalize(ctx, ana_ty))
+          | (_, Some({typ: elab_syn_ty, _})) =>
+            Some(Typ.normalize(ctx, elab_syn_ty))
+          | _ => None
+          }
         };
       add(
         ~elab_term=Constructor(ctr, Some(elab_ty)) |> rewrap,

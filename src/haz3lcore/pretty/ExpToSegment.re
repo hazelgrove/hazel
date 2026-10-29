@@ -258,6 +258,8 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Label(_)
   | Constructor(_)
   | LivelitName(_)
+  /* Treated as atomic for paren_at inside `(a=1, b=2)` so fields don't get
+     extra parens. Bare `a=e` still needs wrapping — see parenthesize TupLabel. */
   | TupLabel(_) => Precedence.max
 
   // Same goes for forms which are already surrounded
@@ -314,6 +316,7 @@ let external_precedence_pat = (dp: Pat.t) =>
   | Atom(Bool(_) | Int(_) | SInt(_) | Float(_) | String(_) | Nat(_))
   | Constructor(_)
   | Label(_)
+  /* Atomic inside `(a=p, b=q)`; bare labeled pats wrap in parenthesize_pat. */
   | TupLabel(_) => Precedence.max
 
   // Same goes for forms which are already surrounded
@@ -343,8 +346,10 @@ let external_precedence_typ = (tp: Typ.t) =>
   | Atom(_)
   | DrvQuoteTy(_)
   | Label(_)
-  | ExplicitNonlabel
-  | TupLabel(_) => Precedence.max
+  | ExplicitNonlabel => Precedence.max
+  /* Surface form is `label=type` (infix `=`), not atomic. Needs parens under
+     projection: `T . (a=U)`. Tighter than comma so bare in products. */
+  | TupLabel(_) => Precedence.lab
   | ProdProjection(_) => Precedence.dot
   | ProdExtension(_) => Precedence.ap
   // Same goes for forms which are already surrounded
@@ -445,6 +450,36 @@ let paren_typ_at =
       ? Typ.fresh(Parens(typ)) : typ
   };
 
+/* An invalid face is an Exp-sorted tile, so a bare one on the LEFT of a type
+   infix drags the type out of Typ sort: `^w^ -> Int` molds to an Exp MultiHole
+   and loses the arrow, while `(^w^) -> Int` is an Arrow to both parsers. The
+   right operand is already coerced to a type. Precedence can't cover this —
+   an invalid hole is atomic, so it never trips `paren_typ_at`. */
+/* `lab=e` has no delimiters of its own, so a labeled field whose value is
+   itself labeled prints as `_=_=e`, which does not parse. Parenthesize the
+   inner one. Precedence cannot express this: TupLabel is atomic everywhere
+   else, and making it an operator reparenthesizes every labeled tuple. */
+let paren_nested_tup_label =
+    (~parenthesization: Settings.parenthesization, e: Exp.t): Exp.t =>
+  switch (parenthesization, e.term) {
+  | (Defensive, TupLabel(_)) => Parens(e) |> Exp.fresh
+  | _ => e
+  };
+
+let paren_nested_tup_label_pat =
+    (~parenthesization: Settings.parenthesization, p: Pat.t): Pat.t =>
+  switch (parenthesization, p.term) {
+  | (Defensive, TupLabel(_)) => Parens(p) |> Pat.fresh
+  | _ => p
+  };
+
+let paren_invalid_typ_lhs =
+    (~parenthesization: Settings.parenthesization, typ: Typ.t): Typ.t =>
+  switch (parenthesization, typ.term) {
+  | (Defensive, Unknown(Hole(Invalid(_)))) => Typ.fresh(Parens(typ))
+  | _ => typ
+  };
+
 let paren_typ_assoc_at =
     (
       ~parenthesization: Settings.parenthesization,
@@ -478,6 +513,7 @@ let rec parenthesize =
   let paren_assoc_at = paren_assoc_at(~parenthesization);
   let paren_pat_at = paren_pat_at(~parenthesization);
   let paren_typ_at = paren_typ_at(~parenthesization);
+  let paren_nested_tup_label = paren_nested_tup_label(~parenthesization);
   /* For tuples: with Structural, don't auto-wrap in parens */
   let should_auto_wrap_tuple = parenthesization == Defensive;
   let (term, rewrap) = Exp.unwrap(exp);
@@ -497,9 +533,12 @@ let rec parenthesize =
   | Label(_)
   | Undefined => exp
 
-  // Forms that currently need to stripped before outputting
+  /* Forms stripped before outputting. They print as their child, so they must
+     not change its parenthesization: dropping `already_paren` here wrapped an
+     ap argument's tuple, turning `f(_, _)` into `f((_, _))` — a plain Ap
+     rather than a DeferredAp. */
   | Closure(_, x)
-  | DynamicErrorHole(x, _) => parenthesize(x)
+  | DynamicErrorHole(x, _) => parenthesize(~already_paren, x)
   | Filter(Filter({pat, act}), x) =>
     Filter(
       Filter({
@@ -509,7 +548,7 @@ let rec parenthesize =
       parenthesize(x),
     )
     |> rewrap
-  | Filter(Residue(_), x) => x |> parenthesize
+  | Filter(Residue(_), x) => x |> parenthesize(~already_paren)
   // Other forms
   | Constructor(c, t) =>
     Constructor(c, Option.map(Option.map(paren_typ_at(Precedence.asc)), t))
@@ -541,7 +580,9 @@ let rec parenthesize =
     let inner =
       TupLabel(
         ExplicitNonlabel |> Exp.temp,
-        parenthesize(e) |> paren_at(Precedence.comma),
+        parenthesize(~already_paren=true, e)
+        |> paren_at(Precedence.comma)
+        |> paren_nested_tup_label,
       )
       |> rewrap;
 
@@ -551,9 +592,13 @@ let rec parenthesize =
       Parens(inner) |> Exp.fresh;
     };
   | Tuple(es) =>
+    /* Fields are already inside `(…)` when we auto-wrap; pass already_paren
+       so labeled fields don't become `((a=1), (b=2))`. */
     let inner =
       Tuple(
-        es |> List.map(parenthesize) |> List.map(paren_at(Precedence.comma)),
+        es
+        |> List.map(parenthesize(~already_paren=true))
+        |> List.map(paren_at(Precedence.comma)),
       )
       |> rewrap;
 
@@ -563,7 +608,18 @@ let rec parenthesize =
       Parens(inner) |> Exp.fresh;
     };
   | TupLabel(l, e) =>
-    TupLabel(l, parenthesize(e) |> paren_at(Precedence.comma)) |> rewrap
+    /* Menhir only accepts `lab=e` inside `(…)`. Wrap when bare (let/theorem
+       binder, root exp); skip when a Tuple/Parens parent set already_paren. */
+    let inner =
+      TupLabel(
+        parenthesize(l) |> paren_at(Precedence.comma),
+        parenthesize(e)
+        |> paren_at(Precedence.comma)
+        |> paren_nested_tup_label,
+      )
+      |> rewrap;
+    already_paren || !should_auto_wrap_tuple
+      ? inner : Parens(inner) |> Exp.fresh;
   | Dot(e, l) =>
     Dot(
       parenthesize(e) |> paren_at(Precedence.dot),
@@ -665,7 +721,14 @@ let rec parenthesize =
   | Asc(e, _) => parenthesize(e) // skip ascription if not showing
   | Test(e) => Test(parenthesize(e) |> paren_at(Precedence.min)) |> rewrap
   | HintedTest(e, hint) =>
-    HintedTest(parenthesize(e) |> paren_at(Precedence.min), hint) |> rewrap
+    /* Always paren the hint. A hint starting with `test…end` otherwise
+       completes HintedTest's own `test` shard during LTR insert instead of
+       expanding a nested Test. `paren_at(max)` always fires, unlike `min`. */
+    HintedTest(
+      parenthesize(e) |> paren_at(Precedence.min),
+      parenthesize(hint) |> paren_at(Precedence.max),
+    )
+    |> rewrap
   | Parens(e) =>
     Parens(parenthesize(~already_paren=true, e) |> paren_at(Precedence.min))
     |> rewrap
@@ -736,8 +799,58 @@ let rec parenthesize =
       ),
     )
     |> rewrap
-  | Module(_) => exp /* Phase 1.2: proper module parenthesization */
-  | ModuleExp(_) => exp
+  /* Item payloads still need TupLabel wrapping; `;` absorption happens in
+     paren_for_mod_item. */
+  | Module(items) =>
+    Module(
+      List.map(
+        (item: Mod.t) => {
+          let term: Mod.term =
+            switch (item.term) {
+            | ModLet(p, e) =>
+              ModLet(
+                parenthesize_pat(p) |> paren_pat_at(Precedence.min),
+                parenthesize(e) |> paren_at(Precedence.min),
+              )
+            | ModuleMod(mp, e) =>
+              ModuleMod(mp, parenthesize(e) |> paren_at(Precedence.min))
+            | ModExp(e) =>
+              ModExp(parenthesize(e) |> paren_at(Precedence.min))
+            | ModType(tp, t) =>
+              ModType(
+                tp,
+                parenthesize_typ(t) |> paren_typ_at(Precedence.min),
+              )
+            | MultiHole(xs) =>
+              MultiHole(
+                List.map(
+                  parenthesize_any(
+                    ~parenthesization,
+                    ~show_ascriptions,
+                    ~show_filters,
+                  ),
+                  xs,
+                ),
+              )
+            | Invalid(_)
+            | EmptyHole => item.term
+            };
+          {
+            ...item,
+            term,
+          };
+        },
+        items,
+      ),
+    )
+    |> rewrap
+  | ModuleExp(mp, def, body) =>
+    ModuleExp(
+      mp,
+      parenthesize(def) |> paren_at(Precedence.min),
+      parenthesize(body) |> paren_assoc_at(Precedence.let_),
+    )
+    |> rewrap
   };
 }
 and parenthesize_pat =
@@ -756,6 +869,8 @@ and parenthesize_pat =
   let paren_pat_at = paren_pat_at(~parenthesization);
   let paren_pat_assoc_at = paren_pat_assoc_at(~parenthesization);
   let paren_typ_at = paren_typ_at(~parenthesization);
+  let paren_nested_tup_label_pat =
+    paren_nested_tup_label_pat(~parenthesization);
   let should_auto_wrap_tuple = parenthesization == Defensive;
   let (term, rewrap) = Pat.unwrap(pat);
   switch (term) {
@@ -785,11 +900,28 @@ and parenthesize_pat =
       parenthesize_pat(p2) |> paren_pat_assoc_at(Precedence.cons),
     )
     |> rewrap
+  | Tuple([p])
+      when
+        switch (p.term) {
+        | TupLabel(_) => false
+        | _ => true
+        } =>
+    /* Match exp: single-element tuples print as (_=p). */
+    let inner =
+      TupLabel(
+        ExplicitNonlabel |> Pat.fresh,
+        parenthesize_pat(~already_paren=true, p)
+        |> paren_pat_at(Precedence.comma)
+        |> paren_nested_tup_label_pat,
+      )
+      |> rewrap;
+    already_paren || !should_auto_wrap_tuple
+      ? inner : Parens(inner) |> Pat.fresh;
   | Tuple(ps) =>
     let inner =
       Tuple(
         ps
-        |> List.map(parenthesize_pat)
+        |> List.map(parenthesize_pat(~already_paren=true))
         |> List.map(paren_pat_at(Precedence.comma)),
       )
       |> rewrap;
@@ -797,8 +929,18 @@ and parenthesize_pat =
       ? inner : Parens(inner) |> Pat.fresh;
   | Label(_) => pat
   | TupLabel(l, p) =>
-    TupLabel(l, parenthesize_pat(p) |> paren_pat_at(Precedence.comma))
-    |> rewrap
+    /* Menhir only accepts `lab=p` inside `(…)`. Wrap when bare; skip when a
+       Tuple/Parens parent set already_paren. */
+    let inner =
+      TupLabel(
+        l,
+        parenthesize_pat(p)
+        |> paren_pat_at(Precedence.comma)
+        |> paren_nested_tup_label_pat,
+      )
+      |> rewrap;
+    already_paren || !should_auto_wrap_tuple
+      ? inner : Parens(inner) |> Pat.fresh;
   | ListLit(ps) =>
     ListLit(
       ps
@@ -843,6 +985,7 @@ and parenthesize_typ =
     parenthesize_typ(~parenthesization, ~show_filters, ~show_ascriptions);
   let paren_typ_at = paren_typ_at(~parenthesization);
   let paren_typ_assoc_at = paren_typ_assoc_at(~parenthesization);
+  let paren_invalid_typ_lhs = paren_invalid_typ_lhs(~parenthesization);
   let paren_at = paren_at(~parenthesization);
   let should_auto_wrap_tuple = parenthesization == Defensive;
   let (term, rewrap) = Typ.unwrap(typ);
@@ -888,11 +1031,21 @@ and parenthesize_typ =
     } else {
       Parens(inner) |> Typ.fresh;
     };
+  | Prod([{term: TupLabel(_), _} as field]) =>
+    /* A labeled singleton prints as its field alone, so no tile would carry
+       the Prod's ids. Print it as the parenthesized field MakeTerm parses
+       `(a=T)` back to, the parens taking the Prod's ids; inside parens that
+       are already there the Prod has nothing to print as. */
+    let field =
+      parenthesize_typ(~already_paren=true, field)
+      |> paren_typ_at(Precedence.comma);
+    already_paren || !should_auto_wrap_tuple
+      ? field : Parens(field) |> rewrap;
   | Prod(ts) =>
     let inner =
       Prod(
         ts
-        |> List.map(parenthesize_typ)
+        |> List.map(parenthesize_typ(~already_paren=true))
         |> List.map(paren_typ_at(Precedence.comma)),
       )
       |> rewrap;
@@ -901,18 +1054,31 @@ and parenthesize_typ =
   | ExplicitNonlabel => typ
   | Label(_) => typ
   | TupLabel(l, t) =>
-    TupLabel(l, parenthesize_typ(t) |> paren_typ_at(Precedence.type_prod))
-    |> rewrap
+    /* Menhir only accepts `lab=T` inside `(…)`. Wrap when bare (`use`,
+       ascription, etc.); skip when a Prod/Parens parent set already_paren. */
+    let inner =
+      TupLabel(l, parenthesize_typ(t) |> paren_typ_at(Precedence.type_prod))
+      |> rewrap;
+    already_paren || !should_auto_wrap_tuple
+      ? inner : Parens(inner) |> Typ.fresh;
   | ProdProjection(t1, t2) =>
+    /* The two parsers order `.` and `->` oppositely, so parenthesize both
+       sides at type_arrow and an arrow gets parens either way. */
     ProdProjection(
-      parenthesize_typ(t1) |> paren_typ_at(Precedence.dot),
-      parenthesize_typ(t2) |> paren_typ_at(Precedence.dot),
+      parenthesize_typ(t1)
+      |> paren_typ_at(Precedence.type_arrow)
+      |> paren_invalid_typ_lhs,
+      parenthesize_typ(t2) |> paren_typ_at(Precedence.type_arrow),
     )
     |> rewrap
   | ProdExtension(t1, t2) =>
+    /* `...` is right-associative in both parsers, so parenthesize like Arrow:
+       same-prec parens on the left keep `(A ... B) ... C` round-tripping. */
     ProdExtension(
-      parenthesize_typ(t1) |> paren_typ_assoc_at(Precedence.plus),
-      parenthesize_typ(t2) |> paren_typ_at(Precedence.plus),
+      parenthesize_typ(t1)
+      |> paren_typ_at(Precedence.ap)
+      |> paren_invalid_typ_lhs,
+      parenthesize_typ(t2) |> paren_typ_assoc_at(Precedence.ap),
     )
     |> rewrap
   | Rec(tp, t) =>
@@ -935,21 +1101,30 @@ and parenthesize_typ =
     |> rewrap
   | Arrow(t1, t2) =>
     Arrow(
-      parenthesize_typ(t1) |> paren_typ_at(Precedence.type_arrow),
+      parenthesize_typ(t1)
+      |> paren_typ_at(Precedence.type_arrow)
+      |> paren_invalid_typ_lhs,
       parenthesize_typ(t2) |> paren_typ_assoc_at(Precedence.type_arrow),
     )
     |> rewrap
   | Sum(ts) =>
-    Sum(
-      ConstructorMap.map(
-        ts =>
-          ts
-          |> Option.map(parenthesize_typ)
-          |> Option.map(paren_typ_at(Precedence.type_plus)),
-        ts,
-      ),
-    )
-    |> rewrap
+    /* Same sort trap, but a sum has no single protectable operand: an invalid
+       face anywhere in a bare sum pulls the whole ascription out of Typ sort
+       (`?:+^w^` loses even the ascription). `?:(+^w^)` agrees. */
+    /* map_preserving, not map: map leaves bad entries untouched, so
+       `+ (_=T)` printed its singleton bare and dropped the Prod's ids. */
+    let inner =
+      Sum(
+        ConstructorMap.map_preserving(
+          t => parenthesize_typ(t) |> paren_typ_at(Precedence.type_plus),
+          ts,
+        ),
+      )
+      |> rewrap;
+    already_paren
+    || parenthesization != Defensive
+    || !Typ.contains_invalid(typ)
+      ? inner : Parens(inner) |> Typ.fresh;
   | Unknown(Hole(MultiHole(xs))) =>
     Unknown(
       Hole(
@@ -1171,6 +1346,26 @@ let should_add_space = (s1, s2) =>
 
 let text_to_pretty = (id, sort, str): pretty => {
   let (form, sort) = Form.classify_label(sort, [str]);
+  p_just([
+    Tile({
+      id,
+      form,
+      sort,
+      shards: [0],
+      children: [],
+    }),
+  ]);
+};
+
+/* A module item's own token (a hole or invalid item): the editor molds it at
+   Mod and, with no Mod form, as the bare expression item it is (remold_mod's
+   Exp fallback), so `{ ? }` keeps an Exp `?` rather than an Any one. */
+let mod_item_token_to_pretty = (id, str): pretty => {
+  let (form, sort) =
+    switch (Form.classify_label(Sort.Mod, [str])) {
+    | (_, Sort.Any) => Form.classify_label(Sort.Exp, [str])
+    | fs => fs
+    };
   p_just([
     Tile({
       id,
@@ -1837,6 +2032,23 @@ let rec drv_formula_to_pretty: type a. (RuleFormula.t(a), DrvSort.t) => pretty =
 /* We assume that parentheses have already been added as necessary, and
       that the expression has no Closures or DynamicErrorHoles
    */
+/* Wrap module-item expression payloads so printed `;` is the module separator
+   (mod_seq), not Seq inside Use/Let/etc. */
+let paren_for_mod_item =
+    (~parenthesization: Settings.parenthesization, e: Exp.t): Exp.t =>
+  paren_at(~parenthesization, Precedence.semi, e);
+
+/* Module items skip exp-level parenthesize, so pats need the singleton
+   TuplePat → (_=p) rewrite here before pretty-printing. */
+let parenthesize_pat_for_print = (~settings: Settings.t, p: Pat.t): Pat.t =>
+  parenthesize_pat(
+    ~parenthesization=settings.parenthesization,
+    ~show_filters=settings.show_filters,
+    ~show_ascriptions=settings.show_ascriptions,
+    p,
+  )
+  |> paren_pat_at(~parenthesization=settings.parenthesization, Precedence.min);
+
 let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   let go = (~inline=settings.inline) =>
     exp_to_pretty(
@@ -1845,15 +2057,18 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
         inline,
       },
     );
+  let go_mod_exp = (e: Exp.t): pretty =>
+    go(paren_for_mod_item(~parenthesization=settings.parenthesization, e));
   let wrap = wrap_with_secondary(~secondary=settings.secondary);
   /* Use settings-aware concatenation and form building */
   let (@) = concat_segment(~secondary=settings.secondary);
   let mk_form = (~sort=Sort.Exp, fam, id, children) =>
     mk_form(~secondary=settings.secondary, ~sort, fam, id, children);
   switch (exp |> Exp.term_of) {
-  // Assume these have been removed by the parenthesizer
-  | DynamicErrorHole(_)
-  | Filter(Residue(_), _) => failwith("printing these not implemented yet")
+  /* Runtime-only wrappers; parenthesize should already have removed these.
+     Strip rather than fail so printing can't abort. */
+  | DynamicErrorHole(e, _)
+  | Filter(Residue(_), e) => go(e)
   | Filter(Filter({pat, act}), e) =>
     let id = exp |> Exp.rep_id;
     let* p = go(pat);
@@ -2491,8 +2706,12 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       |> List.map((item: Mod.t) =>
            switch (item.term) {
            | ModLet(p, e) =>
-             let+ p = pat_to_pretty(~settings, p)
-             and+ e = go(e);
+             let+ p =
+               pat_to_pretty(
+                 ~settings,
+                 parenthesize_pat_for_print(~settings, p),
+               )
+             and+ e = go_mod_exp(e);
              wrap_item(
                item,
                [mk_form(~sort=Sort.Mod, ModLet, item |> Mod.rep_id, [p])]
@@ -2511,12 +2730,12 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
                 its rep id (hence its secondary) with the inner exp, whose own
                 wrap already emits it — wrapping both duplicates the runs,
                 growing whitespace on every roundtrip. */
-             go(e)
+             go_mod_exp(e)
            | EmptyHole =>
              let item_id = item |> Mod.rep_id;
              let seg =
                switch (hole_lexeme(item.annotation)) {
-               | Some(tok) => text_to_pretty(item_id, Sort.Mod, tok)
+               | Some(tok) => mod_item_token_to_pretty(item_id, tok)
                | None => [
                    Grout({
                      id: item_id,
@@ -2534,7 +2753,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
              )
            | ModuleMod(mp, e) =>
              let mp_seg = mpat_to_seg(~settings, mp);
-             let+ e = go(e);
+             let+ e = go_mod_exp(e);
              wrap_item(
                item,
                [
@@ -3250,8 +3469,13 @@ and mod_to_pretty = (~settings: Settings.t, item: Mod.t): pretty => {
     mk_form(~secondary=settings.secondary, ~sort, fam, id, children);
   switch (item.term) {
   | ModLet(p, e) =>
-    let+ p = pat_to_pretty(~settings, p)
-    and+ e = exp_to_pretty(~settings, e);
+    let+ p =
+      pat_to_pretty(~settings, parenthesize_pat_for_print(~settings, p))
+    and+ e =
+      exp_to_pretty(
+        ~settings,
+        paren_for_mod_item(~parenthesization=settings.parenthesization, e),
+      );
     wrap_item(item, [mk_form(ModLet, item |> Mod.rep_id, [p])] @ e);
   | ModType(tp, t) =>
     let+ tp = tpat_to_pretty(~settings, tp)
@@ -3260,10 +3484,17 @@ and mod_to_pretty = (~settings: Settings.t, item: Mod.t): pretty => {
   | ModExp(e) =>
     /* No wrap_item: ModExp shares its rep id (hence secondary) with the
        inner exp; see the Module case in exp_to_pretty. */
-    exp_to_pretty(~settings, e)
+    exp_to_pretty(
+      ~settings,
+      paren_for_mod_item(~parenthesization=settings.parenthesization, e),
+    )
   | ModuleMod(mp, e) =>
     let mp_seg = mpat_to_seg(~settings, mp);
-    let+ e = exp_to_pretty(~settings, e);
+    let+ e =
+      exp_to_pretty(
+        ~settings,
+        paren_for_mod_item(~parenthesization=settings.parenthesization, e),
+      );
     wrap_item(
       item,
       [mk_form(ModuleMod, item |> Mod.rep_id, [mp_seg])] @ e,
@@ -3271,7 +3502,7 @@ and mod_to_pretty = (~settings: Settings.t, item: Mod.t): pretty => {
   | EmptyHole =>
     let seg =
       switch (hole_lexeme(item.annotation)) {
-      | Some(tok) => text_to_pretty(item |> Mod.rep_id, Sort.Mod, tok)
+      | Some(tok) => mod_item_token_to_pretty(item |> Mod.rep_id, tok)
       | None => [
           Grout({
             id: item |> Mod.rep_id,
