@@ -353,9 +353,40 @@ let log_projector = (pr: Base.projector): unit => {
 let to_variant_secondary =
     (sec: IdTagged.IdTag.secondary_runs): ConstructorMap.secondary_runs => sec;
 
-let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
-  fun
-  | {term: Var(ctr), annotation: {ids, secondary, _}} =>
+/* The constructor name a sum-type entry declares, looking through
+ * projectors: folding `A` in `type T = A + B` (or the head of `A(Int)`)
+ * must not turn the entry into a BadEntry. Parens are NOT looked
+ * through: a parenthesized name is not a declaration form, and the
+ * variant has nowhere to keep the parens, so the printer would drop
+ * them. Exhaustive, so a new wrapper form is decided here. */
+let rec typ_ctr_name = (t: Typ.t): option(string) =>
+  switch (t.term) {
+  | Var(name) => Some(name)
+  | Projector(_, t) => typ_ctr_name(t)
+  | Parens(_)
+  | Unknown(_)
+  | Atom(_)
+  | DrvQuoteTy(_)
+  | List(_)
+  | Arrow(_)
+  | Sum(_)
+  | Prod(_)
+  | ExplicitNonlabel
+  | Label(_)
+  | TupLabel(_)
+  | Rec(_)
+  | Poly(_)
+  | ProofOf(_)
+  | ProdProjection(_)
+  | ProdExtension(_)
+  | Sig(_) => None
+  };
+
+/* A variant's annotation is the visible head's (the projector's, when
+ * folded), so statics lands on the piece the user sees. */
+let parse_sum_term = (t: Typ.t): ConstructorMap.variant(Typ.t) =>
+  switch (typ_ctr_name(t), t) {
+  | (Some(ctr), {annotation: {ids, secondary, _}, _}) =>
     Variant(
       ctr,
       {
@@ -368,32 +399,29 @@ let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
      until they are reimplemented as their own sort, we must prevent these from being parsed
      into types, where they can go on to mess with statics. Thus we let them fall through to
      be parsed as multiholes, and then recognize them when we parse sum type definitions */
-  | {
-      term:
-        Unknown(
-          Hole(
-            MultiHole([
-              Typ({
-                term: Var(ctr),
-                annotation: {ids: ids_ctr, secondary: (inner_before, _), _},
-              }),
-              Typ(u),
-            ]),
-          ),
-        ),
-      annotation: {ids: ids_ap, secondary: (_, outer_after), _},
-    } =>
-    /* For constructor applications, use the inner before (constructor's leading space)
-       and outer after (trailing space on the whole application) for round-tripping */
-    Variant(
-      ctr,
+  | (
+      None,
       {
-        ids: ids_ctr @ ids_ap,
-        secondary: (inner_before, outer_after),
+        term: Unknown(Hole(MultiHole([Typ(head), Typ(u)]))),
+        annotation: {ids: ids_ap, secondary: (_, outer_after), _},
       },
-      Some(u),
-    )
-  | t => BadEntry(t);
+    ) =>
+    switch (typ_ctr_name(head), head.annotation) {
+    | (Some(ctr), {ids: ids_ctr, secondary: (inner_before, _), _}) =>
+      /* For constructor applications, use the inner before (constructor's leading space)
+         and outer after (trailing space on the whole application) for round-tripping */
+      Variant(
+        ctr,
+        {
+          ids: ids_ctr @ ids_ap,
+          secondary: (inner_before, outer_after),
+        },
+        Some(u),
+      )
+    | (None, _) => BadEntry(t)
+    }
+  | (None, _) => BadEntry(t)
+  };
 
 /* The token of a single-token form (grout's pseudo-token " " excluded):
    the lexeme an unknown-operator hole records. Label-derived, so a
@@ -403,6 +431,32 @@ let op_lexeme = (f: Form.t): option(Token.t) =>
   | [t] when t != " " => Some(t)
   | _ => None
   };
+
+/* The hole for a construct no arm parsed. When the construct is a
+ * single kidless operator tile with its operand(s) (an unknown
+ * operator, or a defined one stranded at a foreign sort or between
+ * mixed-sort kids, e.g. the : in `? : ? t ?` parsing as
+ * Bin(Exp, [:], Typ) in a typ context), the operator's spelling is
+ * recorded as the hole's lexeme, so the printers' 1- and 2-kid
+ * MultiHole op branches put it back. Every hole-returning catch-all of
+ * the sorted parsers that can see such a construct goes through here,
+ * so no sort-specific catch-all can shadow it and drop the spelling.
+ * The op_lexeme guard matters: grout arrives as the pseudo-token " ",
+ * and juxtaposition must NOT carry a lexeme -- the elaborator uses its
+ * presence to distinguish stuck applications from transient
+ * juxtaposition. */
+let op_hole = (hole: unsorted => 'term, tm: unsorted): 'term => {
+  switch (tm) {
+  | Bin(_, ([(_, (F(f), []))], []), _)
+  | Pre(([(_, (F(f), []))], []), _) =>
+    Option.iter(set_lexeme, op_lexeme(f))
+  | Op(_)
+  | Pre(_)
+  | Post(_)
+  | Bin(_) => ()
+  };
+  hole(tm);
+};
 
 let is_hole_label = (t: string) =>
   t == " "
@@ -450,11 +504,115 @@ let all_exp_only = (~host: Sort.t, tm: unsorted): bool =>
   | heads => List.for_all(is_exp_only_head(~host), heads)
   };
 
+/* The name in a tuple-label (`x = 1`) or dot-projection (`t.x`) name
+ * position, looking through a projector: folding the `x` must keep it
+ * a label, not demote it to a MultiHole. The label is stored under the
+ * visible piece's annotation (the projector's, when folded); like any
+ * label it has nowhere to keep the projector itself. */
+let rec exp_label_name = (e: Exp.t): option(string) =>
+  switch (e.term) {
+  | Var(name)
+  | Constructor(name, None)
+  | Label(name) => Some(name)
+  | Projector(_, e) => exp_label_name(e)
+  | Constructor(_, Some(_))
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | DynamicErrorHole(_)
+  | Deferral(_)
+  | Undefined
+  | Atom(_)
+  | DrvQuote(_)
+  | ListLit(_)
+  | Fun(_)
+  | TypFun(_)
+  | Tuple(_)
+  | ExplicitNonlabel
+  | TupLabel(_)
+  | Dot(_)
+  | LivelitName(_)
+  | Let(_)
+  | Theorem(_)
+  | ProofObject(_)
+  | Forall(_)
+  | FixF(_)
+  | TyAlias(_)
+  | Use(_)
+  | Ap(_)
+  | TypAp(_)
+  | DeferredAp(_)
+  | If(_)
+  | Seq(_)
+  | Test(_)
+  | HintedTest(_)
+  | Filter(_)
+  | Closure(_)
+  | Parens(_)
+  | Cons(_)
+  | ListConcat(_)
+  | UnOp(_)
+  | BinOp(_)
+  | BuiltinFun(_)
+  | Match(_)
+  | TupleExtension(_)
+  | Asc(_)
+  | Module(_)
+  | ModuleExp(_) => None
+  };
+let rec pat_label_name = (p: Pat.t): option(string) =>
+  switch (p.term) {
+  | Var(name)
+  | Constructor(name, None)
+  | Label(name) => Some(name)
+  | Projector(_, p) => pat_label_name(p)
+  | Constructor(_, Some(_))
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | Wild
+  | ExplicitNonlabel
+  | Atom(_)
+  | ListLit(_)
+  | Cons(_)
+  | Tuple(_)
+  | TupLabel(_)
+  | Parens(_)
+  | Ap(_)
+  | Asc(_) => None
+  };
+let rec typ_label_name = (t: Typ.t): option(string) =>
+  switch (t.term) {
+  | Var(name)
+  | Label(name) => Some(name)
+  | Projector(_, t) => typ_label_name(t)
+  | Unknown(_)
+  | Atom(_)
+  | DrvQuoteTy(_)
+  | List(_)
+  | Arrow(_)
+  | Sum(_)
+  | Prod(_)
+  | ExplicitNonlabel
+  | TupLabel(_)
+  | Parens(_)
+  | Rec(_)
+  | Poly(_)
+  | ProofOf(_)
+  | ProdProjection(_)
+  | ProdExtension(_)
+  | Sig(_) => None
+  };
+
 /* Is this kid a constructor-named type variable? (the head of a
    potential sum-type constructor application) */
 let is_ctr_headed: Any.t => bool =
   fun
-  | Typ({term: Var(name), _}) => Token.is_ctr(name)
+  | Typ(t) =>
+    switch (typ_ctr_name(t)) {
+    | Some(name) => Token.is_ctr(name)
+    | None => false
+    }
   | _ => false;
 
 let is_exp_kid: Any.t => bool =
@@ -530,6 +688,9 @@ and drv_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
       | _ when Token.is_typ_var(t) => ret(Var(t))
       | _ => ret(hole(tm))
       }
+    /* Drv terms have no Projector node: a projector parses as its
+       body, under the projector's id (as for TPat) */
+    | (ProjWrap, [Drv(Exp(body))]) => ret(body.term)
     | (F(Compound(Val)), [Drv(Exp(e))]) => ret(Val(e))
     | (F(Compound(Valid)), [Drv(Typ(t))]) => ret(Type(t))
     | (F(Compound(ListLit)), [Drv(Exp(body))]) =>
@@ -615,17 +776,26 @@ and drv_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
     | F(Compound(MatchedSum)) => ret(MatchedSum(l, r))
     | _ => ret(hole(tm))
     }
-  | Post(Drv(Exp(l)), ([(_id, t)], [])) as tm =>
-    switch (t) {
-    | (F(Compound(Ap)), [Drv(Exp(r))]) =>
-      switch (l.term) {
-      | Var("L") => (InjL(r), IdTagged.ids(l))
-      | Var("R") => (InjR(r), IdTagged.ids(l))
-      | Var("roll") => (Roll(r), IdTagged.ids(l))
-      | Var("unroll") => (Unroll(r), IdTagged.ids(l))
-      | _ => ret(Ap(l, r))
-      }
-    | _ => ret(hole(tm))
+  | Post(Drv(Exp(l)), ([(_id, t)], [])) as tm => {
+      let ap = (r: Drv.Exp.t): (Drv.Exp.term, list(Id.t)) =>
+        switch (l.term) {
+        | Var("L") => (InjL(r), IdTagged.ids(l))
+        | Var("R") => (InjR(r), IdTagged.ids(l))
+        | Var("roll") => (Roll(r), IdTagged.ids(l))
+        | Var("unroll") => (Unroll(r), IdTagged.ids(l))
+        | _ => ret(Ap(l, r))
+        };
+      switch (t) {
+      | (F(Compound(Ap)), [Drv(Exp(r))]) => ap(r)
+      | (F(f), []) when is_empty_tuple_form(f) =>
+        /* `f()`: the argument is Triv under the nullary-ap flag id, as
+           in exp_term (the printer reads the flag back as `()`) */
+        ap({
+          annotation: IdTagged.IdTag.mk_internal([Id.nullary_ap_flag]),
+          term: Triv,
+        })
+      | _ => ret(hole(tm))
+      };
     }
   | _ as tm => ret(hole(tm));
 }
@@ -652,6 +822,8 @@ and drv_pat_term: unsorted => (Drv.Pat.term, list(Id.t)) = {
     }
   | Op(([(_id, (F(Compound(Parens)), [Drv(Pat(body))]))], [])) =>
     ret(Parens(body))
+  /* see the drv_exp_term ProjWrap case */
+  | Op(([(_id, (ProjWrap, [Drv(Pat(body))]))], [])) => ret(body.term)
   | Post(Drv(Pat(l)), ([(_id, (F(Compound(Ap)), [Drv(Pat(r))]))], [])) as tm =>
     switch (l.term) {
     | Var("L") => (InjL(r), IdTagged.ids(l))
@@ -702,6 +874,8 @@ and drv_typ_term: unsorted => (Drv.Typ.term, list(Id.t)) = {
     }
   | Op(([(_id, (F(Compound(Parens)), [Drv(Typ(body))]))], [])) =>
     ret(Parens(body))
+  /* see the drv_exp_term ProjWrap case */
+  | Op(([(_id, (ProjWrap, [Drv(Typ(body))]))], [])) => ret(body.term)
   | Pre(
       ([(_id, (F(Compound(Rec)), [Drv(TPat(p))]))], []),
       Drv(Typ(t)),
@@ -735,6 +909,8 @@ and drv_tpat_term: unsorted => (Drv.TPat.term, list(Id.t)) = {
     ret(Quote(t))
   | Op(([(_id, (F(Tok(t)), []))], [])) when Token.is_typ_var(t) =>
     ret(Var(t))
+  /* see the drv_exp_term ProjWrap case */
+  | Op(([(_id, (ProjWrap, [Drv(TPat(body))]))], [])) => ret(body.term)
   | _ as tm => ret(hole(tm));
 }
 
@@ -953,7 +1129,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           TyAlias(tpat, def, r)
         | (F(Compound(If)), [Exp(cond), Exp(conseq)]) =>
           If(cond, conseq, r)
-        | _ => hole(tm)
+        | _ => op_hole(hole, tm)
         },
       )
     | _ => ret(hole(tm))
@@ -1009,7 +1185,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
   | Bin(Exp(l), tiles, Typ(r)) as tm =>
     switch (tiles) {
     | ([(_id, (F(Compound(TypeAsc)), []))], []) => ret(Asc(l, r))
-    | _ => ret(hole(tm))
+    | _ => ret(op_hole(hole, tm))
     }
   | Bin(Exp(l), tiles, Exp(r)) as tm =>
     switch (is_tuple_exp(tiles)) {
@@ -1062,8 +1238,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           | F(Compound(StringConcat)) => BinOp(String(Concat), l, r)
           | F(Compound(TupleExtension)) => TupleExtension(l, r)
           | F(Compound(TupleLabeled)) =>
-            switch (l.term) {
-            | Deferral(_) =>
+            switch (l.term, exp_label_name(l)) {
+            | (Deferral(_), _) =>
               TupLabel(
                 {
                   annotation: l.annotation,
@@ -1071,8 +1247,9 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
                 },
                 r,
               ) // Unlabeled tuple using deferred ap in tuplabel
-            | Var(name)
-            | Constructor(name, None) =>
+            | (Label(_) | EmptyHole, _) => TupLabel(l, r)
+            /* a name, possibly folded */
+            | (_, Some(name)) =>
               TupLabel(
                 {
                   annotation: l.annotation,
@@ -1080,9 +1257,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
                 },
                 r,
               )
-            | Label(_) => TupLabel(l, r)
-            | EmptyHole => TupLabel(l, r)
-            | _ =>
+            | (_, None) =>
               /* Wrapper shares the inner term's ids but no secondary
                  (the inner term's own wrap emits it); a fresh inner
                  would churn ids and drop secondary on every roundtrip */
@@ -1095,9 +1270,10 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
               )
             }
           | F(Compound(Dot)) =>
-            switch (r.term) {
-            | Var(name)
-            | Constructor(name, _) =>
+            switch (r.term, exp_label_name(r)) {
+            | (Label(_) | EmptyHole, _) => Dot(l, r)
+            /* a name, possibly folded */
+            | (_, Some(name)) =>
               Dot(
                 l,
                 {
@@ -1105,9 +1281,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
                   term: Label(name),
                 },
               )
-            | Label(_) => Dot(l, r)
-            | EmptyHole => Dot(l, r)
-            | _ =>
+            | (_, None) =>
               /* See the TupLabel case above */
               Dot(
                 l,
@@ -1119,37 +1293,17 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
             }
           | F(Compound(Pipeline)) => Ap(Reverse, r, l)
           | F(Compound(ListConcat)) => ListConcat(l, r)
-          | F(f) when op_lexeme(f) != None =>
+          | _ =>
             /* Unknown infix operator: kids survive as a MultiHole and
                the operator token as its lexeme (printed back by
-               ExpToSegment; elaborated as a stuck application). The
-               guard matters: grout arrives as the pseudo-token " ",
-               and juxtaposition must NOT carry a lexeme — the
-               elaborator uses its presence to distinguish stuck
-               applications from transient juxtaposition. */
-            Option.iter(set_lexeme, op_lexeme(f));
-            hole(tm);
-          | _ => hole(tm)
+               ExpToSegment; elaborated as a stuck application) */
+            op_hole(hole, tm)
           },
         )
       | _ => ret(hole(tm))
       }
     }
-  | Bin(_, ([(_id, (F(f), []))], []), _) as tm when op_lexeme(f) != None => {
-      /* Unknown infix operator between mixed-sort kids (e.g. the : in
-         `? : ? t ?` parses as Bin(Exp, [:], Typ) in a typ context, so
-         the same-sort Bin patterns above cannot match) */
-
-      Option.iter(set_lexeme, op_lexeme(f));
-      ret(hole(tm));
-    }
-  | Pre(([(_id, (F(f), []))], []), _) as tm when op_lexeme(f) != None => {
-      /* Stranded prefix op; printed back by the 1-kid MultiHole op
-         branches */
-      Option.iter(set_lexeme, op_lexeme(f));
-      ret(hole(tm));
-    }
-  | tm => ret(hole(tm));
+  | tm => ret(op_hole(hole, tm));
 }
 and pat = unsorted => {
   let (term, inner_ids) = pat_term(unsorted);
@@ -1249,11 +1403,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
   | Bin(Pat(p), tiles, Typ(ty)) as tm =>
     switch (tiles) {
     | ([(_id, (F(Compound(TypeAsc)), []))], []) => ret(Asc(p, ty))
-    | ([(_id, (F(f), []))], []) when op_lexeme(f) != None =>
-      /* Unknown infix operator (see the exp Bin fallthrough) */
-      Option.iter(set_lexeme, op_lexeme(f));
-      ret(hole(tm));
-    | _ => ret(hole(tm))
+    | _ => ret(op_hole(hole, tm))
     }
   | Bin(Pat(l), tiles, Pat(r)) as tm =>
     switch (is_tuple_pat(tiles)) {
@@ -1272,8 +1422,8 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
     | None =>
       switch (tiles) {
       | ([(_id, (F(Compound(TupleLabeled)), []))], []) =>
-        switch (l.term) {
-        | Wild =>
+        switch (l.term, pat_label_name(l)) {
+        | (Wild, _) =>
           ret(
             TupLabel(
               {
@@ -1283,8 +1433,9 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
               r,
             ),
           ) // Unlabeled tuple using deferred ap in tuplabel
-        | Var(name)
-        | Constructor(name, None) =>
+        | (Label(_) | EmptyHole, _) => ret(TupLabel(l, r))
+        /* a name, possibly folded */
+        | (_, Some(name)) =>
           ret(
             TupLabel(
               {
@@ -1294,9 +1445,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
               r,
             ),
           )
-        | Label(_) => ret(TupLabel(l, r))
-        | EmptyHole => ret(TupLabel(l, r))
-        | _ =>
+        | (_, None) =>
           let (e_term, rewrap) = IdTagged.unwrap(l);
           ret(
             TupLabel(
@@ -1306,11 +1455,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
           );
         }
       | ([(_id, (F(Compound(Cons)), []))], []) => ret(Cons(l, r))
-      | ([(_id, (F(f), []))], []) when op_lexeme(f) != None =>
-        /* Unknown infix operator (see the exp Bin fallthrough) */
-        Option.iter(set_lexeme, op_lexeme(f));
-        ret(hole(tm));
-      | _ => ret(hole(tm))
+      | _ => ret(op_hole(hole, tm))
       }
     }
   | Pre(tiles, Pat(r)) as tm =>
@@ -1330,32 +1475,11 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
       | {term: Atom(Float(f)), annotation: {ids, _}} =>
         adopted_ids := ids @ adopted_ids^;
         (Atom(Float(-. f)), ids);
-      | _ =>
-        set_lexeme("-");
-        ret(hole(tm));
+      | _ => ret(op_hole(hole, tm))
       }
-    | ([(_id, (F(f), []))], []) when op_lexeme(f) != None =>
-      /* Stranded prefix op; printed back by the 1-kid MultiHole op
-         branches */
-      Option.iter(set_lexeme, op_lexeme(f));
-      ret(hole(tm));
-    | _ => ret(hole(tm))
+    | _ => ret(op_hole(hole, tm))
     }
-  | Bin(_, ([(_id, (F(f), []))], []), _) as tm when op_lexeme(f) != None => {
-      /* Unknown infix operator between mixed-sort kids (e.g. the : in
-         `? : ? t ?` parses as Bin(Exp, [:], Typ) in a typ context, so
-         the same-sort Bin patterns above cannot match) */
-
-      Option.iter(set_lexeme, op_lexeme(f));
-      ret(hole(tm));
-    }
-  | Pre(([(_id, (F(f), []))], []), _) as tm when op_lexeme(f) != None => {
-      /* Stranded prefix op; printed back by the 1-kid MultiHole op
-         branches */
-      Option.iter(set_lexeme, op_lexeme(f));
-      ret(hole(tm));
-    }
-  | tm => ret(hole(tm));
+  | tm => ret(op_hole(hole, tm));
 }
 and typ = unsorted => {
   let (term, inner_ids) = typ_term(unsorted);
@@ -1476,13 +1600,13 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
     | ([(_, (F(Compound(SumSingle)), []))], []) =>
       adopted_ids := ids @ adopted_ids^;
       (Sum(t0), ids);
-    | _ => ret(hole(tm))
+    | _ => ret(op_hole(hole, tm))
     }
   | Pre(tiles, Typ(t)) as tm =>
     switch (tiles) {
     | ([(_, (F(Compound(SumSingle)), []))], []) =>
       ret(Sum([parse_sum_term(t)]))
-    | _ => ret(hole(tm))
+    | _ => ret(op_hole(hole, tm))
     }
   | Bin(Typ(t1), tiles, Typ(t2)) as tm when is_typ_bsum(tiles) != None =>
     switch (is_typ_bsum(tiles)) {
@@ -1509,8 +1633,11 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       switch (tiles) {
       | ([(_id, (F(Compound(TypeArrow)), []))], []) => ret(Arrow(l, r))
       | ([(_id, (F(Compound(TupleLabeled)), []))], []) =>
-        switch (l.term) {
-        | Var(name) =>
+        switch (l.term, typ_label_name(l)) {
+        | (Label(_), _)
+        | (_, None) => ret(TupLabel(l, r))
+        /* a name, possibly folded */
+        | (_, Some(name)) =>
           ret(
             TupLabel(
               {
@@ -1520,11 +1647,13 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
               r,
             ),
           )
-        | _ => ret(TupLabel(l, r))
         }
       | ([(_id, (F(Compound(Dot)), []))], []) =>
-        switch (r.term) {
-        | Var(name) =>
+        switch (r.term, typ_label_name(r)) {
+        | (Label(_), _)
+        | (_, None) => ret(ProdProjection(l, r))
+        /* a name, possibly folded */
+        | (_, Some(name)) =>
           ret(
             ProdProjection(
               l,
@@ -1534,32 +1663,13 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
               },
             ),
           )
-        | _ => ret(ProdProjection(l, r))
         }
       | ([(_id, (F(Compound(TupleExtension)), []))], []) =>
         ret(ProdExtension(l, r))
-      | ([(_id, (F(f), []))], []) when op_lexeme(f) != None =>
-        /* Unknown infix operator (see the exp Bin fallthrough) */
-        Option.iter(set_lexeme, op_lexeme(f));
-        ret(hole(tm));
-      | _ => ret(hole(tm))
+      | _ => ret(op_hole(hole, tm))
       }
     }
-  | Bin(_, ([(_id, (F(f), []))], []), _) as tm when op_lexeme(f) != None => {
-      /* Unknown infix operator between mixed-sort kids (e.g. the : in
-         `? : ? t ?` parses as Bin(Exp, [:], Typ) in a typ context, so
-         the same-sort Bin patterns above cannot match) */
-
-      Option.iter(set_lexeme, op_lexeme(f));
-      ret(hole(tm));
-    }
-  | Pre(([(_id, (F(f), []))], []), _) as tm when op_lexeme(f) != None => {
-      /* Stranded prefix op; printed back by the 1-kid MultiHole op
-         branches */
-      Option.iter(set_lexeme, op_lexeme(f));
-      ret(hole(tm));
-    }
-  | tm => ret(hole(tm));
+  | tm => ret(op_hole(hole, tm));
 }
 and tpat = unsorted => {
   let term = tpat_term(unsorted);
@@ -1608,6 +1718,10 @@ and mod_term: unsorted => TermBase.Mod.term = {
       | (F(Tok(t)), []) when is_hole_label(t) =>
         set_lexeme(t);
         ret(hole(tm));
+      /* Mod terms have no Projector node: a projector parses as its
+         body, under the projector's id (as for TPat). Before the exp
+         fallback, which would register an Exp hole under that id. */
+      | (ProjWrap, [Mod(body)]) => ret(body.term)
       | _ =>
         /* Try parsing as expression and wrap as ModExp */
         let e = exp(Op(tiles));
@@ -1645,7 +1759,7 @@ and mod_term: unsorted => TermBase.Mod.term = {
   | Bin(Exp(_), _, Exp(_)) as tm => ret(ModExp(exp(tm)))
   | Pre(_, Exp(_)) as tm => ret(ModExp(exp(tm)))
   | Post(Exp(_), _) as tm => ret(ModExp(exp(tm)))
-  | (Pre(_) | Post(_) | Bin(_)) as tm => ret(hole(tm));
+  | (Pre(_) | Post(_) | Bin(_)) as tm => ret(op_hole(hole, tm));
 }
 and sig_ = unsorted => {
   let term = sig_term(unsorted);
@@ -1665,6 +1779,8 @@ and sig_term: unsorted => TermBase.Sig.term = {
         set_lexeme(t);
         ret(hole(tm));
       | (F(Tok(t)), []) => ret(Invalid(t))
+      /* see the mod_term ProjWrap case */
+      | (ProjWrap, [Sig(body)]) => ret(body.term)
       | _ => ret(hole(tm))
       }
     | _ => ret(hole(tm))
@@ -1687,7 +1803,7 @@ and sig_term: unsorted => TermBase.Sig.term = {
   /* SigType: type t = T - the tpat is inside the tile, type is the body */
   | Pre(([(_id, (F(Compound(ModType)), [TPat(tp)]))], []), Typ(ty)) =>
     ret(SigType(tp, ty))
-  | (Pre(_) | Post(_) | Bin(_)) as tm => ret(hole(tm));
+  | (Pre(_) | Post(_) | Bin(_)) as tm => ret(op_hole(hole, tm));
 }
 and mpat = unsorted => {
   let term = mpat_term(unsorted);
@@ -1708,14 +1824,16 @@ and mpat_term: unsorted => TermBase.MPat.term = {
       set_lexeme(t);
       ret(hole(tm));
     | ([(_id, (F(Tok(t)), []))], []) => ret(Invalid(t))
+    /* see the mod_term ProjWrap case */
+    | ([(_id, (ProjWrap, [MPat(body)]))], []) => ret(body.term)
     | _ => ret(hole(tm))
     }
   | Bin(MPat(mp), tiles, Typ(ty)) as tm =>
     switch (tiles) {
     | ([(_id, (F(Compound(TypeAsc)), []))], []) => ret(Asc(mp, ty))
-    | _ => ret(hole(tm))
+    | _ => ret(op_hole(hole, tm))
     }
-  | (Pre(_) | Post(_) | Bin(_)) as tm => ret(hole(tm));
+  | (Pre(_) | Post(_) | Bin(_)) as tm => ret(op_hole(hole, tm));
 }
 
 and rul = (unsorted): Rul.t => {

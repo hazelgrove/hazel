@@ -1085,3 +1085,64 @@ let ex5 = list_of_mylist(x) in
       QCheck_alcotest.to_alcotest(qcheck_menhir_serialized_equivalent_test),
     ],
   );
+
+/* A module-pattern hole stays a hole when converted to the menhir AST
+   (it used to become WildPat, a valid binder). */
+let mpat_hole_test =
+  test_case("MPat hole converts to a pattern hole", `Quick, () =>
+    check(
+      string,
+      "pat_of_mpat",
+      AST.show_pat(EmptyHolePat),
+      AST.show_pat(
+        Conversion.Exp.pat_of_mpat(Conversion.IndicatedG.MPat.empty_hole()),
+      ),
+    )
+  );
+
+/* Shrinking never strips a labeled singleton out of its tuple (a bare
+   `x = p` is not a pattern/type on its own), matching TupleExp. */
+let labeled_singleton_shrink_test =
+  test_case(
+    "shrinkers keep labeled singletons in their tuple",
+    `Quick,
+    () => {
+      let pats = ref([]);
+      AST.shrink_pat(
+        TuplePat([TupLabelPat(LabelPat("a"), VarPat("x")), VarPat("y")]),
+        p =>
+        pats := [p, ...pats^]
+      );
+      let bare_pat =
+        List.exists(
+          fun
+          | AST.TupLabelPat(_) => true
+          | _ => false,
+          pats^,
+        );
+      check(
+        bool,
+        "a pattern shrink is a bare labeled element",
+        false,
+        bare_pat,
+      );
+      let typs = ref([]);
+      AST.shrink_typ(
+        TupleType([TupLabelType(LabelType("a"), IntType), IntType]), t =>
+        typs := [t, ...typs^]
+      );
+      let bare_typ =
+        List.exists(
+          fun
+          | AST.TupLabelType(_) => true
+          | _ => false,
+          typs^,
+        );
+      check(bool, "a type shrink is a bare labeled element", false, bare_typ);
+    },
+  );
+
+let tests = (
+  fst(tests),
+  snd(tests) @ [mpat_hole_test, labeled_singleton_shrink_test],
+);

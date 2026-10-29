@@ -60,6 +60,18 @@ module JsonADT = {
   let cls_name = (exp: Language.Exp.t): string =>
     Exp.show_cls(Exp.cls_of_term(Exp.term_of(exp)));
 
+  /* A numeric literal argument, possibly under an (unevaluated) unary
+     minus, e.g. the `-7` of `Int(-7)` or the `-2.5` of `Float(-2.5)`:
+     (negated, literal term). */
+  let signed_literal = (arg: Language.Exp.t): (bool, Language.Exp.term) =>
+    switch (Exp.term_of(arg)) {
+    | UnOp(Int(Minus) | Float(Minus) | SInt(Minus) | Nat(Minus), neg_arg) => (
+        true,
+        Exp.term_of(strip_wrappers(neg_arg)),
+      )
+    | term => (false, term)
+    };
+
   let rec exp_to_yojson =
           (exp: Language.Exp.t): result(Yojson.Safe.t, string) => {
     let exp = strip_wrappers(exp);
@@ -75,30 +87,17 @@ module JsonADT = {
         | _ => Error("JsonADT: Bool expects a boolean literal")
         }
       | Constructor("Int", _) =>
-        switch (Exp.term_of(arg)) {
-        | Atom(Int(i)) =>
+        switch (signed_literal(arg)) {
+        | (neg, Atom(Int(i))) =>
           switch (Bigint.to_int(i)) {
-          | Some(n) => Ok(`Int(n))
+          | Some(n) => Ok(`Int(neg ? - n : n))
           | None => Error("JsonADT: integer too large")
           }
-        | UnOp(
-            Int(Minus) | Float(Minus) | SInt(Minus) | Nat(Minus),
-            neg_arg,
-          ) =>
-          let neg_arg = strip_wrappers(neg_arg);
-          switch (Exp.term_of(neg_arg)) {
-          | Atom(Int(i)) =>
-            switch (Bigint.to_int(i)) {
-            | Some(n) => Ok(`Int(- n))
-            | None => Error("JsonADT: integer too large")
-            }
-          | _ => Error("JsonADT: Int expects an integer literal")
-          };
         | _ => Error("JsonADT: Int expects an integer literal")
         }
       | Constructor("Float", _) =>
-        switch (Exp.term_of(arg)) {
-        | Atom(Float(f)) => Ok(`Float(f))
+        switch (signed_literal(arg)) {
+        | (neg, Atom(Float(f))) => Ok(`Float(neg ? -. f : f))
         | _ =>
           Error(
             "JsonADT: Float expects float literal, got: " ++ cls_name(arg),
