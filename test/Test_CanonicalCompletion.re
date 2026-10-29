@@ -1952,9 +1952,11 @@ let depth_tests = [
   ),
 ];
 let depth_count_tests = [
+  /* Slow: completion grows faster than quadratically in this nesting, and
+     parsing the prefixes with the typing parser costs more still */
   test_case(
     "30 nested let prefixes leave nothing incomplete",
-    `Quick,
+    `Slow,
     () => {
       let seg =
         must_parse(String.concat("", List.init(30, _ => "let x = ")) ++ "1");

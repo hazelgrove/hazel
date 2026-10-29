@@ -1,4 +1,4 @@
-# Branch previews. Deliberately independent of ci.yml: no `needs:`, no shared
+# Branch previews, served at https://build.hazel.org/<branch>/. Deliberately independent of ci.yml: no `needs:`, no shared
 # job, nothing to wait on -- a red suite should not stop you looking at your
 # branch, which is when you most want to.
 #
@@ -44,46 +44,64 @@ jobs:
       - uses: ./.github/actions/setup-hazel-toolchain
 
       - name: Build Release
+        env:
+          # Lets scripts/build-info.sh (the BuildInfo.ml rule) look up the
+          # branch's open PR so deployed builds link to it.
+          GH_TOKEN: ${{ github.token }}
         run: |
           export DUNE_CACHE=enabled
           opam exec -- dune build src --profile release
 
-      - name: Checkout the website build artifacts repo
-        uses: actions/checkout@v4
-        with:
-          repository: hazelgrove/build
-          token: ${{ secrets.ACCESS_TOKEN }}
-          path: build-target
-          sparse-checkout: |
-            ${{ env.BRANCH_NAME }}
-
-      - name: Clear any old build of this branch
-        run: if [ -d "${BRANCH_NAME}" ] ; then rm -rf "${BRANCH_NAME}" ; fi
-        working-directory: ./build-target
-
-      - name: Copy in the newly built source
-        run: mkdir -p "./build-target/${BRANCH_NAME}" && cp -r "./_build/default/src/web/www"/* "./build-target/${BRANCH_NAME}"
-
-      # All branches push to this one repo's main ref, so concurrent deploys
-      # collide; retry with rebase until we win.
-      - name: Commit to the website aka deploy
+      # Previews are served from the hazel-build R2 bucket at
+      # build.hazel.org/<branch>/ (hazel.org/build/* redirects there); see
+      # docs/deployment.md. Each key is live as soon as it is written, so there
+      # is no site-wide publish step and branches cannot cancel each other's
+      # deploys.
+      - name: Upload the build to R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          # Newer aws CLIs send checksum headers R2 may not accept
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+          R2_ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
         run: |
-          git config user.name github-deploy-action
-          git config user.email hazel-deploy@hazel.org
-          git add -A
-          git pull --no-edit
-          git status
-          if git diff-index --quiet HEAD; then
-            echo "No changes to deploy"
-            exit 0
-          fi
-          git commit -m "github-deploy-action-${BRANCH_NAME}"
-          for i in $(seq 1 10); do
-            git push && exit 0
-            echo "Push failed (attempt $i), pulling and retrying..."
-            sleep $((RANDOM % 3 + 1))
-            git pull --rebase --no-edit
-          done
-          echo "Push failed after 10 attempts"
-          exit 1
-        working-directory: ./build-target
+          # An empty name would point the --delete sync below at the bucket root.
+          [ -n "${BRANCH_NAME}" ] || { echo "BRANCH_NAME is empty"; exit 1; }
+          # Keys starting with _ are reserved, e.g. _archive/ holds builds cited
+          # in published papers, which no branch push may overwrite.
+          case "${BRANCH_NAME}" in
+            _*) echo "::error::Branch names starting with _ are reserved on build.hazel.org; not deploying."; exit 1 ;;
+          esac
+          src=./_build/default/src/web/www
+          dest="s3://hazel-build/${BRANCH_NAME}/"
+          # Filenames aren't content-hashed, so a short max-age lets a new
+          # deploy show within minutes while spikes are served from cache.
+          opts=(--endpoint-url "$R2_ENDPOINT" --cache-control "public, max-age=300" --no-progress)
+          # Uploads land one file at a time, so order them to keep a preview
+          # whole: the new assets, then the page that loads them, then pruning
+          # what the new build dropped. A run cancelled partway leaves the old
+          # page loading the old (still present) assets.
+          aws s3 sync "$src" "$dest" --exclude index.html "${opts[@]}"
+          aws s3 cp "$src/index.html" "${dest}index.html" "${opts[@]}"
+          aws s3 sync "$src" "$dest" --delete --exclude index.html "${opts[@]}"
+
+      # Cloudflare's edge may still hold the previous build's files for up to
+      # max-age, and a new hazel.js with an old worker.js breaks the worker
+      # protocol, so purge exactly this branch's URLs (the free plan can purge
+      # by URL, 30 per call).
+      - name: Purge the branch's files from Cloudflare's cache
+        env:
+          CF_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          CF_PURGE_TOKEN: ${{ secrets.CLOUDFLARE_PURGE_TOKEN }}
+        run: |
+          base="https://build.hazel.org/${BRANCH_NAME}/"
+          (cd ./_build/default/src/web/www && find . -type f | sed "s#^\./#${base}#"; echo "$base") \
+            | jq -R . | jq -sc '_nwise(30) | {files: .}' \
+            | while read -r batch; do
+                curl -sS --fail-with-body -X POST \
+                  "https://api.cloudflare.com/client/v4/zones/${CF_ZONE_ID}/purge_cache" \
+                  -H "Authorization: Bearer ${CF_PURGE_TOKEN}" -H "Content-Type: application/json" \
+                  --data "$batch" | jq -c '{success, errors}'
+              done
