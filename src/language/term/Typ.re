@@ -875,18 +875,34 @@ let extend_tvar_of_utpat = (ctx: Ctx.t, tvar: TPat.t, kind: Ctx.kind): Ctx.t =>
   };
 
 /* Members of a signature a type-level path may continue through
-   (`M.P.T`): value members whose type is a signature, and type members
-   defined as one. */
+   (`M.P.T`), as path_head reads them: value members whose type is a
+   signature, type members defined as a signature or a labeled tuple, and
+   either kind when its type is unknown. */
 let sig_module_member_names = (ctx: Ctx.t, items: list(Sig.t)): list(Var.t) => {
   let members = Sig.members(items);
-  let is_module = ty => Option.is_some(as_sig(ctx, ty));
-  let modules = (names, find) =>
+  let continues = (~through_tuple, ty) =>
+    switch (term_of(head_type(ctx, ty))) {
+    | Sig(_)
+    | Unknown(_) => true
+    | Prod(_) => through_tuple
+    | _ => false
+    };
+  let continuing = (~through_tuple, names, find) =>
     List.filter(
-      x => Option.fold(~none=false, ~some=is_module, find(members, x)),
+      x =>
+        Option.fold(
+          ~none=false,
+          ~some=continues(~through_tuple),
+          find(members, x),
+        ),
       names,
     );
-  modules(Sig.value_names(members), Sig.find_value)
-  @ modules(Sig.type_names(members), Sig.find_type_def);
+  continuing(~through_tuple=false, Sig.value_names(members), Sig.find_value)
+  @ continuing(
+      ~through_tuple=true,
+      Sig.type_names(members),
+      Sig.find_type_def,
+    );
 };
 
 /* ~expand restricts which alias names get expanded (default: all): a

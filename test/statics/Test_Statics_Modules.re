@@ -1868,6 +1868,27 @@ let f = fun (x : M.S.U) -> x + 1 in f(1)|},
     Some(int()),
   );
 
+/* The middle of a path may also be a type member defined as a labeled
+   tuple, or a member whose type is unknown. */
+let test_path_continues_through_tuple_type_member =
+  fully_consistent_typecheck(
+    "A type member defined as a labeled tuple continues a path",
+    {|module M = { type P = (x = Int) } in let y : M.P.x = 1 in y + 1|},
+    Some(int()),
+  );
+
+let test_path_continues_through_unascribed_sub_module =
+  no_marks_test(
+    "A sub-module declared without a signature continues a path",
+    {|fun (m : { module N }) -> (1 : m.N.T)|},
+  );
+
+let test_path_continues_through_unknown_member =
+  no_marks_test(
+    "A member of unknown type may be a module: a path continues through it",
+    {|fun (m : { let n : ? }) -> (1 : m.n.T)|},
+  );
+
 let test_type_member_behind_same_named_value_continues_path =
   fully_consistent_typecheck(
     "A path continues through a type member named like a value member",
@@ -2416,5 +2437,8 @@ let tests = (
     test_hole_signature_declares_type_member,
     test_hole_signature_declares_module_members,
     test_type_member_with_hole_is_not_compared,
+    test_path_continues_through_tuple_type_member,
+    test_path_continues_through_unascribed_sub_module,
+    test_path_continues_through_unknown_member,
   ],
 );
