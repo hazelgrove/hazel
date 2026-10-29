@@ -251,10 +251,10 @@ which names the member (`Typ.fun_in`).
 item's definition is evaluated (evaluation contexts `EvalCtx.ModuleItem` and
 `EvalCtx.ModuleVal`), its pattern is matched, the bindings extend the
 environment for the remaining items, and each bound name becomes a
-`ModVal(x, v)` item (replacing an earlier binding of the same name). Type
-items and bare expressions are discarded once evaluated; a `module` item is
-elaborated to a `let` item before it reaches dynamics. A module whose items
-are all `ModVal` is a value.
+`ModVal(x, v)` item (replacing an earlier binding of the same name). A bare
+expression item is discarded once evaluated; a `type` item is dropped, and a
+`module` item elaborated to a `let` item, before either reaches dynamics. A
+module whose items are all `ModVal` is a value.
 
 `Dot` on a module value returns the named binding. Ascribing a module value
 to a signature (`Ascriptions.re`) keeps the signature's value members in
