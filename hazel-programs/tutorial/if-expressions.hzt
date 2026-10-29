@@ -60,6 +60,19 @@ clamp(150);
 clamp(-45);
 clamp(92) 
 
+@solution
+let clamp(x: Int): Int =
+  if x < 0 then 0
+  else if x > 100 then 100
+  else x
+
+
+
+in
+clamp(150);
+clamp(-45);
+clamp(92)
+
 @test
 test clamp(-5) == 0 end;
 test clamp(50) == 50 end;

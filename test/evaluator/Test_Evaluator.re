@@ -29,4 +29,5 @@ let tests =
     Test_Evaluator_LiveTyping.tests,
     Test_Evaluator_Modules.tests,
     Test_Evaluator_Incremental.tests,
+    Test_Evaluator_IncrCorpus.tests,
   ];
