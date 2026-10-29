@@ -97,8 +97,8 @@ let check_family_grouping = (): unit => {
       [],
       Form.forms
       |> Util.ListUtil.group_by(by)
-      |> List.filter_map(((k, rows)) =>
-           switch (rows |> List.map(other) |> Util.ListUtil.dedup) {
+      |> List.filter_map(~f=((k, rows)) =>
+           switch (List.map(rows, ~f=other) |> Util.ListUtil.dedup) {
            | [_, _, ..._] as others => Some((k, others))
            | _ => None
            }

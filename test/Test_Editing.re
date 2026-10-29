@@ -51,7 +51,11 @@ let derive = (~settings: Language.CoreSettings.t, z: Zipper.t): derived => {
     switch (last_derived^) {
     | Some((s, last_z, last))
         when
-          s == settings && (last_z === z || last.source == Lazy.force(source)) => last
+          Poly.equal(s, settings)
+          && (
+            phys_equal(last_z, z)
+            || Segment.equal(last.source, Lazy.force(source))
+          ) => last
     | _ =>
       let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
       {
@@ -175,7 +179,10 @@ let split_one_caret = (init: string): (string, int) =>
 let mk = (init: string): list(Action.t) => {
   /* Builds actions from a string with ¦ for caret position.
    * Does not support § — use mk_zipper for selections. */
-  if (List.exists(~f=c => String.equal(c, selection_char), Token.to_list(init))) {
+  if (List.exists(
+        ~f=c => String.equal(c, selection_char),
+        Token.to_list(init),
+      )) {
     Alcotest.fail("mk() does not support §. Use mk_zipper(): " ++ init);
   };
   let (clean, chars_after_caret) = split_one_caret(init);
