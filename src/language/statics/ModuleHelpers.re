@@ -432,26 +432,23 @@ let rec mpat_ascriptions = (acc: Id.Set.t, mp: MPat.t): Id.Set.t =>
 /* Ids of the ascriptions the user wrote on module items' binders: `let`
    patterns and module binders. */
 let user_item_ascriptions = (items: list(Mod.t)): Id.Set.t => {
-  let acc = ref(Id.Set.empty);
-  let rec go = (p: Pat.t) =>
+  let rec go = (acc, p: Pat.t) =>
     switch (Pat.term_of(p)) {
-    | Asc(inner, _) =>
-      acc := Id.Set.add(Pat.rep_id(p), acc^);
-      go(inner);
-    | Parens(inner) => go(inner)
-    | _ => ()
+    | Asc(inner, _) => go(Id.Set.add(Pat.rep_id(p), acc), inner)
+    | Parens(inner) => go(acc, inner)
+    | _ => acc
     };
-  List.iter(
+  List.fold(
     ~f=
-      (item: Mod.t) =>
+      (acc, item: Mod.t) =>
         switch (item.term) {
-        | ModLet(pat, _) => go(pat)
-        | ModuleMod(mp, _) => acc := mpat_ascriptions(acc^, mp)
-        | _ => ()
+        | ModLet(pat, _) => go(acc, pat)
+        | ModuleMod(mp, _) => mpat_ascriptions(acc, mp)
+        | _ => acc
         },
+    ~init=Id.Set.empty,
     items,
   );
-  acc^;
 };
 
 /* Restores a module body's ID when it's been lost during tuple elaboration.
