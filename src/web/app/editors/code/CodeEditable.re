@@ -608,25 +608,6 @@ module View = {
         ])
       | Perform(a) => inject(Perform(a))
       };
-    /* Sync document-level listeners (click-outside + keyboard) for the
-     * context menu. Keys are dispatched at capture phase so the editor's
-     * window-level handler doesn't see them while the menu is open. */
-    ContextMenuListener.sync(
-      ~menu_open=selected && Model.context_menu_is_open(model),
-      ~on_close=() => inject(ContextMenu(ContextMenu.Model.Close)),
-      ~handle_key=
-        key_str =>
-          ContextMenu.WithContext.handle_listener_key(
-            ~info_map=model.statics.info_map,
-            ~elaborated=model.statics.elaborated,
-            ~zipper=model.editor.state.zipper,
-            ~dispatch_menu=a => inject(ContextMenu(a)),
-            ~dispatch_action=perform_from_menu,
-            model.context_menu,
-            key_str,
-          ),
-      (),
-    );
     let edit_decos =
       selected
         ? deco(
@@ -649,20 +630,26 @@ module View = {
           @ (
             switch (model.context_menu) {
             | Some(_) => [
-                /* Backdrop for scroll-close. Click handling is done via
-                   ContextMenuListener's document-level event listener. */
-                Node.div(
-                  ~attrs=[
-                    Attr.classes(["context-menu-backdrop"]),
-                    Attr.on_wheel(_ =>
-                      inject(ContextMenu(ContextMenu.Model.Close))
-                    ),
-                  ],
-                  [],
-                ),
+                /* While the menu is shown it owns the document-level
+                   listeners (click-outside + keyboard). Keys are dispatched
+                   at capture phase so the editor's window-level handler
+                   doesn't see them while the menu is open. */
                 ContextMenu.view(
                   ~inject=perform_from_menu,
                   ~inject_menu=a => inject(ContextMenu(a)),
+                  ~on_close=
+                    () => inject(ContextMenu(ContextMenu.Model.Close)),
+                  ~handle_key=
+                    key_str =>
+                      ContextMenu.WithContext.handle_listener_key(
+                        ~info_map=model.statics.info_map,
+                        ~elaborated=model.statics.elaborated,
+                        ~zipper=model.editor.state.zipper,
+                        ~dispatch_menu=a => inject(ContextMenu(a)),
+                        ~dispatch_action=perform_from_menu,
+                        model.context_menu,
+                        key_str,
+                      ),
                   ~syntax=model.editor.syntax,
                   ~info_map=model.statics.info_map,
                   ~elaborated=model.statics.elaborated,
