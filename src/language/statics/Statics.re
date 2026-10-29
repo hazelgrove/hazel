@@ -2808,7 +2808,7 @@ and uexp_to_info_map =
       };
     | Module(items) =>
       /* Expand module to nested let/type + labeled tuple, then type-check expansion.
-         The expansion preserves Mod item IDs on wrapper Let/TyAlias expressions.
+         Each item's wrapper Let/TyAlias is keyed by ModuleHelpers.wrapper_id.
          Pass ~ana to expand so it can add sig type annotations to patterns.
          Process expansion in syn mode: definition errors are caught via pattern
          annotations, and the Module's own add() checks the overall type against
@@ -2818,18 +2818,19 @@ and uexp_to_info_map =
         ModuleHelpers.lower(~ctx, ~ana, ~module_id=Exp.rep_id(uexp), items);
       let (expanded_info, expanded_elab, m) = go(lowered.expanded, m);
       let m = ModuleHelpers.reclassify_expanded_module_items(items, m);
-      /* Each item's recorded elab_term is a suffix of the module's
+      /* Each item wrapper's recorded elab_term is a suffix of the module's
          elaboration, which carries the module's id on its export record
          (restore_module_body_id). Match it, or a trailing `type` item, whose
-         elab_term is just that record, stays rooted at the lowering's fresh
-         id. */
+         elab_term is just that record, stays rooted at the record's own id. */
       let m =
         List.fold_left(
           (m, item: Mod.t) =>
-            switch (StaticsBase.Map.lookup_exp(Mod.rep_id(item), m)) {
+            switch (
+              StaticsBase.Map.lookup_exp(ModuleHelpers.wrapper_id(item), m)
+            ) {
             | Some(info) =>
               StaticsBase.Map.add_info(
-                IdTagged.ids(item),
+                ModuleHelpers.wrapper_ids(item),
                 Info.InfoExp({
                   ...info,
                   elab_term:

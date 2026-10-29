@@ -287,30 +287,43 @@ let qcheck_subexp_synthesis_agrees =
 
 /* Property: ids are persistent. Running statics twice on the same term
    records an entry at the same ids, each with an `elab_term` rooted at the
-   same id.
+   same id, and that root has an entry of its own.
 
-   What this catches: an elaboration step minting a fresh id on every run
-   (`Exp.fresh`), rather than reusing a source id or deriving one from it.
-   The incremental evaluator keys its cache by these ids, so a subtree
-   rooted at a fresh id can never be reused and silently becomes
-   un-incrementalizable (the `FixF` `fresh_deterministic` fix was the first
-   instance). Module lowering's export record is the case this used to fail
-   on. */
-type elab_id_drift = {
-  info_id: Id.t,
-  first: option(Id.t),
-  second: option(Id.t),
-};
+   What this catches: an elaboration step minting an id the incremental
+   evaluator cannot cache at. The evaluator keys its cache by these ids and
+   reads what it knows about each one from the info map, so a root needs
+   both an id that is the same on every run (not `Exp.fresh`; the `FixF`
+   `fresh_deterministic` fix was the first instance, module lowering's
+   export record the next) and an entry in the map (not an id built after
+   statics ran). */
+type elab_id_drift =
+  | Drifted({
+      info_id: Id.t,
+      first: option(Id.t),
+      second: option(Id.t),
+    })
+  | NoEntry({
+      info_id: Id.t,
+      root: Id.t,
+    });
 
-let show_elab_id_drift = ({info_id, first, second}: elab_id_drift) => {
-  let show = Option.fold(~none="no entry", ~some=Id.to_string);
-  Printf.sprintf(
-    "info %s: elab_term rooted at %s, then at %s",
-    Id.to_string(info_id),
-    show(first),
-    show(second),
-  );
-};
+let show_elab_id_drift =
+  fun
+  | Drifted({info_id, first, second}) => {
+      let show = Option.fold(~none="no entry", ~some=Id.to_string);
+      Printf.sprintf(
+        "info %s: elab_term rooted at %s, then at %s",
+        Id.to_string(info_id),
+        show(first),
+        show(second),
+      );
+    }
+  | NoEntry({info_id, root}) =>
+    Printf.sprintf(
+      "info %s: elab_term rooted at %s, which has no entry",
+      Id.to_string(info_id),
+      Id.to_string(root),
+    );
 
 let elab_roots = (info_map: Statics.Map.t): Id.Map.t(Id.t) =>
   Id.Map.fold(
@@ -338,21 +351,40 @@ let uncached_info_map = (exp: Language.Exp.t): Statics.Map.t => {
 };
 
 let elab_ids_drifting =
-    (_: Statics.Map.t, exp: Language.Exp.t): list(elab_id_drift) =>
-  Id.Map.merge(
-    (info_id, first, second) =>
-      first == second
-        ? None
-        : Some({
-            info_id,
-            first,
-            second,
-          }),
-    elab_roots(uncached_info_map(exp)),
-    elab_roots(uncached_info_map(exp)),
-  )
-  |> Id.Map.bindings
-  |> List.map(snd);
+    (_: Statics.Map.t, exp: Language.Exp.t): list(elab_id_drift) => {
+  let first_map = uncached_info_map(exp);
+  let first = elab_roots(first_map);
+  let drifted =
+    Id.Map.merge(
+      (info_id, first, second) =>
+        first == second
+          ? None
+          : Some(
+              Drifted({
+                info_id,
+                first,
+                second,
+              }),
+            ),
+      first,
+      elab_roots(uncached_info_map(exp)),
+    )
+    |> Id.Map.bindings
+    |> List.map(snd);
+  let no_entry =
+    Id.Map.bindings(first)
+    |> List.filter_map(((info_id, root)) =>
+         Id.Map.mem(root, first_map)
+           ? None
+           : Some(
+               NoEntry({
+                 info_id,
+                 root,
+               }),
+             )
+       );
+  drifted @ no_entry;
+};
 
 let qcheck_elab_ids_persist =
   QCheck.Test.make(

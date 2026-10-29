@@ -302,61 +302,50 @@ let modlet_pat = (ana_labels: list((Var.t, Typ.t)), pat: Pat.t): Pat.t =>
   | _ => pat
   };
 
-/* The expression a hole item lowers to, under an id derived from the item. */
-let hole_item_exp = (item: Mod.t, term: Exp.term): Exp.t =>
-  IdTagged.fresh_deterministic(Mod.rep_id(item), term);
+/* The id of the `let` an item lowers to. A binding item's wrapper takes the
+   item's id. An expression or hole item IS its expression, which already has
+   the item's ids, so its wrapper takes an id derived from them instead: on
+   the item's id, the wrapper's info would replace the expression's type and
+   errors. Derived, not fresh, so it is the same on every statics run. */
+let wrapper_id = (item: Mod.t): Id.t =>
+  switch (item.term) {
+  | ModLet(_)
+  | ModType(_)
+  | ModuleMod(_) => Mod.rep_id(item)
+  | ModExp(_)
+  | EmptyHole
+  | Invalid(_)
+  | MultiHole(_) => Id.derive(~salt="module-item-wrapper", Mod.rep_id(item))
+  };
+
+let wrapper_ids = (item: Mod.t): list(Id.t) =>
+  switch (item.term) {
+  | ModLet(_)
+  | ModType(_)
+  | ModuleMod(_) => IdTagged.ids(item)
+  | ModExp(_)
+  | EmptyHole
+  | Invalid(_)
+  | MultiHole(_) => [wrapper_id(item)]
+  };
 
 let wrap_item =
-    (~ana_labels: list((Var.t, Typ.t)), item: Mod.t, body: Exp.t): Exp.t =>
+    (~ana_labels: list((Var.t, Typ.t)), item: Mod.t, body: Exp.t): Exp.t => {
+  let wrap = (term: Exp.term) =>
+    IdTagged.fast_copy(wrapper_id(item), Exp.fresh(term));
+  let item_exp = (term: Exp.term) =>
+    IdTagged.fast_copy(Mod.rep_id(item), Exp.fresh(term));
   switch (item.term) {
-  | ModLet(pat, def) =>
-    IdTagged.fast_copy(
-      Mod.rep_id(item),
-      Exp.fresh(Let(modlet_pat(ana_labels, pat), def, body)),
-    )
-  | ModType(tpat, typ) =>
-    IdTagged.fast_copy(
-      Mod.rep_id(item),
-      Exp.fresh(TyAlias(tpat, typ, body)),
-    )
-  /* Every wrapper carries its item's id, as ModLet/ModType's do: the first
-     item's wrapper is the module's elaborated root, and a fresh id there is
-     a node no user position names. */
-  | ModExp(e) =>
-    IdTagged.fast_copy(
-      Mod.rep_id(item),
-      Exp.fresh(Let(Pat.fresh(Wild), e, body)),
-    )
-  | ModuleMod(mp, def) =>
-    IdTagged.fast_copy(
-      Mod.rep_id(item),
-      Exp.fresh(Let(mpat_to_pat(mp), def, body)),
-    )
-  /* A hole item IS the hole, but the wrapper needs the item's id (see
-     ModExp), so the hole takes an id derived from it; its marks are copied
-     back onto the item by reclassify_expanded_module_items. */
-  | EmptyHole =>
-    IdTagged.fast_copy(
-      Mod.rep_id(item),
-      Exp.fresh(
-        Let(Pat.fresh(Wild), hole_item_exp(item, EmptyHole), body),
-      ),
-    )
-  | Invalid(s) =>
-    IdTagged.fast_copy(
-      Mod.rep_id(item),
-      Exp.fresh(
-        Let(Pat.fresh(Wild), hole_item_exp(item, Invalid(s)), body),
-      ),
-    )
+  | ModLet(pat, def) => wrap(Let(modlet_pat(ana_labels, pat), def, body))
+  | ModType(tpat, typ) => wrap(TyAlias(tpat, typ, body))
+  | ModExp(e) => wrap(Let(Pat.fresh(Wild), e, body))
+  | ModuleMod(mp, def) => wrap(Let(mpat_to_pat(mp), def, body))
+  | EmptyHole => wrap(Let(Pat.fresh(Wild), item_exp(EmptyHole), body))
+  | Invalid(s) => wrap(Let(Pat.fresh(Wild), item_exp(Invalid(s)), body))
   | MultiHole(es) =>
-    IdTagged.fast_copy(
-      Mod.rep_id(item),
-      Exp.fresh(
-        Let(Pat.fresh(Wild), hole_item_exp(item, MultiHole(es)), body),
-      ),
-    )
+    wrap(Let(Pat.fresh(Wild), item_exp(MultiHole(es)), body))
   };
+};
 
 let lower =
     (
@@ -461,24 +450,6 @@ let reclassify_expanded_module_items =
     (m, item: Mod.t) => {
       let ids = IdTagged.ids(item);
       let mod_cls = Cls.Mod(Mod.cls_of_term(item.term));
-      /* A hole item's own marks (a bad token, say) were recorded on the hole
-         under its derived id; the item shows them. */
-      let hole_marks =
-        switch (item.term) {
-        | EmptyHole
-        | Invalid(_)
-        | MultiHole(_) =>
-          switch (
-            StaticsBase.Map.lookup_exp(
-              Exp.rep_id(hole_item_exp(item, EmptyHole)),
-              m,
-            )
-          ) {
-          | Some(hole) => hole.marks
-          | None => []
-          }
-        | _ => []
-        };
       switch (StaticsBase.Map.lookup_exp(IdTagged.rep_id(item), m)) {
       | Some(info) =>
         StaticsBase.Map.add_info(
@@ -486,7 +457,6 @@ let reclassify_expanded_module_items =
           Info.InfoExp({
             ...info,
             cls: mod_cls,
-            marks: info.marks @ hole_marks,
           }),
           m,
         )
