@@ -100,6 +100,11 @@ eligible for cache, honoring the object's `Cache-Control`, with the query
 string excluded from the cache key so random query strings can't force cache
 misses through to R2.
 
+**Tiered Cache** (Caching → Tiered Cache): on, with Smart Tiered Caching.
+Edge locations fetch through one upper-tier location near the bucket rather
+than each reading R2 on its own, so the first fetch anywhere warms the cache
+for everyone and R2 sees far fewer reads.
+
 ## Things that must keep working
 
 - **`hazel.org/livelits`** is the URL printed in the PLDI '21 livelits paper.
