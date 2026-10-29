@@ -99,18 +99,18 @@ let bound_constructor_aps =
     (wrap, ty: Typ.t, ctx: Ctx.t): list(TyDiSuggestion.t) =>
   List.filter_map(
     fun
-    | Ctx.ConstructorEntry({
-        typ: {term: Arrow(_, ty_out), _} as ty_arr,
-        name,
-        _,
-      })
-        when
-          Typ.is_consistent(ctx, ty, ty_out)
-          && !Typ.is_consistent(ctx, ty, ty_arr) =>
-      Some({
-        content: name ++ "(",
-        strategy: wrap(FromCtxAp(ty_out)),
-      })
+    | Ctx.ConstructorEntry({typ: ty_arr, name, _}) =>
+      switch (arrow_out(ctx, ty_arr)) {
+      | Some(ty_out)
+          when
+            Typ.is_consistent(ctx, ty, ty_out)
+            && !Typ.is_consistent(ctx, ty, ty_arr) =>
+        Some({
+          content: name ++ "(",
+          strategy: wrap(FromCtxAp(ty_out)),
+        })
+      | _ => None
+      }
     | _ => None,
     ctx.entries,
   );
@@ -162,15 +162,19 @@ let bound_qualified_aps =
         List.filter_map(
           label_ty =>
             switch (Typ.match_tup_label(label_ty)) {
-            | Some((label, {term: Arrow(_, ty_out), _} as field_ty))
-                when
-                  Typ.is_consistent(ctx, ty_expect, ty_out)
-                  && !Typ.is_consistent(ctx, ty_expect, field_ty) =>
-              Some({
-                content: name ++ "." ++ label ++ "(",
-                strategy: Exp(Common(FromCtxAp(ty_out))),
-              })
-            | _ => None
+            | Some((label, field_ty)) =>
+              switch (arrow_out(ctx, field_ty)) {
+              | Some(ty_out)
+                  when
+                    Typ.is_consistent(ctx, ty_expect, ty_out)
+                    && !Typ.is_consistent(ctx, ty_expect, field_ty) =>
+                Some({
+                  content: name ++ "." ++ label ++ "(",
+                  strategy: Exp(Common(FromCtxAp(ty_out))),
+                })
+              | _ => None
+              }
+            | None => None
             },
           ts,
         )

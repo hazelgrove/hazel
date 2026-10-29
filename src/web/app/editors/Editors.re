@@ -421,8 +421,12 @@ module Selection = {
   /* Assistant = user has focus in the sidebar (e.g. agent panel text box) */
 
   /* Whether [selection] can point into [editors]. One left over from another
-     mode reaches no editor: nothing is focused, keys go nowhere and cursor
-     actions (Reparse, Problems next/previous) find no editor. */
+     mode reaches no editor: no cell is selected, and cursor actions
+     (Reparse, Problems next/previous) find no editor.
+     Checks the mode only, not the kind inside it: an Exercises selection
+     for a code exercise still fits while a derivation exercise is shown
+     (get_cursor_info then gives empty). Follow-up: check exercise and
+     slide kind too. */
   let fits_mode = (selection: t, editors: Model.t): bool =>
     switch (selection, editors) {
     | (Assistant, _)

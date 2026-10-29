@@ -389,10 +389,17 @@ module Update = {
           : model.globals;
       /* a mode switch (SwitchMode, ShowConfig) leaves the old mode's
          selection behind, which selects no editor in the new one: start
-         from the new mode's default, as a reload in it would */
+         from the new mode's default, as a reload in it would, and give
+         that cell DOM focus once it renders so keys reach it (as after a
+         sidebar jump). No per-mode memory: returning to a mode lands on
+         its default cell, not the one last clicked. */
       let selection =
-        Editors.Selection.fits_mode(model.selection, editors)
-          ? model.selection : Editors.Selection.default_selection(editors);
+        if (Editors.Selection.fits_mode(model.selection, editors)) {
+          model.selection;
+        } else {
+          Haz3lcore.FocusEffect.schedule_cell();
+          Editors.Selection.default_selection(editors);
+        };
       {
         ...model,
         editors,

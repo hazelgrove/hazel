@@ -237,6 +237,9 @@ let start = default_model => {
       )
       >= 0;
     JsUtil.focus_page();
+    /* then the selected cell, once it renders, so keys reach it without a
+       click (falls back to #page focus above if there is none) */
+    Haz3lcore.FocusEffect.schedule_cell();
     JsUtil.install_text_selection_guards();
     Haz3lcore.FocusEffect.install_press_tracking();
     /* Re-measure font metrics on zoom (DPR change). ResizeObserver

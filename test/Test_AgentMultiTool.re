@@ -67,18 +67,25 @@ let run_handle_llm_response =
   let scheduled = ref([]);
   let schedule_action = (a: Agent.Update.Action.t) =>
     scheduled := scheduled^ @ [a];
+  /* an agent edit asks for a forced statics pass that no frame consumes
+     here; clear it even if the update raises, or later dispatch tests wait
+     on it (StaticsDebounce.pending) */
   let (agent', _cell_ed) =
-    Agent.Update.update(
-      Agent.Update.Action.HandleLLMResponse(
-        reply,
-        chat_id,
-        agent.main_llm_seq,
-        0,
-      ),
-      agent,
-      cell_editor,
-      settings,
-      schedule_action,
+    Fun.protect(
+      ~finally=() => CodeWithStatics.StaticsDebounce.force_on_next := false,
+      () =>
+        Agent.Update.update(
+          Agent.Update.Action.HandleLLMResponse(
+            reply,
+            chat_id,
+            agent.main_llm_seq,
+            0,
+          ),
+          agent,
+          cell_editor,
+          settings,
+          schedule_action,
+        ),
     );
   (agent', scheduled^);
 };
@@ -327,9 +334,6 @@ let test_boundary_insert_diff_and_subtask = () => {
       ~cell_editor=cell_editor_of("x"),
       ~settings,
     );
-  /* the edit asked for a forced statics pass that no frame will consume
-     here; leaving it set would hold later dispatch tests in their wait */
-  CodeWithStatics.StaticsDebounce.force_on_next := false;
   let trs = tool_results_in_order(agent', chat_id);
   check(int, "two ToolResult rows", 2, List.length(trs));
   let ins = List.nth(trs, 1);
