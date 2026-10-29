@@ -659,7 +659,7 @@ let test_nested_module_name_outside =
 /* Known bug, as with any shadowed type name: an outer sum's constructor is
    accepted where the module's sum of the same name is expected, and the
    match then gets stuck. `type Dir = + A + B in type Dir = + N + E in let d :
-   Dir = A in 1` is accepted the same way, without modules. */
+   Dir = A in 1` is accepted the same way, without modules. Issue #2751. */
 let test_known_bug_shadowed_sum_name =
   skip_known_bug(
     "An outer sum's constructor passes as a module's sum of the same name",
