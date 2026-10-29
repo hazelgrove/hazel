@@ -3,6 +3,28 @@
  * queries over statics/syntax; ProbePerform applies them. */
 open Language;
 
+/* The outermost Parens/Projector wrapper around e (e itself if it has none),
+ * so function-position checks see the `(f)` of `(f)(x)` or a folded `f`. */
+let rec outermost_wrapper = (info_map: Statics.Map.t, e: Exp.t): Exp.t =>
+  switch (Statics.Map.parent_term_of(info_map, IdTagged.rep_id(e))) {
+  | Some(Exp({term: Parens(inner) | Projector(_, inner), _} as wrapper))
+      when Id.equal(IdTagged.rep_id(inner), IdTagged.rep_id(e)) =>
+    outermost_wrapper(info_map, wrapper)
+  | _ => e
+  };
+
+/* The application whose function position is e (looking through wrappers),
+ * if any. */
+let applied_by = (info_map: Statics.Map.t, e: Exp.t): option(Exp.t) => {
+  let head = outermost_wrapper(info_map, e);
+  switch (Statics.Map.parent_term_of(info_map, IdTagged.rep_id(head))) {
+  | Some(Exp({term: Ap(_, f_expr, _), _} as ap))
+      when Id.equal(IdTagged.rep_id(f_expr), IdTagged.rep_id(head)) =>
+    Some(ap)
+  | _ => None
+  };
+};
+
 let rec target_subterm_ids =
         (~drill_let=true, id: Id.t, info_map: Statics.Map.t) =>
   switch (Statics.Map.lookup(id, info_map)) {
@@ -34,26 +56,27 @@ let rec target_subterm_ids =
   | Some(InfoExp({user_term: {term: ModuleExp(_, def, _), _}, _})) =>
     target_subterm_ids(IdTagged.rep_id(def), info_map)
 
+  /* A function name (or partial application) in function position probes
+     the call, also when wrapped in parens or a projector. */
   | Some(InfoExp({user_term: {term: Var(_), _} as v, _})) =>
-    switch (Statics.Map.parent_term_of(info_map, IdTagged.rep_id(v))) {
-    | Some(Exp({term: Ap(_, f_expr, _), _} as ap)) when f_expr == v => [
-        IdTagged.rep_id(ap),
-      ]
-    | Some(Exp({term: DeferredAp(f_expr, _), _} as dap)) when f_expr == v =>
-      switch (Statics.Map.parent_term_of(info_map, IdTagged.rep_id(dap))) {
-      | Some(Exp({term: Ap(_, f_expr, _), _} as ap)) when f_expr == dap => [
-          IdTagged.rep_id(ap),
-        ]
-      | _ => [id]
+    let head = outermost_wrapper(info_map, v);
+    switch (
+      applied_by(info_map, v),
+      Statics.Map.parent_term_of(info_map, IdTagged.rep_id(head)),
+    ) {
+    | (Some(ap), _) => [IdTagged.rep_id(ap)]
+    | (None, Some(Exp({term: DeferredAp(f_expr, _), _} as dap)))
+        when Id.equal(IdTagged.rep_id(f_expr), IdTagged.rep_id(head)) =>
+      switch (applied_by(info_map, dap)) {
+      | Some(ap) => [IdTagged.rep_id(ap)]
+      | None => [id]
       }
     | _ => [id]
-    }
+    };
   | Some(InfoExp({user_term: {term: DeferredAp(_), _} as v, _})) =>
-    switch (Statics.Map.parent_term_of(info_map, IdTagged.rep_id(v))) {
-    | Some(Exp({term: Ap(_, f_expr, _), _} as ap)) when f_expr == v => [
-        IdTagged.rep_id(ap),
-      ]
-    | _ => [id]
+    switch (applied_by(info_map, v)) {
+    | Some(ap) => [IdTagged.rep_id(ap)]
+    | None => [id]
     }
   | info when !Info.is_typable_term(info) => []
   /* rep_id: multi-tile forms (tuples, lists, case) must match between probe_map and the evaluator. */

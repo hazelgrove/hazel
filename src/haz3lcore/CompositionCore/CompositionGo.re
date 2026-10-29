@@ -28,29 +28,17 @@ module Local = {
        */
       switch (node.info) {
       | InfoExp({user_term: term, _}) =>
-        switch (Exp.term_of(term)) {
-        | Let(pat, def, body) =>
+        switch (HighLevelNodeMap.Utils.binding_of(term)) {
+        | Some({binder, def, body}) =>
           switch (inner_term) {
-          | Pat => Pat.rep_id(pat)
-          | Def => Exp.rep_id(def)
+          | Pat => binder
+          | Def => def
           | Body => Exp.rep_id(body)
           }
-        | TyAlias(tpat, tdef, body) =>
-          switch (inner_term) {
-          | Pat => TPat.rep_id(tpat)
-          | Def => Typ.rep_id(tdef)
-          | Body => Exp.rep_id(body)
-          }
-        | ModuleExp(mp, def, body) =>
-          switch (inner_term) {
-          | Pat => MPat.rep_id(mp)
-          | Def => Exp.rep_id(def)
-          | Body => Exp.rep_id(body)
-          }
-        | _ =>
+        | None =>
           raise(
             Failure(
-              "UNIMPLEMENTED_NODE_TYPE: Only let, type alias, and module expressions are currently supported as nodes",
+              "UNIMPLEMENTED_NODE_TYPE: Only let, theorem, type alias, and module expressions are currently supported as nodes",
             ),
           )
         }
