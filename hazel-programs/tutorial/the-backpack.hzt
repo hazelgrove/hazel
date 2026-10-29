@@ -41,6 +41,9 @@ Build `let weekly = 250 * 7 in weekly`.
 @code
 let weekly = ¿
 
+@solution
+let weekly = 250 * 7 in weekly
+
 @test
 test answer == 1750 end;
 ¿
