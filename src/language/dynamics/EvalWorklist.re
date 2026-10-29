@@ -65,6 +65,6 @@ let pending_ids = (info_map: StaticsBase.Map.t): list(Id.t) =>
 
 let remove_streamed_ids =
     (stream: IncrEval.outbox(EvaluatorState.t), pending_ids) => {
-  let completed_ids = IncrEval.visible_ids(stream.completed);
-  List.filter(id => !List.exists(Id.equal(id), completed_ids), pending_ids);
+  let completed_ids = Id.Set.of_list(IncrEval.visible_ids(stream.completed));
+  List.filter(id => !Id.Set.mem(id, completed_ids), pending_ids);
 };

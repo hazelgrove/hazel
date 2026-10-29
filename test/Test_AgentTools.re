@@ -1665,7 +1665,12 @@ let high_level_node_map_tests = (
           HighLevelNodeMap.gather_top_level(node_map)
           |> List.map(HighLevelNodeMap.id_to_name(node_map))
           |> List.sort(String.compare);
-        check(list(string), "top-level names", ["a", "b"], top_level_names);
+        check(
+          list(string),
+          "top-level names",
+          ["a", "b", "t"],
+          top_level_names,
+        );
         check(
           bool,
           "b resolves",
@@ -1722,16 +1727,90 @@ let high_level_node_map_tests = (
         );
       },
     ),
+    /* A fold hides its syntax, so bindings inside can't be selected for
+       editing: they stay out of the map rather than resolve and then fail. */
     test_case(
-      "bindings inside a folded projector are nested nodes",
+      "bindings inside a folded projector are not nodes",
       `Quick,
       () => {
         let node_map = build_node_map("let g = ^^fold(let a = 1 in a) in g");
         check(
           bool,
-          "g/a resolves",
+          "g/a does not resolve",
           true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "g/a") != None,
+          HighLevelNodeMap.path_to_id_opt(node_map, "g/a") == None,
+        );
+      },
+    ),
+    test_case(
+      "a theorem is a node addressed by its name",
+      `Quick,
+      () => {
+        let node_map = build_node_map("theorem t = true in let a = 1 in a");
+        let id_t = HighLevelNodeMap.path_to_id(node_map, "t");
+        check(
+          string,
+          "name",
+          "t",
+          HighLevelNodeMap.id_to_name(node_map, id_t),
+        );
+      },
+    ),
+    test_case(
+      "update_definition replaces a theorem's proposition",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "theorem t = true in let a = 1 in a",
+            Update(Definition, "t", "1 == 1"),
+          );
+        check_rendered(
+          "update_theorem_def",
+          "theorem t = 1 == 1 in let a = 1 in a",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "update_pattern renames a theorem",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "theorem t = true in let a = t in a",
+            Update(Pattern, "t", "u"),
+          );
+        check_rendered(
+          "update_theorem_pat",
+          "theorem u = true in let a = u in a",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "delete_binding_clause removes a theorem",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "theorem t = true in let a = 1 in a",
+            Delete(BindingClause, "t"),
+          );
+        check_rendered("delete_theorem", "let a = 1 in a", result);
+      },
+    ),
+    test_case(
+      "lets inside a theorem's proposition are not nodes",
+      `Quick,
+      () => {
+        let node_map =
+          build_node_map("theorem t = (let a = true in a) in let a = 1 in a");
+        check(
+          bool,
+          "a is unambiguous",
+          true,
+          HighLevelNodeMap.path_to_id_opt(node_map, "a") != None,
         );
       },
     ),

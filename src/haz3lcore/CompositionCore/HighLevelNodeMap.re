@@ -72,13 +72,17 @@ module Utils = {
     | Use(_, e)
     | TypAp(e, _)
     | TypFun(_, e, _)
-    | Projector(_, e)
-    | ProofObject(e)
-    | Forall(_, e)
     | HintedTest(e, _) => [e]
+    /* A projector that replaces its syntax with a widget (fold, slider,
+       ...) hides it from the agent, which could address bindings inside
+       but not select them to edit; refractors only decorate. */
+    | Projector({kind, _}, e) =>
+      ProjectorKind.is_refractor(kind) ? [e] : []
+    /* Only a theorem's body: lets inside its proposition aren't
+       definitions the agent addresses (and would make paths ambiguous). */
+    | Theorem(_, _, body) => [body]
     | DeferredAp(e, args) => [e, ...args]
     | Let(_, e1, e2)
-    | Theorem(_, e1, e2)
     | Seq(e1, e2)
     | Ap(_, e1, e2)
     | Dot(e1, e2)
@@ -104,6 +108,8 @@ module Utils = {
     | LivelitName(_)
     | TyAlias(_)
     | ExplicitNonlabel
+    | ProofObject(_)
+    | Forall(_, _)
     | Var(_)
     | Module(_) => []
     | ModuleExp(_, def, body) => [def, body]
@@ -112,11 +118,9 @@ module Utils = {
   };
 
   /* A binding node of the map: a definition form (Language.DefForm) that
-     binds a name to a definition, with the ids of its binder and definition.
-     Theorem, use and the stepper filters are definition forms too but not
-     nodes (use and filters bind nothing; a theorem's definition is a
-     proposition, which the agent's edit paths such as
-     GeneralTreeUtils.subtree_of don't handle); build_children walks
+     binds a name to a definition (let, theorem, type, module), with the ids
+     of its binder and definition. Use and the stepper filters are definition
+     forms too but bind nothing, so they are not nodes; build_children walks
      through them without adding a node. */
   type binding = {
     binder: Id.t,
@@ -126,7 +130,8 @@ module Utils = {
 
   let binding_of = (term: Exp.t): option(binding) =>
     switch (Exp.term_of(term)) {
-    | Let(pat, def, body) =>
+    | Let(pat, def, body)
+    | Theorem(pat, def, body) =>
       Some({
         binder: Pat.rep_id(pat),
         def: Exp.rep_id(def),
@@ -144,11 +149,49 @@ module Utils = {
         def: Exp.rep_id(def),
         body,
       })
-    | Theorem(_)
     | Use(_)
-    | Filter(_) => None
-    /* not a definition form (DefForm.parts is None) */
-    | _ => None
+    | Filter(_)
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | DynamicErrorHole(_)
+    | Deferral(_)
+    | Undefined
+    | Atom(_)
+    | DrvQuote(_)
+    | ListLit(_)
+    | Constructor(_)
+    | Fun(_)
+    | TypFun(_)
+    | Tuple(_)
+    | Label(_)
+    | ExplicitNonlabel
+    | TupLabel(_)
+    | Dot(_)
+    | LivelitName(_)
+    | Var(_)
+    | ProofObject(_)
+    | Forall(_)
+    | FixF(_)
+    | Ap(_)
+    | TypAp(_)
+    | DeferredAp(_)
+    | If(_)
+    | Seq(_)
+    | Test(_)
+    | HintedTest(_)
+    | Closure(_)
+    | Parens(_)
+    | Projector(_)
+    | Cons(_)
+    | ListConcat(_)
+    | UnOp(_)
+    | BinOp(_)
+    | BuiltinFun(_)
+    | Match(_)
+    | TupleExtension(_)
+    | Asc(_)
+    | Module(_) => None
     };
 
   let top_level_term_of =
@@ -292,7 +335,8 @@ module Namer = {
     switch (info) {
     | InfoExp({user_term: term, _}) =>
       switch (Exp.term_of(term)) {
-      | Let(pat, _, _) => mk_name_from_pat(pat)
+      | Let(pat, _, _)
+      | Theorem(pat, _, _) => mk_name_from_pat(pat)
       | TyAlias(tpat, _, _) => mk_name_from_tpat(tpat)
       | ModuleExp(mp, _, _) => mk_name_from_mpat(mp)
       | _ => raise(Failure("Not a valid expression to make a name from"))
@@ -510,6 +554,13 @@ let rec build_children =
       // 2. Find siblings
       // use "old" path for siblings!!
       build_children(exp_to_info(body), path, node_map, info_map);
+    /* A theorem is a node like a let, but its proposition is not walked:
+       lets inside it aren't definitions the agent addresses (and would
+       make paths ambiguous). */
+    | Theorem(_, _, body) =>
+      let node_map =
+        init_node(candidate, path @ [Info.id_of(candidate)], node_map);
+      build_children(exp_to_info(body), path, node_map, info_map);
     // It is also useful to add type defintions to the def-structured AST
     | TyAlias(_, typ, body) =>
       // Add this node to the node map
@@ -703,7 +754,7 @@ let path_to_id_opt = (node_map: t, path: string): option(Id.t) => {
   };
 };
 
-/** Map nodes are keyed by the **binding** expression (Let / TyAlias / ModuleExp).
+/** Map nodes are keyed by the **binding** expression (Let / Theorem / TyAlias / ModuleExp).
     [[Select.term]] + syntax projectors must target the **definition** (rhs), not the whole binding. */
 let binding_id_to_syntax_projector_target_id =
     (node_map: t, binding_id: Id.t): option(Id.t) => {

@@ -38,7 +38,7 @@ module Local = {
         | None =>
           raise(
             Failure(
-              "UNIMPLEMENTED_NODE_TYPE: Only let, type alias, and module expressions are currently supported as nodes",
+              "UNIMPLEMENTED_NODE_TYPE: Only let, theorem, type alias, and module expressions are currently supported as nodes",
             ),
           )
         }

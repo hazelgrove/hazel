@@ -34,7 +34,10 @@ let subtree_of =
                ),
           orig_info_map,
         );
-      | Let(pat, def, body) =>
+      /* A theorem rechecks like a let: the stored infos carry its
+         analysis (Bool for the proposition, ProofOf for the binder). */
+      | Let(pat, def, body)
+      | Theorem(pat, def, body) =>
         let pat_info = pat_to_pat(pat, orig_info_map);
         let def_info = exp_to_exp(def, orig_info_map);
         let body_info = exp_to_exp(body, orig_info_map);
@@ -181,7 +184,7 @@ let subtree_of =
       | _ =>
         raise(
           Failure(
-            "UNIMPLEMENTED_NODE_TYPE: Only let, type alias, and module expressions are currently supported as nodes",
+            "UNIMPLEMENTED_NODE_TYPE: Only let, theorem, type alias, and module expressions are currently supported as nodes",
           ),
         )
       }
