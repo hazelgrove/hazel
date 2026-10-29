@@ -1613,39 +1613,34 @@ and uexp_to_info_map =
         };
       /* `M.y`: the type of the module's value member y. When there is none,
          the label is marked and the dot carries a message instead, unless a
-         hole item in the signature could declare y: then y is unknown. */
-      let hole_member =
-        switch (e1_ty.term) {
-        | Sig(Closed(items)) => Sig.has_hole_item(ClosedSig.items(items))
-        | _ => false
-        };
-      let (module_member, label_marks) =
+         hole item in the signature could declare y: then y is unknown. A
+         type member named y is marked on the label alone. */
+      let (module_member, label_marks, dot_message) =
         switch (e1_ty.term, e2.term) {
         | (Sig(Closed(items)), Label(name)) =>
           let items = ClosedSig.items(items);
-          switch (Sig.find_value(Sig.members(items), name)) {
-          | Some(ty) => (Some(ty), [])
+          let members = Sig.members(items);
+          switch (Sig.find_value(members, name)) {
+          | Some(ty) => (Some(ty), [], None)
           | None
-              when
-                List.exists(
-                  String.equal(name),
-                  Sig.type_names(Sig.members(items)),
-                ) => (
+              when List.exists(String.equal(name), Sig.type_names(members)) => (
               None,
               [Mark.ModuleMemberIsType(name)],
-            )
-          | None when hole_member => (None, [])
-          | None => (
               None,
-              [
-                Mark.ModuleMemberNotFound({
-                  name,
-                  members: available_labels,
-                }),
-              ],
             )
+          | None when Sig.has_hole_item(items) => (None, [], None)
+          | None =>
+            let not_found: Mark.member_not_found = {
+              name,
+              members: available_labels,
+            };
+            (
+              None,
+              [Mark.ModuleMemberNotFound(not_found)],
+              Some(Message.Exp(ModuleMemberNotFound(not_found))),
+            );
           };
-        | _ => (None, [])
+        | _ => (None, [], None)
         };
 
       /* Analyze label child, then patch with label_sort, dot_labels,
@@ -1742,17 +1737,7 @@ and uexp_to_info_map =
               ~elab_term=dot_elab,
               ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
               ~marks=[],
-              ~message=?
-                hole_member
-                  ? None
-                  : Some(
-                      Message.Exp(
-                        ModuleMemberNotFound({
-                          name,
-                          members: available_labels,
-                        }),
-                      ),
-                    ),
+              ~message=?dot_message,
               ~dot_labels=available_labels,
               ~co_ctx=dot_co_ctx,
               ~probe_targets=dot_probe_targets,

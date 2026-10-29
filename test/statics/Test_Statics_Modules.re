@@ -103,6 +103,34 @@ let test_type_member_as_value_mark =
     | _ => false,
   );
 
+let test_type_member_as_value_dot_not_missing =
+  Alcotest.test_case(
+    "Accessing a type member as a value does not say it is missing on the dot",
+    `Quick,
+    () => {
+      let messages =
+        Language.Id.Map.bindings(
+          statics(parse_exp({|let m = { type T = Int } in m.T|})),
+        )
+        |> List.filter_map(((_, info: Language.Info.t)) =>
+             switch (info) {
+             | InfoExp({user_term: {term: Dot(_), _}, message, _}) =>
+               Some(message)
+             | _ => None
+             }
+           );
+      Alcotest.(check(bool))(
+        "one dot, not saying the member is missing",
+        true,
+        switch (messages) {
+        | [Language.Message.Exp(ModuleMemberNotFound(_))] => false
+        | [_] => true
+        | _ => false
+        },
+      );
+    },
+  );
+
 let test_dot_on_non_module_mark =
   has_mark_test(
     "Projecting from a non-module value is a dot error",
@@ -2357,5 +2385,6 @@ let tests = (
     test_folded_sig_pattern_checked_alike,
     test_evaluated_module_binding_recloses_earlier_members,
     test_outer_alias_member_exported_expanded,
+    test_type_member_as_value_dot_not_missing,
   ],
 );
