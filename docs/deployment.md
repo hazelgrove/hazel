@@ -10,7 +10,7 @@ Actions secrets and in the Cloudflare dashboard.
 |---|---|---|
 | The main site, `hazel.org` (and `www`) | Cloudflare Pages project `hazel-org` | `hazelgrove/hazelgrove.github.io`, branch `master`, deployed as-is on every push (no build step) |
 | Branch previews, `build.hazel.org/<branch>/` | R2 bucket `hazel-build` (location hint: eastern North America) | `.github/workflows/deploy.yml`, on every push to this repo |
-| Old preview URLs, `hazel.org/build/<branch>/` | 301 redirect to `build.hazel.org/<branch>/` | Cloudflare redirect rule (below) |
+| Old preview URLs, `hazel.org/build/<branch>/` and `hazel.org/build-pre-july2024/<branch>/` | 301 redirect to `build.hazel.org/<branch>/` | Cloudflare redirect rules (below) |
 
 ## Account and DNS
 
@@ -66,8 +66,10 @@ All of these work on the Free plan; none need Worker or Function code.
    `https://build.hazel.org` + the rest of the path, query string kept.
    Browsers carry the `#fragment` across redirects themselves, so slide and
    cursor deep links survive.
-2. `build.hazel.org/` (the bare root) → 302 to `https://hazel.org/`.
-3. `build.hazel.org`, path not ending in `/` and containing no `.` → 301 to the
+2. `hazel.org` or `www.hazel.org`, path starting `/build-pre-july2024/` → 301
+   to `https://build.hazel.org` + the rest of the path, the same way.
+3. `build.hazel.org/` (the bare root) → 302 to `https://hazel.org/`.
+4. `build.hazel.org`, path not ending in `/` and containing no `.` → 301 to the
    same path plus `/`. Builds load `style.css`, `hazel.js` etc. relatively,
    so a folder URL needs its trailing slash.
 
@@ -87,13 +89,16 @@ misses through to R2.
   to `https://build.hazel.org/livelits/`, the old livelits branch build.
   Don't delete either one.
 - **`hazel.org/build/dev/`** and other old preview links are covered by
-  redirect rule 1.
+  redirect rules 1 and 2.
 
 ## Old previews and retention
 
 Every preview that existed in `hazelgrove/build` (the old GitHub Pages
 repository) was copied into the bucket during the move, and that repository
-is now frozen. There's no retention policy: storage is $0.015/GB-month beyond
+is now frozen. So were the 491 previews in `hazelgrove/build-pre-july2024`,
+the archive split off in July 2024 (its own Pages site had stopped building).
+Twenty branch names existed in both; for those, the newer build from
+`hazelgrove/build` is the one served. There's no retention policy: storage is $0.015/GB-month beyond
 10 GB free, so keeping every build costs cents a month. Revisit only if it
 starts costing real money; a budget alert on the account emails the owner if
 spend crosses its threshold.
