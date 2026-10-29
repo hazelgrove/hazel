@@ -75,40 +75,65 @@ module Update = {
         Js_of_ocaml.Dom_html.window##.location##reload;
         model |> Updated.return_quiet;
       }
-    | _ when current_exception^ == None =>
-      try({
-        let updated =
-          Logged.Update.update(
-            ~import_log,
-            ~get_log_and,
-            ~schedule_action,
-            action,
-            model.model,
+    /* Everything else runs only while no crash is on screen: until it is
+       cleared, just the crash screen's own actions above do, so nothing
+       builds on the state that crashed. */
+    | Globals(
+        SetFontMetrics(_) | Set(_) | SetAgentGlobals(_) | JumpToTile(_) |
+        InitImportAll(_) |
+        FinishImportAll(_) |
+        ExportForInit |
+        ActiveEditor(_) |
+        Undo |
+        Redo |
+        Log(_) |
+        SetMetaDown(_) |
+        SetSettingsFilter(_) |
+        UpdateVisibleRows(_),
+      )
+    | Editors(_)
+    | ExplainThis(_)
+    | MakeActive(_)
+    | Benchmark(_)
+    | Refresh
+    | Start
+    | Save =>
+      if (current_exception^ != None) {
+        model |> Updated.return_quiet;
+      } else {
+        try({
+          let updated =
+            Logged.Update.update(
+              ~import_log,
+              ~get_log_and,
+              ~schedule_action,
+              action,
+              model.model,
+            );
+          {
+            ...updated,
+            model: {
+              model: updated.model,
+            },
+          };
+        }) {
+        | Haz3lcore.Action.Failure.Exception(t) =>
+          Printf.printf(
+            "ERROR: Action.Failure: %s\n",
+            t |> Haz3lcore.Action.Failure.show,
           );
-        {
-          ...updated,
-          model: {
-            model: updated.model,
-          },
+          model |> Updated.return_quiet;
+        | Updated.InvalidAction =>
+          print_endline("cannot perform action");
+          model |> Updated.return_quiet;
+        | exn =>
+          set_last_exception(exn);
+          let msg = Printexc.to_string(exn);
+          print_endline("CrashHandling: Caught exception in update: " ++ msg);
+          set_current_exception(Update(msg));
+          model |> Updated.return_quiet;
         };
-      }) {
-      | Haz3lcore.Action.Failure.Exception(t) =>
-        Printf.printf(
-          "ERROR: Action.Failure: %s\n",
-          t |> Haz3lcore.Action.Failure.show,
-        );
-        model |> Updated.return_quiet;
-      | Updated.InvalidAction =>
-        print_endline("cannot perform action");
-        model |> Updated.return_quiet;
-      | exn =>
-        set_last_exception(exn);
-        let msg = Printexc.to_string(exn);
-        print_endline("CrashHandling: Caught exception in update: " ++ msg);
-        set_current_exception(Update(msg));
-        model |> Updated.return_quiet;
       }
-    | _ => model |> Updated.return_quiet
     };
 
   let calculate =

@@ -15,7 +15,10 @@ let pending_scroll_restore: ref(option(float)) = ref(None);
 let tutorial_slide = (m: CrashHandling.Model.t): option(int) =>
   switch (m.model.current.current.editors) {
   | Editors.Model.Tutorial(tm) => Some(tm.current)
-  | _ => None
+  | Scratch(_)
+  | Documentation(_)
+  | Exercises(_)
+  | Config(_) => None
   };
 
 let restart_caret_animation = () =>
@@ -234,6 +237,9 @@ let start = default_model => {
       )
       >= 0;
     JsUtil.focus_page();
+    /* then the selected cell, once it renders, so keys reach it without a
+       click (falls back to #page focus above if there is none) */
+    Haz3lcore.FocusEffect.schedule_cell();
     JsUtil.install_text_selection_guards();
     Haz3lcore.FocusEffect.install_press_tracking();
     /* Re-measure font metrics on zoom (DPR change). ResizeObserver

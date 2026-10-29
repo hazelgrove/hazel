@@ -387,10 +387,24 @@ module Update = {
             visible_rows: None,
           }
           : model.globals;
+      /* a mode switch (SwitchMode, ShowConfig) leaves the old mode's
+         selection behind, which selects no editor in the new one: start
+         from the new mode's default, as a reload in it would, and give
+         that cell DOM focus once it renders so keys reach it (as after a
+         sidebar jump). No per-mode memory: returning to a mode lands on
+         its default cell, not the one last clicked. */
+      let selection =
+        if (Editors.Selection.fits_mode(model.selection, editors)) {
+          model.selection;
+        } else {
+          Haz3lcore.FocusEffect.schedule_cell();
+          Editors.Selection.default_selection(editors);
+        };
       {
         ...model,
         editors,
         globals,
+        selection,
       };
     | ExplainThis(action) =>
       let* explain_this =
@@ -436,7 +450,10 @@ module Update = {
     let lesson =
       switch (model.editors) {
       | Tutorial(t) => Some(TutorialsMode.Model.get_current(t).editors)
-      | _ => None
+      | Scratch(_)
+      | Documentation(_)
+      | Exercises(_)
+      | Config(_) => None
       };
     TutorialSlideInit.maybe_apply_on_change(
       ~autoprobe=model.globals.settings.autoprobe_mode,
@@ -908,7 +925,10 @@ module View = {
         TutorialReferencePanel.of_lesson(
           TutorialsMode.Model.get_current(t).editors,
         )
-      | _ => None
+      | Scratch(_)
+      | Documentation(_)
+      | Exercises(_)
+      | Config(_) => None
       };
     let sidebar =
       Sidebar.view(

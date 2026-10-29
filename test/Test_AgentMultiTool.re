@@ -67,18 +67,25 @@ let run_handle_llm_response =
   let scheduled = ref([]);
   let schedule_action = (a: Agent.Update.Action.t) =>
     scheduled := scheduled^ @ [a];
+  /* an agent edit asks for a forced statics pass that no frame consumes
+     here; clear it even if the update raises, or later dispatch tests wait
+     on it (StaticsDebounce.pending) */
   let (agent', _cell_ed) =
-    Agent.Update.update(
-      Agent.Update.Action.HandleLLMResponse(
-        reply,
-        chat_id,
-        agent.main_llm_seq,
-        0,
-      ),
-      agent,
-      cell_editor,
-      settings,
-      schedule_action,
+    Fun.protect(
+      ~finally=() => CodeWithStatics.StaticsDebounce.force_on_next := false,
+      () =>
+        Agent.Update.update(
+          Agent.Update.Action.HandleLLMResponse(
+            reply,
+            chat_id,
+            agent.main_llm_seq,
+            0,
+          ),
+          agent,
+          cell_editor,
+          settings,
+          schedule_action,
+        ),
     );
   (agent', scheduled^);
 };
@@ -253,10 +260,143 @@ let test_single_tool_call_regression = () => {
   check(string, "name", "unset_active_task", List.hd(names));
 };
 
+/* A task with one subtask, active, so tool results can land in it */
+let one_subtask_task =
+  tool_call(
+    "task",
+    "create_new_task",
+    yo_assoc([
+      (
+        "task",
+        yo_assoc([
+          ("title", `String("boundary")),
+          ("description", `String("desc")),
+          (
+            "subtasks",
+            `List([
+              yo_assoc([
+                ("title", `String("s1")),
+                ("description", `String("d1")),
+              ]),
+            ]),
+          ),
+        ]),
+      ),
+    ]),
+  );
+
+let active_subtask_tool_names =
+    (model: Agent.Model.t, chat_id: Id.t): list(string) => {
+  let wb =
+    ChatSystem.Utils.find_chat(chat_id, model.chat_system).agent_workbench;
+  switch (AgentWorkbench.Utils.MainUtils.active_task(wb)) {
+  | None => fail("no active task")
+  | Some(task) =>
+    switch (AgentWorkbench.Utils.TaskUtils.active_subtask(task)) {
+    | None => fail("no active subtask")
+    | Some(subtask) =>
+      List.map(
+        (tr: AgentToolResult.tool_result) => tr.tool_call.name,
+        subtask.tools_used,
+      )
+    }
+  };
+};
+
+let cell_editor_of = (code: string) =>
+  CellEditor.Model.mk(
+    Editor.Model.mk(Test_AgentTools.mk_zipper(code), ~root=Exp),
+  );
+
+/* A pathless insert_before (InsertAtProgramBoundary) changes the program like
+   any other insert: the chat shows its diff and the workbench lists it under
+   the active subtask. Both used to be dropped by catch-alls. */
+let test_boundary_insert_diff_and_subtask = () => {
+  let settings = Settings.Model.init;
+  let agent = Agent.Utils.init();
+  let chat_id = agent.chat_system.current;
+  let reply =
+    mk_reply(
+      ~content="batch",
+      [
+        one_subtask_task,
+        tool_call(
+          "ins",
+          "insert_before",
+          yo_assoc([("code", `String("let x = 1 in"))]),
+        ),
+      ],
+    );
+  let (agent', _) =
+    run_handle_llm_response(
+      reply,
+      ~agent,
+      ~cell_editor=cell_editor_of("x"),
+      ~settings,
+    );
+  let trs = tool_results_in_order(agent', chat_id);
+  check(int, "two ToolResult rows", 2, List.length(trs));
+  let ins = List.nth(trs, 1);
+  check(bool, "insert succeeded: " ++ ins.content, true, ins.success);
+  switch (ins.diff) {
+  | Some({old_text, new_text: Some(new_text)}) =>
+    check(bool, "diff shows the change", true, old_text != new_text)
+  | Some({new_text: None, _})
+  | None => fail("pathless insert has no diff")
+  };
+  check(
+    list(string),
+    "the insert is listed under the active subtask, the workbench tool is not",
+    ["insert_before"],
+    active_subtask_tool_names(agent', chat_id),
+  );
+};
+
+/* A failed pathless insert still records the program it was tried on: the
+   chat's edit timeline starts from the first edit's before_text. */
+let test_failed_boundary_insert_has_before_text = () => {
+  let settings = Settings.Model.init;
+  let agent = Agent.Utils.init();
+  let chat_id = agent.chat_system.current;
+  let reply =
+    mk_reply(
+      ~content="one",
+      [
+        tool_call(
+          "ins",
+          "insert_before",
+          yo_assoc([("code", `String("let x : Int = true in"))]),
+        ),
+      ],
+    );
+  let (agent', _) =
+    run_handle_llm_response(
+      reply,
+      ~agent,
+      ~cell_editor=cell_editor_of("1"),
+      ~settings,
+    );
+  let trs = tool_results_in_order(agent', chat_id);
+  check(int, "one ToolResult row", 1, List.length(trs));
+  let ins = List.hd(trs);
+  check(bool, "insert rejected (new static error)", false, ins.success);
+  check(bool, "before_text recorded", true, ins.before_text != None);
+};
+
 let tests = [
   (
     "AgentMultiTool",
     [
+      test_case(
+        "pathless insert: diff shown and listed in the active subtask",
+        `Quick,
+        test_boundary_insert_diff_and_subtask,
+      ),
+      test_case(
+        "pathless insert failure: before_text recorded",
+        `Quick,
+        test_failed_boundary_insert_has_before_text,
+      ),
       test_case(
         "HandleLLMResponse: two tool_calls => two ToolResult messages in order",
         `Quick,

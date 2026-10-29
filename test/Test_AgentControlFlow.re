@@ -704,9 +704,15 @@ let test_stream_delta_accumulates_on_seq_mismatch = () => {
 
 /* --- Eval-settled dispatch gate ---------------------------------------- */
 
+/* Also starts the gate from a clean debounce: a forced statics pass left
+   over from an earlier test's agent edit reads as pending and holds the
+   dispatch in its wait. */
 let with_pending_dispatch = (agent: Agent.Model.t): Agent.Model.t => {
-  ...agent,
-  pending_dispatch_send: Some(agent.chat_system.current),
+  CodeWithStatics.StaticsDebounce.force_on_next := false;
+  {
+    ...agent,
+    pending_dispatch_send: Some(agent.chat_system.current),
+  };
 };
 
 /* A dispatch arriving while evaluation is pending re-defers and keeps the
