@@ -1378,6 +1378,16 @@ let rec drv_exp_to_pretty =
   let try_newline = () =>
     settings.inline ? [] : [Secondary(mk_newline(Id.mk()))];
   let id = syntax |> Drv.Exp.rep_id;
+  /* An application's argument tile: `()` when the argument is the
+     nullary-ap flag (MakeTerm.drv_exp_term's `f()`), else `(arg)` */
+  let ap_suffix = (arg: Drv.Exp.t): pretty =>
+    switch (arg.term) {
+    | Triv when Id.is_nullary_ap_flag(IdTagged.ids(arg)) =>
+      p_just([mk_form(ApEmpty, id, [])])
+    | _ =>
+      let+ arg = go(arg, ~sort=Exp);
+      [mk_form(Ap, id, [arg])];
+    };
   let content =
     switch (syntax |> Drv.Exp.term_of) {
     | Hole(h) => drv_type_hole_to_pretty(~settings, h)
@@ -1527,8 +1537,8 @@ let rec drv_exp_to_pretty =
       [mk_form(Fun, id, [p])] @ e;
     | Ap(l, r) =>
       let+ l = go(l, ~sort=Exp)
-      and+ r = go(r, ~sort=Exp);
-      l @ [mk_form(Ap, id, [r])];
+      and+ r = ap_suffix(r);
+      l @ r;
     | Pair(l, r) =>
       let+ l = go(l, ~sort=Exp)
       and+ r = go(r, ~sort=Exp);
@@ -1545,13 +1555,11 @@ let rec drv_exp_to_pretty =
       @ [mk_form(Dot, Id.invalid, [])]
       @ text_to_pretty(id, Sort.Drv(Exp), "snd");
     | InjL(e) =>
-      let+ e = go(e, ~sort=Exp);
-      text_to_pretty(Id.invalid, Sort.Drv(Exp), "L")
-      @ [mk_form(Ap, id, [e])];
+      let+ e = ap_suffix(e);
+      text_to_pretty(Id.invalid, Sort.Drv(Exp), "L") @ e;
     | InjR(e) =>
-      let+ e = go(e, ~sort=Exp);
-      text_to_pretty(Id.invalid, Sort.Drv(Exp), "R")
-      @ [mk_form(Ap, id, [e])];
+      let+ e = ap_suffix(e);
+      text_to_pretty(Id.invalid, Sort.Drv(Exp), "R") @ e;
     | Case(e, x, e1, y, e2) =>
       /* ID order: [case_end_id] @ rule_ids (outer first, then adopted).
          IMPORTANT: Each Rule tile must have its OWN distinct id, not the
@@ -1597,13 +1605,11 @@ let rec drv_exp_to_pretty =
         ),
       ];
     | Roll(e) =>
-      let+ e = go(e, ~sort=Exp);
-      text_to_pretty(Id.invalid, Sort.Drv(Exp), "roll")
-      @ [mk_form(Ap, id, [e])];
+      let+ e = ap_suffix(e);
+      text_to_pretty(Id.invalid, Sort.Drv(Exp), "roll") @ e;
     | Unroll(e) =>
-      let+ e = go(e, ~sort=Exp);
-      text_to_pretty(Id.invalid, Sort.Drv(Exp), "unroll")
-      @ [mk_form(Ap, id, [e])];
+      let+ e = ap_suffix(e);
+      text_to_pretty(Id.invalid, Sort.Drv(Exp), "unroll") @ e;
     | ExpHole => text_to_pretty(id, Sort.Drv(Exp), Token.wild)
     };
   wrap_with_secondary(~secondary=settings.secondary, syntax, content);
@@ -2607,7 +2613,23 @@ and mpat_to_seg = (~settings: Settings.t, mp: MPat.t): Segment.t => {
         }),
       ]
       @ typ_seg;
-    | _ => text_to_pretty(mp |> MPat.rep_id, Sort.MPat, "?")
+    | Invalid(s) => invalid_to_pretty(mp |> MPat.rep_id, Sort.MPat, s)
+    | EmptyHole =>
+      let id = mp |> MPat.rep_id;
+      switch (hole_lexeme(mp.annotation)) {
+      | Some(tok) => text_to_pretty(id, Sort.MPat, tok)
+      | None =>
+        settings.hole_tiles
+          ? text_to_pretty(id, Sort.MPat, "?")
+          : [
+            Grout({
+              id,
+              shape: Convex,
+            }),
+          ]
+      };
+    | MultiHole(es) =>
+      multihole_to_pretty(~settings, ~sort=Sort.MPat, mp.annotation, es)
     };
   wrap(mp, content);
 }
@@ -3284,10 +3306,10 @@ and mod_to_pretty = (~settings: Settings.t, item: Mod.t): pretty => {
     p_just(
       wrap_item(item, invalid_to_pretty(item |> Mod.rep_id, Sort.Mod, s)),
     )
-  | MultiHole(_) =>
-    p_just(
-      wrap_item(item, text_to_pretty(item |> Mod.rep_id, Sort.Mod, "?")),
-    )
+  | MultiHole(es) =>
+    let+ seg =
+      multihole_to_pretty(~settings, ~sort=Sort.Mod, item.annotation, es);
+    wrap_item(item, seg);
   };
 }
 and sig_to_pretty = (~settings: Settings.t, item: Sig.t): pretty => {
@@ -3318,10 +3340,57 @@ and sig_to_pretty = (~settings: Settings.t, item: Sig.t): pretty => {
     p_just(
       wrap_item(item, invalid_to_pretty(item |> Sig.rep_id, Sort.Sig, s)),
     )
-  | MultiHole(_) =>
-    p_just(
-      wrap_item(item, text_to_pretty(item |> Sig.rep_id, Sort.Sig, "?")),
+  | MultiHole(es) =>
+    let+ seg =
+      multihole_to_pretty(~settings, ~sort=Sort.Sig, item.annotation, es);
+    wrap_item(item, seg);
+  };
+}
+/* A MultiHole of a sort with no MultiHole case of its own (MPat, Mod,
+   Sig), mirroring exp/pat_to_pretty's: a stranded operator (its
+   spelling recorded as the lexeme by MakeTerm.op_hole) goes back
+   before or between its kids; otherwise the kids are joined by concave
+   grout under the term's ids. Kids, ids and comments all survive. */
+and multihole_to_pretty =
+    (
+      ~settings: Settings.t,
+      ~sort: Sort.t,
+      ann: IdTagged.IdTag.t,
+      es: list(Any.t),
     )
+    : pretty => {
+  let (@) = concat_segment(~secondary=settings.secondary);
+  let rep_id = OptUtil.get(() => Id.mk(), ListUtil.hd_opt(ann.ids));
+  switch (es, op_lexeme(ann)) {
+  | ([x], Some(op)) =>
+    let+ x = any_to_pretty(~settings, x);
+    [pre_op_tile(rep_id, sort, op), ...x];
+  | ([l, r], Some(op)) =>
+    let+ l = any_to_pretty(~settings, l)
+    and+ r = any_to_pretty(~settings, r);
+    l @ [op_tile(rep_id, sort, op)] @ r;
+  | _ =>
+    let+ es = es |> List.map(any_to_pretty(~settings)) |> all;
+    let ids = ann.ids |> PadIds.pad_ids(max(0, List.length(es) - 1));
+    switch (es) {
+    | [] => []
+    | [first, ...rest] =>
+      first
+      @ List.flatten(
+          List.map2(
+            (id, e) =>
+              [
+                Grout({
+                  id,
+                  shape: Concave,
+                }),
+                ...e,
+              ],
+            ids,
+            rest,
+          ),
+        )
+    };
   };
 }
 and mpat_to_pretty = (~settings: Settings.t, mp: MPat.t): pretty => {

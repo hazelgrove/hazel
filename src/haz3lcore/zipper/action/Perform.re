@@ -416,11 +416,19 @@ let rec go =
          !settings.indentation_ux
            ? z'
            : (
+             /* Arrow movement never rests in leading whitespace, at
+                any chunkiness (BySmart moves like ByChar, see
+                Move.local; ByToken is Alt/Ctrl+Arrow). */
              switch (d) {
-             | Local(dir, ByChar) => Move.skip_indent(dir, z')
-             | Vertical(_, ByChar)
+             | Local(dir, ByChar | ByToken | BySmart) =>
+               Move.skip_indent(dir, z')
+             | Vertical(_, ByChar | ByToken | BySmart)
              | Line(Left) => Move.skip_indent(Direction.Right, z')
-             | _ => z'
+             | Line(Right)
+             | Start
+             | End
+             | Point(_)
+             | Goal(_) => z'
              }
            )
        )
@@ -512,7 +520,8 @@ let rec go =
     /* see Cut: fires only on completion-by-deletion */
     let join =
       switch (d) {
-      | Local(Left, ByChar) when settings.indentation_ux =>
+      /* BySmart destructs like ByChar (see Destruct) */
+      | Local(Left, ByChar | BySmart) when settings.indentation_ux =>
         switch (indent_join_run(z)) {
         | Some((n, lb_id)) =>
           /* width gate: see indent_join_run */
