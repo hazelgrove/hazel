@@ -190,15 +190,6 @@ let missing_items =
      );
 };
 
-let rec mpat_has_hole = (mp: MPat.t): bool =>
-  switch (mp.term) {
-  | EmptyHole
-  | MultiHole(_) => true
-  | Asc(inner, _) => mpat_has_hole(inner)
-  | Var(_)
-  | Invalid(_) => false
-  };
-
 /* Whether an item has a hole where a member could be bound: a hole item, a
    hole in a binding position of a `let` pattern, or a hole module or type
    name. Holes in definitions and annotations do not count. */
@@ -209,7 +200,7 @@ let has_hole_binder = (items: list(Mod.t)): bool =>
       | EmptyHole
       | MultiHole(_) => true
       | ModLet(pat, _) => Pat.has_hole_binder(Pat.binder(pat))
-      | ModuleMod(mp, _) => mpat_has_hole(mp)
+      | ModuleMod(mp, _) => MPat.has_hole(mp)
       | ModType({term: EmptyHole | MultiHole(_), _}, _) => true
       | ModType(_)
       | ModExp(_)

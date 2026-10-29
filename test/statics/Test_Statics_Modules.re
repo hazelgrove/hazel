@@ -178,6 +178,7 @@ let test_holes_assume_missing_members =
         {|module M : { let x : Int; let y : Int } = { let x = 1; ? } in M.y|},
         {|module M : { let x : Int; let y : Int } = { let (x, ?) = (1, 2) } in M.y|},
         {|module M : { type T = Int; let x : Int } = { let x = 1; ? } in let y : M.T = 3 in y + 1|},
+        {|module M : { let x : Int; module P : { let y : Int } } = { let x = 1; module ? = { let y = 2 } } in M.x|},
       ],
     )
   );

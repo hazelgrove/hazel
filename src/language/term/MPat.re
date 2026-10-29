@@ -44,6 +44,16 @@ let rec name = (mp: t): option(Var.t) =>
   | MultiHole(_) => None
   };
 
+/* Whether the name is a hole, which a module could still be bound by. */
+let rec has_hole = (mp: t): bool =>
+  switch (mp.term) {
+  | EmptyHole
+  | MultiHole(_) => true
+  | Asc(inner, _) => has_hole(inner)
+  | Var(_)
+  | Invalid(_) => false
+  };
+
 let temp: term => t =
   term => {
     term,
