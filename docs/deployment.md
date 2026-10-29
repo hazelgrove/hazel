@@ -134,7 +134,10 @@ spend crosses its threshold.
   its root: link to `build.hazel.org/<branch>/` with the slash.
 - Saved Hazel state (IndexedDB) is per origin, so previews on
   `build.hazel.org` don't see state saved under `hazel.org/build/…` before
-  the move.
+  the move. Within `build.hazel.org`, each branch's build uses its own
+  database (`hazel:<branch>`; `dev` keeps plain `hazel`), so previews don't
+  share saved state either. localStorage (only the color-theme cache) is
+  still shared across the origin.
 - A branch that hasn't merged `dev` since the move still has the old
   `deploy.yml`, which pushes to `hazelgrove/build`. That repository is
   archived and its push token revoked, so the old Deploy job fails visibly.
