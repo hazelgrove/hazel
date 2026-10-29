@@ -183,6 +183,90 @@ module Update = {
     | SetShortcutOverrides(list((string, option(string))))
     | SimpleIndication;
 
+  /* How a settings change interacts with undo, autosave and the action log.
+     History.re pushes a snapshot of the whole page for every historic
+     update and clears the redo stack, so anything that fires without a
+     deliberate settings change (hover, lesson entry, re-evaluation) must
+     not be historic, or it buries real edits and wipes redo. */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type kind =
+    /* A deliberate settings toggle: undoable, autosaved, logged. */
+    | Undoable
+    /* Panel/navigation state or a setting applied on the user's behalf:
+       not undoable, but still autosaved (is_edit is what schedules the
+       settings save) and logged. */
+    | NotUndoable
+    /* Transient UI state with no lasting effect: not undoable, not
+       autosaved (and so no statics recompute), not logged. */
+    | Transient;
+
+  /* Exhaustive on purpose: a new action has to choose its kind. */
+  let kind: t => kind =
+    fun
+    | Captions
+    | SecondaryIcons
+    | Statics
+    | Dynamics
+    | ProbeAll
+    | AutoReindent
+    | FormatShortcut(_)
+    | SelectionChunkiness
+    | Assist
+    | Elaborate
+    | ContextInspector
+    | InstructorMode
+    | DisplayWarnings
+    | FlipAnimations
+    | CompletionDisplay(_)
+    | AutoprobeMode
+    | ToggleLineNumbers
+    | ToggleRelativeLineNumbers
+    | ShowRowLines
+    | ShowIncrementalDeco
+    | SimpleIndication
+    | Evaluation(ShowRecord)
+    | Evaluation(EnableProof)
+    | Evaluation(ShowCaseClauses)
+    | Evaluation(ShowFnBodies)
+    | Evaluation(ShowAscriptionSteps)
+    | Evaluation(ShowAscriptions)
+    | Evaluation(ShowCaseSteps)
+    | Evaluation(ShowFixpoints)
+    | Evaluation(ShowLookups)
+    | Evaluation(ShowFilters)
+    | Evaluation(ShowHiddenSteps)
+    | Evaluation(ProjectTables) => Undoable
+    /* Toggles the stepper's own settings popover. */
+    | Evaluation(ShowSettings)
+    /* Dispatched alongside a proof-step button, not chosen by the user. */
+    | Evaluation(ForceShowRecord)
+    /* Panel visibility and navigation, not program state. */
+    | Sidebar(_)
+    | ShowLogPanel
+    | ShowDebugPanel
+    | Benchmark
+    | ExplainThis(ToggleShowFeedback | SetHighlight(Toggle))
+    /* Toggling the undo cap should not itself occupy an undo slot. */
+    | CapUndoStack
+    /* Set automatically on entering/leaving a Probes lesson (Page.update),
+       and by Clear All alongside a historic probe removal. */
+    | SetAutoprobe(_)
+    /* Re-sent after every evaluation of the Shortcuts config slide. */
+    | SetShortcutOverrides(_)
+    /* '/' sticky-dropdown mode: a ProbeProj ref, not a Settings field.
+       Still an edit so the probe views re-render. */
+    | SampleStickyInPlace => NotUndoable
+    /* Mouse enter/leave over an ExplainThis span. */
+    | ExplainThis(SetHighlight(Hover(_) | UnsetHover)) => Transient;
+
+  let return_for = (action: t, settings: Model.t): Updated.t(Model.t) =>
+    switch (kind(action)) {
+    | Undoable => Updated.return(~scroll_active=false, settings)
+    | NotUndoable =>
+      Updated.return(~scroll_active=false, ~historic=false, settings)
+    | Transient => Updated.return_quiet(settings)
+    };
+
   let update = (~action, ~settings: Model.t): Updated.t(Model.t) => {
     (
       switch (action) {
@@ -536,14 +620,7 @@ module Update = {
         }
       }
     )
-    |> Updated.return(
-         ~scroll_active=false,
-         ~historic=
-           switch (action) {
-           | Evaluation(ShowSettings) => false
-           | _ => true
-           },
-       );
+    |> return_for(action);
   };
 };
 
