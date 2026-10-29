@@ -420,6 +420,26 @@ module Selection = {
     | Assistant;
   /* Assistant = user has focus in the sidebar (e.g. agent panel text box) */
 
+  /* Whether [selection] can point into [editors]. One left over from another
+     mode reaches no editor: nothing is focused, keys go nowhere and cursor
+     actions (Reparse, Problems next/previous) find no editor. */
+  let fits_mode = (selection: t, editors: Model.t): bool =>
+    switch (selection, editors) {
+    | (Assistant, _)
+    | (Scratch(_), Scratch(_) | Documentation(_))
+    | (Exercises(_), Exercises(_))
+    | (Tutorial(_), Tutorial(_))
+    | (Configuration(_), Config(_)) => true
+    | (Scratch(_), Exercises(_) | Tutorial(_) | Config(_))
+    | (Exercises(_), Scratch(_) | Documentation(_) | Tutorial(_) | Config(_))
+    | (Tutorial(_), Scratch(_) | Documentation(_) | Exercises(_) | Config(_))
+    | (
+        Configuration(_),
+        Scratch(_) | Documentation(_) | Exercises(_) | Tutorial(_),
+      ) =>
+      false
+    };
+
   let get_cursor_info =
       (
         ~inject: Update.t => Ui_effect.t(unit),
@@ -474,16 +494,14 @@ module Selection = {
         );
       let+ a = ci;
       Update.Exercises(a);
-    | (Scratch(_), Tutorial(_))
-    | (Scratch(_), Exercises(_))
-    | (Exercises(_), Scratch(_))
-    | (Exercises(_), Documentation(_))
-    | (Exercises(_), Tutorial(_))
-    | (Tutorial(_), Scratch(_))
-    | (Tutorial(_), Exercises(_))
-    | (Tutorial(_), Documentation(_))
-    | (Configuration(_), _)
-    | (_, Config(_)) => empty
+    /* a selection from another mode: see fits_mode */
+    | (Scratch(_), Exercises(_) | Tutorial(_) | Config(_))
+    | (Exercises(_), Scratch(_) | Documentation(_) | Tutorial(_) | Config(_))
+    | (Tutorial(_), Scratch(_) | Documentation(_) | Exercises(_) | Config(_))
+    | (
+        Configuration(_),
+        Scratch(_) | Documentation(_) | Exercises(_) | Tutorial(_),
+      ) => empty
     };
   };
 
@@ -513,7 +531,7 @@ module Selection = {
     fun
     | Model.Scratch(_) => Scratch(Cell(MainEditor))
     | Model.Documentation(_) => Scratch(Cell(MainEditor))
-    | Model.Config(_) => Scratch(Cell(MainEditor))
+    | Model.Config(_) => Configuration(Cell(MainEditor))
     | Model.Tutorial(_) => Tutorial(Cell(Tutorial.YourImpl, MainEditor))
     | Model.Exercises(_) =>
       Exercises(Code(Cell(CodeExercise.Prelude, MainEditor)));
@@ -530,7 +548,14 @@ module Selection = {
       ScratchMode.Selection.get_derivation_info(~selection=sel, m)
     | (Exercises(sel), Exercises(m)) =>
       ExercisesMode.Selection.get_derivation_info(~selection=sel, m)
-    | _ => None
+    /* tutorial and config slides are code, never derivations; the sidebar
+       and a selection from another mode have no derivation either */
+    | (Tutorial(_), _)
+    | (Configuration(_), _)
+    | (Assistant, _)
+    | (Scratch(_), Exercises(_) | Tutorial(_) | Config(_))
+    | (Exercises(_), Scratch(_) | Documentation(_) | Tutorial(_) | Config(_)) =>
+      None
     };
 };
 

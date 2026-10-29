@@ -321,8 +321,19 @@ module Projectors = {
     switch (kind) {
     | Fold => Some(Shortcuts.fold())
     | Statics => Some(Shortcuts.type_annotation())
-    | _ when chosen_livelit == Some(kind) => Some(Shortcuts.livelit())
-    | _ => None
+    /* the livelit shortcut inserts whichever livelit was chosen */
+    | Checkbox
+    | Slider
+    | SliderF
+    | Card
+    | TextArea
+    | Csv
+    | Table
+    | Livelit
+    | Keybinding
+    | Color
+    | Probe =>
+      chosen_livelit == Some(kind) ? Some(Shortcuts.livelit()) : None
     };
 
   let display_name = (kind: ProjectorCore.Kind.t): string =>

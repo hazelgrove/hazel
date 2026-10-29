@@ -387,10 +387,17 @@ module Update = {
             visible_rows: None,
           }
           : model.globals;
+      /* a mode switch (SwitchMode, ShowConfig) leaves the old mode's
+         selection behind, which selects no editor in the new one: start
+         from the new mode's default, as a reload in it would */
+      let selection =
+        Editors.Selection.fits_mode(model.selection, editors)
+          ? model.selection : Editors.Selection.default_selection(editors);
       {
         ...model,
         editors,
         globals,
+        selection,
       };
     | ExplainThis(action) =>
       let* explain_this =
@@ -436,7 +443,10 @@ module Update = {
     let lesson =
       switch (model.editors) {
       | Tutorial(t) => Some(TutorialsMode.Model.get_current(t).editors)
-      | _ => None
+      | Scratch(_)
+      | Documentation(_)
+      | Exercises(_)
+      | Config(_) => None
       };
     TutorialSlideInit.maybe_apply_on_change(
       ~autoprobe=model.globals.settings.autoprobe_mode,
@@ -908,7 +918,10 @@ module View = {
         TutorialReferencePanel.of_lesson(
           TutorialsMode.Model.get_current(t).editors,
         )
-      | _ => None
+      | Scratch(_)
+      | Documentation(_)
+      | Exercises(_)
+      | Config(_) => None
       };
     let sidebar =
       Sidebar.view(

@@ -39,7 +39,13 @@ module Delims = {
     | Drv(Typ) => leading_drv_typ
     | Drv(Pat) => leading_drv_pat
     | Drv(TPat) => leading_drv_tpat
-    | _ => []
+    /* no form tables for these sorts */
+    | Any
+    | TPat
+    | Rul
+    | Mod
+    | Sig
+    | MPat => []
     };
 
   /* compound forms only: single tokens registered merely as atoms
@@ -69,7 +75,13 @@ module Delims = {
     | Drv(Typ) => infix_drv_typ
     | Drv(Pat) => infix_drv_pat
     | Drv(TPat) => infix_drv_tpat
-    | _ => []
+    /* no form tables for these sorts */
+    | Any
+    | TPat
+    | Rul
+    | Mod
+    | Sig
+    | MPat => []
     };
 
   let const_mono = (sort: Sort.t): list(Token.t) =>
@@ -102,7 +114,13 @@ module Delims = {
     | Drv(Typ) => const_mono_drv_typ
     | Drv(Pat) => const_mono_drv_pat
     | Drv(TPat) => const_mono_drv_tpat
-    | _ => []
+    /* no form tables for these sorts */
+    | Any
+    | TPat
+    | Rul
+    | Mod
+    | Sig
+    | MPat => []
     };
 };
 
@@ -246,7 +264,15 @@ let suggest_form =
         },
       filtered,
     )
-  | _ =>
+  /* every other sort is offered its forms as type forms */
+  | Typ
+  | TPat
+  | Drv(_)
+  | Any
+  | Rul
+  | Mod
+  | Sig
+  | MPat =>
     delims
     |> List.map(content =>
          TyDiSuggestion.{

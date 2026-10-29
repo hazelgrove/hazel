@@ -82,7 +82,15 @@ let suggest = (ci: Info.t, z: Zipper.t): list(t) => {
   | InfoExp({cls: Exp(TupLabel), _})
   | InfoPat({cls: Pat(TupLabel), _})
   | InfoTyp({cls: Typ(TupLabel), _}) => []
-  | _ =>
+  | InfoDrv(_)
+  | InfoExp(_)
+  | InfoPat(_)
+  | InfoTyp(_)
+  | InfoTPat(_)
+  | InfoMod(_)
+  | InfoSig(_)
+  | InfoMPat(_)
+  | Secondary(_) =>
     /* When the expected type is unknown (e.g., no type annotation),
      * prioritize keywords/forms over context variables. This prevents
      * e.g. 'f' completing to 'false' when the user likely wants 'fun'. */

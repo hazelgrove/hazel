@@ -15,7 +15,10 @@ let pending_scroll_restore: ref(option(float)) = ref(None);
 let tutorial_slide = (m: CrashHandling.Model.t): option(int) =>
   switch (m.model.current.current.editors) {
   | Editors.Model.Tutorial(tm) => Some(tm.current)
-  | _ => None
+  | Scratch(_)
+  | Documentation(_)
+  | Exercises(_)
+  | Config(_) => None
   };
 
 let restart_caret_animation = () =>
