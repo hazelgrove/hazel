@@ -186,7 +186,20 @@ let rec ctr_name = (p: t): option(Constructor.t) =>
   | Constructor(name, _) => Some(name)
   | Parens(p)
   | Projector(_, p) => ctr_name(p)
-  | _ => None
+  | Asc(_)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | Wild
+  | ExplicitNonlabel
+  | Atom(_)
+  | ListLit(_)
+  | Cons(_)
+  | Var(_)
+  | Tuple(_)
+  | Label(_)
+  | TupLabel(_)
+  | Ap(_) => None
   };
 
 let rec match_tup_label: t => option((LabeledTuple.label, t)) =
