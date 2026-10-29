@@ -486,11 +486,29 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
     )
   | ExplicitHole => (
       Token.is_explicit_hole,
-      [op(Exp), op(Pat), op(Typ), op(TPat), op(Drv(Typ))],
+      [
+        op(Exp),
+        op(Pat),
+        op(Typ),
+        op(TPat),
+        op(Mod),
+        op(Sig),
+        op(MPat),
+        op(Drv(Typ)),
+      ],
     )
   | ImplicitHoleMarker => (
       Token.is_implicit_hole_marker,
-      [op(Exp), op(Pat), op(Typ), op(TPat), op(Drv(Typ))],
+      [
+        op(Exp),
+        op(Pat),
+        op(Typ),
+        op(TPat),
+        op(Mod),
+        op(Sig),
+        op(MPat),
+        op(Drv(Typ)),
+      ],
     )
   | LLMHole => (Token.is_llm_hole, [op(Exp), op(Pat), op(Typ), op(TPat)])
   | Wild => (Token.is_wild, [op(Pat), op(Drv(Exp))])

@@ -361,6 +361,28 @@ let tests = (
       check_family_grouping,
     ),
     test_case("same-label candidate order", `Quick, check_same_label_order),
+    /* A hole typed where a module item, signature item or module name goes
+       is molded at that sort; with an expression mold there it would be
+       styled as sort-inconsistent rather than as a hole. */
+    test_case(
+      "hole forms have a mold at every sort a hole is typed in", `Quick, () =>
+      List.iter(
+        (form: Form.atomic_form) => {
+          let (_, molds) = Form.get_atomic_form(form);
+          List.iter(
+            (sort: Sort.t) =>
+              check(
+                bool,
+                Form.show_atomic_form(form) ++ " at " ++ Sort.to_string(sort),
+                true,
+                List.exists((m: Mold.t) => Sort.equal(m.out, sort), molds),
+              ),
+            [Exp, Pat, Typ, TPat, Mod, Sig, MPat],
+          );
+        },
+        [ExplicitHole, ImplicitHoleMarker],
+      )
+    ),
     test_case(
       "family uniqueness: (out sort -> mold) is a function; labels agree",
       `Quick,
