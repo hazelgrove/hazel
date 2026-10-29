@@ -44,6 +44,10 @@ jobs:
       - uses: ./.github/actions/setup-hazel-toolchain
 
       - name: Build Release
+        env:
+          # Lets scripts/build-info.sh (the BuildInfo.ml rule) look up the
+          # branch's open PR so deployed builds link to it.
+          GH_TOKEN: ${{ github.token }}
         run: |
           export DUNE_CACHE=enabled
           opam exec -- dune build src --profile release
