@@ -106,9 +106,24 @@
   opacity: 1;
 }
 
+/* The hexagon is drawn by ::before rather than by clipping the wrapper:
+ * clip-path would also clip the editor's context menu and its backdrop. The
+ * transparent border keeps the wrapper the size it was with the real one. */
 .inline-editor-wrapper {
-  background-color: var(--light-page-color);
+  position: relative;
   padding: 0.2em 0.5em 0.2em 0.5em;
+  border: 1px solid transparent;
+}
+
+/* Positioned with z-index auto, so it paints under the editor's (positioned)
+ * code-container, which comes later in the tree. */
+.inline-editor-wrapper::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  pointer-events: none;
+  background-color: var(--light-page-color);
+  border: 1px dotted var(--cell-result-border);
   clip-path: polygon(
     0.5em 0%,
     calc(100% - 0.5em) 0%,
@@ -117,13 +132,37 @@
     0.5em 100%,
     0% 50%
   );
-  border: 1px dotted var(--cell-result-border);
 }
 
 /* PROVER */
 
 .missing-step-overlay-align {
   position: absolute;
+}
+
+/* Every result row is an isolated stacking context, so a later sibling row
+ * (or editor layers up to --projector-overlay-z, e.g. .code-text) would paint
+ * over the active proof row's controls and an open assumptions/rewrite panel.
+ * Raise the nested row above them; only nested rows, so the outermost proof
+ * stays an ordinary isolated cell and the page's context menu stays on top. */
+.cell-result .cell-result:has(.missing-step-overlay-align) {
+  position: relative;
+  z-index: var(--proof-step-raised-z);
+}
+
+.cell-result .cell-result:has(.axiom-box, .rewrite-box) {
+  z-index: var(--proof-step-panel-z);
+}
+
+/* A context menu opened inside a proof (in a case pattern, the induction
+ * scrutinee or a rewrite box) shares the proof's stacking context with the
+ * raised rows above, so it and its backdrop have to clear them too. */
+.cell-result .context-menu-backdrop {
+  z-index: calc(var(--proof-step-panel-z) + 1);
+}
+
+.cell-result .context-menu {
+  z-index: calc(var(--proof-step-panel-z) + 2);
 }
 
 .proof-context-box {
