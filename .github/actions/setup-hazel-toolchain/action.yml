@@ -123,10 +123,12 @@ runs:
     # only a cleanly installed switch is saved -- and since cache-hit is 'true'
     # only on an exact match, a warm start re-saves under the new lockfile hash,
     # refilling the cache after a dependency bump.
+    # TEMP (remove before merge): ci/toolchain-fast-path also saves, so its own
+    # second run exercises the fast path.
     - name: Save the switch environment to cache
       if: >-
         steps.opam-cache-switch.outputs.cache-hit != 'true' &&
-        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/bot-update-deps' || github.ref == 'refs/heads/ci/toolchain-fast-path')  # TEMP: test the fast path before merge
+        (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/bot-update-deps' || github.ref == 'refs/heads/ci/toolchain-fast-path')
       uses: actions/cache/save@v4
       with:
         path: "_opam"
