@@ -69,20 +69,6 @@ let extend_alias = (ctx: t, name: string, id: Id.t, ty: TermBase.Typ.t): t =>
     },
   );
 
-let extend_dummy_tvar = (ctx: t, tvar: TPat.t) =>
-  switch (TPat.tyvar_of_utpat(tvar)) {
-  | Some(name) =>
-    extend_tvar(
-      ctx,
-      {
-        kind: Abstract,
-        name,
-        id: Id.invalid,
-      },
-    )
-  | None => ctx
-  };
-
 let lookup_tvar = (ctx: t, name: string): option(kind) =>
   List.find_map(
     fun

@@ -1795,6 +1795,16 @@ f@<Bool>({ let v = 1 })|},
     Some(int()),
   );
 
+let test_poly_binder_named_like_outer_alias_keeps_bare_paths =
+  fully_consistent_typecheck(
+    "A poly binder named like an outer alias keeps a bare path in its body",
+    {|type T = Int in
+module y = { type U = T } in
+let f : poly T -> (y.U) -> Int = typfun T -> fun x -> x + 1 in
+f@<Bool>(3)|},
+    Some(int()),
+  );
+
 /* The middle of a path may be a type member defined as a signature. */
 let test_type_member_signature_continues_path =
   fully_consistent_typecheck(
@@ -2333,6 +2343,7 @@ let tests = (
     test_self_looping_type_member_is_a_mismatch,
     test_type_member_named_like_outer_alias_keeps_earlier_paths,
     test_poly_binder_named_like_outer_alias_keeps_paths,
+    test_poly_binder_named_like_outer_alias_keeps_bare_paths,
     test_type_member_signature_continues_path,
     test_type_member_behind_same_named_value_continues_path,
     test_type_member_matches_through_alias,

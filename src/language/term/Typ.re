@@ -911,9 +911,11 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
     /* NOTE: Dummy tvar added has fake id but shouldn't matter
        as in current implementation Recs do not occur in the
        surface syntax, so we won't try to jump to them. */
-    Rec(tpat, normalize(Ctx.extend_dummy_tvar(ctx, tpat), ty)) |> rewrap
+    Rec(tpat, normalize(extend_tvar_of_utpat(ctx, tpat, Abstract), ty))
+    |> rewrap
   | Poly(name, ty) =>
-    Poly(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
+    Poly(name, normalize(extend_tvar_of_utpat(ctx, name, Abstract), ty))
+    |> rewrap
   | ProofOf(_) => ty // Todo: should we normalize this?
   | Sig(s) =>
     /* An item that declares no member is dropped from the normal form,
@@ -986,7 +988,8 @@ let fun_in = (ctx: Ctx.t, ty: t): option(fun_in) => {
             Sig.closed_members(s),
           )
         | List(t) => go(~members, ctx, t)
-        | Rec(tp, t) => go(~members, Ctx.extend_dummy_tvar(ctx, tp), t)
+        | Rec(tp, t) =>
+          go(~members, extend_tvar_of_utpat(ctx, tp, Abstract), t)
         | Sum(sm) =>
           List.find_map(
             fun
@@ -1061,7 +1064,7 @@ let equal_up_to_aliases = (ctx: Ctx.t, a: t, b: t): bool => {
       | (Poly(tp1, x), Poly(tp2, y)) =>
         switch (TPat.tyvar_of_utpat(tp1), TPat.tyvar_of_utpat(tp2)) {
         | (Some(n1), Some(n2)) when n1 == n2 =>
-          go(Ctx.extend_dummy_tvar(ctx, tp1), x, y)
+          go(extend_tvar_of_utpat(ctx, tp1, Abstract), x, y)
         | _ => fast_equal(a, b)
         }
       /* Atoms, Unknowns, Labels: compared again now that their heads are
@@ -1239,7 +1242,7 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   | (ProdExtension(_), _) => meet'(weak_head_normalize(ctx, ty1), ty2)
   | (_, ProdExtension(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
   | (Rec(tp1, ty1), Rec(tp2, ty2)) =>
-    let ctx = Ctx.extend_dummy_tvar(ctx, tp1);
+    let ctx = extend_tvar_of_utpat(ctx, tp1, Abstract);
     let ty1' =
       switch (TPat.tyvar_of_utpat(tp2)) {
       | Some(x2) => subst(Var(x2) |> temp, tp1, ty1)
@@ -1260,7 +1263,7 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
       | Some(x2) => subst(Var(x2) |> temp, x1, ty1)
       | None => ty1
       };
-    let ctx = Ctx.extend_dummy_tvar(ctx, x2);
+    let ctx = extend_tvar_of_utpat(ctx, x2, Abstract);
     let+ ty_body = meet(ctx, ty1', ty2);
     Poly(x2, ty_body) |> temp;
   /* Note for above: `subst` is capture-avoiding (see its definition),

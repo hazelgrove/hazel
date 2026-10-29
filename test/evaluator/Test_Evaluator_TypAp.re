@@ -28,6 +28,19 @@ map@<T>@<Int>(fun e -> string_length(e), ["hello","bar"])|},
         {|type y = Int in typfun y -> (? : y)|},
       )
     ),
+    /* Test_Statics_Modules pins the annotation this reads as `Int -> Int`. */
+    test_case(
+      "A poly binder named like an outer alias does not capture a path in its body",
+      `Quick,
+      () =>
+      parse_and_evaluate_test(
+        "4",
+        {|type T = Int in
+module y = { type U = T } in
+let f : poly T -> (y.U) -> Int = typfun T -> fun x -> x + 1 in
+f@<Bool>(3)|},
+      )
+    ),
     /* Built by hand: the parser does not put an annotation inside a broken
        pattern. */
     test_case(
