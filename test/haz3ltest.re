@@ -54,6 +54,7 @@ let (suite, exit_with_test_status) =
     @ Test_ExpToSegment.all
     @ Test_Typ.tests
     @ Test_Statics.tests
+    @ [Test_CtxIndex.tests]
     @ Test_Elaboration.tests
     @ Test_Evaluator.tests
     @ Test_Editing.tests
@@ -116,6 +117,7 @@ let (suite, exit_with_test_status) =
     @ [Test_SettingsPanel.tests]
     @ Test_ShortcutAction.tests
     @ Test_Color.tests
+    @ [Test_StaticsPasses.tests]
     @ [Test_ExplainThis.tests],
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");
