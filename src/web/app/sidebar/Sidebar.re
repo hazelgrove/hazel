@@ -78,6 +78,15 @@ let log_control_tab = (~globals: Globals.t): Node.t =>
     ~globals,
   );
 
+let settings_tab = (~globals: Globals.t): Node.t =>
+  tab_of(
+    ~panel=Settings,
+    ~cls=["settings-button"],
+    ~icon=Icons.gear,
+    ~tooltip="Switch to Settings",
+    ~globals,
+  );
+
 let debug_info_tab = (~globals: Globals.t): Node.t =>
   tab_of(
     ~panel=DebugInfo,
@@ -85,6 +94,30 @@ let debug_info_tab = (~globals: Globals.t): Node.t =>
     ~icon=Icons.info,
     ~tooltip="Switch to Debug Info Panel",
     ~globals,
+  );
+
+/* Not a panel: a click saves the session's coverage. Only coverage builds
+   have one. */
+let coverage_tab: option(Node.t) =
+  Option.map(
+    download =>
+      div(
+        ~attrs=[clss(["coverage-button"])],
+        [
+          tab(
+            Icons.export,
+            ~tooltip="Download coverage (.coverage files)",
+            _ =>
+              Effect.Many([
+                Effect.of_sync_fun(download, ()),
+                Effect.Stop_propagation,
+                Effect.Prevent_default,
+              ]),
+            false,
+          ),
+        ],
+      ),
+    CoverageExport.download,
   );
 
 let problems_tab_icon =
@@ -178,13 +211,15 @@ let persistent_view =
           assistant_tab(~globals),
           probes_tab(~globals),
           problems_tab(~globals, ~counts),
+          settings_tab(~globals),
         ]
         @ (
           globals.settings.show_log_panel ? [log_control_tab(~globals)] : []
         )
         @ (
           globals.settings.show_debug_panel ? [debug_info_tab(~globals)] : []
-        ),
+        )
+        @ Option.to_list(coverage_tab),
       ),
     ],
   );
@@ -375,6 +410,7 @@ let view =
               | None => div([text("No task reference available.")])
               }
             | DebugInfo => DebugSidebar.view(~globals, ~cursor)
+            | Settings => SettingsPanel.view(~globals, ~editors_inject)
             },
           ],
         )
