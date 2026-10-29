@@ -57,6 +57,11 @@ let max = fun (a : Int, b : Int) -> if a > b then a else b in
 let non_negative : Int -> Int = ¿ in
 non_negative(5)
 
+@solution
+let max = fun (a : Int, b : Int) -> if a > b then a else b in
+let non_negative : Int -> Int = max(0, _) in
+non_negative(5)
+
 @test
 test non_negative(1) == 1 end;
 test non_negative(-1) == 0 end;
