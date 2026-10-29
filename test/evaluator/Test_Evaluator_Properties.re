@@ -279,7 +279,7 @@ let qcheck_pattern_equivalence_test =
   );
 
 /* Carved out until `is_more_precise` compares recursive types as trees
-   (Alexander's equirecursive stack): a `rec` whose binder its body never
+   (the equirecursive stack, #2736, #2737, #2740): a `rec` whose binder its body never
    uses (`rec x -> ?`, or an invalid binder) is its body, so a step that
    sees through it (`_ : (rec x -> ?)` to `_`, type `?`) looks less precise. */
 let has_rec_with_unused_binder = (ty: Typ.t): bool => {
@@ -715,7 +715,8 @@ let incremental_reused_function_regression_test =
     )
   );
 
-/* The carved-out preservation class, pinned (skipped until the fix). */
+/* The carved-out preservation class, pinned (skipped until #2736, #2737
+   and #2740 land). */
 let preservation_rec_unused_binder_pin =
   test_case(
     "Preservation: `?` is as precise as `rec x -> ?` (carved out)", `Quick, () => {
