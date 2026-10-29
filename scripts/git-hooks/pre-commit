@@ -8,6 +8,11 @@ set -u
 #   - Partially staged files can't be re-staged safely (git add would sweep
 #     the unstaged hunks into the commit), so if the formatter changes one of
 #     those the commit is aborted and the developer resolves it.
+#   - dune fmt formats the whole tree, not just the staged files. Committed
+#     code is already formatted, so if the formatter changes a file that isn't
+#     staged, either its behavior changed (e.g. a different ocamlformat or
+#     refmt version) or the file has unformatted WIP. Either way the commit is
+#     aborted so the developer sees it.
 # `git commit --no-verify` bypasses this hook.
 
 staged=$(git diff --cached --name-only --diff-filter=ACMR)
@@ -26,42 +31,71 @@ fi
 
 # Files with unstaged changes; a staged file also in this list is partially staged.
 unstaged=$(git diff --name-only)
+untracked=$(git ls-files --others --exclude-standard)
 
-# Record each staged file's working-tree content so we can tell exactly which
-# files the formatter changes (a partially staged file already differs from
-# the index, so "did it change?" has to be answered by content, not by diff).
+# Record the working-tree content of every file that already differs from the
+# index, so we can tell exactly which files the formatter changes (a partially
+# staged file already differs from the index, so "did it change?" has to be
+# answered by content, not by diff). Any other tracked file matches the index,
+# so the formatter changed it iff it shows up in `git diff` afterwards.
 files=()
 hashes=()
+recorded=""
 while IFS= read -r f; do
-    [ -e "$f" ] || continue
+    [ -n "$f" ] && [ -e "$f" ] || continue
     files+=("$f")
     hashes+=("$(git hash-object -- "$f")")
-done <<<"$staged"
+    recorded+="$f"$'\n'
+done < <(printf '%s\n%s\n%s\n' "$staged" "$unstaged" "$untracked" | sort -u)
 
 echo "[pre-commit] dune fmt --auto-promote"
 dune fmt --auto-promote || true
 
-blocked=()
+changed=""
 for i in "${!files[@]}"; do
     f=${files[$i]}
     [ -e "$f" ] || continue
-    [ "$(git hash-object -- "$f")" = "${hashes[$i]}" ] && continue
-    if grep -qxF -- "$f" <<<"$unstaged"; then
-        blocked+=("$f")
+    [ "$(git hash-object -- "$f")" = "${hashes[$i]}" ] || changed+="$f"$'\n'
+done
+while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    grep -qxF -- "$f" <<<"$recorded" || changed+="$f"$'\n'
+done <<<"$(git diff --name-only)"
+
+partial=""
+not_staged=""
+while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    if ! grep -qxF -- "$f" <<<"$staged"; then
+        not_staged+="  $f"$'\n'
+    elif grep -qxF -- "$f" <<<"$unstaged"; then
+        partial+="  $f"$'\n'
     else
         git add -- "$f"
     fi
-done
+done <<<"$changed"
 
-if [ ${#blocked[@]} -gt 0 ]; then
-    {
-        echo "[pre-commit] Commit aborted: the formatter changed partially staged file(s):"
-        printf '  %s\n' "${blocked[@]}"
+[ -z "$partial" ] && [ -z "$not_staged" ] && exit 0
+
+{
+    echo "[pre-commit] Commit aborted."
+    if [ -n "$not_staged" ]; then
+        echo "The formatter changed file(s) that aren't staged:"
+        printf '%s' "$not_staged"
+        echo "Committed code is already formatted, so either dune fmt now formats"
+        echo "differently (e.g. a different ocamlformat or refmt version than the"
+        echo "codebase was formatted with) or these files have unformatted edits"
+        echo "of yours. The formatter's changes are in your working tree; check"
+        echo "them with git diff before committing again."
+    fi
+    if [ -n "$partial" ]; then
+        echo "The formatter changed partially staged file(s):"
+        printf '%s' "$partial"
         echo "Re-staging them automatically would also stage your unstaged edits."
         echo "The formatting fixes are now in your working tree (unstaged). Either:"
         echo "  - fully stage the file (git add <file>) and commit again,"
         echo "  - stage just the formatting hunks (git add -p) and commit again, or"
         echo "  - git commit --no-verify if the staged portion is already formatted."
-    } >&2
-    exit 1
-fi
+    fi
+} >&2
+exit 1

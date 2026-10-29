@@ -83,7 +83,7 @@ The `make dev` and `make release` commands do three things:
 
 `make deps` installs a `pre-commit` hook (under `scripts/git-hooks/`) by setting `core.hooksPath`. On every commit the hook runs `dune fmt --auto-promote` and re-stages any *fully staged* files the formatter touched, so commits never contain unformatted code.
 
-- Files you didn't stage are left alone, even if the formatter modifies them — your unrelated unstaged WIP won't be swept into the commit.
+- `dune fmt` formats the whole tree, but only staged files are ever re-staged — your unrelated unstaged WIP won't be swept into the commit. Committed code is already formatted, so if the formatter changes a file you didn't stage, the commit is aborted: either the formatter's behavior changed (e.g. a different `ocamlformat` or `refmt` version) or that file has unformatted edits of yours. The changes are left in your working tree to review with `git diff`.
 - If the formatter changes a *partially staged* file (one with both staged and unstaged edits), the commit is aborted instead: re-staging it automatically would sweep your unstaged edits into the commit. The formatting fixes are left unstaged in your working tree; stage what you want (`git add` or `git add -p`) and commit again.
 - If you ever need to bypass the hook (e.g. to share a WIP refactor that you don't want autoformatted yet), pass `--no-verify` to `git commit`.
 - If your clone predates this and the hook isn't running, run `make deps` (or `make install-hooks`) once to install it.
