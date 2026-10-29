@@ -31,8 +31,10 @@ concurrency:
 jobs:
   report:
     name: Performance report
+    # TEMP (testing on draft PRs, to be reverted before review): the draft
+    # skip is disabled.
     # Drafts are skipped: the report runs again when one is marked ready.
-    if: github.event.pull_request.draft == false
+    # if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     # Without this, GitHub's 360-min default applies.
     timeout-minutes: 60
