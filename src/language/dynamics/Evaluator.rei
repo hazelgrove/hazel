@@ -20,6 +20,18 @@ let evaluate:
   ) =>
   (Exp.t, EvaluatorState.t);
 
+/* evaluate, also returning the work done: the steps the trampoline
+   actually took, a reused result counting as one. Unlike the state's
+   step_count, it drops when results are reused. For Test_PerfBudgets. */
+let evaluate_counting_work:
+  (
+    ~prev: EvaluatorState.incr_eval=?,
+    ~eval_info: EvalInfo.t=?,
+    ~env: Environment.t(Exp.t),
+    Exp.t
+  ) =>
+  ((Exp.t, EvaluatorState.t), int);
+
 let evaluate_and_limit:
   (
     ~step_limit: int,
