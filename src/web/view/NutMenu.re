@@ -1,7 +1,6 @@
 open Virtual_dom.Vdom;
 open Node;
 open Util.WebUtil;
-open Widgets;
 
 type setting_item = {
   name: string,
@@ -57,374 +56,327 @@ let submenu = (~tooltip, ~icon, menu) =>
     ],
   );
 
-// SETTINGS MENU
+// SETTINGS, AS DATA: the settings panel (SettingsPanel) draws these
 
-let settings_group = (~globals: Globals.t, ~extra=[], name: string, ts) => {
-  let toggle = ({name, active, setting, tooltip}) =>
-    toggle_named("", ~name, ~tooltip?, active, _ =>
-      globals.inject_global(Set(setting))
-    );
-  div_c(
-    "group",
-    [
-      div_c("name", [text(name)]),
-      div_c("contents", extra @ List.map(toggle, ts)),
-    ],
-  );
+/* one choice of a multi-way setting, bound to its update */
+type choice = {
+  c_label: string,
+  c_tooltip: string,
+  c_active: bool,
+  c_set: Effect.t(unit),
 };
 
-let semantics_group = (~globals) => {
-  settings_group(
-    ~globals,
-    "Semantics",
-    [
-      {
-        name: "Types",
-        active: globals.settings.core.statics,
-        setting: Statics,
-        tooltip: Some("Enable static typing"),
-      },
-      {
-        name: "Completion",
-        active: globals.settings.core.assist,
-        setting: Assist,
-        tooltip:
-          Some("Enable type-directed code completion and assistive features"),
-      },
-      {
-        name: "Evaluation",
-        active: globals.settings.core.dynamics,
-        setting: Dynamics,
-        tooltip: Some("Evaluate expressions and show results"),
-      },
-    ],
-  );
+type row =
+  | Toggle(setting_item)
+  | Choice(string, string, list(choice)) /* name, description, choices */
+  | Action(string, string, Effect.t(unit)); /* label, description, effect */
+
+type section = {
+  s_name: string,
+  s_rows: list(row),
 };
 
-let values_group = (~globals: Globals.t) => {
+let toggle = (name, active, setting, tooltip) =>
+  Toggle({
+    name,
+    active,
+    setting,
+    tooltip: Some(tooltip),
+  });
+
+let semantics = (~globals: Globals.t): section => {
+  s_name: "Semantics",
+  s_rows: [
+    toggle(
+      "Types",
+      globals.settings.core.statics,
+      Statics,
+      "Enable type-directed feedback",
+    ),
+    toggle(
+      "Code completion",
+      globals.settings.core.assist,
+      Assist,
+      "Enable type-directed code completion",
+    ),
+    toggle(
+      "Evaluation",
+      globals.settings.core.dynamics,
+      Dynamics,
+      "Evaluate the program and enable probes",
+    ),
+  ],
+};
+
+let value_display = (~globals: Globals.t): section => {
   let s = globals.settings.core.evaluation;
-  settings_group(
-    ~globals,
-    "Value Display",
-    [
-      {
-        name: "Functions",
-        active: s.show_fn_bodies,
-        setting: Evaluation(ShowFnBodies),
-        tooltip: Some("Show function bodies in evaluated results"),
-      },
-      {
-        name: "Cases",
-        active: s.show_case_clauses,
-        setting: Evaluation(ShowCaseClauses),
-        tooltip: Some("Show case clauses in evaluated results"),
-      },
-      {
-        name: "Fixpoints",
-        active: s.show_fixpoints,
-        setting: Evaluation(ShowFixpoints),
-        tooltip: Some("Show fixpoint expressions in evaluated results"),
-      },
-      {
-        name: "Tables",
-        active: s.project_tables,
-        setting: Evaluation(ProjectTables),
-        tooltip: Some("Project tables in evaluated results"),
-      },
-      {
-        name: "Ascriptions",
-        active: s.show_ascriptions,
-        setting: Evaluation(ShowAscriptions),
-        tooltip: Some("Show type ascriptions in evaluated results"),
-      },
+  {
+    s_name: "Value display",
+    s_rows: [
+      toggle(
+        "Functions",
+        s.show_fn_bodies,
+        Evaluation(ShowFnBodies),
+        "Show function bodies in evaluated results",
+      ),
+      toggle(
+        "Cases",
+        s.show_case_clauses,
+        Evaluation(ShowCaseClauses),
+        "Show case clauses in evaluated results",
+      ),
+      toggle(
+        "Fixpoints",
+        s.show_fixpoints,
+        Evaluation(ShowFixpoints),
+        "Show fixpoint expressions in evaluated results",
+      ),
+      toggle(
+        "Tables",
+        s.project_tables,
+        Evaluation(ProjectTables),
+        "Project tables in evaluated results",
+      ),
+      toggle(
+        "Ascriptions",
+        s.show_ascriptions,
+        Evaluation(ShowAscriptions),
+        "Show type ascriptions in evaluated results",
+      ),
     ],
-  );
+  };
 };
 
-let stepper_group = (~globals: Globals.t) => {
+let stepper = (~globals: Globals.t): section => {
   let s = globals.settings.core.evaluation;
-  settings_group(
-    ~globals,
-    "Stepper",
-    [
-      {
-        name: "Show lookups",
-        active: s.show_lookup_steps,
-        setting: Evaluation(ShowLookups),
-        tooltip: Some("Show variable lookup steps in the stepper"),
-      },
-      {
-        name: "Show hidden",
-        active: s.show_hidden_steps,
-        setting: Evaluation(ShowHiddenSteps),
-        tooltip: Some("Show hidden intermediate steps in the stepper"),
-      },
-      {
-        name: "Show filters",
-        active: s.show_stepper_filters,
-        setting: Evaluation(ShowFilters),
-        tooltip: Some("Show stepper filter controls"),
-      },
-      {
-        name: "Show Ascription Steps",
-        active: s.show_ascription_steps,
-        setting: Evaluation(ShowAscriptionSteps),
-        tooltip: Some("Show type ascription steps in the stepper"),
-      },
-      {
-        name: "Show Case Steps",
-        active: s.show_case_steps,
-        setting: Evaluation(ShowCaseSteps),
-        tooltip: Some("Show case expression steps in the stepper"),
-      },
-      {
-        name: "Proof Steps (experimental)",
-        active: s.enable_proof,
-        setting: Evaluation(EnableProof),
-        tooltip: Some("Enable proof-based stepping mode (experimental)"),
-      },
+  {
+    s_name: "Stepper",
+    s_rows: [
+      toggle(
+        "Show lookups",
+        s.show_lookup_steps,
+        Evaluation(ShowLookups),
+        "Show variable lookup steps in the stepper",
+      ),
+      toggle(
+        "Show hidden",
+        s.show_hidden_steps,
+        Evaluation(ShowHiddenSteps),
+        "Show hidden intermediate steps in the stepper",
+      ),
+      toggle(
+        "Show filters",
+        s.show_stepper_filters,
+        Evaluation(ShowFilters),
+        "Show stepper filter controls",
+      ),
+      toggle(
+        "Show ascription steps",
+        s.show_ascription_steps,
+        Evaluation(ShowAscriptionSteps),
+        "Show type ascription steps in the stepper",
+      ),
+      toggle(
+        "Show case steps",
+        s.show_case_steps,
+        Evaluation(ShowCaseSteps),
+        "Show case expression steps in the stepper",
+      ),
+      toggle(
+        "Proof steps (experimental)",
+        s.enable_proof,
+        Evaluation(EnableProof),
+        "Enable proof-based stepping mode (experimental)",
+      ),
     ],
-  );
+  };
 };
 
-/* Shared treatment for the menu's mutually exclusive choices. Native
-   buttons provide keyboard activation and expose the selected state. */
-let segmented_setting = (~name, ~tooltip, ~current, ~options, ~set) =>
-  div(
-    ~attrs=[clss(["segmented-setting"])],
-    [
-      div(
-        ~attrs=[clss(["segmented-name"]), Attr.title(tooltip)],
-        [text(name)],
-      ),
-      div(
-        ~attrs=[
-          clss(["segmented-control"]),
-          Attr.create("role", "group"),
-          Attr.create("aria-label", name),
-        ],
-        List.map(
-          ((label, tooltip, mode)) =>
-            Node.button(
-              ~attrs=[
-                Attr.create("type", "button"),
-                clss(["segment"] @ (current == mode ? ["active"] : [])),
-                Attr.create("aria-pressed", string_of_bool(current == mode)),
-                Attr.title(tooltip),
-                Attr.on_click(_ => set(mode)),
-              ],
-              [text(label)],
-            ),
-          options,
-        ),
-      ),
-    ],
-  );
-
-let format_shortcut_control = (~globals: Globals.t) => {
-  module FS = Language.CoreSettings.FormatShortcut;
-  segmented_setting(
-    ~name="Format",
-    ~tooltip=
-      "What the format shortcut ("
-      ++ (Util.Os.is_mac^ ? "Cmd" : "Ctrl")
-      ++ "+S) does. "
-      ++ (Util.Os.is_mac^ ? "Cmd" : "Ctrl")
-      ++ "+Shift+S always pretty-prints.",
-    ~current=globals.settings.core.format_shortcut,
-    ~set=
-      mode =>
-        globals.inject_global(Set(Settings.Update.FormatShortcut(mode))),
-    ~options=[
-      ("None", "Do not format", FS.Nothing),
-      ("Indent", "Re-indent only", FS.Indent),
-      (
-        "Spaces",
-        "Re-indent and normalize within-line spacing (linebreaks and comments untouched)",
-        FS.Spaces,
-      ),
-      ("Breaks", "Full pretty print (may change linebreaks)", FS.Breaks),
-    ],
-  );
-};
-
-let completion_display_control = (~globals: Globals.t) => {
+let code_display = (~globals: Globals.t): section => {
   module CD = Settings.CompletionDisplay;
-  segmented_setting(
-    ~name="Completion",
-    ~tooltip="How completion previews are displayed",
-    ~current=Settings.Model.completion_display(globals.settings),
-    ~set=
-      mode =>
-        globals.inject_global(Set(Settings.Update.CompletionDisplay(mode))),
-    ~options=[
-      (
-        "Quiver",
-        "Show completion previews beside their insertion points",
-        CD.Quiver,
-      ),
-      (
-        "Flag",
-        "Raise the caret's completion preview on a flagpole; keep other previews beside their insertion points",
-        CD.Flag,
-      ),
-      (
-        "None",
-        "Hide all completion previews, at the caret and elsewhere",
-        CD.Hidden,
-      ),
-    ],
-  );
+  let current = Settings.Model.completion_display(globals.settings);
+  let preview = (c_label, c_tooltip, mode) => {
+    c_label,
+    c_tooltip,
+    c_active: current == mode,
+    c_set:
+      globals.inject_global(Set(Settings.Update.CompletionDisplay(mode))),
+  };
+  {
+    s_name: "Code display",
+    s_rows:
+      [
+        Choice(
+          "Completion previews",
+          "How completion previews are displayed",
+          [
+            preview(
+              "Quiver",
+              "Show completion previews beside their insertion points",
+              CD.Quiver,
+            ),
+            preview(
+              "Flag",
+              "Raise the caret's completion preview on a flagpole; keep other previews beside their insertion points",
+              CD.Flag,
+            ),
+            preview(
+              "None",
+              "Hide all completion previews, at the caret and elsewhere",
+              CD.Hidden,
+            ),
+          ],
+        ),
+        toggle(
+          "Whitespace",
+          globals.settings.secondary_icons,
+          Settings.Update.SecondaryIcons,
+          "Show whitespace indicator icons",
+        ),
+        toggle(
+          "Animations",
+          globals.settings.core.flip_animations,
+          FlipAnimations,
+          "Enable flip animations for code changes",
+        ),
+        toggle(
+          "Line numbers",
+          globals.settings.line_numbers,
+          ToggleLineNumbers,
+          "Show line numbers beside the code",
+        ),
+      ]
+      @ (
+        globals.settings.line_numbers
+          ? [
+            toggle(
+              "Relative numbers",
+              globals.settings.relative_line_numbers,
+              ToggleRelativeLineNumbers,
+              "Show line numbers relative to cursor position",
+            ),
+          ]
+          : []
+      )
+      @ [
+        toggle(
+          "Simple indication",
+          globals.settings.simple_indication,
+          SimpleIndication,
+          "Indicate the caret's term with a minimal arm instead of shard backings",
+        ),
+      ],
+  };
 };
 
-let editing_group = (~globals: Globals.t) => {
-  settings_group(
-    ~globals,
-    ~extra=[format_shortcut_control(~globals)],
-    "Editing",
-    [
-      {
-        name: "Auto Re-indent",
-        active: globals.settings.core.auto_reindent,
-        setting: AutoReindent,
-        tooltip:
-          Some(
-            "Re-indent a form's contents when its delimiters complete (experimental)",
+let editing = (~globals: Globals.t): section => {
+  module FS = Language.CoreSettings.FormatShortcut;
+  let current = globals.settings.core.format_shortcut;
+  let format = (c_label, c_tooltip, mode) => {
+    c_label,
+    c_tooltip,
+    c_active: current == mode,
+    c_set: globals.inject_global(Set(Settings.Update.FormatShortcut(mode))),
+  };
+  let key = Util.Os.is_mac^ ? "Cmd" : "Ctrl";
+  {
+    s_name: "Editing",
+    s_rows: [
+      Choice(
+        "Format",
+        "What the format shortcut ("
+        ++ key
+        ++ "+S) does. "
+        ++ key
+        ++ "+Shift+S always pretty-prints.",
+        [
+          format("None", "Do not format", FS.Nothing),
+          format("Indent", "Re-indent only", FS.Indent),
+          format(
+            "Spaces",
+            "Re-indent and normalize within-line spacing (linebreaks and comments untouched)",
+            FS.Spaces,
           ),
-      },
-      {
-        name: "Character-level mouse",
-        active: globals.settings.core.selection_chunkiness,
-        setting: SelectionChunkiness,
-        tooltip:
-          Some(
-            "When on, mouse drag selects by character. When off (default), mouse drag selects by character inside a token and by whole token beyond; holding Alt (Mac) / Ctrl (PC) while dragging does the reverse. Keyboard Shift+Arrow is always character-level (hold Alt/Ctrl for whole-token).",
+          format(
+            "Breaks",
+            "Full pretty print (may change linebreaks)",
+            FS.Breaks,
           ),
-      },
+        ],
+      ),
+      toggle(
+        "Auto re-indent",
+        globals.settings.core.auto_reindent,
+        AutoReindent,
+        "Re-indent a form's contents when its delimiters complete (experimental)",
+      ),
+      toggle(
+        "Character-level mouse",
+        globals.settings.core.selection_chunkiness,
+        SelectionChunkiness,
+        "When on, mouse drag selects by character. When off (default), mouse drag selects by character inside a token and by whole token beyond; holding Alt (Mac) / Ctrl (PC) while dragging does the reverse. Keyboard Shift+Arrow is always character-level (hold Alt/Ctrl for whole-token).",
+      ),
     ],
-  );
+  };
 };
 
-let dev_group = (~globals: Globals.t) => {
-  settings_group(
-    ~globals,
-    "Developer",
+let developer = (~globals: Globals.t): section => {
+  s_name: "Developer",
+  s_rows:
     [
-      {
-        name: "Benchmarks",
-        active: globals.settings.benchmark,
-        setting: Settings.Update.Benchmark,
-        tooltip: Some("Display performance benchmarks"),
-      },
-      {
-        name: "Elaboration",
-        active: globals.settings.core.elaborate,
-        setting: Elaborate,
-        tooltip: Some("Show elaborated (internal) expressions"),
-      },
-      {
-        name: "Probe All",
-        active: globals.settings.core.probe_all,
-        setting: ProbeAll,
-        tooltip: Some("Enable probes on all top-level definitions"),
-      },
-      {
-        name: "Cap Undo Stack",
-        active: globals.settings.cap_undo_stack,
-        setting: CapUndoStack,
-        tooltip: Some("Cap the undo history stack size"),
-      },
-      {
-        name: "Ruled Lines",
-        active: globals.settings.show_row_lines,
-        setting: ShowRowLines,
-        tooltip: Some("Show horizontal lines between each row of code"),
-      },
-      {
-        name: "Incremental Reuse",
-        active: globals.settings.show_incremental_deco,
-        setting: ShowIncrementalDeco,
-        tooltip: Some("Show incremental evaluator cache hits"),
-      },
-      {
-        name: "Debug Sidebar",
-        active: globals.settings.show_debug_panel,
-        setting: ShowDebugPanel,
-        tooltip: Some("Show the debug info sidebar panel"),
-      },
+      toggle(
+        "Benchmarks",
+        globals.settings.benchmark,
+        Settings.Update.Benchmark,
+        "Display performance benchmarks",
+      ),
+      toggle(
+        "Elaboration",
+        globals.settings.core.elaborate,
+        Elaborate,
+        "Show elaborated (internal) expressions",
+      ),
+      toggle(
+        "Probe all",
+        globals.settings.core.probe_all,
+        ProbeAll,
+        "Enable probes on all top-level definitions",
+      ),
+      toggle(
+        "Cap undo stack",
+        globals.settings.cap_undo_stack,
+        CapUndoStack,
+        "Cap the undo history stack size",
+      ),
+      toggle(
+        "Ruled lines",
+        globals.settings.show_row_lines,
+        ShowRowLines,
+        "Show horizontal lines between each row of code",
+      ),
+      toggle(
+        "Incremental reuse",
+        globals.settings.show_incremental_deco,
+        ShowIncrementalDeco,
+        "Show incremental evaluator cache hits",
+      ),
+      toggle(
+        "Debug sidebar",
+        globals.settings.show_debug_panel,
+        ShowDebugPanel,
+        "Show the debug info sidebar panel",
+      ),
     ]
     @ (
       ExerciseSettings.show_instructor
         ? [
-          {
-            name: "Log Panel",
-            active: globals.settings.show_log_panel,
-            setting: ShowLogPanel,
-            tooltip: Some("Show the debug log panel"),
-          },
-        ]
-        : []
-    ),
-  );
-};
-
-let code_display_group = (~globals: Globals.t) => {
-  settings_group(
-    ~globals,
-    ~extra=[completion_display_control(~globals)],
-    "Code Display",
-    [
-      {
-        name: "Whitespace",
-        active: globals.settings.secondary_icons,
-        setting: Settings.Update.SecondaryIcons,
-        tooltip: Some("Show whitespace indicator icons"),
-      },
-      {
-        name: "Animations",
-        active: globals.settings.core.flip_animations,
-        setting: FlipAnimations,
-        tooltip: Some("Enable flip animations for code changes"),
-      },
-      {
-        name: "Line Numbers",
-        active: globals.settings.line_numbers,
-        setting: ToggleLineNumbers,
-        tooltip: None,
-      },
-      {
-        name: "Simple Indication",
-        active: globals.settings.simple_indication,
-        setting: SimpleIndication,
-        tooltip:
-          Some(
-            "Indicate the caret's term with a minimal arm instead of shard backings",
+          toggle(
+            "Log panel",
+            globals.settings.show_log_panel,
+            ShowLogPanel,
+            "Show the debug log panel",
           ),
-      },
-    ]
-    @ (
-      globals.settings.line_numbers
-        ? [
-          {
-            name: "Relative Numbers",
-            active: globals.settings.relative_line_numbers,
-            setting: ToggleRelativeLineNumbers,
-            tooltip: Some("Show line numbers relative to cursor position"),
-          },
         ]
         : []
     ),
-  );
-};
-
-//("l", "Line Numbers", globals.settings.line_numbers, ToggleLineNumbers)
-let settings_menu = (~globals) => {
-  [
-    semantics_group(~globals),
-    values_group(~globals),
-    stepper_group(~globals),
-    code_display_group(~globals),
-    editing_group(~globals),
-    dev_group(~globals),
-  ];
 };
