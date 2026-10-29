@@ -133,6 +133,15 @@ let is_secondary: t => bool =
   | Secondary(_) => true
   | _ => false;
 
+/* Whether the piece is something the user wrote: a tile, or a projector
+   standing in for one. Grout and secondary (whitespace, comments) are not. */
+let is_content: t => bool =
+  fun
+  | Tile(_)
+  | Projector(_) => true
+  | Grout(_)
+  | Secondary(_) => false;
+
 let is_tile: t => option(Tile.t) =
   fun
   | Tile(t) => Some(t)
