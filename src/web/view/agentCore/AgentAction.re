@@ -17,13 +17,14 @@ type t =
     DispatchSend(
       Id.t,
     )
-  | /** Last [int] is elapsed wall-time (ms) from send to reply,
-        used to render "Thought for Ns" on reasoning-bearing turns. */
+  | /** Last: the reply's thinking time (ms), from its first reasoning
+        delta to its first other output, for "Thought for Ns"; None when
+        it can't be told. */
     HandleLLMResponse(
       OpenRouter.Reply.Model.t,
       Id.t,
       int,
-      int,
+      option(int),
     )
   | HandleCompactionLLMReply(OpenRouter.Reply.Model.t, Id.t, int)
   | HandleChatNamingResponse(string, Id.t)
@@ -35,6 +36,13 @@ type t =
   | RestoreOriginal
   | LoadSegmentIntoEditor(Segment.t)
   | SetActiveTimelineNode(option(int))
+  | /** Show the main editor as a request's view (None: the latest, live);
+        the workspace handles it (AgentLens) */
+    ViewAsAgent(
+      Id.t,
+      option(int),
+    )
+  | LeaveAgentView
   | SetToolEnabled(string, bool)
   | SetToolsInCategoryEnabled(string, bool)
   | ToggleToolsViewExpanded(string)

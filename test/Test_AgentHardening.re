@@ -51,7 +51,7 @@ let tests = (
           true,
           Option.is_some(FastParse.of_text(~root=Exp, code)),
         );
-        switch (run_insert_at_program_boundary("?", Before, code)) {
+        switch (run_insert_at_program_boundary("?", Before(""), code)) {
         | Ok(_) => ()
         | Error(e) => fail(Action.Failure.show(e))
         };
@@ -65,7 +65,7 @@ let tests = (
         let actual =
           apply_and_render(
             "let m = { let x = 0 } in m",
-            Insert(After, "m/x", code),
+            Insert(After("m/x"), code),
           );
         check_rendered(
           "comment preserved",
@@ -120,7 +120,7 @@ let tests = (
       `Quick,
       () => {
         let code = "let m = { let x = 1; ?; let y = 2 } in let z = 0 in z";
-        let actual = apply_and_render(code, Update(Definition, "z", "1"));
+        let actual = apply_and_render(code, Replace("z:definition", "1"));
         check_rendered(
           "hole preserved",
           "let m = { let x = 1; ?; let y = 2 } in let z = 1 in z",
@@ -161,7 +161,7 @@ let tests = (
                 ...Settings.Model.init,
                 core: settings,
               },
-              EditorAction(Update(Definition, "a", "2")),
+              EditorAction(Replace("a:definition", "2")),
               agent,
               ce.editor,
               agent.chat_system.current,
@@ -208,7 +208,7 @@ let tests = (
       `Quick,
       () => {
         let code = "let m = {\n  let x = 1;\n  let y = 2\n} in let z = 0 in z";
-        let actual = apply_and_render(code, Update(Definition, "z", "1"));
+        let actual = apply_and_render(code, Replace("z:definition", "1"));
         check_rendered_exact(
           "unrelated module",
           "let m = {\n  let x = 1;\n  let y = 2\n} in let z = 1 in z",
@@ -310,7 +310,7 @@ let tests = (
           bool,
           "new errors appear in context",
           true,
-          Util.StringUtil.plain_search("not bound", content, 0) >= 0,
+          Util.StringUtil.plain_search("1 error", content, 0) >= 0,
         );
       },
     ),

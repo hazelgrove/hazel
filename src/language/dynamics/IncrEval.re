@@ -13,7 +13,10 @@ type projection =
   | ConsTail
   | ConstructorArg(string)
   | TupleLabel(option(string))
-  | Ascribed;
+  /* The binding went through `p : ty`. The type is part of the provenance:
+     an ascription changes the bound value (it seals a module, casts a
+     value), so a dependent computed under a different ascription is stale. */
+  | Ascribed(Typ.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type flag =
@@ -42,6 +45,9 @@ type entry('state) = {
   prev_probe_targets: EvalInfo.probe_targets,
   value: DHExp.t,
   state: 'state,
+  /* step count when recorded, monotone in evaluation order; the stream
+     collector orders same-chunk regions by it */
+  seq: int,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -138,29 +144,18 @@ let copy_descendant_entries =
   acc^;
 };
 
-/* Surface ids covered by cache entries: each entry short-circuits a subtree,
- * so expand via prev_elab rather than using only the map keys. Used by the
- * pending-eval worklist (to drop settled ids) and by the frozen debug tint
- * (to paint a reuse prediction). */
-let visible_ids = (incr: t('state)): list(Id.t) => {
-  let acc = ref([]);
-  let collect_subtree = (root: Exp.t): unit => {
-    let f_exp = (continue, e: Exp.t): Exp.t => {
-      acc := [Exp.rep_id(e), ...acc^];
-      continue(e);
-    };
-    let _ = TermBase.Exp.map_term(~f_exp, root);
-    ();
+let equal_projection = (a: projection, b: projection): bool =>
+  switch (a, b) {
+  | (Ascribed(t1), Ascribed(t2)) => Typ.fast_equal(t1, t2)
+  | (Ascribed(_), _)
+  | (_, Ascribed(_)) => false
+  | _ => a == b
   };
-  Id.Map.iter((_, entry) => collect_subtree(entry.prev_elab), incr.entries);
-  acc^;
-};
-
-/* Ids the UI should paint as "frozen" for a reuse plan / prediction. */
-let frozen_ids = (~incr: t('state)): list(Id.t) => visible_ids(incr);
 
 let equal_provenance = (a: provenance, b: provenance): bool =>
-  Id.equal(a.source, b.source) && a.path == b.path && a.flag == b.flag;
+  Id.equal(a.source, b.source)
+  && List.equal(equal_projection, a.path, b.path)
+  && a.flag == b.flag;
 
 let make_clean = (reuse_map: reuse_map): reuse_map =>
   Maps.StringMap.map(
@@ -175,9 +170,7 @@ let make_clean = (reuse_map: reuse_map): reuse_map =>
 let equal_reuse_map = (a: reuse_map, b: reuse_map): bool =>
   Maps.StringMap.equal(equal_provenance, a, b);
 
-/* `$hole` is a statics-only sentinel for unused-variable warnings. It is not
- * a runtime dependency, so it should not participate in reuse provenance. */
-let is_runtime_dependency = (name: string): bool => name != "$hole";
+let is_runtime_dependency = EvalInfo.is_runtime_dependency;
 
 let restrict_to_co_ctx = (reuse_map: reuse_map, co_ctx: CoCtx.t): reuse_map =>
   List.fold_left(
@@ -191,7 +184,7 @@ let restrict_to_co_ctx = (reuse_map: reuse_map, co_ctx: CoCtx.t): reuse_map =>
         };
       },
     empty_reuse_map,
-    VarMap.to_list(co_ctx),
+    CoCtx.to_list(co_ctx),
   );
 
 let reuse_map_for_co_ctx =
@@ -211,7 +204,7 @@ let reuse_map_for_co_ctx =
         };
       },
     Some(empty_reuse_map),
-    VarMap.to_list(co_ctx),
+    CoCtx.to_list(co_ctx),
   );
 
 // For builtins
@@ -269,7 +262,7 @@ let pat_provenance = (~source_id: Id.t, ~flag: flag, pat: Pat.t): reuse_map => {
       ]
     | Parens(p)
     | Projector(_, p) => go(path, p)
-    | Asc(p, _) => go([Ascribed, ...path], p)
+    | Asc(p, ty) => go([Ascribed(ty), ...path], p)
     | TupLabel(label, p) => go([TupleLabel(pat_label(label)), ...path], p)
     | Ap(ctr, p) =>
       switch (Pat.ctr_name(ctr)) {

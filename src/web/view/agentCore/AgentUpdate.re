@@ -8,14 +8,6 @@ module Utils = AgentUtils;
 
 module Action = AgentAction;
 
-/* Re-exported for external callers/tests ([Agent.Update.*]). */
-let defer_dispatch_send = AgentSend.defer_dispatch_send;
-let defer_eval_wait = AgentSend.defer_eval_wait;
-let max_eval_wait_attempts = AgentSend.max_eval_wait_attempts;
-let tool_allowed_in_mode = AgentSend.tool_allowed_in_mode;
-let backoff_ms = AgentSend.backoff_ms;
-let format_api_error_content = AgentSend.format_api_error_content;
-
 let update =
     (
       action: Action.t,
@@ -58,13 +50,13 @@ let update =
     AgentSend.stop_agentic_loop(model, editor, schedule_action)
   | FlushPendingSend(chat_id) =>
     AgentSend.flush_pending_send(chat_id, model, editor, schedule_action)
-  | HandleLLMResponse(reply, chat_id, flight_seq, elapsed_ms) =>
+  | HandleLLMResponse(reply, chat_id, flight_seq, thinking_ms) =>
     let (m, e) =
       AgentResponse.handle_llm_response(
         reply,
         chat_id,
         flight_seq,
-        elapsed_ms,
+        thinking_ms,
         model,
         editor,
         settings,
@@ -242,7 +234,8 @@ let update =
       | Some(_) => model.restore_editor_state
       };
     let new_zipper = Zipper.unzip(~direction=Right, segment);
-    let new_editor_model = Editor.Model.mk(new_zipper, ~root=Exp);
+    let new_editor_model =
+      Editor.Model.mk(new_zipper, ~root=editor.editor.editor.root);
     let new_code_with_statics = CodeWithStatics.Model.mk(new_editor_model);
     (
       {
@@ -260,7 +253,8 @@ let update =
     switch (model.restore_editor_state) {
     | Some(saved_segment) =>
       let new_zipper = Zipper.unzip(~direction=Right, saved_segment);
-      let new_editor_model = Editor.Model.mk(new_zipper, ~root=Exp);
+      let new_editor_model =
+        Editor.Model.mk(new_zipper, ~root=editor.editor.editor.root);
       let new_code_with_statics = CodeWithStatics.Model.mk(new_editor_model);
       (
         {
@@ -279,7 +273,8 @@ let update =
   | LoadSegmentIntoEditor(segment) =>
     // Replace editor with segment by converting to zipper
     let new_zipper = Zipper.unzip(~direction=Right, segment);
-    let new_editor_model = Editor.Model.mk(new_zipper, ~root=Exp);
+    let new_editor_model =
+      Editor.Model.mk(new_zipper, ~root=editor.editor.editor.root);
     let new_code_with_statics = CodeWithStatics.Model.mk(new_editor_model);
     (
       model,
@@ -289,6 +284,9 @@ let update =
       }
       |> Updated.return,
     );
+  /* the workspace's (AgentLens) */
+  | ViewAsAgent(_)
+  | LeaveAgentView => (model, editor |> Updated.return_quiet)
   | SetActiveTimelineNode(node_index) => (
       {
         ...model,
@@ -320,7 +318,7 @@ let update =
     );
   | SetToolsInCategoryEnabled(category, enabled) =>
     let names_in_cat =
-      CompositionUtils.Public.tools
+      CompositionUtils.tools
       |> List.filter_map((tool: API.Json.t) =>
            switch (ToolUtils.get_name(tool)) {
            | Some(name) when ToolUtils.category_of_tool(name) == category =>

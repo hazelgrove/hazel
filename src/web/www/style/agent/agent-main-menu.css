@@ -344,3 +344,43 @@
   color: var(--text-strong);
 }
 
+
+/* the agent's settings: one row per switch */
+.agent-settings {
+  gap: 0.45em;
+}
+
+.agent-setting-subhead {
+  margin-top: 0.5em;
+  font-size: 0.75em;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.agent-setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75em;
+  font-size: 0.8em;
+  color: var(--text-default);
+}
+
+.agent-settings .segmented-control {
+  display: inline-flex;
+}
+
+.agent-settings .segment {
+  padding: 0.1em 0.55em;
+  border: 0.6px solid var(--border-default);
+  cursor: pointer;
+}
+
+.agent-settings .segment + .segment {
+  border-left: none;
+}
+
+.agent-settings .segment.active {
+  background-color: var(--surface-accent);
+  color: var(--text-inverse);
+}

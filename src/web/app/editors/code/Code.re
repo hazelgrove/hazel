@@ -81,7 +81,9 @@ let whitespace_token =
 /* The extra classes a tile carries, by id. */
 let no_classes = (_: Id.t) => [];
 
-let view =
+/* the text of [tokens]: whole pieces, and shards of tiles split across
+   chunks (Measured.token) */
+let view_tokens =
     (
       ~classes=no_classes,
       ~measured: Measured.t,
@@ -90,13 +92,16 @@ let view =
       ~refractor_rows: Id.Map.t(_),
       ~font_metrics: FontMetrics.t,
       ~term_data: TermData.t,
+      /* false for non-final chunks of a chunked render: their trailing
+         linebreak is a real row boundary, not a hanging last row */
+      ~reserve_trailing_row: bool=true,
       /* `refine_sort` lets the caller refine a tile's syntactic mold-out sort
          using information unavailable at this purely syntactic layer (e.g.
          statics refining `Drv(Exp)` to `Drv(Jdmt)`/`Drv(Ctx)`/`Drv(Prop)`).
          The default leaves the mold sort unchanged. */
       ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
       ~buffer_ids: list(Id.t),
-      segment: Segment.t,
+      tokens: list(Measured.token),
     ) => {
   module DeferredLinebreaks = Measured.MkDeferredLinebreaks();
 
@@ -124,6 +129,10 @@ let view =
       | (_, Any) => true
       | (Rul, Exp) => true
       | (Exp, Rul) => true
+      /* a module's name in its stack header: the header editor parses it
+         as a pattern, statics knows the module binder */
+      | (MPat, Pat)
+      | (Pat, MPat) => true
       /* All Drv(_) sub-sorts (Jdmt/Ctx/Prop/Exp) are treated as mutually
          consistent for highlighting purposes. term_data carries the sort
          the parser assigned (always the collapsed Drv(Exp) for these), so
@@ -181,40 +190,313 @@ let view =
     };
   };
 
-  let rec of_segment = (seg: Segment.t): list(Node.t) =>
-    List.concat_map(
-      fun
-      | Piece.Tile(t) => {
-          /* fold_left (not Aba.join, which folds right-to-left) so DeferredLinebreaks
-           * side effects fire in document order, matching Measured.of_segment */
-          let nodes =
-            Aba.fold_left(
-              i => [of_delim(t, i)],
-              (acc, seg, i) => acc @ of_segment(seg) @ [of_delim(t, i)],
-              Aba.mk(t.shards, t.children),
-            );
-          let _ =
-            switch (Id.Map.find_opt(t.id, refractor_rows)) {
-            | Some(n) =>
-              DeferredLinebreaks.update(n) |> ignore;
-              ();
-            | None => ()
-            };
-          switch (classes(t.id)) {
-          | [] => nodes
-          | clss => [span(~attrs=[Attr.classes(clss)], nodes)]
-          };
-        }
-      | Grout(g) => [of_grout(g)]
-      | Secondary(s) => [of_secondary(s)]
-      | Projector(pr) => [of_projector(pr)],
-      seg,
-    );
+  /* a refractor's deferred rows wait for the linebreak after its tile's
+     last shard, as in Measured */
+  let defer_rows = (t: Tile.t) =>
+    switch (Id.Map.find_opt(t.id, refractor_rows)) {
+    | Some(n) => DeferredLinebreaks.update(n)
+    | None => ()
+    };
 
-  /* Trailing filler: a text layer ending in a linebreak gets no
-     final line box from HTML, so an empty last line left the editor
-     one row short (caret overhanging into the result area). The
-     zero-width space forces the line box and is invisible (and
-     harmless mid-line) otherwise. */
-  of_segment(segment) @ [Node.text("\xe2\x80\x8b")];
+  let rec of_segment = (seg: Segment.t): list(Node.t) =>
+    List.concat_map(of_piece, seg)
+  and of_piece =
+    fun
+    | Piece.Tile(t) => {
+        /* fold_left (not Aba.join, which folds right-to-left) so DeferredLinebreaks
+         * side effects fire in document order, matching Measured.of_segment */
+        let nodes =
+          Aba.fold_left(
+            i => [of_delim(t, i)],
+            (acc, seg, i) => acc @ of_segment(seg) @ [of_delim(t, i)],
+            Aba.mk(t.shards, t.children),
+          );
+        defer_rows(t);
+        switch (classes(t.id)) {
+        | [] => nodes
+        | clss => [span(~attrs=[Attr.classes(clss)], nodes)]
+        };
+      }
+    | Grout(g) => [of_grout(g)]
+    | Secondary(s) => [of_secondary(s)]
+    | Projector(pr) => [of_projector(pr)];
+
+  /* a split tile is never projector syntax, so it takes no classes */
+  let of_token = (tok: Measured.token): list(Node.t) =>
+    switch (tok) {
+    | Whole(p) => of_piece(p)
+    | Shard(t, i) =>
+      let node = of_delim(t, i);
+      if (i == Tile.r_shard(t)) {
+        defer_rows(t);
+      };
+      [node];
+    };
+
+  let nodes = List.concat_map(of_token, tokens);
+  /* a trailing linebreak gets no final line box in pre flow, leaving the
+     editor a row short: a zero-width space reserves the last row */
+  switch (List.rev(tokens)) {
+  | [Whole(Secondary(s)), ..._]
+      when reserve_trailing_row && Secondary.is_linebreak(s) =>
+    nodes @ [Node.text("\xe2\x80\x8b")]
+  | _ => nodes
+  };
+};
+
+let view =
+    (
+      ~classes=?,
+      ~measured: Measured.t,
+      ~settings: Settings.Model.t,
+      ~shape_map: ProjectorCore.Shape.Map.t,
+      ~refractor_rows: Id.Map.t(_),
+      ~font_metrics: FontMetrics.t,
+      ~term_data: TermData.t,
+      ~reserve_trailing_row=?,
+      ~refine_sort=?,
+      ~buffer_ids: list(Id.t),
+      segment: Segment.t,
+    ) =>
+  view_tokens(
+    ~classes?,
+    ~measured,
+    ~settings,
+    ~shape_map,
+    ~refractor_rows,
+    ~font_metrics,
+    ~term_data,
+    ~reserve_trailing_row?,
+    ~refine_sort?,
+    ~buffer_ids,
+    List.map(p => Measured.Whole(p), segment),
+  );
+
+/* one block per measured chunk (editor.css), memoized by anchor: an
+   unchanged chunk returns the same vdom node, so the diff skips it by
+   reference (a chunk is whole lines, so the blocks render like the text).
+   term_data and info_map are rebuilt every pass, so tiles compare by the
+   sorts of_delim reads; c_flat identity covers the chunk's tokens (a split
+   tile's shards by its shell, all of_delim reads of it) and projector/
+   refractor shapes */
+module ChunkViews = {
+  type entry = {
+    /* the measuring editor (Measured.t.owner) */
+    cv_owner: int,
+    /* the last render that reached it */
+    mutable cv_seen: int,
+    mutable cv_flat: Obj.t, /* Measured.flat identity */
+    mutable cv_final: bool,
+    mutable cv_tiles: list(Tile.t), /* chunk tiles, cached off cv_flat */
+    mutable cv_sorts: array((Sort.t, option(Sort.t))),
+    /* info_map and term_data identities at the last sort probe; a match
+       skips the probe. under the same info_map, only the program's
+       top-level sorts can move (record_top_frame reads context), so a new
+       term_data probes just the chunk's top-level tiles: none in a module
+       body, whose tiles take their sorts from their own member */
+    mutable cv_info: Obj.t,
+    mutable cv_td: Obj.t,
+    mutable cv_top: list(Tile.t),
+    mutable cv_top_sorts: array((Sort.t, option(Sort.t))),
+    /* whether the chunk held buffer pieces: only then can buffer_ids
+       change it (new buffer text is new pieces, so a new c_flat) */
+    mutable cv_buffered: bool,
+    mutable cv_buffer: Obj.t, /* buffer_ids identity */
+    mutable cv_fm: Obj.t,
+    mutable cv_settings: Obj.t,
+    mutable cv_node: Node.t,
+  };
+  /* by anchor, an entry per editor drawing it: editors sharing ids (a
+     stack cell and its program) keep their own views. Every 64 renders,
+     entries no render reached in the last 16 go */
+  let cache: Measured.IdTbl.t(list(entry)) = Measured.IdTbl.create(256);
+  let renders = ref(0);
+  let tick = () => {
+    incr(renders);
+    if (renders^ mod 64 == 0) {
+      Measured.IdTbl.filter_map_inplace(
+        (_, es) =>
+          switch (List.filter(e => e.cv_seen >= renders^ - 16, es)) {
+          | [] => None
+          | es => Some(es)
+          },
+        cache,
+      );
+    };
+  };
+  let find = (owner: int, anchor: Id.t): option(entry) =>
+    switch (Measured.IdTbl.find_opt(cache, anchor)) {
+    | Some(es) =>
+      switch (List.find_opt(e => e.cv_owner == owner, es)) {
+      | Some(e) as found =>
+        e.cv_seen = renders^;
+        found;
+      | None => None
+      }
+    | None => None
+    };
+  let replace = (anchor: Id.t, e: entry) => {
+    let others =
+      switch (Measured.IdTbl.find_opt(cache, anchor)) {
+      | Some(es) => List.filter(o => o.cv_owner != e.cv_owner, es)
+      | None => []
+      };
+    Measured.IdTbl.replace(cache, anchor, [e, ...others]);
+  };
+};
+
+/* every tile in the chunk subtree (of_delim consults term_data and
+   refine_sort per tile; grout/secondary render from pieces alone) */
+let rec chunk_tiles = (seg: Segment.t, acc: list(Tile.t)): list(Tile.t) =>
+  List.fold_left(
+    (acc, p: Piece.t) =>
+      switch (p) {
+      | Tile(t) =>
+        List.fold_left(
+          (acc, s) => chunk_tiles(s, acc),
+          [t, ...acc],
+          t.children,
+        )
+      | _ => acc
+      },
+    acc,
+    seg,
+  );
+
+/* a chunk's tiles: whole pieces' subtrees, and its split tiles (their
+   children render in other chunks) */
+let token_tiles = (tokens: list(Measured.token)): list(Tile.t) =>
+  List.fold_left(
+    (acc, tok: Measured.token) =>
+      switch (tok) {
+      | Whole(p) => chunk_tiles([p], acc)
+      | Shard(t, _) => [t, ...acc]
+      },
+    [],
+    tokens,
+  );
+
+/* the tiles at the chunk's own level: at the program's top level, unless
+   the chunk is nested in a module body */
+let top_tiles = (tokens: list(Measured.token)): list(Tile.t) =>
+  List.filter_map(
+    (tok: Measured.token) =>
+      switch (tok) {
+      | Whole(Tile(t))
+      | Shard(t, _) => Some(t)
+      | Whole(_) => None
+      },
+    tokens,
+  );
+
+let token_ids = (tokens: list(Measured.token)): list(Id.t) =>
+  List.concat_map(
+    (tok: Measured.token) =>
+      switch (tok) {
+      | Whole(p) => Segment.ids_of_piece(p)
+      | Shard(t, _) => [t.id]
+      },
+    tokens,
+  );
+
+let view_chunked =
+    (
+      ~measured: Measured.t,
+      ~settings: Settings.Model.t,
+      ~shape_map: ProjectorCore.Shape.Map.t,
+      ~refractor_rows: Id.Map.t(_),
+      ~font_metrics: FontMetrics.t,
+      ~term_data: TermData.t,
+      ~refine_sort: (Id.t, Sort.t) => Sort.t,
+      /* identity of the statics map behind refine_sort (see cv_info) */
+      ~statics_ident: Obj.t,
+      ~buffer_ids: list(Id.t),
+    )
+    : list(Node.t) => {
+  ChunkViews.tick();
+  let n = Array.length(measured.chunks);
+  let sorts_of = (tiles: list(Tile.t)) =>
+    tiles
+    |> List.map((t: Tile.t) =>
+         (
+           refine_sort(t.id, Tile.mold(t).out),
+           Option.map(
+             (d: TermData.data) => d.sort,
+             Id.Map.find_opt(t.id, term_data),
+           ),
+         )
+       )
+    |> Array.of_list;
+  let render = (ch: Measured.chunk, final: bool): t =>
+    span(
+      ~attrs=[Attr.class_("code-chunk")],
+      view_tokens(
+        ~measured,
+        ~settings,
+        ~shape_map,
+        ~refractor_rows,
+        ~font_metrics,
+        ~term_data,
+        ~reserve_trailing_row=final,
+        ~refine_sort,
+        ~buffer_ids,
+        ch.c_tokens,
+      ),
+    );
+  List.init(n, i => i)
+  |> List.map(i => {
+       let ch = measured.chunks[i];
+       let final = i == n - 1;
+       let stable = (e: ChunkViews.entry) =>
+         e.cv_flat === Obj.repr(ch.c_flat)
+         && e.cv_final == final
+         && (!e.cv_buffered || e.cv_buffer === Obj.repr(buffer_ids))
+         && e.cv_fm === Obj.repr(font_metrics)
+         && e.cv_settings === Obj.repr(settings);
+       switch (ChunkViews.find(measured.owner, ch.c_anchor)) {
+       | Some(e)
+           when
+             stable(e)
+             && e.cv_info === statics_ident
+             && (
+               e.cv_td === Obj.repr(term_data)
+               || e.cv_top_sorts == sorts_of(e.cv_top)
+             ) =>
+         e.cv_td = Obj.repr(term_data);
+         e.cv_node;
+       | Some(e) when stable(e) && e.cv_sorts == sorts_of(e.cv_tiles) =>
+         e.cv_info = statics_ident;
+         e.cv_td = Obj.repr(term_data);
+         e.cv_top_sorts = sorts_of(e.cv_top);
+         e.cv_node;
+       | _ =>
+         let tiles = token_tiles(ch.c_tokens);
+         let top = ch.c_nested ? [] : top_tiles(ch.c_tokens);
+         let node = render(ch, final);
+         let e = {
+           ChunkViews.cv_owner: measured.owner,
+           cv_seen: ChunkViews.renders^,
+           cv_flat: Obj.repr(ch.c_flat),
+           cv_final: final,
+           cv_tiles: tiles,
+           cv_sorts: sorts_of(tiles),
+           cv_info: statics_ident,
+           cv_td: Obj.repr(term_data),
+           cv_top: top,
+           cv_top_sorts: sorts_of(top),
+           cv_buffered:
+             buffer_ids != []
+             && List.exists(
+                  id => List.mem(id, buffer_ids),
+                  token_ids(ch.c_tokens),
+                ),
+           cv_buffer: Obj.repr(buffer_ids),
+           cv_fm: Obj.repr(font_metrics),
+           cv_settings: Obj.repr(settings),
+           cv_node: node,
+         };
+         ChunkViews.replace(ch.c_anchor, e);
+         node;
+       };
+     });
 };

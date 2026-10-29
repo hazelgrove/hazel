@@ -4,9 +4,25 @@ Printexc.register_printer(exn => {
   switch (exn) {
   | Language.EvaluatorError.Exception(msg) =>
     Some(Language.EvaluatorError.show(msg))
+  | DefStaticsCheck.Divergence(ds) =>
+    Some("DefStatics diverges: " ++ String.concat("; ", ds))
   | _ => None
   }
 });
+
+/* alcotest's -q (--quick-tests) runs the quick tests without the per-edit
+   checks below; the full suite runs them on every edit. A test whose own
+   assertion is the statics check arms it itself (DefStaticsCheck.armed) */
+let quick = Array.exists(a => a == "-q" || a == "--quick-tests", Sys.argv);
+
+if (!quick) {
+  /* every edit checks sparse normalization against the global pass */
+  NormalizeCheck.install();
+  /* and statics against a monolithic analysis, except when benchmarking */
+  if (!CorpusUtil.bench_enabled) {
+    DefStaticsCheck.install();
+  };
+};
 
 /* run_and_report always runs Alcotest with and_exit=false so it can produce a
    report, and hands the exit back as a function. ~and_exit=true makes that
@@ -19,6 +35,11 @@ let (suite, exit_with_test_status) =
     [
       Test_LazyHydration.tests,
       Test_Undo.tests,
+      Test_OpenMember.tests,
+      Test_UndoCaches.tests,
+      Test_UndoStatics.tests,
+      Test_StaticsTiming.tests,
+      Test_EditCaches.tests,
       Test_FastParseCorpus.tests,
       Test_FastParse.tests,
       Test_MenhirFuzz.tests,
@@ -32,10 +53,48 @@ let (suite, exit_with_test_status) =
       Test_CsvUtil.tests,
       Test_Grammar.tests,
       Test_FormId.tests,
+      Test_Form.tests,
       Test_Abbreviate.tests,
       Test_LabeledTuple.tests,
       Test_MakeTerm.tests,
       Test_Menhir.tests,
+      Test_PatRootEditor.tests,
+      Test_StackFocus.tests,
+      Test_Restructure.tests,
+      Test_EntryEdit.tests,
+      Test_StreamCollector.tests,
+      Test_MegaCorpus.tests,
+      Test_MeasuredChunks.tests,
+      Test_ChunkViews.tests,
+      Test_MakeTermIncr.tests,
+      Test_ItemSpans.tests,
+      Test_EntryPath.tests,
+      Test_AgentView.tests,
+      Test_EditLocality.tests,
+      Test_DefStaticsParity.tests,
+      Test_DefStaticsDelta.tests,
+      Test_StaticsAncestry.tests,
+      Test_ClickTeleport.tests,
+      Test_AliasProbe.tests,
+      Test_ModRoot.tests,
+      Test_LevelSkels.tests,
+      Test_ProbePersist.tests,
+      Test_DividedLaws.tests,
+      Test_HeadlessRows.tests,
+      Test_TermPrune.tests,
+      Test_ResultLine.tests,
+      Test_ProbeSteps.tests,
+      Test_TailProbe.tests,
+      Test_ProofDrawers.tests,
+      Test_SlideView.tests,
+      Test_OutlineRename.tests,
+      Test_MemberRefs.tests,
+      Test_OutlineText.tests,
+      Test_ClosedJump.tests,
+      Test_StackStepInto.tests,
+      Test_StaticsMemo.tests,
+      Test_CaretReveal.tests,
+      Test_Menhir.concave_marker_group,
       Test_StringUtil.tests,
       Test_TaskReferenceSplit.tests,
       Test_TutorialReferencePanel.tests,
@@ -46,10 +105,13 @@ let (suite, exit_with_test_status) =
     ]
     @ Test_Unicode.tests
     @ Test_WorkerServer.tests
+    @ [Test_EvalPieces.tests, Test_EvalMsgBench.tests]
     @ [Test_AgentPersist.tests, Test_AgentHardening.tests]
     @ Test_AgentTools.tests
     @ Test_AgentMultiTool.tests
     @ Test_AgentControlFlow.tests
+    @ Test_AgentPerf.tests
+    @ Test_AgentReply.tests
     @ [Test_AgentUX.tests]
     @ Test_ExpToSegment.all
     @ Test_Typ.tests
@@ -58,6 +120,9 @@ let (suite, exit_with_test_status) =
     @ Test_Evaluator.tests
     @ Test_Editing.tests
     @ Test_TypToSegment.tests
+    @ Test_ItemPersist.tests
+    @ Test_OutlinePaths.tests
+    @ Test_RunPin.tests
     @ Test_Reassociate.tests
     @ Test_MultiProbe.tests
     @ [Test_SampleSelection.tests]
@@ -65,10 +130,12 @@ let (suite, exit_with_test_status) =
     @ Test_DynamicTypInfer.tests
     @ Test_CanonicalCompletion.tests
     @ Test_CompletionScoreboard.tests
+    @ [Test_ModAudit.tests]
     @ Test_CompletionVisualization.tests
     @ Test_QuiverDisplay.tests
     @ Test_TabDispatch.tests
     @ Test_ImpliedHole.tests
+    @ Test_FrameCompletion.tests
     @ Test_CaretPreserving.tests
     @ [Test_Coverage.tests, Test_Unboxing.tests]
     @ Test_ProblemCollection.tests
@@ -76,6 +143,7 @@ let (suite, exit_with_test_status) =
     @ [Test_CtorShadowing.tests]
     @ Test_Introduce.tests
     @ Test_ReparseDocSlides.tests
+    @ Test_StreamInterests.tests
     @ Test_TextRoundtrip.tests
     @ Test_RoundtripFuzz.tests
     @ Test_LocalReformat.tests
@@ -116,7 +184,10 @@ let (suite, exit_with_test_status) =
     @ [Test_SettingsPanel.tests]
     @ Test_ShortcutAction.tests
     @ Test_Color.tests
-    @ [Test_ExplainThis.tests],
+    @ [Test_ExplainThis.tests]
+    @ [Test_CompletionItems.tests]
+    @ [Test_ModuleCompletion.tests]
+    @ [Test_PageKeys.tests],
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");
 Bisect.Runtime.write_coverage_data();

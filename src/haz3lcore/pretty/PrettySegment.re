@@ -513,6 +513,48 @@ let split_at_comma =
 
 let piece_doc = (p: Piece.t): doc => Piece(p, piece_width(p));
 
+/* semis break softly inside a delimiter pair, so a short one inlines,
+   but a module's members break after each `;`, as definitions do after
+   `in` */
+let soft_semis_in = (t: Tile.t): bool =>
+  !(t.form == Form.Compound(ModBody) && Tile.mold(t).in_ == [Sort.Mod]);
+
+/* whether [d] holds a hard break, so never lays out flat (a worklist:
+   long lists nest deep) */
+let has_hard_break = (d: doc): bool => {
+  let rec go = (stack: list(doc)) =>
+    switch (stack) {
+    | [] => false
+    | [HardBreak, ..._] => true
+    | [Cat(x, y), ...rest] => go([x, y, ...rest])
+    | [Nest(_, x) | Group(x), ...rest] => go([x, ...rest])
+    | [Empty | Piece(_) | Space | Break | SoftBreak, ...rest] => go(rest)
+    };
+  go([d]);
+};
+
+/* a delimiter pair around [inner]: inline when it fits, else the content
+   on lines of its own. Content that must break gets no group, so what
+   precedes the opener on its line measures only up to the opener */
+let delimited = (open_d: doc, inner: doc, close_d: doc, suffix: doc): doc =>
+  has_hard_break(inner)
+    ? cats([
+        open_d,
+        Nest(indent_unit, cats([HardBreak, inner])),
+        HardBreak,
+        close_d,
+        suffix,
+      ])
+    : Group(
+        cats([
+          open_d,
+          Nest(indent_unit, cats([SoftBreak, inner])),
+          SoftBreak,
+          close_d,
+          suffix,
+        ]),
+      );
+
 /* Build doc for a piece followed by trailing comments (Space-separated) */
 let piece_with_comments = (p: Piece.t, comments: list(Piece.t)): doc =>
   List.fold_left(
@@ -608,26 +650,16 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
       let close_s = Tile.to_piece(Tile.shard_of(dt, Tile.arity(dt) - 1));
       switch (Tile.contained_children(dt)) {
       | [(_, inner_child, _)] =>
-        /* soft_semis so short brace bodies can inline; Group so the
-           hanging content goes flat when it fits */
         let inner =
           child_doc(
             {
               ...s,
-              soft_semis: true,
+              soft_semis: soft_semis_in(dt),
             },
             inner_child,
           );
         Some(
-          Group(
-            cats([
-              piece_doc(open_s),
-              Nest(indent_unit, cats([SoftBreak, inner])),
-              SoftBreak,
-              piece_doc(close_s),
-              suffix,
-            ]),
-          ),
+          delimited(piece_doc(open_s), inner, piece_doc(close_s), suffix),
         );
       | _ => None
       };
@@ -827,22 +859,14 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
         child_doc(
           {
             ...s,
-            soft_semis: true,
+            soft_semis: soft_semis_in(t),
           },
           content_child,
         );
       let delim_doc =
         switch (inner) {
         | Empty => cats([shard(0), shard(last_shard_idx)])
-        | _ =>
-          Group(
-            cats([
-              shard(0),
-              Nest(indent_unit, cats([SoftBreak, inner])),
-              SoftBreak,
-              shard(last_shard_idx),
-            ]),
-          )
+        | _ => delimited(shard(0), inner, shard(last_shard_idx), Empty)
         };
       switch (rest) {
       | [] => delim_doc

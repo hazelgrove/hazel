@@ -63,6 +63,27 @@ module Store = {
   };
 };
 
+/* undo and redo restore programs; what each slide shows stays, and so do
+   its editors' incremental caches, which hit for what the step didn't
+   change (snapshots drop theirs: History.compact), and their statics and
+   runs, shown until the typing debounce analyzes the restored program */
+let carry_over = (~from: Model.t, m: Model.t): Model.t => {
+  let carry = (a, b) =>
+    ScratchMode.Model.with_views_of(~from=a, b)
+    |> ScratchMode.Model.with_caches_of(~from=a);
+  switch (from.editors, m.editors) {
+  | (Scratch(a), Scratch(b)) => {
+      ...m,
+      editors: Scratch(carry(a, b)),
+    }
+  | (Documentation(a), Documentation(b)) => {
+      ...m,
+      editors: Documentation(carry(a, b)),
+    }
+  | _ => m
+  };
+};
+
 module Update = {
   open Updated;
 
@@ -70,7 +91,9 @@ module Update = {
     let get_scratchpad_editor = (m: ScratchMode.Model.t) => {
       let sp = List.nth(m.scratchpads, m.current);
       switch (sp.kind) {
-      | Code({editor, _}) => editor.editor
+      | Code({program: Whole(editor), _}) => editor.editor
+      /* divided: the cell with the caret */
+      | Code({program: Divided(d), _}) => Divided.active_editor(d).editor
       /* For Drv scratch slides, expose the Setup editor so the sidebar's
          problem panel reflects errors from Setup only and ignores problems
          inside the derivation trees themselves. */
@@ -95,7 +118,34 @@ module Update = {
         : list((option(string), list(CodeEditable.Model.t))) => {
       let sp = List.nth(m.scratchpads, m.current);
       switch (sp.kind) {
-      | Code({editor, _}) => [(None, [editor.editor])]
+      | Code({program: Whole(editor), _}) => [(None, [editor.editor])]
+      | Code({program: Divided(d), _}) =>
+        /* open cells report their own problems */
+        let cells = Divided.cells(d);
+        let stack: list((option(string), list(CodeEditable.Model.t))) =
+          List.map(
+            (e: ScratchCell.t) =>
+              (
+                Some(
+                  Option.value(ScratchCell.header_name(e), ~default="cell"),
+                ),
+                /* header too: binder and signature errors live there.
+                   a ⇒ or `;` cell shows none, and its empty one is a hole */
+                (
+                  switch (e.e_kind) {
+                  | Def(_)
+                  | Members => [e.e_header.editor]
+                  | Headless(_)
+                  | Run(_) => []
+                  }
+                )
+                @ [e.e_body.editor],
+              ),
+            cells,
+          );
+        /* cells first: the panel dedups by id, so a problem shows in its
+           cell and "elsewhere" gets the rest */
+        stack @ [(Some("elsewhere"), [Divided.outside_editor(d)])];
       | Drv(dm) =>
         /* Scratch/documentation Drv slides don't render the Prelude. */
         DerivationExerciseMode.Model.get_problem_editors(
@@ -139,6 +189,35 @@ module Update = {
 
   let equal = (===);
 
+  /* a jump into a cell that isn't open, or to another cell's binder or
+     function: the item opens now; once its cell is there, the follow-ups
+     run in the pane holding the target (the caret's move, or the step
+     into), which takes the focus */
+  let jump_across = (~schedule_action, (ensure, selection, then_)) => {
+    List.iter(a => schedule_action(Editors(a)), then_);
+    Haz3lcore.FocusEffect.schedule_cell_top();
+    (ensure, selection);
+  };
+
+  /* turning the program value on in a stack opens the ⇒ cell, where the
+     value shows (the ⇓ button and the settings both come here) */
+  let open_tail_cell = (editors: Editors.Model.t): option(Editors.Update.t) =>
+    switch (editors) {
+    | Scratch(m)
+    | Documentation(m) =>
+      switch (ScratchMode.Model.current_program(m)) {
+      | Some(Divided(_) as p) =>
+        Program.tail_row(p)
+        |> Option.map(id =>
+             Editors.Update.Scratch(Workspace(FocusEnsure(id)))
+           )
+      | _ => None
+      }
+    | Tutorial(_)
+    | Exercises(_)
+    | Config(_) => None
+    };
+
   let update_global =
       (
         ~import_log,
@@ -160,11 +239,22 @@ module Update = {
     | Set(action) =>
       let* settings =
         Settings.Update.update(~action, ~settings=model.globals.settings);
+      switch (action) {
+      | TailProbe when settings.tail_probe =>
+        Option.iter(
+          a => schedule_action(Editors(a)),
+          open_tail_cell(model.editors),
+        )
+      | _ => ()
+      };
       {
         ...model,
         globals: {
           ...model.globals,
           settings,
+          visible_rows:
+            Globals.VisibleRows.tracked(settings)
+              ? model.globals.visible_rows : None,
         },
       };
     | SetAgentGlobals(agent_globals_action) =>
@@ -185,34 +275,52 @@ module Update = {
       }
       |> Updated.return(~scroll_active=false);
     | JumpToTile(id) =>
-      let jump =
-        Editors.Selection.jump_to_tile(
-          ~settings=model.globals.settings,
-          id,
-          model.editors,
-        );
-      switch (jump) {
-      | None => model |> Updated.raise_invalid_action
-      | Some((action, selection)) =>
+      switch (Editors.Selection.closed_jump(id, model.editors)) {
+      | Some(across) =>
+        let (ensure, selection) = jump_across(~schedule_action, across);
         let* editors =
           Editors.Update.update(
             ~globals,
             ~schedule_action=a => schedule_action(Editors(a)),
             ~schedule_global=a => schedule_action(Globals(a)),
-            action,
+            ensure,
             model.editors,
           );
-        /* The jump moves the model selection to the target cell but not DOM
-           focus (which stays on the clicked sidebar row). Schedule a focus
-           of the now-active cell after render so the editor receives
-           keystrokes and the caret (gated on :focus) shows there. */
-        Haz3lcore.FocusEffect.schedule_cell();
         {
           ...model,
           editors,
           selection,
         };
-      };
+      | None =>
+        let jump =
+          Editors.Selection.jump_to_tile(
+            ~settings=model.globals.settings,
+            id,
+            model.editors,
+          );
+        switch (jump) {
+        | None => model |> Updated.raise_invalid_action
+        | Some((action, selection)) =>
+          let* editors =
+            Editors.Update.update(
+              ~globals,
+              ~schedule_action=a => schedule_action(Editors(a)),
+              ~schedule_global=a => schedule_action(Globals(a)),
+              action,
+              model.editors,
+            );
+          /* the jump moves the selection, not DOM focus: focus the cell
+             after render so it takes keys and shows the caret (gated on
+             :focus), unless the jump came from the outline; a target out
+             of view comes near the top */
+          Haz3lcore.FocusEffect.schedule_cell_caret_top();
+          {
+            ...model,
+            editors,
+            selection,
+          };
+        };
+      }
     | InitImportAll(file) =>
       JsUtil.read_file(file, data =>
         schedule_action(Globals(FinishImportAll(data)))
@@ -229,6 +337,10 @@ module Update = {
             },
           }
           |> return_quiet
+    | UpdateDrawerWidth(cols) =>
+      Haz3lcore.ProbeProj.Settings.set_drawer_width(cols);
+      model |> Updated.return_quiet(~recalculate=true);
+    | RelayoutDrawers => model |> Updated.return_quiet(~recalculate=true)
     | SetSettingsFilter(settings_filter) =>
       {
         ...model,
@@ -277,13 +389,13 @@ module Update = {
           let current = List.nth(model.scratchpads, model.current);
           let (ext, contents) =
             switch (current.kind) {
-            | Code({editor, _}) =>
+            | Code({program, _}) =>
               /* Slides are text-backed: export the committed-.hz form
                  (marker-printed content + one final newline). */
               (
                 ".hz",
                 Haz3lcore.PersistentZipper.persist(
-                  editor.editor.editor.state.zipper,
+                  Program.whole(program).editor.editor.state.zipper,
                 ).
                   backup_text,
               )
@@ -368,6 +480,23 @@ module Update = {
     | Globals(action) =>
       update_global(~globals, ~import_log, ~schedule_action, action, model)
     | Editors(action) =>
+      let (action, selection) =
+        switch (Editors.Selection.stack_jump_override(action, model.editors)) {
+        /* a stack cell's jump to a binder, or step into a function, in
+           another definition */
+        | Some(across) => jump_across(~schedule_action, across)
+        | None =>
+          /* an outline add selects and focuses the new cell (focus also
+             scrolls it into view) */
+          switch (
+            Editors.Selection.stack_add_selection(action, model.editors)
+          ) {
+          | Some(s) =>
+            Haz3lcore.FocusEffect.schedule_cell_top();
+            (action, s);
+          | None => (action, model.selection)
+          }
+        };
       let* editors =
         Editors.Update.update(
           ~globals,
@@ -387,10 +516,13 @@ module Update = {
             visible_rows: None,
           }
           : model.globals;
+      let selection =
+        Editors.Selection.follow(~before=model.editors, selection, editors);
       {
         ...model,
         editors,
         globals,
+        selection,
       };
     | ExplainThis(action) =>
       let* explain_this =
@@ -472,12 +604,14 @@ module Update = {
         Editors.Update.calculate(
           ~settings=
             dynamics
-              ? model.globals.settings.core
+              ? model.globals.settings
               : {
-                ...model.globals.settings.core,
-                dynamics: false,
+                ...model.globals.settings,
+                core: {
+                  ...model.globals.settings.core,
+                  dynamics: false,
+                },
               },
-          ~autoprobe_mode=model.globals.settings.autoprobe_mode,
           ~schedule_action=a => schedule_action(Editors(a)),
           ~is_edited,
           model.editors,
@@ -640,13 +774,69 @@ module Selection = {
   };
 };
 
+/* Whether Cmd is held, for the Cmd-hover underline. Document capture sees
+   every key first: the page's own listener misses keys a handler stops,
+   like Cmd+C in the editor. A window blur ends it: the release happens
+   elsewhere. */
+module MetaListener = {
+  /* bare Cmd only, so chords don't light the underline */
+  let held = (~meta: bool, ~ctrl: bool, ~alt: bool, ~shift: bool): bool =>
+    meta && !ctrl && !alt && !shift;
+
+  let dispatch: ref(bool => unit) = ref(_ => ());
+  let installed = ref(false);
+  let state = ref(false);
+  let set = (down: bool): unit =>
+    if (down != state^) {
+      state := down;
+      dispatch^(down);
+    };
+  let on_key = (e: Js.t(Dom_html.keyboardEvent)): Js.t(bool) => {
+    set(
+      held(
+        ~meta=Key.meta_held(e),
+        ~ctrl=Key.ctrl_held(e),
+        ~alt=Key.alt_held(e),
+        ~shift=Key.shift_held(e),
+      ),
+    );
+    Js._true;
+  };
+  let sync = (dispatch': bool => unit): unit => {
+    dispatch := dispatch';
+    if (! installed^) {
+      installed := true;
+      let listen = (target, event, f, capture) =>
+        ignore(
+          Dom_html.addEventListener(
+            target,
+            event,
+            Dom_html.handler(f),
+            Js.bool(capture),
+          ),
+        );
+      listen(Dom_html.document, Dom_html.Event.keydown, on_key, true);
+      listen(Dom_html.document, Dom_html.Event.keyup, on_key, true);
+      /* the window's own blur only: in capture it'd see every element's */
+      listen(
+        Dom_html.window,
+        Dom_html.Event.blur,
+        _ => {
+          set(false);
+          Js._true;
+        },
+        false,
+      );
+    };
+  };
+};
+
 module View = {
-  let handlers = (~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
+  let handlers = (~inject: Update.t => Ui_effect.t(unit)) => {
+    MetaListener.sync(down =>
+      Bonsai.Effect.Expert.handle(inject(Globals(SetMetaDown(down))))
+    );
     let handle_key_event = (key: Key.t): Effect.t(unit) => {
-      let meta_down = key.meta == Down;
-      let meta_effects =
-        model.globals.meta_down == meta_down
-          ? [] : [inject(Globals(SetMetaDown(meta_down)))];
       /* Page-level keys only. Editor-specific keys are handled by
        * each editor's own Key.handler and won't bubble here
        * (they call Stop_propagation). */
@@ -727,25 +917,13 @@ module View = {
         };
       Effect.(
         switch (page_action) {
-        | None => meta_effects == [] ? Ignore : Many(meta_effects)
+        | None => Ignore
         | Some(action) =>
-          Many(
-            [Prevent_default, Stop_propagation, inject(action)]
-            @ meta_effects,
-          )
+          Many([Prevent_default, Stop_propagation, inject(action)])
         }
       );
     };
-    [
-      Key.listener(~f=handle_key_event),
-      /* A press on plain text leaves focus on #page itself. Don't move it
-         on from here: that would cancel the text selection being started. */
-      Attr.on_blur(_ =>
-        model.globals.meta_down
-          ? Effect.Many([inject(Globals(SetMetaDown(false)))])
-          : Effect.Ignore
-      ),
-    ];
+    [Key.listener(~f=handle_key_event)];
   };
 
   let nut_menu =
@@ -833,7 +1011,30 @@ module View = {
         failwith("get_log_count is deprecated, use Log.get_count_sync"),
       export_all: Export.export_all,
     };
-    let bottom_bar = CursorInspector.view(~globals, cursor);
+    /* the slide program's dynamics, at the inspector's right end */
+    let dynamics =
+      switch (editors) {
+      | Scratch(m)
+      | Documentation(m) when globals.settings.core.dynamics =>
+        ScratchMode.Model.current_program(m)
+        |> Option.map(p => {
+             let tail = globals.settings.tail_probe;
+             EvalResult.View.dynamics(
+               ~tail,
+               ~stopped=
+                 tail
+                 && EvalResult.Model.stopped(
+                      ~tail=Program.tail_target(p),
+                      Program.result(p),
+                    )
+                 != None,
+               ~toggle_tail=inject(Globals(Set(TailProbe))),
+               Program.result(p),
+             );
+           })
+      | _ => None
+      };
+    let bottom_bar = CursorInspector.view(~globals, ~dynamics?, cursor);
     let tutorial_reference =
       switch (editors) {
       | Tutorial(t) =>
@@ -884,6 +1085,35 @@ module View = {
 
     /* Closure cursor bar - shows call stack breadcrumbs when probes are active */
     let current_editor = Update.get_editor(model);
+    let deck: option(OutlineControl.deck) =
+      switch (model.editors) {
+      | Scratch(m) => Some(("scratch", m))
+      | Documentation(m) => Some(("doc", m))
+      | _ => None
+      };
+    let outline_mark =
+      OutlineControl.mark(~deck, ~zipper=current_editor.editor.state.zipper);
+    OutlineFollow.mark := outline_mark;
+    let outline_marks =
+      create(
+        "style",
+        switch (outline_mark) {
+        | Some(k) => [text(OutlineFollow.css(k))]
+        | None => []
+        },
+      );
+    let outline =
+      OutlineControl.view(
+        ~arrows=globals.settings.outline_arrows,
+        ~deck,
+        ~statics=current_editor.statics,
+        ~segment=current_editor.editor.syntax.segment,
+        ~inject=a => inject(Editors(Scratch(Outline(a)))),
+        ~inject_workspace=a => inject(Editors(Scratch(Workspace(a)))),
+        ~jump=id => globals.inject_global(JumpToTile(id)),
+        ~leave=Effect.of_sync_fun(() => JsUtil.focus_active_editor(), ()),
+        ~statics_on=globals.settings.core.statics,
+      );
     let indicated_id =
       Haz3lcore.Indicated.index(current_editor.editor.state.zipper);
     let closure_cursor_bar =
@@ -894,13 +1124,13 @@ module View = {
         ~indicated_id,
       );
 
-    /* Cull only in auto-probe mode (hundreds of probe views) and only for
+    /* Track the range only while something culls by it and only for
      * single-code-editor modes. Measured against the editor's own container so
      * it's correct whether the editor fills #main or sits below prompt cells. */
     let on_scroll = (_evt: Js.t(Dom_html.event)) => {
       let culling_enabled =
         Editors.Model.supports_viewport_culling(editors)
-        && globals.settings.autoprobe_mode != Haz3lcore.AutoProbe.Off;
+        && Globals.VisibleRows.tracked(globals.settings);
       if (!culling_enabled) {
         Effect.Ignore;
       } else {
@@ -936,6 +1166,8 @@ module View = {
         editors_view,
       ),
       sidebar,
+      outline,
+      outline_marks,
       bottom_bar,
       ContextInspector.view(~globals, cursor.info),
       HoverRuleSpec.view(~globals),
@@ -960,7 +1192,7 @@ module View = {
       cursor.contextual_actions,
     );
     div(
-      ~attrs=[Attr.id("page"), ...handlers(~inject, model)],
+      ~attrs=[Attr.id("page"), ...handlers(~inject)],
       [FontSpecimen.view]
       @ main_view(~log_model, ~get_log_and, ~cursor, ~inject, model),
     );

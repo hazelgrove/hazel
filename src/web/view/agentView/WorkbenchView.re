@@ -27,13 +27,15 @@ let view =
     )
     : Node.t => {
   let chat_system = agent_model.chat_system;
-  // Build the high-level node map once for this render pass, used by tool-call
-  // rows for stale-path detection and cmd/ctrl-click jump targets.
-  let node_map: option(HighLevelNodeMap.t) = {
-    let z = code_with_statics.editor.state.zipper;
-    let info_map = CompositionGo.Public.mk_statics(z);
-    HighLevelNodeMap.build(z, info_map);
-  };
+  /* the program's outline, for tool-call rows: stale paths and
+     cmd/ctrl-click jump targets */
+  let outline =
+    Some(
+      Outline.of_program(
+        ~root=code_with_statics.editor.root,
+        Zipper.unselect_and_zip(code_with_statics.editor.state.zipper),
+      ),
+    );
   let current_chat_id = chat_system.current;
   let current_chat = ChatSystem.Utils.find_chat(current_chat_id, chat_system);
   let workbench: AgentWorkbench.Model.t = current_chat.agent_workbench;
@@ -110,7 +112,7 @@ let view =
     };
     ToolResultView.view(
       ~globals,
-      ~node_map?,
+      ~outline?,
       ~tool_result,
       ~toggle_expanded,
       (),

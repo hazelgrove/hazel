@@ -2,189 +2,224 @@ open Util;
 open CompositionActions;
 open Language;
 
+/* The tools offered to the model, and a call's action */
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action_wrapper =
   | Action(action)
-  | DocsRequest(string) /* read_docs: answered from DocPacks, no editor change */
+  /* read_docs: answered from DocPacks, no editor change */
+  | DocsRequest(string)
   | Failure(string);
 
-module Local = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = list(API.Json.t);
+/* read_docs is offered only when the pack registry is non-empty */
+let docs_tools = DocPacks.all == [] ? [] : [DocsTools.read_docs];
+let tools =
+  [ViewTools.open_, ViewTools.close]
+  @ docs_tools
+  @ [
+    ProbeTools.place_probe,
+    ProbeTools.remove_probe,
+    ProbeTools.toggle_probe,
+    StaticsTools.place_statics,
+    StaticsTools.remove_statics,
+    StaticsTools.toggle_statics,
+    SyntaxProjectorTools.place_syntax_projector,
+    SyntaxProjectorTools.remove_syntax_projector,
+    SyntaxProjectorTools.toggle_syntax_projector,
+    EditTools.insert,
+    EditTools.replace,
+    EditTools.delete,
+    EditTools.move,
+    EditTools.rename,
+    WorkbenchTools.create_new_task,
+    WorkbenchTools.set_active_task,
+    WorkbenchTools.unset_active_task,
+    WorkbenchTools.set_active_subtask,
+    WorkbenchTools.unset_active_subtask,
+    WorkbenchTools.mark_active_task_complete,
+    WorkbenchTools.mark_active_task_incomplete,
+    WorkbenchTools.mark_active_subtask_complete,
+    WorkbenchTools.mark_active_subtask_incomplete,
+    WorkbenchTools.mark_active_subtask_failed,
+    WorkbenchTools.mark_active_task_failed,
+    WorkbenchTools.add_new_subtask_to_active_task,
+    WorkbenchTools.reorder_subtasks_in_active_task,
+    WorkbenchTools.update_active_task,
+    WorkbenchTools.update_active_subtask,
+    WorkbenchTools.delete_task,
+    WorkbenchTools.delete_subtask,
+  ];
 
-  /* read_docs is offered only when the pack registry is non-empty */
-  let docs_tools = DocPacks.all == [] ? [] : [DocsTools.read_docs];
-  let tools =
-    [ViewTools.expand, ViewTools.collapse]
-    @ docs_tools
-    @ [
-      ProbeTools.place_probe,
-      ProbeTools.remove_probe,
-      ProbeTools.toggle_probe,
-      StaticsTools.place_statics,
-      StaticsTools.remove_statics,
-      StaticsTools.toggle_statics,
-      SyntaxProjectorTools.place_syntax_projector,
-      SyntaxProjectorTools.remove_syntax_projector,
-      SyntaxProjectorTools.toggle_syntax_projector,
-      EditTools.update_definition,
-      EditTools.update_body,
-      EditTools.update_pattern,
-      EditTools.update_binding_clause,
-      EditTools.delete_binding_clause,
-      EditTools.delete_body,
-      EditTools.insert_after,
-      EditTools.insert_before,
-      WorkbenchTools.create_new_task,
-      WorkbenchTools.set_active_task,
-      WorkbenchTools.unset_active_task,
-      WorkbenchTools.set_active_subtask,
-      WorkbenchTools.unset_active_subtask,
-      WorkbenchTools.mark_active_task_complete,
-      WorkbenchTools.mark_active_task_incomplete,
-      WorkbenchTools.mark_active_subtask_complete,
-      WorkbenchTools.mark_active_subtask_incomplete,
-      WorkbenchTools.mark_active_subtask_failed,
-      WorkbenchTools.mark_active_task_failed,
-      WorkbenchTools.add_new_subtask_to_active_task,
-      WorkbenchTools.reorder_subtasks_in_active_task,
-      WorkbenchTools.update_active_task,
-      WorkbenchTools.update_active_subtask,
-      WorkbenchTools.delete_task,
-      WorkbenchTools.delete_subtask,
-    ];
-
-  /** Read an optional string field: None when absent or empty-string, Some otherwise.
-      Empty-string is treated as absent so LLMs that emit `"path": ""` still hit the
-      no-path branch of insert_before/insert_after. */
-  let get_optional_string = (args: API.Json.t, field: string): option(string) => {
-    switch (API.Json.dot(field, args)) {
-    | Some(`String("")) => None
-    | Some(`String(s)) => Some(s)
-    | _ => None
-    };
+/* an optional string field: None when absent or empty */
+let get_optional_string = (args: API.Json.t, field: string): option(string) => {
+  switch (API.Json.dot(field, args)) {
+  | Some(`String("")) => None
+  | Some(`String(s)) => Some(s)
+  | _ => None
   };
+};
 
-  let syntax_projector_kind_of_string = (s: string): ProjectorKind.t => {
-    let k = ProjectorKind.of_name(String.trim(s));
-    if (ProjectorKind.is_refractor(k)) {
-      raise(
-        Failure(
-          "syntax projector kind cannot be probe or statics — use the probe or statics tools",
-        ),
-      );
-    };
-    k;
+let syntax_projector_kind_of_string = (s: string): ProjectorKind.t => {
+  let k = ProjectorKind.of_name(String.trim(s));
+  if (ProjectorKind.is_refractor(k)) {
+    raise(
+      Failure(
+        "syntax projector kind cannot be probe or statics — use the probe or statics tools",
+      ),
+    );
   };
+  k;
+};
 
-  let rec action_of = (~tool_name: string, ~args: API.Json.t): action_wrapper =>
-    /* read_docs is answered from DocPacks without touching the editor, so
-       it lives at the wrapper level rather than in the action type */
-    if (tool_name == "read_docs") {
-      switch (API.Json.dot("topic", args)) {
-      | Some(`String(topic)) => DocsRequest(topic)
-      | _ => Failure("read_docs requires a `topic` string argument")
-      };
-    } else {
-      action_of_editor(~tool_name, ~args);
-    }
+/* a path as the agent may write it, copied from its view: a trailing
+   `#› … #` note off, its quotes unescaped */
+let clean_path = (path: string): string => {
+  let path =
+    switch (StringUtil.plain_search(CompositionView.marker, path, 0)) {
+    | i when i >= 0 => String.sub(path, 0, i)
+    | _ => path
+    };
+  let n = String.length(path);
+  let b = Stdlib.Buffer.create(n);
+  let rec go = i =>
+    if (i < n) {
+      let escaped = path.[i] == '\\' && i + 1 < n && path.[i + 1] == '"';
+      Stdlib.Buffer.add_char(b, escaped ? '"' : path.[i]);
+      go(escaped ? i + 2 : i + 1);
+    };
+  go(0);
+  String.trim(Stdlib.Buffer.contents(b));
+};
 
-  and action_of_editor =
-      (~tool_name: string, ~args: API.Json.t): action_wrapper => {
-    /* Possible arguments */
-    /* Parsing here to avoid redundancy */
-    /* Argument(s) may or may not be provided depending on the tool called */
-
-    let action =
-      try(
-        {
-          open API.Json.Parsers;
-          let action =
+let action_of = (~tool_name: string, ~args: API.Json.t): action_wrapper =>
+  try(
+    {
+      open API.Json.Parsers;
+      /* exactly one place; "" is the top level */
+      let place = (): Action.Structural.place =>
+        switch (
+          List.filter_map(
+            ((key, mk)) =>
+              switch (API.Json.dot(key, args)) {
+              | Some(`String(s)) => Some(mk(clean_path(s)))
+              | _ => None
+              },
+            [
+              ("before", s => Action.Structural.Before(s)),
+              ("after", s => After(s)),
+              ("first_in", s => FirstIn(s)),
+              ("last_in", s => LastIn(s)),
+            ],
+          )
+        ) {
+        | [place] => place
+        | _ =>
+          raise(
+            Failure(
+              tool_name
+              ++ " takes exactly one of before, after, first_in, last_in",
+            ),
+          )
+        };
+      tool_name == "read_docs"
+        ? DocsRequest(get_string(args, "topic"))
+        : Action(
             switch (tool_name) {
-            | "expand" =>
-              AgentContextAction(Expand(get_string_list(args, "paths")))
-            | "collapse" =>
-              AgentContextAction(Collapse(get_string_list(args, "paths")))
+            | "open" =>
+              AgentContextAction(
+                OpenPaths(
+                  List.map(clean_path, get_string_list(args, "targets")),
+                ),
+              )
+            | "close" =>
+              switch (API.Json.dot("all", args)) {
+              | Some(`Bool(true)) => AgentContextAction(CloseAllPaths)
+              | _ =>
+                AgentContextAction(
+                  ClosePaths(
+                    List.map(clean_path, get_string_list(args, "targets")),
+                  ),
+                )
+              }
             | "place_probe" =>
-              ProbeAction(PlaceProbe(get_string_list(args, "paths")))
+              ProbeAction(
+                PlaceProbe(
+                  List.map(clean_path, get_string_list(args, "paths")),
+                ),
+              )
             | "remove_probe" =>
-              ProbeAction(RemoveProbe(get_string_list(args, "paths")))
+              ProbeAction(
+                RemoveProbe(
+                  List.map(clean_path, get_string_list(args, "paths")),
+                ),
+              )
             | "toggle_probe" =>
-              ProbeAction(ToggleProbe(get_string_list(args, "paths")))
+              ProbeAction(
+                ToggleProbe(
+                  List.map(clean_path, get_string_list(args, "paths")),
+                ),
+              )
             | "place_statics" =>
-              StaticsAction(PlaceStatics(get_string_list(args, "paths")))
+              StaticsAction(
+                PlaceStatics(
+                  List.map(clean_path, get_string_list(args, "paths")),
+                ),
+              )
             | "remove_statics" =>
-              StaticsAction(RemoveStatics(get_string_list(args, "paths")))
+              StaticsAction(
+                RemoveStatics(
+                  List.map(clean_path, get_string_list(args, "paths")),
+                ),
+              )
             | "toggle_statics" =>
-              StaticsAction(ToggleStatics(get_string_list(args, "paths")))
+              StaticsAction(
+                ToggleStatics(
+                  List.map(clean_path, get_string_list(args, "paths")),
+                ),
+              )
             | "place_syntax_projector" =>
               SyntaxProjectorAction(
                 PlaceSyntaxProjector(
                   syntax_projector_kind_of_string(get_string(args, "kind")),
-                  get_string_list(args, "paths"),
+                  List.map(clean_path, get_string_list(args, "paths")),
                 ),
               )
             | "remove_syntax_projector" =>
               SyntaxProjectorAction(
-                RemoveSyntaxProjector(get_string_list(args, "paths")),
+                RemoveSyntaxProjector(
+                  List.map(clean_path, get_string_list(args, "paths")),
+                ),
               )
             | "toggle_syntax_projector" =>
               SyntaxProjectorAction(
                 ToggleSyntaxProjector(
                   syntax_projector_kind_of_string(get_string(args, "kind")),
-                  get_string_list(args, "paths"),
+                  List.map(clean_path, get_string_list(args, "paths")),
                 ),
               )
-            | "update_definition" =>
+            | "insert" =>
+              EditorAction(Insert(place(), get_string(args, "code")))
+            | "replace" =>
               EditorAction(
-                Update(
-                  Definition,
-                  get_string(args, "path"),
+                Replace(
+                  clean_path(get_string(args, "target")),
                   get_string(args, "code"),
                 ),
               )
-            | "update_body" =>
+            | "delete" =>
+              EditorAction(Delete(clean_path(get_string(args, "target"))))
+            | "move" =>
               EditorAction(
-                Update(
-                  Body,
-                  get_string(args, "path"),
-                  get_string(args, "code"),
+                Move(clean_path(get_string(args, "target")), place()),
+              )
+            | "rename" =>
+              EditorAction(
+                Rename(
+                  clean_path(get_string(args, "target")),
+                  Option.map(String.trim, get_optional_string(args, "name")),
+                  get_string(args, "to"),
                 ),
               )
-            | "update_pattern" =>
-              EditorAction(
-                Update(
-                  Pattern,
-                  get_string(args, "path"),
-                  get_string(args, "code"),
-                ),
-              )
-            | "update_binding_clause" =>
-              EditorAction(
-                Update(
-                  BindingClause,
-                  get_string(args, "path"),
-                  get_string(args, "code"),
-                ),
-              )
-            | "insert_after" =>
-              /* Per-line leading-whitespace trim happens at the paste
-                 funnel, [[CompositionGo.PerformUtils.introduce]] */
-              let code = get_string(args, "code");
-              switch (get_optional_string(args, "path")) {
-              | Some(path) => EditorAction(Insert(After, path, code))
-              | None => InsertAtProgramBoundary(After, code)
-              };
-            | "insert_before" =>
-              let code = get_string(args, "code");
-              switch (get_optional_string(args, "path")) {
-              | Some(path) => EditorAction(Insert(Before, path, code))
-              | None => InsertAtProgramBoundary(Before, code)
-              };
-            | "delete_binding_clause" =>
-              EditorAction(Delete(BindingClause, get_string(args, "path")))
-            | "delete_body" =>
-              EditorAction(Delete(Body, get_string(args, "path")))
             | "create_new_task" =>
               WorkbenchAction(
                 CreateNewTask(
@@ -265,19 +300,9 @@ module Local = {
             | "delete_subtask" =>
               WorkbenchAction(DeleteSubtask(get_string(args, "title")))
             | _ => raise(Failure("The tool called does not exist."))
-            };
-          Action(action);
-        }
-      ) {
-      | Failure(s: string) => Failure(s)
-      };
-    action;
+            },
+          );
+    }
+  ) {
+  | Failure(s) => Failure(s)
   };
-};
-
-module Public = {
-  let tools = Local.tools;
-  let action_of = (~tool_name: string, ~args: API.Json.t): action_wrapper => {
-    Local.action_of(~tool_name, ~args);
-  };
-};
