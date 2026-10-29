@@ -562,6 +562,10 @@ module Selection = {
            ToggleCompletion,
          ),
          of_shortcut(
+           ~action=inject(Globals(Set(DisplayWarnings))),
+           ToggleWarnings,
+         ),
+         of_shortcut(
            ~action=inject(Globals(Set(SecondaryIcons))),
            ToggleShowWhitespace,
          ),
