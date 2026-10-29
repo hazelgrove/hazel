@@ -1,0 +1,18 @@
+; The performance report's measurements (docs/performance.md). Two
+; executables, not one, so that a merge base the work counter no longer
+; compiles against can still be timed, and the other way round: CI copies
+; these files into the base checkout and builds each on its own.
+
+(executable
+ (name perf_work)
+ (modules perf_work)
+ (libraries haz3lcore yojson)
+ (modes js))
+
+(executable
+ (name hazel_bench)
+ (modules hazel_bench)
+ (libraries haz3lcore yojson js_of_ocaml)
+ (modes js)
+ (preprocess
+  (pps js_of_ocaml-ppx)))
