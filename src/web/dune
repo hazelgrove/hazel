@@ -5,6 +5,16 @@
  (deps
   (source_tree www)))
 
+(rule
+ (targets BuildInfo.ml)
+ (deps
+  (universe)
+  (:script ../../scripts/build-info.sh))
+ (action
+  (with-stdout-to
+   %{targets}
+   (run bash %{script}))))
+
 ; The Colors config slide is committed Hazel text, embedded at compile time
 ; the way the documentation slides are. See ColorConfiguration.re.
 
