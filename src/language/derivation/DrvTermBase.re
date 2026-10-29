@@ -204,9 +204,13 @@ and Exp: {
     let rec is_shadow = (p: pat_t) =>
       switch (IdTagged.term_of(p)) {
       | Var(x') => String.equal(x', x)
-      | Cast(p, _) => is_shadow(p)
+      | Parens(p)
+      | Cast(p, _)
+      | InjL(p)
+      | InjR(p) => is_shadow(p)
       | Pair(p1, p2) => is_shadow(p1) || is_shadow(p2)
-      | _ => false
+      | Hole(_)
+      | Quote(_) => false
       };
     let subst' = p => is_shadow(p) ? Fun.id : subst;
     switch (term) {
@@ -629,13 +633,35 @@ and Typ: {
     | _ when eq(t1, t2, ~skip_hole=false) => t1
     | (TypHole, _) => t2
     | (_, TypHole) => t1
+    | (Parens(t1), _) => glb(t1, t2)
+    | (_, Parens(t2)) => glb(t1, t2)
     | (Arrow(t11, t12), Arrow(t21, t22)) =>
       Arrow(glb(t11, t21), glb(t12, t22)) |> fresh
     | (Prod(t11, t12), Prod(t21, t22)) =>
       Prod(glb(t11, t21), glb(t12, t22)) |> fresh
     | (Sum(t11, t12), Sum(t21, t22)) =>
       Sum(glb(t11, t21), glb(t12, t22)) |> fresh
-    | _ => Hole(Invalid("Glb Failure")) |> fresh
+    /* Same binder: take the glb of the bodies. Different binders: rename
+       both to a fresh variable first, as [eq] does, so neither body's free
+       variables are captured. */
+    | (Rec({term: Var(a1), _} as tp, a2), Rec({term: Var(b1), _}, b2))
+        when String.equal(a1, b1) =>
+      Rec(tp, glb(a2, b2)) |> fresh
+    | (Rec({term: Var(a1), _}, a2), Rec({term: Var(b1), _}, b2)) =>
+      let rep = Id.mk() |> Id.show;
+      let rep_var = fresh(Var(rep));
+      Rec(
+        IdTagged.fresh(Var(rep): tpat_term),
+        glb(subst(rep_var, a1, a2), subst(rep_var, b1, b2)),
+      )
+      |> fresh;
+    | (
+        Hole(_) | Quote(_) | Var(_) | Num | Bool | Arrow(_) | Prod(_) | Unit |
+        Sum(_) |
+        Rec(_),
+        _,
+      ) =>
+      Hole(Invalid("Glb Failure")) |> fresh
     };
   };
 }

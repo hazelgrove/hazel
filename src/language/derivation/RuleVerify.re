@@ -290,8 +290,13 @@ let go_test = (map: map, test: test): option(failure) => {
         let rec f = p =>
           switch (Drv.Pat.term_of(p)) {
           | Var(s) => s
+          | Parens(p)
           | Cast(p, _) => f(p)
-          | _ => raise(Failure(FailUnbox(specced, Pat(Var))))
+          | Hole(_)
+          | Quote(_)
+          | InjL(_)
+          | InjR(_)
+          | Pair(_) => raise(Failure(FailUnbox(specced, Pat(Var))))
           };
         f(pat_of_specced(specced));
       | UnboxTypVar({term: LookUpTyp(s), _}) =>

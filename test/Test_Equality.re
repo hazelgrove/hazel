@@ -1,7 +1,60 @@
 open Alcotest;
 
+/* Every shipped documentation slide, parsed the way the editor loads it
+   (FastParse + MakeTerm, so projector wrappers are present). Slides that
+   need the typing-parser fallback are skipped. */
+let doc_slide_terms: Lazy.t(list((string, Language.Exp.t))) =
+  lazy(
+    snd(Lazy.force(Web.Init.startup).documentation)
+    |> List.filter_map(((name, slide: Web.CellEditor.Model.persistent)) =>
+         Haz3lcore.FastParse.of_text(
+           ~materialize=Haz3lcore.Triggers.invoked_projector,
+           ~collect_refractors=true,
+           ~root=Exp,
+           String.trim(slide.editor.zipper.backup_text),
+         )
+         |> Option.map(seg => (name, Haz3lcore.MakeTerm.go(seg).term))
+       )
+  );
+
 open Language;
+
+let reflexive_on_doc_slides = (eq_name, eq: (Exp.t, Exp.t) => bool, ()) => {
+  let terms = Lazy.force(doc_slide_terms);
+  check(bool, "corpus is non-empty", true, terms != []);
+  List.iter(
+    ((name, e)) =>
+      check(
+        bool,
+        eq_name ++ ".exp(e, e) for slide " ++ name,
+        true,
+        eq(e, e),
+      ),
+    terms,
+  );
+};
+
 open IdTagged.FreshGrammar;
+
+/* module M = { let (a=x, b=y) = (a=1, b=2) } in M.x
+   (built per call so each copy has its own ids). */
+let module_with_labeled_let = () =>
+  Exp.module_exp(
+    MPat.var("M"),
+    Exp.module_([
+      Mod.mod_let(
+        Pat.tuple([
+          Pat.tup_label(Pat.label("a"), Pat.var("x")),
+          Pat.tup_label(Pat.label("b"), Pat.var("y")),
+        ]),
+        Exp.tuple([
+          Exp.tup_label(Exp.label("a"), Exp.int(1)),
+          Exp.tup_label(Exp.label("b"), Exp.int(2)),
+        ]),
+      ),
+    ]),
+    Exp.dot(Exp.var("M"), Exp.label("x")),
+  );
 
 let tests = (
   "Equality",
@@ -137,6 +190,75 @@ let tests = (
           Equality.semantic.exp(e1, e2),
         );
       },
+    ),
+    test_case(
+      "module let with labeled tuple pattern is reflexive",
+      `Quick,
+      () => {
+        let e = module_with_labeled_let();
+        check(
+          bool,
+          "syntactic: e === e",
+          true,
+          Equality.syntactic.exp(e, e),
+        );
+        check(bool, "semantic: e === e", true, Equality.semantic.exp(e, e));
+        check(
+          bool,
+          "semantic: e === copy of e",
+          true,
+          Equality.semantic.exp(e, module_with_labeled_let()),
+        );
+      },
+    ),
+    test_case(
+      "module let names stay literal under a labeled tuple pattern",
+      `Quick,
+      () => {
+        let m = (x, y) =>
+          Exp.module_([
+            Mod.mod_let(
+              Pat.tuple([
+                Pat.tup_label(Pat.label("a"), Pat.var(x)),
+                Pat.tup_label(Pat.label("b"), Pat.var(y)),
+              ]),
+              Exp.var("p"),
+            ),
+          ]);
+        check(
+          bool,
+          "{let (a=x, b=y) = p} !== {let (a=x, b=z) = p}",
+          false,
+          Equality.semantic.exp(m("x", "y"), m("x", "z")),
+        );
+      },
+    ),
+    test_case(
+      "module let honours ignore_ascriptions",
+      `Quick,
+      () => {
+        let plain = Exp.module_([Mod.mod_let(Pat.var("x"), Exp.int(1))]);
+        let ascribed =
+          Exp.module_([
+            Mod.mod_let(Pat.asc(Pat.var("x"), Typ.int()), Exp.int(1)),
+          ]);
+        check(
+          bool,
+          "{let x : Int = 1} === {let x = 1} ignoring ascriptions",
+          true,
+          Equality.ignoring_ascriptions.exp(ascribed, plain),
+        );
+      },
+    ),
+    test_case(
+      "syntactic equality is reflexive on the doc slides",
+      `Quick,
+      reflexive_on_doc_slides("syntactic", Equality.syntactic.exp),
+    ),
+    test_case(
+      "semantic equality is reflexive on the doc slides",
+      `Quick,
+      reflexive_on_doc_slides("semantic", Equality.semantic.exp),
     ),
   ],
 );
