@@ -5,6 +5,9 @@
  (copy ../worker.bc.js worker.js))
 
 (rule
+ (copy ../hazelLib.bc.js hazel-lib.js))
+
+(rule
  (targets bundled.js)
  (deps prebundle.js)
  (action
