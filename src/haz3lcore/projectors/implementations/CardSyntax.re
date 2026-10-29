@@ -3,23 +3,21 @@ open Language;
 open OptUtil.Syntax;
 open CardTypes;
 
+/* Parens and projectors (a card projected inside a projected hand, say)
+   are transparent to the cards a term spells.
+   TODO: switch to the shared Exp/Pat wrapper-stripping helpers once they
+   land. */
 let rec strip_wraps_exp = (e: Exp.t): Exp.t =>
   switch (e.term) {
-  | Parens(inner) =>
-    switch (inner.term) {
-    | Tuple(_) => e
-    | _ => strip_wraps_exp(inner)
-    }
+  | Parens(inner)
+  | Projector(_, inner) => strip_wraps_exp(inner)
   | _ => e
   };
 
 let rec strip_wraps_pat = (p: Pat.t): Pat.t =>
   switch (p.term) {
-  | Parens(inner) =>
-    switch (inner.term) {
-    | Tuple(_) => p
-    | _ => strip_wraps_pat(inner)
-    }
+  | Parens(inner)
+  | Projector(_, inner) => strip_wraps_pat(inner)
   | _ => p
   };
 
@@ -35,11 +33,10 @@ let string_to_rank = (s: string): option(rank) =>
   | exception _ => None
   };
 
-let rec exp_to_card = (term: Exp.t): option(card) =>
-  switch (term.term) {
-  | Parens(inner) => exp_to_card(inner)
+let exp_to_card = (term: Exp.t): option(card) =>
+  switch (strip_wraps_exp(term).term) {
   | Tuple([t1, t2]) =>
-    switch (t1.term, t2.term) {
+    switch (strip_wraps_exp(t1).term, strip_wraps_exp(t2).term) {
     | (Constructor(suit, _), Constructor(rank, _)) =>
       switch (string_to_suit(suit), string_to_rank(rank)) {
       | (Some(s), Some(r)) => Some((s, r))
@@ -50,11 +47,10 @@ let rec exp_to_card = (term: Exp.t): option(card) =>
   | _ => None
   };
 
-let rec pat_to_card = (term: Pat.t): option(card) =>
-  switch (term.term) {
-  | Parens(p) => pat_to_card(p)
+let pat_to_card = (term: Pat.t): option(card) =>
+  switch (strip_wraps_pat(term).term) {
   | Tuple([p1, p2]) =>
-    switch (p1.term, p2.term) {
+    switch (strip_wraps_pat(p1).term, strip_wraps_pat(p2).term) {
     | (Constructor(suit, _), Constructor(rank, _)) =>
       let* s = string_to_suit(suit);
       let* r = string_to_rank(rank);
@@ -91,7 +87,14 @@ let any_to_state = (term: Any.t): option(state) =>
       let+ card = pat_to_card(term);
       (Pat, Card(card));
     }
-  | _ => None
+  | Typ(_)
+  | TPat(_)
+  | Rul(_)
+  | Drv(_)
+  | Mod(_)
+  | Sig(_)
+  | MPat(_)
+  | Any(_) => None
   };
 
 open IdTagged.FreshGrammar;

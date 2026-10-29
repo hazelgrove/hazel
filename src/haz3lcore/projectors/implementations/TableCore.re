@@ -35,20 +35,24 @@ let table_view =
 
 type table_data = (list(option(string)), list(list(Exp.t)));
 
+/* The elaborated term keeps projectors, so a folded row or entry arrives
+   wrapped in one; like Parens, it changes nothing about the data. */
 let rec extract_entry = (e: Exp.t): option((option(string), Exp.t)) =>
   switch (e.term) {
-  | Parens(inner) => extract_entry(inner)
+  | Parens(inner)
+  | Projector(_, inner) => extract_entry(inner)
   | TupLabel({term: Label(l), _}, v) => Some((Some(l), v))
   | TupLabel({term: EmptyHole, _}, v) => Some((None, v))
   | _ => None
   };
 
-/* Peel Parens and push outer Asc wrappers into the tuple so labeled
- * entries surface in their normal shape. Revisit if elaboration changes
- * how it adds ascriptions to list rows. */
+/* Peel Parens and projectors and push outer Asc wrappers into the tuple so
+ * labeled entries surface in their normal shape. Revisit if elaboration
+ * changes how it adds ascriptions to list rows. */
 let rec normalize_row = (e: Exp.t): Exp.t =>
   switch (e.term) {
-  | Parens(inner) => normalize_row(inner)
+  | Parens(inner)
+  | Projector(_, inner) => normalize_row(inner)
   | Asc(_, _) =>
     let stepped = Ascriptions.transition_multiple(e);
     stepped === e ? e : normalize_row(stepped);

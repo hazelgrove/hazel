@@ -82,9 +82,83 @@ let assert_table_shape =
   };
 };
 
+/* Folds the `n`th row (0-based) of the first list literal, as a user
+   folding one row in the editor would: the elaborated term keeps the
+   projector around that row. */
+let fold_row = (n: int, exp: Language.Exp.t): Language.Exp.t => {
+  let (module F) = ProjectorInit.to_module(Fold);
+  let fold = (e: Language.Exp.t): Language.Exp.t => {
+    let model =
+      switch (F.init(Exp(e))) {
+      | Some(m) => m
+      | None => Alcotest.fail("fold should init on a row")
+      };
+    {
+      ...e,
+      term:
+        Projector(
+          {
+            kind: Fold,
+            model,
+          },
+          e,
+        ),
+    };
+  };
+  let folded = ref(false);
+  Language.Exp.map_term(
+    ~f_exp=
+      (cont, e) =>
+        switch (e.term) {
+        | ListLit(rows) when ! folded^ =>
+          folded := true;
+          cont({
+            ...e,
+            term: ListLit(List.mapi((i, r) => i == n ? fold(r) : r, rows)),
+          });
+        | _ => cont(e)
+        },
+    exp,
+  );
+};
+
+let elaborate_folded_and_find_list =
+    (~row: int, program_str: string): Language.Exp.t => {
+  let uexp = fold_row(row, parse_exp(program_str));
+  switch (find_list_lit(dhexp_of_uexp(uexp))) {
+  | Some(e) => e
+  | None => Alcotest.fail("No ListLit found in elaborated program")
+  };
+};
+
 let tests = (
   "TableCore.parse_table",
   [
+    test_case(
+      "Folded row: the projector is transparent",
+      `Quick,
+      () => {
+        let exp =
+          elaborate_folded_and_find_list(
+            ~row=0,
+            {|let t = [(a=1, b=2), (a=3, b=4)] in t|},
+          );
+        assert_table_shape("folded row", ["a", "b"], 2, exp);
+      },
+    ),
+    test_case(
+      "Folded row under an aliased row type",
+      `Quick,
+      () => {
+        let exp =
+          elaborate_folded_and_find_list(
+            ~row=1,
+            {|type Row = (name=String, age=Int) in
+              let t : [Row] = [("Alice", 12), ("Bob", 17)] in t|},
+          );
+        assert_table_shape("folded typed row", ["name", "age"], 2, exp);
+      },
+    ),
     test_case(
       "Auto-labeled list: labels introduced from type",
       `Quick,
