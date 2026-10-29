@@ -1,0 +1,194 @@
+# An advisory performance report on every ready-for-review pull request into
+# dev: the head against its merge base with dev. See docs/performance.md for
+# what it measures and what counts as significant.
+#
+# Advisory: it is not, and should not be made, a required check. Wall time on
+# a shared runner is too noisy to gate on; the deterministic step budgets in
+# test/evaluator/Test_PerfBudgets.re (part of Fast checks) are the gate. The
+# report job succeeds whatever it finds, and fails only if the tooling breaks.
+#
+# The full tables are in the report job's summary (click into the check). A PR
+# comment is posted only for a significant change, and is the one comment,
+# edited in place on later pushes: updated while the change persists, marked
+# resolved (keeping the old report, collapsed) once a push no longer shows it.
+#
+# Two jobs, so that the one running the pull request's code holds no write
+# token. `Performance report` builds and runs PR code with a read-only token;
+# `comment` never checks out code, only reads the report's artifact, and is
+# skipped for forks (whose pull_request runs get a read-only token anyway).
+name: Performance report
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [dev]
+
+concurrency:
+  # A newer push to the same PR supersedes the run in flight.
+  group: perf-report-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  report:
+    name: Performance report
+    # Drafts are skipped: the report runs again when one is marked ready.
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    # Without this, GitHub's 360-min default applies.
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      # The PR head itself, not the merge commit a pull_request run checks out
+      # by default: the report compares the branch with where it left dev.
+      - name: Checkout the pull request head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Find the merge base with dev
+        id: base
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        # The compare API answers without a deep clone of either branch.
+        run: |
+          sha=$(gh api "repos/$REPO/compare/$BASE_REF...$HEAD_SHA" --jq .merge_base_commit.sha)
+          echo "Merge base: $sha"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+      # Under _perf, which dune ignores (a leading underscore), so the base is
+      # not mistaken for part of the head's workspace.
+      - name: Checkout the merge base
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.base.outputs.sha }}
+          path: _perf/base
+          persist-credentials: false
+
+      # The head's toolchain and lock file serve both builds. A PR that bumps
+      # dependencies is therefore measured on the new ones for both sides.
+      - uses: ./.github/actions/setup-hazel-toolchain
+
+      # Builds both sides (the head's harness copied into the base) and
+      # alternates their timing rounds in this one job, so both see the same
+      # machine. DUNE_CACHE lets the second build reuse the first's unchanged
+      # modules.
+      - name: Measure base and head
+        run: |
+          export DUNE_CACHE=enabled
+          bench/perf-compare.sh --rounds 5 --reps 5 --out _perf/report _perf/base
+
+      - name: Write the job summary
+        run: |
+          {
+            echo "## Performance report"
+            echo
+            cat _perf/report/report.md
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the report
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-report
+          path: |
+            _perf/report/report.json
+            _perf/report/report.md
+            _perf/report/comment.md
+            _perf/report/significant
+            _perf/report/build-*.log
+          retention-days: 14
+
+  comment:
+    name: Comment on a significant change
+    needs: report
+    # Fork PRs get a read-only token, so this could not comment anyway.
+    if: github.event.pull_request.head.repo.fork == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Download the report
+        uses: actions/download-artifact@v4
+        with:
+          name: perf-report
+          path: perf-report
+
+      # One sticky comment, found by its marker:
+      #   significant, no comment yet  -> post one
+      #   significant, comment exists  -> replace its report
+      #   not significant, comment     -> mark it resolved, old report collapsed
+      #   not significant, no comment  -> nothing
+      - name: Post, update or resolve the comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const MARKER = '<!-- hazel-perf-report -->';
+            const START = '<!-- report-start -->';
+            const END = '<!-- report-end -->';
+            const significant =
+              fs.readFileSync('perf-report/significant', 'utf8').trim() === 'true';
+            const { owner, repo } = context.repo;
+            const pr = context.payload.pull_request;
+            const sha = pr.head.sha.slice(0, 7);
+            const run = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number: pr.number, per_page: 100,
+            });
+            const existing = comments.find(
+              c => c.user.login === 'github-actions[bot]' && c.body.includes(MARKER));
+
+            let body;
+            if (significant) {
+              const report = fs.readFileSync('perf-report/comment.md', 'utf8');
+              body = [
+                MARKER,
+                '## Performance report',
+                '',
+                START,
+                report,
+                END,
+                '',
+                `<sub>As of ${sha}. Full tables in the [job summary](${run}). ` +
+                  'This comment is updated on each push, and marked resolved once ' +
+                  'a push no longer shows a significant change.</sub>',
+              ].join('\n');
+            } else if (existing) {
+              const prev = existing.body;
+              const i = prev.indexOf(START), j = prev.indexOf(END);
+              const old = i >= 0 && j > i ? prev.slice(i, j + END.length) : '';
+              body = [
+                MARKER,
+                '## Performance report',
+                '',
+                `✅ **Resolved** as of ${sha}: no significant change any more ` +
+                  `([job summary](${run})).`,
+                '',
+                '<details><summary>Previous report</summary>',
+                '',
+                old,
+                '',
+                '</details>',
+              ].join('\n');
+            } else {
+              core.info('No significant change and no earlier comment: nothing to do.');
+              return;
+            }
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner, repo, comment_id: existing.id, body,
+              });
+              core.info(`Updated comment ${existing.html_url}`);
+            } else {
+              const { data } = await github.rest.issues.createComment({
+                owner, repo, issue_number: pr.number, body,
+              });
+              core.info(`Posted comment ${data.html_url}`);
+            }

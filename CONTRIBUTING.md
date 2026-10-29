@@ -153,7 +153,7 @@ Unit-test coverage can't see what a person exercises in the editor. To get cover
 
 ## Continuous Integration
 
-Four workflows run against `hazelgrove/hazel`. You can view them in the [Actions
+Five workflows run against `hazelgrove/hazel`. You can view them in the [Actions
 tab on Github](https://github.com/hazelgrove/hazel/actions).
 
 `.github/workflows/ci.yml` runs on **every branch push** and in the merge queue.
@@ -191,6 +191,12 @@ the whole suite with QCheck's counts multiplied (see the [test
 README](test/README.md)) to shake out properties that fail only on rare seeds.
 It gates nothing, and a failure there reproduces from the seed printed in its
 job summary.
+
+`.github/workflows/perf-report.yml` runs on **ready-for-review pull requests
+into `dev`**: an advisory **Performance report** check comparing the head with
+its merge base (evaluator step counts over the slide corpus, editor and
+evaluator timings), which comments on the PR only for a significant change and
+never blocks a merge. See [docs/performance.md](docs/performance.md).
 
 All of them share `.github/actions/setup-hazel-toolchain`, which is where the
 OCaml version and the opam switch cache live.
