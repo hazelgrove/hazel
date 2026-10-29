@@ -118,6 +118,18 @@ module Model = {
 
   let get_elaboration = (model: t): option(Exp.t) =>
     model.elab |> Calc.get_saved_opt;
+
+  /* The evaluated value, however the model came to hold it. `UpdateResult`
+     announces a FRESH evaluation, which is the right signal for work that
+     should happen once per evaluation; anything that has to track the value
+     itself must read it here instead, because a model restored by undo
+     carries a result no `UpdateResult` will ever be sent for. */
+  let get_value = (model: t): option(Exp.t) =>
+    switch (Calc.get_value(model.result)) {
+    | ProgramResult.ResultOk({result, _}) => Some(result)
+    | ProgramResult.ResultFail(_)
+    | ProgramResult.ResultPending(_) => None
+    };
 };
 
 module Update = {
@@ -134,7 +146,7 @@ module Update = {
     | TheoremsAction(Theorems.Update.t);
 
   // Update is meant to make minimal changes to the model, and calculate will do the rest.
-  let update = (~settings, action, model: Model.t): Updated.t(Model.t) =>
+  let update = (~settings, action, model: Model.t): Updated.t(Model.t) => {
     switch (action, model) {
     | (ToggleStepper, {display: Stepper(_), _}) =>
       {
@@ -212,6 +224,7 @@ module Update = {
       }
       |> Updated.return_quiet;
     };
+  };
 
   let calculate =
       (
@@ -238,7 +251,8 @@ module Update = {
     let settings =
       cached_settings
       |> Calc.set(settings, ~eq=CoreSettings.eq_ignoring_stepper_modals);
-    let elab = Calc.set(~eq=Exp.fast_equal, statics.elaborated, elab);
+    let elab =
+      Calc.set(~eq=Exp.fast_equal_with_lexemes, statics.elaborated, elab);
     let targets =
       Calc.set(
         ~eq=Id.Map.equal(Sample.equal_capture_spec),
@@ -361,7 +375,7 @@ module Update = {
     // Turn state into dynamics map
     let dynamics_of_state = (state: EvaluatorState.t) =>
       Dynamics.{
-        probe_map: state |> EvaluatorState.get_probes,
+        probe_map: state |> EvaluatorState.get_probes |> Sample.Map.finalize,
         test_results:
           state |> EvaluatorState.get_tests |> TestResults.mk_results,
         theorems: state |> EvaluatorState.get_theorems,
@@ -706,6 +720,7 @@ module View = {
         ~selected: option(Selection.t),
         ~result_kind: [
            | `NoResults
+           | `TestSigilsOnly
            | `TestResults
            | `EvalResults
            | `NoTheorems
@@ -774,10 +789,26 @@ module View = {
       ];
       (result, (_ => []));
 
+    // test forms keep pass/fail sigils but no result footer (tutorial mode)
+    | `TestSigilsOnly when globals.settings.core.dynamics =>
+      let test_overlay = (editor: Haz3lcore.Editor.t) =>
+        switch (Model.test_results(model)) {
+        | Some(result) => [
+            test_result_layer(
+              ~font_metrics=globals.font_metrics,
+              ~measured=editor.syntax.measured,
+              result,
+            ),
+          ]
+        | None => []
+        };
+      ([], test_overlay);
+
     // Not showing any results:
     | `EvalResults
     | `NoTheorems
     | `JustTheorems
+    | `TestSigilsOnly
     | `NoResults => ([], (_ => []))
 
     | `Custom(node) => (

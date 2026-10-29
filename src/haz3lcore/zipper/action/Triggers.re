@@ -96,21 +96,23 @@ let apply_refractors = (refractors: list((Id.t, string)), z: t): t =>
     refractors,
   );
 
+/* nt is a single-token tile whose token satisfies is_invoke_tok */
+let is_invoke_tile = (is_invoke_tok: Token.t => bool, nt: Tile.t): bool =>
+  Tile.arity(nt) == 1 && is_invoke_tok(Tile.token(nt, 0));
+
 let expand_projector = (z: t): option(t) => {
   switch (z.relatives.siblings |> fst |> List.rev) {
-  | [
-      Tile({label: ["(", ")"], children: [syntax], _}),
-      Tile({label: [name], _}),
-      ...rest,
-    ]
-      when is_refractor_trigger(name) =>
+  | [Tile({children: [syntax], _} as parens), Tile(nt), ...rest]
+      when
+        Tile.is_paren_shaped(parens)
+        && is_invoke_tile(is_refractor_trigger, nt) =>
     /* Left siblings are stored as [oldest, ..., newest]. After List.rev we have
      * [newest(parens), ^^refractor, ...rest] where rest is [third_newest, ..., oldest].
      * We want syntax in the newest position: [oldest, ..., third_newest, syntax...] */
     let (kind, model) =
-      switch (refractor_of_invoke_token(name)) {
+      switch (refractor_of_invoke_token(Tile.token(nt, 0))) {
       | Some(km) => km
-      | None => (of_refractor_trigger(name), None)
+      | None => (of_refractor_trigger(Tile.token(nt, 0)), None)
       };
     Zipper.update_siblings(((_, r)) => (List.rev(rest) @ syntax, r), z)
     |> Zipper.add_manual(
@@ -120,21 +122,22 @@ let expand_projector = (z: t): option(t) => {
        )
     |> Option.some;
 
-  | [
-      Tile({label: ["(", ")"], children: [syntax], _}),
-      Tile({label: [name], _}),
-      ...rest,
-    ]
-      when Token.is_projector_invoke(name) =>
-    let+ piece = invoked_projector(name, syntax);
+  | [Tile({children: [syntax], _} as parens), Tile(nt), ...rest]
+      when
+        Tile.is_paren_shaped(parens)
+        && is_invoke_tile(Token.is_projector_invoke, nt) =>
+    let+ piece = invoked_projector(Tile.token(nt, 0), syntax);
     Zipper.update_siblings(
       ((_, r)) => ([piece, ...rest] |> List.rev, r),
       z,
     );
   /* Special case for reparsing of projectors placed on holes */
-  | [Tile({label: ["()"], _}), Tile({label: [name], _}), ...rest]
-      when Token.is_projector_invoke(name) =>
-    let+ piece = invoked_projector(name, [Piece.mk_grout(Convex)]);
+  | [Tile(ht), Tile(nt), ...rest]
+      when
+        Tile.is_empty_tuple_shaped(ht)
+        && is_invoke_tile(Token.is_projector_invoke, nt) =>
+    let+ piece =
+      invoked_projector(Tile.token(nt, 0), [Piece.mk_grout(Convex)]);
     Zipper.update_siblings(
       ((_, r)) => ([piece, ...rest] |> List.rev, r),
       z,
@@ -153,10 +156,13 @@ let refractor_to_invoke =
     };
   [
     Piece.mk_tile(
-      Form.mk_atom_op(Exp, Token.mk_projector_invoke(kind) ++ opt_suffix),
+      Form.classify_label(
+        Exp,
+        [Token.mk_projector_invoke(kind) ++ opt_suffix],
+      ),
       [],
     ),
-    Piece.mk_tile(Form.get(ApExp), [seg]),
+    Piece.mk_tile((Form.Compound(Ap), Sort.Exp), [seg]),
   ];
 };
 
@@ -166,8 +172,8 @@ let refractor_to_invoke_text =
     (kind: ProjectorCore.Kind.t, seg: Segment.t): Segment.t =>
   switch (kind) {
   | Probe =>
-    [Piece.mk_tile(Form.mk_atom_op(Exp, Token.probe_start), []), ...seg]
-    @ [Piece.mk_tile(Form.mk_atom_op(Exp, Token.probe_end), [])]
+    [Piece.mk_tile((Form.Tok(Token.probe_start), Sort.Any), []), ...seg]
+    @ [Piece.mk_tile((Form.Tok(Token.probe_end), Sort.Any), [])]
   | _ => refractor_to_invoke(kind, seg)
   };
 
@@ -176,8 +182,12 @@ let projector_to_invoke = (pr: Base.projector): Segment.t =>
 
 let expand_livelit = (~ctx, z: t): option(t) =>
   switch (z.relatives.siblings |> fst |> List.rev) {
-  | [Secondary({content: Whitespace(w), _}), Tile({label: [t], _}), ..._]
-      when Token.is_livelit(t) && w == Token.space =>
+  | [Secondary({content: Whitespace(w), _}), Tile(lt), ..._]
+      when
+        Tile.arity(lt) == 1
+        && Token.is_livelit(Tile.token(lt, 0))
+        && w == Token.space =>
+    let t = Tile.token(lt, 0);
     let* ll = Language.Ctx.lookup_livelit(ctx, Token.parse_livelit(t));
     let seg = exp_to_seg(ll.model_default);
     let seg =
@@ -187,7 +197,7 @@ let expand_livelit = (~ctx, z: t): option(t) =>
       };
     let (l, _space) = ListUtil.split_last(fst(z.relatives.siblings));
     let (l, name) = ListUtil.split_last(l);
-    let seg = [name, Piece.mk_tile(Form.get(ApExp), [seg])];
+    let seg = [name, Piece.mk_tile((Form.Compound(Ap), Sort.Exp), [seg])];
     /* No statics available at trigger time; empty elaborated is fine
      * since Livelit has elaborate_syntax=false. */
     let+ pr =

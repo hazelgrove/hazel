@@ -33,7 +33,7 @@ open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type strategy_all =
-  | FromBackpack;
+  | FromMissingShards;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type strategy_common =

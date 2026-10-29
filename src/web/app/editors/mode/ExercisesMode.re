@@ -437,7 +437,14 @@ module Update = {
   };
 
   let calculate =
-      (~settings, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
+      (
+        ~settings,
+        ~autoprobe_mode,
+        ~is_edited,
+        ~schedule_action,
+        model: Model.t,
+      )
+      : Model.t => {
     let current_exercise = Model.get_current(model);
     let current_exercise =
       switch (current_exercise) {
@@ -445,6 +452,7 @@ module Update = {
         Model.Code(
           CodeExerciseMode.Update.calculate(
             ~settings,
+            ~autoprobe_mode,
             ~is_edited,
             ~schedule_action=a => schedule_action(Exercise(a)),
             ex,
@@ -454,6 +462,7 @@ module Update = {
         Model.Derivation(
           DerivationExerciseMode.Update.calculate(
             ~settings,
+            ~autoprobe_mode,
             ~is_edited,
             ~schedule_action=a => schedule_action(Derivation(a)),
             ex,
@@ -463,6 +472,7 @@ module Update = {
         Model.Theorem(
           TheoremExerciseMode.Update.calculate(
             ~settings,
+            ~autoprobe_mode,
             ~is_edited,
             ~schedule_action=a => schedule_action(TheoremExercise(a)),
             ex,
@@ -523,27 +533,21 @@ module Selection = {
     cursor
     |> Cursor.with_actions(
          [
-           ContextualAction.mk(
-             ~mdIcon="download",
-             ~section="Export",
+           ContextualAction.of_shortcut(
              ~action=inject(ExportSubmission),
-             "Export Submission",
+             ExportSubmission,
            ),
          ]
          @ (
            if (ExerciseSettings.show_instructor) {
              [
-               ContextualAction.mk(
-                 ~mdIcon="download",
-                 ~section="Export",
+               ContextualAction.of_shortcut(
                  ~action=inject(ExportModule),
-                 "Export Exercise Module",
+                 ExportExerciseModule,
                ),
-               ContextualAction.mk(
-                 ~mdIcon="download",
-                 ~section="Export",
+               ContextualAction.of_shortcut(
                  ~action=inject(ExportTransitionary),
-                 "Export Transitionary Exercise Module",
+                 ExportTransitionaryExerciseModule,
                ),
              ];
            } else {
@@ -732,21 +736,15 @@ module View = {
 
     let file_group_exercises = () =>
       NutMenu.item_group(
-        ~inject,
         "File",
         [export_submission, import_submission, import_logs],
       );
 
     let reset_group_exercises = () =>
-      NutMenu.item_group(
-        ~inject,
-        "Reset",
-        [reset_button, reparse, reset_hazel],
-      );
+      NutMenu.item_group("Reset", [reset_button, reparse, reset_hazel]);
 
     let dev_group_exercises = () =>
       NutMenu.item_group(
-        ~inject,
         "Developer Export",
         [instructor_export, instructor_transitionary_export],
       );

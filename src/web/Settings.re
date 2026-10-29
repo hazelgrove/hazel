@@ -1,5 +1,13 @@
 open Util;
 
+module CompletionDisplay = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Quiver
+    | Flag
+    | Hidden;
+};
+
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
@@ -14,15 +22,22 @@ module Model = {
     show_debug_panel: bool,
     explainThis: ExplainThisModel.Settings.t,
     sidebar: SidebarModel.Settings.t,
-    /* Auto probe: automatically place a multi probe on the body of
-       whichever top-level definition the cursor is currently inside */
-    autoprobe_mode: bool,
+    [@sexp.default false]
+    quiver_flagpole: bool,
+    quiver: bool, /* Show completion visualization (quiver arrows) */
+    autoprobe_mode: Haz3lcore.AutoProbe.t,
     agent_globals: AgentGlobals.Model.t,
     line_numbers: bool,
     relative_line_numbers: bool,
     cap_undo_stack: bool,
     show_row_lines: bool,
     show_incremental_deco: bool,
+    /* Shortcut overrides derived from the Shortcuts config slide: a
+       ContextualAction label to its resolved hotkey, or None for an action
+       the config leaves Unbound. Applied when the command palette is built
+       (NinjaKeys.initialize), so it survives palette rebuilds and reloads. */
+    shortcut_overrides: list((string, option(string))),
+    simple_indication: bool,
   };
 
   let init = {
@@ -34,7 +49,9 @@ module Model = {
       assist: true,
       dynamics: true,
       probe_all: false,
-      deep_reassociate: true,
+      auto_reindent: true,
+      format_shortcut: Language.CoreSettings.FormatShortcut.Spaces,
+      indentation_ux: true,
       flip_animations: true,
       display_warnings: true,
       selection_chunkiness: false,
@@ -66,7 +83,7 @@ module Model = {
       highlight: NoHighlight,
     },
     sidebar: {
-      panel: LanguageDocumentation,
+      panel: TaskReference,
       show: true,
       problems: {
         collapsed: [],
@@ -75,22 +92,32 @@ module Model = {
         expanded: [],
       },
       debug_show_raw: false,
-      /* Start the Worker Messaging benchmark section collapsed so it doesn't
-         run by default (benchmarking is gated on the section being expanded).
-         Must match WorkerMessagingSection.title. */
-      debug_collapsed: ["Worker Messaging"],
+      /* Nothing is expanded until the user opens it, so the panel starts
+         scannable and no benchmarking or per-frame instrumentation runs (each
+         collector is gated on its section being expanded). */
+      debug_expanded: [],
       /* Only the active encoding (Marshal) is benchmarked by default; Direct
          and Sexp start unchecked. */
       worker_encodings: [WorkerServer.Marshal],
+      settings_folded: ["Stepper", "Developer"],
     },
-    autoprobe_mode: false,
+    quiver_flagpole: false,
+    quiver: true, /* On by default (andrew 2026-07-09) */
+    autoprobe_mode: Off,
     agent_globals: AgentGlobals.init(),
     line_numbers: false,
     relative_line_numbers: false,
     cap_undo_stack: false,
     show_row_lines: false,
     show_incremental_deco: false,
+    shortcut_overrides: [],
+    simple_indication: false,
   };
+
+  /* Keep the persisted fields compatible with existing preferences, while
+     presenting one mutually exclusive display choice to the user. */
+  let completion_display = (settings: t): CompletionDisplay.t =>
+    !settings.quiver ? Hidden : settings.quiver_flagpole ? Flag : Quiver;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = t;
@@ -129,7 +156,8 @@ module Update = {
     | Statics
     | Dynamics
     | ProbeAll
-    | DeepReassociate
+    | AutoReindent
+    | FormatShortcut(Language.CoreSettings.FormatShortcut.t)
     | SelectionChunkiness
     | Assist
     | Elaborate
@@ -143,12 +171,17 @@ module Update = {
     | ExplainThis(ExplainThisModel.Settings.action)
     | DisplayWarnings
     | FlipAnimations
+    | CompletionDisplay(CompletionDisplay.t)
     | AutoprobeMode
+    | SetAutoprobe(Haz3lcore.AutoProbe.t)
+    | SampleStickyInPlace
     | ToggleLineNumbers
     | ToggleRelativeLineNumbers
     | CapUndoStack
     | ShowRowLines
-    | ShowIncrementalDeco;
+    | ShowIncrementalDeco
+    | SetShortcutOverrides(list((string, option(string))))
+    | SimpleIndication;
 
   let update = (~action, ~settings: Model.t): Updated.t(Model.t) => {
     (
@@ -188,11 +221,18 @@ module Update = {
             probe_all: !settings.core.probe_all,
           },
         }
-      | DeepReassociate => {
+      | AutoReindent => {
           ...settings,
           core: {
             ...settings.core,
-            deep_reassociate: !settings.core.deep_reassociate,
+            auto_reindent: !settings.core.auto_reindent,
+          },
+        }
+      | FormatShortcut(fs) => {
+          ...settings,
+          core: {
+            ...settings.core,
+            format_shortcut: fs,
           },
         }
       | SelectionChunkiness => {
@@ -361,10 +401,10 @@ module Update = {
             debug_show_raw: !settings.sidebar.debug_show_raw,
           },
         }
-      | Sidebar(ToggleDebugCollapsed(key)) => {
+      | Sidebar(ToggleDebugExpanded(key)) => {
           ...settings,
           sidebar:
-            SidebarModel.Settings.toggle_debug_collapsed(
+            SidebarModel.Settings.toggle_debug_expanded(
               key,
               settings.sidebar,
             ),
@@ -372,6 +412,14 @@ module Update = {
       | Sidebar(ToggleWorkerEncoding(e)) => {
           ...settings,
           sidebar: SidebarModel.Settings.toggle_encoding(e, settings.sidebar),
+        }
+      | Sidebar(ToggleSettingsFolded(name)) => {
+          ...settings,
+          sidebar:
+            SidebarModel.Settings.toggle_settings_folded(
+              name,
+              settings.sidebar,
+            ),
         }
       | ExplainThis(ToggleShowFeedback) => {
           ...settings,
@@ -427,10 +475,37 @@ module Update = {
           ...settings, //TODO[Matt]: Make sure instructor mode actually makes prelude read-only
           instructor_mode: !settings.instructor_mode,
         }
-      | AutoprobeMode => {
+      | CompletionDisplay(mode) => {
           ...settings,
-          autoprobe_mode: !settings.autoprobe_mode,
+          quiver: mode != CompletionDisplay.Hidden,
+          quiver_flagpole: mode == CompletionDisplay.Flag,
         }
+      | AutoprobeMode =>
+        /* User-facing controls cycle Off<->All; Caret remains an internal
+         * mode and is not exposed by the sidebar. */
+        {
+          ...settings,
+          autoprobe_mode:
+            Haz3lcore.AutoProbe.(
+              switch (settings.autoprobe_mode) {
+              | Off => All
+              | Caret
+              | All => Off
+              }
+            ),
+        }
+      | SetAutoprobe(mode) => {
+          ...settings,
+          autoprobe_mode: mode,
+        }
+      | SampleStickyInPlace =>
+        /* '/' toggles sticky */
+        Haz3lcore.ProbeProj.Settings.(
+          {
+            set_sticky(! sticky^);
+            settings;
+          }
+        )
       | ToggleLineNumbers => {
           ...settings,
           line_numbers: !settings.line_numbers,
@@ -450,6 +525,14 @@ module Update = {
       | ShowIncrementalDeco => {
           ...settings,
           show_incremental_deco: !settings.show_incremental_deco,
+        }
+      | SetShortcutOverrides(overrides) => {
+          ...settings,
+          shortcut_overrides: overrides,
+        }
+      | SimpleIndication => {
+          ...settings,
+          simple_indication: !settings.simple_indication,
         }
       }
     )

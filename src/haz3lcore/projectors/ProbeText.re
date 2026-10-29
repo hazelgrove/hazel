@@ -62,12 +62,12 @@ let format_value = (~max_length: int=50, value: Exp.t): string => {
       ~settings={
         ...ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
         show_unknown_as_hole: false,
+        use_literal_lexemes: false,
         hole_tiles: false,
       },
       value |> DHExp.strip_ascriptions,
     );
-  let str =
-    Printer.of_segment(~holes="?", ~indent="", ~is_single_line=true, seg);
+  let str = Printer.of_segment(~holes="?", seg);
   /* Remove any remaining newlines */
   let str = StringUtil.replace(StringUtil.regexp("\n"), str, " ");
   /* Truncate if too long. `max_length` bounds how much of a line the value
@@ -103,7 +103,7 @@ let format_probe_values =
     : string => {
   let format_one = (probe_id: Id.t): option(string) => {
     let samples =
-      Sample.Map.lookup(probe_id, probe_map) |> Option.value(~default=[]);
+      Dynamics.Map.lookup(probe_id, probe_map) |> Option.value(~default=[]);
 
     switch (get_empty_status(~window, samples)) {
     | Some(NoSamplesExist) => Some(no_samples_indicator)

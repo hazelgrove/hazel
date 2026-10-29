@@ -44,8 +44,14 @@ type p('code) = {
   module_name: string,
   prompt: string,
   display_hint: string,
+  /* Markdown for the Task Reference sidebar; None for a lesson with no
+     @reference section, which is what hides the tab. */
+  task_reference: option(string),
   your_impl: 'code,
   hidden_tests: hidden_tests('code),
+  /* A known-good replacement for your_impl that passes every hidden test;
+     never shown to the student, only checked by Test_Tutorial. */
+  solution: option('code),
   wrapper: bool,
   show_report: bool,
 };
@@ -53,6 +59,21 @@ type p('code) = {
 let id_of = p => {
   p.id;
 };
+
+/* A lesson's title carries its folder as a SlidePath prefix, the same
+   convention Documentation-mode slide names use: "Basics / Holes" is the
+   lesson "Holes" in the "Basics" folder. Keep every lesson at exactly one
+   folder segment, and never let one title be a proper prefix of another. */
+let path_of = (p: p('a)): SlidePath.t => SlidePath.of_string(p.title);
+
+/* The probes tutorial's folder. Its lessons teach reading values through
+   probes, so their editor shows no result row (TutorialMode) and their Task
+   Reference panel carries the probe strip. Named here rather than in the
+   probe modules because the view layer cannot reach those: ProbeSidebar
+   depends on Editors, which depends on TutorialMode. */
+let probes_folder = "Probes";
+let is_probes_lesson = (p: p('a)): bool =>
+  SlidePath.folders(path_of(p)) == [probes_folder];
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pos =
@@ -73,11 +94,13 @@ let map = (p: p('a), f: 'a => 'b, f_hidden: 'a => 'b): p('b) => {
     module_name: p.module_name,
     prompt: p.prompt,
     display_hint: p.display_hint,
+    task_reference: p.task_reference,
     your_impl: f(p.your_impl),
     hidden_tests: {
       tests: f_hidden(p.hidden_tests.tests),
       hints: p.hidden_tests.hints,
     },
+    solution: Option.map(f, p.solution),
     wrapper: p.wrapper,
     show_report: p.show_report,
   };
@@ -120,6 +143,30 @@ let editor_positions = [YourImpl, HiddenTests];
 
 let positioned_editors = state =>
   List.combine(editor_positions, editors(state));
+
+/* Fast-first: FastParse with pin collection; the fallback inside
+   from_backup_text logs itself (SLOW PARSE ...). */
+let zipper_of_code = code =>
+  PersistentZipper.from_backup_text(code, ~root=Exp);
+
+/* Counterpart to [export_transitionary_module] below: rebuild a spec from
+ * a transitionary (string-based) module at load time. */
+let transition: transitionary_spec => spec =
+  p => map(p, zipper_of_code, zipper_of_code);
+
+/* Persistent counterpart of [spec] (see CodeExercise.persistent_spec):
+ * serialized zippers with plaintext fallback; the shipped format for
+ * example modules. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type persistent_spec = p(PersistentZipper.t);
+
+let of_persistent: persistent_spec => spec =
+  p =>
+    map(
+      p,
+      PersistentZipper.unpersist(~root=Exp),
+      PersistentZipper.unpersist(~root=Exp),
+    );
 
 let is_editable = (pos, ~instructor_mode) => {
   switch (pos) {
@@ -183,97 +230,6 @@ let wrap = (term, editor: Editor.t): TermItem.t => {
 let term_of = (editor: Editor.t): Language.Exp.t =>
   MakeTerm.from_zip_for_sem(editor.state.zipper, ~root=editor.root).term;
 
-let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t => {
-  switch (e1.term) {
-  | EmptyHole
-  | Invalid(_)
-  | MultiHole(_)
-  | DynamicErrorHole(_)
-  | Undefined
-  | Deferral(_)
-  | Atom(_)
-  | DrvQuote(_)
-  | ListLit(_)
-  | Constructor(_)
-  | Closure(_)
-  | Fun(_)
-  | TypFun(_)
-  | FixF(_)
-  | Tuple(_)
-  | TupLabel(_)
-  | TupleExtension(_)
-  | Label(_)
-  | ExplicitNonlabel
-  | Dot(_)
-  | Var(_)
-  | Ap(_)
-  | TypAp(_)
-  | DeferredAp(_)
-  | If(_)
-  | Test(_)
-  | HintedTest(_)
-  | Parens(_)
-  | Projector(_)
-  | Cons(_)
-  | ListConcat(_)
-  | LivelitName(_)
-  | UnOp(_)
-  | BinOp(_)
-  | BuiltinFun(_)
-  | Module(_)
-  | ModuleExp(_)
-  | Asc(_)
-  | ProofObject(_)
-  | Forall(_)
-  | Match(_) => {
-      term: Seq(e1, e2),
-      annotation: Language.IdTagged.IdTag.fresh(),
-    }
-  | Seq(e11, e12) =>
-    let e12' = append_exp(e12, e2);
-    {
-      term: Seq(e11, e12'),
-      annotation:
-        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
-    };
-  | Filter(kind, ebody) =>
-    let ebody' = append_exp(ebody, e2);
-    {
-      term: Filter(kind, ebody'),
-      annotation:
-        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
-    };
-  | Let(p, edef, ebody) =>
-    let ebody' = append_exp(ebody, e2);
-    {
-      term: Let(p, edef, ebody'),
-      annotation:
-        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
-    };
-  | Theorem(p, edef, ebody) =>
-    let ebody' = append_exp(ebody, e2);
-    {
-      term: Theorem(p, edef, ebody'),
-      annotation:
-        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
-    };
-  | TyAlias(tp, tdef, ebody) =>
-    let ebody' = append_exp(ebody, e2);
-    {
-      term: TyAlias(tp, tdef, ebody'),
-      annotation:
-        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
-    };
-  | Use(t, ebody) =>
-    let ebody' = append_exp(ebody, e2);
-    {
-      term: Use(t, ebody'),
-      annotation:
-        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
-    };
-  };
-};
-
 let stitch_term = (eds: p('a)): stitched(TermItem.t) => {
   ();
 
@@ -291,8 +247,14 @@ let stitch_term = (eds: p('a)): stitched(TermItem.t) => {
 
   let hidden_tests_term =
     eds.wrapper
-      ? append_exp(wrapped_user_impl, term_of(eds.hidden_tests.tests))
-      : append_exp(user_impl_term, term_of(eds.hidden_tests.tests));
+      ? EditorUtil.append_exp(
+          wrapped_user_impl,
+          term_of(eds.hidden_tests.tests),
+        )
+      : EditorUtil.append_exp(
+          user_impl_term,
+          term_of(eds.hidden_tests.tests),
+        );
 
   {
     user_impl: wrap(user_impl_term, eds.your_impl),
@@ -366,6 +328,7 @@ let unpersist = (~instructor_mode, positioned_zippers, spec: spec): spec => {
     module_name: spec.module_name,
     prompt: spec.prompt,
     display_hint: spec.display_hint,
+    task_reference: spec.task_reference,
     wrapper: spec.wrapper,
     show_report: spec.show_report,
     your_impl,
@@ -373,5 +336,6 @@ let unpersist = (~instructor_mode, positioned_zippers, spec: spec): spec => {
       tests: hidden_tests_tests,
       hints: spec.hidden_tests.hints,
     },
+    solution: spec.solution,
   };
 };

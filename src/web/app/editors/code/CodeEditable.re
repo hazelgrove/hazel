@@ -21,12 +21,14 @@ module Update = {
   let update =
       (~settings: Settings.t, action: t, model: Model.t): Updated.t(Model.t) => {
     let perform = (action: Action.t, model: Model.t) =>
-      Editor.Update.update(
-        ~settings=settings.core,
-        action,
-        model.statics,
-        model.dynamics,
-        model.editor,
+      PerfMetrics.time_perform(~action, () =>
+        Editor.Update.update(
+          ~settings=settings.core,
+          action,
+          model.statics,
+          model.dynamics,
+          model.editor,
+        )
       )
       |> (
         fun
@@ -41,19 +43,11 @@ module Update = {
       )
       |> Updated.return(
            ~historic=Action.is_historic(action),
-           ~is_edit=
-             Action.is_edit(action)
-             /* When probe_all is on, Refractor actions don't require
-              * re-evaluation since all probes are already computed */
-             && !(
-                  settings.core.probe_all
-                  && (
-                    switch (action) {
-                    | Probe(_) => true
-                    | _ => false
-                    }
-                  )
-                ),
+           /* With probe_all on, a placed probe's samples already exist
+            * (they show instantly), but ambient samples carry no env
+            * (CachedStatics.compute_targets), so re-evaluate to give the
+            * new probe its bindings. */
+           ~is_edit=Action.is_edit(action),
            ~recalculate=true,
            ~scroll_active={
              switch (action) {
@@ -71,9 +65,10 @@ module Update = {
              | Cut
              | Reparse
              | Introduce
-             | PrettyPrint
              | Probe(StepInto(_))
-             | Dump
+             | Format(_)
+             | AdjustIndent(_, _)
+             | ApplyCompletion(_)
              | ToggleLineComment => true
              | Project(_)
              | Unselect(_)
@@ -108,7 +103,7 @@ module Update = {
     | TAB =>
       /* Attempt to act intelligently when TAB is pressed.
        * TODO: Consider more advanced TAB logic. Instead
-       * of simply moving to next hole, if the backpack is non-empty
+       * of simply moving to next hole, if shards are missing
        * but can't immediately put down, move to next position of
        * interest, which is closet of: nearest position where can
        * put down, farthest position where can put down, next hole */
@@ -116,8 +111,19 @@ module Update = {
       let action: Action.t =
         Selection.is_buffer(z.selection)
           ? Buffer(Accept)
-          : Zipper.can_put_down(z)
-              ? Put_down : Move(Goal(NextProblem(Right)));
+          : (
+            /* caret pinned to a quiver chip: Tab dispatches that
+               obligation (CompletionQuery.tab_action — the same list
+               the quiver draws at the caret), whether or not an inline
+               buffer is showing (buffers only appear on edits; the
+               chip is always live) */
+            switch (CompletionQuery.tab_action(z)) {
+            | Some(a) => a
+            | None =>
+              Zipper.can_put_down(z)
+                ? Put_down : Move(Goal(NextProblem(Right)))
+            }
+          );
       perform(action, model);
     };
   };
@@ -144,142 +150,82 @@ module Selection = {
         model: Model.t,
       )
       : cursor(Update.t) => {
-    let meta = Keyboard.meta();
-    let mk = ContextualAction.mk;
+    let of_shortcut = ContextualAction.of_shortcut;
     let action = a => inject(Perform(a));
     {
       ...
         CodeWithStatics.Model.get_cursor_info(model)
         |> map(x => Update.Perform(x)),
       editor_read_only: false,
+      implied_hole:
+        Lazy.from_fun(() =>
+          ImpliedHole.at_caret(
+            ~statics=model.statics,
+            model.editor.state.zipper,
+          )
+        ),
     }
     |> Cursor.with_actions([
          /* Navigation */
-         mk(
-           ~hotkey="F12",
-           ~mdIcon="arrow_forward",
-           ~section="Navigation",
+         of_shortcut(
            ~action=action(Move(Goal(BindingSiteOfIndicatedVar))),
-           "Go to Definition",
+           GoToDefinition,
          ),
-         mk(
-           ~hotkey="shift+tab",
-           ~mdIcon="arrow_upward",
-           ~section="Navigation",
+         of_shortcut(
            ~action=action(Move(Goal(NextProblem(Left)))),
-           "Go to Previous Problem",
+           GoToPreviousProblem,
          ),
-         mk(
-           ~mdIcon="arrow_downward",
-           ~section="Navigation",
+         of_shortcut(
            ~action=action(Move(Goal(NextProblem(Right)))),
-           "Go to Next Problem",
+           GoToNextProblem,
          ),
          /* Selection */
-         mk(
-           ~hotkey=meta ++ "+d",
-           ~mdIcon="select_all",
-           ~section="Selection",
+         of_shortcut(
            ~action=action(Select(Term(Current))),
-           "Select current term",
+           SelectCurrentTerm,
          ),
-         mk(
-           ~mdIcon="select_all",
-           ~hotkey=meta ++ "+a",
-           ~section="Selection",
-           ~action=action(Select(All)),
-           "Select All",
-         ),
-         mk(
-           ~mdIcon="flip_horizontal",
-           ~section="Selection",
+         of_shortcut(~action=action(Select(All)), SelectAll),
+         of_shortcut(
            ~action=action(Select(ToggleFocus)),
-           "Toggle Selection Focus",
+           ToggleSelectionFocus,
          ),
-         mk(
-           ~mdIcon="border_left",
-           ~section="Selection",
-           ~hotkey=meta ++ "+alt+shift+left",
+         of_shortcut(
            ~action=action(Select(SetFocus(Left))),
-           "Set Selection Focus Left",
+           SetSelectionFocusLeft,
          ),
-         mk(
-           ~mdIcon="border_right",
-           ~section="Selection",
-           ~hotkey=meta ++ "+alt+shift+right",
+         of_shortcut(
            ~action=action(Select(SetFocus(Right))),
-           "Set Selection Focus Right",
+           SetSelectionFocusRight,
          ),
-         mk(
-           ~mdIcon="chevron_left",
-           ~section="Selection",
-           ~hotkey="alt+shift+left",
+         of_shortcut(
            ~action=action(Select(Resize(Local(Left, ByToken)))),
-           "Extend Selection Left by Token",
+           ExtendSelectionLeftByToken,
          ),
-         mk(
-           ~mdIcon="chevron_right",
-           ~section="Selection",
-           ~hotkey="alt+shift+right",
+         of_shortcut(
            ~action=action(Select(Resize(Local(Right, ByToken)))),
-           "Extend Selection Right by Token",
+           ExtendSelectionRightByToken,
          ),
          /* Projection */
-         mk(
-           ~hotkey="alt+f",
-           ~mdIcon="camera",
-           ~section="Projection",
+         of_shortcut(
            ~action=action(Project(SetIndicated(Specific(Fold)))),
-           "Fold",
+           Fold,
          ),
-         mk(
-           ~hotkey=meta ++ "+e",
-           ~mdIcon="camera",
-           ~section="Projection",
-           ~action=action(Probe(ToggleManual)),
-           "Probe",
-         ),
-         mk(
-           ~hotkey="alt+t",
-           ~mdIcon="camera",
-           ~section="Projection",
-           ~action=action(Probe(ToggleStatics)),
-           "Statics",
-         ),
-         mk(
-           ~hotkey="alt+l",
-           ~mdIcon="camera",
-           ~section="Projection",
+         of_shortcut(~action=action(Probe(ToggleManual)), Probe),
+         of_shortcut(~action=action(Probe(ToggleStatics)), Statics),
+         of_shortcut(
            ~action=action(Project(SetIndicated(ChooseLivelit))),
-           "Livelit",
+           Livelit,
          ),
          /* Editor tools */
-         mk(
-           ~hotkey=meta ++ "+/",
-           ~mdIcon="assistant",
-           ~action=action(Buffer(Set(TyDi))),
-           "TyDi Assistant",
-         ),
-         mk(
-           ~section="Diagnostics",
-           ~mdIcon="refresh",
+         of_shortcut(~action=action(Buffer(Set(TyDi))), TydiAssistant),
+         of_shortcut(
            ~action=inject(Perform(Reparse)),
-           "Reparse Current Editor",
+           ReparseCurrentEditor,
          ),
-         mk(
-           ~mdIcon="bolt",
-           ~section="Refactoring",
-           ~hotkey=meta ++ "+i",
-           ~action=action(Introduce),
-           "Introduce",
-         ),
-         mk(
-           ~mdIcon="format_align_left",
-           ~section="Formatting",
-           ~hotkey=meta ++ "+s",
-           ~action=action(PrettyPrint),
-           "Pretty Print",
-         ),
+         of_shortcut(~action=action(Introduce), Introduce),
+         of_shortcut(~action=action(Format(Indent)), ReIndent),
+         of_shortcut(~action=action(Format(Spacing)), NormalizeSpacing),
+         of_shortcut(~action=action(Format(Pretty)), PrettyPrint),
        ]);
   };
 
@@ -473,49 +419,100 @@ module View = {
         ~syntax: CachedSyntax.t,
         ~info_map: Language.Statics.Map.t,
         ~globals: Globals.t,
+        ~on_apply: option(Id.t => Ui_effect.t(unit))=None,
         z: Zipper.t,
-      ) => [
-    CaretDec.view(
-      ~measured=syntax.measured,
-      ~font_metrics=globals.font_metrics,
-      z,
-    ),
-    Arms.Indicated.term(
-      ~refine_sort=
-        (id, mold_out) =>
-          Language.Info.refine_sort_from_mold(~info_map, ~id, mold_out),
-      ~font_metrics=globals.font_metrics,
-      ~syntax,
-      z,
-    ),
-    (
-      expand_selection
-        ? Highlight.selection_expanded(~term_data=syntax.term_data)
-        : Highlight.selection
-    )(
-      ~measured=syntax.measured,
-      ~shape_map=syntax.shape_map,
-      ~font_metrics=globals.font_metrics,
-      z,
-    ),
-    Backpack.view(
-      ~font_metrics=globals.font_metrics,
-      ~measured=syntax.measured,
-      ~cached_backpack=syntax.cached_backpack,
-      z,
-    ),
-    Highlight.colors(
-      ~font_metrics=globals.font_metrics,
-      ~syntax,
-      globals.color_highlights,
-    ),
-    VarHighlight.view(
-      ~measured=syntax.measured,
-      ~font_metrics=globals.font_metrics,
-      ~info_map,
-      z,
-    ),
-  ];
+      ) => {
+    /* one flatten + one completion shared by every completion-aware
+       decoration; lazy so healthy-code renders with quiver off never
+       pay them */
+    let engine_seg =
+      Lazy.from_fun(() => Zipper.unselect_and_zip(~erase_buffer=true, z));
+    let completion =
+      Lazy.from_fun(() =>
+        CanonicalCompletion.for_editor(Lazy.force(engine_seg))
+      );
+    [
+      CaretDec.view(
+        ~measured=syntax.measured,
+        ~font_metrics=globals.font_metrics,
+        z,
+      ),
+      Arms.Indicated.term(
+        ~refine_sort=
+          (id, mold_out) =>
+            Language.Info.refine_sort_from_mold(~info_map, ~id, mold_out),
+        ~simple_indication=globals.settings.simple_indication,
+        ~font_metrics=globals.font_metrics,
+        ~syntax,
+        ~completion,
+        z,
+      ),
+      (
+        expand_selection
+          ? Highlight.selection_expanded(~term_data=syntax.term_data)
+          : Highlight.selection
+      )(
+        ~measured=syntax.measured,
+        ~shape_map=syntax.shape_map,
+        ~font_metrics=globals.font_metrics,
+        z,
+      ),
+      Highlight.colors(
+        ~font_metrics=globals.font_metrics,
+        ~syntax,
+        globals.color_highlights,
+      ),
+      VarHighlight.view(
+        ~measured=syntax.measured,
+        ~font_metrics=globals.font_metrics,
+        ~info_map,
+        z,
+      ),
+    ]
+    @ (
+      globals.settings.quiver
+        ? [
+          QuiverDec.view(
+            ~flagpole=globals.settings.quiver_flagpole,
+            ~head_padding=
+              CompletionQuery.chip_at_caret(~seg=Lazy.force(engine_seg), z)
+              |> Option.bind(_, (i: CanonicalCompletion.insertion) =>
+                   List.nth_opt(i.delimiters, 0)
+                 )
+              |> Option.bind(_, (d: CanonicalCompletion.delimiter_info) =>
+                   d.typed_len == None
+                     ? Some(CompletionQuery.padding(z, d)) : None
+                 ),
+            ~measured=syntax.measured,
+            ~font_metrics=globals.font_metrics,
+            ~caret_pos={
+              let p = Zipper.Caret.point(syntax.measured, z);
+              Some((p.row, p.col));
+            },
+            ~caret_form=
+              Some((CaretDec.side_of(z), Zipper.Caret.direction(z))),
+            ~on_apply,
+            ~droppable=
+              z.caret == Outer
+                ? Zipper.missing_shards_hd(z)
+                  |> Option.map((t: Haz3lcore.Tile.t) =>
+                       (t.id, Haz3lcore.Tile.l_shard(t))
+                     )
+                : None,
+            /* the caret's chips — the same query Tab dispatches */
+            ~owned=
+              CompletionQuery.chips_at_caret(~seg=Lazy.force(engine_seg), z),
+            Lazy.force(engine_seg),
+          ),
+        ]
+        /* quiver off: clear stale claims so probes don't stack
+           against phantom boxes (QuiverDec.view resets on entry) */
+        : {
+          RowOffsets.reset();
+          [];
+        }
+    );
+  };
 
   let view =
       (
@@ -524,6 +521,7 @@ module View = {
         ~edit_mode: EditMode.t(Update.t, unit),
         ~overlays: list(Node.t)=[],
         ~lines: bool=false,
+        ~cull: bool=false,
         ~dynamics: Language.Dynamics.Map.t,
         ~predicted_reuse: option(Language.EvaluatorState.incr_eval)=?,
         ~pending_eval_ids: list(Id.t)=[],
@@ -542,11 +540,10 @@ module View = {
       | ReadOnly => (_ => Ui_effect.Ignore)
       | Editable({escape, _}) => escape
       };
-    /* Editor-level clipboard helpers. Bypass the page-level
-       on_copy/on_paste path because Firefox refuses to dispatch
-       native clipboard events to non-editable focused elements
-       (the editor div has tabindex(0) but is not contenteditable).
-       Shared by the keyboard shortcuts and the context menu. */
+    /* Editor-level clipboard helpers: Firefox won't dispatch native
+       clipboard events to a focused non-editable element (the editor
+       div has tabindex(0) but is not contenteditable). Shared by the
+       keyboard shortcuts and the context menu. */
     let selection_has_refractors =
         (refractors: Haz3lcore.Zipper.Refractor.t, selection) =>
       if (List.is_empty(refractors.manuals)) {
@@ -616,7 +613,7 @@ module View = {
      * window-level handler doesn't see them while the menu is open. */
     ContextMenuListener.sync(
       ~menu_open=selected && Model.context_menu_is_open(model),
-      ~on_close=inject(ContextMenu(ContextMenu.Model.Close)),
+      ~on_close=() => inject(ContextMenu(ContextMenu.Model.Close)),
       ~handle_key=
         key_str =>
           ContextMenu.WithContext.handle_listener_key(
@@ -637,13 +634,15 @@ module View = {
             ~syntax=model.editor.syntax,
             ~info_map=model.statics.info_map,
             ~globals,
+            ~on_apply=
+              Some(id => inject(Perform(ApplyCompletion(One(id))))),
             model.editor.state.zipper,
           )
           @ [
             Arms.Refractors.all(
               ~font_metrics=globals.font_metrics,
               ~syntax=model.editor.syntax,
-              ~dynamics,
+              ~completion=Arms.lazy_completion(model.editor.state.zipper),
               model.editor.state.zipper,
             ),
           ]
@@ -676,8 +675,13 @@ module View = {
             }
           )
         : [];
-    // let t0 = JsUtil.precise_timestamp();
     let zipper = model.editor.state.zipper;
+    /* never cull a cell that opted out (the range is measured on another
+       cell), and cull only in auto-probe mode, else a stale range could hide
+       manual probes */
+    let visible =
+      cull && globals.settings.autoprobe_mode != Haz3lcore.AutoProbe.Off
+        ? globals.visible_rows : None;
     let refractor_data =
       RefractorView.mk_data(
         ~refractors=
@@ -692,10 +696,10 @@ module View = {
         ~dynamics,
         ~sample_focus=zipper.refractors.sample_focus,
         ~editor_active=selected,
+        ~visible?,
+        ~refractor_rows=model.editor.syntax.refractor_rows,
+        (),
       );
-    // let t1 = JsUtil.precise_timestamp();
-    /* Use visible row range from model (updated by scroll handler) */
-    let visible = globals.visible_rows;
     let refractors_model =
       RefractorView.all(
         x => inject(Perform(x)),
@@ -703,11 +707,11 @@ module View = {
         globals.font_metrics,
         ~core_settings=globals.settings.core,
         ~visible?,
+        ~refractor_rows=model.editor.syntax.refractor_rows,
         refractor_data,
         List.map(fst, zipper.refractors.manuals)
         @ List.map(fst, Id.Map.to_list(zipper.refractors.multis.ephemerals)),
       );
-    // let t2 = JsUtil.precise_timestamp();
     let projectors =
       ProjectorView.all(
         x => inject(Perform(x)),
@@ -759,7 +763,8 @@ module View = {
       @ [Node.div(~attrs=[Attr.classes(["overlays"])], overlays)]
       @ projectors
       @ refractors_model;
-    let code_view = CodeWithStatics.View.view(~globals, ~overlays, model);
+    let code_view =
+      CodeWithStatics.View.view(~globals, ~overlays, ~cull, model);
 
     let loc = (e: Pointer.Event.t) =>
       FontMetrics.get_goal(
@@ -840,9 +845,22 @@ module View = {
       | {button: Right, ctrl, _} when ctrl != Down =>
         /* Right-click inside the selection keeps it (so the menu's
            Cut/Copy apply to it); outside, move the caret to the click
-           location as a plain click would before opening the menu. */
+           location as a plain click would before opening the menu.
+           Prevent_default also skips the browser's focus-on-press, so
+           focus the editor here: keys after the menu belong to it. */
         Effect.Many(
-          [Effect.Prevent_default]
+          [
+            Effect.Prevent_default,
+            signal(MakeActive),
+            Effect.of_sync_fun(
+              () =>
+                Js.Opt.iter(
+                  mouse.current_target,
+                  Haz3lcore.FocusEffect.focus_no_scroll,
+                ),
+              (),
+            ),
+          ]
           @ (
             click_in_selection(loc(mouse))
               ? [] : [inject(Perform(Move(Point(loc(mouse), None))))]
@@ -940,15 +958,13 @@ module View = {
 
     let key_handler_attr =
       if (!selected) {
-        /* Always focusable so first click gives DOM focus.
-         * Key events are ignored when not selected — they bubble
-         * to Page.re which handles page-level shortcuts. */
-        Attr.tabindex(
-          0,
-        );
+        /* not selected: ignore keys (they bubble to Page); focusable via the tabindex below */
+        Attr.empty;
       } else {
         let z = model.editor.state.zipper;
-        Key.handler(~f=key => {
+        /* Key.listener (not Key.handler): handler adds its own tabindex(0),
+           duplicating this div's tabindex — vdom warns every render */
+        Key.listener(~f=key => {
           /* 1. Check for arrow key escape at boundaries FIRST.
            *    Keyboard.handle_key_event always returns Some for arrows,
            *    so boundary escape must be checked before delegation. */
@@ -979,9 +995,7 @@ module View = {
                 && z.relatives.ancestors == []
                 && snd(Siblings.neighbors(z.relatives.siblings)) == None =>
             Effect.Many([Effect.Prevent_default, escape(Right)])
-          /* 2. Cmd/Ctrl + C/X/V handled here rather than via the page
-             on_copy/on_paste handlers, so they keep working in
-             Firefox when focus is on a non-editable editor div. */
+          /* 2. Cmd/Ctrl + C/X/V, via the clipboard helpers above. */
           | {
               key: D("c" | "C"),
               sys: Mac,
@@ -1027,7 +1041,7 @@ module View = {
               copy_selection(),
               Effect.Prevent_default,
               Effect.Stop_propagation,
-              inject(Perform(Destruct(Right))),
+              inject(Perform(Destruct(Local(Right, ByChar)))),
             ])
           | {
               key: D("v" | "V"),
@@ -1072,10 +1086,18 @@ module View = {
         Attr.classes(
           ["cell-item", "code-editor"]
           @ (selected ? ["selected"] : [])
+          @ (
+            switch (edit_mode) {
+            | ReadOnly => ["read-only"]
+            | Editable(_) => []
+            }
+          )
           @ (display_line_numbers ? ["has-line-numbers"] : []),
         ),
+        /* always focusable so a click gives DOM focus (caret/accent gated on :focus) */
+        Attr.tabindex(0),
         /* Tag the active cell so a sidebar jump can move DOM focus to it
-           (see JsUtil.active_cell_id / ProbePerform.FocusEffect). */
+           (see JsUtil.active_cell_id / FocusEffect). */
         selected ? Attr.id(JsUtil.active_cell_id) : Attr.empty,
         key_handler_attr,
         Attr.on_contextmenu(evt =>

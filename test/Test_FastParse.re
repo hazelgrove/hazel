@@ -137,7 +137,7 @@ let tests = (
           };
         let is_hole_tile = (p: Piece.t) =>
           switch (p) {
-          | Tile({label: ["?"], _}) => true
+          | Tile(t) => Tile.is_explicit_hole(t)
           | _ => false
           };
         let explicit =

@@ -31,11 +31,14 @@ let (suite, exit_with_test_status) =
       Test_Builtins_String.tests,
       Test_CsvUtil.tests,
       Test_Grammar.tests,
+      Test_FormId.tests,
       Test_Abbreviate.tests,
       Test_LabeledTuple.tests,
       Test_MakeTerm.tests,
       Test_Menhir.tests,
       Test_StringUtil.tests,
+      Test_TaskReferenceSplit.tests,
+      Test_TutorialReferencePanel.tests,
       Test_HazelJson_JsonADT.tests,
       Test_PatternMatch.tests,
       Test_Equality.tests,
@@ -43,6 +46,7 @@ let (suite, exit_with_test_status) =
     ]
     @ Test_Unicode.tests
     @ Test_WorkerServer.tests
+    @ [Test_AgentPersist.tests, Test_AgentHardening.tests]
     @ Test_AgentTools.tests
     @ Test_AgentMultiTool.tests
     @ Test_AgentControlFlow.tests
@@ -53,32 +57,66 @@ let (suite, exit_with_test_status) =
     @ Test_Elaboration.tests
     @ Test_Evaluator.tests
     @ Test_Editing.tests
+    @ Test_TypToSegment.tests
     @ Test_Reassociate.tests
     @ Test_MultiProbe.tests
     @ [Test_SampleSelection.tests]
     @ Test_Indentation.tests
+    @ Test_DynamicTypInfer.tests
+    @ Test_CanonicalCompletion.tests
+    @ Test_CompletionScoreboard.tests
+    @ Test_CompletionVisualization.tests
+    @ Test_QuiverDisplay.tests
+    @ Test_TabDispatch.tests
+    @ Test_ImpliedHole.tests
+    @ Test_CaretPreserving.tests
     @ [Test_Coverage.tests, Test_Unboxing.tests]
     @ Test_ProblemCollection.tests
     @ [Test_TermData.tests]
+    @ [Test_CtorShadowing.tests]
     @ Test_Introduce.tests
     @ Test_ReparseDocSlides.tests
     @ Test_TextRoundtrip.tests
+    @ Test_RoundtripFuzz.tests
+    @ Test_LocalReformat.tests
     @ Test_MatchExp.tests
     @ Test_RefractorSerialization.tests
     @ [
       Test_TableCore.tests,
+      Test_StepperPasses.tests,
       Test_TableTransforms.tests,
       Test_RichProbeRegistry.tests,
     ]
     @ Test_PrettyPrint.tests
     @ Test_TyDi.tests
+    @ [Test_Move.tests]
     @ [Test_UnusedWarnings.tests]
     @ Test_Indication.tests
-    @ [Test_VarHighlight.tests]
+    @ Test_Autoprobe.tests
+    @ [
+      Test_VarHighlight.tests,
+      Test_Evaluator_ProbeNav.tests,
+      Test_StepProvenance.tests,
+      Test_ObsTraceShadow.tests,
+      Test_ObsBench.tests,
+      Test_Ascriptions.tests,
+      Test_PerfBudgets.tests,
+    ]
     @ [Test_GradingReport.tests]
+    @ Test_SlidePath.tests
+    @ Test_Tutorial.tests
+    @ Test_TutorialText.tests
+    @ [Test_TutorialProbeSettings.tests]
     @ [Test_Derivation.tests]
     @ Test_DerivationCase.tests
+    @ [Test_ShardCrashRepro.tests]
     @ Test_PromptFactory.tests
+    @ Test_ShortcutConfiguration.tests
+    @ Test_ColorConfiguration.tests
+    @ Test_ConfigurationMode.tests
+    @ [Test_SettingsPanel.tests]
+    @ Test_ShortcutAction.tests
+    @ Test_Color.tests
     @ [Test_ExplainThis.tests],
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");

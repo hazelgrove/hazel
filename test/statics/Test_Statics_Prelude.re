@@ -240,6 +240,13 @@ let inconsistent_typecheck = (name, exp) => {
     },
   );
 };
+
+let synthesized_type = (~normalize=false, static_map, exp) =>
+  type_of(~static_map, exp)
+  |> Option.map(
+       normalize ? Typ.normalize(Builtins.ctx_init(Some(Int))) : Fun.id,
+     );
+
 let fully_consistent_typecheck =
     (~normalize=false, name, serialized, expected) => {
   test_case(
@@ -249,22 +256,33 @@ let fully_consistent_typecheck =
       let exp = parse_exp(serialized);
       let s = statics(exp);
       let errors = List.map(ms => Marks(ms), List.map(snd, errors(s)));
-      let actual_type =
-        type_of(~static_map=s, exp)
-        |> Option.map(
-             normalize
-               ? Typ.normalize(Builtins.ctx_init(Some(Int))) : Fun.id,
-           );
       Alcotest.check(list(testable_issue), "Static Errors", [], errors);
       Alcotest.check(
         Alcotest.option(testable_typ),
         serialized,
         expected,
-        actual_type,
+        synthesized_type(~normalize, s, exp),
       );
     },
   );
 };
+
+/* Pins the synthesized type while leaving marks unconstrained, for programs
+   that are expected to report errors. */
+let synthesizes = (~normalize=false, name, serialized, expected) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let exp = parse_exp(serialized);
+      Alcotest.check(
+        Alcotest.option(testable_typ),
+        serialized,
+        expected,
+        synthesized_type(~normalize, statics(exp), exp),
+      );
+    },
+  );
 
 let skip_known_bug = (message: string, expression: string) =>
   test_case("Known Bug: " ++ message, `Quick, () => {

@@ -334,19 +334,21 @@ let check_probe_samples_survive_edit =
 /* Pins: probe samples captured on run 1 (e.g. on the unedited `fib(u)`
  * probes) must be replayed into the FINAL incremental result after an
  * id-preserving edit (here: rewriting `fib(u+1)` to `fib(u)`). The magic
- * number 2582 in `test y == 2582` is just a literal near this program's fib
- * outputs (with u=15 and fib(0)=fib(1)=1, fib(u+1)=1597, fib(17)=2584);
- * whether the in-program `test` passes is irrelevant to the regression. */
+ * number 32 in `test y == 32` is just a literal near this program's fib
+ * outputs (with u=6 and fib(0)=fib(1)=1, fib(u+1)=21, fib(8)=34);
+ * whether the in-program `test` passes is irrelevant to the regression.
+ * u is small because only evaluation time grows with it: the cache
+ * entries, reuse plan and probe samples are the same at u=15. */
 let test_reused_probe_samples_survive_final_incremental_result = () =>
   check_probe_samples_survive_edit(
     ~src=
-      {|let u = 15 in
+      {|let u = 6 in
 let fib = fun x ->
   if x < 2 then 1 else fib(x-1) + fib(x-2) in
 let x = ^^probe(fib(u)) in
 print(x);
 let y = ^^probe(fib(u+1)) in
-test y == 2582 end;
+test y == 32 end;
 let z = fib(u) in
 print(z);
 let w = ^^probe(fib(u+2)) in
@@ -361,30 +363,31 @@ let u = ^^probe(fib(u+3)) in
   );
 
 /* Pins: editing only a `test` expression's literal must not drop reused
- * probe samples on the probes downstream of it. The magic number 2584 is
- * this program's fib output (with u=16 and fib(0)=fib(1)=1, y = fib(u+1) =
- * fib(17) = 2584); the edit bumps it to 2585 so only the test literal's
- * token changes while every probe's subtree keeps its ids. */
+ * probe samples on the probes downstream of it. The magic number 34 is
+ * this program's fib output (with u=7 and fib(0)=fib(1)=1, y = fib(u+1) =
+ * fib(8) = 34); the edit bumps it to 35 so only the test literal's token
+ * changes while every probe's subtree keeps its ids. u is small for the
+ * same reason as above (the same reuse as at u=16). */
 let test_test_literal_edit_preserves_downstream_reused_probes = () =>
   check_probe_samples_survive_edit(
     ~src=
-      {|let u = 16 in
+      {|let u = 7 in
 let fib' = fun x ->
   if x < 2 then 1 else fib'(x-1) + fib'(x-2) in
 let fib = fun ^^probe(x) -> fib'(x) in
 let x = ^^probe(fib(u)) in
 print(x);
 let y = ^^probe(fib(u+1)) in
-test y == 2584 end;
+test y == 34 end;
 let z = fib(u) in
 print(z);
 let w = ^^probe(fib(u-2)) in
 let u = ^^probe(fib(u+1)) in
 (x,y,z,w)|},
     ~parse_fail="could not parse test-literal probe regression program",
-    /* 2584 occurs exactly once in the source, so the replace-everywhere
+    /* 34 occurs exactly once in the source, so the replace-everywhere
      * helper is equivalent to the old replace-first traversal. */
-    ~edit=exp => replace_int_lit(~from=2584, ~to_=2585, exp),
+    ~edit=exp => replace_int_lit(~from=34, ~to_=35, exp),
     ~count_msg="test literal edit preserves probe sample count",
     ~targets_msg=
       "each current probe target has samples after test literal edit",
@@ -1577,6 +1580,41 @@ let test_reuse_provenance_distinguishes_pattern_shapes = () => {
   );
 };
 
+/* Top-level application of a partially-applied (hence cast) function. The
+ * cast-distribution fix makes the inner application reuse the call site's id;
+ * at top level (call_stack==[], id in info_map) that id reaches IncrEval's
+ * cache, where before it was a fresh (uncached) id. These guard against
+ * re-entrant same-id caching corrupting the result or dirty propagation. */
+let test_toplevel_cast_reuse = () => {
+  let exp =
+    parse_exp(
+      "let add = fun (a, b) -> a + b in let g: Int -> Int = add(_, 1) in g(5)",
+    );
+  let (r1, _, incr1) = eval_incr(exp);
+  let (r2, _, _, plan2) = eval_incr_with_plan(~prev=incr1, exp);
+  check(dhexp_typ, "cast call: reuse preserves result", r1, r2);
+  check(bool, "cast call: reuse actually fired", true, has_reuse(plan2));
+};
+
+let test_toplevel_cast_edit = () => {
+  let exp1 =
+    parse_exp(
+      "let add = fun (a, b) -> a + b in let g: Int -> Int = add(_, 1) in g(5)",
+    );
+  let (_, _, incr1) = eval_incr(exp1);
+  let exp2 = replace_int_lit(~from=1, ~to_=2, exp1);
+  /* g(5) = add(5, 2) = 7 after the edit; stale reuse of the cast call's id
+     would wrongly keep 6 */
+  let (expected, _, _) = eval_incr(exp2);
+  let (r2, _, _) = eval_incr(~prev=incr1, exp2);
+  check(
+    dhexp_typ,
+    "cast call: edit propagates (no stale reuse)",
+    expected,
+    r2,
+  );
+};
+
 /* Regression test: builtins must participate in reuse.
  *
  * A subexpression that references a builtin (e.g. `string_length`) has that
@@ -1643,9 +1681,61 @@ n|};
   );
 };
 
+/* Lexeme-only edits (e.g. an unknown operator @@ -> @@@) leave term
+ * structure and ids intact, so reuse_check must compare lexeme traces —
+ * otherwise the cached result displays the stale operator. */
+let lexeme_edit_test =
+  test_case(
+    "lexeme-only edit invalidates reuse",
+    `Quick,
+    () => {
+      let replace_lexeme = (from: string, to_: string, e: Exp.t): Exp.t =>
+        Exp.map_term(
+          ~f_exp=
+            (continue, t: Exp.t) =>
+              continue(
+                t.annotation.lexeme == Some(from)
+                  ? {
+                    ...t,
+                    annotation: {
+                      ...t.annotation,
+                      lexeme: Some(to_),
+                    },
+                  }
+                  : t,
+              ),
+          e,
+        );
+      let exp1 =
+        switch (Haz3lcore.Parser.to_segment("let y = 1 @@ 2 in y", ~root=Exp)) {
+        | Some(seg) => Haz3lcore.MakeTerm.go(seg).term
+        | None => Alcotest.fail("parse failed")
+        };
+      let (r1, _, incr1) = eval_incr(exp1);
+      let exp2 = replace_lexeme("@@", "@@@", exp1);
+      let (r2, _, _) = eval_incr(~prev=incr1, exp2);
+      let has_lex = (l, e: Exp.t) =>
+        Exp.lexeme_trace(e) |> List.mem(Some(l));
+      check(bool, "first result carries @@", true, has_lex("@@", r1));
+      check(bool, "second result carries @@@", true, has_lex("@@@", r2));
+      check(bool, "second result not stale @@", false, has_lex("@@", r2));
+    },
+  );
+
 let tests = (
   "Evaluator.Incremental",
   [
+    lexeme_edit_test,
+    test_case(
+      "Top-level cast call: incremental reuse preserves result",
+      `Quick,
+      test_toplevel_cast_reuse,
+    ),
+    test_case(
+      "Top-level cast call: edit propagates (no stale reuse)",
+      `Quick,
+      test_toplevel_cast_edit,
+    ),
     test_case(
       "DIAG module in unchanged rhs tuple lands in frozen",
       `Quick,
