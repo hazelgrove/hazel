@@ -269,6 +269,9 @@ type model = {
   latest_request: option(Request.t),
   runtime,
   slice_already_scheduled: bool,
+  /* When the running item's next Stream may be posted; see
+     stream_interval_ms. */
+  stream_due: float,
 };
 
 let slice_step_budget = 5000;
@@ -282,10 +285,17 @@ let slice_step_budget = 5000;
  * client timer or ordinary heavy programs (e.g. range(1,5000)) get killed at
  * ~2s and surface as spurious "Evaluation timed out". */
 let total_step_limit = 100_000_000;
+/* Each Stream costs the client a full recalculation and render, so they are
+ * posted at most this often instead of after every slice. Until then the
+ * running item's outbox keeps accumulating, so the next Stream carries
+ * everything since the last. An item that finishes between posts drops what
+ * it accumulated: the batch Result carries it. */
+let stream_interval_ms = 500.;
 let initial_model = {
   latest_request: None,
   runtime: Idle,
   slice_already_scheduled: false,
+  stream_due: 0.,
 };
 
 /* Worker execution model (three phases per request):
@@ -425,9 +435,18 @@ let post_stream_update =
     );
   };
 
-let flush_stream_update = (model, request_id, key, evaluation) => {
-  let update = Language.Evaluator.drain_streaming_outbox(evaluation);
-  post_stream_update(model, request_id, key, update);
+let flush_stream_update_if_due = (model, running, evaluation) => {
+  let now = JsUtil.precise_timestamp();
+  if (now < model.stream_due) {
+    model;
+  } else {
+    let update = Language.Evaluator.drain_streaming_outbox(evaluation);
+    post_stream_update(model, running.request_id, running.key, update);
+    {
+      ...model,
+      stream_due: now +. stream_interval_ms,
+    };
+  };
 };
 
 /* ACK must be cheap: the client treats missing ACK as a dead worker and will
@@ -535,15 +554,11 @@ and run_scheduled_slice = model => {
     | exception exn =>
       finish_current_item(model, running, error_response(exn))
     | EvaluationCompleted(value) =>
-      flush_stream_update(
-        model,
-        running.request_id,
-        running.key,
-        running.evaluation,
-      );
+      let model =
+        flush_stream_update_if_due(model, running, running.evaluation);
       finish_current_item(model, running, Ok(value));
     | EvaluationYielded(evaluation) =>
-      flush_stream_update(model, running.request_id, running.key, evaluation);
+      let model = flush_stream_update_if_due(model, running, evaluation);
       if (Language.Evaluator.yielding_step_count(evaluation)
           >= total_step_limit) {
         finish_current_item(
@@ -595,6 +610,7 @@ let install_message_handler = () => {
     eval_total := Core.Time_ns.Span.zero;
     commit({
       ...model^,
+      stream_due: JsUtil.precise_timestamp() +. stream_interval_ms,
       latest_request: Some(request),
       runtime: Planning,
     });
