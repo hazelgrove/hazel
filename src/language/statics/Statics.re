@@ -1945,10 +1945,14 @@ and uexp_to_info_map =
         m,
       );
     | Forall(p, e) =>
-      let (p, p_elab, m) =
+      let (p', _, _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, p, m);
       let (e, e_elab, m) =
-        go(~ctx=p.ctx, ~ana=Atom(Bool) |> Typ.temp, e, m);
+        go(~ctx=p'.ctx, ~ana=Atom(Bool) |> Typ.temp, e, m);
+      /* Re-analyze the binder with the body's co_ctx so its unused warning
+         sees uses in the body. */
+      let (p, p_elab, m) =
+        go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, p, m);
       add(
         ~elab_term=Forall(p_elab, e_elab) |> rewrap,
         ~elab_syn_ty=Atom(Bool) |> Typ.temp,
@@ -2263,7 +2267,14 @@ and uexp_to_info_map =
       let (e2, e2_elab, m) = go(~ctx=p'.ctx, ~ana, e2, m);
       /* add co_ctx to pattern */
       let (p, p_elab, m) =
-        go_pat(~is_synswitch=false, ~co_ctx=e2.co_ctx, ~ana=syn, p, m);
+        go_pat(
+          ~is_synswitch=false,
+          ~warn_unused=false,
+          ~co_ctx=e2.co_ctx,
+          ~ana=p'.ty,
+          p,
+          m,
+        );
       add(
         ~elab_term=Theorem(p_elab, e1_elab, e2_elab) |> rewrap,
         ~elab_syn_ty=e2.elab_syn_ty,
@@ -2285,13 +2296,20 @@ and uexp_to_info_map =
       );
     | Theorem(p, e1, e2) =>
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
-      let (_, e1_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
+      let (e1', e1_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
       let (p', _, _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
       let (e2, e2_elab, m) = go(~ctx=p'.ctx, ~ana, e2, m);
       /* add co_ctx to pattern */
       let (p, p_elab, m) =
-        go_pat(~is_synswitch=false, ~co_ctx=e2.co_ctx, ~ana=syn, p, m);
+        go_pat(
+          ~is_synswitch=false,
+          ~warn_unused=false,
+          ~co_ctx=e2.co_ctx,
+          ~ana=syn,
+          p,
+          m,
+        );
       add(
         ~elab_term=Theorem(p_elab, e1_elab, e2_elab) |> rewrap,
         ~elab_syn_ty=e2.elab_syn_ty,
@@ -2299,11 +2317,16 @@ and uexp_to_info_map =
         ~co_ctx=
           CoCtx.union([
             p'.co_ctx,
+            e1'.co_ctx,
             CoCtx.mk(ctx, p.ctx, e2.co_ctx),
             pat_typ_refs,
           ]),
         ~probe_targets=
-          SubexpProbeTargets.union_all([p.probe_targets, e2.probe_targets]),
+          SubexpProbeTargets.union_all([
+            p.probe_targets,
+            e1'.probe_targets,
+            e2.probe_targets,
+          ]),
         m,
       );
     | ProofObject(e) =>
@@ -2804,6 +2827,7 @@ and upat_to_info_map =
       ~ana: Typ.t=Unknown(Internal) |> Typ.temp,
       ~under_ascription: bool=false,
       ~probe_ids: Id.Map.t(unit)=Id.Map.empty,
+      ~warn_unused: bool=true,
       upat: Pat.t,
       m: Map.t,
     )
@@ -2854,7 +2878,8 @@ and upat_to_info_map =
       warnings
       @ (
         switch (user_term.term) {
-        | Var(name) => Warning.to_list(Warning.var_is_unused(co_ctx, name))
+        | Var(name) when warn_unused =>
+          Warning.to_list(Warning.var_is_unused(co_ctx, name))
         | _ => []
         }
       );
@@ -2914,6 +2939,7 @@ and upat_to_info_map =
       ~ana,
       ~under_ascription,
       ~probe_ids,
+      ~warn_unused,
       upat,
       m: Map.t,
     );
@@ -2931,6 +2957,7 @@ and upat_to_info_map =
             ~ancestors=ancestors_inclusive,
             ~ana,
             ~probe_ids,
+            ~warn_unused,
             pat,
             m,
           ),
@@ -2943,6 +2970,7 @@ and upat_to_info_map =
             ~ancestors=ancestors_inclusive,
             ~ana,
             ~probe_ids,
+            ~warn_unused,
             pat,
             m,
           ),
