@@ -922,14 +922,39 @@ let step_into_sample =
   ]);
 };
 
+/* Parens and projectors are transparent to what a term names: `(f)(x)` and
+   a folded `f` still call `f`.
+   TODO: switch to the shared Exp wrapper-stripping helper once it lands. */
+let rec strip_wrappers = (e: Exp.t): Exp.t =>
+  switch (e.term) {
+  | Parens(inner)
+  | Projector(_, inner) => strip_wrappers(inner)
+  | _ => e
+  };
+
+/* The function position of the call a probe sits on, if it sits on one. */
+let ap_head = (statics: Language.Statics.Info.t): option(Exp.t) =>
+  switch (statics) {
+  | InfoExp({user_term: {term: Ap(_, fn_exp, _), _}, _}) =>
+    Some(strip_wrappers(fn_exp))
+  | InfoExp(_)
+  | InfoDrv(_)
+  | InfoPat(_)
+  | InfoTyp(_)
+  | InfoTPat(_)
+  | InfoMod(_)
+  | InfoSig(_)
+  | InfoMPat(_)
+  | Secondary(_) => None
+  };
+
 /* Step-into possible when: (static) the call is a named non-builtin var, or
  * (dynamic) the sample recorded a navigable fn_def_id from user code — the
  * latter covers higher-order and partial-application calls. */
 let can_step_into = (statics: Language.Statics.Info.t, sample: Sample.t): bool => {
   let fn_var_name =
-    switch (statics) {
-    | InfoExp({user_term: {term: Ap(_, {term: Var(name), _}, _), _}, _}) =>
-      Some(name)
+    switch (ap_head(statics)) {
+    | Some({term: Var(name), _}) => Some(name)
     | _ => None
     };
   let is_builtin = name =>
@@ -1070,37 +1095,61 @@ let sample_primary_actions =
   };
 };
 
-let get_fn_name_from_statics =
-    (statics: Language.Statics.Info.t): option(string) =>
-  switch (statics) {
-  | InfoExp({user_term: {term: Ap(_, fn_exp, _), _}, _}) =>
-    switch (fn_exp.term) {
-    | Var(name) => Some(name)
-    | Constructor(name, _) => Some(name)
-    | Fun(_) => Some({js|λ|js})
-    | BuiltinFun(name) => Some(name)
-    | _ => Some("fn")
+/* A name for a function position: a variable, constructor or builtin by its
+   own name, a module member qualified by the path to it (`M.f`). */
+let rec name_of_head = (e: Exp.t): option(string) =>
+  switch (strip_wrappers(e).term) {
+  | Var(name)
+  | Constructor(name, _)
+  | BuiltinFun(name) => Some(name)
+  | Dot(path, field) =>
+    switch (strip_wrappers(field).term) {
+    | Label(member) =>
+      Some(
+        switch (name_of_head(path)) {
+        | Some(qualifier) => qualifier ++ "." ++ member
+        | None => member
+        },
+      )
+    | _ => None
     }
   | _ => None
   };
 
+let get_fn_name_from_statics =
+    (statics: Language.Statics.Info.t): option(string) =>
+  switch (ap_head(statics)) {
+  | Some({term: Fun(_), _}) => Some({js|λ|js})
+  | Some(fn_exp) =>
+    switch (name_of_head(fn_exp)) {
+    | Some(_) as name => name
+    | None => Some("fn")
+    }
+  | None => None
+  };
+
 let get_arg_var_info =
     (statics: Language.Statics.Info.t): list(option(string)) => {
-  let rec extract_var = (e: Exp.t): option(string) =>
-    switch (e.term) {
+  let extract_var = (e: Exp.t): option(string) =>
+    switch (strip_wrappers(e).term) {
     | Var(name) => Some(name)
-    | Parens(inner) => extract_var(inner)
     | _ => None
     };
   switch (statics) {
   | InfoExp({user_term: {term: Ap(_, _, arg), _}, _}) =>
     switch (arg.term) {
-    | Var(name) => [Some(name)]
-    | Parens(inner) => [extract_var(inner)]
     | Tuple(elements) => List.map(extract_var, elements)
-    | _ => [None]
+    | _ => [extract_var(arg)]
     }
-  | _ => []
+  | InfoExp(_)
+  | InfoDrv(_)
+  | InfoPat(_)
+  | InfoTyp(_)
+  | InfoTPat(_)
+  | InfoMod(_)
+  | InfoSig(_)
+  | InfoMPat(_)
+  | Secondary(_) => []
   };
 };
 
@@ -1255,9 +1304,19 @@ let sample_environment =
 /* Don't redundantly show an env for variable references, patterns */
 let hide_env = (statics: Language.Statics.Info.t): bool =>
   switch (statics) {
-  | InfoExp({user_term: {term: Var(_), _}, _}) => true
+  | InfoExp({user_term, _}) =>
+    switch (strip_wrappers(user_term).term) {
+    | Var(_) => true
+    | _ => false
+    }
   | InfoPat(_) => true
-  | _ => false
+  | InfoDrv(_)
+  | InfoTyp(_)
+  | InfoTPat(_)
+  | InfoMod(_)
+  | InfoSig(_)
+  | InfoMPat(_)
+  | Secondary(_) => false
   };
 
 let sample_context_sections =
@@ -2261,7 +2320,13 @@ module M: Projector = {
     | Exp(_)
     | Pat(_) => Some(init_model)
     | Any(_) => Some(init_model) /* Grout don't have sorts */
-    | _ => None
+    | Typ(_)
+    | TPat(_)
+    | Rul(_)
+    | Drv(_)
+    | Mod(_)
+    | Sig(_)
+    | MPat(_) => None
     };
   };
 
