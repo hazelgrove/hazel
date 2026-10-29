@@ -429,6 +429,24 @@ let scroll_vertically_into_view_ancestors =
   go(element_to_node(el));
 };
 
+/* Whether any of the caret shows in its scroll container, or in the
+ * viewport if it has none. Read before a re-render, this is what the user
+ * sees now, not what the coming layout will show. */
+let caret_in_view = (): bool =>
+  switch (get_elem_by_id_opt("caret")) {
+  | None => false
+  | Some(caret) =>
+    let rect = caret##getBoundingClientRect;
+    let (top, bottom) =
+      switch (find_scroll_container(caret)) {
+      | Some(container) =>
+        let c = container##getBoundingClientRect;
+        (c##.top, c##.bottom);
+      | None => (0., float_of_int(Dom_html.window##.innerHeight))
+      };
+    rect##.bottom > top && rect##.top < bottom;
+  };
+
 let scroll_cursor_into_view_if_needed = () =>
   try({
     let caret_elem = get_elem_by_id("caret");

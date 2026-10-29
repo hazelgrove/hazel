@@ -44,6 +44,7 @@ let element_to_node:
   Js_of_ocaml.Js.t(Js_of_ocaml.Dom.node);
 let adjust_scroll:
   (Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element), float) => unit;
+let caret_in_view: unit => bool;
 let scroll_cursor_into_view_if_needed: unit => unit;
 let main_scroll_top: unit => float;
 let set_main_scroll_top: float => unit;
