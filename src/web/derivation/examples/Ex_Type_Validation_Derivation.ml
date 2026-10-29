@@ -14,7 +14,7 @@ let exercise : DerivationExercise.spec =
              efc74579-6572-44f2-aee4-ded4e05dfd42)(shape \
              Convex))))))(ancestors())))(caret \
              Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-             -1)(pinned_stack())(indicated_call())(time())(seq \
+             -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
              0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
           backup_text = "";
         };
@@ -85,7 +85,7 @@ let exercise : DerivationExercise.spec =
              32e53e29-00db-400c-ac2d-f50181ae32e4)(shape \
              Convex))))))(ancestors())))(caret \
              Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-             -1)(pinned_stack())(indicated_call())(time())(seq \
+             -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
              0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
           backup_text =
             "let $delta = of_ctx [valid A end] end in\n\
@@ -152,7 +152,7 @@ let exercise : DerivationExercise.spec =
                          ea30a991-2c1d-4a74-abc8-8f722dceaf57)(form(Tok \
                          A))(sort(Drv Typ)))))()))(ancestors())))(caret \
                          Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                         -1)(pinned_stack())(indicated_call())(time())(seq \
+                         -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                          0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                       backup_text = "$delta |- (fun x : A -> x) : A -> A";
                     };
@@ -186,7 +186,7 @@ let exercise : DerivationExercise.spec =
                                5f130cc6-9023-47b5-ae0f-85551b61f85f)(content(Whitespace\" \
                                \"))))))))))()))(ancestors())))(caret \
                                Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                               -1)(pinned_stack())(indicated_call())(time())(seq \
+                               -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                                0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                             backup_text = "$delta |- valid A end";
                           };
@@ -221,7 +221,7 @@ let exercise : DerivationExercise.spec =
                                5a536b52-485d-40c7-925e-4c694e4ec61d)(form(Tok \
                                A))(sort(Drv Typ)))))()))(ancestors())))(caret \
                                Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                               -1)(pinned_stack())(indicated_call())(time())(seq \
+                               -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                                0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                             backup_text = "$delta' |- x : A";
                           };
