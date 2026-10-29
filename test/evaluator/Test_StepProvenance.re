@@ -71,7 +71,7 @@ let tests = (
       )
     }),
     test_case(
-      "Cast/ascription steps are the delegating class",
+      "Cast/ascription and stuck-destructure steps are the delegating class",
       `Quick,
       () => {
         List.iter(
@@ -82,9 +82,10 @@ let tests = (
               true,
               may_delegate(k),
             ),
-          [Ascription, AscriptionAp, AscriptionTypAp],
+          [Ascription, AscriptionAp, AscriptionTypAp, StuckDestructure],
         );
-        /* The delegating class is exactly the ascription family: any rule
+        /* The delegating class is the ascription family plus
+         * StuckDestructure (rewraps a Let/Ap under its own id): any rule
          * that starts rebuilding redexes under preserved ids outside it
          * must either join the class or stop preserving ids. */
         check(
