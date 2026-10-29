@@ -227,13 +227,57 @@ let meet_type_provenance =
   | (SynSwitch, SynSwitch) => SynSwitch
   };
 
+/* Parens and Projector are transparent: code that inspects the head or
+   shape of a type without normalizing it must look through them. */
+let rec strip_wrappers = (ty: t): t =>
+  switch (term_of(ty)) {
+  | Parens(ty)
+  | Projector(_, ty) => strip_wrappers(ty)
+  | Unknown(_)
+  | Atom(_)
+  | DrvQuoteTy(_)
+  | Var(_)
+  | List(_)
+  | Arrow(_)
+  | Sum(_)
+  | Prod(_)
+  | ExplicitNonlabel
+  | Label(_)
+  | TupLabel(_)
+  | Rec(_)
+  | Poly(_)
+  | ProofOf(_)
+  | ProdProjection(_)
+  | ProdExtension(_)
+  | Sig(_) => ty
+  };
+
 let rec match_tup_optional_label = (ty: t) =>
   switch (term_of(ty)) {
-  | Parens(ty) => match_tup_optional_label(ty)
-  | TupLabel({term: Label(name), _}, t') => Some((Some(name), t'))
-  | TupLabel({term: Unknown(_), _}, t') => Some((None, t'))
+  | Parens(ty)
+  | Projector(_, ty) => match_tup_optional_label(ty)
+  | TupLabel(label, t') =>
+    switch (term_of(strip_wrappers(label))) {
+    | Label(name) => Some((Some(name), t'))
+    | Unknown(_) => Some((None, t'))
+    | _ => None
+    }
   | Unknown(_) => Some((None, ty))
-  | _ => None
+  | Atom(_)
+  | DrvQuoteTy(_)
+  | Var(_)
+  | List(_)
+  | Arrow(_)
+  | Sum(_)
+  | Prod(_)
+  | ExplicitNonlabel
+  | Label(_)
+  | Rec(_)
+  | Poly(_)
+  | ProofOf(_)
+  | ProdProjection(_)
+  | ProdExtension(_)
+  | Sig(_) => None
   };
 let match_tup_label = ty => {
   switch (match_tup_optional_label(ty)) {
@@ -405,10 +449,14 @@ let fast_equal = Equality.semantic.typ;
 let equal = (t1: t, t2: t): bool => Equality.syntactic.typ(t1, t2);
 
 let project_type = (tys: list(t), label: string): option(t) =>
-  switch (LabeledTuple.find_label(match_tup_label, tys, label)) {
-  | Some({term: TupLabel(_, ty), _}) => Some(ty)
-  | _ => None
-  };
+  List.find_map(
+    ty =>
+      switch (match_tup_label(ty)) {
+      | Some((l, ty)) when l == label => Some(ty)
+      | _ => None
+      },
+    tys,
+  );
 
 let product_extension = (tys1: list(t), tys2: list(t)): term => {
   let get_lv = (t: t) => {
@@ -523,6 +571,52 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   };
 };
 
+/* The field a signature's `let` item declares: `let x : T` gives
+   ("x", Some(T)) and `let x` gives ("x", None), looking through Parens and
+   Projector on both the item and the bound variable. Other patterns
+   declare no field. */
+let sig_let_field = (pat: Pat.t): option((Var.t, option(t))) => {
+  let var_of = (p: Pat.t): option(Var.t) =>
+    switch (Pat.strip_wrappers(p).term) {
+    | Var(name) => Some(name)
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | Wild
+    | ExplicitNonlabel
+    | Atom(_)
+    | ListLit(_)
+    | Constructor(_)
+    | Cons(_)
+    | Tuple(_)
+    | Label(_)
+    | TupLabel(_)
+    | Parens(_)
+    | Projector(_)
+    | Ap(_)
+    | Asc(_) => None
+    };
+  switch (Pat.strip_wrappers(pat).term) {
+  | Var(name) => Some((name, None))
+  | Asc(p, typ) => var_of(p) |> Option.map(name => (name, Some(typ)))
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | Wild
+  | ExplicitNonlabel
+  | Atom(_)
+  | ListLit(_)
+  | Constructor(_)
+  | Cons(_)
+  | Tuple(_)
+  | Label(_)
+  | TupLabel(_)
+  | Parens(_)
+  | Projector(_)
+  | Ap(_) => None
+  };
+};
+
 /* ~expand restricts which alias names get expanded (default: all). Used
    by module lowering to expand only module-LOCAL aliases when a member
    type escapes its scope, keeping global/builtin aliases compact. */
@@ -584,18 +678,17 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
              /* Extract name and type from pattern.
                 let x : T => name="x", typ=T
                 let x     => name="x", typ=Unknown */
-             switch (pat.term) {
-             | Asc({term: Var(name), _}, typ) =>
-               Some(
-                 TupLabel(Label(name) |> temp, normalize(ctx, typ)) |> temp,
-               )
-             | Var(name) =>
-               Some(
-                 TupLabel(Label(name) |> temp, Unknown(Internal) |> temp)
-                 |> temp,
-               )
-             | _ => None
-             }
+             sig_let_field(pat)
+             |> Option.map(((name, typ)) =>
+                  TupLabel(
+                    Label(name) |> temp,
+                    switch (typ) {
+                    | Some(typ) => normalize(ctx, typ)
+                    | None => Unknown(Internal) |> temp
+                    },
+                  )
+                  |> temp
+                )
            | SigType(_, _)
            | Invalid(_)
            | EmptyHole
@@ -621,19 +714,17 @@ let rec desugar_sig = (ctx: Ctx.t, ty: t): t => {
       |> List.filter_map((item: Sig.t) =>
            switch (item.term) {
            | SigLet(pat) =>
-             switch (pat.term) {
-             | Asc({term: Var(name), _}, typ) =>
-               Some(
-                 TupLabel(Label(name) |> temp, desugar_sig(ctx, typ))
-                 |> temp,
-               )
-             | Var(name) =>
-               Some(
-                 TupLabel(Label(name) |> temp, Unknown(Internal) |> temp)
-                 |> temp,
-               )
-             | _ => None
-             }
+             sig_let_field(pat)
+             |> Option.map(((name, typ)) =>
+                  TupLabel(
+                    Label(name) |> temp,
+                    switch (typ) {
+                    | Some(typ) => desugar_sig(ctx, typ)
+                    | None => Unknown(Internal) |> temp
+                    },
+                  )
+                  |> temp
+                )
            | SigType(_, _)
            | Invalid(_)
            | EmptyHole
@@ -652,7 +743,21 @@ let rec desugar_sig = (ctx: Ctx.t, ty: t): t => {
   | List(t) => List(desugar_sig(ctx, t)) |> rewrap
   | TupLabel(label, ty) =>
     TupLabel(desugar_sig(ctx, label), desugar_sig(ctx, ty)) |> rewrap
-  | _ => ty
+  | Sum(sm) =>
+    Sum(ConstructorMap.map(Option.map(desugar_sig(ctx)), sm)) |> rewrap
+  | Rec(tpat, t) => Rec(tpat, desugar_sig(ctx, t)) |> rewrap
+  | Poly(tpat, t) => Poly(tpat, desugar_sig(ctx, t)) |> rewrap
+  | ProdProjection(t, label) =>
+    ProdProjection(desugar_sig(ctx, t), label) |> rewrap
+  | ProdExtension(t1, t2) =>
+    ProdExtension(desugar_sig(ctx, t1), desugar_sig(ctx, t2)) |> rewrap
+  | Unknown(_)
+  | Atom(_)
+  | DrvQuoteTy(_)
+  | Var(_)
+  | ExplicitNonlabel
+  | Label(_)
+  | ProofOf(_) => ty
   };
 };
 

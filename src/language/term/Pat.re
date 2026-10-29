@@ -41,6 +41,52 @@ let hole = (tms: list(TermBase.Any.t)): TermBase.Pat.term =>
   | [_, ..._] => MultiHole(tms)
   };
 
+/* Parens and Projector are transparent: elaboration keeps both, so code
+   that inspects the head or shape of a pattern must look through them.
+   Asc is NOT stripped here; whether an ascription is transparent depends on
+   the call site. Polymorphic in the annotation so cls_of_term can use it. */
+let rec strip_wrappers = (p: Grammar.pat_t('a)): Grammar.pat_t('a) =>
+  switch (p.term) {
+  | Parens(p)
+  | Projector(_, p) => strip_wrappers(p)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | Wild
+  | ExplicitNonlabel
+  | Atom(_)
+  | ListLit(_)
+  | Constructor(_)
+  | Cons(_)
+  | Var(_)
+  | Tuple(_)
+  | Label(_)
+  | TupLabel(_)
+  | Ap(_)
+  | Asc(_) => p
+  };
+
+let rec ctr_name = (p: Grammar.pat_t('a)): option(Constructor.t) =>
+  switch (p.term) {
+  | Constructor(name, _) => Some(name)
+  | Parens(p)
+  | Projector(_, p) => ctr_name(p)
+  | Asc(_)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | Wild
+  | ExplicitNonlabel
+  | Atom(_)
+  | ListLit(_)
+  | Cons(_)
+  | Var(_)
+  | Tuple(_)
+  | Label(_)
+  | TupLabel(_)
+  | Ap(_) => None
+  };
+
 let cls_of_term: Grammar.pat_term('a) => cls =
   fun
   | Invalid(_) => Invalid
@@ -58,8 +104,7 @@ let cls_of_term: Grammar.pat_term('a) => cls =
   | Tuple(_) => Tuple
   | Parens(_) => Parens
   | Projector(_) => Projector
-  | Ap({term: Constructor(_), _}, _) => ApCons
-  | Ap(_) => ApFunc
+  | Ap(f, _) => Option.is_some(ctr_name(f)) ? ApCons : ApFunc
   | Asc(_) => Asc;
 
 let show_cls: cls => string =
@@ -181,37 +226,30 @@ let rec get_num_of_vars = (pat: t) =>
     }
   };
 
-let rec ctr_name = (p: t): option(Constructor.t) =>
-  switch (p.term) {
-  | Constructor(name, _) => Some(name)
-  | Parens(p)
-  | Projector(_, p) => ctr_name(p)
-  | Asc(_)
-  | Invalid(_)
-  | EmptyHole
-  | MultiHole(_)
-  | Wild
-  | ExplicitNonlabel
-  | Atom(_)
-  | ListLit(_)
-  | Cons(_)
-  | Var(_)
-  | Tuple(_)
-  | Label(_)
-  | TupLabel(_)
-  | Ap(_) => None
-  };
-
 let rec match_tup_label: t => option((LabeledTuple.label, t)) =
   p =>
     switch (p.term) {
-    | Parens(p) => match_tup_label(p)
+    | Parens(p)
+    | Projector(_, p) => match_tup_label(p)
     | TupLabel(plab, p') =>
-      switch (plab.term) {
+      switch (strip_wrappers(plab).term) {
       | Label(name) => Some((name, p'))
       | _ => None
       }
-    | _ => None
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | Wild
+    | ExplicitNonlabel
+    | Atom(_)
+    | ListLit(_)
+    | Constructor(_)
+    | Cons(_)
+    | Var(_)
+    | Tuple(_)
+    | Label(_)
+    | Ap(_)
+    | Asc(_) => None
     };
 
 let get_label: t => option(LabeledTuple.label) =

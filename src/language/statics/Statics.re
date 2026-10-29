@@ -1103,7 +1103,9 @@ and uexp_to_info_map =
         LabeledTupleStaticsHelpers.collect_malformed_labels(
           ~has_tup_label=
             (e: Info.exp) =>
-              switch (e.user_term.term) {
+              /* Asc is opaque here on purpose: an ascribed entry is not a
+                 bare labeled entry of this tuple. */
+              switch (Exp.strip_wrappers(e.user_term).term) {
               | TupLabel(_, _) => true
               | _ => false
               },
@@ -1696,7 +1698,7 @@ and uexp_to_info_map =
       | _ =>
         /* If this is a builtin with custom statics */
         let custom_statics =
-          switch (fn.term) {
+          switch (Exp.strip_wrappers(fn).term) {
           | Var(v) =>
             Ctx.lookup_var(ctx, v)
             |> Option.bind(_, (e: Ctx.var_entry) => e.custom_statics)
@@ -1797,7 +1799,7 @@ and uexp_to_info_map =
     | DeferredAp(fn, args) =>
       /* If this is a builtin with custom statics */
       let custom_statics =
-        switch (fn.term) {
+        switch (Exp.strip_wrappers(fn).term) {
         | Var(v) =>
           Ctx.lookup_var(ctx, v)
           |> Option.bind(_, (e: Ctx.var_entry) => e.custom_statics)
@@ -2042,12 +2044,12 @@ and uexp_to_info_map =
       };
       /* Save module items and RHS variable name before def is shadowed */
       let module_items =
-        switch (def.term) {
+        switch (Exp.strip_wrappers(def).term) {
         | Module(items) => Some(items)
         | _ => None
         };
       let def_rhs_var =
-        switch (def.term) {
+        switch (Exp.strip_wrappers(def).term) {
         | Var(v) => Some(v)
         | Constructor(v, _) when Ctx.lookup_var(ctx, v) != None => Some(v)
         | _ => None
@@ -3539,7 +3541,9 @@ and upat_to_info_map =
         LabeledTupleStaticsHelpers.collect_malformed_labels(
           ~has_tup_label=
             (e: Info.pat) =>
-              switch (e.user_term.term) {
+              /* Asc is opaque here on purpose: an ascribed entry is not a
+                 bare labeled entry of this tuple. */
+              switch (Pat.strip_wrappers(e.user_term).term) {
               | TupLabel(_, _) => true
               | _ => false
               },
@@ -3690,7 +3694,7 @@ and upat_to_info_map =
         /* Unknown type could be a singleton labeled tuple. Only elaborate
            (destructure) if the pattern is a Var whose name matches the label.
            Otherwise, the pattern should have the full tuple type. */
-        switch (upat.term) {
+        switch (Pat.strip_wrappers(upat).term) {
         | Var(name) when name == l1 =>
           /* Pattern name matches label - this is destructuring */
           elaborate_singleton_tuple(upat, ana_ty, l1, m)

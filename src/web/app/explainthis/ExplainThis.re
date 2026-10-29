@@ -1180,10 +1180,9 @@ let decide =
           let x_id = IdTagged.rep_id(x);
           let arg_id = IdTagged.rep_id(arg);
           let lets_ap =
-            switch (x.term) {
-            | Constructor(_, _) =>
-              LetExp.lets_conap(~def_id, ~x_id, ~arg_id, ~pat_id)
-            | _ => LetExp.lets_funap(~def_id, ~x_id, ~arg_id, ~pat_id)
+            switch (Pat.ctr_name(x)) {
+            | Some(_) => LetExp.lets_conap(~def_id, ~x_id, ~arg_id, ~pat_id)
+            | None => LetExp.lets_funap(~def_id, ~x_id, ~arg_id, ~pat_id)
             };
           leveled(~fallback=basic, lets_ap);
         | Constructor(v, _) =>
@@ -1234,10 +1233,10 @@ let decide =
         let x_id = IdTagged.rep_id(x);
         let arg_id = IdTagged.rep_id(arg);
         let basic = group => get_message(group);
-        switch (x.term) {
-        | Constructor(v, _) => basic(AppExp.conaps(~name=v, ~x_id, ~arg_id))
-        | LivelitName(_) => basic(AppExp.livelitaps(~x_id, ~arg_id))
-        | _ => basic(AppExp.funaps(~x_id, ~arg_id))
+        switch (Exp.ctr_name(x), x.term) {
+        | (Some(v), _) => basic(AppExp.conaps(~name=v, ~x_id, ~arg_id))
+        | (None, LivelitName(_)) => basic(AppExp.livelitaps(~x_id, ~arg_id))
+        | (None, _) => basic(AppExp.funaps(~x_id, ~arg_id))
         };
       | DeferredAp(x, args) =>
         let x_id = IdTagged.rep_id(x);
@@ -1474,9 +1473,9 @@ let decide =
     | Ap(x, arg) =>
       let x_id = IdTagged.rep_id(x);
       let arg_id = IdTagged.rep_id(arg);
-      switch (x.term) {
-      | Constructor(_, _) => get_message(AppPat.conaps(~x_id, ~arg_id))
-      | _ => get_message(AppPat.funaps(~x_id, ~arg_id))
+      switch (Pat.ctr_name(x)) {
+      | Some(_) => get_message(AppPat.conaps(~x_id, ~arg_id))
+      | None => get_message(AppPat.funaps(~x_id, ~arg_id))
       };
     | Constructor(con, _) => get_message(TerminalPat.ctr(con))
     | Asc(pat, typ) =>

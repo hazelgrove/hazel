@@ -170,22 +170,9 @@ let labeled_tuple_exp = (exports: list(value_export)): Exp.t => {
   Exp.fresh(Tuple(fields));
 };
 
-let rec strip_typ_parens = (ty: Typ.t): Typ.t =>
-  switch (ty.term) {
-  | Parens(inner) => strip_typ_parens(inner)
-  | _ => ty
-  };
-
 let extract_ana_labels = (ana: Typ.t): list((Var.t, Typ.t)) =>
-  switch (strip_typ_parens(ana).term) {
-  | Prod(fields) =>
-    fields
-    |> List.filter_map((field: Typ.t) =>
-         switch (field.term) {
-         | TupLabel({term: Label(name), _}, typ) => Some((name, typ))
-         | _ => None
-         }
-       )
+  switch (Typ.strip_wrappers(ana).term) {
+  | Prod(fields) => fields |> List.filter_map(Typ.match_tup_label)
   | _ => []
   };
 
@@ -245,7 +232,7 @@ let rec collect_type_exports =
            }
          | ModuleMod(mp, def) =>
            let rhs_exports_ty =
-             switch (def.term) {
+             switch (Exp.strip_wrappers(def).term) {
              | Module(inner_items) =>
                collect_type_exports(ctx, inner_items)
                |> type_exports_alias_type
@@ -274,13 +261,28 @@ let rec collect_type_exports =
 /* Funlet patterns are deliberately left unascribed: Asc(f(args), member_ty)
    would be read by FunctionSugar.detect as a RETURN-type annotation. */
 let modlet_pat = (ana_labels: list((Var.t, Typ.t)), pat: Pat.t): Pat.t =>
-  switch (pat.term) {
+  switch (Pat.strip_wrappers(pat).term) {
   | Var(name) =>
     switch (List.assoc_opt(name, ana_labels)) {
     | Some(expected_type) => Pat.fresh(Asc(pat, expected_type))
     | None => pat
     }
-  | _ => pat
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | Wild
+  | ExplicitNonlabel
+  | Atom(_)
+  | ListLit(_)
+  | Constructor(_)
+  | Cons(_)
+  | Tuple(_)
+  | Label(_)
+  | TupLabel(_)
+  | Parens(_)
+  | Projector(_)
+  | Ap(_)
+  | Asc(_) => pat
   };
 
 let wrap_item =
