@@ -975,7 +975,8 @@ let sig_tests = {
 };
 
 /* `m.T` in the inner `m`'s own signature resolves to the inner `m`: the
-   path has no weak head normal form. */
+   path has no weak head normal form. Nor has a cyclic alias, which the walk
+   gives up on instead of exploring once per branch. */
 let cyclic_path_tests = {
   let m_t = F.Typ.prod_projection(F.Typ.var("m"), F.Typ.label("T"));
   let self_sig = cs([F.Sig.sig_type(F.TPat.var("T"), m_t)]);
@@ -1002,6 +1003,35 @@ let cyclic_path_tests = {
           F.Typ.unknown(Internal),
           Typ.weak_head_normalize(ctx, m_t),
         )
+      ),
+      test_case(
+        "a cyclic alias through a tuple extension normalizes to unknown",
+        `Quick,
+        () => {
+          let alias = (name, def): Ctx.entry =>
+            TVarEntry({
+              name,
+              id: Id.invalid,
+              kind: Singleton(def),
+            });
+          let ctx =
+            Ctx.extend(
+              Ctx.extend(
+                Builtins.ctx_init(None),
+                alias("A", F.Typ.var("B")),
+              ),
+              alias(
+                "B",
+                F.Typ.prod_extension(F.Typ.var("A"), F.Typ.var("A")),
+              ),
+            );
+          check(
+            typ,
+            "unknown",
+            F.Typ.unknown(Internal),
+            Typ.weak_head_normalize(ctx, F.Typ.var("A")),
+          );
+        },
       ),
     ],
   );

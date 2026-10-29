@@ -600,12 +600,16 @@ let remove_duplicate_labels =
   List.rev(rev_deduplicated);
 };
 
-/* Fuel bounds the walk, so a path with no weak head normal form, like `m.T`
-   in `let m : { type T = m.T }` with an outer `m`, normalizes to `?` (the
-   path never resolves) instead of crashing. */
-let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t =>
+/* The walk below runs on one budget of fuel. When it runs out the whole
+   walk is abandoned, and the entry points after it answer `?` (or no path
+   head): a path with no weak head normal form, like `m.T` in
+   `let m : { type T = m.T }` with an outer `m`, normalizes to `?` instead
+   of crashing, and a cyclic alias is not explored once per branch. */
+exception Out_of_fuel;
+
+let rec weak_head_normalize = (~rec_counter, ctx: Ctx.t, ty: t): t =>
   if (rec_counter > 1000) {
-    ty;
+    raise(Out_of_fuel);
   } else {
     switch (term_of(ty)) {
     | Parens(t)
@@ -667,7 +671,7 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t =>
    names, which would shadow the value namespace. */
 and path_head = (~rec_counter, ctx: Ctx.t, t: t): option(t) =>
   if (rec_counter > 1000) {
-    None;
+    raise(Out_of_fuel);
   } else {
     let module_type = ty => {
       let ty = head_type(~rec_counter, ctx, ty);
@@ -713,6 +717,22 @@ and head_type = (~rec_counter, ctx: Ctx.t, ty: t): t => {
   };
 };
 
+let weak_head_normalize = (ctx: Ctx.t, ty: t): t =>
+  switch (weak_head_normalize(~rec_counter=0, ctx, ty)) {
+  | ty => ty
+  | exception Out_of_fuel =>
+    let (_, rewrap) = unwrap(ty);
+    Unknown(Internal) |> rewrap;
+  };
+
+let head_type = (ctx: Ctx.t, ty: t): t =>
+  switch (head_type(~rec_counter=0, ctx, ty)) {
+  | ty => ty
+  | exception Out_of_fuel =>
+    let (_, rewrap) = unwrap(ty);
+    Unknown(Internal) |> rewrap;
+  };
+
 /* The signature items a module path denotes, if any. A type alias whose
    expansion is a signature also counts, so `S.T` resolves on
    `type S = { type T = Int }`. */
@@ -720,10 +740,11 @@ let path_sig = (ctx: Ctx.t, t: t): option(ClosedSig.t(Sig.t)) =>
   switch (path_head(~rec_counter=0, ctx, t)) {
   | Some({term: Sig(s), _}) => Some(Sig.closed(s))
   | _ => None
+  | exception Out_of_fuel => None
   };
 
 let as_sig = (ctx: Ctx.t, ty: t): option(ClosedSig.t(Sig.t)) =>
-  switch (term_of(head_type(~rec_counter=0, ctx, ty))) {
+  switch (term_of(head_type(ctx, ty))) {
   | Sig(s) => Some(Sig.closed(s))
   | _ => None
   };
