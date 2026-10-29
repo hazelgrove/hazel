@@ -24,16 +24,23 @@ runs:
 
     # v2: entries now carry `.ci-env` (see "Record the switch environment"), which
     # the fast path needs; v1 entries don't, so they only warm-start a miss.
-    - name: Retrieve the switch environment if cached
-      id: opam-cache-switch
+    # Lookup only: whether to take the fast path has to be known before anything
+    # touches _opam, because on a miss setup-ocaml creates the switch there and
+    # the cache is restored over it afterwards.
+    - name: Check for a cached switch matching the lock file
+      id: opam-cache-exact
       uses: actions/cache/restore@v4
       with:
         path: "_opam"
         key: ${{ runner.os }}-opam-v2-${{ hashFiles('hazel.opam.locked') }}
-        # Warm start when the lockfile changed: opam install is incremental.
-        restore-keys: |
-          ${{ runner.os }}-opam-v2-
-          ${{ runner.os }}-opam-
+        lookup-only: true
+
+    - name: Retrieve the cached switch
+      if: steps.opam-cache-exact.outputs.cache-hit == 'true'
+      uses: actions/cache/restore@v4
+      with:
+        path: "_opam"
+        key: ${{ runner.os }}-opam-v2-${{ hashFiles('hazel.opam.locked') }}
 
     # Fast path: put the cached switch on PATH with the variables `opam env`
     # recorded for it, and stand in for the three opam commands CI and the
@@ -41,7 +48,7 @@ runs:
     # restored at the same absolute path it was built at (the workspace path is
     # fixed on GitHub's runners), so its recorded paths stay valid.
     - name: Use the cached switch
-      if: steps.opam-cache-switch.outputs.cache-hit == 'true'
+      if: steps.opam-cache-exact.outputs.cache-hit == 'true'
       shell: bash
       run: |
         set -euo pipefail
@@ -71,7 +78,7 @@ runs:
         echo "$shim" >> "$GITHUB_PATH"
 
     - name: Set-up OCaml
-      if: steps.opam-cache-switch.outputs.cache-hit != 'true'
+      if: steps.opam-cache-exact.outputs.cache-hit != 'true'
       uses: ocaml/setup-ocaml@v3
       with:
         ocaml-compiler: 5.2.0
@@ -80,8 +87,20 @@ runs:
         # caching is unaffected; DUNE_CACHE handles that.
         dune-cache: false
 
+    # Slow path, as before: restored over the switch setup-ocaml just created.
+    - name: Retrieve the closest cached switch
+      if: steps.opam-cache-exact.outputs.cache-hit != 'true'
+      uses: actions/cache/restore@v4
+      with:
+        path: "_opam"
+        key: ${{ runner.os }}-opam-v2-${{ hashFiles('hazel.opam.locked') }}
+        # Warm start when the lockfile changed: opam install is incremental.
+        restore-keys: |
+          ${{ runner.os }}-opam-v2-
+          ${{ runner.os }}-opam-
+
     - name: Add opam repository archive
-      if: steps.opam-cache-switch.outputs.cache-hit != 'true'
+      if: steps.opam-cache-exact.outputs.cache-hit != 'true'
       shell: bash
       run: |
         eval $(opam env)
@@ -89,7 +108,7 @@ runs:
         opam repo add archive git+https://github.com/ocaml/opam-repository-archive
 
     - name: Install dependencies
-      if: steps.opam-cache-switch.outputs.cache-hit != 'true'
+      if: steps.opam-cache-exact.outputs.cache-hit != 'true'
       shell: bash
       run: |
         eval $(opam env)
@@ -98,7 +117,7 @@ runs:
         opam install . --deps-only --with-test --locked
 
     - name: Clean opam switch
-      if: steps.opam-cache-switch.outputs.cache-hit != 'true'
+      if: steps.opam-cache-exact.outputs.cache-hit != 'true'
       shell: bash
       run: |
         eval $(opam env)
@@ -108,7 +127,7 @@ runs:
     # What `opam env` sets for this switch, as NAME=value lines for $GITHUB_ENV,
     # saved inside the switch so the fast path can load it.
     - name: Record the switch environment
-      if: steps.opam-cache-switch.outputs.cache-hit != 'true'
+      if: steps.opam-cache-exact.outputs.cache-hit != 'true'
       shell: bash
       run: |
         set -euo pipefail
@@ -127,7 +146,7 @@ runs:
     # second run exercises the fast path.
     - name: Save the switch environment to cache
       if: >-
-        steps.opam-cache-switch.outputs.cache-hit != 'true' &&
+        steps.opam-cache-exact.outputs.cache-hit != 'true' &&
         (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/bot-update-deps' || github.ref == 'refs/heads/ci/toolchain-fast-path')
       uses: actions/cache/save@v4
       with:
