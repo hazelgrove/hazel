@@ -912,6 +912,24 @@ let sig_tests = {
         },
       ),
       test_case(
+        "a hole item is an unknown",
+        `Quick,
+        () => {
+          check(
+            bool,
+            "with a hole item",
+            true,
+            Typ.contains_unknown(cs([sv("x", ti), F.Sig.empty_hole()])),
+          );
+          check(
+            bool,
+            "without",
+            false,
+            Typ.contains_unknown(cs([sv("x", ti)])),
+          );
+        },
+      ),
+      test_case(
         "free_vars scopes an open signature's items sequentially",
         `Quick,
         () => {

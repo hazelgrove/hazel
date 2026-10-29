@@ -380,15 +380,17 @@ let rec count_unknowns = (ty: t): int =>
   | TupLabel(_, ty) => count_unknowns(ty)
   | ProdProjection(ty1, _) => count_unknowns(ty1)
   | ProdExtension(ty1, ty2) => count_unknowns(ty1) + count_unknowns(ty2)
+  /* A hole item could declare anything, so it counts as one. */
   | Sig(s) =>
     List.fold_left(
-      (acc, m: Sig.member) =>
-        switch (m) {
-        | Val(_, ty)
-        | TypeManifest(_, ty) => acc + count_unknowns(ty)
+      (acc, item: Sig.t) =>
+        switch (Sig.member_of_item(item)) {
+        | Some(Val(_, ty) | TypeManifest(_, ty)) =>
+          acc + count_unknowns(ty)
+        | None => Sig.is_hole(item) ? acc + 1 : acc
         },
       0,
-      Sig.closed_members(s),
+      ClosedSig.items(Sig.closed(s)),
     )
   };
 

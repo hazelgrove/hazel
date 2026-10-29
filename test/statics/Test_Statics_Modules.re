@@ -263,6 +263,14 @@ let test_hole_signature_declares_module_members =
     {|let m : { ? } = { let x = 1 } in m|},
   );
 
+/* A hole in a type member's definition could be what the signature
+   declares, so the definition is not compared. */
+let test_type_member_with_hole_is_not_compared =
+  no_marks_test(
+    "A type member defined with a hole item is not compared to its signature",
+    {|let m : { type S = { let x : Int; let y : Int } } = { type S = { let x : Int; ? } } in m|},
+  );
+
 let test_error_wildcard_binder_does_not_assume =
   has_mark_test(
     "A wildcard binder does not stand in for missing members",
@@ -2407,5 +2415,6 @@ let tests = (
     test_signature_literal_in_use_path,
     test_hole_signature_declares_type_member,
     test_hole_signature_declares_module_members,
+    test_type_member_with_hole_is_not_compared,
   ],
 );
