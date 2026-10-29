@@ -602,6 +602,70 @@ let test_error_module_sum_before =
     {|let x = N in module Common = { type Dir = + N + E } in x|} |> parse_exp,
   );
 
+/* A signature that leaves the sum out: it still comes out. Signatures here do
+   not hide members (an extra value is an error, as in
+   test_limitation_extra_member_multi), and types are not compared, so the
+   module's Dir and its constructors are in scope after it. Sealing, in
+   Modules II, would change this. */
+let test_module_sum_outside_signature =
+  fully_consistent_typecheck(
+    "A module's sum comes out though its signature leaves it out",
+    {|module M : { let x : Int } = { type Dir = + N + E; let x = 1 } in let f = fun (d : Dir) -> case d | N => 1 | E => 2 end in f(E)|},
+    Some(int()),
+  );
+
+/* A module's sum shadows an outer type of the same name */
+let test_module_sum_shadows_outer_type =
+  fully_consistent_typecheck(
+    "A module's sum shadows an outer type of the same name",
+    {|type Dir = + A + B in module Common = { type Dir = + N + E } in let f = fun (d : Dir) -> case d | N => 1 | E => 2 end in f(N)|},
+    Some(int()),
+  );
+
+/* Two modules with a constructor of the same name: without an expected
+   type, the later module's is the one in scope */
+let test_error_module_sum_later_constructor_wins =
+  inconsistent_typecheck(
+    "Two modules' constructors of one name: the later one's, unannotated",
+    {|module P = { type T = + N + S } in module Q = { type U = + N + W } in let n = N in let f = fun (t : T) -> 1 in f(n)|}
+    |> parse_exp,
+  );
+
+/* ...but an expected type still picks the earlier module's */
+let test_module_sum_expected_type_picks_constructor =
+  fully_consistent_typecheck(
+    "Two modules' constructors of one name: an expected type picks",
+    {|module P = { type T = + N + S } in module Q = { type U = + N + W } in let f = fun (t : T) -> case t | N => 1 | S => 2 end in f(N)|},
+    Some(int()),
+  );
+
+/* A nested module's sum does not come out of the outer module's binding:
+   only the outer module's own type definitions do */
+let test_error_nested_module_sum_constructors =
+  inconsistent_typecheck(
+    "A nested module's constructors do not come out of the outer module",
+    {|module Outer = { module Inner = { type Dir = + N + E } } in case N | N => 1 | E => 2 end|}
+    |> parse_exp,
+  );
+
+/* ...but the nested module's name does, as a qualifier for its types */
+let test_nested_module_name_outside =
+  fully_consistent_typecheck(
+    "A nested module's name comes out, for its types",
+    {|module Outer = { module Inner = { type Dir = + N + E } } in let f = fun (d : Inner.Dir) -> 1 in let g = fun (d : Outer.Inner.Dir) -> 2 in 3|},
+    Some(int()),
+  );
+
+/* Known bug, as with any shadowed type name: an outer sum's constructor is
+   accepted where the module's sum of the same name is expected, and the
+   match then gets stuck. `type Dir = + A + B in type Dir = + N + E in let d :
+   Dir = A in 1` is accepted the same way, without modules. */
+let test_known_bug_shadowed_sum_name =
+  skip_known_bug(
+    "An outer sum's constructor passes as a module's sum of the same name",
+    {|type Dir = + A + B in module Common = { type Dir = + N + E } in let f = fun (d : Dir) -> case d | N => 1 | E => 2 end in f(A)|},
+  );
+
 /* ===== QUALIFIED TYPE ACCESS: ALIASING TESTS (Phase 1b) ===== */
 
 /* Variable aliasing */
@@ -756,6 +820,13 @@ let tests = (
     test_module_sum_payload,
     test_module_sum_in_another_module,
     test_error_module_sum_before,
+    test_module_sum_outside_signature,
+    test_module_sum_shadows_outer_type,
+    test_error_module_sum_later_constructor_wins,
+    test_module_sum_expected_type_picks_constructor,
+    test_error_nested_module_sum_constructors,
+    test_nested_module_name_outside,
+    test_known_bug_shadowed_sum_name,
     /* Qualified type access aliasing tests (Phase 1b) */
     test_qualified_type_var_alias,
     test_qualified_type_module_alias,

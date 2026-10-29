@@ -111,6 +111,16 @@ let test_module_sum_payload_in_another_module =
     )
   });
 
+/* ...shadowing an outer type of the same name */
+let test_module_sum_shadows_outer_type =
+  test_case(
+    "A module's sum shadows an outer type of the same name", `Quick, () => {
+    parse_and_evaluate_test(
+      "2",
+      {|type Dir = + A + B in module Common = { type Dir = + N + E } in let f = fun (d : Dir) -> case d | N => 1 | E => 2 end in f(E)|},
+    )
+  });
+
 /* Test module keyword inside module body */
 let test_module_keyword_in_mod =
   test_case("Module keyword inside module body", `Quick, () => {
@@ -169,6 +179,7 @@ let tests = (
     test_module_keyword_in_mod,
     test_module_sum_constructors_outside,
     test_module_sum_payload_in_another_module,
+    test_module_sum_shadows_outer_type,
     test_nested_module_keyword,
     test_module_keyword_annotated,
     test_module_keyword_sig_annotated,
