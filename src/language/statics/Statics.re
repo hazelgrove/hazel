@@ -2338,7 +2338,8 @@ and uexp_to_info_map =
           ]),
         m,
       );
-    | Theorem(p, e1, e2) when Pat.theorem_binder(p) != None =>
+    | Theorem(p, e1, e2) =>
+      let binds = Option.is_some(Pat.theorem_binder(p));
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
       let (e1', e1_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
       /* The binder may sit in parens or an explicit-nonlabel singleton
@@ -2361,7 +2362,7 @@ and uexp_to_info_map =
         go_pat(
           ~is_synswitch=false,
           ~co_ctx=CoCtx.empty,
-          ~ana=binder_ana(p, Typ.fresh(ProofOf(e1))),
+          ~ana=binds ? binder_ana(p, Typ.fresh(ProofOf(e1))) : syn,
           p,
           m,
         );
@@ -2371,48 +2372,15 @@ and uexp_to_info_map =
           ~is_synswitch=false,
           ~warn_unused=false,
           ~co_ctx=e2.co_ctx,
-          ~ana=p'.ty,
+          ~ana=binds ? p'.ty : syn,
           p,
           m,
         );
+      /* Without a binder, the theorem itself is the error. */
       add(
         ~elab_term=Theorem(p_elab, e1_elab, e2_elab) |> rewrap,
         ~elab_syn_ty=e2.elab_syn_ty,
-        ~marks=[],
-        ~co_ctx=
-          CoCtx.union([
-            p'.co_ctx,
-            e1'.co_ctx,
-            CoCtx.mk(ctx, p.ctx, e2.co_ctx),
-            pat_typ_refs,
-          ]),
-        ~probe_targets=
-          SubexpProbeTargets.union_all([
-            p.probe_targets,
-            e1'.probe_targets,
-            e2.probe_targets,
-          ]),
-        m,
-      );
-    | Theorem(p, e1, e2) =>
-      let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
-      let (e1', e1_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
-      let (p', _, _) =
-        go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
-      let (e2, e2_elab, m) = go(~ctx=p'.ctx, ~ana, e2, m);
-      let (p, p_elab, m) =
-        go_pat(
-          ~is_synswitch=false,
-          ~warn_unused=false,
-          ~co_ctx=e2.co_ctx,
-          ~ana=syn,
-          p,
-          m,
-        );
-      add(
-        ~elab_term=Theorem(p_elab, e1_elab, e2_elab) |> rewrap,
-        ~elab_syn_ty=e2.elab_syn_ty,
-        ~marks=[BadTheorem(e2.ty)],
+        ~marks=binds ? [] : [BadTheorem(e2.ty)],
         ~co_ctx=
           CoCtx.union([
             p'.co_ctx,

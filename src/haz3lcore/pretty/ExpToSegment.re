@@ -2058,8 +2058,12 @@ let paren_for_mod_item =
     (~parenthesization: Settings.parenthesization, e: Exp.t): Exp.t =>
   paren_at(~parenthesization, Precedence.semi, e);
 
-/* Module items skip exp-level parenthesize, so pats need the singleton
-   TuplePat → (_=p) rewrite here before pretty-printing. */
+/* The singleton TuplePat → (_=p) rewrite for a module item's pattern.
+   parenthesize's Module case does it on the usual path, but a bare item
+   (any_to_segment's Mod case, mod_to_pretty) is never parenthesized, nor is
+   a module nested inside one, which mod_to_pretty prints through
+   exp_to_pretty. Both printers call this; after parenthesize it changes
+   nothing. */
 let parenthesize_pat_for_print = (~settings: Settings.t, p: Pat.t): Pat.t =>
   parenthesize_pat(
     ~parenthesization=settings.parenthesization,

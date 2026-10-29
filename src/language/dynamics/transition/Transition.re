@@ -551,36 +551,38 @@ module Transition = (EV: EV_MODE) => {
         });
       };
 
-    | Theorem(dp, e, d1) when Pat.theorem_binder(dp) != None =>
-      let n = Option.get(Pat.theorem_binder(dp));
+    | Theorem(dp, e, d1) =>
       let. _ = otherwise(env, d);
-      let e' = Substitution.in_exp(env, e);
-      let env' = Environment.extend(env, (n, generated(ProofObject(e'))));
-      let (expr, side_effects) =
-        under_env(
-          env',
-          d1,
-          [
-            RecordTheorem(DHExp.rep_id(d), n, env, e'),
-            RecordPatMatch({
-              pat: dp,
-              rhs: e,
-              samples: [],
-            }),
-          ],
-        );
-      Step({
-        expr,
-        side_effects,
-        kind: TheoremBind,
-        is_value: false,
-      });
-    | Theorem(_) =>
-      let. _ = otherwise(env, d);
-      // The theorem and body are not requirements, so they still mention
-      // variables from env; keep the closure so they stay resolvable.
-      let.wrap_closure _ = (env, d);
-      Indet;
+      switch (Pat.theorem_binder(dp)) {
+      | Some(n) =>
+        let e' = Substitution.in_exp(env, e);
+        let env' =
+          Environment.extend(env, (n, generated(ProofObject(e'))));
+        let (expr, side_effects) =
+          under_env(
+            env',
+            d1,
+            [
+              RecordTheorem(DHExp.rep_id(d), n, env, e'),
+              RecordPatMatch({
+                pat: dp,
+                rhs: e,
+                samples: [],
+              }),
+            ],
+          );
+        Step({
+          expr,
+          side_effects,
+          kind: TheoremBind,
+          is_value: false,
+        });
+      | None =>
+        // The theorem and body are not requirements, so they still mention
+        // variables from env; keep the closure so they stay resolvable.
+        let.wrap_closure _ = (env, d);
+        Indet;
+      };
     | ProofObject(e) =>
       let. _ = otherwise(env, d);
       switch (mode) {
