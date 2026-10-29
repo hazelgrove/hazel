@@ -148,6 +148,9 @@ You can run all of the unit tests located in `test` by running `make test`. Unit
 ### Test Coverage
 Code coverage is provided by [bisect_ppx](https://github.com/aantron/bisect_ppx). To collect coverage statistics from tests run `make coverage`. After coverage statistics are generated, running `make generate-coverage-html` will generate a local webpage at `_coverage/index.html` that can be viewed to see line coverage per module.
 
+### Coverage From Browser Sessions
+Unit-test coverage can't see what a person exercises in the editor. To get coverage of a manual (or scripted) browser session, build with `make coverage-web`, use Hazel, and download the counters from the sidebar; [docs/browser-coverage.md](docs/browser-coverage.md) walks through it. When **reviewing a PR that changes behavior**, `make coverage-web-diff` lists which of the PR's changed lines your session never ran; see "Reviewing a PR with it" in that doc.
+
 ## Continuous Integration
 
 Four workflows run against `hazelgrove/hazel`. You can view them in the [Actions

@@ -68,10 +68,42 @@ never ran in red.
 - To combine sessions, point `COVERAGE_DIR` at a parent folder
   (`~/hazel-coverage`): the report sums every file beneath it.
 
+### Reviewing a PR with it
+
+For a PR that changes behavior, the question is whether anyone actually ran
+the code it changed. Codecov's patch coverage on the PR answers that for the
+unit tests; a browser session answers it for the editor itself.
+
+1. Check out the PR (`gh pr checkout <n>`), then `make coverage-web` and
+   `make serve`.
+2. Reload the page, then exercise what the PR changes, starting from its test
+   plan. Keep the session focused: everything you do counts.
+3. Download the coverage into a fresh folder, as above.
+4. List the changed lines your session never ran:
+
+   ```sh
+   make coverage-web-diff COVERAGE_DIR=~/hazel-coverage/pr<n>
+   ```
+
+   It compares against `origin/dev` (set `BASE=` for a stacked PR), and prints
+   each changed file under `src/` with the line ranges that are instrumented but
+   never ran, then how many changed lines ran overall. Changed files that
+   aren't in the bundle at all are listed separately.
+5. For each line it lists: try to reach it in the browser, or check whether a
+   unit test covers it (Codecov's patch report). Changed code that neither a
+   test nor a person ran is worth asking the author about.
+
+Not every unrun line is a problem: error paths and rarely used settings may be
+hard to reach by hand, and those are often better covered by a unit test. Read
+the list as "here's what nobody has seen run yet", not as a pass/fail.
+
 ### Scripted sessions
 
 For a scripted session (Playwright, Claude in Chrome), `hazelCoverage.files()`
 returns the same files as `[{name, contents}]` without downloading anything.
+Write each `contents` to `<name>` in a folder and use it as `COVERAGE_DIR`. An
+agent reviewing a PR can run the PR's test plan in a browser this way, then
+report the `make coverage-web-diff` output alongside its findings.
 
 ## How it works
 
@@ -94,6 +126,8 @@ returns the same files as `[{name, contents}]` without downloading anything.
   own `reset_counters` misses the last point of every file. Duplicate downloads
   leave percentages unchanged but double the visit counts.
 - **Page load counts.** Startup code shows up as covered in every session.
+- **Exporting doesn't count itself.** The counters are snapshotted before the
+  rest of the export runs, so most of `CoverageExport.re` shows as not run.
 - **A timed-out evaluation is lost.** When an evaluation times out, the worker
   is terminated before it can report. Everything up to its last completed
   result is kept.
