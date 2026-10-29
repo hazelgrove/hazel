@@ -95,12 +95,6 @@ module Update = {
   type t =
     | TheoremUpdate(int, StepperView.Update.t);
 
-  let can_undo = (action: t) => {
-    switch (action) {
-    | TheoremUpdate(_, action) => StepperView.Update.can_undo(action)
-    };
-  };
-
   let update = (~settings, action, model: Model.t): Updated.t(Model.t) => {
     let settings =
       Settings.Model.{
@@ -218,7 +212,7 @@ module Update = {
 
                  let goal_exp =
                    Calc.set(
-                     ~eq=Exp.fast_equal,
+                     ~eq=Exp.fast_equal_with_lexemes,
                      rule |> ProofRule.conclusion_exp,
                      goal_exp,
                    );

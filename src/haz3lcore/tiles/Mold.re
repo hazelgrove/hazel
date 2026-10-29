@@ -143,36 +143,6 @@ let nib_shapes = (~index, mold: t): Nibs.shapes => {
   (nib_l.shape, nib_r.shape);
 };
 
-let of_grout: (Grout.t, Sort.t) => t =
-  (g, sort) => {
-    nibs:
-      // TODO(d): revisit this when reformulating molds
-      switch (g.shape) {
-      | Convex =>
-        let n =
-          Nib.{
-            shape: Convex,
-            sort,
-          };
-        (n, n);
-      | Concave =>
-        let n =
-          Nib.{
-            shape: Concave(Precedence.min),
-            sort,
-          };
-        (n, n);
-      },
-    out: sort,
-    in_: [],
-  };
-
-let of_secondary = (l: Nib.t) => {
-  nibs: (Nib.flip(l), l),
-  out: l.sort,
-  in_: [],
-};
-
 let is_infix_op = (mold: t): bool =>
   switch (mold.nibs, mold.in_) {
   | (({shape: Concave(_), _}, {shape: Concave(_), _}), []) => true
@@ -183,10 +153,4 @@ let is_prefix_op = (mold: t): bool =>
   switch (mold.nibs, mold.in_) {
   | (({shape: Convex, _}, {shape: Concave(_), _}), []) => true
   | _ => false
-  };
-
-let chevron = (sort: Sort.t, p: Precedence.t, d: Util.Direction.t): t =>
-  switch (d) {
-  | Right => mk_post(p, sort, [])
-  | Left => mk_pre(p, sort, [])
   };

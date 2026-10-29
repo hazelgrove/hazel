@@ -1,0 +1,114 @@
+type Student = (
+  name= String,
+  age= Int,
+  favorite_color= String
+) in
+let students : [Student] = (
+  [
+    ("Bob", 12, "blue"),
+    ("Alice", 17, "green"),
+    ("Eve", 13, "red")
+  ]
+) in
+
+# (benchmark) This version more closely matches the TableAPI and takes a string column, using only to_lvs — the values are grouped with a fold-style count. Given the lack of row polymorphism and first class labels no constraints are ensured #
+let requires = [
+  (enforced=("static"), "c is in header(t1)"),
+  (enforced=("no"), "schema(t1)[c] is a categorical sort")
+] in
+let ensures = [
+  (enforced=("static"), "header(t2) is equal to ['value', 'count']"),
+  (enforced=("live"), "schema(t2)['value'] is equal to schema(t1)[c]"),
+  (enforced=("static"), "schema(t2)['count'] is equal to Number"),
+  (enforced=("no"), "nrows(t2) is equal to length(removeDuplicates(getColumn(t1, c))) — Note: if there are missing values in the input, this constraint requires one row for missing values in the output.")
+] in
+let count =
+  fun (t1 : [?], c : String) ->
+    (
+      flat_map(t1, to_lvs)
+      |> filter(_, fun e -> e.label == c)
+      |> fold_left(
+        _,
+        fun (counts, e) ->
+          case find_opt(counts, fun entry -> e.value == entry.value)
+          | None => counts @ [(value= e.value, count= 1)]
+          | Some(_) =>
+            map(
+              counts,
+              fun entry ->
+                if e.value == entry.value
+                then (value= entry.value, count= entry.count + 1)
+                else entry
+            )
+          end,
+        []
+      )
+    )
+    : [(value= String, count= Int)] in
+test
+  count(students, "favorite_color")
+  == [("blue", 1), ("green", 1), ("red", 1)]
+  : [(value= String, count= Int)] end;
+
+# (idiomatic) This version is more idiomatic and uses a higher order function to project out the value. #
+let requires = [
+  (enforced=("static"), "c is in header(t1)"),
+  (enforced=("no"), "schema(t1)[c] is a categorical sort")
+] in
+let ensures = [
+  (enforced=("static"), "header(t2) is equal to ['value', 'count']"),
+  (enforced=("static"), "schema(t2)['value'] is equal to schema(t1)[c]"),
+  (enforced=("static"), "schema(t2)['count'] is equal to Number"),
+  (enforced=("no"), "nrows(t2) is equal to length(removeDuplicates(getColumn(t1, c))) — Note: if there are missing values in the input, this constraint requires one row for missing values in the output.")
+] in
+# Plain structural recursion: accumulate (value, count) pairs, bumping the count when a key is seen again. #
+let count =
+  typfun row ->
+    typfun key ->
+      fun (t1 : [row], c : (row -> key)) ->
+        case t1
+        | [] => []
+        | (r :: tl) =>
+          let k = c(r) in
+          let counts = count@<row>@<key>(tl, c) in
+          case find_opt(counts, fun entry -> k == entry.value)
+          |None => (value= k, count= 1) :: counts
+          |Some((value=key,count=c)) =>
+            (value= key, count= c + 1)
+            :: filter(counts, fun entry -> k != entry.value)
+          end
+        end
+        : [(value= key, count= Int)] in
+test
+  count@<Student>@<String>(students, fun r -> r.favorite_color)
+  == [("blue", 1), ("green", 1), ("red", 1)]
+  : [(value= String, count= Int)] end;
+
+# (idiomatic) Same as the benchmark version, but the group_by_label operation is a convenient way to group the categorical values. To work on numbers another method would need to be used. #
+let requires = [
+  (enforced=("static"), "c is in header(t1)"),
+  (enforced=("no"), "schema(t1)[c] is a categorical sort")
+] in
+let ensures = [
+  (enforced=("static"), "header(t2) is equal to ['value', 'count']"),
+  (enforced=("no"), "schema(t2)['value'] is equal to schema(t1)[c]"),
+  (enforced=("static"), "schema(t2)['count'] is equal to Number"),
+  (enforced=("no"), "nrows(t2) is equal to length(removeDuplicates(getColumn(t1, c))) — Note: if there are missing values in the input, this constraint requires one row for missing values in the output.")
+] in
+let count =
+  fun (t1 : [?], c : String) ->
+    (
+      flat_map(t1, to_lvs)
+      |> filter(_, fun e -> e.label == c)
+      |> group_by_label(_, `value`)
+      |> to_lvs
+      |> map(
+        _,
+        fun e -> (value= e.label) ... (count= length(e.value))
+      )
+    )
+    : [(value= String, count= Int)] in
+test
+  count(students, "favorite_color")
+  == [("blue", 1), ("green", 1), ("red", 1)]
+  : [(value= String, count= Int)] end

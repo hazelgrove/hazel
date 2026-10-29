@@ -17,7 +17,7 @@ let combine_result = (r1: match_result, r2: match_result): match_result =>
 
 /* Sample closures take call_stack, step_start, and step_end.
  * Collected during pattern matching when patterns are targeted. */
-type sample_closures = list((Sample.call_stack, int, int) => Sample.t);
+type sample_closures = list((CallStack.t, int, int) => Sample.t);
 
 /* Core pattern matching logic - just a switch on pattern structure */
 let match_pattern =
@@ -86,7 +86,7 @@ let record_sample =
   | (Some(spec), Matches(env)) =>
     sample_closures :=
       List.cons(
-        (call_stack: Sample.call_stack, step_start: int, step_end: int) =>
+        (call_stack: CallStack.t, step_start: int, step_end: int) =>
           Sample.mk(
             ~step_start,
             ~step_end,

@@ -158,12 +158,6 @@ let make_problem_context =
   };
 };
 
-/* ---------- Sorting helper (exposed for consumers) ---------- */
-
-let sort_by_pos =
-    (ctx: problem_context, problems: list(problem)): list(problem) =>
-  List.sort((a, b) => compare(ctx.pos(a.id), ctx.pos(b.id)), problems);
-
 /* ---------- Per-category collection (lazy) ---------- */
 
 let collect_category =
@@ -184,10 +178,10 @@ let collect_category =
       Segment.incomplete_tiles_deep(ctx.segment)
       |> List.to_seq
       |> Seq.map((t: Tile.t) => {
-           let all_indices = List.init(List.length(t.label), Fun.id);
+           let all_indices = List.init(Tile.arity(t), Fun.id);
            let missing_labels =
              List.filter(i => !List.mem(i, t.shards), all_indices)
-             |> List.map(i => List.nth(t.label, i));
+             |> List.map(i => Tile.token(t, i));
            let description =
              "Incomplete: missing " ++ String.concat(", ", missing_labels);
            {

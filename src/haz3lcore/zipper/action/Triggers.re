@@ -4,19 +4,62 @@ open OptUtil.Syntax;
 
 /* Syntax replacement operations to automatically run after insertion */
 
-/* Check if a string is a refractor trigger name (e.g., "^^type", "^^probe") */
+/* A trigger is written `^^kind` or `^^kind_opt`: the base name picks the
+   projector kind, the option after `_` a non-default model (`^^probe_table`
+   = a probe with the table renderer active). Token owns the `^^` prefix and
+   the `_` split, so this takes a BARE kind name. Refractors are the
+   additive-decoration kinds (probe, statics); other kinds answer None.
+     "probe"                ==> Some(Probe)
+     "slider"               ==> None  (a projector kind, not a refractor)
+     "probe_table" / "nope" ==> None  (not a kind name) */
+let refractor_kind_of_name = (name: string): option(ProjectorCore.Kind.t) =>
+  ProjectorCore.Kind.of_name_opt(name)
+  |> OptUtil.filter(ProjectorCore.Kind.is_refractor);
+
+/* Same, for a whole trigger token; None when it is not a trigger at all. */
+let refractor_kind_of_token = (s: string): option(ProjectorCore.Kind.t) =>
+  Option.bind(Token.of_projector_invoke_base(s), refractor_kind_of_name);
+
+/* Is this whole token a refractor trigger (e.g. "^^statics", "^^probe")?
+   "^^probe" / "^^probe_table" ==> true
+   "^^slider" / "let" / "^^"   ==> false */
 let is_refractor_trigger = (s: string): bool =>
-  String.length(s) > 2
-  && String.sub(s, 0, 2) == "^^"
-  && {
-    let kind_name = String.sub(s, 2, String.length(s) - 2);
-    ProjectorCore.Kind.is_name(kind_name)
-    && ProjectorCore.Kind.is_refractor(ProjectorCore.Kind.of_name(kind_name));
+  Option.is_some(refractor_kind_of_token(s));
+
+/* Parse a refractor trigger name to get the kind. Partial: only valid on
+   strings is_refractor_trigger accepts.
+     "^^probe" / "^^probe_table" ==> Probe */
+let of_refractor_trigger = (s: string): ProjectorCore.Kind.t =>
+  Option.get(refractor_kind_of_token(s));
+
+let refractor_model_of_opt =
+    (kind: ProjectorCore.Kind.t, opt: string): option(string) =>
+  switch (kind) {
+  | Probe => ProbeProj.model_string_for_renderer(opt)
+  | _ => None
   };
 
-/* Parse a refractor trigger name to get the kind */
-let of_refractor_trigger = (s: string): ProjectorCore.Kind.t =>
-  ProjectorCore.Kind.of_name(String.sub(s, 2, String.length(s) - 2));
+let refractor_opt_of_model =
+    (kind: ProjectorCore.Kind.t, model: string): option(string) =>
+  switch (kind) {
+  | Probe => ProbeProj.renderer_of_model_string(model)
+  | _ => None
+  };
+
+/* Full-token parse: kind plus the model its option selects (if any).
+   Used by trigger expansion and by text-slide loading. The model is the
+   serialized projector model, not the option name that picked it.
+     "^^probe"       ==> Some((Probe, None))
+     "^^probe_table" ==> Some((Probe, Some("((active_renderer(...)))"))) */
+let refractor_of_invoke_token =
+    (token: string): option((ProjectorCore.Kind.t, option(string))) => {
+  /* one strip-and-split for both halves, rather than re-parsing the
+     token once for the kind and again for the option */
+  let* body = Token.of_projector_invoke(token);
+  let (name, opt) = Token.split_invoke_opt(body);
+  let+ kind = refractor_kind_of_name(name);
+  (kind, Option.bind(opt, refractor_model_of_opt(kind)));
+};
 
 let exp_to_seg =
   ExpToSegment.exp_to_segment(
@@ -38,40 +81,63 @@ let invoked_projector = (name: string, syntax: Segment.t): option(Piece.t) => {
   );
 };
 
+/* Re-pin the refractor triggers a ~collect_refractors parse consumed from
+   the source. FastParse reports (id, verbatim token) but stays below the
+   action layer, so the token is parsed back into a kind here. Shared by
+   every fast-first parse: text-slide loading and paste. */
+let apply_refractors = (refractors: list((Id.t, string)), z: t): t =>
+  List.fold_left(
+    (z, (id, trigger)) =>
+      switch (refractor_of_invoke_token(trigger)) {
+      | Some((kind, model)) => ZipperBase.add_manual(~model?, id, kind, z)
+      | None => z
+      },
+    z,
+    refractors,
+  );
+
+/* nt is a single-token tile whose token satisfies is_invoke_tok */
+let is_invoke_tile = (is_invoke_tok: Token.t => bool, nt: Tile.t): bool =>
+  Tile.arity(nt) == 1 && is_invoke_tok(Tile.token(nt, 0));
+
 let expand_projector = (z: t): option(t) => {
   switch (z.relatives.siblings |> fst |> List.rev) {
-  | [
-      Tile({label: ["(", ")"], children: [syntax], _}),
-      Tile({label: [name], _}),
-      ...rest,
-    ]
-      when is_refractor_trigger(name) =>
+  | [Tile({children: [syntax], _} as parens), Tile(nt), ...rest]
+      when
+        Tile.is_paren_shaped(parens)
+        && is_invoke_tile(is_refractor_trigger, nt) =>
     /* Left siblings are stored as [oldest, ..., newest]. After List.rev we have
      * [newest(parens), ^^refractor, ...rest] where rest is [third_newest, ..., oldest].
      * We want syntax in the newest position: [oldest, ..., third_newest, syntax...] */
-    let kind = of_refractor_trigger(name);
+    let (kind, model) =
+      switch (refractor_of_invoke_token(Tile.token(nt, 0))) {
+      | Some(km) => km
+      | None => (of_refractor_trigger(Tile.token(nt, 0)), None)
+      };
     Zipper.update_siblings(((_, r)) => (List.rev(rest) @ syntax, r), z)
     |> Zipper.add_manual(
+         ~model?,
          Segment.root_id(Segment.skel(syntax), syntax),
          kind,
        )
     |> Option.some;
 
-  | [
-      Tile({label: ["(", ")"], children: [syntax], _}),
-      Tile({label: [name], _}),
-      ...rest,
-    ]
-      when Token.is_projector_invoke(name) =>
-    let+ piece = invoked_projector(name, syntax);
+  | [Tile({children: [syntax], _} as parens), Tile(nt), ...rest]
+      when
+        Tile.is_paren_shaped(parens)
+        && is_invoke_tile(Token.is_projector_invoke, nt) =>
+    let+ piece = invoked_projector(Tile.token(nt, 0), syntax);
     Zipper.update_siblings(
       ((_, r)) => ([piece, ...rest] |> List.rev, r),
       z,
     );
   /* Special case for reparsing of projectors placed on holes */
-  | [Tile({label: ["()"], _}), Tile({label: [name], _}), ...rest]
-      when Token.is_projector_invoke(name) =>
-    let+ piece = invoked_projector(name, [Piece.mk_grout(Convex)]);
+  | [Tile(ht), Tile(nt), ...rest]
+      when
+        Tile.is_empty_tuple_shaped(ht)
+        && is_invoke_tile(Token.is_projector_invoke, nt) =>
+    let+ piece =
+      invoked_projector(Tile.token(nt, 0), [Piece.mk_grout(Convex)]);
     Zipper.update_siblings(
       ((_, r)) => ([piece, ...rest] |> List.rev, r),
       z,
@@ -81,10 +147,24 @@ let expand_projector = (z: t): option(t) => {
 };
 
 let refractor_to_invoke =
-    (kind: ProjectorCore.Kind.t, seg: Segment.t): Segment.t => [
-  Piece.mk_tile(Form.mk_atom_op(Exp, Token.mk_projector_invoke(kind)), []),
-  Piece.mk_tile(Form.get(ApExp), [seg]),
-];
+    (~model: option(string)=?, kind: ProjectorCore.Kind.t, seg: Segment.t)
+    : Segment.t => {
+  let opt_suffix =
+    switch (Option.bind(model, refractor_opt_of_model(kind))) {
+    | Some(opt) => "_" ++ opt
+    | None => ""
+    };
+  [
+    Piece.mk_tile(
+      Form.classify_label(
+        Exp,
+        [Token.mk_projector_invoke(kind) ++ opt_suffix],
+      ),
+      [],
+    ),
+    Piece.mk_tile((Form.Compound(Ap), Sort.Exp), [seg]),
+  ];
+};
 
 /* Text-only version using Unicode brackets for CLI output.
  * Only wraps probes, not other projector kinds. */
@@ -92,21 +172,22 @@ let refractor_to_invoke_text =
     (kind: ProjectorCore.Kind.t, seg: Segment.t): Segment.t =>
   switch (kind) {
   | Probe =>
-    [Piece.mk_tile(Form.mk_atom_op(Exp, Token.probe_start), []), ...seg]
-    @ [Piece.mk_tile(Form.mk_atom_op(Exp, Token.probe_end), [])]
+    [Piece.mk_tile((Form.Tok(Token.probe_start), Sort.Any), []), ...seg]
+    @ [Piece.mk_tile((Form.Tok(Token.probe_end), Sort.Any), [])]
   | _ => refractor_to_invoke(kind, seg)
   };
 
 let projector_to_invoke = (pr: Base.projector): Segment.t =>
   refractor_to_invoke(pr.kind, Piece.unparenthesize(pr.syntax));
 
-let projector_to_invoke_text = (pr: Base.projector): Segment.t =>
-  refractor_to_invoke_text(pr.kind, Piece.unparenthesize(pr.syntax));
-
 let expand_livelit = (~ctx, z: t): option(t) =>
   switch (z.relatives.siblings |> fst |> List.rev) {
-  | [Secondary({content: Whitespace(w), _}), Tile({label: [t], _}), ..._]
-      when Token.is_livelit(t) && w == Token.space =>
+  | [Secondary({content: Whitespace(w), _}), Tile(lt), ..._]
+      when
+        Tile.arity(lt) == 1
+        && Token.is_livelit(Tile.token(lt, 0))
+        && w == Token.space =>
+    let t = Tile.token(lt, 0);
     let* ll = Language.Ctx.lookup_livelit(ctx, Token.parse_livelit(t));
     let seg = exp_to_seg(ll.model_default);
     let seg =
@@ -116,7 +197,7 @@ let expand_livelit = (~ctx, z: t): option(t) =>
       };
     let (l, _space) = ListUtil.split_last(fst(z.relatives.siblings));
     let (l, name) = ListUtil.split_last(l);
-    let seg = [name, Piece.mk_tile(Form.get(ApExp), [seg])];
+    let seg = [name, Piece.mk_tile((Form.Compound(Ap), Sort.Exp), [seg])];
     /* No statics available at trigger time; empty elaborated is fine
      * since Livelit has elaborate_syntax=false. */
     let+ pr =
@@ -162,7 +243,7 @@ let destruct = (z: t): option(t) =>
 /* Parameterized version: takes a wrapper function for customizing output */
 let refractor_seg_to_seg_with =
     (
-      ~wrapper: (ProjectorCore.Kind.t, Segment.t) => Segment.t,
+      ~wrapper: (Refractor.entry, Segment.t) => Segment.t,
       refractors: Zipper.Refractor.RefractorList.t,
       seg: Segment.t,
     )
@@ -279,7 +360,7 @@ let refractor_seg_to_seg_with =
     switch (List.assoc_opt(root_id, map)) {
     | Some(entry) => (
         ListUtil.remove_assoc(root_id, map),
-        wrapper(entry.kind, result),
+        wrapper(entry, result),
       )
     | None => (map, result)
     };
@@ -312,14 +393,22 @@ let refractor_seg_to_seg_with =
 let refractor_seg_to_seg =
     (refractors: Refractor.RefractorList.t, seg: Segment.t)
     : (Refractor.RefractorList.t, Segment.t) =>
-  refractor_seg_to_seg_with(~wrapper=refractor_to_invoke, refractors, seg);
+  refractor_seg_to_seg_with(
+    ~wrapper=
+      (entry: Refractor.entry, seg) =>
+        refractor_to_invoke(~model=entry.model, entry.kind, seg),
+    refractors,
+    seg,
+  );
 
 /* Text-only version using Unicode brackets for CLI output */
 let refractor_seg_to_seg_text =
     (refractors: Refractor.RefractorList.t, seg: Segment.t)
     : (Refractor.RefractorList.t, Segment.t) =>
   refractor_seg_to_seg_with(
-    ~wrapper=refractor_to_invoke_text,
+    ~wrapper=
+      (entry: Refractor.entry, seg) =>
+        refractor_to_invoke_text(entry.kind, seg),
     refractors,
     seg,
   );

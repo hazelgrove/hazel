@@ -12,6 +12,7 @@ let empty_hole_typ: form = {
         shape: Convex,
       }),
     ],
+    colorings: [],
     expandable_id: None,
     explanation,
     examples: [],
@@ -24,6 +25,7 @@ let multi_hole_typ: form = {
   {
     id: MultiHoleTyp,
     syntactic_form: [typ("Invalid")],
+    colorings: [],
     expandable_id: None,
     explanation,
     examples: [],

@@ -1,0 +1,144 @@
+type GradebookEntry = (
+  name= String,
+  age= Int,
+  quiz1= Int,
+  quiz2= Int,
+  midterm= Int,
+  quiz3= Int,
+  quiz4= Int,
+  final= Int
+) in
+let gradebook : [GradebookEntry] = (
+  [
+    ("Bob",   12, 8, 9, 77, 7, 9, 87),
+    ("Alice", 17, 6, 8, 88, 8, 7, 85),
+    ("Eve", 13, 7, 9, 84, 8, 8, 77)
+  ]
+) in
+
+# (benchmark) This version takes a string column name and can't guarantee the column is a number #
+let requires = [
+  (enforced=("no"), "c is in header(t1)"),
+  (enforced=("no"), "schema(t1)[c] is Number")
+] in
+let ensures = [
+  (enforced=("static"), "header(t2) is equal to ['group', 'count']"),
+  (enforced=("static"), "schema(t2)['group'] is String"),
+  (enforced=("static"), "schema(t2)['count'] is Number")
+] in
+let bin_int =
+  fun (is : [Int], bin_size : Int) ->
+    let floored = map(is, fun i -> i / bin_size * bin_size) in
+    let grouped =
+      fold_left(
+        floored,
+        fun (
+          acc,
+          i
+        ) ->
+          case find_opt(acc, fun (i', count) -> i == i')
+          | None => (i, 1) :: acc
+          | Some((i, cnt)) =>
+            (i, cnt + 1) :: filter(acc, fun (i', count) -> i != i')
+          end,
+        []
+      ) in
+    map(
+      grouped,
+      fun (i, cnt) -> (group= (i, i + bin_size), count= cnt)
+    ) in
+let bin =
+  fun (t1 : [?], c : String, n : Int) ->
+    let entries =
+      flat_map(t1, to_lvs)
+      |> filter(_, fun e -> e.label == c) in
+    let vals = entries.value in
+    let bins = bin_int(vals, n) in
+    map(
+      bins,
+      fun e ->
+        e
+        ... (
+          group=
+          let (group= (min, max), count=_) = e in
+          string_of_int(min)
+          ++ " <= "
+          ++ c
+          ++ " < "
+          ++ string_of_int(max)
+        )
+    )
+    : [(group= String, count= Int)] in
+test
+  bin(gradebook, "final", 2)
+  == [
+    (group="76 <= final < 78", count=1),
+    (group="84 <= final < 86", count=1),
+    (group= "86 <= final < 88", count= 1)
+  ]
+  : [(group= String, count= Int)] end;
+
+# (idiomatic) This version takes an explicit projection to gurantee the requires constraints #
+let requires = [
+  (enforced=("static"), "c is in header(t1)"),
+  (enforced=("static"), "schema(t1)[c] is Number")
+] in
+let ensures = [
+  (enforced=("static"), "header(t2) is equal to ['group', 'count']"),
+  (enforced=("static"), "schema(t2)['group'] is String"),
+  (enforced=("static"), "schema(t2)['count'] is Number")
+] in
+let bin_int =
+  fun (is : [Int], bin_size : Int) ->
+    let floored = map(is, fun i -> i / bin_size * bin_size) in
+    let grouped =
+      fold_left(
+        floored,
+        fun (
+          acc,
+          i
+        ) ->
+          case find_opt(acc, fun (i', count) -> i == i')
+          | None => (i, 1) :: acc
+          | Some((i, cnt)) =>
+            (i, cnt + 1) :: filter(acc, fun (i', count) -> i != i')
+          end,
+        []
+      ) in
+    map(
+      grouped,
+      fun (i, cnt) -> (group= (i, i + bin_size), count= cnt)
+    ) in
+let bin =
+  typfun row ->
+    fun (
+      t1 : [row],
+      c : String,
+      c_project : (row -> Int),
+      n : Int
+    ) ->
+      let vals = map(t1, c_project) in
+      let bins = bin_int(vals, n) in
+      map(
+        bins,
+        fun e ->
+          e
+          ... (
+            group=
+            let (group= (min, max), count=_) = e in
+            string_of_int(min)
+            ++ " <= "
+            ++ c
+            ++ " < "
+            ++ string_of_int(max)
+          )
+      )
+      : [(group= String, count= Int)] in
+test
+  bin@<GradebookEntry>(gradebook, "final", fun r -> r.final, 2)
+  == [
+    (group="76 <= final < 78", count=1),
+    (group="84 <= final < 86", count=1),
+    (group= "86 <= final < 88", count= 1)
+  ]
+  : [(group= String, count= Int)] end

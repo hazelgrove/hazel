@@ -1,5 +1,7 @@
 (include_subdirs unqualified)
 
+(copy_files ../../hazel-programs/docs/b2t2/*.hz)
+
 (library
  (name b2t2)
  (libraries haz3lcore)
@@ -17,7 +19,8 @@
    ppx_deriving.show
    ppx_deriving.eq))
  (preprocessor_deps
-  (file Datasheet.md)))
+  (file Datasheet.md)
+  (glob_files *.hz)))
 
 (env
  (dev

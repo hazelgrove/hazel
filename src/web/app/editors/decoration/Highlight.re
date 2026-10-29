@@ -60,8 +60,15 @@ let multiline_shard =
  * shard of each segment. Ideally we could just get this info from
  * the row measurements, but we have no current way of figuring out
  * shapes for whitespace without traversing */
+/* ~trim_ws: skip leading whitespace on continuation rows (rows after a
+ * linebreak), so selection decorations hug code instead of painting
+ * indentation. Whitespace only — comments are Secondary too and stay.
+ * Whitespace-only rows keep their full extent (else the selection
+ * reads as discontinuous), and the first row is never trimmed: its
+ * left edge is the selection start, which is deliberate. */
 let rows_of_segment =
     (
+      ~trim_ws: bool=false,
       ~measured: Measured.t,
       ~shape_map: ProjectorCore.Shape.Map.t,
       ~shape_init: ShardDec.tip,
@@ -76,21 +83,33 @@ let rows_of_segment =
               ShardDec.tip,
               list(
                 option(
-                  (Measured.measurement, (ShardDec.tip, ShardDec.tip)),
+                  (
+                    (Measured.measurement, (ShardDec.tip, ShardDec.tip)),
+                    bool,
+                  ),
                 ),
               ),
             ) => {
+    let tag = is_ws => Option.map(x => (x, is_ws));
     let shard_data =
       switch (p) {
       | Tile(t) => of_tile(~start_shape, t)
       | Projector(p) => of_projector(~start_shape, p)
-      | Grout(g) => [Some(shard_svg(~start_shape, find_g(g), p))]
+      | Grout(g) => [
+          Some(shard_svg(~start_shape, find_g(g), p)) |> tag(false),
+        ]
       | Secondary(w) when Secondary.is_linebreak(w) => [None]
       | Secondary(w) => [
           Some((
             find_w(w),
             (start_shape |> Option.map(Nib.Shape.flip), start_shape),
-          )),
+          ))
+          |> tag(
+               switch (w.content) {
+               | Whitespace(_) => true
+               | _ => false
+               },
+             ),
         ]
       };
     let next_start_shape =
@@ -108,15 +127,20 @@ let rows_of_segment =
            List.mem(i, t.shards) ? Some((i, m)) : None
          )
       |> List.map(((index, m)) => {
-           let token = List.nth(t.label, index);
+           let token = Tile.token(t, index);
            let shard = Tile.shard_of(t, index);
            switch (StringUtil.num_linebreaks(token)) {
-           | 0 => [Some(shard_svg(~start_shape, m, Tile(shard)))]
+           | 0 => [
+               Some(shard_svg(~start_shape, m, Tile(shard)))
+               |> Option.map(x => (x, false)),
+             ]
            | num_lb =>
              multiline_shard(num_lb, m, (Some(Convex), Some(Convex)))
+             |> List.map(Option.map(x => (x, false)))
            };
          });
-    let shape_at = index => Some(snd(Mold.nibs(~index, t.mold)).shape);
+    let shape_at = index =>
+      Some(snd(Mold.nibs(~index, Tile.mold(t))).shape);
     let children_shards =
       t.children |> List.mapi(index => of_segment(shape_at(index)));
     if (List.length(tile_shards) != List.length(children_shards) + 1) {
@@ -150,13 +174,14 @@ let rows_of_segment =
         };
       if (num_lb == 0) {
         [
-          Some(
+          Some((
             shard_svg(
               ~start_shape,
               Measured.find_pr(p, measured),
               Projector(p),
             ),
-          ),
+            false,
+          )),
         ];
       } else {
         List.init(num_lb + 1, _ => None);
@@ -165,8 +190,21 @@ let rows_of_segment =
   and of_segment =
       (start_shape: ShardDec.tip, seg: Segment.t): list(option(_)) =>
     seg |> List.fold_left_map(of_piece, start_shape) |> snd |> List.flatten;
+  let trim_row = row => {
+    let rec drop = xs =>
+      switch (xs) {
+      | [(_, true), ...rest] => drop(rest)
+      | _ => xs
+      };
+    switch (drop(row)) {
+    | [] => row
+    | trimmed => trimmed
+    };
+  };
   of_segment(shape_init, segment)
   |> ListUtil.split_at_nones
+  |> List.mapi((i, row) => trim_ws && i > 0 ? trim_row(row) : row)
+  |> List.map(List.map(fst))
   |> ListUtil.first_and_last
   |> List.map((((m1, (l1, _)), (m2, (_, r2)))) =>
        (
@@ -353,10 +391,14 @@ let bbox_of = (rows: list(row_data)): option(bbox) =>
     );
   };
 
+/* Fraction of a group's width covered by the active-eval sweep bar. */
+let sweep_width_ratio = 0.45;
+
 let svg_of_group =
     (
       ~font_metrics: FontMetrics.t,
       ~clss: list(string),
+      ~sweep: bool=false,
       rows: list(row_data),
     )
     : option(Node.t) =>
@@ -369,6 +411,51 @@ let svg_of_group =
 
     let path_cmds =
       outline_path(~origin_col=bb.min_col, ~origin_row=bb.min_row, rows);
+    /* Clip-path ids must be document-unique; derive one from the group's
+     * bounding box (cols are fractional, so scale to tenths of a column). */
+    let clip_id =
+      Printf.sprintf(
+        "incremental-active-%d-%d-%d-%d",
+        int_of_float(bb.min_col *. 10.0),
+        bb.min_row,
+        int_of_float(bb.max_col *. 10.0),
+        bb.max_row,
+      );
+    let active_sweep =
+      if (sweep) {
+        let sweep_width = max(1.0, width_f *. sweep_width_ratio);
+        [
+          Node.create_svg(
+            "defs",
+            [
+              Node.create_svg(
+                "clipPath",
+                ~attrs=[Attr.create("id", clip_id)],
+                [SvgUtil.Path.view(~attrs=[], path_cmds)],
+              ),
+            ],
+          ),
+          Node.create_svg(
+            "g",
+            ~attrs=[Attr.create("clip-path", "url(#" ++ clip_id ++ ")")],
+            [
+              Node.create_svg(
+                "rect",
+                ~attrs=[
+                  Attr.classes(["incremental-sweep"]),
+                  Attr.create("x", "0"),
+                  Attr.create("y", "0"),
+                  Attr.create("width", Printf.sprintf("%f", sweep_width)),
+                  Attr.create("height", Printf.sprintf("%f", height_f)),
+                ],
+                [],
+              ),
+            ],
+          ),
+        ];
+      } else {
+        [];
+      };
 
     Some(
       Node.create_svg(
@@ -391,7 +478,7 @@ let svg_of_group =
           ),
           Attr.create("preserveAspectRatio", "none"),
         ],
-        [SvgUtil.Path.view(~attrs=[], path_cmds)],
+        [SvgUtil.Path.view(~attrs=[], path_cmds)] @ active_sweep,
       ),
     );
   };
@@ -497,19 +584,21 @@ let clip_char_selection =
 
 let of_segment =
     (
+      ~trim_ws: bool=false,
       ~measured: Measured.t,
       ~shape_map: ProjectorCore.Shape.Map.t,
       ~font_metrics: FontMetrics.t,
       ~shape_init: ShardDec.tip,
       ~clss: list(string),
+      ~sweep: bool=false,
       segment: Segment.t,
     )
     : list(Node.t) => {
   let rows =
-    rows_of_segment(~measured, ~shape_map, ~shape_init, segment)
+    rows_of_segment(~trim_ws, ~measured, ~shape_map, ~shape_init, segment)
     |> List.map(((m, tips)) => row_data_of(m, tips));
   let groups = group_consecutive(rows);
-  List.filter_map(svg_of_group(~font_metrics, ~clss), groups);
+  List.filter_map(svg_of_group(~font_metrics, ~clss, ~sweep), groups);
 };
 
 let selection =
@@ -521,6 +610,7 @@ let selection =
     ) => {
   let rows =
     rows_of_segment(
+      ~trim_ws=true,
       ~measured,
       ~shape_map,
       ~shape_init=Some(fst(Siblings.shapes(z.relatives.siblings))),
@@ -570,6 +660,7 @@ let selection_expanded =
           seg,
         )
         @ of_segment(
+            ~trim_ws=true,
             ~measured,
             ~shape_map,
             ~font_metrics,
@@ -607,6 +698,7 @@ let color =
     (
       ~syntax: CachedSyntax.t,
       ~font_metrics: FontMetrics.t,
+      ~sweep: bool=false,
       clss: list(string),
       id: Id.t,
     ) =>
@@ -618,6 +710,7 @@ let color =
       ~font_metrics,
       ~shape_init=Some(Convex),
       ~clss,
+      ~sweep,
       segment,
     )
   | None => []
@@ -641,22 +734,22 @@ let colors =
     ),
   );
 
+/* `predicted_reuse` is the ReusePass plan (not the accumulating cache). */
 let incr_eval =
     (
       ~font_metrics: FontMetrics.t,
       ~syntax: CachedSyntax.t,
-      incr: Language.IncrEval.t,
+      ~pending_eval_ids: list(Id.t)=[],
+      ~show_active_eval: bool=false,
+      ~show_frozen: bool=true,
+      predicted_reuse: Language.EvaluatorState.incr_eval,
     ) => {
-  /* `frozen_ids` walks each reused subtree's prev_elab and emits every
-   * rep_id encountered. Many of those ids have nested or duplicate
-   * source ranges; painting them each as its own SVG stacks the 0.55
-   * alpha and makes inner regions look darker than the surrounding
-   * tint. Keep one id per maximal (outermost) range so each visible
-   * region gets exactly one decoration. Ids without a measurable range
-   * (elab-internal, no segment) are dropped here — the surviving ids in
-   * the same subtree cover the visible portion. */
-  let ranged_ids =
-    Language.IncrEval.frozen_ids(incr)
+  let range_eq = ((o1, l1), (o2, l2)) =>
+    Point.equals(o1, o2) && Point.equals(l1, l2);
+  let range_contains = ((o1, l1), (o2, l2)) =>
+    Point.compare(o1, o2) <= 0 && Point.compare(l2, l1) <= 0;
+  let ranged_ids_of = ids =>
+    ids
     |> List.sort_uniq(Id.compare)
     |> List.filter_map(id =>
          switch (
@@ -666,11 +759,12 @@ let incr_eval =
          | None => None
          }
        );
-  let range_eq = ((o1, l1), (o2, l2)) =>
-    Point.equals(o1, o2) && Point.equals(l1, l2);
-  let range_contains = ((o1, l1), (o2, l2)) =>
-    Point.compare(o1, o2) <= 0 && Point.compare(l2, l1) <= 0;
-  let outermost =
+  let range_compare = ((_, (o1, l1)), (_, (o2, l2))) =>
+    switch (Point.compare(o1, o2)) {
+    | 0 => Point.compare(l1, l2)
+    | cmp => cmp
+    };
+  let outermost = ranged_ids =>
     List.fold_left(
       (acc, (id, r)) =>
         if (List.exists(
@@ -685,12 +779,48 @@ let incr_eval =
       [],
       ranged_ids,
     );
+  let frozen_ids =
+    show_frozen ? Language.IncrEval.frozen_ids(~incr=predicted_reuse) : [];
+  let pending_eval_ranges =
+    pending_eval_ids |> ranged_ids_of |> List.sort(range_compare);
+  let active_ids =
+    if (show_active_eval) {
+      pending_eval_ranges |> ListUtil.hd_opt |> Option.to_list;
+    } else {
+      [];
+    };
+  let pending_inactive_ranges =
+    pending_eval_ranges
+    |> List.filter(((_, range)) =>
+         !
+           List.exists(
+             ((_, active_range)) => range_eq(active_range, range),
+             active_ids,
+           )
+       );
+  let frozen_outermost = frozen_ids |> ranged_ids_of |> outermost;
   div_c(
     "incremental-highlights",
     List.concat_map(
       ((id, _)) =>
         color(~syntax, ~font_metrics, ["incremental-frozen"], id),
-      outermost,
-    ),
+      frozen_outermost,
+    )
+    @ List.concat_map(
+        ((id, _)) =>
+          color(~syntax, ~font_metrics, ["incremental-pending"], id),
+        pending_inactive_ranges,
+      )
+    @ List.concat_map(
+        ((id, _)) =>
+          color(
+            ~syntax,
+            ~font_metrics,
+            ~sweep=true,
+            ["incremental-pending", "incremental-active"],
+            id,
+          ),
+        active_ids,
+      ),
   );
 };

@@ -11,6 +11,7 @@ let empty_hole_pat: form = {
         shape: Convex,
       }),
     ],
+    colorings: [],
     expandable_id: None,
     explanation,
     examples: [],
@@ -22,6 +23,7 @@ let multi_hole_pat: form = {
   {
     id: MultiHolePat,
     syntactic_form: [pat("Invalid")],
+    colorings: [],
     expandable_id: None,
     explanation,
     examples: [],

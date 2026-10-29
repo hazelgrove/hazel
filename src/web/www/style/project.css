@@ -12,7 +12,7 @@
   width: 260px;
   min-width: 220px;
   max-width: 320px;
-  border-right: 0.6px solid var(--BR2);
+  border-right: 0.6px solid var(--border-default);
   background-color: var(--ui-bkg);
   overflow-y: auto;
 }
@@ -74,7 +74,7 @@
   width: 12px;
   margin-right: 6px;
   text-align: center;
-  color: var(--BR3);
+  color: var(--text-accent);
 }
 
 .project-fs-name {
@@ -171,7 +171,7 @@
   gap: 6px;
   padding: 4.5px 12px;
   border-radius: 0.1em 0.4em 0 0;
-  background-color: var(--T3);
+  background-color: var(--surface-sunken);
   color: var(--menu-item-text);
   cursor: pointer;
   user-select: none;
@@ -189,8 +189,8 @@
 }
 
 .project-tab-current {
-  color: var(--BR4);
-  border-bottom-color: var(--Y3);
+  color: var(--text-strong);
+  border-bottom-color: var(--border-warning);
   border-bottom-width: 3px;
   font-weight: 500;
 }

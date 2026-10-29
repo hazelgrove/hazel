@@ -1,4 +1,3 @@
-open Util;
 open Language;
 open Language.Statics;
 open HighLevelNodeMap.Public;
@@ -129,116 +128,9 @@ module Local = {
     };
   };
 
-  module ContextUtils = {
-    let context_of = (node: HighLevelNodeMap.node): string => {
-      switch (node.info) {
-      | InfoExp({ctx, _}) =>
-        let bindings: Binding.s =
-          List.filter_map(
-            (entry: Ctx.entry) => {
-              let b =
-                switch (entry) {
-                | Ctx.VarEntry(entry) => Ctx.binding_of(ctx, entry.name)
-                | Ctx.TVarEntry(entry) => Ctx.binding_of(ctx, entry.name)
-                | Ctx.ConstructorEntry(entry) =>
-                  Ctx.binding_of(ctx, entry.name)
-                | _ => Ctx.binding_of(ctx, "") // invalid
-                };
-              if (b.id == Id.invalid) {
-                None;
-              } else {
-                Some(b);
-              };
-            },
-            ctx.entries,
-          );
-        "Typing Context: ["
-        ++ String.concat(
-             "\n",
-             List.mapi(
-               (i: int, b: Binding.t) =>
-                 b.name ++ "(Index: " ++ string_of_int(i) ++ ")",
-               bindings,
-             ),
-           )
-        ++ "]";
-      | _ => ""
-      };
-    };
-
-    let refs_in =
-        (
-          ~exclude_rec_refs: bool=false,
-          ~exclude_body_refs: bool=false,
-          info_map: Id.Map.t(Info.t),
-          node: HighLevelNodeMap.node,
-        )
-        : list(Binding.t) => {
-      let id = Utils.get_def_id_of_let(node.info);
-      let refs_of_def = Statics.Map.refs_in(info_map, id);
-      let refs_of_node =
-        Statics.Map.refs_in(info_map, HighLevelNodeMap.id_of(node));
-
-      // Intersect based on binding IDs
-      // This allows us to ignore references in the body AND recursive references in the def
-      // (refs_of_def will not have body refs)
-      // (refs_of_node will not have recursive refs)
-      let intersected_refs =
-        ListUtil.intersection_f(
-          (b: Binding.t) => b.id,
-          refs_of_def,
-          refs_of_node,
-        );
-
-      let refs =
-        switch (exclude_rec_refs, exclude_body_refs) {
-        | (true, true) => intersected_refs
-        | (true, false) => refs_of_node
-        | (false, true) => refs_of_def
-        | (false, false) => refs_of_def @ refs_of_node
-        };
-
-      // remove duplicates
-      let refs' =
-        ListUtil.dedup_f(
-          (b1: Binding.t, b2: Binding.t) => b1.id == b2.id,
-          refs,
-        );
-
-      let refs'' = List.filter((b: Binding.t) => b.id != Id.invalid, refs');
-
-      refs'';
-    };
-
-    let str_of_refs_in = (references: list(Binding.t)): string => {
-      "Variables referenced: ["
-      ++ String.concat(
-           ", ",
-           List.mapi(
-             (i: int, b: Binding.t) =>
-               b.name ++ " (Index: " ++ string_of_int(i) ++ ")",
-             references,
-           ),
-         )
-      ++ "]";
-    };
-
-    let str_refs_in =
-        (
-          ~exclude_rec_refs: bool=false,
-          ~exclude_body_refs: bool=false,
-          info_map: Id.Map.t(Info.t),
-          node: HighLevelNodeMap.node,
-        )
-        : string => {
-      refs_in(~exclude_rec_refs, ~exclude_body_refs, info_map, node)
-      |> str_of_refs_in;
-    };
-  };
-
   let projector_to_segment = (pr: Base.projector): Segment.t =>
     switch (pr.kind) {
-    | Fold => [Piece.mk_tile(Form.mk_atom_op(Exp, {|⋱|}), [])]
+    | Fold => [Piece.mk_tile((Form.Tok({|⋱|}), Sort.Any), [])]
     | _ => Triggers.projector_to_invoke(pr)
     };
 
@@ -256,9 +148,20 @@ module Local = {
 
     /* Zipper after applying the same collapse rules as [print] (before stringification). */
     let zipper_for_agent_context =
-        (editor: Editor.t, agent_context: AgentContext.Model.t): Zipper.t => {
+        (
+          ~info_map: option(Statics.Map.t)=?,
+          editor: Editor.t,
+          agent_context: AgentContext.Model.t,
+        )
+        : Zipper.t => {
       let z = editor.state.zipper;
-      let info_map = CompositionGo.Public.mk_statics(z);
+      /* callers that already hold this program's statics pass them: a
+         fresh run here was most of a tool call's cost */
+      let info_map =
+        switch (info_map) {
+        | Some(m) => m
+        | None => CompositionGo.Public.mk_statics(z)
+        };
       switch (HighLevelNodeMap.build(z, info_map)) {
       | None => z
       | Some(node_map) =>
@@ -283,11 +186,12 @@ module Local = {
     let print =
         (
           ~probe_map: Language.Sample.Map.t=Language.Sample.Map.empty,
+          ~info_map: option(Statics.Map.t)=?,
           editor: Editor.t,
           agent_context: AgentContext.Model.t,
         )
         : string => {
-      let z' = zipper_for_agent_context(editor, agent_context);
+      let z' = zipper_for_agent_context(~info_map?, editor, agent_context);
       let has_probes = !List.is_empty(z'.refractors.manuals);
       if (has_probes) {
         ProbeText.of_zipper(~projector_to_segment, ~probe_map, z');

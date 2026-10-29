@@ -3,26 +3,11 @@ open Util;
 
 /* This file follows conventions in [docs/ui-architecture.md] */
 
-/* Dirty tracking for autosave: only re-persist slides that changed since
-   last save. Eliminates expensive Zipper.zip + Base.equal_segment checks. */
-let dirty_slides: ref(Sets.StringSet.t) = ref(Sets.StringSet.empty);
-let persist_cache:
-  ref(Maps.StringMap.t(option(CellEditor.Model.persistent))) =
-  ref(Maps.StringMap.empty);
-
-let mark_dirty = (name: string): unit =>
-  dirty_slides := Sets.StringSet.add(name, dirty_slides^);
-
-let reset_persist_state = (): unit => {
-  dirty_slides := Sets.StringSet.empty;
-  persist_cache := Maps.StringMap.empty;
-};
-
 module Scratchpad = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type code = {
     editor: CellEditor.Model.t,
-    agent: Agent.Agent.Model.t,
+    agent: Agent.Model.t,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -30,16 +15,22 @@ module Scratchpad = {
     | Code(code)
     | Drv(DerivationExerciseMode.Model.t);
 
+  /* Lazy hydration: boot builds a full editor (parse + statics cache +
+     agent state) for the CURRENT slide only; every other slide is a
+     blank placeholder with [dormant] set, swapped for the real slide on
+     first switch (Persist.hydrate_current). save_current refuses to
+     write a dormant placeholder over the stored slide. */
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     name: string,
     kind,
+    dormant: bool,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type code_persistent = {
     editor: option(CellEditor.Model.persistent),
-    agent: Agent.Agent.Persistent.t,
+    agent: Agent.Persistent.t,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -56,23 +47,29 @@ module Scratchpad = {
   let persist = (s: t): persistent => {
     switch (s.kind) {
     | Code({editor, agent}) =>
-      let current_segment = Zipper.zip(editor.editor.editor.state.zipper);
+      let current_zipper = editor.editor.editor.state.zipper;
+      let current_segment = Zipper.zip(current_zipper);
       let original = Init.find_documentation_slide(s.name);
-      let original_segment =
-        original
-        |> Option.map((pce: CellEditor.Model.persistent) =>
-             PersistentZipper.unpersist(
-               pce.editor.zipper,
-               ~root=pce.editor.root,
+      /* Originals are text-backed (committed .hz) and mint fresh ids on
+         every parse, so id-sensitive segment equality can never match;
+         compare by the text projection instead — FastParse loads the
+         text verbatim, so an unedited slide prints byte-identically
+         modulo the stored final newline (the writer's artifact, which
+         the print never carries). */
+      let unchanged =
+        switch (original) {
+        | None => false
+        | Some(pce) =>
+          MarkerParse.seg_to_text(
+            ~refractors=current_zipper.refractors.manuals,
+            current_segment,
+          )
+          == Util.StringUtil.strip_final_newline(
+               pce.editor.zipper.backup_text,
              )
-           )
-        |> Option.map(Zipper.zip);
+        };
       let editor_persist =
-        if (Option.equal(
-              Base.equal_segment,
-              original_segment,
-              Some(current_segment),
-            )) {
+        if (unchanged) {
           None;
         } else {
           Some(CellEditor.Model.persist(editor));
@@ -82,7 +79,7 @@ module Scratchpad = {
         kind:
           CodePersist({
             editor: editor_persist,
-            agent: Agent.Agent.Persistent.persist(agent),
+            agent: Agent.Persistent.persist(agent),
           }),
       };
     | Drv(m) => {
@@ -95,47 +92,14 @@ module Scratchpad = {
     };
   };
 
-  /* Used only for migration fallback from old monolithic format */
-  let unpersist = (~settings, p: persistent): t => {
-    switch (p.kind) {
-    | CodePersist({editor, agent}) => {
-        name: p.name,
-        kind:
-          Code({
-            editor:
-              OptUtil.get(
-                () => Init.default_documentation_slide_name(p.name),
-                editor,
-              )
-              |> CellEditor.Model.unpersist(~settings),
-            agent: Agent.Agent.Persistent.unpersist(agent),
-          }),
-      }
-    | DrvPersist(dp) => {
-        name: p.name,
-        kind:
-          Drv(
-            DerivationExerciseMode.Model.unpersist(
-              ~settings,
-              ~instructor_mode=false,
-              dp,
-              DerivationExercise.blank_spec(
-                ~title=p.name,
-                ~module_name=p.name,
-              ),
-            ),
-          ),
-      }
-    };
-  };
-
   let mk_code = (~name, ~editor, ()): t => {
     name,
     kind:
       Code({
         editor,
-        agent: Agent.Agent.Utils.init(),
+        agent: Agent.Utils.init(),
       }),
+    dormant: false,
   };
 
   let blank_code = (name: string): t =>
@@ -144,6 +108,11 @@ module Scratchpad = {
       ~editor=CellEditor.Model.mk(Editor.Model.mk(Zipper.init(), ~root=Exp)),
       (),
     );
+
+  let dormant_code = (name: string): t => {
+    ...blank_code(name),
+    dormant: true,
+  };
 
   let blank_drv = (~settings, name: string): t => {
     name,
@@ -155,11 +124,8 @@ module Scratchpad = {
           DerivationExercise.blank_spec(~title=name, ~module_name=name),
         ),
       ),
+    dormant: false,
   };
-
-  /* Backward-compat constructor (Code-only). Kept for call sites that
-     pre-date the kind split. */
-  let mk = mk_code;
 };
 
 module Model = {
@@ -169,83 +135,13 @@ module Model = {
     scratchpads: list(Scratchpad.t),
   };
 
+  /* The monolithic export/import format (per-slide keys are the live
+     storage; see Persist below). */
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = (int, list(Scratchpad.persistent));
 
-  let persist = (model: t): persistent => {
-    let persisted_slides =
-      List.map(
-        (s: Scratchpad.t) => {
-          switch (s.kind) {
-          | Code({editor, agent}) =>
-            let is_dirty = Sets.StringSet.mem(s.name, dirty_slides^);
-            let has_cache = Maps.StringMap.mem(s.name, persist_cache^);
-            let editor_persist =
-              if (is_dirty || !has_cache) {
-                let persisted = Some(CellEditor.Model.persist(editor));
-                persist_cache :=
-                  Maps.StringMap.add(s.name, persisted, persist_cache^);
-                persisted;
-              } else {
-                Maps.StringMap.find(s.name, persist_cache^);
-              };
-            Scratchpad.{
-              name: s.name,
-              kind:
-                CodePersist({
-                  editor: editor_persist,
-                  agent: Agent.Agent.Persistent.persist(agent),
-                }),
-            };
-          | Drv(m) =>
-            Scratchpad.{
-              name: s.name,
-              kind:
-                DrvPersist(
-                  DerivationExerciseMode.Model.persist(
-                    m,
-                    ~instructor_mode=false,
-                  ),
-                ),
-            }
-          }
-        },
-        model.scratchpads,
-      );
-    dirty_slides := Sets.StringSet.empty;
-    (model.current, persisted_slides);
-  };
-
-  let unpersist = (~settings, (current, scratchpads): persistent): t => {
-    /* Seed persist cache with loaded values so unchanged slides
-       (stored as None) aren't needlessly re-persisted on first save */
-    reset_persist_state();
-    List.iter(
-      (sp: Scratchpad.persistent) =>
-        switch (sp.kind) {
-        | CodePersist({editor, _}) =>
-          persist_cache := Maps.StringMap.add(sp.name, editor, persist_cache^)
-        | DrvPersist(_) => ()
-        },
-      scratchpads,
-    );
-    {
-      current,
-      scratchpads:
-        List.map(sp => Scratchpad.unpersist(~settings, sp), scratchpads),
-    };
-  };
-
   let scratchpad_names = (model: t): list(string) =>
     List.map((s: Scratchpad.t) => s.name, model.scratchpads);
-
-  let get_derivation_info = (model: t) => {
-    let current = List.nth(model.scratchpads, model.current);
-    switch (current.kind) {
-    | Code(_) => None
-    | Drv(m) => DerivationExerciseMode.Model.get_derivation_info(m)
-    };
-  };
 };
 
 /* Per-slide IndexedDB persistence. Each scratchpad's editor and agent
@@ -255,7 +151,7 @@ module Model = {
    Key layout:
      <prefix>:_meta         → slide_meta (current_index, names)
      <prefix>:<name>        → CellEditor.Model.persistent
-     <prefix>:<name>:agent  → Agent.Agent.Persistent.t */
+     <prefix>:<name>:agent  → Agent.Persistent.t */
 module Persist = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type slide_meta = {
@@ -308,7 +204,7 @@ module Persist = {
           Some(
             Scratchpad.CodePersist({
               editor: Some(e),
-              agent: Agent.Agent.Persistent.persist(Agent.Agent.Utils.init()),
+              agent: Agent.Persistent.persist(Agent.Utils.init()),
             }),
           )
         | exception _ => None
@@ -316,32 +212,29 @@ module Persist = {
       };
     };
 
-  let delete_slide = (prefix: string, name: string): unit => {
-    HazelDB.kv_delete(slide_key(prefix, name));
-    HazelDB.kv_delete(agent_key(prefix, name));
-  };
-
   let save_agent =
-      (prefix: string, name: string, agent: Agent.Agent.Persistent.t): unit => {
+      (prefix: string, name: string, agent: Agent.Persistent.t): unit => {
     let key = agent_key(prefix, name);
     let serialized =
-      agent |> Agent.Agent.Persistent.sexp_of_t |> Sexplib.Sexp.to_string;
+      agent |> Agent.Persistent.sexp_of_t |> Sexplib.Sexp.to_string;
     HazelDB.kv_save(key, serialized);
   };
 
-  let load_agent =
-      (prefix: string, name: string): option(Agent.Agent.Persistent.t) =>
+  let load_agent = (prefix: string, name: string): option(Agent.Persistent.t) =>
     switch (HazelDB.kv_get(agent_key(prefix, name))) {
     | Some(data) =>
-      try(
-        Some(
-          data |> Sexplib.Sexp.of_string |> Agent.Agent.Persistent.t_of_sexp,
-        )
-      ) {
+      try(Some(data |> Sexplib.Sexp.of_string |> Agent.Persistent.t_of_sexp)) {
       | _ => None
       }
     | None => None
     };
+
+  /* Change-gate for agent saves: serializing a long conversation on
+     every editor autosave is the expensive part, so skip when the agent
+     model is physically unchanged (edits rebuild the scratchpad record
+     but reuse the agent field). */
+  let last_saved_agent: Hashtbl.t(string, Agent.Model.t) = Hashtbl.create(8);
+  let last_agent_save_ts: Hashtbl.t(string, float) = Hashtbl.create(8);
 
   let save_current = (prefix: string, model: Model.t): unit => {
     let names = Model.scratchpad_names(model);
@@ -353,23 +246,58 @@ module Persist = {
       },
     );
     let sp = List.nth(model.scratchpads, model.current);
-    let p = Scratchpad.persist(sp);
-    switch (p.kind) {
-    | CodePersist({editor, agent}) =>
-      switch (editor) {
-      | Some(e) =>
+    switch (sp.dormant, sp.kind) {
+    | (true, _) => () /* never write a placeholder over the stored slide */
+    | (false, Code({editor, agent})) =>
+      switch (CellEditor.Model.persist(editor)) {
+      | e =>
+        /* The slide blob carries the editor only; the conversation
+           lives solely under the :agent key (it used to be embedded
+           here TOO, doubling every write and boot deserialization). */
         save_slide_kind(
           prefix,
           sp.name,
           CodePersist({
             editor: Some(e),
-            agent,
+            agent: Agent.Persistent.persist(Agent.Utils.init()),
           }),
         )
-      | None => ()
       };
-      save_agent(prefix, sp.name, agent);
-    | DrvPersist(_) as k => save_slide_kind(prefix, sp.name, k)
+      let agent_key_str = prefix ++ ":" ++ sp.name;
+      /* the agent model changes on every streamed chunk, so a physical
+         equality gate saved (and serialized, several MB) many times a
+         second while the model spoke; gate on the fields that persist */
+      let unchanged =
+        switch (Hashtbl.find_opt(last_saved_agent, agent_key_str)) {
+        | Some(prev) =>
+          let prev: Agent.Model.t = prev;
+          prev === agent
+          || prev.chat_system === agent.chat_system
+          && prev.prompting === agent.prompting
+          && prev.active_timeline_node == agent.active_timeline_node
+          && prev.awaiting_response == agent.awaiting_response;
+        | None => false
+        };
+      /* while the agent works (tools landing every few hundred ms) one save
+         per 10 s is enough; the final save comes when it goes idle */
+      let busy =
+        agent.awaiting_response != None || agent.pending_dispatch_send != None;
+      let now = JsUtil.timestamp();
+      let recently =
+        switch (Hashtbl.find_opt(last_agent_save_ts, agent_key_str)) {
+        | Some(t) => now -. t < 10000.
+        | None => false
+        };
+      if (!unchanged && !(busy && recently)) {
+        save_agent(prefix, sp.name, Agent.Persistent.persist(agent));
+        Hashtbl.replace(last_saved_agent, agent_key_str, agent);
+        Hashtbl.replace(last_agent_save_ts, agent_key_str, now);
+      };
+    | (false, Drv(_)) =>
+      switch (Scratchpad.persist(sp).kind) {
+      | DrvPersist(_) as k => save_slide_kind(prefix, sp.name, k)
+      | CodePersist(_) => ()
+      }
     };
   };
 
@@ -394,8 +322,9 @@ module Persist = {
                 }
               )
               |> CellEditor.Model.unpersist(~settings),
-            agent: Agent.Agent.Persistent.unpersist(agent),
+            agent: Agent.Persistent.unpersist(agent),
           }),
+        dormant: false,
       };
     | Some(DrvPersist(p)) =>
       Scratchpad.{
@@ -409,6 +338,7 @@ module Persist = {
               DerivationExercise.blank_spec(~title=name, ~module_name=name),
             ),
           ),
+        dormant: false,
       }
     | None =>
       /* No persisted data for this slide. If the name matches a Drv
@@ -427,12 +357,13 @@ module Persist = {
                 spec,
               ),
             ),
+          dormant: false,
         }
       | None =>
         let agent =
           switch (load_agent(prefix, name)) {
-          | Some(p) => Agent.Agent.Persistent.unpersist(p)
-          | None => Agent.Agent.Utils.init()
+          | Some(p) => Agent.Persistent.unpersist(p)
+          | None => Agent.Utils.init()
           };
         Scratchpad.{
           name,
@@ -443,6 +374,7 @@ module Persist = {
                 |> CellEditor.Model.unpersist(~settings),
               agent,
             }),
+          dormant: false,
         };
       }
     };
@@ -464,7 +396,31 @@ module Persist = {
     Model.{
       current,
       scratchpads:
-        List.map(name => load_scratchpad(~settings, prefix, name), names),
+        List.mapi(
+          (i, name) =>
+            i == current
+              ? load_scratchpad(~settings, prefix, name)
+              : Scratchpad.dormant_code(name),
+          names,
+        ),
+    };
+  };
+
+  /* Swap the placeholder at [current] for the real slide, if dormant. */
+  let hydrate_current = (~settings, prefix: string, model: Model.t): Model.t => {
+    let sp = List.nth(model.scratchpads, model.current);
+    if (sp.dormant) {
+      {
+        ...model,
+        scratchpads:
+          Util.ListUtil.put_nth(
+            model.current,
+            load_scratchpad(~settings, prefix, sp.name),
+            model.scratchpads,
+          ),
+      };
+    } else {
+      model;
     };
   };
 
@@ -504,8 +460,7 @@ module Persist = {
             let agent =
               switch (load_agent(prefix, name)) {
               | Some(a) => a
-              | None =>
-                Agent.Agent.Persistent.persist(Agent.Agent.Utils.init())
+              | None => Agent.Persistent.persist(Agent.Utils.init())
               };
             Scratchpad.{
               name,
@@ -574,8 +529,11 @@ let integrate_share =
   | None => model
   | Some(data) =>
     let shared_text = data |> StringUtil.decompress;
+    /* zipper: "" = the intentional text path (share links carry only
+       text); a non-empty sentinel would take the sexp arm and print the
+       stale-serialization warning on every share-link load */
     let shared: PersistentZipper.t = {
-      zipper: "invalid",
+      zipper: "",
       backup_text: shared_text,
     };
     let shared: CellEditor.Model.persistent = {
@@ -604,7 +562,7 @@ module Update = {
   type t =
     | CellAction(CellEditor.Update.t)
     | RefreshStatics
-    | AgentAction(Agent.Agent.Update.Action.t)
+    | AgentAction(Agent.Update.Action.t)
     | DrvAction(DerivationExerciseMode.Update.t)
     | SwitchSlide(int)
     | ResetCurrent
@@ -616,25 +574,6 @@ module Update = {
     | AddDrvSlide
     | RenameSlide
     | DeleteSlide;
-
-  let can_undo = (action: t) => {
-    switch (action) {
-    | CellAction(action) => CellEditor.Update.can_undo(action)
-    | RefreshStatics => false
-    | AgentAction(_) => true
-    | DrvAction(action) => DerivationExerciseMode.Update.can_undo(action)
-    | SwitchSlide(_) => false
-    | ResetCurrent => true
-    | InitImportScratchpad(_) => true
-    | FinishImportScratchpad(_) => false
-    | Export => false
-    | Encode => false
-    | AddSlide => true
-    | AddDrvSlide => true
-    | DeleteSlide => true
-    | RenameSlide => true
-    };
-  };
 
   let export_scratch_slide = (model: Model.t): unit => {
     let scratchpad = List.nth(model.scratchpads, model.current);
@@ -764,7 +703,7 @@ module Update = {
         ~schedule_action,
         ~settings: Settings.t,
         ~is_documentation: bool,
-        action,
+        action: t,
         model: Model.t,
       ) => {
     switch (action) {
@@ -772,16 +711,10 @@ module Update = {
       let scratchpad = List.nth(model.scratchpads, model.current);
       switch (scratchpad.kind) {
       | Code({editor, agent}) =>
-        let schedule_agent = (a: Agent.Agent.Update.Action.t) =>
+        let schedule_agent = (a: Agent.Update.Action.t) =>
           schedule_action(AgentAction(a));
         let (new_agent, updated_editor) =
-          Agent.Agent.Update.update(
-            a,
-            agent,
-            editor,
-            settings,
-            schedule_agent,
-          );
+          Agent.Update.update(a, agent, editor, settings, schedule_agent);
         let* new_ed = updated_editor;
         let new_sp =
           ListUtil.put_nth(
@@ -806,7 +739,6 @@ module Update = {
       let scratchpad = List.nth(model.scratchpads, model.current);
       switch (scratchpad.kind) {
       | Code({editor, agent}) =>
-        mark_dirty(scratchpad.name);
         let* new_ed = CellEditor.Update.update(~settings, a, editor);
         let new_sp =
           ListUtil.put_nth(
@@ -832,7 +764,6 @@ module Update = {
       let scratchpad = List.nth(model.scratchpads, model.current);
       switch (scratchpad.kind) {
       | Drv(m) =>
-        mark_dirty(scratchpad.name);
         let* new_m =
           DerivationExerciseMode.Update.update(
             ~settings,
@@ -860,12 +791,18 @@ module Update = {
       CodeWithStatics.StaticsDebounce.force_on_next := true;
       model |> Updated.return_quiet(~recalculate=true);
     | SwitchSlide(i) =>
-      let* current = i |> Updated.return;
-      {
-        ...model,
-        current,
-      };
+      WorkerClient.cancel();
+      let* current = i |> Updated.return(~historic=false);
+      Persist.hydrate_current(
+        ~settings=settings.core,
+        is_documentation ? "doc" : "scratch",
+        {
+          ...model,
+          current,
+        },
+      );
     | AddSlide =>
+      WorkerClient.cancel();
       Updated.return(
         add_new_slide(
           ~kind=NewCode,
@@ -873,8 +810,9 @@ module Update = {
           model,
           is_documentation,
         ),
-      )
+      );
     | AddDrvSlide =>
+      WorkerClient.cancel();
       Updated.return(
         add_new_slide(
           ~kind=NewDrv,
@@ -882,7 +820,7 @@ module Update = {
           model,
           is_documentation,
         ),
-      )
+      );
     | RenameSlide =>
       let current = List.nth(model.scratchpads, model.current);
       let new_name =
@@ -900,10 +838,6 @@ module Update = {
       switch (new_name) {
       | None => model |> return_quiet
       | Some(new_name) =>
-        let old_name = current.name;
-        persist_cache := Maps.StringMap.remove(old_name, persist_cache^);
-        dirty_slides := Sets.StringSet.remove(old_name, dirty_slides^);
-        mark_dirty(new_name);
         let new_sp =
           ListUtil.put_nth(
             model.current,
@@ -924,9 +858,7 @@ module Update = {
           "Are you SURE you want to delete this slide? You will lose any existing code that you have written, and course staff have no way to restore it!",
         );
       if (confirmed) {
-        let deleted_name = List.nth(model.scratchpads, model.current).name;
-        persist_cache := Maps.StringMap.remove(deleted_name, persist_cache^);
-        dirty_slides := Sets.StringSet.remove(deleted_name, dirty_slides^);
+        WorkerClient.cancel();
         let new_sp =
           ListUtil.remove_nth(model.current, model.scratchpads)
           |> Option.value(~default=model.scratchpads);
@@ -942,10 +874,14 @@ module Update = {
                 },
                 is_documentation,
               )
-            : {
-              scratchpads: new_sp,
-              current: max(model.current - 1, 0),
-            };
+            : Persist.hydrate_current(
+                ~settings=settings.core,
+                is_documentation ? "doc" : "scratch",
+                {
+                  scratchpads: new_sp,
+                  current: max(model.current - 1, 0),
+                },
+              );
         Updated.return(m);
       } else {
         model |> return_quiet;
@@ -953,8 +889,6 @@ module Update = {
 
     | ResetCurrent =>
       let scratchpad = List.nth(model.scratchpads, model.current);
-      mark_dirty(scratchpad.name);
-      persist_cache := Maps.StringMap.remove(scratchpad.name, persist_cache^);
       switch (scratchpad.kind) {
       | Code({agent, _}) =>
         let source =
@@ -1005,9 +939,6 @@ module Update = {
         let scratchpad = List.nth(model.scratchpads, model.current);
         switch (scratchpad.kind) {
         | Code({agent, _}) =>
-          mark_dirty(scratchpad.name);
-          persist_cache :=
-            Maps.StringMap.remove(scratchpad.name, persist_cache^);
           let new_data =
             data
             |> Sexplib.Sexp.of_string
@@ -1078,39 +1009,17 @@ module Update = {
           ~stitch=x => x,
           editor,
         );
-      switch (worker_request^) {
-      | [] => ()
-      | _ =>
-        WorkerClient.request(
-          worker_request^,
-          ~handler=
-            r => {
-              schedule_action(
-                CellAction(
-                  ResultAction(
-                    UpdateResult(
-                      switch (r |> List.hd |> snd) {
-                      | Ok((r, s)) =>
-                        Language.ProgramResult.ResultOk({
-                          result: r,
-                          state: s,
-                        })
-                      | Error(e) => Language.ProgramResult.ResultFail(e)
-                      },
-                    ),
-                  ),
-                ),
-              )
-            },
-          ~timeout=
-            _ =>
-              schedule_action(
-                CellAction(
-                  ResultAction(UpdateResult(ResultFail(Timeout))),
-                ),
-              ),
-        )
-      };
+      let dispatch = (_key, action) =>
+        schedule_action(CellAction(ResultAction(action)));
+      EvalRequest.request(
+        worker_request^,
+        ~pos_of_key=key => key,
+        ~dispatch,
+        ~on_timeout=
+          List.iter(((key, _)) =>
+            dispatch(key, UpdateResult(ResultFail(Timeout)))
+          ),
+      );
       let new_sp =
         ListUtil.put_nth(
           model.current,
@@ -1132,6 +1041,7 @@ module Update = {
       let new_m =
         DerivationExerciseMode.Update.calculate(
           ~settings,
+          ~autoprobe_mode,
           ~is_edited,
           ~schedule_action=a => schedule_action(DrvAction(a)),
           m,
@@ -1190,41 +1100,29 @@ module Selection = {
       };
     cursor
     |> Cursor.with_actions([
-         ContextualAction.mk(
-           ~mdIcon="download",
-           ~section="Export",
+         ContextualAction.of_shortcut(
            ~action=inject(Export),
-           "Export Current Scratchpad",
+           ExportCurrentScratchpad,
          ),
-         ContextualAction.mk(
-           ~mdIcon="download",
-           ~section="Export",
+         ContextualAction.of_shortcut(
            ~action=inject(Encode),
-           "Encode Current Scratchpad in URL",
+           EncodeCurrentScratchpadInUrl,
          ),
-         ContextualAction.mk(
-           ~mdIcon="add",
-           ~section="Scratchpads",
+         ContextualAction.of_shortcut(
            ~action=inject(AddSlide),
-           "Add New Code Scratchpad",
+           AddNewCodeScratchpad,
          ),
-         ContextualAction.mk(
-           ~mdIcon="rule",
-           ~section="Scratchpads",
+         ContextualAction.of_shortcut(
            ~action=inject(AddDrvSlide),
-           "Add New Derivation Scratchpad",
+           AddNewDerivationScratchpad,
          ),
-         ContextualAction.mk(
-           ~mdIcon="edit",
-           ~section="Scratchpads",
+         ContextualAction.of_shortcut(
            ~action=inject(RenameSlide),
-           "Rename Current Scratchpad",
+           RenameCurrentScratchpad,
          ),
-         ContextualAction.mk(
-           ~mdIcon="delete",
-           ~section="Scratchpads",
+         ContextualAction.of_shortcut(
            ~action=inject(DeleteSlide),
-           "Delete Current Scratchpad",
+           DeleteCurrentScratchpad,
          ),
        ]);
   };
@@ -1343,7 +1241,6 @@ module View = {
 
     let file_group_scratch =
       NutMenu.item_group(
-        ~inject,
         "File",
         [export_button, export_button_for_init, encode_button, import_button],
       );
@@ -1390,11 +1287,7 @@ module View = {
       );
 
     let reset_group_scratch =
-      NutMenu.item_group(
-        ~inject,
-        "Reset",
-        [reset_button, reparse, reset_hazel],
-      );
+      NutMenu.item_group("Reset", [reset_button, reparse, reset_hazel]);
 
     [file_group_scratch, reset_group_scratch];
   };
@@ -1426,19 +1319,10 @@ module View = {
       ~add_tooltip,
       ~signal=
         fun
-        | Previous =>
-          inject(
-            SwitchSlide(
-              (model.current + List.length(model.scratchpads) - 1)
-              mod List.length(model.scratchpads),
-            ),
-          )
-        | Next =>
-          inject(
-            SwitchSlide(
-              (model.current + 1) mod List.length(model.scratchpads),
-            ),
-          )
+        /* No arrows in these modes (~nav_buttons=false above): slides are
+           reached through the breadcrumb dropdowns. */
+        | Previous
+        | Next => Virtual_dom.Vdom.Effect.Ignore
         | Add => inject(AddSlide)
         | Rename => inject(RenameSlide)
         | Delete => inject(DeleteSlide),
@@ -1446,7 +1330,10 @@ module View = {
         EditorModeView.indicator_select(
           ~signal=i => inject(SwitchSlide(i)),
           model.current,
-          List.map((s: Scratchpad.t) => s.name, model.scratchpads),
+          List.map(
+            (s: Scratchpad.t) => SlidePath.of_string(s.name),
+            model.scratchpads,
+          ),
         ),
       (),
     );

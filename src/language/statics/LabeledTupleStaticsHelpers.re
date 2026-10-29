@@ -10,11 +10,6 @@ let decompose_label_mode = (ctx: Ctx.t, ana: Typ.t): (Typ.t, Typ.t) =>
   | _ => (Unknown(SynSwitch) |> Typ.temp, Unknown(Internal) |> Typ.temp)
   };
 
-type label_child_result = {
-  lab_name: option(string),
-  label_invalid: bool,
-};
-
 /* Validate a label name against expected/duplicate label lists.
    Returns (elab_syn_ty, marks, is_invalid) for the label itself. */
 let validate_label_name =

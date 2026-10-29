@@ -1,7 +1,6 @@
 open Haz3lcore;
 open Util;
 
-let is_digit = s => StringUtil.(match(regexp("^[0-9]$"), s));
 let is_f_key = s => StringUtil.(match(regexp("^F[0-9][0-9]*$"), s));
 
 let meta = (): string => {
@@ -11,20 +10,6 @@ let meta = (): string => {
   | PC => "ctrl"
   };
 };
-
-/* Alt+N: Option+N on Mac is a dead key, so we match on code */
-let is_new_slide = (k: Key.t): bool =>
-  k.alt == Down
-  && k.shift == Up
-  && k.meta == Up
-  && k.ctrl == Up
-  && k.code == "KeyN"
-  && (
-    switch (k.key) {
-    | D(_) => true
-    | U(_) => false
-    }
-  );
 
 /* Mouse-drag chunkiness. The "Character-level mouse" setting
  * (selection_chunkiness) sets the no-modifier default — applied in
@@ -61,8 +46,11 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | (Up, "ArrowDown") => now(Move(Vertical(Down, ByChar)))
     | (Up, "Home") => now(Move(Line(Left)))
     | (Up, "End") => now(Move(Line(Right)))
-    | (_, "Backspace") => now(Destruct(Left))
-    | (_, "Delete") => now(Destruct(Right))
+    | (Up, "Backspace") => now(Destruct(Local(Left, ByChar)))
+    /* dedent at the line's leading-whitespace boundary; plain
+       backspace elsewhere (gated in Perform) */
+    | (Down, "Backspace") => now(AdjustIndent(Left, AtBoundary))
+    | (_, "Delete") => now(Destruct(Local(Right, ByChar)))
     | (Up, "Escape") => now(Unselect(None))
     | (Up, "F12") => now(Move(Goal(BindingSiteOfIndicatedVar)))
     | (Down, "Tab") => now(Move(Goal(NextProblem(Left))))
@@ -73,9 +61,13 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | (Down, "Home") => now(Select(Resize(Line(Left))))
     | (Down, "End") => now(Select(Resize(Line(Right))))
     | (_, "Enter") => now(Insert(Token.linebreak))
-    | _ when String.length(key) == 1 =>
-      /* Note: length==1 prevent specials like
-       * SHIFT from being captured here */
+    | _ when Unicode.length(key) == 1 =>
+      /* One grapheme cluster, which is exactly what KeyboardEvent.key
+       * reports for a character key -- named keys ("Shift", "Enter",
+       * "ArrowLeft", "F1", "Dead", "Process", ...) are all several
+       * clusters long, so they still fall through. Counting BYTES here
+       * (as this used to) silently dropped every non-ASCII key: `é` is
+       * two bytes and `😀` is four. */
       now(Insert(key))
     | _ => None
     }
@@ -93,6 +85,7 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | "ArrowRight" => now(Select(Resize(Line(Right))))
     | "ArrowUp" => now(Select(Resize(Start)))
     | "ArrowDown" => now(Select(Resize(End)))
+    | "s" => now(Format(Pretty))
     | _ => None
     }
   | {key: D(key), sys: PC, shift: Down, meta: Up, ctrl: Down, alt: Up, _} =>
@@ -103,15 +96,21 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | "ArrowDown" => now(Select(Resize(Vertical(Down, modif))))
     | "Home" => now(Select(Resize(Start)))
     | "End" => now(Select(Resize(End)))
+    | "e" => now(Probe(ToggleAuto))
+    | "s" => now(Format(Pretty))
+    | "Backspace" => now(Destruct(Line(Left)))
     | _ => None
     }
   | {key: D(key), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up, _} =>
     switch (key) {
-    | "s" => now(PrettyPrint)
     | "d" => now(Select(Term(Current)))
     | "a" => now(Select(All))
     | "e" => now(Probe(ToggleManual))
+    | "s" => now(Format(Preferred))
+    | "[" => now(AdjustIndent(Left, Always))
+    | "]" => now(AdjustIndent(Right, Always))
     | "/" => Some(Buffer(Set(TyDi)))
+    | "Backspace" => now(Destruct(Line(Left)))
     | "ArrowLeft" => now(Move(Line(Left)))
     | "ArrowRight" => now(Move(Line(Right)))
     | "ArrowUp" => now(Move(Start))
@@ -121,11 +120,15 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
 
   | {key: D(key), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up, _} =>
     switch (key) {
-    | "s" => now(PrettyPrint)
     | "d" => now(Select(Term(Current)))
     | "a" => now(Select(All))
     | "e" => now(Probe(ToggleManual))
+    | "s" => now(Format(Preferred))
+    | "[" => now(AdjustIndent(Left, Always))
+    | "]" => now(AdjustIndent(Right, Always))
     | "/" => Some(Buffer(Set(TyDi)))
+    | "Backspace" => now(Destruct(Local(Left, ByToken)))
+    | "Delete" => now(Destruct(Local(Right, ByToken)))
     | "ArrowLeft" => now(Move(Local(Left, ByToken)))
     | "ArrowRight" => now(Move(Local(Right, ByToken)))
     | "Home" => now(Move(Start))
@@ -154,9 +157,11 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     /* † is what holding option turns t into on Mac */
     Some(Project(SetIndicated(ChooseLivelit)))
   | {key: D("µ"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down, _} =>
-    Some(Dump)
+    Some(ApplyCompletion(All))
   | {key: D(key), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Down, _} =>
     switch (key) {
+    | "Backspace" => now(Destruct(Local(Left, ByToken)))
+    | "Delete" => now(Destruct(Local(Right, ByToken)))
     | "ArrowLeft" => now(Move(Local(Left, ByToken)))
     | "ArrowRight" => now(Move(Local(Right, ByToken)))
     | _ => None

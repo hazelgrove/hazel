@@ -57,7 +57,45 @@ let t_of_yojson: Yojson.Safe.t => Uuidm.t =
 [@deriving eq]
 type t = Uuidm.t;
 
-let mk: unit => t = Uuidm.v4_gen(Random.State.make_self_init());
+/* mk must be cheap: evaluation mints an id per rebuilt term and per
+ * environment binding (hundreds of thousands per run), and drawing each
+ * from the OCaml 5 LXM generator costs ~1.5us under js_of_ocaml. Instead:
+ * a monotonic counter in the leading bytes (leading so that str8/cls
+ * abbreviations stay distinct) plus 62 session-random bits in the tail
+ * to keep ids unique across sessions/runtimes, packaged by Uuidm.v4
+ * (which copies the scratch buffer and stamps version/variant bits). */
+let mk: unit => t = {
+  let scratch = Bytes.make(16, '\000');
+  let seed = Random.State.make_self_init();
+  for (i in 8 to 15) {
+    Bytes.unsafe_set(
+      scratch,
+      i,
+      Char.unsafe_chr(Random.State.int(seed, 256)),
+    );
+  };
+  let lo = ref(0);
+  let hi = ref(0);
+  () => {
+    incr(lo);
+    if (lo^ >= 1073741824) {
+      lo := 0;
+      incr(hi);
+    };
+    let l = lo^;
+    let h = hi^;
+    Bytes.unsafe_set(scratch, 0, Char.unsafe_chr(l land 0xff));
+    Bytes.unsafe_set(scratch, 1, Char.unsafe_chr(l lsr 8 land 0xff));
+    Bytes.unsafe_set(scratch, 2, Char.unsafe_chr(l lsr 16 land 0xff));
+    Bytes.unsafe_set(scratch, 3, Char.unsafe_chr(l lsr 24 land 0x3f));
+    Bytes.unsafe_set(scratch, 4, Char.unsafe_chr(h land 0xff));
+    Bytes.unsafe_set(scratch, 5, Char.unsafe_chr(h lsr 8 land 0xff));
+    /* byte 6 high nibble and byte 8 top two bits are overwritten by v4 */
+    Bytes.unsafe_set(scratch, 6, Char.unsafe_chr(h lsr 16 land 0x0f));
+    Bytes.unsafe_set(scratch, 7, Char.unsafe_chr(h lsr 20 land 0xff));
+    Uuidm.v4(scratch);
+  };
+};
 let namespace_uuid =
   Uuidm.of_string("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
   |> OptUtil.get(_ => failwith("Invalid namespace UUID"));
@@ -65,25 +103,30 @@ let next: t => t = x => Uuidm.v5(namespace_uuid, Uuidm.to_string(x));
 
 let mk_str: string => t = s => Uuidm.v5(namespace_uuid, s);
 
+/* Deterministic derivation from a base id. Distinct salts give
+   independent streams that can't collide with each other or with
+   `next` chains (different hash preimages). */
+let derive = (~salt: string, x: t): t =>
+  Uuidm.v5(namespace_uuid, salt ++ ":" ++ Uuidm.to_string(x));
+
 let compare: (t, t) => int = Uuidm.compare;
 let to_string: (~upper: bool=?, t) => string = Uuidm.to_string;
 let of_string: (~pos: int=?, string) => option(t) = Uuidm.of_string;
-let pp: (Format.formatter, t) => unit =
-  (f, id) =>
-    Format.fprintf(
-      f,
-      "Option.get(Haz3lcore.Id.of_string(\"%s\"))",
-      to_string(id),
-    );
-let show = id =>
-  Format.sprintf(
-    "Option.get(Haz3lcore.Id.of_string(\"%s\"))",
-    to_string(id),
-  );
 
 let str3 = (id: t) => id |> to_string |> String.sub(_, 0, 3);
 let str8 = (id: t) => id |> to_string |> String.sub(_, 0, 8);
 let cls = (id: t) => "id" ++ str8(id);
+
+/* OCaml-literal id constructor: pp/show render ids as
+ * Haz3lcore.Id.v("<uuid>"), consumed as compilable OCaml in generated
+ * exercise/derivation files (and as debug display). */
+let v: string => t =
+  s =>
+    Uuidm.of_string(s)
+    |> OptUtil.get(_ => failwith("Id.v: not a valid UUID: " ++ s));
+let pp: (Format.formatter, t) => unit =
+  (f, id) => Format.fprintf(f, "Haz3lcore.Id.v(\"%s\")", to_string(id));
+let show = id => Format.sprintf("Haz3lcore.Id.v(\"%s\")", to_string(id));
 
 [@deriving (sexp, yojson)]
 type binding('v) = (t, 'v);
