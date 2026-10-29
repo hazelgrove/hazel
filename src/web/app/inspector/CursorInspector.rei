@@ -31,6 +31,15 @@ let typ_view:
   ) =>
   Virtual_dom.Vdom.Node.t;
 
+let mod_view:
+  (
+    ~globals: Globals.t,
+    Language.Cls.t,
+    ~marks: list(Language.Mark.t),
+    ~ty: option(Language.Typ.t)
+  ) =>
+  Virtual_dom.Vdom.Node.t;
+
 let tpat_view:
   (
     ~globals: Globals.t,
