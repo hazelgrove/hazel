@@ -1,4 +1,4 @@
-# Branch previews. Deliberately independent of ci.yml: no `needs:`, no shared
+# Branch previews, served at https://build.hazel.org/<branch>/. Deliberately independent of ci.yml: no `needs:`, no shared
 # job, nothing to wait on -- a red suite should not stop you looking at your
 # branch, which is when you most want to.
 #
@@ -52,42 +52,24 @@ jobs:
           export DUNE_CACHE=enabled
           opam exec -- dune build src --profile release
 
-      - name: Checkout the website build artifacts repo
-        uses: actions/checkout@v4
-        with:
-          repository: hazelgrove/build
-          token: ${{ secrets.ACCESS_TOKEN }}
-          path: build-target
-          sparse-checkout: |
-            ${{ env.BRANCH_NAME }}
-
-      - name: Clear any old build of this branch
-        run: if [ -d "${BRANCH_NAME}" ] ; then rm -rf "${BRANCH_NAME}" ; fi
-        working-directory: ./build-target
-
-      - name: Copy in the newly built source
-        run: mkdir -p "./build-target/${BRANCH_NAME}" && cp -r "./_build/default/src/web/www"/* "./build-target/${BRANCH_NAME}"
-
-      # All branches push to this one repo's main ref, so concurrent deploys
-      # collide; retry with rebase until we win.
-      - name: Commit to the website aka deploy
+      # Previews are served from the hazel-build R2 bucket at
+      # build.hazel.org/<branch>/ (hazel.org/build/* redirects there). Each key
+      # is live as soon as it is written, so there is no site-wide publish step
+      # and branches cannot cancel each other's deploys. Filenames are not
+      # content-hashed, so a short max-age lets a new deploy show within minutes
+      # while traffic spikes are still served from Cloudflare's cache.
+      - name: Upload the build to R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          # Newer aws CLIs send checksum headers R2 may not accept
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+          R2_ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
         run: |
-          git config user.name github-deploy-action
-          git config user.email hazel-deploy@hazel.org
-          git add -A
-          git pull --no-edit
-          git status
-          if git diff-index --quiet HEAD; then
-            echo "No changes to deploy"
-            exit 0
-          fi
-          git commit -m "github-deploy-action-${BRANCH_NAME}"
-          for i in $(seq 1 10); do
-            git push && exit 0
-            echo "Push failed (attempt $i), pulling and retrying..."
-            sleep $((RANDOM % 3 + 1))
-            git pull --rebase --no-edit
-          done
-          echo "Push failed after 10 attempts"
-          exit 1
-        working-directory: ./build-target
+          aws s3 sync ./_build/default/src/web/www "s3://hazel-build/${BRANCH_NAME}/" \
+            --delete \
+            --endpoint-url "$R2_ENDPOINT" \
+            --cache-control "public, max-age=300" \
+            --no-progress
