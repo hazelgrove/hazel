@@ -70,6 +70,8 @@ let code_viewport_geometry: unit => option((float, float));
 let on_dpr_change: (unit => unit) => unit;
 /** Whether the primary pointer can hover: false on a phone or tablet. */
 let can_hover: unit => bool;
+/** Whether the primary pointer is a finger: true on a phone or tablet. */
+let coarse_pointer: unit => bool;
 /** Track the visual viewport, which an on-screen keyboard shrinks. */
 let follow_visual_viewport: unit => unit;
 module QueryParams: {
