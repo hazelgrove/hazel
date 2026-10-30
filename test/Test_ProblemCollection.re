@@ -136,7 +136,7 @@ let trailing_unbound_var = () => {
 
 let trailing_var_after_let = () => {
   let (_, problems) = from_string_exn("let x = 1 in x\nf");
-  check(bool, "has errors for trailing f", true, List.length(problems) > 0);
+  check(bool, "has errors for trailing f", true, !List.is_empty(problems));
   check(bool, "has multihole error", true, has_multihole_error(problems));
 };
 
