@@ -976,21 +976,32 @@ let pat_view =
     };
 };
 
+let defined_as_itself_view = (~globals, name: string): Node.t =>
+  div_warn([
+    text("Warning: Type"),
+    view_type(~globals, Var(name) |> Typ.fresh),
+    text("is defined as itself."),
+  ]);
+
 let typ_view =
     (
-      ~globals,
+      ~globals: Globals.t,
       cls: Cls.t,
       ~marks: list(Mark.t),
       ~message: option(Message.t),
+      ~warnings: list(Warning.list_item),
     )
     : Node.t =>
   switch (marks) {
   | [] =>
-    switch (message) {
-    | Some(TypOk(o)) => div_ok(typ_ok_view(~globals, cls, o))
-    | Some(Pat(_) | Exp(_) | TPatOk(_)) =>
+    switch (message, warnings) {
+    | (Some(TypOk(_)), [Typ(NonContractive(name))])
+        when globals.settings.core.display_warnings =>
+      defined_as_itself_view(~globals, name)
+    | (Some(TypOk(o)), _) => div_ok(typ_ok_view(~globals, cls, o))
+    | (Some(Pat(_) | Exp(_) | TPatOk(_)), _) =>
       div_err([text("(internal) expected TypOk")])
-    | None => div_err([text("(internal) missing type ok payload")])
+    | (None, _) => div_err([text("(internal) missing type ok payload")])
     }
   | ms =>
     switch (Mark.highest(ms)) {
@@ -1000,7 +1011,13 @@ let typ_view =
   };
 
 let tpat_view =
-    (~globals, _: Cls.t, ~marks: list(Mark.t), ~message: option(Message.t))
+    (
+      ~globals: Globals.t,
+      _: Cls.t,
+      ~marks: list(Mark.t),
+      ~message: option(Message.t),
+      ~warnings: list(Warning.list_item),
+    )
     : Node.t => {
   let view_type = view_type(~globals);
   switch (marks) {
@@ -1009,7 +1026,11 @@ let tpat_view =
     | Some(TPatOk(Message.Empty)) =>
       div_ok([text("Fillable with a new alias")])
     | Some(TPatOk(Var(name))) =>
-      div_ok([ContextInspector.alias_view(name)])
+      switch (warnings) {
+      | [TPat(NonContractive(_))] when globals.settings.core.display_warnings =>
+        defined_as_itself_view(~globals, name)
+      | _ => div_ok([ContextInspector.alias_view(name)])
+      }
     | Some(Pat(_) | Exp(_) | TypOk(_)) =>
       div_err([text("(internal) expected TPatOk")])
     | None => div_err([text("(internal) missing tpat ok payload")])
@@ -1054,10 +1075,10 @@ let view_of_info = (~globals, ci): list(Node.t) => {
     wrapper(exp_view(~globals, cls, message, ie))
   | InfoPat({cls, message, _} as ip) =>
     wrapper(pat_view(~globals, cls, message, ip))
-  | InfoTyp({cls, marks, message, _}) =>
-    wrapper(typ_view(~globals, cls, ~marks, ~message))
-  | InfoTPat({cls, marks, message, _}) =>
-    wrapper(tpat_view(~globals, cls, ~marks, ~message))
+  | InfoTyp({cls, marks, message, warnings, _}) =>
+    wrapper(typ_view(~globals, cls, ~marks, ~message, ~warnings))
+  | InfoTPat({cls, marks, message, warnings, _}) =>
+    wrapper(tpat_view(~globals, cls, ~marks, ~message, ~warnings))
   | InfoDrv(ci) => wrapper(DrvCursorInspector.drv_view(~globals, ci))
   };
 };
