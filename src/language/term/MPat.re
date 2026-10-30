@@ -12,6 +12,16 @@ let fresh: term => t = IdTagged.fresh;
 
 let rep_id: t => Id.t = IdTagged.rep_id;
 
+/* Whether the pattern binds the module name `x`. */
+let rec binds = (x: string, mp: t): bool =>
+  switch (IdTagged.term_of(mp)) {
+  | Var(y) => String.equal(x, y)
+  | Asc(mp, _) => binds(x, mp)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_) => false
+  };
+
 let hole = (tms: list(TermBase.Any.t)): TermBase.MPat.term =>
   switch (tms) {
   | [] => EmptyHole

@@ -378,47 +378,169 @@ let unroll = (ty: t): t =>
   | _ => ty
   };
 
-/* ctx extended with type variable `entry`, keeping alias resolution
-   lexical. Aliases are expanded by name in the context of use, so an alias
-   definition already in ctx that mentions the name would come to mean the
-   new binding: in `type T = .. in type S = T in type T = (S)`, S would
-   become the second T and expanding T would loop. Such definitions are
-   rewritten to what the name meant before: the alias it shadows, an
-   invalid type if it was unbound, or unknown for a shadowed abstract type.
-   Alias definitions then refer only to older bindings, so expanding
-   aliases terminates. */
+/* `ty` with the type variable `x` renamed to `x'` where it refers to the
+   binding being renamed: not under a binder of `x`, nor in the signature
+   items after one. A module path's root is a type variable too. */
+let rec rename_var = (x: string, x': string, ty: t): t =>
+  map_term(
+    ~f_typ=
+      (continue, ty) => {
+        let (term, rewrap) = unwrap(ty);
+        switch (term) {
+        | Var(y) when String.equal(x, y) => Var(x') |> rewrap
+        | Rec(tp, _)
+        | Poly(tp, _) when TPat.binds(x, tp) => ty
+        | Sig(items) => Sig(rename_var_in_sig(x, x', items)) |> rewrap
+        | _ => continue(ty)
+        };
+      },
+    ty,
+  )
+and rename_var_in_sig =
+    (x: string, x': string, items: list(TermBase.Sig.t))
+    : list(TermBase.Sig.t) =>
+  switch (items) {
+  | [] => []
+  | [{term: SigType(tp, _), _}, ..._] when TPat.binds(x, tp) => items
+  | [item, ...items] => [
+      TermBase.Sig.map_term(~f_typ=(_, ty) => rename_var(x, x', ty), item),
+      ...rename_var_in_sig(x, x', items),
+    ]
+  };
+
+/* Every type variable name written in a type, bound or free. */
+let tvar_names = (ty: t): list(string) => {
+  let names = ref([]);
+  let _: t =
+    map_term(
+      ~f_typ=
+        (continue, ty) => {
+          switch (term_of(ty)) {
+          | Var(x) => names := [x, ...names^]
+          | _ => ()
+          };
+          continue(ty);
+        },
+      ~f_tpat=
+        (continue, tp) => {
+          switch (TPat.tyvar_of_utpat(tp)) {
+          | Some(x) => names := [x, ...names^]
+          | None => ()
+          };
+          continue(tp);
+        },
+      ty,
+    );
+  names^;
+};
+
+/* Whether binding `name` over ctx would change what a type already in
+   ctx means: the name is bound, or an alias mentions it while it is
+   unbound. */
+let would_capture = (ctx: Ctx.t, name: string): bool =>
+  Option.is_some(Ctx.lookup_tvar(ctx, name))
+  || List.exists(
+       fun
+       | Ctx.TVarEntry({kind: Singleton(ty), _}) =>
+         List.exists(String.equal(name), free_vars(ty))
+       | _ => false,
+       ctx.entries,
+     );
+
+/* When binding `name` over ctx would capture, the fresh name to bind it
+   under instead: the name primed until it neither captures nor occurs in
+   [scope], the type variable names written where the binder is in scope.
+   None when the name binds as written. */
+let unshadow =
+    (ctx: Ctx.t, name: string, ~scope: Lazy.t(list(string)))
+    : option(string) =>
+  if (would_capture(ctx, name)) {
+    let taken = n =>
+      would_capture(ctx, n)
+      || List.exists(String.equal(n), Lazy.force(scope));
+    let rec fresh = n => taken(n) ? fresh(n ++ "'") : n;
+    Some(fresh(name ++ "'"));
+  } else {
+    None;
+  };
+
+/* ctx extended with type variable `entry`, keeping type resolution
+   lexical for a name that cannot be renamed instead (see `unshadow`).
+   Types are expanded by name in the context of use, so a type already in
+   ctx that mentions the name would come to mean the new binding. Such
+   types are rewritten to what the name meant before: the alias it
+   shadows, an invalid type if it was unbound, or unknown for a shadowed
+   abstract type. Alias definitions then refer only to older bindings, so
+   expanding aliases terminates. Variable and constructor types are
+   rewritten only when the name shadows an alias, and only those bound
+   since it; a variable of a shadowed abstract type keeps it. */
 let extend_tvar = (ctx: Ctx.t, entry: Ctx.tvar_entry): Ctx.t => {
+  let mentions_typ = ty =>
+    List.exists(String.equal(entry.name), free_vars(ty));
   let mentions: Ctx.kind => bool =
     fun
-    | Singleton(ty) => List.mem(entry.name, free_vars(ty))
+    | Singleton(ty) => mentions_typ(ty)
     | Abstract => false;
   let stale =
     fun
     | Ctx.TVarEntry(e) => mentions(e.kind)
     | _ => false;
-  if (!mentions(entry.kind) && !List.exists(stale, ctx.entries)) {
+  let shadowed = Ctx.lookup_tvar(ctx, entry.name);
+  let shadows_alias =
+    switch (shadowed) {
+    | Some(Singleton(_)) => true
+    | Some(Abstract)
+    | None => false
+    };
+  if (!shadows_alias
+      && !mentions(entry.kind)
+      && !List.exists(stale, ctx.entries)) {
     Ctx.extend_tvar(ctx, entry);
   } else {
     let meant =
-      switch (Ctx.lookup_tvar(ctx, entry.name)) {
+      switch (shadowed) {
       | Some(Singleton(ty)) => ty
       | Some(Abstract) => Unknown(Internal) |> temp
       | None => Unknown(Hole(Invalid(entry.name))) |> temp
       };
+    let refresh_typ = ty =>
+      mentions_typ(ty)
+        ? subst(meant, Var(entry.name) |> TPat.fresh, ty) : ty;
     let refresh = (e: Ctx.tvar_entry): Ctx.tvar_entry =>
       switch (e.kind) {
       | Singleton(ty) when mentions(e.kind) => {
           ...e,
-          kind: Singleton(subst(meant, Var(entry.name) |> TPat.fresh, ty)),
+          kind: Singleton(refresh_typ(ty)),
         }
       | _ => e
       };
-    let entries =
-      List.map(
-        fun
-        | Ctx.TVarEntry(e) when mentions(e.kind) =>
-          Ctx.TVarEntry(refresh(e))
-        | e => e,
+    let (_, entries) =
+      List.fold_left_map(
+        (since_shadowed, e: Ctx.entry) =>
+          switch (e) {
+          | TVarEntry(t) => (
+              since_shadowed && !String.equal(t.name, entry.name),
+              mentions(t.kind) ? Ctx.TVarEntry(refresh(t)) : e,
+            )
+          | VarEntry(v) when since_shadowed && mentions_typ(v.typ) => (
+              since_shadowed,
+              VarEntry({
+                ...v,
+                typ: refresh_typ(v.typ),
+              }),
+            )
+          | ConstructorEntry(c) when since_shadowed && mentions_typ(c.typ) => (
+              since_shadowed,
+              ConstructorEntry({
+                ...c,
+                typ: refresh_typ(c.typ),
+              }),
+            )
+          | VarEntry(_)
+          | ConstructorEntry(_)
+          | LivelitEntry(_) => (since_shadowed, e)
+          },
+        shadows_alias,
         ctx.entries,
       );
     Ctx.extend_tvar(

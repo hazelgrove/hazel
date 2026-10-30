@@ -8,7 +8,6 @@ type value_export = {
 type lowered = {
   expanded: Exp.t,
   value_exports: list(value_export),
-  type_exports: list((Var.t, Typ.t)),
 };
 
 /* Collect module variable references from type annotations.
@@ -321,8 +320,7 @@ let wrap_item =
     Exp.fresh(Let(Pat.fresh(Wild), e, body));
   };
 
-let lower =
-    (~ctx: Ctx.t, ~ana: option(Typ.t)=?, items: list(Mod.t)): lowered => {
+let lower = (~ana: option(Typ.t)=?, items: list(Mod.t)): lowered => {
   let ana_labels =
     switch (ana) {
     | Some(ana) => extract_ana_labels(ana)
@@ -337,7 +335,6 @@ let lower =
         labeled_tuple_exp(value_exports),
       ),
     value_exports,
-    type_exports: collect_type_exports(ctx, items),
   };
 };
 
@@ -414,13 +411,11 @@ let reclassify_expanded_module_items =
     items,
   );
 
-/* Construct module export product type from lowered value exports. */
+/* Construct module export product type from lowered value exports. `ctx`
+   is the module's enclosing context: the aliases a member's context adds
+   to it are the module's own. */
 let module_actual_type =
-    (
-      ~local_names: list(string),
-      value_exports: list(value_export),
-      m: StaticsBase.Map.t,
-    )
+    (~ctx: Ctx.t, value_exports: list(value_export), m: StaticsBase.Map.t)
     : Typ.t => {
   let fields =
     value_exports
@@ -431,11 +426,18 @@ let module_actual_type =
              /* Scope escape: only module-LOCAL aliases must be inlined
                 (they are unbound outside the braces); globals/builtins
                 stay compact per the type-normalization invariant. */
+             let local_names =
+               List.filter_map(
+                 fun
+                 | Ctx.TVarEntry({name, _}) => Some(name)
+                 | _ => None,
+                 Ctx.added_bindings(pat_ctx, ctx).entries,
+               );
              Typ.normalize(
                ~expand=n => List.mem(n, local_names),
                pat_ctx,
                ty,
-             )
+             );
            | None => Typ.temp(Unknown(Internal))
            };
          TupLabel(Label(name) |> Typ.temp, ty) |> Typ.temp;
