@@ -46,6 +46,44 @@ let funapp_pat = (~x_id: Id.t, ~arg_id: Id.t): form => {
   examples: [],
 };
 
+/* Curried function-definition sugar `f(x)(y)…`: one argument pattern per
+   group, each linked, rather than reading `f(x)` as the function. */
+let curried_args_phrase = (arg_ids: list(Id.t)): string =>
+  arg_ids
+  |> List.mapi((i, id) =>
+       Printf.sprintf(
+         i == 0
+           ? "with [*arguments*](%s)"
+           : ", returning a function with [*arguments*](%s)",
+         Id.to_string(id),
+       )
+     )
+  |> String.concat("");
+
+let curried_funapp_pat = (~x_id: Id.t, ~arg_ids: list(Id.t)): form => {
+  let args =
+    List.mapi((i, _) => pat("p_arg" ++ string_of_int(i + 1)), arg_ids);
+  {
+    id: ApFuncPat,
+    syntactic_form: [pat_fun, ...List.map(a => mk_ap_pat([[a]]), args)],
+    colorings: [
+      (Piece.id(pat_fun), x_id),
+      ...List.map2((a, id) => (Piece.id(a), id), args, arg_ids),
+    ],
+    expandable_id: None,
+    explanation:
+      Printf.sprintf(
+        "Defines a curried [*function*](%s) %s.",
+        Id.to_string(x_id),
+        curried_args_phrase(arg_ids),
+      ),
+    examples: [],
+  };
+};
+
+let curried_funaps = (~x_id: Id.t, ~arg_ids: list(Id.t)): group =>
+  singleton(curried_funapp_pat(~x_id, ~arg_ids));
+
 let conaps = (~x_id: Id.t, ~arg_id: Id.t): group =>
   singleton(conapp_pat(~x_id, ~arg_id));
 
