@@ -244,7 +244,7 @@ let rec collect_type_exports =
                  );
                };
              let ctx =
-               Ctx.extend_alias(ctx, name, TPat.rep_id(tpat), alias_ty);
+               Typ.extend_alias(ctx, name, TPat.rep_id(tpat), alias_ty);
              (ctx, [(name, resolved), ...acc]);
            | _ => (ctx, acc)
            }
@@ -265,7 +265,7 @@ let rec collect_type_exports =
            switch (mpat_names(mp), rhs_exports_ty) {
            | ([name], Some(exports_ty)) =>
              let ctx =
-               Ctx.extend_alias(ctx, name, MPat.rep_id(mp), exports_ty);
+               Typ.extend_alias(ctx, name, MPat.rep_id(mp), exports_ty);
              (ctx, [(name, exports_ty), ...acc]);
            | _ => (ctx, acc)
            };
