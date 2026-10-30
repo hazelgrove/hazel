@@ -124,8 +124,20 @@ let strip_projectors =
 
 /* `e` with the type variable `x` renamed to `x'` where it refers to the
    binding being renamed: not in the scope of a type binder of `x`, nor in
-   that of a module named `x`, since a module's name roots type paths. */
-let rec rename_tvar = (x: string, x': string, e: t): t =>
+   that of a module named `x`, since a module's name roots type paths. A
+   `let` names a module when its definition is a module or a name
+   [is_module] holds of. */
+let rec rename_tvar =
+        (~is_module: string => bool, x: string, x': string, e: t): t => {
+  let rename_tvar = rename_tvar(~is_module);
+  let rename_typ = (_, ty) => Typ.rename_var(x, x', ty);
+  let defines_module = (def: t) =>
+    switch (term_of(def)) {
+    | Module(_) => true
+    | Var(y)
+    | Constructor(y, _) => is_module(y)
+    | _ => false
+    };
   map_term(
     ~f_exp=
       (continue, e) => {
@@ -135,23 +147,34 @@ let rec rename_tvar = (x: string, x': string, e: t): t =>
         | TypFun(tp, _, _) when TPat.binds(x, tp) => e
         | ModuleExp(mp, def, body) when MPat.binds(x, mp) =>
           ModuleExp(
-            rename_tvar_mpat(x, x', mp),
+            MPat.map_term(~f_typ=rename_typ, mp),
+            rename_tvar(x, x', def),
+            body,
+          )
+          |> rewrap
+        | Let(p, def, body)
+            when
+              List.exists(String.equal(x), Pat.bound_vars(p))
+              && defines_module(def) =>
+          Let(
+            Pat.map_term(~f_typ=rename_typ, p),
             rename_tvar(x, x', def),
             body,
           )
           |> rewrap
         | Module(items) =>
-          Module(rename_tvar_in_items(x, x', items)) |> rewrap
+          Module(rename_tvar_in_items(~is_module, x, x', items)) |> rewrap
         | _ => continue(e)
         };
       },
-    ~f_typ=(_, ty) => Typ.rename_var(x, x', ty),
+    ~f_typ=rename_typ,
     e,
-  )
-and rename_tvar_mpat = (x: string, x': string, mp: MPat.t): MPat.t =>
-  MPat.map_term(~f_typ=(_, ty) => Typ.rename_var(x, x', ty), mp)
+  );
+}
 and rename_tvar_in_items =
-    (x: string, x': string, items: list(Mod.t)): list(Mod.t) =>
+    (~is_module: string => bool, x: string, x': string, items: list(Mod.t))
+    : list(Mod.t) => {
+  let rename_typ = (_, ty) => Typ.rename_var(x, x', ty);
   switch (items) {
   | [] => []
   | [{term: ModType(tp, _), _}, ..._] when TPat.binds(x, tp) => items
@@ -160,23 +183,27 @@ and rename_tvar_in_items =
     let (_, rewrap) = IdTagged.unwrap(item);
     [
       (
-        ModuleMod(rename_tvar_mpat(x, x', mp), rename_tvar(x, x', def)): Mod.term
+        ModuleMod(
+          MPat.map_term(~f_typ=rename_typ, mp),
+          rename_tvar(~is_module, x, x', def),
+        ): Mod.term
       )
       |> rewrap,
       ...items,
     ];
   | [item, ...items] => [
       Mod.map_term(
-        ~f_exp=(_, e) => rename_tvar(x, x', e),
-        ~f_typ=(_, ty) => Typ.rename_var(x, x', ty),
+        ~f_exp=(_, e) => rename_tvar(~is_module, x, x', e),
+        ~f_typ=rename_typ,
         item,
       ),
-      ...rename_tvar_in_items(x, x', items),
+      ...rename_tvar_in_items(~is_module, x, x', items),
     ]
   };
+};
 
 /* Every type variable name written in an expression, bound or free, and
-   every module name, since module names root type paths. */
+   every name a pattern binds, since a module's name roots type paths. */
 let tvar_names = (e: t): list(string) => {
   let names = ref([]);
   let _: t =
@@ -193,6 +220,11 @@ let tvar_names = (e: t): list(string) => {
           | None => ()
           };
           continue(tp);
+        },
+      ~f_pat=
+        (_, p) => {
+          names := Pat.bound_vars(p) @ names^;
+          p;
         },
       ~f_mpat=
         (continue, mp) => {

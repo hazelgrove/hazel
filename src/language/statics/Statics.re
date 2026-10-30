@@ -11,6 +11,15 @@ include StaticsBase;
 let add_info = Map.add_info;
 let add_missing_info = Map.add_missing_info;
 
+/* Whether a name a `let` is defined as names a module in ctx, so that the
+   `let` also binds its type paths. */
+let is_module = (ctx: Ctx.t, name: string): bool =>
+  switch (Ctx.lookup_tvar(ctx, name)) {
+  | Some(Singleton(_)) => true
+  | Some(Abstract)
+  | None => false
+  };
+
 let rec any_to_info_map =
         (
           ~ctx: Ctx.t,
@@ -1975,7 +1984,12 @@ and uexp_to_info_map =
             | Some(name') => (
                 name',
                 TPat.rename(name', utpat),
-                Exp.rename_tvar(name, name', body),
+                Exp.rename_tvar(
+                  ~is_module=is_module(ctx),
+                  name,
+                  name',
+                  body,
+                ),
               )
             };
           let mode_body = {
@@ -2556,7 +2570,7 @@ and uexp_to_info_map =
               name',
               TPat.rename(name', typat),
               Typ.rename_var(name, name', utyp),
-              Exp.rename_tvar(name, name', body),
+              Exp.rename_tvar(~is_module=is_module(ctx), name, name', body),
             )
           };
         /* Desugar Sig types so that type aliases like `type T = {let x : Int}`
