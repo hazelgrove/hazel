@@ -128,8 +128,13 @@ let apply =
       ),
     );
   };
-  if (updated.scroll_active) {
-    scroll_to_caret := true;
+  /* Runs before the re-render, so caret_in_view sees the layout the user is
+     looking at, not the one this action is about to make. */
+  switch (updated.scroll) {
+  | Updated.Always => scroll_to_caret := true
+  | IfCaretVisible when JsUtil.caret_in_view() => scroll_to_caret := true
+  | IfCaretVisible
+  | Never => ()
   };
   /* When the tutorial slide changes, stash the outgoing slide's scroll
      position and queue a restore of the incoming slide's saved position
