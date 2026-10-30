@@ -674,6 +674,7 @@ let meet_rec_binder_tests = {
   module F = IdTagged.FreshGrammar;
   let ctx = Builtins.ctx_init(None);
   let rec_ = (x, body) => F.Typ.rec_(F.TPat.var(x), body(F.Typ.var(x)));
+  let poly = (x, body) => F.Typ.poly(F.TPat.var(x), body(F.Typ.var(x)));
   let case = (name, ty1, ty2, expected) =>
     test_case(name, `Quick, () =>
       check(option(typ), name, expected, Typ.meet(ctx, ty1, ty2))
@@ -720,10 +721,31 @@ let meet_rec_binder_tests = {
         rec_("a", a => F.Typ.prod([a, F.Typ.var("b")])),
         true,
       ),
+      consistent(
+        "a polymorphic identity is not a function returning a free name",
+        poly("b", b => F.Typ.arrow(b, b)),
+        poly("a", a => F.Typ.arrow(a, F.Typ.var("b"))),
+        false,
+      ),
+      consistent(
+        "a name free beside a hole type binder is not the other's bound variable",
+        poly("x", x => F.Typ.prod([x, F.Typ.int()])),
+        F.Typ.poly(
+          F.TPat.empty_hole(),
+          F.Typ.prod([F.Typ.var("x"), F.Typ.int()]),
+        ),
+        false,
+      ),
+      consistent(
+        "a polymorphic type meets a hole type binder over an unknown body",
+        poly("a", a => F.Typ.arrow(a, a)),
+        F.Typ.poly(F.TPat.empty_hole(), F.Typ.unknown(Internal)),
+        true,
+      ),
     ];
   };
   (
-    "Typ.meet on recursive types",
+    "Typ.meet on recursive and polymorphic types",
     [
       case(
         "differently named binders are the same variable",

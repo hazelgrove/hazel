@@ -665,6 +665,15 @@ let x : A = 1 in
         "type b = Int in fun (f : rec b -> (b, b)) -> (f : rec a -> (a, b))",
       ),
     ),
+    inconsistent_typecheck(
+      "Renaming one polymorphic type's binder to the other's captures no free name",
+      parse_exp("type b = Int in fun (f : poly b -> b) -> (f : poly a -> b)"),
+    ),
+    fully_consistent_typecheck(
+      "A type application checks against an arrow type",
+      "let f : poly a -> a -> a = typfun a -> fun x -> x in let g : Int -> Int = f@<Int> in g(1)",
+      Some(FTemp.Typ.int()),
+    ),
     test_case(
       "Type parse failure",
       `Quick,

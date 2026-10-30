@@ -919,21 +919,10 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     let+ ty_body = meet(Ctx.extend_dummy_tvar(ctx, tp), body1, body2);
     Rec(tp, ty_body) |> temp;
   | (Rec(_), _) => None
-  | (Poly(x1, ty1), Poly(x2, ty2)) =>
-    let ty1' =
-      switch (TPat.tyvar_of_utpat(x2)) {
-      | Some(x2) => subst(Var(x2) |> temp, x1, ty1)
-      | None => ty1
-      };
-    let ctx = Ctx.extend_dummy_tvar(ctx, x2);
-    let+ ty_body = meet(ctx, ty1', ty2);
-    Poly(x2, ty_body) |> temp;
-  /* Note for above: `subst` is capture-avoiding (see its definition),
-     so renaming `x1` to `x2` via substitution is safe. In rare cases
-     where capture does trigger, `subst` generates fresh internal type
-     variable names via `fresh_var` that may be exposed to the user. We
-     preserve the variable name of the second type to preserve
-     synthesized type variable names, which come from user annotations. */
+  | (Poly(tp1, body1), Poly(tp2, body2)) =>
+    let (tp, body1, body2) = shared_binder(tp1, body1, tp2, body2);
+    let+ ty_body = meet(Ctx.extend_dummy_tvar(ctx, tp), body1, body2);
+    Poly(tp, ty_body) |> temp;
   | (Poly(_), _) => None
   | (Atom(c1), Atom(c2)) when c1 == c2 => Some(ty1)
   | (Atom(_), _) => None
