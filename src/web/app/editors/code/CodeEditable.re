@@ -51,11 +51,11 @@ module Update = {
             * new probe its bindings. */
            ~is_edit=Action.is_edit(action),
            ~recalculate=true,
-           ~scroll_active={
+           ~scroll={
              switch (action) {
-             | Move(Point(_)) => false
-             | Select(All) => false
-             | Select(Resize(Point(_))) => false
+             | Move(Point(_)) => Updated.Never
+             | Select(All) => Never
+             | Select(Resize(Point(_))) => Never
              | Move(_)
              | Select(_)
              | Destruct(_)
@@ -71,11 +71,11 @@ module Update = {
              | Format(_)
              | AdjustIndent(_, _)
              | ApplyCompletion(_)
-             | ToggleLineComment => true
+             | ToggleLineComment => Always
              | Project(_)
              | Unselect(_)
              | Structural(_)
-             | Probe(_) => false
+             | Probe(_) => Never
              };
            },
          );
