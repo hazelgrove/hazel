@@ -50,7 +50,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           export DUNE_CACHE=enabled
-          opam exec -- dune build src --profile release
+          dune build src --profile release
 
       # Previews are served from the hazel-build R2 bucket at
       # build.hazel.org/<branch>/ (hazel.org/build/* redirects there); see
