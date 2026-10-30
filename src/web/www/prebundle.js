@@ -23,6 +23,7 @@ NinjaKeys.prototype.close = function (...args) {
 };
 
 // This is the default behavior for the hotkeys module but I'm overriding it for the
+// editors' hidden text inputs (CodeEditable.input_class) and the
 // ninja-keys command palette (which lives inside a shadow DOM).
 hotkeys.filter = event => {
   // composedPath() lets us see the original target even when the event has been
@@ -30,6 +31,12 @@ hotkeys.filter = event => {
   const path = typeof event.composedPath === 'function' ? event.composedPath() : [];
   const target = event.target || event.srcElement;
   const { tagName } = target;
+
+  // Override happening here (target.classList is undefined when a keydown
+  // is dispatched on document)
+  if (target.classList && target.classList.contains("code-editor-input")) {
+    return true;
+  }
 
   // When the event originates inside the ninja-keys command palette, only let
   // its own navigation/close keys through. This stops globally-registered action
