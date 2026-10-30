@@ -834,8 +834,30 @@ let equal_up_to_aliases = (ctx: Ctx.t, a: t, b: t): bool => {
    made large-sum programs quadratically slow downstream. */
 let canonicalize = (ctx: Ctx.t, ty: t): t =>
   normalize(~expand=_ => false, ctx, ty);
-let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
-  let meet' = meet(ctx);
+/* [seen] holds the (recursive type, other type) pairs being met through an
+   unrolling on the way here. */
+let rec meet =
+        (~seen: list((t, t))=[], ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
+  let meet' = meet(~seen, ctx);
+  /* [ty_rec] against [ty] through [ty_rec]'s unrolling, which [meet_unrolled]
+     meets in [ty_rec]'s position. A pair already in [seen] is consistent: the
+     only way back to it is through heads that matched (Amadio and Cardelli),
+     and the recursive type is its meet. The result is [ty_rec] itself when
+     the meet is exactly its unrolling. */
+  let through_unrolling =
+      (
+        ty_rec: t,
+        ty: t,
+        meet_unrolled: (~seen: list((t, t)), t) => option(t),
+      )
+      : option(t) =>
+    if (List.exists(((r, o)) => equal(r, ty_rec) && equal(o, ty), seen)) {
+      Some(ty_rec);
+    } else {
+      let* ty_rec' = unroll(ty_rec);
+      let+ ty_meet = meet_unrolled(~seen=[(ty_rec, ty), ...seen], ty_rec');
+      equal(ty_rec', ty_meet) ? ty_rec : ty_meet;
+    };
   switch (term_of(ty1), term_of(ty2)) {
   | (_, Parens(ty2))
   | (_, Projector(_, ty2)) => meet'(ty1, ty2)
@@ -882,9 +904,14 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
       | None => (tp1, ty1)
       };
     let ctx = Ctx.extend_dummy_tvar(ctx, tp);
-    let+ ty_body = meet(ctx, ty1', ty2);
+    let+ ty_body = meet(~seen, ctx, ty1', ty2);
     Rec(tp, ty_body) |> temp;
-  | (Rec(_), _) => None
+  /* A recursive type meets a structural one through its unrolling; a
+     non-contractive type has no unrolling and meets nothing. */
+  | (Rec(_), _) =>
+    through_unrolling(ty1, ty2, (~seen, ty1') => meet(~seen, ctx, ty1', ty2))
+  | (_, Rec(_)) =>
+    through_unrolling(ty2, ty1, (~seen, ty2') => meet(~seen, ctx, ty1, ty2'))
   | (Poly(x1, ty1), Poly(x2, ty2)) =>
     let ty1' =
       switch (TPat.tyvar_of_utpat(x2)) {
@@ -892,7 +919,7 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
       | None => ty1
       };
     let ctx = Ctx.extend_dummy_tvar(ctx, x2);
-    let+ ty_body = meet(ctx, ty1', ty2);
+    let+ ty_body = meet(~seen, ctx, ty1', ty2);
     Poly(x2, ty_body) |> temp;
   /* Note for above: `subst` is capture-avoiding (see its definition),
      so renaming `x1` to `x2` via substitution is safe. In rare cases
@@ -944,7 +971,7 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     };
   | (Prod(_), _) => None
   | (Sum(sm1), Sum(sm2)) =>
-    let+ sm' = ConstructorMap.meet(equal, meet(ctx), sm1, sm2);
+    let+ sm' = ConstructorMap.meet(equal, meet(~seen, ctx), sm1, sm2);
     Sum(sm') |> temp;
   | (Sum(_), _) => None
   | (List(ty1), List(ty2)) =>

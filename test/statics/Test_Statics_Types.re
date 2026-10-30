@@ -653,6 +653,39 @@ let x : A = 1 in
       "A recursive occurrence under a differently named binder is not a hole",
       parse_exp("fun (f : rec a -> (a, Int)) -> (f : rec b -> (Bool, Int))"),
     ),
+    fully_consistent_typecheck(
+      "A tuple checks against a recursive alias and destructures through its unrolling",
+      "type T = (T, Int) in let x : T = (?, 3) in let (a, b) = x in b",
+      Some(FTemp.Typ.int()),
+    ),
+    fully_consistent_typecheck(
+      "A function checks against a recursive arrow alias, recursively, and applies through it",
+      "type T = Int -> T in let f : T = fun x -> f(x) in f(1)",
+      Some(FTemp.(Typ.(rec_(TPat.var("T"), arrow(int(), var("T")))))),
+    ),
+    fully_consistent_typecheck(
+      "A labeled tuple is rearranged against a recursive alias through its unrolling",
+      "type T = (next=T, val=Int) in let x : T = (val=3, next=?) in let (next=n, val=v) = x in v",
+      Some(FTemp.Typ.int()),
+    ),
+    fully_consistent_typecheck(
+      "A recursive alias checks against its other phase",
+      "type A = Int -> Int -> A in let f : A = fun x -> fun y -> f in let g : Int -> A = f in 0",
+      Some(FTemp.Typ.int()),
+    ),
+    inconsistent_typecheck(
+      "A self-loop in parentheses is inconsistent and does not loop",
+      parse_exp("fun (y : rec x -> (x)) -> (y : Int)"),
+    ),
+    inconsistent_typecheck(
+      "An argument is checked against the parameter type of a recursive arrow alias",
+      parse_exp("type T = Int -> T in fun (f : T) -> f(true)"),
+    ),
+    fully_consistent_typecheck(
+      "A constructor argument checks against a recursive alias through its unrolling",
+      "type T = (T, Int) in type L = + C(T) in let v : L = C(?, 2) in 0",
+      Some(FTemp.Typ.int()),
+    ),
     test_case(
       "Type parse failure",
       `Quick,

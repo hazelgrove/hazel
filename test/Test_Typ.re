@@ -743,9 +743,113 @@ let unroll_tests = {
   );
 };
 
+let meet_rec_tests = {
+  module F = IdTagged.FreshGrammar;
+  let ctx = Builtins.ctx_init(None);
+  let t = F.TPat.var("T");
+  let unknown = () => F.Typ.unknown(Internal);
+  let rec_prod = F.Typ.rec_(t, F.Typ.prod([F.Typ.var("T"), F.Typ.int()]));
+  let rec_prod_with_unknown =
+    F.Typ.rec_(t, F.Typ.prod([unknown(), F.Typ.var("T")]));
+  let case = (name, ctx, ty1, ty2, expected) =>
+    test_case(name, `Quick, () =>
+      check(option(typ), name, expected, Typ.meet(ctx, ty1, ty2))
+    );
+  (
+    "Typ.meet through recursive types",
+    [
+      case(
+        "a recursive type meets the shape of its unrolling as itself",
+        ctx,
+        rec_prod,
+        F.Typ.prod([unknown(), F.Typ.int()]),
+        Some(rec_prod),
+      ),
+      case(
+        "on either side",
+        ctx,
+        F.Typ.prod([unknown(), F.Typ.int()]),
+        rec_prod,
+        Some(rec_prod),
+      ),
+      case(
+        "a more precise other side gives the meet of the unrolling",
+        ctx,
+        rec_prod_with_unknown,
+        F.Typ.prod([F.Typ.int(), unknown()]),
+        Some(F.Typ.prod([F.Typ.int(), rec_prod_with_unknown])),
+      ),
+      case(
+        "a shape the unrolling does not have meets nothing",
+        ctx,
+        rec_prod,
+        F.Typ.bool(),
+        None,
+      ),
+      case(
+        "a self-loop meets nothing",
+        ctx,
+        F.Typ.rec_(F.TPat.var("x"), F.Typ.var("x")),
+        F.Typ.int(),
+        None,
+      ),
+      case(
+        "through the alias name",
+        Ctx.extend_alias(ctx, "T", Id.invalid, rec_prod),
+        F.Typ.var("T"),
+        F.Typ.prod([unknown(), F.Typ.int()]),
+        Some(F.Typ.var("T")),
+      ),
+    ],
+  );
+};
+
+/* Pairs that regenerate themselves when unrolled: the comparison must come
+   back to a pair it has seen and stop there. */
+let meet_out_of_phase_tests = {
+  module F = IdTagged.FreshGrammar;
+  let ctx = Builtins.ctx_init(None);
+  let b = F.TPat.var("b");
+  /* rec b -> Int -> Int -> b */
+  let two_step =
+    F.Typ.rec_(
+      b,
+      F.Typ.arrow(F.Typ.int(), F.Typ.arrow(F.Typ.int(), F.Typ.var("b"))),
+    );
+  let consistent = (name, ty1, ty2, expected) =>
+    test_case(name, `Quick, () =>
+      check(bool, name, expected, Option.is_some(Typ.meet(ctx, ty1, ty2)))
+    );
+  (
+    "Typ.meet on out-of-phase recursive types",
+    [
+      consistent(
+        "a recursive type against its other phase is consistent",
+        two_step,
+        F.Typ.arrow(F.Typ.int(), two_step),
+        true,
+      ),
+      consistent(
+        "on either side",
+        F.Typ.arrow(F.Typ.int(), two_step),
+        two_step,
+        true,
+      ),
+      consistent(
+        "a mismatch in the other phase is found",
+        two_step,
+        F.Typ.arrow(F.Typ.bool(), two_step),
+        false,
+      ),
+    ],
+  );
+};
+
 let tests = [
   meet_tests,
   meet_rec_binder_tests,
+  meet_rec_tests,
+  meet_out_of_phase_tests,
   fast_equal_tests,
   alias_cycle_tests,
   diff_tests,
