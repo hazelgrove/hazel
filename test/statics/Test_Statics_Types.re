@@ -742,6 +742,11 @@ let x : A = 1 in
       Some(FTemp.Typ.int()),
     ),
     fully_consistent_typecheck(
+      "Two recursive aliases of different period are the same type",
+      "type A = Int -> A in type B = Int -> Int -> B in let f : A = fun x -> f in let g : B = f in 0",
+      Some(FTemp.Typ.int()),
+    ),
+    fully_consistent_typecheck(
       "A recursive alias checks against its other phase",
       "type A = Int -> Int -> A in let f : A = fun x -> fun y -> f in let g : Int -> A = f in 0",
       Some(FTemp.Typ.int()),
