@@ -101,7 +101,7 @@ let param_anchor_str = (z: Zipper.t): string => {
     | ids =>
       let syntax = CachedSyntax.mk(~info_map, ~dyn_map=Id.Map.empty, z);
       ids
-      |> List.map(id =>
+      |> List.map(~f=id =>
            switch (TermData.segment(id, syntax.term_data)) {
            | Some(seg) =>
              Printer.of_segment(
@@ -113,7 +113,7 @@ let param_anchor_str = (z: Zipper.t): string => {
            | None => "<id not in term_data>"
            }
          )
-      |> String.concat(" | ");
+      |> String.concat(~sep=" | ");
     }
   };
 };
@@ -333,7 +333,7 @@ let step_into_resolution = (~fn: string, program: string): (string, string) => {
       let param =
         switch (ProbePerform.function_sugar_param_anchors(info_map, body_id)) {
         | [] => "<none>"
-        | ps => ps |> List.map(render) |> String.concat(" | ")
+        | ps => ps |> List.map(~f=render) |> String.concat(~sep=" | ")
         };
       (render(body_id), param);
     }
