@@ -371,17 +371,17 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
 /* A recursive type whose body, under any binders, parentheses, projectors
    and non-labels, is one of its own bound variables: `rec x -> x`,
    `rec x -> (x)`, `rec x -> rec y -> x`. It has no unrolling and stands for
-   no type. */
-let non_contractive = (ty: t): bool => {
-  let rec go = (bound: list(string), ty: t): bool =>
+   no type. Some(x) when [ty] is one, with x the binder its body is. */
+let non_contractive = (ty: t): option(Var.t) => {
+  let rec go = (bound: list(string), ty: t): option(Var.t) =>
     switch (term_of(ty)) {
     | Parens(ty)
     | Projector(_, ty)
     | TupLabel({term: ExplicitNonlabel, _}, ty) => go(bound, ty)
     | Rec(tp, body) =>
       go(Option.to_list(TPat.tyvar_of_utpat(tp)) @ bound, body)
-    | Var(x) => List.exists(String.equal(x), bound)
-    | _ => false
+    | Var(x) => List.find_opt(String.equal(x), bound)
+    | _ => None
     };
   go([], ty);
 };
@@ -453,7 +453,7 @@ let extend_alias = (ctx: Ctx.t, name: string, id: Id.t, ty: t): Ctx.t =>
    non-contractive. */
 let rec unroll = (ty: t): option(t) =>
   switch (term_of(ty)) {
-  | Rec(_) when non_contractive(ty) => None
+  | Rec(_) when Option.is_some(non_contractive(ty)) => None
   | Rec(tp, body) =>
     let* body = unroll(body);
     let (_, rewrap) = unwrap(ty);
@@ -825,6 +825,20 @@ let equal_up_to_aliases = (ctx: Ctx.t, a: t, b: t): bool => {
     };
   go(~depth=0, ctx, a, b);
 };
+
+/* What a type alias [name] stands for, given its definition: the recursive
+   type `rec name -> def` when [def] mentions [name], which is the
+   non-contractive `rec name -> name` when [def] is [name] alone. Aliases
+   already in scope cannot reach [name], since extend_tvar keeps them
+   lexical, so [def] as written decides. */
+[@deriving show({with_path: false})]
+type alias_def =
+  | Plain
+  | Recursive(t);
+
+let recursive_def = (name: Var.t, def: t): alias_def =>
+  List.exists(String.equal(name), free_vars(def))
+    ? Recursive(Rec(TPat.fresh(Var(name)), def) |> temp) : Plain;
 
 /* Structural canonicalization WITHOUT alias expansion: desugars Sig,
    computes tuple projections/extensions, dedups labels, strips wrapper

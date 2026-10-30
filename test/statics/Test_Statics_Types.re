@@ -454,6 +454,45 @@ let derive_typ_tests = [
   ),
 ];
 
+/* [source] has exactly the warnings [defined_as_themselves], and
+   [error_count] errors. */
+let defined_as_itself =
+    (
+      name,
+      source,
+      defined_as_themselves: list(Warning.list_item),
+      error_count,
+    ) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let map = statics(parse_exp(source));
+      let warned =
+        Id.Map.fold(
+          (id, info, acc) =>
+            Id.equal(id, Info.id_of(info))
+              ? Info.warnings_of(info) @ acc : acc,
+          map,
+          [],
+        );
+      let shown = ws =>
+        List.sort(String.compare, List.map(Warning.show_list_item, ws));
+      check(
+        list(string),
+        "types defined as themselves",
+        shown(defined_as_themselves),
+        shown(warned),
+      );
+      check(
+        int,
+        "errors",
+        error_count,
+        List.length(Statics.Map.error_ids(map)),
+      );
+    },
+  );
+
 let tests = (
   "Statics.Types",
   [
@@ -530,10 +569,23 @@ let x : A = 1 in
 1|},
       Some(FTemp.Typ.int()),
     ),
-    synthesizes(
-      "self-loop alias under an anonymous alias (#1621)",
+    defined_as_itself(
+      "A self-referential alias is warned and does not loop (#1621)",
       "type y = y in type ? = y in ?",
-      Some(FTemp.Typ.unknown(SynSwitch)),
+      [TPat(NonContractive("y"))],
+      0,
+    ),
+    defined_as_itself(
+      "No value has a type defined as itself",
+      "type T = T in let a : T = 1 in let b : T = [1] in let c : T = fun x -> x in (a, b, c)",
+      [TPat(NonContractive("T"))],
+      3,
+    ),
+    defined_as_itself(
+      "A variable or hole of a type defined as itself is that type",
+      "type T = T in fun (x : T) -> ((x : T), (? : T))",
+      [TPat(NonContractive("T"))],
+      0,
     ),
     test_case(
       // https://github.com/hazelgrove/hazel/issues/1624
@@ -673,9 +725,29 @@ let x : A = 1 in
       "type A = Int -> Int -> A in let f : A = fun x -> fun y -> f in let g : Int -> A = f in 0",
       Some(FTemp.Typ.int()),
     ),
-    inconsistent_typecheck(
-      "A self-loop in parentheses is inconsistent and does not loop",
-      parse_exp("fun (y : rec x -> (x)) -> (y : Int)"),
+    defined_as_itself(
+      "A written self-loop is warned where it is written and meets no other type",
+      "fun (y : rec x -> x) -> (y : Int)",
+      [Typ(NonContractive("x"))],
+      1,
+    ),
+    defined_as_itself(
+      "A self-loop in parentheses is warned and does not loop",
+      "fun (y : rec x -> (x)) -> (y : Int)",
+      [Typ(NonContractive("x"))],
+      1,
+    ),
+    defined_as_itself(
+      "A self-loop under a binder is warned for the binder it loops to",
+      "fun (f : rec x -> rec y -> x) -> f",
+      [Typ(NonContractive("x"))],
+      0,
+    ),
+    defined_as_itself(
+      "A self-loop under a vacuous binder is warned only for the inner binder",
+      "fun (f : rec x -> rec y -> y) -> f",
+      [Typ(NonContractive("y"))],
+      0,
     ),
     inconsistent_typecheck(
       "An argument is checked against the parameter type of a recursive arrow alias",

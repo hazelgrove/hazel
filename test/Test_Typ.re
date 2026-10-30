@@ -697,6 +697,78 @@ let meet_rec_binder_tests = {
   );
 };
 
+let alias_def =
+  testable(
+    Fmt.using(Typ.show_alias_def, Fmt.string),
+    (a: Typ.alias_def, b: Typ.alias_def) =>
+    switch (a, b) {
+    | (Plain, Plain) => true
+    | (Recursive(a), Recursive(b)) => Typ.fast_equal(a, b)
+    | (Plain | Recursive(_), _) => false
+    }
+  );
+
+let recursive_def_tests = {
+  module F = IdTagged.FreshGrammar;
+  let int_and = ty => F.Typ.prod([F.Typ.int(), ty]);
+  let case = (name, alias, def, expected) =>
+    test_case(name, `Quick, () =>
+      check(alias_def, name, expected, Typ.recursive_def(alias, def))
+    );
+  (
+    "Typ.recursive_def",
+    [
+      case(
+        "a definition not mentioning the alias is plain",
+        "T",
+        int_and(F.Typ.int()),
+        Typ.Plain,
+      ),
+      case(
+        "a definition mentioning the alias is recursive, as written",
+        "T",
+        int_and(F.Typ.var("T")),
+        Typ.Recursive(
+          F.Typ.rec_(F.TPat.var("T"), int_and(F.Typ.var("T"))),
+        ),
+      ),
+      case(
+        "a definition mentioning the alias only through a projection is recursive, as written",
+        "M",
+        F.Typ.prod([
+          F.Typ.tup_label(
+            F.Typ.label("T"),
+            F.Typ.prod_projection(F.Typ.var("M"), F.Typ.label("T")),
+          ),
+        ]),
+        Typ.Recursive(
+          F.Typ.rec_(
+            F.TPat.var("M"),
+            F.Typ.prod([
+              F.Typ.tup_label(
+                F.Typ.label("T"),
+                F.Typ.prod_projection(F.Typ.var("M"), F.Typ.label("T")),
+              ),
+            ]),
+          ),
+        ),
+      ),
+      case(
+        "the alias alone is the non-contractive recursive type",
+        "T",
+        F.Typ.var("T"),
+        Typ.Recursive(F.Typ.rec_(F.TPat.var("T"), F.Typ.var("T"))),
+      ),
+      case(
+        "the alias in parentheses is the non-contractive recursive type",
+        "T",
+        F.Typ.parens(F.Typ.var("T")),
+        Typ.Recursive(F.Typ.rec_(F.TPat.var("T"), F.Typ.var("T"))),
+      ),
+    ],
+  );
+};
+
 let unroll_tests = {
   module F = IdTagged.FreshGrammar;
   let x = F.TPat.var("x");
@@ -853,5 +925,6 @@ let tests = [
   fast_equal_tests,
   alias_cycle_tests,
   diff_tests,
+  recursive_def_tests,
   unroll_tests,
 ];
