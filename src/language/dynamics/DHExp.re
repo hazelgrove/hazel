@@ -229,6 +229,13 @@ let rec ty_comparable = (d1, d2) => {
     Typ.is_consistent(Ctx.empty_post_elaboration, t1, t2) && !Typ.has_fun(t1)
   | (Constructor(_), _) => false
   | (Ap(_), _) => false
+  /* Module values: members comparable, matched by name. */
+  | (Module(items1), Module(items2)) =>
+    switch (Mod.paired_bindings(items1, items2)) {
+    | Some(pairs) =>
+      List.for_all(((v1, v2)) => ty_comparable(v1, v2), pairs)
+    | None => false
+    }
   | (Module(_), _) => false
   | (ModuleExp(_), _) => false
   };
@@ -334,6 +341,18 @@ let rec poly_equal = (d1, d2): option(bool) => {
   | (Ap(_, {term: Constructor(_), _}, _), Constructor(_)) => Some(false)
   | (Ap(_), _) => None
   | (Constructor(_), _) => None
+  /* Module values: members equal, matched by name. */
+  | (Module(items1), Module(items2)) =>
+    let* pairs = Mod.paired_bindings(items1, items2);
+    List.fold_left(
+      (eq, (v1, v2)) => {
+        let* eq = eq;
+        let+ v_eq = poly_equal(v1, v2);
+        eq && v_eq;
+      },
+      Some(true),
+      pairs,
+    );
   | (Module(_), _) => None
   | (ModuleExp(_), _) => None
   };

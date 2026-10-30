@@ -26,7 +26,7 @@ let rec target_subterm_ids =
       let def_targets =
         target_subterm_ids(~drill_let=false, IdTagged.rep_id(def), info_map);
       /* Function-sugar keeps params in the binder, so anchor the args pattern too. */
-      switch (FunctionSugar.detect(pat)) {
+      switch (Pat.function_sugar(pat)) {
       | Some((_f_name, args, _ret_ty)) =>
         def_targets @ List.map(Pat.rep_id, args)
       | None => def_targets
@@ -34,6 +34,22 @@ let rec target_subterm_ids =
     };
   | Some(InfoExp({user_term: {term: ModuleExp(_, def, _), _}, _})) =>
     target_subterm_ids(IdTagged.rep_id(def), info_map)
+  | Some(InfoMod({user_term: item, _})) =>
+    switch (item.term, Mod.def(item)) {
+    | (ModLet(pat, _), Some(Exp(def))) =>
+      /* As a `let`: the def, and the args pattern of the function sugar. */
+      let def_targets =
+        target_subterm_ids(~drill_let=false, IdTagged.rep_id(def), info_map);
+      switch (Pat.function_sugar(pat)) {
+      | Some((_f_name, args, _ret_ty)) =>
+        def_targets @ List.map(Pat.rep_id, args)
+      | None => def_targets
+      };
+    | (_, Some(Exp(def))) =>
+      target_subterm_ids(IdTagged.rep_id(def), info_map)
+    | (_, Some(_))
+    | (_, None) => []
+    }
 
   | Some(InfoExp({user_term: {term: Var(_), _} as v, _})) =>
     switch (Statics.Map.parent_term_of(info_map, IdTagged.rep_id(v))) {

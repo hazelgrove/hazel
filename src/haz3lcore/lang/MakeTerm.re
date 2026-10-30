@@ -125,14 +125,15 @@ let rec flatten_mod = (m: TermBase.Mod.t): list(TermBase.Mod.t) =>
     |> List.map(
          fun
          | Grammar.Mod(m) => flatten_mod(m)
-         | Grammar.Exp(e) => [Mod.fresh(ModExp(e))]
-         | other => [Mod.fresh(ModExp(Exp.fresh(MultiHole([other]))))],
+         | Grammar.Exp(e) => [Mod.of_exp(e)]
+         | other => [Mod.of_exp(Exp.fresh(MultiHole([other])))],
        )
     |> List.flatten
   | ModLet(_, _)
   | ModType(_, _)
   | ModExp(_)
   | ModuleMod(_, _)
+  | ModVal(_, _)
   | EmptyHole
   | Invalid(_) => [m]
   };
@@ -153,6 +154,7 @@ let rec flatten_sig = (s: TermBase.Sig.t): list(TermBase.Sig.t) =>
     |> List.flatten
   | SigLet(_)
   | SigType(_, _)
+  | SigModule(_)
   | EmptyHole
   | Invalid(_) => [s]
   };
@@ -1381,11 +1383,11 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
     | ([(_id, (F(Compound(ModBody)), [Sig(body)]))], []) =>
       /* SigBody: parse signature body, similar to ModBody in exp_term */
       switch (body) {
-      | {term: EmptyHole, _} => ret(Sig([]))
+      | {term: EmptyHole, _} => ret(Sig(Open([body])))
       | {annotation: {ids, _}, term: MultiHole(_)} =>
         adopted_ids := ids @ adopted_ids^;
-        (Sig(flatten_sig(body)), ids);
-      | _ => ret(Sig(flatten_sig(body)))
+        (Sig(Open(flatten_sig(body))), ids);
+      | _ => ret(Sig(Open(flatten_sig(body))))
       }
     | ([(_id, tile)], []) =>
       /* Atomic type spellings (base atoms, Void, Drv quote types):
@@ -1398,7 +1400,8 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       ret(
         switch (base_atom, tile) {
         | (_, (F(f), [])) when is_empty_tuple_form(f) => Prod([])
-        | (_, (F(Tok(t)), [])) when Token.is_empty_module(t) => Sig([])
+        | (_, (F(Tok(t)), [])) when Token.is_empty_module(t) =>
+          Sig(Open([]))
         | (Some(term), _) => term
         | (_, (F(Tok("_")), [])) => ExplicitNonlabel
         | (_, (F(Compound(ProofOf)), [Exp(exp)])) => ProofOf(exp)
@@ -1687,6 +1690,9 @@ and sig_term: unsorted => TermBase.Sig.term = {
   /* SigType: type t = T - the tpat is inside the tile, type is the body */
   | Pre(([(_id, (F(Compound(ModType)), [TPat(tp)]))], []), Typ(ty)) =>
     ret(SigType(tp, ty))
+  /* SigModule: module m : S - the module name pattern is the body */
+  | Pre(([(_id, (F(Compound(SigModule)), []))], []), MPat(mp)) =>
+    ret(SigModule(mp))
   | (Pre(_) | Post(_) | Bin(_)) as tm => ret(hole(tm));
 }
 and mpat = unsorted => {

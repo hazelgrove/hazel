@@ -13,7 +13,9 @@ type projection =
   | ConsTail
   | ConstructorArg(string)
   | TupleLabel(option(string))
-  | Ascribed;
+  /* The binding went through `p : ty`; the ascription changes the bound
+     value, so the type is part of the provenance. */
+  | Ascribed(Typ.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type flag =
@@ -147,6 +149,11 @@ let visible_ids = (incr: t('state)): list(Id.t) => {
   let collect_subtree = (root: Exp.t): unit => {
     let f_exp = (continue, e: Exp.t): Exp.t => {
       acc := [Exp.rep_id(e), ...acc^];
+      /* Module items carry surface ids of their own. */
+      switch (e.term) {
+      | Module(items) => acc := List.map(Mod.rep_id, items) @ acc^
+      | _ => ()
+      };
       continue(e);
     };
     let _ = TermBase.Exp.map_term(~f_exp, root);
@@ -159,8 +166,29 @@ let visible_ids = (incr: t('state)): list(Id.t) => {
 /* Ids the UI should paint as "frozen" for a reuse plan / prediction. */
 let frozen_ids = (~incr: t('state)): list(Id.t) => visible_ids(incr);
 
+let equal_projection = (a: projection, b: projection): bool =>
+  switch (a, b) {
+  | (TupleIndex(i1, n1), TupleIndex(i2, n2))
+  | (ListIndex(i1, n1), ListIndex(i2, n2)) =>
+    Int.equal(i1, i2) && Int.equal(n1, n2)
+  | (ConsHead, ConsHead)
+  | (ConsTail, ConsTail) => true
+  | (ConstructorArg(c1), ConstructorArg(c2)) => String.equal(c1, c2)
+  | (TupleLabel(l1), TupleLabel(l2)) => Option.equal(String.equal, l1, l2)
+  | (Ascribed(t1), Ascribed(t2)) => Typ.fast_equal(t1, t2)
+  | (TupleIndex(_), _)
+  | (ListIndex(_), _)
+  | (ConsHead, _)
+  | (ConsTail, _)
+  | (ConstructorArg(_), _)
+  | (TupleLabel(_), _)
+  | (Ascribed(_), _) => false
+  };
+
 let equal_provenance = (a: provenance, b: provenance): bool =>
-  Id.equal(a.source, b.source) && a.path == b.path && a.flag == b.flag;
+  Id.equal(a.source, b.source)
+  && List.equal(equal_projection, a.path, b.path)
+  && a.flag == b.flag;
 
 let make_clean = (reuse_map: reuse_map): reuse_map =>
   Maps.StringMap.map(
@@ -269,7 +297,7 @@ let pat_provenance = (~source_id: Id.t, ~flag: flag, pat: Pat.t): reuse_map => {
       ]
     | Parens(p)
     | Projector(_, p) => go(path, p)
-    | Asc(p, _) => go([Ascribed, ...path], p)
+    | Asc(p, ty) => go([Ascribed(ty), ...path], p)
     | TupLabel(label, p) => go([TupleLabel(pat_label(label)), ...path], p)
     | Ap(ctr, p) =>
       switch (Pat.ctr_name(ctr)) {

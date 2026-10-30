@@ -123,33 +123,19 @@ module Map = {
       | [ancestor_id, ...rest] =>
         let* ci = lookup(ancestor_id, statics);
         switch (ci) {
-        | InfoExp({user_term: {term: Let(pat, def, _), _}, _}) =>
-          let binds = Pat.bindings(pat);
-          /* function-def sugar: Pat.bindings drops the function name f, so
-             also match f's own binding here, else the enclosing let is never
-             found. Curried sugar `f(x)(y)` nests the Aps, so walk the spine to
-             the head. (Can't reuse FunctionSugar.detect: it depends on
-             StaticsBase.) */
-          let rec spine_head_binds = (fn: Pat.t) =>
-            switch (IdTagged.term_of(fn)) {
-            | Ap(fn, _) => spine_head_binds(fn)
-            | _ => Pat.bindings(fn)
-            };
-          let fn_name_binds =
-            switch (IdTagged.term_of(pat)) {
-            | Asc(inner, _) =>
-              switch (IdTagged.term_of(inner)) {
-              | Ap(fn, _) => spine_head_binds(fn)
-              | _ => []
-              }
-            | Ap(fn, _) => spine_head_binds(fn)
-            | _ => []
-            };
+        | InfoExp({user_term: {term: Let(pat, def, _), _}, _})
+        | InfoMod({user_term: {term: ModLet(pat, def), _}, _}) =>
+          /* Pat.bindings drops the function-definition sugar's name: match
+             that binding too, else the enclosing let is never found. */
+          let binds = Pat.bindings(pat) @ Pat.bindings(Pat.binder(pat));
+          List.exists((b: Binding.t) => b.id == binding_id, binds)
+            ? Some(IdTagged.rep_id(def)) : climb(rest);
+        | InfoMod({user_term: {term: ModuleMod(mp, def), _}, _}) =>
           List.exists(
             (b: Binding.t) => b.id == binding_id,
-            binds @ fn_name_binds,
+            Pat.bindings(MPat.to_pat(mp)),
           )
-            ? Some(IdTagged.rep_id(def)) : climb(rest);
+            ? Some(IdTagged.rep_id(def)) : climb(rest)
         | InfoExp(_) => None
         | _ => climb(rest)
         };
@@ -179,6 +165,7 @@ module Map = {
     switch (lookup(id, m)) {
     | Some(InfoExp({ty, _}))
     | Some(InfoPat({ty, _})) => Some(ty)
+    | Some(InfoMod({ty, _})) => ty
     | _ => None
     };
 

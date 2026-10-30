@@ -130,7 +130,9 @@ type step_kind =
   | Ascription
   | RemoveTypeAlias
   | RemoveUse
-  | RemoveParens;
+  | RemoveParens
+  | ModuleBind(string)
+  | ModuleDiscardExp;
 
 /* Whether a step interprets the user's program (Proper) or performs
    implementation bookkeeping that the surface semantics treats as
@@ -158,6 +160,8 @@ let provenance_of_kind: step_kind => provenance =
   | Seq
   | LetBind(_)
   | TheoremBind
+  | ModuleBind(_)
+  | ModuleDiscardExp
   | UpdateTest
   | TypFunAp
   | FunAp
@@ -193,6 +197,9 @@ type rule =
       side_effects: list(EvaluatorState.effect),
       kind: step_kind,
       is_value: bool,
+      /* The id the stepper anchors this step on, when it isn't the redex's:
+         a module item's binding rewrites the whole module. */
+      at: option(Id.t),
     })
   | Constructor
   | Indet
@@ -209,6 +216,7 @@ let (let-unbox) = ((request, v), f) => {
   let-unboxed result = Unboxing.unbox(request, v);
   f(result);
 };
+
 module type EV_MODE = {
   type result;
   type inner_result;
@@ -255,6 +263,7 @@ module Transition = (EV: EV_MODE) => {
         side_effects: [],
         kind: WrapClosure,
         is_value: true,
+        at: None,
       })
     | (Some(f), Constructor | Indet | Value) =>
       f();
@@ -507,6 +516,7 @@ module Transition = (EV: EV_MODE) => {
           side_effects: [],
           kind: VarLookup,
           is_value,
+          at: None,
         });
       | None =>
         let.wrap_closure _ = (env, d);
@@ -524,6 +534,7 @@ module Transition = (EV: EV_MODE) => {
         side_effects: [],
         kind: Seq,
         is_value: false,
+        at: None,
       });
     | Let(dp, d1, d2) =>
       let. _ = otherwise(env, d1 => Let(dp, d1, d2) |> rewrap)
@@ -556,6 +567,7 @@ module Transition = (EV: EV_MODE) => {
           ],
           kind: LetBind(matches_str),
           is_value: false,
+          at: None,
         });
       };
 
@@ -575,6 +587,7 @@ module Transition = (EV: EV_MODE) => {
         ],
         kind: TheoremBind,
         is_value: false,
+        at: None,
       });
     | Theorem(_) =>
       let. _ = otherwise(env, d);
@@ -592,6 +605,7 @@ module Transition = (EV: EV_MODE) => {
           ],
           kind: RecordTheorem,
           is_value: true,
+          at: None,
         })
       };
     // Note[Matt]: we could make this spin, but for now it's indet
@@ -610,6 +624,7 @@ module Transition = (EV: EV_MODE) => {
         side_effects: [],
         kind: FixClosure,
         is_value: false,
+        at: None,
       });
     | FixF(dp, d1, fix_env) =>
       let. _ = otherwise(env, d);
@@ -638,6 +653,7 @@ module Transition = (EV: EV_MODE) => {
         ],
         kind: FixUnwrap,
         is_value: false,
+        at: None,
       });
     | Test(d'') =>
       let. _ = otherwise(env, d => Test(d) |> rewrap)
@@ -659,6 +675,7 @@ module Transition = (EV: EV_MODE) => {
         ],
         kind: UpdateTest,
         is_value: true,
+        at: None,
       });
     | HintedTest(d'', h) =>
       let. _ = otherwise(env, d => HintedTest(d, h) |> rewrap)
@@ -685,6 +702,7 @@ module Transition = (EV: EV_MODE) => {
         ],
         kind: UpdateTest,
         is_value: true,
+        at: None,
       });
     | TypAp(d, tau) =>
       let. _ = otherwise(env, d => TypAp(d, tau) |> rewrap)
@@ -706,6 +724,7 @@ module Transition = (EV: EV_MODE) => {
           side_effects: [],
           kind: TypFunAp,
           is_value: false,
+          at: None,
         })
       };
     | DeferredAp(d1, ds) =>
@@ -739,6 +758,7 @@ module Transition = (EV: EV_MODE) => {
           side_effects: [],
           kind: Ascription,
           is_value: false,
+          at: None,
         })
       | _ =>
         /* Extract function name and def ID before unboxing (unboxing discards them) */
@@ -768,6 +788,7 @@ module Transition = (EV: EV_MODE) => {
               ],
               kind: FunAp,
               is_value: false,
+              at: None,
             });
           };
         | FunNoEnv(dp, d3) when mode == `Substitution =>
@@ -792,6 +813,7 @@ module Transition = (EV: EV_MODE) => {
               ],
               kind: FunAp,
               is_value: false,
+              at: None,
             })
           };
         | FunNoEnv(_) => Indet
@@ -806,6 +828,7 @@ module Transition = (EV: EV_MODE) => {
               ],
               kind: BuiltinAp(ident),
               is_value: true,
+              at: None,
             });
           } else {
             let builtin =
@@ -827,6 +850,7 @@ module Transition = (EV: EV_MODE) => {
                 ],
                 kind: BuiltinAp(ident),
                 is_value: false,
+                at: None,
               })
             | None => Indet
             };
@@ -875,6 +899,7 @@ module Transition = (EV: EV_MODE) => {
             side_effects: [RecordStackFrame(fn_name, Some(d2'), fn_def_id)],
             kind: DeferredAp,
             is_value: false,
+            at: None,
           });
         };
       };
@@ -900,6 +925,7 @@ module Transition = (EV: EV_MODE) => {
           side_effects: [],
           kind: CompleteClosure,
           is_value: true,
+          at: None,
         });
       };
     | If(c, d1, d2) =>
@@ -915,6 +941,7 @@ module Transition = (EV: EV_MODE) => {
         // Attach c' to indicate which branch taken.
         kind: Conditional(b),
         is_value: false,
+        at: None,
       });
     | UnOp(op, d1) =>
       let. _ = otherwise(env, d1 => UnOp(op, d1) |> rewrap)
@@ -937,6 +964,7 @@ module Transition = (EV: EV_MODE) => {
           side_effects: [],
           kind: UnOp(op),
           is_value: true,
+          at: None,
         });
       };
     | BinOp(Bool(And), d1, d2) =>
@@ -954,6 +982,7 @@ module Transition = (EV: EV_MODE) => {
         side_effects: [],
         kind: BinOp(Bool(And)),
         is_value: false,
+        at: None,
       });
     | BinOp(Bool(Or), d1, d2) =>
       let. _ = otherwise(env, d1 => BinOp(Bool(Or), d1, d2) |> rewrap)
@@ -970,6 +999,7 @@ module Transition = (EV: EV_MODE) => {
         side_effects: [],
         kind: BinOp(Bool(Or)),
         is_value: false,
+        at: None,
       });
     | BinOp(op, d1, d2) =>
       let. _ = otherwise(env, (d1, d2) => BinOp(op, d1, d2) |> rewrap)
@@ -992,6 +1022,7 @@ module Transition = (EV: EV_MODE) => {
               side_effects: [],
               kind: BinOp(op),
               is_value: true,
+              at: None,
             })
           | Some(false) =>
             Step({
@@ -999,6 +1030,7 @@ module Transition = (EV: EV_MODE) => {
               side_effects: [],
               kind: BinOp(op),
               is_value: false,
+              at: None,
             })
           };
         }
@@ -1019,6 +1051,7 @@ module Transition = (EV: EV_MODE) => {
           side_effects: [],
           kind: BinOp(op),
           is_value: true,
+          at: None,
         });
       };
     | Dot(d1, d2) =>
@@ -1053,6 +1086,7 @@ module Transition = (EV: EV_MODE) => {
                    value, which would trigger duplicate probe samples when the
                    value carries a probe target ID. */
                 is_value: true,
+                at: None,
               })
             | _ => Indet
             };
@@ -1066,6 +1100,7 @@ module Transition = (EV: EV_MODE) => {
                   side_effects: [],
                   kind: Dot,
                   is_value: true,
+                  at: None,
                 })
               : Indet
           | ListLit(ds) =>
@@ -1077,7 +1112,22 @@ module Transition = (EV: EV_MODE) => {
               side_effects: [],
               kind: Dot,
               is_value: false,
+              at: None,
             });
+          | Module(items)
+          /* A module stuck on an item keeps its environment for the rest. */
+          | Closure(_, {term: Module(items), _}) =>
+            switch (Mod.member(items, name)) {
+            | Some(v) =>
+              Step({
+                expr: v,
+                side_effects: [],
+                kind: Dot,
+                is_value: true,
+                at: None,
+              })
+            | None => Indet
+            }
           | _ => Indet
           }
         | _ => Indet
@@ -1121,6 +1171,7 @@ module Transition = (EV: EV_MODE) => {
         side_effects: [],
         kind: TupleExtension,
         is_value: true,
+        at: None,
       });
     | Cons(d1, d2) =>
       let. _ = otherwise(env, (d1, d2) => Cons(d1, d2) |> rewrap)
@@ -1133,6 +1184,7 @@ module Transition = (EV: EV_MODE) => {
           side_effects: [],
           kind: ListCons,
           is_value: true,
+          at: None,
         })
       | DoesNotMatch => Indet
       | IndetMatch => Constructor // Treat list cons with indet tail as constructors
@@ -1150,6 +1202,7 @@ module Transition = (EV: EV_MODE) => {
         side_effects: [],
         kind: ListConcat,
         is_value: true,
+        at: None,
       });
     | ListLit(ds) =>
       let. _ = otherwise(env, ds => ListLit(ds) |> rewrap)
@@ -1192,6 +1245,7 @@ module Transition = (EV: EV_MODE) => {
           ],
           kind: CaseApply,
           is_value: false,
+          at: None,
         })
       | None =>
         let.wrap_closure _ = (env, Match(d1', rules) |> rewrap);
@@ -1218,6 +1272,7 @@ module Transition = (EV: EV_MODE) => {
           side_effects: [],
           kind: CompleteClosure,
           is_value: true,
+          at: None,
         });
       };
     | MultiHole(_) =>
@@ -1244,6 +1299,7 @@ module Transition = (EV: EV_MODE) => {
           side_effects: [],
           kind: Ascription,
           is_value: false,
+          at: None,
         });
       | None =>
         let. _ = otherwise(env, d => Asc(d, t) |> rewrap)
@@ -1262,6 +1318,7 @@ module Transition = (EV: EV_MODE) => {
             side_effects: [],
             kind: Ascription,
             is_value: true,
+            at: None,
           })
         | None => Constructor
         };
@@ -1276,6 +1333,7 @@ module Transition = (EV: EV_MODE) => {
         side_effects: [],
         kind: RemoveParens,
         is_value: false,
+        at: None,
       });
     /* TODO: May want a distinct RemoveProjector step kind later for stepper clarity */
     | Projector(_, d') =>
@@ -1285,6 +1343,7 @@ module Transition = (EV: EV_MODE) => {
         side_effects: [],
         kind: RemoveParens,
         is_value: false,
+        at: None,
       });
     | TyAlias(_, _, d) =>
       let. _ = otherwise(env, d);
@@ -1293,6 +1352,7 @@ module Transition = (EV: EV_MODE) => {
         side_effects: [],
         kind: RemoveTypeAlias,
         is_value: false,
+        at: None,
       });
     | Use(_, d) =>
       let. _ = otherwise(env, d);
@@ -1301,6 +1361,7 @@ module Transition = (EV: EV_MODE) => {
         side_effects: [],
         kind: RemoveUse,
         is_value: true,
+        at: None,
       });
     | Filter(f1, d1) =>
       let. _ = otherwise(env, d1 => Filter(f1, d1) |> rewrap)
@@ -1310,12 +1371,138 @@ module Transition = (EV: EV_MODE) => {
         side_effects: [],
         kind: CompleteFilter,
         is_value: true,
+        at: None,
       });
-    // Modules should be expanded before reaching dynamics (Phase 1.3)
-    | Module(_) =>
-      let. _ = otherwise(env, d);
-      Indet;
-    // ModuleExp should be expanded to Let before reaching dynamics
+    | Module(items) =>
+      /* Items evaluate in order, each binding scoping over the items after
+         it; a module whose items are all ModVal is a value. */
+      switch (Mod.split_pending(items)) {
+      | (prefix, None) =>
+        let. _ =
+          otherwise(env, ds =>
+            Module(Mod.with_modval_defs(prefix, ds)) |> rewrap
+          )
+        and. _ =
+          req_all_final(
+            req(env),
+            (ctx, ds) => ModuleVal(prefix, ctx, ds) |> wrap_ctx,
+            Mod.modval_defs(prefix),
+          );
+        Constructor;
+      | (prefix, Some((item, suffix))) =>
+        let rebuild = (item: Mod.t) =>
+          Module(prefix @ [item] @ suffix) |> rewrap;
+        /* A binding item: its definition evaluated, then matched against
+           the pattern, the bindings scoping over the items after it. */
+        let bind = (dp: Pat.t, d1) => {
+          let. _ = otherwise(env, d1 => rebuild(Mod.with_def(item, d1)))
+          and. d1' =
+            req_final(
+              req(env),
+              d1 => ModuleItem(prefix, item, d1, suffix) |> wrap_ctx,
+              d1,
+            );
+          let.wrap_closure _ = (env, rebuild(Mod.with_def(item, d1')));
+          let {matches, samples} = matches(targets, dp, d1');
+          switch (matches) {
+          | IndetMatch
+          | DoesNotMatch => Indet
+          | Matches(env') =>
+            let prefix' =
+              List.fold_left(
+                (prefix, (x, v)) => Mod.add_modval(prefix, x, v),
+                prefix,
+                env',
+              );
+            let env'' = Environment.add_bindings(env, env');
+            let side_effects: list(EvaluatorState.effect) = [
+              RecordPatMatch({
+                pat: dp,
+                rhs: d1,
+                samples,
+              }),
+            ];
+            let kind =
+              ModuleBind(env' |> List.map(fst) |> String.concat(", "));
+            switch (suffix) {
+            | [] =>
+              /* A value: a probed literal keeps its id, so re-traversing
+                 would sample it twice. */
+              Step({
+                expr: Module(prefix') |> rewrap,
+                side_effects,
+                kind,
+                is_value: true,
+                at: Some(Mod.rep_id(item)),
+              })
+            | _ =>
+              /* Fresh id: a probe on the module samples its value once, at
+                 this level. The new bindings scope over the items after
+                 this one, not the members already evaluated before it. */
+              Step({
+                expr:
+                  switch (mode) {
+                  | `Environment =>
+                    subst_env(env'', Module(prefix' @ suffix) |> DHExp.fresh)
+                  | `Substitution =>
+                    Module(
+                      prefix' @ Substitution.in_mod_items(env'', suffix),
+                    )
+                    |> DHExp.fresh
+                  },
+                side_effects,
+                kind,
+                is_value: false,
+                at: Some(Mod.rep_id(item)),
+              })
+            };
+          };
+        };
+        switch (item.term) {
+        | ModExp(d1) =>
+          let. _ = otherwise(env, d1 => rebuild(Mod.with_def(item, d1)))
+          and. d1' =
+            req_final(
+              req(env),
+              d1 => ModuleItem(prefix, item, d1, suffix) |> wrap_ctx,
+              d1,
+            );
+          Step({
+            expr: Module(prefix @ suffix) |> rewrap,
+            side_effects: [],
+            kind: ModuleDiscardExp,
+            is_value: List.is_empty(suffix),
+            /* The item is rendered as its expression. */
+            at: Some(DHExp.rep_id(d1')),
+          });
+        | ModLet(dp, d1) => bind(dp, d1)
+        /* Elaboration turns a `module` item into a `let` item, as
+           ModuleExp into Let, and drops a `type` item. */
+        | ModuleMod(_, _)
+        | ModType(_, _) =>
+          let. _ = otherwise(env, d);
+          Indet;
+        /* A hole item binds nothing, as `1; ?; 2` sequences past its
+           hole. */
+        | Invalid(_)
+        | EmptyHole
+        | MultiHole(_) =>
+          let. _ = otherwise(env, d);
+          Step({
+            expr: Module(prefix @ suffix) |> rewrap,
+            side_effects: [],
+            kind: ModuleDiscardExp,
+            is_value: List.is_empty(suffix),
+            at: Some(Mod.rep_id(item)),
+          });
+        | ModVal(_, _) =>
+          /* Never pending: split_pending takes evaluated bindings as the
+             prefix. */
+          let. _ = otherwise(env, d);
+          Indet;
+        };
+      }
+    // ModuleExp is elaborated to Let before reaching dynamics
     | ModuleExp(_) =>
       let. _ = otherwise(env, d);
       Indet;
@@ -1342,6 +1529,8 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | CaseApply => !settings.show_case_steps
   | Projection // TODO(Matt): We don't want to show projection to the user
   | Conditional(_)
+  | ModuleBind(_)
+  | ModuleDiscardExp
   | RemoveTypeAlias
   | RemoveUse
   | InvalidStep
@@ -1407,6 +1596,8 @@ let stepper_justification: step_kind => string =
   | RemoveTypeAlias => "define type"
   | RemoveUse => "set use type"
   | RemoveParens => "remove parentheses"
-  | Dot => "Labeled tuple access"
+  | ModuleBind(s) => String.cat("module binding for ", s)
+  | ModuleDiscardExp => "discard module expression"
+  | Dot => "member access"
   | TupleExtension => "Tuple extension"
   | MarkIncomparable => "mark equality as incomparable";

@@ -32,6 +32,7 @@ let (suite, exit_with_test_status) =
       Test_CsvUtil.tests,
       Test_Grammar.tests,
       Test_FormId.tests,
+      Test_Form.tests,
       Test_Abbreviate.tests,
       Test_LabeledTuple.tests,
       Test_MakeTerm.tests,
@@ -42,6 +43,7 @@ let (suite, exit_with_test_status) =
       Test_HazelJson_JsonADT.tests,
       Test_PatternMatch.tests,
       Test_Equality.tests,
+      Test_Calc.tests,
       Test_Substitution.tests,
     ]
     @ Test_Unicode.tests
@@ -53,6 +55,8 @@ let (suite, exit_with_test_status) =
     @ [Test_AgentUX.tests]
     @ Test_ExpToSegment.all
     @ Test_Typ.tests
+    @ Test_Mod.tests
+    @ Test_Sig.tests
     @ Test_Statics.tests
     @ Test_Elaboration.tests
     @ Test_Evaluator.tests

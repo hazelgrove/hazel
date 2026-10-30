@@ -80,6 +80,61 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
               TupLabel(l, inner') |> DHExp.fresh,
             ),
           );
+    | (Module(items), Sig(s)) =>
+      /* Sealing: keep the signature's value members, in signature order,
+         ascribing each to its declared type, and, when a hole item in the
+         signature could declare them, the module's other members as they
+         are. A module still evaluating leaves the ascription stuck. A
+         member the module lacks is a hole: statics allows that only when a
+         hole item stands in for it. */
+      let members =
+        Sig.closed_members(s)
+        |> Sig.dedup_last
+        |> List.filter_map((m: Sig.member) =>
+             switch (m) {
+             | Val(x, ty) => Some((x, ty))
+             | TypeManifest(_) => None
+             }
+           );
+      let picked =
+        Mod.value_bindings(items)
+        |> Option.map(bindings => {
+             let declared =
+               members
+               |> List.map(((x, ty)) => {
+                    let d =
+                      switch (
+                        Util.ListUtil.assoc_opt_by(String.equal, x, bindings)
+                      ) {
+                      | Some(v) => recur(Asc(v, ty) |> DHExp.fresh)
+                      | None => DHExp.fresh(EmptyHole)
+                      };
+                    Mod.fresh(ModVal(x, d));
+                  });
+             let undeclared =
+               Sig.has_hole_item(Sig.items(s))
+                 ? bindings
+                   |> List.filter(((x, _)) =>
+                        !
+                          List.exists(
+                            ((y, _)) => String.equal(x, y),
+                            members,
+                          )
+                      )
+                   |> List.map(((x, v)) => Mod.fresh(ModVal(x, v)))
+                 : [];
+             declared @ undeclared;
+           });
+      switch (picked) {
+      | Some(items') =>
+        Some(
+          IdTagged.fast_copy(
+            DHExp.rep_id(e),
+            Module(items') |> DHExp.fresh,
+          ),
+        )
+      | None => None
+      };
     | (Tuple(es), Prod(tys)) when List.length(es) == List.length(tys) =>
       let es' =
         List.map2((e, ty) => recur(Asc(e, ty) |> DHExp.fresh), es, tys);

@@ -88,6 +88,29 @@ let show_cls: cls => string =
   | ApFunc => "Function definition"
   | Asc => "Annotation";
 
+/* Whether a hole occurs in a binding position of the pattern: one a
+   variable could fill. Labels, constructors and annotations are not. */
+let rec has_hole_binder = (pat: t): bool =>
+  switch (pat.term) {
+  | EmptyHole
+  | MultiHole(_) => true
+  | Parens(pat)
+  | Projector(_, pat)
+  | Asc(pat, _)
+  | TupLabel(_, pat)
+  | Ap(_, pat) => has_hole_binder(pat)
+  | Tuple(pats)
+  | ListLit(pats) => List.exists(has_hole_binder, pats)
+  | Cons(p1, p2) => has_hole_binder(p1) || has_hole_binder(p2)
+  | Invalid(_)
+  | Wild
+  | Var(_)
+  | Atom(_)
+  | Label(_)
+  | ExplicitNonlabel
+  | Constructor(_) => false
+  };
+
 let rec is_var = (pat: t): option(Var.t) => {
   switch (pat.term) {
   | Parens(pat)
@@ -241,6 +264,42 @@ let rec bindings = (dp: t): Binding.s =>
   | Cons(dp1, dp2) => bindings(dp1) @ bindings(dp2)
   | ListLit(dps) => List.flatten(List.map(bindings, dps))
   | Ap(_, dp1) => bindings(dp1)
+  };
+
+/* The function-definition sugar `f(args)`, curried `f(args)(more)` or
+   either with `: ret`: the name, the argument pattern of each application
+   and the return type. The name may carry an ascription. A nullary `f()`
+   carries `Id.nullary_ap_flag` on its argument tuple, replaced by a
+   deterministic id so the arguments are a well-formed pattern once they
+   become a function's. */
+let function_sugar =
+    (pat: t): option((t, list(t), option(TermBase.Typ.t))) => {
+  let (inner, ret_ty) =
+    switch (term_of(pat)) {
+    | Asc(inner, ret_ty) => (inner, Some(ret_ty))
+    | _ => (pat, None)
+    };
+  let rec spine = (pat: t, args: list(t)) =>
+    switch (term_of(pat)) {
+    | Ap(fn, arg) =>
+      let arg =
+        Id.is_nullary_ap_flag(IdTagged.ids(arg))
+          ? (Tuple([]): term) |> IdTagged.fresh_deterministic(rep_id(fn))
+          : arg;
+      spine(fn, [arg, ...args]);
+    | Var(_)
+    | Asc({term: Var(_), _}, _) when args != [] => Some((pat, args, ret_ty))
+    | _ => None
+    };
+  spine(inner, []);
+};
+
+/* The pattern that names the binding: the function name for the sugar, the
+   pattern itself otherwise. */
+let binder = (pat: t): t =>
+  switch (function_sugar(pat)) {
+  | Some((f_name, _, _)) => f_name
+  | None => pat
   };
 
 let bound_vars = (dp: t): list(Var.t) =>

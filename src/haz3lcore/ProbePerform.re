@@ -472,7 +472,7 @@ let function_sugar_param_anchors =
         | Some(InfoExp({user_term: {term: Let(pat, def, _), _}, _})) =>
           /* Anchor params only when def_id is THIS let's def (the fn body); if it's the `in` body (a call site) the params are someone else's. Stop at the first let either way. */
           if (Id.equal(def_id, IdTagged.rep_id(def))) {
-            switch (FunctionSugar.detect(pat)) {
+            switch (Pat.function_sugar(pat)) {
             | Some((_, args, _)) => Some(List.map(Pat.rep_id, args))
             | None => None
             };

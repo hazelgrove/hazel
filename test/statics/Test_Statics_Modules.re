@@ -2,18 +2,592 @@ open Test_Statics_Prelude;
 open FTemp;
 open Typ;
 
+/* Signature-type builders. Items must be listed in synthesized (source)
+   order: Typ.fast_equal compares signature items positionally. */
+let val_ = (x, ty) => Sig.sig_let(Pat.asc(Pat.var(x), ty));
+let type_ = (t, ty) => Sig.sig_type(TPat.var(t), ty);
+let mod_ = (x, ty) => Sig.sig_module(MPat.asc(MPat.var(x), ty));
+/* A signature already closed: its items' names mean what they do outside
+   it, which written source cannot always say. */
+let closed_sig_ = items =>
+  Language.Typ.temp(Sig(Closed(Language.ClosedSig.of_items(items))));
+
+let marks_of = (source): list(Language.Mark.t) =>
+  statics(parse_exp(source)) |> errors |> List.concat_map(snd);
+
+/* The marks on the nodes satisfying [pred]; fails if no node does. */
+let marks_at = (source, pred: Language.Info.t => bool): list(Language.Mark.t) =>
+  switch (
+    Language.Id.Map.bindings(statics(parse_exp(source)))
+    |> List.filter(((_, info)) => pred(info))
+  ) {
+  | [] => Alcotest.fail("No node matches the predicate in " ++ source)
+  | matches =>
+    List.concat_map(((_, info)) => Language.Info.marks_of(info), matches)
+  };
+
+/* Assert that some mark in the program satisfies [pred]. */
+let has_mark_test = (name, source, pred: Language.Mark.t => bool) =>
+  Alcotest.test_case(name, `Quick, () =>
+    Alcotest.(check(bool))(name, true, List.exists(pred, marks_of(source)))
+  );
+
+/* Exactly one mark in the whole program, and it satisfies [pred]. */
+let single_mark_test = (name, source, pred: Language.Mark.t => bool) =>
+  Alcotest.test_case(name, `Quick, () =>
+    Alcotest.(check(bool))(
+      name,
+      true,
+      switch (marks_of(source)) {
+      | [m] => pred(m)
+      | _ => false
+      },
+    )
+  );
+
+/* No marks at all in the program. */
+let no_marks_test = (name, source) =>
+  Alcotest.test_case(name, `Quick, () =>
+    Alcotest.(check(int))(name, 0, List.length(marks_of(source)))
+  );
+
+/* ===== PROJECTION ERROR ATTRIBUTION ===== */
+
+/* `m.y` with no member y: the label carries the error, the dot only a
+   message. */
+let is_dot: Language.Info.t => bool =
+  fun
+  | InfoExp({user_term: {term: Dot(_), _}, _}) => true
+  | _ => false;
+let is_label = (l: string): (Language.Info.t => bool) =>
+  fun
+  | InfoExp({user_term: {term: Label(name), _}, _}) =>
+    String.equal(name, l)
+  | _ => false;
+let is_module: Language.Info.t => bool =
+  fun
+  | InfoExp({user_term: {term: Module(_), _}, _}) => true
+  | _ => false;
+
+let test_member_not_found_on_label =
+  Alcotest.test_case(
+    "A missing member is reported on the label, not on the dot",
+    `Quick,
+    () => {
+      let src = {|let m = { let x = 1 } in m.y|};
+      Alcotest.(check(bool))(
+        "label marked",
+        true,
+        List.exists(
+          fun
+          | Language.Mark.ModuleMemberNotFound({name: "y", members: ["x"]}) =>
+            true
+          | _ => false,
+          marks_at(src, is_label("y")),
+        ),
+      );
+      Alcotest.(check(bool))(
+        "dot unmarked",
+        true,
+        List.is_empty(marks_at(src, is_dot)),
+      );
+    },
+  );
+
+let test_type_member_as_value_mark =
+  has_mark_test(
+    "Accessing a type member as a value says so",
+    {|let m = { type T = Int } in m.T|},
+    fun
+    | Language.Mark.ModuleMemberIsType("T") => true
+    | _ => false,
+  );
+
+let test_type_member_as_value_dot_not_missing =
+  Alcotest.test_case(
+    "Accessing a type member as a value does not say it is missing on the dot",
+    `Quick,
+    () => {
+      let messages =
+        Language.Id.Map.bindings(
+          statics(parse_exp({|let m = { type T = Int } in m.T|})),
+        )
+        |> List.filter_map(((_, info: Language.Info.t)) =>
+             switch (info) {
+             | InfoExp({user_term: {term: Dot(_), _}, message, _}) =>
+               Some(message)
+             | _ => None
+             }
+           );
+      Alcotest.(check(bool))(
+        "one dot, not saying the member is missing",
+        true,
+        switch (messages) {
+        | [Language.Message.Exp(ModuleMemberNotFound(_))] => false
+        | [_] => true
+        | _ => false
+        },
+      );
+    },
+  );
+
+let test_dot_on_non_module_mark =
+  has_mark_test(
+    "Projecting from a non-module value is a dot error",
+    {|let n = 1 in n.x|},
+    fun
+    | Language.Mark.DotOperatorRequiresTuple => true
+    | _ => false,
+  );
+
+let test_type_member_not_found_mark =
+  has_mark_test(
+    "A missing type member names the module's type members",
+    {|module M = { type Real = Int } in let bad : M.Fake = 1 in bad|},
+    fun
+    | Language.Mark.ModuleTypeMemberNotFound(
+        TypeMember,
+        {name: "Fake", members: ["Real"]},
+      ) =>
+      true
+    | _ => false,
+  );
+
+let test_no_type_members_mark =
+  has_mark_test(
+    "A module without type members says so",
+    {|module E = {} in let bad : E.T = 1 in bad|},
+    fun
+    | Language.Mark.ModuleTypeMemberNotFound(_, {name: "T", members: []}) =>
+      true
+    | _ => false,
+  );
+
+let test_submodule_not_found_mark =
+  has_mark_test(
+    "A missing sub-module in a type path says so",
+    {|module M = { module P = { type S = Int } } in let bad : M.Q.S = 1 in bad|},
+    fun
+    | Language.Mark.ModuleTypeMemberNotFound(
+        SubModule,
+        {name: "Q", members: ["P"]},
+      ) =>
+      true
+    | _ => false,
+  );
+
+let test_value_used_as_module_path_mark =
+  has_mark_test(
+    "A value that is not a module cannot root a type path",
+    {|let n = 1 in let y : n.T = 2 in y|},
+    fun
+    | Language.Mark.TypWantModule({name: "n", _}) => true
+    | _ => false,
+  );
+
+let test_unknown_typed_root_is_not_an_error =
+  no_marks_test(
+    "A root of unknown type may be a module: its type path is not an error",
+    {|let n : ? = 1 in let y : n.T = 2 in y|},
+  );
+
+let test_signature_literal_in_use_path =
+  no_marks_test(
+    "A signature literal's type member names a `use` mode",
+    {|use {type T = Int}.T in 1|},
+  );
+
+/* ===== HOLE BINDERS ===== */
+
+/* A hole among the items could still become the members the signature
+   declares and the module lacks, so they are assumed rather than reported;
+   a wildcard binds nothing and assumes nothing. */
+let test_holes_assume_missing_members =
+  Alcotest.test_case(
+    "A hole binder or item stands in for the missing members", `Quick, () =>
+    List.iter(
+      source => check_fully_consistent(source, Some(int())),
+      [
+        {|module M : { let x : Int; let y : Int } = { let x = 1; let ? = 2 } in M.y|},
+        {|module M : { let x : Int; let y : Int } = { let x = 1; ? } in M.y|},
+        {|module M : { let x : Int; let y : Int } = { let (x, ?) = (1, 2) } in M.y|},
+        {|module M : { type T = Int; let x : Int } = { let x = 1; ? } in let y : M.T = 3 in y + 1|},
+        {|module M : { let x : Int; module P : { let y : Int } } = { let x = 1; module ? = { let y = 2 } } in M.x|},
+      ],
+    )
+  );
+
+/* The mirror of a hole binder: a hole item in the signature may declare
+   the members the module adds. */
+let test_signature_hole_declares_extra_members =
+  no_marks_test(
+    "A hole item in the signature stands in for the module's extra members",
+    {|let m : { let x : Int; ? } = { let x = 1; let y = 2 } in m|},
+  );
+
+let test_signature_hole_member_is_unknown =
+  Alcotest.test_case(
+    "A member a hole item in the signature could declare is unknown",
+    `Quick,
+    () =>
+    List.iter(
+      ((source, ty)) => check_fully_consistent(source, Some(ty)),
+      [
+        (
+          {|let m : { let x : Int; ? } = { let x = 1; let y = 2 } in m.y + 1|},
+          int(),
+        ),
+        (
+          {|let m : { let x : Int; ? } = { let x = 1; let y = 2 } in m.y && true|},
+          bool(),
+        ),
+      ],
+    )
+  );
+
+let test_signature_hole_type_member_in_path =
+  no_marks_test(
+    "A hole item in the signature stands in for a type member a path names",
+    {|let f = fun (m : { let x : Int; ? }) -> fun (y : m.T) -> y in f|},
+  );
+
+let test_hole_signature_declares_type_member =
+  no_marks_test(
+    "A signature of only a hole stands in for a type member a path names",
+    {|fun (m : { ? }) -> (1 : m.T)|},
+  );
+
+let test_hole_signature_declares_module_members =
+  no_marks_test(
+    "A signature of only a hole stands in for the module's members",
+    {|let m : { ? } = { let x = 1 } in m|},
+  );
+
+/* A hole in a type member's definition could be what the signature
+   declares, so the definition is not compared. */
+let test_type_member_with_hole_is_not_compared =
+  no_marks_test(
+    "A type member defined with a hole item is not compared to its signature",
+    {|let m : { type S = { let x : Int; let y : Int } } = { type S = { let x : Int; ? } } in m|},
+  );
+
+let test_error_wildcard_binder_does_not_assume =
+  has_mark_test(
+    "A wildcard binder does not stand in for missing members",
+    {|module M : { let x : Int; let y : Int } = { let x = 1; let _ = 2 } in M|},
+    fun
+    | Language.Mark.ModuleMissingMembers(["y"]) => true
+    | _ => false,
+  );
+
+let test_error_non_binder_holes_do_not_assume =
+  Alcotest.test_case(
+    "Holes in a definition or an annotation do not stand in for members",
+    `Quick,
+    () => {
+      let missing_y = src =>
+        List.exists(
+          fun
+          | Language.Mark.ModuleMissingMembers(["y"]) => true
+          | _ => false,
+          marks_of(src),
+        );
+      Alcotest.(check(bool))(
+        "definition hole",
+        true,
+        missing_y(
+          {|module M : { let x : Int; let y : Int } = { let x = ? } in M|},
+        ),
+      );
+      Alcotest.(check(bool))(
+        "annotation hole",
+        true,
+        missing_y(
+          {|module M : { let x : Int; let y : Int } = { let x : ? = 1 } in M|},
+        ),
+      );
+    },
+  );
+
+let test_error_shorthand_parameter_hole_does_not_assume =
+  has_mark_test(
+    "A hole parameter of the function shorthand does not stand in for members",
+    {|module M : { let x : Int; let f : Int -> Int } = { let f(?) = 1 } in M.x|},
+    fun
+    | Language.Mark.ModuleMissingMembers(["x"]) => true
+    | _ => false,
+  );
+
+/* ===== NESTED EXPECTATIONS ===== */
+
+/* The signature's expectations reach sub-modules and the variables inside
+   destructuring patterns, so a problem is reported where it is. */
+let is_atom_vs = (ana_cls, syn_cls, m: Language.Mark.t) =>
+  switch (m) {
+  | ExpectationMismatch({ana, syn}) =>
+    switch (Language.Typ.term_of(ana), Language.Typ.term_of(syn)) {
+    | (Atom(a), Atom(s)) =>
+      Language.Atom.equal_cls(a, ana_cls)
+      && Language.Atom.equal_cls(s, syn_cls)
+    | _ => false
+    }
+  | _ => false
+  };
+let is_int_vs = is_atom_vs(Int);
+
+let test_nested_missing_member_localized =
+  single_mark_test(
+    "A sub-module lacking a member is reported once, inside it",
+    {|module M : { module Inner : { let x : Int; let y : Int } } = { module Inner = { let x = 1 } } in M|},
+    fun
+    | Language.Mark.ModuleMissingMembers(["y"]) => true
+    | _ => false,
+  );
+
+let test_nested_type_member_mismatch_localized =
+  single_mark_test(
+    "A sub-module's differing type member is reported once, on its item",
+    {|module M : { module Inner : { type T = Int } } = { module Inner = { type T = Bool } } in M|},
+    fun
+    | Language.Mark.ModuleTypeMemberMismatch({name: "T", _}) => true
+    | _ => false,
+  );
+
+let test_nested_definition_mismatch_localized =
+  single_mark_test(
+    "A sub-module's wrong definition is reported once, on the definition",
+    {|module M : { module Inner : { let x : Int } } = { module Inner = { let x = true } } in M|},
+    is_int_vs(Bool),
+  );
+
+let test_nested_user_annotation_kept =
+  Alcotest.test_case(
+    "A sub-module's own annotation is kept: its definition is checked against it",
+    `Quick,
+    () => {
+      /* Inner's own annotation disagrees with the outer expectation. Were it
+         replaced by the expectation, `true` would be marked against Int. */
+      let marks =
+        marks_of(
+          {|module M : { module Inner : { let x : Int } } = { module Inner : { let x : Bool } = { let x = true } } in M|},
+        );
+      Alcotest.(check(bool))(
+        "the disagreement is marked",
+        false,
+        List.is_empty(marks),
+      );
+      Alcotest.(check(bool))(
+        "the definition is not marked against Int",
+        false,
+        List.exists(is_int_vs(Bool), marks),
+      );
+    },
+  );
+
+let test_error_nested_module_sealed =
+  inconsistent_typecheck(
+    "A sub-module is sealed by the outer signature",
+    {|module M : { module Inner : { let x : Int } } = { module Inner = { let x = 1; let y = 2 } } in M.Inner.y|}
+    |> parse_exp,
+  );
+
+/* The tuple literal is also marked: #2561. */
+let component_mismatch_test = (name, source, syn_cls) =>
+  Alcotest.test_case(
+    name,
+    `Quick,
+    () => {
+      Alcotest.(check(bool))(
+        "component marked",
+        true,
+        List.exists(is_int_vs(syn_cls), marks_of(source)),
+      );
+      Alcotest.(check(bool))(
+        "module unmarked",
+        true,
+        List.is_empty(marks_at(source, is_module)),
+      );
+    },
+  );
+
+let test_tuple_binder_mismatch_localized =
+  component_mismatch_test(
+    "A destructured member with the wrong type is reported on the component",
+    {|module M : { let a : Int; let b : Int } = { let (a, b) = (1, "s") } in M|},
+    String,
+  );
+
+let test_tuple_binder_ok =
+  fully_consistent_typecheck(
+    "A destructured definition matching its signature",
+    {|module M : { let a : Int; let b : Int } = { let (a, b) = (1, 2) } in M.a + M.b|},
+    Some(int()),
+  );
+
+let test_labeled_tuple_binder_ok =
+  fully_consistent_typecheck(
+    "A labeled destructured definition matching its signature",
+    {|module M : { let a : Int; let b : Int } = { let (x=a, y=b) = (x=1, y=2) } in M.a + M.b|},
+    Some(int()),
+  );
+
+let test_nested_tuple_binder_mismatch_localized =
+  component_mismatch_test(
+    "A nested destructured member with the wrong type is reported on the component",
+    {|module M : { let a : Int; let b : Int; let c : Int } = { let ((a, b), c) = ((1, 2), "s") } in M|},
+    String,
+  );
+
+/* A cons pattern is also inexhaustive, as at top level. */
+let test_cons_binder_mismatch_localized =
+  component_mismatch_test(
+    "A cons-destructured member with the wrong type is reported on the element",
+    {|module M : { let h : Int; let t : [Int] } = { let h :: t = ["s"] } in M|},
+    String,
+  );
+
+/* Expectations on one component that cannot be met together: the names
+   whose expectation is dropped are not sealed at the signature's type, so
+   the module reports the disagreement. */
+let test_list_binder_every_component_checked =
+  inconsistent_typecheck(
+    "A list-destructured member the signature types differently is reported",
+    parse_exp(
+      {|module M : { let a : Int; let b : Bool } = { let [a, b] = [1, 2] } in M.b|},
+    ),
+  );
+
+let test_cons_binder_tail_checked =
+  inconsistent_typecheck(
+    "A cons-destructured tail the signature types differently is reported",
+    parse_exp(
+      {|module M : { let a : Int; let rest : [Bool] } = { let a :: rest = [1, 2] } in M|},
+    ),
+  );
+
+let is_item: Language.Info.t => bool =
+  fun
+  | InfoMod(_) => true
+  | _ => false;
+
+let test_refutable_item_pattern_reported_on_item =
+  Alcotest.test_case(
+    "A refutable item pattern is reported on the item",
+    `Quick,
+    () => {
+      let src = {|{ let 1 = 2; let y = 3 }|};
+      Alcotest.(check(int))("one mark", 1, List.length(marks_of(src)));
+      Alcotest.(check(bool))(
+        "inexhaustive, on the item",
+        true,
+        List.exists(
+          fun
+          | Language.Mark.InexhaustiveMatch(_) => true
+          | _ => false,
+          marks_at(src, is_item),
+        ),
+      );
+    },
+  );
+
+let test_bare_item_parent_is_the_module =
+  Alcotest.test_case(
+    "A bare expression item's parent is the module",
+    `Quick,
+    () => {
+      let exp = parse_exp({|{ let y = 1; y + 1 }|});
+      let s = statics(exp);
+      let parent_of_sum =
+        Language.Id.Map.bindings(s)
+        |> List.find_map(((id, info: Language.Info.t)) =>
+             switch (info) {
+             | InfoExp({user_term: {term: BinOp(_), _}, _}) =>
+               Some(Language.Statics.Map.parent_term_of(s, id))
+             | _ => None
+             }
+           );
+      Alcotest.(check(bool))(
+        "the module",
+        true,
+        switch (parent_of_sum) {
+        | Some(Some(Exp({term: Module(_), _}))) => true
+        | _ => false
+        },
+      );
+    },
+  );
+
+let test_bare_item_in_a_hole_is_its_expression =
+  Alcotest.test_case(
+    "A bare expression item in a hole keeps its expression's info",
+    `Quick,
+    () => {
+      let e = parse_exp({|1 + true|});
+      let s =
+        statics(
+          Language.Exp.fresh(MultiHole([Mod(Language.Mod.of_exp(e))])),
+        );
+      Alcotest.(check(bool))(
+        "an expression info at the expression's id",
+        true,
+        switch (Language.Id.Map.find_opt(Language.Exp.rep_id(e), s)) {
+        | Some(InfoExp(_)) => true
+        | _ => false
+        },
+      );
+    },
+  );
+
+let test_item_scope_references_are_variables =
+  Alcotest.test_case(
+    "A module item's scope co-context holds only variable references",
+    `Quick,
+    () => {
+      let s = statics(parse_exp({|{ let x = 1; let y = x }|}));
+      let is_var_ref = (entry: Language.CoCtx.entry) =>
+        switch (Language.Id.Map.find_opt(entry.id, s)) {
+        | Some(InfoExp({user_term: {term: Var(_), _}, _})) => true
+        | _ => false
+        };
+      let refs =
+        Language.Id.Map.bindings(s)
+        |> List.concat_map(((_, info: Language.Info.t)) =>
+             switch (info) {
+             | InfoMod({scope_co_ctx, _}) =>
+               List.concat_map(snd, scope_co_ctx)
+             | _ => []
+             }
+           );
+      Alcotest.(check(bool))("some reference", false, List.is_empty(refs));
+      Alcotest.(check(bool))(
+        "every reference is a variable",
+        true,
+        List.for_all(is_var_ref, refs),
+      );
+    },
+  );
+
+let test_type_member_compared_outside_the_body =
+  has_mark_test(
+    "A type member is compared against the signature's definition read outside the body",
+    {|type A = Int in module M : { type T = A } = { type A = Bool; type T = A } in M|},
+    fun
+    | Language.Mark.ModuleTypeMemberMismatch({name: "T", _}) => true
+    | _ => false,
+  );
+
 /* ===== WELL-TYPED MODULE TESTS ===== */
 
 /* Test empty module */
 let test_empty_module =
-  fully_consistent_typecheck("Empty module", {|{}|}, Some(prod([])));
+  fully_consistent_typecheck("Empty module", {|{}|}, Some(sig_([])));
 
 /* Test single binding module */
 let test_single_binding =
   fully_consistent_typecheck(
     "Single let binding",
     {|{ let x = 1 }|},
-    Some(prod([tup_label(label("x"), int())])),
+    Some(sig_([val_("x", int())])),
   );
 
 /* Test multiple bindings */
@@ -21,12 +595,7 @@ let test_multiple_bindings =
   fully_consistent_typecheck(
     "Multiple let bindings",
     {|{ let x = 1; let y = "hello" }|},
-    Some(
-      prod([
-        tup_label(label("x"), int()),
-        tup_label(label("y"), string()),
-      ]),
-    ),
+    Some(sig_([val_("x", int()), val_("y", string())])),
   );
 
 /* Test shadowing - only last binding should be exported */
@@ -34,15 +603,16 @@ let test_shadowing =
   fully_consistent_typecheck(
     "Shadowed binding exports last value",
     {|{ let x = 1; let x = "hello" }|},
-    Some(prod([tup_label(label("x"), string())])),
+    Some(sig_([val_("x", string())])),
   );
 
-/* Test type alias in module */
+/* Test type alias in module: the member keeps referring to the exported
+   type member, which the signature binds. */
 let test_type_alias =
   fully_consistent_typecheck(
-    "Type alias in module",
+    "Type alias in module: the exported signature is closed",
     {|{ type T = Int; let x = 1 : T }|},
-    Some(prod([tup_label(label("x"), int())])),
+    Some(sig_([type_("T", int()), val_("x", int())])),
   );
 
 /* Test bare expression in module */
@@ -50,7 +620,7 @@ let test_bare_expression =
   fully_consistent_typecheck(
     "Bare expression in module",
     {|{ 1 + 1; let x = 2 }|},
-    Some(prod([tup_label(label("x"), int())])),
+    Some(sig_([val_("x", int())])),
   );
 
 /* Test accessing module binding */
@@ -66,7 +636,7 @@ let test_module_in_let_def =
   fully_consistent_typecheck(
     "Module as let definition",
     {|let m = { let y = 1 } in m|},
-    Some(prod([tup_label(label("y"), int())])),
+    Some(sig_([val_("y", int())])),
   );
 
 /* Test module with two bindings in let */
@@ -74,23 +644,20 @@ let test_module_two_bindings_in_let =
   fully_consistent_typecheck(
     "Module with two bindings as let def",
     {|let m = { let x = 1; let y = 2 } in m|},
-    Some(
-      prod([tup_label(label("x"), int()), tup_label(label("y"), int())]),
-    ),
+    Some(sig_([val_("x", int()), val_("y", int())])),
   );
 
-/* Diagnostic: test the expanded form directly */
+/* Labeled tuples are unaffected by modules */
 let test_expansion_directly =
   fully_consistent_typecheck(
-    "Expanded module form directly",
+    "Labeled tuple built from a let",
     {|let y = 1 in (y=y)|},
     Some(prod([tup_label(label("y"), int())])),
   );
 
-/* Diagnostic: expanded form nested in let */
 let test_expansion_in_let =
   fully_consistent_typecheck(
-    "Expanded form in let",
+    "Labeled tuple built from a let, bound",
     {|let m = (let y = 1 in (y=y)) in m|},
     Some(prod([tup_label(label("y"), int())])),
   );
@@ -100,11 +667,7 @@ let test_nested_module =
   fully_consistent_typecheck(
     "Nested modules",
     {|{ let m = { let y = 1 } }|},
-    Some(
-      prod([
-        tup_label(label("m"), prod([tup_label(label("y"), int())])),
-      ]),
-    ),
+    Some(sig_([val_("m", sig_([val_("y", int())]))])),
   );
 
 /* Test module with complex expression */
@@ -112,18 +675,12 @@ let test_module_complex_expression =
   fully_consistent_typecheck(
     "Module with complex expression",
     {|{ let f = fun x : Int -> x + 1; let result = f(10) }|},
-    Some(
-      prod([
-        tup_label(label("f"), arrow(int(), int())),
-        tup_label(label("result"), int()),
-      ]),
-    ),
+    Some(sig_([val_("f", arrow(int(), int())), val_("result", int())])),
   );
 
-/* Test module used as labeled tuple */
-let test_module_as_labeled_tuple =
+let test_bound_module_member_access =
   fully_consistent_typecheck(
-    "Module as labeled tuple",
+    "Member access on a bound module",
     {|let point = { let x = 1; let y = 2 } in point.x + point.y|},
     Some(int()),
   );
@@ -141,7 +698,7 @@ let test_module_bool =
   fully_consistent_typecheck(
     "Module with boolean binding",
     {|{ let flag = true }|},
-    Some(prod([tup_label(label("flag"), bool())])),
+    Some(sig_([val_("flag", bool())])),
   );
 
 /* Test module with float binding */
@@ -149,7 +706,7 @@ let test_module_float =
   fully_consistent_typecheck(
     "Module with float binding",
     {|{ let pi = 3.14 }|},
-    Some(prod([tup_label(label("pi"), float())])),
+    Some(sig_([val_("pi", float())])),
   );
 
 /* Test module with list binding */
@@ -157,15 +714,15 @@ let test_module_list =
   fully_consistent_typecheck(
     "Module with list binding",
     {|{ let xs = [1, 2, 3] }|},
-    Some(prod([tup_label(label("xs"), list(int()))])),
+    Some(sig_([val_("xs", list(int()))])),
   );
 
-/* Test module with tuple binding */
+/* Test module with tuple binding: the member's type stays a tuple */
 let test_module_tuple =
   fully_consistent_typecheck(
     "Module with tuple binding",
     {|{ let pair = (1, true) }|},
-    Some(prod([tup_label(label("pair"), prod([int(), bool()]))])),
+    Some(sig_([val_("pair", prod([int(), bool()]))])),
   );
 
 /* Test sequential binding reference */
@@ -173,75 +730,302 @@ let test_sequential_binding_ref =
   fully_consistent_typecheck(
     "Later bindings can reference earlier ones",
     {|{ let x = 1; let y = x + 1 }|},
-    Some(
-      prod([tup_label(label("x"), int()), tup_label(label("y"), int())]),
-    ),
+    Some(sig_([val_("x", int()), val_("y", int())])),
   );
 
-/* Test module with annotation (Prod type) */
-let test_module_with_prod_annotation =
+/* ===== SIGNATURE SYNTHESIS ===== */
+
+let test_interleaved_members =
   fully_consistent_typecheck(
-    "Module with labeled tuple annotation",
-    {|let m : (x=Int) = { let x = 1 } in m|},
-    Some(prod([tup_label(label("x"), int())])),
+    "Interleaved members in source order",
+    {|{ let x = 1; type T = Bool; let y = true }|},
+    Some(sig_([val_("x", int()), type_("T", bool()), val_("y", bool())])),
   );
 
-/* Test module with multi-field Prod annotation */
-let test_module_with_multi_prod_annotation =
+let test_type_only_module =
   fully_consistent_typecheck(
-    "Module with multi-field labeled tuple annotation",
-    {|let m : (x=Int, y=Bool) = { let x = 1; let y = true } in m|},
-    Some(
-      prod([tup_label(label("x"), int()), tup_label(label("y"), bool())]),
-    ),
+    "Type-only module is a signature",
+    {|{ type T = Int }|},
+    Some(sig_([type_("T", int())])),
+  );
+
+/* A shadowed type member is not exported; its uses are inlined. */
+let test_shadowed_type_member =
+  fully_consistent_typecheck(
+    "Shadowed type member is inlined, last declaration exported",
+    {|{ type T = Int; let x : T = 1; type T = Bool; let y : T = true }|},
+    Some(sig_([val_("x", int()), type_("T", bool()), val_("y", bool())])),
+  );
+
+let test_nested_type_member_through_variable =
+  fully_consistent_typecheck(
+    "Nested module type members through variable",
+    {|module M = { module P = { type S = Int } } in M|},
+    Some(sig_([mod_("P", sig_([type_("S", int())]))])),
+  );
+
+let test_sig_alias_stays_sig =
+  fully_consistent_typecheck(
+    "Signature alias stays a signature",
+    {|type MT = { let x : Int } in let m : MT = { let x = 4 } in m.x|},
+    Some(int()),
+  );
+
+/* A binder takes its annotation as written; the unannotated member is `?`. */
+let test_unannotated_sig_member =
+  fully_consistent_typecheck(
+    "Unannotated signature member accepts any definition",
+    {|let m : { let x } = { let x = 1 } in m|},
+    Some(sig_([Sig.sig_let(Pat.var("x"))])),
+  );
+
+let test_dot_on_sig_with_type_member =
+  fully_consistent_typecheck(
+    "Member access substitutes the module's manifest type member",
+    {|let m = { type T = Int; let x : T = 1 } in m.x + 1|},
+    Some(int()),
+  );
+
+/* Module items report the member they declare, not the rest of the body. */
+let test_item_types =
+  Alcotest.test_case(
+    "Module items are typed as their member",
+    `Quick,
+    () => {
+      let exp =
+        parse_exp(
+          {|{ module Db = { type Id = Int }; let x = 1; type T = Bool }|},
+        );
+      let s = statics(exp);
+      let item_types =
+        switch (exp.term) {
+        | Module(items) =>
+          List.map(
+            (item: Language.Mod.t) =>
+              Language.Statics.Map.ty_of(Language.Mod.rep_id(item), s),
+            items,
+          )
+        | _ => []
+        };
+      Alcotest.check(
+        Alcotest.list(Alcotest.option(testable_typ)),
+        "item types",
+        [
+          Some(expected_typ(sig_([type_("Id", int())]))),
+          Some(int()),
+          Some(bool()),
+        ],
+        item_types,
+      );
+    },
+  );
+
+/* An item's info is a module item's, classified as the item it is. */
+let test_item_infos_are_module_items =
+  Alcotest.test_case(
+    "Module items have module item infos",
+    `Quick,
+    () => {
+      let exp = parse_exp({|{ let x = 1; type T = Bool }|});
+      let s = statics(exp);
+      let classes =
+        switch (exp.term) {
+        | Module(items) =>
+          List.filter_map(
+            (item: Language.Mod.t) =>
+              switch (Language.Id.Map.find_opt(Language.Mod.rep_id(item), s)) {
+              | Some(InfoMod({cls, _})) => Some(cls)
+              | _ => None
+              },
+            items,
+          )
+        | _ => []
+        };
+      Alcotest.(check(bool))(
+        "a let item and a type item",
+        true,
+        switch (classes) {
+        | [Mod(ModLet), Mod(ModType)] => true
+        | _ => false
+        },
+      );
+    },
   );
 
 /* ===== SIGNATURE ANNOTATION TESTS (well-typed) ===== */
 
-/* Sec 12: Empty module with matching empty sig annotation */
+/* Empty module with matching empty sig annotation */
 let test_empty_sig_annotation =
   fully_consistent_typecheck(
     "Empty module with empty sig annotation",
     {|let s1 : {} = {} in s1|},
-    Some(prod([])),
+    Some(sig_([])),
   );
 
-/* Sec 13: Module with matching sig annotation */
+/* Module with matching sig annotation */
 let test_matching_sig_annotation =
   fully_consistent_typecheck(
     "Module with matching sig annotation",
     {|let s1 : { let x : Int } = { let x = 42 } in s1|},
-    Some(prod([tup_label(label("x"), int())])),
+    Some(sig_([val_("x", int())])),
   );
 
-/* Sec 13b: Multi-member matching sig annotation */
+/* Multi-member matching sig annotation */
 let test_matching_sig_multi =
   fully_consistent_typecheck(
     "Module with multi-member matching sig annotation",
     {|let m : { let x : Int; let y : Bool } = { let x = 1; let y = true } in m|},
-    Some(
-      prod([tup_label(label("x"), int()), tup_label(label("y"), bool())]),
-    ),
+    Some(sig_([val_("x", int()), val_("y", bool())])),
+  );
+
+/* A manifest type member in the signature is checked and substituted into
+   the expected member types; the binder keeps the annotation as written. */
+let test_sig_type_member_matches =
+  fully_consistent_typecheck(
+    "Signature manifest type member matches the module's",
+    {|let m : { type T = Int; let x : T } = { type T = Int; let x = 1 } in m|},
+    Some(sig_([type_("T", int()), val_("x", int())])),
+  );
+
+/* Where the module's own definition of a type member is not yet in scope,
+   its value members expect the signature's definition. */
+let test_sig_type_member_defined_later =
+  no_marks_test(
+    "Value member before the type member its declared type names",
+    {|let m : { type T = Int; let x : T } = { let x = 1; type T = Int } in m|},
+  );
+
+let test_sig_type_member_defined_later_mismatch =
+  single_mark_test(
+    "Value member before its type member is checked against the definition",
+    {|let m : { type T = Int; let x : T } = { let x = true; type T = Int } in m|},
+    is_int_vs(Bool),
+  );
+
+let test_sig_type_member_redefined_later =
+  no_marks_test(
+    "Value member between two definitions of its type member",
+    {|let m : { type T = Int; let x : T } = { type T = Bool; let x = 1; type T = Int } in m|},
+  );
+
+/* A capitalized sub-module is declared with `module M : S` in a signature */
+let test_sig_module_member =
+  fully_consistent_typecheck(
+    "Sub-module declared in a signature",
+    {|module M : { module Inner : { let x : Int }; let y : Int } = { module Inner = { let x = 1 }; let y = 2 } in M.Inner.x + M.y|},
+    Some(int()),
+  );
+
+let test_sig_module_member_binder_type =
+  fully_consistent_typecheck(
+    "Sub-module signature member is kept as written on the binder",
+    {|module M : { module Inner : { let x : Int } } = { module Inner = { let x = 1 } } in M|},
+    Some(sig_([mod_("Inner", sig_([val_("x", int())]))])),
+  );
+
+let test_sig_lowercase_nested =
+  fully_consistent_typecheck(
+    "Lowercase sub-module declared with let in a signature",
+    {|let m : { let inner : { let x : Int } } = { let inner = { let x = 1 } } in m.inner.x|},
+    Some(int()),
+  );
+
+/* ===== SIGNATURE MISMATCH MARKS ===== */
+
+let test_extra_member_mark =
+  has_mark_test(
+    "Extra member is reported as an extra member",
+    {|let m : { let x : Int } = { let x = 1; let y = 2 } in m|},
+    fun
+    | Language.Mark.ModuleExtraMembers(["y"]) => true
+    | _ => false,
+  );
+
+let test_extra_type_member_mark =
+  has_mark_test(
+    "Extra type member is reported as an extra member",
+    {|let m : { let x : Int } = { type T = Int; let x = 1 } in m|},
+    fun
+    | Language.Mark.ModuleExtraMembers(["T"]) => true
+    | _ => false,
+  );
+
+let test_missing_member_mark =
+  has_mark_test(
+    "Missing member is reported as a missing member",
+    {|let m : { let x : Int; let y : Bool } = { let x = 1 } in m|},
+    fun
+    | Language.Mark.ModuleMissingMembers(["y"]) => true
+    | _ => false,
+  );
+
+let test_type_member_mismatch_mark =
+  has_mark_test(
+    "Differing type member is reported on the type item",
+    {|let m : { type T = Int; let x : T } = { type T = Bool; let x = true } in m|},
+    fun
+    | Language.Mark.ModuleTypeMemberMismatch({name: "T", _}) => true
+    | _ => false,
+  );
+
+/* The signature's `x : T` means Int: a value member is checked against the
+   signature's definition of a type member, not the module's. */
+let test_type_member_mismatch_on_the_definition =
+  Alcotest.test_case(
+    "A differing type member is marked on its definition type, and the member declared through it against the signature's definition",
+    `Quick,
+    () => {
+      let src = {|module M : { type T = Int; let x : T } = { type T = Bool; let x = true } in M|};
+      Alcotest.(check(int))("two marks", 2, List.length(marks_of(src)));
+      Alcotest.(check(bool))(
+        "true marked against Int",
+        true,
+        List.exists(is_int_vs(Bool), marks_of(src)),
+      );
+      Alcotest.(check(bool))(
+        "Bool marked",
+        true,
+        List.exists(
+          fun
+          | Language.Mark.ModuleTypeMemberMismatch({name: "T", _}) => true
+          | _ => false,
+          marks_at(
+            src,
+            fun
+            | InfoTyp({user_term: {term: Atom(Bool), _}, _}) => true
+            | _ => false,
+          ),
+        ),
+      );
+    },
+  );
+
+let test_type_member_mismatch_with_right_definition =
+  Alcotest.test_case(
+    "A differing type member is the only error when the member fits the signature's definition",
+    `Quick,
+    () => {
+      let marks =
+        marks_of(
+          {|module M : { type T = Int; let x : T } = { type T = Bool; let x = 1 } in M|},
+        );
+      Alcotest.(check(int))("one error", 1, List.length(marks));
+      Alcotest.(check(bool))(
+        "the type member",
+        true,
+        List.exists(
+          fun
+          | Language.Mark.ModuleTypeMemberMismatch(_) => true
+          | _ => false,
+          marks,
+        ),
+      );
+    },
   );
 
 /* ===== TYPE ERROR TESTS ===== */
 
-/* Type mismatch: annotation says Int, module provides String */
-let test_error_type_mismatch =
-  inconsistent_typecheck(
-    "Type mismatch in module annotation",
-    {|let m : (x=Int) = { let x = "hello" } in m|} |> parse_exp,
-  );
-
-/* Type mismatch with multiple bindings */
-let test_error_type_mismatch_multi =
-  inconsistent_typecheck(
-    "Type mismatch in one of multiple bindings",
-    {|let m : (x=Int, y=Bool) = { let x = 1; let y = "oops" } in m|}
-    |> parse_exp,
-  );
-
-/* Sec 14: Module member type doesn't match sig annotation */
+/* Module member type doesn't match sig annotation */
 let test_error_sig_type_mismatch =
   inconsistent_typecheck(
     "Module member type mismatch with sig annotation",
@@ -249,7 +1033,7 @@ let test_error_sig_type_mismatch =
     |> parse_exp,
   );
 
-/* Sec 15: Module with matching and non-matching members */
+/* Module with matching and non-matching members */
 let test_error_sig_partial_mismatch =
   inconsistent_typecheck(
     "Sig annotation with one matching and one mismatched member",
@@ -257,7 +1041,7 @@ let test_error_sig_partial_mismatch =
     |> parse_exp,
   );
 
-/* Sec 16: Module missing members (sig wider than module) */
+/* Module missing members (sig wider than module) */
 let test_error_sig_too_wide =
   inconsistent_typecheck(
     "Module missing members required by sig",
@@ -265,15 +1049,7 @@ let test_error_sig_too_wide =
     |> parse_exp,
   );
 
-/* Sec 17: Singleton module missing a member (sig wider) */
-let test_error_sig_too_wide_singleton =
-  inconsistent_typecheck(
-    "Singleton module missing member required by sig",
-    {|let annotated : { let x : Int; let y : Bool } = { let x = 1 } in annotated|}
-    |> parse_exp,
-  );
-
-/* Sec 18: Empty module missing all members */
+/* Empty module missing all members */
 let test_error_sig_too_wide_empty =
   inconsistent_typecheck(
     "Empty module missing all members required by sig",
@@ -337,68 +1113,66 @@ let test_error_sequential_type =
     {|{ let x = "hello"; let y = x + 1 }|} |> parse_exp,
   );
 
-/* ===== LIMITATIONS: Module/Tuple equivalence =====
-   Currently modules are a sugar for labeled tuples. These tests document
-   behaviors that are expected to change when full module types (Sig) are
-   implemented. See plans/modules.md Phase 2.1. */
+/* ===== SIGNATURES ARE DISTINCT FROM LABELED TUPLE TYPES ===== */
 
-/* Sec 20: Module and tuple types are interchangeable (limitation) */
-let test_limitation_sig_tuple_compat_mt =
-  fully_consistent_typecheck(
-    "Limitation: sig annotation accepts labeled tuple value",
-    {|let mt : { let x : Int } = (x=1) in mt|},
-    Some(prod([tup_label(label("x"), int())])),
+let test_modules_and_labeled_tuples_are_distinct =
+  Alcotest.test_case(
+    "Labeled tuple types and signatures do not accept each other's values",
+    `Quick,
+    () =>
+    List.iter(
+      source =>
+        Alcotest.(check(bool))(
+          source,
+          false,
+          List.is_empty(marks_of(source)),
+        ),
+      [
+        {|let m : (x=Int) = { let x = "hello" } in m|},
+        {|let m : (x=Int, y=Bool) = { let x = 1; let y = "oops" } in m|},
+        {|let tm : (x=Int) = { let x = 1 } in tm|},
+        {|let tm : (x=Int) = { let x = true } in tm|},
+        {|module M : (x=Int) = { let x = 1 } in M.x|},
+        {|module M : (x=Int, y=Bool) = { let x = 1; let y = true } in M|},
+        {|module M : (x=Int) = { let x = "hello" } in M|},
+        {|let mt : { let x : Int } = (x=1) in mt|},
+        {|let mt : { let x : Int } = (x=true) in mt|},
+        {|let u : () = {} in u|},
+        {|let e : {} = () in e|},
+        {|test (x=1) == { let x = 1 } end|},
+      ],
+    )
   );
 
-let test_limitation_sig_tuple_compat_tm =
-  fully_consistent_typecheck(
-    "Limitation: prod annotation accepts module value",
-    {|let tm : (x=Int) = { let x = 1 } in tm|},
-    Some(prod([tup_label(label("x"), int())])),
-  );
-
-/* Sec 21: Cross-type errors work regardless of module/tuple mix */
-let test_limitation_cross_error_mt =
+/* ===== EXTRA MEMBERS ARE AN ERROR ===== */
+let test_extra_member_rejected =
   inconsistent_typecheck(
-    "Limitation: sig annotation catches tuple type error",
-    {|let mt : { let x : Int } = (x=true) in mt|} |> parse_exp,
-  );
-
-let test_limitation_cross_error_tm =
-  inconsistent_typecheck(
-    "Limitation: prod annotation catches module type error",
-    {|let tm : (x=Int) = { let x = true } in tm|} |> parse_exp,
-  );
-
-/* Sec 22-24: Precise width matching required (limitation).
-   With full modules, extra members should be allowed (open meet).
-   Currently, width mismatches are errors because modules desugar to Prods. */
-let test_limitation_extra_member =
-  inconsistent_typecheck(
-    "Limitation: extra module member errors (should pass with full modules)",
+    "Extra module member is rejected by an exact signature",
     {|let annotated : {} = { let x = 1 } in annotated|} |> parse_exp,
   );
 
-let test_limitation_extra_member_multi =
+let test_sig_too_narrow_rejected =
   inconsistent_typecheck(
-    "Limitation: extra member in multi-member module errors",
-    {|let annotated : { let x : Int } = { let x = 1; let y = 2 } in annotated|}
-    |> parse_exp,
-  );
-
-let test_limitation_sig_too_narrow =
-  inconsistent_typecheck(
-    "Limitation: sig narrower than module errors",
+    "Signature narrower than module is rejected",
     {|let annotated : { let x : Int; let y : Bool } = { let x = 1; let y = true; let z = "hello" } in annotated|}
     |> parse_exp,
   );
 
-/* Sec 26: Label mismatch with hole type produces no error (limitation) */
-let test_limitation_label_mismatch_hole =
-  fully_consistent_typecheck(
-    "Limitation: label mismatch with hole type has no error",
-    {|let m : { let x : ? } = { let y = 1 } in m|},
-    Some(prod([tup_label(label("x"), unknown(Hole(EmptyHole)))])),
+/* Known bug (#2544): a hole-named member should match `y`. */
+let test_hole_named_member_matches_any =
+  single_mark_test(
+    "A signature member named by a hole does not yet match a module member",
+    {|let m : { let ? : ? } = { let y = 1 } in m|},
+    fun
+    | Language.Mark.ModuleExtraMembers(["y"]) => true
+    | _ => false,
+  );
+
+/* A hole-typed member is still a required member */
+let test_label_mismatch_hole =
+  inconsistent_typecheck(
+    "Label mismatch with hole type is a missing member",
+    {|let m : { let x : ? } = { let y = 1 } in m|} |> parse_exp,
   );
 
 /* ===== MODULE KEYWORD TESTS ===== */
@@ -425,10 +1199,7 @@ let test_module_keyword_in_mod =
     "Module keyword inside module body",
     {|{ module Inner = { let z = 42 }; let r = Inner.z }|},
     Some(
-      prod([
-        tup_label(label("Inner"), prod([tup_label(label("z"), int())])),
-        tup_label(label("r"), int()),
-      ]),
+      sig_([mod_("Inner", sig_([val_("z", int())])), val_("r", int())]),
     ),
   );
 
@@ -437,9 +1208,7 @@ let test_module_keyword_returns_module =
   fully_consistent_typecheck(
     "Module keyword returns module value",
     {|module M = { let a = 1; let b = true } in M|},
-    Some(
-      prod([tup_label(label("a"), int()), tup_label(label("b"), bool())]),
-    ),
+    Some(sig_([val_("a", int()), val_("b", bool())])),
   );
 
 /* Test capitalized name in dot position (chained access) */
@@ -450,11 +1219,23 @@ let test_capitalized_dot_access =
     Some(int()),
   );
 
-/* Test module keyword with prod annotation */
-let test_module_keyword_prod_annotation =
+/* A module name is checked as the pattern it binds (`MPat.to_pat`). */
+let test_invalid_module_name_is_a_bad_token =
+  single_mark_test(
+    "An invalid module name is marked as a bad token",
+    {|module 1 = { let x = 1 } in 2|},
+    fun
+    | BadToken("1") => true
+    | _ => false,
+  );
+
+/* A capitalized name resolves to its newest binding: a module bound after
+   the JSON type's `List` constructor shadows it, as any later binding
+   shadows an earlier one. */
+let test_module_shadowing_a_constructor =
   fully_consistent_typecheck(
-    "Module keyword with prod annotation",
-    {|module M : (x=Int) = { let x = 1 } in M.x|},
+    "A module named like a constructor is still a module when projected",
+    {|module List = { let second = 2 } in List.second|},
     Some(int()),
   );
 
@@ -466,23 +1247,6 @@ let test_module_keyword_sig_annotation =
     Some(int()),
   );
 
-/* Test module keyword with multi-field annotation */
-let test_module_keyword_multi_annotation =
-  fully_consistent_typecheck(
-    "Module keyword with multi-field annotation",
-    {|module M : (x=Int, y=Bool) = { let x = 1; let y = true } in M|},
-    Some(
-      prod([tup_label(label("x"), int()), tup_label(label("y"), bool())]),
-    ),
-  );
-
-/* Test module keyword annotation type mismatch */
-let test_error_module_keyword_annotation_mismatch =
-  inconsistent_typecheck(
-    "Module keyword annotation type mismatch",
-    {|module M : (x=Int) = { let x = "hello" } in M|} |> parse_exp,
-  );
-
 /* Test module keyword sig annotation mismatch */
 let test_error_module_keyword_sig_mismatch =
   inconsistent_typecheck(
@@ -490,7 +1254,7 @@ let test_error_module_keyword_sig_mismatch =
     {|module M : { let x : Int } = { let x = true } in M|} |> parse_exp,
   );
 
-/* ===== QUALIFIED TYPE ACCESS TESTS (Phase 1) ===== */
+/* ===== QUALIFIED TYPE ACCESS TESTS ===== */
 /* Use `x + 0` etc. to force the result to a concrete type, since
    the annotation M.T stores as ProdProjection in the info map. */
 
@@ -534,10 +1298,9 @@ let test_qualified_type_lowercase =
     Some(int()),
   );
 
-/* Type shadowing in module (last wins) — has ShadowsType diagnostic */
-let test_qualified_type_shadowing =
+let test_qualified_type_also_used_inside =
   fully_consistent_typecheck(
-    "Qualified type access: type used after non-shadowed definition",
+    "Qualified type access: a type member also used inside its module",
     {|module M = { type T = Int; let x : T = 1 } in let y : M.T = 2 in y + 0|},
     Some(int()),
   );
@@ -549,7 +1312,59 @@ let test_error_qualified_type_unknown =
     {|module M = { type T = Int } in let x : M.U = 5 in x|} |> parse_exp,
   );
 
-/* ===== QUALIFIED TYPE ACCESS: ALIASING TESTS (Phase 1b) ===== */
+/* Signature alias type member */
+let test_signature_literal_in_a_type_path =
+  fully_consistent_typecheck(
+    ~normalize=true,
+    "A signature literal is a module path",
+    {|let f = fun (x : { type T = Int }.T) -> x in f|},
+    Some(arrow(int(), int())),
+  );
+
+let test_parenthesized_signature_literal_in_a_type_path =
+  fully_consistent_typecheck(
+    ~normalize=true,
+    "A parenthesized signature literal is a module path",
+    {|let y : ({ type T = Int }).T = 1 in y|},
+    Some(int()),
+  );
+
+/* The type walk builds each annotation's type from its children's. */
+let test_annotation_types_are_the_annotations_closed =
+  Alcotest.test_case(
+    "An annotation's type is the annotation closed",
+    `Quick,
+    () => {
+      let src = {|let m : { module P : { type T = Int }; let x : (P.T, [P.T]) -> { let y : P.T }; let s : + A(P.T) + B } = ? in
+let f : poly a -> (a, { type U = a; let u : U }) -> a = ? in f|};
+      let s = statics(parse_exp(src));
+      let not_closed =
+        Language.Id.Map.bindings(s)
+        |> List.filter_map(((_, info: Language.Info.t)) =>
+             switch (info) {
+             | InfoTyp({user_term, ty, ctx, _})
+                 when
+                   !
+                     Language.Typ.fast_equal(
+                       ty,
+                       Language.Typ.close(ctx, user_term),
+                     ) =>
+               Some(Language.Typ.pretty_print(user_term))
+             | _ => None
+             }
+           );
+      Alcotest.(check(list(string)))("annotations", [], not_closed);
+    },
+  );
+
+let test_qualified_type_sig_alias =
+  fully_consistent_typecheck(
+    "Qualified type access: signature alias",
+    {|type MS = { type T = Int; let x : T } in let y : MS.T = 3 in y + 0|},
+    Some(int()),
+  );
+
+/* ===== QUALIFIED TYPE ACCESS: ALIASING TESTS ===== */
 
 /* Variable aliasing */
 let test_qualified_type_var_alias =
@@ -621,10 +1436,805 @@ let test_type_alias_shadowing_nested_module =
     Some(string()),
   );
 
+/* ===== FUNCTION SHORTHAND MEMBERS =====
+   `let f(x) = ...` in a module body binds `f` through the same desugaring
+   as a top-level shorthand (see Test_Statics_FunctionSugar); its parameters
+   are not members. */
+
+let test_shorthand_member_exported =
+  fully_consistent_typecheck(
+    "Shorthand member is exported with its function type",
+    {|{ let f(x: Int): Int = x + 1 }|},
+    Some(sig_([val_("f", arrow(int(), int()))])),
+  );
+
+let test_shorthand_member_forms =
+  fully_consistent_typecheck(
+    "Shorthand members: unannotated, nullary, and recursive",
+    {|module M = { let f(x) = x + 1; let g() = 2; let fact(n: Int): Int = if n == 0 then 1 else n * fact(n - 1) } in M.f(1) + M.g() + M.fact(4)|},
+    Some(int()),
+  );
+
+let test_shorthand_member_signature =
+  fully_consistent_typecheck(
+    "Shorthand member checked against its signature",
+    {|module M : { let f : Int -> Int } = { let f(x) = x + 1 } in M.f(1)|},
+    Some(int()),
+  );
+
+let test_shorthand_member_signature_return_type =
+  fully_consistent_typecheck(
+    "Shorthand member with a return type, checked against its signature",
+    {|module M : { let f : Int -> Int } = { let f(x): Int = x + 1 } in M.f(1)|},
+    Some(int()),
+  );
+
+let test_shorthand_member_shadowed =
+  fully_consistent_typecheck(
+    "A later binding shadows a shorthand member",
+    {|{ let f(x: Int) = x; let f = 2 }|},
+    Some(sig_([val_("f", int())])),
+  );
+
+let test_shadowed_member_keeps_last_position =
+  fully_consistent_typecheck(
+    "A shadowed member's type is at the position of its last definition",
+    {|{ let x = 1; let y = 2; let x = 3 }|},
+    Some(sig_([val_("y", int()), val_("x", int())])),
+  );
+
+let interleaved_shadowing = (sig_x, first_x) =>
+  Printf.sprintf(
+    {|module M : {let y : Int; let x : %s} = {let x = %s; let y = 2; let x = 3} in M|},
+    sig_x,
+    first_x,
+  );
+
+let test_shadowed_member_checked_at_last_definition =
+  Alcotest.test_case(
+    "A shadowed member is checked against the signature at its last definition",
+    `Quick,
+    () => {
+      let source = interleaved_shadowing("Bool", "1");
+      let on_last =
+        marks_at(
+          source,
+          fun
+          | InfoExp({user_term: {term: Atom(Int(m)), _}, _}) =>
+            Bigint.equal(m, Bigint.of_int(3))
+          | _ => false,
+        );
+      Alcotest.(check(int))(
+        "exactly one mark",
+        1,
+        List.length(marks_of(source)),
+      );
+      Alcotest.(check(bool))(
+        "it is on the last definition",
+        false,
+        List.is_empty(on_last),
+      );
+    },
+  );
+
+let test_shadowed_definition_not_checked_against_signature =
+  no_marks_test(
+    "A definition shadowed by a later one is not checked against the signature",
+    interleaved_shadowing("Int", "true"),
+  );
+
+let test_shorthand_parameter_not_member =
+  single_mark_test(
+    "A shorthand's parameter is not a member",
+    {|{ let f(x: Int) = x }.x|},
+    fun
+    | Language.Mark.ModuleMemberNotFound({name: "x", members: ["f"]}) => true
+    | _ => false,
+  );
+
+let test_shorthand_member_mismatch_on_definition =
+  Alcotest.test_case(
+    "A shorthand member's mismatch is reported on its definition",
+    `Quick,
+    () => {
+      let src = {|module M : { let f : Int -> Bool } = { let f(x) = x + 1 } in M|};
+      let is_mismatch: Language.Mark.t => bool =
+        fun
+        | ExpectationMismatch(_) => true
+        | _ => false;
+      Alcotest.(check(bool))(
+        "definition marked",
+        true,
+        List.exists(
+          is_mismatch,
+          marks_at(
+            src,
+            fun
+            | InfoExp({user_term: {term: BinOp(_), _}, _}) => true
+            | _ => false,
+          ),
+        ),
+      );
+      Alcotest.(check(bool))(
+        "module unmarked",
+        true,
+        List.is_empty(marks_at(src, is_module)),
+      );
+    },
+  );
+
+/* ===== CYCLIC MEMBER PATHS ===== */
+
+/* `m.T` in a signature names the outer `m`, the one in scope there. Once
+   the inner `m` is bound, its member `m.T` names the inner `m` itself: the
+   path has no weak head normal form, and is `?` rather than a hang. */
+let test_cyclic_member_path_let =
+  no_marks_test(
+    "A signature naming a same-named outer binding means the outer one, without a crash",
+    {|let m = { type T = Int } in let m : { type T = m.T } = { type T = Int } in let y : m.T = 1 in y|},
+  );
+
+let test_cyclic_member_path_module =
+  no_marks_test(
+    "The module form of a signature naming a same-named outer module means the outer one, without a crash",
+    {|module M = { type T = Int } in module M : { type T = M.T } = { type T = Int } in let y : M.T = 1 in y|},
+  );
+
+/* ===== SUBSTITUTING INTO A SIGNATURE ===== */
+
+/* `f@<T>` where the alias T names Bool and the signature declares a type
+   member also called T: the argument is not captured, so `m.v(1)` passes an
+   Int where a Bool is expected. */
+let test_alias_argument_not_captured_by_member =
+  single_mark_test(
+    "An alias type argument is not captured by a same-named type member",
+    {|type T = Bool in
+let f : poly a -> {type T = Int; let v : a -> Int} =
+  typfun a -> {type T = Int; let v = fun x -> 1} in
+let m = f@<T> in
+m.v(1)|},
+    fun
+    | ExpectationMismatch({
+        ana: {term: Var("T"), _},
+        syn: {term: Atom(Int), _},
+      }) =>
+      true
+    | _ => false,
+  );
+
+/* `f@<X>` where X is a type parameter in scope and the signature declares a
+   type member [member]. */
+let abstract_argument_source = member =>
+  Printf.sprintf(
+    {|let f : poly a -> {type %s = Int; let v : a -> Int} =
+  typfun a -> {type %s = Int; let v = fun x -> 1} in
+typfun X -> fun (y : X) -> let m = f@<X> in m.v(y)|},
+    member,
+    member,
+  );
+
+let test_abstract_argument_not_captured_by_member =
+  fully_consistent_typecheck(
+    "An abstract type argument is not captured by a same-named type member",
+    abstract_argument_source("X"),
+    Some(poly(TPat.var("X"), arrow(var("X"), int()))),
+  );
+
+let test_abstract_argument_without_collision_is_clean =
+  no_marks_test(
+    "An abstract type argument with no same-named type member is clean",
+    abstract_argument_source("U"),
+  );
+
+/* `typfun X -> e` checked against `poly a -> S`: aligning the binder names
+   substitutes X into S. */
+let typfun_binder_source = binder =>
+  Printf.sprintf(
+    {|let h : poly a -> {type X = Int; let v : a -> Int} =
+  typfun %s -> {type X = Int; let v = fun x -> 1} in
+h|},
+    binder,
+  );
+
+let test_typfun_binder_not_captured_by_member =
+  no_marks_test(
+    "A typfun binder named like the expected signature's type member is not captured",
+    typfun_binder_source("X"),
+  );
+
+/* Info.tpat: a binder reported OK carries no marks. */
+let test_typfun_binder_info_consistent =
+  Alcotest.test_case(
+    "A typfun binder's info is OK with no marks",
+    `Quick,
+    () => {
+      let infos =
+        Language.Id.Map.bindings(
+          statics(parse_exp(typfun_binder_source("X"))),
+        )
+        |> List.filter_map(((_, info: Language.Info.t)) =>
+             switch (info) {
+             | InfoTPat({user_term: {term: Var("X"), _}, marks, message, _}) =>
+               Some((marks, message))
+             | _ => None
+             }
+           );
+      Alcotest.(check(bool))(
+        "every X binder is OK",
+        true,
+        !List.is_empty(infos)
+        && List.for_all(
+             fun
+             | ([], Some(Language.Message.TPatOk(_))) => true
+             | _ => false,
+             infos,
+           ),
+      );
+    },
+  );
+
+let test_typfun_binder_without_collision_is_clean =
+  no_marks_test(
+    "A typfun binder with no same-named type member is clean",
+    typfun_binder_source("b"),
+  );
+
+/* `type A = B in e`: the definition is substituted for A into e's type so
+   that A does not escape; a type member named B does not capture it. */
+let test_alias_definition_not_captured_by_member =
+  fully_consistent_typecheck(
+    "An alias definition is not captured by a type member in the body's type",
+    {|type B = Bool in
+type A = B in
+let m : {type B = Int; let v : A -> Int} = {type B = Int; let v = fun x -> 1} in
+m|},
+    Some(sig_([type_("B", int()), val_("v", arrow(bool(), int()))])),
+  );
+
+/* ===== SIGNATURE SCOPING ===== */
+
+let test_recursive_sig_type_member =
+  no_marks_test(
+    "A signature's type member may mention itself",
+    {|module L : { type T = + Nil + Cons(Int, T); let empty : T; let push : (Int, T) -> T } = { type T = + Nil + Cons(Int, T); let empty = Nil; let push = fun (x, l) -> Cons(x, l) } in L.push(1, L.empty)|},
+  );
+
+let test_alias_cycle_through_path =
+  has_mark_test(
+    "An alias cycle through a type path is an error, not a hang",
+    {|type A = B.x in type B = A in let y : A = 1 in y|},
+    fun
+    | Language.Mark.TypWantProduct(_) => true
+    | _ => false,
+  );
+
+let test_later_module_shadows_alias_in_path =
+  no_marks_test(
+    "A module bound after a same-named type alias roots its type paths",
+    {|type Point = (x = Int) in module Point = { type T = Int } in let p : Point.T = 1 in p|},
+  );
+
+let test_member_before_type_member_means_outer =
+  no_marks_test(
+    "A member declared before the signature's type member means the outer one",
+    {|type T = Bool in module M : { let x : T; type T = Int } = { type T = Int; let x = true } in M.x|},
+  );
+
+let test_member_before_type_member_mismatch =
+  single_mark_test(
+    "A member declared before the signature's type member is checked against the outer one",
+    {|type T = Bool in module M : { let x : T; type T = Int } = { type T = Int; let x = 1 } in M.x|},
+    fun
+    | ExpectationMismatch({ana, syn}) =>
+      switch (Language.Typ.term_of(ana), Language.Typ.term_of(syn)) {
+      | (Atom(Bool), Atom(Int)) => true
+      | _ => false
+      }
+    | _ => false,
+  );
+
+/* `y : T` means the outer `U`, Bool, whatever the inner signature names U. */
+let test_nested_member_keeps_outer_meaning =
+  single_mark_test(
+    "A nested signature's member keeps the outer meaning of a name it shadows",
+    {|type U = Bool in let g = fun (m : { type T = U; let f : { type U = Int; let y : T } }) -> (m.f.y : Int) in g|},
+    fun
+    | ExpectationMismatch({
+        ana: {term: Atom(Int), _},
+        syn: {term: Var("U"), _},
+      }) =>
+      true
+    | _ => false,
+  );
+
+let test_error_meet_compares_members_in_their_own_scope =
+  has_mark_test(
+    "Signatures whose same-named member means different types do not meet",
+    {|type T = Bool in
+type A = { let x : T; type T = Int } in
+type B = { type T = Int; let x : T } in
+let a : A = { let x = true; type T = Int } in
+let b : B = a in
+b.x + 1|},
+    fun
+    | ExpectationMismatch(_) => true
+    | _ => false,
+  );
+
+let test_meet_ignores_member_order =
+  fully_consistent_typecheck(
+    "Signatures declaring the same members in another order meet",
+    {|type A = { type T = Int; let x : T } in
+type B = { let x : Int; type T = Int } in
+let a : A = { type T = Int; let x = 1 } in
+let b : B = a in
+b.x + 1|},
+    Some(int()),
+  );
+
+let test_sig_module_member_roots_path =
+  fully_consistent_typecheck(
+    "A path in a signature is rooted at an earlier sub-module of it",
+    {|module P = { type U = Bool } in
+module M : { module P : { type U = Int }; let x : P.U } = { module P = { type U = Int }; let x = 3 } in
+M.x + 1|},
+    Some(int()),
+  );
+
+let test_error_sig_module_member_roots_path =
+  single_mark_test(
+    "A definition is checked against a path rooted at the signature's own sub-module",
+    {|module P = { type U = Bool } in
+module M : { module P : { type U = Int }; let x : P.U } = { module P = { type U = Int }; let x = true } in
+M.x|},
+    is_int_vs(Bool),
+  );
+
+/* The middle of a path names a sub-module; only its end names a type. */
+let test_sub_module_path_middle_is_a_module =
+  Alcotest.test_case(
+    "The middle of a module path is read as a module",
+    `Quick,
+    () => {
+      let src = {|module M = { module P = { type U = Int } } in
+let f = fun (x : M.P.U) -> x in f|};
+      let message_of_path_to =
+          (label: string, info: Language.Info.t)
+          : option(option(Language.Message.t)) =>
+        switch (info) {
+        | InfoTyp({
+            user_term: {term: ProdProjection(_, {term: Label(l), _}), _},
+            message,
+            _,
+          })
+            when String.equal(l, label) =>
+          Some(message)
+        | _ => None
+        };
+      switch (
+        Language.Id.Map.bindings(statics(parse_exp(src)))
+        |> List.find_map(((_, info)) => message_of_path_to("P", info))
+      ) {
+      | Some(Some(Language.Message.TypOk(Type(ty)))) =>
+        Alcotest.check(
+          testable_typ,
+          "M.P is P's signature",
+          closed_sig_([type_("U", int())]),
+          ty,
+        )
+      | _ => Alcotest.fail("M.P is not read as a type")
+      };
+    },
+  );
+
+/* Binding a member or a binder named like an outer alias leaves what the
+   earlier members mean alone: both `y.U` are the outer `T`. */
+let test_type_member_named_like_outer_alias_keeps_earlier_paths =
+  fully_consistent_typecheck(
+    "A type member named like an outer alias keeps the earlier members' paths",
+    {|type T = Int in
+module y = { type U = T } in
+let f = fun (m : { let a : y.U; type T = Bool; let b : y.U }) -> m.a + m.b in
+f({ let a = 1; type T = Bool; let b = 2 })|},
+    Some(int()),
+  );
+
+let test_poly_binder_named_like_outer_alias_keeps_paths =
+  fully_consistent_typecheck(
+    "A poly binder named like an outer alias keeps the paths in its body",
+    {|type T = Int in
+module y = { type U = T } in
+let f : poly T -> { let v : y.U } -> Int = typfun T -> fun m -> m.v + 1 in
+f@<Bool>({ let v = 1 })|},
+    Some(int()),
+  );
+
+let test_poly_binder_named_like_outer_alias_keeps_bare_paths =
+  fully_consistent_typecheck(
+    "A poly binder named like an outer alias keeps a bare path in its body",
+    {|type T = Int in
+module y = { type U = T } in
+let f : poly T -> (y.U) -> Int = typfun T -> fun x -> x + 1 in
+f@<Bool>(3)|},
+    Some(int()),
+  );
+
+/* The middle of a path may be a type member defined as a signature. */
+let test_type_member_signature_continues_path =
+  fully_consistent_typecheck(
+    "A type member defined as a signature continues a path",
+    {|module M = { type S = { type U = Int } } in
+let f = fun (x : M.S.U) -> x + 1 in f(1)|},
+    Some(int()),
+  );
+
+/* The middle of a path may also be a type member defined as a labeled
+   tuple, or a member whose type is unknown. */
+let test_path_continues_through_tuple_type_member =
+  fully_consistent_typecheck(
+    "A type member defined as a labeled tuple continues a path",
+    {|module M = { type P = (x = Int) } in let y : M.P.x = 1 in y + 1|},
+    Some(int()),
+  );
+
+let test_path_continues_through_unascribed_sub_module =
+  no_marks_test(
+    "A sub-module declared without a signature continues a path",
+    {|fun (m : { module N }) -> (1 : m.N.T)|},
+  );
+
+let test_path_continues_through_unknown_member =
+  no_marks_test(
+    "A member of unknown type may be a module: a path continues through it",
+    {|fun (m : { let n : ? }) -> (1 : m.n.T)|},
+  );
+
+let test_type_member_behind_same_named_value_continues_path =
+  fully_consistent_typecheck(
+    "A path continues through a type member named like a value member",
+    {|let f = fun (m : { let x : Int; type x = { type U = Bool } }) -> fun (y : m.x.U) -> y && true in
+f({ let x = 1; type x = { type U = Bool } })(true)|},
+    Some(bool()),
+  );
+
+/* `type T = T` is read as `rec T -> T`; unrolling it makes no progress. */
+let test_self_looping_type_member_is_a_mismatch =
+  has_mark_test(
+    "A self-looping type member checked against a signature is a mismatch",
+    {|let g = fun (m : { type T = T; let v : T }) -> (m.v : { let q : Int }) in g|},
+    fun
+    | Language.Mark.ExpectationMismatch(_) => true
+    | _ => false,
+  );
+
+let test_type_member_matches_through_alias =
+  Alcotest.test_case(
+    "A type member matches a declaration that names it through an alias",
+    `Quick,
+    () =>
+    List.iter(
+      source =>
+        Alcotest.(check(int))(source, 0, List.length(marks_of(source))),
+      [
+        {|type B = Bool in let m : { type A = B } = { type A = Bool } in m|},
+        {|type B = Bool in let m : { type A = Bool } = { type A = B } in m|},
+        {|type B = Int in let m : { type A = [B] } = { type A = [Int] } in m|},
+      ],
+    )
+  );
+
+let test_type_member_matches_reordered_signature =
+  no_marks_test(
+    "A type member defined as a signature matches one listing its members in another order",
+    {|module M : { type T = { let a : Int; let b : Int } } = { type T = { let b : Int; let a : Int } } in M|},
+  );
+
+let test_self_mentioning_sig_alias =
+  fully_consistent_typecheck(
+    "A signature alias that mentions itself types a module",
+    {|type S = { let n : Int; let f : S -> Int } in let m : S = { let n = 1; let f(s) = 2 } in m.n + 1|},
+    Some(int()),
+  );
+
+let test_type_argument_path_not_captured_by_sub_module =
+  fully_consistent_typecheck(
+    "A type argument's path is not captured by a same-named sub-module of the signature",
+    {|module N = { type U = Int } in
+let f : poly X -> (X -> { module N : { type U = Bool }; let v : X }) =
+  typfun X -> fun x -> { module N = { type U = Bool }; let v = x } in
+let m = f@<N.U>(1) in
+m.v + 1|},
+    Some(int()),
+  );
+
+let test_sub_module_path_does_not_collide_with_type =
+  no_marks_test(
+    "A path rooted at a signature's own sub-module does not collide with a same-named type",
+    {|type S = { module P : { type U = Int }; let y : P.U } in
+{ type P = Bool; let v : S = ? }|},
+  );
+
+let test_module_member_not_in_scope_in_own_signature =
+  no_marks_test(
+    "A module member's signature means the outer module of that name",
+    {|module M = { type T = Int } in
+let s : { module M : { let y : M.T } } = ? in
+s|},
+  );
+
+let test_shadowed_module_keeps_earlier_paths =
+  fully_consistent_typecheck(
+    "A module shadowed later keeps its meaning in earlier type paths",
+    {|module N = { type U = Int } in
+let x : N.U = 1 in
+type A = N.U in
+module N = { type U = Bool } in
+let y : A = 2 in
+x + y|},
+    Some(int()),
+  );
+
+let test_shadowing_module_roots_later_paths =
+  fully_consistent_typecheck(
+    "A module shadowing another roots the type paths after it",
+    {|module N = { type U = Int } in
+module N = { type U = Bool } in
+let y : N.U = true in
+y && true|},
+    Some(bool()),
+  );
+
+/* ===== CLOSED SIGNATURES ===== */
+
+/* `f@<T>` into `{ let v : a; type T = a }`: the member T is written in terms
+   of the applied T, not of itself. */
+let test_type_argument_in_own_definition_not_captured =
+  fully_consistent_typecheck(
+    "A type argument substituted into a same-named member's own definition is not captured",
+    {|let f : poly a -> a -> { let v : a; type T = a } =
+  typfun a -> fun (x : a) -> { let v = x; type T = a } in
+typfun T -> f@<T>|},
+    Some(
+      poly(
+        TPat.var("T"),
+        arrow(
+          var("T"),
+          closed_sig_([val_("v", var("T")), type_("T", var("T"))]),
+        ),
+      ),
+    ),
+  );
+
+let test_member_typed_through_substituted_member =
+  no_marks_test(
+    "A member typed by a type member the argument defines has the argument's type",
+    {|let f : poly a -> a -> { type T = a; let v : T } =
+  typfun a -> fun (x : a) -> { let v = x; type T = a } in
+typfun T -> fun (y : T) -> let m = f@<T>(y) in let z : T = m.v in z|},
+  );
+
+/* Shadowing the alias X closes f's type with X's definition; the member
+   named T does not capture it. */
+let test_shadowed_alias_closes_members_without_capture =
+  fully_consistent_typecheck(
+    "Shadowing an alias keeps a signature member's meaning past a same-named member",
+    {|type T = Int in
+type X = T in
+let f : { type T = Bool; let g : X } = { type T = Bool; let g = 1 } in
+type X = String in
+f.g + 1|},
+    Some(int()),
+  );
+
+/* A path rooted at a sub-module member is resolved when the signature is
+   closed, so the function behind it is seen wherever the signature goes. */
+let test_sub_module_path_function_cannot_be_compared =
+  has_mark_test(
+    "A member typed through a sub-module path is a function in comparisons, named in the mark",
+    {|type S = { module Inner : { type F = Int -> Int }; let f : Inner.F } in
+let h = fun (m : S) -> m == m in h|},
+    fun
+    | Language.Mark.CompareFun({found: {members: ["f"], _}, _}) => true
+    | _ => false,
+  );
+
+/* A `rec` binder stands for its closed type in the body, so a member typed
+   by it is read without reaching an open signature. */
+let test_rec_signature_binder_is_closed =
+  no_marks_test(
+    "A signature under a rec binder is read with the binder closed",
+    {|let x : rec T -> { let next : T } = ? in x|},
+  );
+
+/* ===== ANNOTATED MEMBERS ===== */
+
+let is_annotation: Language.Info.t => bool =
+  fun
+  | InfoPat({user_term: {term: Asc(_), _}, _}) => true
+  | _ => false;
+
+let test_annotated_member_checked_against_signature =
+  Alcotest.test_case(
+    "A member's own annotation is checked against the signature, on the annotation",
+    `Quick,
+    () => {
+      let src = {|module M : { let x : Int; type T = Int } = { let x : Bool = true; type T = Int } in M|};
+      Alcotest.(check(int))("one mark", 1, List.length(marks_of(src)));
+      Alcotest.(check(bool))(
+        "Int expected, Bool annotated, on the annotation",
+        true,
+        List.exists(is_int_vs(Bool), marks_at(src, is_annotation)),
+      );
+    },
+  );
+
+let test_annotated_member_checked_alongside_type_member =
+  Alcotest.test_case(
+    "A member's annotation is still checked when a type member also mismatches",
+    `Quick,
+    () => {
+      let src = {|module M : { let x : Int; type T = Int } = { let x : Bool = true; type T = Bool } in M|};
+      let marks = marks_of(src);
+      Alcotest.(check(int))("two marks", 2, List.length(marks));
+      Alcotest.(check(bool))(
+        "the type member and the annotation",
+        true,
+        List.exists(
+          fun
+          | Language.Mark.ModuleTypeMemberMismatch({name: "T", _}) => true
+          | _ => false,
+          marks,
+        )
+        && List.exists(is_int_vs(Bool), marks_at(src, is_annotation)),
+      );
+    },
+  );
+
+/* ===== UNANNOTATED COMPONENTS ===== */
+
+/* The signature says nothing about `b`, so its slot in the expectation is a
+   SynSwitch that the definition should fill with Int; a failed meet on `a`
+   drops it instead, and the use of `b` goes unchecked. Skipped until
+   https://github.com/hazelgrove/hazel/issues/2742 is fixed on dev, and
+   fails once it is. */
+let test_unannotated_component_keeps_definition_type =
+  Alcotest.test_case(
+    "An unannotated component keeps its definition's type when a sibling mismatches (#2742, skipped)",
+    `Quick,
+    () => {
+      let src = {|module M : { let a : Int; let s : String } = { let (a, b) = (true, 1); let s = b } in M|};
+      let is_b: Language.Info.t => bool =
+        fun
+        | InfoExp({user_term: {term: Var("b"), _}, _}) => true
+        | _ => false;
+      List.exists(is_atom_vs(String, Int), marks_at(src, is_b))
+        ? Alcotest.fail("#2742 is fixed: drop the skip") : Alcotest.skip();
+    },
+  );
+
+/* ===== EVALUATED BINDINGS ===== */
+
+/* The stepper leaves a module as `[ModVal x; ModLet y]` after binding x;
+   re-analysis types x by its value. */
+let test_evaluated_member_keeps_its_type =
+  Alcotest.test_case(
+    "An evaluated binding's member has its value's type",
+    `Quick,
+    () => {
+      module F = Language.IdTagged.FreshGrammar;
+      let exp =
+        F.Exp.module_([
+          Language.Mod.fresh(ModVal("x", F.Exp.int(1))),
+          F.Mod.mod_let(F.Pat.var("y"), F.Exp.var("x")),
+        ]);
+      Alcotest.check(
+        Alcotest.option(testable_typ),
+        "closed signature",
+        Some(expected_typ(sig_([val_("x", int()), val_("y", int())]))),
+        Language.Statics.Map.ty_of(Language.Exp.rep_id(exp), statics(exp)),
+      );
+    },
+  );
+
+let test_folded_sig_pattern_checked_alike =
+  Alcotest.test_case(
+    "A folded signature pattern checks the module like the written one",
+    `Quick,
+    () => {
+      let plain =
+        parse_exp(
+          "module M : { let x : Int } = { let x = true } in M.x && true",
+        );
+      let folded =
+        Language.Exp.map_term(
+          ~f_pat=
+            (cont, p: Language.Pat.t) =>
+              switch (p.term) {
+              | Asc(_, _) =>
+                Language.Pat.fresh(
+                  Projector(
+                    {
+                      kind: Fold,
+                      model: "",
+                    },
+                    p,
+                  ): Language.Pat.term,
+                )
+              | _ => cont(p)
+              },
+          plain,
+        );
+      let marks = e => statics(e) |> errors |> List.concat_map(snd);
+      Alcotest.(check(bool))(
+        "the written one has marks",
+        false,
+        List.is_empty(marks(plain)),
+      );
+      Alcotest.check(
+        testable_issue,
+        "same marks",
+        Marks(marks(plain)),
+        Marks(marks(folded)),
+      );
+    },
+  );
+
+let test_evaluated_module_binding_recloses_earlier_members =
+  Alcotest.test_case(
+    "An evaluated module binding re-closes the members before it",
+    `Quick,
+    () => {
+      module F = Language.IdTagged.FreshGrammar;
+      let modval = (x, e) => Language.Mod.fresh(ModVal(x, e));
+      let exp =
+        F.Exp.module_([
+          modval("P", parse_exp("{ type T = Int }")),
+          modval("f", parse_exp("fun (y : P.T) -> y")),
+          modval("P", parse_exp("{ type T = Bool }")),
+          F.Mod.mod_let(F.Pat.var("z"), parse_exp("f(true)")),
+        ]);
+      Alcotest.(check(bool))(
+        "f(true) is Bool against Int",
+        true,
+        switch (statics(exp) |> errors |> List.concat_map(snd)) {
+        | [m] => is_int_vs(Bool, m)
+        | _ => false
+        },
+      );
+    },
+  );
+
+let test_outer_alias_member_exported_expanded =
+  Alcotest.test_case(
+    "A member typed at an outer alias is exported expanded beside the body's own type of that name",
+    `Quick,
+    () => {
+      let exp =
+        parse_exp(
+          "type T = Bool in module M : { let x : T } = { type T = Int; let x = 1 } in M.x && true",
+        );
+      let body_ty =
+        Language.Id.Map.bindings(statics(exp))
+        |> List.find_map(((_, info: Language.Info.t)) =>
+             switch (info) {
+             | InfoExp({user_term: {term: Module(_), _}, elab_syn_ty, _}) =>
+               Some(elab_syn_ty)
+             | _ => None
+             }
+           );
+      Alcotest.check(
+        Alcotest.option(testable_typ),
+        "body type",
+        Some(expected_typ(sig_([type_("T", int()), val_("x", bool())]))),
+        body_ty,
+      );
+    },
+  );
+
 let tests = (
   "Statics.Modules",
   [
-    /* Well-typed tests (Sections A, B) */
+    /* Well-typed tests */
     test_empty_module,
     test_single_binding,
     test_multiple_bindings,
@@ -633,7 +2243,7 @@ let tests = (
     test_bare_expression,
     test_module_access,
     test_module_complex_expression,
-    test_module_as_labeled_tuple,
+    test_bound_module_member_access,
     test_module_in_let_def,
     test_module_two_bindings_in_let,
     test_expansion_directly,
@@ -645,19 +2255,73 @@ let tests = (
     test_module_list,
     test_module_tuple,
     test_sequential_binding_ref,
-    test_module_with_prod_annotation,
-    test_module_with_multi_prod_annotation,
-    /* Sig annotation tests (Section B) */
+    /* Signature synthesis */
+    test_interleaved_members,
+    test_type_only_module,
+    test_shadowed_type_member,
+    test_nested_type_member_through_variable,
+    test_sig_alias_stays_sig,
+    test_unannotated_sig_member,
+    test_dot_on_sig_with_type_member,
+    test_item_types,
+    test_item_infos_are_module_items,
+    test_bare_item_in_a_hole_is_its_expression,
+    test_item_scope_references_are_variables,
+    /* Sig annotation tests */
     test_empty_sig_annotation,
     test_matching_sig_annotation,
     test_matching_sig_multi,
-    /* Type error tests (Sections B errors) */
-    test_error_type_mismatch,
-    test_error_type_mismatch_multi,
+    test_sig_type_member_matches,
+    test_sig_type_member_defined_later,
+    test_sig_type_member_defined_later_mismatch,
+    test_sig_type_member_redefined_later,
+    test_sig_module_member,
+    test_sig_module_member_binder_type,
+    test_sig_lowercase_nested,
+    /* Signature mismatch marks */
+    test_extra_member_mark,
+    test_extra_type_member_mark,
+    test_missing_member_mark,
+    test_type_member_mismatch_mark,
+    test_type_member_mismatch_on_the_definition,
+    test_type_member_mismatch_with_right_definition,
+    /* Projection error attribution */
+    test_member_not_found_on_label,
+    test_type_member_as_value_mark,
+    test_dot_on_non_module_mark,
+    test_type_member_not_found_mark,
+    test_no_type_members_mark,
+    test_submodule_not_found_mark,
+    test_value_used_as_module_path_mark,
+    test_unknown_typed_root_is_not_an_error,
+    /* Hole binders */
+    test_holes_assume_missing_members,
+    test_signature_hole_declares_extra_members,
+    test_signature_hole_member_is_unknown,
+    test_signature_hole_type_member_in_path,
+    test_error_wildcard_binder_does_not_assume,
+    test_error_non_binder_holes_do_not_assume,
+    test_error_shorthand_parameter_hole_does_not_assume,
+    /* Nested expectations */
+    test_nested_missing_member_localized,
+    test_nested_type_member_mismatch_localized,
+    test_nested_definition_mismatch_localized,
+    test_nested_user_annotation_kept,
+    test_error_nested_module_sealed,
+    test_tuple_binder_mismatch_localized,
+    test_tuple_binder_ok,
+    test_labeled_tuple_binder_ok,
+    test_nested_tuple_binder_mismatch_localized,
+    test_cons_binder_mismatch_localized,
+    test_list_binder_every_component_checked,
+    test_cons_binder_tail_checked,
+    test_refutable_item_pattern_reported_on_item,
+    test_bare_item_parent_is_the_module,
+    test_type_member_compared_outside_the_body,
+    /* Type error tests */
     test_error_sig_type_mismatch,
     test_error_sig_partial_mismatch,
     test_error_sig_too_wide,
-    test_error_sig_too_wide_singleton,
     test_error_sig_too_wide_empty,
     test_error_wrong_type_in_body,
     test_error_free_variable,
@@ -667,45 +2331,114 @@ let tests = (
     test_error_field_type_mismatch,
     test_error_binding_annotation_mismatch,
     test_error_sequential_type,
-    /* Limitation tests (Section C) — expected to change with full modules */
-    test_limitation_sig_tuple_compat_mt,
-    test_limitation_sig_tuple_compat_tm,
-    test_limitation_cross_error_mt,
-    test_limitation_cross_error_tm,
-    test_limitation_extra_member,
-    test_limitation_extra_member_multi,
-    test_limitation_sig_too_narrow,
-    test_limitation_label_mismatch_hole,
+    /* Signatures are distinct from labeled tuple types */
+    test_modules_and_labeled_tuples_are_distinct,
+    /* Extra members are an error */
+    test_extra_member_rejected,
+    test_sig_too_narrow_rejected,
+    test_label_mismatch_hole,
+    test_hole_named_member_matches_any,
     /* Module keyword tests */
     test_module_keyword_lowercase,
     test_module_keyword_capitalized,
     test_module_keyword_in_mod,
     test_module_keyword_returns_module,
     test_capitalized_dot_access,
+    test_module_shadowing_a_constructor,
+    test_invalid_module_name_is_a_bad_token,
     /* Module keyword annotation tests */
-    test_module_keyword_prod_annotation,
     test_module_keyword_sig_annotation,
-    test_module_keyword_multi_annotation,
-    test_error_module_keyword_annotation_mismatch,
     test_error_module_keyword_sig_mismatch,
-    /* Qualified type access tests (Phase 1) */
+    /* Qualified type access tests */
     test_qualified_type_basic,
     test_qualified_type_multiple,
     test_qualified_type_internal_ref,
     test_qualified_type_nested,
     test_qualified_type_lowercase,
-    test_qualified_type_shadowing,
+    test_qualified_type_also_used_inside,
     test_error_qualified_type_unknown,
-    /* Qualified type access aliasing tests (Phase 1b) */
+    test_signature_literal_in_a_type_path,
+    test_parenthesized_signature_literal_in_a_type_path,
+    test_annotation_types_are_the_annotations_closed,
+    test_qualified_type_sig_alias,
+    /* Qualified type access aliasing tests */
     test_qualified_type_var_alias,
     test_qualified_type_module_alias,
     test_qualified_type_chained_alias,
     test_qualified_type_nested_with_values,
     test_qualified_type_nested_alias,
     test_qualified_type_nested_alias_with_sibling,
-    /* Type alias shadowing tests (Issue 5) */
+    /* Type alias shadowing tests */
     test_type_alias_shadowing_in_nested_module,
     test_type_alias_shadowing_sequential,
     test_type_alias_shadowing_nested_module,
+    /* Function shorthand members */
+    test_shorthand_member_exported,
+    test_shorthand_member_forms,
+    test_shorthand_member_signature,
+    test_shorthand_member_signature_return_type,
+    test_shorthand_member_shadowed,
+    test_shadowed_member_keeps_last_position,
+    test_shadowed_member_checked_at_last_definition,
+    test_shadowed_definition_not_checked_against_signature,
+    test_shorthand_parameter_not_member,
+    test_shorthand_member_mismatch_on_definition,
+    /* Cyclic member paths */
+    test_cyclic_member_path_let,
+    test_cyclic_member_path_module,
+    /* Substituting into a signature */
+    test_alias_argument_not_captured_by_member,
+    test_abstract_argument_not_captured_by_member,
+    test_abstract_argument_without_collision_is_clean,
+    test_typfun_binder_not_captured_by_member,
+    test_typfun_binder_info_consistent,
+    test_typfun_binder_without_collision_is_clean,
+    test_alias_definition_not_captured_by_member,
+    /* Signature scoping */
+    test_recursive_sig_type_member,
+    test_alias_cycle_through_path,
+    test_later_module_shadows_alias_in_path,
+    test_member_before_type_member_means_outer,
+    test_member_before_type_member_mismatch,
+    test_nested_member_keeps_outer_meaning,
+    test_type_argument_in_own_definition_not_captured,
+    test_member_typed_through_substituted_member,
+    test_shadowed_alias_closes_members_without_capture,
+    test_sub_module_path_function_cannot_be_compared,
+    test_rec_signature_binder_is_closed,
+    test_annotated_member_checked_against_signature,
+    test_annotated_member_checked_alongside_type_member,
+    test_unannotated_component_keeps_definition_type,
+    test_evaluated_member_keeps_its_type,
+    test_error_meet_compares_members_in_their_own_scope,
+    test_meet_ignores_member_order,
+    test_sig_module_member_roots_path,
+    test_error_sig_module_member_roots_path,
+    test_sub_module_path_middle_is_a_module,
+    test_self_looping_type_member_is_a_mismatch,
+    test_type_member_named_like_outer_alias_keeps_earlier_paths,
+    test_poly_binder_named_like_outer_alias_keeps_paths,
+    test_poly_binder_named_like_outer_alias_keeps_bare_paths,
+    test_type_member_signature_continues_path,
+    test_type_member_behind_same_named_value_continues_path,
+    test_type_member_matches_through_alias,
+    test_type_member_matches_reordered_signature,
+    test_self_mentioning_sig_alias,
+    test_type_argument_path_not_captured_by_sub_module,
+    test_sub_module_path_does_not_collide_with_type,
+    test_module_member_not_in_scope_in_own_signature,
+    test_shadowed_module_keeps_earlier_paths,
+    test_shadowing_module_roots_later_paths,
+    test_folded_sig_pattern_checked_alike,
+    test_evaluated_module_binding_recloses_earlier_members,
+    test_outer_alias_member_exported_expanded,
+    test_type_member_as_value_dot_not_missing,
+    test_signature_literal_in_use_path,
+    test_hole_signature_declares_type_member,
+    test_hole_signature_declares_module_members,
+    test_type_member_with_hole_is_not_compared,
+    test_path_continues_through_tuple_type_member,
+    test_path_continues_through_unascribed_sub_module,
+    test_path_continues_through_unknown_member,
   ],
 );

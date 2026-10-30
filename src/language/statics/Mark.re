@@ -39,6 +39,21 @@ type tpat_var_err =
   | Other
   | NotCapitalized;
 
+/* Polymorphic equality at a type with a function in it, which has none. */
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type compare_fun = {
+  ty: Typ.t,
+  found: Typ.fun_in,
+};
+
+/* A member a module path names that the module lacks, and the members of
+   that sort it has. */
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type member_not_found = {
+  name: Var.t,
+  members: list(Var.t),
+};
+
 /* NOTE: Declaration order is load-bearing.
    The priority of a mark (for cursor inspector / error printer selection)
    is determined by its position in this type: earlier-declared constructors
@@ -51,7 +66,7 @@ type t =
   | BuiltinError(error_builtin)
   | Free(Var.t)
   | IsBadPartialAp(error_partial_ap)
-  | InexhaustiveMatch(Typ.t, list(t), Grammar.any_t(IdTagged.IdTag.t))
+  | InexhaustiveMatch(list(t), Grammar.any_t(IdTagged.IdTag.t))
   | InvalidUseMode({
       bad_typ: Typ.t,
       inner_typ: Typ.t,
@@ -60,6 +75,13 @@ type t =
   | DotOperatorRequiresTuple
   | TupleExtensionRequiresTuples
   | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label))
+  | ModuleMissingMembers(list(Var.t))
+  | ModuleExtraMembers(list(Var.t))
+  /* `M.y` where the module has no value member y: on the label, while the
+     dot carries a message. */
+  | ModuleMemberNotFound(member_not_found)
+  /* `M.T` in an expression, where T is a type member of the module. */
+  | ModuleMemberIsType(Var.t)
   | BadOperator(string)
   | BadLivelitModel(Typ.t)
   | BadTheorem(Typ.t)
@@ -70,6 +92,11 @@ type t =
   | ExpectationMismatch({
       ana: Typ.t,
       syn: Typ.t,
+    })
+  | ModuleTypeMemberMismatch({
+      name: Var.t,
+      expected: Typ.t,
+      actual: Typ.t,
     })
   | BadToken(string)
   | BadLabel(Any.t)
@@ -84,6 +111,14 @@ type t =
   | TypWantTypeFoundAp
   | TypWantLabel
   | TypWantProduct(Typ.t)
+  /* `M.T` where the module has no type member T, or `M.P.T` where it has
+     no sub-module P: on the label. */
+  | ModuleTypeMemberNotFound(TypExpectation.module_member, member_not_found)
+  /* `m.T` where m is a value that is not a module. */
+  | TypWantModule({
+      name: Var.t,
+      typ: Typ.t,
+    })
   | TypWantConstructorFoundType(Typ.t)
   | TypWantConstructorFoundAp
   | TypParseFailure
@@ -95,7 +130,7 @@ type t =
     })
   | IsDeferral(Exp.deferral_position)
   | FreeConstructor(Constructor.t)
-  | CompareFun(Typ.t)
+  | CompareFun(compare_fun)
   | NoMeet(meet_type, list(Typ.source))
   | Redundant
   | ExpectedConstructor

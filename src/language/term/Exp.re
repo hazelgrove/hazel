@@ -478,8 +478,26 @@ let (replace_all_ids, replace_all_ids_typ) = {
       }
       |> continue;
   (
-    map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
-    Typ.map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
+    map_term(
+      ~f_exp=f,
+      ~f_pat=f,
+      ~f_typ=f,
+      ~f_tpat=f,
+      ~f_rul=f,
+      ~f_mod=f,
+      ~f_sig=f,
+      ~f_mpat=f,
+    ),
+    Typ.map_term(
+      ~f_exp=f,
+      ~f_pat=f,
+      ~f_typ=f,
+      ~f_tpat=f,
+      ~f_rul=f,
+      ~f_mod=f,
+      ~f_sig=f,
+      ~f_mpat=f,
+    ),
   );
 };
 
