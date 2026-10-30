@@ -233,10 +233,9 @@ let rec collect_type_exports =
            switch (tpat.term) {
            | Var(name) =>
              let (resolved, alias_ty) =
-               if (List.mem(name, Typ.free_vars(typ))) {
-                 let ty_rec = Rec(Var(name) |> TPat.fresh, typ) |> Typ.temp;
-                 (ty_rec, ty_rec);
-               } else {
+               switch (Typ.recursive_def(name, typ)) {
+               | Typ.Recursive(ty_rec) => (ty_rec, ty_rec)
+               | Typ.Plain =>
                  let locals = List.map(fst, acc);
                  (
                    Typ.normalize(~expand=n => List.mem(n, locals), ctx, typ),
