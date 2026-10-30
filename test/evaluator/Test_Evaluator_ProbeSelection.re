@@ -1382,6 +1382,327 @@ in fact(4)|};
   ),
 ];
 
+/* Lines below the sightline show one call between them
+ * (Selection.coordinated_below), not each line's own first sample, which
+ * can come from different calls. */
+let coordinated_pick =
+    (~cursor, all, (id, samples): (Id.t, list(Sample.t)))
+    : option(Sample.t) =>
+  Sample.Selection.most_aligned_index(
+    ~ap_id=None,
+    ~below=Sample.Selection.below_of(~cursor, ~probe_id=id, all),
+    cursor,
+    samples,
+  )
+  |> Option.map(List.nth(samples));
+
+let per_line_pick =
+    (~cursor, (_, samples): (Id.t, list(Sample.t))): option(Sample.t) =>
+  Sample.Selection.most_aligned_index(~ap_id=None, cursor, samples)
+  |> Option.map(List.nth(samples));
+
+/* the probe whose samples number n (unique in each program below) */
+let with_count = (n, all) =>
+  Id.Map.bindings(all)
+  |> List.filter(((_, ss)) => List.length(ss) == n)
+  |> List.hd;
+
+let same_call = (a: option(Sample.t), b: option(Sample.t)) =>
+  switch (a, b) {
+  | (Some(a), Some(b)) => CallStack.equal(a.call_stack, b.call_stack)
+  | _ => false
+  };
+
+let running_sum = {|let running_sum = fun (nums: [Int]) ->
+  let go: (Int, [Int]) -> [Int] = fun (total, xs) ->
+    case ^^probe(xs)
+    | [] => ^^probe([])
+    | x :: rest => ^^probe((total + x) :: go(total + x, rest))
+    end
+  in go(0, nums)
+in running_sum([1, 2, 3])|};
+
+let classify = {|let classify = fun x ->
+  if ^^probe(x < 0) then ^^probe("neg")
+  else if ^^probe(x == 0) then ^^probe("zero")
+  else ^^probe("pos")
+in
+let run = fun xs -> map(xs, classify) in
+run([-1, 0, 5])|};
+
+/* running_sum by recursion, with a map callback; probes on the parameter,
+   both arms and the callback body */
+let running_sum_map = {|let running_sum = fun (nums: [Int]) ->
+  case ^^probe(nums)
+  | [] => ^^probe([])
+  | x :: rest =>
+    ^^probe(x :: map(running_sum(rest), fun y ->
+      ^^probe(x + y)
+    ))
+  end
+in running_sum([1, 2, 3])|};
+
+/* the innermost call's stack: the parameter sample with the longest stack */
+let deepest = (ss: list(Sample.t)): Sample.t =>
+  List.fold_left(
+    (best: Sample.t, s: Sample.t) =>
+      List.length(s.call_stack) > List.length(best.call_stack) ? s : best,
+    List.hd(ss),
+    ss,
+  );
+
+let coordinated_below_tests = [
+  test_case(
+    "Focused on an inner recursive call, an outer call's lines do not show",
+    `Quick,
+    () => {
+      let all = get_probes_map(running_sum_map);
+      /* nums: 4 calls; [] arm: 1; cons arm: 3; callback body: 2 + 1 = 3 */
+      let nums = with_count(4, all);
+      /* the cons arm: three samples, each in a running_sum call only */
+      let only_running_sum = (s: Sample.t) =>
+        List.for_all(
+          (f: CallStack.frame) =>
+            switch (f.name) {
+            | Some(n) => String.starts_with(~prefix="running_sum", n)
+            | None => false
+            },
+          s.call_stack,
+        );
+      let cons =
+        Id.Map.bindings(all)
+        |> List.filter(((_, ss)) =>
+             List.length(ss) == 3 && List.for_all(only_running_sum, ss)
+           )
+        |> List.hd;
+      /* focus the innermost call, running_sum([]) */
+      let cursor = mk_cursor(deepest(snd(nums)).call_stack);
+      check(
+        bool,
+        "the cons arm did not run in running_sum([]): no sample",
+        true,
+        coordinated_pick(~cursor, all, cons) == None,
+      );
+      check(
+        bool,
+        "line by line, it showed the parent call's",
+        true,
+        per_line_pick(~cursor, cons) != None,
+      );
+    },
+  ),
+  test_case(
+    "Moved back up a recursion, the callback shows the outer call's",
+    `Quick,
+    () => {
+      let all = get_probes_map(running_sum_map);
+      let nums = with_count(4, all);
+      let nil = with_count(1, all);
+      let inner = deepest(snd(nums));
+      /* the path still runs down to running_sum([]); you are at the top */
+      let cursor = {
+        ...mk_cursor(inner.call_stack),
+        index: 0,
+      };
+      let outer_len = 1;
+      let callback =
+        Id.Map.bindings(all)
+        |> List.filter(((id, ss)) =>
+             List.length(ss) == 3 && !Id.equal(id, fst(nil))
+           )
+        |> List.map(((id, ss)) =>
+             (id, ss, coordinated_pick(~cursor, all, (id, ss)))
+           );
+      /* the callback body's pick sits in the outer call: exactly one
+         running_sum frame on its stack */
+      let picks =
+        List.filter_map(((_, _, pick)) => pick, callback)
+        |> List.filter((s: Sample.t) =>
+             List.length(s.call_stack) > outer_len + 1
+           );
+      check(bool, "the callback body shows a value", true, picks != []);
+      check(
+        bool,
+        "the [] arm (innermost call only): no sample",
+        true,
+        coordinated_pick(~cursor, all, nil) == None,
+      );
+    },
+  ),
+  test_case(
+    "The first call is the first one run, not the shallowest",
+    `Quick,
+    () => {
+      /* f runs first through g, then directly */
+      let all =
+        get_probes_map(
+          {|let f = fun x -> ^^probe(x + 1) in
+let g = fun y -> f(y) in
+g(1);
+f(10)|},
+        );
+      let body = with_count(2, all);
+      check(
+        int,
+        "f(1) through g, two frames deep",
+        2,
+        List.length(
+          Option.get(coordinated_pick(~cursor=mk_cursor([]), all, body)).
+            call_stack,
+        ),
+      );
+    },
+  ),
+  test_case(
+    "Calls off the focus path stay out, even below where you are",
+    `Quick,
+    () => {
+      let all = get_probes_map(classify);
+      /* the path runs into the first classify call, but you are at its
+         outer end (frames below the index, as after moving up) */
+      let neg =
+        Id.Map.bindings(all)
+        |> List.filter(((_, ss)) => List.length(ss) == 1)
+        |> List.map(((_, ss)) => List.hd(ss))
+        |> List.sort((a: Sample.t, b: Sample.t) =>
+             compare(List.length(a.call_stack), List.length(b.call_stack))
+           )
+        |> List.hd;
+      let path = mk_cursor(neg.call_stack);
+      let cursor = {
+        ...path,
+        index: 0,
+      };
+      let eq = with_count(2, all);
+      check(
+        bool,
+        "x == 0 ran only in other calls: no sample",
+        true,
+        coordinated_pick(~cursor, all, eq) == None,
+      );
+      check(
+        bool,
+        "line by line, it showed one of them",
+        true,
+        per_line_pick(~cursor, eq) != None,
+      );
+    },
+  ),
+  test_case(
+    "Below the focus, an if's lines show one call (classify over map)",
+    `Quick,
+    () => {
+      let all = get_probes_map(classify);
+      let cursor = mk_cursor([]);
+      /* x < 0 runs in all three calls, x == 0 in two, each result once */
+      let lt = with_count(3, all);
+      let eq = with_count(2, all);
+      let first = coordinated_pick(~cursor, all, lt);
+      check(
+        int,
+        "x < 0 shows the first call",
+        List.fold_left(
+          (m, s: Sample.t) => min(m, List.length(s.call_stack)),
+          max_int,
+          snd(lt),
+        ),
+        List.length(Option.get(first).call_stack),
+      );
+      check(
+        bool,
+        "x == 0 did not run in that call: no sample",
+        true,
+        coordinated_pick(~cursor, all, eq) == None,
+      );
+      let results =
+        Id.Map.bindings(all)
+        |> List.filter(((_, ss)) => List.length(ss) == 1)
+        |> List.filter_map(coordinated_pick(~cursor, all));
+      check(int, "one result line shows", 1, List.length(results));
+      check(
+        bool,
+        "from the same call",
+        true,
+        same_call(Some(List.hd(results)), first),
+      );
+      check(
+        bool,
+        "line by line, x == 0 showed a later call",
+        true,
+        per_line_pick(~cursor, eq) != None,
+      );
+    },
+  ),
+  test_case(
+    "A recursive helper's lines show its outermost call (running sum)",
+    `Quick,
+    () => {
+      let all = get_probes_map(running_sum);
+      let cursor = mk_cursor([]);
+      let xs = with_count(4, all);
+      let cons = with_count(3, all);
+      let nil = with_count(1, all);
+      let xs_pick = coordinated_pick(~cursor, all, xs);
+      check(
+        int,
+        "xs: the outermost go call",
+        List.fold_left(
+          (m, s: Sample.t) => min(m, List.length(s.call_stack)),
+          max_int,
+          snd(xs),
+        ),
+        List.length(Option.get(xs_pick).call_stack),
+      );
+      check(
+        bool,
+        "the cons arm: the same call",
+        true,
+        same_call(coordinated_pick(~cursor, all, cons), xs_pick),
+      );
+      check(
+        bool,
+        "the [] arm did not run in that call: no sample",
+        true,
+        coordinated_pick(~cursor, all, nil) == None,
+      );
+    },
+  ),
+  test_case(
+    "Focused on the outer call, the base case does not leak in (running sum)",
+    `Quick,
+    () => {
+      let all = get_probes_map(running_sum);
+      let xs = with_count(4, all);
+      let nil = with_count(1, all);
+      let outer =
+        List.fold_left(
+          (best: option(Sample.t), s: Sample.t) =>
+            switch (best) {
+            | Some(b)
+                when List.length(b.call_stack) <= List.length(s.call_stack) => best
+            | _ => Some(s)
+            },
+          None,
+          snd(xs),
+        )
+        |> Option.get;
+      let cursor = mk_cursor(outer.call_stack);
+      check(
+        bool,
+        "the [] arm: no sample in the focused call",
+        true,
+        coordinated_pick(~cursor, all, nil) == None,
+      );
+      check(
+        bool,
+        "line by line, it showed the innermost call's []",
+        true,
+        per_line_pick(~cursor, nil) != None,
+      );
+    },
+  ),
+];
+
 let tests = (
   "Evaluator.ProbeSelection",
   List.concat([
@@ -1399,5 +1720,6 @@ let tests = (
     fact_pin_alignment_tests,
     interval_breadcrumb_tests,
     iteration_anchor_tests,
+    coordinated_below_tests,
   ]),
 );
