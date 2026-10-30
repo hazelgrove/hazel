@@ -25,7 +25,7 @@ let mk = (p: Piece.t, sort: Sort.t, skel: Skel.t, base_seg: Segment.t): data => 
    projectors. Useful for editor-membership checks where any piece type is
    acceptable (e.g. jumping to a hole by its grout id). */
 let root_piece = (id: Id.t, data: t): option(Piece.t) =>
-  Option.map(d => d.root_piece, Id.Map.find_opt(id, data));
+  Option.map(~f=d => d.root_piece, Id.Map.find_opt(id, data));
 
 let root_tile = (id: Id.t, data: t): option(Tile.t) =>
   switch (root_piece(id, data)) {
@@ -46,7 +46,7 @@ let extremes_opt = (id: Id.t, data: t) =>
   switch (Id.Map.find_opt(id, data)) {
   | Some({skel, base_seg, _}) =>
     let (l, r) = Skel.range(skel);
-    switch (List.nth(base_seg, l), List.nth(base_seg, r)) {
+    switch (List.nth_exn(base_seg, l), List.nth_exn(base_seg, r)) {
     | exception _ => None
     | (l, r) => Some((l, r))
     };
@@ -93,7 +93,7 @@ let get_term_rows =
     measured.piece_rows
     |> List.rev
     |> Util.ListUtil.sublist((start.row, final.row + 1))
-    |> List.map(List.rev);
+    |> List.map(~f=List.rev);
   (start.row, term_rows);
 };
 
@@ -101,10 +101,10 @@ let get_root_id_using_ranges =
     (s: Base.segment, data: t, measured: Measured.t): option(Id.t) => {
   let id_and_ranges =
     s
-    |> List.filter_map((p: Piece.t) => {
+    |> List.filter_map(~f=(p: Piece.t) => {
          let id = Piece.id(p);
          let range_opt = extreme_measures(id, data, measured);
-         Option.map(r => (id, r), range_opt);
+         Option.map(~f=r => (id, r), range_opt);
        });
   ListUtil.max(
     ((_, (start1, end1)), (_, (start2, end2))) =>
@@ -120,5 +120,5 @@ let get_root_id_using_ranges =
       },
     id_and_ranges,
   )
-  |> Option.map(fst);
+  |> Option.map(~f=fst);
 };
