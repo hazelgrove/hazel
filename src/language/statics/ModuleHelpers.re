@@ -130,14 +130,19 @@ let value_exports = (items: list(Mod.t)): list(value_export) => {
       let exports =
         switch (item.term) {
         | ModLet(pat, _) =>
+          /* Funlet: the whole binder carries the function's type (see
+             FunctionSugar.add_binder_infos). Searching it by name could
+             land on a parameter that shadows the function, e.g.
+             `let g(x)(g) = …`. */
+          let is_funlet = Option.is_some(FunctionSugar.detect(pat));
           modlet_bound_vars(pat)
           |> List.filter(keep)
           |> List.map(name =>
                {
                  name,
-                 pat: pat_for_bound_name(name, pat),
+                 pat: is_funlet ? pat : pat_for_bound_name(name, pat),
                }
-             )
+             );
         | ModuleMod(mp, _) =>
           let pat = mpat_to_pat(mp);
           mpat_names(mp)
