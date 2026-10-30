@@ -195,6 +195,67 @@ let fast_equal_tests = (
     ),
   ],
 );
+/* `type A = B in type B = A`: bound raw, B captures A's forward reference
+   and the aliases cycle; bound with Typ.extend_alias, A's B stays the
+   unbound name it was where A was defined. */
+let alias_cycle_tests = {
+  let pp = Fmt.using(Typ.show, Fmt.string);
+  /* which name the cap stops on depends on its parity */
+  let stuck =
+    testable(pp, (_, ty) =>
+      switch (Typ.term_of(ty)) {
+      | Var("A" | "B") => true
+      | _ => false
+      }
+    );
+  /* fast_equal ignores unknowns' provenance, which is what is under test */
+  let invalid = name =>
+    testable(pp, (_, ty) =>
+      switch (Typ.term_of(ty)) {
+      | Unknown(Hole(Invalid(n))) => n == name
+      | _ => false
+      }
+    );
+  (
+    "Typ alias cycles",
+    [
+      test_case(
+        "a raw alias cycle normalizes to a stuck alias rather than throwing",
+        `Quick,
+        () => {
+          let ctx =
+            Ctx.extend_alias(Ctx.empty, "A", Id.mk(), Var("B") |> Typ.temp)
+            |> Ctx.extend_alias(_, "B", Id.mk(), Var("A") |> Typ.temp);
+          let var_a = Var("A") |> Typ.temp;
+          let expected = Var("B") |> Typ.temp;
+          check(stuck, "normalize", expected, Typ.normalize(ctx, var_a));
+          check(
+            stuck,
+            "weak_head_normalize",
+            expected,
+            Typ.weak_head_normalize(ctx, var_a),
+          );
+        },
+      ),
+      test_case(
+        "Typ.extend_alias keeps an earlier alias's forward reference unbound",
+        `Quick,
+        () => {
+          let ctx =
+            Typ.extend_alias(Ctx.empty, "A", Id.mk(), Var("B") |> Typ.temp)
+            |> Typ.extend_alias(_, "B", Id.mk(), Var("A") |> Typ.temp);
+          check(
+            invalid("B"),
+            "A means an invalid type",
+            Unknown(Hole(Invalid("B"))) |> Typ.temp,
+            Typ.normalize(ctx, Var("A") |> Typ.temp),
+          );
+        },
+      ),
+    ],
+  );
+};
+
 let testable_id = testable(Fmt.using(Id.show, Fmt.string), (==));
 let diff_tests = (
   "Typ.diff",
@@ -636,4 +697,10 @@ let meet_rec_binder_tests = {
   );
 };
 
-let tests = [meet_tests, meet_rec_binder_tests, fast_equal_tests, diff_tests];
+let tests = [
+  meet_tests,
+  meet_rec_binder_tests,
+  fast_equal_tests,
+  alias_cycle_tests,
+  diff_tests,
+];
