@@ -8,7 +8,6 @@ type value_export = {
 type lowered = {
   expanded: Exp.t,
   value_exports: list(value_export),
-  type_exports: list((Var.t, Typ.t)),
 };
 
 /* Collect module variable references from type annotations.
@@ -321,8 +320,7 @@ let wrap_item =
     Exp.fresh(Let(Pat.fresh(Wild), e, body));
   };
 
-let lower =
-    (~ctx: Ctx.t, ~ana: option(Typ.t)=?, items: list(Mod.t)): lowered => {
+let lower = (~ana: option(Typ.t)=?, items: list(Mod.t)): lowered => {
   let ana_labels =
     switch (ana) {
     | Some(ana) => extract_ana_labels(ana)
@@ -337,7 +335,6 @@ let lower =
         labeled_tuple_exp(value_exports),
       ),
     value_exports,
-    type_exports: collect_type_exports(ctx, items),
   };
 };
 
