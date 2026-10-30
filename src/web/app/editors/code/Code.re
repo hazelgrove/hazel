@@ -117,7 +117,7 @@ let view =
   let sort = (t: Tile.t): Sort.t => refine_sort(t.id, Tile.mold(t).out);
 
   let is_consistent = (sort: Sort.t, t: Tile.t) =>
-    switch (Id.Map.find_opt(t.id, term_data)) {
+    switch (Id.Map.find(term_data, t.id)) {
     | None => true
     | Some(data) =>
       switch (sort, data.sort) {
@@ -197,7 +197,7 @@ let view =
                 Aba.mk(t.shards, t.children),
               );
             let _ =
-              switch (Id.Map.find_opt(t.id, refractor_rows)) {
+              switch (Id.Map.find(refractor_rows, t.id)) {
               | Some(n) =>
                 DeferredLinebreaks.update(n) |> ignore;
                 ();

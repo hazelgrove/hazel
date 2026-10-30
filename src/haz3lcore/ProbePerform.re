@@ -20,13 +20,13 @@ let auto_focus = (z: Zipper.t): bool =>
 
 let has_probe = (id: Id.t, z: Zipper.t): bool =>
   Option.is_some(List.Assoc.find(z.refractors.manuals, id, ~equal=Id.equal))
-  || Id.Map.mem(id, z.refractors.multis.ephemerals);
+  || Id.Map.mem(z.refractors.multis.ephemerals, id);
 
 /* Carry over the ephemeral entry's model; a fresh default would visibly reset
  * the probe once the ephemeral is filtered out on the next rebuild. */
 let promote_to_manual = (id: Id.t, z: Zipper.t): Zipper.t => {
   let model =
-    Id.Map.find_opt(id, z.refractors.multis.ephemerals)
+    Id.Map.find(z.refractors.multis.ephemerals, id)
     |> Option.map(~f=(e: Refractors.entry) => e.model);
   Zipper.add_manual(~model?, id, Probe, z);
 };
@@ -67,19 +67,19 @@ let rm_multi =
         ...refractors,
         multis: {
           ids:
-            Id.Map.filter(
-              (id, _) => !List.mem(target_ids, id, ~equal=Id.equal),
-              z.refractors.multis.ids,
+            Id.Map.filteri(
+              z.refractors.multis.ids, ~f=(~key as id, ~data as _) =>
+              !List.mem(target_ids, id, ~equal=Id.equal)
             ),
           suppressed:
-            Id.Map.filter(
-              (id, _) => !List.mem(target_ids, id, ~equal=Id.equal),
-              z.refractors.multis.suppressed,
+            Id.Map.filteri(
+              z.refractors.multis.suppressed, ~f=(~key as id, ~data as _) =>
+              !List.mem(target_ids, id, ~equal=Id.equal)
             ),
           ephemerals:
-            Id.Map.filter(
-              (id', _) => !List.mem(target_ids, id', ~equal=Id.equal),
-              z.refractors.multis.ephemerals,
+            Id.Map.filteri(
+              z.refractors.multis.ephemerals, ~f=(~key as id', ~data as _) =>
+              !List.mem(target_ids, id', ~equal=Id.equal)
             ),
         },
       }
@@ -221,7 +221,7 @@ let add_suppression = (ids: list(Id.t), z: Zipper.t): Zipper.t =>
   Zipper.update_suppressed(
     suppressed =>
       List.fold_left(
-        ~f=(map, id) => Id.Map.add(id, (), map),
+        ~f=(map, id) => Id.Map.set(map, ~key=id, ~data=()),
         ~init=suppressed,
         ids,
       ),
@@ -231,9 +231,8 @@ let add_suppression = (ids: list(Id.t), z: Zipper.t): Zipper.t =>
 let rm_suppression = (ids: list(Id.t), z: Zipper.t): Zipper.t =>
   Zipper.update_suppressed(
     suppressed =>
-      Id.Map.filter(
-        (id, _) => !List.mem(ids, id, ~equal=Id.equal),
-        suppressed,
+      Id.Map.filteri(suppressed, ~f=(~key as id, ~data as _) =>
+        !List.mem(ids, id, ~equal=Id.equal)
       ),
     z,
   );
@@ -241,15 +240,14 @@ let rm_suppression = (ids: list(Id.t), z: Zipper.t): Zipper.t =>
 let add_ids_from_multi_term =
     (~syntax: CachedSyntax.t, ~info_map: Statics.Map.t, z: Zipper.t): Zipper.t => {
   let auto_ids =
-    Id.Map.bindings(z.refractors.multis.ids) |> List.map(~f=fst);
+    Id.Map.to_alist(z.refractors.multis.ids) |> List.map(~f=fst);
   let all_ids =
     List.concat_map(~f=ids_from_term(~syntax, ~info_map), auto_ids);
   let z =
     Zipper.update_suppressed(
       suppressed =>
-        Id.Map.filter(
-          (id, _) => List.mem(all_ids, id, ~equal=Id.equal),
-          suppressed,
+        Id.Map.filteri(suppressed, ~f=(~key as id, ~data as _) =>
+          List.mem(all_ids, id, ~equal=Id.equal)
         ),
       z,
     );
@@ -259,7 +257,7 @@ let add_ids_from_multi_term =
       ~f=
         id =>
           !List.mem(manual_ids, id, ~equal=Id.equal)
-          && !Id.Map.mem(id, z.refractors.multis.suppressed),
+          && !Id.Map.mem(z.refractors.multis.suppressed, id),
       all_ids,
     );
   let manual_end_rows =
@@ -293,9 +291,10 @@ let add_ids_from_multi_term =
     List.fold_left(
       ~f=
         (map, id) =>
-          switch (Id.Map.find_opt(id, old_ephemerals)) {
-          | Some(existing) => Id.Map.add(id, existing, map)
-          | None => Id.Map.add(id, Refractors.mk_entry(Probe), map)
+          switch (Id.Map.find(old_ephemerals, id)) {
+          | Some(existing) => Id.Map.set(map, ~key=id, ~data=existing)
+          | None =>
+            Id.Map.set(map, ~key=id, ~data=Refractors.mk_entry(Probe))
           },
       ~init=Id.Map.empty,
       ids,
@@ -312,7 +311,7 @@ let add_ids_from_multi_term =
       Zipper.update_ephemerals(_ => new_ephemeral_map, z);
     };
   /* Gated on auto_focus: in manual focus mode, don't auto-capture new ephemerals. */
-  let new_ids = List.filter(~f=id => !Id.Map.mem(id, old_ephemerals), ids);
+  let new_ids = List.filter(~f=id => !Id.Map.mem(old_ephemerals, id), ids);
   switch (new_ids) {
   | [] => z
   | _ when !auto_focus(z) => z
@@ -342,7 +341,7 @@ let add_multi =
           ...refractors.multis,
           ids:
             List.fold_left(
-              ~f=(map, id) => Id.Map.add(id, (), map),
+              ~f=(map, id) => Id.Map.set(map, ~key=id, ~data=()),
               ~init=z.refractors.multis.ids,
               target_ids,
             ),
@@ -766,7 +765,7 @@ let refractor_kind = (id: Id.t, z: Zipper.t): option(ProjectorCore.Kind.t) => {
   switch (List.Assoc.find(z.refractors.manuals, id, ~equal=Id.equal)) {
   | Some(entry: Refractors.entry) => Some(entry.kind)
   | None =>
-    switch (Id.Map.find_opt(id, z.refractors.multis.ephemerals)) {
+    switch (Id.Map.find(z.refractors.multis.ephemerals, id)) {
     | Some(entry: Refractors.entry) => Some(entry.kind)
     | None => None
     }

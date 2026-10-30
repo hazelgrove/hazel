@@ -36,7 +36,7 @@ let at_caret =
             List.find(~f=p => !Piece.is_secondary(p), List.rev(child))
           ) {
           | Some(p) =>
-            let* info = Id.Map.find_opt(Piece.id(p), statics.info_map);
+            let* info = Id.Map.find(statics.info_map, Piece.id(p));
             switch (info) {
             | InfoExp({user_term: {term: EmptyHole, _}, _})
             | InfoPat({user_term: {term: EmptyHole, _}, _}) => Some(info)

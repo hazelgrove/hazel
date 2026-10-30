@@ -68,7 +68,7 @@ let get_dynamic_type = (exp: Exp.t): option(Typ.t) => {
   let (info_map, _) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), exp);
   IdTagged.rep_id(exp)
-  |> Id.Map.find_opt(_, info_map)
+  |> Id.Map.find(info_map, _)
   |> Option.bind(
        _,
        ~f=

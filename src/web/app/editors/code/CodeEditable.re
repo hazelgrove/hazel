@@ -234,7 +234,7 @@ module Selection = {
   let focus_indicated_probe = (model: Model.t): option(Update.t) => {
     let z = model.editor.state.zipper;
     let refractors =
-      z.refractors.manuals @ Id.Map.to_list(z.refractors.multis.ephemerals);
+      z.refractors.manuals @ Id.Map.to_alist(z.refractors.multis.ephemerals);
     switch (Indicated.index(z)) {
     | Some(id) =>
       switch (
@@ -254,7 +254,7 @@ module Selection = {
     let measured = model.editor.syntax.measured;
     let caret_row = Zipper.Caret.point(measured, z).row;
     let refractors =
-      z.refractors.manuals @ Id.Map.to_list(z.refractors.multis.ephemerals);
+      z.refractors.manuals @ Id.Map.to_alist(z.refractors.multis.ephemerals);
     let probe_on_row =
       refractors
       |> (
@@ -695,10 +695,12 @@ module View = {
     let refractor_data =
       RefractorView.mk_data(
         ~refractors=
-          Id.Map.union(
-            (_, _, b) => Some(b),
-            zipper.refractors.manuals |> Id.Map.of_list,
+          Id.Map.merge_skewed(
+            zipper.refractors.manuals
+            |> Id.Map.of_alist_reduce(~f=(_, latest) => latest),
             zipper.refractors.multis.ephemerals,
+            ~combine=(~key as _, _, b) =>
+            b
           ),
         ~syntax=model.editor.syntax,
         ~indicated=Indicated.for_decoration(zipper),
@@ -722,7 +724,7 @@ module View = {
         List.map(~f=fst, zipper.refractors.manuals)
         @ List.map(
             ~f=fst,
-            Id.Map.to_list(zipper.refractors.multis.ephemerals),
+            Id.Map.to_alist(zipper.refractors.multis.ephemerals),
           ),
       );
     let projectors =

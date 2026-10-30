@@ -303,7 +303,7 @@ let initial_model = {
 let incremental_min_statics = 2500;
 
 let wants_incremental = (req_value: Request.value): bool =>
-  Util.Id.Map.cardinal(req_value.eval_info_map.statics)
+  Util.Id.Map.length(req_value.eval_info_map.statics)
   >= incremental_min_statics;
 
 /* the reuse plan computed for a batch item, handed to its evaluation so
