@@ -49,7 +49,7 @@ module ValueCheckerEVMode: {
 
 module CV = Transition(ValueCheckerEVMode);
 
-let rec check_value = (~in_closure=?, env, d) =>
+let rec check_value = (~in_closure=?, env: Environment.t(Exp.t), d) =>
   CV.transition(check_value, ~mode=`Environment, ~in_closure?, env, d);
 
 /* Check if an expression is a fully-evaluated value */

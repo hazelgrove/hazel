@@ -38,8 +38,10 @@ let exp_show =
     {
       editor,
       statics,
-      dynamics: Dynamics.Map.empty,
+      dynamics: Dynamics.empty,
       context_menu: None,
+      live_typing: Util.Calc.Pending,
+      sample_focus: Util.Calc.Pending,
     },
   );
 };
@@ -72,8 +74,10 @@ let test_show =
       {
         editor,
         statics: CachedStatics.empty,
-        dynamics: Dynamics.Map.empty,
+        dynamics: Dynamics.empty,
         context_menu: None,
+        live_typing: Util.Calc.Pending,
+        sample_focus: Util.Calc.Pending,
       },
     );
   };

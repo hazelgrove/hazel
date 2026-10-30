@@ -15,6 +15,15 @@ let fast_copy: (Id.t, t) => t = IdTagged.fast_copy;
 
 let mk = (ids, term): t => IdTagged.mk_internal(ids, term);
 
+/* The operand under a value's outermost ascriptions. A final value still
+   wrapped in an ascription is a cast that got stuck -- `1 : String` -- and
+   the operand is what actually flowed there. */
+let rec strip_root_ascriptions = (d: t): t =>
+  switch (term_of(d)) {
+  | Asc(d, _) => strip_root_ascriptions(d)
+  | _ => d
+  };
+
 // Also strips static error holes - kinda like unelaboration
 let rec strip_ascriptions =
   map_term(

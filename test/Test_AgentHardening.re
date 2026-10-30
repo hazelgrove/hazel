@@ -104,7 +104,7 @@ let tests = (
             ~is_edited=true,
             ~statics_mode=Force,
             ~stitch=x => x,
-            ~dynamics=Language.Dynamics.Map.empty,
+            ~dynamics=Util.Calc.OldValue(Language.Dynamics.empty),
             ~is_dynamic_term=false,
             m,
           );
@@ -257,7 +257,7 @@ let tests = (
             ~is_edited=true,
             ~statics_mode=Force,
             ~stitch=x => x,
-            ~dynamics=Language.Dynamics.Map.empty,
+            ~dynamics=Util.Calc.OldValue(Language.Dynamics.empty),
             ~is_dynamic_term=false,
             m,
           );
