@@ -28,7 +28,8 @@ module ViewCache = {
     model: string,
     view: View.t,
   };
-  let cache: Stdlib.Hashtbl.t(Id.t, entry) = Stdlib.Hashtbl.create(64);
+  let cache: Hashtbl.t(Id.t, entry) =
+    Hashtbl.create(~size=64, (module Id.Key));
 
   let lookup =
       (
@@ -42,7 +43,7 @@ module ViewCache = {
         ~model,
       )
       : option(View.t) =>
-    switch (Stdlib.Hashtbl.find_opt(cache, id)) {
+    switch (Hashtbl.find(cache, id)) {
     | Some(e)
         when
           phys_equal(e.statics_map, statics_map)
@@ -69,10 +70,10 @@ module ViewCache = {
         ~model,
         ~view,
       ) =>
-    Stdlib.Hashtbl.replace(
+    Hashtbl.set(
       cache,
-      id,
-      {
+      ~key=id,
+      ~data={
         statics_map,
         dynamics_map,
         sample_focus,
