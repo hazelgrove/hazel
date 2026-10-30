@@ -643,6 +643,28 @@ y && true|},
     Some(bool()),
   );
 
+let test_renamed_alias_leaves_member_type =
+  fully_consistent_typecheck(
+    "A renamed alias leaves a module member type of the same name",
+    {|type T = Int in
+type T = Bool in
+module M = { type T = String } in
+let s : M.T = "a" in
+string_length(s)|},
+    Some(int()),
+  );
+
+let test_renamed_alias_leaves_module_of_same_name =
+  fully_consistent_typecheck(
+    "A renamed alias leaves the paths of a module of the same name",
+    {|type N = Int in
+type N = Bool in
+module N = { type U = String } in
+let s : N.U = "a" in
+string_length(s)|},
+    Some(int()),
+  );
+
 let tests = (
   "Statics.Modules",
   [
@@ -731,5 +753,7 @@ let tests = (
     test_type_alias_shadowing_nested_module,
     test_shadowed_module_keeps_earlier_paths,
     test_shadowing_module_roots_later_paths,
+    test_renamed_alias_leaves_member_type,
+    test_renamed_alias_leaves_module_of_same_name,
   ],
 );

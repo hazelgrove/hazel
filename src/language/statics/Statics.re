@@ -1968,12 +1968,14 @@ and uexp_to_info_map =
         switch (TPat.tyvar_of_utpat(utpat)) {
         | Some(name) when !Ctx.is_base_typ(name) =>
           let (name, utpat, body) =
-            switch (Typ.unshadow(ctx, name)) {
+            switch (
+              Typ.unshadow(ctx, name, ~scope=lazy(Exp.tvar_names(body)))
+            ) {
             | None => (name, utpat, body)
-            | Some(f) => (
-                f(name),
-                TPat.rename(f, utpat),
-                Exp.rename_tvars(f, body),
+            | Some(name') => (
+                name',
+                TPat.rename(name', utpat),
+                Exp.rename_tvar(name, name', body),
               )
             };
           let mode_body = {
@@ -2542,13 +2544,19 @@ and uexp_to_info_map =
       switch (typat.term) {
       | Var(name) when !Ctx.is_base_typ(name) =>
         let (name, typat, utyp, body) =
-          switch (Typ.unshadow(ctx, name)) {
+          switch (
+            Typ.unshadow(
+              ctx,
+              name,
+              ~scope=lazy(Typ.tvar_names(utyp) @ Exp.tvar_names(body)),
+            )
+          ) {
           | None => (name, typat, utyp, body)
-          | Some(f) => (
-              f(name),
-              TPat.rename(f, typat),
-              Typ.rename_vars(f, utyp),
-              Exp.rename_tvars(f, body),
+          | Some(name') => (
+              name',
+              TPat.rename(name', typat),
+              Typ.rename_var(name, name', utyp),
+              Exp.rename_tvar(name, name', body),
             )
           };
         /* Desugar Sig types so that type aliases like `type T = {let x : Int}`
@@ -4008,12 +4016,12 @@ and utyp_to_info_map =
     let m =
       utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
     let (name, utpat, tbody) =
-      switch (Typ.unshadow(ctx, name)) {
+      switch (Typ.unshadow(ctx, name, ~scope=lazy(Typ.tvar_names(tbody)))) {
       | None => (name, utpat, tbody)
-      | Some(f) => (
-          f(name),
-          TPat.rename(f, utpat),
-          Typ.rename_vars(f, tbody),
+      | Some(name') => (
+          name',
+          TPat.rename(name', utpat),
+          Typ.rename_var(name, name', tbody),
         )
       };
     let body_ctx =
@@ -4062,11 +4070,16 @@ and utyp_to_info_map =
     let m =
       utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
     let (name, utyp, tbody) =
-      switch (Typ.unshadow(ctx, name)) {
+      switch (Typ.unshadow(ctx, name, ~scope=lazy(Typ.tvar_names(tbody)))) {
       | None => (name, utyp, tbody)
-      | Some(f) =>
-        let utyp = Typ.rename_vars(f, utyp);
-        (f(name), utyp, Typ.rename_vars(f, tbody));
+      | Some(name') =>
+        let tbody = Typ.rename_var(name, name', tbody);
+        let (_, rewrap) = IdTagged.unwrap(utyp);
+        (
+          name',
+          (Rec(TPat.rename(name', utpat), tbody): Typ.term) |> rewrap,
+          tbody,
+        );
       };
     let body_ctx =
       Ctx.extend_tvar(

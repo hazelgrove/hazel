@@ -542,6 +542,11 @@ let x : A = 1 in
       {|type T = Int in let x : T = 1 in type T = Bool in !x|},
     ),
     fully_consistent_typecheck(
+      "a renamed type binder does not take a primed name written in its scope",
+      {|type a = Int in type a = Bool in type a' = String in (true : a)|},
+      Some(FTemp.Typ.bool()),
+    ),
+    fully_consistent_typecheck(
       "type function variable shadowing an alias keeps an earlier annotation",
       {|type X = Int in let a : X = 1 in (typfun X -> a + 1)@<Bool>|},
       Some(FTemp.Typ.int()),

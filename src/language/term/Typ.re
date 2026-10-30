@@ -378,20 +378,61 @@ let unroll = (ty: t): t =>
   | _ => ty
   };
 
-/* Type variable names in a type, bound and free alike, under `f`. */
-let rename_vars = (f: string => string, ty: t): t =>
+/* `ty` with the type variable `x` renamed to `x'` where it refers to the
+   binding being renamed: not under a binder of `x`, nor in the signature
+   items after one. A module path's root is a type variable too. */
+let rec rename_var = (x: string, x': string, ty: t): t =>
   map_term(
     ~f_typ=
       (continue, ty) => {
         let (term, rewrap) = unwrap(ty);
         switch (term) {
-        | Var(x) => Var(f(x)) |> rewrap
+        | Var(y) when String.equal(x, y) => Var(x') |> rewrap
+        | Rec(tp, _)
+        | Poly(tp, _) when TPat.binds(x, tp) => ty
+        | Sig(items) => Sig(rename_var_in_sig(x, x', items)) |> rewrap
         | _ => continue(ty)
         };
       },
-    ~f_tpat=(_, tp) => TPat.rename(f, tp),
     ty,
-  );
+  )
+and rename_var_in_sig =
+    (x: string, x': string, items: list(TermBase.Sig.t))
+    : list(TermBase.Sig.t) =>
+  switch (items) {
+  | [] => []
+  | [{term: SigType(tp, _), _}, ..._] when TPat.binds(x, tp) => items
+  | [item, ...items] => [
+      TermBase.Sig.map_term(~f_typ=(_, ty) => rename_var(x, x', ty), item),
+      ...rename_var_in_sig(x, x', items),
+    ]
+  };
+
+/* Every type variable name written in a type, bound or free. */
+let tvar_names = (ty: t): list(string) => {
+  let names = ref([]);
+  let _: t =
+    map_term(
+      ~f_typ=
+        (continue, ty) => {
+          switch (term_of(ty)) {
+          | Var(x) => names := [x, ...names^]
+          | _ => ()
+          };
+          continue(ty);
+        },
+      ~f_tpat=
+        (continue, tp) => {
+          switch (TPat.tyvar_of_utpat(tp)) {
+          | Some(x) => names := [x, ...names^]
+          | None => ()
+          };
+          continue(tp);
+        },
+      ty,
+    );
+  names^;
+};
 
 /* Whether binding `name` over ctx would change what a type already in
    ctx means: the name is bound, or an alias mentions it while it is
@@ -401,22 +442,24 @@ let would_capture = (ctx: Ctx.t, name: string): bool =>
   || List.exists(
        fun
        | Ctx.TVarEntry({kind: Singleton(ty), _}) =>
-         List.mem(name, free_vars(ty))
+         List.exists(String.equal(name), free_vars(ty))
        | _ => false,
        ctx.entries,
      );
 
-/* When binding `name` over ctx would capture, the renaming of `name` to
-   the fresh name it binds under instead: the name primed until it would
-   not capture. A prime cannot occur in a written type name. Statics renames
-   the binder and its scope with it, so types already in ctx keep their
-   meaning, and the user's name stays wherever it is not reused. None when
-   the name binds as written. */
-let unshadow = (ctx: Ctx.t, name: string): option(string => string) =>
+/* When binding `name` over ctx would capture, the fresh name to bind it
+   under instead: the name primed until it neither captures nor occurs in
+   [scope], the type variable names written where the binder is in scope.
+   None when the name binds as written. */
+let unshadow =
+    (ctx: Ctx.t, name: string, ~scope: Lazy.t(list(string)))
+    : option(string) =>
   if (would_capture(ctx, name)) {
-    let rec fresh = n => would_capture(ctx, n) ? fresh(n ++ "'") : n;
-    let renamed = fresh(name ++ "'");
-    Some(x => String.equal(x, name) ? renamed : x);
+    let taken = n =>
+      would_capture(ctx, n)
+      || List.exists(String.equal(n), Lazy.force(scope));
+    let rec fresh = n => taken(n) ? fresh(n ++ "'") : n;
+    Some(fresh(name ++ "'"));
   } else {
     None;
   };

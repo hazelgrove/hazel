@@ -26,10 +26,7 @@ map@<T>@<Int>(fun e -> string_length(e), ["hello","bar"])|},
       () =>
       evaluation_test(
         "type y = Int in typfun y -> (? : y)",
-        Language.Exp.rename_tvars(
-          x => String.equal(x, "y") ? "y'" : x,
-          parse_exp({|typfun y -> (?:y)|}),
-        ),
+        parse_exp({|typfun y' -> (?:y')|}),
         elaborate(parse_exp({|type y = Int in typfun y -> (? : y)|})),
       )
     ),

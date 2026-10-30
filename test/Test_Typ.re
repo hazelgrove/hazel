@@ -262,75 +262,78 @@ let unshadow_tests = {
     id: Id.mk(),
     kind: Abstract,
   };
-  let renaming = (ctx, name) =>
-    switch (Typ.unshadow(ctx, name)) {
-    | None => fail(name ++ " binds as written")
-    | Some(f) => f
-    };
+  let unshadow = (~scope=[], ctx, name) =>
+    Typ.unshadow(ctx, name, ~scope=lazy(scope));
+  let renamed = option(string);
   (
     "Typ.unshadow",
     [
       test_case("a name not in scope binds as written", `Quick, () =>
+        check(renamed, "T", None, unshadow(Ctx.empty, "T"))
+      ),
+      test_case("a name in scope is primed", `Quick, () =>
         check(
-          bool,
-          "no renaming",
-          true,
-          Option.is_none(Typ.unshadow(Ctx.empty, "T")),
+          renamed,
+          "T",
+          Some("T'"),
+          unshadow(Ctx.extend_tvar(Ctx.empty, abstract("T")), "T"),
         )
       ),
-      test_case(
-        "a name in scope is primed, and only that name is renamed",
-        `Quick,
-        () => {
-          let f = renaming(Ctx.extend_tvar(Ctx.empty, abstract("T")), "T");
-          check(string, "T", "T'", f("T"));
-          check(string, "U", "U", f("U"));
-        },
-      ),
-      test_case("the prime is repeated until the name is fresh", `Quick, () =>
+      test_case("the prime is repeated past a name in ctx", `Quick, () =>
         check(
-          string,
+          renamed,
           "T",
-          "T''",
-          renaming(
+          Some("T''"),
+          unshadow(
             Ctx.extend_tvar(Ctx.empty, abstract("T"))
             |> Ctx.extend_tvar(_, abstract("T'")),
             "T",
-            "T",
+          ),
+        )
+      ),
+      test_case(
+        "the prime is repeated past a name written in the scope", `Quick, () =>
+        check(
+          renamed,
+          "a",
+          Some("a''"),
+          unshadow(
+            ~scope=["a'"],
+            Ctx.extend_tvar(Ctx.empty, abstract("a")),
+            "a",
           ),
         )
       ),
       test_case("a name an alias mentions while unbound is primed", `Quick, () =>
         check(
-          string,
+          renamed,
           "T",
-          "T'",
-          renaming(
+          Some("T'"),
+          unshadow(
             Ctx.extend_alias(Ctx.empty, "S", Id.mk(), Var("T") |> Typ.temp),
-            "T",
             "T",
           ),
         )
       ),
       test_case(
-        "Typ.rename_vars renames a binder and its occurrences", `Quick, () =>
-        check(
-          typ,
-          "poly T -> (T, U)",
-          Poly(
-            Var("T'") |> TPat.temp,
-            Prod([Var("T'") |> Typ.temp, Var("U") |> Typ.temp]) |> Typ.temp,
-          )
-          |> Typ.temp,
-          Typ.rename_vars(
-            renaming(Ctx.extend_tvar(Ctx.empty, abstract("T")), "T"),
-            Poly(
-              Var("T") |> TPat.temp,
-              Prod([Var("T") |> Typ.temp, Var("U") |> Typ.temp]) |> Typ.temp,
-            )
+        "Typ.rename_var renames up to a binder of the same name",
+        `Quick,
+        () => {
+          let poly_t =
+            Poly(Var("T") |> TPat.temp, Var("T") |> Typ.temp) |> Typ.temp;
+          check(
+            typ,
+            "(T, U, poly T -> T)",
+            Prod([Var("T'") |> Typ.temp, Var("U") |> Typ.temp, poly_t])
             |> Typ.temp,
-          ),
-        )
+            Typ.rename_var(
+              "T",
+              "T'",
+              Prod([Var("T") |> Typ.temp, Var("U") |> Typ.temp, poly_t])
+              |> Typ.temp,
+            ),
+          );
+        },
       ),
     ],
   );

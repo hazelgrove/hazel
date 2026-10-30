@@ -122,14 +122,93 @@ let strip_projectors =
     _,
   );
 
-/* Type variable names in the types and type binders of an expression,
-   bound and free alike, under `f`. */
-let rename_tvars = (f: string => string, e: t): t =>
+/* `e` with the type variable `x` renamed to `x'` where it refers to the
+   binding being renamed: not in the scope of a type binder of `x`, nor in
+   that of a module named `x`, since a module's name roots type paths. */
+let rec rename_tvar = (x: string, x': string, e: t): t =>
   map_term(
-    ~f_typ=(_, ty) => Typ.rename_vars(f, ty),
-    ~f_tpat=(_, tp) => TPat.rename(f, tp),
+    ~f_exp=
+      (continue, e) => {
+        let (term, rewrap) = unwrap(e);
+        switch (term) {
+        | TyAlias(tp, _, _)
+        | TypFun(tp, _, _) when TPat.binds(x, tp) => e
+        | ModuleExp(mp, def, body) when MPat.binds(x, mp) =>
+          ModuleExp(
+            rename_tvar_mpat(x, x', mp),
+            rename_tvar(x, x', def),
+            body,
+          )
+          |> rewrap
+        | Module(items) =>
+          Module(rename_tvar_in_items(x, x', items)) |> rewrap
+        | _ => continue(e)
+        };
+      },
+    ~f_typ=(_, ty) => Typ.rename_var(x, x', ty),
     e,
-  );
+  )
+and rename_tvar_mpat = (x: string, x': string, mp: MPat.t): MPat.t =>
+  MPat.map_term(~f_typ=(_, ty) => Typ.rename_var(x, x', ty), mp)
+and rename_tvar_in_items =
+    (x: string, x': string, items: list(Mod.t)): list(Mod.t) =>
+  switch (items) {
+  | [] => []
+  | [{term: ModType(tp, _), _}, ..._] when TPat.binds(x, tp) => items
+  | [{term: ModuleMod(mp, def), _} as item, ...items]
+      when MPat.binds(x, mp) =>
+    let (_, rewrap) = IdTagged.unwrap(item);
+    [
+      (
+        ModuleMod(rename_tvar_mpat(x, x', mp), rename_tvar(x, x', def)): Mod.term
+      )
+      |> rewrap,
+      ...items,
+    ];
+  | [item, ...items] => [
+      Mod.map_term(
+        ~f_exp=(_, e) => rename_tvar(x, x', e),
+        ~f_typ=(_, ty) => Typ.rename_var(x, x', ty),
+        item,
+      ),
+      ...rename_tvar_in_items(x, x', items),
+    ]
+  };
+
+/* Every type variable name written in an expression, bound or free, and
+   every module name, since module names root type paths. */
+let tvar_names = (e: t): list(string) => {
+  let names = ref([]);
+  let _: t =
+    map_term(
+      ~f_typ=
+        (_, ty) => {
+          names := Typ.tvar_names(ty) @ names^;
+          ty;
+        },
+      ~f_tpat=
+        (continue, tp) => {
+          switch (TPat.tyvar_of_utpat(tp)) {
+          | Some(x) => names := [x, ...names^]
+          | None => ()
+          };
+          continue(tp);
+        },
+      ~f_mpat=
+        (continue, mp) => {
+          switch (IdTagged.term_of(mp)) {
+          | Var(x) => names := [x, ...names^]
+          | Invalid(_)
+          | EmptyHole
+          | MultiHole(_)
+          | Asc(_) => ()
+          };
+          continue(mp);
+        },
+      e,
+    );
+  names^;
+};
 
 let rec cls_of_term: type a. Grammar.exp_term(a) => cls =
   fun
