@@ -237,9 +237,9 @@ let is_edit: t => bool =
     | SetIndicated(_)
     | RemoveIndicated => true
     | SetModel(_)
-    /* SetModel isn't an edit: CachedSyntax detects shape-affecting model
-     * changes via map reference equality, keeping the statics recompute
-     * out of continuous actions like slider drags. */
+    /* SetModel isn't an edit, keeping the statics recompute out of
+     * continuous actions like slider drags. The syntax cache still
+     * follows the model (Editor.Update.update, CachedSyntax.calculate). */
     | Focus(_)
     | SampleFocus(_)
     | Escape(_)
