@@ -670,4 +670,104 @@ let diff_tests = (
   ],
 );
 
-let tests = [meet_tests, fast_equal_tests, alias_cycle_tests, diff_tests];
+let meet_rec_binder_tests = {
+  module F = IdTagged.FreshGrammar;
+  let ctx = Builtins.ctx_init(None);
+  let rec_ = (x, body) => F.Typ.rec_(F.TPat.var(x), body(F.Typ.var(x)));
+  let poly = (x, body) => F.Typ.poly(F.TPat.var(x), body(F.Typ.var(x)));
+  let case = (name, ty1, ty2, expected) =>
+    test_case(name, `Quick, () =>
+      check(option(typ), name, expected, Typ.meet(ctx, ty1, ty2))
+    );
+  /* With `x` and `b` aliases of Int, a free `x` or `b` is Int, and must not
+     become the other type's bound variable. Each pair is met both ways. */
+  let binder_capture_cases = {
+    let ctx =
+      List.fold_left(
+        (ctx, name) => Ctx.extend_alias(ctx, name, Id.invalid, F.Typ.int()),
+        ctx,
+        ["x", "b"],
+      );
+    let consistent = (name, ty1, ty2, expected) =>
+      test_case(name, `Quick, () =>
+        List.iter(
+          ((ty1, ty2)) =>
+            check(
+              bool,
+              name,
+              expected,
+              Option.is_some(Typ.meet(ctx, ty1, ty2)),
+            ),
+          [(ty1, ty2), (ty2, ty1)],
+        )
+      );
+    let hole_rec = body => F.Typ.rec_(F.TPat.empty_hole(), body);
+    [
+      consistent(
+        "a name free beside a hole binder is not the other's bound variable",
+        rec_("x", x => F.Typ.prod([x, F.Typ.int()])),
+        hole_rec(F.Typ.prod([F.Typ.var("x"), F.Typ.int()])),
+        false,
+      ),
+      consistent(
+        "renaming to the other binder captures no free name",
+        rec_("b", b => F.Typ.prod([b, b])),
+        rec_("a", a => F.Typ.prod([a, F.Typ.var("b")])),
+        false,
+      ),
+      consistent(
+        "a free name meets what it stands for",
+        rec_("b", b => F.Typ.prod([b, F.Typ.int()])),
+        rec_("a", a => F.Typ.prod([a, F.Typ.var("b")])),
+        true,
+      ),
+      consistent(
+        "a polymorphic identity is not a function returning a free name",
+        poly("b", b => F.Typ.arrow(b, b)),
+        poly("a", a => F.Typ.arrow(a, F.Typ.var("b"))),
+        false,
+      ),
+      consistent(
+        "a name free beside a hole type binder is not the other's bound variable",
+        poly("x", x => F.Typ.prod([x, F.Typ.int()])),
+        F.Typ.poly(
+          F.TPat.empty_hole(),
+          F.Typ.prod([F.Typ.var("x"), F.Typ.int()]),
+        ),
+        false,
+      ),
+      consistent(
+        "a polymorphic type meets a hole type binder over an unknown body",
+        poly("a", a => F.Typ.arrow(a, a)),
+        F.Typ.poly(F.TPat.empty_hole(), F.Typ.unknown(Internal)),
+        true,
+      ),
+    ];
+  };
+  (
+    "Typ.meet on recursive and polymorphic types",
+    [
+      case(
+        "differently named binders are the same variable",
+        rec_("a", a => F.Typ.prod([a, F.Typ.int()])),
+        rec_("b", b => F.Typ.prod([b, F.Typ.int()])),
+        Some(rec_("a", a => F.Typ.prod([a, F.Typ.int()]))),
+      ),
+      case(
+        "a recursive occurrence is not a hole",
+        rec_("a", a => F.Typ.prod([a, F.Typ.int()])),
+        rec_("b", _ => F.Typ.prod([F.Typ.bool(), F.Typ.int()])),
+        None,
+      ),
+    ]
+    @ binder_capture_cases,
+  );
+};
+
+let tests = [
+  meet_tests,
+  meet_rec_binder_tests,
+  fast_equal_tests,
+  alias_cycle_tests,
+  diff_tests,
+];

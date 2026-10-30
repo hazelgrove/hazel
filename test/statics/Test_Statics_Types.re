@@ -649,6 +649,31 @@ let x : A = 1 in
       {|let (B: ((rec ? -> (rec ? -> (+ ?))))) = A in a|},
       Some(FTemp.Typ.unknown(Internal)),
     ),
+    inconsistent_typecheck(
+      "A recursive occurrence under a differently named binder is not a hole",
+      parse_exp("fun (f : rec a -> (a, Int)) -> (f : rec b -> (Bool, Int))"),
+    ),
+    inconsistent_typecheck(
+      "A name free beside a hole binder is not the other type's bound variable",
+      parse_exp(
+        "type x = Int in fun (f : rec x -> (x, Int)) -> (f : rec ? -> (x, Int))",
+      ),
+    ),
+    inconsistent_typecheck(
+      "Renaming one recursive type's binder to the other's captures no free name",
+      parse_exp(
+        "type b = Int in fun (f : rec b -> (b, b)) -> (f : rec a -> (a, b))",
+      ),
+    ),
+    inconsistent_typecheck(
+      "Renaming one polymorphic type's binder to the other's captures no free name",
+      parse_exp("type b = Int in fun (f : poly b -> b) -> (f : poly a -> b)"),
+    ),
+    fully_consistent_typecheck(
+      "A type application checks against an arrow type",
+      "let f : poly a -> a -> a = typfun a -> fun x -> x in let g : Int -> Int = f@<Int> in g(1)",
+      Some(FTemp.Typ.int()),
+    ),
     test_case(
       "Type parse failure",
       `Quick,
