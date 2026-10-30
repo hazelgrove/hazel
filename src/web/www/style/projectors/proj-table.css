@@ -91,6 +91,90 @@ table.table {
     }
 }
 
+/* The card: the table projector's table and the probe drawer's rich table
+ * (proj-probe.css sets its edge to the drawer's and styles its column
+ * menus). Its own fill, a 1px edge, rounded, barely lifted. Separate
+ * borders, because collapsed ones ignore border-radius. */
+:is(.projector.table, .rich-drawer) table.table {
+  border: 1px solid var(--table-card-edge, var(--border-raised));
+  border-radius: 6px;
+  border-collapse: separate;
+  border-spacing: 0;
+  box-shadow: 0 1px 2px color-mix(in oklch, var(--SHADOW) 25%, transparent);
+  text-align: left;
+}
+
+/* Header: small-caps labels in the UI font, a size down from the cells,
+ * over a light rule. The size is set on the <th> so its padding and line
+ * box follow the labels; the rest of the type sits on the label (weight
+ * and color above), not on the <th>, so it does not leak into a column
+ * menu nested there. */
+:is(.projector.table, .rich-drawer) .table th {
+  font-size: 0.85em;
+  padding: 3px 1.6ch 1px;
+  background-color: var(--df-bg);
+  border-bottom: 1px solid var(--border-raised);
+  text-align: left;
+}
+
+:is(.projector.table, .rich-drawer) .table th .column-label {
+  font-family: var(--ui-font), sans-serif;
+  font-variant-caps: all-small-caps;
+  letter-spacing: 0.06em;
+}
+
+/* Cells padded in code-font units; none vertically (rows stay one line). */
+:is(.projector.table, .rich-drawer) .table td {
+  padding: 0 1.6ch;
+  font-family: var(--code-font);
+  text-align: left;
+}
+
+/* Number columns, header included (TableCore tags them `numeric`). */
+:is(.projector.table, .rich-drawer) .table .numeric {
+  text-align: right;
+}
+
+/* A very light zebra in the palette's lightest surface; hover stays on top. */
+:is(.projector.table, .rich-drawer) .table tbody tr:nth-child(even) {
+  background-color: var(--surface-default);
+}
+
+:is(.projector.table, .rich-drawer) .table tbody tr:hover {
+  background-color: var(--df-hover-bg);
+}
+
+/* Round the fills in the card's corners to its inner radius. The table
+ * does not clip them (overflow would trap the drawer's column menus, and
+ * would break a sticky header). */
+:is(.projector.table, .rich-drawer) .table th:first-child {
+  border-top-left-radius: 5px;
+}
+
+:is(.projector.table, .rich-drawer) .table th:last-child {
+  border-top-right-radius: 5px;
+}
+
+:is(.projector.table, .rich-drawer) .table tbody tr:last-child td:first-child {
+  border-bottom-left-radius: 5px;
+}
+
+:is(.projector.table, .rich-drawer) .table tbody tr:last-child td:last-child {
+  border-bottom-right-radius: 5px;
+}
+
+/* High contrast: keep the header's heavier ink rule, and stroke rows on
+ * their cells, since separate borders drop the row borders drawn above. */
+@container style(--hazel-contrast: high) {
+  :is(.projector.table, .rich-drawer) .table th {
+    border-bottom: 2px solid var(--border-inverse);
+  }
+
+  :is(.projector.table, .rich-drawer) .table tbody tr:not(:last-child) td {
+    border-bottom: 1px solid var(--border-inverse);
+  }
+}
+
 /* Threshold of 10 rows must stay in sync with scroll_threshold_rows
    in TableProj.re's placeholder sizing — if either moves, both must. */
 div.projector.table:has(tbody tr:nth-child(10)) > .table-inner {
@@ -116,11 +200,17 @@ div.projector.table:has(tbody tr:nth-child(10)) .table th {
     gap: initial;
 }
 
+/* The same gap on all four sides of the card. The projector reserves one
+ * code line per row plus the header's line, which leaves about 4px. */
 .projector.table > .table-inner {
     width: 100%;
     height: 100%;
-    padding: 0 5px;
+    padding: 2px;
     box-sizing: border-box;
+}
+
+.projector.table table.table {
+    height: 100%;
 }
 
 .projector.table .code {
