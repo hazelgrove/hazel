@@ -832,6 +832,49 @@ let equal_up_to_aliases = (ctx: Ctx.t, a: t, b: t): bool => {
    made large-sum programs quadratically slow downstream. */
 let canonicalize = (ctx: Ctx.t, ty: t): t =>
   normalize(~expand=_ => false, ctx, ty);
+
+/* One binder to compare the bodies of two binding forms under, [body1]
+   bound by [tp1] and [body2] by [tp2], with each body renamed to it. Its
+   name must not be free in either form, or renaming would capture that
+   free variable: the second binder, else the first, else a fresh name. */
+let shared_binder =
+    (tp1: TPat.t, body1: t, tp2: TPat.t, body2: t): (TPat.t, t, t) => {
+  let free = (tp, body) =>
+    lazy(free_vars(~bound=Option.to_list(TPat.tyvar_of_utpat(tp)), body));
+  let (free1, free2) = (free(tp1, body1), free(tp2, body2));
+  let free_in = (x, free) =>
+    List.exists(String.equal(x), Lazy.force(free));
+  let rename = (x, tp, body) => subst(Var(x) |> temp, tp, body);
+  switch (TPat.tyvar_of_utpat(tp1), TPat.tyvar_of_utpat(tp2)) {
+  | (Some(x1), Some(x2)) when String.equal(x1, x2) => (tp1, body1, body2) /* no renaming needed */
+  | (_, Some(x2)) when !free_in(x2, free1) => (
+      tp2,
+      rename(x2, tp1, body1),
+      body2,
+    )
+  | (Some(x1), _) when !free_in(x1, free2) => (
+      tp1,
+      body1,
+      rename(x1, tp2, body2),
+    )
+  | (Some(x), _)
+  | (None, Some(x)) =>
+    /* Source names may contain `_α`, so a generated name is checked. */
+    let rec fresh = () => {
+      let x' = fresh_var(x);
+      free_in(x', free1) || free_in(x', free2) ? fresh() : x';
+    };
+    let fresh_name = fresh();
+    let fresh_tp = Var(fresh_name) |> TPat.fresh;
+    (
+      fresh_tp,
+      rename(fresh_name, tp1, body1),
+      rename(fresh_name, tp2, body2),
+    );
+  | (None, None) => (tp2, body1, body2)
+  };
+};
+
 let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   let meet' = meet(ctx);
   switch (term_of(ty1), term_of(ty2)) {
@@ -871,16 +914,9 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   | (_, ProdProjection(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
   | (ProdExtension(_), _) => meet'(weak_head_normalize(ctx, ty1), ty2)
   | (_, ProdExtension(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
-  | (Rec(tp1, ty1), Rec(tp2, ty2)) =>
-    /* The bodies are compared under the one binder they share after
-       renaming, as the Poly arm does. */
-    let (tp, ty1') =
-      switch (TPat.tyvar_of_utpat(tp2)) {
-      | Some(x2) => (tp2, subst(Var(x2) |> temp, tp1, ty1))
-      | None => (tp1, ty1)
-      };
-    let ctx = Ctx.extend_dummy_tvar(ctx, tp);
-    let+ ty_body = meet(ctx, ty1', ty2);
+  | (Rec(tp1, body1), Rec(tp2, body2)) =>
+    let (tp, body1, body2) = shared_binder(tp1, body1, tp2, body2);
+    let+ ty_body = meet(Ctx.extend_dummy_tvar(ctx, tp), body1, body2);
     Rec(tp, ty_body) |> temp;
   | (Rec(_), _) => None
   | (Poly(x1, ty1), Poly(x2, ty2)) =>
