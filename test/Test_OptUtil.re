@@ -50,7 +50,12 @@ let tests = (
       `Quick,
       () => {
         let o = Some(5);
-        check(int, "Returns value", 5, OptUtil.get_or_raise(Not_found, o));
+        check(
+          int,
+          "Returns value",
+          5,
+          OptUtil.get_or_raise(Stdlib.Not_found, o),
+        );
       },
     ),
     test_case(
@@ -60,9 +65,9 @@ let tests = (
         let o = None;
         check_raises(
           "Raises exception",
-          Not_found,
+          Stdlib.Not_found,
           () => {
-            let _ = OptUtil.get_or_raise(Not_found, o);
+            let _ = OptUtil.get_or_raise(Stdlib.Not_found, o);
             ();
           },
         );

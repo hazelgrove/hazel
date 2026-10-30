@@ -195,7 +195,7 @@ let fast_equal_tests = (
     ),
   ],
 );
-let testable_id = testable(Fmt.using(Id.show, Fmt.string), (==));
+let testable_id = testable(Fmt.using(Id.show, Fmt.string), Id.equal);
 let diff_tests = (
   "Typ.diff",
   [
@@ -205,7 +205,7 @@ let diff_tests = (
         ~count=1000,
         QCheck_Util.arb_typ(~minimal_idents=true, 7),
         typ =>
-        Typ.diff(typ, typ) == []
+        List.is_empty(Typ.diff(typ, typ))
       ),
     ),
     test_case(
