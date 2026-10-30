@@ -877,8 +877,30 @@ let shared_binder =
   };
 };
 
-let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
-  let meet' = meet(ctx);
+/* [seen] holds the (recursive type, other type) pairs being met through an
+   unrolling on the way here. */
+let rec meet =
+        (~seen: list((t, t))=[], ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
+  let meet' = meet(~seen, ctx);
+  /* [ty_rec] against [ty] through [ty_rec]'s unrolling, which [meet_unrolled]
+     meets in [ty_rec]'s position. A pair already in [seen] is consistent: the
+     only way back to it is through heads that matched (Amadio and Cardelli),
+     and the recursive type is its meet. The result is [ty_rec] itself when
+     the meet is exactly its unrolling. */
+  let through_unrolling =
+      (
+        ty_rec: t,
+        ty: t,
+        meet_unrolled: (~seen: list((t, t)), t) => option(t),
+      )
+      : option(t) =>
+    if (List.exists(((r, o)) => equal(r, ty_rec) && equal(o, ty), seen)) {
+      Some(ty_rec);
+    } else {
+      let* ty_rec' = unroll(ty_rec);
+      let+ ty_meet = meet_unrolled(~seen=[(ty_rec, ty), ...seen], ty_rec');
+      equal(ty_rec', ty_meet) ? ty_rec : ty_meet;
+    };
   switch (term_of(ty1), term_of(ty2)) {
   | (_, Parens(ty2))
   | (_, Projector(_, ty2)) => meet'(ty1, ty2)
@@ -918,12 +940,17 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   | (_, ProdExtension(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
   | (Rec(tp1, body1), Rec(tp2, body2)) =>
     let (tp, body1, body2) = shared_binder(tp1, body1, tp2, body2);
-    let+ ty_body = meet(Ctx.extend_dummy_tvar(ctx, tp), body1, body2);
+    let+ ty_body = meet(~seen, Ctx.extend_dummy_tvar(ctx, tp), body1, body2);
     Rec(tp, ty_body) |> temp;
-  | (Rec(_), _) => None
+  /* A recursive type meets a structural one through its unrolling; a
+     non-contractive type has no unrolling and meets nothing. */
+  | (Rec(_), _) =>
+    through_unrolling(ty1, ty2, (~seen, ty1') => meet(~seen, ctx, ty1', ty2))
+  | (_, Rec(_)) =>
+    through_unrolling(ty2, ty1, (~seen, ty2') => meet(~seen, ctx, ty1, ty2'))
   | (Poly(tp1, body1), Poly(tp2, body2)) =>
     let (tp, body1, body2) = shared_binder(tp1, body1, tp2, body2);
-    let+ ty_body = meet(Ctx.extend_dummy_tvar(ctx, tp), body1, body2);
+    let+ ty_body = meet(~seen, Ctx.extend_dummy_tvar(ctx, tp), body1, body2);
     Poly(tp, ty_body) |> temp;
   | (Poly(_), _) => None
   | (Atom(c1), Atom(c2)) when c1 == c2 => Some(ty1)
@@ -969,7 +996,7 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     };
   | (Prod(_), _) => None
   | (Sum(sm1), Sum(sm2)) =>
-    let+ sm' = ConstructorMap.meet(equal, meet(ctx), sm1, sm2);
+    let+ sm' = ConstructorMap.meet(equal, meet(~seen, ctx), sm1, sm2);
     Sum(sm') |> temp;
   | (Sum(_), _) => None
   | (List(ty1), List(ty2)) =>

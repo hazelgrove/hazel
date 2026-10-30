@@ -1118,7 +1118,7 @@ and uexp_to_info_map =
           ty_list,
         );
       let tuple_elab =
-        switch (Typ.weak_head_normalize(ctx, ana).term) {
+        switch (MatchedTyp.head(ctx, ana).term) {
         | Prod(ts) =>
           Tuple(
             LabeledTuple.rearrange(
@@ -2028,9 +2028,8 @@ and uexp_to_info_map =
         switch (Pat.get_num_of_vars(p), Exp.get_num_of_functions(def)) {
         | (Some(num_vars), Some(num_fns))
             when num_vars != 0 && num_vars == num_fns =>
-          let norm = Typ.weak_head_normalize(ctx, syn);
-          let arrow_like = t =>
-            Typ.is_arrow_like(Typ.weak_head_normalize(ctx, t));
+          let norm = MatchedTyp.head(ctx, syn);
+          let arrow_like = t => Typ.is_arrow_like(MatchedTyp.head(ctx, t));
           switch (norm |> Typ.term_of) {
           | Prod(syns) when List.length(syns) == num_vars =>
             syns |> List.for_all(arrow_like)
