@@ -764,10 +764,57 @@ let meet_rec_binder_tests = {
   );
 };
 
+let unroll_tests = {
+  module F = IdTagged.FreshGrammar;
+  let x = F.TPat.var("x");
+  let y = F.TPat.var("y");
+  let int_list = F.Typ.rec_(x, F.Typ.prod([F.Typ.int(), F.Typ.var("x")]));
+  let case = (name, expected, ty) =>
+    test_case(name, `Quick, () =>
+      check(option(typ), name, expected, Typ.unroll(ty))
+    );
+  (
+    "Typ.unroll",
+    [
+      case(
+        "a productive type unrolls one level",
+        Some(F.Typ.prod([F.Typ.int(), int_list])),
+        int_list,
+      ),
+      case(
+        "a self-loop has no unrolling",
+        None,
+        F.Typ.rec_(x, F.Typ.var("x")),
+      ),
+      case(
+        "binders around a self-loop have no unrolling",
+        None,
+        F.Typ.rec_(x, F.Typ.rec_(y, F.Typ.var("x"))),
+      ),
+      case(
+        "a self-loop in parentheses has no unrolling",
+        None,
+        F.Typ.rec_(x, F.Typ.parens(F.Typ.var("x"))),
+      ),
+      case(
+        "a self-loop under a binder with a hole has no unrolling",
+        None,
+        F.Typ.rec_(x, F.Typ.rec_(F.TPat.empty_hole(), F.Typ.var("x"))),
+      ),
+      case(
+        "a non-recursive type is unchanged",
+        Some(F.Typ.int()),
+        F.Typ.int(),
+      ),
+    ],
+  );
+};
+
 let tests = [
   meet_tests,
   meet_rec_binder_tests,
   fast_equal_tests,
   alias_cycle_tests,
   diff_tests,
+  unroll_tests,
 ];
