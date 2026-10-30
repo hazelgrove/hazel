@@ -28,6 +28,7 @@ open Web;
 let font_metrics: FontMetrics.t = {
   row_height: 20.0,
   col_width: 10.0,
+  text_height: 16.0,
 };
 
 /* char-exact movement (indentation_ux skips leading whitespace on
@@ -197,7 +198,7 @@ let display_broken = (z: Zipper.t): option(string) => {
   let bs =
     QuiverDec.bubbles(
       ~measured=syntax.measured,
-      ~font_metrics,
+      ~grid=Grid.flat(font_metrics),
       ~caret_pos,
       ~owned,
       seg,

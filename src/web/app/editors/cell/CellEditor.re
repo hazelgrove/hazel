@@ -277,7 +277,11 @@ module View = {
                   take_focus: _ => Ui_effect.Ignore,
                   focus: selected == Some(MainEditor) ? Some() : None,
                 }),
-          ~overlays=overlays(model.editor.editor),
+          ~overlays=
+            overlays(
+              ~grid=CodeWithStatics.layout(~globals, model.editor).grid,
+              model.editor.editor,
+            ),
           ~lines,
           ~cull,
           ~dynamics=EvalResult.Model.dynamics(model.result),

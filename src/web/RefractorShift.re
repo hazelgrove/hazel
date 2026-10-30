@@ -1,10 +1,12 @@
 /* Cause-driven compensation for refractor (probe-drawer) height changes above
- * the caret: when a drawer above the locus grows/shrinks, scroll #main by the
- * exact row delta so the caret stays put. Gated on refractor_rows ref
- * identity (zero work on unrelated frames). Replaces the old symptom-driven
- * CaretAnchor, which conflated drawer shifts with unrelated caret motion.
- * Compensates the editor Main hands it (Page.Update.get_editor) — in
- * multi-cell views that is the primary cell only. */
+ * the caret: when a drawer above the locus grows/shrinks, scroll #main by
+ * how far that moved the caret's row, read off the grid before and after so
+ * that the block padding a drawer opens or closes between rows counts too.
+ * Gated on refractor_rows ref identity (zero work on unrelated frames).
+ * Replaces the old symptom-driven CaretAnchor, which conflated drawer shifts
+ * with unrelated caret motion. Compensates the editor Main hands it
+ * (Page.Update.get_editor) — in multi-cell views that is the primary cell
+ * only. */
 
 open Js_of_ocaml;
 open Haz3lcore;
@@ -12,7 +14,13 @@ open Haz3lcore;
 /* Baseline keyed by editor identity (Editors.Model.editor_key): comparing one
  * editor's map against another's (slide/exercise/mode switch) would read its
  * already-open drawers as freshly opened and scroll #main for nothing. */
-let prev: ref(option((string, Id.Map.t(int)))) = ref(None);
+type baseline = {
+  editor_key: string,
+  refractor_rows: Id.Map.t(int),
+  grid: Grid.t,
+};
+
+let prev: ref(option(baseline)) = ref(None);
 
 let scroll_main_by = (dy: float): unit =>
   Js.Opt.iter(
@@ -56,34 +64,44 @@ let above_locus_delta_rows =
 let update =
     (
       ~editor_key: string,
-      ~font_metrics: FontMetrics.t,
+      ~grid: Grid.t,
       ~refractor_rows: Id.Map.t(int),
       ~measured: Measured.t,
       z: Zipper.t,
     )
-    : unit =>
+    : unit => {
+  let now = {
+    editor_key,
+    refractor_rows,
+    grid,
+  };
   switch (prev^) {
   /* Identity gate assumes CachedSyntax is the sole producer: it reuses
    * the same physical map while refractor shapes are unchanged. Cloning
    * or rebuilding the map elsewhere would silently defeat the gate. */
-  | Some((key, prev_rows))
-      when key == editor_key && prev_rows === refractor_rows =>
+  | Some(was)
+      when
+        was.editor_key == editor_key && was.refractor_rows === refractor_rows =>
     ()
-  | Some((key, prev_rows)) when key == editor_key =>
+  | Some(was) when was.editor_key == editor_key =>
     let caret_row = Zipper.Caret.point(measured, z).row;
     let delta_rows =
       above_locus_delta_rows(
-        ~prev=prev_rows,
+        ~prev=was.refractor_rows,
         ~curr=refractor_rows,
         ~measured,
         ~caret_row,
       );
     /* skip while EdgeScroll is driving the viewport, to avoid fighting it */
     if (delta_rows != 0 && !EdgeScroll.is_active()) {
-      let delta_px = float_of_int(delta_rows) *. font_metrics.row_height;
+      /* the caret's row was `delta_rows` higher before the drawers changed */
+      let delta_px =
+        Grid.y_top(grid, caret_row)
+        -. Grid.y_top(was.grid, caret_row - delta_rows);
       scroll_main_by(delta_px);
     };
-    prev := Some((editor_key, refractor_rows));
+    prev := Some(now);
   /* first frame, or a different editor: rebaseline, no compensation */
-  | _ => prev := Some((editor_key, refractor_rows))
+  | _ => prev := Some(now)
   };
+};

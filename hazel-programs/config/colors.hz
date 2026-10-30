@@ -85,6 +85,36 @@ let probe_text(c, t, sat) =
 let sort_plate(c) =
   color_with_lightness(
     color_saturate(c, role.`cursor-tint`), role.`cursor-level`) in
+# a block's translucent fill, so nested blocks compose, and its edge. The #
+# hue is fixed rather than taken from the palette so a type or a depth #
+# keeps its color across schemes; only the lightness follows the axis. #
+let block(c, h) =
+  (Fade(at(Oklch(0., c, h), 0.08), 55.), at(Oklch(0., c, h), 0.35)) in
+let (int_fill, int_edge) = block(0.1, 250.) in
+let (float_fill, float_edge) = block(0.1, 215.) in
+let (bool_fill, bool_edge) = block(0.1, 0.) in
+let (string_fill, string_edge) = block(0.1, 95.) in
+let (list_fill, list_edge) = block(0.1, 140.) in
+let (arrow_fill, arrow_edge) = block(0.1, 300.) in
+let (tuple_fill, tuple_edge) = block(0.1, 50.) in
+let (sum_fill, sum_edge) = block(0.1, 175.) in
+let (unknown_fill, unknown_edge) = block(0., 0.) in
+# the block behind every scope: a hue per depth, a third of the wheel #
+# apart from the next so nested scopes contrast, cycling every six. #
+let (scope_0_fill, scope_0_edge) = block(0.1, 250.) in
+let (scope_1_fill, scope_1_edge) = block(0.1, 10.) in
+let (scope_2_fill, scope_2_edge) = block(0.1, 130.) in
+let (scope_3_fill, scope_3_edge) = block(0.1, 310.) in
+let (scope_4_fill, scope_4_edge) = block(0.1, 70.) in
+let (scope_5_fill, scope_5_edge) = block(0.1, 190.) in
+# the block behind every evaluation count: from a faint blue, coolest, #
+# through green and yellow to a strong red, hottest. #
+let (heat_0_fill, heat_0_edge) = block(0.06, 240.) in
+let (heat_1_fill, heat_1_edge) = block(0.09, 200.) in
+let (heat_2_fill, heat_2_edge) = block(0.12, 150.) in
+let (heat_3_fill, heat_3_edge) = block(0.15, 95.) in
+let (heat_4_fill, heat_4_edge) = block(0.17, 50.) in
+let (heat_5_fill, heat_5_edge) = block(0.2, 20.) in
 (
   palette = p,
   roles = (
@@ -224,6 +254,33 @@ let sort_plate(c) =
     agent = (
       `banner` = Fade(wash(p.`pattern`, 0.9333, 0.4), 12.),
       `banner-edge` = Fade(wash(p.`pattern`, 0.9333, 0.4), 35.)
+    ),
+    `type-block` = (
+      `int` = int_fill, `int-edge` = int_edge,
+      `float` = float_fill, `float-edge` = float_edge,
+      `bool` = bool_fill, `bool-edge` = bool_edge,
+      `string` = string_fill, `string-edge` = string_edge,
+      `list` = list_fill, `list-edge` = list_edge,
+      `arrow` = arrow_fill, `arrow-edge` = arrow_edge,
+      `tuple` = tuple_fill, `tuple-edge` = tuple_edge,
+      `sum` = sum_fill, `sum-edge` = sum_edge,
+      `unknown` = unknown_fill, `unknown-edge` = unknown_edge
+    ),
+    `scope-block` = (
+      `depth-0` = scope_0_fill, `depth-0-edge` = scope_0_edge,
+      `depth-1` = scope_1_fill, `depth-1-edge` = scope_1_edge,
+      `depth-2` = scope_2_fill, `depth-2-edge` = scope_2_edge,
+      `depth-3` = scope_3_fill, `depth-3-edge` = scope_3_edge,
+      `depth-4` = scope_4_fill, `depth-4-edge` = scope_4_edge,
+      `depth-5` = scope_5_fill, `depth-5-edge` = scope_5_edge
+    ),
+    `eval-block` = (
+      `heat-0` = heat_0_fill, `heat-0-edge` = heat_0_edge,
+      `heat-1` = heat_1_fill, `heat-1-edge` = heat_1_edge,
+      `heat-2` = heat_2_fill, `heat-2-edge` = heat_2_edge,
+      `heat-3` = heat_3_fill, `heat-3-edge` = heat_3_edge,
+      `heat-4` = heat_4_fill, `heat-4-edge` = heat_4_edge,
+      `heat-5` = heat_5_fill, `heat-5-edge` = heat_5_edge
     )
   ),
   # declared, not inferred -- low-contrast seeds could flip polarity #

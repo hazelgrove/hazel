@@ -95,11 +95,18 @@ let (suite, exit_with_test_status) =
     @ Test_Autoprobe.tests
     @ [
       Test_VarHighlight.tests,
+      Test_TypeBlocks.tests,
+      Test_ScopeBlocks.tests,
+      Test_EvalBlocks.tests,
+      Test_SvgUtil.tests,
+      Test_Grid.tests,
+      Test_Padding.tests,
       Test_Evaluator_ProbeNav.tests,
       Test_StepProvenance.tests,
       Test_ObsTraceShadow.tests,
       Test_ObsBench.tests,
       Test_Ascriptions.tests,
+      Test_Evaluator_Evaluations.tests,
       Test_PerfBudgets.tests,
     ]
     @ [Test_GradingReport.tests]

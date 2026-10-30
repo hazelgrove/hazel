@@ -130,6 +130,65 @@ let show_cls: cls => string =
   | ProdExtension => "Tuple extension"
   | Sig => "Signature type";
 
+/* The constructor a type is headed by once weak-head normalized, for display
+   keyed on type rather than syntax: base atoms by kind, the structural
+   constructors, and Unknown for every hole and synthetic type. Type variables
+   that do not resolve, binders, labels and the other forms that are not a
+   type in their own right have no head. */
+[@deriving (show({with_path: false}), sexp, yojson, enumerate, eq)]
+type head =
+  | Int
+  | Float
+  | Bool
+  | String
+  | List
+  | Arrow
+  | Tuple
+  | Sum
+  | Unknown;
+
+let head_of_cls: cls => option(head) =
+  fun
+  | Atom(Int | SInt | Nat) => Some(Int)
+  | Atom(Float) => Some(Float)
+  | Atom(Bool) => Some(Bool)
+  | Atom(String) => Some(String)
+  | List => Some(List)
+  | Arrow => Some(Arrow)
+  | Prod => Some(Tuple)
+  | Sum => Some(Sum)
+  | Invalid
+  | EmptyHole
+  | MultiHole
+  | SynSwitch
+  | Internal => Some(Unknown)
+  | DrvQuoteTy
+  | Var
+  | Constructor
+  | TupLabel
+  | Label
+  | ExplicitNonlabel
+  | Parens
+  | Projector
+  | Rec
+  | Poly
+  | ProofOf
+  | ProdProjection
+  | ProdExtension
+  | Sig => None;
+
+let head_name: head => string =
+  fun
+  | Int => Atom.cls_string_lower(Int)
+  | Float => Atom.cls_string_lower(Float)
+  | Bool => Atom.cls_string_lower(Bool)
+  | String => Atom.cls_string_lower(String)
+  | List => "list"
+  | Arrow => "arrow"
+  | Tuple => "tuple"
+  | Sum => "sum"
+  | Unknown => "unknown";
+
 let rec is_arrow = (typ: t) => {
   switch (typ.term) {
   | Parens(typ)
@@ -522,6 +581,9 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   | _ => ty
   };
 };
+
+let head_of = (ctx: Ctx.t, ty: t): option(head) =>
+  ty |> weak_head_normalize(ctx) |> term_of |> cls_of_term |> head_of_cls;
 
 /* ~expand restricts which alias names get expanded (default: all). Used
    by module lowering to expand only module-LOCAL aliases when a member

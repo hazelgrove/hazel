@@ -62,7 +62,8 @@ let probed_str = (z: Zipper.t): string => {
   switch (AutoProbePerform.current_toplevel_def(info_map, z)) {
   | None => "<none>"
   | Some(id) =>
-    let syntax = CachedSyntax.mk(~info_map, ~dyn_map=Id.Map.empty, z);
+    let syntax =
+      CachedSyntax.mk(~info_map, ~dyn_map=Language.Dynamics.Map.empty, z);
     switch (TermData.segment(id, syntax.term_data)) {
     | Some(seg) =>
       Printer.of_segment(~holes=" ", ~indent="", ~is_single_line=false, seg)
@@ -97,7 +98,8 @@ let param_anchor_str = (z: Zipper.t): string => {
     switch (ProbePerform.function_sugar_param_anchors(info_map, def_id)) {
     | [] => "<none>"
     | ids =>
-      let syntax = CachedSyntax.mk(~info_map, ~dyn_map=Id.Map.empty, z);
+      let syntax =
+        CachedSyntax.mk(~info_map, ~dyn_map=Language.Dynamics.Map.empty, z);
       ids
       |> List.map(id =>
            switch (TermData.segment(id, syntax.term_data)) {
@@ -294,7 +296,8 @@ let step_into_resolution = (~fn: string, program: string): (string, string) => {
   let MakeTerm.{term, _} = MakeTerm.go(root_segment);
   let (info_map, _) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
-  let syntax = CachedSyntax.mk(~info_map, ~dyn_map=Id.Map.empty, zipper);
+  let syntax =
+    CachedSyntax.mk(~info_map, ~dyn_map=Language.Dynamics.Map.empty, zipper);
   let render = id =>
     switch (TermData.segment(id, syntax.term_data)) {
     | Some(seg) =>
@@ -400,7 +403,8 @@ let all_probed_strs = (program: string): list(string) => {
   let MakeTerm.{term, _} = MakeTerm.go(root_segment);
   let (info_map, _) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
-  let syntax = CachedSyntax.mk(~info_map, ~dyn_map=Id.Map.empty, zipper);
+  let syntax =
+    CachedSyntax.mk(~info_map, ~dyn_map=Language.Dynamics.Map.empty, zipper);
   switch (AutoProbePerform.program_root_id(syntax)) {
   | None => []
   | Some(root_id) =>
