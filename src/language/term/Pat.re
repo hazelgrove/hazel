@@ -266,33 +266,32 @@ let rec bindings = (dp: t): Binding.s =>
   | Ap(_, dp1) => bindings(dp1)
   };
 
-/* The function-definition sugar `f(args)` or `f(args) : ret`: the name,
-   the argument pattern and the return type. The name may carry an
-   ascription. A nullary `f()` carries `Id.nullary_ap_flag` on its argument
-   tuple, replaced by a deterministic id so the arguments are a well-formed
-   pattern once they become a function's. */
-let function_sugar = (pat: t): option((t, t, option(TermBase.Typ.t))) => {
+/* The function-definition sugar `f(args)`, curried `f(args)(more)` or
+   either with `: ret`: the name, the argument pattern of each application
+   and the return type. The name may carry an ascription. A nullary `f()`
+   carries `Id.nullary_ap_flag` on its argument tuple, replaced by a
+   deterministic id so the arguments are a well-formed pattern once they
+   become a function's. */
+let function_sugar =
+    (pat: t): option((t, list(t), option(TermBase.Typ.t))) => {
   let (inner, ret_ty) =
     switch (term_of(pat)) {
     | Asc(inner, ret_ty) => (inner, Some(ret_ty))
     | _ => (pat, None)
     };
-  switch (term_of(inner)) {
-  | Ap(fn, args) =>
-    switch (term_of(fn)) {
+  let rec spine = (pat: t, args: list(t)) =>
+    switch (term_of(pat)) {
+    | Ap(fn, arg) =>
+      let arg =
+        Id.is_nullary_ap_flag(IdTagged.ids(arg))
+          ? (Tuple([]): term) |> IdTagged.fresh_deterministic(rep_id(fn))
+          : arg;
+      spine(fn, [arg, ...args]);
     | Var(_)
-    | Asc({term: Var(_), _}, _) =>
-      let args =
-        if (Id.is_nullary_ap_flag(IdTagged.ids(args))) {
-          (Tuple([]): term) |> IdTagged.fresh_deterministic(rep_id(fn));
-        } else {
-          args;
-        };
-      Some((fn, args, ret_ty));
+    | Asc({term: Var(_), _}, _) when args != [] => Some((pat, args, ret_ty))
     | _ => None
-    }
-  | _ => None
-  };
+    };
+  spine(inner, []);
 };
 
 /* The pattern that names the binding: the function name for the sugar, the

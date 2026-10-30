@@ -126,8 +126,71 @@ let tests = (
       Some(int()),
     ),
     fully_consistent_typecheck(
+      "curried arguments",
+      "let add(x: Int)(y: Int): Int = x + y in add(3)(4)",
+      Some(int()),
+    ),
+    fully_consistent_typecheck(
       "single argument, no annotations",
       "let inc(x) = x + 1 in inc(3)",
+      Some(int()),
+    ),
+    /* ===== Curried definitions: `let f(x)(y) = …` ===== */
+    fully_consistent_typecheck(
+      "curried: full type is a chain of arrows",
+      "let f(x: Int)(y: Bool): Int = x in f",
+      Some(arrow(int(), arrow(bool(), int()))),
+    ),
+    fully_consistent_typecheck(
+      "curried: partial application",
+      "let f(x: Int)(y: Int): Int = x + y in f(1)",
+      Some(arrow(int(), int())),
+    ),
+    fully_consistent_typecheck(
+      "curried: leading nullary group",
+      "let f()(x: Int): Int = x + 1 in f()(2)",
+      Some(int()),
+    ),
+    fully_consistent_typecheck(
+      "curried: trailing nullary group",
+      "let f(x: Int)(): Int = x in f(2)()",
+      Some(int()),
+    ),
+    fully_consistent_typecheck(
+      "curried: three argument groups",
+      "let f(a: Int)(b: Int)(c: Int): Int = a + b + c in f(1)(2)(3)",
+      Some(int()),
+    ),
+    fully_consistent_typecheck(
+      "curried: recursive",
+      "let sum(n: Int)(acc: Int): Int = if n == 0 then acc else sum(n - 1)(acc + n) in sum(4)(0)",
+      Some(int()),
+    ),
+    fully_consistent_typecheck(
+      "curried: pattern arguments",
+      "let f((a, b))(c) = a + b + c in f((1, 2))(3)",
+      Some(int()),
+    ),
+    fully_consistent_typecheck(
+      "curried: module member",
+      "module M = { let f(x: Int)(y: Int): Int = x + y } in M.f(1)(2)",
+      Some(int()),
+    ),
+    inconsistent_typecheck(
+      "curried: wrong type for a later argument group is rejected",
+      parse_exp({|let f(x: Int)(y: Bool): Int = x in f(1)(2)|}),
+    ),
+    inconsistent_typecheck(
+      "curried: body using a later group at the wrong type is rejected",
+      parse_exp({|let f(x: Int)(y: Bool): Int = y in f(1)(true)|}),
+    ),
+    inconsistent_typecheck(
+      "curried: over-application is rejected",
+      parse_exp({|let f(x: Int)(y: Int): Int = x + y in f(1)(2)(3)|}),
+    ),
+    fully_consistent_typecheck(
+      "ordinary let binding does not activate function sugar",
+      "let x = 1 in x",
       Some(int()),
     ),
     fully_consistent_typecheck(
@@ -181,6 +244,14 @@ let tests = (
       "let answer(): Int = 42 in answer()",
     ),
     info_map_preserves_ids(
+      "ids preserved: curried (inner f(x) node)",
+      "let f(x: Int)(y: Int) = x + y in f(3)(4)",
+    ),
+    info_map_preserves_ids(
+      "ids preserved: curried with return type and nullary group",
+      "let f(x: Int)()(z: Int): Int = x + z in f(3)()(4)",
+    ),
+    info_map_preserves_ids(
       "ids preserved: recursive",
       "let fact(n: Int): Int = if n == 0 then 1 else n * fact(n - 1) in fact(3)",
     ),
@@ -212,6 +283,11 @@ let tests = (
       "binder info: module member",
       "{ let f(x: Int, y: Int): Int = x + y }",
       arrow(prod([int(), int()]), int()),
+    ),
+    fully_consistent_typecheck(
+      "curried module member keeps its function type when a param shadows it",
+      {|module M = { let g(x: Int)(g: Bool): Int = x } in M.g(1)(true)|},
+      Some(int()),
     ),
   ],
 );

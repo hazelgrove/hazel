@@ -8,7 +8,12 @@
 
        let f = fun (x: Int, y) -> x + y
 
-   An optional return-type annotation on the binder
+   A curried header gives one function per argument group:
+
+       let f(x: Int)(y: Int) = x + y
+
+   is `let f = fun (x: Int) -> fun (y: Int) -> x + y`. An optional
+   return-type annotation on the binder
 
        let f(x: Int, y): Ret = x + y
 
@@ -25,11 +30,12 @@
 /* The binding `let p = def` makes: for the shorthand, the function's
    name bound to
 
-       Fun(args, (def : ret_ty)?, None, None)
+       Fun(args, … Fun(last_args, (def : ret_ty)?, None, None) …, None, None)
 
-   and otherwise the binding as written. The `Fun` and (optional) `Asc`
-   wrappers use fresh deterministic ids derived from adjacent surface
-   ids, keeping the rewrite stable across runs. */
+   with one `Fun` per argument group, and otherwise the binding as
+   written. The `Fun` and (optional) `Asc` wrappers use fresh
+   deterministic ids derived from adjacent surface ids, keeping the
+   rewrite stable across runs. */
 let binding = (p: Pat.t, def: Exp.t): (Pat.t, Exp.t) =>
   switch (Pat.function_sugar(p)) {
   | Some((f_name, args, ret_ty)) =>
@@ -42,18 +48,24 @@ let binding = (p: Pat.t, def: Exp.t): (Pat.t, Exp.t) =>
       };
     (
       f_name,
-      (Fun(args, def_in_fun, None, None): Exp.term)
-      |> IdTagged.fresh_deterministic(Pat.rep_id(args)),
+      List.fold_right(
+        (args, body) =>
+          (Fun(args, body, None, None): Exp.term)
+          |> IdTagged.fresh_deterministic(Pat.rep_id(args)),
+        args,
+        def_in_fun,
+      ),
     );
   | None => (p, def)
   };
 
 /* After statics has processed the binding, the info map is missing
    entries for ids that only exist in the shorthand's binder pattern --
-   the `Ap(f, args)` wrapper and the optional outer `Asc(..., ret_ty)`.
-   Populate those entries using the info already computed for the
-   function name, since both sub-trees denote the same binder and share
-   type and context with it. A binding written plainly needs nothing.
+   each `Ap` on the spine (`f(x)(y)` has an inner `f(x)` node the caret
+   can rest on) and the optional outer `Asc(..., ret_ty)`. Populate those
+   entries using the info already computed for the function name, since
+   both sub-trees denote the same binder and share type and context with
+   it. A binding written plainly needs nothing.
 
    We also copy the ana type into `ty` so that the cursor inspector
    shows the binder's type directly (e.g. `: Int -> Int`) rather than
@@ -86,11 +98,16 @@ let add_binder_infos =
         }),
         m,
       );
+    let rec add_spine = (pat: Pat.t, m) =>
+      switch (IdTagged.term_of(pat)) {
+      | Ap(fn, _) => add_spine(fn, add_for(pat, m))
+      | _ => m
+      };
     switch (IdTagged.term_of(user_pat)) {
     | Asc(inner, _) =>
       let m = add_for(user_pat, m);
-      add_for(inner, m);
-    | _ => add_for(user_pat, m)
+      add_spine(inner, m);
+    | _ => add_spine(user_pat, m)
     };
   };
 };
