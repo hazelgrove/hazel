@@ -58,13 +58,6 @@ let rec mpat_to_pat = (mp: MPat.t): Pat.t =>
   | _ => IdTagged.fast_copy(MPat.rep_id(mp), Pat.fresh(Wild))
   };
 
-let rec mpat_names = (mp: MPat.t): list(Var.t) =>
-  switch (mp.term) {
-  | Var(name) => [name]
-  | Asc(inner, _) => mpat_names(inner)
-  | _ => []
-  };
-
 let single_bound_var = (p: Pat.t): option(Var.t) =>
   switch (Pat.bound_vars(p)) {
   | [name] => Some(name)
@@ -108,7 +101,7 @@ let modlet_bound_vars = (pat: Pat.t): list(Var.t) =>
 let item_bound_names = (item: Mod.t): list(Var.t) =>
   switch (item.term) {
   | ModLet(pat, _) => modlet_bound_vars(pat)
-  | ModuleMod(mp, _) => mpat_names(mp)
+  | ModuleMod(mp, _) => MPat.names(mp)
   | ModType(_, _)
   | ModExp(_)
   | Invalid(_)
@@ -144,7 +137,7 @@ let value_exports = (items: list(Mod.t)): list(value_export) => {
              );
         | ModuleMod(mp, _) =>
           let pat = mpat_to_pat(mp);
-          mpat_names(mp)
+          MPat.names(mp)
           |> List.filter(keep)
           |> List.map(name =>
                {
@@ -261,7 +254,7 @@ let rec collect_type_exports =
                }
              | _ => None
              };
-           switch (mpat_names(mp), rhs_exports_ty) {
+           switch (MPat.names(mp), rhs_exports_ty) {
            | ([name], Some(exports_ty)) =>
              let ctx =
                Typ.extend_alias(ctx, name, MPat.rep_id(mp), exports_ty);

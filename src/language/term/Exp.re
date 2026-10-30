@@ -145,7 +145,8 @@ let rec rename_tvar =
         switch (term) {
         | TyAlias(tp, _, _)
         | TypFun(tp, _, _) when TPat.binds(x, tp) => e
-        | ModuleExp(mp, def, body) when MPat.binds(x, mp) =>
+        | ModuleExp(mp, def, body)
+            when List.exists(String.equal(x), MPat.names(mp)) =>
           ModuleExp(
             MPat.map_term(~f_typ=rename_typ, mp),
             rename_tvar(x, x', def),
@@ -179,7 +180,7 @@ and rename_tvar_in_items =
   | [] => []
   | [{term: ModType(tp, _), _}, ..._] when TPat.binds(x, tp) => items
   | [{term: ModuleMod(mp, def), _} as item, ...items]
-      when MPat.binds(x, mp) =>
+      when List.exists(String.equal(x), MPat.names(mp)) =>
     let (_, rewrap) = IdTagged.unwrap(item);
     [
       (
