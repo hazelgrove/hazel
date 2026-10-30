@@ -255,8 +255,6 @@ let added_bindings = (ctx_after: t, ctx_before: t): t => {
   };
 };
 
-module VarSet = Stdlib.Set.Make(Var);
-
 /* Removes shadowed variables from the context */
 let filter_shadowed = (ctx: t): t => {
   ...ctx,
@@ -268,20 +266,20 @@ let filter_shadowed = (ctx: t): t => {
              switch (entry) {
              | VarEntry({name, _})
              | ConstructorEntry({name, _}) =>
-               VarSet.mem(name, term_set)
+               Set.mem(term_set, name)
                  ? (ctx, term_set, typ_set)
-                 : ([entry, ...ctx], VarSet.add(name, term_set), typ_set)
+                 : ([entry, ...ctx], Set.add(term_set, name), typ_set)
              | TVarEntry({name, _}) =>
-               VarSet.mem(name, typ_set)
+               Set.mem(typ_set, name)
                  ? (ctx, term_set, typ_set)
-                 : ([entry, ...ctx], term_set, VarSet.add(name, typ_set))
+                 : ([entry, ...ctx], term_set, Set.add(typ_set, name))
              | LivelitEntry({name, _}) =>
-               VarSet.mem(name, term_set)
+               Set.mem(term_set, name)
                  ? (ctx, term_set, typ_set)
-                 : ([entry, ...ctx], VarSet.add(name, term_set), typ_set)
+                 : ([entry, ...ctx], Set.add(term_set, name), typ_set)
              }
            },
-         ~init=([], VarSet.empty, VarSet.empty),
+         ~init=([], String.Set.empty, String.Set.empty),
        )
     |> (((ctx, _, _)) => List.rev(ctx)),
 };

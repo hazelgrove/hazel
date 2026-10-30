@@ -246,16 +246,15 @@ let extension =
     )
     : list((option(label), 'a)) => {
   /* Maintain the order of the labels from e1_entries, but use the values from e2_entries if present */
-  module StringMap = Stdlib.Map.Make(String);
   let e2_map =
     List.fold_left(
       ~f=
         (acc, (lab, d)) =>
           switch (lab) {
-          | Some(l) => StringMap.add(l, d, acc)
+          | Some(l) => Map.set(acc, ~key=l, ~data=d)
           | None => acc
           },
-      ~init=StringMap.empty,
+      ~init=String.Map.empty,
       e2_entries,
     );
 
@@ -265,7 +264,7 @@ let extension =
         ((lab, d1)) =>
           switch (lab) {
           | Some(l) =>
-            switch (StringMap.find_opt(l, e2_map)) {
+            switch (Map.find(e2_map, l)) {
             | Some(d2) => (Some(l), d2)
             | None => (Some(l), d1)
             }

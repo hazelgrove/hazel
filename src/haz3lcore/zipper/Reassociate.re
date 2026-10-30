@@ -12,11 +12,12 @@ type t = ZipperBase.t;
    stale history. */
 
 module ShardKey = {
+  [@deriving sexp_of]
   type t = (Id.t, list(int));
   let compare = Poly.compare;
 };
 
-module ShardKeySet = Stdlib.Set.Make(ShardKey);
+module ShardKeySet = Set.Make_plain(ShardKey);
 
 type request = {
   left: list(Token.t),
@@ -349,8 +350,7 @@ let repair_fresh_ids =
         ~f=
           (acc, piece) =>
             switch (piece) {
-            | Piece.Tile(tile) =>
-              ShardKeySet.add((tile.id, tile.shards), acc)
+            | Piece.Tile(tile) => Set.add(acc, (tile.id, tile.shards))
             | _ => acc
             },
         ~init=ShardKeySet.empty,
@@ -363,8 +363,7 @@ let repair_fresh_ids =
           | Piece.Tile(tile) =>
             switch (Id.Map.find(fresh_map, tile.id)) {
             | Some((original_id, shards))
-                when
-                  !ShardKeySet.mem((original_id, shards), stolen_originals) =>
+                when !Set.mem(stolen_originals, (original_id, shards)) =>
               Piece.Tile({
                 ...tile,
                 id: original_id,
