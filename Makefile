@@ -16,7 +16,7 @@ install-hooks:
 # structured clone, unlike the BigInteger.js library used in older versions.
 setup-zarith:
 	@echo "Installing native BigInt zarith runtime..."
-	@cp vendor/zarith_native_bigint_runtime.js "$$(opam var lib)/zarith_stubs_js/runtime.js"
+	@cp vendor/zarith_native_bigint_runtime.js "$${OPAM_SWITCH_PREFIX:-$$(opam var prefix)}/lib/zarith_stubs_js/runtime.js"
 
 deps: install-hooks
 	opam repo add archive git+https://github.com/ocaml/opam-repository-archive
