@@ -368,15 +368,23 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
   };
 };
 
-let unroll = (ty: t): t =>
-  switch (term_of(ty)) {
-  | Rec(tp, ty_body) =>
-    switch (TPat.tyvar_of_utpat(tp)) {
-    | None => ty_body
-    | Some(_) => subst(ty, tp, ty_body)
-    }
-  | _ => ty
-  };
+/* A recursive type whose body, under any binders, parentheses, projectors
+   and non-labels, is one of its own bound variables: `rec x -> x`,
+   `rec x -> (x)`, `rec x -> rec y -> x`. It has no unrolling and stands for
+   no type. */
+let non_contractive = (ty: t): bool => {
+  let rec go = (bound: list(string), ty: t): bool =>
+    switch (term_of(ty)) {
+    | Parens(ty)
+    | Projector(_, ty)
+    | TupLabel({term: ExplicitNonlabel, _}, ty) => go(bound, ty)
+    | Rec(tp, body) =>
+      go(Option.to_list(TPat.tyvar_of_utpat(tp)) @ bound, body)
+    | Var(x) => List.exists(String.equal(x), bound)
+    | _ => false
+    };
+  go([], ty);
+};
 
 /* ctx extended with type variable `entry`, keeping alias resolution
    lexical. Aliases are expanded by name in the context of use, so an alias
@@ -441,24 +449,18 @@ let extend_alias = (ctx: Ctx.t, name: string, id: Id.t, ty: t): Ctx.t =>
     },
   );
 
-/* Unroll a Rec type until its head is not a Rec. Returns None on self-loop
-   types like `rec x -> x` where unrolling cannot make progress. Normalizes
-   the body first so that vacuous inner Recs (e.g. `rec x -> (rec ? -> x)`)
-   are recognized as the equivalent self-loop. See hazelgrove/hazel#2235,
-   #1624. */
-let rec unroll_to_non_rec = (ty: t): option(t) =>
+/* Unroll a recursive type until its head is not a Rec; None when it is
+   non-contractive. */
+let rec unroll = (ty: t): option(t) =>
   switch (term_of(ty)) {
+  | Rec(_) when non_contractive(ty) => None
   | Rec(tp, body) =>
-    switch (unroll_to_non_rec(body)) {
-    | None => None
-    | Some(body') =>
-      switch (TPat.tyvar_of_utpat(tp), term_of(body')) {
-      | (Some(w), Var(v)) when v == w => None
-      | _ =>
-        let (_, rewrap) = Annotated.unwrap(ty);
-        unroll_to_non_rec(unroll(Grammar.Rec(tp, body') |> rewrap));
-      }
-    }
+    let* body = unroll(body);
+    let (_, rewrap) = unwrap(ty);
+    switch (TPat.tyvar_of_utpat(tp)) {
+    | None => Some(body)
+    | Some(_) => Some(subst(Rec(tp, body) |> rewrap, tp, body))
+    };
   | _ => Some(ty)
   };
 
@@ -1059,29 +1061,13 @@ let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
   | Parens(ty) => get_sum_constructors(ctx, ty)
   | Sum(sm) => Some(sm)
   | Rec(_) =>
-    /* Note: We must unroll here to get right ctr types;
-       otherwise the rec parameter will leak. However, seeing
-       as substitution is too expensive to be used here, we
-       currently making the optimization that, since all
-       recursive types are type alises which use the alias name
-       as the recursive parameter, and type aliases cannot be
-       shadowed, it is safe to simply remove the Rec constructor,
-       provided we haven't escaped the context in which the alias
-       is bound. If either of the above assumptions become invalid,
-       the below code will be incorrect! */
-    let ty =
-      switch (ty |> term_of) {
-      | Rec({term: Var(x), _}, _ty_body) =>
-        switch (Ctx.lookup_alias(ctx, x)) {
-        | None => unroll(ty)
-        | Some(_) => unroll(ty)
-        }
-      | _ => ty
-      };
-    switch (ty |> term_of) {
-    | Sum(sm) => Some(sm)
-    | _ => None
-    };
+    /* Unrolled so that the constructor types do not mention the rec
+       parameter. */
+    switch (unroll(ty)) {
+    | Some({term: Sum(sm), _}) => Some(sm)
+    | Some(_)
+    | None => None
+    }
   | _ => None
   };
 };
