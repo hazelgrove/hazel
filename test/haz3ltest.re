@@ -25,6 +25,7 @@ let (suite, exit_with_test_status) =
       Test_MenhirCorpus.tests,
       Test_ListUtil.tests,
       Test_OptUtil.tests,
+      Test_MapUtil.tests,
       Test_Atom.tests,
       Test_Operators.tests,
       Test_BuiltinsADT.tests,
