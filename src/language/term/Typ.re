@@ -909,17 +909,24 @@ let rec meet =
   | (_, ProdProjection(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
   | (ProdExtension(_), _) => meet'(weak_head_normalize(ctx, ty1), ty2)
   | (_, ProdExtension(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
-  | (Rec(tp1, ty1), Rec(tp2, ty2)) =>
+  | (Rec(tp1, body1), Rec(tp2, body2)) =>
     /* The bodies are compared under the one binder they share after
-       renaming, as the Poly arm does. */
-    let (tp, ty1') =
+       renaming, as the Poly arm does. Two recursive types that spell the
+       same tree differently, with another period or a binder at another
+       depth, fail that comparison and are met through their unrollings
+       instead, as a recursive type against a structural one is. */
+    let (tp, body1') =
       switch (TPat.tyvar_of_utpat(tp2)) {
-      | Some(x2) => (tp2, subst(Var(x2) |> temp, tp1, ty1))
-      | None => (tp1, ty1)
+      | Some(x2) => (tp2, subst(Var(x2) |> temp, tp1, body1))
+      | None => (tp1, body1)
       };
-    let ctx = Ctx.extend_dummy_tvar(ctx, tp);
-    let+ ty_body = meet(~seen, ctx, ty1', ty2);
-    Rec(tp, ty_body) |> temp;
+    switch (meet(~seen, Ctx.extend_dummy_tvar(ctx, tp), body1', body2)) {
+    | Some(ty_body) => Some(Rec(tp, ty_body) |> temp)
+    | None =>
+      through_unrolling(ty1, ty2, (~seen, ty1') =>
+        meet(~seen, ctx, ty1', ty2)
+      )
+    };
   /* A recursive type meets a structural one through its unrolling; a
      non-contractive type has no unrolling and meets nothing. */
   | (Rec(_), _) =>

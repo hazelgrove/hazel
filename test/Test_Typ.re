@@ -913,6 +913,48 @@ let meet_out_of_phase_tests = {
         F.Typ.arrow(F.Typ.bool(), two_step),
         false,
       ),
+      consistent(
+        "two recursive types of different period are consistent",
+        F.Typ.rec_(b, F.Typ.arrow(F.Typ.int(), F.Typ.var("b"))),
+        two_step,
+        true,
+      ),
+      consistent(
+        "a binder at another depth is the same tree",
+        F.Typ.rec_(b, F.Typ.prod([F.Typ.int(), F.Typ.var("b")])),
+        F.Typ.rec_(
+          F.TPat.var("a"),
+          F.Typ.prod([
+            F.Typ.int(),
+            F.Typ.rec_(b, F.Typ.prod([F.Typ.int(), F.Typ.var("b")])),
+          ]),
+        ),
+        true,
+      ),
+      consistent(
+        "holes in the other period are consistent",
+        F.Typ.rec_(b, F.Typ.arrow(F.Typ.int(), F.Typ.var("b"))),
+        F.Typ.rec_(
+          b,
+          F.Typ.arrow(
+            F.Typ.unknown(Internal),
+            F.Typ.arrow(F.Typ.unknown(Internal), F.Typ.var("b")),
+          ),
+        ),
+        true,
+      ),
+      consistent(
+        "a mismatch in the other period is found",
+        F.Typ.rec_(b, F.Typ.arrow(F.Typ.int(), F.Typ.var("b"))),
+        F.Typ.rec_(
+          b,
+          F.Typ.arrow(
+            F.Typ.int(),
+            F.Typ.arrow(F.Typ.bool(), F.Typ.var("b")),
+          ),
+        ),
+        false,
+      ),
     ],
   );
 };
