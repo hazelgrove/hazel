@@ -73,7 +73,7 @@ let path_of = (p: p('a)): SlidePath.t => SlidePath.of_string(p.title);
    depends on Editors, which depends on TutorialMode. */
 let probes_folder = "Probes";
 let is_probes_lesson = (p: p('a)): bool =>
-  SlidePath.folders(path_of(p)) == [probes_folder];
+  List.equal(String.equal, SlidePath.folders(path_of(p)), [probes_folder]);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pos =
@@ -100,7 +100,7 @@ let map = (p: p('a), f: 'a => 'b, f_hidden: 'a => 'b): p('b) => {
       tests: f_hidden(p.hidden_tests.tests),
       hints: p.hidden_tests.hints,
     },
-    solution: Option.map(f, p.solution),
+    solution: Option.map(p.solution, ~f),
     wrapper: p.wrapper,
     show_report: p.show_report,
   };
@@ -142,7 +142,7 @@ let editor_positions = [YourImpl, HiddenTests];
 [YourImpl, HiddenTests];
 
 let positioned_editors = state =>
-  List.combine(editor_positions, editors(state));
+  List.zip_exn(editor_positions, editors(state));
 
 /* Fast-first: FastParse with pin collection; the fallback inside
    from_backup_text logs itself (SLOW PARSE ...). */
@@ -273,8 +273,8 @@ let key_for_statics = (pos: pos): string =>
 
 let pos_of_key = (key: string): pos =>
   switch () {
-  | _ when key == user_impl_key => YourImpl
-  | _ when key == hidden_tests_key => HiddenTests
+  | _ when String.equal(key, user_impl_key) => YourImpl
+  | _ when String.equal(key, hidden_tests_key) => HiddenTests
   | _ => failwith("invalid key")
   };
 
@@ -313,8 +313,8 @@ let unpersist = (~instructor_mode, positioned_zippers, spec: spec): spec => {
   let lookup = (pos, default) =>
     if (is_editable(pos, ~instructor_mode)) {
       positioned_zippers
-      |> List.assoc_opt(pos)
-      |> Option.map(PersistentZipper.unpersist(~root=Exp))
+      |> (l => List.Assoc.find(l, pos, ~equal=Poly.equal))
+      |> Option.map(~f=PersistentZipper.unpersist(~root=Exp))
       |> Option.value(~default);
     } else {
       default;

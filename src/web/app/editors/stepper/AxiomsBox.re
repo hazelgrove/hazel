@@ -63,18 +63,18 @@ module Update = {
         let all_assumption_boxes =
           all_rules
           |> (
-            filter == ""
+            String.equal(filter, "")
               ? x => x
-              : List.filter(({name, _}: ProofCtx.entry) =>
+              : List.filter(~f=({name, _}: ProofCtx.entry) =>
                   StringUtil.subseq_search(name, filter)
                 )
           )
-          |> List.map(ctx_entry =>
+          |> List.map(~f=ctx_entry =>
                AssumptionBox.Model.{ctx_entry: ctx_entry}
              )
           |> (
-            filter == ""
-              ? List.filter((ab: AssumptionBox.Model.t) =>
+            String.equal(filter, "")
+              ? List.filter(~f=(ab: AssumptionBox.Model.t) =>
                   switch (selected_exp) {
                   | Some(selected_exp) =>
                     ProofRule.is_active(
@@ -140,40 +140,41 @@ module View = {
       ),
     ]
     @ List.map(
-        (am: AssumptionBox.Model.t) =>
-          AssumptionBox.View.view(
-            ~globals,
-            ~info_map,
-            ~env,
-            ~active_selection=
-              Some((
-                selected_exp,
-                [],
-                fun
-                | AssumptionBox.EqualityLeft(e) => {
+        ~f=
+          (am: AssumptionBox.Model.t) =>
+            AssumptionBox.View.view(
+              ~globals,
+              ~info_map,
+              ~env,
+              ~active_selection=
+                Some((
+                  selected_exp,
+                  [],
+                  fun
+                  | AssumptionBox.EqualityLeft(e) => {
+                      add_axiom_step(
+                        am.ctx_entry.name,
+                        try(ProofHacks.exp_idx(selected_exp, full_exp)) {
+                        | _ => 0
+                        },
+                        selected_exp,
+                        Left,
+                        e,
+                      );
+                    }
+                  | AssumptionBox.EqualityRight(e) =>
                     add_axiom_step(
                       am.ctx_entry.name,
                       try(ProofHacks.exp_idx(selected_exp, full_exp)) {
                       | _ => 0
                       },
                       selected_exp,
-                      Left,
+                      Right,
                       e,
-                    );
-                  }
-                | AssumptionBox.EqualityRight(e) =>
-                  add_axiom_step(
-                    am.ctx_entry.name,
-                    try(ProofHacks.exp_idx(selected_exp, full_exp)) {
-                    | _ => 0
-                    },
-                    selected_exp,
-                    Right,
-                    e,
-                  ),
-              )),
-            am,
-          ),
+                    ),
+                )),
+              am,
+            ),
         unpacked_rewrites,
       );
   };
