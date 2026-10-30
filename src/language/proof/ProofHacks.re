@@ -14,7 +14,7 @@ let exp_idx = (e1: Exp.t, e2: Exp.t) => {
     Exp.map_term(
       ~f_exp=
         (cont, exp) =>
-          if (Exp.rep_id(exp) == Exp.rep_id(e1)) {
+          if (Id.equal(Exp.rep_id(exp), Exp.rep_id(e1))) {
             raise(Found(exp));
           } else if (Equality.ignoring_ascriptions.exp(exp, e1)) {
             n := n^ + 1;
@@ -64,7 +64,7 @@ let replace_exp_id = (id: Id.t, exp: Exp.t, new_exp: Exp.t) =>
   Exp.map_term(
     ~f_exp=
       (cont, exp) =>
-        if (Exp.rep_id(exp) == id) {
+        if (Id.equal(Exp.rep_id(exp), id)) {
           new_exp |> Exp.replace_all_ids;
         } else {
           cont(exp);
@@ -87,11 +87,11 @@ let rec exp_to_pat = (exp: Exp.t): Pat.t => {
   | Atom(Int(i)) => rewrap(Atom(Int(i)))
   | Atom(Float(f)) => rewrap(Atom(Float(f)))
   | Atom(String(s)) => rewrap(Atom(String(s)))
-  | ListLit(xs) => rewrap(ListLit(List.map(exp_to_pat, xs)))
+  | ListLit(xs) => rewrap(ListLit(List.map(~f=exp_to_pat, xs)))
   | Constructor(c, t) => rewrap(Constructor(c, t))
   | Cons(e1, e2) => rewrap(Cons(exp_to_pat(e1), exp_to_pat(e2)))
   | Var(x) => rewrap(Var(x))
-  | Tuple(xs) => rewrap(Tuple(List.map(exp_to_pat, xs)))
+  | Tuple(xs) => rewrap(Tuple(List.map(~f=exp_to_pat, xs)))
   | Parens(e) => rewrap(Parens(exp_to_pat(e)))
   | Ap(_, e1, e2) => rewrap(Ap(exp_to_pat(e1), exp_to_pat(e2)))
   | Asc(e, t1) => rewrap(Asc(exp_to_pat(e), t1))
@@ -112,11 +112,11 @@ let rec pat_to_exp = (pat: Pat.t): Exp.t => {
   | MultiHole(xs) => rewrap(MultiHole(xs))
   | Wild => rewrap(Atom(Bool(true)))
   | Atom(a) => rewrap(Atom(a))
-  | ListLit(xs) => rewrap(ListLit(List.map(pat_to_exp, xs)))
+  | ListLit(xs) => rewrap(ListLit(List.map(~f=pat_to_exp, xs)))
   | Constructor(c, t) => rewrap(Constructor(c, t))
   | Cons(e1, e2) => rewrap(Cons(pat_to_exp(e1), pat_to_exp(e2)))
   | Var(x) => rewrap(Var(x))
-  | Tuple(xs) => rewrap(Tuple(List.map(pat_to_exp, xs)))
+  | Tuple(xs) => rewrap(Tuple(List.map(~f=pat_to_exp, xs)))
   | Parens(e) => rewrap(Parens(pat_to_exp(e)))
   | Projector(data, e) => rewrap(Projector(data, pat_to_exp(e)))
   | Ap(e1, e2) => rewrap(Ap(Forward, pat_to_exp(e1), pat_to_exp(e2)))
@@ -186,7 +186,7 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
           TupLabel(Label(name) |> Pat.fresh, b) |> Pat.fresh
         );
       let* l =
-        List.map2((dhp, typ) => {dhpat_var_entry(dhp, typ)}, l1, ts)
+        List.map2_exn(l1, ts, ~f=(dhp, typ) => {dhpat_var_entry(dhp, typ)})
         |> OptUtil.sequence;
       Some(List.concat(l));
     | Cons(dhp1, dhp2) =>
@@ -197,7 +197,7 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
     | ListLit(l) =>
       let* t = MatchedTyp.list_strict(ctx, ty);
       let* l =
-        List.map(dhp => {dhpat_var_entry(dhp, t)}, l) |> OptUtil.sequence;
+        List.map(~f=dhp => {dhpat_var_entry(dhp, t)}, l) |> OptUtil.sequence;
       Some(List.concat(l));
     | Ap({term: Constructor(name, _), _}, dhp) =>
       let* ctrs = Typ.get_sum_constructors(ctx, ty);
@@ -218,7 +218,7 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
     };
   };
   let+ l = dhpat_var_entry(dhpat, ty);
-  List.fold_left((ctx, entry) => Ctx.extend(ctx, entry), ctx, l);
+  List.fold_left(~f=(ctx, entry) => Ctx.extend(ctx, entry), ~init=ctx, l);
 };
 
 /* Returns all sub-pattern of the original pattern that
@@ -235,14 +235,14 @@ let rec get_inductive_hypotheses = (m, t, pat) => {
   | Wild => []
   | Atom(_) => []
   | ListLit(xs) =>
-    List.concat(List.map(get_inductive_hypotheses_inner(m, t, _), xs))
+    List.concat(List.map(~f=get_inductive_hypotheses_inner(m, t, _), xs))
   | Constructor(_) => []
   | Cons(e1, e2) =>
     get_inductive_hypotheses_inner(m, t, e1)
     @ get_inductive_hypotheses_inner(m, t, e2)
   | Var(_) => []
   | Tuple(xs) =>
-    List.concat(List.map(get_inductive_hypotheses_inner(m, t, _), xs))
+    List.concat(List.map(~f=get_inductive_hypotheses_inner(m, t, _), xs))
   | Parens(e)
   | Projector(_, e) => get_inductive_hypotheses_inner(m, t, e)
   | Ap(e1, e2) =>
@@ -259,7 +259,7 @@ let rec get_inductive_hypotheses = (m, t, pat) => {
 and get_inductive_hypotheses_inner' = (m, t, pat) => {
   let is_correct_type =
     Statics.Map.ty_of(Pat.rep_id(pat), m)
-    |> Option.map(Typ.fast_equal(t))
+    |> Option.map(~f=Typ.fast_equal(t))
     |> Option.value(~default=false);
   (is_correct_type ? [pat] : []) @ get_inductive_hypotheses(m, t, pat);
 }
@@ -309,7 +309,10 @@ let rec replace_exp =
   };
   let restrict_blacklist = (pat: Pat.t, blacklist_vars) => {
     let bvn = pat |> Pat.bindings |> Binding.variable_names;
-    List.filter(v => !List.mem(v, bvn), blacklist_vars);
+    List.filter(
+      ~f=v => !List.mem(bvn, v, ~equal=String.equal),
+      blacklist_vars,
+    );
   };
 
   Exp.map_term(
@@ -376,21 +379,22 @@ let rec replace_exp =
           Match(
             replace_exp(e, blacklist_vars),
             List.map(
-              ((p, e)) =>
-                if (is_bound(p)) {
-                  if (uses_blacklist_var(
-                        e,
-                        restrict_blacklist(p, blacklist_vars),
-                      )) {
-                    raise(BlacklistVarFound);
-                  };
-                  (p, e);
-                } else {
-                  (
-                    p,
-                    replace_exp(e, restrict_blacklist(p, blacklist_vars)),
-                  );
-                },
+              ~f=
+                ((p, e)) =>
+                  if (is_bound(p)) {
+                    if (uses_blacklist_var(
+                          e,
+                          restrict_blacklist(p, blacklist_vars),
+                        )) {
+                      raise(BlacklistVarFound);
+                    };
+                    (p, e);
+                  } else {
+                    (
+                      p,
+                      replace_exp(e, restrict_blacklist(p, blacklist_vars)),
+                    );
+                  },
               cases,
             ),
           )
@@ -421,7 +425,8 @@ let rec replace_exp =
             |> rewrap;
           }
         /* Variables: check if in blacklist */
-        | Var(x) when List.mem(x, blacklist_vars) => raise(BlacklistVarFound)
+        | Var(x) when List.mem(blacklist_vars, x, ~equal=String.equal) =>
+          raise(BlacklistVarFound)
         | Var(_) => continue(exp)
         /* Forms without binders: continue */
         | EmptyHole
