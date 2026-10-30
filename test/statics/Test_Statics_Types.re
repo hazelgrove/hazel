@@ -587,6 +587,16 @@ let tests = (
       {|let (B: ((rec ? -> (rec ? -> (+ ?))))) = A in a|},
       Some(FTemp.Typ.unknown(Internal)),
     ),
+    fully_consistent_typecheck(
+      "A constructor checks against a sum under nested rec binders",
+      "let v : rec x -> rec y -> + A + B(x) = B(A) in 1",
+      Some(FTemp.Typ.int()),
+    ),
+    fully_consistent_typecheck(
+      "An alias over a written rec type has the sum's constructors",
+      "type T = rec y -> + A + B(T) in let v : T = B(A) in case v | A => 0 | B(_) => 1 end",
+      Some(FTemp.Typ.int()),
+    ),
     inconsistent_typecheck(
       "A recursive occurrence under a differently named binder is not a hole",
       parse_exp("fun (f : rec a -> (a, Int)) -> (f : rec b -> (Bool, Int))"),
