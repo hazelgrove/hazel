@@ -1977,9 +1977,7 @@ and uexp_to_info_map =
         switch (TPat.tyvar_of_utpat(utpat)) {
         | Some(name) when !Ctx.is_base_typ(name) =>
           let (name, utpat, body) =
-            switch (
-              Typ.unshadow(ctx, name, ~scope=lazy(Exp.tvar_names(body)))
-            ) {
+            switch (Typ.unshadow(ctx, name)) {
             | None => (name, utpat, body)
             | Some(name') => (
                 name',
@@ -2558,13 +2556,7 @@ and uexp_to_info_map =
       switch (typat.term) {
       | Var(name) when !Ctx.is_base_typ(name) =>
         let (name, typat, utyp, body) =
-          switch (
-            Typ.unshadow(
-              ctx,
-              name,
-              ~scope=lazy(Typ.tvar_names(utyp) @ Exp.tvar_names(body)),
-            )
-          ) {
+          switch (Typ.unshadow(ctx, name)) {
           | None => (name, typat, utyp, body)
           | Some(name') => (
               name',
@@ -4030,7 +4022,7 @@ and utyp_to_info_map =
     let m =
       utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
     let (name, utpat, tbody) =
-      switch (Typ.unshadow(ctx, name, ~scope=lazy(Typ.tvar_names(tbody)))) {
+      switch (Typ.unshadow(ctx, name)) {
       | None => (name, utpat, tbody)
       | Some(name') => (
           name',
@@ -4084,7 +4076,7 @@ and utyp_to_info_map =
     let m =
       utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
     let (name, utyp, tbody) =
-      switch (Typ.unshadow(ctx, name, ~scope=lazy(Typ.tvar_names(tbody)))) {
+      switch (Typ.unshadow(ctx, name)) {
       | None => (name, utyp, tbody)
       | Some(name') =>
         let tbody = Typ.rename_var(name, name', tbody);

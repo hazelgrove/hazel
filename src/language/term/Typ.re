@@ -408,32 +408,6 @@ and rename_var_in_sig =
     ]
   };
 
-/* Every type variable name written in a type, bound or free. */
-let tvar_names = (ty: t): list(string) => {
-  let names = ref([]);
-  let _: t =
-    map_term(
-      ~f_typ=
-        (continue, ty) => {
-          switch (term_of(ty)) {
-          | Var(x) => names := [x, ...names^]
-          | _ => ()
-          };
-          continue(ty);
-        },
-      ~f_tpat=
-        (continue, tp) => {
-          switch (TPat.tyvar_of_utpat(tp)) {
-          | Some(x) => names := [x, ...names^]
-          | None => ()
-          };
-          continue(tp);
-        },
-      ty,
-    );
-  names^;
-};
-
 /* Whether binding `name` over ctx would change what a type already in
    ctx means: the name is bound, or an alias mentions it while it is
    unbound. */
@@ -448,21 +422,103 @@ let would_capture = (ctx: Ctx.t, name: string): bool =>
      );
 
 /* When binding `name` over ctx would capture, the fresh name to bind it
-   under instead: the name primed until it neither captures nor occurs in
-   [scope], the type variable names written where the binder is in scope.
-   None when the name binds as written. */
-let unshadow =
-    (ctx: Ctx.t, name: string, ~scope: Lazy.t(list(string)))
-    : option(string) =>
+   under instead: `name#1`, `name#2`, ..., the first that would not
+   capture. `#` cannot occur in a written name, so no name in the binder's
+   scope is taken; `surface_name` recovers the written one. None when the
+   name binds as written. */
+let unshadow = (ctx: Ctx.t, name: string): option(string) =>
   if (would_capture(ctx, name)) {
-    let taken = n =>
-      would_capture(ctx, n)
-      || List.exists(String.equal(n), Lazy.force(scope));
-    let rec fresh = n => taken(n) ? fresh(n ++ "'") : n;
-    Some(fresh(name ++ "'"));
+    let rec fresh = k => {
+      let name' = name ++ "#" ++ string_of_int(k);
+      would_capture(ctx, name') ? fresh(k + 1) : name';
+    };
+    Some(fresh(1));
   } else {
     None;
   };
+
+/* The name a binder renamed by `unshadow` was written as. */
+let surface_name = (x: string): string =>
+  switch (String.index_opt(x, '#')) {
+  | Some(i) => String.sub(x, 0, i)
+  | None => x
+  };
+
+/* Every type variable name in a type, bound or free. */
+let rec var_names = (ty: t): list(string) =>
+  switch (term_of(ty)) {
+  | Var(x) => [x]
+  | Rec(tp, ty)
+  | Poly(tp, ty) => Option.to_list(TPat.tyvar_of_utpat(tp)) @ var_names(ty)
+  | Unknown(_)
+  | Atom(_)
+  | DrvQuoteTy(_)
+  | ExplicitNonlabel
+  | Label(_)
+  | ProofOf(_) => []
+  | Parens(ty)
+  | Projector(_, ty)
+  | List(ty)
+  | TupLabel(_, ty)
+  | ProdProjection(ty, _) => var_names(ty)
+  | ProdExtension(t1, t2)
+  | Arrow(t1, t2) => var_names(t1) @ var_names(t2)
+  | Sum(sm) => ConstructorMap.free_variables(var_names, sm)
+  | Prod(tys) => List.concat_map(var_names, tys)
+  | Sig(items) =>
+    List.concat_map(
+      (item: TermBase.Sig.t) =>
+        switch (item.term) {
+        | SigType(tp, ty) =>
+          Option.to_list(TPat.tyvar_of_utpat(tp)) @ var_names(ty)
+        | Invalid(_)
+        | EmptyHole
+        | MultiHole(_)
+        | SigLet(_) => []
+        },
+      items,
+    )
+  };
+
+/* For types shown together, the function showing one of them with each
+   binder renamed by `unshadow` as written, primed when the types have
+   another name written the same way, as in `poly T -> T -> poly T' -> T`. */
+let surface_names_in = (tys: list(t)): (t => t) => {
+  let names =
+    List.sort_uniq(String.compare, List.concat_map(var_names, tys));
+  let shown = x => {
+    let written = surface_name(x);
+    let rec primes = (n, ys) =>
+      switch (ys) {
+      | [y, ..._] when String.equal(x, y) => n
+      | [y, ...ys] when String.equal(surface_name(y), written) =>
+        primes(n + 1, ys)
+      | [_, ...ys] => primes(n, ys)
+      | [] => n
+      };
+    written ++ String.make(primes(0, names), '\'');
+  };
+  ty =>
+    map_term(
+      ~f_typ=
+        (continue, ty) => {
+          let (term, rewrap) = unwrap(ty);
+          switch (term) {
+          | Var(x) => Var(shown(x)) |> rewrap
+          | _ => continue(ty)
+          };
+        },
+      ~f_tpat=
+        (_, tp) =>
+          switch (TPat.tyvar_of_utpat(tp)) {
+          | Some(x) => TPat.rename(shown(x), tp)
+          | None => tp
+          },
+      ty,
+    );
+};
+
+let surface_names = (ty: t): t => surface_names_in([ty], ty);
 
 /* ctx extended with type variable `entry`, keeping type resolution
    lexical for a name that cannot be renamed instead (see `unshadow`).

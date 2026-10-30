@@ -2938,7 +2938,11 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
           )
       };
     wrap(typ, seg);
-  | Var(v) => wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, v))
+  | Var(v) =>
+    wrap(
+      typ,
+      text_to_pretty(typ |> Typ.rep_id, Sort.Typ, Typ.surface_name(v)),
+    )
   | Atom(a) =>
     wrap(
       typ,
@@ -3241,7 +3245,11 @@ and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
           )
       };
     wrap(tpat, seg);
-  | Var(v) => wrap(tpat, text_to_pretty(tpat |> TPat.rep_id, Sort.TPat, v))
+  | Var(v) =>
+    wrap(
+      tpat,
+      text_to_pretty(tpat |> TPat.rep_id, Sort.TPat, Typ.surface_name(v)),
+    )
   };
 }
 and mod_to_pretty = (~settings: Settings.t, item: Mod.t): pretty => {

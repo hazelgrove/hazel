@@ -203,46 +203,6 @@ and rename_tvar_in_items =
   };
 };
 
-/* Every type variable name written in an expression, bound or free, and
-   every name a pattern binds, since a module's name roots type paths. */
-let tvar_names = (e: t): list(string) => {
-  let names = ref([]);
-  let _: t =
-    map_term(
-      ~f_typ=
-        (_, ty) => {
-          names := Typ.tvar_names(ty) @ names^;
-          ty;
-        },
-      ~f_tpat=
-        (continue, tp) => {
-          switch (TPat.tyvar_of_utpat(tp)) {
-          | Some(x) => names := [x, ...names^]
-          | None => ()
-          };
-          continue(tp);
-        },
-      ~f_pat=
-        (_, p) => {
-          names := Pat.bound_vars(p) @ names^;
-          p;
-        },
-      ~f_mpat=
-        (continue, mp) => {
-          switch (IdTagged.term_of(mp)) {
-          | Var(x) => names := [x, ...names^]
-          | Invalid(_)
-          | EmptyHole
-          | MultiHole(_)
-          | Asc(_) => ()
-          };
-          continue(mp);
-        },
-      e,
-    );
-  names^;
-};
-
 let rec cls_of_term: type a. Grammar.exp_term(a) => cls =
   fun
   | Invalid(_) => Invalid

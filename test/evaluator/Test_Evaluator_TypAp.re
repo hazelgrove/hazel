@@ -19,14 +19,20 @@ map@<T>@<Int>(fun e -> string_length(e), ["hello","bar"])|},
       )
     ),
     /* Test_Statics_Polymorphism pins the type this result has to agree with. */
-    /* The binder is primed by statics since `y` is in scope (Typ.unshadow). */
+    /* The binder is numbered by statics since `y` is in scope (Typ.unshadow). */
     test_case(
       "typfun binder shadows a type alias, so the body keeps `y` (#1717)",
       `Quick,
       () =>
       evaluation_test(
         "type y = Int in typfun y -> (? : y)",
-        parse_exp({|typfun y' -> (?:y')|}),
+        Language.IdTagged.FreshGrammar.(
+          Exp.typ_fun(
+            TPat.var("y#1"),
+            Exp.asc(Exp.empty_hole(), Typ.var("y#1")),
+            None,
+          )
+        ),
         elaborate(parse_exp({|type y = Int in typfun y -> (? : y)|})),
       )
     ),

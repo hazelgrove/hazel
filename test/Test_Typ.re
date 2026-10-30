@@ -262,55 +262,45 @@ let unshadow_tests = {
     id: Id.mk(),
     kind: Abstract,
   };
-  let unshadow = (~scope=[], ctx, name) =>
-    Typ.unshadow(ctx, name, ~scope=lazy(scope));
   let renamed = option(string);
+  let poly = (x, body) =>
+    Poly(Var(x) |> TPat.temp, body(Var(x) |> Typ.temp)) |> Typ.temp;
+  let arrow = (t1, t2) => Arrow(t1, t2) |> Typ.temp;
+  let var = x => Var(x) |> Typ.temp;
   (
     "Typ.unshadow",
     [
       test_case("a name not in scope binds as written", `Quick, () =>
-        check(renamed, "T", None, unshadow(Ctx.empty, "T"))
+        check(renamed, "T", None, Typ.unshadow(Ctx.empty, "T"))
       ),
-      test_case("a name in scope is primed", `Quick, () =>
+      test_case("a name in scope is numbered", `Quick, () =>
         check(
           renamed,
           "T",
-          Some("T'"),
-          unshadow(Ctx.extend_tvar(Ctx.empty, abstract("T")), "T"),
+          Some("T#1"),
+          Typ.unshadow(Ctx.extend_tvar(Ctx.empty, abstract("T")), "T"),
         )
       ),
-      test_case("the prime is repeated past a name in ctx", `Quick, () =>
+      test_case("the number passes one in ctx", `Quick, () =>
         check(
           renamed,
           "T",
-          Some("T''"),
-          unshadow(
+          Some("T#2"),
+          Typ.unshadow(
             Ctx.extend_tvar(Ctx.empty, abstract("T"))
-            |> Ctx.extend_tvar(_, abstract("T'")),
+            |> Ctx.extend_tvar(_, abstract("T#1")),
             "T",
           ),
         )
       ),
       test_case(
-        "the prime is repeated past a name written in the scope", `Quick, () =>
-        check(
-          renamed,
-          "a",
-          Some("a''"),
-          unshadow(
-            ~scope=["a'"],
-            Ctx.extend_tvar(Ctx.empty, abstract("a")),
-            "a",
-          ),
-        )
-      ),
-      test_case("a name an alias mentions while unbound is primed", `Quick, () =>
+        "a name an alias mentions while unbound is numbered", `Quick, () =>
         check(
           renamed,
           "T",
-          Some("T'"),
-          unshadow(
-            Ctx.extend_alias(Ctx.empty, "S", Id.mk(), Var("T") |> Typ.temp),
+          Some("T#1"),
+          Typ.unshadow(
+            Ctx.extend_alias(Ctx.empty, "S", Id.mk(), var("T")),
             "T",
           ),
         )
@@ -319,20 +309,43 @@ let unshadow_tests = {
         "Typ.rename_var renames up to a binder of the same name",
         `Quick,
         () => {
-          let poly_t =
-            Poly(Var("T") |> TPat.temp, Var("T") |> Typ.temp) |> Typ.temp;
+          let poly_t = poly("T", t => t);
           check(
             typ,
             "(T, U, poly T -> T)",
-            Prod([Var("T'") |> Typ.temp, Var("U") |> Typ.temp, poly_t])
-            |> Typ.temp,
+            Prod([var("T#1"), var("U"), poly_t]) |> Typ.temp,
             Typ.rename_var(
               "T",
-              "T'",
-              Prod([Var("T") |> Typ.temp, Var("U") |> Typ.temp, poly_t])
-              |> Typ.temp,
+              "T#1",
+              Prod([var("T"), var("U"), poly_t]) |> Typ.temp,
             ),
           );
+        },
+      ),
+      test_case("a renamed name is shown as written", `Quick, () =>
+        check(
+          typ,
+          "poly T -> T",
+          poly("T", t => t),
+          Typ.surface_names(poly("T#1", t => t)),
+        )
+      ),
+      test_case(
+        "a renamed name is primed beside the name it shadows", `Quick, () =>
+        check(
+          typ,
+          "poly T -> T -> poly T' -> T",
+          poly("T", t => arrow(t, poly("T'", _ => t))),
+          Typ.surface_names(poly("T", t => arrow(t, poly("T#1", _ => t)))),
+        )
+      ),
+      test_case(
+        "a renamed name is primed beside the name it shadows in another type shown with it",
+        `Quick,
+        () => {
+          let shown = Typ.surface_names_in([var("T#1"), var("T")]);
+          check(typ, "T#1", var("T'"), shown(var("T#1")));
+          check(typ, "T", var("T"), shown(var("T")));
         },
       ),
     ],

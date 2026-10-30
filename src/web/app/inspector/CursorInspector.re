@@ -148,16 +148,18 @@ let core_mark_err_view =
         code(an_label),
       ]
     | _ =>
+      let shown =
+        Typ.surface_names_in([syn, ana, ...Option.to_list(lifted_ty)]);
       colon_prefix(show_type_colon)
       @ [
-        view_type(syn) |> code_box_container,
+        view_type(shown(syn)) |> code_box_container,
         text("inconsistent with expected type"),
-        view_type(ana) |> code_box_container,
+        view_type(shown(ana)) |> code_box_container,
       ]
       @ (
         switch (lifted_ty) {
         | None => []
-        | Some(lifted) => [text(" lifted to"), view_type(lifted)]
+        | Some(lifted) => [text(" lifted to"), view_type(shown(lifted))]
         }
       )
       @ (
@@ -169,7 +171,7 @@ let core_mark_err_view =
             ...ListUtil.join(text(","), List.map(code, introduced_labels)),
           ]
         }
-      )
+      );
     };
   (
     switch (m) {
@@ -236,7 +238,13 @@ let core_mark_err_view =
         text(elements_noun(cls) ++ " have inconsistent types:"),
         ...ListUtil.join(
              text(","),
-             List.map(view_type, Typ.of_source(tys)),
+             {
+               let tys = Typ.of_source(tys);
+               List.map(
+                 ty => view_type(Typ.surface_names_in(tys, ty)),
+                 tys,
+               );
+             },
            ),
       ]
     | NoMeet(wrap, _) =>
@@ -415,7 +423,10 @@ let common_ok_view =
     | (_, Ana(InternallyInconsistent({ana, nomeet: tys}))) =>
       [
         text(elements_noun(cls) ++ " have inconsistent types:"),
-        ...ListUtil.join(text(","), List.map(view_type, tys)),
+        ...ListUtil.join(
+             text(","),
+             List.map(ty => view_type(Typ.surface_names_in(tys, ty)), tys),
+           ),
       ]
       @ [text("but consistent with expected"), view_type(ana)]
     }
@@ -632,7 +643,13 @@ let exp_mark_err_view =
       div_err([
         div_err([
           text(elements_noun(cls) ++ " have inconsistent types:"),
-          ...ListUtil.join(text(","), List.map(view_type, tys)),
+          ...ListUtil.join(
+               text(","),
+               List.map(
+                 ty => view_type(Typ.surface_names_in(tys, ty)),
+                 tys,
+               ),
+             ),
         ])
         |> code_box_container,
         text(

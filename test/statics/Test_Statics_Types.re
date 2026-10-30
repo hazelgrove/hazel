@@ -542,7 +542,7 @@ let x : A = 1 in
       {|type T = Int in let x : T = 1 in type T = Bool in !x|},
     ),
     fully_consistent_typecheck(
-      "a renamed type binder does not take a primed name written in its scope",
+      "a renamed type binder does not take a name written in its scope",
       {|type a = Int in type a = Bool in type a' = String in (true : a)|},
       Some(FTemp.Typ.bool()),
     ),
@@ -551,7 +551,7 @@ let x : A = 1 in
       {|type X = Int in let a : X = 1 in (typfun X -> a + 1)@<Bool>|},
       Some(FTemp.Typ.int()),
     ),
-    /* A type binder that reuses a name in scope is renamed with a prime in
+    /* A type binder that reuses a name in scope is renamed, numbered, in
        its scope (Typ.unshadow), so its values and the earlier T's no
        longer mix. */
     reports_errors(
@@ -597,13 +597,13 @@ let x : A = 1 in
       ),
     ),
     synthesizes(
-      "a type function variable reusing a name in scope is primed",
+      "a type function variable reusing a name in scope is numbered",
       {|typfun T -> fun (t : T) -> typfun T -> t|},
       Some(
         FTemp.Typ.(
           poly(
             FTemp.TPat.var("T"),
-            arrow(var("T"), poly(FTemp.TPat.var("T'"), var("T"))),
+            arrow(var("T"), poly(FTemp.TPat.var("T#1"), var("T"))),
           )
         ),
       ),
@@ -633,11 +633,12 @@ let x : A = 1 in
       ),
     ),
     fully_consistent_typecheck(
-      "a recursive alias reusing a name in scope is primed throughout",
+      "a recursive alias reusing a name in scope is numbered throughout",
       {|typfun T -> fun (t : T) -> type T = Int -> T in fun (g : T) -> (g, t)|},
       Some(
         FTemp.Typ.(
-          let local = rec_(FTemp.TPat.var("T'"), arrow(int(), var("T'")));
+          let local =
+            rec_(FTemp.TPat.var("T#1"), arrow(int(), var("T#1")));
           poly(
             FTemp.TPat.var("T"),
             arrow(var("T"), arrow(local, prod([local, var("T")]))),
