@@ -238,16 +238,15 @@ let update_autoprobe =
       }
     | Caret =>
       let current_def = current_toplevel_def(info_map, z);
-      /* Function-sugar: also anchor the param pattern so params are probed on the header line(s). */
-      let current_param =
+      /* Function-sugar: also anchor the param patterns so params are probed on the header line(s). */
+      let current_params =
         switch (current_def) {
         | Some(def_id) =>
-          ProbePerform.function_sugar_param_anchor(info_map, def_id)
-        | None => None
+          ProbePerform.function_sugar_param_anchors(info_map, def_id)
+        | None => []
         };
-      let anchors =
-        Option.to_list(current_def) @ Option.to_list(current_param);
-      /* def body carries cursor following (gated on auto_focus, and only into a ⊖: re-anchoring is automatic); the param anchor is added without it, keeping focus on the body's first sample. */
+      let anchors = Option.to_list(current_def) @ current_params;
+      /* def body carries cursor following (gated on auto_focus, and only into a ⊖: re-anchoring is automatic); the param anchors are added without it, keeping focus on the body's first sample. */
       let add = z =>
         switch (current_def) {
         | None => z
@@ -262,18 +261,19 @@ let update_autoprobe =
               ~info_map,
               z,
             );
-          switch (current_param) {
-          | Some(param_id) =>
-            ProbePerform.add_multi(
-              param_id,
-              ~drill=false,
-              ~set_pending_cursor=false,
-              ~syntax,
-              ~info_map,
-              z,
-            )
-          | None => z
-          };
+          List.fold_left(
+            (z, param_id) =>
+              ProbePerform.add_multi(
+                param_id,
+                ~drill=false,
+                ~set_pending_cursor=false,
+                ~syntax,
+                ~info_map,
+                z,
+              ),
+            z,
+            current_params,
+          );
         };
       (anchors, add);
     };
