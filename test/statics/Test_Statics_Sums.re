@@ -265,6 +265,14 @@ end
     |},
       Some(unknown(Internal)),
     ),
+    fully_consistent_typecheck(
+      "folded pattern constructor",
+      {|
+    type YoDawg = Yo(Int) + Dawg(Bool) in
+    case Yo(1) | ^^fold(Yo)(x) => x | _ => 0 end
+    |},
+      Some(int()),
+    ),
     inconsistent_typecheck(
       "pattern constructor tests: errors",
       // #err: incons with arrow#
