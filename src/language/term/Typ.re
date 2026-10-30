@@ -465,25 +465,18 @@ let unshadow =
   };
 
 /* ctx extended with type variable `entry`, keeping type resolution
-   lexical. Types are expanded by name in the context of use, so a type
-   already in ctx that mentions the name would come to mean the new
-   binding: in `type T = .. in type S = T in type T = (S)`, S would become
-   the second T and expanding T would loop, and in `type T = Int in
-   let x : T = 1 in type T = Bool`, x would become a Bool. Statics renames
-   type binders that would capture (`unshadow`) and binds them raw, so this
-   serves the binding it cannot rename, a module's name, whose scope is
-   also that of an expression variable. Such types are rewritten to what
-   the name meant
-   before: the alias it shadows, an invalid type if it was unbound, or
-   unknown for a shadowed abstract type. Alias definitions then refer only
-   to older bindings, so expanding aliases terminates. Variable and
-   constructor types are rewritten only when the name shadows an alias,
-   and only those bound since it: the others cannot mention it, or name it
-   while it is unbound, an error already. A variable of a shadowed abstract
-   type keeps it, captured, rather than becoming unknown, which would hide
-   the mismatches it still reports. */
+   lexical for a name that cannot be renamed instead (see `unshadow`).
+   Types are expanded by name in the context of use, so a type already in
+   ctx that mentions the name would come to mean the new binding. Such
+   types are rewritten to what the name meant before: the alias it
+   shadows, an invalid type if it was unbound, or unknown for a shadowed
+   abstract type. Alias definitions then refer only to older bindings, so
+   expanding aliases terminates. Variable and constructor types are
+   rewritten only when the name shadows an alias, and only those bound
+   since it; a variable of a shadowed abstract type keeps it. */
 let extend_tvar = (ctx: Ctx.t, entry: Ctx.tvar_entry): Ctx.t => {
-  let mentions_typ = ty => List.mem(entry.name, free_vars(ty));
+  let mentions_typ = ty =>
+    List.exists(String.equal(entry.name), free_vars(ty));
   let mentions: Ctx.kind => bool =
     fun
     | Singleton(ty) => mentions_typ(ty)
