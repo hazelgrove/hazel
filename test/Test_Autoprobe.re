@@ -93,14 +93,18 @@ let param_anchor_str = (z: Zipper.t): string => {
   switch (AutoProbePerform.current_toplevel_def(info_map, z)) {
   | None => "<no def>"
   | Some(def_id) =>
-    switch (ProbePerform.function_sugar_param_anchor(info_map, def_id)) {
-    | None => "<none>"
-    | Some(id) =>
+    switch (ProbePerform.function_sugar_param_anchors(info_map, def_id)) {
+    | [] => "<none>"
+    | ids =>
       let syntax = CachedSyntax.mk(~info_map, ~dyn_map=Id.Map.empty, z);
-      switch (TermData.segment(id, syntax.term_data)) {
-      | Some(seg) => Printer.of_segment(~holes=" ", seg)
-      | None => "<id not in term_data>"
-      };
+      ids
+      |> List.map(id =>
+           switch (TermData.segment(id, syntax.term_data)) {
+           | Some(seg) => Printer.of_segment(~holes=" ", seg)
+           | None => "<id not in term_data>"
+           }
+         )
+      |> String.concat(" | ");
     }
   };
 };
@@ -237,7 +241,7 @@ let tyalias_tests = [
 ];
 
 /* fn-def sugar anchors the param pattern separately
- * (function_sugar_param_anchor) so params probe on the header line. */
+ * (function_sugar_param_anchors) so params probe on the header line. */
 let param_anchor_tests = [
   param(
     ~name="sugar one-line: param anchor is the param tuple",
@@ -248,6 +252,11 @@ let param_anchor_tests = [
     ~name="sugar no return type: param anchor is the param",
     ~input="let f(x: Int) = ¦x + 1 in f(1)",
     ~param="x: Int",
+  ),
+  param(
+    ~name="curried sugar: one param anchor per argument group",
+    ~input="let f(x: Int)(y: Int): Int = ¦x + y in f(1)(2)",
+    ~param="x: Int | y: Int",
   ),
   param(
     ~name="sugar: cursor in let body still resolves param anchor",
@@ -312,9 +321,9 @@ let step_into_resolution = (~fn: string, program: string): (string, string) => {
     | None => ("<no body>", "<no body>")
     | Some(body_id) =>
       let param =
-        switch (ProbePerform.function_sugar_param_anchor(info_map, body_id)) {
-        | Some(p) => render(p)
-        | None => "<none>"
+        switch (ProbePerform.function_sugar_param_anchors(info_map, body_id)) {
+        | [] => "<none>"
+        | ps => ps |> List.map(render) |> String.concat(" | ")
         };
       (render(body_id), param);
     }
@@ -346,6 +355,13 @@ let step_into_tests = [
     ~program="let f(x: Int) = x + 1 in f(2)",
     ~body="x + 1",
     ~param="x: Int",
+  ),
+  step_into(
+    ~name="curried sugar: resolves body + every param group",
+    ~fn="f",
+    ~program="let f(x: Int)(y: Int): Int = x + y in f(1)(2)",
+    ~body="x + y",
+    ~param="x: Int | y: Int",
   ),
   step_into(
     ~name="sugar: call nested under another let still resolves",
