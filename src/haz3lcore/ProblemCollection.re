@@ -50,13 +50,12 @@ type problem_context = {
    return the first one present in `measured`. The ancestor lookup is
    only forced if `id` itself is missing from `measured`. */
 let nearest_measured_id =
-    (~info_map: Statics.Map.t, ~measured: Measured.t, id: Id.t): option(Id.t) =>
-  Stdlib.Seq.cons(id, () =>
-    Stdlib.List.to_seq(Statics.Map.ancestors_of(id, info_map), ())
-  )
-  |> Stdlib.Seq.find(anc =>
-       Option.is_some(Measured.find_by_id(anc, measured))
-     );
+    (~info_map: Statics.Map.t, ~measured: Measured.t, id: Id.t): option(Id.t) => {
+  let is_measured = id => Option.is_some(Measured.find_by_id(id, measured));
+  is_measured(id)
+    ? Some(id)
+    : List.find(Statics.Map.ancestors_of(id, info_map), ~f=is_measured);
+};
 
 let make_problem_context =
     (
@@ -169,13 +168,13 @@ let make_problem_context =
 /* ---------- Per-category collection (lazy) ---------- */
 
 let collect_category =
-    (ctx: problem_context, cat: problem_category): Stdlib.Seq.t(problem) =>
+    (ctx: problem_context, cat: problem_category): Sequence.t(problem) =>
   switch (cat) {
   | Syntax =>
     let grout_seq =
       ctx.concave_holes
-      |> Stdlib.List.to_seq
-      |> Stdlib.Seq.map((g: Grout.t) =>
+      |> Sequence.of_list
+      |> Sequence.map(~f=(g: Grout.t) =>
            {
              id: g.id,
              category: Syntax,
@@ -184,8 +183,8 @@ let collect_category =
          );
     let incomplete_seq =
       Segment.incomplete_tiles_deep(ctx.segment)
-      |> Stdlib.List.to_seq
-      |> Seq.map((t: Tile.t) => {
+      |> Sequence.of_list
+      |> Sequence.map(~f=(t: Tile.t) => {
            let all_indices = List.init(Tile.arity(t), ~f=Fn.id);
            let missing_labels =
              List.filter(
@@ -204,22 +203,22 @@ let collect_category =
          });
     let syntax_info_seq =
       ctx.syntax_error_ids
-      |> Stdlib.List.to_seq
-      |> Stdlib.Seq.map(((id, ci)) =>
+      |> Sequence.of_list
+      |> Sequence.map(~f=((id, ci)) =>
            {
              id,
              category: Syntax,
              source: FromInfo(ci),
            }
          );
-    Stdlib.Seq.append(
+    Sequence.append(
       grout_seq,
-      Stdlib.Seq.append(incomplete_seq, syntax_info_seq),
+      Sequence.append(incomplete_seq, syntax_info_seq),
     );
   | Hole =>
     ctx.hole_ids
-    |> Stdlib.List.to_seq
-    |> Stdlib.Seq.map((g: Grout.t) =>
+    |> Sequence.of_list
+    |> Sequence.map(~f=(g: Grout.t) =>
          {
            id: g.id,
            category: Hole,
@@ -228,8 +227,8 @@ let collect_category =
        )
   | Static =>
     ctx.static_error_ids
-    |> Stdlib.List.to_seq
-    |> Stdlib.Seq.map(((id, ci)) =>
+    |> Sequence.of_list
+    |> Sequence.map(~f=((id, ci)) =>
          {
            id,
            category: Static,
@@ -238,8 +237,8 @@ let collect_category =
        )
   | Warning =>
     ctx.warning_ids
-    |> Stdlib.List.to_seq
-    |> Stdlib.Seq.map(((id, ci)) =>
+    |> Sequence.of_list
+    |> Sequence.map(~f=((id, ci)) =>
          {
            id,
            category: Warning,
@@ -248,8 +247,8 @@ let collect_category =
        )
   | Projector =>
     ctx.projector_errors
-    |> Stdlib.List.to_seq
-    |> Stdlib.Seq.map(((id, kind, err)) =>
+    |> Sequence.of_list
+    |> Sequence.map(~f=((id, kind, err)) =>
          {
            id,
            category: Projector,
@@ -262,9 +261,7 @@ let collect_category =
 
 let collect_all_problems = (ctx: problem_context): list(problem) => {
   [Syntax, Hole, Static, Warning, Projector]
-  |> List.concat_map(~f=cat =>
-       collect_category(ctx, cat) |> Stdlib.List.of_seq
-     );
+  |> List.concat_map(~f=cat => collect_category(ctx, cat) |> Sequence.to_list);
 };
 
 /* ---------- Grouped multi-editor collection ---------- */
@@ -339,7 +336,7 @@ let make =
           cat => {
             let deduped =
               collect_category(ctx, cat)
-              |> Stdlib.Seq.filter((p: problem) => {
+              |> Sequence.filter(~f=(p: problem) => {
                    let key = (p.id, cat);
                    if (Hash_set.mem(seen, key)) {
                      false;
@@ -348,7 +345,7 @@ let make =
                      true;
                    };
                  })
-              |> Stdlib.List.of_seq;
+              |> Sequence.to_list;
             let located =
               deduped
               |> List.map(~f=p =>
@@ -417,14 +414,14 @@ let make =
          (
            cat,
            groups
-           |> Stdlib.List.to_seq
-           |> Stdlib.Seq.map((g: problem_group) =>
+           |> Sequence.of_list
+           |> Sequence.map(~f=(g: problem_group) =>
                 Option.value(
                   List.Assoc.find(g.counts, cat, ~equal=Poly.equal),
                   ~default=0,
                 )
               )
-           |> Stdlib.Seq.fold_left((+), 0),
+           |> Sequence.fold(~init=0, ~f=(+)),
          )
        );
   {

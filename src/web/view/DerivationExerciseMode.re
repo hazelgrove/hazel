@@ -590,7 +590,7 @@ module NinjaKeys = {
   // Wrap a function (to be called by Js setInterval) in a loop call.
   // Clear the interval if the function returns true.
   let loop = (f: unit => bool, interval: float) => {
-    let id_ref = ref(Stdlib.Option.None);
+    let id_ref = ref(None: option(_));
     id_ref :=
       Some(
         Dom_html.window##setInterval(
