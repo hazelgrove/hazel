@@ -85,7 +85,10 @@ module ServerMessage = {
     | Ack(ack)
     | ReusePlan(reuse_plan)
     | Stream(stream)
-    | Result(result);
+    | Result(result)
+    /* The worker's coverage counters so far, after each Result; see
+     * CoverageHook. */
+    | Coverage(string);
 };
 
 /* Candidate encodings for the worker payloads; `Marshal` is active (see
@@ -397,6 +400,10 @@ let post_batch_result = (model, request_id, completed) =>
         eval_time: eval_total^,
       }),
     );
+    switch (Option.bind(CoverageHook.snapshot, snapshot => snapshot())) {
+    | Some(coverage) => post_message(ServerMessage.Coverage(coverage))
+    | None => ()
+    };
   };
 
 let post_stream_update =

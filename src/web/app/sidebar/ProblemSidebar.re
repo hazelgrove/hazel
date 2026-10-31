@@ -153,7 +153,8 @@ let row_view =
   div(
     ~attrs=[
       clss(classes),
-      Attr.on_pointerdown(jump_to(~globals, jump_id)),
+      /* click, not pointerdown: a drag over the row selects its text */
+      Attr.on_click(jump_to(~globals, jump_id)),
       scroll_attr,
     ],
     [chevron] @ line_num @ [content],

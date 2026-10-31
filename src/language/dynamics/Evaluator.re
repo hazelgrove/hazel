@@ -584,7 +584,7 @@ let evaluate_and_limit =
       result |> Trampoline.Yielding.start,
     )
   ) {
-  | SliceDone(x) => LimitedCompleted((finish(~env, x), state^))
+  | SliceDone(x, _) => LimitedCompleted((finish(~env, x), state^))
   | SliceYielded(_) => StepLimitExceeded
   };
 };
@@ -641,7 +641,7 @@ let run_yielding_slice =
   switch (
     Trampoline.Yielding.run_slice(~step_budget, evaluation.continuation)
   ) {
-  | SliceDone(x) =>
+  | SliceDone(x, _) =>
     EvaluationCompleted((finish(~env=evaluation.env, x), evaluation.state^))
   | SliceYielded(continuation) =>
     EvaluationYielded({
@@ -654,6 +654,42 @@ let yielding_step_count = (evaluation: yielding_evaluation): int => {
   let Trampoline.Yielding.Continuation(_, _, step_counter) =
     evaluation.continuation;
   step_counter;
+};
+
+/* evaluate, also returning the work it did: the steps its trampoline
+   actually took. A reused result costs the one step that fetches it. That
+   is not EvaluatorState's step_count, which counts a reused subtree's
+   steps again, to keep probe samples' step bounds in line: step_count is
+   the same with or without reuse, and this is not. Deterministic for a
+   given program and cache, so tests can hold it to a budget
+   (Test_PerfBudgets) where a time would vary with the machine. */
+let evaluate_counting_work =
+    (
+      ~prev: EvaluatorState.incr_eval=IncrEval.empty,
+      ~eval_info: EvalInfo.t=EvalInfo.empty,
+      ~env,
+      d: DHExp.t,
+    )
+    : ((Exp.t, EvaluatorState.t), int) => {
+  let (state, result) =
+    prepare_evaluation(
+      ~prev,
+      ~eval_info,
+      ~env,
+      ~reuse_map=None,
+      ~outbox=None,
+      d,
+    );
+  switch (
+    Trampoline.Yielding.run_slice(
+      ~step_budget=max_int,
+      Trampoline.Yielding.start(result),
+    )
+  ) {
+  | SliceDone(x, steps) => ((finish(~env, x), state^), steps)
+  /* an unbounded slice runs to the end */
+  | SliceYielded(_) => failwith("evaluate_counting_work: slice yielded")
+  };
 };
 
 let evaluate =
