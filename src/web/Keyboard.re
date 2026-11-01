@@ -79,6 +79,7 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | "ArrowRight" => now(Select(Resize(Local(Right, modif))))
     | "ArrowUp" => now(Select(Resize(Vertical(Up, modif))))
     | "ArrowDown" => now(Select(Resize(Vertical(Down, modif))))
+    | "F12" => now(Move(Goal(NextUsage(Left))))
     | _ => None
     }
   | {key: D(key), sys: Mac, shift: Down, meta: Down, ctrl: Up, alt: Up, _} =>
@@ -172,6 +173,7 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     switch (key) {
     | "ArrowLeft" => now(Select(Resize(Local(Left, modif))))
     | "ArrowRight" => now(Select(Resize(Local(Right, modif))))
+    | "F12" => now(Move(Goal(NextUsage(Left))))
     | _ => None
     }
   | _ => None

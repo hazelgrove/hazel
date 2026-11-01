@@ -409,13 +409,13 @@ let to_linebreak = (d: Direction.t, z: t): option(t) => {
   skip_spaces(Direction.toggle(d), z);
 };
 
-let to_next_problem =
-    (~measured: Measured.t, ~problem_ids: Seq.t(Id.t), d: Direction.t, z: t)
+let to_next_of_ids =
+    (~measured: Measured.t, ~ids: Seq.t(Id.t), d: Direction.t, z: t)
     : option(t) => {
   let cursor_pos = Zipper.Caret.point(measured, z);
-  /* Sort problem IDs by measured position */
+  /* Sort IDs by measured position */
   let sorted =
-    problem_ids
+    ids
     |> Seq.filter_map(id =>
          switch (Measured.find_by_id(id, measured)) {
          | Some({origin, _}) => Some((id, origin))
@@ -477,13 +477,11 @@ let move_dispatch =
   | Vertical(d, _) => vertical(~measured, ~refractor_rows, ~col_target, d, z)
   | Point(goal, _) => to_point(~measured, ~goal, z)
   | Goal(Hole(d)) => to_next_grout(d, z)
-  | Goal(NextProblem(d)) => to_next_problem(~measured, ~problem_ids, d, z)
+  | Goal(NextProblem(d)) => to_next_of_ids(~measured, ~ids=problem_ids, d, z)
   | Goal(NextUsage(d)) =>
-    /* Same "next in document order, wrapping" search as NextProblem,
-     * but over the uses of the variable under the caret. */
     let* ci = Indicated.ci_of(z, statics);
     let ids = Language.Statics.Map.usage_ids(statics, ci);
-    to_next_problem(~measured, ~problem_ids=List.to_seq(ids), d, z);
+    to_next_of_ids(~measured, ~ids=List.to_seq(ids), d, z);
   | Goal(TileId(id)) => jump_to_id_indicated(z, id)
   | Goal(BindingSiteOfIndicatedVar) =>
     let* ci = Indicated.ci_of(z, statics);

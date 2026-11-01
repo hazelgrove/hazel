@@ -179,6 +179,14 @@ module Selection = {
            ~action=action(Move(Goal(NextProblem(Right)))),
            GoToNextProblem,
          ),
+         of_shortcut(
+           ~action=action(Move(Goal(NextUsage(Right)))),
+           GoToNextUsage,
+         ),
+         of_shortcut(
+           ~action=action(Move(Goal(NextUsage(Left)))),
+           GoToPreviousUsage,
+         ),
          /* Selection */
          of_shortcut(
            ~action=action(Select(Term(Current))),
@@ -337,7 +345,8 @@ module Selection = {
         alt: Up,
         _,
       }
-        when Keyboard.is_f_key(key) =>
+        /* Shift+F12 is Go to Next Usage, handled in Keyboard.re */
+        when Keyboard.is_f_key(key) && key != "F12" =>
       Some(Update.DebugConsole(key))
     | k =>
       Keyboard.handle_key_event(k) |> Option.map(x => Update.Perform(x));
