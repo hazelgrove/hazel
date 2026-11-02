@@ -2581,8 +2581,7 @@ and uexp_to_info_map =
             /* NOTE: When debugging type system issues it may be beneficial to
                use a different name than the alias for the recursive parameter */
             //let ty_rec = Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
-            let ty_rec =
-              Rec(Var(name) |> TPat.fresh, utyp_desugared) |> Typ.temp;
+            let ty_rec = Rec(typat, utyp_desugared) |> Typ.temp;
             let ctx_def =
               Ctx.extend_alias(ctx, name, TPat.rep_id(typat), ty_rec);
             (ty_rec, ctx_def, ctx_def);

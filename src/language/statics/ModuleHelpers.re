@@ -226,7 +226,7 @@ let rec collect_type_exports =
            | Var(name) =>
              let (resolved, alias_ty) =
                if (List.mem(name, Typ.free_vars(typ))) {
-                 let ty_rec = Rec(Var(name) |> TPat.fresh, typ) |> Typ.temp;
+                 let ty_rec = Rec(tpat, typ) |> Typ.temp;
                  (ty_rec, ty_rec);
                } else {
                  let locals = List.map(fst, acc);
