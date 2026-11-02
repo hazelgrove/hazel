@@ -12,7 +12,7 @@ type cls =
   | Constructor
   | Fun
   | TypFun
-  | Label
+  | LabelLit
   | TupleExtension
   | Tuple
   | Dot
@@ -137,7 +137,7 @@ let rec cls_of_term: type a. Grammar.exp_term(a) => cls =
   | TypFun(_) => TypFun
   | Tuple(_) => Tuple
   | TupleExtension(_) => TupleExtension
-  | Label(_) => Label
+  | LabelLit(_) => LabelLit
   | Dot(_) => Dot
   | Var(_) => Var
   | Let(_) => Let
@@ -195,7 +195,7 @@ let show_cls: cls => string =
   | Fun => "Function literal"
   | TypFun => "Type Function Literal"
   | Tuple => "Tuple literal"
-  | Label => "Label"
+  | LabelLit => "Label literal"
   | TupleExtension => "Tuple Extension"
   | Dot => "Dot operator"
   | Var => "Variable reference"
@@ -268,7 +268,7 @@ let rec is_fun = (e: t) => {
   | Undefined
   | Atom(_)
   | DrvQuote(_)
-  | Label(_)
+  | LabelLit(_)
   | ListLit(_)
   | Tuple(_)
   | TupleExtension(_)
@@ -323,7 +323,7 @@ let rec is_tuple_of_functions = (e: t) =>
     | Undefined
     | Atom(_)
     | DrvQuote(_)
-    | Label(_)
+    | LabelLit(_)
     | ListLit(_)
     | TupleExtension(_)
     | Fun(_)
@@ -391,7 +391,7 @@ let rec get_num_of_functions = (e: t) =>
     | Deferral(_)
     | Undefined
     | Atom(_)
-    | Label(_)
+    | LabelLit(_)
     | ListLit(_)
     | TupleExtension(_)
     | Fun(_)

@@ -100,7 +100,7 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | ListConcat(_)
           | Tuple(_)
           | TupleExtension(_)
-          | Label(_)
+          | LabelLit(_)
           | Dot(_)
           | Match(_)
           | LivelitName(_)
@@ -197,8 +197,8 @@ let rec ty_comparable = (d1, d2) => {
   | (Atom(_), _) => false
   | (DrvQuote(_, t1), DrvQuote(_, t2)) => t1 == t2
   | (DrvQuote(_, _), _) => false
-  | (Label(l1), Label(l2)) => l1 == l2
-  | (Label(_), _) => false
+  | (LabelLit(l1), LabelLit(l2)) => l1 == l2
+  | (LabelLit(_), _) => false
   /* [ListLit] checks that *all* elements (across both literals) are mutually
      consistent, unlike [Tuple] below, which checks pairwise consistency. */
   | (ListLit(ds1), ListLit(ds2)) =>
@@ -309,8 +309,8 @@ let rec poly_equal = (d1, d2): option(bool) => {
   | (DrvQuote(d1, _), DrvQuote(d2, _)) =>
     Drv.Any.eq(d1, d2, ~skip_hole=false) |> Option.some
   | (DrvQuote(_, _), _) => None
-  | (Label(l1), Label(l2)) => l1 == l2 ? Some(true) : None
-  | (Label(_), _) => None
+  | (LabelLit(l1), LabelLit(l2)) => l1 == l2 ? Some(true) : None
+  | (LabelLit(_), _) => None
   | (ListLit(ds1), ListLit(ds2)) when List.length(ds1) == List.length(ds2) =>
     ListUtil.forall2_opt(poly_equal, ds1, ds2)
   | (ListLit(_), ListLit(_)) => Some(false)

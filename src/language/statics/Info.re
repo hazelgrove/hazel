@@ -318,7 +318,7 @@ let is_typable_term: option(t) => bool =
   fun
   | Some(
       InfoExp({
-        user_term: {term: Deferral(_) | Label(_) | TyAlias(_), _},
+        user_term: {term: Deferral(_) | LabelLit(_) | TyAlias(_), _},
         _,
       }),
     ) =>
@@ -350,7 +350,7 @@ let is_syntax_error = (ci: t): bool =>
 let is_label = (info: t): bool =>
   switch (info) {
   | InfoTyp({user_term: {term: Label(_), _}, _})
-  | InfoExp({user_term: {term: Label(_), _}, _})
+  | InfoExp({user_term: {term: LabelLit(_), _}, _})
   | InfoPat({user_term: {term: Label(_), _}, _})
   | InfoLabel(_) => true
   | _ => false

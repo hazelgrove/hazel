@@ -812,7 +812,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         ret(Atom(String(Token.strip_quotes(t))))
       | (F(Tok(t)), []) when Token.is_quoted_label(t) =>
         set_lexeme(t);
-        ret(Label(Token.strip_quotes(~quote=Token.label_delim, t)));
+        ret(LabelLit(Token.strip_quotes(~quote=Token.label_delim, t)));
       | (F(Tok(t)), []) when Token.is_float(t) =>
         set_lexeme(t);
         ret(Atom(Float(float_of_string(t))));

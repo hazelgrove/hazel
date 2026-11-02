@@ -78,7 +78,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     /* proofs can also have any type, but are indet */
     | (_, ProofObject(_)) => IndetMatch
 
-    | (Label, Label(l)) => Matches(l)
+    | (Label, LabelLit(l)) => Matches(l)
     | (LabeledTupleProjection(l), Tuple(ds)) =>
       switch (TupleEntry.find(l, ds)) {
       | Some(_) => Matches(expr) // Choosing to just return the original expression here
@@ -164,7 +164,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     /* Forms that are the wrong type of value - these cases indicate an error */
     | (
         _,
-        Atom(_) | DrvQuote(_) | Label(_) | Constructor(_) | BuiltinFun(_) |
+        Atom(_) | DrvQuote(_) | LabelLit(_) | Constructor(_) | BuiltinFun(_) |
         Deferral(_) |
         DeferredAp(_) |
         ListLit(_) |

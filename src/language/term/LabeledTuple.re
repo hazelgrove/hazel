@@ -1,7 +1,5 @@
 open Util;
 
-exception Exception;
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type label = string;
 

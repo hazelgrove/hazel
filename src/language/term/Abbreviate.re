@@ -548,9 +548,9 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
         };
       | DrvQuote(_, _) => Invalid("<drv term>")
       | Var(v) => Var(abbreviate_str(available^, v))
-      | Label(v) =>
+      | LabelLit(v) =>
         switch (abbreviate_label(v)) {
-        | `Label(s) => Label(s)
+        | `Label(s) => LabelLit(s)
         | `Invalid(s) => Invalid(s)
         }
       | Constructor(c, t) => Constructor(abbreviate_str(available^, c), t)

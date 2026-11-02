@@ -45,7 +45,7 @@ SRC = 'src'
 # list is a ratchet: it may shrink, never grow.
 KNOWN_DANGLING = {
     'G5', 'R4', 'TXT2', 'font-mono', 'light-text-color', 'main-text-color', 'mono-font',
-    'shard-label', 'text-disabled', 'text-primary', 'ui-text',
+    'text-disabled', 'text-primary', 'ui-text',
 }
 
 strip = lambda s: re.sub(r'/\*.*?\*/', '', s, flags=re.S)

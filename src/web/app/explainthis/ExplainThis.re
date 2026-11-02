@@ -1040,7 +1040,7 @@ let decide =
         | Projector(_)
         | Asc(_) => NoDoc // Shouldn't get hit?
         };
-      | Label(name) => get_message(LabelTerm.labels(name))
+      | LabelLit(name) => get_message(LabelTerm.labels(name))
       /* the cursor on a labeled entry's `=` indicates its tuple */
       | Tuple([Labeled(_, l, e)]) =>
         get_message(

@@ -121,7 +121,7 @@ let rec pat_to_exp = (pat: Pat.t): Exp.t => {
   | Projector(data, e) => rewrap(Projector(data, pat_to_exp(e)))
   | Ap(e1, e2) => rewrap(Ap(Forward, pat_to_exp(e1), pat_to_exp(e2)))
   | Asc(e, t1) => rewrap(Asc(pat_to_exp(e), t1))
-  | Label(l) => rewrap(Label(l))
+  | Label(l) => rewrap(LabelLit(l))
   };
 };
 
@@ -414,7 +414,7 @@ let rec replace_exp =
         | TypFun(_)
         | Tuple(_)
         | TupleExtension(_)
-        | Label(_)
+        | LabelLit(_)
         | Dot(_, _)
         | LivelitName(_)
         | TyAlias(_)

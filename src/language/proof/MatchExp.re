@@ -250,8 +250,8 @@ let rec match_exp =
       List.combine(rs1, rs2),
     );
   | (Match(_, _), _) => None
-  | (Label(l1), Label(l2)) when l1 == l2 => Some(ctx)
-  | (Label(_), _) => None
+  | (LabelLit(l1), LabelLit(l2)) when l1 == l2 => Some(ctx)
+  | (LabelLit(_), _) => None
   | (Dot(e1, l1), Dot(e2, l2))
       when Option.equal(String.equal, Label.name(l1), Label.name(l2)) =>
     match_exp(alphas, ctx, e1, e2)

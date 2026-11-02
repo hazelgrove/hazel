@@ -40,7 +40,6 @@ let core_mark_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   | InvalidLabel(_, _) => "Invalid label"
   | DuplicateLabel(_, _) => "Duplicate label"
   | DuplicateVar(_, _) => "Duplicate variable"
-  | TupleLabelError(_) => "Invalid tuple label"
   | UnexpectedLabelSort(_) => "Unexpected label sort"
   | BadToken(token) => prn("\"%s\" isn't a valid token", token)
   | IsMulti => "Broken expression"
@@ -64,7 +63,6 @@ let core_mark_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
       | _ => expectation(ana, syn)
       }
     };
-  | ExplicitNonlabel => "(static error)"
   | _ => "(static error)"
   };
 };
@@ -138,9 +136,7 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
     }
   | TypFreeTypeVariable(_)
   | TypDuplicateConstructor(_)
-  | TypDuplicateLabels(_, _)
   | TypWantTypeFoundAp
-  | TypWantLabel
   | TypWantProduct(_)
   | TypWantConstructorFoundType(_)
   | TypWantConstructorFoundAp
@@ -152,10 +148,8 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   | FreeConstructor(_)
   | BadToken(_)
   | BadLabel(_)
-  | ExplicitNonlabel
   | UnexpectedLabelSort(_)
   | InvalidLabel(_, _)
-  | TupleLabelError(_)
   | IsMulti
   | DuplicateLabel(_, _)
   | DuplicateVar(_, _)
@@ -191,18 +185,11 @@ let typ_mark_string: Mark.t => string =
   | TypWantTypeFoundAp => "Constructor application must be in sum"
   | TypDuplicateConstructor(name) =>
     prn("Constructor %s already used in this sum", name)
-  | TypWantLabel => "Expected a label"
   | TypParseFailure => "Parse failure"
   | InvalidLabel(name, labels) =>
     prn(
       "Label %s is not valid. Valid labels are: %s",
       name,
-      String.concat(", ", labels),
-    )
-  | TypDuplicateLabels(labels, ty) =>
-    prn(
-      "Duplicate labels in type %s: %s",
-      Print.typ(ty),
       String.concat(", ", labels),
     )
   | DuplicateLabel(name, _) => prn("Type %s is already defined", name)

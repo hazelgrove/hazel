@@ -447,7 +447,7 @@ and Exp: {
         | Atom(_)
         | DrvQuote(_)
         | Constructor(_)
-        | Label(_)
+        | LabelLit(_)
         | Deferral(_)
         | Var(_)
         | LivelitName(_)

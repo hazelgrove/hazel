@@ -260,7 +260,7 @@
 }
 
 #cursor-inspector .ci-header.ok.Label {
-  background-color: var(--shard-label);
+  background-color: color-mix(in oklch, var(--token-label) 15%, transparent);
   color: var(--token-label);
 }
 #cursor-inspector .ci-header.ok.Mod {
