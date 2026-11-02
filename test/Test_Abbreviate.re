@@ -670,7 +670,7 @@ let module_abbreviation_tests = [
         Exp.module_exp(
           MPat.asc(
             MPat.var("M"),
-            Typ.prod([Typ.tup_label(Typ.label("x"), Typ.int())]),
+            Typ.prod_entries([Typ.labeled("x", Typ.int())]),
           ),
           Exp.module_([Mod.mod_let(Pat.var("x"), Exp.int(1))]),
           Exp.var("M"),

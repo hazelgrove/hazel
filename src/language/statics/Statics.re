@@ -877,30 +877,7 @@ and uexp_to_info_map =
         Typ.weak_head_normalize(ctx, t2.ty).term,
       ) {
       | (Prod(ts1), Prod(ts2)) =>
-        let extract_entry: Typ.t => (option(string), Typ.t) = (
-          t =>
-            switch (Typ.match_tup_label(t)) {
-            | Some((name, t)) => (Some(name), t)
-            | None => (None, t)
-            }
-        );
-        let e1_entries = List.map(extract_entry, ts1);
-        let e2_entries = List.map(extract_entry, ts2);
-
-        let ty: Grammar.typ_t(IdTagged.IdTag.t) =
-          IdTagged.FreshGrammar.Typ.(
-            prod(
-              List.map(
-                ((lab, d)) =>
-                  switch (lab) {
-                  | Some(l) => tup_label(label(l), d)
-                  | None => d
-                  },
-                LabeledTuple.extension(e1_entries, e2_entries),
-              ),
-            )
-          );
-
+        let ty = Typ.product_extension(ts1, ts2) |> Typ.temp;
         add(
           ~elab_term,
           ~elab_syn_ty=ty,
@@ -952,11 +929,7 @@ and uexp_to_info_map =
         List.fold_left2(
           ((infos, elabs, m), ana, (inferred_label, entry)) => {
             let (value_info, value_elab, m) =
-              go(
-                ~ana=LabeledTupleStaticsHelpers.value_ana(ctx, ana),
-                TupleEntry.value(entry),
-                m,
-              );
+              go(~ana=TupleEntry.value(ana), TupleEntry.value(entry), m);
             let (value_info, m) =
               LabeledTupleStaticsHelpers.apply_inferred_label_exp(
                 ~inferred_label,
@@ -964,16 +937,16 @@ and uexp_to_info_map =
                 m,
               );
             let value_ty = value_info.elab_syn_ty;
-            let (entry_ty, elab, m) =
+            let (entry_ty, elab, m): (TupleEntry.t(Typ.t), _, _) =
               switch (entry) {
               | Unlabeled(_) =>
                 switch (inferred_label) {
                 | Some(name) => (
-                    TupLabel(Label(name) |> Typ.temp, value_ty) |> Typ.temp,
+                    Typ.labeled_entry(name, value_ty),
                     TupleEntry.labeled(name, value_elab),
                     m,
                   )
-                | None => (value_ty, Unlabeled(value_elab), m)
+                | None => (Unlabeled(value_ty), Unlabeled(value_elab), m)
                 }
               | Labeled(eq, l, _) =>
                 let (marks, label_ty) =
@@ -990,11 +963,10 @@ and uexp_to_info_map =
                     l,
                     m,
                   );
-                let entry_ty =
+                let entry_ty: TupleEntry.t(Typ.t) =
                   switch (label_ty) {
-                  | Some(label_ty) =>
-                    TupLabel(label_ty, value_ty) |> Typ.temp
-                  | None => value_ty
+                  | Some(l) => Labeled(IdTagged.IdTag.temp(), l, value_ty)
+                  | None => Unlabeled(value_ty)
                   };
                 /* only an explicit non-label is dropped from the value */
                 let elab: TupleEntry.t(Exp.t) =
@@ -1091,13 +1063,7 @@ and uexp_to_info_map =
         | (Unknown(_), Label(name)) =>
           // This is so that the statics will result in Unknown(Internal)
           let ty =
-            Prod([
-              TupLabel(
-                Label(name) |> Typ.temp,
-                Unknown(Internal) |> Typ.temp,
-              )
-              |> Typ.temp,
-            ])
+            Prod([Typ.labeled_entry(name, Unknown(Internal) |> Typ.temp)])
             |> Typ.temp;
           let (_, _, m) = go(~ana=ty, e1, m);
           (ty, m);
@@ -1107,8 +1073,7 @@ and uexp_to_info_map =
       let field = (ts): (option(Typ.t), list(Mark.t)) =>
         switch (l.term) {
         | Label(name) =>
-          switch (LabeledTuple.find_label(Typ.match_tup_label, ts, name)) {
-          | Some({term: TupLabel(_, typ), _})
+          switch (Typ.project_type(ts, name)) {
           | Some(typ) => (Some(typ), [])
           | None => (None, [LabelNotFound(name, labels_of(ts))])
           }
@@ -1517,11 +1482,7 @@ and uexp_to_info_map =
         switch (MatchedTyp.args(ctx, ty_in, num_args)) {
         | L(ty_ins) =>
           let ((args_infos, args_elabs), m) =
-            map_m_go(
-              m,
-              List.map(LabeledTupleStaticsHelpers.value_ana(ctx), ty_ins),
-              arg_values,
-            );
+            map_m_go(m, ty_ins, arg_values);
           let arg_co_ctx =
             CoCtx.union(List.map(Info.exp_co_ctx, args_infos));
           let arg_probe_targets =
@@ -1535,7 +1496,7 @@ and uexp_to_info_map =
             |> (
               fun
               | [x] => x
-              | xs => Prod(xs) |> Typ.temp
+              | xs => Typ.to_product(xs)
             );
           add(
             ~elab_term=
@@ -1718,7 +1679,8 @@ and uexp_to_info_map =
           let arrow_like = t => Typ.is_arrow_like(MatchedTyp.head(ctx, t));
           switch (norm |> Typ.term_of) {
           | Prod(syns) when List.length(syns) == num_vars =>
-            syns |> List.for_all(arrow_like)
+            syns
+            |> List.for_all(entry => arrow_like(TupleEntry.value(entry)))
           | _ when arrow_like(norm) => num_vars == 1
           | _ => false
           };
@@ -1748,7 +1710,7 @@ and uexp_to_info_map =
         | (Tuple(ds), Prod(tys)) =>
           Tuple(
             LabeledTuple.rearrange(
-              Typ.match_tup_label, TupleEntry.get_label, tys, ds, (t, entry) =>
+              Typ.get_label, TupleEntry.get_label, tys, ds, (t, entry) =>
               TupleEntry.labeled(t, TupleEntry.value(entry))
             ),
           )
@@ -1801,7 +1763,19 @@ and uexp_to_info_map =
             ) {
             | ((Prod(ty_fns1), Prod(ty_fns2)), Prod(ty_ps)) =>
               let tys =
-                List.map2(ana_ty_fn, List.combine(ty_fns1, ty_fns2), ty_ps);
+                List.map2(
+                  ((fn1, fn2), ty_p) =>
+                    TupleEntry.map(
+                      ty_p =>
+                        ana_ty_fn(
+                          (TupleEntry.value(fn1), TupleEntry.value(fn2)),
+                          ty_p,
+                        ),
+                      ty_p,
+                    ),
+                  List.combine(ty_fns1, ty_fns2),
+                  ty_ps,
+                );
               Prod(tys) |> Typ.temp;
             | ((_, _), _) =>
               ana_ty_fn((def_base.ty, def_base2.ty), p_syn.ty)
@@ -2230,7 +2204,7 @@ and uexp_to_info_map =
       );
     | TyAlias(typat, utyp, body) =>
       /* Desugar Sig types so that type aliases like `type T = {let x : Int}`
-         store Prod([TupLabel(...)]) rather than Sig([...]) in the context.
+         store Prod([Labeled(...)]) rather than Sig([...]) in the context.
          This ensures meet/join can unify them with module expression types. */
       let utyp_desugared = Typ.desugar_sig(ctx, utyp);
       let alias =
@@ -2464,13 +2438,13 @@ and uexp_to_info_map =
   // This is for lifting single values into a singleton labeled tuple when the label is not present
 
   switch (Typ.weak_head_normalize(ctx, ana).term) {
-  | Prod([{term: TupLabel({term: Label(l1), _}, ana_ty), _}]) =>
+  | Prod([Labeled(_, {term: Label(l1), _}, ana_ty)]) =>
     // We can flatten this by pulling it up on the case match but since OCaml is strict it'll be evaluated.
     // So for performance reasons we'll just do it here.
     let (e, _, m) = go(~ana=syn, uexp, m);
 
     switch (Typ.weak_head_normalize(ctx, e.ty).term) {
-    | Prod([{term: TupLabel({term: Label(l2), _}, _), _}]) when l1 == l2 =>
+    | Prod([Labeled(_, {term: Label(l2), _}, _)]) when l1 == l2 =>
       default_case()
     | Unknown(_) => default_case() // TODO I don't know if this is correct
     | _ => autolabel_singleton_tuple(uexp, ana_ty, l1, m)
@@ -2923,7 +2897,7 @@ and upat_to_info_map =
             let (info, value_elab, m) =
               go(
                 ~ctx,
-                ~ana=LabeledTupleStaticsHelpers.value_ana(ctx, ana),
+                ~ana=TupleEntry.value(ana),
                 ~duplicate_bindings=
                   duplicate_bindings @ new_duplicate_bindings,
                 TupleEntry.value(entry),
@@ -2941,7 +2915,7 @@ and upat_to_info_map =
               | Unlabeled(_) =>
                 switch (inferred_label) {
                 | Some(name) => (
-                    Some(Label(name) |> Typ.temp),
+                    Some(Label.temp(Label(name))),
                     TupleEntry.labeled(name, value_elab),
                     m,
                   )
@@ -2973,15 +2947,12 @@ and upat_to_info_map =
                   };
                 (label_ty, elab, m);
               };
-            /* a labeled field is a one-element tuple to coverage */
-            let (entry_ty, constraint_) =
+            let entry_ty: TupleEntry.t(Typ.t) =
               switch (label_ty) {
-              | Some(label_ty) => (
-                  TupLabel(label_ty, value_ty) |> Typ.temp,
-                  Coverage.Constraint.Tuple([info.constraint_]),
-                )
-              | None => (value_ty, info.constraint_)
+              | Some(l) => Labeled(IdTagged.IdTag.temp(), l, value_ty)
+              | None => Unlabeled(value_ty)
               };
+            let constraint_ = info.constraint_;
             (
               info.ctx,
               tys @ [entry_ty],
@@ -3121,13 +3092,13 @@ and upat_to_info_map =
     default_case();
   } else {
     switch (Typ.weak_head_normalize(ctx, ana).term) {
-    | Prod([{term: TupLabel({term: Label(l1), _}, ana_ty), _}]) =>
+    | Prod([Labeled(_, {term: Label(l1), _}, ana_ty)]) =>
       // We can flatten this by pulling it up on the case match but since OCaml is strict it'll be evaluated.
       // So for performance reasons we'll just do it here.
       let (e, _, m) = go(~ana=syn, ~ctx, upat, m);
 
       switch (Typ.weak_head_normalize(ctx, e.ty).term) {
-      | Prod([{term: TupLabel({term: Label(l2), _}, _), _}]) when l1 == l2 =>
+      | Prod([Labeled(_, {term: Label(l2), _}, _)]) when l1 == l2 =>
         default_case()
       | Unknown(_) =>
         /* Unknown type could be a singleton labeled tuple. Only elaborate
@@ -3157,7 +3128,7 @@ and utyp_to_info_map =
     )
     : (Info.typ, Map.t) => {
   open TypExpectation;
-  let ids = IdTagged.ids(utyp);
+  let ids = Typ.info_ids(utyp);
   let term = IdTagged.term_of(utyp);
   let rec status_for_node =
           (~expects=expects, utyp: Typ.t)
@@ -3170,10 +3141,6 @@ and utyp_to_info_map =
     };
     switch (expects, utyp.term) {
     | (_, Unknown(Hole(Invalid(token)))) => err(BadToken(token))
-    | (LabelExpected(_), Unknown(Hole(EmptyHole))) =>
-      ok(Message.EmptyLabel)
-    | (LabelProjectionExpected(_), Unknown(Hole(EmptyHole))) =>
-      ok(Message.EmptyLabel)
     | (TypeExpected | ProductExpected, ProdProjection(pty, l)) =>
       switch (Typ.weak_head_normalize(ctx, pty), l.term) {
       | ({term: Prod(tys), _}, Label(l)) =>
@@ -3270,21 +3237,10 @@ and utyp_to_info_map =
       | true =>
         ok(Message.TypeAlias(name, Typ.weak_head_normalize(ctx, utyp)))
       }
-    | (TypeExpected, Label(_))
-    | (LabelExpected(Unique, _), Label(_)) => ok(Message.Type(utyp))
-    | (LabelExpected(Duplicate, dupes), Label(name)) =>
-      List.exists(l => name == l, dupes)
-        ? err(DuplicateLabel(name, utyp)) : err(TypWantLabel)
-    | (LabelProjectionExpected(Some(labels)), Label(name)) =>
-      List.mem(name, labels)
-        ? ok(Message.Type(utyp)) : err(InvalidLabel(name, labels))
-    | (LabelProjectionExpected(None), Label(_)) =>
-      ok(Message.Type(Unknown(Internal) |> Typ.temp))
+    | (TypeExpected, Label(_)) => ok(Message.Type(utyp))
     | (ConstructorExpected(_), Label(_))
     | (VariantExpected(_), Label(_)) =>
       err(TypWantConstructorFoundType(utyp))
-    | (LabelExpected(_), _)
-    | (LabelProjectionExpected(_), _) => err(TypWantLabel)
     | (ConstructorExpected(_), _)
     | (VariantExpected(_), _) => err(TypWantConstructorFoundType(utyp))
     | (_, Parens(t)) => status_for_node(~expects, t)
@@ -3340,85 +3296,66 @@ and utyp_to_info_map =
     add(m);
   | Prod(ts) =>
     let duplicate_labels =
-      LabeledTuple.get_duplicate_labels(Typ.match_tup_label, ts);
+      LabeledTuple.get_duplicate_labels(Typ.get_label, ts);
     let m =
-      List.is_empty(duplicate_labels)
-        ? map_m(go, ts, m) |> snd
-        : map_m(
-            (t: Typ.t) =>
-              go(
-                ~expects=
-                  switch (t.term) {
-                  | Label(_)
-                  | TupLabel(_, _) =>
-                    LabelExpected(Duplicate, duplicate_labels)
-                  | _ => TypeExpected
-                  },
-                t,
-              ),
-            ts,
-            m,
-          )
-          |> snd;
+      List.fold_left(
+        (m, entry: TupleEntry.t(Typ.t)) => {
+          let m =
+            switch (entry) {
+            | Labeled(_, l, _) =>
+              let marks =
+                switch (Label.name(l)) {
+                | Some(name) when List.mem(name, duplicate_labels) => [
+                    Mark.DuplicateLabel(name, Label(name) |> Typ.temp),
+                  ]
+                | _ => []
+                };
+              label_to_info_map(
+                ~ctx,
+                ~ancestors=ancestors_inclusive,
+                ~marks,
+                l,
+                m,
+              )
+              |> snd;
+            | Unlabeled(_) => m
+            };
+          go(TupleEntry.value(entry), m) |> snd;
+        },
+        m,
+        ts,
+      );
     add(m);
   | ProdProjection(t, label) =>
     let labels =
       switch (Typ.weak_head_normalize(ctx, t).term) {
       | Prod(ts) =>
-        Some(
-          List.filter_map(
-            t => Typ.match_tup_label(t) |> Option.map(fst),
-            ts,
-          ),
-        )
+        Some(List.filter_map(Typ.match_tup_label, ts) |> List.map(fst))
       | _ => None
       };
-    let m = go(~expects=LabelProjectionExpected(labels), label, m) |> snd;
+    let marks =
+      switch (labels, label.term) {
+      | (Some(labels), Label(name)) when !List.mem(name, labels) => [
+          Mark.InvalidLabel(name, labels),
+        ]
+      | _ => []
+      };
+    let m =
+      label_to_info_map(
+        ~ctx,
+        ~ancestors=ancestors_inclusive,
+        ~marks,
+        ~dot_labels=Option.value(labels, ~default=[]),
+        label,
+        m,
+      )
+      |> snd;
     let m = go(~expects=ProductExpected, t, m) |> snd;
     add(~expects=TypeExpected, m);
   | ProdExtension(t1, t2) =>
     let m = go(~expects=ProductExpected, t1, m) |> snd;
     let m = go(~expects=ProductExpected, t2, m) |> snd;
     add(m);
-  | ExplicitNonlabel =>
-    let ancestors = List.tl(ancestors_inclusive); // Recover original ancestors
-
-    let info: Info.typ = {
-      cls: Typ(ExplicitNonlabel),
-      ctx,
-      ancestors,
-      marks: [Mark.BadToken("_")],
-      message: None,
-      expects,
-      user_term: utyp,
-      warnings: [],
-    };
-    (info, add_info(ids, InfoTyp(info), m));
-  | TupLabel({term: ExplicitNonlabel, _} as label, t) =>
-    let (_, m) = go(t, m);
-
-    let label_info: Info.typ = {
-      cls: Typ(ExplicitNonlabel),
-      ctx,
-      ancestors: ancestors_inclusive,
-      marks: [],
-      message: Some(Message.TypOk(Message.EmptyLabel)),
-      expects,
-      user_term: utyp,
-      warnings: [],
-    };
-
-    let m = add_info(label.annotation.ids, InfoTyp(label_info), m);
-    add(~expects=TypeExpected, ~utyp=t, m);
-  | TupLabel(label, t) =>
-    let expects_label =
-      switch (expects) {
-      | LabelExpected(_) => expects
-      | _ => LabelExpected(Unique, [])
-      };
-    let m = go(~expects=expects_label, label, m) |> snd;
-    let m = go(t, m) |> snd;
-    add(~expects=TypeExpected, m);
   | Label(_) => add(m)
   | Sum(variants) =>
     let (m, _) =

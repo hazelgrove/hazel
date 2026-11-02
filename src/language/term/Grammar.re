@@ -117,16 +117,15 @@ and typ_term('a) =
   | List(typ_t('a))
   | Arrow(typ_t('a), typ_t('a))
   | Sum(ConstructorMap.t(typ_t('a)))
-  | Prod(list(typ_t('a)))
-  | ExplicitNonlabel
+  | Prod(list(tuple_entry('a, typ_t('a))))
+  /* the type of a backtick label value */
   | Label(string)
-  | TupLabel(typ_t('a), typ_t('a))
   | Parens(typ_t('a))
   | Projector(projector_data, typ_t('a))
   | Rec(tpat_t('a), typ_t('a))
   | Poly(tpat_t('a), typ_t('a))
   | ProofOf(exp_t('a))
-  | ProdProjection(typ_t('a), typ_t('a))
+  | ProdProjection(typ_t('a), label_t('a))
   | ProdExtension(typ_t('a), typ_t('a))
   | Sig(list(sig_t('a)))
 and typ_t('a) = Annotated.t(typ_term('a), 'a)
@@ -387,17 +386,17 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
         | Poly(tp, t) =>
           Poly(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
         | ProofOf(e) => ProofOf(map_exp_annotation(f, e))
-        | Prod(l) => Prod(List.map(x => map_typ_annotation(f, x), l))
+        | Prod(l) =>
+          Prod(
+            List.map(map_tuple_entry_annotation(f, map_typ_annotation), l),
+          )
         | Label(l) => Label(l)
-        | ExplicitNonlabel => ExplicitNonlabel
-        | TupLabel(t1, t2) =>
-          TupLabel(map_typ_annotation(f, t1), map_typ_annotation(f, t2))
         | Sum(m) =>
           Sum(ConstructorMap.map_preserving(map_typ_annotation(f), m))
-        | ProdProjection(t1, t2) =>
+        | ProdProjection(t, l) =>
           ProdProjection(
-            map_typ_annotation(f, t1),
-            map_typ_annotation(f, t2),
+            map_typ_annotation(f, t),
+            map_label_annotation(f, l),
           )
         | ProdExtension(t1, t2) =>
           ProdExtension(
@@ -1010,12 +1009,34 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Sum(m),
       annotation: default_annotation(ann),
     };
-    let prod = (~ann=?, l): typ_t(DefaultAnnotation.t) => {
-      term: Prod(l),
+    /* an unlabeled product */
+    let prod = (~ann=?, ts): typ_t(DefaultAnnotation.t) => {
+      term: Prod(List.map(t => Unlabeled(t), ts)),
       annotation: default_annotation(ann),
     };
-    let prod_projection = (~ann=?, t1, t2): typ_t(DefaultAnnotation.t) => {
-      term: ProdProjection(t1, t2),
+    let prod_entries = (~ann=?, entries): typ_t(DefaultAnnotation.t) => {
+      term: Prod(entries),
+      annotation: default_annotation(ann),
+    };
+    /* An entry labeled with a name; ~ann is the `=` tile's */
+    let labeled =
+        (~ann=?, ~label_ann=?, name, t)
+        : tuple_entry(DefaultAnnotation.t, typ_t(DefaultAnnotation.t)) =>
+      Labeled(
+        default_annotation(ann),
+        {
+          term: Label(name),
+          annotation: default_annotation(label_ann),
+        },
+        t,
+      );
+    /* An entry with any label */
+    let labeled' =
+        (~ann=?, l, t)
+        : tuple_entry(DefaultAnnotation.t, typ_t(DefaultAnnotation.t)) =>
+      Labeled(default_annotation(ann), l, t);
+    let prod_projection = (~ann=?, t, l): typ_t(DefaultAnnotation.t) => {
+      term: ProdProjection(t, l),
       annotation: default_annotation(ann),
     };
     let prod_extension = (~ann=?, t1, t2): typ_t(DefaultAnnotation.t) => {
@@ -1024,14 +1045,6 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let label = (~ann=?, l): typ_t(DefaultAnnotation.t) => {
       term: Label(l),
-      annotation: default_annotation(ann),
-    };
-    let explicit_non_label = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
-      term: ExplicitNonlabel,
-      annotation: default_annotation(ann),
-    };
-    let tup_label = (~ann=?, t1, t2): typ_t(DefaultAnnotation.t) => {
-      term: TupLabel(t1, t2),
       annotation: default_annotation(ann),
     };
     let parens = (~ann=?, t): typ_t(DefaultAnnotation.t) => {

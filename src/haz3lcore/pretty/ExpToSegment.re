@@ -338,9 +338,7 @@ let external_precedence_typ = (tp: Typ.t) =>
   | Var(_)
   | Atom(_)
   | DrvQuoteTy(_)
-  | Label(_)
-  | ExplicitNonlabel
-  | TupLabel(_) => Precedence.max
+  | Label(_) => Precedence.max
   | ProdProjection(_) => Precedence.type_dot
   | ProdExtension(_) => Precedence.ap
   // Same goes for forms which are already surrounded
@@ -865,18 +863,16 @@ and parenthesize_typ =
   | List(t) =>
     List(parenthesize_typ(t) |> paren_typ_at(Precedence.min)) |> rewrap
   | Prod([]) => typ
-  | Prod([t])
-      when
-        switch (t.term) {
-        | TupLabel(_) => false
-        | _ => true
-        } =>
-    // Single-element tuples are printed as (_ = e)
+  | Prod([Unlabeled(t)]) =>
+    // Single-element tuples are printed as (_ = t)
     let inner =
-      TupLabel(
-        ExplicitNonlabel |> Typ.temp,
-        parenthesize_typ(t) |> paren_typ_at(Precedence.comma),
-      )
+      Prod([
+        Labeled(
+          IdTagged.IdTag.mk_internal(IdTagged.ids(typ)),
+          Label.temp(ExplicitNonlabel),
+          parenthesize_typ(t) |> paren_typ_at(Precedence.comma),
+        ),
+      ])
       |> rewrap;
 
     if (already_paren || !should_auto_wrap_tuple) {
@@ -888,21 +884,20 @@ and parenthesize_typ =
     let inner =
       Prod(
         ts
-        |> List.map(parenthesize_typ)
-        |> List.map(paren_typ_at(Precedence.comma)),
+        |> List.map(
+             TupleEntry.map(t =>
+               parenthesize_typ(t) |> paren_typ_at(Precedence.comma)
+             ),
+           ),
       )
       |> rewrap;
     already_paren || !should_auto_wrap_tuple
       ? inner : Parens(inner) |> Typ.fresh;
-  | ExplicitNonlabel => typ
   | Label(_) => typ
-  | TupLabel(l, t) =>
-    TupLabel(l, parenthesize_typ(t) |> paren_typ_at(Precedence.type_prod))
-    |> rewrap
-  | ProdProjection(t1, t2) =>
+  | ProdProjection(t, l) =>
     ProdProjection(
-      parenthesize_typ(t1) |> paren_typ_at(Precedence.type_dot),
-      parenthesize_typ(t2) |> paren_typ_at(Precedence.type_dot),
+      parenthesize_typ(t) |> paren_typ_at(Precedence.type_dot),
+      l,
     )
     |> rewrap
   | ProdExtension(t1, t2) =>
@@ -2889,8 +2884,10 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
   | Prod([]) =>
     wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, Token.empty_tuple))
   | Prod([t, ...ts]) =>
-    let+ t = go(t)
-    and+ ts = ts |> List.map(go) |> all;
+    let entry_to_pretty =
+      tuple_entry_to_pretty(~settings, ~sort=Sort.Typ, ~go);
+    let+ t = entry_to_pretty(t)
+    and+ ts = ts |> List.map(entry_to_pretty) |> all;
     wrap(
       typ,
       t
@@ -2902,8 +2899,6 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
           ),
         ),
     );
-  | ExplicitNonlabel =>
-    wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, Token.wild))
   | Label(l) =>
     wrap(
       typ,
@@ -2913,78 +2908,12 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
         quoted_label_lexeme(~settings, typ.annotation, l),
       ),
     )
-  | TupLabel(l, t) =>
-    let+ l =
-      switch (l.term) {
-      | Label(l') =>
-        label_to_seg(
-          ~settings,
-          {
-            term: Label(l'),
-            annotation: l.annotation,
-          },
-        )
-      | ExplicitNonlabel =>
-        label_to_seg(
-          ~settings,
-          {
-            term: ExplicitNonlabel,
-            annotation: l.annotation,
-          },
-        )
-      | _ => go(l)
-      }
-    and+ t = go(t);
-
+  | ProdProjection(t, l) =>
+    let+ t = go(t);
     wrap(
       typ,
-      List.flatten([
-        l,
-        [
-          Tile({
-            id: typ |> Typ.rep_id,
-            form: Form.Compound(TupleLabeled),
-            sort: Sort.Typ,
-            shards: [0],
-            children: [],
-          }),
-        ],
-        switch (settings.secondary) {
-        | AutoFormat =>
-          let first = Segment.first_string(t);
-          if (Token.begins_with_potential_operator(first)
-              && !String.starts_with(first, ~prefix="…")) {
-            [Secondary(mk_space(Id.mk())), ...t];
-          } else {
-            t;
-          };
-        | PreserveExact => t
-        },
-      ]),
+      t @ [mk_form(Dot, typ |> Typ.rep_id, [])] @ label_to_seg(~settings, l),
     );
-  | ProdProjection(t1, t2) =>
-    let* t1 = go(t1)
-    and* t2 =
-      switch (t2.term) {
-      | Label(l') =>
-        label_to_seg(
-          ~settings,
-          {
-            term: Label(l'),
-            annotation: t2.annotation,
-          },
-        )
-      | ExplicitNonlabel =>
-        label_to_seg(
-          ~settings,
-          {
-            term: ExplicitNonlabel,
-            annotation: t2.annotation,
-          },
-        )
-      | _ => go(t2)
-      };
-    wrap(typ, t1 @ [mk_form(Dot, typ |> Typ.rep_id, [])] @ t2);
   | ProdExtension(t1, t2) =>
     let+ t1 = go(t1)
     and+ t2 = go(t2);

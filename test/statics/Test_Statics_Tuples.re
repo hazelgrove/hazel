@@ -9,12 +9,12 @@ module TupleExtension = {
       "Tuple extension",
       {|(a=0, 1, b=2) ... (a=1, 3, c=4)|},
       Some(
-        prod([
-          tup_label(label("a"), int()),
-          int(),
-          tup_label(label("b"), int()),
-          int(),
-          tup_label(label("c"), int()),
+        prod_entries([
+          labeled("a", int()),
+          Unlabeled(int()),
+          labeled("b", int()),
+          Unlabeled(int()),
+          labeled("c", int()),
         ]),
       ),
     ),
@@ -27,12 +27,12 @@ module TupleExtension = {
         let d : Date = in
         p ... d|},
       Some(
-        prod([
-          tup_label(label("name"), string()),
-          tup_label(label("age"), int()),
-          tup_label(label("year"), int()),
-          tup_label(label("month"), int()),
-          tup_label(label("day"), int()),
+        prod_entries([
+          labeled("name", string()),
+          labeled("age", int()),
+          labeled("year", int()),
+          labeled("month", int()),
+          labeled("day", int()),
         ]),
       ),
     ),
@@ -62,7 +62,12 @@ module TupleExtension = {
     test_case("Tuple extension with hole in label position", `Quick, () =>
       annotated_tree_test(
         "(?=1, 2) ... (3, 4)",
-        prod([tup_label(empty_hole(), int()), int(), int(), int()]),
+        prod_entries([
+          labeled'(Label.empty_hole(), int()),
+          Unlabeled(int()),
+          Unlabeled(int()),
+          Unlabeled(int()),
+        ]),
         FIError.Exp.(
           tuple_extension(
             tuple_entries([labeled'(FIError.Label.empty_hole(), int(1))]),
@@ -81,8 +86,8 @@ module ProductProjection = {
       {|type T = (a=Int, String) in 1 : T.a |},
       Some(
         prod_projection(
-          prod([tup_label(label("a"), int()), string()]),
-          label("a"),
+          prod_entries([labeled("a", int()), Unlabeled(string())]),
+          Label.label("a"),
         ),
       ),
     ),
@@ -91,15 +96,17 @@ module ProductProjection = {
         {|type T = (a=Int, String) in "" : T.a |},
         Typ.(
           prod_projection(
-            prod([tup_label(label("a"), int()), string()]),
-            label("a"),
+            prod_entries([labeled("a", int()), Unlabeled(string())]),
+            Label.label("a"),
           )
         ),
         FIError.(
           Exp.(
             ty_alias(
               TPat.var("T"),
-              Typ.(prod([tup_label(label("a"), int()), string()])),
+              Typ.(
+                prod_entries([labeled("a", int()), Unlabeled(string())])
+              ),
               asc(
                 string(
                   ~ann=
@@ -107,7 +114,11 @@ module ProductProjection = {
                       Some(
                         Marks([
                           ExpectationMismatch({
-                            ana: prod_projection(var("T"), label("a")),
+                            ana:
+                              prod_projection(
+                                var("T"),
+                                FTemp.Label.label("a"),
+                              ),
                             syn: string(),
                           }),
                         ]),
@@ -115,7 +126,7 @@ module ProductProjection = {
                     ),
                   "",
                 ),
-                Typ.(prod_projection(var("T"), label("a"))),
+                Typ.(prod_projection(var("T"), Label.label("a"))),
               ),
             )
           )
@@ -127,19 +138,21 @@ module ProductProjection = {
         annotated_tree_test(
           {|type T = (a=Int, String) in 1 : T.b |},
           prod_projection(
-            prod([tup_label(label("a"), int()), string()]),
-            label("b"),
+            prod_entries([labeled("a", int()), Unlabeled(string())]),
+            IdTagged.FreshGrammar.Label.label("b"),
           ),
           FIError.Exp.(
             ty_alias(
               TPat.var("T"),
-              Typ.(prod([tup_label(label("a"), int()), string()])),
+              Typ.(
+                prod_entries([labeled("a", int()), Unlabeled(string())])
+              ),
               asc(
                 int(1),
                 Typ.(
                   prod_projection(
                     var("T"),
-                    label(
+                    Label.label(
                       ~ann=Some(Marks([Mark.InvalidLabel("b", ["a"])])),
                       "b",
                     ),
@@ -192,7 +205,9 @@ module ExplicitlyUnlabeledTuples = {
                 ExpectationMismatch({
                   ana:
                     parens(
-                      prod([tup_label(explicit_non_label(), string())]),
+                      prod_entries([
+                        labeled'(Label.explicit_non_label(), string()),
+                      ]),
                     ),
                   syn: prod([int()]),
                 }),
@@ -201,7 +216,7 @@ module ExplicitlyUnlabeledTuples = {
           );
         annotated_tree_test(
           {|(_=1) : (_=String)|},
-          prod([tup_label(explicit_non_label(), string())]),
+          prod_entries([labeled'(Label.explicit_non_label(), string())]),
           FIError.(
             Exp.(
               asc(
@@ -229,7 +244,11 @@ module ExplicitlyUnlabeledTuples = {
                   ],
                 ),
                 Typ.(
-                  parens(prod([tup_label(explicit_non_label(), string())]))
+                  parens(
+                    prod_entries([
+                      labeled'(Label.explicit_non_label(), string()),
+                    ]),
+                  )
                 ),
               )
             )
@@ -254,10 +273,7 @@ let tests = (
       () => {
       annotated_tree_test(
         "let x = (1, 2) in let y : (a=Int, b=Int) = x in y",
-        Typ.prod([
-          tup_label(label("a"), int()),
-          tup_label(label("b"), int()),
-        ]),
+        Typ.prod_entries([labeled("a", int()), labeled("b", int())]),
         FIError.(
           Exp.(
             let_(
@@ -269,9 +285,9 @@ let tests = (
                     var("y"),
                     Typ.(
                       parens(
-                        prod([
-                          tup_label(label("a"), int()),
-                          tup_label(label("b"), int()),
+                        prod_entries([
+                          labeled("a", int()),
+                          labeled("b", int()),
                         ]),
                       )
                     ),
@@ -285,9 +301,9 @@ let tests = (
                           ExpectationMismatch({
                             ana:
                               parens(
-                                prod([
-                                  tup_label(label("a"), int()),
-                                  tup_label(label("b"), int()),
+                                prod_entries([
+                                  labeled("a", int()),
+                                  labeled("b", int()),
                                 ]),
                               ),
                             syn: prod([int(), int()]),
@@ -307,12 +323,12 @@ let tests = (
     fully_consistent_typecheck(
       "Assigning labeled tuple to variable",
       "let x = (l=32) in let y : (l=Int) = x in y",
-      Some(prod([tup_label(label("l"), int())])),
+      Some(prod_entries([labeled("l", int())])),
     ),
     fully_consistent_typecheck(
       "Singleton Labeled Tuple ascription in let",
       "let x : (l=String) = (\"a\") in x",
-      Some(prod([tup_label(label("l"), string())])),
+      Some(prod_entries([labeled("l", string())])),
     ),
     test_case(
       "Singleton Labeled Tuple ascription in let with wrong type should fail",
@@ -320,14 +336,14 @@ let tests = (
       () => {
       annotated_tree_test(
         "let x : (l=String) = 1 in x",
-        prod([tup_label(label("l"), string())]),
+        prod_entries([labeled("l", string())]),
         FIError.(
           Exp.(
             let_(
               Pat.(
                 asc(
                   var("x"),
-                  Typ.(parens(prod([tup_label(label("l"), string())]))),
+                  Typ.(parens(prod_entries([labeled("l", string())]))),
                 )
               ),
               int(
@@ -353,37 +369,26 @@ let tests = (
     fully_consistent_typecheck(
       "Singleton Labeled Tuple with specified label",
       "let x : (l=String) = (l=\"a\") in x",
-      Some(prod([tup_label(label("l"), string())])),
+      Some(prod_entries([labeled("l", string())])),
     ),
     fully_consistent_typecheck(
       "Labeled tuple with multiple labels",
       {|(l=32, l2="")|},
-      Some(
-        prod([
-          tup_label(label("l"), int()),
-          tup_label(label("l2"), string()),
-        ]),
-      ),
+      Some(prod_entries([labeled("l", int()), labeled("l2", string())])),
     ),
     fully_consistent_typecheck(
       "Let statement that adds labels during elaboration",
       {|let x : (name=String, age=Int)= ("Bob", 20) in x|},
       Some(
-        prod([
-          tup_label(label("name"), string()),
-          tup_label(label("age"), int()),
-        ]),
+        prod_entries([labeled("name", string()), labeled("age", int())]),
       ),
     ),
     fully_consistent_typecheck(
       "Duplicate singleton labels",
       {|let y : (l=(l=Int)) = (l=1) in y|},
       Some(
-        prod([
-          tup_label(
-            label("l"),
-            parens(prod([tup_label(label("l"), int())])),
-          ),
+        prod_entries([
+          labeled("l", parens(prod_entries([labeled("l", int())]))),
         ]),
       ),
     ),
@@ -395,14 +400,14 @@ let tests = (
     fully_consistent_typecheck(
       "Singleton labeled argument let with unknown type",
       {|let x : (a=?) = (a=1) in x|},
-      Some(prod([tup_label(label("a"), unknown(Hole(EmptyHole)))])),
+      Some(prod_entries([labeled("a", unknown(Hole(EmptyHole)))])),
     ),
     fully_consistent_typecheck(
       "nested different singleton labeled arguments",
       {|let x : (b=c=String) = b="" in x|},
       Some(
-        prod([
-          tup_label(label("b"), prod([tup_label(label("c"), string())])),
+        prod_entries([
+          labeled("b", prod_entries([labeled("c", string())])),
         ]),
       ),
     ),
@@ -410,13 +415,13 @@ let tests = (
       "nested different singleton labeled arguments",
       {|let x : (a=b=c=?) = b=? in x|},
       Some(
-        prod([
-          tup_label(
-            label("a"),
-            prod([
-              tup_label(
-                label("b"),
-                prod([tup_label(label("c"), unknown(Hole(EmptyHole)))]),
+        prod_entries([
+          labeled(
+            "a",
+            prod_entries([
+              labeled(
+                "b",
+                prod_entries([labeled("c", unknown(Hole(EmptyHole)))]),
               ),
             ]),
           ),
@@ -441,10 +446,10 @@ let tests = (
     test_case("Unknown label in last position", `Quick, () => {
       annotated_tree_test(
         {|(1, 1.2, z="hello") : (a=Int, b=Float, String)|},
-        prod([
-          tup_label(label("a"), int()),
-          tup_label(label("b"), float()),
-          string(),
+        prod_entries([
+          labeled("a", int()),
+          labeled("b", float()),
+          Unlabeled(string()),
         ]),
         FIError.(
           Exp.(
@@ -463,10 +468,10 @@ let tests = (
               ),
               Typ.(
                 parens(
-                  prod([
-                    tup_label(label("a"), int()),
-                    tup_label(label("b"), float()),
-                    string(),
+                  prod_entries([
+                    labeled("a", int()),
+                    labeled("b", float()),
+                    Unlabeled(string()),
                   ]),
                 )
               ),
@@ -483,7 +488,7 @@ let tests = (
           Some(Marks([DuplicateLabel("a", FTemp.Typ.label("a"))]));
         annotated_tree_test(
           {|(a="hello", a=3)|},
-          prod([tup_label(label("a"), unknown(Internal))]),
+          prod_entries([labeled("a", unknown(Internal))]),
           FIError.(
             Exp.(
               parens(
@@ -517,7 +522,9 @@ let tests = (
     test_case("Singleton Bad label synthesis", `Quick, () => {
       annotated_tree_test(
         {|(1="hello")|},
-        prod([tup_label(unknown(Internal), string())]),
+        prod_entries([
+          labeled'(IdTagged.FreshGrammar.Label.empty_hole(), string()),
+        ]),
         FIError.(
           Exp.(
             parens(
@@ -538,9 +545,9 @@ let tests = (
     test_case("Bad label synthesis", `Quick, () => {
       annotated_tree_test(
         {|(1="hello", a=3)|},
-        prod([
-          tup_label(unknown(Internal), string()),
-          tup_label(label("a"), int()),
+        prod_entries([
+          labeled'(IdTagged.FreshGrammar.Label.empty_hole(), string()),
+          labeled("a", int()),
         ]),
         FIError.(
           Exp.(
@@ -574,7 +581,12 @@ let tests = (
                     "extra_label",
                   ),
                   Typ.(
-                    parens(prod([int(), tup_label(label("a"), string())]))
+                    parens(
+                      prod_entries([
+                        Unlabeled(int()),
+                        labeled("a", string()),
+                      ]),
+                    )
                   ),
                 )
               ),
@@ -606,10 +618,7 @@ let tests = (
                 ana: FTemp.Typ.int(),
                 syn:
                   FTemp.Typ.(
-                    prod([
-                      tup_label(label("a"), int()),
-                      tup_label(label("b"), int()),
-                    ])
+                    prod_entries([labeled("a", int()), labeled("b", int())])
                   ),
               }),
             ]),
@@ -710,7 +719,7 @@ let tests = (
           Some(Marks([DuplicateLabel("a", FTemp.Typ.label("a"))]));
         annotated_tree_test(
           {|((a=1,a=2), 3)|},
-          prod([prod([tup_label(label("a"), unknown(Internal))]), int()]),
+          prod([prod_entries([labeled("a", unknown(Internal))]), int()]),
           FIError.(
             Exp.(
               tuple([
@@ -743,7 +752,7 @@ let tests = (
           Some(Marks([DuplicateLabel("a", FTemp.Typ.label("a"))]));
         annotated_tree_test(
           {|fun (a=a, a=b) -> 1|},
-          arrow(prod([tup_label(label("a"), unknown(Internal))]), int()),
+          arrow(prod_entries([labeled("a", unknown(Internal))]), int()),
           FIError.(
             Exp.(
               fn(
@@ -778,96 +787,61 @@ let tests = (
         );
       },
     ),
-    test_case("Duplicate labels in type", `Quick, () => {
-      annotated_tree_test(
-        "(a=?) : (a=Int, a=String)",
-        Typ.prod([
-          tup_label(label("a"), int()),
-          tup_label(label("a"), string()),
-        ]),
-        FIError.(
-          Exp.(
-            asc(
-              tuple_entries([labeled("a", empty_hole())]),
-              Typ.(
-                prod([
-                  tup_label(
-                    label(
-                      ~ann=
-                        Some(
-                          Marks([
-                            Mark.DuplicateLabel("a", FTemp.Typ.label("a")),
-                          ]),
-                        ),
-                      "a",
-                    ),
-                    int(),
-                  ),
-                  tup_label(
-                    label(
-                      ~ann=
-                        Some(
-                          Marks([
-                            Mark.DuplicateLabel("a", FTemp.Typ.label("a")),
-                          ]),
-                        ),
-                      "a",
-                    ),
-                    string(),
-                  ),
-                ])
-              ),
+    test_case(
+      "Duplicate labels in type",
+      `Quick,
+      () => {
+        let duplicate_a: option(issue) =
+          Some(Marks([DuplicateLabel("a", FTemp.Typ.label("a"))]));
+        annotated_tree_test(
+          "(a=?) : (a=Int, a=String)",
+          Typ.prod_entries([labeled("a", int()), labeled("a", string())]),
+          FIError.(
+            Exp.(
+              asc(
+                tuple_entries([labeled("a", empty_hole())]),
+                Typ.(
+                  prod_entries([
+                    labeled(~label_ann=duplicate_a, "a", int()),
+                    labeled(~label_ann=duplicate_a, "a", string()),
+                  ])
+                ),
+              )
             )
-          )
-        ),
-      )
-    }),
-    test_case("Duplicate label leaves non-labeled unaffected", `Quick, () => {
-      annotated_tree_test(
-        "? : (a=Int, a=String, Float)",
-        Typ.prod([
-          tup_label(label("a"), int()),
-          tup_label(label("a"), string()),
-          float(),
-        ]),
-        FIError.(
-          Exp.(
-            asc(
-              empty_hole(),
-              Typ.(
-                prod([
-                  tup_label(
-                    label(
-                      ~ann=
-                        Some(
-                          Marks([
-                            Mark.DuplicateLabel("a", FTemp.Typ.label("a")),
-                          ]),
-                        ),
-                      "a",
-                    ),
-                    int(),
-                  ),
-                  tup_label(
-                    label(
-                      ~ann=
-                        Some(
-                          Marks([
-                            Mark.DuplicateLabel("a", FTemp.Typ.label("a")),
-                          ]),
-                        ),
-                      "a",
-                    ),
-                    string(),
-                  ),
-                  float(),
-                ])
-              ),
+          ),
+        );
+      },
+    ),
+    test_case(
+      "Duplicate label leaves non-labeled unaffected",
+      `Quick,
+      () => {
+        let duplicate_a: option(issue) =
+          Some(Marks([DuplicateLabel("a", FTemp.Typ.label("a"))]));
+        annotated_tree_test(
+          "? : (a=Int, a=String, Float)",
+          Typ.prod_entries([
+            labeled("a", int()),
+            labeled("a", string()),
+            Unlabeled(float()),
+          ]),
+          FIError.(
+            Exp.(
+              asc(
+                empty_hole(),
+                Typ.(
+                  prod_entries([
+                    labeled(~label_ann=duplicate_a, "a", int()),
+                    labeled(~label_ann=duplicate_a, "a", string()),
+                    Unlabeled(float()),
+                  ])
+                ),
+              )
             )
-          )
-        ),
-      )
-    }),
+          ),
+        );
+      },
+    ),
   ]
   @ TupleExtension.tests
   @ ProductProjection.tests

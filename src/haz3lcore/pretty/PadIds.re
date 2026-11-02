@@ -126,23 +126,19 @@ let rec pad_variant_anns = (ty: Typ.t): Typ.t => {
         ),
       )
     | Arrow(t1, t2) => Arrow(pad_variant_anns(t1), pad_variant_anns(t2))
-    | Prod(ts) => Prod(List.map(pad_variant_anns, ts))
+    | Prod(ts) => Prod(List.map(TupleEntry.map(pad_variant_anns), ts))
     | List(t) => List(pad_variant_anns(t))
-    | TupLabel(t1, t2) =>
-      TupLabel(pad_variant_anns(t1), pad_variant_anns(t2))
     | Parens(t) => Parens(pad_variant_anns(t))
     | Rec(tp, t) => Rec(tp, pad_variant_anns(t))
     | Poly(tp, t) => Poly(tp, pad_variant_anns(t))
     | Projector(d, t) => Projector(d, pad_variant_anns(t))
-    | ProdProjection(t1, t2) =>
-      ProdProjection(pad_variant_anns(t1), pad_variant_anns(t2))
+    | ProdProjection(t, l) => ProdProjection(pad_variant_anns(t), l)
     | ProdExtension(t1, t2) =>
       ProdExtension(pad_variant_anns(t1), pad_variant_anns(t2))
     | Unknown(_)
     | Atom(_)
     | DrvQuoteTy(_)
     | Label(_)
-    | ExplicitNonlabel
     | Var(_)
     | ProofOf(_)
     | Sig(_) => ty.term

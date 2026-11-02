@@ -61,24 +61,10 @@ let suggest = (ci: Info.t, z: Zipper.t): list(t) => {
         },
       dot_labels,
     )
-  | InfoTyp({
-      expects: TypExpectation.LabelProjectionExpected(Some(labels)),
-      _,
-    })
-      when labels != [] =>
-    List.map(
-      label =>
-        TyDiSuggestion.{
-          content: label,
-          strategy: Typ(FromCtx),
-        },
-      labels,
-    )
   | InfoLabel(_)
   | InfoExp({cls: Exp(Label), _})
   | InfoPat({cls: Pat(Label), _})
-  | InfoTyp({cls: Typ(Label), _})
-  | InfoTyp({cls: Typ(TupLabel), _}) => []
+  | InfoTyp({cls: Typ(Label), _}) => []
   | _ =>
     /* When the expected type is unknown (e.g., no type annotation),
      * prioritize keywords/forms over context variables. This prevents

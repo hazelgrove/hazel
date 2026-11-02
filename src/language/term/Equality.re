@@ -614,12 +614,6 @@ let equality =
     | (_, Parens(x)) when ignore_parens => typ'(t1, x)
     | (Projector(_, x), _) when ignore_projectors => typ'(x, t2)
     | (_, Projector(_, x)) when ignore_projectors => typ'(t1, x)
-    | (TupLabel({term: ExplicitNonlabel, _}, t1), _)
-        when ignore_explicit_unlabelling =>
-      typ'(t1, t2)
-    | (_, TupLabel({term: ExplicitNonlabel, _}, t2))
-        when ignore_explicit_unlabelling =>
-      typ'(t1, t2)
 
     // Wrappers otherwise: compare.
     | (Parens(x), Parens(y)) => typ'(x, y)
@@ -675,7 +669,7 @@ let equality =
     | (List(ty1), List(ty2)) => typ'(ty1, ty2)
     | (List(_), _) => false
     | (Prod(tys1), Prod(tys2)) when List.length(tys1) == List.length(tys2) =>
-      List.equal(typ', tys1, tys2)
+      List.equal(tuple_entry(alphas_exp, alphas_typ, typ'), tys1, tys2)
     | (Prod(_), _) => false
     | (Arrow(t11, t12), Arrow(t21, t22)) =>
       typ'(t11, t21) && typ'(t12, t22)
@@ -684,13 +678,8 @@ let equality =
       /* Does not normalize the types. */
       ConstructorMap.equal(typ', variants1, variants2)
     | (Sum(_), _) => false
-    | (TupLabel(label1, t1'), TupLabel(label2, t2')) =>
-      typ'(label1, label2) && typ'(t1', t2')
-    | (TupLabel(_, _), _) => false
-    | (ExplicitNonlabel, ExplicitNonlabel) => true
-    | (ExplicitNonlabel, _) => false
-    | (ProdProjection(t1, t2), ProdProjection(t1', t2')) =>
-      typ'(t1, t1') && typ'(t2, t2')
+    | (ProdProjection(t1, l1), ProdProjection(t2, l2)) =>
+      typ'(t1, t2) && label(alphas_exp, alphas_typ, l1, l2)
     | (ProdProjection(_), _) => false
     | (ProdExtension(t1, t2), ProdExtension(t1', t2')) =>
       typ'(t1, t1') && typ'(t2, t2')

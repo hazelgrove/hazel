@@ -437,12 +437,13 @@ let count_tests =
         check_count(
           "a pair needs one separator",
           1,
-          Prod([int(), bool()]) |> Typ.temp,
+          Prod([Unlabeled(int()), Unlabeled(bool())]) |> Typ.temp,
         );
         check_count(
           "a triple needs two separators",
           2,
-          Prod([int(), bool(), string()]) |> Typ.temp,
+          Prod([Unlabeled(int()), Unlabeled(bool()), Unlabeled(string())])
+          |> Typ.temp,
         );
         check_count("Void prints from rep_id", 1, Sum([]) |> Typ.temp);
         check_count("Int prints from rep_id", 1, int());

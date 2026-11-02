@@ -253,7 +253,8 @@ let suggest_lookahead_variable = (ci: Info.t): list(TyDiSuggestion.t) => {
     | List(ty) =>
       List.map(restrategize(" )::"), exp_aps(ty))
       @ List.map(restrategize("::"), exp_refs(ty))
-    | Prod([ty, ...tys]) =>
+    | Prod([entry, ...tys]) =>
+      let ty = TupleEntry.value(entry);
       let commas =
         List.init(List.length(tys), _ => ",") |> String.concat(" ");
       List.map(restrategize(" )" ++ commas), exp_aps(ty))
@@ -279,7 +280,8 @@ let suggest_lookahead_variable = (ci: Info.t): list(TyDiSuggestion.t) => {
     | List(ty) =>
       List.map(restrategize(" )::"), pat_aps(ty))
       @ List.map(restrategize("::"), pat_refs(ty))
-    | Prod([ty, ...tys]) =>
+    | Prod([entry, ...tys]) =>
+      let ty = TupleEntry.value(entry);
       let commas =
         List.init(List.length(tys), _ => ",") |> String.concat(" ");
       List.map(restrategize(" )" ++ commas), pat_aps(ty))

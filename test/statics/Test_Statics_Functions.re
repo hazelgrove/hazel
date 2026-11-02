@@ -19,9 +19,7 @@ let tests = (
     fully_consistent_typecheck(
       "Function with labeled param",
       "fun (a=x) -> 4",
-      Some(
-        arrow(prod([tup_label(label("a"), unknown(Internal))]), int()),
-      ),
+      Some(arrow(prod_entries([labeled("a", unknown(Internal))]), int())),
     ),
     fully_consistent_typecheck(
       "bifunction",

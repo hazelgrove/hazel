@@ -509,23 +509,18 @@ and Typ: {
     | TypVar(s) => var(s)
     | ParenTyp(t) => parens(of_menhir_ast(t))
     | TupleType([]) => prod([])
-    | TupleType([TupLabelType(_) as tl]) => prod([of_menhir_ast(tl)])
+    | TupleType([TupLabelType(_) as tl]) =>
+      prod_entries([entry_of_menhir_ast(tl)])
     | TupleType([t]) => of_menhir_ast(t)
-    | TupleType(ts) => prod(List.map(of_menhir_ast, ts))
+    | TupleType(ts) => prod_entries(List.map(entry_of_menhir_ast, ts))
     | LabelType(s) => label(s)
-    | ExplicitNonlabel => explicit_non_label()
-    | TupLabelType(t1, t2) =>
-      tup_label(of_menhir_ast(t1), of_menhir_ast(t2))
+    /* a lone `_` is an invalid type, as MakeTerm reads it */
+    | ExplicitNonlabel => unknown(Hole(Invalid("_")))
+    | TupLabelType(_) => prod_entries([entry_of_menhir_ast(typ)])
     | ArrayType(t) => list(of_menhir_ast(t))
     | ArrowType(t1, t2) => arrow(of_menhir_ast(t1), of_menhir_ast(t2))
     | ProdProjection(t1, t2) =>
-      let t2 =
-        switch (t2) {
-        | TypVar(s) => label(s)
-        | LabelType(s) => label(s)
-        | _ => of_menhir_ast(t2)
-        };
-      prod_projection(of_menhir_ast(t1), t2);
+      prod_projection(of_menhir_ast(t1), label_of_menhir_ast(t2))
     | ProdExtension(t1, t2) =>
       prod_extension(of_menhir_ast(t1), of_menhir_ast(t2))
     | SumTyp(sumterms) =>
@@ -557,7 +552,23 @@ and Typ: {
         term: of_menhir_ast(t).term,
       }
     };
-  };
+  }
+  and entry_of_menhir_ast =
+      (typ: AST.typ): Language.Grammar.tuple_entry(bool, IndicatedG.typ) =>
+    switch (typ) {
+    | TupLabelType(l, t) =>
+      labeled'(label_of_menhir_ast(l), of_menhir_ast(t))
+    | _ => Unlabeled(of_menhir_ast(typ))
+    }
+  /* As MakeTerm reads the token in label position */
+  and label_of_menhir_ast = (typ: AST.typ): Language.Grammar.label_t(bool) =>
+    switch (typ) {
+    | TypVar(s)
+    | LabelType(s) => IndicatedG.Label.label(s)
+    | ExplicitNonlabel => IndicatedG.Label.explicit_non_label()
+    | UnknownType(EmptyHole) => IndicatedG.Label.empty_hole()
+    | _ => IndicatedG.Label.multi_hole([Typ(of_menhir_ast(typ))])
+    };
 
   let of_core_type_provenance =
       (p: IndicatedG.typ_provenance): AST.typ_provenance => {
@@ -576,7 +587,7 @@ and Typ: {
     | Atom(Bool) => BoolType
     | Atom(Nat) => NatType
     | Var(x) => TypVar(x)
-    | Prod(ts) => TupleType(List.map(of_core, ts))
+    | Prod(ts) => TupleType(List.map(entry_of_core, ts))
     | List(t) => ArrayType(of_core(t))
     | Arrow(t1, t2) => ArrowType(of_core(t1), of_core(t2))
     | Unknown(p) => UnknownType(of_core_type_provenance(p))
@@ -585,9 +596,7 @@ and Typ: {
     | ProofOf(e) => ProofOfType(Exp.of_core(e))
     | Parens(t) => ParenTyp(of_core(t))
     | Label(s) => LabelType(s)
-    | ExplicitNonlabel => (ExplicitNonlabel: AST.typ)
-    | TupLabel(t1, t2) => TupLabelType(of_core(t1), of_core(t2))
-    | ProdProjection(t1, t2) => ProdProjection(of_core(t1), of_core(t2))
+    | ProdProjection(t, l) => ProdProjection(of_core(t), label_of_core(l))
     | ProdExtension(t1, t2) => ProdExtension(of_core(t1), of_core(t2))
     | Sum([]) => VoidType
     | Sum(constructors) =>
@@ -608,7 +617,22 @@ and Typ: {
     | Projector(_, t) => of_core(t)
     | Sig(items) => Sig(List.map(SigItem.of_core, items))
     };
-  };
+  }
+  and entry_of_core =
+      (entry: Language.Grammar.tuple_entry(bool, IndicatedG.typ)): AST.typ =>
+    switch (entry) {
+    | Labeled(_, l, t) => TupLabelType(label_of_core(l), of_core(t))
+    | Unlabeled(t) => of_core(t)
+    }
+  and label_of_core = (l: Language.Grammar.label_t(bool)): AST.typ =>
+    switch (l.term) {
+    | Label(s) => LabelType(s)
+    | ExplicitNonlabel => ExplicitNonlabel
+    | EmptyHole => UnknownType(EmptyHole)
+    | Invalid(s) => InvalidTyp(s)
+    | MultiHole([Typ(t)]) => of_core(t)
+    | MultiHole(_) => raise(Failure("MultiHole not supported"))
+    };
 }
 and TPat: {
   let of_menhir_ast: AST.tpat => IndicatedG.tpat;

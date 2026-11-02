@@ -1584,14 +1584,16 @@ let decide =
       | _ => basic(ArrowTyp.arrow(~arg_id, ~result_id))
       };
     | Label(name) => get_message(LabelTerm.labels(name))
-    | TupLabel(l, t) =>
+    /* the cursor on a labeled entry's `=` indicates its product */
+    | Prod([Labeled(_, l, t)]) =>
       get_message(
         TupLabelTyp.labeled_typs(
-          ~label_id=Typ.rep_id(l),
+          ~label_id=Label.rep_id(l),
           ~typ_id=Typ.rep_id(t),
         ),
       )
-    | Prod(elements) =>
+    | Prod(entries) =>
+      let elements = List.map(TupleEntry.value, entries);
       let n = List.length(elements);
       let basic = group =>
         get_message(~explanation=TupleTyp.tuple_typ_explanation(~n), group);
@@ -1619,7 +1621,6 @@ let decide =
     | Sum(_) => get_message(SumTyp.labelled_sum_typs)
     | Unknown(Hole(Invalid(_))) => Prose("Not a type or type operator")
     | ProdProjection(_) => get_message(DotTyp.dot)
-    | ExplicitNonlabel
     | ProdExtension(_)
     | Parens(_)
     | Sig(_) => message_single(SigTyp.single)

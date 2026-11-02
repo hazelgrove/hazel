@@ -187,14 +187,7 @@ let rec strip_typ_parens = (ty: Typ.t): Typ.t =>
 
 let extract_ana_labels = (ana: Typ.t): list((Var.t, Typ.t)) =>
   switch (strip_typ_parens(ana).term) {
-  | Prod(fields) =>
-    fields
-    |> List.filter_map((field: Typ.t) =>
-         switch (field.term) {
-         | TupLabel({term: Label(name), _}, typ) => Some((name, typ))
-         | _ => None
-         }
-       )
+  | Prod(fields) => fields |> List.filter_map(Typ.match_tup_label)
   | _ => []
   };
 
@@ -211,12 +204,7 @@ let type_exports_type = (exports: list((Var.t, Typ.t))): Typ.t => {
       ([], []),
     )
     |> snd;
-  Prod(
-    deduped
-    |> List.map(((name, ty)) =>
-         TupLabel(Label(name) |> Typ.temp, ty) |> Typ.temp
-       ),
-  )
+  Prod(deduped |> List.map(((name, ty)) => Typ.labeled_entry(name, ty)))
   |> Typ.temp;
 };
 
@@ -441,7 +429,7 @@ let module_actual_type =
              )
            | None => Typ.temp(Unknown(Internal))
            };
-         TupLabel(Label(name) |> Typ.temp, ty) |> Typ.temp;
+         Typ.labeled_entry(name, ty);
        });
   Prod(fields) |> Typ.temp;
 };

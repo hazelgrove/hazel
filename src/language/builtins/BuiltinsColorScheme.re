@@ -39,7 +39,7 @@ let color = () => var("ColorValue");
 
 /* Every record in the contract is a labeled tuple. */
 let record = (fields: list((string, Typ.t))): Typ.t =>
-  prod(List.map(((n, t)) => tup_label(label(n), t), fields));
+  prod_entries(List.map(((n, t)) => labeled(n, t), fields));
 
 let colors = (names: list(string)): Typ.t =>
   record(List.map(n => (n, color()), names));

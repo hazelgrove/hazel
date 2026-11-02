@@ -191,7 +191,7 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
   },
   {
     name: "monus",
-    arg: Prod([nat(), nat()]),
+    arg: Prod([Unlabeled(nat()), Unlabeled(nat())]),
     ret: Atom(Nat),
     imp:
       binary((d1, d2) => {
@@ -207,7 +207,7 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
   },
   {
     name: "int_mod",
-    arg: Prod([int(), int()]),
+    arg: Prod([Unlabeled(int()), Unlabeled(int())]),
     ret: Atom(Int),
     imp:
       binary((d1, d2) => {
@@ -229,7 +229,7 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
   },
   {
     name: "sint_mod",
-    arg: Prod([sint(), sint()]),
+    arg: Prod([Unlabeled(sint()), Unlabeled(sint())]),
     ret: Atom(SInt),
     imp:
       binary((d1, d2) => {
@@ -251,7 +251,7 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
   },
   {
     name: "nat_mod",
-    arg: Prod([nat(), nat()]),
+    arg: Prod([Unlabeled(nat()), Unlabeled(nat())]),
     ret: Atom(Nat),
     imp:
       binary((d1, d2) => {
@@ -273,7 +273,7 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
   },
   {
     name: "float_mod",
-    arg: Prod([float(), float()]),
+    arg: Prod([Unlabeled(float()), Unlabeled(float())]),
     ret: Atom(Float),
     imp:
       binary((d1, d2) => {
@@ -303,7 +303,7 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
   },
   {
     name: "float_min",
-    arg: Prod([float(), float()]),
+    arg: Prod([Unlabeled(float()), Unlabeled(float())]),
     ret: Atom(Float),
     imp:
       binary((d1, d2) => {
@@ -315,7 +315,7 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
   },
   {
     name: "float_max",
-    arg: Prod([float(), float()]),
+    arg: Prod([Unlabeled(float()), Unlabeled(float())]),
     ret: Atom(Float),
     imp:
       binary((d1, d2) => {
@@ -329,7 +329,8 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
     /* clamp(x, lo, hi). Bounds are ordered defensively so a caller passing
        them the wrong way round still gets a value inside the interval. */
     name: "float_clamp",
-    arg: Prod([float(), float(), float()]),
+    arg:
+      Prod([Unlabeled(float()), Unlabeled(float()), Unlabeled(float())]),
     ret: Atom(Float),
     imp:
       ternary((d1, d2, d3) => {
@@ -426,7 +427,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
   },
   {
     name: "string_join",
-    arg: Prod([string(), list(string())]),
+    arg: Prod([Unlabeled(string()), Unlabeled(list(string()))]),
     ret: Atom(String),
     imp:
       binary((d1, d2) => {
@@ -444,7 +445,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
   },
   {
     name: "string_sub",
-    arg: Prod([string(), int(), int()]),
+    arg: Prod([Unlabeled(string()), Unlabeled(int()), Unlabeled(int())]),
     ret: Atom(String),
     imp:
       /* Offsets and lengths are in graphemes, so a slice never splits a
@@ -472,7 +473,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
   },
   {
     name: "string_split",
-    arg: Prod([string(), string()]),
+    arg: Prod([Unlabeled(string()), Unlabeled(string())]),
     ret: List(string()),
     imp:
       /* d1 is the (literal) separator, d2 the string being split. */
@@ -487,7 +488,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
   },
   {
     name: "string_match",
-    arg: Prod([string(), string()]),
+    arg: Prod([Unlabeled(string()), Unlabeled(string())]),
     ret: Atom(Bool),
     imp:
       binary((d1, d2) => {
@@ -499,7 +500,12 @@ let string_fns: list(BuiltinsUtil.fn) = [
   },
   {
     name: "string_replace",
-    arg: Prod([string(), string(), string()]),
+    arg:
+      Prod([
+        Unlabeled(string()),
+        Unlabeled(string()),
+        Unlabeled(string()),
+      ]),
     ret: Atom(String),
     imp:
       ternary((d1, d2, d3) => {
@@ -512,7 +518,8 @@ let string_fns: list(BuiltinsUtil.fn) = [
   },
   {
     name: "string_search",
-    arg: Prod([string(), string(), int()]),
+    arg:
+      Prod([Unlabeled(string()), Unlabeled(string()), Unlabeled(int())]),
     ret: Atom(Int),
     imp:
       ternary((d1, d2, d3) => {
@@ -537,7 +544,8 @@ let string_fns: list(BuiltinsUtil.fn) = [
 let pair_fns: list(BuiltinsUtil.fn) = [
   {
     name: "fst",
-    arg: Prod([unknown(Internal), unknown(Internal)]),
+    arg:
+      Prod([Unlabeled(unknown(Internal)), Unlabeled(unknown(Internal))]),
     ret: Unknown(Internal),
     imp: d => {
       let-unbox t = (Tuple(2), d);
@@ -550,7 +558,8 @@ let pair_fns: list(BuiltinsUtil.fn) = [
   },
   {
     name: "snd",
-    arg: Prod([unknown(Internal), unknown(Internal)]),
+    arg:
+      Prod([Unlabeled(unknown(Internal)), Unlabeled(unknown(Internal))]),
     ret: Unknown(Internal),
     imp: d => {
       let-unbox t = (Tuple(2), d);

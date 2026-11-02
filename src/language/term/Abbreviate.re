@@ -1627,7 +1627,6 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
           Atom(String);
         }
       | Var(v) => Var(abbreviate_str(available^, v))
-      | ExplicitNonlabel => ExplicitNonlabel
       | Label(v) =>
         /* Typ has no Invalid constructor; keep as Label even when truncated.
            Backtick quoting in type abbreviations is a minor cosmetic issue. */
@@ -1663,21 +1662,13 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
             );
           };
         }
-      | TupLabel(t1, t2) =>
-        if (available^ < 3) {
-          available := available^ - 1;
-          indet_term_typ;
-        } else {
-          available := available^ - 1; /* "=" */
-          TupLabel(abbreviate_typ(t1), abbreviate_typ(t2));
-        }
-      | ProdProjection(t1, t2) =>
+      | ProdProjection(t, l) =>
         if (available^ <= 3) {
           available := available^ - 1;
           indet_term_typ;
         } else {
           available := available^ - 3;
-          ProdProjection(abbreviate_typ(t1), abbreviate_typ(t2));
+          ProdProjection(abbreviate_typ(t), abbreviate_label_term(l));
         }
       | ProdExtension(t1, t2) =>
         if (available^ <= 3) {
@@ -1717,7 +1708,16 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
         } else {
           //TODO: abbreviate these like tuples
           available := available^ - 2; // "()"
-          let ts' = List.map(abbreviate_typ, ts);
+          let ts' =
+            List.map(
+              fun
+              | Grammar.Unlabeled(t) => Grammar.Unlabeled(abbreviate_typ(t))
+              | Labeled(eq, l, t) => {
+                  available := available^ - 1; /* "=" */
+                  Labeled(eq, abbreviate_label_term(l), abbreviate_typ(t));
+                },
+              ts,
+            );
           Prod(ts');
         }
       | Parens(t) =>

@@ -127,14 +127,21 @@ module Ctr = {
       | Some(ty') => all_ctrs_of_typ(ty')
       }
     | Prod(elts) =>
-      Finite(Map.singleton(tuple_ctr(List.length(elts)), elts))
+      Finite(
+        Map.singleton(
+          tuple_ctr(List.length(elts)),
+          List.map(TupleEntry.value, elts),
+        ),
+      )
     | ProofOf(_) => Infinite
-    | TupLabel(_, ty) => Finite(Map.singleton(tuple_ctr(1), [ty]))
     | List(elt_ty) =>
       Finite(
         Map.of_list([
           (nil_ctr, []),
-          (cons_ctr, [Prod([elt_ty, ty]) |> Typ.temp]),
+          (
+            cons_ctr,
+            [Prod([Unlabeled(elt_ty), Unlabeled(ty)]) |> Typ.temp],
+          ),
         ]),
       )
     | Atom(Bool) => Finite(Map.of_list([(true_ctr, []), (false_ctr, [])]))
@@ -152,7 +159,6 @@ module Ctr = {
     | Var(_) => Infinite
     | Parens(_)
     | Projector(_)
-    | ExplicitNonlabel
     | Label(_)
     | Sig(_) =>
       failwith(
@@ -318,9 +324,9 @@ module UnseenPatternList: UnseenPatternList = {
           )
         };
       };
-    | Prod(_) =>
+    | Prod(fields) =>
       // take the number of elements we need from the unseen list
-      // and package them into the tuple
+      // and package them into the tuple, labeled as the product's fields are
       let num_elts = Ctr.num_args_of(ctr);
       let rec partition_first_n = (n, list, acc) =>
         if (n == 0) {
@@ -333,30 +339,20 @@ module UnseenPatternList: UnseenPatternList = {
         };
 
       let (first_n, tl) = partition_first_n(num_elts, pat_list, []);
-      /* a labeled column's pattern is a singleton labeled tuple (see the
-         TupLabel case); in the tuple it becomes a labeled entry */
-      let entry = (p: pat_t): TupleEntry.t(pat_t) =>
-        switch (p.term) {
-        | Tuple([Labeled(_) as entry]) => entry
-        | _ => Unlabeled(p)
-        };
-      cons_pat_t(tuple_entries(List.rev_map(entry, first_n)), {pat: tl});
-    | TupLabel(label_pos, _) =>
-      // associate the tuple's labels to element in the unseen list
-      switch (IdTagged.term_of(label_pos)) {
-      | Label(pat_label) =>
-        switch (pat_list) {
-        | [] =>
-          cons_pat_t(
-            tuple_entries([labeled(pat_label, wild())]),
-            unseen_pattern,
-          )
-        | [hd, ...tl] =>
-          cons_pat_t(tuple_entries([labeled(pat_label, hd)]), {pat: tl})
-        }
-      // No label (e.g. label_pos is EmptyHole) — skip this column.
-      | _ => unseen_pattern
-      }
+      let first_n = List.rev(first_n);
+      let entries =
+        List.length(fields) == List.length(first_n)
+          ? List.map2(
+              (field, p) =>
+                switch (Typ.match_tup_label(field)) {
+                | Some((name, _)) => labeled(name, p)
+                | None => Grammar.Unlabeled(p)
+                },
+              fields,
+              first_n,
+            )
+          : List.map(p => Grammar.Unlabeled(p), first_n);
+      cons_pat_t(tuple_entries(entries), {pat: tl});
     | List(_) =>
       switch (ctr.ctr) {
       | "nil" => cons_pat_t(list_lit([]), unseen_pattern)
@@ -439,7 +435,6 @@ module UnseenPatternList: UnseenPatternList = {
     | Projector(_)
     | ProdProjection(_)
     | ProdExtension(_)
-    | ExplicitNonlabel
     | Label(_)
     | Sig(_) =>
       failwith(
@@ -538,7 +533,6 @@ module UnseenPatternList: UnseenPatternList = {
       }
     | Prod(_) => cons_ctr(col_ctr, col_type, unseen_pattern)
     | Unknown(_) => cons_ctr(col_ctr, col_type, unseen_pattern)
-    | TupLabel(_) => cons_ctr(col_ctr, col_type, unseen_pattern)
     | Atom(Int)
     | Atom(Nat) =>
       let rec first_unused_bigint = n => {
@@ -578,7 +572,6 @@ module UnseenPatternList: UnseenPatternList = {
     | Projector(_)
     | ProdProjection(_)
     | ProdExtension(_)
-    | ExplicitNonlabel
     | Label(_)
     | Sig(_) =>
       failwith(
@@ -628,7 +621,6 @@ module UnseenPatternList: UnseenPatternList = {
       }
     | Prod(_) => cons_ctr(col_ctr, col_type, unseen_pattern)
     | Unknown(_) => unseen_pattern
-    | TupLabel(_) => cons_ctr(col_ctr, col_type, unseen_pattern)
     | Atom(Int)
     | Atom(Nat) => cons_wild(unseen_pattern)
     | Atom(SInt) => cons_wild(unseen_pattern)
@@ -643,7 +635,6 @@ module UnseenPatternList: UnseenPatternList = {
     | Projector(_)
     | ProdProjection(_)
     | ProdExtension(_)
-    | ExplicitNonlabel
     | Label(_)
     | Sig(_) =>
       failwith(

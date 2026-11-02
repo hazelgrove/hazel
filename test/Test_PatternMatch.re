@@ -26,9 +26,9 @@ let tests = (
                 labeled("val", asc(bool(true), Typ.unknown(Internal))),
               ]),
               Typ.(
-                prod([
-                  tup_label(label("var"), unknown(SynSwitch)),
-                  tup_label(label("val"), unknown(SynSwitch)),
+                prod_entries([
+                  labeled("var", unknown(SynSwitch)),
+                  labeled("val", unknown(SynSwitch)),
                 ])
               ),
             )

@@ -68,7 +68,11 @@ module Option = {
                | Some(x) => Some(f(x))
              end|},
       name: "option_map",
-      arg: Prod([t, arrow(unknown(Internal), unknown(Internal))]),
+      arg:
+        Prod([
+          Unlabeled(t),
+          Unlabeled(arrow(unknown(Internal), unknown(Internal))),
+        ]),
       ret: Unknown(Internal),
       imp: {
         Fresh.(
@@ -102,7 +106,11 @@ module Option = {
                | Some x => f(x)
              end|},
       name: "option_bind",
-      arg: Prod([t, arrow(unknown(Internal), unknown(Internal))]),
+      arg:
+        Prod([
+          Unlabeled(t),
+          Unlabeled(arrow(unknown(Internal), unknown(Internal))),
+        ]),
       ret: Unknown(Internal),
       imp: {
         Fresh.(
@@ -762,7 +770,7 @@ let of_atom_compare =
   let ty = Typ.fresh_atom(Atom.cls_of_kind(kind));
   BuiltinsUtil.{
     name,
-    arg: Prod([ty, ty]),
+    arg: Prod([Unlabeled(ty), Unlabeled(ty)]),
     ret: Ord.t.term,
     imp:
       binary((d1, d2) => {

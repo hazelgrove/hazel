@@ -349,7 +349,6 @@ let is_syntax_error = (ci: t): bool =>
 
 let is_label = (info: t): bool =>
   switch (info) {
-  | InfoTyp({message: Some(Message.TypOk(Message.EmptyLabel)), _})
   | InfoTyp({user_term: {term: Label(_), _}, _})
   | InfoExp({user_term: {term: Label(_), _}, _})
   | InfoPat({user_term: {term: Label(_), _}, _})

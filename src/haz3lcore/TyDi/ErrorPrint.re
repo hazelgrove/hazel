@@ -29,7 +29,6 @@ module Print = {
 let prn = Printf.sprintf;
 
 let core_mark_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
-  let ana = Statics.ana_skip_explicit_nonlabel(ana);
   let expectation = (ana: Typ.t, syn: Typ.t) =>
     prn(
       "Expecting type %s but got inconsistent type %s",
