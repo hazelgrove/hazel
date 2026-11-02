@@ -137,7 +137,7 @@ module JsonADT = {
       (pair_exp: Language.Exp.t): result((string, Yojson.Safe.t), string) => {
     let pair_exp = strip_wrappers(pair_exp);
     switch (Exp.term_of(pair_exp)) {
-    | Tuple([key_exp, val_exp]) =>
+    | Tuple([Unlabeled(key_exp), Unlabeled(val_exp)]) =>
       let key_exp = strip_wrappers(key_exp);
       switch (Exp.term_of(key_exp)) {
       | Atom(String(k)) =>

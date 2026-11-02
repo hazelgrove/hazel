@@ -96,13 +96,13 @@ let tests = (
           Exp.module_exp(
             MPat.var("M"),
             Exp.module_([Mod.mod_let(Pat.var("x"), Exp.int(1))]),
-            Exp.dot(Exp.var("M"), Exp.label("x")),
+            Exp.dot(Exp.var("M"), Label.label("x")),
           );
         let e2 =
           Exp.module_exp(
             MPat.var("N"),
             Exp.module_([Mod.mod_let(Pat.var("x"), Exp.int(1))]),
-            Exp.dot(Exp.var("N"), Exp.label("x")),
+            Exp.dot(Exp.var("N"), Label.label("x")),
           );
         /* MPat supports alpha-equivalence: M and N are just binders,
            so module M = ... in M.x === module N = ... in N.x */
@@ -122,13 +122,13 @@ let tests = (
           Exp.module_exp(
             MPat.var("M"),
             Exp.module_([Mod.mod_let(Pat.var("x"), Exp.int(1))]),
-            Exp.dot(Exp.var("M"), Exp.label("x")),
+            Exp.dot(Exp.var("M"), Label.label("x")),
           );
         let e2 =
           Exp.module_exp(
             MPat.var("M"),
             Exp.module_([Mod.mod_let(Pat.var("x"), Exp.int(1))]),
-            Exp.dot(Exp.var("M"), Exp.label("x")),
+            Exp.dot(Exp.var("M"), Label.label("x")),
           );
         check(
           bool,

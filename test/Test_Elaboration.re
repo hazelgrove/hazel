@@ -62,11 +62,8 @@ let adt_node_ids = exp => {
       go(arg);
     | Tuple(es) =>
       ids := [Exp.rep_id(e), ...ids^];
-      List.iter(~f=go, es);
-    | ListLit(es) => List.iter(~f=go, es)
-    | TupLabel(label, body) =>
-      go(label);
-      go(body);
+      List.iter(entry => go(TupleEntry.value(entry)), es);
+    | ListLit(es) => List.iter(go, es)
     | Let(_, def, body)
     | Seq(def, body)
     | Theorem(_, def, body) =>
@@ -78,10 +75,10 @@ let adt_node_ids = exp => {
       go(f);
     | BinOp(_, e1, e2)
     | Cons(e1, e2)
-    | TupleExtension(e1, e2)
-    | Dot(e1, e2) =>
+    | TupleExtension(e1, e2) =>
       go(e1);
       go(e2);
+    | Dot(e, _)
     | UnOp(_, e)
     | Parens(e)
     | Projector(_, e)
@@ -102,7 +99,7 @@ let adt_node_ids = exp => {
     | FixF(_, body, _env) => go(body)
     | DeferredAp(fn, es) =>
       go(fn);
-      List.iter(~f=go, es);
+      List.iter(entry => go(TupleEntry.value(entry)), es);
     | _ => ()
     };
   go(exp);
@@ -360,11 +357,11 @@ module PlainTests = {
       Exp.(
         let_(
           Pat.(asc(var("add"), typ)),
-          tuple([
-            tup_label(label("street"), string("123 Maple St")),
-            tup_label(label("city"), string("Ann Arbor")),
-            tup_label(label("state"), string("MI")),
-            tup_label(label("zipcode"), int(48103)),
+          tuple_entries([
+            labeled("street", string("123 Maple St")),
+            labeled("city", string("Ann Arbor")),
+            labeled("state", string("MI")),
+            labeled("zipcode", int(48103)),
           ]),
           var("add"),
         )
@@ -377,9 +374,9 @@ module PlainTests = {
     Exp.(
       alco_check(
         "Singleton Labeled Tuple",
-        tuple([tup_label(label("label"), string("a string value"))]),
+        tuple_entries([labeled("label", string("a string value"))]),
         dhexp_of_uexp(
-          tuple([tup_label(label("label"), string("a string value"))]),
+          tuple_entries([labeled("label", string("a string value"))]),
         ),
       )
     );
@@ -392,7 +389,7 @@ module PlainTests = {
           Pat.(
             asc(var("x"), Typ.(prod([tup_label(label("l"), string())])))
           ),
-          tuple([tup_label(label("l"), string("a"))]),
+          tuple_entries([labeled("l", string("a"))]),
           var("x"),
         )
       ),
@@ -425,11 +422,11 @@ module PlainTests = {
         let_(
           Pat.(asc(var("val"), typ)),
           parens(
-            tuple([
-              int(1),
-              float(1.0),
-              tup_label(label("c"), bool(true)),
-              tup_label(label("b"), string("a")),
+            tuple_entries([
+              Unlabeled(int(1)),
+              Unlabeled(float(1.0)),
+              labeled("c", bool(true)),
+              labeled("b", string("a")),
             ]),
           ),
           var("val"),
@@ -441,11 +438,11 @@ module PlainTests = {
       Exp.(
         let_(
           Pat.(asc(var("val"), typ)),
-          tuple([
-            tup_label(label("a"), int(1)),
-            tup_label(label("b"), string("a")),
-            float(1.0),
-            tup_label(label("c"), bool(true)),
+          tuple_entries([
+            labeled("a", int(1)),
+            labeled("b", string("a")),
+            Unlabeled(float(1.0)),
+            labeled("c", bool(true)),
           ]),
           var("val"),
         )
@@ -541,7 +538,7 @@ module PlainTests = {
           Exp.(
             let_(
               Pat.(asc(var("x"), typ)),
-              tuple([tup_label(label("l"), string("a"))]),
+              tuple_entries([labeled("l", string("a"))]),
               var("x"),
             )
           ),
@@ -567,7 +564,7 @@ module PlainTests = {
             Pat.(
               asc(var("x"), Typ.(prod([tup_label(label("a"), string())])))
             ),
-            tuple([tup_label(label("a"), string("hello"))]),
+            tuple_entries([labeled("a", string("hello"))]),
             var("x"),
           )
         ),
@@ -588,7 +585,7 @@ module PlainTests = {
                 Typ.(prod([tup_label(label("zip"), int())])),
               )
             ),
-            tuple([tup_label(label("zip"), int(12345))]),
+            tuple_entries([labeled("zip", int(12345))]),
             var("zip_only"),
           )
         ),
@@ -624,7 +621,7 @@ module PlainTests = {
               Some(Typ.(prod([tup_label(label("a"), int())]))),
               None,
             ),
-            tuple([tup_label(label("a"), int(1))]),
+            tuple_entries([labeled("a", int(1))]),
           )
         ),
         dhexp_of_uexp(parse_exp({|(fun a=(x:Int) -> x)(a=1)|})),
@@ -647,7 +644,7 @@ module PlainTests = {
               Some(Typ.(prod([tup_label(label("a"), Typ.int())]))),
               None,
             ),
-            tuple([tup_label(label("a"), int(1))]),
+            tuple_entries([labeled("a", int(1))]),
           )
         ),
         dhexp_of_uexp(parse_exp({|(fun a=(x:Int) -> x)(1)|})),
@@ -671,11 +668,8 @@ module PlainTests = {
                 ),
               )
             ),
-            tuple([
-              tup_label(
-                label("b"),
-                tuple([tup_label(label("c"), string(""))]),
-              ),
+            tuple_entries([
+              labeled("b", tuple_entries([labeled("c", string(""))])),
             ]),
             var("x"),
           )
@@ -700,7 +694,7 @@ module PlainTests = {
               ),
               None,
             ),
-            tuple([tup_label(label("a"), int(1))]),
+            tuple_entries([labeled("a", int(1))]),
           )
         ),
         DHExp.strip_ascriptions(
@@ -714,7 +708,7 @@ module PlainTests = {
         Exp.(
           let_(
             Pat.var("x"),
-            tuple([tup_label(label("a"), int(1))]),
+            tuple_entries([labeled("a", int(1))]),
             var("x"),
           )
         ),
@@ -763,7 +757,7 @@ in 1|},
           let_(
             Pat.var("x"),
             int(1),
-            tuple([tup_label(label("x"), var("x"))]),
+            tuple_entries([labeled("x", var("x"))]),
           )
         ),
         dhexp_of_uexp(parse_exp({|{ let x = 1 }|})),
@@ -780,9 +774,9 @@ in 1|},
             let_(
               Pat.var("y"),
               bool(true),
-              tuple([
-                tup_label(label("x"), var("x")),
-                tup_label(label("y"), var("y")),
+              tuple_entries([
+                labeled("x", var("x")),
+                labeled("y", var("y")),
               ]),
             ),
           )

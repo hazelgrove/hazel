@@ -144,7 +144,7 @@ let tests =
             check(
               option(exp),
               "Singleton",
-              Some(Exp.(tuple([tup_label(label("l"), empty_hole())]))),
+              Some(Exp.(tuple_entries([labeled("l", empty_hole())]))),
               introduce_expression(
                 Typ.(prod([tup_label(label("l"), int())])),
               ),
@@ -154,9 +154,9 @@ let tests =
               "Multiple",
               Some(
                 Exp.(
-                  tuple([
-                    tup_label(label("l"), empty_hole()),
-                    tup_label(label("l2"), empty_hole()),
+                  tuple_entries([
+                    labeled("l", empty_hole()),
+                    labeled("l2", empty_hole()),
                   ])
                 ),
               ),
@@ -221,7 +221,7 @@ let tests =
             check(
               option(exp),
               "Duplicate labels should introduce single label",
-              Some(Exp.(tuple([tup_label(label("a"), empty_hole())]))),
+              Some(Exp.(tuple_entries([labeled("a", empty_hole())]))),
               introduce_expression(duplicate_prod),
             );
           },

@@ -10,6 +10,13 @@ let decompose_label_mode = (ctx: Ctx.t, ana: Typ.t): (Typ.t, Typ.t) =>
   | _ => (Unknown(SynSwitch) |> Typ.temp, Unknown(Internal) |> Typ.temp)
   };
 
+/* A tuple entry's expected type, without the field's label */
+let value_ana = (ctx: Ctx.t, ana: Typ.t): Typ.t =>
+  switch (MatchedTyp.label(ctx, ana)) {
+  | Some((_, value_ana)) => value_ana
+  | None => ana
+  };
+
 /* Validate a label name against expected/duplicate label lists.
    Returns (elab_syn_ty, marks, is_invalid) for the label itself. */
 let validate_label_name =
@@ -33,6 +40,36 @@ let validate_label_name =
         false,
       )
       : (Label(name) |> Typ.temp, [], false)
+  };
+
+/* A tuple entry's label: the errors on it, and the label type its entry
+   has in the tuple's type. None leaves the entry unlabeled there: an
+   explicitly unlabeled entry, or one whose label the analyzed type lacks,
+   so that the label alone is marked and not the tuple too. */
+let check_label =
+    (
+      ~expected_labels: option(list(string)),
+      ~duplicate_labels: list(string),
+      l: Label.t,
+    )
+    : (list(Mark.t), option(Typ.t)) =>
+  switch (l.term) {
+  | Label(name) =>
+    switch (expected_labels) {
+    | Some(expected) when !List.mem(name, expected) => (
+        [Mark.InvalidLabel(name, expected)],
+        None,
+      )
+    | _ =>
+      let label_ty = Label(name) |> Typ.temp;
+      List.mem(name, duplicate_labels)
+        ? ([Mark.DuplicateLabel(name, label_ty)], Some(label_ty))
+        : ([], Some(label_ty));
+    }
+  | ExplicitNonlabel => ([], None)
+  | EmptyHole => ([], Some(Unknown(SynSwitch) |> Typ.temp))
+  | Invalid(_)
+  | MultiHole(_) => ([], Some(SynTy.unknown_internal()))
   };
 
 /* Compute the synthesized type and marks for a TupLabel node

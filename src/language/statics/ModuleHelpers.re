@@ -169,10 +169,8 @@ let value_exports = (items: list(Mod.t)): list(value_export) => {
 let labeled_tuple_exp = (exports: list(value_export)): Exp.t => {
   let fields =
     exports
-    |> List.map(~f=({name, _}) =>
-         Exp.fresh(
-           TupLabel(Exp.fresh(Label(name)), Exp.fresh(Var(name))),
-         )
+    |> List.map(({name, _}) =>
+         TupleEntry.labeled(name, Exp.fresh(Var(name)))
        );
   Exp.fresh(Tuple(fields));
 };
