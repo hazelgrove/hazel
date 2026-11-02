@@ -122,6 +122,11 @@ let qcheck_stepper_confluence =
     ~count=1000,
     QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
     uexp => {
+      /* A semantic property, so judge terms a user can write (see
+         Preservation): a bare `a=_` pattern, which no parse returns, matched
+         against a scrutinee that steps to a proof_object made the two
+         disagree. */
+      let uexp = Canonicalize.exp(uexp);
       check_evaluator_stepper_consistent(
         ~step_limit=100,
         ~testable=testable_core_exp,
