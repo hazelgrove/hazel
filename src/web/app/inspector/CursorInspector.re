@@ -205,28 +205,6 @@ let core_mark_err_view =
       ]
     | IsMulti => [text("Broken expression")]
 
-    | TupleLabelError({malformed_labels, duplicate_labels, invalid_labels, _}) =>
-      (
-        List.is_empty(malformed_labels)
-          ? []
-          : [
-            text("Malformed labels: "),
-            ...List.map(~f=view_any, malformed_labels),
-          ]
-      )
-      @ (
-        List.is_empty(duplicate_labels)
-          ? []
-          : [
-            text("Duplicate labels: "),
-            ...List.map(~f=code, duplicate_labels),
-          ]
-      )
-      @ (
-        List.is_empty(invalid_labels)
-          ? []
-          : [text("Invalid labels: "), ...List.map(~f=code, invalid_labels)]
-      )
     | DuplicateVar(name, _) => [text("Duplicate Variable:"), code(name)]
     | DuplicateLabel(name, _) => [
         text("Duplicate Label:"),
@@ -252,7 +230,6 @@ let core_mark_err_view =
         | _ => expectation_view(~ana, ~syn)
         }
       };
-    | ExplicitNonlabel => [text("Type error")]
     | Free(_)
     | InexhaustiveMatch(_)
     | IsDeferral(_)
@@ -271,9 +248,7 @@ let core_mark_err_view =
     | ExpectedConstructor
     | TypFreeTypeVariable(_)
     | TypDuplicateConstructor(_)
-    | TypDuplicateLabels(_, _)
     | TypWantTypeFoundAp
-    | TypWantLabel
     | TypWantProduct(_)
     | TypWantConstructorFoundType(_)
     | TypWantConstructorFoundAp
@@ -529,7 +504,6 @@ let typ_mark_err_view = (~globals, m: Mark.t) => {
   | TypWantConstructorFoundAp
   | TypWantConstructorFoundType(_) => [text("Expected a constructor")]
   | TypWantTypeFoundAp => [text("Must be part of a sum type")]
-  | TypWantLabel => [text("Expect a valid label")]
   | InvalidLabel(name, expected_labels) =>
     switch (expected_labels) {
     | [] => [
@@ -544,10 +518,6 @@ let typ_mark_err_view = (~globals, m: Mark.t) => {
         text(String.concat(~sep=", ", expected_labels)),
       ]
     }
-  | TypDuplicateLabels(labels, _) => [
-      text("Duplicate labels within tuple: "),
-      ...List.map(~f=label_view, labels),
-    ]
   | DuplicateLabel(name, _) => [
       text("Duplicate Label: "),
       label_view(name),
@@ -746,9 +716,7 @@ let exp_mark_err_view =
     ])
   | TypFreeTypeVariable(_)
   | TypDuplicateConstructor(_)
-  | TypDuplicateLabels(_, _)
   | TypWantTypeFoundAp
-  | TypWantLabel
   | TypWantProduct(_)
   | TypWantConstructorFoundType(_)
   | TypWantConstructorFoundAp
@@ -762,10 +730,8 @@ let exp_mark_err_view =
   | FreeConstructor(_)
   | BadToken(_)
   | BadLabel(_)
-  | ExplicitNonlabel
   | UnexpectedLabelSort(_)
   | InvalidLabel(_, _)
-  | TupleLabelError(_)
   | IsMulti
   | DuplicateLabel(_, _)
   | DuplicateVar(_, _)

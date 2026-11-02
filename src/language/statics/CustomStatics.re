@@ -2,10 +2,7 @@ open StaticsBase;
 
 // TODO[Matt]: I'm not sure I've gotten elaboration right on here.
 
-type tuple_entry =
-  | Unlabeled(Typ.t)
-  | Labeled(option(string), Typ.t);
-type tuple_type = list(tuple_entry);
+type tuple_type = list(TupleEntry.t(Typ.t));
 
 // Constants and helper functions
 let unknown = Unknown(Internal) |> Typ.temp;
@@ -23,40 +20,11 @@ let mk_builtin_ap_elab =
 
 let append_marks_for_term = append_mark_exp;
 
-let typ_entry_to_tuple_entry = (entry: TupleEntry.t(Typ.t)): tuple_entry =>
-  switch (entry) {
-  | Labeled(_, l, typ) => Labeled(Label.name(l), typ)
-  | Unlabeled(typ) => Unlabeled(typ)
-  };
-
-let extract_label = (entry: tuple_entry): option(string) =>
-  switch (entry) {
-  | Labeled(Some(label), _) => Some(label)
-  | _ => None
-  };
-
-let extract_type = (entry: tuple_entry): Typ.t =>
-  switch (entry) {
-  | Unlabeled(typ) => typ
-  | Labeled(_, typ) => typ
-  };
-
 let extract_labels = (entries: tuple_type) =>
-  List.filter_map(~f=(entry: tuple_entry) => extract_label(entry), entries);
+  List.filter_map(TupleEntry.label_name, entries);
 
-let get_tuple_label = (tuple: tuple_type, label: string): Typ.t => {
-  switch (
-    List.find(
-      ~f=
-        entry =>
-          Option.equal(String.equal, extract_label(entry), Some(label)),
-      tuple,
-    )
-  ) {
-  | Some(entry) => extract_type(entry)
-  | None => unknown
-  };
-};
+let get_tuple_label = (tuple: tuple_type, label: string): Typ.t =>
+  TupleEntry.find(label, tuple) |> Option.value(~default=unknown);
 
 type extract_result =
   | Success(list(TupleEntry.t(Typ.t)))
@@ -77,11 +45,7 @@ let analyze_argument =
   let (arg_info, _, m) = uexp_to_info_map(~ctx, ~ana=syn, arg, m);
 
   switch (extract_entries(Typ.normalize(ctx, arg_info.ty))) {
-  | Success(entries) => (
-      Some(List.map(~f=typ_entry_to_tuple_entry, entries)),
-      arg_info,
-      m,
-    )
+  | Success(entries) => (Some(entries), arg_info, m)
   | Unknown => (None, arg_info, m)
   | Failure =>
     let m = append_mark_exp(m, arg_info.user_term, [error_override]);
@@ -135,15 +99,15 @@ let analyze_label_to_info_map =
     ) => {
   let lab_name =
     switch (label.term) {
-    | Label(lab) => Some(lab)
+    | LabelLit(lab) => Some(lab)
     | EmptyHole
     | _ => None
     };
   let (i, i_elab, m) = S.uexp_to_info_map(~ctx, ~ana=labmode, label, m);
   let m =
     switch (label.term) {
-    | Label(name) =>
-      /* `uexp_to_info_map` defaults Label(name) to UnexpectedLabelSort with
+    | LabelLit(name) =>
+      /* `uexp_to_info_map` defaults LabelLit(name) to UnexpectedLabelSort with
          elab_syn_ty=Unknown(Internal) because most occurrences of a bare label
          are wrong. In label position, the correct self type is Label(name);
          clear the mark AND patch the synthesized type so the cursor inspector
@@ -166,28 +130,27 @@ let labels_to_info_map =
     )
     : (list(option(string)), Map.t) => {
   List.fold_left(
-    ~f=
-      ((labels: list(option(string)), m: Map.t), label) => {
-        let (lab_name, lab_info, _, m) =
-          analyze_label_to_info_map((module S), ~ctx, syn, label, m);
-        /* If expected_labels provided and this label isn't in the set,
-           patch as InvalidLabel and suppress the label name */
-        let (lab_name, m) =
-          switch (label.term, expected_labels, lab_name) {
-          | (Label(name), Some(expected), _)
-              when !List.mem(expected, name, ~equal=String.equal) =>
-            let m =
-              set_marks_exp(
-                m,
-                lab_info.user_term,
-                lab_info.marks @ [InvalidLabel(name, expected)],
-              );
-            (None, m);
-          | _ => (lab_name, m)
-          };
-        (labels @ [lab_name], m);
-      },
-    ~init=([], m),
+    ((labels: list(option(string)), m: Map.t), label) => {
+      let (lab_name, lab_info, _, m) =
+        analyze_label_to_info_map((module S), ~ctx, syn, label, m);
+      /* If expected_labels provided and this label isn't in the set,
+         patch as InvalidLabel and suppress the label name */
+      let (lab_name, m) =
+        switch (label.term, expected_labels, lab_name) {
+        | (LabelLit(name), Some(expected), _)
+            when !List.mem(name, expected) =>
+          let m =
+            set_marks_exp(
+              m,
+              lab_info.user_term,
+              lab_info.marks @ [InvalidLabel(name, expected)],
+            );
+          (None, m);
+        | _ => (lab_name, m)
+        };
+      (labels @ [lab_name], m);
+    },
+    ([], m),
     labs,
   );
 };
@@ -387,22 +350,14 @@ let omit_labels_statics =
         | None => unknown
         | Some(labeled_tup_info) =>
           let tys =
-            List.filter_map(labeled_tup_info, ~f=entry => {
-              switch (entry) {
-              | Unlabeled(typ) => Some(Grammar.Unlabeled(typ))
-              | Labeled(None, typ) =>
-                Some(
-                  Grammar.Labeled(
-                    IdTagged.IdTag.temp(),
-                    Label.temp(EmptyHole),
-                    typ,
-                  ),
-                )
-              | Labeled(Some(lab), typ) =>
-                List.mem(labels_to_drop, lab, ~equal=String.equal)
-                  ? None : Some(Typ.labeled_entry(lab, typ))
-              }
-            });
+            List.filter(
+              entry =>
+                switch (TupleEntry.label_name(entry)) {
+                | Some(lab) => !List.mem(lab, labels_to_drop)
+                | None => true
+                },
+              labeled_tup_info,
+            );
           Prod(tys) |> Typ.temp;
         };
       },
@@ -437,8 +392,7 @@ let group_by_label_statics =
         analyze_label_to_info_map((module S), ~ctx, syn, pivot_label, m);
       let m =
         switch (pivot_label.term, expected_labels) {
-        | (Label(name), Some(expected))
-            when !List.mem(expected, name, ~equal=String.equal) =>
+        | (LabelLit(name), Some(expected)) when !List.mem(name, expected) =>
           append_mark_exp(m, pivot_label, [InvalidLabel(name, expected)])
         | _ => m
         };
@@ -476,19 +430,8 @@ let group_by_label_statics =
 
       let pivot_type =
         Util.OptUtil.map2(
-          (entries: list(tuple_entry), label: string) => {
-            List.find_map(
-              ~f=
-                entry =>
-                  Option.equal(
-                    String.equal,
-                    extract_label(entry),
-                    Some(label),
-                  )
-                    ? Some(extract_type(entry)) : None,
-              entries,
-            )
-          },
+          (entries: tuple_type, label: string) =>
+            TupleEntry.find(label, entries),
           row_info,
           label,
         )
