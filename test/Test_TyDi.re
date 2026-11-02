@@ -218,7 +218,7 @@ let string_ = Typ.temp(Atom(String));
 
 let golden_infix: list((string, Typ.t)) = [
   ("|>", unk),
-  (",", Typ.temp(Prod([unk, unk]))),
+  (",", Typ.temp(Prod([Unlabeled(unk), Unlabeled(unk)]))),
   ("::", Typ.temp(List(unk))),
   ("@", Typ.temp(List(unk))),
   (";", unk),

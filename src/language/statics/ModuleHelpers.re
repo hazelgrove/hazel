@@ -203,12 +203,7 @@ let type_exports_type = (exports: list((Var.t, Typ.t))): Typ.t => {
       exports,
     )
     |> snd;
-  Prod(
-    deduped
-    |> List.map(~f=((name, ty)) =>
-         TupLabel(Label(name) |> Typ.temp, ty) |> Typ.temp
-       ),
-  )
+  Prod(deduped |> List.map(((name, ty)) => Typ.labeled_entry(name, ty)))
   |> Typ.temp;
 };
 
@@ -452,7 +447,7 @@ let module_actual_type =
              )
            | None => Typ.temp(Unknown(Internal))
            };
-         TupLabel(Label(name) |> Typ.temp, ty) |> Typ.temp;
+         Typ.labeled_entry(name, ty);
        });
   Prod(fields) |> Typ.temp;
 };

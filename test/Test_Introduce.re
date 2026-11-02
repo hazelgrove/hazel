@@ -146,7 +146,7 @@ let tests =
               "Singleton",
               Some(Exp.(tuple_entries([labeled("l", empty_hole())]))),
               introduce_expression(
-                Typ.(prod([tup_label(label("l"), int())])),
+                Typ.(prod_entries([labeled("l", int())])),
               ),
             );
             check(
@@ -162,9 +162,9 @@ let tests =
               ),
               introduce_expression(
                 Typ.(
-                  prod([
-                    tup_label(label("l"), int()),
-                    tup_label(label("l2"), string()),
+                  prod_entries([
+                    labeled("l", int()),
+                    labeled("l2", string()),
                   ])
                 ),
               ),
@@ -213,10 +213,7 @@ let tests =
           () => {
             let duplicate_prod =
               Typ.(
-                prod([
-                  tup_label(label("a"), int()),
-                  tup_label(label("a"), string()),
-                ])
+                prod_entries([labeled("a", int()), labeled("a", string())])
               );
             check(
               option(exp),

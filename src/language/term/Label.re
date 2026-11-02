@@ -12,6 +12,7 @@ type cls =
 include TermBase.Label;
 
 let rep_id: t => Id.t = IdTagged.rep_id;
+let ids: t => list(Id.t) = IdTagged.ids;
 
 let temp: term => t =
   term => {
@@ -50,3 +51,15 @@ let show_cls: cls => string =
   | MultiHole => "Broken label"
   | Label => "Label"
   | ExplicitNonlabel => "Explicit non-label";
+
+/* Same kind of label with the same text; a malformed label's pieces are
+   not compared */
+let equal = (l1: t, l2: t): bool =>
+  equal_cls(cls_of_term(l1.term), cls_of_term(l2.term))
+  && (
+    switch (l1.term, l2.term) {
+    | (Label(s1), Label(s2))
+    | (Invalid(s1), Invalid(s2)) => String.equal(s1, s2)
+    | _ => true
+    }
+  );
