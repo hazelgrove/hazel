@@ -7,14 +7,6 @@ type label = string;
 
 let equal_label = String.equal;
 
-let has_same_labels: (option((label, 'a)), option((label, 'b))) => bool =
-  (left, right) => {
-    switch (left, right) {
-    | (Some((s1, _)), Some((s2, _))) => equal_label(s1, s2)
-    | (_, _) => false
-    };
-  };
-
 // This function should only be used for type checking labels
 let match_labels: (label, label) => bool =
   (label1, label2) => {

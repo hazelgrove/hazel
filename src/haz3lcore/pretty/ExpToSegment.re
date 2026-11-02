@@ -307,13 +307,11 @@ let external_precedence_pat = (dp: Pat.t) =>
   // Indivisible forms never need parentheses around them
   | EmptyHole
   | Wild
-  | ExplicitNonlabel
   | Invalid(_)
   | Var(_)
   | Atom(Bool(_) | Int(_) | SInt(_) | Float(_) | String(_) | Nat(_))
   | Constructor(_)
-  | Label(_)
-  | TupLabel(_) => Precedence.max
+  | Label(_) => Precedence.max
 
   // Same goes for forms which are already surrounded
   | ListLit(_)
@@ -781,7 +779,6 @@ and parenthesize_pat =
 
   // Other forms
   | Wild => pat
-  | ExplicitNonlabel => pat
   | Parens(p) =>
     Parens(
       parenthesize_pat(~already_paren=true, p)
@@ -801,16 +798,16 @@ and parenthesize_pat =
     let inner =
       Tuple(
         ps
-        |> List.map(~f=parenthesize_pat)
-        |> List.map(~f=paren_pat_at(Precedence.comma)),
+        |> List.map(
+             TupleEntry.map(p =>
+               parenthesize_pat(p) |> paren_pat_at(Precedence.comma)
+             ),
+           ),
       )
       |> rewrap;
     already_paren || !should_auto_wrap_tuple
       ? inner : Parens(inner) |> Pat.fresh;
   | Label(_) => pat
-  | TupLabel(l, p) =>
-    TupLabel(l, parenthesize_pat(p) |> paren_pat_at(Precedence.comma))
-    |> rewrap
   | ListLit(ps) =>
     ListLit(
       ps
@@ -1879,43 +1876,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   let (@) = concat_segment(~secondary=settings.secondary);
   let mk_form = (~sort=Sort.Exp, fam, id, children) =>
     mk_form(~secondary=settings.secondary, ~sort, fam, id, children);
-  /* A labeled entry's annotation is its `=` tile's */
-  let entry_to_pretty = (entry: TupleEntry.t(Exp.t)): pretty =>
-    switch (entry) {
-    | Unlabeled(e) => go(e)
-    | Labeled(eq, l, v) =>
-      let* v = go(v);
-      wrap_with_secondary(
-        ~secondary=settings.secondary,
-        {
-          term: (),
-          annotation: eq,
-        },
-        List.concat([
-          label_to_seg(~settings, l),
-          [
-            Tile({
-              id: IdTagged.IdTag.rep_id(eq),
-              form: Form.Compound(TupleLabeled),
-              sort: Sort.Exp,
-              shards: [0],
-              children: [],
-            }),
-          ],
-          switch (settings.secondary) {
-          | AutoFormat =>
-            let first = Segment.first_string(v);
-            if (Token.begins_with_potential_operator(first)
-                && !String.is_prefix(first, ~prefix="…")) {
-              [Secondary(mk_space(Id.mk())), ...v];
-            } else {
-              v;
-            };
-          | PreserveExact => v
-          },
-        ]),
-      );
-    };
+  let entry_to_pretty = tuple_entry_to_pretty(~settings, ~sort=Sort.Exp, ~go);
   switch (exp |> Exp.term_of) {
   // Assume these have been removed by the parenthesizer
   | DynamicErrorHole(_)
@@ -2605,6 +2566,53 @@ and mpat_to_seg = (~settings: Settings.t, mp: MPat.t): Segment.t => {
     };
   wrap(mp, content);
 }
+/* A labeled entry's annotation is its `=` tile's */
+and tuple_entry_to_pretty:
+  'v.
+  (
+    ~settings: Settings.t,
+    ~sort: Sort.t,
+    ~go: 'v => pretty,
+    TupleEntry.t('v)
+  ) =>
+  pretty
+ =
+  (~settings, ~sort, ~go, entry) =>
+    switch (entry) {
+    | Unlabeled(v) => go(v)
+    | Labeled(eq, l, v) =>
+      let* v = go(v);
+      wrap_with_secondary(
+        ~secondary=settings.secondary,
+        {
+          term: (),
+          annotation: eq,
+        },
+        List.flatten([
+          label_to_seg(~settings, l),
+          [
+            Tile({
+              id: IdTagged.IdTag.rep_id(eq),
+              form: Form.Compound(TupleLabeled),
+              sort,
+              shards: [0],
+              children: [],
+            }),
+          ],
+          switch (settings.secondary) {
+          | AutoFormat =>
+            let first = Segment.first_string(v);
+            if (Token.begins_with_potential_operator(first)
+                && !String.starts_with(first, ~prefix="…")) {
+              [Secondary(mk_space(Id.mk())), ...v];
+            } else {
+              v;
+            };
+          | PreserveExact => v
+          },
+        ]),
+      );
+    }
 and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
   let go = pat_to_pretty(~settings: Settings.t);
   let wrap = wrap_with_secondary(~secondary=settings.secondary);
@@ -2632,8 +2640,6 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
       };
     wrap(pat, seg);
   | Wild =>
-    wrap(pat, text_to_pretty(pat |> Pat.rep_id, Sort.Pat, Token.wild))
-  | ExplicitNonlabel =>
     wrap(pat, text_to_pretty(pat |> Pat.rep_id, Sort.Pat, Token.wild))
   | Var(v) => wrap(pat, text_to_pretty(pat |> Pat.rep_id, Sort.Pat, v))
   | Atom(c) =>
@@ -2689,8 +2695,10 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
   | Tuple([]) =>
     wrap(pat, text_to_pretty(pat |> Pat.rep_id, Sort.Pat, Token.empty_tuple))
   | Tuple([x, ...xs]) =>
-    let+ x = go(x)
-    and+ xs = xs |> List.map(~f=go) |> all;
+    let entry_to_pretty =
+      tuple_entry_to_pretty(~settings, ~sort=Sort.Pat, ~go);
+    let+ x = entry_to_pretty(x)
+    and+ xs = xs |> List.map(entry_to_pretty) |> all;
     let ids = IdTagged.ids(pat) |> PadIds.pad_ids(List.length(xs));
     wrap(
       pat,
@@ -2700,54 +2708,6 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
             [mk_form(Comma, id, [])] @ x
           ),
         ),
-    );
-  | TupLabel(l, p) =>
-    let* l =
-      switch (l.term) {
-      | Label(l') =>
-        label_to_seg(
-          ~settings,
-          {
-            term: Label(l'),
-            annotation: l.annotation,
-          },
-        )
-      | ExplicitNonlabel =>
-        label_to_seg(
-          ~settings,
-          {
-            term: ExplicitNonlabel,
-            annotation: l.annotation,
-          },
-        )
-      | _ => go(l)
-      }
-    and* p = go(p);
-    wrap(
-      pat,
-      List.concat([
-        l,
-        [
-          Tile({
-            id: pat |> Pat.rep_id,
-            form: Form.Compound(TupleLabeled),
-            sort: Sort.Pat,
-            shards: [0],
-            children: [],
-          }),
-        ],
-        switch (settings.secondary) {
-        | AutoFormat =>
-          let first = Segment.first_string(p);
-          if (Token.begins_with_potential_operator(first)
-              && !String.is_prefix(first, ~prefix="…")) {
-            [Secondary(mk_space(Id.mk())), ...p];
-          } else {
-            p;
-          };
-        | PreserveExact => p
-        },
-      ]),
     );
   | Label(l) =>
     wrap(
