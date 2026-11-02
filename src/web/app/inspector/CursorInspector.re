@@ -122,19 +122,22 @@ let view_any = (~globals, any: Any.t) =>
 
 /* A type as it reads at the cursor among the types shown with it,
    [together] (by default just itself; see Typ.surface_names_in). Each type
-   variable the program binds is a link to its binder. */
+   variable the program binds is a link to where it is bound. */
 let view_type =
     (~globals: Globals.t, ~ctx: Ctx.t, ~together=?, typ: Typ.t): Node.t => {
   let tys = Option.value(together, ~default=[typ]);
   let shown = Typ.surface_name_in(~ctx, tys);
-  let local = List.map(fst, Typ.binders(typ));
+  /* Where each type variable is bound: by a binder in the type, whose id
+     is that of the `typfun`, alias or annotation it came from, or else in
+     the context. */
+  let in_type = Typ.binders(typ);
   let binders =
     Typ.var_names(typ)
     |> List.sort_uniq(String.compare)
-    |> List.filter(x => !List.exists(String.equal(x), local))
     |> List.filter_map(x =>
-         switch (Ctx.lookup_tvar_id(ctx, x)) {
-         | Some(id) when Id.compare(id, Id.invalid) != 0 =>
+         switch (List.assoc_opt(x, in_type), Ctx.lookup_tvar_id(ctx, x)) {
+         | (Some(id), _)
+         | (None, Some(id)) when Id.compare(id, Id.invalid) != 0 =>
            Some((shown(x), id))
          | _ => None
          }
@@ -150,7 +153,7 @@ let view_type =
   let links =
     List.filter_map(
       ((name, tile)) => index(name) |> Option.map(i => (tile, i)),
-      vars,
+      vars @ binder_tiles,
     );
   let classes = tile =>
     switch (List.find_opt(((t, _)) => Id.compare(t, tile) == 0, links)) {
