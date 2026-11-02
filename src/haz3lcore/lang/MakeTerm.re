@@ -490,6 +490,33 @@ let is_pat_kid: Any.t => bool =
   | Pat(_) => true
   | _ => false;
 
+/* A tuple owns its entries' `=` tiles, as it owns its commas */
+let own_eq_tiles = (entries: list(TupleEntry.t('v)), tuple: Any.t): unit => {
+  let eq_ids = TupleEntry.eq_ids(entries);
+  map := TermMap.add_all(eq_ids, tuple, map^);
+  adopted_ids := eq_ids @ adopted_ids^;
+};
+
+/* A list literal's element that the comma case made a labeled entry, as
+   in [l=32, 1], is a singleton tuple again */
+let list_element =
+    (
+      ~tuple: list(TupleEntry.t(IdTagged.t('term))) => 'term,
+      ~any: IdTagged.t('term) => Any.t,
+      entry: TupleEntry.t(IdTagged.t('term)),
+    )
+    : IdTagged.t('term) =>
+  switch (entry) {
+  | Unlabeled(v) => v
+  | Labeled(eq, l, v) =>
+    let singleton: IdTagged.t('term) = {
+      term: tuple([Labeled(IdTagged.IdTag.mk_internal(eq.ids), l, v)]),
+      annotation: eq,
+    };
+    map := TermMap.add_all(eq.ids, any(singleton), map^);
+    singleton;
+  };
+
 let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Any.t =>
   switch (s) {
   | Drv(drv) =>
@@ -780,14 +807,10 @@ and exp = unsorted => {
     let ids = ids(unsorted) @ inner_ids;
     let e: TermBase.exp_t = return(e => Exp(e), ~lexeme, ids, term);
     switch (term) {
-    | Tuple(entries) =>
-      /* A tuple owns its entries' `=` tiles, as it owns its commas */
-      let eq_ids = TupleEntry.eq_ids(entries);
-      map := TermMap.add_all(eq_ids, Exp(e), map^);
-      adopted_ids := eq_ids @ adopted_ids^;
-      e;
-    | _ => e
+    | Tuple(entries) => own_eq_tiles(entries, Exp(e))
+    | _ => ()
     };
+    e;
   };
 }
 and exp_term: unsorted => (Exp.term, list(Id.t)) = {
@@ -865,22 +888,11 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           ret(ListLit([body]))
         | {annotation: {ids, _}, term: Tuple(es)} =>
           adopted_ids := ids @ adopted_ids^;
-          /* A labeled element, as in [l=32, 1], is a singleton tuple again,
-             the inverse of the comma case's unwrapping */
-          let element = (entry: TupleEntry.t(Exp.t)): Exp.t =>
-            switch (entry) {
-            | Unlabeled(e) => e
-            | Labeled(eq, l, v) =>
-              let singleton: Exp.t = {
-                term:
-                  Tuple([
-                    Labeled(IdTagged.IdTag.mk_internal(eq.ids), l, v),
-                  ]),
-                annotation: eq,
-              };
-              map := TermMap.add_all(eq.ids, Exp(singleton), map^);
-              singleton;
-            };
+          let element =
+            list_element(
+              ~tuple=(es): Exp.term => Tuple(es),
+              ~any=e => Exp(e),
+            );
           (ListLit(List.map(element, es)), ids);
         | term => ret(ListLit([term]))
         }
@@ -1138,9 +1150,10 @@ and pat = unsorted => {
 
   let p = return(p => Pat(p), ~lexeme, ids, term);
   switch (term) {
-  | TupLabel(_) => Tuple([p]) |> Pat.fresh
-  | _ => p
+  | Tuple(entries) => own_eq_tiles(entries, Pat(p))
+  | _ => ()
   };
+  p;
 }
 and pat_term: unsorted => (Pat.term, list(Id.t)) = {
   let ret = (term: Pat.term) => (term, []);
@@ -1191,7 +1204,12 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
           ret(ListLit([body]))
         | {term: Tuple(ps), annotation: {ids, _}} =>
           adopted_ids := ids @ adopted_ids^;
-          (ListLit(ps), ids);
+          let element =
+            list_element(
+              ~tuple=(ps): Pat.term => Tuple(ps),
+              ~any=p => Pat(p),
+            );
+          (ListLit(List.map(element, ps)), ids);
         | term => ret(ListLit([term]))
         }
       | (F(Tok(t)), []) when is_hole_label(t) =>
@@ -1235,12 +1253,9 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
       ret(hole(tm));
     | _ => ret(hole(tm))
     }
-  | Bin(
-      Label(l),
-      ([(_id, (F(Compound(TupleLabeled)), []))], []),
-      Pat(r),
-    ) =>
-    ret(TupLabel(Pat.of_label(l), r))
+  | Bin(Label(l), ([(id, (F(Compound(TupleLabeled)), []))], []), Pat(r)) =>
+    /* as in exp_term */
+    ret(Tuple([Labeled(IdTagged.IdTag.mk_internal([id]), l, r)]))
   | Bin(Pat(l), tiles, Pat(r)) as tm =>
     switch (is_tuple_pat(tiles)) {
     | Some(between_kids) =>
@@ -1248,12 +1263,14 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
         [l]
         @ between_kids
         @ [r]
-        |> List.map((child: Pat.t) => {
+        |> List.map((child: Pat.t) =>
              switch (child) {
-             | {term: Tuple([{term: TupLabel(_), _} as tl]), _} => tl
-             | _ => child
+             /* as in exp_term */
+             | {term: Tuple([Labeled(_, l, v)]), annotation} =>
+               Grammar.Labeled(annotation, l, v)
+             | _ => Unlabeled(child)
              }
-           });
+           );
       ret(Tuple(tuple_children));
     | None =>
       switch (tiles) {

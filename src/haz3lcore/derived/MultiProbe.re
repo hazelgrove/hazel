@@ -62,7 +62,8 @@ open Util.OptUtil.Syntax;
   *     1    // probe on '1'  (default)
   *   )      // no probe (avoid redundant values from parens)
   *
-  * RULE: TupLabel probes are redundant (label is visible in source):
+  * RULE: A labeled entry is not a term, so it is never probed (its label is
+  * visible in source):
   *   let r = (
   *     brush = "a",     // probe on '"a"', NOT on 'brush = "a"'
   *     palette = [...]  // probe on '[...]', NOT on 'palette = [...]'
@@ -172,12 +173,6 @@ let term_is_tuple = (term: Language.Any.t): bool =>
   switch (term) {
   | Exp({term: Tuple(_), _})
   | Pat({term: Tuple(_), _}) => true
-  | _ => false
-  };
-
-let term_is_tuplabel = (term: Language.Any.t): bool =>
-  switch (term) {
-  | Pat({term: TupLabel(_, _), _}) => true
   | _ => false
   };
 
@@ -466,7 +461,7 @@ let candidate_allowed_by_container =
     (candidate_id: Id.t, env: selection_env): bool =>
   switch (get_term(candidate_id, env.terms)) {
   | Some(term) =>
-    if (term_is_parens(term) || term_is_tuplabel(term)) {
+    if (term_is_parens(term)) {
       false;
     } else if (term_is_tuple(term) || term_is_list_literal(term)) {
       !term_spans_multiple_rows(candidate_id, env.data, env.measured);

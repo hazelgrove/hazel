@@ -28,12 +28,6 @@ let match_pattern =
   | EmptyHole
   | MultiHole(_)
   | Wild => Matches([])
-  | ExplicitNonlabel =>
-    raise(
-      Failure(
-        "PatternMatch ExplicitNonlabel should not show up since these are removed during elaboration",
-      ),
-    )
   | Atom(c) =>
     let V(value, kind) = Atom.unpack(c);
     let* d' = Unboxing.unbox(Atom(kind), d);
@@ -60,17 +54,14 @@ let match_pattern =
   | Label(name) =>
     let* name' = Unboxing.unbox(Label, d);
     LabeledTuple.match_labels(name, name') ? Matches([]) : DoesNotMatch;
-  /* A labeled pattern matches an entry by value; it only fails to match
-     an entry with a different label */
-  | TupLabel(_, x) => recur(x, d)
   | Tuple(ps) =>
     let* entries = Unboxing.unbox(TupleEntries(List.length(ps)), d);
-    let match_entry = (p: Pat.t, entry: TupleEntry.t(DHExp.t)) =>
-      switch (Pat.match_tup_label(p), TupleEntry.label_name(entry)) {
-      | (Some((l, _)), Some(l')) when !LabeledTuple.equal_label(l, l') =>
+    /* a labeled entry only fails to match one with a different label */
+    let match_entry = (p: TupleEntry.t(Pat.t), entry: TupleEntry.t(DHExp.t)) =>
+      switch (TupleEntry.label_name(p), TupleEntry.label_name(entry)) {
+      | (Some(l), Some(l')) when !LabeledTuple.equal_label(l, l') =>
         DoesNotMatch
-      | (Some((_, x)), _) => recur(x, TupleEntry.value(entry))
-      | (None, _) => recur(p, TupleEntry.value(entry))
+      | _ => recur(TupleEntry.value(p), TupleEntry.value(entry))
       };
     List.map2(match_entry, ps, entries)
     |> List.fold_left(combine_result, Matches([]));

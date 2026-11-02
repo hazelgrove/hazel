@@ -333,17 +333,26 @@ module UnseenPatternList: UnseenPatternList = {
         };
 
       let (first_n, tl) = partition_first_n(num_elts, pat_list, []);
-
-      cons_pat_t(tuple(List.rev(first_n)), {pat: tl});
+      /* a labeled column's pattern is a singleton labeled tuple (see the
+         TupLabel case); in the tuple it becomes a labeled entry */
+      let entry = (p: pat_t): TupleEntry.t(pat_t) =>
+        switch (p.term) {
+        | Tuple([Labeled(_) as entry]) => entry
+        | _ => Unlabeled(p)
+        };
+      cons_pat_t(tuple_entries(List.rev_map(entry, first_n)), {pat: tl});
     | TupLabel(label_pos, _) =>
       // associate the tuple's labels to element in the unseen list
       switch (IdTagged.term_of(label_pos)) {
       | Label(pat_label) =>
         switch (pat_list) {
         | [] =>
-          cons_pat_t(wild(), unseen_pattern) |> cons_pat_t(label(pat_label))
+          cons_pat_t(
+            tuple_entries([labeled(pat_label, wild())]),
+            unseen_pattern,
+          )
         | [hd, ...tl] =>
-          cons_pat_t(tup_label(label(pat_label), hd), {pat: tl})
+          cons_pat_t(tuple_entries([labeled(pat_label, hd)]), {pat: tl})
         }
       // No label (e.g. label_pos is EmptyHole) — skip this column.
       | _ => unseen_pattern
@@ -361,7 +370,7 @@ module UnseenPatternList: UnseenPatternList = {
           let term = IdTagged.term_of(hd);
           let cons =
             switch (term) {
-            | Tuple([fst, snd]) => cons(fst, snd)
+            | Tuple([Unlabeled(fst), Unlabeled(snd)]) => cons(fst, snd)
             | _ => cons(wild(), hd)
             };
 

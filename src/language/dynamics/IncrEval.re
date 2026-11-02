@@ -248,12 +248,6 @@ let remove_pat_bindings = (pat: Pat.t, reuse_map: reuse_map): reuse_map =>
     Pat.bound_vars(pat),
   );
 
-let pat_label = (pat: Pat.t): option(string) =>
-  switch (pat.term) {
-  | Label(name) => Some(name)
-  | _ => None
-  };
-
 let pat_provenance = (~source_id: Id.t, ~flag: flag, pat: Pat.t): reuse_map => {
   let rec go =
           (path: list(projection), pat: Pat.t): list((string, provenance)) =>
@@ -264,7 +258,6 @@ let pat_provenance = (~source_id: Id.t, ~flag: flag, pat: Pat.t): reuse_map => {
     | Invalid(_)
     | Atom(_)
     | Label(_)
-    | ExplicitNonlabel
     | Constructor(_) => []
     | Var(name) => [
         (
@@ -279,7 +272,6 @@ let pat_provenance = (~source_id: Id.t, ~flag: flag, pat: Pat.t): reuse_map => {
     | Parens(p)
     | Projector(_, p) => go(path, p)
     | Asc(p, _) => go([Ascribed, ...path], p)
-    | TupLabel(label, p) => go([TupleLabel(pat_label(label)), ...path], p)
     | Ap(ctr, p) =>
       switch (Pat.ctr_name(ctr)) {
       | Some(name) => go([ConstructorArg(name), ...path], p)
@@ -288,7 +280,14 @@ let pat_provenance = (~source_id: Id.t, ~flag: flag, pat: Pat.t): reuse_map => {
     | Tuple(ps) =>
       let arity = List.length(ps);
       ps
-      |> List.mapi((i, p) => go([TupleIndex(arity, i), ...path], p))
+      |> List.mapi((i, entry) => {
+           let path = [TupleIndex(arity, i), ...path];
+           switch (entry) {
+           | Grammar.Labeled(_, l, p) =>
+             go([TupleLabel(Label.name(l)), ...path], p)
+           | Unlabeled(p) => go(path, p)
+           };
+         })
       |> List.flatten;
     | ListLit(ps) =>
       let arity = List.length(ps);

@@ -149,7 +149,6 @@ and in_pat =
   | EmptyHole => (env_acc, p)
   | MultiHole(_) => (env_acc, p)
   | Constructor(_, _) => (env_acc, p)
-  | ExplicitNonlabel => (env_acc, p)
   | Label(_) => (env_acc, p)
 
   // Containers: recurse one at a time
@@ -162,9 +161,10 @@ and in_pat =
   | Tuple(l) =>
     let (env', l') =
       List.fold_left(
-        ((env_acc, l_acc), p) => {
-          let (env_new, p_new) = in_pat(env_outer, env_acc, p);
-          (env_new, l_acc @ [p_new]);
+        ((env_acc, l_acc), entry) => {
+          let (env_new, p_new) =
+            in_pat(env_outer, env_acc, TupleEntry.value(entry));
+          (env_new, l_acc @ [TupleEntry.map(_ => p_new, entry)]);
         },
         (env_acc, []),
         l,
@@ -189,10 +189,6 @@ and in_pat =
     let (env', p1') = in_pat(env_outer, env_acc, p1);
     let (env'', p2') = in_pat(env_outer, env', p2);
     (env'', Ap(p1', p2') |> Pat.fresh);
-  | TupLabel(p1, p2) =>
-    let (env', p1') = in_pat(env_outer, env_acc, p1);
-    let (env'', p2') = in_pat(env_outer, env', p2);
-    (env'', TupLabel(p1', p2') |> Pat.fresh);
   | Asc(p1, t) =>
     let t' = in_typ(env_outer, t);
     let (env', p1') = in_pat(env_outer, env_acc, p1);

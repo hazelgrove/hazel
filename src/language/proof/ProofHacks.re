@@ -91,22 +91,7 @@ let rec exp_to_pat = (exp: Exp.t): Pat.t => {
   | Constructor(c, t) => rewrap(Constructor(c, t))
   | Cons(e1, e2) => rewrap(Cons(exp_to_pat(e1), exp_to_pat(e2)))
   | Var(x) => rewrap(Var(x))
-  | Tuple(xs) =>
-    rewrap(
-      Tuple(
-        List.map(
-          fun
-          | Grammar.Labeled(eq, l, e) => (
-              {
-                term: TupLabel(Pat.of_label(l), exp_to_pat(e)),
-                annotation: eq,
-              }: Pat.t
-            )
-          | Unlabeled(e) => exp_to_pat(e),
-          xs,
-        ),
-      ),
-    )
+  | Tuple(xs) => rewrap(Tuple(List.map(TupleEntry.map(exp_to_pat), xs)))
   | Parens(e) => rewrap(Parens(exp_to_pat(e)))
   | Ap(_, e1, e2) => rewrap(Ap(exp_to_pat(e1), exp_to_pat(e2)))
   | Asc(e, t1) => rewrap(Asc(exp_to_pat(e), t1))
@@ -131,20 +116,12 @@ let rec pat_to_exp = (pat: Pat.t): Exp.t => {
   | Constructor(c, t) => rewrap(Constructor(c, t))
   | Cons(e1, e2) => rewrap(Cons(pat_to_exp(e1), pat_to_exp(e2)))
   | Var(x) => rewrap(Var(x))
-  | Tuple(xs) =>
-    rewrap(
-      Tuple(
-        List.map(p => TupleEntry.map(pat_to_exp, Pat.tuple_entry(p)), xs),
-      ),
-    )
+  | Tuple(xs) => rewrap(Tuple(List.map(TupleEntry.map(pat_to_exp), xs)))
   | Parens(e) => rewrap(Parens(pat_to_exp(e)))
   | Projector(data, e) => rewrap(Projector(data, pat_to_exp(e)))
   | Ap(e1, e2) => rewrap(Ap(Forward, pat_to_exp(e1), pat_to_exp(e2)))
   | Asc(e, t1) => rewrap(Asc(pat_to_exp(e), t1))
   | Label(l) => rewrap(Label(l))
-  /* only inside a TupLabel, which Tuple turns into an entry */
-  | ExplicitNonlabel => rewrap(EmptyHole)
-  | TupLabel(_, e) => pat_to_exp(e)
   };
 };
 
@@ -163,7 +140,6 @@ let rec remove_wrapping_function = (exp: Exp.t): Pat.t => {
 let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) => {
   let rec dhpat_var_entry =
           (dhpat: DHPat.t, ty: Typ.t): option(list(Ctx.entry)) => {
-    let ty' = ty;
     let ty =
       switch (ty.term) {
       | TupLabel(_, ty) => ty
@@ -181,34 +157,19 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
       Some([entry]);
     | Label(name) =>
       Typ.equal(ty, Label(name) |> Typ.temp) ? Some([]) : None
-    | ExplicitNonlabel =>
-      raise(
-        Failure(
-          "dhpat_extend_ctx ExplicitNonlabel shouldn't show up since they should only show up in in tuplabels below",
-        ),
-      )
-    | TupLabel({term: ExplicitNonlabel, _}, dhpat) =>
-      dhpat_var_entry(dhpat, ty)
-    | TupLabel(_, dp1) =>
-      switch (ty'.term) {
-      | TupLabel(_, ty2)
-          when
-            LabeledTuple.has_same_labels(
-              DHPat.match_tup_label(dhpat),
-              Typ.match_tup_label(ty'),
-            ) =>
-        dhpat_var_entry(dp1, ty2)
-      | TupLabel(_, _) => None
-      | _ => dhpat_var_entry(dp1, ty)
-      }
     | Tuple(l1) =>
       let (l1, ts) =
-        MatchedTyp.prod(ctx, l1, Pat.match_tup_label, ty, (name, b) =>
-          TupLabel(Label(name) |> Pat.fresh, b) |> Pat.fresh
+        MatchedTyp.prod(ctx, l1, TupleEntry.get_label, ty, (_, entry) =>
+          entry
         );
-      let* l =
-        List.map2((dhp, typ) => {dhpat_var_entry(dhp, typ)}, l1, ts)
-        |> OptUtil.sequence;
+      /* an entry fits a field with no label or its own label */
+      let entry_var_entry = (entry, typ: Typ.t) =>
+        switch (TupleEntry.label_name(entry), Typ.match_tup_label(typ)) {
+        | (Some(l), Some((l', _))) when !LabeledTuple.equal_label(l, l') =>
+          None
+        | _ => dhpat_var_entry(TupleEntry.value(entry), typ)
+        };
+      let* l = List.map2(entry_var_entry, l1, ts) |> OptUtil.sequence;
       Some(List.concat(l));
     | Cons(dhp1, dhp2) =>
       let* t = MatchedTyp.list_strict(ctx, ty);
@@ -263,7 +224,10 @@ let rec get_inductive_hypotheses = (m, t, pat) => {
     @ get_inductive_hypotheses_inner(m, t, e2)
   | Var(_) => []
   | Tuple(xs) =>
-    List.concat(List.map(get_inductive_hypotheses_inner(m, t, _), xs))
+    List.concat_map(
+      x => get_inductive_hypotheses_inner(m, t, TupleEntry.value(x)),
+      xs,
+    )
   | Parens(e)
   | Projector(_, e) => get_inductive_hypotheses_inner(m, t, e)
   | Ap(e1, e2) =>
@@ -271,10 +235,6 @@ let rec get_inductive_hypotheses = (m, t, pat) => {
     @ get_inductive_hypotheses_inner(m, t, e2)
   | Asc(e, _) => get_inductive_hypotheses_inner(m, t, e)
   | Label(_) => []
-  | TupLabel(l, e) =>
-    get_inductive_hypotheses_inner(m, t, l)
-    @ get_inductive_hypotheses_inner(m, t, e)
-  | ExplicitNonlabel => []
   };
 }
 and get_inductive_hypotheses_inner' = (m, t, pat) => {

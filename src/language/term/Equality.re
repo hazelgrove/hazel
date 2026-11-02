@@ -446,8 +446,8 @@ let equality =
     | (Parens(x), Parens(y)) => pne(x, y)
     | (Asc(p, t1), Asc(q, t2)) => pne(p, q) && typ'(t1, t2)
     | (Tuple(ps1), Tuple(ps2)) =>
-      List.length(ps1) == List.length(ps2) && List.for_all2(pne, ps1, ps2)
-    | (TupLabel(l1, p1), TupLabel(l2, p2)) => pne(l1, l2) && pne(p1, p2)
+      List.length(ps1) == List.length(ps2)
+      && List.for_all2(tuple_entry(alphas_exp, alphas_typ, pne), ps1, ps2)
     | (Constructor(c1, _), Constructor(c2, _)) => c1 == c2
     /* Non-name-binding pattern forms still need structural equality —
        without these, identical literal/list/cons member patterns
@@ -570,7 +570,11 @@ let equality =
     | (Tuple(xs1), Tuple(xs2)) when List.length(xs1) == List.length(xs2) =>
       ListUtil.fold_left_opt(
         (alphas, (x, y)) =>
-          pat'(x, y) |> Option.map(Alphas.combine(_, alphas)),
+          /* the values bind; the labels only have to agree */
+          tuple_entry(alphas_exp, alphas_typ, (_, _) => true, x, y)
+            ? pat'(TupleEntry.value(x), TupleEntry.value(y))
+              |> Option.map(Alphas.combine(_, alphas))
+            : None,
         Alphas.empty,
         List.combine(xs1, xs2),
       )
@@ -589,14 +593,6 @@ let equality =
       let* alphas2 = pat'(p2, p4);
       Some(Alphas.combine(alphas1, alphas2));
     | (Cons(_, _), _) => None
-    | (TupLabel(label1, d1'), TupLabel(label2, d2')) =>
-      open OptUtil.Syntax;
-      let* alphas1 = pat'(label1, label2);
-      let* alphas2 = pat'(d1', d2');
-      Some(Alphas.combine(alphas1, alphas2));
-    | (TupLabel(_, _), _) => None
-    | (ExplicitNonlabel, ExplicitNonlabel) => Some(Alphas.empty)
-    | (ExplicitNonlabel, _) => None
     | (Ap(p1, p2), Ap(p3, p4)) =>
       open OptUtil.Syntax;
       let* alphas1 = pat'(p1, p3);

@@ -132,11 +132,7 @@ let autolabel_singleton_pat =
   let (original_info: Info.pat, _, m) =
     analyze_original(~ana=inner_ty, original_pattern, m);
   let elaborated_pat =
-    rewrap(
-      Tuple([
-        TupLabel(Label(label) |> Pat.fresh, original_pattern) |> Pat.fresh,
-      ]),
-    );
+    rewrap(Tuple([TupleEntry.labeled(label, original_pattern)]));
   let (info: Info.pat, _, m) = analyze_elaborated(~ana, elaborated_pat, m);
   let info = {
     ...info,

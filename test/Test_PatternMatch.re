@@ -10,9 +10,9 @@ let tests = (
       () => {
         let pat =
           Pat.(
-            tuple([
-              tup_label(label("var"), var("a")),
-              tup_label(label("val"), var("b")),
+            tuple_entries([
+              labeled("var", var("a")),
+              labeled("val", var("b")),
             ])
           );
         let expression =

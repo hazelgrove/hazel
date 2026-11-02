@@ -34,10 +34,12 @@ let rec collect_pat_type_refs = (ctx: Ctx.t, pat: Pat.t): CoCtx.t =>
       collect_module_refs_in_typ(ctx, Typ.rep_id(ann), ann),
       collect_pat_type_refs(ctx, p),
     ])
-  | Tuple(ps)
+  | Tuple(ps) =>
+    CoCtx.union(
+      List.map(p => collect_pat_type_refs(ctx, TupleEntry.value(p)), ps),
+    )
   | ListLit(ps) => CoCtx.union(List.map(collect_pat_type_refs(ctx), ps))
   | Cons(p1, p2)
-  | TupLabel(p1, p2)
   | Ap(p1, p2) =>
     CoCtx.union([
       collect_pat_type_refs(ctx, p1),
@@ -76,14 +78,18 @@ let rec pat_for_bound_name = (name: Var.t, pat: Pat.t): Pat.t =>
   switch (pat.term) {
   | Var(n) when n == name => pat
   | Asc(inner, _) => pat_for_bound_name(name, inner)
-  | Tuple(ps)
+  | Tuple(entries) =>
+    entries
+    |> List.map(TupleEntry.value)
+    |> List.find_opt(p => List.mem(name, Pat.bound_vars(p)))
+    |> Option.map(pat_for_bound_name(name))
+    |> Option.value(~default=pat)
   | ListLit(ps) =>
     ps
     |> List.find_opt(p => List.mem(name, Pat.bound_vars(p)))
     |> Option.map(pat_for_bound_name(name))
     |> Option.value(~default=pat)
   | Cons(p1, p2)
-  | TupLabel(p1, p2)
   | Ap(p1, p2) =>
     if (List.mem(name, Pat.bound_vars(p1))) {
       pat_for_bound_name(name, p1);

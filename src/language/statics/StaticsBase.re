@@ -199,7 +199,7 @@ let set_marks_exp = (m: Map.t, e: Exp.t, marks: list(Mark.t)): Map.t =>
   switch (Map.lookup(Exp.rep_id(e), m)) {
   | Some(Info.InfoExp(info)) =>
     Map.add_info(
-      IdTagged.ids(info.user_term),
+      Exp.info_ids(info.user_term),
       InfoExp({
         ...info,
         marks,
@@ -213,7 +213,7 @@ let append_mark_exp = (m: Map.t, e: Exp.t, extra: list(Mark.t)): Map.t =>
   switch (Map.lookup(Exp.rep_id(e), m)) {
   | Some(Info.InfoExp(info)) =>
     Map.add_info(
-      IdTagged.ids(info.user_term),
+      Exp.info_ids(info.user_term),
       InfoExp({
         ...info,
         marks: info.marks @ extra,
@@ -300,7 +300,7 @@ let patch_elab_syn_ty_exp = (m: Map.t, e: Exp.t, new_syn_ty: Typ.t): Map.t =>
   switch (Map.lookup(Exp.rep_id(e), m)) {
   | Some(Info.InfoExp(info)) =>
     Map.add_info(
-      IdTagged.ids(info.user_term),
+      Exp.info_ids(info.user_term),
       InfoExp({
         ...info,
         elab_syn_ty: new_syn_ty,

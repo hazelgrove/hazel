@@ -645,23 +645,41 @@ and Pat: {
     | VarPat(x) => var(x)
     | ConstructorPat(x, ty) =>
       constructor(x, Option.map(Option.map(Typ.of_menhir_ast), ty))
-    | TuplePat(pats) => tuple(List.map(of_menhir_ast, pats))
+    | TuplePat(pats) => tuple_entries(List.map(entry_of_menhir_ast, pats))
     | ParenPat(p) => parens(of_menhir_ast(p))
     | ApPat(pat1, pat2) => ap(of_menhir_ast(pat1), of_menhir_ast(pat2))
     | ConsPat(p1, p2) => cons(of_menhir_ast(p1), of_menhir_ast(p2))
     | EmptyHolePat => empty_hole()
     | WildPat => wild()
     | LabelPat(s) => label(s)
-    | TupLabelPat(p1, p2) =>
-      tup_label(of_menhir_ast(p1), of_menhir_ast(p2))
+    | TupLabelPat(_) => tuple_entries([entry_of_menhir_ast(pat)])
     | ListPat(l) => list_lit(List.map(of_menhir_ast, l))
     | IndicationPat(p) => {
         annotation: true,
         term: of_menhir_ast(p).term,
       }
-    | ExplicitNonlabel => explicit_non_label()
+    /* a lone `_` is a wildcard, as MakeTerm reads it */
+    | ExplicitNonlabel => wild()
     };
-  };
+  }
+  and entry_of_menhir_ast =
+      (pat: AST.pat): Language.Grammar.tuple_entry(bool, IndicatedG.pat) =>
+    switch (pat) {
+    | TupLabelPat(l, p) =>
+      labeled'(label_of_menhir_ast(l), of_menhir_ast(p))
+    | _ => Unlabeled(of_menhir_ast(pat))
+    }
+  /* As MakeTerm reads the token in label position */
+  and label_of_menhir_ast = (pat: AST.pat): Language.Grammar.label_t(bool) =>
+    switch (pat) {
+    | VarPat(s)
+    | LabelPat(s)
+    | ConstructorPat(s, None) => IndicatedG.Label.label(s)
+    | ExplicitNonlabel
+    | WildPat => IndicatedG.Label.explicit_non_label()
+    | EmptyHolePat => IndicatedG.Label.empty_hole()
+    | _ => IndicatedG.Label.multi_hole([Pat(of_menhir_ast(pat))])
+    };
   let rec of_core = (pat: IndicatedG.pat): AST.pat => {
     switch (pat.term) {
     | Invalid(_) => InvalidPat("Invalid")
@@ -669,7 +687,7 @@ and Pat: {
     | Var(x) => VarPat(x)
     | Constructor(x, ty) =>
       ConstructorPat(x, Option.map(Option.map(Typ.of_core), ty))
-    | Tuple(l) => TuplePat(List.map(of_core, l))
+    | Tuple(l) => TuplePat(List.map(entry_of_core, l))
     | Cons(p1, p2) => ConsPat(of_core(p1), of_core(p2))
     | ListLit(l) => ListPat(List.map(of_core, l))
     | Ap(p1, p2) => ApPat(of_core(p1), of_core(p2))
@@ -679,11 +697,24 @@ and Pat: {
     | Asc(p, t) => AscPat(of_core(p), Typ.of_core(t))
     | Parens(p) => ParenPat(of_core(p))
     | Label(s) => LabelPat(s)
-    | ExplicitNonlabel => ExplicitNonlabel
-    | TupLabel(p1, p2) => TupLabelPat(of_core(p1), of_core(p2))
     | Projector(_, p) => of_core(p)
     };
-  };
+  }
+  and entry_of_core =
+      (entry: Language.Grammar.tuple_entry(bool, IndicatedG.pat)): AST.pat =>
+    switch (entry) {
+    | Labeled(_, l, p) => TupLabelPat(label_of_core(l), of_core(p))
+    | Unlabeled(p) => of_core(p)
+    }
+  and label_of_core = (l: Language.Grammar.label_t(bool)): AST.pat =>
+    switch (l.term) {
+    | Label(s) => LabelPat(s)
+    | ExplicitNonlabel => ExplicitNonlabel
+    | EmptyHole => EmptyHolePat
+    | Invalid(s) => InvalidPat(s)
+    | MultiHole([Pat(p)]) => of_core(p)
+    | MultiHole(_) => raise(Failure("MultiHole not supported"))
+    };
 }
 and ModItem: {
   let of_menhir_ast: AST.mod_item => IndicatedG.mod_;
