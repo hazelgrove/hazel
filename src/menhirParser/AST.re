@@ -80,13 +80,15 @@ type typ_provenance =
  * of a multi-byte character, so `Ć…` lexes as an identifier there while the
  * editor calls it a constructor — a known divergence, not worth generating. */
 let nonascii_name_chars = [
-  "\xc3\xa9", /* é */
-  "\xc3\x9f", /* ß */
-  "\xce\xbb", /* λ */
-  "\xe6\x97\xa5", /* 日 */
-  "\xc2\xa9", /* ©, a symbol rather than a letter -- still a name */
-  "\xf0\x9f\x98\x80", /* 😀 */
-  "\xf0\x9f\x91\xa8\xe2\x80\x8d\xf0\x9f\x91\xa9\xe2\x80\x8d\xf0\x9f\x91\xa7" /* 👨‍👩‍👧 */
+  "é",
+  "ß",
+  "λ",
+  "日",
+  "©" /* a symbol rather than a letter -- still a name */,
+  "😀",
+  /* man, ZWJ, woman, ZWJ, girl: one grapheme. Escaped so the invisible
+     joiners, which are what this entry tests, can't be lost in an edit. */
+  "\xf0\x9f\x91\xa8\xe2\x80\x8d\xf0\x9f\x91\xa9\xe2\x80\x8d\xf0\x9f\x91\xa7",
 ];
 
 /* Usually empty, so most generated names stay ASCII and shrink well. */
