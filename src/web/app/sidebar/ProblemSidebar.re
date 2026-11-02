@@ -66,7 +66,7 @@ let problem_status_view = (~globals, ci: Language.Info.t): Node.t =>
      defer entirely to the cursor inspector's drv_view rather than building
      a generic problem-row from cls/marks/message like the cases above. */
   | InfoDrv(ci) => DrvCursorInspector.drv_view(~globals, ci)
-  | InfoLabel({cls, marks, _}) => CursorInspector.label_info_view(cls, marks)
+  | InfoLabel(info) => CursorInspector.label_info_view(info)
   | InfoMod({cls, _})
   | InfoSig({cls, _})
   | InfoMPat({cls, _}) =>
