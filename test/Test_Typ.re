@@ -394,6 +394,85 @@ let unshadow_tests = {
           );
         },
       ),
+      test_case(
+        "a type variable is linked to its binder in the type, else in ctx",
+        `Quick,
+        () => {
+          let outer = Id.mk();
+          let inner = Id.mk();
+          let ctx =
+            Ctx.extend_tvar(
+              Ctx.empty,
+              {
+                name: "T",
+                id: outer,
+                kind: Abstract,
+              },
+            )
+            |> Ctx.extend_tvar(
+                 _,
+                 {
+                   name: "B",
+                   id: Id.invalid,
+                   kind: Abstract,
+                 },
+               );
+          let ty =
+            Prod([
+              var("T"),
+              var("B"),
+              Poly(
+                IdTagged.mk_internal([inner], Var("U"): TPat.term),
+                var("U"),
+              )
+              |> Typ.temp,
+            ])
+            |> Typ.temp;
+          check(
+            list(pair(string, string)),
+            "name, binder",
+            [("T", Id.to_string(outer)), ("U", Id.to_string(inner))],
+            Typ.binding_sites_in(~ctx, [ty], ty)
+            |> List.map(((name, id)) => (name, Id.to_string(id))),
+          );
+        },
+      ),
+      test_case(
+        "two bindings of one name are linked apart, by the names they show as",
+        `Quick,
+        () => {
+          let outer = Id.mk();
+          let inner = Id.mk();
+          let ctx =
+            Ctx.extend_tvar(
+              Ctx.empty,
+              {
+                name: "T",
+                id: outer,
+                kind: Abstract,
+              },
+            )
+            |> Ctx.extend_tvar(
+                 _,
+                 {
+                   name: "T#1",
+                   id: inner,
+                   kind: Abstract,
+                 },
+               );
+          let ty = Prod([var("T"), var("T#1")]) |> Typ.temp;
+          check(
+            list(pair(string, string)),
+            "name, binder",
+            [
+              ("T~" ++ Id.str3(outer), Id.to_string(outer)),
+              ("T", Id.to_string(inner)),
+            ],
+            Typ.binding_sites_in(~ctx, [ty], ty)
+            |> List.map(((name, id)) => (name, Id.to_string(id))),
+          );
+        },
+      ),
     ],
   );
 };

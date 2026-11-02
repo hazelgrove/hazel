@@ -36,6 +36,22 @@ let shows_no_renamed_name = (what, shown) =>
     List.filter(s => String.contains(s, '#'), shown),
   );
 
+/* Whether one of [code]'s messages matches [pattern]. */
+let reports = (code: string, pattern: string) => {
+  let messages = ErrorPrint.all(info_map(code));
+  let matches = m =>
+    switch (Str.search_forward(Str.regexp(pattern), m, 0)) {
+    | _ => true
+    | exception Not_found => false
+    };
+  check(
+    bool,
+    String.concat("\n", messages),
+    true,
+    List.exists(matches, messages),
+  );
+};
+
 let tests = (
   "ErrorPrint.TypeNames",
   [
@@ -66,29 +82,21 @@ let tests = (
     test_case(
       "a mismatch between two bindings of one name tags the one not meant here",
       `Quick,
-      () => {
-        let messages =
-          ErrorPrint.all(
-            info_map(
-              "typfun T -> fun (t : T) -> typfun T -> fun (u : T) -> (t : T)",
-            ),
-          );
-        let expected =
-          Str.regexp(
-            "Expecting type T but got inconsistent type T~[0-9a-f][0-9a-f][0-9a-f]$",
-          );
-        let mentions = m =>
-          switch (Str.search_forward(expected, m, 0)) {
-          | _ => true
-          | exception Not_found => false
-          };
-        check(
-          bool,
-          String.concat("\n", messages),
-          true,
-          List.exists(mentions, messages),
-        );
-      },
+      () =>
+      reports(
+        "typfun T -> fun (t : T) -> typfun T -> fun (u : T) -> (t : T)",
+        "Expecting type T but got inconsistent type T~[0-9a-f][0-9a-f][0-9a-f]$",
+      )
+    ),
+    /* https://github.com/hazelgrove/hazel/issues/2478 */
+    test_case(
+      "a type shown alone is tagged when its name means another binding here",
+      `Quick,
+      () =>
+      reports(
+        "type T = Int in let x : T = 1 in type T = Bool in !x",
+        "Expecting type Bool but got inconsistent type T~[0-9a-f][0-9a-f][0-9a-f]$",
+      )
     ),
   ],
 );
