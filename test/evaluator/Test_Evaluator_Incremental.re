@@ -1031,7 +1031,8 @@ let test_tuple_elab_gives_distinct_tuplabel_ids = () => {
       }
     | _ => []
     };
-  let ids = List.map(Exp.rep_id, rhs_tuple_elts);
+  let ids =
+    List.map(entry => Exp.rep_id(TupleEntry.value(entry)), rhs_tuple_elts);
   check(
     int,
     "RHS tuple has 2 elements after elaboration",
@@ -1117,7 +1118,7 @@ let test_diag_module_in_unchanged_rhs_tuple_lands_in_frozen = () => {
   let rhs_inner = unwrap_parens(rhs);
   let (tuple_id, module_id, zero_id) =
     switch (rhs_inner.term) {
-    | Tuple([fst, snd]) =>
+    | Tuple([Unlabeled(fst), Unlabeled(snd)]) =>
       let module_id =
         switch (unwrap_parens(fst).term) {
         | Module(_) => Exp.rep_id(unwrap_parens(fst))

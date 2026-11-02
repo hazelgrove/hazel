@@ -12,9 +12,7 @@ type cls =
   | Constructor
   | Fun
   | TypFun
-  | ExplicitNonlabel
   | Label
-  | TupLabel
   | TupleExtension
   | Tuple
   | Dot
@@ -140,8 +138,6 @@ let rec cls_of_term: type a. Grammar.exp_term(a) => cls =
   | Tuple(_) => Tuple
   | TupleExtension(_) => TupleExtension
   | Label(_) => Label
-  | ExplicitNonlabel => ExplicitNonlabel
-  | TupLabel(_, _) => TupLabel
   | Dot(_) => Dot
   | Var(_) => Var
   | Let(_) => Let
@@ -200,8 +196,6 @@ let show_cls: cls => string =
   | TypFun => "Type Function Literal"
   | Tuple => "Tuple literal"
   | Label => "Label"
-  | ExplicitNonlabel => "Explicitly unlabeled entry"
-  | TupLabel => "Tuple Item"
   | TupleExtension => "Tuple Extension"
   | Dot => "Dot operator"
   | Var => "Variable reference"
@@ -235,24 +229,13 @@ let show_cls: cls => string =
   | Module => "Module expression"
   | ModuleExp => "Module definition";
 
-let rec match_tup_label: t => option((LabeledTuple.label, t)) = {
-  e => {
-    switch (e.term) {
-    | Parens(e) => match_tup_label(e)
-    | TupLabel(elab, e') =>
-      switch (elab.term) {
-      | Label(name) => Some((name, e'))
-      | _ => None
-      }
-    | Asc(e, _) => match_tup_label(e)
-    | _ => None
-    };
+/* The entry of tuple e named by the label l */
+let rec dot_entry = (e: t, l: TermBase.Label.t): option(t) =>
+  switch (e.term, l.term) {
+  | (Parens(e), _) => dot_entry(e, l)
+  | (Tuple(entries), Label(name)) => TupleEntry.find(name, entries)
+  | _ => None
   };
-};
-
-let get_label: t => option(LabeledTuple.label) = {
-  e => match_tup_label(e) |> Option.map(fst);
-};
 
 // Typfun should be treated as a function here as this is only used to
 // determine when to allow for recursive definitions in a let binding.
@@ -264,23 +247,11 @@ let rec is_fun = (e: t) => {
   | TypFun(_)
   | Fun(_)
   | BuiltinFun(_) => true
-  | TupLabel(_, e) => is_fun(e)
-  | Dot(e1, e2) =>
-    let rec check_tuple = (e1: t, e2: t) =>
-      switch (e1.term) {
-      | Parens(e) => check_tuple(e, e2)
-      | Tuple(ts) =>
-        switch (e2.term) {
-        | Label(name) => LabeledTuple.find_label(match_tup_label, ts, name)
-        | _ => None
-        }
-      | _ => None
-      };
-    let element: option(t) = check_tuple(e1, e2);
-    switch (element) {
+  | Dot(e, l) =>
+    switch (dot_entry(e, l)) {
     | Some(exp) => is_fun(exp)
     | None => false
-    };
+    }
   | Invalid(_)
   | EmptyHole
   | MultiHole(_)
@@ -290,7 +261,6 @@ let rec is_fun = (e: t) => {
   | Atom(_)
   | DrvQuote(_)
   | Label(_)
-  | ExplicitNonlabel
   | ListLit(_)
   | Tuple(_)
   | TupleExtension(_)
@@ -329,25 +299,14 @@ let rec is_tuple_of_functions = (e: t) =>
     switch (e.term) {
     | Asc(e, _)
     | Parens(e)
-    | Projector(_, e)
-    | TupLabel(_, e) => is_tuple_of_functions(e)
-    | Tuple(es) => es |> List.for_all(is_fun)
-    | Dot(e1, e2) =>
-      let rec check_tuple = (e1: t, e2: t) =>
-        switch (e1.term) {
-        | Parens(e) => check_tuple(e, e2)
-        | Tuple(ts) =>
-          switch (e2.term) {
-          | Label(name) => LabeledTuple.find_label(match_tup_label, ts, name)
-          | _ => None
-          }
-        | _ => None
-        };
-      let element: option(t) = check_tuple(e1, e2);
-      switch (element) {
+    | Projector(_, e) => is_tuple_of_functions(e)
+    | Tuple(es) =>
+      es |> List.for_all(entry => is_fun(TupleEntry.value(entry)))
+    | Dot(e, l) =>
+      switch (dot_entry(e, l)) {
       | Some(exp) => is_tuple_of_functions(exp)
       | None => false
-      };
+      }
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -357,7 +316,6 @@ let rec is_tuple_of_functions = (e: t) =>
     | Atom(_)
     | DrvQuote(_)
     | Label(_)
-    | ExplicitNonlabel
     | ListLit(_)
     | TupleExtension(_)
     | Fun(_)
@@ -412,7 +370,6 @@ let rec get_num_of_functions = (e: t) =>
     switch (e.term) {
     | Parens(e)
     | Projector(_, e)
-    | TupLabel(_, e)
     | Dot(e, _) => get_num_of_functions(e)
     | Tuple(es) => is_tuple_of_functions(e) ? Some(List.length(es)) : None
     | Invalid(_)
@@ -427,7 +384,6 @@ let rec get_num_of_functions = (e: t) =>
     | Undefined
     | Atom(_)
     | Label(_)
-    | ExplicitNonlabel
     | ListLit(_)
     | TupleExtension(_)
     | Fun(_)
@@ -518,7 +474,8 @@ let rec get_fn_def_id = (e: t) =>
   | _ => None
   };
 
-let to_tuple = (es: list(t)): t => TempGrammar.Exp.(tuple(es));
+let to_tuple = (es: list(TupleEntry.t(t))): t =>
+  TempGrammar.Exp.tuple_entries(es);
 
 let find_by_id = (id: Id.t, exp: t): option(t) => {
   module M = {

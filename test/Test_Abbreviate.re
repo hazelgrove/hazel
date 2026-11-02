@@ -91,18 +91,22 @@ let run_abbreviation = (~available: int, exp: Exp.t): Exp.t => {
   abbreviated;
 };
 
-let collect_labels = (elements: list(Exp.t)): list(string) =>
+/* abbreviated labels use Invalid */
+let label_text = (l: TermBase.Label.t): option(string) =>
+  switch (l.term) {
+  | Label(name)
+  | Invalid(name) => Some(name)
+  | EmptyHole
+  | MultiHole(_)
+  | ExplicitNonlabel => None
+  };
+
+let collect_labels = (elements: list(TupleEntry.t(Exp.t))): list(string) =>
   elements
-  |> List.filter_map((element: Exp.t) =>
-       switch (element.term) {
-       | TupLabel(label_exp, _value_exp) =>
-         switch (label_exp.term) {
-         | Label(name) => Some(name)
-         | Invalid(name) => Some(name) /* abbreviated labels use Invalid */
-         | _ => None
-         }
-       | _ => None
-       }
+  |> List.filter_map(
+       fun
+       | Grammar.Labeled(_, l, _) => label_text(l)
+       | Unlabeled(_) => None,
      );
 
 let is_flat_ellipses_exp = (exp: Exp.t): bool =>
@@ -119,7 +123,11 @@ let rec exp_contains_flat_ellipses = (exp: Exp.t): bool =>
     true;
   } else {
     switch (exp.term) {
-    | Tuple(elements)
+    | Tuple(elements) =>
+      List.exists(
+        e => exp_contains_flat_ellipses(TupleEntry.value(e)),
+        elements,
+      )
     | ListLit(elements) => List.exists(exp_contains_flat_ellipses, elements)
     | _ => false
     };
@@ -177,10 +185,10 @@ let structural_tests = [
       open IdTagged.FreshGrammar;
       open Exp;
       let original: Exp.t =
-        tuple([
-          tup_label(label("alpha"), string("aaaaaaaaaaaa")),
-          tup_label(label("beta"), string("bbbbbbbbbbbb")),
-          tup_label(label("gamma"), string("cccccccccccc")),
+        tuple_entries([
+          labeled("alpha", string("aaaaaaaaaaaa")),
+          labeled("beta", string("bbbbbbbbbbbb")),
+          labeled("gamma", string("cccccccccccc")),
         ]);
       /* Budget 12: shows 1 field + annotation (1*5 + 1*2 + 3 = 10 ≤ 12).
          Greedy gives first field surplus budget. */
@@ -189,20 +197,16 @@ let structural_tests = [
       | Tuple(elements) =>
         check(Alcotest.int, "element count at 12", 2, List.length(elements));
         switch (List.nth(elements, 0)) {
-        | {term: TupLabel(label_exp, _), _} =>
-          switch (label_exp.term) {
-          | Label(name) =>
-            check(Alcotest.string, "first label name", "alpha", name)
-          | Invalid(name) =>
-            check(
-              Alcotest.bool,
-              "label has content",
-              true,
-              String.length(name) > 0,
-            )
-          | _ => fail("expected label expression")
-          }
-        | _ => fail("expected TupLabel as first element")
+        | Labeled(_, {term: Label(name), _}, _) =>
+          check(Alcotest.string, "first label name", "alpha", name)
+        | Labeled(_, {term: Invalid(name), _}, _) =>
+          check(
+            Alcotest.bool,
+            "label has content",
+            true,
+            String.length(name) > 0,
+          )
+        | _ => fail("expected a labeled first element")
         };
       | _ => fail("expected tuple at budget 12")
       };
@@ -222,20 +226,19 @@ let structural_tests = [
       open IdTagged.FreshGrammar;
       open Exp;
       let original: Exp.t =
-        tuple([
-          tup_label(
-            label("capacity"),
+        tuple_entries([
+          labeled(
+            "capacity",
             list_lit([int(1), int(2), int(3), int(4)]),
           ),
         ]);
       let abbreviated: Exp.t = run_abbreviation(~available=8, original);
       switch (abbreviated.term) {
-      | Tuple([{term: TupLabel(label_exp, value_exp), _}]) =>
+      | Tuple([Labeled(_, l, value_exp)]) =>
         let label_text: string =
-          switch (label_exp.term) {
-          | Label(text)
-          | Invalid(text) => text /* abbreviated labels use Invalid */
-          | _ => fail("expected label expression")
+          switch (label_text(l)) {
+          | Some(text) => text
+          | None => fail("expected label expression")
           };
         check(
           Alcotest.bool,
@@ -251,7 +254,7 @@ let structural_tests = [
           true,
           exp_contains_flat_ellipses(value_exp),
         );
-      | _ => fail("expected tuple with TupLabel")
+      | _ => fail("expected a labeled tuple")
       };
     },
   ),
@@ -501,10 +504,10 @@ let module_abbreviation_tests = [
       open IdTagged.FreshGrammar;
       open Exp;
       let original: Exp.t =
-        tuple([
-          tup_label(label("alpha"), string("aaaaaaaaaaaa")),
-          tup_label(label("beta"), string("bbbbbbbbbbbb")),
-          tup_label(label("gamma"), string("cccccccccccc")),
+        tuple_entries([
+          labeled("alpha", string("aaaaaaaaaaaa")),
+          labeled("beta", string("bbbbbbbbbbbb")),
+          labeled("gamma", string("cccccccccccc")),
         ]);
       let abbreviated: Exp.t = run_abbreviation(~available=24, original);
       switch (abbreviated.term) {
@@ -533,9 +536,9 @@ let module_abbreviation_tests = [
       open IdTagged.FreshGrammar;
       open Exp;
       let original: Exp.t =
-        tuple([
-          tup_label(
-            label("capacity"),
+        tuple_entries([
+          labeled(
+            "capacity",
             list_lit([int(1), int(2), int(3), int(4)]),
           ),
         ]);
@@ -544,13 +547,11 @@ let module_abbreviation_tests = [
          TupLabel since its min cost is 5. */
       let abbreviated: Exp.t = run_abbreviation(~available=12, original);
       switch (abbreviated.term) {
-      | Tuple([{term: TupLabel(label_exp, value_exp), _}]) =>
+      | Tuple([Labeled(_, l, value_exp)]) =>
         let label_text: string =
-          switch (label_exp.term) {
-          | Label(text) => text
-          | Var(text) => text
-          | Invalid(text) => text
-          | _ => fail("expected label expression")
+          switch (label_text(l)) {
+          | Some(text) => text
+          | None => fail("expected label expression")
           };
         check(
           Alcotest.bool,
@@ -566,7 +567,7 @@ let module_abbreviation_tests = [
           true,
           exp_contains_flat_ellipses(value_exp),
         );
-      | _ => fail("expected tuple with TupLabel")
+      | _ => fail("expected a labeled tuple")
       };
     },
   ),

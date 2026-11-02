@@ -35,12 +35,13 @@ let table_view =
 
 type table_data = (list(option(string)), list(list(Exp.t)));
 
-let rec extract_entry = (e: Exp.t): option((option(string), Exp.t)) =>
-  switch (e.term) {
-  | Parens(inner) => extract_entry(inner)
-  | TupLabel({term: Label(l), _}, v) => Some((Some(l), v))
-  | TupLabel({term: EmptyHole, _}, v) => Some((None, v))
-  | _ => None
+let extract_entry =
+    (entry: TupleEntry.t(Exp.t)): option((option(string), Exp.t)) =>
+  switch (entry) {
+  | Labeled(_, {term: Label(l), _}, v) => Some((Some(l), v))
+  | Labeled(_, {term: EmptyHole, _}, v) => Some((None, v))
+  | Labeled(_, {term: Invalid(_) | MultiHole(_) | ExplicitNonlabel, _}, _)
+  | Unlabeled(_) => None
   };
 
 /* Peel Parens and push outer Asc wrappers into the tuple so labeled

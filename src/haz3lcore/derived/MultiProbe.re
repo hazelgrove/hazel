@@ -177,7 +177,6 @@ let term_is_tuple = (term: Language.Any.t): bool =>
 
 let term_is_tuplabel = (term: Language.Any.t): bool =>
   switch (term) {
-  | Exp({term: TupLabel(_, _), _})
   | Pat({term: TupLabel(_, _), _}) => true
   | _ => false
   };

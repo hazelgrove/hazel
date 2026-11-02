@@ -73,17 +73,16 @@ module Utils = {
     | TypAp(e, _)
     | TypFun(_, e, _)
     | DeferredAp(e, _)
+    | Dot(e, _)
     | HintedTest(e, _) => [e]
     | Let(_, e1, e2)
     | Seq(e1, e2)
     | Ap(_, e1, e2)
-    | Dot(e1, e2)
     | TupleExtension(e1, e2)
-    | TupLabel(e1, e2)
     | Cons(e1, e2)
     | ListConcat(e1, e2)
     | BinOp(_, e1, e2) => [e1, e2]
-    | Tuple(es)
+    | Tuple(es) => List.map(TupleEntry.value, es)
     | ListLit(es) => es
     | If(e1, e2, e3) => [e1, e2, e3]
     | Match(e, branches) => [e, ...List.map(snd, branches)]
@@ -99,7 +98,6 @@ module Utils = {
     | Constructor(_, _)
     | LivelitName(_)
     | TyAlias(_)
-    | ExplicitNonlabel
     | Theorem(_, _, _)
     | ProofObject(_)
     | Forall(_, _)

@@ -13,6 +13,22 @@ include TermBase.Label;
 
 let rep_id: t => Id.t = IdTagged.rep_id;
 
+let temp: term => t =
+  term => {
+    term,
+    annotation: IdTagged.IdTag.temp(),
+  };
+
+/* The label's name, if it is a well-formed one */
+let name = (l: t): option(string) =>
+  switch (l.term) {
+  | Label(name) => Some(name)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | ExplicitNonlabel => None
+  };
+
 let hole = (tms: list(TermBase.Any.t)): term =>
   switch (tms) {
   | [] => EmptyHole

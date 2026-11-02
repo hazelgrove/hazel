@@ -127,7 +127,7 @@ module ToLvsOperation = {
           ap(
             Forward,
             var("to_lvs"),
-            tuple([empty_hole(), tup_label(label("b"), int(2))]),
+            tuple_entries([Unlabeled(empty_hole()), labeled("b", int(2))]),
           )
         ),
       )
@@ -145,10 +145,10 @@ module ToLvsOperation = {
           ap(
             Forward,
             var("to_lvs"),
-            tuple([
-              tup_label(empty_hole(), int(1)),
-              tup_label(label("b"), int(2)),
-              tup_label(label("c"), int(3)),
+            tuple_entries([
+              labeled'(FIError.Label.empty_hole(), int(1)),
+              labeled("b", int(2)),
+              labeled("c", int(3)),
             ]),
           )
         ),
@@ -168,10 +168,10 @@ module ProjectLabels = {
             Forward,
             var("project_labels"),
             tuple([
-              tuple([
-                tup_label(label("a"), int(1)),
-                tup_label(label("b"), bool(true)),
-                tup_label(label("c"), float(3.0)),
+              tuple_entries([
+                labeled("a", int(1)),
+                labeled("b", bool(true)),
+                labeled("c", float(3.0)),
               ]),
               label("c"),
               label("a"),
@@ -195,10 +195,10 @@ module ProjectLabels = {
             Forward,
             var("project_labels"),
             tuple([
-              tuple([
-                tup_label(label("a"), int(1)),
-                tup_label(label("b"), bool(true)),
-                tup_label(label("c"), int(3)),
+              tuple_entries([
+                labeled("a", int(1)),
+                labeled("b", bool(true)),
+                labeled("c", int(3)),
               ]),
               label("a"),
               int(~ann=Some(Marks([BadLabel(Exp(Exp.int(3)))])), 3),
@@ -222,10 +222,10 @@ module ProjectLabels = {
             Forward,
             var("project_labels"),
             tuple([
-              tuple([
-                tup_label(label("a"), int(1)),
-                tup_label(label("b"), bool(true)),
-                tup_label(label("c"), int(3)),
+              tuple_entries([
+                labeled("a", int(1)),
+                labeled("b", bool(true)),
+                labeled("c", int(3)),
               ]),
               label(
                 ~ann=
@@ -327,10 +327,10 @@ module ProjectLabels = {
             Forward,
             var("project_labels"),
             tuple([
-              tuple([
-                tup_label(empty_hole(), int(1)),
-                tup_label(label("b"), bool(true)),
-                tup_label(label("c"), int(3)),
+              tuple_entries([
+                labeled'(FIError.Label.empty_hole(), int(1)),
+                labeled("b", bool(true)),
+                labeled("c", int(3)),
               ]),
               label("b"),
               label("c"),
@@ -348,7 +348,7 @@ module ProjectLabels = {
             ~ann=Some(Marks([BuiltinError(AtLeast2Arguments)])),
             Forward,
             var("project_labels"),
-            tuple([tup_label(label("b"), int(3))]),
+            tuple_entries([labeled("b", int(3))]),
           )
         ),
       )
@@ -374,10 +374,10 @@ module ProjectLabels = {
             Forward,
             var("project_labels"),
             tuple([
-              tuple([
-                tup_label(label("a"), int(1)),
-                tup_label(label("b"), bool(true)),
-                tup_label(label("c"), int(3)),
+              tuple_entries([
+                labeled("a", int(1)),
+                labeled("b", bool(true)),
+                labeled("c", int(3)),
               ]),
               label("a"),
               deferral(
@@ -420,10 +420,10 @@ module SelectLabels = {
             Forward,
             var("select_labels"),
             tuple([
-              tuple([
-                tup_label(label("a"), int(1)),
-                tup_label(label("b"), bool(true)),
-                tup_label(label("c"), int(3)),
+              tuple_entries([
+                labeled("a", int(1)),
+                labeled("b", bool(true)),
+                labeled("c", int(3)),
               ]),
               label("a"),
               label("b"),
@@ -445,10 +445,10 @@ module SelectLabels = {
             Forward,
             var("select_labels"),
             tuple([
-              tuple([
-                tup_label(label("a"), int(1)),
-                tup_label(label("b"), int(2)),
-                tup_label(label("c"), int(3)),
+              tuple_entries([
+                labeled("a", int(1)),
+                labeled("b", int(2)),
+                labeled("c", int(3)),
               ]),
               label("c"),
               label("a"),
@@ -471,10 +471,10 @@ module SelectLabels = {
             Forward,
             var("select_labels"),
             tuple([
-              tuple([
-                tup_label(label("a"), int(1)),
-                tup_label(label("b"), bool(true)),
-                tup_label(label("c"), int(3)),
+              tuple_entries([
+                labeled("a", int(1)),
+                labeled("b", bool(true)),
+                labeled("c", int(3)),
               ]),
               label("a"),
               int(~ann=Some(Marks([BadLabel(Exp(Exp.int(3)))])), 3),
@@ -497,10 +497,10 @@ module SelectLabels = {
             Forward,
             var("select_labels"),
             tuple([
-              tuple([
-                tup_label(label("a"), int(1)),
-                tup_label(label("b"), string("")),
-                tup_label(label("c"), bool(true)),
+              tuple_entries([
+                labeled("a", int(1)),
+                labeled("b", string("")),
+                labeled("c", bool(true)),
               ]),
               label("a"),
               empty_hole(),
@@ -519,10 +519,10 @@ module SelectLabels = {
             Forward,
             var("select_labels"),
             tuple([
-              tuple([
-                tup_label(label("a"), int(1)),
-                tup_label(label("b"), bool(true)),
-                tup_label(label("c"), int(3)),
+              tuple_entries([
+                labeled("a", int(1)),
+                labeled("b", bool(true)),
+                labeled("c", int(3)),
               ]),
               label(
                 ~ann=
@@ -612,10 +612,10 @@ module SelectLabels = {
             Forward,
             var("select_labels"),
             tuple([
-              tuple([
-                tup_label(empty_hole(), int(1)),
-                tup_label(label("b"), bool(true)),
-                tup_label(label("c"), int(3)),
+              tuple_entries([
+                labeled'(FIError.Label.empty_hole(), int(1)),
+                labeled("b", bool(true)),
+                labeled("c", int(3)),
               ]),
               label("b"),
               label("c"),
@@ -649,10 +649,10 @@ module SelectLabels = {
             Forward,
             var("select_labels"),
             tuple([
-              tuple([
-                tup_label(label("a"), int(1)),
-                tup_label(label("b"), bool(true)),
-                tup_label(label("c"), int(3)),
+              tuple_entries([
+                labeled("a", int(1)),
+                labeled("b", bool(true)),
+                labeled("c", int(3)),
               ]),
               label("a"),
               deferral(
@@ -703,9 +703,9 @@ module GroupByLabel = {
             var("group_by_label"),
             tuple([
               list_lit([
-                tuple([
-                  tup_label(label("a"), string("hello")),
-                  tup_label(label("b"), int(3)),
+                tuple_entries([
+                  labeled("a", string("hello")),
+                  labeled("b", int(3)),
                 ]),
               ]),
               label(
@@ -727,9 +727,9 @@ module GroupByLabel = {
             var("group_by_label"),
             tuple([
               list_lit([
-                tuple([
-                  tup_label(label("a"), int(1)),
-                  tup_label(label("b"), int(3)),
+                tuple_entries([
+                  labeled("a", int(1)),
+                  labeled("b", int(3)),
                 ]),
               ]),
               label(
@@ -754,9 +754,9 @@ module GroupByLabel = {
             var("group_by_label"),
             tuple([
               list_lit([
-                tuple([
-                  tup_label(label("a"), string("hello")),
-                  tup_label(label("b"), int(3)),
+                tuple_entries([
+                  labeled("a", string("hello")),
+                  labeled("b", int(3)),
                 ]),
               ]),
               int(~ann=Some(Marks([BadLabel(Exp(Exp.int(5)))])), 5),
@@ -796,9 +796,9 @@ module GroupByLabel = {
             var("group_by_label"),
             tuple([
               list_lit([
-                tuple([
-                  tup_label(label("a"), string("hello")),
-                  tup_label(label("b"), int(3)),
+                tuple_entries([
+                  labeled("a", string("hello")),
+                  labeled("b", int(3)),
                 ]),
               ]),
               label(~ann=Some(Marks([UnexpectedLabelSort("a")])), "a"),
@@ -818,10 +818,10 @@ module GroupByLabel = {
             var("group_by_label"),
             tuple([
               list_lit([
-                tuple([
-                  tup_label(label("a"), string("hello")),
-                  tup_label(empty_hole(), int(3)),
-                  tup_label(label("c"), int(4)),
+                tuple_entries([
+                  labeled("a", string("hello")),
+                  labeled'(FIError.Label.empty_hole(), int(3)),
+                  labeled("c", int(4)),
                 ]),
               ]),
               label("a"),
@@ -855,9 +855,9 @@ module GroupByLabel = {
               tuple([
                 list_lit([
                   asc(
-                    tuple([
-                      tup_label(label("a"), string("hello")),
-                      tup_label(label("b"), int(3)),
+                    tuple_entries([
+                      labeled("a", string("hello")),
+                      labeled("b", int(3)),
                     ]),
                     Typ.unknown(Internal),
                   ),
@@ -883,9 +883,9 @@ module GroupByLabel = {
               var("group_by_label"),
               tuple([
                 list_lit([
-                  tuple([
-                    tup_label(label("a"), string("hello")),
-                    tup_label(label("b"), int(3)),
+                  tuple_entries([
+                    labeled("a", string("hello")),
+                    labeled("b", int(3)),
                   ]),
                 ]),
                 asc(
@@ -950,10 +950,10 @@ module OmitLabels = {
             Forward,
             var("omit_labels"),
             tuple([
-              tuple([
-                tup_label(label("a"), int(1)),
-                tup_label(label("b"), bool(true)),
-                tup_label(label("c"), int(3)),
+              tuple_entries([
+                labeled("a", int(1)),
+                labeled("b", bool(true)),
+                labeled("c", int(3)),
               ]),
               label("a"),
               label("b"),
@@ -971,10 +971,10 @@ module OmitLabels = {
             Forward,
             var("omit_labels"),
             tuple([
-              tuple([
-                tup_label(label("a"), int(1)),
-                tup_label(label("b"), bool(true)),
-                tup_label(label("c"), int(3)),
+              tuple_entries([
+                labeled("a", int(1)),
+                labeled("b", bool(true)),
+                labeled("c", int(3)),
               ]),
               label("a"),
               int(~ann=Some(Marks([BadLabel(Exp(Exp.int(3)))])), 3),
@@ -993,10 +993,10 @@ module OmitLabels = {
             Forward,
             var("omit_labels"),
             tuple([
-              tuple([
-                tup_label(label("a"), int(1)),
-                tup_label(label("b"), string("")),
-                tup_label(label("c"), bool(true)),
+              tuple_entries([
+                labeled("a", int(1)),
+                labeled("b", string("")),
+                labeled("c", bool(true)),
               ]),
               label("a"),
               empty_hole(),
@@ -1019,10 +1019,10 @@ module OmitLabels = {
             Forward,
             var("omit_labels"),
             tuple([
-              tuple([
-                tup_label(label("a"), int(1)),
-                tup_label(label("b"), bool(true)),
-                tup_label(label("c"), int(3)),
+              tuple_entries([
+                labeled("a", int(1)),
+                labeled("b", bool(true)),
+                labeled("c", int(3)),
               ]),
               label(
                 ~ann=
@@ -1048,10 +1048,10 @@ module OmitLabels = {
             Forward,
             var("omit_labels"),
             tuple([
-              tuple([
-                tup_label(empty_hole(), int(1)),
-                tup_label(label("b"), bool(true)),
-                tup_label(label("c"), int(3)),
+              tuple_entries([
+                labeled'(FIError.Label.empty_hole(), int(1)),
+                labeled("b", bool(true)),
+                labeled("c", int(3)),
               ]),
               label("b"),
               label("c"),
@@ -1130,7 +1130,11 @@ module OmitLabels = {
             Forward,
             var("omit_labels"),
             tuple([
-              tuple([int(1), int(2), tup_label(label("a"), int(3))]),
+              tuple_entries([
+                Unlabeled(int(1)),
+                Unlabeled(int(2)),
+                labeled("a", int(3)),
+              ]),
               label("a"),
             ]),
           )
@@ -1163,10 +1167,10 @@ module OmitLabels = {
             Forward,
             var("omit_labels"),
             tuple([
-              tuple([
-                tup_label(label("a"), int(1)),
-                tup_label(label("b"), bool(true)),
-                tup_label(label("c"), int(3)),
+              tuple_entries([
+                labeled("a", int(1)),
+                labeled("b", bool(true)),
+                labeled("c", int(3)),
               ]),
               label("a"),
               deferral(
@@ -1271,10 +1275,10 @@ module OmitAllLabels = {
           ap(
             Forward,
             var("omit_all_labels"),
-            tuple([
-              tup_label(empty_hole(), int(1)),
-              tup_label(label("b"), int(2)),
-              tup_label(label("c"), int(3)),
+            tuple_entries([
+              labeled'(FIError.Label.empty_hole(), int(1)),
+              labeled("b", int(2)),
+              labeled("c", int(3)),
             ]),
           )
         ),

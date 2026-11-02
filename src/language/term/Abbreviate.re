@@ -20,13 +20,13 @@ let available = ref(0);
 
 module AbbrevBudget = {
   /* Display columns, matching the rest of the budget accounting. */
-  let label_estimated_length = (~label: Exp.t): int =>
-    switch (label |> Exp.term_of) {
-    | Label(name)
-    | Var(name) => Unicode.Width.columns_of_string(name)
-    | Invalid(str)
-    | Atom(String(str)) => Unicode.Width.columns_of_string(str)
-    | _ => 0
+  let label_estimated_length = (~label: TermBase.Label.t): int =>
+    switch (label.term) {
+    | Label(str)
+    | Invalid(str) => Unicode.Width.columns_of_string(str)
+    | ExplicitNonlabel => 1
+    | EmptyHole
+    | MultiHole(_) => 0
     };
 
   let with_budget = (~budget: int, ~run: unit => 'a): ('a, int) => {
@@ -83,7 +83,6 @@ module AbbrevSequence = {
   let min_display_cost = (item: Exp.t): int =>
     switch (item.term) {
     | Atom(String(_)) => 3 /* "…" */
-    | TupLabel(_, _) => 3 /* …=… (label 1 + "=" 1 + value 1) */
     | Ap(Forward, {term: Constructor(_, _), _}, _) => 4 /* …(…) */
     | Parens(_) => 3 /* (…) */
     | ListLit([_, ..._]) => 3 /* […] */
@@ -99,6 +98,30 @@ module AbbrevSequence = {
     IdTagged.fresh(
       Invalid(flat_ellipses ++ "+" ++ string_of_int(remaining)): Exp.term,
     );
+
+  /* What the sequence needs to know about its items: list elements are
+     expressions, tuple elements are entries */
+  type item('a) = {
+    of_exp: Exp.t => 'a,
+    min_cost: 'a => int,
+    labeled: 'a => bool,
+  };
+  let exp_item: item(Exp.t) = {
+    of_exp: Fun.id,
+    min_cost: min_display_cost,
+    labeled: _ => false,
+  };
+  let entry_item: item(TupleEntry.t(Exp.t)) = {
+    of_exp: e => Unlabeled(e),
+    min_cost:
+      fun
+      | Labeled(_) => 3 /* …=… (label 1 + "=" 1 + value 1) */
+      | Unlabeled(e) => min_display_cost(e),
+    labeled:
+      fun
+      | Labeled(_) => true
+      | Unlabeled(_) => false,
+  };
 
   /* Pre-compute how many items to show: choose largest c where
      c items + separators + trailing annotation fits in budget.
@@ -138,20 +161,21 @@ module AbbrevSequence = {
      what's reserved (at min cost) for remaining items + trailing. */
   let rec consume =
           (
-            items: list(Exp.t),
+            ~kind: item('a),
+            items: list('a),
             ~items_left_to_show: int,
             ~total_remaining: int,
             ~min_per_item: int,
-            ~abbreviate: Exp.t => Exp.t,
+            ~abbreviate: 'a => 'a,
           )
-          : list(Exp.t) =>
+          : list('a) =>
     switch (items) {
     | [] => []
     | _ when items_left_to_show <= 0 =>
       if (total_remaining > 0) {
         let cost = count_annotation_cost(total_remaining);
         available := available^ - cost;
-        [count_annotation_term(total_remaining)];
+        [kind.of_exp(count_annotation_term(total_remaining))];
       } else {
         [];
       }
@@ -176,7 +200,7 @@ module AbbrevSequence = {
       let sep_here = has_more ? separator_cost : 0;
       let this_budget = max(min_per_item, available^ - sep_here - reserve);
 
-      let (abbreviated_item: Exp.t, _): (Exp.t, int) =
+      let (abbreviated_item, _) =
         AbbrevBudget.with_budget(~budget=this_budget, ~run=() =>
           abbreviate(item)
         );
@@ -188,6 +212,7 @@ module AbbrevSequence = {
         [
           abbreviated_item,
           ...consume(
+               ~kind,
                rest,
                ~items_left_to_show=items_left_to_show - 1,
                ~total_remaining=total_remaining - 1,
@@ -203,12 +228,13 @@ module AbbrevSequence = {
      Deducts separator + trailing costs upfront, splits remainder evenly. */
   let consume_even =
       (
-        items: list(Exp.t),
+        ~kind: item('a),
+        items: list('a),
         ~show_count: int,
         ~total_count: int,
-        ~abbreviate: Exp.t => Exp.t,
+        ~abbreviate: 'a => 'a,
       )
-      : list(Exp.t) => {
+      : list('a) => {
     let unshown = total_count - show_count;
     let trailing_exists = unshown > 0;
     let num_seps = trailing_exists ? show_count : max(0, show_count - 1);
@@ -217,11 +243,12 @@ module AbbrevSequence = {
     available := available^ - num_seps * separator_cost - trailing_cost;
     let pool = max(0, available^);
     let budgets = AbbrevBudget.split_evenly(~total=pool, ~parts=show_count);
-    let rec go = (idx: int, rest: list(Exp.t)): list(Exp.t) =>
+    let rec go = (idx: int, rest: list('a)): list('a) =>
       switch (rest) {
-      | [] => trailing_exists ? [count_annotation_term(unshown)] : []
+      | [] =>
+        trailing_exists ? [kind.of_exp(count_annotation_term(unshown))] : []
       | _ when idx >= show_count =>
-        trailing_exists ? [count_annotation_term(unshown)] : []
+        trailing_exists ? [kind.of_exp(count_annotation_term(unshown))] : []
       | [item, ...rest'] =>
         let b = List.nth(budgets, idx);
         let (abbr, _) =
@@ -231,7 +258,8 @@ module AbbrevSequence = {
     go(0, items);
   };
 
-  let run = (~items: list(Exp.t), ~abbreviate: Exp.t => Exp.t): list(Exp.t) => {
+  let run =
+      (~kind: item('a), ~items: list('a), ~abbreviate: 'a => 'a): list('a) => {
     let count: int = List.length(items);
     if (count <= 0) {
       [];
@@ -239,22 +267,10 @@ module AbbrevSequence = {
       let available_now: int = available^;
       /* Compute min_item from the maximum per-item minimum cost. */
       let min_item: int =
-        List.fold_left(
-          (acc, item) => max(acc, min_display_cost(item)),
-          1,
-          items,
-        );
+        List.fold_left((acc, i) => max(acc, kind.min_cost(i)), 1, items);
       /* Check if all items are TupLabels (record-like). If so, use even
          distribution so all field names become visible simultaneously. */
-      let all_labeled: bool =
-        List.for_all(
-          item =>
-            switch (item |> Exp.term_of) {
-            | TupLabel(_, _) => true
-            | _ => false
-            },
-          items,
-        );
+      let all_labeled: bool = List.for_all(kind.labeled, items);
       /* Useful cost: same as min — items are shown when they can render
          at least their minimum structural form. For TupLabels (min=3) that's
          "…=…", for Parens (min=3) that's "(…)", for atomics it's the value. */
@@ -279,13 +295,14 @@ module AbbrevSequence = {
           let ann_cost = count_annotation_cost(count);
           if (available^ >= ann_cost) {
             available := available^ - ann_cost;
-            [count_annotation_term(count)];
+            [kind.of_exp(count_annotation_term(count))];
           } else {
             available := available^ - ellipsis_cost;
-            [flat_ellipses_term()];
+            [kind.of_exp(flat_ellipses_term())];
           };
         } else {
           consume(
+            ~kind,
             items,
             ~items_left_to_show=fallback_count,
             ~total_remaining=count,
@@ -294,9 +311,16 @@ module AbbrevSequence = {
           );
         };
       } else if (all_labeled) {
-        consume_even(items, ~show_count, ~total_count=count, ~abbreviate);
+        consume_even(
+          ~kind,
+          items,
+          ~show_count,
+          ~total_count=count,
+          ~abbreviate,
+        );
       } else {
         consume(
+          ~kind,
           items,
           ~items_left_to_show=show_count,
           ~total_remaining=count,
@@ -450,9 +474,18 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
       };
 
     let abbreviate_list_seq = (xs: list(Exp.t)): list(Exp.t) =>
-      AbbrevSequence.run(~items=xs, ~abbreviate=abbreviate_exp);
-    let abbreviate_tuple_seq = (xs: list(Exp.t)): list(Exp.t) =>
-      AbbrevSequence.run(~items=xs, ~abbreviate=abbreviate_exp);
+      AbbrevSequence.run(
+        ~kind=AbbrevSequence.exp_item,
+        ~items=xs,
+        ~abbreviate=abbreviate_exp,
+      );
+    let abbreviate_tuple_seq =
+        (xs: list(TupleEntry.t(Exp.t))): list(TupleEntry.t(Exp.t)) =>
+      AbbrevSequence.run(
+        ~kind=AbbrevSequence.entry_item,
+        ~items=xs,
+        ~abbreviate=abbreviate_entry,
+      );
 
     // Helper to handle cases where we need to check available space and potentially return indet_term
     let handle_op_indet =
@@ -493,7 +526,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
       | Fun(_p, _e, _, Some(s)) => Invalid("<" ++ s ++ ">")
       | Fun(_p, _e, _, None) => Invalid("<function>")
       | BuiltinFun(f) => Invalid("<" ++ f ++ ">")
-      | Tuple([e]) => Tuple([abbreviate_exp(e)])
+      | Tuple([e]) => Tuple([abbreviate_entry(e)])
       | DynamicErrorHole(_exp, err) =>
         Invalid("<" ++ InvalidOperationError.show(err) ++ ">")
 
@@ -520,7 +553,6 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
         | `Label(s) => Label(s)
         | `Invalid(s) => Invalid(s)
         }
-      | ExplicitNonlabel => ExplicitNonlabel
       | Constructor(c, t) => Constructor(abbreviate_str(available^, c), t)
       | LivelitName(v) => LivelitName(abbreviate_str(available^, v))
 
@@ -579,45 +611,17 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
              longer than the abbreviated content. Extract the text from the
              single Invalid element to preserve count annotations (…+N). */
           switch (abbreviated) {
-          | [{term: Invalid(s), _}] => Invalid(s)
-          | [single] => single.term
+          | [Unlabeled({term: Invalid(s), _})] => Invalid(s)
+          | [Unlabeled(single)] => single.term
           | _ => Tuple(abbreviated)
           };
         }
-      | TupLabel(e1, e2) =>
-        /* Min TupLabel: label (1) + "=" (1) + value (1) = 3.
-           Truncated labels use Invalid (no backtick quoting). */
-        if (available^ < 3) {
-          available := available^ - ellipsis_cost;
-          Invalid(flat_ellipses);
-        } else {
-          available := available^ - 1; /* "=" */
-          let remaining: int = available^;
-          /* Give label its estimated length if possible, else at least 1. */
-          let label_est = AbbrevBudget.label_estimated_length(~label=e1);
-          let label_budget =
-            if (remaining >= label_est) {
-              label_est;
-            } else {
-              max(1, remaining - 1);
-            };
-          let label_budget = min(label_budget, remaining - 1);
-          let (label', _): (Exp.t, int) =
-            AbbrevBudget.with_budget(~budget=label_budget, ~run=() =>
-              abbreviate_exp(e1)
-            );
-          let (value', _): (Exp.t, int) =
-            AbbrevBudget.with_budget(~budget=available^, ~run=() =>
-              abbreviate_exp(e2)
-            );
-          TupLabel(label', value');
-        }
-      | Dot(e1, e2) =>
+      | Dot(e, l) =>
         if (available^ <= 3) {
           Invalid(flat_ellipses);
         } else {
           available := available^ - 3;
-          Dot(abbreviate_exp(e1), abbreviate_exp(e2));
+          Dot(abbreviate_exp(e), abbreviate_label_term(l));
         }
       | Ap(Forward, {term: Constructor(_str, _), _} as konst, arg) =>
         if (available^ < 4) {
@@ -761,7 +765,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           available := available^ - 1; // space between terms
           let e' = abbreviate_exp(e);
           if (available^ > 0) {
-            let es' = List.map((e: Exp.t) => abbreviate_exp(e), es);
+            let es' = List.map(abbreviate_entry, es);
             DeferredAp(e', es');
           } else {
             e'.term;
@@ -1295,6 +1299,55 @@ and abbreviate_mpat = (mp: MPat.t): MPat.t => {
     | MultiHole(things) => MultiHole(List.map(abbreviate_any, things))
     };
   rewrap(term);
+}
+and abbreviate_entry = (entry: TupleEntry.t(Exp.t)): TupleEntry.t(Exp.t) =>
+  switch (entry) {
+  | Unlabeled(e) => Unlabeled(abbreviate_exp(e))
+  | Labeled(eq, l, v) =>
+    /* Min: label (1) + "=" (1) + value (1) = 3 */
+    if (available^ < 3) {
+      available := available^ - ellipsis_cost;
+      Unlabeled(flat_ellipses_term());
+    } else {
+      available := available^ - 1; /* "=" */
+      let remaining: int = available^;
+      /* Give label its estimated length if possible, else at least 1. */
+      let label_est = AbbrevBudget.label_estimated_length(~label=l);
+      let label_budget =
+        remaining >= label_est ? label_est : max(1, remaining - 1);
+      let label_budget = min(label_budget, remaining - 1);
+      let (l', _) =
+        AbbrevBudget.with_budget(~budget=label_budget, ~run=() =>
+          abbreviate_label_term(l)
+        );
+      let (v', _) =
+        AbbrevBudget.with_budget(~budget=available^, ~run=() =>
+          abbreviate_exp(v)
+        );
+      Labeled(eq, l', v');
+    }
+  }
+/* Truncated labels use Invalid (no backtick quoting) */
+and abbreviate_label_term = (l: TermBase.Label.t): TermBase.Label.t => {
+  ...l,
+  term:
+    switch (l.term) {
+    | Label(name) =>
+      switch (abbreviate_label(name)) {
+      | `Label(s) => Label(s)
+      | `Invalid(s) => Invalid(s)
+      }
+    | Invalid(s) => Invalid(abbreviate_str(available^, s))
+    | ExplicitNonlabel =>
+      available := available^ - 1;
+      ExplicitNonlabel;
+    | EmptyHole =>
+      available := available^ - 1;
+      EmptyHole;
+    | MultiHole(_) =>
+      available := available^ - ellipsis_cost;
+      Invalid(flat_ellipses);
+    },
 }
 and abbreviate_pat = (pat: Pat.t): Pat.t => {
   let initial = available^;

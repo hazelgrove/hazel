@@ -36,6 +36,11 @@ and label_term('a) =
   /* `_ = e`: an entry explicitly left unlabeled */
   | ExplicitNonlabel
 and label_t('a) = Annotated.t(label_term('a), 'a)
+/* An entry of a tuple. A labeled entry's annotation holds its `=` tile's
+   id; the tuple, not the entry, owns that id in the statics map. */
+and tuple_entry('a, 'e) =
+  | Labeled('a, label_t('a), 'e)
+  | Unlabeled('e)
 and exp_term('a) =
   | Invalid(string)
   | EmptyHole
@@ -53,11 +58,9 @@ and exp_term('a) =
   | Constructor(string, option(option(typ_t('a))))
   | Fun(pat_t('a), exp_t('a), option(typ_t('a)), option(Var.t)) // typ_t field is only used to display types in results
   | TypFun(tpat_t('a), exp_t('a), option(Var.t))
-  | Tuple(list(exp_t('a)))
+  | Tuple(list(tuple_entry('a, exp_t('a))))
   | Label(string)
-  | ExplicitNonlabel
-  | TupLabel(exp_t('a), exp_t('a))
-  | Dot(exp_t('a), exp_t('a))
+  | Dot(exp_t('a), label_t('a))
   | LivelitName(string)
   | Var(Var.t)
   | Let(pat_t('a), exp_t('a), exp_t('a))
@@ -69,7 +72,7 @@ and exp_term('a) =
   | Use(typ_t('a), exp_t('a))
   | Ap(Operators.ap_direction, exp_t('a), exp_t('a))
   | TypAp(exp_t('a), typ_t('a))
-  | DeferredAp(exp_t('a), list(exp_t('a)))
+  | DeferredAp(exp_t('a), list(tuple_entry('a, exp_t('a))))
   | If(exp_t('a), exp_t('a), exp_t('a))
   | Seq(exp_t('a), exp_t('a))
   | Test(exp_t('a))
@@ -210,13 +213,13 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
           )
         | TypFun(p, e, v) =>
           TypFun(map_tpat_annotation(f, p), map_exp_annotation(f, e), v)
-        | Tuple(l) => Tuple(List.map(x => map_exp_annotation(f, x), l))
+        | Tuple(l) =>
+          Tuple(
+            List.map(map_tuple_entry_annotation(f, map_exp_annotation), l),
+          )
         | Label(l) => Label(l)
-        | ExplicitNonlabel => ExplicitNonlabel
-        | TupLabel(l, e) =>
-          TupLabel(map_exp_annotation(f, l), map_exp_annotation(f, e))
-        | Dot(e1, e2) =>
-          Dot(map_exp_annotation(f, e1), map_exp_annotation(f, e2))
+        | Dot(e, l) =>
+          Dot(map_exp_annotation(f, e), map_label_annotation(f, l))
         | Var(v) => Var(v)
         | Let(p, e1, e2) =>
           Let(
@@ -250,7 +253,7 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
         | DeferredAp(e, l) =>
           DeferredAp(
             map_exp_annotation(f, e),
-            List.map(x => map_exp_annotation(f, x), l),
+            List.map(map_tuple_entry_annotation(f, map_exp_annotation), l),
           )
         | If(e1, e2, e3) =>
           If(
@@ -505,6 +508,17 @@ and map_mpat_annotation: 'a 'b. ('a => 'b, mpat_t('a)) => mpat_t('b) =
       annotation: new_annotation,
     };
   }
+and map_tuple_entry_annotation:
+  'a 'b 'e1 'e2.
+  ('a => 'b, ('a => 'b, 'e1) => 'e2, tuple_entry('a, 'e1)) =>
+  tuple_entry('b, 'e2)
+ =
+  (f, map_value, entry) =>
+    switch (entry) {
+    | Labeled(a, l, v) =>
+      Labeled(f(a), map_label_annotation(f, l), map_value(f, v))
+    | Unlabeled(v) => Unlabeled(map_value(f, v))
+    }
 and map_label_annotation: 'a 'b. ('a => 'b, label_t('a)) => label_t('b) =
   (f, e) => {
     term:
@@ -578,6 +592,29 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
         annotation: default_annotation(ann),
       });
   };
+  module Label = {
+    let invalid = (~ann=?, s): label_t(DefaultAnnotation.t) => {
+      term: Invalid(s),
+      annotation: default_annotation(ann),
+    };
+    let label = (~ann=?, name): label_t(DefaultAnnotation.t) => {
+      term: Label(name),
+      annotation: default_annotation(ann),
+    };
+    let explicit_non_label = (~ann=?, ()): label_t(DefaultAnnotation.t) => {
+      term: ExplicitNonlabel,
+      annotation: default_annotation(ann),
+    };
+    let empty_hole = (~ann=?, ()): label_t(DefaultAnnotation.t) => {
+      term: EmptyHole,
+      annotation: default_annotation(ann),
+    };
+    let multi_hole = (~ann=?, l): label_t(DefaultAnnotation.t) => {
+      term: MultiHole(l),
+      annotation: default_annotation(ann),
+    };
+  };
+
   module Exp = {
     type t = exp_t(DefaultAnnotation.t);
     let invalid = (~ann=?, s): exp_t(DefaultAnnotation.t) => {
@@ -654,24 +691,38 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: TypFun(p, e, v),
       annotation: default_annotation(ann),
     };
-    let tuple = (~ann=?, l): exp_t(DefaultAnnotation.t) => {
-      term: Tuple(l),
+    /* an unlabeled tuple */
+    let tuple = (~ann=?, es): exp_t(DefaultAnnotation.t) => {
+      term: Tuple(List.map(e => Unlabeled(e), es)),
       annotation: default_annotation(ann),
     };
-    let explicit_non_label = (~ann=?, ()): exp_t(DefaultAnnotation.t) => {
-      term: ExplicitNonlabel,
+    let tuple_entries = (~ann=?, entries): exp_t(DefaultAnnotation.t) => {
+      term: Tuple(entries),
       annotation: default_annotation(ann),
     };
     let label = (~ann=?, l): exp_t(DefaultAnnotation.t) => {
       term: Label(l),
       annotation: default_annotation(ann),
     };
-    let tup_label = (~ann=?, l, e): exp_t(DefaultAnnotation.t) => {
-      term: TupLabel(l, e),
-      annotation: default_annotation(ann),
-    };
-    let dot = (~ann=?, e1, e2): exp_t(DefaultAnnotation.t) => {
-      term: Dot(e1, e2),
+    /* An entry labeled with a name; ~ann is the `=` tile's */
+    let labeled =
+        (~ann=?, ~label_ann=?, name, e)
+        : tuple_entry(DefaultAnnotation.t, exp_t(DefaultAnnotation.t)) =>
+      Labeled(
+        default_annotation(ann),
+        {
+          term: Label(name),
+          annotation: default_annotation(label_ann),
+        },
+        e,
+      );
+    /* An entry with any label */
+    let labeled' =
+        (~ann=?, l, e)
+        : tuple_entry(DefaultAnnotation.t, exp_t(DefaultAnnotation.t)) =>
+      Labeled(default_annotation(ann), l, e);
+    let dot = (~ann=?, e, l): exp_t(DefaultAnnotation.t) => {
+      term: Dot(e, l),
       annotation: default_annotation(ann),
     };
     let tuple_extension = (~ann=?, e1, e2): exp_t(DefaultAnnotation.t) => {
@@ -726,8 +777,9 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: TypAp(e, t),
       annotation: default_annotation(ann),
     };
+    /* unlabeled arguments */
     let deferred_ap = (~ann=?, e, l): exp_t(DefaultAnnotation.t) => {
-      term: DeferredAp(e, l),
+      term: DeferredAp(e, List.map(e => Unlabeled(e), l)),
       annotation: default_annotation(ann),
     };
     let if_ = (~ann=?, e1, e2, e3): exp_t(DefaultAnnotation.t) => {
@@ -1103,13 +1155,6 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let asc = (~ann=?, mp, t): mpat_t(DefaultAnnotation.t) => {
       term: Asc(mp, t),
-      annotation: default_annotation(ann),
-    };
-  };
-
-  module Label = {
-    let invalid = (~ann=?, s): label_t(DefaultAnnotation.t) => {
-      term: Invalid(s),
       annotation: default_annotation(ann),
     };
   };

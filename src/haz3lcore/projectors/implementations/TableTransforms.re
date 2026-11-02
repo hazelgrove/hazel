@@ -153,13 +153,13 @@ let convert_column = (column: string, conversion_fn: string): transform => {
           Pat.var("r"),
           tuple_extension(
             var("r"),
-            tuple([
-              tup_label(
-                label(column),
+            tuple_entries([
+              labeled(
+                column,
                 ap(
                   Forward,
                   var(conversion_fn),
-                  dot(var("r"), label(column)),
+                  dot(var("r"), Label.label(column)),
                 ),
               ),
             ]),
@@ -184,8 +184,8 @@ let rename_column = (old_name: string, new_name: string): transform => {
               var("omit_labels"),
               tuple([var("r"), label(old_name)]),
             ),
-            tuple([
-              tup_label(label(new_name), dot(var("r"), label(old_name))),
+            tuple_entries([
+              labeled(new_name, dot(var("r"), Label.label(old_name))),
             ]),
           ),
           None,
@@ -206,7 +206,7 @@ let add_column = (): transform =>
           Pat.var("r"),
           tuple_extension(
             var("r"),
-            tuple([tup_label(empty_hole(), empty_hole())]),
+            tuple_entries([labeled'(Label.empty_hole(), empty_hole())]),
           ),
           None,
           None,
@@ -223,7 +223,7 @@ let clear_column = (column: string): transform => {
           Pat.var("r"),
           tuple_extension(
             var("r"),
-            tuple([tup_label(label(column), empty_hole())]),
+            tuple_entries([labeled(column, empty_hole())]),
           ),
           None,
           None,
@@ -241,8 +241,8 @@ let noop_column = (column: string): transform => {
           Pat.var("r"),
           tuple_extension(
             var("r"),
-            tuple([
-              tup_label(label(column), dot(var("r"), label(column))),
+            tuple_entries([
+              labeled(column, dot(var("r"), Label.label(column))),
             ]),
           ),
           None,
@@ -263,7 +263,7 @@ let group_by_column = (column: string): transform => {
             deferral(InAp),
             fn(
               Pat.var("row"),
-              dot(var("row"), label(column)),
+              dot(var("row"), Label.label(column)),
               None,
               None,
             ),
@@ -284,7 +284,11 @@ let filter_by_column = (op, column: string): transform => {
             deferral(InAp),
             fn(
               Pat.var("row"),
-              bin_op(op, dot(var("row"), label(column)), empty_hole()),
+              bin_op(
+                op,
+                dot(var("row"), Label.label(column)),
+                empty_hole(),
+              ),
               None,
               None,
             ),
@@ -324,7 +328,10 @@ let string_match_filter = (column: string): transform =>
               ap(
                 Forward,
                 var("string_match"),
-                tuple([empty_hole(), dot(var("row"), label(column))]),
+                tuple([
+                  empty_hole(),
+                  dot(var("row"), Label.label(column)),
+                ]),
               ),
               None,
               None,
@@ -349,12 +356,12 @@ let drop_nones_column = (column: string): transform => {
                 Forward,
                 var("option_map"),
                 tuple([
-                  dot(var("row"), label(column)),
+                  dot(var("row"), Label.label(column)),
                   fn(
                     Pat.var("v"),
                     tuple_extension(
                       var("row"),
-                      tuple([tup_label(label(column), var("v"))]),
+                      tuple_entries([labeled(column, var("v"))]),
                     ),
                     None,
                     None,
@@ -379,11 +386,11 @@ let provide_default_column = (column: string): transform => {
           Pat.var("row"),
           tuple_extension(
             var("row"),
-            tuple([
-              tup_label(
-                label(column),
+            tuple_entries([
+              labeled(
+                column,
                 match(
-                  dot(var("row"), label(column)),
+                  dot(var("row"), Label.label(column)),
                   [
                     (Pat.constructor("None", None), empty_hole()),
                     (
@@ -460,8 +467,8 @@ let sort_column =
             Forward,
             var(compare_fn_name),
             tuple([
-              dot(var("r1"), label(header)),
-              dot(var("r2"), label(header)),
+              dot(var("r1"), Label.label(header)),
+              dot(var("r2"), Label.label(header)),
             ]),
           )
         )

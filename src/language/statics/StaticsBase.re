@@ -223,35 +223,6 @@ let append_mark_exp = (m: Map.t, e: Exp.t, extra: list(Mark.t)): Map.t =>
   | _ => m
   };
 
-let set_label_sort_exp = (m: Map.t, e: Exp.t, label_sort: bool): Map.t =>
-  switch (Map.lookup(Exp.rep_id(e), m)) {
-  | Some(Info.InfoExp(info)) =>
-    Map.add_info(
-      IdTagged.ids(info.user_term),
-      InfoExp({
-        ...info,
-        label_sort,
-      }),
-      m,
-    )
-  | _ => m
-  };
-
-let set_dot_labels_exp =
-    (m: Map.t, e: Exp.t, dot_labels: list(string)): Map.t =>
-  switch (Map.lookup(Exp.rep_id(e), m)) {
-  | Some(Info.InfoExp(info)) =>
-    Map.add_info(
-      IdTagged.ids(info.user_term),
-      InfoExp({
-        ...info,
-        dot_labels,
-      }),
-      m,
-    )
-  | _ => m
-  };
-
 let map_m = (f, xs, m: Map.t) =>
   List.fold_left(
     ((xs, m), x) => f(x, m) |> (((x, m)) => (xs @ [x], m)),
@@ -468,8 +439,6 @@ module type ExpressionStatics = {
       ~message: Message.t=?,
       ~label_inference: option(Info.label_inference(Info.exp))=?, // TODO[Matt]: combine with message
       ~inferred_label: option(string)=?,
-      ~label_sort: bool=?,
-      ~dot_labels: list(string)=?,
       Map.t
     ) =>
     (Info.exp, Exp.t, Map.t);

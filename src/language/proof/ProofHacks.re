@@ -91,7 +91,22 @@ let rec exp_to_pat = (exp: Exp.t): Pat.t => {
   | Constructor(c, t) => rewrap(Constructor(c, t))
   | Cons(e1, e2) => rewrap(Cons(exp_to_pat(e1), exp_to_pat(e2)))
   | Var(x) => rewrap(Var(x))
-  | Tuple(xs) => rewrap(Tuple(List.map(exp_to_pat, xs)))
+  | Tuple(xs) =>
+    rewrap(
+      Tuple(
+        List.map(
+          fun
+          | Grammar.Labeled(eq, l, e) => (
+              {
+                term: TupLabel(Pat.of_label(l), exp_to_pat(e)),
+                annotation: eq,
+              }: Pat.t
+            )
+          | Unlabeled(e) => exp_to_pat(e),
+          xs,
+        ),
+      ),
+    )
   | Parens(e) => rewrap(Parens(exp_to_pat(e)))
   | Ap(_, e1, e2) => rewrap(Ap(exp_to_pat(e1), exp_to_pat(e2)))
   | Asc(e, t1) => rewrap(Asc(exp_to_pat(e), t1))
@@ -116,14 +131,20 @@ let rec pat_to_exp = (pat: Pat.t): Exp.t => {
   | Constructor(c, t) => rewrap(Constructor(c, t))
   | Cons(e1, e2) => rewrap(Cons(pat_to_exp(e1), pat_to_exp(e2)))
   | Var(x) => rewrap(Var(x))
-  | Tuple(xs) => rewrap(Tuple(List.map(pat_to_exp, xs)))
+  | Tuple(xs) =>
+    rewrap(
+      Tuple(
+        List.map(p => TupleEntry.map(pat_to_exp, Pat.tuple_entry(p)), xs),
+      ),
+    )
   | Parens(e) => rewrap(Parens(pat_to_exp(e)))
   | Projector(data, e) => rewrap(Projector(data, pat_to_exp(e)))
   | Ap(e1, e2) => rewrap(Ap(Forward, pat_to_exp(e1), pat_to_exp(e2)))
   | Asc(e, t1) => rewrap(Asc(pat_to_exp(e), t1))
   | Label(l) => rewrap(Label(l))
-  | ExplicitNonlabel => rewrap(ExplicitNonlabel)
-  | TupLabel(l, e) => rewrap(TupLabel(pat_to_exp(l), pat_to_exp(e)))
+  /* only inside a TupLabel, which Tuple turns into an entry */
+  | ExplicitNonlabel => rewrap(EmptyHole)
+  | TupLabel(_, e) => pat_to_exp(e)
   };
 };
 
@@ -438,7 +459,6 @@ let rec replace_exp =
         | Tuple(_)
         | TupleExtension(_)
         | Label(_)
-        | TupLabel(_, _)
         | Dot(_, _)
         | LivelitName(_)
         | TyAlias(_)
@@ -461,7 +481,6 @@ let rec replace_exp =
         | BuiltinFun(_)
         | ProofObject(_)
         | Asc(_, _)
-        | ExplicitNonlabel
         | Module(_)
         | ModuleExp(_) => continue(exp)
         };

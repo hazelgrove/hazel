@@ -174,18 +174,26 @@ let tests = (
             unbox(
               TupleElementPivot("a"),
               F.Exp.(
-                tuple([
-                  tup_label(label("a"), string("aval")),
-                  tup_label(label("b"), string("bval")),
+                tuple_entries([
+                  labeled("a", string("aval")),
+                  labeled("b", string("bval")),
                 ])
               ),
             );
+          /* the remaining entries keep their labels */
+          let actual =
+            switch (actual) {
+            | Matches((pivot, rest)) =>
+              Matches((pivot, F.Exp.tuple_entries(rest)))
+            | IndetMatch => IndetMatch
+            | DoesNotMatch => DoesNotMatch
+            };
           let expected = (
             "aval",
-            F.Exp.[tup_label(label("b"), string("bval"))],
+            F.Exp.(tuple_entries([labeled("b", string("bval"))])),
           );
           check(
-            unboxed_testable(pair(Alcotest.string, list(exp))),
+            unboxed_testable(pair(Alcotest.string, exp)),
             "Pivot request",
             Matches(expected),
             actual,
@@ -193,26 +201,20 @@ let tests = (
         },
       ),
       test_case(
-        "Dot projection of casted tup label",
+        "Dot projection of a labeled entry with a cast value",
         `Quick,
         () => {
           open F;
           let orig =
             Exp.(
-              tuple([
-                asc(
-                  tup_label(
-                    label("j"),
-                    asc(int(1), Typ.unknown(Internal)),
-                  ),
-                  Typ.unknown(Internal),
-                ),
-                asc(int(3), Typ.unknown(Internal)),
+              tuple_entries([
+                labeled("j", asc(int(1), Typ.unknown(Internal))),
+                Unlabeled(asc(int(3), Typ.unknown(Internal))),
               ])
             );
           check(
             unboxed_testable(exp),
-            "Dot projection of casted tup label",
+            "Dot projection of a labeled entry with a cast value",
             Matches(orig),
             unbox(LabeledTupleProjection("j"), orig),
           );

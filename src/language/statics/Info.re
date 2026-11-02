@@ -47,9 +47,7 @@ type exp = {
   warnings: list(Warning.list_item),
   ty: Typ.t, /* DERIVED: Type after nonempty hole fixing */
   label_inference: option(label_inference(exp)), /* Label inference information for the tuple */
-  inferred_label: option(LabeledTuple.label), /* Inferred label for an expression within the tuple */
-  label_sort: bool, /* When in the position of a label */
-  dot_labels: list(string) /* Available labels when in dot-access position */
+  inferred_label: option(LabeledTuple.label) /* Inferred label for an expression within the tuple */
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -133,6 +131,7 @@ type label = {
   ctx: Ctx.t,
   ancestors,
   marks: list(Mark.t),
+  dot_labels: list(string) /* Available labels when in dot-access position */
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -356,7 +355,7 @@ let is_label = (info: t): bool =>
   | InfoExp({user_term: {term: Label(_), _}, _})
   | InfoPat({user_term: {term: Label(_), _}, _})
   | InfoPat({label_sort: true, _})
-  | InfoExp({label_sort: true, _}) => true
+  | InfoLabel(_) => true
   | _ => false
   };
 

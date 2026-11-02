@@ -26,7 +26,6 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | DrvQuote(_)
   | ListLit(_)
   | TupleExtension(_)
-  | ExplicitNonlabel
   | Constructor(_)
   | Closure(_)
   | Fun(_)
@@ -34,7 +33,6 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | FixF(_)
   | Forall(_)
   | Tuple(_)
-  | TupLabel(_)
   | Label(_)
   | Dot(_)
   | Var(_)

@@ -7,33 +7,28 @@
 let rec align_exp = (ctx: Ctx.t, expected_ty: Typ.t, exp: Exp.t): Exp.t =>
   switch (Typ.term_of(MatchedTyp.head(ctx, expected_ty))) {
   | Prod(tys) =>
-    let align_entry = (expected_entry, exp_entry) =>
+    let align_entry = (expected_entry, entry: TupleEntry.t(Exp.t)) =>
       switch (Typ.match_tup_label(expected_entry)) {
       | Some((label, inner_ty)) =>
-        switch (Exp.match_tup_label(exp_entry)) {
-        | Some((label', inner_exp)) when label == label' =>
-          TupLabel(
-            Label(label) |> Exp.fresh,
-            align_exp(ctx, inner_ty, inner_exp),
-          )
-          |> Exp.fresh
+        switch (TupleEntry.label_name(entry)) {
+        | Some(label') when label == label' =>
+          TupleEntry.map(align_exp(ctx, inner_ty), entry)
         | _ =>
-          TupLabel(
-            Label(label) |> Exp.fresh,
-            align_exp(ctx, inner_ty, exp_entry),
+          TupleEntry.labeled(
+            label,
+            align_exp(ctx, inner_ty, TupleEntry.value(entry)),
           )
-          |> Exp.fresh
         }
-      | None => align_exp(ctx, expected_entry, exp_entry)
+      | None => TupleEntry.map(align_exp(ctx, expected_entry), entry)
       };
     switch (exp.term) {
     | Parens(inner) => align_exp(ctx, expected_ty, inner)
     | Tuple(ds) =>
       let arranged =
         LabeledTuple.rearrange(
-          Typ.match_tup_label, Exp.match_tup_label, tys, ds, (label, body) => {
-          TupLabel(Label(label) |> Exp.fresh, body) |> Exp.fresh
-        });
+          Typ.match_tup_label, TupleEntry.get_label, tys, ds, (label, entry) =>
+          TupleEntry.labeled(label, TupleEntry.value(entry))
+        );
       let arranged =
         List.length(tys) == List.length(arranged)
           ? List.map2(align_entry, tys, arranged) : arranged;
@@ -49,27 +44,11 @@ let rec align_exp = (ctx: Ctx.t, expected_ty: Typ.t, exp: Exp.t): Exp.t =>
     | _ =>
       switch (tys) {
       | [ty] =>
-        switch (Typ.match_tup_label(ty), Exp.match_tup_label(exp)) {
-        | (Some((label, inner_ty)), Some((label', inner_exp)))
-            when label == label' =>
-          Tuple([
-            TupLabel(
-              Label(label) |> Exp.fresh,
-              align_exp(ctx, inner_ty, inner_exp),
-            )
-            |> Exp.fresh,
-          ])
+        switch (Typ.match_tup_label(ty)) {
+        | Some((label, inner_ty)) =>
+          Tuple([TupleEntry.labeled(label, align_exp(ctx, inner_ty, exp))])
           |> Exp.fresh
-        | (Some((label, inner_ty)), _) =>
-          Tuple([
-            TupLabel(
-              Label(label) |> Exp.fresh,
-              align_exp(ctx, inner_ty, exp),
-            )
-            |> Exp.fresh,
-          ])
-          |> Exp.fresh
-        | _ => exp
+        | None => exp
         }
       | _ => exp
       }
@@ -86,15 +65,16 @@ let rec is_aligned_exp = (ctx: Ctx.t, expected_ty: Typ.t, exp: Exp.t): bool =>
     | Tuple(ds) =>
       List.length(tys) == List.length(ds)
       && List.for_all2(
-           (expected_entry, exp_entry) =>
+           (expected_entry, entry) =>
              switch (Typ.match_tup_label(expected_entry)) {
              | Some((label, inner_ty)) =>
-               switch (Exp.match_tup_label(exp_entry)) {
-               | Some((label', inner_exp)) when label == label' =>
-                 is_aligned_exp(ctx, inner_ty, inner_exp)
+               switch (TupleEntry.label_name(entry)) {
+               | Some(label') when label == label' =>
+                 is_aligned_exp(ctx, inner_ty, TupleEntry.value(entry))
                | _ => false
                }
-             | None => is_aligned_exp(ctx, expected_entry, exp_entry)
+             | None =>
+               is_aligned_exp(ctx, expected_entry, TupleEntry.value(entry))
              },
            tys,
            ds,

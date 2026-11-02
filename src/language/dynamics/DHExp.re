@@ -99,10 +99,8 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | Cons(_)
           | ListConcat(_)
           | Tuple(_)
-          | TupLabel(_)
           | TupleExtension(_)
           | Label(_)
-          | ExplicitNonlabel
           | Dot(_)
           | Match(_)
           | LivelitName(_)
@@ -131,6 +129,14 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
     )
   };
 };
+
+/* `_ = e` and plain `e` are both unlabeled */
+let same_entry_label = (e1: TupleEntry.t(t), e2: TupleEntry.t(t)): bool =>
+  Option.equal(
+    String.equal,
+    TupleEntry.label_name(e1),
+    TupleEntry.label_name(e2),
+  );
 
 let rec ty_comparable = (d1, d2) => {
   switch (term_of(d1), term_of(d2)) {
@@ -193,13 +199,6 @@ let rec ty_comparable = (d1, d2) => {
   | (DrvQuote(_, _), _) => false
   | (Label(l1), Label(l2)) => l1 == l2
   | (Label(_), _) => false
-  | (TupLabel(l1, d1), TupLabel(l2, d2)) =>
-    ty_comparable(l1, l2) && ty_comparable(d1, d2)
-  | (TupLabel({term: ExplicitNonlabel, _}, d1), _) => ty_comparable(d1, d2)
-  | (_, TupLabel({term: ExplicitNonlabel, _}, d2)) => ty_comparable(d1, d2)
-  | (TupLabel(_), _) => false
-  | (ExplicitNonlabel, ExplicitNonlabel) => true
-  | (ExplicitNonlabel, _) => false
   /* [ListLit] checks that *all* elements (across both literals) are mutually
      consistent, unlike [Tuple] below, which checks pairwise consistency. */
   | (ListLit(ds1), ListLit(ds2)) =>
@@ -210,7 +209,13 @@ let rec ty_comparable = (d1, d2) => {
   | (ListLit(_), _) => false
   | (Tuple(ds1), Tuple(ds2)) =>
     List.length(ds1) == List.length(ds2)
-    && List.for_all2(ty_comparable, ds1, ds2)
+    && List.for_all2(
+         (e1, e2) =>
+           same_entry_label(e1, e2)
+           && ty_comparable(TupleEntry.value(e1), TupleEntry.value(e2)),
+         ds1,
+         ds2,
+       )
   | (Tuple(_), _) => false
   | (
       Constructor(_, Some(Some(t1))) |
@@ -306,21 +311,18 @@ let rec poly_equal = (d1, d2): option(bool) => {
   | (DrvQuote(_, _), _) => None
   | (Label(l1), Label(l2)) => l1 == l2 ? Some(true) : None
   | (Label(_), _) => None
-  | (ExplicitNonlabel, ExplicitNonlabel) => Some(true)
-  | (ExplicitNonlabel, _) => None
-  | (TupLabel({term: ExplicitNonlabel, _}, d1), _) => poly_equal(d1, d2)
-  | (_, TupLabel({term: ExplicitNonlabel, _}, d2)) => poly_equal(d1, d2)
-  | (TupLabel(l1, d1), TupLabel(l2, d2)) =>
-    let* l_eq = poly_equal(l1, l2);
-    let* d_eq = poly_equal(d1, d2);
-    Some(l_eq && d_eq);
-  | (TupLabel(_), _) => None
   | (ListLit(ds1), ListLit(ds2)) when List.length(ds1) == List.length(ds2) =>
     ListUtil.forall2_opt(poly_equal, ds1, ds2)
   | (ListLit(_), ListLit(_)) => Some(false)
   | (ListLit(_), _) => None
   | (Tuple(ds1), Tuple(ds2)) when List.length(ds1) == List.length(ds2) =>
-    ListUtil.forall2_opt(poly_equal, ds1, ds2)
+    ListUtil.forall2_opt(
+      (e1, e2) =>
+        same_entry_label(e1, e2)
+          ? poly_equal(TupleEntry.value(e1), TupleEntry.value(e2)) : None,
+      ds1,
+      ds2,
+    )
   | (Tuple(_), _) => None
   | (Constructor(c1, _), Constructor(c2, _)) => Some(c1 == c2)
   // Note: Only Constructor Ap is comparable

@@ -30,13 +30,13 @@ type unboxed_fun =
   | FunEnv(Pat.t, Exp.t, [@show.opaque] Environment.t(Exp.t))
   | FunNoEnv(Pat.t, Exp.t)
   | BuiltinFun(string)
-  | DeferredAp(DHExp.t, list(DHExp.t));
+  | DeferredAp(DHExp.t, list(TupleEntry.t(DHExp.t)));
 
 type unbox_request('a) =
   | Atom(Atom.kind('a)): unbox_request('a)
   | Label: unbox_request(string)
   | Tuple(int): unbox_request(list(DHExp.t))
-  | TupLabel(DHPat.t): unbox_request(DHExp.t)
+  | TupleEntries(int): unbox_request(list(TupleEntry.t(DHExp.t)))
   | ListLit: unbox_request(list(DHExp.t)) // Unboxes to a known length list LITERAL. Not all list final forms land in this category (e.g. Cons: 1 :: ?)
   | ListLitn(int): unbox_request(list(DHExp.t)) // This request is used for performance reasons to prevent matching lists of the wrong length and for matching list lits against cons expressions
   | Cons: unbox_request((DHExp.t, DHExp.t))
@@ -45,7 +45,7 @@ type unbox_request('a) =
   | TypFun: unbox_request(unboxed_tfun)
   | Fun: unbox_request(unboxed_fun)
   | TupleElementPivot(LabeledTuple.label)
-    : unbox_request((LabeledTuple.label, list(DHExp.t)))
+    : unbox_request((LabeledTuple.label, list(TupleEntry.t(DHExp.t))))
   | LabeledTupleProjection(LabeledTuple.label): unbox_request(DHExp.t)
   | LabeledTupleEntries
       : unbox_request(list((option(LabeledTuple.label), DHExp.t)));
@@ -78,60 +78,37 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     /* proofs can also have any type, but are indet */
     | (_, ProofObject(_)) => IndetMatch
 
-    /* TupLabels can be anything except for tuplabels with unmatching labels */
-    | (TupLabel(tuplabel), TupLabel(_, e)) =>
-      if (Option.equal(
-            LabeledTuple.equal_label,
-            Pat.get_label(tuplabel),
-            Exp.get_label(expr),
-          )) {
-        Matches(e);
-      } else {
-        DoesNotMatch;
-      }
-    | (TupLabel(_), _) => Matches(expr)
-    /* Remove Tuplabels from casts otherwise */
     | (Label, Label(l)) => Matches(l)
     | (LabeledTupleProjection(l), Tuple(ds)) =>
-      switch (LabeledTuple.find_label(Exp.match_tup_label, ds, l)) {
+      switch (TupleEntry.find(l, ds)) {
       | Some(_) => Matches(expr) // Choosing to just return the original expression here
       | _ => IndetMatch // TODO Should this be DoesNotMatch?
       }
     | (LabeledTupleProjection(_), ListLit(_)) => Matches(expr)
     | (TupleElementPivot(l), Tuple(ds)) =>
-      let found_pivot: option((string, list(Exp.t))) =
+      let found_pivot: option((string, list(TupleEntry.t(Exp.t)))) =
         ListUtil.find_with_rest(
-          exp => {
-            switch (Exp.match_tup_label(DHExp.strip_ascriptions(exp))) {
-            | Some((name, {term: Atom(String(e)), _})) when name == l =>
-              Some(e)
+          entry =>
+            switch (
+              TupleEntry.label_name(entry),
+              DHExp.strip_ascriptions(TupleEntry.value(entry)).term,
+            ) {
+            | (Some(name), Atom(String(e))) when name == l => Some(e)
             | _ => None
-            }
-          },
+            },
           ds,
         );
       switch (found_pivot) {
       | None => DoesNotMatch
       | Some(a) => Matches(a)
       };
-
     | (LabeledTupleEntries, Tuple(ds)) =>
-      let unbox_tup_label =
-          (d: Exp.t): option((option(LabeledTuple.label), Exp.t)) => {
-        switch (Ascriptions.transition_multiple(d).term) {
-        // TODO Think about whether we should transition here
-        | TupLabel({term: Label(l), _}, e) => Some((Some(l), e))
-        | _ => Some((None, d))
-        };
-      };
-
-      let entries: list(option((option(string), Exp.t))) =
-        List.map(unbox_tup_label, ds);
-
-      switch (OptUtil.sequence(entries)) {
-      | Some(entries) => Matches(entries)
-      | None => DoesNotMatch
-      };
+      Matches(
+        List.map(
+          entry => (TupleEntry.label_name(entry), TupleEntry.value(entry)),
+          ds,
+        ),
+      )
     /* Base types are always already unboxed because of the ITCastID rule*/
     | (Atom(r), Atom(x)) =>
       switch (Atom.unbox(r, x)) {
@@ -155,8 +132,11 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (Cons, ListLit([])) => DoesNotMatch
     | (Cons, Cons(x, xs)) => Matches((x, xs))
     /* Tuples  */
-    | (Tuple(n), Tuple(t)) when List.length(t) == n => Matches(t)
+    | (Tuple(n), Tuple(t)) when List.length(t) == n =>
+      Matches(List.map(TupleEntry.value, t))
     | (Tuple(_), Tuple(_)) => IndetMatch
+    | (TupleEntries(n), Tuple(t)) when List.length(t) == n => Matches(t)
+    | (TupleEntries(_), Tuple(_)) => IndetMatch
     /* Sum constructors can be either sum constructors or sum constructors
        applied to some value  */
     | (SumNoArg(name1), Constructor(name2, _)) when name1 == name2 =>
@@ -189,14 +169,12 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         DeferredAp(_) |
         ListLit(_) |
         Cons(_) |
-        TupLabel(_) |
         Tuple(_) |
         Asc(_) |
         TypFun(_, _, _) |
         Ap(_, {term: Constructor(_), _}, _),
       ) =>
       switch (request) {
-      | TupLabel(_)
       | Atom(Bool)
       | Atom(SInt)
       | Atom(Int)
@@ -205,6 +183,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       | Atom(Nat)
       | Label
       | Tuple(_)
+      | TupleEntries(_)
       | ListLit
       | ListLitn(_)
       | Cons
@@ -221,7 +200,6 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (
         _,
         Invalid(_) | Undefined | EmptyHole | MultiHole(_) | DynamicErrorHole(_) |
-        ExplicitNonlabel |
         Var(_) |
         Let(_) |
         Theorem(_) |

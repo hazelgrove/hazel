@@ -118,9 +118,9 @@ let rec matches =
       | DeferredAp1(ctx, d2) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         DeferredAp1(ctx, d2) |> rewrap;
-      | DeferredAp2(d1, ctx, ds) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        DeferredAp2(d1, ctx, ds) |> rewrap;
+      | DeferredAp2(d1, entry, ds) =>
+        let+ ctx = matches(env, flt, TupleEntry.value(entry), exp, act, idx);
+        DeferredAp2(d1, TupleEntry.map(_ => ctx, entry), ds) |> rewrap;
       | If1(ctx, d2, d3) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         If1(ctx, d2, d3) |> rewrap;
@@ -145,18 +145,12 @@ let rec matches =
       | TupleExtension2(d1, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         TupleExtension2(d1, ctx) |> rewrap;
-      | Tuple(ctx, ds) =>
+      | Tuple(entry, ds) =>
+        let+ ctx = matches(env, flt, TupleEntry.value(entry), exp, act, idx);
+        Tuple(TupleEntry.map(_ => ctx, entry), ds) |> rewrap;
+      | Dot(ctx, l) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        Tuple(ctx, ds) |> rewrap;
-      | TupLabel(label, ctx) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        TupLabel(label, ctx) |> rewrap;
-      | Dot1(ctx, d2) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        Dot1(ctx, d2) |> rewrap;
-      | Dot2(d1, ctx) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        Dot2(d1, ctx) |> rewrap;
+        Dot(ctx, l) |> rewrap;
       | Test(ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Test(ctx) |> rewrap;

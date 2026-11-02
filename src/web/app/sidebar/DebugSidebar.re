@@ -434,11 +434,6 @@ let exp_view = (~globals, ~raw, info: Info.exp): list(Node.t) =>
         "inferred_label",
         Option.value(info.inferred_label, ~default="None"),
       ),
-      field_str("label_sort", string_of_bool(info.label_sort)),
-      field_str(
-        "dot_labels",
-        "[" ++ String.concat(", ", info.dot_labels) ++ "]",
-      ),
     ]
   );
 
@@ -545,6 +540,10 @@ let label_view = (~globals, ~raw, l: Info.label): list(Node.t) =>
       field_str("id", id_str(Label.rep_id(l.user_term))),
       field_str("cls", Cls.show(l.cls)),
       field_str("marks", marks_str(l.marks)),
+      field_str(
+        "dot_labels",
+        "[" ++ String.concat(", ", l.dot_labels) ++ "]",
+      ),
       field_str("ancestors", ancestors_str(l.ancestors)),
       field_ctx(~globals, ~raw, "ctx", l.ctx),
     ]
