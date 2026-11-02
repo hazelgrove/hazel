@@ -843,3 +843,29 @@ let navigate_probes =
   | None => None
   };
 };
+
+/* The rest of the first class beginning with [prefix] on the element an
+   event targets, or on one of its ancestors. */
+let class_at_target =
+    (~prefix: string, evt: Js.t(Dom_html.mouseEvent)): option(string) => {
+  let rec find = (el: Js.t(Dom_html.element)) => {
+    let classes =
+      Js.Opt.case(
+        el##getAttribute(Js.string("class")),
+        () => [],
+        c => String.split_on_char(' ', Js.to_string(c)),
+      );
+    let n = String.length(prefix);
+    switch (List.find_opt(String.starts_with(~prefix), classes)) {
+    | Some(c) => Some(String.sub(c, n, String.length(c) - n))
+    | None =>
+      Js.Opt.case(
+        el##.parentNode,
+        () => None,
+        parent =>
+          Js.Opt.case(Dom_html.CoerceTo.element(parent), () => None, find),
+      )
+    };
+  };
+  Js.Opt.case(evt##.target, () => None, find);
+};

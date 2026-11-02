@@ -411,3 +411,13 @@
 .context-inspector .context-entry .seperator {
   color: var(--context-inspector-colon);
 }
+
+/* A type variable shown in a type is a link to where it is bound */
+#page .binding-link,
+#page .binding-link * {
+  cursor: pointer;
+}
+
+#page .binding-link:hover {
+  text-decoration: underline;
+}
