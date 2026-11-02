@@ -17,6 +17,31 @@
  either by returning `Some(e)` directly, or by using `IdTagged.fast_copy(DHExp.rep_id(e), ...)`
  when constructing a new expression structure.
  */
+/* Whether a constructor's own sum type is consistent with the type it is
+   ascribed, remembered by the two types' Merkle hashes (TypHash). Every
+   constructor application the evaluator ascribes asks this of two copies
+   of the same sum type, a full meet each time; the copies are fresh
+   objects, so only their hashes recognize them. The context here is always
+   Ctx.empty, and is_consistent ignores an Unknown's provenance, as the hash
+   does, so the answer depends only on the two hashes. */
+let consistent_memo: Hashtbl.t((TypHash.t, TypHash.t), bool) =
+  Hashtbl.create(64);
+let consistent_by_hash = (a: Typ.t, b: Typ.t, compute: unit => bool): bool =>
+  switch (TypHash.hash(a), TypHash.hash(b)) {
+  | (Some(ha), Some(hb)) =>
+    let key = (ha, hb);
+    switch (Hashtbl.find_opt(consistent_memo, key)) {
+    | Some(r) => r
+    | None =>
+      let r = compute();
+      if (Hashtbl.length(consistent_memo) > 4096) {
+        Hashtbl.reset(consistent_memo);
+      };
+      Hashtbl.replace(consistent_memo, key, r);
+      r;
+    };
+  | _ => compute()
+  };
 /* Whether pushing an ascription through a list's or tuple's parts gave
    back the very same parts. Then the value already had the type -- plain
    data, well typed, no function to wrap -- and the push gives the value
@@ -27,7 +52,88 @@
 let unchanged = (ds: list(DHExp.t), ds': list(DHExp.t)): bool =>
   List.for_all2((d, d') => d === d', ds, ds');
 
-let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
+/* Data values already found to have a type, by the type's hash. A push
+   through a value that already has the type gives the value back, but it
+   still walks all of it. A value is pushed through at every call of a
+   function whose parameter is annotated (`fun x : T -> ...`), so one value
+   given to several such functions is walked at each, and a recursive one
+   over a list is given the list's tail each time, so the walks over one
+   list add up to the square of its length. (A function annotated at its
+   let, `let f : A -> B = fun x -> ...`, is not pushed through on its
+   recursive calls.) Values are immutable, so once a walk gives a value
+   back, that value has the type for good, and the next push through it is
+   one lookup.
+
+   Keyed by the value's term, which a variable lookup keeps when it copies
+   the value's outer record (fast_copy). A list's tail is a new ListLit
+   (Unboxing) around the same OCaml list cells, so a list is keyed by its
+   cells, and when a list has the type, so has every tail of it. The
+   context is always Ctx.empty, as for consistent_memo, so the answer
+   depends only on the value and the type's hash. */
+let has_type: Util.IdentityTable.t(Obj.t, list(TypHash.t)) =
+  Util.IdentityTable.create();
+/* Only values with parts are remembered: an atom or a bare constructor
+   is checked in one match, cheaper than a lookup, and remembering every
+   number in a picture's points cost more than it saved in Firefox (the
+   livelits branch's woods picture). */
+let type_key = (d: DHExp.t): option(Obj.t) =>
+  switch (DHExp.term_of(d)) {
+  | ListLit([_, ..._] as ds) => Some(Obj.repr(ds))
+  | ListLit([])
+  | Atom(_)
+  | Constructor(_) => None
+  | term => Obj.is_block(Obj.repr(term)) ? Some(Obj.repr(term)) : None
+  };
+let known_to_have = (d: DHExp.t, t: Typ.t): bool =>
+  switch (type_key(d), TypHash.hash(t)) {
+  | (Some(k), Some(h)) =>
+    switch (Util.IdentityTable.find_opt(has_type, k)) {
+    | Some(hs) => List.mem(h, hs)
+    | None => false
+    }
+  | _ => false
+  };
+let remember_has = (key: Obj.t, h: TypHash.t): unit => {
+  let hs =
+    Util.IdentityTable.find_opt(has_type, key) |> Option.value(~default=[]);
+  if (!List.mem(h, hs)) {
+    Util.IdentityTable.replace(has_type, key, [h, ...hs]);
+  };
+};
+/* After a recursive push of Asc(e, t): if it gave e back, e has t. */
+let noted = (e: DHExp.t, t: Typ.t, r: option(DHExp.t)): option(DHExp.t) => {
+  switch (r, TypHash.hash(t)) {
+  | (Some(r'), Some(h)) when r' === e =>
+    switch (DHExp.term_of(e)) {
+    | ListLit([_, ..._] as ds) =>
+      let rec tails = (l: list(DHExp.t)) =>
+        switch (l) {
+        | [] => ()
+        | [_, ...tl] =>
+          remember_has(Obj.repr(l), h);
+          tails(tl);
+        };
+      tails(ds);
+    | _ =>
+      switch (type_key(e)) {
+      | Some(k) => remember_has(k, h)
+      | None => ()
+      }
+    }
+  | _ => ()
+  };
+  r;
+};
+
+/* A recursive push through a value known to have the type gives it back
+   without walking it (has_type). */
+let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) =>
+  switch (DHExp.term_of(d)) {
+  | Asc(e, t) when recursive && known_to_have(e, t) => Some(e)
+  | Asc(e, t) when recursive => noted(e, t, step(~recursive, d))
+  | _ => step(~recursive, d)
+  }
+and step = (~recursive: bool, d: DHExp.t): option(DHExp.t) => {
   let recur = (d: DHExp.t): DHExp.t =>
     if (recursive) {
       transition(~recursive, d) |> Option.value(~default=d);
@@ -177,7 +283,9 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         Sum(m) as sumt',
       )
         when
-          Typ.is_consistent(Ctx.empty, Typ.unroll(sumt), sumt' |> Typ.temp) =>
+          consistent_by_hash(sumt, t, () =>
+            Typ.is_consistent(Ctx.empty, Typ.unroll(sumt), sumt' |> Typ.temp)
+          ) =>
       let entry = ConstructorMap.get_entry(c, m);
       switch (entry) {
       | Some(Some(t')) =>
