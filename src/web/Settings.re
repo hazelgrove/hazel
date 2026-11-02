@@ -567,7 +567,7 @@ module Update = {
       }
     )
     |> Updated.return(
-         ~scroll_active=false,
+         ~scroll=Never,
          ~historic=
            switch (action) {
            | Evaluation(ShowSettings) => false

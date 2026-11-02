@@ -156,7 +156,10 @@ module ServerMessage = {
     /* a message with every value the client already holds replaced by a
        reference (Util.ShareCodec); true: the client resets its table
        first */
-    | Shared(bool, t);
+    | Shared(bool, t)
+    /* The worker's coverage counters so far, after each Result; see
+     * CoverageHook. */
+    | Coverage(string);
 };
 
 /* Candidate encodings for the worker payloads; `Marshal` is active (see
@@ -547,6 +550,10 @@ let post_batch_result = (model, request_id, completed) => {
         final_streams,
       }),
     );
+    switch (Option.bind(CoverageHook.snapshot, snapshot => snapshot())) {
+    | Some(coverage) => post_message(ServerMessage.Coverage(coverage))
+    | None => ()
+    };
   };
 };
 

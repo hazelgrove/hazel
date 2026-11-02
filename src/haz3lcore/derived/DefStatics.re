@@ -1219,8 +1219,10 @@ and calc_plain_item =
     let src =
       switch (node.term) {
       | Let(p, d, _) =>
+        /* (curried, the outermost Fun: its first parameter list) */
         switch (FunctionSugar.detect(p)) {
-        | Some((_, args, _)) => Some(FunctionSugar.fun_id(args))
+        | Some((_, [args, ..._], _)) => Some(FunctionSugar.fun_id(args))
+        | Some((_, [], _))
         | None => Some(Exp.rep_id(d))
         }
       | ModuleExp(_, d, _) => Some(Exp.rep_id(d))

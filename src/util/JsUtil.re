@@ -653,6 +653,24 @@ let find_scroll_container_cached =
   };
 };
 
+/* Whether any of the caret shows in its scroll container, or in the
+ * viewport if it has none. Read before a re-render, this is what the user
+ * sees now, not what the coming layout will show. */
+let caret_in_view = (): bool =>
+  switch (get_elem_by_id_opt("caret")) {
+  | None => false
+  | Some(caret) =>
+    let rect = caret##getBoundingClientRect;
+    let (top, bottom) =
+      switch (find_scroll_container(caret)) {
+      | Some(container) =>
+        let c = container##getBoundingClientRect;
+        (c##.top, c##.bottom);
+      | None => (0., float_of_int(Dom_html.window##.innerHeight))
+      };
+    rect##.bottom > top && rect##.top < bottom;
+  };
+
 /* after a jump: a caret out of comfortable view comes to a fifth of the
    way down its scroll container, with the lines above it in sight */
 let align_caret_near_top = (): unit =>

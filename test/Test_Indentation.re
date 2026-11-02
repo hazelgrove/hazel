@@ -30,6 +30,8 @@ let typed_indent = (~settings, ~name, ~init, ~goal): test_case(_) => {
 
 let test_indent = typed_indent(~settings=default_settings);
 
+let slow = ((name, _, f): test_case(_)): test_case(_) => (name, `Slow, f);
+
 /* Test indentation after Format action (Cmd+S).
    Use this for cases where auto-indent at typing time can't know
    the correct indentation, but Format can fix it based on final structure. */
@@ -297,6 +299,9 @@ in 1|},
     end
 in 1|},
   ),
+  /* Slow: it types 284 characters, each keystroke rebuilding the term and
+     statics of the whole program with three cases open */
+  slow @@
   test_indent(
     ~name="Nested cases",
     ~init=
@@ -332,6 +337,9 @@ go(subst(arg, x, body)) end
           go(subst(arg, x, body)) end
       | _ => Error("Not a Function") end end in go|},
   ),
+  /* Slow: it types 147 characters, each keystroke rebuilding the term and
+     statics of the whole program */
+  slow @@
   test_indent(
     ~name="Even: commas, function literals, if expression",
     ~init=
