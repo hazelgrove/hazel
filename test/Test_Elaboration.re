@@ -751,6 +751,24 @@ in 1|},
         ),
       )
     ),
+    /* A hole is still fillable by anything, the label included, so it is
+       left alone until something fills it. */
+    test_case("Does not add a label to a hole", `Quick, () =>
+      alco_check(
+        "Hole keeps no label",
+        Exp.empty_hole(),
+        DHExp.strip_ascriptions(dhexp_of_uexp(parse_exp({|? : (a=Int)|}))),
+      )
+    ),
+    test_case("Adds a label to a wide tuple", `Quick, () =>
+      alco_check(
+        "Wide tuple becomes the labeled field",
+        Exp.(tuple([tup_label(label("a"), parens(tuple([int(1), int(2)])))])),
+        DHExp.strip_ascriptions(
+          dhexp_of_uexp(parse_exp({|(1, 2) : (a=(Int, Int))|})),
+        ),
+      )
+    ),
     /* ===== MODULE ELABORATION TESTS =====
        NOTE: Modules currently elaborate to labeled tuples.
        These tests will need updating when modules get their own

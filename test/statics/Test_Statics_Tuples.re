@@ -431,6 +431,20 @@ let tests = (
       ),
     ),
     fully_consistent_typecheck(
+      "Wide tuple lifted into a singleton label",
+      {|let x : (a=(Int, Int)) = (1, 2) in x|},
+      Some(
+        prod([tup_label(label("a"), parens(prod([int(), int()])))]),
+      ),
+    ),
+    /* A hole can still be filled by a labeled value, so it keeps the whole
+       singleton as its type instead of being labeled now. */
+    fully_consistent_typecheck(
+      "Hole at a singleton labeled type",
+      {|? : (a=Int)|},
+      Some(prod([tup_label(label("a"), int())])),
+    ),
+    fully_consistent_typecheck(
       "Singleton labeled argument function application with unknown type",
       {|(fun a=x->x)(a=1)|},
       Some(unknown(Internal)),

@@ -331,8 +331,10 @@ and uexp_to_info_map =
         m,
       );
     /* SynSwitch pre-pass on uexp misses expectation errors; inner_ty analysis
-       is on a fresh copy — mirror it onto source ids for cursor/tests. */
-    let inner_for_source = {
+       is on a fresh copy — mirror it onto source ids for cursor/tests.
+       This snapshot has no label_inference, so ExplainThis can unwrap to it
+       without looping. */
+    let pre_labeled = {
       ...inner_info,
       user_term: uexp,
     };
@@ -355,29 +357,33 @@ and uexp_to_info_map =
         elaborated_exp,
         m,
       );
+    let label_inference =
+      Some(
+        Info.SingletonLabelInference({
+          label: l,
+          pre_labeled_info: pre_labeled,
+        }),
+      );
     let info = {
       ...info,
       message: inner_info.message,
-      label_inference:
-        Some(
-          SingletonLabelInference({
-            label: l,
-            pre_labeled_info: inner_for_source,
-          }),
-        ),
+      label_inference,
     };
-
-    let m = add_info(IdTagged.ids(elaborated_exp), InfoExp(info), m);
     /* The program has the tuple at this id, so the entry records the
-       tuple's elaboration and its type; the rest (marks, message) stays the
-       value's, for the cursor. */
-    let inner_for_source = {
-      ...inner_for_source,
+       tuple's elaboration and its type. The inspector prints that type as
+       "lifted to". Marks and the message stay the value's: the message says
+       what the value itself is, and the label phrase says what was wrapped
+       around it. label_inference points at the pre-lift snapshot so
+       ExplainThis can still unwrap. */
+    let cursor_info = {
+      ...pre_labeled,
+      ty: info.ty,
       elab_term: tuple_elab,
       elab_syn_ty: info.elab_syn_ty,
+      label_inference,
     };
-    let m = add_info(IdTagged.ids(uexp), InfoExp(inner_for_source), m);
-    (info, elaborated_exp, m);
+    let m = add_info(IdTagged.ids(uexp), InfoExp(cursor_info), m);
+    (info, tuple_elab, m);
   };
 
   // HACK: we use the co-context to check for unused variables in surrounding
@@ -460,26 +466,6 @@ and uexp_to_info_map =
       let (e, e_elab, m) = go(~ana=t_ty, ~ctx=t.ctx, e, m);
       let typ_refs =
         ModuleHelpers.collect_module_refs_in_typ(ctx, Typ.rep_id(t2), t2);
-      /* A non-tuple ascribed a labeled singleton is lifted into it, as a
-         `let` with the same pattern ascription does: `e : (x=T)` elaborates
-         like `let p : (x=T) = e in p`. A bare `lab=e` is not a tuple either,
-         so `(x=1) : (y=Int)` lifts to `(y=(x=1))`, as analysis already does
-         for parsed `(x=1)`. Tuples keep their own labels here. */
-      let rec unparens = (e: Exp.t) =>
-        switch (Exp.term_of(e)) {
-        | Parens(e) => unparens(e)
-        | _ => e
-        };
-      let e_elab =
-        switch (
-          Typ.term_of(Typ.weak_head_normalize(ctx, t_ty)),
-          Exp.term_of(unparens(e_elab)),
-        ) {
-        | (Prod([{term: TupLabel(_), _}]), Tuple(_)) => e_elab
-        | (Prod([{term: TupLabel(_), _}]), _) =>
-          LabeledTupleHelpers.align_exp_if_needed(ctx, t_ty, e_elab)
-        | _ => e_elab
-        };
       add(
         ~elab_term=Asc(e_elab, Typ.normalize(ctx, t2)) |> rewrap,
         ~elab_syn_ty=t_ty,
@@ -2114,22 +2100,6 @@ and uexp_to_info_map =
         };
       let (p_syn, _, _) =
         go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
-      let (def_term, def_rewrap) = Exp.unwrap(def);
-      let def =
-        switch (
-          def_term,
-          Typ.term_of(Typ.weak_head_normalize(ctx, p_syn.ty)),
-        ) {
-        | (Tuple(ds), Prod(tys)) =>
-          Tuple(
-            LabeledTuple.rearrange(
-              Typ.match_tup_label, DHExp.match_tup_label, tys, ds, (t, b) =>
-              TupLabel(Label(t) |> Exp.fresh, b) |> Exp.fresh
-            ),
-          )
-          |> def_rewrap
-        | (_, _) => def
-        };
       let (def_rec_probe, _, _) = go(~ctx=p_syn.ctx, ~ana=p_syn.ty, def, m);
       let rec_check_ty =
         switch (Typ.term_of(Typ.weak_head_normalize(ctx, p_syn.ty))) {
@@ -2244,14 +2214,11 @@ and uexp_to_info_map =
            );
       let (elab_term, m) =
         if (!requires_fixf) {
-          let def_elab =
-            LabeledTupleHelpers.align_exp_if_needed(ctx, p_syn.ty, def_elab)
-            |> Exp.add_name(Pat.get_var(p));
+          let def_elab = def_elab |> Exp.add_name(Pat.get_var(p));
           (Let(p_elab, def_elab, body_elab) |> rewrap, m);
         } else {
           let def_elab =
-            LabeledTupleHelpers.align_exp_if_needed(ctx, p_syn.ty, def_elab)
-            |> Exp.add_name(Option.map(s => s ++ "+", Pat.get_var(p)));
+            def_elab |> Exp.add_name(Option.map(s => s ++ "+", Pat.get_var(p)));
           /* Give the fixpoint the function's surface id (which IS in
            * info_map, so it gets a cache entry), and give the inner Fun a
            * derived id (which isn't in info_map, but that's fine — the
@@ -2897,18 +2864,40 @@ and uexp_to_info_map =
     };
   };
 
-  // This is for lifting single values into a singleton labeled tuple when the label is not present
+  /* The tuple case fills and reorders labels. A one-field tuple whose label
+     is a different name is a value to lift (`b=""` at `(a=...)` becomes
+     `(a=(b=""))`), not a tuple to relabel. Anything else expected at a
+     one-field labeled type is lifted, including a wide tuple, which stacks:
+     `(1, 2)` at `(a=(Int, Int))` becomes `(a=(1, 2))`. A value that
+     already has that label is left alone: the label is in the type. */
+  let rec tuple_case_owns = (e: Exp.t, label) =>
+    switch (e.term) {
+    | Parens(inner) => tuple_case_owns(inner, label)
+    | Tuple([entry]) =>
+      switch (Exp.match_tup_label(entry)) {
+      | Some((existing, _)) => existing == label
+      | None => true
+      }
+    | _ => false
+    };
+
+  /* A hole can still be filled by anything, including the label itself, so
+     wrapping it now would decide that for the user. It keeps the whole
+     singleton as its expected type and is lifted once it is filled. */
+  let rec is_raw_hole = (e: Exp.t) =>
+    switch (e.term) {
+    | Parens(inner) => is_raw_hole(inner)
+    | EmptyHole => true
+    | _ => false
+    };
 
   switch (Typ.weak_head_normalize(ctx, ana).term) {
-  | Prod([{term: TupLabel({term: Label(l1), _}, ana_ty), _}]) =>
-    // We can flatten this by pulling it up on the case match but since OCaml is strict it'll be evaluated.
-    // So for performance reasons we'll just do it here.
+  | Prod([{term: TupLabel({term: Label(l1), _}, ana_ty), _}])
+      when !tuple_case_owns(uexp, l1) && !is_raw_hole(uexp) =>
     let (e, _, m) = go(~ana=syn, uexp, m);
-
     switch (Typ.weak_head_normalize(ctx, e.ty).term) {
     | Prod([{term: TupLabel({term: Label(l2), _}, _), _}]) when l1 == l2 =>
       default_case()
-    | Unknown(_) => default_case() // TODO I don't know if this is correct
     | _ => autolabel_singleton_tuple(uexp, ana_ty, l1, m)
     };
   | _ => default_case()
@@ -3806,14 +3795,24 @@ and upat_to_info_map =
       );
     };
 
-  // This is to allow lifting single values into a singleton labeled tuple when the label is not present
+  /* Same split as expressions. A variable whose name is the label is a
+     destructure; any other unknown pattern binds the whole record. */
+  let rec tuple_case_owns = (p: Pat.t, label) =>
+    switch (p.term) {
+    | Parens(inner) => tuple_case_owns(inner, label)
+    | Tuple([entry]) =>
+      switch (Pat.match_tup_label(entry)) {
+      | Some((existing, _)) => existing == label
+      | None => true
+      }
+    | _ => false
+    };
   if (under_ascription) {
     default_case();
   } else {
     switch (Typ.weak_head_normalize(ctx, ana).term) {
-    | Prod([{term: TupLabel({term: Label(l1), _}, ana_ty), _}]) =>
-      // We can flatten this by pulling it up on the case match but since OCaml is strict it'll be evaluated.
-      // So for performance reasons we'll just do it here.
+    | Prod([{term: TupLabel({term: Label(l1), _}, ana_ty), _}])
+        when !tuple_case_owns(upat, l1) =>
       let (e, _, m) = go(~ana=syn, ~ctx, upat, m);
 
       switch (Typ.weak_head_normalize(ctx, e.ty).term) {
