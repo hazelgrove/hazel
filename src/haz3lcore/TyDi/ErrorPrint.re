@@ -31,7 +31,7 @@ let prn = Printf.sprintf;
 let core_mark_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   let ana = Statics.ana_skip_explicit_nonlabel(ana);
   let expectation = (ana: Typ.t, syn: Typ.t) => {
-    let shown = Typ.surface_names_in([ana, syn]);
+    let shown = Typ.surface_names_in(~ctx, [ana, syn]);
     prn(
       "Expecting type %s but got inconsistent type %s",
       Print.typ(shown(ana)),
@@ -57,7 +57,7 @@ let core_mark_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
       "Expecting branches to have consistent types but got types: %s",
       {
         let tys = Typ.of_source(tys);
-        List.map(ty => Print.typ(Typ.surface_names_in(tys, ty)), tys)
+        List.map(ty => Print.typ(Typ.surface_names_in(~ctx, tys, ty)), tys)
         |> String.concat(", ");
       },
     )

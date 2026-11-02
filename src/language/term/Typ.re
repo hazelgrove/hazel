@@ -444,33 +444,32 @@ let surface_name = (x: string): string =>
   | None => x
   };
 
-/* Every type variable name in a type, bound or free. */
-let rec var_names = (ty: t): list(string) =>
+/* Each occurrence of a type variable in a type, with the occurrence's id. */
+let rec var_ids = (ty: t): list((string, Id.t)) =>
   switch (term_of(ty)) {
-  | Var(x) => [x]
-  | Rec(tp, ty)
-  | Poly(tp, ty) => Option.to_list(TPat.tyvar_of_utpat(tp)) @ var_names(ty)
+  | Var(x) => [(x, rep_id(ty))]
   | Unknown(_)
   | Atom(_)
   | DrvQuoteTy(_)
   | ExplicitNonlabel
   | Label(_)
   | ProofOf(_) => []
+  | Rec(_, ty)
+  | Poly(_, ty)
   | Parens(ty)
   | Projector(_, ty)
   | List(ty)
   | TupLabel(_, ty)
-  | ProdProjection(ty, _) => var_names(ty)
+  | ProdProjection(ty, _) => var_ids(ty)
   | ProdExtension(t1, t2)
-  | Arrow(t1, t2) => var_names(t1) @ var_names(t2)
-  | Sum(sm) => ConstructorMap.free_variables(var_names, sm)
-  | Prod(tys) => List.concat_map(var_names, tys)
+  | Arrow(t1, t2) => var_ids(t1) @ var_ids(t2)
+  | Sum(sm) => ConstructorMap.free_variables(var_ids, sm)
+  | Prod(tys) => List.concat_map(var_ids, tys)
   | Sig(items) =>
     List.concat_map(
       (item: TermBase.Sig.t) =>
         switch (item.term) {
-        | SigType(tp, ty) =>
-          Option.to_list(TPat.tyvar_of_utpat(tp)) @ var_names(ty)
+        | SigType(_, ty) => var_ids(ty)
         | Invalid(_)
         | EmptyHole
         | MultiHole(_)
@@ -480,24 +479,114 @@ let rec var_names = (ty: t): list(string) =>
     )
   };
 
-/* For types shown together, the function showing one of them with each
-   binder renamed by `unshadow` as written, primed when the types have
-   another name written the same way, as in `poly T -> T -> poly T' -> T`. */
-let surface_names_in = (tys: list(t)): (t => t) => {
+/* The type variables a type binds, with their binders' ids. */
+let rec binders = (ty: t): list((string, Id.t)) => {
+  let binder = tp =>
+    switch (TPat.tyvar_of_utpat(tp)) {
+    | Some(x) => [(x, TPat.rep_id(tp))]
+    | None => []
+    };
+  switch (term_of(ty)) {
+  | Rec(tp, ty)
+  | Poly(tp, ty) => binder(tp) @ binders(ty)
+  | Unknown(_)
+  | Atom(_)
+  | DrvQuoteTy(_)
+  | Var(_)
+  | ExplicitNonlabel
+  | Label(_)
+  | ProofOf(_) => []
+  | Parens(ty)
+  | Projector(_, ty)
+  | List(ty)
+  | TupLabel(_, ty)
+  | ProdProjection(ty, _) => binders(ty)
+  | ProdExtension(t1, t2)
+  | Arrow(t1, t2) => binders(t1) @ binders(t2)
+  | Sum(sm) => ConstructorMap.free_variables(binders, sm)
+  | Prod(tys) => List.concat_map(binders, tys)
+  | Sig(items) =>
+    List.concat_map(
+      (item: TermBase.Sig.t) =>
+        switch (item.term) {
+        | SigType(tp, ty) => binder(tp) @ binders(ty)
+        | Invalid(_)
+        | EmptyHole
+        | MultiHole(_)
+        | SigLet(_) => []
+        },
+      items,
+    )
+  };
+};
+
+/* Every type variable name in a type, bound or free. */
+let var_names = (ty: t): list(string) =>
+  List.map(fst, var_ids(ty) @ binders(ty));
+
+/* For types shown together, the name a type variable in them shows as:
+   the name written for it. Where two bindings in the types share a
+   written name, the one that name means in [ctx] shows plain, else the one
+   written as is, and each other is tagged with its binder's id, as
+   `T~3f2`. */
+let surface_name_in =
+    (~ctx: Ctx.t=Ctx.empty, tys: list(t)): (string => string) => {
   let names =
     List.sort_uniq(String.compare, List.concat_map(var_names, tys));
+  let local = List.concat_map(binders, tys);
+  let homonyms = x =>
+    List.filter(
+      y => String.equal(surface_name(y), surface_name(x)),
+      names,
+    );
+  let in_ctx = group =>
+    List.find_map(
+      fun
+      | Ctx.TVarEntry({name, _}) when List.exists(String.equal(name), group) =>
+        Some(name)
+      | _ => None,
+      ctx.entries,
+    );
+  let tag = x =>
+    switch (List.assoc_opt(x, local), Ctx.lookup_tvar_id(ctx, x)) {
+    | (Some(id), _)
+    | (None, Some(id)) => Some(Id.str3(id))
+    | (None, None) =>
+      String.index_opt(x, '#')
+      |> Option.map(i => String.sub(x, i + 1, String.length(x) - i - 1))
+    };
   let shown = x => {
     let written = surface_name(x);
-    let rec primes = (n, ys) =>
-      switch (ys) {
-      | [y, ..._] when String.equal(x, y) => n
-      | [y, ...ys] when String.equal(surface_name(y), written) =>
-        primes(n + 1, ys)
-      | [_, ...ys] => primes(n, ys)
-      | [] => n
+    let group = homonyms(x);
+    let plain =
+      switch (in_ctx(group)) {
+      | Some(y) => String.equal(x, y)
+      | None => String.equal(x, written)
       };
-    written ++ String.make(primes(0, names), '\'');
+    switch (group, tag(x)) {
+    | ([_], _)
+    | (_, None) => written
+    | _ when plain => written
+    | (_, Some(tag)) => written ++ "~" ++ tag
+    };
   };
+  shown;
+};
+
+/* A name `surface_name_in` shows, split into the written name and the tag
+   telling it apart from another binding of that name, `~` included. */
+let split_tag = (shown: string): (string, option(string)) =>
+  switch (String.index_opt(shown, '~')) {
+  | Some(i) => (
+      String.sub(shown, 0, i),
+      Some(String.sub(shown, i, String.length(shown) - i)),
+    )
+  | None => (shown, None)
+  };
+
+/* `surface_name_in`'s names applied to a type shown among [tys]. */
+let surface_names_in = (~ctx: Ctx.t=Ctx.empty, tys: list(t)): (t => t) => {
+  let shown = surface_name_in(~ctx, tys);
   ty =>
     map_term(
       ~f_typ=

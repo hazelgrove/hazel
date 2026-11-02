@@ -331,21 +331,44 @@ let unshadow_tests = {
         )
       ),
       test_case(
-        "a renamed name is primed beside the name it shadows", `Quick, () =>
-        check(
-          typ,
-          "poly T -> T -> poly T' -> T",
-          poly("T", t => arrow(t, poly("T'", _ => t))),
-          Typ.surface_names(poly("T", t => arrow(t, poly("T#1", _ => t)))),
-        )
-      ),
-      test_case(
-        "a renamed name is primed beside the name it shadows in another type shown with it",
+        "a binder sharing a written name with another is tagged with its id",
         `Quick,
         () => {
-          let shown = Typ.surface_names_in([var("T#1"), var("T")]);
-          check(typ, "T#1", var("T'"), shown(var("T#1")));
-          check(typ, "T", var("T"), shown(var("T")));
+          let inner = Id.mk();
+          let ty =
+            poly("T", t =>
+              arrow(
+                t,
+                Poly(
+                  IdTagged.mk_internal([inner], Var("T#1"): TPat.term),
+                  t,
+                )
+                |> Typ.temp,
+              )
+            );
+          let shown = Typ.surface_name_in([ty]);
+          check(string, "T", "T", shown("T"));
+          check(string, "T#1", "T~" ++ Id.str3(inner), shown("T#1"));
+        },
+      ),
+      test_case(
+        "of two bindings with one written name, the one ctx means shows plain",
+        `Quick,
+        () => {
+          let outer = Id.mk();
+          let ctx =
+            Ctx.extend_tvar(
+              Ctx.empty,
+              {
+                name: "T",
+                id: outer,
+                kind: Abstract,
+              },
+            )
+            |> Ctx.extend_tvar(_, abstract("T#1"));
+          let shown = Typ.surface_name_in(~ctx, [var("T#1"), var("T")]);
+          check(string, "T#1", "T", shown("T#1"));
+          check(string, "T", "T~" ++ Id.str3(outer), shown("T"));
         },
       ),
     ],
