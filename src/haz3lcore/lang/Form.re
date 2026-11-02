@@ -37,16 +37,16 @@ type expansion =
   | LT; /* Leading and trailing: Used for parethesis-like things */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type expansions = list((Token.t, (Label.t, Direction.t)));
+type expansions = list((Token.t, (FormLabel.t, Direction.t)));
 
 /* Sort-aware expansions include the form's sort for filtering */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type sorted_expansions = list((Token.t, Sort.t, Label.t, Direction.t));
+type sorted_expansions = list((Token.t, Sort.t, FormLabel.t, Direction.t));
 
 /* A label, a mold, and expansion behavior together determine a form. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type def = {
-  label: Label.t,
+  label: FormLabel.t,
   mold: Mold.t,
   expansion,
 };
@@ -574,7 +574,8 @@ module Expansion = {
 
   /* Try to get expansion for a token in a specific sort context.
      Returns None if no expansion exists for this sort. */
-  let try_get = (sort: Sort.t, t: Token.t): option((Label.t, Direction.t)) => {
+  let try_get =
+      (sort: Sort.t, t: Token.t): option((FormLabel.t, Direction.t)) => {
     let matching =
       sorted_expansions
       |> List.find_opt(((tok, s, _, _)) => tok == t && s == sort);
@@ -589,7 +590,7 @@ module Expansion = {
      Exception: Rul context is permissive - falls back to any expansion.
      This is because Rul (case rules) contains Exp/Pat operands but has no
      direct forms for things like parens. Other sorts remain strict. */
-  let get = (sort: Sort.t, t: Token.t): (Label.t, Direction.t) => {
+  let get = (sort: Sort.t, t: Token.t): (FormLabel.t, Direction.t) => {
     let matching =
       sorted_expansions
       |> List.find_opt(((tok, s, _, _)) => tok == t && s == sort);
@@ -658,8 +659,8 @@ let atomic_candidates = (t: Token.t): list((t, Mold.t)) =>
 
 /* label => (family, mold) pairs in candidate order: same_label_rank
  * first (stable, so ties keep declaration order), memoized. */
-let compound_defs: Label.t => list((family, Mold.t)) = {
-  let tbl: Hashtbl.t(Label.t, list((family, Mold.t))) =
+let compound_defs: FormLabel.t => list((family, Mold.t)) = {
+  let tbl: Hashtbl.t(FormLabel.t, list((family, Mold.t))) =
     Hashtbl.create(256);
   List.iter(
     ((fam, {label, mold, _}: def)) => {
@@ -692,7 +693,7 @@ let compound_defs: Label.t => list((family, Mold.t)) = {
  * atomic classes stay ahead of compounds — they are forms in their own
  * right, and e.g. `()` must keep classifying as the empty-tuple operand
  * rather than as postfix ApEmpty. */
-let base_candidates = (label: Label.t): list((t, Mold.t)) => {
+let base_candidates = (label: FormLabel.t): list((t, Mold.t)) => {
   let compounds =
     compound_defs(label) |> List.map(((fam, m)) => (Compound(fam), m));
   switch (label) {
@@ -711,7 +712,7 @@ let base_candidates = (label: Label.t): list((t, Mold.t)) => {
 };
 
 /* Every defined mold of a label, in candidate order */
-let base_molds = (label: Label.t): list(Mold.t) =>
+let base_molds = (label: FormLabel.t): list(Mold.t) =>
   base_candidates(label) |> List.map(snd);
 
 /* Rows, labels, and (family, out-sort) molds are built once at
@@ -747,7 +748,7 @@ let family_mold_tbl: Hashtbl.t((family, Sort.t), Mold.t) = {
   tbl;
 };
 
-let unmolded_mold = (label: Label.t, sort: Sort.t): Mold.t =>
+let unmolded_mold = (label: FormLabel.t, sort: Sort.t): Mold.t =>
   switch (label) {
   | [t]
       when Token.is_potential_operator(t) && !Token.is_potential_operand(t) =>
@@ -796,7 +797,7 @@ let mold_of = (f: t, sort: Sort.t): Mold.t =>
  * at that sort: var-shaped prefixes lose to the Var class, symbolic
  * prefixes like `-` to their operator forms); no fit => the first
  * compound (or Tok) with stored sort Any. */
-let classify_label = (sort: Sort.t, label: Label.t): (t, Sort.t) => {
+let classify_label = (sort: Sort.t, label: FormLabel.t): (t, Sort.t) => {
   let fits = ((_, m): (t, Mold.t)): bool => m.out == sort;
   switch (List.find_opt(fits, base_candidates(label))) {
   | Some((id, _)) => (id, sort)
@@ -834,7 +835,8 @@ let parens_form = (sort: Sort.t): (t, Sort.t) =>
   | _ => classify_label(sort, Token.tuple_lbl)
   };
 
-let remold_candidates = (label: Label.t, sort: Sort.t): list((t, Sort.t)) =>
+let remold_candidates =
+    (label: FormLabel.t, sort: Sort.t): list((t, Sort.t)) =>
   base_candidates(label)
   |> List.filter(((_, m): (t, Mold.t)) => m.out == sort)
   |> List.map(((id, _)) => (id, sort));

@@ -8,9 +8,9 @@ exception Empty_tile;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = tile;
 
-let label = (t: t): Label.t => Form.label_of(t.form);
+let label = (t: t): FormLabel.t => Form.label_of(t.form);
 let mold = (t: t): Mold.t => Form.mold_of(t.form, t.sort);
-let has_label = (t: t, lbl: Label.t): bool => label(t) == lbl;
+let has_label = (t: t, lbl: FormLabel.t): bool => label(t) == lbl;
 let arity = (t: t): int => List.length(label(t));
 let token = (t: t, i: int): Token.t => List.nth(label(t), i);
 /* The token of a single-token tile */
