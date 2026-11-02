@@ -8,7 +8,6 @@ type value_export = {
 type lowered = {
   expanded: Exp.t,
   value_exports: list(value_export),
-  type_exports: list((Var.t, Typ.t)),
 };
 
 /* Collect module variable references from type annotations.
@@ -59,13 +58,6 @@ let rec mpat_to_pat = (mp: MPat.t): Pat.t =>
   | _ => IdTagged.fast_copy(MPat.rep_id(mp), Pat.fresh(Wild))
   };
 
-let rec mpat_names = (mp: MPat.t): list(Var.t) =>
-  switch (mp.term) {
-  | Var(name) => [name]
-  | Asc(inner, _) => mpat_names(inner)
-  | _ => []
-  };
-
 let single_bound_var = (p: Pat.t): option(Var.t) =>
   switch (Pat.bound_vars(p)) {
   | [name] => Some(name)
@@ -109,7 +101,7 @@ let modlet_bound_vars = (pat: Pat.t): list(Var.t) =>
 let item_bound_names = (item: Mod.t): list(Var.t) =>
   switch (item.term) {
   | ModLet(pat, _) => modlet_bound_vars(pat)
-  | ModuleMod(mp, _) => mpat_names(mp)
+  | ModuleMod(mp, _) => MPat.names(mp)
   | ModType(_, _)
   | ModExp(_)
   | Invalid(_)
@@ -145,7 +137,7 @@ let value_exports = (items: list(Mod.t)): list(value_export) => {
              );
         | ModuleMod(mp, _) =>
           let pat = mpat_to_pat(mp);
-          mpat_names(mp)
+          MPat.names(mp)
           |> List.filter(keep)
           |> List.map(name =>
                {
@@ -234,7 +226,7 @@ let rec collect_type_exports =
            | Var(name) =>
              let (resolved, alias_ty) =
                if (List.mem(name, Typ.free_vars(typ))) {
-                 let ty_rec = Rec(Var(name) |> TPat.fresh, typ) |> Typ.temp;
+                 let ty_rec = Rec(tpat, typ) |> Typ.temp;
                  (ty_rec, ty_rec);
                } else {
                  let locals = List.map(fst, acc);
@@ -262,7 +254,7 @@ let rec collect_type_exports =
                }
              | _ => None
              };
-           switch (mpat_names(mp), rhs_exports_ty) {
+           switch (MPat.names(mp), rhs_exports_ty) {
            | ([name], Some(exports_ty)) =>
              let ctx =
                Typ.extend_alias(ctx, name, MPat.rep_id(mp), exports_ty);
@@ -321,8 +313,7 @@ let wrap_item =
     Exp.fresh(Let(Pat.fresh(Wild), e, body));
   };
 
-let lower =
-    (~ctx: Ctx.t, ~ana: option(Typ.t)=?, items: list(Mod.t)): lowered => {
+let lower = (~ana: option(Typ.t)=?, items: list(Mod.t)): lowered => {
   let ana_labels =
     switch (ana) {
     | Some(ana) => extract_ana_labels(ana)
@@ -337,7 +328,6 @@ let lower =
         labeled_tuple_exp(value_exports),
       ),
     value_exports,
-    type_exports: collect_type_exports(ctx, items),
   };
 };
 
@@ -414,13 +404,11 @@ let reclassify_expanded_module_items =
     items,
   );
 
-/* Construct module export product type from lowered value exports. */
+/* Construct module export product type from lowered value exports. `ctx`
+   is the module's enclosing context: the aliases a member's context adds
+   to it are the module's own. */
 let module_actual_type =
-    (
-      ~local_names: list(string),
-      value_exports: list(value_export),
-      m: StaticsBase.Map.t,
-    )
+    (~ctx: Ctx.t, value_exports: list(value_export), m: StaticsBase.Map.t)
     : Typ.t => {
   let fields =
     value_exports
@@ -431,11 +419,18 @@ let module_actual_type =
              /* Scope escape: only module-LOCAL aliases must be inlined
                 (they are unbound outside the braces); globals/builtins
                 stay compact per the type-normalization invariant. */
+             let local_names =
+               List.filter_map(
+                 fun
+                 | Ctx.TVarEntry({name, _}) => Some(name)
+                 | _ => None,
+                 Ctx.added_bindings(pat_ctx, ctx).entries,
+               );
              Typ.normalize(
                ~expand=n => List.mem(n, local_names),
                pat_ctx,
                ty,
-             )
+             );
            | None => Typ.temp(Unknown(Internal))
            };
          TupLabel(Label(name) |> Typ.temp, ty) |> Typ.temp;

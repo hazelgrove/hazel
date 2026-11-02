@@ -120,10 +120,58 @@ let view_any = (~globals, any: Any.t) =>
   |> CodeViewable.view_any(~globals, ~settings=code_view_settings)
   |> code_box_container;
 
-let view_type = (~globals, typ: Typ.t) =>
-  typ
-  |> CodeViewable.view_typ(~globals, ~settings=code_view_settings)
+/* A type as it reads at the cursor among the types shown with it,
+   [together] (by default just itself; see Typ.surface_names_in). Each type
+   variable the program binds is a link to where it is bound. */
+let view_type =
+    (~globals: Globals.t, ~ctx: Ctx.t, ~together=?, typ: Typ.t): Node.t => {
+  let tys = Option.value(together, ~default=[typ]);
+  let binders = Typ.binding_sites_in(~ctx, tys, typ);
+  let index = name =>
+    ListUtil.findi_opt(((shown, _)) => String.equal(shown, name), binders)
+    |> Option.map(fst);
+  let (segment, vars, binder_tiles) =
+    Haz3lcore.TypToSegment.typ_to_segment_with_var_ids(
+      ~settings=code_view_settings,
+      Typ.surface_names_in(~ctx, tys, typ),
+    );
+  let links =
+    List.filter_map(
+      ((name, tile)) => index(name) |> Option.map(i => (tile, i)),
+      vars @ binder_tiles,
+    );
+  let classes = tile =>
+    switch (List.find_opt(((t, _)) => Id.compare(t, tile) == 0, links)) {
+    | Some((_, i)) => ["binding-link", "binding-link-" ++ string_of_int(i)]
+    | None => []
+    };
+  let jump = evt =>
+    switch (
+      Util.JsUtil.class_at_target(~prefix="binding-link-", evt)
+      |> Fun.flip(Option.bind, int_of_string_opt)
+      |> Fun.flip(Option.bind, List.nth_opt(binders))
+    ) {
+    | Some((_, id)) => globals.inject_global(JumpToTile(id))
+    | None => Effect.Ignore
+    };
+  /* A name with a tag (see Typ.split_tag) does not parse as a type, so the
+     sort its token shows as is said here. */
+  let is_tile = (tiles, id) =>
+    List.exists(((_, t)) => Id.compare(t, id) == 0, tiles);
+  let refine_sort = (id, sort: Haz3lcore.Sort.t): Haz3lcore.Sort.t =>
+    if (is_tile(vars, id)) {
+      Typ;
+    } else if (is_tile(binder_tiles, id)) {
+      TPat;
+    } else {
+      sort;
+    };
+  div(
+    ~attrs=[Attr.on_click(jump)],
+    [CodeViewable.view_segment(~classes, ~refine_sort, ~globals, segment)],
+  )
   |> code_box_container;
+};
 
 let core_mark_err_view =
     (
@@ -137,7 +185,7 @@ let core_mark_err_view =
       cls: Cls.t,
       m: Mark.t,
     ) => {
-  let view_type = view_type(~globals);
+  let view_type = view_type(~globals, ~ctx);
   let view_any = view_any(~globals);
   let ana = Statics.ana_skip_explicit_nonlabel(ana);
   let expectation_view = (~ana: Typ.t, ~syn: Typ.t) =>
@@ -148,16 +196,20 @@ let core_mark_err_view =
         code(an_label),
       ]
     | _ =>
+      let together = [syn, ana, ...Option.to_list(lifted_ty)];
       colon_prefix(show_type_colon)
       @ [
-        view_type(syn) |> code_box_container,
+        view_type(~together, syn) |> code_box_container,
         text("inconsistent with expected type"),
-        view_type(ana) |> code_box_container,
+        view_type(~together, ana) |> code_box_container,
       ]
       @ (
         switch (lifted_ty) {
         | None => []
-        | Some(lifted) => [text(" lifted to"), view_type(lifted)]
+        | Some(lifted) => [
+            text(" lifted to"),
+            view_type(~together, lifted),
+          ]
         }
       )
       @ (
@@ -169,7 +221,7 @@ let core_mark_err_view =
             ...ListUtil.join(text(","), List.map(code, introduced_labels)),
           ]
         }
-      )
+      );
     };
   (
     switch (m) {
@@ -236,7 +288,10 @@ let core_mark_err_view =
         text(elements_noun(cls) ++ " have inconsistent types:"),
         ...ListUtil.join(
              text(","),
-             List.map(view_type, Typ.of_source(tys)),
+             {
+               let tys = Typ.of_source(tys);
+               List.map(ty => view_type(~together=tys, ty), tys);
+             },
            ),
       ]
     | NoMeet(wrap, _) =>
@@ -300,6 +355,7 @@ let common_warn_view = (warning: Warning.t) => {
 let common_ok_view =
     (
       ~globals,
+      ~ctx: Ctx.t,
       ~show_type_colon=true,
       ~reordered: bool,
       ~introduced_labels: list(LabeledTuple.label),
@@ -309,7 +365,7 @@ let common_ok_view =
       cls: Cls.t,
       ok: Message.ok_common,
     ) => {
-  let view_type = view_type(~globals);
+  let view_type = view_type(~globals, ~ctx);
   (
     switch (cls, ok) {
     | (Pat(EmptyHole), _) when label_sort => []
@@ -415,7 +471,10 @@ let common_ok_view =
     | (_, Ana(InternallyInconsistent({ana, nomeet: tys}))) =>
       [
         text(elements_noun(cls) ++ " have inconsistent types:"),
-        ...ListUtil.join(text(","), List.map(view_type, tys)),
+        ...ListUtil.join(
+             text(","),
+             List.map(ty => view_type(~together=tys, ty), tys),
+           ),
       ]
       @ [text("but consistent with expected"), view_type(ana)]
     }
@@ -429,8 +488,8 @@ let common_ok_view =
 };
 
 let underdetermined_typ_view =
-    (~globals, underdetermined: Message.underdetermined_typ) => {
-  let view_type = view_type(~globals);
+    (~globals, ~ctx: Ctx.t, underdetermined: Message.underdetermined_typ) => {
+  let view_type = view_type(~globals, ~ctx);
   switch (underdetermined) {
   | ProdExtensionUnderdetermined(tys) => [
       text("Cannot determine type of product extension with argument types:"),
@@ -473,8 +532,8 @@ let underdetermined_typ_view =
   };
 };
 
-let typ_ok_view = (~globals, cls: Cls.t, ok: Message.ok_typ) => {
-  let view_type = view_type(~globals);
+let typ_ok_view = (~globals, ~ctx: Ctx.t, cls: Cls.t, ok: Message.ok_typ) => {
+  let view_type = view_type(~globals, ~ctx);
   switch (ok) {
   | EmptyLabel => []
   | Type(_) when cls == Typ(EmptyHole) => [text("Fillable by any type")]
@@ -503,12 +562,12 @@ let typ_ok_view = (~globals, cls: Cls.t, ok: Message.ok_typ) => {
       view_type(sum_ty),
     ]
   | TypeUnderdetermined(underdetermined) =>
-    underdetermined_typ_view(~globals, underdetermined)
+    underdetermined_typ_view(~globals, ~ctx, underdetermined)
   };
 };
 
-let typ_mark_err_view = (~globals, m: Mark.t) => {
-  let view_type = view_type(~globals);
+let typ_mark_err_view = (~globals, ~ctx: Ctx.t, m: Mark.t) => {
+  let view_type = view_type(~globals, ~ctx);
   switch (m) {
   | TypFreeTypeVariable(name) => [
       view_type(Var(name) |> Typ.fresh),
@@ -587,7 +646,7 @@ let exp_mark_err_view =
     | _ => None
     };
   let inferred_label = info.inferred_label;
-  let view_type = view_type(~globals);
+  let view_type = view_type(~globals, ~ctx=info.ctx);
   let view_any = view_any(~globals);
   let ctx = info.ctx;
   let ana = info.ana;
@@ -632,7 +691,10 @@ let exp_mark_err_view =
       div_err([
         div_err([
           text(elements_noun(cls) ++ " have inconsistent types:"),
-          ...ListUtil.join(text(","), List.map(view_type, tys)),
+          ...ListUtil.join(
+               text(","),
+               List.map(ty => view_type(~together=tys, ty), tys),
+             ),
         ])
         |> code_box_container,
         text(
@@ -801,6 +863,7 @@ let exp_view =
       div_ok(
         common_ok_view(
           ~globals,
+          ~ctx=info.ctx,
           ~show_type_colon,
           ~lifted_ty,
           ~reordered,
@@ -812,11 +875,15 @@ let exp_view =
         ),
       )
     | Exp(AnaDeferralConsistent(ana)) =>
-      div_ok([text("Expecting type"), view_type(~globals, ana)])
+      div_ok([
+        text("Expecting type"),
+        view_type(~globals, ~ctx=info.ctx, ana),
+      ])
     | Exp(Common(ok)) =>
       div_ok(
         common_ok_view(
           ~globals,
+          ~ctx=info.ctx,
           ~show_type_colon,
           ~lifted_ty,
           ~reordered,
@@ -951,6 +1018,7 @@ let pat_view =
       let ok_view =
         common_ok_view(
           ~globals,
+          ~ctx=info.ctx,
           ~show_type_colon,
           ~lifted_ty,
           ~reordered=
@@ -979,6 +1047,7 @@ let pat_view =
 let typ_view =
     (
       ~globals,
+      ~ctx: Ctx.t,
       cls: Cls.t,
       ~marks: list(Mark.t),
       ~message: option(Message.t),
@@ -987,22 +1056,28 @@ let typ_view =
   switch (marks) {
   | [] =>
     switch (message) {
-    | Some(TypOk(o)) => div_ok(typ_ok_view(~globals, cls, o))
+    | Some(TypOk(o)) => div_ok(typ_ok_view(~globals, ~ctx, cls, o))
     | Some(Pat(_) | Exp(_) | TPatOk(_)) =>
       div_err([text("(internal) expected TypOk")])
     | None => div_err([text("(internal) missing type ok payload")])
     }
   | ms =>
     switch (Mark.highest(ms)) {
-    | Some(m) => div_err(typ_mark_err_view(~globals, m))
+    | Some(m) => div_err(typ_mark_err_view(~globals, ~ctx, m))
     | None => div_err([text("(internal) missing type mark")])
     }
   };
 
 let tpat_view =
-    (~globals, _: Cls.t, ~marks: list(Mark.t), ~message: option(Message.t))
+    (
+      ~globals,
+      ~ctx: Ctx.t,
+      _: Cls.t,
+      ~marks: list(Mark.t),
+      ~message: option(Message.t),
+    )
     : Node.t => {
-  let view_type = view_type(~globals);
+  let view_type = view_type(~globals, ~ctx);
   switch (marks) {
   | [] =>
     switch (message) {
@@ -1054,10 +1129,10 @@ let view_of_info = (~globals, ci): list(Node.t) => {
     wrapper(exp_view(~globals, cls, message, ie))
   | InfoPat({cls, message, _} as ip) =>
     wrapper(pat_view(~globals, cls, message, ip))
-  | InfoTyp({cls, marks, message, _}) =>
-    wrapper(typ_view(~globals, cls, ~marks, ~message))
-  | InfoTPat({cls, marks, message, _}) =>
-    wrapper(tpat_view(~globals, cls, ~marks, ~message))
+  | InfoTyp({cls, marks, message, ctx, _}) =>
+    wrapper(typ_view(~globals, ~ctx, cls, ~marks, ~message))
+  | InfoTPat({cls, marks, message, ctx, _}) =>
+    wrapper(tpat_view(~globals, ~ctx, cls, ~marks, ~message))
   | InfoDrv(ci) => wrapper(DrvCursorInspector.drv_view(~globals, ci))
   };
 };

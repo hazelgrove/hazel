@@ -699,7 +699,11 @@ module Transition = (EV: EV_MODE) => {
               /* Inherit name for user clarity */
               DHExp.ty_subst(tau, utpat, tfbody),
               Option.map(
-                x => x ++ "@<" ++ Typ.pretty_print(tau) ++ ">",
+                x =>
+                  x
+                  ++ "@<"
+                  ++ Typ.pretty_print(Typ.surface_names(tau))
+                  ++ ">",
                 name,
               ),
             ),

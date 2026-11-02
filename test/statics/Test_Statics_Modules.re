@@ -621,6 +621,83 @@ let test_type_alias_shadowing_nested_module =
     Some(string()),
   );
 
+let test_shadowed_module_keeps_earlier_paths =
+  fully_consistent_typecheck(
+    "A module shadowed later keeps its meaning in earlier type paths",
+    {|module N = { type U = Int } in
+let x : N.U = 1 in
+type A = N.U in
+module N = { type U = Bool } in
+let y : A = 2 in
+x + y|},
+    Some(int()),
+  );
+
+let test_shadowing_module_roots_later_paths =
+  fully_consistent_typecheck(
+    "A module shadowing another roots the type paths after it",
+    {|module N = { type U = Int } in
+module N = { type U = Bool } in
+let y : N.U = true in
+y && true|},
+    Some(bool()),
+  );
+
+let test_renamed_alias_leaves_member_type =
+  fully_consistent_typecheck(
+    "A renamed alias leaves a module member type of the same name",
+    {|type T = Int in
+type T = Bool in
+module M = { type T = String } in
+let s : M.T = "a" in
+string_length(s)|},
+    Some(int()),
+  );
+
+let test_renamed_alias_leaves_module_of_same_name =
+  fully_consistent_typecheck(
+    "A renamed alias leaves the paths of a module of the same name",
+    {|type N = Int in
+type N = Bool in
+module N = { type U = String } in
+let s : N.U = "a" in
+string_length(s)|},
+    Some(int()),
+  );
+
+let test_renamed_alias_leaves_let_bound_module =
+  fully_consistent_typecheck(
+    "A renamed alias leaves the paths of a let-bound module of the same name",
+    {|type m = Int in
+type m = Bool in
+let m = { type T = String } in
+let y : m.T = "a" in
+string_length(y)|},
+    Some(int()),
+  );
+
+let test_renamed_alias_leaves_let_bound_module_alias =
+  fully_consistent_typecheck(
+    "A renamed alias leaves the paths of a let-bound alias of a module",
+    {|module M = { type T = String } in
+type n = Int in
+type n = Bool in
+let n = M in
+let y : n.T = "a" in
+string_length(y)|},
+    Some(int()),
+  );
+
+let test_renamed_alias_avoids_let_bound_module_name =
+  fully_consistent_typecheck(
+    "A renamed alias does not take the name of a let-bound module in its scope",
+    {|type t = Int in
+type t = Bool in
+let t' = { type u = Int } in
+(true : t)|},
+    Some(bool()),
+  );
+
 let tests = (
   "Statics.Modules",
   [
@@ -707,5 +784,12 @@ let tests = (
     test_type_alias_shadowing_in_nested_module,
     test_type_alias_shadowing_sequential,
     test_type_alias_shadowing_nested_module,
+    test_shadowed_module_keeps_earlier_paths,
+    test_shadowing_module_roots_later_paths,
+    test_renamed_alias_leaves_member_type,
+    test_renamed_alias_leaves_module_of_same_name,
+    test_renamed_alias_leaves_let_bound_module,
+    test_renamed_alias_leaves_let_bound_module_alias,
+    test_renamed_alias_avoids_let_bound_module_name,
   ],
 );

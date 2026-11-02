@@ -82,3 +82,9 @@ let navigate_probes:
     ]
   ) =>
   option(Id.t);
+
+/* The rest of the first class beginning with [prefix] on the element an
+   event targets, or on one of its ancestors. */
+let class_at_target:
+  (~prefix: string, Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.mouseEvent)) =>
+  option(string);

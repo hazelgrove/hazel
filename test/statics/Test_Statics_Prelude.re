@@ -267,6 +267,17 @@ let fully_consistent_typecheck =
   );
 };
 
+/* Pins how many nodes report errors, for programs expected to report some. */
+let reports_errors = (count: int, name, serialized) =>
+  test_case(name, `Quick, () =>
+    Alcotest.check(
+      Alcotest.int,
+      "errors",
+      count,
+      List.length(errors(statics(parse_exp(serialized)))),
+    )
+  );
+
 /* Pins the synthesized type while leaving marks unconstrained, for programs
    that are expected to report errors. */
 let synthesizes = (~normalize=false, name, serialized, expected) =>

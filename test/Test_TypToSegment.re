@@ -465,8 +465,101 @@ let count_tests =
       },
     ),
   ];
+/* The tiles of a segment that print one token, by id, with that token. */
+let rec token_tiles = (s: Segment.t): list((Id.t, string)) =>
+  List.concat_map(
+    fun
+    | Piece.Tile(t) =>
+      (
+        switch (Tile.label(t)) {
+        | [token] => [(t.id, token)]
+        | _ => []
+        }
+      )
+      @ token_tiles(List.concat(t.children))
+    | Grout(_)
+    | Secondary(_)
+    | Projector(_) => [],
+    s,
+  );
+
+/* The tokens [segment] prints at [ids], in order. */
+let tokens_at = (segment, ids) => {
+  let printed = token_tiles(segment);
+  List.filter_map(
+    ((_, id)) =>
+      List.find_opt(((t, _)) => Id.compare(t, id) == 0, printed)
+      |> Option.map(snd),
+    ids,
+  );
+};
+
+let var_id_tests = [
+  test_case(
+    "each binder reported is the tile printing it, even when the type repeats it",
+    `Quick,
+    () => {
+      /* An alias expanded twice repeats its rec binder node, ids and all. */
+      let rec_e =
+        IdTagged.mk_internal(
+          [Id.mk()],
+          Rec(
+            IdTagged.mk_internal([Id.mk()], Var("E"): TPat.term),
+            IdTagged.mk_internal([Id.mk()], Var("E"): Typ.term),
+          ): Typ.term,
+        );
+      let (segment, _, binders) =
+        TypToSegment.typ_to_segment_with_var_ids(
+          ~settings,
+          Prod([rec_e, rec_e]) |> Typ.temp,
+        );
+      check(
+        list(string),
+        "the tokens at the reported ids",
+        List.map(fst, binders),
+        tokens_at(segment, binders),
+      );
+      check(
+        int,
+        "a distinct id for each binder",
+        List.length(binders),
+        List.length(List.sort_uniq(Id.compare, List.map(snd, binders))),
+      );
+    },
+  ),
+  test_case(
+    "each type variable reported is the tile printing it",
+    `Quick,
+    () => {
+      let var = x => Var(x) |> Typ.temp;
+      let (segment, vars, _) =
+        TypToSegment.typ_to_segment_with_var_ids(
+          ~settings,
+          Arrow(
+            var("T"),
+            Prod([var("U"), List(var("T")) |> Typ.temp]) |> Typ.temp,
+          )
+          |> Typ.temp,
+        );
+      let printed = token_tiles(segment);
+      check(
+        list(string),
+        "the tokens at the reported ids",
+        List.map(fst, vars),
+        List.filter_map(
+          ((_, id)) =>
+            List.find_opt(((t, _)) => Id.compare(t, id) == 0, printed)
+            |> Option.map(snd),
+          vars,
+        ),
+      );
+    },
+  ),
+];
+
 let tests = [
   ("TypToSegment.Regions", region_tests),
+  ("TypToSegment.VarIds", var_id_tests),
   (
     "TypToSegment.Ids",
     count_tests

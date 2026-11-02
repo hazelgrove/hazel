@@ -378,47 +378,335 @@ let unroll = (ty: t): t =>
   | _ => ty
   };
 
-/* ctx extended with type variable `entry`, keeping alias resolution
-   lexical. Aliases are expanded by name in the context of use, so an alias
-   definition already in ctx that mentions the name would come to mean the
-   new binding: in `type T = .. in type S = T in type T = (S)`, S would
-   become the second T and expanding T would loop. Such definitions are
-   rewritten to what the name meant before: the alias it shadows, an
-   invalid type if it was unbound, or unknown for a shadowed abstract type.
-   Alias definitions then refer only to older bindings, so expanding
-   aliases terminates. */
+/* `ty` with the type variable `x` renamed to `x'` where it refers to the
+   binding being renamed: not under a binder of `x`, nor in the signature
+   items after one. A module path's root is a type variable too. */
+let rec rename_var = (x: string, x': string, ty: t): t =>
+  map_term(
+    ~f_typ=
+      (continue, ty) => {
+        let (term, rewrap) = unwrap(ty);
+        switch (term) {
+        | Var(y) when String.equal(x, y) => Var(x') |> rewrap
+        | Rec(tp, _)
+        | Poly(tp, _) when TPat.binds(x, tp) => ty
+        | Sig(items) => Sig(rename_var_in_sig(x, x', items)) |> rewrap
+        | _ => continue(ty)
+        };
+      },
+    ty,
+  )
+and rename_var_in_sig =
+    (x: string, x': string, items: list(TermBase.Sig.t))
+    : list(TermBase.Sig.t) =>
+  switch (items) {
+  | [] => []
+  | [{term: SigType(tp, _), _}, ..._] when TPat.binds(x, tp) => items
+  | [item, ...items] => [
+      TermBase.Sig.map_term(~f_typ=(_, ty) => rename_var(x, x', ty), item),
+      ...rename_var_in_sig(x, x', items),
+    ]
+  };
+
+/* Whether binding `name` over ctx would change what a type already in
+   ctx means: the name is bound, or an alias mentions it while it is
+   unbound. */
+let would_capture = (ctx: Ctx.t, name: string): bool =>
+  Option.is_some(Ctx.lookup_tvar(ctx, name))
+  || List.exists(
+       fun
+       | Ctx.TVarEntry({kind: Singleton(ty), _}) =>
+         List.exists(String.equal(name), free_vars(ty))
+       | _ => false,
+       ctx.entries,
+     );
+
+/* When binding `name` over ctx would capture, the fresh name to bind it
+   under instead: `name#1`, `name#2`, ..., the first that would not
+   capture. `#` cannot occur in a written name, so no name in the binder's
+   scope is taken; `surface_name` recovers the written one. None when the
+   name binds as written. */
+let unshadow = (ctx: Ctx.t, name: string): option(string) =>
+  if (would_capture(ctx, name)) {
+    let rec fresh = k => {
+      let name' = name ++ "#" ++ string_of_int(k);
+      would_capture(ctx, name') ? fresh(k + 1) : name';
+    };
+    Some(fresh(1));
+  } else {
+    None;
+  };
+
+/* The name a binder renamed by `unshadow` was written as. */
+let surface_name = (x: string): string =>
+  switch (String.index_opt(x, '#')) {
+  | Some(i) => String.sub(x, 0, i)
+  | None => x
+  };
+
+/* Each occurrence of a type variable in a type, with the occurrence's id. */
+let rec var_ids = (ty: t): list((string, Id.t)) =>
+  switch (term_of(ty)) {
+  | Var(x) => [(x, rep_id(ty))]
+  | Unknown(_)
+  | Atom(_)
+  | DrvQuoteTy(_)
+  | ExplicitNonlabel
+  | Label(_)
+  | ProofOf(_) => []
+  | Rec(_, ty)
+  | Poly(_, ty)
+  | Parens(ty)
+  | Projector(_, ty)
+  | List(ty)
+  | TupLabel(_, ty)
+  | ProdProjection(ty, _) => var_ids(ty)
+  | ProdExtension(t1, t2)
+  | Arrow(t1, t2) => var_ids(t1) @ var_ids(t2)
+  | Sum(sm) => ConstructorMap.free_variables(var_ids, sm)
+  | Prod(tys) => List.concat_map(var_ids, tys)
+  | Sig(items) =>
+    List.concat_map(
+      (item: TermBase.Sig.t) =>
+        switch (item.term) {
+        | SigType(_, ty) => var_ids(ty)
+        | Invalid(_)
+        | EmptyHole
+        | MultiHole(_)
+        | SigLet(_) => []
+        },
+      items,
+    )
+  };
+
+/* The type variables a type binds, with their binders' ids. */
+let rec binders = (ty: t): list((string, Id.t)) => {
+  let binder = tp =>
+    switch (TPat.tyvar_of_utpat(tp)) {
+    | Some(x) => [(x, TPat.rep_id(tp))]
+    | None => []
+    };
+  switch (term_of(ty)) {
+  | Rec(tp, ty)
+  | Poly(tp, ty) => binder(tp) @ binders(ty)
+  | Unknown(_)
+  | Atom(_)
+  | DrvQuoteTy(_)
+  | Var(_)
+  | ExplicitNonlabel
+  | Label(_)
+  | ProofOf(_) => []
+  | Parens(ty)
+  | Projector(_, ty)
+  | List(ty)
+  | TupLabel(_, ty)
+  | ProdProjection(ty, _) => binders(ty)
+  | ProdExtension(t1, t2)
+  | Arrow(t1, t2) => binders(t1) @ binders(t2)
+  | Sum(sm) => ConstructorMap.free_variables(binders, sm)
+  | Prod(tys) => List.concat_map(binders, tys)
+  | Sig(items) =>
+    List.concat_map(
+      (item: TermBase.Sig.t) =>
+        switch (item.term) {
+        | SigType(tp, ty) => binder(tp) @ binders(ty)
+        | Invalid(_)
+        | EmptyHole
+        | MultiHole(_)
+        | SigLet(_) => []
+        },
+      items,
+    )
+  };
+};
+
+/* Every type variable name in a type, bound or free. */
+let var_names = (ty: t): list(string) =>
+  List.map(fst, var_ids(ty) @ binders(ty));
+
+/* For types shown together, the name a type variable in them shows as:
+   the name written for it, tagged with its binder's id, as `T~3f2`, when
+   that name would read as another binding. In [ctx] the name reads as the
+   binding it means there; otherwise, where two bindings in the types share
+   it, as the one written as is. */
+let surface_name_in =
+    (~ctx: Ctx.t=Ctx.empty, tys: list(t)): (string => string) => {
+  let names =
+    List.sort_uniq(String.compare, List.concat_map(var_names, tys));
+  let local = List.concat_map(binders, tys);
+  let homonyms = x =>
+    List.filter(
+      y => String.equal(surface_name(y), surface_name(x)),
+      names,
+    );
+  /* The binding a written name means in ctx. */
+  let meant = written =>
+    List.find_map(
+      fun
+      | Ctx.TVarEntry({name, _})
+          when String.equal(surface_name(name), written) =>
+        Some(name)
+      | _ => None,
+      ctx.entries,
+    );
+  let tag = x =>
+    switch (List.assoc_opt(x, local), Ctx.lookup_tvar_id(ctx, x)) {
+    | (Some(id), _)
+    | (None, Some(id)) => Some(Id.str3(id))
+    | (None, None) =>
+      String.index_opt(x, '#')
+      |> Option.map(i => String.sub(x, i + 1, String.length(x) - i - 1))
+    };
+  let shown = x => {
+    let written = surface_name(x);
+    let group = homonyms(x);
+    let plain =
+      switch (meant(written), group) {
+      | (Some(y), _) => String.equal(x, y)
+      | (None, [_]) => true
+      | (None, _) => String.equal(x, written)
+      };
+    switch (tag(x)) {
+    | Some(tag) when !plain => written ++ "~" ++ tag
+    | _ => written
+    };
+  };
+  shown;
+};
+
+/* Where each type variable in [typ] is bound, by the name it shows as
+   among [tys] (see `surface_name_in`): by a binder in [typ], whose id is
+   that of the `typfun`, alias or annotation it came from, or else in [ctx].
+   Builtins, bound nowhere in the program, are left out. */
+let binding_sites_in =
+    (~ctx: Ctx.t=Ctx.empty, tys: list(t), typ: t): list((string, Id.t)) => {
+  let shown = surface_name_in(~ctx, tys);
+  let in_type = binders(typ);
+  var_names(typ)
+  |> List.sort_uniq(String.compare)
+  |> List.filter_map(x =>
+       switch (List.assoc_opt(x, in_type), Ctx.lookup_tvar_id(ctx, x)) {
+       | (Some(id), _)
+       | (None, Some(id)) when Id.compare(id, Id.invalid) != 0 =>
+         Some((shown(x), id))
+       | _ => None
+       }
+     );
+};
+
+/* A name `surface_name_in` shows, split into the written name and the tag
+   telling it apart from another binding of that name, `~` included. */
+let split_tag = (shown: string): (string, option(string)) =>
+  switch (String.index_opt(shown, '~')) {
+  | Some(i) => (
+      String.sub(shown, 0, i),
+      Some(String.sub(shown, i, String.length(shown) - i)),
+    )
+  | None => (shown, None)
+  };
+
+/* `surface_name_in`'s names applied to a type shown among [tys]. */
+let surface_names_in = (~ctx: Ctx.t=Ctx.empty, tys: list(t)): (t => t) => {
+  let shown = surface_name_in(~ctx, tys);
+  ty =>
+    map_term(
+      ~f_typ=
+        (continue, ty) => {
+          let (term, rewrap) = unwrap(ty);
+          switch (term) {
+          | Var(x) => Var(shown(x)) |> rewrap
+          | _ => continue(ty)
+          };
+        },
+      ~f_tpat=
+        (_, tp) =>
+          switch (TPat.tyvar_of_utpat(tp)) {
+          | Some(x) => TPat.rename(shown(x), tp)
+          | None => tp
+          },
+      ty,
+    );
+};
+
+let surface_names = (ty: t): t => surface_names_in([ty], ty);
+
+/* ctx extended with type variable `entry`, keeping type resolution
+   lexical for a name that cannot be renamed instead (see `unshadow`).
+   Types are expanded by name in the context of use, so a type already in
+   ctx that mentions the name would come to mean the new binding. Such
+   types are rewritten to what the name meant before: the alias it
+   shadows, an invalid type if it was unbound, or unknown for a shadowed
+   abstract type. Alias definitions then refer only to older bindings, so
+   expanding aliases terminates. Variable and constructor types are
+   rewritten only when the name shadows an alias, and only those bound
+   since it; a variable of a shadowed abstract type keeps it. */
 let extend_tvar = (ctx: Ctx.t, entry: Ctx.tvar_entry): Ctx.t => {
+  let mentions_typ = ty =>
+    List.exists(String.equal(entry.name), free_vars(ty));
   let mentions: Ctx.kind => bool =
     fun
-    | Singleton(ty) => List.mem(entry.name, free_vars(ty))
+    | Singleton(ty) => mentions_typ(ty)
     | Abstract => false;
   let stale =
     fun
     | Ctx.TVarEntry(e) => mentions(e.kind)
     | _ => false;
-  if (!mentions(entry.kind) && !List.exists(stale, ctx.entries)) {
+  let shadowed = Ctx.lookup_tvar(ctx, entry.name);
+  let shadows_alias =
+    switch (shadowed) {
+    | Some(Singleton(_)) => true
+    | Some(Abstract)
+    | None => false
+    };
+  if (!shadows_alias
+      && !mentions(entry.kind)
+      && !List.exists(stale, ctx.entries)) {
     Ctx.extend_tvar(ctx, entry);
   } else {
     let meant =
-      switch (Ctx.lookup_tvar(ctx, entry.name)) {
+      switch (shadowed) {
       | Some(Singleton(ty)) => ty
       | Some(Abstract) => Unknown(Internal) |> temp
       | None => Unknown(Hole(Invalid(entry.name))) |> temp
       };
+    let refresh_typ = ty =>
+      mentions_typ(ty)
+        ? subst(meant, Var(entry.name) |> TPat.fresh, ty) : ty;
     let refresh = (e: Ctx.tvar_entry): Ctx.tvar_entry =>
       switch (e.kind) {
       | Singleton(ty) when mentions(e.kind) => {
           ...e,
-          kind: Singleton(subst(meant, Var(entry.name) |> TPat.fresh, ty)),
+          kind: Singleton(refresh_typ(ty)),
         }
       | _ => e
       };
-    let entries =
-      List.map(
-        fun
-        | Ctx.TVarEntry(e) when mentions(e.kind) =>
-          Ctx.TVarEntry(refresh(e))
-        | e => e,
+    let (_, entries) =
+      List.fold_left_map(
+        (since_shadowed, e: Ctx.entry) =>
+          switch (e) {
+          | TVarEntry(t) => (
+              since_shadowed && !String.equal(t.name, entry.name),
+              mentions(t.kind) ? Ctx.TVarEntry(refresh(t)) : e,
+            )
+          | VarEntry(v) when since_shadowed && mentions_typ(v.typ) => (
+              since_shadowed,
+              VarEntry({
+                ...v,
+                typ: refresh_typ(v.typ),
+              }),
+            )
+          | ConstructorEntry(c) when since_shadowed && mentions_typ(c.typ) => (
+              since_shadowed,
+              ConstructorEntry({
+                ...c,
+                typ: refresh_typ(c.typ),
+              }),
+            )
+          | VarEntry(_)
+          | ConstructorEntry(_)
+          | LivelitEntry(_) => (since_shadowed, e)
+          },
+        shadows_alias,
         ctx.entries,
       );
     Ctx.extend_tvar(
