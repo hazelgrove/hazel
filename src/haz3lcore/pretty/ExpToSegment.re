@@ -3616,18 +3616,19 @@ let uniquify_typ_ids = (ty: Typ.t): Typ.t => {
     seen := Id.Set.add(id, seen^);
     id;
   };
-  Typ.map_term(
-    ~f_typ=
-      (cont, ty) =>
-        cont({
-          ...ty,
-          annotation: {
-            ...ty.annotation,
-            ids: List.map(distinct, ty.annotation.ids),
-          },
-        }),
-    ty,
-  );
+  let f:
+    'a.
+    (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
+   =
+    (cont, node) =>
+      cont({
+        ...node,
+        annotation: {
+          ...node.annotation,
+          ids: List.map(distinct, node.annotation.ids),
+        },
+      });
+  Typ.map_term(~f_typ=f, ~f_tpat=f, ty);
 };
 
 /* Display segments must never contain two tile pieces claiming the same
