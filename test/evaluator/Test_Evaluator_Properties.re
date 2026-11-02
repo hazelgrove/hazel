@@ -460,8 +460,8 @@ let eval_limited =
 /* Check that incremental eval and fresh eval agree on `exp` with one of its int
    literals bumped by one — `literal_index`, taken modulo how many there are.
    Skips and `require_comparison` as above. With `values_only`, a program
-   whose fresh result is not a value (it got stuck) is skipped too: the
-   shape of #2457, which is pinned by its own test below. */
+   whose fresh result is not a value (it got stuck) is skipped too. The
+   stuck shape from #2457 is covered by its own regression test below. */
 let check_incremental_against_fresh_after_edit =
     (
       ~values_only: bool=false,
@@ -666,7 +666,6 @@ let incremental_recursive_lets_tests =
                 ) {
                 | Some(literal_index) =>
                   check_incremental_against_fresh_after_edit(
-                    ~values_only=true,
                     ~literal_index,
                     ~testable=testable_core_exp,
                     ~msg=
@@ -690,35 +689,34 @@ let incremental_recursive_lets_tests =
     recursive_templates,
   );
 
-/* Known bug #2457: a stuck result reused from the cache isn't closed over
-   the current environment, so the binding it mentions comes back free.
-   Pinned with the disagreement; goes red once it is fixed. */
+/* #2457: editing the discarded literal must not leave `x` free in the stuck
+   residual. Fresh and incremental both close it over `x = ()`. */
 let incremental_literal_edit_regression_test =
   test_case(
-    "Known bug #2457: incremental eval disagrees with fresh after a literal edit",
+    "Incremental eval agrees with fresh eval on a stuck let after a literal edit (#2457)",
     `Quick,
     () =>
     check_incremental_against_fresh_after_edit(
       ~literal_index=0,
-      ~testable=neg(testable_core_exp),
-      ~msg="#2457 looks fixed: make this a regression test",
+      ~testable=testable_core_exp,
+      ~msg="#2457: incremental and fresh disagree on the stuck residual",
       ~require_comparison=true,
       parse_exp("{ let x = (); let _ = 4; let true = A }"),
     )
   );
 
-/* Known bug #2462: a function reused from the cache comes back without its
-   closure, and in environment mode only a closure is applied, so the edited
-   call is stuck at `(fun x -> ?)(1)`. Goes red once it is fixed. */
+/* #2462: a function reused from the cache must still be applied after a
+   literal edit; it used to come back without its closure, leaving the call
+   stuck at `(fun x -> ?)(1)`. */
 let incremental_reused_function_regression_test =
   test_case(
-    "Known bug #2462: a function reused after a literal edit isn't applied",
+    "Incremental eval agrees with fresh eval when a function is reused (#2462)",
     `Quick,
     () =>
     check_incremental_against_fresh_after_edit(
       ~literal_index=0,
-      ~testable=neg(testable_core_exp),
-      ~msg="#2462 looks fixed: make this a regression test",
+      ~testable=testable_core_exp,
+      ~msg="#2462: incremental and fresh disagree on a reused function",
       ~require_comparison=true,
       parse_exp("(let ? = a in fun x -> ?)(0)"),
     )
@@ -1210,22 +1208,7 @@ let tests = (
     QCheck_alcotest.to_alcotest(qcheck_evaluator_does_not_crash_test),
     QCheck_alcotest.to_alcotest(qcheck_stepper_confluence),
     QCheck_alcotest.to_alcotest(qcheck_pattern_equivalence_test),
-    /* Disabled: fails on any seed that draws #2457's shape (pinned below);
-       the values-only version runs instead. */
-    test_case(
-      "Incremental eval agrees with fresh eval after a literal edit (disabled, #2457)",
-      `Quick,
-      () => {
-      [@warning "-21"]
-      {
-        Alcotest.skip();
-        ignore(
-          QCheck_alcotest.to_alcotest(
-            qcheck_incremental_matches_fresh_after_edit,
-          ),
-        );
-      }
-    }),
+    QCheck_alcotest.to_alcotest(qcheck_incremental_matches_fresh_after_edit),
     QCheck_alcotest.to_alcotest(qcheck_incremental_matches_fresh_for_values),
     incremental_literal_edit_regression_test,
     QCheck_alcotest.to_alcotest(qcheck_preservation_test),

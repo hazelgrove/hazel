@@ -30,9 +30,8 @@ let rec collect_stream_state_for =
     | None =>
       let (req_state, rule) =
         CollectStreamTransition.transition(
-          (~in_closure=?, _env, child) => {
-            ignore(in_closure);
-            (collect_stream_state_for(stream, child), Indet);
+          (_env, child) => {
+            (collect_stream_state_for(stream, child), Indet)
           },
           ~mode=`Environment,
           ~targets=Sample.no_targets,

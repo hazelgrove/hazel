@@ -330,16 +330,9 @@ module Decompose = {
   };
 
   module Decomp = Transition(DecomposeEVMode);
-  let rec decompose = (~in_closure=?, env, exp) => {
+  let rec decompose = (env, exp) => {
     switch (exp) {
-    | _ =>
-      Decomp.transition(
-        decompose,
-        ~mode=`Substitution,
-        ~in_closure?,
-        env,
-        exp,
-      )
+    | _ => Decomp.transition(decompose, ~mode=`Substitution, env, exp)
     };
   };
 };
@@ -374,14 +367,8 @@ module TakeStep = {
 
   module TakeStepEV = Transition(TakeStepEVMode);
 
-  let take_step = (~in_closure=?, env, d) =>
-    TakeStepEV.transition(
-      (~in_closure as _=?, _, _) => None,
-      ~mode=`Substitution,
-      ~in_closure?,
-      env,
-      d,
-    )
+  let take_step = (env, d) =>
+    TakeStepEV.transition((_, _) => None, ~mode=`Substitution, env, d)
     |> Option.map(DHExp.replace_all_ids);
 };
 
