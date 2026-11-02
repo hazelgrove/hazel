@@ -143,7 +143,7 @@ let gen_string_literal: QCheck.Gen.t(string) =
  *
  * String payloads stay lexically valid via [@gen ...]. List payloads are
  * overridden because the ppx default can reach ~10k elements and explode
- * recursive terms. */
+ * recursive terms; they draw from a size budget (gen_ppx_list). */
 
 /* Consulted at generation time so suites can request x/y (true) vs single
  * random letters (false). Safe because Gen.t is Random.State.t -> 'a. */
@@ -195,11 +195,48 @@ let invalid_token_examples: list(string) = [
 let gen_invalid_token: QCheck.Gen.t(string) =
   QCheck.Gen.oneof(List.map(QCheck.Gen.pure, invalid_token_examples));
 
-let gen_ppx_small_list = (gen: QCheck.Gen.t('a)): QCheck.Gen.t(list('a)) =>
-  QCheck.Gen.(list_size(int_range(0, 3), gen));
+/* Size, separate from depth (proptest-style). The ppx's fuel `n` bounds
+ * depth: it halves at each level, and the derived generator is built
+ * eagerly, so it can't grow far. List-like positions (lists, tuples, case
+ * rules, sum entries, module and signature items) instead draw from a size
+ * budget: the most elements the whole generated term may have. A list takes
+ * its length out of the budget and splits what is left among its elements,
+ * so each element's own lists are bounded by its share. Consulted at
+ * generation time like ppx_minimal_idents, so it costs nothing to build;
+ * suites set it per term (QCheck_Util.with_ppx_size). */
+let default_ppx_size = 50;
+let ppx_size_budget: ref(int) = ref(default_ppx_size);
 
-let gen_ppx_small_list1 = (gen: QCheck.Gen.t('a)): QCheck.Gen.t(list('a)) =>
-  QCheck.Gen.(list_size(int_range(1, 3), gen));
+/* Half the time a short list (at most 3), as the generators always made;
+ * otherwise one as long as the budget allows. */
+let gen_ppx_list = (~min=0, gen: QCheck.Gen.t('a)): QCheck.Gen.t(list('a)) =>
+  st => {
+    let avail = ppx_size_budget^;
+    let most = Stdlib.max(min, avail);
+    let most =
+      Random.State.int(st, 2) == 0
+        ? most : Stdlib.min(most, Stdlib.max(min, 3));
+    let len = min + Random.State.int(st, most - min + 1);
+    let rest = Stdlib.max(0, avail - len);
+    if (len == 0) {
+      ppx_size_budget := rest;
+      [];
+    } else {
+      /* Each element gets its share; what it leaves unused goes back. */
+      let (left, xs) =
+        QCheck.Gen.nat_split(~size=len, rest, st)
+        |> Array.fold_left(
+             ((left, xs), share) => {
+               ppx_size_budget := share;
+               let x = gen(st);
+               (left + ppx_size_budget^, [x, ...xs]);
+             },
+             (0, []),
+           );
+      ppx_size_budget := left;
+      List.rev(xs);
+    };
+  };
 
 /* Tuple fields: mostly plain, sometimes `lab=e` or `_=e`. */
 let gen_tuple_fields =
@@ -210,7 +247,7 @@ let gen_tuple_fields =
     )
     : QCheck.Gen.t(list('a)) =>
   QCheck.Gen.(
-    gen_ppx_small_list(
+    gen_ppx_list(
       frequency([
         (3, gen),
         (
@@ -250,7 +287,7 @@ type typ =
   | BoolType
   | NatType
   | VoidType
-  | SumTyp([@gen gen_ppx_small_list1(gen_sumterm_sized(n / 2))] sumtype)
+  | SumTyp([@gen gen_ppx_list(~min=1, gen_sumterm_sized(n / 2))] sumtype)
   /* Internal/EmptyHole both print as `?`; only generate the printable form. */
   | UnknownType(
       [@gen QCheck.Gen.pure(EmptyHole: typ_provenance)] typ_provenance,
@@ -287,9 +324,7 @@ type typ =
   | IndicationTyp(typ)
   | ProdProjection(typ, typ)
   | ProdExtension(typ, typ)
-  | Sig(
-      [@gen gen_ppx_small_list(gen_sig_item_sized(n / 2))] list(sig_item),
-    )
+  | Sig([@gen gen_ppx_list(gen_sig_item_sized(n / 2))] list(sig_item))
 and sumterm =
   | Variant([@gen gen_ppx_constructor_ident] string, option(typ))
   /* No distinct surface syntax — prints as the inner typ. Menhir classifies
@@ -320,7 +355,7 @@ and pat =
       list(pat),
     )
   | ConsPat(pat, pat)
-  | ListPat([@gen gen_ppx_small_list(gen_pat_sized(n / 2))] list(pat))
+  | ListPat([@gen gen_ppx_list(gen_pat_sized(n / 2))] list(pat))
   | ApPat(pat, pat)
   | InvalidPat([@gen gen_invalid_token] string)
   /* Also injected as tuple fields via TuplePat above. */
@@ -347,7 +382,7 @@ and exp =
       [@gen gen_ppx_constructor_ident] string,
       option(option(typ)),
     )
-  | ListExp([@gen gen_ppx_small_list(gen_exp_sized(n / 2))] list(exp))
+  | ListExp([@gen gen_ppx_list(gen_exp_sized(n / 2))] list(exp))
   | TupleExp(
       [@gen
         gen_tuple_fields(
@@ -369,7 +404,8 @@ and exp =
   | CaseExp(
       exp,
       [@gen
-        gen_ppx_small_list1(
+        gen_ppx_list(
+          ~min=1,
           QCheck.Gen.pair(gen_pat_sized(n / 2), gen_exp_sized(n / 2)),
         )
       ]
@@ -411,9 +447,7 @@ and exp =
   | Use(typ, exp)
   | IndicationExp(exp)
   | TupleExtension(exp, exp)
-  | Module(
-      [@gen gen_ppx_small_list(gen_mod_item_sized(n / 2))] list(mod_item),
-    )
+  | Module([@gen gen_ppx_list(gen_mod_item_sized(n / 2))] list(mod_item))
   /* Menhir binders are IDENT/CTR (as VarPat), wild, or hole — keep to vars. */
   | ModuleExp(
       [@gen
@@ -1124,8 +1158,32 @@ and shrink_typ: QCheck.Shrink.t(typ) =
         }
       )
   );
-/* `size` is depth fuel, halved at each recursive step — not a node budget. */
-let arb_typ_full = size =>
-  QCheck.make(~print=show_typ, ~shrink=shrink_typ, gen_typ_full_sized(size));
-let arb_exp_full = size =>
-  QCheck.make(~print=show_exp, ~shrink=shrink_exp, gen_exp_full_sized(size));
+/* Each generated term starts with a fresh size budget. */
+let with_ppx_size = (size: int, gen: QCheck.Gen.t('a)): QCheck.Gen.t('a) =>
+  st => {
+    let prev = ppx_size_budget^;
+    ppx_size_budget := size;
+    switch (gen(st)) {
+    | x =>
+      ppx_size_budget := prev;
+      x;
+    | exception e =>
+      ppx_size_budget := prev;
+      raise(e);
+    };
+  };
+
+/* `depth` is fuel, halved at each recursive step; `size` is the most
+   list-like elements the term may have (see gen_ppx_list). */
+let arb_typ_full = (~size=default_ppx_size, depth) =>
+  QCheck.make(
+    ~print=show_typ,
+    ~shrink=shrink_typ,
+    with_ppx_size(size, gen_typ_full_sized(depth)),
+  );
+let arb_exp_full = (~size=default_ppx_size, depth) =>
+  QCheck.make(
+    ~print=show_exp,
+    ~shrink=shrink_exp,
+    with_ppx_size(size, gen_exp_full_sized(depth)),
+  );

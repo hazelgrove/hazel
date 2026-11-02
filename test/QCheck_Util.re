@@ -46,10 +46,12 @@ let show_core_typ = typ =>
      )
   |> Printer.of_segment(~holes="?", _);
 
-/* Full-syntax variants: every Menhir AST constructor. `size` is depth fuel;
- * ~6 is the safe ceiling, beyond which construction OOMs. */
-let arb_exp_full = (~minimal_idents=false, size: int) => {
-  let menhir_arb = AST.arb_exp_full(size);
+/* Full-syntax variants: every Menhir AST constructor. `depth` is fuel,
+ * halved at each level; ~6 is the safe ceiling, beyond which construction
+ * OOMs. `size` (default AST.default_ppx_size) bounds the list-like elements
+ * of the whole term, so lists can be long without the term exploding. */
+let arb_exp_full = (~minimal_idents=false, ~size=?, depth: int) => {
+  let menhir_arb = AST.arb_exp_full(~size?, depth);
   let menhir_arb =
     set_gen(
       with_ppx_minimal_idents(minimal_idents, menhir_arb.gen),
@@ -71,8 +73,8 @@ let arb_exp_full = (~minimal_idents=false, size: int) => {
   set_print(show_core_exp, mapped);
 };
 
-let arb_typ_full = (~minimal_idents=false, size: int) => {
-  let menhir_arb = AST.arb_typ_full(size);
+let arb_typ_full = (~minimal_idents=false, ~size=?, depth: int) => {
+  let menhir_arb = AST.arb_typ_full(~size?, depth);
   let menhir_arb =
     set_gen(
       with_ppx_minimal_idents(minimal_idents, menhir_arb.gen),
