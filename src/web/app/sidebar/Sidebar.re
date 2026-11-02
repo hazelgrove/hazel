@@ -378,6 +378,7 @@ let view =
                 ~explainThisModel,
                 {
                   cursor: cursor.info,
+                  indicated: Cursor.indicated_id(cursor),
                   deduction: derivation_info,
                 },
               )

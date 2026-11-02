@@ -50,7 +50,7 @@ let show_cls: cls => string =
   | EmptyHole => "Empty label hole"
   | MultiHole => "Broken label"
   | Label => "Label"
-  | ExplicitNonlabel => "Explicit non-label";
+  | ExplicitNonlabel => "Explicitly unlabeled entry";
 
 /* Same kind of label with the same text; a malformed label's pieces are
    not compared */
