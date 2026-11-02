@@ -923,7 +923,7 @@ module Transition = (EV: EV_MODE) => {
       Indet;
     | Atom(_)
     | LivelitName(_)
-    | Label(_)
+    | LabelLit(_)
     | Constructor(_)
     | BuiltinFun(_) =>
       let. _ = otherwise(env, d);

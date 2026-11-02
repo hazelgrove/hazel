@@ -251,7 +251,7 @@ let tests =
           ap(
             Forward,
             var("group_by_label"),
-            tuple([label("l"), list_lit([])]),
+            tuple([label_lit("l"), list_lit([])]),
           ),
           {|group_by_label(`l`,  [])|},
         )
