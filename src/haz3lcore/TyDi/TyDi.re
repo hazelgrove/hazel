@@ -187,6 +187,16 @@ let set_buffer =
     | Normal => None
     };
   let* tok_to_left = token_to_left(z);
+  /* no suggestion starts with a digit (names, keywords, operators and a
+     form's missing shards don't), so after a numeral none is computed:
+     they scan the context and complete the segment, a pass over the
+     whole program on each typed digit (^ticket(665)) */
+  let* _ =
+    switch (tok_to_left.[0]) {
+    | '0' .. '9' => None
+    | _ => Some()
+    | exception (Invalid_argument(_)) => Some()
+    };
   /* witness suggestions need no statics — ci is None on exactly the
      states they serve (completion consumed the prefix token) */
   let suggestions =
