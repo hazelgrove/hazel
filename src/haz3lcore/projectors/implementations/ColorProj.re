@@ -121,13 +121,19 @@ module M: Projector = {
     switch (unparen(e).term) {
     | Ap(Forward, ctr, arg) =>
       switch (unparen(ctr).term, unparen(arg).term) {
-      | (Constructor("Oklch", _), Tuple([l, c, h])) =>
+      | (
+          Constructor("Oklch", _),
+          Tuple([Unlabeled(l), Unlabeled(c), Unlabeled(h)]),
+        ) =>
         switch (unparen(l).term, unparen(c).term, unparen(h).term) {
         | (Atom(Float(l)), Atom(Float(c)), Atom(Float(h))) =>
           Some(LOklch(l, c, h))
         | _ => None
         }
-      | (Constructor("Rgb", _), Tuple([r, g, b])) =>
+      | (
+          Constructor("Rgb", _),
+          Tuple([Unlabeled(r), Unlabeled(g), Unlabeled(b)]),
+        ) =>
         switch (unparen(r).term, unparen(g).term, unparen(b).term) {
         | (Atom(Int(r)), Atom(Int(g)), Atom(Int(b))) =>
           switch (byte_of(r), byte_of(g), byte_of(b)) {
@@ -246,7 +252,11 @@ module M: Projector = {
       );
     let rewrite = (e: Language.Exp.t): Language.Exp.t =>
       switch (e.term) {
-      | Ap(d, c, {term: Tuple([el, ec, eh]), _} as tup) => {
+      | Ap(
+          d,
+          c,
+          {term: Tuple([Unlabeled(el), Unlabeled(ec), Unlabeled(eh)]), _} as tup,
+        ) => {
           ...e,
           term:
             Ap(
@@ -254,7 +264,12 @@ module M: Projector = {
               same_form ? c : ctr(),
               {
                 ...tup,
-                term: Tuple([set(el, v1), set(ec, v2), set(eh, v3)]),
+                term:
+                  Tuple([
+                    Unlabeled(set(el, v1)),
+                    Unlabeled(set(ec, v2)),
+                    Unlabeled(set(eh, v3)),
+                  ]),
               },
             ),
         }

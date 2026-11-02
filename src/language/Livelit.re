@@ -291,7 +291,7 @@ module Js: BuiltinLivelit = {
     (m: model_t) => {
       let code_expr = DHExp.fresh(Atom(String(m.code)));
       let result_expr = DHExp.fresh(Atom(String(m.result)));
-      DHExp.fresh(Tuple([code_expr, result_expr]));
+      DHExp.fresh(Tuple([Unlabeled(code_expr), Unlabeled(result_expr)]));
     };
 
   /* Convert a Hazel expression back to the model. */
@@ -299,8 +299,8 @@ module Js: BuiltinLivelit = {
     (expr: model_exp) => {
       switch (expr.term) {
       | Tuple([
-          {term: Atom(String(code)), _},
-          {term: Atom(String(result)), _},
+          Unlabeled({term: Atom(String(code)), _}),
+          Unlabeled({term: Atom(String(result)), _}),
         ]) =>
         Some({
           code,
@@ -353,7 +353,10 @@ module Js: BuiltinLivelit = {
       | SetModel(m) =>
         let code_expr = DHExp.fresh(Atom(String(m.code)));
         let result_expr = DHExp.fresh(Atom(String(m.result)));
-        let tuple_expr = DHExp.fresh(Tuple([code_expr, result_expr]));
+        let tuple_expr =
+          DHExp.fresh(
+            Tuple([Unlabeled(code_expr), Unlabeled(result_expr)]),
+          );
 
         Ap(
           Forward,
@@ -382,8 +385,8 @@ module Js: BuiltinLivelit = {
           {
             term:
               Tuple([
-                {term: Atom(String(code)), _},
-                {term: Atom(String(result)), _},
+                Unlabeled({term: Atom(String(code)), _}),
+                Unlabeled({term: Atom(String(result)), _}),
               ]),
             _,
           },

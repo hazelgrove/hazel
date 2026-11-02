@@ -34,13 +34,10 @@ let mk_table = (rows: list(list((string, Exp.t)))): Exp.t =>
   IdTagged.FreshGrammar.Exp.(
     list_lit(
       List.map(
-        ~f=
-          fields =>
-            parens(
-              tuple(
-                List.map(~f=((l, v)) => tup_label(label(l), v), fields),
-              ),
-            ),
+        fields =>
+          parens(
+            tuple_entries(List.map(((l, v)) => labeled(l, v), fields)),
+          ),
         rows,
       ),
     )
