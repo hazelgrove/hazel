@@ -18,6 +18,40 @@ let tests = (
     test_case("Ascription removal for labels in let pattern", `Quick, () => {
       parse_and_evaluate_test("(a=1)", {|let x : (a=Int) = (a=1) in x|})
     }),
+    /* Labels stack: a tuple expected at a one-field label becomes that
+       field, rather than the label being refused for arity. */
+    test_case("Wide tuple lifted into a singleton label", `Quick, () =>
+      parse_and_evaluate_test("(a=(1, 2))", {|(1, 2) : (a=(Int, Int))|})
+    ),
+    test_case("Wide tuple pattern lifted into a singleton label", `Quick, () =>
+      parse_and_evaluate_test(
+        "1",
+        {|let f : (a=(Int, Int)) -> Int = fun (x, y) -> x in f((1, 2))|},
+      )
+    ),
+    /* A value that already has the labeled type must not be lifted into a
+       further field: the label is in its type, not in its syntax. */
+    test_case("Ascribing a variable that already has the record type", `Quick, () =>
+      parse_and_evaluate_test(
+        "(a=1)",
+        {|let r = (a=1) in r : (a=Int)|},
+      )
+    ),
+    test_case("Annotating a variable that already has the record type", `Quick, () =>
+      parse_and_evaluate_test(
+        "(a=1)",
+        {|let r = (a=1) in let x : (a=Int) = r in x|},
+      )
+    ),
+    test_case(
+      "Ascribing a call that already returns the record type",
+      `Quick,
+      () =>
+      parse_and_evaluate_test(
+        "(a=1)",
+        {|let f = fun _ -> (a=1) in f(()) : (a=Int)|},
+      )
+    ),
     test_case("Labeled tuple field access", `Quick, () =>
       parse_and_evaluate_test("1", {|(a=1,b=2).a|})
     ),

@@ -310,6 +310,32 @@ let common_ok_view =
       ok: Message.ok_common,
     ) => {
   let view_type = view_type(~globals);
+  /* Shared by the "equals expected type" lines and by holes. A hole's
+     message only names the field type it was checked at; the lift note
+     is what says the position's type is the labeled tuple around it. */
+  let inserted_label_note =
+    (
+      switch (lifted_ty) {
+      | None => []
+      | Some(lifted) => [text(" lifted to"), view_type(lifted)]
+      }
+    )
+    @ (
+      switch (introduced_labels) {
+      | [] => []
+      | [a] => [text("by automatically adding label "), label_view(a)]
+      | labels => [
+          text("by automatically adding labels "),
+          ...ListUtil.join(text(","), List.map(label_view, labels)),
+        ]
+      }
+    )
+    @ (
+      switch (reordered) {
+      | false => []
+      | true => [text(" after reordering by labels ")]
+      }
+    );
   (
     switch (cls, ok) {
     | (Pat(EmptyHole), _) when label_sort => []
@@ -325,14 +351,18 @@ let common_ok_view =
       ]
     | (Exp(EmptyHole), Syn(_)) => [text("Fillable by any expression")]
     | (Pat(EmptyHole), Syn(_)) => [text("Fillable by any pattern")]
-    | (Exp(EmptyHole), Ana(Consistent({ana, _}))) => [
+    | (Exp(EmptyHole), Ana(Consistent({ana, _}))) =>
+      [
         text("Fillable by any expression of type"),
         view_type(ana),
       ]
-    | (Pat(EmptyHole), Ana(Consistent({ana, _}))) => [
+      @ inserted_label_note
+    | (Pat(EmptyHole), Ana(Consistent({ana, _}))) =>
+      [
         text("Fillable by any pattern of type"),
         view_type(ana),
       ]
+      @ inserted_label_note
     | (_, Syn(syn)) =>
       switch (syn.term) {
       | Label(l) => [label_view(l)]
@@ -351,31 +381,7 @@ let common_ok_view =
         colon_prefix(show_type_colon)
         @ [view_type(syn)]
         @ [text("equals expected type")]
-        @ (
-          switch (lifted_ty) {
-          | None => []
-          | Some(lifted) => [text(" lifted to"), view_type(lifted)]
-          }
-        )
-        @ (
-          switch (introduced_labels) {
-          | [] => []
-          | [a] => [text("by automatically adding label "), label_view(a)]
-          | _ => [
-              text("by automatically adding labels "),
-              ...ListUtil.join(
-                   text(","),
-                   List.map(label_view, introduced_labels),
-                 ),
-            ]
-          }
-        )
-        @ (
-          switch (reordered) {
-          | false => []
-          | true => [text(" after reordering by labels ")]
-          }
-        )
+        @ inserted_label_note
       }
     | (_, Ana(Consistent({ana, syn, _}))) =>
       (
@@ -387,31 +393,7 @@ let common_ok_view =
         }
       )
       @ [view_type(ana)]
-      @ (
-        switch (lifted_ty) {
-        | None => []
-        | Some(lifted) => [text(" lifted to"), view_type(lifted)]
-        }
-      )
-      @ (
-        switch (introduced_labels) {
-        | [] => []
-        | [a] => [text("by automatically adding label "), label_view(a)]
-        | _ => [
-            text("by automatically adding labels "),
-            ...ListUtil.join(
-                 text(","),
-                 List.map(label_view, introduced_labels),
-               ),
-          ]
-        }
-      )
-      @ (
-        switch (reordered) {
-        | false => []
-        | true => [text(" after reordering by labels ")]
-        }
-      )
+      @ inserted_label_note
     | (_, Ana(InternallyInconsistent({ana, nomeet: tys}))) =>
       [
         text(elements_noun(cls) ++ " have inconsistent types:"),
