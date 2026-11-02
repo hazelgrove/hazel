@@ -120,7 +120,10 @@ let qcheck_elaboration_preserves_type =
     ~count=1000,
     QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
     exp => {
-      check_elaboration_preserves_type(exp);
+      /* Judge terms a user can write (see Canonicalize): `SInt` literals
+         outside a `use SInt`, bare labeled fields and one-element tuples
+         take paths no parse does. */
+      check_elaboration_preserves_type(Canonicalize.exp(exp));
       true;
     },
   );
