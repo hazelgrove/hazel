@@ -126,22 +126,7 @@ let view_any = (~globals, any: Any.t) =>
 let view_type =
     (~globals: Globals.t, ~ctx: Ctx.t, ~together=?, typ: Typ.t): Node.t => {
   let tys = Option.value(together, ~default=[typ]);
-  let shown = Typ.surface_name_in(~ctx, tys);
-  /* Where each type variable is bound: by a binder in the type, whose id
-     is that of the `typfun`, alias or annotation it came from, or else in
-     the context. */
-  let in_type = Typ.binders(typ);
-  let binders =
-    Typ.var_names(typ)
-    |> List.sort_uniq(String.compare)
-    |> List.filter_map(x =>
-         switch (List.assoc_opt(x, in_type), Ctx.lookup_tvar_id(ctx, x)) {
-         | (Some(id), _)
-         | (None, Some(id)) when Id.compare(id, Id.invalid) != 0 =>
-           Some((shown(x), id))
-         | _ => None
-         }
-       );
+  let binders = Typ.binding_sites_in(~ctx, tys, typ);
   let index = name =>
     ListUtil.findi_opt(((shown, _)) => String.equal(shown, name), binders)
     |> Option.map(fst);

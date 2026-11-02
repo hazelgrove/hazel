@@ -574,6 +574,26 @@ let surface_name_in =
   shown;
 };
 
+/* Where each type variable in [typ] is bound, by the name it shows as
+   among [tys] (see `surface_name_in`): by a binder in [typ], whose id is
+   that of the `typfun`, alias or annotation it came from, or else in [ctx].
+   Builtins, bound nowhere in the program, are left out. */
+let binding_sites_in =
+    (~ctx: Ctx.t=Ctx.empty, tys: list(t), typ: t): list((string, Id.t)) => {
+  let shown = surface_name_in(~ctx, tys);
+  let in_type = binders(typ);
+  var_names(typ)
+  |> List.sort_uniq(String.compare)
+  |> List.filter_map(x =>
+       switch (List.assoc_opt(x, in_type), Ctx.lookup_tvar_id(ctx, x)) {
+       | (Some(id), _)
+       | (None, Some(id)) when Id.compare(id, Id.invalid) != 0 =>
+         Some((shown(x), id))
+       | _ => None
+       }
+     );
+};
+
 /* A name `surface_name_in` shows, split into the written name and the tag
    telling it apart from another binding of that name, `~` included. */
 let split_tag = (shown: string): (string, option(string)) =>
