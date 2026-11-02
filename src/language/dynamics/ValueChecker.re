@@ -52,6 +52,46 @@ module CV = Transition(ValueCheckerEVMode);
 let rec check_value = (env, d) =>
   CV.transition(check_value, ~mode=`Environment, env, d);
 
-/* Check if an expression is a fully-evaluated value */
+/* Classifies the form inside a closure, which the environment mode would
+   re-wrap: `Fun` answers `Value` there, and anything finished-but-not-a-value
+   answers `Value` too once wrapped, which is what hid stuck results. */
+let rec check_value_unwrapped = (env, d) =>
+  CV.transition(check_value_unwrapped, ~mode=`Substitution, env, d);
+
+/* A closure packages a form with the environment it needs:
+     - a function is a value;
+     - a recursive binding holds a variable naming its own fixpoint, whose
+       body is what decides (`fun -> fix` is a value, `fix -> fun` is not);
+     - anything else in a closure is a stuck result, not a value.
+   Environment entries are, by invariant, either finished forms or
+   fixpoints, so resolving a variable terminates at one or the other; a
+   chain this long means that invariant is broken, so say so rather than
+   guess. */
+let rec is_value_form = (~rec_counter=0, env: Environment.t(Exp.t), d: Exp.t) =>
+  if (rec_counter > 100) {
+    failwith(
+      "ValueChecker.is_value_form: over 100 variable/fixpoint lookups; "
+      ++ "an environment entry is neither a finished form nor a fixpoint",
+    );
+  } else {
+    switch (Exp.term_of(d)) {
+    | Var(x) =>
+      switch (Environment.lookup(env, x)) {
+      | Some(d') => is_value_form(~rec_counter=rec_counter + 1, env, d')
+      | None => false
+      }
+    | FixF(_, body, _) =>
+      is_value_form(~rec_counter=rec_counter + 1, env, body)
+    | Fun(_)
+    | TypFun(_) => true
+    | _ => check_value_unwrapped(env, d) == Value
+    };
+  };
+
+/* Check if an expression is a fully-evaluated value. A probe sample is
+   closure-wrapped, so ask about the form inside it. */
 let is_value = (exp: Exp.t): bool =>
-  check_value(Environment.empty, exp) == Value;
+  switch (Exp.term_of(exp)) {
+  | Closure(env, body) => is_value_form(env, body)
+  | _ => check_value(Environment.empty, exp) == Value
+  };
