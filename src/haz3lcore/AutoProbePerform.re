@@ -198,10 +198,19 @@ let program_root_id = (syntax: CachedSyntax.t): option(Id.t) => {
       switch (CachedSyntax.segment(syntax)) {
       | [] => None
       | seg =>
-        switch (Segment.root_id(Segment.skel(seg), seg)) {
+        /* the parse's own skeleton of this top level when it is this
+           segment's (MakeTerm.Incr re-skeletons only what moved): every
+           edit misses the memo above, and Segment.skel was a pass over
+           the whole program on each edited frame (^ticket(665)) */
+        let skel =
+          switch (syntax.t_cache.c_skel) {
+          | Some((Sort.Exp, parsed, skel)) when parsed === seg => skel
+          | _ => Segment.skel(seg)
+          };
+        switch (Segment.root_id(skel, seg)) {
         | id => Some(id)
         | exception _ => None
-        }
+        };
       };
     root_id_segment := Some(CachedSyntax.segment(syntax));
     root_id_result := result;
