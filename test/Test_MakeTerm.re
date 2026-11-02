@@ -222,7 +222,7 @@ let tests =
       test_case("Quoted label in pattern", `Quick, () =>
         exp_check(
           fn(
-            Pat.(tuple([tup_label(label("a"), empty_hole())])),
+            Pat.(tuple_entries([labeled("a", empty_hole())])),
             empty_hole(),
             None,
             None,
@@ -310,7 +310,11 @@ let tests =
       test_case("Explicit unlabeled in pattern", `Quick, () =>
         exp_check(
           let_(
-            Pat.(tuple([tup_label(explicit_non_label(), var("x"))])),
+            Pat.(
+              tuple_entries([
+                labeled'(Label.explicit_non_label(), var("x")),
+              ])
+            ),
             tuple_entries([labeled'(Label.explicit_non_label(), int(1))]),
             var("x"),
           ),

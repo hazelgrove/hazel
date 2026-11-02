@@ -54,7 +54,7 @@ let rec pat_to_card = (term: Pat.t): option(card) =>
   switch (term.term) {
   | Parens(p) => pat_to_card(p)
   | Tuple([p1, p2]) =>
-    switch (p1.term, p2.term) {
+    switch (TupleEntry.value(p1).term, TupleEntry.value(p2).term) {
     | (Constructor(suit, _), Constructor(rank, _)) =>
       let* s = string_to_suit(suit);
       let* r = string_to_rank(rank);

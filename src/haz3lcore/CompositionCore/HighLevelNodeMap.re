@@ -228,7 +228,20 @@ module Namer = {
       mk_name_from_pat(pat1) ++ "::" ++ mk_name_from_pat(pat2)
     | Tuple(pats) =>
       "("
-      ++ String.concat(~sep=", ", List.map(~f=mk_name_from_pat, pats))
+      ++ String.concat(
+           ", ",
+           List.map(
+             fun
+             | Grammar.Labeled(_, l, pat) =>
+               "("
+               ++ Option.value(Label.name(l), ~default="{label}")
+               ++ " : "
+               ++ mk_name_from_pat(pat)
+               ++ ")"
+             | Unlabeled(pat) => mk_name_from_pat(pat),
+             pats,
+           ),
+         )
       ++ ")"
     | ListLit(pats) =>
       "["
@@ -240,10 +253,7 @@ module Namer = {
     /* Fn-definition sugar `let f(x, y) = ...`: the binding is addressed by
        the bare head name; collisions fall to the #k ambiguity machinery. */
     | Ap(pat1, _) => mk_name_from_pat(pat1)
-    | TupLabel(pat1, pat2) =>
-      "(" ++ mk_name_from_pat(pat1) ++ " : " ++ mk_name_from_pat(pat2) ++ ")"
     | Atom(_) => "{atom}"
-    | ExplicitNonlabel => "{explicit nonlabel}"
     | Invalid(_) => "{invalid}"
     | Projector(_, _) => "{projector}"
     };

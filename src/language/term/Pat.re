@@ -4,14 +4,12 @@ type cls =
   | EmptyHole
   | MultiHole
   | Wild
-  | ExplicitNonlabel
   | Atom(Atom.cls)
   | ListLit
   | Constructor
   | Cons
   | Var
   | Label
-  | TupLabel
   | Tuple
   | Parens
   | Projector
@@ -52,7 +50,6 @@ let rec strip_wrappers = (p: t): t =>
   | EmptyHole
   | MultiHole(_)
   | Wild
-  | ExplicitNonlabel
   | Atom(_)
   | ListLit(_)
   | Constructor(_)
@@ -60,7 +57,6 @@ let rec strip_wrappers = (p: t): t =>
   | Var(_)
   | Tuple(_)
   | Label(_)
-  | TupLabel(_)
   | Ap(_)
   | Asc(_) => p
   };
@@ -75,14 +71,12 @@ let rec ctr_name = (p: Grammar.pat_t('a)): option(Constructor.t) =>
   | EmptyHole
   | MultiHole(_)
   | Wild
-  | ExplicitNonlabel
   | Atom(_)
   | ListLit(_)
   | Cons(_)
   | Var(_)
   | Tuple(_)
   | Label(_)
-  | TupLabel(_)
   | Ap(_) => None
   };
 
@@ -98,8 +92,6 @@ let cls_of_term: Grammar.pat_term('a) => cls =
   | Cons(_) => Cons
   | Var(_) => Var
   | Label(_) => Label
-  | ExplicitNonlabel => ExplicitNonlabel
-  | TupLabel(_) => TupLabel
   | Tuple(_) => Tuple
   | Parens(_) => Parens
   | Projector(_) => Projector
@@ -112,7 +104,6 @@ let show_cls: cls => string =
   | MultiHole => "Broken pattern"
   | EmptyHole => "Empty pattern hole"
   | Wild => "Wildcard"
-  | ExplicitNonlabel => "Explicitly unlabeled entry"
   | Atom(Int) => "Number literal"
   | Atom(Float) => "Float literal"
   | Atom(Bool) => "Boolean literal"
@@ -124,7 +115,6 @@ let show_cls: cls => string =
   | Cons => "Cons"
   | Var => "Variable binding"
   | Label => "Label"
-  | TupLabel => "Tuple Item"
   | Tuple => "Tuple"
   | Parens => "Parenthesized pattern"
   | Projector => "Projector"
@@ -136,7 +126,6 @@ let rec is_var = (pat: t): option(Var.t) => {
   switch (pat.term) {
   | Parens(pat)
   | Projector(_, pat)
-  | TupLabel(_, pat)
   | Asc(pat, _) => is_var(pat)
   | Var(v) => Some(v)
   | Invalid(_)
@@ -148,7 +137,6 @@ let rec is_var = (pat: t): option(Var.t) => {
   | Cons(_, _)
   | Tuple(_)
   | Label(_)
-  | ExplicitNonlabel
   | Constructor(_)
   | Ap(_) => None
   };
@@ -160,12 +148,13 @@ let rec is_tuple_of_vars = (pat: t) =>
     switch (pat.term) {
     | Parens(pat)
     | Projector(_, pat)
-    | Asc(pat, _)
-    | TupLabel(_, pat) => is_tuple_of_vars(pat)
+    | Asc(pat, _) => is_tuple_of_vars(pat)
     | Tuple(pats) =>
-      pats |> List.for_all(~f=x => x |> is_var |> Option.is_some)
+      pats
+      |> List.for_all(entry =>
+           entry |> TupleEntry.value |> is_var |> Option.is_some
+         )
     | Label(_)
-    | ExplicitNonlabel
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -182,8 +171,7 @@ let rec is_tuple_of_vars = (pat: t) =>
 let rec get_var = (pat: t) => {
   switch (pat.term) {
   | Parens(pat)
-  | Projector(_, pat)
-  | TupLabel(_, pat) => get_var(pat)
+  | Projector(_, pat) => get_var(pat)
   | Var(x) => Some(x)
   | Asc(x, _) => get_var(x)
   | Invalid(_)
@@ -194,7 +182,6 @@ let rec get_var = (pat: t) => {
   | ListLit(_)
   | Cons(_, _)
   | Label(_)
-  | ExplicitNonlabel
   | Tuple(_)
   | Constructor(_)
   | Ap(_) => None
@@ -208,11 +195,9 @@ let rec get_num_of_vars = (pat: t) =>
     switch (pat.term) {
     | Parens(pat)
     | Projector(_, pat)
-    | Asc(pat, _)
-    | TupLabel(_, pat) => get_num_of_vars(pat)
+    | Asc(pat, _) => get_num_of_vars(pat)
     | Tuple(pats) => is_tuple_of_vars(pat) ? Some(List.length(pats)) : None
     | Label(_)
-    | ExplicitNonlabel
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -226,74 +211,12 @@ let rec get_num_of_vars = (pat: t) =>
     }
   };
 
-let rec match_tup_label: t => option((LabeledTuple.label, t)) =
-  p =>
-    switch (p.term) {
-    | Parens(p)
-    | Projector(_, p) => match_tup_label(p)
-    | TupLabel(plab, p') =>
-      switch (strip_wrappers(plab).term) {
-      | Label(name) => Some((name, p'))
-      | _ => None
-      }
-    | Invalid(_)
-    | EmptyHole
-    | MultiHole(_)
-    | Wild
-    | ExplicitNonlabel
-    | Atom(_)
-    | ListLit(_)
-    | Constructor(_)
-    | Cons(_)
-    | Var(_)
-    | Tuple(_)
-    | Label(_)
-    | Ap(_)
-    | Asc(_) => None
-    };
-
-let get_label: t => option(LabeledTuple.label) =
-  p => match_tup_label(p) |> Option.map(~f=fst);
-
-/* Bridges between Label.t and the label child a pattern's TupLabel still
-   carries; they go away when pattern tuples hold Label.t entries. A
-   malformed label is wrapped so statics still reaches it as a label. */
-let of_label = (l: TermBase.Label.t): t =>
-  switch (l.term) {
-  | Label(name) => {
-      term: Label(name),
-      annotation: l.annotation,
-    }
-  | ExplicitNonlabel => {
-      term: ExplicitNonlabel,
-      annotation: l.annotation,
-    }
-  | EmptyHole => {
-      term: EmptyHole,
-      annotation: l.annotation,
-    }
-  | Invalid(_)
-  | MultiHole(_) => {
-      term: MultiHole([Label(l)]),
-      annotation: IdTagged.IdTag.mk_internal(IdTagged.ids(l)),
-    }
-  };
-let to_label = (p: t): TermBase.Label.t => {
-  term:
-    switch (p.term) {
-    | Label(name) => Label(name)
-    | ExplicitNonlabel => ExplicitNonlabel
-    | EmptyHole => EmptyHole
-    | MultiHole([Label(l)]) => l.term
-    | _ => MultiHole([Pat(p)])
-    },
-  annotation: p.annotation,
-};
-/* A tuple element as an entry: a TupLabel's id is its `=` tile's */
-let tuple_entry = (p: t): TupleEntry.t(t) =>
+/* The ids p's statics info is stored under: a tuple also owns its
+   entries' `=` tiles, as it owns its commas */
+let info_ids = (p: t): list(Id.t) =>
   switch (p.term) {
-  | TupLabel(l, v) => Labeled(p.annotation, to_label(l), v)
-  | _ => Unlabeled(p)
+  | Tuple(entries) => IdTagged.ids(p) @ TupleEntry.eq_ids(entries)
+  | _ => IdTagged.ids(p)
   };
 
 let rec bindings = (dp: t): Binding.s =>
@@ -304,19 +227,18 @@ let rec bindings = (dp: t): Binding.s =>
   | Invalid(_)
   | Atom(_)
   | Label(_)
-  | ExplicitNonlabel
   | Constructor(_) => []
   | Asc(y, _)
   | Parens(y)
-  | Projector(_, y)
-  | TupLabel(_, y) => bindings(y)
+  | Projector(_, y) => bindings(y)
   | Var(name) => [
       {
         name,
         id: rep_id(dp),
       },
     ]
-  | Tuple(dps) => List.concat_map(~f=bindings, dps)
+  | Tuple(dps) =>
+    List.concat_map(entry => bindings(TupleEntry.value(entry)), dps)
   | Cons(dp1, dp2) => bindings(dp1) @ bindings(dp2)
   | ListLit(dps) => List.concat_map(~f=bindings, dps)
   | Ap(_, dp1) => bindings(dp1)

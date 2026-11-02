@@ -615,7 +615,7 @@ module PlainTests = {
             Forward,
             fn(
               Pat.(
-                tuple([tup_label(label("a"), asc(var("x"), Typ.int()))])
+                tuple_entries([labeled("a", asc(var("x"), Typ.int()))])
               ),
               var("x"),
               Some(Typ.(prod([tup_label(label("a"), int())]))),
@@ -638,7 +638,7 @@ module PlainTests = {
             Forward,
             fn(
               Pat.(
-                tuple([tup_label(label("a"), asc(var("x"), Typ.int()))])
+                tuple_entries([labeled("a", asc(var("x"), Typ.int()))])
               ),
               var("x"),
               Some(Typ.(prod([tup_label(label("a"), Typ.int())]))),
@@ -687,7 +687,7 @@ module PlainTests = {
           ap(
             Forward,
             fn(
-              Pat.(tuple([tup_label(label("a"), var("x"))])),
+              Pat.(tuple_entries([labeled("a", var("x"))])),
               var("x"),
               Some(
                 Typ.(prod([tup_label(label("a"), unknown(Internal))])),
