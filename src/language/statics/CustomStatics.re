@@ -23,13 +23,11 @@ let mk_builtin_ap_elab =
 
 let append_marks_for_term = append_mark_exp;
 
-let typ_entry_to_tuple_entry = (entry: Typ.t) => {
-  switch (entry.term) {
-  | TupLabel({term: Label(l), _}, typ) => Labeled(Some(l), typ)
-  | TupLabel(_, typ) => Labeled(None, typ)
-  | _ => Unlabeled(entry)
+let typ_entry_to_tuple_entry = (entry: TupleEntry.t(Typ.t)): tuple_entry =>
+  switch (entry) {
+  | Labeled(_, l, typ) => Labeled(Label.name(l), typ)
+  | Unlabeled(typ) => Unlabeled(typ)
   };
-};
 
 let extract_label = (entry: tuple_entry): option(string) =>
   switch (entry) {
@@ -61,7 +59,7 @@ let get_tuple_label = (tuple: tuple_type, label: string): Typ.t => {
 };
 
 type extract_result =
-  | Success(list(Typ.t))
+  | Success(list(TupleEntry.t(Typ.t)))
   | Unknown // Type is unknown
   | Failure; // Type is wrong
 
@@ -352,20 +350,17 @@ let select_labels_statics =
       (labeled_tup_info, labels) => {
         let val_types =
           List.map(
-            ~f=
-              (optional_lab: option(string)) => {
-                Util.OptUtil.map2(
-                  (a, b) =>
-                    TupLabel(Label(b) |> Typ.temp, get_tuple_label(a, b))
-                    |> Typ.temp,
-                  labeled_tup_info,
-                  optional_lab,
-                )
-                |> Option.value(~default=unknown)
-              },
+            (optional_lab: option(string)) => {
+              Util.OptUtil.map2(
+                (a, b) => Typ.labeled_entry(b, get_tuple_label(a, b)),
+                labeled_tup_info,
+                optional_lab,
+              )
+              |> Option.value(~default=Grammar.Unlabeled(unknown))
+            },
             labels,
           );
-        Typ.to_product(val_types);
+        Prod(val_types) |> Typ.temp;
       },
     m,
     arg,
@@ -396,25 +391,25 @@ let omit_labels_statics =
         | Some(labeled_tup_info) =>
           let tys =
             List.filter_map(
-              ~f=
-                entry => {
-                  switch (entry) {
-                  | Unlabeled(typ) => Some(typ)
-                  | Labeled(None, typ) =>
-                    Some(TupLabel(unknown, typ) |> Typ.temp)
-                  | Labeled(Some(lab), typ) =>
-                    if (List.mem(labels_to_drop, lab, ~equal=String.equal)) {
-                      None;
-                    } else {
-                      Some(
-                        TupLabel(Label(lab) |> Typ.temp, typ) |> Typ.temp,
-                      );
-                    }
-                  }
-                },
+              entry => {
+                switch (entry) {
+                | Unlabeled(typ) => Some(Grammar.Unlabeled(typ))
+                | Labeled(None, typ) =>
+                  Some(
+                    Grammar.Labeled(
+                      IdTagged.IdTag.temp(),
+                      Label.temp(EmptyHole),
+                      typ,
+                    ),
+                  )
+                | Labeled(Some(lab), typ) =>
+                  List.mem(lab, labels_to_drop)
+                    ? None : Some(Typ.labeled_entry(lab, typ))
+                }
+              },
               labeled_tup_info,
             );
-          Typ.to_product(tys);
+          Prod(tys) |> Typ.temp;
         };
       },
     m,
@@ -459,13 +454,16 @@ let group_by_label_statics =
           arg.annotation.ids,
           InfoExp({
             cls: Cls.Exp(Exp.cls_of_term(arg.term)),
-            elab_syn_ty: Prod([table_info.ty, unknown]) |> Typ.temp,
+            elab_syn_ty:
+              Prod([Unlabeled(table_info.ty), Unlabeled(unknown)])
+              |> Typ.temp,
             marks: [],
             ty:
               fixed_typ(
                 ctx,
                 syn,
-                Prod([table_info.ty, unknown]) |> Typ.temp,
+                Prod([Unlabeled(table_info.ty), Unlabeled(unknown)])
+                |> Typ.temp,
               ),
             ana: syn,
             message: Message.Exp(Message.Default),
@@ -568,9 +566,9 @@ let to_lvs_statics =
         ~elab_syn_ty=
           IdTagged.FreshGrammar.Typ.(
             list(
-              prod([
-                tup_label(label("label"), string()),
-                tup_label(label("value"), joined_typ),
+              prod_entries([
+                labeled("label", string()),
+                labeled("value", joined_typ),
               ]),
             )
           ),
@@ -622,16 +620,7 @@ let omit_all_labels_statics =
 
     switch (Typ.normalize(ctx, arg.ty).term) {
     | Prod(entries) =>
-      let entries =
-        List.map(
-          ~f=
-            (e: Typ.t) =>
-              switch (e.term) {
-              | TupLabel(_, typ) => typ
-              | _ => e
-              },
-          entries,
-        );
+      let entries = List.map(TupleEntry.value, entries);
 
       add(
         ~elab_term=mk_builtin_ap_elab(~annotation, fn_info, arg.elab_term),

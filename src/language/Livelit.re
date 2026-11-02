@@ -284,7 +284,11 @@ module Js: BuiltinLivelit = {
 
   /* Model type in Hazel: a 2-tuple of strings. */
   let hazel_model_t: TermBase.Typ.t =
-    Prod([Typ.temp(Atom(String)), Typ.temp(Atom(String))]) |> Typ.fresh;
+    Prod([
+      Unlabeled(Typ.temp(Atom(String))),
+      Unlabeled(Typ.temp(Atom(String))),
+    ])
+    |> Typ.fresh;
 
   /* Convert model to a Hazel expression. */
   let model_to_hazel: model_t => model_exp =
@@ -339,7 +343,10 @@ module Js: BuiltinLivelit = {
         "SetModel",
         ConstructorMap.mk_variant_ann(~ids=[], ()),
         Some(
-          Prod([Typ.temp(Atom(String)), Typ.temp(Atom(String))])
+          Prod([
+            Unlabeled(Typ.temp(Atom(String))),
+            Unlabeled(Typ.temp(Atom(String))),
+          ])
           |> Typ.fresh,
         ),
       ),
@@ -364,7 +371,10 @@ module Js: BuiltinLivelit = {
             "SetModel",
             Some(
               Some(
-                Prod([Typ.temp(Atom(String)), Typ.temp(Atom(String))])
+                Prod([
+                  Unlabeled(Typ.temp(Atom(String))),
+                  Unlabeled(Typ.temp(Atom(String))),
+                ])
                 |> Typ.fresh,
               ),
             ),
