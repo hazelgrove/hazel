@@ -36,6 +36,7 @@ type atomic_form =
   | TyVarP
   | Ctr
   | MPatName
+  | LabelName
   | Type
   | InfixDelimiterPrefix;
 
