@@ -525,10 +525,10 @@ let var_names = (ty: t): list(string) =>
   List.map(fst, var_ids(ty) @ binders(ty));
 
 /* For types shown together, the name a type variable in them shows as:
-   the name written for it. Where two bindings in the types share a
-   written name, the one that name means in [ctx] shows plain, else the one
-   written as is, and each other is tagged with its binder's id, as
-   `T~3f2`. */
+   the name written for it, tagged with its binder's id, as `T~3f2`, when
+   that name would read as another binding. In [ctx] the name reads as the
+   binding it means there; otherwise, where two bindings in the types share
+   it, as the one written as is. */
 let surface_name_in =
     (~ctx: Ctx.t=Ctx.empty, tys: list(t)): (string => string) => {
   let names =
@@ -539,10 +539,12 @@ let surface_name_in =
       y => String.equal(surface_name(y), surface_name(x)),
       names,
     );
-  let in_ctx = group =>
+  /* The binding a written name means in ctx. */
+  let meant = written =>
     List.find_map(
       fun
-      | Ctx.TVarEntry({name, _}) when List.exists(String.equal(name), group) =>
+      | Ctx.TVarEntry({name, _})
+          when String.equal(surface_name(name), written) =>
         Some(name)
       | _ => None,
       ctx.entries,
@@ -559,15 +561,14 @@ let surface_name_in =
     let written = surface_name(x);
     let group = homonyms(x);
     let plain =
-      switch (in_ctx(group)) {
-      | Some(y) => String.equal(x, y)
-      | None => String.equal(x, written)
+      switch (meant(written), group) {
+      | (Some(y), _) => String.equal(x, y)
+      | (None, [_]) => true
+      | (None, _) => String.equal(x, written)
       };
-    switch (group, tag(x)) {
-    | ([_], _)
-    | (_, None) => written
-    | _ when plain => written
-    | (_, Some(tag)) => written ++ "~" ++ tag
+    switch (tag(x)) {
+    | Some(tag) when !plain => written ++ "~" ++ tag
+    | _ => written
     };
   };
   shown;

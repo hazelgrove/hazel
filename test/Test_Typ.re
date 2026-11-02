@@ -371,6 +371,29 @@ let unshadow_tests = {
           check(string, "T", "T~" ++ Id.str3(outer), shown("T"));
         },
       ),
+      test_case(
+        "a binding its name does not mean in ctx is tagged even shown alone",
+        `Quick,
+        () => {
+          let outer = Id.mk();
+          let ctx =
+            Ctx.extend_tvar(
+              Ctx.empty,
+              {
+                name: "T",
+                id: outer,
+                kind: Abstract,
+              },
+            )
+            |> Ctx.extend_tvar(_, abstract("T#1"));
+          check(
+            string,
+            "T",
+            "T~" ++ Id.str3(outer),
+            Typ.surface_name_in(~ctx, [var("T")], "T"),
+          );
+        },
+      ),
     ],
   );
 };
