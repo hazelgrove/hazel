@@ -302,9 +302,8 @@ svg.shard.indicated.Sig > path {
 svg.shard.indicated.MPat > path {
   fill: var(--shard-mpat);
 }
-svg.shard.indicated.Label > path,
-svg.shard.indicated.caret.Label > path {
-  fill: color-mix(in oklch, var(--token-label) 15%, transparent);
+svg.shard.indicated.Label > path {
+  fill: var(--shard-label);
 }
 
 svg.shard.indicated.caret.Exp > path {
@@ -327,6 +326,9 @@ svg.shard.indicated.caret.Sig > path {
 }
 svg.shard.indicated.caret.MPat > path {
   fill: var(--shard-caret-mpat);
+}
+svg.shard.indicated.caret.Label > path {
+  fill: var(--shard-caret-label);
 }
 
 svg.shard.selected {

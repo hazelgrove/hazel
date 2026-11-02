@@ -236,6 +236,7 @@ let aliases: list(((string, string), list(string))) = [
   (("cursor", "pattern"), ["shard-caret-pat", "shard-pat"]),
   (("cursor", "type"), ["shard-caret-typ", "shard-typ"]),
   (("cursor", "type-pattern"), ["shard-caret-tpat", "shard-tpat"]),
+  (("cursor", "label"), ["shard-caret-label", "shard-label"]),
   (("hole", "error"), ["error-hole-fill"]),
   (("palette", "error-hole"), ["ERRHOLE"]),
   (("menu", "nut"), ["nut-menu"]),

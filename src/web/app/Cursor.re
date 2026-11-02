@@ -50,6 +50,9 @@ let empty = {
   contextual_actions: [],
 };
 
+let indicated_id = (cursor: cursor(_)): option(Id.t) =>
+  Option.map(Piece.id, cursor.indicated_piece);
+
 let with_actions = (actions: list(ContextualAction.t), cursor) => {
   ...cursor,
   contextual_actions: cursor.contextual_actions @ actions,
