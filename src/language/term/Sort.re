@@ -9,7 +9,8 @@ type t =
   | Exp
   | Mod
   | Sig
-  | MPat;
+  | MPat
+  | Label;
 
 let to_string =
   fun

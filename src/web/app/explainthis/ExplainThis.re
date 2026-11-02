@@ -825,6 +825,14 @@ let decide =
     | _ => Prose("Signature item")
     }
   | Some(InfoMPat(_)) => Prose("Module name")
+  | Some(InfoLabel({user_term, cls, _})) =>
+    switch (user_term.term) {
+    | Label(name) => get_message(LabelTerm.labels(name))
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | ExplicitNonlabel => Prose(Cls.show(cls))
+    }
   | Some(InfoExp({cls: Mod(ModLet), _})) =>
     message_single(ModLetDecl.single)
   | Some(InfoExp({cls: Mod(ModType), _})) =>

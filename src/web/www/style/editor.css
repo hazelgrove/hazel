@@ -116,6 +116,9 @@
 .code .token.MPat {
   color: var(--token-mpat);
 }
+.code .token.Label {
+  color: var(--token-label);
+}
 
 .code .token.poly,
 .code .token.keyword {
@@ -265,6 +268,9 @@ svg.shard.indicated.Sig {
 svg.shard.indicated.MPat {
   filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--token-mpat));
 }
+svg.shard.indicated.Label {
+  filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--token-label));
+}
 
 svg.shard.indicated.Any > path {
   fill: var(--shard-any);
@@ -295,6 +301,10 @@ svg.shard.indicated.Sig > path {
 }
 svg.shard.indicated.MPat > path {
   fill: var(--shard-mpat);
+}
+svg.shard.indicated.Label > path,
+svg.shard.indicated.caret.Label > path {
+  fill: color-mix(in oklch, var(--token-label) 15%, transparent);
 }
 
 svg.shard.indicated.caret.Exp > path {
@@ -553,6 +563,9 @@ svg:has(.child-line) {
 }
 .child-line.MPat {
   stroke: var(--token-mpat);
+}
+.child-line.Label {
+  stroke: var(--token-label);
 }
 
 /* Invisible backdrop to capture clicks outside context menu */

@@ -1110,6 +1110,7 @@ and parenthesize_any =
   | Mod(_) => any
   | Sig(_) => any
   | MPat(_) => any
+  | Label(_) => any
   | Any(_) => any
   };
 
@@ -2165,16 +2166,20 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let* l =
       switch (l.term) {
       | Label(l') =>
-        wrap(
-          l,
-          label_to_pretty(
-            ~label_format=settings.label_format,
-            ~label_only_position=true,
-            ~lexeme=settings.use_literal_lexemes ? l.annotation.lexeme : None,
-            Sort.Exp,
-            l',
-            l |> Exp.rep_id,
-          ),
+        label_to_seg(
+          ~settings,
+          {
+            term: Label(l'),
+            annotation: l.annotation,
+          },
+        )
+      | ExplicitNonlabel =>
+        label_to_seg(
+          ~settings,
+          {
+            term: ExplicitNonlabel,
+            annotation: l.annotation,
+          },
         )
       | _ => go(l)
       }
@@ -2211,16 +2216,20 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     and* l =
       switch (l.term) {
       | Label(l') =>
-        wrap(
-          l,
-          label_to_pretty(
-            ~label_format=settings.label_format,
-            ~label_only_position=true,
-            ~lexeme=settings.use_literal_lexemes ? l.annotation.lexeme : None,
-            Sort.Exp,
-            l',
-            l |> Exp.rep_id,
-          ),
+        label_to_seg(
+          ~settings,
+          {
+            term: Label(l'),
+            annotation: l.annotation,
+          },
+        )
+      | ExplicitNonlabel =>
+        label_to_seg(
+          ~settings,
+          {
+            term: ExplicitNonlabel,
+            annotation: l.annotation,
+          },
         )
       | _ => go(l)
       };
@@ -2708,16 +2717,20 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
     let* l =
       switch (l.term) {
       | Label(l') =>
-        wrap(
-          l,
-          label_to_pretty(
-            ~label_format=settings.label_format,
-            ~label_only_position=true,
-            ~lexeme=settings.use_literal_lexemes ? l.annotation.lexeme : None,
-            Sort.Pat,
-            l',
-            l |> Pat.rep_id,
-          ),
+        label_to_seg(
+          ~settings,
+          {
+            term: Label(l'),
+            annotation: l.annotation,
+          },
+        )
+      | ExplicitNonlabel =>
+        label_to_seg(
+          ~settings,
+          {
+            term: ExplicitNonlabel,
+            annotation: l.annotation,
+          },
         )
       | _ => go(l)
       }
@@ -2984,16 +2997,20 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     let+ l =
       switch (l.term) {
       | Label(l') =>
-        wrap(
-          l,
-          label_to_pretty(
-            ~label_format=settings.label_format,
-            ~label_only_position=true,
-            ~lexeme=settings.use_literal_lexemes ? l.annotation.lexeme : None,
-            Sort.Typ,
-            l',
-            l |> Typ.rep_id,
-          ),
+        label_to_seg(
+          ~settings,
+          {
+            term: Label(l'),
+            annotation: l.annotation,
+          },
+        )
+      | ExplicitNonlabel =>
+        label_to_seg(
+          ~settings,
+          {
+            term: ExplicitNonlabel,
+            annotation: l.annotation,
+          },
         )
       | _ => go(l)
       }
@@ -3030,16 +3047,20 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     and* t2 =
       switch (t2.term) {
       | Label(l') =>
-        wrap(
-          t2,
-          label_to_pretty(
-            ~label_format=settings.label_format,
-            ~label_only_position=true,
-            ~lexeme=settings.use_literal_lexemes ? t2.annotation.lexeme : None,
-            Sort.Typ,
-            l',
-            t2 |> Typ.rep_id,
-          ),
+        label_to_seg(
+          ~settings,
+          {
+            term: Label(l'),
+            annotation: t2.annotation,
+          },
+        )
+      | ExplicitNonlabel =>
+        label_to_seg(
+          ~settings,
+          {
+            term: ExplicitNonlabel,
+            annotation: t2.annotation,
+          },
         )
       | _ => go(t2)
       };
@@ -3327,6 +3348,33 @@ and sig_to_pretty = (~settings: Settings.t, item: Sig.t): pretty => {
 and mpat_to_pretty = (~settings: Settings.t, mp: MPat.t): pretty => {
   p_just(mpat_to_seg(~settings, mp));
 }
+and label_to_seg = (~settings: Settings.t, l: Label.t): Segment.t => {
+  let wrap = wrap_with_secondary(~secondary=settings.secondary);
+  let id = l |> Label.rep_id;
+  let content =
+    switch (l.term) {
+    | Label(name) =>
+      label_to_pretty(
+        ~label_format=settings.label_format,
+        ~label_only_position=true,
+        ~lexeme=settings.use_literal_lexemes ? l.annotation.lexeme : None,
+        Sort.Label,
+        name,
+        id,
+      )
+    | ExplicitNonlabel => text_to_pretty(id, Sort.Label, Token.wild)
+    | Invalid(t) => invalid_to_pretty(id, Sort.Label, t)
+    | EmptyHole =>
+      p_just([
+        Grout({
+          id,
+          shape: Convex,
+        }),
+      ])
+    | MultiHole(kids) => List.concat_map(any_to_pretty(~settings), kids)
+    };
+  wrap(l, content);
+}
 and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {
   switch (any) {
   | Exp(e) => exp_to_pretty(~settings: Settings.t, e)
@@ -3337,6 +3385,7 @@ and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {
   | Mod(m) => mod_to_pretty(~settings, m)
   | Sig(s) => sig_to_pretty(~settings, s)
   | MPat(mp) => mpat_to_pretty(~settings, mp)
+  | Label(l) => p_just(label_to_seg(~settings, l))
   | Rul(r) => rul_to_pretty(~settings, r)
   | Any(_) =>
     let id = any |> Any.rep_id;
@@ -3477,6 +3526,7 @@ let collect_shard_masks =
       ~f_mod=f,
       ~f_sig=f,
       ~f_mpat=f,
+      ~f_label=f,
       any,
     );
   acc^;

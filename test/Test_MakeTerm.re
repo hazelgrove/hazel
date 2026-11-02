@@ -184,7 +184,11 @@ let tests =
       }),
       test_case("Malformed label in singleton tuple", `Quick, () =>
         exp_check(
-          parens(tuple([tup_label(multi_hole([Exp(int(1))]), int(3))])),
+          parens(
+            tuple([
+              tup_label(multi_hole([Label(Label.invalid("1"))]), int(3)),
+            ]),
+          ),
           "(1=3)",
         )
       ),

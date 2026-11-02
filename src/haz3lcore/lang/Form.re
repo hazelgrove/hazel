@@ -155,17 +155,17 @@ let rows_of: family => list(row) =
       mk_infix(MPat, ~l=MPat, ~r=Typ, P.asc),
     ]
   | TupleLabeled => [
-      mk_infix(Exp, P.lab),
-      mk_infix(Pat, P.lab),
-      mk_infix(Typ, P.lab),
+      mk_infix(Exp, ~l=Label, P.lab),
+      mk_infix(Pat, ~l=Label, P.lab),
+      mk_infix(Typ, ~l=Label, P.lab),
     ]
   | Dot => [
-      mk_infix(Exp, P.dot),
-      mk_infix(Typ, P.dot),
+      mk_infix(Exp, ~r=Label, P.dot),
+      mk_infix(Typ, ~r=Label, P.dot),
       /* deliberately duplicated Typ row: `.` is offered twice as a
        * remold candidate at Typ (two historically distinct forms
        * whose molds coincide) */
-      mk_infix(Typ, P.dot),
+      mk_infix(Typ, ~r=Label, P.dot),
       mk_infix(Drv(Exp), P.dot),
     ]
   | TupleExtension => [mk_infix(Exp, P.plus), mk_infix(Typ, P.ap)]
@@ -492,9 +492,12 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
       [op(Exp), op(Pat), op(Typ), op(TPat), op(Drv(Typ))],
     )
   | LLMHole => (Token.is_llm_hole, [op(Exp), op(Pat), op(Typ), op(TPat)])
-  | Wild => (Token.is_wild, [op(Pat), op(Drv(Exp))])
+  | Wild => (Token.is_wild, [op(Pat), op(Drv(Exp)), op(Label)])
   | String => (Token.is_string, [op(Exp), op(Pat)])
-  | QuotedLabel => (Token.is_quoted_label, [op(Exp), op(Pat), op(Typ)])
+  | QuotedLabel => (
+      Token.is_quoted_label,
+      [op(Exp), op(Pat), op(Typ), op(Label)],
+    )
   | IntLit => (
       Token.is_int,
       [op(Exp), op(Pat), op(Drv(Exp)), op(Drv(Typ))],
@@ -519,6 +522,7 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
   | TyVarP => (Token.is_typ_var, [op(TPat)])
   | Ctr => (Token.is_ctr, [op(Exp), op(Pat)])
   | MPatName => ((t => Token.is_var(t) || Token.is_ctr(t)), [op(MPat)])
+  | LabelName => ((t => Token.is_var(t) || Token.is_ctr(t)), [op(Label)])
   | Type => (Token.is_base_typ, [op(Typ)])
   | DrvVar => (
       Token.is_typ_var,

@@ -82,6 +82,7 @@ let lexeme_trace = (e: t): list(option(string)) => {
       ~f_mod=f,
       ~f_sig=f,
       ~f_mpat=f,
+      ~f_label=f,
       e,
     );
   acc^;

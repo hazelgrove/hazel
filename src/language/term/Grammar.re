@@ -23,7 +23,19 @@ type any_t('a) =
   | Mod(mod_t('a))
   | Sig(sig_t('a))
   | MPat(mpat_t('a))
+  | Label(label_t('a))
   | Any(unit)
+/* A tuple entry's label, or the field named on the right of a dot.
+   Declared before the sort terms so their constructors of the same name
+   (Label, ExplicitNonlabel, ...) stay the default when the type is unknown. */
+and label_term('a) =
+  | Invalid(string)
+  | EmptyHole
+  | MultiHole(list(any_t('a)))
+  | Label(string)
+  /* `_ = e`: an entry explicitly left unlabeled */
+  | ExplicitNonlabel
+and label_t('a) = Annotated.t(label_term('a), 'a)
 and exp_term('a) =
   | Invalid(string)
   | EmptyHole
@@ -315,6 +327,7 @@ and map_any_annotation: 'a 'b. ('a => 'b, any_t('a)) => any_t('b) =
     | Mod(m) => Mod(map_mod_annotation(f, m))
     | Sig(s) => Sig(map_sig_annotation(f, s))
     | MPat(mp) => MPat(map_mpat_annotation(f, mp))
+    | Label(l) => Label(map_label_annotation(f, l))
     | Any(_) => Any()
     };
   }
@@ -491,6 +504,19 @@ and map_mpat_annotation: 'a 'b. ('a => 'b, mpat_t('a)) => mpat_t('b) =
         },
       annotation: new_annotation,
     };
+  }
+and map_label_annotation: 'a 'b. ('a => 'b, label_t('a)) => label_t('b) =
+  (f, e) => {
+    term:
+      switch (e.term) {
+      | Invalid(s) => Invalid(s)
+      | EmptyHole => EmptyHole
+      | MultiHole(l) =>
+        MultiHole(List.map(x => map_any_annotation(f, x), l))
+      | Label(s) => Label(s)
+      | ExplicitNonlabel => ExplicitNonlabel
+      },
+    annotation: f(e.annotation),
   }
 and map_stepper_filter_kind_annotation:
   'a 'b.
@@ -1077,6 +1103,13 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let asc = (~ann=?, mp, t): mpat_t(DefaultAnnotation.t) => {
       term: Asc(mp, t),
+      annotation: default_annotation(ann),
+    };
+  };
+
+  module Label = {
+    let invalid = (~ann=?, s): label_t(DefaultAnnotation.t) => {
+      term: Invalid(s),
       annotation: default_annotation(ann),
     };
   };
