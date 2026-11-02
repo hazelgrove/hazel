@@ -2388,7 +2388,7 @@ let arb_typed_invalid_forms =
     ~name="ExpToSegment: typed invalid forms print stably and read back",
     ~count=200,
     QCheck.pair(
-      QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
+      QCheck_Util.arb_exp_full(~minimal_idents=true, ~size=20, 5),
       QCheck.small_nat,
     ),
     ((exp, seed)) => {
@@ -2410,7 +2410,7 @@ let arb_evaluated_invalid_forms =
     ~name="ExpToSegment: evaluated invalid forms print stably and read back",
     ~count=100,
     QCheck.pair(
-      QCheck_Util.arb_exp_full(~minimal_idents=true, 4),
+      QCheck_Util.arb_exp_full(~minimal_idents=true, ~size=20, 4),
       QCheck.small_nat,
     ),
     ((exp, seed)) =>
