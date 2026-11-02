@@ -1,8 +1,18 @@
 open Language;
 
-/* Rewrite generated terms to the shape print+parse would produce.
-   Crash PBTs should keep the raw generator; only print/parse round-trips
-   should run this before comparing. */
+/* Rewrite generated terms to the shape print+parse would produce: the
+   generator also emits shapes no parse returns (a bare `a=e`, a one-element
+   tuple, an `SInt` literal outside `use SInt`), and some of them take
+   different paths through statics and dynamics.
+
+   - Print/parse round-trips run this on the generated side before comparing.
+   - Semantic properties (elaboration preserves type, sub-expression
+     synthesis, preservation, stepper consistency, pattern equivalence) run
+     it first, so they judge only terms a user can write.
+   - Crash properties keep the raw generator: crashing on any term is a bug.
+   - Id-keyed properties (elaboration ids, incremental evaluation) keep it
+     raw too: a field wrapped into a one-element tuple here shares its ids
+     with the new tuple, a collision the program itself never has. */
 
 let atom = (a: Atom.t): Atom.t =>
   switch (a) {

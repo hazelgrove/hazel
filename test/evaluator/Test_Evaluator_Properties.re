@@ -174,6 +174,11 @@ let qcheck_pattern_equivalence_test =
       QCheck_Util.arb_typ_full(~minimal_idents=true, 5),
     ),
     ((uexp, typ)) => {
+      /* Judge terms a user can write (see Canonicalize): this property is
+         about ascription, where bare labeled fields and one-element tuples
+         decide whether the labeled-singleton rules apply. */
+      let uexp = Canonicalize.exp(uexp);
+      let typ = Canonicalize.typ(typ);
       open IdTagged.FreshGrammar;
       open Exp;
       let first = asc(uexp, typ);
