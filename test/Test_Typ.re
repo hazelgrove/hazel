@@ -1037,6 +1037,32 @@ let sig_tests = {
         },
       ),
       test_case(
+        "sig_members does not capture a member's free variable",
+        `Quick,
+        () => {
+          /* `T = a` names an outer `a`; resolving `T` under `f`'s own
+             binder `a` renames the binder. */
+          let a = F.Typ.var("a");
+          let poly = (b, body) => F.Typ.poly(F.TPat.var(b), body);
+          check(
+            option(typ),
+            "f",
+            Some(poly("b", a)),
+            Sig.find_value(
+              Typ.sig_members(
+                Grammar.Closed(
+                  ClosedSig.of_items([
+                    st("T", a),
+                    sv("f", poly("a", F.Typ.type_member("T"))),
+                  ]),
+                ),
+              ),
+              "f",
+            ),
+          );
+        },
+      ),
+      test_case(
         "close names an earlier type member in later items by its leaf",
         `Quick,
         () => {
