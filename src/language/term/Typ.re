@@ -26,7 +26,8 @@ type cls =
   | ProofOf
   | ProdProjection
   | ProdExtension
-  | Sig;
+  | Sig
+  | TypeMember;
 
 include TermBase.Typ;
 
@@ -101,7 +102,8 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | ProofOf(_) => ProofOf
   | ProdProjection(_) => ProdProjection
   | ProdExtension(_) => ProdExtension
-  | Sig(_) => Sig;
+  | Sig(_) => Sig
+  | TypeMember(_) => TypeMember;
 
 let show_cls: cls => string =
   fun
@@ -128,7 +130,105 @@ let show_cls: cls => string =
   | ProofOf => "Proof type"
   | ProdProjection => "Tuple projection"
   | ProdExtension => "Tuple extension"
-  | Sig => "Signature type";
+  | Sig => "Signature type"
+  | TypeMember => "Type member";
+
+/* A closed signature's item refers to an earlier type member of the
+   signature only by a `TypeMember` leaf; everything else in it is written in
+   terms of the context outside the signature. [resolve_type_members(sub)]
+   replaces the leaves that [sub] names. A nested signature passes [sub]
+   through until one of its items declares the name again, after which the
+   leaves are its own. */
+let rec resolve_type_members = (sub: list((string, t)), ty: t): t =>
+  switch (sub) {
+  | [] => ty
+  | [_, ..._] =>
+    map_term(
+      ~f_typ=
+        (continue, ty) => {
+          let (term, rewrap) = unwrap(ty);
+          switch (term) {
+          | TypeMember(name) =>
+            switch (List.assoc_opt(name, sub)) {
+            | Some(member) => member
+            | None => ty
+            }
+          | Sig(Closed(items)) =>
+            Sig(
+              Closed(
+                ClosedSig.of_items(
+                  resolve_in_items(sub, ClosedSig.items(items)),
+                ),
+              ),
+            )
+            |> rewrap
+          | _ => continue(ty)
+          };
+        },
+      ty,
+    )
+  }
+and resolve_in_items = (sub, items: list(Sig.t)): list(Sig.t) =>
+  switch (items) {
+  | [] => []
+  | [item, ...items] =>
+    let sub =
+      switch (item.term) {
+      | SigType({term: Var(name), _}, _) => List.remove_assoc(name, sub)
+      | SigType(_)
+      | SigLet(_)
+      | SigModule(_)
+      | Invalid(_)
+      | EmptyHole
+      | MultiHole(_) => sub
+      };
+    [
+      Sig.map_typ(resolve_type_members(sub), item),
+      ...resolve_in_items(sub, items),
+    ];
+  };
+
+/* A closed signature's items with their own `TypeMember` leaves resolved:
+   to each member's definition, so the items are independent of one another,
+   or, given the module path [self] the signature is read through, to the
+   member of that path (`self.T`). */
+let resolved_items =
+    (~self: option(t)=?, s: Grammar.signature(IdTagged.IdTag.t))
+    : list(Sig.t) => {
+  let (_, rev) =
+    List.fold_left(
+      ((sub, acc), item: Sig.t) => {
+        let item = Sig.map_typ(resolve_type_members(sub), item);
+        let sub =
+          switch (item.term) {
+          | SigType({term: Var(name), _}, def) =>
+            let member =
+              switch (self) {
+              | Some(path) =>
+                ProdProjection(path, Label(name) |> temp) |> temp
+              | None => def
+              };
+            [(name, member), ...List.remove_assoc(name, sub)];
+          | SigType(_)
+          | SigLet(_)
+          | SigModule(_)
+          | Invalid(_)
+          | EmptyHole
+          | MultiHole(_) => sub
+          };
+        (sub, [item, ...acc]);
+      },
+      ([], []),
+      ClosedSig.items(Sig.closed(s)),
+    );
+  List.rev(rev);
+};
+
+/* The members of a closed signature, each typed independently of the others
+   (or through [self], see `resolved_items`). Every reading of a member's
+   type goes through here. */
+let sig_members = (~self: option(t)=?, s): list(Sig.member) =>
+  Sig.members(resolved_items(~self?, s));
 
 let rec is_arrow = (typ: t) => {
   switch (typ.term) {
@@ -150,7 +250,8 @@ let rec is_arrow = (typ: t) => {
   | Rec(_)
   | ProdProjection(_)
   | ProdExtension(_)
-  | Sig(_) => false
+  | Sig(_)
+  | TypeMember(_) => false
   };
 };
 
@@ -168,7 +269,8 @@ let rec has_fun = (typ: t) =>
   | DrvQuoteTy(_)
   | Label(_)
   | ExplicitNonlabel
-  | Var(_) => false
+  | Var(_)
+  | TypeMember(_) => false
   | List(t) => has_fun(t)
   | Rec(_, t) => has_fun(t)
   | Sum(sm) =>
@@ -187,7 +289,7 @@ let rec has_fun = (typ: t) =>
         | Val(_, ty) => has_fun(ty)
         | TypeManifest(_) => false
         },
-      Sig.closed_members(s),
+      sig_members(s),
     )
   };
 
@@ -269,7 +371,9 @@ let rec free_vars =
   | Atom(_)
   | DrvQuoteTy(_)
   | Label(_)
-  | ExplicitNonlabel => []
+  | ExplicitNonlabel
+  /* a sibling of the enclosing signature, not a variable */
+  | TypeMember(_) => []
   | Var(v) =>
     switch (binder) {
     | `TVar when !List.mem(v, bound) => [v]
@@ -354,7 +458,8 @@ let rec count_unknowns = (ty: t): int =>
   | Unknown(_) => 1
   | Atom(_)
   | DrvQuoteTy(_)
-  | Var(_) => 0
+  | Var(_)
+  | TypeMember(_) => 0
   | Arrow(t1, t2) => count_unknowns(t1) + count_unknowns(t2)
   | Prod(tys) =>
     List.fold_left((acc, ty) => acc + count_unknowns(ty), 0, tys)
@@ -405,8 +510,9 @@ let contains_unknown = (ty: t): bool => count_unknowns(ty) > 0;
    `fresh_var`) before recursing. The inner subst used for renaming is itself
    capture-avoiding, so repeated collisions are handled naturally.
 
-   A signature's members bind nothing (see [close]), so its items are
-   substituted into independently. */
+   A closed signature's items name each other only by `TypeMember`, which no
+   substitution touches (see [close]), so its items are substituted into
+   independently. */
 let rec subst = (~binder: binder=`TVar, s: t, x: TPat.t, ty: t): t =>
   switch (TPat.tyvar_of_utpat(x)) {
   | None => ty
@@ -427,7 +533,8 @@ let rec subst = (~binder: binder=`TVar, s: t, x: TPat.t, ty: t): t =>
       | ExplicitNonlabel
       | Unknown(_)
       | ProofOf(_)
-      | DrvQuoteTy(_) => ty
+      | DrvQuoteTy(_)
+      | TypeMember(_) => ty
       | Arrow(ty1, ty2) => Arrow(go(ty1), go(ty2)) |> rewrap
       | Prod(tys) => Prod(List.map(go, tys)) |> rewrap
       | TupLabel(label, ty) => TupLabel(label, go(ty)) |> rewrap
@@ -463,7 +570,6 @@ let rec subst = (~binder: binder=`TVar, s: t, x: TPat.t, ty: t): t =>
           };
         ProdProjection(t1, go(t2)) |> rewrap;
       | ProdExtension(t1, t2) => ProdExtension(go(t1), go(t2)) |> rewrap
-      /* Closed members are independent, so a substitution reaches each. */
       | Sig(s) =>
         Sig(Closed(ClosedSig.map(Sig.map_typ(go), Sig.closed(s))))
         |> rewrap
@@ -471,6 +577,16 @@ let rec subst = (~binder: binder=`TVar, s: t, x: TPat.t, ty: t): t =>
     };
     go(ty);
   };
+
+/* [ty] with each of the type variables [names] read as the signature's
+   earlier type member of that name, a `TypeMember` leaf. */
+let to_type_members = (names: list(string), ty: t): t =>
+  List.fold_left(
+    (ty, name) =>
+      subst(TypeMember(name) |> temp, Var(name) |> TPat.fresh, ty),
+    ty,
+    names,
+  );
 
 let unroll = (ty: t): t =>
   switch (term_of(ty)) {
@@ -567,7 +683,8 @@ let item_types = (item: Sig.t): list(t) =>
 /* Each occurrence of a type variable in a type, with the occurrence's id. */
 let rec var_ids = (ty: t): list((string, Id.t)) =>
   switch (term_of(ty)) {
-  | Var(x) => [(x, rep_id(ty))]
+  | Var(x)
+  | TypeMember(x) => [(x, rep_id(ty))]
   | Unknown(_)
   | Atom(_)
   | DrvQuoteTy(_)
@@ -606,6 +723,7 @@ let rec binders = (ty: t): list((string, Id.t)) => {
   | Atom(_)
   | DrvQuoteTy(_)
   | Var(_)
+  | TypeMember(_)
   | ExplicitNonlabel
   | Label(_)
   | ProofOf(_) => []
@@ -893,7 +1011,7 @@ let rec weak_head_normalize = (~rec_counter, ctx: Ctx.t, ty: t): t =>
       switch (label.term, path_head(~rec_counter=rec_counter + 1, ctx, t)) {
       | (Label(l), Some({term: Sig(s), _})) =>
         /* `M.T`: type member of a module path or of a signature alias. */
-        switch (Sig.find_type_def(Sig.closed_members(s), l)) {
+        switch (Sig.find_type_def(sig_members(s), l)) {
         | Some(ty') =>
           weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty')
         | None => default
@@ -957,7 +1075,7 @@ and path_head = (~rec_counter, ctx: Ctx.t, t: t): option(t) =>
     | ProdProjection(p, {term: Label(l), _}) =>
       switch (path_head(~rec_counter=rec_counter + 1, ctx, p)) {
       | Some({term: Sig(s), _}) =>
-        let members = Sig.closed_members(s);
+        let members = sig_members(s);
         switch (Option.bind(Sig.find_value(members, l), module_type)) {
         | Some(ty) => Some(ty)
         | None =>
@@ -998,19 +1116,20 @@ let head_type = (ctx: Ctx.t, ty: t): t =>
     Unknown(Internal) |> rewrap;
   };
 
-/* The signature items a module path denotes, if any. A type alias whose
-   expansion is a signature also counts, so `S.T` resolves on
-   `type S = { type T = Int }`. */
+/* The signature items a module path denotes, if any, each independent of
+   the others (see `resolved_items`). A type alias whose expansion is a
+   signature also counts, so `S.T` resolves on `type S = { type T = Int }`. */
 let path_sig = (ctx: Ctx.t, t: t): option(ClosedSig.t(Sig.t)) =>
   switch (path_head(~rec_counter=0, ctx, t)) {
-  | Some({term: Sig(s), _}) => Some(Sig.closed(s))
+  | Some({term: Sig(s), _}) => Some(ClosedSig.of_items(resolved_items(s)))
   | _ => None
   | exception Out_of_fuel => None
   };
 
+/* The items of [ty]'s signature, if it is one, each independent. */
 let as_sig = (ctx: Ctx.t, ty: t): option(ClosedSig.t(Sig.t)) =>
   switch (term_of(head_type(ctx, ty))) {
-  | Sig(s) => Some(Sig.closed(s))
+  | Sig(s) => Some(ClosedSig.of_items(resolved_items(s)))
   | _ => None
   };
 
@@ -1263,7 +1382,8 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
   | Atom(_)
   | DrvQuoteTy(_)
   | ExplicitNonlabel
-  | Label(_) => ty
+  | Label(_)
+  | TypeMember(_) => ty
   | Parens(t)
   | Projector(_, t) => normalize(ctx, t)
   | List(t) => List(normalize(ctx, t)) |> rewrap
@@ -1291,7 +1411,8 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
   | ProofOf(_) => ty // Todo: should we normalize this?
   | Sig(s) =>
     /* An item that declares no member is dropped from the normal form,
-       except a hole, which could declare any. */
+       except a hole, which could declare any. A `TypeMember` leaf stays: it
+       names a sibling, so the normal form shows `let x : T` as written. */
     Sig(
       Closed(
         Sig.closed(s)
@@ -1349,7 +1470,8 @@ let fun_in = (ctx: Ctx.t, ty: t): option(fun_in) => {
         | Atom(_)
         | DrvQuoteTy(_)
         | Label(_)
-        | ExplicitNonlabel => None
+        | ExplicitNonlabel
+        | TypeMember(_) => None
         | Sig(s) =>
           List.find_map(
             (m: Sig.member) =>
@@ -1357,7 +1479,7 @@ let fun_in = (ctx: Ctx.t, ty: t): option(fun_in) => {
               | Val(x, t) => go(~members=members @ [x], ctx, t)
               | TypeManifest(_) => None
               },
-            Sig.closed_members(s),
+            sig_members(s),
           )
         | List(t) => go(~members, ctx, t)
         | Rec(tp, t) => go(~members, extend_binder(ctx, tp, [t]), t)
@@ -1407,8 +1529,8 @@ let equal_up_to_aliases = (ctx: Ctx.t, a: t, b: t): bool => {
       | (_, Sig(Open(_))) => raise(Sig.OpenSignature)
       | (Sig(sx), Sig(sy)) =>
         /* Order-insensitive, as in [meet]. */
-        let mx = Sig.closed_members(sx);
-        let my = Sig.closed_members(sy);
+        let mx = sig_members(sx);
+        let my = sig_members(sy);
         same_member_names(mx, my)
         && List.for_all(
              (m: Sig.member) =>
@@ -1485,15 +1607,17 @@ let closed_of_scopes = (scopes: list(sig_item_scope)): ClosedSig.t(Sig.t) =>
   |> ClosedSig.of_items;
 
 /* [ty] with every signature in it closed: each member's type written in
-   terms of the context outside its signature alone, so the members are
-   independent and the signature is a record. Signature items are written
-   sequentially: a later item may mention an earlier type member by name or
-   root a path at an earlier module member, and a type member's name is in
-   scope in its own definition. Closing substitutes the earlier members in,
-   makes a self-mentioning type member recursive, and expands an outer alias
-   named like one of the signature's type members, so no member type
-   mentions a name a sibling binds. Every signature type statics works with
-   is closed, here, when it is read from the syntax. */
+   terms of the context outside its signature, except for an earlier type
+   member, which it names by a `TypeMember` leaf. Signature items are
+   written sequentially: a later item may mention an earlier type member by
+   name or root a path at an earlier module member, and a type member's
+   name is in scope in its own definition. Closing turns a mention of an
+   earlier type member into its leaf, resolves paths rooted at earlier
+   module members, makes a self-mentioning type member recursive, and
+   expands an outer alias named like a later type member, so no `Var` in a
+   member type means a sibling and no substitution can capture one. Every
+   signature type statics works with is closed, here, when it is read from
+   the syntax. */
 let rec close = (ctx: Ctx.t, ty: t): t => {
   let (term, rewrap) = unwrap(ty);
   switch (term) {
@@ -1503,6 +1627,7 @@ let rec close = (ctx: Ctx.t, ty: t): t => {
   | Label(_)
   | ExplicitNonlabel
   | Var(_)
+  | TypeMember(_)
   | ProofOf(_) => ty
   | Parens(t) => Parens(close(ctx, t)) |> rewrap
   | Projector(d, t) => Projector(d, close(ctx, t)) |> rewrap
@@ -1542,7 +1667,9 @@ and alias_def = (ctx: Ctx.t, tp: TPat.t, def: t): t =>
 and sig_item_scopes = (ctx: Ctx.t, items: list(Sig.t)): list(sig_item_scope) => {
   let type_members = Sig.type_names(Sig.members(items));
   let is_type_member = n => List.exists(String.equal(n), type_members);
-  let close_item = (ctx, item: Sig.t) => {
+  /* [earlier]: the type members declared before the item, each of which it
+     names by its leaf. */
+  let close_item = (ctx, ~earlier, item: Sig.t) => {
     let closed =
       switch (item.term) {
       | SigType(tp, _) => alias_def(ctx, tp)
@@ -1553,31 +1680,49 @@ and sig_item_scopes = (ctx: Ctx.t, items: list(Sig.t)): list(sig_item_scope) => 
       | MultiHole(_) => close(ctx)
       };
     Sig.map_typ(
-      ty => normalize(~expand=is_type_member, ctx, closed(ty)),
+      ty =>
+        normalize(
+          ~expand=is_type_member,
+          ctx,
+          to_type_members(earlier, closed(ty)),
+        ),
       item,
     );
   };
   /* The first item declaring a name and kind is the member. A later one,
      and a `let` that names no member, are marked where they are written
-     (Statics) and are left out here. */
-  let (_, _, rev) =
+     (Statics) and are left out here. The context is extended with each
+     member read independently ([sub] resolves the earlier leaves), so no
+     context entry holds a leaf. */
+  let (_, _, _, rev) =
     List.fold_left(
-      ((ctx, seen, acc), written: Sig.t) => {
-        let closed = close_item(ctx, written);
-        let (closed, seen, ctx_after) =
+      ((ctx, seen, sub, acc), written: Sig.t) => {
+        let earlier = List.map(fst, sub);
+        let closed = close_item(ctx, ~earlier, written);
+        let independent = Sig.map_typ(resolve_type_members(sub), closed);
+        let (closed, seen, sub, ctx_after) =
           switch (Sig.read_item(closed)) {
           | Member(m) when List.exists(Sig.same_kind(m), seen) => (
               Duplicate(m),
               seen,
+              sub,
               ctx,
             )
-          | Member(m) => (
+          | Member(m) =>
+            let sub =
+              switch (Sig.member_of_item(independent)) {
+              | Some(TypeManifest(name, def)) => [(name, def), ...sub]
+              | Some(Val(_))
+              | None => sub
+              };
+            (
               Item(closed),
               [m, ...seen],
-              extend_sig_item(ctx, closed),
-            )
-          | Incomplete => (Item(closed), seen, ctx)
-          | NotAName => (NotAName, seen, ctx)
+              sub,
+              extend_sig_item(ctx, independent),
+            );
+          | Incomplete => (Item(closed), seen, sub, ctx)
+          | NotAName => (NotAName, seen, sub, ctx)
           };
         /* A type member's name is in scope in its own definition; a value
            or module member's is not. */
@@ -1593,6 +1738,7 @@ and sig_item_scopes = (ctx: Ctx.t, items: list(Sig.t)): list(sig_item_scope) => 
         (
           ctx_after,
           seen,
+          sub,
           [
             {
               written,
@@ -1603,7 +1749,7 @@ and sig_item_scopes = (ctx: Ctx.t, items: list(Sig.t)): list(sig_item_scope) => 
           ],
         );
       },
-      (ctx, [], []),
+      (ctx, [], [], []),
       items,
     );
   List.rev(rev);
@@ -1733,6 +1879,10 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   | (ProofOf(e1), ProofOf(e2)) =>
     Equality.semantic.exp(e1, e2) ? Some(ty1) : None
   | (ProofOf(_), _) => None
+  /* Signatures are met through their independent members, so a leaf only
+     meets itself. */
+  | (TypeMember(x), TypeMember(y)) => String.equal(x, y) ? Some(ty1) : None
+  | (TypeMember(_), _) => None
   // We would prefer for this to be a sort difference and never appear in a meet.
   // These get marked in statics but that does not remove them from the utyp's propagated on parents.
   | (ExplicitNonlabel, _) => None
@@ -1744,11 +1894,17 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
        operand's items, so each keeps its form, and its type as written
        where the meet refines nothing; then the right's members the left
        lacks; then a hole, if both sides keep one. */
-    let xs = ClosedSig.items(xs);
-    let ys = ClosedSig.items(ys);
+    /* Member types are compared independent; a left item kept as written
+       keeps its leaves, which name members the result has. */
+    let x_written = ClosedSig.items(xs);
+    let xs = resolved_items(Closed(xs));
+    let ys = resolved_items(Closed(ys));
     let x_items =
-      xs |> List.filter(item => Option.is_some(Sig.member_of_item(item)));
-    let mx = Sig.members(x_items);
+      List.combine(x_written, xs)
+      |> List.filter(((_, item)) =>
+           Option.is_some(Sig.member_of_item(item))
+         );
+    let mx = Sig.members(List.map(snd, x_items));
     let my = Sig.members(ys);
     let hole_x = Sig.has_hole_item(xs);
     let hole_y = Sig.has_hole_item(ys);
@@ -1766,7 +1922,7 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     } else {
       /* Rebuilt from the left operand's items so each keeps its form, and
          its type as written where the meet refines nothing. */
-      let meet_item = (item: Sig.t) =>
+      let meet_item = ((written, item): (Sig.t, Sig.t)) =>
         switch (Sig.member_of_item(item)) {
         | Some(m) =>
           let (t1, t2) =
@@ -1775,12 +1931,12 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
             | TypeManifest(n, t1) => (t1, Sig.find_type_def(my, n))
             };
           switch (t2) {
-          | None => Some(item)
+          | None => Some(written)
           | Some(t2) =>
             let+ t = meet'(t1, t2);
-            equal(t, t1) ? item : Sig.map_typ(_ => t, item);
+            equal(t, t1) ? written : Sig.map_typ(_ => t, item);
           };
-        | None => Some(item)
+        | None => Some(written)
         };
       let+ items = OptUtil.traverse(meet_item, x_items);
       let extra =
@@ -1844,6 +2000,7 @@ let rec match_synswitch = (t1: t, t2: t) => {
   // HACK[Matt]: The only possible poly is `Poly Syn -> Syn`
   | (Poly(_), Poly(_)) => t2
   | (Poly(_), _) => t1
+  | (TypeMember(_), _)
   | (Sig(_), _) => t1
   };
 };
@@ -1925,6 +2082,7 @@ let rec is_syn = (ty: t): bool =>
   | ProdProjection(_)
   | ProdExtension(_)
   | ExplicitNonlabel
+  | TypeMember(_)
   | Sig(_) => false
   };
 
@@ -1948,6 +2106,7 @@ let rec is_ana_atom = (ty: t) =>
   | ProdProjection(_)
   | ProdExtension(_)
   | Sum(_)
+  | TypeMember(_)
   | Sig(_) => None
   };
 
@@ -1972,6 +2131,7 @@ let rec is_syn_plus = (ty: t): bool =>
   | Sum(_)
   | ProdProjection(_)
   | ProdExtension(_)
+  | TypeMember(_)
   | Sig(_) => false
   };
 
@@ -1997,7 +2157,8 @@ let rec needs_parens = (ty: t): bool =>
   | DrvQuoteTy(_)
   | List(_) /* is already wrapped in [] */
   | ProofOf(_)
-  | Var(_) => false
+  | Var(_)
+  | TypeMember(_) => false
   | ProdProjection(_, _)
   | ProdExtension(_, _)
   | TupLabel(_, _)
@@ -2030,7 +2191,8 @@ let rec pretty_print = (ty: t): string =>
   | DrvQuoteTy(d) => DrvSort.to_string(d)
   | Atom(Nat) => "Nat"
   | Atom(SInt) => "SInt"
-  | Var(tvar) => tvar
+  | Var(tvar)
+  | TypeMember(tvar) => tvar
   | List(t) => "[" ++ pretty_print(t) ++ "]"
   | Arrow(t1, t2) => paren_pretty_print(t1) ++ " -> " ++ pretty_print(t2)
   | Sum(sm) =>
@@ -2167,6 +2329,7 @@ let all_ids = (ty: t): list(Id.t) => {
     | Label(_)
     | ExplicitNonlabel
     | Var(_)
+    | TypeMember(_)
     | ProofOf(_) => ()
     /* Syntactic, not `Sig.members`: an item whose name is a hole still
        prints. */
@@ -2239,6 +2402,8 @@ let rec diff =
   | (Label(_), _) => get_ids()
   | (ExplicitNonlabel, ExplicitNonlabel) => []
   | (ExplicitNonlabel, _) => get_ids()
+  | (TypeMember(x1), TypeMember(x2)) when String.equal(x1, x2) => []
+  | (TypeMember(_), _) => get_ids()
   | (Var(v1), Var(v2)) when v1 == v2 => []
   | (Var(name), _) =>
     switch (expand(name)) {

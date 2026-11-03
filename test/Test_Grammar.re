@@ -189,6 +189,7 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
           unknown(Hole(EmptyHole)),
         )
       | Sig => assert(false) /* Excluded: Sig is surface syntax only */
+      | TypeMember => type_member("T")
       }
     )
   );

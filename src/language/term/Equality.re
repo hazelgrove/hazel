@@ -699,6 +699,8 @@ let equality =
       | NotEquiv => false
       }
     | (Var(_), _) => false
+    | (TypeMember(x), TypeMember(y)) => String.equal(x, y)
+    | (TypeMember(_), _) => false
 
     // Holes: equal if provenance is ignored
     | (Unknown(_), Unknown(_)) when ignore_unknown_provenance => true

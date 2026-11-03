@@ -757,9 +757,9 @@ let test_shadowing =
    type member, which the signature binds. */
 let test_type_alias =
   fully_consistent_typecheck(
-    "Type alias in module: the exported signature is closed",
+    "Type alias in module: a later member names the type member",
     {|{ type T = Int; let x = 1 : T }|},
-    Some(sig_([type_("T", int()), val_("x", int())])),
+    Some(sig_([type_("T", int()), val_("x", var("T"))])),
   );
 
 /* Test bare expression in module */
@@ -899,9 +899,11 @@ let test_type_only_module =
 /* A shadowed type member is not exported; its uses are inlined. */
 let test_shadowed_type_member =
   fully_consistent_typecheck(
-    "Shadowed type member is inlined, last declaration exported",
+    "A member before a shadowed type member's last declaration has it inlined",
     {|{ type T = Int; let x : T = 1; type T = Bool; let y : T = true }|},
-    Some(sig_([val_("x", int()), type_("T", bool()), val_("y", bool())])),
+    Some(
+      sig_([val_("x", int()), type_("T", bool()), val_("y", var("T"))]),
+    ),
   );
 
 let test_nested_type_member_through_variable =
@@ -1031,7 +1033,7 @@ let test_sig_type_member_matches =
   fully_consistent_typecheck(
     "Signature manifest type member matches the module's",
     {|let m : { type T = Int; let x : T } = { type T = Int; let x = 1 } in m|},
-    Some(sig_([type_("T", int()), val_("x", int())])),
+    Some(sig_([type_("T", int()), val_("x", var("T"))])),
   );
 
 /* Where the module's own definition of a type member is not yet in scope,

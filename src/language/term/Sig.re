@@ -161,9 +161,6 @@ let closed = (s: TermBase.signature): ClosedSig.t(t) =>
   | Closed(items) => items
   };
 
-let closed_members = (s: TermBase.signature): list(member) =>
-  members(ClosedSig.items(closed(s)));
-
 let item_of_member = (m: member): t =>
   switch (m) {
   | Val(x, ty) => TempGrammar.(Sig.sig_let(Pat.asc(Pat.var(x), ty)))

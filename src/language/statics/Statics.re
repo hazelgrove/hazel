@@ -2718,14 +2718,44 @@ and uexp_to_info_map =
           ~some=ModuleHelpers.expected_members(~ctx, ~declared),
           ana_items,
         );
-      /* The exported signature is closed: the body's own type names are
-         expanded in it. */
-      let export = (ctx, ty) =>
+      /* The exported signature is closed. In an item's type, a type member
+         the signature declares before the item is named by its leaf: the
+         body's last declaration of that name, where the signature has it,
+         precedes the item. The body's other type names are expanded. */
+      let last_declared: list((Var.t, int)) =
+        List.fold_left(
+          ((acc, i), item: Mod.t) =>
+            switch (item.term) {
+            | ModType({term: Var(name), _}, _) => (
+                [(name, i), ...List.remove_assoc(name, acc)],
+                i + 1,
+              )
+            | _ => (acc, i + 1)
+            },
+          ([], 0),
+          items,
+        )
+        |> fst;
+      let position: Id.Map.t(int) =
+        List.mapi((i, item) => (Mod.rep_id(item), i), items)
+        |> List.to_seq
+        |> Id.Map.of_seq;
+      let export = (~item: Mod.t, ctx, ty) => {
+        let before =
+          switch (Id.Map.find_opt(Mod.rep_id(item), position)) {
+          | Some(i) =>
+            List.filter_map(
+              ((name, j)) => j < i ? Some(name) : None,
+              last_declared,
+            )
+          | None => []
+          };
         Typ.normalize(
           ~expand=n => List.exists(String.equal(n), declared),
           ctx,
-          ty,
+          Typ.to_type_members(before, ty),
         );
+      };
       /* Each item with the names it exports: those it binds that no later
          item rebinds. */
       let exports: Id.Map.t(list(Var.t)) =
@@ -2838,7 +2868,7 @@ and uexp_to_info_map =
           |> List.filter_map(x =>
                Ctx.lookup_var(b.ctx_scope, x)
                |> Option.map((entry: Ctx.var_entry) =>
-                    member(x, export(b.ctx_scope, entry.typ))
+                    member(x, export(~item, b.ctx_scope, entry.typ))
                   )
              );
         let m =
@@ -2968,7 +2998,7 @@ and uexp_to_info_map =
                 ...c,
                 members: [
                   Sig.item_of_member(
-                    TypeManifest(name, export(ctx, a.ty_def)),
+                    TypeManifest(name, export(~item, ctx, a.ty_def)),
                   ),
                   ...c.members,
                 ],
@@ -3044,7 +3074,7 @@ and uexp_to_info_map =
                 {
                   ...c,
                   members: [
-                    Sig.item_of_member(Val(x, export(ctx, e.ty))),
+                    Sig.item_of_member(Val(x, export(~item, ctx, e.ty))),
                     ...c.members,
                   ],
                   co_ctx,
@@ -4397,7 +4427,9 @@ and utyp_to_info_map =
   | DrvQuoteTy(_)
   | Atom(_)
   | Label(_)
-  | Var(_) =>
+  | Var(_)
+  /* never written; only closing makes one */
+  | TypeMember(_) =>
     /* Names are resolved in this function's status rules */
     add(~ty=utyp, m)
   | List(t) =>

@@ -1590,6 +1590,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
           Atom(String);
         }
       | Var(v) => Var(abbreviate_str(available^, v))
+      | TypeMember(v) => TypeMember(abbreviate_str(available^, v))
       | ExplicitNonlabel => ExplicitNonlabel
       | Label(v) =>
         /* Typ has no Invalid constructor; keep as Label even when truncated.

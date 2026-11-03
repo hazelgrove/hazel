@@ -164,16 +164,19 @@ holes and malformed items.
   earlier module member (`module P : S; let x : P.T`). The parser and
   `MakeTerm` produce only open signatures.
 - **Closed** is the reading statics works with. Each item's type is written
-  in terms of the context outside the signature, so the items are
-  independent of one another and of their order, and a member's name binds
-  nothing in its siblings. `ClosedSig.t` is abstract: building one asserts
-  that of its items.
+  in terms of the context outside the signature, except that it names an
+  earlier type member by a `TypeMember` leaf, which is not a variable: no
+  `Var` in a closed signature means a sibling, so no substitution can
+  capture one. `Typ.sig_members` reads the members independently, each leaf
+  replaced by its member's definition. `ClosedSig.t` is abstract: building
+  one asserts that of its items.
 
 `Typ.close` closes a type where statics reads it from the syntax (an
 annotation's `Info.typ.ty`, alias definitions, type arguments, module
-ascriptions). It substitutes earlier type members into later items, resolves
-paths rooted at earlier module members, and expands an outer alias named
-like a sibling type member. A type member's definition is read by
+ascriptions). It turns a mention of an earlier type member into its leaf,
+resolves paths rooted at earlier module members, and expands an outer alias
+named like a later type member. The context a later item is read in binds
+each earlier member independently, so no context entry holds a leaf. A type member's definition is read by
 `Typ.alias_def`, as a `type` alias's and a module's `type` item's are:
 closed with its own name abstract, then made recursive if it mentions
 itself. `Typ.sig_item_scopes` gives each written item the context it is
@@ -185,10 +188,12 @@ is read.
 
 `Sig.closed` gives the items of a closed signature and raises
 `Sig.OpenSignature` on an open one. Every operation that reads a member's
-type (`has_fun`, `free_vars`, `count_unknowns`, `subst`, `normalize`,
-`meet`, `equal_up_to_aliases`, `fun_in`, `as_sig`, `path_sig`, path
-normalization and runtime sealing) goes through it, so an open signature
-reaching one is a bug in where the type was read, not a user error.
+type (`has_fun`, `meet`, `equal_up_to_aliases`, `fun_in`, `as_sig`,
+`path_sig`, path normalization and runtime sealing) reads it through
+`Typ.sig_members` or `Typ.resolved_items`, which go through `Sig.closed`, so
+an open signature reaching one is a bug in where the type was read, not a
+user error. Structural walks (`free_vars`, `count_unknowns`, `subst`,
+`normalize`, closing) leave a leaf alone.
 `Sig.items` gives the items in either reading, for syntactic walks:
 printing, id collection, counting.
 
@@ -201,8 +206,12 @@ printing, id collection, counting.
   that name was bound later; a value counts only if its type is a
   signature. `weak_head_normalize` uses it for `ProdProjection`, falling
   back to the labeled-tuple projection.
-- A closed signature prints its members as they are: a written
-  `{ type T = Int; let x : T }` displays as `{ type T = Int; let x : Int }`.
+- A closed signature prints its members as they are, a leaf as its name: a
+  written `{ type T = Int; let x : T }` displays as written, and so does a
+  module's synthesized signature, `{ type T = Int; let x = 1 : T }` having
+  type `{ type T = Int; let x : T }`. A member before the body's last
+  declaration of a type name has that name expanded, since the signature's
+  member is the later declaration.
 
 ### Statics
 
