@@ -725,6 +725,149 @@ let incremental_reused_function_regression_test =
     )
   );
 
+/* The gradual guarantee: annotating some of a well-typed program's
+   bindings with `?` doesn't change the value it evaluates to. A `?` hides a
+   type that statics would have acted on, such as lifting a value into a
+   one-field labeled type, so evaluation has to act on it instead. A program
+   that doesn't finish as a value is not judged. */
+let with_unknown_annotations = (seed: int, e: Exp.t): Exp.t => {
+  let st = Stdlib.Random.State.make([|seed|]);
+  let loosen = (p: Pat.t): Pat.t =>
+    Stdlib.Random.State.bool(st)
+      ? Pat.fresh(Asc(p, Typ.fresh(Unknown(Hole(EmptyHole))))) : p;
+  Exp.map_term(
+    ~f_exp=
+      (continue, e) => {
+        let e = continue(e);
+        switch (e.term) {
+        | Let(p, def, body) => {
+            ...e,
+            term: Let(loosen(p), def, body),
+          }
+        | Fun(p, body, ty, name) => {
+            ...e,
+            term: Fun(loosen(p), body, ty, name),
+          }
+        | _ => e
+        };
+      },
+    e,
+  );
+};
+
+let gradual_guarantee_holds = ((uexp: Exp.t, seed: int)): bool => {
+  let loosened = with_unknown_annotations(seed, uexp);
+  /* Statics that can't finish (an alias loop) judge nothing here. */
+  let well_typed = e =>
+    switch (Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), e)) {
+    | (info_map, _) => List.is_empty(Statics.Map.error_ids(info_map))
+    | exception _ => false
+    };
+  QCheck.assume(well_typed(uexp) && well_typed(loosened));
+  let run = (~step_limit, e) =>
+    Evaluator.evaluate_and_limit(
+      ~env=Builtins.env_init,
+      ~step_limit,
+      elaborate(e),
+    );
+  switch (run(~step_limit=1000, uexp)) {
+  | LimitedCompleted((value, _)) when ValueChecker.is_value(value) =>
+    switch (run(~step_limit=10000, loosened)) {
+    | LimitedCompleted((loosened_value, _)) =>
+      Alcotest.check(
+        pattern_equivalence_testable,
+        "Annotated with ?, the program evaluates to the same value",
+        value,
+        loosened_value,
+      );
+      true;
+    | StepLimitExceeded =>
+      print_endline("Annotated with ?, the program didn't finish");
+      false;
+    }
+  | LimitedCompleted(_)
+  | StepLimitExceeded => true
+  | exception e =>
+    print_endline(
+      "Skipping gradual guarantee case due to error: " ++ Exn.to_string(e),
+    );
+    true;
+  };
+};
+
+let qcheck_gradual_guarantee =
+  QCheck.Test.make(
+    ~name="Annotating bindings with ? keeps the value",
+    ~count=1000,
+    QCheck.pair(
+      QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
+      QCheck.small_nat,
+    ),
+    ((uexp, seed)) => {
+      QCheck.assume(!has_proof_machinery(uexp));
+      gradual_guarantee_holds((Canonicalize.exp(uexp), seed));
+    },
+  );
+
+/* Generated programs rarely give a one-field labeled type a value to lift,
+   which is where a `?` hides the type statics lifts by. These do: a value
+   of each kind meets `(a=…)` as an annotation, a pattern or a cast, and
+   the program uses the field (calling it, if it is a function), since a
+   record stuck inside a closure only shows when it is used. */
+let qcheck_gradual_guarantee_labeled_singletons = {
+  let values = [
+    ("1", "Int", Fn.id),
+    ({|"s"|}, "String", Fn.id),
+    ("true", "Bool", Fn.id),
+    ("[1]", "[Int]", Fn.id),
+    ("(1, 2)", "(Int, Int)", Fn.id),
+    ("(b=1)", "(b=Int)", Fn.id),
+    ("(a=1)", "Int", Fn.id),
+    ("fun z -> z + 1", "Int -> Int", f => f ++ "(1)"),
+  ];
+  let forms = [
+    ((v, t, use)) =>
+      "let v = " ++ v ++ " in let r : (a=" ++ t ++ ") = v in " ++ use("r.a"),
+    ((v, t, use)) =>
+      "let v = "
+      ++ v
+      ++ " in let r : (a="
+      ++ t
+      ++ ") = v in case r | (a=g) => "
+      ++ use("g")
+      ++ " end",
+    ((v, _, use)) => "let v = " ++ v ++ " in let (a=x) = v in " ++ use("x"),
+    ((v, t, use)) =>
+      "let v = " ++ v ++ " in " ++ use("(v : (a=" ++ t ++ ")).a"),
+    ((v, _, use)) =>
+      "let f = fun y -> let (a=x) = y in " ++ use("x") ++ " in f(" ++ v ++ ")",
+    ((v, _, use)) =>
+      "let f = fun y -> case y | (a=x) => "
+      ++ use("x")
+      ++ " end in f("
+      ++ v
+      ++ ")",
+  ];
+  QCheck.Test.make(
+    ~name="Annotating bindings with ? keeps the value: labeled singletons",
+    ~count=500,
+    QCheck.make(
+      ~print=
+        ((src, seed)) => src ++ " (seed " ++ Int.to_string(seed) ++ ")",
+      QCheck.Gen.(
+        map3(
+          (form, value, seed) => (form(value), seed),
+          oneofl(forms),
+          oneofl(values),
+          small_nat,
+        )
+      ),
+    ),
+    ((src, seed)) =>
+    gradual_guarantee_holds((parse_exp(src), seed))
+  );
+};
+
 /* The carved-out preservation class, pinned (skipped until #2736, #2737
    and #2740 land). */
 let preservation_rec_unused_binder_pin =
@@ -1204,6 +1347,8 @@ let tests = (
     QCheck_alcotest.to_alcotest(qcheck_evaluator_does_not_crash_test),
     QCheck_alcotest.to_alcotest(qcheck_stepper_confluence),
     QCheck_alcotest.to_alcotest(qcheck_pattern_equivalence_test),
+    QCheck_alcotest.to_alcotest(qcheck_gradual_guarantee),
+    QCheck_alcotest.to_alcotest(qcheck_gradual_guarantee_labeled_singletons),
     QCheck_alcotest.to_alcotest(qcheck_incremental_matches_fresh_after_edit),
     QCheck_alcotest.to_alcotest(qcheck_incremental_matches_fresh_for_values),
     incremental_literal_edit_regression_test,

@@ -2910,6 +2910,11 @@ and uexp_to_info_map =
     | Prod([{term: TupLabel({term: Label(l2), _}, _), _}])
         when String.equal(l1, l2) =>
       default_case()
+    /* A value of unknown type may already be the record at runtime
+       (`let r : ? = (a=1) in r : (a=Int)`); lifting it would wrap it twice.
+       The cast, or the pattern, lifts it at runtime by the same rule once
+       its form shows it isn't the record (Ascriptions.lifts_into). */
+    | Unknown(_) => default_case()
     | _ => autolabel_singleton_tuple(uexp, ana_ty, l1, m)
     };
   | _ => default_case()

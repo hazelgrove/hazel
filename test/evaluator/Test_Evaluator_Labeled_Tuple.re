@@ -76,6 +76,85 @@ let tests = (
         {|let f = fun _ -> (a=1) in f(()) : (a=Int)|},
       )
     ),
+    /* Of unknown type, it may still be the record at runtime: the cast
+       decides, so it isn't wrapped again. */
+    test_case(
+      "Ascribing a variable of unknown type that is the record", `Quick, () =>
+      parse_and_evaluate_test("(a=1)", {|let r : ? = (a=1) in r : (a=Int)|})
+    ),
+    test_case(
+      "Annotating a variable of unknown type that is the record", `Quick, () =>
+      parse_and_evaluate_test(
+        "(a=1)",
+        {|let r : ? = (a=1) in let x : (a=Int) = r in x|},
+      )
+    ),
+    test_case(
+      "Ascribing a call of unknown type that returns the record", `Quick, () =>
+      parse_and_evaluate_test(
+        "(a=1)",
+        {|let f : ? -> ? = fun x -> (a=x) in f(1) : (a=Int)|},
+      )
+    ),
+    /* One that isn't the record is lifted when the cast or the pattern
+       meets it, as it would have been by its type. */
+    test_case(
+      "Annotating a variable of unknown type that isn't the record", `Quick, () =>
+      parse_and_evaluate_test(
+        "1",
+        {|let v : ? = 1 in let r : (a=Int) = v in r.a|},
+      )
+    ),
+    test_case(
+      "Matching a variable of unknown type that isn't the record", `Quick, () =>
+      parse_and_evaluate_test(
+        "1",
+        {|let f = fun (y : ?) -> let (a=x) = y in x in f(1)|},
+      )
+    ),
+    test_case(
+      "Matching a case scrutinee of unknown type that isn't the record",
+      `Quick,
+      () =>
+      parse_and_evaluate_test(
+        "1",
+        {|let f = fun (y : ?) -> case y | (a=x) => x | _ => 0 end in f(1)|},
+      )
+    ),
+    test_case("Ascribing a record of other labels of unknown type", `Quick, () =>
+      parse_and_evaluate_test(
+        "(a=(b=1))",
+        {|let v : ? = (b=1) in v : (a=(b=Int))|},
+      )
+    ),
+    /* A function value is a closure: the whole closure becomes the field,
+       or the record is stuck inside it. */
+    test_case("Lifting a function of unknown type", `Quick, () =>
+      parse_and_evaluate_test(
+        "2",
+        {|let v : ? = fun z -> z + 1 in let r : (a=Int -> Int) = v in r.a(1)|},
+      )
+    ),
+    test_case("Matching a lifted function of unknown type", `Quick, () =>
+      parse_and_evaluate_test(
+        "2",
+        {|let v : ? = fun z -> z + 1 in let r : (a=Int -> Int) = v in case r | (a=g) => g(1) end|},
+      )
+    ),
+    test_case("Ascribing a tuple of unknown type", `Quick, () =>
+      parse_and_evaluate_test(
+        "(a=(1, 2))",
+        {|let v : ? = (1, 2) in v : (a=(Int, Int))|},
+      )
+    ),
+    /* Statics lifts at a one-field labeled type, not at a recursive type
+       that unrolls to one, which would lift without end. */
+    test_case("A cast to a recursive labeled type doesn't lift", `Quick, () =>
+      parse_and_evaluate_test(
+        "1 : rec t -> (a=t)",
+        {|let v : ? = 1 in v : rec t -> (a=t)|},
+      )
+    ),
     test_case("Labeled tuple field access", `Quick, () =>
       parse_and_evaluate_test("1", {|(a=1,b=2).a|})
     ),

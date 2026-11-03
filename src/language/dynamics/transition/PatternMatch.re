@@ -60,6 +60,9 @@ let match_pattern =
   | TupLabel(_, x) =>
     let* x' = Unboxing.unbox(TupLabel(dp), d);
     recur(x, x');
+  | Tuple([{term: TupLabel({term: Label(l), _}, p), _}])
+      when Ascriptions.lifts_into(l, d) =>
+    recur(p, d)
   | Tuple(ps) =>
     let* ds = Unboxing.unbox(Tuple(List.length(ps)), d);
     List.map2_exn(ps, ds, ~f=recur)
