@@ -2218,7 +2218,8 @@ and uexp_to_info_map =
           (Let(p_elab, def_elab, body_elab) |> rewrap, m);
         } else {
           let def_elab =
-            def_elab |> Exp.add_name(Option.map(s => s ++ "+", Pat.get_var(p)));
+            def_elab
+            |> Exp.add_name(Option.map(s => s ++ "+", Pat.get_var(p)));
           /* Give the fixpoint the function's surface id (which IS in
            * info_map, so it gets a cache entry), and give the inner Fun a
            * derived id (which isn't in info_map, but that's fine — the
@@ -2898,6 +2899,10 @@ and uexp_to_info_map =
     switch (Typ.weak_head_normalize(ctx, e.ty).term) {
     | Prod([{term: TupLabel({term: Label(l2), _}, _), _}]) when l1 == l2 =>
       default_case()
+    /* A value of unknown type may already be the record at runtime
+       (`let r : ? = (a=1) in r : (a=Int)`); lifting it would wrap it twice.
+       The ascription's cast decides instead. */
+    | Unknown(_) => default_case()
     | _ => autolabel_singleton_tuple(uexp, ana_ty, l1, m)
     };
   | _ => default_case()
