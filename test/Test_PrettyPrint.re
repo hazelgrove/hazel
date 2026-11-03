@@ -272,19 +272,20 @@ M.x|},
     (),
   ),
   test_format(
-    ~name="A one-item module still breaks",
+    ~name="A short one-item module stays on one line",
     ~input={|let m = { let y = 1 } in m|},
-    ~expected={|let m = {
-  let y = 1
-} in
+    ~expected={|let m = {let y = 1} in
 m|},
     (),
   ),
   test_format_seg(
-    ~name="A signature inlines when it fits",
-    ~input={|let f = fun (m : { let x : Int; let y : Int }) -> m.x in f|},
-    ~expected={|let f = fun (m : {let x : Int; let y : Int}) -> m.x in
-f|},
+    ~name="A signature puts each item on its own line",
+    ~input={|type S = { let x : Int; let y : Int } in 1|},
+    ~expected={|type S = {
+  let x : Int;
+  let y : Int
+} in
+1|},
     (),
   ),
 ];
@@ -858,12 +859,11 @@ end|},
 end|},
     (),
   ),
+  /* Block expression {} flat; body lands on its own line */
   test_format_seg(
-    ~name="A short module breaks",
+    ~name="Block flat",
     ~input="let x = { 1 + 2 } in x",
-    ~expected={|let x = {
-  1 + 2
-} in
+    ~expected={|let x = {1 + 2} in
 x|},
     (),
   ),

@@ -64,17 +64,18 @@ type doc =
  * editor convention (Indentation.re uses +2 per level). */
 let indent_unit: int = 2;
 
-/* How a delimited body breaks: a module body always puts each item on its
-   own line, each item breaking only when it does not fit; anything else
-   (parens, brackets, signature bodies) inlines when it fits. */
+/* How a delimited body breaks: a module or signature body with more than
+   one item puts each item on its own line, each item breaking only when it
+   does not fit; anything else (parens, brackets, a one-item body) inlines
+   when it fits. */
 type delimited_breaks = {
   edge: doc,
   soft_semis: bool,
   content: doc => doc,
 };
-let delimited_breaks = (t: Tile.t): delimited_breaks =>
-  switch (t.form, t.sort) {
-  | (Compound(ModBody), Exp) => {
+let delimited_breaks = (t: Tile.t, body: Segment.t): delimited_breaks =>
+  switch (t.form) {
+  | Compound(ModBody) when List.exists(Piece.is_semi, body) => {
       edge: HardBreak,
       soft_semis: false,
       content: d => Group(d),
@@ -631,7 +632,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
       switch (Tile.contained_children(dt)) {
       | [(_, inner_child, _)] =>
         /* Group so the hanging content goes flat when it fits */
-        let {edge, soft_semis, content} = delimited_breaks(dt);
+        let {edge, soft_semis, content} = delimited_breaks(dt, inner_child);
         let inner =
           child_doc(
             {
@@ -845,7 +846,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
   | Form.Compound(Parens | Ap | ListLit | ModBody) =>
     switch (triples) {
     | [(_, content_child, _)] =>
-      let {edge, soft_semis, content} = delimited_breaks(t);
+      let {edge, soft_semis, content} = delimited_breaks(t, content_child);
       let inner =
         child_doc(
           {
