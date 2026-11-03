@@ -52,11 +52,22 @@ module CV = Transition(ValueCheckerEVMode);
 let rec check_value = (env, d) =>
   CV.transition(check_value, ~mode=`Environment, env, d);
 
-/* Classifies the form inside a closure, which the environment mode would
-   re-wrap: `Fun` answers `Value` there, and anything finished-but-not-a-value
-   answers `Value` too once wrapped, which is what hid stuck results. */
+/* Classifies a form in substitution mode, which answers for the form itself
+   rather than re-wrapping it: `Fun` answers `Value` there, and anything
+   finished-but-not-a-value answers `Value` too once wrapped, which is what
+   hid stuck results. */
 let rec check_value_unwrapped = (env, d) =>
-  CV.transition(check_value_unwrapped, ~mode=`Substitution, env, d);
+  switch (Exp.term_of(d)) {
+  /* A nested closure carries its own environment around a finished form, so
+     it is judged exactly like the sample's own closure. The transition's
+     `Closure` rule answers `Constructor` — and thus `Value` — for any
+     closure, so without this case `[if ? then 1 else 2]`, which is really
+     `Closure(env, ListLit([Closure(env, If ? then 1 else 2)]))`, passes as a
+     value and the probe loses its indet styling. A closure's form is final
+     either way, so a non-value form is `Indet`, not `Expr`. */
+  | Closure(env', body) => is_value_form(env', body) ? Value : Indet
+  | _ => CV.transition(check_value_unwrapped, ~mode=`Substitution, env, d)
+  }
 
 /* A closure packages a form with the environment it needs:
      - a function is a value;
@@ -67,7 +78,7 @@ let rec check_value_unwrapped = (env, d) =>
    fixpoints, so resolving a variable terminates at one or the other; a
    chain this long means that invariant is broken, so say so rather than
    guess. */
-let rec is_value_form = (~rec_counter=0, env: Environment.t(Exp.t), d: Exp.t) =>
+and is_value_form = (~rec_counter=0, env: Environment.t(Exp.t), d: Exp.t) =>
   if (rec_counter > 100) {
     failwith(
       "ValueChecker.is_value_form: over 100 variable/fixpoint lookups; "
@@ -77,6 +88,11 @@ let rec is_value_form = (~rec_counter=0, env: Environment.t(Exp.t), d: Exp.t) =>
     switch (Exp.term_of(d)) {
     | Var(x) =>
       switch (Environment.lookup(env, x)) {
+      /* A variable bound to itself names a bound variable rather than a
+         form; the transition answers `Indet` for it, so it is not a value.
+         (Not an invariant break: fixpoint environments legitimately hold
+         these.) */
+      | Some({term: Var(y), _}) when x == y => false
       | Some(d') => is_value_form(~rec_counter=rec_counter + 1, env, d')
       | None => false
       }
@@ -88,10 +104,9 @@ let rec is_value_form = (~rec_counter=0, env: Environment.t(Exp.t), d: Exp.t) =>
     };
   };
 
-/* Check if an expression is a fully-evaluated value. A probe sample is
-   closure-wrapped, so ask about the form inside it. */
+/* Check if an expression is a fully-evaluated value.
+   A probe sample may arrive closure-wrapped or, when it is a container whose
+   children were wrapped, as a bare form holding nested closures, so ask in
+   substitution mode where each closure is judged by the form it wraps. */
 let is_value = (exp: Exp.t): bool =>
-  switch (Exp.term_of(exp)) {
-  | Closure(env, body) => is_value_form(env, body)
-  | _ => check_value(Environment.empty, exp) == Value
-  };
+  check_value_unwrapped(Environment.empty, exp) == Value;

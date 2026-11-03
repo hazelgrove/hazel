@@ -9,6 +9,10 @@ let var_f = Exp.var("f");
 let a_fun = Exp.fn(Pat.var("x"), Exp.var("x"), None, None);
 let a_stuck_if = Exp.if_(Exp.empty_hole(), Exp.int(1), Exp.int(2));
 
+/* What a finished-but-stuck subexpression actually looks like once the
+   evaluator has wrapped it on its way up. */
+let stuck_form = () => Exp.closure(Environment.empty, a_stuck_if);
+
 let env_with = bindings =>
   List.fold_left(
     (env, (name, v)) => Environment.extend(env, (name, v)),
@@ -87,6 +91,70 @@ let tests = (
           false,
           env_with([("f", var_f)]),
           var_f,
+        );
+      },
+    ),
+    /* Environment mode wraps EVERY finished form, so a stuck result nested in
+       a container arrives inside a closure of its own: `[if ? then 1 else 2]`
+       is `Closure(env, ListLit([Closure(env, If ...)]))`. Classification has
+       to see through closures at depth, not just the sample's own. */
+    test_case(
+      "a stuck form nested in a container is not a value",
+      `Quick,
+      () => {
+        check_is_value(
+          "a list holding a stuck if",
+          false,
+          Environment.empty,
+          Exp.list_lit([stuck_form()]),
+        );
+        check_is_value(
+          "a tuple holding a stuck if",
+          false,
+          Environment.empty,
+          Exp.tuple([Exp.int(1), stuck_form()]),
+        );
+        check_is_value(
+          "a pair holding a stuck if",
+          false,
+          Environment.empty,
+          Exp.tuple([Exp.tuple([Exp.int(1)]), stuck_form()]),
+        );
+        check_is_value(
+          "a list holding a nested stuck if",
+          false,
+          Environment.empty,
+          Exp.list_lit([Exp.list_lit([stuck_form()])]),
+        );
+        check_is_value(
+          "a doubly wrapped stuck form",
+          false,
+          Environment.empty,
+          Exp.closure(Environment.empty, stuck_form()),
+        );
+      },
+    ),
+    test_case(
+      "a value nested in a container is a value",
+      `Quick,
+      () => {
+        check_is_value(
+          "a list of functions",
+          true,
+          Environment.empty,
+          Exp.list_lit([a_fun]),
+        );
+        check_is_value(
+          "a tuple of literals",
+          true,
+          Environment.empty,
+          Exp.tuple([Exp.int(1), Exp.int(2)]),
+        );
+        check_is_value(
+          "a tuple holding a list of literals",
+          true,
+          Environment.empty,
+          Exp.tuple([Exp.list_lit([Exp.int(1)])]),
         );
       },
     ),

@@ -50,10 +50,10 @@ let format_sample_value = (value: Exp.t): string => {
   StringUtil.replace(StringUtil.regexp("\n"), str, " ");
 };
 
-/* Get probe samples organized by line number.
- * Returns a map from line number to list of formatted sample values.
+/* Get raw probe samples organized by line number.
+ * Returns a map from line number to the samples recorded there.
  * Uses TermData to look up probe positions. */
-let get_samples_by_line = (code: string): IntMap.t(list(string)) => {
+let get_samples = (code: string): IntMap.t(list(Sample.t)) => {
   /* Parse to zipper */
   switch (Parser.to_zipper(~root=Exp, code)) {
   | None => IntMap.empty
@@ -87,14 +87,9 @@ let get_samples_by_line = (code: string): IntMap.t(list(string)) => {
         switch (TermData.extreme_measures(probe_id, term_data, measured)) {
         | Some((start, _)) =>
           let line = start.row;
-          let formatted_values =
-            List.map(
-              (s: Sample.t) => format_sample_value(s.value),
-              samples,
-            );
           let existing =
             IntMap.find_opt(line, acc) |> Option.value(~default=[]);
-          IntMap.add(line, existing @ formatted_values, acc);
+          IntMap.add(line, existing @ samples, acc);
         | None => acc
         }
       },
@@ -103,6 +98,13 @@ let get_samples_by_line = (code: string): IntMap.t(list(string)) => {
     );
   };
 };
+
+/* Get probe samples organized by line number, as formatted value strings. */
+let get_samples_by_line = (code: string): IntMap.t(list(string)) =>
+  IntMap.map(
+    List.map((s: Sample.t) => format_sample_value(s.value)),
+    get_samples(code),
+  );
 
 /* Main test function: check that probes on specified lines have expected values */
 let probe_line_test =
@@ -150,6 +152,46 @@ let probe_count_test =
             Printf.sprintf("Line %d sample count", line),
             expected_count,
             List.length(actual_values),
+          );
+        },
+        expected,
+      );
+    },
+  );
+};
+
+/* Test function: check whether the samples on a line are classified as
+ * values (i.e. would NOT get the probe's indet styling). A sample holding a
+ * stuck result — including one nested inside a container — must not be.
+ * This is the end-to-end counterpart to Test_ValueChecker: the samples here
+ * are whatever the evaluator really wrapped, not hand-built closures. */
+let probe_value_styling_test =
+    (name: string, code: string, expected: list((int, bool))) => {
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let actual_by_line = get_samples(code);
+      List.iter(
+        ((line, expected_is_value)) => {
+          let samples =
+            IntMap.find_opt(line, actual_by_line)
+            |> Option.value(~default=[]);
+          check(
+            bool,
+            Printf.sprintf("Line %d has samples", line),
+            true,
+            samples != [],
+          );
+          List.iter(
+            (s: Sample.t) =>
+              check(
+                bool,
+                Printf.sprintf("Line %d is_value", line),
+                expected_is_value,
+                ValueChecker.is_value(s.value),
+              ),
+            samples,
           );
         },
         expected,
@@ -578,6 +620,60 @@ in ^^probe(b + 1)|},
   3
 ])|},
     [(2, ["1"]), (1, ["[1, 2]"]), (0, ["[[1, 2], 3]"])],
+  ),
+];
+
+/* Whether a sample is a value decides the probe's indet styling. Environment
+   mode wraps every finished subform, so a stuck result inside a container
+   arrives as a closure nested in the container, not as a bare container:
+   `[if ? then 1 else 2]` samples
+   `Closure(env, ListLit([Closure(env, If ? then 1 else 2)]))`. Asking only
+   about the sample's own closure mistakes that for a finished list. */
+let value_styling_tests = [
+  probe_value_styling_test(
+    "a finished value is a value",
+    {|^^probe(1 + 2)|},
+    [(0, true)],
+  ),
+  probe_value_styling_test(
+    "a function is a value",
+    {|^^probe(fun x -> x)|},
+    [(0, true)],
+  ),
+  probe_value_styling_test(
+    "a list of finished values is a value",
+    {|^^probe([1, 2, 3])|},
+    [(0, true)],
+  ),
+  probe_value_styling_test(
+    "a tuple of finished values is a value",
+    {|^^probe((1, 2))|},
+    [(0, true)],
+  ),
+  probe_value_styling_test(
+    "a tuple holding a stuck case is not a value",
+    {|^^probe((1, case ? | 1 => 2 end))|},
+    [(0, false)],
+  ),
+  probe_value_styling_test(
+    "a list holding a stuck if is not a value",
+    {|^^probe([if ? then 1 else 2])|},
+    [(0, false)],
+  ),
+  probe_value_styling_test(
+    "a tuple holding a stuck if is not a value",
+    {|^^probe((1, (if ? then 1 else 2)))|},
+    [(0, false)],
+  ),
+  probe_value_styling_test(
+    "a nested list holding a stuck if is not a value",
+    {|^^probe([[if ? then 1 else 2]])|},
+    [(0, false)],
+  ),
+  probe_value_styling_test(
+    "a list of functions is a value",
+    {|^^probe([fun x -> x, fun y -> y])|},
+    [(0, true)],
   ),
 ];
 
@@ -1334,6 +1430,7 @@ let tests = [
   ("Evaluator.Probes.Compound", compound_expression_tests),
   ("Evaluator.Probes.Patterns", pattern_probe_tests),
   ("Evaluator.Probes.Nested", nested_probe_tests),
+  ("Evaluator.Probes.ValueStyling", value_styling_tests),
   ("Evaluator.Probes.Recursion", recursion_tests),
   ("Evaluator.Probes.Ascription", ascription_tests),
   ("Evaluator.Probes.DuplicatePrevention", duplicate_prevention_tests),
