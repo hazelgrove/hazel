@@ -203,7 +203,7 @@ let diff_tests = (
       QCheck.Test.make(
         ~name="diff identity",
         ~count=1000,
-        QCheck_Util.arb_typ(~minimal_idents=true, 7),
+        QCheck_Util.arb_typ_full(~minimal_idents=true, 5),
         typ =>
         Typ.diff(typ, typ) == []
       ),

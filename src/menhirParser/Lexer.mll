@@ -16,6 +16,19 @@ let pop_delim () =
 let semi_token () =
   match !delim_stack with '{' :: _ -> MOD_SEMI | _ -> SEMI_COLON
 
+(* Keywords matched after lexing an identifier rather than as rules of their
+   own: one more literal rule per keyword overflows ocamllex's transition
+   table now that names span UTF-8. Same result, since a rule-level keyword
+   only wins at equal length and longest match still lexes `theorems` as a
+   name. *)
+let ident_or_keyword = function
+  | "undefined" -> UNDEF
+  | "theorem" -> THEOREM
+  | "forall" -> FORALL
+  | "proof_object" -> PROOF_OBJECT
+  | "proof_of" -> PROOF_OF
+  | i -> IDENT i
+
 let advance_line lexbuf =
   let pos = lexbuf.lex_curr_p in
   let pos' = { pos with
@@ -102,10 +115,15 @@ let projector_invoke = "^^" ['a'-'z' 'A'-'Z' '0'-'9' '_']+
    `^é` is a livelit in the editor, so it must be one token here too. *)
 let livelit_ident = '^' name_start name_rest*
 let comment = '#' [^ '#' '\n']* '#'
+(* Face-shaped invalid tiles (same set as AST.invalid_token_examples).
+   Exact matches so Menhir can round-trip MakeTerm Invalids; longest-match
+   keeps these ahead of `?`/`_`/`o`/unknown `^`. *)
+let invalid_face =
+  "^o^" | "^_^" | "^w^" | "o^o" | "?_?" | "$_$"
 
 rule token = 
     parse 
-    | "undef" { UNDEF}
+    | invalid_face as s { INVALID s }
     | whitespace {token lexbuf }
     | comment { token lexbuf }
     | newline { advance_line lexbuf; token lexbuf}
@@ -214,7 +232,7 @@ rule token =
     | "named_fun" {NAMED_FUN}
     | "poly" {POLY}
     | "rec" {REC}
-    | identifier as i { IDENT(i) }
+    | identifier as i { ident_or_keyword i }
     | constructor_ident as i { CONSTRUCTOR_IDENT(i)}
     | eof { EOF }
     | _ { raise (Failure ("Lex error: unknown char: '" ^ Lexing.lexeme lexbuf ^ "'")) }

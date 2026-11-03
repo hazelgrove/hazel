@@ -42,6 +42,7 @@ let (suite, exit_with_test_status) =
       Test_HazelJson_JsonADT.tests,
       Test_PatternMatch.tests,
       Test_Equality.tests,
+      Test_Canonicalize.tests,
       Test_Substitution.tests,
     ]
     @ Test_Unicode.tests
@@ -100,6 +101,7 @@ let (suite, exit_with_test_status) =
       Test_ObsTraceShadow.tests,
       Test_ObsBench.tests,
       Test_Ascriptions.tests,
+      Test_ValueChecker.tests,
       Test_PerfBudgets.tests,
     ]
     @ [Test_GradingReport.tests]

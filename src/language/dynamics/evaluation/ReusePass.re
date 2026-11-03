@@ -63,9 +63,8 @@ let rec reuse_pass_for =
   | None =>
     let (req_stream, rule) =
       ReusePassTransition.transition(
-        (~in_closure=?, _env, child) => {
-          ignore(in_closure);
-          (reuse_pass_for(~prev, ~eval_info, ~reuse_map, child), Indet);
+        (_env, child) => {
+          (reuse_pass_for(~prev, ~eval_info, ~reuse_map, child), Indet)
         },
         ~mode=`Environment,
         ~targets=eval_info.targets,

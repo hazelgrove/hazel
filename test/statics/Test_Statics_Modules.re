@@ -621,9 +621,71 @@ let test_type_alias_shadowing_nested_module =
     Some(string()),
   );
 
+/* A bare expression item shares its ids with its expression, so the item's
+   lowered `let` must not record its info there: the expression keeps the
+   type and errors it has outside a module. */
+let bare_item_info_matches_standalone = (name, item_src) =>
+  Alcotest.test_case(
+    name,
+    `Quick,
+    () => {
+      let module_e = parse_exp("{ " ++ item_src ++ " }");
+      let e =
+        switch (module_e.term) {
+        | Module([{term: ModExp(e), _}]) => e
+        | _ => Alcotest.fail("expected a module with one expression item")
+        };
+      let standalone = parse_exp(item_src);
+      let in_module = statics(module_e);
+      let alone = statics(standalone);
+      let info_at = (m, e) =>
+        switch (Language.Statics.Map.lookup(Language.Exp.rep_id(e), m)) {
+        | Some(info) => info
+        | None => Alcotest.fail("no info for the expression")
+        };
+      Alcotest.check(
+        testable_issue,
+        "same errors as outside a module",
+        Marks(Language.Info.marks_of(info_at(alone, standalone))),
+        Marks(Language.Info.marks_of(info_at(in_module, e))),
+      );
+      Alcotest.check(
+        testable_typ,
+        "same type as outside a module",
+        Option.get(
+          Language.Statics.Map.ty_of(Language.Exp.rep_id(standalone), alone),
+        ),
+        Option.get(
+          Language.Statics.Map.ty_of(Language.Exp.rep_id(e), in_module),
+        ),
+      );
+    },
+  );
+
+let test_bare_item_unbound_var =
+  bare_item_info_matches_standalone(
+    "Bare expression item keeps its unbound-variable error",
+    "x",
+  );
+
+let test_bare_item_bad_ascription =
+  bare_item_info_matches_standalone(
+    "Bare expression item keeps its ascription error",
+    "1 : Bool",
+  );
+
+let test_bare_item_ok =
+  bare_item_info_matches_standalone(
+    "Bare expression item keeps its own type",
+    "1 + 1",
+  );
+
 let tests = (
   "Statics.Modules",
   [
+    test_bare_item_unbound_var,
+    test_bare_item_bad_ascription,
+    test_bare_item_ok,
     /* Well-typed tests (Sections A, B) */
     test_empty_module,
     test_single_binding,

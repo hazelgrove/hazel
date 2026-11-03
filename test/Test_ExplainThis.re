@@ -25,7 +25,7 @@ let qcheck_explainthis_does_not_crash =
   QCheck.Test.make(
     ~name="ExplainThis.decide does not crash",
     ~count=1000,
-    QCheck_Util.arb_exp(~minimal_idents=true, 12),
+    QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
     exp => {
     /* Statics failures are out of scope; we only assert that ExplainThis
        itself does not raise for any sub-term it is asked to document. The
@@ -196,8 +196,9 @@ let doc_fingerprint = (src: string): string => {
 };
 
 /* Each entry is chosen so that its root, plus the sub-terms it contains,
-   exercise a doc form the refactor touches. Hand-written because
-   AST.gen_exp_sized cannot produce Asc, SInt/Nat, module forms or pipelines. */
+   exercise a doc form the refactor touches. Hand-written so the golden output
+   stays deterministic; the full-syntax generator drives the crash-freedom
+   property above instead. */
 let corpus = [
   ("fun-var", "fun x -> x"),
   ("fun-parens-var", "fun (x) -> x"),
@@ -474,11 +475,11 @@ x:(a) => TypAnnPat colorings=[a,x]|},
   ),
   (
     "fun-tuplabel",
-    {|(x=y) => TuplePat colorings=[]
+    {|(x=y) => LabeledPat colorings=[`x`,y]
+(x=y) => TuplePat colorings=[]
 `x` => Label colorings=[]
 fun (x=y) -> y => (FunctionExp Base) colorings=[(x=y),y]
 fun (x=y) -> y => (FunctionExp TupLabel) colorings=[`x`,y,y]
-x=y => LabeledPat colorings=[`x`,y]
 y => VarExp colorings=[]
 y => VarPat colorings=[]|},
   ),
@@ -540,22 +541,22 @@ y => VarPat colorings=[]|},
   ),
   (
     "tuplabel-exp",
-    {|(x=1) => TupleExp colorings=[]
+    {|(x=1) => LabeledExp colorings=[1,`x`]
+(x=1) => TupleExp colorings=[]
 1 => IntExp colorings=[]
-`x` => Label colorings=[]
-x=1 => LabeledExp colorings=[1,`x`]|},
+`x` => Label colorings=[]|},
   ),
   (
     "dot",
-    {|(x=1, y=2) => Tuple2Exp colorings=[x=1,y=2]
+    {|(x=1) => LabeledExp colorings=[1,`x`]
+(x=1, y=2) => Tuple2Exp colorings=[(x=1),(y=2)]
 (x=1, y=2) => TupleExp colorings=[]
 (x=1, y=2).x => DotExp colorings=[(x=1, y=2),`x`]
+(y=2) => LabeledExp colorings=[2,`y`]
 1 => IntExp colorings=[]
 2 => IntExp colorings=[]
 `x` => Label colorings=[]
-`y` => Label colorings=[]
-x=1 => LabeledExp colorings=[1,`x`]
-y=2 => LabeledExp colorings=[2,`y`]|},
+`y` => Label colorings=[]|},
   ),
   (
     "cons-exp",
@@ -757,10 +758,38 @@ let golden_case = ((name, src)) =>
     },
   );
 
+/* PBT ExplainThis 0: `let 0 = _ in []`. The let/fun SInt-literal-pattern doc
+   templates used `%s` for the value while the doc formats it with `%d`, so
+   Scanf.format_from_string raised at runtime. */
+let get_all_docs = uexp => {
+  let info_map = statics(uexp);
+  Id.Map.iter(
+    (_id, info: Info.t) => {
+      let _ = ET.decide(~docs, Some(info));
+      ();
+    },
+    info_map,
+  );
+};
+
+let repro_sint_pattern_docs =
+  Alcotest.test_case(
+    "REPRO SInt literal pattern docs do not crash",
+    `Quick,
+    () => {
+      open IdTagged.FreshGrammar;
+      get_all_docs(
+        Exp.let_(Pat.sint(0), Exp.empty_hole(), Exp.list_lit([])),
+      );
+      get_all_docs(Exp.fn(Pat.sint(0), Exp.list_lit([]), None, None));
+    },
+  );
+
 let tests = (
   "ExplainThis",
   [
     QCheck_alcotest.to_alcotest(qcheck_explainthis_does_not_crash),
+    repro_sint_pattern_docs,
     Alcotest.test_case("negation labels re-kind by class", `Quick, () =>
       negation_labels()
     ),

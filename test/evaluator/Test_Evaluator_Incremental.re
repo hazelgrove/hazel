@@ -1022,13 +1022,16 @@ let c = {
 let test_tuple_elab_gives_distinct_tuplabel_ids = () => {
   let exp = parse_exp("let (()) = (a=B, a=false) in 0");
   let (_, elab) = statics_and_elab(exp);
+  /* The RHS keeps the parentheses the user wrote, so peel them. */
+  let rec tuple_elts = (e: Exp.t) =>
+    switch (e.term) {
+    | Parens(inner) => tuple_elts(inner)
+    | Tuple(elts) => elts
+    | _ => []
+    };
   let rhs_tuple_elts =
     switch (elab.term) {
-    | Let(_, rhs, _) =>
-      switch (rhs.term) {
-      | Tuple(elts) => elts
-      | _ => []
-      }
+    | Let(_, rhs, _) => tuple_elts(rhs)
     | _ => []
     };
   let ids = List.map(Exp.rep_id, rhs_tuple_elts);

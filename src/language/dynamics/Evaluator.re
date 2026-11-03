@@ -97,7 +97,6 @@ let rec evaluate =
           ~reused_ids: Id.Map.t(unit),
           ~eval_info: EvalInfo.t,
           // Call Stack
-          ~in_closure=?,
           ~call_stack: CallStack.t,
           ~delegations: list(delegation),
           // Inputs
@@ -150,21 +149,12 @@ let rec evaluate =
 
   // Fully evaluate all children and take this expression one step forward
   let eval_0_main =
-      (
-        ~reuse_map,
-        ~in_closure=?,
-        ~call_stack,
-        ~delegations,
-        ~state,
-        env,
-        exp: DHExp.t,
-      )
+      (~reuse_map, ~call_stack, ~delegations, ~state, env, exp: DHExp.t)
       : EvaluatorEVMode.result => {
     Eval.transition(
-      (~in_closure=?, env, child) =>
+      (env, child) =>
         evaluate(
           ~reuse_map,
-          ~in_closure?,
           ~call_stack,
           ~delegations,
           ~parent_state=state,
@@ -174,7 +164,6 @@ let rec evaluate =
         ),
       ~mode=`Environment,
       ~targets=eval_info.targets,
-      ~in_closure?,
       env,
       exp,
     );
@@ -182,31 +171,26 @@ let rec evaluate =
 
   // Do the above but also run side effects on state and stack
   let eval_1_effects =
-      (
-        ~reuse_map,
-        ~in_closure=?,
-        ~call_stack,
-        ~delegations,
-        ~state,
-        env,
-        exp: DHExp.t,
-      ) => {
+      (~reuse_map, ~call_stack, ~delegations, ~state, env, exp: DHExp.t) => {
     let.trampoline (is_finished, effects, kind, next) =
-      eval_0_main(
-        ~reuse_map,
-        ~in_closure?,
-        ~call_stack,
-        ~delegations,
-        ~state,
-        env,
-        exp,
-      );
+      eval_0_main(~reuse_map, ~call_stack, ~delegations, ~state, env, exp);
 
     let (call_stack, new_state) =
       EvaluatorState.update(eval_info, state^, call_stack, env, exp, effects);
 
     state := new_state;
     update_outbox_current(state^);
+
+    let env =
+      List.fold_left(
+        (env, effect) =>
+          switch (effect) {
+          | EvaluatorState.SetEnv(env) => env
+          | _ => env
+          },
+        env,
+        effects,
+      );
 
     /* Function bodies are not incremental-cache boundaries: we do not record
      * entries while inside a call stack, and reuse_check also refuses reuse
@@ -222,30 +206,21 @@ let rec evaluate =
         );
       };
 
-    Trampoline.return((is_finished, call_stack, body_reuse_map, kind, next));
+    Trampoline.return((
+      is_finished,
+      call_stack,
+      body_reuse_map,
+      kind,
+      env,
+      next,
+    ));
   };
 
   // Do the above but until the expression is final
   let eval_2_until_final =
-      (
-        ~reuse_map,
-        ~in_closure=?,
-        ~call_stack,
-        ~delegations,
-        ~state,
-        env,
-        exp: DHExp.t,
-      ) => {
-    let.trampoline (is_finished, call_stack, body_reuse_map, kind, next) =
-      eval_1_effects(
-        ~reuse_map,
-        ~in_closure?,
-        ~call_stack,
-        ~delegations,
-        ~state,
-        env,
-        exp,
-      );
+      (~reuse_map, ~call_stack, ~delegations, ~state, env, exp: DHExp.t) => {
+    let.trampoline (is_finished, call_stack, body_reuse_map, kind, env, next) =
+      eval_1_effects(~reuse_map, ~call_stack, ~delegations, ~state, env, exp);
 
     switch (is_finished) {
     | Final => Trampoline.return(next)
@@ -268,7 +243,6 @@ let rec evaluate =
         () =>
           evaluate(
             ~reuse_map=body_reuse_map,
-            ~in_closure?,
             ~call_stack,
             ~delegations,
             ~parent_state=state,
@@ -333,7 +307,6 @@ let rec evaluate =
     let.trampoline final_value =
       eval_2_until_final(
         ~reuse_map,
-        ~in_closure?,
         ~call_stack,
         ~delegations,
         ~state,
