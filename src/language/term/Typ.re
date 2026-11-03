@@ -1455,15 +1455,34 @@ let equal_up_to_aliases = (ctx: Ctx.t, a: t, b: t): bool => {
 let canonicalize = (ctx: Ctx.t, ty: t): t =>
   normalize(~expand=_ => false, ctx, ty);
 
+/* A signature item's closed form, or why it has none and binds nothing. */
+type sig_item_closed =
+  | Item(Sig.t)
+  /* Repeats an earlier member's name and kind; the first is the member. */
+  | Duplicate(Sig.member)
+  /* A `let` whose pattern names no member. */
+  | NotAName;
+
 /* An item of a signature as written, its closed form, and the context it is
    read in: the one outside the signature extended with the earlier members,
-   closed. An item that repeats an earlier member's name and kind, or a
-   `let` that names no member, has no closed form and binds nothing. */
+   closed. */
 type sig_item_scope = {
   written: Sig.t,
-  closed: option(Sig.t),
+  closed: sig_item_closed,
   ctx: Ctx.t,
 };
+
+/* The closed items of [scopes], as a closed signature. */
+let closed_of_scopes = (scopes: list(sig_item_scope)): ClosedSig.t(Sig.t) =>
+  scopes
+  |> List.filter_map((scope: sig_item_scope) =>
+       switch (scope.closed) {
+       | Item(item) => Some(item)
+       | Duplicate(_)
+       | NotAName => None
+       }
+     )
+  |> ClosedSig.of_items;
 
 /* [ty] with every signature in it closed: each member's type written in
    terms of the context outside its signature alone, so the members are
@@ -1508,9 +1527,7 @@ let rec close = (ctx: Ctx.t, ty: t): t => {
   };
 }
 and close_items = (ctx: Ctx.t, items: list(Sig.t)): ClosedSig.t(Sig.t) =>
-  sig_item_scopes(ctx, items)
-  |> List.filter_map(scope => scope.closed)
-  |> ClosedSig.of_items
+  closed_of_scopes(sig_item_scopes(ctx, items))
 /* The type an alias [tp] defined as [def] stands for: [def] closed with
    the alias's own name abstract, recursive if it mentions itself, bound
    then by [tp] itself so the `rec` binder is the alias's. */
@@ -1550,17 +1567,17 @@ and sig_item_scopes = (ctx: Ctx.t, items: list(Sig.t)): list(sig_item_scope) => 
         let (closed, seen, ctx_after) =
           switch (Sig.read_item(closed)) {
           | Member(m) when List.exists(Sig.same_kind(m), seen) => (
-              None,
+              Duplicate(m),
               seen,
               ctx,
             )
           | Member(m) => (
-              Some(closed),
+              Item(closed),
               [m, ...seen],
               extend_sig_item(ctx, closed),
             )
-          | Incomplete => (Some(closed), seen, ctx)
-          | NotAName => (None, seen, ctx)
+          | Incomplete => (Item(closed), seen, ctx)
+          | NotAName => (NotAName, seen, ctx)
           };
         /* A type member's name is in scope in its own definition; a value
            or module member's is not. */

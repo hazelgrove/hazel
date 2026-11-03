@@ -4570,45 +4570,34 @@ and utyp_to_info_map =
     add(~ty, m);
   | Sig(s) =>
     /* Written items scope sequentially, each read where the earlier ones
-       are bound closed; closed items are independent. The first item
-       declaring a name and kind is the member; a later one is marked and
-       binds nothing, as is a `let` whose pattern is not a name. */
+       are bound closed; closed items are independent. An item that binds
+       nothing is marked where it is written. */
+    let marks = (closed: Typ.sig_item_closed): list(Mark.t) =>
+      switch (closed) {
+      | Item(_) => []
+      | Duplicate(member) => [SigDuplicateMember(member)]
+      | NotAName => [SigLetNotAName]
+      };
     let (scoped, ty) =
       switch (s) {
       | Open(items) =>
         let scopes = Typ.sig_item_scopes(ctx, items);
         (
           List.map(
-            (scope: Typ.sig_item_scope) => (scope.ctx, scope.written),
+            (scope: Typ.sig_item_scope) =>
+              (scope.ctx, scope.written, marks(scope.closed)),
             scopes,
           ),
-          Sig(
-            Closed(
-              scopes
-              |> List.filter_map((scope: Typ.sig_item_scope) => scope.closed)
-              |> ClosedSig.of_items,
-            ),
-          )
-          |> rewrap,
+          Sig(Closed(Typ.closed_of_scopes(scopes))) |> rewrap,
         );
       | Closed(items) => (
-          List.map(item => (ctx, item), ClosedSig.items(items)),
+          List.map(item => (ctx, item, []), ClosedSig.items(items)),
           Typ.close(ctx, utyp),
         )
       };
-    let (_, m) =
+    let m =
       List.fold_left(
-        ((seen, m), (ctx, item: Sig.t)) => {
-          let (marks, seen) =
-            switch (Sig.read_item(item)) {
-            | Member(member) when List.exists(Sig.same_kind(member), seen) => (
-                [Mark.SigDuplicateMember(member)],
-                seen,
-              )
-            | Member(member) => ([], [member, ...seen])
-            | Incomplete => ([], seen)
-            | NotAName => ([Mark.SigLetNotAName], seen)
-            };
+        (m, (ctx, item, marks)) => {
           let (_, _, m) =
             sig_to_info_map(
               ~ctx,
@@ -4617,9 +4606,9 @@ and utyp_to_info_map =
               item,
               m,
             );
-          (seen, m);
+          m;
         },
-        ([], m),
+        m,
         scoped,
       );
     add(~ty, m);
