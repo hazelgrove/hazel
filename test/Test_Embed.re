@@ -47,6 +47,9 @@ let messages = (ms: list(EmbedModel.Outbox.message)): list(string) =>
       | Ready(_) => "ready"
       | Size(h) => "size " ++ string_of_int(h)
       | Status(_) => "status"
+      | Caret(_) => "caret"
+      | Goto(_) => "goto"
+      | Edited(_) => "edited"
       | Crash(_) => "crash"
       },
     ms,
