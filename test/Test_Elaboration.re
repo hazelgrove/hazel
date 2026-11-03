@@ -763,7 +763,11 @@ in 1|},
     test_case("Adds a label to a wide tuple", `Quick, () =>
       alco_check(
         "Wide tuple becomes the labeled field",
-        Exp.(tuple([tup_label(label("a"), parens(tuple([int(1), int(2)])))])),
+        Exp.(
+          tuple([
+            tup_label(label("a"), parens(tuple([int(1), int(2)]))),
+          ])
+        ),
         DHExp.strip_ascriptions(
           dhexp_of_uexp(parse_exp({|(1, 2) : (a=(Int, Int))|})),
         ),

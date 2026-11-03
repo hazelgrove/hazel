@@ -352,16 +352,10 @@ let common_ok_view =
     | (Exp(EmptyHole), Syn(_)) => [text("Fillable by any expression")]
     | (Pat(EmptyHole), Syn(_)) => [text("Fillable by any pattern")]
     | (Exp(EmptyHole), Ana(Consistent({ana, _}))) =>
-      [
-        text("Fillable by any expression of type"),
-        view_type(ana),
-      ]
+      [text("Fillable by any expression of type"), view_type(ana)]
       @ inserted_label_note
     | (Pat(EmptyHole), Ana(Consistent({ana, _}))) =>
-      [
-        text("Fillable by any pattern of type"),
-        view_type(ana),
-      ]
+      [text("Fillable by any pattern of type"), view_type(ana)]
       @ inserted_label_note
     | (_, Syn(syn)) =>
       switch (syn.term) {

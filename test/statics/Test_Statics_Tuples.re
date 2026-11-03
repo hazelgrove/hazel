@@ -433,9 +433,7 @@ let tests = (
     fully_consistent_typecheck(
       "Wide tuple lifted into a singleton label",
       {|let x : (a=(Int, Int)) = (1, 2) in x|},
-      Some(
-        prod([tup_label(label("a"), parens(prod([int(), int()])))]),
-      ),
+      Some(prod([tup_label(label("a"), parens(prod([int(), int()])))])),
     ),
     /* A hole can still be filled by a labeled value, so it keeps the whole
        singleton as its type instead of being labeled now. */
