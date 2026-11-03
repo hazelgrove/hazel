@@ -55,7 +55,7 @@ and exp_term('a) =
   | FixF(pat_t('a), exp_t('a), option(Environment.t(exp_t('a))))
   | TyAlias(tpat_t('a), typ_t('a), exp_t('a))
   | Use(typ_t('a), exp_t('a))
-  | Ap(Operators.ap_direction, exp_t('a), exp_t('a))
+  | Ap(Operators.direction, exp_t('a), exp_t('a))
   | TypAp(exp_t('a), typ_t('a))
   | DeferredAp(exp_t('a), list(exp_t('a)))
   | If(exp_t('a), exp_t('a), exp_t('a))

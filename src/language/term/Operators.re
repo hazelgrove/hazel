@@ -107,7 +107,7 @@ let numeric_bin_op = (cls: Atom.cls, op: op_bin_num): option(op_bin) =>
   };
 
 [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
-type ap_direction =
+type direction =
   | Forward
   | Reverse;
 
