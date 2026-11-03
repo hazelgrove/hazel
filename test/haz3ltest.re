@@ -37,6 +37,7 @@ let (suite, exit_with_test_status) =
       Test_Undo.tests,
       Test_OpenMember.tests,
       Test_UndoCaches.tests,
+      Test_UndoSpace.tests,
       Test_UndoStatics.tests,
       Test_StaticsTiming.tests,
       Test_EditCaches.tests,
