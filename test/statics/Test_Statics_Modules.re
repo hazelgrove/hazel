@@ -716,9 +716,44 @@ let test_bare_item_ok =
     "1 + 1",
   );
 
+/* Lowering a module adds patterns of its own (a `_` for an expression or
+   hole item, a signature's ascription); like the rest of an elaboration,
+   their ids are the same on every statics run. */
+let test_lowering_ids_persist =
+  Alcotest.test_case(
+    "Module lowering gives the same ids on every run", `Quick, () =>
+    List.iter(
+      src => {
+        let e =
+          switch (Haz3lcore.Parser.to_term(src, ~root=Exp)) {
+          | Some(e) => e
+          | None => Alcotest.fail("Failed to parse " ++ src)
+          };
+        /* Statics.mk is memoized, so run the uncached analysis. */
+        let info_ids = () => {
+          let (_, _, m) =
+            Language.Statics.uexp_to_info_map(
+              ~ctx=Language.Builtins.ctx_init(Some(Int)),
+              ~ancestors=[],
+              e,
+              Language.Id.Map.empty,
+            );
+          Language.Id.Map.bindings(m) |> List.map(fst);
+        };
+        Alcotest.check(Alcotest.bool, src, true, info_ids() == info_ids());
+      },
+      [
+        "{ 1; let x = 2 }",
+        "{ ?; let y = 1 }",
+        "let m : {let x : Int} = { let x = 1 } in m",
+      ],
+    )
+  );
+
 let tests = (
   "Statics.Modules",
   [
+    test_lowering_ids_persist,
     test_bare_item_unbound_var,
     test_bare_item_bad_ascription,
     test_bare_item_ok,

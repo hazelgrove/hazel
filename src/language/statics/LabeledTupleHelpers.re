@@ -39,13 +39,21 @@ let autolabel_singleton_pat =
       m,
     ) => {
   let (term, rewrap) = Pat.unwrap(upat);
-  let original_pattern = Pat.fresh(term);
+  /* The lifted pattern and its field are recorded in the info map, so their
+     ids derive from the pattern's own: the same on every run, so the
+     incremental cache can hit them (cf. `autolabel_singleton_tuple`). */
+  let derived = (salt, term: Pat.term): Pat.t =>
+    IdTagged.derived(~salt="autolabel:" ++ salt, Pat.rep_id(upat), term);
+  let original_pattern = derived("value", term);
   let (original_info: Info.pat, _, m) =
     analyze_original(~ana=inner_ty, original_pattern, m);
   let elaborated_pat =
     rewrap(
       Tuple([
-        TupLabel(Label(label) |> Pat.fresh, original_pattern) |> Pat.fresh,
+        derived(
+          "field",
+          TupLabel(derived("label", Label(label)), original_pattern),
+        ),
       ]),
     );
   let (info: Info.pat, pat_elab, m) =
