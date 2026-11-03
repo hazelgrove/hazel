@@ -389,6 +389,100 @@ let elab_ids_drifting =
   drifted @ no_entry;
 };
 
+/* Every id anywhere in a term, not just its root. A synthesized wrapper deep
+   inside an elaboration (`Exp.fresh` on a label or on a `TupLabel`) drifts
+   between runs even when the entry's root is a source id. `map_term` walks
+   every constructor, so this needs no hand-written traversal to keep in
+   step with the grammar. */
+let ids_in_term = (e: Language.Exp.t): list(Id.t) => {
+  let acc = ref([]);
+  let collect = (cont, term) => {
+    acc := IdTagged.ids(term) @ acc^;
+    cont(term);
+  };
+  let _ = Exp.map_term(~f_exp=collect, ~f_pat=collect, ~f_typ=collect, e);
+  acc^;
+};
+
+let ids_in_pat = (p: Language.Pat.t): list(Id.t) => {
+  let acc = ref([]);
+  let collect = (cont, term) => {
+    acc := IdTagged.ids(term) @ acc^;
+    cont(term);
+  };
+  let _ = Pat.map_term(~f_exp=collect, ~f_pat=collect, ~f_typ=collect, p);
+  acc^;
+};
+
+let ids_in_typ = (t: Language.Typ.t): list(Id.t) => {
+  let acc = ref([]);
+  let collect = (cont, term) => {
+    acc := IdTagged.ids(term) @ acc^;
+    cont(term);
+  };
+  let _ = Typ.map_term(~f_exp=collect, ~f_pat=collect, ~f_typ=collect, t);
+  acc^;
+};
+
+/* Property: every id in every entry's elaborated term is present on both
+   runs. Stricter than `elab_ids_drifting`, which only looks at each root.
+   Patterns and types are checked too: label filling happens on the pattern
+   side as well, and a fresh id there drifts just as surely. */
+let elab_nested_ids_drifting =
+    (_: Statics.Map.t, exp: Language.Exp.t): list(string) => {
+  let all_ids = (m: Statics.Map.t): list(Id.t) =>
+    Id.Map.fold(
+      (_info_id, info, acc) =>
+        List.sort_uniq(
+          Id.compare,
+          (
+            switch (info) {
+            | Info.InfoExp({elab_term, _}) => ids_in_term(elab_term)
+            | Info.InfoPat({elab_term, _}) => ids_in_pat(elab_term)
+            | Info.InfoTyp({user_term, _}) => ids_in_typ(user_term)
+            | _ => []
+            }
+          )
+          @ acc,
+        ),
+      m,
+      [],
+    );
+  let first = all_ids(uncached_info_map(exp));
+  let second = all_ids(uncached_info_map(exp));
+  let missing = List.filter(id => !List.mem(id, second), first);
+  let extra = List.filter(id => !List.mem(id, first), second);
+  List.map(id => "only in first run: " ++ Id.to_string(id), missing)
+  @ List.map(id => "only in second run: " ++ Id.to_string(id), extra);
+};
+
+/* The generator emits the whole internal grammar, including constructors no
+   user can write. Those reach statics by paths the editor never takes, so
+   this property assumes them away rather than asking them to be
+   deterministic. Walks the entire term, not just the top. */
+let has_internal_syntax = (e: Language.Exp.t): bool => {
+  let found = ref(false);
+  let check = (cont, term) => {
+    switch ((IdTagged.term_of(term): Exp.term)) {
+    | LivelitName(_)
+    | Deferral(_)
+    | DeferredAp(_)
+    | Projector(_)
+    | Closure(_)
+    | ProofObject(_)
+    | DrvQuote(_)
+    | Module(_)
+    | ModuleExp(_)
+    | BuiltinFun(_)
+    | Undefined => found := true
+    | _ => ()
+    };
+    cont(term);
+  };
+  let _ = Exp.map_term(~f_exp=check, e);
+  found^;
+};
+
 let qcheck_elab_ids_persist =
   QCheck.Test.make(
     ~name="Elaboration ids are the same on every run",
@@ -405,6 +499,31 @@ let qcheck_elab_ids_persist =
     },
   );
 
+let qcheck_elab_nested_ids_persist =
+  QCheck.Test.make(
+    ~name="Every id in an elaboration is the same on every run",
+    ~count=2000,
+    QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
+    exp =>
+    has_internal_syntax(exp)
+      ? true
+      : (
+        switch (safe_statics(exp)) {
+        | `Skip => true
+        | `Ok(info_map, _) when Statics.Map.error_ids(info_map) != [] => true
+        | `Ok(_) =>
+          switch (elab_nested_ids_drifting(Statics.Map.empty, exp)) {
+          | [] => true
+          | violations =>
+            Alcotest.fail(
+              "Elaboration ids drift between runs:\n"
+              ++ String.concat("\n", violations),
+            )
+          }
+        }
+      )
+  );
+
 let parse = (src: string): Language.Exp.t =>
   switch (Haz3lcore.Parser.to_term(src, ~root=Exp)) {
   | Some(e) => e
@@ -413,6 +532,70 @@ let parse = (src: string): Language.Exp.t =>
 
 /* Long-mode counterexamples, pinned. */
 let regression_tests = [
+  Alcotest.test_case(
+    "Elaboration ids persist: (1, 2) : (a=Int, b=Int)", `Quick, () =>
+    check_no_violations(
+      ~violations=elab_ids_drifting,
+      ~show=show_elab_id_drift,
+      ~msg="every entry's elab_term is rooted at the same id on both runs",
+      parse("(1, 2) : (a=Int, b=Int)"),
+    )
+  ),
+  Alcotest.test_case(
+    "Nested elaboration ids persist: (1, 2) : (a=Int, b=Int)", `Quick, () =>
+    check_no_violations(
+      ~violations=elab_nested_ids_drifting,
+      ~show=msg => msg,
+      ~msg="every id in every elab_term is the same on both runs",
+      parse("(1, 2) : (a=Int, b=Int)"),
+    )
+  ),
+  Alcotest.test_case(
+    "Elaboration ids persist: (1, 2) : (b=Int, a=Int)", `Quick, () =>
+    check_no_violations(
+      ~violations=elab_ids_drifting,
+      ~show=show_elab_id_drift,
+      ~msg="every entry's elab_term is rooted at the same id on both runs",
+      parse("(1, 2) : (b=Int, a=Int)"),
+    )
+  ),
+  Alcotest.test_case(
+    "Elaboration ids persist: partially labelled tuple", `Quick, () =>
+    check_no_violations(
+      ~violations=elab_ids_drifting,
+      ~show=show_elab_id_drift,
+      ~msg="every entry's elab_term is rooted at the same id on both runs",
+      parse("(a=1, 2) : (a=Int, b=Int)"),
+    )
+  ),
+  Alcotest.test_case("Elaboration ids persist: singleton lift", `Quick, () =>
+    check_no_violations(
+      ~violations=elab_ids_drifting,
+      ~show=show_elab_id_drift,
+      ~msg="every entry's elab_term is rooted at the same id on both runs",
+      parse("(1, 2) : (a=(Int, Int))"),
+    )
+  ),
+  /* Elaborating the *pattern* side of a labeled-tuple ascription fills in
+     labels the same way the expression side does. */
+  Alcotest.test_case(
+    "Elaboration ids persist: labeled tuple pattern", `Quick, () =>
+    check_no_violations(
+      ~violations=elab_nested_ids_drifting,
+      ~show=msg => msg,
+      ~msg="every id in every elab_term is the same on both runs",
+      parse("case (1, 2) | (a, b) => 0 end : (a=Int, b=Int) -> Int"),
+    )
+  ),
+  Alcotest.test_case(
+    "Elaboration ids persist: singleton-lifted pattern", `Quick, () =>
+    check_no_violations(
+      ~violations=elab_nested_ids_drifting,
+      ~show=msg => msg,
+      ~msg="every id in every elab_term is the same on both runs",
+      parse("case (1, 2) | x => 0 end : (a=(Int, Int)) -> Int"),
+    )
+  ),
   /* A module item punning on its value's only label (`let y = (y=1)` binds
      `y : Int`) is typed the way its lowered `let` is: (y=Int). */
   Alcotest.test_case(
@@ -466,6 +649,7 @@ let tests = (
     QCheck_alcotest.to_alcotest(qcheck_elaboration_preserves_type),
     QCheck_alcotest.to_alcotest(qcheck_subexp_synthesis_agrees),
     QCheck_alcotest.to_alcotest(qcheck_elab_ids_persist),
+    QCheck_alcotest.to_alcotest(qcheck_elab_nested_ids_persist),
   ]
   @ regression_tests
   @ [self_referencing_module_binding_pin],

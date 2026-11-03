@@ -966,6 +966,16 @@ and uexp_to_info_map =
       let original_labels =
         List.map(e => Exp.match_tup_label(e) |> Option.map(fst), es);
 
+      /* Filling a label in from the expectation synthesizes syntax the user
+         did not write. Its ids are derived from the labelled value's own, so
+         they are the same on every run and the incremental cache can hit
+         them (see the same reasoning in `autolabel_singleton_tuple`). */
+      let autolabel = (salt, e: Exp.t, term: Exp.term): Exp.t =>
+        IdTagged.mk_internal(
+          [Id.derive(~salt="inferred-label:" ++ salt, Exp.rep_id(e))],
+          term,
+        );
+
       let (inferred_es, ana_tys) =
         MatchedTyp.prod(
           ctx,
@@ -980,7 +990,11 @@ and uexp_to_info_map =
           (name, (_, e)) =>
             (
               Some(name),
-              TupLabel(Label(name) |> Exp.fresh, e) |> Exp.fresh,
+              autolabel(
+                "field",
+                e,
+                TupLabel(autolabel("label", e, Label(name)), e),
+              ),
             ),
         );
       let es = List.map(snd, inferred_es);
@@ -1157,8 +1171,22 @@ and uexp_to_info_map =
               Exp.match_tup_label,
               ts,
               es_elab,
+              /* Reordering fills in labels the expectation supplied; those
+                 wrappers are recorded, so derive their ids from the element
+                 they wrap (see the tuple case above). */
               (label, body) =>
-              TupLabel(Label(label) |> Exp.fresh, body) |> Exp.fresh
+              IdTagged.derived(
+                ~salt="inferred-label:rearrange",
+                Exp.rep_id(body),
+                TupLabel(
+                  IdTagged.derived(
+                    ~salt="inferred-label:rearrange-label",
+                    Exp.rep_id(body),
+                    Label(label): Exp.term,
+                  ),
+                  body,
+                ): Exp.term,
+              )
             ),
           )
           |> rewrap
@@ -2237,7 +2265,12 @@ and uexp_to_info_map =
           let p_fix =
             switch (Pat.term_of(p_elab)) {
             | Asc(_) => p_elab
-            | _ => Asc(p_elab, ty_p_ana) |> Pat.fresh
+            | _ =>
+              IdTagged.derived(
+                ~salt="fixf-binder-ascription",
+                Pat.rep_id(p_elab),
+                Asc(p_elab, ty_p_ana): Pat.term,
+              )
             };
           /* Ascribe the body as the FixF rule does when it differs from the
              binder (`let x = fun y -> x`: `? -> (? -> ?)` against `? -> ?`),
@@ -2378,10 +2411,16 @@ and uexp_to_info_map =
       /* Ascribe only when it would change the body's type; wrapping
          unconditionally added an `Asc` layer per elaboration pass.
          `fast_equal` drops identity casts only, never a consistency cast
-         such as `?` => Int. */
+         such as `?` => Int. The wrapper is recorded in the info map, so its
+         id derives from the body it wraps: the same on every run. */
       let body_elab =
         Typ.fast_equal(e'.elab_syn_ty, p'.ty)
-          ? e_elab : Asc(e_elab, p'.ty) |> Exp.fresh;
+          ? e_elab
+          : IdTagged.derived(
+              ~salt="fixf-body-ascription",
+              Exp.rep_id(e_elab),
+              Asc(e_elab, p'.ty): Exp.term,
+            );
       let elab_term = FixF(p_elab, body_elab, env) |> rewrap;
       add(
         ~elab_term,
@@ -3440,7 +3479,18 @@ and upat_to_info_map =
           (name, (_, p)) =>
             (
               Some(name),
-              TupLabel(Label(name) |> Pat.fresh, p) |> Pat.fresh,
+              IdTagged.derived(
+                ~salt="inferred-label:field",
+                Pat.rep_id(p),
+                TupLabel(
+                  IdTagged.derived(
+                    ~salt="inferred-label:label",
+                    Pat.rep_id(p),
+                    Label(name): Pat.term,
+                  ),
+                  p,
+                ): Pat.term,
+              ),
             ),
         );
       let ps = List.map(snd, inferred_ps);

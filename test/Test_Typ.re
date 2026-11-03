@@ -609,4 +609,95 @@ let diff_tests = (
   ],
 );
 
-let tests = [meet_tests, fast_equal_tests, diff_tests];
+/* `is_more_precise` asks whether the meet of two types is the first of them.
+   `meet` resolves aliases, projections and wrapper noise as it recurses, so
+   its answer comes back normalized; the comparison has to be made in that
+   same form. These pin the cases where a raw comparison says a type is not
+   more precise than itself. */
+let is_more_precise_tests = (
+  "Typ.is_more_precise",
+  IdTagged.FreshGrammar.Typ.[
+    test_case(
+      "a type is more precise than itself",
+      `Quick,
+      () => {
+        let ctx = Builtins.ctx_init(None);
+        check(
+          Alcotest.bool,
+          "int",
+          true,
+          Typ.is_more_precise(ctx, int(), int()),
+        );
+        let labeled = () => prod([tup_label(label("a"), int())]);
+        check(
+          Alcotest.bool,
+          "labeled tuple",
+          true,
+          Typ.is_more_precise(ctx, labeled(), labeled()),
+        );
+      },
+    ),
+    /* The bug this guards: the meet is normalized, the argument was not. */
+    test_case(
+      "a parenthesized type is as precise as its body",
+      `Quick,
+      () => {
+        let ctx = Builtins.ctx_init(None);
+        check(
+          Alcotest.bool,
+          "(Int) vs Int",
+          true,
+          Typ.is_more_precise(ctx, parens(int()), int()),
+        );
+        check(
+          Alcotest.bool,
+          "Int vs (Int)",
+          true,
+          Typ.is_more_precise(ctx, int(), parens(int())),
+        );
+      },
+    ),
+    test_case(
+      "an alias is as precise as what it expands to",
+      `Quick,
+      () => {
+        let ctx =
+          Ctx.extend_alias(Builtins.ctx_init(None), "T", Id.mk(), int());
+        check(
+          Alcotest.bool,
+          "alias vs its expansion",
+          true,
+          Typ.is_more_precise(ctx, var("T"), int()),
+        );
+        check(
+          Alcotest.bool,
+          "expansion vs its alias",
+          true,
+          Typ.is_more_precise(ctx, int(), var("T")),
+        );
+      },
+    ),
+    test_case(
+      "a narrower type is more precise",
+      `Quick,
+      () => {
+        let ctx = Builtins.ctx_init(None);
+        let unknown = () => Typ.fresh(Unknown(Internal));
+        check(
+          Alcotest.bool,
+          "Int vs ?",
+          true,
+          Typ.is_more_precise(ctx, int(), unknown()),
+        );
+        check(
+          Alcotest.bool,
+          "? vs Int",
+          false,
+          Typ.is_more_precise(ctx, unknown(), int()),
+        );
+      },
+    ),
+  ],
+);
+
+let tests = [meet_tests, is_more_precise_tests, fast_equal_tests, diff_tests];

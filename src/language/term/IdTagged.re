@@ -132,6 +132,15 @@ let fresh_deterministic = (prev_id, term): t('a) => {
   annotation: IdTag.mk_internal([Id.next(prev_id)]),
 };
 
+/* Create a term whose id is derived from `base` under `salt`. For
+   internally-generated syntax that must be recorded in the info map: the id
+   is the same on every run, so the incremental evaluator can cache at it.
+   Distinct salts give independent ids from one base. */
+let derived = (~salt: string, base: Id.t, term: 'a): t('a) => {
+  term,
+  annotation: IdTag.mk_internal([Id.derive(~salt, base)]),
+};
+
 /* Create term with specific ids and empty secondary.
    Use for internally-generated terms that don't touch surface syntax. */
 let mk_internal = (ids: list(Id.t), term: 'a): t('a) => {
