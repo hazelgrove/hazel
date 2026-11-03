@@ -175,10 +175,7 @@ let value_exports = (items: list(Mod.t)): list(value_export) => {
 let labeled_tuple_exp =
     (~module_id: Id.t, exports: list(value_export)): Exp.t => {
   let mk = (salt, term: Exp.term): Exp.t =>
-    IdTagged.mk_internal(
-      [Id.derive(~salt="module-export:" ++ salt, module_id)],
-      term,
-    );
+    IdTagged.derived(~salt="module-export:" ++ salt, module_id, term);
   let fields =
     exports
     |> List.mapi(~f=(i, {name, _}) => {
@@ -293,7 +290,12 @@ let modlet_pat = (ana_labels: list((Var.t, Typ.t)), pat: Pat.t): Pat.t =>
   switch (Pat.strip_wrappers(pat).term) {
   | Var(name) =>
     switch (List.Assoc.find(ana_labels, name, ~equal=String.equal)) {
-    | Some(expected_type) => Pat.fresh(Asc(pat, expected_type))
+    | Some(expected_type) =>
+      IdTagged.derived(
+        ~salt="module-item-signature",
+        Pat.rep_id(pat),
+        Asc(pat, expected_type): Pat.term,
+      )
     | None => pat
     }
   | Invalid(_)
@@ -347,15 +349,20 @@ let wrap_item =
     IdTagged.fast_copy(wrapper_id(item), Exp.fresh(term));
   let item_exp = (term: Exp.term) =>
     IdTagged.fast_copy(Mod.rep_id(item), Exp.fresh(term));
+  let wild =
+    IdTagged.derived(
+      ~salt="module-item-wild",
+      Mod.rep_id(item),
+      Wild: Pat.term,
+    );
   switch (item.term) {
   | ModLet(pat, def) => wrap(Let(modlet_pat(ana_labels, pat), def, body))
   | ModType(tpat, typ) => wrap(TyAlias(tpat, typ, body))
-  | ModExp(e) => wrap(Let(Pat.fresh(Wild), e, body))
+  | ModExp(e) => wrap(Let(wild, e, body))
   | ModuleMod(mp, def) => wrap(Let(mpat_to_pat(mp), def, body))
-  | EmptyHole => wrap(Let(Pat.fresh(Wild), item_exp(EmptyHole), body))
-  | Invalid(s) => wrap(Let(Pat.fresh(Wild), item_exp(Invalid(s)), body))
-  | MultiHole(es) =>
-    wrap(Let(Pat.fresh(Wild), item_exp(MultiHole(es)), body))
+  | EmptyHole => wrap(Let(wild, item_exp(EmptyHole), body))
+  | Invalid(s) => wrap(Let(wild, item_exp(Invalid(s)), body))
+  | MultiHole(es) => wrap(Let(wild, item_exp(MultiHole(es)), body))
   };
 };
 
