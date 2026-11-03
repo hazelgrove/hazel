@@ -132,6 +132,25 @@ let fresh_deterministic = (prev_id, term): t('a) => {
   annotation: IdTag.mk_internal([Id.next(prev_id)]),
 };
 
+/* Where a node's ids come from. A node parsed from text takes the ids of
+   the tiles that print it. A node that elaboration or a parse fallback
+   makes up (a cast, the parens kept around a hole's argument) takes an id
+   derived from its source node's under a salt naming what it is: the same
+   on every run, so the info map and the incremental evaluator can key on
+   it, and distinct from its source's and from other salts'. It prints
+   under its source tile, if it prints at all.
+
+   A source with no id of its own (a term built with `temp`, which carries
+   `Id.invalid`) gives nothing to derive from: every node derived from one
+   would share an id, so each takes a fresh id instead. */
+let derived = (~salt: string, base: Id.t, term: 'a): t('a) => {
+  term,
+  annotation:
+    IdTag.mk_internal([
+      Id.equal(base, Id.invalid) ? Id.mk() : Id.derive(~salt, base),
+    ]),
+};
+
 /* Create term with specific ids and empty secondary.
    Use for internally-generated terms that don't touch surface syntax. */
 let mk_internal = (ids: list(Id.t), term: 'a): t('a) => {

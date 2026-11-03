@@ -11,7 +11,10 @@ open Language;
      it first, so they judge only terms a user can write.
    - Crash properties keep the raw generator: crashing on any term is a bug.
    - Id-keyed properties (elaboration ids, incremental evaluation) keep it
-     raw too: they compare a term's ids across runs, which any term exercises.
+     raw too: they compare a term's ids across runs, which any term
+     exercises. The nested-id property is the exception: it runs on
+     canonical terms, as a generated constructor's type payload drifts by
+     a path no user term takes.
    The nodes a rewrite adds take ids derived from the node they wrap, so a
    canonical term still has distinct ids, as a parsed one does. */
 

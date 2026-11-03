@@ -465,6 +465,41 @@ module PlainTests = {
       }
     });
   let tests = [
+    /* Terms built without source ids (`Exp.temp`) all carry the invalid
+       id; the nodes elaboration adds around them still need ids of their
+       own, or statics records them all under one. */
+    test_case(
+      "Elaborating terms without ids",
+      `Quick,
+      () => {
+        let temp =
+          Grammar.map_exp_annotation(
+            (_: IdTagged.IdTag.t) =>
+              IdTagged.IdTag.mk_internal([Id.invalid]),
+            Option.value_exn(
+              Haz3lcore.Parser.to_term("[1, ?, ?]", ~root=Exp),
+            ),
+          );
+        let (_, elab) =
+          Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), temp);
+        let ids = ref([]);
+        let _ =
+          Grammar.map_exp_annotation(
+            ({ids: these, _}: IdTagged.IdTag.t) => {
+              ids := these @ ids^;
+              IdTagged.IdTag.mk_internal(these);
+            },
+            elab,
+          );
+        let made = List.filter(ids^, ~f=id => !Id.equal(id, Id.invalid));
+        check(
+          int,
+          "distinct ids in " ++ Language.Exp.show(elab),
+          List.length(made),
+          List.length(List.dedup_and_sort(made, ~compare=Id.compare)),
+        );
+      },
+    ),
     test_case("Single integer", `Quick, single_integer),
     test_case("Empty hole", `Quick, empty_hole),
     test_case("Free variable", `Quick, free_var),
