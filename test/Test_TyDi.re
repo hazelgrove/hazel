@@ -96,6 +96,47 @@ let dot_label_tests = (
   ],
 );
 
+let entry_label_tests = (
+  "TyDi.EntryLabel",
+  [
+    tydi_test(
+      ~name="First entry of an expected labeled tuple",
+      ~code="let p : (width=Int, height=Int) = (wi¦",
+      ~expect=Some("dth="),
+    ),
+    tydi_test(
+      ~name="Unlabeled entry gets its inferred label over a builtin",
+      ~code="let p : (width=Int, height=Int) = (width=1, he¦",
+      ~expect=Some("ight="),
+    ),
+    tydi_test(
+      ~name="Labeled argument",
+      ~code="let f = fun (width=w, height=h) -> w in f(wi¦",
+      ~expect=Some("dth="),
+    ),
+    tydi_test(
+      ~name="Labeled tuple pattern",
+      ~code="case (abc=1, d=2) | (ab¦",
+      ~expect=Some("c="),
+    ),
+    tydi_test(
+      ~name="A labeled entry's value is not offered a label",
+      ~code="let p : (width=Int, height=Int) = (width=he¦",
+      ~expect=Some("ad"),
+    ),
+    tydi_test(
+      ~name="A label that needs backticks is not offered",
+      ~code="let p : (`wi dth`=Int) = (wi¦",
+      ~expect=None,
+    ),
+    tydi_accept_test(
+      ~name="Accept: the label and = are inserted",
+      ~code="let p : (width=Int, height=Int) = (width=1, he¦",
+      ~expect=Some("let p : (width=Int, height=Int) = (width=1, height=¦?"),
+    ),
+  ],
+);
+
 let variable_tests = (
   "TyDi.Variables",
   [
@@ -700,6 +741,7 @@ let ci_sort_tests = (
 
 let tests = [
   dot_label_tests,
+  entry_label_tests,
   variable_tests,
   constructor_tests,
   operand_tests,
