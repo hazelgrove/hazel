@@ -227,10 +227,77 @@ let request_steps = (name: string, text: string) => {
       )
     | None => Alcotest.fail(name ++ ": no numeral to retype")
     };
+  /* (^ticket(666), why the cut is redone) the top-level items of this
+     analysis against the last one's, by id: which are new objects */
+  let last: ref(option(DefStatics.t)) = ref(None);
+  let items_against_last = (ds: option(DefStatics.t)) =>
+    switch (last^, ds) {
+    | (Some(old), Some(ds)) =>
+      let olds =
+        List.map((it: DefStatics.item) => (it.d_id, it), old.items);
+      let (n, elab, hole, map) =
+        List.fold_left(
+          ((n, e, h, m), it: DefStatics.item) =>
+            switch (List.assoc_opt(it.d_id, olds)) {
+            | Some(o) => (
+                n + 1,
+                e + (o.d_elab === it.d_elab ? 0 : 1),
+                h + (o.d_hole == it.d_hole ? 0 : 1),
+                m + (o.d_map === it.d_map ? 0 : 1),
+              )
+            | None => (n, e, h, m)
+            },
+          (0, 0, 0, 0),
+          ds.items,
+        );
+      Printf.sprintf(
+        " | items %d (%d as before by id): a new elab %d, a new hole id %d, a new map %d",
+        List.length(ds.items),
+        n,
+        elab,
+        hole,
+        map,
+      );
+    | _ => ""
+    };
+  let recut = () => {
+    let reasons =
+      Hashtbl.fold(
+        (k, v, acc) => [(k, v), ...acc],
+        Web.EvalSplit.recut,
+        [],
+      )
+      |> List.sort(compare);
+    Hashtbl.reset(Web.EvalSplit.recut);
+    (
+      switch (Web.EvalSplit.went_whole^) {
+      | Some(why) => " | WHOLE: " ++ why
+      | None => ""
+      }
+    )
+    ++ (
+      reasons == []
+        ? ""
+        : " | cut again because: "
+          ++ String.concat(
+               ", ",
+               List.map(
+                 ((k, v)) => Printf.sprintf("%s %d", k, v),
+                 reasons,
+               ),
+             )
+    );
+  };
   let step = (label, ~reset, ~id, seg) => {
     let (st, statics) = timed(() => Pieces.statics_of(term_of(seg)));
+    let ds = DefStatics.cached(st.term);
+    let items = items_against_last(ds);
+    last := ds;
+    Hashtbl.reset(Web.EvalSplit.recut);
     let (cut, cut_new, plain, t_plain, shared, t_shared, t_worker, ok) =
       post_request(~reset, ~id, st);
+    let recut = recut();
+    Printf.printf("SHARE-WHY %s %s:%s%s\n%!", name, label, recut, items);
     Printf.printf(
       "SHARE-REQ %s %s: statics %.0f ms | cut %.1f ms, %d pieces cut anew | posted plain %d B %.1f ms | shared %d B %.1f ms | worker takes it in %.1f ms%s\n%!",
       name,
