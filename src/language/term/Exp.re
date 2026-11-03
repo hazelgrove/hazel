@@ -150,7 +150,13 @@ let rec rename_tvar = (~roots=true, x: string, x': string, e: t): t => {
           Let(pat(p), rename_tvar(~roots, x, x', def), scope(p, body))
           |> rewrap
         | Fun(p, body, ty, name) =>
-          Fun(pat(p), scope(p, body), ty, name) |> rewrap
+          Fun(
+            pat(p),
+            scope(p, body),
+            Option.map(Typ.rename_var(~roots, x, x'), ty),
+            name,
+          )
+          |> rewrap
         | FixF(p, body, env) => FixF(pat(p), scope(p, body), env) |> rewrap
         | Match(scrut, rules) =>
           Match(

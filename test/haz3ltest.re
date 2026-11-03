@@ -54,6 +54,7 @@ let (suite, exit_with_test_status) =
     @ Test_AgentControlFlow.tests
     @ [Test_AgentUX.tests]
     @ Test_ExpToSegment.all
+    @ Test_Exp.tests
     @ Test_Typ.tests
     @ Test_Mod.tests
     @ Test_Sig.tests
