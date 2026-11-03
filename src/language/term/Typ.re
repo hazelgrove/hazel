@@ -1127,12 +1127,36 @@ let path_sig = (ctx: Ctx.t, t: t): option(ClosedSig.t(Sig.t)) =>
   | exception Out_of_fuel => None
   };
 
+/* The signature [ty] is, if it is one, its items as they are. */
+let head_sig =
+    (ctx: Ctx.t, ty: t): option(Grammar.signature(IdTagged.IdTag.t)) =>
+  switch (term_of(head_type(ctx, ty))) {
+  | Sig(s) => Some(s)
+  | Unknown(_)
+  | Atom(_)
+  | DrvQuoteTy(_)
+  | Label(_)
+  | ExplicitNonlabel
+  | Var(_)
+  | ProofOf(_)
+  | Parens(_)
+  | Projector(_)
+  | List(_)
+  | Arrow(_)
+  | Prod(_)
+  | TupLabel(_)
+  | ProdProjection(_)
+  | ProdExtension(_)
+  | Sum(_)
+  | Rec(_)
+  | Poly(_)
+  | TypeMember(_) => None
+  };
+
 /* The items of [ty]'s signature, if it is one, each independent. */
 let as_sig = (ctx: Ctx.t, ty: t): option(ClosedSig.t(Sig.t)) =>
-  switch (term_of(head_type(ctx, ty))) {
-  | Sig(s) => Some(ClosedSig.of_items(resolved_items(s)))
-  | _ => None
-  };
+  head_sig(ctx, ty)
+  |> Option.map(s => ClosedSig.of_items(resolved_items(s)));
 
 /* The variable a type path (`m.T`, `m.P.T`) is rooted at. */
 let rec path_root = (ty: t): option(Var.t) =>
@@ -1189,7 +1213,7 @@ let would_capture = (ctx: Ctx.t, name: string): bool =>
   Option.is_some(Ctx.lookup_tvar(ctx, name))
   || (
     switch (Ctx.lookup_var(ctx, name)) {
-    | Some({typ, _}) => Option.is_some(as_sig(ctx, typ))
+    | Some({typ, _}) => Option.is_some(head_sig(ctx, typ))
     | None => false
     }
   )
@@ -1243,7 +1267,7 @@ let extend_ctx = (ctx: Ctx.t, entry: Ctx.entry): Ctx.t => {
   let root = name =>
     switch (Ctx.newest_tvar_or_var(ctx, name)) {
     | Some(`TVar(Ctx.Singleton(def))) => Some(def)
-    | Some(`Var({typ, _})) when Option.is_some(as_sig(ctx, typ)) =>
+    | Some(`Var({typ, _})) when Option.is_some(head_sig(ctx, typ)) =>
       Some(typ)
     | Some(`TVar(Ctx.Abstract))
     | Some(`Var(_))

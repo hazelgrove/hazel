@@ -1641,8 +1641,8 @@ and uexp_to_info_map =
           m,
         );
       let unknown = Unknown(Internal) |> Typ.temp;
-      switch (Typ.as_sig(ctx, info_e1.ty)) {
-      | Some(items) =>
+      switch (Typ.head_sig(ctx, info_e1.ty)) {
+      | Some(s) =>
         /* `m.x`: the module's value member x. A missing member, or a type
            member named as a value, is marked on the label; the dot carries
            the same as a message. Unless a hole item in the signature could
@@ -1668,11 +1668,7 @@ and uexp_to_info_map =
           };
         /* Read through the path, a member's type names the path's type
            members (`M.x : M.T`); otherwise each member stands alone. */
-        let members =
-          switch (path_of(e1_elab), Typ.head_type(ctx, info_e1.ty).term) {
-          | (Some(path), Sig(s)) => Typ.sig_members(~self=path, s)
-          | _ => Sig.members(ClosedSig.items(items))
-          };
+        let members = Typ.sig_members(~self=?path_of(e1_elab), s);
         let labels = Sig.value_names(members);
         let dot = (~marks=?, ~message=?, ~elab_syn_ty, child) =>
           dot(
@@ -1689,7 +1685,7 @@ and uexp_to_info_map =
           | Some(ty) =>
             label_child(~marks=[], ~elab_syn_ty=ty, labels, m)
             |> dot(~elab_syn_ty=ty)
-          | None when Sig.has_hole_item(ClosedSig.items(items)) =>
+          | None when Sig.has_hole_item(Sig.items(s)) =>
             label_child(~marks=[], ~elab_syn_ty=unknown, labels, m)
             |> dot(~elab_syn_ty=unknown)
           | None =>
