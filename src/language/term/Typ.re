@@ -1163,8 +1163,24 @@ let rec path_root = (ty: t): option(Var.t) =>
   switch (term_of(ty)) {
   | Var(root) => Some(root)
   | Parens(ty)
+  | Projector(_, ty)
   | ProdProjection(ty, _) => path_root(ty)
-  | _ => None
+  | Unknown(_)
+  | Atom(_)
+  | DrvQuoteTy(_)
+  | Label(_)
+  | ExplicitNonlabel
+  | ProofOf(_)
+  | List(_)
+  | Arrow(_)
+  | Prod(_)
+  | TupLabel(_)
+  | ProdExtension(_)
+  | Sum(_)
+  | Rec(_)
+  | Poly(_)
+  | Sig(_)
+  | TypeMember(_) => None
   };
 
 /* [ty] read outside the scope of the values [escaping] bind: a type path
@@ -1837,9 +1853,43 @@ let reduced_path = (ctx: Ctx.t, ty: t): option(t) =>
     switch (term_of(reduced)) {
     | ProdProjection(_)
     | ProdExtension(_) => None
-    | _ => Some(reduced)
+    | Unknown(_)
+    | Atom(_)
+    | DrvQuoteTy(_)
+    | Label(_)
+    | ExplicitNonlabel
+    | Var(_)
+    | ProofOf(_)
+    | Parens(_)
+    | Projector(_)
+    | List(_)
+    | Arrow(_)
+    | Prod(_)
+    | TupLabel(_)
+    | Sum(_)
+    | Rec(_)
+    | Poly(_)
+    | Sig(_)
+    | TypeMember(_) => Some(reduced)
     };
-  | _ => None
+  | Unknown(_)
+  | Atom(_)
+  | DrvQuoteTy(_)
+  | Label(_)
+  | ExplicitNonlabel
+  | Var(_)
+  | ProofOf(_)
+  | Parens(_)
+  | Projector(_)
+  | List(_)
+  | Arrow(_)
+  | Prod(_)
+  | TupLabel(_)
+  | Sum(_)
+  | Rec(_)
+  | Poly(_)
+  | Sig(_)
+  | TypeMember(_) => None
   };
 
 let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {

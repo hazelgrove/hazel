@@ -1664,7 +1664,51 @@ and uexp_to_info_map =
             |> Option.map(path =>
                  ProdProjection(path, Label(label) |> Typ.temp) |> Typ.temp
                )
-          | _ => None
+          | Dot(_)
+          | Invalid(_)
+          | EmptyHole
+          | MultiHole(_)
+          | DynamicErrorHole(_)
+          | Deferral(_)
+          | Undefined
+          | Atom(_)
+          | DrvQuote(_)
+          | ListLit(_)
+          | Constructor(_)
+          | Fun(_)
+          | TypFun(_)
+          | Tuple(_)
+          | Label(_)
+          | ExplicitNonlabel
+          | TupLabel(_)
+          | LivelitName(_)
+          | Let(_)
+          | Theorem(_)
+          | ProofObject(_)
+          | Forall(_)
+          | FixF(_)
+          | TyAlias(_)
+          | Use(_)
+          | Ap(_)
+          | TypAp(_)
+          | DeferredAp(_)
+          | If(_)
+          | Seq(_)
+          | Test(_)
+          | HintedTest(_)
+          | Filter(_)
+          | Closure(_)
+          | Projector(_)
+          | Cons(_)
+          | ListConcat(_)
+          | UnOp(_)
+          | BinOp(_)
+          | BuiltinFun(_)
+          | Match(_)
+          | TupleExtension(_)
+          | Asc(_)
+          | Module(_)
+          | ModuleExp(_) => None
           };
         /* Read through the path, a member's type names the path's type
            members (`M.x : M.T`); otherwise each member stands alone. */
@@ -2763,7 +2807,14 @@ and uexp_to_info_map =
                 [(name, i), ...List.remove_assoc(name, acc)],
                 i + 1,
               )
-            | _ => (acc, i + 1)
+            | ModType(_)
+            | ModLet(_)
+            | ModExp(_)
+            | ModuleMod(_)
+            | ModVal(_)
+            | Invalid(_)
+            | EmptyHole
+            | MultiHole(_) => (acc, i + 1)
             },
           ([], 0),
           items,
@@ -4461,7 +4512,6 @@ and utyp_to_info_map =
   | Atom(_)
   | Label(_)
   | Var(_)
-  /* never written; only closing makes one */
   | TypeMember(_) =>
     /* Names are resolved in this function's status rules */
     add(~ty=utyp, m)
