@@ -20,6 +20,7 @@ type atomic_form =
   | LLMHole
   | Wild
   | String
+  | RawString
   | QuotedLabel
   | IntLit
   | FloatLit

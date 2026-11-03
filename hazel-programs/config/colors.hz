@@ -115,6 +115,7 @@ let sort_plate(c) =
       `locked-cell` = role.`frame-border`,
       # findable aliases; each defaults to its place in the ramp #
       `string` = p.`attention-4`,
+      `string-escape` = wash(p.`success`, 0.82, 0.67),
       `comment` = p.`success-muted`,
       `selection` = p.`attention-2`,
       # the hues a token cycles through while an LLM is filling it, at #
