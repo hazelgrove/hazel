@@ -71,17 +71,8 @@ module Map = {
       Id.Set.singleton(binding_id),
     );
 
-  /* Find the binding site (where a name is introduced) for the term `ci`.
-   *
-   * In `let x = 1 in x + x`, the first `x` is the binding site and the
-   * other two are uses. Given either kind, this returns the id of the
-   * binding site:
-   *   - On a use, look up where that name was bound.
-   *   - On a binder (pattern var, type var, or a type name being
-   *     defined), the binder is its own binding site.
-   * Returns None for anything that isn't a name, e.g. `1` or `+`.
-   *
-   * Shared by var highlighting and "Go to Next Usage". */
+  /* The binding site of a name: where a use was bound, or the binder
+   * itself. None if `ci` isn't a name. */
   let binding_site_of = (ci: Info.t): option(Id.t) =>
     switch (Info.get_binding_site(ci)) {
     | Some(_) as b => b
@@ -110,14 +101,8 @@ module Map = {
       Id.Set.elements(ids_referencing_binding(m, binding_id))
     };
 
-  /* The ids of every use of the variable under the caret, for
-   * "Go to Next Usage" (Shift+F12).
-   *
-   * This is the same set var highlighting colors in, minus the binding
-   * site itself: jumping to the binding is already "Go to Definition"
-   * (F12), so here we only cycle through uses.
-   *
-   * The result is unordered; Move.re sorts it by position on screen. */
+  /* Ids of the uses of the name `ci` refers to or binds, excluding the
+   * binding site itself. Unordered. */
   let usage_ids = (m: t, ci: Info.t): list(Id.t) =>
     switch (binding_site_of(ci)) {
     | None => []
@@ -125,9 +110,7 @@ module Map = {
       ids_referencing_binding(m, binding_id)
       |> Id.Set.remove(binding_id)
       |> Id.Set.elements
-      /* One term can have several ids in the info map, but only one of
-       * them (its "representative" id) has an on-screen position. Keep
-       * only that one, so we can jump to it. */
+      /* Keep only each term's representative id, the one with a position */
       |> List.filter(id =>
            switch (lookup(id, m)) {
            | Some(info) => Id.equal(id, Info.id_of(info))

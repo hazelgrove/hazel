@@ -345,7 +345,7 @@ module Selection = {
         alt: Up,
         _,
       }
-        /* Shift+F12 is Go to Next Usage, handled in Keyboard.re */
+        /* Shift+F12 is Go to Next Usage */
         when Keyboard.is_f_key(key) && key != "F12" =>
       Some(Update.DebugConsole(key))
     | k =>
