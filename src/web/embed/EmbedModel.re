@@ -618,6 +618,9 @@ module Outbox = {
     | Caret(int)
     /* (^ticket(586)) a goto definition for another cell: the name, its count */
     | Goto(string, int)
+    /* (^ticket(682)) Ctrl+Z (false), or Ctrl+Shift+Z or Ctrl+Y (true: redo),
+       typed in an editable cell: the page keeps the history, and undoes */
+    | History(bool)
     | Crash(string);
 
   type sent = {

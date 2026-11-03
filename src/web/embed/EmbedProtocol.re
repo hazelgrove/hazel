@@ -200,6 +200,10 @@ let encode = (message: EmbedModel.Outbox.message): Js.Unsafe.any => {
         ("text", string(text)),
         ("edits", number(edits)),
       ]
+    | History(redo) => [
+        ("type", string("history")),
+        ("redo", Js.Unsafe.inject(Js.bool(redo))),
+      ]
     | Crash(message) => [
         ("type", string("crash")),
         ("message", string(message)),

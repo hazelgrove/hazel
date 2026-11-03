@@ -369,6 +369,42 @@ let go = () => {
     classes##add(Js.string("framed"));
   };
   listen("message", on_message(~link));
+  /* (^ticket(682)) the history's keys in an editable cell go to the page,
+     which keeps the history (the frame keeps none): Ctrl+Z (Cmd+Z on a Mac)
+     to undo, Ctrl+Shift+Z or Ctrl+Y to redo. Taken before the cell sees
+     them, and only once a page has asked for an editable cell. */
+  ignore(
+    Dom.addEventListener(
+      Dom_html.window,
+      Dom.Event.make("keydown"),
+      Dom.handler(event => {
+        let e = Js.Unsafe.inject(event);
+        let flag = name => Js.to_bool(Js.Unsafe.get(e, name));
+        let key =
+          switch (Js.Optdef.to_option(Js.Unsafe.get(e, "key"))) {
+          | Some(k) => String.lowercase_ascii(Js.to_string(k))
+          | None => ""
+          };
+        switch (link.editable, link.page_origin) {
+        | (Some(true), Some(target))
+            when
+              (flag("ctrlKey") || flag("metaKey"))
+              && !flag("altKey")
+              && (key == "z" || key == "y") =>
+          ignore(Js.Unsafe.meth_call(e, "preventDefault", [||]));
+          ignore(Js.Unsafe.meth_call(e, "stopPropagation", [||]));
+          EmbedLink.send(
+            link,
+            ~target,
+            History(key == "y" || flag("shiftKey")),
+          );
+          Js._false;
+        | _ => Js._true
+        };
+      }),
+      Js._true,
+    ): Dom.event_listener_id,
+  );
   /* an exception nothing else caught */
   listen("error", event =>
     crash(
