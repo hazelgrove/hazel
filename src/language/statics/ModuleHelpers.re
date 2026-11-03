@@ -253,7 +253,7 @@ let rekey_typ = (~salt: string, ty: Typ.t): Typ.t => {
         continue,
         {
           ...t,
-          term:
+          term: (
             Sum(
               List.map(
                 fun
@@ -269,7 +269,8 @@ let rekey_typ = (~salt: string, ty: Typ.t): Typ.t => {
                 | ConstructorMap.BadEntry(_) as v => v,
                 variants,
               ),
-            ),
+            ): Typ.term
+          ),
         },
       )
     | _ => f(continue, t)
