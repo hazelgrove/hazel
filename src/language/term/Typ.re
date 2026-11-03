@@ -1507,7 +1507,7 @@ let rec diff =
     List.map2(
       (e1, e2) => {
         let label_ids =
-          switch (e1) {
+          switch (e2) {
           | Grammar.Labeled(_, l, _)
               when
                 !
@@ -1533,7 +1533,7 @@ let rec diff =
     diff(~ctx?, t1, t2)
     @ (
       Option.equal(String.equal, Label.name(l1), Label.name(l2))
-        ? [] : Label.ids(l1)
+        ? [] : Label.ids(l2)
     )
   | (ProdProjection(_, _), _) => get_ids()
   | (ProdExtension(t1, t2), ProdExtension(t1', t2')) =>
