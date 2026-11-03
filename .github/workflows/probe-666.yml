@@ -1,0 +1,42 @@
+# (probe, ^ticket(666); not for merging) Runs only test/Test_SharingProbe.re,
+# so its numbers come from GitHub's runner and not from Matthew's laptop,
+# which crashes when a build and a test run stack up. The lines it prints go
+# to the job summary and to an artifact.
+name: Sharing probe
+
+on:
+  push:
+    branches: ["trial/666-*"]
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout the hazel repo
+        uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-hazel-toolchain
+
+      - name: Build the test runner
+        run: dune build test/haz3ltest.bc.js --profile dev
+
+      - name: Run the sharing probe
+        run: |
+          ulimit -s unlimited || ulimit -s 262144 || true
+          node --stack-size=65500 --require ./test/idb_stub.js \
+            _build/default/test/haz3ltest.bc.js test '^SharingProbe$' 2>&1 | tee probe.txt
+          {
+            echo '## Sharing probe'
+            echo '```'
+            grep '^SHARE' probe.txt || echo 'no SHARE lines'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sharing-probe
+          path: probe.txt
