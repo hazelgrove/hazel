@@ -223,13 +223,69 @@ let rec path_of_exp = (ctx: Ctx.t, e: Exp.t): option(Typ.t) =>
   | _ => None
   };
 
+/* [ty] again, with ids of its own: each derived from the old one by [salt]
+   (Id.derive), so the copy is the same on every analysis. An expected type
+   is the signature's own term, ids and all, and statics records infos for
+   an ascription's type under its ids: without a copy, every module checked
+   against one signature (every livelit definition, against `Livelit`)
+   records the same keys, so a key is in two definitions' maps, and
+   EvalSplit, whose count of keys then comes out over, sends the program
+   whole (^ticket(666)). The ids on a sum's variants, which the generic
+   traversal does not reach, are derived too. */
+let rekey_typ = (~salt: string, ty: Typ.t): Typ.t => {
+  let derive = ids => List.map(Id.derive(~salt), ids);
+  let f:
+    'a.
+    (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
+   =
+    (continue, x) =>
+      continue({
+        ...x,
+        annotation: {
+          ...x.annotation,
+          ids: derive(x.annotation.ids),
+        },
+      });
+  let f_typ = (continue, t: Typ.t) =>
+    switch (t.term) {
+    | Sum(variants) =>
+      f(
+        continue,
+        {
+          ...t,
+          term: (
+            Sum(
+              List.map(
+                fun
+                | ConstructorMap.Variant(c, ann, p) =>
+                  ConstructorMap.Variant(
+                    c,
+                    {
+                      ...ann,
+                      ids: derive(ann.ids),
+                    },
+                    p,
+                  )
+                | ConstructorMap.BadEntry(_) as v => v,
+                variants,
+              ),
+            ): Typ.term
+          ),
+        },
+      )
+    | _ => f(continue, t)
+    };
+  Typ.map_term(~f_exp=f, ~f_pat=f, ~f_typ, ~f_tpat=f, ~f_rul=f, ty);
+};
+
 /* Annotate each bare variable binder in a pattern with the type its
    signature expects, so a mismatch is reported on the definition (or on the
    component of a destructured definition) rather than on the module:
    `(a, b)` becomes `(a : Int, b : Int)`. A binder the user annotated keeps
    its annotation. The function shorthand `let f(x) = ...` is annotated at
    its name: the `Let` case of statics then desugars it as it does any other
-   shorthand. */
+   shorthand. The expected type is a copy with ids of its own
+   (rekey_typ). */
 let rec modlet_pat =
         (~stable=false, ana_labels: list((Var.t, Typ.t)), pat: Pat.t): Pat.t => {
   let go = modlet_pat(~stable, ana_labels);
@@ -244,7 +300,16 @@ let rec modlet_pat =
     | Var(name) =>
       switch (List.assoc_opt(name, ana_labels)) {
       | Some(expected_type) =>
-        let asc = Pat.fresh(Asc(pat, expected_type));
+        let asc =
+          Pat.fresh(
+            Asc(
+              pat,
+              rekey_typ(
+                ~salt="modlet-asc:" ++ Id.to_string(Pat.rep_id(pat)),
+                expected_type,
+              ),
+            ),
+          );
         stable
           ? IdTagged.fast_copy(
               Id.mk_str("modlet-asc:" ++ Id.to_string(Pat.rep_id(pat))),
