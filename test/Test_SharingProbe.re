@@ -208,6 +208,66 @@ let post_request = (~reset, ~id, st: Haz3lcore.CachedStatics.t) => {
   );
 };
 
+/* (^ticket(666)) why EvalSplit's count of keys fails ("pieces hold other
+   keys than the statics"): the statics' keys no top-level item's map
+   holds, and the items' keys the statics lack, each by its class, with
+   the commonest first */
+let unaccounted = (st: Haz3lcore.CachedStatics.t): string =>
+  switch (Haz3lcore.DefStatics.cached(st.term)) {
+  | None => " | no analysis to compare"
+  | Some(ds) =>
+    let held = Hashtbl.create(4096);
+    List.iter(
+      (it: Haz3lcore.DefStatics.item) =>
+        Language.Id.Map.iter(
+          (id, info) => Hashtbl.replace(held, id, info),
+          it.d_map,
+        ),
+      ds.items,
+    );
+    let tally = (pairs: list(Language.Info.t)) => {
+      let t = Hashtbl.create(16);
+      List.iter(
+        info => {
+          let k = Language.Cls.show(Language.Info.cls_of(info));
+          Hashtbl.replace(
+            t,
+            k,
+            1 + Option.value(Hashtbl.find_opt(t, k), ~default=0),
+          );
+        },
+        pairs,
+      );
+      Hashtbl.fold((k, v, acc) => [(v, k), ...acc], t, [])
+      |> List.sort((a, b) => compare(b, a))
+      |> Util.ListUtil.take(8)
+      |> List.map(((v, k)) => Printf.sprintf("%s %d", k, v))
+      |> String.concat(", ");
+    };
+    let missing =
+      Language.Id.Map.fold(
+        (id, info, acc) => Hashtbl.mem(held, id) ? acc : [info, ...acc],
+        st.info_map,
+        [],
+      );
+    let extra =
+      Hashtbl.fold(
+        (id, info, acc) =>
+          Language.Id.Map.mem(id, st.info_map) ? acc : [info, ...acc],
+        held,
+        [],
+      );
+    Printf.sprintf(
+      " | statics %d keys, items %d: in the statics, in no item: %d (%s); in an item, not the statics: %d (%s)",
+      Language.Id.Map.cardinal(st.info_map),
+      Hashtbl.length(held),
+      List.length(missing),
+      tally(missing),
+      List.length(extra),
+      tally(extra),
+    );
+  };
+
 let request_steps = (name: string, text: string) => {
   open Haz3lcore;
   let term_of = seg => MakeTerm.Incr.term_of_root(~root=Exp, seg);
@@ -297,7 +357,18 @@ let request_steps = (name: string, text: string) => {
     let (cut, cut_new, plain, t_plain, shared, t_shared, t_worker, ok) =
       post_request(~reset, ~id, st);
     let recut = recut();
-    Printf.printf("SHARE-WHY %s %s:%s%s\n%!", name, label, recut, items);
+    let keys =
+      Web.EvalSplit.went_whole^ != None
+      && (label == "first" || label == "edit")
+        ? unaccounted(st) : "";
+    Printf.printf(
+      "SHARE-WHY %s %s:%s%s%s\n%!",
+      name,
+      label,
+      recut,
+      items,
+      keys,
+    );
     Printf.printf(
       "SHARE-REQ %s %s: statics %.0f ms | cut %.1f ms, %d pieces cut anew | posted plain %d B %.1f ms | shared %d B %.1f ms | worker takes it in %.1f ms%s\n%!",
       name,
