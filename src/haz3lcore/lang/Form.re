@@ -161,11 +161,11 @@ let rows_of: family => list(row) =
     ]
   | Dot => [
       mk_infix(Exp, ~r=Label, P.dot),
-      mk_infix(Typ, ~r=Label, P.dot),
+      mk_infix(Typ, ~r=Label, P.type_dot),
       /* deliberately duplicated Typ row: `.` is offered twice as a
        * remold candidate at Typ (two historically distinct forms
        * whose molds coincide) */
-      mk_infix(Typ, ~r=Label, P.dot),
+      mk_infix(Typ, ~r=Label, P.type_dot),
       mk_infix(Drv(Exp), P.dot),
     ]
   | TupleExtension => [mk_infix(Exp, P.plus), mk_infix(Typ, P.ap)]

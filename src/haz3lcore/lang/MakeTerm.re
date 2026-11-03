@@ -1688,12 +1688,37 @@ and mpat_term: unsorted => TermBase.MPat.term = {
   | (Pre(_) | Post(_) | Bin(_)) as tm => ret(hole(tm));
 }
 
-and label = unsorted => {
-  let term = label_term(unsorted);
-  let lexeme = take_lexeme();
-  let ids = ids(unsorted);
-  return(l => Label(l), ~lexeme, ids, term);
-}
+and label = unsorted =>
+  switch (non_label(unsorted)) {
+  | Some(any) =>
+    /* The tiles belong to the term they form, which prints them back; the
+       label around it is not in the syntax */
+    IdTagged.fresh(Grammar.MultiHole([any]): TermBase.Label.term)
+  | None =>
+    let term = label_term(unsorted);
+    let lexeme = take_lexeme();
+    let ids = ids(unsorted);
+    return(l => Label(l), ~lexeme, ids, term);
+  }
+/* Something other than a single token in label position, such as `x + y`
+   or `[x]` left of a lone `=`, as the term of its kids' sort */
+and non_label = (unsorted): option(Any.t) =>
+  switch (unsorted) {
+  | Op(([(_, (F(Tok(_)), []))], [])) => None
+  | _ =>
+    switch (kids_of_unsorted(unsorted)) {
+    | [Exp(_), ..._] => Some(Exp(exp(unsorted)))
+    | [Pat(_), ..._] => Some(Pat(pat(unsorted)))
+    | [Typ(_), ..._] => Some(Typ(typ(unsorted)))
+    | []
+    | [
+        TPat(_) | Rul(_) | Drv(_) | Mod(_) | Sig(_) | MPat(_) | Label(_) |
+        Any(_),
+        ..._,
+      ] =>
+      None
+    }
+  }
 and label_term: unsorted => TermBase.Label.term = {
   let ret = (term: TermBase.Label.term) => term;
   let hole = unsorted => Label.hole(kids_of_unsorted(unsorted));

@@ -345,7 +345,7 @@ let external_precedence_typ = (tp: Typ.t) =>
   | Label(_)
   | ExplicitNonlabel
   | TupLabel(_) => Precedence.max
-  | ProdProjection(_) => Precedence.dot
+  | ProdProjection(_) => Precedence.type_dot
   | ProdExtension(_) => Precedence.ap
   // Same goes for forms which are already surrounded
   | Parens(_)
@@ -905,8 +905,8 @@ and parenthesize_typ =
     |> rewrap
   | ProdProjection(t1, t2) =>
     ProdProjection(
-      parenthesize_typ(t1) |> paren_typ_at(Precedence.dot),
-      parenthesize_typ(t2) |> paren_typ_at(Precedence.dot),
+      parenthesize_typ(t1) |> paren_typ_at(Precedence.type_dot),
+      parenthesize_typ(t2) |> paren_typ_at(Precedence.type_dot),
     )
     |> rewrap
   | ProdExtension(t1, t2) =>
