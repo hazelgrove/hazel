@@ -358,7 +358,7 @@ let toggle_multi =
 /* Definition forms (Let/Test): the unified probe action uses a multi probe (per-line expansion) rather than manual. */
 let is_definition_form = (id: Id.t, info_map: Statics.Map.t): bool =>
   switch (Statics.Map.lookup(id, info_map)) {
-  | Some(InfoExp({user_term: {term: Let(_, _, _), _}, _})) => true
+  | Some(InfoExp({user_term: {term: Let(_, _, _, _), _}, _})) => true
   | Some(InfoExp({user_term: {term: Test(_) | HintedTest(_, _), _}, _})) =>
     true
   | _ => false
@@ -469,7 +469,7 @@ let function_sugar_param_anchors =
       | [] => None
       | [anc_id, ...rest] =>
         switch (Statics.Map.lookup(anc_id, info_map)) {
-        | Some(InfoExp({user_term: {term: Let(pat, def, _), _}, _})) =>
+        | Some(InfoExp({user_term: {term: Let(_, pat, def, _), _}, _})) =>
           /* Anchor params only when def_id is THIS let's def (the fn body); if it's the `in` body (a call site) the params are someone else's. Stop at the first let either way. */
           if (Id.equal(def_id, IdTagged.rep_id(def))) {
             switch (FunctionSugar.detect(pat)) {

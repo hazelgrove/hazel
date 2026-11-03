@@ -816,25 +816,45 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           e2,
         )
 
-      | Let(p, e1, e2) =>
-        if (available^ < 3) {
-          available := available^ - ellipsis_cost;
-          Invalid(flat_ellipses);
-        } else if (available^ < 4) {
-          available := available^ - 3;
-          Invalid("let");
-        } else if (available^ < 6) {
-          available := available^ - 4;
-          Invalid("let…");
-        } else if (available^ < 7) {
-          available := available^ - 6;
-          Invalid("let…in");
-        } else if (available^ < 14) {
-          available := available^ - 7;
-          Invalid("let…in…");
+      | Let(dir, p, e1, e2) =>
+        /* Partial spellings with their costs, cheapest first, and the
+           delimiter overhead of the full form. */
+        let (partials, overhead) =
+          switch (dir) {
+          | Forward => (
+              [
+                (3, "let"),
+                (4, "let…"),
+                (6, "let…in"),
+                (7, "let…in…"),
+              ],
+              11 /* "let " + " = " + " in " */,
+            )
+          | Reverse => (
+              [
+                (5, "where"),
+                (6, "…where"),
+                (7, "…where…"),
+                (9, "…where…=…"),
+              ],
+              10 /* " where " + " = " */,
+            )
+          };
+        if (available^ < overhead + 3) {
+          switch (
+            ListUtil.last_opt(
+              List.filter(((cost, _)) => cost <= available^, partials),
+            )
+          ) {
+          | None =>
+            available := available^ - ellipsis_cost;
+            Invalid(flat_ellipses);
+          | Some((cost, partial)) =>
+            available := available^ - cost;
+            Invalid(partial);
+          };
         } else {
-          /* Full form: "let " (4) + p + " = " (3) + e1 + " in " (4) + e2 */
-          available := available^ - 11; /* 4 + 3 + 4 overhead */
+          available := available^ - overhead;
           let pool = available^;
           let budgets = AbbrevBudget.split_evenly(~total=pool, ~parts=3);
           let (p', _) =
@@ -849,8 +869,8 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
             AbbrevBudget.with_budget(~budget=List.nth(budgets, 2), ~run=() =>
               abbreviate_exp(e2)
             );
-          Let(p', e1', e2');
-        }
+          Let(dir, p', e1', e2');
+        };
 
       | Theorem(p, e1, e2) =>
         if (available^ < 3) {

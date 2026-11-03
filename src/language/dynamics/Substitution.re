@@ -46,9 +46,9 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
           FixF(p', in_exp(env', e), None) |> rewrap;
 
         // Cases with binders: remove binder from env
-        | Let(p, e1, e2) =>
+        | Let(dir, p, e1, e2) =>
           let (env', p') = in_pat(env, env, p);
-          Let(p', in_exp(env', e1), in_exp(env', e2)) |> rewrap;
+          Let(dir, p', in_exp(env', e1), in_exp(env', e2)) |> rewrap;
         | Match(e, cases) =>
           Match(
             in_exp(env, e),

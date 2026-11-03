@@ -6,6 +6,20 @@ let tests = (
     test_case("Inconsisent type ascription on let", `Quick, () =>
       parse_and_evaluate_test("(4 : String)", {|let x : String = 4  in x|})
     ),
+    test_case(
+      "where binds its pattern in the expression to its left", `Quick, () =>
+      parse_and_evaluate_test("3", {|x + 1 where x = 2|})
+    ),
+    test_case(
+      "where: inner binding visible to an outer definition", `Quick, () =>
+      parse_and_evaluate_test("6", {|x * 2 where x = y + 1 where y = 2|})
+    ),
+    test_case("where: recursive function sugar", `Quick, () =>
+      parse_and_evaluate_test(
+        "120",
+        {|fact(5) where fact(n: Int): Int = if n == 0 then 1 else n * fact(n - 1)|},
+      )
+    ),
     /* ===== Function-definition sugar evaluates correctly =====
        `let f(args) = body` must produce the same value as the explicit
        `let f = fun (args) -> body` form. */

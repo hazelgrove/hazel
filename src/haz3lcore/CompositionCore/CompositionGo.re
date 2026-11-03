@@ -29,7 +29,7 @@ module Local = {
       switch (node.info) {
       | InfoExp({user_term: term, _}) =>
         switch (Exp.term_of(term)) {
-        | Let(pat, def, body) =>
+        | Let(_, pat, def, body) =>
           switch (inner_term) {
           | Pat => Pat.rep_id(pat)
           | Def => Exp.rep_id(def)

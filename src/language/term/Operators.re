@@ -106,6 +106,9 @@ let numeric_bin_op = (cls: Atom.cls, op: op_bin_num): option(op_bin) =>
   | String => None
   };
 
+/* The written order of a two-sided form. Reverse writes the operand
+   that is otherwise last first: `x |> f` is Ap(Reverse, f, x), and
+   `body where p = def` is Let(Reverse, p, def, body). */
 [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
 type direction =
   | Forward

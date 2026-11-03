@@ -63,9 +63,9 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | Filter(kind, ebody) =>
     let ebody' = append_exp(ebody, e2);
     mk(Filter(kind, ebody'), e1);
-  | Let(p, edef, ebody) =>
+  | Let(dir, p, edef, ebody) =>
     let ebody' = append_exp(ebody, e2);
-    mk(Let(p, edef, ebody'), e1);
+    mk(Let(dir, p, edef, ebody'), e1);
   | Theorem(p, thm, ebody) =>
     let ebody' = append_exp(ebody, e2);
     mk(Theorem(p, thm, ebody'), e1);

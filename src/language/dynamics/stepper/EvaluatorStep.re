@@ -89,12 +89,12 @@ let rec matches =
       | Seq2(d1, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Seq2(d1, ctx) |> rewrap;
-      | Let1(d1, ctx, d3) =>
+      | Let1(dir, d1, ctx, d3) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        Let1(d1, ctx, d3) |> rewrap;
-      | Let2(d1, d2, ctx) =>
+        Let1(dir, d1, ctx, d3) |> rewrap;
+      | Let2(dir, d1, d2, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        Let2(d1, d2, ctx) |> rewrap;
+        Let2(dir, d1, d2, ctx) |> rewrap;
       | Theorem(dp, d1, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Theorem(dp, d1, ctx) |> rewrap;

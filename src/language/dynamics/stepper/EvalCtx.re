@@ -6,8 +6,8 @@ type term =
   | Filter(TermBase.StepperFilterKind.t, t)
   | Seq1(t, DHExp.t)
   | Seq2(DHExp.t, t)
-  | Let1(Pat.t, t, DHExp.t)
-  | Let2(Pat.t, DHExp.t, t)
+  | Let1(Operators.direction, Pat.t, t, DHExp.t)
+  | Let2(Operators.direction, Pat.t, DHExp.t, t)
   | Theorem(Pat.t, DHExp.t, t)
   | Fun(Pat.t, t, option(Typ.t), option(Var.t))
   | FixF(Pat.t, t, option(Environment.t(Exp.t)))
@@ -146,12 +146,12 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
     | MultiHole(ctx, (ld, rd)) =>
       let d = compose(ctx, d);
       MultiHole(ListUtil.rev_concat(ld, [Exp(d), ...rd])) |> wrap;
-    | Let1(dp, ctx, d2) =>
+    | Let1(dir, dp, ctx, d2) =>
       let d = compose(ctx, d);
-      Let(dp, d, d2) |> wrap;
-    | Let2(dp, d1, ctx) =>
+      Let(dir, dp, d, d2) |> wrap;
+    | Let2(dir, dp, d1, ctx) =>
       let d = compose(ctx, d);
-      Let(dp, d1, d) |> wrap;
+      Let(dir, dp, d1, d) |> wrap;
     | Theorem(dp, d1, ctx) =>
       let d = compose(ctx, d);
       Theorem(dp, d1, d) |> wrap;

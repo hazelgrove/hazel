@@ -293,8 +293,9 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Filter(_)
   | TyAlias(_)
   | Use(_)
-  | Let(_)
+  | Let(Forward, _, _, _)
   | Theorem(_) => Precedence.let_
+  | Let(Reverse, _, _, _) => Precedence.where_
 
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
   | MultiHole(_) => Precedence.min
@@ -581,11 +582,20 @@ let rec parenthesize =
       es |> List.map(parenthesize) |> List.map(paren_at(Precedence.comma)),
     )
     |> rewrap
-  | Let(p, e1, e2) =>
+  | Let(Forward, p, e1, e2) =>
     Let(
+      Forward,
       parenthesize_pat(p) |> paren_pat_at(Precedence.min),
       parenthesize(e1) |> paren_at(Precedence.min),
       parenthesize(e2) |> paren_assoc_at(Precedence.let_),
+    )
+    |> rewrap
+  | Let(Reverse, p, def, body) =>
+    Let(
+      Reverse,
+      parenthesize_pat(p) |> paren_pat_at(Precedence.min),
+      parenthesize(def) |> paren_at(Precedence.where_),
+      parenthesize(body) |> paren_assoc_at(Precedence.where_),
     )
     |> rewrap
   | Theorem(p, thm, e) =>
@@ -2225,7 +2235,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       | _ => go(l)
       };
     wrap(exp, e @ [mk_form(Dot, exp |> Exp.rep_id, [])] @ l);
-  | Let(p, e1, e2) =>
+  | Let(dir, p, e1, e2) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
     // This step undoes the adding of fixpoints that happens in elaboration.
@@ -2233,8 +2243,11 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let+ p = pat_to_pretty(~settings: Settings.t, p)
     and+ e1 = go(e1)
     and+ e2 = go(e2);
-    let e2 = settings.inline ? e2 : [Secondary(mk_newline(Id.mk()))] @ e2;
-    wrap(exp, [mk_form(Let, id, [p, e1])] @ e2);
+    let newline = settings.inline ? [] : [Secondary(mk_newline(Id.mk()))];
+    switch (dir) {
+    | Forward => wrap(exp, [mk_form(Let, id, [p, e1])] @ newline @ e2)
+    | Reverse => wrap(exp, e2 @ newline @ [mk_form(Where, id, [p])] @ e1)
+    };
   | Theorem(p, thm, e) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;

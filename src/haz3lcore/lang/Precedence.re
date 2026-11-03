@@ -103,21 +103,27 @@ let comma = 44;
 let let_ = 45;
 // let x = 3 in _____
 
+/* Looser than let so a where's binding scopes over a whole let
+   expression to its left (`let x = y in x where y = 1`), tighter than
+   rules so it stays inside a case branch */
+let where_ = 46 |> left_associative;
+// _____ where x = 1
+
 /* Rules looser than commas so can do `case a,b | _ => ... */
-let rule_sep = 46;
+let rule_sep = 47;
 
 /* Module-level semicolon: looser than let/type so that
    `let x = 1; let y = 2` parses as two separate module items,
    not as `let x = (1; let y = 2)` */
-let mod_seq = 47;
+let mod_seq = 48;
 
 // Derivation Mode Only
 // Exp : Typ (HasType)
 // Exp => Typ (Synthesis)
 // Exp <= Typ (Analysis)
-let ann = 48;
+let ann = 49;
 
-let min = 49;
+let min = 50;
 
 let compare = (p1: t, p2: t): int =>
   (-1) * Int.compare((p1 :> int), (p2 :> int));

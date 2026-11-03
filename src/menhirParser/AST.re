@@ -140,6 +140,7 @@ and exp =
   | BinExp(exp, bin_op, exp)
   | UnOp(op_un, exp)
   | Let(pat, exp, exp)
+  | WhereExp(exp, pat, exp) /* e where p = d == Let(Reverse, p, d, e) */
   | Theorem(pat, exp, exp)
   | ProofObject(exp)
   | Fun(pat, exp, option(string))
@@ -443,6 +444,12 @@ let rec gen_exp_sized = (~minimal_idents: bool, n: int): QCheck.Gen.t(exp) => {
             let* e1 = self((n - 1) / 3);
             let+ e2 = self((n - 1) / 3);
             Let(p, e1, e2);
+          },
+          {
+            let* body = self((n - 1) / 3);
+            let* p = gen_pat_sized((n - 1) / 3);
+            let+ def = self((n - 1) / 3);
+            WhereExp(body, p, def);
           },
           {
             let* p = gen_pat_sized((n - 1) / 2);
@@ -845,6 +852,20 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
           <+> {
             let* shrunk = shrink_pat(p);
             return(Let(shrunk, e1, e2));
+          }
+        | WhereExp(body, p, def) =>
+          of_list([body, def])
+          <+> {
+            let* shrunk = shrink_exp(body);
+            return(WhereExp(shrunk, p, def));
+          }
+          <+> {
+            let* shrunk = shrink_exp(def);
+            return(WhereExp(body, p, shrunk));
+          }
+          <+> {
+            let* shrunk = shrink_pat(p);
+            return(WhereExp(body, shrunk, def));
           }
         | Theorem(p, e1, e2) =>
           of_list([e1, e2])

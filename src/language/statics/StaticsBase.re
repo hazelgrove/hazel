@@ -123,7 +123,7 @@ module Map = {
       | [ancestor_id, ...rest] =>
         let* ci = lookup(ancestor_id, statics);
         switch (ci) {
-        | InfoExp({user_term: {term: Let(pat, def, _), _}, _}) =>
+        | InfoExp({user_term: {term: Let(_, pat, def, _), _}, _}) =>
           let binds = Pat.bindings(pat);
           /* function-def sugar: Pat.bindings drops the function name f, so
              also match f's own binding here, else the enclosing let is never

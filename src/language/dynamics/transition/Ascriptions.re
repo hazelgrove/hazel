@@ -248,11 +248,11 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
           |> DHExp.fresh,
         ),
       )
-    | (Let(p, e1, e2), _) =>
+    | (Let(dir, p, e1, e2), _) =>
       Some(
         IdTagged.fast_copy(
           DHExp.rep_id(e),
-          Let(p, e1, Asc(e2, t) |> DHExp.fresh) |> DHExp.fresh,
+          Let(dir, p, e1, Asc(e2, t) |> DHExp.fresh) |> DHExp.fresh,
         ),
       )
     | (Seq(e1, e2), _) =>

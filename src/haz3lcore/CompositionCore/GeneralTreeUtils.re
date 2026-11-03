@@ -16,7 +16,8 @@ let subtree_of =
     switch (info) {
     | InfoExp({user_term: term, _}) =>
       switch (Exp.term_of(term)) {
-      | Let(pat, def, body) when Option.is_some(FunctionSugar.detect(pat)) =>
+      | Let(_, pat, def, body)
+          when Option.is_some(FunctionSugar.detect(pat)) =>
         /* The surface f(args) binder is only a function definition in
            its enclosing let. Rechecking it as a standalone pattern
            incorrectly demands that f be a constructor. Reuse the
@@ -34,7 +35,7 @@ let subtree_of =
                ),
           orig_info_map,
         );
-      | Let(pat, def, body) =>
+      | Let(_, pat, def, body) =>
         let pat_info = pat_to_pat(pat, orig_info_map);
         let def_info = exp_to_exp(def, orig_info_map);
         let body_info = exp_to_exp(body, orig_info_map);
@@ -203,7 +204,7 @@ let get_refs_to = (curr: Info.t, info_map: Id.Map.t(Info.t)): CoCtx.t => {
     let entire_coctx = info.co_ctx;
     let body_coctx =
       switch (Exp.term_of(info.user_term)) {
-      | Let(_, _, body)
+      | Let(_, _, _, body)
       | TyAlias(_, _, body)
       | ModuleExp(_, _, body) =>
         switch (exp_to_info(body)) {
@@ -273,7 +274,7 @@ let get_refs_to_after_pattern_edit =
     let entire_coctx = pre_let.co_ctx;
     let body_coctx =
       switch (Exp.term_of(term_after.user_term)) {
-      | Let(_, _, body)
+      | Let(_, _, _, body)
       | TyAlias(_, _, body)
       | ModuleExp(_, _, body) =>
         switch (exp_to_info(body)) {
@@ -311,7 +312,7 @@ let get_refs_to_after_pattern_edit =
       Exp.term_of(pre_let.user_term),
       Exp.term_of(term_after.user_term),
     ) {
-    | (Let(p_old, _, _), Let(p_new, def, _))
+    | (Let(_, p_old, _, _), Let(_, p_new, def, _))
         when
           Option.is_some(sugar_head_name(p_old))
           && Option.is_some(FunctionSugar.detect(p_new)) =>

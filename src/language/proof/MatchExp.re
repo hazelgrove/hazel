@@ -146,11 +146,12 @@ let rec match_exp =
     let* ctx = match_exp(alphas, ctx, xs1, xs2);
     match_exp(alphas, ctx, ys1, ys2);
   | (TupleExtension(_, _), _) => None
-  | (Let(p1, d1, e1), Let(p2, d2, e2)) =>
+  | (Let(dir1, p1, d1, e1), Let(dir2, p2, d2, e2))
+      when Operators.equal_direction(dir1, dir2) =>
     let* alphas' = match_pat(p1, p2);
     let* ctx = match_exp(alphas, ctx, d1, d2);
     match_exp(alphas' @ alphas, ctx, e1, e2);
-  | (Let(_, _, _), _) => None
+  | (Let(_, _, _, _), _) => None
   | (Theorem(p1, e3, e1), Theorem(p2, e4, e2)) =>
     let* alphas' = match_pat(p1, p2);
     let* ctx = match_exp(alphas, ctx, e3, e4);

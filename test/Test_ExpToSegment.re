@@ -443,6 +443,33 @@ let tests = (
         );
       },
     ),
+    test_case("where prints after its body", `Quick, () =>
+      check(
+        string,
+        "where",
+        "let y = x in y where x = 1",
+        Parser.to_term("let y = x in y where x = 1", ~root=Exp)
+        |> Option.get
+        |> exp_to_segment
+        |> print_seg,
+      )
+    ),
+    test_case("where in a let body is parenthesized", `Quick, () =>
+      check(
+        string,
+        "where",
+        "let y = 1 in (x where x = y)",
+        IdTagged.FreshGrammar.(
+          Exp.let_(
+            Pat.var("y"),
+            Exp.int(1),
+            Exp.where(Exp.var("x"), Pat.var("x"), Exp.var("y")),
+          )
+        )
+        |> exp_to_segment
+        |> print_seg,
+      )
+    ),
     test_case(
       "Float negation produces 0.0 -. e",
       `Quick,

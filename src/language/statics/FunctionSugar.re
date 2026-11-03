@@ -89,6 +89,7 @@ let detect = (pat: Pat.t): option((Pat.t, list(Pat.t), option(Typ.t))) => {
 let rewrite =
     (
       ~orig_let: Exp.t,
+      ~dir: Operators.direction,
       ~f_name: Pat.t,
       ~args: list(Pat.t),
       ~ret_ty: option(Typ.t),
@@ -112,7 +113,7 @@ let rewrite =
       def_in_fun,
     );
   let (_, rewrap) = Exp.unwrap(orig_let);
-  rewrap(Let(f_name, fun_exp, body));
+  rewrap(Let(dir, f_name, fun_exp, body));
 };
 
 /* After statics has processed the desugared `Let`, the info map is
