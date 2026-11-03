@@ -652,6 +652,37 @@ let tests = (
       {|([(a=1)] : [(a=Int)]).a|},
       Some(list(int())),
     ),
+    test_case(
+      "Term left of = is marked as a bad label",
+      `Quick,
+      () => {
+        let info_map = statics(parse_exp("(1 + 1 = 2)"));
+        let binop_marks =
+          Id.Map.fold(
+            (_id, info: Info.t, acc) =>
+              switch (info) {
+              | InfoExp({user_term: {term: BinOp(_), _}, marks, _}) =>
+                marks @ acc
+              | _ => acc
+              },
+            info_map,
+            [],
+          );
+        check(
+          Alcotest.bool,
+          "the sum carries BadLabel",
+          true,
+          List.exists(
+            (m: Mark.t) =>
+              switch (m) {
+              | BadLabel(_) => true
+              | _ => false
+              },
+            binop_marks,
+          ),
+        );
+      },
+    ),
     test_case("Label not in tuple", `Quick, () => {
       annotated_tree_test(
         {|'a'|},

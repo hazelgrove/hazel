@@ -223,6 +223,48 @@ let append_mark_exp = (m: Map.t, e: Exp.t, extra: list(Mark.t)): Map.t =>
   | _ => m
   };
 
+/* append_mark_exp for whichever sort `any` is; sorts without marks on their
+   info are left alone */
+let append_mark_any = (m: Map.t, any: Any.t, extra: list(Mark.t)): Map.t =>
+  switch (any) {
+  | Exp(e) => append_mark_exp(m, e, extra)
+  | Pat(p) =>
+    switch (Map.lookup(Pat.rep_id(p), m)) {
+    | Some(Info.InfoPat(info)) =>
+      Map.add_info(
+        IdTagged.ids(info.user_term),
+        InfoPat({
+          ...info,
+          marks: info.marks @ extra,
+        }),
+        m,
+      )
+    | _ => m
+    }
+  | Typ(t) =>
+    switch (Map.lookup(Typ.rep_id(t), m)) {
+    | Some(Info.InfoTyp(info)) =>
+      Map.add_info(
+        IdTagged.ids(info.user_term),
+        InfoTyp({
+          ...info,
+          marks: info.marks @ extra,
+          message: None,
+        }),
+        m,
+      )
+    | _ => m
+    }
+  | TPat(_)
+  | Rul(_)
+  | Drv(_)
+  | Mod(_)
+  | Sig(_)
+  | MPat(_)
+  | Label(_)
+  | Any(_) => m
+  };
+
 let map_m = (f, xs, m: Map.t) =>
   List.fold_left(
     ((xs, m), x) => f(x, m) |> (((x, m)) => (xs @ [x], m)),

@@ -4070,6 +4070,14 @@ and label_to_info_map =
           m,
           tms,
         );
+      /* A term where a label belongs, e.g. `x + y` left of `=`, is marked
+         on its own tiles */
+      let m =
+        List.fold_left(
+          (m, tm) => append_mark_any(m, tm, [BadLabel(tm)]),
+          m,
+          tms,
+        );
       (CoCtx.union(co_ctxs), [IsMulti], m);
     };
   let info =
