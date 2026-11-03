@@ -285,6 +285,18 @@ let h = N.g(b) + S.e + a";
 
 let kinds_in_module = "module M = {\n" ++ kinds ++ "\n} in\nM.h";
 
+/* (^ticket(666)) livelit definitions, each analyzed against the
+   `Livelit` signature, which ascribes each member with the signature's
+   type: with the signature's own ids, the same keys were in every
+   definition's map, the cut counted them twice, and the program went
+   whole */
+let livelit_def = name =>
+  Printf.sprintf(
+    "let ^%s = {\n  type Model = Int;\n  type Action = Int;\n  type Expansion = Int;\n  let init = Pure(0);\n  let update = fun _m : Model -> fun a : Action -> Pure(a);\n  let view = fun m : Model -> Pure(Html.text(string_of_int(m)));\n  let expand = Functional(fun m : Model -> m);\n  let shape = Inline(3)\n} in\n",
+    name,
+  );
+let two_livelits = livelit_def("first") ++ livelit_def("second") ++ "1";
+
 /* [kinds]' edits, its paths under [above] */
 let kinds_steps = (~above) =>
   back_and_forth(~at=`First, "1", "7")
@@ -420,6 +432,11 @@ let exact_tests =
         @ back_and_forth(~at=`Last, "Int", "Bool")
         @ back_and_forth(~at=`Last, "y", "z"),
       ),
+    ),
+    test_case(
+      "two livelit definitions, each checked against the Livelit signature",
+      `Quick,
+      script(two_livelits, back_and_forth(~at=`First, "3", "4")),
     ),
     test_case(
       "a let chain: adds and removes",

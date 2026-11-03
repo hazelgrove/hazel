@@ -27,7 +27,7 @@ jobs:
         run: |
           ulimit -s unlimited || ulimit -s 262144 || true
           node --stack-size=65500 --require ./test/idb_stub.js \
-            _build/default/test/haz3ltest.bc.js test '^SharingProbe$' -v 2>&1 | tee probe.txt
+            _build/default/test/haz3ltest.bc.js test '^(SharingProbe|EvalPieces)$' -v 2>&1 | tee probe.txt
           {
             echo '## Sharing probe'
             echo '```'
