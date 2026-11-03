@@ -125,6 +125,12 @@ let tests = (
         );
       },
     ),
+    test_case("Shadowed type function variable applied", `Quick, () =>
+      parse_and_evaluate_test(
+        "true",
+        {|(typfun T -> fun (t : T) -> (typfun T -> t)@<Int>)@<Bool>(true)|},
+      )
+    ),
     test_case("ADT Buffer", `Quick, () =>
       parse_and_evaluate_test(
         {|true|},

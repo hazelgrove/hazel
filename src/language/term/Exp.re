@@ -122,6 +122,88 @@ let strip_projectors =
     _,
   );
 
+/* `e` with the type variable `x` renamed to `x'` where it refers to the
+   binding being renamed: not in the scope of a type binder of `x`. A path
+   root `x` (in `x.T`) names the newest type or value of its name, so in
+   the scope of a value named `x`, which may be a module, path roots `x`
+   are left alone ([~roots=false]); a bare type `x` still is the binding. */
+let rec rename_tvar = (~roots=true, x: string, x': string, e: t): t => {
+  let rename_typ = (~roots, _, ty) => Typ.rename_var(~roots, x, x', ty);
+  let binds = (p: Pat.t) =>
+    List.exists(String.equal(x), Pat.bound_vars(p));
+  /* a binder's types, and the scope it binds over */
+  let pat = p => Pat.map_term(~f_typ=rename_typ(~roots), p);
+  let scope = (p, body) =>
+    rename_tvar(~roots=roots && !binds(p), x, x', body);
+  map_term(
+    ~f_exp=
+      (continue, e) => {
+        let (term, rewrap) = unwrap(e);
+        switch (term) {
+        | TyAlias(tp, _, _)
+        | TypFun(tp, _, _) when TPat.binds(x, tp) => e
+        | Let(p, def, body) =>
+          Let(pat(p), rename_tvar(~roots, x, x', def), scope(p, body))
+          |> rewrap
+        | Fun(p, body, ty, name) =>
+          Fun(pat(p), scope(p, body), ty, name) |> rewrap
+        | FixF(p, body, env) => FixF(pat(p), scope(p, body), env) |> rewrap
+        | Match(scrut, rules) =>
+          Match(
+            rename_tvar(~roots, x, x', scrut),
+            List.map(((p, body)) => (pat(p), scope(p, body)), rules),
+          )
+          |> rewrap
+        | ModuleExp(mp, def, body) =>
+          ModuleExp(
+            MPat.map_term(~f_typ=rename_typ(~roots), mp),
+            rename_tvar(~roots, x, x', def),
+            rename_tvar(
+              ~roots=
+                roots && !Option.equal(String.equal, Some(x), MPat.name(mp)),
+              x,
+              x',
+              body,
+            ),
+          )
+          |> rewrap
+        | Module(items) =>
+          Module(rename_tvar_in_items(~roots, x, x', items)) |> rewrap
+        | _ => continue(e)
+        };
+      },
+    ~f_typ=rename_typ(~roots),
+    e,
+  );
+}
+and rename_tvar_in_items =
+    (~roots, x: string, x': string, items: list(Mod.t)): list(Mod.t) =>
+  switch (items) {
+  | [] => []
+  | [{term: ModType(tp, _), _}, ..._] when TPat.binds(x, tp) => items
+  | [item, ...items] =>
+    let binds_value =
+      switch (item.term) {
+      | ModLet(p, _) => List.exists(String.equal(x), Pat.bound_vars(p))
+      | ModuleMod(mp, _) =>
+        Option.equal(String.equal, Some(x), MPat.name(mp))
+      | ModVal(y, _) => String.equal(x, y)
+      | ModType(_)
+      | ModExp(_)
+      | Invalid(_)
+      | EmptyHole
+      | MultiHole(_) => false
+      };
+    [
+      Mod.map_term(
+        ~f_exp=(_, e) => rename_tvar(~roots, x, x', e),
+        ~f_typ=(_, ty) => Typ.rename_var(~roots, x, x', ty),
+        item,
+      ),
+      ...rename_tvar_in_items(~roots=roots && !binds_value, x, x', items),
+    ];
+  };
+
 let rec cls_of_term: type a. Grammar.exp_term(a) => cls =
   fun
   | Invalid(_) => Invalid

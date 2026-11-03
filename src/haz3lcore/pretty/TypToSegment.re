@@ -8,6 +8,7 @@ type t = {
 let prepare = (~settings: ExpToSegment.Settings.t, typ: Typ.t) => {
   typ:
     typ
+    |> Typ.surface_names
     |> ExpToSegment.parenthesize_typ(
          ~parenthesization=settings.parenthesization,
          ~show_filters=settings.show_filters,
@@ -47,6 +48,17 @@ let ids_sufficient = (~settings: ExpToSegment.Settings.t, typ: Typ.t) => {
 let typ_to_segment =
     (~settings: ExpToSegment.Settings.t, typ: Typ.t): Base.segment =>
   prepare(~settings, typ) |> to_segment;
+
+let typ_to_segment_with_var_ids =
+    (~settings: ExpToSegment.Settings.t, typ: Typ.t)
+    : (Base.segment, list((string, Id.t)), list((string, Id.t))) => {
+  let prepared = prepare(~settings, typ);
+  (
+    to_segment(prepared),
+    Typ.var_ids(prepared.typ),
+    Typ.binders(prepared.typ),
+  );
+};
 
 let typ_to_segment_with_diff_ids =
     (

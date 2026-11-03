@@ -59,6 +59,9 @@ let extend = (ctx: t, entry): t => {
 let extend_tvar = (ctx: t, tvar_entry: tvar_entry): t =>
   extend(ctx, TVarEntry(tvar_entry));
 
+/* Raw: an alias bound here captures earlier types' references to its
+   name. Safe for a name Typ.unshadow has made fresh; otherwise use
+   Typ.extend_ctx. */
 let extend_alias = (ctx: t, name: string, id: Id.t, ty: TermBase.Typ.t): t =>
   extend_tvar(
     ctx,

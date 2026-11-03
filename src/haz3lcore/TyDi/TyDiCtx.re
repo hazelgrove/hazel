@@ -184,7 +184,7 @@ let typ_context_entries = (ctx: Ctx.t): list(TyDiSuggestion.t) =>
     fun
     | Ctx.TVarEntry({kind: Singleton(_), name, _}) =>
       Some({
-        content: name,
+        content: Typ.surface_name(name),
         strategy: Typ(FromCtx),
       })
     | _ => None,

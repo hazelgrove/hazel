@@ -23,7 +23,7 @@ module Print = {
     term |> ExpToSegment.any_to_pretty(~settings) |> seg(~holes="");
   };
 
-  let typ = (ty: Typ.t): string => term(Typ(ty));
+  let typ = (ty: Typ.t): string => term(Typ(Typ.surface_names(ty)));
 };
 
 let prn = Printf.sprintf;
@@ -123,12 +123,14 @@ let type_member_mismatch_string = (name, ~expected, ~actual) =>
 
 let core_mark_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   let ana = Statics.ana_skip_explicit_nonlabel(ana);
-  let expectation = (ana: Typ.t, syn: Typ.t) =>
+  let expectation = (ana: Typ.t, syn: Typ.t) => {
+    let shown = Typ.surface_names_in(~ctx, [ana, syn]);
     prn(
       "Expecting type %s but got inconsistent type %s",
-      Print.typ(ana),
-      Print.typ(syn),
+      Print.typ(shown(ana)),
+      Print.typ(shown(syn)),
     );
+  };
   switch (m) {
   | BadLabel(_)
   | InvalidLabel(_, _) => "Invalid label"
@@ -145,7 +147,11 @@ let core_mark_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   | NoMeet(_, tys) when ana.term == Unknown(SynSwitch) =>
     prn(
       "Expecting branches to have consistent types but got types: %s",
-      List.map(Print.typ, Typ.of_source(tys)) |> String.concat(", "),
+      {
+        let tys = Typ.of_source(tys);
+        List.map(ty => Print.typ(Typ.surface_names_in(~ctx, tys, ty)), tys)
+        |> String.concat(", ");
+      },
     )
   | NoMeet(wrap, _tys) =>
     let syn: Typ.t = SynTy.meet_of(wrap, Unknown(Internal) |> Typ.temp);

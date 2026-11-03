@@ -479,9 +479,187 @@ let tests = (
       {|type X = Int in let a : X = 1 in (typfun X -> a + 1)@<Bool>|},
       Some(FTemp.Typ.int()),
     ),
-    skip_known_bug(
-      "Typ.weak_head_normalize infinite recursion", // https://github.com/hazelgrove/hazel/issues/1621
+    /* A later alias of the same name must not capture references made by
+       earlier aliases: `Skel` means the first `T` (as in OCaml, cf.
+       haz3lcore's Skel.Stacks), so resolving the second `T` terminates. */
+    fully_consistent_typecheck(
+      "shadowing alias does not capture an earlier alias's reference",
+      {|type T = + A + B(T) in
+type Skel = T in
+type T = (output=[Skel]) in
+let x : T = (output=[B(A)]) in
+1|},
+      Some(FTemp.Typ.int()),
+    ),
+    fully_consistent_typecheck(
+      "the same shadowing inside a module (haz3lcore's Skel.Stacks)",
+      {|type T = + A + B(T) in
+module Stacks = {
+  type Skel = T;
+  type T = (output=[Skel]);
+  let x : T = (output=[B(A)])
+} in
+let y : Stacks.T = (output=[A]) in
+1|},
+      Some(FTemp.Typ.int()),
+    ),
+    fully_consistent_typecheck(
+      ~normalize=true,
+      "shadowed alias resolves to the binding in scope at its definition",
+      {|type S = Int in
+type T = (a=S) in
+type S = Bool in
+let x : T = (a=1) in
+x.a + 1|},
+      Some(FTemp.Typ.int()),
+    ),
+    fully_consistent_typecheck(
+      "alias cycle through shadowing terminates",
+      {|type A = Int in
+type B = A in
+type A = B in
+let x : A = 1 in
+let y : B = x in
+y + 1|},
+      Some(FTemp.Typ.int()),
+    ),
+    fully_consistent_typecheck(
+      "alias shadowing a type parameter terminates",
+      {|typfun T -> fun (t : T) ->
+  type B = T in
+  type T = B in
+  let u : T = t in
+  u|},
+      Some(FTemp.(Typ.(poly(TPat.var("T"), arrow(var("T"), var("T")))))),
+    ),
+    synthesizes(
+      "alias captured by a later binding of a name it used while unbound",
+      {|type B = A in
+type A = B in
+let x : A = 1 in
+1|},
+      Some(FTemp.Typ.int()),
+    ),
+    fully_consistent_typecheck(
+      "shadowed alias keeps its meaning in an earlier variable's annotation",
+      {|type T = Int in let x : T = 1 in type T = Bool in x + 1|},
+      Some(FTemp.Typ.int()),
+    ),
+    /* https://github.com/hazelgrove/hazel/issues/2478 */
+    reports_errors(
+      1,
+      "an annotation is checked against the alias it named, not a later one",
+      {|type T = Int in let x : T = 1 in type T = Bool in !x|},
+    ),
+    fully_consistent_typecheck(
+      "a renamed type binder does not take a name written in its scope",
+      {|type a = Int in type a = Bool in type a' = String in (true : a)|},
+      Some(FTemp.Typ.bool()),
+    ),
+    fully_consistent_typecheck(
+      "type function variable shadowing an alias keeps an earlier annotation",
+      {|type X = Int in let a : X = 1 in (typfun X -> a + 1)@<Bool>|},
+      Some(FTemp.Typ.int()),
+    ),
+    /* A type binder that reuses a name in scope is renamed, numbered, in
+       its scope (Typ.unshadow), so its values and the earlier T's no
+       longer mix. */
+    reports_errors(
+      1,
+      "a shadowed type function variable still types its earlier variables",
+      {|typfun T -> fun (t : T) -> typfun T -> t + 1|},
+    ),
+    reports_errors(
+      1,
+      "branches of a shadowed and a shadowing type variable differ",
+      {|typfun T -> fun (t : T) -> typfun T -> fun (u : T) -> if true then t else u|},
+    ),
+    reports_errors(
+      1,
+      "an annotation names the shadowing type variable, not the shadowed one",
+      {|typfun T -> fun (t : T) -> typfun T -> fun (u : T) -> (t : T)|},
+    ),
+    reports_errors(
+      1,
+      "a type function returning the shadowed variable returns it whatever it is applied to",
+      {|typfun T -> fun (t : T) -> (typfun T -> t)@<Int> + 1|},
+    ),
+    reports_errors(
+      1,
+      "a type function returning the shadowed variable is not polymorphic in its own",
+      {|typfun T -> fun (t : T) -> let g = typfun T -> t in (g : poly U -> U)|},
+    ),
+    reports_errors(
+      1,
+      "an alias shadowing a type function variable keeps its earlier variables' type",
+      {|typfun T -> fun (t : T) -> type T = Int in t + 1|},
+    ),
+    fully_consistent_typecheck(
+      "the expected type of a type function body keeps the enclosing type variable",
+      {|typfun T -> fun (t : T) -> ((typfun T -> t) : poly U -> T)|},
+      Some(
+        FTemp.Typ.(
+          poly(
+            FTemp.TPat.var("T"),
+            arrow(var("T"), poly(FTemp.TPat.var("U"), var("T"))),
+          )
+        ),
+      ),
+    ),
+    synthesizes(
+      "a type function variable reusing a name in scope is numbered",
+      {|typfun T -> fun (t : T) -> typfun T -> t|},
+      Some(
+        FTemp.Typ.(
+          poly(
+            FTemp.TPat.var("T"),
+            arrow(var("T"), poly(FTemp.TPat.var("T#1"), var("T"))),
+          )
+        ),
+      ),
+    ),
+    fully_consistent_typecheck(
+      "a type function shadowing its enclosing variable is a renaming of one that does not",
+      {|(typfun T -> fun (t : T) -> typfun T -> t) : poly A -> A -> poly B -> A|},
+      Some(
+        FTemp.Typ.(
+          poly(
+            FTemp.TPat.var("A"),
+            arrow(var("A"), poly(FTemp.TPat.var("B"), var("A"))),
+          )
+        ),
+      ),
+    ),
+    fully_consistent_typecheck(
+      "an alias body is analyzed against the enclosing alias of the same name",
+      {|type T = Int in ((type T = Bool in 1) : T)|},
+      Some(FTemp.Typ.int()),
+    ),
+    fully_consistent_typecheck(
+      "an alias body is analyzed against the enclosing type variable of the same name",
+      {|typfun T -> fun (t : T) -> ((type T = Int in t) : T)|},
+      Some(
+        FTemp.Typ.(poly(FTemp.TPat.var("T"), arrow(var("T"), var("T")))),
+      ),
+    ),
+    fully_consistent_typecheck(
+      "a recursive alias reusing a name in scope is numbered throughout",
+      {|typfun T -> fun (t : T) -> type T = Int -> T in fun (g : T) -> (g, t)|},
+      Some(
+        FTemp.Typ.(
+          let local =
+            rec_(FTemp.TPat.var("T#1"), arrow(int(), var("T#1")));
+          poly(
+            FTemp.TPat.var("T"),
+            arrow(var("T"), arrow(local, prod([local, var("T")]))),
+          )
+        ),
+      ),
+    ),
+    synthesizes(
+      "self-loop alias under an anonymous alias (#1621)",
       "type y = y in type ? = y in ?",
+      Some(FTemp.Typ.unknown(SynSwitch)),
     ),
     test_case(
       // https://github.com/hazelgrove/hazel/issues/1624

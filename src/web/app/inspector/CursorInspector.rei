@@ -25,6 +25,7 @@ let pat_view:
 let typ_view:
   (
     ~globals: Globals.t,
+    ~ctx: Language.Ctx.t,
     Language.Cls.t,
     ~marks: list(Language.Mark.t),
     ~message: option(Language.Message.t)
@@ -34,6 +35,7 @@ let typ_view:
 let mod_view:
   (
     ~globals: Globals.t,
+    ~ctx: Language.Ctx.t,
     Language.Cls.t,
     ~marks: list(Language.Mark.t),
     ~ty: option(Language.Typ.t)
@@ -43,6 +45,7 @@ let mod_view:
 let tpat_view:
   (
     ~globals: Globals.t,
+    ~ctx: Language.Ctx.t,
     Language.Cls.t,
     ~marks: list(Language.Mark.t),
     ~message: option(Language.Message.t)
