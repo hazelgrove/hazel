@@ -4,17 +4,35 @@ open Language;
 
 /* Build a zipper with caret at the indicated position (¦),
  * compute statics, and return TyDi's suggestion buffer. */
-let tydi_suggest = (code: string): option(string) => {
-  open Util.OptUtil.Syntax;
+let typed_with_ci = (code: string): (Zipper.t, option(Info.t)) => {
   let actions = Test_Editing.mk(code);
   let z = Test_Editing.perform(Zipper.init(), actions);
   let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z, ~root=Exp);
   let (info_map, _) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
-  let ci = Indicated.ci_for_completion(z, info_map);
+  (z, Indicated.ci_for_completion(z, info_map));
+};
+
+let tydi_suggest = (code: string): option(string) => {
+  open Util.OptUtil.Syntax;
+  let (z, ci) = typed_with_ci(code);
   let* z = TyDi.set_buffer(~ci, z);
   TyDi.get_unparsed_buffer(z);
 };
+
+/* The text after accepting TyDi's suggestion */
+let tydi_accept = (code: string): option(string) => {
+  open Util.OptUtil.Syntax;
+  let (z, ci) = typed_with_ci(code);
+  let* z = TyDi.set_buffer(~ci, z);
+  let+ z = Buffer.buffer_accept(~ci, z);
+  Test_Editing.printer(z);
+};
+
+let tydi_accept_test = (~name, ~code, ~expect) =>
+  test_case(name, `Quick, () =>
+    check(option(string), name, expect, tydi_accept(code))
+  );
 
 let tydi_test = (~name, ~code, ~expect) =>
   test_case(name, `Quick, () =>
@@ -48,6 +66,27 @@ let dot_label_tests = (
       ~name="Unknown type: no suggestions",
       ~code="m.x¦",
       ~expect=None,
+    ),
+    tydi_accept_test(
+      ~name="Accept: a plain label extends the typed prefix",
+      ~code="let m : (x=Int, length=Int) = (x=1, length=5) in m.le¦",
+      ~expect=
+        Some("let m : (x=Int, length=Int) = (x=1, length=5) in m.length¦"),
+    ),
+    tydi_accept_test(
+      ~name="Accept: a label with a space is backticked",
+      ~code="let m : (`ab cd`=Int) = (`ab cd`=1) in m.ab¦",
+      ~expect=Some("let m : (`ab cd`=Int) = (`ab cd`=1) in m.`ab cd`¦"),
+    ),
+    tydi_accept_test(
+      ~name="Accept: a keyword label is backticked",
+      ~code="let m : (`let`=Int) = (`let`=1) in m.le¦",
+      ~expect=Some("let m : (`let`=Int) = (`let`=1) in m.`let`¦"),
+    ),
+    tydi_test(
+      ~name="Qualified field that needs backticks",
+      ~code="let mm : (`a b`=String) = (`a b`=\"\") in let x : String = mm¦",
+      ~expect=Some(".`a b`"),
     ),
     tydi_test(
       ~name="List dot projection: prefix match",
