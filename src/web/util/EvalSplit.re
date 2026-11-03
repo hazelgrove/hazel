@@ -82,6 +82,8 @@ let docs_cap = 8;
    reason with how often it was the first to fail. [why] counts and is
    false, so [check || why(reason)] counts only a failed check */
 let recut: Hashtbl.t(string, int) = Hashtbl.create(16);
+/* the pieces' count of keys and the statics', when they differed */
+let last_count: ref((int, int)) = ref((0, 0));
 let why = (reason: string): bool => {
   Hashtbl.replace(
     recut,
@@ -834,6 +836,7 @@ let split =
   let targets = targets_piece(acc, doc, id, targets);
   /* every key in exactly one piece, or the worker's map would differ */
   if (acc.keys != Id.Map.cardinal(statics.info_map)) {
+    last_count := (acc.keys, Id.Map.cardinal(statics.info_map));
     raise(Unsplittable("pieces hold other keys than the statics"));
   };
   doc.top = cache;

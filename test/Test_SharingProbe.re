@@ -244,6 +244,23 @@ let unaccounted = (st: Haz3lcore.CachedStatics.t): string =>
       |> List.map(((v, k)) => Printf.sprintf("%s %d", k, v))
       |> String.concat(", ");
     };
+    /* keys in more than one item's map, by class: counted twice */
+    let seen = Hashtbl.create(4096);
+    let twice = ref([]);
+    List.iter(
+      (it: Haz3lcore.DefStatics.item) =>
+        Language.Id.Map.iter(
+          (id, info) =>
+            if (Hashtbl.mem(seen, id)) {
+              twice := [info, ...twice^];
+            } else {
+              Hashtbl.replace(seen, id, ());
+            },
+          it.d_map,
+        ),
+      ds.items,
+    );
+    let (counted, actual) = Web.EvalSplit.last_count^;
     let missing =
       Language.Id.Map.fold(
         (id, info, acc) => Hashtbl.mem(held, id) ? acc : [info, ...acc],
@@ -258,13 +275,17 @@ let unaccounted = (st: Haz3lcore.CachedStatics.t): string =>
         [],
       );
     Printf.sprintf(
-      " | statics %d keys, items %d: in the statics, in no item: %d (%s); in an item, not the statics: %d (%s)",
+      " | statics %d keys, items %d: in the statics, in no item: %d (%s); in an item, not the statics: %d (%s) | the pieces counted %d against %d; in two items or more: %d (%s)",
       Language.Id.Map.cardinal(st.info_map),
       Hashtbl.length(held),
       List.length(missing),
       tally(missing),
       List.length(extra),
       tally(extra),
+      counted,
+      actual,
+      List.length(twice^),
+      tally(twice^),
     );
   };
 
