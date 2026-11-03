@@ -64,6 +64,28 @@ type doc =
  * editor convention (Indentation.re uses +2 per level). */
 let indent_unit: int = 2;
 
+/* How a delimited body breaks: a module body always puts each item on its
+   own line, each item breaking only when it does not fit; anything else
+   (parens, brackets, signature bodies) inlines when it fits. */
+type delimited_breaks = {
+  edge: doc,
+  soft_semis: bool,
+  content: doc => doc,
+};
+let delimited_breaks = (t: Tile.t): delimited_breaks =>
+  switch (t.form, t.sort) {
+  | (Compound(ModBody), Exp) => {
+      edge: HardBreak,
+      soft_semis: false,
+      content: d => Group(d),
+    }
+  | _ => {
+      edge: SoftBreak,
+      soft_semis: true,
+      content: d => d,
+    }
+  };
+
 /* Right-associative concatenation of a doc list */
 let rec cats = (docs: list(doc)): doc =>
   switch (docs) {
@@ -608,13 +630,13 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
       let close_s = Tile.to_piece(Tile.shard_of(dt, Tile.arity(dt) - 1));
       switch (Tile.contained_children(dt)) {
       | [(_, inner_child, _)] =>
-        /* soft_semis so short brace bodies can inline; Group so the
-           hanging content goes flat when it fits */
+        /* Group so the hanging content goes flat when it fits */
+        let {edge, soft_semis, content} = delimited_breaks(dt);
         let inner =
           child_doc(
             {
               ...s,
-              soft_semis: true,
+              soft_semis,
             },
             inner_child,
           );
@@ -622,8 +644,8 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
           Group(
             cats([
               piece_doc(open_s),
-              Nest(indent_unit, cats([SoftBreak, inner])),
-              SoftBreak,
+              Nest(indent_unit, cats([edge, content(inner)])),
+              edge,
               piece_doc(close_s),
               suffix,
             ]),
@@ -823,11 +845,12 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
   | Form.Compound(Parens | Ap | ListLit | ModBody) =>
     switch (triples) {
     | [(_, content_child, _)] =>
+      let {edge, soft_semis, content} = delimited_breaks(t);
       let inner =
         child_doc(
           {
             ...s,
-            soft_semis: true,
+            soft_semis,
           },
           content_child,
         );
@@ -838,8 +861,8 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
           Group(
             cats([
               shard(0),
-              Nest(indent_unit, cats([SoftBreak, inner])),
-              SoftBreak,
+              Nest(indent_unit, cats([edge, content(inner)])),
+              edge,
               shard(last_shard_idx),
             ]),
           )

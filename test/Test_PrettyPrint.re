@@ -258,6 +258,37 @@ end|},
   ),
 ];
 
+/* === Modules === */
+
+let module_tests = [
+  test_format_seg(
+    ~name="A module puts each item on its own line",
+    ~input={|module M = { type T = Bool; let x : T = true } in M.x|},
+    ~expected={|module M = {
+  type T = Bool;
+  let x : T = true
+} in
+M.x|},
+    (),
+  ),
+  test_format(
+    ~name="A one-item module still breaks",
+    ~input={|let m = { let y = 1 } in m|},
+    ~expected={|let m = {
+  let y = 1
+} in
+m|},
+    (),
+  ),
+  test_format_seg(
+    ~name="A signature inlines when it fits",
+    ~input={|let f = fun (m : { let x : Int; let y : Int }) -> m.x in f|},
+    ~expected={|let f = fun (m : {let x : Int; let y : Int}) -> m.x in
+f|},
+    (),
+  ),
+];
+
 /* === Combined / complex === */
 
 let complex_tests = [
@@ -827,11 +858,12 @@ end|},
 end|},
     (),
   ),
-  /* Block expression {} flat; body lands on its own line */
   test_format_seg(
-    ~name="Block flat",
+    ~name="A short module breaks",
     ~input="let x = { 1 + 2 } in x",
-    ~expected={|let x = {1 + 2} in
+    ~expected={|let x = {
+  1 + 2
+} in
 x|},
     (),
   ),
@@ -1333,6 +1365,7 @@ let tests = [
   ("PrettyPrint.Breaking", breaking_tests),
   ("PrettyPrint.Delimiters", delimiter_tests),
   ("PrettyPrint.Case", case_tests),
+  ("PrettyPrint.Modules", module_tests),
   ("PrettyPrint.Complex", complex_tests),
   ("PrettyPrint.CommaCompound", comma_compound_tests),
   ("PrettyPrint.Realworld", realworld_tests),
