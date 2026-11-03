@@ -2656,6 +2656,49 @@ let test_sig_let_not_a_name_declares_nothing =
     },
   );
 
+/* ===== PATHS LEAVING THEIR SCOPE =====
+   A type path rooted at a module is read, where the module's scope ends,
+   as what it denotes there: the binder is not in scope outside. */
+let test_let_body_path_avoided =
+  fully_consistent_typecheck(
+    "A let body's path through the module it binds is its definition outside",
+    {|module M = { type T = Int } in let y : M.T = 1 in y|},
+    Some(int()),
+  );
+
+let test_fun_codomain_path_avoided =
+  fully_consistent_typecheck(
+    "A function's result path through its module parameter is its definition",
+    {|fun (m : { type T = Int; let x : T }) -> (m.x : m.T)|},
+    Some(arrow(sig_([type_("T", int()), val_("x", var("T"))]), int())),
+  );
+
+let test_case_arm_path_avoided =
+  fully_consistent_typecheck(
+    "A case arm's path through the module its pattern binds is its definition",
+    {|case { type T = Int; let x = 1 : T } | m => (m.x : m.T) end|},
+    Some(int()),
+  );
+
+let test_nested_path_avoided =
+  fully_consistent_typecheck(
+    "A path through a sub-module of a module leaving scope is its definition",
+    {|module M = { type T = Int; module P = { type U = [T] } } in let z : M.P.U = [1] in z|},
+    Some(list(int())),
+  );
+
+let test_dependent_parameter_path_avoided =
+  fully_consistent_typecheck(
+    "A parameter's signature naming an earlier parameter's member is spelled out",
+    {|fun (m : { type T = Int }) -> fun (n : { type U = m.T }) -> (1 : n.U)|},
+    Some(
+      arrow(
+        sig_([type_("T", int())]),
+        arrow(sig_([type_("U", int())]), int()),
+      ),
+    ),
+  );
+
 let tests = (
   "Statics.Modules",
   [
@@ -2892,5 +2935,10 @@ let tests = (
     test_renamed_alias_leaves_module_parameter_paths,
     test_renamed_alias_leaves_signature_member_paths,
     test_renamed_alias_leaves_module_member_paths,
+    test_let_body_path_avoided,
+    test_fun_codomain_path_avoided,
+    test_case_arm_path_avoided,
+    test_nested_path_avoided,
+    test_dependent_parameter_path_avoided,
   ],
 );

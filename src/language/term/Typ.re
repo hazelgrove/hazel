@@ -1133,6 +1133,52 @@ let as_sig = (ctx: Ctx.t, ty: t): option(ClosedSig.t(Sig.t)) =>
   | _ => None
   };
 
+/* The variable a type path (`m.T`, `m.P.T`) is rooted at. */
+let rec path_root = (ty: t): option(Var.t) =>
+  switch (term_of(ty)) {
+  | Var(root) => Some(root)
+  | Parens(ty)
+  | ProdProjection(ty, _) => path_root(ty)
+  | _ => None
+  };
+
+/* [ty] read outside the scope of the values [escaping] bind: a type path
+   rooted at one of them that is a module (`m.T`) is replaced by what it
+   denotes in [ctx], the scope's context, or by `?` where it denotes
+   nothing there. */
+let rec avoid = (ctx: Ctx.t, ~escaping: list(Var.t), ty: t): t => {
+  let escapes = root =>
+    List.exists(String.equal(root), escaping)
+    && (
+      switch (Ctx.newest_tvar_or_var(ctx, root)) {
+      | Some(`Var({typ, _})) => Option.is_some(as_sig(ctx, typ))
+      | Some(`TVar(_))
+      | None => false
+      }
+    );
+  switch (escaping) {
+  | [] => ty
+  | [_, ..._] =>
+    map_term(
+      ~f_typ=
+        (continue, ty) =>
+          switch (term_of(ty), path_root(ty)) {
+          | (ProdProjection(_), Some(root)) when escapes(root) =>
+            let denoted = weak_head_normalize(ctx, ty);
+            switch (term_of(denoted), path_root(denoted)) {
+            | (ProdProjection(_), Some(root'))
+                when String.equal(root, root') =>
+              let (_, rewrap) = unwrap(ty);
+              Unknown(Internal) |> rewrap;
+            | _ => avoid(ctx, ~escaping, denoted)
+            };
+          | _ => continue(ty)
+          },
+      ty,
+    )
+  };
+};
+
 /* Whether binding `name` over ctx would change what a type already in
    ctx means: the name is bound as a type, or as a module (a value whose
    type is a signature), which roots paths, or an alias mentions it while

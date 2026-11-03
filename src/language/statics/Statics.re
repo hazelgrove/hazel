@@ -2218,7 +2218,8 @@ and uexp_to_info_map =
          recorded `ana`). `p'.ty` preserves the ana. */
       let (p, p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, ~ana=p'.ty, p, m);
-      let syn_ty_fun = Arrow(p.ty, e.elab_syn_ty) |> Typ.temp;
+      let avoid = Typ.avoid(p.ctx, ~escaping=Pat.bound_vars(p.user_term));
+      let syn_ty_fun = Arrow(avoid(p.ty), avoid(e.elab_syn_ty)) |> Typ.temp;
       /* Irrefutable patterns exhaust any type: skip the coverage check
          and, more importantly, the deep normalize it requires. */
       let p_constraint = Info.pat_constraint(p);
@@ -2313,7 +2314,12 @@ and uexp_to_info_map =
       let m = FunctionSugar.add_binder_infos(m, ~user_pat=p);
       add(
         ~elab_term=Let(f.p_elab, f.def_elab, body_elab) |> rewrap,
-        ~elab_syn_ty=body.elab_syn_ty,
+        ~elab_syn_ty=
+          Typ.avoid(
+            b.ctx_scope,
+            ~escaping=Pat.bound_vars(binder),
+            body.elab_syn_ty,
+          ),
         ~marks=f.marks,
         ~co_ctx=f.co_ctx,
         ~probe_targets=
@@ -2493,7 +2499,13 @@ and uexp_to_info_map =
           p_ctxs,
         );
 
-      let e_syn_tys = List.map((e: Info.exp) => e.elab_syn_ty, es);
+      let e_syn_tys =
+        List.map2(
+          ((e: Info.exp, ctx), p) =>
+            Typ.avoid(ctx, ~escaping=Pat.bound_vars(p), e.elab_syn_ty),
+          List.combine(es, p_ctxs),
+          ps,
+        );
       let e_co_ctxs = List.map(Info.exp_co_ctx, es);
       let (syn_ty_match, marks_match) =
         ConstructorStaticsHelpers.syn_marks_match(ctx, e_syn_tys, branch_ids);
