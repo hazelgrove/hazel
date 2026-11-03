@@ -250,10 +250,20 @@ After checking:
   the module.
 
 `ModuleExp(mpat, def, body)` is checked as `Let(pat, def, body)` and
-elaborates to that `Let`. `Dot(e, x)` on a signature-typed `e` is module
+elaborates to that `Let`. Where a value binder's scope ends (a `let` body, a
+function's domain and codomain, a `case` arm), `Typ.avoid` reads a type path
+rooted at a module it binds as what the path denotes in the scope, so a
+path never outlives its root: `module M = { type T = Int } in let y : M.T =
+1 in y` has type `Int`. `Typ.meet` reduces a path on one side when the other
+is an abstract type variable, so `m.T` with `type T = a` meets `a`. `Dot(e, x)` on a signature-typed `e` is module
 member access, decided once from `e`'s type and sharing nothing with tuple
-projection after that: the label `x` is the member, at the member's type;
-a member the signature lacks is reported on the label
+projection after that: the label `x` is the member, at the member's type.
+When `e` is a module path (a module variable, the newest binding of its
+name, or a member of one, `M.P`), the members are read through it, so a
+member declared with a type member's name is typed by the path:
+`module M = { type T = Bool; let x : T = true } in M.x` has type `M.T`,
+which means `Bool`. Any other `e` has its members spelled out. A member
+the signature lacks is reported on the label
 (`ModuleMemberNotFound`, or `ModuleMemberIsType` when `x` names a type
 member) while the dot carries the same as a message, the way `M.Fake` in a
 type reports on `Fake` (`ModuleTypeMemberNotFound`). A hole item in the

@@ -1801,6 +1801,21 @@ and sig_item_scopes = (ctx: Ctx.t, items: list(Sig.t)): list(sig_item_scope) => 
   List.rev(rev);
 };
 
+/* A type path or extension reduced to its weak head, if that makes
+   progress: none when [ty] is neither or does not reduce. */
+let reduced_path = (ctx: Ctx.t, ty: t): option(t) =>
+  switch (term_of(ty)) {
+  | ProdProjection(_)
+  | ProdExtension(_) =>
+    let reduced = weak_head_normalize(ctx, ty);
+    switch (term_of(reduced)) {
+    | ProdProjection(_)
+    | ProdExtension(_) => None
+    | _ => Some(reduced)
+    };
+  | _ => None
+  };
+
 let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   let meet' = meet(ctx);
   switch (term_of(ty1), term_of(ty2)) {
@@ -1827,14 +1842,27 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
       | (None, None) => None
       };
     }
+  /* An abstract type variable has no alias to expand; a path on the other
+     side may still denote it (`m.T` with `type T = a`), so the path is
+     reduced and met again, once it makes progress. */
   | (Var(name), _) =>
-    let* ty_name = Ctx.lookup_alias(ctx, name);
-    let+ ty_meet = meet'(ty_name, ty2);
-    equal(ty_name, ty_meet) ? ty1 : ty_meet;
+    switch (Ctx.lookup_alias(ctx, name)) {
+    | Some(ty_name) =>
+      let+ ty_meet = meet'(ty_name, ty2);
+      equal(ty_name, ty_meet) ? ty1 : ty_meet;
+    | None =>
+      let* ty2 = reduced_path(ctx, ty2);
+      meet'(ty1, ty2);
+    }
   | (_, Var(name)) =>
-    let* ty_name = Ctx.lookup_alias(ctx, name);
-    let+ ty_meet = meet'(ty_name, ty1);
-    equal(ty_name, ty_meet) ? ty2 : ty_meet;
+    switch (Ctx.lookup_alias(ctx, name)) {
+    | Some(ty_name) =>
+      let+ ty_meet = meet'(ty_name, ty1);
+      equal(ty_name, ty_meet) ? ty2 : ty_meet;
+    | None =>
+      let* ty1 = reduced_path(ctx, ty1);
+      meet'(ty1, ty2);
+    }
   /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
   | (ProdProjection(_), _) => meet'(weak_head_normalize(ctx, ty1), ty2)
   | (_, ProdProjection(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))

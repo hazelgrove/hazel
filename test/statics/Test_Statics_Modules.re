@@ -1887,10 +1887,15 @@ let test_nested_member_keeps_outer_meaning =
   single_mark_test(
     "A nested signature's member keeps the outer meaning of a name it shadows",
     {|type U = Bool in let g = fun (m : { type T = U; let f : { type U = Int; let y : T } }) -> (m.f.y : Int) in g|},
+    /* `m.f.y` is `m.T`: the outer signature's `T`, which is the outer `U` */
     fun
     | ExpectationMismatch({
         ana: {term: Atom(Int), _},
-        syn: {term: Var("U"), _},
+        syn:
+          {
+            term: ProdProjection({term: Var("m"), _}, {term: Label("T"), _}),
+            _,
+          },
       }) =>
       true
     | _ => false,
@@ -2699,6 +2704,83 @@ let test_dependent_parameter_path_avoided =
     ),
   );
 
+/* ===== MEMBERS READ THROUGH THEIR PATH ===== */
+let test_member_typed_through_its_path =
+  fully_consistent_typecheck(
+    "A member read through a module's path is typed by the path's type member",
+    {|module M = { type T = Bool; let x : T = true } in let b : M.T = M.x in b && true|},
+    Some(bool()),
+  );
+
+let test_member_through_path_synthesizes_path =
+  Alcotest.test_case(
+    "M.x synthesizes M.T",
+    `Quick,
+    () => {
+      let dots =
+        exp_infos_at(
+          {|module M = { type T = Bool; let x : T = true } in M.x|},
+          fun
+          | InfoExp({user_term: {term: Dot(_), _}, _}) => true
+          | _ => false,
+        );
+      List.iter(
+        (info: Language.Info.exp) =>
+          Alcotest.check(
+            testable_typ,
+            "the dot's type",
+            prod_projection(var("M"), label("T")),
+            info.elab_syn_ty,
+          ),
+        dots,
+      );
+    },
+  );
+
+let test_member_through_path_mismatch_names_path =
+  single_mark_test(
+    "A member read through its path reports the path in a mismatch",
+    {|module M = { type T = Bool; let x : T = true } in M.x + 1|},
+    fun
+    | ExpectationMismatch({
+        syn:
+          {
+            term: ProdProjection({term: Var("M"), _}, {term: Label("T"), _}),
+            _,
+          },
+        _,
+      }) =>
+      true
+    | _ => false,
+  );
+
+let test_sub_module_member_through_path =
+  fully_consistent_typecheck(
+    "A sub-module's member is typed through the sub-module's path",
+    {|module M = { type T = Int; module Q = { type T = String; let x : T = "a" } } in let s : M.Q.T = M.Q.x in string_length(s)|},
+    Some(int()),
+  );
+
+let test_member_of_a_literal_stands_alone =
+  fully_consistent_typecheck(
+    "A member of a module that is no path is typed by its definition",
+    {|({ type T = Int; let x : T = 1 }).x|},
+    Some(int()),
+  );
+
+let test_path_to_abstract_member_meets_the_variable =
+  fully_consistent_typecheck(
+    ~normalize=true,
+    "A path to a member defined as an abstract type variable meets the variable",
+    {|typfun U -> fun (m : { type T = U }) -> fun (y : U) -> (y : m.T)|},
+    Some(
+      poly(
+        FTemp.TPat.var("U"),
+        arrow(sig_([type_("T", var("U"))]), arrow(var("U"), var("U"))),
+      ),
+    ),
+  );
+
 let tests = (
   "Statics.Modules",
   [
@@ -2940,5 +3022,11 @@ let tests = (
     test_case_arm_path_avoided,
     test_nested_path_avoided,
     test_dependent_parameter_path_avoided,
+    test_member_typed_through_its_path,
+    test_member_through_path_synthesizes_path,
+    test_member_through_path_mismatch_names_path,
+    test_sub_module_member_through_path,
+    test_member_of_a_literal_stands_alone,
+    test_path_to_abstract_member_meets_the_variable,
   ],
 );

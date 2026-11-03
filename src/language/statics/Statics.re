@@ -1647,7 +1647,32 @@ and uexp_to_info_map =
            member named as a value, is marked on the label; the dot carries
            the same as a message. Unless a hole item in the signature could
            declare x: then x is unknown. */
-        let members = Sig.members(ClosedSig.items(items));
+        /* The type path the left side is, if it is one: a module variable
+           (the newest binding of its name, not a type), or a member of one,
+           `M.P`. */
+        let rec path_of = (e: Exp.t): option(Typ.t) =>
+          switch (Exp.term_of(e)) {
+          | Parens(e) => path_of(e)
+          | Var(name) =>
+            switch (Ctx.newest_tvar_or_var(ctx, name)) {
+            | Some(`Var(_)) => Some(Var(name) |> Typ.temp)
+            | Some(`TVar(_))
+            | None => None
+            }
+          | Dot(e, {term: Label(label), _}) =>
+            path_of(e)
+            |> Option.map(path =>
+                 ProdProjection(path, Label(label) |> Typ.temp) |> Typ.temp
+               )
+          | _ => None
+          };
+        /* Read through the path, a member's type names the path's type
+           members (`M.x : M.T`); otherwise each member stands alone. */
+        let members =
+          switch (path_of(e1_elab), Typ.head_type(ctx, info_e1.ty).term) {
+          | (Some(path), Sig(s)) => Typ.sig_members(~self=path, s)
+          | _ => Sig.members(ClosedSig.items(items))
+          };
         let labels = Sig.value_names(members);
         let dot = (~marks=?, ~message=?, ~elab_syn_ty, child) =>
           dot(
