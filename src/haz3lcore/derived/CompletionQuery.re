@@ -1,9 +1,17 @@
-/* The zipper-facing completion queries: what obligation is the caret
- * pinned to, and what would Tab type for it. Kept apart from
- * CanonicalCompletion so the engine stays segment-in/segment-out
- * (this is the only completion code that reads a Zipper.t). */
+/* The zipper-facing completion queries: which records of an insertion
+ * stream the caret OWNS, and what Tab does for them. Kept apart from
+ * CanonicalCompletion so the engine stays segment-in/segment-out.
+ *
+ * ONE ownership list (chips_among) feeds every interactive surface —
+ * the quiver bubble drawn at the caret, the inline ghost (DisplayFork),
+ * and Tab — so the bubble's first delimiter is what Tab types by
+ * construction. Deriving ownership twice (measured zones for the
+ * display, a sibling walk for Tab) is how they drifted: a bubble
+ * reading "else ? end in" while Tab typed end. */
 
 open Util;
+
+type insertion = CanonicalCompletion.insertion;
 
 /* These gapless pairs are single atomic tokens, with no child hole. */
 let fuses_empty = (left: Segment.t, text: string): bool =>
@@ -25,235 +33,343 @@ let fuses_empty = (left: Segment.t, text: string): bool =>
   | [] => false
   };
 
-/* Every obligation whose insertion zone contains the caret, in ENGINE
-   order — landing-site order in the completed program, which is both
-   the order the quiver bubble draws them and the order Tab applies.
-   The zone is the caret's inter-content run: whitespace/grout
-   siblings on either side match insertions anchored on them from
-   either side; the bounding content pieces match only insertions on
-   their caret-facing side. One stack can split into several records
-   sharing the zone (a single-line form glues its closer back to
-   content while multiline forms append past the linebreak: `else`
-   after `4`, `end in` after the next line's indentation), so the
-   nearest anchor is NOT the answer — it flips with the caret's
-   column inside the indentation and disagrees with the bubble. */
-let chips_at_caret =
-    (~seg: option(Segment.t)=?, z: Zipper.t)
-    : list(CanonicalCompletion.insertion) =>
-  switch (z.caret) {
-  | Inner(_) => []
-  | Outer =>
-    /* ~seg: the caller's already-zipped engine segment (the view
-       zips once per frame); the memoized completion is shared */
-    let seg =
-      switch (seg) {
-      | Some(seg) => seg
-      | None => Zipper.unselect_and_zip(~erase_buffer=true, z)
-      };
-    let result = CanonicalCompletion.for_editor(seg);
-    let indexed = List.mapi((i, ins) => (i, ins), result.insertions);
-    /* a witness in progress (typed prefix of a delimiter): its Tab
-       text is the token REMAINDER, which only extends the prefix when
-       the caret abuts the typed token — past the hole after it
-       (`e ?|`) the remainder would land as a stray `lse`. Owned only
-       when adjacent. */
-    let is_witness = (ins: CanonicalCompletion.insertion) =>
-      switch (ins.delimiters) {
-      | [{typed_len: Some(n), text, _}, ..._] => n < String.length(text)
-      | _ => false
-      };
-    let matching = (~adjacent: bool, id: Id.t, sides: list(Direction.t)) =>
-      indexed
-      |> List.filter(((_, ins: CanonicalCompletion.insertion)) =>
-           Id.equal(ins.adjacent_id, id)
-           && List.mem(ins.side, sides)
-           && (adjacent || !is_witness(ins))
-         );
-    let is_content = (p: Piece.t): bool =>
-      switch (p) {
-      | Secondary(_)
-      | Grout(_) => false
-      | _ => true
-      };
-    /* adjacent = this piece touches the caret (first step of the left
-       walk only: witnesses anchor on their token's right side) */
-    let rec probe = (ps: list(Piece.t), ~facing: Direction.t, ~adjacent) =>
-      switch (ps) {
-      | [] => []
-      | [p, ...rest] =>
-        is_content(p)
-          ? matching(~adjacent, Piece.id(p), [facing])
-          : matching(
-              ~adjacent,
-              Piece.id(p),
-              [Direction.Left, Direction.Right],
-            )
-            @ probe(rest, ~facing, ~adjacent=false)
-      };
-    let (l, r) = {
-      let z = z |> Zipper.clear_unparsed_buffer |> Zipper.unselect;
-      z.relatives.siblings;
-    };
-    /* PARTITION GATE: the caret's segment, partitioned as the engine
-       partitions it. A linebreak that starts a new partition is where
-       the completion's reading changes, so a delimiter typed past it
-       lands in a different program when that side has content
-       (`if ⏎ ¦1`: then typed at the 1 absorbs it as the branch, which
-       the bubble never promised). Contentless partitions after the
-       anchor (an empty trailing line) change nothing and stay owned. */
-    let parts =
-      CanonicalCompletion.partition_segment(l @ r)
-      |> List.map(fst)
-      |> Array.of_list;
-    let part_of = (id: Id.t): option(int) => {
-      let rec go = k =>
-        k >= Array.length(parts)
-          ? None
-          : List.exists(
-              (q: Piece.t) => Id.equal(Piece.id(q), id),
-              parts[k],
-            )
-              ? Some(k) : go(k + 1);
-      go(0);
-    };
-    let caret_part =
-      switch (List.rev(l), r) {
-      | ([p, ..._], _)
-      | ([], [p, ..._]) => part_of(Piece.id(p))
-      | ([], []) => None
-      };
-    let same_reading = (ins: CanonicalCompletion.insertion) =>
-      switch (part_of(ins.adjacent_id), caret_part) {
-      | (Some(j), Some(k)) =>
-        j == k
-        || j < k
-        && List.for_all(
-             i => !List.exists(is_content, parts[i]),
-             List.init(k - j, i => j + 1 + i),
-           )
-      | _ => false
-      };
-    probe(List.rev(l), ~facing=Direction.Right, ~adjacent=true)
-    @ probe(r, ~facing=Direction.Left, ~adjacent=false)
-    |> List.filter(((_, ins)) => same_reading(ins))
-    |> List.sort(((i, _), (j, _)) => Int.compare(i, j))
-    |> List.map(snd)
-    |> List.mapi((k, ins: CanonicalCompletion.insertion) =>
-         k != 0
-           ? ins
-           : (
-             switch (ins.delimiters) {
-             | [] => ins
-             | [d, ...rest] =>
-               let left =
-                 l |> List.rev |> List.find_opt(p => !Piece.is_secondary(p));
-               let leading_hole =
-                 switch (left, d.of_shard, d.typed_len) {
-                 | (Some(p), Some((id, shard)), None) =>
-                   switch (
-                     Piece.nibs(p),
-                     Segment.find_ctx(result.completed_seg, id),
-                   ) {
-                   | (Some((_, rn)), Some((_, _, Piece.Tile(t)))) =>
-                     let (ln, _) = Mold.nibs(~index=shard, Tile.mold(t));
-                     switch (rn.shape, ln.shape) {
-                     | (Concave(_), Concave(_)) => !fuses_empty(l, d.text)
-                     | _ => false
-                     };
-                   | _ => d.leading_hole
-                   }
-                 | _ => d.leading_hole
-                 };
-               {
-                 ...ins,
-                 delimiters: [
-                   {
-                     ...d,
-                     leading_hole,
-                   },
-                   ...rest,
-                 ],
-               };
-             }
-           )
-       )
-    |> (
-      owned => {
-        /* The rightmost preview boundary meets the existing buffer even
-           across spaces/newlines. A hole already there is not an insertion.
-           Keep holes BETWEEN delimiters: they belong to the completion. */
-        let right_hole =
-          switch (List.find_opt(p => !Piece.is_secondary(p), r)) {
-          | Some(Grout({shape, _})) => Some(shape)
-          | Some(Tile(t)) when Tile.is_explicit_hole(t) =>
-            Some(Grout.Convex)
-          | _ => None
-          };
-        List.mapi(
-          (i, ins: CanonicalCompletion.insertion) =>
-            Option.is_none(right_hole) || i != List.length(owned) - 1
-              ? ins
-              : {
-                ...ins,
-                delimiters:
-                  List.mapi(
-                    (j, d: CanonicalCompletion.delimiter_info) =>
-                      j == List.length(ins.delimiters)
-                      - 1
-                      && d.trailing_hole == right_hole
-                        ? {
-                          ...d,
-                          trailing_hole: None,
-                        }
-                        : d,
-                    ins.delimiters,
-                  ),
-              },
-          owned,
-        );
+/* the atom (piece, or tile shard) immediately left of the caret —
+   the boundary for the no-changes-before-the-cursor policy */
+let caret_left_atom = (z: Zipper.t): option((Id.t, int)) => {
+  let of_piece = (p: Piece.t) =>
+    switch (p) {
+    | Tile(t) =>
+      switch (ListUtil.last_opt(t.shards)) {
+      | Some(i) => (t.id, i)
+      | None => (t.id, (-1))
       }
-    );
-  };
-
-/* The record Tab dispatches: the first of the caret's chips. The
-   quiver draws the same list as the bubble at the caret (QuiverDec
-   takes it as ~owned), so the bubble's first delimiter is Tab's by
-   construction. */
-let chip_at_caret =
-    (~seg: option(Segment.t)=?, z: Zipper.t)
-    : option(CanonicalCompletion.insertion) =>
-  List.nth_opt(chips_at_caret(~seg?, z), 0);
-
-/* Whether an existing operand hole can remain after this delimiter.
-   Closers with convex right nibs consume trailing grout instead. */
-let accepts_right_hole = (z: Zipper.t): bool =>
-  switch (chip_at_caret(z)) {
-  | Some({delimiters: [{of_shard: Some((id, shard)), _}, ..._], _}) =>
-    let result =
-      CanonicalCompletion.for_editor(
-        Zipper.unselect_and_zip(~erase_buffer=true, z),
-      );
-    switch (Segment.find_ctx(result.completed_seg, id)) {
-    | Some((_, _, Tile(t))) =>
-      let (_, rn) = Mold.nibs(~index=shard, Tile.mold(t));
-      switch (rn.shape) {
-      | Concave(_) => true
-      | Convex => false
-      };
-    | _ => false
+    | p => (Piece.id(p), (-1))
     };
+  /* an Inner caret sits INSIDE a token — that host token is partly
+     left of the caret (e.g. deleting `(` lands the caret Inner in
+     the preceding name; typing `=` before `>` gloms to `=>` with an
+     Inner caret). The host is the TOKEN neighbor, whichever side it
+     sits on (mirrors Zipper.Caret.inner_offset's preference) —
+     picking a grout neighbor let pads mint left of the caret. */
+  switch (z.caret) {
+  | Inner(_) =>
+    let ll = ListUtil.last_opt(fst(z.relatives.siblings));
+    let rh =
+      switch (snd(z.relatives.siblings)) {
+      | [p, ..._] => Some(p)
+      | [] => None
+      };
+    let host =
+      switch (ll, rh) {
+      | (Some(Piece.Tile(_)), _) => ll
+      | (_, Some(Piece.Tile(_))) => rh
+      | (Some(_), _) => ll
+      | _ => rh
+      };
+    host |> Option.map(of_piece);
+  | Outer =>
+    /* selection content renders at the caret's left when focus is
+       Right (e.g. a delimiter deletion leaving content selected) */
+    switch (z.selection.content, z.selection.focus) {
+    | ([_, ..._] as content, Direction.Right) =>
+      ListUtil.last_opt(content) |> Option.map(of_piece)
+    | _ =>
+      switch (ListUtil.last_opt(fst(z.relatives.siblings))) {
+      | Some(p) => Some(of_piece(p))
+      | None =>
+        let rec go = ancs =>
+          switch (ancs) {
+          | [] => None
+          | [(a: Ancestor.t, sibs: Siblings.t), ...rest] =>
+            switch (ListUtil.last_opt(fst(a.shards))) {
+            | Some(i) => Some((a.id, i))
+            | None =>
+              switch (ListUtil.last_opt(fst(sibs))) {
+              | Some(p) => Some(of_piece(p))
+              | None => go(rest)
+              }
+            }
+          };
+        go(z.relatives.ancestors);
+      }
+    }
+  };
+};
+
+/* a witness record: its head delimiter carries a typed prefix */
+let is_pure_witness = (ins: insertion): bool =>
+  switch (ins.delimiters) {
+  | [{typed_len: Some(_), _}, ..._] => true
   | _ => false
   };
 
-let obligation_at_caret = (z: Zipper.t): option(Id.t) =>
-  chip_at_caret(z)
-  |> Option.map((ins: CanonicalCompletion.insertion) =>
-       switch (ins.delimiters) {
-       | [{of_shard: Some((tid, _)), _}, ..._] => Some(tid)
-       | _ => None
-       }
+/* a witness IN PROGRESS (prefix shorter than the delimiter): its Tab
+   text is the token REMAINDER, which only extends the prefix when the
+   caret abuts the typed token — past the hole after it (`e ?|`) the
+   remainder would land as a stray `lse`. Owned only when adjacent. */
+let is_partial_witness = (ins: insertion): bool =>
+  switch (ins.delimiters) {
+  | [{typed_len: Some(n), text, _}, ..._] => n < String.length(text)
+  | _ => false
+  };
+
+/* Every record of the stream whose zone holds the caret, in WALK order
+   (left walk before right, nearer pieces first; records on one piece
+   keep stream order). This is the ghost fork's input — splice_sort
+   decides the visual order there and breaks ties by list order, so the
+   walk order is load-bearing for ghosts. Tab and the bubble read the
+   same set in Tab order (chips_owned).
+
+   Zone = the caret's inter-content run: whitespace/grout siblings on
+   either side match records anchored on them from either side; the
+   bounding content pieces match only records on their caret-facing
+   side. One stack can split into several records sharing the zone
+   (`else` glued to `4`, `end in` after the next line's indentation),
+   so the nearest anchor is NOT the answer.
+
+   PARTITION GATE: the caret's segment partitioned as the engine
+   partitions it — a record is owned only from its anchor's partition
+   or from contentless partitions after it (an empty trailing line
+   changes nothing; `if ⏎ ⏎ |1` does: then typed at the 1 absorbs it).
+
+   Inner caret (inside a token, e.g. a string literal): the promise
+   anchored on the host token still applies for DISPLAY — match the
+   immediate neighbors only; Tab declines (tab_action). */
+let zone_matches =
+    (z: Zipper.t, insertions: list(insertion)): list((int, insertion)) => {
+  let indexed = List.mapi((i, ins) => (i, ins), insertions);
+  let find_all = (~adjacent: bool, id: Id.t, sides: list(Direction.t)) =>
+    indexed
+    |> List.filter(((_, ins: insertion)) =>
+         Id.equal(ins.adjacent_id, id)
+         && List.mem(ins.side, sides)
+         && (adjacent || !is_partial_witness(ins))
+       );
+  let is_content = (p: Piece.t): bool =>
+    switch (p) {
+    | Secondary(_)
+    | Grout(_) => false
+    | _ => true
+    };
+  let matches =
+    switch (z.caret) {
+    | Inner(_) =>
+      let both = [Direction.Left, Direction.Right];
+      let try_head = (ps: list(Piece.t)) =>
+        switch (ps) {
+        | [p, ..._] => find_all(~adjacent=true, Piece.id(p), both)
+        | [] => []
+        };
+      let (l, r) = z.relatives.siblings;
+      switch (try_head(List.rev(l))) {
+      | [] => try_head(r)
+      | hits => hits
+      };
+    | Outer =>
+      let (l, r) = Zipper.unselect(z).relatives.siblings;
+      /* adjacent = this piece touches the caret (first step of the
+         left walk only: witnesses anchor on their token's right) */
+      let rec probe = (ps: list(Piece.t), ~facing: Direction.t, ~adjacent) =>
+        switch (ps) {
+        | [] => []
+        | [p, ...rest] =>
+          is_content(p)
+            ? find_all(~adjacent, Piece.id(p), [facing])
+            : find_all(
+                ~adjacent,
+                Piece.id(p),
+                [Direction.Left, Direction.Right],
+              )
+              @ probe(rest, ~facing, ~adjacent=false)
+        };
+      let parts =
+        CanonicalCompletion.partition_segment(l @ r)
+        |> List.map(fst)
+        |> Array.of_list;
+      let part_of = (id: Id.t): option(int) => {
+        let rec go = k =>
+          k >= Array.length(parts)
+            ? None
+            : List.exists(
+                (q: Piece.t) => Id.equal(Piece.id(q), id),
+                parts[k],
+              )
+                ? Some(k) : go(k + 1);
+        go(0);
+      };
+      let caret_part =
+        switch (List.rev(l), r) {
+        | ([p, ..._], _)
+        | ([], [p, ..._]) => part_of(Piece.id(p))
+        | ([], []) => None
+        };
+      let same_reading = (ins: insertion) =>
+        switch (part_of(ins.adjacent_id), caret_part) {
+        | (Some(j), Some(k)) =>
+          j == k
+          || j < k
+          && List.for_all(
+               i => !List.exists(is_content, parts[i]),
+               List.init(k - j, i => j + 1 + i),
+             )
+        | _ => false
+        };
+      probe(List.rev(l), ~facing=Direction.Right, ~adjacent=true)
+      @ probe(r, ~facing=Direction.Left, ~adjacent=false)
+      |> List.filter(((_, ins)) => same_reading(ins));
+    };
+  /* dedupe: a record can match both walks */
+  List.fold_left(
+    (acc, (i, ins)) => List.mem_assoc(i, acc) ? acc : acc @ [(i, ins)],
+    [],
+    matches,
+  );
+};
+
+/* The holes at the OWNED run's two boundaries are decided against the
+   buffer, not by the engine alone: the head delimiter grows a leading
+   hole where its shard's left nib meets a concave neighbor (unless the
+   pair fuses into an atomic token), and the last delimiter drops its
+   trailing hole when a hole already sits to the right. Holes BETWEEN
+   delimiters belong to the completion and are left alone. */
+let with_boundary_holes =
+    (z: Zipper.t, owned: list(insertion)): list(insertion) => {
+  let (l, r) = {
+    let z = Zipper.unselect(z);
+    z.relatives.siblings;
+  };
+  let completed =
+    lazy(
+      CanonicalCompletion.for_editor(
+        Zipper.unselect_and_zip(~erase_buffer=true, z),
+      ).
+        completed_seg
+    );
+  owned
+  |> List.mapi((k, ins: insertion) =>
+       k != 0
+         ? ins
+         : (
+           switch (ins.delimiters) {
+           | [] => ins
+           | [d, ...rest] =>
+             let left =
+               l |> List.rev |> List.find_opt(p => !Piece.is_secondary(p));
+             let leading_hole =
+               switch (left, d.of_shard, d.typed_len) {
+               | (Some(p), Some((id, shard)), None) =>
+                 switch (
+                   Piece.nibs(p),
+                   Segment.find_ctx(Lazy.force(completed), id),
+                 ) {
+                 | (Some((_, rn)), Some((_, _, Piece.Tile(t)))) =>
+                   let (ln, _) = Mold.nibs(~index=shard, Tile.mold(t));
+                   switch (rn.shape, ln.shape) {
+                   | (Concave(_), Concave(_)) => !fuses_empty(l, d.text)
+                   | _ => false
+                   };
+                 | _ => d.leading_hole
+                 }
+               | _ => d.leading_hole
+               };
+             {
+               ...ins,
+               delimiters: [
+                 {
+                   ...d,
+                   leading_hole,
+                 },
+                 ...rest,
+               ],
+             };
+           }
+         )
      )
-  |> Option.join;
+  |> (
+    owned => {
+      /* The rightmost preview boundary meets the existing buffer even
+         across spaces/newlines. A hole already there is not an insertion. */
+      let right_hole =
+        switch (List.find_opt(p => !Piece.is_secondary(p), r)) {
+        | Some(Grout({shape, _})) => Some(shape)
+        | Some(Tile(t)) when Tile.is_explicit_hole(t) => Some(Grout.Convex)
+        | _ => None
+        };
+      List.mapi(
+        (i, ins: insertion) =>
+          Option.is_none(right_hole) || i != List.length(owned) - 1
+            ? ins
+            : {
+              ...ins,
+              delimiters:
+                List.mapi(
+                  (j, d: CanonicalCompletion.delimiter_info) =>
+                    j == List.length(ins.delimiters)
+                    - 1
+                    && d.trailing_hole == right_hole
+                      ? {
+                        ...d,
+                        trailing_hole: None,
+                      }
+                      : d,
+                  ins.delimiters,
+                ),
+            },
+        owned,
+      );
+    }
+  );
+};
+
+let chips_among =
+    (z: Zipper.t, insertions: list(insertion)): list(insertion) =>
+  zone_matches(z, insertions) |> List.map(snd);
+
+/* The same set in TAB ORDER — what the bubble at the caret shows and
+   what Tab applies: partial witnesses first (they anchor at the
+   caret's own token — the NEAREST promise; a T2 suggestion sits last
+   in the stream but completes what the user is typing), then STREAM
+   order (landing-site order in the completed program). Never the walk
+   order: nearest-anchor flips with the caret's column inside the
+   indentation (`else` after `4` vs `end in` after the indent). */
+let chips_owned =
+    (z: Zipper.t, insertions: list(insertion)): list(insertion) => {
+  let (witnesses, rest) =
+    zone_matches(z, insertions)
+    |> List.partition(((_, ins)) => is_partial_witness(ins));
+  let by_idx = List.sort(((i, _), (j, _)) => Int.compare(i, j));
+  List.map(snd, by_idx(witnesses) @ by_idx(rest)) |> with_boundary_holes(z);
+};
+
+/* The record Tab dispatches: the first the caret owns */
+let chip_among =
+    (z: Zipper.t, insertions: list(insertion)): option(insertion) =>
+  List.nth_opt(chips_owned(z, insertions), 0);
+
+/* legacy name: Tab's chip IS the first owned record (witness first) */
+let tab_chip = chip_among;
+
+/* The chip stream as DISPLAYED: a chip whose content is ghosted
+   inline never also shows as a chip. ONE home for this policy:
+   the live deco and the test harness both call it. */
+let chips_displayed =
+    (~ghosted: list(insertion), assist: list(insertion)): list(insertion) =>
+  assist |> List.filter(ins => !List.memq(ins, ghosted));
+
+/* whether the caret's left neighborhood already provides separation
+   (space, linebreak, line start, or an opener's inside edge) — a
+   non-hugging delimiter accepted here needs no leading space */
+let left_separated = (z: Zipper.t): bool =>
+  switch (z.relatives.siblings |> fst |> List.rev) {
+  | [] => true
+  | [Secondary(_), ..._] => true
+  | [Tile(t), ..._] =>
+    switch (Util.ListUtil.last_opt(t.shards)) {
+    | Some(i) => CanonicalCompletion.f1_opens(Tile.token(t, i))
+    | None => false
+    }
+  | _ => false
+  };
 
 /* Padding is shared by Tab and the caret's preview. Existing whitespace
    belongs to the buffer; only missing padding belongs to the chip. The
@@ -297,49 +413,127 @@ let padding =
   (before ++ hole, after);
 };
 
-let tab_text =
-    (z: Zipper.t, ins: CanonicalCompletion.insertion): option(string) =>
-  switch (ins.delimiters) {
-  | [] => None
-  | [d, ..._] =>
-    switch (d.typed_len) {
-    | Some(n) when n < String.length(d.text) =>
-      Some(String.sub(d.text, n, String.length(d.text) - n))
-    | Some(_) => None
-    | None =>
-      let (before, after) = padding(z, d);
-      Some(before ++ d.text ++ after);
-    }
-  };
+/* Tab = "type it for me": the paste text for the chip's next chunk.
+   A witness chip pastes the token REMAINDER (no spaces — it merges
+   into the typed prefix exactly as typing would); a plain delimiter
+   takes the shared padding. */
+let tab_text = (z: Zipper.t, ins: insertion): option(string) => {
+  let rec go = (ds: list(CanonicalCompletion.delimiter_info)) =>
+    switch (ds) {
+    | [] => None
+    | [d, ...rest] =>
+      switch (d.typed_len) {
+      | Some(n) when n < String.length(d.text) =>
+        Some(String.sub(d.text, n, String.length(d.text) - n))
+      | Some(_) => go(rest) /* fully-typed witness: next chunk */
+      /* engine promises take the shared padding (nib- and hole-aware);
+         TyDi-synthesized material has no shard to read nibs from and
+         keeps the F1 spacing rules it lands under */
+      | None when d.of_shard != None =>
+        let (before, after) = padding(z, d);
+        Some(before ++ d.text ++ after);
+      | None =>
+        let lead =
+          !CanonicalCompletion.f1_hugs_left(d.text) && !left_separated(z);
+        /* no trailing pad when the accepted delimiter ends its line —
+           the next material lives on a later line already */
+        let next_is_break =
+          switch (snd(z.relatives.siblings)) {
+          | [Secondary(w), ..._] => Secondary.is_linebreak(w)
+          | _ => false
+          };
+        let trail =
+          !CanonicalCompletion.f1_closes(d.text)
+          && !CanonicalCompletion.f1_opens(d.text)
+          && !next_is_break;
+        Some((lead ? " " : "") ++ d.text ++ (trail ? " " : ""));
+      }
+    };
+  go(ins.delimiters);
+};
 
 /* An opener: the tile's LEADING shard, not a witness in progress */
-let is_opener = (ins: CanonicalCompletion.insertion): bool =>
+let is_opener = (ins: insertion): bool =>
   switch (ins.delimiters) {
   | [{of_shard: Some((_, 0)), typed_len: None, _}, ..._] => true
   | _ => false
   };
 
-/* What Tab does at this caret — THE dispatch, shared by the editor
-   and the tests. Witness remainders use Paste; whole trailing/middle
-   delimiters use Next to preserve hole and whitespace positions while
-   parsing the shared payload at the caret. Atomic empty forms use Paste
-   so their placeholder hole can disappear. An OPENER is
-   materialized by the engine instead: typing `(` pairs it with the
-   most recently stranded `)` (backpack order), not with the closer
-   the bubble shows it paired with — at `¦?) x ⏎ a)` a typed ( closed
-   the outer ), the bubble promised the inner. ApplyCompletion(One)
-   lands the engine's own placement. */
-let tab_action = (~seg: option(Segment.t)=?, z: Zipper.t): option(Action.t) =>
-  switch (chip_at_caret(~seg?, z)) {
-  | None => None
-  | Some(ins) when is_opener(ins) =>
-    switch (ins.delimiters) {
-    | [{of_shard: Some((tid, _)), _}, ..._] =>
-      Some(Action.ApplyCompletion(One(tid)))
-    | _ => None
+/* What Tab does at this caret — THE dispatch, shared by the editor and
+   the tests. A witness remainder or a trailing/middle delimiter is
+   TYPED at the caret (Paste through the normal pipeline: spacing and
+   caret land as if typed, and the material lands where the user is,
+   e.g. on the fresh line after `then 4`). An OPENER is materialized by
+   the engine instead: typing `(` pairs it with the most recently
+   stranded `)` (backpack order), not with the closer the bubble shows
+   it paired with. An Inner caret declines: the zone matches for
+   display, but Paste would land INSIDE the token. */
+let tab_action = (z: Zipper.t, assist: list(insertion)): option(Action.t) =>
+  switch (z.caret) {
+  | Inner(_) => None
+  | Outer =>
+    switch (chip_among(z, assist)) {
+    | None => None
+    | Some(ins) when is_opener(ins) =>
+      switch (ins.delimiters) {
+      | [{of_shard: Some((tid, _)), _}, ..._] =>
+        Some(Action.ApplyCompletion(One(tid)))
+      | _ => None
+      }
+    /* Whole trailing/middle delimiters go through Next, which parses the
+       shared payload at the caret and keeps hole and whitespace positions.
+       Atomic empty forms use Paste so their placeholder hole can vanish. */
+    | Some({
+        delimiters: [{text, typed_len: None, of_shard: Some(_), _}, ..._],
+        _,
+      })
+        when !fuses_empty(fst(z.relatives.siblings), text) =>
+      Some(Action.ApplyCompletion(Next))
+    | Some(ins) => tab_text(z, ins) |> Option.map(text => Action.Paste(text))
     }
-  | Some({delimiters: [{text, typed_len: None, _}, ..._], _})
-      when !fuses_empty(fst(z.relatives.siblings), text) =>
-    Some(Action.ApplyCompletion(Next))
-  | Some(ins) => tab_text(z, ins) |> Option.map(text => Action.Paste(text))
   };
+
+/* Engine-only conveniences (tests, tooling): ownership over the bare
+   completion of the caret's program */
+let chip_at_caret =
+    (~seg: option(Segment.t)=?, z: Zipper.t): option(insertion) => {
+  /* ~seg: the caller's already-zipped engine segment (the view zips
+     once per frame); the memoized completion is shared */
+  let seg =
+    switch (seg) {
+    | Some(seg) => seg
+    | None => Zipper.unselect_and_zip(~erase_buffer=true, z)
+    };
+  chip_among(z, CanonicalCompletion.for_editor(seg).insertions);
+};
+
+/* Whether an existing operand hole can remain after this delimiter.
+   Closers with convex right nibs consume trailing grout instead. */
+let accepts_right_hole = (z: Zipper.t): bool =>
+  switch (chip_at_caret(z)) {
+  | Some({delimiters: [{of_shard: Some((id, shard)), _}, ..._], _}) =>
+    let result =
+      CanonicalCompletion.for_editor(
+        Zipper.unselect_and_zip(~erase_buffer=true, z),
+      );
+    switch (Segment.find_ctx(result.completed_seg, id)) {
+    | Some((_, _, Tile(t))) =>
+      let (_, rn) = Mold.nibs(~index=shard, Tile.mold(t));
+      switch (rn.shape) {
+      | Concave(_) => true
+      | Convex => false
+      };
+    | _ => false
+    };
+  | _ => false
+  };
+
+let obligation_at_caret = (z: Zipper.t): option(Id.t) =>
+  chip_at_caret(z)
+  |> Option.map((ins: insertion) =>
+       switch (ins.delimiters) {
+       | [{of_shard: Some((tid, _)), _}, ..._] => Some(tid)
+       | _ => None
+       }
+     )
+  |> Option.join;
