@@ -1143,17 +1143,18 @@ let rec path_root = (ty: t): option(Var.t) =>
   };
 
 /* [ty] read outside the scope of the values [escaping] bind: a type path
-   rooted at one of them that is a module (`m.T`) is replaced by what it
-   denotes in [ctx], the scope's context, or by `?` where it denotes
-   nothing there. */
+   rooted at one of them (`m.T`) is replaced by what it denotes in [ctx],
+   the scope's context, or by `?` where it denotes nothing there. A path
+   root names the newest type or value of its name, so a path through a
+   type of that name does not escape. */
 let rec avoid = (ctx: Ctx.t, ~escaping: list(Var.t), ty: t): t => {
   let escapes = root =>
     List.exists(String.equal(root), escaping)
     && (
       switch (Ctx.newest_tvar_or_var(ctx, root)) {
-      | Some(`Var({typ, _})) => Option.is_some(as_sig(ctx, typ))
-      | Some(`TVar(_))
-      | None => false
+      | Some(`Var(_))
+      | None => true
+      | Some(`TVar(_)) => false
       }
     );
   switch (escaping) {

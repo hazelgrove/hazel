@@ -2704,6 +2704,17 @@ let test_dependent_parameter_path_avoided =
     ),
   );
 
+/* The parameter is `?`-typed, so its path denotes nothing: the codomain is
+   `?`, not a path read through whatever `m` is bound at a call. */
+let test_unannotated_parameter_path_avoided =
+  fully_consistent_typecheck(
+    "A path through an unannotated parameter does not leave the function",
+    {|let f = fun m -> (m.x : m.T) in
+let m = { type T = Bool; let x : T = true } in
+f(m) + 1|},
+    Some(int()),
+  );
+
 /* ===== MEMBERS READ THROUGH THEIR PATH ===== */
 let test_member_typed_through_its_path =
   fully_consistent_typecheck(
@@ -3022,6 +3033,7 @@ let tests = (
     test_case_arm_path_avoided,
     test_nested_path_avoided,
     test_dependent_parameter_path_avoided,
+    test_unannotated_parameter_path_avoided,
     test_member_typed_through_its_path,
     test_member_through_path_synthesizes_path,
     test_member_through_path_mismatch_names_path,
