@@ -176,7 +176,7 @@ let (suite, exit_with_test_status) =
     @ [Test_TypHash.tests]
     @ [Test_ValueHash.tests]
     @ [Test_IdentityMemo.tests]
-    @ [Test_ShareCodec.tests]
+    @ [Test_ShareCodec.tests, Test_SharingProbe.tests]
     @ [Test_CopyDescendants.tests]
     @ [
       Test_ContextInspector.tests,
