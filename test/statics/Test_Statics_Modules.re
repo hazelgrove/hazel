@@ -2231,6 +2231,96 @@ let test_outer_alias_member_exported_expanded =
     },
   );
 
+let test_renamed_alias_leaves_member_type =
+  fully_consistent_typecheck(
+    "A renamed alias leaves a module member type of the same name",
+    {|type T = Int in
+type T = Bool in
+module M = { type T = String } in
+let s : M.T = "a" in
+string_length(s)|},
+    Some(int()),
+  );
+
+let test_renamed_alias_leaves_module_of_same_name =
+  fully_consistent_typecheck(
+    "A renamed alias leaves the paths of a module of the same name",
+    {|type N = Int in
+type N = Bool in
+module N = { type U = String } in
+let s : N.U = "a" in
+string_length(s)|},
+    Some(int()),
+  );
+
+let test_renamed_alias_leaves_let_bound_module =
+  fully_consistent_typecheck(
+    "A renamed alias leaves the paths of a let-bound module of the same name",
+    {|type m = Int in
+type m = Bool in
+let m = { type T = String } in
+let y : m.T = "a" in
+string_length(y)|},
+    Some(int()),
+  );
+
+let test_renamed_alias_leaves_let_bound_module_alias =
+  fully_consistent_typecheck(
+    "A renamed alias leaves the paths of a let-bound alias of a module",
+    {|module M = { type T = String } in
+type n = Int in
+type n = Bool in
+let n = M in
+let y : n.T = "a" in
+string_length(y)|},
+    Some(int()),
+  );
+
+let test_renamed_alias_avoids_let_bound_module_name =
+  fully_consistent_typecheck(
+    "A renamed alias does not take the name of a let-bound module in its scope",
+    {|type t = Int in
+type t = Bool in
+let t' = { type u = Int } in
+(true : t)|},
+    Some(bool()),
+  );
+
+/* A path root names the newest type or value of its name, so where a value
+   of the renamed name is bound, which may be a module, its paths are left
+   alone; a bare type of that name still means the renamed alias. */
+let test_renamed_alias_leaves_module_parameter_paths =
+  fully_consistent_typecheck(
+    ~normalize=true,
+    "A renamed alias leaves the paths of a module parameter of the same name",
+    {|type m = Int in
+type m = Bool in
+let f = fun (m : { type U = String }) ->
+  (string_length(("a" : m.U)), (true : m)) in
+f({ type U = String })|},
+    Some(prod([int(), bool()])),
+  );
+
+let test_renamed_alias_leaves_signature_member_paths =
+  fully_consistent_typecheck(
+    "A renamed alias leaves the paths of a signature member of the same name",
+    {|type x = Int in
+type x = Bool in
+let f = fun (s : { let x : { type U = Int }; let y : x.U }) -> s.y + 1 in
+f({ let x = { type U = Int }; let y = 2 })|},
+    Some(int()),
+  );
+
+let test_renamed_alias_leaves_module_member_paths =
+  fully_consistent_typecheck(
+    "A renamed alias leaves the paths of a module member of the same name",
+    {|type m = Int in
+type m = Bool in
+module M = { let m = { type U = Int }; let y : m.U = 3; let z : m = true } in
+M.y + 1|},
+    Some(int()),
+  );
+
 let tests = (
   "Statics.Modules",
   [
@@ -2440,5 +2530,15 @@ let tests = (
     test_path_continues_through_tuple_type_member,
     test_path_continues_through_unascribed_sub_module,
     test_path_continues_through_unknown_member,
+    test_shadowed_module_keeps_earlier_paths,
+    test_shadowing_module_roots_later_paths,
+    test_renamed_alias_leaves_member_type,
+    test_renamed_alias_leaves_module_of_same_name,
+    test_renamed_alias_leaves_let_bound_module,
+    test_renamed_alias_leaves_let_bound_module_alias,
+    test_renamed_alias_avoids_let_bound_module_name,
+    test_renamed_alias_leaves_module_parameter_paths,
+    test_renamed_alias_leaves_signature_member_paths,
+    test_renamed_alias_leaves_module_member_paths,
   ],
 );
