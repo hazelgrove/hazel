@@ -31,25 +31,42 @@ let tests = (
     ),
     /* A value that already has the labeled type must not be lifted into a
        further field: the label is in its type, not in its syntax. */
-    test_case("Ascribing a variable that already has the record type", `Quick, () =>
-      parse_and_evaluate_test(
-        "(a=1)",
-        {|let r = (a=1) in r : (a=Int)|},
-      )
+    test_case(
+      "Ascribing a variable that already has the record type", `Quick, () =>
+      parse_and_evaluate_test("(a=1)", {|let r = (a=1) in r : (a=Int)|})
     ),
-    test_case("Annotating a variable that already has the record type", `Quick, () =>
+    test_case(
+      "Annotating a variable that already has the record type", `Quick, () =>
       parse_and_evaluate_test(
         "(a=1)",
         {|let r = (a=1) in let x : (a=Int) = r in x|},
       )
     ),
     test_case(
-      "Ascribing a call that already returns the record type",
-      `Quick,
-      () =>
+      "Ascribing a call that already returns the record type", `Quick, () =>
       parse_and_evaluate_test(
         "(a=1)",
         {|let f = fun _ -> (a=1) in f(()) : (a=Int)|},
+      )
+    ),
+    /* Of unknown type, it may still be the record at runtime: the cast
+       decides, so it isn't wrapped again. */
+    test_case(
+      "Ascribing a variable of unknown type that is the record", `Quick, () =>
+      parse_and_evaluate_test("(a=1)", {|let r : ? = (a=1) in r : (a=Int)|})
+    ),
+    test_case(
+      "Annotating a variable of unknown type that is the record", `Quick, () =>
+      parse_and_evaluate_test(
+        "(a=1)",
+        {|let r : ? = (a=1) in let x : (a=Int) = r in x|},
+      )
+    ),
+    test_case(
+      "Ascribing a call of unknown type that returns the record", `Quick, () =>
+      parse_and_evaluate_test(
+        "(a=1)",
+        {|let f : ? -> ? = fun x -> (a=x) in f(1) : (a=Int)|},
       )
     ),
     test_case("Labeled tuple field access", `Quick, () =>
