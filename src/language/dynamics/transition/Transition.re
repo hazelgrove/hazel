@@ -1272,36 +1272,26 @@ module Transition = (EV: EV_MODE) => {
       let.wrap_closure _ = (env, DynamicErrorHole(inner', err) |> rewrap);
       Indet;
     | Asc(d', t) =>
-      switch (Ascriptions.transition(d)) {
-      | Some(d') =>
-        let. _ = otherwise(env, d);
+      /* The ascribed term is evaluated first, as the program has it, and the
+         cast is pushed into the finished result. Pushing it in beforehand
+         rebuilt the term under its own id, so the evaluator met that id a
+         second time, on a term the program doesn't have. A stuck result
+         still sheds or absorbs its casts here, so they don't pile up on
+         holes (#1874). */
+      let. _ = otherwise(env, d => Asc(d, t) |> rewrap)
+      and. d' = req_final(req(env), d => Asc(d, t) |> wrap_ctx, d');
+      switch (Ascriptions.transition(Asc(d', t) |> rewrap)) {
+      | Some(_) =>
+        /* All the cast's layers resolve in this one step, and the result is
+           final: d' is already evaluated, so nothing in it runs again. */
         Step({
-          expr: d',
+          expr: Ascriptions.transition_multiple(Asc(d', t) |> rewrap),
           side_effects: [],
           kind: Ascription,
-          is_value: false,
-        });
-      | None =>
-        let. _ = otherwise(env, d => Asc(d, t) |> rewrap)
-        and. d' = req_final(req(env), d => Asc(d, t) |> wrap_ctx, d');
-        switch (Ascriptions.transition(Asc(d', t) |> rewrap)) {
-        | Some(_) =>
-          /* Use transition_multiple to fully resolve all Asc layers in one
-           * step, and is_value: true to prevent re-evaluation. This is critical
-           * because d' was already fully evaluated by req_final above — probes
-           * inside d' have already fired. Without this, the distributed Asc
-           * wrappers would cause sub-expressions to be re-evaluated, hitting
-           * probe targets a second time with a different (shorter) call_stack,
-           * producing duplicate samples that bypass dedup. */
-          Step({
-            expr: Ascriptions.transition_multiple(Asc(d', t) |> rewrap),
-            side_effects: [],
-            kind: Ascription,
-            is_value: true,
-          })
-        | None => Constructor
-        };
-      }
+          is_value: true,
+        })
+      | None => Constructor
+      };
     | Undefined =>
       let. _ = otherwise(env, d);
       Indet;

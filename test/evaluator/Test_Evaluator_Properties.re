@@ -1515,12 +1515,10 @@ let found_cause_tests = [
       "(0, proof_object 0 end:: (let `a` = y in ?))",
     )
   ),
-  /* Known bug: a cast pushed into a `let` keeps the `let`'s id, so the cache
-     serves the old cast after an edit changes only the cast's type. Pinned
-     with the disagreement; goes red once fixed. */
-  test_case("Known bug: a cast pushed into a module-let is cached", `Quick, () =>
+  /* An edit that changes only the cast's type must not get the old cast
+     back from the cache. */
+  test_case("Incremental: a cast pushed into a module-let", `Quick, () =>
     incremental_agrees(
-      ~testable=neg(testable_core_exp),
       ~literal_index=0,
       "(0, (module ? = _ in ()):proof_of 0 end)",
     )
