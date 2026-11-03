@@ -559,7 +559,13 @@ let update_code =
     let info_map =
       Id.Map.is_empty(statics.info_map)
         ? fresh_info_map(~settings, code.program) : statics.info_map;
-    realize(~info_map, code.view, code) |> return(~historic=false);
+    let realized = realize(~info_map, code.view, code);
+    /* an edit only if realizing opened or closed a cell: otherwise the
+       program is the restored one, whose syntax the undo's own frame just
+       rebuilt, and an edit here would mark it old and rebuild it again
+       (^ticket(665): a second full syntax pass on every undo and redo) */
+    realized
+    |> return(~is_edit=realized.program !== code.program, ~historic=false);
   | RestorePins =>
     /* each slide's saved view waits under its own key, so another
        slide hydrating first can't drop it; a deep link's outline
