@@ -36,6 +36,71 @@ let unrolled_consistent = (ty_rec: Typ.t, ty: Typ.t): bool =>
   | None => false
   };
 
+/* Whether a value cast to, or matched against, a one-field labeled type
+   `(l=…)` is lifted into it: `1` at `(a=Int)` becomes `(a=1)`. Statics
+   lifts a value of known type by its type; one of unknown type is lifted
+   here, when the cast or the pattern meets it, by the same rule: anything
+   but a one-field tuple with that label or with none. Only a form that
+   already shows it can't become that record is lifted; one that may still
+   evaluate to anything (a variable, a call, a hole) waits. */
+let rec lifts_into = (l: LabeledTuple.label, d: DHExp.t): bool =>
+  switch (DHExp.term_of(d)) {
+  | Closure(_, d) => lifts_into(l, d)
+  | Tuple([entry]) =>
+    switch (Exp.match_tup_label(entry)) {
+    | Some((existing, _)) => !String.equal(existing, l)
+    | None => false
+    }
+  | Constructor(c, _) => !String.is_prefix(c, ~prefix="$")
+  | Ap(_, {term: Constructor(c, _), _}, _) =>
+    !String.is_prefix(c, ~prefix="$")
+  | Tuple(_)
+  | Atom(_)
+  | Fun(_)
+  | TypFun(_)
+  | BuiltinFun(_)
+  | ListLit(_)
+  | Cons(_) => true
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | DynamicErrorHole(_)
+  | Deferral(_)
+  | Undefined
+  | DrvQuote(_)
+  | Label(_)
+  | ExplicitNonlabel
+  | TupLabel(_)
+  | Dot(_)
+  | LivelitName(_)
+  | Var(_)
+  | Let(_)
+  | Theorem(_)
+  | ProofObject(_)
+  | Forall(_)
+  | FixF(_)
+  | TyAlias(_)
+  | Use(_)
+  | Ap(_)
+  | TypAp(_)
+  | DeferredAp(_)
+  | If(_)
+  | Seq(_)
+  | Test(_)
+  | HintedTest(_)
+  | Filter(_)
+  | Parens(_)
+  | Projector(_)
+  | ListConcat(_)
+  | UnOp(_)
+  | BinOp(_)
+  | Match(_)
+  | TupleExtension(_)
+  | Asc(_)
+  | Module(_)
+  | ModuleExp(_) => false
+  };
+
 let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
   let recur = (d: DHExp.t): DHExp.t =>
     if (recursive) {
@@ -71,6 +136,23 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
          everywhere here, and an e that already has the type comes back
          as itself. */
       transition(~recursive, Asc(e, t) |> DHExp.fresh)
+    /* Only at a written one-field labeled type, as statics: a recursive
+       type that unrolls to one would lift again at each unrolling. Before
+       the closure arm, so a function's whole closure becomes the field
+       rather than the record being stuck inside the closure. */
+    | (_, Prod([{term: TupLabel({term: Label(l), _}, field_ty), _}]))
+        when
+          lifts_into(l, e)
+          && (
+            switch (Typ.term_of(t)) {
+            | Rec(_) => false
+            | _ => true
+            }
+          ) =>
+      let label: DHExp.t = Label(l) |> DHExp.fresh;
+      let field: DHExp.t =
+        TupLabel(label, recur(ascribe(e, field_ty))) |> DHExp.fresh;
+      Some(Tuple([field]) |> DHExp.fresh);
     | (Closure(ce, d), t) =>
       transition(~recursive, Asc(d, t |> Typ.fresh) |> DHExp.fresh)
       |> Option.map(~f=d => Closure(ce, d) |> DHExp.fresh)
