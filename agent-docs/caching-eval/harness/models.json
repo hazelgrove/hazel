@@ -1,0 +1,31 @@
+{
+  "comment": "Model matrix for the prompt-caching eval. Only providers the app allowlists for explicit cache_control (see OpenRouter.Payload.Utils.cache_control_provider_prefixes: anthropic/, google/, qwen/). Cheapest viable member of each family, plus the production default (Sonnet) for direct relevance. Add entries freely; the harness validates each id against the live /models endpoint before spending anything.",
+  "models": [
+    {
+      "id": "anthropic/claude-haiku-4.5",
+      "family": "anthropic",
+      "why": "Cheapest Claude with prompt caching; highest min-cacheable-prefix threshold in the family (2048 tokens), so a pass here derisks the rest."
+    },
+    {
+      "id": "anthropic/claude-sonnet-4.6",
+      "family": "anthropic",
+      "why": "Production default model in the app; the result we actually care about."
+    },
+    {
+      "id": "google/gemini-3-flash-preview",
+      "family": "google",
+      "why": "Cheap; already referenced in codebase comments as the model where prompt_tokens over-reporting was measured."
+    },
+    {
+      "id": "qwen/qwen3-coder",
+      "family": "qwen",
+      "why": "Cheap representative of the third allowlisted explicit-caching family."
+    }
+  ],
+  "protocol": {
+    "turns_per_model": 3,
+    "prefix_target_tokens": 6000,
+    "max_completion_tokens": 16,
+    "inter_turn_delay_ms": 2000
+  }
+}
