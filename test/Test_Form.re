@@ -5,8 +5,9 @@ open Haz3lcore;
    first included, spell a complete compound form take that form. The labels
    that can happen to are the forms whose label is a proper prefix of another
    form's label, so a new form with such a label becomes a re-forming target
-   the moment it is added. Today those are exactly the module and signature
-   items, reached from the expression forms owed their `in`. */
+   the moment it is added. Today those are the module and signature items,
+   reached from the expression forms owed their `in`, and the `implicit`
+   binder inside a function parameter. */
 let prefix_forms = (): list(string) => {
   let labels =
     Form.forms
@@ -35,13 +36,14 @@ let tests = (
   "Form",
   [
     test_case(
-      "the only forms a shorter form spells are the module and signature items",
+      "the only forms a shorter form spells are the item and implicit binders",
       `Quick,
       () =>
       check(
         testable(Fmt.(list(string)), List.equal(String.equal)),
         "form labels that are prefixes of another form's label",
         [
+          "implicit : -> implicit",
           "let = -> let",
           "let = in -> let",
           "let = in -> let =",

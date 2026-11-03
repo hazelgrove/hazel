@@ -274,6 +274,10 @@ let core_mark_err_view =
     | ModuleTypeMemberMismatch(_)
     | TypeMemberCapture(_)
     | EscapedType(_)
+    | ImplicitNotFound(_)
+    | ImplicitAmbiguous(_)
+    | ImplicitBinderNotModule(_)
+    | ImplicitBinderPosition
     | BadOperator(_)
     | BadLivelitModel(_)
     | BadTheorem(_)
@@ -288,6 +292,7 @@ let core_mark_err_view =
     | ModuleTypeMemberNotFound(_)
     | TypWantModule(_)
     | TypAbstractMemberOfSignature(_)
+    | SigDuplicateMember(_)
     | TypWantConstructorFoundType(_)
     | TypWantConstructorFoundAp
     | TypParseFailure
@@ -827,6 +832,65 @@ let exp_mark_err_view =
       text("Module is missing members required by its signature: "),
       ...ListUtil.join(text(", "), List.map(code, names)),
     ])
+  | ImplicitNotFound({binder, signature, constraints, candidates}) =>
+    div_err(
+      [text("No implicit instance")]
+      @ (
+        switch (Typ.term_of(signature)) {
+        | Unknown(_) => [] /* an unannotated binder: nothing to name */
+        | _ => [text(" of "), view_type(signature)]
+        }
+      )
+      @ (
+        switch (constraints) {
+        | [] => []
+        | _ =>
+          [text(" with ")]
+          @ List.concat(
+              ListUtil.join(
+                [text(", ")],
+                List.map(
+                  ((name, ty)) =>
+                    [code(name), text(" = "), view_type(ty)],
+                  constraints,
+                ),
+              ),
+            )
+        }
+      )
+      @ [text(" for "), code(binder)]
+      @ (
+        switch (candidates) {
+        | [] => [text("; no implicit instances are in scope")]
+        | _ => [
+            text("; the implicit instances in scope are "),
+            ...ListUtil.join(text(", "), List.map(code, candidates)),
+          ]
+        }
+      ),
+    )
+  | ImplicitAmbiguous({binder, signature, candidates}) =>
+    div_err(
+      [text("Implicit "), code(binder)]
+      @ (
+        switch (Typ.term_of(signature)) {
+        | Unknown(_) => [] /* an unannotated binder: nothing to name */
+        | _ => [text(" : "), view_type(signature)]
+        }
+      )
+      @ [text(" is ambiguous: ")]
+      @ ListUtil.join(text(", "), List.map(code, candidates))
+      @ [text(" all fit")],
+    )
+  | ImplicitBinderNotModule(ty) =>
+    div_err([
+      text("An implicit binder needs a signature type, not "),
+      view_type(ty),
+    ])
+  | ImplicitBinderPosition =>
+    div_err([
+      text("An implicit binder belongs in a function's parameter type"),
+    ])
   | ModuleMemberNotFound({name, members, type_member}) =>
     if (type_member) {
       div_err([
@@ -890,6 +954,7 @@ let exp_mark_err_view =
   | ModuleTypeMemberNotFound(_)
   | TypWantModule(_)
   | TypAbstractMemberOfSignature(_)
+  | SigDuplicateMember(_)
   | TypWantConstructorFoundType(_)
   | TypWantConstructorFoundAp
   | TypParseFailure
@@ -1000,6 +1065,31 @@ let exp_view =
           cls,
           ok,
         ),
+      )
+    | Exp(ImplicitResolved({resolved, common})) =>
+      div_ok(
+        List.concat_map(
+          ((binder, inst)) =>
+            [
+              text("implicit "),
+              code(binder),
+              text(" is "),
+              code(inst),
+              text("; "),
+            ],
+          resolved,
+        )
+        @ common_ok_view(
+            ~globals,
+            ~show_type_colon,
+            ~lifted_ty,
+            ~reordered,
+            ~introduced_labels,
+            ~inferred_label,
+            ~label_sort=info.label_sort,
+            cls,
+            common,
+          ),
       )
     | Pat(_)
     | TypOk(_)
@@ -1218,12 +1308,29 @@ let tpat_view =
   };
 };
 
+/* A signature item: its class, or the error the signature attributes to it. */
+let sig_mark_view = (m: Mark.t): list(Node.t) =>
+  switch (m) {
+  | SigDuplicateMember({name, type_member}) => [
+      text(type_member ? "Type member " : "Member "),
+      code(name),
+      text(" is declared more than once in this signature"),
+    ]
+  | _ => [text("Signature error")]
+  };
+
+let sig_view = (cls: Cls.t, ~marks: list(Mark.t)): Node.t =>
+  switch (Mark.highest(marks)) {
+  | None => div_ok([text(cls |> Cls.show)])
+  | Some(m) => div_err(sig_mark_view(m))
+  };
+
 let view_of_info = (~globals, ci): list(Node.t) => {
   let wrapper = status_view => [term_view(~globals, ci), status_view];
   switch (ci) {
   | Secondary(_) => wrapper(div([]))
   | InfoMod({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
-  | InfoSig({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
+  | InfoSig({cls, marks, _}) => wrapper(sig_view(cls, ~marks))
   | InfoMPat({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
   | InfoExp({cls, message, _} as ie) =>
     wrapper(exp_view(~globals, cls, message, ie))

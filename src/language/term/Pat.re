@@ -17,7 +17,8 @@ type cls =
   | Projector
   | ApFunc
   | ApCons
-  | Asc;
+  | Asc
+  | Implicit;
 
 include TermBase.Pat;
 
@@ -60,7 +61,8 @@ let cls_of_term: Grammar.pat_term('a) => cls =
   | Projector(_) => Projector
   | Ap({term: Constructor(_), _}, _) => ApCons
   | Ap(_) => ApFunc
-  | Asc(_) => Asc;
+  | Asc(_) => Asc
+  | Implicit(_) => Implicit;
 
 let show_cls: cls => string =
   fun
@@ -86,7 +88,8 @@ let show_cls: cls => string =
   | Projector => "Projector"
   | ApCons => "Constructor application"
   | ApFunc => "Function definition"
-  | Asc => "Annotation";
+  | Asc => "Annotation"
+  | Implicit => "Implicit module binder";
 
 /* Whether a hole occurs in a binding position of the pattern: one a
    variable could fill. Labels, constructors and annotations are not. */
@@ -108,6 +111,7 @@ let rec has_hole_binder = (pat: t): bool =>
   | Atom(_)
   | Label(_)
   | ExplicitNonlabel
+  | Implicit(_)
   | Constructor(_) => false
   };
 
@@ -118,6 +122,7 @@ let rec is_var = (pat: t): option(Var.t) => {
   | TupLabel(_, pat)
   | Asc(pat, _) => is_var(pat)
   | Var(v) => Some(v)
+  | Implicit(mp) => MPat.name(mp)
   | Invalid(_)
   | EmptyHole
   | MultiHole(_)
@@ -153,6 +158,7 @@ let rec is_tuple_of_vars = (pat: t) =>
     | Cons(_, _)
     | Var(_)
     | Constructor(_)
+    | Implicit(_)
     | Ap(_) => false
     }
   );
@@ -164,6 +170,7 @@ let rec get_var = (pat: t) => {
   | TupLabel(_, pat) => get_var(pat)
   | Var(x) => Some(x)
   | Asc(x, _) => get_var(x)
+  | Implicit(mp) => MPat.name(mp)
   | Invalid(_)
   | EmptyHole
   | MultiHole(_)
@@ -200,6 +207,7 @@ let rec get_num_of_vars = (pat: t) =>
     | Cons(_, _)
     | Var(_)
     | Constructor(_)
+    | Implicit(_)
     | Ap(_) => None
     }
   };
@@ -250,10 +258,52 @@ let rec bindings = (dp: t): Binding.s =>
   | Cons(dp1, dp2) => bindings(dp1) @ bindings(dp2)
   | ListLit(dps) => List.flatten(List.map(bindings, dps))
   | Ap(_, dp1) => bindings(dp1)
+  | Implicit(mp) =>
+    switch (MPat.name(mp), MPat.var_id(mp)) {
+    | (Some(name), Some(id)) => [
+        {
+          name,
+          id,
+        },
+      ]
+    | _ => []
+    }
   };
 
 let bound_vars = (dp: t): list(Var.t) =>
   dp |> bindings |> List.map((b: Binding.t) => b.name);
+
+/* The implicit module binders among a function parameter's components (the
+   whole pattern or the items of its tuple), in order. */
+let implicit_binders = (p: t): list(Var.t) => {
+  let rec strip = (p: t) =>
+    switch (term_of(p)) {
+    | Parens(p) => strip(p)
+    | _ => p
+    };
+  let of_component = (p: t) =>
+    switch (term_of(strip(p))) {
+    | Implicit(mp) => MPat.name(mp) |> Option.to_list
+    | _ => []
+    };
+  switch (term_of(strip(p))) {
+  | Tuple(ps) => List.concat_map(of_component, ps)
+  | _ => of_component(p)
+  };
+};
+
+/* The pattern a module name pattern denotes (`S : SIG` binds like an
+   annotated variable), keeping the MPat's ids so recorded info lands where
+   the cursor can find it. */
+let rec of_mpat = (mp: MPat.t): t =>
+  switch (IdTagged.term_of(mp)) {
+  | Var(name) => IdTagged.fast_copy(MPat.rep_id(mp), fresh(Var(name)))
+  | Asc(inner, typ) =>
+    IdTagged.fast_copy(MPat.rep_id(mp), fresh(Asc(of_mpat(inner), typ)))
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_) => IdTagged.fast_copy(MPat.rep_id(mp), fresh(Wild))
+  };
 
 let get_duplicate_bindings = (pat: t) => {
   let bindings = bound_vars(pat);

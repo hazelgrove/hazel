@@ -118,6 +118,10 @@ and pat_term('a) =
   | Projector(projector_data, pat_t('a))
   | Ap(pat_t('a), pat_t('a))
   | Asc(pat_t('a), typ_t('a))
+  /* `implicit S : SIG`: binds a module variable that is also an implicit
+     instance in its scope; as a component of a function parameter it is
+     left out of the call arity and resolved at the call site. */
+  | Implicit(mpat_t('a))
 and pat_t('a) = Annotated.t(pat_term('a), 'a)
 and typ_term('a) =
   | Unknown(type_provenance('a))
@@ -142,6 +146,9 @@ and typ_term('a) =
   /* An abstract type that outlived the scope of its root (see [escaped]).
      Not surface syntax: only Typ.avoid produces it. */
   | Escaped(escaped)
+  /* An implicit module binder as a component of an arrow domain: it binds
+     its name in the later components and in the codomain. */
+  | Implicit(mpat_t('a))
 and typ_t('a) = Annotated.t(typ_term('a), 'a)
 and tpat_term('a) =
   | Invalid(string)
@@ -382,6 +389,7 @@ and map_pat_annotation: 'a 'b. ('a => 'b, pat_t('a)) => pat_t('b) =
           Ap(map_pat_annotation(f, p1), map_pat_annotation(f, p2))
         | Asc(p, t) =>
           Asc(map_pat_annotation(f, p), map_typ_annotation(f, t))
+        | Implicit(mp) => Implicit(map_mpat_annotation(f, mp))
         },
       annotation: new_annotation,
     };
@@ -406,6 +414,7 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
           Rec(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
         | Poly(tp, t) =>
           Poly(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
+        | Implicit(mp) => Implicit(map_mpat_annotation(f, mp))
         | ProofOf(e) => ProofOf(map_exp_annotation(f, e))
         | Prod(l) => Prod(List.map(x => map_typ_annotation(f, x), l))
         | Label(l) => Label(l)
@@ -907,6 +916,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Asc(p, t),
       annotation: default_annotation(ann),
     };
+    let implicit_ = (~ann=?, mp): pat_t(DefaultAnnotation.t) => {
+      term: Implicit(mp),
+      annotation: default_annotation(ann),
+    };
   };
 
   module Typ = {
@@ -1011,6 +1024,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let poly = (~ann=?, tp, t): typ_t(DefaultAnnotation.t) => {
       term: Poly(tp, t),
+      annotation: default_annotation(ann),
+    };
+    let implicit_ = (~ann=?, mp): typ_t(DefaultAnnotation.t) => {
+      term: Implicit(mp),
       annotation: default_annotation(ann),
     };
     let proof_of = (~ann=?, e): typ_t(DefaultAnnotation.t) => {
