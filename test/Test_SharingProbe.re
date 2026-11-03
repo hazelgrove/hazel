@@ -247,19 +247,46 @@ let unaccounted = (st: Haz3lcore.CachedStatics.t): string =>
     /* keys in more than one item's map, by class: counted twice */
     let seen = Hashtbl.create(4096);
     let twice = ref([]);
-    List.iter(
-      (it: Haz3lcore.DefStatics.item) =>
+    let where = Hashtbl.create(4096);
+    List.iteri(
+      (i, it: Haz3lcore.DefStatics.item) =>
         Language.Id.Map.iter(
           (id, info) =>
-            if (Hashtbl.mem(seen, id)) {
-              twice := [info, ...twice^];
-            } else {
-              Hashtbl.replace(seen, id, ());
+            switch (Hashtbl.find_opt(where, id)) {
+            | Some((j, first)) =>
+              twice := [(id, j, first, i, info), ...twice^]
+            | None => Hashtbl.replace(where, id, (i, info))
             },
           it.d_map,
         ),
       ds.items,
     );
+    /* for a few of them, the classes of the terms each entry was analyzed
+       under, nearest first */
+    let under = (info: Language.Info.t) =>
+      Language.Info.ancestors_of(info)
+      |> Util.ListUtil.take(7)
+      |> List.map(a =>
+           switch (Language.Id.Map.find_opt(a, st.info_map)) {
+           | Some(i) => Language.Cls.show(Language.Info.cls_of(i))
+           | None => "?"
+           }
+         )
+      |> String.concat(" < ");
+    let examples =
+      List.rev(twice^)
+      |> Util.ListUtil.take(3)
+      |> List.map(((_, j, first, i, again)) =>
+           Printf.sprintf(
+             "[item %d: %s] [item %d: %s]",
+             j,
+             under(first),
+             i,
+             under(again),
+           )
+         )
+      |> String.concat("; ");
+    let twice = ref(List.map(((_, _, _, _, info)) => info, twice^));
     let (counted, actual) = Web.EvalSplit.last_count^;
     let missing =
       Language.Id.Map.fold(
@@ -275,7 +302,7 @@ let unaccounted = (st: Haz3lcore.CachedStatics.t): string =>
         [],
       );
     Printf.sprintf(
-      " | statics %d keys, items %d: in the statics, in no item: %d (%s); in an item, not the statics: %d (%s) | the pieces counted %d against %d; in two items or more: %d (%s)",
+      " | statics %d keys, items %d: in the statics, in no item: %d (%s); in an item, not the statics: %d (%s) | the pieces counted %d against %d; in two items or more: %d (%s); first and second entries under: %s",
       Language.Id.Map.cardinal(st.info_map),
       Hashtbl.length(held),
       List.length(missing),
@@ -286,6 +313,7 @@ let unaccounted = (st: Haz3lcore.CachedStatics.t): string =>
       actual,
       List.length(twice^),
       tally(twice^),
+      examples,
     );
   };
 
