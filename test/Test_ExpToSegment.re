@@ -335,6 +335,38 @@ let tests = (
         );
       },
     ),
+    /* The stepper substitutes into a module's items, so their operands need
+       the same parentheses as anywhere else. */
+    test_case(
+      "Module items are parenthesized",
+      `Quick,
+      () => {
+        open IdTagged.FreshGrammar;
+        let sum = Exp.(bin_op(Int(Plus), int(3), int(3)));
+        let m =
+          Exp.module_([
+            Mod.mod_let(Pat.var("x"), sum),
+            Mod.mod_let(
+              Pat.var("y"),
+              Exp.(bin_op(Int(Times), sum, int(2))),
+            ),
+          ]);
+        check(
+          string,
+          "An item's operand",
+          {|{ let x = 3 + 3; let y = (3 + 3) * 2 }|},
+          print_seg(exp_to_segment(m)),
+        );
+        check(
+          string,
+          "A module needs no parentheses of its own",
+          {|let M = { let x = 3 + 3; let y = (3 + 3) * 2 } in M|},
+          print_seg(
+            exp_to_segment(Exp.(let_(Pat.var("M"), m, var("M")))),
+          ),
+        );
+      },
+    ),
     test_case("Unit type", `Quick, () => {
       check(
         string,

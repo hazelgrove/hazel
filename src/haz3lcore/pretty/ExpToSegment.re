@@ -267,6 +267,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Test(_)
   | HintedTest(_)
   | ProofObject(_)
+  | Module(_)
   | Match(_) => Precedence.max
 
   | Asc(_) => Precedence.asc
@@ -298,7 +299,6 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
 
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
   | MultiHole(_) => Precedence.min
-  | Module(_) => Precedence.min
   | ModuleExp(_) => Precedence.let_
   };
 };
@@ -736,8 +736,21 @@ let rec parenthesize =
       ),
     )
     |> rewrap
-  | Module(_) => exp /* Phase 1.2: proper module parenthesization */
-  | ModuleExp(_) => exp
+  | Module(items) =>
+    Module(
+      List.map(
+        parenthesize_mod(~parenthesization, ~show_filters, ~show_ascriptions),
+        items,
+      ),
+    )
+    |> rewrap
+  | ModuleExp(mp, def, body) =>
+    ModuleExp(
+      mp,
+      parenthesize(def) |> paren_at(Precedence.min),
+      parenthesize(body) |> paren_assoc_at(Precedence.let_),
+    )
+    |> rewrap
   };
 }
 and parenthesize_pat =
@@ -1052,6 +1065,56 @@ and parenthesize_rul =
   };
 }
 
+and parenthesize_mod =
+    (
+      ~parenthesization: Settings.parenthesization,
+      ~show_filters: bool,
+      ~show_ascriptions: bool,
+      item: Mod.t,
+    )
+    : Mod.t => {
+  let parenthesize =
+    parenthesize(~parenthesization, ~show_filters, ~show_ascriptions);
+  let definition = e =>
+    parenthesize(e) |> paren_at(~parenthesization, Precedence.min);
+  let (term, rewrap: Mod.term => Mod.t) = IdTagged.unwrap(item);
+  switch (term) {
+  | Invalid(_)
+  | EmptyHole => item
+  | MultiHole(xs) =>
+    MultiHole(
+      List.map(
+        parenthesize_any(~parenthesization, ~show_ascriptions, ~show_filters),
+        xs,
+      ),
+    )
+    |> rewrap
+  | ModLet(p, e) =>
+    ModLet(
+      parenthesize_pat(~parenthesization, ~show_filters, ~show_ascriptions, p)
+      |> paren_pat_at(~parenthesization, Precedence.min),
+      definition(e),
+    )
+    |> rewrap
+  | ModType(tp, t) =>
+    ModType(
+      parenthesize_tpat(
+        ~parenthesization,
+        ~show_filters,
+        ~show_ascriptions,
+        tp,
+      ),
+      parenthesize_typ(~parenthesization, ~show_filters, ~show_ascriptions, t)
+      |> paren_typ_at(~parenthesization, Precedence.min),
+    )
+    |> rewrap
+  /* Not `definition`: a fresh Parens would split the item from the
+     expression it shares ids with. */
+  | ModExp(e) => ModExp(parenthesize(e)) |> rewrap
+  | ModuleMod(mp, e) => ModuleMod(mp, definition(e)) |> rewrap
+  | ModVal(x, e) => ModVal(x, definition(e)) |> rewrap
+  };
+}
 and parenthesize_any =
     (
       ~parenthesization: Settings.parenthesization,
@@ -1110,11 +1173,19 @@ and parenthesize_any =
         r,
       ),
     )
-  /* Parenthesization for Drv, Mod, Sig, MPat, and Any is not yet defined.
+  /* Parenthesization for Drv, Sig, MPat, and Any is not yet defined.
      Pretty-printing produces the term as-is; this is sound (never adds
      invalid parens) but may omit disambiguating parens in nested contexts. */
   | Drv(_) => any
-  | Mod(_) => any
+  | Mod(m) =>
+    Mod(
+      parenthesize_mod(
+        ~parenthesization,
+        ~show_filters,
+        ~show_ascriptions,
+        m,
+      ),
+    )
   | Sig(_) => any
   | MPat(_) => any
   | Any(_) => any
