@@ -54,7 +54,12 @@ Signature items are `let name : Type` (value member), `type T = Type`
 (manifest type member) and `module Name : Signature` (sub-module member,
 which may be capitalized). Items scope sequentially: `let x : T` may mention
 a `type T` declared earlier in the same signature. A member written `let x`
-or `module M` without a type has type `?`.
+or `module M` without a type has type `?`. A signature declares each member
+once: a later declaration of a name is an error (`SigDuplicateMember`) and
+the first is the member; value and module members share a namespace, type
+members have their own. A `let` item declares a member by name, so one whose
+pattern is not a name, `let (a, b) : (Int, Int)`, is an error
+(`SigLetNotAName`) and declares nothing.
 
 ```
 module Outer : { module Inner : { let x : Int }; let y : Int } =
@@ -236,12 +241,14 @@ After checking:
   the module.
 
 `ModuleExp(mpat, def, body)` is checked as `Let(pat, def, body)` and
-elaborates to that `Let`. `Dot(e, x)` on a signature-typed `e` projects the
-value member; a member the signature lacks is reported on the label
+elaborates to that `Let`. `Dot(e, x)` on a signature-typed `e` is module
+member access, decided once from `e`'s type and sharing nothing with tuple
+projection after that: the label `x` is the member, at the member's type;
+a member the signature lacks is reported on the label
 (`ModuleMemberNotFound`, or `ModuleMemberIsType` when `x` names a type
-member) while the dot carries only a message, the way `M.Fake` in a type
-reports on `Fake`
-(`ModuleTypeMemberNotFound`). A hole item in the signature could declare
+member) while the dot carries the same as a message, the way `M.Fake` in a
+type reports on `Fake` (`ModuleTypeMemberNotFound`). A hole item in the
+signature could declare
 the member, so under one the projection is unknown and nothing is
 reported, in both positions. A value used as the root of a type path gets
 `TypWantModule`. In type position, `utyp_to_info_map` threads a context
@@ -304,7 +311,7 @@ parts for code that walks them (composition, probe targets). Sig items are
 | `src/language/statics/Ctx.re`           | `newest_var_or_ctr`, `newest_tvar_or_var`: the newest binding of a capitalized name, and of a path root |
 | `src/language/statics/ModuleHelpers.re` | Signature expectations per binder (`expected_members`, `expected_pat_type`), `sealed`, missing and extra members, module references in written types |
 | `src/language/statics/Statics.re`       | Module/ModuleExp cases, `Dot` on signatures, `M.T` in types        |
-| `src/language/statics/Mark.re`          | `ModuleMissingMembers`, `ModuleExtraMembers`, `ModuleTypeMemberMismatch`, `ModuleMemberNotFound`, `ModuleMemberIsType`, `ModuleTypeMemberNotFound`, `TypWantModule`, `CompareFun` |
+| `src/language/statics/Mark.re`          | `ModuleMissingMembers`, `ModuleExtraMembers`, `ModuleTypeMemberMismatch`, `ModuleMemberNotFound`, `ModuleMemberIsType`, `ModuleTypeMemberNotFound`, `TypWantModule`, `CompareFun`, `SigDuplicateMember`, `SigLetNotAName` |
 | `src/language/dynamics/transition/Transition.re` | Module evaluation, `Dot` on module values                 |
 | `src/language/dynamics/transition/Ascriptions.re` | Sealing a module value to a signature                    |
 | `src/language/dynamics/stepper/EvalCtx.re` | `ModuleItem`, `ModuleVal` evaluation contexts                   |

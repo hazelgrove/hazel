@@ -82,6 +82,10 @@ type t =
   | ModuleMemberNotFound(member_not_found)
   /* `M.T` in an expression, where T is a type member of the module. */
   | ModuleMemberIsType(Var.t)
+  /* A signature declares this member again; on the later item. */
+  | SigDuplicateMember(Sig.member)
+  /* A signature `let` whose pattern is not a name. */
+  | SigLetNotAName
   | BadOperator(string)
   | BadLivelitModel(Typ.t)
   | BadTheorem(Typ.t)

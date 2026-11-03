@@ -257,7 +257,9 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   | TypWantConstructorFoundAp
   | TypParseFailure
   | TPatShadowsType(_)
-  | TPatNotAVar(_) => "(internal)"
+  | TPatNotAVar(_)
+  | SigDuplicateMember(_)
+  | SigLetNotAName => "(internal)"
   | Redundant
   | ExpectedConstructor => "(internal)"
   | FreeConstructor(_)
@@ -330,6 +332,19 @@ let typ_mark_string: Mark.t => string =
     type_member_mismatch_string(name, ~expected, ~actual)
   | _ => "(static error)";
 
+let sig_mark_string: Mark.t => string =
+  fun
+  | SigDuplicateMember(member) => {
+      let (kind, name) =
+        switch (member) {
+        | Val(name, _) => ("Member", name)
+        | TypeManifest(name, _) => ("Type member", name)
+        };
+      prn("%s %s is declared more than once in this signature", kind, name);
+    }
+  | SigLetNotAName => "Not a member name: a signature declares members one at a time"
+  | _ => "(static error)";
+
 let tpat_mark_string: Mark.t => string =
   fun
   | TPatNotAVar(_) => "Not a valid type name" //TODO: elaborate
@@ -370,6 +385,11 @@ let string_of_marks = (info: Info.t, marks: list(Mark.t)): string =>
   | InfoMod({ctx, _}) =>
     switch (Mark.highest(marks)) {
     | Some(m) => exp_mark_to_string(ctx, Unknown(Internal) |> Typ.temp, m)
+    | None => "(static error)"
+    }
+  | InfoSig(_) =>
+    switch (Mark.highest(marks)) {
+    | Some(m) => sig_mark_string(m)
     | None => "(static error)"
     }
   | _ => "(static error)"

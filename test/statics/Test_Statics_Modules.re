@@ -26,6 +26,23 @@ let marks_at = (source, pred: Language.Info.t => bool): list(Language.Mark.t) =>
     List.concat_map(((_, info)) => Language.Info.marks_of(info), matches)
   };
 
+/* The expression infos on the nodes satisfying [pred]; fails if no node
+   does. */
+let exp_infos_at =
+    (source, pred: Language.Info.t => bool): list(Language.Info.exp) =>
+  switch (
+    Language.Id.Map.bindings(statics(parse_exp(source)))
+    |> List.filter_map(((_, info: Language.Info.t)) =>
+         switch (info) {
+         | InfoExp(e) when pred(info) => Some(e)
+         | _ => None
+         }
+       )
+  ) {
+  | [] => Alcotest.fail("No node matches the predicate in " ++ source)
+  | infos => infos
+  };
+
 /* Assert that some mark in the program satisfies [pred]. */
 let has_mark_test = (name, source, pred: Language.Mark.t => bool) =>
   Alcotest.test_case(name, `Quick, () =>
@@ -91,6 +108,136 @@ let test_member_not_found_on_label =
         true,
         List.is_empty(marks_at(src, is_dot)),
       );
+    },
+  );
+
+let test_member_label_is_the_member =
+  Alcotest.test_case(
+    "The label of `m.x` is a label at the member's type, under a module projection",
+    `Quick,
+    () => {
+      let src = {|let m = { let x = 1 } in m.x|};
+      let label =
+        exp_infos_at(src, is_label("x"))
+        |> List.for_all((info: Language.Info.exp) =>
+             switch (info.cls, Language.Typ.term_of(info.ty)) {
+             | (Exp(Label), Atom(Int)) => true
+             | _ => false
+             }
+           );
+      let projection =
+        exp_infos_at(src, is_dot)
+        |> List.for_all((info: Language.Info.exp) =>
+             switch (info.cls) {
+             | Exp(ModuleProjection) => true
+             | _ => false
+             }
+           );
+      Alcotest.(check(bool))("label x : Int", true, label);
+      Alcotest.(check(bool))("dot is a module projection", true, projection);
+    },
+  );
+
+let test_tuple_projection_class =
+  Alcotest.test_case(
+    "A dot on a labeled tuple is a labeled tuple projection; on an Int, a dot",
+    `Quick,
+    () => {
+      let class_of_dot = src =>
+        exp_infos_at(src, is_dot)
+        |> List.map((info: Language.Info.exp) => info.cls);
+      Alcotest.(check(bool))(
+        "tuple",
+        true,
+        class_of_dot({|let t = (x = 1) in t.x|}) == [Exp(TupleProjection)],
+      );
+      Alcotest.(check(bool))(
+        "int",
+        true,
+        class_of_dot({|let n = 1 in n.x|}) == [Exp(Dot)],
+      );
+    },
+  );
+
+let test_tuple_label_not_found_on_label =
+  Alcotest.test_case(
+    "A missing tuple label is reported on the label, not on the dot",
+    `Quick,
+    () => {
+      let check_source = src => {
+        Alcotest.(check(bool))(
+          "label marked: " ++ src,
+          true,
+          List.exists(
+            fun
+            | Language.Mark.LabelNotFound("y", ["x"]) => true
+            | _ => false,
+            marks_at(src, is_label("y")),
+          ),
+        );
+        Alcotest.(check(bool))(
+          "dot unmarked, with a message: " ++ src,
+          true,
+          exp_infos_at(src, is_dot)
+          |> List.for_all((info: Language.Info.exp) =>
+               switch (info.marks, info.message) {
+               | ([], Exp(TupleLabelNotFound("y", ["x"]))) => true
+               | _ => false
+               }
+             ),
+        );
+      };
+      check_source({|let t = (x = 1) in t.y|});
+      check_source({|let ts = [(x = 1)] in ts.y|});
+    },
+  );
+
+let test_tuple_label_at_element_type =
+  Alcotest.test_case(
+    "The label of `t.x` is at the element's type; a column's label at the element's",
+    `Quick,
+    () => {
+      /* The tuple comes from an annotation, so the only expression label
+         named x is the projection's. */
+      let label_type = src =>
+        exp_infos_at(src, is_label("x"))
+        |> List.map((info: Language.Info.exp) =>
+             Language.Typ.term_of(info.ty)
+           );
+      Alcotest.(check(bool))(
+        "tuple",
+        true,
+        switch (label_type({|fun (t : (x = Int)) -> t.x|})) {
+        | [Atom(Int)] => true
+        | _ => false
+        },
+      );
+      Alcotest.(check(bool))(
+        "list column",
+        true,
+        switch (label_type({|fun (ts : [(x = Int)]) -> ts.x|})) {
+        | [Atom(Int)] => true
+        | _ => false
+        },
+      );
+    },
+  );
+
+let test_type_member_as_value_dot_message =
+  Alcotest.test_case(
+    "Accessing a type member as a value: the dot says what the label says",
+    `Quick,
+    () => {
+      let src = {|let m = { type T = Int } in m.T|};
+      let agrees =
+        exp_infos_at(src, is_dot)
+        |> List.for_all((info: Language.Info.exp) =>
+             switch (info.message) {
+             | Exp(ModuleMemberIsType("T")) => true
+             | _ => false
+             }
+           );
+      Alcotest.(check(bool))("dot message", true, agrees);
     },
   );
 
@@ -2321,6 +2468,192 @@ M.y + 1|},
     Some(int()),
   );
 
+/* ===== SIGNATURE ITEMS ===== */
+
+/* A signature declares each member once, by name: a later declaration of
+   a name is marked, and the first is the member; a `let` whose pattern is
+   not a name is marked and declares nothing. Values and modules share a
+   namespace, type members have their own. */
+let duplicate_member = (member: Language.Sig.member, m: Language.Mark.t) =>
+  switch (m) {
+  | SigDuplicateMember(m) => Language.Sig.same_kind(m, member)
+  | _ => false
+  };
+let duplicate_value = name =>
+  duplicate_member(Val(name, Language.Typ.temp(Unknown(Internal))));
+let duplicate_type = name =>
+  duplicate_member(
+    TypeManifest(name, Language.Typ.temp(Unknown(Internal))),
+  );
+let not_a_name = (m: Language.Mark.t) =>
+  switch (m) {
+  | SigLetNotAName => true
+  | _ => false
+  };
+
+/* The one marked signature item, if exactly one item is marked. */
+let marked_sig_item = (source): option(Language.Sig.t) => {
+  let items =
+    Language.Id.Map.fold(
+      (_, info: Language.Info.t, acc) =>
+        switch (info) {
+        | InfoSig({user_term, marks: [_, ..._], _})
+            when
+              !
+                List.exists(
+                  (i: Language.Sig.t) =>
+                    Language.Sig.rep_id(i) == Language.Sig.rep_id(user_term),
+                  acc,
+                ) => [
+            user_term,
+            ...acc,
+          ]
+        | _ => acc
+        },
+      statics(parse_exp(source)),
+      [],
+    );
+  switch (items) {
+  | [item] => Some(item)
+  | _ => None
+  };
+};
+
+let test_duplicate_value_member =
+  single_mark_test(
+    "A value member declared twice is an error",
+    {|type S = { let x : Int; let x : Bool } in 1|},
+    duplicate_value("x"),
+  );
+
+let test_duplicate_value_member_on_later_item =
+  Alcotest.test_case(
+    "The later of two value declarations carries the mark",
+    `Quick,
+    () => {
+      let later =
+        switch (
+          marked_sig_item({|type S = { let x : Int; let x : Bool } in 1|})
+          |> Option.map(Language.Sig.member_of_item)
+        ) {
+        | Some(Some(Val("x", ty))) =>
+          switch (Language.Typ.term_of(ty)) {
+          | Atom(Bool) => true
+          | _ => false
+          }
+        | _ => false
+        };
+      Alcotest.(check(bool))("marked item is `let x : Bool`", true, later);
+    },
+  );
+
+let test_duplicate_manifest_type_member =
+  single_mark_test(
+    "A manifest type member declared twice is an error",
+    {|type S = { type T = Int; type T = Bool } in 1|},
+    duplicate_type("T"),
+  );
+
+let test_duplicate_module_member =
+  single_mark_test(
+    "A module member declared twice is an error",
+    {|type S = { module m : {}; module m : {} } in 1|},
+    duplicate_value("m"),
+  );
+
+let test_duplicate_value_and_module_member =
+  single_mark_test(
+    "A value and a module member share a namespace",
+    {|type S = { let m : Int; module m : {} } in 1|},
+    duplicate_value("m"),
+  );
+
+let test_value_and_type_member_same_name =
+  fully_consistent_typecheck(
+    "A value member and a type member may share a name",
+    {|type S = { let x : Int; type x = Int } in 1|},
+    Some(int()),
+  );
+
+let test_first_declaration_is_the_member =
+  single_mark_test(
+    "The first of two declarations is the member a module is checked against",
+    {|let m : { let x : Int; let x : Bool } = { let x = 1 } in m.x + 1|},
+    duplicate_value("x"),
+  );
+
+let test_later_declaration_is_not_the_member =
+  Alcotest.test_case(
+    "A module matching only the later declaration is marked against the first",
+    `Quick,
+    () => {
+      let marks =
+        marks_of(
+          {|let m : { let x : Int; let x : Bool } = { let x = true } in m.x|},
+        );
+      Alcotest.(check(bool))(
+        "a duplicate mark and an Int-vs-Bool mismatch",
+        true,
+        List.exists(duplicate_value("x"), marks)
+        && List.exists(is_int_vs(Bool), marks)
+        && List.length(marks) == 2,
+      );
+    },
+  );
+
+let test_first_type_member_scopes_later_items =
+  single_mark_test(
+    "Later items see the first declaration of a type member",
+    {|type S = { type T = Int; type T = Bool; let x : T } in let m : S = { type T = Int; let x = 1 } in m.x + 1|},
+    duplicate_type("T"),
+  );
+
+let test_sig_let_not_a_name =
+  single_mark_test(
+    "A signature `let` whose pattern is not a name is an error",
+    {|type S = { let (a, b) : (Int, Int) } in 1|},
+    not_a_name,
+  );
+
+let test_sig_let_wildcard_not_a_name =
+  single_mark_test(
+    "A signature `let _` is an error",
+    {|type S = { let _ : Int } in 1|},
+    not_a_name,
+  );
+
+let test_sig_let_hole_declares_nothing =
+  no_marks_test(
+    "A signature `let` with a hole for its name is not an error",
+    {|type S = { let ? : Int } in 1|},
+  );
+
+let test_sig_let_not_a_name_declares_nothing =
+  Alcotest.test_case(
+    "A `let` that is not a name declares no member",
+    `Quick,
+    () => {
+      let marks =
+        marks_of(
+          {|type S = { let (a, b) : (Int, Int) } in fun (m : S) -> m.a|},
+        );
+      Alcotest.(check(bool))(
+        "the item mark and a missing member",
+        true,
+        List.exists(not_a_name, marks)
+        && List.exists(
+             (m: Language.Mark.t) =>
+               switch (m) {
+               | ModuleMemberNotFound({name: "a", _}) => true
+               | _ => false
+               },
+             marks,
+           )
+        && List.length(marks) == 2,
+      );
+    },
+  );
+
 let tests = (
   "Statics.Modules",
   [
@@ -2381,6 +2714,11 @@ let tests = (
     test_dot_on_non_module_mark,
     test_type_member_not_found_mark,
     test_no_type_members_mark,
+    test_member_label_is_the_member,
+    test_tuple_projection_class,
+    test_tuple_label_not_found_on_label,
+    test_tuple_label_at_element_type,
+    test_type_member_as_value_dot_message,
     test_submodule_not_found_mark,
     test_value_used_as_module_path_mark,
     test_unknown_typed_root_is_not_an_error,
@@ -2471,6 +2809,20 @@ let tests = (
     test_shadowed_member_keeps_last_position,
     test_shadowed_member_checked_at_last_definition,
     test_shadowed_definition_not_checked_against_signature,
+    /* Signature items */
+    test_duplicate_value_member,
+    test_duplicate_value_member_on_later_item,
+    test_duplicate_manifest_type_member,
+    test_duplicate_module_member,
+    test_duplicate_value_and_module_member,
+    test_value_and_type_member_same_name,
+    test_first_declaration_is_the_member,
+    test_later_declaration_is_not_the_member,
+    test_first_type_member_scopes_later_items,
+    test_sig_let_not_a_name,
+    test_sig_let_wildcard_not_a_name,
+    test_sig_let_hole_declares_nothing,
+    test_sig_let_not_a_name_declares_nothing,
     test_shorthand_parameter_not_member,
     test_shorthand_member_mismatch_on_definition,
     /* Cyclic member paths */

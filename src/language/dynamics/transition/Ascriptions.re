@@ -89,7 +89,6 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
          hole item stands in for it. */
       let members =
         Sig.closed_members(s)
-        |> Sig.dedup_last
         |> List.filter_map((m: Sig.member) =>
              switch (m) {
              | Val(x, ty) => Some((x, ty))
