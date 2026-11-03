@@ -126,6 +126,27 @@ let suffix_of = (candidate: Token.t, current: Token.t): option(Token.t) => {
   candidate_suffix == "" ? None : Some(candidate_suffix);
 };
 
+/* Completing a label that needs backticks, e.g. `a b` from the typed `a`,
+   cannot extend the typed token: the whole quoted label replaces it */
+let quoted_label_completion =
+    (~ci: option(Info.t), z: Zipper.t, completion: Token.t): option(Token.t) => {
+  let* tok_to_left = token_to_left(z);
+  switch (ci) {
+  | Some(InfoLabel(_)) =>
+    let label = tok_to_left ++ completion;
+    let quoted = Token.quote_label_when_necessary(label);
+    String.equal(quoted, label) ? None : Some(quoted);
+  | Some(
+      InfoExp(_) | InfoPat(_) | InfoTyp(_) | InfoTPat(_) | InfoMod(_) |
+      InfoSig(_) |
+      InfoMPat(_) |
+      InfoDrv(_) |
+      Secondary(_),
+    )
+  | None => None
+  };
+};
+
 /* Returns the text content of the suggestion buffer */
 let get_unparsed_buffer = (z: Zipper.t): option(Token.t) =>
   switch (z.selection.mode, z.selection.content) {
