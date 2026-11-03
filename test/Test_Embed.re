@@ -40,6 +40,15 @@ let as_js = (j: string): Js.Unsafe.any =>
 
 let decode = (j: string) => EmbedProtocol.decode(as_js(j));
 
+/* a text without its lines' leading spaces: the cell writes the program's
+   indentation (members inside a module, a case's arms), which the parts as
+   stitched (ModuleProgram.text_of_parts) do not have; what these tests check
+   is the stitching */
+let unindent = (s: string): string =>
+  String.split_on_char('\n', s)
+  |> List.map(Util.StringUtil.trim_leading)
+  |> String.concat("\n");
+
 let messages = (ms: list(EmbedModel.Outbox.message)): list(string) =>
   List.map(
     (m: EmbedModel.Outbox.message) =>
@@ -87,14 +96,14 @@ let tests = (
         check(
           string,
           "the cell's text",
-          Util.StringUtil.trim_leading(
+          unindent(
             ModuleProgram.text_of_parts(
               ~preamble=Panel.preamble,
               ~modules=[("Common", Panel.common), ("TrapRoom", Panel.trap)],
               ~tail=Panel.tail,
             ),
           ),
-          shown(m),
+          unindent(shown(m)),
         );
         check(
           list(string),
@@ -266,7 +275,7 @@ let tests = (
         check(
           string,
           "and shown",
-          Util.StringUtil.trim_leading(
+          unindent(
             ModuleProgram.text_of_parts(
               ~preamble=Panel.preamble,
               ~modules=[
@@ -276,7 +285,7 @@ let tests = (
               ~tail=Panel.tail,
             ),
           ),
-          shown(m'),
+          unindent(shown(m')),
         );
       },
     ),
