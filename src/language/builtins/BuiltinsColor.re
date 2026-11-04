@@ -23,7 +23,7 @@ let ty = C.typ.term;
 
 /* Lightness and alpha are percentages; chroma is unbounded in principle but
    negative values are meaningless. Hue wraps rather than clamps. */
-let clamp = (lo, hi, x) => Float.min(hi, Float.max(lo, x));
+let clamp = (lo, hi, x) => Stdlib.Float.min(hi, Stdlib.Float.max(lo, x));
 let wrap_hue = h => {
   let r = Float.mod_float(h, 360.);
   Float.(r < 0.) ? r +. 360. : r;
@@ -52,7 +52,7 @@ let rec map_oklch = (f, c: C.t): C.t =>
     switch (components(c)) {
     | Some(t) =>
       let (l, ch, h) = f(t);
-      Oklch(clamp(0., 100., l), Float.max(0., ch), wrap_hue(h));
+      Oklch(clamp(0., 100., l), Stdlib.Float.max(0., ch), wrap_hue(h));
     | None => c
     }
   };
