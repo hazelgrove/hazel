@@ -507,7 +507,7 @@ let rec parenthesize =
         pat: parenthesize(pat),
         act,
       }),
-      parenthesize(x),
+      parenthesize(x) |> paren_assoc_at(Precedence.let_),
     )
     |> rewrap
   | Filter(Residue(_), x) => x |> parenthesize
