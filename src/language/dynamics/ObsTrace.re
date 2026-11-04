@@ -12,8 +12,9 @@ open Util;
  *   without renumbering. Closes pair with opens by bracket structure.
  * - Enter-data (arg + call frame, observable only when the Ap steps)
  *   attaches to the matching OPEN span, so its lifetime is bracket-scoped
- *   — no side table. The delegation law (at most one open span per
- *   (id, stack) key; see Evaluator.eval_3) makes the match unambiguous.
+ *   — no side table. A node is evaluated at most once per call-stack
+ *   instance (no step rebuilds a redex under its own id), so at most one
+ *   span per (id, stack) key is open and the match is unambiguous.
  *
  * Events are transient evaluation data: carried on EvaluatorState,
  * merged by `append` (segments splice at top-level boundaries with
@@ -86,7 +87,7 @@ let fold_step = (acc: fold, ev: event): fold =>
     }
   | CallEnter({frame, arg, stack}) =>
     /* Attach to the open span this enter belongs to: same id, same
-     * call-stack instance. Unique if present (delegation law), and
+     * call-stack instance. Unique if present (one open span per key), and
      * usually at or near the head (the entered ap's own span), so stop
      * at the first match and share the tail. A later enter for the same
      * span overwrites (matching the old most-recent lookup semantics). */
