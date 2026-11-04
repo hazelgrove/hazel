@@ -85,8 +85,9 @@ let quicksort(hand : Hand) : Hand =
   case ^^probe(hand)
   | [] => []
   | p :: rest =>
-    ^^probe(quicksort(filter_le((p, rest)))
-    @ [p] @ quicksort(filter_gt((p, rest))))
+    ^^probe(quicksort(lower) @ [p] @ quicksort(higher))
+    where lower = filter_le(p, rest)
+    where higher = filter_gt(p, rest)
   end in
 
 let five : Hand =
