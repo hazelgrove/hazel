@@ -169,9 +169,7 @@ module Ctr = {
     | Unknown => false
     | Infinite => false
     | Finite(all_ctrs) =>
-      List.unzip(Map.bindings(all_ctrs))
-      |> fst
-      |> List.for_all(~f=ctr => Set.mem(ctr, seen_ctrs))
+      Map.for_all((ctr, _) => Set.mem(ctr, seen_ctrs), all_ctrs)
     };
   };
 };

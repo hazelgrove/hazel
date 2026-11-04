@@ -130,7 +130,6 @@ module Exp = {
   include DrvTermBase.Exp;
 
   let rep_id = ({annotation: {ids, _}, _}: t) => {
-    assert(!List.is_empty(ids));
     List.hd_exn(ids);
   };
 
@@ -221,7 +220,6 @@ module Pat = {
   include DrvTermBase.Pat;
 
   let rep_id = ({annotation: {ids, _}, _}: t) => {
-    assert(!List.is_empty(ids));
     List.hd_exn(ids);
   };
 
@@ -282,7 +280,6 @@ module Typ = {
   include DrvTermBase.Typ;
 
   let rep_id = ({annotation: {ids, _}, _}: t) => {
-    assert(!List.is_empty(ids));
     List.hd_exn(ids);
   };
 
@@ -329,7 +326,6 @@ module TPat = {
   include DrvTermBase.TPat;
 
   let rep_id = ({annotation: {ids, _}, _}: t) => {
-    assert(!List.is_empty(ids));
     List.hd_exn(ids);
   };
 
