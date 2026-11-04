@@ -751,31 +751,42 @@ module Transition = (EV: EV_MODE) => {
       and. d1' = req_final(req(env), d1 => Ap1(dir, d1, d2) |> wrap_ctx, d1)
       and. d2' =
         req_final(req(env), d2 => Ap2(dir, d1, d2) |> wrap_ctx, d2);
-      switch (d1'.term) {
-      | Asc(d1'', {term: Arrow(t1, t2), _}) =>
-        Step({
-          /* inner Ap reuses this redex's id (rewrap, not fresh) so the call
-             keeps identity through the cast — probes/step-into still resolve */
-          expr:
-            generated(
-              Asc(
-                Ap(Forward, d1'', generated(Asc(d2', t1))) |> rewrap,
-                t2,
+      /* A function under arrow casts is applied through them in this one
+         step: `(f : A -> B)(x)` calls f on `x : A` and casts the result to
+         B. This redex is the call, so its frame is this node's, and no
+         other node stands in for it. `casts` runs innermost first. */
+      let rec peel = (f: DHExp.t, casts) =>
+        switch (f.term) {
+        | Asc(f, {term: Arrow(t1, t2), _}) =>
+          peel(f, [(t1, t2), ...casts])
+        | _ => (f, casts)
+        };
+      let (fn, casts) = peel(d1', []);
+      let arg =
+        List.is_empty(casts)
+          ? d2'
+          : Ascriptions.transition_multiple(
+              List.fold_right(
+                ~f=((t1, _), arg) => generated(Asc(arg, t1)),
+                casts,
+                ~init=d2',
               ),
-            ),
-          side_effects: [],
-          kind: Ascription,
-          is_value: false,
-        })
-      | _ =>
+            );
+      let cast_result = result =>
+        List.fold(
+          ~f=(result, (_, t2)) => generated(Asc(result, t2)),
+          ~init=result,
+          casts,
+        );
+      let applied: rule = {
         /* Extract function name and def ID before unboxing (unboxing discards them) */
-        let fn_name = get_fn_name_from_expr(d1');
-        let fn_def_id = get_fn_def_id_from_expr(d1');
-        let-unbox unboxed_fun = (Fun, d1');
+        let fn_name = get_fn_name_from_expr(fn);
+        let fn_def_id = get_fn_def_id_from_expr(fn);
+        let-unbox unboxed_fun = (Fun, fn);
         switch (unboxed_fun) {
         | Constructor(_) => Constructor
         | FunEnv(dp, d3, replacement_env) =>
-          let matches = matches(targets, dp, d2');
+          let matches = matches(targets, dp, arg);
           switch (matches.matches) {
           | IndetMatch
           | DoesNotMatch => Indet
@@ -787,7 +798,7 @@ module Transition = (EV: EV_MODE) => {
                 env'',
                 d3,
                 [
-                  RecordStackFrame(fn_name, Some(d2'), fn_def_id),
+                  RecordStackFrame(fn_name, Some(arg), fn_def_id),
                   /* Use pre-req_final `d2` so dirty propagation walks the
                    * source tree's stable ids (cache entries live at those). */
                   RecordPatMatch({
@@ -805,7 +816,7 @@ module Transition = (EV: EV_MODE) => {
             });
           };
         | FunNoEnv(dp, d3) when Poly.equal(mode, `Substitution) =>
-          let matches = matches(targets, dp, d2');
+          let matches = matches(targets, dp, arg);
           switch (matches.matches) {
           | IndetMatch
           | DoesNotMatch => Indet
@@ -817,7 +828,7 @@ module Transition = (EV: EV_MODE) => {
                 env,
                 d3,
                 [
-                  RecordStackFrame(fn_name, Some(d2'), fn_def_id),
+                  RecordStackFrame(fn_name, Some(arg), fn_def_id),
                   RecordPatMatch({
                     pat: dp,
                     rhs: d2,
@@ -839,8 +850,8 @@ module Transition = (EV: EV_MODE) => {
             Step({
               expr: tuple([]),
               side_effects: [
-                RecordStackFrame(Some(ident), Some(d2'), None),
-                RecordPrint(d2'),
+                RecordStackFrame(Some(ident), Some(arg), None),
+                RecordPrint(arg),
               ],
               kind: BuiltinAp(ident),
               is_value: true,
@@ -856,12 +867,12 @@ module Transition = (EV: EV_MODE) => {
                      EvaluatorError.Exception(InvalidBuiltin(ident)),
                    )
                  });
-            switch (builtin(d2')) {
+            switch (builtin(arg)) {
             | Some(expr) =>
               Step({
                 expr,
                 side_effects: [
-                  RecordStackFrame(Some(ident), Some(d2'), None),
+                  RecordStackFrame(Some(ident), Some(arg), None),
                 ],
                 kind: BuiltinAp(ident),
                 is_value: false,
@@ -881,9 +892,9 @@ module Transition = (EV: EV_MODE) => {
             );
           let-unboxed args =
             if (n_args == 1) {
-              Matches([d2']);
+              Matches([arg]);
             } else {
-              Unboxing.unbox(Tuple(n_args), d2');
+              Unboxing.unbox(Tuple(n_args), arg);
             };
           let new_args = {
             let rec go = (deferred, args) =>
@@ -910,11 +921,32 @@ module Transition = (EV: EV_MODE) => {
               ),
             /* record a call frame (carries fn_def_id) so a probe on a
                partial-app call still gets args/step-into/jump-to-def */
-            side_effects: [RecordStackFrame(fn_name, Some(d2'), fn_def_id)],
+            side_effects: [RecordStackFrame(fn_name, Some(arg), fn_def_id)],
             kind: DeferredAp,
             is_value: false,
           });
         };
+      };
+      switch (casts, applied) {
+      | ([], _) => applied
+      | (_, Step(step)) =>
+        Step({
+          ...step,
+          expr: cast_result(step.expr),
+          is_value: false,
+        })
+      | (_, Constructor | Indet | Value) =>
+        /* Stuck or a constructor: the application is final, with its result
+           casts pushed in as far as they go. */
+        Step({
+          expr:
+            Ascriptions.transition_multiple(
+              cast_result(Ap(Forward, fn, arg) |> rewrap),
+            ),
+          side_effects: [],
+          kind: Ascription,
+          is_value: true,
+        })
       };
     | Deferral(_) =>
       let. _ = otherwise(env, d);
