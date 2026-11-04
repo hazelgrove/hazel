@@ -701,19 +701,32 @@ let color =
       ~font_metrics: FontMetrics.t,
       clss: list(string),
       id: Id.t,
-    ) =>
+    ) => {
+  let measured = CachedSyntax.measured(syntax);
   switch (TermData.segment(id, syntax.term_data)) {
-  | Some(segment) =>
+  /* A term under a projector has no layout of its own: the projector draws
+     its widget in the term's place. The explainer asks for such terms when
+     the caret is on a livelit (its name and its model, colored), and asking
+     a tile with no layout for its shards failed the whole view
+     (find_shards: sel_of_tile). There is nothing to color there. */
+  | Some(segment)
+      when
+        List.for_all(
+          (t: Tile.t) =>
+            Option.is_some(Measured.find_shards_by_id(t.id, measured)),
+          Segment.tiles(segment),
+        ) =>
     of_segment(
-      ~measured=CachedSyntax.measured(syntax),
+      ~measured,
       ~shape_map=syntax.shape_map,
       ~font_metrics,
       ~shape_init=Some(Convex),
       ~clss,
       segment,
     )
-  | None => []
+  | _ => []
   };
+};
 
 /* per-id range memo for the pending-eval highlight: incr_eval runs on
    every streamed chunk, but ranges change only with the measured/term_data
