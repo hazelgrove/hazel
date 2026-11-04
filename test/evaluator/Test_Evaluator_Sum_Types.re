@@ -265,5 +265,14 @@ let tests = (
         );
       },
     ),
+    test_case(
+      "A constructor ascribed a sum under nested rec binders is matched",
+      `Quick,
+      () =>
+      parse_and_evaluate_test(
+        "1",
+        "let f = fun (v : rec x -> rec y -> + A + B(y)) -> case v | A => 0 | B(_) => 1 end in f(B(A))",
+      )
+    ),
   ],
 );
