@@ -675,7 +675,7 @@ module Selection = {
       | None => None
       | Some(r) =>
         switch (
-          ListUtil.findi_opt(s => ref_matches(r, s), samples)
+          List.findi(samples, ~f=(_, s) => ref_matches(r, s))
           |> Option.map(~f=fst)
         ) {
         | Some(_) as hit => hit
@@ -689,10 +689,8 @@ module Selection = {
           switch (r.opened) {
           | None => None
           | Some(o) =>
-            ListUtil.findi_opt(
-              (s: t) =>
-                Id.equal(r.probe_id, s.syntax_id) && o == s.step_start,
-              samples,
+            List.findi(samples, ~f=(_, s: t) =>
+              Id.equal(r.probe_id, s.syntax_id) && o == s.step_start
             )
             |> Option.map(~f=fst)
           }

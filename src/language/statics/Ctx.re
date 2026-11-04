@@ -186,7 +186,6 @@ let add_ctrs = (ctx: t, name: string, ctrs: TermBase.Typ.sum_map): t => {
       ~f=
         fun
         | ConstructorMap.Variant(ctr, ann, typ) => {
-            assert(!List.is_empty(ann.ids));
             let ctr_id = List.hd_exn(ann.ids);
             Some(
               ConstructorEntry({
