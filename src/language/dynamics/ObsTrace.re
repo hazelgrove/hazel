@@ -65,8 +65,7 @@ let init: fold = {
 };
 
 let add_sample = (probes, sample: Sample.t) =>
-  Sample.Map.dominated(sample, probes)
-    ? probes : Sample.Map.extend(sample.syntax_id, sample, probes);
+  Sample.Map.extend(sample.syntax_id, sample, probes);
 
 /* The single fold transition, used incrementally by
  * EvaluatorState.record_event (the live minting path) and replayed by
