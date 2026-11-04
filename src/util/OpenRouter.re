@@ -362,12 +362,7 @@ module Payload = {
     let cache_control_provider_prefixes = ["anthropic/", "google/", "qwen/"];
     let supports_cache_control = (model_id: string): bool =>
       List.exists(
-        ~f=
-          prefix => {
-            let len = String.length(prefix);
-            String.length(model_id) >= len
-            && String.equal(String.sub(model_id, ~pos=0, ~len), prefix);
-          },
+        ~f=prefix => String.is_prefix(model_id, ~prefix),
         cache_control_provider_prefixes,
       );
 
@@ -419,18 +414,11 @@ module Payload = {
       /* Record which message indices carry a cache_control breakpoint on the
          wire, then stash the request-side metrics; the matching cache_read /
          cache_creation are logged together when the response usage is parsed. */
-      let has_cc = (mj: Json.t): bool => {
-        let s = Yojson.Safe.to_string(mj);
-        let needle = "cache_control";
-        let nlen = String.length(needle);
-        let hlen = String.length(s);
-        let rec go = i =>
-          i > hlen - nlen
-            ? false
-            : String.equal(String.sub(s, ~pos=i, ~len=nlen), needle)
-                ? true : go(i + 1);
-        nlen <= hlen && go(0);
-      };
+      let has_cc = (mj: Json.t): bool =>
+        String.is_substring(
+          Yojson.Safe.to_string(mj),
+          ~substring="cache_control",
+        );
       let breakpoints =
         List.mapi(~f=(i, mj) => (i, has_cc(mj)), messages_json)
         |> List.filter(~f=((_, hit)) => hit)
