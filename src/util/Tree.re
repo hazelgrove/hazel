@@ -34,13 +34,13 @@ let rec farthest_cond = (f, Node(_, c)) =>
 
 let value = (Node(v, _)) => v;
 
-// @raise `Failure` if pos not exists in the tree
+// @raise `Invalid_argument` if pos not exists in the tree
 let rec nth_node = (Node(v, c)) =>
   fun
   | Value => Node(v, c)
   | Children(i, pos) => pos |> nth_node(List.nth_exn(c, i));
 
-// @raise `Failure` if pos not exists in the tree
+// @raise `Invalid_argument` if pos not exists in the tree
 let nth = (t, pos) => nth_node(t, pos) |> value;
 
 let empty = v => Node(v, []);

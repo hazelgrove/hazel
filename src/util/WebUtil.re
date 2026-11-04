@@ -110,8 +110,10 @@ module TextArea = {
   };
 
   let caret_at_start = (textarea: t): bool => {
-    let {rows, cols} = caret_rel_pos(textarea);
-    Poly.equal(rows, First) && Poly.equal(cols, First);
+    switch (caret_rel_pos(textarea)) {
+    | {rows: First, cols: First} => true
+    | _ => false
+    };
   };
 
   let caret_at_end = (textarea: t): bool => {
