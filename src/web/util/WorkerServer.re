@@ -898,6 +898,38 @@ let run_slices_for_budget = model => {
 let held: Hashtbl.t(EvalPieces.hash, EvalPieces.content) =
   Hashtbl.create(256);
 
+/* (^ticket(666)) the programs composed lately, by their layouts, the most
+   recent first. a layout names each piece by its content's hash, so the
+   same layout composes to the same program: an undo's or a redo's layout,
+   or the same program posted again, is taken as it was composed, the very
+   same objects, which the worker's identity-keyed caches find again, and
+   not composed anew (Full Body: 47 ms a request, on GitHub's runner, dev
+   profile) */
+let composed_lately:
+  ref(list((EvalPieces.layout, (Language.Exp.t, Language.EvalInfo.t)))) =
+  ref([]);
+let composed_kept = 4;
+
+let assemble = (~piece, layout: EvalPieces.layout) =>
+  switch (List.assoc_opt(layout, composed_lately^)) {
+  | Some(program) =>
+    composed_lately :=
+      [(layout, program), ...List.remove_assoc(layout, composed_lately^)];
+    Ok(program);
+  | None =>
+    let r = EvalPieces.assemble(~piece, layout);
+    switch (r) {
+    | Ok(program) =>
+      composed_lately :=
+        List.filteri(
+          (i, _) => i < composed_kept,
+          [(layout, program), ...composed_lately^],
+        )
+    | Error(_) => ()
+    };
+    r;
+  };
+
 type received =
   | Composed(Evaluation.t)
   | Missing(list(EvalPieces.key))
@@ -942,8 +974,7 @@ let receive = (posted: Posted.t): received => {
   let piece = Hashtbl.find_opt(held);
   switch (
     List.map(
-      ((key, v: Posted.value)) =>
-        (key, v, EvalPieces.assemble(~piece, v.layout)),
+      ((key, v: Posted.value)) => (key, v, assemble(~piece, v.layout)),
       posted.batch,
     )
   ) {

@@ -120,6 +120,7 @@ let request_of = (st: CachedStatics.t): WorkerServer.Request.t => {
 /* a new worker, and the client's view of it */
 let fresh_worker = () => {
   Hashtbl.reset(WorkerServer.held);
+  WorkerServer.composed_lately := [];
   Hashtbl.reset(Client.held);
   Util.ShareCodec.Worker.reset();
   Util.ShareCodec.Client.reset();
@@ -183,6 +184,54 @@ let check_exact =
       Id.Map.bindings(info.targets),
       Id.Map.bindings(v.eval_info_map.targets),
     ),
+  );
+};
+
+/* (^ticket(666)) an edit, then back: by the old segment (an undo) and by
+   retyping it (the same program, made anew). either way the worker takes
+   the program it composed before the edit, the very same objects, and not
+   one composed anew; the edit's own program is not the earlier one */
+let edit_and_back = (~root=Sort.Exp, src: string, needle, repl, ()) => {
+  fresh_worker();
+  let term_of = seg => MakeTerm.Incr.term_of_root(~root, seg);
+  let run = (name, seg) => {
+    let st = statics_of(term_of(seg));
+    let v = composed(WorkerServer.receive(post(request_of(st))));
+    check_exact(name, st, v);
+    v;
+  };
+  let same_objects =
+      (
+        name,
+        a: WorkerServer.Evaluation.value,
+        b: WorkerServer.Evaluation.value,
+      ) => {
+    check(bool, name ++ ": the very same program", true, a.expr === b.expr);
+    check(
+      bool,
+      name ++ ": the very same eval info",
+      true,
+      a.eval_info_map === b.eval_info_map,
+    );
+  };
+  let there = Parity.token(~at=`First, ~keep_id=true, needle, repl);
+  let back = Parity.token(~at=`First, ~keep_id=true, repl, needle);
+  let seg0 = CorpusUtil.seg_of(~root, src);
+  let before = run("before", seg0);
+  let seg1 = there.edit(~root, seg0);
+  let edited = run("edited", seg1);
+  check(
+    bool,
+    "edited: a program of its own",
+    false,
+    edited.expr === before.expr,
+  );
+  same_objects("undo", before, run("undo", seg0));
+  same_objects("redo", edited, run("redo", seg1));
+  same_objects(
+    "retyped back",
+    before,
+    run("retyped back", back.edit(~root, seg1)),
   );
 };
 
@@ -437,6 +486,14 @@ let exact_tests =
       "two livelit definitions, each checked against the Livelit signature",
       `Quick,
       script(two_livelits, back_and_forth(~at=`First, "3", "4")),
+    ),
+    test_case(
+      "an undo, a redo and a retype back take the program composed before",
+      `Quick,
+      () => {
+        edit_and_back(~root=Mod, kinds, "1", "7", ());
+        edit_and_back(two_livelits, "3", "4", ());
+      },
     ),
     test_case(
       "a let chain: adds and removes",
