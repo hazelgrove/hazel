@@ -109,24 +109,19 @@ let rec rearrange_base:
     | (_, []) => []
     | ([Some(expected_label), ...remaining_expectations], remaining) =>
       let maybe_found =
-        List.Assoc.find(
+        ListUtil.find_with_rest(
+          ((label, b)) =>
+            Option.some_if(
+              Option.equal(String.equal, label, Some(expected_label)),
+              b,
+            ),
           remaining,
-          Some(expected_label),
-          ~equal=Option.equal(String.equal),
         );
 
       switch (maybe_found) {
-      | Some(found) =>
+      | Some((found, rest)) =>
         [(Some(expected_label), found)]
-        @ rearrange_base(
-            ~show_b?,
-            remaining_expectations,
-            List.Assoc.remove(
-              remaining,
-              Some(expected_label),
-              ~equal=Option.equal(String.equal),
-            ),
-          )
+        @ rearrange_base(~show_b?, remaining_expectations, rest)
       | None =>
         let (
           pre: list((option(label), 'b)),
