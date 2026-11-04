@@ -43,6 +43,26 @@ let closest = (target: Js.Opt.t(Js.t(Dom_html.element)), sel: string): bool =>
     )
   };
 
+/* close() hands focus back to whatever held it before showModal. A phone
+ * raises its keyboard for that focus only during the tap that closed the
+ * sheet, so taps close the dialog then rather than waiting for the render
+ * that removes it. */
+let close_dialog = (el: Js.t(Dom_html.element)): unit =>
+  if (Js.to_bool(Js.Unsafe.get(el, "open"))) {
+    Js.Unsafe.meth_call(el, "close", [||]);
+  };
+
+let close_open_dialogs =
+  Ui_effect.of_sync_fun(
+    () =>
+      Dom_html.document##querySelectorAll(
+        Js.string("dialog.action-sheet[open]"),
+      )
+      |> Dom.list_of_nodeList
+      |> List.iter(close_dialog),
+    (),
+  );
+
 let listen =
     (
       ~capture=false,
@@ -209,6 +229,7 @@ module Hook =
             Dom_html.stopPropagation(e);
             Dom.preventDefault(e);
           } else if (on_dialog && outside) {
+            close_dialog(el);
             close();
           };
         },
@@ -234,11 +255,7 @@ module Hook =
     let update = (~old_input as _, ~new_input, state: State.t, _) =>
       state.on_close := new_input;
 
-    /* close() hands focus back to whatever held it before showModal. */
-    let destroy = (_, _, el: Js.t(Dom_html.element)) =>
-      if (Js.to_bool(Js.Unsafe.get(el, "open"))) {
-        Js.Unsafe.meth_call(el, "close", [||]);
-      };
+    let destroy = (_, _, el) => close_dialog(el);
   });
 
 /* The chevron is drawn in CSS, to match the title's weight. */
@@ -323,7 +340,9 @@ let view =
         ],
         Menu.render(
           ~sheet=true,
-          ~inject_action,
+          ~inject_action=
+            action =>
+              Ui_effect.Many([close_open_dialogs, inject_action(action)]),
           ~inject_menu,
           ~item_class="action-sheet-row",
           ~items,
