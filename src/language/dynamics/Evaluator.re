@@ -89,6 +89,12 @@ let continues_delegation =
     delegations,
   );
 
+/* Passes through the stages since a host last set it to 0: one a term
+   visited, whether it steps or not. A debug hook, an increment a pass, that
+   the JS library reads as Hazel.passes() and the library's tests use to
+   guard what a call costs (^ticket(552)). */
+let passes = ref(0);
+
 let rec evaluate =
         // Constants
         (
@@ -191,6 +197,7 @@ let rec evaluate =
         env,
         exp: DHExp.t,
       ) => {
+    incr(passes);
     let.trampoline (is_finished, effects, kind, next) =
       eval_0_main(
         ~reuse_map,
@@ -677,4 +684,23 @@ let evaluate =
      populates it, and tuple components are evaluated right-to-left. */
   let value = finish(~env, Trampoline.run(result));
   (value, state^);
+};
+
+/* The final value as the evaluator left it, for a host that calls it again
+   (HazelLibCore, ^ticket(547)): a function stays a closure, its environment
+   held by reference. finish writes the environment into the function's body
+   instead, so every value the function captured becomes a literal in it,
+   evaluated again, part by part, at every call (^report(29)). Unlike
+   evaluate's, this result may contain closures. */
+let evaluate_unfinished = (~env, d: DHExp.t): DHExp.t => {
+  let (_, result) =
+    prepare_evaluation(
+      ~prev=IncrEval.empty,
+      ~eval_info=EvalInfo.empty,
+      ~env,
+      ~reuse_map=None,
+      ~outbox=None,
+      d,
+    );
+  Trampoline.run(result);
 };

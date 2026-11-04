@@ -77,12 +77,42 @@ let analyze_term = (term: Exp.t): (list(string), Exp.t) => {
   (ErrorPrint.all(map), elab);
 };
 
+/* Unfinished (^ticket(547)): a function handed to JS stays a closure over
+   its environment, so a value it holds is held by reference. Finished, the
+   environment would be written into its body, and every call would
+   evaluate each captured value again, part by part (^report(29)). */
 let evaluate = (e: Exp.t): Exp.t =>
-  fst(Evaluator.evaluate(~env=Builtins.env_init, e));
+  Evaluator.evaluate_unfinished(~env=Builtins.env_init, e);
+
+/* Whether a term is a function, under any closures and parentheses */
+let rec is_function = (e: Exp.t): bool =>
+  switch (e.term) {
+  | Fun(_)
+  | FixF(_)
+  | BuiltinFun(_) => true
+  | Parens(e)
+  | Closure(_, e) => is_function(e)
+  | _ => false
+  };
 
 /* The name a JS call's argument is bound to (function_of): not one a
    program can write, so it shadows nothing. */
 let js_arg = "%js_arg";
+
+/* A function applied to an argument, as a call from JS applies it
+   (function_of). The argument is bound in the environment and the function
+   applied to its name, not written into the application: an environment's
+   binding is taken as the value it is, where an argument written inline is
+   stepped back into that value node by node, a cost that grows with the
+   argument (^report(25)'s floor). Unfinished, as evaluate: a function the
+   call returns holds what it captured by reference (^ticket(547)). */
+let apply = (f: Exp.t, arg: Exp.t): Exp.t => {
+  let env = Environment.extend(Builtins.env_init, (js_arg, arg));
+  Evaluator.evaluate_unfinished(
+    ~env,
+    Exp.fresh(Ap(Operators.Forward, f, Exp.fresh(Var(js_arg)))),
+  );
+};
 
 let js_string = (s: string): Js.Unsafe.any =>
   Js.Unsafe.inject(Js.string(s));
@@ -127,6 +157,11 @@ let rec to_js = (v: Exp.t): Js.Unsafe.any =>
   | Ap(_, {term: Constructor(name, _), _}, arg) =>
     js_object([("tag", js_string(name)), ("value", to_js(arg))])
   | Parens(e) => to_js(e)
+  /* A closure over anything but a function (a form the evaluator could not
+     finish, under its environment) reads as evaluate's finish would give
+     it: the environment written in. */
+  | Closure(env, e) when !is_function(e) =>
+    to_js(Evaluator.finish(~env, e))
   | Fun(_)
   | FixF(_)
   | Closure(_)
@@ -147,20 +182,7 @@ and function_of = (f: Exp.t): Js.Unsafe.any =>
         | [a] => a
         | many => Exp.fresh(Tuple(many))
         };
-      /* The argument is bound in the environment and the function applied
-         to its name, not written into the application: an environment's
-         binding is taken as the value it is, where an argument written
-         inline is stepped back into that value node by node, a cost that
-         grows with the argument (^report(25)'s floor). */
-      let env = Environment.extend(Builtins.env_init, (js_arg, arg));
-      to_js(
-        fst(
-          Evaluator.evaluate(
-            ~env,
-            Exp.fresh(Ap(Operators.Forward, f, Exp.fresh(Var(js_arg)))),
-          ),
-        ),
-      );
+      to_js(apply(f, arg));
     }),
   )
 /* A JS value as a Hazel value. */
