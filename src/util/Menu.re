@@ -191,11 +191,7 @@ let is_visible_selectable = (v: visible_item('a)): bool =>
   };
 
 let count_selectable_visible = (vs: list(visible_item('a))): int =>
-  List.fold_left(
-    ~f=(n, v) => is_visible_selectable(v) ? n + 1 : n,
-    ~init=0,
-    vs,
-  );
+  List.count(vs, ~f=is_visible_selectable);
 
 let nth_selectable_visible =
     (vs: list(visible_item('a)), idx: int): option(visible_item('a)) => {
