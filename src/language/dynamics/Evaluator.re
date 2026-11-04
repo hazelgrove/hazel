@@ -211,18 +211,11 @@ let rec evaluate =
       ) => {
     let current_step_count = state^.step_count;
 
-    /* Save original call_stack before update. For probed compound expressions
-     * (Uneval case), we need this because:
-     * - The updated call_stack (after RecordStackFrame) should be passed to
-     *   recursive evaluation so inner expressions see the app_id
-     * - But the probe sample for THIS expression should use the original
-     *   call_stack (what it was before entering the function) */
-    let original_call_stack = call_stack;
-
     /* A probed evaluation is one observation span: it opens here and
      * closes when the evaluation is final, and closing it mints the
      * sample (full step range, final value, enter-data attached to the
-     * open span by the trace fold). */
+     * open span by the trace fold). The span keeps the stack it was
+     * reached on; a call's frame is pushed in eval_1, for its body. */
     let is_target = Id.Map.find_opt(expr_id, eval_info.targets);
     switch (is_target) {
     | Some(_) =>
@@ -231,7 +224,7 @@ let rec evaluate =
           state^,
           ObsTrace.SpanOpen({
             syntax_id: expr_id,
-            stack: original_call_stack,
+            stack: call_stack,
             step: current_step_count,
           }),
         )
