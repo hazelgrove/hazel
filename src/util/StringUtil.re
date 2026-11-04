@@ -103,7 +103,6 @@ let trim_leading = (s: string): string => {
   |> replace(regexp("\n[\\t \\r]*"), _, "\n"); // After each newline
 };
 
-/* Split at the first occurrence of a character. */
 let split_first = (~on: char, s: string): option((string, string)) =>
   String.lsplit2(s, ~on);
 
