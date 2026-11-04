@@ -64,7 +64,6 @@ let tests = (
           },
         [
           WrapClosure,
-          FixClosure,
           CompleteClosure,
           CompleteFilter,
           BuiltinWrap,
@@ -100,7 +99,6 @@ let tests = (
               FunAp,
               DeferredAp,
               WrapClosure,
-              FixClosure,
               FixUnwrap,
               CompleteClosure,
               RemoveParens,

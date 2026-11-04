@@ -106,7 +106,6 @@ type step_kind =
   | RecordTheorem
   | WrapClosure
   | FixUnwrap
-  | FixClosure
   | UpdateTest
   | TypFunAp
   | FunAp
@@ -176,7 +175,6 @@ let provenance_of_kind: step_kind => provenance =
   | RemoveTypeAlias
   | RemoveUse => Proper
   | WrapClosure
-  | FixClosure
   | CompleteClosure
   | CompleteFilter
   | BuiltinWrap
@@ -615,16 +613,17 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d);
       let.wrap_closure _ = (env, d);
       Value;
-    | FixF(dp, d1, None) when Poly.equal(mode, `Environment) =>
-      let. _ = otherwise(env, FixF(dp, d1, None) |> rewrap);
-      Step({
-        expr: FixF(dp, d1, Some(env)) |> rewrap,
-        side_effects: [],
-        kind: FixClosure,
-        is_value: false,
-      });
     | FixF(dp, d1, fix_env) =>
       let. _ = otherwise(env, d);
+      /* In Environment mode the fixpoint closes over the environment it is
+         reached in, as it unwraps: closing over it as a step of its own
+         rebuilt the fixpoint under its own id, so the evaluator met it
+         twice. */
+      let fix_env =
+        switch (fix_env, mode) {
+        | (None, `Environment) => Some(env)
+        | (_, _) => fix_env
+        };
       let env' =
         switch (Pat.is_var(dp)) {
         | Some(v) => [(v, FixF(dp, d1, fix_env) |> rewrap)]
@@ -1412,7 +1411,6 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | CompleteFilter
   | BuiltinWrap
   | WrapClosure
-  | FixClosure
   | MarkIncomparable
   | RecordTheorem
   | RemoveParens => true;
@@ -1458,7 +1456,6 @@ let stepper_justification: step_kind => string =
   | AscriptionTypAp
   | AscriptionAp
   | Ascription => "ascription transition"
-  | FixClosure => "fixpoint closure"
   | CompleteFilter => "complete filter"
   | CompleteClosure => "complete closure"
   | WrapClosure => "wrap closure"

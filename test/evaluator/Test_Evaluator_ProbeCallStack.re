@@ -530,6 +530,25 @@ apply(mk(1), 5)|},
       );
     },
   ),
+  /* A recursive function is a fixpoint carrying the function's id. It
+     closes over its environment as it unwraps, rather than in a step of
+     its own that rebuilt it under that id and minted a second sample. */
+  test_case(
+    "A probed recursive function mints a single sample",
+    `Quick,
+    () => {
+      let samples =
+        get_all_samples(
+          {|let f = ^^probe(fun n -> if n == 0 then 0 else f(n - 1)) in f(2)|},
+        );
+      check(int, "unannotated", 1, List.length(samples));
+      let samples =
+        get_all_samples(
+          {|let f : Int -> Int = ^^probe(fun n -> if n == 0 then 0 else f(n - 1)) in f(2)|},
+        );
+      check(int, "annotated", 1, List.length(samples));
+    },
+  ),
   test_case(
     "Recursive same-id calls still mint one sample per depth",
     `Quick,
