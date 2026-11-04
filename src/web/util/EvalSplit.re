@@ -78,15 +78,35 @@ type doc = {
 let docs: ref(list((Id.t, doc))) = ref([]);
 let docs_cap = 8;
 
+/* (probe, ^ticket(666); not for merging) why pieces were cut anew: each
+   reason with how often it was the first to fail. [why] counts and is
+   false, so [check || why(reason)] counts only a failed check */
+let recut: Hashtbl.t(string, int) = Hashtbl.create(16);
+/* the pieces' count of keys and the statics', when they differed */
+let last_count: ref((int, int)) = ref((0, 0));
+let why = (reason: string): bool => {
+  Hashtbl.replace(
+    recut,
+    reason,
+    1 + Option.value(Hashtbl.find_opt(recut, reason), ~default=0),
+  );
+  false;
+};
+
 let doc_for = (id: Id.t, witnessing: EvalInfo.witnessing): doc => {
   let doc =
     switch (List.assoc_opt(id, docs^)) {
     | Some(d) when d.witnessing == witnessing => d
-    | _ => {
+    | found =>
+      ignore(
+        why(Option.is_none(found) ? "doc: new" : "doc: witnessing changed"),
+      );
+      let fresh: doc = {
         witnessing,
         top: empty_cache(),
         singles: Hashtbl.create(2),
-      }
+      };
+      fresh;
     };
   docs :=
     [
@@ -144,7 +164,22 @@ let piece =
   let c =
     switch (Hashtbl.find_opt(old, key)) {
     | Some(c) when holds(c.source) => c
-    | _ =>
+    | found =>
+      ignore(
+        why(
+          (Option.is_none(found) ? "no old piece: " : "stale: ")
+          ++ (
+            switch (key) {
+            | Item(_) => "Item"
+            | Roots(_) => "Roots"
+            | TopRoots(_) => "TopRoots"
+            | Targets(_) => "Targets"
+            | Node(_) => "Node"
+            | Whole(_) => "Whole"
+            }
+          ),
+        ),
+      );
       let (source, content, keys) = make();
       encode(source, content, keys, key);
     };
@@ -443,18 +478,33 @@ let shell_piece =
     switch (Hashtbl.find_opt(old, key)) {
     | Some({source: Shell(a, p', b, w, skip', entries, was), _} as c)
         when
-          a === it.d_elab.annotation
-          && p' === p
-          && b === body
-          && ids_equal(skip', skip)
-          && (w === n.n_wrap || entries_equal(Lazy.force(fresh), entries))
-          && same_binding(was, Lazy.force(binding)) => {
+          (a === it.d_elab.annotation || why("shell: annotation"))
+          && (p' === p || why("shell: pattern"))
+          && (b === body || why("shell: body"))
+          && (ids_equal(skip', skip) || why("shell: skip"))
+          && (
+            w === n.n_wrap
+            || entries_equal(Lazy.force(fresh), entries)
+            || why("shell: entries")
+          )
+          && (
+            same_binding(was, Lazy.force(binding)) || why("shell: binding")
+          ) => {
         ...c,
         source: source(entries),
         /* the map's other infos may come and go */
         keys: keys_of(n.n_wrap, ~skip),
       }
-    | _ =>
+    | found =>
+      ignore(
+        why(
+          switch (found) {
+          | None => "no old piece: shell"
+          | Some({source: Shell(_), _}) => "stale: shell"
+          | Some(_) => "shell: other source"
+          },
+        ),
+      );
       let entries = Lazy.force(fresh);
       encode(
         source(entries),
@@ -545,8 +595,14 @@ let rec chain =
     | Some((nested, n, v, p, body)) =>
       let m =
         switch (Hashtbl.find_opt(old.members, it.d_id)) {
-        | Some(m) when m.nest === n && ids_equal(m.shadowed, skip) => m
+        | Some(m)
+            when
+              (m.nest === n || why("members: nest"))
+              && (ids_equal(m.shadowed, skip) || why("members: shadowed")) => m
         | prior =>
+          if (Option.is_none(prior)) {
+            ignore(why("members: none before"));
+          };
           let inner = {
             witnessing: acc.witnessing,
             chunks: [],
@@ -638,11 +694,14 @@ let rec chain =
           ~holds=(
             fun
             | Plain(m, e, skip', was) =>
-              m === it.d_map
-              && e === it.d_elab
-              && ids_equal(skip', skip)
-              && same_binding(was, Lazy.force(binding))
-            | _ => false
+              (m === it.d_map || why("plain: map"))
+              && (e === it.d_elab || why("plain: elab"))
+              && (ids_equal(skip', skip) || why("plain: skip"))
+              && (
+                same_binding(was, Lazy.force(binding))
+                || why("plain: binding")
+              )
+            | _ => why("plain: other source")
           ),
           ~make=() =>
           (
@@ -777,6 +836,7 @@ let split =
   let targets = targets_piece(acc, doc, id, targets);
   /* every key in exactly one piece, or the worker's map would differ */
   if (acc.keys != Id.Map.cardinal(statics.info_map)) {
+    last_count := (acc.keys, Id.Map.cardinal(statics.info_map));
     raise(Unsplittable("pieces hold other keys than the statics"));
   };
   doc.top = cache;
