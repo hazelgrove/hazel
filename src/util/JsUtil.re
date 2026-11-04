@@ -709,6 +709,60 @@ let can_hover = (): bool => media_matches(~default=true, "(hover: hover)");
 let coarse_pointer = (): bool =>
   media_matches(~default=false, "(pointer: coarse)");
 
+/* How many columns `col_width` pixels wide fit between `el`'s left edge and
+   the right edge of what clips it (the nearest ancestor that scrolls
+   sideways, or else the viewport), less the right padding, border and
+   margin of everything in between, which a wider `el` pushes out too.
+   Measured as if unscrolled, so the answer doesn't depend on how far the
+   content is scrolled. */
+let columns_fitting = (~col_width: float, el: Js.t(Dom_html.element)): int => {
+  let style = (a: Js.t(Dom_html.element)) =>
+    Dom_html.window##getComputedStyle(a);
+  let px = (a, prop: string) => {
+    let v = Js.parseFloat(Js.Unsafe.get(style(a), prop));
+    Float.is_nan(v) ? 0.0 : v;
+  };
+  let right_inset = a =>
+    px(a, "paddingRight")
+    +. px(a, "borderRightWidth")
+    +. px(a, "marginRight");
+  let scrolls_sideways = a =>
+    switch (Js.to_string(Js.Unsafe.get(style(a), "overflowX"))) {
+    | "auto"
+    | "scroll" => true
+    | _ => false
+    };
+  /* The clipping ancestor, if any, and the insets up to its content edge. */
+  let rec clip = (a: Js.t(Dom_html.element), inset: float) =>
+    switch (
+      Js.Opt.to_option(a##.parentNode)
+      |> Option.map(Dom_html.CoerceTo.element)
+      |> Option.bind(_, Js.Opt.to_option)
+    ) {
+    | Some(p) when scrolls_sideways(p) => (
+        Some(p),
+        inset +. px(p, "paddingRight"),
+      )
+    | Some(p) => clip(p, inset +. right_inset(p))
+    | None => (None, inset)
+    };
+  let (clipper, inset) = clip(el, right_inset(el));
+  let left = el##getBoundingClientRect##.left;
+  let (unscrolled_left, right) =
+    switch (clipper) {
+    | Some(s) => (
+        left +. float_of_int(s##.scrollLeft),
+        s##getBoundingClientRect##.left
+        +. float_of_int(s##.clientLeft + s##.clientWidth),
+      )
+    | None => (
+        left +. Js.Unsafe.get(Dom_html.window, "scrollX"),
+        float_of_int(Dom_html.document##.documentElement##.clientWidth),
+      )
+    };
+  max(1, int_of_float((right -. inset -. unscrolled_left) /. col_width));
+};
+
 /* Follow the visual viewport, which is what an on-screen keyboard shrinks
    (iOS leaves the layout viewport alone): --visual-viewport-height and
    --visual-viewport-top on the document, which #page is sized from. A no-op
