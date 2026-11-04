@@ -154,8 +154,9 @@ let request =
   let request = XmlHttpRequest.create();
   request##.onreadystatechange :=
     Js.wrap_callback(_ =>
-      if (Poly.equal(request##.readyState, XmlHttpRequest.DONE)) {
-        handler(receive(request));
+      switch (request##.readyState) {
+      | XmlHttpRequest.DONE => handler(receive(request))
+      | _ => ()
       }
     );
   request##.withCredentials := with_credentials |> Js.bool;
@@ -164,10 +165,12 @@ let request =
     url |> Js.string,
     true |> Js.bool,
   );
-  for (i in 0 to List.length(headers) - 1) {
-    let (key, value) = List.nth_exn(headers, i);
-    request##setRequestHeader(Js.string(key), Js.string(value));
-  };
+  List.iter(
+    ~f=
+      ((key, value)) =>
+        request##setRequestHeader(Js.string(key), Js.string(value)),
+    headers,
+  );
   request##send(body |> Json.to_string |> Js.string |> Js.Opt.return);
 };
 
@@ -307,13 +310,15 @@ let request_streaming =
   Js.Unsafe.set(req, Js.string("onerror"), Js.wrap_callback(_ => fail()));
   req##.onreadystatechange :=
     Js.wrap_callback(_ =>
-      if (Poly.equal(req##.readyState, XmlHttpRequest.DONE)) {
+      switch (req##.readyState) {
+      | XmlHttpRequest.DONE =>
         if (aborted^ || status_ok()) {
           read_and_drain();
           finish();
         } else {
           fail();
-        };
+        }
+      | _ => ()
       }
     );
   req##.withCredentials := with_credentials |> Js.bool;

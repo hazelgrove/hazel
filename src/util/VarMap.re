@@ -10,9 +10,9 @@ let extend = (ctx, xa) => {
   [xa, ...ctx];
 };
 
-let lookup = (ctx, x) => List.Assoc.find(~equal=Poly.equal, ctx, x);
+let lookup = (ctx, x) => List.Assoc.find(~equal=String.equal, ctx, x);
 
-let contains = (ctx, x) => List.Assoc.mem(~equal=Poly.equal, ctx, x);
+let contains = (ctx, x) => List.Assoc.mem(~equal=String.equal, ctx, x);
 
 let filter = (f, xs) => List.filter(~f, xs);
 
