@@ -313,11 +313,7 @@ let ref_of_sample = (s: t): span_ref => {
 
 let ref_matches = (r: span_ref, s: t): bool =>
   Id.equal(r.probe_id, s.syntax_id)
-  && List.equal(
-       Id.equal,
-       CallStack.ids_of_stack(r.stack),
-       CallStack.ids_of_stack(s.call_stack),
-     )
+  && CallStack.equal(r.stack, s.call_stack)
   && (
     switch (r.opened) {
     | None => true
@@ -570,7 +566,7 @@ module Selection = {
       )
       : list(t) => {
     let samples =
-      List.filter(~f=(s: t) => !Poly.equal(s.origin, Print), samples);
+      List.filter(~f=(s: t) => !equal_origin(s.origin, Print), samples);
     switch (pinned) {
     | Some(_) when Option.is_some(pinned_interval) =>
       /* Pinned-interval semantics, three rules:

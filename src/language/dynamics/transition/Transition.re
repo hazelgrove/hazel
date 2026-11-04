@@ -992,14 +992,20 @@ module Transition = (EV: EV_MODE) => {
           | None => Indet
           | Some(true) =>
             Step({
-              expr: generated(Atom(Bool(Poly.equal(poly_op, Equals)))),
+              expr:
+                generated(
+                  Atom(Bool(Operators.equal_op_bin_poly(poly_op, Equals))),
+                ),
               side_effects: [],
               kind: BinOp(op),
               is_value: true,
             })
           | Some(false) =>
             Step({
-              expr: generated(Atom(Bool(!Poly.equal(poly_op, Equals)))),
+              expr:
+                generated(
+                  Atom(Bool(!Operators.equal_op_bin_poly(poly_op, Equals))),
+                ),
               side_effects: [],
               kind: BinOp(op),
               is_value: false,

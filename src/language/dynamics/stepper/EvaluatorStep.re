@@ -78,7 +78,7 @@ let rec matches =
         Filter(Filter(flt'), ctx) |> rewrap;
       | Filter(Residue(idx, act), ctx) =>
         let (ract, ridx, rctx) = matches(env, flt, ctx, exp, act, idx);
-        if (ridx == idx && Poly.equal(ract |> snd, All)) {
+        if (ridx == idx && FilterAction.equal_count(snd(ract), All)) {
           (ract, ridx, Filter(Residue(idx, act), rctx) |> rewrap);
         } else {
           (ract, ridx, rctx);
@@ -200,7 +200,11 @@ let rec matches =
     };
   switch (ctx) {
   | Term({term: Filter(_), _}) => (ract, ridx, rctx)
-  | _ when midx == ridx && midx > pidx && Poly.equal(mact |> snd, All) => (
+  | _
+      when
+        midx == ridx
+        && midx > pidx
+        && FilterAction.equal_count(snd(mact), All) => (
       ract,
       ridx,
       Term({
@@ -414,7 +418,9 @@ let get_status = (~settings: CoreSettings.t, exp, env) => {
   let eos =
     decompose(exp, env)
     |> List.map(~f=should_hide_eval_obj(~settings=settings.evaluation)); // NOTE: should_hide_eval_obj actually changes the eval obj to do filter bookkeeping!!!
-  switch (List.find(~f=((x, _)) => Poly.equal(x, FilterAction.Eval), eos)) {
+  switch (
+    List.find(~f=((x, _)) => FilterAction.equal_action(x, Eval), eos)
+  ) {
   | Some((_, x)) => AutoStep(x)
   | None => AvailableSteps(List.map(~f=((_, x)) => x, eos))
   };

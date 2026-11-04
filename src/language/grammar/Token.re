@@ -47,7 +47,7 @@ let comment_regexp = regexp("^#[^#\n]*#$"); /* Multiline comments not supported 
 let is_comment = t => match(comment_regexp, t) || String.equal(t, "#");
 let is_comment_delim = t => String.equal(t, "#");
 let is_secondary = t =>
-  List.mem([space, linebreak], t, ~equal=Poly.equal) || is_comment(t);
+  List.mem([space, linebreak], t, ~equal) || is_comment(t);
 
 /* STRINGS: special-case syntax */
 
