@@ -90,18 +90,13 @@ let fold_step = (acc: fold, ev: event): fold =>
      * usually at or near the head (the entered ap's own span), so stop
      * at the first match and share the tail. A later enter for the same
      * span overwrites (matching the old most-recent lookup semantics). */
-    let stack_ids = CallStack.ids_of_stack(stack);
     let rec attach = (opens: list(open_span)) =>
       switch (opens) {
       | [] => []
       | [o, ...rest]
           when
             Id.equal(o.syntax_id, frame.id)
-            && List.equal(
-                 Id.equal,
-                 CallStack.ids_of_stack(o.stack),
-                 stack_ids,
-               ) => [
+            && CallStack.equal(o.stack, stack) => [
           {
             ...o,
             app: Some((arg, frame)),
