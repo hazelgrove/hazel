@@ -355,8 +355,6 @@ let rev_concat: (list('a), list('a)) => list('a) =
 let unzip3 = (lst: list(('a, 'b, 'c))): (list('a), list('b), list('c)) =>
   List.unzip3(lst);
 
-let intersperse = (sep, xs) => List.intersperse(xs, ~sep);
-
 let flat_intersperse = (sep, xss) =>
   List.concat(List.intersperse(xss, ~sep=[sep]));
 
@@ -380,17 +378,12 @@ let suffix_at_depth =
   go(0, xs, ys);
 };
 
-/* list truncated after at most n elements */
-let truncate = (n: int, xs: list('a)): list('a) => List.take(xs, n);
+let take = (n, xs: list('a)) => List.take(xs, n);
 
-/* list without the first n elements */
 let remove_first_n = (n: int, xs: list('a)): list('a) => List.drop(xs, n);
 
-/* Return at most k elements starting from index i */
 let slice = (i: int, k: int, xs: list('x)): list('x) =>
-  xs |> remove_first_n(i) |> truncate(k);
-
-let take = (n, xs: list('a)) => List.take(xs, n);
+  xs |> remove_first_n(i) |> take(k);
 
 // for performance, doesn't check the whole list if already above length
 let rec is_length = (n: int, xs: list('a)): bool =>

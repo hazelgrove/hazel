@@ -16,7 +16,7 @@ let range: (~lo: int=?, int) => list(int);
 /** Splits around the first element satisfying the predicate. */
 let split: (list('x), 'x => bool) => (list('x), option('x), list('x));
 let combine_opt: (list('a), list('b)) => option(list(('a, 'b)));
-/** Same as `intersperse`. */
+/** Puts the separator between each pair of adjacent elements. */
 let join: ('x, list('x)) => list('x);
 let hd_opt: list('a) => option('a);
 let split_n_opt: (int, list('x)) => option((list('x), list('x)));
@@ -63,7 +63,6 @@ let first_and_last: list(list('a)) => list(('a, 'a));
 /** `List.rev_append`. */
 let rev_concat: (list('a), list('a)) => list('a);
 let unzip3: list(('a, 'b, 'c)) => (list('a), list('b), list('c));
-let intersperse: ('a, list('a)) => list('a);
 /** Concatenates the lists with the separator between each. */
 let flat_intersperse: ('a, list(list('a))) => list('a);
 let is_suffix_of: (~eq: ('a, 'a) => bool=?, list('a), list('a)) => bool;
@@ -71,11 +70,14 @@ let is_suffix_of: (~eq: ('a, 'a) => bool=?, list('a), list('a)) => bool;
     dropped. */
 let suffix_at_depth:
   (~eq: ('a, 'a) => bool=?, list('a), list('a)) => option(int);
-let truncate: (int, list('a)) => list('a);
-let remove_first_n: (int, list('a)) => list('a);
-/** `slice(i, k, xs)`: at most `k` elements starting at index `i`. */
-let slice: (int, int, list('x)) => list('x);
+/** The first `n` elements, or the whole list if it is shorter; `[]` when
+    `n <= 0`. */
 let take: (int, list('a)) => list('a);
+/** The list without its first `n` elements; the whole list when `n <= 0`. */
+let remove_first_n: (int, list('a)) => list('a);
+/** `slice(i, k, xs)`: at most `k` elements starting at index `i`. A negative
+    `i` starts at index 0, and a negative `k` gives `[]`. */
+let slice: (int, int, list('x)) => list('x);
 /** Stops walking once the list is longer than `n`. */
 let is_length: (int, list('a)) => bool;
 /** `insert(x, xs, i)` puts `x` at index `i`. */
