@@ -556,8 +556,9 @@ module Color = {
     let (lc, mc, sc) = (l_ *. l_ *. l_, m_ *. m_ *. m_, s_ *. s_ *. s_);
     let byte = v =>
       int_of_float(
-        Float.round(
-          Float.min(1., Float.max(0., srgb_of_linear(v))) *. 255.,
+        Stdlib.Float.round(
+          Stdlib.Float.min(1., Stdlib.Float.max(0., srgb_of_linear(v)))
+          *. 255.,
         ),
       );
     (
@@ -595,8 +596,8 @@ module Color = {
 
   let rgb_of_hsv = ((h, s, v): (float, float, float)): (int, int, int) => {
     let h = Float.mod_float(Float.mod_float(h, 360.) +. 360., 360.);
-    let s = Float.min(1., Float.max(0., s));
-    let v = Float.min(1., Float.max(0., v));
+    let s = Stdlib.Float.min(1., Stdlib.Float.max(0., s));
+    let v = Stdlib.Float.min(1., Stdlib.Float.max(0., v));
     let sector = h /. 60.;
     let i = int_of_float(Float.round_down(sector));
     let f = sector -. Float.round_down(sector);
@@ -614,7 +615,7 @@ module Color = {
       | 4 => (t, p, v)
       | _ => (v, p, q)
       };
-    let byte = x => int_of_float(Float.round(x *. 255.));
+    let byte = x => int_of_float(Stdlib.Float.round(x *. 255.));
     (byte(r), byte(g), byte(b));
   };
 
@@ -632,8 +633,8 @@ module Color = {
       float_of_int(g) /. 255.,
       float_of_int(b) /. 255.,
     );
-    let mx = Float.max(rf, Float.max(gf, bf));
-    let mn = Float.min(rf, Float.min(gf, bf));
+    let mx = Stdlib.Float.max(rf, Stdlib.Float.max(gf, bf));
+    let mn = Stdlib.Float.min(rf, Stdlib.Float.min(gf, bf));
     let d = mx -. mn;
     let h =
       if (Float.equal(d, 0.)) {
