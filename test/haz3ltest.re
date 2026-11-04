@@ -98,7 +98,6 @@ let (suite, exit_with_test_status) =
     @ [
       Test_VarHighlight.tests,
       Test_Evaluator_ProbeNav.tests,
-      Test_StepProvenance.tests,
       Test_ObsTraceShadow.tests,
       Test_ObsBench.tests,
       Test_Ascriptions.tests,

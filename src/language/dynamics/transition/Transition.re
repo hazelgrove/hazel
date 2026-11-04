@@ -110,8 +110,6 @@ type step_kind =
   | TypFunAp
   | FunAp
   | DeferredAp
-  | AscriptionTypAp
-  | AscriptionAp
   | BuiltinWrap
   | BuiltinAp(string)
   | UnOp(Operators.op_un)
@@ -130,60 +128,6 @@ type step_kind =
   | RemoveTypeAlias
   | RemoveUse
   | RemoveParens;
-
-/* Whether a step interprets the user's program (Proper) or performs
-   implementation bookkeeping that the surface semantics treats as
-   invisible (Administrative). Administrative steps with `may_delegate`
-   can rebuild a redex under its own id (rewrap here; fast_copy in
-   Ascriptions), re-evaluating user syntax as a CONTINUATION of its
-   enclosing observation span rather than a fresh event (at most one
-   open span per (id, call-stack) key — see
-   Evaluator.eval_3_record_probe_sample).
-
-   Distinct from should_hide_step_kind below: that is a display
-   preference (e.g. Conditional is hideable but Proper); provenance is
-   semantics. Kind granularity: a kind can cover several rules, so
-   may_delegate marks kinds ANY of whose rules can produce same-id
-   re-evaluation. */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type provenance =
-  | Proper
-  | Administrative({may_delegate: bool});
-
-let provenance_of_kind: step_kind => provenance =
-  fun
-  | InvalidStep
-  | VarLookup
-  | Seq
-  | LetBind(_)
-  | TheoremBind
-  | UpdateTest
-  | TypFunAp
-  | FunAp
-  | DeferredAp
-  | BuiltinAp(_)
-  | UnOp(_)
-  | BinOp(_)
-  | Dot
-  | Conditional(_)
-  | Projection
-  | TupleExtension
-  | ListCons
-  | ListConcat
-  | CaseApply
-  | FixUnwrap
-  | RemoveTypeAlias
-  | RemoveUse => Proper
-  | WrapClosure
-  | CompleteClosure
-  | CompleteFilter
-  | BuiltinWrap
-  | MarkIncomparable
-  | RecordTheorem
-  | RemoveParens => Administrative({may_delegate: false})
-  | Ascription
-  | AscriptionTypAp
-  | AscriptionAp => Administrative({may_delegate: true});
 
 type rule =
   | Step({
@@ -1420,8 +1364,6 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | RemoveUse
   | InvalidStep
   | VarLookup => false
-  | AscriptionTypAp
-  | AscriptionAp
   | Ascription => !settings.show_ascription_steps
   | FixUnwrap => !settings.show_fixpoints
   | CompleteClosure
@@ -1470,8 +1412,6 @@ let stepper_justification: step_kind => string =
   | Projection => "projection" // TODO(Matt): We don't want to show projection to the user
   | InvalidStep => "error"
   | VarLookup => "variable lookup"
-  | AscriptionTypAp
-  | AscriptionAp
   | Ascription => "ascription transition"
   | CompleteFilter => "complete filter"
   | CompleteClosure => "complete closure"

@@ -504,10 +504,9 @@ in apply(add(_, 10), 5)|},
   ),
 ];
 
-/* Delegation law: an administrative same-id re-evaluation (cast
- * distribution rebuilding the probed Ap via rewrap) continues the open
- * observation span rather than opening a second one, so one source-level
- * call mints exactly one sample — with args and a navigable frame. */
+/* One source-level call mints exactly one sample, with args and a
+ * navigable frame, including a call through an arrow cast (which used to
+ * be rebuilt under the call's id and evaluated a second time). */
 let span_suppression_tests = [
   test_case(
     "Cast-distributed call mints a single fully-resolved sample",

@@ -787,12 +787,10 @@ in build(3)|},
       ),
     ],
   ),
-  /* An ascription rebuilds its redex under its own id, and the evaluator's
-   * delegation law is what stops that re-evaluation from opening a second
-   * observation span. These pin both directions of it under recursion: one
-   * sample per call and no more, and calls told apart by their call stack
-   * rather than merged. #2524's fix changes when a delegation is recorded,
-   * so a regression there surfaces as duplicated or missing samples. */
+  /* A probed ascription in a recursive body: one sample per call and no
+   * more, and calls told apart by their call stack rather than merged.
+   * An ascription used to rebuild its redex under its own id, which needed
+   * the evaluator to recognise the second evaluation (#2524). */
   probe_line_test(
     "Probed ascription in a recursive body samples once per call",
     {|let f : Int -> Int = fun n ->
@@ -821,7 +819,7 @@ a(3) + b(2)|},
     [(0, ["3", "2", "1", "2", "1"])],
   ),
   /* Mutual recursion through a tuple binding: the two probes interleave on
-   * one call stack, so a delegation keyed too coarsely merges them. */
+   * one call stack, and each keeps its own samples. */
   probe_line_test(
     "Probed ascriptions in mutually recursive functions",
     {|let (f, g) : (Int -> Int, Int -> Int) = (
