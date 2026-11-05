@@ -226,8 +226,35 @@ let replace_temp =
   },
 };
 
+/* (^ticket(666)) while [derived] is set (with_derived_ids), FreshGrammar's
+   terms get ids derived from its base, in the order they are made, instead
+   of fresh ones: a term statics builds anew on every analysis of the same
+   source (a livelit use's expansion) then has the same ids every time, so
+   its piece hashes as before and the eval worker finds what it composed */
+let derived: ref(option((Id.t, ref(int)))) = ref(None);
+let with_derived_ids = (base: Id.t, f: unit => 'a): 'a => {
+  let saved = derived^;
+  derived := Some((base, ref(0)));
+  switch (f()) {
+  | r =>
+    derived := saved;
+    r;
+  | exception e =>
+    derived := saved;
+    raise(e);
+  };
+};
+
 module FreshGrammar =
   Grammar.Factory({
     type t = IdTag.t;
-    let default_value = (): IdTag.t => IdTag.fresh();
+    let default_value = (): IdTag.t =>
+      switch (derived^) {
+      | Some((base, k)) =>
+        incr(k);
+        IdTag.mk_internal([
+          Id.derive(~salt="made-" ++ string_of_int(k^), base),
+        ]);
+      | None => IdTag.fresh()
+      };
   });
