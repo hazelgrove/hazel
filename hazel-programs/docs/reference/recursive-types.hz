@@ -60,24 +60,25 @@ let apply_self : Self -> Int = fun f -> f(f) in
 let const_one : Self = fun _ -> 1 in
 let ex7 = apply_self(const_one) in # 1 #
 
-# The binder's name is not part of the type. A function over any list-like #
-# recursive sum, written with its own binder, takes an IntList: #
-let length : poly A -> (rec L -> + Nil + Cons(A, L)) -> Int =
+# Neither the alias's name nor the binder's is part of the type. A function #
+# over the same sum, written with its own binder, takes an IntList: #
+let len : poly A -> (rec L -> + Nil + Cons(A, L)) -> Int =
   typfun A -> fun l ->
     case l
     | Nil => 0
-    | Cons(_, t) => 1 + length@<A>(t)
+    | Cons(_, t) => 1 + len@<A>(t)
     end in
-let ex8 = length@<Int>(Cons(1, Cons(2, Cons(3, Nil)))) in # 3 #
+let ex8 = len@<Int>(Cons(1, Cons(2, Cons(3, Nil)))) in # 3 #
 
 # The same for a recursive product, taken apart through its unrolling: #
 let first_of : poly A -> (rec P -> (A, P)) -> A =
   typfun A -> fun (a, _) -> a in
 let ex9 = first_of@<Int>(c) in # 1 #
 
-# A recursive occurrence is the type itself, not a hole: a chain of Ints #
-# is not a chain of Bools, whatever the binders are called. #
-let _ : rec b -> (Bool, b) = c in # marked #
+# A recursive occurrence is the type itself, not a hole. This chain has a #
+# Bool at every second link, so it is not a chain of Ints: #
+let d : rec C -> (Int, (Bool, C)) = (1, (true, ?)) in
+let _ : rec C -> (Int, C) = d in # marked #
 
 # An alias defined as itself alone is a type no value has. Its name is #
 # warned where it is defined, and a value given that type is marked: #
