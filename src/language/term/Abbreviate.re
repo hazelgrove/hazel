@@ -1766,6 +1766,9 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
             },
           );
         }
+      | Escaped({label, _} as e) =>
+        available := available^ - String.length(label);
+        Escaped(e);
       };
     let result = rewrap(term);
     if (available^ < 0) {

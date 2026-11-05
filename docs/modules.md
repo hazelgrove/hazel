@@ -140,6 +140,50 @@ In the editor, typing `type` inside a signature produces the bare `type T`
 form; typing `=` after its type pattern upgrades it to `type T = …`. In a
 module body `type` still produces `type T = …`.
 
+### Module-typed functions
+
+```
+fun (m : { type T; let x : T; let f : T -> Int }) -> m.f(m.x)   -- : S -> Int
+fun (m : { type T; let x : T }) -> m                            -- : S -> S
+fun (m : { type T; let x : T }) -> m.x                          -- : S -> m.T~a1b
+let get = fun (m : { type T; let x : T }) -> m.x in get(M) + 1  -- error: m.T escaped
+let make = fun () -> ({ type U = Int; let y = 1 } : { type U; let y : U })
+in let a = make() in let b = make() in (b.y : a.U)              -- error: distinct types
+```
+
+Functions take and return modules like any other value, with width
+subtyping and sealing applied to arguments and results. Inside a body, a
+parameter's abstract types are the paths `m.T`. A path cannot leave the
+scope of its root: when a function body, a `let` body or a `case` arm is
+typed (`Typ.avoid`), a path rooted at the binder is first reduced (a
+manifest member is simply expanded), and one that is still abstract escapes,
+except that a signature member defined as that path becomes abstract and
+later members refer to it by name. So a function returning its module
+parameter has type `S -> S`, and each call of a function returning a module
+with abstract members yields a fresh abstract type (generativity).
+
+An escaped abstract type (`Typ.Escaped`) is still abstract: consistent with
+`?` and with itself, inconsistent with everything else, and closed, since it
+names no binder. It prints as the path it came from plus a short tag of its
+identity, because two escapes of one path are different types. So an escaped
+value may be bound, passed to an unannotated function or given to a hole, and
+using it where a concrete type is required is an error (`Mark.EscapedType`,
+which says which side escaped). The same rule makes `module M : { type T; ...
+} = ... in M.x` escape as a whole, while `M.x : M.T` inside the `in`.
+
+Escaping is generative per application: `Typ.freshen_escaped` gives each call
+its own identity, so `if b then get(m) else get(m)` is an error, two calls in
+a tuple are not, and a value bound once and used twice is not. Identities are
+derived from the application's id rather than generated, so re-checking an
+elaboration yields the same type.
+
+A parameter component annotated with an earlier component's member, `fun (m :
+SHOW, x : m.T)`, is closed the same way, so the caller's argument is checked
+against an escaped type and the call is an error naming it. What the caller
+knows, that `m` is a particular module, cannot be written in an ordinary
+arrow type; an implicit binder can hold it, and an ML sharing constraint for
+ordinary module parameters is the missing feature.
+
 ### Member Access and `module`
 
 ```
@@ -356,7 +400,9 @@ to a signature (`Ascriptions.re`) keeps the signature's value members in
 signature order, ascribes each to its declared type, and drops the rest,
 unless a hole item in the signature could declare them, when they stay as
 they are;
-type members have no runtime content. `ModVal` items compare equal to the
+type members have no runtime content. A cast to an abstract path type
+(`M.T`) is likewise a no-op: elaboration normalizes manifest paths away, so a
+path reaching the runtime is abstract. `ModVal` items compare equal to the
 literal binding `let x = v` (`Equality.re`), and display as `let x = v`.
 Two module values compare under `==` and `!=` member by name
 (`Mod.paired_bindings`, in `DHExp.ty_comparable` and `DHExp.poly_equal`).
@@ -375,8 +421,12 @@ the first matching form). `Insert.upgrade_bare_sig_type` runs when `=` is
 inserted: if the pieces to the left of the caret are a bare `type` tile in
 the Sig sort followed by at most one type-pattern token (and whitespace), the
 tile is relabeled to the manifest form with its `=` missing, so the ordinary
-backpack put-down completes `type T = ¦`. There is no downgrade; delete the
-`=` to get a hole instead. In the text parser the bare form is
+backpack put-down completes `type T = ¦`. Deleting that `=` runs the inverse,
+`Insert.downgrade_bare_sig_type` (from `Destruct`): the tile becomes the bare
+form again and the old definition is left dangling as a stray type, to be
+removed or reattached by retyping `=`. A module-body `type T = _` has no bare
+form and stays an incomplete tile waiting for `=`. In the text parser the
+bare form is
 `SigItemTypeAbstract` (`Parser.mly`: `TYP tpat` inside a signature).
 
 ### Cursor Inspector and Statics Info
@@ -416,11 +466,25 @@ parts for code that walks them (composition, probe targets). Sig items are
 | `src/haz3lcore/pretty/ExpToSegment.re`  | Module, Sig and `ModVal` printing                                  |
 | `src/menhirParser/Parser.mly`, `Conversion.re` | Text parser for module forms                                |
 
+### Tests
+
+| File                                       | What                                                                      |
+| ------------------------------------------ | ------------------------------------------------------------------------- |
+| `test/statics/Test_Statics_Modules.re`     | Signature synthesis, annotations, Sig/Prod distinctness, `M.T`            |
+| `test/Test_Typ.re`                         | `Typ.Sig`, `Typ.Coercion`, `Typ.SigPaths`: meet, coercion, paths, strengthening |
+| `test/evaluator/Test_Evaluator_Modules.re` | Module values, member access, sealing at runtime                          |
+| `test/Test_Elaboration.re`                 | Modules elaborate to modules                                              |
+| `test/Test_TyDi.re`                        | Value/type member completion                                              |
+| `test/Test_Menhir.re`, `Test_MakeTerm.re`, `Test_ExpToSegment.re` | Parsing and round-trips                            |
+| `test/Test_Editing.re`                     | `Editing.SigAbstract`: bare `type T` and the `=` upgrade                 |
+| `test/statics/Test_Statics_Properties.re` | `Root type mentions no internal binder` (QCheck, signatures generated)     |
+
 ### In-Editor Documentation
 
 | File                                         | What                                          |
 | -------------------------------------------- | --------------------------------------------- |
 | `hazel-programs/docs/reference/modules.hz`   | The Modules doc slide (construction, type access) |
 | `hazel-programs/docs/reference/module-signatures.hz` | The Module Signatures slide (signatures and their errors) |
-| `hazel-programs/docs/reference/module-sealing.hz` | The Module Sealing slide; the three slides were one until its `let` chain hit the evaluator stack limit in the Web Worker |
+| `hazel-programs/docs/reference/module-sealing.hz` | The Module Sealing slide (width sealing) |
+| `hazel-programs/docs/reference/module-abstract-types.hz` | The Module Abstract Types slide (abstract members, module-typed functions). The four slides were one until its `let` chain hit the evaluator stack limit in the Web Worker |
 | `src/web/app/explainthis/data/Sig*.re`, `Mod*.re`, `DotTyp.re` | Explain-this content         |

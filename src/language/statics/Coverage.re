@@ -151,6 +151,7 @@ module Ctr = {
     | ProdProjection(_)
     | ProdExtension(_)
     | TypeMember(_)
+    | Escaped(_)
     | Var(_) => Infinite
     | Parens(_)
     | Projector(_)
@@ -430,6 +431,8 @@ module UnseenPatternList: UnseenPatternList = {
     /* A stuck path (`m.T`) is an abstract type: opaque, like a variable. */
     | TypeMember(_)
     | ProdProjection(_)
+    /* Likewise an escaped abstract type: nothing can be named. */
+    | Escaped(_)
     | Var(_) => unseen_pattern
     | Parens(_)
     | Projector(_)
@@ -570,6 +573,8 @@ module UnseenPatternList: UnseenPatternList = {
     | Sig(_)
     | TypeMember(_)
     | ProdProjection(_)
+    /* Likewise an escaped abstract type: nothing can be named. */
+    | Escaped(_)
     | Var(_) => cons_wild(unseen_pattern)
     | Parens(_)
     | Projector(_)
@@ -636,6 +641,8 @@ module UnseenPatternList: UnseenPatternList = {
     | Sig(_)
     | TypeMember(_)
     | ProdProjection(_)
+    /* Likewise an escaped abstract type: nothing can be named. */
+    | Escaped(_)
     | Var(_) => cons_wild(unseen_pattern)
     | Parens(_)
     | Projector(_)

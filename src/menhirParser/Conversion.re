@@ -594,6 +594,10 @@ and Typ: {
     | Sig(Open(items)) => Sig(List.map(SigItem.of_core, items))
     | Sig(Closed(items)) =>
       Sig(List.map(SigItem.of_core, Language.ClosedSig.items(items)))
+    /* An escaped abstract type has no text form: it appears only in inferred
+       types, never in a program being printed back. Print it as the unknown
+       type rather than raising, the way `?` prints for Unknown(Internal). */
+    | Escaped(_) => UnknownType(Internal)
     };
   };
 }
