@@ -181,21 +181,32 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
       | _ => dhpat_var_entry(dp1, ty)
       }
     | Tuple(l1) =>
-      let (l1, ts) =
-        MatchedTyp.prod(ctx, l1, Pat.match_tup_label, ty, (name, b) =>
-          TupLabel(Label(name) |> Pat.fresh, b) |> Pat.fresh
-        );
+      let labels =
+        List.map(p => Pat.match_tup_label(p) |> Option.map(fst), l1);
+      /* This binding operation historically recovers tuple components on a
+         shape mismatch. It does not own statics diagnostics. */
+      let (product, _shape_failures) =
+        MatchedTyp.match_type(ctx, Product(labels), Report(Fun.id), ty);
+      let l1 =
+        LabeledTupleStaticsHelpers.align_elements(
+          ~constructor=
+            (name, p) => TupLabel(Label(name) |> Pat.fresh, p) |> Pat.fresh,
+          product,
+          l1,
+        )
+        |> List.map(snd);
+      let ts = product.types;
       let* l =
         List.map2((dhp, typ) => {dhpat_var_entry(dhp, typ)}, l1, ts)
         |> OptUtil.sequence;
       Some(List.concat(l));
     | Cons(dhp1, dhp2) =>
-      let* t = MatchedTyp.list_strict(ctx, ty);
+      let* t = MatchedTyp.match_type(ctx, List, Optional, ty);
       let* l1 = dhpat_var_entry(dhp1, t);
       let* l2 = dhpat_var_entry(dhp2, List(t) |> Typ.temp);
       Some(l1 @ l2);
     | ListLit(l) =>
-      let* t = MatchedTyp.list_strict(ctx, ty);
+      let* t = MatchedTyp.match_type(ctx, List, Optional, ty);
       let* l =
         List.map(dhp => {dhpat_var_entry(dhp, t)}, l) |> OptUtil.sequence;
       Some(List.concat(l));

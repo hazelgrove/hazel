@@ -1,38 +1,15 @@
 open Util;
 
-/* Static messages: unified Message.t for inspector ok payloads. Info.derived_*
-   enriches statics marks with ExpectationMismatch when ana/syn fail to meet, so
-   marks on Info are authoritative for errors (no marks ⇒ no error). */
-
-[@deriving (show({with_path: false}), sexp, yojson, eq)]
-type ok_ana =
-  | Consistent({
-      ana: Typ.t,
-      syn: Typ.t,
-      meet: Typ.t,
-    })
-  | InternallyInconsistent({
-      ana: Typ.t,
-      nomeet: list(Typ.t),
-    });
-
-[@deriving (show({with_path: false}), sexp, yojson, eq)]
-type ok_common =
-  | Syn(Typ.t)
-  | Ana(ok_ana);
-
-/* Non-error inspector payload for expressions / patterns. Principal syn type
-   is Info.elab_syn_ty; Default is synthesis-only (no Ana payload). */
+/* Special inspector explanations. Ordinary type information and its
+   consistency with an expectation are queried from Info, not stored here. */
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type exp =
   | Default
-  | AnaDeferralConsistent(Typ.t)
-  | Common(ok_common);
+  | ArgumentDeferral;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type pat =
-  | Default
-  | Common(ok_common);
+  | Default;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type underdetermined_typ =
