@@ -294,10 +294,14 @@ let common_warn_view = (~globals, warning: Warning.list_item): list(Node.t) =>
       code(name),
       text("is unused."),
     ]
-  | TPat(NonContractive(name))
-  | Typ(NonContractive(name)) => [
+  | TPat(NonContractive(name)) => [
       text("Warning: Type"),
       view_type(~globals, Var(name) |> Typ.fresh),
+      text("is defined as itself."),
+    ]
+  | Typ(NonContractive(name)) => [
+      text("Warning: Recursive type"),
+      code("rec " ++ name),
       text("is defined as itself."),
     ]
   };

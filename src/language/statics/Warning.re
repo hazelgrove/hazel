@@ -1,16 +1,16 @@
 open Util;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type warning_pat =
   | UnusedVar(string);
 //  | ShadowedVar(string, string)
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type warning_typ =
   /* A type defined as itself: no value has it. */
   | NonContractive(string);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type list_item =
   | Pat(warning_pat)
   | TPat(warning_typ)

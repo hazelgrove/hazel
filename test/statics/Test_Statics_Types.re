@@ -454,32 +454,15 @@ let derive_typ_tests = [
   ),
 ];
 
-/* [source] has exactly the warnings [warnings], and [error_count] errors. */
-let has_warnings =
-    (name, source, warnings: list(Warning.list_item), error_count) =>
-  test_case(
-    name,
-    `Quick,
-    () => {
-      let map = statics(parse_exp(source));
-      let warned =
-        Id.Map.fold(
-          (id, info, acc) =>
-            Id.equal(id, Info.id_of(info))
-              ? Info.warnings_of(info) @ acc : acc,
-          map,
-          [],
-        );
-      let shown = ws =>
-        List.sort(String.compare, List.map(Warning.show_list_item, ws));
-      check(list(string), "warnings", shown(warnings), shown(warned));
-      check(
-        int,
-        "errors",
-        error_count,
-        List.length(Statics.Map.error_ids(map)),
-      );
-    },
+let warned = item => Some(Warnings([item]));
+let mismatch = (ana, syn) =>
+  Some(
+    Marks([
+      ExpectationMismatch({
+        ana,
+        syn,
+      }),
+    ]),
   );
 
 let tests = (
@@ -497,23 +480,105 @@ let tests = (
         ),
       ),
     ),
-    has_warnings(
+    test_case(
       "A self-referential alias is warned and does not loop (#1621)",
-      "type y = y in type ? = y in ?",
-      [TPat(NonContractive("y"))],
-      0,
+      `Quick,
+      () =>
+      annotated_tree_test(
+        ~source="type y = y in type ? = y in ?",
+        "Marks and warnings",
+        FTemp.Typ.unknown(Internal),
+        FIError.Exp.(
+          ty_alias(
+            FIError.TPat.var(~ann=warned(TPat(NonContractive("y"))), "y"),
+            FIError.Typ.var("y"),
+            ty_alias(
+              FIError.TPat.empty_hole(),
+              FIError.Typ.var("y"),
+              empty_hole(),
+            ),
+          )
+        ),
+      )
     ),
-    has_warnings(
+    test_case(
       "No value has a type defined as itself",
-      "type T = T in let a : T = 1 in let b : T = [1] in let c : T = fun x -> x in (a, b, c)",
-      [TPat(NonContractive("T"))],
-      3,
+      `Quick,
+      () => {
+        let t = FTemp.Typ.var("T");
+        let loop = FTemp.Typ.(rec_(FTemp.TPat.var("T"), var("T")));
+        annotated_tree_test(
+          ~source=
+            "type T = T in let a : T = 1 in let b : T = [1] in let c : T = fun (x : Int) -> x in (a, b, c)",
+          "Marks and warnings",
+          FTemp.Typ.(prod([loop, loop, loop])),
+          FIError.Exp.(
+            ty_alias(
+              FIError.TPat.var(
+                ~ann=warned(TPat(NonContractive("T"))),
+                "T",
+              ),
+              FIError.Typ.var("T"),
+              let_(
+                FIError.Pat.(asc(var("a"), FIError.Typ.var("T"))),
+                int(~ann=mismatch(t, FTemp.Typ.int()), 1),
+                let_(
+                  FIError.Pat.(asc(var("b"), FIError.Typ.var("T"))),
+                  list_lit(
+                    ~ann=mismatch(t, FTemp.Typ.(list(int()))),
+                    [int(1)],
+                  ),
+                  let_(
+                    FIError.Pat.(asc(var("c"), FIError.Typ.var("T"))),
+                    fn(
+                      ~ann=mismatch(t, FTemp.Typ.(arrow(int(), int()))),
+                      FIError.Pat.(
+                        parens(asc(var("x"), FIError.Typ.int()))
+                      ),
+                      var("x"),
+                      None,
+                      None,
+                    ),
+                    parens(tuple([var("a"), var("b"), var("c")])),
+                  ),
+                ),
+              ),
+            )
+          ),
+        );
+      },
     ),
-    has_warnings(
+    test_case(
       "A variable or hole of a type defined as itself is that type",
-      "type T = T in fun (x : T) -> ((x : T), (? : T))",
-      [TPat(NonContractive("T"))],
-      0,
+      `Quick,
+      () => {
+        let loop = FTemp.Typ.(rec_(FTemp.TPat.var("T"), var("T")));
+        annotated_tree_test(
+          ~source="type T = T in fun (x : T) -> ((x : T), (? : T))",
+          "Marks and warnings",
+          FTemp.Typ.(arrow(loop, prod([loop, loop]))),
+          FIError.Exp.(
+            ty_alias(
+              FIError.TPat.var(
+                ~ann=warned(TPat(NonContractive("T"))),
+                "T",
+              ),
+              FIError.Typ.var("T"),
+              fn(
+                FIError.Pat.(parens(asc(var("x"), FIError.Typ.var("T")))),
+                parens(
+                  tuple([
+                    parens(asc(var("x"), FIError.Typ.var("T"))),
+                    parens(asc(empty_hole(), FIError.Typ.var("T"))),
+                  ]),
+                ),
+                None,
+                None,
+              ),
+            )
+          ),
+        );
+      },
     ),
     // https://github.com/hazelgrove/hazel/issues/2570: goes red once type
     // aliases resolve lexically (#2686).
@@ -524,7 +589,8 @@ let tests = (
       Alcotest.match_raises(
         "statics",
         fun
-        | Failure(_) => true
+        | Failure(msg) =>
+          String.starts_with(~prefix="weak_head_normalize exceeded", msg)
         | _ => false,
         () =>
         ignore(statics(parse_exp("type y = x in type x = y in (1 : y)")))
@@ -560,6 +626,7 @@ let tests = (
                     tuple(~ann=Some(mismatch), []),
                     FIError.Typ.(
                       rec_(
+                        ~ann=warned(Typ(NonContractive("x"))),
                         FIError.TPat.var("x"),
                         rec_(FIError.TPat.var("y"), var("x")),
                       )
@@ -604,6 +671,7 @@ let tests = (
                     tuple(~ann=Some(mismatch), []),
                     FIError.Typ.(
                       rec_(
+                        ~ann=warned(Typ(NonContractive("x"))),
                         FIError.TPat.var("x"),
                         rec_(FIError.TPat.empty_hole(), var("x")),
                       )
@@ -699,35 +767,195 @@ let tests = (
       "type A = Int -> Int -> A in let f : A = fun x -> fun y -> f in let g : Int -> A = f in 0",
       Some(FTemp.Typ.int()),
     ),
-    has_warnings(
+    test_case(
       "A written self-loop is warned where it is written and meets no other type",
-      "fun (y : rec x -> x) -> (y : Int)",
-      [Typ(NonContractive("x"))],
-      1,
+      `Quick,
+      () => {
+        let loop = FTemp.Typ.(rec_(FTemp.TPat.var("x"), var("x")));
+        annotated_tree_test(
+          ~source="fun (y : rec x -> x) -> (y : Int)",
+          "Marks and warnings",
+          FTemp.Typ.(arrow(loop, int())),
+          FIError.Exp.(
+            fn(
+              FIError.Pat.(
+                parens(
+                  asc(
+                    var("y"),
+                    FIError.Typ.(
+                      rec_(
+                        ~ann=warned(Typ(NonContractive("x"))),
+                        FIError.TPat.var("x"),
+                        var("x"),
+                      )
+                    ),
+                  ),
+                )
+              ),
+              parens(
+                asc(
+                  var(~ann=mismatch(FTemp.Typ.int(), loop), "y"),
+                  FIError.Typ.int(),
+                ),
+              ),
+              None,
+              None,
+            )
+          ),
+        );
+      },
     ),
-    has_warnings(
+    test_case(
       "A self-loop in parentheses is warned and does not loop",
-      "fun (y : rec x -> (x)) -> (y : Int)",
-      [Typ(NonContractive("x"))],
-      1,
+      `Quick,
+      () => {
+        let loop = FTemp.Typ.(rec_(FTemp.TPat.var("x"), parens(var("x"))));
+        annotated_tree_test(
+          ~source="fun (y : rec x -> (x)) -> (y : Int)",
+          "Marks and warnings",
+          FTemp.Typ.(arrow(loop, int())),
+          FIError.Exp.(
+            fn(
+              FIError.Pat.(
+                parens(
+                  asc(
+                    var("y"),
+                    FIError.Typ.(
+                      rec_(
+                        ~ann=warned(Typ(NonContractive("x"))),
+                        FIError.TPat.var("x"),
+                        parens(var("x")),
+                      )
+                    ),
+                  ),
+                )
+              ),
+              parens(
+                asc(
+                  var(~ann=mismatch(FTemp.Typ.int(), loop), "y"),
+                  FIError.Typ.int(),
+                ),
+              ),
+              None,
+              None,
+            )
+          ),
+        );
+      },
     ),
-    has_warnings(
+    test_case(
       "A self-loop under a binder is warned for the binder it loops to",
-      "fun (f : rec x -> rec y -> x) -> f",
-      [Typ(NonContractive("x"))],
-      0,
+      `Quick,
+      () => {
+        let ty =
+          FTemp.Typ.(
+            rec_(FTemp.TPat.var("x"), rec_(FTemp.TPat.var("y"), var("x")))
+          );
+        annotated_tree_test(
+          ~source="fun (f : rec x -> rec y -> x) -> f",
+          "Marks and warnings",
+          FTemp.Typ.arrow(ty, ty),
+          FIError.Exp.(
+            fn(
+              FIError.Pat.(
+                parens(
+                  asc(
+                    var("f"),
+                    FIError.Typ.(
+                      rec_(
+                        ~ann=warned(Typ(NonContractive("x"))),
+                        FIError.TPat.var("x"),
+                        rec_(FIError.TPat.var("y"), var("x")),
+                      )
+                    ),
+                  ),
+                )
+              ),
+              var("f"),
+              None,
+              None,
+            )
+          ),
+        );
+      },
     ),
-    has_warnings(
+    test_case(
       "A self-loop under a vacuous binder is warned only for the inner binder",
-      "fun (f : rec x -> rec y -> y) -> f",
-      [Typ(NonContractive("y"))],
-      0,
+      `Quick,
+      () => {
+        let ty =
+          FTemp.Typ.(
+            rec_(FTemp.TPat.var("x"), rec_(FTemp.TPat.var("y"), var("y")))
+          );
+        annotated_tree_test(
+          ~source="fun (f : rec x -> rec y -> y) -> f",
+          "Marks and warnings",
+          FTemp.Typ.arrow(ty, ty),
+          FIError.Exp.(
+            fn(
+              FIError.Pat.(
+                parens(
+                  asc(
+                    var("f"),
+                    FIError.Typ.(
+                      rec_(
+                        FIError.TPat.var("x"),
+                        rec_(
+                          ~ann=warned(Typ(NonContractive("y"))),
+                          FIError.TPat.var("y"),
+                          var("y"),
+                        ),
+                      )
+                    ),
+                  ),
+                )
+              ),
+              var("f"),
+              None,
+              None,
+            )
+          ),
+        );
+      },
     ),
-    has_warnings(
+    test_case(
       "A self-loop to a shadowing binder is warned only for that binder",
-      "fun (f : rec x -> rec x -> x) -> f",
-      [Typ(NonContractive("x"))],
-      0,
+      `Quick,
+      () => {
+        let ty =
+          FTemp.Typ.(
+            rec_(FTemp.TPat.var("x"), rec_(FTemp.TPat.var("x"), var("x")))
+          );
+        annotated_tree_test(
+          ~source="fun (f : rec x -> rec x -> x) -> f",
+          "Marks and warnings",
+          FTemp.Typ.arrow(ty, ty),
+          FIError.Exp.(
+            fn(
+              FIError.Pat.(
+                parens(
+                  asc(
+                    var("f"),
+                    FIError.Typ.(
+                      rec_(
+                        FIError.TPat.var("x"),
+                        rec_(
+                          ~ann=warned(Typ(NonContractive("x"))),
+                          FIError.TPat.var("x"),
+                          var("x"),
+                        ),
+                      )
+                    ),
+                  ),
+                )
+              ),
+              var("f"),
+              None,
+              None,
+            )
+          ),
+        );
+      },
     ),
     inconsistent_typecheck(
       "An argument is checked against the parameter type of a recursive arrow alias",
