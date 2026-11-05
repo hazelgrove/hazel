@@ -947,6 +947,16 @@ let meet_out_of_phase_tests = {
   let two_step = rec_arrows("b", 2, int);
   let three_step = rec_arrows("a", 3, int);
   let two_step_holes = rec_arrows("a", 2, unknown);
+  /* rec x -> t1 -> t2 -> x */
+  let rec_two = (x, t1, t2) =>
+    F.Typ.rec_(
+      F.TPat.var(x),
+      F.Typ.arrow(t1(), F.Typ.arrow(t2(), F.Typ.var(x))),
+    );
+  let hole_then_int = rec_two("a", unknown, int);
+  let int_then_hole = rec_two("b", int, unknown);
+  let ints_forever = rec_two("x", int, int);
+  let anything_forever = rec_arrows("y", 1, unknown);
   let rec_pair =
     F.Typ.rec_(F.TPat.var("b"), F.Typ.prod([int(), F.Typ.var("b")]));
   /* The same tree as [rec_pair], with its binder one level down. */
@@ -972,16 +982,16 @@ let meet_out_of_phase_tests = {
     "Typ.meet on out-of-phase recursive types",
     [
       case(
-        "a recursive type against its other phase is that phase",
+        "a recursive type against its other phase is itself",
         two_step,
         F.Typ.arrow(int(), two_step),
-        Some(F.Typ.arrow(int(), two_step)),
+        Some(two_step),
       ),
       case(
         "on either side",
         F.Typ.arrow(int(), two_step),
         two_step,
-        Some(F.Typ.arrow(int(), two_step)),
+        Some(two_step),
       ),
       case(
         "a mismatch in the other phase is found",
@@ -1014,22 +1024,32 @@ let meet_out_of_phase_tests = {
         two_step_holes,
         Some(one_step),
       ),
-      /* With the holes first, the meet closes its loop on the first type as
-         written, so the filled arguments stay unrolled in front of it. */
+      case("on either side", two_step_holes, one_step, Some(one_step)),
+      /* Holes on both sides, at different positions: neither side as written
+         is the meet, which is the loop closed where the pair is met again. */
       case(
-        "holes first keep the first type as written after the filled prefix",
-        two_step_holes,
-        one_step,
-        Some(F.Typ.arrow(int(), F.Typ.arrow(int(), two_step_holes))),
+        "holes on both sides are filled from each other",
+        hole_then_int,
+        int_then_hole,
+        Some(ints_forever),
       ),
       case(
-        "a mismatch in the other period is found",
-        one_step,
-        F.Typ.rec_(
-          F.TPat.var("b"),
-          F.Typ.arrow(int(), F.Typ.arrow(F.Typ.bool(), F.Typ.var("b"))),
-        ),
-        None,
+        "on either side",
+        int_then_hole,
+        hole_then_int,
+        Some(ints_forever),
+      ),
+      case(
+        "a type taking anything forever meets one taking Ints forever as the latter",
+        anything_forever,
+        ints_forever,
+        Some(ints_forever),
+      ),
+      case(
+        "on either side",
+        ints_forever,
+        anything_forever,
+        Some(ints_forever),
       ),
       /* Nested recursive types that differ only at the innermost leaf: a
          comparison that retried every level would take hours at this depth. */
