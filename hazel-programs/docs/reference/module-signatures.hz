@@ -91,22 +91,11 @@ module M : {
   let x = true
 } in
 
-# Signatures must be precise: a module may not have extra members. #
-
-# 23. Error: extra member not declared by the signature #
-module M : {let x : Int} = {
-  let x = 1;
-  let y = 2
-} in
-
 # 23a. Error: a member declared twice in a signature #
 let d : {let x : Int; let x : Bool} = {let x = 1} in
 
 # 23b. Error: a signature declares a member by name #
 let e : {let (a, b) : (Int, Int)} = {} in
-
-# 24. Error: extra member not allowed by empty signature #
-module M : {} = {let x = 1} in
 
 # 25. Error: a hole-typed member is still required #
 let m : {let x : ?} = {let y = 1} in
