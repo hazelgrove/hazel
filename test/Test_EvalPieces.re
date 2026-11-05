@@ -243,9 +243,13 @@ let layout_diff = (name, p0: EvalPieces.program, p2: EvalPieces.program) => {
   let s2 = EvalPieces.slots(p2.layout);
   let text = (p: EvalPieces.program, h: EvalPieces.hash) =>
     switch (List.assoc_opt(h, p.pieces)) {
-    | Some(EvalPieces.Content(c)) => EvalPieces.show_content(c)
+    /* (its s-expression, which keeps the annotations' ids: show hides them) */
+    | Some(EvalPieces.Content(c)) =>
+      Sexplib.Sexp.to_string(EvalPieces.sexp_of_content(c))
     | Some(EvalPieces.Bytes(b)) =>
-      EvalPieces.show_content(EvalPieces.decode(b))
+      Sexplib.Sexp.to_string(
+        EvalPieces.sexp_of_content(EvalPieces.decode(b)),
+      )
     | None => "<not in the program's pieces>"
     };
   print_endline(
