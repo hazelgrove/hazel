@@ -141,7 +141,7 @@ let parse_and_evaluate_test =
   );
 
 let equal_limited_result =
-    (lr1: Evaluator.limited_result, lr2: Evaluator.limited_result) =>
+    (lr1: Evaluator.Limited.result, lr2: Evaluator.Limited.result) =>
   switch (lr1, lr2) {
   | (LimitedCompleted((exp1, _)), LimitedCompleted((exp2, _))) =>
     Exp.equal(exp1, exp2)
@@ -151,7 +151,7 @@ let equal_limited_result =
 
 let step_limited =
   testable(
-    Fmt.using(Evaluator.show_limited_result, Fmt.string),
+    Fmt.using(Evaluator.Limited.show_result, Fmt.string),
     equal_limited_result,
   );
 let single_step = (exp: Exp.t) => {
@@ -169,7 +169,7 @@ let single_step = (exp: Exp.t) => {
 };
 
 let full_small_step_reduction =
-    (~step_limit=1000, exp: TermBase.exp_t): Evaluator.limited_result => {
+    (~step_limit=1000, exp: TermBase.exp_t): Evaluator.Limited.result => {
   let rec go = (~steps_counter=0, exp: TermBase.exp_t): option(Exp.t) =>
     if (steps_counter > step_limit) {
       None;

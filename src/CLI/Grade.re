@@ -71,7 +71,7 @@ let gen_code_grading_report = (exercise): report => {
           term
           |> CachedStatics.init_from_term(~settings, ~is_dynamic_term=false)
           |> ((x: CachedStatics.t) => x.elaborated)
-          |> Evaluator.evaluate_and_limit(
+          |> Evaluator.Limited.evaluate(
                ~step_limit=1000000,
                ~env=Builtins.env_init,
              );
