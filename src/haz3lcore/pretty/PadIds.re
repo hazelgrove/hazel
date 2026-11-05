@@ -147,6 +147,7 @@ let rec pad_variant_anns = (ty: Typ.t): Typ.t => {
     | Label(_)
     | ExplicitNonlabel
     | Var(_)
+    | TypeMember(_)
     | ProofOf(_) => ty.term
     };
   {

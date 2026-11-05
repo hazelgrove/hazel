@@ -914,8 +914,7 @@ let sig_tests = {
             "x projects to Int",
             Some(ti),
             switch (Option.map(Typ.term_of, Typ.meet(ctx, s, s))) {
-            | Some(Sig(Closed(items))) =>
-              Sig.find_value(Sig.members(ClosedSig.items(items)), "x")
+            | Some(Sig(s)) => Sig.find_value(Typ.sig_members(s), "x")
             | _ => None
             },
           );
@@ -1038,15 +1037,53 @@ let sig_tests = {
         },
       ),
       test_case(
-        "close substitutes the earlier type members into later items",
+        "sig_members does not capture a member's free variable",
         `Quick,
-        () =>
-        check(
-          typ,
-          "closed",
-          cs([st("T", ti), sv("x", ti)]),
-          Typ.close(ctx, sg([st("T", ti), sv("x", F.Typ.var("T"))])),
-        )
+        () => {
+          /* `T = a` names an outer `a`; resolving `T` under `f`'s own
+             binder `a` renames the binder. */
+          let a = F.Typ.var("a");
+          let poly = (b, body) => F.Typ.poly(F.TPat.var(b), body);
+          check(
+            option(typ),
+            "f",
+            Some(poly("b", a)),
+            Sig.find_value(
+              Typ.sig_members(
+                Grammar.Closed(
+                  ClosedSig.of_items([
+                    st("T", a),
+                    sv("f", poly("a", F.Typ.type_member("T"))),
+                  ]),
+                ),
+              ),
+              "f",
+            ),
+          );
+        },
+      ),
+      test_case(
+        "close names an earlier type member in later items by its leaf",
+        `Quick,
+        () => {
+          let closed =
+            Typ.close(ctx, sg([st("T", ti), sv("x", F.Typ.var("T"))]));
+          check(
+            typ,
+            "closed",
+            cs([st("T", ti), sv("x", F.Typ.type_member("T"))]),
+            closed,
+          );
+          check(
+            option(typ),
+            "read independently, x is Int",
+            Some(ti),
+            switch (Typ.term_of(closed)) {
+            | Sig(s) => Sig.find_value(Typ.sig_members(s), "x")
+            | _ => None
+            },
+          );
+        },
       ),
       test_case(
         "close: a member before the type member means the outer alias, expanded",
@@ -1061,6 +1098,32 @@ let sig_tests = {
           );
         },
       ),
+      /* The same signature with a member naming its sibling and with the
+         member spelled out: statics compares them through the members'
+         independent types, so they are one type. */
+      test_case(
+        "a member naming its sibling is the same type as one spelled out",
+        `Quick,
+        () => {
+          let named =
+            Typ.close(ctx, sg([st("T", ti), sv("x", F.Typ.var("T"))]));
+          let spelled = cs([st("T", ti), sv("x", ti)]);
+          check(
+            bool,
+            "equal up to aliases",
+            true,
+            Typ.equal_up_to_aliases(ctx, named, spelled)
+            && Typ.equal_up_to_aliases(ctx, spelled, named),
+          );
+          check(
+            bool,
+            "they meet, both ways",
+            true,
+            Option.is_some(Typ.meet(ctx, named, spelled))
+            && Option.is_some(Typ.meet(ctx, spelled, named)),
+          );
+        },
+      ),
       test_case(
         "close makes a self-mentioning type member recursive",
         `Quick,
@@ -1070,7 +1133,7 @@ let sig_tests = {
           check(
             typ,
             "closed",
-            cs([st("T", rec_t), sv("x", rec_t)]),
+            cs([st("T", rec_t), sv("x", F.Typ.type_member("T"))]),
             Typ.close(
               ctx,
               sg([st("T", pair_t), sv("x", F.Typ.var("T"))]),
@@ -1137,7 +1200,9 @@ let sig_tests = {
           check(
             typ,
             "closed",
-            cs([st("T", cs([st("T", ti), sv("x", ti)]))]),
+            cs([
+              st("T", cs([st("T", ti), sv("x", F.Typ.type_member("T"))])),
+            ]),
             Typ.close(ctx, sg([st("T", inner)])),
           );
         },

@@ -757,9 +757,9 @@ let test_shadowing =
    type member, which the signature binds. */
 let test_type_alias =
   fully_consistent_typecheck(
-    "Type alias in module: the exported signature is closed",
+    "Type alias in module: a later member names the type member",
     {|{ type T = Int; let x = 1 : T }|},
-    Some(sig_([type_("T", int()), val_("x", int())])),
+    Some(sig_([type_("T", int()), val_("x", var("T"))])),
   );
 
 /* Test bare expression in module */
@@ -899,9 +899,11 @@ let test_type_only_module =
 /* A shadowed type member is not exported; its uses are inlined. */
 let test_shadowed_type_member =
   fully_consistent_typecheck(
-    "Shadowed type member is inlined, last declaration exported",
+    "A member before a shadowed type member's last declaration has it inlined",
     {|{ type T = Int; let x : T = 1; type T = Bool; let y : T = true }|},
-    Some(sig_([val_("x", int()), type_("T", bool()), val_("y", bool())])),
+    Some(
+      sig_([val_("x", int()), type_("T", bool()), val_("y", var("T"))]),
+    ),
   );
 
 let test_nested_type_member_through_variable =
@@ -1031,7 +1033,7 @@ let test_sig_type_member_matches =
   fully_consistent_typecheck(
     "Signature manifest type member matches the module's",
     {|let m : { type T = Int; let x : T } = { type T = Int; let x = 1 } in m|},
-    Some(sig_([type_("T", int()), val_("x", int())])),
+    Some(sig_([type_("T", int()), val_("x", var("T"))])),
   );
 
 /* Where the module's own definition of a type member is not yet in scope,
@@ -1885,10 +1887,15 @@ let test_nested_member_keeps_outer_meaning =
   single_mark_test(
     "A nested signature's member keeps the outer meaning of a name it shadows",
     {|type U = Bool in let g = fun (m : { type T = U; let f : { type U = Int; let y : T } }) -> (m.f.y : Int) in g|},
+    /* `m.f.y` is `m.T`: the outer signature's `T`, which is the outer `U` */
     fun
     | ExpectationMismatch({
         ana: {term: Atom(Int), _},
-        syn: {term: Var("U"), _},
+        syn:
+          {
+            term: ProdProjection({term: Var("m"), _}, {term: Label("T"), _}),
+            _,
+          },
       }) =>
       true
     | _ => false,
@@ -2654,6 +2661,137 @@ let test_sig_let_not_a_name_declares_nothing =
     },
   );
 
+/* ===== PATHS LEAVING THEIR SCOPE =====
+   A type path rooted at a module is read, where the module's scope ends,
+   as what it denotes there: the binder is not in scope outside. */
+let test_let_body_path_avoided =
+  fully_consistent_typecheck(
+    "A let body's path through the module it binds is its definition outside",
+    {|module M = { type T = Int } in let y : M.T = 1 in y|},
+    Some(int()),
+  );
+
+let test_fun_codomain_path_avoided =
+  fully_consistent_typecheck(
+    "A function's result path through its module parameter is its definition",
+    {|fun (m : { type T = Int; let x : T }) -> (m.x : m.T)|},
+    Some(arrow(sig_([type_("T", int()), val_("x", var("T"))]), int())),
+  );
+
+let test_case_arm_path_avoided =
+  fully_consistent_typecheck(
+    "A case arm's path through the module its pattern binds is its definition",
+    {|case { type T = Int; let x = 1 : T } | m => (m.x : m.T) end|},
+    Some(int()),
+  );
+
+let test_nested_path_avoided =
+  fully_consistent_typecheck(
+    "A path through a sub-module of a module leaving scope is its definition",
+    {|module M = { type T = Int; module P = { type U = [T] } } in let z : M.P.U = [1] in z|},
+    Some(list(int())),
+  );
+
+let test_dependent_parameter_path_avoided =
+  fully_consistent_typecheck(
+    "A parameter's signature naming an earlier parameter's member is spelled out",
+    {|fun (m : { type T = Int }) -> fun (n : { type U = m.T }) -> (1 : n.U)|},
+    Some(
+      arrow(
+        sig_([type_("T", int())]),
+        arrow(sig_([type_("U", int())]), int()),
+      ),
+    ),
+  );
+
+/* The parameter is `?`-typed, so its path denotes nothing: the codomain is
+   `?`, not a path read through whatever `m` is bound at a call. */
+let test_unannotated_parameter_path_avoided =
+  fully_consistent_typecheck(
+    "A path through an unannotated parameter does not leave the function",
+    {|let f = fun m -> (m.x : m.T) in
+let m = { type T = Bool; let x : T = true } in
+f(m) + 1|},
+    Some(int()),
+  );
+
+/* ===== MEMBERS READ THROUGH THEIR PATH ===== */
+let test_member_typed_through_its_path =
+  fully_consistent_typecheck(
+    "A member read through a module's path is typed by the path's type member",
+    {|module M = { type T = Bool; let x : T = true } in let b : M.T = M.x in b && true|},
+    Some(bool()),
+  );
+
+let test_member_through_path_synthesizes_path =
+  Alcotest.test_case(
+    "M.x synthesizes M.T",
+    `Quick,
+    () => {
+      let dots =
+        exp_infos_at(
+          {|module M = { type T = Bool; let x : T = true } in M.x|},
+          fun
+          | InfoExp({user_term: {term: Dot(_), _}, _}) => true
+          | _ => false,
+        );
+      List.iter(
+        (info: Language.Info.exp) =>
+          Alcotest.check(
+            testable_typ,
+            "the dot's type",
+            prod_projection(var("M"), label("T")),
+            info.elab_syn_ty,
+          ),
+        dots,
+      );
+    },
+  );
+
+let test_member_through_path_mismatch_names_path =
+  single_mark_test(
+    "A member read through its path reports the path in a mismatch",
+    {|module M = { type T = Bool; let x : T = true } in M.x + 1|},
+    fun
+    | ExpectationMismatch({
+        syn:
+          {
+            term: ProdProjection({term: Var("M"), _}, {term: Label("T"), _}),
+            _,
+          },
+        _,
+      }) =>
+      true
+    | _ => false,
+  );
+
+let test_sub_module_member_through_path =
+  fully_consistent_typecheck(
+    "A sub-module's member is typed through the sub-module's path",
+    {|module M = { type T = Int; module Q = { type T = String; let x : T = "a" } } in let s : M.Q.T = M.Q.x in string_length(s)|},
+    Some(int()),
+  );
+
+let test_member_of_a_literal_stands_alone =
+  fully_consistent_typecheck(
+    "A member of a module that is no path is typed by its definition",
+    {|({ type T = Int; let x : T = 1 }).x|},
+    Some(int()),
+  );
+
+let test_path_to_abstract_member_meets_the_variable =
+  fully_consistent_typecheck(
+    ~normalize=true,
+    "A path to a member defined as an abstract type variable meets the variable",
+    {|typfun U -> fun (m : { type T = U }) -> fun (y : U) -> (y : m.T)|},
+    Some(
+      poly(
+        FTemp.TPat.var("U"),
+        arrow(sig_([type_("T", var("U"))]), arrow(var("U"), var("U"))),
+      ),
+    ),
+  );
+
 let tests = (
   "Statics.Modules",
   [
@@ -2890,5 +3028,17 @@ let tests = (
     test_renamed_alias_leaves_module_parameter_paths,
     test_renamed_alias_leaves_signature_member_paths,
     test_renamed_alias_leaves_module_member_paths,
+    test_let_body_path_avoided,
+    test_fun_codomain_path_avoided,
+    test_case_arm_path_avoided,
+    test_nested_path_avoided,
+    test_dependent_parameter_path_avoided,
+    test_unannotated_parameter_path_avoided,
+    test_member_typed_through_its_path,
+    test_member_through_path_synthesizes_path,
+    test_member_through_path_mismatch_names_path,
+    test_sub_module_member_through_path,
+    test_member_of_a_literal_stands_alone,
+    test_path_to_abstract_member_meets_the_variable,
   ],
 );

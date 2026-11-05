@@ -559,7 +559,8 @@ and Typ: {
     | Atom(String) => StringType
     | Atom(Bool) => BoolType
     | Atom(Nat) => NatType
-    | Var(x) => TypVar(x)
+    | Var(x)
+    | TypeMember(x) => TypVar(x)
     | Prod(ts) => TupleType(List.map(of_core, ts))
     | List(t) => ArrayType(of_core(t))
     | Arrow(t1, t2) => ArrowType(of_core(t1), of_core(t2))

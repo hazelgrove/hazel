@@ -116,6 +116,10 @@ and typ_term('a) =
   | ProdProjection(typ_t('a), typ_t('a))
   | ProdExtension(typ_t('a), typ_t('a))
   | Sig(signature('a))
+  /* Inside a closed signature, the type member of that name declared by the
+     nearest enclosing signature item before this one. Only closing makes
+     it; it is not written, and prints as its name. */
+  | TypeMember(string)
 and typ_t('a) = Annotated.t(typ_term('a), 'a)
 /* A signature type as written, its items scoping sequentially (a later item
    may mention an earlier type member), or closed (Typ.close). */
@@ -405,6 +409,7 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
           Sig(Open(List.map(map_sig_annotation(f), items)))
         | Sig(Closed(items)) =>
           Sig(Closed(ClosedSig.map(map_sig_annotation(f), items)))
+        | TypeMember(name) => TypeMember(name)
         },
       annotation: new_annotation,
     };
@@ -938,6 +943,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let prod = (~ann=?, l): typ_t(DefaultAnnotation.t) => {
       term: Prod(l),
+      annotation: default_annotation(ann),
+    };
+    let type_member = (~ann=?, name): typ_t(DefaultAnnotation.t) => {
+      term: TypeMember(name),
       annotation: default_annotation(ann),
     };
     let sig_ = (~ann=?, items): typ_t(DefaultAnnotation.t) => {
