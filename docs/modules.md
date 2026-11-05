@@ -348,8 +348,13 @@ After checking:
 - A `type T = ...` item whose definition differs from the signature's is
   marked on the definition (`Mark.ModuleTypeMemberMismatch`).
 - `ModuleHelpers.missing_items` produces `Mark.ModuleMissingMembers` on the
-  module node; members the signature does not declare are sealed away by
-  `Typ.coercion` at a coercion site and are a mismatch elsewhere.
+  module node (an abstract type member the module does not define counts
+  as missing); members the signature does not declare are sealed away by
+  `Typ.coercion` at a coercion site and are a mismatch elsewhere. Any other
+  expression of signature type analyzed against a signature that declares
+  members it lacks gets the same mark instead of a generic mismatch
+  (`StaticsBase.expectation_mismatch_mark`), so a module variable or a
+  function argument names its missing members too.
   A hole in a binding position of the module stands in for the members it
   lacks, and a hole item in the signature for the members it does not
   declare; neither is reported.
@@ -374,7 +379,9 @@ which means `Bool`. Any other `e` has its members spelled out. A member
 the signature lacks is reported on the label
 (`ModuleMemberNotFound`, or `ModuleMemberIsType` when `x` names a type
 member) while the dot carries the same as a message, the way `M.Fake` in a
-type reports on `Fake` (`ModuleTypeMemberNotFound`). A hole item in the
+type reports on `Fake` (`ModuleTypeMemberNotFound`); labeled tuples follow
+the same design (`LabelNotFound` on the label, `Message.TupleLabelNotFound`
+on the dot). A hole item in the
 signature could declare
 the member, so under one the projection is unknown and nothing is
 reported, in both positions. A value used as the root of a type path gets

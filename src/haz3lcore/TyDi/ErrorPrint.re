@@ -230,7 +230,16 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   | BadLivelitModel(_) => "Bad internal livelit model"
   | BadTheorem(typ) =>
     prn("Theorem pattern is not of the form p : t, got %s", Print.typ(typ))
-  | LabelNotFound(_, _) => "Label not found"
+  | LabelNotFound(name, labels) =>
+    switch (labels) {
+    | [] => prn("Tuple has no label %s; it has no labels", name)
+    | _ =>
+      prn(
+        "Tuple has no label %s; its labels are %s",
+        name,
+        String.concat(", ", labels),
+      )
+    }
   | ModuleMissingMembers(names) =>
     string_of_parts(module_missing_members_parts(names))
   | ModuleMemberNotFound(not_found) =>
