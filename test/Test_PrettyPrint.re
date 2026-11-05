@@ -1326,7 +1326,47 @@ f(2)",
   ),
 ];
 
+/* a module's members break after each `;`, as definitions do after `in` */
+let module_body_tests = [
+  test_format_seg(
+    ~name="A module body breaks after each member",
+    ~input=
+      "module M = {let a = 1; let b = a + 1; type T = Int; let c : T = b} in M.a",
+    ~expected=
+      "module M = {\n  let a = 1;\n  let b = a + 1;\n  type T = Int;\n  let c : T = b\n} in\nM.a",
+    (),
+  ),
+  test_format_seg(
+    ~name="A one-member module stays on its line",
+    ~input="module M = {let x = 42} in M.x",
+    ~expected="module M = {let x = 42} in\nM.x",
+    (),
+  ),
+  test_format_seg(
+    ~name="A signature's members stay on its line",
+    ~input=
+      "module M : {let x : Int; let y : Bool} = {let x = 1; let y = true} in M.x",
+    ~expected=
+      "module M : {let x : Int; let y : Bool} = {\n  let x = 1;\n  let y = true\n} in\nM.x",
+    (),
+  ),
+  test_format_seg(
+    ~name="A nested module's members break too",
+    ~input="let m = {module Inner = {let a = 1; let b = 2}; let c = 3} in m",
+    ~expected=
+      "let m = {\n  module Inner = {\n    let a = 1;\n    let b = 2\n  };\n  let c = 3\n} in\nm",
+    (),
+  ),
+  test_format_seg(
+    ~name="Parenthesized expressions keep their soft semis",
+    ~input="let f = fun x -> (x; x) in f",
+    ~expected="let f = fun x -> (x; x) in\nf",
+    (),
+  ),
+];
+
 let tests = [
+  ("PrettyPrint.ModuleBody", module_body_tests),
   ("PrettyPrint.TrailingHoles", trailing_hole_tests),
   ("PrettyPrint.BlockFormBody", block_form_body_tests),
   ("PrettyPrint.Flat", flat_tests),

@@ -83,9 +83,11 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
           let (env', pat') = in_pat(env, env, pat);
           Forall(pat', in_exp(env', e)) |> rewrap;
         | Module(items) =>
-          /* Items scope sequentially. Names bound by evaluated bindings and
-             module declarations cannot be renamed (they are member names), so
-             they shadow the substitution for the items that follow. */
+          /* Items scope sequentially: a pending item binds its name for the
+             items that follow, so it shadows the substitution there. An
+             evaluated binding does not, and must not: the step that made it
+             substituted its value into the items that follow, and that is the
+             substitution this would swallow. */
           let shadow = (env, x) =>
             Environment.extend(env, (x, Exp.fresh(Var(x))));
           let rec mpat_name = (mp: MPat.t) =>
@@ -124,7 +126,7 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
                       },
                     );
                   | ModVal(x, e) => (
-                      shadow(env, x),
+                      env,
                       {
                         ...item,
                         term: (ModVal(x, in_exp(env, e)): Mod.term),
@@ -286,7 +288,7 @@ and in_typ = (env: Environment.t(Exp.t), typ: Typ.t) =>
         failwith("patterns should be handled separately in substitution"),
     ~f_typ=
       (cont, t) => {
-        let (term, _rewrap) = Typ.unwrap(t);
+        let (term, rewrap) = Typ.unwrap(t);
         switch (term) {
         // Cases without patterns: recurse
         | Unknown(_)
@@ -308,8 +310,10 @@ and in_typ = (env: Environment.t(Exp.t), typ: Typ.t) =>
         | ProdExtension(_, _)
         | ProofOf(_)
         | DrvQuoteTy(_) => cont(t)
-        // Signature items carry patterns, which this traversal cannot visit
-        | Sig(_) => t
+        // The item types only: the generic traversal would also visit the
+        // item patterns
+        | Sig(items) =>
+          Sig(List.map(Sig.map_typ(in_typ(env)), items)) |> rewrap
         };
       },
     typ,

@@ -41,6 +41,12 @@
   justify-content: center;
 }
 
+/* the knob's letter, sized to sit inside it */
+.toggle-switch .toggle-label {
+  font-size: 0.6em;
+  line-height: 1;
+}
+
 .toggle-switch.active {
   background-color: var(--surface-shard-strong);
   border: solid 1px transparent;
@@ -58,6 +64,10 @@
 .submenu .toggle-switch .toggle-knob {
   width: 0.6em;
   height: 0.6em;
+}
+
+.submenu .toggle-switch .toggle-label {
+  font-size: 0.4em;
 }
 
 .submenu .toggle-switch.active .toggle-knob {

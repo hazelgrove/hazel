@@ -32,16 +32,51 @@ let default_settings = {
   statics: true,
 };
 
+/* An action reads its pre-state's statics. The semantic term, and so its
+ * statics, depend only on the caret-free source, so a state with the same
+ * source as the last one derived (after a move or a selection) reuses its
+ * statics, as the editor does. The last state outlives a perform call
+ * because tests often chain states one action per call. */
+type derived = {
+  source: Segment.t,
+  statics: Lazy.t(CachedStatics.t),
+};
+
+let last_derived: ref(option((Language.CoreSettings.t, Zipper.t, derived))) =
+  ref(None);
+
+let derive = (~settings: Language.CoreSettings.t, z: Zipper.t): derived => {
+  let source = lazy(MakeTerm.semantic_source(z));
+  let derived =
+    switch (last_derived^) {
+    | Some((s, last_z, last))
+        when
+          s == settings && (last_z === z || last.source == Lazy.force(source)) => last
+    | _ =>
+      let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+      {
+        source: Lazy.force(source),
+        statics:
+          lazy(
+            CachedStatics.init_from_term(
+              ~settings,
+              ~is_dynamic_term=true,
+              term,
+            )
+          ),
+      };
+    };
+  last_derived := Some((settings, z, derived));
+  derived;
+};
+
 let perform =
     (~settings=default_settings, zip: Zipper.t, actions: list(Action.t))
     : Zipper.t => {
-  let perform = (a: Action.t, z: Zipper.t) => {
-    let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
-    let statics =
-      CachedStatics.init_from_term(~settings, ~is_dynamic_term=true, term);
+  let perform = (a: Action.t, z: Zipper.t) =>
     Perform.go(
       ~settings,
-      ~statics,
+      ~statics=Lazy.force(derive(~settings, z).statics),
       ~syntax=CachedSyntax.init(z),
       a,
       {
@@ -49,7 +84,6 @@ let perform =
         col_target: None,
       },
     );
-  };
   List.fold_left(
     (z: Zipper.t, a: Action.t) =>
       switch (perform(a, z, ~root=Exp)) {
@@ -57,8 +91,9 @@ let perform =
         /* Term construction must be total on every reachable editor state
          * (statics/display consume it after every action). Checking here
          * (rather than only on the pre-state of the NEXT action) means the
-         * final state of every test is covered too. */
-        switch (MakeTerm.from_zip_for_sem(z, ~root=Exp)) {
+         * final state of every test is covered too. derive builds the term
+         * unless the source is unchanged from the last state derived. */
+        switch (derive(~settings, z)) {
         | _ => z
         | exception e =>
           print_endline("Zipper: " ++ Zipper.show(z));
@@ -129,28 +164,20 @@ let move_point = (~row: int=0, ~col: int, ()): Action.t =>
     ),
   );
 
+/* Split on the one caret: the text, and how many chars follow the caret */
+let split_one_caret = (init: string): (string, int) =>
+  switch (StringUtil.plain_split(init, caret_char)) {
+  | [before, after] => (before ++ after, List.length(Token.to_list(after)))
+  | _ => Alcotest.fail("Expected exactly one caret in: " ++ init)
+  };
+
 let mk = (init: string): list(Action.t) => {
   /* Builds actions from a string with ¦ for caret position.
    * Does not support § — use mk_zipper for selections. */
-  let chars = Token.to_list(init);
-  if (List.exists(c => c == selection_char, chars)) {
+  if (List.exists(c => c == selection_char, Token.to_list(init))) {
     Alcotest.fail("mk() does not support §. Use mk_zipper(): " ++ init);
   };
-  let rec split =
-          (before: list(string), rest: list(string))
-          : (list(string), list(string)) =>
-    switch (rest) {
-    | [] => Alcotest.fail("Failed to find caret in: " ++ init)
-    | [hd, ...tl] =>
-      if (hd == caret_char) {
-        (List.rev(before), tl);
-      } else {
-        split([hd, ...before], tl);
-      }
-    };
-  let (before, after) = split([], chars);
-  let clean = Token.of_list(before @ after);
-  let chars_after_caret = List.length(after);
+  let (clean, chars_after_caret) = split_one_caret(init);
   string_to_ltr_actions(clean) @ mv_l_char(chars_after_caret);
 };
 
@@ -161,7 +188,8 @@ let mk = (init: string): list(Action.t) => {
  * 1. Create two single-caret versions of the input string
  *    - version_a: caret at the § position (anchor)
  *    - version_b: caret at the ¦ position (focus)
- * 2. Build zippers from both via mk + perform
+ * 2. Build zippers for both: type their shared text once, then move
+ *    the caret left to each version's caret
  * 3. Get Point.t coordinates from each via Measured
  * 4. Apply Select(PointToPoint) to create the selection */
 let mk_zipper = (~settings=default_settings, init: string): Zipper.t => {
@@ -189,8 +217,12 @@ let mk_zipper = (~settings=default_settings, init: string): Zipper.t => {
     let version_b =
       chars |> List.filter(c => c != selection_char) |> Token.of_list;
     /* Build zippers */
-    let z_a = mk(version_a) |> perform(~settings, Zipper.init());
-    let z_b = mk(version_b) |> perform(~settings, Zipper.init());
+    let (text, after_anchor) = split_one_caret(version_a);
+    let (_, after_focus) = split_one_caret(version_b);
+    let typed =
+      string_to_ltr_actions(text) |> perform(~settings, Zipper.init());
+    let z_a = mv_l_char(after_anchor) |> perform(~settings, typed);
+    let z_b = mv_l_char(after_focus) |> perform(~settings, typed);
     /* Get caret Points from each */
     let measured_a =
       Haz3lcore.CachedSyntax.measured(Haz3lcore.CachedSyntax.init(z_a));
@@ -230,22 +262,16 @@ let test = (~name, ~acts, ~goal): test_case(_) =>
 /* Parse a string with caret position using Parser.to_zipper (no auto-indent).
  * This is useful for tests that need to start from a specific state
  * without the double-indentation issue from mk(). */
-let parse_with_caret = (init: string): Zipper.t => {
-  /* Split on caret to get before and after */
-  let parts = StringUtil.plain_split(init, caret_char);
-  switch (parts) {
-  | [before, after] =>
-    let full_str = before ++ after;
-    switch (Parser.to_zipper(~root=Exp, full_str)) {
-    | None => Alcotest.fail("Failed to parse: " ++ full_str)
-    | Some(z) =>
-      /* Move cursor to the caret position (count chars in 'after') */
-      let chars_after = List.length(Token.to_list(after));
-      /* Use mv_l to generate move actions, then perform them */
-      mv_l(chars_after) |> perform(z);
-    };
-  | _ => Alcotest.fail("Expected exactly one caret in: " ++ init)
+let parse_text = (text: string): Zipper.t =>
+  switch (Parser.to_zipper(~root=Exp, text)) {
+  | None => Alcotest.fail("Failed to parse: " ++ text)
+  | Some(z) => z
   };
+
+let parse_with_caret = (init: string): Zipper.t => {
+  let (text, chars_after) = split_one_caret(init);
+  /* Use mv_l to generate move actions, then perform them */
+  mv_l(chars_after) |> perform(parse_text(text));
 };
 
 /* Like mk_zipper but builds the buffer via Parser (no auto-indent), so it
@@ -276,8 +302,12 @@ let parse_zipper = (~settings=default_settings, init: string): Zipper.t => {
     /* version_b: remove §, keep ¦ */
     let version_b =
       chars |> List.filter(c => c != selection_char) |> Token.of_list;
-    let z_a = parse_with_caret(version_a);
-    let z_b = parse_with_caret(version_b);
+    /* the same text with the caret in two places: parsed once */
+    let (text, after_anchor) = split_one_caret(version_a);
+    let (_, after_focus) = split_one_caret(version_b);
+    let parsed = parse_text(text);
+    let z_a = mv_l(after_anchor) |> perform(parsed);
+    let z_b = mv_l(after_focus) |> perform(parsed);
     let measured_a = CachedSyntax.measured(CachedSyntax.init(z_a));
     let measured_b = CachedSyntax.measured(CachedSyntax.init(z_b));
     let anchor_pt = Zipper.Caret.point(measured_a, z_a);
@@ -387,6 +417,17 @@ let basic_tests = [
     ~name="Paste multiline body-less chain keeps layout",
     ~acts=mk("¦") @ [Paste("let a = 1 in\nlet b = 2 in")],
     ~goal="let a = 1 in\nlet b = 2 in¦?",
+  ),
+  /* A linebreak at either edge of the clipboard is pasted too */
+  test(
+    ~name="Paste ending in a linebreak keeps it",
+    ~acts=mk("¦x") @ [Paste("let a = 1 in\n")],
+    ~goal="let a = 1 in\n¦x",
+  ),
+  test(
+    ~name="Paste starting with a linebreak keeps it",
+    ~acts=mk("let a = 1 in¦") @ [Paste("\na")],
+    ~goal="let a = 1 in\na¦",
   ),
   test(
     ~name="Paste plaintext into token at Inner caret",
@@ -2784,6 +2825,14 @@ x + y¦|},
    NOTE: These test basic module syntax editing behavior.
    `{` is an instant-expanding delimiter that creates `{¦}`.
    Inside braces is Mod sort, where `let` creates ModLet forms. */
+/* The delimiters each incomplete tile still owes, in document order: one
+   list per run of missing shards. */
+let owed_delimiters = (z: Zipper.t): list(list(string)) =>
+  Zipper.unselect_and_zip(~erase_buffer=true, z)
+  |> Segment.incomplete_tiles_deep
+  |> List.concat_map(Tile.missing_shards)
+  |> List.map(Tile.effective_label);
+
 let module_tests = [
   /* { is an instant expander: typing { puts } in the backpack.
      The printer shows backpack contents as missing, so } doesn't
@@ -2885,6 +2934,136 @@ let module_tests = [
       @ mv_l(13)
       @ [Insert(";")],
     ~goal={|{let x = 1 ;¦type T = Int}|},
+  ),
+  test_complete(
+    ~name="Module: a module item typed before the missing ; becomes an item",
+    ~acts=
+      mk({|{ module Inner = { let y = 1 } ¦let x = Inner.y }|})
+      @ [Insert(";")],
+    ~goal={|{ module Inner = { let y = 1 } ;¦let x = Inner.y }|},
+  ),
+  test_complete(
+    ~name=
+      "Module: a tuple-pattern let typed before the missing ; becomes an item",
+    ~acts=mk({|{ let x = 1 ¦let (a, b) = (2, 3) }|}) @ [Insert(";")],
+    ~goal={|{ let x = 1 ;¦let (a, b) = (2, 3) }|},
+  ),
+  test_complete(
+    ~name=
+      "Signature: a type member typed before the missing ; becomes an item",
+    ~acts=
+      mk(
+        {|let m : { let x : Int ¦type T = Int } = { let x = 1; type T = Int } in m.x|},
+      )
+      @ [Insert(";")],
+    ~goal=
+      {|let m : { let x : Int ;¦type T = Int } = { let x = 1; type T = Int } in m.x|},
+  ),
+];
+
+/* Cmd+D [n] times from ¦ in [init] at [root], with the editor's
+   (compositional) statics, which give members no statics parent: the
+   selection, or why the last press failed */
+let select_term = (~root, ~n, init: string): string => {
+  let (before, after) =
+    switch (StringUtil.plain_split(init, caret_char)) {
+    | [before, after] => (before, after)
+    | _ => Alcotest.fail("one caret: " ++ init)
+    };
+  let z = Zipper.unzip(CorpusUtil.seg_of(~root, before ++ after));
+  let statics =
+    CachedStatics.init_compositional(
+      ~settings=default_settings,
+      ~stitch=Fun.id,
+      ~root,
+      z,
+    );
+  let go = (z: Zipper.t, a: Action.t) =>
+    Perform.go(
+      ~settings=default_settings,
+      ~statics,
+      ~syntax=CachedSyntax.init(~root, z),
+      ~root,
+      a,
+      {
+        zipper: z,
+        col_target: None,
+      },
+    );
+  let lines = String.split_on_char('\n', before);
+  let pt: Point.t = {
+    row: List.length(lines) - 1,
+    col: String.length(ListUtil.last(lines)),
+  };
+  switch (
+    List.fold_left(
+      (z, a) => Stdlib.Result.bind(z, z => go(z, a)),
+      go(z, Move(Point(pt, None))),
+      List.init(n, _ => Action.Select(Term(Current))),
+    )
+  ) {
+  | Ok(z) => printer(z)
+  | Error(f) => Action.Failure.show(f)
+  };
+};
+
+let cmd_d = (~root, ~name, ~n, ~init, ~goal) =>
+  test_case(name, `Quick, () =>
+    check(string, name, goal, select_term(~root, ~n, init))
+  );
+
+let counter = (~root) =>
+  "module Counter = {\n  let start = 0;\n  let next = ¦start + 1;\n  let after = next + 1\n}"
+  ++ (root == Sort.Mod ? ";\n" : " in\n")
+  ++ "Counter.after";
+
+/* a member grows to its module, as a definition grows to its body */
+let module_select_tests = [
+  cmd_d(
+    ~root=Exp,
+    ~name="Module Cmd+D (editor statics): member to its module",
+    ~n=4,
+    ~init=counter(~root=Exp),
+    ~goal=
+      "module Counter = §{\n  let start = 0;\n  let next = start + 1;\n  let after = next + 1\n}¦ in\nCounter.after",
+  ),
+  cmd_d(
+    ~root=Exp,
+    ~name="Module Cmd+D (editor statics): module to its definition",
+    ~n=5,
+    ~init=counter(~root=Exp),
+    ~goal=
+      "§module Counter = {\n  let start = 0;\n  let next = start + 1;\n  let after = next + 1\n} in¦\nCounter.after",
+  ),
+  cmd_d(
+    ~root=Mod,
+    ~name="Module Cmd+D at a Mod root: member to its module",
+    ~n=4,
+    ~init=counter(~root=Mod),
+    ~goal=
+      "module Counter = §{\n  let start = 0;\n  let next = start + 1;\n  let after = next + 1\n}¦;\nCounter.after",
+  ),
+  cmd_d(
+    ~root=Mod,
+    ~name="Module Cmd+D at a Mod root: module member to the program",
+    ~n=6,
+    ~init=counter(~root=Mod),
+    ~goal=
+      "§module Counter = {\n  let start = 0;\n  let next = start + 1;\n  let after = next + 1\n};\nCounter.after¦",
+  ),
+  cmd_d(
+    ~root=Mod,
+    ~name="Module Cmd+D at a Mod root: nothing encloses the program",
+    ~n=7,
+    ~init=counter(~root=Mod),
+    ~goal="Cant_select",
+  ),
+  cmd_d(
+    ~root=Mod,
+    ~name="Module Cmd+D at a Mod root: top-level member to the program",
+    ~n=4,
+    ~init="let start = 0;\nlet next = ¦start + 1;\nnext",
+    ~goal="§let start = 0;\nlet next = start + 1;\nnext¦",
   ),
 ];
 
@@ -3251,61 +3430,261 @@ let rec find_tiles_by_label =
     seg,
   );
 
+/* The tiles with this label, in document order, have their molds in these
+   sorts. */
+let test_tile_sorts =
+    (~name, ~acts, ~label, ~sorts: list(Sort.t)): test_case(_) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let z = acts |> perform(Zipper.init());
+      switch (find_tiles_by_label(label, Zipper.zip(z))) {
+      | [] => Alcotest.fail("No tile labeled " ++ String.concat(" ", label))
+      | tiles =>
+        check(
+          testable(Fmt.(list(string)), List.equal(String.equal)),
+          "mold sorts",
+          List.map(Sort.show, sorts),
+          List.map((t: Tile.t) => Sort.show(Tile.mold(t).out), tiles),
+        )
+      };
+    },
+  );
+
 let remold_sort_tests = [
   /* BUG: Type `1:(Int)`, place caret inside parens at `1:(Int|)`,
    * press space. The parentheses should remain molded as Typ (they
    * are in the type position of an ascription), but they get
    * incorrectly remolded as Exp. */
-  test_case(
-    "Remold: space inside type parens preserves Typ sort",
-    `Quick,
-    () => {
-      let z = mk({|1:(Int¦)|}) @ [Insert(" ")] |> perform(Zipper.init());
-      let seg = Zipper.zip(z);
-      let paren_tiles = find_tiles_by_label(["(", ")"], seg);
-      switch (paren_tiles) {
-      | [] => Alcotest.fail("No paren tiles found in segment")
-      | _ =>
-        List.iter(
-          (t: Tile.t) =>
-            if (Tile.mold(t).out != Sort.Typ) {
-              Alcotest.fail(
-                Printf.sprintf(
-                  "Paren tile has mold.out=%s, expected Typ",
-                  Sort.show(Tile.mold(t).out),
-                ),
-              );
-            },
-          paren_tiles,
-        )
-      };
-    },
+  test_tile_sorts(
+    ~name="Remold: space inside type parens preserves Typ sort",
+    ~acts=mk({|1:(Int¦)|}) @ [Insert(" ")],
+    ~label=["(", ")"],
+    ~sorts=[Typ],
   ),
   /* Baseline: the same program without the space edit should have Typ parens. */
+  test_tile_sorts(
+    ~name="Baseline: type parens in 1:(Int) have Typ sort",
+    ~acts=mk({|1:(Int¦)|}),
+    ~label=["(", ")"],
+    ~sorts=[Typ],
+  ),
+];
+
+/* The printed state, and the delimiters owed across the program. Compared
+   as a set: which delimiters are owed is the property, not their order. */
+let test_owed =
+    (~name, ~acts, ~goal, ~owed: list(list(string))): test_case(_) =>
   test_case(
-    "Baseline: type parens in 1:(Int) have Typ sort",
+    name,
     `Quick,
     () => {
-      let z = mk({|1:(Int¦)|}) |> perform(Zipper.init());
-      let seg = Zipper.zip(z);
-      let paren_tiles = find_tiles_by_label(["(", ")"], seg);
-      switch (paren_tiles) {
-      | [] => Alcotest.fail("No paren tiles found in segment")
-      | _ =>
-        List.iter(
-          (t: Tile.t) =>
-            if (Tile.mold(t).out != Sort.Typ) {
-              Alcotest.fail(
-                Printf.sprintf(
-                  "Paren tile has mold.out=%s, expected Typ",
-                  Sort.show(Tile.mold(t).out),
-                ),
-              );
-            },
-          paren_tiles,
-        )
-      };
+      let z = acts |> perform(Zipper.init());
+      check(
+        testable(Fmt.string, String.equal),
+        "printer output",
+        goal,
+        printer(z),
+      );
+      let sorted = List.sort(List.compare(String.compare));
+      check(
+        testable(
+          Fmt.(list(list(string))),
+          List.equal(List.equal(String.equal)),
+        ),
+        "owed delimiters",
+        sorted(owed),
+        sorted(owed_delimiters(z)),
+      );
     },
+  );
+
+let backspace = (n: int): list(Action.t) =>
+  List.init(n, _ => Action.Destruct(Local(Left, ByChar)));
+
+/* Module and signature bodies mold their keywords in their own sorts, so
+   a `let` there owes only what its item form owes. */
+let module_obligation_tests = [
+  test_owed(
+    ~name="Module body: let owes only its =",
+    ~acts=string_to_ltr_actions("{ let"),
+    ~goal={|{ let¦?|},
+    ~owed=[["="], ["}"]],
+  ),
+  test_owed(
+    ~name="Module body: type after an item owes only its =",
+    ~acts=string_to_ltr_actions("{ let x = 1; type"),
+    ~goal={|{ let x = 1; type¦?|},
+    ~owed=[["="], ["}"]],
+  ),
+  test_owed(
+    ~name="Module body: module owes only its =",
+    ~acts=string_to_ltr_actions("{ module"),
+    ~goal={|{ module¦?|},
+    ~owed=[["="], ["}"]],
+  ),
+  test_tile_sorts(
+    ~name="Signature: { after : is a signature body",
+    ~acts=string_to_ltr_actions("let m : {"),
+    ~label=["{", "}"],
+    ~sorts=[Typ],
+  ),
+  test_owed(
+    ~name="Signature: let is complete alone",
+    ~acts=string_to_ltr_actions("let m : { let"),
+    ~goal={|let m : { let¦?|},
+    ~owed=[["}"], ["="], ["in"]],
+  ),
+  test_owed(
+    ~name="Signature: type is complete alone",
+    ~acts=string_to_ltr_actions("let m : { type"),
+    ~goal={|let m : { type¦?|},
+    ~owed=[["}"], ["="], ["in"]],
+  ),
+  test_owed(
+    ~name="Signature: module is complete alone",
+    ~acts=string_to_ltr_actions("let m : { module"),
+    ~goal={|let m : { module¦?|},
+    ~owed=[["}"], ["="], ["in"]],
+  ),
+  test_owed(
+    ~name="Module body after a signature: { owes } inside the let",
+    ~acts=string_to_ltr_actions("let m : { let x : Int } = {"),
+    ~goal={|let m : { let x : Int } = {¦?|},
+    ~owed=[["}"], ["in"]],
+  ),
+  test_tile_sorts(
+    ~name="Module body after a signature: signature then module body",
+    ~acts=string_to_ltr_actions("let m : { let x : Int } = {"),
+    ~label=["{", "}"],
+    ~sorts=[Typ, Exp],
+  ),
+  /* Deleting an item's keyword leaves its `=` owing the keyword: the lone
+     `=` spells the labeled-tuple form, which a tile missing its first shard
+     must not take up. */
+  test_owed(
+    ~name="Module: deleting an item's let leaves the = owing let",
+    ~acts=mk({|{ let¦ x = 1 }|}) @ backspace(3),
+    ~goal={|{ ¦ x = 1 }|},
+    ~owed=[["let"]],
+  ),
+  test_owed(
+    ~name="Module: deleting an item's type leaves the = owing type",
+    ~acts=mk({|{ type¦ T = Int }|}) @ backspace(4),
+    ~goal={|{ ¦ T = Int }|},
+    ~owed=[["type"]],
+  ),
+  test_owed(
+    ~name="Module: deleting an item's module leaves the = owing module",
+    ~acts=mk({|{ module¦ M = { let y = 1 } }|}) @ backspace(6),
+    ~goal={|{ ¦ M = { let y = 1 } }|},
+    ~owed=[["module"]],
+  ),
+  /* The same rule outside modules: the `->` left when `poly` is deleted
+     spells the arrow type and must keep owing its `poly`. */
+  test_owed(
+    ~name="Type: deleting poly leaves the -> owing poly",
+    ~acts=mk({|let f : poly¦ X -> Int = 1 in f|}) @ backspace(4),
+    ~goal={|let f : ¦ X -> Int = 1 in f|},
+    ~owed=[["poly"]],
+  ),
+];
+
+/* Typing in this order reaches the term that typing `goal` left to right
+   reaches, not only its text: a piece molded before its tile was complete
+   can keep the wrong sort and still print the same. */
+let test_same_term_as_ltr = (~name, ~acts, ~goal): test_case(_) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let z = acts |> perform(Zipper.init());
+      check(
+        testable(Fmt.string, String.equal),
+        "printer output",
+        goal,
+        printer(z),
+      );
+      let term = (z: Zipper.t) =>
+        MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+      let ltr =
+        goal
+        |> Token.to_list
+        |> List.filter(c => c != caret_char)
+        |> Token.of_list
+        |> string_to_ltr_actions
+        |> perform(Zipper.init());
+      check(
+        testable(
+          Fmt.using(Language.Exp.show, Fmt.string),
+          Language.Equality.(
+            equality({
+              ...syntactic_settings,
+              ignore_parens: true,
+              ignore_projectors: true,
+            }).
+              exp
+          ),
+        ),
+        "term of left-to-right typing",
+        term(ltr),
+        term(z),
+      );
+    },
+  );
+
+/* A piece typed after a tile still owed shards is that tile's next child,
+   whatever the sort of what came before the tile. */
+let incomplete_child_sort_tests = [
+  test_tile_sorts(
+    ~name="Module body: a binder typed after a type item's let is a pattern",
+    ~acts=string_to_ltr_actions("{ type T = Int let x"),
+    ~label=["x"],
+    ~sorts=[Pat],
+  ),
+  test_tile_sorts(
+    ~name="Expression: a binder typed after an alias's let is a pattern",
+    ~acts=string_to_ltr_actions("type T = Int let x"),
+    ~label=["x"],
+    ~sorts=[Pat],
+  ),
+  test_same_term_as_ltr(
+    ~name="Module: an annotated let typed after a type item, ; added later",
+    ~acts=mk({|{ type T = Int ¦let x : T = 5 }|}) @ [Insert(";")],
+    ~goal={|{ type T = Int ;¦let x : T = 5 }|},
+  ),
+  test_same_term_as_ltr(
+    ~name="Module: a tuple let typed after a type item, ; added later",
+    ~acts=mk({|{ type T = Int ¦let (a, b) = (1, 2) }|}) @ [Insert(";")],
+    ~goal={|{ type T = Int ;¦let (a, b) = (1, 2) }|},
+  ),
+  test_same_term_as_ltr(
+    ~name="Expression: an annotated let typed after an alias, in added later",
+    ~acts=
+      mk({|type T = Int ¦let x : T = 5 in x|})
+      @ string_to_ltr_actions("in "),
+    ~goal={|type T = Int in ¦let x : T = 5 in x|},
+  ),
+  /* Other orders a module program is typed in reach linear typing's term. */
+  test_complete(
+    ~name="Module: items typed into the {} token",
+    ~acts=mk({|{¦}|}) @ string_to_ltr_actions(" let x = 1 "),
+    ~goal={|{ let x = 1 ¦}|},
+  ),
+  test_same_term_as_ltr(
+    ~name="Signature: members typed into the {} token",
+    ~acts=
+      mk({|let m : {¦} = { let x = 1 } in m.x|})
+      @ string_to_ltr_actions(" let x : Int "),
+    ~goal={|let m : { let x : Int ¦} = { let x = 1 } in m.x|},
+  ),
+  test_same_term_as_ltr(
+    ~name="Signature: annotation added to an existing module binding",
+    ~acts=
+      mk({|let m¦ = { let x = 1 } in m.x|})
+      @ string_to_ltr_actions(" : { let x : Int }"),
+    ~goal={|let m : { let x : Int }¦ = { let x = 1 } in m.x|},
   ),
 ];
 
@@ -5794,7 +6173,10 @@ let grapheme_tests = [
         let m = Printer.measured_no_projectors(seg);
         (
           Zipper.Caret.point(m, z).col,
-          Measured.Rows.find(0, m.rows).max_col,
+          switch (Measured.row_shape(0, m)) {
+          | Some(sh) => sh.max_col
+          | None => 0
+          },
         );
       };
       /* `#a😀b#` is five clusters but six columns */
@@ -7294,11 +7676,13 @@ let tests = [
   ("Editing.Selection", selection_tests),
   ("Editing.Rescan", rescan_tests),
   ("Editing.Paste", paste_tests),
-  ("Editing.Module", module_tests),
+  ("Editing.Module", module_tests @ module_select_tests),
   ("Editing.SigAbstract", sig_abstract_tests),
   ("Editing.ShardTheft", shard_theft_tests),
   ("Editing.SegmentCache", segment_cache_tests),
   ("Editing.RemoldSort", remold_sort_tests),
+  ("Editing.ModuleObligation", module_obligation_tests),
+  ("Editing.IncompleteChildSort", incomplete_child_sort_tests),
   ("Editing.WrapSelection", wrap_selection_tests),
   ("Editing.WrapCalculate", wrap_calculate_test),
   ("Editing.UnwrapQuote", unwrap_quote_tests),

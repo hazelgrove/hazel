@@ -94,6 +94,12 @@ let semantics = (~globals: Globals.t): section => {
       "Enable type-directed feedback",
     ),
     toggle(
+      "Warnings",
+      globals.settings.core.display_warnings,
+      DisplayWarnings,
+      "Show warnings, such as unused variables, in the code, the inspector and the problems panel",
+    ),
+    toggle(
       "Code completion",
       globals.settings.core.assist,
       Assist,
@@ -113,6 +119,12 @@ let value_display = (~globals: Globals.t): section => {
   {
     s_name: "Value display",
     s_rows: [
+      toggle(
+        "Program value",
+        globals.settings.tail_probe,
+        TailProbe,
+        "Show the program's value below its last line",
+      ),
       toggle(
         "Functions",
         s.show_fn_bodies,
@@ -260,6 +272,12 @@ let code_display = (~globals: Globals.t): section => {
       )
       @ [
         toggle(
+          "Outline arrows",
+          globals.settings.outline_arrows,
+          OutlineArrows,
+          "Fold outline rows from an arrow; off, click a row's sigil",
+        ),
+        toggle(
           "Simple indication",
           globals.settings.simple_indication,
           SimpleIndication,
@@ -343,22 +361,16 @@ let developer = (~globals: Globals.t): section => {
         "Enable probes on all top-level definitions",
       ),
       toggle(
-        "Cap undo stack",
-        globals.settings.cap_undo_stack,
-        CapUndoStack,
-        "Cap the undo history stack size",
-      ),
-      toggle(
         "Ruled lines",
         globals.settings.show_row_lines,
         ShowRowLines,
         "Show horizontal lines between each row of code",
       ),
       toggle(
-        "Incremental reuse",
+        "Eval progress",
         globals.settings.show_incremental_deco,
-        ShowIncrementalDeco,
-        "Show incremental evaluator cache hits",
+        ShowPendingEval,
+        "Highlight code pending re-evaluation after edits",
       ),
       toggle(
         "Debug sidebar",

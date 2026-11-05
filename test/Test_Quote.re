@@ -381,7 +381,11 @@ let macro_tests = (
               switch (Info.marks_of(info)) {
               | [] => acc
               | marks => [
-                  Haz3lcore.ErrorPrint.string_of_marks(info, marks),
+                  Haz3lcore.ErrorPrint.string_of_marks(
+                    ~info_map=m,
+                    info,
+                    marks,
+                  ),
                   ...acc,
                 ]
               },

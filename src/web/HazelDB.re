@@ -17,7 +17,22 @@ module IDBStore = Ezjs_idb.Store(StringTr, StringTr);
 
 type db = Ezjs_min.t(Types.iDBDatabase);
 
-let db_name = "hazel";
+/* One database per git branch, so builds of different branches served from
+   the same origin (every preview on build.hazel.org) keep separate saved
+   state: a branch that changes a persisted type can't clobber, or be
+   clobbered by, another branch's data (#2204, and see #2454). `dev`, and
+   builds made outside a git checkout or from a detached HEAD, keep the
+   original name, so existing saved state there is untouched. The branch is
+   baked in at build time by scripts/build-info.sh. */
+let db_name_for_branch = (branch: string): string =>
+  switch (branch) {
+  | "dev"
+  | "unknown"
+  | "HEAD" => "hazel"
+  | branch => "hazel:" ++ branch
+  };
+
+let db_name = db_name_for_branch(BuildInfo.branch);
 let log_table = "log";
 let kv_table = "kv";
 
@@ -44,13 +59,106 @@ let cache: ref(Util.Maps.StringMap.t(string)) =
 
 /* === KV operations === */
 
+type write =
+  | Put(string, string)
+  | Delete(string);
+
+/* writes queued by kv_batch, newest first */
+let batched: ref(option(list(write))) = ref(None);
+let write_transactions = ref(0); /* observability for tests */
+
+/* one transaction for all of [writes]: it commits whole or not at all */
+let commit = (writes: list(write)): unit =>
+  if (writes != []) {
+    incr(write_transactions);
+    with_db(db => {
+      let store = kv_store(db);
+      List.iter(
+        fun
+        | Put(key, value) =>
+          IDBStore.put(~key, ~callback=_ => (), store, value)
+        | Delete(key) =>
+          IDBStore.delete(~callback=_ => (), store, IDBStore.K(key)),
+        writes,
+      );
+    });
+  };
+
+let write = (w: write): unit =>
+  switch (batched^) {
+  | Some(ws) => batched := Some([w, ...ws])
+  | None => commit([w])
+  };
+
+/* [f]'s writes land together, so an interrupted save can't leave half
+   of them (a rename's new definition beside its old use). nested calls
+   join the outer batch */
+let kv_batch = (f: unit => 'a): 'a =>
+  switch (batched^) {
+  | Some(_) => f()
+  | None =>
+    batched := Some([]);
+    Fun.protect(
+      ~finally=
+        () => {
+          let ws = Option.value(batched^, ~default=[]);
+          batched := None;
+          commit(List.rev(ws));
+        },
+      f,
+    );
+  };
+
 let kv_save = (key: string, value: string): unit => {
   cache := Util.Maps.StringMap.add(key, value, cache^);
-  with_db(db => IDBStore.put(~key, ~callback=_ => (), kv_store(db), value));
+  write(Put(key, value));
 };
 
 let kv_get = (key: string): option(string) =>
   Util.Maps.StringMap.find_opt(key, cache^);
+
+let kv_save_sexp = (key: string, sexp_of: 'a => Sexplib.Sexp.t, v: 'a): unit =>
+  kv_save(key, Sexplib.Sexp.to_string(sexp_of(v)));
+
+/* None when missing or unreadable */
+let kv_get_sexp = (key: string, of_sexp: Sexplib.Sexp.t => 'a): option('a) =>
+  Option.bind(kv_get(key), s =>
+    try(Some(of_sexp(Sexplib.Sexp.of_string(s)))) {
+    | _ => None
+    }
+  );
+
+let kv_remove = (key: string): unit => {
+  cache := Util.Maps.StringMap.remove(key, cache^);
+  write(Delete(key));
+};
+
+/* every stored key [owned] claims */
+let kv_remove_where = (owned: string => bool): unit =>
+  kv_batch(() =>
+    Util.Maps.StringMap.iter(
+      (k, _) =>
+        if (owned(k)) {
+          kv_remove(k);
+        },
+      cache^,
+    )
+  );
+
+/* every stored key [rekey] maps to a different key, saved there instead */
+let kv_rekey = (rekey: string => option(string)): unit =>
+  kv_batch(() =>
+    Util.Maps.StringMap.iter(
+      (k, v) =>
+        switch (rekey(k)) {
+        | Some(k') when k' != k =>
+          kv_save(k', v);
+          kv_remove(k);
+        | _ => ()
+        },
+      cache^,
+    )
+  );
 
 let kv_clear = (~callback=() => (), ()): unit => {
   cache := Util.Maps.StringMap.empty;

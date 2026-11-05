@@ -24,7 +24,10 @@ let messages = (m: Statics.Map.t): list(string) =>
     (_, info, acc) =>
       switch (Info.marks_of(info)) {
       | [] => acc
-      | marks => [Haz3lcore.ErrorPrint.string_of_marks(info, marks), ...acc]
+      | marks => [
+          Haz3lcore.ErrorPrint.string_of_marks(~info_map=m, info, marks),
+          ...acc,
+        ]
       },
     m,
     [],

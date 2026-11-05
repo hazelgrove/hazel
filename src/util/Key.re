@@ -63,10 +63,13 @@ let get_target_tag_and_id = (evt): (option(string), option(string)) =>
   | None => (None, None)
   | Some(el) =>
     let el = Js.Unsafe.coerce(el);
-    let tag = Js.to_string(el##.tagName);
+    /* a target without a tag (not an element: the window, a test's
+       stand-in) has none, as one without an id has no id */
+    let tag =
+      Js.Optdef.case(el##.tagName, () => None, s => Some(Js.to_string(s)));
     let id =
       Js.Optdef.case(el##.id, () => None, s => Some(Js.to_string(s)));
-    (Some(tag), id);
+    (tag, id);
   };
 
 let mk = (dir, evt): t => {

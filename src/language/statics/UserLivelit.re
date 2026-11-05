@@ -204,8 +204,16 @@ let realized_livelit_sig =
         List.fold_left(
           (t, name) =>
             switch (List.assoc_opt(name, types)) {
+            /* No node here carries a TypeMemberCapture mark, so a capture
+               degrades to `?` silently. */
             | Some(d) =>
-              Typ.subst(d, IdTagged.FreshGrammar.TPat.var(name), t)
+              fst(
+                Typ.subst_captures(
+                  d,
+                  IdTagged.FreshGrammar.TPat.var(name),
+                  t,
+                ),
+              )
             | None => t
             },
           t,
@@ -1040,7 +1048,9 @@ let instantiate =
     : option(LivelitCtx.raw_livelit) =>
   switch (ll.tparam, ll.user_def) {
   | (Some(a), Some(def)) =>
-    let sub = t => Typ.subst(ty, IdTagged.FreshGrammar.TPat.var(a), t);
+    /* A capture degrades to `?` silently: no node carries a mark here. */
+    let sub = t =>
+      fst(Typ.subst_captures(ty, IdTagged.FreshGrammar.TPat.var(a), t));
     let expansion_t = sub(ll.expansion_t);
     Some({
       ...ll,

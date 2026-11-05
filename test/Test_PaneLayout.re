@@ -110,7 +110,7 @@ let tests = (
           | None => fail("no x")
           };
         let m = Measured.of_segment(pane, Id.Map.empty, Id.Map.empty);
-        let col = Measured.find_t(x, m).origin.col;
+        let col = Measured.find_p(Tile(x), m).origin.col;
         check(int, "x sits where the text puts it", 10, col);
         check(string, "the text", "f((head), x)", text(use));
         /* The cell's own extent, which places a caret beside it. */

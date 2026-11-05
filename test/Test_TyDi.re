@@ -12,7 +12,7 @@ let tydi_suggest = (code: string): option(string) => {
   let (info_map, _) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
   let ci = Indicated.ci_for_completion(z, info_map);
-  let* z = TyDi.set_buffer(~ci, z);
+  let* z = TyDi.set_buffer(~root=Exp, ~ci, z);
   TyDi.get_unparsed_buffer(z);
 };
 
@@ -703,8 +703,13 @@ let prefix_pruning_is_exact = code => {
            String.starts_with(~prefix=tok, content)
          )
       |> List.map(({content, _}: TyDiSuggestion.t) => content);
-    let all = kept(TyDi.suggest(ci, z));
-    check(list(string), code, all, kept(TyDi.suggest(~prefix=tok, ci, z)));
+    let all = kept(TyDi.suggest(~root=Exp, ci, z));
+    check(
+      list(string),
+      code,
+      all,
+      kept(TyDi.suggest(~prefix=tok, ~root=Exp, ci, z)),
+    );
     all;
   | _ => fail("no completion point in " ++ code)
   };

@@ -27,7 +27,8 @@ let rec target_subterm_ids =
         target_subterm_ids(~drill_let=false, IdTagged.rep_id(def), info_map);
       /* Function-sugar keeps params in the binder, so anchor the args pattern too. */
       switch (FunctionSugar.detect(pat)) {
-      | Some((_f_name, args, _ret_ty)) => def_targets @ [Pat.rep_id(args)]
+      | Some((_f_name, args, _ret_ty)) =>
+        def_targets @ List.map(Pat.rep_id, args)
       | None => def_targets
       };
     };

@@ -59,8 +59,13 @@ reference to the right provides functions we think may be helpful.";
    between them. to_zipper is not stable on such text either -- reparsing
    its own output of this prose grows it from 732 to 1044 characters. */
 let fresh_prose = () => {
+  /* both hole markers: the convex `¿` and the concave `⧖` (#2479) */
   let strip = s =>
     Str.global_replace(Str.regexp_string(hole), "", s)
+    |> Str.global_replace(
+         Str.regexp_string(Haz3lcore.Token.concave_hole_marker),
+         "",
+       )
     |> Str.global_replace(Str.regexp("[ \n]+"), " ");
   let by_char = printed(Haz3lcore.Parser.to_zipper(~root=Exp, prose_text));
   let segmented =

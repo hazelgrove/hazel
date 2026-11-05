@@ -83,6 +83,10 @@
       The element will be positioned at:
         viewport_top = anchor.getBoundingClientRect().top + local_top
         viewport_left = anchor.getBoundingClientRect().left + local_left
+
+      Positions are read once the browser has laid the frame out
+      (AfterLayout), all of them before any is written, so no layout is
+      forced.
    */
 
 open Js_of_ocaml;
@@ -105,13 +109,13 @@ let get_data_string =
   |> Option.map(Js.to_string);
 };
 
-/* Update position of a single floating element */
-let update_one = (el: Js.t(Dom_html.element)): unit => {
+/* Read where a floating element goes; the write puts it there */
+let measure_one = (el: Js.t(Dom_html.element)): option(unit => unit) => {
   switch (get_data_string(el, "anchor-class")) {
-  | None => ()
+  | None => None
   | Some(anchor_class) =>
     switch (JsUtil.find_ancestor_with_class(el, anchor_class)) {
-    | None => ()
+    | None => None
     | Some(anchor) =>
       let rect = anchor##getBoundingClientRect;
       let local_top = get_data_float(el, "local-top");
@@ -134,12 +138,6 @@ let update_one = (el: Js.t(Dom_html.element)): unit => {
         | None => raw_top
         };
       let shift = viewport_top -. raw_top;
-      let _ =
-        el##.style##setProperty(
-          Js.string("--float-top-shift"),
-          Js.string(Printf.sprintf("%fpx", shift)),
-          Js.undefined,
-        );
       let visible =
         switch (min_top, get_data_string(el, "local-bottom")) {
         | (Some(y), Some(bottom)) =>
@@ -147,25 +145,69 @@ let update_one = (el: Js.t(Dom_html.element)): unit => {
         | _ => true
         };
       let viewport_left = rect##.left +. local_left;
-      el##.style##.top := Js.string(Printf.sprintf("%fpx", viewport_top));
-      el##.style##.left := Js.string(Printf.sprintf("%fpx", viewport_left));
-      el##.style##.visibility := Js.string(visible ? "visible" : "hidden");
+      /* `flip`: open above the anchor when there's no room below in #main
+         and room above, and shift left rather than run off its right */
+      let (up, viewport_top, viewport_left) =
+        switch (
+          get_data_string(el, "flip"),
+          JsUtil.get_elem_by_id_opt("main"),
+        ) {
+        | (Some(_), Some(main)) =>
+          let m = main##getBoundingClientRect;
+          let h = float_of_int(el##.offsetHeight);
+          let w = float_of_int(el##.offsetWidth);
+          let up =
+            viewport_top +. h > m##.bottom && rect##.top -. h >= m##.top;
+          (
+            Some(up),
+            up ? rect##.top -. h : viewport_top,
+            viewport_left +. w > m##.right
+              ? Float.max(m##.left, m##.right -. w) : viewport_left,
+          );
+        | _ => (None, viewport_top, viewport_left)
+        };
+      Some(
+        () => {
+          let _ =
+            el##.style##setProperty(
+              Js.string("--float-top-shift"),
+              Js.string(Printf.sprintf("%fpx", shift)),
+              Js.undefined,
+            );
+          switch (up) {
+          | Some(true) => el##.classList##add(Js.string("float-up"))
+          | Some(false) => el##.classList##remove(Js.string("float-up"))
+          | None => ()
+          };
+          el##.style##.top := Js.string(Printf.sprintf("%fpx", viewport_top));
+          el##.style##.left :=
+            Js.string(Printf.sprintf("%fpx", viewport_left));
+          el##.style##.visibility := Js.string(visible ? "visible" : "hidden");
+        },
+      );
     }
   };
 };
 
-/* Update all floating elements */
-let update_all = (): unit => {
-  let elements =
-    Dom_html.document##querySelectorAll(Js.string(".floating-fixed"));
-  let len = elements##.length;
-  for (i in 0 to len - 1) {
-    switch (elements##item(i) |> Js.Opt.to_option) {
-    | Some(el) => update_one(Js.Unsafe.coerce(el))
-    | None => ()
-    };
+let elements = (): Js.t(Dom.nodeList(Dom_html.element)) =>
+  Dom_html.document##getElementsByClassName(Js.string("floating-fixed"));
+
+/* Update all floating elements, after this frame's layout */
+let queued = ref(false);
+let update_all = (): unit =>
+  if (! queued^ && elements()##.length > 0) {
+    queued := true;
+    AfterLayout.schedule(() => {
+      queued := false;
+      let els = elements();
+      let writes =
+        List.init(els##.length, i =>
+          Js.Opt.case(els##item(i), () => None, measure_one)
+        )
+        |> List.filter_map(Fun.id);
+      () => List.iter(write => write(), writes);
+    });
   };
-};
 
 /* Setup scroll listener on #main to update floating elements.
    This ensures floating elements stay positioned correctly during scroll. */

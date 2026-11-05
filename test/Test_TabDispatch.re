@@ -38,13 +38,10 @@ let settings = {
   indentation_ux: false,
 };
 
-let go = (z: Zipper.t, a: Action.t): Action.Result.t(Zipper.t) => {
-  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
-  let statics =
-    CachedStatics.init_from_term(~settings, ~is_dynamic_term=true, term);
+let go = (z: Zipper.t, a: Action.t): Action.Result.t(Zipper.t) =>
   Perform.go(
     ~settings,
-    ~statics,
+    ~statics=Lazy.force(Test_Editing.derive(~settings, z).statics),
     ~syntax=CachedSyntax.init(z),
     a,
     {
@@ -53,7 +50,6 @@ let go = (z: Zipper.t, a: Action.t): Action.Result.t(Zipper.t) => {
     },
     ~root=Exp,
   );
-};
 
 /* fuzzing explores the action space: failed actions are skipped */
 let apply = (z: Zipper.t, a: Action.t): Zipper.t =>
@@ -83,14 +79,14 @@ let show_delims = (ds: list(CanonicalCompletion.delimiter_info)) =>
 
 /* Tab's paste text at this caret, if the caret owns a chip */
 let tab_head = (z: Zipper.t): option(string) =>
-  CompletionQuery.chip_at_caret(z)
+  CompletionQuery.chip_at_caret(~root=Exp, z)
   |> Option.map(ins => CompletionQuery.tab_text(z, ins))
   |> Option.join;
 
 /* the completed program, whitespace and holes erased */
 let completed_text = (z: Zipper.t): string => {
   let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
-  CanonicalCompletion.for_editor(seg).completed_seg
+  CanonicalCompletion.for_editor(~root=Exp, seg).completed_seg
   |> Printer.of_segment(~holes="", ~concave_holes="", ~refractors=[])
   |> String.to_seq
   |> Seq.filter(c => c != ' ' && c != '\n' && c != '\t')
@@ -143,7 +139,7 @@ let show_action = (a: Action.t) =>
    The pins below keep the first and third visible; when either
    changes, flip the pin. */
 let unfaithful = (~strict=false, z: Zipper.t): option(string) =>
-  switch (CompletionQuery.tab_action(z)) {
+  switch (CompletionQuery.tab_action(~root=Exp, z)) {
   | None => None
   | Some(a) =>
     switch (go(z, a)) {
@@ -197,9 +193,10 @@ let display_broken = (z: Zipper.t): option(string) => {
   let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
   let caret = Zipper.Caret.point(CachedSyntax.measured(syntax), z);
   let caret_pos = Some((caret.row, caret.col));
-  let owned = CompletionQuery.chips_at_caret(~seg, z);
+  let owned = CompletionQuery.chips_at_caret(~root=Exp, ~seg, z);
   let bs =
     QuiverDec.bubbles(
+      ~root=Exp,
       ~measured=CachedSyntax.measured(syntax),
       ~font_metrics,
       ~caret_pos,
@@ -394,7 +391,7 @@ let curated = [
         bool,
         "ApplyCompletion(One)",
         true,
-        switch (CompletionQuery.tab_action(z)) {
+        switch (CompletionQuery.tab_action(~root=Exp, z)) {
         | Some(ApplyCompletion(One(_))) => true
         | _ => false
         },
@@ -484,7 +481,7 @@ let padding_case = (input, preview, expected) =>
     () => {
       let z = padding_zipper(input);
       let chip =
-        switch (CompletionQuery.chip_at_caret(z)) {
+        switch (CompletionQuery.chip_at_caret(~root=Exp, z)) {
         | Some(i) => i
         | None => fail("No completion at " ++ input)
         };
@@ -507,7 +504,7 @@ let padding_case = (input, preview, expected) =>
         |> String.concat("");
       check(string, "preview (including spaces and holes)", preview, text);
       let action =
-        switch (CompletionQuery.tab_action(z)) {
+        switch (CompletionQuery.tab_action(~root=Exp, z)) {
         | Some(a) => a
         | None => fail("No Tab action")
         };

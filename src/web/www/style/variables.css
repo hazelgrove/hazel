@@ -42,6 +42,11 @@
   --caret-z: 20;
   --line-number-z: 21;
   --projector-overlay-z: 29;
+  /* Proof rows nested in a proof result. Each proof's .cell-result is an
+     isolated stacking context, so these only order rows within one proof and
+     never reach the TOP LEVEL UI below, despite the larger numbers. */
+  --proof-step-raised-z: calc(var(--projector-overlay-z) + 1);
+  --proof-step-panel-z: calc(var(--projector-overlay-z) + 2);
 
   /* TOP LEVEL UI */
   --context-menu-z: 30; /* must be over num-samples badge */
@@ -50,6 +55,7 @@
   --top-bar-z: 31;
   --explainthis-expander-z: 31;
   --top-bar-hover-z: 33;
+  --outline-menu-z: 41; /* its backdrop, one below, covers the bars */
 
   /* HACKS */
   --modal-back-z: 100;

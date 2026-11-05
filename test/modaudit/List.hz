@@ -1,0 +1,431 @@
+# List: lists and their operations #
+module List = {
+  let length : [?] -> Int = fun xs ->
+    case xs
+    | [] => 0
+    | _ :: xs => 1 + length(xs)
+    end;
+
+  let map : ([?], ? -> ?) -> [?] = fun (xs, f) ->
+    case xs
+    | [] => []
+    | x :: xs => f(x) :: map(xs, f)
+    end;
+
+  let filter : ([?], ? -> Bool) -> [?] = fun (xs, f) ->
+    case xs
+    | [] => []
+    | x :: xs => if f(x) then x :: filter(xs, f) else filter(xs, f)
+    end;
+
+  let fold_left : ([?], (?, ?) -> ?, ?) -> ? = fun (xs, f, acc) ->
+    case xs
+    | [] => acc
+    | x :: xs => fold_left(xs, f, f(acc, x))
+    end;
+
+  let flat_map : ([?], ? -> [?]) -> [?] = fun (xs, f) ->
+    fold_left(xs, fun (acc, x) -> acc @ f(x), []);
+
+  let zip : ([?], [?]) -> [(?, ?)] = fun (xs, ys) ->
+    case (xs, ys)
+    | ([], _) => []
+    | (_, []) => []
+    | (x :: xs, y :: ys) => (x, y) :: zip(xs, ys)
+    end;
+
+  let unzip : [(?, ?)] -> ([?], [?]) = fun xs ->
+    case xs
+    | [] => ([], [])
+    | (a, b) :: xs =>
+      let (as, bs) = unzip(xs) in
+      (a :: as, b :: bs)
+    end;
+
+  let reverse : [?] -> [?] = fun xs ->
+    case xs
+    | [] => []
+    | x :: xs => reverse(xs) @ [x]
+    end;
+
+  let take : ([?], Int) -> [?] = fun (xs, n) ->
+    if n <= 0 then []
+    else
+      case xs
+      | [] => []
+      | x :: xs => x :: take(xs, n - 1)
+      end;
+
+  let drop : ([?], Int) -> [?] = fun (xs, n) ->
+    if n <= 0 then xs
+    else
+      case xs
+      | [] => []
+      | _ :: xs => drop(xs, n - 1)
+      end;
+
+  let range : (Int, Int) -> [Int] = fun (start, stop) ->
+    if start > stop then [] else start :: range(start + 1, stop);
+
+  let enumerate : [?] -> [(Int, ?)] = fun xs ->
+    let enumerate_helper = fun (xs, index) ->
+      case xs
+      | [] => []
+      | x :: xs => (index, x) :: enumerate_helper(xs, index + 1)
+      end
+    in
+    enumerate_helper(xs, 0);
+
+  let any : ([?], ? -> Bool) -> Bool = fun (xs, pred) ->
+    case xs
+    | [] => false
+    | x :: xs => if pred(x) then true else any(xs, pred)
+    end;
+
+  let all : ([?], ? -> Bool) -> Bool = fun (xs, pred) ->
+    case xs
+    | [] => true
+    | x :: xs => if pred(x) then all(xs, pred) else false
+    end;
+
+  let intersperse : ([?], ?) -> [?] = fun (xs, sep) ->
+    case xs
+    | [] => []
+    | [x] => [x]
+    | x :: xs => x :: sep :: intersperse(xs, sep)
+    end;
+
+  let cons : (?, [?]) -> [?] = fun (x, xs) -> x :: xs;
+
+  let head : [?] -> ? = fun xs ->
+    case xs
+    | [] => undefined
+    | x :: _ => x
+    end;
+
+  let tail : [?] -> [?] = fun xs ->
+    case xs
+    | [] => undefined
+    | _ :: xs => xs
+    end;
+
+  let is_empty : [?] -> Bool = fun xs ->
+    case xs
+    | [] => true
+    | _ => false
+    end;
+
+  let nth : ([?], Int) -> ? = fun (xs, n) ->
+    case xs
+    | [] => undefined
+    | x :: xs => if n == 0 then x else nth(xs, n - 1)
+    end;
+
+  let fold_right : ([?], (?, ?) -> ?, ?) -> ? = fun (xs, f, acc) ->
+    case xs
+    | [] => acc
+    | x :: xs => f(x, fold_right(xs, f, acc))
+    end;
+
+  let append : ([?], [?]) -> [?] = fun (xs, ys) -> xs @ ys;
+
+  let concat : [[?]] -> [?] = fun xss ->
+    case xss
+    | [] => []
+    | xs :: xss => xs @ concat(xss)
+    end;
+
+  let mapi : ([?], (Int, ?) -> ?) -> [?] = fun (xs, f) ->
+    let mapi_helper = fun (xs, f, i) ->
+      case xs
+      | [] => []
+      | x :: xs => f(i, x) :: mapi_helper(xs, f, i + 1)
+      end
+    in
+    mapi_helper(xs, f, 0);
+
+  let filteri : ([?], (Int, ?) -> Bool) -> [?] = fun (xs, f) ->
+    let filteri_helper = fun (xs, f, i) ->
+      case xs
+      | [] => []
+      | x :: xs =>
+        if f(i, x)
+        then x :: filteri_helper(xs, f, i + 1)
+        else filteri_helper(xs, f, i + 1)
+      end
+    in
+    filteri_helper(xs, f, 0);
+
+  let mem : ([?], ?) -> Bool = fun (xs, x) -> any(xs, fun t -> x == t);
+
+  let partition : ([?], ? -> Bool) -> ([?], [?]) = fun (xs, pred) ->
+    case xs
+    | [] => ([], [])
+    | x :: xs =>
+      let (trues, falses) = partition(xs, pred) in
+      if pred(x) then (x :: trues, falses) else (trues, x :: falses)
+    end;
+
+  let rev_append : ([?], [?]) -> [?] = fun (xs, ys) ->
+    case xs
+    | [] => ys
+    | x :: xs => rev_append(xs, x :: ys)
+    end;
+
+  let fold_left2 : ([?], [?], (?, ?, ?) -> ?, ?) -> ? = fun (xs, ys, f, acc) ->
+    case (xs, ys)
+    | ([], _) => acc
+    | (_, []) => acc
+    | (x :: xs, y :: ys) => fold_left2(xs, ys, f, f(acc, x, y))
+    end;
+
+  let fold_right2 : ([?], [?], (?, ?, ?) -> ?, ?) -> ? = fun (xs, ys, f, acc) ->
+    case (xs, ys)
+    | ([], _) => acc
+    | (_, []) => acc
+    | (x :: xs, y :: ys) => f(x, y, fold_right2(xs, ys, f, acc))
+    end;
+
+  let map2 : ([?], [?], (?, ?) -> ?) -> [?] = fun (xs, ys, f) ->
+    case (xs, ys)
+    | ([], _) => []
+    | (_, []) => []
+    | (x :: xs, y :: ys) => f(x, y) :: map2(xs, ys, f)
+    end;
+
+  let all2 : ([?], [?], (?, ?) -> Bool) -> Bool = fun (xs, ys, pred) ->
+    case (xs, ys)
+    | ([], _) => true
+    | (_, []) => true
+    | (x :: xs, y :: ys) => if pred(x, y) then all2(xs, ys, pred) else false
+    end;
+
+  let any2 : ([?], [?], (?, ?) -> Bool) -> Bool = fun (xs, ys, pred) ->
+    case (xs, ys)
+    | ([], _) => false
+    | (_, []) => false
+    | (x :: xs, y :: ys) => if pred(x, y) then true else any2(xs, ys, pred)
+    end;
+
+  let find : ([?], ? -> Bool) -> ? = fun (xs, pred) ->
+    case xs
+    | [] => undefined
+    | x :: xs => if pred(x) then x else find(xs, pred)
+    end;
+
+  let take_while : ([?], ? -> Bool) -> [?] = fun (xs, pred) ->
+    case xs
+    | [] => []
+    | x :: xs => if pred(x) then x :: take_while(xs, pred) else []
+    end;
+
+  let drop_while : ([?], ? -> Bool) -> [?] = fun (xs, pred) ->
+    case xs
+    | [] => []
+    | x :: xs => if pred(x) then drop_while(xs, pred) else x :: xs
+    end;
+
+  let filter_map : ([?], ? -> ?) -> [?] = fun (xs, f) ->
+    case xs
+    | [] => []
+    | x :: xs =>
+      case f(x)
+      | None => filter_map(xs, f)
+      | Some(y) => y :: filter_map(xs, f)
+      end
+    end;
+
+  let nth_opt : ([?], Int) -> ? = fun (xs, n) ->
+    case xs
+    | [] => None
+    | x :: xs => if n == 0 then Some(x) else nth_opt(xs, n - 1)
+    end;
+
+  let find_opt : ([?], ? -> Bool) -> ? = fun (xs, pred) ->
+    case xs
+    | [] => None
+    | x :: xs => if pred(x) then Some(x) else find_opt(xs, pred)
+    end;
+
+  let find_index : ([?], ? -> Bool) -> ? = fun (xs, pred) ->
+    let find_index_helper = fun (xs, pred, i) ->
+      case xs
+      | [] => None
+      | x :: xs =>
+        if pred(x) then Some(i) else find_index_helper(xs, pred, i + 1)
+      end
+    in
+    find_index_helper(xs, pred, 0);
+
+  let find_map : ([?], ? -> ?) -> ? = fun (xs, f) ->
+    case xs
+    | [] => None
+    | x :: xs =>
+      case f(x)
+      | None => find_map(xs, f)
+      | Some(y) => Some(y)
+      end
+    end;
+
+  let find_mapi : ([?], (Int, ?) -> ?) -> ? = fun (xs, f) ->
+    let find_mapi_helper = fun (xs, f, i) ->
+      case xs
+      | [] => None
+      | x :: xs =>
+        case f(i, x)
+        | None => find_mapi_helper(xs, f, i + 1)
+        | Some(y) => Some(y)
+        end
+      end
+    in
+    find_mapi_helper(xs, f, 0);
+
+  let init : (Int, Int -> ?) -> [?] = fun (n, f) ->
+    let init_helper = fun (n, f, i) ->
+      if i >= n then [] else f(i) :: init_helper(n, f, i + 1)
+    in
+    init_helper(n, f, 0);
+
+  let assoc : ([(?, ?)], ?) -> ? = fun (xs, key) ->
+    case xs
+    | [] => undefined
+    | (k, v) :: xs => if k == key then v else assoc(xs, key)
+    end;
+
+  let assoc_opt : ([(?, ?)], ?) -> ? = fun (xs, key) ->
+    case xs
+    | [] => None
+    | (k, v) :: xs => if k == key then Some(v) else assoc_opt(xs, key)
+    end;
+
+  let mem_assoc : ([(?, ?)], ?) -> Bool = fun (xs, key) ->
+    case xs
+    | [] => false
+    | (k, _) :: xs => if k == key then true else mem_assoc(xs, key)
+    end;
+
+  let remove_assoc : ([(?, ?)], ?) -> [(?, ?)] = fun (xs, key) ->
+    case xs
+    | [] => []
+    | (k, v) :: xs =>
+      if k == key
+      then remove_assoc(xs, key)
+      else (k, v) :: remove_assoc(xs, key)
+    end;
+
+  let partition_map : ([?], ? -> ?) -> ([?], [?]) = fun (xs, f) ->
+    case xs
+    | [] => ([], [])
+    | x :: xs =>
+      let (lefts, rights) = partition_map(xs, f) in
+      case f(x)
+      | Left(y) => (y :: lefts, rights)
+      | Right(y) => (lefts, y :: rights)
+      end
+    end;
+
+  let sort : ((?, ?) -> Ord, [?]) -> [?] = fun (cmp, xs) ->
+    let merge = fun (cmp, xs, ys) ->
+      let go = fun (xs, ys, acc) ->
+        case (xs, ys)
+        | ([], []) => reverse(acc)
+        | ([], _) => rev_append(acc, ys)
+        | (_, []) => rev_append(acc, xs)
+        | (x :: xs, y :: ys) =>
+          case cmp(x, y)
+          | Lt => go(xs, y :: ys, x :: acc)
+          | Eq => go(xs, y :: ys, x :: acc)
+          | Gt => go(x :: xs, ys, y :: acc)
+          end
+        end
+      in
+      go(xs, ys, [])
+    in
+    let split = fun xs ->
+      case xs
+      | [] => ([], [])
+      | [x] => ([x], [])
+      | x :: y :: ys =>
+        let (xs, ys) = split(ys) in
+        (x :: xs, y :: ys)
+      end
+    in
+    let merge_sort = fun xs ->
+      case xs
+      | [] => []
+      | [x] => [x]
+      | _ =>
+        let (left, right) = split(xs) in
+        merge(cmp, merge_sort(left), merge_sort(right))
+      end
+    in
+    merge_sort(xs);
+
+  let slice : (Int, Int, [?]) -> [?] = fun (start, stop, xs) ->
+    take(drop(xs, start), stop - start);
+
+  let hd_opt : [?] -> ? = fun xs ->
+    case xs
+    | [] => None
+    | x :: _ => Some(x)
+    end;
+
+  let tl_opt : [?] -> ? = fun xs ->
+    case xs
+    | [] => None
+    | _ :: xs => Some(xs)
+    end;
+
+  let contains : ([?], ? -> Bool) -> Bool = any;
+  let flatten : [[?]] -> [?] = concat;
+  let rev : [?] -> [?] = reverse;
+  let exists : ([?], ? -> Bool) -> Bool = any;
+  let for_all : ([?], ? -> Bool) -> Bool = all;
+  let exists2 : ([?], [?], (?, ?) -> Bool) -> Bool = any2;
+  let for_all2 : ([?], [?], (?, ?) -> Bool) -> Bool = all2;
+  let concat_map : ([?], ? -> [?]) -> [?] = flat_map;
+  let split : [(?, ?)] -> ([?], [?]) = unzip;
+  let combine : ([?], [?]) -> [(?, ?)] = zip;
+
+  let unique : [?] -> [?] = fun xs ->
+    fold_left(
+      xs,
+      fun (seen, x) -> if mem(seen, x) then seen else append(seen, [x]),
+      []
+    );
+
+  let pivot_table : ([?], ? -> String, ? -> ?, [?] -> ?) -> [?] =
+    fun (table, new_col, index, value) ->
+      let indices = map(table, index) |> unique in
+      let new_cols = map(table, new_col) |> unique in
+      map(
+        indices,
+        fun idx ->
+          (index=idx)
+          ... (
+            map(
+              new_cols,
+              fun col ->
+                (
+                  label=col,
+                  value=value(
+                    filter(table, fun r -> index(r) == idx && new_col(r) == col)
+                  )
+                )
+            )
+            |> from_lvs
+          )
+      );
+
+  let group_on_key : ([?], ? -> ?) -> [(?, [?])] = fun (xs, f) ->
+    let update_groups = fun (acc, key, x) ->
+      case acc
+      | [] => [(key, [x])]
+      | (k, g) :: acc_tail =>
+        if k == key
+        then (k, g @ [x]) :: acc_tail
+        else (k, g) :: update_groups(acc_tail, key, x)
+      end
+    in
+    fold_left(xs, fun (acc, x) -> update_groups(acc, f(x), x), [])
+}

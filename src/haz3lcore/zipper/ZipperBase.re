@@ -56,6 +56,15 @@ let update_ephemerals = (f, z: t): t => {
   },
 };
 
+/* same text, selection, caret and manual probes. probe passes rebuild
+   the record on every calculate, so identity alone says little */
+let same_content = (a: t, b: t): bool =>
+  a === b
+  || a.relatives === b.relatives
+  && a.selection === b.selection
+  && a.caret == b.caret
+  && a.refractors.manuals === b.refractors.manuals;
+
 let update_suppressed = (f, z: t): t => {
   ...z,
   refractors: {

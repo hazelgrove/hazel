@@ -20,7 +20,8 @@
  *   witness > junction > sort frontier > wall > partition > append
  *
  * PIPELINE
- * 1. PARTITION by layout. A blank line always splits; a line indented
+ * 1. PARTITION by layout. A blank line splits (but inside an unclosed
+ *    module `{`, whose members it parts); a line indented
  *    at-or-left-of the partition's first incomplete tile starts a new
  *    partition:  `let x = 1 ⏎ f(3)` — `in` completes on line one and
  *    f(3) is the let's BODY, not its definition. Continuation
@@ -28,6 +29,10 @@
  *    (`| p => 2` under a broken case), a line starting concave-left
  *    (`+ 2` needs a left operand), a bare token prefixing a delimiter
  *    the partition still expects (`en` under a case missing `end`).
+ *    At a member level (a module body, a Mod root) the boundary before
+ *    a MEMBER LINE ends the member with a synthesized `;`, the member
+ *    level's `in`: `let q ⏎ let next = …` -> `let q = ?; let next = …`
+ *    (Member boundaries, below).
  * 2. SEQUENTIAL MATERIALIZATION, per partition: complete ONE tile per
  *    pass — strongest evidence first, weak ties innermost (the old
  *    backpack's stack order) — recursing on the regrouted result.
@@ -67,6 +72,10 @@
  *   definition), a SORT CLAMP (a clippable interior slot shrinks to
  *   a fitting span: `let a = 1 in let b = 2 in b` with the second
  *   `let` deleted restores at `b`), and unmatched-opener crossing.
+ *   A member's definition (its head's operand, not a child) is bounded
+ *   as a let-in's child is: openers stay after the member head, whose
+ *   first definition tile opens a line. A module's `{` opens after the
+ *   slot holding the literal (an open slot before a member head).
  * - RULE MACHINERY (the variadic-emulation family — dissolves if
  *   case ever becomes one n-ary form): a NAKED rule tile only exists
  *   once a case is broken, so rules wall placement for shards whose
@@ -97,11 +106,15 @@
  * deeply complete (no incomplete tile survives); print∘parse closes
  * (ExpToSegment strips exactly the synthesized shards via the masks).
  * Perf: for_editor memoizes on the segment; no-incomplete segments
- * take a regrout-only fast path. Zipper-facing queries (chip/tab)
- * live in CompletionQuery; insertion-record derivation for the
- * display sits at the bottom of this file. */
+ * take a regrout-only fast path; an unfinished member completes alone,
+ * cut at its member line (member_parts). Zipper-facing queries
+ * (chip/tab) live in CompletionQuery; insertion-record derivation for
+ * the display sits at the bottom of this file. */
 
 open Util;
+
+/* the layout partition and the member-line rule, shared with ItemSpans */
+include MemberLines;
 
 /* Record of which shards were originally present in an incomplete tile */
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -635,6 +648,25 @@ let opener_schedule =
         : rule_walls
           |> List.filter(w => w >= at && w < idx)
           |> List.fold_left((acc, w) => max(acc, w + 1), at);
+    /* Member heads: at a member level a definition is its head's
+       operand in the head's own segment, where a let-in's definition is
+       a child the let bounds. So the definition's first tile opens a
+       line as a child's first would, and an opener inside it stays
+       after the head (member_floor) */
+    let arr = Array.of_list(subseg);
+    let member_head = (p: Piece.t) =>
+      switch (p) {
+      | Tile(t) =>
+        is_member_head(p)
+        && Tile.is_complete(t)
+        && (
+          switch (Tile.shapes(t)) {
+          | (_, Concave(_)) => true
+          | _ => false
+          }
+        )
+      | _ => false
+      };
     /* Line walls: an opener must not hoist above a line starting
        with a complete prefix-form tile (statement-shaped: convex-
        left, concave-right, multi-shard). Applies only across a
@@ -662,10 +694,66 @@ let opener_schedule =
                 | _ => false
                 }
               );
-            go(i + 1, rest, false, wall ? [i, ...acc] : acc);
+            go(i + 1, rest, member_head(p), wall ? [i, ...acc] : acc);
           }
         };
       go(0, subseg, true, []);
+    };
+    /* the start of the definition of the member holding [idx]: after
+       its head, if no `;` comes between */
+    let member_floor = (idx: int): option(int) => {
+      let rec back = j =>
+        if (j < 0 || Piece.is_semi(arr[j])) {
+          None;
+        } else if (member_head(arr[j])) {
+          let rec skip = k =>
+            k < idx && Piece.is_secondary(arr[k]) ? skip(k + 1) : k;
+          Some(skip(j + 1));
+        } else {
+          back(j - 1);
+        };
+      back(idx - 1);
+    };
+    /* an opener whose interior is a member list (a module's `{`) takes
+       member heads as its content, not as walls or floors */
+    let member_interior = (t: Tile.t) =>
+      at_members(
+        snd(Mold.nibs(~index=Tile.l_shard(t) - 1, Tile.mold(t))).sort,
+      );
+    /* such an opener's place: after the slot that holds the literal, the
+       nearest earlier open slot whose next content is a member head (no
+       definition is one); else the segment's start, a slot's content */
+    let holder = (idx: int): int => {
+      let rec skip = k =>
+        k < idx && Piece.is_secondary(arr[k]) ? skip(k + 1) : k;
+      let rec next = k =>
+        k < idx && (Piece.is_secondary(arr[k]) || Piece.is_grout(arr[k]))
+          ? next(k + 1) : k;
+      let rec back = j =>
+        if (j < 0) {
+          skip(0);
+        } else {
+          switch (arr[j]) {
+          | Tile(t)
+              when
+                !Tile.is_semi(t)
+                && Tile.is_complete(t)
+                && (
+                  switch (snd(Tile.nibs(t))) {
+                  | {shape: Concave(_), sort} =>
+                    !at_members(sort) && sort != Sort.Any
+                  | _ => false
+                  }
+                )
+                && {
+                  let k = next(j + 1);
+                  k < idx && is_member_head(arr[k]);
+                } =>
+            skip(j + 1)
+          | _ => back(j - 1)
+          };
+        };
+      back(idx - 1);
     };
     let lb_between = (a, b) => {
       let rec go = j =>
@@ -858,14 +946,20 @@ let opener_schedule =
          index_of(t)
          |> Option.map(idx => {
               let at =
-                clamp_sort(
-                  t,
-                  clamp(
-                    clamp_lines(clamp_walls(t, at_of(idx), idx), idx),
+                if (member_interior(t)) {
+                  clamp(holder(idx), idx);
+                } else {
+                  let at =
+                    switch (member_floor(idx)) {
+                    | Some(floor) => max(at_of(idx), floor)
+                    | None => at_of(idx)
+                    };
+                  clamp_sort(
+                    t,
+                    clamp(clamp_lines(clamp_walls(t, at, idx), idx), idx),
                     idx,
-                  ),
-                  idx,
-                );
+                  );
+                };
               switch (witness_for(t, at, idx)) {
               | Some((j, sp)) => (j, idx, t, ReplaceWitness(sp))
               | None =>
@@ -1063,191 +1157,138 @@ let middle_insertions = (incomplete: list(Tile.t)): list(insertion) =>
           });
      });
 
-let count_leading_spaces = (seg: Segment.t): int =>
-  List.length(fst(Segment.split_space_run(seg)));
+/* === Member boundaries (Mod, Sig levels) ===
+ * A member level's `;` is what an `in` is at an expression level: it
+ * ends a definition. Completion synthesizes it where a member ends
+ * without one:
+ * - after an unfinished member, before a MEMBER LINE (one at-or-left of
+ *   the member's first line that doesn't continue it: not concave-left,
+ *   not a rule): the partition rule's boundary, as `let x = 1 ⏎ f(3)`
+ *   starts a body at an expression level:
+ *   `let q ⏎ let next = …` -> `let q = ?; let next = …`. An open `in`
+ *   takes the line below as its body (a let-chain member's link, as at
+ *   an expression level), unless that line starts a member head;
+ * - after an open slot (`let q =`, `1 +`, `fun x ->`; nothing
+ *   unfinished) meeting a MEMBER HEAD (`let … =`, `type … =`,
+ *   `module … =`; a signature's `let`), which no slot holds.
+ * Layout alone never ends a finished member, as it never ends a finished
+ * definition at an expression level: `let f = ⏎ fun x -> x;` is one
+ * member. The `;` is fully synthetic (no original shards: printing drops
+ * it), its id derived from the member's first content. A grout can't
+ * separate here: the regrout deletes a hole between an open slot and a
+ * convex head, their shapes fit. Finished members already apart by grout
+ * (a missing `;`) read apart as they are, and are left alone. */
 
-/* Single-pass partitioning; returns (subsegment, its incomplete tiles)
- * pairs. Splits (only after an incomplete tile) on: (1) a blank line
- * (two consecutive linebreaks); (2) with ~use_indent_heuristic, a
- * linebreak followed by content indented <= the first incomplete
- * tile's indent — read as intent to start something new. Indentation
- * calculation must disable (2): indentation uses completion,
- * completion uses indentation. */
-/* Continuation lines: the indent heuristic reads same-indent as
-   "not mine", but broken multiline forms put their own material at
-   the head indent. Evidence-gated exceptions (neither can occur in
-   healthy code): a line whose first content piece is (a) a NAKED
-   rule tile (healthy rules live inside their case tile), or (b) a
-   bare token proper-prefixing a delimiter some incomplete tile of
-   this partition still expects (`en` under a case missing its end,
-   `els` under an if missing its else) continues the partition. */
-let continuation_line = (incomplete_acc: list(Tile.t), rest: Segment.t): bool => {
-  /* skips spaces only: a linebreak IS the line's first content here */
-  let first_content = (sg: Segment.t) =>
-    Segment.next_content(~skip=Segment.skip_space, sg, 0) |> Option.map(snd);
-  switch (first_content(rest)) {
-  | Some(Tile(t)) when Tile.mold(t).out == Sort.Rul => true
-  /* (c) a line opening with a concave-LEFT piece — an infix or
-     postfix operator, a comma, a stranded closer shard — requires a
-     left operand from the previous line, so it cannot start anything
-     new (`+ 2` under an unclosed paren is a continuation, whatever
-     its indent) */
-  | Some(Tile(t))
-      when
-        switch (Tile.shapes(t)) {
-        | (Concave(_), _) => true
-        | _ => false
-        } =>
-    true
-  | Some(Tile({children: [], _} as t)) when Tile.arity(t) == 1 =>
-    let tok = Tile.token(t, 0);
-    incomplete_acc
-    |> List.exists((it: Tile.t) => {
-         let missing =
-           Tile.missing_shard_indices(it) |> List.map(Tile.token(it));
-         missing
-         |> List.exists(dt =>
-              Token.length(tok) < Token.length(dt)
-              && String.sub(dt, 0, Token.length(tok)) == tok
-            );
-       });
-  | _ => false
-  };
-};
+/* the member `;` synthesized for the member starting at [member] */
+let member_semi = (~sort: Sort.t, member: Id.t): Piece.t =>
+  Tile({
+    id: Id.derive(~salt="member-semi", member),
+    form: Form.Compound(CellJoin),
+    sort,
+    shards: [0],
+    children: [],
+  });
 
-/* Does this line (the pieces up to its linebreak) carry any user
-   content? Spaces and grout are not content; comments are. Used by
-   ~absorb_empty_lines: a contentless line is no evidence of intent,
-   so the relative-indent heuristic has nothing to read there. */
-let line_has_content = (rest: Segment.t): bool => {
-  let rec scan = (sg: Segment.t) =>
-    switch (sg) {
-    | [] => false
-    | [Piece.Secondary(w), ..._] when Secondary.is_linebreak(w) => false
-    | [Piece.Secondary(w), ...tl] when Secondary.is_space(w) => scan(tl)
-    | [Piece.Grout(_), ...tl] => scan(tl)
-    | [_, ..._] => true
+/* [seg] ended with its member's `;`, after its last content (before
+   trailing trivia), unless a `;` ends it already, or an open `in` that
+   [next] fills */
+let seal =
+    (~sort: Sort.t, ~member: Id.t, ~next: follows, seg: Segment.t)
+    : option(Segment.t) => {
+  let rec go = (rev: Segment.t, after: Segment.t) =>
+    switch (rev) {
+    | [] => None
+    | [(Piece.Secondary(_) | Grout({shape: Concave, _})) as p, ...rev] =>
+      go(rev, [p, ...after])
+    | [p, ..._] when Piece.is_semi(p) => None
+    | [p, ..._] when is_body_slot(p) && !is_member_head(next.head) => None
+    | [p, ...rev] =>
+      Some(List.rev_append(rev, [p, member_semi(~sort, member), ...after]))
     };
-  scan(rest);
+  go(List.rev(seg), []);
 };
 
-let partition_segment =
-    (~use_indent_heuristic=true, ~absorb_empty_lines=false, seg: Segment.t)
-    : list((Segment.t, list(Tile.t))) => {
-  let rec go =
-          (
-            seg: Segment.t,
-            acc: Segment.t,
-            incomplete_acc: list(Tile.t),
-            incomplete_before: bool,
-            line_indent: int, /* spaces since last linebreak */
-            past_indent: bool, /* have we seen non-space on this line? */
-            incomplete_indent: option(int),
-          ) /* indent of first incomplete tile */
-          : list((Segment.t, list(Tile.t))) => {
-    switch (seg) {
-    | [] => [(List.rev(acc), List.rev(incomplete_acc))]
+/* open right slots (not a `;`, nor a `{`'s member list) before a member
+   head ([follows] past the end), which no slot holds: the member ends
+   there */
+let open_slots = (~follows: option(follows)=None, seg: Segment.t): list(int) => {
+  let arr = Array.of_list(seg);
+  let n = Array.length(arr);
+  let rec next = j =>
+    j < n && (Piece.is_secondary(arr[j]) || Piece.is_grout(arr[j]))
+      ? next(j + 1) : j;
+  List.init(n, j => j)
+  |> List.filter(j =>
+       switch (arr[j]) {
+       | Tile(t) =>
+         !Tile.is_semi(t)
+         && (
+           switch (snd(Tile.nibs(t))) {
+           | {shape: Concave(_), sort} =>
+             !at_members(sort) && sort != Sort.Any
+           | _ => false
+           }
+         )
+         && {
+           let k = next(j + 1);
+           switch (k < n ? Some(arr[k]) : Option.map(f => f.head, follows)) {
+           | Some(head) => is_member_head(head)
+           | None => false
+           };
+         }
+       | _ => false
+       }
+     );
+};
 
-    /* Heuristic 1: blank line (two consecutive linebreaks) */
-    | [Secondary(w1), Secondary(w2), ...rest]
-        when Secondary.is_linebreak(w1) && Secondary.is_linebreak(w2) =>
-      if (incomplete_before) {
-        let current = List.rev([Piece.Secondary(w1), ...acc]);
-        let current_incomplete = List.rev(incomplete_acc);
-        let remaining =
-          go(rest, [Secondary(w2)], [], false, 0, false, None);
-        [(current, current_incomplete), ...remaining];
-      } else {
-        go(
-          rest,
-          [Secondary(w2), Secondary(w1), ...acc],
-          incomplete_acc,
-          false,
-          0,
-          false,
-          incomplete_indent,
-        );
-      }
+/* any member level of [seg] (its own, at [sort]) with an open slot that
+   ends its member */
+let rec has_open_slot =
+        (~sort: Sort.t, ~follows: option(follows)=None, seg: Segment.t): bool =>
+  at_members(sort)
+  && open_slots(~follows, seg) != []
+  || List.exists(
+       (p: Piece.t) =>
+         switch (p) {
+         | Tile(t) =>
+           List.exists(
+             ((s, kid)) => has_open_slot(~sort=s, kid),
+             Tile.sorted_children(t),
+           )
+         | _ => false
+         },
+       seg,
+     );
 
-    /* Heuristic 2: relative indent */
-    | [Secondary(w), ...rest]
-        when use_indent_heuristic && Secondary.is_linebreak(w) =>
-      let spaces_after = count_leading_spaces(rest);
-      switch (incomplete_indent) {
-      | Some(inc_ind)
-          when
-            incomplete_before
-            && spaces_after <= inc_ind
-            && (!absorb_empty_lines || line_has_content(rest))
-            && !continuation_line(incomplete_acc, rest) =>
-        let current = List.rev(acc);
-        let current_incomplete = List.rev(incomplete_acc);
-        let remaining = go(rest, [Secondary(w)], [], false, 0, false, None);
-        [(current, current_incomplete), ...remaining];
-      | _ =>
-        go(
-          rest,
-          [Secondary(w), ...acc],
-          incomplete_acc,
-          incomplete_before,
-          0,
-          false,
-          incomplete_indent,
-        )
-      };
-
-    | [Secondary(s) as p, ...rest] when Secondary.is_space(s) && !past_indent =>
-      go(
-        rest,
-        [p, ...acc],
-        incomplete_acc,
-        incomplete_before,
-        line_indent + 1,
-        false,
-        incomplete_indent,
-      )
-
-    | [Secondary(_) as p, ...rest] =>
-      go(
-        rest,
-        [p, ...acc],
-        incomplete_acc,
-        incomplete_before,
-        line_indent,
-        past_indent,
-        incomplete_indent,
-      )
-
-    | [Piece.Tile(t) as p, ...rest] when !Tile.is_complete(t) =>
-      let new_incomplete_indent =
-        switch (incomplete_indent) {
-        | None => Some(line_indent)
-        | some => some
-        };
-      go(
-        rest,
-        [p, ...acc],
-        [t, ...incomplete_acc],
-        true,
-        line_indent,
-        true,
-        new_incomplete_indent,
+/* each open slot that ends its member ended with the member's `;` (the
+   regrout gives the slot its hole); the `;`s' ids */
+let seal_open_slots =
+    (~sort: Sort.t, ~follows: option(follows), seg: Segment.t)
+    : (Segment.t, list(Id.t)) =>
+  switch (at_members(sort) ? open_slots(~follows, seg) : []) {
+  | [] => (seg, [])
+  | slots =>
+    let arr = Array.of_list(seg);
+    let semis =
+      List.map(
+        j =>
+          (j, member_semi(~sort, Piece.id(arr[fst(member_at(arr, j))]))),
+        slots,
       );
-
-    | [p, ...rest] =>
-      go(
-        rest,
-        [p, ...acc],
-        incomplete_acc,
-        incomplete_before,
-        line_indent,
-        true,
-        incomplete_indent,
-      )
-    };
+    (
+      List.concat(
+        List.mapi(
+          (j, p) =>
+            switch (List.assoc_opt(j, semis)) {
+            | Some(semi) => [p, semi]
+            | None => [p]
+            },
+          Array.to_list(arr),
+        ),
+      ),
+      List.map(((_, semi)) => Piece.id(semi), semis),
+    );
   };
-  go(seg, [], [], false, 0, false, None);
-};
 
 /* === Orphaned rule chains ===
  * Complete `| p => e` rule tiles appearing outside any case (Exp/Any
@@ -1868,15 +1909,30 @@ let rec complete_segment =
         (
           ~use_indent_heuristic=true,
           ~only_tile: option(Id.t)=None,
+          ~follows: option(follows)=None,
+          ~line: option(int)=None,
           sort: Sort.t,
           seg: Segment.t,
         )
         : completion_result => {
   let n_incomplete_in = List.length(Segment.incomplete_tiles_deep(seg));
-  let partitioned = partition_segment(~use_indent_heuristic, seg);
+  /* a member level started mid-line counts its first line at [line] (past
+     a `{`, the member level); any other level by its own indentation */
+  let line = at_members(sort) ? line : None;
+  let partitioned = partition_segment(~use_indent_heuristic, ~line, seg);
+  let ends = member_ends(~line, ~sort, ~follows, seg, partitioned);
+  /* [follows]: [seg] is a prefix of its level, cut where a member ends;
+     the regrout meets what follows as it is */
+  let bounds = (
+    Nib.Shape.concave(),
+    switch (Option.bind(follows, f => Piece.shapes(f.head))) {
+    | Some((l, _)) => l
+    | None => Nib.Shape.concave()
+    },
+  );
   /* boundary sanitation only matters once a split actually happened */
   let partitioned =
-    List.length(partitioned) <= 1
+    List.length(partitioned) <= 1 && follows == None
       ? partitioned
       : partitioned
         |> List.map(((subseg, inc)) => (drop_dangling_grout(subseg), inc));
@@ -1911,27 +1967,39 @@ let rec complete_segment =
        });
 
   let all_incomplete = List.concat_map(((_, inc, _)) => inc, partitioned);
+  /* fully synthetic tiles: case/end wraps, member `;`s */
+  let synthetic = id => {
+    tile_id: id,
+    original_shards: [],
+    prefixes: [],
+  };
   let wrap_records =
     partitioned
     |> List.concat_map(((_, _, wraps)) =>
-         wraps
-         |> List.map(((_, _, id)) =>
-              {
-                tile_id: id,
-                original_shards: [],
-                prefixes: [],
-              }
-            )
+         wraps |> List.map(((_, _, id)) => synthetic(id))
        );
 
+  /* once its tiles are complete, a member whose open slot meets a member
+     head gets its `;` (materialize_one leaves other members as typed) */
+  let seal_slots = (seg: Segment.t): (Segment.t, list(shard_record)) =>
+    switch (
+      only_tile == None ? seal_open_slots(~sort, ~follows, seg) : (seg, [])
+    ) {
+    | (_, []) => (seg, [])
+    | (sealed, semis) => (
+        Segment.regrout(bounds, sealed),
+        List.map(synthetic, semis),
+      )
+    };
   if (List.length(all_incomplete) == 0 && wrap_records == []) {
+    /* No structural changes — but still regrout: edits can leave
+       stray grout (glom ( onto an orphan )) and Segment.skel
+       silently drops pieces on shape-invalid segments */
+    let (completed_seg, shard_records) =
+      seal_slots(Segment.regrout(bounds, seg));
     {
-      /* No structural changes — but still regrout: edits can leave
-         stray grout (glom ( onto an orphan )) and Segment.skel
-         silently drops pieces on shape-invalid segments */
-      completed_seg:
-        Segment.regrout((Nib.Shape.concave(), Nib.Shape.concave()), seg),
-      shard_records: [],
+      completed_seg,
+      shard_records,
       insertions: [],
     };
   } else {
@@ -2007,7 +2075,8 @@ let rec complete_segment =
       partitioned
       |> List.mapi((pi, (subseg, incomplete, wraps)) => {
            let content_follows =
-             List.filteri((qi, _) => qi > pi, partitioned)
+             follows != None
+             || List.filteri((qi, _) => qi > pi, partitioned)
              |> List.exists(((sg, _, _)) => has_content(sg));
            let chosen =
              switch (only_tile) {
@@ -2099,14 +2168,29 @@ let rec complete_segment =
                subseg,
                chosen,
              );
-           (subseg, trail_ins @ static_ins, opener_abs @ abs, chosen);
+           /* a member ending here gets its `;`, only where this pass
+              placed material (materialize_one leaves other members as
+              typed) */
+           let (subseg, semis) =
+             switch (chosen, List.nth(ends, pi)) {
+             | ([_, ..._], (Some(next), Some(member))) =>
+               switch (seal(~sort, ~member, ~next, subseg)) {
+               | Some(sealed) => (
+                   sealed,
+                   [Piece.id(member_semi(~sort, member))],
+                 )
+               | None => (subseg, [])
+               }
+             | _ => (subseg, [])
+             };
+           (subseg, trail_ins @ static_ins, opener_abs @ abs, chosen, semis);
          });
     let insertions =
-      List.concat_map(((_, ins, _, _)) => ins, completed_parts);
+      List.concat_map(((_, ins, _, _, _)) => ins, completed_parts);
     let seg_with_shards =
-      List.concat_map(((sg, _, _, _)) => sg, completed_parts);
+      List.concat_map(((sg, _, _, _, _)) => sg, completed_parts);
     let chosen_all =
-      List.concat_map(((_, _, _, ch)) => ch, completed_parts);
+      List.concat_map(((_, _, _, ch, _)) => ch, completed_parts);
     let shard_records =
       List.map(
         (t: Tile.t) =>
@@ -2117,11 +2201,15 @@ let rec complete_segment =
           },
         chosen_all,
       )
-      @ wrap_records;
+      @ wrap_records
+      @ List.map(
+          synthetic,
+          List.concat_map(((_, _, _, _, semis)) => semis, completed_parts),
+        );
     /* Prefix absorptions: trailing witnesses from placement, middle
        witnesses re-derived from the (pure, deterministic) split plan */
     let absorbed =
-      List.concat_map(((_, _, ab, _)) => ab, completed_parts)
+      List.concat_map(((_, _, ab, _, _)) => ab, completed_parts)
       @ List.filter_map(
           (t: Tile.t) =>
             switch (middle_split_plan(t)) {
@@ -2144,9 +2232,7 @@ let rec complete_segment =
          );
 
     /* Regrout to make the segment well-formed for reassemble */
-    let regrouted =
-      seg_with_shards
-      |> Segment.regrout((Nib.Shape.concave(), Nib.Shape.concave()), _);
+    let regrouted = seg_with_shards |> Segment.regrout(bounds, _);
 
     /* Reassemble to combine same-ID shards; remold to get correct
        molds. Must recurse: an opener splice can capture
@@ -2166,13 +2252,40 @@ let rec complete_segment =
            }
          );
     let reassembled = deep_reassemble(regrouted) |> Segment.remold(_, sort);
+    /* a spliced opener absorbs pieces molded at the level's sort (a
+       deleted `let` leaves its pattern read as an expression): its tile's
+       children are remolded at their slots, as typing the opener does */
+    let opened =
+      chosen_all
+      |> List.filter((t: Tile.t) => Tile.l_shard(t) > 0)
+      |> List.map((t: Tile.t) => t.id);
+    let reassembled =
+      opened == []
+        ? reassembled
+        : List.map(
+            (p: Piece.t) =>
+              switch (p) {
+              | Tile(t) when List.mem(t.id, opened) && Tile.is_complete(t) =>
+                let in_ = Tile.mold(t).in_;
+                Piece.Tile({
+                  ...t,
+                  children:
+                    List.mapi(
+                      (i, kid) =>
+                        switch (List.nth_opt(in_, i)) {
+                        | Some(s) => Segment.remold(kid, s)
+                        | None => kid
+                        },
+                      t.children,
+                    ),
+                });
+              | p => p
+              },
+            reassembled,
+          );
 
     /* Regrout again: remold may have changed shapes */
-    let completed_seg =
-      Segment.regrout(
-        (Nib.Shape.concave(), Nib.Shape.concave()),
-        reassembled,
-      );
+    let completed_seg = Segment.regrout(bounds, reassembled);
 
     let insertions =
       verify_holes(~input=seg, ~completed=completed_seg, insertions);
@@ -2183,7 +2296,13 @@ let rec complete_segment =
         && remaining != []
         && List.length(remaining) < n_incomplete_in) {
       let rest =
-        complete_segment_deep(~use_indent_heuristic, ~sort, completed_seg);
+        complete_segment_deep(
+          ~use_indent_heuristic,
+          ~follows,
+          ~line,
+          ~sort,
+          completed_seg,
+        );
       /* later-pass anchors reference intermediate material the buffer
          can't measure: project onto the nearest measurable piece
          (post-order backward for Right, pre-order forward for Left) */
@@ -2293,9 +2412,10 @@ let rec complete_segment =
         insertions: coalesce_insertions(insertions @ rest_insertions),
       };
     } else {
+      let (completed_seg, semis) = seal_slots(completed_seg);
       {
         completed_seg,
-        shard_records,
+        shard_records: shard_records @ semis,
         insertions,
       };
     };
@@ -2303,17 +2423,23 @@ let rec complete_segment =
 }
 
 /* Complete a segment recursively (descends into tile children).
- * Collects insertions from all levels for visualization. */
+ * Collects insertions from all levels for visualization. [line]: the
+ * level of [seg]'s first line, when it starts mid-line */
 and complete_segment_deep =
     (
       ~use_indent_heuristic=true,
       ~only_tile: option(Id.t)=None,
+      ~follows: option(follows)=None,
+      ~line: option(int)=None,
       ~sort,
       seg: Segment.t,
     )
     : completion_result => {
+  /* each child on the line of its tile, at [level]; a member list at its
+     module's member level */
   let complete_tile_children =
-      (t: Tile.t): (list(Segment.t), list(insertion), list(shard_record)) => {
+      (~level, t: Tile.t)
+      : (list(Segment.t), list(insertion), list(shard_record)) =>
     Tile.sorted_children(t)
     |> List.fold_left(
          ((segs_acc, ins_acc, rec_acc), (child_sort, child)) => {
@@ -2321,6 +2447,11 @@ and complete_segment_deep =
              complete_segment_deep(
                ~use_indent_heuristic,
                ~only_tile,
+               ~line=
+                 Some(
+                   at_members(child_sort)
+                     ? MemberLines.member_level(level) : level,
+                 ),
                ~sort=child_sort,
                child,
              );
@@ -2332,15 +2463,20 @@ and complete_segment_deep =
          },
          ([], [], []),
        );
-  };
 
-  let (seg_with_completed_children, child_insertions, child_records) =
+  /* the level of the line so far, and whether its indentation still runs */
+  let (seg_with_completed_children, child_insertions, child_records, _) =
     List.fold_left(
-      ((seg_acc, ins_acc, rec_acc), piece) =>
+      ((seg_acc, ins_acc, rec_acc, (level, run)), piece) => {
+        let at =
+          Piece.is_linebreak(piece)
+            ? (0, true)
+            : run && Piece.is_space(piece)
+                ? (level + 1, true) : (level, false);
         switch (piece) {
         | Piece.Tile(t) =>
           let (completed_children, tile_insertions, tile_records) =
-            complete_tile_children(t);
+            complete_tile_children(~level, t);
           let new_tile =
             Piece.Tile({
               ...t,
@@ -2350,10 +2486,20 @@ and complete_segment_deep =
             seg_acc @ [new_tile],
             ins_acc @ tile_insertions,
             rec_acc @ tile_records,
+            at,
           );
-        | p => (seg_acc @ [p], ins_acc, rec_acc)
+        | p => (seg_acc @ [p], ins_acc, rec_acc, at)
+        };
+      },
+      (
+        [],
+        [],
+        [],
+        switch (line) {
+        | Some(l) => (l, false)
+        | None => (0, true)
         },
-      ([], [], []),
+      ),
       seg,
     );
 
@@ -2361,6 +2507,8 @@ and complete_segment_deep =
     complete_segment(
       ~use_indent_heuristic,
       ~only_tile,
+      ~follows,
+      ~line,
       sort,
       seg_with_completed_children,
     );
@@ -2634,20 +2782,422 @@ let for_make_term = (seg: Segment.t): (Segment.t, list(shard_record)) => {
   (result.completed_seg, result.shard_records);
 };
 
-let for_editor = (seg: Segment.t): completion_result => {
-  let result = complete_segment_deep(~sort=Sort.Exp, seg);
+/* per-item completion over Segment.top_items. a complete item comes back
+ * physically unchanged, so pointer-keyed layers downstream (MakeTerm.Incr,
+ * Measured.Incr) stay local to the edit. an item whose completion runs
+ * off its end may depend on what follows, so it is widened by its
+ * successor and redone; one after a tile left open on the right is
+ * re-molded (see [remolded]). parity with complete_segment_deep is
+ * test-gated */
+
+/* each item's last completion, and what followed it (a member part's
+   completion reads it). keyed by sort since items are read at Exp for
+   decorations and at the root for semantics; shared by all editors */
+let item_cache:
+  Swept.t(
+    (Sort.t, Id.t),
+    (Segment.t, option(follows), option(int), completion_result),
+  ) =
+  Swept.mk();
+let items_completed: ref(int) = ref(0); /* observability for tests */
+let items_by_member: ref(int) = ref(0); /* observability for tests */
+let items_missed: ref(int) = ref(0); /* observability for tests */
+
+/* completing an item alone grouts an edge whose operand a neighbour
+   supplies (the body after a trailing `in`). that grout is cut debris
+   (the incremental parse adds its own hole), so drop edge grout the
+   item didn't already have */
+let strip_edge_grout =
+    (
+      ~leading: bool,
+      ~trailing: bool,
+      ~original: Segment.t,
+      completed: Segment.t,
+    )
+    : Segment.t => {
+  let had = p => List.exists(q => Piece.id(q) == Piece.id(p), original);
+  let rec drop = (sg: Segment.t) =>
+    switch (sg) {
+    | [Piece.Grout(_) as p, ...tl] when !had(p) => drop(tl)
+    | _ => sg
+    };
+  let completed = leading ? drop(completed) : completed;
+  trailing ? completed |> List.rev |> drop |> List.rev : completed;
+};
+
+/* a unit cut where a member ended opens with the grout the regrout put
+   between that member and the next for their missing `;`, which the
+   member's `;` now is: drop it */
+let drop_cut_grout = (seg: Segment.t): Segment.t => {
+  let rec go = (pre, sg: Segment.t) =>
+    switch (sg) {
+    | [Piece.Secondary(_) as p, ...tl] => go([p, ...pre], tl)
+    | [Piece.Grout({shape: Concave, _}), ...tl] => List.rev_append(pre, tl)
+    | _ => seg
+    };
+  go([], seg);
+};
+
+/* did completion append past [item]'s end (a new trailing shard or piece)? */
+let ran_off_end = (item: Segment.t, completed: Segment.t): bool =>
+  switch (ListUtil.last_opt(item), ListUtil.last_opt(completed)) {
+  | (Some(Piece.Tile(t0)), Some(Piece.Tile(t1))) when t0.id == t1.id =>
+    Tile.r_shard(t1) > Tile.r_shard(t0)
+  | (Some(p0), Some(p1)) => Piece.id(p0) != Piece.id(p1)
+  | _ => false
+  };
+
+let items_widened: ref(int) = ref(0); /* observability for tests */
+
+/* an open tile molds everything after it into its slot (`let foo` reads
+   the rest as patterns), and whole completion re-molds the lot at the
+   root sort. [item] so re-molded and regrouted, when that changes it */
+let remolded = (~sort: Sort.t, item: Segment.t): option(Segment.t) => {
+  let r = Segment.remold(item, sort);
+  /* remold keeps an unchanged tile's record */
+  let same = (p: Piece.t, q: Piece.t) =>
+    switch (p, q) {
+    | (Tile(t), Tile(u)) => t === u
+    | _ => true
+    };
+  List.length(r) == List.length(item) && List.for_all2(same, item, r)
+    ? None
+    : Some(Segment.regrout((Nib.Shape.concave(), Nib.Shape.concave()), r));
+};
+
+/* the editor rewraps the secondaries an open tile reaches on every key
+   (a regrout): an item whose tiles are the ones a memo entry was made for,
+   and whose secondaries equal its, takes the entry */
+let same_pieces = (a: Segment.t, b: Segment.t): bool =>
+  Segment.ptr_eq(a, b)
+  || List.length(a) == List.length(b)
+  && List.for_all2(
+       (p: Piece.t, q: Piece.t) =>
+         p === q || Piece.is_secondary(p) && Piece.is_secondary(q) && p == q,
+       a,
+       b,
+     );
+
+/* [remolded], memoized like items (only items after an open tile ask).
+   A miss keeps the last reading's pieces where the new ones equal them,
+   so the layers keyed on pieces (MakeTerm's member memo) still hit */
+let remold_cache: Swept.t((Sort.t, Id.t), (Segment.t, option(Segment.t))) =
+  Swept.mk();
+let remolded_item = (~sort: Sort.t, item: Segment.t): option(Segment.t) =>
+  switch (item) {
+  | [] => None
+  | [p, ..._] =>
+    let key = (sort, Piece.id(p));
+    switch (Swept.find_opt(remold_cache, key)) {
+    | Some((ps, r)) when same_pieces(ps, item) => r
+    | last =>
+      let r =
+        switch (last, remolded(~sort, item)) {
+        | (Some((_, Some(old))), Some(neu)) =>
+          Some(fst(Segment.restore_identity_dirty(old, neu)))
+        | (_, r) => r
+        };
+      Swept.replace(remold_cache, key, (item, r));
+      r;
+    };
+  };
+
+let leaves_open = (block: Segment.t): bool =>
+  List.exists(
+    fun
+    | Piece.Tile(t) => !Tile.has_end(Direction.Right, t)
+    | _ => false,
+    block,
+  );
+
+/* the cache entry at [item] may be a widened block: when the next units
+   match it piece for piece, take the block, so a stable one hits the memo */
+let cached_block =
+    (~sort: Sort.t, (item, follows): unit_, rest: list(unit_))
+    : (unit_, list(unit_)) =>
+  switch (item) {
+  | [] => ((item, follows), rest)
+  | [p, ..._] =>
+    switch (Swept.find_opt(item_cache, (sort, Piece.id(p)))) {
+    | Some((pieces, _, _, _)) when List.length(pieces) > List.length(item) =>
+      let n = List.length(pieces);
+      let rec take = (acc, len, f, units: list(unit_)) =>
+        if (len == n) {
+          Some((acc, f, units));
+        } else {
+          switch (units) {
+          | [(it, f'), ...tl] when len < n =>
+            take(acc @ it, len + List.length(it), f', tl)
+          | _ => None
+          };
+        };
+      switch (take(item, List.length(item), follows, rest)) {
+      | Some((block, f, rest')) when Segment.ptr_eq(pieces, block) => (
+          (block, f),
+          rest',
+        )
+      | _ => ((item, follows), rest)
+      };
+    | _ => ((item, follows), rest)
+    }
+  };
+
+/* a `}` that lost its `{`: the members it held spilled into the level,
+   whose units were cut at their `;`s, so the slot holding the literal is
+   in a unit before it */
+let spilled_closer = (seg: Segment.t): bool =>
+  List.exists(
+    fun
+    | Piece.Tile(t) =>
+      !Tile.has_end(Left, t)
+      && at_members(
+           snd(Mold.nibs(~index=Tile.l_shard(t) - 1, Tile.mold(t))).sort,
+         )
+    | _ => false,
+    seg,
+  );
+
+/* a member part's completion ends its member: its last content is a `;` */
+let closes_member = (seg: Segment.t): bool => {
+  let rec go = (rev: Segment.t) =>
+    switch (rev) {
+    | [] => false
+    | [Piece.Secondary(_) | Grout(_), ...rev] => go(rev)
+    | [p, ..._] => Piece.is_semi(p)
+    };
+  go(List.rev(seg));
+};
+
+let rec complete_item_uncached =
+        (~line=None, ~sort, ~follows=None, item: Segment.t): completion_result =>
+  switch (Segment.incomplete_tiles_deep(item)) {
+  | [] when !has_open_slot(~sort, ~follows, item) => {
+      completed_seg: item,
+      shard_records: [],
+      insertions: [],
+    }
+  | incomplete =>
+    switch (
+      follows == None
+        ? complete_members(~line, ~sort, incomplete, item) : None
+    ) {
+    | Some(r) => r
+    | None =>
+      incr(items_completed);
+      let result = complete_segment_deep(~line, ~sort, ~follows, item);
+      {
+        ...result,
+        insertions:
+          derive_insertions(
+            ~original=item,
+            ~records=result.shard_records,
+            result.completed_seg,
+          ),
+      };
+    }
+  }
+
+/* [line]: the level of [item]'s first line, when it starts mid-line */
+and complete_item =
+    (~line=None, ~sort, ~follows=None, item: Segment.t): completion_result =>
+  switch (item) {
+  | [] => complete_item_uncached(~line, ~sort, ~follows, item)
+  | [p, ..._] =>
+    let key = (sort, Piece.id(p));
+    switch (Swept.find_opt(item_cache, key)) {
+    | Some((ps, f, l, r))
+        when
+          Segment.ptr_eq(ps, item) && same_follows(f, follows) && l == line => r
+    /* an untouched item comes back as itself, not as the entry's pieces */
+    | Some((ps, f, l, r))
+        when same_pieces(ps, item) && same_follows(f, follows) && l == line =>
+      r.completed_seg === ps
+        ? {
+          ...r,
+          completed_seg: item,
+        }
+        : r
+    | _ =>
+      incr(items_missed);
+      let r = complete_item_uncached(~line, ~sort, ~follows, item);
+      Swept.replace(item_cache, key, (item, follows, line, r));
+      r;
+    };
+  }
+
+/* a module literal item whose members alone are incomplete: completed
+   member by member, as items are, so complete members keep their pieces,
+   and the item rebuilt around them; likewise a member that is a let chain,
+   item by item. None (an incomplete shell, a missing `}`): complete it
+   whole */
+and complete_members =
+    (~line, ~sort, incomplete: list(Tile.t), item: Segment.t)
+    : option(completion_result) => {
+  let holds_all = (parts: list(Segment.t)) =>
+    List.length(List.concat_map(Segment.incomplete_tiles_deep, parts))
+    == List.length(incomplete);
+  let compose = (~sort, ~line, parts, put) => {
+    incr(items_by_member);
+    let results = complete_slices(~line, ~sort, parts);
+    Some({
+      completed_seg: put(List.concat_map(r => r.completed_seg, results)),
+      shard_records: List.concat_map(r => r.shard_records, results),
+      insertions: List.concat_map(r => r.insertions, results),
+    });
+  };
+  /* a `;` in the chain: an open tile reached past the member's end (the
+     editor molds a `;` under it Exp-sorted), so the chain is the
+     incompleteness's extent, not the member's */
+  let mod_semi = List.exists(Piece.is_semi);
+  /* an open slot at the item's own member level is not its parts' */
+  let own_open = at_members(sort) && open_slots(item) != [];
+  switch (own_open ? None : ItemSpans.module_item(~root=sort, ~line, item)) {
+  | Some((members, put, line)) =>
+    holds_all(members) ? compose(~sort=Sort.Mod, ~line, members, put) : None
+  | None =>
+    switch (
+      sort == Sort.Mod && !own_open ? ItemSpans.chain_item(~line, item) : None
+    ) {
+    | Some((items, put, line))
+        when holds_all(items) && !List.exists(mod_semi, items) =>
+      compose(~sort=Sort.Exp, ~line, items, put)
+    | _ => None
+    }
+  };
+}
+
+/* a level's slices completed one by one. Edge grout is cut debris only at
+   a cut: the level's own ends keep theirs (a missing body at the end of
+   the program is real). [opened]: an earlier block left a tile open on
+   the right. [line]: the level of the level's first line, when it starts
+   mid-line */
+and complete_slices =
+    (~line=None, ~sort, items: list(Segment.t)): list(completion_result) => {
+  let units =
+    at_members(sort)
+      ? List.fold_left(
+          ((acc, line), item) =>
+            (
+              List.rev_append(member_parts(~line, ~sort, item), acc),
+              MemberLines.line_after(~line, item),
+            ),
+          ([], line),
+          items,
+        )
+        |> fst
+        |> List.rev
+      : List.map(item => (item, None), items);
+  /* a spilled closer completes with the level up to it */
+  let units =
+    List.fold_left(
+      (acc, (seg, f) as u) =>
+        spilled_closer(seg)
+          ? [(List.concat_map(fst, List.rev(acc)) @ seg, f)] : [u, ...acc],
+      [],
+      units,
+    )
+    |> List.rev;
+  /* [cut]: the unit starts where a member part ended its member */
+  let rec go =
+          (
+            ~first: bool,
+            ~opened: bool,
+            ~cut: bool,
+            ~line: option(int),
+            units: list(unit_),
+          )
+          : list(completion_result) =>
+    switch (units) {
+    | [] => []
+    | [unit, ...rest] =>
+      let ((block, follows), rest) = cached_block(~sort, unit, rest);
+      let r = complete_item(~line, ~sort, ~follows, block);
+      /* only a complete item comes back without records */
+      let r =
+        switch (
+          opened && r.shard_records == [] ? remolded_item(~sort, block) : None
+        ) {
+        | Some(completed_seg) => {
+            ...r,
+            completed_seg,
+          }
+        | None => r
+        };
+      let last = rest == [];
+      /* a member part's end is its `;`, not a cut */
+      let completed_seg =
+        strip_edge_grout(
+          ~leading=!first,
+          ~trailing=!last && follows == None,
+          ~original=block,
+          r.completed_seg,
+        );
+      let completed_seg = cut ? drop_cut_grout(completed_seg) : completed_seg;
+      let r = {
+        ...r,
+        completed_seg,
+      };
+      switch (rest) {
+      | [] => [r]
+      | [(next, next_follows), ...more] =>
+        /* verified: an item that ran off its end, or a part that didn't
+           end its member, is redone with what follows */
+        let wrong =
+          switch (follows) {
+          | None => ran_off_end(block, completed_seg)
+          | Some(_) => !closes_member(completed_seg)
+          };
+        if (wrong) {
+          incr(items_widened);
+          go(
+            ~first,
+            ~opened,
+            ~cut,
+            ~line,
+            [(block @ next, next_follows), ...more],
+          );
+        } else {
+          let opened = opened || r.shard_records != [] && leaves_open(block);
+          [
+            r,
+            ...go(
+                 ~first=false,
+                 ~opened,
+                 ~cut=follows != None,
+                 ~line=MemberLines.line_after(~line, block),
+                 rest,
+               ),
+          ];
+        };
+      };
+    };
+  go(~first=true, ~opened=false, ~cut=false, ~line, units);
+};
+
+let complete_items = (~sort, seg: Segment.t): completion_result => {
+  Swept.next_pass(item_cache);
+  Swept.next_pass(remold_cache);
+  let results = complete_slices(~sort, Segment.top_items(seg));
   {
-    ...result,
-    insertions:
-      derive_insertions(
-        ~original=seg,
-        ~records=result.shard_records,
-        result.completed_seg,
-      ),
+    completed_seg: List.concat_map(r => r.completed_seg, results),
+    shard_records: List.concat_map(r => r.shard_records, results),
+    insertions: List.concat_map(r => r.insertions, results),
   };
 };
 
 /* Rendered per frame by every completion-aware decoration (quiver
-   chips, arm curtailing) and by tab dispatch — memoized on the
-   segment so one edit-state completes once. */
-let for_editor = Core.Memo.general(~cache_size_bound=64, for_editor);
+   chips, arm curtailing) and by tab dispatch: per item, so one edit
+   recompletes one item. The last segment's result is kept: a frame's
+   readers, and re-renders that change no segment, ask for the same one.
+   [root]: the editor's, at which semantics reads the program too, so the
+   chips show the `;`s semantics synthesizes */
+let last_for_editor: ref(option((Segment.t, Sort.t, completion_result))) =
+  ref(None);
+let for_editor = (~root: Sort.t, seg: Segment.t): completion_result =>
+  switch (last_for_editor^) {
+  | Some((last, last_root, r)) when last === seg && last_root == root => r
+  | _ =>
+    let r = complete_items(~sort=root, seg);
+    last_for_editor := Some((seg, root, r));
+    r;
+  };

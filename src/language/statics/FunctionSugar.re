@@ -1,3 +1,5 @@
+open Grammar;
+
 /* Function-definition syntactic sugar for `let`-bindings.
 
    Hazel supports a user-facing shorthand for defining functions:
@@ -35,40 +37,42 @@
    that statics on the desugared form populates the info map under the
    user's original ids. */
 
-/* Match `Ap(Var(f), args)`, the inner head of the sugar. The name may carry
-   an ascription, `Ap(Asc(Var(f), ty), args)`. That shape is not surface
-   syntax (a user annotates the name in parentheses); the lowering of a module
-   body annotates a member with the type its signature expects, see
+/* Match an `Ap` spine headed by `Var(f)`. The name may carry an ascription,
+   `Ap(Asc(Var(f), ty), args)`. That shape is not surface syntax (a user
+   annotates the name in parentheses); the lowering of a module body
+   annotates a member with the type its signature expects, see
    `ModuleHelpers.modlet_pat`.
 
    For the nullary form `f()`, the parser tags the empty tuple with
    `Id.nullary_ap_flag` so it can be distinguished from a 0-tuple
    literal. We replace that placeholder with a real deterministic id
-   so the args pattern is well-formed once it becomes a `Fun`
+   so each argument pattern is well-formed once it becomes a `Fun`
    parameter. */
-let match_inner_binder = (pat: Pat.t): option((Pat.t, Pat.t)) =>
-  switch (IdTagged.term_of(pat)) {
-  | Ap(fn, args) =>
-    switch (IdTagged.term_of(fn)) {
+let match_inner_binder = (pat: Pat.t): option((Pat.t, list(Pat.t))) => {
+  let rec go = (pat, args) =>
+    switch (IdTagged.term_of(pat)) {
+    | Ap(fn, arg) =>
+      let arg =
+        Id.is_nullary_ap_flag(IdTagged.ids(arg))
+          ? (Tuple([]): Pat.term)
+            |> IdTagged.fresh_deterministic(Pat.rep_id(fn))
+          : arg;
+      go(fn, [arg, ...args]);
     | Var(_)
     | Asc({term: Var(_), _}, _) =>
-      let args =
-        if (Id.is_nullary_ap_flag(IdTagged.ids(args))) {
-          (Tuple([]): Pat.term)
-          |> IdTagged.fresh_deterministic(Pat.rep_id(fn));
-        } else {
-          args;
-        };
-      Some((fn, args));
+      switch (args) {
+      | [] => None
+      | _ => Some((pat, args))
+      }
     | _ => None
-    }
-  | _ => None
-  };
+    };
+  go(pat, []);
+};
 
-/* Detect whether a let-binder has the form `f(args)` or
+/* Detect whether a let-binder has the form `f(args)…` or
    `f(args): Ret`, returning the function name pattern, argument
    pattern, and optional return-type annotation. */
-let detect = (pat: Pat.t): option((Pat.t, Pat.t, option(Typ.t))) => {
+let detect = (pat: Pat.t): option((Pat.t, list(Pat.t), option(Typ.t))) => {
   let (inner_pat, ret_ty) =
     switch (IdTagged.term_of(pat)) {
     | Asc(inner, ret_ty) => (inner, Some(ret_ty))
@@ -87,15 +91,20 @@ let binder = (pat: Pat.t): Pat.t =>
   };
 
 /* The sugar with its function name transformed by [f], keeping the argument
-   pattern and the return-type annotation; any other pattern is unchanged. */
+   patterns and the return-type annotation; any other pattern is unchanged. */
 let map_binder = (f: Pat.t => Pat.t, pat: Pat.t): Pat.t => {
   let rewrap = (p: Pat.t, term: Pat.term): Pat.t => {
     ...p,
     term,
   };
-  let inner = (p: Pat.t): Pat.t =>
+  /* down the spine to the name: `f(x)(y)` is `Ap(Ap(f, x), y)` */
+  let rec inner = (p: Pat.t): Pat.t =>
     switch (IdTagged.term_of(p)) {
-    | Ap(fn, args) => rewrap(p, Ap(f(fn), args))
+    | Ap(fn, args) =>
+      switch (IdTagged.term_of(fn)) {
+      | Ap(_) => rewrap(p, Ap(inner(fn), args))
+      | _ => rewrap(p, Ap(f(fn), args))
+      }
     | _ => p
     };
   switch (detect(pat), IdTagged.term_of(pat)) {
@@ -104,6 +113,10 @@ let map_binder = (f: Pat.t => Pat.t, pat: Pat.t): Pat.t => {
   | (Some(_), _) => inner(pat)
   };
 };
+
+/* the id of a Fun [rewrite] makes for a parameter list: the outermost one's
+   info is the definition's, parameters bound */
+let fun_id = (args: Pat.t): Id.t => Id.next(Pat.rep_id(args));
 
 /* Build the desugared expression:
 
@@ -119,7 +132,7 @@ let rewrite =
     (
       ~orig_let: Exp.t,
       ~f_name: Pat.t,
-      ~args: Pat.t,
+      ~args: list(Pat.t),
       ~ret_ty: option(Typ.t),
       ~def: Exp.t,
       ~body: Exp.t,
@@ -132,12 +145,37 @@ let rewrite =
       |> IdTagged.fresh_deterministic(Typ.rep_id(ty))
     | None => def
     };
-  let fun_exp: Exp.t =
-    (Fun(args, def_in_fun, None, None): Exp.term)
-    |> IdTagged.fresh_deterministic(Pat.rep_id(args));
+  /* one Fun a parameter list, `f(x)(y)` a Fun returning a Fun; each one's
+     id is [fun_id] of its parameters, so [written] can find them */
+  let fun_exp =
+    List.fold_right(
+      (args, body) =>
+        IdTagged.mk_internal(
+          [fun_id(args)],
+          Fun(args, body, None, None): Exp.term,
+        ),
+      args,
+      def_in_fun,
+    );
   let (_, rewrap) = Exp.unwrap(orig_let);
   rewrap(Let(f_name, fun_exp, body));
 };
+
+/* [rewrite]'s Fun back to the definition as written, whose ids the text
+   holds (through every Fun of a curried one); None for any other
+   expression */
+let rec written = (e: Exp.t): option(Exp.t) =>
+  switch (e.term) {
+  | Fun(args, def, _, _) when Id.equal(Exp.rep_id(e), fun_id(args)) =>
+    switch (written(def), def.term) {
+    | (Some(inner), _) => Some(inner)
+    | (None, Asc(inner, ty))
+        when Id.equal(Exp.rep_id(def), Id.next(Typ.rep_id(ty))) =>
+      Some(inner)
+    | (None, _) => Some(def)
+    }
+  | _ => None
+  };
 
 /* After statics has processed the desugared `Let`, the info map is
    missing entries for ids that only exist in the original binder
@@ -175,11 +213,18 @@ let add_binder_infos =
         }),
         m,
       );
+    /* Every Ap on the spine is part of the binder: `f(x)(y)` has an
+       inner `f(x)` node the caret can rest on. */
+    let rec add_spine = (pat, m) =>
+      switch (IdTagged.term_of(pat)) {
+      | Ap(fn, _) => add_spine(fn, add_for(pat, m))
+      | _ => m
+      };
     switch (IdTagged.term_of(user_pat)) {
     | Asc(inner, _) =>
       let m = add_for(user_pat, m);
-      add_for(inner, m);
-    | _ => add_for(user_pat, m)
+      add_spine(inner, m);
+    | _ => add_spine(user_pat, m)
     };
   };
 };

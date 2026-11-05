@@ -158,32 +158,48 @@ FRESH_PAGE = """<!doctype html>
     document.getElementById('msg').textContent = 'cleared; opening…';
     setTimeout(go, 150);
   }}
-  function nuke() {{
-    const del = indexedDB.deleteDatabase('hazel');
-    del.onsuccess = del.onerror = del.onblocked = finish;
+  function nuke(name, done) {{
+    const del = indexedDB.deleteDatabase(name);
+    del.onsuccess = del.onerror = del.onblocked = done;
   }}
-  try {{
-    const req = indexedDB.open('hazel');
+  function clearOne(name, done) {{
+    let req;
+    try {{ req = indexedDB.open(name); }} catch (e) {{ done(); return; }}
     let created = false;
     req.onupgradeneeded = () => {{ created = true; }};
-    req.onerror = finish;
+    req.onerror = done;
     req.onsuccess = e => {{
       const db = e.target.result;
       if (created || !db.objectStoreNames.contains('kv')) {{
-        db.close(); nuke(); return;
+        db.close(); nuke(name, done); return;
       }}
       let tx;
       try {{ tx = db.transaction('kv', 'readwrite'); }}
-      catch (err) {{ db.close(); nuke(); return; }}
+      catch (err) {{ db.close(); nuke(name, done); return; }}
       const store = tx.objectStore('kv');
       const all = store.getAllKeys();
       all.onsuccess = ev => (ev.target.result || []).forEach(k => {{
         if (!KEEP.includes(k)) store.delete(k);
       }});
-      tx.oncomplete = () => {{ db.close(); finish(); }};
-      tx.onerror = tx.onabort = () => {{ db.close(); finish(); }};
+      tx.oncomplete = () => {{ db.close(); done(); }};
+      tx.onerror = tx.onabort = () => {{ db.close(); done(); }};
     }};
-  }} catch (e) {{ finish(); }}
+  }}
+  // Since dev's c206b02c25 (2026-10-29), a build of any branch but dev saves
+  // to a database of its own, "hazel:<branch>" (HazelDB.db_name_for_branch),
+  // so clearing "hazel" alone left a branch build's slides as they were, and
+  // every deck case inherited the edits of the case before it. Clear each
+  // Hazel database this origin has; without databases(), "hazel" as before.
+  const listed = indexedDB.databases
+    ? indexedDB.databases()
+    : Promise.resolve([{{name: 'hazel'}}]);
+  listed.then(dbs => {{
+    const names = dbs.map(x => x.name || '')
+      .filter(n => n === 'hazel' || n.startsWith('hazel:'));
+    if (!names.length) {{ finish(); return; }}
+    let left = names.length;
+    names.forEach(n => clearOne(n, () => {{ if (--left === 0) finish(); }}));
+  }}, () => clearOne('hazel', finish));
 </script>
 """
 

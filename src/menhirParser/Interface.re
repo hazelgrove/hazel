@@ -9,20 +9,44 @@ let string_of_pos = (pos: position) => {
   "line " ++ l ++ ", column " ++ c;
 };
 
-let parse = (f, s) => {
+/* where a parse stopped: the token it couldn't take, its line and first
+   column (1-based) */
+type stop = {
+  line: int,
+  column: int,
+};
+
+let parse_or_stop = (f, s) => {
   Lexer.reset_delims();
   let lexbuf = Lexing.from_string(s);
-  try(f(Lexer.token, lexbuf)) {
-  | Parser.Error as e =>
-    raise(
-      Failure(
-        "Exception "
-        ++ Printexc.to_string(e)
-        ++ " at: "
-        ++ string_of_pos(lexbuf.lex_curr_p),
-      ),
-    )
+  switch (f(Lexer.token, lexbuf)) {
+  | ast => Ok(ast)
+  | exception Parser.Error =>
+    let start = lexbuf.lex_start_p;
+    Error((
+      {
+        line: start.pos_lnum,
+        column: column_num(start) + 2,
+      },
+      lexbuf.lex_curr_p,
+    ));
   };
 };
 
+let parse = (f, s) =>
+  switch (parse_or_stop(f, s)) {
+  | Ok(ast) => ast
+  | Error((_, curr)) =>
+    raise(
+      Failure(
+        "Exception "
+        ++ Printexc.to_string(Parser.Error)
+        ++ " at: "
+        ++ string_of_pos(curr),
+      ),
+    )
+  };
+
 let parse_program = s => parse(Parser.program, s);
+let program_or_stop = s =>
+  Result.map_error(fst, parse_or_stop(Parser.program, s));

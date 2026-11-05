@@ -7,6 +7,9 @@
    is refolded from the checked chain (`refold_module_elab`), so dynamics
    evaluates modules directly as modules. */
 
+module VarSet = Set.Make(String);
+module VarMap = Map.Make(String);
+
 /* Collect module variable references from type annotations.
    For M.T (= ProdProjection(Var("M"), Label("T"))), free_vars returns ["M"].
    We filter to names that are expression variables (not type aliases). */
@@ -144,51 +147,65 @@ let type_declared_later = (name: Var.t, later: list(Mod.t)): bool =>
    against the module's realization of T). A member whose type mentions a
    signature name the module does not define ([defined]) gets no expectation:
    the missing member is reported on the module, and a free name here would
-   be reported on the signature. Expectations get fresh ids so that checking
-   them never records info under the signature's own type nodes. */
+   be reported on the signature. Statics lowers with ~stable, which copies
+   each expectation under ids of its own (modlet_pat), so checking one never
+   records info under the signature's own type nodes. */
 let ana_value_types =
     (~defined: list(Var.t), ana_items: option(list(Sig.t)))
     : list((Var.t, Typ.t)) =>
   switch (ana_items) {
   | None => []
   | Some(items) =>
-    let members = Sig.members(items);
+    let defined = VarSet.of_list(defined);
+    /* each name's last declaration (Typ.sig_project_value), in the order
+       the names first appear, in one pass per closing: [bare] keeps every
+       local name, to see which ones a member's type mentions */
+    let last_of = (closed: list((Sig.member, Typ.t))) =>
+      List.fold_left(
+        ((names, last), (m: Sig.member, ty)) =>
+          switch (m) {
+          | Val(x, _) => (
+              VarMap.mem(x, last) ? names : [x, ...names],
+              VarMap.add(x, ty, last),
+            )
+          | TypeManifest(_)
+          | TypeAbstract(_) => (names, last)
+          },
+        ([], VarMap.empty),
+        closed,
+      );
+    let (names, last) =
+      last_of(
+        Typ.sig_members_closed(
+          ~keep_local=name => VarSet.mem(name, defined),
+          items,
+        ),
+      );
+    let (_, bare) =
+      last_of(Typ.sig_members_closed(~keep_local=_ => true, items));
     /* Names a member's type can only mean through the module's own
        definitions: abstract type members and value members (paths). A
        manifest type member has a definition to substitute instead. */
     let opaque_locals =
-      List.filter_map(
-        (m: Sig.member) =>
+      List.fold_left(
+        (acc, m: Sig.member) =>
           switch (m) {
           | TypeAbstract(x)
-          | Val(x, _) => Some(x)
-          | TypeManifest(_) => None
+          | Val(x, _) => VarSet.add(x, acc)
+          | TypeManifest(_) => acc
           },
-        members,
+        VarSet.empty,
+        Sig.members(items),
       );
     let mentions_undefined = (ty: Typ.t) =>
       Typ.free_vars(ty)
       |> List.exists(v =>
-           List.mem(v, opaque_locals) && !List.mem(v, defined)
+           VarSet.mem(v, opaque_locals) && !VarSet.mem(v, defined)
          );
-    Sig.value_names(members)
-    |> List.filter_map(name =>
-         switch (Typ.sig_project_value(~keep_local=_ => true, items, name)) {
-         | Some(bare) when mentions_undefined(bare) => None
-         | Some(_) =>
-           Typ.sig_project_value(
-             ~keep_local=n => List.mem(n, defined),
-             items,
-             name,
-           )
-           |> Option.map(ty =>
-                (
-                  name,
-                  Grammar.map_typ_annotation(_ => IdTagged.IdTag.fresh(), ty),
-                )
-              )
-         | None => None
-         }
+    List.rev(names)
+    |> List.filter_map(x =>
+         mentions_undefined(VarMap.find(x, bare))
+           ? None : Some((x, VarMap.find(x, last)))
        );
   };
 
@@ -206,15 +223,72 @@ let rec path_of_exp = (ctx: Ctx.t, e: Exp.t): option(Typ.t) =>
   | _ => None
   };
 
+/* [ty] again, with ids of its own: each derived from the old one by [salt]
+   (Id.derive), so the copy is the same on every analysis. An expected type
+   is the signature's own term, ids and all, and statics records infos for
+   an ascription's type under its ids: without a copy, every module checked
+   against one signature (every livelit definition, against `Livelit`)
+   records the same keys, so a key is in two definitions' maps, and
+   EvalSplit, whose count of keys then comes out over, sends the program
+   whole (^ticket(666)). The ids on a sum's variants, which the generic
+   traversal does not reach, are derived too. */
+let rekey_typ = (~salt: string, ty: Typ.t): Typ.t => {
+  let derive = ids => List.map(Id.derive(~salt), ids);
+  let f:
+    'a.
+    (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
+   =
+    (continue, x) =>
+      continue({
+        ...x,
+        annotation: {
+          ...x.annotation,
+          ids: derive(x.annotation.ids),
+        },
+      });
+  let f_typ = (continue, t: Typ.t) =>
+    switch (t.term) {
+    | Sum(variants) =>
+      f(
+        continue,
+        {
+          ...t,
+          term: (
+            Sum(
+              List.map(
+                fun
+                | ConstructorMap.Variant(c, ann, p) =>
+                  ConstructorMap.Variant(
+                    c,
+                    {
+                      ...ann,
+                      ids: derive(ann.ids),
+                    },
+                    p,
+                  )
+                | ConstructorMap.BadEntry(_) as v => v,
+                variants,
+              ),
+            ): Typ.term
+          ),
+        },
+      )
+    | _ => f(continue, t)
+    };
+  Typ.map_term(~f_exp=f, ~f_pat=f, ~f_typ, ~f_tpat=f, ~f_rul=f, ty);
+};
+
 /* Annotate each bare variable binder in a pattern with the type its
    signature expects, so a mismatch is reported on the definition (or on the
    component of a destructured definition) rather than on the module:
    `(a, b)` becomes `(a : Int, b : Int)`. A binder the user annotated keeps
    its annotation. The function shorthand `let f(x) = ...` is annotated at
    its name: the `Let` case of statics then desugars it as it does any other
-   shorthand. */
-let rec modlet_pat = (ana_labels: list((Var.t, Typ.t)), pat: Pat.t): Pat.t => {
-  let go = modlet_pat(ana_labels);
+   shorthand. The expected type is a copy with ids of its own
+   (rekey_typ). */
+let rec modlet_pat =
+        (~stable=false, ana_labels: list((Var.t, Typ.t)), pat: Pat.t): Pat.t => {
+  let go = modlet_pat(~stable, ana_labels);
   let rewrap = (term: Pat.term): Pat.t => {
     ...pat,
     term,
@@ -225,7 +299,23 @@ let rec modlet_pat = (ana_labels: list((Var.t, Typ.t)), pat: Pat.t): Pat.t => {
     switch (pat.term) {
     | Var(name) =>
       switch (List.assoc_opt(name, ana_labels)) {
-      | Some(expected_type) => Pat.fresh(Asc(pat, expected_type))
+      | Some(expected_type) =>
+        let asc =
+          Pat.fresh(
+            Asc(
+              pat,
+              rekey_typ(
+                ~salt="modlet-asc:" ++ Id.to_string(Pat.rep_id(pat)),
+                expected_type,
+              ),
+            ),
+          );
+        stable
+          ? IdTagged.fast_copy(
+              Id.mk_str("modlet-asc:" ++ Id.to_string(Pat.rep_id(pat))),
+              asc,
+            )
+          : asc;
       | None => pat
       }
     | Tuple(ps) => rewrap(Tuple(List.map(go, ps)))
@@ -249,74 +339,207 @@ let rec modlet_pat = (ana_labels: list((Var.t, Typ.t)), pat: Pat.t): Pat.t => {
   };
 };
 
+/* [x], re-id'd from [stable] and [tag] when given: lowerings DefStatics
+   compares across runs (by id) mint no fresh ids */
+let stable_id =
+    (stable: option(Id.t), tag: string, x: IdTagged.t('a)): IdTagged.t('a) =>
+  switch (stable) {
+  | Some(id) => IdTagged.fast_copy(Id.mk_str(tag ++ Id.to_string(id)), x)
+  | None => x
+  };
+
+/* an item's expectations with copies of the signature's types, which get
+   ids of their own (the signature's nodes are in the map already): fresh,
+   or when [stable] derived from the item's [rep], the node's and its count
+   so far (a type substituted for a signature's type member can repeat a
+   node) */
+let copy_labels =
+    (~stable: bool, rep: Id.t, labels: list((Var.t, Typ.t)))
+    : list((Var.t, Typ.t)) => {
+  let copy = retag =>
+    List.map(
+      ((name, ty)) => (name, Grammar.map_typ_annotation(retag, ty)),
+      labels,
+    );
+  switch (labels) {
+  | [] => []
+  | _ when !stable => copy(_ => IdTagged.IdTag.fresh())
+  | _ =>
+    let seen = Hashtbl.create(8);
+    let derive = id => {
+      let k = Option.value(~default=0, Hashtbl.find_opt(seen, id));
+      Hashtbl.replace(seen, id, k + 1);
+      Id.mk_str(
+        "ana:"
+        ++ Id.to_string(rep)
+        ++ Id.to_string(id)
+        ++ (k == 0 ? "" : ":" ++ string_of_int(k)),
+      );
+    };
+    copy((tag: IdTagged.IdTag.t) =>
+      IdTagged.IdTag.mk_internal(List.map(derive, tag.ids))
+    );
+  };
+};
+
 let wrap_item =
-    (~ana_labels: list((Var.t, Typ.t)), item: Mod.t, body: Exp.t): Exp.t =>
+    (
+      ~ana_labels: list((Var.t, Typ.t)),
+      ~stable=false,
+      item: Mod.t,
+      body: Exp.t,
+    )
+    : Exp.t => {
+  let rep = Mod.rep_id(item);
+  let from = stable ? Some(rep) : None;
+  let ana_labels = copy_labels(~stable, rep, ana_labels);
+  /* a non-binding item as `let _ = e in body` */
+  let wild = (tag, e) =>
+    stable_id(
+      from,
+      tag ++ "let:",
+      Exp.fresh(
+        Let(stable_id(from, tag ++ "pat:", Pat.fresh(Wild)), e, body),
+      ),
+    );
   switch (item.term) {
   | ModLet(pat, def) =>
     IdTagged.fast_copy(
-      Mod.rep_id(item),
-      Exp.fresh(Let(modlet_pat(ana_labels, pat), def, body)),
+      rep,
+      Exp.fresh(Let(modlet_pat(~stable, ana_labels, pat), def, body)),
     )
   | ModType(tpat, typ) =>
-    IdTagged.fast_copy(
-      Mod.rep_id(item),
-      Exp.fresh(TyAlias(tpat, typ, body)),
-    )
-  | ModExp(e) => Exp.fresh(Let(Pat.fresh(Wild), e, body))
+    IdTagged.fast_copy(rep, Exp.fresh(TyAlias(tpat, typ, body)))
+  | ModExp(e) => wild("modexp-", e)
   | ModuleMod(mp, def) =>
     /* A sub-module gets its declared signature as expectation too, so a
        member it lacks or defines wrongly is reported inside it. */
     IdTagged.fast_copy(
-      Mod.rep_id(item),
-      Exp.fresh(Let(modlet_pat(ana_labels, mpat_to_pat(mp)), def, body)),
+      rep,
+      Exp.fresh(
+        Let(modlet_pat(~stable, ana_labels, mpat_to_pat(mp)), def, body),
+      ),
     )
   | ModVal(x, def) =>
     IdTagged.fast_copy(
-      Mod.rep_id(item),
-      Exp.fresh(Let(Pat.fresh(Var(x)), def, body)),
+      rep,
+      Exp.fresh(
+        Let(stable_id(from, "modval-pat:", Pat.fresh(Var(x))), def, body),
+      ),
     )
   | EmptyHole =>
-    let e: Exp.t =
-      IdTagged.fast_copy(Mod.rep_id(item), Exp.fresh(EmptyHole));
-    Exp.fresh(Let(Pat.fresh(Wild), e, body));
+    wild("modhole-", IdTagged.fast_copy(rep, Exp.fresh(EmptyHole)))
   | Invalid(s) =>
-    let e: Exp.t =
-      IdTagged.fast_copy(Mod.rep_id(item), Exp.fresh(Invalid(s)));
-    Exp.fresh(Let(Pat.fresh(Wild), e, body));
+    wild("modinv-", IdTagged.fast_copy(rep, Exp.fresh(Invalid(s))))
   | MultiHole(es) =>
-    let e: Exp.t =
-      IdTagged.fast_copy(Mod.rep_id(item), Exp.fresh(MultiHole(es)));
-    Exp.fresh(Let(Pat.fresh(Wild), e, body));
+    wild("modmh-", IdTagged.fast_copy(rep, Exp.fresh(MultiHole(es))))
+  };
+};
+
+let rec exported_names = (items: list(Mod.t)): list(Var.t) =>
+  switch (items) {
+  | [] => []
+  | [item, ...rest] =>
+    List.map(fst, item_exports(item, ~later=rest)) @ exported_names(rest)
+  };
+
+/* The lowering's tail: a tuple mentioning every exported binding, so that
+   exports count as used. [stable] as in `stable_id`. */
+let lower_tail_of_names =
+    (~stable: option(Id.t)=?, names: list(Var.t)): Exp.t =>
+  stable_id(
+    stable,
+    "modtail:",
+    Exp.fresh(
+      Tuple(
+        List.mapi(
+          (i, name) =>
+            stable_id(
+              stable,
+              "modtail-" ++ string_of_int(i) ++ ":",
+              Exp.fresh(Var(name)),
+            ),
+          names,
+        ),
+      ),
+    ),
+  );
+
+let lower_tail = (~stable: option(Id.t)=?, items: list(Mod.t)): Exp.t =>
+  lower_tail_of_names(~stable?, exported_names(items));
+
+/* Each item's expectations from the analyzed signature, aligned with
+   [items]: the signature's own types, which wrap_item copies. Only the
+   binders an item exports get one: a definition a later item shadows is
+   synthesized, not checked against the signature. */
+let item_ana_labels =
+    (~ana_items: option(list(Sig.t)), items: list(Mod.t))
+    : list(list((Var.t, Typ.t))) =>
+  switch (ana_items) {
+  | None => List.map(_ => [], items)
+  | Some(_) =>
+    let defined =
+      List.concat_map(
+        (item: Mod.t) =>
+          switch (item.term) {
+          | ModType({term: Var(n), _}, _) => [n]
+          | _ => List.map(fst, item_exports(item, ~later=[]))
+          },
+        items,
+      );
+    let expected =
+      List.fold_left(
+        (m, (name, ty)) => VarMap.add(name, ty, m),
+        VarMap.empty,
+        ana_value_types(~defined, ana_items),
+      );
+    /* right to left: an item exports the names no later item binds */
+    snd(
+      List.fold_right(
+        (item, (later, acc)) => {
+          let labels =
+            item_exports(item, ~later=[])
+            |> List.filter_map(((name, _)) =>
+                 VarSet.mem(name, later)
+                   ? None
+                   : Option.map(
+                       ty => (name, ty),
+                       VarMap.find_opt(name, expected),
+                     )
+               );
+          (
+            VarSet.union(later, VarSet.of_list(item_bound_names(item))),
+            [labels, ...acc],
+          );
+        },
+        items,
+        (VarSet.empty, []),
+      ),
+    );
   };
 
 /* Lower module items to nested Let/TyAlias wrappers for type checking. The
-   wrappers carry the Mod item ids. The tail mentions every exported binding
-   so that exports count as used; its type is otherwise irrelevant: the
-   module's type is computed by `module_sig_type` and its elaboration is
-   refolded by `refold_module_elab`. */
-let lower = (~ana_items: option(list(Sig.t)), items: list(Mod.t)): Exp.t => {
-  let defined =
-    List.concat_map(
-      (item: Mod.t) =>
-        switch (item.term) {
-        | ModType({term: Var(n), _}, _) => [n]
-        | _ => List.map(fst, item_exports(item, ~later=[]))
-        },
-      items,
-    );
-  let ana_labels = ana_value_types(~defined, ana_items);
-  let rec exported = (items: list(Mod.t)) =>
-    switch (items) {
-    | [] => []
-    | [item, ...rest] =>
-      List.map(fst, item_exports(item, ~later=rest)) @ exported(rest)
-    };
-  let tail =
-    Exp.fresh(
-      Tuple(List.map(name => Exp.fresh(Var(name)), exported(items))),
-    );
-  List.fold_right(wrap_item(~ana_labels), items, tail);
-};
+   wrappers carry the Mod item ids, and ids derived from [stable] (the
+   module literal's) where an item can't lend its own, so two analyses of
+   one module agree, as the per-item analysis's lowering does. The tail
+   mentions every exported binding so that exports count as used; its type
+   is otherwise irrelevant: the module's type is computed by
+   `module_sig_type` and its elaboration is refolded by
+   `refold_module_elab`. */
+let lower =
+    (
+      ~stable: option(Id.t)=?,
+      ~ana_items: option(list(Sig.t)),
+      items: list(Mod.t),
+    )
+    : Exp.t =>
+  List.fold_right2(
+    (item, ana_labels, body) =>
+      wrap_item(~ana_labels, ~stable=Option.is_some(stable), item, body),
+    items,
+    item_ana_labels(~ana_items, items),
+    lower_tail(~stable?, items),
+  );
 
 /* Rewrite InfoExp cls for expanded module items to keep cursor inspector labels. */
 let reclassify_expanded_module_items =
@@ -502,6 +725,40 @@ let assume_members = (sig_ty: Typ.t, items: list(Sig.t)): Typ.t =>
   | _ => sig_ty
   };
 
+/* Whether [items] define just the analyzed signature's members by name:
+   none missing (missing_items) and none extra (extra_members). A module's
+   member names are syntactic, so this needs no analysis. */
+let names_meet = (~ana_items: list(Sig.t), items: list(Mod.t)): bool => {
+  let (values, types) =
+    List.fold_left(
+      ((vs, ts), item: Mod.t) =>
+        switch (item.term) {
+        | ModType({term: Var(n), _}, _) => (vs, VarSet.add(n, ts))
+        | _ => (
+            List.fold_left(
+              (vs, (x, _)) => VarSet.add(x, vs),
+              vs,
+              item_exports(item, ~later=[]),
+            ),
+            ts,
+          )
+        },
+      (VarSet.empty, VarSet.empty),
+      items,
+    );
+  let (want_values, want_types) =
+    List.fold_left(
+      ((vs, ts), m: Sig.member) =>
+        switch (m) {
+        | Val(x, _) => (VarSet.add(x, vs), ts)
+        | TypeManifest(t, _)
+        | TypeAbstract(t) => (vs, VarSet.add(t, ts))
+        },
+      (VarSet.empty, VarSet.empty),
+      Sig.members(ana_items),
+    );
+  VarSet.equal(values, want_values) && VarSet.equal(types, want_types);
+};
 /* Mark each exported `type T = ...` whose definition differs from the
    manifest type the analyzed signature declares for T. Definitions with
    holes are not compared, to stay gradual. The mark lands on the item's
@@ -574,76 +831,71 @@ let check_ana_type_members =
     go(items, m, []);
   };
 
+/* Walk the user's pattern and its elaboration together: an ascription the
+   elaboration has where the user wrote a bare variable is synthetic. */
+let rec strip_synthetic_asc = (user_pat: Pat.t, p_elab: Pat.t): Pat.t => {
+  let rewrap = (term: Pat.term): Pat.t => {
+    ...p_elab,
+    term,
+  };
+  let map2 = (us, es) =>
+    List.length(us) == List.length(es)
+      ? List.map2(strip_synthetic_asc, us, es) : es;
+  switch (user_pat.term, p_elab.term) {
+  | (Var(_), Asc(inner, _)) => inner
+  | (Tuple(us), Tuple(es)) => rewrap(Tuple(map2(us, es)))
+  | (ListLit(us), ListLit(es)) => rewrap(ListLit(map2(us, es)))
+  | (Cons(u1, u2), Cons(e1, e2)) =>
+    rewrap(Cons(strip_synthetic_asc(u1, e1), strip_synthetic_asc(u2, e2)))
+  | (TupLabel(_, u), TupLabel(l, e)) =>
+    rewrap(TupLabel(l, strip_synthetic_asc(u, e)))
+  | (Parens(u), Parens(e)) => rewrap(Parens(strip_synthetic_asc(u, e)))
+  | (Projector(_, u), Projector(d, e)) =>
+    rewrap(Projector(d, strip_synthetic_asc(u, e)))
+  | (Ap(_, u), Ap(ctr, e)) => rewrap(Ap(ctr, strip_synthetic_asc(u, e)))
+  | (Asc(u, _), Asc(e, ty)) => rewrap(Asc(strip_synthetic_asc(u, e), ty))
+  | _ => p_elab
+  };
+};
+
+/* One item of `refold_module_elab`: [item], not a type member, with the
+   elaborated binder [p] and definition [def] of its link. */
+let refold_item = (item: Mod.t, p: Pat.t, def: Exp.t): Mod.t => {
+  ...item,
+  term:
+    switch (item.term) {
+    | ModLet(user_pat, _) =>
+      ModLet(strip_synthetic_asc(FunctionSugar.binder(user_pat), p), def)
+    | ModuleMod(mp, _) =>
+      ModLet(strip_synthetic_asc(mpat_to_pat(mp), p), def)
+    | ModExp(_) => ModExp(def)
+    | ModVal(x, _) => ModVal(x, def)
+    | ModType(_, _)
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_) => item.term
+    },
+};
+
 /* Inverse of `wrap_item` over the checked chain: rebuild the module items
    with their elaborated definitions, in order. Type items have no runtime
    content (TyAlias elaborates to its body) and are dropped. The synthetic
    ascription `modlet_pat` adds to a bare variable binder is stripped; a
    `module M : S = ...` item keeps its elaborated (ascribed) binder. A
    shorthand item `let f(x) = ...` elaborates to a binding of `f`. */
-let rec refold_module_elab = (items: list(Mod.t), elab: Exp.t): list(Mod.t) => {
-  /* Walk the user's pattern and its elaboration together: an ascription the
-     elaboration has where the user wrote a bare variable is synthetic. */
-  let rec strip_synthetic_asc = (user_pat: Pat.t, p_elab: Pat.t): Pat.t => {
-    let rewrap = (term: Pat.term): Pat.t => {
-      ...p_elab,
-      term,
-    };
-    let map2 = (us, es) =>
-      List.length(us) == List.length(es)
-        ? List.map2(strip_synthetic_asc, us, es) : es;
-    switch (user_pat.term, p_elab.term) {
-    | (Var(_), Asc(inner, _)) => inner
-    | (Tuple(us), Tuple(es)) => rewrap(Tuple(map2(us, es)))
-    | (ListLit(us), ListLit(es)) => rewrap(ListLit(map2(us, es)))
-    | (Cons(u1, u2), Cons(e1, e2)) =>
-      rewrap(
-        Cons(strip_synthetic_asc(u1, e1), strip_synthetic_asc(u2, e2)),
-      )
-    | (TupLabel(_, u), TupLabel(l, e)) =>
-      rewrap(TupLabel(l, strip_synthetic_asc(u, e)))
-    | (Parens(u), Parens(e)) => rewrap(Parens(strip_synthetic_asc(u, e)))
-    | (Projector(_, u), Projector(d, e)) =>
-      rewrap(Projector(d, strip_synthetic_asc(u, e)))
-    | (Ap(_, u), Ap(ctr, e)) =>
-      rewrap(Ap(ctr, strip_synthetic_asc(u, e)))
-    | (Asc(u, _), Asc(e, ty)) =>
-      rewrap(Asc(strip_synthetic_asc(u, e), ty))
-    | _ => p_elab
-    };
-  };
+let rec refold_module_elab = (items: list(Mod.t), elab: Exp.t): list(Mod.t) =>
   switch (items) {
   | [] => []
   | [{term: ModType(_, _), _}, ...rest] => refold_module_elab(rest, elab)
   | [item, ...rest] =>
     switch (elab.term) {
-    | Let(p, def, body) =>
-      let term: Mod.term =
-        switch (item.term) {
-        | ModLet(user_pat, _) =>
-          ModLet(
-            strip_synthetic_asc(FunctionSugar.binder(user_pat), p),
-            def,
-          )
-        | ModuleMod(mp, _) =>
-          ModLet(strip_synthetic_asc(mpat_to_pat(mp), p), def)
-        | ModExp(_) => ModExp(def)
-        | ModVal(x, _) => ModVal(x, def)
-        | ModType(_, _)
-        | Invalid(_)
-        | EmptyHole
-        | MultiHole(_) => item.term
-        };
-      [
-        {
-          ...item,
-          term,
-        },
+    | Let(p, def, body) => [
+        refold_item(item, p, def),
         ...refold_module_elab(rest, body),
-      ];
+      ]
     | _ => items
     }
   };
-};
 
 /* Rebuild ModuleExp elaboration with direct def elaboration preserved. The
    binder keeps its (normalized) signature ascription: that is what seals the

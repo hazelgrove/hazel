@@ -120,6 +120,14 @@ let string_mean : [String] -> Float = fun strings ->
 in
 string_mean(["1", "2", "3"])
 
+@solution
+let string_mean : [String] -> Float = fun strings ->
+  let floats : [Float] = map(strings, float_of_string) in
+  let sum : Float = fold_left(floats, fun (acc, x) -> acc +. x, 0.) in
+  sum /. float_of_int(length(strings))
+in
+string_mean(["1", "2", "3"])
+
 @test
 test string_mean(["1", "2", "3"]) == 2. end;
 test string_mean(["10"]) == 10. end;

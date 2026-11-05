@@ -2,7 +2,7 @@
 # Builds the test JS and runs it, forwarding any CLI arguments.
 # Examples:
 #   ./run_tests                        # Run all tests
-#   ./run_tests test 'Statics.*' -q    # Run Statics tests, quick output
+#   ./run_tests test 'Statics.*' -q    # Run Statics' quick tests, no per-edit checks
 #   ./run_tests test 'Evaluator' 19    # Run only Evaluator test 19
 
 set -e

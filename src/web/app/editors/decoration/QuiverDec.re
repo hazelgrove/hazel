@@ -412,6 +412,7 @@ let coalesce_overlaps =
    pin is what renders. */
 let bubbles =
     (
+      ~root: Sort.t,
       ~measured: Measured.t,
       ~font_metrics: FontMetrics.t,
       ~caret_pos: option((int, int)),
@@ -419,7 +420,7 @@ let bubbles =
       seg: Segment.t,
     )
     : list(positioned_insertion) => {
-  let insertions = CanonicalCompletion.for_editor(seg).insertions;
+  let insertions = CanonicalCompletion.for_editor(~root, seg).insertions;
   /* records are unique per (anchor, side) after the engine's
      coalesce_insertions — match on that, not physical identity */
   let is_owned = (ins: CanonicalCompletion.insertion) =>
@@ -468,6 +469,7 @@ let bubbles =
 /* Main view function: renders quiver decorations for a segment */
 let view =
     (
+      ~root: Sort.t,
       ~measured: Measured.t,
       ~font_metrics: FontMetrics.t,
       ~flagpole=false,
@@ -490,7 +492,7 @@ let view =
      stale row claims displacing probe offsides */
   RowOffsets.reset();
 
-  switch (bubbles(~measured, ~font_metrics, ~caret_pos, ~owned, seg)) {
+  switch (bubbles(~root, ~measured, ~font_metrics, ~caret_pos, ~owned, seg)) {
   | [] =>
     /* No completions needed */
     div([])

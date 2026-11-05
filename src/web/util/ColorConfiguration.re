@@ -275,6 +275,7 @@ let aliases: list(((string, string), list(string))) = [
   (("inspector", "badge"), ["ci-icon-bkg"]),
   (("inspector", "text"), ["ci-status-text"]),
   (("inspector", "separator"), ["context-inspector-colon"]),
+  (("inspector", "dynamics"), ["ci-dynamics-bkg"]),
   (("palette", "probe-value"), ["exp-base"]),
   (("palette", "probe-value-edge"), ["exp-shadow"]),
   (("palette", "probe-pattern"), ["pat-base"]),

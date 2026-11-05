@@ -111,6 +111,7 @@ let format_error_with_location =
     (
       ~source: string,
       ~path: string,
+      ~info_map,
       measured: Haz3lcore.Measured.t,
       info: Language.Info.t,
     )
@@ -119,7 +120,8 @@ let format_error_with_location =
     switch (Info.marks_of(info)) {
     | [] => None
     | marks =>
-      let message = Haz3lcore.ErrorPrint.string_of_marks(info, marks);
+      let message =
+        Haz3lcore.ErrorPrint.string_of_marks(~info_map, info, marks);
       let fallback = "in term: " ++ Haz3lcore.ErrorPrint.term_string_of(info);
       Some(
         format_diagnostic_with_location(

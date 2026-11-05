@@ -34,16 +34,27 @@ type entry = {
 };
 
 /* Each co-context entry is a list of the uses of a variable
-   within some scope, including their type demands */
+   within some scope, including their type demands (use the
+   accessors below, not the representation) */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = VarMap.t_(list(entry));
 
 let empty: t = VarMap.empty;
 
+let to_list = (co_ctx: t): list((Var.t, list(entry))) => co_ctx;
+
+let lookup = (co_ctx: t, name: Var.t): option(list(entry)) =>
+  VarMap.lookup(co_ctx, name);
+let contains = (co_ctx: t, name: Var.t): bool =>
+  VarMap.contains(co_ctx, name);
+let names = (co_ctx: t): list(Var.t) => List.map(fst, co_ctx);
+let filter_names = (pred: Var.t => bool, co_ctx: t): t =>
+  VarMap.filter(((name, _)) => pred(name), co_ctx);
+
 let mk = (ctx_before: Ctx.t, ctx_after, co_ctx: t): t => {
   let added_bindings = Ctx.added_bindings(ctx_after, ctx_before);
-  VarMap.filter(
-    ((name, _)) =>
+  filter_names(
+    name =>
       switch (Ctx.lookup_var(added_bindings, name)) {
       | None => true
       | Some(_) => false
@@ -95,24 +106,16 @@ let meet: (Ctx.t, list(entry)) => Typ.t =
     };
   };
 
-let contains_hole = (co_ctx: t): bool =>
-  VarMap.lookup(co_ctx, "$hole") !== None;
+let contains_hole = (co_ctx: t): bool => contains(co_ctx, "$hole");
 
-let has_any = (co_ctx: t, vs: list(Var.t)): bool => {
-  List.exists(v => VarMap.contains(co_ctx, v), vs);
-};
+let has_any = (co_ctx: t, vs: list(Var.t)): bool =>
+  List.exists(v => contains(co_ctx, v), vs);
 
 let of_bindings = (bindings: Binding.s): t =>
-  List.map(
-    (b: Binding.t) =>
-      (
-        b.name,
-        [
-          {
-            id: b.id,
-            expected_ty: Typ.fresh(Unknown(Internal)),
-          },
-        ],
-      ),
-    bindings,
+  union(
+    List.map(
+      (b: Binding.t) =>
+        singleton(b.name, b.id, Typ.fresh(Unknown(Internal))),
+      bindings,
+    ),
   );

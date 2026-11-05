@@ -90,9 +90,10 @@ let impl: Lazy.t(Js.Unsafe.any) =
       };
       keep(out);
     } catch (_) {
-      /* too deep to keep: forget everything; the client's next reference
-         fails, and it resends in full */
-      table.clear();
+      /* too deep to keep: what was kept stays (entries are keyed by their
+         content, so they stay right, and another piece of the same post
+         may refer to them); a reference to a value not kept fails, and
+         the client posts in full, the tables reset */
     }
     return out;
   };

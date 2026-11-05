@@ -85,7 +85,16 @@ let impl: Lazy.t(Js.Unsafe.any) =
       return false; /* too deep to walk: compare as before */
     }
   };
-  return { same, hash };
+  /* for OCaml: an option of a triple, the hashes signed as its ints are */
+  const triple = v => {
+    try {
+      const h = hash(v);
+      return h === null ? 0 : [0, [0, h[0] | 0, h[1] | 0, h[2] | 0]];
+    } catch (_) {
+      return 0; /* too deep to walk */
+    }
+  };
+  return { same, hash, triple };
 })()|js},
     )
   );
@@ -100,6 +109,14 @@ let same = (a: 'a, b: 'a): bool =>
          [|Js.Unsafe.inject(a), Js.Unsafe.inject(b)|],
        ),
      );
+
+/* v's hash: its two 32-bit hashes and its size; None when it has none or
+   is too deep to walk */
+let hash = (v: 'a): option((int, int, int)) =>
+  Js.Unsafe.fun_call(
+    Js.Unsafe.get(Lazy.force(impl), "triple"),
+    [|Js.Unsafe.inject(v)|],
+  );
 
 /* The JS hash itself, for ShareCodec: a value to [h0, h1, size], or null
    when it has no hash; it can throw on a value too deep to walk. */

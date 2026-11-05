@@ -27,7 +27,14 @@ let evaluate_probes = (code: string): (Sample.Map.t, Statics.Map.t) => {
             | Some(InfoPat(_)) => Statics.Map.bound_in(info_map, id)
             | _ => []
             };
-          Id.Map.add(id, Sample.{refs: refs}, acc);
+          Id.Map.add(
+            id,
+            Sample.{
+              refs,
+              full: false,
+            },
+            acc,
+          );
         },
         probe_ids,
         Id.Map.empty,
@@ -163,7 +170,7 @@ in f(1)|},
     /* Defensive parenthesization brackets the sum body of a rec: it shares
        low precedence with the `->` trailing delimiter (see the settings notes
        in Test_ExpToSegment). Non-recursive sums above stay unparenthesized. */
-    Some("rec T -> (+ Leaf(Int) + Node((T, T)))"),
+    Some("rec T -> (+ Leaf(Int) + Node(T, T))"),
   ),
   dynamic_typ_test(
     "User-defined type alias in context",

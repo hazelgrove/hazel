@@ -6,13 +6,13 @@
 open Alcotest;
 open Language;
 
-/* this branch's entries carry no step count, so `n` only makes them many */
-let entry = (_n: int): IncrEval.entry(EvaluatorState.t) => {
+let entry = (seq: int): IncrEval.entry(EvaluatorState.t) => {
   prev_elab: Exp.fresh(EmptyHole),
   prev_reuse_map: IncrEval.empty_reuse_map,
   prev_probe_targets: EvalInfo.ProbeTargets(SubexpProbeTargets.empty),
   value: Exp.fresh(EmptyHole),
   state: EvaluatorState.empty,
+  seq,
 };
 
 let outbox = (entries: list(int)): IncrEval.outbox(EvaluatorState.t) =>

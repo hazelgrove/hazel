@@ -60,9 +60,9 @@ module EvaluatorEVMode: {
   let (let.) = (t1, s) => {
     let.trampoline (x, c) = t1;
     switch (s(x)) {
-    | Step({expr, side_effects, kind, is_value: true}) =>
+    | Step({expr, side_effects, kind, is_value: true, _}) =>
       Trampoline.return((Final, side_effects, Some(kind), expr))
-    | Step({expr, side_effects, kind, is_value: false}) =>
+    | Step({expr, side_effects, kind, is_value: false, _}) =>
       Trampoline.return((Uneval, side_effects, Some(kind), expr))
     | Constructor
     | Value
@@ -577,6 +577,7 @@ let evaluate =
             prev_probe_targets,
             value: final_value,
             state: replay_state(state^),
+            seq: EvaluatorState.get_step_count(state^),
           };
 
           switch (outbox) {
@@ -658,11 +659,11 @@ let prepare_evaluation =
       ~eval_info: EvalInfo.t,
       ~env,
       ~reuse_map: option(IncrEval.reuse_map),
-      ~call_memo: option(CallMemo.t)=None,
       /* the reuse pre-pass for THIS request, when the caller already ran
          it (the worker posts it as the reuse plan): the pass is a full
          walk of the program and was costing as much as the evaluation */
       ~reuse_stream: option(IncrEval.t(EvaluatorState.t))=None,
+      ~call_memo: option(CallMemo.t)=None,
       ~outbox,
       d: DHExp.t,
     )
@@ -737,7 +738,7 @@ let evaluate_and_limit =
       result |> Trampoline.Yielding.start,
     )
   ) {
-  | SliceDone(x) => LimitedCompleted((finish(~env, x), state^))
+  | SliceDone(x, _) => LimitedCompleted((finish(~env, x), state^))
   | SliceYielded(_) => StepLimitExceeded
   };
 };
@@ -794,7 +795,7 @@ let run_yielding_slice =
   switch (
     Trampoline.Yielding.run_slice(~step_budget, evaluation.continuation)
   ) {
-  | SliceDone(x) =>
+  | SliceDone(x, _) =>
     EvaluationCompleted((finish(~env=evaluation.env, x), evaluation.state^))
   | SliceYielded(continuation) =>
     EvaluationYielded({
@@ -807,6 +808,42 @@ let yielding_step_count = (evaluation: yielding_evaluation): int => {
   let Trampoline.Yielding.Continuation(_, _, step_counter) =
     evaluation.continuation;
   step_counter;
+};
+
+/* evaluate, also returning the work it did: the steps its trampoline
+   actually took. A reused result costs the one step that fetches it. That
+   is not EvaluatorState's step_count, which counts a reused subtree's
+   steps again, to keep probe samples' step bounds in line: step_count is
+   the same with or without reuse, and this is not. Deterministic for a
+   given program and cache, so tests can hold it to a budget
+   (Test_PerfBudgets) where a time would vary with the machine. */
+let evaluate_counting_work =
+    (
+      ~prev: EvaluatorState.incr_eval=IncrEval.empty,
+      ~eval_info: EvalInfo.t=EvalInfo.empty,
+      ~env,
+      d: DHExp.t,
+    )
+    : ((Exp.t, EvaluatorState.t), int) => {
+  let (state, result) =
+    prepare_evaluation(
+      ~prev,
+      ~eval_info,
+      ~env,
+      ~reuse_map=None,
+      ~outbox=None,
+      d,
+    );
+  switch (
+    Trampoline.Yielding.run_slice(
+      ~step_budget=max_int,
+      Trampoline.Yielding.start(result),
+    )
+  ) {
+  | SliceDone(x, steps) => ((finish(~env, x), state^), steps)
+  /* an unbounded slice runs to the end */
+  | SliceYielded(_) => failwith("evaluate_counting_work: slice yielded")
+  };
 };
 
 let evaluate =

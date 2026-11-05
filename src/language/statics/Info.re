@@ -233,6 +233,9 @@ let ctx_of: t => Ctx.t =
   | InfoMPat({ctx, _})
   | Secondary({ctx, _}) => ctx;
 
+/* the ancestors [info] records: all of them from a whole-program
+   analysis, but under DefStatics only those up to its item's root (whose
+   own are its parent in the item chain). [ancestors] has them all */
 let ancestors_of: t => ancestors =
   fun
   | InfoDrv(drv) => DrvInfo.ancestors_of(drv)
@@ -259,6 +262,189 @@ let id_of: t => Id.t =
   | InfoSig({id, _})
   | InfoMPat({id, _}) => id
   | Secondary(s) => s.id;
+
+/* [info]'s ancestors, innermost first, as a whole-program analysis lists
+   them: where the recorded ones end at an item's root, that root's go on
+   (its parent, the item above it or what holds its chain), and so on up.
+   an id listed twice in a row (a `module` binding above its body, a
+   function definition's) counts once */
+let ancestors = (~info_map: Id.Map.t(t), info: t): ancestors => {
+  /* [hops] bounds a cycle, which only an inconsistent map could have */
+  let rec go = (segs, hops, seg) =>
+    switch (ListUtil.last_opt(seg)) {
+    | Some(root) when hops > 0 =>
+      switch (Option.map(ancestors_of, Id.Map.find_opt(root, info_map))) {
+      | Some([_, ..._] as above) => go([seg, ...segs], hops - 1, above)
+      | _ => [seg, ...segs]
+      }
+    | _ => [seg, ...segs]
+    };
+  let rec repeats =
+    fun
+    | [a, b, ..._] when Id.equal(a, b) => true
+    | [_, ...rest] => repeats(rest)
+    | [] => false;
+  let rec dedup =
+    fun
+    | [a, b, ...rest] when Id.equal(a, b) => dedup([b, ...rest])
+    | [a, ...rest] => [a, ...dedup(rest)]
+    | [] => [];
+  let all =
+    switch (go([], 100_000, ancestors_of(info))) {
+    | [whole] => whole
+    | segs => List.concat(List.rev(segs))
+    };
+  repeats(all) ? dedup(all) : all;
+};
+
+/* a walk up a term's ancestors: on to the next, or done */
+type climb('s, 'r) =
+  | Up('s)
+  | Stop('r);
+
+/* [f] on [info]'s ancestors innermost first, as [ancestors] lists them,
+   each with its child on the way up, until it stops; [top] takes what
+   is left at the top */
+let climb =
+    (
+      ~info_map: Id.Map.t(t),
+      info: t,
+      init: 's,
+      f: ('s, Id.t, Id.t) => climb('s, 'r),
+      top: 's => 'r,
+    )
+    : 'r => {
+  /* [hops] bounds a cycle, which only an inconsistent map could have */
+  let rec go = (seg, child, hops, s) =>
+    switch (seg) {
+    | [] => top(s)
+    | [a, ...rest] =>
+      let (rest, hops) =
+        switch (rest) {
+        | [] when hops > 0 =>
+          switch (Id.Map.find_opt(a, info_map)) {
+          | Some(i) => (ancestors_of(i), hops - 1)
+          | None => ([], hops)
+          }
+        | _ => (rest, hops)
+        };
+      if (Id.equal(a, child)) {
+        go(rest, child, hops, s);
+      } else {
+        switch (f(s, a, child)) {
+        | Up(s) => go(rest, a, hops, s)
+        | Stop(r) => r
+        };
+      };
+    };
+  go(ancestors_of(info), id_of(info), 100_000, init);
+};
+
+/* where a term is in its item. on an item chain (the top level's, a
+   module's members) an item's body is the items after it; going up, the
+   step out of a definition's pattern or definition is a candidate item,
+   which the next such step settles: an item if it leaves a module's
+   members or there is none, inside a definition otherwise */
+let item_continues = (a: option(t), child: Id.t): bool =>
+  switch (a) {
+  | Some(
+      InfoExp({
+        user_term:
+          {
+            term:
+              Let(_, _, b) | TyAlias(_, _, b) | ModuleExp(_, _, b) |
+              Seq(_, b) |
+              Filter(_, b) |
+              Use(_, b),
+            _,
+          },
+        _,
+      }),
+    ) =>
+    Id.equal(Exp.rep_id(b), child)
+  | _ => false
+  };
+let holds_members = (a: option(t)): bool =>
+  switch (a) {
+  | Some(InfoExp({user_term: {term: Module(_), _}, _})) => true
+  | _ => false
+  };
+
+/* [info]'s ancestors within its item, innermost first: up to the
+   innermost definition or statement of an item chain that holds it, none
+   if the term is an item. a module statement's let chain is one item, as
+   the outline shows it */
+let within_item = (~info_map: Id.Map.t(t), info: t): ancestors => {
+  /* the ancestors so far (outermost first), how many, and how many are
+     the candidate item's */
+  let settle = ((seen, _, cand)) => ListUtil.take(cand, List.rev(seen));
+  climb(
+    ~info_map,
+    info,
+    ([], 0, 0),
+    ((seen, n, cand), a, child) => {
+      let n = n + 1;
+      let seen = [a, ...seen];
+      let i = Id.Map.find_opt(a, info_map);
+      if (item_continues(i, child)) {
+        Up((seen, n, cand));
+      } else if (holds_members(i)) {
+        Stop(settle((seen, n, cand)));
+      } else {
+        Up((seen, n, n));
+      };
+    },
+    settle,
+  );
+};
+
+/* the innermost of [within_item] satisfying [p], climbing no further
+   than settling it takes */
+let find_within_item =
+    (~info_map: Id.Map.t(t), info: t, p: Id.t => bool): option(Id.t) => {
+  let settled = (found, cand) =>
+    switch (found) {
+    | Some((a, k)) when k <= cand => Some(a)
+    | _ => None
+    };
+  climb(
+    ~info_map,
+    info,
+    (0, 0, None),
+    ((n, cand, found), a, child) => {
+      let n = n + 1;
+      let found = found == None && p(a) ? Some((a, n)) : found;
+      let i = Id.Map.find_opt(a, info_map);
+      if (item_continues(i, child)) {
+        Up((n, cand, found));
+      } else if (holds_members(i)) {
+        Stop(settled(found, cand));
+      } else {
+        switch (settled(found, n)) {
+        | Some(_) as r => Stop(r)
+        | None => Up((n, n, found))
+        };
+      };
+    },
+    ((_, cand, found)) => settled(found, cand),
+  );
+};
+
+/* the terms holding [info], innermost first, past its item to the
+   modules and definitions around it: its ancestors but for the items it
+   follows on an item chain, whose bodies hold the items after them */
+let containers = (~info_map: Id.Map.t(t), info: t): ancestors =>
+  climb(
+    ~info_map,
+    info,
+    [],
+    (held, a, child) =>
+      Up(
+        item_continues(Id.Map.find_opt(a, info_map), child)
+          ? held : [a, ...held],
+      ),
+    List.rev,
+  );
 
 let marks_of: t => list(Mark.t) =
   fun
@@ -376,6 +562,271 @@ let get_binding_site = (info: t): option(Id.t) => {
   | _ => None
   };
 };
+
+/* ---- qualified members: `M.x`, `M.T`, `Outer.Inner.x` ----
+   A dot's label names a member when its left side denotes a module: a
+   module literal, reached through the `let` or `module` binding a name
+   and through aliases (`module Db = Base`). The member is the last of
+   the literal's items binding the name, the one statics exports. */
+
+/* a member's namespace: a module member is reached from values and
+   types alike */
+type member_kind =
+  | MValue
+  | MType
+  | MModule;
+
+/* the members [item] binds: name, binder, kind. A function member
+   (`let f(x) = …`) binds its head alone */
+let item_members = (item: Mod.t): list((string, Id.t, member_kind)) => {
+  let rec mpat = (mp: MPat.t) =>
+    switch (mp.term) {
+    | Var(x) => [(x, MPat.rep_id(mp), MModule)]
+    | Asc(mp, _) => mpat(mp)
+    | _ => []
+    };
+  switch (item.term) {
+  | ModLet(p, _) =>
+    let p =
+      switch (p.term) {
+      | Asc({term: Ap({term: Var(_), _} as f, _), _}, _)
+      | Ap({term: Var(_), _} as f, _) => f
+      | _ => p
+      };
+    List.map((b: Binding.t) => (b.name, b.id, MValue), Pat.bindings(p));
+  | ModType({term: Var(x), _} as tp, _) => [(x, TPat.rep_id(tp), MType)]
+  | ModuleMod(mp, _) => mpat(mp)
+  | ModType(_)
+  | ModExp(_)
+  /* an evaluated binding: only in module values, never in syntax */
+  | ModVal(_)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_) => []
+  };
+};
+
+/* the binder of the member [name] among [items], the last so named: a
+   value or module member, or in a type ([typ]) a type or module member */
+let member_binder =
+    (~typ: bool, items: list(Mod.t), name: string): option(Id.t) =>
+  List.fold_left(
+    (found, item) =>
+      List.fold_left(
+        (found, (x, id, kind)) =>
+          x == name && (kind == MModule || typ == (kind == MType))
+            ? Some(id) : found,
+        found,
+        item_members(item),
+      ),
+    None,
+    items,
+  );
+
+/* the definition [binder] is bound to, when a `let` or `module` binds it:
+   as analyzed under its own id, since DefStatics binds a module literal
+   to a stand-in and analyzes the literal on its own */
+let definition_of = (~info_map: Id.Map.t(t), binder: Id.t): option(Exp.t) => {
+  let* info = Id.Map.find_opt(binder, info_map);
+  /* past the patterns around the binder, to the form that binds it */
+  let rec up = ancestors =>
+    switch (ancestors) {
+    | [] => None
+    | [a, ...rest] =>
+      switch (Id.Map.find_opt(a, info_map)) {
+      | Some(InfoPat(_) | InfoMPat(_)) => up(rest)
+      | Some(
+          InfoExp({
+            user_term: {term: Let(_, def, _) | ModuleExp(_, def, _), _},
+            _,
+          }),
+        ) =>
+        switch (Id.Map.find_opt(Exp.rep_id(def), info_map)) {
+        | Some(InfoExp({user_term, _})) => Some(user_term)
+        | _ => Some(def)
+        }
+      | _ => None
+      }
+    };
+  up(ancestors_of(info));
+};
+
+/* aliases bind earlier names, so a chain ends; [fuel] bounds broken ones */
+let member_fuel = 64;
+
+/* the items of the module literal [e] denotes */
+let rec module_items =
+        (~info_map: Id.Map.t(t), ~fuel=member_fuel, e: Exp.t)
+        : option(list(Mod.t)) =>
+  switch (e.term) {
+  | _ when fuel <= 0 => None
+  | Module(items) => Some(items)
+  | Parens(e)
+  | Asc(e, _)
+  | Projector(_, e) => module_items(~info_map, ~fuel, e)
+  | _ =>
+    let* b = exp_binder(~info_map, ~fuel, e);
+    binder_items(~info_map, ~fuel=fuel - 1, b);
+  }
+/* the items of the module literal bound with [binder] */
+and binder_items =
+    (~info_map: Id.Map.t(t), ~fuel=member_fuel, binder: Id.t)
+    : option(list(Mod.t)) => {
+  let* def = definition_of(~info_map, binder);
+  module_items(~info_map, ~fuel, def);
+}
+/* the binder a name or a member access [e] reads */
+and exp_binder = (~info_map: Id.Map.t(t), ~fuel, e: Exp.t): option(Id.t) =>
+  switch (e.term) {
+  | Var(_)
+  | Constructor(_) =>
+    let* info = Id.Map.find_opt(Exp.rep_id(e), info_map);
+    get_binding_site(info);
+  | Parens(e) => exp_binder(~info_map, ~fuel, e)
+  | Dot(base, {term: Label(name), _}) =>
+    let* items = module_items(~info_map, ~fuel=fuel - 1, base);
+    member_binder(~typ=false, items, name);
+  | _ => None
+  };
+
+/* the binder a type name or a type member access [t] reads */
+let rec typ_binder =
+        (~info_map: Id.Map.t(t), ~fuel=member_fuel, t: Typ.t): option(Id.t) =>
+  switch (t.term) {
+  | _ when fuel <= 0 => None
+  | Var(name) =>
+    let* info = Id.Map.find_opt(Typ.rep_id(t), info_map);
+    switch (get_binding_site(info), info) {
+    | (Some(_) as b, _) => b
+    /* Modules II binds no type alias for a module: `M` in `M.T` is the
+       module's value binding */
+    | (None, InfoTyp({ctx, _})) =>
+      let* entry = Ctx.lookup_var(ctx, name);
+      entry.id == Id.invalid ? None : Some(entry.id);
+    | (None, _) => None
+    };
+  | Parens(t) => typ_binder(~info_map, ~fuel, t)
+  | ProdProjection(base, {term: Label(name), _}) =>
+    let* b = typ_binder(~info_map, ~fuel=fuel - 1, base);
+    let* items = binder_items(~info_map, ~fuel=fuel - 1, b);
+    member_binder(~typ=true, items, name);
+  | _ => None
+  };
+
+/* a member access, by its label: the access (a Dot or ProdProjection),
+   the items of the module its left side denotes, the label */
+type member_access = {
+  access: t,
+  items: list(Mod.t),
+  name: string,
+  in_typ: bool,
+};
+
+let member_access = (~info_map: Id.Map.t(t), info: t): option(member_access) =>
+  switch (info) {
+  | InfoExp({
+      user_term: {term: Label(name), _} as l,
+      ancestors: [a, ..._],
+      _,
+    }) =>
+    switch (Id.Map.find_opt(a, info_map)) {
+    | Some(InfoExp({user_term: {term: Dot(base, label), _}, _}) as access)
+        when Exp.rep_id(label) == Exp.rep_id(l) =>
+      let+ items = module_items(~info_map, base);
+      {
+        access,
+        items,
+        name,
+        in_typ: false,
+      };
+    | _ => None
+    }
+  | InfoTyp({
+      user_term: {term: Label(name), _} as l,
+      ancestors: [a, ..._],
+      _,
+    }) =>
+    switch (Id.Map.find_opt(a, info_map)) {
+    | Some(
+        InfoTyp({user_term: {term: ProdProjection(base, label), _}, _}) as access,
+      )
+        when Typ.rep_id(label) == Typ.rep_id(l) =>
+      let* b = typ_binder(~info_map, base);
+      let+ items = binder_items(~info_map, b);
+      {
+        access,
+        items,
+        name,
+        in_typ: true,
+      };
+    | _ => None
+    }
+  | _ => None
+  };
+
+let access_member = (m: member_access): option(Id.t) =>
+  member_binder(~typ=m.in_typ, m.items, m.name);
+
+/* the member a dot's label names: `a` in `M.a`, `T` in `M.T` */
+let member_binding_site = (~info_map: Id.Map.t(t), info: t): option(Id.t) =>
+  Option.bind(member_access(~info_map, info), access_member);
+
+/* the name binder [info] binds: a variable's, type's or module's */
+let binder_name = (info: t): option(string) =>
+  switch (info) {
+  | InfoPat({user_term: {term: Var(x), _}, _})
+  | InfoTPat({user_term: {term: Var(x), _}, _})
+  | InfoMPat({user_term: {term: Var(x), _}, _}) => Some(x)
+  | _ => None
+  };
+
+/* a label's name: `x` in `M.x`, `(x = 1)` or `M.x` in a type */
+let label_name = (info: t): option(string) =>
+  switch (info) {
+  | InfoExp({user_term: {term: Label(x), _}, _})
+  | InfoTyp({user_term: {term: Label(x), _}, _}) => Some(x)
+  | _ => None
+  };
+
+/* the binder [info] names: a variable's, constructor's or type
+   variable's, or a member access's member */
+let binding_site = (~info_map: Id.Map.t(t), info: t): option(Id.t) =>
+  switch (get_binding_site(info)) {
+  | Some(_) as b => b
+  | None => member_binding_site(~info_map, info)
+  };
+
+/* a member access's label as the reference to the member it is: `a` in
+   `M.a` a variable reference with the access's type, `T` in `M.T` a type
+   variable with the access's meaning. Any other info as it is */
+let as_member_reference = (~info_map: Id.Map.t(t), info: t): t =>
+  switch (member_access(~info_map, info), info) {
+  | (Some({access: InfoExp(access), name, _} as m), InfoExp(label))
+      when access_member(m) != None =>
+    InfoExp({
+      ...access,
+      user_term: {
+        ...label.user_term,
+        term: Var(name),
+      },
+      cls: Exp(Var),
+      ancestors: label.ancestors,
+      label_sort: false,
+      dot_labels: [],
+    })
+  | (Some({access: InfoTyp(access), name, _} as m), InfoTyp(label))
+      when access_member(m) != None =>
+    InfoTyp({
+      ...access,
+      user_term: {
+        ...label.user_term,
+        term: Var(name),
+      },
+      cls: Typ(Var),
+      ancestors: label.ancestors,
+    })
+  | _ => info
+  };
 
 let typ_is_constructor_expected = t =>
   switch (t) {

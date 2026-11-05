@@ -1,0 +1,23 @@
+# Option: a value that may be missing (Some or None) #
+module Option = {
+  # the type Option; None and Some also work unqualified everywhere #
+  type t = None + Some(?);
+
+  let map : (Option, ? -> ?) -> ? = fun (opt, f) ->
+    case opt
+    | None => None
+    | Some(x) => Some(f(x))
+    end;
+
+  let bind : (Option, ? -> ?) -> ? = fun (opt, f) ->
+    case opt
+    | None => None
+    | Some(x) => f(x)
+    end;
+
+  let to_list : Option -> [?] = fun opt ->
+    case opt
+    | None => []
+    | Some(x) => [x]
+    end
+}

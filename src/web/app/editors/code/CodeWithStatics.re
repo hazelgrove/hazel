@@ -57,7 +57,14 @@ module Model = {
   let get_statics = (model: t) => model.statics;
 
   let get_cursor_info = (model: t): Cursor.cursor(Action.t) => {
-    info: Indicated.ci_of(model.editor.state.zipper, model.statics.info_map),
+    /* a member access's label (`a` in `M.a`) reads as the member reference */
+    info:
+      Indicated.ci_of(model.editor.state.zipper, model.statics.info_map)
+      |> Option.map(
+           Language.Info.as_member_reference(
+             ~info_map=model.statics.info_map,
+           ),
+         ),
     implied_hole: Lazy.from_val(None),
     indicated_piece:
       Indicated.for_decoration(model.editor.state.zipper)
@@ -88,57 +95,16 @@ module Model = {
   let persist = (model: t) => model.editor |> Editor.Model.persist;
   let to_string = (model: t) => model.editor |> Editor.Model.to_string;
   let unpersist = p => p |> Editor.Model.unpersist |> mk;
+  /* per-item persistence rebuilds the zipper directly (no text or
+     sexp parse); the persistent record still supplies the root */
+  let unpersist_with = (~zipper: Haz3lcore.Zipper.t, p: persistent) =>
+    Haz3lcore.Editor.Model.mk(zipper, ~root=p.root) |> mk;
 };
 
-/* Debounce statics computation during rapid typing. Only one mode is
-   active at a time, so a single timer/flag is shared across all modes. */
-module StaticsDebounce = {
-  let debounce_ms = 225.0;
-  let timer_id: ref(option(Js_of_ocaml.Dom_html.timeout_id)) = ref(None);
-  let force_on_next: ref(bool) = ref(false);
-
-  let pending = () => timer_id^ != None || force_on_next^;
-
-  /* Call from calculate to get the statics_mode for this cycle.
-     schedule_refresh should dispatch the mode's RefreshStatics action. */
-  let consume = (~is_edited, ~schedule_refresh: unit => unit): StaticsMode.t => {
-    let force_now = force_on_next^;
-    force_on_next := false;
-    /* a projector commit is one discrete edit: run statics now rather
-       than after the typing debounce (livelit drag → result: -225ms) */
-    let projector_edit = Util.AgentPulse.projector_commit^;
-    Util.AgentPulse.projector_commit := false;
-    if (force_now || is_edited && projector_edit) {
-      switch (timer_id^) {
-      | Some(id) =>
-        Js_of_ocaml.Dom_html.window##clearTimeout(id);
-        timer_id := None;
-      | None => ()
-      };
-      Force;
-    } else if (is_edited && debounce_ms > 0.0) {
-      switch (timer_id^) {
-      | Some(id) => Js_of_ocaml.Dom_html.window##clearTimeout(id)
-      | None => ()
-      };
-      timer_id :=
-        Some(
-          Js_of_ocaml.Dom_html.window##setTimeout(
-            Js_of_ocaml.Js.wrap_callback(() => {
-              timer_id := None;
-              /* Keep sends waiting until the scheduled refresh is consumed. */
-              force_on_next := true;
-              schedule_refresh();
-            }),
-            debounce_ms,
-          ),
-        );
-      Defer;
-    } else {
-      Normal;
-    };
-  };
-};
+/* Debounce statics computation during rapid typing (StaticsTiming). Only
+   one mode is active at a time, so a single timer/flag is shared across
+   all modes. */
+module StaticsDebounce = StaticsTiming.Make(StaticsTiming.Browser);
 
 module Update = {
   // There are no events for a read-only editor
@@ -149,9 +115,15 @@ module Update = {
       (
         ~settings,
         ~autoprobe_mode=Haz3lcore.AutoProbe.Off,
+        ~tail_probe=false,
+        ~proofs=Haz3lcore.AutoProbePerform.NoProofs,
         ~is_edited,
         ~statics_mode: StaticsMode.t=Normal,
+        ~compositional=false,
         ~ctx=?,
+        /* stack cells: the whole-program item analysis scoped to this
+           cell, used instead of a private init on recompute frames */
+        ~projected: option(CachedStatics.t)=?,
         ~stitch,
         ~dynamics: Language.Dynamics.Map.t,
         ~is_dynamic_term,
@@ -159,26 +131,30 @@ module Update = {
         {editor, statics, context_menu, _}: Model.t,
       )
       : Model.t => {
-    /* Throttle gate for full statics recompute. Bypass the debounce when probe
-     * ids change, else stale info_map probe_targets let IncrEval.reuse_check
-     * reuse old probes and a new probe shows ∅ until the next refresh. */
+    /* Throttle gate for a full statics recompute. Reuse keeps the `statics`
+     * ref, so CachedSyntax.calculate skips the shape pass (phys-eq).
+     * Probe ids are an analysis input: deferring would send this frame's
+     * eval a stale map and leave the probe sampleless, so a probe change
+     * recomputes now. */
     let probes_differ = (z, statics: CachedStatics.t) =>
       !
         Language.Id.Map.equal(
           (==),
           CachedStatics.probe_ids_of_zipper(z),
-          Language.Id.Map.map(_ => (), statics.targets),
+          statics.pins,
         );
     /* editor passed as a param so this reads the *new* (post-autoprobe) zipper,
      * not a stale captured one. A recompute first takes the statics the agent
      * tool path OFFERED for this very program (CachedStatics.offered_for),
      * computed there for its error check — one statics pass per tool call
-     * instead of several. */
+     * instead of several. The offer is a monolithic init, so compositional
+     * (per-item) editors compute their own. */
     let do_init = (editor: Editor.t) =>
       switch (
         ctx == None
         && ana == None
         && !is_dynamic_term
+        && !compositional
         && editor.root == Sort.Exp
           ? CachedStatics.offered_for(~settings, editor.state.zipper) : None
       ) {
@@ -186,15 +162,47 @@ module Update = {
       | Some(_)
       | None =>
         PerfMetrics.time_statics(() =>
-          CachedStatics.init(
-            ~settings,
-            ~stitch,
-            ~ctx?,
-            ~ana?,
-            ~is_dynamic_term,
-            ~root=editor.root,
-            editor.state.zipper,
-          )
+          editor.root == Sort.Typ
+            /* Typ-rooted cells: wrapped-alias statics (real InfoTyp
+               entries for the inspector) under the provided ctx */
+            ? CachedStatics.init_typ(~settings, ~ctx?, editor.state.zipper)
+            : editor.root == Sort.Pat
+                ? CachedStatics.init_pat(
+                    ~settings,
+                    ~ctx?,
+                    editor.state.zipper,
+                  )
+                : editor.root == Sort.TPat
+                    ? CachedStatics.init_tpat(
+                        ~settings,
+                        ~ctx?,
+                        editor.state.zipper,
+                      )
+                    : compositional
+                        /* whole-program editors: per-item statics re-analyze
+                           only dirty items and skip the monolithic recursion
+                           (a stack overflow on large programs) */
+                        ? CachedStatics.init_compositional(
+                            ~settings,
+                            ~stitch,
+                            ~root=editor.root,
+                            ~shared=editor.syntax.t_cache,
+                            ~source=?
+                              CachedSyntax.semantic_source(
+                                editor.state.zipper,
+                                editor.syntax,
+                              ),
+                            editor.state.zipper,
+                          )
+                        : CachedStatics.init(
+                            ~settings,
+                            ~stitch,
+                            ~ctx?,
+                            ~ana?,
+                            ~is_dynamic_term,
+                            ~root=editor.root,
+                            editor.state.zipper,
+                          )
         )
       };
     let needs_refresh =
@@ -206,7 +214,10 @@ module Update = {
        editor's source is unchanged. Implied-hole info must wait for refresh. */
     let statics =
       needs_refresh
-        ? do_init(editor)
+        ? switch (projected) {
+          | Some(p) => p
+          | None => do_init(editor)
+          }
         : is_edited
             ? {
               ...statics,
@@ -224,6 +235,8 @@ module Update = {
         Editor.Update.calculate(
           ~settings,
           ~autoprobe_mode,
+          ~tail_probe,
+          ~proofs,
           ~is_edited,
           statics,
           dynamics,
@@ -261,9 +274,29 @@ module View = {
   // There are no events for a read-only editor
   type event;
 
+  /* memo for the code text + error/warning arms, the costliest vdom in the
+     app: none of it depends on dynamics, but every streamed result chunk
+     re-renders the page. keyed on the physical identity of each input; a
+     hit also lets the vdom diff skip by reference. LRU so a stack's cells
+     and master all stay resident */
+  type memo_entry = {
+    m_key: array(Obj.t),
+    /* piece count of the keyed segment, for same-editor eviction */
+    m_seg_len: int,
+    m_nodes: list(Node.t),
+  };
+  let view_memo: ref(list(memo_entry)) = ref([]);
+  /* small cap, and same-length entries evict each other: each key pins a
+     whole generation of segment/measured/info_map. equal piece count is a
+     cheap "same editor, older generation" proxy; a misfire costs a
+     recompute */
+  let view_memo_max = 4;
+  let key_eq = (a: array(Obj.t), b: array(Obj.t)): bool =>
+    Array.length(a) == Array.length(b) && Array.for_all2((===), a, b);
+
   let view =
       (
-        ~globals,
+        ~globals: Globals.t,
         ~overlays: list(Node.t)=[],
         ~cull=false,
         /* The frame being rendered (None = root editor, Some(sid) =
@@ -287,44 +320,114 @@ module View = {
     let measured = CachedSyntax.measured(syntax);
     let segment = CachedSyntax.segment(syntax);
     let info_map = model.statics.info_map;
-    let refine_sort = (id, mold_out) =>
-      Language.Info.refine_sort_from_mold(~info_map, ~id, mold_out);
-    let code_text_view =
-      CodeViewable.view(
-        ~globals,
-        ~measured,
-        ~term_data,
-        ~buffer_ids=Selection.is_buffer(z.selection) ? selection_ids : [],
-        ~shape_map,
-        ~refractor_rows,
-        ~refine_sort,
-        segment,
-      );
+    let buffer_ids = Selection.is_buffer(z.selection) ? selection_ids : [];
     let in_frame = id =>
       CachedSyntax.frame_owns_id(frame, id, model.editor.syntax);
-    /* shared by the error and warning arms */
-    let completion = Arms.lazy_completion(z);
-    let error_decos =
-      Arms.Errors.of_ids(
-        ~refine_sort,
-        ~simple_indication=globals.settings.simple_indication,
-        ~font_metrics=globals.font_metrics,
-        ~syntax=model.editor.syntax,
-        ~completion,
-        List.filter(in_frame, model.statics.error_ids),
-      );
     let warning_ids =
       globals.settings.core.display_warnings ? model.statics.warning_ids : [];
-    let warning_decos =
-      Arms.Errors.of_ids(
-        ~refine_sort,
-        ~is_warning=true,
-        ~simple_indication=globals.settings.simple_indication,
-        ~font_metrics=globals.font_metrics,
-        ~syntax=model.editor.syntax,
-        ~completion,
-        List.filter(in_frame, warning_ids),
+    let key = [|
+      Obj.repr(info_map),
+      /* not the whole syntax record, which is rebuilt whenever a result
+         arrives: the parts of it the arms read (the rest of what they read
+         is above). With the record itself in the key, a livelit release
+         re-rendered the code three times for nothing. */
+      Obj.repr(model.editor.syntax.terms),
+      Obj.repr(model.editor.syntax.projectors),
+      Obj.repr(model.statics.error_ids),
+      Obj.repr(warning_ids),
+      Obj.repr(buffer_ids),
+      Obj.repr(globals.font_metrics),
+      Obj.repr(globals.settings),
+      /* None (the root) is immediate, so root hits are unaffected; a
+         splice frame's Some is fresh per render, as is its syntax */
+      Obj.repr(frame),
+    |];
+    /* and each splice's segment: which frame owns an id (in_frame) depends
+       only on which ids each splice holds. The splices map and each
+       splice's measured layout are rebuilt with the syntax whenever a
+       result arrives; the segments keep their identity. */
+    let key =
+      Array.append(
+        key,
+        Array.of_list(
+          List.map(
+            ((_, sp: CachedSyntax.splice)) => Obj.repr(sp.segment),
+            Id.Map.bindings(model.editor.syntax.splices),
+          ),
+        ),
       );
+    let nodes =
+      switch (List.find_opt(e => key_eq(e.m_key, key), view_memo^)) {
+      | Some(entry) =>
+        view_memo := [entry, ...List.filter(e => !(e === entry), view_memo^)];
+        entry.m_nodes;
+      | None =>
+        let refine_sort = (id, mold_out) =>
+          Language.Info.refine_sort_from_mold(~info_map, ~id, mold_out);
+        let code_text_view =
+          div_c(
+            "code",
+            [
+              span_c(
+                "code-text",
+                Code.view_chunked(
+                  ~measured,
+                  ~settings=globals.settings,
+                  ~shape_map,
+                  ~refractor_rows,
+                  ~font_metrics=globals.font_metrics,
+                  ~term_data,
+                  ~refine_sort,
+                  ~statics_ident=Obj.repr(info_map),
+                  ~buffer_ids,
+                ),
+              ),
+            ],
+          );
+        /* shared by the error and warning arms (canonical completion
+           depends on the segment, which the memo key covers) */
+        let completion =
+          Arms.lazy_completion(
+            ~root=model.editor.root,
+            ~syntax=model.editor.syntax,
+            z,
+          );
+        let error_decos =
+          Arms.Errors.of_ids(
+            ~refine_sort,
+            ~simple_indication=globals.settings.simple_indication,
+            ~font_metrics=globals.font_metrics,
+            ~syntax=model.editor.syntax,
+            ~completion,
+            List.filter(in_frame, model.statics.error_ids),
+          );
+        let warning_decos =
+          Arms.Errors.of_ids(
+            ~refine_sort,
+            ~is_warning=true,
+            ~simple_indication=globals.settings.simple_indication,
+            ~font_metrics=globals.font_metrics,
+            ~syntax=model.editor.syntax,
+            ~completion,
+            List.filter(in_frame, warning_ids),
+          );
+        // errors after warnings to prioritize errors over warnings
+        let nodes = [code_text_view, warning_decos, error_decos];
+        let seg_len = List.length(segment);
+        view_memo :=
+          [
+            {
+              m_key: key,
+              m_seg_len: seg_len,
+              m_nodes: nodes,
+            },
+            ...Util.ListUtil.truncate(
+                 view_memo_max - 1,
+                 List.filter(e => e.m_seg_len != seg_len, view_memo^),
+               ),
+          ];
+        nodes;
+      };
     let container_classes =
       ["code-container"]
       @ (globals.meta_down ? ["meta-down"] : [])
@@ -338,8 +441,7 @@ module View = {
         /* this editor's line ends, for the per-container offside stagger */
         ProbeStagger.row_ends_attr(measured),
       ],
-      // errors after warnings to prioritize errors over warnings
-      [code_text_view, warning_decos, error_decos] @ overlays,
+      nodes @ overlays,
     );
   };
 };

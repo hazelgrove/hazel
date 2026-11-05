@@ -76,7 +76,7 @@ let mockup = (seg: Segment.t): string => {
     Printer.of_segment(~holes="?", ~concave_holes="", ~refractors=[], seg);
 
   /* Run completion to get insertion info */
-  let result = CanonicalCompletion.for_editor(seg);
+  let result = CanonicalCompletion.for_editor(~root=Exp, seg);
   let insertions = result.insertions;
 
   if (List.length(insertions) == 0) {

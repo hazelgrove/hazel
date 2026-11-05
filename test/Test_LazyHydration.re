@@ -6,8 +6,7 @@ open Web;
 
 let zip_len = (sp: ScratchMode.Scratchpad.t): int =>
   switch (sp.kind) {
-  | Code({editor, _}) =>
-    List.length(Haz3lcore.Zipper.zip(editor.editor.editor.state.zipper))
+  | Code({program, _}) => List.length(Program.document(program))
   | Drv(_) => (-1)
   };
 

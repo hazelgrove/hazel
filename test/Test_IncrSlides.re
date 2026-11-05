@@ -132,7 +132,7 @@ let no_errors = (slide, ()) => {
         switch (Info.marks_of(info)) {
         | [] => acc
         | marks => [
-            Haz3lcore.ErrorPrint.string_of_marks(info, marks),
+            Haz3lcore.ErrorPrint.string_of_marks(~info_map=map, info, marks),
             ...acc,
           ]
         },

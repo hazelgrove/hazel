@@ -181,6 +181,37 @@
 .livelit > *:not(svg):not(.livelit-syntax-layer) {
     left: calc(0.4ch + 2 * var(--col-width-px, 1ch));
 }
+
+/* Full screen for a picture (^ticket(401)): a button at the livelit's
+   top right, shown only when its view draws an <svg> (the livelit's own
+   backing shape is a direct child, so it does not count). The picture,
+   full screen, scales to fit on the editor's background; Esc leaves. */
+.livelit-fullscreen {
+    display: none;
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: calc(2 * var(--col-width-px, 1ch));
+    height: var(--row-height-px);
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+    cursor: pointer;
+    opacity: 0.5;
+}
+.livelit-fullscreen:hover {
+    opacity: 1;
+}
+.projector.livelit:has(> :not(svg):not(.livelit-syntax-layer) svg)
+    .livelit-fullscreen {
+    display: flex;
+}
+.projector.livelit svg:fullscreen {
+    width: 100vw;
+    height: 100vh;
+    background: var(--ui-bkg, Canvas);
+}
+
 .livelit-eye-glyph {
     position: relative;
     opacity: 0.45;

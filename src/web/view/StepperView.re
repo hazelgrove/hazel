@@ -45,6 +45,25 @@ module Update = {
     };
   };
 
+  /* take back the last step shown, skipping hidden steps to the one before
+     (what the panel's undo does for the current step) */
+  let undo = (model: Model.t): option(t) => {
+    let rec last_shown = (depth, m: StepperBase.step_model, found) =>
+      switch (m.next_step) {
+      | None => found
+      | Some(n) =>
+        last_shown(
+          depth + 1,
+          n,
+          m.hidden == Calc.Calculated(true) ? found : Some(depth),
+        )
+      };
+    let rec at = (depth, a: t) =>
+      depth == 0 ? a : at(depth - 1, StepperBase.NextStep(a));
+    last_shown(0, model.root, None)
+    |> Option.map(depth => at(depth, StepperBase.RemoveStep));
+  };
+
   let calculate =
       (
         ~settings: Calc.t(CoreSettings.t),

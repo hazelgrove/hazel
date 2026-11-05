@@ -73,6 +73,7 @@ type t =
   | Redo
   | TydiAssistant
   | GoToDefinition
+  | FocusOutline
   | GoToPreviousProblem
   | GoToNextProblem
   | SelectCurrentTerm
@@ -104,6 +105,7 @@ type t =
   | ReparseCurrentEditor
   | ToggleStatics
   | ToggleCompletion
+  | ToggleWarnings
   | CompletionDisplayQuiver
   | CompletionDisplayFlag
   | CompletionDisplayNone
@@ -157,6 +159,12 @@ let meta = (a: t): action_meta =>
       section: Navigation,
       mdIcon: "arrow_forward",
       default_binding: Bound([], "F12"),
+    }
+  | FocusOutline => {
+      label: "Focus the Outline",
+      section: Navigation,
+      mdIcon: "list",
+      default_binding: Bound([Alt], "o"),
     }
   | GoToPreviousProblem => {
       label: "Go to Previous Problem",
@@ -340,6 +348,12 @@ let meta = (a: t): action_meta =>
     }
   | ToggleCompletion => {
       label: "Toggle Completion",
+      section: Settings,
+      mdIcon: "tune",
+      default_binding: Unbound,
+    }
+  | ToggleWarnings => {
+      label: "Toggle Warnings",
       section: Settings,
       mdIcon: "tune",
       default_binding: Unbound,

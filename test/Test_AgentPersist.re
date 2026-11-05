@@ -18,7 +18,7 @@ let legacy_tool_result = () => {
     ...
       AgentToolResult.mk_skipped({
         id: "legacy",
-        name: "update_definition",
+        name: "replace",
         args: `Null,
       }),
     success: true,
@@ -156,7 +156,7 @@ let tests = (
         let render = s =>
           s
           |> Indentation.shallow_complete_segment
-          |> CompositionView.Public.print_segment;
+          |> CompositionView.print_segment;
         List.iter(
           ((root, text)) => {
             let old = Option.get(FastParse.of_text(~root, text));
@@ -205,7 +205,7 @@ let tests = (
           bool,
           "tool registry restored",
           true,
-          round.prompting.tools == Haz3lcore.CompositionUtils.Public.tools,
+          round.prompting.tools == Haz3lcore.CompositionUtils.tools,
         );
         /* every chat's root prompt message restored with its api copy */
         let prompts_ok =

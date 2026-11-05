@@ -1,11 +1,19 @@
 open Util;
 
 /* Specifies which environment bindings to capture for a sample.
- * This could be extended to specify other aspects of capture. */
+ * [full]: keep function values too, which a stepper needs; otherwise
+ * they are elided as opaque to keep samples small. */
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
-type capture_spec = {refs: Binding.s};
+type capture_spec = {
+  refs: Binding.s,
+  [@default false]
+  full: bool,
+};
 
-let empty_capture_spec: capture_spec = {refs: []};
+let empty_capture_spec: capture_spec = {
+  refs: [],
+  full: false,
+};
 
 /* Maps expression/pattern IDs to their capture specifications.
  * Presence in this map means "collect a sample when evaluated". */
@@ -58,16 +66,18 @@ module Env = {
   /* Selectively elide dynamic information not currently
    * being used in the live probe UI, for (putative, unbenchmarked)
    * performance purposes for worker de/serialization */
-  let elide = (env: Environment.t(Exp.t), d: DHExp.t): elided_value =>
+  let elide =
+      (~full=false, env: Environment.t(Exp.t), d: DHExp.t): elided_value =>
     switch ((d |> DHExp.strip_ascriptions).term) {
     | Fun(_)
     | FixF(_)
     | Closure(_)
-    | BuiltinFun(_) => Opaque
+    | BuiltinFun(_) when !full => Opaque
     | _ => Val(d |> DHExp.strip_ascriptions |> Substitution.in_exp(env))
     };
 
-  let mk_entry = (env: Environment.t(Exp.t), {name, id, _}: Binding.t) =>
+  let mk_entry =
+      (~full=false, env: Environment.t(Exp.t), {name, id, _}: Binding.t) =>
     switch (Environment.lookup(env, name)) {
     | Some(d) =>
       let binding =
@@ -77,13 +87,13 @@ module Env = {
         };
       Some({
         binding,
-        value: elide(env, d),
+        value: elide(~full, env, d),
       });
     | None => None
     };
 
-  let filter = (env: Environment.t(Exp.t), bound_in: Binding.s) =>
-    List.filter_map(mk_entry(env), bound_in);
+  let filter = (~full=false, env: Environment.t(Exp.t), bound_in: Binding.s) =>
+    List.filter_map(mk_entry(~full, env), bound_in);
 
   /* Remove opaque values (like function literals) from environment entries */
   let remove_opaques: list(entry) => list(entry) =
@@ -137,7 +147,7 @@ let mk =
   id: Hashtbl.hash_param(64, 256, (List.length(stack), syntax_id, stack)),
   syntax_id,
   value,
-  env: Env.filter(env, spec.refs),
+  env: Env.filter(~full=spec.full, env, spec.refs),
   call_stack: stack,
   args,
   frame,
@@ -433,12 +443,16 @@ module Focus = {
     Some(CallStack.extend(ap_id, sample.call_stack));
   };
 
-  /* Returns Some(ap_id) only when cursor is on an application with a variable
-     in function position (enabling step-into and pinning). Excludes constructor
-     applications and applications with non-variable functions (e.g. lambdas). */
+  /* Returns Some(ap_id) only when cursor is on a call to a named function,
+     bare (`f(x)`) or through a module (`M.f(x)`), enabling step-into and
+     pinning. Excludes constructor applications and applications with
+     unnamed functions (e.g. lambdas). */
   let cur_var_ap = (info: Info.t): option(Id.t) =>
     switch (info) {
-    | InfoExp({user_term: {term: Ap(_, {term: Var(_), _}, _), _} as ap, _}) =>
+    | InfoExp({
+        user_term: {term: Ap(_, {term: Var(_) | Dot(_), _}, _), _} as ap,
+        _,
+      }) =>
       Some(Exp.rep_id(ap))
     | _ => None
     };
