@@ -13,10 +13,7 @@ let evaluate_term = (term: Exp.t): option(Exp.t) => {
     term
     |> CachedStatics.init_from_term(~settings, ~is_dynamic_term=false)
     |> ((x: CachedStatics.t) => x.elaborated)
-    |> Evaluator.evaluate_and_limit(
-         ~step_limit=1000000,
-         ~env=Builtins.env_init,
-       );
+    |> Evaluator.Limited.evaluate(~step_limit=1000000, ~env=Builtins.env_init);
   switch (evaluated) {
   | StepLimitExceeded => None
   | LimitedCompleted((result, _)) => Some(result)

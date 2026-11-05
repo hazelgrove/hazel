@@ -58,7 +58,7 @@ module EvaluatorEVMode: {
 
 module Eval = Transition(EvaluatorEVMode);
 
-let rec evaluate =
+let rec evaluate_trampoline =
         // Constants
         (
           ~prev: EvaluatorState.incr_eval=IncrEval.empty,
@@ -82,7 +82,13 @@ let rec evaluate =
    * running. */
 
   let evaluate =
-    evaluate(~prev, ~track_reuse, ~reused_ids, ~eval_info, ~outbox);
+    evaluate_trampoline(
+      ~prev,
+      ~track_reuse,
+      ~reused_ids,
+      ~eval_info,
+      ~outbox,
+    );
   let expr_id = DHExp.rep_id(exp);
   /* Outbox publication keys only on proper program nodes
    * (EvalInfo.is_program_node).
@@ -362,11 +368,6 @@ let rec evaluate =
   eval_5_state_merge(~call_stack, ~state=parent_state, ~expr_id, env, exp);
 };
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type limited_result =
-  | LimitedCompleted((Exp.t, EvaluatorState.t))
-  | StepLimitExceeded;
-
 let completed = (state: EvaluatorState.t): EvaluatorState.t => {
   ...state,
   incr_eval: {
@@ -374,9 +375,6 @@ let completed = (state: EvaluatorState.t): EvaluatorState.t => {
     steps: state.step_count,
   },
 };
-
-let finish = (~env, e: DHExp.t): Exp.t =>
-  e |> Substitution.in_exp(env) |> Exp.replace_all_ids;
 
 /* Shared setup for all evaluation entry points: run the reuse pass to find
  * reusable cache entries, then build the (unstarted) evaluation trampoline. */
@@ -427,7 +425,7 @@ let prepare_evaluation =
             entries,
         );
   let result =
-    evaluate(
+    evaluate_trampoline(
       ~prev,
       ~track_reuse,
       ~eval_info,
@@ -443,109 +441,36 @@ let prepare_evaluation =
   (state, result);
 };
 
-let evaluate_and_limit =
-    (
-      ~step_limit: int,
-      ~prev: EvaluatorState.incr_eval=IncrEval.empty,
-      ~eval_info: EvalInfo.t=EvalInfo.empty,
-      ~env,
-      ~reuse_map: option(IncrEval.reuse_map)=?,
-      ~outbox: option(ref(IncrEval.outbox(EvaluatorState.t)))=?,
-      d: DHExp.t,
-    )
-    : limited_result => {
-  let (state, result) =
-    prepare_evaluation(~prev, ~eval_info, ~env, ~reuse_map, ~outbox, d);
-  switch (
-    Trampoline.Yielding.run_slice(
-      ~step_budget=step_limit,
-      result |> Trampoline.Yielding.start,
-    )
-  ) {
-  | SliceDone(x, _) =>
-    LimitedCompleted((finish(~env, x), completed(state^)))
-  | SliceYielded(_) => StepLimitExceeded
-  };
-};
+let finish = (~env, e: DHExp.t): Exp.t =>
+  e |> Substitution.in_exp(env) |> Exp.replace_all_ids;
 
-type yielding_evaluation = {
-  env: Environment.t(Exp.t),
-  state: ref(EvaluatorState.t),
-  outbox: ref(IncrEval.outbox(EvaluatorState.t)),
-  continuation: Trampoline.Yielding.continuation(DHExp.t),
-};
+// Normal Evaluation
 
-type yielding_result =
-  | EvaluationCompleted((Exp.t, EvaluatorState.t))
-  | EvaluationYielded(yielding_evaluation);
-
-let start_yielding_evaluation =
+let evaluate =
     (
       ~prev: EvaluatorState.incr_eval=IncrEval.empty,
       ~eval_info: EvalInfo.t=EvalInfo.empty,
       ~env,
-      ~reuse_map: option(IncrEval.reuse_map)=?,
-      ~reuse_stream: option(IncrEval.t(EvaluatorState.t))=?,
       d: DHExp.t,
     )
-    : yielding_evaluation => {
-  let outbox = ref(IncrEval.empty_outbox);
+    : (Exp.t, EvaluatorState.t) => {
   let (state, result) =
     prepare_evaluation(
       ~prev,
       ~eval_info,
       ~env,
-      ~reuse_map,
-      ~reuse_stream,
-      ~outbox=Some(outbox),
+      ~reuse_map=None,
+      ~outbox=None,
       d,
     );
-  {
-    env,
-    state,
-    outbox,
-    continuation: Trampoline.Yielding.start(result),
-  };
+  /* Must be sequenced before reading `state`: running the trampoline is what
+     populates it, and tuple components are evaluated right-to-left. */
+  let value = finish(~env, Trampoline.run(result));
+  (value, completed(state^));
 };
 
-let drain_streaming_outbox =
-    (evaluation: yielding_evaluation): IncrEval.outbox(EvaluatorState.t) => {
-  let outbox = evaluation.outbox^;
-  evaluation.outbox := IncrEval.empty_outbox;
-  outbox;
-};
-
-let run_yielding_slice =
-    (~step_budget: int, evaluation: yielding_evaluation): yielding_result =>
-  switch (
-    Trampoline.Yielding.run_slice(~step_budget, evaluation.continuation)
-  ) {
-  | SliceDone(x, _) =>
-    EvaluationCompleted((
-      finish(~env=evaluation.env, x),
-      completed(evaluation.state^),
-    ))
-  | SliceYielded(continuation) =>
-    EvaluationYielded({
-      ...evaluation,
-      continuation,
-    })
-  };
-
-let yielding_step_count = (evaluation: yielding_evaluation): int => {
-  let Trampoline.Yielding.Continuation(_, _, step_counter) =
-    evaluation.continuation;
-  step_counter;
-};
-
-/* evaluate, also returning the work it did: the steps its trampoline
-   actually took. A reused result costs the one step that fetches it. That
-   is not EvaluatorState's step_count, which counts a reused subtree's
-   steps again, to keep probe samples' step bounds in line: step_count is
-   the same with or without reuse, and this is not. Deterministic for a
-   given program and cache, so tests can hold it to a budget
-   (Test_PerfBudgets) where a time would vary with the machine. */
-let evaluate_counting_work =
+/* Doesn't include steps in re-used evaluation. Used in perf testing. */
+let evaluate_counting_trampoline_steps =
     (
       ~prev: EvaluatorState.incr_eval=IncrEval.empty,
       ~eval_info: EvalInfo.t=EvalInfo.empty,
@@ -574,25 +499,104 @@ let evaluate_counting_work =
   };
 };
 
-let evaluate =
-    (
-      ~prev: EvaluatorState.incr_eval=IncrEval.empty,
-      ~eval_info: EvalInfo.t=EvalInfo.empty,
-      ~env,
-      d: DHExp.t,
-    )
-    : (Exp.t, EvaluatorState.t) => {
-  let (state, result) =
-    prepare_evaluation(
-      ~prev,
-      ~eval_info,
-      ~env,
-      ~reuse_map=None,
-      ~outbox=None,
-      d,
-    );
-  /* Must be sequenced before reading `state`: running the trampoline is what
-     populates it, and tuple components are evaluated right-to-left. */
-  let value = finish(~env, Trampoline.run(result));
-  (value, completed(state^));
+module Limited = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type result =
+    | LimitedCompleted((Exp.t, EvaluatorState.t))
+    | StepLimitExceeded;
+
+  let evaluate =
+      (
+        ~step_limit: int,
+        ~prev: EvaluatorState.incr_eval=IncrEval.empty,
+        ~eval_info: EvalInfo.t=EvalInfo.empty,
+        ~env,
+        ~reuse_map: option(IncrEval.reuse_map)=?,
+        ~outbox: option(ref(IncrEval.outbox(EvaluatorState.t)))=?,
+        d: DHExp.t,
+      )
+      : result => {
+    let (state, result) =
+      prepare_evaluation(~prev, ~eval_info, ~env, ~reuse_map, ~outbox, d);
+    switch (
+      Trampoline.Yielding.run_slice(
+        ~step_budget=step_limit,
+        result |> Trampoline.Yielding.start,
+      )
+    ) {
+    | SliceDone(x, _) =>
+      LimitedCompleted((finish(~env, x), completed(state^)))
+    | SliceYielded(_) => StepLimitExceeded
+    };
+  };
+};
+
+module Yielding = {
+  type t = {
+    env: Environment.t(Exp.t),
+    state: ref(EvaluatorState.t),
+    outbox: ref(IncrEval.outbox(EvaluatorState.t)),
+    continuation: Trampoline.Yielding.continuation(DHExp.t),
+  };
+
+  type result =
+    | EvaluationCompleted((Exp.t, EvaluatorState.t))
+    | EvaluationYielded(t);
+
+  let start =
+      (
+        ~prev: EvaluatorState.incr_eval=IncrEval.empty,
+        ~eval_info: EvalInfo.t=EvalInfo.empty,
+        ~env,
+        ~reuse_map: option(IncrEval.reuse_map)=?,
+        ~reuse_stream: option(IncrEval.t(EvaluatorState.t))=?,
+        d: DHExp.t,
+      )
+      : t => {
+    let outbox = ref(IncrEval.empty_outbox);
+    let (state, result) =
+      prepare_evaluation(
+        ~prev,
+        ~eval_info,
+        ~env,
+        ~reuse_map,
+        ~reuse_stream,
+        ~outbox=Some(outbox),
+        d,
+      );
+    {
+      env,
+      state,
+      outbox,
+      continuation: Trampoline.Yielding.start(result),
+    };
+  };
+
+  let drain_outbox = (evaluation: t): IncrEval.outbox(EvaluatorState.t) => {
+    let outbox = evaluation.outbox^;
+    evaluation.outbox := IncrEval.empty_outbox;
+    outbox;
+  };
+
+  let run_slice = (~step_budget: int, evaluation: t): result =>
+    switch (
+      Trampoline.Yielding.run_slice(~step_budget, evaluation.continuation)
+    ) {
+    | SliceDone(x, _) =>
+      EvaluationCompleted((
+        finish(~env=evaluation.env, x),
+        completed(evaluation.state^),
+      ))
+    | SliceYielded(continuation) =>
+      EvaluationYielded({
+        ...evaluation,
+        continuation,
+      })
+    };
+
+  let step_count = (evaluation: t): int => {
+    let Trampoline.Yielding.Continuation(_, _, step_counter) =
+      evaluation.continuation;
+    step_counter;
+  };
 };

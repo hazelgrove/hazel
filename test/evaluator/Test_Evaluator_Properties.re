@@ -18,7 +18,7 @@ let qcheck_evaluator_does_not_crash_test =
     ) {
     | exp =>
       switch (
-        Evaluator.evaluate_and_limit(
+        Evaluator.Limited.evaluate(
           ~env=Builtins.env_init,
           ~step_limit=10000,
           exp,
@@ -85,7 +85,7 @@ let check_evaluator_stepper_consistent =
   ) {
   | elaborated_exp =>
     switch (
-      Evaluator.evaluate_and_limit(
+      Evaluator.Limited.evaluate(
         ~env=Builtins.env_init,
         ~step_limit,
         elaborated_exp,
@@ -199,12 +199,12 @@ let qcheck_pattern_equivalence_test =
           var(pattern_equivalence_binder),
         );
       switch (
-        Evaluator.evaluate_and_limit(
+        Evaluator.Limited.evaluate(
           ~env=Builtins.env_init,
           ~step_limit=10000,
           elaborate(first),
         ),
-        Evaluator.evaluate_and_limit(
+        Evaluator.Limited.evaluate(
           ~env=Builtins.env_init,
           ~step_limit=10000,
           elaborate(second),
@@ -423,7 +423,7 @@ let statics_and_elab = (exp: Exp.t): (Statics.Map.t, Exp.t) =>
 
 let eval_limited =
     (~prev=IncrEval.empty, ~eval_info, ~step_limit, elab: Exp.t) =>
-  Evaluator.evaluate_and_limit(
+  Evaluator.Limited.evaluate(
     ~step_limit,
     ~prev,
     ~eval_info,
@@ -730,7 +730,7 @@ let gradual_guarantee_holds = ((uexp: Exp.t, seed: int)): bool => {
     };
   QCheck.assume(well_typed(uexp) && well_typed(loosened));
   let run = (~step_limit, e) =>
-    Evaluator.evaluate_and_limit(
+    Evaluator.Limited.evaluate(
       ~env=Builtins.env_init,
       ~step_limit,
       elaborate(e),
@@ -857,7 +857,7 @@ let rec finish_yielding = (~remaining_slices: int, evaluation) => {
   if (remaining_slices <= 0) {
     fail("Yielding evaluation did not complete");
   };
-  switch (Evaluator.run_yielding_slice(~step_budget=1, evaluation)) {
+  switch (Evaluator.Yielding.run_slice(~step_budget=1, evaluation)) {
   | EvaluationCompleted(value) => value
   | EvaluationYielded(evaluation) =>
     finish_yielding(~remaining_slices=remaining_slices - 1, evaluation)
@@ -869,18 +869,18 @@ let rec finish_yielding_with_stream =
   if (remaining_slices <= 0) {
     fail("Yielding evaluation did not complete");
   };
-  switch (Evaluator.run_yielding_slice(~step_budget=1, evaluation)) {
+  switch (Evaluator.Yielding.run_slice(~step_budget=1, evaluation)) {
   | EvaluationCompleted(value) =>
     let stream =
       IncrEval.add_stream(
-        Evaluator.drain_streaming_outbox(evaluation).completed,
+        Evaluator.Yielding.drain_outbox(evaluation).completed,
         stream,
       );
     (value, stream);
   | EvaluationYielded(evaluation) =>
     let stream =
       IncrEval.add_stream(
-        Evaluator.drain_streaming_outbox(evaluation).completed,
+        Evaluator.Yielding.drain_outbox(evaluation).completed,
         stream,
       );
     finish_yielding_with_stream(
@@ -903,10 +903,9 @@ let yielding_evaluation_test =
           parse_exp("let x = 1 in let y = 2 in x + y"),
         );
       let (sync_exp, _) = Evaluator.evaluate(~env=Builtins.env_init, exp);
+      let evaluation = Evaluator.Yielding.start(~env=Builtins.env_init, exp);
       let evaluation =
-        Evaluator.start_yielding_evaluation(~env=Builtins.env_init, exp);
-      let evaluation =
-        switch (Evaluator.run_yielding_slice(~step_budget=1, evaluation)) {
+        switch (Evaluator.Yielding.run_slice(~step_budget=1, evaluation)) {
         | EvaluationYielded(evaluation) => evaluation
         | EvaluationCompleted(_) =>
           fail("Expected yielding evaluation to yield with a one-step budget")
@@ -935,11 +934,7 @@ let yielding_streaming_outbox_test =
           info_map,
         );
       let evaluation =
-        Evaluator.start_yielding_evaluation(
-          ~eval_info,
-          ~env=Builtins.env_init,
-          exp,
-        );
+        Evaluator.Yielding.start(~eval_info, ~env=Builtins.env_init, exp);
       let ((_, final_state), stream) =
         finish_yielding_with_stream(
           ~remaining_slices=1000,
@@ -968,11 +963,11 @@ let rec yield_until_current = (~remaining_slices: int, evaluation) => {
   if (remaining_slices <= 0) {
     fail("Yielding evaluation did not produce a current outbox state");
   };
-  switch (Evaluator.run_yielding_slice(~step_budget=1, evaluation)) {
+  switch (Evaluator.Yielding.run_slice(~step_budget=1, evaluation)) {
   | EvaluationCompleted(_) =>
     fail("Expected yielding evaluation to yield before completion")
   | EvaluationYielded(evaluation) =>
-    let outbox = Evaluator.drain_streaming_outbox(evaluation);
+    let outbox = Evaluator.Yielding.drain_outbox(evaluation);
     switch (outbox.current) {
     | Some(_) => outbox
     | None =>
@@ -999,11 +994,7 @@ let yielding_streaming_current_state_test =
           info_map,
         );
       let evaluation =
-        Evaluator.start_yielding_evaluation(
-          ~eval_info,
-          ~env=Builtins.env_init,
-          exp,
-        );
+        Evaluator.Yielding.start(~eval_info, ~env=Builtins.env_init, exp);
       let outbox = yield_until_current(~remaining_slices=1000, evaluation);
       switch (outbox.current) {
       | Some({state, _}) =>
@@ -1047,17 +1038,17 @@ let rec check_streaming_tests_monotonic =
   if (remaining_slices <= 0) {
     fail("Yielding evaluation did not complete");
   } else {
-    switch (Evaluator.run_yielding_slice(~step_budget=1, evaluation)) {
+    switch (Evaluator.Yielding.run_slice(~step_budget=1, evaluation)) {
     | EvaluationCompleted(_) =>
       let accumulated =
         IncrEval.merge_outbox(
-          Evaluator.drain_streaming_outbox(evaluation),
+          Evaluator.Yielding.drain_outbox(evaluation),
           accumulated,
         );
       let collected = StreamCollector.collect_stream_state(accumulated, exp);
       TestMap.count(collected.tests);
     | EvaluationYielded(evaluation) =>
-      let update = Evaluator.drain_streaming_outbox(evaluation);
+      let update = Evaluator.Yielding.drain_outbox(evaluation);
       switch (update.current) {
       | Some({id, _}) =>
         check(
@@ -1114,11 +1105,7 @@ let yielding_streaming_current_id_invalid_race_test =
           info_map,
         );
       let evaluation =
-        Evaluator.start_yielding_evaluation(
-          ~eval_info,
-          ~env=Builtins.env_init,
-          exp,
-        );
+        Evaluator.Yielding.start(~eval_info, ~env=Builtins.env_init, exp);
       let final_count =
         check_streaming_tests_monotonic(
           ~remaining_slices=5000,
@@ -1141,7 +1128,7 @@ let check_confluence = (~name, mk_uexp) =>
     () => {
       let elab = elaborate(mk_uexp());
       switch (
-        Evaluator.evaluate_and_limit(
+        Evaluator.Limited.evaluate(
           ~env=Builtins.env_init,
           ~step_limit=1000,
           elab,
@@ -1166,7 +1153,7 @@ let check_evaluates = (~name, mk_uexp) =>
     `Quick,
     () => {
       let _ =
-        Evaluator.evaluate_and_limit(
+        Evaluator.Limited.evaluate(
           ~env=Builtins.env_init,
           ~step_limit=10000,
           elaborate(mk_uexp()),
