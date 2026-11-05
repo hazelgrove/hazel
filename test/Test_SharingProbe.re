@@ -159,6 +159,19 @@ let post_request = (~reset, ~id, st: Haz3lcore.CachedStatics.t) => {
       r;
     });
   let cut_new = List.length(Web.EvalSplit.encoded^);
+  /* (^ticket(666)) the program posted, and whether the worker already holds
+     it composed (its layout among the programs it composed lately) */
+  let program =
+    switch (r.batch) {
+    | [(_, v: WorkerServer.Request.value), ..._] => Some(v.program)
+    | [] => None
+    };
+  let hit =
+    switch (program) {
+    | Some(p) =>
+      List.mem_assoc(p.EvalPieces.layout, WorkerServer.composed_lately^)
+    | None => false
+    };
   let size = e =>
     Core.Byte_units.bytes_int_exn(WorkerServer.Active.size_request(e));
   let (plain, t_plain) =
@@ -205,6 +218,8 @@ let post_request = (~reset, ~id, st: Haz3lcore.CachedStatics.t) => {
     t_shared,
     t_worker,
     composed,
+    program,
+    hit,
   );
 };
 
@@ -397,14 +412,47 @@ let request_steps = (name: string, text: string) => {
              )
     );
   };
+  let programs: ref(list((string, EvalPieces.program))) = ref([]);
   let step = (label, ~reset, ~id, seg) => {
     let (st, statics) = timed(() => Pieces.statics_of(term_of(seg)));
     let ds = DefStatics.cached(st.term);
     let items = items_against_last(ds);
     last := ds;
     Hashtbl.reset(Web.EvalSplit.recut);
-    let (cut, cut_new, plain, t_plain, shared, t_shared, t_worker, ok) =
+    let (
+      cut,
+      cut_new,
+      plain,
+      t_plain,
+      shared,
+      t_shared,
+      t_worker,
+      ok,
+      program,
+      hit,
+    ) =
       post_request(~reset, ~id, st);
+    /* (^ticket(666)) the worker's memo: a hit or a miss; an undo's program
+       against the first's, a redo's against the edit's, piece by piece */
+    Printf.printf(
+      "UNDO666 %s %s: the worker holds it composed: %b\n%!",
+      name,
+      label,
+      hit,
+    );
+    switch (program) {
+    | Some(p) =>
+      programs := [(label, p), ...programs^];
+      switch (
+        label,
+        List.assoc_opt(label == "undo" ? "first" : "edit", programs^),
+      ) {
+      | ("undo" | "redo", Some(before)) =>
+        Pieces.layout_diff(name ++ " " ++ label, before, p)
+      | _ => ()
+      };
+    | None => ()
+    };
     let recut = recut();
     let keys =
       Web.EvalSplit.went_whole^ != None

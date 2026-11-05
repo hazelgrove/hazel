@@ -235,23 +235,10 @@ let edit_and_back = (~root=Sort.Exp, src: string, needle, repl, ()) => {
   );
 };
 
-/* (^ticket(666), a probe, not for merging) what an undo posts anew: the
-   program of the very segment before the edit, made again after it, should
-   lay out as before; each slot whose hash is not the one before the edit
-   (or whose key is new) is printed, with where its content first differs,
-   as UNDO666 lines for the probe's summary */
-let undo_diff = (~root=Sort.Exp, name, src: string, needle, repl, ()) => {
-  fresh_worker();
-  let term_of = seg => MakeTerm.Incr.term_of_root(~root, seg);
-  let program_of = seg => {
-    let st = statics_of(term_of(seg));
-    Split.program(~probe_all=settings.probe_all, ~targets=st.targets, st);
-  };
-  let there = Parity.token(~at=`First, ~keep_id=true, needle, repl);
-  let seg0 = CorpusUtil.seg_of(~root, src);
-  let p0: EvalPieces.program = program_of(seg0);
-  let _: EvalPieces.program = program_of(there.edit(~root, seg0));
-  let p2: EvalPieces.program = program_of(seg0);
+/* (^ticket(666), a probe) two programs' layouts compared: each slot of
+   [p2] whose hash is not [p0]'s (or whose key is new), with where its
+   content first differs, as UNDO666 lines */
+let layout_diff = (name, p0: EvalPieces.program, p2: EvalPieces.program) => {
   let s0 = EvalPieces.slots(p0.layout);
   let s2 = EvalPieces.slots(p2.layout);
   let text = (p: EvalPieces.program, h: EvalPieces.hash) =>
@@ -301,6 +288,26 @@ let undo_diff = (~root=Sort.Exp, name, src: string, needle, repl, ()) => {
       },
     s2,
   );
+};
+
+/* (^ticket(666), a probe, not for merging) what an undo posts anew: the
+   program of the very segment before the edit, made again after it, should
+   lay out as before; each slot whose hash is not the one before the edit
+   (or whose key is new) is printed, with where its content first differs,
+   as UNDO666 lines for the probe's summary */
+let undo_diff = (~root=Sort.Exp, name, src: string, needle, repl, ()) => {
+  fresh_worker();
+  let term_of = seg => MakeTerm.Incr.term_of_root(~root, seg);
+  let program_of = seg => {
+    let st = statics_of(term_of(seg));
+    Split.program(~probe_all=settings.probe_all, ~targets=st.targets, st);
+  };
+  let there = Parity.token(~at=`First, ~keep_id=true, needle, repl);
+  let seg0 = CorpusUtil.seg_of(~root, src);
+  let p0: EvalPieces.program = program_of(seg0);
+  let _: EvalPieces.program = program_of(there.edit(~root, seg0));
+  let p2: EvalPieces.program = program_of(seg0);
+  layout_diff(name, p0, p2);
 };
 
 /* each step's program through one worker, from a fresh one */
