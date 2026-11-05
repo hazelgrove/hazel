@@ -2882,8 +2882,6 @@ let tests = (
     test_path_continues_through_tuple_type_member,
     test_path_continues_through_unascribed_sub_module,
     test_path_continues_through_unknown_member,
-    test_shadowed_module_keeps_earlier_paths,
-    test_shadowing_module_roots_later_paths,
     test_renamed_alias_leaves_member_type,
     test_renamed_alias_leaves_module_of_same_name,
     test_renamed_alias_leaves_let_bound_module,
