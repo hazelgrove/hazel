@@ -275,8 +275,8 @@ let layout_diff = (name, p0: EvalPieces.program, p2: EvalPieces.program) => {
             ? i : first(i + 1);
         let i = first(0);
         let near = (t, i) => {
-          let from = max(0, i - 200);
-          String.sub(t, from, min(String.length(t) - from, 400));
+          let from = max(0, i - 2400);
+          String.sub(t, from, min(String.length(t) - from, 2600));
         };
         print_endline(
           Printf.sprintf(
