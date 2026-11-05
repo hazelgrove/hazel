@@ -42,6 +42,7 @@ let (suite, exit_with_test_status) =
       Test_HazelJson_JsonADT.tests,
       Test_PatternMatch.tests,
       Test_Equality.tests,
+      Test_ValueHash.tests,
       Test_Substitution.tests,
     ]
     @ Test_Unicode.tests
