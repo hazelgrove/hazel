@@ -1,0 +1,260 @@
+# Grammar: IMP #
+
+# A livelit whose literal is a grammar: idea 8 of the meeting agenda, #
+# the report for today's meeting, ^report(37) (Cyrus's DSLs in #
+# Hazel). Its model is a production rule system: the rules, in order, #
+# and each rule's alternatives, in order. Here, the rules of IMP. #
+
+# The order is part of the model on purpose. A parser that tries the #
+# alternatives in turn (a PEG's ordered choice) would read it, and so #
+# does the example writer at the end of this slide: move an #
+# alternative up, and the examples change. #
+
+# This first prototype edits the rules. Its expansion is the grammar #
+# itself, a Hazel value the program can read. Still to come: a parser #
+# for programs in the grammar's language, and a livelit that edits #
+# those programs as tiles. #
+
+# A symbol is a terminal (a keyword or a mark), a nonterminal (the #
+# name of a rule), or Ids, any identifier. The types sit outside the #
+# livelit so that the model below can name T, N and Ids. #
+
+type Sym = + T(String) + N(String) + Ids in
+type Alt = [Sym] in
+type Rule = (lhs = String, alts = [Alt]) in
+type Grammar = [Rule] in
+
+let ^grammar = {
+  type Model = Grammar;
+  type Action =
+    + RuleUp(Int)
+    + AltUp(Int, Int)
+    + SetAlt(Int, Int, String)
+    + AddAlt(Int)
+    + DropAlt(Int, Int)
+    + Keep;
+  type Expansion = Grammar;
+
+  let init = Pure([]);
+
+  # Reading an alternative from its text. The word <ids> is Ids, a #
+  # rule's name is that nonterminal, and so is a rule's name with a #
+  # digit after it (Cmd1, as in Cmd1 ; Cmd2). Any other word is a #
+  # terminal. Words are separated by spaces. #
+
+  let is_rule : (Grammar, String) -> Bool =
+    fun g, x -> case g | [] => false | r :: tl => r.lhs == x || is_rule(tl, x) end;
+  let one_of : ([String], String) -> Bool =
+    fun xs, x -> case xs | [] => false | y :: tl => y == x || one_of(tl, x) end;
+  let base = fun x : String ->
+    let n = string_length(x) in
+    if n > 1 && one_of(["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"], string_sub(x, n - 1, 1))
+    then string_sub(x, 0, n - 1) else x;
+  let read_sym = fun (g, w) : (Grammar, String) ->
+    if w == "<ids>" then Ids
+    else if is_rule(g, w) then N(w)
+    else if is_rule(g, base(w)) then N(base(w))
+    else T(w);
+  let read_words : (Grammar, [String]) -> Alt =
+    fun g, ws ->
+      case ws
+      | [] => []
+      | w :: tl => if w == "" then read_words(g, tl) else read_sym(g, w) :: read_words(g, tl)
+      end;
+  let read_alt = fun (g, s) : (Grammar, String) -> read_words(g, string_split(" ", s));
+
+  # And writing one back as text, for its input box. #
+
+  let show_sym = fun s : Sym -> case s | T(t) => t | N(x) => x | Ids => "<ids>" end;
+  let show_alt : Alt -> String =
+    fun a ->
+      case a
+      | [] => ""
+      | s :: tl => show_sym(s) ++ (case tl | [] => "" | _ => " " ++ show_alt(tl) end)
+      end;
+
+  # Edits by position: move a rule or an alternative up one place, #
+  # replace or drop an alternative. #
+
+  let rules_up : (Grammar, Int) -> Grammar =
+    fun g, i ->
+      case g
+      | a :: b :: tl => if i == 1 then b :: a :: tl else a :: rules_up(b :: tl, i - 1)
+      | _ => g
+      end;
+  let alts_up : ([Alt], Int) -> [Alt] =
+    fun xs, j ->
+      case xs
+      | a :: b :: tl => if j == 1 then b :: a :: tl else a :: alts_up(b :: tl, j - 1)
+      | _ => xs
+      end;
+  let alts_set : ([Alt], Int, Alt) -> [Alt] =
+    fun xs, j, a ->
+      case xs
+      | [] => []
+      | x :: tl => if j == 0 then a :: tl else x :: alts_set(tl, j - 1, a)
+      end;
+  let alts_drop : ([Alt], Int) -> [Alt] =
+    fun xs, j ->
+      case xs
+      | [] => []
+      | x :: tl => if j == 0 then tl else x :: alts_drop(tl, j - 1)
+      end;
+  let at_rule : (Grammar, Int, (Rule -> Rule)) -> Grammar =
+    fun g, i, f ->
+      case g
+      | [] => []
+      | r :: tl => if i == 0 then f(r) :: tl else r :: at_rule(tl, i - 1, f)
+      end;
+
+  let update = fun g : Model -> fun a : Action -> Pure(
+    case a
+    | RuleUp(i) => rules_up(g, i)
+    | AltUp(i, j) => at_rule(g, i, fun r : Rule -> (lhs = r.lhs, alts = alts_up(r.alts, j)))
+    | SetAlt(i, j, s) =>
+      at_rule(g, i, fun r : Rule -> (lhs = r.lhs, alts = alts_set(r.alts, j, read_alt(g, s))))
+    | AddAlt(i) => at_rule(g, i, fun r : Rule -> (lhs = r.lhs, alts = r.alts @ [[]]))
+    | DropAlt(i, j) => at_rule(g, i, fun r : Rule -> (lhs = r.lhs, alts = alts_drop(r.alts, j)))
+    | Keep => g
+    end);
+
+  # The view. Each rule gets a color, and its name is drawn in that #
+  # color wherever it appears, like a sort of tile. A nonterminal used #
+  # twice in one alternative is numbered, Cmd1 ; Cmd2. #
+
+  let palette = ["#2b6cb0", "#2f855a", "#b7791f", "#6b46c1", "#c53030", "#2c7a7b"];
+  let nth_or : ([String], Int, String) -> String =
+    fun xs, k, d -> case xs | [] => d | x :: tl => if k == 0 then x else nth_or(tl, k - 1, d) end;
+  let index_of : (Grammar, String, Int) -> Int =
+    fun g, x, k -> case g | [] => 0 - 1 | r :: tl => if r.lhs == x then k else index_of(tl, x, k + 1) end;
+  let color = fun (g, x) : (Grammar, String) -> nth_or(palette, index_of(g, x, 0), "#718096");
+  let count : (Alt, String) -> Int =
+    fun a, x ->
+      case a
+      | [] => 0
+      | s :: tl => (case s | N(y) => if y == x then 1 else 0 | _ => 0 end) + count(tl, x)
+      end;
+  let chip = fun (c, kids) : (String, [Html.T]) ->
+    Html.span([Attr.style([("display", "inline-block"), ("padding", "0 0.35em"),
+                           ("border-radius", "0.3em"), ("background", c), ("color", "white")])],
+      kids);
+  let chips : (Grammar, Alt, Alt, Alt) -> [Html.T] =
+    fun g, a, whole, seen ->
+      case a
+      | [] => []
+      | s :: tl =>
+        let node =
+          case s
+          | T(t) => Html.span([Attr.style([("font-weight", "bold")])], [Html.text(t)])
+          | Ids => Html.span([Attr.style([("font-style", "italic"), ("color", "#4a5568")])], [Html.text("ids")])
+          | N(x) =>
+            chip(color(g, x),
+              [Html.text(x)] @
+              (if count(whole, x) > 1
+               then [Html.node("sub", [], [Html.text(string_of_int(count(seen, x) + 1))])]
+               else []))
+          end in
+        node :: chips(g, tl, whole, s :: seen)
+      end;
+
+  let alt_rows : (Grammar, Int, String, [Alt], Int) -> [Html.T] =
+    fun g, i, lhs, alts, j ->
+      case alts
+      | [] => []
+      | a :: tl =>
+        Html.div([Attr.style([("display", "flex"), ("align-items", "center"), ("gap", "0.4em"),
+                              ("margin", "0.15em 0")])], [
+          Html.span([Attr.style([("width", "4em"), ("text-align", "right")])],
+            if j == 0 then [chip(color(g, lhs), [Html.text(lhs)])] else []),
+          Html.span([Attr.style([("width", "1.8em"), ("color", "#718096")])],
+            [Html.text(if j == 0 then "::=" else "|")]),
+          Html.input([Attr.type_("text"), Attr.value(show_alt(a)),
+                      Attr.on_input(fun v -> SetAlt(i, j, v)),
+                      Attr.on_key_down(fun _e -> Keep),
+                      Attr.style([("font-family", "var(--code-font)"), ("width", "17em")])]),
+          Html.span([Attr.style([("display", "flex"), ("gap", "0.3em"), ("min-width", "15em")])],
+            case a | [] => [Html.text("(empty)")] | _ => chips(g, a, a, []) end),
+          Html.button([Attr.on_click(AltUp(i, j)), Attr.disabled(j == 0)], [Html.text("up")]),
+          Html.button([Attr.on_click(DropAlt(i, j))], [Html.text("drop")])
+        ]) :: alt_rows(g, i, lhs, tl, j + 1)
+      end;
+
+  let rule_rows : (Grammar, Grammar, Int) -> [Html.T] =
+    fun g, rs, i ->
+      case rs
+      | [] => []
+      | r :: tl =>
+        Html.div([Attr.style([("border-top", "1px solid #e2e8f0"), ("padding", "0.25em 0")])],
+          alt_rows(g, i, r.lhs, r.alts, 0) @
+          [Html.div([Attr.style([("display", "flex"), ("gap", "0.4em"), ("margin-left", "6.2em")])], [
+             Html.button([Attr.on_click(AddAlt(i))], [Html.text("+ alternative")]),
+             Html.button([Attr.on_click(RuleUp(i)), Attr.disabled(i == 0)], [Html.text("rule up")])])])
+        :: rule_rows(g, tl, i + 1)
+      end;
+
+  let view = fun g : Model -> Pure(
+    Html.div([Attr.style([("font-family", "var(--code-font)"), ("font-size", "0.8em")])],
+      rule_rows(g, g, 0)));
+
+  let expand = Functional(fun g : Model -> g);
+  let shape = Block(72, 15)
+} in
+
+# IMP's rules, as Matthew gave them (2026-11-04): #
+#   Var ::= <ids> #
+#   Cmd ::= Cmd1 ; Cmd2 | Var := Exp | while Exp do { Cmd } #
+#         | if Exp then Cmd1 else Cmd2 #
+#   Exp ::= Var | Var + Var | Var < Var #
+
+let imp = ^^livelit(^grammar([
+  (lhs = "Var", alts = [[Ids]]),
+  (lhs = "Cmd", alts = [
+    [N("Cmd"), T(";"), N("Cmd")],
+    [N("Var"), T(":="), N("Exp")],
+    [T("while"), N("Exp"), T("do"), T("{"), N("Cmd"), T("}")],
+    [T("if"), N("Exp"), T("then"), N("Cmd"), T("else"), N("Cmd")]]),
+  (lhs = "Exp", alts = [
+    [N("Var")],
+    [N("Var"), T("+"), N("Var")],
+    [N("Var"), T("<"), N("Var")]])
+])) in
+
+# THE EXPANSION IS A VALUE. The rest of the program reads it. For each #
+# alternative of Cmd, the first sentence it derives, trying each #
+# rule's alternatives in their order, within a depth of 3. #
+
+type Found = + Stuck + Found(String) in
+let rule_of : (Grammar, String) -> [Alt] =
+  fun g, x -> case g | [] => [] | r :: tl => if r.lhs == x then r.alts else rule_of(tl, x) end in
+let first_of : (Grammar, [Alt], Int, ((Grammar, Alt, Int) -> Found)) -> Found =
+  fun g, alts, fuel, d ->
+    case alts
+    | [] => Stuck
+    | a :: tl => case d(g, a, fuel) | Found(s) => Found(s) | Stuck => first_of(g, tl, fuel, d) end
+    end in
+let derive : (Grammar, Alt, Int) -> Found =
+  fun g, syms, fuel ->
+    case syms
+    | [] => Found("")
+    | s :: tl =>
+      let head =
+        case s
+        | T(t) => Found(t)
+        | Ids => Found("x")
+        | N(x) => if fuel == 0 then Stuck else first_of(g, rule_of(g, x), fuel - 1, derive)
+        end in
+      case (head, derive(g, tl, fuel))
+      | (Found(h), Found(r)) => Found(if r == "" then h else h ++ " " ++ r)
+      | _ => Stuck
+      end
+    end in
+let examples : (Grammar, [Alt], Int) -> [String] =
+  fun g, alts, fuel ->
+    case alts
+    | [] => []
+    | a :: tl =>
+      (case derive(g, a, fuel) | Found(s) => s | Stuck => "(none within the depth)" end)
+      :: examples(g, tl, fuel)
+    end in
+
+examples(imp, rule_of(imp, "Cmd"), 3)
