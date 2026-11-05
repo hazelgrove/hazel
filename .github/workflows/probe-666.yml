@@ -31,7 +31,7 @@ jobs:
           {
             echo '## Sharing probe'
             echo '```'
-            grep '^SHARE' probe.txt || echo 'no SHARE lines'
+            grep -E '^(SHARE|UNDO666)' probe.txt || echo 'no SHARE or UNDO666 lines'
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 

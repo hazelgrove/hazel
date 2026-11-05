@@ -235,6 +235,73 @@ let edit_and_back = (~root=Sort.Exp, src: string, needle, repl, ()) => {
   );
 };
 
+/* (^ticket(666), a probe, not for merging) what an undo posts anew: the
+   program of the very segment before the edit, made again after it, should
+   lay out as before; each slot whose hash is not the one before the edit
+   (or whose key is new) is printed, with where its content first differs,
+   as UNDO666 lines for the probe's summary */
+let undo_diff = (~root=Sort.Exp, name, src: string, needle, repl, ()) => {
+  fresh_worker();
+  let term_of = seg => MakeTerm.Incr.term_of_root(~root, seg);
+  let program_of = seg => {
+    let st = statics_of(term_of(seg));
+    Split.program(~probe_all=settings.probe_all, ~targets=st.targets, st);
+  };
+  let there = Parity.token(~at=`First, ~keep_id=true, needle, repl);
+  let seg0 = CorpusUtil.seg_of(~root, src);
+  let p0: EvalPieces.program = program_of(seg0);
+  let _: EvalPieces.program = program_of(there.edit(~root, seg0));
+  let p2: EvalPieces.program = program_of(seg0);
+  let s0 = EvalPieces.slots(p0.layout);
+  let s2 = EvalPieces.slots(p2.layout);
+  let text = (p: EvalPieces.program, h: EvalPieces.hash) =>
+    switch (List.assoc_opt(h, p.pieces)) {
+    | Some(EvalPieces.Content(c)) => EvalPieces.show_content(c)
+    | Some(EvalPieces.Bytes(b)) =>
+      EvalPieces.show_content(EvalPieces.decode(b))
+    | None => "<not in the program's pieces>"
+    };
+  print_endline(
+    Printf.sprintf(
+      "UNDO666 %s: %d slots before the edit, %d after the undo; the same layout: %b",
+      name,
+      List.length(s0),
+      List.length(s2),
+      p0.layout == p2.layout,
+    ),
+  );
+  List.iter(
+    (b: EvalPieces.slot) =>
+      switch (List.find_opt((a: EvalPieces.slot) => a.key == b.key, s0)) {
+      | None => print_endline("UNDO666   a new key: " ++ EvalPieces.show_key(b.key))
+      | Some(a) when a.hash == b.hash => ()
+      | Some(a) =>
+        let x = text(p0, a.hash);
+        let y = text(p2, b.hash);
+        let rec first = i =>
+          i >= String.length(x) || i >= String.length(y) || x.[i] != y.[i]
+            ? i : first(i + 1);
+        let i = first(0);
+        let near = (t, i) => {
+          let from = max(0, i - 200);
+          String.sub(t, from, min(String.length(t) - from, 400));
+        };
+        print_endline(
+          Printf.sprintf(
+            "UNDO666   %s: another hash; its text first differs at %d of %d and %d\nUNDO666     before: ...%s...\nUNDO666     undo:   ...%s...",
+            EvalPieces.show_key(b.key),
+            i,
+            String.length(x),
+            String.length(y),
+            String.escaped(near(x, i)),
+            String.escaped(near(y, i)),
+          ),
+        );
+      },
+    s2,
+  );
+};
+
 /* each step's program through one worker, from a fresh one */
 let script = (~root=Sort.Exp, src: string, steps: list(Parity.step), ()) => {
   fresh_worker();
@@ -486,6 +553,14 @@ let exact_tests =
       "two livelit definitions, each checked against the Livelit signature",
       `Quick,
       script(two_livelits, back_and_forth(~at=`First, "3", "4")),
+    ),
+    test_case(
+      "(probe, ^ticket(666)) what an undo lays out anew",
+      `Quick,
+      () => {
+        undo_diff(~root=Mod, "kinds", kinds, "1", "7", ());
+        undo_diff("two livelits", two_livelits, "3", "4", ());
+      },
     ),
     test_case(
       "an undo, a redo and a retype back take the program composed before",
