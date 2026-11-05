@@ -145,7 +145,7 @@ let rec chain = (e: Exp.t): list(Exp.t) =>
    before the edit, hashed as another program, and the eval worker, which
    keeps what it composed by its pieces' hashes, composed it again */
 let own_hole = (~salt, id: Id.t): Exp.t =>
-  IdTagged.mk_internal([Id.derive(~salt, id)], EmptyHole);
+  IdTagged.mk_internal([Id.derive(~salt, id)], EmptyHole: Exp.term);
 
 /* a module item as a chain item, like the monolithic lowering: a
    Let/TyAlias wrapper (lower_members adds a tail tuple of the exports).
