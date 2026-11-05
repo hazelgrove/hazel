@@ -1662,6 +1662,208 @@ let coercion_tests = {
   );
 };
 
+/* Abstract type members and the paths that name them: `M.T` is a stuck
+   normal form equal only to itself, a member read through a module path is
+   typed by such a path, and sealing at a coercion site realizes an abstract
+   member by whatever the module provides. */
+let sig_paths_tests = {
+  module F = IdTagged.FreshGrammar;
+  let base_ctx = Builtins.ctx_init(None);
+  let sv = (x, ty) => F.Sig.sig_let(F.Pat.asc(F.Pat.var(x), ty));
+  let st = (t, ty) => F.Sig.sig_type(F.TPat.var(t), ty);
+  let sa = t => F.Sig.sig_type_abstract(F.TPat.var(t));
+  let sg = items => Typ.close(base_ctx, F.Typ.sig_(items));
+  let ti = F.Typ.int();
+  let tu = F.Typ.unknown(Internal);
+  let tv = F.Typ.var;
+  let path = (m, t) => F.Typ.prod_projection(F.Typ.var(m), F.Typ.label(t));
+  let abstract_sig = sg([sa("T"), sv("x", tv("T"))]);
+  let manifest_sig = sg([st("T", ti), sv("x", tv("T"))]);
+  let var_entry = (name, typ) =>
+    Ctx.VarEntry({
+      name,
+      id: Id.invalid,
+      typ,
+      custom_statics: None,
+    });
+  /* M is sealed, N is transparent, S is a signature alias. */
+  let ctx =
+    base_ctx
+    |> Ctx.extend(_, var_entry("M", abstract_sig))
+    |> Ctx.extend(_, var_entry("N", manifest_sig))
+    |> Ctx.extend_alias(_, "S", Id.invalid, abstract_sig);
+  let opt_typ = option(typ);
+  let meet = (a, b) => Typ.meet(ctx, a, b);
+  let coercion = (to_, from) => Typ.coercion(ctx, ~from, ~to_);
+  (
+    "Typ.SigPaths",
+    [
+      test_case("abstract members meet exactly", `Quick, () =>
+        check(
+          opt_typ,
+          "same",
+          Some(abstract_sig),
+          meet(abstract_sig, abstract_sig),
+        )
+      ),
+      test_case(
+        "abstract and manifest members do not meet",
+        `Quick,
+        () => {
+          check(
+            opt_typ,
+            "abstract/manifest",
+            None,
+            meet(abstract_sig, manifest_sig),
+          );
+          check(
+            opt_typ,
+            "manifest/abstract",
+            None,
+            meet(manifest_sig, abstract_sig),
+          );
+        },
+      ),
+      test_case(
+        "a path meets itself and unknown only",
+        `Quick,
+        () => {
+          check(
+            opt_typ,
+            "self",
+            Some(path("M", "T")),
+            meet(path("M", "T"), path("M", "T")),
+          );
+          check(
+            opt_typ,
+            "unknown",
+            Some(path("M", "T")),
+            meet(path("M", "T"), tu),
+          );
+          check(opt_typ, "int", None, meet(path("M", "T"), ti));
+          check(
+            opt_typ,
+            "other path",
+            None,
+            meet(path("M", "T"), path("N", "T")),
+          );
+          check(
+            opt_typ,
+            "manifest path reduces",
+            Some(ti),
+            meet(path("N", "T"), ti),
+          );
+        },
+      ),
+      test_case(
+        "weak head normalization of paths",
+        `Quick,
+        () => {
+          check(
+            typ,
+            "abstract member is stuck",
+            path("M", "T"),
+            Typ.weak_head_normalize(ctx, path("M", "T")),
+          );
+          check(
+            typ,
+            "manifest member reduces",
+            ti,
+            Typ.weak_head_normalize(ctx, path("N", "T")),
+          );
+          check(
+            typ,
+            "alias route has no path to name the member",
+            tu,
+            Typ.weak_head_normalize(ctx, path("S", "T")),
+          );
+        },
+      ),
+      test_case(
+        "a member read through a path is typed by the path",
+        `Quick,
+        () => {
+          let s =
+            switch (Typ.term_of(abstract_sig)) {
+            | Sig(s) => s
+            | _ => failwith("a signature")
+            };
+          let x = (~self=?, ()) =>
+            Sig.find_value(Typ.sig_members(~self?, s), "x");
+          check(
+            opt_typ,
+            "through M",
+            Some(path("M", "T")),
+            x(~self=tv("M"), ()),
+          );
+          check(opt_typ, "no path", Some(tu), x());
+        },
+      ),
+      test_case(
+        "sealing at a coercion site",
+        `Quick,
+        () => {
+          check(
+            opt_typ,
+            "manifest fits abstract",
+            Some(abstract_sig),
+            coercion(abstract_sig, manifest_sig),
+          );
+          check(
+            opt_typ,
+            "abstract does not fit manifest",
+            None,
+            coercion(manifest_sig, abstract_sig),
+          );
+          check(
+            opt_typ,
+            "abstract fits abstract",
+            Some(abstract_sig),
+            coercion(abstract_sig, abstract_sig),
+          );
+        },
+      ),
+      test_case("normalize keeps abstract members", `Quick, () =>
+        check(
+          typ,
+          "normalized",
+          abstract_sig,
+          Typ.normalize(ctx, abstract_sig),
+        )
+      ),
+      test_case(
+        "sibling paths survive normalize and meet",
+        `Quick,
+        () => {
+          let inner =
+            F.Sig.sig_module(F.MPat.asc(F.MPat.var("Inner"), abstract_sig));
+          let s = sg([inner, sv("y", path("Inner", "T"))]);
+          check(typ, "normalized", s, Typ.normalize(ctx, s));
+          check(opt_typ, "met", Some(s), Typ.meet(ctx, s, s));
+          check(
+            opt_typ,
+            "distinct roots do not meet",
+            None,
+            Typ.meet(
+              ctx,
+              s,
+              Typ.close(ctx, F.Typ.sig_([inner, sv("y", path("M", "T"))])),
+            ),
+          );
+        },
+      ),
+      test_case("pretty printing", `Quick, () =>
+        check(
+          string,
+          "printed",
+          "{ type T; let x : T }",
+          Typ.pretty_print(abstract_sig),
+        )
+      ),
+    ],
+  );
+};
+
 let tests = [
   meet_tests,
   fun_in_tests,
@@ -1673,4 +1875,5 @@ let tests = [
   alias_cycle_tests,
   unshadow_tests,
   coercion_tests,
+  sig_paths_tests,
 ];

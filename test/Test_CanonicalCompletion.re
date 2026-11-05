@@ -1878,8 +1878,12 @@ let clippable_guard_tests = {
            the InfixDelimiterPrefix atomic, which molds at all four
            sorts. Re-decided: both frontiers stay far from vacuous, so
            clippable_sort stands.
-           88 -> 89, +1 at Exp/Pat/Typ/TPat: SigModule's `module` label. */
-        "Exp 68/89 | Pat 10/89 | Typ 16/89 | TPat 5/89 | Rul 1/89",
+           88 -> 89, +1 at Exp/Pat/Typ/TPat: SigModule's `["module"]`
+           label enters the table, carrying the atomic molds the bare
+           `module` token already had at those sorts. Re-decided: every
+           frontier moves by one label, so clippable_sort stands.
+           89 -> 90: SigTypeAbstract's `["type"]` label, likewise. */
+        "Exp 69/90 | Pat 11/90 | Typ 17/90 | TPat 6/90 | Rul 1/90",
         table,
       )
     ),

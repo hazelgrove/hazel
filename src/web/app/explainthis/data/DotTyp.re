@@ -12,7 +12,7 @@ let typ_module = typ("M");
 let typ_label = typ("T");
 
 let dot_typ: form = {
-  let explanation = "Projects a type member from a module or labeled tuple type. The left side names the module and the right side names the type alias exported by that module.";
+  let explanation = "Projects a type member from a module or labeled tuple type. The left side names the module and the right side names the type member exported by that module. When the member is abstract in the module's signature, the path itself is the type: it is equal only to itself.";
   {
     id: DotTyp,
     syntactic_form: [typ_module, dot_typ(), typ_label],

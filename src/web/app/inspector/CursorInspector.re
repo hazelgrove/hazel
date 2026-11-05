@@ -354,6 +354,7 @@ let core_mark_err_view =
     | TypWantProduct(_)
     | ModuleTypeMemberNotFound(_)
     | TypWantModule(_)
+    | TypAbstractMemberOfSignature(_)
     | TypWantConstructorFoundType(_)
     | TypWantConstructorFoundAp
     | TypParseFailure
@@ -548,13 +549,20 @@ let underdetermined_typ_view =
         },
       ),
     )
+  | AbstractMemberOfSignature(name) => [
+      label_view(name),
+      text(
+        "is abstract in this signature and no module is named here; a module M of this signature names it as M."
+        ++ name,
+      ),
+    ]
   | ProdProjectionBadArgs({product, label}) =>
     let product_error =
       switch (product) {
       | Some(ty) => [
           text("type"),
           view_type(ty),
-          text("is not a tuple type"),
+          text("is not a tuple or module type"),
         ]
       | None => []
       };
@@ -602,6 +610,10 @@ let typ_ok_view = (~globals, ~ctx: Ctx.t, cls: Cls.t, ok: Message.ok_typ) => {
       view_type(unnormalized),
       text("is equal to"),
       view_type(whnormalized),
+    ]
+  | PathAbstract(ty) => [
+      view_type(ty),
+      text("is an abstract type: its definition is hidden by the signature"),
     ]
   | Variant(name, sum_ty) => [
       view_type(Var(name) |> Typ.fresh),
@@ -661,9 +673,25 @@ let typ_mark_err_view = (~globals, ~ctx: Ctx.t, m: Mark.t) => {
       text("already used in this sum"),
     ]
   | TypParseFailure => [text("Parse failure")]
-  | TypWantProduct(ty) => [
-      text("Expected a module or tuple type, found type"),
-      view_type(ty),
+  | TypWantProduct(ty) =>
+    switch (ty.term) {
+    | Atom(_) => [
+        view_type(ty),
+        text(
+          "is a base type, not a module; a module with the name of a type cannot start a type path",
+        ),
+      ]
+    | _ => [
+        text("Expected a module or tuple type, found type"),
+        view_type(ty),
+      ]
+    }
+  | TypAbstractMemberOfSignature(name) => [
+      label_view(name),
+      text(
+        "is an abstract member of a signature, not of a module; name it through a module of that signature, as M."
+        ++ name,
+      ),
     ]
   | ModuleTypeMemberNotFound(member, not_found) =>
     parts_view(
@@ -899,6 +927,7 @@ let exp_mark_err_view =
   | TypWantProduct(_)
   | ModuleTypeMemberNotFound(_)
   | TypWantModule(_)
+  | TypAbstractMemberOfSignature(_)
   | TypWantConstructorFoundType(_)
   | TypWantConstructorFoundAp
   | TypParseFailure
@@ -1264,7 +1293,8 @@ let sig_view = (cls: Cls.t, ~marks: list(Mark.t)): Node.t =>
     let (kind, name) =
       switch (member) {
       | Val(name, _) => ("Member ", name)
-      | TypeManifest(name, _) => ("Type member ", name)
+      | TypeManifest(name, _)
+      | TypeAbstract(name) => ("Type member ", name)
       };
     div_err([
       text(kind),
