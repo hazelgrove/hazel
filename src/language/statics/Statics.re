@@ -2547,57 +2547,43 @@ and uexp_to_info_map =
         m,
       );
     | TyAlias(typat, utyp, body) =>
-      let m =
-        utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, typat, m)
-        |> snd;
       /* Desugar Sig types so that type aliases like `type T = {let x : Int}`
          store Prod([TupLabel(...)]) rather than Sig([...]) in the context.
          This ensures meet/join can unify them with module expression types. */
       let utyp_desugared = Typ.desugar_sig(ctx, utyp);
-      switch (typat.term) {
-      | Var(name) when !Ctx.is_base_typ(name) =>
-        /* NOTE(andrew): Currently, Typ.to_typ returns Unknown(TypeHole)
-           for any type variable reference not in its ctx. So any free variables
-           in the definition would be obliterated. But we need to check for free
-           variables to decide whether to make a recursive type or not. So we
-           tentatively add an abtract type to the ctx, representing the
-           speculative rec parameter. */
-        let (ty_def, ctx_def, ctx_body) = {
-          switch (utyp_desugared.term) {
-          | _ when List.mem(name, Typ.free_vars(utyp_desugared)) =>
-            /* NOTE: When debugging type system issues it may be beneficial to
-               use a different name than the alias for the recursive parameter */
-            //let ty_rec = Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
-            let ty_rec =
-              Rec(Var(name) |> TPat.fresh, utyp_desugared) |> Typ.temp;
-            let ctx_def =
-              Ctx.extend_alias(ctx, name, TPat.rep_id(typat), ty_rec);
-            (ty_rec, ctx_def, ctx_def);
-          | _ => (
-              utyp_desugared,
-              ctx,
-              Ctx.extend_alias(
-                ctx,
-                name,
-                TPat.rep_id(typat),
-                utyp_desugared,
-              ),
-            )
-          /* NOTE(yuchen): Below is an alternative implementation that attempts to
-             add a rec whenever type alias is present. It may cause trouble to the
-             runtime, so precede with caution. */
-          // Typ.lookup_surface(ty_pre)
-          //   ? {
-          //     let ty_rec = Typ.Rec({item: ty_pre, name});
-          //     let ctx_def = Ctx.add_alias(ctx, name, utpat_id(typat), ty_rec);
-          //     (ty_rec, ctx_def, ctx_def);
-          //   }
-          //   : {
-          //     let ty = Term.Typ.to_typ(ctx, utyp);
-          //     (ty, ctx, Ctx.add_alias(ctx, name, utpat_id(typat), ty));
-          //   };
-          };
+      let alias =
+        switch (typat.term) {
+        | Var(name) when !Ctx.is_base_typ(name) =>
+          Some((name, Typ.recursive_def(name, utyp_desugared)))
+        | Var(_)
+        | Invalid(_)
+        | EmptyHole
+        | MultiHole(_) => None
         };
+      let warnings =
+        switch (alias) {
+        | Some((name, def)) => Warning.type_binding(name, def)
+        | None => []
+        };
+      let m =
+        utpat_to_info_map(
+          ~ctx,
+          ~ancestors=ancestors_inclusive,
+          ~warnings,
+          typat,
+          m,
+        )
+        |> snd;
+      switch (alias) {
+      | Some((name, def)) =>
+        let bind = ty => Ctx.extend_alias(ctx, name, TPat.rep_id(typat), ty);
+        let (ty_def, ctx_def, ctx_body) =
+          switch (def) {
+          | Plain => (utyp_desugared, ctx, bind(utyp_desugared))
+          | Recursive(ty_rec) =>
+            let ctx_def = bind(ty_rec);
+            (ty_rec, ctx_def, ctx_def);
+          };
         let ctx_body =
           switch (Typ.get_sum_constructors(ctx, ty_def)) {
           | Some(sm) => Ctx.add_ctrs(ctx_body, name, sm)
@@ -2633,10 +2619,7 @@ and uexp_to_info_map =
           ~probe_targets,
           m,
         );
-      | Var(_)
-      | Invalid(_)
-      | EmptyHole
-      | MultiHole(_) =>
+      | None =>
         let (
           {co_ctx, probe_targets, elab_syn_ty: ty_body, _}: Info.exp,
           body_elab,
@@ -2875,8 +2858,7 @@ and upat_to_info_map =
       warnings
       @ (
         switch (user_term.term) {
-        | Var(name) when warn_unused =>
-          Warning.to_list(Warning.var_is_unused(co_ctx, name))
+        | Var(name) when warn_unused => Warning.var_is_unused(co_ctx, name)
         | _ => []
         }
       );
@@ -3873,7 +3855,7 @@ and utyp_to_info_map =
     | (TypeExpected, _) => ok(Message.Type(utyp))
     };
   };
-  let add = (~expects=expects, ~utyp=utyp, m) => {
+  let add = (~expects=expects, ~utyp=utyp, ~warnings=[], m) => {
     let st = status_for_node(~expects, utyp);
     let cls: Cls.t =
       switch (expects, Typ.cls_of_term(utyp.term)) {
@@ -3892,7 +3874,7 @@ and utyp_to_info_map =
       marks: fst(st),
       message: Option.map(x => Message.TypOk(x), snd(st)),
       expects,
-      warnings: [],
+      warnings,
       user_term: utyp,
     };
     (info, add_info(ids, InfoTyp(info), m));
@@ -4080,7 +4062,7 @@ and utyp_to_info_map =
       |> snd;
     let m =
       utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
-    add(m); // TODO: check with andrew
+    add(~warnings=Warning.rec_type(utpat, utyp), m); // TODO: check with andrew
   | Rec(utpat, tbody) =>
     let m =
       utyp_to_info_map(
@@ -4114,7 +4096,8 @@ and utyp_to_info_map =
   };
 }
 and utpat_to_info_map =
-    (~ctx, ~ancestors, utpat: TPat.t, m: Map.t): (Info.tpat, Map.t) => {
+    (~ctx, ~ancestors, ~warnings=[], utpat: TPat.t, m: Map.t)
+    : (Info.tpat, Map.t) => {
   let ids = IdTagged.ids(utpat);
   let term = IdTagged.term_of(utpat);
   let status_for_node =
@@ -4136,7 +4119,7 @@ and utpat_to_info_map =
       ancestors,
       marks: fst(st),
       message: Option.map(x => Message.TPatOk(x), snd(st)),
-      warnings: [],
+      warnings,
       ctx,
       user_term: utpat,
     };
