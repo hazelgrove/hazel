@@ -335,6 +335,38 @@ let tests = (
         );
       },
     ),
+    /* The stepper substitutes into a module's items, so their operands need
+       the same parentheses as anywhere else. */
+    test_case(
+      "Module items are parenthesized",
+      `Quick,
+      () => {
+        open IdTagged.FreshGrammar;
+        let sum = Exp.(bin_op(Int(Plus), int(3), int(3)));
+        let m =
+          Exp.module_([
+            Mod.mod_let(Pat.var("x"), sum),
+            Mod.mod_let(
+              Pat.var("y"),
+              Exp.(bin_op(Int(Times), sum, int(2))),
+            ),
+          ]);
+        check(
+          string,
+          "An item's operand",
+          {|{ let x = 3 + 3; let y = (3 + 3) * 2 }|},
+          print_seg(exp_to_segment(m)),
+        );
+        check(
+          string,
+          "A module needs no parentheses of its own",
+          {|let M = { let x = 3 + 3; let y = (3 + 3) * 2 } in M|},
+          print_seg(
+            exp_to_segment(Exp.(let_(Pat.var("M"), m, var("M")))),
+          ),
+        );
+      },
+    ),
     test_case("Unit type", `Quick, () => {
       check(
         string,
@@ -991,6 +1023,14 @@ end|}),
     roundtrip_test(
       {|Sig: multiple lets|},
       {|let m : { let x : Int; let y : Bool } = { let x = 1; let y = true } in m|},
+    ),
+    roundtrip_test(
+      {|Sig: type member|},
+      {|let m : { type T = Int; let x : T } = { type T = Int; let x = 1 } in m|},
+    ),
+    roundtrip_test(
+      {|Sig: module member|},
+      {|let m : { module Inner : { let x : Int } } = { module Inner = { let x = 1 } } in m|},
     ),
   ],
 );
@@ -1763,6 +1803,61 @@ let pad_ids_tests = (
   ],
 );
 
+/* `:` is an operator character: printed flush against a following operator
+   character the two lex as one token (`:+` is no form), so should_add_space
+   keeps them apart. `$` is a name character and still needs the gap. */
+let spacing_tests = (
+  "Ascription spacing",
+  [
+    test_case(
+      "`:` stays apart from a following operator character",
+      `Quick,
+      () => {
+        check(
+          bool,
+          ": then +",
+          true,
+          ExpToSegment.should_add_space(":", "+"),
+        );
+        check(
+          bool,
+          ": then $",
+          true,
+          ExpToSegment.should_add_space(":", "$"),
+        );
+      },
+    ),
+  ],
+);
+
+let idempotence_tests = (
+  "Print idempotence",
+  [
+    test_case(
+      "printing a parenthesized bare sum is idempotent",
+      `Quick,
+      () => {
+        let src = {|type T = + Adid in ?|};
+        switch (Parser.to_term(src, ~root=Exp)) {
+        | None => fail("failed to parse " ++ src)
+        | Some(exp) =>
+          let once = print_seg(exp_to_segment(exp));
+          switch (Parser.to_term(once, ~root=Exp)) {
+          | None => fail("failed to reparse " ++ once)
+          | Some(exp') =>
+            check(
+              string,
+              "second print equals the first",
+              once,
+              print_seg(exp_to_segment(exp')),
+            )
+          };
+        };
+      },
+    ),
+  ],
+);
+
 /* A type binder statics renamed (Typ.unshadow) prints as the user wrote it,
    so results and the stepper show the program's own names. */
 let renamed_binder_tests = (
@@ -1782,7 +1877,7 @@ let renamed_binder_tests = (
           | (TypFun(tp, body, name), rewrap) =>
             TypFun(
               TPat.rename("y#1", tp),
-              Exp.rename_tvar(~is_module=_ => false, "y", "y#1", body),
+              Exp.rename_tvar("y", "y#1", body),
               name,
             )
             |> rewrap
@@ -1800,6 +1895,8 @@ let renamed_binder_tests = (
 );
 
 let all = [
+  spacing_tests,
+  idempotence_tests,
   renamed_binder_tests,
   tests,
   pad_ids_tests,

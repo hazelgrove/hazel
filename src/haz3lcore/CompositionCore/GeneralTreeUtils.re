@@ -3,6 +3,18 @@ open Language;
 open Language.Statics;
 open HighLevelNodeMap.Utils;
 
+/* The entries of [info_map] at [roots] and below them. */
+let subtree_under = (roots: list(Id.t), info_map: Id.Map.t(Info.t)) =>
+  Id.Map.filter(
+    (id, child) =>
+      List.exists(Id.equal(id), roots)
+      || List.exists(
+           root => List.exists(Id.equal(root), Info.ancestors_of(child)),
+           roots,
+         ),
+    info_map,
+  );
+
 let subtree_of =
     (
       ~info: Info.t,
@@ -16,7 +28,7 @@ let subtree_of =
     switch (info) {
     | InfoExp({user_term: term, _}) =>
       switch (Exp.term_of(term)) {
-      | Let(pat, def, body) when Option.is_some(FunctionSugar.detect(pat)) =>
+      | Let(pat, def, body) when Option.is_some(Pat.function_sugar(pat)) =>
         /* The surface f(args) binder is only a function definition in
            its enclosing let. Rechecking it as a standalone pattern
            incorrectly demands that f be a constructor. Reuse the
@@ -25,15 +37,7 @@ let subtree_of =
           (of_pat ? [Pat.rep_id(pat)] : [])
           @ (of_def ? [Exp.rep_id(def)] : [])
           @ (of_body ? [Exp.rep_id(body)] : []);
-        Id.Map.filter(
-          (id, child) =>
-            List.mem(id, roots)
-            || List.exists(
-                 root => List.mem(root, Info.ancestors_of(child)),
-                 roots,
-               ),
-          orig_info_map,
-        );
+        subtree_under(roots, orig_info_map);
       | Let(pat, def, body) =>
         let pat_info = pat_to_pat(pat, orig_info_map);
         let def_info = exp_to_exp(def, orig_info_map);
@@ -185,6 +189,15 @@ let subtree_of =
           ),
         )
       }
+    | InfoMod({user_term: item, _}) =>
+      /* A module item has no body. The statics of the requested parts are
+         reused as they are: an item is checked as part of its module. */
+      let roots =
+        List.filter_map(
+          ((wanted, part)) => wanted ? Option.map(Any.rep_id, part) : None,
+          [(of_pat, Mod.pat(item)), (of_def, Mod.def(item))],
+        );
+      subtree_under(roots, orig_info_map);
     | _ => raise(Failure("Current node is not an expression"))
     };
 
@@ -226,6 +239,11 @@ let get_refs_to = (curr: Info.t, info_map: Id.Map.t(Info.t)): CoCtx.t => {
       ((var_name, _)) => !VarMap.contains(entire_coctx, var_name),
       body_coctx,
     );
+  | InfoMod({co_ctx, scope_co_ctx, _}) =>
+    VarMap.filter(
+      ((var_name, _)) => !VarMap.contains(co_ctx, var_name),
+      scope_co_ctx,
+    )
   | _ =>
     raise(
       Failure("Current node is not a let, type alias, or module expression"),
@@ -268,6 +286,28 @@ let get_refs_to_after_pattern_edit =
     )
     : CoCtx.t => {
   let exp_to_info = (term: Exp.t): Info.t => exp_to_info(term, info_map);
+  /* Fn-sugar (`let f(x) = def`) scopes f AND the params over the def (it
+     desugars to a recursive `let f = fun x -> def`), so recursive calls
+     and param uses live in the def's co_ctx; over the body only f is
+     bound. Applied only when old and new patterns are both sugar — for
+     plain lets the pattern does not scope over the def. Note the
+     whole-let co_ctx unions in the def's co_ctx unfiltered, so for
+     recursive bindings the pre-edit co_ctx filter below would wrongly
+     drop the body's refs to f. */
+  let is_sugar = (p: Pat.t) => Option.is_some(Pat.function_sugar(p));
+  let refs_after_sugar_edit = (~p_old: Pat.t, ~def: Exp.t, ~body_coctx) => {
+    let old_names = var_names_of_pat(p_old);
+    let head_names = var_names_of_pat(Pat.binder(p_old));
+    let def_refs =
+      switch (exp_to_info(def)) {
+      | InfoExp({co_ctx, _}) =>
+        VarMap.filter(((n, _)) => List.mem(n, old_names), co_ctx)
+      | _ => []
+      };
+    let body_refs =
+      VarMap.filter(((n, _)) => List.mem(n, head_names), body_coctx);
+    def_refs @ body_refs;
+  };
   switch (pre_edit_let_info, post_edit_let_info) {
   | (InfoExp(pre_let), InfoExp(term_after)) =>
     let entire_coctx = pre_let.co_ctx;
@@ -290,45 +330,28 @@ let get_refs_to_after_pattern_edit =
           ),
         )
       };
-    /* Fn-sugar (`let f(x) = def`) scopes f AND the params over the def (it
-       desugars to a recursive `let f = fun x -> def`), so recursive calls
-       and param uses live in the def's co_ctx; over the body only f is
-       bound. Applied only when old and new patterns are both sugar — for
-       plain lets the pattern does not scope over the def. Note the
-       whole-let co_ctx unions in the def's co_ctx unfiltered, so for
-       recursive bindings the entire_coctx filter below would wrongly drop
-       the body's refs to f. */
-    let sugar_head_name = (p: Pat.t): option(string) =>
-      switch (FunctionSugar.detect(p)) {
-      | Some((f_name, _, _)) =>
-        switch (Pat.term_of(f_name)) {
-        | Var(n) => Some(n)
-        | _ => None
-        }
-      | None => None
-      };
     switch (
       Exp.term_of(pre_let.user_term),
       Exp.term_of(term_after.user_term),
     ) {
     | (Let(p_old, _, _), Let(p_new, def, _))
-        when
-          Option.is_some(sugar_head_name(p_old))
-          && Option.is_some(FunctionSugar.detect(p_new)) =>
-      let old_names = var_names_of_pat(p_old);
-      let head_name = Option.get(sugar_head_name(p_old));
-      let def_refs =
-        switch (exp_to_info(def)) {
-        | InfoExp({co_ctx, _}) =>
-          VarMap.filter(((n, _)) => List.mem(n, old_names), co_ctx)
-        | _ => []
-        };
-      let body_refs =
-        VarMap.filter(((n, _)) => String.equal(n, head_name), body_coctx);
-      def_refs @ body_refs;
+        when is_sugar(p_old) && is_sugar(p_new) =>
+      refs_after_sugar_edit(~p_old, ~def, ~body_coctx)
     | _ =>
       VarMap.filter(
         ((var_name, _)) => !VarMap.contains(entire_coctx, var_name),
+        body_coctx,
+      )
+    };
+  | (InfoMod(pre_item), InfoMod(item_after)) =>
+    let body_coctx = item_after.scope_co_ctx;
+    switch (pre_item.user_term.term, item_after.user_term.term) {
+    | (ModLet(p_old, _), ModLet(p_new, def))
+        when is_sugar(p_old) && is_sugar(p_new) =>
+      refs_after_sugar_edit(~p_old, ~def, ~body_coctx)
+    | _ =>
+      VarMap.filter(
+        ((var_name, _)) => !VarMap.contains(pre_item.co_ctx, var_name),
         body_coctx,
       )
     };

@@ -612,7 +612,7 @@ let incremental_literal_edit_known_bug_test =
       ~msg=
         "#2457 looks fixed: re-enable `Incremental eval agrees with fresh eval after a literal edit`, delete this test",
       ~require_comparison=true,
-      parse_exp("{ let x = (); let _ = 4; let true = A }"),
+      parse_exp("let x = () in let _ = 4 in let true = A in x"),
     )
   );
 

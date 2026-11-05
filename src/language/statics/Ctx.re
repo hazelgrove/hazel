@@ -61,7 +61,7 @@ let extend_tvar = (ctx: t, tvar_entry: tvar_entry): t =>
 
 /* Raw: an alias bound here captures earlier types' references to its
    name. Safe for a name Typ.unshadow has made fresh; otherwise use
-   Typ.extend_alias. */
+   Typ.extend_ctx. */
 let extend_alias = (ctx: t, name: string, id: Id.t, ty: TermBase.Typ.t): t =>
   extend_tvar(
     ctx,
@@ -71,20 +71,6 @@ let extend_alias = (ctx: t, name: string, id: Id.t, ty: TermBase.Typ.t): t =>
       kind: Singleton(ty),
     },
   );
-
-let extend_dummy_tvar = (ctx: t, tvar: TPat.t) =>
-  switch (TPat.tyvar_of_utpat(tvar)) {
-  | Some(name) =>
-    extend_tvar(
-      ctx,
-      {
-        kind: Abstract,
-        name,
-        id: Id.invalid,
-      },
-    )
-  | None => ctx
-  };
 
 let lookup_tvar = (ctx: t, name: string): option(kind) =>
   List.find_map(
@@ -140,6 +126,24 @@ let newest_var_or_ctr =
     fun
     | VarEntry(v) when v.name == name => Some(`Var(v))
     | ConstructorEntry(c) when c.name == name => Some(`Ctr(c))
+    | _ => None,
+    ctx.entries,
+  );
+
+/* The NEWEST binding of a name as a type or a value: the root of a dotted
+   path (`M.T`) is whichever was bound later. */
+let newest_tvar_or_var =
+    (ctx: t, name: string)
+    : option(
+        [
+          | `TVar(kind)
+          | `Var(var_entry)
+        ],
+      ) =>
+  List.find_map(
+    fun
+    | TVarEntry(v) when String.equal(v.name, name) => Some(`TVar(v.kind))
+    | VarEntry(v) when String.equal(v.name, name) => Some(`Var(v))
     | _ => None,
     ctx.entries,
   );

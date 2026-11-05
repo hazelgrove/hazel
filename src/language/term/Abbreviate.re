@@ -1243,6 +1243,14 @@ and abbreviate_mod_item = (item: Mod.t): Mod.t => {
         available := available^ - 10; // "module " " = "
         ModuleMod(abbreviate_mpat(mp), abbreviate_exp(e));
       }
+    | ModVal(x, e) =>
+      if (available^ <= 5) {
+        Invalid(flat_ellipses);
+      } else {
+        available := available^ - 6; // "let " " = "
+        let x' = abbreviate_str(available^, x);
+        ModVal(x', abbreviate_exp(e));
+      }
     };
   rewrap(term);
 }
@@ -1271,6 +1279,13 @@ and abbreviate_sig_item = (item: Sig.t): Sig.t => {
         let tp' = abbreviate_tpat(tp);
         let t' = abbreviate_typ(t);
         SigType(tp', t');
+      }
+    | SigModule(mp) =>
+      if (available^ <= 6) {
+        Invalid(flat_ellipses);
+      } else {
+        available := available^ - 7; /* "module " */
+        SigModule(abbreviate_mpat(mp));
       }
     };
   rewrap(term);
@@ -1725,12 +1740,23 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
           e,
         )
       | Projector(data, t) => Projector(data, abbreviate_typ(t))
-      | Sig(items) =>
+      | Sig(s) =>
         if (available^ <= 2) {
-          Sig([]);
+          Sig(
+            switch (s) {
+            | Open(_) => Open([])
+            | Closed(_) => Closed(ClosedSig.of_items([]))
+            },
+          );
         } else {
           available := available^ - 2; /* { } */
-          Sig(List.map(abbreviate_sig_item, items));
+          Sig(
+            switch (s) {
+            | Open(items) => Open(List.map(abbreviate_sig_item, items))
+            | Closed(items) =>
+              Closed(ClosedSig.map(abbreviate_sig_item, items))
+            },
+          );
         }
       };
     let result = rewrap(term);

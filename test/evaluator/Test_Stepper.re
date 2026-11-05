@@ -2,6 +2,29 @@ open Alcotest;
 open Language;
 open Test_Evaluator_Prelude;
 
+let id = testable(Fmt.using(Id.show, Fmt.string), Id.equal);
+
+let steps = (exp: Exp.t) =>
+  switch (
+    EvaluatorStep.get_status(
+      ~settings=CoreSettings.on,
+      exp,
+      Environment.empty,
+    )
+  ) {
+  | AutoStep(step) => [step]
+  | AvailableSteps(steps) => steps
+  };
+
+let module_bind_steps = (x: string, exp: Exp.t) =>
+  steps(exp)
+  |> List.filter(step =>
+       switch (EvaluatorStep.get_step_kind(step)) {
+       | ModuleBind(y) => String.equal(x, y)
+       | _ => false
+       }
+     );
+
 let tests = (
   "Evaluator.Stepper",
   [
@@ -63,5 +86,208 @@ let tests = (
         ),
       )
     }),
+    /* Stepping substitutes, where the evaluator closes over an environment:
+       a module binding has to reach the items that follow it either way. */
+    test_case("Module bindings reach the items that follow", `Quick, () => {
+      check(
+        step_limited,
+        "{ let a = 1; let b = a * 2 } -> { let a = 1; let b = 2 }",
+        LimitedCompleted((
+          elaborate(parse_exp({|{ let a = 1; let b = 2 }|})),
+          EvaluatorState.empty,
+        )),
+        full_small_step_reduction(
+          elaborate(parse_exp({|{ let a = 1; let b = a * 2 }|})),
+        ),
+      )
+    }),
+    /* As in the evaluator, where an evaluated member's closure never sees
+       the bindings after it. */
+    test_case(
+      "A module binding does not reach the members before it",
+      `Quick,
+      () => {
+        let source = {|{ let g = fun u -> h; let h = 1; let k = 2 }|};
+        check(
+          step_limited,
+          source ++ " is a value as written",
+          LimitedCompleted((
+            elaborate(parse_exp(source)),
+            EvaluatorState.empty,
+          )),
+          full_small_step_reduction(elaborate(parse_exp(source))),
+        );
+      },
+    ),
+    /* The binding rewrites the whole module, but the step belongs to the item:
+       that is what the stepper highlights and what the user clicks. */
+    test_case(
+      "A module binding step is anchored on its item",
+      `Quick,
+      () => {
+        let exp = elaborate(parse_exp({|{ let a = 1; let b = a * 2 }|}));
+        let item_id =
+          switch (Exp.term_of(exp)) {
+          | Module([item, ..._]) => Mod.rep_id(item)
+          | _ => fail("expected a module with items")
+          };
+        switch (module_bind_steps("a", exp)) {
+        | [step, ..._] =>
+          check(
+            id,
+            "the item, not the module",
+            item_id,
+            EvaluatorStep.get_step_id(step),
+          )
+        | [] => fail("expected a module binding step")
+        };
+      },
+    ),
+    /* The item is rendered as its expression, so the step highlights that;
+       the stepper refreshes every id after a step, so the comparison is
+       within one state. */
+    test_case(
+      "Discarding a bare expression item is anchored on the expression",
+      `Quick,
+      () => {
+        let discard_step = exp =>
+          steps(exp)
+          |> List.find_opt(step =>
+               switch (EvaluatorStep.get_step_kind(step)) {
+               | ModuleDiscardExp => true
+               | _ => false
+               }
+             );
+        let rec to_discard = (fuel, exp) =>
+          switch (discard_step(exp), steps(exp)) {
+          | (Some(step), _) => Some((exp, step))
+          | (None, [first, ..._]) when fuel > 0 =>
+            Option.bind(
+              EvaluatorStep.take_step(first),
+              to_discard(fuel - 1),
+            )
+          | (None, _) => None
+          };
+        switch (
+          to_discard(
+            10,
+            elaborate(parse_exp({|{ let a = 1; a + 1; let b = 2 }|})),
+          )
+        ) {
+        | Some((exp, step)) =>
+          let expression_id =
+            switch (Exp.term_of(exp)) {
+            | Module(items) =>
+              List.find_map(
+                (item: Mod.t) =>
+                  switch (item.term) {
+                  | ModExp(e) => Some(Exp.rep_id(e))
+                  | _ => None
+                  },
+                items,
+              )
+            | _ => None
+            };
+          check(
+            option(id),
+            "the expression item",
+            expression_id,
+            Some(EvaluatorStep.get_step_id(step)),
+          );
+        | None => fail("expected a discard step")
+        };
+      },
+    ),
+    /* Binding `N` and then `z` before `N`'s body is evaluated substitutes
+       the body into `z`, so the same pending item appears twice. The stepper
+       selects a step by id, so each copy's step needs its own. */
+    test_case(
+      "Each copy of a substituted module item has its own step",
+      `Quick,
+      () => {
+        let bind = (x, exp) =>
+          switch (module_bind_steps(x, exp)) {
+          | [step, ..._] =>
+            EvaluatorStep.take_step(step)
+            |> Util.OptUtil.get_or_fail("expected the binding to step")
+          | [] => fail("expected a binding step for " ++ x)
+          };
+        let exp =
+          elaborate(
+            parse_exp({|{ module N = { let x = 1 + 1 }; let z = N.x }|}),
+          )
+          |> bind("N")
+          |> bind("z");
+        switch (module_bind_steps("x", exp)) {
+        | [s1, s2] =>
+          check(
+            bool,
+            "distinct step ids",
+            false,
+            Id.equal(
+              EvaluatorStep.get_step_id(s1),
+              EvaluatorStep.get_step_id(s2),
+            ),
+          )
+        | steps =>
+          fail(
+            Printf.sprintf(
+              "expected two binding steps for x, got %d",
+              List.length(steps),
+            ),
+          )
+        };
+      },
+    ),
+    /* Every step's id must be in the rendered program, or it can't be
+       clicked. replace_all_ids mirrors the stepper's refresh. */
+    test_case(
+      "Every module step is anchored on rendered syntax",
+      `Quick,
+      () => {
+        let rec go = (fuel, exp) =>
+          switch (steps(exp)) {
+          | [] => ()
+          | [first, ..._] as steps =>
+            let rendered =
+              exp
+              |> Haz3lcore.ExpToSegment.exp_to_segment(
+                   ~settings=
+                     Haz3lcore.ExpToSegment.Settings.of_core(
+                       ~inline=false,
+                       CoreSettings.on,
+                     ),
+                 )
+              |> Haz3lcore.Segment.ids;
+            List.iter(
+              step =>
+                check(
+                  bool,
+                  Transition.show_step_kind(
+                    EvaluatorStep.get_step_kind(step),
+                  )
+                  ++ " is anchored on rendered syntax",
+                  true,
+                  List.exists(
+                    Id.equal(EvaluatorStep.get_step_id(step)),
+                    rendered,
+                  ),
+                ),
+              steps,
+            );
+            if (fuel > 0) {
+              EvaluatorStep.take_step(first) |> Option.iter(go(fuel - 1));
+            };
+          };
+        List.iter(
+          source =>
+            go(20, elaborate(parse_exp(source)) |> Exp.replace_all_ids),
+          [
+            {|{ (); let x = 1 + 1; let y = x * 2 }|},
+            {|{ let x = 1 + 1; (); let y = x * 2 }|},
+          ],
+        );
+      },
+    ),
   ],
 );

@@ -1,5 +1,3 @@
-open Grammar;
-
 /* Function-definition syntactic sugar for `let`-bindings.
 
    Hazel supports a user-facing shorthand for defining functions:
@@ -10,7 +8,12 @@ open Grammar;
 
        let f = fun (x: Int, y) -> x + y
 
-   An optional return-type annotation on the binder
+   A curried header gives one function per argument group:
+
+       let f(x: Int)(y: Int) = x + y
+
+   is `let f = fun (x: Int) -> fun (y: Int) -> x + y`. An optional
+   return-type annotation on the binder
 
        let f(x: Int, y): Ret = x + y
 
@@ -20,107 +23,49 @@ open Grammar;
 
    The desugaring is handled entirely within the statics pass: the
    surface parser produces `Let(Ap(Var(f), args), def, body)` (optionally
-   wrapped in `Asc(_, ret_ty)`), and the `Let` case of `Statics.re`
-   delegates to `rewrite` below to build an equivalent `Let(f, fun ..., body)`.
+   wrapped in `Asc(_, ret_ty)`), and the `Let` and `ModLet` cases of
+   `Statics.re` check the binding [binding] gives, then fill in the
+   binder's own nodes with [add_binder_infos]. */
 
-   This is structurally analogous to other sugar handlers in the statics
-   pipeline:
-     - `autolabel_singleton_tuple` (in Statics.re) which lifts values into
-       singleton labeled tuples,
-     - `ModuleExp(mp, def, body)` (in Statics.re) which expands to
-       `Let(mpat_to_pat(mp), def, body)`,
-     - `Typ.desugar_sig` which expands signature types.
+/* The binding `let p = def` makes: for the shorthand, the function's
+   name bound to
 
-   All of these reuse the id (and formatting secondary) of the surface
-   term for the desugared outer term by going through `Exp.unwrap`, so
-   that statics on the desugared form populates the info map under the
-   user's original ids. */
+       Fun(args, … Fun(last_args, (def : ret_ty)?, None, None) …, None, None)
 
-/* Match an `Ap` spine headed by `Var(f)`.
-
-   For the nullary form `f()`, the parser tags the empty tuple with
-   `Id.nullary_ap_flag` so it can be distinguished from a 0-tuple
-   literal. We replace that placeholder with a real deterministic id
-   so each argument pattern is well-formed once it becomes a `Fun`
-   parameter. */
-let match_inner_binder = (pat: Pat.t): option((Pat.t, list(Pat.t))) => {
-  let rec go = (pat, args) =>
-    switch (IdTagged.term_of(pat)) {
-    | Ap(fn, arg) =>
-      let arg =
-        Id.is_nullary_ap_flag(IdTagged.ids(arg))
-          ? (Tuple([]): Pat.term)
-            |> IdTagged.fresh_deterministic(Pat.rep_id(fn))
-          : arg;
-      go(fn, [arg, ...args]);
-    | Var(_) =>
-      switch (args) {
-      | [] => None
-      | _ => Some((pat, args))
-      }
-    | _ => None
-    };
-  go(pat, []);
-};
-
-/* Detect whether a let-binder has the form `f(args)…` or
-   `f(args): Ret`, returning the function name pattern, argument
-   pattern, and optional return-type annotation. */
-let detect = (pat: Pat.t): option((Pat.t, list(Pat.t), option(Typ.t))) => {
-  let (inner_pat, ret_ty) =
-    switch (IdTagged.term_of(pat)) {
-    | Asc(inner, ret_ty) => (inner, Some(ret_ty))
-    | _ => (pat, None)
-    };
-  match_inner_binder(inner_pat)
-  |> Option.map(((fn, args)) => (fn, args, ret_ty));
-};
-
-/* Build the desugared expression:
-
-       Let(f_name, Fun(args, (def : ret_ty)?, None, None), body)
-
-   The outer `Let` is produced via `Exp.unwrap` on the surface `Let`,
-   which preserves its ids and secondary (formatting) so that statics
-   on the rewrite populates the info map under the user-facing id.
-   The `Fun` and (optional) `Asc` wrappers use fresh deterministic ids
-   derived from adjacent surface ids, keeping the rewrite stable across
-   runs. */
-let rewrite =
+   with one `Fun` per argument group, and otherwise the binding as
+   written. The `Fun` and (optional) `Asc` wrappers use fresh
+   deterministic ids derived from adjacent surface ids, keeping the
+   rewrite stable across runs. */
+let binding = (p: Pat.t, def: Exp.t): (Pat.t, Exp.t) =>
+  switch (Pat.function_sugar(p)) {
+  | Some((f_name, args, ret_ty)) =>
+    let def_in_fun =
+      switch (ret_ty) {
+      | Some(ty) =>
+        (Asc(def, ty): Exp.term)
+        |> IdTagged.fresh_deterministic(Typ.rep_id(ty))
+      | None => def
+      };
     (
-      ~orig_let: Exp.t,
-      ~f_name: Pat.t,
-      ~args: list(Pat.t),
-      ~ret_ty: option(Typ.t),
-      ~def: Exp.t,
-      ~body: Exp.t,
-    )
-    : Exp.t => {
-  let def_in_fun =
-    switch (ret_ty) {
-    | Some(ty) =>
-      (Asc(def, ty): Exp.term)
-      |> IdTagged.fresh_deterministic(Typ.rep_id(ty))
-    | None => def
-    };
-  let fun_exp =
-    List.fold_right(
-      (args, body) =>
-        (Fun(args, body, None, None): Exp.term)
-        |> IdTagged.fresh_deterministic(Pat.rep_id(args)),
-      args,
-      def_in_fun,
+      f_name,
+      List.fold_right(
+        (args, body) =>
+          (Fun(args, body, None, None): Exp.term)
+          |> IdTagged.fresh_deterministic(Pat.rep_id(args)),
+        args,
+        def_in_fun,
+      ),
     );
-  let (_, rewrap) = Exp.unwrap(orig_let);
-  rewrap(Let(f_name, fun_exp, body));
-};
+  | None => (p, def)
+  };
 
-/* After statics has processed the desugared `Let`, the info map is
-   missing entries for ids that only exist in the original binder
-   pattern -- the `Ap(f, args)` wrapper and the optional outer
-   `Asc(..., ret_ty)`. Populate those entries using the info already
-   computed for the function name, since both sub-trees denote the
-   same binder and share type and context with `f_name`.
+/* After statics has processed the binding, the info map is missing
+   entries for ids that only exist in the shorthand's binder pattern --
+   each `Ap` on the spine (`f(x)(y)` has an inner `f(x)` node the caret
+   can rest on) and the optional outer `Asc(..., ret_ty)`. Populate those
+   entries using the info already computed for the function name, since
+   both sub-trees denote the same binder and share type and context with
+   it. A binding written plainly needs nothing.
 
    We also copy the ana type into `ty` so that the cursor inspector
    shows the binder's type directly (e.g. `: Int -> Int`) rather than
@@ -129,10 +74,12 @@ let rewrite =
    inspector renders them with the same clean "var-like" shape
    regardless of whether the user wrote a return-type annotation. */
 let add_binder_infos =
-    (m: StaticsBase.Map.t, ~user_pat: Pat.t, ~f_name: Pat.t)
-    : StaticsBase.Map.t => {
-  let f_id = Pat.rep_id(f_name);
-  switch (StaticsBase.Map.lookup_pat(f_id, m)) {
+    (m: StaticsBase.Map.t, ~user_pat: Pat.t): StaticsBase.Map.t => {
+  switch (
+    Option.bind(Pat.function_sugar(user_pat), ((f_name, _, _)) =>
+      StaticsBase.Map.lookup_pat(Pat.rep_id(f_name), m)
+    )
+  ) {
   | None => m
   | Some(f_info) =>
     let binder_info: Info.pat = {
@@ -151,9 +98,7 @@ let add_binder_infos =
         }),
         m,
       );
-    /* Every Ap on the spine is part of the binder: `f(x)(y)` has an
-       inner `f(x)` node the caret can rest on. */
-    let rec add_spine = (pat, m) =>
+    let rec add_spine = (pat: Pat.t, m) =>
       switch (IdTagged.term_of(pat)) {
       | Ap(fn, _) => add_spine(fn, add_for(pat, m))
       | _ => m

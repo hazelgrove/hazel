@@ -19,26 +19,22 @@ open HighLevelNodeMap.Public;
 
 module Local = {
   module Utils = {
-    let get_individual_ids_of_let = (term: Info.t): (Id.t, Id.t, Id.t) => {
+    /* The definition a `let` or a binding item folds to; type definitions
+       are not folded. */
+    let def_id_of_binding = (term: Info.t): option(Id.t) =>
       switch (term) {
-      | InfoExp({user_term: term, _}) =>
-        switch (Exp.term_of(term)) {
-        | Let(pat, def, body) => (
-            Pat.rep_id(pat),
-            Exp.rep_id(def),
-            Exp.rep_id(body),
-          )
-        // We won't fold/abstract away type definitions, so no need for this helper to handle them yet
-        | _ => (Id.invalid, Id.invalid, Id.invalid)
+      | InfoExp({user_term, _}) =>
+        switch (Exp.term_of(user_term)) {
+        | Let(_, def, _) => Some(Exp.rep_id(def))
+        | _ => None
         }
-      | _ => (Id.invalid, Id.invalid, Id.invalid)
+      | InfoMod({user_term, _}) =>
+        switch (Mod.def(user_term)) {
+        | Some(Exp(def)) => Some(Exp.rep_id(def))
+        | _ => None
+        }
+      | _ => None
       };
-    };
-
-    let get_def_id_of_let = (term: Info.t): Id.t => {
-      let (_, def, _) = get_individual_ids_of_let(term);
-      def;
-    };
   };
 
   module ViewUtils = {
@@ -112,18 +108,15 @@ module Local = {
 
     let collapse_definitions =
         (~z: Zipper.t, ~ids: list(Id.t), ~info_map: Id.Map.t(Info.t), ~root) => {
-      let infos =
-        List.map((id: Id.t) => Id.Map.find_opt(id, info_map), ids);
       let def_ids =
         List.filter_map(
-          (info: option(Info.t)) =>
-            switch (info) {
-            | Some(info) => Some(Utils.get_def_id_of_let(info))
-            | None => None
-            },
-          infos,
-        )
-        |> List.filter((id: Id.t) => id != Id.invalid);
+          (id: Id.t) =>
+            Option.bind(
+              Id.Map.find_opt(id, info_map),
+              Utils.def_id_of_binding,
+            ),
+          ids,
+        );
       collapse_terms(~z, ~ids=def_ids, ~root);
     };
   };
