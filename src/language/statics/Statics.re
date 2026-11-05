@@ -2490,8 +2490,14 @@ and uexp_to_info_map =
               |> add_missing_info(_, Info.InfoExp(info), m),
             );
           | None =>
-            // try to expand
-            switch (expand(model_for_expand)) {
+            /* try to expand: its scaffold's ids derived from the use's
+               (^ticket(666)), so the same use expands to the same term on
+               every analysis */
+            switch (
+              IdTagged.with_derived_ids(Exp.rep_id(uexp), () =>
+                expand(model_for_expand)
+              )
+            ) {
             | Some(expanded) =>
               let (info, elab, m) =
                 add(
