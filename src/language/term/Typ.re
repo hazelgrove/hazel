@@ -865,16 +865,34 @@ let shared_binder =
   };
 };
 
+/* What the (Rec, Rec) arm does when the bodies differ under their shared
+   binder. Under a shared-binder comparison it gives up, so that a comparison
+   that fails costs one pass, and the unrolling at the level that failed meets
+   each nested pair once more rather than once per level above it. */
+type on_rec_mismatch =
+  | Unroll
+  | GiveUp;
+
 /* [seen] holds the (recursive type, other type) pairs being met through an
    unrolling on the way here. */
 let rec meet =
-        (~seen: list((t, t))=[], ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
-  let meet' = meet(~seen, ctx);
+        (
+          ~seen: list((t, t))=[],
+          ~on_rec_mismatch: on_rec_mismatch=Unroll,
+          ctx: Ctx.t,
+          ty1: t,
+          ty2: t,
+        )
+        : option(t) => {
+  let meet' = meet(~seen, ~on_rec_mismatch, ctx);
+  /* A pair already in [seen] is consistent: the only way back to it is through
+     heads that matched (Amadio and Cardelli), and the recursive type is its
+     meet. */
+  let assumed = (ty_rec: t, ty: t): bool =>
+    List.exists(((r, o)) => equal(r, ty_rec) && equal(o, ty), seen);
   /* [ty_rec] against [ty] through [ty_rec]'s unrolling, which [meet_unrolled]
-     meets in [ty_rec]'s position. A pair already in [seen] is consistent: the
-     only way back to it is through heads that matched (Amadio and Cardelli),
-     and the recursive type is its meet. The result is [ty_rec] itself when
-     the meet is exactly its unrolling. */
+     meets in [ty_rec]'s position. The result is [ty_rec] itself when the meet
+     is exactly its unrolling. */
   let through_unrolling =
       (
         ty_rec: t,
@@ -882,7 +900,7 @@ let rec meet =
         meet_unrolled: (~seen: list((t, t)), t) => option(t),
       )
       : option(t) =>
-    if (List.exists(((r, o)) => equal(r, ty_rec) && equal(o, ty), seen)) {
+    if (assumed(ty_rec, ty)) {
       Some(ty_rec);
     } else {
       let* ty_rec' = unroll(ty_rec);
@@ -926,28 +944,49 @@ let rec meet =
   | (_, ProdProjection(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
   | (ProdExtension(_), _) => meet'(weak_head_normalize(ctx, ty1), ty2)
   | (_, ProdExtension(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
+  | (Rec(_), Rec(_)) when assumed(ty1, ty2) => Some(ty1)
   | (Rec(tp1, body1), Rec(tp2, body2)) =>
     /* The bodies are compared under one shared binder. Two recursive types
        that spell the same tree differently, with another period or a binder
        at another depth, fail that comparison and are met through their
        unrollings instead, as a recursive type against a structural one is. */
     let (tp, body1, body2) = shared_binder(tp1, body1, tp2, body2);
-    switch (meet(~seen, Ctx.extend_dummy_tvar(ctx, tp), body1, body2)) {
-    | Some(ty_body) => Some(Rec(tp, ty_body) |> temp)
-    | None =>
+    let under_binder =
+      meet(
+        ~seen,
+        ~on_rec_mismatch=GiveUp,
+        Ctx.extend_dummy_tvar(ctx, tp),
+        body1,
+        body2,
+      );
+    switch (under_binder, on_rec_mismatch) {
+    | (Some(ty_body), _) => Some(Rec(tp, ty_body) |> temp)
+    | (None, GiveUp) => None
+    | (None, Unroll) =>
       through_unrolling(ty1, ty2, (~seen, ty1') =>
-        meet(~seen, ctx, ty1', ty2)
+        meet(~seen, ~on_rec_mismatch, ctx, ty1', ty2)
       )
     };
   /* A recursive type meets a structural one through its unrolling; a
      non-contractive type has no unrolling and meets nothing. */
   | (Rec(_), _) =>
-    through_unrolling(ty1, ty2, (~seen, ty1') => meet(~seen, ctx, ty1', ty2))
+    through_unrolling(ty1, ty2, (~seen, ty1') =>
+      meet(~seen, ~on_rec_mismatch, ctx, ty1', ty2)
+    )
   | (_, Rec(_)) =>
-    through_unrolling(ty2, ty1, (~seen, ty2') => meet(~seen, ctx, ty1, ty2'))
+    through_unrolling(ty2, ty1, (~seen, ty2') =>
+      meet(~seen, ~on_rec_mismatch, ctx, ty1, ty2')
+    )
   | (Poly(tp1, body1), Poly(tp2, body2)) =>
     let (tp, body1, body2) = shared_binder(tp1, body1, tp2, body2);
-    let+ ty_body = meet(~seen, Ctx.extend_dummy_tvar(ctx, tp), body1, body2);
+    let+ ty_body =
+      meet(
+        ~seen,
+        ~on_rec_mismatch,
+        Ctx.extend_dummy_tvar(ctx, tp),
+        body1,
+        body2,
+      );
     Poly(tp, ty_body) |> temp;
   | (Poly(_), _) => None
   | (Atom(c1), Atom(c2)) when c1 == c2 => Some(ty1)

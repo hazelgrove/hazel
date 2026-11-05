@@ -768,6 +768,16 @@ let tests = (
       Some(FTemp.Typ.int()),
     ),
     fully_consistent_typecheck(
+      "in either direction",
+      "type A = Int -> A in type B = Int -> Int -> B in let f : B = fun x -> fun y -> f in let g : A = f in 0",
+      Some(FTemp.Typ.int()),
+    ),
+    fully_consistent_typecheck(
+      "A recursive annotation with holes checks against the other period",
+      "type A = Int -> A in let f : A = fun x -> f in let g : rec b -> ? -> ? -> b = f in 0",
+      Some(FTemp.Typ.int()),
+    ),
+    fully_consistent_typecheck(
       "A recursive alias checks against its other phase",
       "type A = Int -> Int -> A in let f : A = fun x -> fun y -> f in let g : Int -> A = f in 0",
       Some(FTemp.Typ.int()),
