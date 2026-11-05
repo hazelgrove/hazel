@@ -1051,6 +1051,31 @@ let meet_out_of_phase_tests = {
         anything_forever,
         Some(ints_forever),
       ),
+      /* The unrolling the meet is compared with keeps the written parentheses;
+         the meet does not. */
+      case(
+        "a recursive type with a parenthesized body folds back from its unrolling",
+        F.Typ.rec_(
+          F.TPat.var("b"),
+          F.Typ.parens(F.Typ.prod([int(), F.Typ.var("b")])),
+        ),
+        F.Typ.prod([int(), unknown()]),
+        Some(
+          F.Typ.rec_(
+            F.TPat.var("b"),
+            F.Typ.parens(F.Typ.prod([int(), F.Typ.var("b")])),
+          ),
+        ),
+      ),
+      case(
+        "a mismatch in the other period is found",
+        one_step,
+        F.Typ.rec_(
+          F.TPat.var("b"),
+          F.Typ.arrow(int(), F.Typ.arrow(F.Typ.bool(), F.Typ.var("b"))),
+        ),
+        None,
+      ),
       /* Nested recursive types that differ only at the innermost leaf: a
          comparison that retried every level would take hours at this depth. */
       case(

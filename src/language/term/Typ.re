@@ -959,7 +959,7 @@ let rec meet =
         } else {
           close_loop(x, name, ty_meet);
         };
-      } else if (equal(ty_rec', ty_meet)) {
+      } else if (fast_equal(ty_rec', ty_meet)) {
         ty_rec;
       } else {
         ty_meet;
