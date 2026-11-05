@@ -138,6 +138,15 @@ let rec chain = (e: Exp.t): list(Exp.t) =>
   | None => [e]
   };
 
+/* (^ticket(666)) a hole of an item's own: its id derived from the item's
+   (Id.derive, a salt for each of an item's holes), not fresh, so the same
+   item makes the same hole every time it is analyzed. a fresh one made
+   each analysis's pieces new: an undo's program, the very segment of
+   before the edit, hashed as another program, and the eval worker, which
+   keeps what it composed by its pieces' hashes, composed it again */
+let own_hole = (~salt, id: Id.t): Exp.t =>
+  IdTagged.mk_internal([Id.derive(~salt, id)], EmptyHole);
+
 /* a module item as a chain item, like the monolithic lowering: a
    Let/TyAlias wrapper (lower_members adds a tail tuple of the exports).
    head_equal gates cleanliness on wrapper and tail ids, so they must be
@@ -147,7 +156,7 @@ let lower_item = (~ana_labels=[], item: Mod.t): Exp.t =>
     ~ana_labels,
     ~stable=true,
     item,
-    Exp.fresh(EmptyHole),
+    own_hole(~salt="lowered-hole", IdTagged.rep_id(item)),
   );
 
 /* the module value [node] elaborates to, from its lowered chain's elab */
@@ -1077,10 +1086,10 @@ let surrogate =
         && same_binding(u.u_hollow, node)
         && Id.Map.equal((_, _) => true, u.u_probes, probe_ids) => u
   | _ =>
-    let sur_hole = Exp.fresh(EmptyHole);
+    let sur_hole = own_hole(~salt="sur-hole", Exp.rep_id(node));
     let sur_def =
       IdTagged.fast_copy(Exp.rep_id(def), Exp.fresh(Asc(sur_hole, ty)));
-    let body_hole = Exp.fresh(EmptyHole);
+    let body_hole = own_hole(~salt="body-hole", Exp.rep_id(node));
     let hollow_term: Exp.term =
       switch (node.term) {
       | ModuleExp(mp, _, _) => ModuleExp(mp, sur_def, body_hole)
@@ -1194,7 +1203,7 @@ let rec calc_item =
 and calc_plain_item =
     (~settings, ~probe_ids=Id.Map.empty, ~ctx_in: Ctx.t, node: Exp.t): item => {
   incr(last_analyzed);
-  let hole = Exp.fresh(EmptyHole);
+  let hole = own_hole(~salt="item-hole", Exp.rep_id(node));
   let (is_tail, hollow_term) =
     switch (split_body(node)) {
     | Some((_, rebuild)) => (false, rebuild(hole))
@@ -1608,8 +1617,8 @@ and calc_modexp_item =
       changes,
     );
   let top = top_sum(sums);
-  let sur_hole = Exp.fresh(EmptyHole);
-  let body_hole = Exp.fresh(EmptyHole);
+  let sur_hole = own_hole(~salt="nest-sur-hole", Exp.rep_id(node));
+  let body_hole = own_hole(~salt="nest-body-hole", Exp.rep_id(node));
   let (map_sur, elab_sur) =
     Statics.mk_unmemoized(
       ~probe_ids,

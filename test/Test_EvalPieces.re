@@ -273,7 +273,8 @@ let undo_diff = (~root=Sort.Exp, name, src: string, needle, repl, ()) => {
   List.iter(
     (b: EvalPieces.slot) =>
       switch (List.find_opt((a: EvalPieces.slot) => a.key == b.key, s0)) {
-      | None => print_endline("UNDO666   a new key: " ++ EvalPieces.show_key(b.key))
+      | None =>
+        print_endline("UNDO666   a new key: " ++ EvalPieces.show_key(b.key))
       | Some(a) when a.hash == b.hash => ()
       | Some(a) =>
         let x = text(p0, a.hash);
