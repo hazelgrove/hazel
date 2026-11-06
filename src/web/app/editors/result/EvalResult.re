@@ -9,6 +9,70 @@ open Language;
 
 /* This file follows conventions in [docs/ui-architecture.md] */
 
+/* While the worker evaluates, the theorem steppers are held on the
+ * dynamics they last saw: from the worker's ack of a new request until its
+ * result arrives or the hold times out (EvalRequest.stepper_hold_ms).
+ * Otherwise they would flash, and lose focus, on the partial streaming
+ * state, which has no theorems yet. Held, they still recalculate, so their
+ * editors stay live. */
+module StepperHold = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {
+    /* The generation of the ack that started the hold, so that a stale
+     * timeout can't release a newer hold. */
+    held: option(int),
+    /* The dynamics changed while held, so pass them on once released. */
+    withheld: bool,
+    /* The dynamics the theorem steppers last saw. */
+    dynamics: Calc.saved(option(Dynamics.t)),
+  };
+
+  let init = {
+    held: None,
+    withheld: false,
+    dynamics: Calc.Pending,
+  };
+
+  let start = (gen: int, hold: t): t => {
+    ...hold,
+    held: Some(gen),
+  };
+
+  let release = (hold: t): t => {
+    ...hold,
+    held: None,
+  };
+
+  /* A timeout releases only the hold it was set for. */
+  let time_out = (gen: int, hold: t): t =>
+    hold.held == Some(gen) ? release(hold) : hold;
+
+  /* The dynamics for the theorem steppers on this pass. */
+  let calculate =
+      (dynamics: Calc.t(option(Dynamics.t)), hold: t)
+      : (Calc.t(option(Dynamics.t)), t) => {
+    let last = Calc.get_saved(None, hold.dynamics);
+    let (dynamics, withheld) =
+      switch (hold.held, dynamics) {
+      | (Some(_), NewValue(_)) => (Calc.OldValue(last), true)
+      | (Some(_), OldValue(_)) => (Calc.OldValue(last), hold.withheld)
+      | (None, NewValue(d)) => (Calc.NewValue(d), false)
+      | (None, OldValue(d)) => (
+          hold.withheld ? Calc.NewValue(d) : Calc.OldValue(d),
+          false,
+        )
+      };
+    (
+      dynamics,
+      {
+        ...hold,
+        withheld,
+        dynamics: Calc.save(dynamics),
+      },
+    );
+  };
+};
+
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type display =
@@ -29,14 +93,21 @@ module Model = {
     streaming_outbox: Calc.saved(option(IncrEval.outbox(EvaluatorState.t))),
     streaming_state: Calc.saved(option(EvaluatorState.t)),
     pending_eval_ids: list(Id.t),
+    stepper_proof: Calc.t(Proof.t),
     display,
     theorems: Theorems.Model.t,
-  };
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = {
-    stepper: option(StepperView.Model.persistent),
-    theorems: Theorems.Model.persistent,
+    stepper_hold: StepperHold.t,
+    /* Bumped whenever an input of evaluation (elab, settings, targets)
+     * changes. Worker replies carry the generation of their request, and
+     * replies to an older request are refused. */
+    request_gen: int,
+    /* The statics the latest request was built from. */
+    request_statics: option(Haz3lcore.CachedStatics.t),
+    /* The latest completed evaluation and the statics of its request,
+     * which Theorems checks proofs with. While a newer request is pending,
+     * or after it fails, the pair stays, so a proof is never checked
+     * against one program's statics and another's environment. */
+    checked: Calc.saved(option((Haz3lcore.CachedStatics.t, Dynamics.t))),
   };
 
   let init = {
@@ -50,41 +121,13 @@ module Model = {
     streaming_outbox: Calc.Pending,
     streaming_state: Calc.Pending,
     pending_eval_ids: [],
+    stepper_proof: Calc.OldValue(Proof.fresh(EmptyHole)),
     display: Evaluation(Calc.Pending),
     theorems: Theorems.Model.init,
-  };
-
-  let persist = (model: t): persistent => {
-    stepper:
-      switch (model.display) {
-      | Stepper(stepper) => Some(StepperView.Model.persist(stepper))
-      | _ => None
-      },
-    theorems: Theorems.Model.persist(model.theorems),
-  };
-
-  let unpersist = (p: persistent): t => {
-    let theorems = Theorems.Model.unpersist(p.theorems);
-    switch (p.stepper) {
-    | Some(stepper) => {
-        cached_settings: Calc.Pending,
-        elab: Calc.Pending,
-        cached_targets: Calc.Pending,
-        result: Calc.NewValue(ProgramResult.awaiting_worker_ack),
-        dynamics: Calc.Pending,
-        incr_eval: Calc.Pending,
-        predicted_reuse: IncrEval.empty,
-        streaming_outbox: Calc.Pending,
-        streaming_state: Calc.Pending,
-        pending_eval_ids: [],
-        display: Stepper(StepperView.Model.unpersist(stepper)),
-        theorems,
-      }
-    | None => {
-        ...init,
-        theorems,
-      }
-    };
+    stepper_hold: StepperHold.init,
+    request_gen: 0,
+    request_statics: None,
+    checked: Calc.Pending,
   };
 
   let probe_results = (model: t): option(Sample.Map.t) =>
@@ -116,6 +159,15 @@ module Model = {
   let pending_eval_ids = (model: t): list(Id.t) =>
     eval_is_pending(model) ? model.pending_eval_ids : [];
 
+  /* Proof-check results for this cell, which Theorems computes on the
+   * main thread with the real statics (empty until calculated, or if the
+   * cell contains no theorems). Consumed by the cursor inspector to show
+   * incoming/outgoing expressions on proof sub-terms. */
+  let proof_map = (model: t): ProofMap.t =>
+    model.theorems.proof_map |> Calc.get_saved(ProofMap.empty);
+
+  let request_gen = (model: t): int => model.request_gen;
+
   let get_elaboration = (model: t): option(Exp.t) =>
     model.elab |> Calc.get_saved_opt;
 
@@ -139,10 +191,14 @@ module Update = {
   type t =
     | ToggleStepper
     | StepperAction(StepperView.Update.t)
+    | StepperProofPatch(Haz3lcore.EditorTransform.patch)
     | EvalEditorAction(CodeSelectable.Update.t)
-    | UpdateResult(ProgramResult.t(ProgramResult.inner))
-    | UpdateStreamingEval(IncrEval.outbox(EvaluatorState.t))
-    | MergeStreamingEval(IncrEval.outbox(EvaluatorState.t))
+    /* Worker replies carry the generation of the request they answer
+     * (UpdateStreamingEval's first int is the stepper hold's). */
+    | UpdateResult(int, ProgramResult.t(ProgramResult.inner))
+    | UpdateStreamingEval(int, int, IncrEval.outbox(EvaluatorState.t))
+    | MergeStreamingEval(int, IncrEval.outbox(EvaluatorState.t))
+    | ReleaseStepperHold(int)
     | TheoremsAction(Theorems.Update.t);
 
   /* Whether a cell the user can't edit still takes this action: evaluation
@@ -152,9 +208,11 @@ module Update = {
     switch (action) {
     | UpdateResult(_)
     | UpdateStreamingEval(_)
-    | MergeStreamingEval(_) => true
+    | MergeStreamingEval(_)
+    | ReleaseStepperHold(_) => true
     | ToggleStepper
     | StepperAction(_)
+    | StepperProofPatch(_)
     | EvalEditorAction(_)
     | TheoremsAction(_) => false
     };
@@ -181,6 +239,18 @@ module Update = {
         display: Stepper(stepper),
       };
     | (StepperAction(_), _) => model |> Updated.raise_invalid_action
+    | (StepperProofPatch(patch), _) =>
+      {
+        ...model,
+        stepper_proof:
+          Calc.NewValue(
+            Haz3lcore.EditorTransform.apply_patch_to_proof(
+              Calc.get_value(model.stepper_proof),
+              patch,
+            ),
+          ),
+      }
+      |> Updated.return
     | (
         EvalEditorAction(a),
         {display: Evaluation(Calculated(Some((exp, editor)))), _},
@@ -198,7 +268,11 @@ module Update = {
         ...model,
         theorems,
       };
-    | (UpdateResult(result), _) =>
+    | (UpdateResult(gen, _), _)
+    | (UpdateStreamingEval(_, gen, _), _)
+    | (MergeStreamingEval(gen, _), _) when gen != model.request_gen =>
+      model |> Updated.return_quiet
+    | (UpdateResult(_, result), _) =>
       {
         ...model,
         result: Calc.NewValue(result),
@@ -208,9 +282,10 @@ module Update = {
           | ProgramResult.ResultOk(_)
           | ProgramResult.ResultFail(_) => []
           },
+        stepper_hold: StepperHold.release(model.stepper_hold),
       }
       |> Updated.return_quiet
-    | (UpdateStreamingEval(stream), _) =>
+    | (UpdateStreamingEval(hold_gen, _, stream), _) =>
       /* Worker ReusePlan arrives here (via on_ack). Snapshot it for the
        * frozen debug tint; also seed the streaming outbox / pending worklist. */
       {
@@ -221,9 +296,16 @@ module Update = {
         streaming_state: Calc.Pending,
         pending_eval_ids:
           EvalWorklist.remove_streamed_ids(stream, model.pending_eval_ids),
+        stepper_hold: StepperHold.start(hold_gen, model.stepper_hold),
       }
       |> Updated.return_quiet
-    | (MergeStreamingEval(stream), _) =>
+    | (ReleaseStepperHold(hold_gen), _) =>
+      {
+        ...model,
+        stepper_hold: StepperHold.time_out(hold_gen, model.stepper_hold),
+      }
+      |> Updated.return_quiet
+    | (MergeStreamingEval(_, stream), _) =>
       let current =
         model.streaming_outbox
         |> Calc.get_saved(None)
@@ -257,8 +339,13 @@ module Update = {
           streaming_outbox,
           streaming_state,
           pending_eval_ids,
+          stepper_proof,
           display,
           theorems,
+          stepper_hold,
+          request_gen,
+          request_statics,
+          checked,
         }: Model.t,
       ) => {
     // Check whether settings / elab / targets have changed
@@ -267,12 +354,23 @@ module Update = {
       |> Calc.set(settings, ~eq=CoreSettings.eq_ignoring_stepper_modals);
     let elab =
       Calc.set(~eq=Exp.fast_equal_with_lexemes, statics.elaborated, elab);
+    let stepper_proof =
+      switch (elab) {
+      | NewValue(_) => Calc.NewValue(Proof.fresh(EmptyHole))
+      | OldValue(_) => stepper_proof
+      };
     let targets =
       Calc.set(
         ~eq=Id.Map.equal(Sample.equal_capture_spec),
         statics.targets,
         cached_targets,
       );
+
+    /* A new request whenever `result` below is recomputed. */
+    let new_request =
+      Calc.is_new(elab) || Calc.is_new(settings) || Calc.is_new(targets);
+    let request_gen = new_request ? request_gen + 1 : request_gen;
+    let request_statics = new_request ? Some(statics) : request_statics;
 
     /* Previous incremental map, if the last evaluation produced one. Pull
      * from the saved field so it survives intermediate pending states
@@ -303,6 +401,7 @@ module Update = {
             expr: elab,
             eval_info_map,
             prev: prev_incr,
+            generation: request_gen,
           });
           ProgramResult.awaiting_worker_ack;
         // Using the main thread:
@@ -312,6 +411,7 @@ module Update = {
               expr: elab,
               eval_info_map,
               prev: prev_incr,
+              generation: request_gen,
             })
           ) {
           | Ok((exp, state)) =>
@@ -402,12 +502,21 @@ module Update = {
         switch (result, streaming_state) {
         | (ProgramResult.ResultPending(_), Some(state)) =>
           Some(dynamics_of_state(state))
-        | (ProgramResult.ResultPending(_), None)
+        | (ProgramResult.ResultPending(_), None) =>
+          dynamics |> Calc.get_saved(None)
         | (ProgramResult.ResultFail(_), _) =>
           dynamics |> Calc.get_saved(None)
         | (ProgramResult.ResultOk({state, _}), _) =>
           Some(dynamics_of_state(state))
         };
+      };
+
+    let checked =
+      switch (result, request_statics, checked) {
+      | (NewValue(ProgramResult.ResultOk({state, _})), Some(statics), _) =>
+        Calc.NewValue(Some((statics, dynamics_of_state(state))))
+      | (_, _, Calculated(checked)) => Calc.OldValue(checked)
+      | (_, _, Pending) => Calc.NewValue(None)
       };
 
     let incr_eval =
@@ -482,14 +591,18 @@ module Update = {
                 ),
               ),
             elab,
+            ~proof=stepper_proof,
             stepper,
           ),
         )
       };
 
+    let (theorems_dynamics, stepper_hold) =
+      StepperHold.calculate(dynamics, stepper_hold);
+
     // HACK[Matt]: say that statics is updated iff dynamics is updated
     let statics: Calc.t('a) =
-      switch (dynamics) {
+      switch (theorems_dynamics) {
       | NewValue(_) => NewValue(statics)
       | OldValue(_) => OldValue(statics)
       };
@@ -497,7 +610,12 @@ module Update = {
     let theorems =
       Calc.get_value(settings).dynamics
         ? theorems
-          |> Theorems.Update.calculate(~settings, ~statics, ~dynamics)
+          |> Theorems.Update.calculate(
+               ~settings,
+               ~statics,
+               ~dynamics=theorems_dynamics,
+               ~checked,
+             )
         : theorems;
 
     (
@@ -512,8 +630,13 @@ module Update = {
         streaming_outbox: streaming_outbox |> Calc.save,
         streaming_state: streaming_state |> Calc.save,
         pending_eval_ids,
+        stepper_proof: stepper_proof |> Calc.make_old,
         display,
         theorems,
+        stepper_hold,
+        request_gen,
+        request_statics,
+        checked: checked |> Calc.save,
       }: Model.t
     );
   };
@@ -681,20 +804,46 @@ module View = {
         ),
       ]
     | Stepper(s) =>
-      StepperView.View.view(
-        ~globals,
-        ~selected=
-          switch (selected) {
-          | Some(Stepper(s)) => Some(s)
-          | _ => None
-          },
-        ~signal=
-          fun
-          | HideStepper => inject(ToggleStepper)
-          | MakeActive(s) => signal(MakeActive(Stepper(s))),
-        ~inject=x => inject(StepperAction(x)),
-        s,
-      )
+      let stepper_view =
+        StepperView.View.view(
+          ~globals,
+          ~selected=
+            switch (selected) {
+            | Some(Stepper(s)) => Some(s)
+            | _ => None
+            },
+          ~signal=
+            fun
+            | HideStepper => inject(ToggleStepper)
+            | MakeActive(s) => signal(MakeActive(Stepper(s))),
+          ~inject=x => inject(StepperAction(x)),
+          ~edit_syntax=patch => inject(StepperProofPatch(patch)),
+          s,
+        );
+      /* The stepper renders from the last proof map / elaboration it saw,
+       * so on evaluation failure it silently shows stale rows; surface the
+       * failure above them. */
+      switch (model.result |> Calc.get_value) {
+      | ResultFail(err) => [
+          div(
+            ~attrs=[
+              Attr.classes(["cell-item", "cell-result", "stepper-stale"]),
+            ],
+            [
+              div(
+                ~attrs=[Attr.classes(["error-msg"])],
+                [text(error_msg(err))],
+              ),
+              div(
+                ~attrs=[Attr.classes(["stale-note"])],
+                [text("Steps below show the last successful evaluation.")],
+              ),
+            ],
+          ),
+          ...stepper_view,
+        ]
+      | _ => stepper_view
+      };
     };
 
   let test_status_icon_view =
@@ -744,6 +893,9 @@ module View = {
            | `Custom(Node.t)
          ]=`EvalResults,
         ~locked: bool,
+        ~edit_syntax: Haz3lcore.EditorTransform.patch => Ui_effect.t(unit)=_ =>
+                                                                    Ui_effect.Ignore,
+        ~main_editor: option(CodeEditable.Channel.t)=None,
         model: Model.t,
       ) =>
     switch (result_kind) {
@@ -759,7 +911,7 @@ module View = {
         | Some(result) => [
             test_result_layer(
               ~font_metrics=globals.font_metrics,
-              ~measured=editor.syntax.measured,
+              ~measured=Haz3lcore.CachedSyntax.measured(editor.syntax),
               result,
             ),
           ]
@@ -777,6 +929,8 @@ module View = {
                 | Some(Theorems(f)) => Some(f)
                 | _ => None
                 },
+              ~edit_syntax,
+              ~main_editor,
               model.theorems,
             );
       let theorems =
@@ -812,7 +966,7 @@ module View = {
         | Some(result) => [
             test_result_layer(
               ~font_metrics=globals.font_metrics,
-              ~measured=editor.syntax.measured,
+              ~measured=Haz3lcore.CachedSyntax.measured(editor.syntax),
               result,
             ),
           ]
@@ -835,7 +989,7 @@ module View = {
             | Some(result) => [
                 test_result_layer(
                   ~font_metrics=globals.font_metrics,
-                  ~measured=editor.syntax.measured,
+                  ~measured=Haz3lcore.CachedSyntax.measured(editor.syntax),
                   result,
                 ),
               ]
@@ -852,7 +1006,7 @@ module View = {
         | Some(result) => [
             test_result_layer(
               ~font_metrics=globals.font_metrics,
-              ~measured=editor.syntax.measured,
+              ~measured=Haz3lcore.CachedSyntax.measured(editor.syntax),
               result,
             ),
           ]

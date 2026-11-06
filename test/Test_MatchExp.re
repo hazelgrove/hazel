@@ -195,3 +195,186 @@ let tests = [
     ],
   ),
 ];
+
+/* ---- Pattern metavariables in target slots (MetaVar / match_pattern) ---
+ *
+ * `$e` matches any expression, `$v` any value, and both are non-linear
+ * (occurrences are independent), exactly as in stepper filters. Named
+ * metavariables `$x` are linear: every occurrence must agree.
+ */
+
+let pattern_check = (~env=Language.Environment.empty, pat, exp, expected, ()) =>
+  check(
+    Alcotest.bool,
+    pat ++ " matches " ++ exp,
+    expected,
+    Language.MatchExp.matches_pattern(~env, parse_exp(pat), parse_exp(exp)),
+  );
+
+/* `Occurrence.nth_pattern` indexes among pattern matches. Returns the
+ * matched subterm rendered back to a string for easy comparison. */
+let nth_pat_check = (pat, n, target, expected: option(string), ()) => {
+  let matched =
+    Language.Occurrence.nth_pattern(parse_exp(pat), n, parse_exp(target));
+  switch (expected, matched) {
+  | (None, None) =>
+    check(
+      Alcotest.bool,
+      pat ++ " has no match #" ++ string_of_int(n),
+      true,
+      true,
+    )
+  | (Some(exp), Some(got)) =>
+    if (!Language.Exp.fast_equal(got, parse_exp(exp))) {
+      Alcotest.fail(
+        pat
+        ++ " match #"
+        ++ string_of_int(n)
+        ++ ": expected "
+        ++ exp
+        ++ " but got "
+        ++ Language.Exp.show(got),
+      );
+    }
+  | (Some(exp), None) =>
+    Alcotest.fail("expected match " ++ exp ++ " for " ++ pat)
+  | (None, Some(_)) => Alcotest.fail("expected no match for " ++ pat)
+  };
+};
+
+/* For a metavariable-free target, the dispatcher the checker uses has to
+ * agree with the exact-match `Occurrence.nth` lookup. */
+let ground_regression_check = (target, n, goal, ()) => {
+  let target' = parse_exp(target);
+  let goal' = parse_exp(goal);
+  let old = Language.Occurrence.nth(target', n, goal');
+  let new_ = Language.Occurrence.nth_target(target', n, goal');
+  check(
+    Alcotest.bool,
+    "ground target `" ++ target ++ "` #" ++ string_of_int(n) ++ " unchanged",
+    true,
+    Option.equal(Language.Exp.fast_equal, old, new_),
+  );
+};
+
+let pattern_tests = [
+  (
+    "MetaVar patterns",
+    [
+      /* $e: any expression, and non-linear. */
+      test_case(
+        "$e matches a literal",
+        `Quick,
+        pattern_check("$e", "1", true),
+      ),
+      test_case(
+        "$e matches a compound expression",
+        `Quick,
+        pattern_check("$e", "1 + 2", true),
+      ),
+      test_case(
+        "$e == $e matches a reflexive equation",
+        `Quick,
+        pattern_check("$e == $e", "1 == 1", true),
+      ),
+      test_case(
+        "$e is non-linear: sides need not agree",
+        `Quick,
+        pattern_check("$e == $e", "1 == 2", true),
+      ),
+      test_case(
+        "$e still respects the surrounding structure",
+        `Quick,
+        pattern_check("$e == $e", "1 + 2", false),
+      ),
+      /* $v: any value. */
+      test_case(
+        "$v matches a value",
+        `Quick,
+        pattern_check("$v + $v", "1 + 2", true),
+      ),
+      test_case(
+        "$v rejects a non-value operand",
+        `Quick,
+        pattern_check("$v + $v", "(1 + 2) + 4", false),
+      ),
+      test_case(
+        "$e accepts where $v rejects",
+        `Quick,
+        pattern_check("$e + $e", "(1 + 2) + 4", true),
+      ),
+      /* Named metavariables are linear. */
+      test_case(
+        "$x == $x requires both sides to agree",
+        `Quick,
+        pattern_check("$x == $x", "1 == 1", true),
+      ),
+      test_case(
+        "$x == $x rejects differing sides",
+        `Quick,
+        pattern_check("$x == $x", "1 == 2", false),
+      ),
+      /* Ground patterns are the degenerate case. */
+      test_case(
+        "a ground pattern matches only itself",
+        `Quick,
+        pattern_check("1 + 2", "1 + 2", true),
+      ),
+      test_case(
+        "a ground pattern rejects a different term",
+        `Quick,
+        pattern_check("1 + 2", "1 + 3", false),
+      ),
+      /* `at <idx>` indexes among pattern matches. */
+      /* 1. The match is the parenthesized node: pattern matching
+       *    ignores parens, so the outermost matching node is `(3 + 4)`
+       *    itself, which is also the node the exact-match lookup
+       *    returns.
+       * 2. Occurrence order is `Exp.map_term`'s, which reaches a binary
+       *    operator's right operand first. `nth_exp_pat` uses the same
+       *    traversal as `Occurrence.nth`, so `at <idx>` counts pattern matches
+       *    in the order it counts exact occurrences. */
+      test_case(
+        "nth_exp_pat: first $v + $v match",
+        `Quick,
+        nth_pat_check("$v + $v", 0, "(1 + 2) + (3 + 4)", Some("(3 + 4)")),
+      ),
+      test_case(
+        "nth_exp_pat: second $v + $v match",
+        `Quick,
+        nth_pat_check("$v + $v", 1, "(1 + 2) + (3 + 4)", Some("(1 + 2)")),
+      ),
+      test_case(
+        "nth_exp_pat: no third match",
+        `Quick,
+        nth_pat_check("$v + $v", 2, "(1 + 2) + (3 + 4)", None),
+      ),
+      test_case(
+        "nth_exp_pat: $e + $e takes the outermost sum first",
+        `Quick,
+        nth_pat_check(
+          "$e + $e",
+          0,
+          "(1 + 2) + (3 + 4)",
+          Some("(1 + 2) + (3 + 4)"),
+        ),
+      ),
+      /* Ground targets against the exact-match lookup. */
+      test_case(
+        "ground regression: occurrence 0",
+        `Quick,
+        ground_regression_check("1 + 2", 0, "(1 + 2) + (1 + 2) == 6"),
+      ),
+      test_case(
+        "ground regression: occurrence 1",
+        `Quick,
+        ground_regression_check("1 + 2", 1, "(1 + 2) + (1 + 2) == 6"),
+      ),
+      test_case(
+        "ground regression: missing occurrence",
+        `Quick,
+        ground_regression_check("9 + 9", 0, "(1 + 2) + (1 + 2) == 6"),
+      ),
+    ],
+  ),
+];

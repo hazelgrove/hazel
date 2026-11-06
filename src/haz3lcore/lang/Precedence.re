@@ -75,11 +75,15 @@ let and_ = 32 |> right_associative;
 // _____ || false
 let or_ = 33 |> right_associative;
 
-// Derivation Mode Only
+// Material implication `==>` (also used in Derivation Mode)
 // A /\ B \/ C ==> D
 // ((A /\ B) \/ C) ==> D
-let impl = 34;
+// a || b ==> c || d parses as (a || b) ==> (c || d);
+// a ==> b ==> c parses as a ==> (b ==> c)
+let impl = 34 |> right_associative;
 // false || _____
+/* Shares its level with `impl`. `impl`'s right-associativity doesn't
+   affect grout: Skel's tie-break only tells Some(Left) from the rest. */
 let concave_grout = 34;
 
 // ===== SEMICOLON (tightest structural form) =====
@@ -92,6 +96,22 @@ let semi = 35 |> right_associative;
 let if_ = 36;
 let fun_ = 37;
 // fun x -> _____
+
+/* Pattern guard `p where g` (Pat `where` Exp -> Pat).
+ *
+ * Looser than every operator that can appear on either side, so both
+ * operands are taken whole:
+ *   h :: t where h != 0 && t == []
+ *     ==> Where(Cons(h, t), (h != 0) && (t == []))
+ * (`cons` = 29, `eqs` = 31, `and_` = 32, `impl` = 34 are all tighter).
+ *
+ * Tighter than `comma` (44), `let_` (45) and `rule_sep` (46), so the
+ * guard stays in its binding position: in
+ *   case xs | y where y != 0 => 1 | _ => 2 end
+ * the `where` is in the arm's pattern, not around the `=>`. So
+ * `| x, y where g =>` is `(x, Where(y, g))`; parenthesize the tuple to
+ * guard it as a whole. */
+let pat_where = 38;
 
 let lab = 39;
 
@@ -163,6 +183,7 @@ let of_bin_op: Language.Operators.op_bin => t =
     switch (op) {
     | And => and_
     | Or => or_
+    | Implies => impl
     }
   | String(op) =>
     switch (op) {

@@ -22,26 +22,21 @@ module Model = {
     result: EvalResult.Model.init,
   };
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = {
-    editor: CodeEditable.Model.persistent,
-    result: EvalResult.Model.persistent,
-  };
+  type persistent = {editor: CodeEditable.Model.persistent};
 
   let persist = (model: t): persistent => {
     editor: model.editor |> CodeEditable.Model.persist,
-    result: model.result |> EvalResult.Model.persist,
   };
 
-  let unpersist = (~settings as _=?, {editor, result}: persistent): t => {
+  let unpersist = (~settings as _=?, {editor}: persistent): t => {
     editor: CodeEditable.Model.unpersist(editor),
-    result: EvalResult.Model.unpersist(result),
+    result: EvalResult.Model.init,
   };
 
   /* A cell holding a slide's stored source, with an un-run result.
      Slide sources are text-backed zippers (see PersistentZipper). */
   let from_persistent_zipper = (~root, zipper: PersistentZipper.t): persistent => {
     editor: zipper |> Editor.Model.mk_persistent(~root),
-    result: EvalResult.Model.init |> EvalResult.Model.persist,
   };
 
   let to_string = (model: t) => model.editor |> CodeEditable.Model.to_string;
@@ -53,7 +48,15 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | MainEditor(CodeEditable.Update.t)
-    | ResultAction(EvalResult.Update.t);
+    | ResultAction(EvalResult.Update.t)
+    /* Apply a syntactic rewrite to the main editor's zipper. Emitted by
+     * proof-stepper views (via the `~edit_syntax` callback plumbed
+     * through EvalResult / Theorems / StepperView) when a step UI
+     * commits a structural change to the underlying `Theorem` / `Proof.t`
+     * tree. The patch is consumed via `EditorTransform.apply_patch`,
+     * which re-segments the rewritten expression and threads it back
+     * through `CaretPreserving.transform` so the user's caret survives. */
+    | PatchMainEditor(EditorTransform.patch);
 
   let update = (~settings, action, model: Model.t) => {
     switch (action) {
@@ -90,6 +93,19 @@ module Update = {
           result: updated.model,
         },
       };
+    | PatchMainEditor(patch) =>
+      CodeWithStatics.StaticsDebounce.force_on_next := true; // Avoid debounce because these are triggered by clicks.
+      let new_zipper =
+        EditorTransform.apply_patch(model.editor.editor.state.zipper, patch);
+      let new_inner_editor = Editor.Model.mk(~root=Exp, new_zipper);
+      {
+        ...model,
+        editor: {
+          ...model.editor,
+          editor: new_inner_editor,
+        },
+      }
+      |> Updated.return;
     };
   };
 
@@ -182,6 +198,7 @@ module Selection = {
   let get_cursor_info =
       (~inject: Update.t => Ui_effect.t(unit), ~selection, model: Model.t)
       : cursor(Update.t) => {
+    let proof_map = EvalResult.Model.proof_map(model.result);
     switch (selection) {
     | MainEditor =>
       let+ ci =
@@ -189,7 +206,8 @@ module Selection = {
           ~inject=a => inject(MainEditor(a)),
           ~selection=(),
           model.editor,
-        );
+        )
+        |> Cursor.with_proof_map(proof_map);
       Update.MainEditor(ci);
     | Result(selection) =>
       let+ ci =
@@ -197,7 +215,8 @@ module Selection = {
           ~inject=a => inject(ResultAction(a)),
           ~selection,
           model.result,
-        );
+        )
+        |> Cursor.with_proof_map(proof_map);
       Update.ResultAction(ci);
     };
   };
@@ -255,6 +274,18 @@ module View = {
         },
         ~result_kind?,
         ~locked,
+        ~edit_syntax=patch => inject(PatchMainEditor(patch)),
+        /* Sub-editor capability: proof-stepper views render slices of
+         * this cell's main editor (scrutinees, case patterns) as live
+         * splices, and route their edits back through MainEditor —
+         * the same model + inject the top editor view uses below. */
+        ~main_editor=
+          Some(
+            CodeEditable.Channel.{
+              model: model.editor,
+              inject: action => inject(MainEditor(action)),
+            },
+          ),
         model.result,
       );
     div(
@@ -284,6 +315,7 @@ module View = {
           ~predicted_reuse=EvalResult.Model.predicted_reuse(model.result),
           ~pending_eval_ids=EvalResult.Model.pending_eval_ids(model.result),
           ~show_active_eval=EvalResult.Model.eval_is_pending(model.result),
+          ~proof_map=EvalResult.Model.proof_map(model.result),
           model.editor,
         ),
       ]

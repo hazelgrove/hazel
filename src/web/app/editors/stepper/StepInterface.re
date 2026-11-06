@@ -5,54 +5,41 @@ module type STEP = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent;
-  [@deriving (show({with_path: false}), sexp, yojson)]
   type action;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type focus;
-
-  let persist: model => persistent;
-
-  let unpersist: persistent => model;
 
   let update: (~settings: Settings.t, action, model) => Updated.t(model);
 
   let calculate:
     (
       ~settings: Calc.t(CoreSettings.t),
-      ~hidden: Calc.saved(bool),
       ~exp: Calc.t(Exp.t),
       ~ctx: Calc.t(SemanticCtx.t),
-      ~editor: Calc.t(CodeSelectable.Model.t),
       ~info_map: Calc.t(Statics.Map.t),
+      /* Statics info map of the *whole theorem* (proof syntax included), as
+       * opposed to `info_map` which is the goal-expression's. Steps that need
+       * to surface a static error computed over the proof syntax (e.g. the
+       * InductionStep exhaustiveness label) read it here. Empty for the
+       * cell-level stepper. */
+      ~proof_info_map: Calc.t(Statics.Map.t),
       ~ana: Calc.t(Typ.t),
+      ~proof: Calc.t(Proof.t),
+      /* Big-step proof-check results for the surrounding theorem (incoming /
+       * outgoing expressions and marks, keyed by Proof.rep_id). Steps that
+       * source their display from syntax read next_exp / validity off this
+       * map instead of re-running ProofCheck locally. */
+      ~proof_map: Calc.t(ProofMap.t),
       model
     ) =>
-    option(
-      (
-        model,
-        Calc.t(bool), // Hidden
-        option(Calc.t(Exp.t)), // Next
-        Calc.t(option(bool)) // Truth
-      ),
-    );
+    option(model);
 
   let get_cursor_info:
     (~inject: action => Ui_effect.t(unit), ~focus: focus, model) =>
     Cursor.cursor(action);
 
-  let view_justification:
-    (
-      ~globals: Globals.t,
-      ~focus: option(focus),
-      ~inject: action => Ui_effect.t(unit),
-      ~take_focus: focus => Ui_effect.t(unit),
-      ~hide_stepper: Ui_effect.t(unit),
-      ~undo: option(Ui_effect.t(unit)),
-      ~is_toplevel: bool,
-      model
-    ) =>
-    WebUtil.Node.t;
+  /* The row's justification, e.g. "induction". */
+  let justification: model => string;
 
   let view_content:
     (
@@ -61,8 +48,21 @@ module type STEP = {
       ~inject: action => Ui_effect.t(unit),
       ~take_focus: focus => Ui_effect.t(unit),
       ~hide_stepper: Ui_effect.t(unit),
-      ~undo: option(Ui_effect.t(unit)),
       ~is_toplevel: bool,
+      /* The Proof.t sub-term this step renders (when inside a Theorem
+       * proof). Step kinds whose interactive buttons mutate the proof
+       * structure (e.g. InductionStep adding / removing cases) read
+       * this to build patches targeting the right `Proof.rep_id`. */
+      ~proof: option(Proof.t),
+      /* Write channel for syntax-side edits emitted from step views.
+       * Routed up through `StepperView` to the surrounding cell
+       * editor; defaults to a no-op for cell-level steppers. */
+      ~edit_syntax: Haz3lcore.EditorTransform.patch => Ui_effect.t(unit),
+      /* Capability handle on the main editor (model + inject), used by
+       * step views that render slices of the surrounding syntax as
+       * sub-editors (see SubEditor.re). None for cell-level steppers,
+       * which have no backing syntax. */
+      ~main_editor: option(CodeEditable.Channel.t),
       model
     ) =>
     list(WebUtil.Node.t);
@@ -72,17 +72,11 @@ module type STEPPER = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent;
-  [@deriving (show({with_path: false}), sexp, yojson)]
   type action;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type focus;
 
   let init: model;
-
-  let persist: model => persistent;
-
-  let unpersist: persistent => model;
 
   let update: (~settings: Settings.t, action, model) => Updated.t(model);
 
@@ -92,9 +86,16 @@ module type STEPPER = {
       ~exp: Calc.t(Exp.t),
       ~ctx: Calc.t(SemanticCtx.t),
       ~ana: Calc.t(Typ.t),
+      /* See note on ~proof in STEP.calculate above. */
+      ~proof: Calc.t(Proof.t),
+      /* See note on ~proof_map in STEP.calculate above. */
+      ~proof_map: Calc.t(ProofMap.t),
+      /* See note on ~proof_info_map in STEP.calculate above. Optional;
+       * defaults to empty for cell-level steppers with no theorem statics. */
+      ~proof_info_map: Calc.t(Statics.Map.t)=?,
       model
     ) =>
-    (model, Calc.t(Exp.t), Calc.t(option(bool)) /* Truth */);
+    model;
 
   let get_cursor_info:
     (~inject: action => Ui_effect.t(unit), ~focus: focus, model) =>
@@ -108,7 +109,51 @@ module type STEPPER = {
       ~hide_stepper: Ui_effect.t(unit),
       ~focus: option(focus),
       ~is_toplevel: bool,
+      /* Optional write channel for syntax-side edits emitted by step
+       * views (e.g. MissingStep when the user picks an axiom). Defaults
+       * to a no-op for the cell-level stepper / out-of-theorem uses. */
+      ~edit_syntax: Haz3lcore.EditorTransform.patch => Ui_effect.t(unit)=?,
+      /* Optional main-editor capability handle for sub-editor views;
+       * see the note on STEP.view_content above. Defaults to None. */
+      ~main_editor: option(CodeEditable.Channel.t)=?,
       model
     ) =>
     list(WebUtil.Node.t);
+};
+
+/* The parts of STEP shared by the step kinds with no actions, focus or
+ * content of their own, whose row shows only the justification. */
+module Inert = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type action'('step) =
+    |;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type focus'('step) =
+    |;
+
+  let update = (~settings as _: Settings.t, action: action'(_), _) =>
+    switch (action) {
+    | _ => .
+    };
+
+  let get_cursor_info = (~inject as _, ~focus: focus'(_), _) =>
+    switch (focus) {
+    | _ => .
+    };
+
+  let view_content =
+      (
+        ~globals as _,
+        ~focus as _,
+        ~inject as _,
+        ~take_focus as _,
+        ~hide_stepper as _,
+        ~is_toplevel as _,
+        ~proof as _,
+        ~edit_syntax as _,
+        ~main_editor as _,
+        _,
+      ) =>
+    [];
 };

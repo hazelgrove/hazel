@@ -46,9 +46,10 @@ module Update = {
       model.all_rules
       |> {
         let.calc ctx = ctx;
-        let env = SemanticCtx.get_env(ctx);
-        let ctx = SemanticCtx.get_ctx(ctx);
-        ProofCtx.of_env(~builtins=Axioms.v, ~ctx, env);
+        ProofCtx.of_theorem_ctx(
+          ~builtins=Axioms.v,
+          SemanticCtx.get_ctx(ctx),
+        );
       };
 
     let filtered_rewrites =
@@ -69,15 +70,28 @@ module Update = {
                   StringUtil.subseq_search(name, filter)
                 )
           )
-          |> List.map(ctx_entry =>
-               AssumptionBox.Model.{ctx_entry: ctx_entry}
+          /* Read bare boolean facts as `P == true` once, here, so the
+           * filter below and the box agree on what each rule rewrites.
+           * The checker's axiom step makes the same call, so a rule shown
+           * as applicable is one the checker accepts. */
+          |> List.map((ctx_entry: ProofCtx.entry) =>
+               AssumptionBox.Model.{
+                 ctx_entry: {
+                   ...ctx_entry,
+                   rule:
+                     ProofRule.BoolReading.apply(
+                       ~info_map=Some(info_map),
+                       ctx_entry.rule,
+                     ),
+                 },
+               }
              )
           |> (
             filter == ""
               ? List.filter((ab: AssumptionBox.Model.t) =>
                   switch (selected_exp) {
                   | Some(selected_exp) =>
-                    ProofRule.is_active(
+                    ProofRule.Rewrite.is_active(
                       ~info_map,
                       ~env=SemanticCtx.get_env(ctx),
                       ab.ctx_entry.rule,
@@ -153,9 +167,8 @@ module View = {
                 | AssumptionBox.EqualityLeft(e) => {
                     add_axiom_step(
                       am.ctx_entry.name,
-                      try(ProofHacks.exp_idx(selected_exp, full_exp)) {
-                      | _ => 0
-                      },
+                      Occurrence.index(selected_exp, full_exp)
+                      |> Option.value(~default=0),
                       selected_exp,
                       Left,
                       e,
@@ -164,9 +177,8 @@ module View = {
                 | AssumptionBox.EqualityRight(e) =>
                   add_axiom_step(
                     am.ctx_entry.name,
-                    try(ProofHacks.exp_idx(selected_exp, full_exp)) {
-                    | _ => 0
-                    },
+                    Occurrence.index(selected_exp, full_exp)
+                    |> Option.value(~default=0),
                     selected_exp,
                     Right,
                     e,

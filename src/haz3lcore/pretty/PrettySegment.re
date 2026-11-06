@@ -420,7 +420,7 @@ let is_trailing_hole = (p: Piece.t): bool =>
 
 /* A "block form" is a compound expression whose layout naturally spans
    multiple lines: compound prefixes (let/fun/if/...) and compound operand
-   forms ending in "end" (case/end, test/end, proof_of/end, ...). We use
+   forms ending in "end" (case/end, test/end, ...). We use
    this to decide when to force a HardBreak before an expression so that
    block-like expressions always land on their own line. */
 let is_block_form = (p: Piece.t): bool =>
@@ -652,8 +652,29 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     | _ => cats([tile_doc, Break, Group(segment_to_doc(s, rest))])
     };
 
+  /* Interleave shards and children with Break. Children get Nest so
+     multi-line children indent relative to keywords. The Group keeps the
+     tile flat when it fits (`eval 1 at 0 end`) even when the surrounding
+     context breaks, e.g. a proof step before a `;`. */
+  let keywords_doc = (): doc => {
+    let rec build_rest =
+            (idx, triples: list((Tile.t, Segment.t, Tile.t))): doc =>
+      switch (triples) {
+      | [] => Empty
+      | [(_, child, _), ...rest_triples] =>
+        cats([
+          Space,
+          Nest(indent_unit, child_doc(s, child)),
+          Break,
+          shard(idx),
+          build_rest(idx + 1, rest_triples),
+        ])
+      };
+    Group(cats([shard(0), build_rest(1, triples)]));
+  };
+
   switch (t.form) {
-  /* Definition forms: let/=/in, type/=/in, theorem/=/in, module/=/in */
+  /* Definition forms: let/=/in, type/=/in, module/=/in */
   | _ when Tile.is_definition_form(t) =>
     switch (triples) {
     | [(_, pat_child, _), (_, binding_child, _)] =>
@@ -735,6 +756,9 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
       Group(cats([let_in_doc, body_doc(true)]));
     | _ => fallback()
     }
+
+  /* theorem/=/proof/in */
+  | Form.Compound(Theorem) => Group(cats([keywords_doc(), body_doc(true)]))
 
   /* if/then/else */
   | Form.Compound(If) =>
@@ -931,8 +955,72 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     | _ => fallback()
     }
 
-  /* Other operand forms ending in "end": proof_of/end, proof_object/end.
-     Same treatment as case/end (Space after keyword, Break before end). */
+  /* induction/end: the scrutinee stays on the keyword line, each case
+     rule gets its own line with its body indented below, and `end`
+     closes on its own line:
+       induction x
+       | p =>
+         body
+       end
+     With no cases yet it is laid out like the other `end` forms. */
+  | Form.Compound(ProofInduction) =>
+    switch (triples) {
+    | [(_, body_child, _)] =>
+      switch (split_at_next_rule(strip_whitespace(body_child))) {
+      | (_, []) =>
+        let inner = child_doc(s, body_child);
+        let tile_doc =
+          Group(
+            cats([shard(0), Space, inner, Break, shard(last_shard_idx)]),
+          );
+        tile_with_rest(tile_doc);
+      | (scrut, rules) =>
+        let scrut_doc =
+          switch (scrut) {
+          | [] => Empty
+          | _ => cats([Space, Group(segment_to_doc(s, scrut))])
+          };
+        let rec rules_doc = (pieces: list(Piece.t)): doc =>
+          switch (pieces) {
+          | [] => Empty
+          | [r, ...rest'] =>
+            let (body, remaining) = split_at_next_rule(rest');
+            let body_doc =
+              switch (body) {
+              | [] => Empty
+              | _ =>
+                Nest(
+                  indent_unit,
+                  cats([HardBreak, Group(segment_to_doc(s, body))]),
+                )
+              };
+            cats([
+              piece_doc(r),
+              body_doc,
+              switch (remaining) {
+              | [] => Empty
+              | _ => cats([HardBreak, rules_doc(remaining)])
+              },
+            ]);
+          };
+        let tile_doc =
+          cats([
+            shard(0),
+            scrut_doc,
+            HardBreak,
+            rules_doc(rules),
+            HardBreak,
+            shard(last_shard_idx),
+          ]);
+        tile_with_rest(tile_doc);
+      }
+    | _ => fallback()
+    }
+
+  /* Other operand forms ending in "end". With one child, the same
+     treatment as case/end (Space after keyword, Break before end); with
+     several (proof steps like axiom/at/on/end), keywords interleaved with
+     their children. */
   | _ when Tile.ends_with_end(t) =>
     switch (triples) {
     | [(_, body_child, _)] =>
@@ -942,7 +1030,8 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
           cats([shard(0), Space, inner, Break, shard(last_shard_idx)]),
         );
       tile_with_rest(tile_doc);
-    | _ => fallback()
+    | [_, _, ..._] => tile_with_rest(keywords_doc())
+    | [] => fallback()
     }
 
   /* Rule |/=> (case rule tiles with children) */
@@ -1011,27 +1100,12 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     | _ => fallback()
     }
 
-  /* Generic multi-keyword tile: interleave shards and children with Break.
-     Children get Nest so multi-line children indent relative to keywords. */
+  /* Generic multi-keyword tile */
   | _ =>
-    let rec build_rest =
-            (idx, triples: list((Tile.t, Segment.t, Tile.t))): doc =>
-      switch (triples) {
-      | [] => Empty
-      | [(_, child, _), ...rest_triples] =>
-        cats([
-          Space,
-          Nest(indent_unit, child_doc(s, child)),
-          Break,
-          shard(idx),
-          build_rest(idx + 1, rest_triples),
-        ])
-      };
-    let tile_doc = cats([shard(0), build_rest(1, triples)]);
     switch (rest) {
-    | [] => tile_doc
-    | _ => cats([tile_doc, body_doc(false)])
-    };
+    | [] => keywords_doc()
+    | _ => cats([keywords_doc(), body_doc(false)])
+    }
   };
 }
 

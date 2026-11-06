@@ -128,7 +128,6 @@ module Ctr = {
       }
     | Prod(elts) =>
       Finite(Map.singleton(tuple_ctr(List.length(elts)), elts))
-    | ProofOf(_) => Infinite
     | TupLabel(_, ty) => Finite(Map.singleton(tuple_ctr(1), [ty]))
     | List(elt_ty) =>
       Finite(
@@ -423,7 +422,6 @@ module UnseenPatternList: UnseenPatternList = {
       )
     | Arrow(_)
     | Poly(_)
-    | ProofOf(_)
     | DrvQuoteTy(_)
     | Var(_) => unseen_pattern
     | Parens(_)
@@ -562,7 +560,6 @@ module UnseenPatternList: UnseenPatternList = {
       cons_ctr(first_unused_str(""), col_type, unseen_pattern);
     | Arrow(_)
     | Poly(_)
-    | ProofOf(_)
     | DrvQuoteTy(_)
     | Var(_) => cons_wild(unseen_pattern)
     | Parens(_)
@@ -627,7 +624,6 @@ module UnseenPatternList: UnseenPatternList = {
     | Atom(String) => cons_wild(unseen_pattern)
     | Arrow(_)
     | Poly(_)
-    | ProofOf(_)
     | DrvQuoteTy(_)
     | Var(_) => cons_wild(unseen_pattern)
     | Parens(_)
@@ -833,7 +829,8 @@ module Submatrices = {
     Ctr.Map.update(ctr, add_row(idx, cols), ctrs);
   };
 
-  let of_matrix = (m: Matrix.t, all_ctrs: Ctr.all_ctrs): t => {
+  let of_matrix =
+      (~strict_unknown: bool, m: Matrix.t, all_ctrs: Ctr.all_ctrs): t => {
     let seen_data = seen(m, all_ctrs);
     let {
       seen_ints,
@@ -966,7 +963,12 @@ module Submatrices = {
 
     let first_col_exhaustive =
       switch (all_ctrs) {
-      | Unknown => true
+      /* A column of unknown type. At edit time it counts as covered, so
+       * an in-progress program doesn't flag a match whose scrutinee type
+       * isn't known yet. With `strict_unknown` (the prover) it is treated
+       * like `Infinite`: with no known constructor set, only a catch-all
+       * (a wildcard, a variable or a hole) covers it. */
+      | Unknown => strict_unknown ? seen_truth || seen_hole : true
       | Infinite => seen_truth || seen_hole
       | Finite(_) => seen_truth || seen_hole || seen_all_ctrs
       };
@@ -998,7 +1000,7 @@ module type CheckMatrix = {
     redundant_rows,
   };
 
-  let check: (list(Constraint.t), Typ.t) => t;
+  let check: (~strict_unknown: bool=?, list(Constraint.t), Typ.t) => t;
 };
 
 module CheckMatrix: CheckMatrix = {
@@ -1081,7 +1083,8 @@ module CheckMatrix: CheckMatrix = {
     };
 
   // We assume col_tys is already normalized.
-  let rec check_matrix = (m: Matrix.t, col_tys: list(Typ.t)): result => {
+  let rec check_matrix =
+          (~strict_unknown: bool, m: Matrix.t, col_tys: list(Typ.t)): result => {
     switch (col_tys) {
     | [] => failwith("Empty column types.")
     | [first_col_ty, ...rem_col_tys] =>
@@ -1101,7 +1104,7 @@ module CheckMatrix: CheckMatrix = {
           first_col_redundant_rows,
           seen_data,
         } =
-          Submatrices.of_matrix(m, all_ctrs);
+          Submatrices.of_matrix(~strict_unknown, m, all_ctrs);
 
         let (is_exhaustive, unseen_pattern, redundant_rows) =
           Ctr.Map.fold(
@@ -1126,7 +1129,7 @@ module CheckMatrix: CheckMatrix = {
                   unseen_pattern: submatrix_unseen_pattern,
                   redundant_rows: submatrix_redundant_rows,
                 } =
-                  check_matrix(submatrix, col_tys);
+                  check_matrix(~strict_unknown, submatrix, col_tys);
 
                 let is_still_exhaustive =
                   is_exhaustive && is_submatrix_exhaustive;
@@ -1171,10 +1174,13 @@ module CheckMatrix: CheckMatrix = {
     };
   };
 
-  // IMPORTANT: ty should already be fully normalized.
-  let check = (xis: list(Constraint.t), ty: Typ.t): t => {
+  /* `ty` must already be fully normalized.
+   *
+   * With `strict_unknown`, a column of unknown type is not covered
+   * vacuously. The prover passes it; edit-time statics doesn't. */
+  let check = (~strict_unknown=false, xis: list(Constraint.t), ty: Typ.t): t => {
     let {is_exhaustive, unseen_pattern, redundant_rows} =
-      check_matrix(Matrix.of_constraints(xis), [ty]);
+      check_matrix(~strict_unknown, Matrix.of_constraints(xis), [ty]);
     {
       exhaustiveness:
         is_exhaustive
@@ -1186,3 +1192,29 @@ module CheckMatrix: CheckMatrix = {
 };
 
 let check = CheckMatrix.check;
+
+/* Coverage of a match with one row per case (`case`, `induction`). A
+ * guarded row (`| p where g =>`) is not a case split: the guard can fail
+ * at runtime, so the row neither covers its constructor nor makes a later
+ * row redundant. Guarded rows are left out of the matrix, and redundant
+ * rows are reported by their position among all rows. So
+ * `| S(m) where P | S(m) | Z` is exhaustive and `| S(m) where P | Z` is
+ * not. Complementary guards (`x > 0` / `x <= 0`) with no catch-all are
+ * reported inexhaustive: deciding them would need an SMT solver. */
+let check_rows =
+    (rows: list((Pat.t, Constraint.t)), ty: Typ.t): CheckMatrix.t => {
+  let unguarded =
+    rows
+    |> List.mapi((i, (p, c)) => (i, p, c))
+    |> List.filter(((_, p, _)) => !Pat.is_guarded(p));
+  let {exhaustiveness, redundant_rows}: CheckMatrix.t =
+    check(List.map(((_, _, c)) => c, unguarded), ty);
+  let row_of = i => {
+    let (row, _, _) = List.nth(unguarded, i);
+    row;
+  };
+  {
+    exhaustiveness,
+    redundant_rows: List.map(row_of, redundant_rows),
+  };
+};

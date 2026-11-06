@@ -10,6 +10,9 @@ module Request = {
     expr: Language.Exp.t,
     eval_info_map: Language.EvalInfo.t,
     prev: Language.EvaluatorState.incr_eval,
+    /* The generation of the EvalResult request this is. The worker
+     * ignores it; EvalRequest tags the replies with it. */
+    generation: int,
   };
   [@deriving (show, sexp, yojson)]
   type batch = list((key, value));
@@ -230,7 +233,7 @@ let error_response = exn =>
   };
 
 let evaluate_sync = (req_value: Request.value): Response.value => {
-  let Request.{expr, eval_info_map, prev} = req_value;
+  let Request.{expr, eval_info_map, prev, _} = req_value;
   switch (
     Language.Evaluator.evaluate(
       ~prev,
@@ -319,7 +322,7 @@ let planned_reuse:
   ref([]);
 
 let predict_reuse_for_request = ((key, req_value): (key, Request.value)) => {
-  let Request.{expr, eval_info_map, prev} = req_value;
+  let Request.{expr, eval_info_map, prev, _} = req_value;
   let stream =
     if (!wants_incremental(req_value)) {
       Language.IncrEval.empty;
@@ -365,7 +368,7 @@ let timed_eval: 'a. (unit => 'a) => 'a =
   };
 
 let start_evaluation = (req_value: Request.value): evaluation_start => {
-  let Request.{expr, eval_info_map, prev} = req_value;
+  let Request.{expr, eval_info_map, prev, _} = req_value;
   let planned = take_planned_reuse(expr);
   switch (
     Language.Evaluator.start_yielding_evaluation(

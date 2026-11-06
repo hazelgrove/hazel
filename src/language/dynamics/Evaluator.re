@@ -89,6 +89,117 @@ let continues_delegation =
     delegations,
   );
 
+/* Checking theorems' proofs. Their `eval` steps reduce with the stepper
+ * (`EvaluatorStep`), not with this module's trampoline. */
+module Proofs = {
+  /* The steps an `eval` proof step passes through silently. One proof
+   * step is one meaningful reduction, so besides the stepper's auto-hidden
+   * steps it also passes through `VarLookup`s. */
+  let advance_hidden = (~max_steps=?, ~env, e) => {
+    let hidden_step = e =>
+      switch (EvaluatorStep.get_status(~settings=CoreSettings.on, e, env)) {
+      | AutoStep(s) => Some(s)
+      | AvailableSteps([s, ..._])
+          when EvaluatorStep.get_step_kind(s) == VarLookup =>
+        Some(s)
+      | AvailableSteps(_) => None
+      };
+    let rec advance = (~taken, e) =>
+      switch (hidden_step(e), max_steps) {
+      | (None, _) => Some(([], e))
+      | (Some(_), Some(max)) when taken >= max => None
+      | (Some(s), _) =>
+        switch (EvaluatorStep.take_step(s)) {
+        | Some(next) =>
+          let justification =
+            s |> EvaluatorStep.get_step_kind |> stepper_justification;
+          advance(~taken=taken + 1, next)
+          |> Option.map(((rest, outgoing)) =>
+               ([(e, justification, next), ...rest], outgoing)
+             );
+        | None => Some(([], e))
+        }
+      };
+    advance(~taken=0, e);
+  };
+
+  /* One `eval` proof step: the silent steps, the visible step, and the
+   * silent steps after it. */
+  let step: ProofCheck.step_fn =
+    (~env, e) => {
+      /* Unbounded, so never None. */
+      let advance_hidden = e =>
+        advance_hidden(~env, e) |> Option.value(~default=([], e));
+      let (leading_auto_steps, e) = advance_hidden(e);
+      switch (EvaluatorStep.get_status(~settings=CoreSettings.on, e, env)) {
+      | AvailableSteps([s, ..._]) =>
+        switch (EvaluatorStep.take_step(s)) {
+        | Some(next) =>
+          let (trailing_auto_steps, outgoing) = advance_hidden(next);
+          Some(
+            ProofCheck.{
+              auto_incoming:
+                List.map(
+                  ((_, justification, output)) => (justification, output),
+                  leading_auto_steps,
+                ),
+              auto_outgoing:
+                List.map(
+                  ((input, justification, _)) => (input, justification),
+                  trailing_auto_steps,
+                ),
+              outgoing,
+            },
+          );
+        | None => None
+        }
+      | AutoStep(_)
+      | AvailableSteps([]) => None
+      };
+    };
+
+  let check_theorem =
+      (~statics: Statics.Map.t, ~env, exp: DHExp.t): option(ProofMap.t) =>
+    switch (exp.term) {
+    | Theorem(_, goal, proof, _) when !Id.Map.is_empty(statics) =>
+      let ctx =
+        switch (Statics.Map.lookup_exp(DHExp.rep_id(exp), statics)) {
+        | Some({ctx, _}) => ctx
+        | None => Ctx.empty
+        };
+      /* Introduce the statement's outer `forall`s: their variables enter
+       * the proof's context, `where` restrictions become hypotheses, and
+       * the proof is checked against the rest, including any `==>`
+       * antecedents (which the proof introduces with `assume`). The
+       * per-theorem stepper (`Theorems.re`) seeds its goal the same way,
+       * so the two agree. */
+      let (sem_ctx, conclusion) =
+        ProofCheck.peel_stmt_binders(
+          SemanticCtx.of_program_state(ctx, env),
+          goal,
+        );
+      let (_, pm) =
+        ProofCheck.check(
+          ~step,
+          ~info_map=statics,
+          ~ctx=sem_ctx,
+          Some(conclusion),
+          proof,
+        );
+      /* Discharge function contracts at their definitions, in the
+       * theorem's ctx before its binders are peeled. Entries are keyed by
+       * the function's id, so repeating this at each theorem is
+       * harmless. */
+      let def_pm =
+        ProofCheck.definition_obligations(
+          ~step,
+          ~ctx=SemanticCtx.of_program_state(ctx, env),
+        );
+      Some(ProofMap.union(def_pm, pm));
+    | _ => None
+    };
+};
+
 let rec evaluate =
         // Constants
         (
@@ -96,6 +207,7 @@ let rec evaluate =
           ~track_reuse: bool,
           ~reused_ids: Id.Map.t(unit),
           ~eval_info: EvalInfo.t,
+          ~statics: Statics.Map.t=Id.Map.empty,
           // Call Stack
           ~in_closure=?,
           ~call_stack: CallStack.t,
@@ -115,8 +227,15 @@ let rec evaluate =
    * running. */
 
   let evaluate =
-    evaluate(~prev, ~track_reuse, ~reused_ids, ~eval_info, ~outbox);
+    evaluate(~prev, ~track_reuse, ~reused_ids, ~eval_info, ~statics, ~outbox);
   let expr_id = DHExp.rep_id(exp);
+  /* Check a theorem's proof when evaluation reaches it, and merge the
+   * resulting proof map into the state. `Transition` ignores proofs, so
+   * proof checking happens only here. */
+  Proofs.check_theorem(~statics, ~env, exp)
+  |> Option.iter(pm =>
+       parent_state := EvaluatorState.merge_proof_map(parent_state^, pm)
+     );
   /* Outbox publication keys only on proper program nodes
    * (EvalInfo.is_program_node).
    * Administrative/stepped intermediates never publish: doing so either
@@ -513,6 +632,7 @@ let prepare_evaluation =
     (
       ~prev,
       ~eval_info: EvalInfo.t,
+      ~statics: Statics.Map.t=Id.Map.empty,
       ~env,
       ~reuse_map: option(IncrEval.reuse_map),
       /* the reuse pre-pass for THIS request, when the caller already ran
@@ -560,6 +680,7 @@ let prepare_evaluation =
       ~prev,
       ~track_reuse,
       ~eval_info,
+      ~statics,
       ~call_stack=CallStack.empty,
       ~delegations=[],
       ~reuse_map,
@@ -578,6 +699,7 @@ let evaluate_and_limit =
       ~step_limit: int,
       ~prev: EvaluatorState.incr_eval=IncrEval.empty,
       ~eval_info: EvalInfo.t=EvalInfo.empty,
+      ~statics: Statics.Map.t=Id.Map.empty,
       ~env,
       ~reuse_map: option(IncrEval.reuse_map)=?,
       ~outbox: option(ref(IncrEval.outbox(EvaluatorState.t)))=?,
@@ -585,7 +707,15 @@ let evaluate_and_limit =
     )
     : limited_result => {
   let (state, result) =
-    prepare_evaluation(~prev, ~eval_info, ~env, ~reuse_map, ~outbox, d);
+    prepare_evaluation(
+      ~prev,
+      ~eval_info,
+      ~statics,
+      ~env,
+      ~reuse_map,
+      ~outbox,
+      d,
+    );
   switch (
     Trampoline.Yielding.run_slice(
       ~step_budget=step_limit,
@@ -708,6 +838,7 @@ let evaluate =
     (
       ~prev: EvaluatorState.incr_eval=IncrEval.empty,
       ~eval_info: EvalInfo.t=EvalInfo.empty,
+      ~statics: Statics.Map.t=Id.Map.empty,
       ~env,
       d: DHExp.t,
     )
@@ -716,6 +847,7 @@ let evaluate =
     prepare_evaluation(
       ~prev,
       ~eval_info,
+      ~statics,
       ~env,
       ~reuse_map=None,
       ~outbox=None,
@@ -726,3 +858,24 @@ let evaluate =
   let value = finish(~env, Trampoline.run(result));
   (value, completed(state^));
 };
+
+/* Install the `where`-guard evaluator. Matching `p where g` means
+ * evaluating `g` under `p`'s bindings, a call back into this module from
+ * the transition machinery it is built on; the hook breaks that cycle.
+ *
+ * A guard that exceeds the step limit is indeterminate, like a symbolic
+ * or hole-valued guard: the arm neither matches nor is skipped. */
+let () =
+  PatternMatch.guard_hook :=
+    Some(
+      (env, g) =>
+        switch (evaluate_and_limit(~step_limit=100_000, ~env, g)) {
+        | StepLimitExceeded => PatternMatch.GuardIndet
+        | LimitedCompleted((result, _state)) =>
+          switch (Exp.term_of(result)) {
+          | Atom(Bool(true)) => PatternMatch.GuardTrue
+          | Atom(Bool(false)) => PatternMatch.GuardFalse
+          | _ => PatternMatch.GuardIndet
+          }
+        },
+    );

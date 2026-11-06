@@ -32,7 +32,6 @@ let head = (ctx: Ctx.t, ty: Typ.t): Typ.t => {
   | Parens(_)
   | Projector(_)
   | Poly(_)
-  | ProofOf(_)
   | ProdProjection(_)
   | ProdExtension(_)
   | Sig(_) => ty

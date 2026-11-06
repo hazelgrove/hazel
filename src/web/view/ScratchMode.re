@@ -541,7 +541,6 @@ let integrate_share =
         root: Exp,
         zipper: shared,
       },
-      result: EvalResult.Model.init |> EvalResult.Model.persist,
     };
     let new_sp =
       Scratchpad.mk_code(
@@ -1016,8 +1015,8 @@ module Update = {
         ~pos_of_key=key => key,
         ~dispatch,
         ~on_timeout=
-          List.iter(((key, _)) =>
-            dispatch(key, UpdateResult(ResultFail(Timeout)))
+          List.iter(((key, v: WorkerServer.Request.value)) =>
+            dispatch(key, UpdateResult(v.generation, ResultFail(Timeout)))
           ),
       );
       let new_sp =

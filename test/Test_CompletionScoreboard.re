@@ -71,7 +71,7 @@ let rec tokens = (seg: Segment.t): list(string) =>
 /* Delimiter-shard targets: every shard of every multi-token tile,
    with the caret point just after its last char */
 let targets = (z: Zipper.t): list((Token.t, Point.t)) => {
-  let measured = CachedSyntax.init(z).measured;
+  let measured = CachedSyntax.init(z) |> CachedSyntax.measured;
   let acc = ref([]);
   let rec walk = (sg: Segment.t) =>
     List.iter(
@@ -255,7 +255,7 @@ let run_class = (~prefix_only: bool, name: string, text: string): outcome => {
    result is delimiter-complete. */
 
 let closer_targets = (z: Zipper.t): list((Token.t, Point.t)) => {
-  let measured = CachedSyntax.init(z).measured;
+  let measured = CachedSyntax.init(z) |> CachedSyntax.measured;
   let acc = ref([]);
   let rec walk = (sg: Segment.t) =>
     List.iter(

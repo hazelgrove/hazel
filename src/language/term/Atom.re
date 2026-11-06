@@ -156,10 +156,20 @@ let convert =
   | (Nat, String) => L(Bigint.to_string(v))
 
   | (Float, Float) => L(v)
-  | (Float, SInt) => L(int_of_float(v))
-  | (Float, Int) => L(Bigint.of_float(v))
+  | (Float, SInt) =>
+    Float.is_finite(v)
+      ? L(int_of_float(v)) : R(InvalidOperationError.NonFiniteFloat)
+  | (Float, Int) =>
+    Float.is_finite(v)
+      ? L(Bigint.of_float(v)) : R(InvalidOperationError.NonFiniteFloat)
   | (Float, Nat) =>
-    v < 0.0 ? R(InvalidOperationError.NegativeNat) : L(Bigint.of_float(v))
+    if (!Float.is_finite(v)) {
+      R(InvalidOperationError.NonFiniteFloat);
+    } else if (v < 0.0) {
+      R(InvalidOperationError.NegativeNat);
+    } else {
+      L(Bigint.of_float(v));
+    }
   | (Float, Bool) => L(v != 0.0)
   | (Float, String) => L(string_of_float(v))
 

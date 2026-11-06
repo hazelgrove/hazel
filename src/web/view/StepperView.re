@@ -7,29 +7,13 @@ module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     cached_elab_subst: Calc.saved(Exp.t),
-    root: StepperBase.step_model,
+    root: StepperBase.next_step,
   };
 
   let init = {
     cached_elab_subst: Calc.Pending,
     root: StepperBase.init_step,
   };
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = {root: StepperBase.persistent_step};
-
-  let persist = (model: t): persistent => {
-    root: StepperBase.Stepper.persist(model.root),
-  };
-
-  let unpersist = (p: persistent): t => {
-    {
-      cached_elab_subst: Calc.Pending,
-      root: StepperBase.Stepper.unpersist(p.root),
-    };
-  };
-
-  let get_validity = (m: t) => StepperBase.Stepper.get_validity(m.root);
 };
 
 module Update = {
@@ -51,6 +35,18 @@ module Update = {
         ~ctx: Calc.t(SemanticCtx.t),
         elab: Calc.t(Exp.t),
         ~ana=Calc.OldValue(Typ.fresh(Unknown(SynSwitch))),
+        /* The proof sub-term this stepper is rendering. Theorem views pass
+         * the looked-up proof; the cell-level result stepper uses a sentinel
+         * `EmptyHole` (`EvalResult.Model.stepper_proof`). Proof-aware step
+         * kinds source their display from this tree. */
+        ~proof: Calc.t(Proof.t)=Calc.OldValue(Proof.fresh(EmptyHole)),
+        /* Big-step proof-check results for the surrounding theorem; empty
+         * for non-proof steppers. */
+        ~proof_map: Calc.t(ProofMap.t)=Calc.OldValue(ProofMap.empty),
+        /* Statics info map of the whole theorem (proof syntax included), so
+         * proof-aware steps can read static errors (e.g. the InductionStep
+         * exhaustiveness label). Empty for non-proof steppers. */
+        ~proof_info_map: Calc.t(Statics.Map.t)=Calc.OldValue(Id.Map.empty),
         {cached_elab_subst, root}: Model.t,
       )
       : Model.t => {
@@ -61,12 +57,15 @@ module Update = {
         let.calc elab = elab;
         elab |> Substitution.in_exp(Builtins.env_init) |> Exp.replace_all_ids;
       };
-    let (root, _, _) =
+    let root =
       StepperBase.Stepper.calculate(
         ~settings,
         ~ctx,
         ~exp=elab_subst,
         ~ana,
+        ~proof,
+        ~proof_map,
+        ~proof_info_map,
         root,
       );
     {
@@ -103,6 +102,17 @@ module View = {
         ~inject: Update.t => Ui_effect.t(unit),
         ~selected: option(Focus.t),
         ~is_toplevel=true,
+        /* Side-channel for proof-mode steppers to publish syntactic edits
+         * back to the main editor. Emitting an `EditorTransform.patch`
+         * here is how step views commit changes to the underlying
+         * `Theorem`/`Proof.t` tree instead of mutating stepper-local
+         * state. Default no-op for the cell-level result stepper, which
+         * has no syntax tree behind it. */
+        ~edit_syntax: Haz3lcore.EditorTransform.patch => Ui_effect.t(unit)=_ =>
+                                                                    Ui_effect.Ignore,
+        /* Main-editor capability handle for sub-editor step views (see
+         * SubEditor.re); None outside a cell with a backing editor. */
+        ~main_editor: option(CodeEditable.Channel.t)=None,
         model: Model.t,
       ) => {
     let settings_modal =
@@ -120,6 +130,8 @@ module View = {
         ~inject=u => inject(u),
         ~is_toplevel,
         ~focus=selected,
+        ~edit_syntax,
+        ~main_editor,
         model.root,
       );
   };

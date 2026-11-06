@@ -75,9 +75,6 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (_, Constructor(c, _)) when String.starts_with(c, ~prefix="$") =>
       IndetMatch
 
-    /* proofs can also have any type, but are indet */
-    | (_, ProofObject(_)) => IndetMatch
-
     /* TupLabels can be anything except for tuplabels with unmatching labels */
     | (TupLabel(tuplabel), TupLabel(_, e)) =>
       if (Option.equal(
@@ -170,6 +167,9 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (SumWithArg(_), Ap(_, {term: Constructor(_), _}, _)) => DoesNotMatch
     /* Function-like things can look like the following when values */
     | (Fun, Constructor(name, _)) => Matches(Constructor(name)) // Perhaps we should check if the constructor actually is a function?
+    /* A `where` guard on the parameter stays in `dp`, so `PatternMatch`
+       runs it at application, and an argument that fails it leaves the
+       application indeterminate. */
     | (Fun, Closure(env', {term: Fun(dp, d3, _, _), _})) =>
       Matches(FunEnv(dp, d3, env'))
     | (Fun, Fun(dp, d3, _, _)) => Matches(FunNoEnv(dp, d3))

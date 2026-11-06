@@ -1870,15 +1870,15 @@ let clippable_guard_tests = {
     Alcotest.test_case("form-table sort coverage", `Quick, () =>
       Alcotest.(check(string))(
         "coverage",
-        /* Pat 8 -> 9: negative literal patterns (#2419) gave `-` a
-           Pat mold. Re-decided, not repinned blindly: 9/88 is still
-           real signal, so clippable_sort stands.
-           Typ 14 -> 15, TPat 2 -> 4: #2448's symbolic delimiter-prefix
-           backup molds (Form.symbolic_delim_prefixes = `-`, `=`) reach
-           the InfixDelimiterPrefix atomic, which molds at all four
-           sorts. Re-decided: both frontiers stay far from vacuous, so
-           clippable_sort stands. */
-        "Exp 67/88 | Pat 9/88 | Typ 15/88 | TPat 4/88 | Rul 1/88",
+        /* If this drifts, re-make the `clippable_sort` decision (pinned
+           by the next test) rather than bumping the number. An Exp
+           frontier is vacuous (68 of 106 labels carry an Exp mold),
+           while Pat, Typ and TPat stay narrow. Pat counts negative
+           literal patterns and the infix `where`; Typ and TPat count the
+           symbolic delimiter-prefix backup molds
+           (Form.symbolic_delim_prefixes = `-`, `=`), which mold at all
+           four sorts. */
+        "Exp 68/106 | Pat 10/106 | Typ 14/106 | TPat 4/106 | Rul 1/106",
         table,
       )
     ),

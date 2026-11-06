@@ -34,13 +34,14 @@ let is_in_alphas_l = (alphas: alphas, x: string): bool =>
 let rec match_exp =
         (
           ~info_map: Statics.Map.t,
+          ~meta: option(MetaVar.env)=None,
           alphas: alphas,
           ctx: match_ctx,
           exp_r: Exp.t,
           exp: Exp.t,
         )
         : option(match_ctx) => {
-  let match_exp = match_exp(~info_map);
+  let match_exp = match_exp(~info_map, ~meta);
   switch (exp_r |> Exp.term_of, exp |> Exp.term_of) {
   /* Parens */
   | (Parens(e1), _)
@@ -50,6 +51,23 @@ let rec match_exp =
   // TODO: Better cast logic
   | (Asc(e1, _), _) => match_exp(alphas, ctx, e1, exp)
   | (_, Asc(e2, _)) => match_exp(alphas, ctx, exp_r, e2)
+  /* Pattern metavariables $e and $v, only when the caller supplies
+   * `meta`. They are non-linear: they match without recording anything,
+   * as the stepper's filter patterns do (Equality's `use_expr_wildcards`).
+   * Named metavariables ($x) are seeded into `ctx` by the caller and go
+   * through the ordinary match_ctx case below, which makes them linear. */
+  | (Var(x), _)
+      when
+        switch (meta, MetaVar.of_name(x)) {
+        | (Some(_), Some(Any | Value)) => true
+        | _ => false
+        } =>
+    MetaVar.matches(
+      ~env=Option.get(meta),
+      Option.get(MetaVar.of_name(x)),
+      exp,
+    )
+      ? Some(ctx) : None
   /* Variables */
   | (Var(x), _) when match_ctx_has(ctx, x) && !is_in_alphas_l(alphas, x) =>
     let (typ, assigned_exp) = List.assoc(x, ctx);
@@ -71,9 +89,9 @@ let rec match_exp =
           ),
         )
       | Some(e) =>
-        print_endline("ASSIGNED");
-        print_endline("assigned exp: " ++ Exp.show(e));
-        Equality.ignoring_ascriptions.exp(e, exp) ? Some(ctx) : None;
+        /* Bound by an earlier occurrence or by an explicit `with`
+         * instantiation; this occurrence must agree. */
+        Equality.ignoring_ascriptions.exp(e, exp) ? Some(ctx) : None
       }
     };
   | (Var(x), Var(y)) when are_alpha_equiv(alphas, x, y) => Some(ctx)
@@ -122,12 +140,21 @@ let rec match_exp =
   | (ListLit(_), _) => None
   | (Constructor(c1, _), Constructor(c2, _)) when c1 == c2 => Some(ctx)
   | (Constructor(_, _), _) => None
+  /* A binder whose pattern carries a `where` guard (`fun p where g -> e`
+     is `Fun(Where(p, g), e)`) matches only a binder with the same guard.
+     `match_pat` looks through `Where`, since the guard is not part of the
+     binder's shape, so the guards are matched here, where a ctx is in
+     hand. */
   | (Fun(p1, e1, _, _), Fun(p2, e2, _, _)) =>
     let* alphas' = match_pat(p1, p2);
+    let* ctx =
+      match_pat_guards(~info_map, ~meta, alphas' @ alphas, ctx, p1, p2);
     match_exp(alphas' @ alphas, ctx, e1, e2);
   | (Fun(_, _, _, _), _) => None
   | (Forall(p1, e1), Forall(p2, e2)) =>
     let* alphas' = match_pat(p1, p2);
+    let* ctx =
+      match_pat_guards(~info_map, ~meta, alphas' @ alphas, ctx, p1, p2);
     match_exp(alphas' @ alphas, ctx, e1, e2);
   | (Forall(_, _), _) => None
   | (TypFun(tp1, e1, _), TypFun(tp2, e2, _)) =>
@@ -151,13 +178,11 @@ let rec match_exp =
     let* ctx = match_exp(alphas, ctx, d1, d2);
     match_exp(alphas' @ alphas, ctx, e1, e2);
   | (Let(_, _, _), _) => None
-  | (Theorem(p1, e3, e1), Theorem(p2, e4, e2)) =>
+  | (Theorem(p1, e3, _pf1, e1), Theorem(p2, e4, _pf2, e2)) =>
     let* alphas' = match_pat(p1, p2);
     let* ctx = match_exp(alphas, ctx, e3, e4);
     match_exp(alphas' @ alphas, ctx, e1, e2);
   | (Theorem(_), _) => None
-  | (ProofObject(e1), ProofObject(e2)) => match_exp(alphas, ctx, e1, e2)
-  | (ProofObject(_), _) => None
   | (FixF(p1, e1, _), FixF(p2, e2, _)) =>
     let* alphas' = match_pat(p1, p2);
     match_exp(alphas' @ alphas, ctx, e1, e2);
@@ -267,6 +292,24 @@ let rec match_exp =
 
 and match_any = (_: match_ctx, _: Any.t, _: Any.t): option(unit) => None
 
+/* Match the `where` guards two binder patterns carry, if any. Both
+   unguarded matches; guarded-vs-unguarded does not. */
+and match_pat_guards =
+    (
+      ~info_map: Statics.Map.t,
+      ~meta: option(MetaVar.env),
+      alphas: alphas,
+      ctx: match_ctx,
+      p_r: Pat.t,
+      p: Pat.t,
+    )
+    : option(match_ctx) =>
+  switch (Exp.pat_guard(p_r), Exp.pat_guard(p)) {
+  | (None, None) => Some(ctx)
+  | (Some(g_r), Some(g)) => match_exp(~info_map, ~meta, alphas, ctx, g_r, g)
+  | _ => None
+  }
+
 and match_pat = (pat_r: Pat.t, pat: Pat.t): option(alphas) =>
   switch (pat_r |> Pat.term_of, pat |> Pat.term_of) {
   | (Parens(p1), _)
@@ -275,6 +318,10 @@ and match_pat = (pat_r: Pat.t, pat: Pat.t): option(alphas) =>
   | (_, Projector(_, p2)) => match_pat(pat_r, p2)
   | (Asc(p1, _), _) => match_pat(p1, pat)
   | (_, Asc(p2, _)) => match_pat(pat_r, p2)
+  /* A `where` guard is not part of the binder's shape for rule matching:
+     look through it, exactly as for an ascription. */
+  | (Where(p1, _), _) => match_pat(p1, pat)
+  | (_, Where(p2, _)) => match_pat(pat_r, p2)
   | (Invalid(x), Invalid(y)) when x == y => Some([])
   | (Invalid(_), _) => None
   | (EmptyHole, EmptyHole) => Some([])
@@ -376,6 +423,63 @@ let substitute_exp = (sub: match_ctx, exp: Exp.t): Exp.t =>
     exp,
   );
 
+/* ---- Pattern matching for proof-step target slots -------------------
+ *
+ * A "pattern" here is just an Exp that may contain metavariables (see
+ * MetaVar). A pattern with no metavariables is a ground pattern and
+ * matches only expressions it is structurally equal to.
+ *
+ * Named metavariables ($x) get their linearity from `match_ctx`: we
+ * seed one unassigned entry per distinct name, and the existing
+ * `Var(x) when match_ctx_has(ctx, x)` case both records the first
+ * occurrence and requires later occurrences to agree with it.
+ */
+
+/* The value notion is the stepper's, injected rather than reimplemented
+ * — the same predicate FilterMatcher hands to Equality. */
+let meta_env = (~env: Environment.t(Exp.t)): MetaVar.env =>
+  MetaVar.{
+    is_value: exp => ValueChecker.check_value(env, exp) != ValueChecker.Expr,
+  };
+
+/* One unassigned match_ctx entry per distinct named metavariable. */
+let meta_ctx = (pat: Exp.t): match_ctx =>
+  pat
+  |> MetaVar.named_names
+  |> List.map(name => (name, (Unknown(Internal) |> Typ.temp, None)));
+
+/* Match `pat` against `exp`, returning the metavariable assignments.
+ * `env` is used only to decide `$v`; unlike `match_exp` this does not
+ * substitute it into `exp` (callers that need that do it themselves, so
+ * that they can map the match back to the un-substituted term). */
+let match_pattern =
+    (
+      ~info_map: Statics.Map.t=Statics.Map.empty,
+      ~env: Environment.t(Exp.t)=Environment.empty,
+      ~alphas: alphas=[],
+      pat: Exp.t,
+      exp: Exp.t,
+    )
+    : option(match_ctx) =>
+  match_exp(
+    ~info_map,
+    ~meta=Some(meta_env(~env)),
+    alphas,
+    meta_ctx(pat),
+    pat,
+    exp,
+  );
+
+let matches_pattern =
+    (
+      ~info_map=Statics.Map.empty,
+      ~env=Environment.empty,
+      pat: Exp.t,
+      exp: Exp.t,
+    )
+    : bool =>
+  match_pattern(~info_map, ~env, pat, exp) |> Option.is_some;
+
 /* TODO[Matt]: we can probably make this faster by avoiding substituting
    if we know it doesn't match */
 let match_exp =
@@ -389,4 +493,27 @@ let match_exp =
     ) => {
   let exp = Substitution.in_exp(exp_env, exp);
   match_exp(~info_map, alphas, exp_r_ctx, exp_r, exp);
+};
+
+/* The equations `a == b` in `e` whose sides match, which reflexivity
+ * closes. */
+let find_refls = (~info_map, ~env, e) => {
+  let refls = ref([]);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (cont, exp) => {
+          switch (exp |> Exp.term_of) {
+          | BinOp(Poly(Equals), e1, e2)
+              when
+                match_exp(~info_map, ~exp_env=env, ~exp_r_ctx=[], e1, e2)
+                |> Option.is_some =>
+            refls := [exp, ...refls^];
+            cont(exp);
+          | _ => cont(exp)
+          }
+        },
+      e,
+    );
+  refls^;
 };

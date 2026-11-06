@@ -69,9 +69,9 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
         | FixF(p, e, None) =>
           let (env', p') = in_pat(env, env, p);
           FixF(p', in_exp(env', e), None) |> rewrap;
-        | Theorem(p, e1, e2) =>
+        | Theorem(p, e1, pf, e2) =>
           let (env', p') = in_pat(env, env, p);
-          Theorem(p', in_exp(env, e1), in_exp(env', e2)) |> rewrap;
+          Theorem(p', in_exp(env, e1), pf, in_exp(env', e2)) |> rewrap;
         | Forall(pat, e) =>
           let (env', pat') = in_pat(env, env, pat);
           Forall(pat', in_exp(env', e)) |> rewrap;
@@ -112,7 +112,6 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
         | BuiltinFun(_)
         | Asc(_)
         | LivelitName(_)
-        | ProofObject(_)
         | Undefined
         | Module(_)
         | ModuleExp(_) => cont(e)
@@ -124,7 +123,7 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
 // Updates a pattern to avoid variable capture
 and in_pat =
     (
-      env_outer: Environment.t(Exp.t), // The environment outside the binding form, used in ProofOfs
+      env_outer: Environment.t(Exp.t), // The environment outside the binding form
       env_acc: Environment.t(Exp.t), // The environment being built up to avoid capture
       p: Pat.t,
     )
@@ -199,6 +198,11 @@ and in_pat =
     let t' = in_typ(env_outer, t);
     let (env', p1') = in_pat(env_outer, env_acc, p1);
     (env', Asc(p1', t') |> Pat.fresh);
+  /* `p where g`: the guard is under the pattern's own bindings, so
+     substitute in it with the post-renaming accumulator. */
+  | Where(p1, g) =>
+    let (env', p1') = in_pat(env_outer, env_acc, p1);
+    (env', Where(p1', in_exp(env', g)) |> Pat.fresh);
   };
 }
 
@@ -229,7 +233,6 @@ and in_typ = (env: Environment.t(Exp.t), typ: Typ.t) =>
         | Poly(_, _)
         | ProdProjection(_, _)
         | ProdExtension(_, _)
-        | ProofOf(_)
         | Sig(_)
         | DrvQuoteTy(_) => cont(t)
         };

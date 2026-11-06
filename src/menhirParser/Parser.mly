@@ -30,6 +30,7 @@ open AST
 %token DEBUG
 %token HIDE
 %token EVAL
+%token CONTRADICTION
 %token <string> IDENT
 %token <string> CONSTRUCTOR_IDENT
 %token <string> STRING
@@ -117,6 +118,27 @@ open AST
 
 %token SEMI_COLON
 
+(* Prover forms *)
+%token IMPLIES
+%token WHERE
+%token FORALL
+%token FUNEXT
+%token THEOREM
+%token PROOF
+%token ASSUME
+%token GENERALIZE
+%token HAVE
+%token REVERT
+%token INDUCTION
+%token ALIAS
+%token AS
+%token AXIOM
+%token AXIOM_REV
+%token REWRITE
+%token WITH
+%token AT
+%token ON
+
 
 
 (* Precedences *)
@@ -129,6 +151,12 @@ open AST
 %right DASH_ARROW
 %nonassoc IF_EXP
 
+/* Proof prefix forms (`forall p =>`, `assume e =>`, `revert e =>`,
+   `generalize e =>`) bind at Precedence.fun_, which is looser than the
+   proof-sequence `;` (Precedence.semi) — so `assume e => a; b` puts the
+   whole sequence in the body, matching the segment parser. */
+%nonassoc PROOF_PRE
+
 /* Flat sequences - tighter than structural forms */
 %right SEMI_COLON
 
@@ -136,6 +164,17 @@ open AST
    module bodies, the parser reduces exp to modItemExp rather than shifting
    ';' for Seq. This only affects the modItemExp production. */
 %nonassoc MOD_ITEM_EXP
+
+/* Pattern guard `p where g` (Precedence.pat_where): looser than every
+   operator that can appear on either side, so `h :: t where a && b` is
+   `Where(Cons(h, t), a && b)`, and tighter than the structural forms, so
+   the guard ends at the binder's `->`, the rule's `=>` or the let's `=`. */
+%nonassoc WHERE
+
+/* Material implication: right-associative, one level looser than `||`
+   (Precedence.impl = 34 vs Precedence.or_ = 33), so `a == b ==> c == d`
+   is `(a == b) ==> (c == d)` and `a ==> b ==> c` is `a ==> (b ==> c)`. */
+%right IMPLIES
 
 %right L_OR
 %right L_AND
@@ -207,6 +246,7 @@ program:
 %inline boolOp:
     | L_AND { BoolOp(And) }
     | L_OR { BoolOp(Or) }
+    | IMPLIES { BoolOp(Implies) }
 
 %inline stringOp:
     | STRING_CONCAT { StringOp(Concat) }
@@ -350,7 +390,7 @@ funAscElem:
       semantic actions, either wins.
    Adding grammar rules? Rerun the three suites; do not trust silence. *)
 (* KNOWN CONFLICT (one s/r + one r/r state, resolved by default): after
-   `FUN nonAscriptingPat`, CONS/COLON could continue at the parameter
+   `FUN nonAscriptingPat`, CONS/COLON/WHERE could continue at the parameter
    level (funConsPat/funAscElem) or inside a generic `pat`. The default
    shift keeps them at the parameter level, which is MakeTerm parity —
    pinned by the MenhirParser equivalence tests. *)
@@ -361,11 +401,15 @@ funConsPat:
 funPat:
     | OPEN_PAREN; p1 = pat; COLON; t1 = typ; CLOSE_PAREN;  { ParenPat(AscPat(p1, t1)) }
     | p = funAscElem; { p }
+    (* `fun p where g -> e` and `fun p : T where g -> e` *)
+    | p = funAscElem; WHERE; g = exp; { WherePat(p, g) }
     (* Multi-parameter sugar: fun a, b -> e binds a tuple pattern *)
     | p = funAscElem; COMMA; ps = separated_nonempty_list(COMMA, funAscElem);
       { TuplePat(p :: ps) }
 
 pat:
+    (* Guarded pattern `p where g` (Grammar.re Pat.Where) *)
+    | p1 = pat; WHERE; g = exp;  { WherePat(p1, g) }
     | p1 = pat; COLON; t1 = typ;  { AscPat(p1, t1) }
     (* | p1 = pat; AS; p2 = pat; { AsPat(p1, p2) } *)
     | p1 = pat; CONS; p2 = pat { ConsPat(p1, p2) } 
@@ -414,6 +458,36 @@ ascTyp:
 funExp: 
     | FUN; p = funPat; DASH_ARROW; e1 = exp; { Fun (p, e1, None) }
     | NAMED_FUN; name = IDENT; p = funPat; DASH_ARROW; e1 = exp { Fun (p, e1, Some(name)) }
+
+forallExp:
+    | FORALL; p = funPat; DASH_ARROW; e = exp; { ForallExp (p, e) }
+
+(* Proof case: `| <pat> => <proof>`, the PRul analogue of `rul`. *)
+prul:
+    | TURNSTILE; p = pat; EQUAL_ARROW; pf = proof; { (p, pf) }
+
+proof:
+    | QUESTION { EmptyHoleProof }
+    | pf1 = proof; SEMI_COLON; pf2 = proof { ProofSeq(pf1, pf2) }
+    | FORALL; p = pat; EQUAL_ARROW; pf = proof { ProofForall(p, pf) } %prec PROOF_PRE
+    | FUNEXT; p = pat; EQUAL_ARROW; pf = proof { ProofFunext(p, pf) } %prec PROOF_PRE
+    | ASSUME; e = exp; EQUAL_ARROW; pf = proof { ProofAssume(e, pf) } %prec PROOF_PRE
+    | ASSUME; e = exp; AS; x = pat; EQUAL_ARROW; pf = proof { ProofAssumeAs(e, x, pf) } %prec PROOF_PRE
+    | ALIAS; x = pat; SINGLE_EQUAL; e = exp; EQUAL_ARROW; pf = proof { ProofAlias(x, e, pf) } %prec PROOF_PRE
+    | GENERALIZE; e = exp; EQUAL_ARROW; pf = proof { ProofGeneralize(e, pf) } %prec PROOF_PRE
+    | HAVE; e = exp; PROOF; sub = proof; EQUAL_ARROW; pf = proof { ProofHave(e, sub, pf) } %prec PROOF_PRE
+    | REVERT; e = exp; EQUAL_ARROW; pf = proof { ProofRevert(e, pf) } %prec PROOF_PRE
+    | REVERT; e = exp; WITH; v = exp; SINGLE_EQUAL; i = exp; EQUAL_ARROW; pf = proof { ProofRevertWith(e, v, i, pf) } %prec PROOF_PRE
+    | AXIOM; eq = exp; AT; idx = exp; ON; ae = exp; END { ProofAxiom(eq, idx, ae) }
+    | AXIOM_REV; eq = exp; AT; idx = exp; ON; ae = exp; END { ProofAxiomRev(eq, idx, ae) }
+    | AXIOM; eq = exp; WITH; v = exp; SINGLE_EQUAL; i = exp; AT; idx = exp; ON; ae = exp; END { ProofAxiomWith(eq, v, i, idx, ae) }
+    | AXIOM_REV; eq = exp; WITH; v = exp; SINGLE_EQUAL; i = exp; AT; idx = exp; ON; ae = exp; END { ProofAxiomRevWith(eq, v, i, idx, ae) }
+    | REWRITE; ae = exp; WITH; we = exp; AT; idx = exp; END { ProofAlgebrite(ae, we, idx) }
+    | EVAL; ae = exp; AT; idx = exp; END { ProofEval(ae, idx) }
+    | CONTRADICTION; e = exp; END { ProofContradiction(e) }
+    | CONTRADICTION; e = exp; WITH; v = exp; SINGLE_EQUAL; i = exp; END { ProofContradictionWith(e, v, i) }
+    | INDUCTION; e = exp; cases = list(prul); END { ProofInduction(e, cases) }
+    | INDUCTION; e = exp; AS; x = pat; cases = list(prul); END { ProofInductionAs(e, x, cases) }
 
 
 %inline ifExp:
@@ -488,6 +562,14 @@ exp:
     | i = ifExp { i }
     | TRUE { Atom (Bool true) }
     | f = funExp {f}
+    | f = forallExp {f}
+    | THEOREM; p = pat; SINGLE_EQUAL; e1 = exp; PROOF; pf = proof; IN; e2 = exp { Theorem (p, e1, pf, e2) } %prec LET_EXP
+    (* `where` and `assume` are the default names of the hypotheses that
+       `where` guards and `assume` install, so they appear in expression
+       position as cited facts: `axiom assume at 0 on n end`. The segment
+       parser reads them as variables there too. *)
+    | WHERE { Var "where" }
+    | ASSUME { Var "assume" }
     | FALSE { Atom (Bool false) }
     | FIX;  p = funPat; DASH_ARROW; e = exp { FixF(p, e) }
     | TYP_FUN; t = tpat; DASH_ARROW; e = exp {TypFun(t, e)}

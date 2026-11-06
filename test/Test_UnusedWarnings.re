@@ -103,22 +103,6 @@ let tests = (
         );
       },
     ),
-    test_case(
-      "theorem: binder's info has the proof type",
-      `Quick,
-      () => {
-        let t = theorem_binder("theorem t = true in t", "t");
-        check(
-          bool,
-          "t : ProofOf(...)",
-          true,
-          switch (Typ.term_of(t.ty)) {
-          | ProofOf(_) => true
-          | _ => false
-          },
-        );
-      },
-    ),
     check_unused("forall: used binder", "forall (x : Int) -> x == x", []),
     check_unused("forall: unused binder", "forall (x : Int) -> true", ["x"]),
     check_unused(
@@ -371,6 +355,13 @@ let tests = (
     check_unused(
       "tuple extension: both operands use different variables",
       "let x = (a=1, b=2) in let y = 3 in x ... (a=y)",
+      [],
+    ),
+    /* Funext binders name the arbitrary argument of the pointwise goal;
+       the proof need not mention them. */
+    check_unused(
+      "funext: binder not flagged unused in a hole body",
+      "theorem t = (fun x -> x) == (fun x -> x) proof funext y => ? in t",
       [],
     ),
   ],

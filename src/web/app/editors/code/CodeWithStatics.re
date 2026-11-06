@@ -81,6 +81,7 @@ module Model = {
     redo_action: None,
     error_ids: model.statics.error_ids,
     contextual_actions: [],
+    proof_map: Language.ProofMap.empty,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -257,25 +258,25 @@ module View = {
   type event;
 
   let view =
-      (~globals, ~overlays: list(Node.t)=[], ~cull=false, model: Model.t) => {
+      (
+        ~globals,
+        ~overlays: list(Node.t)=[],
+        ~cull=false,
+        ~proof_map: Language.ProofMap.t=Language.ProofMap.empty,
+        model: Model.t,
+      ) => {
     let {
       editor:
         {
           syntax:
-            {
-              measured,
-              selection_ids,
-              segment,
-              shape_map,
-              refractor_rows,
-              term_data,
-              _,
-            },
+            {selection_ids, shape_map, refractor_rows, term_data, _} as syntax,
           state: {zipper: z, _},
           _,
         },
       _,
     }: Model.t = model;
+    let measured = CachedSyntax.measured(syntax);
+    let segment = CachedSyntax.segment(syntax);
     let info_map = model.statics.info_map;
     let refine_sort = (id, mold_out) =>
       Language.Info.refine_sort_from_mold(~info_map, ~id, mold_out);
@@ -292,6 +293,11 @@ module View = {
       );
     /* shared by the error and warning arms */
     let completion = Arms.lazy_completion(z);
+    /* Union proof-mark ids into the red-shard overlay. Proof-check marks
+     * are produced at evaluation time (see src/language/proof/ProofCheck.re
+     * and ProofMark.t) and flow in here via CodeEditable → CellEditor,
+     * which reads them from the EvalResult's proof_map. */
+    let proof_error_ids = Language.ProofMap.error_ids(proof_map);
     let error_decos =
       Arms.Errors.of_ids(
         ~refine_sort,
@@ -299,7 +305,7 @@ module View = {
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,
         ~completion,
-        model.statics.error_ids,
+        model.statics.error_ids @ proof_error_ids,
       );
     let warning_ids =
       globals.settings.core.display_warnings ? model.statics.warning_ids : [];

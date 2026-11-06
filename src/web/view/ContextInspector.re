@@ -66,6 +66,18 @@ let context_entry_view = (~globals, entry: Language.Ctx.entry): Node.t => {
         view_type(expansion_t),
       ],
     )
+  | TheoremEntry({name, _}) =>
+    div(
+      ~attrs=[
+        Attr.on_click(_ => globals.inject_global(jump_to(entry))),
+        clss(["context-entry", "code", "hypothesis-entry"]),
+      ],
+      [
+        div_name([text(name)]),
+        div(~attrs=[clss(["seperator"])], [text(":")]),
+        div(~attrs=[clss(["prop"])], [text("theorem")]),
+      ],
+    )
   };
 };
 

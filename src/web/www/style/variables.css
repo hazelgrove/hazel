@@ -59,4 +59,31 @@
   /* HACKS */
   --modal-back-z: 100;
   --modal-z: 101;
+
+  /* ── Prover colors ────────────────────────────────────────────────── */
+
+  /* TODO: give these roles in the Colors slide (colors.hz, then
+     BuiltinsColorScheme.role_groups and ColorConfiguration.aliases) and
+     delete them here. Until then they are the light scheme's values in
+     every scheme. */
+
+  /* Runtime problems in the problems sidebar */
+  --RT0: oklch(90% 0.06 350); /* row fill */
+  --RT1: oklch(60% 0.25 350); /* stroke */
+  --RT2: oklch(40% 0.25 350); /* active stroke */
+
+  /* Stepper per-row status indicator lines (right edge of a step row) */
+  --step-indicator-broken: var(--border-error);
+  --step-indicator-incomplete: oklch(75% 0.09 80); /* tan */
+  --step-indicator-blocked: oklch(75% 0.16 30); /* lighter red, dotted */
+
+  /* Proof sort */
+  --token-proof: oklch(55% 0.17 150);
+  --token-prul: var(--token-proof);
+  --shard-caret-proof: oklch(from var(--token-proof) 95% calc(c/4) h);
+  --shard-proof: var(--shard-caret-proof);
+  --shard-lines-proof: oklch(from var(--token-proof) 80% calc(c/2) h);
+  --shard-prul: var(--shard-proof);
+  --shard-caret-prul: var(--shard-caret-proof);
+  --shard-lines-prul: var(--shard-lines-proof);
 }

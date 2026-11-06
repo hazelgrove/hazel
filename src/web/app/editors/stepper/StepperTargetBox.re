@@ -10,6 +10,9 @@ module F = (Stepper: StepInterface.STEPPER) => {
         ~hide_stepper,
         ~focus,
         ~is_toplevel,
+        ~edit_syntax: Haz3lcore.EditorTransform.patch => Ui_effect.t(unit)=_ =>
+                                                                    Ui_effect.Ignore,
+        ~main_editor: option(CodeEditable.Channel.t)=None,
         stepper: Stepper.model,
         target: Language.Exp.t,
         reached: Language.Exp.t,
@@ -23,14 +26,32 @@ module F = (Stepper: StepInterface.STEPPER) => {
         ~hide_stepper,
         ~focus,
         ~is_toplevel,
+        ~edit_syntax,
+        ~main_editor,
         stepper,
       );
+    /* The gap between the last goal reached and the target: a quiet row
+     * shaped like a step row, so the chain reads evenly. */
     let step_placeholder = () =>
       Node.div(
-        ~attrs=[
-          Attr.classes(["stepper", "cell-result", "step-placeholder"]),
+        ~attrs=[Attr.classes(["stepper", "cell-result", "step-ellipsis"])],
+        [
+          div_c(
+            "step-border",
+            [
+              div_c(
+                "step-display",
+                [
+                  Node.div(
+                    ~attrs=[Attr.classes(["equiv", "equiv-hidden"])],
+                    [Node.text("≡")],
+                  ),
+                  div_c("step-output", [Node.text("⋯")]),
+                ],
+              ),
+            ],
+          ),
         ],
-        [div_c("step-border", [Node.text("...")])],
       );
     let target_editor =
       CodeViewable.view_any(

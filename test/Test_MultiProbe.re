@@ -123,7 +123,7 @@ let test_probe_placement = (~name: string, ~code: string): test_case(_) => {
                 target_id,
                 syntax.term_data,
                 syntax.terms,
-                syntax.measured,
+                Haz3lcore.CachedSyntax.measured(syntax),
                 info_map,
               )
             ) {

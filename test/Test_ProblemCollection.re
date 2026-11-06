@@ -196,7 +196,7 @@ let nearest_measured_id_invalid = () => {
 
 let nearest_measured_id_inside_fold = () => {
   /* Walk an Exp tree and return the id of the first Int literal matching
-     `n`. Mirrors ProofHacks.find_exp_id. */
+     `n`. Mirrors Exp.find_by_id. */
   module M = {
     exception Found(Language.Exp.t);
   };
@@ -266,7 +266,7 @@ let nearest_measured_id_inside_fold = () => {
   /* Look the resolved id up in the Exp tree and assert the node there
      is a Fold projector. */
   let resolved_exp =
-    switch (Language.ProofHacks.find_exp_id(resolved, exp)) {
+    switch (Language.Exp.find_by_id(resolved, exp)) {
     | Some(e) => e
     | None => fail("resolved id not found in Exp tree")
     };

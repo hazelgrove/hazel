@@ -12,11 +12,7 @@ type model'('stepper) = {
   inner_exp: Calc.saved(Exp.t),
   inner_ctx: Calc.saved(SemanticCtx.t),
   inner_stepper: 'stepper,
-  result_function: Calc.saved(Exp.t),
 };
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type persistent'('stepper) = {inner_stepper: 'stepper};
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action'('step) =
@@ -30,7 +26,6 @@ let init = init_step => {
   inner_exp: Calc.Pending,
   inner_ctx: Calc.Pending,
   inner_stepper: init_step,
-  result_function: Calc.Pending,
 };
 
 /* The methods in this file, like the other step files, are
@@ -44,31 +39,15 @@ module F =
          : (
            STEP with
              type model = model'(Stepper.model) and
-             type persistent = persistent'(Stepper.persistent) and
              type action = action'(Stepper.action) and
              type focus = focus'(Stepper.focus)
        ) => {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = model'(Stepper.model);
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = persistent'(Stepper.persistent);
-  [@deriving (show({with_path: false}), sexp, yojson)]
   type action = action'(Stepper.action);
   [@deriving (show({with_path: false}), sexp, yojson)]
   type focus = focus'(Stepper.focus);
-
-  let persist = (model: model) => {
-    {inner_stepper: Stepper.persist(model.inner_stepper)};
-  };
-
-  let unpersist = (p: persistent) => {
-    {
-      inner_exp: Calc.Pending,
-      inner_ctx: Calc.Pending,
-      inner_stepper: Stepper.unpersist(p.inner_stepper),
-      result_function: Calc.Pending,
-    };
-  };
 
   let update = (~settings: Settings.t, action: action, model: model) => {
     Updated.(
@@ -87,15 +66,16 @@ module F =
   let calculate =
       (
         ~settings: Calc.t(CoreSettings.t),
-        ~hidden: Calc.saved(bool),
         ~exp: Calc.t(Exp.t),
         ~ctx: Calc.t(SemanticCtx.t),
-        ~editor as _: Calc.t(CodeSelectable.Model.t),
         ~info_map as _,
+        ~proof_info_map as _,
         ~ana: Calc.t(Typ.t),
+        ~proof: Calc.t(Proof.t),
+        ~proof_map: Calc.t(ProofMap.t),
         model: model,
       ) => {
-    let {inner_exp, inner_ctx, inner_stepper, result_function} = model;
+    let {inner_exp, inner_ctx, inner_stepper} = model;
     let+ (inner_ctx, inner_exp) =
       (inner_ctx, inner_exp)
       |> Calc.saved_pair
@@ -103,52 +83,48 @@ module F =
       |> {
         let.calc exp = exp
         and.calc ctx = ctx;
-        switch (exp |> Exp.term_of) {
-        | Fun(p, d1, t, _) =>
-          let t = OptUtil.get(() => Typ.fresh(Unknown(Internal)), t);
-          Some((SemanticCtx.add_from_pattern(ctx, p, t), d1));
-        | _ => None
+        /* Peel the binder as the checker does: the goal may be a `Fun` or
+         * a `Forall` (`generalize` writes those), and a `where` guard on
+         * the binder becomes a hypothesis. */
+        switch (ProofCheck.peel_binder(exp)) {
+        | Some((p, t, guard, d1)) =>
+          let ctx = SemanticCtx.add_from_pattern(ctx, p, t);
+          let ctx =
+            switch (guard) {
+            | Some(g) => ProofCheck.Where.add_facts(ctx, g)
+            | None => ctx
+            };
+          Some((ctx, d1));
+        | None => None
         };
       }
       |> Calc.to_option
       |> Option.map(Calc.to_pair);
-    let (inner_stepper, last, validity) =
+    /* The nested stepper works on the body: working on this node would
+     * replace the whole form. */
+    let inner_proof =
+      proof
+      |> Calc.map((p: Proof.t) =>
+           switch (p) {
+           | {term: Forall(_, body), _} => body
+           | p => p
+           }
+         );
+    let inner_stepper =
       Stepper.calculate(
         ~settings,
         ~ctx=inner_ctx,
         ~exp=inner_exp,
         ~ana,
+        ~proof=inner_proof,
+        ~proof_map,
         inner_stepper,
       );
-    let result_function =
-      result_function
-      |> {
-        let.calc last = last
-        and.calc exp = exp;
-        switch (exp |> Exp.term_of) {
-        | Fun(p, _, t, n) => DHExp.fresh(Fun(p, last, t, n))
-        | _ =>
-          DHExp.fresh(
-            Fun(
-              Pat.fresh(EmptyHole),
-              last,
-              Some(Typ.fresh(Unknown(Internal))),
-              None,
-            ),
-          )
-        };
-      };
-    (
-      {
-        inner_exp: inner_exp |> Calc.save,
-        inner_ctx: inner_ctx |> Calc.save,
-        inner_stepper,
-        result_function: result_function |> Calc.save,
-      },
-      hidden |> Calc.set(false),
-      Some(result_function),
-      validity,
-    );
+    {
+      inner_exp: inner_exp |> Calc.save,
+      inner_ctx: inner_ctx |> Calc.save,
+      inner_stepper,
+    };
   };
 
   let get_cursor_info = (~inject, ~focus: focus, model: model) =>
@@ -165,18 +141,7 @@ module F =
       }
     );
 
-  let view_justification =
-      (
-        ~globals as _: Globals.t,
-        ~focus as _: option(focus),
-        ~inject as _: action => Ui_effect.t(unit),
-        ~take_focus as _: focus => Ui_effect.t(unit),
-        ~hide_stepper as _: Ui_effect.t(unit),
-        ~undo as _: option(Ui_effect.t(unit)),
-        ~is_toplevel as _: bool,
-        _: model,
-      ) =>
-    WebUtil.Node.text("Forall Step");
+  let justification = _ => "forall";
 
   let view_content =
       (
@@ -185,8 +150,10 @@ module F =
         ~inject: action => Ui_effect.t(unit),
         ~take_focus: focus => Ui_effect.t(unit),
         ~hide_stepper: Ui_effect.t(unit),
-        ~undo as _: option(Ui_effect.t(unit)),
         ~is_toplevel: bool,
+        ~proof as _: option(Proof.t),
+        ~edit_syntax: Haz3lcore.EditorTransform.patch => Ui_effect.t(unit),
+        ~main_editor: option(CodeEditable.Channel.t),
         model: model,
       ) => {
     let inner_stepper =
@@ -201,9 +168,10 @@ module F =
         ~take_focus=x => take_focus(InnerExp(x)),
         ~hide_stepper,
         ~is_toplevel,
+        ~edit_syntax,
+        ~main_editor,
         model.inner_stepper,
       );
-
     inner_stepper;
   };
 };

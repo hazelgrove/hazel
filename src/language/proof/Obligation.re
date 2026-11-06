@@ -1,0 +1,68 @@
+open Util;
+
+/* The sequent-shaped proof obligations incurred by proof steps.
+ *
+ * An obligation is a sequent: a local context (the bindings visible at the
+ * obligation site — obligations raised inside induction cases mention
+ * case-local binders) plus a boolean goal. Obligations are *computed* by
+ * the checker on every pass and recorded in the ProofMap entry of the step
+ * that incurred them; they are never stored in program text.
+ *
+ * `discharge` records what discharged the obligation, if anything. */
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type discharge =
+  /* Discharged by syntactic lookup of an in-scope fact (binder
+   * restriction, case_eq, hypothesis), identified by the fact's id. */
+  | Remote(Id.t)
+  /* The goal was closed and evaluated to `true`, so the stepper can
+   * replay it. */
+  | Evaluated
+  | Pending;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type t = {
+  /* The proof step that incurred the obligation. */
+  origin: Id.t,
+  /* The bindings visible at the obligation site. */
+  bindings: list(Ctx.entry),
+  /* The environment has been substituted in
+   * (`ProofCheck.Discharge.obligation`), so discharge by lookup or by closed
+   * evaluation works on terms as closed as possible. */
+  goal: Exp.t,
+  /* The goal before substitution, for display only. Substituting a
+   * closure-valued variable into a guard like `y != 0` prints as a whole
+   * closure dump, and un-substituting is impossible in general, so the
+   * checker records what the user wrote. The checker never reads it. */
+  display_goal: Exp.t,
+  discharge,
+};
+
+let display_goal_of = (ob: t): Exp.t => ob.display_goal;
+
+/* For a `Remote` discharge, the covering fact's name and statement,
+ * found by id among the obligation's own bindings (`Ctx.TheoremEntry`s).
+ * `None` for any other discharge, or if the id is not among the
+ * bindings. */
+let remote_fact = (ob: t): option((Var.t, Exp.t)) =>
+  switch (ob.discharge) {
+  | Remote(fact_id) =>
+    ob.bindings
+    |> List.find_map((e: Ctx.entry) =>
+         switch (e) {
+         | TheoremEntry({id, name, prop: Some(fact)})
+             when Id.compare(id, fact_id) == 0 =>
+           Some((name, fact))
+         | _ => None
+         }
+       )
+  | Evaluated
+  | Pending => None
+  };
+
+let is_pending = (ob: t): bool =>
+  switch (ob.discharge) {
+  | Pending => true
+  | Remote(_)
+  | Evaluated => false
+  };

@@ -757,6 +757,308 @@ let golden_case = ((name, src)) =>
     },
   );
 
+/* --- prover-form documentation completeness ------------------------------ */
+
+/* Every form of the Proof sort must map to a real message, not a generic
+   "Proof term" fallback. `ProofDoc.single` is total over `Proof.term`, so
+   the compiler already guarantees an arm exists; what this test guarantees
+   is that each arm carries prose, that the prose references every child it
+   colors (a coloring whose id never appears in the message paints
+   nothing), that no `%s` placeholder was left unfilled, and that each
+   example's source really parses. */
+
+let contains = (hay: string, needle: string): bool => {
+  let (nh, nn) = (String.length(hay), String.length(needle));
+  let rec go = (i: int) =>
+    i + nn > nh ? false : String.sub(hay, i, nn) == needle || go(i + 1);
+  go(0);
+};
+
+let hole_proof = () => Proof.fresh(EmptyHole);
+let some_exp = (): Exp.t => Exp.fresh(EmptyHole);
+let some_pat = (): Pat.t => Pat.fresh(EmptyHole);
+let inst = () => Some((some_exp(), some_exp()));
+
+/* Representative terms, one per constructor (and one per shape of the
+   optional `with` clause, which selects a different message). Exhaustive
+   by construction: a new proof form fails to compile here. */
+let representatives = (cls: Proof.cls): list(Proof.t) =>
+  switch (cls) {
+  | Invalid => [Proof.fresh(Invalid("~"))]
+  | EmptyHole => [Proof.fresh(EmptyHole)]
+  | MultiHole => [Proof.fresh(MultiHole([]))]
+  | Seq => [Proof.fresh(Seq(hole_proof(), hole_proof()))]
+  | AxiomStep =>
+    [Util.Direction.Right, Util.Direction.Left]
+    |> List.concat_map(direction =>
+         [None, inst()]
+         |> List.map(instantiation =>
+              Proof.fresh(
+                AxiomStep({
+                  at_idx: some_exp(),
+                  at_exp: some_exp(),
+                  direction,
+                  equality: some_exp(),
+                  instantiation,
+                }),
+              )
+            )
+       )
+  | AlgebriteStep => [
+      Proof.fresh(
+        AlgebriteStep({
+          at_idx: some_exp(),
+          at_exp: some_exp(),
+          with_exp: some_exp(),
+        }),
+      ),
+    ]
+  | EvalStep => [
+      Proof.fresh(
+        EvalStep({
+          at_idx: some_exp(),
+          at_exp: some_exp(),
+        }),
+      ),
+    ]
+  | Induction => [
+      Proof.fresh(
+        Induction(some_exp(), None, [(some_pat(), hole_proof())]),
+      ),
+      Proof.fresh(
+        Induction(
+          some_exp(),
+          Some(some_pat()),
+          [(some_pat(), hole_proof())],
+        ),
+      ),
+    ]
+  | Forall => [Proof.fresh(Forall(some_pat(), hole_proof()))]
+  | Funext => [Proof.fresh(Funext(some_pat(), hole_proof()))]
+  | Assume => [
+      Proof.fresh(Assume(some_exp(), None, hole_proof())),
+      Proof.fresh(Assume(some_exp(), Some(some_pat()), hole_proof())),
+    ]
+  | Alias => [Proof.fresh(Alias(some_pat(), some_exp(), hole_proof()))]
+  | Generalize => [Proof.fresh(Generalize(some_exp(), hole_proof()))]
+  | Revert => [
+      Proof.fresh(Revert(some_exp(), None, hole_proof())),
+      Proof.fresh(Revert(some_exp(), inst(), hole_proof())),
+    ]
+  | Contradiction => [
+      Proof.fresh(Contradiction(some_exp(), None)),
+      Proof.fresh(Contradiction(some_exp(), inst())),
+    ]
+  | Have => [Proof.fresh(Have(some_exp(), hole_proof(), hole_proof()))]
+  /* Parens are transparent: their doc is the inner form's, so the
+     representative wraps a form that has a worked example. */
+  | Parens => [
+      Proof.fresh(Parens(Proof.fresh(Funext(some_pat(), hole_proof())))),
+    ]
+  };
+
+/* The degenerate forms carry a message but no worked example. */
+let example_free = (cls: Proof.cls): bool =>
+  switch (cls) {
+  | Invalid
+  | EmptyHole
+  | MultiHole => true
+  | Seq
+  | AxiomStep
+  | AlgebriteStep
+  | EvalStep
+  | Induction
+  | Forall
+  | Funext
+  | Assume
+  | Generalize
+  | Revert
+  | Contradiction
+  | Have
+  | Alias
+  | Parens => false
+  };
+
+let check_doc =
+    (~what: string, ~needs_example: bool, doc: Web.ExplainThisForm.Simple.t) => {
+  let msg = doc.explanation;
+  Alcotest.check(
+    Alcotest.bool,
+    what ++ ": message is real prose",
+    true,
+    String.length(msg) > 80,
+  );
+  Alcotest.check(
+    Alcotest.bool,
+    what ++ ": message is not the generic fallback",
+    false,
+    contains(msg, "Proof term"),
+  );
+  Alcotest.check(
+    Alcotest.bool,
+    what ++ ": no unfilled format placeholder",
+    false,
+    contains(msg, "%s"),
+  );
+  /* Every colored child must be referenced by the message. */
+  let (_, colorings) = doc.abstract;
+  List.iter(
+    ((_, id)) =>
+      Alcotest.check(
+        Alcotest.bool,
+        what ++ ": message references its colored child " ++ Id.to_string(id),
+        true,
+        contains(msg, Id.to_string(id)),
+      ),
+    colorings,
+  );
+  if (needs_example) {
+    Alcotest.check(
+      Alcotest.bool,
+      what ++ ": has at least one example",
+      true,
+      doc.examples != [],
+    );
+  };
+  /* An example whose source failed to parse comes back as an empty
+     segment, so this checks the example programs are real syntax. */
+  List.iter(
+    (ex: Web.ExplainThisForm.example) =>
+      Alcotest.check(
+        Alcotest.bool,
+        what ++ ": example parses",
+        true,
+        Lazy.force(ex.term) != [],
+      ),
+    doc.examples,
+  );
+};
+
+let test_proof_forms_documented = () =>
+  List.iter(
+    (cls: Proof.cls) =>
+      List.iter(
+        p =>
+          check_doc(
+            ~what=Proof.show_cls(cls),
+            ~needs_example=!example_free(cls),
+            Web.ProofDoc.single(p),
+          ),
+        representatives(cls),
+      ),
+    Proof.all_of_cls,
+  );
+
+/* The two restricted binders are Exp forms, but they are prover syntax. */
+let test_restricted_binders_documented = () => {
+  let ids = () => (Id.mk(), Id.mk(), Id.mk());
+  let (pat_id, guard_id, body_id) = ids();
+  check_doc(
+    ~what="forall where",
+    ~needs_example=true,
+    Web.ForallExp.where_single(~pat_id, ~guard_id, ~body_id),
+  );
+  let (pat_id, guard_id, body_id) = ids();
+  check_doc(
+    ~what="fun where",
+    ~needs_example=true,
+    Web.FunWhereExp.single(~pat_id, ~guard_id, ~body_id),
+  );
+};
+
+/* End-to-end: the cursor inspector's own path. `color_map_of` gives an
+   empty color map for plain prose and a populated one for a form whose
+   message references its children, so a non-empty map on every InfoProof
+   in these programs asserts that the dispatch reaches ProofDoc rather than
+   a stub. Between them the sources cover every step form that takes
+   children. */
+let proof_sources = [
+  "theorem t = 1 + 4 == 5 proof eval 1 + 4 at 0 end; eval 5 == 5 at 0 end in 0",
+  "theorem t = 1 + 1 == 2 proof rewrite 1 + 1 with 2 at 0 end in 0",
+  "theorem t = (true && false) == (false && true) proof axiom and_comm at 0 on true && false end in 0",
+  "theorem t = (true && false) == (false && true) proof axiomrev and_comm at 0 on false && true end in 0",
+  "theorem t = forall x -> x == x proof forall x => axiom refl_eq at 0 on x == x end in 0",
+  "theorem t = forall n: Int -> n == 1 ==> n == 1 proof assume n == 1 => axiom assume at 0 on n == 1 end in 0",
+  "theorem t = forall n: Int -> false ==> n == n proof assume false => contradiction false end in 0",
+  "theorem t = forall n: Int -> n == 1 ==> n == 2 ==> false proof assume n == 1 => assume n == 2 => contradiction n == 1 with n = 2 end in 0",
+  "theorem t = forall x -> x == 1 proof have 1 == 1 proof axiom refl_eq at 0 on 1 == 1 end => ? in 0",
+  "theorem inv = forall w where w != 0 -> w / w == 1 proof ? in theorem t = forall n where n != 0 -> n / n == 1 proof generalize n => forall n => axiom inv at 0 on n / n end in 0",
+  "let f = fun x where x != 0 -> 100 / x in theorem t = forall y -> f(y) == f(y) proof ? in 0",
+  "let f = fun x -> x + 1 in theorem lem = forall n: Int -> n == 1 ==> f(2) == 3 proof ? in theorem g = f(2) == 3 proof axiom lem with n = 1 at 0 on f(2) end in 0",
+  "let f = fun x -> x + 1 in theorem p = forall n: Int -> n + 0 == n proof ? in theorem g = f(2) == 3 proof revert p with n = 5 => ? in 0",
+  "theorem t = forall n: Int -> forall m: Int -> n == n proof induction n > 0 as hn | true => induction m > 0 | true => revert hn => ? | false => ? end | false => ? end in 0",
+  "theorem t = forall x: Int -> forall y: Int -> x == 1 ==> y == 2 ==> x == x proof assume x == 1 => assume y == 2 as hy => revert hy => ? in 0",
+  "theorem t = forall n: Int -> n == 1 ==> n == n proof assume n == 1 => alias hn = assume => axiom refl_eq at 0 on n == n end in 0",
+  "type Nt = +Z+S(Nt) in let pos = fun e -> case e | Z => true | S(b) => true end in theorem t = forall e: Nt -> pos(e) proof induction e | Z => eval pos(Z) at 0 end | S(b) => revert pos(b) => axiom ih at 0 on pos(b) end end in 0",
+];
+
+let parse_exp = (s: string) =>
+  switch (Haz3lcore.Parser.to_term(s, ~root=Exp)) {
+  | Some(e) => e
+  | None => Alcotest.fail("Failed to parse: " ++ s)
+  };
+
+let test_cursor_on_proof_step_explains = () => {
+  let seen = ref(0);
+  /* Assert the sources really parse into the naming forms rather than
+     degrading to holes, which the loop below would skip in silence. */
+  let named = ref([]);
+  List.iter(
+    src => {
+      let info_map = statics(parse_exp(src));
+      Id.Map.iter(
+        (_id, info: Info.t) =>
+          switch (info) {
+          | InfoProof({user_term, _}) =>
+            switch (user_term.term) {
+            /* The degenerate forms have no children to color. */
+            | EmptyHole
+            | MultiHole(_)
+            | Invalid(_) => ()
+            | _ =>
+              incr(seen);
+              switch (user_term.term) {
+              | Induction(_, Some(_), _) =>
+                named := ["induction as", ...named^]
+              | Assume(_, Some(_), _) => named := ["assume as", ...named^]
+              | Alias(_) => named := ["alias", ...named^]
+              | _ => ()
+              };
+              let (color_map, _) =
+                ET.color_map_of(~globals, ET.decide(~docs, Some(info)));
+              Alcotest.check(
+                Alcotest.bool,
+                Proof.show_cls(Proof.cls_of_term(user_term.term))
+                ++ ": cursor gets a message referencing its children",
+                false,
+                Id.Map.is_empty(color_map),
+              );
+            }
+          | _ => ()
+          },
+        info_map,
+      );
+    },
+    proof_sources,
+  );
+  Alcotest.check(
+    Alcotest.bool,
+    "the sources really contain proof steps",
+    true,
+    seen^ >= 20,
+  );
+  List.iter(
+    shape =>
+      Alcotest.check(
+        Alcotest.bool,
+        shape ++ ": source parsed into the named form",
+        true,
+        List.mem(shape, named^),
+      ),
+    ["induction as", "assume as", "alias"],
+  );
+};
+
 let tests = (
   "ExplainThis",
   [
@@ -766,6 +1068,21 @@ let tests = (
     ),
     coverage_case,
     pairing_case,
+    Alcotest.test_case(
+      "every prover form has a real message",
+      `Quick,
+      test_proof_forms_documented,
+    ),
+    Alcotest.test_case(
+      "restricted binders documented",
+      `Quick,
+      test_restricted_binders_documented,
+    ),
+    Alcotest.test_case(
+      "cursor on a proof step gets a real message",
+      `Quick,
+      test_cursor_on_proof_step_explains,
+    ),
     ...List.map(golden_case, corpus),
   ],
 );

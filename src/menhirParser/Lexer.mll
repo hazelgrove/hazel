@@ -16,6 +16,22 @@ let pop_delim () =
 let semi_token () =
   match !delim_stack with '{' :: _ -> MOD_SEMI | _ -> SEMI_COLON
 
+(* The prover's hard keywords. Matching them as separate rules overflows
+   ocamllex's transition table, so `identifier` looks them up instead.
+   `where` and `assume` are also hypothesis names in ProofCheck, so the
+   parser accepts them in expression position too. *)
+let prover_keywords : (string, token) Hashtbl.t =
+  let t = Hashtbl.create 32 in
+  List.iter (fun (k, v) -> Hashtbl.replace t k v)
+    [ ("theorem", THEOREM); ("proof", PROOF); ("forall", FORALL);
+      ("funext", FUNEXT); ("where", WHERE); ("assume", ASSUME);
+      ("generalize", GENERALIZE); ("have", HAVE); ("revert", REVERT);
+      ("contradiction", CONTRADICTION); ("induction", INDUCTION);
+      ("alias", ALIAS); ("as", AS); ("axiomrev", AXIOM_REV);
+      ("axiom", AXIOM); ("rewrite", REWRITE); ("with", WITH);
+      ("at", AT); ("on", ON) ];
+  t
+
 let advance_line lexbuf =
   let pos = lexbuf.lex_curr_p in
   let pos' = { pos with
@@ -140,6 +156,7 @@ rule token =
     | "..." { TUPLE_EXTENSION }
     | "." { DOT }
     (* Poly ops*)
+    | "==>" { IMPLIES }
     | "==" { DOUBLE_EQUAL }
     | "!=" { NOT_EQUAL }
     (* Int ops*)
@@ -214,7 +231,10 @@ rule token =
     | "named_fun" {NAMED_FUN}
     | "poly" {POLY}
     | "rec" {REC}
-    | identifier as i { IDENT(i) }
+    | identifier as i
+      { match Hashtbl.find_opt prover_keywords i with
+        | Some t -> t
+        | None -> IDENT(i) }
     | constructor_ident as i { CONSTRUCTOR_IDENT(i)}
     | eof { EOF }
     | _ { raise (Failure ("Lex error: unknown char: '" ^ Lexing.lexeme lexbuf ^ "'")) }

@@ -49,6 +49,7 @@ let warning_string = (item: Language.Warning.list_item): string =>
   | TPat(NonContractive(name)) => "type " ++ name ++ " is defined as itself"
   | Typ(NonContractive(name)) =>
     "recursive type rec " ++ name ++ " is defined as itself"
+  | Exp(ForallOutsideTheorem) => "forall outside a theorem has no value"
   };
 
 /* Format a single diagnostic (error or warning) in Rust-style with source

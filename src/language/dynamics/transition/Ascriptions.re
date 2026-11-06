@@ -64,6 +64,10 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Closure(ce, d), t) =>
       transition(~recursive, Asc(d, t |> Typ.fresh) |> DHExp.fresh)
       |> Option.map(d => Closure(ce, d) |> DHExp.fresh)
+    /* Leave a function with a `where`-guarded parameter alone: ascribing
+       `p where g` would put the type inside the guard's scope, and the
+       value is displayed opaquely anyway. */
+    | (Fun(p, _, _, _), Arrow(_, _)) when Exp.pat_guard(p) != None => None
     | (Fun(p, body, closure_ty, name), Arrow(t1, t2)) =>
       Some(
         IdTagged.fast_copy(
@@ -201,10 +205,6 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Constructor(_, Some(Some(t))), t')
         when unrolled_consistent(t, t' |> Typ.temp) =>
       Some(e)
-    | (ProofObject(e1), ProofOf(e2)) when Exp.fast_equal(e1, e2) =>
-      Some(
-        IdTagged.fast_copy(DHExp.rep_id(e), ProofObject(e1) |> DHExp.fresh),
-      )
     | (Test(_), Prod([])) => Some(e)
     // These are non-value cases we're handling to process ascriptions as early as possible
     | (BinOp(bin_op, _, _), _) =>
@@ -312,7 +312,6 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Test(_), _)
     | (HintedTest(_), _)
     | (Cons(_), _)
-    | (ProofObject(_), _)
     | (Constructor(_), _)
     | (Module(_), _)
     | (ModuleExp(_), _) => None

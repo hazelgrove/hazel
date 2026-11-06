@@ -100,8 +100,7 @@ module Utils = {
     | LivelitName(_)
     | TyAlias(_)
     | ExplicitNonlabel
-    | Theorem(_, _, _)
-    | ProofObject(_)
+    | Theorem(_, _, _, _)
     | Forall(_, _)
     | Projector(_, _)
     | Var(_)
@@ -224,6 +223,7 @@ module Namer = {
     | Constructor(name, _)
     | Label(name) => name
     | Parens(pat)
+    | Where(pat, _)
     | Asc(pat, _) => mk_name_from_pat(pat)
     | Cons(pat1, pat2) =>
       mk_name_from_pat(pat1) ++ "::" ++ mk_name_from_pat(pat2)

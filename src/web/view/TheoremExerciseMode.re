@@ -38,14 +38,10 @@ module Model = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = {
-    lemmas: CellEditor.Model.persistent,
-    theorem: EvalResult.Model.persistent,
-  };
+  type persistent = {lemmas: CellEditor.Model.persistent};
 
   let persist = (model: t): persistent => {
     lemmas: model.cells.lemmas |> CellEditor.Model.persist,
-    theorem: model.cells.theorem.result |> EvalResult.Model.persist,
   };
 
   let unpersist =
@@ -60,12 +56,8 @@ module Model = {
         prelude:
           CellEditor.Model.mk(Editor.Model.mk(spec.prelude, ~root=Exp)),
         lemmas: persistent.lemmas |> CellEditor.Model.unpersist(~settings),
-        theorem: {
-          editor:
-            CellEditor.Model.mk(Editor.Model.mk(spec.theorem, ~root=Exp)).
-              editor,
-          result: persistent.theorem |> EvalResult.Model.unpersist,
-        },
+        theorem:
+          CellEditor.Model.mk(Editor.Model.mk(spec.theorem, ~root=Exp)),
       },
       editing_flags: editing_flags_false,
     };
@@ -273,6 +265,20 @@ module Update = {
           theorem: new_cell,
         },
       };
+    | Theorem(PatchMainEditor(patch)) =>
+      let* new_cell =
+        CellEditor.Update.update(
+          ~settings,
+          PatchMainEditor(patch),
+          model.cells.theorem,
+        );
+      {
+        ...model,
+        cells: {
+          ...model.cells,
+          theorem: new_cell,
+        },
+      };
     | Theorem(MainEditor(_)) =>
       print_endline("Instructor-only action");
       Updated.return_quiet(model);
@@ -323,7 +329,7 @@ module Update = {
       |> EditorUtil.append_exp(
            _,
            just_prelude_term
-           |> Language.ProofHacks.strip_theorems
+           |> Language.ProofSyntax.strip_theorems
            |> Language.Exp.replace_all_ids,
          )
       |> EditorUtil.append_exp(_, just_theorem_term);
@@ -388,8 +394,8 @@ module Update = {
       ~pos_of_key=key => key,
       ~dispatch,
       ~on_timeout=
-        List.iter(((key, _)) =>
-          dispatch(key, UpdateResult(ResultFail(Timeout)))
+        List.iter(((key, v: WorkerServer.Request.value)) =>
+          dispatch(key, UpdateResult(v.generation, ResultFail(Timeout)))
         ),
     );
 
