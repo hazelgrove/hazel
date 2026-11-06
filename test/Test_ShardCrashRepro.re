@@ -68,12 +68,12 @@ let rec id_shard_pairs = (seg: Segment.t): list((Id.t, int)) =>
 
 let duplicate_pairs = (seg: Segment.t): list((Id.t, int)) => {
   let pairs = id_shard_pairs(seg);
-  let tbl = Stdlib.Hashtbl.create(64);
+  let tbl = Hash_set.Poly.create(~size=64, ());
   List.filter(
     ~f=
       pair => {
-        let seen = Stdlib.Hashtbl.mem(tbl, pair);
-        Stdlib.Hashtbl.replace(tbl, pair, ());
+        let seen = Hash_set.mem(tbl, pair);
+        Hash_set.add(tbl, pair);
         seen;
       },
     pairs,
@@ -444,12 +444,12 @@ let zipper_pairs = (z: Zipper.t): list((Id.t, int)) =>
 
 let zipper_dups = (z: Zipper.t): list((Id.t, int)) => {
   let pairs = zipper_pairs(z);
-  let tbl = Stdlib.Hashtbl.create(256);
+  let tbl = Hash_set.Poly.create(~size=256, ());
   List.filter(
     ~f=
       pair => {
-        let seen = Stdlib.Hashtbl.mem(tbl, pair);
-        Stdlib.Hashtbl.replace(tbl, pair, ());
+        let seen = Hash_set.mem(tbl, pair);
+        Hash_set.add(tbl, pair);
         seen;
       },
     pairs,

@@ -15,18 +15,18 @@ let normalize = (s: string): string =>
   s |> Util.StringUtil.trim_leading |> Util.StringUtil.strip_final_newline;
 
 let cache:
-  Stdlib.Hashtbl.t((Haz3lcore.Sort.t, string), option(Haz3lcore.Segment.t)) =
-  Stdlib.Hashtbl.create(64);
+  Hashtbl.t((Haz3lcore.Sort.t, string), option(Haz3lcore.Segment.t)) =
+  Hashtbl.Poly.create(~size=64, ());
 
 let to_segment =
     (~root: Haz3lcore.Sort.t, text: string): option(Haz3lcore.Segment.t) => {
   let text = normalize(text);
   let key = (root, text);
-  switch (Stdlib.Hashtbl.find_opt(cache, key)) {
+  switch (Hashtbl.find(cache, key)) {
   | Some(seg) => seg
   | None =>
     let seg = Haz3lcore.Parser.to_segment(text, ~root);
-    Stdlib.Hashtbl.replace(cache, key, seg);
+    Hashtbl.set(cache, ~key, ~data=seg);
     seg;
   };
 };

@@ -1,4 +1,3 @@
-open Sexplib.Std;
 open Ppx_yojson_conv_lib.Yojson_conv;
 
 /* Merkle-hashed set, used as an equality witness for subexpression-level
@@ -40,7 +39,7 @@ let empty: t('a) = {
 };
 
 let singleton = (x: 'a): t('a) => {
-  hash: Stdlib.Hashtbl.hash(`Leaf(x)),
+  hash: Hashtbl.hash(`Leaf(x)),
   node: Leaf(x),
 };
 
@@ -52,7 +51,7 @@ let union = (a: t('a), b: t('a)): t('a) =>
   | (Empty, _) => b
   | (_, Empty) => a
   | _ => {
-      hash: Stdlib.Hashtbl.hash(`Branch((a.hash, b.hash))),
+      hash: Hashtbl.hash(`Branch((a.hash, b.hash))),
       node: Branch(a, b),
     }
   };
