@@ -341,7 +341,7 @@ let rec replace_exp =
             )
             |> rewrap;
           }
-        | Let(p, e1, e2) =>
+        | Let(dir, p, e1, e2) =>
           if (is_bound(p)) {
             if (uses_blacklist_var(
                   exp,
@@ -350,6 +350,7 @@ let rec replace_exp =
               raise(BlacklistVarFound);
             };
             Let(
+              dir,
               p,
               replace_exp(e1, restrict_blacklist(p, blacklist_vars)),
               e2,

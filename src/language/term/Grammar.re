@@ -48,14 +48,14 @@ and exp_term('a) =
   | Dot(exp_t('a), exp_t('a))
   | LivelitName(string)
   | Var(Var.t)
-  | Let(pat_t('a), exp_t('a), exp_t('a))
+  | Let(Operators.direction, pat_t('a), exp_t('a), exp_t('a))
   | Theorem(pat_t('a), exp_t('a), exp_t('a))
   | ProofObject(exp_t('a))
   | Forall(pat_t('a), exp_t('a))
   | FixF(pat_t('a), exp_t('a), option(Environment.t(exp_t('a))))
   | TyAlias(tpat_t('a), typ_t('a), exp_t('a))
   | Use(typ_t('a), exp_t('a))
-  | Ap(Operators.ap_direction, exp_t('a), exp_t('a))
+  | Ap(Operators.direction, exp_t('a), exp_t('a))
   | TypAp(exp_t('a), typ_t('a))
   | DeferredAp(exp_t('a), list(exp_t('a)))
   | If(exp_t('a), exp_t('a), exp_t('a))
@@ -206,8 +206,9 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
         | Dot(e1, e2) =>
           Dot(map_exp_annotation(f, e1), map_exp_annotation(f, e2))
         | Var(v) => Var(v)
-        | Let(p, e1, e2) =>
+        | Let(dir, p, e1, e2) =>
           Let(
+            dir,
             map_pat_annotation(f, p),
             map_exp_annotation(f, e1),
             map_exp_annotation(f, e2),
@@ -665,7 +666,11 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       annotation: default_annotation(ann),
     };
     let let_ = (~ann=?, p, e1, e2): exp_t(DefaultAnnotation.t) => {
-      term: Let(p, e1, e2),
+      term: Let(Forward, p, e1, e2),
+      annotation: default_annotation(ann),
+    };
+    let where = (~ann=?, body, p, def): exp_t(DefaultAnnotation.t) => {
+      term: Let(Reverse, p, def, body),
       annotation: default_annotation(ann),
     };
     let theorem = (~ann=?, p, e1, e2): exp_t(DefaultAnnotation.t) => {

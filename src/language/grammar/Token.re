@@ -131,6 +131,7 @@ let keywords = [
   "else",
   "hint",
   "module",
+  "where",
 ];
 
 let is_keyword = match(regexp("^(" ++ concat("|", keywords) ++ ")$"));

@@ -66,7 +66,7 @@ let adt_node_ids = exp => {
     | TupLabel(label, body) =>
       go(label);
       go(body);
-    | Let(_, def, body)
+    | Let(_, _, def, body)
     | Seq(def, body)
     | Theorem(_, def, body) =>
       go(def);

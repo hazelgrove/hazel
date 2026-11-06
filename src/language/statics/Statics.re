@@ -2000,7 +2000,7 @@ and uexp_to_info_map =
         ~probe_targets=body.probe_targets,
         m,
       );
-    | Let(p, def, body) when Option.is_some(FunctionSugar.detect(p)) =>
+    | Let(dir, p, def, body) when Option.is_some(FunctionSugar.detect(p)) =>
       /* Syntactic sugar: `let f(x: Int, y): Ret = def` desugars to
          `let f = fun (x: Int, y) -> (def : Ret)`. Build the rewrite and
          delegate to the regular Let machinery by recursing; patch up
@@ -2011,6 +2011,7 @@ and uexp_to_info_map =
       let rewritten =
         FunctionSugar.rewrite(
           ~orig_let=uexp,
+          ~dir,
           ~f_name,
           ~args,
           ~ret_ty,
@@ -2027,7 +2028,7 @@ and uexp_to_info_map =
         ~probe_targets=rewritten_info.probe_targets,
         m,
       );
-    | Let(p, def, body) =>
+    | Let(dir, p, def, body) =>
       let is_recursive = (ctx, p, def, syn: Typ.t) => {
         switch (Pat.get_num_of_vars(p), Exp.get_num_of_functions(def)) {
         | (Some(num_vars), Some(num_fns))
@@ -2190,7 +2191,7 @@ and uexp_to_info_map =
           let def_elab =
             LabeledTupleHelpers.align_exp_if_needed(ctx, p_syn.ty, def_elab)
             |> Exp.add_name(Pat.get_var(p));
-          (Let(p_elab, def_elab, body_elab) |> rewrap, m);
+          (Let(dir, p_elab, def_elab, body_elab) |> rewrap, m);
         } else {
           let def_elab =
             LabeledTupleHelpers.align_exp_if_needed(ctx, p_syn.ty, def_elab)
@@ -2232,7 +2233,7 @@ and uexp_to_info_map =
               )
             | _ => m
             };
-          (Let(p_elab, fixf, body_elab) |> rewrap, m);
+          (Let(dir, p_elab, fixf, body_elab) |> rewrap, m);
         };
       add(
         ~elab_term,
@@ -2743,7 +2744,7 @@ and uexp_to_info_map =
       let expanded =
         IdTagged.fast_copy(
           Exp.rep_id(uexp),
-          Exp.fresh(Let(pat, def, body)),
+          Exp.fresh(Let(Forward, pat, def, body)),
         );
       let (expanded_info, expanded_elab, m) = go(~ana, expanded, m);
       /* Override cls to show "Module binding" */

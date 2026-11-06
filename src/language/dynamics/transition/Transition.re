@@ -499,7 +499,7 @@ module Transition = (EV: EV_MODE) => {
         let is_value =
           switch (d |> Exp.term_of) {
           | FixF(_, _, _) => false // fixpoints aren't final
-          | Let(_, _, _) => false // could be mutually-recursive fixpoint
+          | Let(_, _, _, _) => false // could be mutually-recursive fixpoint
           | _ => true // all other closure entries should be final
           };
         Step({
@@ -525,11 +525,11 @@ module Transition = (EV: EV_MODE) => {
         kind: Seq,
         is_value: false,
       });
-    | Let(dp, d1, d2) =>
-      let. _ = otherwise(env, d1 => Let(dp, d1, d2) |> rewrap)
+    | Let(dir, dp, d1, d2) =>
+      let. _ = otherwise(env, d1 => Let(dir, dp, d1, d2) |> rewrap)
       and. d1' =
-        req_final(req(env), d1 => Let1(dp, d1, d2) |> wrap_ctx, d1);
-      let.wrap_closure _ = (env, Let(dp, d1', d2) |> rewrap);
+        req_final(req(env), d1 => Let1(dir, dp, d1, d2) |> wrap_ctx, d1);
+      let.wrap_closure _ = (env, Let(dir, dp, d1', d2) |> rewrap);
       let {matches, samples} = matches(targets, dp, d1');
       let matches_str = {
         switch (matches) {

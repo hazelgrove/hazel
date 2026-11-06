@@ -1877,8 +1877,9 @@ let clippable_guard_tests = {
            backup molds (Form.symbolic_delim_prefixes = `-`, `=`) reach
            the InfixDelimiterPrefix atomic, which molds at all four
            sorts. Re-decided: both frontiers stay far from vacuous, so
-           clippable_sort stands. */
-        "Exp 67/88 | Pat 9/88 | Typ 15/88 | TPat 4/88 | Rul 1/88",
+           clippable_sort stands.
+           Exp 67 -> 68 of 88 -> 89: the Exp-only `where` form. */
+        "Exp 68/89 | Pat 9/89 | Typ 15/89 | TPat 4/89 | Rul 1/89",
         table,
       )
     ),

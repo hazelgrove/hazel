@@ -64,7 +64,7 @@ let rec find_in_let =
  */
 let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
   switch (uexp.term) {
-  | Let(up, def, body) =>
+  | Let(_, up, def, body) =>
     l |> find_in_let(name, up, def) |> find_fn(name, body)
   | Theorem(up, def, body) =>
     l |> find_in_let(name, up, def) |> find_fn(name, body)
@@ -222,7 +222,7 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | ListLit(l)
   | Tuple(l) =>
     List.fold_left((acc, ue) => {acc || var_mention(name, ue)}, false, l)
-  | Let(p, def, body) =>
+  | Let(_, p, def, body) =>
     (var_mention_upat(name, p) ? false : var_mention(name, body))
     || var_mention(name, def)
   | Theorem(p, thm, body) =>
@@ -315,7 +315,7 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | ListLit(l)
   | Tuple(l) =>
     List.fold_left((acc, ue) => {acc || var_applied(name, ue)}, false, l)
-  | Let(p, def, body) =>
+  | Let(_, p, def, body) =>
     (var_mention_upat(name, p) ? false : var_applied(name, body))
     || var_applied(name, def)
   | Theorem(p, thm, body) =>
@@ -434,7 +434,7 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
     var_mention_upat(name, args) ? false : tail_check(name, body)
   | Forall(args, body) =>
     var_mention_upat(name, args) ? false : tail_check(name, body)
-  | Let(p, def, body) =>
+  | Let(_, p, def, body) =>
     var_mention_upat(name, p) || var_mention(name, def)
       ? false : tail_check(name, body)
   | Theorem(p, thm, body) =>

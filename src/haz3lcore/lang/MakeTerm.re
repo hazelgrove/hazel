@@ -911,7 +911,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | (F(Compound(Forall)), [Pat(pat)]) => Forall(pat, r)
         | (F(Compound(Fix)), [Pat(pat)]) => FixF(pat, r, None)
         | (F(Compound(TypFun)), [TPat(tpat)]) => TypFun(tpat, r, None)
-        | (F(Compound(Let)), [Pat(pat), Exp(def)]) => Let(pat, def, r)
+        | (F(Compound(Let)), [Pat(pat), Exp(def)]) =>
+          Let(Forward, pat, def, r)
         | (F(Compound(ModuleExp)), [MPat(mp), Exp(def)]) =>
           ModuleExp(mp, def, r)
         | (F(Compound(Theorem)), [Pat(pat), Exp(thm)]) =>
@@ -1030,6 +1031,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       ret(Tuple(tuple_children));
     | None =>
       switch (tiles) {
+      | ([(_id, (F(Compound(Where)), [Pat(pat)]))], []) =>
+        ret(Let(Reverse, pat, r, l))
       | ([(_id, (op, []))], []) =>
         ret(
           switch (op) {

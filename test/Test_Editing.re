@@ -5323,7 +5323,7 @@ let def_kind = (src: string): string => {
   let z = mk(src) |> perform(Zipper.init());
   let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
   switch (Language.IdTagged.term_of(term)) {
-  | Let(_, def, _) =>
+  | Let(_, _, def, _) =>
     switch (Language.IdTagged.term_of(def)) {
     | ListLit(_) => "ListLit"
     | Tuple(_) => "Tuple"

@@ -10,7 +10,9 @@ let rec target_subterm_ids =
       IdTagged.rep_id(body),
       IdTagged.rep_id(pat),
     ]
-  | Some(InfoExp({user_term: {term: Let(pat, def, _), _} as let_term, _}))
+  | Some(
+      InfoExp({user_term: {term: Let(_, pat, def, _), _} as let_term, _}),
+    )
       when drill_let =>
     /* Probe the def (drill_let=false: a nested let chain anchors whole); a test-body let probes itself to show the test result. */
     let is_test_body =

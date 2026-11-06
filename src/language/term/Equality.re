@@ -267,14 +267,15 @@ let equality =
       | None => false
       }
     | (Fun(_), _) => false
-    | (Let(p1, e1, e2), Let(p2, e3, e4)) =>
+    | (Let(d1, p1, e1, e2), Let(d2, p2, e3, e4)) =>
       switch (pat'(p1, p2)) {
       | Some(alphas_exp') =>
-        exp(alphas_exp, alphas_typ, e1, e3)
+        Operators.equal_direction(d1, d2)
+        && exp(alphas_exp, alphas_typ, e1, e3)
         && exp(Alphas.combine(alphas_exp', alphas_exp), alphas_typ, e2, e4)
       | None => false
       }
-    | (Let(_, _, _), _) => false
+    | (Let(_, _, _, _), _) => false
     | (Theorem(p1, e1, e2), Theorem(p2, e3, e4)) =>
       switch (pat'(p1, p2)) {
       | Some(alphas_exp') =>

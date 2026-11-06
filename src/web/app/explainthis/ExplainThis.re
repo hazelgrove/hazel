@@ -1069,7 +1069,15 @@ let decide =
         | _ => basic(TupleExp.tuples(~n))
         };
       | Var(n) => get_message(TerminalExp.var_exps(n))
-      | Let(pat, def, body) =>
+      | Let(Reverse, pat, def, body) =>
+        message_single(
+          WhereExp.single(
+            ~body_id=Exp.rep_id(body),
+            ~pat_id=Pat.rep_id(pat),
+            ~def_id=Exp.rep_id(def),
+          ),
+        )
+      | Let(Forward, pat, def, body) =>
         let pat = bypass_parens_and_annot_pat(pat);
         let pat_id = IdTagged.rep_id(pat);
         let def_id = IdTagged.rep_id(def);

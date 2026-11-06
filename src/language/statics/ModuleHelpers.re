@@ -293,31 +293,31 @@ let wrap_item =
   | ModLet(pat, def) =>
     IdTagged.fast_copy(
       Mod.rep_id(item),
-      Exp.fresh(Let(modlet_pat(ana_labels, pat), def, body)),
+      Exp.fresh(Let(Forward, modlet_pat(ana_labels, pat), def, body)),
     )
   | ModType(tpat, typ) =>
     IdTagged.fast_copy(
       Mod.rep_id(item),
       Exp.fresh(TyAlias(tpat, typ, body)),
     )
-  | ModExp(e) => Exp.fresh(Let(Pat.fresh(Wild), e, body))
+  | ModExp(e) => Exp.fresh(Let(Forward, Pat.fresh(Wild), e, body))
   | ModuleMod(mp, def) =>
     IdTagged.fast_copy(
       Mod.rep_id(item),
-      Exp.fresh(Let(mpat_to_pat(mp), def, body)),
+      Exp.fresh(Let(Forward, mpat_to_pat(mp), def, body)),
     )
   | EmptyHole =>
     let e: Exp.t =
       IdTagged.fast_copy(Mod.rep_id(item), Exp.fresh(EmptyHole));
-    Exp.fresh(Let(Pat.fresh(Wild), e, body));
+    Exp.fresh(Let(Forward, Pat.fresh(Wild), e, body));
   | Invalid(s) =>
     let e: Exp.t =
       IdTagged.fast_copy(Mod.rep_id(item), Exp.fresh(Invalid(s)));
-    Exp.fresh(Let(Pat.fresh(Wild), e, body));
+    Exp.fresh(Let(Forward, Pat.fresh(Wild), e, body));
   | MultiHole(es) =>
     let e: Exp.t =
       IdTagged.fast_copy(Mod.rep_id(item), Exp.fresh(MultiHole(es)));
-    Exp.fresh(Let(Pat.fresh(Wild), e, body));
+    Exp.fresh(Let(Forward, Pat.fresh(Wild), e, body));
   };
 
 let lower =
@@ -345,15 +345,17 @@ let lower =
 let rec strip_module_sig_pats = (exp: Exp.t): Exp.t => {
   let (term, rewrap) = Exp.unwrap(exp);
   switch (term) {
-  | Let({term: Asc(p, _), _}, def, body) =>
+  | Let(dir, {term: Asc(p, _), _}, def, body) =>
     Let(
+      dir,
       strip_module_sig_pats_in_pat(p),
       strip_module_sig_pats(def),
       strip_module_sig_pats(body),
     )
     |> rewrap
-  | Let(p, def, body) =>
+  | Let(dir, p, def, body) =>
     Let(
+      dir,
       strip_module_sig_pats_in_pat(p),
       strip_module_sig_pats(def),
       strip_module_sig_pats(body),
@@ -379,8 +381,8 @@ and strip_module_sig_pats_in_pat = (pat: Pat.t): Pat.t => {
 let rec restore_module_body_id = (~id, exp: Exp.t): Exp.t => {
   let (term, rewrap) = Exp.unwrap(exp);
   switch (term) {
-  | Let(p, def, body) =>
-    Let(p, def, restore_module_body_id(~id, body)) |> rewrap
+  | Let(dir, p, def, body) =>
+    Let(dir, p, def, restore_module_body_id(~id, body)) |> rewrap
   | TyAlias(tpat, typ, body) =>
     TyAlias(tpat, typ, restore_module_body_id(~id, body)) |> rewrap
   | Parens(inner) => Parens(restore_module_body_id(~id, inner)) |> rewrap
@@ -452,8 +454,13 @@ let module_elab = (~module_exp_id: Id.t, expanded_elab: Exp.t): Exp.t =>
 let moduleexp_elab = (~def_elab_direct: Exp.t, expanded_elab: Exp.t): Exp.t => {
   let (expanded_term, expanded_rewrap) = Exp.unwrap(expanded_elab);
   switch (expanded_term) {
-  | Let(p_elab, _, body_elab) =>
-    Let(strip_module_sig_pats_in_pat(p_elab), def_elab_direct, body_elab)
+  | Let(dir, p_elab, _, body_elab) =>
+    Let(
+      dir,
+      strip_module_sig_pats_in_pat(p_elab),
+      def_elab_direct,
+      body_elab,
+    )
     |> expanded_rewrap
   | _ => strip_module_sig_pats(expanded_elab)
   };

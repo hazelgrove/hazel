@@ -197,7 +197,7 @@ let term_is_if = (term: Language.Any.t): bool =>
 
 let term_is_let = (term: Language.Any.t): bool =>
   switch (term) {
-  | Exp({term: Let(_, _, _), _}) => true
+  | Exp({term: Let(_, _, _, _), _}) => true
   | _ => false
   };
 
@@ -215,7 +215,7 @@ let term_is_mod_declaration = (term: Language.Any.t): bool =>
 
 let let_body_is_hole = (term: Language.Any.t): bool =>
   switch (term) {
-  | Exp({term: Let(_, _, body), _}) => term_is_hole(Exp(body))
+  | Exp({term: Let(_, _, _, body), _}) => term_is_hole(Exp(body))
   | _ => false
   };
 

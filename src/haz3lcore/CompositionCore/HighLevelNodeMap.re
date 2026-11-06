@@ -74,7 +74,7 @@ module Utils = {
     | TypFun(_, e, _)
     | DeferredAp(e, _)
     | HintedTest(e, _) => [e]
-    | Let(_, e1, e2)
+    | Let(_, _, e1, e2)
     | Seq(e1, e2)
     | Ap(_, e1, e2)
     | Dot(e1, e2)
@@ -138,7 +138,7 @@ module Utils = {
           switch (candidate) {
           | InfoExp({user_term: term, _}) =>
             switch (Exp.term_of(term)) {
-            | Let(pat, def, body) =>
+            | Let(_, pat, def, body) =>
               let pat_id = Pat.rep_id(pat);
               let def_id = Exp.rep_id(def);
               let body_id = Exp.rep_id(body);
@@ -269,7 +269,7 @@ module Namer = {
     switch (info) {
     | InfoExp({user_term: term, _}) =>
       switch (Exp.term_of(term)) {
-      | Let(pat, _, _) => mk_name_from_pat(pat)
+      | Let(_, pat, _, _) => mk_name_from_pat(pat)
       | TyAlias(tpat, _, _) => mk_name_from_tpat(tpat)
       | ModuleExp(mp, _, _) => mk_name_from_mpat(mp)
       | _ => raise(Failure("Not a valid expression to make a name from"))
@@ -477,7 +477,7 @@ let rec build_children =
   switch (candidate) {
   | InfoExp({user_term: term, _}) =>
     switch (Exp.term_of(term)) {
-    | Let(_, def, body) =>
+    | Let(_, _, def, body) =>
       // Add this node to the node map
       let new_path = path @ [Info.id_of(candidate)];
       let node_map = init_node(candidate, new_path, node_map);
@@ -690,7 +690,7 @@ let binding_id_to_syntax_projector_target_id =
     switch (node.info) {
     | InfoExp({user_term: term, _}) =>
       switch (Exp.term_of(term)) {
-      | Let(_, def, _) => Some(Exp.rep_id(def))
+      | Let(_, _, def, _) => Some(Exp.rep_id(def))
       | TyAlias(_, typ, _) => Some(Typ.rep_id(typ))
       | ModuleExp(_, def, _) => Some(Exp.rep_id(def))
       | _ => None

@@ -26,7 +26,7 @@ let toplevel_def_body_id = (~statics: Statics.Map.t, ~id: Id.t): option(Id.t) =>
 
   let probe_for_piece = (id: Id.t): option(Id.t) =>
     switch (Statics.Map.lookup(id, statics)) {
-    | Some(InfoExp({user_term: {term: Let(_, def, _), _}, _})) =>
+    | Some(InfoExp({user_term: {term: Let(_, _, def, _), _}, _})) =>
       Some(IdTagged.rep_id(def))
     | Some(InfoExp({user_term: {term: Seq(e1, _), _}, _})) =>
       Some(IdTagged.rep_id(e1))
@@ -49,7 +49,7 @@ let toplevel_def_body_id = (~statics: Statics.Map.t, ~id: Id.t): option(Id.t) =>
             List.nth(ancestors, idx - 1);
           };
         switch (Statics.Map.lookup(anc_id, statics)) {
-        | Some(InfoExp({user_term: {term: Let(_, def, body), _}, _})) =>
+        | Some(InfoExp({user_term: {term: Let(_, _, def, body), _}, _})) =>
           if (Id.equal(child_id, IdTagged.rep_id(body))) {
             walk(idx - 1);
           } else {
