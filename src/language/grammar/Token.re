@@ -196,6 +196,9 @@ let is_potential_operand =
     ),
   );
 
+/* Operator-shaped. Molding accepts any such run, so a saved token from
+ * before the lexing rule (`:,`) still molds as an operator; which runs are
+ * one token when typed is FormId.is_potential_token. */
 let is_potential_operator =
   /* Multiline operators not supported */
   unicode_match(unicode_regexp("^[" ++ operator_chars ++ "]+$"));
@@ -205,23 +208,8 @@ let is_potential_operator =
 let begins_with_potential_operator =
   unicode_match(unicode_regexp("^[" ++ operator_chars ++ {|\^]+|}));
 
-let is_potential_token = t =>
-  if (match(regexp("^>"), t)) {
-    /* This case is necessary due to the ambiguity between operators
-     * beginning with `>` and `>` as closing delimiter for type ap;.
-     * e.g. `map@<a>==1 has an ambiguous lex otherwise*/
-    t == ">" || t == ">=" || t == ">." || t == ">=.";
-  } else {
-    t == "()"
-    || t == "[]"
-    || t == "{}"
-    || t == "¿"  /* implicit-hole marker; see Haz3lcore.MarkerParse */
-    || is_potential_operand(t)
-    || is_potential_operator(t)
-    || is_string(t)
-    || is_comment(t)
-    || is_quoted_label(t);
-  };
+/* Whether a string can be one token is decided by FormId.is_potential_token,
+ * since a run of operator characters must spell (a prefix of) a delimiter. */
 
 let int_regexp = regexp("^-?\\d+[0-9_]*$");
 let is_float = match(regexp("^-?[0-9]*\\.?[0-9]*((e|E)-?[0-9]*)?$"));

@@ -677,10 +677,11 @@ let roundtrip_tests = (
     roundtrip_test({|Label: backticked dot|}, {|x.`a`|}),
     roundtrip_test({|Label: backticked pat|}, {|fun (`a`=x) -> x|}),
     roundtrip_test({|Label: backticked typ|}, {|1 : (`a`=Int)|}),
-    /* Unknown infix operators survive as MultiHole + op lexeme */
-    roundtrip_test({|Unknown op|}, {|1 @@@ 2|}),
-    roundtrip_test({|Unknown op: chained|}, {|1 @@@ 2 @@@ 3|}),
-    roundtrip_test({|Unknown op: spaced|}, {|1  @@@  2|}),
+    /* Unknown infix operators survive as MultiHole + op lexeme (one
+       character: a longer run that spells no operator splits) */
+    roundtrip_test({|Unknown op|}, {|1 % 2|}),
+    roundtrip_test({|Unknown op: chained|}, {|1 % 2 % 3|}),
+    roundtrip_test({|Unknown op: spaced|}, {|1  %  2|}),
     roundtrip_test({|Negative int|}, {|-42|}),
     roundtrip_test({|Variable|}, {|x|}),
     roundtrip_test({|String literal|}, {|"hello"|}),
@@ -1384,7 +1385,7 @@ let result_display_test =
         display(run("let x = ?? in x")),
       );
       /* unknown ops are stuck, not evaluated-to-last (B9) */
-      check(string, "stuck op", "1 @@@ 2", display(run("1 @@@ 2")));
+      check(string, "stuck op", "1 % 2", display(run("1 % 2")));
       /* plain juxtaposition (no op lexeme) keeps eval-to-last semantics */
       check(
         string,
