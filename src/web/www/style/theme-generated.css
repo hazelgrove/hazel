@@ -90,6 +90,10 @@
   --incremental-pending-edge: color-mix(in oklch, oklch(52% 0.03 220) 16%, transparent);
   --light-page-color: oklch(99% 0.012 90);
   --live-env-bkg: oklch(91% 0.025 90);
+  --live-typing-active: oklch(35% 0.3 326);
+  --live-typing-error-hole-stroke: oklch(40% 0.3 326);
+  --live-typing-fill: oklch(92.05% 0.03999 326);
+  --live-typing-stroke: oklch(40% 0.3 326);
   --llm-waiting-1: oklch(52% 0.2 265);
   --llm-waiting-2: oklch(52% 0.2 300);
   --llm-waiting-3: oklch(52% 0.2 355);

@@ -17,6 +17,17 @@ type statics_outcome =
   | Deferred /* an edit landed but the debounce postponed the run */
   | Cached; /* nothing to redo — the cached statics were reused */
 
+/* Why the live-typing pass did or didn't run on a frame. Live typing re-runs
+ * Statics.mk against the evaluated dynamics, so unlike the other stages it can
+ * be skipped for reasons of its own: the streaming throttle, or nothing new to
+ * type against. */
+[@deriving show({with_path: false})]
+type live_typing_outcome =
+  | Ran /* the pass ran against fresh dynamics or a moved sample focus */
+  | Throttled /* a stream slice landed inside the throttle window */
+  | Reused /* neither the dynamics nor the sample focus changed */
+  | Off; /* live typing is switched off in settings */
+
 /* One keystroke's timeline plus a snapshot of the editor's counts at that
  * frame, so the Statics / Editor & Memory panels can show per-run history. A
  * timing stage is None if it didn't run this frame (e.g. statics deferred by
@@ -26,6 +37,7 @@ type frame = {
   perform: option((string, Core.Time_ns.Span.t)),
   statics: option(Core.Time_ns.Span.t),
   syntax: option(Core.Time_ns.Span.t),
+  live_typing: option(Core.Time_ns.Span.t),
   cursor_info: option(Core.Time_ns.Span.t),
   color_map: option(Core.Time_ns.Span.t),
   total: option(Core.Time_ns.Span.t),
@@ -33,6 +45,9 @@ type frame = {
   errors: int,
   warnings: int,
   statics_outcome: option(statics_outcome),
+  live_typing_entries: int,
+  live_typing_errors: int,
+  live_typing_outcome: option(live_typing_outcome),
   segment_tokens: int,
   tiles: int,
   rows: int,
@@ -43,6 +58,7 @@ let empty_frame = {
   perform: None,
   statics: None,
   syntax: None,
+  live_typing: None,
   cursor_info: None,
   color_map: None,
   total: None,
@@ -50,6 +66,9 @@ let empty_frame = {
   errors: 0,
   warnings: 0,
   statics_outcome: None,
+  live_typing_entries: 0,
+  live_typing_errors: 0,
+  live_typing_outcome: None,
   segment_tokens: 0,
   tiles: 0,
   rows: 0,
@@ -122,6 +141,15 @@ let time_syntax = f =>
       },
     f,
   );
+let time_live_typing = f =>
+  time(
+    (fr, s) =>
+      {
+        ...fr,
+        live_typing: add(fr.live_typing, s),
+      },
+    f,
+  );
 let time_cursor = f =>
   time(
     (fr, s) =>
@@ -173,6 +201,7 @@ let time_frame: 'a. (unit => 'a) => 'a =
           ...current^,
           statics: None,
           syntax: None,
+          live_typing: None,
           cursor_info: None,
           color_map: None,
         };
@@ -224,6 +253,24 @@ let record_statics_counts =
         statics_outcome: Some(statics_outcome),
       };
   });
+
+/* Snapshot what the live-typing pass produced this frame, and why it did or
+ * didn't run. Takes the whole CachedStatics rather than the counts so the fold
+ * over the error ids and the info map stays inside the gate, as in
+ * record_history. The counts describe the live typing now in effect, so a
+ * skipped frame reports the values it reused, with `outcome` saying so. */
+let record_live_typing_counts =
+    (~outcome: live_typing_outcome, statics: Haz3lcore.CachedStatics.t): unit =>
+  when_enabled(() =>
+    current :=
+      {
+        ...current^,
+        live_typing_entries:
+          Haz3lcore.Id.Map.cardinal(statics.live_typing_info_map),
+        live_typing_errors: List.length(statics.live_typing_error_ids),
+        live_typing_outcome: Some(outcome),
+      }
+  );
 
 /* Cheap structural counts of the editor this frame recalculated. Byte-exact
  * sizes are deliberately not computed: heap walks are expensive per frame, and

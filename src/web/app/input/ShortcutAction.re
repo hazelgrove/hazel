@@ -113,6 +113,7 @@ type t =
   | TogglePrintBenchmarks
   | ToggleDebugSidebar
   | ToggleDynamics
+  | ToggleLiveTyping
   | ToggleShowElaboration
   | ToggleShowFunctionBodies
   | ToggleShowCaseClauses
@@ -395,6 +396,12 @@ let meta = (a: t): action_meta =>
     }
   | ToggleDynamics => {
       label: "Toggle Dynamics",
+      section: Settings,
+      mdIcon: "tune",
+      default_binding: Unbound,
+    }
+  | ToggleLiveTyping => {
+      label: "Toggle Live Typing",
       section: Settings,
       mdIcon: "tune",
       default_binding: Unbound,

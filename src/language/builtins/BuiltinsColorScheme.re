@@ -89,6 +89,8 @@ let seeds: list(string) = [
   "probe-timeline",
   "statics-background",
   "statics-edge",
+  "live-typing",
+  "live-typing-strong",
 ];
 
 /* What the slide derives from the seeds: the ramps step off frame-1 and
@@ -183,7 +185,7 @@ let role_groups: list((string, list(string))) = [
       "warning-backing",
     ],
   ),
-  ("problems", ["row", "row-edge", "row-active"]),
+  ("problems", ["row", "row-edge", "row-active", "live-row"]),
   (
     "results",
     [

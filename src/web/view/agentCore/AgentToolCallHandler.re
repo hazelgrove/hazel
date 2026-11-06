@@ -143,7 +143,7 @@ let update =
         ~settings=settings.core,
         action,
         editor.statics,
-        editor.dynamics,
+        editor.dynamics.probe_map,
         editor.editor,
       );
     switch (updated_editor) {
@@ -155,6 +155,8 @@ let update =
           editor: updated_editor,
           statics: editor.statics,
           dynamics: editor.dynamics,
+          live_typing: editor.live_typing,
+          sample_focus: editor.sample_focus,
           context_menu: editor.context_menu,
         },
       ));

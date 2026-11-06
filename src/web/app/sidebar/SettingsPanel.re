@@ -39,8 +39,12 @@ let sections = (~globals, ~editors_inject): list(NutMenu.section) =>
 
 let row_text = (row: NutMenu.row): string =>
   switch (row) {
-  | Toggle({name, tooltip, _}) =>
-    name ++ " " ++ Option.value(tooltip, ~default="")
+  | Toggle({name, tooltip, warning, _}) =>
+    name
+    ++ " "
+    ++ Option.value(tooltip, ~default="")
+    ++ " "
+    ++ Option.value(warning, ~default="")
   | Choice(name, desc, choices) =>
     name
     ++ " "
@@ -64,9 +68,16 @@ let matches = (query: string, text: string): bool => {
 let desc = (text: string): Node.t =>
   div(~attrs=[clss(["settings-desc"])], [Node.text(text)]);
 
+/* the caution itself, under the description, so it reads without a hover */
+let warning_line = (text: string): Node.t =>
+  div(
+    ~attrs=[clss(["settings-desc", "settings-warning"])],
+    [Node.text({js|⚠ |js} ++ text)],
+  );
+
 let row_view = (~globals: Globals.t, row: NutMenu.row): Node.t =>
   switch (row) {
-  | Toggle({name, active, setting, tooltip}) =>
+  | Toggle({name, active, setting, tooltip, warning}) =>
     Node.button(
       ~attrs=[
         Attr.create("type", "button"),
@@ -77,13 +88,32 @@ let row_view = (~globals: Globals.t, row: NutMenu.row): Node.t =>
         Attr.on_click(_ => globals.inject_global(Set(setting))),
       ],
       [
-        span(~attrs=[clss(["settings-name"])], [Node.text(name)]),
+        span(
+          ~attrs=[clss(["settings-name"])],
+          [Node.text(name)]
+          @ (
+            switch (warning) {
+            | Some(text) => [
+                span(
+                  ~attrs=[
+                    clss(["settings-warning-glyph"]),
+                    Attr.title(text),
+                    Attr.create("aria-label", text),
+                  ],
+                  [Node.text({js|⚠|js})],
+                ),
+              ]
+            | None => []
+            }
+          ),
+        ),
         div(
           ~attrs=[clss(["toggle-switch"] @ (active ? ["active"] : []))],
           [div(~attrs=[clss(["toggle-knob"])], [])],
         ),
       ]
-      @ Option.to_list(Option.map(desc, tooltip)),
+      @ Option.to_list(Option.map(desc, tooltip))
+      @ Option.to_list(Option.map(warning_line, warning)),
     )
   | Choice(name, description, choices) =>
     div(

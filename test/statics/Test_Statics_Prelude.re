@@ -200,6 +200,8 @@ let annotated_exp: testable(Grammar.exp_t(option(issue))) =
     Grammar.equal_exp_t(Option.equal(equal_issue)),
   );
 
+let error_exp: testable(Grammar.exp_t(option(issue))) = annotated_exp;
+
 let fresh = (exp: Grammar.exp_t(unit)): TermBase.exp_t => {
   Grammar.map_exp_annotation(
     (_annotation): IdTagged.IdTag.t => IdTagged.IdTag.mk_internal([Id.mk()]),

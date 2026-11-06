@@ -4,11 +4,19 @@ open Language;
    Uses the provided context so user-defined types are visible, but with
    use_mode cleared: a sample is an already-elaborated value, and leaving the
    source's mode set re-runs Operators.replace_literal over it, so an Int
-   sample inside `use Nat` would be reported as Nat. */
+   sample inside `use Nat` would be reported as Nat.
+
+   The value is closed first: a function value is a `Closure(env, body)`, and
+   statics discards a closure's env, so the body's free variables would
+   otherwise resolve against `ctx` and capture whatever same-named binder is
+   in scope where the sample was taken. Substituting each closure's own env
+   leaves nothing free to capture. Substitution mints fresh ids, so the lookup
+   uses the substituted expression's rep_id, not the sample's. */
 let type_of_sample = (~ctx: Ctx.t, sample: Sample.t): option(Typ.t) => {
   let ctx = Ctx.set_use_mode(ctx, None);
-  let (info_map, _elab) = Statics.mk(CoreSettings.on, ctx, sample.value);
-  IdTagged.rep_id(sample.value)
+  let exp = Substitution.in_exp(Environment.empty, sample.value);
+  let (info_map, _elab) = Statics.mk(CoreSettings.on, ctx, exp);
+  IdTagged.rep_id(exp)
   |> Statics.Map.lookup(_, info_map)
   |> Option.bind(
        _,

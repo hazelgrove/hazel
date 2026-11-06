@@ -15,7 +15,7 @@ module Settings = {
   [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
   type problem_category =
     Haz3lcore.ProblemCollection.problem_category =
-      | Syntax | Hole | Static | Warning | Projector;
+      | Syntax | Hole | Static | Warning | LiveTyping | Projector;
 
   /* Base CSS class for a category */
   let category_cls = cat =>
@@ -24,6 +24,7 @@ module Settings = {
     | Hole => "hole"
     | Static => "static"
     | Warning => "warning"
+    | LiveTyping => "live-typing"
     | Projector => "projector-error"
     };
 
@@ -34,6 +35,7 @@ module Settings = {
     | Hole => "Holes"
     | Static => "Static Errors"
     | Warning => "Warnings"
+    | LiveTyping => "Live Typing Errors"
     | Projector => "Projector Errors"
     };
 
@@ -44,6 +46,7 @@ module Settings = {
     | Hole => "Hole"
     | Static => "Static"
     | Warning => "Warning"
+    | LiveTyping => "Live Typing"
     | Projector => "Projector"
     };
 
@@ -52,7 +55,8 @@ module Settings = {
   let category_badge_severity = cat =>
     switch (cat) {
     | Syntax
-    | Static => 2
+    | Static
+    | LiveTyping => 2
     | Projector
     | Warning => 1
     | Hole => 0
@@ -63,6 +67,7 @@ module Settings = {
     switch (cat) {
     | Syntax
     | Static => "has-errors"
+    | LiveTyping => "has-live-typing"
     | Projector
     | Warning => "has-warnings"
     | Hole => "has-holes"
@@ -73,6 +78,7 @@ module Settings = {
     switch (cat) {
     | Syntax
     | Static => "error"
+    | LiveTyping => "live typing error"
     | Projector
     | Warning => "warning"
     | Hole => "hole"
