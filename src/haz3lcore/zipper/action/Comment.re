@@ -228,5 +228,15 @@ let go = (z: t, ~root): option(t) =>
   if (z.selection.content != []) {
     toggle_multi(z, ~root);
   } else {
-    toggle_single(z, ~root);
+    switch (z.caret, Zipper.generalized_neighbor(Right, z)) {
+    | (Inner(_), Some(Piece.Secondary(w)))
+        when
+          Secondary.is_comment(w)
+          && String.contains(Secondary.get_string(w.content), '\n') =>
+      switch (Select.tile(w.id, Zipper.Caret.set(Outer, z))) {
+      | Some(z) => uncomment(z, ~root)
+      | None => None
+      }
+    | _ => toggle_single(z, ~root)
+    };
   };

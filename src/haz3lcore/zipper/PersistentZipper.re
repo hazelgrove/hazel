@@ -33,10 +33,9 @@ let of_text = (text: string): t => {
 /* Slide-source ingestion: committed .hz text keeps human indentation,
    but Hazel computes indentation at layout time and renders literal
    leading spaces ON TOP of it (doubled, drifting) — so slide text is
-   flattened here. The strip is blind per-line; slide sources must not
-   contain multi-line string literals. */
+   flattened here. Comment-body indentation remains literal content. */
 let of_slide_text = (text: string): t =>
-  of_text(StringUtil.trim_leading(text));
+  of_text(Token.trim_leading_code_whitespace(text));
 
 /* Fast-first text→zipper, shared by persistence load and the CLI:
    FastParse (linear, complete terms) with pin collection, then the
