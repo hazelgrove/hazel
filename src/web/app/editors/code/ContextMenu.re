@@ -176,6 +176,37 @@ let jump_to_binding_data =
   | _ => []
   };
 
+/* (Matthew, 2026-11-06: "goto first use / goto next use in the RHS menu
+   for the def, and each use other than the last, respectively") A
+   definition with uses: its first use. A use before the last of its
+   definition's: the next one. The uses are the terms whose "Goto
+   definition" leads to that definition, in the order they appear. */
+let jump_to_uses_data =
+    (
+      ~info_map: Language.Statics.Map.t,
+      z: Zipper.t,
+      ci: option(Language.Info.t),
+    )
+    : list(Menu.item(command)) =>
+  switch (ci) {
+  | None => []
+  | Some(ci) =>
+    let order = Uses.order(z);
+    let item = (found, label, goal) =>
+      Option.is_some(found)
+        ? [action_item(label, Action.Move(Goal(goal)))] : [];
+    item(
+      Uses.first(~order, info_map, ci),
+      "Goto first use",
+      Action.FirstUseOfIndicatedBinding,
+    )
+    @ item(
+        Uses.next(~order, info_map, ci),
+        "Goto next use",
+        Action.NextUseOfIndicatedVar,
+      );
+  };
+
 let introduce_data =
     (ci: option(Language.Info.t)): list(Menu.item(command)) =>
   switch (ci) {
@@ -433,7 +464,9 @@ let get_sections =
   let ci = Indicated.ci_of(z, info_map);
   [
     /* Section 1: Navigation & Selection */
-    jump_to_binding_data(ci) @ select_current_term_data(),
+    jump_to_binding_data(ci)
+    @ jump_to_uses_data(~info_map, z, ci)
+    @ select_current_term_data(),
     /* Section 2: Clipboard */
     clipboard_data(z),
     /* Section 3: Refactoring */

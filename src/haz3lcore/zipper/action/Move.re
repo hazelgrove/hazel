@@ -483,6 +483,14 @@ let move_dispatch =
     let* ci = Indicated.ci_of(z, statics);
     let* binding_id = Language.Info.get_binding_site(ci);
     jump_to_id_indicated(z, binding_id);
+  | Goal(FirstUseOfIndicatedBinding) =>
+    let* ci = Indicated.ci_of(z, statics);
+    let* use = Uses.first(~order=Uses.order(z), statics, ci);
+    jump_to_id_indicated(z, use);
+  | Goal(NextUseOfIndicatedVar) =>
+    let* ci = Indicated.ci_of(z, statics);
+    let* use = Uses.next(~order=Uses.order(z), statics, ci);
+    jump_to_id_indicated(z, use);
   };
 
 let pre_unselect = (a: Action.move, z: t): t => {
