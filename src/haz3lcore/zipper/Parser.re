@@ -23,7 +23,7 @@ let boundary_merges = (text: string, z: Zipper.t): bool => {
   | [] => false
   | _ =>
     let first_char = List.hd_exn(chars);
-    let last_char = Util.ListUtil.last(chars);
+    let last_char = List.last_exn(chars);
     let left =
       Option.exists(Zipper.neighbor_token(Left, z), ~f=t =>
         Token.is_potential_token(Token.append(t, first_char))
@@ -276,7 +276,7 @@ let can_splice_paste = (clipboard: string, z: Zipper.t, ~root): bool => {
   && {
     let chars = Token.to_list(clipboard);
     let first_char = List.hd_exn(chars);
-    let last_char = Util.ListUtil.last(chars);
+    let last_char = List.last_exn(chars);
     let no_left_merge =
       Option.for_all(Zipper.neighbor_token(Left, z), ~f=t =>
         !Token.is_potential_token(Token.append(t, first_char))

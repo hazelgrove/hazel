@@ -40,7 +40,9 @@ let t_of_sexp: Sexplib.Sexp.t => Uuidm.t =
   fun
   | Sexplib.Sexp.Atom(s) =>
     Uuidm.of_string(s)
-    |> OptUtil.get(_ => failwith("Uuidm.t_of_sexp: not valid UUID (1)"))
+    |> Option.value_or_thunk(~default=_ =>
+         failwith("Uuidm.t_of_sexp: not valid UUID (1)")
+       )
   | _ => failwith("Uuidm.t_of_sexp: not valid UUID (2)");
 
 let yojson_of_t: Uuidm.t => Yojson.Safe.t = t => `String(Uuidm.to_string(t));
@@ -49,7 +51,9 @@ let t_of_yojson: Yojson.Safe.t => Uuidm.t =
   fun
   | `String(s) =>
     Uuidm.of_string(s)
-    |> OptUtil.get(_ => failwith("Uuidm.t_of_yojson: not valid UUID (1)"))
+    |> Option.value_or_thunk(~default=_ =>
+         failwith("Uuidm.t_of_yojson: not valid UUID (1)")
+       )
   | _ => failwith("Uuidm.t_of_yojson: not valid UUID (2)");
 
 [@deriving eq]
@@ -96,7 +100,7 @@ let mk: unit => t = {
 };
 let namespace_uuid =
   Uuidm.of_string("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
-  |> OptUtil.get(_ => failwith("Invalid namespace UUID"));
+  |> Option.value_or_thunk(~default=_ => failwith("Invalid namespace UUID"));
 let next: t => t = x => Uuidm.v5(namespace_uuid, Uuidm.to_string(x));
 
 let mk_str: string => t = s => Uuidm.v5(namespace_uuid, s);
@@ -121,7 +125,9 @@ let cls = (id: t) => "id" ++ str8(id);
 let v: string => t =
   s =>
     Uuidm.of_string(s)
-    |> OptUtil.get(_ => failwith("Id.v: not a valid UUID: " ++ s));
+    |> Option.value_or_thunk(~default=_ =>
+         failwith("Id.v: not a valid UUID: " ++ s)
+       );
 let pp: (Format.formatter, t) => unit =
   (f, id) => Format.fprintf(f, "Haz3lcore.Id.v(\"%s\")", to_string(id));
 let show = id => sprintf("Haz3lcore.Id.v(\"%s\")", to_string(id));

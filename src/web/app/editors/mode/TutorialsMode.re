@@ -22,9 +22,8 @@ module Model = {
         ~f=TutorialMode.Model.unpersist(~settings, ~instructor_mode),
       );
     let current =
-      ListUtil.findi_opt(
-        (spec: Tutorial.spec) => spec.id == persistent.cur_exercise,
-        TutorialSettings.lessons,
+      List.findi(TutorialSettings.lessons, ~f=(_, spec: Tutorial.spec) =>
+        spec.id == persistent.cur_exercise
       )
       |> Option.value_map(~default=0, ~f=fst);
     {
@@ -133,9 +132,8 @@ module Store = {
       ~f=
         ((key, value)) => {
           let n =
-            ListUtil.findi_opt(
-              spec => Tutorial.id_of(spec) == key,
-              tutorial_specs,
+            List.findi(tutorial_specs, ~f=(_, spec) =>
+              Tutorial.id_of(spec) == key
             )
             |> Option.value_exn
             |> fst;

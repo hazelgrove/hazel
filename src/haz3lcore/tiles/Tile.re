@@ -103,10 +103,8 @@ let is_body_introducing_shard = (shard: t): bool =>
 
 let is_complete = (t: t) => arity(t) == List.length(t.shards);
 
-let l_shard = t =>
-  OptUtil.get_or_raise(Empty_tile, ListUtil.hd_opt(t.shards));
-let r_shard = t =>
-  OptUtil.get_or_raise(Empty_tile, ListUtil.last_opt(t.shards));
+let l_shard = t => OptUtil.get_or_raise(Empty_tile, List.hd(t.shards));
+let r_shard = t => OptUtil.get_or_raise(Empty_tile, List.last(t.shards));
 
 let has_end = (d: Direction.t, t) =>
   switch (d) {

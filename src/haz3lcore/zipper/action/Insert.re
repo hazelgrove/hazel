@@ -119,7 +119,7 @@ let insert_shard_core =
     let (form, sort) = Form.classify_label(sort, label);
     let shard =
       Tile.split_shards(id, form, sort, List.mapi(~f=(i, _) => i, label))
-      |> (Direction.equal(delim_d, Right) ? ListUtil.last : List.hd_exn);
+      |> (Direction.equal(delim_d, Right) ? List.last_exn : List.hd_exn);
     put_down([Tile(shard)], z);
   };
 };
@@ -564,7 +564,7 @@ let selected_text = (z: t): string => {
     | _ => 0
     };
   let drop_right =
-    switch (right_offset, ListUtil.last_opt(content)) {
+    switch (right_offset, List.last(content)) {
     | (Some(n), Some(p)) =>
       switch (Piece.token_of(p)) {
       | Some(tok) => Token.length(tok) - (n + 1)

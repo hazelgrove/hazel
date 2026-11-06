@@ -373,8 +373,7 @@ let descendants_of = (node_map: t, node: node): list(list(Id.t)) => {
       let next_level =
         current_level
         |> List.map(~f=(id: Id.t) => find(node_map, id))
-        |> List.map(~f=(node: node) => node.children)
-        |> List.concat;
+        |> List.concat_map(~f=(node: node) => node.children);
 
       // Add current level to accumulator and recurse
       build_levels(next_level, [current_level, ...acc]);
@@ -709,13 +708,12 @@ let closest_valid_path_to_ill_path = (node_map: t, path: string): string => {
   let path_names = split_path(path);
 
   let path_str = path;
-  let want_last = ListUtil.last_opt(path_names) |> Option.value(~default="");
+  let want_last = List.last(path_names) |> Option.value(~default="");
 
   /* suffix_dist, list_dist, char_dist, neg_depth (deeper wins on tie). */
   let distance_for_node = (node: node): (int, int, int, int) => {
     let candidate_names = id_path_to_name_path(node.path, node_map);
-    let cand_last =
-      ListUtil.last_opt(candidate_names) |> Option.value(~default="");
+    let cand_last = List.last(candidate_names) |> Option.value(~default="");
     let suffix_dist = StringUtil.levenshtein_distance(want_last, cand_last);
     let list_dist =
       StringUtil.levenshtein_list_distance(path_names, candidate_names);
@@ -805,7 +803,7 @@ let unique_suffix_match = (node_map: t, path: string): option(string) =>
       |> List.filter_map(~f=((_, node: node)) => {
            let names =
              List.map(~f=(id: Id.t) => id_to_name(node_map, id), node.path);
-           switch (ListUtil.last_opt(names)) {
+           switch (List.last(names)) {
            | Some(last) when String.equal(last, path) =>
              Some(String.concat(~sep="/", names))
            | _ => None

@@ -191,7 +191,7 @@ module F =
         ~ctx=Calc.get_value(ctx).ctx,
         ~dynamics=Dynamics.Map.empty,
         ~is_edited=true,
-        ~stitch=x => x,
+        ~stitch=Fn.id,
         ~is_dynamic_term=true,
         scrut,
       );
@@ -243,7 +243,7 @@ module F =
           ),
         cases,
       )
-      |> ListUtil.unzip3;
+      |> List.unzip3;
 
     let new_join_exp =
       List.fold_left(
@@ -274,7 +274,7 @@ module F =
         let.calc constraints = Calc.combine_list(constraints)
         and.calc ctx = ctx
         and.calc scrut_ty = scrut_ty;
-        let constraints = List.filter_map(~f=Fn.id, constraints);
+        let constraints = List.filter_opt(constraints);
         Poly.equal(
           Coverage.check(
             constraints,

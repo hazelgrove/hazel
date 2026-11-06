@@ -187,7 +187,7 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
         );
       let* l =
         List.map2_exn(l1, ts, ~f=(dhp, typ) => {dhpat_var_entry(dhp, typ)})
-        |> OptUtil.sequence;
+        |> Option.all;
       Some(List.concat(l));
     | Cons(dhp1, dhp2) =>
       let* t = MatchedTyp.list_strict(ctx, ty);
@@ -197,7 +197,7 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
     | ListLit(l) =>
       let* t = MatchedTyp.list_strict(ctx, ty);
       let* l =
-        List.map(~f=dhp => {dhpat_var_entry(dhp, t)}, l) |> OptUtil.sequence;
+        List.map(~f=dhp => {dhpat_var_entry(dhp, t)}, l) |> Option.all;
       Some(List.concat(l));
     | Ap({term: Constructor(name, _), _}, dhp) =>
       let* ctrs = Typ.get_sum_constructors(ctx, ty);

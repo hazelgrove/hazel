@@ -186,7 +186,7 @@ module Utils = {
 
     let get_next_incomplete_subtask_title = (task: task): option(string) => {
       // Returns the next incompleted subtask in the given task, if any
-      let* subtask = get_incompleted_subtasks(task) |> ListUtil.hd_opt;
+      let* subtask = get_incompleted_subtasks(task) |> List.hd;
       Some(subtask.title);
     };
 
@@ -243,7 +243,7 @@ module Utils = {
     };
 
     let set_first_subtask_as_active = (task: task): task => {
-      switch (ListUtil.hd_opt(task.subtask_ordering)) {
+      switch (List.hd(task.subtask_ordering)) {
       | Some(subtask_title) => {
           ...task,
           active_subtask: Some(subtask_title),

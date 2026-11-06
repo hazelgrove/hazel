@@ -437,7 +437,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
           };
         let-unbox s1 = (Atom(String), d1);
         let-unbox xs = (ListLit, d2);
-        let* xs' = List.map(~f=string_of, xs) |> Util.OptUtil.sequence;
+        let* xs' = List.map(~f=string_of, xs) |> Option.all;
         Some(Exp.string(String.concat(~sep=s1, xs')));
       }),
     custom_statics: None,

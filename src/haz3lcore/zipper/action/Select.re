@@ -10,7 +10,7 @@ let local = (d: Direction.t, z: t): option(t) =>
     z
     |> Zipper.Caret.set(Outer)
     |> Zipper.move(Right)
-    |> OptUtil.and_then(Zipper.select(d));
+    |> Option.bind(~f=Zipper.select(d));
   } else {
     z |> Zipper.Caret.set(Outer) |> Zipper.select(d);
   };
@@ -143,7 +143,7 @@ and grow_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
           },
         }
         |> Zipper.move(Right)
-        |> OptUtil.and_then(z => Zipper.grow_selection(z));
+        |> Option.bind(~f=z => Zipper.grow_selection(z));
       let z = {
         ...z,
         selection: {
@@ -177,7 +177,7 @@ and grow_by_char = (d: Direction.t, z: Zipper.t): option(Zipper.t) => {
         ? Zipper.grow_selection_raw(z) : Zipper.shrink_selection(z);
     let p =
       switch (d) {
-      | Right => ListUtil.last(z.selection.content)
+      | Right => List.last_exn(z.selection.content)
       | Left => List.hd_exn(z.selection.content)
       };
     switch (piece_max_idx(p)) {
@@ -489,7 +489,7 @@ let containing_rule = (z: t): option(t) => {
   /* shrink while the selection still ENDS in secondaries: the grow
      pass swept up the trailing linebreak + next line's indentation */
   let rec shrink_past_secondary = (z: t): option(t) =>
-    switch (ListUtil.last_opt(z.selection.content)) {
+    switch (List.last(z.selection.content)) {
     | Some(Piece.Secondary(_)) =>
       switch (shrink_right_by_piece(z)) {
       | Some(z) => shrink_past_secondary(z)
@@ -651,8 +651,7 @@ let indicated_token = (z: t) =>
 let def_body_indicated =
     (z: t, info_map: Language.Statics.Map.t): option(Id.t) => {
   let* id = Indicated.index(z);
-  let* parent_id =
-    Language.Statics.Map.ancestors_of(id, info_map) |> ListUtil.hd_opt;
+  let* parent_id = Language.Statics.Map.ancestors_of(id, info_map) |> List.hd;
   let* ci_parent = Language.Statics.Map.lookup_exp(parent_id, info_map);
   switch (ci_parent) {
   | {user_term: {term: Let(_, _, body) | TyAlias(_, _, body), _}, _} =>
@@ -688,7 +687,7 @@ let parent_is_rule = (z: t, info_map): option(Id.t) => {
   let parent_cls = (z: t, info_map) => {
     let* id = Indicated.index(z);
     let* parent_id =
-      Language.Statics.Map.ancestors_of(id, info_map) |> ListUtil.hd_opt;
+      Language.Statics.Map.ancestors_of(id, info_map) |> List.hd;
     let+ parent_statics = Language.Statics.Map.lookup(parent_id, info_map);
     Language.Statics.Info.cls_of(parent_statics);
   };
@@ -702,8 +701,7 @@ let parent_term_id = (z: t, info_map) => {
   let* base_id = Indicated.index(z);
   switch (parent_is_rule(z, info_map)) {
   | Some(id) => Some(id)
-  | None =>
-    Language.Statics.Map.ancestors_of(base_id, info_map) |> ListUtil.hd_opt
+  | None => Language.Statics.Map.ancestors_of(base_id, info_map) |> List.hd
   };
 };
 
@@ -841,7 +839,7 @@ let select_enclosing_term =
         );
       if (sel_matches) {
         let* info = Id.Map.find(info_map, root_id);
-        let* parent_id = Language.Info.ancestors_of(info) |> ListUtil.hd_opt;
+        let* parent_id = Language.Info.ancestors_of(info) |> List.hd;
         escalate_from_term(root_id, parent_id, z0, term_data, info_map);
       } else {
         /* Selection is partial or matches only def header:

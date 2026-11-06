@@ -180,7 +180,7 @@ let regrout = (d: Direction.t, {siblings, ancestors}: t): t => {
          * both, and at most one shape of grout fits. */
         let fits = g => Grout.fits_shape(g, s_l);
         let g_l = Option.map(ListUtil.split_last_opt(gs_l), ~f=snd);
-        let g_r = ListUtil.hd_opt(gs_r);
+        let g_r = List.hd(gs_r);
         switch (g_l, g_r) {
         | (Some(gl), Some(gr)) when fits(gl) && fits(gr) =>
           // note: assumes single grout invariant in un-caret-interrupted trim
@@ -218,7 +218,7 @@ let reassemble_parent = (rs: t): t =>
     let (l, r) =
       rs.siblings
       |> Siblings.split_by_matching(a.id)
-      |> TupleUtil.map2(Aba.trim);
+      |> Tuple2.map(~f=Aba.trim);
     let flatten_match =
       Aba.fold_right(
         (t: Tile.t, kid, (shards, kids)) =>
@@ -232,10 +232,10 @@ let reassemble_parent = (rs: t): t =>
         let (shards_l, kids_l) = flatten_match(match_l);
         let a = {
           ...a,
-          shards: a.shards |> PairUtil.map_fst(ss => ss @ shards_l),
+          shards: a.shards |> Tuple2.map_fst(~f=ss => ss @ shards_l),
           children:
             a.children
-            |> PairUtil.map_fst(kids =>
+            |> Tuple2.map_fst(~f=kids =>
                  Segment.inner_regrout(kids @ [outer_l, ...kids_l])
                ),
         };
@@ -248,10 +248,10 @@ let reassemble_parent = (rs: t): t =>
         let (shards_r, kids_r) = flatten_match(match_r);
         let a = {
           ...a,
-          shards: a.shards |> PairUtil.map_snd(ss => shards_r @ ss),
+          shards: a.shards |> Tuple2.map_snd(~f=ss => shards_r @ ss),
           children:
             a.children
-            |> PairUtil.map_snd(kids =>
+            |> Tuple2.map_snd(~f=kids =>
                  Segment.inner_regrout([outer_r, ...kids_r] @ kids)
                ),
         };
@@ -276,7 +276,7 @@ let reassemble = (rs: t): t => {
       switch (
         rs.siblings
         |> Siblings.split_by_matching(t.id)
-        |> TupleUtil.map2(Aba.trim)
+        |> Tuple2.map(~f=Aba.trim)
       ) {
       | (_, None) => failwith("impossible")
       | (None, Some((inner_r, match_r, outer_r))) =>

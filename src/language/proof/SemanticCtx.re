@@ -36,7 +36,8 @@ let add_entry: (t, Id.t, Var.t, Typ.t, option(Exp.t)) => t =
           custom_statics: None,
         }),
       );
-    let value = OptUtil.get(() => Exp.fresh(Var(name)), value);
+    let value =
+      Option.value_or_thunk(value, ~default=() => Exp.fresh(Var(name)));
     let env = env |> Environment.extend(_, (name, value));
     {
       ctx,

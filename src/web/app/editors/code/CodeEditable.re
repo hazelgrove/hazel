@@ -368,8 +368,8 @@ module View = {
     current_target
     |> Js.Opt.get(_, _ => failwith(""))
     |> JsUtil.get_child_with_class(_, "code-container")
-    |> OptUtil.value_exn(
-         ~none=Invalid_argument("CodeEditable.View.container_target"),
+    |> OptUtil.get_or_raise(
+         Invalid_argument("CodeEditable.View.container_target"),
        );
 
   module PointerCapture = {
@@ -804,7 +804,7 @@ module View = {
           try(
             Some((
               Measured.find_p(first, measured),
-              Measured.find_p(ListUtil.last(content), measured),
+              Measured.find_p(List.last_exn(content), measured),
             ))
           ) {
           | _ => None

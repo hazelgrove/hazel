@@ -925,10 +925,10 @@ let three_level_tests = [
         step_end: 0,
       };
       let is_suffix =
-        Util.ListUtil.is_suffix_of(
-          ~eq=CallStack.equal_frame,
-          mid_data.call_stack,
+        List.is_suffix(
           cursor_inner.call_stack,
+          ~suffix=mid_data.call_stack,
+          ~equal=CallStack.equal_frame,
         );
       check(bool, "[M1,F] is suffix of [N0,M1,F]", true, is_suffix);
       /* capture keeps deeper stack, lowers index */
@@ -954,10 +954,10 @@ let three_level_tests = [
         step_end: 0,
       };
       let is_suffix2 =
-        Util.ListUtil.is_suffix_of(
-          ~eq=CallStack.equal_frame,
-          top_data.call_stack,
+        List.is_suffix(
           cursor_mid.call_stack,
+          ~suffix=top_data.call_stack,
+          ~equal=CallStack.equal_frame,
         );
       check(bool, "[F] is suffix of [N0,M1,F]", true, is_suffix2);
       let cursor_top: Sample.Focus.t = {

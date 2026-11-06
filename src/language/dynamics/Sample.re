@@ -496,15 +496,15 @@ module Selection = {
                 /* rule (a) */
           } else if (!Option.equal(Id.equal, target_fn, cursor_fn)) {
             /* rule (b) */
-            ListUtil.is_suffix_of(
-              ~eq=CallStack.equal_frame,
-              sample.call_stack,
+            List.is_suffix(
               effective,
+              ~suffix=sample.call_stack,
+              ~equal=CallStack.equal_frame,
             )
-            || ListUtil.is_suffix_of(
-                 ~eq=CallStack.equal_frame,
-                 effective,
+            || List.is_suffix(
                  sample.call_stack,
+                 ~suffix=effective,
+                 ~equal=CallStack.equal_frame,
                );
           } else {
             false;
@@ -569,9 +569,7 @@ module Selection = {
       let (ps, pe) = Option.value_exn(pinned_interval);
       let is_pinned_probe =
         switch (
-          Option.bind(pinned, ~f=pinned_stack =>
-            ListUtil.hd_opt(pinned_stack)
-          ),
+          Option.bind(pinned, ~f=pinned_stack => List.hd(pinned_stack)),
           ap_id,
         ) {
         | (Some(head), Some(ap)) => Id.equal(head.id, ap)
@@ -591,10 +589,7 @@ module Selection = {
     | Some(pinned_stack) =>
       /* Extract just the Id.t from head of pinned_stack for comparison */
       let pinned_head_id =
-        Option.map(
-          ~f=(f: CallStack.frame) => f.id,
-          ListUtil.hd_opt(pinned_stack),
-        );
+        Option.map(~f=(f: CallStack.frame) => f.id, List.hd(pinned_stack));
       /* Compare by ID only - pinned_stack may have None for function names
        * but actual samples have real names from evaluation */
       let pinned_ids = CallStack.ids_of_stack(pinned_stack);
@@ -604,10 +599,18 @@ module Selection = {
             let sample_ids = CallStack.ids_of_stack(sample.call_stack);
             Option.equal(Id.equal, pinned_head_id, ap_id)
             /* Sample is at or below pin (current behavior) */
-            || ListUtil.is_suffix_of(pinned_ids, sample_ids)
+            || List.is_suffix(
+                 sample_ids,
+                 ~suffix=pinned_ids,
+                 ~equal=Id.equal,
+               )
             /* Probe is on an application in the pinned call chain,
              * and sample is above pin on same ancestral path (breadcrumbs) */
-            || ListUtil.is_suffix_of(sample_ids, pinned_ids)
+            || List.is_suffix(
+                 pinned_ids,
+                 ~suffix=sample_ids,
+                 ~equal=Id.equal,
+               )
             && Option.exists(ap_id, ~f=id =>
                  List.mem(pinned_ids, id, ~equal=Id.equal)
                );
@@ -698,10 +701,10 @@ module Selection = {
             let slen = List.length(sample.call_stack);
             if (slen > 0
                 && slen > Option.value_map(best, ~default=0, ~f=snd)
-                && ListUtil.is_suffix_of(
-                     ~eq=CallStack.equal_frame,
-                     sample.call_stack,
+                && List.is_suffix(
                      stack,
+                     ~suffix=sample.call_stack,
+                     ~equal=CallStack.equal_frame,
                    )) {
               Some((i, slen));
             } else {

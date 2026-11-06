@@ -120,7 +120,9 @@ module Stacks = {
       let is = List.map(~f=fst, chain);
       let chain_len = List.length(chain);
       let split_kids = (n: int): (list(skel), list(skel)) =>
-        try(ListUtil.split_n(n, stacks.output) |> PairUtil.map_fst(List.rev)) {
+        try(
+          ListUtil.split_n(n, stacks.output) |> Tuple2.map_fst(~f=List.rev)
+        ) {
         | _ => failwith("Skel.push_output: split_kids: index out of bounds")
         };
       let output =
@@ -177,7 +179,7 @@ let mk = (~sort=Sort.Exp, seg: list(ip)): t => {
          ~init=Stacks.empty,
        )
     |> Stacks.finish(~sort);
-  ListUtil.hd_opt(stacks.output) |> OptUtil.get_or_raise(Nonconvex_segment);
+  List.hd(stacks.output) |> OptUtil.get_or_raise(Nonconvex_segment);
 };
 
 let rec range = (skel: t): (int, int) =>

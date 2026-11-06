@@ -76,7 +76,7 @@ let any_to_state = (term: Any.t): option(state) =>
   | Exp(term) =>
     switch (strip_wraps_exp(term).term) {
     | ListLit(terms) =>
-      let+ cards = terms |> List.map(~f=exp_to_card) |> OptUtil.sequence;
+      let+ cards = terms |> List.map(~f=exp_to_card) |> Option.all;
       (Exp, Hand(cards));
     | _ =>
       let+ card = exp_to_card(term);
@@ -85,7 +85,7 @@ let any_to_state = (term: Any.t): option(state) =>
   | Pat(term) =>
     switch (strip_wraps_pat(term).term) {
     | ListLit(terms) =>
-      let+ cards = terms |> List.map(~f=pat_to_card) |> OptUtil.sequence;
+      let+ cards = terms |> List.map(~f=pat_to_card) |> Option.all;
       (Pat, Hand(cards));
     | _ =>
       let+ card = pat_to_card(term);

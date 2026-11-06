@@ -213,7 +213,7 @@ let rec flatten_tiles_with_incomplete = (seg: Segment.t): Segment.t =>
   );
 
 let crack_siblings = ((pre, suf): Siblings.t): Siblings.t =>
-  TupleUtil.map2(flatten_tiles_with_incomplete, (pre, suf));
+  Tuple2.map((pre, suf), ~f=flatten_tiles_with_incomplete);
 
 /* Repair-scope crack: also explode incomplete multi-delimiter tiles
    into shard singletons (children interleaved) — rescan only matches
@@ -372,7 +372,7 @@ let repair_fresh_ids =
             }
           | piece => piece,
       );
-    TupleUtil.map2(repair, siblings);
+    Tuple2.map(siblings, ~f=repair);
   };
 
 /* The standard candidate-construction step over a flattened sibling scope:
@@ -384,7 +384,7 @@ let crack_rescan_repair =
     : Siblings.t => {
   let cracked = crack_siblings(siblings);
   let cracked =
-    explode ? TupleUtil.map2(explode_incomplete, cracked) : cracked;
+    explode ? Tuple2.map(cracked, ~f=explode_incomplete) : cracked;
   cracked |> Siblings.rescan |> repair_fresh_ids(fresh_map);
 };
 

@@ -28,7 +28,7 @@ module ValueCheckerEVMode: {
     List.fold_right(
       ~f=((v1, r1), (v2, r2)) => ([v1, ...v2], combine(r1, r2)),
       ~init=([], Value),
-      List.map(~f=req_final(vc, x => x), ds),
+      List.map(~f=req_final(vc, Fn.id), ds),
     );
 
   let otherwise = (_, _) => ((), Value);

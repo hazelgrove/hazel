@@ -524,7 +524,7 @@ let is_tail_recursive = (name: string, uexp: Exp.t): bool => {
 let check = (uexp: Exp.t, predicates: list(Exp.t => bool)): syntax_result => {
   let results = List.map(~f=pred => {uexp |> pred}, predicates);
   let length = List.length(predicates);
-  let passing = Util.ListUtil.count_pred(res => res, results);
+  let passing = List.count(results, ~f=Fn.id);
 
   {
     results,

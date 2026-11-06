@@ -16,9 +16,9 @@ let prepend = (d: Direction.t, seg: Segment.t, (l, r): t): t =>
 let concat = (sibss: list(t)): t =>
   sibss
   |> List.unzip
-  |> PairUtil.map_fst(List.rev)
-  |> PairUtil.map_fst(List.concat)
-  |> PairUtil.map_snd(List.concat);
+  |> Tuple2.map_fst(~f=List.rev)
+  |> Tuple2.map_fst(~f=List.concat)
+  |> Tuple2.map_snd(~f=List.concat);
 
 let remold = ((pre, _) as sibs: t, s: Sort.t): t =>
   Segment.remold(zip(sibs), s) |> unzip(List.length(pre));
@@ -52,19 +52,19 @@ let pop = (from: Direction.t, (pre, suf): t): option((Piece.t, t)) =>
        })
   };
 
-let incomplete_tiles = TupleUtil.map2(Segment.incomplete_tiles);
+let incomplete_tiles = Tuple2.map(~f=Segment.incomplete_tiles);
 
 let local_missing_shards = (sibs: t): list(Tile.t) => {
   let (l, r) = incomplete_tiles(sibs);
   /* Reversing is important here as want to match the lexically closest */
   (l |> List.map(~f=Tile.right_missing_shards) |> List.rev |> List.concat)
-  @ (r |> List.map(~f=Tile.left_missing_shards) |> List.concat);
+  @ (r |> List.concat_map(~f=Tile.left_missing_shards));
 };
 
-let split_by_matching = id => TupleUtil.map2(Segment.split_by_matching(id));
+let split_by_matching = id => Tuple2.map(~f=Segment.split_by_matching(id));
 
 /* Reassemble each side independently (standard behavior) */
-let reassemble = TupleUtil.map2(Segment.reassemble);
+let reassemble = Tuple2.map(~f=Segment.reassemble);
 
 /* Rescan: run label-based conversion across the combined siblings
  * (so incomplete tiles on one side can match monotiles on the other),
@@ -87,8 +87,8 @@ let regrout = ((pre, suf): t) => {
 
 let neighbor = (d: Direction.t, (l, r): t): option(Piece.t) =>
   switch (d) {
-  | Left => ListUtil.last_opt(l)
-  | Right => ListUtil.hd_opt(r)
+  | Left => List.last(l)
+  | Right => List.hd(r)
   };
 
 let neighbors: t => (option(Piece.t), option(Piece.t)) =

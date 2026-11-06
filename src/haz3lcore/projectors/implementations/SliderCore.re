@@ -34,7 +34,7 @@ module Make = (P: PARAMS) : Projector => {
 
   let get = (info: info): P.t =>
     switch (
-      info.syntax |> info.utility.seg_to_term |> OptUtil.and_then(value_of)
+      info.syntax |> info.utility.seg_to_term |> Option.bind(~f=value_of)
     ) {
     | Some(v) => v
     | None => failwith(P.name ++ ": Get: not " ++ P.literal ++ " literal")

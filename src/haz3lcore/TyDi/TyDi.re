@@ -203,7 +203,7 @@ let set_buffer = (~ci: option(Info.t), z: Zipper.t): option(Zipper.t) => {
       suggestions,
     );
   let* _ = has_exact_match ? None : Some();
-  let* top_suggestion = suggestions |> Util.ListUtil.hd_opt;
+  let* top_suggestion = suggestions |> List.hd;
   let* suggestion_suffix = suffix_of(top_suggestion.content, tok_to_left);
   let content = mk_unparsed_buffer(suggestion_suffix);
   let z = Zipper.set_buffer(z, ~content, ~mode=Unparsed);

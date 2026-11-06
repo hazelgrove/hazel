@@ -325,10 +325,10 @@ let project_labels_statics =
           List.map(
             ~f=
               (optional_lab: option(string)) => {
-                Util.OptUtil.map2(
-                  get_tuple_label,
+                Option.map2(
                   labeled_tup_info,
                   optional_lab,
+                  ~f=get_tuple_label,
                 )
                 |> Option.value(~default=unknown)
               },
@@ -363,12 +363,9 @@ let select_labels_statics =
           List.map(
             ~f=
               (optional_lab: option(string)) => {
-                Util.OptUtil.map2(
-                  (a, b) =>
-                    TupLabel(Label(b) |> Typ.temp, get_tuple_label(a, b))
-                    |> Typ.temp,
-                  labeled_tup_info,
-                  optional_lab,
+                Option.map2(labeled_tup_info, optional_lab, ~f=(a, b) =>
+                  TupLabel(Label(b) |> Typ.temp, get_tuple_label(a, b))
+                  |> Typ.temp
                 )
                 |> Option.value(~default=unknown)
               },
@@ -490,23 +487,20 @@ let group_by_label_statics =
         );
 
       let pivot_type =
-        Util.OptUtil.map2(
-          (entries: list(tuple_entry), label: string) => {
-            List.find_map(
-              ~f=
-                entry =>
-                  Option.equal(
-                    String.equal,
-                    extract_label(entry),
-                    Some(label),
-                  )
-                    ? Some(extract_type(entry)) : None,
-              entries,
-            )
-          },
-          row_info,
-          label,
-        )
+        Option.map2(
+          row_info, label, ~f=(entries: list(tuple_entry), label: string) => {
+          List.find_map(
+            ~f=
+              entry =>
+                Option.equal(
+                  String.equal,
+                  extract_label(entry),
+                  Some(label),
+                )
+                  ? Some(extract_type(entry)) : None,
+            entries,
+          )
+        })
         |> Option.join;
 
       let m =

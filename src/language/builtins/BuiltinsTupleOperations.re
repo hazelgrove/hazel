@@ -36,11 +36,11 @@ let builtins: list(BuiltinsUtil.fn) = [
                 },
               l,
             )
-            |> Util.OptUtil.sequence
+            |> Option.all
             |> Option.map(~f=List.rev)  // We have to reverse because ListUtil.group_by
             |> Option.map(~f=ListUtil.group_by(fst))
             |> Option.map(
-                 ~f=List.map(~f=PairUtil.map_snd(List.map(~f=snd))),
+                 ~f=List.map(~f=Tuple2.map_snd(~f=List.map(~f=snd))),
                );
           Option.map(
             ~f=

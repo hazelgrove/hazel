@@ -82,16 +82,16 @@ let is_empty = (selection: t) => selection.content == Segment.empty;
 let focus_piece = (sel: t): option(Piece.t) =>
   switch (sel.focus, sel.content) {
   | (_, []) => None
-  | (Right, content) => ListUtil.last_opt(content)
-  | (Left, content) => ListUtil.hd_opt(content)
+  | (Right, content) => List.last(content)
+  | (Left, content) => List.hd(content)
   };
 
 /* The anchor-side boundary piece of the selection content */
 let anchor_piece = (sel: t): option(Piece.t) =>
   switch (sel.focus, sel.content) {
   | (_, []) => None
-  | (Right, content) => ListUtil.hd_opt(content)
-  | (Left, content) => ListUtil.last_opt(content)
+  | (Right, content) => List.hd(content)
+  | (Left, content) => List.last(content)
   };
 
 let push =

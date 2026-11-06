@@ -257,23 +257,17 @@ module Local = {
         | Grout(_)
         | Projector(_) => None
         | Tile(t) =>
-          let* shard =
-            d == Left
-              ? ListUtil.hd_opt(t.shards) : ListUtil.last_opt(t.shards);
+          let* shard = d == Left ? List.hd(t.shards) : List.last(t.shards);
           List.nth(Tile.label(t), shard);
         };
       let outer_token = (d: Direction.t): option(Token.t) => {
         let (l_sibs, r_sibs) = z.relatives.siblings;
-        switch (
-          d == Left ? ListUtil.last_opt(l_sibs) : ListUtil.hd_opt(r_sibs)
-        ) {
+        switch (d == Left ? List.last(l_sibs) : List.hd(r_sibs)) {
         | Some(p) => edge_token(Direction.toggle(d), p)
         | None =>
           let* a = Ancestors.parent(z.relatives.ancestors);
           let* shard =
-            d == Left
-              ? ListUtil.last_opt(fst(a.shards))
-              : ListUtil.hd_opt(snd(a.shards));
+            d == Left ? List.last(fst(a.shards)) : List.hd(snd(a.shards));
           List.nth(Ancestor.label(a), shard);
         };
       };
@@ -288,7 +282,7 @@ module Local = {
           content: Secondary.Whitespace(Token.space),
         });
       let seg_edge = (d: Direction.t, seg: Segment.t) => {
-        let* p = d == Left ? ListUtil.hd_opt(seg) : ListUtil.last_opt(seg);
+        let* p = d == Left ? List.hd(seg) : List.last(seg);
         edge_token(d, p);
       };
       let seg =

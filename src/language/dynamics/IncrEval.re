@@ -335,13 +335,13 @@ let reuse_check =
   open OptUtil.Syntax;
 
   let* () =
-    OptUtil.some_if(List.is_empty(call_stack) && !is_empty(prev), ());
+    Option.some_if(List.is_empty(call_stack) && !is_empty(prev), ());
   let* entry = Id.Map.find(prev.entries, id);
   let* info = EvalInfo.find_opt(id, eval_info);
 
   let* current_reuse_map = reuse_map_for_co_ctx(reuse_map, info.co_ctx);
   let* () =
-    OptUtil.some_if(
+    Option.some_if(
       equal_reuse_map(entry.prev_reuse_map, current_reuse_map),
       (),
     );
@@ -356,10 +356,10 @@ let reuse_check =
          Exp.lexeme_trace(entry.prev_elab),
          Exp.lexeme_trace(info.elab_term),
        );
-  let* () = OptUtil.some_if(elab_same, ());
+  let* () = Option.some_if(elab_same, ());
 
   let* () =
-    OptUtil.some_if(
+    Option.some_if(
       EvalInfo.equal_probe_targets(
         entry.prev_probe_targets,
         info.probe_targets,

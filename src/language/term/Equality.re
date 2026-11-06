@@ -583,19 +583,19 @@ let equality =
     | (Label(l1), Label(l2)) when String.equal(l1, l2) => Some(Alphas.empty)
     | (Label(_), _) => None
     | (Tuple(xs1), Tuple(xs2)) when List.length(xs1) == List.length(xs2) =>
-      ListUtil.fold_left_opt(
+      OptUtil.fold_left_opt(
         (alphas, (x, y)) =>
           pat'(x, y) |> Option.map(~f=Alphas.combine(_, alphas)),
-        Alphas.empty,
         List.zip_exn(xs1, xs2),
+        Alphas.empty,
       )
     | (Tuple(_), _) => None
     | (ListLit(xs1), ListLit(xs2)) when List.length(xs1) == List.length(xs2) =>
-      ListUtil.fold_left_opt(
+      OptUtil.fold_left_opt(
         (alphas, (x, y)) =>
           pat'(x, y) |> Option.map(~f=Alphas.combine(_, alphas)),
-        Alphas.empty,
         List.zip_exn(xs1, xs2),
+        Alphas.empty,
       )
     | (ListLit(_), _) => None
     | (Cons(p1, p2), Cons(p3, p4)) =>

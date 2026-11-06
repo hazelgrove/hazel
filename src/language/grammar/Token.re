@@ -416,7 +416,7 @@ let of_projector_invoke = (input: t): option(t) =>
      "probe_table" ==> ("probe", Some("table"))
      "probe_a_b"   ==> ("probe", Some("a_b")) */
 let split_invoke_opt = (body: t): (t, option(t)) =>
-  switch (StringUtil.split_first(~on='_', body)) {
+  switch (String.lsplit2(body, ~on='_')) {
   | Some((base, opt)) => (base, Some(opt))
   | None => (body, None)
   };

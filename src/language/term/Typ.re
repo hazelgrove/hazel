@@ -291,8 +291,7 @@ let rec count_unknowns = (ty: t): int =>
           switch (variant) {
           | ConstructorMap.BadEntry(_) => acc
           | Variant(_, _, ty) =>
-            acc
-            + Util.OptUtil.get(() => 0, Option.map(~f=count_unknowns, ty))
+            acc + Option.value_map(ty, ~default=0, ~f=count_unknowns)
           },
       ~init=0,
       sm,
@@ -1003,7 +1002,7 @@ let rec meet =
       None;
     } else {
       let* tys = ListUtil.map2_opt(meet', tys1, tys2);
-      let+ tys = OptUtil.sequence(tys);
+      let+ tys = Option.all(tys);
       Prod(tys) |> temp;
     };
   | (Prod(_), _) => None
@@ -1073,7 +1072,7 @@ let rec match_synswitch = (t1: t, t2: t) => {
 
 let meet_all = (~empty: t, ctx: Ctx.t, ts: list(t)): option(t) =>
   List.fold_left(
-    ~f=(acc, ty) => OptUtil.and_then(meet(ctx, ty), acc),
+    ~f=(acc, ty) => Option.bind(acc, ~f=meet(ctx, ty)),
     ~init=Some(empty),
     ts,
   );

@@ -27,9 +27,7 @@ module Make = (R: S) => {
   let history: ref(list(R.t)) = ref([]);
 
   let push = (r: R.t): unit =>
-    when_enabled(() =>
-      history := [r, ...Util.ListUtil.take(R.limit - 1, history^)]
-    );
+    when_enabled(() => history := [r, ...List.take(history^, R.limit - 1)]);
 
   /* Rewrite the rows `pred` matches. A no-op once a row has aged out of the
    * history, or when it was never recorded because the panel opened while the

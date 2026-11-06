@@ -155,7 +155,7 @@ let paths_of = (space: list(string)) =>
   List.map(~f=SlidePath.of_string, space);
 
 let index_of = (space: list(string), name: string): int =>
-  switch (Util.ListUtil.findi_opt(String.equal(name), space)) {
+  switch (List.findi(space, ~f=(_, s) => String.equal(name, s))) {
   | Some((i, _)) => i
   | None => failwith("not in this space: " ++ name)
   };

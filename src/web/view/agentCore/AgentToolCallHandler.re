@@ -190,7 +190,7 @@ let update =
         CachedStatics.init(
           ~settings=settings.core,
           ~is_dynamic_term=false,
-          ~stitch=x => x,
+          ~stitch=Fn.id,
           ~root=Exp,
           z,
         )

@@ -199,7 +199,7 @@ let find_by_id = (id: Id.t, map: t): option(measurement) => {
           );
         let last =
           ListUtil.assoc_err(
-            ListUtil.last(shards) |> fst,
+            List.last_exn(shards) |> fst,
             shards,
             "find_by_id",
           );

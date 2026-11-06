@@ -166,7 +166,7 @@ let type_annotation_data =
 
 let jump_to_binding_data =
     (ci: option(Language.Info.t)): list(Menu.item(command)) =>
-  switch (OptUtil.and_then(Language.Info.get_binding_site, ci)) {
+  switch (Option.bind(ci, ~f=Language.Info.get_binding_site)) {
   | Some(_) => [
       action_item(
         ~shortcut=Shortcuts.goto_definition,

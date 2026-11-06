@@ -105,7 +105,10 @@ module F =
         and.calc ctx = ctx;
         switch (exp |> Exp.term_of) {
         | Fun(p, d1, t, _) =>
-          let t = OptUtil.get(() => Typ.fresh(Unknown(Internal)), t);
+          let t =
+            Option.value_or_thunk(t, ~default=() =>
+              Typ.fresh(Unknown(Internal))
+            );
           Some((SemanticCtx.add_from_pattern(ctx, p, t), d1));
         | _ => None
         };

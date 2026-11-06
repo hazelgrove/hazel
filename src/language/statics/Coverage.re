@@ -1095,7 +1095,7 @@ module CheckMatrix: CheckMatrix = {
         {
           is_exhaustive: true,
           unseen_pattern: UnseenPatternList.empty,
-          redundant_rows: List.init(List.length(m), ~f=i => i),
+          redundant_rows: List.range(0, List.length(m)),
         }
       | all_ctrs =>
         let Submatrices.{

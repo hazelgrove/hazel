@@ -1,7 +1,6 @@
 /* Per-calculate probe upkeep (`editor_effects`, from Editor.calculate):
  * collision cleanup, dead-pin drop, ephemeral regeneration, and
  * sample-focus resolution/alignment against the latest dynamics. */
-open Util;
 open Language;
 
 let resolve_pending_focus = (~dynamics: Dynamics.Map.t, z: Zipper.t): Zipper.t =>
@@ -246,7 +245,7 @@ let drop_dead_pin = (~dynamics: Dynamics.Map.t, z: Zipper.t): Zipper.t =>
         };
       let alive = (s: Sample.t) => {
         let s_ids = CallStack.ids_of_stack(s.call_stack);
-        ListUtil.is_suffix_of(pinned_ids, s_ids)
+        List.is_suffix(s_ids, ~suffix=pinned_ids, ~equal=Id.equal)
         || Option.equal(Id.equal, Some(s.syntax_id), head_id)
         && List.equal(Id.equal, s_ids, tail_ids);
       };
