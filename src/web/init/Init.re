@@ -6,7 +6,6 @@ let empty_cell_editor_persistent = (~root): CellEditor.Model.persistent => {
     Zipper.init()
     |> PersistentZipper.persist
     |> Editor.Model.mk_persistent(~root),
-  result: EvalResult.Model.init |> EvalResult.Model.persist,
 };
 
 let documentation_slides: list((string, PersistentZipper.t)) =
@@ -27,10 +26,7 @@ let startup: Lazy.t(PersistentData.t) =
       |> List.map(((name, content: PersistentZipper.t)) =>
            (
              name,
-             {
-               editor: content |> Editor.Model.mk_persistent(~root=Exp),
-               result: EvalResult.Model.init |> EvalResult.Model.persist,
-             }: CellEditor.Model.persistent,
+             {editor: content |> Editor.Model.mk_persistent(~root=Exp)}: CellEditor.Model.persistent,
            )
          ),
     ),

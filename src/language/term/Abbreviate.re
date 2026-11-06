@@ -852,7 +852,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           Let(p', e1', e2');
         }
 
-      | Theorem(p, e1, e2) =>
+      | Theorem(p, e1, pf, e2) =>
         if (available^ < 3) {
           available := available^ - ellipsis_cost;
           Invalid(flat_ellipses);
@@ -869,8 +869,8 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           available := available^ - 11;
           Invalid("theorem…in…");
         } else {
-          /* Full: "theorem " (8) + p + " = " (3) + e1 + " in " (4) + e2 */
-          available := available^ - 15;
+          /* Full: "theorem " (8) + p + " = " (3) + e1 + " proof " (7) + pf + " in " (4) + e2 */
+          available := available^ - 22;
           let pool = available^;
           let budgets = AbbrevBudget.split_evenly(~total=pool, ~parts=3);
           let (p', _) =
@@ -885,23 +885,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
             AbbrevBudget.with_budget(~budget=List.nth(budgets, 2), ~run=() =>
               abbreviate_exp(e2)
             );
-          Theorem(p', e1', e2');
-        }
-
-      | ProofObject(t) =>
-        if (available^ < 8) {
-          available := available^ - ellipsis_cost;
-          Invalid(flat_ellipses);
-        } else if (available^ <= 12) {
-          Invalid("proof_object");
-        } else if (available^ <= 13) {
-          Invalid("proof_object…");
-        } else if (available^ <= 18) {
-          Invalid("proof_object…end");
-        } else {
-          available := available^ - 16;
-          let t' = abbreviate_exp(t);
-          ProofObject(t');
+          Theorem(p', e1', pf, e2');
         }
 
       | Use(t1, e1) =>
@@ -1535,16 +1519,6 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
       };
     };
 
-    let handle_unary =
-        (~cost: int, ~make_term: Exp.t => Typ.term, t: Exp.t): Typ.term =>
-      if (available^ <= cost) {
-        available := available^ - 1;
-        indet_term_typ;
-      } else {
-        available := available^ - cost;
-        make_term(abbreviate_exp(t));
-      };
-
     let term: Typ.term =
       switch (typ |> Typ.term_of) {
       | Unknown(prov) => Unknown(prov)
@@ -1735,12 +1709,6 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
             );
           };
         }
-      | ProofOf(e) =>
-        handle_unary(
-          ~cost=13, // "proof_of " + " end"
-          ~make_term=e' => ProofOf(e'),
-          e,
-        )
       | Projector(data, t) => Projector(data, abbreviate_typ(t))
       | Sig(items) =>
         if (available^ <= 2) {
@@ -1812,9 +1780,11 @@ and abbreviate_any = (any: Any.t): Any.t =>
   | TPat(tp) => TPat(abbreviate_tpat(tp))
   | Rul(_) => any
   | Drv(_) => any
+  | PRul(_) => any
   | Mod(m) => Mod(abbreviate_mod_item(m))
   | Sig(s) => Sig(abbreviate_sig_item(s))
   | MPat(mp) => MPat(abbreviate_mpat(mp))
+  | Proof(_) => any
   | Any(_) => any
   };
 

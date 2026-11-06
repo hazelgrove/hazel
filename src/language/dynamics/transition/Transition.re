@@ -620,12 +620,15 @@ module Transition = (EV: EV_MODE) => {
         });
       };
 
-    | Theorem({term: Var(n), _} as dp, e, d1) =>
+    | Theorem({term: Var(n), _} as dp, e, _pf, d1) =>
       let. _ = otherwise(env, d);
       let e' = Substitution.in_exp(env, e);
-      let env' = Environment.extend(env, (n, generated(ProofObject(e'))));
+      /* A theorem is a judgment, not a value, so its name binds nothing
+         in `env`; citations resolve through the theorem namespace in
+         `Ctx`. The statement is recorded as a side effect for the theorem
+         stepper (`Theorems.re`). */
       Step({
-        expr: subst_env(env', d1),
+        expr: subst_env(env, d1),
         side_effects: [
           RecordTheorem(DHExp.rep_id(d), n, env, e'),
           RecordPatMatch({
@@ -640,21 +643,6 @@ module Transition = (EV: EV_MODE) => {
     | Theorem(_) =>
       let. _ = otherwise(env, d);
       Indet;
-    | ProofObject(e) =>
-      let. _ = otherwise(env, d);
-      let e' = Substitution.in_exp(env, e);
-      switch (mode) {
-      | `Substitution => Value
-      | `Environment =>
-        Step({
-          expr: d,
-          side_effects: [
-            RecordTheorem(DHExp.rep_id(d), "<anon theorem>", env, e'),
-          ],
-          kind: RecordTheorem,
-          is_value: true,
-        })
-      };
     // Note[Matt]: we could make this spin, but for now it's indet
     | Forall(_) =>
       let. _ = otherwise(env, d);
@@ -894,7 +882,15 @@ module Transition = (EV: EV_MODE) => {
                   RecordStackFrame(Some(ident), Some(d2'), None),
                 ],
                 kind: BuiltinAp(ident),
-                is_value: false,
+                /* An off-domain application (`int_of_string("abc")`)
+                   steps to a `DynamicErrorHole` around itself. Mark that
+                   step final, as the UnOp/BinOp error branches do, or the
+                   builtin would be re-applied forever. */
+                is_value:
+                  switch (DHExp.term_of(expr)) {
+                  | DynamicErrorHole(_) => true
+                  | _ => false
+                  },
               })
             | None => Indet
             };
@@ -1003,6 +999,9 @@ module Transition = (EV: EV_MODE) => {
           expr,
           side_effects: [],
           kind: UnOp(op),
+          /* An error hole is indet, not a value, but the step must be
+             final: otherwise the hole's payload steps to a fresh error
+             hole forever. */
           is_value: true,
         });
       };
@@ -1036,6 +1035,24 @@ module Transition = (EV: EV_MODE) => {
         expr: b1 ? bool(true) : asc(d2, IdTagged.FreshGrammar.Typ.bool()),
         side_effects: [],
         kind: BinOp(Bool(Or)),
+        is_value: false,
+      });
+    /* Implication short-circuits left to right: a false antecedent gives
+       `true` without evaluating the consequent. */
+    | BinOp(Bool(Implies), d1, d2) =>
+      let. _ = otherwise(env, d1 => BinOp(Bool(Implies), d1, d2) |> rewrap)
+      and. d1' =
+        req_final(
+          req(env),
+          d1 => BinOp1(Bool(Implies), d1, d2) |> wrap_ctx,
+          d1,
+        );
+      let.wrap_closure _ = (env, BinOp(Bool(Implies), d1', d2) |> rewrap);
+      let-unbox b1 = (Atom(Bool), d1');
+      Step({
+        expr: b1 ? asc(d2, IdTagged.FreshGrammar.Typ.bool()) : bool(true),
+        side_effects: [],
+        kind: BinOp(Bool(Implies)),
         is_value: false,
       });
     | BinOp(op, d1, d2) =>
@@ -1085,6 +1102,9 @@ module Transition = (EV: EV_MODE) => {
           expr,
           side_effects: [],
           kind: BinOp(op),
+          /* An error hole is indet, not a value, but the step must be
+             final: otherwise the hole's payload steps to a fresh error
+             hole forever. */
           is_value: true,
         });
       };
@@ -1210,14 +1230,49 @@ module Transition = (EV: EV_MODE) => {
         req_final(req(env), d1 => ListConcat1(d1, d2) |> wrap_ctx, d1)
       and. d2' =
         req_final(req(env), d2 => ListConcat2(d1, d2) |> wrap_ctx, d2);
-      let-unbox ds1 = (ListLit, d1');
-      let-unbox ds2 = (ListLit, d2');
-      Step({
-        expr: list_lit(ds1 @ ds2),
-        side_effects: [],
-        kind: ListConcat,
-        is_value: true,
-      });
+      switch (Unboxing.unbox(ListLit, d1'), Unboxing.unbox(ListLit, d2')) {
+      /* Ground fast path: both sides are known-length literals, so a single
+         step concatenates them into one literal. */
+      | (Matches(ds1), Matches(ds2)) =>
+        Step({
+          expr: list_lit(ds1 @ ds2),
+          side_effects: [],
+          kind: ListConcat,
+          is_value: true,
+        })
+      /* Otherwise use the defining equations of @, which only need the
+         left side in constructor form:
+           [] @ ys        -->  ys
+           (x :: xs) @ ys -->  x :: (xs @ ys)
+         so @ steps when the right side or the cons tail is only final,
+         e.g. a quantified variable in a proof. There is no right-unit
+         rule: `m @ []` needs induction, so it stays stuck. */
+      | _ =>
+        switch (Unboxing.unbox(ListLitn(0), d1')) {
+        | Matches(_) =>
+          Step({
+            expr: d2',
+            side_effects: [],
+            kind: ListConcat,
+            is_value: false,
+          })
+        | DoesNotMatch
+        | IndetMatch =>
+          switch (Unboxing.unbox(Cons, d1')) {
+          | Matches((x, xs)) =>
+            Step({
+              expr: cons(x, list_concat(xs, d2')),
+              side_effects: [],
+              kind: ListConcat,
+              is_value: false,
+            })
+          /* Left side is not a list constructor (a variable or a hole): no
+             defining equation applies. */
+          | DoesNotMatch
+          | IndetMatch => Indet
+          }
+        }
+      };
     | ListLit(ds) =>
       let. _ = otherwise(env, ds => ListLit(ds) |> rewrap)
       and. _ =

@@ -1872,13 +1872,13 @@ let clippable_guard_tests = {
         "coverage",
         /* If this drifts, re-make the `clippable_sort` decision (pinned
            by the next test) rather than bumping the number. An Exp
-           frontier is vacuous (68 of 89 labels carry an Exp mold),
+           frontier is vacuous (68 of 106 labels carry an Exp mold),
            while Pat, Typ and TPat stay narrow. Pat counts negative
            literal patterns and the infix `where`; Typ and TPat count the
            symbolic delimiter-prefix backup molds
            (Form.symbolic_delim_prefixes = `-`, `=`), which mold at all
            four sorts. */
-        "Exp 68/89 | Pat 10/89 | Typ 15/89 | TPat 4/89 | Rul 1/89",
+        "Exp 68/106 | Pat 10/106 | Typ 14/106 | TPat 4/106 | Rul 1/106",
         table,
       )
     ),

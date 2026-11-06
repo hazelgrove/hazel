@@ -91,7 +91,6 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | Seq(_)
           | Let(_)
           | Theorem(_)
-          | ProofObject(_)
           | Forall(_)
           | Ap(_)
           | BuiltinFun(_)
@@ -144,7 +143,6 @@ let rec ty_comparable = (d1, d2) => {
   | (Var(_), _)
   | (Let(_), _)
   | (Theorem(_), _)
-  | (ProofObject(_), _)
   | (Forall(_), _)
   | (FixF(_), _)
   | (TyAlias(_), _)
@@ -249,7 +247,6 @@ let rec poly_equal = (d1, d2): option(bool) => {
   | (Var(_), _)
   | (Let(_), _)
   | (Theorem(_), _)
-  | (ProofObject(_), _)
   | (Forall(_), _)
   | (FixF(_), _)
   | (TyAlias(_), _)
@@ -302,7 +299,12 @@ let rec poly_equal = (d1, d2): option(bool) => {
     |> Option.some
   | (Atom(_), _) => None
   | (DrvQuote(d1, _), DrvQuote(d2, _)) =>
-    Drv.Any.eq(d1, d2, ~skip_hole=false) |> Option.some
+    /* Proofs trust any boolean verdict evaluation renders, so an
+       incomplete derivation must not get one: with ~skip_hole=false, eq
+       treats holes as ordinary structure, so a hole-containing derivation
+       would compare Some(false) against a complete one. */
+    Drv.Any.contains_hole(d1) || Drv.Any.contains_hole(d2)
+      ? None : Drv.Any.eq(d1, d2, ~skip_hole=false) |> Option.some
   | (DrvQuote(_, _), _) => None
   | (Label(l1), Label(l2)) => l1 == l2 ? Some(true) : None
   | (Label(_), _) => None

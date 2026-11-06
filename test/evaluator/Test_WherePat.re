@@ -201,6 +201,20 @@ let parsing = [
     | _ => Alcotest.fail("expected Fun(Where(_), _)")
     }
   ),
+  test_case("an ascribed forall binder's guard is an expression", `Quick, () =>
+    switch (
+      parse_exp("forall e0: Int where p(e0) -> e0 == e0") |> Exp.term_of
+    ) {
+    | Forall({term: Where(_, g), _}, _) =>
+      check(
+        bool,
+        "guard is the call p(e0)",
+        true,
+        Exp.fast_equal(g, parse_exp("p(e0)")),
+      )
+    | _ => Alcotest.fail("expected Forall(Where(_), _)")
+    }
+  ),
   test_case("round-trips through the printer", `Quick, () =>
     List.iter(
       src => check(string, src, src, print_back(src)),
@@ -508,9 +522,138 @@ let coverage = [
   ),
 ];
 
+/* In a proof, a guard is a citable `where` fact in the scope its pattern
+   binds into. */
+
+let obligations = (src: string): (ProofMap.t, Proof.t, list(Obligation.t)) => {
+  let (state, _, elab) = src |> parse_exp |> Test_ProofMap.eval_with_proof;
+  let pm = EvaluatorState.get_proof_map(state);
+  let proof = Test_ProofMap.proof_of(elab);
+  (pm, proof, ProofMap.obligations_of_proof(pm, proof));
+};
+
+let where_fact = (e: Ctx.entry): option(Exp.t) =>
+  switch (e) {
+  | Ctx.TheoremEntry({name: "where", prop: Some(p), _}) => Some(p)
+  | _ => None
+  };
+
+let is_remote: Obligation.discharge => bool =
+  fun
+  | Obligation.Remote(_) => true
+  | _ => false;
+
+/* Obligations whose bindings carry the `where` fact `fact`. */
+let with_where_fact = (fact: string, obs: list(Obligation.t)) =>
+  List.filter(
+    (ob: Obligation.t) =>
+      List.exists(
+        w => Exp.fast_equal(w, parse_exp(fact)),
+        List.filter_map(where_fact, ob.bindings),
+      ),
+    obs,
+  );
+
+/* Both arms owe `w != 0` (from `8 / w`). The first arm's guard discharges
+   it. The second arm is reached only when the first failed, so it carries
+   the first guard's negation, and its obligation stays pending. */
+let induction_two_arms = {|theorem t = forall z -> 8 / z == 8 / z proof induction z | w where w != 0 => axiom refl_eq at 0 on 8 / w == 8 / w end | w => axiom refl_eq at 0 on 8 / w == 8 / w end end in t|};
+
+let proofs = [
+  test_case(
+    "a forall's guard discharges its body's condition",
+    `Quick,
+    () => {
+      let src = {|theorem t = forall z where z != 0 -> 8 / z == 8 / z proof axiom refl_eq at 0 on 8 / z == 8 / z end in t|};
+      let (pm, proof, obs) = obligations(src);
+      switch (obs) {
+      | [ob] =>
+        check(
+          bool,
+          "discharged against the guard (got "
+          ++ Obligation.show_discharge(ob.discharge)
+          ++ ")",
+          true,
+          is_remote(ob.discharge),
+        )
+      | _ =>
+        Alcotest.fail(
+          "expected one condition, got " ++ string_of_int(List.length(obs)),
+        )
+      };
+      check(
+        string,
+        "proven",
+        ProofMap.show_full_status(ProofMap.Proven),
+        ProofMap.show_full_status(ProofMap.full_status_of_proof(pm, proof)),
+      );
+    },
+  ),
+  test_case(
+    "an induction arm's guard is a where fact",
+    `Quick,
+    () => {
+      let (_, _, obs) = obligations(induction_two_arms);
+      check(int, "one condition per arm", 2, List.length(obs));
+      let positive = with_where_fact("w != 0", obs);
+      check(int, "one arm carries `w != 0`", 1, List.length(positive));
+      check(
+        bool,
+        "and discharges its condition against it",
+        true,
+        List.for_all(
+          (ob: Obligation.t) => is_remote(ob.discharge),
+          positive,
+        ),
+      );
+    },
+  ),
+  test_case(
+    "a later overlapping arm gets the negated guard",
+    `Quick,
+    () => {
+      let (_, _, obs) = obligations(induction_two_arms);
+      let negated = with_where_fact("!(w != 0)", obs);
+      check(int, "one arm carries `!(w != 0)`", 1, List.length(negated));
+      check(
+        bool,
+        "and its condition stays pending",
+        true,
+        List.for_all(
+          (ob: Obligation.t) => !is_remote(ob.discharge),
+          negated,
+        ),
+      );
+    },
+  ),
+  /* A `| Z =>` arm must not import an `| S(m) where P =>` arm's negated
+     guard: `P` may not even mention its variables. */
+  test_case(
+    "constructor-disjoint arms don't overlap",
+    `Quick,
+    () => {
+      let overlap = (p1, p2) =>
+        ProofCheck.Where.pats_overlap(
+          first_arm_pattern("case ? | " ++ p1 ++ " => 1 end"),
+          first_arm_pattern("case ? | " ++ p2 ++ " => 1 end"),
+        );
+      check(bool, "[] and h :: t", false, overlap("h :: t", "[]"));
+      check(bool, "true and false", false, overlap("true", "false"));
+      check(
+        bool,
+        "a variable overlaps everything",
+        true,
+        overlap("w", "[]"),
+      );
+      check(bool, "same constructor", true, overlap("h :: t", "a :: b"));
+    },
+  ),
+];
+
 let tests = [
   ("WherePat.Parsing", parsing),
   ("WherePat.Statics", statics),
   ("WherePat.Dynamics", dynamics),
   ("WherePat.Coverage", coverage),
+  ("WherePat.Proofs", proofs),
 ];

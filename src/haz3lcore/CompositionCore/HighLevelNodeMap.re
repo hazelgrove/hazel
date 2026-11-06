@@ -100,8 +100,7 @@ module Utils = {
     | LivelitName(_)
     | TyAlias(_)
     | ExplicitNonlabel
-    | Theorem(_, _, _)
-    | ProofObject(_)
+    | Theorem(_, _, _, _)
     | Forall(_, _)
     | Projector(_, _)
     | Var(_)

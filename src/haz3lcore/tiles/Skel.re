@@ -31,8 +31,9 @@ let is_chainable = (p1: Piece.t, p2: Piece.t): bool =>
     let both_infix = () =>
       Mold.is_infix_op(Tile.mold(t1)) && Mold.is_infix_op(Tile.mold(t2));
     switch (t1.form, t2.form) {
-    /* case rules chain with each other and their case header */
-    | (Form.Compound(Case | Rule), Form.Compound(Rule)) => true
+    /* case and induction rules chain with each other and their header */
+    | (Form.Compound(Case | ProofInduction | Rule), Form.Compound(Rule)) =>
+      true
     | (Form.Compound(Comma), Form.Compound(Comma)) => both_infix()
     /* semicolons chain within a module or signature body */
     | (Form.Compound(CellJoin), Form.Compound(CellJoin)) =>

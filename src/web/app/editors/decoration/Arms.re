@@ -373,7 +373,7 @@ let term =
     ~refine_sort,
     ~term_data=syntax.term_data,
     ~terms=syntax.terms,
-    ~measured=syntax.measured,
+    ~measured=CachedSyntax.measured(syntax),
     ~font_metrics,
     ~clip_right,
   );
@@ -426,7 +426,12 @@ let completion_clip =
         switch (List.find_opt(has_shard, result.insertions)) {
         | None => None
         | Some(ins) =>
-          switch (CanonicalCompletion.anchor_point(syntax.measured, ins)) {
+          switch (
+            CanonicalCompletion.anchor_point(
+              CachedSyntax.measured(syntax),
+              ins,
+            )
+          ) {
           | None => None
           | Some(p) =>
             /* the viz anchor walks left past same-tile pieces, so it
@@ -436,7 +441,7 @@ let completion_clip =
               Measured.find_shards(
                 ~msg="Arms.completion_clip",
                 t,
-                syntax.measured,
+                CachedSyntax.measured(syntax),
               )
               |> List.map(((_, sm): Shards.shard) => sm.last)
               |> List.fold_left(
@@ -458,7 +463,11 @@ let term_range = (~syntax: CachedSyntax.t, p: Piece.t) => {
   | Projector(_)
   | Tile(_) =>
     let id = Language.Any.rep_id(Id.Map.find(Piece.id(p), syntax.terms));
-    TermData.extreme_measures(id, syntax.term_data, syntax.measured);
+    TermData.extreme_measures(
+      id,
+      syntax.term_data,
+      CachedSyntax.measured(syntax),
+    );
   };
 };
 
@@ -502,7 +511,9 @@ module Errors = {
       switch (Id.Map.find_opt(id, syntax.projectors)) {
       | Some(p) =>
         /* Special case for projectors as they are not in tile map */
-        switch (Id.Map.find_opt(id, syntax.measured.projectors)) {
+        switch (
+          Id.Map.find_opt(id, CachedSyntax.measured(syntax).projectors)
+        ) {
         | Some(measurement) => [
             ShardDec.simple(
               {
@@ -530,7 +541,7 @@ module Errors = {
             switch (TermData.segment(id, syntax.term_data)) {
             | Some(seg) =>
               Highlight.of_segment(
-                ~measured=syntax.measured,
+                ~measured=CachedSyntax.measured(syntax),
                 ~shape_map=syntax.shape_map,
                 ~font_metrics,
                 ~shape_init=Some(Convex),
@@ -544,7 +555,7 @@ module Errors = {
             | Some(range) =>
               simple_arm(
                 ~font_metrics,
-                ~rows=syntax.measured.rows,
+                ~rows=CachedSyntax.measured(syntax).rows,
                 ~path_cls=[
                   "child-line",
                   "simple",
@@ -603,7 +614,7 @@ module Indicated = {
     | Grout(_)
     | Secondary(_) => []
     | Projector(p) =>
-      switch (Measured.find_pr_opt(p, syntax.measured)) {
+      switch (Measured.find_pr_opt(p, CachedSyntax.measured(syntax))) {
       | Some(measurement) => [
           ShardDec.simple(
             {
@@ -671,7 +682,7 @@ module Indicated = {
         let sort = refine_sort(rep_id, Piece.sort(root) |> fst);
         simple_arm(
           ~font_metrics,
-          ~rows=syntax.measured.rows,
+          ~rows=CachedSyntax.measured(syntax).rows,
           ~path_cls=["child-line", Sort.class_of(sort)],
           range,
         );
@@ -739,7 +750,7 @@ module Refractors = {
         let kind_cls = ProjectorCore.Kind.name(kind);
         simple_arm(
           ~font_metrics,
-          ~rows=syntax.measured.rows,
+          ~rows=CachedSyntax.measured(syntax).rows,
           ~path_cls=[
             "child-line",
             cls ++ " " ++ kind_cls,
@@ -791,7 +802,7 @@ module Refractors = {
              Haz3lcore.Indicated.index(z) == Some(id)
                ? [
                  Highlight.indicated_refractor(
-                   ~measured=syntax.measured,
+                   ~measured=CachedSyntax.measured(syntax),
                    ~shape_map=syntax.shape_map,
                    ~font_metrics,
                    ~kind=entry.kind,

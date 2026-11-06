@@ -249,6 +249,7 @@ let ctx_entry_node = (~globals, entry: Ctx.entry): Node.t =>
   | TVarEntry({name, kind: Abstract, _}) =>
     ctx_row(text("type " ++ name), None)
   | LivelitEntry(_) => ctx_row(text("livelit"), None)
+  | TheoremEntry({name, _}) => ctx_row(text("theorem " ++ name), None)
   };
 
 let ctx_view_rendered = (~globals, ctx: Ctx.t): Node.t =>
@@ -303,6 +304,7 @@ let ctx_entry_text = (entry: Ctx.entry): string =>
     "type " ++ name ++ " = " ++ typ_to_text(~settings=code_settings, ty)
   | TVarEntry({name, kind: Abstract, _}) => "type " ++ name
   | LivelitEntry(_) => "livelit"
+  | TheoremEntry({name, _}) => "theorem " ++ name
   };
 
 let ctx_to_text = (ctx: Ctx.t): string =>
@@ -553,6 +555,8 @@ let info_view = (~globals, ~raw, ci: Info.t): list(Node.t) =>
   | InfoMPat(m) => mpat_view(~globals, ~raw, m)
   | Secondary(s) => secondary_view(~globals, s)
   | InfoDrv(d) => drv_view(~globals, d)
+  | InfoProof(_) =>
+    section(~globals, "InfoProof", () => [field_str("(proof)", "—")])
   };
 
 /* ---- Syntax sections: the syntactic/zipper layer under the cursor, ----
@@ -667,7 +671,10 @@ let editor_fields = (editor: Haz3lcore.Editor.t): list(Node.t) => {
   [
     field_str("root sort", sort_str(editor.root)),
     field_str("syntax stale", string_of_bool(syntax.old)),
-    field_str("segment pieces", string_of_int(List.length(syntax.segment))),
+    field_str(
+      "segment pieces",
+      string_of_int(List.length(Haz3lcore.CachedSyntax.segment(syntax))),
+    ),
     field_str(
       "projectors",
       string_of_int(List.length(syntax.projector_list)),
@@ -699,7 +706,10 @@ let syntax_view = (~globals, ~cursor: Cursor.cursor(_)): list(Node.t) => {
         | None => []
         | Some(p) =>
           section(~globals, "Measured", () =>
-            measured_fields(p, editor.syntax.measured)
+            measured_fields(
+              p,
+              Haz3lcore.CachedSyntax.measured(editor.syntax),
+            )
           )
         };
       let editor_sec =

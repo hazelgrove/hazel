@@ -48,6 +48,12 @@ let get_value = (x: t('a)): 'a =>
   | NewValue(x) => x
   };
 
+let map = (f: 'a => 'b, x: t('a)): t('b) =>
+  switch (x) {
+  | OldValue(x) => OldValue(f(x))
+  | NewValue(x) => NewValue(f(x))
+  };
+
 let map_if_new = (f: 'a => 'a, x: t('a)): t('a) =>
   switch (x) {
   | OldValue(x) => OldValue(x)

@@ -5,22 +5,23 @@ open StepInterface;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type model'('stepper) = {
-  // Updated
+  /* In proof scope the case's surface pattern lives in the main
+   * editor's syntax (the `Induction(_, cases)` term); the sub-editor
+   * view renders and edits that segment directly (see SubEditor.re).
+   * This local model is derived from the proof's pattern (rebuilt in
+   * `calculate` whenever `pattern_src` changes) and is used only for
+   * statics — elaboration, inductive hypotheses — plus as the editable
+   * model for the cell-level stepper, which has no backing syntax. */
   pattern: CodeEditable.Model.t,
   // Calculated
+  /* Last proof-side pattern the local model was rebuilt from. */
+  pattern_src: Calc.saved(Pat.t),
   elab_pattern: Calc.saved(Pat.t),
   inner_exp: Calc.saved(Exp.t),
   step: 'stepper,
   last_exp: Calc.saved(Exp.t),
   inner_ctx: Calc.saved(SemanticCtx.t),
   hypotheses: Calc.saved(list((Binding.t, Exp.t))),
-  constraint_: Calc.saved(option(Coverage.Constraint.t)),
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type persistent'('stepper) = {
-  pattern: CodeEditable.Model.persistent,
-  stepper: 'stepper,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -35,40 +36,19 @@ type focus'('stepper) =
 
 module F = (Stepper: STEPPER) => {
   type model = model'(Stepper.model);
-  type persistent = persistent'(Stepper.persistent);
   type action = action'(Stepper.action);
   type focus = focus'(Stepper.focus);
 
   let init = {
     pattern:
       CodeEditable.Model.mk(Editor.Model.mk(Zipper.init(), ~root=Exp)),
+    pattern_src: Calc.Pending,
     elab_pattern: Calc.Pending,
     inner_exp: Calc.Pending,
     step: Stepper.init,
     last_exp: Calc.Pending,
     inner_ctx: Calc.Pending,
     hypotheses: Calc.Pending,
-    constraint_: Calc.Pending,
-  };
-
-  let persist = (model: model) => {
-    {
-      pattern: CodeEditable.Model.persist(model.pattern),
-      stepper: Stepper.persist(model.step),
-    };
-  };
-
-  let unpersist = (p: persistent) => {
-    {
-      pattern: CodeEditable.Model.unpersist(p.pattern),
-      elab_pattern: Calc.Pending,
-      inner_exp: Calc.Pending,
-      step: Stepper.unpersist(p.stepper),
-      last_exp: Calc.Pending,
-      inner_ctx: Calc.Pending,
-      hypotheses: Calc.Pending,
-      constraint_: Calc.Pending,
-    };
   };
 
   let update = (~settings: Settings.t, action: action, model: model) => {
@@ -101,8 +81,40 @@ module F = (Stepper: STEPPER) => {
         ~ctx: Calc.t(SemanticCtx.t),
         ~info_map: Calc.t(Statics.Map.t),
         ~ana: Calc.t(Typ.t),
+        ~proof: Calc.t(Proof.t),
+        ~proof_map: Calc.t(ProofMap.t),
+        /* The case's surface pattern from the surrounding
+         * `Induction(_, cases)` proof term (None outside proof scope).
+         * The local `pattern` model is rebuilt from it on change: in
+         * proof scope the syntax is the source of truth and the local
+         * model is only a statics vehicle, never focused, so there is
+         * no caret state to preserve. */
+        ~pat: Calc.t(option(Pat.t)),
         model: model,
       ) => {
+    let (pattern, pattern_src) =
+      switch (Calc.get_value(pat)) {
+      | Some(p) =>
+        let src = Calc.set(~eq=Pat.fast_equal, p, model.pattern_src);
+        let pattern =
+          switch (src) {
+          | NewValue(p) =>
+            CodeEditable.Model.mk(
+              Editor.Model.mk(
+                Zipper.unzip(
+                  ExpToSegment.exp_to_segment(
+                    ~settings=ExpToSegment.Settings.editable(~inline=true),
+                    Exp.of_pat(p),
+                  ),
+                ),
+                ~root=Exp,
+              ),
+            )
+          | OldValue(_) => model.pattern
+          };
+        (pattern, src |> Calc.save);
+      | None => (model.pattern, model.pattern_src)
+      };
     let pattern =
       CodeEditable.Update.calculate(
         ~settings=Calc.get_value(settings),
@@ -111,19 +123,19 @@ module F = (Stepper: STEPPER) => {
         ~stitch=
           x =>
             x
-            |> ProofHacks.exp_to_pat
-            |> ProofHacks.add_wrapping_function(
+            |> ProofSyntax.exp_to_pat
+            |> ProofSyntax.add_wrapping_function(
                  ~typ=scrut_ty |> Calc.get_value,
                ),
         ~is_dynamic_term=true,
-        model.pattern,
+        pattern,
       );
 
     let elab_pattern =
       Calc.set(
         ~eq=Pat.fast_equal,
         CodeEditable.Model.get_statics(pattern).elaborated
-        |> ProofHacks.remove_wrapping_function,
+        |> ProofSyntax.remove_wrapping_function,
         model.elab_pattern,
       );
 
@@ -150,11 +162,11 @@ module F = (Stepper: STEPPER) => {
         // 2. Work out what the inner exp would be
         // Note: this is an option in case some capture nonsense happens.
         let inner_exp =
-          ProofHacks.replace_exp(
+          Induction.replace(
             info_map,
             elab_scrut,
             scrut_co_ctx,
-            elab_pattern |> ProofHacks.pat_to_exp,
+            elab_pattern |> Exp.of_pat,
             elab_pattern |> Pat.bindings |> CoCtx.of_bindings,
             added_variables,
             exp,
@@ -168,11 +180,7 @@ module F = (Stepper: STEPPER) => {
           is_case_eq_captured
             ? None
             : Some(
-                BinOp(
-                  Poly(Equals),
-                  elab_scrut,
-                  elab_pattern |> ProofHacks.pat_to_exp,
-                )
+                BinOp(Poly(Equals), elab_scrut, elab_pattern |> Exp.of_pat)
                 |> Exp.fresh
                 |> Substitution.in_exp(SemanticCtx.get_env(sem_ctx)),
               );
@@ -187,17 +195,18 @@ module F = (Stepper: STEPPER) => {
         // 4. Find the inductive hypotheses, and add to env and ctx
         // Note: we do not add any IHs that are captured by the added variables. (This should happen iff the inner exp is captured)
         let inductive_hypotheses =
-          ProofHacks.get_inductive_hypotheses(
+          Induction.hypotheses(
+            ~tyctx=SemanticCtx.get_ctx(sem_ctx),
             CodeEditable.Model.get_statics(pattern).info_map,
             scrut_ty,
             elab_pattern,
           )
           |> List.filter_map(h =>
-               ProofHacks.replace_exp(
+               Induction.replace(
                  info_map,
                  elab_scrut,
                  scrut_co_ctx,
-                 h |> ProofHacks.pat_to_exp,
+                 h |> Exp.of_pat,
                  h |> Pat.bindings |> CoCtx.of_bindings,
                  added_variables,
                  exp,
@@ -226,40 +235,54 @@ module F = (Stepper: STEPPER) => {
       }
       |> Calc.to_3;
 
-    let (stepper, last_exp, validity) =
+    /* `~proof` here is the body proof for *this* case (extracted by
+     * `InductionStep.calculate` from `Induction(_, proof_cases)`).
+     * Stepping inside the case therefore reads / patches the right
+     * `body_i` sub-tree rather than the outer `Induction` node. */
+    let step =
       Stepper.calculate(
         ~settings, // TODO: this is a little ugly
         ~ctx=inner_ctx,
         ~exp=inner_exp,
         ~ana,
+        ~proof,
+        ~proof_map,
         model.step,
       );
 
-    let constraint_ =
-      {
-        open OptUtil.Syntax;
-        let statics = CodeWithStatics.Model.get_statics(pattern);
-        let* info_pat =
-          Statics.Map.lookup_pat(
-            elab_pattern |> Calc.get_value |> Pat.rep_id,
-            statics.info_map,
-          );
-        Some(Info.pat_constraint(info_pat));
-      }
-      |> Calc.set(_, model.constraint_);
+    /* last_exp / validity from ProofMap. */
+    let last_exp =
+      model.last_exp
+      |> {
+        open Calc.Syntax;
+        let.calc proof = proof
+        and.calc proof_map = proof_map
+        and.calc exp = exp;
+        switch (ProofMap.lookup(Proof.rep_id(proof), proof_map)) {
+        | Some({outgoing: Some(e), _}) => e
+        | _ => exp
+        };
+      };
+    let validity =
+      Calc.Pending
+      |> {
+        open Calc.Syntax;
+        let.calc proof = proof
+        and.calc proof_map = proof_map;
+        ProofMap.status_of_proof(proof_map, proof);
+      };
 
     (
       {
         pattern,
+        pattern_src,
         elab_pattern: elab_pattern |> Calc.save,
         inner_exp: inner_exp |> Calc.save,
-        step: stepper,
+        step,
         last_exp: last_exp |> Calc.save,
         inner_ctx: inner_ctx |> Calc.save,
         hypotheses: hypotheses |> Calc.save,
-        constraint_: constraint_ |> Calc.save,
       },
-      constraint_,
       validity,
     );
   };
@@ -295,6 +318,11 @@ module F = (Stepper: STEPPER) => {
         ~take_focus: focus => Ui_effect.t(unit),
         ~hide_stepper: Ui_effect.t(unit),
         ~remove_case: Ui_effect.t(unit),
+        ~edit_syntax: Haz3lcore.EditorTransform.patch => Ui_effect.t(unit),
+        ~main_editor: option(CodeEditable.Channel.t),
+        /* Where the case's pattern is in the main editor, which edits it
+         * through a sub-editor when it can be found. */
+        ~slot: option(SubEditor.Target.t),
         model: model,
       ) => {
     let remove_case_button =
@@ -304,26 +332,52 @@ module F = (Stepper: STEPPER) => {
         ~tooltip="Remove case",
         ~clss=["subtle-button"],
       );
-    let pattern_editor =
+    let pattern_focus: option(unit) =
+      switch (focus) {
+      | Some(Pattern ()) => Some()
+      | _ => None
+      };
+    /* The local model: editable when there is no main editor (the
+     * cell-level stepper), read-only while the slot can't be found (the
+     * statics lagging a rewrite). */
+    let local_pattern_editor = (~read_only: bool) =>
       CodeEditable.View.view(
         ~globals,
         ~signal=
           fun
           | MakeActive => take_focus(Pattern()),
         ~edit_mode=
-          EditMode.Editable({
-            inject: x => inject(PatternUpdate(x)),
-            escape: _ => Ui_effect.Ignore,
-            take_focus: _ => Ui_effect.Ignore,
-            focus:
-              switch (focus) {
-              | Some(Pattern ()) => Some()
-              | _ => None
-              },
-          }),
+          read_only
+            ? EditMode.ReadOnly
+            : EditMode.Editable({
+                inject: x => inject(PatternUpdate(x)),
+                escape: _ => Ui_effect.Ignore,
+                take_focus: _ => Ui_effect.Ignore,
+                focus: pattern_focus,
+              }),
         ~dynamics=Dynamics.Map.empty,
         model.pattern,
       );
+    let pattern_editor =
+      switch (main_editor) {
+      | Some(channel) =>
+        switch (
+          Option.bind(slot, target =>
+            SubEditor.mk(channel.model.editor, ~target)
+          )
+        ) {
+        | Some(sub) =>
+          CodeEditable.View.view_sub(
+            ~globals,
+            ~channel,
+            ~take_focus=take_focus(Pattern()),
+            ~focused=pattern_focus != None,
+            sub,
+          )
+        | None => local_pattern_editor(~read_only=true)
+        }
+      | None => local_pattern_editor(~read_only=false)
+      };
     let pattern_editor =
       WebUtil.div_c("inline-editor-wrapper", [pattern_editor]);
     module StepperTargetBox = StepperTargetBox.F(Stepper);
@@ -339,9 +393,43 @@ module F = (Stepper: STEPPER) => {
           | _ => None
           },
         ~is_toplevel=false,
+        ~edit_syntax,
+        ~main_editor,
         model.step,
         Exp.fresh(Atom(Bool(true))),
         model.last_exp |> Calc.get_saved_exc(~print="last_exp not calculated"),
+      );
+    /* Hypotheses share the case header line: pattern on the left,
+     * "assume …"s off to the right after a fixed gap. */
+    let hypotheses_view =
+      WebUtil.div_c(
+        "induction-case-hypotheses",
+        List.filter_map(
+          fun
+          | (Binding.{name: _, id: _}, exp) => {
+              let rule = ProofRule.exp_to_rule(exp);
+              let conclusion = ProofRule.conclusion_exp(rule);
+              let code =
+                CodeViewable.view_any(
+                  ~globals,
+                  ~settings=
+                    Haz3lcore.ExpToSegment.Settings.of_core(
+                      ~inline=true,
+                      ~fold_fn_bodies=`Text,
+                      globals.settings.core,
+                    ),
+                  Exp(conclusion),
+                );
+              Some(
+                WebUtil.div_c(
+                  "induction-case-hypothesis",
+                  [WebUtil.Node.text("assume "), code],
+                ),
+              );
+            },
+          model.hypotheses
+          |> Calc.get_saved_exc(~print="hypotheses not calculated"),
+        ),
       );
     WebUtil.div_c(
       "induction-case",
@@ -353,36 +441,8 @@ module F = (Stepper: STEPPER) => {
             WebUtil.Node.text("Case "),
             pattern_editor,
             WebUtil.Node.text(" : "),
+            hypotheses_view,
           ],
-        ),
-        WebUtil.div_c(
-          "induction-case-hypotheses",
-          List.filter_map(
-            fun
-            | (Binding.{name: _, id: _}, exp) => {
-                let rule = ProofRule.exp_to_rule(exp);
-                let conclusion = ProofRule.conclusion_exp(rule);
-                let code =
-                  CodeViewable.view_any(
-                    ~globals,
-                    ~settings=
-                      Haz3lcore.ExpToSegment.Settings.of_core(
-                        ~inline=true,
-                        ~fold_fn_bodies=`Text,
-                        globals.settings.core,
-                      ),
-                    Exp(conclusion),
-                  );
-                Some(
-                  WebUtil.div_c(
-                    "induction-case-hypothesis",
-                    [WebUtil.Node.text("assume "), code],
-                  ),
-                );
-              },
-            model.hypotheses
-            |> Calc.get_saved_exc(~print="hypotheses not calculated"),
-          ),
         ),
       ]
       @ stepper_view,

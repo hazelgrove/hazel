@@ -33,6 +33,7 @@ let exp = v => operand(Sort.Exp, v);
 let pat = v => operand(Sort.Pat, v);
 let typ = t => operand(Sort.Typ, t);
 let tpat = v => operand(Sort.TPat, v);
+let proof = v => operand(Sort.Proof, v);
 let mk_list_exp = mk_tile(ListLit, Exp);
 let mk_list_pat = mk_tile(ListLit, Pat);
 let mk_list_typ = mk_tile(ListLit, Typ);
@@ -66,6 +67,7 @@ let fgte = () => mk_monotile(FGte, Exp);
 let sconcat = () => mk_monotile(StringConcat, Exp);
 let logical_and = () => mk_monotile(LogicalAnd, Exp);
 let logical_or = () => mk_monotile(LogicalOr, Exp);
+let logical_implies = () => mk_monotile(Impl, Exp);
 let comma_exp = () => mk_monotile(Comma, Exp);
 let comma_pat = () => mk_monotile(Comma, Pat);
 let comma_typ = () => mk_monotile(Comma, Typ);
@@ -97,11 +99,33 @@ let mk_pause = mk_tile(FilterPause, Exp);
 let mk_debug = mk_tile(FilterDebug, Exp);
 let mk_theorem = mk_tile(Theorem, Exp);
 let mk_forall = mk_tile(Forall, Exp);
-/* `fun p where g -> e` is the `fun` tile with the infix `where` pattern in
-   its parameter slot. */
+/* `fun p where g -> e` and `forall p where g -> e` are the `fun` and
+   `forall` tiles with the infix `where` pattern in their parameter slot. */
 let mk_fun_where = (p: list(Piece.t), g: list(Piece.t)) =>
   mk_fun([p @ [mk_monotile(Where, Pat)] @ g]);
-let mk_proof_of = mk_tile(ProofOf, Typ);
+let mk_forall_where = (p: list(Piece.t), g: list(Piece.t)) =>
+  mk_forall([p @ [mk_monotile(Where, Pat)] @ g]);
+let proof_seq = () => mk_monotile(CellJoin, Proof);
+let mk_proof_forall = mk_tile(ProofForall, Proof);
+let mk_proof_funext = mk_tile(ProofFunext, Proof);
+let mk_assume = mk_tile(ProofAssume, Proof);
+let mk_generalize = mk_tile(ProofGeneralize, Proof);
+let mk_revert = mk_tile(ProofRevert, Proof);
+let mk_revert_with = mk_tile(ProofRevertWith, Proof);
+let mk_axiom = mk_tile(ProofAxiom, Proof);
+let mk_axiom_with = mk_tile(ProofAxiomWith, Proof);
+let mk_axiomrev = mk_tile(ProofAxiomRev, Proof);
+let mk_axiomrev_with = mk_tile(ProofAxiomRevWith, Proof);
+let mk_rewrite_step = mk_tile(ProofAlgebrite, Proof);
+let mk_eval_step = mk_tile(ProofEval, Proof);
+let mk_induction = mk_tile(ProofInduction, Proof);
+let mk_proof_rule = mk_tile(Rule, PRul);
+let mk_contradiction = mk_tile(ProofContradiction, Proof);
+let mk_contradiction_with = mk_tile(ProofContradictionWith, Proof);
+let mk_have = mk_tile(ProofHave, Proof);
+let mk_induction_as = mk_tile(ProofInductionAs, Proof);
+let mk_assume_as = mk_tile(ProofAssumeAs, Proof);
+let mk_alias = mk_tile(ProofAlias, Proof);
 let linebreak = () => Piece.Secondary(Secondary.mk_newline(Id.mk()));
 let space = () => Piece.Secondary(Secondary.mk_space(Id.mk()));
 

@@ -9,24 +9,25 @@ open Calc.Syntax;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type model'('stepper) = {
-  // Updated
+  /* In a theorem, the scrutinee is edited in the main editor through a
+   * sub-editor, and this copy, rebuilt whenever the proof's scrutinee
+   * changes, serves only for statics. The cell-level stepper, with no
+   * proof text, edits this copy. */
   scrut: CodeEditable.Model.t,
   cases: list(InductionCase.model'('stepper)),
   // Calculated
+  /* The proof's scrutinee that `scrut` was last rebuilt from. */
+  scrut_src: Calc.saved(Exp.t),
   elab_scrut_raw: Calc.saved(Exp.t),
   elab_scrut_sub: Calc.saved(Exp.t),
   scrut_ty: Calc.saved(Typ.t),
   scrut_co_ctx: Calc.saved(CoCtx.t),
   result: Calc.saved(Exp.t),
   join_exp: Calc.saved(Exp.t),
-  is_exhaustive: Calc.saved(bool),
+  /* None = exhaustive; Some(example) = inexhaustive, with the statics
+   * checker's witness for a missing pattern. */
+  inexhaustive: Calc.saved(option(Any.t)),
   validity: Calc.saved(option(bool)),
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type persistent'('stepper) = {
-  scrut: CodeEditable.Model.persistent,
-  cases: list(InductionCase.persistent'('stepper)),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -62,13 +63,14 @@ let init = (~exp: option(Exp.t)=?, ()) => {
   {
     scrut,
     cases: [],
+    scrut_src: Calc.Pending,
     elab_scrut_raw: Calc.Pending,
     elab_scrut_sub: Calc.Pending,
     scrut_ty: Calc.Pending,
     scrut_co_ctx: Calc.Pending,
     result: Calc.Pending,
     join_exp: Calc.Pending,
-    is_exhaustive: Calc.Pending,
+    inexhaustive: Calc.Pending,
     validity: Calc.Pending,
   };
 };
@@ -84,7 +86,6 @@ module F =
          : (
            STEP with
              type model = model'(Stepper.model) and
-             type persistent = persistent'(Stepper.persistent) and
              type action = action'(Stepper.action) and
              type focus = focus'(Stepper.focus)
        ) => {
@@ -93,33 +94,9 @@ module F =
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = model'(Stepper.model);
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = persistent'(Stepper.persistent);
-  [@deriving (show({with_path: false}), sexp, yojson)]
   type action = action'(Stepper.action);
   [@deriving (show({with_path: false}), sexp, yojson)]
   type focus = focus'(Stepper.focus);
-
-  let persist = (model: model) => {
-    {
-      scrut: CodeEditable.Model.persist(model.scrut),
-      cases: List.map(InductionCase.persist, model.cases),
-    };
-  };
-
-  let unpersist = (p: persistent) => {
-    {
-      scrut: CodeEditable.Model.unpersist(p.scrut),
-      cases: List.map(InductionCase.unpersist, p.cases),
-      elab_scrut_raw: Calc.Pending,
-      elab_scrut_sub: Calc.Pending,
-      scrut_ty: Calc.Pending,
-      scrut_co_ctx: Calc.Pending,
-      result: Calc.Pending,
-      join_exp: Calc.Pending,
-      is_exhaustive: Calc.Pending,
-      validity: Calc.Pending,
-    };
-  };
 
   let update = (~settings: Settings.t, action: action, model: model) => {
     Updated.(
@@ -165,26 +142,72 @@ module F =
   let calculate =
       (
         ~settings: Calc.t(CoreSettings.t),
-        ~hidden: Calc.saved(bool),
         ~exp: Calc.t(Exp.t),
         ~ctx: Calc.t(SemanticCtx.t),
-        ~editor as _,
         ~info_map,
+        ~proof_info_map,
         ~ana: Calc.t(Typ.t),
+        ~proof: Calc.t(Proof.t),
+        ~proof_map: Calc.t(ProofMap.t),
         model: model,
       ) => {
     let {
       scrut,
       cases,
+      scrut_src,
       elab_scrut_raw,
       elab_scrut_sub,
       scrut_ty,
       scrut_co_ctx,
       result: _,
       join_exp,
-      is_exhaustive,
+      inexhaustive,
       validity,
     }: model = model;
+    /* One case row per case of the proof, keeping the existing rows' UI
+     * state. Adding or removing a case patches the proof (see the view),
+     * and this follows on the next pass. With no proof text (the
+     * cell-level stepper) the buttons edit `cases` directly. */
+    let cases =
+      switch (Calc.get_value(proof)) {
+      | {term: Induction(_, _, proof_cases), _} =>
+        let target = List.length(proof_cases);
+        let current = List.length(cases);
+        if (target == current) {
+          cases;
+        } else if (target > current) {
+          cases @ List.init(target - current, _ => InductionCase.init);
+        } else {
+          ListUtil.take(target, cases);
+        };
+      | _ => cases
+      };
+    /* Rebuilding loses no caret: in a theorem this copy is never
+     * focused. */
+    let (scrut, scrut_src) =
+      switch (Calc.get_value(proof)) {
+      | {term: Induction(proof_scrut, _, _), _} =>
+        let src =
+          Calc.set(~eq=Exp.fast_equal_with_lexemes, proof_scrut, scrut_src);
+        let scrut =
+          switch (src) {
+          | NewValue(e) =>
+            CodeEditable.Model.mk(
+              Editor.Model.mk(
+                Zipper.unzip(
+                  ExpToSegment.exp_to_segment(
+                    ~settings=ExpToSegment.Settings.editable(~inline=true),
+                    e,
+                  ),
+                ),
+                ~root=Exp,
+              ),
+            )
+          | OldValue(_) => scrut
+          };
+        (scrut, src |> Calc.save);
+      | _ => (scrut, scrut_src)
+      };
     let scrut =
       CodeEditable.Update.calculate(
         ~settings=Calc.get_value(settings),
@@ -228,21 +251,49 @@ module F =
         };
       Calc.set(self_co_ctx, scrut_co_ctx);
     };
-    let (cases, constraints, validities) =
-      List.map(
-        InductionCase.calculate(
-          ~settings,
-          ~scrut_ty,
-          ~scrut_co_ctx,
-          ~elab_scrut=elab_scrut_sub,
-          ~ctx,
-          ~info_map,
-          ~exp,
-          ~ana,
-        ),
+    /* Each case's nested stepper works on (and patches) that case's body. */
+    let case_body_proof = (i: int): Calc.t(Proof.t) =>
+      proof
+      |> Calc.map((p: Proof.t) =>
+           switch (p) {
+           | {term: Induction(_, _, proof_cases), _} =>
+             switch (List.nth_opt(proof_cases, i)) {
+             | Some((_, body)) => body
+             | None => Proof.fresh(EmptyHole)
+             }
+           | _ => Proof.fresh(EmptyHole)
+           }
+         );
+
+    let case_pat = (i: int): Calc.t(option(Pat.t)) =>
+      proof
+      |> Calc.map((p: Proof.t) =>
+           switch (p) {
+           | {term: Induction(_, _, proof_cases), _} =>
+             List.nth_opt(proof_cases, i) |> Option.map(fst)
+           | _ => None
+           }
+         );
+    let (cases, validities) =
+      List.mapi(
+        (i, case) =>
+          InductionCase.calculate(
+            ~settings,
+            ~scrut_ty,
+            ~scrut_co_ctx,
+            ~elab_scrut=elab_scrut_sub,
+            ~ctx,
+            ~info_map,
+            ~exp,
+            ~ana,
+            ~proof=case_body_proof(i),
+            ~proof_map,
+            ~pat=case_pat(i),
+            case,
+          ),
         cases,
       )
-      |> ListUtil.unzip3;
+      |> List.split;
 
     let new_join_exp =
       List.fold_left(
@@ -266,26 +317,31 @@ module F =
         join_exp,
       );
 
-    let is_exhaustive =
-      is_exhaustive
+    /* The theorem's statics mark an inexhaustive induction, with a
+     * missing pattern, so the row reads that mark rather than checking
+     * again, and agrees with the editor's error. */
+    let inexhaustive =
+      inexhaustive
       |> {
-        let.calc constraints = Calc.combine_list(constraints)
-        and.calc ctx = ctx
-        and.calc scrut_ty = scrut_ty;
-        let constraints = List.filter_map(Fun.id, constraints);
-        Coverage.check(
-          constraints,
-          Typ.normalize(SemanticCtx.get_ctx(ctx), scrut_ty),
-        ).
-          exhaustiveness
-        == Exhaustive;
+        let.calc proof = proof
+        and.calc proof_info_map = proof_info_map;
+        switch (Statics.Map.lookup(Proof.rep_id(proof), proof_info_map)) {
+        | Some(info) =>
+          List.find_map(
+            fun
+            | Mark.InexhaustiveMatch(_, _, example) => Some(example)
+            | _ => None,
+            Info.marks_of(info),
+          )
+        | None => None
+        };
       };
 
     let validity =
       validity
       |> {
         let.calc validities = Calc.combine_list(validities)
-        and.calc is_exhaustive = is_exhaustive;
+        and.calc inexhaustive = inexhaustive;
         List.fold_left(
           (v1, v2) =>
             switch (v1, v2) {
@@ -293,30 +349,26 @@ module F =
             | (Some(false), Some(false)) => Some(false)
             | (_, _) => None
             },
-          is_exhaustive ? Some(true) : None,
+          Option.is_none(inexhaustive) ? Some(true) : None,
           validities,
         );
       };
 
     let result = exp |> Calc.save;
 
-    Some((
-      {
-        scrut,
-        cases,
-        elab_scrut_raw: elab_scrut_raw |> Calc.save,
-        elab_scrut_sub: elab_scrut_sub |> Calc.save,
-        scrut_ty: scrut_ty |> Calc.save,
-        scrut_co_ctx: scrut_co_ctx |> Calc.save,
-        result,
-        join_exp: join_exp |> Calc.save,
-        is_exhaustive: is_exhaustive |> Calc.save,
-        validity: validity |> Calc.save,
-      },
-      hidden |> Calc.set(false),
-      Some(Calc.OldValue(Exp.fresh(Atom(Bool(true))))),
-      validity,
-    ));
+    Some({
+      scrut,
+      cases,
+      scrut_src,
+      elab_scrut_raw: elab_scrut_raw |> Calc.save,
+      elab_scrut_sub: elab_scrut_sub |> Calc.save,
+      scrut_ty: scrut_ty |> Calc.save,
+      scrut_co_ctx: scrut_co_ctx |> Calc.save,
+      result,
+      join_exp: join_exp |> Calc.save,
+      inexhaustive: inexhaustive |> Calc.save,
+      validity: validity |> Calc.save,
+    });
   };
 
   let get_cursor_info = (~inject, ~focus: focus, model: model) =>
@@ -345,18 +397,7 @@ module F =
       }
     );
 
-  let view_justification =
-      (
-        ~globals as _: Globals.t,
-        ~focus as _: option(focus),
-        ~inject as _: action => Ui_effect.t(unit),
-        ~take_focus as _: focus => Ui_effect.t(unit),
-        ~hide_stepper as _: Ui_effect.t(unit),
-        ~undo as _: option(Ui_effect.t(unit)),
-        ~is_toplevel as _: bool,
-        _: model,
-      ) =>
-    WebUtil.Node.text("Induction");
+  let justification = _ => "induction";
 
   let view_content =
       (
@@ -365,31 +406,103 @@ module F =
         ~inject: action => Ui_effect.t(unit),
         ~take_focus: focus => Ui_effect.t(unit),
         ~hide_stepper: Ui_effect.t(unit),
-        ~undo as _: option(Ui_effect.t(unit)),
         ~is_toplevel as _: bool,
+        ~proof: option(Proof.t),
+        ~edit_syntax: Haz3lcore.EditorTransform.patch => Ui_effect.t(unit),
+        ~main_editor: option(CodeEditable.Channel.t),
         model: model,
       ) => {
-    let scrut_editor =
+    let scrut_focus: option(unit) =
+      switch (focus) {
+      | Some(Scrut(_)) => Some()
+      | Some(_)
+      | None => None
+      };
+    /* The local copy: editable with no proof text (the cell-level
+     * stepper), read-only while the scrutinee can't be found in the main
+     * editor. */
+    let local_scrut_editor = (~read_only: bool) =>
       CodeEditable.View.view(
         ~globals,
         ~signal=
           fun
           | MakeActive => take_focus(Scrut()),
         ~edit_mode=
-          EditMode.Editable({
-            inject: x => inject(ScrutUpdate(x)),
-            escape: _ => Ui_effect.Ignore,
-            take_focus: _ => Ui_effect.Ignore,
-            focus:
-              switch (focus) {
-              | Some(Scrut(_)) => Some()
-              | Some(_)
-              | None => None
-              },
-          }),
+          read_only
+            ? EditMode.ReadOnly
+            : EditMode.Editable({
+                inject: x => inject(ScrutUpdate(x)),
+                escape: _ => Ui_effect.Ignore,
+                take_focus: _ => Ui_effect.Ignore,
+                focus: scrut_focus,
+              }),
         ~dynamics=Dynamics.Map.empty,
         model.scrut,
       );
+    /* The scrutinee spans the induction tile's first child, up to its
+     * first `| pat => body` rule. */
+    let scrut_editor =
+      switch (main_editor, proof) {
+      | (Some(channel), Some({term: Induction(_), _} as p)) =>
+        let target =
+          SubEditor.Target.(
+            child(~anchor=Proof.rep_id(p), 0)
+            /* With no cases there is no rule. */
+            |> until(BeforeOrEnd(NthTile(["|", "=>"], 0)))
+          );
+        switch (SubEditor.mk(channel.model.editor, ~target)) {
+        | Some(sub) =>
+          CodeEditable.View.view_sub(
+            ~globals,
+            ~channel,
+            ~take_focus=take_focus(Scrut()),
+            ~focused=scrut_focus != None,
+            sub,
+          )
+        | None => local_scrut_editor(~read_only=true)
+        };
+      | _ => local_scrut_editor(~read_only=false)
+      };
+
+    /* Adding or removing a case rewrites the `Induction` node, or, with no
+     * proof text, the local model. */
+    let induction_patch =
+        (new_cases: list((Pat.t, Proof.t)))
+        : option(Haz3lcore.EditorTransform.patch) =>
+      switch (proof) {
+      | Some({term: Induction(scrut, as_name, _), _} as p) =>
+        Some(
+          Haz3lcore.EditorTransform.mk_proof_patch(
+            ~target_id=Proof.rep_id(p),
+            Proof.fresh(Induction(scrut, as_name, new_cases)),
+          ),
+        )
+      | _ => None
+      };
+    let emit_add_case = () =>
+      switch (proof) {
+      | Some({term: Induction(_, _, cases), _}) =>
+        let new_cases =
+          cases @ [(Pat.fresh(EmptyHole), Proof.fresh(EmptyHole))];
+        switch (induction_patch(new_cases)) {
+        | Some(patch) => edit_syntax(patch)
+        | None => inject(AddCase)
+        };
+      | _ => inject(AddCase)
+      };
+    let emit_remove_case = (i: int) =>
+      switch (proof) {
+      | Some({term: Induction(_, _, cases), _}) =>
+        switch (ListUtil.remove_nth(i, cases)) {
+        | Some(new_cases) =>
+          switch (induction_patch(new_cases)) {
+          | Some(patch) => edit_syntax(patch)
+          | None => inject(RemoveCase(i))
+          }
+        | None => inject(RemoveCase(i))
+        }
+      | _ => inject(RemoveCase(i))
+      };
 
     let add_case_button =
       Widgets.button(
@@ -397,18 +510,33 @@ module F =
         ~tooltip="Add case",
         ~clss=["subtle-button", "add-case-button"],
         _ =>
-        inject(AddCase)
+        emit_add_case()
       );
 
+    /* The i-th `| pat => body` rule's pattern. */
+    let case_slot = (i: int): option(SubEditor.Target.t) =>
+      switch (proof) {
+      | Some({term: Induction(_), _} as p) =>
+        Some(
+          SubEditor.Target.(
+            child(~anchor=Proof.rep_id(p), 0)
+            |> descend(NthTile(["|", "=>"], i), ~child=0)
+          ),
+        )
+      | _ => None
+      };
     let cases =
       List.mapi(
         (i, case) =>
           InductionCase.view(
             ~globals,
-            ~inject=x => inject(CaseUpdate(i, x)),
+            ~inject=(x: InductionCase.action) => inject(CaseUpdate(i, x)),
             ~take_focus=x => take_focus(Case(i, x)),
-            ~remove_case=inject(RemoveCase(i)),
+            ~remove_case=emit_remove_case(i),
             ~hide_stepper,
+            ~edit_syntax,
+            ~main_editor,
+            ~slot=case_slot(i),
             ~focus=
               switch (focus) {
               | Some(Case(j, s)) when i == j => Some(s)
@@ -424,16 +552,12 @@ module F =
       WebUtil.div_c(
         "induction-scrut",
         [
-          WebUtil.Node.text("Induction on: "),
+          WebUtil.Node.text("induction on: "),
           WebUtil.div_c("inline-editor-wrapper", [scrut_editor]),
         ],
       ),
     ]
     @ cases
-    @ [add_case_button]
-    @ [
-      model.is_exhaustive |> Calc.get_saved_exc(~print="exhaustive")
-        ? WebUtil.Node.text("exhaustive") : WebUtil.Node.text("inexhaustive"),
-    ];
+    @ [add_case_button];
   };
 };

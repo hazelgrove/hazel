@@ -21,7 +21,6 @@ type cls =
   | Var
   | Let
   | Theorem
-  | ProofObject
   | Forall
   | FixF
   | TyAlias
@@ -145,7 +144,6 @@ let rec cls_of_term: type a. Grammar.exp_term(a) => cls =
   | Var(_) => Var
   | Let(_) => Let
   | Theorem(_) => Theorem
-  | ProofObject(_) => ProofObject
   | Forall(_) => Forall
   | FixF(_) => FixF
   | TyAlias(_) => TyAlias
@@ -206,7 +204,6 @@ let show_cls: cls => string =
   | Var => "Variable reference"
   | Let => "Let expression"
   | Theorem => "Theorem expression"
-  | ProofObject => "Proof placeholder"
   | Forall => "Forall expression"
   | FixF => "Fixpoint operator"
   | TyAlias => "Type Alias definition"
@@ -296,7 +293,6 @@ let rec is_fun = (e: t) => {
   | Var(_)
   | Let(_)
   | Theorem(_)
-  | ProofObject(_)
   | Forall(_)
   | FixF(_)
   | TyAlias(_)
@@ -366,7 +362,6 @@ let rec is_tuple_of_functions = (e: t) =>
     | Var(_)
     | Let(_)
     | Theorem(_)
-    | ProofObject(_)
     | Forall(_)
     | FixF(_)
     | TyAlias(_)
@@ -434,7 +429,6 @@ let rec get_num_of_functions = (e: t) =>
     | Var(_)
     | Let(_)
     | Theorem(_)
-    | ProofObject(_)
     | Forall(_)
     | Filter(_)
     | TyAlias(_)
@@ -549,3 +543,68 @@ let add_name = (name: option(string), exp: t): t => {
   | _ => exp
   };
 };
+
+/* Read a pattern as an expression, so that the statics and the checker
+ * build a split's case equation `scrut == pat` the same way. It lives here because `Pat` can't depend on `Exp`.
+ *
+ * `Wild` has no expression counterpart; it becomes `true`, which is what
+ * a wildcard case's equation degenerates to. */
+let rec of_pat = (pat: Pat.t): t => {
+  let term = pat |> Pat.term_of;
+  let rewrap: term => t =
+    term => {
+      term,
+      annotation: pat.annotation,
+    };
+  switch (term) {
+  | Invalid(x) => rewrap(Invalid(x))
+  | EmptyHole => rewrap(EmptyHole)
+  | MultiHole(xs) => rewrap(MultiHole(xs))
+  | Wild => rewrap(Atom(Bool(true)))
+  | Atom(a) => rewrap(Atom(a))
+  | ListLit(xs) => rewrap(ListLit(List.map(of_pat, xs)))
+  | Constructor(c, t) => rewrap(Constructor(c, t))
+  | Cons(e1, e2) => rewrap(Cons(of_pat(e1), of_pat(e2)))
+  | Var(x) => rewrap(Var(x))
+  | Tuple(xs) => rewrap(Tuple(List.map(of_pat, xs)))
+  | Parens(e) => rewrap(Parens(of_pat(e)))
+  | Projector(data, e) => rewrap(Projector(data, of_pat(e)))
+  | Ap(e1, e2) => rewrap(Ap(Forward, of_pat(e1), of_pat(e2)))
+  | Asc(e, t1) => rewrap(Asc(of_pat(e), t1))
+  | Label(l) => rewrap(Label(l))
+  | ExplicitNonlabel => rewrap(ExplicitNonlabel)
+  | TupLabel(l, e) => rewrap(TupLabel(of_pat(l), of_pat(e)))
+  /* The case equation is about `p` alone; the checker installs the
+     guard as a separate `where` hypothesis (`ProofCheck.Where.add_facts`). */
+  | Where(p, _) => of_pat(p)
+  };
+};
+
+/* Split a binder pattern into its base pattern and its `where` guard:
+ * `fun p where g -> e` is `Fun(Where(p, g), e)`, and likewise for
+ * `forall`.
+ *
+ * Parens are looked through only when there is a guard under them, so an
+ * unguarded pattern comes back unchanged. Nested guards are joined with
+ * `&&`, as `ProofCheck.Where.add_facts` reads a conjunctive restriction. */
+let rec split_pat_guard = (p: Pat.t): (Pat.t, option(t)) =>
+  switch (p |> Pat.term_of) {
+  | Where(p', g) =>
+    let (base, inner) = split_pat_guard(p');
+    let g =
+      switch (inner) {
+      | None => g
+      | Some(g0) => fresh(BinOp(Bool(And), g0, g))
+      };
+    (base, Some(g));
+  | Parens(p') =>
+    let (base, g) = split_pat_guard(p');
+    switch (g) {
+    | None => (p, None)
+    | Some(_) => (base, g)
+    };
+  | _ => (p, None)
+  };
+
+/* The guard a binder pattern carries, if any. */
+let pat_guard = (p: Pat.t): option(t) => split_pat_guard(p) |> snd;

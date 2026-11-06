@@ -30,6 +30,7 @@ open AST
 %token DEBUG
 %token HIDE
 %token EVAL
+%token CONTRADICTION
 %token <string> IDENT
 %token <string> CONSTRUCTOR_IDENT
 %token <string> STRING
@@ -118,6 +119,26 @@ open AST
 
 %token SEMI_COLON
 
+(* Prover forms *)
+%token IMPLIES
+%token FORALL
+%token FUNEXT
+%token THEOREM
+%token PROOF
+%token ASSUME
+%token GENERALIZE
+%token HAVE
+%token REVERT
+%token INDUCTION
+%token ALIAS
+%token AS
+%token AXIOM
+%token AXIOM_REV
+%token REWRITE
+%token WITH
+%token AT
+%token ON
+
 
 
 (* Precedences *)
@@ -129,6 +150,12 @@ open AST
 %right SUM_TYP
 %right DASH_ARROW
 %nonassoc IF_EXP
+
+/* Proof prefix forms (`forall p =>`, `assume e =>`, `revert e =>`,
+   `generalize e =>`) bind at Precedence.fun_, which is looser than the
+   proof-sequence `;` (Precedence.semi) — so `assume e => a; b` puts the
+   whole sequence in the body, matching the segment parser. */
+%nonassoc PROOF_PRE
 
 /* Flat sequences - tighter than structural forms */
 %right SEMI_COLON
@@ -143,6 +170,11 @@ open AST
    `Where(Cons(h, t), a && b)`, and tighter than the structural forms, so
    the guard ends at the binder's `->`, the rule's `=>` or the let's `=`. */
 %nonassoc WHERE
+
+/* Material implication: right-associative, one level looser than `||`
+   (Precedence.impl = 34 vs Precedence.or_ = 33), so `a == b ==> c == d`
+   is `(a == b) ==> (c == d)` and `a ==> b ==> c` is `a ==> (b ==> c)`. */
+%right IMPLIES
 
 %right L_OR
 %right L_AND
@@ -214,6 +246,7 @@ program:
 %inline boolOp:
     | L_AND { BoolOp(And) }
     | L_OR { BoolOp(Or) }
+    | IMPLIES { BoolOp(Implies) }
 
 %inline stringOp:
     | STRING_CONCAT { StringOp(Concat) }
@@ -425,6 +458,36 @@ funExp:
     | FUN; p = funPat; DASH_ARROW; e1 = exp; { Fun (p, e1, None) }
     | NAMED_FUN; name = IDENT; p = funPat; DASH_ARROW; e1 = exp { Fun (p, e1, Some(name)) }
 
+forallExp:
+    | FORALL; p = funPat; DASH_ARROW; e = exp; { ForallExp (p, e) }
+
+(* Proof case: `| <pat> => <proof>`, the PRul analogue of `rul`. *)
+prul:
+    | TURNSTILE; p = pat; EQUAL_ARROW; pf = proof; { (p, pf) }
+
+proof:
+    | QUESTION { EmptyHoleProof }
+    | pf1 = proof; SEMI_COLON; pf2 = proof { ProofSeq(pf1, pf2) }
+    | FORALL; p = pat; EQUAL_ARROW; pf = proof { ProofForall(p, pf) } %prec PROOF_PRE
+    | FUNEXT; p = pat; EQUAL_ARROW; pf = proof { ProofFunext(p, pf) } %prec PROOF_PRE
+    | ASSUME; e = exp; EQUAL_ARROW; pf = proof { ProofAssume(e, pf) } %prec PROOF_PRE
+    | ASSUME; e = exp; AS; x = pat; EQUAL_ARROW; pf = proof { ProofAssumeAs(e, x, pf) } %prec PROOF_PRE
+    | ALIAS; x = pat; SINGLE_EQUAL; e = exp; EQUAL_ARROW; pf = proof { ProofAlias(x, e, pf) } %prec PROOF_PRE
+    | GENERALIZE; e = exp; EQUAL_ARROW; pf = proof { ProofGeneralize(e, pf) } %prec PROOF_PRE
+    | HAVE; e = exp; PROOF; sub = proof; EQUAL_ARROW; pf = proof { ProofHave(e, sub, pf) } %prec PROOF_PRE
+    | REVERT; e = exp; EQUAL_ARROW; pf = proof { ProofRevert(e, pf) } %prec PROOF_PRE
+    | REVERT; e = exp; WITH; v = exp; SINGLE_EQUAL; i = exp; EQUAL_ARROW; pf = proof { ProofRevertWith(e, v, i, pf) } %prec PROOF_PRE
+    | AXIOM; eq = exp; AT; idx = exp; ON; ae = exp; END { ProofAxiom(eq, idx, ae) }
+    | AXIOM_REV; eq = exp; AT; idx = exp; ON; ae = exp; END { ProofAxiomRev(eq, idx, ae) }
+    | AXIOM; eq = exp; WITH; v = exp; SINGLE_EQUAL; i = exp; AT; idx = exp; ON; ae = exp; END { ProofAxiomWith(eq, v, i, idx, ae) }
+    | AXIOM_REV; eq = exp; WITH; v = exp; SINGLE_EQUAL; i = exp; AT; idx = exp; ON; ae = exp; END { ProofAxiomRevWith(eq, v, i, idx, ae) }
+    | REWRITE; ae = exp; WITH; we = exp; AT; idx = exp; END { ProofAlgebrite(ae, we, idx) }
+    | EVAL; ae = exp; AT; idx = exp; END { ProofEval(ae, idx) }
+    | CONTRADICTION; e = exp; END { ProofContradiction(e) }
+    | CONTRADICTION; e = exp; WITH; v = exp; SINGLE_EQUAL; i = exp; END { ProofContradictionWith(e, v, i) }
+    | INDUCTION; e = exp; cases = list(prul); END { ProofInduction(e, cases) }
+    | INDUCTION; e = exp; AS; x = pat; cases = list(prul); END { ProofInductionAs(e, x, cases) }
+
 
 %inline ifExp:
     | IF; e1 = exp; THEN; e2 = exp; ELSE; e3 = exp { If (e1, e2, e3) } %prec IF_EXP
@@ -498,6 +561,14 @@ exp:
     | i = ifExp { i }
     | TRUE { Atom (Bool true) }
     | f = funExp {f}
+    | f = forallExp {f}
+    | THEOREM; p = pat; SINGLE_EQUAL; e1 = exp; PROOF; pf = proof; IN; e2 = exp { Theorem (p, e1, pf, e2) } %prec LET_EXP
+    (* `where` and `assume` are the default names of the hypotheses that
+       `where` guards and `assume` install, so they appear in expression
+       position as cited facts: `axiom assume at 0 on n end`. The segment
+       parser reads them as variables there too. *)
+    | WHERE { Var "where" }
+    | ASSUME { Var "assume" }
     | FALSE { Atom (Bool false) }
     | FIX;  p = funPat; DASH_ARROW; e = exp { FixF(p, e) }
     | TYP_FUN; t = tpat; DASH_ARROW; e = exp {TypFun(t, e)}

@@ -24,7 +24,8 @@ type op_bin_float =
 [@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type op_bin_bool =
   | And
-  | Or;
+  | Or
+  | Implies;
 
 [@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type op_bin_int =
@@ -98,7 +99,6 @@ type typ =
   | InvalidTyp(string)
   | PolyType(tpat, typ)
   | RecType(tpat, typ)
-  | ProofOfType(exp)
   | LabelType(string)
   | ExplicitNonlabel
   | TupLabelType(typ, typ)
@@ -141,8 +141,9 @@ and exp =
   | BinExp(exp, bin_op, exp)
   | UnOp(op_un, exp)
   | Let(pat, exp, exp)
-  | Theorem(pat, exp, exp)
-  | ProofObject(exp)
+  | Theorem(pat, exp, proof, exp)
+  /* `fun p where g -> e` is `Fun(WherePat(p, g), e)`, and likewise
+     `forall p where g -> e` is `ForallExp(WherePat(p, g), e)`. */
   | Fun(pat, exp, option(string))
   | ForallExp(pat, exp)
   | CaseExp(exp, list((pat, exp)))
@@ -175,6 +176,54 @@ and exp =
   | TupleExtension(exp, exp)
   | Module(list(mod_item))
   | ModuleExp(pat, exp, exp)
+
+/* The proof sort (`proof_term` in Grammar.re). Like the tiles, the
+   `with` and `as` variants are separate constructors, and `AxiomStep`'s
+   direction is encoded by the two ProofAxiom* constructors:
+   `axiom` applies its equality left-to-right (Direction.Right),
+   `axiomrev` right-to-left (Direction.Left). */
+and proof =
+  | EmptyHoleProof
+  | ProofSeq(proof, proof)
+  | ProofForall(pat, proof)
+  /* `funext <pat> => <proof>`: functional extensionality intro. */
+  | ProofFunext(pat, proof)
+  | ProofAssume(exp, proof)
+  /* `assume <exp> as <name> => <proof>`: the `as` clause names the
+     hypothesis, which is otherwise `assume`. */
+  | ProofAssumeAs(exp, pat, proof)
+  /* `alias <name> = <fact> => <proof>`: give a known fact a second name,
+     so it stays citable after its own name is shadowed. */
+  | ProofAlias(pat, exp, proof)
+  | ProofGeneralize(exp, proof)
+  | ProofRevert(exp, proof)
+  /* The extra (var, exp) pair is the `with <var> = <exp>` clause. */
+  | ProofRevertWith(exp, exp, exp, proof)
+  /* `have <exp> proof <subproof> => <body>`: the asserted proposition,
+     its proof, and the body it is a hypothesis for. */
+  | ProofHave(exp, proof, proof)
+  /* (equality, at_idx, at_exp) — argument order follows the surface
+     syntax `axiom <equality> at <at_idx> on <at_exp> end`. */
+  | ProofAxiom(exp, exp, exp)
+  | ProofAxiomRev(exp, exp, exp)
+  /* (equality, var, instantiation, at_idx, at_exp) — surface order of
+     `axiom <equality> with <var> = <exp> at <at_idx> on <at_exp> end`. */
+  | ProofAxiomWith(exp, exp, exp, exp, exp)
+  | ProofAxiomRevWith(exp, exp, exp, exp, exp)
+  /* `rewrite <at_exp> with <with_exp> at <at_idx> end` */
+  | ProofAlgebrite(exp, exp, exp)
+  /* `eval <at_exp> at <at_idx> end` */
+  | ProofEval(exp, exp)
+  /* `contradiction <exp> end` */
+  | ProofContradiction(exp)
+  /* `contradiction <fact> with <var> = <exp> end`: the extra (var, exp)
+     pair is one explicit rewrite of the cited fact. */
+  | ProofContradictionWith(exp, exp, exp)
+  /* `induction <scrut> | <pat> => <proof> ... end` */
+  | ProofInduction(exp, list((pat, proof)))
+  /* `induction <scrut> as <name> | <pat> => <proof> ... end` — names the
+     case-equality hypothesis this split installs in every case. */
+  | ProofInductionAs(exp, pat, list((pat, proof)))
 
 and mod_item =
   | ModItemLet(pat, exp)
@@ -847,7 +896,7 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
             let* shrunk = shrink_pat(p);
             return(Let(shrunk, e1, e2));
           }
-        | Theorem(p, e1, e2) =>
+        | Theorem(p, e1, pf, e2) =>
           of_list([e1, e2])
           <+> (
             switch (pat_typ_opt(p)) {
@@ -857,19 +906,16 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
           )
           <+> {
             let* shrunk = shrink_exp(e1);
-            return(Theorem(p, shrunk, e2));
+            return(Theorem(p, shrunk, pf, e2));
           }
           <+> {
             let* shrunk = shrink_exp(e2);
-            return(Theorem(p, e1, shrunk));
+            return(Theorem(p, e1, pf, shrunk));
           }
           <+> {
             let* shrunk = shrink_pat(p);
-            return(Theorem(shrunk, e1, e2));
+            return(Theorem(shrunk, e1, pf, e2));
           }
-        | ProofObject(t) =>
-          let* shrunk = shrink_exp(t);
-          return(ProofObject(shrunk));
         | ForallExp(pat, e) =>
           return(e)
           <+> (
@@ -1362,9 +1408,6 @@ and shrink_typ: QCheck.Shrink.t(typ) =
             return(RecType(tpat, shrunk));
           }
         | ExplicitNonlabel => return(ExplicitNonlabel: typ)
-        | ProofOfType(e) =>
-          let* shrunk = shrink_exp(e);
-          return(ProofOfType(shrunk));
         | LabelType(x) =>
           shrink_non_empty_string(x) >|= ((x: string) => LabelType(x))
         | TupLabelType(t1, t2) =>

@@ -31,7 +31,9 @@ module EvalObj = {
   let persist = (obj: t): persistent => {
     let full_exp = EvalCtx.compose(obj.ctx, obj.d_loc);
     {
-      exp_idx: ProofHacks.exp_idx(obj.d_loc, full_exp),
+      exp_idx:
+        Occurrence.index(obj.d_loc, full_exp)
+        |> OptUtil.get_or_fail("EvaluatorStep.persist: d_loc not found"),
       at_exp: obj.d_loc,
     };
   };
@@ -95,9 +97,9 @@ let rec matches =
       | Let2(d1, d2, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Let2(d1, d2, ctx) |> rewrap;
-      | Theorem(dp, d1, ctx) =>
+      | Theorem(dp, d1, pf, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        Theorem(dp, d1, ctx) |> rewrap;
+        Theorem(dp, d1, pf, ctx) |> rewrap;
       | Fun(dp, ctx, ty, name) =>
         // TODO: Should this env include the bound variables?
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
@@ -452,7 +454,7 @@ let refresh_step =
     decompose(exp, env)
     |> List.map(should_hide_eval_obj(~settings=settings.evaluation)); // NOTE: should_hide_eval_obj actually changes the eval obj to do filter bookkeeping!!!
   let* desired_id =
-    ProofHacks.nth_exp(step.at_exp, step.exp_idx, exp)
+    Occurrence.nth(step.at_exp, step.exp_idx, exp)
     |> Option.map(IdTagged.ids);
   let* (h, x) =
     List.find_opt(

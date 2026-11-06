@@ -54,7 +54,38 @@ let ctx_toggle = (~globals: Globals.t): Node.t =>
     //[text("Γ")],
   );
 
-let term_view = (~globals: Globals.t, ~force_error=false, ci) => {
+/* Whether the expression at the cursor is total, by the proof checker's
+ * own test, `Totality.check`. It is computed for the cursor only, since
+ * statics doesn't track totality. The elaborated term is checked, where
+ * a recursive `let` is the `FixF` the test looks for. A bare `Var` reads
+ * as total: the checker treats variables as quantified binders. */
+let totality_badge = (ci: Info.t): list(Node.t) =>
+  switch (ci) {
+  | InfoExp(info) =>
+    let (cls, icon, tooltip) =
+      switch (Totality.check(~ctx=info.ctx, info.elab_term)) {
+      | Ok () => ("total", Icons.circle_with_check, "total")
+      | Error(reason) => ("not-total", Icons.circle_with_no_check, reason)
+      };
+    [div(~attrs=[clss(["totality", cls]), Attr.title(tooltip)], [icon])];
+  | _ => []
+  };
+
+/* A proof step with checker marks is styled like a term with a type
+ * error. */
+let has_proof_error = (ci: Info.t, proof_map: ProofMap.t): bool =>
+  switch (ci) {
+  | InfoProof(info) => ProofMap.marks_of(info.id, proof_map) != []
+  | _ => false
+  };
+
+let term_view =
+    (
+      ~globals: Globals.t,
+      ~force_error=false,
+      ~proof_map: ProofMap.t=ProofMap.empty,
+      ci,
+    ) => {
   /* Drv(_) sorts have verbose type-level names like "DrvJdmt"/"DrvProp"
      via Sort.to_string (needed for pretty-printing `DrvQuoteTy`). For the
      inspector header we prefer the terse form ("Jdmt", "Prop", ...),
@@ -69,20 +100,22 @@ let term_view = (~globals: Globals.t, ~force_error=false, ci) => {
         }
       );
   let sort_class = Info.is_label(ci) ? "Label" : ci |> Info.class_of;
+  let is_err = Info.is_error(ci) || has_proof_error(ci, proof_map);
   div(
     ~attrs=[
       clss(
         ["ci-header", sort_class]
         @ (
-          force_error || Info.is_error(ci)
+          force_error || is_err
             ? [errc]
             : Info.is_warning(ci) && globals.settings.core.display_warnings
                 ? [warnc] : [okc]
         ),
       ),
     ],
-    [
-      ctx_toggle(~globals),
+    [ctx_toggle(~globals)]
+    @ totality_badge(ci)
+    @ [
       div(~attrs=[clss(["term-tag"])], [text(sort_text)]),
       div(~attrs=[clss(["divider"])], [text("/")]),
       cls_view(ci),
@@ -99,30 +132,20 @@ let elements_noun: Cls.t => string =
   | Exp(BinOp(Poly(_))) => "Operands"
   | _ => "Sub-expressions";
 
-let code_view_settings: Haz3lcore.ExpToSegment.Settings.t = {
-  secondary: AutoFormat,
-  parenthesization: Defensive,
-  label_format: QuoteWhenNecessary,
-  inline: true,
-  fold_case_clauses: false,
-  fold_fn_bodies: `NoFold,
-  hide_fixpoints: false,
-  show_ascriptions: true,
-  show_filters: false,
-  show_unknown_as_hole: true,
-  use_literal_lexemes: false,
-  hole_tiles: false,
-  project_tables: false,
-};
-
 let view_any = (~globals, any: Any.t) =>
   any
-  |> CodeViewable.view_any(~globals, ~settings=code_view_settings)
+  |> CodeViewable.view_any(
+       ~globals,
+       ~settings=ProofMarkView.code_view_settings,
+     )
   |> code_box_container;
 
 let view_type = (~globals, typ: Typ.t) =>
   typ
-  |> CodeViewable.view_typ(~globals, ~settings=code_view_settings)
+  |> CodeViewable.view_typ(
+       ~globals,
+       ~settings=ProofMarkView.code_view_settings,
+     )
   |> code_box_container;
 
 let core_mark_err_view =
@@ -173,6 +196,7 @@ let core_mark_err_view =
     };
   (
     switch (m) {
+    | DynamicError(err) => [text(InvalidOperationError.err_msg(err))]
     | BadToken(token) =>
       switch (Haz3lcore.Token.bad_token_cls(token)) {
       | BadInt => [text("Integer is too large or too small")]
@@ -181,6 +205,7 @@ let core_mark_err_view =
     | BadLabel(label) => [text("Malformed Label: "), view_any(label)]
     | FreeConstructor(name) => [code(name), text("not found")]
 
+    | CompareFun(ty) => [text("values cannot be compared:"), view_type(ty)]
     | InvalidLabel(name, expected_labels) =>
       switch (expected_labels) {
       | [] => [
@@ -229,7 +254,6 @@ let core_mark_err_view =
         text("Duplicate Label:"),
         label_view(name),
       ]
-    | CompareFun(ty) => [text("values cannot be compared:"), view_type(ty)]
     | ExpectationMismatch({ana, syn}) => expectation_view(~ana, ~syn)
     | NoMeet(PolyEq, tys)
     | NoMeet(_, tys) when ana.term == Unknown(SynSwitch) => [
@@ -277,6 +301,13 @@ let core_mark_err_view =
     | TypParseFailure
     | TPatShadowsType(_)
     | TPatNotAVar(_) => [text("Type error")]
+    | FreeHypothesis(name) => [
+        code(name),
+        text(" is not a hypothesis in scope"),
+      ]
+    | AxiomSlotNotHypothesis(_) => [
+        text("Axiom slot must be a hypothesis name"),
+      ]
     }
   )
   @ (
@@ -303,6 +334,11 @@ let common_warn_view = (~globals, warning: Warning.list_item): list(Node.t) =>
       text("Warning: Recursive type"),
       code("rec " ++ name),
       text("is defined as itself."),
+    ]
+  | Exp(ForallOutsideTheorem) => [
+      text(
+        "Warning: forall is a proposition, not a value; it only runs as part of a theorem statement.",
+      ),
     ]
   };
 
@@ -628,6 +664,7 @@ let exp_mark_err_view =
       ),
     );
   switch (m) {
+  | DynamicError(err) => div_err([text(InvalidOperationError.err_msg(err))])
   | Free(name) => div_err([code(name), text("not found")])
   | InexhaustiveMatch(_, inner_marks, example) =>
     let cls_str = Cls.show(cls);
@@ -786,12 +823,16 @@ let exp_mark_err_view =
   | ExpectationMismatch(_)
   | NoMeet(_)
   | CompareFun(_) => common_from_core()
+  | FreeHypothesis(name) =>
+    div_err([code(name), text(" is not a hypothesis in scope")])
+  | AxiomSlotNotHypothesis(_) =>
+    div_err([text("Axiom slot must be a hypothesis name")])
   };
 };
 
 let exp_view =
     (
-      ~globals,
+      ~globals: Globals.t,
       ~show_type_colon=true,
       cls: Cls.t,
       message: Message.t,
@@ -818,41 +859,47 @@ let exp_view =
   let marks = info.marks;
   switch (marks != []) {
   | false =>
-    switch (message) {
-    | Exp(Default) =>
-      div_ok(
-        common_ok_view(
-          ~globals,
-          ~show_type_colon,
-          ~lifted_ty,
-          ~reordered,
-          ~introduced_labels,
-          ~inferred_label,
-          ~label_sort=info.label_sort,
-          cls,
-          Message.Syn(info.elab_syn_ty),
-        ),
-      )
-    | Exp(AnaDeferralConsistent(ana)) =>
-      div_ok([text("Expecting type"), view_type(~globals, ana)])
-    | Exp(Common(ok)) =>
-      div_ok(
-        common_ok_view(
-          ~globals,
-          ~show_type_colon,
-          ~lifted_ty,
-          ~reordered,
-          ~introduced_labels,
-          ~inferred_label,
-          ~label_sort=info.label_sort,
-          cls,
-          ok,
-        ),
-      )
-    | Pat(_)
-    | TypOk(_)
-    | TPatOk(_) =>
-      failwith("CursorInspector.exp_view: expected Message.Exp(...)")
+    switch (info.warnings) {
+    /* Non-computable forms outside a theorem: warn instead of the ok view. */
+    | [Exp(w), ..._] when globals.settings.core.display_warnings =>
+      div_warn(common_warn_view(~globals, Exp(w)))
+    | _ =>
+      switch (message) {
+      | Exp(Default) =>
+        div_ok(
+          common_ok_view(
+            ~globals,
+            ~show_type_colon,
+            ~lifted_ty,
+            ~reordered,
+            ~introduced_labels,
+            ~inferred_label,
+            ~label_sort=info.label_sort,
+            cls,
+            Message.Syn(info.elab_syn_ty),
+          ),
+        )
+      | Exp(AnaDeferralConsistent(ana)) =>
+        div_ok([text("Expecting type"), view_type(~globals, ana)])
+      | Exp(Common(ok)) =>
+        div_ok(
+          common_ok_view(
+            ~globals,
+            ~show_type_colon,
+            ~lifted_ty,
+            ~reordered,
+            ~introduced_labels,
+            ~inferred_label,
+            ~label_sort=info.label_sort,
+            cls,
+            ok,
+          ),
+        )
+      | Pat(_)
+      | TypOk(_)
+      | TPatOk(_) =>
+        failwith("CursorInspector.exp_view: expected Message.Exp(...)")
+      }
     }
   | true =>
     switch (Mark.highest(marks)) {
@@ -1069,13 +1116,45 @@ let tpat_view =
   };
 };
 
-let view_of_info = (~globals, ci): list(Node.t) => {
-  let wrapper = status_view => [term_view(~globals, ci), status_view];
+/* A proof step's goal coming in and going out, where an expression shows
+ * its type, under the highest-priority mark the checker recorded there. */
+let proof_view = (~globals, ~proof_map: ProofMap.t, info: Info.proof) => {
+  let view_exp_box = ProofMarkView.view_exp(~globals);
+  let opt_exp = (label: string, e: option(Exp.t)): list(Node.t) =>
+    switch (e) {
+    | Some(e) => [text(label), view_exp_box(e)]
+    | None => [text(label), text("—")]
+    };
+  switch (ProofMap.lookup(info.id, proof_map)) {
+  | Some({
+      incoming,
+      auto_incoming: _,
+      auto_outgoing: _,
+      outgoing,
+      substitutions: _,
+      marks,
+      obligations: _,
+    }) =>
+    let body = opt_exp("in:", incoming) @ opt_exp("out:", outgoing);
+    switch (ProofMark.highest(marks)) {
+    | Some(m) => div_err(ProofMarkView.message(~globals, m) @ body)
+    | None => div_ok(body)
+    };
+  | None => div_ok([text(info.cls |> Cls.show)])
+  };
+};
+
+let view_of_info = (~globals, ~proof_map: ProofMap.t, ci): list(Node.t) => {
+  let wrapper = status_view => [
+    term_view(~globals, ~proof_map, ci),
+    status_view,
+  ];
   switch (ci) {
   | Secondary(_) => wrapper(div([]))
   | InfoMod({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
   | InfoSig({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
   | InfoMPat({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
+  | InfoProof(info) => wrapper(proof_view(~globals, ~proof_map, info))
   | InfoExp({cls, message, _} as ie) =>
     wrapper(exp_view(~globals, cls, message, ie))
   | InfoPat({cls, message, _} as ip) =>
@@ -1088,19 +1167,21 @@ let view_of_info = (~globals, ci): list(Node.t) => {
   };
 };
 
-let inspector_view = (~globals: Globals.t, ci): Node.t =>
+let inspector_view = (~globals: Globals.t, ~proof_map, ci): Node.t => {
+  let is_err = Info.is_error(ci) || has_proof_error(ci, proof_map);
   div(
     ~attrs=[
       Attr.id("cursor-inspector"),
       clss([
-        Info.is_error(ci)
+        is_err
           ? errc
           : Info.is_warning(ci) && globals.settings.core.display_warnings
               ? warnc : okc,
       ]),
     ],
-    view_of_info(~globals, ci),
+    view_of_info(~globals, ~proof_map, ci),
   );
+};
 
 let projector_error_inspector =
     (
@@ -1153,7 +1234,8 @@ let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
     switch (projector_err) {
     | Some((_, err)) when !Info.is_error(ci) =>
       bar_view([projector_error_inspector(~globals, ci, err)])
-    | _ => bar_view([inspector_view(~globals, ci)])
+    | _ =>
+      bar_view([inspector_view(~globals, ~proof_map=cursor.proof_map, ci)])
     }
   };
 };

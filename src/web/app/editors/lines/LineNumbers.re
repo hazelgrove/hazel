@@ -10,7 +10,8 @@ module Model = CodeWithStatics.Model;
 
 module View = {
   let view = (model: Model.t, show_relative_numbers: bool, selected: bool) => {
-    let {editor: {syntax: {measured, _}, state: {zipper, _}, _}, _}: Model.t = model;
+    let {editor: {syntax, state: {zipper, _}, _}, _}: Model.t = model;
+    let measured = CachedSyntax.measured(syntax);
     let num_rows = List.length(measured.piece_rows);
     let empty_row = row => {
       let result = List.nth_opt(List.rev(measured.piece_rows), row);

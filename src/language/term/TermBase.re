@@ -76,6 +76,14 @@ type mpat_t = Grammar.mpat_t(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type mpat_term = Grammar.mpat_term(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
+type proof_t = Grammar.proof_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type proof_term = Grammar.proof_term(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type prul_t = Grammar.prul_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type prul_term = Grammar.prul_term(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
 type stepper_filter_kind_t = Grammar.stepper_filter_kind_t(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type type_hole = Grammar.type_hole(IdTagged.IdTag.t);
@@ -101,6 +109,7 @@ module rec Any: {
       ~f_sig: (Sig.t => Sig.t, Sig.t) => Sig.t=?,
       ~f_mpat: (MPat.t => MPat.t, MPat.t) => MPat.t=?,
       ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
+      ~f_proof: (Proof.t => Proof.t, Proof.t) => Proof.t=?,
       t
     ) =>
     t;
@@ -119,6 +128,7 @@ module rec Any: {
         ~f_sig=continue,
         ~f_mpat=continue,
         ~f_any=continue,
+        ~f_proof=continue,
         x: any_t,
       ) => {
     let rec_call = (y: any_t): any_t =>
@@ -135,6 +145,7 @@ module rec Any: {
             ~f_sig,
             ~f_mpat,
             ~f_any,
+            ~f_proof,
             x,
           ),
         )
@@ -150,6 +161,7 @@ module rec Any: {
             ~f_sig,
             ~f_mpat,
             ~f_any,
+            ~f_proof,
             x,
           ),
         )
@@ -165,6 +177,7 @@ module rec Any: {
             ~f_sig,
             ~f_mpat,
             ~f_any,
+            ~f_proof,
             x,
           ),
         )
@@ -180,6 +193,7 @@ module rec Any: {
             ~f_sig,
             ~f_mpat,
             ~f_any,
+            ~f_proof,
             x,
           ),
         )
@@ -195,6 +209,7 @@ module rec Any: {
             ~f_sig,
             ~f_mpat,
             ~f_any,
+            ~f_proof,
             x,
           ),
         )
@@ -213,6 +228,7 @@ module rec Any: {
             ~f_sig,
             ~f_mpat,
             ~f_any,
+            ~f_proof,
             x,
           ),
         )
@@ -228,6 +244,7 @@ module rec Any: {
             ~f_sig,
             ~f_mpat,
             ~f_any,
+            ~f_proof,
             x,
           ),
         )
@@ -243,6 +260,33 @@ module rec Any: {
             ~f_sig,
             ~f_mpat,
             ~f_any,
+            ~f_proof,
+            x,
+          ),
+        )
+      | Proof(x) =>
+        Proof(
+          Proof.map_term(
+            ~f_exp,
+            ~f_pat,
+            ~f_typ,
+            ~f_tpat,
+            ~f_rul,
+            ~f_any,
+            ~f_proof,
+            x,
+          ),
+        )
+      | PRul(x) =>
+        PRul(
+          PRul.map_term(
+            ~f_exp,
+            ~f_pat,
+            ~f_typ,
+            ~f_tpat,
+            ~f_rul,
+            ~f_any,
+            ~f_proof,
             x,
           ),
         )
@@ -269,6 +313,7 @@ and Exp: {
       ~f_sig: (Sig.t => Sig.t, Sig.t) => Sig.t=?,
       ~f_mpat: (MPat.t => MPat.t, MPat.t) => MPat.t=?,
       ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
+      ~f_proof: (Proof.t => Proof.t, Proof.t) => Proof.t=?,
       t
     ) =>
     t;
@@ -291,6 +336,7 @@ and Exp: {
         ~f_sig=continue,
         ~f_mpat=continue,
         ~f_any=continue,
+        ~f_proof=continue,
         x,
       ) => {
     let exp_map_term =
@@ -304,6 +350,7 @@ and Exp: {
         ~f_sig,
         ~f_mpat,
         ~f_any,
+        ~f_proof,
       );
     let pat_map_term =
       Pat.map_term(
@@ -316,6 +363,7 @@ and Exp: {
         ~f_sig,
         ~f_mpat,
         ~f_any,
+        ~f_proof,
       );
     let typ_map_term =
       Typ.map_term(
@@ -328,6 +376,7 @@ and Exp: {
         ~f_sig,
         ~f_mpat,
         ~f_any,
+        ~f_proof,
       );
     let tpat_map_term =
       TPat.map_term(
@@ -340,6 +389,7 @@ and Exp: {
         ~f_sig,
         ~f_mpat,
         ~f_any,
+        ~f_proof,
       );
     let any_map_term =
       Any.map_term(
@@ -352,6 +402,7 @@ and Exp: {
         ~f_sig,
         ~f_mpat,
         ~f_any,
+        ~f_proof,
       );
     let mpat_map_term =
       MPat.map_term(
@@ -364,6 +415,17 @@ and Exp: {
         ~f_sig,
         ~f_mpat,
         ~f_any,
+        ~f_proof,
+      );
+    let proof_map_term =
+      Proof.map_term(
+        ~f_exp,
+        ~f_pat,
+        ~f_typ,
+        ~f_tpat,
+        ~f_rul,
+        ~f_any,
+        ~f_proof,
       );
     let flt_map_term =
       StepperFilterKind.map_term(
@@ -372,7 +434,11 @@ and Exp: {
         ~f_typ,
         ~f_tpat,
         ~f_rul,
+        ~f_mod,
+        ~f_sig,
+        ~f_mpat,
         ~f_any,
+        ~f_proof,
       );
     let rec_call = ({term, _} as exp: t) => {
       ...exp,
@@ -408,9 +474,13 @@ and Exp: {
         | Dot(e1, e2) => Dot(exp_map_term(e1), exp_map_term(e2))
         | Let(p, e1, e2) =>
           Let(pat_map_term(p), exp_map_term(e1), exp_map_term(e2))
-        | Theorem(p, e1, e2) =>
-          Theorem(pat_map_term(p), exp_map_term(e1), exp_map_term(e2))
-        | ProofObject(t) => ProofObject(exp_map_term(t))
+        | Theorem(p, e1, pf, e2) =>
+          Theorem(
+            pat_map_term(p),
+            exp_map_term(e1),
+            proof_map_term(pf),
+            exp_map_term(e2),
+          )
         | Forall(p, e) => Forall(pat_map_term(p), exp_map_term(e))
         | FixF(p, e, env) => FixF(pat_map_term(p), exp_map_term(e), env)
         | TyAlias(tp, t, e) =>
@@ -458,6 +528,7 @@ and Exp: {
                 ~f_sig,
                 ~f_mpat,
                 ~f_any,
+                ~f_proof,
               ),
               items,
             ),
@@ -490,6 +561,7 @@ and Pat: {
       ~f_sig: (Sig.t => Sig.t, Sig.t) => Sig.t=?,
       ~f_mpat: (MPat.t => MPat.t, MPat.t) => MPat.t=?,
       ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
+      ~f_proof: (Proof.t => Proof.t, Proof.t) => Proof.t=?,
       t
     ) =>
     t;
@@ -510,6 +582,7 @@ and Pat: {
         ~f_sig=continue,
         ~f_mpat=continue,
         ~f_any=continue,
+        ~f_proof=continue,
         x,
       ) => {
     let pat_map_term =
@@ -523,6 +596,7 @@ and Pat: {
         ~f_sig,
         ~f_mpat,
         ~f_any,
+        ~f_proof,
       );
     let typ_map_term =
       Typ.map_term(
@@ -535,6 +609,20 @@ and Pat: {
         ~f_sig,
         ~f_mpat,
         ~f_any,
+        ~f_proof,
+      );
+    let exp_map_term =
+      Exp.map_term(
+        ~f_exp,
+        ~f_pat,
+        ~f_typ,
+        ~f_tpat,
+        ~f_rul,
+        ~f_mod,
+        ~f_sig,
+        ~f_mpat,
+        ~f_any,
+        ~f_proof,
       );
     let exp_map_term =
       Exp.map_term(
@@ -559,6 +647,7 @@ and Pat: {
         ~f_sig,
         ~f_mpat,
         ~f_any,
+        ~f_proof,
       );
     let rec_call = ({term, _} as exp: t) => {
       ...exp,
@@ -607,6 +696,7 @@ and Typ: {
       ~f_sig: (Sig.t => Sig.t, Sig.t) => Sig.t=?,
       ~f_mpat: (MPat.t => MPat.t, MPat.t) => MPat.t=?,
       ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
+      ~f_proof: (Proof.t => Proof.t, Proof.t) => Proof.t=?,
       t
     ) =>
     t;
@@ -629,6 +719,7 @@ and Typ: {
         ~f_sig=continue,
         ~f_mpat=continue,
         ~f_any=continue,
+        ~f_proof=continue,
         x,
       ) => {
     let typ_map_term =
@@ -642,6 +733,7 @@ and Typ: {
         ~f_sig,
         ~f_mpat,
         ~f_any,
+        ~f_proof,
       );
     let any_map_term =
       Any.map_term(
@@ -654,6 +746,7 @@ and Typ: {
         ~f_sig,
         ~f_mpat,
         ~f_any,
+        ~f_proof,
       );
     let tpat_map_term =
       TPat.map_term(
@@ -666,18 +759,7 @@ and Typ: {
         ~f_sig,
         ~f_mpat,
         ~f_any,
-      );
-    let exp_map_term =
-      Exp.map_term(
-        ~f_exp,
-        ~f_pat,
-        ~f_typ,
-        ~f_tpat,
-        ~f_rul,
-        ~f_mod,
-        ~f_sig,
-        ~f_mpat,
-        ~f_any,
+        ~f_proof,
       );
     let rec_call = ({term, _} as exp: t) => {
       ...exp,
@@ -738,7 +820,6 @@ and Typ: {
           ProdExtension(typ_map_term(t1), typ_map_term(t2))
         | Rec(tp, t) => Rec(tpat_map_term(tp), typ_map_term(t))
         | Poly(tp, t) => Poly(tpat_map_term(tp), typ_map_term(t))
-        | ProofOf(e) => ProofOf(exp_map_term(e))
         | Sig(items) =>
           Sig(
             List.map(
@@ -752,6 +833,7 @@ and Typ: {
                 ~f_sig,
                 ~f_mpat,
                 ~f_any,
+                ~f_proof,
               ),
               items,
             ),
@@ -778,6 +860,7 @@ and TPat: {
       ~f_sig: (Sig.t => Sig.t, Sig.t) => Sig.t=?,
       ~f_mpat: (MPat.t => MPat.t, MPat.t) => MPat.t=?,
       ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
+      ~f_proof: (Proof.t => Proof.t, Proof.t) => Proof.t=?,
       t
     ) =>
     t;
@@ -800,6 +883,7 @@ and TPat: {
         ~f_sig=continue,
         ~f_mpat=continue,
         ~f_any=continue,
+        ~f_proof=continue,
         x,
       ) => {
     let any_map_term =
@@ -813,6 +897,7 @@ and TPat: {
         ~f_sig,
         ~f_mpat,
         ~f_any,
+        ~f_proof,
       );
     let rec_call = ({term, _} as exp: t) => {
       ...exp,
@@ -850,6 +935,7 @@ and Rul: {
       ~f_sig: (Sig.t => Sig.t, Sig.t) => Sig.t=?,
       ~f_mpat: (MPat.t => MPat.t, MPat.t) => MPat.t=?,
       ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
+      ~f_proof: (Proof.t => Proof.t, Proof.t) => Proof.t=?,
       t
     ) =>
     t;
@@ -870,6 +956,7 @@ and Rul: {
         ~f_sig=continue,
         ~f_mpat=continue,
         ~f_any=continue,
+        ~f_proof=continue,
         x,
       ) => {
     let exp_map_term =
@@ -883,6 +970,7 @@ and Rul: {
         ~f_sig,
         ~f_mpat,
         ~f_any,
+        ~f_proof,
       );
     let pat_map_term =
       Pat.map_term(
@@ -895,6 +983,7 @@ and Rul: {
         ~f_sig,
         ~f_mpat,
         ~f_any,
+        ~f_proof,
       );
     let any_map_term =
       Any.map_term(
@@ -907,6 +996,7 @@ and Rul: {
         ~f_sig,
         ~f_mpat,
         ~f_any,
+        ~f_proof,
       );
     let rec_call = ({term, _} as exp: t) => {
       ...exp,
@@ -927,6 +1017,76 @@ and Rul: {
     x |> f_rul(rec_call);
   };
 }
+and PRul: {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type term = prul_term;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = prul_t;
+
+  let map_term:
+    (
+      ~f_exp: (Exp.t => Exp.t, Exp.t) => Exp.t=?,
+      ~f_pat: (Pat.t => Pat.t, Pat.t) => Pat.t=?,
+      ~f_typ: (Typ.t => Typ.t, Typ.t) => Typ.t=?,
+      ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
+      ~f_rul: (Rul.t => Rul.t, Rul.t) => Rul.t=?,
+      ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
+      ~f_proof: (Proof.t => Proof.t, Proof.t) => Proof.t=?,
+      t
+    ) =>
+    t;
+} = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type term = prul_term;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = prul_t;
+
+  let map_term =
+      (
+        ~f_exp=continue,
+        ~f_pat=continue,
+        ~f_typ=continue,
+        ~f_tpat=continue,
+        ~f_rul=continue,
+        ~f_any=continue,
+        ~f_proof=continue,
+        x,
+      ) => {
+    let exp_map_term =
+      Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, ~f_proof);
+    let pat_map_term =
+      Pat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, ~f_proof);
+    let any_map_term =
+      Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, ~f_proof);
+    let proof_map_term =
+      Proof.map_term(
+        ~f_exp,
+        ~f_pat,
+        ~f_typ,
+        ~f_tpat,
+        ~f_rul,
+        ~f_any,
+        ~f_proof,
+      );
+    let rec_call = ({term, _} as pr: t) => {
+      ...pr,
+      term:
+        switch (term) {
+        | Invalid(_) => term
+        | MultiHole(things) => MultiHole(List.map(any_map_term, things))
+        | ProofRules(e, rls) =>
+          ProofRules(
+            exp_map_term(e),
+            List.map(
+              ((p, body)) => (pat_map_term(p), proof_map_term(body)),
+              rls,
+            ),
+          )
+        },
+    };
+    rec_call(x);
+  };
+}
 and Mod: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = mod_term;
@@ -944,6 +1104,7 @@ and Mod: {
       ~f_sig: (Sig.t => Sig.t, Sig.t) => Sig.t=?,
       ~f_mpat: (MPat.t => MPat.t, MPat.t) => MPat.t=?,
       ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
+      ~f_proof: (Proof.t => Proof.t, Proof.t) => Proof.t=?,
       t
     ) =>
     t;
@@ -964,6 +1125,7 @@ and Mod: {
         ~f_sig=continue,
         ~f_mpat=continue,
         ~f_any=continue,
+        ~f_proof=continue,
         x,
       ) => {
     let exp_map_term =
@@ -977,6 +1139,7 @@ and Mod: {
         ~f_sig,
         ~f_mpat,
         ~f_any,
+        ~f_proof,
       );
     let pat_map_term =
       Pat.map_term(
@@ -989,6 +1152,7 @@ and Mod: {
         ~f_sig,
         ~f_mpat,
         ~f_any,
+        ~f_proof,
       );
     let typ_map_term =
       Typ.map_term(
@@ -1001,6 +1165,7 @@ and Mod: {
         ~f_sig,
         ~f_mpat,
         ~f_any,
+        ~f_proof,
       );
     let tpat_map_term =
       TPat.map_term(
@@ -1013,6 +1178,7 @@ and Mod: {
         ~f_sig,
         ~f_mpat,
         ~f_any,
+        ~f_proof,
       );
     let any_map_term =
       Any.map_term(
@@ -1025,6 +1191,7 @@ and Mod: {
         ~f_sig,
         ~f_mpat,
         ~f_any,
+        ~f_proof,
       );
     let mpat_map_term =
       MPat.map_term(
@@ -1037,6 +1204,7 @@ and Mod: {
         ~f_sig,
         ~f_mpat,
         ~f_any,
+        ~f_proof,
       );
     let rec_call = ({term, _} as m: t) => {
       ...m,
@@ -1071,6 +1239,7 @@ and Sig: {
       ~f_sig: (Sig.t => Sig.t, Sig.t) => Sig.t=?,
       ~f_mpat: (MPat.t => MPat.t, MPat.t) => MPat.t=?,
       ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
+      ~f_proof: (Proof.t => Proof.t, Proof.t) => Proof.t=?,
       t
     ) =>
     t;
@@ -1091,6 +1260,7 @@ and Sig: {
         ~f_sig=continue,
         ~f_mpat=continue,
         ~f_any=continue,
+        ~f_proof=continue,
         x,
       ) => {
     let pat_map_term =
@@ -1104,6 +1274,7 @@ and Sig: {
         ~f_sig,
         ~f_mpat,
         ~f_any,
+        ~f_proof,
       );
     let typ_map_term =
       Typ.map_term(
@@ -1116,6 +1287,7 @@ and Sig: {
         ~f_sig,
         ~f_mpat,
         ~f_any,
+        ~f_proof,
       );
     let tpat_map_term =
       TPat.map_term(
@@ -1128,6 +1300,7 @@ and Sig: {
         ~f_sig,
         ~f_mpat,
         ~f_any,
+        ~f_proof,
       );
     let any_map_term =
       Any.map_term(
@@ -1140,6 +1313,7 @@ and Sig: {
         ~f_sig,
         ~f_mpat,
         ~f_any,
+        ~f_proof,
       );
     let rec_call = ({term, _} as s: t) => {
       ...s,
@@ -1173,6 +1347,7 @@ and MPat: {
       ~f_sig: (Sig.t => Sig.t, Sig.t) => Sig.t=?,
       ~f_mpat: (MPat.t => MPat.t, MPat.t) => MPat.t=?,
       ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
+      ~f_proof: (Proof.t => Proof.t, Proof.t) => Proof.t=?,
       t
     ) =>
     t;
@@ -1193,6 +1368,7 @@ and MPat: {
         ~f_sig=continue,
         ~f_mpat=continue,
         ~f_any=continue,
+        ~f_proof=continue,
         x,
       ) => {
     let _ = (f_exp, f_pat, f_typ, f_tpat, f_rul);
@@ -1207,6 +1383,7 @@ and MPat: {
         ~f_sig,
         ~f_mpat,
         ~f_any,
+        ~f_proof,
       );
     let typ_map_term =
       Typ.map_term(
@@ -1219,6 +1396,7 @@ and MPat: {
         ~f_sig,
         ~f_mpat,
         ~f_any,
+        ~f_proof,
       );
     let rec rec_call = ({term, _} as mp: t) => {
       ...mp,
@@ -1232,6 +1410,134 @@ and MPat: {
         },
     };
     x |> f_mpat(rec_call);
+  };
+}
+and Proof: {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type term = proof_term;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = proof_t;
+
+  let map_term:
+    (
+      ~f_exp: (Exp.t => Exp.t, Exp.t) => Exp.t=?,
+      ~f_pat: (Pat.t => Pat.t, Pat.t) => Pat.t=?,
+      ~f_typ: (Typ.t => Typ.t, Typ.t) => Typ.t=?,
+      ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
+      ~f_rul: (Rul.t => Rul.t, Rul.t) => Rul.t=?,
+      ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
+      ~f_proof: (Proof.t => Proof.t, Proof.t) => Proof.t=?,
+      t
+    ) =>
+    t;
+} = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type term = proof_term;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = proof_t;
+
+  let map_term =
+      (
+        ~f_exp=continue,
+        ~f_pat=continue,
+        ~f_typ=continue,
+        ~f_tpat=continue,
+        ~f_rul=continue,
+        ~f_any=continue,
+        ~f_proof=continue,
+        x,
+      ) => {
+    let exp_map_term =
+      Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, ~f_proof);
+    let pat_map_term =
+      Pat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, ~f_proof);
+    let any_map_term =
+      Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, ~f_proof);
+    let proof_map_term =
+      Proof.map_term(
+        ~f_exp,
+        ~f_pat,
+        ~f_typ,
+        ~f_tpat,
+        ~f_rul,
+        ~f_any,
+        ~f_proof,
+      );
+    let rec_call = ({term, _} as p: t) => {
+      ...p,
+      term:
+        switch (term) {
+        | EmptyHole
+        | Invalid(_) => term
+        | MultiHole(things) => MultiHole(List.map(any_map_term, things))
+        | Seq(p1, p2) => Seq(proof_map_term(p1), proof_map_term(p2))
+        | Parens(p) => Parens(proof_map_term(p))
+        | AxiomStep({at_idx, at_exp, direction, equality, instantiation}) =>
+          AxiomStep({
+            at_idx: exp_map_term(at_idx),
+            at_exp: exp_map_term(at_exp),
+            direction,
+            equality: exp_map_term(equality),
+            instantiation:
+              Option.map(
+                ((v, i)) => (exp_map_term(v), exp_map_term(i)),
+                instantiation,
+              ),
+          })
+        | AlgebriteStep({at_idx, at_exp, with_exp}) =>
+          AlgebriteStep({
+            at_idx: exp_map_term(at_idx),
+            at_exp: exp_map_term(at_exp),
+            with_exp: exp_map_term(with_exp),
+          })
+        | EvalStep({at_idx, at_exp}) =>
+          EvalStep({
+            at_idx: exp_map_term(at_idx),
+            at_exp: exp_map_term(at_exp),
+          })
+        | Induction(e, as_name, cases) =>
+          Induction(
+            exp_map_term(e),
+            Option.map(pat_map_term, as_name),
+            List.map(
+              ((pt, body)) => (pat_map_term(pt), proof_map_term(body)),
+              cases,
+            ),
+          )
+        | Forall(x, body) => Forall(pat_map_term(x), proof_map_term(body))
+        | Funext(x, body) => Funext(pat_map_term(x), proof_map_term(body))
+        | Assume(e, as_name, body) =>
+          Assume(
+            exp_map_term(e),
+            Option.map(pat_map_term, as_name),
+            proof_map_term(body),
+          )
+        | Alias(x, e, body) =>
+          Alias(pat_map_term(x), exp_map_term(e), proof_map_term(body))
+        | Generalize(e, body) =>
+          Generalize(exp_map_term(e), proof_map_term(body))
+        | Revert(e, inst, body) =>
+          Revert(
+            exp_map_term(e),
+            Option.map(
+              ((v, i)) => (exp_map_term(v), exp_map_term(i)),
+              inst,
+            ),
+            proof_map_term(body),
+          )
+        | Contradiction(e, inst) =>
+          Contradiction(
+            exp_map_term(e),
+            Option.map(
+              ((v, i)) => (exp_map_term(v), exp_map_term(i)),
+              inst,
+            ),
+          )
+        | Have(e, sub, body) =>
+          Have(exp_map_term(e), proof_map_term(sub), proof_map_term(body))
+        },
+    };
+    x |> f_proof(rec_call);
   };
 }
 and StepperFilterKind: {
@@ -1249,6 +1555,7 @@ and StepperFilterKind: {
       ~f_sig: (Sig.t => Sig.t, Sig.t) => Sig.t=?,
       ~f_mpat: (MPat.t => MPat.t, MPat.t) => MPat.t=?,
       ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
+      ~f_proof: (Proof.t => Proof.t, Proof.t) => Proof.t=?,
       t
     ) =>
     t;
@@ -1280,6 +1587,7 @@ and StepperFilterKind: {
         ~f_sig=continue,
         ~f_mpat=continue,
         ~f_any=continue,
+        ~f_proof=continue,
       ) => {
     let exp_map_term =
       Exp.map_term(
@@ -1292,6 +1600,7 @@ and StepperFilterKind: {
         ~f_sig,
         ~f_mpat,
         ~f_any,
+        ~f_proof,
       );
     (
       fun

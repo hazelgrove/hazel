@@ -92,6 +92,7 @@ module Operators = {
         switch (op_bool) {
         | And => And
         | Or => Or
+        | Implies => Implies
         },
       )
     | String(op_string) =>
@@ -167,6 +168,7 @@ module Operators = {
     switch (op) {
     | And => And
     | Or => Or
+    | Implies => Implies
     };
   };
 
@@ -251,9 +253,13 @@ module rec Exp: {
       }
     | Let(p, e1, e2) =>
       let_(Pat.of_menhir_ast(p), of_menhir_ast(e1), of_menhir_ast(e2))
-    | Theorem(p, e1, e2) =>
-      theorem(Pat.of_menhir_ast(p), of_menhir_ast(e1), of_menhir_ast(e2))
-    | ProofObject(t) => proof_object(Exp.of_menhir_ast(t))
+    | Theorem(p, e1, pf, e2) =>
+      theorem(
+        Pat.of_menhir_ast(p),
+        of_menhir_ast(e1),
+        Proof.of_menhir_ast(pf),
+        of_menhir_ast(e2),
+      )
     | ForallExp(p, e) => forall(Pat.of_menhir_ast(p), of_menhir_ast(e))
     | FixF(p, e) => fix_f(Pat.of_menhir_ast(p), of_menhir_ast(e), None)
     | TypFun(t, e) =>
@@ -370,9 +376,8 @@ module rec Exp: {
     | Tuple(l) => TupleExp(List.map(of_core, l))
     | TupleExtension(e1, e2) => TupleExp([of_core(e1), of_core(e2)])
     | Let(p, e1, e2) => Let(Pat.of_core(p), of_core(e1), of_core(e2))
-    | Theorem(p, e1, e2) =>
-      Theorem(Pat.of_core(p), of_core(e1), of_core(e2))
-    | ProofObject(t) => ProofObject(Exp.of_core(t))
+    | Theorem(p, e1, pf, e2) =>
+      Theorem(Pat.of_core(p), of_core(e1), Proof.of_core(pf), of_core(e2))
     | Forall(p, e) => ForallExp(Pat.of_core(p), Exp.of_core(e))
     | FixF(p, e, _) => FixF(Pat.of_core(p), of_core(e))
     | TypFun(tp, e, _) => TypFun(TPat.of_core(tp), of_core(e))
@@ -519,7 +524,6 @@ and Typ: {
       sum(converted_terms);
     | PolyType(tp, t) => poly(TPat.of_menhir_ast(tp), of_menhir_ast(t))
     | RecType(tp, t) => rec_(TPat.of_menhir_ast(tp), of_menhir_ast(t))
-    | ProofOfType(e) => proof_of(Exp.of_menhir_ast(e))
     | Sig(items) => {
         annotation: false,
         term: Sig(List.map(SigItem.of_menhir_ast, items)),
@@ -554,7 +558,6 @@ and Typ: {
     | Unknown(p) => UnknownType(of_core_type_provenance(p))
     | Poly(tp, t) => PolyType(TPat.of_core(tp), of_core(t))
     | Rec(tp, t) => RecType(TPat.of_core(tp), of_core(t))
-    | ProofOf(e) => ProofOfType(Exp.of_core(e))
     | Parens(t) => ParenTyp(of_core(t))
     | Label(s) => LabelType(s)
     | ExplicitNonlabel => (ExplicitNonlabel: AST.typ)
@@ -601,6 +604,179 @@ and TPat: {
     | Var(x) => VarTPat(x)
     | Invalid(i) => InvalidTPat(i)
     | MultiHole(_) => raise(Failure("MultiHole not supported"))
+    };
+  };
+}
+and Proof: {
+  let of_menhir_ast: AST.proof => IndicatedG.proof;
+  let of_core: IndicatedG.proof => AST.proof;
+} = {
+  open IndicatedG.Proof;
+  let rec of_menhir_ast = (pf: AST.proof): IndicatedG.proof => {
+    let inst = (v, i) => (Exp.of_menhir_ast(v), Exp.of_menhir_ast(i));
+    let axiom = (direction, ~instantiation=?, eq, at_idx, at_exp) =>
+      axiom_step(
+        ~at_idx=Exp.of_menhir_ast(at_idx),
+        ~at_exp=Exp.of_menhir_ast(at_exp),
+        ~direction,
+        ~equality=Exp.of_menhir_ast(eq),
+        ~instantiation,
+        (),
+      );
+    let cases =
+      List.map(((p, body)) =>
+        (Pat.of_menhir_ast(p), of_menhir_ast(body))
+      );
+    switch (pf) {
+    | EmptyHoleProof => empty_hole()
+    | ProofSeq(p1, p2) => seq(of_menhir_ast(p1), of_menhir_ast(p2))
+    | ProofForall(p, body) =>
+      forall(Pat.of_menhir_ast(p), of_menhir_ast(body))
+    | ProofFunext(p, body) =>
+      funext(Pat.of_menhir_ast(p), of_menhir_ast(body))
+    | ProofAssume(e, body) =>
+      assume(Exp.of_menhir_ast(e), of_menhir_ast(body))
+    | ProofAssumeAs(e, x, body) =>
+      assume(
+        ~as_name=Some(Pat.of_menhir_ast(x)),
+        Exp.of_menhir_ast(e),
+        of_menhir_ast(body),
+      )
+    | ProofAlias(x, e, body) =>
+      alias(
+        Pat.of_menhir_ast(x),
+        Exp.of_menhir_ast(e),
+        of_menhir_ast(body),
+      )
+    | ProofGeneralize(e, body) =>
+      generalize(Exp.of_menhir_ast(e), of_menhir_ast(body))
+    | ProofRevert(e, body) =>
+      revert(Exp.of_menhir_ast(e), of_menhir_ast(body))
+    | ProofHave(e, sub, body) =>
+      have(Exp.of_menhir_ast(e), of_menhir_ast(sub), of_menhir_ast(body))
+    | ProofRevertWith(e, v, i, body) =>
+      revert(
+        ~instantiation=Some(inst(v, i)),
+        Exp.of_menhir_ast(e),
+        of_menhir_ast(body),
+      )
+    | ProofAxiom(eq, at_idx, at_exp) =>
+      axiom(Util.Direction.Right, eq, at_idx, at_exp)
+    | ProofAxiomRev(eq, at_idx, at_exp) =>
+      axiom(Util.Direction.Left, eq, at_idx, at_exp)
+    | ProofAxiomWith(eq, v, i, at_idx, at_exp) =>
+      axiom(
+        Util.Direction.Right,
+        ~instantiation=inst(v, i),
+        eq,
+        at_idx,
+        at_exp,
+      )
+    | ProofAxiomRevWith(eq, v, i, at_idx, at_exp) =>
+      axiom(
+        Util.Direction.Left,
+        ~instantiation=inst(v, i),
+        eq,
+        at_idx,
+        at_exp,
+      )
+    | ProofAlgebrite(at_exp, with_exp, at_idx) =>
+      algebrite_step(
+        ~at_idx=Exp.of_menhir_ast(at_idx),
+        ~at_exp=Exp.of_menhir_ast(at_exp),
+        ~with_exp=Exp.of_menhir_ast(with_exp),
+        (),
+      )
+    | ProofEval(at_exp, at_idx) =>
+      eval_step(
+        ~at_idx=Exp.of_menhir_ast(at_idx),
+        ~at_exp=Exp.of_menhir_ast(at_exp),
+        (),
+      )
+    | ProofContradiction(e) => contradiction(Exp.of_menhir_ast(e))
+    | ProofContradictionWith(e, v, i) =>
+      contradiction(~instantiation=Some(inst(v, i)), Exp.of_menhir_ast(e))
+    | ProofInduction(scrut, cs) =>
+      induction(Exp.of_menhir_ast(scrut), cases(cs))
+    | ProofInductionAs(scrut, x, cs) =>
+      induction(
+        ~as_name=Some(Pat.of_menhir_ast(x)),
+        Exp.of_menhir_ast(scrut),
+        cases(cs),
+      )
+    };
+  };
+
+  let rec of_core = (pf: IndicatedG.proof): AST.proof => {
+    switch (pf.term) {
+    | EmptyHole => EmptyHoleProof
+    /* No menhir syntax for a broken proof term; the empty hole is the
+       closest well-formed stand-in. */
+    | Invalid(_)
+    | MultiHole(_) => EmptyHoleProof
+    | Seq(p1, p2) => ProofSeq(of_core(p1), of_core(p2))
+    /* The menhir AST has no proof parens, so the grouping is dropped */
+    | Parens(p) => of_core(p)
+    | Forall(p, body) => ProofForall(Pat.of_core(p), of_core(body))
+    | Funext(p, body) => ProofFunext(Pat.of_core(p), of_core(body))
+    | Assume(e, None, body) => ProofAssume(Exp.of_core(e), of_core(body))
+    | Assume(e, Some(x), body) =>
+      ProofAssumeAs(Exp.of_core(e), Pat.of_core(x), of_core(body))
+    | Alias(x, e, body) =>
+      ProofAlias(Pat.of_core(x), Exp.of_core(e), of_core(body))
+    | Generalize(e, body) => ProofGeneralize(Exp.of_core(e), of_core(body))
+    | Have(e, sub, body) =>
+      ProofHave(Exp.of_core(e), of_core(sub), of_core(body))
+    | Revert(e, None, body) => ProofRevert(Exp.of_core(e), of_core(body))
+    | Revert(e, Some((v, i)), body) =>
+      ProofRevertWith(
+        Exp.of_core(e),
+        Exp.of_core(v),
+        Exp.of_core(i),
+        of_core(body),
+      )
+    | AxiomStep({at_idx, at_exp, direction, equality, instantiation}) =>
+      /* `axiom` applies the equality left-to-right, `axiomrev`
+         right-to-left; a `with` clause picks the -With variants. */
+      let (eq, idx, ae) = (
+        Exp.of_core(equality),
+        Exp.of_core(at_idx),
+        Exp.of_core(at_exp),
+      );
+      switch (direction, instantiation) {
+      | (Right, None) => AST.ProofAxiom(eq, idx, ae)
+      | (Left, None) => AST.ProofAxiomRev(eq, idx, ae)
+      | (Right, Some((v, i))) =>
+        AST.ProofAxiomWith(eq, Exp.of_core(v), Exp.of_core(i), idx, ae)
+      | (Left, Some((v, i))) =>
+        AST.ProofAxiomRevWith(eq, Exp.of_core(v), Exp.of_core(i), idx, ae)
+      };
+    | AlgebriteStep({at_idx, at_exp, with_exp}) =>
+      ProofAlgebrite(
+        Exp.of_core(at_exp),
+        Exp.of_core(with_exp),
+        Exp.of_core(at_idx),
+      )
+    | EvalStep({at_idx, at_exp}) =>
+      ProofEval(Exp.of_core(at_exp), Exp.of_core(at_idx))
+    | Contradiction(e, None) => ProofContradiction(Exp.of_core(e))
+    | Contradiction(e, Some((v, i))) =>
+      ProofContradictionWith(
+        Exp.of_core(e),
+        Exp.of_core(v),
+        Exp.of_core(i),
+      )
+    | Induction(scrut, None, cases) =>
+      ProofInduction(
+        Exp.of_core(scrut),
+        List.map(((p, body)) => (Pat.of_core(p), of_core(body)), cases),
+      )
+    | Induction(scrut, Some(x), cases) =>
+      ProofInductionAs(
+        Exp.of_core(scrut),
+        Pat.of_core(x),
+        List.map(((p, body)) => (Pat.of_core(p), of_core(body)), cases),
+      )
     };
   };
 }
