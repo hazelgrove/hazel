@@ -5898,6 +5898,163 @@ let delim_prefix_class_tests = [
   ),
 ];
 
+/* "Goto first use" (from a definition) and "Goto next use" (from a use):
+   the terms whose "Goto definition" leads to that definition, in the order
+   they appear (Uses) */
+let first_use = [Move(Goal(FirstUseOfIndicatedBinding))];
+let next_use = [Move(Goal(NextUseOfIndicatedVar))];
+
+/* What Uses finds at the caret: the first use, and the next */
+let uses_at = (init: string): (option(Id.t), option(Id.t), Zipper.t) => {
+  let z = parse_with_caret(init);
+  let statics = Lazy.force(derive(~settings=default_settings, z).statics);
+  switch (Indicated.ci_of(z, statics.info_map)) {
+  | None => Alcotest.fail("nothing indicated in: " ++ init)
+  | Some(ci) =>
+    let order = Uses.order(z);
+    (
+      Uses.first(~order, statics.info_map, ci),
+      Uses.next(~order, statics.info_map, ci),
+      z,
+    );
+  };
+};
+
+/* The context menu's go-to items at the caret (ContextMenu.get_all_items,
+   as the editor's menu shows them) */
+let goto_items_at = (init: string): list(string) => {
+  let z = parse_with_caret(init);
+  let statics = Lazy.force(derive(~settings=default_settings, z).statics);
+  Web.ContextMenu.get_all_items(
+    ~info_map=statics.info_map,
+    ~elaborated=statics.elaborated,
+    z,
+  )
+  |> List.filter_map((item: Menu.item(_)) =>
+       switch (item) {
+       | Action({label, _}) when String.starts_with(~prefix="Goto", label) =>
+         Some(label)
+       | _ => None
+       }
+     );
+};
+
+let menu_items = (name, init, expected) =>
+  test_case(name, `Quick, () =>
+    check(
+      list(string),
+      "the menu's go-to items",
+      expected,
+      goto_items_at(init),
+    )
+  );
+
+let goto_uses_tests = [
+  test_from_parse(
+    ~name="first use, from the definition",
+    ~init="let ¦x = 1 in\nlet y = x + 1 in\nx + y + x",
+    ~acts=first_use,
+    ~goal="let x = 1 in\nlet y = ¦x + 1 in\nx + y + x",
+  ),
+  test_from_parse(
+    ~name="first use, on one line",
+    ~init="let ¦x = 1 in x + x + x",
+    ~acts=first_use,
+    ~goal="let x = 1 in ¦x + x + x",
+  ),
+  test_from_parse(
+    ~name="next use, from the first",
+    ~init="let x = 1 in\nlet y = ¦x + 1 in\nx + y + x",
+    ~acts=next_use,
+    ~goal="let x = 1 in\nlet y = x + 1 in\n¦x + y + x",
+  ),
+  test_from_parse(
+    ~name="next use, to the last",
+    ~init="let x = 1 in\nlet y = x + 1 in\n¦x + y + x",
+    ~acts=next_use,
+    ~goal="let x = 1 in\nlet y = x + 1 in\nx + y + ¦x",
+  ),
+  test_from_parse(
+    ~name="first use, then each next use in turn",
+    ~init="let ¦x = 1 in\nlet y = x + 1 in\nx + y + x",
+    ~acts=first_use @ next_use @ next_use,
+    ~goal="let x = 1 in\nlet y = x + 1 in\nx + y + ¦x",
+  ),
+  test_case(
+    "no next use from the last",
+    `Quick,
+    () => {
+      let (_, next, _) =
+        uses_at("let x = 1 in\nlet y = x + 1 in\nx + y + ¦x");
+      check(bool, "no next use", true, next == None);
+    },
+  ),
+  test_case(
+    "no first use of an unused definition",
+    `Quick,
+    () => {
+      let (first, _, _) = uses_at("let ¦x = 1 in\n2");
+      check(bool, "no first use", true, first == None);
+    },
+  ),
+  test_case(
+    "a use is not a definition: no first use from it",
+    `Quick,
+    () => {
+      let (first, next, _) = uses_at("let x = 1 in\n¦x + x");
+      check(bool, "no first use", true, first == None);
+      check(bool, "a next use", true, next != None);
+    },
+  ),
+  /* (a let's definition sees the outer x; the body's x is the inner one's) */
+  test_from_parse(
+    ~name="shadowed: the outer definition's only use",
+    ~init="let ¦x = 1 in\nlet x = x + 1 in\nx",
+    ~acts=first_use,
+    ~goal="let x = 1 in\nlet x = ¦x + 1 in\nx",
+  ),
+  test_case(
+    "shadowed: no next use past the inner definition",
+    `Quick,
+    () => {
+      let (_, next, _) = uses_at("let x = 1 in\nlet x = ¦x + 1 in\nx");
+      check(bool, "no next use", true, next == None);
+    },
+  ),
+  test_from_parse(
+    ~name="shadowed: the inner definition's use",
+    ~init="let x = 1 in\nlet ¦x = x + 1 in\nx",
+    ~acts=first_use,
+    ~goal="let x = 1 in\nlet x = x + 1 in\n¦x",
+  ),
+  menu_items(
+    "menu: a definition with uses offers its first use",
+    "let ¦x = 1 in x + x + x",
+    ["Goto first use"],
+  ),
+  menu_items(
+    "menu: a use before the last offers its definition and the next use",
+    "let x = 1 in x + ¦x + x",
+    ["Goto definition", "Goto next use"],
+  ),
+  menu_items(
+    "menu: the last use offers its definition only",
+    "let x = 1 in x + x + ¦x",
+    ["Goto definition"],
+  ),
+  menu_items(
+    "menu: an unused definition offers neither",
+    "let ¦x = 1 in 2",
+    [],
+  ),
+  test_from_parse(
+    ~name="a recursive function: its use in itself first, then the body's",
+    ~init="let ¦f = fun n -> if n == 0 then 0 else f(n - 1) in\nf(3)",
+    ~acts=first_use @ next_use,
+    ~goal="let f = fun n -> if n == 0 then 0 else f(n - 1) in\n¦f(3)",
+  ),
+];
+
 let tests = [
   ("Editing.PendingDelim", pending_delim_tests),
   ("Editing.DelimPrefixClass", delim_prefix_class_tests),
@@ -5913,6 +6070,7 @@ let tests = [
   ("Editing.CommaIndent", comma_indent_tests),
   ("Editing.InsertInMiddle", insert_in_middle_tests),
   ("Editing.Move", move_tests),
+  ("Editing.GotoUses", goto_uses_tests),
   ("Editing.Selection", selection_tests),
   ("Editing.Rescan", rescan_tests),
   ("Editing.Paste", paste_tests),
