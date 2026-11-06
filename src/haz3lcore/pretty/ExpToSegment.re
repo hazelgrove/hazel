@@ -267,6 +267,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Test(_)
   | HintedTest(_)
   | ProofObject(_)
+  | Module(_)
   | Match(_) => Precedence.max
 
   | Asc(_) => Precedence.asc
@@ -298,7 +299,6 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
 
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
   | MultiHole(_) => Precedence.min
-  | Module(_) => Precedence.min
   | ModuleExp(_) => Precedence.let_
   };
 };

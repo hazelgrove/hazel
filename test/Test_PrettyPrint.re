@@ -258,6 +258,38 @@ end|},
   ),
 ];
 
+/* === Modules === */
+
+let module_tests = [
+  test_format_seg(
+    ~name="A module puts each item on its own line",
+    ~input={|module M = { type T = Bool; let x : T = true } in M.x|},
+    ~expected={|module M = {
+  type T = Bool;
+  let x : T = true
+} in
+M.x|},
+    (),
+  ),
+  test_format(
+    ~name="A short one-item module stays on one line",
+    ~input={|let m = { let y = 1 } in m|},
+    ~expected={|let m = {let y = 1} in
+m|},
+    (),
+  ),
+  test_format_seg(
+    ~name="A signature puts each item on its own line",
+    ~input={|type S = { let x : Int; let y : Int } in 1|},
+    ~expected={|type S = {
+  let x : Int;
+  let y : Int
+} in
+1|},
+    (),
+  ),
+];
+
 /* === Combined / complex === */
 
 let complex_tests = [
@@ -1333,6 +1365,7 @@ let tests = [
   ("PrettyPrint.Breaking", breaking_tests),
   ("PrettyPrint.Delimiters", delimiter_tests),
   ("PrettyPrint.Case", case_tests),
+  ("PrettyPrint.Modules", module_tests),
   ("PrettyPrint.Complex", complex_tests),
   ("PrettyPrint.CommaCompound", comma_compound_tests),
   ("PrettyPrint.Realworld", realworld_tests),
