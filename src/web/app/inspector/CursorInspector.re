@@ -11,20 +11,15 @@ let okc = "ok";
 let div_err = div(~attrs=[clss(["status", errc])]);
 let div_ok = div(~attrs=[clss(["status", okc])]);
 let div_warn = div(~attrs=[clss(["status", warnc])]);
-let code_box_container = x =>
-  div(~attrs=[clss(["code-box-container"])], [x]);
+let code_box_container = x => div_c("code-box-container", [x]);
 /* When true, prefixes type displays with ":" (e.g. ": Int").
    Appropriate in the cursor inspector but not in the error sidebar. */
 let colon_prefix = show_type_colon => show_type_colon ? [text(":")] : [];
 
-let code = (code: string): Node.t =>
-  div(~attrs=[clss(["code"])], [text(code)]);
+let code = (code: string): Node.t => div_c("code", [text(code)]);
 
 let label_view = (label: string): Node.t =>
-  div(
-    ~attrs=[clss(["code"])],
-    [text(Haz3lcore.Token.quote_label_when_necessary(label))],
-  );
+  div_c("code", [text(Haz3lcore.Token.quote_label_when_necessary(label))]);
 
 let cls_view = (ci: Info.t): Node.t => {
   let cls = ci |> Info.cls_of;
@@ -40,7 +35,7 @@ let cls_view = (ci: Info.t): Node.t => {
       }
     };
 
-  div(~attrs=[clss(["syntax-class"])], [text(cls_text)]);
+  div_c("syntax-class", [text(cls_text)]);
 };
 
 let ctx_toggle = (~globals: Globals.t): Node.t =>
@@ -84,8 +79,8 @@ let term_view = (~globals: Globals.t, ~force_error=false, ci) => {
     ],
     [
       ctx_toggle(~globals),
-      div(~attrs=[clss(["term-tag"])], [text(sort_text)]),
-      div(~attrs=[clss(["divider"])], [text("/")]),
+      div_c("term-tag", [text(sort_text)]),
+      div_c("divider", [text("/")]),
       cls_view(ci),
     ],
   );
@@ -1135,17 +1130,15 @@ let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
     bar_view([
       div(
         ~attrs=[Attr.id("cursor-inspector"), clss(["no-info"])],
-        [div(~attrs=[clss(["icon"])], [Icons.magnify]), text(err)],
+        [div_c("icon", [Icons.magnify]), text(err)],
       ),
     ]);
   /* Look up projector error for the indicated piece */
   let projector_err =
     switch (cursor.indicated_piece, cursor.editor) {
     | (Some(Projector({id, kind, _})), Some(editor)) =>
-      switch (Id.Map.find(editor.syntax.projector_errors, id)) {
-      | Some(err) => Some((kind, err))
-      | None => None
-      }
+      Id.Map.find(editor.syntax.projector_errors, id)
+      |> Option.map(~f=err => (kind, err))
     | _ => None
     };
   switch (info_for_view(~quiver=globals.settings.quiver, cursor)) {

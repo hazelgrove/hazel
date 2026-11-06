@@ -125,10 +125,7 @@ let view =
       )
       : Node.t => {
     let is_active =
-      switch (task.active_subtask) {
-      | Some(active_item) => String.equal(active_item, subtask.title)
-      | None => false
-      };
+      Option.exists(task.active_subtask, ~f=String.equal(subtask.title));
     let is_completed =
       AgentWorkbench.Utils.SubtaskUtils.is_completed(subtask);
     let is_failed = AgentWorkbench.Utils.SubtaskUtils.is_failed(subtask);
@@ -168,20 +165,17 @@ let view =
             },
           ],
         ),
-        div(
-          ~attrs=[clss(["wb-subtask-content"])],
+        div_c(
+          "wb-subtask-content",
           [
-            div(
-              ~attrs=[clss(["wb-subtask-header"])],
+            div_c(
+              "wb-subtask-header",
               [
-                span(
-                  ~attrs=[clss(["wb-subtask-title"])],
-                  [text(subtask.title)],
-                ),
+                span_c("wb-subtask-title", [text(subtask.title)]),
                 switch (subtask.completion_info) {
                 | Some(info) =>
-                  span(
-                    ~attrs=[clss(["wb-subtask-time"])],
+                  span_c(
+                    "wb-subtask-time",
                     [text(format_duration_ms(info.elapsed_time))],
                   )
                 | None => Node.none
@@ -189,49 +183,34 @@ let view =
               ],
             ),
             if (is_expanded) {
-              div(
-                ~attrs=[clss(["wb-subtask-details"])],
+              div_c(
+                "wb-subtask-details",
                 [
-                  div(
-                    ~attrs=[clss(["wb-detail-block"])],
+                  div_c(
+                    "wb-detail-block",
                     [
-                      div(
-                        ~attrs=[clss(["wb-detail-label"])],
-                        [text("Description")],
-                      ),
-                      div(
-                        ~attrs=[clss(["wb-detail-body"])],
-                        [text(subtask.description)],
-                      ),
+                      div_c("wb-detail-label", [text("Description")]),
+                      div_c("wb-detail-body", [text(subtask.description)]),
                     ],
                   ),
                   switch (subtask.completion_info) {
                   | Some(info) =>
-                    div(
-                      ~attrs=[clss(["wb-detail-block"])],
+                    div_c(
+                      "wb-detail-block",
                       [
-                        div(
-                          ~attrs=[clss(["wb-detail-label"])],
-                          [text("Summary")],
-                        ),
-                        div(
-                          ~attrs=[clss(["wb-detail-body"])],
-                          [text(info.summary)],
-                        ),
+                        div_c("wb-detail-label", [text("Summary")]),
+                        div_c("wb-detail-body", [text(info.summary)]),
                       ],
                     )
                   | None => Node.none
                   },
                   if (!List.is_empty(subtask.tools_used)) {
-                    div(
-                      ~attrs=[clss(["wb-detail-block"])],
+                    div_c(
+                      "wb-detail-block",
                       [
-                        div(
-                          ~attrs=[clss(["wb-detail-label"])],
-                          [text("Tools Used")],
-                        ),
-                        div(
-                          ~attrs=[clss(["wb-tool-results"])],
+                        div_c("wb-detail-label", [text("Tools Used")]),
+                        div_c(
+                          "wb-tool-results",
                           List.mapi(
                             ~f=
                               (
@@ -273,20 +252,16 @@ let view =
           ordered_subtasks,
         ),
       );
-    let is_task_complete =
-      switch (task.completion_info) {
-      | Some(_) => true
-      | None => false
-      };
+    let is_task_complete = Option.is_some(task.completion_info);
 
-    div(
-      ~attrs=[clss(["wb-task-container"])],
+    div_c(
+      "wb-task-container",
       [
-        div(
-          ~attrs=[clss(["wb-task-header"])],
+        div_c(
+          "wb-task-header",
           [
-            div(
-              ~attrs=[clss(["wb-task-title-row"])],
+            div_c(
+              "wb-task-title-row",
               [
                 div(
                   ~attrs=[
@@ -299,8 +274,8 @@ let view =
                 ),
                 switch (task.completion_info) {
                 | Some(info) =>
-                  span(
-                    ~attrs=[clss(["wb-task-time"])],
+                  span_c(
+                    "wb-task-time",
                     [text(format_duration_ms(info.elapsed_time))],
                   )
                 | None => Node.none
@@ -308,11 +283,11 @@ let view =
               ],
             ),
             if (total > 0) {
-              div(
-                ~attrs=[clss(["wb-progress"])],
+              div_c(
+                "wb-progress",
                 [
-                  div(
-                    ~attrs=[clss(["wb-progress-bar"])],
+                  div_c(
+                    "wb-progress-bar",
                     [
                       div(
                         ~attrs=[
@@ -337,8 +312,8 @@ let view =
                       ),
                     ],
                   ),
-                  span(
-                    ~attrs=[clss(["wb-progress-label"])],
+                  span_c(
+                    "wb-progress-label",
                     [
                       text(
                         string_of_int(completed)
@@ -354,13 +329,12 @@ let view =
             },
             switch (task.description) {
             | "" => Node.none
-            | desc =>
-              div(~attrs=[clss(["wb-task-description"])], [text(desc)])
+            | desc => div_c("wb-task-description", [text(desc)])
             },
           ],
         ),
-        div(
-          ~attrs=[clss(["wb-subtask-list"])],
+        div_c(
+          "wb-subtask-list",
           List.map(
             ~f=
               (subtask: AgentWorkbench.Model.subtask) =>
@@ -380,8 +354,8 @@ let view =
         AgentWorkbench.Utils.TaskDictUtils.sorted_task_dict(
           workbench.task_dict,
         );
-      div(
-        ~attrs=[clss(["wb-archive-overlay"])],
+      div_c(
+        "wb-archive-overlay",
         [
           div(
             ~attrs=[
@@ -390,11 +364,11 @@ let view =
             ],
             [],
           ),
-          div(
-            ~attrs=[clss(["wb-archive-panel"])],
+          div_c(
+            "wb-archive-panel",
             [
-              div(
-                ~attrs=[clss(["wb-archive-header"])],
+              div_c(
+                "wb-archive-header",
                 [
                   span(~attrs=[], [text("Task Archive")]),
                   div(
@@ -406,28 +380,22 @@ let view =
                   ),
                 ],
               ),
-              div(
-                ~attrs=[clss(["wb-archive-list"])],
+              div_c(
+                "wb-archive-list",
                 List.map(
                   ~f=
                     (task: AgentWorkbench.Model.task) => {
                       let is_displayed =
-                        switch (workbench.t_ui.display_task) {
-                        | Some(displayed_title) =>
-                          String.equal(displayed_title, task.title)
-                        | None => false
-                        };
+                        Option.exists(
+                          workbench.t_ui.display_task,
+                          ~f=String.equal(task.title),
+                        );
                       let is_active =
-                        switch (workbench.active_task) {
-                        | Some(active_title) =>
-                          String.equal(active_title, task.title)
-                        | None => false
-                        };
-                      let is_completed =
-                        switch (task.completion_info) {
-                        | Some(_) => true
-                        | None => false
-                        };
+                        Option.exists(
+                          workbench.active_task,
+                          ~f=String.equal(task.title),
+                        );
+                      let is_completed = Option.is_some(task.completion_info);
                       let switch_to_task = _ => {
                         Effect.Many([
                           inject_workbench_ui_action(
@@ -462,15 +430,15 @@ let view =
                                 : Icons.circle_with_no_check,
                             ],
                           ),
-                          div(
-                            ~attrs=[clss(["wb-archive-item-content"])],
+                          div_c(
+                            "wb-archive-item-content",
                             [
-                              div(
-                                ~attrs=[clss(["wb-archive-item-title"])],
+                              div_c(
+                                "wb-archive-item-title",
                                 [text(task.title)],
                               ),
-                              div(
-                                ~attrs=[clss(["wb-archive-item-time"])],
+                              div_c(
+                                "wb-archive-item-time",
                                 [
                                   text(
                                     TimeUtil.format_time_diff(
@@ -493,11 +461,11 @@ let view =
       );
     };
 
-  div(
-    ~attrs=[clss(["workbench-view"])],
+  div_c(
+    "workbench-view",
     [
-      div(
-        ~attrs=[clss(["wb-toolbar"])],
+      div_c(
+        "wb-toolbar",
         [
           div(
             ~attrs=[
@@ -518,7 +486,7 @@ let view =
                   Attr.title("Jump to active task"),
                 ],
                 [
-                  div(~attrs=[clss(["wb-active-dot"])], []),
+                  div_c("wb-active-dot", []),
                   span(~attrs=[], [text(active_task.title)]),
                 ],
               )
@@ -528,8 +496,8 @@ let view =
           },
         ],
       ),
-      div(
-        ~attrs=[clss(["workbench-content"])],
+      div_c(
+        "workbench-content",
         [
           switch (AgentWorkbench.Utils.MainUtils.displayed_task(workbench)) {
           | Some(displayed_task) => render_task(displayed_task)
@@ -537,16 +505,13 @@ let view =
             switch (AgentWorkbench.Utils.MainUtils.active_task(workbench)) {
             | Some(active_task) => render_task(active_task)
             | None =>
-              div(
-                ~attrs=[clss(["wb-empty-state"])],
+              div_c(
+                "wb-empty-state",
                 [
-                  div(~attrs=[clss(["wb-empty-icon"])], [Icons.library]),
-                  div(
-                    ~attrs=[clss(["wb-empty-text"])],
-                    [text("No tasks yet")],
-                  ),
-                  div(
-                    ~attrs=[clss(["wb-empty-hint"])],
+                  div_c("wb-empty-icon", [Icons.library]),
+                  div_c("wb-empty-text", [text("No tasks yet")]),
+                  div_c(
+                    "wb-empty-hint",
                     [
                       text(
                         "Tasks will appear here as the agent works on your requests.",

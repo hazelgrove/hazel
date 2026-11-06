@@ -704,10 +704,7 @@ module View = {
     let button_back =
       Widgets.button_d(
         Icons.undo,
-        switch (undo) {
-        | Some(u) => u
-        | None => Ui_effect.Ignore
-        },
+        Option.value(undo, ~default=Ui_effect.Ignore),
         ~disabled=Option.is_none(undo),
         ~tooltip="Step Backwards",
       );

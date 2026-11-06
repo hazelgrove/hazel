@@ -138,8 +138,8 @@ let encoding_toggle = (~globals: Globals.t, e: WorkerServer.encoding): Node.t =>
 };
 
 let encoding_toggles = (~globals): Node.t =>
-  div(
-    ~attrs=[clss(["wm-toggles"])],
+  div_c(
+    "wm-toggles",
     List.map(~f=encoding_toggle(~globals), WorkerServer.all_of_encoding),
   );
 

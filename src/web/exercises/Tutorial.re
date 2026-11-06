@@ -314,8 +314,7 @@ let unpersist = (~instructor_mode, positioned_zippers, spec: spec): spec => {
     if (is_editable(pos, ~instructor_mode)) {
       positioned_zippers
       |> (l => List.Assoc.find(l, pos, ~equal=Poly.equal))
-      |> Option.map(~f=PersistentZipper.unpersist(~root=Exp))
-      |> Option.value(~default);
+      |> Option.value_map(~default, ~f=PersistentZipper.unpersist(~root=Exp));
     } else {
       default;
     };
