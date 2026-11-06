@@ -448,10 +448,7 @@ let of_projector_invoke_base = (input: t): option(t) =>
      "^^probe_table"        ==> false  (no kind is named "probe_table")
      "^^p" / "let" / "^^"   ==> false */
 let is_projector_invoke = (str: t): bool =>
-  switch (of_projector_invoke(str)) {
-  | Some(name) => ProjectorKind.is_name(name)
-  | None => false
-  };
+  Option.exists(of_projector_invoke(str), ~f=ProjectorKind.is_name);
 
 /* The trigger token naming a kind. Never carries an option suffix; callers
    that want one (Triggers.refractor_to_invoke) append `_opt` themselves.

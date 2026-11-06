@@ -30,10 +30,8 @@ let ctr_ana_typ =
     | Arrow(_, ty_out) =>
       let* ctrs = Typ.get_sum_constructors(ctx, ty_out);
       let* ty_entry = ConstructorMap.get_entry(ctr, ctrs);
-      switch (ty_entry) {
-      | None => None
-      | Some(ty_in) => Some(Arrow(ty_in, ty_out) |> Typ.temp)
-      };
+      let+ ty_in = ty_entry;
+      Arrow(ty_in, ty_out) |> Typ.temp;
     | Unknown(_)
     | Atom(_)
     | DrvQuoteTy(_)

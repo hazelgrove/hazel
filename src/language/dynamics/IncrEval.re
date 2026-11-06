@@ -213,15 +213,13 @@ let reuse_map_for_co_ctx =
         if (!is_runtime_dependency(name)) {
           acc;
         } else {
-          switch (acc) {
-          | None => None
-          | Some(projected) =>
-            switch (Maps.StringMap.find(reuse_map, name)) {
-            | Some(prov) =>
-              Some(Maps.StringMap.set(projected, ~key=name, ~data=prov))
-            | None => None
+          OptUtil.Syntax.(
+            {
+              let* projected = acc;
+              let+ prov = Maps.StringMap.find(reuse_map, name);
+              Maps.StringMap.set(projected, ~key=name, ~data=prov);
             }
-          };
+          );
         },
     ~init=Some(empty_reuse_map),
     VarMap.to_list(co_ctx),
@@ -292,14 +290,14 @@ let pat_provenance = (~source_id: Id.t, ~flag: flag, pat: Pat.t): reuse_map => {
       }
     | Tuple(ps) =>
       let arity = List.length(ps);
-      ps
-      |> List.mapi(~f=(i, p) => go([TupleIndex(arity, i), ...path], p))
-      |> List.concat;
+      List.concat_mapi(ps, ~f=(i, p) =>
+        go([TupleIndex(arity, i), ...path], p)
+      );
     | ListLit(ps) =>
       let arity = List.length(ps);
-      ps
-      |> List.mapi(~f=(i, p) => go([ListIndex(arity, i), ...path], p))
-      |> List.concat;
+      List.concat_mapi(ps, ~f=(i, p) =>
+        go([ListIndex(arity, i), ...path], p)
+      );
     | Cons(hd, tl) =>
       go([ConsHead, ...path], hd) @ go([ConsTail, ...path], tl)
     };
