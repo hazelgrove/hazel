@@ -1431,8 +1431,15 @@ let view =
                   [text(msg.content)],
                 );
               ([node, ...acc], []);
-            | System(ResponseCancelled)
-            | _ => (acc, batch)
+            /* ChunkedUIChat gives these their own chunks (or keeps them
+               out of the log), so none sits in an agent response */
+            | System(
+                ApiFailure | DeveloperNotes | Prompt | Context |
+                ResponseCancelled |
+                SlashCommandOutput(_) |
+                CompactionSummary(_),
+              )
+            | User => (acc, batch)
             };
           },
           ([], []),

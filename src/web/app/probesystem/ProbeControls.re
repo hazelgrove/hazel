@@ -286,7 +286,15 @@ let qr_row = (~meta, ~new_flags: list(feature), f: feature): option(Node.t) => {
         [text("Click editor")],
       ),
     )
-  | _ => None
+  /* toggles, the console switch and the legends have their own panels,
+     not a quick-reference row */
+  | AutoProbe
+  | SamplesToggle
+  | Console
+  | IconEmpty
+  | IconPinHidden
+  | IconOutsideFocus
+  | Legend => None
   };
 };
 

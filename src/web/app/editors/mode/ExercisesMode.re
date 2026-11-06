@@ -580,7 +580,9 @@ module Selection = {
     switch (selection, current) {
     | (Derivation(sel), Derivation(e)) =>
       DerivationExerciseMode.Selection.get_derivation_info(~selection=sel, e)
-    | _ => None
+    /* code and theorem exercises carry no derivation tree */
+    | (Code(_) | TheoremExercise(_), _)
+    | (Derivation(_), Code(_) | Theorem(_)) => None
     };
   };
 };

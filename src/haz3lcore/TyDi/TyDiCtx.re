@@ -67,18 +67,29 @@ let bound_constructors =
     ctx.entries,
   );
 
+/* The return type of a function type, seen through aliases and parens
+   (`type Pred = Int -> Bool` is a function type too) */
+let arrow_out = (ctx: Ctx.t, ty: Typ.t): option(Typ.t) =>
+  switch (Typ.weak_head_normalize(ctx, ty) |> Typ.term_of) {
+  | Arrow(_, ty_out) => Some(ty_out)
+  | _ => None
+  };
+
 /* Suggest applying a function from the ctx which returns an appropriate type */
 let bound_aps = (ty_expect: Typ.t, ctx: Ctx.t): list(TyDiSuggestion.t) =>
   List.filter_map(
     fun
-    | Ctx.VarEntry({typ: {term: Arrow(_, ty_out), _} as ty_arr, name, _})
-        when
-          Typ.is_consistent(ctx, ty_expect, ty_out)
-          && !Typ.is_consistent(ctx, ty_expect, ty_arr) => {
+    | Ctx.VarEntry({typ: ty_arr, name, _}) =>
+      switch (arrow_out(ctx, ty_arr)) {
+      | Some(ty_out)
+          when
+            Typ.is_consistent(ctx, ty_expect, ty_out)
+            && !Typ.is_consistent(ctx, ty_expect, ty_arr) =>
         Some({
           content: name ++ "(",
           strategy: Exp(Common(FromCtxAp(ty_out))),
-        });
+        })
+      | _ => None
       }
     | _ => None,
     ctx.entries,
@@ -88,18 +99,18 @@ let bound_constructor_aps =
     (wrap, ty: Typ.t, ctx: Ctx.t): list(TyDiSuggestion.t) =>
   List.filter_map(
     fun
-    | Ctx.ConstructorEntry({
-        typ: {term: Arrow(_, ty_out), _} as ty_arr,
-        name,
-        _,
-      })
-        when
-          Typ.is_consistent(ctx, ty, ty_out)
-          && !Typ.is_consistent(ctx, ty, ty_arr) =>
-      Some({
-        content: name ++ "(",
-        strategy: wrap(FromCtxAp(ty_out)),
-      })
+    | Ctx.ConstructorEntry({typ: ty_arr, name, _}) =>
+      switch (arrow_out(ctx, ty_arr)) {
+      | Some(ty_out)
+          when
+            Typ.is_consistent(ctx, ty, ty_out)
+            && !Typ.is_consistent(ctx, ty, ty_arr) =>
+        Some({
+          content: name ++ "(",
+          strategy: wrap(FromCtxAp(ty_out)),
+        })
+      | _ => None
+      }
     | _ => None,
     ctx.entries,
   );
@@ -151,15 +162,19 @@ let bound_qualified_aps =
         List.filter_map(
           label_ty =>
             switch (Typ.match_tup_label(label_ty)) {
-            | Some((label, {term: Arrow(_, ty_out), _} as field_ty))
-                when
-                  Typ.is_consistent(ctx, ty_expect, ty_out)
-                  && !Typ.is_consistent(ctx, ty_expect, field_ty) =>
-              Some({
-                content: name ++ "." ++ label ++ "(",
-                strategy: Exp(Common(FromCtxAp(ty_out))),
-              })
-            | _ => None
+            | Some((label, field_ty)) =>
+              switch (arrow_out(ctx, field_ty)) {
+              | Some(ty_out)
+                  when
+                    Typ.is_consistent(ctx, ty_expect, ty_out)
+                    && !Typ.is_consistent(ctx, ty_expect, field_ty) =>
+                Some({
+                  content: name ++ "." ++ label ++ "(",
+                  strategy: Exp(Common(FromCtxAp(ty_out))),
+                })
+              | _ => None
+              }
+            | None => None
             },
           ts,
         )
@@ -206,7 +221,12 @@ let suggest_variable = (ci: Info.t): list(TyDiSuggestion.t) => {
     @ bound_constructors(x => Pat(Common(x)), ana, ctx)
     @ bound_constructor_aps(x => Pat(Common(x)), ana, ctx)
   | InfoTyp(_) => typ_context_entries(ctx)
-  | _ => []
+  | InfoDrv(_)
+  | InfoTPat(_)
+  | InfoMod(_)
+  | InfoSig(_)
+  | InfoMPat(_)
+  | Secondary(_) => []
   };
 };
 
@@ -249,7 +269,8 @@ let suggest_lookahead_variable = (ci: Info.t): list(TyDiSuggestion.t) => {
       bound_aps(ty, ctx)
       @ bound_qualified_aps(ty, ctx)
       @ bound_constructor_aps(x => Exp(Common(x)), ty, ctx);
-    switch (ana |> Typ.term_of) {
+    /* through aliases: `type L = [Int]` expects a list too */
+    switch (Typ.weak_head_normalize(ctx, ana) |> Typ.term_of) {
     | List(ty) =>
       List.map(restrategize(" )::"), exp_aps(ty))
       @ List.map(restrategize("::"), exp_refs(ty))
@@ -275,7 +296,7 @@ let suggest_lookahead_variable = (ci: Info.t): list(TyDiSuggestion.t) => {
       free_variables(ty, ctx, co_ctx)
       @ bound_constructors(x => Pat(Common(x)), ty, ctx);
     let pat_aps = ty => bound_constructor_aps(x => Pat(Common(x)), ty, ctx);
-    switch (ana |> Typ.term_of) {
+    switch (Typ.weak_head_normalize(ctx, ana) |> Typ.term_of) {
     | List(ty) =>
       List.map(restrategize(" )::"), pat_aps(ty))
       @ List.map(restrategize("::"), pat_refs(ty))
@@ -286,7 +307,12 @@ let suggest_lookahead_variable = (ci: Info.t): list(TyDiSuggestion.t) => {
       @ List.map(restrategize(commas), pat_refs(ty));
     | _ => []
     };
-  | InfoTyp(_) => []
-  | _ => []
+  | InfoTyp(_)
+  | InfoDrv(_)
+  | InfoTPat(_)
+  | InfoMod(_)
+  | InfoSig(_)
+  | InfoMPat(_)
+  | Secondary(_) => []
   };
 };

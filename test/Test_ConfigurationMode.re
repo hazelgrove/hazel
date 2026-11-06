@@ -224,7 +224,111 @@ let value_read_back_matches_the_event = () => {
   );
 };
 
+/* ── The config editor is selected in Configuration mode ──────────────
+
+   The page keeps one selection, and a selection from another mode reaches
+   no editor: keys go nowhere, and cursor actions (Reparse, Problems
+   next/previous) find nothing, until the user clicks into the editor. */
+let ignore_inject = _ => Ui_effect.Ignore;
+
+let selects_an_editor = (selection, editors: Web.Editors.Model.t) =>
+  Web.Editors.Selection.get_cursor_info(
+    ~inject=ignore_inject,
+    ~selection,
+    editors,
+  ).
+    editor
+  != None;
+
+/* A reload in Configuration mode starts from default_selection. */
+let reload_selects_config_editor = () => {
+  let editors: Web.Editors.Model.t =
+    Config(
+      CM.Model.unpersist(
+        ~settings=Language.CoreSettings.on,
+        CM.StoreConfig.default(),
+      ),
+    );
+  check(
+    bool,
+    "the default selection reaches the config editor",
+    true,
+    selects_an_editor(
+      Web.Editors.Selection.default_selection(editors),
+      editors,
+    ),
+  );
+};
+
+/* Switching into Configuration mode replaces the old mode's selection. */
+let switch_selects_config_editor = (action: Web.Editors.Update.t, ()) => {
+  let globals = Web.Globals.Model.init();
+  let (default_current, slides) = Lazy.force(Web.Init.startup).scratch;
+  let editors: Web.Editors.Model.t =
+    Scratch(
+      Web.ScratchMode.Persist.load_all(
+        "scratch",
+        ~settings=globals.settings.core,
+        ~default_names=List.map(fst, slides),
+        ~default_current,
+      ),
+    );
+  let page: Web.Page.Model.t = {
+    globals,
+    editors,
+    explain_this: Web.ExplainThisModel.init,
+    selection: Web.Editors.Selection.default_selection(editors),
+  };
+  let page =
+    Web.Page.Update.update(
+      ~import_log=_ => (),
+      ~get_log_and=_ => (),
+      ~schedule_action=_ => (),
+      Editors(action),
+      page,
+    ).
+      model;
+  check(
+    bool,
+    "in Configuration mode",
+    true,
+    switch (page.editors) {
+    | Config(_) => true
+    | Scratch(_)
+    | Documentation(_)
+    | Exercises(_)
+    | Tutorial(_) => false
+    },
+  );
+  check(
+    bool,
+    "the selection reaches the config editor",
+    true,
+    selects_an_editor(page.selection, page.editors),
+  );
+};
+
 let tests = [
+  (
+    "ConfigurationMode.selection",
+    [
+      test_case(
+        "reload in Configuration mode selects the config editor",
+        `Quick,
+        reload_selects_config_editor,
+      ),
+      test_case(
+        "SwitchMode(Config) selects the config editor",
+        `Quick,
+        switch_selects_config_editor(SwitchMode(Config)),
+      ),
+      test_case(
+        "ShowConfig selects the config editor",
+        `Quick,
+        switch_selects_config_editor(ShowConfig(ColorScheme)),
+      ),
+    ],
+  ),
   (
     "ConfigurationMode.default_source",
     List.map(

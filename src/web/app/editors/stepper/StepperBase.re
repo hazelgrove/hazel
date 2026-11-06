@@ -40,6 +40,22 @@ let init_step = {
   editor_info_map: Calc.Pending,
 };
 
+/* The term a taken step rewrote, highlighted in the expression it was taken
+   from. Axiom and algebra steps both rewrite their [at_exp]. */
+let taken_step_ids = (step_kind: step_kind_model): list(Id.t) =>
+  switch (step_kind) {
+  | SingleStep(m) => [
+      m.evalobj
+      |> Calc.get_saved_exc(~print="SingleStep")
+      |> EvaluatorStep.get_step_id,
+    ]
+  | AxiomStep(m) => [m.at_exp |> Exp.rep_id]
+  | AlgebriteStep(m) => [m.at_exp |> Exp.rep_id]
+  | InductionStep(_)
+  | ForallStep(_)
+  | MissingStep(_) => []
+  };
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type persistent_step_kind =
   | SingleStep(SingleStep.persistent'(persistent_step))
@@ -896,16 +912,7 @@ and Stepper: {
       if (!this_step_shown) {
         [];
       } else {
-        let taken_steps =
-          switch (model.step_kind) {
-          | SingleStep(m) => [
-              m.evalobj
-              |> Calc.get_saved_exc(~print="SingleStep")
-              |> EvaluatorStep.get_step_id,
-            ]
-          | AxiomStep(m) => [m.at_exp |> Exp.rep_id]
-          | _ => []
-          };
+        let taken_steps = taken_step_ids(model.step_kind);
         let next_steps =
           switch (model.step_kind) {
           | MissingStep(m) =>

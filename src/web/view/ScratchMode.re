@@ -1145,7 +1145,8 @@ module Selection = {
     switch (selection, scratchpad.kind) {
     | (Drv(sel), Drv(m)) =>
       DerivationExerciseMode.Selection.get_derivation_info(~selection=sel, m)
-    | _ => None
+    | (Cell(_) | TextBox, _)
+    | (Drv(_), Code(_)) => None
     };
   };
 };

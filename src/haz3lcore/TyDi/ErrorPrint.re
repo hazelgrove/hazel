@@ -248,7 +248,10 @@ let string_of_marks = (info: Info.t, marks: list(Mark.t)): string =>
       | None => ""
       }
     }
-  | _ => "(static error)"
+  | InfoMod(_)
+  | InfoSig(_)
+  | InfoMPat(_)
+  | Secondary(_) => "(static error)"
   };
 
 let format_error = (term, error) =>

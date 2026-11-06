@@ -66,7 +66,37 @@ let passes = () => {
   );
 };
 
+/* An algebra (Algebrite) step rewrites its at_exp just as an axiom step
+   does, so the stepper highlights that term in the expression it rewrote.
+   It used to fall through to no highlight. */
+let rewrite_steps_highlight_their_term = () => {
+  let at_exp = Language.Exp.fresh(Var("x"));
+  let with_exp = Language.Exp.fresh(Var("y"));
+  check(
+    list(
+      Alcotest.testable(Util.Id.pp, (a, b) => Util.Id.compare(a, b) == 0),
+    ),
+    "algebra step highlights its at_exp",
+    [Language.Exp.rep_id(at_exp)],
+    Web.StepperBase.taken_step_ids(
+      AlgebriteStep({
+        at_idx: 0,
+        at_exp,
+        with_exp,
+        next_exp: Util.Calc.Pending,
+      }),
+    ),
+  );
+};
+
 let tests = (
   "StepperPasses",
-  [test_case("passes are incremental", `Quick, passes)],
+  [
+    test_case("passes are incremental", `Quick, passes),
+    test_case(
+      "rewrite steps highlight their term",
+      `Quick,
+      rewrite_steps_highlight_their_term,
+    ),
+  ],
 );

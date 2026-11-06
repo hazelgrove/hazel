@@ -92,6 +92,26 @@ let variable_tests = (
   ],
 );
 
+/* Function and list types reached through a type alias are still function
+ * and list types: a Pred-typed function is applicable where Bool is
+ * expected, and an L-typed definition takes a cons lookahead. */
+let alias_tests = (
+  "TyDi.Aliases",
+  [
+    tydi_test(
+      ~name="Function through an alias: suggests application",
+      ~code=
+        "type Pred = Int -> Bool in let isPos : Pred = fun n -> n > 0 in let b : Bool = isP¦",
+      ~expect=Some("os("),
+    ),
+    tydi_test(
+      ~name="List through an alias: suggests cons lookahead",
+      ~code="type L = [Int] in let myint = 1 in let xs : L = myi¦",
+      ~expect=Some("nt::"),
+    ),
+  ],
+);
+
 let constructor_tests = (
   "TyDi.Constructors",
   [
@@ -662,6 +682,7 @@ let ci_sort_tests = (
 let tests = [
   dot_label_tests,
   variable_tests,
+  alias_tests,
   constructor_tests,
   operand_tests,
   leading_form_tests,

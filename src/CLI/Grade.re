@@ -178,7 +178,9 @@ let grade_one =
           grade_theorem_exercise(thm_spec, ps),
         )
       /* Spec kind and persistent kind don't match; skip. */
-      | _ => (
+      | (Web.Exercise.Code(_), Model.PDerivation(_) | Model.PTheorem(_))
+      | (Web.Exercise.Derivation(_), Model.PCode(_) | Model.PTheorem(_))
+      | (Web.Exercise.Theorem(_), Model.PCode(_) | Model.PDerivation(_)) => (
           "<mismatched persistent/spec>",
           {
             summary: "",

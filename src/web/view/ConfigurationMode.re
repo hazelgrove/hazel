@@ -380,9 +380,18 @@ module Update = {
       | CellEditor.Update.ResultAction(UpdateResult(ResultOk({result, _}))) =>
         let (config_type, _) = Model.get_current_config(model);
         perform_side_effect(~schedule_global, model, config_type, result);
-      // Continue with normal cell update
-      | _ => ()
+      /* only a finished, successful evaluation is applied; streamed
+         partial results and failures leave the configuration as it was */
+      | ResultAction(UpdateResult(ResultFail(_) | ResultPending(_)))
+      | ResultAction(
+          ToggleStepper | StepperAction(_) | EvalEditorAction(_) |
+          UpdateStreamingEval(_) |
+          MergeStreamingEval(_) |
+          TheoremsAction(_),
+        )
+      | MainEditor(_) => ()
       };
+      // Continue with normal cell update
 
       let (_, ed) = Model.get_current_config(model);
       let* new_ed = CellEditor.Update.update(~settings, a, ed);
