@@ -8,6 +8,9 @@ open Haz3lcore;
 /* This file follows conventions in [docs/ui-architecture.md] */
 
 module Model = {
+  open Sexplib.Std;
+  open Ppx_yojson_conv_lib.Yojson_conv;
+
   /* Context menu state lives in Util.Menu — None = closed, Some({…})
    * holds the selected item index and (unused for the editor menu) the
    * submenu path. */
@@ -19,6 +22,10 @@ module Model = {
     // Updated:
     editor: Editor.t,
     context_menu: context_menu_state,
+    /* The selections that Expand selection grew from, most recent first:
+     * Shrink selection steps back through them. Any other edit or move
+     * clears them. Each is (anchor, focus); equal for a bare caret. */
+    expansions: list((Util.Point.t, Util.Point.t)),
     statics: CachedStatics.t,
     dynamics: Language.Dynamics.Map.t,
   };
@@ -36,6 +43,7 @@ module Model = {
     statics,
     dynamics,
     context_menu: None,
+    expansions: [],
   };
 
   let mk_from_exp =
@@ -156,7 +164,7 @@ module Update = {
         ~dynamics: Language.Dynamics.Map.t,
         ~is_dynamic_term,
         ~ana=?,
-        {editor, statics, context_menu, _}: Model.t,
+        {editor, statics, context_menu, expansions, _}: Model.t,
       )
       : Model.t => {
     /* Throttle gate for full statics recompute. Bypass the debounce when probe
@@ -248,6 +256,7 @@ module Update = {
       statics,
       dynamics,
       context_menu,
+      expansions,
     };
   };
 };

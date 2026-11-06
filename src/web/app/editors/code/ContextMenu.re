@@ -79,10 +79,14 @@ module Shortcuts = {
 /* What a menu row dispatches. Most rows are a plain editor action, but
  * Paste can't be: the text it inserts is only available from an async
  * system-clipboard read at click time, so the row carries the intent and
- * the view layer supplies the text (see CodeEditable.perform_from_menu). */
+ * the view layer supplies the text (see CodeEditable.perform_from_menu).
+ * Expanding and shrinking the selection keep a history of selections in
+ * the editor model, which no Action sees. */
 type command =
   | Perform(Action.t)
-  | PasteFromClipboard;
+  | PasteFromClipboard
+  | ExpandSelection
+  | ShrinkSelection;
 
 let action_item = (~shortcut=?, ~tooltip=?, ~enabled=true, label, action) =>
   Menu.action_item(
@@ -251,13 +255,28 @@ let clipboard_data = (z: Zipper.t): list(Menu.item(command)) => {
   |> (row => [row]);
 };
 
-let select_current_term_data = (): list(Menu.item(command)) => [
-  action_item(
-    ~shortcut=Shortcuts.select_current_term(),
-    "Select term",
-    Action.Select(Term(Current)),
-  ),
-];
+/* With nothing selected, select the term at the caret; with a selection,
+ * grow it to the enclosing term, and step back down if it was grown. */
+let selection_data =
+    (~can_shrink: bool, z: Zipper.t): list(Menu.item(command)) =>
+  Selection.is_empty(z.selection)
+    ? [
+      command_item(
+        ~shortcut=Shortcuts.select_current_term(),
+        "Select term",
+        ExpandSelection,
+      ),
+    ]
+    : [
+        command_item(
+          ~shortcut=Shortcuts.select_current_term(),
+          "Expand selection",
+          ExpandSelection,
+        ),
+      ]
+      @ (
+        can_shrink ? [command_item("Shrink selection", ShrinkSelection)] : []
+      );
 
 /* The backpack, dropped at the caret. */
 let put_down_data = (z: Zipper.t): list(Menu.item(command)) =>
@@ -435,6 +454,7 @@ let refractor_actions_data =
 
 let get_sections =
     (
+      ~can_shrink: bool,
       ~info_map: Language.Statics.Map.t,
       ~elaborated: Language.Exp.t,
       z: Zipper.t,
@@ -443,7 +463,7 @@ let get_sections =
   let ci = Indicated.ci_of(z, info_map);
   [
     /* Section 1: Navigation & Selection */
-    jump_to_binding_data(ci) @ select_current_term_data(),
+    jump_to_binding_data(ci) @ selection_data(~can_shrink, z),
     /* Section 2: Clipboard */
     clipboard_data(z) @ put_down_data(z),
     /* Section 3: Refactoring */
@@ -472,12 +492,13 @@ let flatten_sections =
 
 let get_all_items =
     (
+      ~can_shrink: bool,
       ~info_map: Language.Statics.Map.t,
       ~elaborated: Language.Exp.t,
       z: Zipper.t,
     )
     : list(Menu.item(command)) =>
-  flatten_sections(get_sections(~info_map, ~elaborated, z));
+  flatten_sections(get_sections(~can_shrink, ~info_map, ~elaborated, z));
 
 /* ============================================================
  * Update + keyboard
@@ -504,13 +525,14 @@ module WithContext = {
         ~info_map: Language.Statics.Map.t,
         ~elaborated: Language.Exp.t,
         ~zipper: Zipper.t,
+        ~can_shrink: bool,
         ~dispatch_menu: Menu.action => Ui_effect.t(unit),
         ~dispatch_action: command => Ui_effect.t(unit),
         state: Menu.t,
         key_str: string,
       )
       : option(Ui_effect.t(unit)) => {
-    let items = get_all_items(~info_map, ~elaborated, zipper);
+    let items = get_all_items(~can_shrink, ~info_map, ~elaborated, zipper);
     Menu.key_dispatcher(
       ~items,
       ~dispatch_menu,
@@ -629,10 +651,11 @@ let view =
       ~elaborated: Language.Exp.t,
       ~font_metrics: FontMetrics.t,
       ~model: Menu.t,
+      ~can_shrink: bool,
       z: Haz3lcore.Zipper.t,
     )
     : Node.t => {
-  let items = get_all_items(~info_map, ~elaborated, z);
+  let items = get_all_items(~can_shrink, ~info_map, ~elaborated, z);
   if (items == []) {
     div([]);
   } else if (JsUtil.coarse_pointer()) {

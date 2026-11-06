@@ -18,6 +18,7 @@ module Model = {
       statics: CachedStatics.empty,
       dynamics: Language.Dynamics.Map.empty,
       context_menu: None,
+      expansions: [],
     },
     result: EvalResult.Model.init,
   };
