@@ -83,5 +83,5 @@ let indicator_select =
          ),
        )
      )
-  |> Util.ListUtil.intersperse(text("/"));
+  |> Util.ListUtil.join(text("/"));
 };
