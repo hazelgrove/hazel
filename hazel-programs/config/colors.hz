@@ -1,0 +1,514 @@
+# ══ Color scheme ══ Every color in the editor is decided here. ══ #
+
+# Turn on dark mode, or high contrast, or both -- they compose, so both #
+# gives a high-contrast dark scheme. #
+let dark_mode = ^^check(false) in
+let high_contrast = ^^check(false) in
+
+# How far up the lightness scale each ramp step sits. Given per scheme #
+# because a light scheme's steps run darker and a dark scheme's lighter. #
+type ColorRamp = ^^fold((
+  `frame-2` = Float, `frame-3` = Float, `frame-4` = Float,
+  `surface-2` = Float, `surface-3` = Float, `surface-4` = Float
+)) in
+# What a scheme decides for itself, where the shared derivation below #
+# is not the right answer -- plus the two flags it declares. #
+type ColorOverrides = ^^fold((
+  `dark` = Bool, `contrast` = Bool,
+  # one ramp step each, read by every role that wants that line weight #
+  `frame-mark` = ColorValue,
+  `frame-seam` = ColorValue,
+  `frame-border` = ColorValue,
+  `menu-nut` = ColorValue,
+  `menu-background` = ColorValue,
+  `menu-hover` = ColorValue,
+  `chrome-background` = ColorValue,
+  `chrome-heading` = ColorValue,
+  `chrome-muted-text` = ColorValue,
+  `chrome-toggle-track` = ColorValue,
+  `editor-cell` = ColorValue,
+  # the sort plate's chroma factor, and the lightness it is pinned to #
+  `cursor-tint` = Float, `cursor-level` = Float,
+  # the lightness the stepper's next-step plate is pinned to #
+  `step-next-level` = Float,
+  # how much of the remaining way to the ink probe sample text is moved: #
+  # 0. keeps the shared placement, 1. is the ink itself #
+  `probe-text-toward-ink` = Float,
+  `hole-empty` = ColorValue,
+  `projector-textarea-text` = ColorValue,
+  `inspector-badge` = ColorValue,
+  `inspector-text` = ColorValue
+)) in
+
+let palette_of(seed : ColorSeeds, step : ColorRamp): ColorPalette = ^^fold(let pat = color_rotate(seed.`type`, -75.) in
+seed ... (
+  `frame-2` = color_with_lightness(seed.`frame-1`, step.`frame-2`),
+  `frame-3` = color_with_lightness(seed.`frame-1`, step.`frame-3`),
+  `frame-4` = color_with_lightness(seed.`frame-1`, step.`frame-4`),
+  `surface-2` = color_with_lightness(seed.`surface-1`, step.`surface-2`),
+  `surface-3` = color_with_lightness(seed.`surface-1`, step.`surface-3`),
+  `surface-4` = color_with_lightness(seed.`surface-1`, step.`surface-4`),
+  `pattern` = pat,
+  `type-pattern` = pat,
+  # 4-6 interleave with 1-3, for a longer run of distinct highlights #
+  `doc-2` = color_rotate(seed.`doc-1`, -120.),
+  `doc-3` = color_rotate(seed.`doc-1`, -240.),
+  `doc-4` = color_rotate(seed.`doc-1`, -60.),
+  `doc-5` = color_rotate(seed.`doc-1`, -180.),
+  `doc-6` = color_rotate(seed.`doc-1`, -300.)
+)) in
+
+let theme_of(p : ColorPalette, role : ColorOverrides): ColorScheme = ^^fold(let bg_l = color_lightness(p.`surface-1`) in
+let text_l = color_lightness(p.`ink`) in
+let toward(base, c, t) =
+  color_with_lightness(c, base +. (text_l -. base) *. t) in
+# at(c, t) places c on this scheme's OWN contrast axis: t = 0. is the #
+# page background's lightness, t = 1. the body text's. That is why one #
+# definition is correct in all four schemes, where a fixed lightness is #
+# right in light and invisible in dark. #
+let at(c, t) = toward(bg_l, c, t) in
+# wash scales chroma too: a fill wants a wash of its hue, an accent #
+# the whole thing. #
+let wash(c, t, sat) = at(color_saturate(c, sat), t) in
+# a fill must be placed against the surface it actually sits ON, and #
+# not every surface is the page: table rows sit on the code background, #
+# ten lightness points off the page in dark. Same span, same ink. #
+let code_l = color_lightness(p.`code-background`) in
+let on_code(c, t, sat) =
+  toward(code_l, color_saturate(c, sat), t) in
+# the plate behind an indicated tile: the sort's own hue, desaturated #
+# and pinned to one lightness. All three sorts share the pair. #
+# sample text: its shared place on the axis, moved on toward the ink by #
+# the scheme's own amount #
+let probe_text(c, t, sat) =
+  wash(c, t +. (1. -. t) *. role.`probe-text-toward-ink`, sat) in
+let sort_plate(c) =
+  color_with_lightness(
+    color_saturate(c, role.`cursor-tint`), role.`cursor-level`) in
+(
+  palette = p,
+  roles = (
+    menu = (
+      `nut` = role.`menu-nut`,
+      `background` = role.`menu-background`,
+      `hover` = role.`menu-hover`,
+      `divider` = p.`divider`,
+      `shadow` = p.`overlay-shadow`
+    ),
+    # the frame round the editor: toolbars, sidebars, status #
+    chrome = (
+      `background` = role.`chrome-background`,
+      `heading` = role.`chrome-heading`,
+      `muted-text` = role.`chrome-muted-text`,
+      `toggle-track` = role.`chrome-toggle-track`,
+      `meter` = wash(p.`pattern`, 0.87, 1.),
+      # the zebra stripe deliberately stays on `surface-2`: a fraction #
+      # of a longer axis is a bigger step, right for a hover and wrong #
+      # for a stripe. #
+      `table-row-hover` = on_code(p.`success`, 0.19, 0.35)
+    ),
+    editor = (
+      `cell` = role.`editor-cell`,
+      `scrollbar` = role.`frame-mark`,
+      `buffer` = role.`frame-mark`,
+      `derivation` = wash(p.`success`, 0.82, 0.67),
+      `locked-cell` = role.`frame-border`,
+      # findable aliases; each defaults to its place in the ramp #
+      `string` = p.`attention-4`,
+      `comment` = p.`success-muted`,
+      `selection` = p.`attention-2`,
+      # the hues a token cycles through while an LLM is filling it, at #
+      # the body text's lightness #
+      `waiting-1` = Oklch(text_l, 0.2, 265.),
+      `waiting-2` = Oklch(text_l, 0.2, 300.),
+      `waiting-3` = Oklch(text_l, 0.2, 355.),
+      `waiting-4` = Oklch(text_l, 0.2, 45.),
+      `waiting-5` = Oklch(text_l, 0.2, 120.),
+      `waiting-6` = Oklch(text_l, 0.2, 240.)
+    ),
+    # the plate behind whatever the cursor is on, one per sort #
+    cursor = (
+      `connector` = role.`frame-seam`,
+      `pattern` = sort_plate(p.`pattern`),
+      `type` = sort_plate(p.`type`),
+      `type-pattern` = sort_plate(p.`type-pattern`),
+      `derivation` = wash(p.`success`, 0.04, 0.25),
+      `module` = wash(p.`label`, 0.04, 0.25),
+      `signature` = wash(p.`type`, 0.04, 0.25),
+      `module-pattern` = wash(p.`pattern`, 0.04, 0.25)
+    ),
+    hole = (
+      `empty` = role.`hole-empty`,
+      `empty-edge` = role.`frame-mark`,
+      `error` = p.`error-hole`,
+      `warning` = wash(p.`attention-3`, 0., 0.2),
+      `warning-edge` = wash(p.`attention-3`, 0.82, 1.5),
+      # backings behind the simplified error/warning arms, drawn at 0.4 #
+      # opacity, so they sit a step OUTSIDE the page background (t < 0) #
+      `error-backing` = wash(color_rotate(p.`error-2`, -5.), -0.0667, 0.6667),
+      `warning-backing` =
+        wash(color_rotate(p.`attention-3`, -15.), -0.0667, 1.)
+    ),
+    # rows in the problems sidebar #
+    problems = (
+      `row` = wash(p.`pattern`, 0.11, 0.2),
+      `row-edge` = wash(p.`pattern`, 0.82, 0.75),
+      `row-active` = wash(p.`pattern`, 1.04, 1.)
+    ),
+    # results, and the incremental evaluator's tints #
+    results = (
+      `divider` = role.`frame-seam`,
+      `reused` = Fade(wash(p.`pattern`, 0.13, 0.23), 55.),
+      `reused-edge` = Fade(wash(p.`pattern`, 0.41, 0.45), 55.),
+      `sweep` = Fade(wash(p.`ink`, -0.07, 0.), 56.),
+      `pending` = Fade(p.`ink`, 11.),
+      `pending-edge` = Fade(p.`ink`, 16.),
+      # the plate behind an expression the stepper can reduce next. Code #
+      # sits ON it, so each scheme pins the lightness rather than taking #
+      # a fraction of the axis: in high contrast the ink is at an #
+      # extreme, and a fraction of that axis lands on top of the text. #
+      `step-next` =
+        color_with_lightness(p.`success`, role.`step-next-level`),
+      `reused-glow` = Fade(wash(p.`pattern`, 0.2784, 0.41), 75.)
+    ),
+    inspector = (
+      `badge` = role.`inspector-badge`,
+      `text` = role.`inspector-text`,
+      `separator` = role.`frame-border`
+    ),
+    # probes: live values pinned to the program #
+    probe = (
+      `depth` = wash(p.`ink`, 0.49, 0.),
+      `caller` = wash(p.`doc-1`, 0.09, 0.86),
+      `caller-text` = probe_text(p.`doc-1`, 0.64, 1.71),
+      `caller-edge` = wash(p.`doc-1`, 0.27, 1.14),
+      `caller-related-text` = probe_text(p.`doc-1`, 0.8667, 3.),
+      `callee` = wash(p.`label`, 0.09, 0.15),
+      `callee-text` = probe_text(p.`label`, 0.47, 0.4),
+      `callee-edge` = wash(p.`label`, 0.38, 0.45),
+      `other` = wash(p.`success`, 0.06, 0.09),
+      `other-text` = wash(p.`success`, 1.01, 0.63),
+      `other-edge` = wash(p.`success`, 0.3156, 0.9),
+      `focus-text` = wash(p.`success`, 0.99, 0.87),
+      # the focused sample while the sample strip holds keyboard focus #
+      `focus-keyboard` =
+        color_with_lightness(
+          color_saturate(p.`probe-value`, 1.764),
+          color_lightness(p.`probe-value`) *. 0.96),
+      # samples off the cursor's call stack: the same green, stepped down #
+      # the axis so text, edge and fill stay apart in every scheme #
+      `off` = wash(p.`success`, 0.0444, 0.2),
+      `off-text` = probe_text(p.`success`, 0.5556, 0.6),
+      `off-edge` = wash(p.`success`, 0.2667, 0.4),
+      # the expanded drawer: its top rule, and the fade over content #
+      # that runs past its height #
+      `drawer-edge` = wash(p.`frame-1`, 0.2222, 0.5714),
+      `drawer-fade` = Fade(wash(p.`frame-1`, 1., 0.8571), 40.)
+    ),
+    # completion chips: the page knocked out of the chip, and the #
+    # faded segments still to come, off the chip and on the caret's #
+    completion = (
+      `chip-text` = role.`editor-cell`,
+      `later-text` = color_mix(role.`editor-cell`, p.`attention-4`, 0.22),
+      `later-text-at-caret` =
+        color_mix(p.`attention-4`, p.`attention-2`, 0.55)
+    ),
+    # inline widgets: text areas, folds, the statics card #
+    projector = (
+      `textarea-text` = role.`projector-textarea-text`,
+      `fold-background` = wash(p.`pattern`, 1.44, 0.17),
+      # the arm from an indicated term to its statics card #
+      `statics-arm` = wash(p.`statics-background`, 0.5533, 3.177)
+    ),
+    # the agent workbench: the banner shown while history is compacted #
+    agent = (
+      `banner` = Fade(wash(p.`pattern`, 0.9333, 0.4), 12.),
+      `banner-edge` = Fade(wash(p.`pattern`, 0.9333, 0.4), 35.)
+    )
+  ),
+  # declared, not inferred -- low-contrast seeds could flip polarity #
+  # partway through a derivation, and nothing in the colors says #
+  # whether high contrast was ASKED for. #
+  `is-dark` = role.`dark`,
+  `is-high-contrast` = role.`contrast`
+)) in
+
+# ── light ── #
+let light_roles(p : ColorPalette): ColorOverrides = ^^fold((
+  `dark` = false,
+  `contrast` = false,
+  # one ramp step, read by every role that wants that line weight #
+  `frame-mark` = p.`frame-1`,
+  `frame-seam` = p.`frame-1`,
+  `frame-border` = p.`frame-2`,
+  `menu-nut` = p.`info-strong`,
+  `menu-background` = p.`attention-1`,
+  `menu-hover` = p.`code-background`,
+  `chrome-background` = p.`surface-1`,
+  `chrome-heading` = p.`frame-3`,
+  `chrome-muted-text` = p.`frame-2`,
+  `chrome-toggle-track` = p.`frame-3`,
+  `editor-cell` = p.`code-background`,
+  `cursor-tint` = 0.25,
+  `cursor-level` = 95.,
+  `step-next-level` = 85.,
+  `probe-text-toward-ink` = 0.,
+  `hole-empty` = p.`attention-1`,
+  `projector-textarea-text` = p.`frame-3`,
+  `inspector-badge` = p.`frame-3`,
+  `inspector-text` = p.`frame-4`
+)) in
+
+let light =
+  let p = palette_of(
+    (
+      `none` = Transparent,
+      `code-background` = ^^color(Oklch(99., 0.012, 90.)),
+      `ink` = ^^color(Oklch(52., 0.03, 220.)),
+      `black` = ^^color(Oklch(0., 0., 0.)),
+      `frame-1` = ^^color(Oklch(85., 0.07, 90.)),
+      `surface-1` = ^^color(Oklch(97., 0.025, 90.)),
+      `attention-1` = ^^color(Oklch(95., 0.05, 90.)),
+      `attention-2` = ^^color(Oklch(91., 0.11, 95.)),
+      `attention-3` = ^^color(Oklch(88., 0.2, 95.)),
+      `attention-4` = ^^color(Oklch(71., 0.2, 95.)),
+      `error-1` = ^^color(Oklch(85., 0.1, 30.)),
+      `error-2` = ^^color(Oklch(60., 0.3, 30.)),
+      `error-3` = ^^color(Oklch(40., 0.3, 30.)),
+      `type` = ^^color(Oklch(60., 0.2, 300.)),
+      `label` = ^^color(Oklch(60., 0.2, 180.)),
+      `doc-1` = ^^color(Oklch(95., 0.07, 360.)),
+      `success` = ^^color(Oklch(70., 0.15, 150.)),
+      `success-soft` = ^^color(Oklch(85., 0.15, 150.)),
+      `success-muted` = ^^color(Oklch(80., 0.05, 150.)),
+      `info` = ^^color(Oklch(70., 0.05, 120.)),
+      `info-strong` = ^^color(Oklch(45., 0.05, 120.)),
+      `textarea-margin` = Fade(^^color(Oklch(78., 0.14, 6.)), 55.),
+      `textarea-rule` = ^^color(Oklch(87., 0.07, 246.)),
+      `textarea-rule-selected` = Fade(^^color(Oklch(68., 0.14, 76.)), 30.),
+      `overlay-shadow` = Fade(^^color(Oklch(50., 0.1, 90.)), 33.),
+      `error-hole` = ^^color(Oklch(96., 0.02, 47.)),
+      `divider` = Fade(^^color(Oklch(0., 0., 0.)), 40.),
+      `probe-application` = ^^color(Oklch(77.98377, 0.11156, 303.02104)),
+      `probe-value` = ^^color(Oklch(90.06553, 0.05236, 145.12433)),
+      `probe-pattern` = ^^color(Oklch(90.75194, 0.03285, 184.47899)),
+      `probe-value-edge` = ^^color(Oklch(55., 0.15, 150.)),
+      `probe-pattern-edge` = ^^color(Oklch(50., 0.1, 245.)),
+      `probe-timeline` = ^^color(Oklch(80.13895, 0.05096, 177.90838)),
+      `statics-background` = ^^color(Oklch(94.8122, 0.03085, 315.29055)),
+      `statics-edge` = ^^color(Oklch(33.96448, 0.0941, 314.00959))
+    ),
+    (
+      `frame-2` = 70.,
+      `frame-3` = 60.,
+      `frame-4` = 50.,
+      `surface-2` = 94.,
+      `surface-3` = 91.,
+      `surface-4` = 88.
+    )
+  ) in
+  theme_of(p, light_roles(p)) in
+
+# ── dark ── #
+let dark_roles(p : ColorPalette): ColorOverrides = ^^fold((
+  `dark` = true,
+  `contrast` = false,
+  # one ramp step, read by every role that wants that line weight #
+  `frame-mark` = p.`frame-3`,
+  `frame-seam` = p.`frame-2`,
+  `frame-border` = p.`frame-3`,
+  `menu-nut` = p.`success-muted`,
+  `menu-background` = p.`surface-1`,
+  `menu-hover` = color_with_lightness(p.`code-background`, 95.),
+  `chrome-background` = p.`surface-2`,
+  `chrome-heading` = p.`frame-4`,
+  # frame-2 and frame-3 sit at 40 and 55 here, both too close to the #
+  # surface to read as text; muted is the ramp lifted, not stepped. #
+  `chrome-muted-text` = color_with_lightness(p.`frame-3`, 66.),
+  `chrome-toggle-track` = p.`frame-3`,
+  `editor-cell` =
+  color_with_lightness(color_saturate(p.`code-background`, 4. /. 3.), 30.),
+  `cursor-tint` = 0.3333,
+  `cursor-level` = 40.,
+  `step-next-level` = 31.,
+  `probe-text-toward-ink` = 0.,
+  `hole-empty` = p.`surface-2`,
+  `projector-textarea-text` = p.`ink`,
+  `inspector-badge` = p.`frame-2`,
+  `inspector-text` = p.`ink`
+)) in
+
+let dark = ^^fold(let p = palette_of(
+    (
+      `none` = Transparent,
+      `code-background` = ^^color(Oklch(25., 0.015, 240.)),
+      `ink` = ^^color(Oklch(75., 0.03, 250.)),
+      `black` = ^^color(Oklch(0., 0., 0.)),
+      `frame-1` = ^^color(Oklch(30., 0.04, 250.)),
+      `surface-1` = ^^color(Oklch(15., 0.02, 250.)),
+      # chroma reads far stronger at 22 lightness than at the 95 the light #
+      # scheme states it on, where 0.05 is barely a tint; half of it here #
+      # is the same warmth without the olive cast. #
+      `attention-1` = ^^color(Oklch(22., 0.03, 95.)),
+      `attention-2` = ^^color(Oklch(32., 0.09, 169.5)),
+      `attention-3` = ^^color(Oklch(45., 0.15, 95.)),
+      `attention-4` = ^^color(Oklch(65., 0.18, 118.38)),
+      `error-1` = ^^color(Oklch(40., 0.1, 30.)),
+      `error-2` = ^^color(Oklch(55., 0.25, 30.)),
+      `error-3` = ^^color(Oklch(70., 0.3, 30.)),
+      `type` = ^^color(Oklch(70., 0.18, 300.)),
+      `label` = ^^color(Oklch(75., 0.15, 210.)),
+      `doc-1` = ^^color(Oklch(65., 0.1, 260.)),
+      `success` = ^^color(Oklch(65., 0.15, 150.)),
+      `success-soft` = ^^color(Oklch(75., 0.15, 150.)),
+      `success-muted` = ^^color(Oklch(60., 0.05, 150.)),
+      `info` = ^^color(Oklch(60., 0.05, 200.)),
+      `info-strong` = ^^color(Oklch(35., 0.05, 200.)),
+      `textarea-margin` = Fade(^^color(Oklch(35., 0.14, 230.)), 55.),
+      `textarea-rule` = ^^color(Oklch(30., 0.07, 240.)),
+      `textarea-rule-selected` = Fade(^^color(Oklch(45., 0.14, 230.)), 30.),
+      `overlay-shadow` = Fade(^^color(Oklch(10., 0.08, 250.)), 50.),
+      `error-hole` = ^^color(Oklch(40., 0.02, 47.)),
+      `divider` = Fade(^^color(Oklch(100., 0., 0.)), 25.),
+      `probe-application` = ^^color(Oklch(49.30911, 0.25288, 292.96451)),
+      `probe-value` = ^^color(Oklch(45.7018, 0.03667, 248.63699)),
+      `probe-pattern` = ^^color(Oklch(42.87573, 0.04998, 275.36018)),
+      `probe-value-edge` = ^^color(Oklch(30., 0.1, 230.)),
+      `probe-pattern-edge` = ^^color(Oklch(25., 0.1, 260.)),
+      `probe-timeline` = ^^color(Oklch(45.47879, 0.06612, 283.45785)),
+      `statics-background` = ^^color(Oklch(23.76605, 0.04345, 290.34169)),
+      `statics-edge` = ^^color(Oklch(14.52088, 0.01659, 292.02116))
+    ),
+    (
+      `frame-2` = 40.,
+      `frame-3` = 55.,
+      `frame-4` = 70.,
+      `surface-2` = 18.,
+      `surface-3` = 22.,
+      `surface-4` = 26.
+    )
+  ) in
+  theme_of(p, dark_roles(p))) in
+
+# ── high contrast ── for accessibility ── #
+let contrast_light = ^^fold(let p = palette_of(
+    (
+      `none` = Transparent,
+      `code-background` = ^^color(Oklch(100., 0., 90.)),
+      `ink` = ^^color(Oklch(0., 0., 220.)),
+      `black` = ^^color(Oklch(0., 0., 0.)),
+      `frame-1` = ^^color(Oklch(35., 0., 90.)),
+      `surface-1` = ^^color(Oklch(100., 0., 90.)),
+      `attention-1` = ^^color(Oklch(95., 0.08, 90.)),
+      `attention-2` = ^^color(Oklch(90., 0.14, 95.)),
+      `attention-3` = ^^color(Oklch(85., 0.2, 95.)),
+      `attention-4` = ^^color(Oklch(41.5, 0.2, 95.)),
+      `error-1` = ^^color(Oklch(90., 0.1, 30.)),
+      `error-2` = ^^color(Oklch(35.5, 0.28, 30.)),
+      `error-3` = ^^color(Oklch(28., 0.28, 30.)),
+      `type` = ^^color(Oklch(36., 0.25, 300.)),
+      `label` = ^^color(Oklch(36., 0.2, 180.)),
+      `doc-1` = ^^color(Oklch(92., 0.1, 360.)),
+      `success` = ^^color(Oklch(38., 0.2, 150.)),
+      `success-soft` = ^^color(Oklch(90., 0.15, 150.)),
+      `success-muted` = ^^color(Oklch(40.5, 0.12, 150.)),
+      `info` = ^^color(Oklch(41.5, 0.1, 120.)),
+      `info-strong` = ^^color(Oklch(30., 0.1, 120.)),
+      `textarea-margin` = Fade(^^color(Oklch(55., 0.2, 6.)), 55.),
+      `textarea-rule` = ^^color(Oklch(70., 0.12, 246.)),
+      `textarea-rule-selected` = Fade(^^color(Oklch(55., 0.2, 76.)), 30.),
+      `overlay-shadow` = Fade(^^color(Oklch(0., 0., 90.)), 33.),
+      `error-hole` = ^^color(Oklch(95., 0.06, 47.)),
+      `divider` = Fade(^^color(Oklch(0., 0., 0.)), 40.),
+      `probe-application` = ^^color(Oklch(88., 0.1, 303.02104)),
+      `probe-value` = ^^color(Oklch(94., 0.06, 145.12433)),
+      `probe-pattern` = ^^color(Oklch(94., 0.05, 184.47899)),
+      `probe-value-edge` = ^^color(Oklch(35., 0.18, 150.)),
+      `probe-pattern-edge` = ^^color(Oklch(35., 0.14, 245.)),
+      `probe-timeline` = ^^color(Oklch(90., 0.06, 177.90838)),
+      `statics-background` = ^^color(Oklch(96., 0.04, 315.29055)),
+      `statics-edge` = ^^color(Oklch(25., 0.12, 314.00959))
+    ),
+    (
+      `frame-2` = 25.,
+      `frame-3` = 15.,
+      `frame-4` = 5.,
+      `surface-2` = 97.,
+      `surface-3` = 94.,
+      `surface-4` = 91.
+    )
+  ) in
+  theme_of(p, light_roles(p) ... (
+    `contrast` = true,
+    `step-next-level` = 90.
+  ))) in
+
+# ── high contrast, dark ── #
+let contrast_dark = ^^fold(let p = palette_of(
+    (
+      `none` = Transparent,
+      `code-background` = ^^color(Oklch(12., 0., 240.)),
+      `ink` = ^^color(Oklch(100., 0., 250.)),
+      `black` = ^^color(Oklch(0., 0., 0.)),
+      `frame-1` = ^^color(Oklch(65., 0., 250.)),
+      `surface-1` = ^^color(Oklch(0., 0., 250.)),
+      `attention-1` = ^^color(Oklch(14., 0.08, 95.)),
+      `attention-2` = ^^color(Oklch(38., 0.13, 169.5)),
+      `attention-3` = ^^color(Oklch(75., 0.16, 95.)),
+      `attention-4` = ^^color(Oklch(88., 0.18, 118.38)),
+      `error-1` = ^^color(Oklch(30., 0.14, 30.)),
+      `error-2` = ^^color(Oklch(70., 0.2, 30.)),
+      `error-3` = ^^color(Oklch(80., 0.15, 30.)),
+      `type` = ^^color(Oklch(80., 0.16, 300.)),
+      `label` = ^^color(Oklch(88., 0.11, 210.)),
+      `doc-1` = ^^color(Oklch(70., 0.14, 260.)),
+      `success` = ^^color(Oklch(82., 0.17, 150.)),
+      `success-soft` = ^^color(Oklch(90., 0.14, 150.)),
+      `success-muted` = ^^color(Oklch(78., 0.12, 150.)),
+      `info` = ^^color(Oklch(78., 0.1, 200.)),
+      `info-strong` = ^^color(Oklch(55., 0.1, 200.)),
+      `textarea-margin` = Fade(^^color(Oklch(55., 0.2, 230.)), 55.),
+      `textarea-rule` = ^^color(Oklch(45., 0.12, 240.)),
+      `textarea-rule-selected` = Fade(^^color(Oklch(65., 0.2, 230.)), 30.),
+      `overlay-shadow` = Fade(^^color(Oklch(0., 0., 250.)), 66.),
+      `error-hole` = ^^color(Oklch(28., 0.06, 47.)),
+      `divider` = Fade(^^color(Oklch(100., 0., 0.)), 55.),
+      `probe-application` = ^^color(Oklch(58., 0.24, 292.96451)),
+      # sample text sits on these, so they stay near the page and their #
+      # edges go toward the ink, as in the light high-contrast scheme #
+      `probe-value` = ^^color(Oklch(28., 0.07, 248.63699)),
+      `probe-pattern` = ^^color(Oklch(26., 0.08, 275.36018)),
+      `probe-value-edge` = ^^color(Oklch(80., 0.12, 230.)),
+      `probe-pattern-edge` = ^^color(Oklch(78., 0.12, 260.)),
+      `probe-timeline` = ^^color(Oklch(57., 0.08, 283.45785)),
+      `statics-background` = ^^color(Oklch(32., 0.06, 290.34169)),
+      `statics-edge` = ^^color(Oklch(6., 0.02, 292.02116))
+    ),
+    (
+      `frame-2` = 75.,
+      `frame-3` = 85.,
+      `frame-4` = 95.,
+      `surface-2` = 4.,
+      `surface-3` = 8.,
+      `surface-4` = 12.
+    )
+  ) in
+  theme_of(p, dark_roles(p) ... (
+    `contrast` = true,
+    `menu-hover` = color_with_lightness(p.`code-background`, 22.),
+    `editor-cell` = color_with_lightness(p.`code-background`, 14.),
+    `chrome-muted-text` = p.`frame-2`,
+    `cursor-tint` = 0.5,
+    `cursor-level` = 28.,
+    `step-next-level` = 27.,
+    # light text on a dark fill needs more lightness than dark text on a #
+    # light one to read as well, so the shared placement falls short here #
+    `probe-text-toward-ink` = 0.55
+  ))) in
+
+case (dark_mode, high_contrast)
+| (false, false) => light
+| (false, true) => contrast_light
+| (true, false) => dark
+| (true, true) => contrast_dark
+end

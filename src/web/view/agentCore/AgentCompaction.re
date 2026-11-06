@@ -167,7 +167,6 @@ let maybe_start_compaction =
         [
           OpenRouter.Message.Utils.mk_system_msg(
             CompactionPrompt.mk_system_prompt(
-              ~agent_system_prompt=model.prompting.system_prompt,
               ~dev_notes=model.prompting.dev_notes,
             ),
           ),

@@ -304,6 +304,14 @@ nonAscriptingPat:
     | OPEN_SQUARE_BRACKET; l = separated_list(COMMA, pat); CLOSE_SQUARE_BRACKET; { ListPat(l) }
     | c = CONSTRUCTOR_IDENT { ConstructorPat(c, None)}
     | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { AscPat(ConstructorPat(c, None), t) }
+    (* Base-type keywords are ordinary constructors in pat position too
+       (JSON's Int/Float/Bool/String cases) — MakeTerm parity. *)
+    | INT_TYPE { ConstructorPat("Int", None) }
+    | SINT_TYPE { ConstructorPat("SInt", None) }
+    | NAT_TYPE { ConstructorPat("Nat", None) }
+    | FLOAT_TYPE { ConstructorPat("Float", None) }
+    | BOOL_TYPE { ConstructorPat("Bool", None) }
+    | STRING_TYPE { ConstructorPat("String", None) }
     | p = IDENT { VarPat(p) }
     | i = INT { AtomPat (Int i) }
     | f = FLOAT { AtomPat (Float f) }

@@ -1,4 +1,5 @@
 open Alcotest;
+open Language;
 open Web;
 
 /* Rules that must hold for whatever lessons are authored in
@@ -19,7 +20,53 @@ let folders =
   |> List.map(folder_of)
   |> List.fold_left((acc, f) => List.mem(f, acc) ? acc : acc @ [f], []);
 
+/* The hidden-test results of a lesson with `solution` in place of its @code,
+   stitched to the tests the way TutorialMode.of_spec does. */
+let test_results_with = (spec: Tutorial.spec, solution): TestResults.t => {
+  let editors =
+    Tutorial.map(
+      {
+        ...spec,
+        your_impl: solution,
+      },
+      Haz3lcore.Editor.Model.mk(~root=Exp),
+      Haz3lcore.Editor.Model.mk(~root=Exp),
+    );
+  let (_, elab) =
+    Statics.mk(
+      CoreSettings.on,
+      Builtins.ctx_init(Some(Operators.default_mode)),
+      Tutorial.stitch_term(editors).hidden_tests.term,
+    );
+  let (_, state) = Evaluator.evaluate(~env=Builtins.env_init, elab);
+  TestResults.mk_results(EvaluatorState.get_tests(state));
+};
+
+let solution_cases =
+  lessons
+  |> List.filter_map((spec: Tutorial.spec) =>
+       Option.map(
+         solution =>
+           test_case(
+             spec.title ++ " @solution passes its tests",
+             `Quick,
+             () => {
+               let results = test_results_with(spec, solution);
+               check(bool, "has tests", true, results.total > 0);
+               check(
+                 int,
+                 TestResults.test_summary_str(results),
+                 results.total,
+                 results.passing,
+               );
+             },
+           ),
+         spec.solution,
+       )
+     );
+
 let tests = [
+  ("Tutorial lesson solutions", solution_cases),
   (
     "Tutorial lesson paths",
     [

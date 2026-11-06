@@ -1,7 +1,7 @@
 /*
  * TutorialDecode: the inverse of Web.TutorialText. Reads the in-memory
  * Tutorial.spec list (Web.TutorialSettings.lessons) and emits the
- * @prompt/@code/@test/... .hzt text format it was loaded from, using
+ * @prompt/@code/@test/@solution/... .hzt text format it was loaded from, using
  * MarkerParse to render the editor zippers as text.
  *
  *   ./hazel tutorial-decode            # write all lessons to
@@ -57,6 +57,13 @@ let decode_spec = (spec: Web.Tutorial.spec): string =>
         ? "" : kv("hints", String.concat("\n", spec.hidden_tests.hints))
     )
     ++ kv("code", String.trim(code))
+    ++ (
+      switch (spec.solution) {
+      | None => ""
+      | Some(solution) =>
+        kv("solution", String.trim(MarkerParse.to_text(solution)))
+      }
+    )
     ++ "@test\n"
     ++ String.trim(test)
     ++ "\n"

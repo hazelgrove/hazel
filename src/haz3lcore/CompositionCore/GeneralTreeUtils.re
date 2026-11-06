@@ -16,6 +16,24 @@ let subtree_of =
     switch (info) {
     | InfoExp({user_term: term, _}) =>
       switch (Exp.term_of(term)) {
+      | Let(pat, def, body) when Option.is_some(FunctionSugar.detect(pat)) =>
+        /* The surface f(args) binder is only a function definition in
+           its enclosing let. Rechecking it as a standalone pattern
+           incorrectly demands that f be a constructor. Reuse the
+           authoritative statics for the requested surface subtrees. */
+        let roots =
+          (of_pat ? [Pat.rep_id(pat)] : [])
+          @ (of_def ? [Exp.rep_id(def)] : [])
+          @ (of_body ? [Exp.rep_id(body)] : []);
+        Id.Map.filter(
+          (id, child) =>
+            List.mem(id, roots)
+            || List.exists(
+                 root => List.mem(root, Info.ancestors_of(child)),
+                 roots,
+               ),
+          orig_info_map,
+        );
       | Let(pat, def, body) =>
         let pat_info = pat_to_pat(pat, orig_info_map);
         let def_info = exp_to_exp(def, orig_info_map);

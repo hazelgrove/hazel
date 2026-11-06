@@ -97,9 +97,18 @@ let rec pat_for_bound_name = (name: Var.t, pat: Pat.t): Pat.t =>
   | _ => pat
   };
 
+/* Funlet members (`let f(x) = e`) bind only the head var; Pat.bound_vars
+   descends an Ap pattern's ARGUMENT (right for constructor patterns,
+   wrong here — it would export the parameters instead of the function). */
+let modlet_bound_vars = (pat: Pat.t): list(Var.t) =>
+  switch (FunctionSugar.detect(pat)) {
+  | Some((f_name, _, _)) => Pat.bound_vars(f_name)
+  | None => Pat.bound_vars(pat)
+  };
+
 let item_bound_names = (item: Mod.t): list(Var.t) =>
   switch (item.term) {
-  | ModLet(pat, _) => Pat.bound_vars(pat)
+  | ModLet(pat, _) => modlet_bound_vars(pat)
   | ModuleMod(mp, _) => mpat_names(mp)
   | ModType(_, _)
   | ModExp(_)
@@ -121,14 +130,19 @@ let value_exports = (items: list(Mod.t)): list(value_export) => {
       let exports =
         switch (item.term) {
         | ModLet(pat, _) =>
-          Pat.bound_vars(pat)
+          /* Funlet: the whole binder carries the function's type (see
+             FunctionSugar.add_binder_infos). Searching it by name could
+             land on a parameter that shadows the function, e.g.
+             `let g(x)(g) = …`. */
+          let is_funlet = Option.is_some(FunctionSugar.detect(pat));
+          modlet_bound_vars(pat)
           |> List.filter(keep)
           |> List.map(name =>
                {
                  name,
-                 pat: pat_for_bound_name(name, pat),
+                 pat: is_funlet ? pat : pat_for_bound_name(name, pat),
                }
-             )
+             );
         | ModuleMod(mp, _) =>
           let pat = mpat_to_pat(mp);
           mpat_names(mp)
@@ -219,10 +233,9 @@ let rec collect_type_exports =
            switch (tpat.term) {
            | Var(name) =>
              let (resolved, alias_ty) =
-               if (List.mem(name, Typ.free_vars(typ))) {
-                 let ty_rec = Rec(Var(name) |> TPat.fresh, typ) |> Typ.temp;
-                 (ty_rec, ty_rec);
-               } else {
+               switch (Typ.recursive_def(name, typ)) {
+               | Typ.Recursive(ty_rec) => (ty_rec, ty_rec)
+               | Typ.Plain =>
                  let locals = List.map(fst, acc);
                  (
                    Typ.normalize(~expand=n => List.mem(n, locals), ctx, typ),
@@ -262,6 +275,8 @@ let rec collect_type_exports =
   |> snd
   |> List.rev;
 
+/* Funlet patterns are deliberately left unascribed: Asc(f(args), member_ty)
+   would be read by FunctionSugar.detect as a RETURN-type annotation. */
 let modlet_pat = (ana_labels: list((Var.t, Typ.t)), pat: Pat.t): Pat.t =>
   switch (pat.term) {
   | Var(name) =>
