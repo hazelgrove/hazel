@@ -1,4 +1,5 @@
 open Test_Statics_Prelude;
+open Language;
 open FTemp;
 open Typ;
 
@@ -403,6 +404,342 @@ let test_limitation_label_mismatch_hole =
 
 /* ===== MODULE KEYWORD TESTS ===== */
 
+/* The id of the inner F in `module F = fun x -> F(x) in 1`, with or
+   without an ascription on the module's name */
+let self_reference_id = (exp: Exp.t): Id.t =>
+  switch (IdTagged.term_of(exp)) {
+  | ModuleExp(_, {term: Fun(_, {term: Ap(_, f, _), _}, _, _), _}, _) =>
+    IdTagged.rep_id(f)
+  | _ => Alcotest.fail("expected `module F = fun x -> F(x) in ...`")
+  };
+
+/* A module definition that names its own module: modules are not
+   recursive, so the name is unbound inside it. The one error is at the
+   inner F, which reads as a constructor that is not defined. */
+let module_names_itself = (name, source) =>
+  Alcotest.test_case(
+    name,
+    `Quick,
+    () => {
+      let exp = parse_exp(source);
+      Alcotest.(check(list(pair(string, testable_issue))))(
+        "Static errors",
+        [
+          (Id.show(self_reference_id(exp)), Marks([FreeConstructor("F")])),
+        ],
+        errors(statics(exp))
+        |> List.map(((id, ms)) => (Id.show(id), Marks(ms))),
+      );
+    },
+  );
+
+let test_module_names_itself =
+  module_names_itself(
+    "A module definition that names its own module is an error",
+    {|module F = fun x -> F(x) in 1|},
+  );
+
+let test_ascribed_module_names_itself =
+  module_names_itself(
+    "An ascribed module definition that names its own module is an error",
+    {|module F : Int -> Int = fun x -> F(x) in 1|},
+  );
+
+/* Inside its own definition, a module's name is not in scope */
+let test_module_name_not_in_scope_in_def =
+  Alcotest.test_case(
+    "A module's name is not in scope in its definition",
+    `Quick,
+    () => {
+      let exp = parse_exp({|module F = fun x -> ? in 1|});
+      let hole_id =
+        switch (IdTagged.term_of(exp)) {
+        | ModuleExp(_, {term: Fun(_, hole, _, _), _}, _) =>
+          IdTagged.rep_id(hole)
+        | _ => Alcotest.fail("expected `module F = fun x -> ? in ...`")
+        };
+      let hole_ctx =
+        switch (Statics.Map.lookup(hole_id, statics(exp))) {
+        | Some(info) => Info.ctx_of(info)
+        | None => Alcotest.fail("no info at the hole")
+        };
+      Alcotest.(check(bool))(
+        "F is unbound at the hole",
+        true,
+        Option.is_none(Ctx.lookup_var(hole_ctx, "F")),
+      );
+      Alcotest.(check(bool))(
+        "x is bound at the hole",
+        true,
+        Option.is_some(Ctx.lookup_var(hole_ctx, "x")),
+      );
+    },
+  );
+
+/* A module bound to a fixpoint the user wrote (Alexander's first program
+   on #2651). Its definition elaborates to a FixF, the shape a recursive
+   Let gives a definition that names its own variable, but here f is the
+   fixpoint's own variable: no errors. The fixpoint is unannotated, so the
+   type is unknown. */
+let test_module_fix =
+  fully_consistent_typecheck(
+    "A module bound to a fixpoint has no errors",
+    {|module m = fix f -> fun n -> if n == 0 then 1 else n * f(n - 1) in m(3)|},
+    Some(unknown(Internal)),
+  );
+
+/* A fixpoint whose body names the module, not the fixpoint's variable
+   (Alexander's second program on #2651): the module's name is unbound in
+   its definition, so the one error is at the inner m, a free variable */
+let test_module_fix_names_itself =
+  Alcotest.test_case(
+    "A module bound to a fixpoint that names the module is an error",
+    `Quick,
+    () => {
+      let exp =
+        parse_exp(
+          {|module m = fix g -> fun n -> if n == 0 then 0 else m(n - 1) in m(3)|},
+        );
+      let inner_m =
+        switch (IdTagged.term_of(exp)) {
+        | ModuleExp(
+            _,
+            {
+              term:
+                FixF(
+                  _,
+                  {
+                    term:
+                      Fun(
+                        _,
+                        {term: If(_, _, {term: Ap(_, m, _), _}), _},
+                        _,
+                        _,
+                      ),
+                    _,
+                  },
+                  _,
+                ),
+              _,
+            },
+            _,
+          ) =>
+          IdTagged.rep_id(m)
+        | _ =>
+          Alcotest.fail(
+            "expected `module m = fix g -> fun n -> if ... else m(...) in ...`",
+          )
+        };
+      Alcotest.(check(list(pair(string, testable_issue))))(
+        "Static errors",
+        [(Id.show(inner_m), Marks([Free("m")]))],
+        errors(statics(exp))
+        |> List.map(((id, ms)) => (Id.show(id), Marks(ms))),
+      );
+    },
+  );
+
+/* A module whose definition names the module it shadows */
+let shadows_module_source = {|module F = fun (x : Int) -> x > 0 in module F = fun x -> F(x) in F(1)|};
+
+/* F(1) is a Bool only when the inner F is the outer one */
+let test_module_shadows_module =
+  fully_consistent_typecheck(
+    "A module definition names the module it shadows",
+    shadows_module_source,
+    Some(bool()),
+  );
+
+/* The second definition's info: its ctx binds F to the outer module, and
+   its co_ctx, which an item's dependencies are read from, has F as a free
+   use */
+let test_module_shadows_module_info =
+  Alcotest.test_case(
+    "A module definition's info binds the module it shadows",
+    `Quick,
+    () => {
+      let exp = parse_exp(shadows_module_source);
+      let (outer_id, def, inner_f) =
+        switch (IdTagged.term_of(exp)) {
+        | ModuleExp(
+            outer,
+            _,
+            {
+              term:
+                ModuleExp(
+                  _,
+                  {term: Fun(_, {term: Ap(_, f, _), _}, _, _), _} as def,
+                  _,
+                ),
+              _,
+            },
+          ) => (
+            IdTagged.rep_id(outer),
+            def,
+            f,
+          )
+        | _ =>
+          Alcotest.fail(
+            "expected `module F = ... in module F = fun x -> F(x) in ...`",
+          )
+        };
+      let m = statics(exp);
+      let inner_f_ctx =
+        switch (Statics.Map.lookup(IdTagged.rep_id(inner_f), m)) {
+        | Some(info) => Info.ctx_of(info)
+        | None => Alcotest.fail("no info at the inner F")
+        };
+      Alcotest.(check(option(string)))(
+        "F at the inner reference is the outer module",
+        Some(Id.show(outer_id)),
+        Ctx.lookup_var(inner_f_ctx, "F")
+        |> Option.map((entry: Ctx.var_entry) => Id.show(entry.id)),
+      );
+      let def_co_ctx =
+        switch (Statics.Map.lookup_exp(IdTagged.rep_id(def), m)) {
+        | Some(info) => info.co_ctx
+        | None => Alcotest.fail("no info at the second definition")
+        };
+      Alcotest.(check(bool))(
+        "F is free in the second definition",
+        true,
+        CoCtx.has_any(def_co_ctx, ["F"]),
+      );
+    },
+  );
+
+/* A `module` item in braces lowers to a plain Let, which is recursive, so
+   an item that names itself is not an error, unlike a `module ... in`
+   binding. This pins that split as it is, until it is decided whether
+   braces items are recursive. */
+let test_module_item_names_itself =
+  fully_consistent_typecheck(
+    "A module item in braces that names itself is still recursive",
+    {|module Outer = { module G = fun n -> if n == 0 then 7 else G(n - 1) } in Outer.G(3)|},
+    Some(int()),
+  );
+
+/* Statics of `code`, which must have no errors and synthesize `expected`,
+   in under `seconds` */
+let checks_within = (name, ~seconds, code, expected) =>
+  Alcotest.test_case(
+    name,
+    `Quick,
+    () => {
+      let exp = parse_exp(code);
+      let t0 = Sys.time();
+      let s = statics(exp);
+      let dt = Sys.time() -. t0;
+      Alcotest.(check(list(testable_issue)))(
+        "Static errors",
+        [],
+        List.map(((_, ms)) => Marks(ms), errors(s)),
+      );
+      Alcotest.check(
+        Alcotest.option(testable_typ),
+        code,
+        expected,
+        synthesized_type(s, exp),
+      );
+      Alcotest.(check(bool))(
+        Printf.sprintf("took %.1f s", dt),
+        true,
+        dt < seconds,
+      );
+    },
+  );
+
+/* module F0 = fun x : Int -> module F1 = fun x : Int -> ... in F1(x) in
+   F0(1): n module-bound functions, each holding the next. A module
+   analyzes its definition once, so this is n analyses; as recursive lets,
+   with the probe and three passes each, it would be 4^n. */
+let nested_function_modules = n => {
+  let rec go = i =>
+    i > n
+      ? "x"
+      : Printf.sprintf(
+          "module F%d = fun x : Int -> %s in F%d(x)",
+          i,
+          go(i + 1),
+          i,
+        );
+  "module F0 = fun x : Int -> " ++ go(1) ++ " in F0(1)";
+};
+
+/* The same chain with each module ascribed Int -> (a = Int), so each
+   module binding is analyzed against a one-label product and goes through
+   the singleton-label pre-pass, twice: the module's, then its Let's. That
+   is three analyses per module, 3^n; with a recursive Let pre-pass it
+   would be six, 6^n. */
+let nested_labeled_function_modules = n => {
+  let rec go = i =>
+    i > n
+      ? "(a = x)"
+      : Printf.sprintf(
+          "module F%d : Int -> (a = Int) = fun x -> %s in F%d(x)",
+          i,
+          go(i + 1),
+          i,
+        );
+  "module F0 : Int -> (a = Int) = fun x -> " ++ go(1) ++ " in F0(1).a";
+};
+
+let test_nested_function_modules =
+  checks_within(
+    "Nine nested function modules check in under 5 s",
+    ~seconds=5.,
+    nested_function_modules(9),
+    Some(int()),
+  );
+
+let test_nested_labeled_function_modules =
+  checks_within(
+    "Seven nested function modules at one-label types check in under 10 s",
+    ~seconds=10.,
+    nested_labeled_function_modules(7),
+    Some(int()),
+  );
+
+/* module F0 = fix f0 -> fun x -> if x == 0 then module F1 = fix f1 ->
+   ... in F1(x) else f0(x - 1) in F0(1): n modules, each bound to a
+   fixpoint the user wrote, each holding the next in its then branch. A
+   module analyzes its definition once, so this is n analyses. Told apart
+   by its elaboration's shape, a FixF, each definition would be taken for
+   one that names its module and analyzed again: with the let's recursion
+   probe, three analyses per module, 3^n. The probe alone would be 2^n. */
+let nested_fix_modules = n => {
+  let rec go = i =>
+    i > n
+      ? "x"
+      : Printf.sprintf(
+          "module F%d = fix f%d -> fun x -> if x == 0 then %s else f%d(x - 1) in F%d(x)",
+          i,
+          i,
+          go(i + 1),
+          i,
+          i,
+        );
+  "module F0 = fix f0 -> fun x -> if x == 0 then "
+  ++ go(1)
+  ++ " else f0(x - 1) in F0(1)";
+};
+
+let test_nested_fix_modules =
+  checks_within(
+    "Twelve nested modules bound to fixpoints check in under 0.5 s",
+    ~seconds=0.5,
+    nested_fix_modules(12),
+    Some(unknown(Internal)),
+  );
+
+/* A let inside a module's definition is recursive as usual */
+let test_module_member_recursive =
+  fully_consistent_typecheck(
+    "A module member function can call itself",
+    {|module M = { let f = fun n -> if n == 0 then 7 else f(n - 1) } in M.f(3)|},
+    Some(int()),
+  );
+
 /* Test module keyword with lowercase name */
 let test_module_keyword_lowercase =
   fully_consistent_typecheck(
@@ -677,6 +1014,18 @@ let tests = (
     test_limitation_sig_too_narrow,
     test_limitation_label_mismatch_hole,
     /* Module keyword tests */
+    test_module_names_itself,
+    test_ascribed_module_names_itself,
+    test_module_name_not_in_scope_in_def,
+    test_module_fix,
+    test_module_fix_names_itself,
+    test_module_shadows_module,
+    test_module_shadows_module_info,
+    test_module_member_recursive,
+    test_module_item_names_itself,
+    test_nested_function_modules,
+    test_nested_labeled_function_modules,
+    test_nested_fix_modules,
     test_module_keyword_lowercase,
     test_module_keyword_capitalized,
     test_module_keyword_in_mod,
