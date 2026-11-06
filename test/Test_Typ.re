@@ -935,37 +935,115 @@ let meet_rec_tests = {
 let meet_out_of_phase_tests = {
   module F = IdTagged.FreshGrammar;
   let ctx = Builtins.ctx_init(None);
-  let b = F.TPat.var("b");
-  /* rec b -> Int -> Int -> b */
-  let two_step =
-    F.Typ.rec_(
-      b,
-      F.Typ.arrow(F.Typ.int(), F.Typ.arrow(F.Typ.int(), F.Typ.var("b"))),
-    );
-  let consistent = (name, ty1, ty2, expected) =>
+  let int = () => F.Typ.int();
+  let unknown = () => F.Typ.unknown(Internal);
+  /* rec x -> t -> t -> ... -> x, with [period] arguments of [arg]. */
+  let rec_arrows = (x, period, arg) => {
+    let rec arrows = n =>
+      n == 0 ? F.Typ.var(x) : F.Typ.arrow(arg(), arrows(n - 1));
+    F.Typ.rec_(F.TPat.var(x), arrows(period));
+  };
+  let one_step = rec_arrows("b", 1, int);
+  let two_step = rec_arrows("b", 2, int);
+  let three_step = rec_arrows("a", 3, int);
+  let two_step_holes = rec_arrows("a", 2, unknown);
+  let rec_pair =
+    F.Typ.rec_(F.TPat.var("b"), F.Typ.prod([int(), F.Typ.var("b")]));
+  /* The same tree as [rec_pair], with its binder one level down. */
+  let rec_pair_deeper =
+    F.Typ.rec_(F.TPat.var("a"), F.Typ.prod([int(), rec_pair]));
+  /* rec x_k -> (Int, x_k, rec x_{k-1} -> (Int, x_{k-1}, ... leaf)), [depth]
+     deep. A mismatch at the leaf is found only after every binder. */
+  let rec nested = (depth, leaf) =>
+    depth == 0
+      ? leaf
+      : {
+        let x = "x" ++ string_of_int(depth);
+        F.Typ.rec_(
+          F.TPat.var(x),
+          F.Typ.prod([int(), F.Typ.var(x), nested(depth - 1, leaf)]),
+        );
+      };
+  let case = (name, ty1, ty2, expected) =>
     test_case(name, `Quick, () =>
-      check(bool, name, expected, Option.is_some(Typ.meet(ctx, ty1, ty2)))
+      check(option(typ), name, expected, Typ.meet(ctx, ty1, ty2))
     );
   (
     "Typ.meet on out-of-phase recursive types",
     [
-      consistent(
-        "a recursive type against its other phase is consistent",
+      case(
+        "a recursive type against its other phase is that phase",
         two_step,
-        F.Typ.arrow(F.Typ.int(), two_step),
-        true,
+        F.Typ.arrow(int(), two_step),
+        Some(F.Typ.arrow(int(), two_step)),
       ),
-      consistent(
+      case(
         "on either side",
-        F.Typ.arrow(F.Typ.int(), two_step),
+        F.Typ.arrow(int(), two_step),
         two_step,
-        true,
+        Some(F.Typ.arrow(int(), two_step)),
       ),
-      consistent(
+      case(
         "a mismatch in the other phase is found",
         two_step,
         F.Typ.arrow(F.Typ.bool(), two_step),
-        false,
+        None,
+      ),
+      case(
+        "two recursive types of different period meet as the first",
+        one_step,
+        two_step,
+        Some(one_step),
+      ),
+      case("on either side", two_step, one_step, Some(two_step)),
+      case(
+        "whichever period is longer",
+        three_step,
+        two_step,
+        Some(three_step),
+      ),
+      case(
+        "a binder at another depth is the same tree",
+        rec_pair,
+        rec_pair_deeper,
+        Some(rec_pair_deeper),
+      ),
+      case(
+        "holes in the other period are filled from the first",
+        one_step,
+        two_step_holes,
+        Some(one_step),
+      ),
+      /* With the holes first, the meet closes its loop on the first type as
+         written, so the filled arguments stay unrolled in front of it. */
+      case(
+        "holes first keep the first type as written after the filled prefix",
+        two_step_holes,
+        one_step,
+        Some(F.Typ.arrow(int(), F.Typ.arrow(int(), two_step_holes))),
+      ),
+      case(
+        "a mismatch in the other period is found",
+        one_step,
+        F.Typ.rec_(
+          F.TPat.var("b"),
+          F.Typ.arrow(int(), F.Typ.arrow(F.Typ.bool(), F.Typ.var("b"))),
+        ),
+        None,
+      ),
+      /* Nested recursive types that differ only at the innermost leaf: a
+         comparison that retried every level would take hours at this depth. */
+      case(
+        "a mismatch under every binder is found",
+        nested(20, int()),
+        nested(20, F.Typ.bool()),
+        None,
+      ),
+      case(
+        "a match under every binder is the first",
+        nested(20, int()),
+        nested(20, int()),
+        Some(nested(20, int())),
       ),
     ],
   );
