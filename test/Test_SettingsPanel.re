@@ -38,7 +38,22 @@ let old_blob = () => {
   );
 };
 
+let types_toggle_carries_evaluation = () => {
+  let toggle = settings =>
+    Settings.Update.update(~action=Statics, ~settings).model;
+  let off = toggle(Settings.Model.init);
+  check(bool, "Types off turns evaluation off", false, off.core.dynamics);
+  check(bool, "Types on turns it back on", true, toggle(off).core.dynamics);
+};
+
 let tests = (
   "SettingsPanel",
-  [test_case("settings saved before the panel load", `Quick, old_blob)],
+  [
+    test_case("settings saved before the panel load", `Quick, old_blob),
+    test_case(
+      "Types off and on again leaves evaluation on",
+      `Quick,
+      types_toggle_carries_evaluation,
+    ),
+  ],
 );
