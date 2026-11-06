@@ -198,7 +198,7 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
             map_pat_annotation(f, p),
             map_exp_annotation(f, e),
             Option.map(~f=x => map_typ_annotation(f, x), t),
-            Option.map(~f=x => x, v),
+            v,
           )
         | TypFun(p, e, v) =>
           TypFun(map_tpat_annotation(f, p), map_exp_annotation(f, e), v)

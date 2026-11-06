@@ -7,24 +7,20 @@ open Util;
 
 /* These gapless pairs are single atomic tokens, with no child hole. */
 let fuses_empty = (left: Segment.t, text: string): bool =>
-  switch (List.rev(left)) {
-  | [p, ..._] =>
-    switch (SpaceNormalize.last_token(p)) {
-    | Some(token) =>
-      List.mem(
-        [
-          Token.empty_tuple,
-          Token.empty_list,
-          Token.empty_module,
-          Token.empty_string,
-        ],
-        token ++ text,
-        ~equal=String.equal,
-      )
-    | None => false
-    }
-  | [] => false
-  };
+  List.last(left)
+  |> Option.bind(~f=SpaceNormalize.last_token)
+  |> Option.exists(~f=token =>
+       List.mem(
+         [
+           Token.empty_tuple,
+           Token.empty_list,
+           Token.empty_module,
+           Token.empty_string,
+         ],
+         token ++ text,
+         ~equal=String.equal,
+       )
+     );
 
 /* Every obligation whose insertion zone contains the caret, in ENGINE
    order — landing-site order in the completed program, which is both
@@ -47,10 +43,9 @@ let chips_at_caret =
     /* ~seg: the caller's already-zipped engine segment (the view
        zips once per frame); the memoized completion is shared */
     let seg =
-      switch (seg) {
-      | Some(seg) => seg
-      | None => Zipper.unselect_and_zip(~erase_buffer=true, z)
-      };
+      Option.value_or_thunk(seg, ~default=() =>
+        Zipper.unselect_and_zip(~erase_buffer=true, z)
+      );
     let result = CanonicalCompletion.for_editor(seg);
     let indexed = List.mapi(~f=(i, ins) => (i, ins), result.insertions);
     /* a witness in progress (typed prefix of a delimiter): its Tab

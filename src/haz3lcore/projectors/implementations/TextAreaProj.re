@@ -101,11 +101,7 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = unit;
 
-  let init = (any: Language.Any.t) =>
-    switch (string_of(any)) {
-    | Some(_) => Some()
-    | None => None
-    };
+  let init = (any: Language.Any.t) => Option.map(string_of(any), ~f=ignore);
 
   let focus_keyboard = (id: Id.t, d: Direction.t) => {
     JsUtil.get_elem_by_id(Id.cls(id))##focus;

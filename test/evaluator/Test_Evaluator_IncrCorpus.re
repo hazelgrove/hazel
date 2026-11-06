@@ -8,29 +8,6 @@ open Haz3lcore;
    evaluate to a value within the step limit, or have no int literal, are
    skipped; enough must be compared for the test to mean something. */
 
-let rec find_hz = (dir: string): list(string) =>
-  switch (Stdlib.Sys.readdir(dir)) {
-  | entries =>
-    entries
-    |> Array.to_list
-    |> List.concat_map(~f=entry => {
-         let path = Filename.concat(dir, entry);
-         switch (Stdlib.Sys.is_directory(path)) {
-         | true => find_hz(path)
-         | false => Filename.check_suffix(entry, ".hz") ? [path] : []
-         | exception _ => []
-         };
-       })
-  | exception _ => []
-  };
-
-let read_file = (path: string): string => {
-  let ic = Stdlib.open_in_bin(path);
-  let s = Stdlib.really_input_string(ic, Stdlib.in_channel_length(ic));
-  Stdlib.close_in(ic);
-  s;
-};
-
 let edits_per_program = 3;
 let min_compared = 120;
 
@@ -43,14 +20,14 @@ let tests = (
       () => {
         let files =
           ["hazel-programs", "../hazel-programs"]
-          |> List.concat_map(~f=find_hz)
+          |> List.concat_map(~f=ParsedCorpus.find_hz)
           |> List.dedup_and_sort(~compare=String.compare);
         let compared = ref(0);
         List.iter(
           files,
           ~f=path => {
             let src =
-              read_file(path)
+              In_channel.read_all(path)
               |> Util.StringUtil.trim_leading
               |> Util.StringUtil.strip_final_newline;
             switch (FastParse.of_text(~root=Exp, src)) {

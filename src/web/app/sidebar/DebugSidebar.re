@@ -80,10 +80,10 @@ let label_row =
       label: string,
     )
     : Node.t =>
-  div(
-    ~attrs=[clss(["debug-field-label"])],
+  div_c(
+    "debug-field-label",
     chevron
-    @ [span(~attrs=[clss(["debug-field-name"])], [text(label)])]
+    @ [span_c("debug-field-name", [text(label)])]
     @ (
       switch (copy) {
       | None => []
@@ -110,8 +110,8 @@ let section =
         ),
       ],
       [
-        span(
-          ~attrs=[clss(["debug-section-chevron"])],
+        span_c(
+          "debug-section-chevron",
           [text(collapsed ? {|▸|} : {|▾|})],
         ),
         text(title),
@@ -127,17 +127,14 @@ let field_node =
       body: Node.t,
     )
     : Node.t =>
-  div(
-    ~attrs=[clss(["debug-field"])],
-    [
-      label_row(~copy, label),
-      div(~attrs=[clss(["debug-field-value"])], [body]),
-    ],
+  div_c(
+    "debug-field",
+    [label_row(~copy, label), div_c("debug-field-value", [body])],
   );
 
 let field_str = (label: string, body: string): Node.t =>
-  div(
-    ~attrs=[clss(["debug-field"])],
+  div_c(
+    "debug-field",
     [
       label_row(~copy=Some(() => Util.JsUtil.write_clipboard(body)), label),
       pre(~attrs=[clss(["debug-field-value", "raw"])], [text(body)]),
@@ -168,8 +165,8 @@ let field_collapsible =
       ],
       [text(collapsed ? {|▸|} : {|▾|})],
     );
-  div(
-    ~attrs=[clss(["debug-field"])],
+  div_c(
+    "debug-field",
     [label_row(~chevron=[chevron], ~copy=Some(copy), label)]
     @ (collapsed ? [] : [body()]),
   );
@@ -208,8 +205,8 @@ let field_any = (~globals, ~raw, label: string, any: Any.t): Node.t =>
               ~attrs=[clss(["debug-field-value", "raw"])],
               [text(Any.show(any))],
             )
-          : div(
-              ~attrs=[clss(["debug-field-value"])],
+          : div_c(
+              "debug-field-value",
               [
                 CodeViewable.view_any(
                   ~globals,
@@ -227,13 +224,13 @@ let typ_node = (~globals, typ: Typ.t): Node.t =>
   CodeViewable.view_typ(~globals, ~settings=code_settings, typ);
 
 let ctx_row = (label: Node.t, body: option(Node.t)): Node.t =>
-  div(
-    ~attrs=[clss(["debug-ctx-row"])],
-    [div(~attrs=[clss(["debug-ctx-name"])], [label])]
+  div_c(
+    "debug-ctx-row",
+    [div_c("debug-ctx-name", [label])]
     @ (
       switch (body) {
       | None => []
-      | Some(b) => [div(~attrs=[clss(["debug-ctx-body"])], [b])]
+      | Some(b) => [div_c("debug-ctx-body", [b])]
       }
     ),
   );
@@ -253,12 +250,9 @@ let ctx_entry_node = (~globals, entry: Ctx.entry): Node.t =>
 
 let ctx_view_rendered = (~globals, ctx: Ctx.t): Node.t =>
   switch (ctx.entries) {
-  | [] => div(~attrs=[clss(["debug-ctx-empty"])], [text("(empty)")])
+  | [] => div_c("debug-ctx-empty", [text("(empty)")])
   | entries =>
-    div(
-      ~attrs=[clss(["debug-ctx"])],
-      List.map(~f=ctx_entry_node(~globals), entries),
-    )
+    div_c("debug-ctx", List.map(~f=ctx_entry_node(~globals), entries))
   };
 
 let co_ctx_entry_node =
@@ -267,24 +261,24 @@ let co_ctx_entry_node =
     List.map(
       ~f=
         (e: CoCtx.entry) =>
-          div(
-            ~attrs=[clss(["debug-coctx-use"])],
+          div_c(
+            "debug-coctx-use",
             [text(": "), typ_node(~globals, e.expected_ty)],
           ),
       entries,
     );
-  div(
-    ~attrs=[clss(["debug-coctx-var"])],
-    [div(~attrs=[clss(["debug-ctx-name"])], [text(name)])] @ uses,
+  div_c(
+    "debug-coctx-var",
+    [div_c("debug-ctx-name", [text(name)])] @ uses,
   );
 };
 
 let co_ctx_view_rendered = (~globals, co_ctx: CoCtx.t): Node.t =>
   switch (co_ctx) {
-  | [] => div(~attrs=[clss(["debug-ctx-empty"])], [text("(empty)")])
+  | [] => div_c("debug-ctx-empty", [text("(empty)")])
   | _ =>
-    div(
-      ~attrs=[clss(["debug-coctx"])],
+    div_c(
+      "debug-coctx",
       List.map(
         ~f=((name, entries)) => co_ctx_entry_node(~globals, name, entries),
         co_ctx,
@@ -350,10 +344,7 @@ let field_ctx = (~globals, ~raw, label: string, ctx: Ctx.t): Node.t =>
               ~attrs=[clss(["debug-field-value", "raw"])],
               [text(Ctx.show(ctx))],
             )
-          : div(
-              ~attrs=[clss(["debug-field-value"])],
-              [ctx_view_rendered(~globals, ctx)],
-            ),
+          : div_c("debug-field-value", [ctx_view_rendered(~globals, ctx)]),
     label,
   );
 
@@ -372,8 +363,8 @@ let field_co_ctx = (~globals, ~raw, label: string, co_ctx: CoCtx.t): Node.t =>
               ~attrs=[clss(["debug-field-value", "raw"])],
               [text(CoCtx.show(co_ctx))],
             )
-          : div(
-              ~attrs=[clss(["debug-field-value"])],
+          : div_c(
+              "debug-field-value",
               [co_ctx_view_rendered(~globals, co_ctx)],
             ),
     label,
@@ -721,11 +712,11 @@ let syntax_view = (~globals, ~cursor: Cursor.cursor(_)): list(Node.t) => {
 let toggle_bar = (~globals: Globals.t): Node.t => {
   let raw = globals.settings.sidebar.debug_show_raw;
   let on_click = _ => globals.inject_global(Set(Sidebar(ToggleDebugRaw)));
-  div(
-    ~attrs=[clss(["debug-toggle-bar"])],
+  div_c(
+    "debug-toggle-bar",
     [
-      div(
-        ~attrs=[clss(["debug-toggle-label"])],
+      div_c(
+        "debug-toggle-label",
         [text(raw ? "Showing raw internal structure" : "Showing rendered")],
       ),
       div(
@@ -750,13 +741,10 @@ let view = (~globals: Globals.t, ~cursor: Cursor.cursor(_)): Node.t => {
   div(
     ~attrs=[Attr.id("debug-sidebar"), clss(["panel"])],
     [
-      div(
-        ~attrs=[clss(["panel-title-bar"])],
-        [text("Debug — Cursor Info")],
-      ),
+      div_c("panel-title-bar", [text("Debug — Cursor Info")]),
       toggle_bar(~globals),
-      div(
-        ~attrs=[clss(["panel-body"])],
+      div_c(
+        "panel-body",
         {
           let info_sections =
             switch (cursor.info) {

@@ -149,10 +149,7 @@ let pack_renderer =
     id,
     can_handle: (sort, exp) => Option.is_some(R.parse(sort, exp)),
     auto_applies: (sort, exp) =>
-      switch (R.parse(sort, exp)) {
-      | Some(v) => R.auto_applies(v)
-      | None => false
-      },
+      Option.exists(R.parse(sort, exp), ~f=R.auto_applies),
     init_model: (sort, exp) =>
       R.parse(sort, exp)
       |> Option.map(~f=v => PModel(id, model_id, R.init(v))),

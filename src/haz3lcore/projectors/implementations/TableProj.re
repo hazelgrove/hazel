@@ -21,11 +21,7 @@ let get =
     (info: info): option((list(LabeledTuple.label), list(list(Exp.t)))) =>
   switch (info.elaborated) {
   | Some(elab_exp) => table_of(Exp(elab_exp))
-  | None =>
-    switch (info.syntax |> info.utility.seg_to_term) {
-    | Some(s) => table_of(s)
-    | None => None
-    }
+  | None => Option.bind(info.syntax |> info.utility.seg_to_term, ~f=table_of)
   };
 
 let table =
@@ -61,11 +57,7 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = unit;
 
-  let init = (any: Any.t) =>
-    switch (table_of(any)) {
-    | Some(_) => Some()
-    | None => None
-    };
+  let init = (any: Any.t) => Option.map(table_of(any), ~f=ignore);
 
   let focusable =
     Focusable.{
@@ -99,18 +91,14 @@ module M: Projector = {
       let scroll_threshold_rows = 10;
 
       let header_row_chars =
-        header
-        |> List.map(~f=Unicode.Width.columns_of_string)
-        |> List.fold_left(~f=(+), ~init=0);
+        List.sum((module Int), header, ~f=Unicode.Width.columns_of_string);
       let widest_row_chars =
         rows
         |> List.map(~f=row =>
-             row
-             |> List.map(~f=e =>
-                  Abbreviate.abbreviate_exp(~available=max_column_length, e)
-                  |> snd
-                )
-             |> List.fold_left(~f=(+), ~init=0, _)
+             List.sum((module Int), row, ~f=e =>
+               Abbreviate.abbreviate_exp(~available=max_column_length, e)
+               |> snd
+             )
            )
         |> List.fold_left(~f=max, ~init=0, _);
       let content_chars = max(header_row_chars, widest_row_chars);

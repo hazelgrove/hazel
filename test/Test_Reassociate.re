@@ -51,7 +51,7 @@ let deep_reassociate_tests = [
       let count_complete_lets = (z: Zipper.t) => {
         let seg = Zipper.zip(z);
         let lets = Test_Editing.find_tiles_by_label(["let", "=", "in"], seg);
-        List.length(List.filter(~f=Tile.is_complete, lets));
+        List.count(lets, ~f=Tile.is_complete);
       };
       let z1 =
         Test_Editing.string_to_ltr_actions("let ")
@@ -95,7 +95,7 @@ let deep_reassociate_tests = [
       let count_complete_lets = (z: Zipper.t) => {
         let seg = Zipper.zip(z);
         let lets = Test_Editing.find_tiles_by_label(["let", "=", "in"], seg);
-        List.length(List.filter(~f=Tile.is_complete, lets));
+        List.count(lets, ~f=Tile.is_complete);
       };
       let z1 =
         Test_Editing.string_to_ltr_actions(" let b = ")
@@ -134,7 +134,7 @@ let deep_reassociate_tests = [
       let count_complete_lets = (z: Zipper.t) => {
         let seg = Zipper.zip(z);
         let lets = Test_Editing.find_tiles_by_label(["let", "=", "in"], seg);
-        List.length(List.filter(~f=Tile.is_complete, lets));
+        List.count(lets, ~f=Tile.is_complete);
       };
       let z1 =
         Test_Editing.perform(
@@ -179,7 +179,7 @@ let deep_reassociate_tests = [
       let count_complete_lets = (z: Zipper.t) => {
         let seg = Zipper.zip(z);
         let lets = Test_Editing.find_tiles_by_label(["let", "=", "in"], seg);
-        List.length(List.filter(~f=Tile.is_complete, lets));
+        List.count(lets, ~f=Tile.is_complete);
       };
       let z1 =
         Test_Editing.string_to_ltr_actions("let c = ")
@@ -250,7 +250,7 @@ let deep_reassociate_tests = [
         let seg = Zipper.zip(z);
         let ifs =
           Test_Editing.find_tiles_by_label(["if", "then", "else"], seg);
-        List.length(List.filter(~f=Tile.is_complete, ifs));
+        List.count(ifs, ~f=Tile.is_complete);
       };
       let z1 =
         Test_Editing.string_to_ltr_actions("if ")
@@ -290,7 +290,7 @@ let deep_reassociate_tests = [
       let count_complete_funs = (z: Zipper.t) => {
         let seg = Zipper.zip(z);
         let funs = Test_Editing.find_tiles_by_label(["fun", "->"], seg);
-        List.length(List.filter(~f=Tile.is_complete, funs));
+        List.count(funs, ~f=Tile.is_complete);
       };
       let z1 =
         Test_Editing.string_to_ltr_actions("fun ")
@@ -325,7 +325,7 @@ let deep_reassociate_tests = [
       let count_complete_parens = (z: Zipper.t) => {
         let seg = Zipper.zip(z);
         let ps = Test_Editing.find_tiles_by_label(["(", ")"], seg);
-        List.length(List.filter(~f=Tile.is_complete, ps));
+        List.count(ps, ~f=Tile.is_complete);
       };
       if (count_complete_parens(z1) < 2) {
         Alcotest.fail(
@@ -363,7 +363,7 @@ let deep_reassociate_tests = [
         let seg = Zipper.zip(z);
         let ifs =
           Test_Editing.find_tiles_by_label(["if", "then", "else"], seg);
-        List.length(List.filter(~f=Tile.is_complete, ifs));
+        List.count(ifs, ~f=Tile.is_complete);
       };
       let z1 =
         Test_Editing.string_to_ltr_actions("let x = ")
@@ -380,7 +380,7 @@ let deep_reassociate_tests = [
       let count_complete_lets = (z: Zipper.t) => {
         let seg = Zipper.zip(z);
         let lets = Test_Editing.find_tiles_by_label(["let", "=", "in"], seg);
-        List.length(List.filter(~f=Tile.is_complete, lets));
+        List.count(lets, ~f=Tile.is_complete);
       };
       if (count_complete_lets(z2) != 1) {
         Alcotest.fail(

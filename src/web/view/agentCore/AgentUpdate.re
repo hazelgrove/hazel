@@ -136,11 +136,7 @@ let update =
     );
     (model, editor |> Updated.return);
   | RunSlashCommandShowKey(chat_id) =>
-    let key =
-      switch (settings.agent_globals.api_key) {
-      | None => ""
-      | Some(k) => k
-      };
+    let key = Option.value(settings.agent_globals.api_key, ~default="");
     schedule_action(
       Action.AppendSlashCommandOutput(chat_id, KeyOutput(key)),
     );

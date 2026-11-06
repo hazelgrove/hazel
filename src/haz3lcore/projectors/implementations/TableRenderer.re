@@ -107,9 +107,7 @@ let build_column_menu =
       ),
     ];
     let numeric_items =
-      switch (column_cls) {
-      | None => []
-      | Some(cls) =>
+      Option.value_map(column_cls, ~default=[], ~f=cls =>
         numeric_comparators
         |> List.filter_map(~f=((text, tooltip, op_num)) =>
              Operators.numeric_bin_op(cls, op_num)
@@ -119,7 +117,7 @@ let build_column_menu =
                   )
                 )
            )
-      };
+      );
     let poly_items = [
       leaf(~tooltip="Keep rows where this column equals a value", "Equals", () =>
         apply([filter_by_column(Poly(Equals), h)])
@@ -152,8 +150,7 @@ let build_column_menu =
 
   let transform_children = {
     let conversion_items =
-      switch (column_cls) {
-      | Some(cls) =>
+      Option.value_map(column_cls, ~default=[], ~f=cls =>
         Atom.conversions_from(cls)
         |> List.map(~f=((func, to_)) => {
              let display = Atom.show_cls(to_);
@@ -161,8 +158,7 @@ let build_column_menu =
                apply([convert_column(h, func)])
              );
            })
-      | None => []
-      };
+      );
     conversion_items
     @ (!List.is_empty(conversion_items) ? [Menu.divider] : [])
     @ [
@@ -286,24 +282,20 @@ let build_column_menu =
     sort_submenu @ filter_submenu @ transform_submenu @ move_submenu;
 
   let option_items =
-    switch (column_type) {
-    | Some(ty) =>
-      is_option_type(ty)
-        ? [
-          leaf(
-            ~tooltip="Remove rows where this column is None", "Drop Nones", () =>
-            apply([drop_nones_column(h)])
-          ),
-          leaf(
-            ~tooltip="Replace None values with a default you specify",
-            "Provide Default",
-            () =>
-            apply([provide_default_column(h)])
-          ),
-        ]
-        : []
-    | None => []
-    };
+    Option.exists(column_type, ~f=is_option_type)
+      ? [
+        leaf(
+          ~tooltip="Remove rows where this column is None", "Drop Nones", () =>
+          apply([drop_nones_column(h)])
+        ),
+        leaf(
+          ~tooltip="Replace None values with a default you specify",
+          "Provide Default",
+          () =>
+          apply([provide_default_column(h)])
+        ),
+      ]
+      : [];
 
   structural_items
   @ (!List.is_empty(data_items) ? [Menu.divider] @ data_items : [])
@@ -321,7 +313,7 @@ let items_for_column =
       col: int,
     )
     : menu_data =>
-  switch (List.nth(headers, col) |> Option.value(~default=None)) {
+  switch (Option.join(List.nth(headers, col))) {
   | None => []
   | Some(name) =>
     let dyn_type =
@@ -433,10 +425,7 @@ let render =
             | _ => content
             };
           let is_menu_open =
-            switch (model.menu_state) {
-            | Some((j, _)) => i == j
-            | None => false
-            };
+            Option.exists(model.menu_state, ~f=((j, _)) => i == j);
           Node.th(
             ~attrs=is_menu_open ? [Attr.classes(["menu-open"])] : [],
             full_content,

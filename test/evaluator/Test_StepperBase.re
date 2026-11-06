@@ -140,10 +140,8 @@ module InductionCaseHelpers = {
       : Web.InductionCase.model'(StepperBase.step_model) => {
     let goal_exp = parse_exp(goal_str);
     let step =
-      switch (build_step_chain(step_kinds)) {
-      | Some(s) => s
-      | None => StepperBase.init_step
-      };
+      build_step_chain(step_kinds)
+      |> Option.value(~default=StepperBase.init_step);
     mk_case(~pattern_str, ~inner_exp=goal_exp, ~step, ());
   };
 

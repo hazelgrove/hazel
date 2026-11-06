@@ -155,7 +155,7 @@ let paths_of = (space: list(string)) =>
   List.map(~f=SlidePath.of_string, space);
 
 let index_of = (space: list(string), name: string): int =>
-  switch (Util.ListUtil.findi_opt(String.equal(name), space)) {
+  switch (List.findi(space, ~f=(_, s) => String.equal(name, s))) {
   | Some((i, _)) => i
   | None => failwith("not in this space: " ++ name)
   };
@@ -371,11 +371,7 @@ let traversal_tests = [
                   strings,
                   "backward from the end of " ++ name ++ "'s folder",
                   List.rev(folder),
-                  walk(
-                    ~space,
-                    ~by=-1,
-                    List.nth_exn(folder, List.length(folder) - 1),
-                  ),
+                  walk(~space, ~by=-1, List.last_exn(folder)),
                 );
               },
             space,

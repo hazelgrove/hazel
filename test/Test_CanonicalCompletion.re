@@ -7,8 +7,6 @@ open Poly;
 let segment_testable =
   testable(Fmt.using(Segment.show, Fmt.string), Segment.equal);
 
-let string_testable = testable(Fmt.string, String.equal);
-
 /* Parse a string to a segment */
 let parse_segment = (s: string): option(Segment.t) => {
   /* Parser.to_segment (not bare to_zipper): the final rescan_reassemble
@@ -61,7 +59,7 @@ let reassemble_tests = [
       let seg = must_parse("let x = 1 in x");
       let result = Segment.reassemble(seg);
       let output = print_seg(result);
-      check(string_testable, "unchanged", "let x = 1 in x", output);
+      check(string, "unchanged", "let x = 1 in x", output);
     },
   ),
   test_case(
@@ -765,7 +763,7 @@ let run_baseline_tests =
          () => {
            let seg = must_parse(input);
            let output = print_seg(seg);
-           check(string_testable, name, expected, output);
+           check(string, name, expected, output);
          },
        )
      );
@@ -783,7 +781,7 @@ let run_completion_tests = (tests: list(completion_test)) =>
            let result =
              CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
            let output = print_seg(result.completed_seg);
-           check(string_testable, name, expected_output, output);
+           check(string, name, expected_output, output);
 
            /* Verify no incomplete tiles remain */
            check(
@@ -899,7 +897,7 @@ let run_wrap_seg_tests =
            let result =
              CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
            let output = print_seg(result.completed_seg);
-           check(string_testable, name, expected, output);
+           check(string, name, expected, output);
            check(
              Alcotest.int,
              "no incomplete",
@@ -1045,7 +1043,7 @@ let edit_complete = (acts: list(Action.t)): string => {
 };
 let edit_case = (~name, ~acts, ~expected) =>
   test_case(name, `Quick, () =>
-    check(string_testable, name, expected, edit_complete(acts))
+    check(string, name, expected, edit_complete(acts))
   );
 
 let case_repair_tests = [
@@ -1271,9 +1269,9 @@ let leading_witness_roundtrip_tests = [
       let masks = CanonicalCompletion.masks_of_records(result.shard_records);
       let term = MakeTerm.go_impl(~masks, result.completed_seg).term;
       let seg2 = Test_ExpToSegment.exp_to_segment_roundtrip(term);
-      check(string_testable, "buffer", "typ~ T = Int in 2", print_seg(seg));
+      check(string, "buffer", "typ~ T = Int in 2", print_seg(seg));
       check(
-        string_testable,
+        string,
         "reprint (one extra space: OPEN)",
         "typ ~ T = Int in 2",
         print_seg(seg2),
@@ -1334,7 +1332,7 @@ let probe_raw = (acts: list(Action.t)): string => {
             Some(
               Printf.sprintf(
                 "%s[%s]",
-                String.concat(~sep="", Tile.effective_label(t)),
+                String.concat(Tile.effective_label(t)),
                 String.concat(
                   ~sep=",",
                   List.map(~f=string_of_int, t.shards),
@@ -1355,7 +1353,7 @@ let probe_raw = (acts: list(Action.t)): string => {
 };
 let probe_case = (~name, ~acts, ~expected) =>
   test_case(name, `Quick, () =>
-    check(string_testable, name, expected, probe_raw(acts))
+    check(string, name, expected, probe_raw(acts))
   );
 /* Reassociation guards: delete + retype the l of a NON-FIRST let
    must re-pair with its orphaned =/in (rescan matches singletons
@@ -1407,7 +1405,7 @@ let probe_ins = (acts: list(Action.t)): string => {
 };
 let ins_case = (~name, ~acts, ~expected) =>
   test_case(name, `Quick, () =>
-    check(string_testable, name, expected, probe_ins(acts))
+    check(string, name, expected, probe_ins(acts))
   );
 let ordering_tests = [
   ins_case(
@@ -1443,11 +1441,7 @@ let probe_tydi = (acts: list(Action.t)): string => {
       term,
     );
   let ci = Indicated.ci_for_completion(z, statics.info_map);
-  let tok =
-    switch (TyDi.token_to_left(z)) {
-    | None => "tok:NONE"
-    | Some(t) => "tok:" ++ t
-    };
+  let tok = "tok:" ++ Option.value(TyDi.token_to_left(z), ~default="NONE");
   let ci_s =
     switch (ci) {
     | None => "ci:NONE"
@@ -1457,16 +1451,13 @@ let probe_tydi = (acts: list(Action.t)): string => {
     switch (TyDi.set_buffer(~ci, z)) {
     | None => "buf:NONE"
     | Some(z') =>
-      switch (TyDi.get_unparsed_buffer(z')) {
-      | None => "buf:???"
-      | Some(t) => "buf:" ++ t
-      }
+      "buf:" ++ Option.value(TyDi.get_unparsed_buffer(z'), ~default="???")
     };
   String.concat(~sep=" | ", [tok, ci_s, buf]);
 };
 let tydi_case = (~name, ~acts, ~expected) =>
   test_case(name, `Quick, () =>
-    check(string_testable, name, expected, probe_tydi(acts))
+    check(string, name, expected, probe_tydi(acts))
   );
 let tydi_probe_tests = [
   tydi_case(
@@ -1523,7 +1514,7 @@ let sel_case = (~name, ~acts, ~expected) =>
     `Quick,
     () => {
       let z = Test_Editing.perform(Zipper.init(), acts);
-      check(string_testable, name, expected, print_seg(z.selection.content));
+      check(string, name, expected, print_seg(z.selection.content));
     },
   );
 let rule_selection_tests = [
@@ -1559,23 +1550,13 @@ let tab_once = (z: Zipper.t): option(Zipper.t) =>
 let tab_dispatch = (~tabs=1, acts: list(Action.t)): string => {
   let z = Test_Editing.perform(Zipper.init(), acts);
   let rec go = (z, k) =>
-    k <= 0
-      ? Some(z)
-      : (
-        switch (tab_once(z)) {
-        | Some(z) => go(z, k - 1)
-        | None => None
-        }
-      );
-  switch (go(z, tabs)) {
-  | None => "NONE"
-  | Some(z) => Test_Editing.printer(z)
-  };
+    k <= 0 ? Some(z) : Option.bind(tab_once(z), ~f=z => go(z, k - 1));
+  go(z, tabs) |> Option.value_map(~default="NONE", ~f=Test_Editing.printer);
 };
 
 let tab_case = (~name, ~acts, ~tabs=1, ~expected, ()) =>
   test_case(name, `Quick, () =>
-    check(string_testable, name, expected, tab_dispatch(~tabs, acts))
+    check(string, name, expected, tab_dispatch(~tabs, acts))
   );
 
 let tab_dispatch_tests = [
@@ -1666,7 +1647,7 @@ let tabs_vs_materialize = (~name, ~acts, ()) =>
         tab_out(z0, 8)
         |> Zipper.unselect_and_zip(~erase_buffer=true)
         |> print_seg;
-      check(string_testable, name, strip_ws(via_mat), strip_ws(via_tabs));
+      check(string, name, strip_ws(via_mat), strip_ws(via_tabs));
     },
   );
 
@@ -1709,7 +1690,7 @@ let materialize_tests = [
         Test_Editing.perform(Zipper.init(), Test_Editing.mk("let x = 1¦"));
       let z = Test_Editing.perform(z, [ApplyCompletion(All)]);
       check(
-        string_testable,
+        string,
         "all",
         "let x = 1 in?",
         print_seg(Zipper.unselect_and_zip(~erase_buffer=true, z)),
@@ -1734,7 +1715,7 @@ let materialize_tests = [
         |> ((t: Tile.t) => t.id);
       let z = Test_Editing.perform(z, [ApplyCompletion(One(case_id))]);
       check(
-        string_testable,
+        string,
         "one",
         "(case x | 1 => 2 end",
         print_seg(Zipper.unselect_and_zip(~erase_buffer=true, z)),
@@ -1979,9 +1960,7 @@ let depth_count_tests = [
     `Slow,
     () => {
       let seg =
-        must_parse(
-          String.concat(~sep="", List.init(30, ~f=_ => "let x = ")) ++ "1",
-        );
+        must_parse(String.concat(List.init(30, ~f=_ => "let x = ")) ++ "1");
       let r = CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
       check(
         Alcotest.int,

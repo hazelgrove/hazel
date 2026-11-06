@@ -56,17 +56,20 @@ let rec any_to_info_map =
   }
 and multi =
     (~ctx, ~ancestors, ~probe_ids: Id.Map.t(unit)=Id.Map.empty, m, tms)
-    : (list(CoCtx.t), list(Any.t), Map.t) =>
-  List.fold_left(
-    ~f=
-      ((co_ctxs, tms_elab, m), any) => {
+    : (list(CoCtx.t), list(Any.t), Map.t) => {
+  let (m, results) =
+    List.fold_map(
+      tms,
+      ~init=m,
+      ~f=(m, any) => {
         let (co_ctx, any_elab, m) =
           any_to_info_map(~ctx, ~ancestors, ~probe_ids, any, m);
-        (co_ctxs @ [co_ctx], tms_elab @ [any_elab], m);
+        (m, (co_ctx, any_elab));
       },
-    ~init=([], [], m),
-    tms,
-  )
+    );
+  let (co_ctxs, tms_elab) = List.unzip(results);
+  (co_ctxs, tms_elab, m);
+}
 and drv_to_info_map =
     (drv: Drv.Any.t, m: Map.t, ~ctx, ~ancestors, ~sort: DrvSort.t): Map.t => {
   let rec go = (drv: Drv.Any.t, m, ~sort: DrvSort.t) => {
@@ -231,14 +234,11 @@ and uexp_to_info_map =
       | Some(_) => marks
       };
     let message =
-      OptUtil.get(
-        () =>
-          switch (ana) {
-          | {term: Unknown(SynSwitch), _} => Message.Exp(Default)
-          | _ =>
-            Message.Exp(Common(syn_ana_ok_common(ctx, ana, elab_syn_ty)))
-          },
-        message,
+      Option.value_or_thunk(message, ~default=() =>
+        switch (ana) {
+        | {term: Unknown(SynSwitch), _} => Message.Exp(Default)
+        | _ => Message.Exp(Common(syn_ana_ok_common(ctx, ana, elab_syn_ty)))
+        }
       );
     let cls = Cls.Exp(Exp.cls_of_term(uexp.term));
     let ty = fixed_typ(ctx, ana, elab_syn_ty);
@@ -394,32 +394,21 @@ and uexp_to_info_map =
     | MultiHole(tms) =>
       /* Elaborate MultiHole as right-associative Seq through all Exp children;
        * non-Exp children still get info-mapped but are dropped from elaboration. */
-      let (exp_co_ctxs, exp_probe_targets, exp_elabs, m) =
-        List.fold_left(
-          ~f=
-            ((co_ctxs, probe_targets, elabs, m), any: Any.t) =>
-              switch (any) {
-              | Exp(e) =>
-                let (e_info, e_elab, m) = go(~ana=syn, e, m);
-                (
-                  co_ctxs @ [e_info.co_ctx],
-                  probe_targets @ [e_info.probe_targets],
-                  elabs @ [e_elab],
-                  m,
-                );
-              | _ =>
-                let (co_ctx, _any_elab, m) =
-                  any_to_info_map(
-                    ~ctx,
-                    ~ancestors=ancestors_inclusive,
-                    any,
-                    m,
-                  );
-                (co_ctxs @ [co_ctx], probe_targets, elabs, m);
-              },
-          ~init=([], [], [], m),
-          tms,
+      let (m, results) =
+        List.fold_map(tms, ~init=m, ~f=(m, any: Any.t) =>
+          switch (any) {
+          | Exp(e) =>
+            let (e_info, e_elab, m) = go(~ana=syn, e, m);
+            (m, (e_info.co_ctx, Some((e_info.probe_targets, e_elab))));
+          | _ =>
+            let (co_ctx, _any_elab, m) =
+              any_to_info_map(~ctx, ~ancestors=ancestors_inclusive, any, m);
+            (m, (co_ctx, None));
+          }
         );
+      let exp_co_ctxs = List.map(results, ~f=fst);
+      let (exp_probe_targets, exp_elabs) =
+        List.unzip(List.filter_map(results, ~f=snd));
       let rec nest_seqs = (exps: list(Exp.t)): Exp.t =>
         switch (exps) {
         | [] => EmptyHole |> rewrap
@@ -2451,43 +2440,32 @@ and uexp_to_info_map =
         );
 
       let p_ctxs = List.map(~f=Info.pat_ctx, ps');
-      let (es, es_elabs, m) =
-        List.fold2_exn(
-          ~f=
-            ((es, elabs, m), e, ctx) =>
-              go(~ctx, ~ana, e, m)
-              |> (((e, elab, m)) => (es @ [e], elabs @ [elab], m)),
-          ~init=([], [], m),
-          es,
-          p_ctxs,
+      let (m, es_and_elabs) =
+        List.fold_map(
+          List.zip_exn(es, p_ctxs),
+          ~init=m,
+          ~f=(m, (e, ctx)) => {
+            let (e, elab, m) = go(~ctx, ~ana, e, m);
+            (m, (e, elab));
+          },
         );
+      let (es, es_elabs) = List.unzip(es_and_elabs);
 
       let e_syn_tys = List.map(~f=(e: Info.exp) => e.elab_syn_ty, es);
       let e_co_ctxs = List.map(~f=Info.exp_co_ctx, es);
       let (syn_ty_match, marks_match) =
         ConstructorStaticsHelpers.syn_marks_match(ctx, e_syn_tys, branch_ids);
-      let (constraints, ps_elabs, m) =
-        List.fold_left(
-          ~f=
-            (
-              (
-                constraints: list(Coverage.Constraint.t),
-                ps_elabs: list(Pat.t),
-                m: Map.t,
-              ),
-              (p, co_ctx),
-            ) => {
-              let (info, p_elab, m) =
-                go_pat(~is_synswitch=false, ~co_ctx, ~ana=scrut.ty, p, m);
-
-              let p_constraint = Info.pat_constraint(info);
-              ([p_constraint, ...constraints], ps_elabs @ [p_elab], m);
-            },
-          ~init=([], [], m),
+      let (m, constraints_and_elabs) =
+        List.fold_map(
           List.zip_exn(ps, e_co_ctxs),
+          ~init=m,
+          ~f=(m, (p, co_ctx)) => {
+            let (info, p_elab, m) =
+              go_pat(~is_synswitch=false, ~co_ctx, ~ana=scrut.ty, p, m);
+            (m, (Info.pat_constraint(info), p_elab));
+          },
         );
-
-      let constraints = List.rev(constraints);
+      let (constraints, ps_elabs) = List.unzip(constraints_and_elabs);
 
       let normalized_scrut_ty = Typ.normalize(ctx, scrut.ty);
       let Coverage.CheckMatrix.{exhaustiveness, redundant_rows} =
@@ -3111,10 +3089,8 @@ and upat_to_info_map =
          See also: the `Let` case above, which performs a similar re-analysis
          after the def's type is known. */
       let refined_mode =
-        switch (Typ.meet_all(~empty=unknown, ctx, tys_first)) {
-        | Some(ty) => ty
-        | None => mode
-        };
+        Typ.meet_all(~empty=unknown, ctx, tys_first)
+        |> Option.value(~default=mode);
       let refined_modes = List.init(List.length(ps), ~f=_ => refined_mode);
       let (ctx, tys, cons, m, infos, ps_elabs) =
         fold_patterns_with_modes(
@@ -3162,10 +3138,8 @@ and upat_to_info_map =
          the element type used to analyze both the head and tail in pass two. */
       let (hd_first, _, _) = go(~ctx, ~ana=inner_ty, hd, m);
       let refined_inner =
-        switch (Typ.meet(ctx, inner_ty, hd_first.ty)) {
-        | Some(ty) => ty
-        | None => inner_ty
-        };
+        Typ.meet(ctx, inner_ty, hd_first.ty)
+        |> Option.value(~default=inner_ty);
       /* Second pass: re-analyze with the refined element type so that
          pattern-variable bindings (e.g. `x` in `0 :: x` giving `x : [Int]`)
          pick up the refined type in their context. Mirrors the re-analysis
@@ -4218,9 +4192,9 @@ and rul_to_info_map =
      * Properly positioned rules would already have been removed
      * in maketerm and became part of case expressions */
     let tms =
-      rules
-      |> List.map(~f=((p, e)) => [Grammar.Pat(p), Grammar.Exp(e)])
-      |> List.concat;
+      List.concat_map(rules, ~f=((p, e)) =>
+        [Grammar.Pat(p), Grammar.Exp(e)]
+      );
     any_to_info_map(
       ~ctx,
       ~ancestors,

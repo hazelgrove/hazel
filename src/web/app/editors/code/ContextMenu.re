@@ -166,7 +166,7 @@ let type_annotation_data =
 
 let jump_to_binding_data =
     (ci: option(Language.Info.t)): list(Menu.item(command)) =>
-  switch (OptUtil.and_then(Language.Info.get_binding_site, ci)) {
+  switch (Option.bind(ci, ~f=Language.Info.get_binding_site)) {
   | Some(_) => [
       action_item(
         ~shortcut=Shortcuts.goto_definition,
@@ -457,17 +457,10 @@ let get_sections =
 /* Flatten sections by interspersing `Menu.Divider` between non-empty ones. */
 let flatten_sections =
     (sections: list(list(Menu.item(command)))): list(Menu.item(command)) =>
-  List.fold_left(
-    ~f=
-      (acc, section) =>
-        switch (acc, section) {
-        | (_, []) => acc
-        | ([], items) => items
-        | (acc, items) => acc @ [Menu.divider] @ items
-        },
-    ~init=[],
-    sections,
-  );
+  sections
+  |> List.filter(~f=section => !List.is_empty(section))
+  |> List.intersperse(~sep=[Menu.divider])
+  |> List.concat;
 
 let get_all_items =
     (

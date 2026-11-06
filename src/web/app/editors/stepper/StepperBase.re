@@ -767,7 +767,7 @@ and Stepper: {
         ~ana,
         step_kind,
       )
-      |> OptUtil.get(() =>
+      |> Option.value_or_thunk(~default=() =>
            MissingStep(MissingStep.Model.init)
            |> StepKind.calculate(
                 ~settings,

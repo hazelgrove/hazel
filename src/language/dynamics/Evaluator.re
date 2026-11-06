@@ -38,7 +38,7 @@ module EvaluatorEVMode: {
     switch (xs) {
     | [] => Trampoline.return([])
     | [x, ...xs] =>
-      let.trampoline x' = req_final(f, x => x, x);
+      let.trampoline x' = req_final(f, Fn.id, x);
       let.trampoline xs' = req_all_final(f, i, xs);
       Trampoline.return([x', ...xs']);
     };
@@ -316,10 +316,8 @@ let rec evaluate =
      * that scope over subtree re-evaluation; deferred.) */
     let is_target = Id.Map.find(eval_info.targets, expr_id);
     let continues_delegated_span =
-      switch (is_target) {
-      | None => false
-      | Some(_) => continues_delegation(expr_id, call_stack, delegations)
-      };
+      Option.is_some(is_target)
+      && continues_delegation(expr_id, call_stack, delegations);
     switch (is_target) {
     | Some(_) when !continues_delegated_span =>
       state :=

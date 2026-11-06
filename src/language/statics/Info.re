@@ -245,8 +245,7 @@ let ancestors_of: t => ancestors =
   | InfoMPat({ancestors, _}) => ancestors
   | Secondary(_) => []; //TODO
 
-let parent_id_of: t => option(Id.t) =
-  info => info |> ancestors_of |> ListUtil.hd_opt;
+let parent_id_of: t => option(Id.t) = info => info |> ancestors_of |> List.hd;
 
 let id_of: t => Id.t =
   fun

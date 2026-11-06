@@ -21,10 +21,9 @@ let mold = (a: t): Mold.t => Form.mold_of(a.form, a.sort);
 
 // TODO(d) revisit naming w.r.t. outer vs inner shards
 let l_shard = a =>
-  ListUtil.hd_opt(fst(a.shards)) |> OptUtil.get_or_raise(Empty_shard_affix);
+  List.hd(fst(a.shards)) |> OptUtil.get_or_raise(Empty_shard_affix);
 let r_shard = a =>
-  ListUtil.last_opt(snd(a.shards))
-  |> OptUtil.get_or_raise(Empty_shard_affix);
+  List.last(snd(a.shards)) |> OptUtil.get_or_raise(Empty_shard_affix);
 
 let nibs = (a: t) => {
   let (l, _) = Mold.nibs(~index=l_shard(a), mold(a));
@@ -60,8 +59,8 @@ let disassemble =
     ({id, form, sort, shards, children: (kids_l, kids_r)}: t): Siblings.t => {
   let (shards_l, shards_r) =
     shards
-    |> TupleUtil.map2(Tile.split_shards(id, form, sort))
-    |> TupleUtil.map2(List.map(~f=Tile.to_piece));
+    |> Tuple2.map(~f=Tile.split_shards(id, form, sort))
+    |> Tuple2.map(~f=List.map(~f=Tile.to_piece));
   let flatten = (shards, kids) =>
     Aba.mk(shards, kids) |> Aba.join(p => [p], Fn.id) |> List.concat;
   (flatten(shards_l, kids_l), flatten(shards_r, kids_r));
@@ -70,9 +69,8 @@ let disassemble =
 let missing_middle_shards = (a: t): list(Tile.t) => {
   let (shards_l, shards_r) = a.shards;
   let last_l =
-    ListUtil.last_opt(shards_l) |> OptUtil.get_or_raise(Empty_shard_affix);
-  let first_r =
-    ListUtil.hd_opt(shards_r) |> OptUtil.get_or_raise(Empty_shard_affix);
+    List.last(shards_l) |> OptUtil.get_or_raise(Empty_shard_affix);
+  let first_r = List.hd(shards_r) |> OptUtil.get_or_raise(Empty_shard_affix);
   let ls = List.init(first_r - last_l - 1, ~f=i => last_l + i + 1);
   Tile.split_shards(a.id, a.form, a.sort, ls);
 };

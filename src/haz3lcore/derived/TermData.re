@@ -54,16 +54,12 @@ let extremes_opt = (id: Id.t, data: t) =>
   };
 
 let extremes_shards = (id: Id.t, data: t): option((Piece.t, Piece.t)) =>
-  switch (extremes_opt(id, data)) {
-  | Some((l, r)) => Some((Piece.l_shard_of(l), Piece.r_shard_of(r)))
-  | None => None
-  };
+  extremes_opt(id, data)
+  |> Option.map(~f=((l, r)) => (Piece.l_shard_of(l), Piece.r_shard_of(r)));
 
 let extreme_ids = (id: Id.t, data: t): option((Id.t, Id.t)) =>
-  switch (extremes_opt(id, data)) {
-  | Some((l, r)) => Some((Piece.id(l), Piece.id(r)))
-  | None => None
-  };
+  extremes_opt(id, data)
+  |> Option.map(~f=((l, r)) => (Piece.id(l), Piece.id(r)));
 
 let extreme_measures = (id: Id.t, data: t, measured: Measured.t) =>
   switch (extremes_opt(id, data)) {

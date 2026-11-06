@@ -21,8 +21,7 @@ open Js_of_ocaml;
 
 let graphemes = Unicode.to_array;
 
-let concat_array = (a: array(string)): string =>
-  a |> Array.to_list |> String.concat(~sep="");
+let concat_array = (a: array(string)): string => String.concat_array(a);
 
 let length = Unicode.length;
 

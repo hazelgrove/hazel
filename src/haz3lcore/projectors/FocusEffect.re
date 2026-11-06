@@ -74,8 +74,7 @@ let install_press_tracking = (): unit => {
         switch (kept^, Js.Opt.to_option(evt##.target)) {
         | (Some(id), Some(target)) =>
           let inside =
-            switch (JsUtil.get_elem_by_id_opt(id)) {
-            | Some(el) =>
+            Option.exists(JsUtil.get_elem_by_id_opt(id), ~f=el =>
               Js.to_bool(
                 Js.Unsafe.meth_call(
                   el,
@@ -83,8 +82,7 @@ let install_press_tracking = (): unit => {
                   [|Js.Unsafe.inject(target)|],
                 ),
               )
-            | None => false
-            };
+            );
           pressed_elsewhere := !inside;
         | _ => ()
         };
@@ -123,12 +121,10 @@ let keep_focus = (): unit => {
       | None => ()
       | Some(id) =>
         let fell_to_nothing =
-          switch (active) {
-          | None => true
-          | Some(el) =>
+          Option.for_all(active, ~f=el =>
             String.equal(Js.to_string(el##.tagName), "BODY")
             || String.equal(Js.to_string(el##.id), "page")
-          };
+          );
         if (fell_to_nothing && pressed_elsewhere^) {
           kept := None;
         } else if (fell_to_nothing) {

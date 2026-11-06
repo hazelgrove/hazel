@@ -2,30 +2,6 @@ open Alcotest;
 open Haz3lcore;
 open Poly;
 
-let rec find_hz = (dir: string): list(string) =>
-  switch (Stdlib.Sys.readdir(dir)) {
-  | entries =>
-    entries
-    |> Array.to_list
-    |> List.concat_map(~f=entry => {
-         let path = Filename.concat(dir, entry);
-         switch (Stdlib.Sys.is_directory(path)) {
-         | true => find_hz(path)
-         | false => Filename.check_suffix(entry, ".hz") ? [path] : []
-         | exception _ => []
-         };
-       })
-  | exception _ => []
-  };
-
-let read_file = (path: string): string => {
-  let ic = Stdlib.open_in_bin(path);
-  let n = Stdlib.in_channel_length(ic);
-  let s = Stdlib.really_input_string(ic, n);
-  Stdlib.close_in(ic);
-  s;
-};
-
 /* Ratchet: every .hz program in the repo must take the FastParse zip
    path (parse + verbatim token zip). A bail here means some construct
    agents/users write falls back to the quadratic typing parser — fix
@@ -47,7 +23,7 @@ let tests = (
       () => {
         let files =
           ["hazel-programs", "../hazel-programs"]
-          |> List.concat_map(~f=find_hz)
+          |> List.concat_map(~f=ParsedCorpus.find_hz)
           |> List.dedup_and_sort(~compare=Poly.compare);
         let t0 = Stdlib.Sys.time();
         let (ok, bail, worst) =
@@ -58,7 +34,7 @@ let tests = (
                    committed indentation; the reader strips only the file's
                    final newline — other edge whitespace is content) */
                 let src =
-                  read_file(path)
+                  In_channel.read_all(path)
                   |> Util.StringUtil.trim_leading
                   |> Util.StringUtil.strip_final_newline;
                 let f0 = Stdlib.Sys.time();

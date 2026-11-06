@@ -124,12 +124,7 @@ let linear_contents = (agent: Agent.Model.t, chat_id: Id.t): list(string) => {
 };
 
 let count_substring = (needle: string, haystack: list(string)): int =>
-  List.length(
-    List.filter(
-      ~f=c => StringUtil.plain_search(needle, c, 0) >= 0,
-      haystack,
-    ),
-  );
+  List.count(haystack, ~f=c => StringUtil.plain_search(needle, c, 0) >= 0);
 
 let index_of_substring =
     (needle: string, haystack: list(string)): option(int) => {
@@ -183,18 +178,15 @@ let test_handle_llm_response_ignored_for_stopped_flight = () => {
   let after_stop =
     run_update(Agent.Update.Action.StopAgenticLoop, agent, scheduled);
   let n_before =
-    List.length(
-      List.filter(
-        ~f=
-          (m: Message.Model.t) =>
-            switch (m.role) {
-            | Message.Model.Agent(_) => true
-            | _ => false
-            },
-        Chat.Utils.linearize(
-          ChatSystem.Utils.find_chat(chat_id, after_stop.chat_system),
-        ),
+    List.count(
+      Chat.Utils.linearize(
+        ChatSystem.Utils.find_chat(chat_id, after_stop.chat_system),
       ),
+      ~f=(m: Message.Model.t) =>
+      switch (m.role) {
+      | Message.Model.Agent(_) => true
+      | _ => false
+      }
     );
   let late = mk_reply(~content="late_reply_should_not_appear", []);
   let scheduled2 = ref([]);
@@ -215,16 +207,11 @@ let test_handle_llm_response_ignored_for_stopped_flight = () => {
       ChatSystem.Utils.find_chat(chat_id, after_late.chat_system),
     );
   let n_after =
-    List.length(
-      List.filter(
-        ~f=
-          (m: Message.Model.t) =>
-            switch (m.role) {
-            | Message.Model.Agent(_) => true
-            | _ => false
-            },
-        msgs,
-      ),
+    List.count(msgs, ~f=(m: Message.Model.t) =>
+      switch (m.role) {
+      | Message.Model.Agent(_) => true
+      | _ => false
+      }
     );
   check(
     bool,
@@ -498,10 +485,10 @@ let test_handle_compaction_reply_ignored_after_stop = () => {
     Option.is_none(after_stop.compaction_in_progress),
   );
   check(
-    bool,
+    option(int),
     "pending_ignore_compaction",
-    true,
-    after_stop.pending_ignore_compaction_reply_seq == Some(2),
+    Some(2),
+    after_stop.pending_ignore_compaction_reply_seq,
   );
   let summary = mk_reply(~content="phantom summary", []);
   let scheduled2 = ref([]);

@@ -209,11 +209,7 @@ let fresh = (exp: Grammar.exp_t(unit)): TermBase.exp_t => {
 
 // Get the type from the statics
 let type_of = (~static_map=?, f) => {
-  let m =
-    switch (static_map) {
-    | Some(s) => s
-    | None => statics(f)
-    };
+  let m = Option.value_or_thunk(static_map, ~default=() => statics(f));
   Statics.Map.ty_of(IdTagged.rep_id(f), m);
 };
 
@@ -265,8 +261,7 @@ let inconsistent_typecheck = (name, exp) => {
     () => {
       let s = statics(exp);
 
-      let errors =
-        List.map(~f=ms => Marks(ms), List.map(~f=snd, errors(s)));
+      let errors = List.map(errors(s), ~f=((_, ms)) => Marks(ms));
 
       Alcotest.check(
         neg(list(testable_issue)),
@@ -292,8 +287,7 @@ let fully_consistent_typecheck =
     () => {
       let exp = parse_exp(serialized);
       let s = statics(exp);
-      let errors =
-        List.map(~f=ms => Marks(ms), List.map(~f=snd, errors(s)));
+      let errors = List.map(errors(s), ~f=((_, ms)) => Marks(ms));
       Alcotest.check(list(testable_issue), "Static Errors", [], errors);
       Alcotest.check(
         Alcotest.option(testable_typ),

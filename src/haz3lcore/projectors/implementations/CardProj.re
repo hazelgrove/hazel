@@ -69,7 +69,7 @@ module SyntaxTerm = {
     switch (
       info.syntax
       |> info.utility.seg_to_term
-      |> OptUtil.and_then(CardSyntax.any_to_state)
+      |> Option.bind(~f=CardSyntax.any_to_state)
     ) {
     | None => 0
     | Some((_, Card(_)))

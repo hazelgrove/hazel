@@ -178,31 +178,31 @@ let labels_to_info_map =
       m: Map.t,
     )
     : (list(option(string)), Map.t) => {
-  List.fold_left(
-    ~f=
-      ((labels: list(option(string)), m: Map.t), label) => {
-        let (lab_name, lab_info, _, m) =
-          analyze_label_to_info_map((module S), ~ctx, syn, label, m);
-        /* If expected_labels provided and this label isn't in the set,
-           patch as InvalidLabel and suppress the label name */
-        let (lab_name, m) =
-          switch (label.term, expected_labels, lab_name) {
-          | (Label(name), Some(expected), _)
-              when !List.mem(expected, name, ~equal=String.equal) =>
-            let m =
-              set_marks_exp(
-                m,
-                lab_info.user_term,
-                lab_info.marks @ [InvalidLabel(name, expected)],
-              );
-            (None, m);
-          | _ => (lab_name, m)
-          };
-        (labels @ [lab_name], m);
-      },
-    ~init=([], m),
+  List.fold_map(
     labs,
-  );
+    ~init=m,
+    ~f=(m: Map.t, label) => {
+      let (lab_name, lab_info, _, m) =
+        analyze_label_to_info_map((module S), ~ctx, syn, label, m);
+      /* If expected_labels provided and this label isn't in the set,
+         patch as InvalidLabel and suppress the label name */
+      let (lab_name, m) =
+        switch (label.term, expected_labels, lab_name) {
+        | (Label(name), Some(expected), _)
+            when !List.mem(expected, name, ~equal=String.equal) =>
+          let m =
+            set_marks_exp(
+              m,
+              lab_info.user_term,
+              lab_info.marks @ [InvalidLabel(name, expected)],
+            );
+          (None, m);
+        | _ => (lab_name, m)
+        };
+      (m, lab_name);
+    },
+  )
+  |> Tuple2.swap;
 };
 
 // Common fallback for invalid arguments
@@ -325,10 +325,10 @@ let project_labels_statics =
           List.map(
             ~f=
               (optional_lab: option(string)) => {
-                Util.OptUtil.map2(
-                  get_tuple_label,
+                Option.map2(
                   labeled_tup_info,
                   optional_lab,
+                  ~f=get_tuple_label,
                 )
                 |> Option.value(~default=unknown)
               },
@@ -363,12 +363,9 @@ let select_labels_statics =
           List.map(
             ~f=
               (optional_lab: option(string)) => {
-                Util.OptUtil.map2(
-                  (a, b) =>
-                    TupLabel(Label(b) |> Typ.temp, get_tuple_label(a, b))
-                    |> Typ.temp,
-                  labeled_tup_info,
-                  optional_lab,
+                Option.map2(labeled_tup_info, optional_lab, ~f=(a, b) =>
+                  TupLabel(Label(b) |> Typ.temp, get_tuple_label(a, b))
+                  |> Typ.temp
                 )
                 |> Option.value(~default=unknown)
               },
@@ -399,7 +396,7 @@ let omit_labels_statics =
     ~ctx,
     ~compute_result_type=
       (labeled_tup_info, labels) => {
-        let labels_to_drop = List.filter_map(~f=Fn.id, labels);
+        let labels_to_drop = List.filter_opt(labels);
         switch (labeled_tup_info) {
         | None => unknown
         | Some(labeled_tup_info) =>
@@ -490,23 +487,20 @@ let group_by_label_statics =
         );
 
       let pivot_type =
-        Util.OptUtil.map2(
-          (entries: list(tuple_entry), label: string) => {
-            List.find_map(
-              ~f=
-                entry =>
-                  Option.equal(
-                    String.equal,
-                    extract_label(entry),
-                    Some(label),
-                  )
-                    ? Some(extract_type(entry)) : None,
-              entries,
-            )
-          },
-          row_info,
-          label,
-        )
+        Option.map2(
+          row_info, label, ~f=(entries: list(tuple_entry), label: string) => {
+          List.find_map(
+            ~f=
+              entry =>
+                Option.equal(
+                  String.equal,
+                  extract_label(entry),
+                  Some(label),
+                )
+                  ? Some(extract_type(entry)) : None,
+            entries,
+          )
+        })
         |> Option.join;
 
       let m =

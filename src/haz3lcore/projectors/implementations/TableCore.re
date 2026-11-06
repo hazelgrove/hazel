@@ -71,7 +71,7 @@ let parse_table = (exp: Exp.t): option(table_data) =>
         es,
       );
 
-    let data_opt = OptUtil.sequence(data);
+    let data_opt = Option.all(data);
     switch (data_opt) {
     | Some(data) =>
       let (headers, rows) = List.unzip(data);

@@ -107,7 +107,7 @@ let rescan_parent_shards = (z: t): t => {
       (sibs: Siblings.t, target: Ancestor.t)
       : option((Siblings.t, Ancestor.t)) => {
     let missing = ancestor_missing(target);
-    if (missing == []) {
+    if (List.is_empty(missing)) {
       None;
     } else {
       let convert = convert_piece(target, missing);
@@ -126,7 +126,7 @@ let rescan_parent_shards = (z: t): t => {
         let (l_match, r_match) =
           new_sibs
           |> Siblings.split_by_matching(target.Ancestor.id)
-          |> TupleUtil.map2(Aba.trim);
+          |> Tuple2.map(~f=Aba.trim);
         let (target, new_l) =
           switch (l_match) {
           | None => (target, fst(new_sibs))
@@ -134,10 +134,10 @@ let rescan_parent_shards = (z: t): t => {
             let (shards_l, kids_l) = flatten_match(match_l);
             let target = {
               ...target,
-              shards: target.shards |> PairUtil.map_fst(ss => ss @ shards_l),
+              shards: target.shards |> Tuple2.map_fst(~f=ss => ss @ shards_l),
               children:
                 target.children
-                |> PairUtil.map_fst(kids =>
+                |> Tuple2.map_fst(~f=kids =>
                      Segment.inner_regrout(kids @ [outer_l, ...kids_l])
                    ),
             };
@@ -150,10 +150,10 @@ let rescan_parent_shards = (z: t): t => {
             let (shards_r, kids_r) = flatten_match(match_r);
             let target = {
               ...target,
-              shards: target.shards |> PairUtil.map_snd(ss => shards_r @ ss),
+              shards: target.shards |> Tuple2.map_snd(~f=ss => shards_r @ ss),
               children:
                 target.children
-                |> PairUtil.map_snd(kids =>
+                |> Tuple2.map_snd(~f=kids =>
                      Segment.inner_regrout([outer_r, ...kids_r] @ kids)
                    ),
             };
@@ -453,7 +453,7 @@ let normalize_char_selection = (z: t): t =>
       switch (right_offset) {
       | None => None
       | Some(n) =>
-        switch (ListUtil.last_opt(content)) {
+        switch (List.last(content)) {
         | None => None
         | Some(p) =>
           switch (Piece.token_of(p)) {
@@ -722,7 +722,8 @@ let directional_unselect = (d: Direction.t, z: t): t => {
 };
 
 let unselect = (z: t): t =>
-  z.selection.content == [] ? z : directional_unselect(z.selection.focus, z);
+  List.is_empty(z.selection.content)
+    ? z : directional_unselect(z.selection.focus, z);
 
 let move = (d: Direction.t, z: t): option(t) =>
   if (Selection.is_empty(z.selection)) {
@@ -866,7 +867,7 @@ let local_missing_shards = (z: t): list(Tile.t) =>
   Relatives.local_missing_shards(z.relatives);
 
 let missing_shards_hd = (z: t): option(Tile.t) =>
-  z |> local_missing_shards |> ListUtil.hd_opt;
+  z |> local_missing_shards |> List.hd;
 
 let find_missing_shard = (tok: Token.t, z: t): option(Tile.t) =>
   if (Form.is_ambiguous_polymorph(tok)) {
@@ -894,11 +895,7 @@ let insert_segment = (z: t, seg: Segment.t, ~root): t =>
 let adj_pos = (d: Direction.t, z: t): t =>
   switch (d) {
   | Left => z
-  | Right =>
-    switch (move(Left, z)) {
-    | None => z
-    | Some(z) => z
-    }
+  | Right => OptUtil.replace(move(Left), z)
   };
 
 /* Unselect with the caret Outer: directional_unselect would step an Inner
@@ -971,10 +968,7 @@ let adjacent_monotile_id = (d: Direction.t, z: t): option(Id.t) =>
   };
 
 let adjacent_monotile_or_new_id = (d, z) =>
-  switch (adjacent_monotile_id(d, z)) {
-  | Some(id) => id
-  | None => Id.mk()
-  };
+  Option.value_or_thunk(adjacent_monotile_id(d, z), ~default=Id.mk);
 
 let representative_piece = (z: t): option((Piece.t, Direction.t)) => {
   /* The piece to the left of the caret, or if none exists, the piece to the right */
@@ -991,7 +985,7 @@ let base_point = (measured: Measured.t, z: t): Point.t => {
     let seg = Piece.disassemble(p);
     switch (d) {
     | Left =>
-      let p = ListUtil.last(seg);
+      let p = List.last_exn(seg);
       let m = Measured.find_p(~msg="base_point", p, measured);
       m.last;
     | Right =>
@@ -1122,7 +1116,7 @@ let selection_trim_offsets = (z: t): (int, int) => {
     let p =
       switch ((focus: Direction.t)) {
       | Right => List.hd_exn(content)
-      | Left => ListUtil.last(content)
+      | Left => List.last_exn(content)
       };
     let shard = List.hd_exn(Piece.disassemble(p));
     switch (Piece.token_of(shard)) {
@@ -1133,11 +1127,11 @@ let selection_trim_offsets = (z: t): (int, int) => {
   let right_trim = (inner_n, content, focus) => {
     let p =
       switch ((focus: Direction.t)) {
-      | Right => ListUtil.last(content)
+      | Right => List.last_exn(content)
       | Left => List.hd_exn(content)
       };
     let seg = Piece.disassemble(p);
-    let last_shard = ListUtil.last(seg);
+    let last_shard = List.last_exn(seg);
     switch (Piece.token_of(last_shard)) {
     | Some(tok) =>
       let tok_len = Unicode.length(tok);
@@ -1207,12 +1201,13 @@ let do_towards_point =
 
   let is_at_side_of_row = (d: Direction.t, z: t) => {
     let Point.{row, col} = caret_point(z);
-    switch (move(d, z)) {
-    | None => true
-    | Some(z) =>
-      let Point.{row: rowp, col: colp} = caret_point(z);
-      row != rowp || col == colp;
-    };
+    Option.for_all(
+      move(d, z),
+      ~f=z => {
+        let Point.{row: rowp, col: colp} = caret_point(z);
+        row != rowp || col == colp;
+      },
+    );
   };
 
   let direction_to_from = (p1: Point.t, p2: Point.t): Direction.t => {
@@ -1337,7 +1332,7 @@ let selection_anchor_point = (measured, z: t): option(Point.t) => {
       };
     | Left =>
       /* Anchor is at the RIGHT end */
-      let p = ListUtil.last(seg);
+      let p = List.last_exn(seg);
       let m = Measured.find_p(~msg="selection_anchor_point", p, measured);
       switch (anchor_caret) {
       | CaretBase.Outer => Some(m.last)

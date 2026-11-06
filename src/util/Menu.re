@@ -51,15 +51,9 @@ let opened: t =
   });
 let is_open = (m: t): bool => Option.is_some(m);
 let path = (m: t): list(string) =>
-  switch (m) {
-  | None => []
-  | Some({path, _}) => path
-  };
+  Option.value_map(m, ~default=[], ~f=m => m.path);
 let selected = (m: t): int =>
-  switch (m) {
-  | None => 0
-  | Some({selected_idx, _}) => selected_idx
-  };
+  Option.value_map(m, ~default=0, ~f=m => m.selected_idx);
 
 let parent_of_path = (path: list(string)): list(string) =>
   switch (List.rev(path)) {
@@ -230,23 +224,19 @@ let update = (action: action, model: t): t => {
   | Open => opened
   | Close => None
   | Up =>
-    switch (model) {
-    | None => None
-    | Some({selected_idx, path}) =>
-      Some({
-        selected_idx: max(0, selected_idx - 1),
-        path,
-      })
-    }
+    Option.map(model, ~f=m =>
+      {
+        ...m,
+        selected_idx: max(0, m.selected_idx - 1),
+      }
+    )
   | Down =>
-    switch (model) {
-    | None => None
-    | Some({selected_idx, path}) =>
-      Some({
-        selected_idx: selected_idx + 1,
-        path,
-      })
-    }
+    Option.map(model, ~f=m =>
+      {
+        ...m,
+        selected_idx: m.selected_idx + 1,
+      }
+    )
   | EnterSubmenu(label) =>
     Some({
       selected_idx: 0,
@@ -258,14 +248,12 @@ let update = (action: action, model: t): t => {
       path: parent_of_path(cur_path),
     })
   | SetSelected(i) =>
-    switch (model) {
-    | None => None
-    | Some({path, _}) =>
-      Some({
+    Option.map(model, ~f=m =>
+      {
+        ...m,
         selected_idx: max(0, i),
-        path,
-      })
-    }
+      }
+    )
   };
 };
 

@@ -187,10 +187,7 @@ let test_drv_case_mid_rule_body = () => {
     List.fold_left(
       ~f=
         (z, _) =>
-          switch (Haz3lcore.Move.local(ByToken, Left, z)) {
-          | Some(z) => z
-          | None => z
-          },
+          Haz3lcore.Move.local(ByToken, Left, z) |> Option.value(~default=z),
       ~init=z,
       [(), ()],
     );
@@ -346,18 +343,12 @@ let test_drv_case_insert_bar_after_complete_case = () => {
   let z =
     switch (id_opt) {
     | Some(id) =>
-      switch (Haz3lcore.Move.jump_to_side_of_id(Util.Direction.Left, z, id)) {
-      | Some(z) => z
-      | None => z
-      }
+      Haz3lcore.Move.jump_to_side_of_id(Util.Direction.Left, z, id)
+      |> Option.value(~default=z)
     | None => z
     };
   /* Now caret is at start of "end". Move one token left to be before end. */
-  let z =
-    switch (Haz3lcore.Move.local(ByToken, Left, z)) {
-    | Some(z) => z
-    | None => z
-    };
+  let z = Haz3lcore.Move.local(ByToken, Left, z) |> Option.value(~default=z);
   let _z = perform_chars_editor(~root=Drv(Exp), "| B => 2 ", z);
   check(bool, "no crash", true, true);
 };

@@ -4,57 +4,7 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
-open Action;
 open Poly;
-
-let caret_char = "¦";
-
-let string_to_ltr_actions = (s: string): list(Action.t) =>
-  s |> Token.to_list |> List.map(~f=c => Action.Insert(c));
-
-let mv_l = (n: int): list(Action.t) =>
-  List.init(n, ~f=_ => Action.Move(Local(Left, ByChar)));
-
-let perform = (zip: Zipper.t, actions: list(Action.t)): Zipper.t => {
-  let perform = (a: Action.t, z: Zipper.t) =>
-    Perform.go(
-      ~settings=Language.CoreSettings.off,
-      ~statics=CachedStatics.empty,
-      ~syntax=CachedSyntax.init(z),
-      ~root=Exp,
-      a,
-      {
-        zipper: z,
-        col_target: None,
-      },
-    );
-  List.fold_left(
-    ~f=
-      (z: Zipper.t, a: Action.t) =>
-        switch (perform(a, z)) {
-        | Ok(z) => z
-        | Error(err) =>
-          Alcotest.fail("Failed on action: " ++ Action.Failure.show(err))
-        },
-    ~init=zip,
-    actions,
-  );
-};
-
-let mk = (init: string): list(Action.t) => {
-  let rec split =
-          (before: list(string), rest: list(string))
-          : (list(string), list(string)) =>
-    switch (rest) {
-    | [] => Alcotest.fail("No caret in: " ++ init)
-    | [hd, ...tl] =>
-      String.equal(hd, caret_char)
-        ? (List.rev(before), tl) : split([hd, ...before], tl)
-    };
-  let (before, after) = split([], Token.to_list(init));
-  let s = Token.of_list(before @ after);
-  string_to_ltr_actions(s) @ mv_l(List.length(after));
-};
 
 let probed_str = (z: Zipper.t): string => {
   let root_segment = Zipper.unselect_and_zip(z);
@@ -78,7 +28,7 @@ let auto = (~name, ~input, ~probed) =>
     name,
     `Quick,
     () => {
-      let z = mk(input) |> perform(Zipper.init());
+      let z = Test_Indication.(mk(input) |> perform(Zipper.init()));
       check(
         testable(Fmt.string, String.equal),
         probed,
@@ -123,7 +73,7 @@ let param = (~name, ~input, ~param) =>
     name,
     `Quick,
     () => {
-      let z = mk(input) |> perform(Zipper.init());
+      let z = Test_Indication.(mk(input) |> perform(Zipper.init()));
       check(
         testable(Fmt.string, String.equal),
         param,
@@ -310,10 +260,8 @@ let step_into_resolution = (~fn: string, program: string): (string, string) => {
       | (None, Info.InfoExp({user_term: {term: Ap(_, fexpr, _), _}, _})) =>
         switch (IdTagged.term_of(fexpr)) {
         | Var(n) when n == fn =>
-          switch (Statics.Map.lookup(IdTagged.rep_id(fexpr), info_map)) {
-          | Some(ci_var) => Info.get_binding_site(ci_var)
-          | None => None
-          }
+          Statics.Map.lookup(IdTagged.rep_id(fexpr), info_map)
+          |> Option.bind(~f=Info.get_binding_site)
         | _ => None
         }
       | _ => acc

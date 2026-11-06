@@ -199,7 +199,7 @@ let find_by_id = (id: Id.t, map: t): option(measurement) => {
           );
         let last =
           ListUtil.assoc_err(
-            ListUtil.last(shards) |> fst,
+            List.last_exn(shards) |> fst,
             shards,
             "find_by_id",
           );
@@ -254,10 +254,7 @@ let update_row_content_ =
 
 let shape_of_row_content_ = (rc: row_content_, max_col: int): Rows.shape => {
   content_start:
-    switch (rc.start_opt) {
-    | Some(c) => c
-    | None => max_col /* all whitespace row */
-    },
+    Option.value(rc.start_opt, ~default=max_col /* all whitespace row */),
   content_end: rc.end_col,
   max_col,
 };

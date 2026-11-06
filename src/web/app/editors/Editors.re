@@ -35,14 +35,12 @@ module Model = {
     fun
     | Scratch(m)
     | Documentation(m) =>
-      switch (List.nth(m.scratchpads, m.current)) {
-      | Some(sp) =>
+      Option.exists(List.nth(m.scratchpads, m.current), ~f=sp =>
         switch (sp.kind) {
         | Code(_) => true
         | Drv(_) => false
         }
-      | None => false
-      }
+      )
     | Tutorial(_) => true
     | Config(_)
     | Exercises(_) => false;

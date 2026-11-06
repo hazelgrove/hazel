@@ -234,7 +234,7 @@ module Update = {
             ~is_edited=true,
             ~is_dynamic_term=true,
             ~dynamics=Dynamics.Map.empty,
-            ~stitch=x => x,
+            ~stitch=Fn.id,
             ~ctx=Calc.get_value(ctx) |> SemanticCtx.get_ctx,
             editor,
           );
@@ -324,11 +324,11 @@ module View = {
     | Refl(int);
 
   let get_segment_bounds = (~measured: Measured.t, segment: Segment.t) => {
-    let* first_piece = ListUtil.hd_opt(segment);
+    let* first_piece = List.hd(segment);
     let Point.{row: start_y, col: start_x} =
       Measured.find_p(~msg="get_segment_bounds", first_piece, measured)
       |> (m => m.origin);
-    let* last_piece = ListUtil.last_opt(segment);
+    let* last_piece = List.last(segment);
     let Point.{row: end_y, col: end_x} =
       Measured.find_p(~msg="get_segment_bounds", last_piece, measured)
       |> (m => m.last);
@@ -704,10 +704,7 @@ module View = {
     let button_back =
       Widgets.button_d(
         Icons.undo,
-        switch (undo) {
-        | Some(u) => u
-        | None => Ui_effect.Ignore
-        },
+        Option.value(undo, ~default=Ui_effect.Ignore),
         ~disabled=Option.is_none(undo),
         ~tooltip="Step Backwards",
       );

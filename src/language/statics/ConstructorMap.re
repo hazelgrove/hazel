@@ -85,14 +85,13 @@ let has_good_entry = (x: t('a)): bool =>
   );
 
 let free_variables = (f, m) =>
-  m
-  |> List.map(
-       ~f=
-         fun
-         | Variant(_, _, Some(value)) => f(value)
-         | _ => [],
-     )
-  |> List.concat;
+  List.concat_map(
+    m,
+    ~f=
+      fun
+      | Variant(_, _, Some(value)) => f(value)
+      | _ => [],
+  );
 
 /* computes all three regions of a venn diagram of two sets represented as lists */
 let venn_regions =

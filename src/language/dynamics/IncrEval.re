@@ -213,15 +213,13 @@ let reuse_map_for_co_ctx =
         if (!is_runtime_dependency(name)) {
           acc;
         } else {
-          switch (acc) {
-          | None => None
-          | Some(projected) =>
-            switch (Maps.StringMap.find(reuse_map, name)) {
-            | Some(prov) =>
-              Some(Maps.StringMap.set(projected, ~key=name, ~data=prov))
-            | None => None
+          OptUtil.Syntax.(
+            {
+              let* projected = acc;
+              let+ prov = Maps.StringMap.find(reuse_map, name);
+              Maps.StringMap.set(projected, ~key=name, ~data=prov);
             }
-          };
+          );
         },
     ~init=Some(empty_reuse_map),
     VarMap.to_list(co_ctx),
@@ -292,14 +290,14 @@ let pat_provenance = (~source_id: Id.t, ~flag: flag, pat: Pat.t): reuse_map => {
       }
     | Tuple(ps) =>
       let arity = List.length(ps);
-      ps
-      |> List.mapi(~f=(i, p) => go([TupleIndex(arity, i), ...path], p))
-      |> List.concat;
+      List.concat_mapi(ps, ~f=(i, p) =>
+        go([TupleIndex(arity, i), ...path], p)
+      );
     | ListLit(ps) =>
       let arity = List.length(ps);
-      ps
-      |> List.mapi(~f=(i, p) => go([ListIndex(arity, i), ...path], p))
-      |> List.concat;
+      List.concat_mapi(ps, ~f=(i, p) =>
+        go([ListIndex(arity, i), ...path], p)
+      );
     | Cons(hd, tl) =>
       go([ConsHead, ...path], hd) @ go([ConsTail, ...path], tl)
     };
@@ -337,13 +335,13 @@ let reuse_check =
   open OptUtil.Syntax;
 
   let* () =
-    OptUtil.some_if(List.is_empty(call_stack) && !is_empty(prev), ());
+    Option.some_if(List.is_empty(call_stack) && !is_empty(prev), ());
   let* entry = Id.Map.find(prev.entries, id);
   let* info = EvalInfo.find_opt(id, eval_info);
 
   let* current_reuse_map = reuse_map_for_co_ctx(reuse_map, info.co_ctx);
   let* () =
-    OptUtil.some_if(
+    Option.some_if(
       equal_reuse_map(entry.prev_reuse_map, current_reuse_map),
       (),
     );
@@ -358,10 +356,10 @@ let reuse_check =
          Exp.lexeme_trace(entry.prev_elab),
          Exp.lexeme_trace(info.elab_term),
        );
-  let* () = OptUtil.some_if(elab_same, ());
+  let* () = Option.some_if(elab_same, ());
 
   let* () =
-    OptUtil.some_if(
+    Option.some_if(
       EvalInfo.equal_probe_targets(
         entry.prev_probe_targets,
         info.probe_targets,

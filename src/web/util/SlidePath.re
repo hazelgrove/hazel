@@ -59,9 +59,8 @@ type folder_position = {
 let folder_position = (~current: int, paths: list(t)): folder_position => {
   let idxs = folder_indices(~current, paths);
   let index_in_folder =
-    ListUtil.findi_opt(i => i == current, idxs)
-    |> Option.map(~f=fst)
-    |> Option.value(~default=0);
+    List.findi(idxs, ~f=(_, i) => i == current)
+    |> Option.value_map(~default=0, ~f=fst);
   {
     index_in_folder,
     folder_size: List.length(idxs),
@@ -89,11 +88,11 @@ let breadcrumb = (~current: int, paths: list(t)): list(crumb) => {
   | Some((_, parts)) =>
     parts
     |> List.mapi(~f=(depth, selected) => {
-         let prefix = ListUtil.take(depth, parts);
+         let prefix = List.take(parts, depth);
          let options =
            all
            |> List.filter_map(~f=((i, segs)) =>
-                List.equal(String.equal, ListUtil.take(depth, segs), prefix)
+                List.equal(String.equal, List.take(segs, depth), prefix)
                   /* None: no segment at this depth, so nothing to offer. */
                   ? List.nth(segs, depth) |> Option.map(~f=seg => (i, seg))
                   : None

@@ -30,15 +30,11 @@ module Make = (P: PARAMS) : Projector => {
     | _ => None
     };
 
-  let init = (any: Language.Any.t) =>
-    switch (value_of(any)) {
-    | Some(_) => Some()
-    | None => None
-    };
+  let init = (any: Language.Any.t) => Option.map(value_of(any), ~f=ignore);
 
   let get = (info: info): P.t =>
     switch (
-      info.syntax |> info.utility.seg_to_term |> OptUtil.and_then(value_of)
+      info.syntax |> info.utility.seg_to_term |> Option.bind(~f=value_of)
     ) {
     | Some(v) => v
     | None => failwith(P.name ++ ": Get: not " ++ P.literal ++ " literal")

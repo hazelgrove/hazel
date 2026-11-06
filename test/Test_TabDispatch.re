@@ -97,8 +97,9 @@ let completed_text = (z: Zipper.t): string => {
 let missing_shards = (z: Zipper.t): int =>
   Zipper.unselect_and_zip(~erase_buffer=true, z)
   |> Segment.incomplete_tiles_deep
-  |> List.map(~f=t => List.length(Tile.missing_shard_indices(t)))
-  |> List.fold_left(~f=(+), ~init=0);
+  |> List.sum((module Int), ~f=t =>
+       List.length(Tile.missing_shard_indices(t))
+     );
 
 let show_action = (a: Action.t) =>
   switch (a) {
@@ -292,7 +293,7 @@ let positions = (z: Zipper.t): list(Zipper.t) => {
 let sweep = (z: Zipper.t): list(string) =>
   positions(z)
   |> List.concat_map(~f=z =>
-       List.filter_map(~f=x => x, [unfaithful(z), display_broken(z)])
+       List.filter_opt([unfaithful(z), display_broken(z)])
      );
 
 let check_sweep = (name, z) =>
@@ -468,7 +469,7 @@ let padding_zipper = input => {
     let point =
       Util.Point.{
         row: List.length(lines) - 1,
-        col: List.length(Token.to_list(Util.ListUtil.last(lines))),
+        col: List.length(Token.to_list(List.last_exn(lines))),
       };
     switch (MarkerParse.of_text(~root=Exp, before ++ after)) {
     | None => fail("Cannot parse " ++ input)
@@ -505,7 +506,7 @@ let padding_case = (input, preview, expected) =>
       let text =
         Token.to_list(text)
         |> List.map(~f=c => c == Token.implicit_hole_marker ? "?" : c)
-        |> String.concat(~sep="");
+        |> String.concat;
       check(string, "preview (including spaces and holes)", preview, text);
       let action =
         switch (CompletionQuery.tab_action(z)) {

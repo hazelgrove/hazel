@@ -57,14 +57,9 @@ let legend_sample =
   let cursor_clss =
     ProbeProj.cursor_clss(~settings, ~ap_id, dynamics, sample);
   let caption_node =
-    div(
-      ~attrs=[clss(["code"])],
-      [
-        span(
-          ~attrs=[clss(["code-text"])],
-          [span(~attrs=[clss(["token"])], [text(caption)])],
-        ),
-      ],
+    div_c(
+      "code",
+      [span_c("code-text", [span_c("token", [text(caption)])])],
     );
   div(~attrs=[Attr.classes(["value"] @ cursor_clss)], [caption_node])
   |> div_cs(["sample"])
@@ -75,12 +70,9 @@ let legend_sample =
 };
 
 let legend_item = (~tooltip: string, sample_view: Node.t) =>
-  div(
-    ~attrs=[clss(["legend-item"])],
-    [
-      sample_view,
-      div(~attrs=[clss(["legend-tooltip"])], [text(tooltip)]),
-    ],
+  div_c(
+    "legend-item",
+    [sample_view, div_c("legend-tooltip", [text(tooltip)])],
   );
 
 let legend_view = (~globals as _: Globals.t, ~explain_this_inject) => {
@@ -201,7 +193,7 @@ let legend_view = (~globals as _: Globals.t, ~explain_this_inject) => {
       legend_item(
         ~tooltip=
           "Samples not shown as they are not within the probe focus; click to realign the focus and show them.",
-        div(~attrs=[clss(["legend-not-aligned"])], [text({js|⊖|js})]),
+        div_c("legend-not-aligned", [text({js|⊖|js})]),
       )
     | Many =>
       legend_item(
@@ -250,11 +242,11 @@ let legend_view = (~globals as _: Globals.t, ~explain_this_inject) => {
         ["legend", "panel"] @ (color_scheme == Simple ? ["simple"] : []),
       ),
     ],
-    [div(~attrs=[clss(["title"])], [text("Sample Focus Legend")])]
+    [div_c("title", [text("Sample Focus Legend")])]
     @ (color_scheme == Simple ? simple_items : standard_items)
     @ [
-      div(~attrs=[clss(["legend-divider"])], []),
-      div(~attrs=[clss(["title"])], [text("Sample Color Scheme")]),
+      div_c("legend-divider", []),
+      div_c("title", [text("Sample Color Scheme")]),
       {
         let next_mode: ProbeProj.Settings.sample_base =
           switch (color_scheme) {
@@ -273,13 +265,10 @@ let legend_view = (~globals as _: Globals.t, ~explain_this_inject) => {
                 explain_this_inject(ExplainThisUpdate.SpecificityOpen(true));
               }),
             ],
-            [
-              text(label),
-              div(~attrs=[clss(["legend-tooltip"])], [text(tooltip)]),
-            ],
+            [text(label), div_c("legend-tooltip", [text(tooltip)])],
           );
-        div(
-          ~attrs=[clss(["segmented-control"])],
+        div_c(
+          "segmented-control",
           [
             segment(
               "Simple",
@@ -329,16 +318,16 @@ let toggle_controls_view = (~globals: Globals.t, ~explain_this_inject) => {
             ],
             [text(label)],
           );
-        div(
-          ~attrs=[clss(["toggle-group"])],
+        div_c(
+          "toggle-group",
           [
-            div(~attrs=[clss(["toggle-label"])], [text("Rich Views")]),
-            div(
-              ~attrs=[clss(["segmented-control"])],
+            div_c("toggle-label", [text("Rich Views")]),
+            div_c(
+              "segmented-control",
               [segment("On", on), segment("Off", !on)],
             ),
-            div(
-              ~attrs=[clss(["legend-tooltip"])],
+            div_c(
+              "legend-tooltip",
               [
                 text(
                   "Show samples as cards etc. when possible; double-click a sample to toggle it.",
@@ -366,8 +355,8 @@ let toggle =
   );
 
 let settings = (~globals as _: Globals.t, ~explain_this_inject) => {
-  div(
-    ~attrs=[clss(["settings"])],
+  div_c(
+    "settings",
     [
       toggle(
         ~tooltip="Samples Before/Above Focus",
@@ -412,9 +401,9 @@ let sketch_view = (~globals: Globals.t, ~explain_this_inject): Node.t =>
       settings(~globals, ~explain_this_inject),
       summary(
         ~attrs=[clss(["sketch-toggle"])],
-        [div(~attrs=[clss(["sketch-toggle-image"])], [])],
+        [div_c("sketch-toggle-image", [])],
       ),
-      div(~attrs=[clss(["sketch-body"])], []),
+      div_c("sketch-body", []),
     ],
   );
 
@@ -447,10 +436,8 @@ let collect_print_entries =
             )
          |> Printer.of_segment(~holes="");
        let line =
-         switch (Measured.find_by_id(sample.syntax_id, measured)) {
-         | Some(m) => Some(m.origin.row + 1)
-         | None => None
-         };
+         Measured.find_by_id(sample.syntax_id, measured)
+         |> Option.map(~f=(m: Measured.measurement) => m.origin.row + 1);
        {
          seq: sample.seq + 1,
          value_str,
@@ -479,8 +466,8 @@ let mode_title = (~explain_this_inject) => {
     explain_this_inject(ExplainThisUpdate.SpecificityOpen(true));
   };
   let is_probes = mode^ == Probes;
-  div(
-    ~attrs=[clss(["main-title"])],
+  div_c(
+    "main-title",
     [
       span(
         ~attrs=
@@ -519,12 +506,12 @@ let run_button = (~explain_this_inject, ~editor: CodeEditable.Model.t) => {
 };
 
 let render_print_entry = (entry: print_entry): Node.t =>
-  div(
-    ~attrs=[clss(["print-entry"])],
+  div_c(
+    "print-entry",
     [
-      span(~attrs=[clss(["print-value"])], [text(entry.value_str)]),
-      span(
-        ~attrs=[clss(["print-line"])],
+      span_c("print-value", [text(entry.value_str)]),
+      span_c(
+        "print-line",
         [
           text(
             switch (entry.line) {
@@ -548,10 +535,7 @@ let printarium_body = (~explain_this_inject, ~editor: CodeEditable.Model.t) => {
     | Manual => cached_print_entries^
     };
   [
-    div(
-      ~attrs=[clss(["eval-controls"])],
-      [run_button(~explain_this_inject, ~editor)],
-    ),
+    div_c("eval-controls", [run_button(~explain_this_inject, ~editor)]),
     div(
       ~attrs=[clss(["panel", "prints"])],
       [
@@ -573,36 +557,30 @@ let printarium_body = (~explain_this_inject, ~editor: CodeEditable.Model.t) => {
 };
 
 let printarium = (~explain_this_inject, ~editor) =>
-  [div(~attrs=[clss(["header"])], [mode_title(~explain_this_inject)])]
+  [div_c("header", [mode_title(~explain_this_inject)])]
   @ printarium_body(~explain_this_inject, ~editor);
 
 let probearium =
     (~globals: Globals.t, ~explain_this_inject, ~editor: CodeEditable.Model.t) => {
   let z = editor.editor.state.zipper;
   let indicated_id = Indicated.index(z);
-  let indicated_has_probe =
-    switch (indicated_id) {
-    | Some(id) =>
-      List.exists(~f=((rid, _)) => rid == id, z.refractors.manuals)
-      || Id.Map.mem(z.refractors.multis.ephemerals, id)
-    | None => false
-    };
   let indicated_has_manual =
-    switch (indicated_id) {
-    | Some(id) =>
+    Option.exists(indicated_id, ~f=id =>
       List.exists(~f=((rid, _)) => rid == id, z.refractors.manuals)
-    | None => false
-    };
+    );
+  let indicated_has_probe =
+    indicated_has_manual
+    || Option.exists(indicated_id, ~f=id =>
+         Id.Map.mem(z.refractors.multis.ephemerals, id)
+       );
   let indicated_can_probe =
-    switch (indicated_id) {
-    | Some(id) =>
+    Option.exists(indicated_id, ~f=id =>
       switch (Statics.Map.lookup(id, editor.statics.info_map)) {
       | Some(InfoExp(_) | InfoPat(_)) => true
       | _ => false
       }
-    | None => false
-    };
-  [div(~attrs=[clss(["header"])], [mode_title(~explain_this_inject)])]
+    );
+  [div_c("header", [mode_title(~explain_this_inject)])]
   @ [toggle_controls_view(~globals, ~explain_this_inject)]
   @ ProbeControls.quick_ref_panel(
       ~context_clss=

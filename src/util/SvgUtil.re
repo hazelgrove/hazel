@@ -122,10 +122,7 @@ module Path = {
 
   let reverse = List.rev_map(~f=scale_cmd(~scale_x=-1., ~scale_y=-1.));
 
-  let string_of_flag =
-    fun
-    | false => "0"
-    | true => "1";
+  let string_of_flag = flag => flag ? "1" : "0";
 
   let string_of_command =
     fun

@@ -5,24 +5,6 @@ let tests = (
   "OptUtil",
   [
     test_case(
-      "get with Some",
-      `Quick,
-      () => {
-        let o = Some(5);
-        let fallback = () => 0;
-        check(int, "Returns value", 5, OptUtil.get(fallback, o));
-      },
-    ),
-    test_case(
-      "get with None",
-      `Quick,
-      () => {
-        let o = None;
-        let fallback = () => 0;
-        check(int, "Returns fallback", 0, OptUtil.get(fallback, o));
-      },
-    ),
-    test_case(
       "get_or_fail with Some",
       `Quick,
       () => {
@@ -70,89 +52,6 @@ let tests = (
             let _ = OptUtil.get_or_raise(Stdlib.Not_found, o);
             ();
           },
-        );
-      },
-    ),
-    test_case(
-      "map2 with both Some",
-      `Quick,
-      () => {
-        let o1 = Some(2);
-        let o2 = Some(3);
-        let f = (a, b) => a + b;
-        check(option(int), "Both Some", Some(5), OptUtil.map2(f, o1, o2));
-      },
-    ),
-    test_case(
-      "map2 with first None",
-      `Quick,
-      () => {
-        let o1 = None;
-        let o2 = Some(3);
-        let f = (a, b) => a + b;
-        check(option(int), "First None", None, OptUtil.map2(f, o1, o2));
-      },
-    ),
-    test_case(
-      "map2 with second None",
-      `Quick,
-      () => {
-        let o1 = Some(2);
-        let o2 = None;
-        let f = (a, b) => a + b;
-        check(option(int), "Second None", None, OptUtil.map2(f, o1, o2));
-      },
-    ),
-    test_case("some_if with true", `Quick, () => {
-      check(
-        option(int),
-        "True condition",
-        Some(5),
-        OptUtil.some_if(true, 5),
-      )
-    }),
-    test_case("some_if with false", `Quick, () => {
-      check(option(int), "False condition", None, OptUtil.some_if(false, 5))
-    }),
-    test_case(
-      "zip with both Some",
-      `Quick,
-      () => {
-        let o1 = Some(2);
-        let o2 = Some(3);
-        check(
-          option(pair(int, int)),
-          "Both Some",
-          Some((2, 3)),
-          OptUtil.zip(o1, o2),
-        );
-      },
-    ),
-    test_case(
-      "zip with first None",
-      `Quick,
-      () => {
-        let o1 = None;
-        let o2 = Some(3);
-        check(
-          option(pair(int, int)),
-          "First None",
-          None,
-          OptUtil.zip(o1, o2),
-        );
-      },
-    ),
-    test_case(
-      "zip with second None",
-      `Quick,
-      () => {
-        let o1 = Some(2);
-        let o2 = None;
-        check(
-          option(pair(int, int)),
-          "Second None",
-          None,
-          OptUtil.zip(o1, o2),
         );
       },
     ),
@@ -222,63 +121,6 @@ let tests = (
           None,
           OptUtil.traverse(f, xs),
         );
-      },
-    ),
-    test_case(
-      "sequence with empty list",
-      `Quick,
-      () => {
-        let xs = [];
-        check(
-          option(list(int)),
-          "Empty list",
-          Some([]),
-          OptUtil.sequence(xs),
-        );
-      },
-    ),
-    test_case(
-      "sequence with all Some values",
-      `Quick,
-      () => {
-        let xs = [Some(1), Some(2), Some(3)];
-        check(
-          option(list(int)),
-          "All Some",
-          Some([1, 2, 3]),
-          OptUtil.sequence(xs),
-        );
-      },
-    ),
-    test_case(
-      "sequence with one None value",
-      `Quick,
-      () => {
-        let xs = [Some(1), None, Some(3)];
-        check(option(list(int)), "One None", None, OptUtil.sequence(xs));
-      },
-    ),
-    test_case(
-      "and_then with Some",
-      `Quick,
-      () => {
-        let o = Some(5);
-        let f = x => Some(x * 2);
-        check(
-          option(int),
-          "Some chaining",
-          Some(10),
-          OptUtil.and_then(f, o),
-        );
-      },
-    ),
-    test_case(
-      "and_then with None",
-      `Quick,
-      () => {
-        let o = None;
-        let f = x => Some(x * 2);
-        check(option(int), "None chaining", None, OptUtil.and_then(f, o));
       },
     ),
     test_case(
@@ -379,31 +221,6 @@ let tests = (
           x * 2;
         };
         check(option(int), "let+ with None", None, result);
-      },
-    ),
-    test_case(
-      "syntax and+ with both Some",
-      `Quick,
-      () => {
-        let o1 = Some(2);
-        let o2 = Some(3);
-        let result = OptUtil.zip(o1, o2);
-        check(
-          option(pair(int, int)),
-          "and+ with both Some",
-          Some((2, 3)),
-          result,
-        );
-      },
-    ),
-    test_case(
-      "syntax and+ with one None",
-      `Quick,
-      () => {
-        let o1 = Some(2);
-        let o2 = None;
-        let result = OptUtil.zip(o1, o2);
-        check(option(pair(int, int)), "and+ with one None", None, result);
       },
     ),
   ],

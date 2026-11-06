@@ -18,7 +18,7 @@ let rec exp_to_rule = (exp: Exp.t): t =>
     let bindings' =
       ProofHacks.dhpat_extend_ctx(p, Typ.temp(Unknown(Internal)), Ctx.empty)
       |> Option.map(~f=(x: Ctx.t) => x.entries)
-      |> OptUtil.get(() => []);
+      |> Option.value_or_thunk(~default=() => []);
     let {bindings, conclusion} = exp_to_rule(e);
     {
       bindings: bindings' @ bindings,
@@ -127,9 +127,7 @@ let get_coctx = (ctx: Ctx.t, ana: Typ.t, rule: t): CoCtx.t => {
   let (statics, _) = Statics.mk(~ana, CoreSettings.on, full_ctx, c_exp);
   let root_id = Exp.rep_id(c_exp);
   let inner_coctx =
-    switch (Statics.Map.lookup_exp(root_id, statics)) {
-    | Some(exp) => Info.exp_co_ctx(exp)
-    | None => []
-    };
+    Statics.Map.lookup_exp(root_id, statics)
+    |> Option.value_map(~default=[], ~f=Info.exp_co_ctx);
   CoCtx.mk(ctx, full_ctx, inner_coctx);
 };

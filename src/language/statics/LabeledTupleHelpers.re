@@ -113,11 +113,11 @@ let derive_label_inference_info = (original_labels, new_labels) => {
         l =>
           !
             List.mem(
-              List.filter_map(~f=Fn.id, original_labels),
+              List.filter_opt(original_labels),
               l,
               ~equal=String.equal,
             ),
-      List.filter_map(~f=Fn.id, new_labels),
+      List.filter_opt(new_labels),
     );
   let reordered =
     !

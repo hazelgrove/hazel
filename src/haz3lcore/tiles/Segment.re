@@ -124,7 +124,7 @@ and incomplete_tiles_deep_acc = (acc, seg: t) =>
   );
 
 let incomplete_tiles_to_missing_shards = seg =>
-  seg |> List.map(~f=Tile.missing_shards) |> List.concat;
+  seg |> List.concat_map(~f=Tile.missing_shards);
 
 let global_missing_shards = (seg: t) =>
   seg |> incomplete_tiles_deep |> incomplete_tiles_to_missing_shards;
@@ -158,8 +158,7 @@ let shape_affix =
       let (wgw, s, tl) = go(tl, r);
       let shape =
         switch (Piece.shapes(p)) {
-        | Some(shapes) =>
-          shapes |> (d == Left ? TupleUtil.swap : Fn.id) |> fst
+        | Some(shapes) => shapes |> (d == Left ? Tuple2.swap : Fn.id) |> fst
         | None => s
         };
       switch (p) {
@@ -209,7 +208,7 @@ and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
           ts
           |> List.filter(~f=t => Nib.Shape.fits(shape, fst(Tile.shapes(t))))
       )
-      |> ListUtil.hd_opt
+      |> List.hd
     };
   let remolded_mold = Tile.mold(remolded);
   let orig_mold = Tile.mold(t);
@@ -841,21 +840,13 @@ module Trim = {
     Aba.mk([[], ...wss], [g, ...gs]);
 
   let ws = ((wss, gs): t): seg => {
-    let extra =
-      switch (Grout.redeem_space_from(gs)) {
-      | Some(w) => [w]
-      | None => []
-      };
+    let extra = Option.to_list(Grout.redeem_space_from(gs));
     List.(map(concat(wss) @ extra, ~f=Piece.secondary));
   };
 
   /* Like ws, but keeps the result a trim (for re-adding grout). */
   let strip_grout = ((wss, gs): t): t => {
-    let extra =
-      switch (Grout.redeem_space_from(gs)) {
-      | Some(w) => [w]
-      | None => []
-      };
+    let extra = Option.to_list(Grout.redeem_space_from(gs));
     Aba.mk([List.concat(wss) @ extra], []);
   };
 
@@ -876,11 +867,7 @@ module Trim = {
   let regrout = ((l, r): Nibs.shapes, trim: t): t =>
     if (Nib.Shape.fits(l, r)) {
       let (_, gs) = trim;
-      let extra =
-        switch (Grout.redeem_space_from(gs)) {
-        | Some(w) => [w]
-        | None => []
-        };
+      let extra = Option.to_list(Grout.redeem_space_from(gs));
       Aba.mk([List.concat(trim |> fst) @ extra], []);
     } else {
       let (_, gs) as merged = merge(trim);
@@ -911,28 +898,20 @@ and regrout_affix =
         | Grout(g) => (Trim.(merge(cons_g(g, trim))), r, tl)
         | Projector(pr) =>
           let (l', r') =
-            ProjectorCore.shapes(pr) |> (d == Left ? TupleUtil.swap : Fn.id);
+            ProjectorCore.shapes(pr) |> (d == Left ? Tuple2.swap : Fn.id);
           let trim = Trim.regrout((r', r), trim);
           (Trim.empty, l', [p, ...Trim.to_seg(trim)] @ tl);
         | Tile(t) =>
           let children =
-            List.fold_right(
-              ~f=
-                (hd, tl) => {
-                  let tl = tl;
-                  let hd = regrout(Nib.Shape.(concave(), concave()), hd);
-                  [hd, ...tl];
-                },
-              ~init=[],
-              t.children,
+            List.fold_right(t.children, ~init=[], ~f=(hd, tl) =>
+              [regrout(Nib.Shape.(concave(), concave()), hd), ...tl]
             );
           let p =
             Piece.Tile({
               ...t,
               children,
             });
-          let (l', r') =
-            Tile.shapes(t) |> (d == Left ? TupleUtil.swap : Fn.id);
+          let (l', r') = Tile.shapes(t) |> (d == Left ? Tuple2.swap : Fn.id);
           let trim = Trim.regrout((r', r), trim);
           (Trim.empty, l', [p, ...Trim.to_seg(trim)] @ tl);
         }
@@ -1141,7 +1120,7 @@ let trim_secondary: (Direction.t, t) => t =
 
 let edge_shape_of = (d: Direction.t, ps: t): option(Nib.Shape.t) => {
   let trimmed = trim_secondary(d, ps);
-  switch (d, ListUtil.hd_opt(trimmed), ListUtil.last_opt(trimmed)) {
+  switch (d, List.hd(trimmed), List.last(trimmed)) {
   | (Right, _, Some(p)) => p |> Piece.shapes |> Option.map(~f=snd)
   | (Left, Some(p), _) => p |> Piece.shapes |> Option.map(~f=fst)
   | _ => None
@@ -1183,11 +1162,11 @@ let last_string =
   fun
   | [] => "EMPTY"
   | xs =>
-    switch (ListUtil.last(xs)) {
+    switch (List.last_exn(xs)) {
     | Piece.Secondary(w) => Secondary.get_string(w.content)
     | Piece.Grout(_) => "?"
     | Piece.Projector(_) => "PROJECTOR"
-    | Piece.Tile(t) => Tile.label(t) |> ListUtil.last
+    | Piece.Tile(t) => Tile.label(t) |> List.last_exn
     };
 
 let sort_of = (skel: Skel.t, seg: t): Sort.t =>
@@ -1243,17 +1222,7 @@ let rec find_ctx = (seg: t, id: Id.t): option((t, int, Piece.t)) => {
       } else {
         let deeper =
           switch ((p: Piece.t)) {
-          | Tile(t) =>
-            List.fold_left(
-              ~f=
-                (acc, ch) =>
-                  switch (acc) {
-                  | Some(_) => acc
-                  | None => find_ctx(ch, id)
-                  },
-              ~init=None,
-              t.children,
-            )
+          | Tile(t) => List.find_map(t.children, ~f=ch => find_ctx(ch, id))
           | _ => None
           };
         switch (deeper) {
@@ -1526,7 +1495,7 @@ module SecondaryCollection = {
     let root = Skel.root(skel);
     let root_indices = Aba.get_as(root);
     let acc =
-      switch (List.nth(root_indices, 0)) {
+      switch (List.hd(root_indices)) {
       | Some(first_idx) =>
         switch (piece_id(seg, first_idx)) {
         | Some(id) => Id.Map.set(acc, ~key=id, ~data=(before, after))

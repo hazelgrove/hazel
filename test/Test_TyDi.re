@@ -624,10 +624,7 @@ let ci_sort = (code: string): option(Sort.t) => {
   let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z, ~root=Exp);
   let (info_map, _) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
-  switch (Indicated.ci_of(z, info_map)) {
-  | Some(ci) => Some(Info.sort_of(ci))
-  | None => None
-  };
+  Indicated.ci_of(z, info_map) |> Option.map(~f=Info.sort_of);
 };
 
 let ci_sort_test = (~name, ~code, ~expect) =>

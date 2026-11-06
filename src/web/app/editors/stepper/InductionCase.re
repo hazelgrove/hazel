@@ -180,7 +180,7 @@ module F = (Stepper: STEPPER) => {
           switch (case_eq) {
           | Some(case_eq) =>
             SemanticCtx.add_hypothesis(sem_ctx, "case_eq", case_eq)
-            |> PairUtil.map_snd(Option.some)
+            |> Tuple2.map_snd(~f=Option.some)
           | None => (sem_ctx, None)
           };
 
@@ -208,7 +208,7 @@ module F = (Stepper: STEPPER) => {
             ~f=
               ((acc, ihs), h) =>
                 SemanticCtx.add_hypothesis(acc, "ih", h)
-                |> PairUtil.map_snd(x => [(x, h), ...ihs]),
+                |> Tuple2.map_snd(~f=x => [(x, h), ...ihs]),
             ~init=(sem_ctx, []),
             inductive_hypotheses,
           );

@@ -63,11 +63,11 @@ let space_put_down_boundary = (z: Zipper.t): Zipper.t => {
    spaces. True at first-content and inside the indentation run. */
 let at_line_leading_whitespace = (z: Zipper.t): bool =>
   z.caret == Outer
-  && z.selection.content == []
+  && List.is_empty(z.selection.content)
   && {
     let rec all_white = (ps: list(Piece.t)) =>
       switch (ps) {
-      | [] => z.relatives.ancestors == []
+      | [] => List.is_empty(z.relatives.ancestors)
       | [Piece.Secondary(s), ...rest] =>
         Secondary.is_space(s) ? all_white(rest) : Secondary.is_linebreak(s)
       | _ => false
@@ -83,7 +83,7 @@ let at_line_leading_whitespace = (z: Zipper.t): bool =>
    AUTO-INDENT level: spaces the user typed beyond the indent are
    real material, deleted one per press. */
 let indent_join_run = (z: Zipper.t): option((int, Id.t)) =>
-  if (z.caret != Outer || z.selection.content != []) {
+  if (z.caret != Outer || !List.is_empty(z.selection.content)) {
     None;
   } else {
     let right_is_space =
@@ -154,12 +154,9 @@ let governing_lb = (z: Zipper.t): option(Id.t) =>
   switch (last_lb_in_seg(fst(z.relatives.siblings))) {
   | Some(id) => Some(id)
   | None =>
-    List.fold_left(
-      ~f=
-        (acc, (_, sibs): Ancestors.generation) =>
-          acc != None ? acc : last_lb_in_seg(fst(sibs)),
-      ~init=None,
-      z.relatives.ancestors,
+    List.find_map(
+      z.relatives.ancestors, ~f=((_, sibs): Ancestors.generation) =>
+      last_lb_in_seg(fst(sibs))
     )
   };
 
@@ -168,15 +165,10 @@ let governing_lb = (z: Zipper.t): option(Id.t) =>
 let adjust_indent = (d: Direction.t, z: Zipper.t): Zipper.t => {
   let first_line_lb = governing_lb(z);
   let affected =
-    (
-      switch (first_line_lb) {
-      | Some(id) => [id]
-      | None => []
-      }
-    )
+    Option.to_list(first_line_lb)
     @ all_lbs_in_seg(z.selection.content)
     |> Id.Set.of_list;
-  let line0 = first_line_lb == None;
+  let line0 = Option.is_none(first_line_lb);
   let indent = d == Direction.Right;
   let adjust_run = (seg: Segment.t): Segment.t =>
     if (indent) {
@@ -244,8 +236,8 @@ let rec go =
       ~case_rules=false,
       z,
     )
-    |> OptUtil.and_then(
-         Introduce.introduce(Indicated.ci_of(z, statics.info_map)),
+    |> Option.bind(
+         ~f=Introduce.introduce(Indicated.ci_of(z, statics.info_map)),
        )
     |> return(CantIntroduce)
   | Paste(clipboard) =>
@@ -458,10 +450,10 @@ let rec go =
      * `Some(chunkiness)` to override — e.g. Alt+drag on Mac (Ctrl+drag
      * on PC) selects the opposite chunkiness. */
     let chunkiness: Action.chunkiness =
-      switch (override) {
-      | Some(c) => c
-      | None => settings.selection_chunkiness ? ByChar : BySmart
-      };
+      Option.value(
+        override,
+        ~default=settings.selection_chunkiness ? ByChar : BySmart,
+      );
     Select.to_point(~chunkiness, ~measured=syntax.measured, ~goal, z)
     |> return(Cant_select);
   | Select(Resize(Goal(_))) => failwith("Select not implemented for goals")
@@ -472,7 +464,7 @@ let rec go =
      * overshoot the intended endpoints. */
     z
     |> Move.to_point(~measured=syntax.measured, ~goal=p1)
-    |> OptUtil.and_then(z =>
+    |> Option.bind(~f=z =>
          Select.to_point(
            ~chunkiness=ByChar,
            ~measured=syntax.measured,

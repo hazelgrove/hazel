@@ -85,11 +85,7 @@ let kv_load_all = (callback: list((string, string)) => unit): unit =>
       [],
       pairs => {
         cache :=
-          List.fold_left(
-            ~f=(m, (k, v)) => Util.Maps.StringMap.set(m, ~key=k, ~data=v),
-            ~init=Util.Maps.StringMap.empty,
-            pairs,
-          );
+          Util.Maps.StringMap.of_alist_reduce(pairs, ~f=(_, latest) => latest);
         callback(pairs);
       },
     );

@@ -130,16 +130,16 @@ let view =
     | None => ("None selected", "Pricing: N/A")
     };
 
-  div(
-    ~attrs=[clss(["agent-main-menu"])],
+  div_c(
+    "agent-main-menu",
     [
       // API Key Section
-      div(
-        ~attrs=[clss(["agent-main-menu-section"])],
+      div_c(
+        "agent-main-menu-section",
         [
-          div(~attrs=[clss(["agent-main-menu-label"])], [text("API Key")]),
-          div(
-            ~attrs=[clss(["agent-main-menu-info"])],
+          div_c("agent-main-menu-label", [text("API Key")]),
+          div_c(
+            "agent-main-menu-info",
             [
               text("Get an OpenRouter API key "),
               a(
@@ -152,8 +152,8 @@ let view =
               text("."),
             ],
           ),
-          div(
-            ~attrs=[clss(["agent-api-key-container"])],
+          div_c(
+            "agent-api-key-container",
             [
               input(
                 ~attrs=[
@@ -176,10 +176,7 @@ let view =
                   Attr.on_cut(_ => Effect.Stop_propagation),
                   Attr.create(
                     "value",
-                    switch (agent_globals.api_key) {
-                    | Some(key) => key
-                    | None => ""
-                    },
+                    Option.value(agent_globals.api_key, ~default=""),
                   ),
                 ],
                 (),
@@ -197,15 +194,12 @@ let view =
         ],
       ),
       // LLM Model Selection Section
-      div(
-        ~attrs=[clss(["agent-main-menu-section"])],
+      div_c(
+        "agent-main-menu-section",
         [
-          div(
-            ~attrs=[clss(["agent-main-menu-label"])],
-            [text("LLM Model")],
-          ),
-          div(
-            ~attrs=[clss(["agent-main-menu-info"])],
+          div_c("agent-main-menu-label", [text("LLM Model")]),
+          div_c(
+            "agent-main-menu-info",
             [
               text("See available OpenRouter models "),
               a(
@@ -225,10 +219,9 @@ let view =
                   llm: OpenRouter.AvailableLLMs.Model.llm_info,
                 ) => {
               let is_active =
-                switch (agent_globals.active_llm) {
-                | Some(active) => String.equal(active.id, llm.id)
-                | None => false
-                };
+                Option.exists(agent_globals.active_llm, ~f=active =>
+                  String.equal(active.id, llm.id)
+                );
               let classes =
                 ["llm-item"]
                 @ (is_active ? ["active"] : [])
@@ -251,9 +244,9 @@ let view =
                   ~attrs=[clss(["llm-id"]), Attr.hidden],
                   [text(llm.id)],
                 ),
-                div(~attrs=[clss(["llm-name"])], name_children),
-                div(
-                  ~attrs=[clss(["llm-pricing"])],
+                div_c("llm-name", name_children),
+                div_c(
+                  "llm-pricing",
                   [
                     text(
                       "Prompt: "
@@ -268,8 +261,7 @@ let view =
               let children =
                 switch (tagline) {
                 | Some(t) =>
-                  base_children
-                  @ [div(~attrs=[clss(["llm-tagline"])], [text(t)])]
+                  base_children @ [div_c("llm-tagline", [text(t)])]
                 | None => base_children
                 };
               div(
@@ -282,11 +274,11 @@ let view =
             };
 
             if (List.is_empty(agent_globals.available_llms)) {
-              div(
-                ~attrs=[clss(["llm-list-container"])],
+              div_c(
+                "llm-list-container",
                 [
-                  div(
-                    ~attrs=[clss(["llm-empty"])],
+                  div_c(
+                    "llm-empty",
                     [text("No models available - set API key first")],
                   ),
                 ],
@@ -332,9 +324,9 @@ let view =
                   master_sorted,
                 );
               let section_header = (label: string) =>
-                div(~attrs=[clss(["llm-section-header"])], [text(label)]);
-              div(
-                ~attrs=[clss(["llm-sections"])],
+                div_c("llm-section-header", [text(label)]);
+              div_c(
+                "llm-sections",
                 (
                   List.is_empty(recommended)
                     ? []
@@ -348,8 +340,8 @@ let view =
                           ]),
                         ],
                         [
-                          div(
-                            ~attrs=[clss(["llm-list"])],
+                          div_c(
+                            "llm-list",
                             List.map(
                               ~f=
                                 (llm: OpenRouter.AvailableLLMs.Model.llm_info) =>
@@ -369,8 +361,8 @@ let view =
                 )
                 @ [
                   section_header("All Models"),
-                  div(
-                    ~attrs=[clss(["llm-controls"])],
+                  div_c(
+                    "llm-controls",
                     [
                       input(
                         ~attrs=[
@@ -400,8 +392,8 @@ let view =
                         ],
                         (),
                       ),
-                      div(
-                        ~attrs=[clss(["llm-only-free-toggle"])],
+                      div_c(
+                        "llm-only-free-toggle",
                         [
                           Node.span(
                             ~attrs=[clss(["llm-only-free-label"])],
@@ -433,8 +425,8 @@ let view =
                     ],
                     [
                       List.is_empty(master_filtered)
-                        ? div(
-                            ~attrs=[clss(["llm-empty"])],
+                        ? div_c(
+                            "llm-empty",
                             [
                               text(
                                 agent_globals.only_free_models
@@ -444,14 +436,14 @@ let view =
                               ),
                             ],
                           )
-                        : div(
-                            ~attrs=[clss(["llm-list"])],
+                        : div_c(
+                            "llm-list",
                             List.map(~f=render_llm_item, master_filtered),
                           ),
                     ],
                   ),
-                  div(
-                    ~attrs=[clss(["llm-free-footnote"])],
+                  div_c(
+                    "llm-free-footnote",
                     [
                       text(
                         "* Free models tend to be heavily rate-limited and often don't support tool calling, which is required by the Hazel coding agent.",
@@ -462,28 +454,19 @@ let view =
               );
             };
           },
-          div(
-            ~attrs=[clss(["llm-current"])],
+          div_c(
+            "llm-current",
             [
-              div(
-                ~attrs=[clss(["llm-current-label"])],
-                [text("Current model")],
-              ),
-              div(
-                ~attrs=[clss(["llm-current-name"])],
-                [text(current_llm_name)],
-              ),
-              div(
-                ~attrs=[clss(["llm-current-pricing"])],
-                [text(current_llm_pricing)],
-              ),
+              div_c("llm-current-label", [text("Current model")]),
+              div_c("llm-current-name", [text(current_llm_name)]),
+              div_c("llm-current-pricing", [text(current_llm_pricing)]),
             ],
           ),
         ],
       ),
       // Confirm Settings Button
-      div(
-        ~attrs=[clss(["confirm-settings-button-container"])],
+      div_c(
+        "confirm-settings-button-container",
         [
           div(
             ~attrs=[

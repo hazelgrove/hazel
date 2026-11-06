@@ -81,12 +81,8 @@ module Utils = {
     open Model;
     // =============
 
-    let is_completed = (subtask: subtask): bool => {
-      switch (subtask.completion_info) {
-      | Some(_) => true
-      | None => false
-      };
-    };
+    let is_completed = (subtask: subtask): bool =>
+      Option.is_some(subtask.completion_info);
 
     let is_failed = (subtask: subtask): bool => {
       switch (subtask.completion_info) {
@@ -103,13 +99,8 @@ module Utils = {
       );
     };
 
-    let is_active = (task: task, subtask_name: string): bool => {
-      switch (task.active_subtask) {
-      | Some(active_subtask_name) =>
-        String.equal(active_subtask_name, subtask_name)
-      | None => false
-      };
-    };
+    let is_active = (task: task, subtask_name: string): bool =>
+      Option.exists(task.active_subtask, ~f=String.equal(subtask_name));
 
     let subtask_to_pretty_string = (task: task, subtask: subtask): string => {
       "=== Subtask ===\n"
@@ -195,7 +186,7 @@ module Utils = {
 
     let get_next_incomplete_subtask_title = (task: task): option(string) => {
       // Returns the next incompleted subtask in the given task, if any
-      let* subtask = get_incompleted_subtasks(task) |> ListUtil.hd_opt;
+      let* subtask = get_incompleted_subtasks(task) |> List.hd;
       Some(subtask.title);
     };
 
@@ -203,12 +194,8 @@ module Utils = {
       Maps.StringMap.find(model.task_dict, task_name);
     };
 
-    let is_active = (model: t, task_name: string): bool => {
-      switch (model.active_task) {
-      | Some(active_task_name) => String.equal(active_task_name, task_name)
-      | None => false
-      };
-    };
+    let is_active = (model: t, task_name: string): bool =>
+      Option.exists(model.active_task, ~f=String.equal(task_name));
 
     let task_to_pretty_string = (model: t, task: task): string => {
       "=== Task ===\n"
@@ -246,17 +233,15 @@ module Utils = {
         }
       )
       ++ "\nSubtasks:\n"
-      ++ List.fold_left(
-           ~f=
-             (acc: string, subtask: subtask) =>
-               acc ++ subtask_to_pretty_string(task, subtask),
-           ~init="",
-           ordered_subtasks_of(task),
+      ++ String.concat(
+           List.map(ordered_subtasks_of(task), ~f=subtask =>
+             subtask_to_pretty_string(task, subtask)
+           ),
          );
     };
 
     let set_first_subtask_as_active = (task: task): task => {
-      switch (ListUtil.hd_opt(task.subtask_ordering)) {
+      switch (List.hd(task.subtask_ordering)) {
       | Some(subtask_title) => {
           ...task,
           active_subtask: Some(subtask_title),
