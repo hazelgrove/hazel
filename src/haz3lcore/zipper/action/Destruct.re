@@ -33,7 +33,7 @@ let capture = (z): t => {
    and an actual linebreak (segment start doesn't count). Returns the
    space count and the linebreak's id. */
 let leading_whitespace_context = (z: t): option((int, Id.t)) =>
-  if (z.selection.content != [] || z.caret != Outer) {
+  if (!List.is_empty(z.selection.content) || z.caret != Outer) {
     None;
   } else {
     let (left_sibs, _) = z.relatives.siblings;
@@ -49,10 +49,8 @@ let leading_whitespace_context = (z: t): option((int, Id.t)) =>
   };
 
 let left_neighbor_is_whitespace = (z: t): bool =>
-  switch (Zipper.generalized_neighbor(Left, z)) {
-  | Some(p) => Piece.is_whitespace(p)
-  | None => false
-  };
+  Zipper.generalized_neighbor(Left, z)
+  |> Option.exists(~f=Piece.is_whitespace);
 
 let delete = (d: Direction.t, z: t): option(t) => {
   let+ z = select(d, z);
@@ -69,21 +67,12 @@ let unwrap_quote = (d: Direction.t, t: Token.t, z: t, ~root): option(t) => {
   if (String.length(content) == 0) {
     z;
   } else {
-    let result =
-      Token.to_list(content)
-      |> List.fold_left(
-           ~f=
-             (z_opt, c) =>
-               switch (z_opt) {
-               | None => None
-               | Some(z) => Insert.go(c, z, ~root)
-               },
-           ~init=Some(z),
-         );
-    switch (result) {
-    | Some(z) => z
-    | None => z
-    };
+    OptUtil.fold_left_opt(
+      (z, c) => Insert.go(c, z, ~root),
+      Token.to_list(content),
+      z,
+    )
+    |> Option.value(~default=z);
   };
 };
 
@@ -126,7 +115,7 @@ let inner_right = (idx: int, z: t, ~root): option(t) =>
 
 let destruct = (d: Direction.t, z: t, ~root): option(t) =>
   switch (z.caret) {
-  | _ when z.selection.content != [] =>
+  | _ when !List.is_empty(z.selection.content) =>
     let z = Zipper.normalize_char_selection(z);
     Some(z |> capture |> destroy_selection);
   | Outer => outer(d, z, ~root)

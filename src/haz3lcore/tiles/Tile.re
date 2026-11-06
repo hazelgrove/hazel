@@ -94,11 +94,10 @@ let is_prefix_arrow_form = (t: t): bool =>
 let is_body_introducing_shard = (shard: t): bool =>
   switch (shard.shards) {
   | [i] =>
-    switch (List.nth(label(shard), i)) {
-    | Some(token) =>
-      List.mem(["in", "else", "end"], token, ~equal=String.equal)
-    | None => false
-    }
+    List.nth(label(shard), i)
+    |> Option.exists(
+         ~f=List.mem(["in", "else", "end"], ~equal=String.equal),
+       )
   | _ => false
   };
 
@@ -201,7 +200,7 @@ let missing_shards = (t: t): list(t) =>
 /* Index into t.children of the child preceding missing shard m
    (count of present shards < m, minus 1) */
 let child_index_before = (t: t, m: int): int =>
-  List.length(List.filter(~f=sh => sh < m, t.shards)) - 1;
+  List.count(t.shards, ~f=sh => sh < m) - 1;
 
 let effective_label = (t: t): list(string) =>
   List.map(~f=List.nth_exn(label(t)), t.shards);

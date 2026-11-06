@@ -41,11 +41,7 @@ let compute_context =
     | [] => List.rev(acc)
     | [x, ...rest] =>
       let effective_prev = last_contentful;
-      let next =
-        switch (rest) {
-        | [] => None
-        | [n, ..._] => Some(n)
-        };
+      let next = List.hd(rest);
       let effective_next = find_effective_next(rest);
       let new_last_contentful =
         switch (x) {
@@ -274,7 +270,7 @@ let rec go =
               | (_, Some(next)) when Piece.is_case_rule(next) => base
               | (_, None) => base
               /* If next is linebreak but eff_next is None, effectively at end */
-              | _ when effective_next == None => base
+              | _ when Option.is_none(effective_next) => base
               | (_, Some(p)) when Piece.is_infix_delimiter_op_prefix(p) =>
                 /* Special case for kw prefixes */
                 base

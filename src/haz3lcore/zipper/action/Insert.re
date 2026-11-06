@@ -84,7 +84,7 @@ let insert_indentation_spaces = (~linebreak_id: Id.t, z: t): t => {
   let seg = Zipper.unselect_and_zip(z);
   let indent_level = Indentation.level_of(~target_id=linebreak_id, seg);
   let spaces = Indentation.make_indent_spaces(indent_level);
-  if (spaces == []) {
+  if (List.is_empty(spaces)) {
     z;
   } else {
     Zipper.put_down_seg(Left, spaces, z);
@@ -135,7 +135,7 @@ let insert_shard =
       ~root,
     )
     : t =>
-  if (Zipper.find_missing_shard(t, z) != None) {
+  if (Option.is_some(Zipper.find_missing_shard(t, z))) {
     let z = destroy_selection(z);
     let target = Zipper.find_missing_shard(t, z) |> Option.value_exn;
     Zipper.put_down_target(d, target, z, ~root);
@@ -218,7 +218,7 @@ let replace_shard_inplace =
  * has an enclosing tile/form the caret must not escape. */
 let keep_caret_inside_on_append = (z: t): bool =>
   Option.is_some(Siblings.neighbor(Left, z.relatives.siblings))
-  || z.relatives.ancestors != [];
+  || !List.is_empty(z.relatives.ancestors);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type appendability = option((Direction.t, Token.t));
@@ -560,7 +560,7 @@ let selected_text = (z: t): string => {
     Token.split_nth(s, max(0, min(n, Token.length(s))));
   let drop_left =
     switch (left_offset, content) {
-    | (Some(n), [p, ..._]) when Piece.token_of(p) != None => n + 1
+    | (Some(n), [p, ..._]) when Option.is_some(Piece.token_of(p)) => n + 1
     | _ => 0
     };
   let drop_right =
@@ -642,14 +642,14 @@ let try_wrap_selection =
 let go = (~auto_indent: bool, char: string, z: t, ~root): option(t) => {
   /* If there's a selection, try wrapping before falling through */
   switch (
-    z.selection.content != []
+    !List.is_empty(z.selection.content)
       ? try_wrap_selection(~auto_indent, char, z, ~root) : None
   ) {
   | Some(z) => Some(z)
   | None =>
     /* Normal path: normalize char selection then delete (if any) */
     let z =
-      z.selection.content != []
+      !List.is_empty(z.selection.content)
         ? Zipper.normalize_char_selection(z) |> Zipper.destroy_selection : z;
     switch (z.caret, neighbor_tokens(z)) {
     /* If we try to insert a quote inside an existing string, or a #

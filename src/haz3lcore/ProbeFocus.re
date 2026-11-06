@@ -167,7 +167,7 @@ let resolve_pending_probe_cursor =
           id =>
             switch (Dynamics.Map.lookup(id, dynamics)) {
             | Some([_, ..._] as s) => Some((id, s))
-            | Some([]) => None
+            | Some([])
             | None => None
             },
         ids,
@@ -175,10 +175,10 @@ let resolve_pending_probe_cursor =
     switch (first_with_samples) {
     | Some((probe_id, samples)) =>
       let ap_id =
-        switch (Statics.Map.lookup(probe_id, info_map)) {
-        | Some(statics) => Sample.Focus.cur_var_ap(statics)
-        | None => None
-        };
+        Option.bind(
+          Statics.Map.lookup(probe_id, info_map),
+          ~f=Sample.Focus.cur_var_ap,
+        );
       let selected =
         Sample.Selection.most_aligned_sample(
           ~ap_id,

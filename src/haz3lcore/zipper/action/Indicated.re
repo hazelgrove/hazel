@@ -215,16 +215,10 @@ let shard_index = (z: ZipperBase.t): option(int) =>
   };
 
 let direction = (z: ZipperBase.t): option(Direction.t) =>
-  switch (for_index(z)) {
-  | None => None
-  | Some({side, _}) => Some(side)
-  };
+  Option.map(for_index(z), ~f=({side, _}) => side);
 
 let index = (z: ZipperBase.t): option(Id.t) =>
-  switch (for_index(z)) {
-  | None => None
-  | Some({piece, _}) => Some(Piece.id(piece))
-  };
+  Option.map(for_index(z), ~f=({piece, _}) => Piece.id(piece));
 
 let ci_of =
     (z: ZipperBase.t, info_map: Language.Statics.Map.t)

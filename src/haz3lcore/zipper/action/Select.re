@@ -624,12 +624,9 @@ let containing_secondary_run = (z: t): option(t) => {
           not_comment_or_space_to_left,
           z,
         );
-  let z =
-    switch (move_left_until_not_comment_or_space(z)) {
-    | None => z
-    | Some(z) => z
-    };
-  grow_right_until_not_comment_or_space(z);
+  z
+  |> OptUtil.replace(move_left_until_not_comment_or_space)
+  |> grow_right_until_not_comment_or_space;
 };
 
 /* Select the indicated token. For the purposes of this function,
@@ -762,11 +759,7 @@ let is_def_body = (from_id, parent_id, info_map) =>
  * or def terms. */
 let select_as_parent =
     (parent_id: Id.t, z: t, term_data: TermData.t, info_map) => {
-  let defs_exclude_bodies =
-    switch (def_body_indicated(z, info_map)) {
-    | Some(_) => false
-    | None => true
-    };
+  let defs_exclude_bodies = Option.is_none(def_body_indicated(z, info_map));
   term(~defs_exclude_bodies, ~case_rules=true, term_data, parent_id, z);
 };
 
@@ -843,10 +836,9 @@ let select_enclosing_term =
           z0,
         );
       let sel_matches =
-        switch (root_sel) {
-        | Some(z') => z'.selection.content == sel
-        | None => false
-        };
+        Option.exists(root_sel, ~f=(z': Zipper.t) =>
+          z'.selection.content == sel
+        );
       if (sel_matches) {
         let* info = Id.Map.find(info_map, root_id);
         let* parent_id = Language.Info.ancestors_of(info) |> ListUtil.hd_opt;

@@ -168,10 +168,7 @@ module M: Projector = {
     };
 
   let init = (any: Language.Any.t) =>
-    switch (literal_of_any(any)) {
-    | Some(_) => Some(init_model)
-    | None => None
-    };
+    Option.map(literal_of_any(any), ~f=_ => init_model);
 
   /* --- moving between the two representations --- */
 
@@ -327,10 +324,7 @@ module M: Projector = {
         | _ => None
         };
       | None =>
-        switch (C.rgb_of_css(s)) {
-        | Some((r, g, b)) => Some(LRgb(r, g, b))
-        | None => None
-        }
+        Option.map(C.rgb_of_css(s), ~f=((r, g, b)) => LRgb(r, g, b))
       };
     switch (parsed) {
     | None => None

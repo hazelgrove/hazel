@@ -841,21 +841,13 @@ module Trim = {
     Aba.mk([[], ...wss], [g, ...gs]);
 
   let ws = ((wss, gs): t): seg => {
-    let extra =
-      switch (Grout.redeem_space_from(gs)) {
-      | Some(w) => [w]
-      | None => []
-      };
+    let extra = Option.to_list(Grout.redeem_space_from(gs));
     List.(map(concat(wss) @ extra, ~f=Piece.secondary));
   };
 
   /* Like ws, but keeps the result a trim (for re-adding grout). */
   let strip_grout = ((wss, gs): t): t => {
-    let extra =
-      switch (Grout.redeem_space_from(gs)) {
-      | Some(w) => [w]
-      | None => []
-      };
+    let extra = Option.to_list(Grout.redeem_space_from(gs));
     Aba.mk([List.concat(wss) @ extra], []);
   };
 
@@ -876,11 +868,7 @@ module Trim = {
   let regrout = ((l, r): Nibs.shapes, trim: t): t =>
     if (Nib.Shape.fits(l, r)) {
       let (_, gs) = trim;
-      let extra =
-        switch (Grout.redeem_space_from(gs)) {
-        | Some(w) => [w]
-        | None => []
-        };
+      let extra = Option.to_list(Grout.redeem_space_from(gs));
       Aba.mk([List.concat(trim |> fst) @ extra], []);
     } else {
       let (_, gs) as merged = merge(trim);

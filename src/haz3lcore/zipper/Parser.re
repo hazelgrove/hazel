@@ -25,15 +25,13 @@ let boundary_merges = (text: string, z: Zipper.t): bool => {
     let first_char = List.hd_exn(chars);
     let last_char = Util.ListUtil.last(chars);
     let left =
-      switch (Zipper.neighbor_token(Left, z)) {
-      | None => false
-      | Some(t) => Token.is_potential_token(Token.append(t, first_char))
-      };
+      Option.exists(Zipper.neighbor_token(Left, z), ~f=t =>
+        Token.is_potential_token(Token.append(t, first_char))
+      );
     let right =
-      switch (Zipper.neighbor_token(Right, z)) {
-      | None => false
-      | Some(t) => Token.is_potential_token(Token.append(last_char, t))
-      };
+      Option.exists(Zipper.neighbor_token(Right, z), ~f=t =>
+        Token.is_potential_token(Token.append(last_char, t))
+      );
     left || right;
   };
 };
@@ -89,8 +87,8 @@ let to_zipper =
 let is_split_point = (c: string, z: Zipper.t): bool =>
   Token.is_secondary(c)
   && z.caret == Outer
-  && z.relatives.ancestors == []
-  && Zipper.local_missing_shards(z) == [];
+  && List.is_empty(z.relatives.ancestors)
+  && List.is_empty(Zipper.local_missing_shards(z));
 
 /* Strip trailing convex grout from a segment. This grout is the
    artifact of Zipper.init()'s initial placeholder that was never
@@ -190,7 +188,7 @@ let has_balanced_delimiters = (s: string): bool => {
         },
     chars,
   );
-  ok^ && stack^ == [];
+  ok^ && List.is_empty(stack^);
 };
 
 /* Gate for the FastParse paste attempt (segment splice at the caret).
@@ -207,7 +205,7 @@ let fast_paste_blocker =
     Some("empty clipboard");
   } else if (z.caret != Outer) {
     Some("caret is inside a token");
-  } else if (Zipper.local_missing_shards(z) != []) {
+  } else if (!List.is_empty(Zipper.local_missing_shards(z))) {
     Some("incomplete tiles (missing shards) at the caret");
   } else if (Relatives.sort(~root, z.relatives) != Sort.Exp) {
     Some("caret sort is not Exp");
@@ -271,8 +269,8 @@ let can_splice_paste = (clipboard: string, z: Zipper.t, ~root): bool => {
   let len = String.length(clipboard);
   len > 0
   && z.caret == Outer
-  && z.relatives.ancestors == []
-  && Zipper.local_missing_shards(z) == []
+  && List.is_empty(z.relatives.ancestors)
+  && List.is_empty(Zipper.local_missing_shards(z))
   && Relatives.sort(~root, z.relatives) == Sort.Exp
   && has_balanced_delimiters(clipboard)
   && {
@@ -280,15 +278,13 @@ let can_splice_paste = (clipboard: string, z: Zipper.t, ~root): bool => {
     let first_char = List.hd_exn(chars);
     let last_char = Util.ListUtil.last(chars);
     let no_left_merge =
-      switch (Zipper.neighbor_token(Left, z)) {
-      | None => true
-      | Some(t) => !Token.is_potential_token(Token.append(t, first_char))
-      };
+      Option.for_all(Zipper.neighbor_token(Left, z), ~f=t =>
+        !Token.is_potential_token(Token.append(t, first_char))
+      );
     let no_right_merge =
-      switch (Zipper.neighbor_token(Right, z)) {
-      | None => true
-      | Some(t) => !Token.is_potential_token(Token.append(last_char, t))
-      };
+      Option.for_all(Zipper.neighbor_token(Right, z), ~f=t =>
+        !Token.is_potential_token(Token.append(last_char, t))
+      );
     no_left_merge && no_right_merge;
   };
 };
