@@ -248,8 +248,8 @@ let table_node =
         ),
       ])
     };
-  div(
-    ~attrs=[clss(["perf-scroll"])],
+  div_c(
+    "perf-scroll",
     [
       Node.table(
         ~attrs=[clss(["perf-table"])],
@@ -262,11 +262,9 @@ let table_node =
   );
 };
 
-let empty = (msg: string): Node.t =>
-  div(~attrs=[clss(["perf-empty"])], [text(msg)]);
+let empty = (msg: string): Node.t => div_c("perf-empty", [text(msg)]);
 
-let note = (msg: string): Node.t =>
-  div(~attrs=[clss(["perf-note"])], [text(msg)]);
+let note = (msg: string): Node.t => div_c("perf-note", [text(msg)]);
 
 /* The legend the heat tables carry: what the reddest cell stands for. */
 let scale_note =

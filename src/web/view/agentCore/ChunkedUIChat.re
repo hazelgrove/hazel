@@ -74,7 +74,7 @@ module Utils = {
   };
 
   let curr_last_chunk = (model: Model.t): option(Model.chunk) =>
-    model.log |> List.rev |> ListUtil.hd_opt;
+    List.last(model.log);
 
   /* Extend the agent response in progress, or open one: a chat may begin
      with an agent message (a replayed run, a chat trimmed by compaction),

@@ -15,8 +15,8 @@ let view =
   | AgentGlobals.Model.MainMenu => AgentMainMenuView.view(~globals, ~signal)
   | AgentGlobals.Model.AgentChatInterface =>
     let placeholder =
-      div(
-        ~attrs=[clss(["chat-interface-placeholder"])],
+      div_c(
+        "chat-interface-placeholder",
         [text("Agent is available in Scratch and Documentation modes.")],
       );
     switch (editors) {

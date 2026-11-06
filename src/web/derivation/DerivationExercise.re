@@ -215,8 +215,7 @@ let switch_rule = (m: p('a), ~pos: pos, ~rule): p('a) => {
     tree
     |> Tree.nth(_, pos)
     |> Abbr.get_just_opt
-    |> Option.map(~f=d => d.jdmt)
-    |> Option.value(~default=init(~root))
+    |> Option.value_map(~default=init(~root), ~f=d => d.jdmt)
     |> (
       jdmt =>
         Abbr.Just({
@@ -366,8 +365,7 @@ let editors = (eds: p('a)) =>
   [eds.prelude, eds.setup]
   @ (
     eds.trees
-    |> List.map(~f=Tree.flatten)
-    |> List.concat
+    |> List.concat_map(~f=Tree.flatten)
     |> List.filter_map(~f=Abbr.get_just_opt)
     |> List.map(~f=d => d.jdmt)
   );
@@ -377,8 +375,7 @@ let editor_positions = eds =>
   @ (
     eds.trees
     |> List.mapi(~f=i => Tree.mapi(pos => map_jdmt(_ => Trees(i, pos))))
-    |> List.map(~f=Tree.flatten)
-    |> List.concat
+    |> List.concat_map(~f=Tree.flatten)
     |> List.filter_map(~f=Abbr.get_just_opt)
     |> List.map(~f=d => d.jdmt)
   );

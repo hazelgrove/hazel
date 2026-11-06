@@ -253,10 +253,8 @@ let format_test_result =
 
     /* Get source text */
     let source_text =
-      switch (extract_source_text(~source, ~measured, id)) {
-      | Some(text) => text
-      | None => "<source unavailable>"
-      };
+      extract_source_text(~source, ~measured, id)
+      |> Option.value(~default="<source unavailable>");
 
     Some(status_str ++ " [" ++ location ++ hint_str ++ "]: " ++ source_text);
   };

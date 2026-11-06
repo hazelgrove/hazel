@@ -100,15 +100,15 @@ let view =
     ]);
   };
 
-  div(
-    ~attrs=[clss(["chat-view-container"])],
+  div_c(
+    "chat-view-container",
     [
       // Header
-      div(
-        ~attrs=[clss(["chat-view-header"])],
+      div_c(
+        "chat-view-header",
         [
-          div(
-            ~attrs=[clss(["chat-view-header-left"])],
+          div_c(
+            "chat-view-header-left",
             [
               // View selection buttons (only show when in Chat screen)
               if (chat_system.ui.active_screen == ChatSystem.Model.Chat) {
@@ -126,11 +126,11 @@ let view =
                   };
                 let is_workbench_active =
                   current_chat.current_view == Chat.Model.Workbench;
-                div(
-                  ~attrs=[clss(["chat-view-buttons-container"])],
+                div_c(
+                  "chat-view-buttons-container",
                   [
-                    div(
-                      ~attrs=[clss(["chat-view-buttons"])],
+                    div_c(
+                      "chat-view-buttons",
                       [
                         div(
                           ~attrs=[
@@ -161,8 +161,8 @@ let view =
               },
             ],
           ),
-          div(
-            ~attrs=[clss(["chat-view-header-right"])],
+          div_c(
+            "chat-view-header-right",
             [
               div(
                 ~attrs=[
@@ -257,8 +257,8 @@ let view =
           | Chat.Model.AgentEditorView
           | Chat.Model.StaticErrors => false
           };
-        div(
-          ~attrs=[clss(["chat-view-content-with-bottom-bar"])],
+        div_c(
+          "chat-view-content-with-bottom-bar",
           [
             content_view,
             if (show_bottom_bar) {
@@ -280,8 +280,8 @@ let view =
           ~attrs=[clss(["chat-view-content", "history-view"])],
           [
             // Exit button
-            div(
-              ~attrs=[clss(["history-exit-button-container"])],
+            div_c(
+              "history-exit-button-container",
               [
                 div(
                   ~attrs=[
@@ -293,8 +293,8 @@ let view =
               ],
             ),
             // Chat list
-            div(
-              ~attrs=[clss(["history-chat-list"])],
+            div_c(
+              "history-chat-list",
               List.map(
                 ~f=
                   (chat: Chat.Model.t) => {
@@ -326,14 +326,8 @@ let view =
                         Attr.on_click(switch_to_this_chat),
                       ],
                       [
-                        div(
-                          ~attrs=[clss(["history-chat-item-title"])],
-                          [text(chat.title)],
-                        ),
-                        div(
-                          ~attrs=[clss(["history-chat-item-time"])],
-                          [text(time_ago)],
-                        ),
+                        div_c("history-chat-item-title", [text(chat.title)]),
+                        div_c("history-chat-item-time", [text(time_ago)]),
                       ],
                     );
                   },

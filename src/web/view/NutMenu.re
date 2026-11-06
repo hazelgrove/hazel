@@ -50,9 +50,9 @@ let submenu = (~tooltip, ~icon, menu) =>
     [
       div(
         ~attrs=[clss(["submenu-icon"]), Attr.title(tooltip)],
-        [div(~attrs=[clss(["icon"])], [icon])],
+        [div_c("icon", [icon])],
       ),
-      div(~attrs=[clss(["submenu"])], menu),
+      div_c("submenu", menu),
     ],
   );
 

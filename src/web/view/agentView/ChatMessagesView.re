@@ -16,13 +16,13 @@ module ViewComponents = {
         ~chat_id: Id.t,
       )
       : Node.t => {
-    div(
-      ~attrs=[clss(["full-screen-view"])],
+    div_c(
+      "full-screen-view",
       [
-        div(
-          ~attrs=[clss(["view-header"])],
+        div_c(
+          "view-header",
           [
-            div(~attrs=[clss(["view-title"])], [text("System Prompt")]),
+            div_c("view-title", [text("System Prompt")]),
             div(
               ~attrs=[
                 clss(["view-close-button", "icon"]),
@@ -59,13 +59,13 @@ module ViewComponents = {
         ~chat_id: Id.t,
       )
       : Node.t => {
-    div(
-      ~attrs=[clss(["full-screen-view"])],
+    div_c(
+      "full-screen-view",
       [
-        div(
-          ~attrs=[clss(["view-header"])],
+        div_c(
+          "view-header",
           [
-            div(~attrs=[clss(["view-title"])], [text("Developer Notes")]),
+            div_c("view-title", [text("Developer Notes")]),
             div(
               ~attrs=[
                 clss(["view-close-button", "icon"]),
@@ -118,28 +118,19 @@ module ViewComponents = {
         ),
       );
     let static_section =
-      div(
-        ~attrs=[clss(["agent-context-section"])],
+      div_c(
+        "agent-context-section",
         [
-          div(
-            ~attrs=[clss(["agent-context-section-title"])],
-            [text("Static diagnostics")],
-          ),
+          div_c("agent-context-section-title", [text("Static diagnostics")]),
           if (List.is_empty(static_error_lines)) {
-            div(
-              ~attrs=[clss(["agent-context-static-ok"])],
-              [text("No static errors.")],
-            );
+            div_c("agent-context-static-ok", [text("No static errors.")]);
           } else {
-            div(
-              ~attrs=[clss(["agent-context-static-list"])],
+            div_c(
+              "agent-context-static-list",
               List.map(
                 ~f=
                   (line: string) =>
-                    div(
-                      ~attrs=[clss(["agent-context-static-line"])],
-                      [text(line)],
-                    ),
+                    div_c("agent-context-static-line", [text(line)]),
                 static_error_lines,
               ),
             );
@@ -148,17 +139,14 @@ module ViewComponents = {
       );
     let test_section = {
       let test_results_opt = EvalResult.Model.test_results(eval_result);
-      div(
-        ~attrs=[clss(["agent-context-section"])],
+      div_c(
+        "agent-context-section",
         [
-          div(
-            ~attrs=[clss(["agent-context-section-title"])],
-            [text("Tests")],
-          ),
+          div_c("agent-context-section-title", [text("Tests")]),
           switch (test_results_opt) {
           | None =>
-            div(
-              ~attrs=[clss(["agent-context-muted"])],
+            div_c(
+              "agent-context-muted",
               [
                 text(
                   "Test results are not available yet (evaluation may still be running).",
@@ -166,8 +154,8 @@ module ViewComponents = {
               ],
             )
           | Some(results) when results.total == 0 =>
-            div(
-              ~attrs=[clss(["agent-context-muted"])],
+            div_c(
+              "agent-context-muted",
               [text("No tests in this program.")],
             )
           | Some(results) =>
@@ -192,12 +180,9 @@ module ViewComponents = {
                     div(
                       ~attrs=[clss(["agent-context-test-row", status_cls])],
                       [
-                        div(
-                          ~attrs=[clss(["agent-context-test-icon"])],
-                          [icon],
-                        ),
-                        div(
-                          ~attrs=[clss(["agent-context-test-label"])],
+                        div_c("agent-context-test-icon", [icon]),
+                        div_c(
+                          "agent-context-test-label",
                           [
                             text(
                               "Test "
@@ -212,14 +197,11 @@ module ViewComponents = {
                   },
                 results.statuses,
               );
-            div(
-              ~attrs=[clss(["agent-context-tests"])],
+            div_c(
+              "agent-context-tests",
               [
-                div(
-                  ~attrs=[clss(["agent-context-test-summary"])],
-                  [text(summary)],
-                ),
-                div(~attrs=[clss(["agent-context-test-rows"])], rows),
+                div_c("agent-context-test-summary", [text(summary)]),
+                div_c("agent-context-test-rows", rows),
               ],
             );
           },
@@ -228,18 +210,18 @@ module ViewComponents = {
     };
     let program_section =
       if (List.is_empty(segment)) {
-        div(
-          ~attrs=[clss(["agent-context-code-scroll"])],
+        div_c(
+          "agent-context-code-scroll",
           [
-            div(
-              ~attrs=[clss(["agent-context-empty"])],
+            div_c(
+              "agent-context-empty",
               [text("No program in this scratchpad.")],
             ),
           ],
         );
       } else {
-        div(
-          ~attrs=[clss(["agent-context-code-scroll"])],
+        div_c(
+          "agent-context-code-scroll",
           [
             div(
               ~attrs=[
@@ -256,15 +238,15 @@ module ViewComponents = {
           ],
         );
       };
-    div(
-      ~attrs=[clss(["full-screen-view"])],
+    div_c(
+      "full-screen-view",
       [
-        div(
-          ~attrs=[clss(["view-header"])],
+        div_c(
+          "view-header",
           [
-            div(~attrs=[clss(["view-title"])], [text("Agent Context")]),
-            div(
-              ~attrs=[clss(["view-header-actions"])],
+            div_c("view-title", [text("Agent Context")]),
+            div_c(
+              "view-header-actions",
               [
                 div(
                   ~attrs=[
@@ -316,13 +298,10 @@ module ViewComponents = {
         div(
           ~attrs=[clss(["view-content", "agent-context-body"])],
           [
-            div(
-              ~attrs=[clss(["agent-context-section"])],
+            div_c(
+              "agent-context-section",
               [
-                div(
-                  ~attrs=[clss(["agent-context-section-title"])],
-                  [text("Program View")],
-                ),
+                div_c("agent-context-section-title", [text("Program View")]),
                 program_section,
               ],
             ),
@@ -414,8 +393,8 @@ module ViewComponents = {
               Attr.on_click(toggle_expand),
             ],
             [
-              div(
-                ~attrs=[clss(["tools-view-item-expand-icon"])],
+              div_c(
+                "tools-view-item-expand-icon",
                 [text(is_expanded ? "▾" : "▸")],
               ),
               div(
@@ -433,15 +412,13 @@ module ViewComponents = {
                     ? Icons.circle_with_check : Icons.circle_with_no_check,
                 ],
               ),
-              div(~attrs=[clss(["tools-view-item-name"])], [text(name)]),
+              div_c("tools-view-item-name", [text(name)]),
             ],
           ),
           if (is_expanded) {
-            div(
-              ~attrs=[clss(["tools-view-item-detail"])],
-              [
-                div(~attrs=[clss(["tools-view-item-desc"])], [text(desc)]),
-              ],
+            div_c(
+              "tools-view-item-detail",
+              [div_c("tools-view-item-desc", [text(desc)])],
             );
           } else {
             div(~attrs=[], []);
@@ -463,16 +440,13 @@ module ViewComponents = {
           ),
           Effect.Stop_propagation,
         ]);
-      div(
-        ~attrs=[clss(["tools-view-category"])],
+      div_c(
+        "tools-view-category",
         [
-          div(
-            ~attrs=[clss(["tools-view-category-title-row"])],
+          div_c(
+            "tools-view-category-title-row",
             [
-              div(
-                ~attrs=[clss(["tools-view-category-title-label"])],
-                [text(category)],
-              ),
+              div_c("tools-view-category-title-label", [text(category)]),
               div(
                 ~attrs=[
                   clss(
@@ -496,8 +470,8 @@ module ViewComponents = {
               ),
             ],
           ),
-          div(
-            ~attrs=[clss(["tools-view-category-items"])],
+          div_c(
+            "tools-view-category-items",
             List.map(
               ~f=
                 ((name, desc, enabled, exp)) =>
@@ -512,10 +486,10 @@ module ViewComponents = {
     div(
       ~attrs=[clss(["full-screen-view", "tools-view"])],
       [
-        div(
-          ~attrs=[clss(["view-header"])],
+        div_c(
+          "view-header",
           [
-            div(~attrs=[clss(["view-title"])], [text("Agent Tools")]),
+            div_c("view-title", [text("Agent Tools")]),
             div(
               ~attrs=[
                 clss(["view-close-button", "icon"]),
@@ -554,13 +528,13 @@ module ViewComponents = {
         ~chat_id: Id.t,
       )
       : Node.t => {
-    div(
-      ~attrs=[clss(["full-screen-view"])],
+    div_c(
+      "full-screen-view",
       [
-        div(
-          ~attrs=[clss(["view-header"])],
+        div_c(
+          "view-header",
           [
-            div(~attrs=[clss(["view-title"])], [text("Workbench")]),
+            div_c("view-title", [text("Workbench")]),
             div(
               ~attrs=[
                 clss(["view-close-button", "icon"]),
@@ -582,10 +556,7 @@ module ViewComponents = {
             ),
           ],
         ),
-        div(
-          ~attrs=[clss(["view-content"])],
-          [text("Workbench view - to be implemented")],
-        ),
+        div_c("view-content", [text("Workbench view - to be implemented")]),
       ],
     );
   };
@@ -992,8 +963,8 @@ let view =
           } else {
             Effect.Stop_propagation;
           };
-        div(
-          ~attrs=[clss(["branch-navigation"])],
+        div_c(
+          "branch-navigation",
           [
             div(
               ~attrs=[
@@ -1053,11 +1024,11 @@ let view =
             ~attrs=[clss(["message-identifier", "user-identifier"])],
             [text("You")],
           ),
-          div(
-            ~attrs=[clss(["user-message-wrapper"])],
+          div_c(
+            "user-message-wrapper",
             [
-              div(
-                ~attrs=[clss(["user-message-input-container"])],
+              div_c(
+                "user-message-input-container",
                 [
                   textarea(
                     ~attrs=[
@@ -1196,7 +1167,7 @@ let view =
         | [single] =>
           // Solo tool call — no batch decoration
           single
-        | _ => div(~attrs=[clss(["agent-tool-call-batch"])], nodes)
+        | _ => div_c("agent-tool-call-batch", nodes)
         };
       let humanize_tokens = (n: int): string =>
         if (n >= 1000) {
@@ -1265,17 +1236,11 @@ let view =
           };
         };
         let row = (label, value) =>
-          div(
-            ~attrs=[clss(["agent-token-chip-row"])],
+          div_c(
+            "agent-token-chip-row",
             [
-              span(
-                ~attrs=[clss(["agent-token-chip-label"])],
-                [text(label)],
-              ),
-              span(
-                ~attrs=[clss(["agent-token-chip-value"])],
-                [text(value)],
-              ),
+              span_c("agent-token-chip-label", [text(label)]),
+              span_c("agent-token-chip-value", [text(value)]),
             ],
           );
         let raw_json =
@@ -1293,12 +1258,12 @@ let view =
             Attr.title("Click for detailed token breakdown"),
           ],
           [
-            div(
-              ~attrs=[clss(["agent-token-chip-summary"])],
+            div_c(
+              "agent-token-chip-summary",
               [text(String.concat(~sep=" \xc2\xb7 ", summary_parts))],
             ),
-            div(
-              ~attrs=[clss(["agent-token-chip-body"])],
+            div_c(
+              "agent-token-chip-body",
               [
                 row(
                   "Total payload tokens",
@@ -1396,15 +1361,15 @@ let view =
                       | None => "Thinking"
                       };
                     Some(
-                      div(
-                        ~attrs=[clss(["agent-thinking-block"])],
+                      div_c(
+                        "agent-thinking-block",
                         [
-                          div(
-                            ~attrs=[clss(["agent-thinking-header"])],
+                          div_c(
+                            "agent-thinking-header",
                             [text(header_text)],
                           ),
-                          div(
-                            ~attrs=[clss(["agent-thinking-text"])],
+                          div_c(
+                            "agent-thinking-text",
                             [AgentMessageMarkdown.view(text_content)],
                           ),
                         ],
@@ -1416,8 +1381,8 @@ let view =
                   if (!String.equal(msg.content, "")
                       && !String.equal(String.strip(msg.content), "")) {
                     Some(
-                      div(
-                        ~attrs=[clss(["agent-message"])],
+                      div_c(
+                        "agent-message",
                         [AgentMessageMarkdown.view(msg.content)],
                       ),
                     );
@@ -1550,16 +1515,11 @@ let view =
           let all_edits = [first, ...rest];
 
           let render_node = (node: timeline_node) => {
-            let is_disabled =
-              switch (node.segment) {
-              | None => true
-              | Some(_) => false
-              };
+            let is_disabled = Option.is_none(node.segment);
             let is_active =
-              switch (agent_model.active_timeline_node) {
-              | Some(active_index) => node.index == active_index
-              | None => false
-              };
+              Option.exists(agent_model.active_timeline_node, ~f=active_index =>
+                node.index == active_index
+              );
             let on_click = _ =>
               switch (node.segment) {
               | None => Effect.Stop_propagation
@@ -1588,12 +1548,7 @@ let view =
                     ? node.label ++ " (no segment data)" : node.label,
                 ),
               ],
-              [
-                span(
-                  ~attrs=[clss(["timeline-node-label"])],
-                  [text(node.label)],
-                ),
-              ],
+              [span_c("timeline-node-label", [text(node.label)])],
             );
           };
 
@@ -1628,7 +1583,7 @@ let view =
             let signifier_node =
               switch (summary_opt) {
               | Some({signifier: Some(s), _}) =>
-                span(~attrs=[clss(["tool-call-signifier"])], [text(s)])
+                span_c("tool-call-signifier", [text(s)])
               | _ => Node.none
               };
             div(
@@ -1652,8 +1607,8 @@ let view =
                     },
                   ],
                 ),
-                span(
-                  ~attrs=[clss(["summary-tool-link-name"])],
+                span_c(
+                  "summary-tool-link-name",
                   [
                     text(
                       ToolCallSummary.display_name_for(tool_result.tool_call),
@@ -1661,10 +1616,7 @@ let view =
                   ],
                 ),
                 signifier_node,
-                span(
-                  ~attrs=[clss(["summary-tool-link-arrow"])],
-                  [text({|↗|})],
-                ),
+                span_c("summary-tool-link-arrow", [text({|↗|})]),
               ],
             );
           };
@@ -1734,23 +1686,17 @@ let view =
                     Attr.on_click(toggle_summary_collapsed),
                   ],
                   [
-                    div(
-                      ~attrs=[clss(["agent-tool-summary-title"])],
+                    div_c(
+                      "agent-tool-summary-title",
                       [
-                        span(
-                          ~attrs=[clss(["summary-collapse-icon"])],
-                          [text({|▾|})],
-                        ),
+                        span_c("summary-collapse-icon", [text({|▾|})]),
                         text("Edits Performed"),
                       ],
                     ),
                     restore_button,
                   ],
                 ),
-                div(
-                  ~attrs=[clss(["agent-tool-summary-content"])],
-                  interleaved_elements,
-                ),
+                div_c("agent-tool-summary-content", interleaved_elements),
               ],
             ),
           ];
@@ -1764,10 +1710,7 @@ let view =
             ~attrs=[clss(["message-identifier", "llm-identifier"])],
             [Icons.filbert, text("Filbert")],
           ),
-          div(
-            ~attrs=[clss(["agent-message-wrapper"])],
-            linear_display @ edit_summary_nodes,
-          ),
+          div_c("agent-message-wrapper", linear_display @ edit_summary_nodes),
         ],
       );
     | ChunkedUIChat.Model.CompactionNotice({method, content}) =>
@@ -1780,12 +1723,9 @@ let view =
             ],
             [text("Conversation compacted")],
           ),
-          div(
-            ~attrs=[clss(["compaction-notice-method"])],
-            [text("Method: " ++ method)],
-          ),
-          div(
-            ~attrs=[clss(["compaction-notice-body"])],
+          div_c("compaction-notice-method", [text("Method: " ++ method)]),
+          div_c(
+            "compaction-notice-body",
             [AgentMessageMarkdown.view(content)],
           ),
         ],
@@ -1796,7 +1736,7 @@ let view =
         ~attrs=[
           clss(["message-container", "system-message-container", "error"]),
         ],
-        [div(~attrs=[clss(["system-message"])], [text(error_content)])],
+        [div_c("system-message", [text(error_content)])],
       )
     | ChunkedUIChat.Model.ResponseCancelledMessage(content) =>
       div(
@@ -1847,8 +1787,8 @@ let view =
         ~pending_content=agent_model.pending_assistant_content,
         ~pending_reasoning=agent_model.pending_assistant_reasoning,
       );
-    div(
-      ~attrs=[clss(["chat-messages-view"])],
+    div_c(
+      "chat-messages-view",
       [
         // Toast notification for copy
         div(
@@ -1879,13 +1819,10 @@ let view =
               let reasoning_node: option(Node.t) =
                 if (has_reasoning) {
                   Some(
-                    div(
-                      ~attrs=[clss(["agent-thinking-block"])],
+                    div_c(
+                      "agent-thinking-block",
                       [
-                        div(
-                          ~attrs=[clss(["agent-thinking-header"])],
-                          [text("Thinking")],
-                        ),
+                        div_c("agent-thinking-header", [text("Thinking")]),
                         div(
                           ~attrs=[
                             clss([
@@ -1907,8 +1844,8 @@ let view =
               let content_node: option(Node.t) =
                 if (has_content) {
                   Some(
-                    div(
-                      ~attrs=[clss(["agent-message"])],
+                    div_c(
+                      "agent-message",
                       [AgentMessageMarkdown.view_streaming(pending_content)],
                     ),
                   );
@@ -1920,12 +1857,12 @@ let view =
                   List.filter_map(~f=x => x, [reasoning_node, content_node]);
                 } else {
                   [
-                    div(
-                      ~attrs=[clss(["agent-message-loading-dots"])],
+                    div_c(
+                      "agent-message-loading-dots",
                       [
                         span(~attrs=[clss(["dot", "dot1"])], []),
                         span(~attrs=[clss(["dot", "dot2"])], []),
-                        span(~attrs=[clss(["dot"])], []),
+                        span_c("dot", []),
                       ],
                     ),
                   ];
@@ -1952,8 +1889,8 @@ let view =
           @ (
             switch (agent_model.compaction_in_progress) {
             | Some(id) when Id.equal(id, current_chat_id) => [
-                div(
-                  ~attrs=[clss(["compaction-in-progress-banner"])],
+                div_c(
+                  "compaction-in-progress-banner",
                   [text("Compacting conversation…")],
                 ),
               ]

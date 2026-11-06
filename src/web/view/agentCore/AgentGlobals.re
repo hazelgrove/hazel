@@ -64,27 +64,21 @@ let init = (): Model.t => {
   collapse_top_bar: false,
 };
 
-let get_active_llm_id = (model: Model.t): option(string) => {
-  switch (model.active_llm) {
-  | Some(llm) => Some(llm.id)
-  | None => None
-  };
-};
+let get_active_llm_id = (model: Model.t): option(string) =>
+  Option.map(model.active_llm, ~f=llm => llm.id);
 
 /** Context window from OpenRouter model metadata, or from [available_llms] if active llm omits it. */
 let context_length_for_active = (model: Model.t): option(int) => {
   let from_catalog = (id: string): option(int) =>
-    switch (
-      List.find(
-        ~f=
-          (m: OpenRouter.AvailableLLMs.Model.llm_info) =>
-            String.equal(m.id, id),
-        model.available_llms,
-      )
-    ) {
-    | Some(m) => m.context_length
-    | None => None
-    };
+    List.find(
+      ~f=
+        (m: OpenRouter.AvailableLLMs.Model.llm_info) =>
+          String.equal(m.id, id),
+      model.available_llms,
+    )
+    |> Option.bind(~f=(m: OpenRouter.AvailableLLMs.Model.llm_info) =>
+         m.context_length
+       );
   switch (model.active_llm) {
   | Some(llm) =>
     switch (llm.context_length) {

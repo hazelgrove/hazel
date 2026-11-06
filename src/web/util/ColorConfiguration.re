@@ -380,16 +380,12 @@ let field_names: list((string, string)) =
     );
 
 let targets_of = (group: string, name: string): list(string) =>
-  switch (
-    List.Assoc.find(
-      aliases,
-      (group, name),
-      ~equal=Tuple2.equal(~eq1=String.equal, ~eq2=String.equal),
-    )
-  ) {
-  | Some(targets) => targets
-  | None => [name]
-  };
+  List.Assoc.find(
+    aliases,
+    (group, name),
+    ~equal=Tuple2.equal(~eq1=String.equal, ~eq2=String.equal),
+  )
+  |> Option.value(~default=[name]);
 
 /* Not colors: the two flags the theme declares (see BuiltinsColorScheme).
 

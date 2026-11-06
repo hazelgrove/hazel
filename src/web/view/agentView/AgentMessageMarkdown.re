@@ -191,7 +191,7 @@ let view = (markdown: string): Node.t => {
     } else {
       translate_blocks(Omd.of_string(markdown));
     };
-  div(~attrs=[clss(["agent-message-markdown"])], children);
+  div_c("agent-message-markdown", children);
 };
 
 /** Best-effort virtual closers for a streaming buffer, so `**bold` renders
@@ -202,10 +202,10 @@ let view = (markdown: string): Node.t => {
     end-of-input). Single * and _ are left alone (math, snake_case). */
 let close_dangling_inline = (s: string): string => {
   let inside_fence =
-    String.split(s, ~on='\n')
-    |> List.filter(~f=l => String.is_prefix(String.strip(l), ~prefix="```"))
-    |> List.length
-    |> (n => n mod 2 == 1);
+    List.count(String.split(s, ~on='\n'), ~f=l =>
+      String.is_prefix(String.strip(l), ~prefix="```")
+    )
+    mod 2 == 1;
   if (inside_fence) {
     s;
   } else {
