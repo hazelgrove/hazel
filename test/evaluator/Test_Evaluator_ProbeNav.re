@@ -35,7 +35,7 @@ let frame = (id: Id.t, fn_def_id: option(Id.t)): CallStack.frame => {
 
 let mk_sample =
     (~seq=0, ~step_start=0, ~step_end=0, stack: CallStack.t): Sample.t => {
-  id: Hashtbl.hash((stack, Id.invalid)),
+  id: Stdlib.Hashtbl.hash((stack, Id.invalid)),
   syntax_id: Id.invalid,
   value: IdTagged.FreshGrammar.Exp.empty_hole(),
   env: Sample.Env.empty,

@@ -38,14 +38,14 @@ let info_map_preserves_ids = (name, src) =>
       let m = statics(exp);
       let missing =
         collect_ids(exp)
-        |> List.filter(id =>
+        |> List.filter(~f=id =>
              !Id.equal(id, Id.invalid)
              && Option.is_none(Statics.Map.lookup(id, m))
            );
       Alcotest.(check(list(string)))(
         src ++ " — every surface id appears in the info map",
         [],
-        List.map(Id.show, missing),
+        List.map(~f=Id.show, missing),
       );
     },
   );
@@ -98,7 +98,7 @@ let binder_info_shape = (name, src, expected_arrow) =>
         | None => Alcotest.fail(label ++ ": no info at binder id")
         };
       check_at(~label="Ap wrapper", ap_id);
-      Option.iter(check_at(~label="Asc wrapper"), asc_id_opt);
+      Option.iter(~f=check_at(~label="Asc wrapper"), asc_id_opt);
     },
   );
 

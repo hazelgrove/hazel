@@ -1,4 +1,5 @@
 open Alcotest;
+open Poly;
 
 module ProblemCollection = Haz3lcore.ProblemCollection;
 
@@ -15,7 +16,7 @@ let from_string =
       Haz3lcore.CachedStatics.init(
         ~settings=Language.CoreSettings.on,
         ~is_dynamic_term=false,
-        ~stitch=Fun.id,
+        ~stitch=Fn.id,
         ~root=Exp,
         editor.state.zipper,
       );
@@ -38,7 +39,7 @@ let from_string_exn = (s: string) =>
 let count_by_category = (cat: ProblemCollection.problem_category, problems) =>
   List.length(
     List.filter(
-      (p: ProblemCollection.problem) => p.category == cat,
+      ~f=(p: ProblemCollection.problem) => p.category == cat,
       problems,
     ),
   );
@@ -46,30 +47,33 @@ let count_by_category = (cat: ProblemCollection.problem_category, problems) =>
 let has_structural =
     (desc: string, problems: list(ProblemCollection.problem)) =>
   List.exists(
-    (p: ProblemCollection.problem) =>
-      switch (p.source) {
-      | Structural(d) => d == desc
-      | FromInfo(_)
-      | FromProjector(_) => false
-      },
+    ~f=
+      (p: ProblemCollection.problem) =>
+        switch (p.source) {
+        | Structural(d) => String.equal(d, desc)
+        | FromInfo(_)
+        | FromProjector(_) => false
+        },
     problems,
   );
 
 let has_multihole_error = (problems: list(ProblemCollection.problem)) =>
   List.exists(
-    (p: ProblemCollection.problem) =>
-      switch (p.source) {
-      | FromInfo(ci) =>
-        List.exists(
-          m =>
-            switch (m) {
-            | Language.Mark.IsMulti => true
-            | _ => false
-            },
-          Language.Info.marks_of(ci),
-        )
-      | _ => false
-      },
+    ~f=
+      (p: ProblemCollection.problem) =>
+        switch (p.source) {
+        | FromInfo(ci) =>
+          List.exists(
+            ~f=
+              m =>
+                switch (m) {
+                | Language.Mark.IsMulti => true
+                | _ => false
+                },
+            Language.Info.marks_of(ci),
+          )
+        | _ => false
+        },
     problems,
   );
 
@@ -147,7 +151,7 @@ let source_from_string = (s: string): ProblemCollection.editor_source =>
       Haz3lcore.CachedStatics.init(
         ~settings=Language.CoreSettings.on,
         ~is_dynamic_term=false,
-        ~stitch=Fun.id,
+        ~stitch=Fn.id,
         ~root=Exp,
         editor.state.zipper,
       );
@@ -159,7 +163,7 @@ let source_from_string = (s: string): ProblemCollection.editor_source =>
 
 let total_count =
     (counts: list((ProblemCollection.problem_category, int))): int =>
-  List.fold_left((acc, (_, n)) => acc + n, 0, counts);
+  List.fold_left(~f=(acc, (_, n)) => acc + n, ~init=0, counts);
 
 /* ---------- nearest_measured_id tests ---------- */
 
@@ -233,7 +237,7 @@ let nearest_measured_id_inside_fold = () => {
     Haz3lcore.CachedStatics.init(
       ~settings=Language.CoreSettings.on,
       ~is_dynamic_term=false,
-      ~stitch=Fun.id,
+      ~stitch=Fn.id,
       ~root=Exp,
       editor.state.zipper,
     );
@@ -303,7 +307,7 @@ let make_single_source_single_group = () => {
       ],
     );
   check(int, "one group", 1, List.length(coll.groups));
-  let g = List.hd(coll.groups);
+  let g = List.hd_exn(coll.groups);
   check(bool, "single_source = true", true, g.single_source);
   check(bool, "label preserved", true, g.label == Some("only"));
   check(
@@ -311,7 +315,7 @@ let make_single_source_single_group = () => {
     "group has at least one static error",
     true,
     Option.value(
-      List.assoc_opt(ProblemCollection.Static, g.counts),
+      List.Assoc.find(g.counts, ProblemCollection.Static, ~equal=Poly.equal),
       ~default=0,
     )
     > 0,
@@ -339,7 +343,7 @@ let make_multi_source_flag = () => {
       ],
     );
   check(int, "one group", 1, List.length(coll.groups));
-  let g = List.hd(coll.groups);
+  let g = List.hd_exn(coll.groups);
   check(bool, "single_source = false", false, g.single_source);
 };
 
@@ -358,7 +362,7 @@ let make_first_wins_dedup_across_groups = () => {
         },
       ],
     );
-  let solo_total = total_count(List.hd(solo.groups).counts);
+  let solo_total = total_count(List.hd_exn(solo.groups).counts);
   check(bool, "solo group has problems", true, solo_total > 0);
   let coll =
     ProblemCollection.make(
@@ -375,8 +379,8 @@ let make_first_wins_dedup_across_groups = () => {
       ],
     );
   check(int, "two groups", 2, List.length(coll.groups));
-  let g_a = List.nth(coll.groups, 0);
-  let g_b = List.nth(coll.groups, 1);
+  let g_a = List.nth_exn(coll.groups, 0);
+  let g_b = List.nth_exn(coll.groups, 1);
   check(
     int,
     "first group keeps all problems",
@@ -422,8 +426,8 @@ let make_aggregates_counts_across_groups = () => {
         },
       ],
     );
-  let t1 = total_count(List.hd(solo1.groups).counts);
-  let t2 = total_count(List.hd(solo2.groups).counts);
+  let t1 = total_count(List.hd_exn(solo1.groups).counts);
+  let t2 = total_count(List.hd_exn(solo2.groups).counts);
   let coll =
     ProblemCollection.make(
       ~display_warnings=true,
@@ -469,11 +473,12 @@ let projector_error_collection = () => {
     "problem source is FromProjector",
     true,
     List.exists(
-      (p: Haz3lcore.ProblemCollection.problem) =>
-        switch (p.source) {
-        | FromProjector(_, e) => e.message == "synthetic error"
-        | _ => false
-        },
+      ~f=
+        (p: Haz3lcore.ProblemCollection.problem) =>
+          switch (p.source) {
+          | FromProjector(_, e) => String.equal(e.message, "synthetic error")
+          | _ => false
+          },
       problems,
     ),
   );

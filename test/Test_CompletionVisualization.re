@@ -267,7 +267,7 @@ in f(1)|},
 
 let run_tests = (tests: list(viz_test)) =>
   tests
-  |> List.map(({name, input, expected}) =>
+  |> List.map(~f=({name, input, expected}) =>
        test_case(
          name,
          `Quick,

@@ -65,7 +65,7 @@ let introduce_expression = (x: Typ.t): option(Exp.t) =>
       x,
     ),
   )
-  |> Option.map(((a, _b, _c)) => a);
+  |> Option.map(~f=((a, _b, _c)) => a);
 
 let tests =
   IdTagged.FreshGrammar.[
