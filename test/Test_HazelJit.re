@@ -321,7 +321,7 @@ let timing = (name, src, n) =>
 /* The Polygons slide's livelit as a plain module, its view applied to the model the slide's own `shirt` gives it:
    the slide's text up to the livelit, then `module P = { <the livelit's body> } in P.view(<shirt's model>)`. Found by
    scanning brackets, skipping Hazel's comments (# to #) and strings. */
-let polygons_view_program = (): option(string) => {
+let polygons_parts = (): option((string, string, string)) => {
   let path = "hazel-programs/docs/livelits/playground/polygons.hz";
   let path = Sys.file_exists(path) ? path : "../" ++ path;
   switch (CorpusUtil.read_file(path)) {
@@ -367,16 +367,197 @@ let polygons_view_program = (): option(string) => {
     let arg_close = use < 0 ? (-1) : matching(arg_open, '(', ')');
     arg_close < 0
       ? None
-      : Some(
-          String.sub(src, 0, def)
-          ++ "module P = "
-          ++ String.sub(src, open_, close - open_ + 1)
-          ++ " in\nP.view("
-          ++ String.sub(src, arg_open + 1, arg_close - arg_open - 1)
-          ++ ")",
-        );
+      : Some((
+          String.sub(src, 0, def),
+          String.sub(src, open_, close - open_ + 1),
+          String.sub(src, arg_open + 1, arg_close - arg_open - 1),
+        ));
   };
 };
+let polygons_view_program = (): option(string) =>
+  polygons_parts()
+  |> Option.map(((prefix, body, model)) =>
+       prefix ++ "module P = " ++ body ++ " in\nP.view(" ++ model ++ ")"
+     );
+/* (slice 3) Two Hazel values the same, shape by shape: an Int and a Float are different, a list is its elements however
+   it was built, labels by name, constructors by name (not their type annotations); None when they are, else where not */
+let rec same = (a: Exp.t, b: Exp.t): option(string) => {
+  let differ = what =>
+    Some(what ++ ":\n  want " ++ Exp.show(a) ++ "\n  got  " ++ Exp.show(b));
+  let rec items = (e: Exp.t): option(list(Exp.t)) =>
+    switch (Exp.term_of(e)) {
+    | Parens(e) => items(e)
+    | ListLit(es) => Some(es)
+    | Cons(h, t) => Option.map(rest => [h, ...rest], items(t))
+    | _ => None
+    };
+  let all = (xs, ys) =>
+    List.length(xs) != List.length(ys)
+      ? differ("lengths")
+      : List.fold_left2(
+          (acc, x, y) => acc == None ? same(x, y) : acc,
+          None,
+          xs,
+          ys,
+        );
+  switch (Exp.term_of(a), Exp.term_of(b)) {
+  | (Parens(a), _) => same(a, b)
+  | (_, Parens(b)) => same(a, b)
+  | (Atom(Int(m)), Atom(Int(n))) =>
+    Bigint.equal(m, n) ? None : differ("ints")
+  | (Atom(Float(x)), Atom(Float(y))) =>
+    Float.abs(x -. y) <= 1e-9
+    *. Float.max(1., Float.abs(x))
+    || Float.is_nan(x)
+    && Float.is_nan(y)
+      ? None : differ("floats")
+  | (Atom(Bool(x)), Atom(Bool(y))) => x == y ? None : differ("bools")
+  | (Atom(String(x)), Atom(String(y))) => x == y ? None : differ("strings")
+  | (ListLit(_) | Cons(_), ListLit(_) | Cons(_)) =>
+    switch (items(a), items(b)) {
+    | (Some(xs), Some(ys)) => all(xs, ys)
+    | _ => differ("lists")
+    }
+  | (Tuple(xs), Tuple(ys)) => all(xs, ys)
+  | (TupLabel(l1, x), TupLabel(l2, y)) =>
+    switch (Exp.term_of(l1), Exp.term_of(l2)) {
+    | (Label(m), Label(n)) when m == n => same(x, y)
+    | _ => differ("labels")
+    }
+  | (Constructor(m, _), Constructor(n, _)) =>
+    m == n ? None : differ("constructors")
+  /* a function only as a function: what it does is checked by applying it (a handler, below) */
+  | (Fun(_) | FixF(_) | Closure(_), Fun(_) | FixF(_) | Closure(_)) => None
+  | (
+      Ap(Forward, {term: Constructor(m, _), _}, x),
+      Ap(Forward, {term: Constructor(n, _), _}, y),
+    ) =>
+    m == n ? same(x, y) : differ("constructors")
+  | _ => differ("forms")
+  };
+};
+
+/* A program's value, by the interpreter and by its compiled JS carried back (HazelJitValue.of_js, by the compiled
+   term's types), the same */
+let comes_back = (name, src) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let elab = elaborate(parse_exp(src));
+      let expected = Test_Evaluator_Prelude.evaluate(elab);
+      let c = HazelJit.compile_full(~env=Builtins.env_init, elab);
+      let got =
+        HazelJitValue.of_js(
+          HazelJitValue.types_of(c),
+          None,
+          HazelJitValue.instantiate(c.src),
+        );
+      switch (same(expected, got)) {
+      | None => ()
+      | Some(diff) => fail("not the interpreter's value: " ++ diff)
+      };
+    },
+  );
+
+/* A view through the boundary: the definition compiled once (compile_view), the model carried into JS, the answer
+   carried back (run_view); the same as the interpreter's answer for the same model */
+let view_comes_back = (~prefix="", def_src, model_src) => {
+  let program = s => elaborate(parse_exp(prefix ++ s));
+  let expected =
+    Test_Evaluator_Prelude.evaluate(
+      program("module P = " ++ def_src ++ " in P.view(" ++ model_src ++ ")"),
+    );
+  let model = Test_Evaluator_Prelude.evaluate(program(model_src));
+  switch (
+    HazelJitValue.compile_view(
+      ~env=Builtins.env_init,
+      program("module P = " ++ def_src ++ " in P"),
+    )
+  ) {
+  | Error(why) => fail("not compiled: " ++ why)
+  | Ok(v) =>
+    switch (HazelJitValue.run_view(v, model)) {
+    | Error(why) => fail("not run: " ++ why)
+    | Ok(got) =>
+      switch (same(expected, got)) {
+      | None => ()
+      | Some(diff) => fail("not the interpreter's answer: " ++ diff)
+      }
+    }
+  };
+};
+
+/* (slow) A render of the Polygons view, timed three ways, medians of n in ms: the interpreter applying the evaluated
+   view to the model (what eval_view did, less CallMemo); the compiled view through the boundary (run_view: the model
+   into JS, the call, the answer back); and the compiled call alone, its model already in JS */
+let boundary_timing_run = n =>
+  switch (polygons_parts()) {
+  | None => fail("the Polygons slide was not found, or not as expected")
+  | Some((prefix, body, model_src)) =>
+    let program = s => elaborate(parse_exp(prefix ++ s));
+    let now = () => Util.JsUtil.precise_timestamp();
+    let median = xs => {
+      let a = Array.of_list(xs);
+      Array.sort(compare, a);
+      a[Array.length(a) / 2];
+    };
+    let times = f =>
+      List.init(
+        n,
+        _ => {
+          let t0 = now();
+          f();
+          now() -. t0;
+        },
+      );
+    let view_fn =
+      Test_Evaluator_Prelude.evaluate(
+        program("module P = " ++ body ++ " in P.view"),
+      );
+    let model = Test_Evaluator_Prelude.evaluate(program(model_src));
+    switch (
+      HazelJitValue.compile_view(
+        ~env=Builtins.env_init,
+        program("module P = " ++ body ++ " in P"),
+      )
+    ) {
+    | Error(why) => fail("not compiled: " ++ why)
+    | Ok(v) =>
+      let interp =
+        times(() =>
+          ignore(
+            Test_Evaluator_Prelude.evaluate(
+              IdTagged.FreshGrammar.Exp.ap(Forward, view_fn, model),
+            ),
+          )
+        );
+      let through =
+        times(() =>
+          switch (HazelJitValue.run_view(v, model)) {
+          | Ok(_) => ()
+          | Error(why) => fail("not run: " ++ why)
+          }
+        );
+      let js_model = HazelJitValue.to_js(model);
+      let call =
+        times(() =>
+          ignore(Js.Unsafe.fun_call(v.fn, [|js_model|]): Js.Unsafe.any)
+        );
+      Printf.printf(
+        "hazel-jit boundary timing, the Polygons view: n=%d, compile %.2f ms; interpreter median %.3f ms (min %.3f); through the boundary median %.3f ms (min %.3f), %.0fx; the call alone median %.4f ms\n",
+        n,
+        v.compile_ms,
+        median(interp),
+        List.fold_left(min, infinity, interp),
+        median(through),
+        List.fold_left(min, infinity, through),
+        median(interp) /. Float.max(median(through), 1e-6),
+        median(call),
+      );
+    };
+  };
+
 let polygons_view = (name, speed, check) =>
   test_case(name, speed, () =>
     switch (polygons_view_program()) {
@@ -449,10 +630,93 @@ let tests = (
     ),
     agreement("to_fixed", "(to_fixed(3.14159, 2), to_fixed(2., 0))"),
     polygons_view("the Polygons slide's view", `Quick, agrees),
+    comes_back(
+      "back: whole floats stay floats, by their constructors' types",
+      "type A = + SetX(Float) + Pick(Int) + Move((x = Float, y = Float)) in [SetX(3.), Pick(2), Move((x = 1., y = 2.5))]",
+    ),
+    comes_back(
+      "back: through a type alias",
+      "type P = (x = Float, y = Float) in type A = + Go(P) + Stop in (Go((x = 2., y = 3.)), Stop)",
+    ),
+    comes_back(
+      "back: labels with no type to go by",
+      {|(a = 1, b = "x", c = [true, false])|},
+    ),
+    comes_back("back: the Petri net rule's commands", petri),
+    /* (a view's answer is a constructor, ViewCmd's: a number outside any constructor has no type to be read by, and a
+       whole one comes back an Int) */
+    test_case("a view through the boundary", `Quick, () =>
+      view_comes_back(
+        "{ type Model = (x = Float, tags = [String]); type Action = + Bump(Float); type Answer = + Shown((Float, [String], Action)); let view = fun m : Model -> Shown((m.x *. 2., m.tags, Bump(1.))) }",
+        {|(x = 2., tags = ["a", "b"])|},
+      )
+    ),
+    test_case(
+      "a handler through the boundary, applied",
+      `Quick,
+      () => {
+        /* the view's handler captures the model's index; carried back as a Hazel closure, the interpreter applies it */
+        let def = "{ type Action = + Set(Int, String); type Attr = + OnInput(String -> Action); let view = fun m : (i = Int) -> let i = m.i * 10 in OnInput(fun v -> Set(i, v)) }";
+        let model = "(i = 4)";
+        let program = s => elaborate(parse_exp(s));
+        switch (
+          HazelJitValue.compile_view(
+            ~env=Builtins.env_init,
+            program("module P = " ++ def ++ " in P"),
+          )
+        ) {
+        | Error(why) => fail("not compiled: " ++ why)
+        | Ok(v) =>
+          switch (
+            HazelJitValue.run_view(
+              v,
+              Test_Evaluator_Prelude.evaluate(program(model)),
+            )
+          ) {
+          | Error(why) => fail("not run: " ++ why)
+          | Ok({term: Ap(Forward, _, handler), _}) =>
+            let applied =
+              Test_Evaluator_Prelude.evaluate(
+                IdTagged.FreshGrammar.Exp.ap(
+                  Forward,
+                  handler,
+                  IdTagged.FreshGrammar.Exp.string("typed"),
+                ),
+              );
+            let expected =
+              Test_Evaluator_Prelude.evaluate(
+                program(
+                  "module P = "
+                  ++ def
+                  ++ " in case P.view("
+                  ++ model
+                  ++ ") | OnInput(h) => h(\"typed\") end",
+                ),
+              );
+            switch (same(expected, applied)) {
+            | None => ()
+            | Some(diff) =>
+              fail("the handler does not do what it did: " ++ diff)
+            };
+          | Ok(e) => fail("not OnInput(handler): " ++ Exp.show(e))
+          }
+        };
+      },
+    ),
+    test_case("the Polygons slide's view through the boundary", `Quick, () =>
+      switch (polygons_parts()) {
+      | None => fail("the Polygons slide was not found, or not as expected")
+      | Some((prefix, body, model)) => view_comes_back(~prefix, body, model)
+      }
+    ),
     not_compiled("a hole", "1 + ?", "a hole"),
     timing("the Petri net rule, four events", petri, 30),
     polygons_view("timing: the Polygons slide's view", `Slow, src =>
       timing_run("the Polygons slide's view", src, 30)
+    ),
+    test_case(
+      "timing: the Polygons view through the boundary, a render", `Slow, () =>
+      boundary_timing_run(30)
     ),
     timing(
       "a recursive sum of 1,000",

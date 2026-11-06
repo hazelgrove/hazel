@@ -39,7 +39,8 @@ module Runtime = {
     return p === q;
   },
   nomatch(where) { throw new Error("hazel-jit: no pattern matched in " + where); },
-  missing(why) { return () => { throw new Error("hazel-jit: not compiled: " + why); }; },
+  missing(why) { const f = () => { throw new Error("hazel-jit: not compiled: " + why); }; f.$missing = why; return f; },
+  fn(f, k, e) { f.$k = k; f.$e = e; return f; },
   b: {
     string_of_int: n => String(n), string_of_sint: n => String(n), string_of_nat: n => String(n),
     string_of_bool: b => String(b),
@@ -170,6 +171,40 @@ type state = {
   mutable counter: int,
   mutable globals: list(string), /* newest first */
   global_names: Hashtbl.t(string, string),
+  /* (slice 3, the way back) each constructor the code builds, by name: its type as elaboration gave it, the same for
+     every use of the name; None when the name has no type, or two (two sum types that share a constructor's name) */
+  ctors: Hashtbl.t(string, option(Typ.t)),
+  /* the type aliases the term defines (type T = ... in, and a module's type members), so the way back can see through
+     a constructor's argument type when it names one */
+  aliases: Hashtbl.t(string, Typ.t),
+  /* (slice 3, functions back) each JS function the code makes, by its index: the Hazel function it compiles (its Fun
+     term), and the Hazel names it captures, in the order of the values it carries ($R.fn(f, k, [values])); and the
+     functions being compiled, innermost first: how many bindings were in scope where each began, and what it captures */
+  funs: Hashtbl.t(int, (Exp.t, list(string))),
+  mutable frames: list((int, ref(list((string, string))))),
+};
+
+let note_alias = (st: state, tp: TPat.t, ty: Typ.t): unit =>
+  switch (tp.term) {
+  | Var(x) => Hashtbl.replace(st.aliases, x, ty)
+  | _ => ()
+  };
+
+let note_ctor = (st: state, name: string, t: option(option(Typ.t))): unit => {
+  let t =
+    switch (t) {
+    | Some(Some(t)) => Some(t)
+    | _ => None
+    };
+  switch (Hashtbl.find_opt(st.ctors, name)) {
+  | None => Hashtbl.replace(st.ctors, name, t)
+  | Some(Some(t0)) =>
+    switch (t) {
+    | Some(t) when Typ.fast_equal(t0, t) => ()
+    | _ => Hashtbl.replace(st.ctors, name, None)
+    }
+  | Some(None) => ()
+  };
 };
 
 /* The variables declared at the top of the JS function being compiled */
@@ -306,17 +341,34 @@ let rec exp =
   | Atom(Float(f)) => js_float(f)
   | Atom(Bool(b)) => string_of_bool(b)
   | Atom(String(s)) => js_string(s)
+  | TyAlias(tp, ty, e) =>
+    note_alias(st, tp, ty);
+    go(e);
   | Parens(e)
   | Asc(e, _)
   | TypAp(e, _)
   | TypFun(_, e, _)
-  | TyAlias(_, _, e)
   | Use(_, e) => go(e)
   | Var(x) =>
-    switch (List.assoc_opt(x, lex)) {
-    | Some(j) => j
+    let rec find = (i, l) =>
+      switch (l) {
+      | [] => None
+      | [(y, j), ..._] when y == x => Some((j, List.length(lex) - i))
+      | [_, ...rest] => find(i + 1, rest)
+      };
+    switch (find(0, lex)) {
+    | Some((j, depth)) =>
+      /* the binding, counted from the oldest: a function that began after it captures it */
+      List.iter(
+        ((entry, caps)) =>
+          if (depth <= entry && !List.mem_assoc(x, caps^)) {
+            caps := caps^ @ [(x, j)];
+          },
+        st.frames,
+      );
+      j;
     | None => global(st, x)
-    }
+    };
   | ListLit(es) =>
     List.fold_right(
       (e, acc) => "{h: " ++ go(e) ++ ", t: " ++ acc ++ "}",
@@ -368,15 +420,18 @@ let rec exp =
     | Some(name) => "(" ++ go(e1) ++ ")[" ++ js_string(name) ++ "]"
     | None => unsupported("a projection by something other than a label")
     }
-  | Constructor(name, _) => "{c: " ++ js_string(name) ++ "}"
+  | Constructor(name, t) =>
+    note_ctor(st, name, t);
+    "{c: " ++ js_string(name) ++ "}";
   | Ap(Forward, f, arg) =>
     switch (Exp.term_of(f)) {
-    | Constructor(name, _) =>
-      "{c: " ++ js_string(name) ++ ", v: " ++ go(arg) ++ "}"
+    | Constructor(name, t) =>
+      note_ctor(st, name, t);
+      "{c: " ++ js_string(name) ++ ", v: " ++ go(arg) ++ "}";
     | _ => "(" ++ go(f) ++ ")(" ++ go(arg) ++ ")"
     }
   | Ap(Reverse, _, _) => unsupported("a reverse application")
-  | Fun(p, body, _, _) => func(st, lex, p, body)
+  | Fun(p, body, _, _) => func(st, lex, ~term=e, p, body)
   | FixF(p, body, _) =>
     let rec name_of = (p: Pat.t) =>
       switch (Pat.term_of(p)) {
@@ -512,18 +567,40 @@ let rec exp =
   };
 }
 /* A function: its own JS function, its parameter matched against its pattern */
-and func = (st: state, lex, p: Pat.t, body: Exp.t): string => {
+and func = (st: state, lex, ~term: Exp.t, p: Pat.t, body: Exp.t): string => {
   let inner = {decls: []};
   st.counter = st.counter + 1;
   let arg = "a$" ++ string_of_int(st.counter);
+  let caps = ref([]);
+  st.frames = [(List.length(lex), caps), ...st.frames];
   let (tests, binds, lex') = pat(st, inner, lex, p, arg);
   let check =
     tests == [] ? [] : ["(" ++ conj(tests) ++ ") || $R.nomatch(\"fun\")"];
-  let b = exp(st, inner, lex', body);
+  let b =
+    try(exp(st, inner, lex', body)) {
+    | exn =>
+      st.frames = List.tl(st.frames);
+      raise(exn);
+    };
+  st.frames = List.tl(st.frames);
   let value =
     check == [] && binds == []
       ? b : "(" ++ String.concat(", ", check @ binds @ [b]) ++ ")";
-  "((" ++ arg ++ ") => { " ++ body_with_decls(inner, value) ++ " })";
+  /* tagged with its term and its captured values, so the way back can make it a Hazel closure (HazelJitValue) */
+  let k = Hashtbl.length(st.funs);
+  Hashtbl.replace(st.funs, k, (term, List.map(fst, caps^)));
+  "$R.fn(("
+  ++ arg
+  ++ ") => { "
+  ++ body_with_decls(inner, value)
+  ++ " }, "
+  ++ string_of_int(k)
+  ++ ", "
+  ++ (
+    caps^ == []
+      ? "null" : "[" ++ String.concat(", ", List.map(snd, caps^)) ++ "]"
+  )
+  ++ ")";
 }
 /* A module: its members, in order, each seeing the ones before it, gathered into one value whose properties are their
    names (as a labeled tuple's), so `M.x` is a property read. Types are erased. A name defined twice is its last. */
@@ -578,7 +655,9 @@ and module_ = (st: state, lex, items: list(Mod.t)): string => {
             [(x, j), ...exports],
             [(x, j), ...lex],
           );
-        | ModType(_) => (steps, exports, lex)
+        | ModType(tp, ty) =>
+          note_alias(st, tp, ty);
+          (steps, exports, lex);
         | ModExp(_) => unsupported("an expression as a module member")
         | Invalid(_)
         | EmptyHole
@@ -624,12 +703,18 @@ and global = (st: state, x: string): string =>
         let j = "g$" ++ sanitize(x);
         Hashtbl.add(st.global_names, x, j);
         let scope = {decls: []};
+        /* a global is compiled on its own: the functions being compiled where it is first used do not capture its
+           variables */
+        let frames = st.frames;
+        st.frames = [];
         let v =
           try(exp(st, scope, [], d)) {
           | Unsupported(_) as exn =>
+            st.frames = frames;
             Hashtbl.remove(st.global_names, x);
             raise(exn);
           };
+        st.frames = frames;
         st.globals = [
           "const "
           ++ j
@@ -648,20 +733,42 @@ and builtin = (name: string): string =>
 
 /* An elaborated term as the source of a JS function's body, run as new Function("$R", source)(runtime): the builtins it
    uses first, then its value. Raises Unsupported when it holds a form hazel-jit does not compile. */
-let compile = (~env: Environment.t(Exp.t), e: Exp.t): string => {
+/* What compiling a term gives: the JS source, and what the way back needs (HazelJitValue.of_js): the constructors'
+   types and the type aliases */
+type compiled = {
+  src: string,
+  ctors: Hashtbl.t(string, option(Typ.t)),
+  aliases: Hashtbl.t(string, Typ.t),
+  funs: Hashtbl.t(int, (Exp.t, list(string))),
+};
+
+let compile_full = (~env: Environment.t(Exp.t), e: Exp.t): compiled => {
   let st = {
     env,
     counter: 0,
     globals: [],
     global_names: Hashtbl.create(8),
+    ctors: Hashtbl.create(16),
+    aliases: Hashtbl.create(8),
+    funs: Hashtbl.create(16),
+    frames: [],
   };
   let scope = {decls: []};
   let v = exp(st, scope, [], e);
-  "\"use strict\"; "
-  ++ String.concat(" ", List.rev(st.globals))
-  ++ " "
-  ++ body_with_decls(scope, v);
+  {
+    src:
+      "\"use strict\"; "
+      ++ String.concat(" ", List.rev(st.globals))
+      ++ " "
+      ++ body_with_decls(scope, v),
+    ctors: st.ctors,
+    aliases: st.aliases,
+    funs: st.funs,
+  };
 };
+
+let compile = (~env: Environment.t(Exp.t), e: Exp.t): string =>
+  compile_full(~env, e).src;
 
 /* The same, or the reason it is not compiled */
 let try_compile =

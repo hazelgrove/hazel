@@ -866,9 +866,64 @@ module M: Projector = {
      making the same calls with the same arguments as last time: those
      give what they gave (CallMemo), shared by every view on the page. */
   let view_calls = lazy(CallMemo.create());
-  let eval_view = (e: DHExp.t): result(DHExp.t, string) => {
+  /* (^ticket(694), hazel-jit) With the setting on (Compiled views, on by
+     default), a definition's view runs as JS compiled from its Hazel,
+     compiled once per definition: the model goes in as JS and the command
+     comes back as a Hazel value, for ViewCmdRunner as before. A view
+     hazel-jit cannot compile, or whose answer it cannot carry back, runs
+     on the interpreter, and the console says why, once for each reason. */
+  let jit_warned: Hashtbl.t(string, unit) = Hashtbl.create(4);
+  let jit_warn = (why: string) =>
+    if (!Hashtbl.mem(jit_warned, why)) {
+      Hashtbl.add(jit_warned, why, ());
+      Js_of_ocaml.Firebug.console##warn(
+        Js_of_ocaml.Js.string(
+          "hazel-jit: a livelit's view runs on the interpreter: " ++ why,
+        ),
+      );
+    };
+  let jit_view = (def_elab: DHExp.t, model: DHExp.t): option(DHExp.t) =>
+    if (! HazelJitValue.enabled^) {
+      None;
+    } else {
+      switch (HazelJitValue.view_of_def(~env=Builtins.env_init, def_elab)) {
+      | Error(why) =>
+        jit_warn(why);
+        None;
+      | Ok(v) =>
+        switch (HazelJitValue.run_view(v, model)) {
+        | Ok(cmd) => Some(cmd)
+        | Error(why) =>
+          HazelJitValue.give_up(def_elab, why);
+          jit_warn(why);
+          None;
+        }
+      };
+    };
+  /* view_fn: the definition's view, asked for only when the interpreter
+     runs it (evaluating the definition is part of that cost) */
+  let eval_view =
+      (
+        ~def_elab: option(DHExp.t)=?,
+        view_fn: unit => result(DHExp.t, string),
+        model: DHExp.t,
+      )
+      : result(DHExp.t, string) => {
     let call_memo = Lazy.force(view_calls);
-    switch (MvuShape.safe_evaluate_open(~call_memo, e)) {
+    let cmd =
+      switch (Option.bind(def_elab, d => jit_view(d, model))) {
+      | Some(cmd) => Ok(cmd)
+      | None =>
+        switch (view_fn()) {
+        | Error(_) as err => err
+        | Ok(view_fn) =>
+          MvuShape.safe_evaluate_open(
+            ~call_memo,
+            IdTagged.FreshGrammar.Exp.ap(Forward, view_fn, model),
+          )
+        }
+      };
+    switch (cmd) {
     | Error(_) as err => err
     | Ok(cmd) => ViewCmdRunner.run(~call_memo, cmd)
     };
@@ -1057,7 +1112,7 @@ module M: Projector = {
     let store_entry = (new_model, record, ~committed) =>
       switch (record_field(record, "view")) {
       | Some(view_fn) =>
-        switch (eval_view(ap(Forward, view_fn, new_model))) {
+        switch (eval_view(~def_elab, () => Ok(view_fn), new_model)) {
         | Ok(html) when MvuShape.is_html(html) =>
           let prior = Hashtbl.find_opt(optimistic, id);
           /* Transient and ephemeral events change nothing in the syntax,
@@ -1376,7 +1431,6 @@ module M: Projector = {
     | (None, Some(html)) =>
       ok(HazelDOM.go(~elide_errors=true, seed(~model, ~model_value), html))
     | (None, None) =>
-      let ap = IdTagged.FreshGrammar.Exp.ap;
       /* The run's model value when there is one: in the surface term
          a marked field is only its code, not the ref it becomes. The
          view is drawn from that value, but the handlers are seeded
@@ -1392,17 +1446,26 @@ module M: Projector = {
       let view_model = Option.value(model_value, ~default=model);
       let evaluated =
         memo_view(~id, ~def_elab, ~view_model, () =>
-          switch (MvuShape.safe_evaluate_open(def_elab)) {
-          | Error(e) => Error("livelit definition error: " ++ e)
-          | Ok(record) =>
-            switch (record_field(record, "view")) {
-            | None => Error("livelit definition is missing view")
-            | Some(view_fn) =>
-              switch (eval_view(ap(Forward, view_fn, view_model))) {
-              | Error(e) => Error("livelit view error: " ++ e)
-              | Ok(html) => Ok(html)
-              }
-            }
+          switch (
+            eval_view(
+              ~def_elab,
+              () =>
+                switch (MvuShape.safe_evaluate_open(def_elab)) {
+                | Error(e) => Error("livelit definition error: " ++ e)
+                | Ok(record) =>
+                  switch (record_field(record, "view")) {
+                  | None => Error("livelit definition is missing view")
+                  | Some(view_fn) => Ok(view_fn)
+                  }
+                },
+              view_model,
+            )
+          ) {
+          /* (the definition's own errors keep their words, as before) */
+          | Error(e) when String.starts_with(~prefix="livelit definition", e) =>
+            Error(e)
+          | Error(e) => Error("livelit view error: " ++ e)
+          | Ok(html) => Ok(html)
           }
         );
       switch (evaluated) {
