@@ -777,6 +777,33 @@ let tests = (
       "type A = Int -> A in let f : A = fun x -> f in let g : rec b -> ? -> ? -> b = f in 0",
       Some(FTemp.Typ.int()),
     ),
+    /* A list's type is the meet of its elements' types, so a hole in one
+       element's recursive annotation must not let a String reach another
+       element's Int, whichever is written first. */
+    inconsistent_typecheck(
+      "A hole in one recursive element type does not unguard another's argument",
+      parse_exp(
+        "let f : rec x -> Int -> Int -> x = fun a -> fun b -> if a + b > 0 then f else f in let g : rec y -> ? -> y = fun a -> g in let x = [f, g] in case x | [h, _] => h(1)(2)(\"\")(0) | _ => ? end",
+      ),
+    ),
+    inconsistent_typecheck(
+      "in either order",
+      parse_exp(
+        "let f : rec x -> Int -> Int -> x = fun a -> fun b -> if a + b > 0 then f else f in let g : rec y -> ? -> y = fun a -> g in let x = [g, f] in case x | [h, _] => h(1)(2)(\"\")(0) | _ => ? end",
+      ),
+    ),
+    inconsistent_typecheck(
+      "nor under an outer loop that matches",
+      parse_exp(
+        "type T = rec a -> (Int, a, rec x -> ? -> x) in type U = rec b -> (Int, b, rec y -> Int -> Int -> y) in let x = [? : T, ? : U] in case x | [(f, (g, _, _), h)] => h(1)(2)(\"\") | _ => ? end",
+      ),
+    ),
+    inconsistent_typecheck(
+      "in either order",
+      parse_exp(
+        "type T = rec a -> (Int, a, rec x -> ? -> x) in type U = rec b -> (Int, b, rec y -> Int -> Int -> y) in let x = [? : U, ? : T] in case x | [(f, (g, _, _), h)] => h(1)(2)(\"\") | _ => ? end",
+      ),
+    ),
     fully_consistent_typecheck(
       "A recursive alias checks against its other phase",
       "type A = Int -> Int -> A in let f : A = fun x -> fun y -> f in let g : Int -> A = f in 0",

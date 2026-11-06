@@ -873,11 +873,48 @@ type on_rec_mismatch =
   | Unroll
   | GiveUp;
 
+/* The name of [ty]'s binder, when it has one. */
+let binder_name = (ty: t): option(Var.t) =>
+  switch (term_of(ty)) {
+  | Rec(tp, _)
+  | Poly(tp, _) => TPat.tyvar_of_utpat(tp)
+  | Unknown(_)
+  | Atom(_)
+  | DrvQuoteTy(_)
+  | Var(_)
+  | List(_)
+  | Arrow(_)
+  | Sum(_)
+  | Prod(_)
+  | ExplicitNonlabel
+  | Label(_)
+  | TupLabel(_)
+  | Parens(_)
+  | Projector(_)
+  | ProofOf(_)
+  | ProdProjection(_)
+  | ProdExtension(_)
+  | Sig(_) => None
+  };
+
+/* The recursive type over [x] with body [ty], which mentions [x] where it
+   reached the pair [x] stands for; its binder is renamed to [name] when
+   [name] is free nowhere in [ty]. */
+let close_loop = (x: Var.t, name: Var.t, ty: t): t => {
+  let marker = Var(x) |> TPat.fresh;
+  if (List.exists(String.equal(name), free_vars(ty))) {
+    Rec(marker, ty) |> temp;
+  } else {
+    Rec(Var(name) |> TPat.fresh, subst(Var(name) |> temp, marker, ty))
+    |> temp;
+  };
+};
+
 /* [seen] holds the (recursive type, other type) pairs being met through an
-   unrolling on the way here. */
+   unrolling on the way here, each with the variable standing for its meet. */
 let rec meet =
         (
-          ~seen: list((t, t))=[],
+          ~seen: list((t, t, Var.t))=[],
           ~on_rec_mismatch: on_rec_mismatch=Unroll,
           ctx: Ctx.t,
           ty1: t,
@@ -885,27 +922,48 @@ let rec meet =
         )
         : option(t) => {
   let meet' = meet(~seen, ~on_rec_mismatch, ctx);
-  /* A pair already in [seen] is consistent: the only way back to it is through
-     heads that matched (Amadio and Cardelli), and the recursive type is its
-     meet. */
-  let assumed = (ty_rec: t, ty: t): bool =>
-    List.exists(((r, o)) => equal(r, ty_rec) && equal(o, ty), seen);
+  /* The variable standing for [ty_rec] against [ty] when that pair is already
+     being met. The only way back to such a pair is through heads that matched
+     (Amadio and Cardelli), so it is consistent, and its meet is the loop
+     closed where the pair was first met. */
+  let assumption = (ty_rec: t, ty: t): option(Var.t) =>
+    List.find_map(
+      ((r, o, x)) => equal(r, ty_rec) && equal(o, ty) ? Some(x) : None,
+      seen,
+    );
   /* [ty_rec] against [ty] through [ty_rec]'s unrolling, which [meet_unrolled]
-     meets in [ty_rec]'s position. The result is [ty_rec] itself when the meet
-     is exactly its unrolling. */
+     meets in [ty_rec]'s position. A meet that reached the pair again is the
+     tree of whichever side has no holes, as written, else the meet closed
+     into a recursive type, named as [ty_rec]'s binder where that captures
+     nothing; a meet that is exactly the unrolling is [ty_rec] itself. */
   let through_unrolling =
       (
         ty_rec: t,
         ty: t,
-        meet_unrolled: (~seen: list((t, t)), t) => option(t),
+        meet_unrolled: (~seen: list((t, t, Var.t)), t) => option(t),
       )
       : option(t) =>
-    if (assumed(ty_rec, ty)) {
-      Some(ty_rec);
-    } else {
+    switch (assumption(ty_rec, ty)) {
+    | Some(x) => Some(Var(x) |> temp)
+    | None =>
       let* ty_rec' = unroll(ty_rec);
-      let+ ty_meet = meet_unrolled(~seen=[(ty_rec, ty), ...seen], ty_rec');
-      equal(ty_rec', ty_meet) ? ty_rec : ty_meet;
+      let name = Option.value(binder_name(ty_rec), ~default="x");
+      let x = fresh_var(name);
+      let+ ty_meet =
+        meet_unrolled(~seen=[(ty_rec, ty, x), ...seen], ty_rec');
+      if (List.exists(String.equal(x), free_vars(ty_meet))) {
+        if (count_unknowns(ty_rec) == 0) {
+          ty_rec;
+        } else if (count_unknowns(ty) == 0) {
+          ty;
+        } else {
+          close_loop(x, name, ty_meet);
+        };
+      } else if (fast_equal(ty_rec', ty_meet)) {
+        ty_rec;
+      } else {
+        ty_meet;
+      };
     };
   switch (term_of(ty1), term_of(ty2)) {
   | (_, Parens(ty2))
@@ -944,29 +1002,32 @@ let rec meet =
   | (_, ProdProjection(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
   | (ProdExtension(_), _) => meet'(weak_head_normalize(ctx, ty1), ty2)
   | (_, ProdExtension(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
-  | (Rec(_), Rec(_)) when assumed(ty1, ty2) => Some(ty1)
   | (Rec(tp1, body1), Rec(tp2, body2)) =>
-    /* The bodies are compared under one shared binder. Two recursive types
-       that spell the same tree differently, with another period or a binder
-       at another depth, fail that comparison and are met through their
-       unrollings instead, as a recursive type against a structural one is. */
-    let (tp, body1, body2) = shared_binder(tp1, body1, tp2, body2);
-    let under_binder =
-      meet(
-        ~seen,
-        ~on_rec_mismatch=GiveUp,
-        Ctx.extend_dummy_tvar(ctx, tp),
-        body1,
-        body2,
-      );
-    switch (under_binder, on_rec_mismatch) {
-    | (Some(ty_body), _) => Some(Rec(tp, ty_body) |> temp)
-    | (None, GiveUp) => None
-    | (None, Unroll) =>
-      through_unrolling(ty1, ty2, (~seen, ty1') =>
-        meet(~seen, ~on_rec_mismatch, ctx, ty1', ty2)
-      )
-    };
+    switch (assumption(ty1, ty2)) {
+    | Some(x) => Some(Var(x) |> temp)
+    | None =>
+      /* The bodies are compared under one shared binder. Two recursive types
+         that spell the same tree differently, with another period or a binder
+         at another depth, fail that comparison and are met through their
+         unrollings instead, as a recursive type against a structural one is. */
+      let (tp, body1, body2) = shared_binder(tp1, body1, tp2, body2);
+      let under_binder =
+        meet(
+          ~seen,
+          ~on_rec_mismatch=GiveUp,
+          Ctx.extend_dummy_tvar(ctx, tp),
+          body1,
+          body2,
+        );
+      switch (under_binder, on_rec_mismatch) {
+      | (Some(ty_body), _) => Some(Rec(tp, ty_body) |> temp)
+      | (None, GiveUp) => None
+      | (None, Unroll) =>
+        through_unrolling(ty1, ty2, (~seen, ty1') =>
+          meet(~seen, ~on_rec_mismatch, ctx, ty1', ty2)
+        )
+      };
+    }
   /* A recursive type meets a structural one through its unrolling; a
      non-contractive type has no unrolling and meets nothing. */
   | (Rec(_), _) =>
