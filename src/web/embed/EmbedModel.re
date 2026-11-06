@@ -442,6 +442,30 @@ module Update = {
   /* The tokens of the tile the caret is on, joined (a name, or a dotted
      path such as Common.flip2), for a goto definition this cell cannot
      answer */
+  /* The name a term under the caret refers to, by its own syntax: a
+     variable or a constructor (a module's name parses as one), a member's
+     whole dotted path (Outer.Inner.x), a type's name */
+  let term_name = (ci: option(Language.Info.t)): option(string) => {
+    let rec path = (e: Language.Exp.t): option(string) =>
+      switch (e.term) {
+      | Var(x)
+      | Constructor(x, _) => Some(x)
+      /* the member's own name, after a dot: the term under the caret is
+         the member alone, so the page looks for it in every module */
+      | Label(l) => Some(l)
+      | Parens(e) => path(e)
+      | Dot(e1, {term: Label(l), _}) =>
+        Option.map(p => p ++ "." ++ l, path(e1))
+      | _ => None
+      };
+    switch (ci) {
+    | Some(InfoExp({user_term, _})) => path(user_term)
+    | Some(InfoPat({user_term: {term: Constructor(x, _), _}, _}))
+    | Some(InfoTyp({user_term: {term: Var(x), _}, _})) => Some(x)
+    | _ => None
+    };
+  };
+
   let indicated_name = (z: Zipper.t): option(string) =>
     switch (Indicated.index(z)) {
     | None => None
@@ -580,13 +604,41 @@ module Update = {
         };
       /* A goto definition with its binding site outside this cell (a
          type of the program's start, a member of another module): the
-         name under the caret, for the page */
+         name under the caret, for the page. A member is its whole dotted
+         path (Geometry.area), from the indicated term; the tile under the
+         caret would give only its "." (^report(44), checked 2026-11-06) */
       | exception (Action.Failure.Exception(_)) =>
         switch (action) {
         | Perform(Move(Goal(BindingSiteOfIndicatedVar))) =>
-          switch (indicated_name(model.cell.editor.state.zipper)) {
+          let name =
+            switch (
+              term_name(
+                Indicated.ci_of(
+                  model.cell.editor.state.zipper,
+                  model.cell.statics.info_map,
+                ),
+              )
+            ) {
+            | Some(name) => Some(name)
+            | None => indicated_name(model.cell.editor.state.zipper)
+            };
+          /* the context menu that asked, closed: the action failed in this
+             cell, so nothing else would close it */
+          let cell =
+            switch (
+              CodeEditable.Update.update(
+                ~settings,
+                ContextMenu(ContextMenu.Model.Close),
+                model.cell,
+              )
+            ) {
+            | updated => updated.model
+            | exception _ => model.cell
+            };
+          switch (name) {
           | Some(name) => {
               ...model,
+              cell,
               goto:
                 Some((
                   name,
@@ -597,7 +649,7 @@ module Update = {
                 )),
             }
           | None => model
-          }
+          };
         | _ => model
         }
       }
@@ -698,6 +750,8 @@ module View = {
           /* (ticket 578) a cell the page can edit: every action reaches it */
           ? CodeEditable.View.view(
               ~globals=Model.globals(model),
+              /* a name defined in another cell: the page's to find (Outbox: goto) */
+              ~goto_any_name=true,
               ~signal=
                 fun
                 | MakeActive => inject(Activate),

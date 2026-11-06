@@ -527,6 +527,9 @@ module View = {
         ~pending_eval_ids: list(Id.t)=[],
         ~show_active_eval: bool=false,
         ~expand_selection=?,
+        /* (#2814) the context menu's Goto definition on any name: embed mode, where another page finds what this
+           editor cannot (ContextMenu.jump_to_binding_data) */
+        ~goto_any_name: bool=false,
         model: Model.t,
       ) => {
     let selected = EditMode.is_active(edit_mode);
@@ -661,6 +664,7 @@ module View = {
                   [],
                 ),
                 ContextMenu.view(
+                  ~any_name=goto_any_name,
                   ~inject=perform_from_menu,
                   ~inject_menu=a => inject(ContextMenu(a)),
                   ~syntax=model.editor.syntax,
