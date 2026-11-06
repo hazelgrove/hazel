@@ -246,7 +246,7 @@ let test_expensive_small_program_reuses = (): test_case(_) =>
         bool,
         "small enough that the size gate alone would skip incremental",
         true,
-        Id.Map.cardinal(req1.eval_info_map.statics)
+        Id.Map.length(req1.eval_info_map.statics)
         < WorkerServer.incremental_min_statics,
       );
       let (plan1, incr1) = run(exp1);
@@ -276,7 +276,7 @@ let test_expensive_small_program_reuses = (): test_case(_) =>
         bool,
         "the reuse plan includes fib(19)",
         true,
-        Id.Map.mem(fib_id, plan2.entries),
+        Id.Map.mem(plan2.entries, fib_id),
       );
       /* replayed entries carry their steps, so the gate stays on */
       check(int, "cost survives reuse", cold_steps, incr2.steps);
@@ -287,7 +287,7 @@ let test_expensive_small_program_reuses = (): test_case(_) =>
         bool,
         "and the next edit reuses fib(19) again",
         true,
-        Id.Map.mem(fib_id, plan3.entries),
+        Id.Map.mem(plan3.entries, fib_id),
       );
     },
   );

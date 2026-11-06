@@ -29,15 +29,15 @@ let check_unused = (name, input, expected_unused) =>
 let theorem_binder = (input, name): Info.pat => {
   let found =
     Id.Map.fold(
-      (_id, info: Info.t, acc) =>
-        switch (info) {
-        | InfoPat({user_term: {term: Var(n), _}, _} as p)
-            when String.equal(n, name) =>
-          Some(p)
-        | _ => acc
-        },
       statics(parse_exp(input)),
-      None,
+      ~init=None,
+      ~f=(~key as _id, ~data as info: Info.t, acc) =>
+      switch (info) {
+      | InfoPat({user_term: {term: Var(n), _}, _} as p)
+          when String.equal(n, name) =>
+        Some(p)
+      | _ => acc
+      }
     );
   switch (found) {
   | Some(p) => p
