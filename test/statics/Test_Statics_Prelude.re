@@ -185,7 +185,8 @@ let annotate_static_errors = (exp: TermBase.exp_t, info_map: Statics.Map.t) => {
         | ([], ws) => Some(Warnings(ws))
         | ([_, ..._], [_, ..._]) =>
           Alcotest.fail(
-            "Both marks and warnings on the id: " ++ Id.show(List.hd(ids)),
+            "Both marks and warnings on the id: "
+            ++ Id.show(List.hd_exn(ids)),
           )
         }
       | None =>
