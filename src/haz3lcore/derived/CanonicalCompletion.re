@@ -119,13 +119,14 @@ let masks_of_records =
   List.fold_left(
     ~f=
       (m, r: shard_record) =>
-        Id.Map.add(
-          r.tile_id,
-          Language.IdTagged.IdTag.{
-            present: r.original_shards,
-            prefixes: r.prefixes,
-          },
+        Id.Map.set(
           m,
+          ~key=r.tile_id,
+          ~data=
+            Language.IdTagged.IdTag.{
+              present: r.original_shards,
+              prefixes: r.prefixes,
+            },
         ),
     ~init=Id.Map.empty,
     records,

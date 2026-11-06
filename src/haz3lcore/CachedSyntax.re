@@ -74,13 +74,15 @@ let mk_refractor_rows =
     )
     : Id.Map.t(int) => {
   let entries =
-    Id.Map.union(
-      (_, _, b) => Some(b),
-      z.refractors.manuals |> Id.Map.of_list,
+    Id.Map.merge_skewed(
+      z.refractors.manuals |> Id.Map.of_alist_reduce(~f=(_, latest) => latest),
       z.refractors.multis.ephemerals,
+      ~combine=(~key as _, _, b) =>
+      b
     );
-  Id.Map.filter_map(
-    (id, entry: Refractors.entry) => {
+  Id.Map.filter_mapi(
+    entries,
+    ~f=(~key as id, ~data as entry: Refractors.entry) => {
       let syntax_piece = refractor_syntax_piece(id, term_data);
       let p = Refractors.to_projector(syntax_piece, id, entry);
       let info =
@@ -101,7 +103,6 @@ let mk_refractor_rows =
       | Block(n) => Some(n)
       };
     },
-    entries,
   );
 };
 

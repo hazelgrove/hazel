@@ -291,7 +291,7 @@ let rec go =
             | Some(id) when Id.equal(w.id, id) =>
               raise(Found_indent(indent))
             | Some(_) => (indent, map) /* target mode: skip map add */
-            | None => (indent, Id.Map.add(w.id, indent, map))
+            | None => (indent, Id.Map.set(map, ~key=w.id, ~data=indent))
             };
           | Secondary(_)
           | Grout(_)
@@ -312,10 +312,11 @@ let rec go =
                 List.fold_left(
                   ~f=
                     (acc, child) =>
-                      Id.Map.union(
-                        (_, a, _) => Some(a),
+                      Id.Map.merge_skewed(
                         go(~not_top=true, level, child),
                         acc,
+                        ~combine=(~key as _, a, _) =>
+                        a
                       ),
                   ~init=map,
                   t.children,
@@ -351,10 +352,9 @@ let level_map = (seg: Segment.t): Id.Map.t(int) =>
   |> List.fold_left(
        ~f=
          (map, part) =>
-           Id.Map.union(
-             (_, a, _) => Some(a),
-             go(~not_top=false, 0, part),
-             map,
+           Id.Map.merge_skewed(
+             go(~not_top=false, 0, part), map, ~combine=(~key as _, a, _) =>
+             a
            ),
        ~init=Id.Map.empty,
      );
@@ -420,8 +420,7 @@ let fix_leading_indentation =
     switch (seg) {
     | [] => []
     | [Piece.Secondary(w), ...rest] when Secondary.is_linebreak(w) =>
-      let indent =
-        Id.Map.find_opt(w.id, indent_map) |> Option.value(~default=0);
+      let indent = Id.Map.find(indent_map, w.id) |> Option.value(~default=0);
       let rest_without_leading_spaces = drop_leading_spaces(rest);
       let spaces =
         List.init(indent, ~f=_ =>

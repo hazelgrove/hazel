@@ -217,18 +217,16 @@ let tests = (
         /* every chat's root prompt message restored with its api copy */
         let prompts_ok =
           Haz3lcore.Id.Map.for_all(
-            (_, chat: Chat.Model.t) =>
-              Haz3lcore.Id.Map.for_all(
-                (_, msg: Message.Model.t) =>
-                  switch (msg.role) {
-                  | System(Prompt) =>
-                    String.equal(msg.content, String.strip(cur))
-                    && Option.is_some(msg.api_message)
-                  | _ => true
-                  },
-                chat.message_map,
-              ),
-            round.chat_system.chat_map,
+            round.chat_system.chat_map, ~f=(chat: Chat.Model.t) =>
+            Haz3lcore.Id.Map.for_all(
+              chat.message_map, ~f=(msg: Message.Model.t) =>
+              switch (msg.role) {
+              | System(Prompt) =>
+                String.equal(msg.content, String.strip(cur))
+                && Option.is_some(msg.api_message)
+              | _ => true
+              }
+            )
           );
         check(bool, "chat prompt messages restored", true, prompts_ok);
       },

@@ -6,7 +6,7 @@
 let incomplete_ids = (seg: Segment.t): Id.Map.t(unit) =>
   Segment.incomplete_tiles_deep(seg)
   |> List.fold_left(
-       ~f=(acc, t: Tile.t) => Id.Map.add(t.id, (), acc),
+       ~f=(acc, t: Tile.t) => Id.Map.set(acc, ~key=t.id, ~data=()),
        ~init=Id.Map.empty,
      );
 
@@ -118,7 +118,7 @@ let rec find_tiles = (ids: Id.Map.t(unit), seg: Segment.t): list(Tile.t) =>
       (p: Piece.t) =>
         switch (p) {
         | Tile(t) =>
-          (Id.Map.mem(t.id, ids) ? [t] : [])
+          (Id.Map.mem(ids, t.id) ? [t] : [])
           @ List.concat_map(~f=find_tiles(ids), t.children)
         | _ => []
         },
@@ -135,7 +135,7 @@ let apply_plans =
   |> List.map(~f=(p: Piece.t) =>
        switch (p) {
        | Tile(t) =>
-         switch (Id.Map.find_opt(t.id, plans)) {
+         switch (Id.Map.find(plans, t.id)) {
          | Some(child_plans) =>
            Piece.Tile({
              ...t,
@@ -173,7 +173,7 @@ let apply_plans =
 let all_piece_ids = (seg: Segment.t): Id.Map.t(unit) =>
   Segment.ids(seg)
   |> List.fold_left(
-       ~f=(acc, id) => Id.Map.add(id, (), acc),
+       ~f=(acc, id) => Id.Map.set(acc, ~key=id, ~data=()),
        ~init=Id.Map.empty,
      );
 
@@ -199,7 +199,7 @@ let set_lb_indents = (targets: Id.Map.t(int), seg: Segment.t): Segment.t => {
     | [Piece.Secondary(w) as p, ...rest] when Secondary.is_linebreak(w) =>
       let (spaces, rest) = Segment.split_space_run(rest);
       let spaces =
-        switch (Id.Map.find_opt(w.id, targets)) {
+        switch (Id.Map.find(targets, w.id)) {
         | None => spaces
         | Some(n) =>
           List.length(spaces) >= n
@@ -223,7 +223,7 @@ let go_region =
     let full = Zipper.unselect_and_zip(z);
     let new_lbs =
       collect_lb_indents(full)
-      |> List.filter(~f=((id, _)) => !Id.Map.mem(id, before));
+      |> List.filter(~f=((id, _)) => !Id.Map.mem(before, id));
     switch (new_lbs) {
     | [] => z
     | [(first_id, first_cur), ..._] =>
@@ -233,12 +233,11 @@ let go_region =
         settled
           ? new_lbs
             |> List.filter_map(~f=((id, _)) =>
-                 Id.Map.find_opt(id, indent_map)
-                 |> Option.map(~f=l => (id, l))
+                 Id.Map.find(indent_map, id) |> Option.map(~f=l => (id, l))
                )
           : {
             let canonical =
-              Id.Map.find_opt(first_id, indent_map)
+              Id.Map.find(indent_map, first_id)
               |> Option.value(~default=first_cur);
             let delta = canonical - first_cur;
             delta == 0
@@ -249,7 +248,9 @@ let go_region =
       List.is_empty(targets)
         ? z
         : ZipperBase.MapSegment.go(
-            set_lb_indents(targets |> Id.Map.of_list),
+            set_lb_indents(
+              targets |> Id.Map.of_alist_reduce(~f=(_, latest) => latest),
+            ),
             z,
           );
     };
@@ -262,7 +263,9 @@ let go = (~before: option(Id.Map.t(unit)), z: Zipper.t): Zipper.t =>
     let full = Zipper.unselect_and_zip(z);
     let after = incomplete_ids(full);
     let completed =
-      Id.Map.filter((id, _) => !Id.Map.mem(id, after), before);
+      Id.Map.filteri(before, ~f=(~key as id, ~data as _) =>
+        !Id.Map.mem(after, id)
+      );
     if (Id.Map.is_empty(completed)) {
       z;
     } else {
@@ -280,7 +283,7 @@ let go = (~before: option(Id.Map.t(unit)), z: Zipper.t): Zipper.t =>
              )
                ? Some((t.id, child_plans)) : None;
            })
-        |> Id.Map.of_list;
+        |> Id.Map.of_alist_reduce(~f=(_, latest) => latest);
       let indent_map = lazy(Indentation.level_map(full));
       Id.Map.is_empty(plans)
         ? z : ZipperBase.MapSegment.go(apply_plans(~indent_map, plans), z);

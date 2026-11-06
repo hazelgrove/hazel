@@ -305,7 +305,7 @@ let incremental_min_statics = 2500;
 let incremental_min_prev_steps = 100_000;
 
 let wants_incremental = (req_value: Request.value): bool =>
-  Util.Id.Map.cardinal(req_value.eval_info_map.statics)
+  Util.Id.Map.length(req_value.eval_info_map.statics)
   >= incremental_min_statics
   || req_value.prev.steps >= incremental_min_prev_steps;
 

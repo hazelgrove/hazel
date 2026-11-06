@@ -60,13 +60,11 @@ let run = fun (m, xs) -> fold_left(xs, fun (m, a) -> ^^probe(update(m, a)), m) i
 run(0, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])|};
 
 let all_exp_targets = (info_map: Statics.Map.t): Sample.targets =>
-  Id.Map.filter_map(
-    (_id, info) =>
-      switch (info) {
-      | Info.InfoExp(_) => Some(Sample.empty_capture_spec)
-      | _ => None
-      },
-    info_map,
+  Id.Map.filter_map(info_map, ~f=info =>
+    switch (info) {
+    | Info.InfoExp(_) => Some(Sample.empty_capture_spec)
+    | _ => None
+    }
   );
 
 let eval_n = (~probe_all=false, ~reps: int, code: string): unit => {

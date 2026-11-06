@@ -220,7 +220,7 @@ let record_statics_counts =
     current :=
       {
         ...current^,
-        info_map_entries: Haz3lcore.Id.Map.cardinal(statics.info_map),
+        info_map_entries: Haz3lcore.Id.Map.length(statics.info_map),
         errors: List.length(statics.error_ids),
         warnings: List.length(statics.warning_ids),
         statics_outcome: Some(statics_outcome),
@@ -236,7 +236,7 @@ let record_syntax_counts = (syntax: Haz3lcore.CachedSyntax.t): unit =>
       {
         ...current^,
         segment_tokens: List.length(syntax.segment),
-        tiles: Haz3lcore.Id.Map.cardinal(syntax.measured.tiles),
+        tiles: Haz3lcore.Id.Map.length(syntax.measured.tiles),
         rows: Haz3lcore.Measured.Rows.cardinal(syntax.measured.rows),
         projectors: List.length(syntax.projector_list),
       };

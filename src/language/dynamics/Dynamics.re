@@ -46,7 +46,7 @@ module Map = {
   type t = Sample.Map.t;
   let empty: t = Sample.Map.empty;
   let mk: t => t = Fn.id;
-  let lookup = (id, map: t) => Id.Map.find_opt(id, map);
+  let lookup = (id, map: t) => Id.Map.find(map, id);
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]

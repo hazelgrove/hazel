@@ -90,7 +90,9 @@ let append = (base: t, ext: t): t => {
   let delta = base.step_count - ext.initial_step_count;
   let probes =
     Id.Map.fold(
-      (id, ext_samples, acc) => {
+      ext.probes,
+      ~init=base.probes,
+      ~f=(~key as id, ~data as ext_samples, acc) => {
         let samples =
           if (delta == 0) {
             ext_samples;
@@ -98,14 +100,12 @@ let append = (base: t, ext: t): t => {
             List.map(~f=shift_sample(delta), ext_samples);
           };
         let existing =
-          switch (Id.Map.find_opt(id, acc)) {
+          switch (Id.Map.find(acc, id)) {
           | Some(l) => l
           | None => []
           };
-        Id.Map.add(id, samples @ existing, acc);
+        Id.Map.set(acc, ~key=id, ~data=samples @ existing);
       },
-      ext.probes,
-      base.probes,
     );
   let tests =
     List.fold_left(
@@ -237,7 +237,7 @@ let update =
            * for programs with many calls but no probes on them. */
           let state =
             switch (arg_opt) {
-            | Some(arg) when Id.Map.mem(app_id, eval_info.targets) =>
+            | Some(arg) when Id.Map.mem(eval_info.targets, app_id) =>
               record_event(
                 state,
                 ObsTrace.CallEnter({

@@ -15,7 +15,7 @@ let is_chain = (exp: Exp.t) =>
 let is_inside_function = (info_map: StaticsBase.Map.t, info: Info.t) =>
   Info.ancestors_of(info)
   |> List.exists(~f=ancestor_id =>
-       switch (Id.Map.find_opt(ancestor_id, info_map)) {
+       switch (Id.Map.find(info_map, ancestor_id)) {
        | Some(Info.InfoExp({user_term, _})) =>
          switch (Exp.term_of(user_term)) {
          | Fun(_)
@@ -32,7 +32,7 @@ let is_top_level_leaf = (info_map: StaticsBase.Map.t, id: Id.t, info: Info.t) =>
     switch (Info.parent_id_of(info)) {
     | None => !is_chain(user_term)
     | Some(parent_id) =>
-      switch (Id.Map.find_opt(parent_id, info_map)) {
+      switch (Id.Map.find(info_map, parent_id)) {
       | Some(Info.InfoExp({user_term: parent, _})) =>
         switch (Exp.term_of(parent)) {
         | Let(_, def, body) =>
@@ -52,11 +52,8 @@ let is_top_level_leaf = (info_map: StaticsBase.Map.t, id: Id.t, info: Info.t) =>
   };
 
 let pending_ids = (info_map: StaticsBase.Map.t): list(Id.t) =>
-  Id.Map.fold(
-    (id, info, acc) =>
-      is_top_level_leaf(info_map, id, info) ? [id, ...acc] : acc,
-    info_map,
-    [],
+  Id.Map.fold(info_map, ~init=[], ~f=(~key as id, ~data as info, acc) =>
+    is_top_level_leaf(info_map, id, info) ? [id, ...acc] : acc
   );
 
 let remove_streamed_ids =

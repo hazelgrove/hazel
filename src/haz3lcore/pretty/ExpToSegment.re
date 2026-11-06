@@ -3482,7 +3482,7 @@ let collect_shard_masks =
   let acc = ref(Id.Map.empty);
   let record = (ann: IdTagged.IdTag.t) =>
     List.iter(
-      ~f=((id, mask)) => acc := Id.Map.add(id, mask, acc^),
+      ~f=((id, mask)) => acc := Id.Map.set(acc^, ~key=id, ~data=mask),
       ann.incomplete,
     );
   let f = (continue, t: IdTagged.t(_)) => {
@@ -3520,7 +3520,7 @@ let rec strip_synthesized_shards =
            | ([x, ...xs'], [y, ...ys']) =>
              x == y ? is_subsequence(xs', ys') : is_subsequence(xs, ys')
            };
-         switch (Id.Map.find_opt(t.id, masks)) {
+         switch (Id.Map.find(masks, t.id)) {
          | Some({present: [], _}) =>
            /* Fully synthetic tile (e.g. the case/end wrapped around an
               orphaned rule chain): drop it, splice out all children */
@@ -3628,8 +3628,8 @@ let strip_if_incomplete = (any: Any.t, seg: Segment.t): Segment.t => {
 let uniquify_typ_ids = (ty: Typ.t): Typ.t => {
   let seen = ref(Id.Set.empty);
   let distinct = id => {
-    let id = Id.Set.mem(id, seen^) ? Id.mk() : id;
-    seen := Id.Set.add(id, seen^);
+    let id = Id.Set.mem(seen^, id) ? Id.mk() : id;
+    seen := Id.Set.add(seen^, id);
     id;
   };
   Typ.map_term(

@@ -11,26 +11,33 @@ let evaluate_probes = (code: string): (Sample.Map.t, Statics.Map.t) => {
   | Some(z) =>
     let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z, ~root=Exp);
     let probe_ids =
-      Id.Map.union(
-        (_, _, _) => Some(),
-        Id.Map.map(_ => (), Id.Map.of_list(z.refractors.manuals)),
-        Id.Map.map(_ => (), z.refractors.multis.ephemerals),
+      Id.Map.merge_skewed(
+        Id.Map.map(
+          Id.Map.of_alist_reduce(z.refractors.manuals, ~f=(_, latest) =>
+            latest
+          ),
+          ~f=_ =>
+          ()
+        ),
+        Id.Map.map(z.refractors.multis.ephemerals, ~f=_ => ()),
+        ~combine=(~key as _, _, _) =>
+        ()
       );
     let (info_map, elaborated) =
       Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
     let targets: Sample.targets =
       Id.Map.fold(
-        (id, (), acc) => {
+        probe_ids,
+        ~init=Id.Map.empty,
+        ~f=(~key as id, ~data as (), acc) => {
           let refs =
             switch (Statics.Map.lookup(id, info_map)) {
             | Some(InfoExp(_)) => Statics.Map.refs_in(info_map, id)
             | Some(InfoPat(_)) => Statics.Map.bound_in(info_map, id)
             | _ => []
             };
-          Id.Map.add(id, Sample.{refs: refs}, acc);
+          Id.Map.set(acc, ~key=id, ~data=Sample.{refs: refs});
         },
-        probe_ids,
-        Id.Map.empty,
       );
     let (_, state) =
       Evaluator.evaluate(
@@ -48,7 +55,7 @@ let evaluate_probes = (code: string): (Sample.Map.t, Statics.Map.t) => {
    samples passes the tests that expect None. */
 let first_probe_samples_and_ctx = (code: string): (list(Sample.t), Ctx.t) => {
   let (probes, info_map) = evaluate_probes(code);
-  switch (Id.Map.bindings(probes)) {
+  switch (Id.Map.to_alist(probes)) {
   | [] => failf("no probe recorded anything in: %s", code)
   | [(probe_id, samples), ..._] =>
     switch (Statics.Map.lookup(probe_id, info_map)) {
@@ -222,7 +229,7 @@ let uncoloured_tiles_test = (name: string, code: string) =>
         "tiles of a wholly runtime-derived type left uncoloured",
         [],
         Test_TypToSegment.tile_ids(seg)
-        |> List.filter(~f=id => !Id.Set.mem(id, dynamic_ids))
+        |> List.filter(~f=id => !Id.Set.mem(dynamic_ids, id))
         |> List.map(~f=id => Id.str8(id)),
       );
     },

@@ -134,7 +134,7 @@ module Typ = {
       | None => None
       | Some(term) =>
         let (info_map, _) = Statics.mk(CoreSettings.on, Ctx.empty, term);
-        switch (Id.Map.find_opt(Exp.rep_id(term), info_map)) {
+        switch (Id.Map.find(info_map, Exp.rep_id(term))) {
         | Some(InfoExp({ty, _})) => Some(normalize_unknowns(ty))
         | _ => None
         };

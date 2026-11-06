@@ -269,10 +269,8 @@ let term_string_of: Info.t => string =
 
 let all = (info_map: Statics.Map.t): list(string) => {
   Id.Map.fold(
-    (_id: Id.t, info: Info.t, acc) =>
-      Info.is_error(info) ? [info, ...acc] : acc,
-    info_map,
-    [],
+    info_map, ~init=[], ~f=(~key as _id: Id.t, ~data as info: Info.t, acc) =>
+    Info.is_error(info) ? [info, ...acc] : acc
   )
   |> List.dedup_and_sort(~compare=Poly.compare)
   |> List.map(~f=info => {

@@ -704,16 +704,15 @@ let yielding_streaming_outbox_test =
       check(
         int,
         "streamed entry count matches final entries",
-        Id.Map.cardinal(final_state.incr_eval.entries),
-        Id.Map.cardinal(stream.entries),
+        Id.Map.length(final_state.incr_eval.entries),
+        Id.Map.length(stream.entries),
       );
       check(
         bool,
         "every streamed id appears in final entries",
         true,
-        Id.Map.for_all(
-          (id, _) => Id.Map.mem(id, final_state.incr_eval.entries),
-          stream.entries,
+        Id.Map.for_alli(stream.entries, ~f=(~key as id, ~data as _) =>
+          Id.Map.mem(final_state.incr_eval.entries, id)
         ),
       );
     },
