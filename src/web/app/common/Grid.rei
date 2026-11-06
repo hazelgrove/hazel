@@ -1,0 +1,64 @@
+/* Where a code editor's cells are on the screen.
+
+   Measured lays code out on a grid of rows and columns, and the decorations,
+   the caret and the mouse all work in those cells. This is the one place
+   that turns a cell into pixels and back. Without padding a cell is at
+   (col * col_width, row * row_height); block padding (Padding) inserts
+   gadgets, pixels placed in the gap between two fragments of text on a row
+   or before a row's first fragment, which move everything after them. A
+   gadget sits at its gap's midpoint, so an overhang into the left half of
+   the gap rides with the text before it and one into the right half with
+   the text after. Two touching fragments share a boundary column, so a
+   gadget there needs the caller to say which side it means: `x_start` is
+   after it, `x_end` before. */
+
+open Util;
+open Haz3lcore;
+
+type t;
+
+/* No padding: the affine map on the font metrics. */
+let flat: FontMetrics.t => t;
+
+/* A gadget for every gap whose demand, at `pad` pixels per edge, exceeds
+   the whitespace already there, and pixels above a row wherever a leading
+   demand on it exceeds the space between the two rows' text boxes, the
+   gaps opened between them included. */
+let of_padding: (~font_metrics: FontMetrics.t, ~pad: float, Padding.t) => t;
+
+let font_metrics: t => FontMetrics.t;
+
+/* Pixels per block edge; zero on a flat grid. */
+let pad: t => float;
+
+/* The left edge of cell `col` on `row`, after any gadget at that boundary. */
+let x_start: (t, ~row: int, int) => float;
+
+/* The right edge of cell `col - 1` on `row`, before any gadget at that
+   boundary. */
+let x_end: (t, ~row: int, int) => float;
+
+/* A fractional column on `row`. A gadget before the column counts; one on
+   the column counts as `x_start` would. */
+let x: (t, ~row: int, float) => float;
+
+/* The pixels the text layer inserts before the piece at `col` on `row`. */
+let gadget_before: (t, ~row: int, int) => option(float);
+
+let y_top: (t, int) => float;
+
+let y_bottom: (t, int) => float;
+
+/* The pixels inserted below `row`, for the gadget the text layer puts
+   before its line break. */
+let row_gap: (t, int) => float;
+
+/* The text box of a row: the row less its leading, half above and half
+   below. */
+let text_top: (t, int) => float;
+
+let text_bottom: (t, int) => float;
+
+/* The cell under a pixel position relative to the editor's text box: the
+   row whose box holds the y, and the nearest column boundary at the x. */
+let point_of_px: (t, ~x: float, ~y: float) => Point.t;

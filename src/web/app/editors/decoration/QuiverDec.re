@@ -124,26 +124,29 @@ let rest_position =
 /* The implicit marker in a completion payload is rendered as a hole, never
    as source text. Literal spaces are retained by the chip's white-space CSS. */
 let padding_nodes =
-    (~font_metrics: FontMetrics.t, ~shape=Grout.Convex, text: string)
-    : list(Node.t) =>
+    (~grid: Grid.t, ~shape=Grout.Convex, text: string): list(Node.t) => {
+  let {col_width, row_height, text_height}: FontMetrics.t =
+    Grid.font_metrics(grid);
   Token.to_list(text)
   |> List.map(c =>
        c == Token.implicit_hole_marker
          ? EmptyHoleDec.view(
              FontMetrics.{
-               col_width: font_metrics.col_width *. chip_font_scale,
-               row_height: font_metrics.row_height *. chip_font_scale,
+               col_width: col_width *. chip_font_scale,
+               row_height: row_height *. chip_font_scale,
+               text_height: text_height *. chip_font_scale,
              },
              shape,
            )
          : Node.text(c)
      );
+};
 
 /* Chip segments: the remainder is the payload (full contrast); the
    typed prefix and later coalesced segments fade. */
 let delimiter_nodes =
     (
-      ~font_metrics: FontMetrics.t,
+      ~grid: Grid.t,
       ~on_apply: option(Id.t => Ui_effect.t(unit)),
       ~head_padding: option((string, string))=None,
       delimiters: list(CanonicalCompletion.delimiter_info),
@@ -160,7 +163,7 @@ let delimiter_nodes =
              Option.is_some(d.trailing_hole) ? " " : "",
            )
          };
-       let sep = padding_nodes(~font_metrics, before);
+       let sep = padding_nodes(~grid, before);
        let seg_cls = k > 0 ? ["chip-seg", "chip-seg-later"] : ["chip-seg"];
        /* modifier-click completes this delimiter's tile; unmodified
           pointer events fall through to the editor */
@@ -198,7 +201,7 @@ let delimiter_nodes =
          };
        let suffix =
          padding_nodes(
-           ~font_metrics,
+           ~grid,
            ~shape=Option.value(~default=Grout.Convex, d.trailing_hole),
            after
            ++ (
@@ -213,10 +216,10 @@ let delimiter_nodes =
 
 /* Backpack.main's top-edge rule (before cefc46bb86): rise at most four
    rows, with a special first-row position above the editor. */
-let flagpole_top = (~row: int, ~row_height: float): float => {
+let flagpole_top = (~grid: Grid.t, ~row: int): float => {
   let displacement = min(row, 4);
-  let baseline = float_of_int(row - displacement + (row == 0 ? 0 : 1));
-  (baseline -. 1.33) *. row_height;
+  let baseline = row - displacement + (row == 0 ? 0 : 1);
+  Grid.y_top(grid, baseline) -. 1.33 *. Grid.font_metrics(grid).row_height;
 };
 
 /* Match the actual caret's top edge: no overlap with its chevron and
@@ -224,7 +227,7 @@ let flagpole_top = (~row: int, ~row_height: float): float => {
    sharing CaretDec's edge also keeps this correct when font size changes. */
 let flagpole_geometry =
     (
-      ~font_metrics: FontMetrics.t,
+      ~grid: Grid.t,
       ~row,
       ~col,
       ~caret_form: option((Direction.t, option(Direction.t))),
@@ -233,18 +236,19 @@ let flagpole_geometry =
   let (side, shape) =
     Option.value(caret_form, ~default=(Direction.Right, None));
   let (edge_left, edge_width) = CaretDec.top_edge(side, shape);
-  let top = flagpole_top(~row, ~row_height=font_metrics.row_height);
+  let {col_width, _}: FontMetrics.t = Grid.font_metrics(grid);
+  let top = flagpole_top(~grid, ~row);
   {
     top,
-    left: (float_of_int(col) +. edge_left) *. font_metrics.col_width,
-    width: edge_width *. font_metrics.col_width,
-    height: float_of_int(row) *. font_metrics.row_height -. top,
+    left: Grid.x_start(grid, ~row, col) +. edge_left *. col_width,
+    width: edge_width *. col_width,
+    height: Grid.y_top(grid, row) -. top,
   };
 };
 
-let flagpole_view = (~font_metrics, ~row, ~col, ~caret_form, body) => {
+let flagpole_view = (~grid, ~row, ~col, ~caret_form, body) => {
   let {top, left, width, height}: DecUtil.fdims =
-    flagpole_geometry(~font_metrics, ~row, ~col, ~caret_form);
+    flagpole_geometry(~grid, ~row, ~col, ~caret_form);
   div(
     ~attrs=[
       Attr.classes([
@@ -287,7 +291,7 @@ let flagpole_view = (~font_metrics, ~row, ~col, ~caret_form, body) => {
    site with a short tail, independent of the syntax's nib shape. */
 let chip_view =
     (
-      ~font_metrics: FontMetrics.t,
+      ~grid: Grid.t,
       ~row: int,
       ~col: int,
       ~caret_form: option((Direction.t, option(Direction.t))),
@@ -296,12 +300,13 @@ let chip_view =
       body: list(Node.t),
     )
     : Node.t => {
-  let x = float_of_int(col) *. font_metrics.col_width;
-  let y = float_of_int(row) *. font_metrics.row_height;
+  let x = Grid.x_start(grid, ~row, col);
+  let y = Grid.y_top(grid, row);
   let body_left =
     switch (at_caret, caret_form) {
     | (true, Some((side, shape))) =>
-      fst(CaretDec.top_edge(side, shape)) *. font_metrics.col_width
+      fst(CaretDec.top_edge(side, shape))
+      *. Grid.font_metrics(grid).col_width
     | _ => 0.
     };
   div(
@@ -357,14 +362,14 @@ let delimiters_len =
    fixpoint: a merge can move the bubble to a member's pin and onto a
    neighbor it was clear of before. */
 let coalesce_overlaps =
-    (~font_metrics: FontMetrics.t, chips: list(positioned_insertion))
+    (~grid: Grid.t, chips: list(positioned_insertion))
     : list(positioned_insertion) => {
   let chip_w = (c: positioned_insertion) =>
     float_of_int(delimiters_len(c.delimiters) + 2)
-    *. font_metrics.col_width
+    *. Grid.font_metrics(grid).col_width
     *. chip_font_scale;
   let left_px = (c: positioned_insertion) =>
-    float_of_int(c.col) *. font_metrics.col_width;
+    Grid.x_start(grid, ~row=c.row, c.col);
   let finalize = (members: list(positioned_insertion)) => {
     let by_idx =
       List.sort(
@@ -413,7 +418,7 @@ let coalesce_overlaps =
 let bubbles =
     (
       ~measured: Measured.t,
-      ~font_metrics: FontMetrics.t,
+      ~grid: Grid.t,
       ~caret_pos: option((int, int)),
       ~owned: list(CanonicalCompletion.insertion),
       seg: Segment.t,
@@ -462,14 +467,14 @@ let bubbles =
       },
       caret_bubble @ resting,
     );
-  coalesce_overlaps(~font_metrics, sorted);
+  coalesce_overlaps(~grid, sorted);
 };
 
 /* Main view function: renders quiver decorations for a segment */
 let view =
     (
       ~measured: Measured.t,
-      ~font_metrics: FontMetrics.t,
+      ~grid: Grid.t,
       ~flagpole=false,
       ~head_padding: option((string, string))=None,
       ~droppable: option((Id.t, int))=None,
@@ -490,7 +495,7 @@ let view =
      stale row claims displacing probe offsides */
   RowOffsets.reset();
 
-  switch (bubbles(~measured, ~font_metrics, ~caret_pos, ~owned, seg)) {
+  switch (bubbles(~measured, ~grid, ~caret_pos, ~owned, seg)) {
   | [] =>
     /* No completions needed */
     div([])
@@ -500,21 +505,21 @@ let view =
       |> List.map((ins: positioned_insertion) => {
            let body =
              delimiter_nodes(
-               ~font_metrics,
+               ~grid,
                ~on_apply,
                ~head_padding=ins.owned ? head_padding : None,
                ins.delimiters,
              );
            flagpole && ins.owned
              ? flagpole_view(
-                 ~font_metrics,
+                 ~grid,
                  ~row=ins.row,
                  ~col=ins.col,
                  ~caret_form,
                  body,
                )
              : chip_view(
-                 ~font_metrics,
+                 ~grid,
                  ~row=ins.row,
                  ~col=ins.col,
                  ~caret_form,

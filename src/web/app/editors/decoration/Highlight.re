@@ -219,10 +219,11 @@ let rows_of_segment =
 
 /* --- Unified outline path construction ---
  *
- * Instead of drawing one SVG per row (which gives per-row outlines when
- * stroked), we trace a single path around the exterior of all connected
- * rows, eliminating shared interior edges. The path preserves chevron
- * nib shapes on every row's left and right edges. */
+ * One path around the exterior of a connected group of rows, so a stroke
+ * has no interior edges, keeping the chevron nib shapes on every row's left
+ * and right edges. Built in pixels: each row's edges come from the grid, so
+ * a row's extent includes any gadgets inside it, and the rows of a group
+ * meet halfway through the leading between them. */
 
 type row_data = {
   row_num: int,
@@ -245,11 +246,51 @@ let row_data_of =
   };
 };
 
-let left_x = (row: row_data): float =>
-  float_of_int(row.left_col) -. ShardDec.shape_adjust(Left, row.left_tip);
+/* A row's pixel box: its edges with the tips' sub-cell adjustment, its top
+   and bottom meeting the group's neighboring rows halfway. */
+type row_box = {
+  row: row_data,
+  left: float,
+  right: float,
+  top: float,
+  bottom: float,
+};
 
-let right_x = (row: row_data): float =>
-  float_of_int(row.right_col) -. ShardDec.shape_adjust(Right, row.right_tip);
+let boxes_of = (~grid: Grid.t, rows: list(row_data)): list(row_box) => {
+  let {col_width, _}: FontMetrics.t = Grid.font_metrics(grid);
+  let mid = (above: row_data, below: row_data) =>
+    (Grid.y_bottom(grid, above.row_num) +. Grid.y_top(grid, below.row_num))
+    /. 2.;
+  let rec go = (above: option(row_data), rows: list(row_data)) =>
+    switch (rows) {
+    | [] => []
+    | [row, ...rest] =>
+      let r = row.row_num;
+      let box = {
+        row,
+        left:
+          Grid.x_start(grid, ~row=r, row.left_col)
+          -. ShardDec.shape_adjust(Left, row.left_tip)
+          *. col_width,
+        right:
+          Grid.x_end(grid, ~row=r, row.right_col)
+          -. ShardDec.shape_adjust(Right, row.right_tip)
+          *. col_width,
+        top:
+          switch (above) {
+          | None => Grid.y_top(grid, r)
+          | Some(a) => mid(a, row)
+          },
+        bottom:
+          switch (ListUtil.hd_opt(rest)) {
+          | None => Grid.y_bottom(grid, r)
+          | Some(b) => mid(row, b)
+          },
+      };
+      [box, ...go(Some(row), rest)];
+    };
+  go(None, rows);
+};
 
 /* Group rows into connected components (consecutive row_num values) */
 let group_consecutive = (rows: list(row_data)): list(list(row_data)) => {
@@ -276,119 +317,52 @@ let group_consecutive = (rows: list(row_data)): list(list(row_data)) => {
   go([], [], rows);
 };
 
-/* Build a single closed path around a connected group of rows.
- * Traces clockwise: top edge, right side down (chevrons + steps),
- * bottom edge, left side up (chevrons + steps). */
+/* One side of the outline: each box's edge, then the step to the next. */
+let rec side =
+        (edge: row_box => list(SvgUtil.Path.cmd), x: row_box => float, boxes)
+        : list(SvgUtil.Path.cmd) =>
+  switch (boxes) {
+  | [] => []
+  | [box] => edge(box)
+  | [box, next, ...rest] =>
+    edge(box)
+    @ (x(box) == x(next) ? [] : [SvgUtil.Path.H({x: x(next)})])
+    @ side(edge, x, [next, ...rest])
+  };
+
+/* A single closed path around a connected group of rows. Traces clockwise:
+ * top edge, right side down (chevrons + steps), bottom edge, left side up
+ * (chevrons + steps). */
 let outline_path =
-    (~origin_col: float, ~origin_row: int, rows: list(row_data))
-    : list(SvgUtil.Path.cmd) => {
-  switch (rows) {
+    (~grid: Grid.t, boxes: list(row_box)): list(SvgUtil.Path.cmd) =>
+  switch (boxes) {
   | [] => []
   | [first, ..._] =>
-    let last = ListUtil.last(rows);
-    let n = List.length(rows);
-
-    let lx = (row: row_data) => left_x(row) -. origin_col;
-    let rx = (row: row_data) => right_x(row) -. origin_col;
-    let ty = (row: row_data) => float_of_int(row.row_num - origin_row);
-
-    let top =
-      SvgUtil.Path.[
-        M({
-          x: lx(first),
-          y: ty(first),
-        }),
-        H({x: rx(first)}),
-      ];
-
-    let right_side =
-      rows
-      |> List.mapi((i, row) => {
-           let chevron = ShardDec.chevron(row.right_tip, Right);
-           let step =
-             if (i < n - 1) {
-               let next = List.nth(rows, i + 1);
-               let rx_cur = rx(row);
-               let rx_next = rx(next);
-               if (rx_cur == rx_next) {
-                 [];
-               } else {
-                 [SvgUtil.Path.H({x: rx_next})];
-               };
-             } else {
-               [];
-             };
-           chevron @ step;
-         })
-      |> List.flatten;
-
-    let bottom = [SvgUtil.Path.H({x: lx(last)})];
-
-    let rows_rev = List.rev(rows);
-    let left_side =
-      rows_rev
-      |> List.mapi((i, row) => {
-           let chevron = ShardDec.chevron(row.left_tip, Left);
-           let step =
-             if (i < n - 1) {
-               let next_up = List.nth(rows_rev, i + 1);
-               let lx_cur = lx(row);
-               let lx_next = lx(next_up);
-               if (lx_cur == lx_next) {
-                 [];
-               } else {
-                 [SvgUtil.Path.H({x: lx_next})];
-               };
-             } else {
-               [];
-             };
-           chevron @ step;
-         })
-      |> List.flatten;
-
-    top @ right_side @ bottom @ left_side @ [SvgUtil.Path.Z];
-  };
-};
-
-type bbox = {
-  min_col: float,
-  max_col: float,
-  min_row: int,
-  max_row: int,
-};
-
-let bbox_of = (rows: list(row_data)): option(bbox) =>
-  switch (rows) {
-  | [] => None
-  | [first, ...rest] =>
-    let row_bounds = (row: row_data) => {
-      let l_tip_x =
-        left_x(row) -. abs_float(ShardDec.caret_run(row.left_tip));
-      let r_tip_x =
-        right_x(row) +. abs_float(ShardDec.caret_run(row.right_tip));
-      (min(left_x(row), l_tip_x), max(right_x(row), r_tip_x));
-    };
-    let (l0, r0) = row_bounds(first);
-    Some(
-      List.fold_left(
-        (bb, row) => {
-          let (l, r) = row_bounds(row);
-          {
-            min_col: min(bb.min_col, l),
-            max_col: max(bb.max_col, r),
-            min_row: min(bb.min_row, row.row_num),
-            max_row: max(bb.max_row, row.row_num),
-          };
-        },
-        {
-          min_col: l0,
-          max_col: r0,
-          min_row: first.row_num,
-          max_row: first.row_num,
-        },
-        rest,
-      ),
-    );
+    let {col_width, _}: FontMetrics.t = Grid.font_metrics(grid);
+    let last = ListUtil.last(boxes);
+    let chevron = (box: row_box, tip, from) =>
+      ShardDec.chevron(tip, from)
+      |> SvgUtil.Path.scale_x(col_width)
+      |> SvgUtil.Path.scale_y(box.bottom -. box.top);
+    SvgUtil.Path.[
+      M({
+        x: first.left,
+        y: first.top,
+      }),
+      H({x: first.right}),
+    ]
+    @ side(
+        box => chevron(box, box.row.right_tip, Right),
+        b => b.right,
+        boxes,
+      )
+    @ [SvgUtil.Path.H({x: last.left})]
+    @ side(
+        box => chevron(box, box.row.left_tip, Left),
+        b => b.left,
+        List.rev(boxes),
+      )
+    @ [SvgUtil.Path.Z];
   };
 
 /* Fraction of a group's width covered by the active-eval sweep bar. */
@@ -396,34 +370,33 @@ let sweep_width_ratio = 0.45;
 
 let svg_of_group =
     (
-      ~font_metrics: FontMetrics.t,
+      ~grid: Grid.t,
       ~clss: list(string),
       ~sweep: bool=false,
       rows: list(row_data),
     )
     : option(Node.t) =>
-  switch (bbox_of(rows)) {
-  | None => None
-  | Some(bb) =>
-    let width_f = bb.max_col -. bb.min_col;
-    let height = bb.max_row - bb.min_row + 1;
-    let height_f = float_of_int(height);
-
-    let path_cmds =
-      outline_path(~origin_col=bb.min_col, ~origin_row=bb.min_row, rows);
-    /* Clip-path ids must be document-unique; derive one from the group's
-     * bounding box (cols are fractional, so scale to tenths of a column). */
-    let clip_id =
-      Printf.sprintf(
-        "incremental-active-%d-%d-%d-%d",
-        int_of_float(bb.min_col *. 10.0),
-        bb.min_row,
-        int_of_float(bb.max_col *. 10.0),
-        bb.max_row,
-      );
-    let active_sweep =
+  switch (rows) {
+  | [] => None
+  | _ =>
+    let path = outline_path(~grid, boxes_of(~grid, rows));
+    let active_sweep = (box: SvgUtil.Rect.t) =>
       if (sweep) {
-        let sweep_width = max(1.0, width_f *. sweep_width_ratio);
+        /* Clip-path ids must be document-unique; derive one from the
+         * group's box, to tenths of a pixel. */
+        let clip_id =
+          Printf.sprintf(
+            "incremental-active-%d-%d-%d-%d",
+            int_of_float(box.min.x *. 10.0),
+            int_of_float(box.min.y *. 10.0),
+            int_of_float(box.width *. 10.0),
+            int_of_float(box.height *. 10.0),
+          );
+        let sweep_width =
+          max(
+            Grid.font_metrics(grid).col_width,
+            box.width *. sweep_width_ratio,
+          );
         [
           Node.create_svg(
             "defs",
@@ -431,7 +404,7 @@ let svg_of_group =
               Node.create_svg(
                 "clipPath",
                 ~attrs=[Attr.create("id", clip_id)],
-                [SvgUtil.Path.view(~attrs=[], path_cmds)],
+                [SvgUtil.Path.view(~attrs=[], path)],
               ),
             ],
           ),
@@ -443,10 +416,10 @@ let svg_of_group =
                 "rect",
                 ~attrs=[
                   Attr.classes(["incremental-sweep"]),
-                  Attr.create("x", "0"),
-                  Attr.create("y", "0"),
+                  Attr.create("x", Printf.sprintf("%f", box.min.x)),
+                  Attr.create("y", Printf.sprintf("%f", box.min.y)),
                   Attr.create("width", Printf.sprintf("%f", sweep_width)),
-                  Attr.create("height", Printf.sprintf("%f", height_f)),
+                  Attr.create("height", Printf.sprintf("%f", box.height)),
                 ],
                 [],
               ),
@@ -456,30 +429,8 @@ let svg_of_group =
       } else {
         [];
       };
-
     Some(
-      Node.create_svg(
-        "svg",
-        ~attrs=[
-          Attr.classes(["shard"] @ clss),
-          Attr.create(
-            "style",
-            Printf.sprintf(
-              "position: absolute; left: %fpx; top: %fpx; width: %fpx; height: %fpx;",
-              bb.min_col *. font_metrics.col_width,
-              float_of_int(bb.min_row) *. font_metrics.row_height,
-              width_f *. font_metrics.col_width,
-              height_f *. font_metrics.row_height,
-            ),
-          ),
-          Attr.create(
-            "viewBox",
-            Printf.sprintf("%f 0 %f %d", 0.0, width_f, height),
-          ),
-          Attr.create("preserveAspectRatio", "none"),
-        ],
-        [SvgUtil.Path.view(~attrs=[], path_cmds)] @ active_sweep,
-      ),
+      DecUtil.svg_px(~base_cls=["shard"] @ clss, ~extra=active_sweep, path),
     );
   };
 
@@ -587,7 +538,7 @@ let of_segment =
       ~trim_ws: bool=false,
       ~measured: Measured.t,
       ~shape_map: ProjectorCore.Shape.Map.t,
-      ~font_metrics: FontMetrics.t,
+      ~grid: Grid.t,
       ~shape_init: ShardDec.tip,
       ~clss: list(string),
       ~sweep: bool=false,
@@ -598,14 +549,14 @@ let of_segment =
     rows_of_segment(~trim_ws, ~measured, ~shape_map, ~shape_init, segment)
     |> List.map(((m, tips)) => row_data_of(m, tips));
   let groups = group_consecutive(rows);
-  List.filter_map(svg_of_group(~font_metrics, ~clss, ~sweep), groups);
+  List.filter_map(svg_of_group(~grid, ~clss, ~sweep), groups);
 };
 
 let selection =
     (
       ~measured: Measured.t,
       ~shape_map: ProjectorCore.Shape.Map.t,
-      ~font_metrics: FontMetrics.t,
+      ~grid: Grid.t,
       z: Zipper.t,
     ) => {
   let rows =
@@ -621,10 +572,7 @@ let selection =
   let rows = clip_char_selection(~measured, z, rows);
   let clss = ["selected", Selection.buffer_cls(z.selection)];
   let groups = group_consecutive(rows);
-  div_c(
-    "selects",
-    List.filter_map(svg_of_group(~font_metrics, ~clss), groups),
-  );
+  div_c("selects", List.filter_map(svg_of_group(~grid, ~clss), groups));
 };
 
 // Expands selection to make it a subtree of the exp
@@ -632,7 +580,7 @@ let selection_expanded =
     (
       ~measured: Measured.t,
       ~shape_map: ProjectorCore.Shape.Map.t,
-      ~font_metrics: FontMetrics.t,
+      ~grid: Grid.t,
       ~term_data: TermData.t,
       z: Zipper.t,
     ) =>
@@ -654,7 +602,7 @@ let selection_expanded =
         of_segment(
           ~measured,
           ~shape_map,
-          ~font_metrics,
+          ~grid,
           ~shape_init=Some(fst(Siblings.shapes(z.relatives.siblings))),
           ~clss=["selected-expanded", Selection.buffer_cls(z.selection)],
           seg,
@@ -663,7 +611,7 @@ let selection_expanded =
             ~trim_ws=true,
             ~measured,
             ~shape_map,
-            ~font_metrics,
+            ~grid,
             ~shape_init=Some(fst(Siblings.shapes(z.relatives.siblings))),
             ~clss=["selected", Selection.buffer_cls(z.selection)],
             z.selection.content,
@@ -676,7 +624,7 @@ let indicated_refractor =
     (
       ~measured: Measured.t,
       ~shape_map: ProjectorCore.Shape.Map.t,
-      ~font_metrics: FontMetrics.t,
+      ~grid: Grid.t,
       ~kind: ProjectorCore.Kind.t,
       seg: Segment.t,
     ) => {
@@ -686,7 +634,7 @@ let indicated_refractor =
     of_segment(
       ~measured,
       ~shape_map,
-      ~font_metrics,
+      ~grid,
       ~shape_init=Some(Convex),
       ~clss=["refractor-indicated", kind_cls],
       seg,
@@ -697,7 +645,7 @@ let indicated_refractor =
 let color =
     (
       ~syntax: CachedSyntax.t,
-      ~font_metrics: FontMetrics.t,
+      ~grid: Grid.t,
       ~sweep: bool=false,
       clss: list(string),
       id: Id.t,
@@ -707,7 +655,7 @@ let color =
     of_segment(
       ~measured=syntax.measured,
       ~shape_map=syntax.shape_map,
-      ~font_metrics,
+      ~grid,
       ~shape_init=Some(Convex),
       ~clss,
       ~sweep,
@@ -718,15 +666,14 @@ let color =
 
 let colors =
     (
-      ~font_metrics: FontMetrics.t,
+      ~grid: Grid.t,
       ~syntax: CachedSyntax.t,
       color_highlights: option(ColorSteps.colorMap),
     ) =>
   div_c(
     "color-highlights",
     List.concat_map(
-      ((id, c)) =>
-        color(~syntax, ~font_metrics, ["highlight-code-" ++ c], id),
+      ((id, c)) => color(~syntax, ~grid, ["highlight-code-" ++ c], id),
       switch (color_highlights) {
       | Some(colorMap) => ColorSteps.to_list(colorMap)
       | _ => []
@@ -737,7 +684,7 @@ let colors =
 /* `predicted_reuse` is the ReusePass plan (not the accumulating cache). */
 let incr_eval =
     (
-      ~font_metrics: FontMetrics.t,
+      ~grid: Grid.t,
       ~syntax: CachedSyntax.t,
       ~pending_eval_ids: list(Id.t)=[],
       ~show_active_eval: bool=false,
@@ -802,25 +749,106 @@ let incr_eval =
   div_c(
     "incremental-highlights",
     List.concat_map(
-      ((id, _)) =>
-        color(~syntax, ~font_metrics, ["incremental-frozen"], id),
+      ((id, _)) => color(~syntax, ~grid, ["incremental-frozen"], id),
       frozen_outermost,
     )
     @ List.concat_map(
-        ((id, _)) =>
-          color(~syntax, ~font_metrics, ["incremental-pending"], id),
+        ((id, _)) => color(~syntax, ~grid, ["incremental-pending"], id),
         pending_inactive_ranges,
       )
     @ List.concat_map(
         ((id, _)) =>
           color(
             ~syntax,
-            ~font_metrics,
+            ~grid,
             ~sweep=true,
             ["incremental-pending", "incremental-active"],
             id,
           ),
         active_ids,
       ),
+  );
+};
+
+/* Blocks (settings: Blocks): a box per block per row, one shape per run of
+   rows (SvgUtil.Rows), with rounded corners. */
+let block_radius = 3.; /* px */
+
+let blocks =
+    (blocks: list((Language.Blocks.paint, list(SvgUtil.Rows.box)))): Node.t =>
+  div_c(
+    "blocks",
+    List.concat_map(
+      ((paint, boxes)) => {
+        let base_cls = ["shard", "block", Language.Blocks.paint_name(paint)];
+        boxes
+        |> SvgUtil.Rows.split
+        |> List.map(group =>
+             DecUtil.svg_px(
+               ~base_cls,
+               SvgUtil.Rows.outline(~radius=block_radius, group),
+             )
+           );
+      },
+      blocks,
+    ),
+  );
+
+/* Inset layout: nesting shown by insetting each block a little more than
+   its parent, up to `inset_levels` deep (deeper blocks share edges). A row
+   narrower than twice its inset collapses to its midline rather than
+   crossing itself. */
+let inset_per_level = 1.5; /* px */
+let inset_levels = 3;
+
+let inset_boxes =
+    (~grid: Grid.t, ~syntax: CachedSyntax.t, blocks: list(Language.Blocks.t))
+    : list((Language.Blocks.paint, list(SvgUtil.Rows.box))) =>
+  List.filter_map(
+    ({id, level, paint}: Language.Blocks.t) => {
+      let inset = inset_per_level *. float_of_int(min(level, inset_levels));
+      TermData.row_extents(id, syntax.term_data, syntax.measured)
+      |> Option.map(
+           List.map(({row, start_col, end_col}: TermData.row_extent) => {
+             let left = Grid.x_start(grid, ~row, start_col);
+             let right = Grid.x_end(grid, ~row, end_col);
+             let mid = (left +. right) /. 2.;
+             SvgUtil.Rows.{
+               row,
+               top: Grid.y_top(grid, row) +. inset,
+               bottom: Grid.y_bottom(grid, row) -. inset,
+               left: min(left +. inset, mid),
+               right: max(right -. inset, mid),
+             };
+           }),
+         )
+      |> Option.map(boxes => (paint, boxes));
+    },
+    blocks,
+  );
+
+/* Padded layout: each box stands as many pads out from its text as block
+   edges stack there (Padding). */
+let padded_boxes =
+    (~grid: Grid.t, padding: Padding.t)
+    : list((Language.Blocks.paint, list(SvgUtil.Rows.box))) => {
+  let out = (rank: int) => float_of_int(rank) *. Grid.pad(grid);
+  List.map(
+    ({block: {paint, _}, rows}: Padding.block) =>
+      (
+        paint,
+        List.map(
+          ({row, left, right, rank}: Padding.block_row) =>
+            SvgUtil.Rows.{
+              row,
+              top: Grid.text_top(grid, row) -. out(rank),
+              bottom: Grid.text_bottom(grid, row) +. out(rank),
+              left: Grid.x_start(grid, ~row, left.col) -. out(left.rank),
+              right: Grid.x_end(grid, ~row, right.col) +. out(right.rank),
+            },
+          rows,
+        ),
+      ),
+    padding.blocks,
   );
 };

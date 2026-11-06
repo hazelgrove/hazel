@@ -8,6 +8,23 @@ module CompletionDisplay = {
     | Hidden;
 };
 
+/* Which blocks decoration, if any, is drawn behind the code. */
+module Blocks = {
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type t =
+    | Off
+    | Types
+    | Scopes
+    | Evaluations;
+
+  /* How the blocks make room for their edges: inset into their own cells,
+     or padded out into the text, which moves to make room (Padding). */
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type layout =
+    | Inset
+    | Padded;
+};
+
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
@@ -38,6 +55,13 @@ module Model = {
        (NinjaKeys.initialize), so it survives palette rebuilds and reloads. */
     shortcut_overrides: list((string, option(string))),
     simple_indication: bool,
+    [@sexp.default Blocks.Off]
+    blocks: Blocks.t,
+    [@sexp.default Blocks.Inset]
+    block_layout: Blocks.layout,
+    /* pixels each block edge stands out from its text, in the padded layout */
+    [@sexp.default 2]
+    block_pad: int,
   };
 
   let init = {
@@ -112,6 +136,9 @@ module Model = {
     show_incremental_deco: false,
     shortcut_overrides: [],
     simple_indication: false,
+    blocks: Blocks.Off,
+    block_layout: Blocks.Inset,
+    block_pad: 2,
   };
 
   /* Keep the persisted fields compatible with existing preferences, while
@@ -181,7 +208,10 @@ module Update = {
     | ShowRowLines
     | ShowIncrementalDeco
     | SetShortcutOverrides(list((string, option(string))))
-    | SimpleIndication;
+    | SimpleIndication
+    | SetBlocks(Blocks.t)
+    | SetBlockLayout(Blocks.layout)
+    | SetBlockPad(int);
 
   let update = (~action, ~settings: Model.t): Updated.t(Model.t) => {
     (
@@ -533,6 +563,18 @@ module Update = {
       | SimpleIndication => {
           ...settings,
           simple_indication: !settings.simple_indication,
+        }
+      | SetBlocks(blocks) => {
+          ...settings,
+          blocks,
+        }
+      | SetBlockLayout(block_layout) => {
+          ...settings,
+          block_layout,
+        }
+      | SetBlockPad(block_pad) => {
+          ...settings,
+          block_pad,
         }
       }
     )

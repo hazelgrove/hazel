@@ -294,26 +294,27 @@ let warnings_of: t => list(Warning.list_item) =
 
 let is_warning = (ci: t): bool => warnings_of(ci) != [];
 
-/* A term is "typable" if it can meaningfully be assigned a type and will
-   have a runtime value. This includes expressions and patterns, but excludes
-   types, type patterns, and certain expression forms (deferrals, labels,
-   type aliases) that don't produce useful values for probing/statics display. */
+/* The type, context and ancestors of a term that can meaningfully be
+   assigned a type and will have a runtime value: expressions and patterns,
+   less the expression forms (deferrals, labels, type aliases) that don't
+   produce useful values for probing/statics display. */
+let typed_of: t => option((Typ.t, Ctx.t, ancestors)) =
+  fun
+  | InfoExp({user_term: {term: Deferral(_) | Label(_) | TyAlias(_), _}, _}) =>
+    None
+  | InfoExp({ty, ctx, ancestors, _})
+  | InfoPat({ty, ctx, ancestors, _}) => Some((ty, ctx, ancestors))
+  | InfoTyp(_)
+  | InfoTPat(_)
+  | InfoMod(_)
+  | InfoSig(_)
+  | InfoMPat(_)
+  | InfoDrv(_)
+  | Secondary(_) => None;
+
 let is_typable_term: option(t) => bool =
   fun
-  | Some(
-      InfoExp({
-        user_term: {term: Deferral(_) | Label(_) | TyAlias(_), _},
-        _,
-      }),
-    ) =>
-    false
-  | Some(
-      InfoTyp(_) | InfoTPat(_) | InfoMod(_) | InfoSig(_) | InfoMPat(_) |
-      InfoDrv(_) |
-      Secondary(_),
-    ) =>
-    false
-  | Some(InfoExp(_) | InfoPat(_)) => true
+  | Some(info) => Option.is_some(typed_of(info))
   | None => false;
 
 let exp_co_ctx: exp => CoCtx.t = ({co_ctx, _}) => co_ctx;

@@ -398,7 +398,7 @@ module DrawerHeight = {
 
 let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): option(Point.t) => {
   open Float;
-  let (col_width, row_height) = JsUtil.font_metrics_from_specimen();
+  let (col_width, row_height, _) = JsUtil.font_metrics_from_specimen();
   let text_box =
     e##.currentTarget
     |> Js.Opt.to_option

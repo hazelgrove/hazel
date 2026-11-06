@@ -7,6 +7,7 @@ open Haz3lcore;
 let view =
     (
       ~globals: Globals.t,
+      ~grid: Grid.t,
       ~measured,
       ~term_data,
       ~buffer_ids,
@@ -22,6 +23,7 @@ let view =
       ~settings=globals.settings,
       ~shape_map,
       ~refractor_rows,
+      ~grid,
       ~font_metrics=globals.font_metrics,
       ~term_data,
       ~refine_sort,
@@ -37,6 +39,7 @@ let view_segment = (~globals: Globals.t, segment: Segment.t) => {
   let term_data = TermData.empty; //assume no indication/selection decoratinos
   view(
     ~globals,
+    ~grid=Grid.flat(globals.font_metrics),
     ~measured=Measured.of_segment(segment, shape_map, refractor_rows),
     ~term_data,
     ~buffer_ids=[],

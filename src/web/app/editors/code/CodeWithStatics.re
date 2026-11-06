@@ -252,12 +252,135 @@ module Update = {
   };
 };
 
+/* The editor's grid, and its block padding when the blocks are laid out
+   padded. Memoized on the identity of the measured map and the block list
+   and on the settings that enter it, so a frame that changes none of them
+   pays nothing; a few entries, since a page shows a few editors at once. */
+type layout = {
+  grid: Grid.t,
+  padding: option(Padding.t),
+};
+
+type layout_key = {
+  measured: Measured.t,
+  blocks: list(Language.Blocks.t),
+  font_metrics: FontMetrics.t,
+  show: Settings.Blocks.t,
+  how: Settings.Blocks.layout,
+  pad: int,
+};
+
+let layout_cache: ref(list((layout_key, layout))) = ref([]);
+let layout_cache_size = 8;
+
+/* The evaluation blocks join the statics with the last result, so they are
+   memoized on the identity of both, like the layout. */
+type eval_blocks_key = {
+  info_map: Language.Statics.Map.t,
+  evaluations: Language.Id.Map.t(int),
+};
+
+let eval_blocks_cache:
+  ref(list((eval_blocks_key, list(Language.Blocks.t)))) =
+  ref([]);
+
+let eval_blocks = (model: Model.t): list(Language.Blocks.t) => {
+  let key = {
+    info_map: model.statics.info_map,
+    evaluations: model.dynamics.evaluations,
+  };
+  let same = (k: eval_blocks_key) =>
+    k.info_map === key.info_map && k.evaluations === key.evaluations;
+  switch (List.find_opt(((k, _)) => same(k), eval_blocks_cache^)) {
+  | Some((_, blocks)) => blocks
+  | None =>
+    let blocks =
+      Language.EvalBlocks.of_evaluations(
+        ~info_map=key.info_map,
+        key.evaluations,
+      );
+    eval_blocks_cache :=
+      List.filteri(
+        (i, _) => i < layout_cache_size,
+        [(key, blocks), ...eval_blocks_cache^],
+      );
+    blocks;
+  };
+};
+
+/* The blocks the settings ask for. */
+let blocks = (~globals: Globals.t, model: Model.t): list(Language.Blocks.t) =>
+  switch (globals.settings.blocks) {
+  | Off => []
+  | Types => model.statics.type_blocks
+  | Scopes => model.statics.scope_blocks
+  | Evaluations => eval_blocks(model)
+  };
+
+let layout = (~globals: Globals.t, model: Model.t): layout => {
+  let key = {
+    measured: model.editor.syntax.measured,
+    blocks: blocks(~globals, model),
+    font_metrics: globals.font_metrics,
+    show: globals.settings.blocks,
+    how: globals.settings.block_layout,
+    pad: globals.settings.block_pad,
+  };
+  let same = (k: layout_key) =>
+    k.measured === key.measured
+    && k.blocks === key.blocks
+    && FontMetrics.equal(k.font_metrics, key.font_metrics)
+    && Settings.Blocks.equal(k.show, key.show)
+    && Settings.Blocks.equal_layout(k.how, key.how)
+    && k.pad == key.pad;
+  switch (List.find_opt(((k, _)) => same(k), layout_cache^)) {
+  | Some((_, layout)) => layout
+  | None =>
+    let layout =
+      switch (key.show, key.how) {
+      | (Types | Scopes | Evaluations, Padded) =>
+        let padding =
+          Padding.of_blocks(
+            ~pad_cols=float_of_int(key.pad) /. key.font_metrics.col_width,
+            ~measured=key.measured,
+            ~term_data=model.editor.syntax.term_data,
+            key.blocks,
+          );
+        {
+          grid:
+            Grid.of_padding(
+              ~font_metrics=key.font_metrics,
+              ~pad=float_of_int(key.pad),
+              padding,
+            ),
+          padding: Some(padding),
+        };
+      | (Off, _)
+      | (Types | Scopes | Evaluations, Inset) => {
+          grid: Grid.flat(key.font_metrics),
+          padding: None,
+        }
+      };
+    layout_cache :=
+      List.filteri(
+        (i, _) => i < layout_cache_size,
+        [(key, layout), ...layout_cache^],
+      );
+    layout;
+  };
+};
+
 module View = {
   // There are no events for a read-only editor
   type event;
 
   let view =
-      (~globals, ~overlays: list(Node.t)=[], ~cull=false, model: Model.t) => {
+      (
+        ~globals: Globals.t,
+        ~overlays: list(Node.t)=[],
+        ~cull=false,
+        model: Model.t,
+      ) => {
     let {
       editor:
         {
@@ -276,12 +399,14 @@ module View = {
         },
       _,
     }: Model.t = model;
+    let {grid, padding} = layout(~globals, model);
     let info_map = model.statics.info_map;
     let refine_sort = (id, mold_out) =>
       Language.Info.refine_sort_from_mold(~info_map, ~id, mold_out);
     let code_text_view =
       CodeViewable.view(
         ~globals,
+        ~grid,
         ~measured,
         ~term_data,
         ~buffer_ids=Selection.is_buffer(z.selection) ? selection_ids : [],
@@ -296,7 +421,7 @@ module View = {
       Arms.Errors.of_ids(
         ~refine_sort,
         ~simple_indication=globals.settings.simple_indication,
-        ~font_metrics=globals.font_metrics,
+        ~grid,
         ~syntax=model.editor.syntax,
         ~completion,
         model.statics.error_ids,
@@ -308,15 +433,49 @@ module View = {
         ~refine_sort,
         ~is_warning=true,
         ~simple_indication=globals.settings.simple_indication,
-        ~font_metrics=globals.font_metrics,
+        ~grid,
         ~syntax=model.editor.syntax,
         ~completion,
         warning_ids,
       );
+    let blocks =
+      switch (padding, blocks(~globals, model)) {
+      | (_, []) => []
+      | (Some(padding), _) => [
+          Highlight.blocks(Highlight.padded_boxes(~grid, padding)),
+        ]
+      | (None, blocks) => [
+          Highlight.blocks(
+            Highlight.inset_boxes(~grid, ~syntax=model.editor.syntax, blocks),
+          ),
+        ]
+      };
+    let row_lines =
+      globals.settings.show_row_lines
+        ? [
+          div_c(
+            "row-lines",
+            List.init(Measured.total_rows(measured), row =>
+              Node.div(
+                ~attrs=[
+                  Attr.classes(["row-line"]),
+                  Attr.create(
+                    "style",
+                    Printf.sprintf(
+                      "top: %fpx;",
+                      Grid.y_bottom(grid, row) -. 1.,
+                    ),
+                  ),
+                ],
+                [],
+              )
+            ),
+          ),
+        ]
+        : [];
     let container_classes =
       ["code-container"]
       @ (globals.meta_down ? ["meta-down"] : [])
-      @ (globals.settings.show_row_lines ? ["show-row-lines"] : [])
       /* the cell the viewport-culling range is measured on
          (JsUtil.code_viewport_geometry) */
       @ (cull ? ["cull-scope"] : []);
@@ -327,7 +486,10 @@ module View = {
         ProbeStagger.row_ends_attr(measured),
       ],
       // errors after warnings to prioritize errors over warnings
-      [code_text_view, warning_decos, error_decos] @ overlays,
+      row_lines
+      @ blocks
+      @ [code_text_view, warning_decos, error_decos]
+      @ overlays,
     );
   };
 };

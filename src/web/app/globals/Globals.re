@@ -4,43 +4,42 @@ open Util;
    that might be of interest to view functions. Most view functions then
    take ~globals as an argument.*/
 
-/* Viewport culling for projectors/refractors.
- * None = no culling (all visible), Some(range) = only show in range */
+/* Viewport culling for projectors/refractors: the band of the code container
+   on screen, in pixels from its top, with a buffer above and below so that
+   scrolling doesn't pop. None = no culling (all visible). */
 module VisibleRows = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
-    first: int,
-    last: int,
+    top: float,
+    bottom: float,
   };
 
-  /* Compute visible row range from scroll container properties.
-   * buffer: extra rows above/below to prevent popping */
+  let buffer_rows = 5;
+
   let compute =
-      (
-        ~scroll_top: float,
-        ~client_height: float,
-        ~row_height: float,
-        ~buffer=5,
-        (),
-      )
-      : t => {
-    let first = max(0, int_of_float(scroll_top /. row_height) - buffer);
-    let visible_count = int_of_float(client_height /. row_height);
-    let last = first + visible_count + 2 * buffer;
+      (~scroll_top: float, ~client_height: float, ~row_height: float, ()): t => {
+    let buffer = float_of_int(buffer_rows) *. row_height;
     {
-      first,
-      last,
+      top: scroll_top -. buffer,
+      bottom: scroll_top +. client_height +. buffer,
     };
   };
 
-  /* Check if visible_rows changed significantly (threshold of 2 rows) */
-  let changed = (old: option(t), new_rows: t): bool =>
+  /* Moved by more than two rows since `old`. */
+  let changed = (~row_height: float, old: option(t), now: t): bool =>
     switch (old) {
     | None => true
     | Some(old) =>
-      abs(old.first - new_rows.first) > 2
-      || abs(old.last - new_rows.last) > 2
+      Float.abs(old.top -. now.top) > 2.
+      *. row_height
+      || Float.abs(old.bottom -. now.bottom) > 2.
+      *. row_height
     };
+
+  /* Whether rows `first` through `last` reach into the band. */
+  let overlaps =
+      (~grid: Grid.t, {top, bottom}: t, (first, last): (int, int)): bool =>
+    Grid.y_top(grid, first) <= bottom && Grid.y_bottom(grid, last) >= top;
 };
 
 module Action = {

@@ -196,6 +196,25 @@
   background-color: color-mix(in srgb, var(--menu-item-hover-bkg) 65%, transparent);
 }
 
+/* numeric settings on a range: the value beside the name, the slider
+   under them, the description beneath */
+#settings-panel .settings-slider {
+  grid-template-columns: minmax(0, 1fr) auto;
+  row-gap: 0.3em;
+}
+
+#settings-panel .settings-slider .settings-value {
+  font-size: 0.8em;
+  color: var(--menu-item-text);
+}
+
+#settings-panel .settings-slider input[type="range"] {
+  grid-column: 1 / -1;
+  width: 100%;
+  margin: 0;
+  accent-color: var(--primary-accent);
+}
+
 /* actions (the config editors) */
 #settings-panel .settings-action {
   grid-template-columns: minmax(0, 1fr);

@@ -5,7 +5,7 @@ open Virtual_dom.Vdom;
 type tip = option(Nib.Shape.t);
 
 type shard_dims = {
-  font_metrics: FontMetrics.t,
+  grid: Grid.t,
   measurement: Measured.measurement,
   tips: (tip, tip),
 };
@@ -97,18 +97,18 @@ let path = ((d_l, d_r), length: int, height: int): list(SvgUtil.Path.cmd) =>
 
 let simple =
     (
-      {font_metrics, tips: (l, r), measurement}: shard_dims,
-      ~absolute=true,
+      {grid, tips: (l, r), measurement}: shard_dims,
+      ~relative_to: option(Point.t)=None,
       ~attr=[],
       classes,
     )
     : Node.t =>
-  DecUtil.code_svg_sized(
-    ~font_metrics,
-    ~measurement,
+  DecUtil.svg(
+    ~grid,
+    ~lo=measurement.origin,
+    ~hi=measurement.last,
     ~base_cls=["shard"] @ classes,
-    ~path_cls=[],
-    ~absolute,
+    ~relative_to,
     ~attr,
     path(
       (
@@ -120,5 +120,6 @@ let simple =
     ),
   );
 
+/* Positioned inside an element that sits at the shard's origin. */
 let relative = (shard_dims: shard_dims) =>
-  simple(~absolute=false, shard_dims, []);
+  simple(~relative_to=Some(shard_dims.measurement.origin), shard_dims, []);

@@ -33,22 +33,17 @@ let direction_class = (dir: Menu.open_direction): string =>
 
 let caret_menu_gap = 0.0;
 
-let caret_bottom_offset = (font_metrics: FontMetrics.t): float => {
-  let row_height = font_metrics.row_height;
+let caret_bottom_offset = (grid: Grid.t): float => {
+  let row_height = Grid.font_metrics(grid).row_height;
   let shadow = ShardDec.shadow_dy *. row_height;
   row_height +. shadow;
 };
 
 let pos_style =
-    (
-      point: Point.t,
-      font_metrics: FontMetrics.t,
-      direction: Menu.open_direction,
-    )
-    : string => {
-  let left = Float.of_int(point.col) *. font_metrics.col_width;
-  let caret_top = Float.of_int(point.row) *. font_metrics.row_height;
-  let caret_bottom = caret_top +. caret_bottom_offset(font_metrics);
+    (point: Point.t, grid: Grid.t, direction: Menu.open_direction): string => {
+  let left = Grid.x_start(grid, ~row=point.row, point.col);
+  let caret_top = Grid.y_top(grid, point.row);
+  let caret_bottom = caret_top +. caret_bottom_offset(grid);
   let top =
     switch (direction.vertical) {
     | `Down => caret_bottom +. caret_menu_gap
@@ -518,8 +513,7 @@ module WithContext = {
 /* Pick a direction by treating the caret as a zero-size anchor at
  * (caret_left, caret_bottom) in viewport coordinates, then routing
  * through the shared `Menu.{space_from, direction_of}` helpers. */
-let get_direction =
-    (point: Point.t, font_metrics: FontMetrics.t): Menu.open_direction => {
+let get_direction = (point: Point.t, grid: Grid.t): Menu.open_direction => {
   let container_opt =
     try(Some(JsUtil.get_elem_by_selector(".code-container"))) {
     | _ => None
@@ -532,9 +526,8 @@ let get_direction =
   | Some(container) =>
     let rect = container##getBoundingClientRect;
     let caret_left =
-      rect##.left +. Float.of_int(point.col) *. font_metrics.col_width;
-    let caret_top =
-      rect##.top +. Float.of_int(point.row + 1) *. font_metrics.row_height;
+      rect##.left +. Grid.x_start(grid, ~row=point.row, point.col);
+    let caret_top = rect##.top +. Grid.y_bottom(grid, point.row);
     let space =
       Menu.space_from(
         ~anchor_top=caret_top,
@@ -557,7 +550,7 @@ let view =
       ~syntax: Haz3lcore.CachedSyntax.t,
       ~info_map: Language.Statics.Map.t,
       ~elaborated: Language.Exp.t,
-      ~font_metrics: FontMetrics.t,
+      ~grid: Grid.t,
       ~model: Menu.t,
       z: Haz3lcore.Zipper.t,
     )
@@ -576,9 +569,9 @@ let view =
   if (menu_items == []) {
     div([]);
   } else {
-    let direction = get_direction(caret_point, font_metrics);
+    let direction = get_direction(caret_point, grid);
     let dir_class = direction_class(direction);
-    let style = pos_style(caret_point, font_metrics, direction);
+    let style = pos_style(caret_point, grid, direction);
 
     div(
       ~attrs=[
