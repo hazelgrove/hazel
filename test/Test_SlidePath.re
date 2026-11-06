@@ -371,11 +371,7 @@ let traversal_tests = [
                   strings,
                   "backward from the end of " ++ name ++ "'s folder",
                   List.rev(folder),
-                  walk(
-                    ~space,
-                    ~by=-1,
-                    List.nth_exn(folder, List.length(folder) - 1),
-                  ),
+                  walk(~space, ~by=-1, List.last_exn(folder)),
                 );
               },
             space,

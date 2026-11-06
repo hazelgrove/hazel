@@ -37,11 +37,8 @@ let from_string_exn = (s: string) =>
   };
 
 let count_by_category = (cat: ProblemCollection.problem_category, problems) =>
-  List.length(
-    List.filter(
-      ~f=(p: ProblemCollection.problem) => p.category == cat,
-      problems,
-    ),
+  List.count(problems, ~f=(p: ProblemCollection.problem) =>
+    p.category == cat
   );
 
 let has_structural =
@@ -163,7 +160,7 @@ let source_from_string = (s: string): ProblemCollection.editor_source =>
 
 let total_count =
     (counts: list((ProblemCollection.problem_category, int))): int =>
-  List.fold_left(~f=(acc, (_, n)) => acc + n, ~init=0, counts);
+  List.sum((module Int), counts, ~f=snd);
 
 /* ---------- nearest_measured_id tests ---------- */
 

@@ -638,10 +638,10 @@ let intent_preservation_tests = [
           inner_samples,
         );
       check(
-        bool,
+        option(int),
         "should find inner_1 sample at index 1 (not reset to 0)",
-        true,
-        result == Some(1),
+        Some(1),
+        result,
       );
     },
   ),
@@ -668,10 +668,10 @@ let intent_preservation_tests = [
         );
       /* Should find first related (index 0) via is_related fallback */
       check(
-        bool,
+        option(int),
         "should find first related sample at index 0",
-        true,
-        result == Some(0),
+        Some(0),
+        result,
       );
     },
   ),
@@ -698,7 +698,7 @@ let intent_preservation_tests = [
         );
       /* Full stack [inner_1, outer_0] doesn't match any outer sample,
        * so [outer_0] is the longest suffix match → finds index 0. */
-      check(bool, "should find outer_0 at index 0", true, result == Some(0));
+      check(option(int), "should find outer_0 at index 0", Some(0), result);
     },
   ),
   test_case(
@@ -752,22 +752,18 @@ let intent_preservation_tests = [
         );
       /* Should be at index 1 (inner_1), not index 0 */
       check(
-        bool,
+        option(int),
         "cursor should be at index 1",
-        true,
-        cursor_idx == Some(1),
+        Some(1),
+        cursor_idx,
       );
       /* Arrow right (offset=-1): next_idx = 1 + 1 = 2 (inner_2) */
-      let next_idx =
-        switch (cursor_idx) {
-        | Some(idx) => Some(idx + 1)
-        | None => None
-        };
+      let next_idx = Option.map(cursor_idx, ~f=idx => idx + 1);
       check(
-        bool,
+        option(int),
         "next sample should be index 2",
-        true,
-        next_idx == Some(2),
+        Some(2),
+        next_idx,
       );
     },
   ),
@@ -808,10 +804,10 @@ let three_level_tests = [
       let result =
         Sample.Selection.most_aligned_index(~ap_id=None, cursor, mid_samples);
       check(
-        bool,
+        option(int),
         "should find M1 at index 1 via intermediate match (not M0 at 0)",
-        true,
-        result == Some(1),
+        Some(1),
+        result,
       );
     },
   ),
@@ -837,10 +833,10 @@ let three_level_tests = [
         );
       /* Full match: [N0, M1, F] == [N0, M1, F] → finds index 0 */
       check(
-        bool,
+        option(int),
         "should find N0 at index 0 via full-stack match",
-        true,
-        result == Some(0),
+        Some(0),
+        result,
       );
     },
   ),
@@ -861,7 +857,7 @@ let three_level_tests = [
       let result =
         Sample.Selection.most_aligned_index(~ap_id=None, cursor, top_samples);
       /* Intermediate: [F] is suffix of [N0,M1,F] → picks F at index 0 */
-      check(bool, "should find F at index 0", true, result == Some(0));
+      check(option(int), "should find F at index 0", Some(0), result);
     },
   ),
   test_case(
@@ -991,10 +987,10 @@ let three_level_tests = [
           mid_samples,
         );
       check(
-        bool,
+        option(int),
         "mid probe should find M1 at index 1",
-        true,
-        result == Some(1),
+        Some(1),
+        result,
       );
     },
   ),
@@ -1045,10 +1041,10 @@ let recursive_tests = [
       let result =
         Sample.Selection.most_aligned_index(~ap_id=None, cursor, rec_samples);
       check(
-        bool,
+        option(int),
         "should find depth-2 sample at index 1 (x=4), not depth-3 at index 2 (x=3)",
-        true,
-        result == Some(1),
+        Some(1),
+        result,
       );
     },
   ),
@@ -1065,10 +1061,10 @@ let recursive_tests = [
       let result =
         Sample.Selection.most_aligned_index(~ap_id=None, cursor, rec_samples);
       check(
-        bool,
+        option(int),
         "should find depth-1 sample at index 0 (x=5)",
-        true,
-        result == Some(0),
+        Some(0),
+        result,
       );
     },
   ),
@@ -1095,10 +1091,10 @@ let recursive_tests = [
           rec_samples,
         );
       check(
-        bool,
+        option(int),
         "step 1: should be at index 1 (x=4)",
-        true,
-        idx_step1 == Some(1),
+        Some(1),
+        idx_step1,
       );
 
       /* Step 2: ArrowLeft from index 1 → capture index 0 (x=5).
@@ -1111,10 +1107,10 @@ let recursive_tests = [
           rec_samples,
         );
       check(
-        bool,
+        option(int),
         "step 2: should be at index 0 (x=5)",
-        true,
-        idx_step2 == Some(0),
+        Some(0),
+        idx_step2,
       );
     },
   ),
@@ -1143,10 +1139,10 @@ let recursive_tests = [
           rec_samples,
         );
       check(
-        bool,
+        option(int),
         "should find x=3 at index 2, not x=2 at index 3",
-        true,
-        result == Some(2),
+        Some(2),
+        result,
       );
     },
   ),
@@ -1190,10 +1186,10 @@ let recursive_tests = [
           other_rec_samples,
         );
       check(
-        bool,
+        option(int),
         "other probe should also find depth-2 sample (index 1)",
-        true,
-        result == Some(1),
+        Some(1),
+        result,
       );
     },
   ),
@@ -1219,10 +1215,10 @@ let recursive_tests = [
           rec_samples,
         );
       check(
-        bool,
+        option(int),
         "should recover depth-3 sample (index 2) via full stack",
-        true,
-        result == Some(2),
+        Some(2),
+        result,
       );
     },
   ),
@@ -1267,10 +1263,10 @@ let call_click_alignment_tests = [
           inner_samples,
         );
       check(
-        bool,
+        option(int),
         "should find sample from f(2) at index 1",
-        true,
-        result == Some(1),
+        Some(1),
+        result,
       );
     },
   ),
@@ -1315,7 +1311,7 @@ let call_click_alignment_tests = [
           cursor_1,
           inner_samples,
         );
-      check(bool, "f(1) should align to index 0", true, result_1 == Some(0));
+      check(option(int), "f(1) should align to index 0", Some(0), result_1);
       /* Click f(2) */
       let cursor_2 = mk_cursor(~indicated_call=Some(id_app_2), []);
       let result_2 =
@@ -1324,7 +1320,7 @@ let call_click_alignment_tests = [
           cursor_2,
           inner_samples,
         );
-      check(bool, "f(2) should align to index 1", true, result_2 == Some(1));
+      check(option(int), "f(2) should align to index 1", Some(1), result_2);
       /* Click f(3) */
       let cursor_3 = mk_cursor(~indicated_call=Some(id_app_3), []);
       let result_3 =
@@ -1333,7 +1329,7 @@ let call_click_alignment_tests = [
           cursor_3,
           inner_samples,
         );
-      check(bool, "f(3) should align to index 2", true, result_3 == Some(2));
+      check(option(int), "f(3) should align to index 2", Some(2), result_3);
     },
   ),
   test_case(
@@ -1362,10 +1358,10 @@ let call_click_alignment_tests = [
         );
       /* Falls through to is_related → always finds first sample */
       check(
-        bool,
+        option(int),
         "without indicated_call, always picks index 0 (first sample)",
-        true,
-        result == Some(0),
+        Some(0),
+        result,
       );
     },
   ),
@@ -1400,10 +1396,10 @@ let perspective_extension_tests = [
           inner_samples,
         );
       check(
-        bool,
+        option(int),
         "should find sample via full-sightline fallback (tier 1b)",
-        true,
-        result == Some(0),
+        Some(0),
+        result,
       );
     },
   ),
@@ -1432,10 +1428,10 @@ let perspective_extension_tests = [
           inner_samples,
         );
       check(
-        bool,
+        option(int),
         "should find sample via full-sightline fallback (tier 1b)",
-        true,
-        result == Some(0),
+        Some(0),
+        result,
       );
     },
   ),
@@ -1464,16 +1460,16 @@ let perspective_extension_tests = [
           samples,
         );
       check(
-        bool,
+        option(int),
         "peek should find sample (index 0)",
-        true,
-        peek_result == Some(0),
+        Some(0),
+        peek_result,
       );
       check(
-        bool,
+        option(int),
         "navigate-in should find same sample (index 0)",
-        true,
-        nav_result == Some(0),
+        Some(0),
+        nav_result,
       );
     },
   ),
@@ -1493,10 +1489,10 @@ let perspective_extension_tests = [
       let result =
         Sample.Selection.most_aligned_index(~ap_id=None, cursor, samples);
       check(
-        bool,
+        option(int),
         "should pick celsius (index 0), not fahrenheit (index 1)",
-        true,
-        result == Some(0),
+        Some(0),
+        result,
       );
     },
   ),
@@ -1527,16 +1523,16 @@ let perspective_extension_tests = [
           samples,
         );
       check(
-        bool,
+        option(int),
         "extended cursor should find sample",
-        true,
-        ext_result == Some(0),
+        Some(0),
+        ext_result,
       );
       check(
-        bool,
+        option(int),
         "navigated cursor should find same sample",
-        true,
-        nav_result == Some(0),
+        Some(0),
+        nav_result,
       );
     },
   ),

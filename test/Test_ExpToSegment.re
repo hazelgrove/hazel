@@ -1635,7 +1635,7 @@ let perturb_spaces = (seed: int, text: string): string => {
       },
     text,
   );
-  String.concat(~sep="", List.rev(out^));
+  String.concat(List.rev(out^));
 };
 
 let arb_perturbed_fixpoint =

@@ -407,10 +407,9 @@ let entries_of =
   |> List.concat_map(~f=(i: CanonicalCompletion.insertion) =>
        i.delimiters
        |> List.filter_map(~f=(d: CanonicalCompletion.delimiter_info) =>
-            switch (d.of_shard) {
-            | Some((tid, _)) => Some((i.adjacent_id, i.side, d.text, tid))
-            | None => None
-            }
+            Option.map(d.of_shard, ~f=((tid, _)) =>
+              (i.adjacent_id, i.side, d.text, tid)
+            )
           )
      );
 
@@ -535,29 +534,19 @@ let run_accept = (name: string, text: string): accept_outcome => {
                 List.fold_left(
                   ~f=
                     (zo, tid) =>
-                      switch (zo) {
-                      | None => None
-                      | Some(z) =>
-                        switch (
-                          perform_soft(
-                            z,
-                            [Action.ApplyCompletion(One(tid))],
-                          )
-                        ) {
-                        | Some(z2) => Some(z2)
-                        | None => Some(z) /* already discharged en route */
-                        }
-                      },
+                      Option.map(zo, ~f=z =>
+                        perform_soft(z, [Action.ApplyCompletion(One(tid))])
+                        /* already discharged en route */
+                        |> Option.value(~default=z)
+                      ),
                   ~init=Some(z'),
                   order,
                 );
               let converged =
-                switch (final) {
-                | Some(zf) =>
+                Option.exists(final, ~f=zf =>
                   tokens(Zipper.unselect_and_zip(~erase_buffer=true, zf))
                   == joint
-                | None => false
-                };
+                );
               if (!converged) {
                 print_endline(
                   Printf.sprintf(

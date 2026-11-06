@@ -4509,7 +4509,7 @@ let test_caret_and_backpack = (~name, ~acts, ~goal): test_case(_) =>
         "backpack empty (labels: "
         ++ String.concat(
              ~sep=",",
-             List.map(~f=t => String.concat(~sep="", Tile.label(t)), bp),
+             List.map(~f=t => String.concat(Tile.label(t)), bp),
            )
         ++ ")",
         0,
@@ -5729,7 +5729,7 @@ let grapheme_tests = [
         Zipper.unselect_and_zip(~erase_buffer=true, z)
         |> List.filter_map(~f=(p: Piece.t) =>
              switch (p) {
-             | Tile(t) => Some(String.concat(~sep="", Tile.label(t)))
+             | Tile(t) => Some(String.concat(Tile.label(t)))
              | _ => None
              }
            );

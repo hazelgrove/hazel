@@ -58,7 +58,7 @@ let describe = (s: Sample.t): string =>
 
 let check_parity = (label: string, code: string) => {
   let (inline, folded) = eval_both(code);
-  let keys = m => m |> Id.Map.to_alist |> List.map(~f=fst);
+  let keys = Id.Map.keys;
   check(
     int,
     label ++ ": same probe ids",

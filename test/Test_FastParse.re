@@ -10,27 +10,15 @@ open Poly;
 
 let print_seg = seg => Printer.of_segment(~holes="?", ~refractors=[], seg);
 
-let graph_module = {
-  let src =
-    switch (
-      List.find(
-        ~f=Stdlib.Sys.file_exists,
-        [
-          "hazel-programs/docs/livelits/graph-editor.hz",
-          "../hazel-programs/docs/livelits/graph-editor.hz",
-        ],
-      )
-    ) {
-    | Some(p) =>
-      let ic = Stdlib.open_in_bin(p);
-      let n = Stdlib.in_channel_length(ic);
-      let s = Stdlib.really_input_string(ic, n);
-      Stdlib.close_in(ic);
-      Some(s);
-    | None => None
-    };
-  src;
-};
+let graph_module =
+  List.find(
+    ~f=Stdlib.Sys.file_exists,
+    [
+      "hazel-programs/docs/livelits/graph-editor.hz",
+      "../hazel-programs/docs/livelits/graph-editor.hz",
+    ],
+  )
+  |> Option.map(~f=In_channel.read_all);
 
 let verbatim = (name, txt) =>
   test_case(name, `Quick, () => {
@@ -58,15 +46,11 @@ let semantic = (name, txt) =>
     `Quick,
     () => {
       let fast_term =
-        switch (FastParse.of_text(~root=Exp, txt)) {
-        | Some(seg) => Some(MakeTerm.go(seg).term)
-        | None => None
-        };
+        FastParse.of_text(~root=Exp, txt)
+        |> Option.map(~f=seg => MakeTerm.go(seg).term);
       let slow_term =
-        switch (Parser.to_segment(txt, ~root=Exp)) {
-        | Some(seg) => Some(MakeTerm.go(seg).term)
-        | None => None
-        };
+        Parser.to_segment(txt, ~root=Exp)
+        |> Option.map(~f=seg => MakeTerm.go(seg).term);
       switch (fast_term, slow_term) {
       | (Some(f), Some(s)) =>
         check(

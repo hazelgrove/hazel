@@ -286,10 +286,10 @@ let chat_context_meter_tests = [
           chat,
         );
       check(
-        bool,
+        option(int),
         "Some(42)",
-        true,
-        Chat.Utils.context_meter_prompt_tokens(chat) == Some(42),
+        Some(42),
+        Chat.Utils.context_meter_prompt_tokens(chat),
       );
     },
   ),
@@ -334,10 +334,10 @@ let chat_context_meter_tests = [
           chat,
         );
       check(
-        bool,
+        option(int),
         "Some(99)",
-        true,
-        Chat.Utils.context_meter_prompt_tokens(chat) == Some(99),
+        Some(99),
+        Chat.Utils.context_meter_prompt_tokens(chat),
       );
     },
   ),
@@ -658,11 +658,8 @@ let prompt_caching_tests = [
          just before the snapshot) gets the advancing anchor; the snapshot
          (index 3) stays unmarked. */
       let anchored_count =
-        List.length(
-          List.filter(
-            ~f=(m: OpenRouter.Message.Model.t) => m.cache_anchor,
-            msgs,
-          ),
+        List.count(msgs, ~f=(m: OpenRouter.Message.Model.t) =>
+          m.cache_anchor
         );
       check_int("two anchors", 2, anchored_count);
       let snapshot = List.nth_exn(msgs, 3);

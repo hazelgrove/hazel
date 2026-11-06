@@ -60,7 +60,7 @@ let assert_table_headers =
     (msg: string, expected_headers: list(string), exp: Language.Exp.t) =>
   switch (TableCore.parse_table(exp)) {
   | Some((headers, _rows)) =>
-    let header_strs = List.filter_map(~f=Fn.id, headers);
+    let header_strs = List.filter_opt(headers);
     Alcotest.(check(list(string), msg, expected_headers, header_strs));
   | None => Alcotest.fail(msg ++ ": parse_table returned None")
   };

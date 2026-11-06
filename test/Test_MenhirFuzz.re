@@ -70,10 +70,8 @@ let fuzz_whitespace = (choices: array(int), s: string): string => {
 };
 
 let make_term_parse = (s: string): option(Exp.t) =>
-  switch (Parser.to_zipper(s, ~root=Exp)) {
-  | Some(z) => Some(MakeTerm.from_zip_for_sem(z, ~root=Exp).term)
-  | None => None
-  };
+  Parser.to_zipper(s, ~root=Exp)
+  |> Option.map(~f=z => MakeTerm.from_zip_for_sem(z, ~root=Exp).term);
 
 let menhir_parse = (s: string): option(Exp.t) =>
   switch (MenhirParser.Interface.parse_program(s)) {
