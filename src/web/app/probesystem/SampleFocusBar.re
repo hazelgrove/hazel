@@ -186,18 +186,11 @@ let separator_chars = 3;
 /* Total character cost of a visible item set */
 let visible_char_cost =
     (items: list(visible_item), names: array(string)): int =>
-  List.fold_left(
-    ~f=
-      (acc, item) =>
-        acc
-        + (
-          switch (item) {
-          | Entry(i) => separator_chars + Unicode.length(names[i])
-          | Ellipsis => separator_chars + 1 /* ❯ + ⋯ */
-          }
-        ),
-    ~init=0,
-    items,
+  List.sum((module Int), items, ~f=item =>
+    switch (item) {
+    | Entry(i) => separator_chars + Unicode.length(names[i])
+    | Ellipsis => separator_chars + 1 /* ❯ + ⋯ */
+    }
   );
 
 /* Fixed character overhead for non-entry elements in the bar:

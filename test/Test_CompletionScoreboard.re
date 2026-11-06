@@ -522,13 +522,7 @@ let run_accept = (name: string, text: string): accept_outcome => {
               let order =
                 entries
                 |> List.map(~f=((_, _, _, tid)) => tid)
-                |> List.fold_left(
-                     ~f=
-                       (seen, t) =>
-                         List.mem(seen, t, ~equal=Id.equal)
-                           ? seen : seen @ [t],
-                     ~init=[],
-                   )
+                |> ListUtil.dedup_f(Id.equal)
                 |> List.rev;
               let final =
                 List.fold_left(

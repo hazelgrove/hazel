@@ -734,14 +734,8 @@ module Selection = {
       | (None, None) => None
       | _ =>
         List.mapi(~f=(i, s: t) => (i, List.length(s.call_stack)), samples)
-        |> List.fold_left(
-             ~f=
-               (best, (i, depth)) =>
-                 switch (best) {
-                 | Some((_, d)) when d <= depth => best
-                 | _ => Some((i, depth))
-                 },
-             ~init=None,
+        |> List.min_elt(~compare=((_, d1), (_, d2)) =>
+             Int.compare(d1, d2)
            )
         |> Option.map(~f=fst)
       };

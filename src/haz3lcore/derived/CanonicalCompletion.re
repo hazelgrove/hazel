@@ -535,21 +535,9 @@ let rec skel_leftmost = (sk: Skel.t): int =>
 let rec opener_insertion_index = (sk: Skel.t, idx: int): option(int) => {
   let in_root = (r: Skel.root) =>
     List.mem(Aba.get_as(r), idx, ~equal=Int.equal);
-  let first_some = opts =>
-    List.fold_left(
-      ~f=
-        (acc, o) =>
-          switch (acc) {
-          | Some(_) => acc
-          | None => o
-          },
-      ~init=None,
-      opts,
-    );
+  let first_some = opts => List.find_map(opts, ~f=Fn.id);
   let search_kids = (r: Skel.root) =>
-    Aba.get_bs(r)
-    |> List.map(~f=k => opener_insertion_index(k, idx))
-    |> first_some;
+    List.find_map(Aba.get_bs(r), ~f=k => opener_insertion_index(k, idx));
   switch (sk) {
   | Op(r) => in_root(r) ? None : search_kids(r)
   | Pre(r, k) =>
@@ -2019,16 +2007,11 @@ let rec complete_segment =
              t,
            )
          )
-      |> List.fold_left(
-           ~f=
-             (best, cand) =>
-               switch (best) {
-               | None => Some(cand)
-               | Some((br, bp, _)) =>
-                 let (r, p, _) = cand;
-                 r < br || r == br && p > bp ? Some(cand) : best;
-               },
-           ~init=None,
+      |> List.min_elt(~compare=((r1, p1, _), (r2, p2, _)) =>
+           switch (Int.compare(r1, r2)) {
+           | 0 => Int.compare(p2, p1)
+           | c => c
+           }
          )
       |> Option.map(~f=((_, _, t)) => t);
     /* per partition: ONE tile (or the wraps) per pass; remaining
