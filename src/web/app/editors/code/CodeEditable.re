@@ -581,6 +581,24 @@ module View = {
           : Effect.Ignore;
       Effect.Many([cache_for_paste, JsUtil.write_clipboard(str)]);
     };
+    /* Where a copied link puts the reader: this selection, or else the
+       caret. */
+    let deep_link_position = (): DeepLink.position => {
+      let z = model.editor.state.zipper;
+      let measured = model.editor.syntax.measured;
+      let caret = () => DeepLink.Caret(Zipper.Caret.point(measured, z));
+      switch (z.selection.content) {
+      | [] => caret()
+      | [first, ..._] as content =>
+        switch (
+          Measured.find_p(first, measured),
+          Measured.find_p(ListUtil.last(content), measured),
+        ) {
+        | (head, tail) => DeepLink.position_of_span((head.origin, tail.last))
+        | exception _ => caret()
+        }
+      };
+    };
     let paste_from_clipboard = () =>
       Effect.bind(JsUtil.read_clipboard(), ~f=text =>
         inject(
@@ -604,6 +622,16 @@ module View = {
       | PasteFromClipboard =>
         Effect.Many([
           paste_from_clipboard(),
+          inject(ContextMenu(ContextMenu.Model.Close)),
+        ])
+      | CopyDeepLink =>
+        Effect.Many([
+          globals.inject_global(
+            CopyDeepLink({
+              position: deep_link_position(),
+              text: Model.to_string(model),
+            }),
+          ),
           inject(ContextMenu(ContextMenu.Model.Close)),
         ])
       | Perform(a) => inject(Perform(a))
