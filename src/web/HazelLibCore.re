@@ -80,6 +80,10 @@ let analyze_term = (term: Exp.t): (list(string), Exp.t) => {
 let evaluate = (e: Exp.t): Exp.t =>
   fst(Evaluator.evaluate(~env=Builtins.env_init, e));
 
+/* The name a JS call's argument is bound to (function_of): not one a
+   program can write, so it shadows nothing. */
+let js_arg = "%js_arg";
+
 let js_string = (s: string): Js.Unsafe.any =>
   Js.Unsafe.inject(Js.string(s));
 
@@ -143,7 +147,20 @@ and function_of = (f: Exp.t): Js.Unsafe.any =>
         | [a] => a
         | many => Exp.fresh(Tuple(many))
         };
-      to_js(evaluate(Exp.fresh(Ap(Operators.Forward, f, arg))));
+      /* The argument is bound in the environment and the function applied
+         to its name, not written into the application: an environment's
+         binding is taken as the value it is, where an argument written
+         inline is stepped back into that value node by node, a cost that
+         grows with the argument (^report(25)'s floor). */
+      let env = Environment.extend(Builtins.env_init, (js_arg, arg));
+      to_js(
+        fst(
+          Evaluator.evaluate(
+            ~env,
+            Exp.fresh(Ap(Operators.Forward, f, Exp.fresh(Var(js_arg)))),
+          ),
+        ),
+      );
     }),
   )
 /* A JS value as a Hazel value. */
