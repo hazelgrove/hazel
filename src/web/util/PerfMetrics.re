@@ -88,7 +88,7 @@ let add =
     (cur: option(Core.Time_ns.Span.t), span: Core.Time_ns.Span.t)
     : option(Core.Time_ns.Span.t) =>
   Some(
-    Option.fold(~none=span, ~some=s => Core.Time_ns.Span.(s + span), cur),
+    Option.value_map(cur, ~default=span, ~f=s => Core.Time_ns.Span.(s + span)),
   );
 
 /* Time f, folding its span into the frame under construction with `into`, and
@@ -180,8 +180,10 @@ let time_frame: 'a. (unit => 'a) => 'a =
       let frame = current^;
       let total =
         frame.perform
-        |> Option.map(snd)
-        |> Option.fold(~none=calc, ~some=p => Core.Time_ns.Span.(p + calc));
+        |> Option.map(~f=snd)
+        |> Option.value_map(~default=calc, ~f=p =>
+             Core.Time_ns.Span.(p + calc)
+           );
       push({
         ...frame,
         total: Some(total),

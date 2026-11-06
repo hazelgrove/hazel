@@ -1,6 +1,7 @@
 open Haz3lcore;
 open ExplainThisForm;
 open Util;
+open Poly;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type feedback_option =
@@ -70,7 +71,7 @@ let get_explanation_feedback =
     (group_id: group_id, form_id: form_id, model: t): option(feedback_option) => {
   let forms =
     List.filter(
-      (form: form_model) => form.group == group_id && form.form == form_id,
+      ~f=(form: form_model) => form.group == group_id && form.form == form_id,
       model.forms,
     );
   /* A (group, form) pair should appear at most once, but this reads persisted
@@ -87,7 +88,7 @@ let get_example_feedback =
     : option(feedback_option) => {
   let forms =
     List.filter(
-      (form: form_model) => form.group == group_id && form.form == form_id,
+      ~f=(form: form_model) => form.group == group_id && form.form == form_id,
       model.forms,
     );
 
@@ -96,7 +97,7 @@ let get_example_feedback =
   | [form, ..._] =>
     let examples =
       List.filter(
-        (example: example_model) => example.sub_id == example_id,
+        ~f=(example: example_model) => example.sub_id == example_id,
         form.examples,
       );
     switch (examples) {
@@ -109,21 +110,21 @@ let get_example_feedback =
 /* Falls back to the most specific form rather than raising: `form_id` can come
    from persisted state naming a form that has since been renamed or removed. */
 let get_form_in_group = (form_id: form_id, group: group): option(form) =>
-  switch (List.find_opt((form: form) => form.id == form_id, group.forms)) {
+  switch (List.find(~f=(form: form) => form.id == form_id, group.forms)) {
   | Some(form) => Some(form)
-  | None => List.nth_opt(group.forms, 0)
+  | None => List.nth(group.forms, 0)
   };
 
 let get_selected_option = (group: group, model: t): option(form) => {
   let selected =
     List.filter(
-      (group': group_model) => group'.group == group.id,
+      ~f=(group': group_model) => group'.group == group.id,
       model.groups,
     );
   switch (selected) {
   /* No recorded selection means the most specific form. A group should have at
      most one selection; if stale state carries more, honour the first. */
-  | [] => List.nth_opt(group.forms, 0)
+  | [] => List.nth(group.forms, 0)
   | [selected, ..._] => get_form_in_group(selected.selected, group)
   };
 };
@@ -137,11 +138,12 @@ let get_options = (group: group): list((form_id, Segment.t)) =>
     ? []
     : List.rev(
         List.filter_map(
-          (form: form) =>
-            Option.map(
-              ((_anchor, segment)) => (form.id, segment),
-              form.expandable_id,
-            ),
+          ~f=
+            (form: form) =>
+              Option.map(
+                ~f=((_anchor, segment)) => (form.id, segment),
+                form.expandable_id,
+              ),
           group.forms,
         ),
       );

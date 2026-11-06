@@ -22,11 +22,13 @@
 
 (library
  (name workerServer)
+ (flags
+  (:standard -open Core))
  (modules WorkerServer CoverageHook)
  (wrapped false)
  (instrumentation
   (backend bisect_ppx))
- (libraries language)
+ (libraries core language)
  (js_of_ocaml)
  (preprocess
   (pps
@@ -38,6 +40,8 @@
 
 (library
  (name web)
+ (flags
+  (:standard -open Core))
  (instrumentation
   (backend bisect_ppx))
  (modules
@@ -48,6 +52,7 @@
   CoverageHook
   Migrate_exercises)
  (libraries
+  core
   ezjs_min
   ezjs_idb
   workerServer
@@ -78,10 +83,12 @@
 
 (executable
  (name main)
+ (flags
+  (:standard -open Core))
  (modules Main)
  (instrumentation
   (backend bisect_ppx))
- (libraries ppx_yojson_conv.expander web)
+ (libraries core ppx_yojson_conv.expander web)
  (modes js)
  (preprocess
   (pps
@@ -94,10 +101,12 @@
 
 (executable
  (name worker)
+ (flags
+  (:standard -open Core))
  (modules Worker)
  (instrumentation
   (backend bisect_ppx))
- (libraries workerServer)
+ (libraries core workerServer)
  (modes js)
  (preprocess
   (pps js_of_ocaml-ppx)))
@@ -108,8 +117,10 @@
 
 (executable
  (name migrate_exercises)
+ (flags
+  (:standard -open Core))
  (modules Migrate_exercises)
- (libraries ppx_yojson_conv.expander web)
+ (libraries core ppx_yojson_conv.expander web)
  (modes js)
  (preprocess
   (pps

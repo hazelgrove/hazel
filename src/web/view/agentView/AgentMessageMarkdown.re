@@ -4,15 +4,15 @@ open Util.WebUtil;
 
 /** Only allow navigable links we expect from assistant output. */
 let href_if_safe = (destination: string): option(string) => {
-  let d = String.trim(destination);
+  let d = String.strip(destination);
   if (String.length(d) == 0) {
     None;
-  } else if (String.starts_with(~prefix="#", d)) {
+  } else if (String.is_prefix(d, ~prefix="#")) {
     Some(d);
-  } else if (String.starts_with(~prefix="http://", d)
-             || String.starts_with(~prefix="https://", d)) {
+  } else if (String.is_prefix(d, ~prefix="http://")
+             || String.is_prefix(d, ~prefix="https://")) {
     Some(d);
-  } else if (String.starts_with(~prefix="mailto:", d)) {
+  } else if (String.is_prefix(d, ~prefix="mailto:")) {
     Some(d);
   } else {
     None;
@@ -23,15 +23,16 @@ let img_src_if_safe = (destination: string): option(string) => {
   switch (href_if_safe(destination)) {
   | Some(s) as ok
       when
-        String.starts_with(~prefix="http://", s)
-        || String.starts_with(~prefix="https://", s) => ok
+        String.is_prefix(s, ~prefix="http://")
+        || String.is_prefix(s, ~prefix="https://") => ok
   | _ => None
   };
 };
 
 let rec translate_inline = (inline: Omd.inline(_)): list(Node.t) => {
   switch (inline) {
-  | Omd.Concat(_, items) => List.concat(List.map(translate_inline, items))
+  | Omd.Concat(_, items) =>
+    List.concat(List.map(~f=translate_inline, items))
   | Omd.Text(_, s) => [text(s)]
   | Omd.Code(_, s) => [
       code(~attrs=[clss(["agent-md-code"])], [text(s)]),
@@ -91,86 +92,99 @@ let heading = (level: int, children: list(Node.t)): Node.t => {
 let rec translate_blocks = (blocks: Omd.doc): list(Node.t) => {
   List.concat(
     List.map(
-      (elem: Omd.block(_)) => {
-        switch (elem) {
-        | Omd.Paragraph(_, d) => [
-            p(~attrs=[clss(["agent-md-p"])], translate_inline(d)),
-          ]
-        | Omd.Heading(_, level, d) => [heading(level, translate_inline(d))]
-        | Omd.List(_, typ, _, items) =>
-          let lis =
-            List.map(
-              (item_blocks: list(Omd.block(_))) => {
-                li(
-                  ~attrs=[clss(["agent-md-li"])],
-                  translate_blocks(item_blocks),
-                )
+      ~f=
+        (elem: Omd.block(_)) => {
+          switch (elem) {
+          | Omd.Paragraph(_, d) => [
+              p(~attrs=[clss(["agent-md-p"])], translate_inline(d)),
+            ]
+          | Omd.Heading(_, level, d) => [
+              heading(level, translate_inline(d)),
+            ]
+          | Omd.List(_, typ, _, items) =>
+            let lis =
+              List.map(
+                ~f=
+                  (item_blocks: list(Omd.block(_))) => {
+                    li(
+                      ~attrs=[clss(["agent-md-li"])],
+                      translate_blocks(item_blocks),
+                    )
+                  },
+                items,
+              );
+            [
+              switch (typ) {
+              | Omd.Bullet(_) => ul(~attrs=[clss(["agent-md-ul"])], lis)
+              | Omd.Ordered(_, _) =>
+                ol(~attrs=[clss(["agent-md-ol"])], lis)
               },
-              items,
-            );
-          [
-            switch (typ) {
-            | Omd.Bullet(_) => ul(~attrs=[clss(["agent-md-ul"])], lis)
-            | Omd.Ordered(_, _) => ol(~attrs=[clss(["agent-md-ol"])], lis)
-            },
-          ];
-        | Omd.Blockquote(_, bs) => [
-            blockquote(
-              ~attrs=[clss(["agent-md-bq"])],
-              translate_blocks(bs),
-            ),
-          ]
-        | Omd.Thematic_break(_) => [hr(~attrs=[clss(["agent-md-hr"])], ())]
-        | Omd.Code_block(_, _label, code_text) => [
-            pre(
-              ~attrs=[clss(["agent-md-pre"])],
-              [
-                code(
-                  ~attrs=[clss(["agent-md-code-block"])],
-                  [text(code_text)],
-                ),
-              ],
-            ),
-          ]
-        | Omd.Table(_, headers, rows) =>
-          let th_cells =
-            List.map(
-              ((cell, _align)) =>
-                th(~attrs=[clss(["agent-md-th"])], translate_inline(cell)),
-              headers,
-            );
-          let body_rows =
-            List.map(
-              (row: list(Omd.inline(_))) => {
-                let tds =
-                  List.map(
-                    cell =>
-                      td(
-                        ~attrs=[clss(["agent-md-td"])],
-                        translate_inline(cell),
-                      ),
-                    row,
-                  );
-                tr(~attrs=[clss(["agent-md-tr"])], tds);
-              },
-              rows,
-            );
-          [
-            table(
-              ~attrs=[clss(["agent-md-table"])],
-              [
-                thead(
-                  ~attrs=[clss(["agent-md-thead"])],
-                  [tr(~attrs=[], th_cells)],
-                ),
-                tbody(~attrs=[clss(["agent-md-tbody"])], body_rows),
-              ],
-            ),
-          ];
-        | Omd.Html_block(_, _) => []
-        | Omd.Definition_list(_, _) => []
-        }
-      },
+            ];
+          | Omd.Blockquote(_, bs) => [
+              blockquote(
+                ~attrs=[clss(["agent-md-bq"])],
+                translate_blocks(bs),
+              ),
+            ]
+          | Omd.Thematic_break(_) => [
+              hr(~attrs=[clss(["agent-md-hr"])], ()),
+            ]
+          | Omd.Code_block(_, _label, code_text) => [
+              pre(
+                ~attrs=[clss(["agent-md-pre"])],
+                [
+                  code(
+                    ~attrs=[clss(["agent-md-code-block"])],
+                    [text(code_text)],
+                  ),
+                ],
+              ),
+            ]
+          | Omd.Table(_, headers, rows) =>
+            let th_cells =
+              List.map(
+                ~f=
+                  ((cell, _align)) =>
+                    th(
+                      ~attrs=[clss(["agent-md-th"])],
+                      translate_inline(cell),
+                    ),
+                headers,
+              );
+            let body_rows =
+              List.map(
+                ~f=
+                  (row: list(Omd.inline(_))) => {
+                    let tds =
+                      List.map(
+                        ~f=
+                          cell =>
+                            td(
+                              ~attrs=[clss(["agent-md-td"])],
+                              translate_inline(cell),
+                            ),
+                        row,
+                      );
+                    tr(~attrs=[clss(["agent-md-tr"])], tds);
+                  },
+                rows,
+              );
+            [
+              table(
+                ~attrs=[clss(["agent-md-table"])],
+                [
+                  thead(
+                    ~attrs=[clss(["agent-md-thead"])],
+                    [tr(~attrs=[], th_cells)],
+                  ),
+                  tbody(~attrs=[clss(["agent-md-tbody"])], body_rows),
+                ],
+              ),
+            ];
+          | Omd.Html_block(_, _) => []
+          | Omd.Definition_list(_, _) => []
+          }
+        },
       blocks,
     ),
   );
@@ -178,9 +192,9 @@ let rec translate_blocks = (blocks: Omd.doc): list(Node.t) => {
 
 /** Renders assistant markdown to vdom. Empty or whitespace-only input yields an empty root. */
 let view = (markdown: string): Node.t => {
-  let trimmed = String.trim(markdown);
+  let trimmed = String.strip(markdown);
   let children =
-    if (trimmed == "") {
+    if (String.equal(trimmed, "")) {
       [];
     } else {
       translate_blocks(Omd.of_string(markdown));
@@ -196,8 +210,8 @@ let view = (markdown: string): Node.t => {
     end-of-input). Single * and _ are left alone (math, snake_case). */
 let close_dangling_inline = (s: string): string => {
   let inside_fence =
-    String.split_on_char('\n', s)
-    |> List.filter(l => String.starts_with(~prefix="```", String.trim(l)))
+    String.split(s, ~on='\n')
+    |> List.filter(~f=l => String.is_prefix(String.strip(l), ~prefix="```"))
     |> List.length
     |> (n => n mod 2 == 1);
   if (inside_fence) {
@@ -206,24 +220,26 @@ let close_dangling_inline = (s: string): string => {
     let len = String.length(s);
     let rec last_blank = i =>
       i <= 0
-        ? 0 : s.[i] == '\n' && s.[i - 1] == '\n' ? i + 1 : last_blank(i - 1);
+        ? 0
+        : Char.equal(s.[i], '\n') && Char.equal(s.[i - 1], '\n')
+            ? i + 1 : last_blank(i - 1);
     let para_start = last_blank(len - 1);
-    let para = String.sub(s, para_start, len - para_start);
-    let backticks =
-      String.fold_left((acc, c) => c == '`' ? acc + 1 : acc, 0, para);
+    let para = String.sub(s, ~pos=para_start, ~len=len - para_start);
+    let backticks = String.count(para, ~f=Char.equal('`'));
     if (backticks mod 2 == 1) {
       s ++ "`";
     } else {
       /* count ** pairs outside inline-code spans (even-indexed backtick chunks) */
       let outside_code =
-        String.split_on_char('`', para)
-        |> List.filteri((i, _) => i mod 2 == 0)
-        |> String.concat(" ");
+        String.split(para, ~on='`')
+        |> List.filteri(~f=(i, _) => i mod 2 == 0)
+        |> String.concat(~sep=" ");
       let n = String.length(outside_code);
       let rec count_strong = (i, acc) =>
         if (i + 1 >= n) {
           acc;
-        } else if (outside_code.[i] == '*' && outside_code.[i + 1] == '*') {
+        } else if (Char.equal(outside_code.[i], '*')
+                   && Char.equal(outside_code.[i + 1], '*')) {
           count_strong(i + 2, acc + 1);
         } else {
           count_strong(i + 1, acc);
