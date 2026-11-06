@@ -32,13 +32,18 @@ let rec find_in_let =
   | (_, Projector(_, ue)) => find_in_let(name, upat, ue, l)
   | (Asc(up, _), _) => find_in_let(name, up, def, l)
   | (Var(x), Fun(_)) => x == name ? [def, ...l] : l
-  | (TupLabel(_, up), _) => find_in_let(name, up, def, l)
   | (Tuple(pl), Tuple(ul)) =>
     if (List.length(pl) != List.length(ul)) {
       l;
     } else {
       List.fold_left2(
-        (acc, up, ue) => find_in_let(name, up, TupleEntry.value(ue), acc),
+        (acc, up, ue) =>
+          find_in_let(
+            name,
+            TupleEntry.value(up),
+            TupleEntry.value(ue),
+            acc,
+          ),
         l,
         pl,
         ul,
@@ -51,8 +56,7 @@ let rec find_in_let =
       ListLit(_) |
       Constructor(_) |
       Cons(_, _) |
-      Ap(_, _) |
-      ExplicitNonlabel,
+      Ap(_, _),
       _,
     ) => l
   };
@@ -156,20 +160,14 @@ let rec var_mention_upat = (name: string, upat: Pat.t): bool => {
   | MultiHole(_)
   | Atom(_)
   | Label(_)
-  | ExplicitNonlabel
   | Constructor(_) => false
   | Cons(up1, up2) =>
     var_mention_upat(name, up1) || var_mention_upat(name, up2)
-  | ListLit(l)
+  | ListLit(l) => List.exists(var_mention_upat(name), l)
   | Tuple(l) =>
-    List.fold_left(
-      (acc, up) => {acc || var_mention_upat(name, up)},
-      false,
-      l,
-    )
+    List.exists(entry => var_mention_upat(name, TupleEntry.value(entry)), l)
   | Parens(up)
-  | Projector(_, up)
-  | TupLabel(_, up) => var_mention_upat(name, up)
+  | Projector(_, up) => var_mention_upat(name, up)
   | Ap(up1, up2) =>
     var_mention_upat(name, up1) || var_mention_upat(name, up2)
   | Asc(up, _) => var_mention_upat(name, up)

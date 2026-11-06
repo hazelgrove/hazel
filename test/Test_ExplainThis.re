@@ -242,6 +242,7 @@ let corpus = [
   ("tuplabel-exp", "(x=1)"),
   ("dot", "(x=1, y=2).x"),
   ("tuple4-exp", "(1, 2, 3, 4)"),
+  ("tuple4-pat", "let (a, b, c, d) = ? in a"),
   ("tyalias", "type T = Int in 1"),
   /* The list *expression* forms. Without these the pattern-side cons docs are
      covered but the expression-side ones are not, so a coloring pointing at the
@@ -475,11 +476,10 @@ x:(a) => TypAnnPat colorings=[a,x]|},
   ),
   (
     "fun-tuplabel",
-    {|(x=y) => TuplePat colorings=[]
-`x` => Label colorings=[]
+    {|(x=y) => LabeledPat colorings=[x,y]
 fun (x=y) -> y => (FunctionExp Base) colorings=[(x=y),y]
-fun (x=y) -> y => (FunctionExp TupLabel) colorings=[`x`,y,y]
-x=y => LabeledPat colorings=[`x`,y]
+fun (x=y) -> y => (FunctionExp TupLabel) colorings=[x,y,y]
+x => Label colorings=[]
 y => VarExp colorings=[]
 y => VarPat colorings=[]|},
   ),
@@ -564,6 +564,18 @@ y => Label colorings=[]|},
 4 => IntExp colorings=[]|},
   ),
   (
+    "tuple4-pat",
+    {|(a, b, c, d) => TuplePat colorings=[]
+? => EmptyHoleExp colorings=[]
+a => VarExp colorings=[]
+a => VarPat colorings=[]
+b => VarPat colorings=[]
+c => VarPat colorings=[]
+d => VarPat colorings=[]
+let (a, b, c, d) = ? in a => (LetExp Base) colorings=[(a, b, c, d),?]
+let (a, b, c, d) = ? in a => (LetExp Tuple) colorings=[(a, b, c, d),?]|},
+  ),
+  (
     "cons-exp",
     {|1 => IntExp colorings=[]
 1:: [] => ConsExp colorings=[1,[]]
@@ -631,6 +643,7 @@ let expected_groups = [
   "(FunctionExp Wild)",
   "(LetExp ApFunc)",
   "(LetExp ListCons)",
+  "(LetExp Tuple)",
   "(LetExp Tuple2)",
   "(LetExp Var)",
   "(UnOpExp (Bool Not))",
@@ -647,6 +660,7 @@ let expected_groups = [
   "DeferralExp",
   "DeferredApExp",
   "DotExp",
+  "EmptyHoleExp",
   "FunApExp",
   "IfExp",
   "IntExp",

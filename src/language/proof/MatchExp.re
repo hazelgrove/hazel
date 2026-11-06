@@ -322,7 +322,14 @@ and match_pat = (pat_r: Pat.t, pat: Pat.t): option(alphas) =>
   | (Tuple(xs), Tuple(ys)) when List.length(xs) == List.length(ys) =>
     ListUtil.fold_left_opt(
       (alphas, (x, y)) =>
-        match_pat(x, y) |> Option.map(alphas1 => alphas1 @ alphas),
+        Option.equal(
+          String.equal,
+          TupleEntry.label_name(x),
+          TupleEntry.label_name(y),
+        )
+          ? match_pat(TupleEntry.value(x), TupleEntry.value(y))
+            |> Option.map(alphas1 => alphas1 @ alphas)
+          : None,
       [],
       List.combine(xs, ys),
     )
@@ -334,21 +341,6 @@ and match_pat = (pat_r: Pat.t, pat: Pat.t): option(alphas) =>
   | (Ap(_, _), _) => None
   | (Label(l1), Label(l2)) when l1 == l2 => Some([])
   | (Label(_), _) => None
-  | (TupLabel({term: ExplicitNonlabel, _}, pat_r), _) =>
-    match_pat(pat_r, pat)
-  | (_, TupLabel({term: ExplicitNonlabel, _}, pat)) =>
-    match_pat(pat_r, pat)
-  | (ExplicitNonlabel, _) =>
-    raise(
-      Failure(
-        "match_pat ExplicitNonlabel shouldn't show up since they're matched above",
-      ),
-    )
-  | (TupLabel(e1, e2), TupLabel(e3, e4)) =>
-    let* alphas1 = match_pat(e1, e3);
-    let* alphas2 = match_pat(e2, e4);
-    Some(alphas1 @ alphas2);
-  | (TupLabel(_, _), _) => None
   }
 
 // TODO complete

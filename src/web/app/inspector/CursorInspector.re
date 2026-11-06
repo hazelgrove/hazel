@@ -327,17 +327,12 @@ let common_ok_view =
       ~introduced_labels: list(LabeledTuple.label),
       ~lifted_ty: option(Typ.t),
       ~inferred_label: option(LabeledTuple.label),
-      ~label_sort: bool,
       cls: Cls.t,
       ok: Message.ok_common,
     ) => {
   let view_type = view_type(~globals);
   (
     switch (cls, ok) {
-    | (Pat(EmptyHole), _) when label_sort => []
-    | (Pat(ExplicitNonlabel), _) when label_sort => [
-        text("Explicitly unlabeled entry"),
-      ]
     | (Exp(MultiHole) | Pat(MultiHole), _) => [
         text("Expecting operator or delimiter"),
       ]
@@ -824,7 +819,6 @@ let exp_view =
           ~reordered,
           ~introduced_labels,
           ~inferred_label,
-          ~label_sort=false,
           cls,
           Message.Syn(info.elab_syn_ty),
         ),
@@ -840,7 +834,6 @@ let exp_view =
           ~reordered,
           ~introduced_labels,
           ~inferred_label,
-          ~label_sort=false,
           cls,
           ok,
         ),
@@ -978,7 +971,6 @@ let pat_view =
             },
           ~introduced_labels,
           ~inferred_label,
-          ~label_sort=info.label_sort,
           cls,
           ok,
         );

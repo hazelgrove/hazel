@@ -97,15 +97,13 @@ and pat_term('a) =
   | EmptyHole
   | MultiHole(list(any_t('a)))
   | Wild
-  | ExplicitNonlabel
   | Atom(Atom.t)
   | ListLit(list(pat_t('a)))
   | Constructor(string, option(option(typ_t('a)))) // see comment on constructor expressions
   | Cons(pat_t('a), pat_t('a))
   | Var(Var.t)
-  | Tuple(list(pat_t('a)))
+  | Tuple(list(tuple_entry('a, pat_t('a))))
   | Label(string)
-  | TupLabel(pat_t('a), pat_t('a))
   | Parens(pat_t('a))
   | Projector(projector_data, pat_t('a))
   | Ap(pat_t('a), pat_t('a))
@@ -353,11 +351,11 @@ and map_pat_annotation: 'a 'b. ('a => 'b, pat_t('a)) => pat_t('b) =
         | Cons(p1, p2) =>
           Cons(map_pat_annotation(f, p1), map_pat_annotation(f, p2))
         | Var(v) => Var(v)
-        | Tuple(l) => Tuple(List.map(x => map_pat_annotation(f, x), l))
-        | ExplicitNonlabel => ExplicitNonlabel
+        | Tuple(l) =>
+          Tuple(
+            List.map(map_tuple_entry_annotation(f, map_pat_annotation), l),
+          )
         | Label(l) => Label(l)
-        | TupLabel(p1, p2) =>
-          TupLabel(map_pat_annotation(f, p1), map_pat_annotation(f, p2))
         | Parens(p) => Parens(map_pat_annotation(f, p))
         | Projector(data, p) => Projector(data, map_pat_annotation(f, p))
         | Ap(p1, p2) =>
@@ -914,22 +912,36 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Var(v),
       annotation: default_annotation(ann),
     };
-    let tuple = (~ann=?, l): pat_t(DefaultAnnotation.t) => {
-      term: Tuple(l),
+    /* an unlabeled tuple */
+    let tuple = (~ann=?, ps): pat_t(DefaultAnnotation.t) => {
+      term: Tuple(List.map(p => Unlabeled(p), ps)),
       annotation: default_annotation(ann),
     };
-    let explicit_non_label = (~ann=?, ()): pat_t(DefaultAnnotation.t) => {
-      term: ExplicitNonlabel,
+    let tuple_entries = (~ann=?, entries): pat_t(DefaultAnnotation.t) => {
+      term: Tuple(entries),
       annotation: default_annotation(ann),
     };
     let label = (~ann=?, l): pat_t(DefaultAnnotation.t) => {
       term: Label(l),
       annotation: default_annotation(ann),
     };
-    let tup_label = (~ann=?, p1, p2): pat_t(DefaultAnnotation.t) => {
-      term: TupLabel(p1, p2),
-      annotation: default_annotation(ann),
-    };
+    /* An entry labeled with a name; ~ann is the `=` tile's */
+    let labeled =
+        (~ann=?, ~label_ann=?, name, p)
+        : tuple_entry(DefaultAnnotation.t, pat_t(DefaultAnnotation.t)) =>
+      Labeled(
+        default_annotation(ann),
+        {
+          term: Label(name),
+          annotation: default_annotation(label_ann),
+        },
+        p,
+      );
+    /* An entry with any label */
+    let labeled' =
+        (~ann=?, l, p)
+        : tuple_entry(DefaultAnnotation.t, pat_t(DefaultAnnotation.t)) =>
+      Labeled(default_annotation(ann), l, p);
     let parens = (~ann=?, p): pat_t(DefaultAnnotation.t) => {
       term: Parens(p),
       annotation: default_annotation(ann),

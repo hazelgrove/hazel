@@ -739,31 +739,6 @@ let tests = (
       "Duplicate labels in patterns collapse duplicates",
       `Quick,
       () => {
-        let duplicate_a_tuple_pat_ann: option(issue) =
-          Some(
-            Marks([
-              TupleLabelError({
-                malformed_labels: [],
-                duplicate_labels: ["a", "a"],
-                invalid_labels: [],
-                typ:
-                  FTemp.Typ.(
-                    prod([tup_label(label("a"), unknown(Internal))])
-                  ),
-              }),
-            ]),
-          );
-        let single_duplicate_a_pat_ann: option(issue) =
-          Some(
-            Marks([
-              TupleLabelError({
-                malformed_labels: [],
-                duplicate_labels: ["a"],
-                invalid_labels: [],
-                typ: FTemp.Typ.(tup_label(label("a"), unknown(Internal))),
-              }),
-            ]),
-          );
         let duplicate_a_label_pat_ann: option(issue) =
           Some(Marks([DuplicateLabel("a", FTemp.Typ.label("a"))]));
         annotated_tree_test(
@@ -774,28 +749,24 @@ let tests = (
               fn(
                 Pat.(
                   parens(
-                    ~ann=duplicate_a_tuple_pat_ann,
-                    tuple(
-                      ~ann=duplicate_a_tuple_pat_ann,
-                      [
-                        tup_label(
-                          ~ann=single_duplicate_a_pat_ann,
-                          label(~ann=duplicate_a_label_pat_ann, "a"),
-                          var(
-                            ~ann=Some(Warnings([Pat(UnusedVar("a"))])),
-                            "a",
-                          ),
+                    tuple_entries([
+                      labeled(
+                        ~label_ann=duplicate_a_label_pat_ann,
+                        "a",
+                        var(
+                          ~ann=Some(Warnings([Pat(UnusedVar("a"))])),
+                          "a",
                         ),
-                        tup_label(
-                          ~ann=single_duplicate_a_pat_ann,
-                          label(~ann=duplicate_a_label_pat_ann, "a"),
-                          var(
-                            ~ann=Some(Warnings([Pat(UnusedVar("b"))])),
-                            "b",
-                          ),
+                      ),
+                      labeled(
+                        ~label_ann=duplicate_a_label_pat_ann,
+                        "a",
+                        var(
+                          ~ann=Some(Warnings([Pat(UnusedVar("b"))])),
+                          "b",
                         ),
-                      ],
-                    ),
+                      ),
+                    ]),
                   )
                 ),
                 int(1),

@@ -75,11 +75,9 @@ let suggest = (ci: Info.t, z: Zipper.t): list(t) => {
       labels,
     )
   | InfoLabel(_)
-  | InfoPat({label_sort: true, _})
   | InfoExp({cls: Exp(Label), _})
   | InfoPat({cls: Pat(Label), _})
   | InfoTyp({cls: Typ(Label), _})
-  | InfoPat({cls: Pat(TupLabel), _})
   | InfoTyp({cls: Typ(TupLabel), _}) => []
   | _ =>
     /* When the expected type is unknown (e.g., no type annotation),

@@ -1083,10 +1083,10 @@ in ?|},
           [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(
-              tuple([
-                tup_label(label("x"), constructor("D", None)),
-                tup_label(label("y"), wild()),
-                tup_label(label("z"), constructor("A", None)),
+              tuple_entries([
+                labeled("x", constructor("D", None)),
+                labeled("y", wild()),
+                labeled("z", constructor("A", None)),
               ])
             ),
           ),
@@ -1118,10 +1118,10 @@ in ?|},
           [],
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(
-              tuple([
-                tup_label(label("x"), constructor("A", None)),
-                tup_label(label("y"), constructor("E", None)),
-                tup_label(label("z"), constructor("B", None)),
+              tuple_entries([
+                labeled("x", constructor("A", None)),
+                labeled("y", constructor("E", None)),
+                labeled("z", constructor("B", None)),
               ])
             ),
           ),
@@ -1135,77 +1135,61 @@ in ?|},
   );
 
 let labeled_tuple_additional_error = {
-  test_case("Labeled Tuple Additional Error Test", `Quick, () => {
-    Test_Statics_Prelude.(
-      annotated_tree_test(
-        {|case () | _ => ""| {{{([], a=?)}}} => "" end|},
-        FTemp.Typ.(string()),
-        FIError.(
-          Exp.(
-            match(
-              tuple([]),
-              [
-                (Pat.wild(), string("")),
-                (
-                  Pat.(
-                    tuple(
-                      ~ann=
-                        Some(
-                          Marks([
-                            Redundant,
-                            TupleLabelError({
-                              malformed_labels: [],
-                              duplicate_labels: [],
-                              invalid_labels: ["a"],
-                              typ:
-                                FTemp.Typ.prod([
-                                  FTemp.Typ.list(
-                                    FTemp.Typ.unknown(Internal),
-                                  ),
-                                  FTemp.Typ.tup_label(
-                                    FTemp.Typ.label("a"),
-                                    FTemp.Typ.unknown(Internal),
-                                  ),
-                                ]),
-                            }),
-                          ]),
-                        ),
-                      [
-                        list_lit([]),
-                        tup_label(
-                          ~ann=
-                            Some(
-                              Marks([
-                                TupleLabelError({
-                                  malformed_labels: [],
-                                  duplicate_labels: [],
-                                  invalid_labels: ["a"],
-                                  typ:
-                                    FTemp.Typ.tup_label(
-                                      FTemp.Typ.label("a"),
-                                      FTemp.Typ.unknown(Internal),
-                                    ),
-                                }),
-                              ]),
-                            ),
-                          label(
-                            ~ann=Some(Marks([InvalidLabel("a", [])])),
-                            "a",
-                          ),
-                          empty_hole(),
-                        ),
-                      ],
-                    )
+  test_case(
+    "Labeled Tuple Additional Error Test",
+    `Quick,
+    () => {
+      /* the tuple owns its entries' `=` tiles, so they show its marks */
+      let tuple_ann =
+        Test_Statics_Prelude.(
+          Some(
+            Marks([
+              Redundant,
+              ExpectationMismatch({
+                ana: FTemp.Typ.prod([]),
+                syn:
+                  FTemp.Typ.(
+                    prod([list(unknown(Internal)), unknown(Internal)])
                   ),
-                  string(""),
-                ),
-              ],
-            )
+              }),
+            ]),
           )
-        ),
-      )
-    )
-  });
+        );
+      Test_Statics_Prelude.(
+        annotated_tree_test(
+          {|case () | _ => ""| {{{([], a=?)}}} => "" end|},
+          FTemp.Typ.(string()),
+          FIError.(
+            Exp.(
+              match(
+                tuple([]),
+                [
+                  (Pat.wild(), string("")),
+                  (
+                    Pat.(
+                      tuple_entries(
+                        ~ann=tuple_ann,
+                        [
+                          Unlabeled(list_lit([])),
+                          labeled(
+                            ~ann=tuple_ann,
+                            ~label_ann=Some(Marks([InvalidLabel("a", [])])),
+                            "a",
+                            empty_hole(),
+                          ),
+                        ],
+                      )
+                    ),
+                    string(""),
+                  ),
+                ],
+              )
+            )
+          ),
+        )
+      );
+    },
+  );
 };
 
 let function_scrutinee =

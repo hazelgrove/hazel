@@ -119,13 +119,11 @@ let sample_pattern = (cls_pat: Pat.cls): Grammar.UnitGrammar.pat => {
       | Tuple => tuple([])
       | Cons => cons(empty_hole(), empty_hole())
       | Label => label("label")
-      | TupLabel => tup_label(label("label"), empty_hole())
       | Parens => parens(empty_hole())
       | ApCons => ap(constructor("A", None), empty_hole())
       | ApFunc => ap(empty_hole(), empty_hole())
       | Asc => asc(empty_hole(), Typ.string())
       | Wild => wild()
-      | ExplicitNonlabel => explicit_non_label()
       | Projector =>
         projector(
           {
@@ -164,8 +162,8 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
       | EmptyHole => unknown(Hole(EmptyHole))
       | SynSwitch => unknown(SynSwitch)
       | Internal => unknown(Internal)
-      | Label => label("label")
       | ExplicitNonlabel => explicit_non_label()
+      | Label => label("label")
       | MultiHole => unknown(Hole(MultiHole([])))
       | Sum => sum([])
       | ProdProjection =>

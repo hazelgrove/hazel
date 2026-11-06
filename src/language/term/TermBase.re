@@ -619,6 +619,19 @@ and Pat: {
         ~f_label,
         ~f_any,
       );
+    let label_map_term =
+      Label.map_term(
+        ~f_exp,
+        ~f_pat,
+        ~f_typ,
+        ~f_tpat,
+        ~f_rul,
+        ~f_mod,
+        ~f_sig,
+        ~f_mpat,
+        ~f_label,
+        ~f_any,
+      );
     let rec_call = ({term, _} as exp: t) => {
       ...exp,
       term:
@@ -629,15 +642,13 @@ and Pat: {
         | Atom(_)
         | Constructor(_)
         | Label(_)
-        | Var(_)
-        | ExplicitNonlabel => term
+        | Var(_) => term
         | MultiHole(things) => MultiHole(List.map(any_map_term, things))
         | ListLit(ts) => ListLit(List.map(pat_map_term, ts))
         | Ap(e1, e2) => Ap(pat_map_term(e1), pat_map_term(e2))
         | Cons(e1, e2) => Cons(pat_map_term(e1), pat_map_term(e2))
-        | Tuple(xs) => Tuple(List.map(pat_map_term, xs))
-        | TupLabel(label, e) =>
-          TupLabel(pat_map_term(label), pat_map_term(e))
+        | Tuple(xs) =>
+          Tuple(List.map(map_tuple_entry(label_map_term, pat_map_term), xs))
         | Parens(e) => Parens(pat_map_term(e))
         | Projector(data, p) => Projector(data, pat_map_term(p))
         | Asc(e, t) => Asc(pat_map_term(e), typ_map_term(t))

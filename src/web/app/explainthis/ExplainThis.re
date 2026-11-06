@@ -977,16 +977,17 @@ let decide =
             ~fallback=basic,
             FunctionExp.functions_var(~pat_id, ~body_id, ~name=var),
           )
-        | Tuple([{term: TupLabel(l, p), _}]) =>
+        | Tuple([Labeled(_, l, p)]) =>
           let group =
             FunctionExp.functions_tuplabel(
-              ~label_id=Pat.rep_id(l),
+              ~label_id=Label.rep_id(l),
               ~label_pat_id=Pat.rep_id(p),
               ~pat_id,
               ~body_id,
             );
           leveled(~fallback=basic, group);
-        | Tuple(elements) =>
+        | Tuple(entries) =>
+          let elements = List.map(TupleEntry.value, entries);
           let n = List.length(elements);
           switch (n) {
           | 2 =>
@@ -1033,11 +1034,9 @@ let decide =
             ~fallback=basic,
             FunctionExp.functions_ctr(~pat_id, ~body_id, ~name=v),
           )
-        | TupLabel(_)
         | Invalid(_)
         | Parens(_)
         | Label(_)
-        | ExplicitNonlabel
         | Projector(_)
         | Asc(_) => NoDoc // Shouldn't get hit?
         };
@@ -1162,7 +1161,8 @@ let decide =
             ~fallback=basic,
             LetExp.lets_var(~def_id, ~pat_id, ~name=var, ~body_id),
           )
-        | Tuple(elements) =>
+        | Tuple(entries) =>
+          let elements = List.map(TupleEntry.value, entries);
           let n = List.length(elements);
           /* The middle level describes the tuple generically, so unlike the
              other fallbacks it substitutes its own explanation. */
@@ -1225,8 +1225,6 @@ let decide =
             ~fallback=basic,
             LetExp.lets_ctr(~def_id, ~pat_id, ~name=v, ~body_id),
           )
-        | TupLabel(_)
-        | ExplicitNonlabel
         | Label(_)
         | Invalid(_) => NoDoc // Shouldn't get hit
         | Parens(_)
@@ -1478,16 +1476,17 @@ let decide =
       | _ => basic(ListPat.cons(~hd_id, ~tl_id))
       };
     | Var(v) => get_message(TerminalPat.var(v))
-    | ExplicitNonlabel => Prose("Explicitly unlabeled entry")
     | Label(name) => get_message(LabelTerm.labels(name))
-    | TupLabel(l, p) =>
+    /* the cursor on a labeled entry's `=` indicates its tuple */
+    | Tuple([Labeled(_, l, p)]) =>
       get_message(
         TupLabelPat.labeled_pats(
-          ~label_id=Pat.rep_id(l),
+          ~label_id=Label.rep_id(l),
           ~pat_id=Pat.rep_id(p),
         ),
       )
-    | Tuple(elements) =>
+    | Tuple(entries) =>
+      let elements = List.map(TupleEntry.value, entries);
       let n = List.length(elements);
       let basic = group =>
         get_message(~explanation=TuplePat.tuple_pat_explanation(~n), group);

@@ -1556,7 +1556,7 @@ let test_reuse_provenance_distinguishes_pattern_shapes = () => {
   let provenance = pat =>
     IncrEval.pat_provenance(~source_id, ~flag=IncrEval.Clean, pat);
   let direct = provenance(x());
-  let tuple = provenance(Pat.fresh(Tuple([x()])));
+  let tuple = provenance(Pat.fresh(Tuple([Unlabeled(x())])));
   let list = provenance(Pat.fresh(ListLit([x()])));
   let cons = provenance(Pat.fresh(Cons(x(), Pat.fresh(Wild))));
   let some =

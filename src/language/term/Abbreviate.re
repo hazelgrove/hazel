@@ -1379,7 +1379,6 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
     let term: Pat.term =
       switch (pat.term) {
       | Wild => Wild
-      | ExplicitNonlabel => ExplicitNonlabel
       | Var(v) => Var(abbreviate_str(available^, v))
       | Label(v) =>
         switch (abbreviate_label(v)) {
@@ -1487,17 +1486,17 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
           Invalid("(…)");
         } else {
           available := available^ - 2; // "()"
-          let ps' = List.map(abbreviate_pat, ps);
+          let ps' =
+            List.map(
+              fun
+              | Grammar.Unlabeled(p) => Grammar.Unlabeled(abbreviate_pat(p))
+              | Labeled(eq, l, p) => {
+                  available := available^ - 1; /* "=" */
+                  Labeled(eq, abbreviate_label_term(l), abbreviate_pat(p));
+                },
+              ps,
+            );
           Tuple(ps');
-        }
-
-      | TupLabel(p1, p2) =>
-        if (available^ < 3) {
-          available := available^ - ellipsis_cost;
-          Invalid(flat_ellipses);
-        } else {
-          available := available^ - 1; /* "=" */
-          TupLabel(abbreviate_pat(p1), abbreviate_pat(p2));
         }
 
       | MultiHole(things) =>
