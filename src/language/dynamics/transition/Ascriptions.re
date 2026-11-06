@@ -27,6 +27,53 @@
 let unchanged = (ds: list(DHExp.t), ds': list(DHExp.t)): bool =>
   List.for_all2((d, d') => d === d', ds, ds');
 
+/* A labeled tuple's fields in its type's order, when the two have the
+   same labels in other orders: every field labeled, on both sides, each
+   label once. The statics put a program's own tuples in their types' order
+   before it runs, so only a value made elsewhere meets its type in another
+   order: a JS object from the library (HazelLibCore.of_js), its fields in
+   the order of the object's keys (^ticket(703), Matthew, 2026-11-06). Pushed
+   by position, such a tuple's fields each met another field's type, and a
+   field whose type was not its own stayed stuck under it ((y = [1], x = 5)
+   against (x = Int, y = [Int]) gave x = 5 : [Int]). None when there is
+   nothing to put in order: the tuple is then pushed by position, as
+   before. */
+let in_type_order =
+    (es: list(DHExp.t), tys: list(Typ.t)): option(list(DHExp.t)) => {
+  let exp_label = (e: DHExp.t) =>
+    switch (DHExp.term_of(e)) {
+    | TupLabel(l, _) =>
+      switch (DHExp.term_of(l)) {
+      | Label(s) => Some(s)
+      | _ => None
+      }
+    | _ => None
+    };
+  let typ_label = (t: Typ.t) =>
+    switch (Typ.term_of(t)) {
+    | TupLabel(l, _) =>
+      switch (Typ.term_of(l)) {
+      | Label(s) => Some(s)
+      | _ => None
+      }
+    | _ => None
+    };
+  switch (
+    Util.OptUtil.sequence(List.map(exp_label, es)),
+    Util.OptUtil.sequence(List.map(typ_label, tys)),
+  ) {
+  | (Some(els), Some(tls))
+      when
+        els != tls
+        && List.sort_uniq(String.compare, els)
+        == List.sort(String.compare, els)
+        && List.sort(String.compare, els) == List.sort(String.compare, tls) =>
+    let by_label = List.combine(els, es);
+    Some(List.map(l => List.assoc(l, by_label), tls));
+  | _ => None
+  };
+};
+
 let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
   let recur = (d: DHExp.t): DHExp.t =>
     if (recursive) {
@@ -81,9 +128,16 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
             ),
           );
     | (Tuple(es), Prod(tys)) when List.length(es) == List.length(tys) =>
+      /* (fields paired with their types by label, not by position, when
+         the tuple's are in another order: in_type_order) */
+      let (es, reordered) =
+        switch (in_type_order(es, tys)) {
+        | Some(es) => (es, true)
+        | None => (es, false)
+        };
       let es' =
         List.map2((e, ty) => recur(Asc(e, ty) |> DHExp.fresh), es, tys);
-      unchanged(es, es')
+      !reordered && unchanged(es, es')
         ? Some(e)
         : Some(
             IdTagged.fast_copy(DHExp.rep_id(e), Tuple(es') |> DHExp.fresh),

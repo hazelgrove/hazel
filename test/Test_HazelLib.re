@@ -180,6 +180,54 @@ let tests = (
         );
       },
     ),
+    /* (^ticket(703)) a JS object's keys need not be in the labeled
+       tuple's order: its fields go by label, a list field too */
+    test_case(
+      "an object's keys in another order than its type's fields",
+      `Quick,
+      () => {
+        let x = value("fun (p : (x = Int, y = [Int])) -> p.x");
+        check(
+          string,
+          "{y: [1], x: 5}, its x",
+          "5",
+          json(call(x, [as_js("{\"y\":[1],\"x\":5}")])),
+        );
+        let p = value("fun (p : (x = Int, y = [Int])) -> p");
+        check(
+          string,
+          "{y: [1], x: 5}, back in the type's order",
+          "{\"x\":5,\"y\":[1]}",
+          json(call(p, [as_js("{\"y\":[1],\"x\":5}")])),
+        );
+        let aliased =
+          value("type P = (x = Int, y = [Int]) in fun (p : P) -> p.x");
+        check(
+          string,
+          "through a type's name",
+          "7",
+          json(call(aliased, [as_js("{\"y\":[1],\"x\":7}")])),
+        );
+        let nested =
+          value("fun (p : (x = Int, y = [(a = Int, b = Bool)])) -> p.y");
+        check(
+          string,
+          "objects in a list, each in another order",
+          "[{\"a\":1,\"b\":true}]",
+          json(
+            call(nested, [as_js("{\"y\":[{\"b\":true,\"a\":1}],\"x\":2}")]),
+          ),
+        );
+        let two =
+          value("fun (m : (n = Int, ps = [Int]), e : Int) -> m.n + e");
+        check(
+          string,
+          "one of several arguments",
+          "5",
+          json(call(two, [as_js("{\"ps\":[1],\"n\":4}"), num(1.)])),
+        );
+      },
+    ),
     test_case(
       "a lever rule returns a command tree to interpret",
       `Quick,
