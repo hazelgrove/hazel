@@ -378,6 +378,19 @@ let tests = (
       },
     ),
     test_case(
+      "analyzeProgram and runProgram say how long they took",
+      `Quick,
+      () => {
+        /* (^ticket(671)) ms read 0, or a little below, in every build:
+           the clock was read twice at the end */
+        let ms = r => Js.float_of_number(Js.Unsafe.coerce(field(r, "ms")));
+        let a = HazelLibCore.analyze_program(spec());
+        check(bool, "analyzeProgram's ms is above 0", true, ms(a) > 0.);
+        let r = HazelLibCore.run_program(spec());
+        check(bool, "runProgram's ms is above 0", true, ms(r) > 0.);
+      },
+    ),
+    test_case(
       "runProgram where it differs from today's text join, on purpose",
       `Quick,
       () => {

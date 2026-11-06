@@ -325,15 +325,12 @@ let analyze_program_spec = (spec: program_spec): program_analysis => {
   };
 };
 
-/* milliseconds, for timing */
-let now = (): float =>
-  Js.float_of_number(
-    Js.Unsafe.coerce(
-      Js.Unsafe.js_expr(
-        "(typeof performance === 'undefined' ? Date : performance).now()",
-      ),
-    ),
-  );
+/* milliseconds, for timing. A method call (Util.JsUtil.precise_timestamp),
+   which js_of_ocaml keeps where it is written. The inlined JS expression
+   this was before was taken for pure and moved to where its value is used,
+   after the call, so the build's `ms` was the difference of two clock
+   readings in a row: 0, or a little below. */
+let now = (): float => Util.JsUtil.precise_timestamp();
 
 let counts_js = (counts: list((string, int))): Js.Unsafe.any =>
   js_object(
