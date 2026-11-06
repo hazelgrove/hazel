@@ -14,8 +14,12 @@ type term =
   | TypAp(t, Typ.t)
   | Ap1(Operators.ap_direction, t, DHExp.t)
   | Ap2(Operators.ap_direction, DHExp.t, t)
-  | DeferredAp1(t, list(DHExp.t))
-  | DeferredAp2(DHExp.t, t, (list(DHExp.t), list(DHExp.t)))
+  | DeferredAp1(t, list(TupleEntry.t(DHExp.t)))
+  | DeferredAp2(
+      DHExp.t,
+      TupleEntry.t(t),
+      (list(TupleEntry.t(DHExp.t)), list(TupleEntry.t(DHExp.t))),
+    )
   | If1(t, DHExp.t, DHExp.t)
   | If2(DHExp.t, t, DHExp.t)
   | If3(DHExp.t, DHExp.t, t)
@@ -24,10 +28,12 @@ type term =
   | BinOp2(Operators.op_bin, DHExp.t, t)
   | TupleExtension1(t, DHExp.t)
   | TupleExtension2(DHExp.t, t)
-  | TupLabel(DHExp.t, t)
-  | Tuple(t, (list(DHExp.t), list(DHExp.t)))
-  | Dot1(t, DHExp.t)
-  | Dot2(DHExp.t, t)
+  /* the entry being evaluated, with its label */
+  | Tuple(
+      TupleEntry.t(t),
+      (list(TupleEntry.t(DHExp.t)), list(TupleEntry.t(DHExp.t))),
+    )
+  | Dot(t, TermBase.Label.t)
   | Test(t)
   | HintedTest(t, DHExp.t)
   | Parens(t)
@@ -81,8 +87,8 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
       let d1 = compose(ctx, d);
       DeferredAp(d1, d2s) |> wrap;
     | DeferredAp2(d1, ctx, (ld, rd)) =>
-      let d2 = compose(ctx, d);
-      DeferredAp(d1, ListUtil.rev_concat(ld, [d2, ...rd])) |> wrap;
+      let entry = TupleEntry.map(ctx => compose(ctx, d), ctx);
+      DeferredAp(d1, ListUtil.rev_concat(ld, [entry, ...rd])) |> wrap;
     | If1(ctx, d2, d3) =>
       let d' = compose(ctx, d);
       If(d', d2, d3) |> wrap;
@@ -128,18 +134,12 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
     | ListConcat2(d1, ctx) =>
       let d2 = compose(ctx, d);
       ListConcat(d1, d2) |> wrap;
-    | TupLabel(label, ctx) =>
-      let d = compose(ctx, d);
-      TupLabel(label, d) |> wrap;
-    | Dot1(ctx, d2) =>
+    | Dot(ctx, l) =>
       let d1 = compose(ctx, d);
-      Dot(d1, d2) |> wrap;
-    | Dot2(d1, ctx) =>
-      let d2 = compose(ctx, d);
-      Dot(d1, d2) |> wrap;
+      Dot(d1, l) |> wrap;
     | Tuple(ctx, (ld, rd)) =>
-      let d = compose(ctx, d);
-      Tuple(ListUtil.rev_concat(ld, [d, ...rd])) |> wrap;
+      let entry = TupleEntry.map(ctx => compose(ctx, d), ctx);
+      Tuple(ListUtil.rev_concat(ld, [entry, ...rd])) |> wrap;
     | ListLit(ctx, (ld, rd)) =>
       let d = compose(ctx, d);
       ListLit(ListUtil.rev_concat(ld, [d, ...rd])) |> wrap;

@@ -18,21 +18,12 @@ let tests = (
         let expression =
           Exp.(
             asc(
-              tuple([
-                asc(
-                  tup_label(
-                    label("var"),
-                    asc(string("get_acne"), Typ.unknown(Internal)),
-                  ),
-                  Typ.unknown(Internal),
+              tuple_entries([
+                labeled(
+                  "var",
+                  asc(string("get_acne"), Typ.unknown(Internal)),
                 ),
-                asc(
-                  tup_label(
-                    label("val"),
-                    asc(bool(true), Typ.unknown(Internal)),
-                  ),
-                  Typ.unknown(Internal),
-                ),
+                labeled("val", asc(bool(true), Typ.unknown(Internal))),
               ]),
               Typ.(
                 prod([

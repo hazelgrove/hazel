@@ -128,8 +128,8 @@ module IntroduceExp: Introducable with type t = Exp.t = {
             (
               switch (t) {
               | {term: TupLabel({term: Label(l), _}, _), _} =>
-                tup_label(label(l), hole)
-              | _ => hole
+                labeled(l, hole)
+              | _ => Unlabeled(hole)
               },
               List.hd(hole.annotation.ids),
             );
@@ -138,7 +138,7 @@ module IntroduceExp: Introducable with type t = Exp.t = {
           let (head_element, head_id) = tuple_entry(t);
 
           Some((
-            tuple([
+            tuple_entries([
               head_element,
               ...List.map(t => t |> tuple_entry |> fst, ts),
             ]),

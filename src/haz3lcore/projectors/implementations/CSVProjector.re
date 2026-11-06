@@ -35,13 +35,13 @@ module M: Projector = {
         ListLit(
           List.map(
             (row: list((string, string))) =>
-              Language.IdTagged.FreshGrammar.Exp.(
-                tuple(
+              Language.IdTagged.FreshGrammar.(
+                Exp.tuple_entries(
                   List.map(
                     ((header: string, value: string)) =>
-                      tup_label(
-                        label(StringUtil.sanitize_for_label(header)),
-                        string(
+                      Exp.labeled(
+                        StringUtil.sanitize_for_label(header),
+                        Exp.string(
                           StringUtil.sanitize_for_string_expression(value),
                         ),
                       ),

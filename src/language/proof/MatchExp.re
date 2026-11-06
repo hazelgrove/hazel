@@ -41,6 +41,25 @@ let rec match_exp =
         )
         : option(match_ctx) => {
   let match_exp = match_exp(~info_map);
+  /* Entries match when their labels agree and their values match */
+  let match_entries = (alphas, ctx, xs, ys) =>
+    ListUtil.fold_left_opt(
+      (ctx, (x, y)) =>
+        Option.equal(
+          String.equal,
+          TupleEntry.label_name(x),
+          TupleEntry.label_name(y),
+        )
+          ? match_exp(
+              alphas,
+              ctx,
+              TupleEntry.value(x),
+              TupleEntry.value(y),
+            )
+          : None,
+      ctx,
+      List.combine(xs, ys),
+    );
   switch (exp_r |> Exp.term_of, exp |> Exp.term_of) {
   /* Parens */
   | (Parens(e1), _)
@@ -136,11 +155,7 @@ let rec match_exp =
     match_exp(alphas, ctx, e1, e2);
   | (TypFun(_, _, _), _) => None
   | (Tuple(xs), Tuple(ys)) when List.length(xs) == List.length(ys) =>
-    ListUtil.fold_left_opt(
-      (ctx, (x, y)) => match_exp(alphas, ctx, x, y),
-      ctx,
-      List.combine(xs, ys),
-    )
+    match_entries(alphas, ctx, xs, ys)
   | (Tuple(_), _) => None
   | (TupleExtension(xs1, ys1), TupleExtension(xs2, ys2)) =>
     let* ctx = match_exp(alphas, ctx, xs1, xs2);
@@ -179,11 +194,7 @@ let rec match_exp =
   | (DeferredAp(e1, es1), DeferredAp(e2, es2))
       when List.length(es1) == List.length(es2) =>
     let* ctx = match_exp(alphas, ctx, e1, e2);
-    ListUtil.fold_left_opt(
-      (ctx, (x, y)) => match_exp(alphas, ctx, x, y),
-      ctx,
-      List.combine(es1, es2),
-    );
+    match_entries(alphas, ctx, es1, es2);
   | (DeferredAp(_, _), _) => None
   | (DrvQuote(e1, _), DrvQuote(e2, _))
       when DrvTermBase.Any.eq(e1, e2, ~skip_hole=false) =>
@@ -241,16 +252,8 @@ let rec match_exp =
   | (Match(_, _), _) => None
   | (Label(l1), Label(l2)) when l1 == l2 => Some(ctx)
   | (Label(_), _) => None
-  | (ExplicitNonlabel, ExplicitNonlabel) => Some(ctx)
-  | (TupLabel(l1, e1), TupLabel(l2, e2)) when l1 == l2 =>
-    match_exp(alphas, ctx, e1, e2)
-  | (TupLabel({term: ExplicitNonlabel, _}, e1), _) =>
-    match_exp(alphas, ctx, e1, exp)
-  | (_, TupLabel({term: ExplicitNonlabel, _}, e2)) =>
-    match_exp(alphas, ctx, exp_r, e2)
-  | (TupLabel(_, _), _) => None
-  | (ExplicitNonlabel, _) => None
-  | (Dot(e1, l1), Dot(e2, l2)) when l1 == l2 =>
+  | (Dot(e1, l1), Dot(e2, l2))
+      when Option.equal(String.equal, Label.name(l1), Label.name(l2)) =>
     match_exp(alphas, ctx, e1, e2)
   | (Dot(_, _), _) => None
   | (LivelitName(l1), LivelitName(l2)) when l1 == l2 => Some(ctx)

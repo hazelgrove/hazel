@@ -407,7 +407,7 @@ let all_targets: list(string) = [
    the contract goes red in the buffer. */
 let expected_type = CS.typ;
 
-let entries_of = (v: Exp.t): list(Exp.t) =>
+let entries_of = (v: Exp.t): list(TupleEntry.t(Exp.t)) =>
   switch (v.term) {
   | Tuple(es) => es
   | _ => []
@@ -418,15 +418,14 @@ let entries_of = (v: Exp.t): list(Exp.t) =>
 let colors_of_group =
     (group_name: string, group: Exp.t): list((string, string)) =>
   List.concat_map(
-    (entry: Exp.t) =>
-      switch (entry.term) {
-      | TupLabel(l, v) =>
-        switch (l.term, C.of_exp(v)) {
-        | (Label(name), Some(c)) =>
-          let css = C.to_css(c);
-          List.map(t => (t, css), targets_of(group_name, name));
-        | _ => []
-        }
+    entry =>
+      switch (
+        TupleEntry.label_name(entry),
+        C.of_exp(TupleEntry.value(entry)),
+      ) {
+      | (Some(name), Some(c)) =>
+        let css = C.to_css(c);
+        List.map(t => (t, css), targets_of(group_name, name));
       | _ => []
       },
     entries_of(group),
@@ -437,36 +436,33 @@ let colors_of_group =
    palette is published too, because it is what a saved user theme writes. */
 let decoded_vars = (value: Exp.t): list((string, string)) =>
   List.concat_map(
-    (section: Exp.t) =>
-      switch (section.term) {
-      | TupLabel(l, body) =>
-        switch (l.term) {
-        | Label("palette") => colors_of_group("palette", body)
-        | Label(l) when l == CS.polarity_field =>
-          switch (Unboxing.unbox(Atom(Bool), body)) {
-          | Matches(b) => [(polarity_target, b ? "dark" : "light")]
-          | _ => []
-          }
-        | Label(l) when l == CS.contrast_field =>
-          switch (Unboxing.unbox(Atom(Bool), body)) {
-          | Matches(b) => [(contrast_target, b ? "high" : "normal")]
-          | _ => []
-          }
-        /* roles nest one level deeper: group -> entries */
-        | Label("roles") =>
-          List.concat_map(
-            (g: Exp.t) =>
-              switch (g.term) {
-              | TupLabel({term: Label(gname), _}, members) =>
-                colors_of_group(gname, members)
-              | _ => []
-              },
-            entries_of(body),
-          )
+    section => {
+      let body = TupleEntry.value(section);
+      switch (TupleEntry.label_name(section)) {
+      | Some("palette") => colors_of_group("palette", body)
+      | Some(l) when l == CS.polarity_field =>
+        switch (Unboxing.unbox(Atom(Bool), body)) {
+        | Matches(b) => [(polarity_target, b ? "dark" : "light")]
         | _ => []
         }
+      | Some(l) when l == CS.contrast_field =>
+        switch (Unboxing.unbox(Atom(Bool), body)) {
+        | Matches(b) => [(contrast_target, b ? "high" : "normal")]
+        | _ => []
+        }
+      /* roles nest one level deeper: group -> entries */
+      | Some("roles") =>
+        List.concat_map(
+          g =>
+            switch (TupleEntry.label_name(g)) {
+            | Some(gname) => colors_of_group(gname, TupleEntry.value(g))
+            | None => []
+            },
+          entries_of(body),
+        )
       | _ => []
-      },
+      };
+    },
     entries_of(value),
   );
 

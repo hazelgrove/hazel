@@ -181,7 +181,7 @@ let tests = (
           option(segment),
           "Singleton Labeled",
           Parser.to_segment("(x=1)", ~root=Exp),
-          Some(exp_to_segment(tuple([tup_label(label("x"), int(1))]))),
+          Some(exp_to_segment(tuple_entries([labeled("x", int(1))]))),
         );
         equivalent_to_make_term({|(x=1, y=2)|});
       },
@@ -476,7 +476,12 @@ let tests = (
         {|1.230000 . 4.560000|},
         print_seg(
           exp_to_segment(
-            IdTagged.FreshGrammar.Exp.(dot(float(1.23), float(4.56))),
+            IdTagged.FreshGrammar.(
+              Exp.dot(
+                Exp.float(1.23),
+                Label.multi_hole([Exp(Exp.float(4.56))]),
+              )
+            ),
           ),
         ),
       )
@@ -1750,7 +1755,9 @@ let pad_ids_tests = (
             ),
           );
         let ids =
-          Exp.fresh(Tuple([case(1, 2), case(3, 4)]))
+          Exp.fresh(
+            Tuple([Unlabeled(case(1, 2)), Unlabeled(case(3, 4))]),
+          )
           |> exp_to_segment
           |> tile_ids;
         Alcotest.(check(int))(

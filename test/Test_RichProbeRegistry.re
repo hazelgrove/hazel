@@ -22,7 +22,7 @@ let mk_table = (rows: list(list((string, Exp.t)))): Exp.t =>
       List.map(
         fields =>
           parens(
-            tuple(List.map(((l, v)) => tup_label(label(l), v), fields)),
+            tuple_entries(List.map(((l, v)) => labeled(l, v), fields)),
           ),
         rows,
       ),

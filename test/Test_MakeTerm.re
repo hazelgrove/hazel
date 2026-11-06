@@ -122,7 +122,7 @@ let tests =
         exp_check(
           let_(
             Pat.var("x"),
-            parens(tuple([tup_label(label("l"), int(32))])),
+            parens(tuple_entries([labeled("l", int(32))])),
             let_(
               Pat.(
                 asc(
@@ -141,9 +141,9 @@ let tests =
       test_case("Multiple labels tuple", `Quick, () =>
         exp_check(
           parens(
-            tuple([
-              tup_label(label("l"), int(32)),
-              tup_label(label("l2"), string("")),
+            tuple_entries([
+              labeled("l", int(32)),
+              labeled("l2", string("")),
             ]),
           ),
           {|(l=32, l2="")|},
@@ -166,9 +166,9 @@ let tests =
               )
             ),
             parens(
-              tuple([
-                tup_label(label("l"), int(32)),
-                tup_label(label("l2"), string("")),
+              tuple_entries([
+                labeled("l", int(32)),
+                labeled("l2", string("")),
               ]),
             ),
             var("x"),
@@ -178,40 +178,33 @@ let tests =
       ),
       test_case("Unparenthesized labeled tuple element in list", `Quick, () => {
         exp_check(
-          list_lit([tuple([tup_label(label("l"), int(32))]), int(1)]),
+          list_lit([tuple_entries([labeled("l", int(32))]), int(1)]),
           {|[l=32, 1]|},
         )
       }),
       test_case("Malformed label in singleton tuple", `Quick, () =>
         exp_check(
-          parens(
-            tuple([
-              tup_label(multi_hole([Label(Label.invalid("1"))]), int(3)),
-            ]),
-          ),
+          parens(tuple_entries([labeled'(Label.invalid("1"), int(3))])),
           "(1=3)",
         )
       ),
       test_case("Quoted label in tuple", `Quick, () =>
-        exp_check(tuple([tup_label(label("a"), int(3))]), "(`a`=3)")
+        exp_check(tuple_entries([labeled("a", int(3))]), "(`a`=3)")
       ),
       test_case("Quoted label in projection", `Quick, () =>
-        exp_check(dot(empty_hole(), label("a")), "?.`a`")
+        exp_check(dot(empty_hole(), Label.label("a")), "?.`a`")
       ),
       test_case(
         "Quoted label with non-alpha characters",
         `Quick,
         () => {
-          exp_check(dot(empty_hole(), label("a-b_c")), "?.`a-b_c`");
+          exp_check(dot(empty_hole(), Label.label("a-b_c")), "?.`a-b_c`");
           exp_check(
-            tuple([
-              tup_label(label(" "), int(1)),
-              tup_label(label(""), int(2)),
-            ]),
+            tuple_entries([labeled(" ", int(1)), labeled("", int(2))]),
             "(` `=1, ``=2)",
           );
           exp_check(
-            tuple([tup_label(label("multi word label"), int(1))]),
+            tuple_entries([labeled("multi word label", int(1))]),
             "(`multi word label`=1)",
           );
         },
@@ -248,7 +241,7 @@ let tests =
         )
       ),
       test_case("Dot projection with Quoted label", `Quick, () =>
-        exp_check(dot(empty_hole(), label("a")), "? . `a`")
+        exp_check(dot(empty_hole(), Label.label("a")), "? . `a`")
       ),
       test_case("Scientific notation floating point", `Quick, () =>
         exp_check(float(1.2e30), "1.2e30")
@@ -291,16 +284,16 @@ let tests =
       ),
       test_case("Singleton unlabeled tuple", `Quick, () =>
         exp_check(
-          tuple([tup_label(explicit_non_label(), int(1))]),
+          tuple_entries([labeled'(Label.explicit_non_label(), int(1))]),
           "(_ = 1)",
         )
       ),
       test_case("Multiple unlabeled tuple entries", `Quick, () =>
         exp_check(
-          tuple([
-            tup_label(explicit_non_label(), int(1)),
-            tup_label(explicit_non_label(), int(2)),
-            tup_label(explicit_non_label(), int(3)),
+          tuple_entries([
+            labeled'(Label.explicit_non_label(), int(1)),
+            labeled'(Label.explicit_non_label(), int(2)),
+            labeled'(Label.explicit_non_label(), int(3)),
           ]),
           "(_ = 1, _ = 2, _ = 3)",
         )
@@ -318,7 +311,7 @@ let tests =
         exp_check(
           let_(
             Pat.(tuple([tup_label(explicit_non_label(), var("x"))])),
-            tuple([tup_label(explicit_non_label(), int(1))]),
+            tuple_entries([labeled'(Label.explicit_non_label(), int(1))]),
             var("x"),
           ),
           {|let (_=x) = (_=1) in x|},
@@ -354,7 +347,10 @@ let tests =
       ),
       test_case("Module dot access", `Quick, () =>
         exp_check(
-          dot(module_([Mod.mod_let(Pat.var("x"), int(1))]), label("x")),
+          dot(
+            module_([Mod.mod_let(Pat.var("x"), int(1))]),
+            Label.label("x"),
+          ),
           {|{ let x = 1 }.x|},
         )
       ),
@@ -377,7 +373,7 @@ let tests =
           module_exp(
             MPat.var("M"),
             module_([Mod.mod_let(Pat.var("x"), int(1))]),
-            dot(constructor("M", None), label("x")),
+            dot(constructor("M", None), Label.label("x")),
           ),
           {|module M = { let x = 1 } in M.x|},
         )
@@ -387,7 +383,7 @@ let tests =
           module_exp(
             MPat.var("m"),
             module_([Mod.mod_let(Pat.var("x"), int(1))]),
-            dot(var("m"), label("x")),
+            dot(var("m"), Label.label("x")),
           ),
           {|module m = { let x = 1 } in m.x|},
         )

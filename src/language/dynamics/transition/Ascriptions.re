@@ -73,23 +73,27 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
           ),
         ),
       )
-    | (TupLabel({term: ExplicitNonlabel, _}, inner), _) =>
-      Some(recur(Asc(inner, t) |> DHExp.fresh))
-    | (TupLabel(l, inner), TupLabel(_l2, inner_ty)) =>
-      // TODO Figure out what to do if the labels don't match
-      let inner' = recur(Asc(inner, inner_ty) |> DHExp.fresh);
-      inner' === inner
-        ? Some(e)
-        : Some(
-            IdTagged.fast_copy(
-              DHExp.rep_id(e),
-              TupLabel(l, inner') |> DHExp.fresh,
-            ),
-          );
     | (Tuple(es), Prod(tys)) when List.length(es) == List.length(tys) =>
+      // TODO Figure out what to do if the labels don't match
+      let value_typ = (ty: Typ.t) =>
+        switch (Typ.term_of(ty)) {
+        | TupLabel(_, inner_ty) => inner_ty
+        | _ => ty
+        };
       let es' =
-        List.map2((e, ty) => recur(Asc(e, ty) |> DHExp.fresh), es, tys);
-      unchanged(es, es')
+        List.map2(
+          (entry, ty) =>
+            TupleEntry.map(
+              v => recur(Asc(v, value_typ(ty)) |> DHExp.fresh),
+              entry,
+            ),
+          es,
+          tys,
+        );
+      unchanged(
+        List.map(TupleEntry.value, es),
+        List.map(TupleEntry.value, es'),
+      )
         ? Some(e)
         : Some(
             IdTagged.fast_copy(DHExp.rep_id(e), Tuple(es') |> DHExp.fresh),
@@ -293,7 +297,6 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Invalid(_), _)
     | (MultiHole(_), _)
     | (Label(_), _)
-    | (ExplicitNonlabel, _)
     | (Var(_), _)
     | (Ap(_), _)
     | (DeferredAp(_), _)
@@ -305,7 +308,6 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Atom(_), _)
     | (DrvQuote(_), _)
     | (ListLit(_), _)
-    | (TupLabel(_), _)
     | (Tuple(_), _)
     | (Fun(_), _)
     | (TypFun(_), _)

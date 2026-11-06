@@ -335,11 +335,7 @@ let common_ok_view =
   (
     switch (cls, ok) {
     | (Pat(EmptyHole), _) when label_sort => []
-    | (Exp(EmptyHole), _) when label_sort => []
     | (Pat(ExplicitNonlabel), _) when label_sort => [
-        text("Explicitly unlabeled entry"),
-      ]
-    | (Exp(ExplicitNonlabel), _) when label_sort => [
         text("Explicitly unlabeled entry"),
       ]
     | (Exp(MultiHole) | Pat(MultiHole), _) => [
@@ -828,7 +824,7 @@ let exp_view =
           ~reordered,
           ~introduced_labels,
           ~inferred_label,
-          ~label_sort=info.label_sort,
+          ~label_sort=false,
           cls,
           Message.Syn(info.elab_syn_ty),
         ),
@@ -844,7 +840,7 @@ let exp_view =
           ~reordered,
           ~introduced_labels,
           ~inferred_label,
-          ~label_sort=info.label_sort,
+          ~label_sort=false,
           cls,
           ok,
         ),
@@ -1069,12 +1065,34 @@ let tpat_view =
   };
 };
 
-let label_view = (cls: Cls.t, marks: list(Mark.t)) =>
+let label_info_view = (cls: Cls.t, marks: list(Mark.t)) =>
   switch (Mark.highest(marks)) {
   | None => div_ok([text(Cls.show(cls))])
   | Some(BadToken(token)) =>
     div_err([code(token), text("is not a valid label")])
   | Some(IsMulti) => div_err([text("Expected a single label")])
+  | Some(InvalidLabel(name, [])) =>
+    div_err([
+      text("Invalid label: "),
+      label_view(name),
+      text(". No labels were expected."),
+    ])
+  | Some(InvalidLabel(name, expected)) =>
+    div_err([
+      text("Invalid label: "),
+      label_view(name),
+      text(" is not part of the expected labels: "),
+      ...List.map(code, expected),
+    ])
+  | Some(DuplicateLabel(name, _)) =>
+    div_err([text("Duplicate Label:"), label_view(name)])
+  | Some(LabelNotFound(name, labels)) =>
+    div_err([
+      text("Label "),
+      label_view(name),
+      text(" not found in tuple's labels: "),
+      ...List.map(label_view, labels),
+    ])
   | Some(m) => div_err([text(Mark.show(m))])
   };
 
@@ -1085,7 +1103,7 @@ let view_of_info = (~globals, ci): list(Node.t) => {
   | InfoMod({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
   | InfoSig({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
   | InfoMPat({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
-  | InfoLabel({cls, marks, _}) => wrapper(label_view(cls, marks))
+  | InfoLabel({cls, marks, _}) => wrapper(label_info_view(cls, marks))
   | InfoExp({cls, message, _} as ie) =>
     wrapper(exp_view(~globals, cls, message, ie))
   | InfoPat({cls, message, _} as ip) =>

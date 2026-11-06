@@ -91,6 +91,18 @@ type filter = Grammar.filter(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type deferral_position_t = Grammar.deferral_position_t;
 
+let map_tuple_entry =
+    (
+      map_label: label_t => label_t,
+      map_value: 'e => 'e,
+      entry: Grammar.tuple_entry(IdTagged.IdTag.t, 'e),
+    )
+    : Grammar.tuple_entry(IdTagged.IdTag.t, 'e) =>
+  switch (entry) {
+  | Labeled(eq, l, v) => Labeled(eq, map_label(l), map_value(v))
+  | Unlabeled(v) => Unlabeled(map_value(v))
+  };
+
 module rec Any: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = any_t;
@@ -404,6 +416,19 @@ and Exp: {
         ~f_label,
         ~f_any,
       );
+    let label_map_term =
+      Label.map_term(
+        ~f_exp,
+        ~f_pat,
+        ~f_typ,
+        ~f_tpat,
+        ~f_rul,
+        ~f_mod,
+        ~f_sig,
+        ~f_mpat,
+        ~f_label,
+        ~f_any,
+      );
     let flt_map_term =
       StepperFilterKind.map_term(
         ~f_exp,
@@ -423,7 +448,6 @@ and Exp: {
         | DrvQuote(_)
         | Constructor(_)
         | Label(_)
-        | ExplicitNonlabel
         | Deferral(_)
         | Var(_)
         | LivelitName(_)
@@ -439,12 +463,11 @@ and Exp: {
             f,
           )
         | TypFun(tp, e, f) => TypFun(tpat_map_term(tp), exp_map_term(e), f)
-        | TupLabel(label, e) =>
-          TupLabel(exp_map_term(label), exp_map_term(e))
-        | Tuple(xs) => Tuple(List.map(exp_map_term, xs))
+        | Tuple(xs) =>
+          Tuple(List.map(map_tuple_entry(label_map_term, exp_map_term), xs))
         | TupleExtension(e1, e2) =>
           TupleExtension(exp_map_term(e1), exp_map_term(e2))
-        | Dot(e1, e2) => Dot(exp_map_term(e1), exp_map_term(e2))
+        | Dot(e, l) => Dot(exp_map_term(e), label_map_term(l))
         | Let(p, e1, e2) =>
           Let(pat_map_term(p), exp_map_term(e1), exp_map_term(e2))
         | Theorem(p, e1, e2) =>
@@ -458,7 +481,10 @@ and Exp: {
         | Ap(op, e1, e2) => Ap(op, exp_map_term(e1), exp_map_term(e2))
         | TypAp(e, t) => TypAp(exp_map_term(e), typ_map_term(t))
         | DeferredAp(e, es) =>
-          DeferredAp(exp_map_term(e), List.map(exp_map_term, es))
+          DeferredAp(
+            exp_map_term(e),
+            List.map(map_tuple_entry(label_map_term, exp_map_term), es),
+          )
         | If(e1, e2, e3) =>
           If(exp_map_term(e1), exp_map_term(e2), exp_map_term(e3))
         | Seq(e1, e2) => Seq(exp_map_term(e1), exp_map_term(e2))

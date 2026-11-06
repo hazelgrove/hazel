@@ -1097,7 +1097,8 @@ let get_arg_var_info =
     switch (arg.term) {
     | Var(name) => [Some(name)]
     | Parens(inner) => [extract_var(inner)]
-    | Tuple(elements) => List.map(extract_var, elements)
+    | Tuple(elements) =>
+      List.map(entry => extract_var(TupleEntry.value(entry)), elements)
     | _ => [None]
     }
   | _ => []
@@ -1171,7 +1172,12 @@ let sample_call_display =
                   | None => None
                   },
                 ~is_last=i == num_elems - 1,
-                render_exp(elem),
+                render_exp(
+                  switch (elem) {
+                  | Language.Grammar.Unlabeled(v) => v
+                  | Labeled(_) => Exp.fresh(Tuple([elem]))
+                  },
+                ),
               ),
             elements,
           );

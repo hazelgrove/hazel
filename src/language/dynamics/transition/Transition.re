@@ -238,6 +238,41 @@ module Transition = (EV: EV_MODE) => {
   open DHExp;
   open IdTagged.FreshGrammar.Exp;
 
+  /* req_all_final over the values of a tuple's (or deferred application's)
+     entries, giving the context builder each entry with its label */
+  let req_all_final_entries =
+      (
+        req,
+        wrap_ctx:
+          (
+            TupleEntry.t(EvalCtx.t),
+            (list(TupleEntry.t(DHExp.t)), list(TupleEntry.t(DHExp.t)))
+          ) =>
+          EvalCtx.t,
+        entries: list(TupleEntry.t(DHExp.t)),
+      ) =>
+    req_all_final(
+      req,
+      (ctx, (rev_left, right)) => {
+        /* rev_left holds the entries left of the hole, nearest first */
+        let n_left = List.length(rev_left);
+        let left = List.filteri((i, _) => i < n_left, entries);
+        let hole_and_right = List.filteri((i, _) => i >= n_left, entries);
+        switch (hole_and_right) {
+        | [hole, ...right_entries] =>
+          wrap_ctx(
+            TupleEntry.map(_ => ctx, hole),
+            (
+              List.rev(TupleEntry.with_values(left, List.rev(rev_left))),
+              TupleEntry.with_values(right_entries, right),
+            ),
+          )
+        | [] => ctx
+        };
+      },
+      List.map(TupleEntry.value, entries),
+    );
+
   /* Helper function to wrap a closure around an expression. Required for functions, but also for
      things like if-then-else expressions where the scrutinee is indet, and for hole closures.
 
@@ -709,11 +744,14 @@ module Transition = (EV: EV_MODE) => {
         })
       };
     | DeferredAp(d1, ds) =>
-      let. _ = otherwise(env, (d1, ds) => DeferredAp(d1, ds) |> rewrap)
+      let. _ =
+        otherwise(env, (d1, vs) =>
+          DeferredAp(d1, TupleEntry.with_values(ds, vs)) |> rewrap
+        )
       and. _ =
         req_final(req(env), d1 => DeferredAp1(d1, ds) |> wrap_ctx, d1)
       and. _ =
-        req_all_final(
+        req_all_final_entries(
           req(env),
           (d2, ds) => DeferredAp2(d1, d2, ds) |> wrap_ctx,
           ds,
@@ -832,42 +870,40 @@ module Transition = (EV: EV_MODE) => {
             };
           }
         | DeferredAp(d3, d4s) =>
-          let n_args =
-            List.length(
-              List.filter(
-                fun
-                | {term: Deferral(_), _} => true
-                | _ => false: Exp.t => bool,
-                d4s,
-              ),
-            );
+          let is_deferral = entry =>
+            Exp.is_deferral(TupleEntry.value(entry));
+          let n_args = List.length(List.filter(is_deferral, d4s));
           let-unboxed args =
             if (n_args == 1) {
-              Matches([d2']);
+              Matches([Grammar.Unlabeled(d2')]);
             } else {
-              Unboxing.unbox(Tuple(n_args), d2');
+              Unboxing.unbox(TupleEntries(n_args), d2');
             };
-          let new_args = {
-            let rec go = (deferred, args) =>
-              switch ((deferred: list(Exp.t))) {
-              | [] => []
-              | [{term: Deferral(_), _}, ...deferred] =>
-                /* I can use List.hd and List.tl here because let-unbox ensure that
-                   there are the correct number of args */
-                [List.hd(args), ...go(deferred, List.tl(args))]
-              | [x, ...deferred] => [x, ...go(deferred, args)]
-              };
-            go(d4s, args);
-          };
+          /* A deferral takes the next argument; a labeled deferral keeps
+             its own label */
+          let rec fill = (deferred, args) =>
+            switch (deferred, args) {
+            | ([], _) => []
+            | ([entry, ...deferred], [arg, ...args])
+                when is_deferral(entry) =>
+              let filled =
+                switch (entry) {
+                | Grammar.Unlabeled(_) => arg
+                | Labeled(_) =>
+                  TupleEntry.map(_ => TupleEntry.value(arg), entry)
+                };
+              [filled, ...fill(deferred, args)];
+            | ([entry, ...deferred], _) => [entry, ...fill(deferred, args)]
+            };
+          let new_args = fill(d4s, args);
           Step({
             expr:
               ap(
                 Forward,
                 d3,
                 switch (new_args) {
-                | [{term: TupLabel(_, _), _}] => tuple(new_args)
-                | [d] => d
-                | _ => tuple(new_args)
+                | [Unlabeled(d)] => d
+                | _ => tuple_entries(new_args)
                 },
               ),
             /* record a call frame (carries fn_def_id) so a probe on a
@@ -884,7 +920,6 @@ module Transition = (EV: EV_MODE) => {
     | Atom(_)
     | LivelitName(_)
     | Label(_)
-    | ExplicitNonlabel
     | Constructor(_)
     | BuiltinFun(_) =>
       let. _ = otherwise(env, d);
@@ -1021,24 +1056,24 @@ module Transition = (EV: EV_MODE) => {
           is_value: true,
         });
       };
-    | Dot(d1, d2) =>
-      let. _ = otherwise(env, (d1, d2) => Dot(d1, d2) |> rewrap)
-      and. d1' = req_final(req(env), d1 => Dot1(d1, d2) |> wrap_ctx, d1)
-      and. d2' = req_final(req(env), d2 => Dot2(d1, d2) |> wrap_ctx, d2);
-      switch (DHExp.term_of(d2')) {
-      | Label(name) as lab =>
+    | Dot(d1, l) =>
+      let. _ = otherwise(env, d1 => Dot(d1, l) |> rewrap)
+      and. d1' = req_final(req(env), d1 => Dot(d1, l) |> wrap_ctx, d1);
+      switch (l.term) {
+      | Label(name) =>
         switch (Unboxing.unbox(LabeledTupleProjection(name), d1')) {
         | Matches(d1'') =>
           switch (DHExp.term_of(d1'')) {
           | Tuple(ds) =>
             let projected =
               List.filter_map(
-                d => {
-                  switch (Exp.match_tup_label(d)) {
-                  | Some((s, e)) when name == s => Some(e)
-                  | _ => None
-                  }
-                },
+                entry =>
+                  Option.equal(
+                    String.equal,
+                    TupleEntry.label_name(entry),
+                    Some(name),
+                  )
+                    ? Some(TupleEntry.value(entry)) : None,
                 ds,
               );
 
@@ -1056,21 +1091,8 @@ module Transition = (EV: EV_MODE) => {
               })
             | _ => Indet
             };
-          | TupLabel(_, d) =>
-            LabeledTuple.has_same_labels(
-              Exp.match_tup_label(d1'),
-              Some((name, d)),
-            )
-              ? Step({
-                  expr: d,
-                  side_effects: [],
-                  kind: Dot,
-                  is_value: true,
-                })
-              : Indet
           | ListLit(ds) =>
-            let mapped =
-              List.map(d => generated(Dot(d, generated(lab))), ds);
+            let mapped = List.map(d => generated(Dot(d, l)), ds);
             let ls = generated(ListLit(mapped));
             Step({
               expr: ls,
@@ -1083,17 +1105,20 @@ module Transition = (EV: EV_MODE) => {
         | _ => Indet
         }
 
-      | _ => Indet
+      | Invalid(_)
+      | EmptyHole
+      | MultiHole(_)
+      | ExplicitNonlabel => Indet
       };
-    | TupLabel(label, d1) =>
-      let. _ = otherwise(env, d1 => TupLabel(label, d1) |> rewrap)
-      and. _ =
-        req_final(req(env), d1 => TupLabel(label, d1) |> wrap_ctx, d1);
-      Constructor;
     | Tuple(ds) =>
-      let. _ = otherwise(env, ds => Tuple(ds) |> rewrap)
+      let. _ =
+        otherwise(env, vs => Tuple(TupleEntry.with_values(ds, vs)) |> rewrap)
       and. _ =
-        req_all_final(req(env), (d1, ds) => Tuple(d1, ds) |> wrap_ctx, ds);
+        req_all_final_entries(
+          req(env),
+          (d1, ds) => Tuple(d1, ds) |> wrap_ctx,
+          ds,
+        );
       Constructor;
     | TupleExtension(e1, e2) =>
       let. _ = otherwise(env, (e1, e2) => TupleExtension(e1, e2) |> rewrap)
@@ -1105,12 +1130,12 @@ module Transition = (EV: EV_MODE) => {
       let-unbox e2_entries = (LabeledTupleEntries, e2');
 
       let tuple: Grammar.exp_t(IdTagged.IdTag.t) =
-        tuple(
+        tuple_entries(
           List.map(
             ((lab, d)) =>
               switch (lab) {
-              | Some(l) => tup_label(label(l), d)
-              | None => d
+              | Some(l) => TupleEntry.labeled(l, d)
+              | None => Grammar.Unlabeled(d)
               },
             LabeledTuple.extension(e1_entries, e2_entries),
           ),

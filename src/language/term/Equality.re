@@ -143,12 +143,6 @@ let equality =
     | (_, Asc(x, _)) when ignore_ascriptions => exp'(e1, x)
     | (Filter(_, x), _) when ignore_filters => exp'(x, e2)
     | (_, Filter(_, x)) when ignore_filters => exp'(e1, x)
-    | (TupLabel({term: ExplicitNonlabel, _}, e1), _)
-        when ignore_explicit_unlabelling =>
-      exp'(e1, e2)
-    | (_, TupLabel({term: ExplicitNonlabel, _}, e2))
-        when ignore_explicit_unlabelling =>
-      exp'(e1, e2)
 
     // Expression Wildcards:
     | (Constructor("$v", _), _) when Option.is_some(use_expr_wildcards) =>
@@ -353,7 +347,7 @@ let equality =
     | (LivelitName(s1), LivelitName(s2)) => s1 == s2
     | (LivelitName(_), _) => false
     | (Tuple(xs1), Tuple(xs2)) when List.length(xs1) == List.length(xs2) =>
-      List.equal(exp', xs1, xs2)
+      List.equal(tuple_entry(alphas_exp, alphas_typ, exp'), xs1, xs2)
     | (Tuple(_), _) => false
     | (ListLit(xs1), ListLit(xs2)) when List.length(xs1) == List.length(xs2) =>
       List.equal(exp', xs1, xs2)
@@ -367,7 +361,8 @@ let equality =
     | (TypAp(_, _), _) => false
     | (DeferredAp(e1, es1), DeferredAp(e2, es2))
         when List.length(es1) == List.length(es2) =>
-      exp'(e1, e2) && List.equal(exp', es1, es2)
+      exp'(e1, e2)
+      && List.equal(tuple_entry(alphas_exp, alphas_typ, exp'), es1, es2)
     | (DeferredAp(_, _), _) => false
     | (If(e11, e12, e13), If(e21, e22, e23)) =>
       exp'(e11, e21) && exp'(e12, e22) && exp'(e13, e23)
@@ -379,12 +374,8 @@ let equality =
     | (HintedTest(e1, e2), HintedTest(e3, e4)) =>
       exp'(e1, e3) && exp'(e2, e4)
     | (HintedTest(_, _), _) => false
-    | (TupLabel(label1, d1'), TupLabel(label2, d2')) =>
-      exp'(label1, label2) && exp'(d1', d2')
-    | (TupLabel(_, _), _) => false
-    | (ExplicitNonlabel, ExplicitNonlabel) => true
-    | (ExplicitNonlabel, _) => false
-    | (Dot(e11, e12), Dot(e21, e22)) => exp'(e11, e21) && exp'(e12, e22)
+    | (Dot(e1, l1), Dot(e2, l2)) =>
+      exp'(e1, e2) && label(alphas_exp, alphas_typ, l1, l2)
     | (Dot(_, _), _) => false
     | (TupleExtension(e1, e2), TupleExtension(e1', e2')) =>
       exp'(e1, e1') && exp'(e2, e2')
@@ -777,6 +768,33 @@ let equality =
     | (Asc(_, _), _) => None
     };
   }
+  /* With ignore_explicit_unlabelling, `_ = e` equals plain `e` */
+  and tuple_entry:
+    'e.
+    (
+      Alphas.t,
+      Alphas.t,
+      ('e, 'e) => bool,
+      Grammar.tuple_entry(IdTagged.IdTag.t, 'e),
+      Grammar.tuple_entry(IdTagged.IdTag.t, 'e)
+    ) =>
+    bool
+   =
+    (alphas_exp, alphas_typ, value, entry1, entry2) => {
+      let normalize =
+        fun
+        | Grammar.Labeled(_, {term: ExplicitNonlabel, _}, v)
+            when ignore_explicit_unlabelling =>
+          Grammar.Unlabeled(v)
+        | entry => entry;
+      switch (normalize(entry1), normalize(entry2)) {
+      | (Labeled(_, l1, v1), Labeled(_, l2, v2)) =>
+        label(alphas_exp, alphas_typ, l1, l2) && value(v1, v2)
+      | (Labeled(_), _) => false
+      | (Unlabeled(v1), Unlabeled(v2)) => value(v1, v2)
+      | (Unlabeled(_), _) => false
+      };
+    }
   and label =
       (
         alphas_exp: Alphas.t,

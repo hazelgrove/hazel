@@ -42,7 +42,7 @@ let tpat_view:
   ) =>
   Virtual_dom.Vdom.Node.t;
 
-let label_view:
+let label_info_view:
   (Language.Cls.t, list(Language.Mark.t)) => Virtual_dom.Vdom.Node.t;
 
 let view:

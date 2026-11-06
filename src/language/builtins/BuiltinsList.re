@@ -3000,12 +3000,9 @@ let go: ([?], [?], [?]) -> [?] =
              value=filter(table, fun r -> index(r) == idx && new_col(r) == col)
              |>value) */
         let lvs =
-          tuple([
-            tup_label(label("label"), var("col")),
-            tup_label(
-              label("value"),
-              ap(Forward, var("value"), filtered_values),
-            ),
+          tuple_entries([
+            labeled("label", var("col")),
+            labeled("value", ap(Forward, var("value"), filtered_values)),
           ]);
 
         let from_lvs =
@@ -3031,7 +3028,7 @@ let go: ([?], [?], [?]) -> [?] =
               fn(
                 Pat.var("idx"),
                 tuple_extension(
-                  tuple([tup_label(label("index"), var("idx"))]),
+                  tuple_entries([labeled("index", var("idx"))]),
                   from_lvs,
                 ),
                 None,

@@ -226,29 +226,20 @@ module rec Exp: {
       constructor(x, Option.map(Option.map(Typ.of_menhir_ast), ty))
     | Deferral => deferral(InAp)
     | ListExp(l) => list_lit(List.map(of_menhir_ast, l))
-    | ParenExp(TupleExp([TupLabel(_) as tl])) =>
-      parens(tuple([of_menhir_ast(tl)]))
     | ParenExp(e) => parens(of_menhir_ast(e))
     | TupleExp([]) => tuple([])
-    /* singleton labeled tuple `(a=1,)`: MakeTerm reads Tuple([TupLabel]),
-       so pre-empt the singleton unwrap below (which would yield a bare
-       TupLabel and diverge — MenhirParser cases 53/87 pin this) */
-    | TupleExp([TupLabel(_) as tl]) => tuple([of_menhir_ast(tl)])
+    /* singleton labeled tuple `(a=1,)` stays a tuple */
+    | TupleExp([TupLabel(_) as tl]) =>
+      tuple_entries([entry_of_menhir_ast(tl)])
     | TupleExp([e]) => of_menhir_ast(e)
-    | TupleExp(e) => tuple(List.map(of_menhir_ast, e))
+    | TupleExp(e) => tuple_entries(List.map(entry_of_menhir_ast, e))
     | TupleExtension(e1, e2) =>
       tuple_extension(of_menhir_ast(e1), of_menhir_ast(e2))
     | Label(s) => label(s)
-    | ExplicitNonlabel => explicit_non_label()
-    | TupLabel(e1, e2) => tup_label(of_menhir_ast(e1), of_menhir_ast(e2))
-    | Dot(e1, e2) =>
-      switch (e2) {
-      | Var(s)
-      | Label(s)
-      | Constructor(s, None) => dot(of_menhir_ast(e1), label(s))
-      | EmptyHole => dot(of_menhir_ast(e1), empty_hole())
-      | _ => dot(of_menhir_ast(e1), multi_hole([Exp(of_menhir_ast(e2))]))
-      }
+    /* a lone `_` is a deferral, as MakeTerm reads it */
+    | ExplicitNonlabel => deferral(OutsideAp)
+    | TupLabel(_) as tl => tuple_entries([entry_of_menhir_ast(tl)])
+    | Dot(e1, e2) => dot(of_menhir_ast(e1), label_of_menhir_ast(e2))
     | Let(p, e1, e2) =>
       let_(Pat.of_menhir_ast(p), of_menhir_ast(e1), of_menhir_ast(e2))
     | Theorem(p, e1, e2) =>
@@ -280,13 +271,20 @@ module rec Exp: {
       switch (args) {
       | TupleExp(l) =>
         List.mem(AST.Deferral, l)
-          ? deferred_ap(of_menhir_ast(e1), List.map(of_menhir_ast, l))
+          ? {
+            term:
+              DeferredAp(
+                of_menhir_ast(e1),
+                List.map(entry_of_menhir_ast, l),
+              ),
+            annotation: false,
+          }
           : ap(
               Language.Operators.Forward,
               of_menhir_ast(e1),
               of_menhir_ast(args),
             )
-      | Deferral => deferred_ap(of_menhir_ast(e1), [args |> of_menhir_ast])
+      | Deferral => deferred_ap(of_menhir_ast(e1), [of_menhir_ast(args)])
 
       | _ =>
         ap(
@@ -349,7 +347,24 @@ module rec Exp: {
       let mp = mpat_of_pat(Pat.of_menhir_ast(p));
       module_exp(mp, of_menhir_ast(e1), of_menhir_ast(e2));
     };
-  };
+  }
+  and entry_of_menhir_ast =
+      (exp: AST.exp): Language.Grammar.tuple_entry(bool, IndicatedG.exp) =>
+    switch (exp) {
+    | TupLabel(l, e) => labeled'(label_of_menhir_ast(l), of_menhir_ast(e))
+    | _ => Unlabeled(of_menhir_ast(exp))
+    }
+  /* As MakeTerm reads the token in label position */
+  and label_of_menhir_ast = (exp: AST.exp): Language.Grammar.label_t(bool) =>
+    switch (exp) {
+    | Var(s)
+    | Label(s)
+    | Constructor(s, None) => IndicatedG.Label.label(s)
+    | ExplicitNonlabel
+    | Deferral => IndicatedG.Label.explicit_non_label()
+    | EmptyHole => IndicatedG.Label.empty_hole()
+    | _ => IndicatedG.Label.multi_hole([Exp(of_menhir_ast(exp))])
+    };
 
   let rec pat_of_mpat = (mp: Language.Grammar.mpat_t(bool)): AST.pat => {
     switch (mp.term) {
@@ -367,7 +382,7 @@ module rec Exp: {
     | LivelitName(s) => LivelitName("^" ++ s)
     | Deferral(InAp) => Deferral
     | ListLit(l) => ListExp(List.map(of_core, l))
-    | Tuple(l) => TupleExp(List.map(of_core, l))
+    | Tuple(l) => TupleExp(List.map(entry_of_core, l))
     | TupleExtension(e1, e2) => TupleExp([of_core(e1), of_core(e2)])
     | Let(p, e1, e2) => Let(Pat.of_core(p), of_core(e1), of_core(e2))
     | Theorem(p, e1, e2) =>
@@ -415,12 +430,10 @@ module rec Exp: {
     | Constructor(s, typ) =>
       Constructor(s, Option.map(Option.map(Typ.of_core), typ))
     | DeferredAp(e, es) =>
-      ApExp(of_core(e), TupleExp(List.map(of_core, es)))
+      ApExp(of_core(e), TupleExp(List.map(entry_of_core, es)))
     | Fun(p, e, _, name_opt) => Fun(Pat.of_core(p), of_core(e), name_opt)
     | Label(s) => Label(s)
-    | ExplicitNonlabel => ExplicitNonlabel
-    | TupLabel(e1, e2) => TupLabel(of_core(e1), of_core(e2))
-    | Dot(e1, e2) => Dot(of_core(e1), of_core(e2))
+    | Dot(e, l) => Dot(of_core(e), label_of_core(l))
     | Ap(Reverse, f, arg) => PipelineExp(of_core(arg), of_core(f))
     /* The menhir parser grammar has no syntax for derivation terms, so
        converting core DrvQuote values back to the menhir AST is not
@@ -431,7 +444,22 @@ module rec Exp: {
     | ModuleExp(mp, def, body) =>
       ModuleExp(pat_of_mpat(mp), of_core(def), of_core(body))
     };
-  };
+  }
+  and entry_of_core =
+      (entry: Language.Grammar.tuple_entry(bool, IndicatedG.exp)): AST.exp =>
+    switch (entry) {
+    | Labeled(_, l, e) => TupLabel(label_of_core(l), of_core(e))
+    | Unlabeled(e) => of_core(e)
+    }
+  and label_of_core = (l: Language.Grammar.label_t(bool)): AST.exp =>
+    switch (l.term) {
+    | Label(s) => Label(s)
+    | ExplicitNonlabel => ExplicitNonlabel
+    | EmptyHole => EmptyHole
+    | Invalid(s) => InvalidExp(s)
+    | MultiHole([Exp(e)]) => of_core(e)
+    | MultiHole(_) => raise(Failure("MultiHole not supported"))
+    };
 
   let get_indicated_ids =
       (indicated_exp: IndicatedG.exp): (Language.Exp.t, list(Language.Id.t)) => {

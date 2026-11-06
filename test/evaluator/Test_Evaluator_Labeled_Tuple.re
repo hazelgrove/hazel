@@ -63,12 +63,12 @@ in fn("hello")|},
         "(a=1, b=2, c=?).a",
         int(1),
         dot(
-          tuple([
-            tup_label(label("a"), int(1)),
-            tup_label(label("b"), int(2)),
-            tup_label(label("c"), empty_hole()),
+          tuple_entries([
+            labeled("a", int(1)),
+            labeled("b", int(2)),
+            labeled("c", empty_hole()),
           ]),
-          label("a"),
+          Label.label("a"),
         ),
       )
     ),

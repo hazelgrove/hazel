@@ -217,6 +217,47 @@ let rec match_tup_label: t => option((LabeledTuple.label, t)) =
 let get_label: t => option(LabeledTuple.label) =
   p => match_tup_label(p) |> Option.map(fst);
 
+/* Bridges between Label.t and the label child a pattern's TupLabel still
+   carries; they go away when pattern tuples hold Label.t entries. A
+   malformed label is wrapped so statics still reaches it as a label. */
+let of_label = (l: TermBase.Label.t): t =>
+  switch (l.term) {
+  | Label(name) => {
+      term: Label(name),
+      annotation: l.annotation,
+    }
+  | ExplicitNonlabel => {
+      term: ExplicitNonlabel,
+      annotation: l.annotation,
+    }
+  | EmptyHole => {
+      term: EmptyHole,
+      annotation: l.annotation,
+    }
+  | Invalid(_)
+  | MultiHole(_) => {
+      term: MultiHole([Label(l)]),
+      annotation: IdTagged.IdTag.mk_internal(IdTagged.ids(l)),
+    }
+  };
+let to_label = (p: t): TermBase.Label.t => {
+  term:
+    switch (p.term) {
+    | Label(name) => Label(name)
+    | ExplicitNonlabel => ExplicitNonlabel
+    | EmptyHole => EmptyHole
+    | MultiHole([Label(l)]) => l.term
+    | _ => MultiHole([Pat(p)])
+    },
+  annotation: p.annotation,
+};
+/* A tuple element as an entry: a TupLabel's id is its `=` tile's */
+let tuple_entry = (p: t): TupleEntry.t(t) =>
+  switch (p.term) {
+  | TupLabel(l, v) => Labeled(p.annotation, to_label(l), v)
+  | _ => Unlabeled(p)
+  };
+
 let rec bindings = (dp: t): Binding.s =>
   switch (dp |> term_of) {
   | EmptyHole

@@ -252,13 +252,11 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | DrvQuote(_)
   | EmptyHole
   | Deferral(_)
-  | ExplicitNonlabel
   | BuiltinFun(_)
   | Undefined
   | Label(_)
   | Constructor(_)
-  | LivelitName(_)
-  | TupLabel(_) => Precedence.max
+  | LivelitName(_) => Precedence.max
 
   // Same goes for forms which are already surrounded
   | Parens(_)
@@ -491,7 +489,6 @@ let rec parenthesize =
   | LivelitName(_)
   //| Constructor(_) // Not indivisible because of the type annotation!
   | Deferral(_)
-  | ExplicitNonlabel
   | BuiltinFun(_)
   | Tuple([])
   | Label(_)
@@ -531,18 +528,16 @@ let rec parenthesize =
   | TypFun(tp, e, n) =>
     TypFun(tp, parenthesize(e) |> paren_assoc_at(Precedence.fun_), n)
     |> rewrap
-  | Tuple([e])
-      when
-        switch (e.term) {
-        | TupLabel(_) => false
-        | _ => true
-        } =>
+  | Tuple([Unlabeled(e)]) =>
     // Single-element tuples are printed as (_ = e)
     let inner =
-      TupLabel(
-        ExplicitNonlabel |> Exp.temp,
-        parenthesize(e) |> paren_at(Precedence.comma),
-      )
+      Tuple([
+        Labeled(
+          IdTagged.IdTag.mk_internal(IdTagged.ids(exp)),
+          Label.temp(ExplicitNonlabel),
+          parenthesize(e) |> paren_at(Precedence.comma),
+        ),
+      ])
       |> rewrap;
 
     if (already_paren || !should_auto_wrap_tuple) {
@@ -553,7 +548,12 @@ let rec parenthesize =
   | Tuple(es) =>
     let inner =
       Tuple(
-        es |> List.map(parenthesize) |> List.map(paren_at(Precedence.comma)),
+        es
+        |> List.map(
+             TupleEntry.map(e =>
+               parenthesize(e) |> paren_at(Precedence.comma)
+             ),
+           ),
       )
       |> rewrap;
 
@@ -562,14 +562,8 @@ let rec parenthesize =
     } else {
       Parens(inner) |> Exp.fresh;
     };
-  | TupLabel(l, e) =>
-    TupLabel(l, parenthesize(e) |> paren_at(Precedence.comma)) |> rewrap
   | Dot(e, l) =>
-    Dot(
-      parenthesize(e) |> paren_at(Precedence.dot),
-      parenthesize(l) |> paren_at(Precedence.dot),
-    )
-    |> rewrap
+    Dot(parenthesize(e) |> paren_at(Precedence.dot), l) |> rewrap
   | TupleExtension(l, r) =>
     TupleExtension(
       parenthesize(l) |> paren_at(Precedence.dot),
@@ -640,7 +634,12 @@ let rec parenthesize =
   | DeferredAp(e, es) =>
     DeferredAp(
       parenthesize(e) |> paren_assoc_at(Precedence.ap),
-      es |> List.map(parenthesize) |> List.map(paren_at(Precedence.comma)),
+      es
+      |> List.map(
+           TupleEntry.map(e =>
+             parenthesize(e) |> paren_at(Precedence.comma)
+           ),
+         ),
     )
     |> rewrap
   | If(e1, e2, e3) =>
@@ -1851,6 +1850,43 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   let (@) = concat_segment(~secondary=settings.secondary);
   let mk_form = (~sort=Sort.Exp, fam, id, children) =>
     mk_form(~secondary=settings.secondary, ~sort, fam, id, children);
+  /* A labeled entry's annotation is its `=` tile's */
+  let entry_to_pretty = (entry: TupleEntry.t(Exp.t)): pretty =>
+    switch (entry) {
+    | Unlabeled(e) => go(e)
+    | Labeled(eq, l, v) =>
+      let* v = go(v);
+      wrap_with_secondary(
+        ~secondary=settings.secondary,
+        {
+          term: (),
+          annotation: eq,
+        },
+        List.flatten([
+          label_to_seg(~settings, l),
+          [
+            Tile({
+              id: IdTagged.IdTag.rep_id(eq),
+              form: Form.Compound(TupleLabeled),
+              sort: Sort.Exp,
+              shards: [0],
+              children: [],
+            }),
+          ],
+          switch (settings.secondary) {
+          | AutoFormat =>
+            let first = Segment.first_string(v);
+            if (Token.begins_with_potential_operator(first)
+                && !String.starts_with(first, ~prefix="…")) {
+              [Secondary(mk_space(Id.mk())), ...v];
+            } else {
+              v;
+            };
+          | PreserveExact => v
+          },
+        ]),
+      );
+    };
   switch (exp |> Exp.term_of) {
   // Assume these have been removed by the parenthesizer
   | DynamicErrorHole(_)
@@ -1932,8 +1968,6 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   | ListLit([]) =>
     wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, Token.empty_list))
   | Deferral(_) =>
-    wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, Token.wild))
-  | ExplicitNonlabel =>
     wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, Token.wild))
   | ListLit([x, ...xs]) =>
     /* ID order: [bracket_id] @ comma_ids (outer first, then adopted).
@@ -2130,18 +2164,10 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     );
   | Tuple([]) =>
     wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, Token.empty_tuple))
-  /* MakeTerm puts the = tile's id on the synthesized singleton Tuple
-     (the inner TupLabel is fresh) -- carry it back onto the TupLabel so
-     the reprinted = tile keeps the parse's id, mirroring MakeTerm's own
-     singleton-unwrap convention for comma children. */
-  | Tuple([{term: TupLabel(_), _} as le]) =>
-    let (le_term, _) = IdTagged.unwrap(le);
-    let (_, rewrap_tup) = IdTagged.unwrap(exp);
-    go(rewrap_tup(le_term));
   | Tuple([x, ...xs]) =>
     // TODO: Add optional newlines
-    let+ x = go(x)
-    and+ xs = xs |> List.map(go) |> all;
+    let+ x = entry_to_pretty(x)
+    and+ xs = xs |> List.map(entry_to_pretty) |> all;
     let ids = IdTagged.ids(exp) |> PadIds.pad_ids(List.length(xs));
     wrap(
       exp,
@@ -2162,78 +2188,12 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
         exp |> Exp.rep_id,
       ),
     )
-  | TupLabel(l, e) =>
-    let* l =
-      switch (l.term) {
-      | Label(l') =>
-        label_to_seg(
-          ~settings,
-          {
-            term: Label(l'),
-            annotation: l.annotation,
-          },
-        )
-      | ExplicitNonlabel =>
-        label_to_seg(
-          ~settings,
-          {
-            term: ExplicitNonlabel,
-            annotation: l.annotation,
-          },
-        )
-      | _ => go(l)
-      }
-    and* e = go(e);
-
+  | Dot(e, l) =>
+    let* e = go(e);
     wrap(
       exp,
-      List.flatten([
-        l,
-        [
-          Tile({
-            id: exp |> Exp.rep_id,
-            form: Form.Compound(TupleLabeled),
-            sort: Sort.Exp,
-            shards: [0],
-            children: [],
-          }),
-        ],
-        switch (settings.secondary) {
-        | AutoFormat =>
-          let first = Segment.first_string(e);
-          if (Token.begins_with_potential_operator(first)
-              && !String.starts_with(first, ~prefix="…")) {
-            [Secondary(mk_space(Id.mk())), ...e];
-          } else {
-            e;
-          };
-        | PreserveExact => e
-        },
-      ]),
+      e @ [mk_form(Dot, exp |> Exp.rep_id, [])] @ label_to_seg(~settings, l),
     );
-  | Dot(e, l) =>
-    let* e = go(e)
-    and* l =
-      switch (l.term) {
-      | Label(l') =>
-        label_to_seg(
-          ~settings,
-          {
-            term: Label(l'),
-            annotation: l.annotation,
-          },
-        )
-      | ExplicitNonlabel =>
-        label_to_seg(
-          ~settings,
-          {
-            term: ExplicitNonlabel,
-            annotation: l.annotation,
-          },
-        )
-      | _ => go(l)
-      };
-    wrap(exp, e @ [mk_form(Dot, exp |> Exp.rep_id, [])] @ l);
   | Let(p, e1, e2) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
@@ -2325,7 +2285,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   | DeferredAp(e, es) =>
     // TODO: Add optional newlines
     let+ e = go(e)
-    and+ es = es |> List.map(go) |> all;
+    and+ es = es |> List.map(entry_to_pretty) |> all;
     /* ids = [ap tile, comma tiles...]: n args have n-1 commas, so pad
        the tail to n-1 and use it directly (padding to n and dropping
        the head would mint a fresh id for the first comma) */

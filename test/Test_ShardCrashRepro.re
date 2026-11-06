@@ -739,7 +739,7 @@ let grafted_dup_value = (): Language.Exp.t => {
   /* An if/then/else = a 3-shard tile, matching the field dump's
    * [0,1,2,0,1,2,...] signature. The SAME term object twice = shared ids. */
   let t = parse_exp("if 1 == 2 then 3 else 4");
-  Language.Exp.fresh(Tuple([t, t]));
+  Language.Exp.fresh(Tuple([Unlabeled(t), Unlabeled(t)]));
 };
 
 let dup_display_case = (msg: string) => {

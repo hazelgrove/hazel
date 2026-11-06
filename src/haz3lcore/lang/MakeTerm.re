@@ -461,50 +461,9 @@ let is_exp_kid: Any.t => bool =
   fun
   | Exp(_) => true
   | _ => false;
-/* Lower a parsed label to the sort-specific label child that the
-   TupLabel/Dot/ProdProjection terms still carry. Each goes away when its
-   sort's tuples hold Label.t entries directly. A malformed label is
-   wrapped so statics still reaches it (and reports it) as a label. */
-let exp_of_label = (l: Label.t): Exp.t =>
-  switch (l.term) {
-  | Label(name) => {
-      term: Label(name),
-      annotation: l.annotation,
-    }
-  | ExplicitNonlabel => {
-      term: ExplicitNonlabel,
-      annotation: l.annotation,
-    }
-  | EmptyHole => {
-      term: EmptyHole,
-      annotation: l.annotation,
-    }
-  | Invalid(_)
-  | MultiHole(_) => {
-      term: MultiHole([Label(l)]),
-      annotation: IdTagged.IdTag.mk_internal(IdTagged.ids(l)),
-    }
-  };
-let pat_of_label = (l: Label.t): Pat.t =>
-  switch (l.term) {
-  | Label(name) => {
-      term: Label(name),
-      annotation: l.annotation,
-    }
-  | ExplicitNonlabel => {
-      term: ExplicitNonlabel,
-      annotation: l.annotation,
-    }
-  | EmptyHole => {
-      term: EmptyHole,
-      annotation: l.annotation,
-    }
-  | Invalid(_)
-  | MultiHole(_) => {
-      term: MultiHole([Label(l)]),
-      annotation: IdTagged.IdTag.mk_internal(IdTagged.ids(l)),
-    }
-  };
+/* Lower a parsed label to the label child a type's TupLabel/ProdProjection
+   still carries; it goes away when product types hold Label.t entries. A
+   malformed label is wrapped so statics still reaches it as a label. */
 let typ_of_label = (l: Label.t): Typ.t =>
   switch (l.term) {
   | Label(name) => {
@@ -821,10 +780,12 @@ and exp = unsorted => {
     let ids = ids(unsorted) @ inner_ids;
     let e: TermBase.exp_t = return(e => Exp(e), ~lexeme, ids, term);
     switch (term) {
-    | TupLabel(_) =>
-      // The tile id is the id of the tuple not the tuplabel
-      let (e_term, rewrap) = IdTagged.unwrap(e);
-      rewrap(Tuple([e_term |> Exp.fresh]): Exp.term);
+    | Tuple(entries) =>
+      /* A tuple owns its entries' `=` tiles, as it owns its commas */
+      let eq_ids = TupleEntry.eq_ids(entries);
+      map := TermMap.add_all(eq_ids, Exp(e), map^);
+      adopted_ids := eq_ids @ adopted_ids^;
+      e;
     | _ => e
     };
   };
@@ -891,7 +852,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
            IMPORTANT: Must align with ExpToSegment.exp_to_pretty ListLit case,
            which expects List.hd = bracket, List.tl = commas. */
         switch (body) {
-        | {term: Tuple([{term: TupLabel(_), _}]), _} =>
+        | {term: Tuple([Labeled(_)]), _} =>
           /* Single labeled element: body IS the synthesized singleton
              wrapper carrying the = tile's id — keep it whole so the
              printer's singleton-unwrap restores the id (adopting its
@@ -904,23 +865,23 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           ret(ListLit([body]))
         | {annotation: {ids, _}, term: Tuple(es)} =>
           adopted_ids := ids @ adopted_ids^;
-          // Addresses tup_labels in lists like: [l=32, 1]
-          (
-            ListLit(
-              List.map(
-                (list_item: Grammar.exp_t(IdTagged.IdTag.t)) => {
-                  let (e, rewrap) = IdTagged.unwrap(list_item);
-                  switch (e) {
-                  | TupLabel(_) =>
-                    rewrap(Tuple([e |> Exp.fresh]): TermBase.exp_term)
-                  | _ => list_item
-                  };
-                },
-                es,
-              ),
-            ),
-            ids,
-          );
+          /* A labeled element, as in [l=32, 1], is a singleton tuple again,
+             the inverse of the comma case's unwrapping */
+          let element = (entry: TupleEntry.t(Exp.t)): Exp.t =>
+            switch (entry) {
+            | Unlabeled(e) => e
+            | Labeled(eq, l, v) =>
+              let singleton: Exp.t = {
+                term:
+                  Tuple([
+                    Labeled(IdTagged.IdTag.mk_internal(eq.ids), l, v),
+                  ]),
+                annotation: eq,
+              };
+              map := TermMap.add_all(eq.ids, Exp(singleton), map^);
+              singleton;
+            };
+          (ListLit(List.map(element, es)), ids);
         | term => ret(ListLit([term]))
         }
       | (F(Compound(Test)), [Exp(test)]) => ret(Test(test))
@@ -1054,12 +1015,15 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | Var(l) when Token.is_livelit(l) =>
           ret(LivelitName(Token.parse_livelit(l)))
         | _ when Exp.is_deferral(arg) =>
-          ret(DeferredAp(l, [use_deferral(arg)]))
-        | Tuple(es) when List.exists(Exp.is_deferral, es) => (
+          ret(DeferredAp(l, [Unlabeled(use_deferral(arg))]))
+        | Tuple(es)
+            when List.exists(e => Exp.is_deferral(TupleEntry.value(e)), es) => (
             DeferredAp(
               l,
               List.map(
-                arg => Exp.is_deferral(arg) ? use_deferral(arg) : arg,
+                TupleEntry.map(arg =>
+                  Exp.is_deferral(arg) ? use_deferral(arg) : arg
+                ),
                 es,
               ),
             ),
@@ -1077,30 +1041,28 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
     | ([(_id, (F(Compound(TypeAsc)), []))], []) => ret(Asc(l, r))
     | _ => ret(hole(tm))
     }
-  | Bin(
-      Label(l),
-      ([(_id, (F(Compound(TupleLabeled)), []))], []),
-      Exp(r),
-    ) =>
-    ret(TupLabel(exp_of_label(l), r))
+  | Bin(Label(l), ([(id, (F(Compound(TupleLabeled)), []))], []), Exp(r)) =>
+    /* A labeled entry is a singleton tuple until a comma absorbs it; the
+       tuple's annotation is the `=` tile's */
+    ret(Tuple([Labeled(IdTagged.IdTag.mk_internal([id]), l, r)]))
   | Bin(Exp(l), ([(_id, (F(Compound(Dot)), []))], []), Label(r)) =>
-    ret(Dot(l, exp_of_label(r)))
+    ret(Dot(l, r))
   | Bin(Exp(l), tiles, Exp(r)) as tm =>
     switch (is_tuple_exp(tiles)) {
     | Some(between_kids) =>
-      let tuple_children: list(Exp.t) =
+      let tuple_children: list(TupleEntry.t(Exp.t)) =
         [l]
         @ between_kids
         @ [r]
-        |> List.map((child: Exp.t) => {
+        |> List.map((child: Exp.t) =>
              switch (child) {
-             | {term: Tuple([{term: _ as tl, _}]), _} as tup =>
-               // We use the Id for the tuple as the ids for the tuplabels
-               let (_, rewrap) = IdTagged.unwrap(tup);
-               rewrap(tl);
-             | _ => child
+             /* a labeled entry carries over its singleton tuple's
+                annotation, the `=` tile's */
+             | {term: Tuple([Labeled(_, l, v)]), annotation} =>
+               Grammar.Labeled(annotation, l, v)
+             | _ => Unlabeled(child)
              }
-           });
+           );
       ret(Tuple(tuple_children));
     | None =>
       switch (tiles) {
@@ -1278,7 +1240,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
       ([(_id, (F(Compound(TupleLabeled)), []))], []),
       Pat(r),
     ) =>
-    ret(TupLabel(pat_of_label(l), r))
+    ret(TupLabel(Pat.of_label(l), r))
   | Bin(Pat(l), tiles, Pat(r)) as tm =>
     switch (is_tuple_pat(tiles)) {
     | Some(between_kids) =>

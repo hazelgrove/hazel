@@ -223,33 +223,46 @@ let append_mark_exp = (m: Map.t, e: Exp.t, extra: list(Mark.t)): Map.t =>
   | _ => m
   };
 
-let set_label_sort_exp = (m: Map.t, e: Exp.t, label_sort: bool): Map.t =>
-  switch (Map.lookup(Exp.rep_id(e), m)) {
-  | Some(Info.InfoExp(info)) =>
-    Map.add_info(
-      IdTagged.ids(info.user_term),
-      InfoExp({
-        ...info,
-        label_sort,
-      }),
-      m,
-    )
-  | _ => m
-  };
-
-let set_dot_labels_exp =
-    (m: Map.t, e: Exp.t, dot_labels: list(string)): Map.t =>
-  switch (Map.lookup(Exp.rep_id(e), m)) {
-  | Some(Info.InfoExp(info)) =>
-    Map.add_info(
-      IdTagged.ids(info.user_term),
-      InfoExp({
-        ...info,
-        dot_labels,
-      }),
-      m,
-    )
-  | _ => m
+/* append_mark_exp for whichever sort `any` is; sorts without marks on their
+   info are left alone */
+let append_mark_any = (m: Map.t, any: Any.t, extra: list(Mark.t)): Map.t =>
+  switch (any) {
+  | Exp(e) => append_mark_exp(m, e, extra)
+  | Pat(p) =>
+    switch (Map.lookup(Pat.rep_id(p), m)) {
+    | Some(Info.InfoPat(info)) =>
+      Map.add_info(
+        IdTagged.ids(info.user_term),
+        InfoPat({
+          ...info,
+          marks: info.marks @ extra,
+        }),
+        m,
+      )
+    | _ => m
+    }
+  | Typ(t) =>
+    switch (Map.lookup(Typ.rep_id(t), m)) {
+    | Some(Info.InfoTyp(info)) =>
+      Map.add_info(
+        IdTagged.ids(info.user_term),
+        InfoTyp({
+          ...info,
+          marks: info.marks @ extra,
+          message: None,
+        }),
+        m,
+      )
+    | _ => m
+    }
+  | TPat(_)
+  | Rul(_)
+  | Drv(_)
+  | Mod(_)
+  | Sig(_)
+  | MPat(_)
+  | Label(_)
+  | Any(_) => m
   };
 
 let map_m = (f, xs, m: Map.t) =>
@@ -468,8 +481,6 @@ module type ExpressionStatics = {
       ~message: Message.t=?,
       ~label_inference: option(Info.label_inference(Info.exp))=?, // TODO[Matt]: combine with message
       ~inferred_label: option(string)=?,
-      ~label_sort: bool=?,
-      ~dot_labels: list(string)=?,
       Map.t
     ) =>
     (Info.exp, Exp.t, Map.t);
