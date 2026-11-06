@@ -272,7 +272,10 @@ module Selection = {
          of_shortcut(~action=action(Introduce), Introduce),
          of_shortcut(~action=action(Format(Indent)), ReIndent),
          of_shortcut(~action=action(Format(Spacing)), NormalizeSpacing),
-         of_shortcut(~action=action(Format(Pretty)), PrettyPrint),
+         of_shortcut(
+           ~action=action(Format(Action.pretty_at_default_width)),
+           PrettyPrint,
+         ),
        ]);
   };
 
@@ -694,6 +697,25 @@ module View = {
           ),
         )
       );
+    /* On a touch screen, as wide as the editor shows without scrolling
+       sideways; elsewhere the default. */
+    let pretty_print_width = () =>
+      switch (
+        JsUtil.coarse_pointer()
+          ? Js.Opt.to_option(
+              Dom_html.document##querySelector(
+                Js.string(".code-editor.selected .code-container"),
+              ),
+            )
+          : None
+      ) {
+      | Some(container) =>
+        JsUtil.columns_fitting(
+          ~col_width=globals.font_metrics.col_width,
+          container,
+        )
+      | None => Haz3lcore.PrettySegment.default_settings.width
+      };
     /* Inject for context-menu rows. Clipboard rows need view-layer side
        effects the core can't perform: Copy/Cut write the system clipboard
        before dispatch, and PasteFromClipboard starts an async read whose
@@ -713,6 +735,10 @@ module View = {
         ])
       | ExpandSelection => inject(ExpandSelection)
       | ShrinkSelection => inject(ShrinkSelection)
+      | PrettyPrint =>
+        Effect.bind(Effect.of_sync_fun(pretty_print_width, ()), ~f=width =>
+          inject(Perform(Format(Pretty({width: width}))))
+        )
       | Perform(a) => inject(Perform(a))
       };
     /* Sync document-level listeners (click-outside + keyboard) for the

@@ -74,6 +74,7 @@ module Shortcuts = {
   let cut = () => Os.is_mac^ ? "⌘X" : "Ctrl+X";
   let copy = () => Os.is_mac^ ? "⌘C" : "Ctrl+C";
   let paste = () => Os.is_mac^ ? "⌘V" : "Ctrl+V";
+  let pretty_print = () => Os.is_mac^ ? "⌘⇧S" : "Ctrl+Shift+S";
 };
 
 /* What a menu row dispatches. Most rows are a plain editor action, but
@@ -81,12 +82,14 @@ module Shortcuts = {
  * system-clipboard read at click time, so the row carries the intent and
  * the view layer supplies the text (see CodeEditable.perform_from_menu).
  * Expanding and shrinking the selection keep a history of selections in
- * the editor model, which no Action sees. */
+ * the editor model, which no Action sees. Pretty printing fits the code to
+ * a width that only the view can measure. */
 type command =
   | Perform(Action.t)
   | PasteFromClipboard
   | ExpandSelection
-  | ShrinkSelection;
+  | ShrinkSelection
+  | PrettyPrint;
 
 let action_item = (~shortcut=?, ~tooltip=?, ~enabled=true, label, action) =>
   Menu.action_item(
@@ -286,6 +289,14 @@ let put_down_data = (z: Zipper.t): list(Menu.item(command)) =>
     ]
     : [];
 
+let format_data: list(Menu.item(command)) = [
+  command_item(
+    ~shortcut=Shortcuts.pretty_print(),
+    "Pretty print",
+    PrettyPrint,
+  ),
+];
+
 module Projectors = {
   let target_term = (z: Zipper.t, info_map: Language.Statics.Map.t) =>
     switch (z.selection.content) {
@@ -472,6 +483,8 @@ let get_sections =
     refractor_actions_data(~ci, info_map, z),
     /* Section 5: Projectors (fold, livelits) */
     Projectors.actions_data(z, info_map, ~elaborated),
+    /* Section 6: Formatting */
+    format_data,
   ]
   |> List.filter(section => section != []);
 };

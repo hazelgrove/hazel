@@ -333,7 +333,7 @@ let rec go =
         ~statics,
         ~syntax,
         ~root,
-        Action.Format(Pretty),
+        Action.Format(Action.pretty_at_default_width),
         {
           zipper: z,
           col_target,
@@ -342,18 +342,18 @@ let rec go =
     }
   | Format(Spacing) =>
     /* Re-indent, then canonicalize within-line spacing. Linebreaks
-       and comments untouched; caret restored as in Format(Pretty). */
+       and comments untouched; caret restored as in Format(Pretty(_)). */
     let z = reindent_zipper(z);
     Some(
       CaretPreserving.transform(z, SpaceNormalize.go(~canonicalize=true)),
     )
     |> return(CantReparse);
-  | Format(Pretty) =>
+  | Format(Pretty({width})) =>
     /* SpaceNormalize first: a no-op on parsed buffers (they can't
        contain bare glom junctions) but repairs the glom junctions in
        synthesized segments (agent/structural edits) so prettify is
        safe to run on them. */
-    let f = seg => seg |> SpaceNormalize.go |> PrettySegment.prettify;
+    let f = seg => seg |> SpaceNormalize.go |> PrettySegment.prettify(~width);
     Some(CaretPreserving.transform(z, f)) |> return(CantReparse);
   | Buffer(a) =>
     /* accepting a TyDi suggestion inserts delimiter text like typing
