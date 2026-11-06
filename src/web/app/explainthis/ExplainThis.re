@@ -357,7 +357,7 @@ let expander_deco =
       );
 
     let get_clss = segment =>
-      switch (List.nth_exn(segment, 0)) {
+      switch (List.hd_exn(segment)) {
       | Base.Tile(t) => ["ci-header-" ++ Sort.to_string(Tile.mold(t).out)]
       | _ => []
       };

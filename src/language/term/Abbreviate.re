@@ -841,8 +841,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           let pool = available^;
           let budgets = AbbrevBudget.split_evenly(~total=pool, ~parts=3);
           let (p', _) =
-            AbbrevBudget.with_budget(
-              ~budget=List.nth_exn(budgets, 0), ~run=() =>
+            AbbrevBudget.with_budget(~budget=List.hd_exn(budgets), ~run=() =>
               abbreviate_pat(p)
             );
           let (e1', _) =
@@ -880,8 +879,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           let pool = available^;
           let budgets = AbbrevBudget.split_evenly(~total=pool, ~parts=3);
           let (p', _) =
-            AbbrevBudget.with_budget(
-              ~budget=List.nth_exn(budgets, 0), ~run=() =>
+            AbbrevBudget.with_budget(~budget=List.hd_exn(budgets), ~run=() =>
               abbreviate_pat(p)
             );
           let (e1', _) =

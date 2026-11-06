@@ -45,7 +45,7 @@ module StoreTutorialKey =
     type t = Haz3lcore.Id.t;
     /* Lesson 0, so keep "Basics / Holes" first in Slides.re. */
     let default = () =>
-      List.nth_exn(TutorialSettings.lessons, 0) |> Tutorial.id_of;
+      List.hd_exn(TutorialSettings.lessons) |> Tutorial.id_of;
     let key = Store.CurrentTutorial;
   });
 module Store = {

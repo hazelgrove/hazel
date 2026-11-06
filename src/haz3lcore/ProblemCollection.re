@@ -413,15 +413,12 @@ let make =
     |> List.map(~f=cat =>
          (
            cat,
-           groups
-           |> Sequence.of_list
-           |> Sequence.map(~f=(g: problem_group) =>
-                Option.value(
-                  List.Assoc.find(g.counts, cat, ~equal=Poly.equal),
-                  ~default=0,
-                )
-              )
-           |> Sequence.fold(~init=0, ~f=(+)),
+           List.sum((module Int), groups, ~f=(g: problem_group) =>
+             Option.value(
+               List.Assoc.find(g.counts, cat, ~equal=Poly.equal),
+               ~default=0,
+             )
+           ),
          )
        );
   {
