@@ -15,7 +15,7 @@ type t = {
   children: (list(Segment.t), list(Segment.t)),
 };
 
-let label = (a: t): Label.t => Form.label_of(a.form);
+let label = (a: t): FormLabel.t => Form.label_of(a.form);
 let mold = (a: t): Mold.t => Form.mold_of(a.form, a.sort);
 
 // TODO(d) revisit naming w.r.t. outer vs inner shards

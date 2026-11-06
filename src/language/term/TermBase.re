@@ -23,6 +23,7 @@ let continue = x => x;
       ~f_mod: (Mod.t => Mod.t, Mod.t) => Mod.t=?,
       ~f_sig: (Sig.t => Sig.t, Sig.t) => Sig.t=?,
       ~f_mpat: (MPat.t => MPat.t, MPat.t) => MPat.t=?,
+      ~f_label: (Label.t => Label.t, Label.t) => Label.t=?,
        ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
        t
      ) =>
@@ -76,6 +77,10 @@ type mpat_t = Grammar.mpat_t(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type mpat_term = Grammar.mpat_term(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
+type label_t = Grammar.label_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type label_term = Grammar.label_term(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
 type stepper_filter_kind_t = Grammar.stepper_filter_kind_t(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type type_hole = Grammar.type_hole(IdTagged.IdTag.t);
@@ -100,6 +105,7 @@ module rec Any: {
       ~f_mod: (Mod.t => Mod.t, Mod.t) => Mod.t=?,
       ~f_sig: (Sig.t => Sig.t, Sig.t) => Sig.t=?,
       ~f_mpat: (MPat.t => MPat.t, MPat.t) => MPat.t=?,
+      ~f_label: (Label.t => Label.t, Label.t) => Label.t=?,
       ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
       t
     ) =>
@@ -118,6 +124,7 @@ module rec Any: {
         ~f_mod=continue,
         ~f_sig=continue,
         ~f_mpat=continue,
+        ~f_label=continue,
         ~f_any=continue,
         x: any_t,
       ) => {
@@ -134,6 +141,7 @@ module rec Any: {
             ~f_mod,
             ~f_sig,
             ~f_mpat,
+            ~f_label,
             ~f_any,
             x,
           ),
@@ -149,6 +157,7 @@ module rec Any: {
             ~f_mod,
             ~f_sig,
             ~f_mpat,
+            ~f_label,
             ~f_any,
             x,
           ),
@@ -164,6 +173,7 @@ module rec Any: {
             ~f_mod,
             ~f_sig,
             ~f_mpat,
+            ~f_label,
             ~f_any,
             x,
           ),
@@ -179,6 +189,7 @@ module rec Any: {
             ~f_mod,
             ~f_sig,
             ~f_mpat,
+            ~f_label,
             ~f_any,
             x,
           ),
@@ -194,6 +205,7 @@ module rec Any: {
             ~f_mod,
             ~f_sig,
             ~f_mpat,
+            ~f_label,
             ~f_any,
             x,
           ),
@@ -212,6 +224,7 @@ module rec Any: {
             ~f_mod,
             ~f_sig,
             ~f_mpat,
+            ~f_label,
             ~f_any,
             x,
           ),
@@ -227,6 +240,7 @@ module rec Any: {
             ~f_mod,
             ~f_sig,
             ~f_mpat,
+            ~f_label,
             ~f_any,
             x,
           ),
@@ -242,6 +256,23 @@ module rec Any: {
             ~f_mod,
             ~f_sig,
             ~f_mpat,
+            ~f_label,
+            ~f_any,
+            x,
+          ),
+        )
+      | Label(x) =>
+        Label(
+          Label.map_term(
+            ~f_exp,
+            ~f_pat,
+            ~f_typ,
+            ~f_tpat,
+            ~f_rul,
+            ~f_mod,
+            ~f_sig,
+            ~f_mpat,
+            ~f_label,
             ~f_any,
             x,
           ),
@@ -268,6 +299,7 @@ and Exp: {
       ~f_mod: (Mod.t => Mod.t, Mod.t) => Mod.t=?,
       ~f_sig: (Sig.t => Sig.t, Sig.t) => Sig.t=?,
       ~f_mpat: (MPat.t => MPat.t, MPat.t) => MPat.t=?,
+      ~f_label: (Label.t => Label.t, Label.t) => Label.t=?,
       ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
       t
     ) =>
@@ -290,6 +322,7 @@ and Exp: {
         ~f_mod=continue,
         ~f_sig=continue,
         ~f_mpat=continue,
+        ~f_label=continue,
         ~f_any=continue,
         x,
       ) => {
@@ -303,6 +336,7 @@ and Exp: {
         ~f_mod,
         ~f_sig,
         ~f_mpat,
+        ~f_label,
         ~f_any,
       );
     let pat_map_term =
@@ -315,6 +349,7 @@ and Exp: {
         ~f_mod,
         ~f_sig,
         ~f_mpat,
+        ~f_label,
         ~f_any,
       );
     let typ_map_term =
@@ -327,6 +362,7 @@ and Exp: {
         ~f_mod,
         ~f_sig,
         ~f_mpat,
+        ~f_label,
         ~f_any,
       );
     let tpat_map_term =
@@ -339,6 +375,7 @@ and Exp: {
         ~f_mod,
         ~f_sig,
         ~f_mpat,
+        ~f_label,
         ~f_any,
       );
     let any_map_term =
@@ -351,6 +388,7 @@ and Exp: {
         ~f_mod,
         ~f_sig,
         ~f_mpat,
+        ~f_label,
         ~f_any,
       );
     let mpat_map_term =
@@ -363,6 +401,7 @@ and Exp: {
         ~f_mod,
         ~f_sig,
         ~f_mpat,
+        ~f_label,
         ~f_any,
       );
     let flt_map_term =
@@ -457,6 +496,7 @@ and Exp: {
                 ~f_mod,
                 ~f_sig,
                 ~f_mpat,
+                ~f_label,
                 ~f_any,
               ),
               items,
@@ -489,6 +529,7 @@ and Pat: {
       ~f_mod: (Mod.t => Mod.t, Mod.t) => Mod.t=?,
       ~f_sig: (Sig.t => Sig.t, Sig.t) => Sig.t=?,
       ~f_mpat: (MPat.t => MPat.t, MPat.t) => MPat.t=?,
+      ~f_label: (Label.t => Label.t, Label.t) => Label.t=?,
       ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
       t
     ) =>
@@ -509,6 +550,7 @@ and Pat: {
         ~f_mod=continue,
         ~f_sig=continue,
         ~f_mpat=continue,
+        ~f_label=continue,
         ~f_any=continue,
         x,
       ) => {
@@ -522,6 +564,7 @@ and Pat: {
         ~f_mod,
         ~f_sig,
         ~f_mpat,
+        ~f_label,
         ~f_any,
       );
     let typ_map_term =
@@ -534,6 +577,7 @@ and Pat: {
         ~f_mod,
         ~f_sig,
         ~f_mpat,
+        ~f_label,
         ~f_any,
       );
     let any_map_term =
@@ -546,6 +590,7 @@ and Pat: {
         ~f_mod,
         ~f_sig,
         ~f_mpat,
+        ~f_label,
         ~f_any,
       );
     let rec_call = ({term, _} as exp: t) => {
@@ -593,6 +638,7 @@ and Typ: {
       ~f_mod: (Mod.t => Mod.t, Mod.t) => Mod.t=?,
       ~f_sig: (Sig.t => Sig.t, Sig.t) => Sig.t=?,
       ~f_mpat: (MPat.t => MPat.t, MPat.t) => MPat.t=?,
+      ~f_label: (Label.t => Label.t, Label.t) => Label.t=?,
       ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
       t
     ) =>
@@ -615,6 +661,7 @@ and Typ: {
         ~f_mod=continue,
         ~f_sig=continue,
         ~f_mpat=continue,
+        ~f_label=continue,
         ~f_any=continue,
         x,
       ) => {
@@ -628,6 +675,7 @@ and Typ: {
         ~f_mod,
         ~f_sig,
         ~f_mpat,
+        ~f_label,
         ~f_any,
       );
     let any_map_term =
@@ -640,6 +688,7 @@ and Typ: {
         ~f_mod,
         ~f_sig,
         ~f_mpat,
+        ~f_label,
         ~f_any,
       );
     let tpat_map_term =
@@ -652,6 +701,7 @@ and Typ: {
         ~f_mod,
         ~f_sig,
         ~f_mpat,
+        ~f_label,
         ~f_any,
       );
     let exp_map_term =
@@ -664,6 +714,7 @@ and Typ: {
         ~f_mod,
         ~f_sig,
         ~f_mpat,
+        ~f_label,
         ~f_any,
       );
     let rec_call = ({term, _} as exp: t) => {
@@ -738,6 +789,7 @@ and Typ: {
                 ~f_mod,
                 ~f_sig,
                 ~f_mpat,
+                ~f_label,
                 ~f_any,
               ),
               items,
@@ -764,6 +816,7 @@ and TPat: {
       ~f_mod: (Mod.t => Mod.t, Mod.t) => Mod.t=?,
       ~f_sig: (Sig.t => Sig.t, Sig.t) => Sig.t=?,
       ~f_mpat: (MPat.t => MPat.t, MPat.t) => MPat.t=?,
+      ~f_label: (Label.t => Label.t, Label.t) => Label.t=?,
       ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
       t
     ) =>
@@ -786,6 +839,7 @@ and TPat: {
         ~f_mod=continue,
         ~f_sig=continue,
         ~f_mpat=continue,
+        ~f_label=continue,
         ~f_any=continue,
         x,
       ) => {
@@ -799,6 +853,7 @@ and TPat: {
         ~f_mod,
         ~f_sig,
         ~f_mpat,
+        ~f_label,
         ~f_any,
       );
     let rec_call = ({term, _} as exp: t) => {
@@ -836,6 +891,7 @@ and Rul: {
       ~f_mod: (Mod.t => Mod.t, Mod.t) => Mod.t=?,
       ~f_sig: (Sig.t => Sig.t, Sig.t) => Sig.t=?,
       ~f_mpat: (MPat.t => MPat.t, MPat.t) => MPat.t=?,
+      ~f_label: (Label.t => Label.t, Label.t) => Label.t=?,
       ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
       t
     ) =>
@@ -856,6 +912,7 @@ and Rul: {
         ~f_mod=continue,
         ~f_sig=continue,
         ~f_mpat=continue,
+        ~f_label=continue,
         ~f_any=continue,
         x,
       ) => {
@@ -869,6 +926,7 @@ and Rul: {
         ~f_mod,
         ~f_sig,
         ~f_mpat,
+        ~f_label,
         ~f_any,
       );
     let pat_map_term =
@@ -881,6 +939,7 @@ and Rul: {
         ~f_mod,
         ~f_sig,
         ~f_mpat,
+        ~f_label,
         ~f_any,
       );
     let any_map_term =
@@ -893,6 +952,7 @@ and Rul: {
         ~f_mod,
         ~f_sig,
         ~f_mpat,
+        ~f_label,
         ~f_any,
       );
     let rec_call = ({term, _} as exp: t) => {
@@ -930,6 +990,7 @@ and Mod: {
       ~f_mod: (Mod.t => Mod.t, Mod.t) => Mod.t=?,
       ~f_sig: (Sig.t => Sig.t, Sig.t) => Sig.t=?,
       ~f_mpat: (MPat.t => MPat.t, MPat.t) => MPat.t=?,
+      ~f_label: (Label.t => Label.t, Label.t) => Label.t=?,
       ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
       t
     ) =>
@@ -950,6 +1011,7 @@ and Mod: {
         ~f_mod=continue,
         ~f_sig=continue,
         ~f_mpat=continue,
+        ~f_label=continue,
         ~f_any=continue,
         x,
       ) => {
@@ -963,6 +1025,7 @@ and Mod: {
         ~f_mod,
         ~f_sig,
         ~f_mpat,
+        ~f_label,
         ~f_any,
       );
     let pat_map_term =
@@ -975,6 +1038,7 @@ and Mod: {
         ~f_mod,
         ~f_sig,
         ~f_mpat,
+        ~f_label,
         ~f_any,
       );
     let typ_map_term =
@@ -987,6 +1051,7 @@ and Mod: {
         ~f_mod,
         ~f_sig,
         ~f_mpat,
+        ~f_label,
         ~f_any,
       );
     let tpat_map_term =
@@ -999,6 +1064,7 @@ and Mod: {
         ~f_mod,
         ~f_sig,
         ~f_mpat,
+        ~f_label,
         ~f_any,
       );
     let any_map_term =
@@ -1011,6 +1077,7 @@ and Mod: {
         ~f_mod,
         ~f_sig,
         ~f_mpat,
+        ~f_label,
         ~f_any,
       );
     let mpat_map_term =
@@ -1023,6 +1090,7 @@ and Mod: {
         ~f_mod,
         ~f_sig,
         ~f_mpat,
+        ~f_label,
         ~f_any,
       );
     let rec_call = ({term, _} as m: t) => {
@@ -1057,6 +1125,7 @@ and Sig: {
       ~f_mod: (Mod.t => Mod.t, Mod.t) => Mod.t=?,
       ~f_sig: (Sig.t => Sig.t, Sig.t) => Sig.t=?,
       ~f_mpat: (MPat.t => MPat.t, MPat.t) => MPat.t=?,
+      ~f_label: (Label.t => Label.t, Label.t) => Label.t=?,
       ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
       t
     ) =>
@@ -1077,6 +1146,7 @@ and Sig: {
         ~f_mod=continue,
         ~f_sig=continue,
         ~f_mpat=continue,
+        ~f_label=continue,
         ~f_any=continue,
         x,
       ) => {
@@ -1090,6 +1160,7 @@ and Sig: {
         ~f_mod,
         ~f_sig,
         ~f_mpat,
+        ~f_label,
         ~f_any,
       );
     let typ_map_term =
@@ -1102,6 +1173,7 @@ and Sig: {
         ~f_mod,
         ~f_sig,
         ~f_mpat,
+        ~f_label,
         ~f_any,
       );
     let tpat_map_term =
@@ -1114,6 +1186,7 @@ and Sig: {
         ~f_mod,
         ~f_sig,
         ~f_mpat,
+        ~f_label,
         ~f_any,
       );
     let any_map_term =
@@ -1126,6 +1199,7 @@ and Sig: {
         ~f_mod,
         ~f_sig,
         ~f_mpat,
+        ~f_label,
         ~f_any,
       );
     let rec_call = ({term, _} as s: t) => {
@@ -1159,6 +1233,7 @@ and MPat: {
       ~f_mod: (Mod.t => Mod.t, Mod.t) => Mod.t=?,
       ~f_sig: (Sig.t => Sig.t, Sig.t) => Sig.t=?,
       ~f_mpat: (MPat.t => MPat.t, MPat.t) => MPat.t=?,
+      ~f_label: (Label.t => Label.t, Label.t) => Label.t=?,
       ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
       t
     ) =>
@@ -1179,6 +1254,7 @@ and MPat: {
         ~f_mod=continue,
         ~f_sig=continue,
         ~f_mpat=continue,
+        ~f_label=continue,
         ~f_any=continue,
         x,
       ) => {
@@ -1193,6 +1269,7 @@ and MPat: {
         ~f_mod,
         ~f_sig,
         ~f_mpat,
+        ~f_label,
         ~f_any,
       );
     let typ_map_term =
@@ -1205,6 +1282,7 @@ and MPat: {
         ~f_mod,
         ~f_sig,
         ~f_mpat,
+        ~f_label,
         ~f_any,
       );
     let rec rec_call = ({term, _} as mp: t) => {
@@ -1221,6 +1299,74 @@ and MPat: {
     x |> f_mpat(rec_call);
   };
 }
+and Label: {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type term = label_term;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = label_t;
+
+  let map_term:
+    (
+      ~f_exp: (Exp.t => Exp.t, Exp.t) => Exp.t=?,
+      ~f_pat: (Pat.t => Pat.t, Pat.t) => Pat.t=?,
+      ~f_typ: (Typ.t => Typ.t, Typ.t) => Typ.t=?,
+      ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
+      ~f_rul: (Rul.t => Rul.t, Rul.t) => Rul.t=?,
+      ~f_mod: (Mod.t => Mod.t, Mod.t) => Mod.t=?,
+      ~f_sig: (Sig.t => Sig.t, Sig.t) => Sig.t=?,
+      ~f_mpat: (MPat.t => MPat.t, MPat.t) => MPat.t=?,
+      ~f_label: (Label.t => Label.t, Label.t) => Label.t=?,
+      ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
+      t
+    ) =>
+    t;
+} = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type term = label_term;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = label_t;
+
+  let map_term =
+      (
+        ~f_exp=continue,
+        ~f_pat=continue,
+        ~f_typ=continue,
+        ~f_tpat=continue,
+        ~f_rul=continue,
+        ~f_mod=continue,
+        ~f_sig=continue,
+        ~f_mpat=continue,
+        ~f_label=continue,
+        ~f_any=continue,
+        x,
+      ) => {
+    let any_map_term =
+      Any.map_term(
+        ~f_exp,
+        ~f_pat,
+        ~f_typ,
+        ~f_tpat,
+        ~f_rul,
+        ~f_mod,
+        ~f_sig,
+        ~f_mpat,
+        ~f_label,
+        ~f_any,
+      );
+    let rec_call = ({term, _} as l: t) => {
+      ...l,
+      term:
+        switch (term) {
+        | Invalid(_)
+        | EmptyHole
+        | Label(_)
+        | ExplicitNonlabel => term
+        | MultiHole(things) => MultiHole(List.map(any_map_term, things))
+        },
+    };
+    x |> f_label(rec_call);
+  };
+}
 and StepperFilterKind: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = stepper_filter_kind_t;
@@ -1235,6 +1381,7 @@ and StepperFilterKind: {
       ~f_mod: (Mod.t => Mod.t, Mod.t) => Mod.t=?,
       ~f_sig: (Sig.t => Sig.t, Sig.t) => Sig.t=?,
       ~f_mpat: (MPat.t => MPat.t, MPat.t) => MPat.t=?,
+      ~f_label: (Label.t => Label.t, Label.t) => Label.t=?,
       ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
       t
     ) =>
@@ -1266,6 +1413,7 @@ and StepperFilterKind: {
         ~f_mod=continue,
         ~f_sig=continue,
         ~f_mpat=continue,
+        ~f_label=continue,
         ~f_any=continue,
       ) => {
     let exp_map_term =
@@ -1278,6 +1426,7 @@ and StepperFilterKind: {
         ~f_mod,
         ~f_sig,
         ~f_mpat,
+        ~f_label,
         ~f_any,
       );
     (

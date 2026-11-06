@@ -128,7 +128,8 @@ let highest = (marks: list(t)): option(t) =>
 let is_syntax_error = (sort: Sort.t, marks: list(t)): bool =>
   switch (sort) {
   | Exp
-  | Pat =>
+  | Pat
+  | Label =>
     switch (highest(marks)) {
     | Some(BadToken(_) | IsMulti) => true
     | _ => false

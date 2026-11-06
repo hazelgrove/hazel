@@ -174,6 +174,46 @@ let rec remold = (~shape=Nib.Shape.concave(), seg: t, s: Sort.t) =>
   | Mod => remold_mod(shape, seg)
   | Sig => remold_sig(shape, seg)
   | MPat => remold_mpat(shape, seg)
+  | Label =>
+    let (remolded, _, rest) = remold_label_uni(shape, seg);
+    remolded @ rest;
+  }
+/* Remolding runs left to right, but a tuple label is only known to be one
+   once the `=` after it is seen: look one piece ahead and mold the operand
+   as a Label when a labeled-tuple `=` follows. */
+and remold_operand =
+    (sort: Sort.t, shape, t: Tile.t, rest: t): option(Tile.t) => {
+  let rec precedes_tuple_label_eq =
+    fun
+    | [Piece.Secondary(_), ...tl] => precedes_tuple_label_eq(tl)
+    | [Piece.Tile(t), ..._] => Tile.has_label_of(t, TupleLabeled)
+    | [Piece.Grout(_) | Piece.Projector(_), ..._]
+    | [] => false;
+  let as_label =
+    precedes_tuple_label_eq(rest) ? remold_tile(Label, shape, t) : None;
+  switch (as_label) {
+  | Some(_) => as_label
+  | None => remold_tile(sort, shape, t)
+  };
+}
+/* A label is a single operand: mold the first piece as a Label and hand
+   back the rest. */
+and remold_label_uni = (shape, seg: t): (t, Nib.Shape.t, t) =>
+  switch (seg) {
+  | [] => ([], shape, [])
+  | [hd, ...tl] =>
+    switch (hd) {
+    | Secondary(_) =>
+      let (remolded, shape, rest) = remold_label_uni(shape, tl);
+      ([hd, ...remolded], shape, rest);
+    | Grout(g) => ([hd], snd(Grout.shapes(g)), tl)
+    | Projector(_) => ([], shape, seg)
+    | Tile(t) =>
+      switch (remold_tile(Label, shape, t)) {
+      | Some(t) => ([Tile(t)], snd(Tile.shapes(t)), tl)
+      | None => ([], shape, seg)
+      }
+    }
   }
 and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
   open OptUtil.Syntax;
@@ -199,13 +239,27 @@ and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
     };
   let remolded_mold = Tile.mold(remolded);
   let orig_mold = Tile.mold(t);
+  /* A Label mold depends on the `=` or `.` beside it, which an edit can
+     absorb into another form (`=` into a rule's `=>`) without changing
+     this child's sort, so a child holding one is always remolded. */
+  let has_label_tile =
+    List.exists(
+      fun
+      | Piece.Tile(t) => Tile.mold(t).out == Sort.Label
+      | Secondary(_)
+      | Grout(_)
+      | Projector(_) => false,
+    );
   let children =
     List.fold_right(
       ((l, child, r), children) => {
         let child =
           if (l
               + 1 == r
-              && List.nth(remolded_mold.in_, l) != List.nth(orig_mold.in_, l)) {
+              && (
+                List.nth(remolded_mold.in_, l) != List.nth(orig_mold.in_, l)
+                || has_label_tile(child)
+              )) {
             remold(child, List.nth(remolded_mold.in_, l));
           } else {
             child;
@@ -303,13 +357,19 @@ and remold_typ = (shape, seg: t): t =>
     | Grout(_) => [hd, ...remold_typ(shape, tl)]
     | Projector(p) => [hd, ...remold_typ(snd(ProjectorCore.shapes(p)), tl)]
     | Tile(t) =>
-      switch (remold_tile(Typ, shape, t)) {
+      switch (remold_operand(Typ, shape, t, tl)) {
       | None => [Tile(t), ...remold_typ(snd(Tile.shapes(t)), tl)]
       | Some(t) when !Tile.has_end(Right, t) =>
         let (_, r) = Tile.nibs(t);
         let remolded = remold(~shape=r.shape, tl, r.sort);
         [Tile(t), ...remolded];
-      | Some(t) => [Tile(t), ...remold_typ(snd(Tile.shapes(t)), tl)]
+      | Some(t) =>
+        switch (Tile.nibs(t)) {
+        | (_, {shape: Concave(_) as shape, sort: Label}) =>
+          let (remolded, shape, rest) = remold_label_uni(shape, tl);
+          [Piece.Tile(t), ...remolded] @ remold_typ(shape, rest);
+        | _ => [Tile(t), ...remold_typ(snd(Tile.shapes(t)), tl)]
+        }
       }
     }
   }
@@ -330,7 +390,7 @@ and remold_typ_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
       /* If we encounter ; and Mod or Sig is a parent sort, return to let the parent
          handle it as ModSeq/SigSeq. This handles cases like `type T = Int;` where ;
          follows a Typ child of ModType or SigType. */
-      switch (remold_tile(Typ, shape, t)) {
+      switch (remold_operand(Typ, shape, t, tl)) {
       | None
           when
             Tile.is_semi(t)
@@ -361,9 +421,17 @@ and remold_typ_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
           seg,
         )
       | Some(t) =>
-        let (remolded, shape, rest) =
-          remold_typ_uni(snd(Tile.shapes(t)), tl, parent_sorts);
-        ([Tile(t), ...remolded], shape, rest);
+        switch (Tile.nibs(t)) {
+        | (_, {shape: Concave(_) as shape, sort: Label}) =>
+          let (remolded_label, shape, rest) = remold_label_uni(shape, tl);
+          let (remolded_typ, shape, rest) =
+            remold_typ_uni(shape, rest, parent_sorts);
+          ([Piece.Tile(t), ...remolded_label] @ remolded_typ, shape, rest);
+        | _ =>
+          let (remolded, shape, rest) =
+            remold_typ_uni(snd(Tile.shapes(t)), tl, parent_sorts);
+          ([Tile(t), ...remolded], shape, rest);
+        }
       }
     }
   }
@@ -381,7 +449,7 @@ and remold_pat_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
         remold_pat_uni(snd(ProjectorCore.shapes(p)), tl, parent_sorts);
       ([hd, ...remolded], shape, rest);
     | Tile(t) =>
-      switch (remold_tile(Pat, shape, t)) {
+      switch (remold_operand(Pat, shape, t, tl)) {
       | None => ([], shape, seg)
       | Some(t) when !Tile.has_end(Right, t) =>
         let (_, r) = Tile.nibs(t);
@@ -413,7 +481,7 @@ and remold_pat = (shape, seg: t): t =>
     | Grout(_) => [hd, ...remold_pat(shape, tl)]
     | Projector(p) => [hd, ...remold_pat(snd(ProjectorCore.shapes(p)), tl)]
     | Tile(t) =>
-      switch (remold_tile(Pat, shape, t)) {
+      switch (remold_operand(Pat, shape, t, tl)) {
       | None => [Tile(t), ...remold_pat(snd(Tile.shapes(t)), tl)]
       | Some(t) when !Tile.has_end(Right, t) =>
         let (_, r) = Tile.nibs(t);
@@ -504,7 +572,7 @@ and remold_exp_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
         remold_exp_uni(snd(ProjectorCore.shapes(p)), tl, parent_sorts);
       ([hd, ...remolded], shape, rest);
     | Tile(t) =>
-      switch (remold_tile(Exp, shape, t)) {
+      switch (remold_operand(Exp, shape, t, tl)) {
       | None => ([], shape, seg)
       | Some(t) when !Tile.has_end(Right, t) =>
         let (_, r) = Tile.nibs(t);
@@ -550,6 +618,11 @@ and remold_exp_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
             remold_template_uni(sort, shape, tl);
           let (remolded_exp, shape, rest) = remold_exp_uni(shape, rest, []);
           ([Piece.Tile(t), ...remolded_drv] @ remolded_exp, shape, rest);
+        | (_, {shape: Concave(_) as shape, sort: Label}) =>
+          let (remolded_label, shape, rest) = remold_label_uni(shape, tl);
+          let (remolded_exp, shape, rest) =
+            remold_exp_uni(shape, rest, parent_sorts);
+          ([Piece.Tile(t), ...remolded_label] @ remolded_exp, shape, rest);
         | _ =>
           let (remolded, shape, rest) =
             remold_exp_uni(snd(Tile.shapes(t)), tl, parent_sorts);
@@ -605,7 +678,7 @@ and remold_exp = (shape, seg: t): t =>
     | Grout(_) => [hd, ...remold_exp(shape, tl)]
     | Projector(p) => [hd, ...remold_exp(snd(ProjectorCore.shapes(p)), tl)]
     | Tile(t) =>
-      switch (remold_tile(Exp, shape, t)) {
+      switch (remold_operand(Exp, shape, t, tl)) {
       | None => [Tile(t), ...remold_exp(snd(Tile.shapes(t)), tl)]
       | Some(t) when !Tile.has_end(Right, t) =>
         let (_, r) = Tile.nibs(t);
@@ -629,6 +702,9 @@ and remold_exp = (shape, seg: t): t =>
         | (_, {shape, sort: Mod}) =>
           let (remolded, shape, rest) =
             remold_mod_uni(shape, tl, [Sort.Exp]);
+          [Piece.Tile(t), ...remolded] @ remold_exp(shape, rest);
+        | (_, {shape: Concave(_) as shape, sort: Label}) =>
+          let (remolded, shape, rest) = remold_label_uni(shape, tl);
           [Piece.Tile(t), ...remolded] @ remold_exp(shape, rest);
         | _ => [Tile(t), ...remold_exp(snd(Tile.shapes(t)), tl)]
         }

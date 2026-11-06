@@ -7,8 +7,8 @@ open Haz3lcore;
 
 let mold_testable: testable(Mold.t) =
   testable(Fmt.using(Mold.show, Fmt.string), Mold.equal);
-let label_testable: testable(Label.t) =
-  testable(Fmt.using(Label.show, Fmt.string), Label.equal);
+let label_testable: testable(FormLabel.t) =
+  testable(Fmt.using(FormLabel.show, Fmt.string), FormLabel.equal);
 let form_id_testable: testable(Form.t) =
   testable(Fmt.using(Form.show, Fmt.string), Form.equal);
 let sort_testable: testable(Sort.t) =
@@ -21,7 +21,7 @@ let all_sorts: list(Sort.t) =
   [Sort.Any, Pat, Typ, TPat, Rul, Exp, Mod, Sig, MPat]
   @ List.map(s => Sort.Drv(s), Language.DrvSort.all);
 
-let all_labels: list(Label.t) =
+let all_labels: list(FormLabel.t) =
   Form.forms |> List.map(snd) |> List.map((f: Form.def) => f.label);
 
 let token_corpus: list(Token.t) = [
@@ -50,12 +50,12 @@ let token_corpus: list(Token.t) = [
   "then",
 ];
 
-let corpus_labels: list(Label.t) = List.map(t => [t], token_corpus);
+let corpus_labels: list(FormLabel.t) = List.map(t => [t], token_corpus);
 
-let case_name = (sort: Sort.t, label: Label.t): string =>
-  Sort.to_string(sort) ++ " / " ++ Label.show(label);
+let case_name = (sort: Sort.t, label: FormLabel.t): string =>
+  Sort.to_string(sort) ++ " / " ++ FormLabel.show(label);
 
-let is_compound_label = (label: Label.t): bool =>
+let is_compound_label = (label: FormLabel.t): bool =>
   Form.compound_defs(label) != [];
 
 /* family construction: the family key is exactly the quotient of the
@@ -74,7 +74,7 @@ let check_family_grouping = (): unit => {
     pair(label_testable, pair(shape_role_testable, shape_role_testable));
   let key =
       ((_, d): (Form.family, Form.def))
-      : (Label.t, (Grout.shape, Grout.shape)) => (
+      : (FormLabel.t, (Grout.shape, Grout.shape)) => (
     d.label,
     Util.TupleUtil.map2(shape_role, d.mold.nibs),
   );
@@ -171,7 +171,7 @@ let check_family_uniqueness = (): unit =>
    otherwise falls back to stored-sort Any with the Any-fallback mold
    (Parens: op wrapping one child; bin for operator-shaped tokens, op
    otherwise). It emits TokInfix only where nothing else fits. */
-let check_classify = (sort: Sort.t, label: Label.t): unit => {
+let check_classify = (sort: Sort.t, label: FormLabel.t): unit => {
   let name = case_name(sort, label);
   let (id, stored) = Form.classify_label(sort, label);
   check(label_testable, "label: " ++ name, label, Form.label_of(id));
@@ -241,7 +241,7 @@ let check_classify = (sort: Sort.t, label: Label.t): unit => {
    pinned separately in check_same_label_order); TokInfix candidates
    appear exactly for InfixDelimiterPrefix tokens at its four sorts,
    with the concave-grout bin mold. */
-let check_remold = (sort: Sort.t, label: Label.t): unit => {
+let check_remold = (sort: Sort.t, label: FormLabel.t): unit => {
   let name = case_name(sort, label);
   let cands = Form.remold_candidates(label, sort);
   List.iter(
@@ -331,7 +331,7 @@ let check_remold = (sort: Sort.t, label: Label.t): unit => {
    classification and leads the remold list (Form.same_label_rank).
    These pins state every intended order directly. */
 let check_same_label_order = (): unit => {
-  let compounds = (label: Label.t, sort: Sort.t): list(Form.family) =>
+  let compounds = (label: FormLabel.t, sort: Sort.t): list(Form.family) =>
     Form.remold_candidates(label, sort)
     |> List.filter_map(
          fun

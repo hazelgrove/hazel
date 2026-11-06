@@ -127,6 +127,15 @@ type mpat = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type label = {
+  user_term: Label.t,
+  cls: Cls.t,
+  ctx: Ctx.t,
+  ancestors,
+  marks: list(Mark.t),
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type secondary = {
   id: Id.t, // Id of term static info is sourced from
   cls: Cls.t, // Cls of secondary, not source term
@@ -145,6 +154,7 @@ type t =
   | InfoMod(mod_)
   | InfoSig(sig_)
   | InfoMPat(mpat)
+  | InfoLabel(label)
   | Secondary(secondary);
 
 /* ==================================== Getters ==================================== */
@@ -160,6 +170,7 @@ let sort_of: t => Sort.t =
   | InfoMod(_) => Mod
   | InfoSig(_) => Sig
   | InfoMPat(_) => MPat
+  | InfoLabel(_) => Label
   | Secondary(s) => s.sort;
 
 /* The grammar's mold system uses a single `Drv(Exp)` outer sort for all of
@@ -194,6 +205,7 @@ let cls_of: t => Cls.t =
   | InfoMod({cls, _})
   | InfoSig({cls, _})
   | InfoMPat({cls, _})
+  | InfoLabel({cls, _})
   | Secondary({cls, _}) => cls;
 
 /* Display label for a term's cls. The parser always builds numeric
@@ -219,6 +231,7 @@ let any_of: t => option(Any.t) =
   | InfoMod({user_term, _}) => Some(Mod(user_term))
   | InfoSig({user_term, _}) => Some(Sig(user_term))
   | InfoMPat({user_term, _}) => Some(MPat(user_term))
+  | InfoLabel({user_term, _}) => Some(Label(user_term))
   | Secondary(_) => None;
 
 let ctx_of: t => Ctx.t =
@@ -231,6 +244,7 @@ let ctx_of: t => Ctx.t =
   | InfoMod({ctx, _})
   | InfoSig({ctx, _})
   | InfoMPat({ctx, _})
+  | InfoLabel({ctx, _})
   | Secondary({ctx, _}) => ctx;
 
 let ancestors_of: t => ancestors =
@@ -242,7 +256,8 @@ let ancestors_of: t => ancestors =
   | InfoTPat({ancestors, _})
   | InfoMod({ancestors, _})
   | InfoSig({ancestors, _})
-  | InfoMPat({ancestors, _}) => ancestors
+  | InfoMPat({ancestors, _})
+  | InfoLabel({ancestors, _}) => ancestors
   | Secondary(_) => []; //TODO
 
 let parent_id_of: t => option(Id.t) =
@@ -258,6 +273,7 @@ let id_of: t => Id.t =
   | InfoMod({id, _})
   | InfoSig({id, _})
   | InfoMPat({id, _}) => id
+  | InfoLabel(i) => Label.rep_id(i.user_term)
   | Secondary(s) => s.id;
 
 let marks_of: t => list(Mark.t) =
@@ -265,7 +281,8 @@ let marks_of: t => list(Mark.t) =
   | InfoExp({marks, _})
   | InfoPat({marks, _}) => marks
   | InfoTyp({marks, _})
-  | InfoTPat({marks, _}) => marks
+  | InfoTPat({marks, _})
+  | InfoLabel({marks, _}) => marks
   | InfoDrv(_) /* Drv errors are tracked separately via DrvInfo.error_of. */
   | InfoMod(_)
   | InfoSig(_)
@@ -290,6 +307,7 @@ let warnings_of: t => list(Warning.list_item) =
   | InfoMod(_)
   | InfoSig(_)
   | InfoMPat(_)
+  | InfoLabel(_)
   | Secondary(_) => [];
 
 let is_warning = (ci: t): bool => warnings_of(ci) != [];
@@ -309,6 +327,7 @@ let is_typable_term: option(t) => bool =
     false
   | Some(
       InfoTyp(_) | InfoTPat(_) | InfoMod(_) | InfoSig(_) | InfoMPat(_) |
+      InfoLabel(_) |
       InfoDrv(_) |
       Secondary(_),
     ) =>

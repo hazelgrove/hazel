@@ -777,6 +777,29 @@ let equality =
     | (Asc(_, _), _) => None
     };
   }
+  and label =
+      (
+        alphas_exp: Alphas.t,
+        alphas_typ: Alphas.t,
+        l1: TermBase.Label.t,
+        l2: TermBase.Label.t,
+      )
+      : bool => {
+    switch (l1 |> Annotated.term_of, l2 |> Annotated.term_of) {
+    | (Label(s1), Label(s2)) => s1 == s2
+    | (Label(_), _) => false
+    | (ExplicitNonlabel, ExplicitNonlabel) => true
+    | (ExplicitNonlabel, _) => false
+    | (EmptyHole, EmptyHole) => true
+    | (EmptyHole, _) => false
+    | (Invalid(s1), Invalid(s2)) => s1 == s2
+    | (Invalid(_), _) => false
+    | (MultiHole(xs1), MultiHole(xs2)) =>
+      List.length(xs1) == List.length(xs2)
+      && List.for_all2(any(alphas_exp, alphas_typ), xs1, xs2)
+    | (MultiHole(_), _) => false
+    };
+  }
   and tpat = (tp1: TPat.t, tp2: TPat.t): option(Alphas.t) => {
     switch (tp1 |> Annotated.term_of, tp2 |> Annotated.term_of) {
     // Variables: special case depending on alpha equivalence.
@@ -880,6 +903,8 @@ let equality =
     | (MPat(mp1), MPat(mp2)) =>
       mpat(alphas_exp, alphas_typ, mp1, mp2) |> Option.is_some
     | (MPat(_), _) => false
+    | (Label(l1), Label(l2)) => label(alphas_exp, alphas_typ, l1, l2)
+    | (Label(_), _) => false
     | (Any (), Any ()) => true
     | (Any (), _) => false
     | (Drv(d1), Drv(d2)) => d1 == d2

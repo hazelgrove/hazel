@@ -539,6 +539,17 @@ let mpat_view = (~globals, ~raw, m: Info.mpat): list(Node.t) =>
     ]
   );
 
+let label_view = (~globals, ~raw, l: Info.label): list(Node.t) =>
+  section(~globals, "InfoLabel", () =>
+    [
+      field_str("id", id_str(Label.rep_id(l.user_term))),
+      field_str("cls", Cls.show(l.cls)),
+      field_str("marks", marks_str(l.marks)),
+      field_str("ancestors", ancestors_str(l.ancestors)),
+      field_ctx(~globals, ~raw, "ctx", l.ctx),
+    ]
+  );
+
 let drv_view = (~globals, _: DrvInfo.t): list(Node.t) =>
   section(~globals, "InfoDrv", () => [field_str("(see DrvInfo)", "—")]);
 
@@ -551,6 +562,7 @@ let info_view = (~globals, ~raw, ci: Info.t): list(Node.t) =>
   | InfoMod(m) => mod_view(~globals, ~raw, m)
   | InfoSig(s) => sig_view(~globals, ~raw, s)
   | InfoMPat(m) => mpat_view(~globals, ~raw, m)
+  | InfoLabel(l) => label_view(~globals, ~raw, l)
   | Secondary(s) => secondary_view(~globals, s)
   | InfoDrv(d) => drv_view(~globals, d)
   };

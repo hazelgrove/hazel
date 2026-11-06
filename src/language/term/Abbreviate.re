@@ -1798,6 +1798,7 @@ and abbreviate_any = (any: Any.t): Any.t =>
   | Mod(m) => Mod(abbreviate_mod_item(m))
   | Sig(s) => Sig(abbreviate_sig_item(s))
   | MPat(mp) => MPat(abbreviate_mpat(mp))
+  | Label(_) => any
   | Any(_) => any
   };
 

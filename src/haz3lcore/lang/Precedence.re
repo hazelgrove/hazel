@@ -25,6 +25,8 @@ let right_associative = (level: t) => {
 let max: t = 0;
 
 // ========== TYPES ==========
+// _____.a
+let type_dot = 10 |> left_associative;
 let type_sum_ap = 11;
 // _____ (Int)
 // + T1 + _____

@@ -461,6 +461,71 @@ let is_exp_kid: Any.t => bool =
   fun
   | Exp(_) => true
   | _ => false;
+/* Lower a parsed label to the sort-specific label child that the
+   TupLabel/Dot/ProdProjection terms still carry. Each goes away when its
+   sort's tuples hold Label.t entries directly. A malformed label is
+   wrapped so statics still reaches it (and reports it) as a label. */
+let exp_of_label = (l: Label.t): Exp.t =>
+  switch (l.term) {
+  | Label(name) => {
+      term: Label(name),
+      annotation: l.annotation,
+    }
+  | ExplicitNonlabel => {
+      term: ExplicitNonlabel,
+      annotation: l.annotation,
+    }
+  | EmptyHole => {
+      term: EmptyHole,
+      annotation: l.annotation,
+    }
+  | Invalid(_)
+  | MultiHole(_) => {
+      term: MultiHole([Label(l)]),
+      annotation: IdTagged.IdTag.mk_internal(IdTagged.ids(l)),
+    }
+  };
+let pat_of_label = (l: Label.t): Pat.t =>
+  switch (l.term) {
+  | Label(name) => {
+      term: Label(name),
+      annotation: l.annotation,
+    }
+  | ExplicitNonlabel => {
+      term: ExplicitNonlabel,
+      annotation: l.annotation,
+    }
+  | EmptyHole => {
+      term: EmptyHole,
+      annotation: l.annotation,
+    }
+  | Invalid(_)
+  | MultiHole(_) => {
+      term: MultiHole([Label(l)]),
+      annotation: IdTagged.IdTag.mk_internal(IdTagged.ids(l)),
+    }
+  };
+let typ_of_label = (l: Label.t): Typ.t =>
+  switch (l.term) {
+  | Label(name) => {
+      term: Label(name),
+      annotation: l.annotation,
+    }
+  | ExplicitNonlabel => {
+      term: ExplicitNonlabel,
+      annotation: l.annotation,
+    }
+  | EmptyHole => {
+      term: Unknown(Hole(EmptyHole)),
+      annotation: l.annotation,
+    }
+  | Invalid(_)
+  | MultiHole(_) => {
+      term: Unknown(Hole(MultiHole([Label(l)]))),
+      annotation: IdTagged.IdTag.mk_internal(IdTagged.ids(l)),
+    }
+  };
+
 let is_pat_kid: Any.t => bool =
   fun
   | Pat(_) => true
@@ -488,6 +553,7 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Any.t =>
   | Mod => Mod(mod_(unsorted(Mod, skel, seg))) /* Phase 1.2: proper module parsing */
   | Sig => Sig(sig_(unsorted(Sig, skel, seg)))
   | MPat => MPat(mpat(unsorted(MPat, skel, seg)))
+  | Label => Label(label(unsorted(Label, skel, seg)))
   | Any =>
     let sort = Segment.sort_of(skel, seg);
     if (sort == Any) {
@@ -1011,6 +1077,14 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
     | ([(_id, (F(Compound(TypeAsc)), []))], []) => ret(Asc(l, r))
     | _ => ret(hole(tm))
     }
+  | Bin(
+      Label(l),
+      ([(_id, (F(Compound(TupleLabeled)), []))], []),
+      Exp(r),
+    ) =>
+    ret(TupLabel(exp_of_label(l), r))
+  | Bin(Exp(l), ([(_id, (F(Compound(Dot)), []))], []), Label(r)) =>
+    ret(Dot(l, exp_of_label(r)))
   | Bin(Exp(l), tiles, Exp(r)) as tm =>
     switch (is_tuple_exp(tiles)) {
     | Some(between_kids) =>
@@ -1061,62 +1135,6 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           | F(Compound(CellJoin)) => Seq(l, r)
           | F(Compound(StringConcat)) => BinOp(String(Concat), l, r)
           | F(Compound(TupleExtension)) => TupleExtension(l, r)
-          | F(Compound(TupleLabeled)) =>
-            switch (l.term) {
-            | Deferral(_) =>
-              TupLabel(
-                {
-                  annotation: l.annotation,
-                  term: ExplicitNonlabel,
-                },
-                r,
-              ) // Unlabeled tuple using deferred ap in tuplabel
-            | Var(name)
-            | Constructor(name, None) =>
-              TupLabel(
-                {
-                  annotation: l.annotation,
-                  term: Label(name),
-                },
-                r,
-              )
-            | Label(_) => TupLabel(l, r)
-            | EmptyHole => TupLabel(l, r)
-            | _ =>
-              /* Wrapper shares the inner term's ids but no secondary
-                 (the inner term's own wrap emits it); a fresh inner
-                 would churn ids and drop secondary on every roundtrip */
-              TupLabel(
-                {
-                  annotation: IdTagged.IdTag.mk_internal(IdTagged.ids(l)),
-                  term: MultiHole([Exp(l)]),
-                },
-                r,
-              )
-            }
-          | F(Compound(Dot)) =>
-            switch (r.term) {
-            | Var(name)
-            | Constructor(name, _) =>
-              Dot(
-                l,
-                {
-                  annotation: r.annotation,
-                  term: Label(name),
-                },
-              )
-            | Label(_) => Dot(l, r)
-            | EmptyHole => Dot(l, r)
-            | _ =>
-              /* See the TupLabel case above */
-              Dot(
-                l,
-                {
-                  annotation: IdTagged.IdTag.mk_internal(IdTagged.ids(r)),
-                  term: MultiHole([Exp(r)]),
-                },
-              )
-            }
           | F(Compound(Pipeline)) => Ap(Reverse, r, l)
           | F(Compound(ListConcat)) => ListConcat(l, r)
           | F(f) when op_lexeme(f) != None =>
@@ -1255,6 +1273,12 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
       ret(hole(tm));
     | _ => ret(hole(tm))
     }
+  | Bin(
+      Label(l),
+      ([(_id, (F(Compound(TupleLabeled)), []))], []),
+      Pat(r),
+    ) =>
+    ret(TupLabel(pat_of_label(l), r))
   | Bin(Pat(l), tiles, Pat(r)) as tm =>
     switch (is_tuple_pat(tiles)) {
     | Some(between_kids) =>
@@ -1271,40 +1295,6 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
       ret(Tuple(tuple_children));
     | None =>
       switch (tiles) {
-      | ([(_id, (F(Compound(TupleLabeled)), []))], []) =>
-        switch (l.term) {
-        | Wild =>
-          ret(
-            TupLabel(
-              {
-                annotation: l.annotation,
-                term: ExplicitNonlabel,
-              },
-              r,
-            ),
-          ) // Unlabeled tuple using deferred ap in tuplabel
-        | Var(name)
-        | Constructor(name, None) =>
-          ret(
-            TupLabel(
-              {
-                annotation: l.annotation,
-                term: Label(name),
-              },
-              r,
-            ),
-          )
-        | Label(_) => ret(TupLabel(l, r))
-        | EmptyHole => ret(TupLabel(l, r))
-        | _ =>
-          let (e_term, rewrap) = IdTagged.unwrap(l);
-          ret(
-            TupLabel(
-              rewrap(MultiHole([Pat(e_term |> Pat.fresh)]): Pat.term),
-              r,
-            ),
-          );
-        }
       | ([(_id, (F(Compound(Cons)), []))], []) => ret(Cons(l, r))
       | ([(_id, (F(f), []))], []) when op_lexeme(f) != None =>
         /* Unknown infix operator (see the exp Bin fallthrough) */
@@ -1484,6 +1474,14 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       ret(Sum([parse_sum_term(t)]))
     | _ => ret(hole(tm))
     }
+  | Bin(
+      Label(l),
+      ([(_id, (F(Compound(TupleLabeled)), []))], []),
+      Typ(r),
+    ) =>
+    ret(TupLabel(typ_of_label(l), r))
+  | Bin(Typ(l), ([(_id, (F(Compound(Dot)), []))], []), Label(r)) =>
+    ret(ProdProjection(l, typ_of_label(r)))
   | Bin(Typ(t1), tiles, Typ(t2)) as tm when is_typ_bsum(tiles) != None =>
     switch (is_typ_bsum(tiles)) {
     | Some(between_kids) =>
@@ -1508,34 +1506,6 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
     | None =>
       switch (tiles) {
       | ([(_id, (F(Compound(TypeArrow)), []))], []) => ret(Arrow(l, r))
-      | ([(_id, (F(Compound(TupleLabeled)), []))], []) =>
-        switch (l.term) {
-        | Var(name) =>
-          ret(
-            TupLabel(
-              {
-                annotation: l.annotation,
-                term: Label(name),
-              },
-              r,
-            ),
-          )
-        | _ => ret(TupLabel(l, r))
-        }
-      | ([(_id, (F(Compound(Dot)), []))], []) =>
-        switch (r.term) {
-        | Var(name) =>
-          ret(
-            ProdProjection(
-              l,
-              {
-                annotation: r.annotation,
-                term: Label(name),
-              },
-            ),
-          )
-        | _ => ret(ProdProjection(l, r))
-        }
       | ([(_id, (F(Compound(TupleExtension)), []))], []) =>
         ret(ProdExtension(l, r))
       | ([(_id, (F(f), []))], []) when op_lexeme(f) != None =>
@@ -1713,6 +1683,60 @@ and mpat_term: unsorted => TermBase.MPat.term = {
   | Bin(MPat(mp), tiles, Typ(ty)) as tm =>
     switch (tiles) {
     | ([(_id, (F(Compound(TypeAsc)), []))], []) => ret(Asc(mp, ty))
+    | _ => ret(hole(tm))
+    }
+  | (Pre(_) | Post(_) | Bin(_)) as tm => ret(hole(tm));
+}
+
+and label = unsorted =>
+  switch (non_label(unsorted)) {
+  | Some(any) =>
+    /* The tiles belong to the term they form, which prints them back; the
+       label around it is not in the syntax */
+    IdTagged.fresh(Grammar.MultiHole([any]): TermBase.Label.term)
+  | None =>
+    let term = label_term(unsorted);
+    let lexeme = take_lexeme();
+    let ids = ids(unsorted);
+    return(l => Label(l), ~lexeme, ids, term);
+  }
+/* Something other than a single token in label position, such as `x + y`
+   or `[x]` left of a lone `=`, as the term of its kids' sort */
+and non_label = (unsorted): option(Any.t) =>
+  switch (unsorted) {
+  | Op(([(_, (F(Tok(_)), []))], [])) => None
+  | _ =>
+    switch (kids_of_unsorted(unsorted)) {
+    | [Exp(_), ..._] => Some(Exp(exp(unsorted)))
+    | [Pat(_), ..._] => Some(Pat(pat(unsorted)))
+    | [Typ(_), ..._] => Some(Typ(typ(unsorted)))
+    | []
+    | [
+        TPat(_) | Rul(_) | Drv(_) | Mod(_) | Sig(_) | MPat(_) | Label(_) |
+        Any(_),
+        ..._,
+      ] =>
+      None
+    }
+  }
+and label_term: unsorted => TermBase.Label.term = {
+  let ret = (term: TermBase.Label.term) => term;
+  let hole = unsorted => Label.hole(kids_of_unsorted(unsorted));
+  fun
+  | Op(tiles) as tm =>
+    switch (tiles) {
+    | ([(_id, (F(Tok(t)), []))], [])
+        when Token.is_var(t) || Token.is_ctr(t) =>
+      ret(Label(t))
+    | ([(_id, (F(Tok(t)), []))], []) when Token.is_quoted_label(t) =>
+      set_lexeme(t);
+      ret(Label(Token.strip_quotes(~quote=Token.label_delim, t)));
+    | ([(_id, (F(Tok(t)), []))], []) when Token.is_wild(t) =>
+      ret(ExplicitNonlabel)
+    | ([(_id, (F(Tok(t)), []))], []) when is_hole_label(t) =>
+      set_lexeme(t);
+      ret(hole(tm));
+    | ([(_id, (F(Tok(t)), []))], []) => ret(Invalid(t))
     | _ => ret(hole(tm))
     }
   | (Pre(_) | Post(_) | Bin(_)) as tm => ret(hole(tm));
@@ -1967,6 +1991,7 @@ let for_projection =
         | Mod => Some(Mod(mod_(unsorted)))
         | Sig => Some(Sig(sig_(unsorted)))
         | MPat => Some(MPat(mpat(unsorted)))
+        | Label => Some(Label(label(unsorted)))
         /* Default unresolved sort to Exp, matching go_s above.
          * Reject bare Tuple(_) for the same reason as the Exp
          * branch: at top level it isn't well-structured in

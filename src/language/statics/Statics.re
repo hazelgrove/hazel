@@ -52,6 +52,9 @@ let rec any_to_info_map =
   | Sig(s_term) => sig_to_info_map(~ctx, ~ancestors, ~probe_ids, s_term, m)
   | MPat(mp_term) =>
     mpat_to_info_map(~ctx, ~ancestors, ~probe_ids, mp_term, m)
+  | Label(l) =>
+    let (co_ctx, m) = label_to_info_map(~ctx, ~ancestors, ~probe_ids, l, m);
+    (co_ctx, Label(l), m);
   | Any () => (CoCtx.empty, Any(), m)
   }
 and multi =
@@ -4356,6 +4359,42 @@ and mpat_to_info_map =
     let (_, _, m) = any_to_info_map(~ctx, ~ancestors, Typ(typ), m);
     (CoCtx.empty, MPat(mp_term), add_mpat_info(m));
   };
+}
+and label_to_info_map =
+    (
+      ~ctx,
+      ~ancestors,
+      ~probe_ids: Id.Map.t(unit)=Id.Map.empty,
+      l: Label.t,
+      m: Map.t,
+    )
+    : (CoCtx.t, Map.t) => {
+  let (co_ctx, marks, m): (CoCtx.t, list(Mark.t), Map.t) =
+    switch (l.term) {
+    | Label(_)
+    | ExplicitNonlabel
+    | EmptyHole => (CoCtx.empty, [], m)
+    | Invalid(token) => (CoCtx.empty, [BadToken(token)], m)
+    | MultiHole(tms) =>
+      let (co_ctxs, _, m) =
+        multi(
+          ~ctx,
+          ~ancestors=[Label.rep_id(l), ...ancestors],
+          ~probe_ids,
+          m,
+          tms,
+        );
+      (CoCtx.union(co_ctxs), [IsMulti], m);
+    };
+  let info =
+    Info.InfoLabel({
+      user_term: l,
+      cls: Label(Label.cls_of_term(l.term)),
+      ctx,
+      ancestors,
+      marks,
+    });
+  (co_ctx, add_info(IdTagged.ids(l), info, m));
 };
 
 let mk =

@@ -3194,19 +3194,19 @@ let segment_cache_tests = [
    as Exp instead of Typ. */
 
 /* Recursively find all tiles with a given label in a segment. */
-let rec find_tiles_by_label =
-        (label: list(string), seg: Segment.t): list(Tile.t) =>
+let rec find_tiles = (pred: Tile.t => bool, seg: Segment.t): list(Tile.t) =>
   List.concat_map(
     fun
     | Piece.Tile(t) => {
-        let matches = Tile.has_label(t, label) ? [t] : [];
-        let child_matches =
-          List.concat_map(find_tiles_by_label(label), t.children);
+        let matches = pred(t) ? [t] : [];
+        let child_matches = List.concat_map(find_tiles(pred), t.children);
         matches @ child_matches;
       }
     | _ => [],
     seg,
   );
+let find_tiles_by_label = (label: list(string)) =>
+  find_tiles(t => Tile.has_label(t, label));
 
 let remold_sort_tests = [
   /* BUG: Type `1:(Int)`, place caret inside parens at `1:(Int|)`,
@@ -3265,6 +3265,71 @@ let remold_sort_tests = [
     },
   ),
 ];
+
+/* A label is the operand before a labeled-tuple `=` or after a `.`, and
+   remolding has to settle on Label for exactly those tokens however the
+   program was typed. */
+let label_sort_tests = {
+  let sort = testable(Fmt.of_to_string(Sort.show), Sort.equal);
+  /* A Label-molded tile must also parse as a label, or the editor shows
+     it as sort-inconsistent */
+  let check_label_tiles_parse_as_labels = (z: Zipper.t) => {
+    let syntax = CachedSyntax.init(z);
+    find_tiles(t => Sort.equal(Tile.mold(t).out, Label), Zipper.zip(z))
+    |> List.iter((t: Tile.t) => {
+         check(
+           sort,
+           "term_data sort",
+           Label,
+           TermData.sort(t.id, syntax.term_data),
+         );
+         switch (Id.Map.find_opt(t.id, syntax.terms)) {
+         | Some(Label(_)) => ()
+         | Some(any) =>
+           fail("label tile's term is " ++ Language.Any.show(any))
+         | None => fail("label tile has no term")
+         };
+       });
+  };
+  let check_sorts = (~token, ~expected, acts) => {
+    let z = acts |> perform(Zipper.init());
+    check(
+      list(sort),
+      token ++ " tile sorts",
+      expected,
+      find_tiles_by_label([token], Zipper.zip(z))
+      |> List.map(t => Tile.mold(t).out),
+    );
+    check_label_tiles_parse_as_labels(z);
+  };
+  let typed = (~token, ~expected, text) =>
+    test_case(text, `Quick, () =>
+      check_sorts(~token, ~expected, mk(text ++ "¦"))
+    );
+  [
+    typed(~token="x", ~expected=[Label], "x=1"),
+    typed(~token="a", ~expected=[Label, Label], "(a=1, a=2)"),
+    typed(~token="a", ~expected=[Label], "e.a"),
+    typed(~token="`a b`", ~expected=[Label], "(`a b`=1)"),
+    typed(~token="_", ~expected=[Label], "(_=1)"),
+    typed(~token="a", ~expected=[Label], "fun (a=x) -> x"),
+    typed(
+      ~token="a",
+      ~expected=[Label, Label],
+      "let t : (a=Int) = ? in t.a",
+    ),
+    typed(~token="x", ~expected=[Exp], "x==1"),
+    /* the `=` typed on the way to `=>` briefly makes A a label */
+    typed(~token="A", ~expected=[Pat], "case x | A => 1 end"),
+    test_case("Deleting the = remolds the label", `Quick, () =>
+      check_sorts(
+        ~token="x",
+        ~expected=[Exp],
+        mk("x =¦ 1") @ [Destruct(Local(Left, ByChar))],
+      )
+    ),
+  ];
+};
 
 /* === Selection Wrapping Tests ===
  * Test wrapping selected content in delimiters by typing the
@@ -5920,6 +5985,7 @@ let tests = [
   ("Editing.ShardTheft", shard_theft_tests),
   ("Editing.SegmentCache", segment_cache_tests),
   ("Editing.RemoldSort", remold_sort_tests),
+  ("Editing.LabelSort", label_sort_tests),
   ("Editing.WrapSelection", wrap_selection_tests),
   ("Editing.WrapCalculate", wrap_calculate_test),
   ("Editing.UnwrapQuote", unwrap_quote_tests),

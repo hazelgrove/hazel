@@ -36,6 +36,7 @@ type atomic_form =
   | TyVarP
   | Ctr
   | MPatName
+  | LabelName
   | Type
   | InfixDelimiterPrefix;
 
@@ -164,7 +165,7 @@ type t =
  * delimiter spelling (editor-side definition rows join their labels
  * from this table). Bracket labels reference the Token constants to
  * keep the open/close pairing single-homed there. */
-let label_of_family: family => Label.t =
+let label_of_family: family => FormLabel.t =
   fun
   | TypeArrow => ["->"]
   | CellJoin => [";"]
@@ -259,7 +260,7 @@ let label_of_family: family => Label.t =
   | ModuleMod => ["module", "="]
   | SigLet => ["let"];
 
-let label_of: t => Label.t =
+let label_of: t => FormLabel.t =
   fun
   | Compound(fam) => label_of_family(fam)
   | Tok(t)

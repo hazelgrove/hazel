@@ -1069,6 +1069,15 @@ let tpat_view =
   };
 };
 
+let label_view = (cls: Cls.t, marks: list(Mark.t)) =>
+  switch (Mark.highest(marks)) {
+  | None => div_ok([text(Cls.show(cls))])
+  | Some(BadToken(token)) =>
+    div_err([code(token), text("is not a valid label")])
+  | Some(IsMulti) => div_err([text("Expected a single label")])
+  | Some(m) => div_err([text(Mark.show(m))])
+  };
+
 let view_of_info = (~globals, ci): list(Node.t) => {
   let wrapper = status_view => [term_view(~globals, ci), status_view];
   switch (ci) {
@@ -1076,6 +1085,7 @@ let view_of_info = (~globals, ci): list(Node.t) => {
   | InfoMod({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
   | InfoSig({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
   | InfoMPat({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
+  | InfoLabel({cls, marks, _}) => wrapper(label_view(cls, marks))
   | InfoExp({cls, message, _} as ie) =>
     wrapper(exp_view(~globals, cls, message, ie))
   | InfoPat({cls, message, _} as ip) =>
