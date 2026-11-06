@@ -140,11 +140,6 @@ let rec remove_wrapping_function = (exp: Exp.t): Pat.t => {
 let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) => {
   let rec dhpat_var_entry =
           (dhpat: DHPat.t, ty: Typ.t): option(list(Ctx.entry)) => {
-    let ty =
-      switch (ty.term) {
-      | TupLabel(_, ty) => ty
-      | _ => ty
-      };
     switch (dhpat |> Pat.term_of) {
     | Var(name) =>
       let entry =
@@ -163,11 +158,12 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
           entry
         );
       /* an entry fits a field with no label or its own label */
-      let entry_var_entry = (entry, typ: Typ.t) =>
-        switch (TupleEntry.label_name(entry), Typ.match_tup_label(typ)) {
+      let entry_var_entry = (entry, field: TupleEntry.t(Typ.t)) =>
+        switch (TupleEntry.label_name(entry), Typ.match_tup_label(field)) {
         | (Some(l), Some((l', _))) when !LabeledTuple.equal_label(l, l') =>
           None
-        | _ => dhpat_var_entry(TupleEntry.value(entry), typ)
+        | _ =>
+          dhpat_var_entry(TupleEntry.value(entry), TupleEntry.value(field))
         };
       let* l = List.map2(entry_var_entry, l1, ts) |> OptUtil.sequence;
       Some(List.concat(l));

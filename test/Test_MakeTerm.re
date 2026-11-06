@@ -110,7 +110,7 @@ let tests =
           let_(
             Pat.asc(
               Pat.var("x"),
-              Typ.(parens(prod([tup_label(label("l"), string())]))),
+              Typ.(parens(prod_entries([labeled("l", string())]))),
             ),
             parens(string("a")),
             var("x"),
@@ -127,7 +127,7 @@ let tests =
               Pat.(
                 asc(
                   var("y"),
-                  Typ.(parens(prod([tup_label(label("l"), int())]))),
+                  Typ.(parens(prod_entries([labeled("l", int())]))),
                 )
               ),
               var("x"),
@@ -157,9 +157,9 @@ let tests =
                 var("x"),
                 Typ.(
                   parens(
-                    prod([
-                      tup_label(label("l"), int()),
-                      tup_label(label("l2"), string()),
+                    prod_entries([
+                      labeled("l", int()),
+                      labeled("l2", string()),
                     ]),
                   )
                 ),
@@ -234,7 +234,7 @@ let tests =
         exp_check(
           ty_alias(
             TPat.var("t"),
-            Typ.(prod([tup_label(label("a"), Typ.int())])),
+            Typ.(prod_entries([labeled("a", Typ.int())])),
             empty_hole(),
           ),
           {|type t = (`a`=Int) in ?|},
@@ -271,11 +271,8 @@ let tests =
             empty_hole(),
             Typ.(
               prod_extension(
-                prod([tup_label(label("a"), int()), string()]),
-                prod([
-                  tup_label(label("b"), int()),
-                  tup_label(label("c"), float()),
-                ]),
+                prod_entries([labeled("a", int()), Unlabeled(string())]),
+                prod_entries([labeled("b", int()), labeled("c", float())]),
               )
             ),
           ),
@@ -302,7 +299,9 @@ let tests =
         exp_check(
           asc(
             empty_hole(),
-            Typ.(prod([tup_label(explicit_non_label(), int())])),
+            Typ.(
+              prod_entries([labeled'(Label.explicit_non_label(), int())])
+            ),
           ),
           "? : (_=Int)",
         )

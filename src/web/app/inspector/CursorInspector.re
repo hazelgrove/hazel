@@ -139,7 +139,6 @@ let core_mark_err_view =
     ) => {
   let view_type = view_type(~globals);
   let view_any = view_any(~globals);
-  let ana = Statics.ana_skip_explicit_nonlabel(ana);
   let expectation_view = (~ana: Typ.t, ~syn: Typ.t) =>
     switch (syn.term, ana.term) {
     | (Label(syn_l), Label(an_label)) => [
@@ -467,11 +466,7 @@ let underdetermined_typ_view =
       };
     let label_error =
       switch (label) {
-      | Some(ty) => [
-          text("label"),
-          view_type(ty),
-          text("is not a valid label: "),
-        ]
+      | Some(_) => [text("the label is not a valid label")]
       | None => []
       };
 
@@ -489,7 +484,6 @@ let underdetermined_typ_view =
 let typ_ok_view = (~globals, cls: Cls.t, ok: Message.ok_typ) => {
   let view_type = view_type(~globals);
   switch (ok) {
-  | EmptyLabel => []
   | Type(_) when cls == Typ(EmptyHole) => [text("Fillable by any type")]
   | Type(ty) =>
     [view_type(ty)]
@@ -623,10 +617,7 @@ let exp_mark_err_view =
   | InexhaustiveMatch(_, inner_marks, example) =>
     let cls_str = Cls.show(cls);
     let additional =
-      switch (
-        Mark.highest(inner_marks),
-        Statics.ana_skip_explicit_nonlabel(ana).term,
-      ) {
+      switch (Mark.highest(inner_marks), ana.term) {
       | (Some(NoMeet(PolyEq, tys)), _) => Some(Typ.of_source(tys))
       | (Some(NoMeet(_, tys)), Unknown(SynSwitch)) =>
         Some(Typ.of_source(tys))

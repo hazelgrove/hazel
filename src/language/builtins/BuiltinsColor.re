@@ -93,7 +93,7 @@ let mix = (c1: C.t, c2: C.t, t: float): C.t => {
 
 let color_unary = (name, f): BuiltinsUtil.fn => {
   name,
-  arg: Prod([C.typ, float()]),
+  arg: Prod([Unlabeled(C.typ), Unlabeled(float())]),
   ret: ty,
   imp:
     binary((d1, d2) => {
@@ -129,7 +129,7 @@ let builtins: list(BuiltinsUtil.fn) = [
   ),
   {
     name: "color_fade",
-    arg: Prod([C.typ, float()]),
+    arg: Prod([Unlabeled(C.typ), Unlabeled(float())]),
     ret: ty,
     imp:
       binary((d1, d2) => {
@@ -158,7 +158,7 @@ let builtins: list(BuiltinsUtil.fn) = [
   },
   {
     name: "color_mix",
-    arg: Prod([C.typ, C.typ, float()]),
+    arg: Prod([Unlabeled(C.typ), Unlabeled(C.typ), Unlabeled(float())]),
     ret: ty,
     imp:
       ternary((d1, d2, d3) => {

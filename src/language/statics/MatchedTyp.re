@@ -26,9 +26,7 @@ let head = (ctx: Ctx.t, ty: Typ.t): Typ.t => {
   | Arrow(_)
   | Sum(_)
   | Prod(_)
-  | ExplicitNonlabel
   | Label(_)
-  | TupLabel(_)
   | Parens(_)
   | Projector(_)
   | Poly(_)
@@ -66,20 +64,21 @@ let poly_pair_tolerant = (ctx, ty) =>
   poly_pair(ctx, ty)
   |> Option.value(~default=(None, Unknown(Internal) |> temp));
 
+/* The elements rearranged to the product's fields, and the fields */
 let rec prod_strict:
   type a.
     (Ctx.t, list(a), a => option((string, a)), Typ.t, (string, a) => a) =>
-    (list(a), option(list(Typ.t))) =
+    (list(a), option(list(TupleEntry.t(Typ.t)))) =
   (ctx: Ctx.t, es, get_label_es, ty: Typ.t, constructor) => {
     switch (term_of(head(ctx, ty))) {
     | Parens(ty) => prod_strict(ctx, es, get_label_es, ty, constructor)
-    | Prod(tys: list(Typ.t)) =>
+    | Prod(tys) =>
       if (List.length(es) != List.length(tys)) {
         (es, None);
       } else {
         (
           LabeledTuple.rearrange(
-            match_tup_label,
+            get_label,
             get_label_es,
             tys,
             es,
@@ -90,7 +89,11 @@ let rec prod_strict:
       }
     | Unknown(SynSwitch) => (
         es,
-        Some(List.init(List.length(es), _ => Unknown(SynSwitch) |> temp)),
+        Some(
+          List.init(List.length(es), _ =>
+            Grammar.Unlabeled(Unknown(SynSwitch) |> temp)
+          ),
+        ),
       )
     | _ => (es, None)
     };
@@ -102,7 +105,10 @@ let prod = (ctx, es, get_label_es, ty, constructor) => {
     es,
     tys_opt
     |> Option.value(
-         ~default=List.init(List.length(es), _ => Unknown(Internal) |> temp),
+         ~default=
+           List.init(List.length(es), _ =>
+             Grammar.Unlabeled(Unknown(Internal) |> temp)
+           ),
        ),
   );
 };
@@ -121,18 +127,11 @@ let list_tolerant = (ctx, ty) =>
 let rec args = (ctx, ty, arity): Either.t('a, int) => {
   switch (term_of(head(ctx, ty))) {
   | Parens(ty) => args(ctx, ty, arity)
-  | Prod(tys) when List.length(tys) == arity => L(tys)
+  | Prod(tys) when List.length(tys) == arity =>
+    L(List.map(TupleEntry.value, tys))
   | Prod(tys) => R(List.length(tys))
   | _ when arity == 1 => L([ty])
   | Unknown(_) => L(List.init(arity, _ => Unknown(Internal) |> temp))
   | _ => R(1)
   };
 };
-
-let label = (ctx, ty): option((Typ.t, Typ.t)) =>
-  switch (term_of(head(ctx, ty))) {
-  | TupLabel({term: Label(ml), _}, ty) => Some((Label(ml) |> temp, ty))
-  | Unknown(SynSwitch) =>
-    Some((Unknown(SynSwitch) |> temp, Unknown(SynSwitch) |> temp))
-  | _ => None
-  };

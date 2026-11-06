@@ -5,7 +5,11 @@ open Util;
 let builtins: list(BuiltinsUtil.fn) = [
   {
     name: "group_by_label",
-    arg: Prod([list(unknown(Internal)), unknown(Internal)]),
+    arg:
+      Prod([
+        Unlabeled(list(unknown(Internal))),
+        Unlabeled(unknown(Internal)),
+      ]),
     ret: Unknown(Internal),
     imp:
       binary((d: DHExp.t, lab: DHExp.t) => {
@@ -43,9 +47,9 @@ let builtins: list(BuiltinsUtil.fn) = [
     arg: Unknown(Internal),
     ret:
       List(
-        prod([
-          tup_label(label("label"), string()),
-          tup_label(label("value"), unknown(Internal)),
+        prod_entries([
+          labeled("label", string()),
+          labeled("value", unknown(Internal)),
         ]),
       ),
     imp: (e: DHExp.t) => {
@@ -83,9 +87,9 @@ let builtins: list(BuiltinsUtil.fn) = [
     name: "from_lvs",
     arg:
       List(
-        prod([
-          tup_label(label("label"), string()),
-          tup_label(label("value"), unknown(Internal)),
+        prod_entries([
+          labeled("label", string()),
+          labeled("value", unknown(Internal)),
         ]),
       ),
     ret: Unknown(Internal),

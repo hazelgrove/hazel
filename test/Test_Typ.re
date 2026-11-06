@@ -35,11 +35,8 @@ let meet_tests = (
             Builtins.ctx_init(None),
             int(),
             prod_projection(
-              prod([
-                tup_label(label("a"), int()),
-                tup_label(label("b"), bool()),
-              ]),
-              label("a"),
+              prod_entries([labeled("a", int()), labeled("b", bool())]),
+              IdTagged.FreshGrammar.Label.label("a"),
             ),
           );
         check(option(typ), "Meet product projections", Some(int()), t);
@@ -53,7 +50,10 @@ let meet_tests = (
           Typ.meet(
             Builtins.ctx_init(None),
             int(),
-            prod_projection(unknown(Internal), label("a")),
+            prod_projection(
+              unknown(Internal),
+              IdTagged.FreshGrammar.Label.label("a"),
+            ),
           );
         check(
           option(typ),
@@ -72,11 +72,8 @@ let meet_tests = (
             Builtins.ctx_init(None),
             int(),
             prod_projection(
-              prod([
-                tup_label(label("a"), int()),
-                tup_label(label("b"), bool()),
-              ]),
-              unknown(Internal),
+              prod_entries([labeled("a", int()), labeled("b", bool())]),
+              IdTagged.FreshGrammar.Label.empty_hole(),
             ),
           );
         check(
@@ -95,35 +92,35 @@ let meet_tests = (
           Typ.meet(
             Builtins.ctx_init(None),
             prod_extension(
-              prod([
-                tup_label(label("a"), int()),
-                bool(),
-                tup_label(label("b"), float()),
+              prod_entries([
+                labeled("a", int()),
+                Unlabeled(bool()),
+                labeled("b", float()),
               ]),
-              prod([
-                tup_label(label("c"), string()),
-                tup_label(label("b"), bool()),
-                nat(),
+              prod_entries([
+                labeled("c", string()),
+                labeled("b", bool()),
+                Unlabeled(nat()),
               ]),
             ),
-            prod([
-              tup_label(unknown(Internal), int()),
-              unknown(Internal),
-              tup_label(label("b"), unknown(Internal)),
-              unknown(Internal),
-              nat(),
+            prod_entries([
+              labeled'(IdTagged.FreshGrammar.Label.empty_hole(), int()),
+              Unlabeled(unknown(Internal)),
+              labeled("b", unknown(Internal)),
+              Unlabeled(unknown(Internal)),
+              Unlabeled(nat()),
             ]),
           );
         check(
           option(typ),
           "Meet product extensions",
           Some(
-            prod([
-              tup_label(label("a"), int()),
-              bool(),
-              tup_label(label("b"), bool()),
-              tup_label(label("c"), string()),
-              nat(),
+            prod_entries([
+              labeled("a", int()),
+              Unlabeled(bool()),
+              labeled("b", bool()),
+              labeled("c", string()),
+              Unlabeled(nat()),
             ]),
           ),
           t,
@@ -138,25 +135,22 @@ let meet_tests = (
           Typ.meet(
             Builtins.ctx_init(None),
             prod_extension(
-              prod([
-                tup_label(label("a"), int()),
-                tup_label(label("b"), bool()),
-              ]),
-              prod([string(), tup_label(label("b"), float())]),
+              prod_entries([labeled("a", int()), labeled("b", bool())]),
+              prod_entries([Unlabeled(string()), labeled("b", float())]),
             ),
             prod_extension(
-              prod([tup_label(label("a"), int())]),
-              prod([tup_label(label("b"), float()), string()]),
+              prod_entries([labeled("a", int())]),
+              prod_entries([labeled("b", float()), Unlabeled(string())]),
             ),
           );
         check(
           option(typ),
           "Meet product extensions",
           Some(
-            prod([
-              tup_label(label("a"), int()),
-              tup_label(label("b"), float()),
-              string(),
+            prod_entries([
+              labeled("a", int()),
+              labeled("b", float()),
+              Unlabeled(string()),
             ]),
           ),
           t,
@@ -313,8 +307,8 @@ let diff_tests = (
           "diff on (Int, a) ~ (Int, String)",
           expected,
           Typ.diff(
-            Typ.fresh(Prod([int_typ, var_a])),
-            Typ.fresh(Prod([int_typ, string_typ])),
+            Typ.fresh(Prod([Unlabeled(int_typ), Unlabeled(var_a)])),
+            Typ.fresh(Prod([Unlabeled(int_typ), Unlabeled(string_typ)])),
           ),
         );
       },
@@ -411,8 +405,8 @@ let diff_tests = (
                 Singleton(
                   Typ.fresh(
                     Prod([
-                      Typ.fresh(Atom(Atom.Int)),
-                      Typ.fresh(Atom(Atom.Bool)),
+                      Unlabeled(Typ.fresh(Atom(Atom.Int))),
+                      Unlabeled(Typ.fresh(Atom(Atom.Bool))),
                     ]),
                   ),
                 ),
@@ -420,7 +414,12 @@ let diff_tests = (
           );
         let string_typ = Typ.fresh(Atom(Atom.String));
         let static_typ =
-          Typ.fresh(Prod([Typ.fresh(Atom(Atom.Int)), string_typ]));
+          Typ.fresh(
+            Prod([
+              Unlabeled(Typ.fresh(Atom(Atom.Int))),
+              Unlabeled(string_typ),
+            ]),
+          );
         let dynamic_typ = Typ.fresh(Var("Pair"));
         /* The Bool in Pair's expansion differs from String, so the alias
            differs -- but it prints as the single token `Pair`, so the ids
@@ -741,19 +740,19 @@ let recursive_def_tests = {
       case(
         "a definition mentioning the alias only through a projection is recursive, as written",
         "M",
-        F.Typ.prod([
-          F.Typ.tup_label(
-            F.Typ.label("T"),
-            F.Typ.prod_projection(F.Typ.var("M"), F.Typ.label("T")),
+        F.Typ.prod_entries([
+          F.Typ.labeled(
+            "T",
+            F.Typ.prod_projection(F.Typ.var("M"), F.Label.label("T")),
           ),
         ]),
         Typ.Recursive(
           F.Typ.rec_(
             F.TPat.var("M"),
-            F.Typ.prod([
-              F.Typ.tup_label(
-                F.Typ.label("T"),
-                F.Typ.prod_projection(F.Typ.var("M"), F.Typ.label("T")),
+            F.Typ.prod_entries([
+              F.Typ.labeled(
+                "T",
+                F.Typ.prod_projection(F.Typ.var("M"), F.Label.label("T")),
               ),
             ]),
           ),
@@ -824,14 +823,6 @@ let unroll_tests = {
             },
             F.Typ.var("x"),
           ),
-        ),
-      ),
-      case(
-        "a self-loop under a non-label has no unrolling",
-        None,
-        F.Typ.rec_(
-          x,
-          F.Typ.tup_label(F.Typ.explicit_non_label(), F.Typ.var("x")),
         ),
       ),
       {

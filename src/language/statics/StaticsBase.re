@@ -311,30 +311,16 @@ let patch_elab_syn_ty_exp = (m: Map.t, e: Exp.t, new_syn_ty: Typ.t): Map.t =>
   | _ => m
   };
 
-/* Strip TupLabel(ExplicitNonlabel, _) wrappers on expectation. */
-let rec ana_skip_explicit_nonlabel = (ty_ana: Typ.t): Typ.t =>
-  switch (ty_ana.term) {
-  | TupLabel({term: ExplicitNonlabel, _}, ana_inner) =>
-    ana_skip_explicit_nonlabel(ana_inner)
-  | _ => ty_ana
-  };
-
 let should_emit_nomeet_mark =
     (ctx: Ctx.t, ana: Typ.t, elab_syn_ty: Typ.t): bool =>
-  switch (
-    Typ.meet(
-      ctx,
-      ana_skip_explicit_nonlabel(ana),
-      ana_skip_explicit_nonlabel(elab_syn_ty),
-    )
-  ) {
+  switch (Typ.meet(ctx, ana, elab_syn_ty)) {
   | Some(_) => false
   | None => true
   };
 
 let syn_ana_ok_common =
     (ctx: Ctx.t, ty_ana: Typ.t, elab_syn_ty: Typ.t): Message.ok_common => {
-  let ana = ana_skip_explicit_nonlabel(ty_ana);
+  let ana = ty_ana;
   switch (ana.term) {
   | Unknown(SynSwitch) => Message.Syn(elab_syn_ty)
   | _ =>
@@ -354,8 +340,8 @@ let syn_ana_ok_common =
 
 let expectation_mismatch_mark =
     (ctx: Ctx.t, ana: Typ.t, elab_syn_ty: Typ.t): option(Mark.t) => {
-  let ana' = ana_skip_explicit_nonlabel(ana);
-  let syn' = ana_skip_explicit_nonlabel(elab_syn_ty);
+  let ana' = ana;
+  let syn' = elab_syn_ty;
   switch (ana'.term) {
   | Unknown(SynSwitch) => None
   | _ =>

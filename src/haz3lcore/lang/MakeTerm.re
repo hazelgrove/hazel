@@ -461,30 +461,6 @@ let is_exp_kid: Any.t => bool =
   fun
   | Exp(_) => true
   | _ => false;
-/* Lower a parsed label to the label child a type's TupLabel/ProdProjection
-   still carries; it goes away when product types hold Label.t entries. A
-   malformed label is wrapped so statics still reaches it as a label. */
-let typ_of_label = (l: Label.t): Typ.t =>
-  switch (l.term) {
-  | Label(name) => {
-      term: Label(name),
-      annotation: l.annotation,
-    }
-  | ExplicitNonlabel => {
-      term: ExplicitNonlabel,
-      annotation: l.annotation,
-    }
-  | EmptyHole => {
-      term: Unknown(Hole(EmptyHole)),
-      annotation: l.annotation,
-    }
-  | Invalid(_)
-  | MultiHole(_) => {
-      term: Unknown(Hole(MultiHole([Label(l)]))),
-      annotation: IdTagged.IdTag.mk_internal(IdTagged.ids(l)),
-    }
-  };
-
 let is_pat_kid: Any.t => bool =
   fun
   | Pat(_) => true
@@ -1332,9 +1308,10 @@ and typ = unsorted => {
   let ids = ids(unsorted) @ inner_ids;
   let t = return(ty => Typ(ty), ~lexeme, ids, term);
   switch (term) {
-  | TupLabel(_) => Prod([t]) |> Typ.fresh
-  | _ => t
+  | Prod(entries) => own_eq_tiles(entries, Typ(t))
+  | _ => ()
   };
+  t;
 }
 and typ_term: unsorted => (Typ.term, list(Id.t)) = {
   let ret = (term: Typ.term) => (term, []);
@@ -1369,7 +1346,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | (_, (F(f), [])) when is_empty_tuple_form(f) => Prod([])
         | (_, (F(Tok(t)), [])) when Token.is_empty_module(t) => Sig([])
         | (Some(term), _) => term
-        | (_, (F(Tok("_")), [])) => ExplicitNonlabel
+        | (_, (F(Tok("_")), [])) => Unknown(Hole(Invalid("_")))
         | (_, (F(Compound(ProofOf)), [Exp(exp)])) => ProofOf(exp)
         | (_, (F(Tok(t)), [])) when Token.is_typ_var(t) => Var(t)
         | (_, (F(Tok(t)), [])) when Token.is_quoted_label(t) =>
@@ -1453,14 +1430,11 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       ret(Sum([parse_sum_term(t)]))
     | _ => ret(hole(tm))
     }
-  | Bin(
-      Label(l),
-      ([(_id, (F(Compound(TupleLabeled)), []))], []),
-      Typ(r),
-    ) =>
-    ret(TupLabel(typ_of_label(l), r))
+  | Bin(Label(l), ([(id, (F(Compound(TupleLabeled)), []))], []), Typ(r)) =>
+    /* as in exp_term */
+    ret(Prod([Labeled(IdTagged.IdTag.mk_internal([id]), l, r)]))
   | Bin(Typ(l), ([(_id, (F(Compound(Dot)), []))], []), Label(r)) =>
-    ret(ProdProjection(l, typ_of_label(r)))
+    ret(ProdProjection(l, r))
   | Bin(Typ(t1), tiles, Typ(t2)) as tm when is_typ_bsum(tiles) != None =>
     switch (is_typ_bsum(tiles)) {
     | Some(between_kids) =>
@@ -1470,16 +1444,18 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
   | Bin(Typ(l), tiles, Typ(r)) as tm =>
     switch (is_tuple_typ(tiles)) {
     | Some(between_kids) =>
-      let tuple_children: list(Typ.t) =
+      let tuple_children =
         [l]
         @ between_kids
         @ [r]
-        |> List.map((child: Typ.t) => {
+        |> List.map((child: Typ.t) =>
              switch (child) {
-             | {term: Prod([{term: TupLabel(_), _} as tl]), _} => tl
-             | _ => child
+             /* as in exp_term */
+             | {term: Prod([Labeled(_, l, v)]), annotation} =>
+               Grammar.Labeled(annotation, l, v)
+             | _ => Unlabeled(child)
              }
-           });
+           );
 
       ret(Prod(tuple_children));
     | None =>

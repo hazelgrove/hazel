@@ -74,22 +74,6 @@ let derive_typ_tests = [
   ),
   /* Unknown(EmptyHole) */
   test_case(
-    "EmptyHole under LabelExpected => EmptyLabel",
-    `Quick,
-    () => {
-      let ctx = Builtins.ctx_init(Some(Int));
-      let ty = Unknown(Hole(EmptyHole)) |> Typ.temp;
-      let status =
-        DeriveTypStatus.derive(ctx, LabelExpected(Unique, []), ty);
-      check(
-        typ_status_testable,
-        "Empty label",
-        ([], Some(Message.EmptyLabel)),
-        status,
-      );
-    },
-  ),
-  test_case(
     "EmptyHole under TypeExpected => Type(ty)",
     `Quick,
     () => {
@@ -180,22 +164,6 @@ let derive_typ_tests = [
       );
     },
   ),
-  test_case(
-    "Var non-label under LabelExpected => WantLabel",
-    `Quick,
-    () => {
-      let ctx = Builtins.ctx_init(Some(Int));
-      let ty = Var("A") |> Typ.temp; /* not an alias in this ctx */
-      let status =
-        DeriveTypStatus.derive(ctx, LabelExpected(Unique, []), ty);
-      check(
-        typ_status_testable,
-        "WantLabel",
-        ([Mark.TypWantLabel], None),
-        status,
-      );
-    },
-  ),
   /* Var(name) with Constructor/VariantExpected */
   test_case(
     "Var under ConstructorExpected Unique => Variant(name, sum)",
@@ -260,96 +228,6 @@ let derive_typ_tests = [
     },
   ),
   test_case(
-    "Label under LabelExpected Unique => Type(ty)",
-    `Quick,
-    () => {
-      let ctx = Builtins.ctx_init(Some(Int));
-      let ty = Label("a") |> Typ.temp;
-      let status =
-        DeriveTypStatus.derive(ctx, LabelExpected(Unique, []), ty);
-      check(
-        typ_status_testable,
-        "Label ok",
-        ([], Some(Message.Type(ty))),
-        status,
-      );
-    },
-  ),
-  test_case(
-    "Label under LabelExpected Duplicate (present) => Duplicate",
-    `Quick,
-    () => {
-      let ctx = Builtins.ctx_init(Some(Int));
-      let ty = Label("a") |> Typ.temp;
-      let dupes = ["a", "b"];
-      let status =
-        DeriveTypStatus.derive(ctx, LabelExpected(Duplicate, dupes), ty);
-      check(
-        typ_status_testable,
-        "Duplicate label",
-        ([Mark.DuplicateLabel("a", ty)], None),
-        status,
-      );
-    },
-  ),
-  test_case(
-    "Label under LabelExpected Duplicate (absent) => WantLabel",
-    `Quick,
-    () => {
-      let ctx = Builtins.ctx_init(Some(Int));
-      let ty = Label("a") |> Typ.temp;
-      let status =
-        DeriveTypStatus.derive(ctx, LabelExpected(Duplicate, ["x"]), ty);
-      check(
-        typ_status_testable,
-        "WantLabel when not expected duplicate",
-        ([Mark.TypWantLabel], None),
-        status,
-      );
-    },
-  ),
-  test_case(
-    "Label under LabelProjectionExpected (included) => Type(ty)",
-    `Quick,
-    () => {
-      let ctx = Builtins.ctx_init(Some(Int));
-      let ty = Label("p") |> Typ.temp;
-      let status =
-        DeriveTypStatus.derive(
-          ctx,
-          LabelProjectionExpected(Some(["p", "q"])),
-          ty,
-        );
-      check(
-        typ_status_testable,
-        "Projection ok",
-        ([], Some(Message.Type(ty))),
-        status,
-      );
-    },
-  ),
-  test_case(
-    "Label under LabelProjectionExpected (not included) => InvalidLabel",
-    `Quick,
-    () => {
-      let ctx = Builtins.ctx_init(Some(Int));
-      let ty = Label("p") |> Typ.temp;
-      let labels = ["x", "y"];
-      let status =
-        DeriveTypStatus.derive(
-          ctx,
-          LabelProjectionExpected(Some(labels)),
-          ty,
-        );
-      check(
-        typ_status_testable,
-        "Invalid projection label",
-        ([Mark.InvalidLabel("p", labels)], None),
-        status,
-      );
-    },
-  ),
-  test_case(
     "Label under ConstructorExpected => WantConstructorFoundType",
     `Quick,
     () => {
@@ -395,42 +273,6 @@ let derive_typ_tests = [
         typ_status_testable,
         "Atom type ok",
         ([], Some(Message.Type(ty))),
-        status,
-      );
-    },
-  ),
-  test_case(
-    "Other type under LabelExpected => WantLabel",
-    `Quick,
-    () => {
-      let ctx = Builtins.ctx_init(Some(Int));
-      let ty = Atom(Int) |> Typ.temp;
-      let status =
-        DeriveTypStatus.derive(ctx, LabelExpected(Unique, []), ty);
-      check(
-        typ_status_testable,
-        "WantLabel for non-label",
-        ([Mark.TypWantLabel], None),
-        status,
-      );
-    },
-  ),
-  test_case(
-    "Other type under LabelProjectionExpected => WantLabel",
-    `Quick,
-    () => {
-      let ctx = Builtins.ctx_init(Some(Int));
-      let ty = Atom(Int) |> Typ.temp;
-      let status =
-        DeriveTypStatus.derive(
-          ctx,
-          LabelProjectionExpected(Some(["a"])),
-          ty,
-        );
-      check(
-        typ_status_testable,
-        "WantLabel for non-label (projection)",
-        ([Mark.TypWantLabel], None),
         status,
       );
     },

@@ -3,24 +3,18 @@
 module Map = StaticsBase.Map;
 module Info = StaticsBase.Info;
 
-/* A tuple entry's expected type, without the field's label */
-let value_ana = (ctx: Ctx.t, ana: Typ.t): Typ.t =>
-  switch (MatchedTyp.label(ctx, ana)) {
-  | Some((_, value_ana)) => value_ana
-  | None => ana
-  };
-
-/* A tuple entry's label: the errors on it, and the label type its entry
-   has in the tuple's type. None leaves the entry unlabeled there: an
+/* A tuple entry's label: the errors on it, and the label its entry has
+   in the tuple's type. None leaves the entry unlabeled there: an
    explicitly unlabeled entry, or one whose label the analyzed type lacks,
-   so that the label alone is marked and not the tuple too. */
+   so that the label alone is marked and not the tuple too. A malformed
+   label is an unknown label in the type. */
 let check_label =
     (
       ~expected_labels: option(list(string)),
       ~duplicate_labels: list(string),
       l: Label.t,
     )
-    : (list(Mark.t), option(Typ.t)) =>
+    : (list(Mark.t), option(Label.t)) =>
   switch (l.term) {
   | Label(name) =>
     switch (expected_labels) {
@@ -29,15 +23,15 @@ let check_label =
         None,
       )
     | _ =>
-      let label_ty = Label(name) |> Typ.temp;
-      List.mem(name, duplicate_labels)
-        ? ([Mark.DuplicateLabel(name, label_ty)], Some(label_ty))
-        : ([], Some(label_ty));
+      let marks =
+        List.mem(name, duplicate_labels)
+          ? [Mark.DuplicateLabel(name, Label(name) |> Typ.temp)] : [];
+      (marks, Some(Label.temp(Label(name))));
     }
   | ExplicitNonlabel => ([], None)
-  | EmptyHole => ([], Some(Unknown(SynSwitch) |> Typ.temp))
+  | EmptyHole
   | Invalid(_)
-  | MultiHole(_) => ([], Some(SynTy.unknown_internal()))
+  | MultiHole(_) => ([], Some(Label.temp(EmptyHole)))
   };
 
 /* Compute expected labels from an analysis type. */

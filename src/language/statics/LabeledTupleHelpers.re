@@ -19,14 +19,18 @@ let rec align_exp = (ctx: Ctx.t, expected_ty: Typ.t, exp: Exp.t): Exp.t =>
             align_exp(ctx, inner_ty, TupleEntry.value(entry)),
           )
         }
-      | None => TupleEntry.map(align_exp(ctx, expected_entry), entry)
+      | None =>
+        TupleEntry.map(
+          align_exp(ctx, TupleEntry.value(expected_entry)),
+          entry,
+        )
       };
     switch (exp.term) {
     | Parens(inner) => align_exp(ctx, expected_ty, inner)
     | Tuple(ds) =>
       let arranged =
         LabeledTuple.rearrange(
-          Typ.match_tup_label, TupleEntry.get_label, tys, ds, (label, entry) =>
+          Typ.get_label, TupleEntry.get_label, tys, ds, (label, entry) =>
           TupleEntry.labeled(label, TupleEntry.value(entry))
         );
       let arranged =
@@ -74,7 +78,11 @@ let rec is_aligned_exp = (ctx: Ctx.t, expected_ty: Typ.t, exp: Exp.t): bool =>
                | _ => false
                }
              | None =>
-               is_aligned_exp(ctx, expected_entry, TupleEntry.value(entry))
+               is_aligned_exp(
+                 ctx,
+                 TupleEntry.value(expected_entry),
+                 TupleEntry.value(entry),
+               )
              },
            tys,
            ds,

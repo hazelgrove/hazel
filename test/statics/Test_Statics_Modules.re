@@ -13,7 +13,7 @@ let test_single_binding =
   fully_consistent_typecheck(
     "Single let binding",
     {|{ let x = 1 }|},
-    Some(prod([tup_label(label("x"), int())])),
+    Some(prod_entries([labeled("x", int())])),
   );
 
 /* Test multiple bindings */
@@ -21,12 +21,7 @@ let test_multiple_bindings =
   fully_consistent_typecheck(
     "Multiple let bindings",
     {|{ let x = 1; let y = "hello" }|},
-    Some(
-      prod([
-        tup_label(label("x"), int()),
-        tup_label(label("y"), string()),
-      ]),
-    ),
+    Some(prod_entries([labeled("x", int()), labeled("y", string())])),
   );
 
 /* Test shadowing - only last binding should be exported */
@@ -34,7 +29,7 @@ let test_shadowing =
   fully_consistent_typecheck(
     "Shadowed binding exports last value",
     {|{ let x = 1; let x = "hello" }|},
-    Some(prod([tup_label(label("x"), string())])),
+    Some(prod_entries([labeled("x", string())])),
   );
 
 /* Test type alias in module */
@@ -42,7 +37,7 @@ let test_type_alias =
   fully_consistent_typecheck(
     "Type alias in module",
     {|{ type T = Int; let x = 1 : T }|},
-    Some(prod([tup_label(label("x"), int())])),
+    Some(prod_entries([labeled("x", int())])),
   );
 
 /* Test bare expression in module */
@@ -50,7 +45,7 @@ let test_bare_expression =
   fully_consistent_typecheck(
     "Bare expression in module",
     {|{ 1 + 1; let x = 2 }|},
-    Some(prod([tup_label(label("x"), int())])),
+    Some(prod_entries([labeled("x", int())])),
   );
 
 /* Test accessing module binding */
@@ -66,7 +61,7 @@ let test_module_in_let_def =
   fully_consistent_typecheck(
     "Module as let definition",
     {|let m = { let y = 1 } in m|},
-    Some(prod([tup_label(label("y"), int())])),
+    Some(prod_entries([labeled("y", int())])),
   );
 
 /* Test module with two bindings in let */
@@ -74,9 +69,7 @@ let test_module_two_bindings_in_let =
   fully_consistent_typecheck(
     "Module with two bindings as let def",
     {|let m = { let x = 1; let y = 2 } in m|},
-    Some(
-      prod([tup_label(label("x"), int()), tup_label(label("y"), int())]),
-    ),
+    Some(prod_entries([labeled("x", int()), labeled("y", int())])),
   );
 
 /* Diagnostic: test the expanded form directly */
@@ -84,7 +77,7 @@ let test_expansion_directly =
   fully_consistent_typecheck(
     "Expanded module form directly",
     {|let y = 1 in (y=y)|},
-    Some(prod([tup_label(label("y"), int())])),
+    Some(prod_entries([labeled("y", int())])),
   );
 
 /* Diagnostic: expanded form nested in let */
@@ -92,7 +85,7 @@ let test_expansion_in_let =
   fully_consistent_typecheck(
     "Expanded form in let",
     {|let m = (let y = 1 in (y=y)) in m|},
-    Some(prod([tup_label(label("y"), int())])),
+    Some(prod_entries([labeled("y", int())])),
   );
 
 /* Test nested module */
@@ -101,9 +94,7 @@ let test_nested_module =
     "Nested modules",
     {|{ let m = { let y = 1 } }|},
     Some(
-      prod([
-        tup_label(label("m"), prod([tup_label(label("y"), int())])),
-      ]),
+      prod_entries([labeled("m", prod_entries([labeled("y", int())]))]),
     ),
   );
 
@@ -113,9 +104,9 @@ let test_module_complex_expression =
     "Module with complex expression",
     {|{ let f = fun x : Int -> x + 1; let result = f(10) }|},
     Some(
-      prod([
-        tup_label(label("f"), arrow(int(), int())),
-        tup_label(label("result"), int()),
+      prod_entries([
+        labeled("f", arrow(int(), int())),
+        labeled("result", int()),
       ]),
     ),
   );
@@ -141,7 +132,7 @@ let test_module_bool =
   fully_consistent_typecheck(
     "Module with boolean binding",
     {|{ let flag = true }|},
-    Some(prod([tup_label(label("flag"), bool())])),
+    Some(prod_entries([labeled("flag", bool())])),
   );
 
 /* Test module with float binding */
@@ -149,7 +140,7 @@ let test_module_float =
   fully_consistent_typecheck(
     "Module with float binding",
     {|{ let pi = 3.14 }|},
-    Some(prod([tup_label(label("pi"), float())])),
+    Some(prod_entries([labeled("pi", float())])),
   );
 
 /* Test module with list binding */
@@ -157,7 +148,7 @@ let test_module_list =
   fully_consistent_typecheck(
     "Module with list binding",
     {|{ let xs = [1, 2, 3] }|},
-    Some(prod([tup_label(label("xs"), list(int()))])),
+    Some(prod_entries([labeled("xs", list(int()))])),
   );
 
 /* Test module with tuple binding */
@@ -165,7 +156,7 @@ let test_module_tuple =
   fully_consistent_typecheck(
     "Module with tuple binding",
     {|{ let pair = (1, true) }|},
-    Some(prod([tup_label(label("pair"), prod([int(), bool()]))])),
+    Some(prod_entries([labeled("pair", prod([int(), bool()]))])),
   );
 
 /* Test sequential binding reference */
@@ -173,9 +164,7 @@ let test_sequential_binding_ref =
   fully_consistent_typecheck(
     "Later bindings can reference earlier ones",
     {|{ let x = 1; let y = x + 1 }|},
-    Some(
-      prod([tup_label(label("x"), int()), tup_label(label("y"), int())]),
-    ),
+    Some(prod_entries([labeled("x", int()), labeled("y", int())])),
   );
 
 /* Test module with annotation (Prod type) */
@@ -183,7 +172,7 @@ let test_module_with_prod_annotation =
   fully_consistent_typecheck(
     "Module with labeled tuple annotation",
     {|let m : (x=Int) = { let x = 1 } in m|},
-    Some(prod([tup_label(label("x"), int())])),
+    Some(prod_entries([labeled("x", int())])),
   );
 
 /* Test module with multi-field Prod annotation */
@@ -191,9 +180,7 @@ let test_module_with_multi_prod_annotation =
   fully_consistent_typecheck(
     "Module with multi-field labeled tuple annotation",
     {|let m : (x=Int, y=Bool) = { let x = 1; let y = true } in m|},
-    Some(
-      prod([tup_label(label("x"), int()), tup_label(label("y"), bool())]),
-    ),
+    Some(prod_entries([labeled("x", int()), labeled("y", bool())])),
   );
 
 /* ===== SIGNATURE ANNOTATION TESTS (well-typed) ===== */
@@ -211,7 +198,7 @@ let test_matching_sig_annotation =
   fully_consistent_typecheck(
     "Module with matching sig annotation",
     {|let s1 : { let x : Int } = { let x = 42 } in s1|},
-    Some(prod([tup_label(label("x"), int())])),
+    Some(prod_entries([labeled("x", int())])),
   );
 
 /* Sec 13b: Multi-member matching sig annotation */
@@ -219,9 +206,7 @@ let test_matching_sig_multi =
   fully_consistent_typecheck(
     "Module with multi-member matching sig annotation",
     {|let m : { let x : Int; let y : Bool } = { let x = 1; let y = true } in m|},
-    Some(
-      prod([tup_label(label("x"), int()), tup_label(label("y"), bool())]),
-    ),
+    Some(prod_entries([labeled("x", int()), labeled("y", bool())])),
   );
 
 /* ===== TYPE ERROR TESTS ===== */
@@ -347,14 +332,14 @@ let test_limitation_sig_tuple_compat_mt =
   fully_consistent_typecheck(
     "Limitation: sig annotation accepts labeled tuple value",
     {|let mt : { let x : Int } = (x=1) in mt|},
-    Some(prod([tup_label(label("x"), int())])),
+    Some(prod_entries([labeled("x", int())])),
   );
 
 let test_limitation_sig_tuple_compat_tm =
   fully_consistent_typecheck(
     "Limitation: prod annotation accepts module value",
     {|let tm : (x=Int) = { let x = 1 } in tm|},
-    Some(prod([tup_label(label("x"), int())])),
+    Some(prod_entries([labeled("x", int())])),
   );
 
 /* Sec 21: Cross-type errors work regardless of module/tuple mix */
@@ -398,7 +383,7 @@ let test_limitation_label_mismatch_hole =
   fully_consistent_typecheck(
     "Limitation: label mismatch with hole type has no error",
     {|let m : { let x : ? } = { let y = 1 } in m|},
-    Some(prod([tup_label(label("x"), unknown(Hole(EmptyHole)))])),
+    Some(prod_entries([labeled("x", unknown(Hole(EmptyHole)))])),
   );
 
 /* ===== MODULE KEYWORD TESTS ===== */
@@ -425,9 +410,9 @@ let test_module_keyword_in_mod =
     "Module keyword inside module body",
     {|{ module Inner = { let z = 42 }; let r = Inner.z }|},
     Some(
-      prod([
-        tup_label(label("Inner"), prod([tup_label(label("z"), int())])),
-        tup_label(label("r"), int()),
+      prod_entries([
+        labeled("Inner", prod_entries([labeled("z", int())])),
+        labeled("r", int()),
       ]),
     ),
   );
@@ -437,9 +422,7 @@ let test_module_keyword_returns_module =
   fully_consistent_typecheck(
     "Module keyword returns module value",
     {|module M = { let a = 1; let b = true } in M|},
-    Some(
-      prod([tup_label(label("a"), int()), tup_label(label("b"), bool())]),
-    ),
+    Some(prod_entries([labeled("a", int()), labeled("b", bool())])),
   );
 
 /* Test capitalized name in dot position (chained access) */
@@ -471,9 +454,7 @@ let test_module_keyword_multi_annotation =
   fully_consistent_typecheck(
     "Module keyword with multi-field annotation",
     {|module M : (x=Int, y=Bool) = { let x = 1; let y = true } in M|},
-    Some(
-      prod([tup_label(label("x"), int()), tup_label(label("y"), bool())]),
-    ),
+    Some(prod_entries([labeled("x", int()), labeled("y", bool())])),
   );
 
 /* Test module keyword annotation type mismatch */

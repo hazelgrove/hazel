@@ -754,6 +754,19 @@ and Typ: {
         ~f_label,
         ~f_any,
       );
+    let label_map_term =
+      Label.map_term(
+        ~f_exp,
+        ~f_pat,
+        ~f_typ,
+        ~f_tpat,
+        ~f_rul,
+        ~f_mod,
+        ~f_sig,
+        ~f_mpat,
+        ~f_label,
+        ~f_any,
+      );
     let rec_call = ({term, _} as exp: t) => {
       ...exp,
       term:
@@ -765,14 +778,12 @@ and Typ: {
         | Atom(_)
         | DrvQuoteTy(_)
         | Label(_)
-        | ExplicitNonlabel
         | Var(_) => term
         | List(t) => List(typ_map_term(t))
         | Unknown(Hole(MultiHole(things))) =>
           Unknown(Hole(MultiHole(List.map(any_map_term, things))))
-        | Prod(xs) => Prod(List.map(typ_map_term, xs))
-        | TupLabel(label, e) =>
-          TupLabel(typ_map_term(label), typ_map_term(e))
+        | Prod(xs) =>
+          Prod(List.map(map_tuple_entry(label_map_term, typ_map_term), xs))
         | Parens(e) => Parens(typ_map_term(e))
         | Projector(data, t) => Projector(data, typ_map_term(t))
         | Arrow(t1, t2) => Arrow(typ_map_term(t1), typ_map_term(t2))
@@ -807,8 +818,8 @@ and Typ: {
               variants,
             ),
           )
-        | ProdProjection(t1, t2) =>
-          ProdProjection(typ_map_term(t1), typ_map_term(t2))
+        | ProdProjection(t, l) =>
+          ProdProjection(typ_map_term(t), label_map_term(l))
         | ProdExtension(t1, t2) =>
           ProdExtension(typ_map_term(t1), typ_map_term(t2))
         | Rec(tp, t) => Rec(tpat_map_term(tp), typ_map_term(t))

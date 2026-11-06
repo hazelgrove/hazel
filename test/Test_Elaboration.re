@@ -326,11 +326,11 @@ module PlainTests = {
     let typ =
       Typ.(
         parens(
-          prod([
-            tup_label(label("street"), string()),
-            tup_label(label("city"), string()),
-            tup_label(label("state"), string()),
-            tup_label(label("zipcode"), int()),
+          prod_entries([
+            labeled("street", string()),
+            labeled("city", string()),
+            labeled("state", string()),
+            labeled("zipcode", int()),
           ]),
         )
       );
@@ -386,7 +386,7 @@ module PlainTests = {
       Exp.(
         let_(
           Pat.(
-            asc(var("x"), Typ.(prod([tup_label(label("l"), string())])))
+            asc(var("x"), Typ.(prod_entries([labeled("l", string())])))
           ),
           tuple_entries([labeled("l", string("a"))]),
           var("x"),
@@ -408,11 +408,11 @@ module PlainTests = {
     let typ =
       Typ.(
         parens(
-          prod([
-            tup_label(label("a"), Typ.int()),
-            tup_label(label("b"), Typ.string()),
-            float(),
-            tup_label(label("c"), Typ.bool()),
+          prod_entries([
+            labeled("a", Typ.int()),
+            labeled("b", Typ.string()),
+            Unlabeled(float()),
+            labeled("c", Typ.bool()),
           ]),
         )
       );
@@ -530,8 +530,7 @@ module PlainTests = {
       "Singleton labeled tuple analysis adds label",
       `Quick,
       () => {
-        let typ =
-          Typ.(parens(prod([tup_label(label("l"), Typ.string())])));
+        let typ = Typ.(parens(prod_entries([labeled("l", Typ.string())])));
         alco_check(
           "Singleton labeled tuple analysis adds label",
           Exp.(
@@ -561,7 +560,7 @@ module PlainTests = {
         Exp.(
           let_(
             Pat.(
-              asc(var("x"), Typ.(prod([tup_label(label("a"), string())])))
+              asc(var("x"), Typ.(prod_entries([labeled("a", string())])))
             ),
             tuple_entries([labeled("a", string("hello"))]),
             var("x"),
@@ -581,7 +580,7 @@ module PlainTests = {
             Pat.(
               asc(
                 var("zip_only"),
-                Typ.(prod([tup_label(label("zip"), int())])),
+                Typ.(prod_entries([labeled("zip", int())])),
               )
             ),
             tuple_entries([labeled("zip", int(12345))]),
@@ -617,7 +616,7 @@ module PlainTests = {
                 tuple_entries([labeled("a", asc(var("x"), Typ.int()))])
               ),
               var("x"),
-              Some(Typ.(prod([tup_label(label("a"), int())]))),
+              Some(Typ.(prod_entries([labeled("a", int())]))),
               None,
             ),
             tuple_entries([labeled("a", int(1))]),
@@ -640,7 +639,7 @@ module PlainTests = {
                 tuple_entries([labeled("a", asc(var("x"), Typ.int()))])
               ),
               var("x"),
-              Some(Typ.(prod([tup_label(label("a"), Typ.int())]))),
+              Some(Typ.(prod_entries([labeled("a", Typ.int())]))),
               None,
             ),
             tuple_entries([labeled("a", int(1))]),
@@ -658,11 +657,8 @@ module PlainTests = {
               asc(
                 var("x"),
                 Typ.(
-                  prod([
-                    tup_label(
-                      label("b"),
-                      prod([tup_label(label("c"), string())]),
-                    ),
+                  prod_entries([
+                    labeled("b", prod_entries([labeled("c", string())])),
                   ])
                 ),
               )
@@ -688,9 +684,7 @@ module PlainTests = {
             fn(
               Pat.(tuple_entries([labeled("a", var("x"))])),
               var("x"),
-              Some(
-                Typ.(prod([tup_label(label("a"), unknown(Internal))])),
-              ),
+              Some(Typ.(prod_entries([labeled("a", unknown(Internal))]))),
               None,
             ),
             tuple_entries([labeled("a", int(1))]),
