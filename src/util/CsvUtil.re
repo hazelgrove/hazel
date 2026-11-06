@@ -9,7 +9,9 @@ let parse_csv_with_headers = (csv: string) => {
   let rows =
     data
     |> Csv.input_all
-    |> List.filter(row => !List.is_empty(row) && row != [""]);
+    |> List.filter(~f=row =>
+         !List.is_empty(row) && !List.equal(String.equal, row, [""])
+       );
   Csv.associate(header, rows);
 };
 
@@ -18,5 +20,7 @@ let parse_csv_without_headers = (csv: string) => {
 
   data
   |> Csv.input_all
-  |> List.filter(row => !List.is_empty(row) && row != [""]);
+  |> List.filter(~f=row =>
+       !List.is_empty(row) && !List.equal(String.equal, row, [""])
+     );
 };

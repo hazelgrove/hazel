@@ -2,12 +2,14 @@ let rev_if = (b: bool) => b ? List.rev : Fun.id;
 
 let dedup_f = (f, xs) =>
   List.fold_left(
-    (deduped, x) => List.exists(f(x), deduped) ? deduped : deduped @ [x],
-    [],
+    ~f=
+      (deduped, x) =>
+        List.exists(~f=f(x), deduped) ? deduped : deduped @ [x],
+    ~init=[],
     xs,
   );
 
-let dedup = xs => dedup_f((==), xs);
+let dedup = xs => dedup_f(Poly.equal, xs);
 
 /**
   Groups elements of a list by a specified key.
@@ -25,16 +27,20 @@ let dedup = xs => dedup_f((==), xs);
 */
 let group_by = (key: 'x => 'k, xs: list('x)): list(('k, list('x))) =>
   List.fold_left(
-    (grouped, x) => {
-      let k = key(x);
-      let k_group =
-        switch (List.assoc_opt(k, grouped)) {
-        | None => []
-        | Some(xs) => xs
-        };
-      [(k, [x, ...k_group]), ...List.remove_assoc(k, grouped)];
-    },
-    [],
+    ~f=
+      (grouped, x) => {
+        let k = key(x);
+        let k_group =
+          switch (List.Assoc.find(~equal=Poly.equal, grouped, k)) {
+          | None => []
+          | Some(xs) => xs
+          };
+        [
+          (k, [x, ...k_group]),
+          ...List.Assoc.remove(~equal=Poly.equal, grouped, k),
+        ];
+      },
+    ~init=[],
     xs,
   );
 
@@ -58,16 +64,17 @@ let group_by = (key: 'x => 'k, xs: list('x)): list(('k, list('x))) =>
 let group_consecutive =
     (should_group: ('a, 'a) => bool, xs: list('a)): list(list('a)) =>
   List.fold_left(
-    (acc: list(list('a)), item: 'a) =>
-      switch (acc) {
-      | [] => [[item]]
-      | [[rep, ..._] as first, ...rest] when should_group(rep, item) => [
-          first @ [item],
-          ...rest,
-        ]
-      | _ => [[item], ...acc]
-      },
-    [],
+    ~f=
+      (acc: list(list('a)), item: 'a) =>
+        switch (acc) {
+        | [] => [[item]]
+        | [[rep, ..._] as first, ...rest] when should_group(rep, item) => [
+            first @ [item],
+            ...rest,
+          ]
+        | _ => [[item], ...acc]
+        },
+    ~init=[],
     xs,
   );
 
@@ -95,7 +102,7 @@ let rec split =
 };
 
 let combine_opt = (xs, ys) =>
-  switch (List.combine(xs, ys)) {
+  switch (List.zip_exn(xs, ys)) {
   | exception (Invalid_argument(_)) => None
   | xys => Some(xys)
   };
@@ -127,7 +134,7 @@ let split_n_opt = (n: int, xs: list('x)): option((list('x), list('x))) => {
       | [] => None
       | [x, ...xs] =>
         go(n - 1, xs)
-        |> Option.map(((prefix, suffix)) => ([x, ...prefix], suffix))
+        |> Option.map(~f=((prefix, suffix)) => ([x, ...prefix], suffix))
       };
     };
   go(n, xs);
@@ -185,7 +192,7 @@ let rec split_nth_opt = (n, xs) =>
   | (0, [x, ...suffix]) => Some(([], x, suffix))
   | (_, [x, ...xs]) =>
     split_nth_opt(n - 1, xs)
-    |> Option.map(((prefix, subject, suffix)) =>
+    |> Option.map(~f=((prefix, subject, suffix)) =>
          ([x, ...prefix], subject, suffix)
        )
   };
@@ -256,10 +263,10 @@ let map_alt: ('a => 'c, 'b => 'c, list('a), list('b)) => list('c) =
     if (List.length(xs) != List.length(ys) + 1) {
       raise(Invalid_argument("ListUtil.map_alt"));
     };
-    List.fold_left2(
-      (acc, x, y) => acc @ [fy(y), fx(x)],
-      [fx(List.hd(xs))],
-      List.tl(xs),
+    List.fold2_exn(
+      ~f=(acc, x, y) => acc @ [fy(y), fx(x)],
+      ~init=[fx(List.hd_exn(xs))],
+      List.tl_exn(xs),
       ys,
     );
   };
@@ -267,11 +274,11 @@ let map_alt: ('a => 'c, 'b => 'c, list('a), list('b)) => list('c) =
 let interleave = (xs, ys) => map_alt(x => x, y => y, xs, ys);
 
 let count_pred = (f: 'a => bool, xs: list('a)): int =>
-  List.fold_left((n, x) => f(x) ? n + 1 : n, 0, xs);
+  List.fold_left(~f=(n, x) => f(x) ? n + 1 : n, ~init=0, xs);
 
 let map2_opt =
     (f: ('a, 'b) => 'c, xs: list('a), ys: list('b)): option(list('c)) =>
-  switch (List.map2(f, xs, ys)) {
+  switch (List.map2_exn(~f, xs, ys)) {
   | b => Some(b)
   | exception (Invalid_argument(_)) => None
   };
@@ -306,8 +313,8 @@ let rec update_nth = (n, xs, f) =>
 
 let findi_opt: ('x => bool, list('x)) => option((int, 'x)) =
   (f, xs) => {
-    List.mapi((i, x) => (i, x), xs)
-    |> List.find_map(((_, x) as pair) =>
+    List.mapi(~f=(i, x) => (i, x), xs)
+    |> List.find_map(~f=((_, x) as pair) =>
          if (f(x)) {
            Some(pair);
          } else {
@@ -332,7 +339,7 @@ let find_with_rest:
   };
 
 let assoc_err = (x, xs, err: string) =>
-  switch (List.assoc_opt(x, xs)) {
+  switch (List.Assoc.find(~equal=Poly.equal, xs, x)) {
   | None => failwith(err)
   | Some(y) => y
   };
@@ -350,7 +357,7 @@ let split_at_nones = (xs: list(option('a))): list(list('a)) => {
       | [] => go(xs, [[x]])
       }
     };
-  go(xs, []) |> List.map(List.rev) |> List.rev;
+  go(xs, []) |> List.map(~f=List.rev) |> List.rev;
 };
 
 /* Give a list of lists, return a list of pairs of
@@ -358,10 +365,11 @@ let split_at_nones = (xs: list(option('a))): list(list('a)) => {
 let first_and_last = (xss: list(list('a))): list(('a, 'a)) =>
   xss
   |> List.filter_map(
-       fun
-       | [] => None
-       | [x] => Some((x, x))
-       | [x, ...xs] => Some((x, last(xs))),
+       ~f=
+         fun
+         | [] => None
+         | [x] => Some((x, x))
+         | [x, ...xs] => Some((x, last(xs))),
      );
 
 let rec rev_concat: (list('a), list('a)) => list('a) =
@@ -398,7 +406,7 @@ let rec flat_intersperse = (sep, xss) =>
 
 /* Given two lists, return their maximum common suffix */
 let max_common_suffix =
-    (~eq: ('a, 'a) => bool=(==), a: list('a), b: list('a)): list('a) => {
+    (~eq: ('a, 'a) => bool=Poly.equal, a: list('a), b: list('a)): list('a) => {
   let rec loop = (a, b, acc) =>
     switch (a, b) {
     | ([], _)
@@ -410,16 +418,17 @@ let max_common_suffix =
   loop(List.rev(a), List.rev(b), []);
 };
 
-let common_suffix_length = (~eq: ('a, 'a) => bool=(==), s1, s2) =>
+let common_suffix_length = (~eq: ('a, 'a) => bool=Poly.equal, s1, s2) =>
   List.length(max_common_suffix(~eq, s1, s2));
 
-let is_suffix_of = (~eq: ('a, 'a) => bool=(==), s1, s2) =>
+let is_suffix_of = (~eq: ('a, 'a) => bool=Poly.equal, s1, s2) =>
   common_suffix_length(~eq, s1, s2) == List.length(s1);
 
 /* Returns Some(depth) if xs is a suffix of ys at depth, None otherwise */
 
 let suffix_at_depth =
-    (~eq: ('a, 'a) => bool=(==), xs: list('a), ys: list('a)): option(int) => {
+    (~eq: ('a, 'a) => bool=Poly.equal, xs: list('a), ys: list('a))
+    : option(int) => {
   let rec go = (depth: int, xs, ys): option(int) =>
     if (List.equal(eq, xs, ys)) {
       Some(depth);
@@ -458,7 +467,7 @@ let slice = (i: int, k: int, xs: list('x)): list('x) =>
 
 // TODO Remove once List.take is available in ocaml 5.3
 let take = (n, xs: list('a)) =>
-  List.to_seq(xs) |> Seq.take(n) |> List.of_seq;
+  Stdlib.List.to_seq(xs) |> Seq.take(n) |> Stdlib.List.of_seq;
 
 // for performance, doesn't check the whole list if already above length
 let rec is_length = (n: int, xs: list('a)): bool =>
@@ -488,7 +497,7 @@ let rec remove_nth = (n: int, xs: list('a)): option(list('a)) =>
   | (_, []) => None
   | (0, [_hd, ...tl]) => Some(tl)
   | (n, [hd, ...tl]) =>
-    remove_nth(n - 1, tl) |> Option.map(tl' => [hd, ...tl'])
+    remove_nth(n - 1, tl) |> Option.map(~f=tl' => [hd, ...tl'])
   };
 
 let rec fold_left_opt =
@@ -504,7 +513,10 @@ let rec fold_left_opt =
 };
 
 let intersection_f = (f: 'a => 'b, xs, ys) =>
-  List.filter((x: 'a) => List.exists((y: 'a) => f(x) == f(y), ys), xs);
+  List.filter(
+    ~f=(x: 'a) => List.exists(~f=(y: 'a) => Poly.equal(f(x), f(y)), ys),
+    xs,
+  );
 
 let map_with_history = (f: (list('y), 'x) => 'y, xs: list('x)): list('y) => {
   let rec aux = (acc: list('y), remaining: list('x)) => {
@@ -558,7 +570,7 @@ let assoc_update = (key, f, assoc) => {
       | None => []
       }
     | [(k, v), ...rest] =>
-      if (k == key) {
+      if (Poly.equal(k, key)) {
         switch (f(Some(v))) {
         | Some(v') => [(k, v'), ...rest]
         | None => rest
@@ -571,7 +583,7 @@ let assoc_update = (key, f, assoc) => {
 };
 
 let remove_assoc = (key, assoc) =>
-  List.filter(((k, _)) => k != key, assoc);
+  List.filter(~f=((k, _)) => !Poly.equal(k, key), assoc);
 
 let max = (cmp: ('a, 'a) => Direction.t, xs: list('a)): option('a) => {
   switch (xs) {
@@ -579,12 +591,13 @@ let max = (cmp: ('a, 'a) => Direction.t, xs: list('a)): option('a) => {
   | [x, ...xs] =>
     Some(
       List.fold_left(
-        (current_max, candidate) =>
-          switch (cmp(current_max, candidate)) {
-          | Left => current_max
-          | Right => candidate
-          },
-        x,
+        ~f=
+          (current_max, candidate) =>
+            switch (cmp(current_max, candidate)) {
+            | Left => current_max
+            | Right => candidate
+            },
+        ~init=x,
         xs,
       ),
     )
