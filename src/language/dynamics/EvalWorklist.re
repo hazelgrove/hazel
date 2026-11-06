@@ -60,7 +60,7 @@ let remove_streamed_ids =
     (stream: IncrEval.outbox(EvaluatorState.t), pending_ids) => {
   let completed_ids = IncrEval.visible_ids(stream.completed);
   List.filter(
-    ~f=id => !List.exists(~f=Id.equal(id), completed_ids),
+    ~f=id => !List.mem(completed_ids, id, ~equal=Id.equal),
     pending_ids,
   );
 };

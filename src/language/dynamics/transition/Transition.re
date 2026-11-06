@@ -536,10 +536,7 @@ module Transition = (EV: EV_MODE) => {
         | IndetMatch
         | DoesNotMatch => ""
         | Matches(env) =>
-          env
-          |> List.rev
-          |> List.map(~f=((s, _)) => s)
-          |> String.concat(~sep=", ")
+          env |> List.rev_map(~f=fst) |> String.concat(~sep=", ")
         };
       };
 

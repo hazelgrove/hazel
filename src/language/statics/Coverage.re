@@ -89,18 +89,17 @@ module Ctr = {
     | Infinite
     | Finite(Map.t(arity));
 
-  let arity_of = (ctr, all_ctrs: all_ctrs): arity =>
+  let arity_of = (ctr, all_ctrs: all_ctrs): arity => {
+    let unknown_arity = () =>
+      List.init(ctr.num_args, ~f=_ => Unknown(Internal) |> Typ.temp);
     switch (all_ctrs) {
-    | Unknown =>
-      List.init(ctr.num_args, ~f=_ => Unknown(Internal) |> Typ.temp)
-    | Infinite =>
-      List.init(ctr.num_args, ~f=_ => Unknown(Internal) |> Typ.temp)
+    | Unknown
+    | Infinite => unknown_arity()
     | Finite(all_ctrs) =>
-      switch (Map.find(all_ctrs, ctr)) {
-      | Some(arity) => arity
-      | None => List.init(ctr.num_args, ~f=_ => Unknown(Internal) |> Typ.temp)
-      }
+      Map.find(all_ctrs, ctr)
+      |> Option.value_or_thunk(~default=unknown_arity)
     };
+  };
 
   let rec all_ctrs_of_typ = (~rec_count=0, ty: Typ.t): all_ctrs => {
     if (rec_count > 1000) {

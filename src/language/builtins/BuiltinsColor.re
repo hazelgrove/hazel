@@ -98,10 +98,7 @@ let color_unary = (name, f): BuiltinsUtil.fn => {
   imp:
     binary((d1, d2) => {
       let-unbox amount = (Atom(Float), d2);
-      switch (C.of_exp(d1)) {
-      | Some(c) => Some(C.exp_of(f(c, amount)))
-      | None => None
-      };
+      C.of_exp(d1) |> Option.map(~f=c => C.exp_of(f(c, amount)));
     }),
   custom_statics: None,
 };
@@ -134,10 +131,8 @@ let builtins: list(BuiltinsUtil.fn) = [
     imp:
       binary((d1, d2) => {
         let-unbox a = (Atom(Float), d2);
-        switch (C.of_exp(d1)) {
-        | Some(c) => Some(C.exp_of(C.Fade(c, clamp(0., 100., a))))
-        | None => None
-        };
+        C.of_exp(d1)
+        |> Option.map(~f=c => C.exp_of(C.Fade(c, clamp(0., 100., a))));
       }),
     custom_statics: None,
   },
@@ -150,10 +145,7 @@ let builtins: list(BuiltinsUtil.fn) = [
     arg: ty,
     ret: Atom(Float),
     imp: d =>
-      switch (C.of_exp(d)) {
-      | Some(c) => Some(Fresh.Exp.float(lightness(c)))
-      | None => None
-      },
+      C.of_exp(d) |> Option.map(~f=c => Fresh.Exp.float(lightness(c))),
     custom_statics: None,
   },
   {

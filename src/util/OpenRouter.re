@@ -503,17 +503,16 @@ module Utils = {
     let cache_creation_input_tokens =
       API.Json.Parsers.int_field(choices, "cache_creation_input_tokens");
     let cache_write_tokens =
-      switch (Json.dot("prompt_tokens_details", choices)) {
-      | Some(details) =>
-        API.Json.Parsers.int_field(details, "cache_write_tokens")
-      | None => None
-      };
+      Json.dot("prompt_tokens_details", choices)
+      |> Option.bind(~f=details =>
+           API.Json.Parsers.int_field(details, "cache_write_tokens")
+         );
     let cost = num_field(choices, "cost");
     let upstream_inference_cost =
-      switch (Json.dot("cost_details", choices)) {
-      | Some(details) => num_field(details, "upstream_inference_cost")
-      | None => None
-      };
+      Json.dot("cost_details", choices)
+      |> Option.bind(~f=details =>
+           num_field(details, "upstream_inference_cost")
+         );
     CacheDiag.note_response(
       ~cache_read=cache_read_input_tokens,
       ~cache_creation=cache_creation_input_tokens,
@@ -547,37 +546,32 @@ module Utils = {
             (part: Json.t) =>
               switch (part) {
               | `String(s) => Some(s)
-              | _ =>
-                switch (Json.dot("text", part)) {
-                | Some(t) =>
-                  switch (Json.str(t)) {
-                  | Some(s) => Some(s)
-                  | None => message_content_string(t)
-                  }
-                | None =>
-                  switch (Json.dot("content", part)) {
-                  | Some(c) => message_content_string(c)
-                  | None => None
-                  }
-                }
+              | _ => object_content_string(part)
               },
           parts,
         );
       Some(String.concat(~sep="", texts));
-    | `Assoc(_) as assoc =>
-      switch (Json.dot("text", assoc)) {
-      | Some(t) =>
-        switch (Json.str(t)) {
-        | Some(s) => Some(s)
-        | None => message_content_string(t)
-        }
-      | None =>
-        switch (Json.dot("content", assoc)) {
-        | Some(c) => message_content_string(c)
-        | None => None
-        }
-      }
+    | `Assoc(_) as assoc => object_content_string(assoc)
     | _ => None
+    };
+  }
+  and object_content_string = (obj: Json.t): option(string) =>
+    switch (Json.dot("text", obj)) {
+    | Some(t) =>
+      switch (Json.str(t)) {
+      | Some(s) => Some(s)
+      | None => message_content_string(t)
+      }
+    | None =>
+      Json.dot("content", obj) |> Option.bind(~f=message_content_string)
+    };
+
+  let first_choice_delta = (choices: Json.t): option(Json.t) => {
+    let* choices = Json.list(choices);
+    let* hd = ListUtil.hd_opt(choices);
+    switch (Json.dot("message", hd)) {
+    | Some(message) => Some(message)
+    | None => Json.dot("delta", hd)
     };
   };
 
@@ -588,18 +582,9 @@ module Utils = {
   let first_message_content_and_reasoning =
       (choices: Json.t): (option(string), option(string)) => {
     let extracted = {
-      let* choices = Json.list(choices);
-      let* hd = ListUtil.hd_opt(choices);
-      let* delta =
-        switch (Json.dot("message", hd)) {
-        | Some(message) => Some(message)
-        | None => Json.dot("delta", hd)
-        };
+      let* delta = first_choice_delta(choices);
       let from_content =
-        switch (Json.dot("content", delta)) {
-        | None => None
-        | Some(c) => message_content_string(c)
-        };
+        Json.dot("content", delta) |> Option.bind(~f=message_content_string);
       let from_reasoning =
         Option.bind(Json.dot("reasoning", delta), ~f=Json.str);
       let from_reasoning_content =
@@ -619,13 +604,13 @@ module Utils = {
       Some((nonempty(from_content), reasoning));
     };
     switch (extracted) {
-    | None => (None, None)
+    | None
+    | Some((None, None)) => (None, None)
     | Some((Some(_) as c, r)) => (c, r)
     | Some((None, Some(_) as r)) =>
       // Reasoning-only response: surface as content for back-compat; don't
       // double-render by also returning it under reasoning.
       (r, None)
-    | Some((None, None)) => (None, None)
     };
   };
 
@@ -661,22 +646,15 @@ module Utils = {
 
   let parse_tool_calls = (choices: Json.t): list(Reply.Model.tool_call) => {
     let tool_calls = {
-      let* choices = Json.list(choices);
-      let* hd = ListUtil.hd_opt(choices);
-      let* delta =
-        switch (Json.dot("message", hd)) {
-        | Some(message) => Some(message)
-        | None => Json.dot("delta", hd)
-        };
-
+      let* delta = first_choice_delta(choices);
       let* tool_calls = Json.dot("tool_calls", delta);
       Json.list(tool_calls);
     };
-
-    switch (tool_calls) {
-    | Some(tool_calls) => List.filter_map(~f=parse_tool_call, tool_calls)
-    | None => []
-    };
+    Option.value_map(
+      tool_calls,
+      ~default=[],
+      ~f=List.filter_map(~f=parse_tool_call),
+    );
   };
 
   let parse_errs = (json: Json.t): option(Model.error) => {
@@ -718,16 +696,12 @@ module Utils = {
       | None => sprintf("HTTP error %d", status)
       };
     let code =
-      switch (
-        {
-          let* e = body_error;
-          let* c = Json.dot("code", e);
-          Json.int(c);
-        }
-      ) {
-      | Some(c) => c
-      | None => status
-      };
+      {
+        let* e = body_error;
+        let* c = Json.dot("code", e);
+        Json.int(c);
+      }
+      |> Option.value(~default=status);
     {
       message,
       code,
@@ -889,18 +863,10 @@ module Utils = {
     let raw_first_choice_content_reasoning =
         (choices: Json.t): (option(string), option(string)) => {
       let result = {
-        let* choices_list = Json.list(choices);
-        let* hd = ListUtil.hd_opt(choices_list);
-        let* delta =
-          switch (Json.dot("message", hd)) {
-          | Some(m) => Some(m)
-          | None => Json.dot("delta", hd)
-          };
+        let* delta = first_choice_delta(choices);
         let from_content =
-          switch (Json.dot("content", delta)) {
-          | None => None
-          | Some(c) => message_content_string(c)
-          };
+          Json.dot("content", delta)
+          |> Option.bind(~f=message_content_string);
         let from_reasoning =
           Option.bind(Json.dot("reasoning", delta), ~f=Json.str);
         let from_reasoning_content =
@@ -919,10 +885,7 @@ module Utils = {
           );
         Some((nonempty(from_content), reasoning));
       };
-      switch (result) {
-      | None => (None, None)
-      | Some(pair) => pair
-      };
+      Option.value(result, ~default=(None, None));
     };
 
     let feed = (t: t, chunk: Json.t): delta => {
@@ -1355,10 +1318,7 @@ module KeyInfo = {
     let parse_key_response = (json: Json.t): option(Model.t) => {
       let* data = Json.dot("data", json);
       let usage =
-        switch (num_opt(Json.dot("usage", data))) {
-        | Some(f) => f
-        | None => 0.0
-        };
+        num_opt(Json.dot("usage", data)) |> Option.value(~default=0.0);
       Some(
         {
           label: str_opt(Json.dot("label", data)),
