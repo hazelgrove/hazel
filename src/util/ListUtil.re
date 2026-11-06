@@ -29,10 +29,8 @@ let group_by = (key: 'x => 'k, xs: list('x)): list(('k, list('x))) =>
       (grouped, x) => {
         let k = key(x);
         let k_group =
-          switch (List.Assoc.find(~equal=Poly.equal, grouped, k)) {
-          | None => []
-          | Some(xs) => xs
-          };
+          List.Assoc.find(~equal=Poly.equal, grouped, k)
+          |> Option.value(~default=[]);
         [
           (k, [x, ...k_group]),
           ...List.Assoc.remove(~equal=Poly.equal, grouped, k),
@@ -131,11 +129,10 @@ let split_n_opt = (n: int, xs: list('x)): option((list('x), list('x))) => {
 };
 
 let split_n = (n: int, xs: list('x)): (list('x), list('x)) =>
-  switch (split_n_opt(n, xs)) {
-  | None =>
-    raise(Invalid_argument("ListUtil.split_n: " ++ string_of_int(n)))
-  | Some(r) => r
-  };
+  split_n_opt(n, xs)
+  |> OptUtil.get_or_raise(
+       Invalid_argument("ListUtil.split_n: " ++ string_of_int(n)),
+     );
 
 /**
  * Returns sublist from index i (inclusive)
@@ -146,14 +143,13 @@ let split_n = (n: int, xs: list('x)): (list('x), list('x)) =>
 let split_sublist_opt =
     (i: int, j: int, xs: list('x))
     : option((list('x), list('x), list('x))) => {
-  switch (split_n_opt(j, xs)) {
-  | None => None
-  | Some((left, right)) =>
-    switch (split_n_opt(i, left)) {
-    | None => None
-    | Some((left, mid)) => Some((left, mid, right))
+  OptUtil.Syntax.(
+    {
+      let* (left, right) = split_n_opt(j, xs);
+      let+ (left, mid) = split_n_opt(i, left);
+      (left, mid, right);
     }
-  };
+  );
 };
 let split_sublist =
     (i: int, j: int, xs: list('x)): (list('x), list('x), list('x)) =>
@@ -213,18 +209,13 @@ let split_last_opt = (xs: list('x)): option((list('x), 'x)) => {
 };
 
 let split_last = (xs: list('x)): (list('x), 'x) =>
-  switch (split_last_opt(xs)) {
-  | None => raise(Invalid_argument("ListUtil.split_last"))
-  | Some(r) => r
-  };
+  split_last_opt(xs)
+  |> OptUtil.get_or_raise(Invalid_argument("ListUtil.split_last"));
 
 let last_opt = (xs: list('x)): option('x) => List.last(xs);
 
 let last = (xs: list('x)): 'x =>
-  switch (last_opt(xs)) {
-  | None => raise(Invalid_argument("ListUtil.last"))
-  | Some(x) => x
-  };
+  last_opt(xs) |> OptUtil.get_or_raise(Invalid_argument("ListUtil.last"));
 
 let split_first_opt = (xs: list('x)): option(('x, list('x))) =>
   switch (xs) {
@@ -314,10 +305,7 @@ let find_with_rest:
   };
 
 let assoc_err = (x, xs, err: string) =>
-  switch (List.Assoc.find(~equal=Poly.equal, xs, x)) {
-  | None => failwith(err)
-  | Some(y) => y
-  };
+  List.Assoc.find(~equal=Poly.equal, xs, x) |> OptUtil.get_or_fail(err);
 
 /* Give a list of optional 'a, split the
  * list up using the Nones as dividers */
@@ -491,7 +479,7 @@ let assoc_update = (key, f, assoc) => {
 };
 
 let remove_assoc = (key, assoc) =>
-  List.filter(~f=((k, _)) => !Poly.equal(k, key), assoc);
+  List.Assoc.remove(assoc, key, ~equal=Poly.equal);
 
 let max = (cmp: ('a, 'a) => Direction.t, xs: list('a)): option('a) => {
   switch (xs) {

@@ -259,8 +259,7 @@ let rec get_inductive_hypotheses = (m, t, pat) => {
 and get_inductive_hypotheses_inner' = (m, t, pat) => {
   let is_correct_type =
     Statics.Map.ty_of(Pat.rep_id(pat), m)
-    |> Option.map(~f=Typ.fast_equal(t))
-    |> Option.value(~default=false);
+    |> Option.exists(~f=Typ.fast_equal(t));
   (is_correct_type ? [pat] : []) @ get_inductive_hypotheses(m, t, pat);
 }
 and get_inductive_hypotheses_inner = (m, t, pat) =>

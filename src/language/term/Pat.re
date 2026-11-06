@@ -249,11 +249,7 @@ let bound_vars = (dp: t): list(Var.t) =>
 let get_duplicate_bindings = (pat: t) => {
   let bindings = bound_vars(pat);
   List.filter(
-    ~f=
-      binding => {
-        List.length(List.filter(~f=x => String.equal(x, binding), bindings))
-        > 1
-      },
+    ~f=binding => List.count(bindings, ~f=String.equal(binding)) > 1,
     bindings,
   );
 };

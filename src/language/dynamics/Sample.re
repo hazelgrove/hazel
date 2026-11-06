@@ -188,16 +188,14 @@ module Map = {
    * minting path and the batch fold — both go through
    * ObsTrace.fold_step. */
   let dominated = (sample: sample, map: t): bool =>
-    switch (Id.Map.find(map, sample.syntax_id)) {
-    | Some(existing) =>
+    Option.exists(Id.Map.find(map, sample.syntax_id), ~f=existing =>
       List.exists(
         ~f=
           (s: sample) =>
             !List.is_empty(sample.call_stack) && List.is_empty(s.call_stack),
         existing,
       )
-    | None => false
-    };
+    );
 };
 
 /* Display mode for probe samples */
@@ -303,12 +301,7 @@ let ref_of_sample = (s: t): span_ref => {
 let ref_matches = (r: span_ref, s: t): bool =>
   Id.equal(r.probe_id, s.syntax_id)
   && CallStack.equal(r.stack, s.call_stack)
-  && (
-    switch (r.opened) {
-    | None => true
-    | Some(o) => o == s.step_start
-    }
-  );
+  && Option.for_all(r.opened, ~f=o => o == s.step_start);
 
 module Focus = {
   open OptUtil.Syntax;
@@ -615,12 +608,9 @@ module Selection = {
             /* Probe is on an application in the pinned call chain,
              * and sample is above pin on same ancestral path (breadcrumbs) */
             || ListUtil.is_suffix_of(sample_ids, pinned_ids)
-            && (
-              switch (ap_id) {
-              | Some(id) => List.mem(pinned_ids, id, ~equal=Id.equal)
-              | None => false
-              }
-            );
+            && Option.exists(ap_id, ~f=id =>
+                 List.mem(pinned_ids, id, ~equal=Id.equal)
+               );
           },
         samples,
       );
@@ -707,8 +697,7 @@ module Selection = {
           (best: option((int, int)), (i, sample: t)) => {
             let slen = List.length(sample.call_stack);
             if (slen > 0
-                && slen
-                > (best |> Option.map(~f=snd) |> Option.value(~default=0))
+                && slen > Option.value_map(best, ~default=0, ~f=snd)
                 && ListUtil.is_suffix_of(
                      ~eq=CallStack.equal_frame,
                      sample.call_stack,

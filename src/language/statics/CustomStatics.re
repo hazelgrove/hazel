@@ -399,7 +399,7 @@ let omit_labels_statics =
     ~ctx,
     ~compute_result_type=
       (labeled_tup_info, labels) => {
-        let labels_to_drop = List.filter_map(~f=Fn.id, labels);
+        let labels_to_drop = List.filter_opt(labels);
         switch (labeled_tup_info) {
         | None => unknown
         | Some(labeled_tup_info) =>

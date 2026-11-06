@@ -17,11 +17,10 @@ type lowered = {
 let collect_module_refs_in_typ = (ctx: Ctx.t, id: Id.t, typ: Typ.t): CoCtx.t => {
   Typ.free_vars(typ)
   |> List.filter_map(~f=name =>
-       switch (Ctx.lookup_var(ctx, name)) {
-       | Some(_) =>
-         Some(CoCtx.singleton(name, id, Unknown(Internal) |> Typ.temp))
-       | None => None
-       }
+       Ctx.lookup_var(ctx, name)
+       |> Option.map(~f=_ =>
+            CoCtx.singleton(name, id, Unknown(Internal) |> Typ.temp)
+          )
      )
   |> CoCtx.union;
 };
@@ -82,8 +81,7 @@ let rec pat_for_bound_name = (name: Var.t, pat: Pat.t): Pat.t =>
     |> List.find(~f=p =>
          List.mem(Pat.bound_vars(p), name, ~equal=String.equal)
        )
-    |> Option.map(~f=pat_for_bound_name(name))
-    |> Option.value(~default=pat)
+    |> Option.value_map(~default=pat, ~f=pat_for_bound_name(name))
   | Cons(p1, p2)
   | TupLabel(p1, p2)
   | Ap(p1, p2) =>
@@ -120,7 +118,7 @@ let item_bound_names = (item: Mod.t): list(Var.t) =>
   };
 
 let collect_later_names = (items: list(Mod.t)): list(Var.t) =>
-  items |> List.map(~f=item_bound_names) |> List.concat;
+  List.concat_map(items, ~f=item_bound_names);
 
 let value_exports = (items: list(Mod.t)): list(value_export) => {
   let rec go = (items: list(Mod.t)): list(value_export) =>
@@ -330,11 +328,7 @@ let wrap_item =
 
 let lower =
     (~ctx: Ctx.t, ~ana: option(Typ.t)=?, items: list(Mod.t)): lowered => {
-  let ana_labels =
-    switch (ana) {
-    | Some(ana) => extract_ana_labels(ana)
-    | None => []
-    };
+  let ana_labels = Option.value_map(ana, ~default=[], ~f=extract_ana_labels);
   let value_exports = value_exports(items);
   {
     expanded:

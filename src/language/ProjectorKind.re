@@ -69,9 +69,6 @@ let of_name_opt = (p: string): option(t) =>
 
 /* Partial: callers must already know the name is a kind. */
 let of_name = (p: string): t =>
-  switch (of_name_opt(p)) {
-  | Some(k) => k
-  | None => failwith("Unknown projector kind")
-  };
+  of_name_opt(p) |> Util.OptUtil.get_or_fail("Unknown projector kind");
 
 let is_name = str => Option.is_some(of_name_opt(str));

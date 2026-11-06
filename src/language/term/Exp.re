@@ -280,11 +280,7 @@ let rec is_fun = (e: t) => {
         }
       | _ => None
       };
-    let element: option(t) = check_tuple(e1, e2);
-    switch (element) {
-    | Some(exp) => is_fun(exp)
-    | None => false
-    };
+    Option.exists(check_tuple(e1, e2), ~f=is_fun);
   | Invalid(_)
   | EmptyHole
   | MultiHole(_)
@@ -347,11 +343,7 @@ let rec is_tuple_of_functions = (e: t) =>
           }
         | _ => None
         };
-      let element: option(t) = check_tuple(e1, e2);
-      switch (element) {
-      | Some(exp) => is_tuple_of_functions(exp)
-      | None => false
-      };
+      Option.exists(check_tuple(e1, e2), ~f=is_tuple_of_functions);
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)

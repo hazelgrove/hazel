@@ -93,11 +93,9 @@ module Map = {
         | _ => None
         }
       };
-    switch (binding_id) {
-    | None => []
-    | Some(binding_id) =>
+    Option.value_map(binding_id, ~default=[], ~f=binding_id =>
       Id.Set.to_list(ids_referencing_binding(m, binding_id))
-    };
+    );
   };
 
   let parent_ci_of = (map: t, id: Id.t): option(Info.t) => {
@@ -184,16 +182,10 @@ module Map = {
     };
 
   let ctx_of = (id: Id.t, m: t): option(Ctx.t) =>
-    switch (lookup(id, m)) {
-    | Some(info) => Some(Info.ctx_of(info))
-    | None => None
-    };
+    Option.map(lookup(id, m), ~f=Info.ctx_of);
 
   let ancestors_of = (id: Id.t, m: t): list(Id.t) =>
-    switch (lookup(id, m)) {
-    | Some(info) => Info.ancestors_of(info)
-    | None => []
-    };
+    Option.value_map(lookup(id, m), ~default=[], ~f=Info.ancestors_of);
 };
 
 let set_marks_exp = (m: Map.t, e: Exp.t, marks: list(Mark.t)): Map.t =>
@@ -309,16 +301,13 @@ let rec ana_skip_explicit_nonlabel = (ty_ana: Typ.t): Typ.t =>
 
 let should_emit_nomeet_mark =
     (ctx: Ctx.t, ana: Typ.t, elab_syn_ty: Typ.t): bool =>
-  switch (
+  Option.is_none(
     Typ.meet(
       ctx,
       ana_skip_explicit_nonlabel(ana),
       ana_skip_explicit_nonlabel(elab_syn_ty),
-    )
-  ) {
-  | Some(_) => false
-  | None => true
-  };
+    ),
+  );
 
 let syn_ana_ok_common =
     (ctx: Ctx.t, ty_ana: Typ.t, elab_syn_ty: Typ.t): Message.ok_common => {

@@ -43,11 +43,7 @@ let empty: t = VarMap.empty;
 let mk = (ctx_before: Ctx.t, ctx_after, co_ctx: t): t => {
   let added_bindings = Ctx.added_bindings(ctx_after, ctx_before);
   VarMap.filter(
-    ((name, _)) =>
-      switch (Ctx.lookup_var(added_bindings, name)) {
-      | None => true
-      | Some(_) => false
-      },
+    ((name, _)) => Option.is_none(Ctx.lookup_var(added_bindings, name)),
     co_ctx,
   );
 };

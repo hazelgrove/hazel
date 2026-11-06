@@ -120,24 +120,15 @@ let strip_final_newline = (s: string): string => {
   };
 };
 
-let isEmptyOrWhitespace = str => {
-  let trimmed = String.strip(str);
-  String.length(trimmed) == 0;
-};
+let isEmptyOrWhitespace = str => String.is_empty(String.strip(str));
 
-let compress = (s: string): string => {
-  let result =
-    Js_of_ocaml.Js.encodeURIComponent(Js_of_ocaml.Js.string(s))
-    |> Js_of_ocaml.Js.to_string;
-  result;
-};
+let compress = (s: string): string =>
+  Js_of_ocaml.Js.encodeURIComponent(Js_of_ocaml.Js.string(s))
+  |> Js_of_ocaml.Js.to_string;
 
-let decompress = (s: string): string => {
-  let result =
-    Js_of_ocaml.Js.decodeURIComponent(Js_of_ocaml.Js.string(s))
-    |> Js_of_ocaml.Js.to_string;
-  result;
-};
+let decompress = (s: string): string =>
+  Js_of_ocaml.Js.decodeURIComponent(Js_of_ocaml.Js.string(s))
+  |> Js_of_ocaml.Js.to_string;
 
 let sanitize_filename = (s: string): string => {
   replace(regexp("[^a-zA-Z0-9_-]"), s, "");
@@ -163,9 +154,10 @@ let prefixes = (s: string): list(string) => {
   };
 };
 
-let levenshtein_distance = (a: string, b: string): int => {
-  let a_len = String.length(a);
-  let b_len = String.length(b);
+let levenshtein =
+    (~equal: ('a, 'a) => bool, a: array('a), b: array('a)): int => {
+  let a_len = Array.length(a);
+  let b_len = Array.length(b);
   if (a_len == 0) {
     b_len;
   } else if (b_len == 0) {
@@ -175,93 +167,28 @@ let levenshtein_distance = (a: string, b: string): int => {
     let curr = Array.create(~len=b_len + 1, 0);
     for (i in 1 to a_len) {
       curr[0] = i;
-      let ai = a.[i - 1];
       for (j in 1 to b_len) {
-        let bj = b.[j - 1];
-        let cost =
-          if (Char.equal(ai, bj)) {
-            0;
-          } else {
-            1;
-          };
-        let deletion = prev[j] + 1;
-        let insertion = curr[j - 1] + 1;
-        let substitution = prev[j - 1] + cost;
-        let m =
-          if (deletion < insertion) {
-            deletion;
-          } else {
-            insertion;
-          };
-        curr[j] = (
-          if (m < substitution) {
-            m;
-          } else {
-            substitution;
-          }
-        );
+        let cost = equal(a[i - 1], b[j - 1]) ? 0 : 1;
+        curr[j] = min(min(prev[j] + 1, curr[j - 1] + 1), prev[j - 1] + cost);
       };
-      for (k in 0 to b_len) {
-        prev[k] = curr[k];
-      };
+      Array.blit(
+        ~src=curr,
+        ~src_pos=0,
+        ~dst=prev,
+        ~dst_pos=0,
+        ~len=b_len + 1,
+      );
     };
     prev[b_len];
   };
 };
+
+let levenshtein_distance = (a: string, b: string): int =>
+  levenshtein(~equal=Char.equal, String.to_array(a), String.to_array(b));
 
 /* Compute edit distance between two lists of strings using the Levenshtein algorithm */
-let levenshtein_list_distance = (a: list(string), b: list(string)): int => {
-  let a_len = List.length(a);
-  let b_len = List.length(b);
-  /* Fast-paths */
-  if (a_len == 0) {
-    b_len;
-  } else if (b_len == 0) {
-    a_len;
-  } else {
-    let a_arr = Array.of_list(a);
-    let b_arr = Array.of_list(b);
-    let prev = Array.init(b_len + 1, ~f=i => i);
-    let curr = Array.create(~len=b_len + 1, 0);
-
-    let min3 = (x, y, z) => {
-      let m =
-        if (x < y) {
-          x;
-        } else {
-          y;
-        };
-      if (m < z) {
-        m;
-      } else {
-        z;
-      };
-    };
-
-    for (i in 1 to a_len) {
-      curr[0] = i;
-      let ai = a_arr[i - 1];
-      for (j in 1 to b_len) {
-        let bj = b_arr[j - 1];
-        let cost =
-          if (String.equal(ai, bj)) {
-            0;
-          } else {
-            1;
-          };
-        let deletion = prev[j] + 1;
-        let insertion = curr[j - 1] + 1;
-        let substitution = prev[j - 1] + cost;
-        curr[j] = min3(deletion, insertion, substitution);
-      };
-      /* copy curr into prev for next iteration */
-      for (k in 0 to b_len) {
-        prev[k] = curr[k];
-      };
-    };
-    prev[b_len];
-  };
-};
+let levenshtein_list_distance = (a: list(string), b: list(string)): int =>
+  levenshtein(~equal=String.equal, Array.of_list(a), Array.of_list(b));
 
 // Removes double quotes from string and escapes newlines
 // Update once https://github.com/hazelgrove/hazel/issues/786 is done

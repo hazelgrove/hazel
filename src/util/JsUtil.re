@@ -826,10 +826,9 @@ let navigate_probes =
           let attr =
             el##getAttribute(Js.string("data-cursor-aligned"))
             |> Js.Opt.to_option;
-          switch (attr) {
-          | Some(s) => !String.equal(Js.to_string(s), "true")
-          | None => true
-          };
+          Option.for_all(attr, ~f=s =>
+            !String.equal(Js.to_string(s), "true")
+          );
         };
       dominated ? find_target(idx + offset) : Some(el);
     };
@@ -841,10 +840,7 @@ let navigate_probes =
     scroll_vertically_into_view_ancestors(Js.Unsafe.coerce(el));
     let probe_id_str =
       el##getAttribute(Js.string("data-probe-id")) |> Js.Opt.to_option;
-    switch (probe_id_str) {
-    | Some(s) => Id.of_string(Js.to_string(s))
-    | None => None
-    };
+    Option.bind(probe_id_str, ~f=s => Id.of_string(Js.to_string(s)));
   | None => None
   };
 };

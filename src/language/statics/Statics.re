@@ -3111,10 +3111,8 @@ and upat_to_info_map =
          See also: the `Let` case above, which performs a similar re-analysis
          after the def's type is known. */
       let refined_mode =
-        switch (Typ.meet_all(~empty=unknown, ctx, tys_first)) {
-        | Some(ty) => ty
-        | None => mode
-        };
+        Typ.meet_all(~empty=unknown, ctx, tys_first)
+        |> Option.value(~default=mode);
       let refined_modes = List.init(List.length(ps), ~f=_ => refined_mode);
       let (ctx, tys, cons, m, infos, ps_elabs) =
         fold_patterns_with_modes(
@@ -3162,10 +3160,8 @@ and upat_to_info_map =
          the element type used to analyze both the head and tail in pass two. */
       let (hd_first, _, _) = go(~ctx, ~ana=inner_ty, hd, m);
       let refined_inner =
-        switch (Typ.meet(ctx, inner_ty, hd_first.ty)) {
-        | Some(ty) => ty
-        | None => inner_ty
-        };
+        Typ.meet(ctx, inner_ty, hd_first.ty)
+        |> Option.value(~default=inner_ty);
       /* Second pass: re-analyze with the refined element type so that
          pattern-variable bindings (e.g. `x` in `0 :: x` giving `x : [Int]`)
          pick up the refined type in their context. Mirrors the re-analysis
@@ -4218,9 +4214,9 @@ and rul_to_info_map =
      * Properly positioned rules would already have been removed
      * in maketerm and became part of case expressions */
     let tms =
-      rules
-      |> List.map(~f=((p, e)) => [Grammar.Pat(p), Grammar.Exp(e)])
-      |> List.concat;
+      List.concat_map(rules, ~f=((p, e)) =>
+        [Grammar.Pat(p), Grammar.Exp(e)]
+      );
     any_to_info_map(
       ~ctx,
       ~ancestors,

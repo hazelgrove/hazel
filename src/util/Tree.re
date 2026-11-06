@@ -45,8 +45,7 @@ let nth = (t, pos) => nth_node(t, pos) |> value;
 
 let empty = v => Node(v, []);
 
-let rec flatten = (Node(v, c)) =>
-  [v] @ (c |> List.map(~f=flatten) |> List.concat);
+let rec flatten = (Node(v, c)) => [v, ...List.concat_map(c, ~f=flatten)];
 
 /* Two Tree */
 

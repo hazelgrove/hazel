@@ -221,10 +221,7 @@ let equality =
         let* env2 = env2;
         Environment.lookup(env2, y);
       };
-      switch (lookup2) {
-      | Some(v2) => exp'(e1, v2)
-      | None => false
-      };
+      Option.exists(lookup2, ~f=v2 => exp'(e1, v2));
 
     // Wrappers otherwise: compare.
     | (DynamicErrorHole(x, err1), DynamicErrorHole(y, err2)) =>

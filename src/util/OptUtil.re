@@ -19,10 +19,7 @@ let traverse = (f: 'a => option('b), l: list('a)): option(list('b)) =>
 let and_then = (f, o) => Option.bind(o, ~f);
 
 let replace = (f: 'a => option('a), o: 'a): 'a =>
-  switch (f(o)) {
-  | Some(a) => a
-  | None => o
-  };
+  Option.value(f(o), ~default=o);
 let fold_left_opt:
   type a acc. ((acc, a) => option(acc), list(a), acc) => option(acc) =
   (f, list, init) => {

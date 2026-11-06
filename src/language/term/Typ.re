@@ -737,10 +737,10 @@ let has_fun_up_to_aliases = (ctx: Ctx.t, ty: t): bool => {
         | Poly(_)
         | ProofOf(_) => true
         | Var(x) =>
-          switch (Ctx.lookup_alias(ctx, x)) {
-          | Some(t) => go(~depth=depth + 1, ctx, t)
-          | None => false
-          }
+          Option.exists(
+            Ctx.lookup_alias(ctx, x),
+            ~f=go(~depth=depth + 1, ctx),
+          )
         | Unknown(_)
         | Atom(_)
         | DrvQuoteTy(_)
@@ -1087,11 +1087,8 @@ let is_consistent = (ctx: Ctx.t, ty1: t, ty2: t): bool =>
    * @return - `true` if `ty1` is more precise than `ty2`, otherwise `false`.
    */
 let is_more_precise = (ctx: Ctx.t, ty1: t, ty2: t): bool => {
-  let met = meet(ctx, ty1, ty2);
-  switch (met) {
-  | None => false
-  | Some(met) => Equality.semantic.typ(met, ty1)
-  };
+  meet(ctx, ty1, ty2)
+  |> Option.exists(~f=met => Equality.semantic.typ(met, ty1));
 };
 
 let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
@@ -1420,7 +1417,7 @@ let rec diff =
         : list(Id.t) => {
   let get_ids = () => all_ids(ty');
   let expand = name =>
-    if (List.exists(expanded_aliases, ~f=String.equal(name))) {
+    if (List.mem(expanded_aliases, name, ~equal=String.equal)) {
       None;
     } else {
       ctx |> Option.map(~f=Ctx.lookup_alias(_, name)) |> Option.join;

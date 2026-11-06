@@ -316,10 +316,8 @@ let rec evaluate =
      * that scope over subtree re-evaluation; deferred.) */
     let is_target = Id.Map.find(eval_info.targets, expr_id);
     let continues_delegated_span =
-      switch (is_target) {
-      | None => false
-      | Some(_) => continues_delegation(expr_id, call_stack, delegations)
-      };
+      Option.is_some(is_target)
+      && continues_delegation(expr_id, call_stack, delegations);
     switch (is_target) {
     | Some(_) when !continues_delegated_span =>
       state :=
