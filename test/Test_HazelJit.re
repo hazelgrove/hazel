@@ -137,6 +137,17 @@ let rec agree = (e: Exp.t, js: Js.Unsafe.any): option(string) => {
     && !is_null(js)
     && Js.to_string(Js.Unsafe.coerce(get(js, "c"))) == name
       ? agree(arg, get(js, "v")) : Some("the constructor " ++ name)
+  | Module(items) =>
+    List.fold_left(
+      (acc, item: Mod.t) =>
+        switch (acc, item.term) {
+        | (Some(_), _) => acc
+        | (None, ModVal(x, v)) => agree(v, get(js, x))
+        | (None, _) => None
+        },
+      None,
+      items,
+    )
   | Fun(_)
   | FixF(_)
   | Closure(_)
@@ -145,39 +156,37 @@ let rec agree = (e: Exp.t, js: Js.Unsafe.any): option(string) => {
   };
 };
 
-let agreement = (name, src) =>
-  test_case(
-    name,
-    `Quick,
-    () => {
-      let elab = elaborate(parse_exp(src));
-      let expected = Test_Evaluator_Prelude.evaluate(elab);
-      switch (HazelJit.try_compile(~env=Builtins.env_init, elab)) {
-      | Error(reason) => fail("not compiled: " ++ reason)
-      | Ok(js_src) =>
-        let got =
-          try(run_js(HazelJit.Runtime.source, js_src)) {
-          | Js_error.Exn(e) =>
-            fail(
-              "the compiled JS threw: "
-              ++ Js_error.message(e)
-              ++ "\n"
-              ++ js_src,
-            )
-          };
-        switch (agree(expected, got)) {
-        | None => ()
-        | Some(diff) =>
-          fail(
-            "differs from the interpreter: "
-            ++ diff
-            ++ "\nthe compiled JS: "
-            ++ js_src,
-          )
-        };
+let agrees = src => {
+  let elab = elaborate(parse_exp(src));
+  let expected = Test_Evaluator_Prelude.evaluate(elab);
+  let clip = js =>
+    String.length(js) > 4000 ? String.sub(js, 0, 4000) ++ " ..." : js;
+  switch (HazelJit.try_compile(~env=Builtins.env_init, elab)) {
+  | Error(reason) => fail("not compiled: " ++ reason)
+  | Ok(js_src) =>
+    let got =
+      try(run_js(HazelJit.Runtime.source, js_src)) {
+      | Js_error.Exn(e) =>
+        fail(
+          "the compiled JS threw: "
+          ++ Js_error.message(e)
+          ++ "\n"
+          ++ clip(js_src),
+        )
       };
-    },
-  );
+    switch (agree(expected, got)) {
+    | None => ()
+    | Some(diff) =>
+      fail(
+        "differs from the interpreter: "
+        ++ diff
+        ++ "\nthe compiled JS: "
+        ++ clip(js_src),
+      )
+    };
+  };
+};
+let agreement = (name, src) => test_case(name, `Quick, () => agrees(src));
 
 let not_compiled = (name, src, reason) =>
   test_case(name, `Quick, () =>
@@ -240,61 +249,140 @@ let net = (marking = [1, 0, 1, 0, 1], transitions = [
 
 /* (slow: not in the quick tests) the best case, measured: a program run n times by the interpreter, and its compiled JS run n
    times, after compiling it once; medians in ms, written to the test's output (its file under _build/_tests) */
+let timing_run = (name, src, n) => {
+  let elab = elaborate(parse_exp(src));
+  let now = () => Util.JsUtil.precise_timestamp();
+  let median = xs => {
+    let a = Array.of_list(xs);
+    Array.sort(compare, a);
+    a[Array.length(a) / 2];
+  };
+  let interp =
+    List.init(
+      n,
+      _ => {
+        let t0 = now();
+        ignore(Test_Evaluator_Prelude.evaluate(elab));
+        now() -. t0;
+      },
+    );
+  let t0 = now();
+  let js_src = HazelJit.compile(~env=Builtins.env_init, elab);
+  let compile_ms = now() -. t0;
+  /* the module members hazel-jit left as stubs, and why */
+  let stubs =
+    Str.full_split(Str.regexp({|\$R\.missing("\([^"]*\)")|}), js_src)
+    |> List.filter_map(
+         fun
+         | Str.Delim(d) => Some(d)
+         | Str.Text(_) => None,
+       );
+  Printf.printf(
+    "hazel-jit stubs in %s: %d %s; compiled JS %d bytes\n",
+    name,
+    List.length(stubs),
+    String.concat(" ", stubs),
+    String.length(js_src),
+  );
+  let f: Js.Unsafe.any =
+    Js.Unsafe.fun_call(
+      Js.Unsafe.pure_js_expr(
+        "(function (rt, src) { const R = eval('(' + rt + ')'); const f = new Function('$R', src); return function () { return f(R); }; })",
+      ),
+      [|
+        Js.Unsafe.inject(Js.string(HazelJit.Runtime.source)),
+        Js.Unsafe.inject(Js.string(js_src)),
+      |],
+    );
+  let jit =
+    List.init(
+      n,
+      _ => {
+        let t0 = now();
+        ignore(Js.Unsafe.fun_call(f, [||]): Js.Unsafe.any);
+        now() -. t0;
+      },
+    );
+  Printf.printf(
+    "hazel-jit timing %s: n=%d interpreter median %.3f ms (min %.3f), compile %.3f ms, compiled median %.4f ms (min %.4f), %.0fx\n",
+    name,
+    n,
+    median(interp),
+    List.fold_left(min, infinity, interp),
+    compile_ms,
+    median(jit),
+    List.fold_left(min, infinity, jit),
+    median(interp) /. Float.max(median(jit), 1e-6),
+  );
+};
 let timing = (name, src, n) =>
-  test_case(
-    "timing: " ++ name,
-    `Slow,
-    () => {
-      let elab = elaborate(parse_exp(src));
-      let now = () => Util.JsUtil.precise_timestamp();
-      let median = xs => {
-        let a = Array.of_list(xs);
-        Array.sort(compare, a);
-        a[Array.length(a) / 2];
-      };
-      let interp =
-        List.init(
-          n,
-          _ => {
-            let t0 = now();
-            ignore(Test_Evaluator_Prelude.evaluate(elab));
-            now() -. t0;
-          },
+  test_case("timing: " ++ name, `Slow, () => timing_run(name, src, n));
+
+/* The Polygons slide's livelit as a plain module, its view applied to the model the slide's own `shirt` gives it:
+   the slide's text up to the livelit, then `module P = { <the livelit's body> } in P.view(<shirt's model>)`. Found by
+   scanning brackets, skipping Hazel's comments (# to #) and strings. */
+let polygons_view_program = (): option(string) => {
+  let path = "hazel-programs/docs/livelits/playground/polygons.hz";
+  let path = Sys.file_exists(path) ? path : "../" ++ path;
+  switch (CorpusUtil.read_file(path)) {
+  | None => None
+  | Some(src) =>
+    let find = (from, needle) => {
+      let n = String.length(needle);
+      let rec go = i =>
+        i < 0 || i + n > String.length(src)
+          ? (-1) : String.sub(src, i, n) == needle ? i : go(i + 1);
+      go(from);
+    };
+    /* the index of the bracket closing the one at i */
+    let matching = (i, opening, closing) => {
+      let rec go = (j, depth, in_str, in_comment) =>
+        if (j < 0 || j >= String.length(src)) {
+          (-1);
+        } else {
+          let c = src.[j];
+          if (in_comment) {
+            go(j + 1, depth, false, c != '#');
+          } else if (in_str) {
+            go(j + 1, depth, c != '"', false);
+          } else if (c == '#') {
+            go(j + 1, depth, false, true);
+          } else if (c == '"') {
+            go(j + 1, depth, true, false);
+          } else if (c == opening) {
+            go(j + 1, depth + 1, false, false);
+          } else if (c == closing) {
+            depth == 1 ? j : go(j + 1, depth - 1, false, false);
+          } else {
+            go(j + 1, depth, false, false);
+          };
+        };
+      go(i, 0, false, false);
+    };
+    let def = find(0, "let ^polygons = {");
+    let open_ = def + String.length("let ^polygons = ");
+    let close = def < 0 ? (-1) : matching(open_, '{', '}');
+    let use = close < 0 ? (-1) : find(close, "^polygons(");
+    let arg_open = use + String.length("^polygons");
+    let arg_close = use < 0 ? (-1) : matching(arg_open, '(', ')');
+    arg_close < 0
+      ? None
+      : Some(
+          String.sub(src, 0, def)
+          ++ "module P = "
+          ++ String.sub(src, open_, close - open_ + 1)
+          ++ " in\nP.view("
+          ++ String.sub(src, arg_open + 1, arg_close - arg_open - 1)
+          ++ ")",
         );
-      let t0 = now();
-      let js_src = HazelJit.compile(~env=Builtins.env_init, elab);
-      let compile_ms = now() -. t0;
-      let f: Js.Unsafe.any =
-        Js.Unsafe.fun_call(
-          Js.Unsafe.pure_js_expr(
-            "(function (rt, src) { const R = eval('(' + rt + ')'); const f = new Function('$R', src); return function () { return f(R); }; })",
-          ),
-          [|
-            Js.Unsafe.inject(Js.string(HazelJit.Runtime.source)),
-            Js.Unsafe.inject(Js.string(js_src)),
-          |],
-        );
-      let jit =
-        List.init(
-          n,
-          _ => {
-            let t0 = now();
-            ignore(Js.Unsafe.fun_call(f, [||]): Js.Unsafe.any);
-            now() -. t0;
-          },
-        );
-      Printf.printf(
-        "hazel-jit timing %s: n=%d interpreter median %.3f ms (min %.3f), compile %.3f ms, compiled median %.4f ms (min %.4f), %.0fx\n",
-        name,
-        n,
-        median(interp),
-        List.fold_left(min, infinity, interp),
-        compile_ms,
-        median(jit),
-        List.fold_left(min, infinity, jit),
-        median(interp) /. Float.max(median(jit), 1e-6),
-      );
-    },
+  };
+};
+let polygons_view = (name, speed, check) =>
+  test_case(name, speed, () =>
+    switch (polygons_view_program()) {
+    | None => fail("the Polygons slide was not found, or not as expected")
+    | Some(src) => check(src)
+    }
   );
 
 let tests = (
@@ -345,8 +433,27 @@ let tests = (
     agreement("float builtins", "sqrt(16.) +. float_of_int(2)"),
     agreement("a function is a function", "fun x -> x + 1"),
     agreement("the Petri net rule", petri),
+    agreement(
+      "a module, a member using another",
+      "module M = { let x = 1; let f = fun y -> y + x } in M.f(41)",
+    ),
+    agreement(
+      "a module as a value",
+      {|module M = { let x = 1; let y = (2, "b") } in M|},
+    ),
+    agreement("the length builtin", "length([1, 2, 3])"),
+    agreement("the map builtin", "map([1, 2, 3], fun x -> x * 2)"),
+    agreement(
+      "the fold_left builtin",
+      "fold_left([1, 2, 3], fun (acc, x) -> acc + x, 10)",
+    ),
+    agreement("to_fixed", "(to_fixed(3.14159, 2), to_fixed(2., 0))"),
+    polygons_view("the Polygons slide's view", `Quick, agrees),
     not_compiled("a hole", "1 + ?", "a hole"),
     timing("the Petri net rule, four events", petri, 30),
+    polygons_view("timing: the Polygons slide's view", `Slow, src =>
+      timing_run("the Polygons slide's view", src, 30)
+    ),
     timing(
       "a recursive sum of 1,000",
       "let sum = fun n -> if n == 0 then 0 else n + sum(n - 1) in sum(1000)",

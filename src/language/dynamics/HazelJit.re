@@ -39,6 +39,7 @@ module Runtime = {
     return p === q;
   },
   nomatch(where) { throw new Error("hazel-jit: no pattern matched in " + where); },
+  missing(why) { return () => { throw new Error("hazel-jit: not compiled: " + why); }; },
   b: {
     string_of_int: n => String(n), string_of_sint: n => String(n), string_of_nat: n => String(n),
     string_of_bool: b => String(b),
@@ -55,6 +56,7 @@ module Runtime = {
     atan2: ([y, x]) => Math.atan2(y, x),
     float_min: ([a, b]) => Math.min(a, b), float_max: ([a, b]) => Math.max(a, b),
     int_mod: ([a, b]) => a % b, sint_mod: ([a, b]) => a % b, float_mod: ([a, b]) => a % b,
+    to_fixed: ([x, n]) => x.toFixed(Math.min(Math.max(n, 0), 20)),
     fst: p => p[0], snd: p => p[1],
     is_nan: Number.isNaN, is_finite: Number.isFinite,
     pi: Math.PI, infinity: Infinity, neg_infinity: -Infinity, nan: NaN
@@ -100,6 +102,7 @@ module Runtime = {
     "int_mod",
     "sint_mod",
     "float_mod",
+    "to_fixed",
     "fst",
     "snd",
     "is_nan",
@@ -476,8 +479,24 @@ let rec exp =
   | Unquote(_)
   | Splice(_) => unsupported("a quotation or a splice")
   | Projector(_) => unsupported("a projector")
-  | Module(_)
-  | ModuleExp(_) => unsupported("a module")
+  | Module(items) => module_(st, lex, items)
+  | ModuleExp(mp, e1, e2) =>
+    /* `module M = e1 in e2`, its name bound as a let's would be */
+    let rec name_of = (mp: MPat.t) =>
+      switch (mp.term) {
+      | Var(x) => x
+      | Asc(mp, _) => name_of(mp)
+      | _ => unsupported("a module bound by a pattern that is not a name")
+      };
+    let x = name_of(mp);
+    let j = fresh(st, scope, x);
+    "("
+    ++ j
+    ++ " = "
+    ++ go(e1)
+    ++ ", "
+    ++ exp(st, scope, [(x, j), ...lex], e2)
+    ++ ")";
   | Bind(_)
   | Theorem(_)
   | ProofObject(_)
@@ -506,6 +525,88 @@ and func = (st: state, lex, p: Pat.t, body: Exp.t): string => {
       ? b : "(" ++ String.concat(", ", check @ binds @ [b]) ++ ")";
   "((" ++ arg ++ ") => { " ++ body_with_decls(inner, value) ++ " })";
 }
+/* A module: its members, in order, each seeing the ones before it, gathered into one value whose properties are their
+   names (as a labeled tuple's), so `M.x` is a property read. Types are erased. A name defined twice is its last. */
+and module_ = (st: state, lex, items: list(Mod.t)): string => {
+  let inner = {decls: []};
+  let name_of_mpat = (mp: MPat.t) => {
+    let rec go = (mp: MPat.t) =>
+      switch (mp.term) {
+      | Var(x) => x
+      | Asc(mp, _) => go(mp)
+      | _ => unsupported("a module bound by a pattern that is not a name")
+      };
+    go(mp);
+  };
+  /* steps: the JS assignments, in order; exports: each member's name and its JS variable, newest first */
+  let (steps, exports, _) =
+    List.fold_left(
+      ((steps, exports, lex), item: Mod.t) =>
+        switch (item.term) {
+        | ModLet(p, e) =>
+          let tmp = fresh(st, inner, "def");
+          /* a member with a form hazel-jit does not compile is a stub that says why if it is called: a view uses
+             some of its module's members, not all (a livelit's expand, say, may be a quotation) */
+          let v =
+            try(exp(st, inner, lex, e)) {
+            | Unsupported(why) => "$R.missing(" ++ js_string(why) ++ ")"
+            };
+          let (tests, binds, lex') = pat(st, inner, lex, p, tmp);
+          let check =
+            tests == []
+              ? [] : ["(" ++ conj(tests) ++ ") || $R.nomatch(\"module\")"];
+          /* the names this member binds: the front of lex' that lex does not have */
+          let n = List.length(lex') - List.length(lex);
+          let bound = List.filteri((i, _) => i < n, lex');
+          (
+            steps @ [tmp ++ " = " ++ v] @ check @ binds,
+            bound @ exports,
+            lex',
+          );
+        | ModVal(x, e) =>
+          let j = fresh(st, inner, x);
+          (
+            steps @ [j ++ " = " ++ exp(st, inner, lex, e)],
+            [(x, j), ...exports],
+            [(x, j), ...lex],
+          );
+        | ModuleMod(mp, e) =>
+          let x = name_of_mpat(mp);
+          let j = fresh(st, inner, x);
+          (
+            steps @ [j ++ " = " ++ exp(st, inner, lex, e)],
+            [(x, j), ...exports],
+            [(x, j), ...lex],
+          );
+        | ModType(_) => (steps, exports, lex)
+        | ModExp(_) => unsupported("an expression as a module member")
+        | Invalid(_)
+        | EmptyHole
+        | MultiHole(_) => unsupported("a hole in a module")
+        },
+      ([], [], lex),
+      items,
+    );
+  /* each name once, at its newest definition, in the order first defined */
+  let names =
+    List.fold_left(
+      (acc, (x, _)) => List.mem(x, acc) ? acc : [x, ...acc],
+      [],
+      exports,
+    );
+  let value =
+    "$R.tup(["
+    ++ String.concat(", ", List.map(x => List.assoc(x, exports), names))
+    ++ "], ["
+    ++ String.concat(", ", List.map(js_string, names))
+    ++ "])";
+  "(() => { "
+  ++ body_with_decls(
+       inner,
+       "(" ++ String.concat(", ", steps @ [value]) ++ ")",
+     )
+  ++ " })()";
+}
 /* A free variable: the builtins' */
 and global = (st: state, x: string): string =>
   switch (Hashtbl.find_opt(st.global_names, x)) {
@@ -523,7 +624,12 @@ and global = (st: state, x: string): string =>
         let j = "g$" ++ sanitize(x);
         Hashtbl.add(st.global_names, x, j);
         let scope = {decls: []};
-        let v = exp(st, scope, [], d);
+        let v =
+          try(exp(st, scope, [], d)) {
+          | Unsupported(_) as exn =>
+            Hashtbl.remove(st.global_names, x);
+            raise(exn);
+          };
         st.globals = [
           "const "
           ++ j
