@@ -756,9 +756,12 @@ let unmolded_mold = (label: Label.t, sort: Sort.t): Mold.t =>
   };
 
 /* The mold of a form at the tile's stored sort. Compound: the family
- * row with that out sort; rowless Parens wraps one child at the
- * requested sort; other rowless families get the Any-fallback (in
- * particular sort=Any always falls back — no form has out=Any). Tok:
+ * row with that out sort. With no row there (in particular sort=Any
+ * always — no form has out=Any): Parens wraps one child at the
+ * requested sort; a multi-token family keeps one of its OWN rows, so
+ * that a tile with children never wears a childless mold (that row's
+ * out sort is kept, so the mold's out can differ from the tile's
+ * stored sort); a single-token family gets the Any-fallback. Tok:
  * the first atomic-candidate mold with that out sort (atomic_form
  * declaration order), else the fallback at the stored sort
  * (editor-classified fallbacks store Any; printer-built leaves store
@@ -774,7 +777,32 @@ let mold_of = (f: t, sort: Sort.t): Mold.t =>
      * fallback mold below would crash parenthesize at unregistered
      * sorts (Test_MakeTerm parenthesize-at-Any regression) */
     | None when fam == Parens => Mold.mk_op(sort, [sort])
-    | None => unmolded_mold(label_of_family(fam), Sort.Any)
+    | None =>
+      let label = label_of_family(fam);
+      /* A multi-token family asked for at a sort it has no row at keeps
+       * its own shape: the childless fallback below has no inner sorts,
+       * so a tile with children wearing it makes MakeTerm and
+       * Segment.remold_tile index past `in_` (Failure "nth" — a case
+       * rule in a module member parsed at Mod root). The sort mismatch
+       * is for statics to report, not for the mold to erase. */
+      switch (label, defs_of(fam)) {
+      | ([_, _, ..._], [first, ..._] as defs) =>
+        /* stay in the requested language layer: a `|`…`=>` asked for
+         * outside Drv is the case rule, not the derivation rule */
+        let is_drv = (s: Sort.t) =>
+          switch (s) {
+          | Drv(_) => true
+          | _ => false
+          };
+        let want_drv = is_drv(sort);
+        switch (
+          List.find_opt((d: def) => is_drv(d.mold.out) == want_drv, defs)
+        ) {
+        | Some(d) => d.mold
+        | None => first.mold
+        };
+      | _ => unmolded_mold(label, Sort.Any)
+      };
     }
   | Tok(t) =>
     switch (
