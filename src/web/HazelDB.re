@@ -60,12 +60,12 @@ let cache: ref(Util.Maps.StringMap.t(string)) =
 /* === KV operations === */
 
 let kv_save = (key: string, value: string): unit => {
-  cache := Util.Maps.StringMap.add(key, value, cache^);
+  cache := Util.Maps.StringMap.set(cache^, ~key, ~data=value);
   with_db(db => IDBStore.put(~key, ~callback=_ => (), kv_store(db), value));
 };
 
 let kv_get = (key: string): option(string) =>
-  Util.Maps.StringMap.find_opt(key, cache^);
+  Util.Maps.StringMap.find(cache^, key);
 
 let kv_clear = (~callback=() => (), ()): unit => {
   cache := Util.Maps.StringMap.empty;
@@ -86,7 +86,7 @@ let kv_load_all = (callback: list((string, string)) => unit): unit =>
       pairs => {
         cache :=
           List.fold_left(
-            ~f=(m, (k, v)) => Util.Maps.StringMap.add(k, v, m),
+            ~f=(m, (k, v)) => Util.Maps.StringMap.set(m, ~key=k, ~data=v),
             ~init=Util.Maps.StringMap.empty,
             pairs,
           );
