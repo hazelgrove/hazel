@@ -114,22 +114,46 @@ let sibs_with_sel =
 module MapPiece = {
   type updater = Piece.t => Segment.t;
 
+  /* Identity-preserving: a piece, segment or tile with nothing changed
+     beneath it comes back as the same object. A projector update away from
+     the caret (ProjectorPerform.update, through fast_local_seg's general
+     case) walks the whole zipper, and rebuilding every tile it passed made
+     the whole program new objects, for the copy and for every layer
+     downstream that keys on piece identity (Segment.ptr_eq). */
   let rec of_segment = (f: updater, seg: Segment.t): Segment.t => {
-    seg |> List.concat_map(p => f(p)) |> List.map(of_piece(f));
+    let changed = ref(false);
+    let out =
+      List.concat_map(
+        p => {
+          let ps = List.map(of_piece(f), f(p));
+          switch (ps) {
+          | [q] when q === p => ()
+          | _ => changed := true
+          };
+          ps;
+        },
+        seg,
+      );
+    changed^ ? out : seg;
   }
   and of_piece = (f: updater, piece: Piece.t): Piece.t => {
     switch (piece) {
-    | Tile(t) => Tile(of_tile(f, t))
+    | Tile(t) =>
+      let t' = of_tile(f, t);
+      t' === t ? piece : Tile(t');
     | Grout(_)
     | Projector(_)
     | Secondary(_) => piece
     };
   }
   and of_tile = (f: updater, t: Tile.t): Tile.t => {
-    {
-      ...t,
-      children: List.map(of_segment(f), t.children),
-    };
+    let children = List.map(of_segment(f), t.children);
+    List.for_all2((a, b) => a === b, children, t.children)
+      ? t
+      : {
+        ...t,
+        children,
+      };
   };
 
   let of_siblings = (f: updater, sibs: Siblings.t): Siblings.t => (
