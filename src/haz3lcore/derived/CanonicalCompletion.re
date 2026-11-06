@@ -272,6 +272,10 @@ let scan_frontier = (~start: Sort.t, pieces: list(Piece.t)): option(int) => {
   go(0, [start], pieces);
 };
 
+/* Does the span hold anything the user wrote? A projector counts: it is
+ * an operand standing in for its syntax, as in operand_to_left below. */
+let has_content: Segment.t => bool = List.exists(Piece.is_content);
+
 /* Does an operand sit to the left of index j? If so the index is in
  * OPERATOR position, where a convex-left (prefix) mold cannot serve.
  * Secondary AND grout are transparent: grout is derived from the
@@ -396,12 +400,6 @@ let middle_split_plan =
     | None => None
     | Some(child) =>
       let (l_nib, r_nib) = Mold.nibs(~index=m, Tile.mold(t));
-      let has_content =
-        List.exists(
-          fun
-          | Piece.Tile(_) => true
-          | _ => false,
-        );
       let legal = (j: int): option((Segment.t, Segment.t)) => {
         let (left, rest) = ListUtil.split_n(j, child);
         let right = List.tl(rest);
@@ -741,12 +739,6 @@ let opener_schedule =
         | Concave(_) =>
           let slice = (a, b) =>
             ListUtil.split_n(b, subseg) |> fst |> ListUtil.split_n(a) |> snd;
-          let has_content =
-            List.exists(
-              fun
-              | Piece.Tile(_) => true
-              | _ => false,
-            );
           let candidates =
             List.init(max(idx - at, 0), k => at + k)
             |> List.filter(j =>
@@ -1390,12 +1382,6 @@ let find_trailing_site =
     };
   let slice = (a, b, sg) =>
     ListUtil.split_n(b, sg) |> fst |> ListUtil.split_n(a) |> snd;
-  let has_content =
-    List.exists(
-      fun
-      | Piece.Tile(_) => true
-      | _ => false,
-    );
   let shard_text = Tile.token(t, i);
   /* region includes the frontier piece: an eligible symbolic token
      fires the frontier at its own position */
@@ -1992,13 +1978,6 @@ let rec complete_segment =
       |> Option.map(((_, _, t)) => t);
     /* per partition: ONE tile (or the wraps) per pass; remaining
      * tiles complete in later passes against the materialized result */
-    let has_content = sg =>
-      List.exists(
-        fun
-        | Piece.Tile(_) => true
-        | _ => false,
-        sg,
-      );
     let completed_parts =
       partitioned
       |> List.mapi((pi, (subseg, incomplete, wraps)) => {

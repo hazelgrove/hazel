@@ -48,7 +48,16 @@ let sort_of = (sort: Sort.t): sort =>
   switch (sort) {
   | Sort.Exp => Exp
   | Sort.Pat => Pat
-  | _ => Exp
+  /* Card only initialises on expressions and patterns (CardSyntax), so no
+     other sort reaches here. */
+  | Sort.Drv(_)
+  | Sort.Any
+  | Sort.Typ
+  | Sort.TPat
+  | Sort.Rul
+  | Sort.Mod
+  | Sort.Sig
+  | Sort.MPat => Exp
   };
 
 let to_sort = (sort: sort): Sort.t =>

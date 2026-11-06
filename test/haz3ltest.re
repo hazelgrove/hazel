@@ -118,6 +118,9 @@ let (suite, exit_with_test_status) =
     @ [Test_SettingsPanel.tests]
     @ Test_ShortcutAction.tests
     @ Test_Color.tests
+    @ Test_ColorProj.tests
+    @ Test_ProbeProj.tests
+    @ Test_CardSyntax.tests
     @ [Test_ExplainThis.tests],
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");
