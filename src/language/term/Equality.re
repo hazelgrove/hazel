@@ -457,6 +457,7 @@ let equality =
     | (Tuple(ps1), Tuple(ps2)) =>
       List.length(ps1) == List.length(ps2) && List.for_all2(pne, ps1, ps2)
     | (TupLabel(l1, p1), TupLabel(l2, p2)) => pne(l1, l2) && pne(p1, p2)
+    | (Label(l1), Label(l2)) => l1 == l2
     | (Constructor(c1, _), Constructor(c2, _)) => c1 == c2
     /* Non-name-binding pattern forms still need structural equality —
        without these, identical literal/list/cons member patterns

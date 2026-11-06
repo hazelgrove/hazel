@@ -63,16 +63,17 @@ let effective_sort = (t: Token.t, z: t, ~root): Sort.t => {
     switch (Form.Expansion.try_get(local_sort, t)) {
     | Some(_) => local_sort
     | None =>
-      /* In Mod context, try Exp since bare expressions are valid module items.
-         This mirrors remold_mod which also falls back to Exp. */
-      if (local_sort == Sort.Mod) {
-        switch (Form.Expansion.try_get(Exp, t)) {
-        | Some(_) => Exp
-        | None => parent_sort
-        };
-      } else {
-        parent_sort;
-      }
+      /* In Mod context, here or the parent's, try Exp since bare
+         expressions are valid module items. This mirrors remold_mod
+         which also falls back to Exp. */
+      let in_mod =
+        local_sort == Sort.Mod
+        || parent_sort == Sort.Mod
+        && Form.Expansion.try_get(Sort.Mod, t) == None;
+      switch (in_mod ? Form.Expansion.try_get(Exp, t) : None) {
+      | Some(_) => Exp
+      | None => parent_sort
+      };
     };
   };
 };
