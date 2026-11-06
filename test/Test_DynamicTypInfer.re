@@ -74,8 +74,6 @@ let typ_to_string = (ty: Typ.t): string =>
   )
   |> Printer.of_segment(~holes="?", ~indent="", ~is_single_line=true);
 
-let testable_typ_string = testable(Fmt.string, String.equal);
-
 /* Check the dynamic type inferred from a probe's samples. `expected` is
    None when the probe recorded nothing, or when the sample types are
    inconsistent and refuse to meet. */
@@ -87,7 +85,7 @@ let dynamic_typ_test = (name: string, code: string, expected: option(string)) =>
       let (samples, ctx) = first_probe_samples_and_ctx(code);
       let result = DynamicTypInfer.dynamic_typ_of_samples(~ctx, samples);
       check(
-        option(testable_typ_string),
+        option(string),
         name,
         expected,
         Option.map(~f=typ_to_string, result),
@@ -137,7 +135,7 @@ in [f(true), f(false)]|},
        `?`, which reads as runtime having found the type to be unknown
        rather than as runtime not having run. */
     check(
-      option(testable_typ_string),
+      option(string),
       "no samples infers nothing",
       None,
       DynamicTypInfer.dynamic_typ_of_samples(
@@ -230,7 +228,7 @@ let uncoloured_tiles_test = (name: string, code: string) =>
         [],
         Test_TypToSegment.tile_ids(seg)
         |> List.filter(~f=id => !Id.Set.mem(dynamic_ids, id))
-        |> List.map(~f=id => Id.str8(id)),
+        |> List.map(~f=Id.str8),
       );
     },
   );

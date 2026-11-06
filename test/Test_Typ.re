@@ -550,7 +550,7 @@ let diff_tests = (
           bool,
           "missing constructor marks all dynamic IDs",
           true,
-          List.length(result) > 0,
+          !List.is_empty(result),
         );
       },
     ),
@@ -575,7 +575,7 @@ let diff_tests = (
           bool,
           "extra constructor produces diff",
           true,
-          List.length(result) > 0,
+          !List.is_empty(result),
         );
       },
     ),
