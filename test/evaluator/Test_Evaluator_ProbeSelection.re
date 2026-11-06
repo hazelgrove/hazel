@@ -199,7 +199,7 @@ in f(5)|};
           bool,
           "inner sample should have depth >= 1",
           true,
-          List.length(s.call_stack) >= 1,
+          !List.is_empty(s.call_stack),
         );
         /* Cursor at the shallowest frame only */
         let outermost_frame = List.last_exn(s.call_stack);
@@ -460,7 +460,7 @@ in [f(1), f(2), f(3)]|};
         "all samples should have depth >= 1",
         true,
         List.for_all(
-          ~f=(s: Sample.t) => List.length(s.call_stack) >= 1,
+          ~f=(s: Sample.t) => !List.is_empty(s.call_stack),
           inner_samples,
         ),
       );
@@ -478,10 +478,10 @@ in [f(1), f(2), f(3)]|};
           inner_samples,
         );
       check(
-        bool,
+        option(int),
         "should preserve inner selection at index 1 (not reset to 0)",
-        true,
-        found_idx == Some(1),
+        Some(1),
+        found_idx,
       );
     },
   ),
@@ -507,10 +507,10 @@ in [f(10), f(20), f(30)]|};
           inner_samples,
         );
       check(
-        bool,
+        option(int),
         "cursor should be at preserved position (index 2)",
-        true,
-        cursor_idx == Some(2),
+        Some(2),
+        cursor_idx,
       );
     },
   ),
@@ -543,10 +543,10 @@ in ^^probe(f(1))
         ~f=
           (i, inner_sample: Sample.t) => {
             check(
-              bool,
+              int,
               "inner sample should have 1-frame call stack",
-              true,
-              List.length(inner_sample.call_stack) == 1,
+              1,
+              List.length(inner_sample.call_stack),
             );
             let app_id = List.hd_exn(inner_sample.call_stack).id;
             let cursor = mk_cursor(~indicated_call=Some(app_id), []);
@@ -645,10 +645,10 @@ in ^^probe(f(1))
         );
       /* Without indicated_call, falls to is_related → always index 0 */
       check(
-        bool,
+        option(int),
         "without indicated_call, always picks first",
-        true,
-        result == Some(0),
+        Some(0),
+        result,
       );
     },
   ),
@@ -665,7 +665,7 @@ let cur_var_ap_tests = [
       let code = {|let f : (Int -> Int) = fun x -> x + 1
 in ^^probe(f(2))|};
       let (_term, _elaborated, info_map, targets) = parse_with_probes(code);
-      let probe_ids = Id.Map.to_alist(targets) |> List.map(~f=fst);
+      let probe_ids = Id.Map.keys(targets);
       check(int, "should have 1 probe", 1, List.length(probe_ids));
       let probe_id = List.hd_exn(probe_ids);
       switch (Statics.Map.lookup(probe_id, info_map)) {
@@ -688,7 +688,7 @@ in ^^probe(f(2))|};
       let code = {|let f : (Int -> Int) = fun x -> ^^probe(x) + 1
 in f(2)|};
       let (_term, _elaborated, info_map, targets) = parse_with_probes(code);
-      let probe_ids = Id.Map.to_alist(targets) |> List.map(~f=fst);
+      let probe_ids = Id.Map.keys(targets);
       check(int, "should have 1 probe", 1, List.length(probe_ids));
       let probe_id = List.hd_exn(probe_ids);
       switch (Statics.Map.lookup(probe_id, info_map)) {
@@ -714,7 +714,7 @@ in f(2)|};
       let code = {|let f : (Int -> Int) = fun x -> ^^probe(x)
 in ^^probe(f(42))|};
       let (term, _elaborated, info_map, targets) = parse_with_probes(code);
-      let probe_ids = Id.Map.to_alist(targets) |> List.map(~f=fst);
+      let probe_ids = Id.Map.keys(targets);
       check(int, "should have 2 probes", 2, List.length(probe_ids));
       /* Evaluate to get samples */
       let elaborated = elaborate(term);
@@ -727,25 +727,23 @@ in ^^probe(f(42))|};
       let probes_map = EvaluatorState.get_probes(state);
       /* Find the call probe (wrapping f(42)) and inner probe (on x) */
       let call_probe_id =
-        List.find_exn(probe_ids, ~f=id => {
-          switch (Statics.Map.lookup(id, info_map)) {
-          | Some(info) => Option.is_some(Sample.Focus.cur_var_ap(info))
-          | None => false
-          }
-        });
+        List.find_exn(probe_ids, ~f=id =>
+          Statics.Map.lookup(id, info_map)
+          |> Option.exists(~f=info =>
+               Option.is_some(Sample.Focus.cur_var_ap(info))
+             )
+        );
       let inner_probe_id =
-        List.find_exn(probe_ids, ~f=id => {
-          switch (Statics.Map.lookup(id, info_map)) {
-          | Some(info) => Sample.Focus.cur_var_ap(info) == None
-          | None => false
-          }
-        });
+        List.find_exn(probe_ids, ~f=id =>
+          Statics.Map.lookup(id, info_map)
+          |> Option.exists(~f=info =>
+               Option.is_none(Sample.Focus.cur_var_ap(info))
+             )
+        );
       /* Get ap_id from call probe's statics */
       let ap_id =
-        switch (Statics.Map.lookup(call_probe_id, info_map)) {
-        | Some(info) => Sample.Focus.cur_var_ap(info)
-        | None => None
-        };
+        Statics.Map.lookup(call_probe_id, info_map)
+        |> Option.bind(~f=Sample.Focus.cur_var_ap);
       check(
         bool,
         "call probe should have ap_id",
@@ -754,10 +752,7 @@ in ^^probe(f(42))|};
       );
       let ap_id = Option.value_exn(ap_id);
       let inner_samples =
-        switch (Id.Map.find(probes_map, inner_probe_id)) {
-        | Some(samples) => samples
-        | None => []
-        };
+        Id.Map.find(probes_map, inner_probe_id) |> Option.value(~default=[]);
       check(
         int,
         "inner probe should have 1 sample",
@@ -767,10 +762,10 @@ in ^^probe(f(42))|};
       /* The inner sample's call stack frame ID should match ap_id */
       let inner_sample = List.hd_exn(inner_samples);
       check(
-        bool,
+        int,
         "inner sample should have 1-frame call stack",
-        true,
-        List.length(inner_sample.call_stack) == 1,
+        1,
+        List.length(inner_sample.call_stack),
       );
       let frame_id = List.hd_exn(inner_sample.call_stack).id;
       check(

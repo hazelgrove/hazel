@@ -204,11 +204,10 @@ let arb_exp_roundtrip =
     QCheck_Util.arb_exp(~minimal_idents=true, 5),
     exp => {
       let text = render_exp_as_text(exp);
-      switch (MarkerParse.of_text(~root=Exp, text)) {
-      | None => false
-      | Some(z) =>
-        String.equal(MarkerParse.to_text(z), roundtripped_text(z))
-      };
+      MarkerParse.of_text(~root=Exp, text)
+      |> Option.exists(~f=z =>
+           String.equal(MarkerParse.to_text(z), roundtripped_text(z))
+         );
     },
   );
 

@@ -3295,25 +3295,15 @@ let error_print_tests = (
    ============================================================ */
 
 let get_tool_name = (tool: API.Json.t): option(string) => {
-  switch (API.Json.dot("function", tool)) {
-  | Some(func) =>
-    switch (API.Json.dot("name", func)) {
-    | Some(name_json) => API.Json.str(name_json)
-    | None => None
-    }
-  | None => None
-  };
+  API.Json.dot("function", tool)
+  |> Option.bind(~f=API.Json.dot("name"))
+  |> Option.bind(~f=API.Json.str);
 };
 
 let get_tool_description = (tool: API.Json.t): option(string) => {
-  switch (API.Json.dot("function", tool)) {
-  | Some(func) =>
-    switch (API.Json.dot("description", func)) {
-    | Some(desc_json) => API.Json.str(desc_json)
-    | None => None
-    }
-  | None => None
-  };
+  API.Json.dot("function", tool)
+  |> Option.bind(~f=API.Json.dot("description"))
+  |> Option.bind(~f=API.Json.str);
 };
 
 let tool_json_tests = (

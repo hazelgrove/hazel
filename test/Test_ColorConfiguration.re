@@ -164,8 +164,7 @@ let words = text =>
 
 let flags_are_read_once = () => {
   let ws = words(strip_comments(CC.source.backup_text));
-  let occurrences = w =>
-    List.length(List.filter(~f=x => String.equal(x, w), ws));
+  let occurrences = w => List.count(ws, ~f=String.equal(w));
   /* one binding plus one use */
   check(
     int,
@@ -374,7 +373,7 @@ let golden_path = () =>
     /* First run, or the file was deleted: write where the tree root is. */
     switch (
       List.find(
-        ~f=d => Stdlib.Sys.file_exists(d),
+        ~f=Stdlib.Sys.file_exists,
         [
           "test/goldens",
           "../test/goldens",
@@ -412,25 +411,11 @@ let render_golden = (): string => {
   Buffer.contents(buf);
 };
 
-let read_file = (path: string): string => {
-  let ic = Stdlib.open_in_bin(path);
-  let n = Stdlib.in_channel_length(ic);
-  let s = Stdlib.really_input_string(ic, n);
-  Stdlib.close_in(ic);
-  s;
-};
-
-let write_file = (path: string, s: string): unit => {
-  let oc = Stdlib.open_out_bin(path);
-  Stdlib.output_string(oc, s);
-  Stdlib.close_out(oc);
-};
-
 let colors_match_golden = () => {
   let path = golden_path();
   let actual = render_golden();
   if (Option.is_some(Stdlib.Sys.getenv_opt("UPDATE_COLOR_GOLDEN"))) {
-    write_file(path, actual);
+    Out_channel.write_all(path, ~data=actual);
     check(bool, "golden rewritten (" ++ path ++ ")", true, true);
   } else if (!Stdlib.Sys.file_exists(path)) {
     failwith(
@@ -439,7 +424,7 @@ let colors_match_golden = () => {
       ++ " -- run UPDATE_COLOR_GOLDEN=1 ./run_tests test 'ColorConfiguration'",
     );
   } else {
-    let expected = read_file(path);
+    let expected = In_channel.read_all(path);
     /* Report the differing LINES, not a 40KB blob: alcotest would print both
        whole files and the actual change would be unfindable. */
     let split = t =>
@@ -565,7 +550,7 @@ let render_theme_css = (): string => {
       light,
     )
     |> List.map(~f=((n, v)) => Printf.sprintf("  --%s: %s;\n", n, v))
-    |> String.concat(~sep="");
+    |> String.concat;
   {|/* GENERATED FILE -- DO NOT EDIT.
 
    Emitted from the Colors configuration slide (hazel-programs/config/colors.hz)
@@ -592,11 +577,11 @@ let theme_css_is_current = () => {
   let path = theme_css_path();
   let wanted = render_theme_css();
   if (Option.is_some(Stdlib.Sys.getenv_opt("UPDATE_CSS_DEFAULTS"))) {
-    write_file(path, wanted);
+    Out_channel.write_all(path, ~data=wanted);
     check(bool, "theme stylesheet rewritten (" ++ path ++ ")", true, true);
   } else {
     let split = t => String.split(t, ~on='\n');
-    let (e, a) = (split(wanted), split(read_file(path)));
+    let (e, a) = (split(wanted), split(In_channel.read_all(path)));
     check(
       list(string),
       theme_css_rel ++ " is stale (missing; run `make update-css-defaults`)",

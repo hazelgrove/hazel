@@ -50,30 +50,6 @@ let corpus_roots = [
   "../../hazel-programs",
 ];
 
-let rec find_hz = (dir: string): list(string) =>
-  switch (Stdlib.Sys.readdir(dir)) {
-  | entries =>
-    entries
-    |> Array.to_list
-    |> List.concat_map(~f=entry => {
-         let path = Filename.concat(dir, entry);
-         switch (Stdlib.Sys.is_directory(path)) {
-         | true => find_hz(path)
-         | false => Filename.check_suffix(entry, ".hz") ? [path] : []
-         | exception _ => []
-         };
-       })
-  | exception _ => []
-  };
-
-let read_file = (path: string): string => {
-  let ic = Stdlib.open_in_bin(path);
-  let n = Stdlib.in_channel_length(ic);
-  let s = Stdlib.really_input_string(ic, n);
-  Stdlib.close_in(ic);
-  s;
-};
-
 /* Strict on parens: the two parsers agree on Parens placement (verified
    corpus-wide — every previous loose-mode reliance was actually the
    Projector-unwrap half of the old bundled flag). ignore_projectors
@@ -92,12 +68,10 @@ let check_file = (path: string): unit => {
   /* Normalize as the load path does, rather than String.trim: that is the
      form the editor ever sees, and it lets ParsedCorpus share the parse with
      DocSlides.ReparseBackuptext, which checks the same programs. */
-  let txt = read_file(path) |> ParsedCorpus.normalize;
+  let txt = In_channel.read_all(path) |> ParsedCorpus.normalize;
   let mk =
-    switch (ParsedCorpus.to_segment(~root=Exp, txt)) {
-    | Some(seg) => Some(MakeTerm.go(seg).term)
-    | None => None
-    };
+    ParsedCorpus.to_segment(~root=Exp, txt)
+    |> Option.map(~f=seg => MakeTerm.go(seg).term);
   let mh =
     switch (MenhirParser.Interface.parse_program(txt)) {
     | ast =>
@@ -126,7 +100,7 @@ let tests = (
   {
     let files =
       corpus_roots
-      |> List.concat_map(~f=find_hz)
+      |> List.concat_map(~f=ParsedCorpus.find_hz)
       |> List.dedup_and_sort(~compare=Poly.compare);
     switch (files) {
     | [] => [

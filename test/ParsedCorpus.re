@@ -30,3 +30,19 @@ let to_segment =
     seg;
   };
 };
+
+let rec find_hz = (dir: string): list(string) =>
+  switch (Stdlib.Sys.readdir(dir)) {
+  | entries =>
+    entries
+    |> Array.to_list
+    |> List.concat_map(~f=entry => {
+         let path = Filename.concat(dir, entry);
+         switch (Stdlib.Sys.is_directory(path)) {
+         | true => find_hz(path)
+         | false => Filename.check_suffix(entry, ".hz") ? [path] : []
+         | exception _ => []
+         };
+       })
+  | exception _ => []
+  };
