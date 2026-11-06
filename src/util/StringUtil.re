@@ -103,9 +103,6 @@ let trim_leading = (s: string): string => {
   |> replace(regexp("\n[\\t \\r]*"), _, "\n"); // After each newline
 };
 
-let split_first = (~on: char, s: string): option((string, string)) =>
-  String.lsplit2(s, ~on);
-
 /* Strip exactly one final newline: the artifact a writer appends (POSIX
    final newline in files; PersistentZipper.persist). All other edge
    whitespace is content and round-trips. */
@@ -163,7 +160,7 @@ let levenshtein =
   } else if (b_len == 0) {
     a_len;
   } else {
-    let prev = Array.init(b_len + 1, ~f=i => i);
+    let prev = Array.init(b_len + 1, ~f=Fn.id);
     let curr = Array.create(~len=b_len + 1, 0);
     for (i in 1 to a_len) {
       curr[0] = i;

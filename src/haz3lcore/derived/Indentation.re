@@ -75,7 +75,7 @@ let rec shallow_complete_segment = (seg: Segment.t): Segment.t => {
       List.rev([
         Piece.Tile({
           ...t,
-          shards: List.init(Tile.arity(t), ~f=i => i),
+          shards: List.range(0, Tile.arity(t)),
           children: t.children @ [shallow_complete_segment(rest)],
           /* Note: Potentially wrong number of children */
         }),

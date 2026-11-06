@@ -1015,14 +1015,14 @@ module Update = {
           ~is_edited,
           ~statics_mode,
           ~queue_worker,
-          ~stitch=x => x,
+          ~stitch=Fn.id,
           editor,
         );
       let dispatch = (_key, action) =>
         schedule_action(CellAction(ResultAction(action)));
       EvalRequest.request(
         worker_request^,
-        ~pos_of_key=key => key,
+        ~pos_of_key=Fn.id,
         ~dispatch,
         ~on_timeout=
           List.iter(~f=((key, _)) =>

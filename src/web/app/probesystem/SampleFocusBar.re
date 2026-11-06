@@ -350,10 +350,10 @@ let view =
       switch (pinned_stack) {
       | Some(ps)
           when
-            ListUtil.is_suffix_of(
-              ~eq=CallStack.equal_frame,
-              ps,
+            List.is_suffix(
               sample_focus.call_stack,
+              ~suffix=ps,
+              ~equal=CallStack.equal_frame,
             ) =>
         Some(List.length(ps) - 1)
       | _ => None
@@ -517,7 +517,7 @@ let view =
      * (ap_id prepended to call_stack in capture), this naturally covers
      * both the "inside a function" and "on an application" cases. */
     let body_icon =
-      switch (ListUtil.last_opt(call_stack)) {
+      switch (List.last(call_stack)) {
       | Some(last_frame) =>
         let param_target =
           get_param_target(

@@ -1390,10 +1390,11 @@ let view =
                     None;
                   };
                 let nodes =
-                  List.filter_map(
-                    ~f=x => x,
-                    [reasoning_node, content_node, metadata_node],
-                  );
+                  List.filter_opt([
+                    reasoning_node,
+                    content_node,
+                    metadata_node,
+                  ]);
                 switch (nodes) {
                 | [] => (acc, [])
                 | xs => (List.rev_append(xs, acc), [])
@@ -1854,7 +1855,7 @@ let view =
                 };
               let body_nodes: list(Node.t) =
                 if (has_reasoning || has_content) {
-                  List.filter_map(~f=x => x, [reasoning_node, content_node]);
+                  List.filter_opt([reasoning_node, content_node]);
                 } else {
                   [
                     div_c(

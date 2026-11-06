@@ -425,7 +425,7 @@ let update_use_sites_of_pat =
    that case up front (see the Update(Pattern) arm in [[CompositionGo]]), so
    hitting it here is a hard error rather than a silent no-op.
    */
-  switch (ListUtil.opt_zip(old_names, new_names)) {
+  switch (ListUtil.combine_opt(old_names, new_names)) {
   | None =>
     raise(
       Failure(

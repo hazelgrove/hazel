@@ -86,7 +86,7 @@ module Update = {
                   | None => false
                   }
                 )
-              : (x => x)
+              : Fn.id
           );
 
         all_assumption_boxes;

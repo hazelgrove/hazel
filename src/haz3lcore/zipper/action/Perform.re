@@ -239,8 +239,8 @@ let rec go =
       ~case_rules=false,
       z,
     )
-    |> OptUtil.and_then(
-         Introduce.introduce(Indicated.ci_of(z, statics.info_map)),
+    |> Option.bind(
+         ~f=Introduce.introduce(Indicated.ci_of(z, statics.info_map)),
        )
     |> return(CantIntroduce)
   | Paste(clipboard) =>
@@ -467,7 +467,7 @@ let rec go =
      * overshoot the intended endpoints. */
     z
     |> Move.to_point(~measured=syntax.measured, ~goal=p1)
-    |> OptUtil.and_then(z =>
+    |> Option.bind(~f=z =>
          Select.to_point(
            ~chunkiness=ByChar,
            ~measured=syntax.measured,

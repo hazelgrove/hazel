@@ -118,7 +118,7 @@ let format_probe_values =
         | Single => 1
         | Many => 5
         };
-      let selected = ListUtil.take(max_samples, samples);
+      let selected = List.take(samples, max_samples);
       let formatted =
         List.map(
           ~f=(s: Sample.t) => format_value(~max_length=40, s.value),

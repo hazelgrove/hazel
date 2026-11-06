@@ -26,7 +26,7 @@ let dynamic_typ_of_samples =
   | [] => None
   | _ =>
     Option.bind(
-      List.map(~f=type_of_sample(~ctx), samples) |> Util.OptUtil.sequence,
+      List.map(~f=type_of_sample(~ctx), samples) |> Option.all,
       ~f=Typ.meet_all(~empty=Typ.fresh(Unknown(Internal)), ctx),
     )
   };

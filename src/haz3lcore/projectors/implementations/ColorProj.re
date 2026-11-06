@@ -151,7 +151,7 @@ module M: Projector = {
     switch (
       info.syntax
       |> info.utility.seg_to_term
-      |> OptUtil.and_then(literal_of_any)
+      |> Option.bind(~f=literal_of_any)
     ) {
     | Some(t) => t
     | None => failwith("Color: Get: not an Oklch or Rgb literal")
@@ -161,7 +161,7 @@ module M: Projector = {
     switch (
       info.syntax
       |> info.utility.seg_to_term
-      |> OptUtil.and_then(literal_of_any)
+      |> Option.bind(~f=literal_of_any)
     ) {
     | Some(l) => form_of_literal(l)
     | None => AsOklch

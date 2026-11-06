@@ -97,10 +97,8 @@ module Model = {
         ~f=unpersist_exercise(~settings, ~instructor_mode),
       );
     let current =
-      ListUtil.findi_opt(
-        (spec: exercise_spec) =>
-          Id.equal(id_of_spec(spec), persistent.cur_exercise),
-        ExerciseSettings.exercises,
+      List.findi(ExerciseSettings.exercises, ~f=(_, spec: exercise_spec) =>
+        Id.equal(id_of_spec(spec), persistent.cur_exercise)
       )
       |> Option.value_map(~default=0, ~f=fst);
     {
@@ -281,9 +279,8 @@ module Store = {
       ~f=
         ((key, value)) => {
           let n =
-            ListUtil.findi_opt(
-              spec => Model.id_of_spec(spec) == key,
-              exercise_specs,
+            List.findi(exercise_specs, ~f=(_, spec) =>
+              Model.id_of_spec(spec) == key
             )
             |> Option.value_exn
             |> fst;

@@ -129,7 +129,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       let entries: list(option((option(string), Exp.t))) =
         List.map(~f=unbox_tup_label, ds);
 
-      switch (OptUtil.sequence(entries)) {
+      switch (Option.all(entries)) {
       | Some(entries) => Matches(entries)
       | None => DoesNotMatch
       };

@@ -426,8 +426,8 @@ let get_stitched = (pos, s: stitched('a)): 'a =>
     s.trees
     |> List.nth_exn(_, i)
     |> Tree.nth(_, pos)
-    |> OptUtil.value_exn(
-         ~none=Invalid_argument("DerivationExercise.get_stitched"),
+    |> OptUtil.get_or_raise(
+         Invalid_argument("DerivationExercise.get_stitched"),
        )
   };
 

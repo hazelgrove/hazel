@@ -811,7 +811,7 @@ module Transition = (EV: EV_MODE) => {
           } else {
             let builtin =
               VarMap.lookup(Builtins.forms_init, ident)
-              |> OptUtil.get(() => {
+              |> Option.value_or_thunk(~default=() => {
                    /* This exception should never be raised because there is
                       no way for the user to create a BuiltinFun. They are all
                       inserted into the context before evaluation. */

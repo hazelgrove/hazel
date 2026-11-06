@@ -18,7 +18,7 @@ let rec exp_to_rule = (exp: Exp.t): t =>
     let bindings' =
       ProofHacks.dhpat_extend_ctx(p, Typ.temp(Unknown(Internal)), Ctx.empty)
       |> Option.map(~f=(x: Ctx.t) => x.entries)
-      |> OptUtil.get(() => []);
+      |> Option.value_or_thunk(~default=() => []);
     let {bindings, conclusion} = exp_to_rule(e);
     {
       bindings: bindings' @ bindings,

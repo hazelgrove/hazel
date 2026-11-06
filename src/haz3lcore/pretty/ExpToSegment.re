@@ -1278,7 +1278,7 @@ let mk_form =
     id,
     form: Form.Compound(fam),
     sort,
-    shards: List.init(List.length(children) + 1, ~f=n => n),
+    shards: List.range(0, List.length(children) + 1),
     children,
   });
 };
@@ -1734,12 +1734,16 @@ and drv_type_hole_to_pretty =
   | MultiHole(tm) =>
     let+ tm =
       tm |> List.map(~f=drv_to_pretty(~settings, ~sort=DrvSort.Exp)) |> all;
-    ListUtil.flat_intersperse(
-      Grout({
-        id,
-        shape: Concave,
-      }),
-      tm,
+    List.concat(
+      List.intersperse(
+        tm,
+        ~sep=[
+          Grout({
+            id,
+            shape: Concave,
+          }),
+        ],
+      ),
     );
   };
 }
@@ -2866,7 +2870,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     | Variant(c, ann, None) => {
         let+ seg =
           text_to_pretty(
-            OptUtil.get(() => Id.mk(), ListUtil.hd_opt(ann.ids)),
+            Option.value_or_thunk(List.hd(ann.ids), ~default=Id.mk),
             Sort.Typ,
             c,
           );
@@ -2877,7 +2881,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
            hd is the constructor tile, nth 1 the ap tile */
         let+ constructor =
           text_to_pretty(
-            OptUtil.get(() => Id.mk(), ListUtil.hd_opt(ann.ids)),
+            Option.value_or_thunk(List.hd(ann.ids), ~default=Id.mk),
             Sort.Typ,
             c,
           );
@@ -2887,7 +2891,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
           @ [
             mk_form(
               Ap,
-              OptUtil.get(() => Id.mk(), List.nth(ann.ids, 1)),
+              Option.value_or_thunk(List.nth(ann.ids, 1), ~default=Id.mk),
               [go(x)],
             ),
           ],
@@ -3370,7 +3374,7 @@ and rul_to_pretty = (~settings: Settings.t, rul: Rul.t): pretty => {
   let (@) = concat_segment(~secondary=settings.secondary);
   let mk_form = mk_form(~secondary=settings.secondary, ~sort=Sort.Rul);
   let rep_id =
-    OptUtil.get(() => Id.mk(), ListUtil.hd_opt(IdTagged.ids(rul)));
+    Option.value_or_thunk(List.hd(IdTagged.ids(rul)), ~default=Id.mk);
   switch (rul |> IdTagged.term_of) {
   | Invalid(t) => wrap(rul, invalid_to_pretty(rep_id, Sort.Rul, t))
   | MultiHole(es) =>
@@ -3575,9 +3579,9 @@ let rec strip_synthesized_shards =
                   child(i) @ (i + 1 < b || end_tok ? tok(i + 1) : [])
                 );
            let first = List.hd_exn(orig);
-           let last = List.nth_exn(orig, List.length(orig) - 1);
+           let last = List.last_exn(orig);
            let before =
-             List.init(first, ~f=i => i)
+             List.range(0, first)
              |> List.concat_map(~f=i => tok(i) @ child(i));
            let after = span(~end_tok=true, last, List.length(children));
            let rec kept_slots = m =>

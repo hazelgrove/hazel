@@ -2,7 +2,6 @@
  * mode — Caret: the enclosing top-level def (+ function-sugar params), All:
  * the program root — and reconciles them onto the zipper as multi-probes.
  * Driven by Editor.calculate. */
-open Util;
 open Language;
 
 /* Walk ancestors outermost-to-innermost, picking the def of the
@@ -144,9 +143,7 @@ let current_toplevel_def =
     let (l_sibs, _) = ZipperBase.sibs_with_sel(z);
     /* trim right-end secondaries, then take the last piece (nearest non-secondary on the left). */
     let trimmed = Segment.trim_secondary(Right, l_sibs);
-    Option.bind(ListUtil.last_opt(trimmed), ~f=last =>
-      try_id(Piece.id(last))
-    );
+    Option.bind(List.last(trimmed), ~f=last => try_id(Piece.id(last)));
   };
 
   let from_right = () => {

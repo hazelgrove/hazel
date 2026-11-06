@@ -205,7 +205,7 @@ let view_usage = (p: Message.Model.usage_output): Node.t => {
     opt_row("limit", p.usage_limit),
     opt_row("remaining", p.usage_remaining),
   ];
-  let rows = List.filter_map(~f=x => x, candidates);
+  let rows = List.filter_opt(candidates);
   card(
     ~kind="usage",
     ~title="OpenRouter key usage",

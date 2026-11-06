@@ -706,10 +706,7 @@ let view =
             ),
             div_c(
               "chat-input-top-bar-right",
-              List.filter_map(
-                ~f=x => x,
-                [cache_indicator_label, model_name_label],
-              ),
+              List.filter_opt([cache_indicator_label, model_name_label]),
             ),
           ],
         );

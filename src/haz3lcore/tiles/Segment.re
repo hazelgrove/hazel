@@ -124,7 +124,7 @@ and incomplete_tiles_deep_acc = (acc, seg: t) =>
   );
 
 let incomplete_tiles_to_missing_shards = seg =>
-  seg |> List.map(~f=Tile.missing_shards) |> List.concat;
+  seg |> List.concat_map(~f=Tile.missing_shards);
 
 let global_missing_shards = (seg: t) =>
   seg |> incomplete_tiles_deep |> incomplete_tiles_to_missing_shards;
@@ -158,8 +158,7 @@ let shape_affix =
       let (wgw, s, tl) = go(tl, r);
       let shape =
         switch (Piece.shapes(p)) {
-        | Some(shapes) =>
-          shapes |> (d == Left ? TupleUtil.swap : Fn.id) |> fst
+        | Some(shapes) => shapes |> (d == Left ? Tuple2.swap : Fn.id) |> fst
         | None => s
         };
       switch (p) {
@@ -209,7 +208,7 @@ and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
           ts
           |> List.filter(~f=t => Nib.Shape.fits(shape, fst(Tile.shapes(t))))
       )
-      |> ListUtil.hd_opt
+      |> List.hd
     };
   let remolded_mold = Tile.mold(remolded);
   let orig_mold = Tile.mold(t);
@@ -899,7 +898,7 @@ and regrout_affix =
         | Grout(g) => (Trim.(merge(cons_g(g, trim))), r, tl)
         | Projector(pr) =>
           let (l', r') =
-            ProjectorCore.shapes(pr) |> (d == Left ? TupleUtil.swap : Fn.id);
+            ProjectorCore.shapes(pr) |> (d == Left ? Tuple2.swap : Fn.id);
           let trim = Trim.regrout((r', r), trim);
           (Trim.empty, l', [p, ...Trim.to_seg(trim)] @ tl);
         | Tile(t) =>
@@ -919,8 +918,7 @@ and regrout_affix =
               ...t,
               children,
             });
-          let (l', r') =
-            Tile.shapes(t) |> (d == Left ? TupleUtil.swap : Fn.id);
+          let (l', r') = Tile.shapes(t) |> (d == Left ? Tuple2.swap : Fn.id);
           let trim = Trim.regrout((r', r), trim);
           (Trim.empty, l', [p, ...Trim.to_seg(trim)] @ tl);
         }
@@ -1129,7 +1127,7 @@ let trim_secondary: (Direction.t, t) => t =
 
 let edge_shape_of = (d: Direction.t, ps: t): option(Nib.Shape.t) => {
   let trimmed = trim_secondary(d, ps);
-  switch (d, ListUtil.hd_opt(trimmed), ListUtil.last_opt(trimmed)) {
+  switch (d, List.hd(trimmed), List.last(trimmed)) {
   | (Right, _, Some(p)) => p |> Piece.shapes |> Option.map(~f=snd)
   | (Left, Some(p), _) => p |> Piece.shapes |> Option.map(~f=fst)
   | _ => None
@@ -1171,11 +1169,11 @@ let last_string =
   fun
   | [] => "EMPTY"
   | xs =>
-    switch (ListUtil.last(xs)) {
+    switch (List.last_exn(xs)) {
     | Piece.Secondary(w) => Secondary.get_string(w.content)
     | Piece.Grout(_) => "?"
     | Piece.Projector(_) => "PROJECTOR"
-    | Piece.Tile(t) => Tile.label(t) |> ListUtil.last
+    | Piece.Tile(t) => Tile.label(t) |> List.last_exn
     };
 
 let sort_of = (skel: Skel.t, seg: t): Sort.t =>
