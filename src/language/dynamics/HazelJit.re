@@ -151,9 +151,9 @@ let sanitize = (name: string): string =>
   String.map(
     c =>
       switch (c) {
-      | 'a'..'z'
-      | 'A'..'Z'
-      | '0'..'9'
+      | 'a' .. 'z'
+      | 'A' .. 'Z'
+      | '0' .. '9'
       | '_' => c
       | _ => '_'
       },
@@ -230,7 +230,11 @@ let rec pat =
       | [] => (tests @ [v ++ " === null"], binds, lex)
       | [p, ...rest] =>
         let (t, b, lex) = pat(st, scope, lex, p, v ++ ".h");
-        go(rest, v ++ ".t", (tests @ [v ++ " !== null"] @ t, binds @ b, lex));
+        go(
+          rest,
+          v ++ ".t",
+          (tests @ [v ++ " !== null"] @ t, binds @ b, lex),
+        );
       };
     go(ps, v, ([], [], lex));
   | Cons(ph, pt) =>
@@ -258,7 +262,8 @@ let rec pat =
     |> (((t, b, lex, _)) => (t, b, lex))
   | TupLabel(l, p') =>
     switch (pat_label_of(l)) {
-    | Some(name) => pat(st, scope, lex, p', v ++ "[" ++ js_string(name) ++ "]")
+    | Some(name) =>
+      pat(st, scope, lex, p', v ++ "[" ++ js_string(name) ++ "]")
     | None => unsupported("a tuple label that is not a name")
     }
   | Constructor(name, _) => ([v ++ ".c === " ++ js_string(name)], [], lex)
@@ -293,7 +298,8 @@ let rec exp =
   switch (Exp.term_of(e)) {
   | Atom(Int(n))
   | Atom(Nat(n)) => js_bigint(n)
-  | Atom(SInt(n)) => n < 0 ? "(" ++ string_of_int(n) ++ ")" : string_of_int(n)
+  | Atom(SInt(n)) =>
+    n < 0 ? "(" ++ string_of_int(n) ++ ")" : string_of_int(n)
   | Atom(Float(f)) => js_float(f)
   | Atom(Bool(b)) => string_of_bool(b)
   | Atom(String(s)) => js_string(s)
@@ -350,7 +356,8 @@ let rec exp =
       : arr;
   | TupLabel(l, e') =>
     switch (label_of(l)) {
-    | Some(name) => "$R.tup([" ++ go(e') ++ "], [" ++ js_string(name) ++ "])"
+    | Some(name) =>
+      "$R.tup([" ++ go(e') ++ "], [" ++ js_string(name) ++ "])"
     | None => unsupported("a tuple label that is not a name")
     }
   | Dot(e1, l) =>
@@ -403,9 +410,12 @@ let rec exp =
         ((p, body), rest) => {
           let (tests, binds, lex') = pat(st, scope, lex, p, tmp);
           let then_ =
-            "(" ++ String.concat(", ", binds @ [exp(st, scope, lex', body)]) ++ ")";
+            "("
+            ++ String.concat(", ", binds @ [exp(st, scope, lex', body)])
+            ++ ")";
           tests == []
-            ? then_ : "(" ++ conj(tests) ++ " ? " ++ then_ ++ " : " ++ rest ++ ")";
+            ? then_
+            : "(" ++ conj(tests) ++ " ? " ++ then_ ++ " : " ++ rest ++ ")";
         },
         rules,
         "$R.nomatch(\"case\")",
