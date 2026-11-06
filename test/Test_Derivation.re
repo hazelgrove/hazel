@@ -467,6 +467,132 @@ let test_falsity_e_correct = () =>
     [d_entail(d_ctx([]), d_falsity)],
   );
 
+/* ----------------------- E_Case_L: substitution under binders ----------------------- */
+
+let d_num = (n: int): Drv.Exp.t => Drv.Exp.fresh(NumLit(n));
+let d_injl = (e: Drv.Exp.t): Drv.Exp.t => Drv.Exp.fresh(InjL(e));
+let d_eval = (e: Drv.Exp.t, v: Drv.Exp.t): Drv.Exp.t =>
+  Drv.Exp.fresh(Eval(e, v));
+let p_var = (x: string): Drv.Pat.t => IdTagged.fresh(Var(x): Drv.Pat.term);
+/* `case e of L(x) -> e1 else R(y) -> e2`; case binders are always wrapped in
+   InjL/InjR patterns, as RuleSpec.case builds them. */
+let d_case = (e, x, e1, y, e2): Drv.Exp.t =>
+  Drv.Exp.fresh(
+    Case(
+      e,
+      IdTagged.fresh(InjL(p_var(x)): Drv.Pat.term),
+      e1,
+      IdTagged.fresh(InjR(p_var(y)): Drv.Pat.term),
+      e2,
+    ),
+  );
+
+/* case L(1) of L(x) -> (case L(2) of L(x) -> x else R(y) -> y)
+              else R(y) -> y
+   evaluates to 2: the inner case rebinds x, so substituting 1 for x in the
+   outer branch leaves the inner branch alone. */
+let test_e_case_l_inner_case_shadows = () => {
+  let inner = d_case(d_injl(d_num(2)), "x", d_var("x"), "y", d_var("y"));
+  check_correct(
+    ~msg="E_Case_L: inner case rebinding x is not substituted into",
+    E_Case_L,
+    d_eval(
+      d_case(d_injl(d_num(1)), "x", inner, "y", d_var("y")),
+      d_num(2),
+    ),
+    [
+      d_eval(d_injl(d_num(1)), d_injl(d_num(1))),
+      d_eval(inner, d_num(2)),
+    ],
+  );
+};
+
+let test_subst_stops_at_case_binder = () => {
+  let inner = d_case(d_injl(d_num(2)), "x", d_var("x"), "y", d_var("x"));
+  /* [1/x] inner: the L branch rebinds x, the R branch does not. */
+  let expected = d_case(d_injl(d_num(2)), "x", d_var("x"), "y", d_num(1));
+  check(
+    bool,
+    "[1/x](case L(2) of L(x) -> x else R(y) -> x)",
+    true,
+    Drv.Exp.eq(
+      Drv.Exp.subst(d_num(1), "x", inner),
+      expected,
+      ~skip_hole=false,
+    ),
+  );
+};
+
+let test_subst_stops_at_parenthesized_binder = () => {
+  let f =
+    Drv.Exp.fresh(
+      Fun(IdTagged.fresh(Parens(p_var("x")): Drv.Pat.term), d_var("x")),
+    );
+  check(
+    bool,
+    "[1/x](fun (x) -> x) = fun (x) -> x",
+    true,
+    Drv.Exp.eq(Drv.Exp.subst(d_num(1), "x", f), f, ~skip_hole=false),
+  );
+};
+
+/* ----------------------- glb on recursive types ----------------------- */
+
+let t_fresh = (t: Drv.Typ.term): Drv.Typ.t => Drv.Typ.fresh(t);
+let t_rec = (a: string, body: Drv.Typ.t): Drv.Typ.t =>
+  t_fresh(Rec(IdTagged.fresh(Var(a): Drv.TPat.term), body));
+let t_sum = (t1, t2) => t_fresh(Sum(t1, t2));
+let t_var = a => t_fresh(Var(a));
+let t_num = t_fresh(Num);
+let t_hole = t_fresh(TypHole);
+
+let check_glb = (~msg, t1, t2, expected) =>
+  check(
+    bool,
+    msg,
+    true,
+    Drv.Typ.eq(Drv.Typ.glb(t1, t2), expected, ~skip_hole=false),
+  );
+
+let test_glb_rec_same_binder = () =>
+  check_glb(
+    ~msg="glb(rec a. a + ?, rec a. a + Num) = rec a. a + Num",
+    t_rec("a", t_sum(t_var("a"), t_hole)),
+    t_rec("a", t_sum(t_var("a"), t_num)),
+    t_rec("a", t_sum(t_var("a"), t_num)),
+  );
+
+let test_glb_rec_different_binders = () =>
+  check_glb(
+    ~msg="glb(rec a. a + ?, rec b. b + Num) = rec c. c + Num",
+    t_rec("a", t_sum(t_var("a"), t_hole)),
+    t_rec("b", t_sum(t_var("b"), t_num)),
+    t_rec("c", t_sum(t_var("c"), t_num)),
+  );
+
+/* S_If_GT (GradualALFA, which includes RecursiveALFA's rec types) types an
+   if by the glb of its branch types. */
+let test_s_if_gt_rec_branches = () => {
+  let gamma = d_ctx([]);
+  let has = (e, t) => d_entail(gamma, Drv.Exp.fresh(HasType(e, t)));
+  let ana = (e, t) => d_entail(gamma, Drv.Exp.fresh(Ana(e, t)));
+  let syn = (e, t) => d_entail(gamma, Drv.Exp.fresh(Syn(e, t)));
+  let (e, e1, e2) = (d_var("b"), d_var("u"), d_var("v"));
+  check_correct(
+    ~msg="S_If_GT with branch types rec a. a + ? and rec a. a + Num",
+    S_If_GT,
+    syn(
+      Drv.Exp.fresh(If(e, e1, e2)),
+      t_rec("a", t_sum(t_var("a"), t_num)),
+    ),
+    [
+      ana(e, t_fresh(Bool)),
+      has(e1, t_rec("a", t_sum(t_var("a"), t_hole))),
+      has(e2, t_rec("a", t_sum(t_var("a"), t_num))),
+    ],
+  );
+};
+
 /* ----------------------- rule_set-level tests ----------------------- */
 
 /* Rules from other rule sets (e.g. ALFA typing) should not be dispatchable
@@ -647,6 +773,33 @@ let tests = (
     ),
     test_case("Implies_E (modus ponens)", `Quick, test_implies_e_correct),
     test_case("Falsity_E correct", `Quick, test_falsity_e_correct),
+    /* substitution under binders / glb on recursive types */
+    test_case(
+      "E_Case_L: inner case rebinding x",
+      `Quick,
+      test_e_case_l_inner_case_shadows,
+    ),
+    test_case(
+      "subst stops at case binder",
+      `Quick,
+      test_subst_stops_at_case_binder,
+    ),
+    test_case(
+      "subst stops at parenthesized binder",
+      `Quick,
+      test_subst_stops_at_parenthesized_binder,
+    ),
+    test_case("glb rec, same binder", `Quick, test_glb_rec_same_binder),
+    test_case(
+      "glb rec, different binders",
+      `Quick,
+      test_glb_rec_different_binders,
+    ),
+    test_case(
+      "S_If_GT with rec branch types",
+      `Quick,
+      test_s_if_gt_rec_branches,
+    ),
     /* rule_set membership */
     test_case(
       "PropositionalLogic rule_set membership",
