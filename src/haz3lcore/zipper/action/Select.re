@@ -538,6 +538,25 @@ let shard_range = (l: Piece.t, r: Piece.t, z: t): option(t) => {
   Zipper.do_until(local(Right), pr, z);
 };
 
+/* The header tile of an expression definition form (`let p = e in`,
+ * `use T in`, ...): the piece-level view of Language.DefForm, i.e. the
+ * Exp-sorted `P.let_` prefix rows of Form.rows_of. Module and signature items
+ * (ModLet, ModType, ModuleMod, SigLet) are excluded: they are not Exp
+ * definition forms, and has_mod_cls handles their escalation. */
+let is_def_header: Piece.t => bool =
+  fun
+  | Tile({
+      form:
+        Form.Compound(
+          Let | Theorem | TypeAlias | Use | ModuleExp | FilterHide | FilterEval |
+          FilterPause |
+          FilterDebug,
+        ),
+      _,
+    }) =>
+    true
+  | _ => false;
+
 /* Select the currently indicated term. Optionally, we can consider
  * definitions to not include their bodies, and we can consider case
  * rules as separate pseudo-terms. */
@@ -550,9 +569,7 @@ let current_term =
     ) => {
   let* {piece: p, _} = Indicated.for_decoration(z);
   switch (p) {
-  | Tile({form: Form.Compound(Let | TypeAlias | ModuleExp), _})
-      when defs_exclude_bodies =>
-    current_tile(z)
+  | p when defs_exclude_bodies && is_def_header(p) => current_tile(z)
   | Tile({form: Form.Compound(Rule), _}) when case_rules =>
     containing_rule(z)
   | _ =>
@@ -656,12 +673,9 @@ let def_body_indicated =
   let* parent_id =
     Language.Statics.Map.ancestors_of(id, info_map) |> ListUtil.hd_opt;
   let* ci_parent = Language.Statics.Map.lookup_exp(parent_id, info_map);
-  switch (ci_parent) {
-  | {user_term: {term: Let(_, _, body) | TyAlias(_, _, body), _}, _} =>
-    let body_id = Language.IdTagged.rep_id(body);
-    id == body_id ? Some(body_id) : None;
-  | _ => None
-  };
+  let* body = Language.DefForm.body(ci_parent.user_term);
+  let body_id = Language.IdTagged.rep_id(body);
+  id == body_id ? Some(body_id) : None;
 };
 
 /* Rules aren't treated as terms in the syntax model, but we
@@ -741,14 +755,18 @@ let is_def_body = (from_id, parent_id, info_map) =>
       }),
     ) =>
     false
+  | Some(Language.Statics.Info.InfoExp({user_term, _})) =>
+    switch (Language.DefForm.body(user_term)) {
+    | Some(body) => Language.IdTagged.rep_id(body) == from_id
+    | None => false
+    }
   | Some(
-      Language.Statics.Info.InfoExp({
-        user_term: {term: Let(_, _, body) | TyAlias(_, _, body), _},
-        _,
-      }),
-    ) =>
-    Language.IdTagged.rep_id(body) == from_id
-  | _ => false
+      InfoPat(_) | InfoTyp(_) | InfoTPat(_) | InfoMod(_) | InfoSig(_) |
+      InfoMPat(_) |
+      InfoDrv(_) |
+      Secondary(_),
+    )
+  | None => false
   };
 
 /* Select a term as a parent. In general we use

@@ -34,7 +34,10 @@ let subtree_of =
                ),
           orig_info_map,
         );
-      | Let(pat, def, body) =>
+      /* A theorem rechecks like a let: the stored infos carry its
+         analysis (Bool for the proposition, ProofOf for the binder). */
+      | Let(pat, def, body)
+      | Theorem(pat, def, body) =>
         let pat_info = pat_to_pat(pat, orig_info_map);
         let def_info = exp_to_exp(def, orig_info_map);
         let body_info = exp_to_exp(body, orig_info_map);
@@ -181,7 +184,7 @@ let subtree_of =
       | _ =>
         raise(
           Failure(
-            "UNIMPLEMENTED_NODE_TYPE: Only let, type alias, and module expressions are currently supported as nodes",
+            "UNIMPLEMENTED_NODE_TYPE: Only let, theorem, type alias, and module expressions are currently supported as nodes",
           ),
         )
       }
@@ -202,10 +205,8 @@ let get_refs_to = (curr: Info.t, info_map: Id.Map.t(Info.t)): CoCtx.t => {
   | InfoExp(info) =>
     let entire_coctx = info.co_ctx;
     let body_coctx =
-      switch (Exp.term_of(info.user_term)) {
-      | Let(_, _, body)
-      | TyAlias(_, _, body)
-      | ModuleExp(_, _, body) =>
+      switch (binding_of(info.user_term)) {
+      | Some({body, _}) =>
         switch (exp_to_info(body)) {
         | InfoExp({co_ctx, _}) => co_ctx
         | _ =>
@@ -213,7 +214,7 @@ let get_refs_to = (curr: Info.t, info_map: Id.Map.t(Info.t)): CoCtx.t => {
             Failure("Body of let/type alias/module is not an expression"),
           )
         }
-      | _ =>
+      | None =>
         raise(
           Failure(
             "Current node is not a let, type alias, or module expression",
@@ -250,8 +251,8 @@ let rec var_names_of_pat = (pat: Pat.t): list(string) => {
   | Atom(_)
   | Constructor(_, _)
   | Label(_)
-  | Projector(_, _)
   | ExplicitNonlabel => []
+  | Projector(_, pat) => var_names_of_pat(pat)
   };
 };
 
@@ -272,10 +273,8 @@ let get_refs_to_after_pattern_edit =
   | (InfoExp(pre_let), InfoExp(term_after)) =>
     let entire_coctx = pre_let.co_ctx;
     let body_coctx =
-      switch (Exp.term_of(term_after.user_term)) {
-      | Let(_, _, body)
-      | TyAlias(_, _, body)
-      | ModuleExp(_, _, body) =>
+      switch (binding_of(term_after.user_term)) {
+      | Some({body, _}) =>
         switch (exp_to_info(body)) {
         | InfoExp({co_ctx, _}) => co_ctx
         | _ =>
@@ -283,7 +282,7 @@ let get_refs_to_after_pattern_edit =
             Failure("Body of let/type alias/module is not an expression"),
           )
         }
-      | _ =>
+      | None =>
         raise(
           Failure(
             "Current node is not a let, type alias, or module expression",

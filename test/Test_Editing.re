@@ -2234,6 +2234,51 @@ else f|});
       @ [Select(Term(Current)), Select(Term(Current))],
     ~goal={|§let x = 1 in x¦|},
   ),
+  /* Every definition form (DefForm) escalates from its body to the whole
+     definition, and selects only its header from the keyword, like `let`. */
+  test(
+    ~name="Cmd+D on module body: body then full module",
+    ~acts=
+      mk({|module M = {let a = 1} in ¦x|})
+      @ [Select(Term(Current)), Select(Term(Current))],
+    ~goal={|§module M = {let a = 1} in x¦|},
+  ),
+  test(
+    ~name="Cmd+D on theorem body: body then full theorem",
+    ~acts=
+      mk({|theorem t = true in ¦x|})
+      @ [Select(Term(Current)), Select(Term(Current))],
+    ~goal={|§theorem t = true in x¦|},
+  ),
+  test(
+    ~name="Cmd+D on use body: body then full use",
+    ~acts=
+      mk({|use Float in ¦x|})
+      @ [Select(Term(Current)), Select(Term(Current))],
+    ~goal={|§use Float in x¦|},
+  ),
+  test(
+    ~name="Cmd+D on type alias body: body then full alias",
+    ~acts=
+      mk({|type T = Int in ¦x|})
+      @ [Select(Term(Current)), Select(Term(Current))],
+    ~goal={|§type T = Int in x¦|},
+  ),
+  test(
+    ~name="Cmd+D on theorem keyword: select header only",
+    ~acts=mk({|¦theorem t = true in x|}) @ [Select(Term(Current))],
+    ~goal={|§theorem t = true in¦ x|},
+  ),
+  test(
+    ~name="Cmd+D on use keyword: select header only",
+    ~acts=mk({|¦use Float in x|}) @ [Select(Term(Current))],
+    ~goal={|§use Float in¦ x|},
+  ),
+  test(
+    ~name="Cmd+D on hide keyword: select header only",
+    ~acts=mk({|¦hide 1 in x|}) @ [Select(Term(Current))],
+    ~goal={|§hide 1 in¦ x|},
+  ),
   test(
     ~name="Cmd+D inside tuple element: select element, then parens",
     ~acts=
