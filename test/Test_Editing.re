@@ -5920,6 +5920,35 @@ let uses_at = (init: string): (option(Id.t), option(Id.t), Zipper.t) => {
   };
 };
 
+/* The context menu's go-to items at the caret (ContextMenu.get_all_items,
+   as the editor's menu shows them) */
+let goto_items_at = (init: string): list(string) => {
+  let z = parse_with_caret(init);
+  let statics = Lazy.force(derive(~settings=default_settings, z).statics);
+  Web.ContextMenu.get_all_items(
+    ~info_map=statics.info_map,
+    ~elaborated=statics.elaborated,
+    z,
+  )
+  |> List.filter_map((item: Menu.item(_)) =>
+       switch (item) {
+       | Action({label, _}) when String.starts_with(~prefix="Goto", label) =>
+         Some(label)
+       | _ => None
+       }
+     );
+};
+
+let menu_items = (name, init, expected) =>
+  test_case(name, `Quick, () =>
+    check(
+      list(string),
+      "the menu's go-to items",
+      expected,
+      goto_items_at(init),
+    )
+  );
+
 let goto_uses_tests = [
   test_from_parse(
     ~name="first use, from the definition",
@@ -5997,6 +6026,26 @@ let goto_uses_tests = [
     ~init="let x = 1 in\nlet ¦x = x + 1 in\nx",
     ~acts=first_use,
     ~goal="let x = 1 in\nlet x = x + 1 in\n¦x",
+  ),
+  menu_items(
+    "menu: a definition with uses offers its first use",
+    "let ¦x = 1 in x + x + x",
+    ["Goto first use"],
+  ),
+  menu_items(
+    "menu: a use before the last offers its definition and the next use",
+    "let x = 1 in x + ¦x + x",
+    ["Goto definition", "Goto next use"],
+  ),
+  menu_items(
+    "menu: the last use offers its definition only",
+    "let x = 1 in x + x + ¦x",
+    ["Goto definition"],
+  ),
+  menu_items(
+    "menu: an unused definition offers neither",
+    "let ¦x = 1 in 2",
+    [],
   ),
   test_from_parse(
     ~name="a recursive function: its use in itself first, then the body's",
