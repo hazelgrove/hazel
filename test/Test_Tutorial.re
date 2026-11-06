@@ -154,7 +154,7 @@ let tests = [
                         List.length(a) < List.length(b)
                         && List.equal(
                              String.equal,
-                             Util.ListUtil.take(List.length(a), b),
+                             List.take(b, List.length(a)),
                              a,
                            ),
                       ),

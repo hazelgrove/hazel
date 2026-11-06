@@ -286,7 +286,7 @@ let outline_path =
   switch (rows) {
   | [] => []
   | [first, ..._] =>
-    let last = ListUtil.last(rows);
+    let last = List.last_exn(rows);
     let n = List.length(rows);
 
     let lx = (row: row_data) => left_x(row) -. origin_col;
@@ -554,8 +554,8 @@ let clip_char_selection =
       switch (right_inner) {
       | None => rows
       | Some(n) =>
-        let right_piece = ListUtil.last(content);
-        let last_shard = ListUtil.last(Piece.disassemble(right_piece));
+        let right_piece = List.last_exn(content);
+        let last_shard = List.last_exn(Piece.disassemble(right_piece));
         switch (Piece.token_of(last_shard)) {
         | Some(tok) =>
           let offset = Zipper.Caret.inner_offset_for_token(n, tok);

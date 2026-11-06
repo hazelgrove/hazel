@@ -231,14 +231,11 @@ and uexp_to_info_map =
       | Some(_) => marks
       };
     let message =
-      OptUtil.get(
-        () =>
-          switch (ana) {
-          | {term: Unknown(SynSwitch), _} => Message.Exp(Default)
-          | _ =>
-            Message.Exp(Common(syn_ana_ok_common(ctx, ana, elab_syn_ty)))
-          },
-        message,
+      Option.value_or_thunk(message, ~default=() =>
+        switch (ana) {
+        | {term: Unknown(SynSwitch), _} => Message.Exp(Default)
+        | _ => Message.Exp(Common(syn_ana_ok_common(ctx, ana, elab_syn_ty)))
+        }
       );
     let cls = Cls.Exp(Exp.cls_of_term(uexp.term));
     let ty = fixed_typ(ctx, ana, elab_syn_ty);

@@ -82,7 +82,7 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
       DeferredAp(d1, d2s) |> wrap;
     | DeferredAp2(d1, ctx, (ld, rd)) =>
       let d2 = compose(ctx, d);
-      DeferredAp(d1, ListUtil.rev_concat(ld, [d2, ...rd])) |> wrap;
+      DeferredAp(d1, List.rev_append(ld, [d2, ...rd])) |> wrap;
     | If1(ctx, d2, d3) =>
       let d' = compose(ctx, d);
       If(d', d2, d3) |> wrap;
@@ -139,13 +139,13 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
       Dot(d1, d2) |> wrap;
     | Tuple(ctx, (ld, rd)) =>
       let d = compose(ctx, d);
-      Tuple(ListUtil.rev_concat(ld, [d, ...rd])) |> wrap;
+      Tuple(List.rev_append(ld, [d, ...rd])) |> wrap;
     | ListLit(ctx, (ld, rd)) =>
       let d = compose(ctx, d);
-      ListLit(ListUtil.rev_concat(ld, [d, ...rd])) |> wrap;
+      ListLit(List.rev_append(ld, [d, ...rd])) |> wrap;
     | MultiHole(ctx, (ld, rd)) =>
       let d = compose(ctx, d);
-      MultiHole(ListUtil.rev_concat(ld, [Exp(d), ...rd])) |> wrap;
+      MultiHole(List.rev_append(ld, [Exp(d), ...rd])) |> wrap;
     | Let1(dp, ctx, d2) =>
       let d = compose(ctx, d);
       Let(dp, d, d2) |> wrap;
@@ -172,7 +172,7 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
       Match(d, rules) |> wrap;
     | MatchRule(scr, p, ctx, (lr, rr)) =>
       let d = compose(ctx, d);
-      Match(scr, ListUtil.rev_concat(lr, [(p, d), ...rr])) |> wrap;
+      Match(scr, List.rev_append(lr, [(p, d), ...rr])) |> wrap;
     | TypAp(ctx, ty) =>
       let d = compose(ctx, d);
       TypAp(d, ty) |> wrap;

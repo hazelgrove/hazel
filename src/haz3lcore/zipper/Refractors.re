@@ -100,12 +100,13 @@ let mk_entry = (~model=?, kind: ProjectorCore.Kind.t): entry => {
   let (module P) = ProjectorInit.to_module(kind);
   let model =
     model
-    |> OptUtil.get(
-         () => {
-           /* Create dummy syntax just to get the initial model string */
-           P.init(Exp(Language.IdTagged.FreshGrammar.Exp.tuple([])))
-           |> OptUtil.get_or_fail("Refractor.mk_entry")
-         },
+    |> Option.value_or_thunk(
+         ~default=
+           () => {
+             /* Create dummy syntax just to get the initial model string */
+             P.init(Exp(Language.IdTagged.FreshGrammar.Exp.tuple([])))
+             |> OptUtil.get_or_fail("Refractor.mk_entry")
+           },
          _,
        );
   {

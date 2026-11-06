@@ -256,7 +256,7 @@ let mk_translation_doc =
                     |> CellEditor.Update.calculate(
                          ~settings,
                          ~is_edited=true,
-                         ~stitch=x => x,
+                         ~stitch=Fn.id,
                          ~queue_worker=None,
                        ),
                   );
@@ -472,7 +472,7 @@ let example_view =
                       |> CellEditor.Update.calculate(
                            ~settings=globals.settings.core,
                            ~is_edited=true,
-                           ~stitch=x => x,
+                           ~stitch=Fn.id,
                            ~queue_worker=None,
                          );
                     },

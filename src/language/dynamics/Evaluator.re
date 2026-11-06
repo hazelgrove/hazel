@@ -38,7 +38,7 @@ module EvaluatorEVMode: {
     switch (xs) {
     | [] => Trampoline.return([])
     | [x, ...xs] =>
-      let.trampoline x' = req_final(f, x => x, x);
+      let.trampoline x' = req_final(f, Fn.id, x);
       let.trampoline xs' = req_all_final(f, i, xs);
       Trampoline.return([x', ...xs']);
     };

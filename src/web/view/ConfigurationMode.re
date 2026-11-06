@@ -140,12 +140,10 @@ module Model = {
         };
       (
         config_type,
-        OptUtil.get(
-          () =>
-            default_source(config_type)
-            |> snd
-            |> CellEditor.Model.from_persistent_zipper(~root=Exp),
-          m,
+        Option.value_or_thunk(m, ~default=() =>
+          default_source(config_type)
+          |> snd
+          |> CellEditor.Model.from_persistent_zipper(~root=Exp)
         )
         |> CellEditor.Model.unpersist(~settings),
       );
@@ -170,7 +168,7 @@ module Model = {
                       ? Some(get_persistent(s)) : None,
                 slides,
               )
-              |> OptUtil.get(() =>
+              |> Option.value_or_thunk(~default=() =>
                    (
                      config_type,
                      default_source(config_type)
@@ -196,10 +194,10 @@ module StoreConfig =
         ~f=
           x =>
             Model.default_source(x)
-            |> PairUtil.map_snd(
-                 CellEditor.Model.from_persistent_zipper(~root=Exp),
+            |> Tuple2.map_snd(
+                 ~f=CellEditor.Model.from_persistent_zipper(~root=Exp),
                )
-            |> PairUtil.map_snd(Option.some),
+            |> Tuple2.map_snd(~f=Option.some),
         Model.all_of_config_type,
       ),
     );
@@ -485,14 +483,14 @@ module Update = {
         /* the Shortcuts slide is checked against the known action set */
         ~ana=?Model.expected_type(config_type),
         ~queue_worker,
-        ~stitch=x => x,
+        ~stitch=Fn.id,
         ed,
       );
     let dispatch = (_key, action) =>
       schedule_action(CellAction(ResultAction(action)));
     EvalRequest.request(
       worker_request^,
-      ~pos_of_key=key => key,
+      ~pos_of_key=Fn.id,
       ~dispatch,
       ~on_timeout=
         List.iter(~f=((key, _)) =>

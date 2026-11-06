@@ -671,7 +671,7 @@ let all =
            ),
        )
     |> List.unzip;
-  let overlay_views = List.filter_map(~f=Fn.id, overlay_views);
+  let overlay_views = List.filter_opt(overlay_views);
   [
     div_c(
       "projectors",

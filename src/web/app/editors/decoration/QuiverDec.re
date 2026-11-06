@@ -453,7 +453,7 @@ let bubbles =
            ? (None: option(positioned_insertion))
            : rest_position(~idx, ~seg, measured, ins)
        )
-    |> List.filter_map(~f=x => x);
+    |> List.filter_opt;
   let caret_bubble =
     switch (caret_pos, owned) {
     | (Some((row, col)), [_, ..._]) => [

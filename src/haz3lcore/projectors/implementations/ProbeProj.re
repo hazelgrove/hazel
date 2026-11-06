@@ -2111,7 +2111,7 @@ let get_current = (~settings, info: info) => {
     | Some(closure) => Some(closure.value)
     | None =>
       let samples = select_samples(~settings, ~id=info.id, ~ap_id, di);
-      ListUtil.hd_opt(samples) |> Option.map(~f=(s: Sample.t) => s.value);
+      List.hd(samples) |> Option.map(~f=(s: Sample.t) => s.value);
     };
   | _ => None
   };

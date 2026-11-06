@@ -77,7 +77,7 @@ let check_family_grouping = (): unit => {
       ((_, d): (Form.family, Form.def))
       : (Label.t, (Grout.shape, Grout.shape)) => (
     d.label,
-    Util.TupleUtil.map2(shape_role, d.mold.nibs),
+    Tuple2.map(d.mold.nibs, ~f=shape_role),
   );
   /* Fails listing each value of [by] whose rows disagree on [other] */
   let check_determines =

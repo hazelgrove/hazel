@@ -1025,7 +1025,7 @@ let middle_insertions = (incomplete: list(Tile.t)): list(insertion) =>
                   switch (right) {
                   | [rp, ..._] => Some((Piece.id(rp), Direction.Left))
                   | [] =>
-                    ListUtil.last_opt(left)
+                    List.last(left)
                     |> Option.map(~f=p => (Piece.id(p), Direction.Right))
                   }
                 };
@@ -1055,7 +1055,7 @@ let middle_insertions = (incomplete: list(Tile.t)): list(insertion) =>
               let k = Tile.child_index_before(t, m);
               switch (List.nth(t.children, k)) {
               | Some(child) =>
-                ListUtil.last_opt(child)
+                List.last(child)
                 |> Option.map(~f=p =>
                      {
                        adjacent_id: Piece.id(p),
@@ -2106,7 +2106,7 @@ let rec complete_segment =
              @ wrap_ins;
            /* aggregate-append viz anchor: the partition's last piece (the
               trailing linebreak for blank-line partitions) */
-           let aggregate_anchor = ListUtil.last_opt(subseg);
+           let aggregate_anchor = List.last(subseg);
            let wrap_inserts =
              wraps
              |> List.concat_map(~f=((l_idx, r_idx, id)) => {
@@ -2540,8 +2540,7 @@ let derive_insertions =
         let os = originals_of(t);
         let qualifies =
           right
-            ? !List.is_empty(os)
-              && i == List.nth_exn(os, List.length(os) - 1)
+            ? !List.is_empty(os) && i == List.last_exn(os)
             : !List.is_empty(os) && i == List.hd_exn(os);
         qualifies ? Some(t.id) : None;
       };

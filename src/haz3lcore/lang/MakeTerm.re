@@ -88,7 +88,7 @@ let is_nary =
              | (F(f), []) => is_delim(f)
              | _ => false,
          )) {
-    kids |> List.map(~f=is_sort) |> OptUtil.sequence;
+    kids |> List.map(~f=is_sort) |> Option.all;
   } else {
     None;
   };
@@ -170,7 +170,7 @@ let is_rules = ((ts, kids): tiles): option(Aba.t(Pat.t, Exp.t)) => {
             | (_, (F(Compound(Rule)), [Pat(p)])) => Some(p)
             | _ => None: tile => option(TermBase.pat_t),
        )
-    |> OptUtil.sequence
+    |> Option.all
   and+ clauses =
     kids
     |> List.map(
@@ -178,7 +178,7 @@ let is_rules = ((ts, kids): tiles): option(Aba.t(Pat.t, Exp.t)) => {
             | Exp(clause) => Some(clause)
             | _ => None: TermBase.any_t => option(TermBase.exp_t),
        )
-    |> OptUtil.sequence;
+    |> Option.all;
   Aba.mk(ps, clauses);
 };
 let is_drv_rules = ((ts, kids): tiles): option(Aba.t(Drv.Pat.t, Drv.Exp.t)) => {
@@ -191,7 +191,7 @@ let is_drv_rules = ((ts, kids): tiles): option(Aba.t(Drv.Pat.t, Drv.Exp.t)) => {
            | (_, (F(Compound(Rule)), [Grammar.Drv(Pat(p))])) => Some(p)
            | _ => None,
        )
-    |> OptUtil.sequence
+    |> Option.all
   and+ clauses =
     kids
     |> List.map(
@@ -200,7 +200,7 @@ let is_drv_rules = ((ts, kids): tiles): option(Aba.t(Drv.Pat.t, Drv.Exp.t)) => {
            | Grammar.Drv(Exp(clause)) => Some(clause)
            | _ => None,
        )
-    |> OptUtil.sequence;
+    |> Option.all;
   Aba.mk(ps, clauses);
 };
 

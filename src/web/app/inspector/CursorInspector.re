@@ -1,7 +1,6 @@
 open Virtual_dom.Vdom;
 open Node;
 open Util.WebUtil;
-open Util;
 open Language;
 open Poly;
 
@@ -162,9 +161,9 @@ let core_mark_err_view =
         | [a] => [text("after automatically added label "), code(a)]
         | _ => [
             text("after automatically added labels "),
-            ...ListUtil.join(
-                 text(","),
+            ...List.intersperse(
                  List.map(~f=code, introduced_labels),
+                 ~sep=text(","),
                ),
           ]
         }
@@ -233,9 +232,9 @@ let core_mark_err_view =
     | NoMeet(PolyEq, tys)
     | NoMeet(_, tys) when ana.term == Unknown(SynSwitch) => [
         text(elements_noun(cls) ++ " have inconsistent types:"),
-        ...ListUtil.join(
-             text(","),
+        ...List.intersperse(
              List.map(~f=view_type, Typ.of_source(tys)),
+             ~sep=text(","),
            ),
       ]
     | NoMeet(wrap, _) =>
@@ -384,9 +383,9 @@ let common_ok_view =
           | [a] => [text("by automatically adding label "), label_view(a)]
           | _ => [
               text("by automatically adding labels "),
-              ...ListUtil.join(
-                   text(","),
+              ...List.intersperse(
                    List.map(~f=label_view, introduced_labels),
+                   ~sep=text(","),
                  ),
             ]
           }
@@ -420,9 +419,9 @@ let common_ok_view =
         | [a] => [text("by automatically adding label "), label_view(a)]
         | _ => [
             text("by automatically adding labels "),
-            ...ListUtil.join(
-                 text(","),
+            ...List.intersperse(
                  List.map(~f=label_view, introduced_labels),
+                 ~sep=text(","),
                ),
           ]
         }
@@ -436,7 +435,7 @@ let common_ok_view =
     | (_, Ana(InternallyInconsistent({ana, nomeet: tys}))) =>
       [
         text(elements_noun(cls) ++ " have inconsistent types:"),
-        ...ListUtil.join(text(","), List.map(~f=view_type, tys)),
+        ...List.intersperse(List.map(~f=view_type, tys), ~sep=text(",")),
       ]
       @ [text("but consistent with expected"), view_type(ana)]
     }
@@ -455,7 +454,7 @@ let underdetermined_typ_view =
   switch (underdetermined) {
   | ProdExtensionUnderdetermined(tys) => [
       text("Cannot determine type of product extension with argument types:"),
-      ...ListUtil.join(text(","), List.map(~f=view_type, tys)),
+      ...List.intersperse(List.map(~f=view_type, tys), ~sep=text(",")),
     ]
   | ProdProjectionMissingLabel(label, labels) => [
       text("Cannot project label "),
@@ -485,9 +484,9 @@ let underdetermined_typ_view =
 
     [text("Cannot determine projected type because ")]
     @ (
-      ListUtil.join(
-        [text(" and ")],
+      List.intersperse(
         [product_error, label_error] |> List.filter(~f=x => x != []),
+        ~sep=[text(" and ")],
       )
       |> List.concat
     );
@@ -653,7 +652,7 @@ let exp_mark_err_view =
       div_err([
         div_err([
           text(elements_noun(cls) ++ " have inconsistent types:"),
-          ...ListUtil.join(text(","), List.map(~f=view_type, tys)),
+          ...List.intersperse(List.map(~f=view_type, tys), ~sep=text(",")),
         ])
         |> code_box_container,
         text(

@@ -29,7 +29,7 @@ let regrout = (ancs: t) =>
       ((a, sibs): generation, regrouted) => {
         let regrouted = regrouted;
         let ((pre, l, trim_l), (trim_r, r, suf)) = Siblings.regrout(sibs);
-        let (l', r') = TupleUtil.map2(Nib.shape, Ancestor.nibs(a));
+        let (l', r') = Tuple2.map(Ancestor.nibs(a), ~f=Nib.shape);
         let trim_l = Segment.Trim.regrout((l, l'), trim_l);
         let trim_r = Segment.Trim.regrout((r', r), trim_r);
         let pre = pre @ Segment.Trim.to_seg(trim_l);

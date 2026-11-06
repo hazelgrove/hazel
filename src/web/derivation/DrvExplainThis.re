@@ -119,7 +119,7 @@ let copy_color_map =
       test
       |> RuleFormula.get_symbols
       |> List.map(~f=Map.find(map, _))
-      |> List.filter_map(~f=Fn.id)
+      |> List.filter_opt
     };
   copy_color_map_of_specceds(terms, color_map);
 };

@@ -402,8 +402,7 @@ let infix_delimiter_ops_prefixes: list(Token.t) =
   |> List.concat
   |> List.filter(~f=Token.is_potential_operand)
   |> List.dedup_and_sort(~compare=Poly.compare)
-  |> List.map(~f=Token.prefixes)
-  |> List.concat;
+  |> List.concat_map(~f=Token.prefixes);
 
 /* Symbolic analogue: proper prefixes of non-leading symbolic delimiters
  * of compound forms (`-` en route to `->`, `=` en route to `=>`), so
@@ -536,7 +535,7 @@ module Expansion = {
     switch (expansion, label) {
     | (L, [hd, ..._]) => Some([(hd, (label, Direction.Left))])
     | (LT, [hd, ..._]) =>
-      Some([(hd, (label, Left)), (ListUtil.last(label), (label, Right))])
+      Some([(hd, (label, Left)), (List.last_exn(label), (label, Right))])
     | _ => None
     };
 
@@ -560,7 +559,7 @@ module Expansion = {
     | (LT, [hd, ..._]) =>
       Some([
         (hd, l_nib.sort, label, Left),
-        (ListUtil.last(label), r_nib.sort, label, Right),
+        (List.last_exn(label), r_nib.sort, label, Right),
       ])
     | _ => None
     };

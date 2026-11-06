@@ -568,7 +568,7 @@ module Utils = {
 
   let first_choice_delta = (choices: Json.t): option(Json.t) => {
     let* choices = Json.list(choices);
-    let* hd = ListUtil.hd_opt(choices);
+    let* hd = List.hd(choices);
     switch (Json.dot("message", hd)) {
     | Some(message) => Some(message)
     | None => Json.dot("delta", hd)

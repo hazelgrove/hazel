@@ -60,7 +60,7 @@ module Model = {
       ed.state.zipper
       |> Zipper.unselect_and_zip
       |> Segment.convex_grout
-      |> Util.ListUtil.last_opt;
+      |> List.last;
     Language.Statics.Map.ctx_of(grout.id, info_map);
   };
 };
