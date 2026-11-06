@@ -67,7 +67,7 @@ Hazel remembers the texts of the last program it read, part by part, so a page t
 
 ## Hazel in a frame (embed mode)
 
-`hazel.org/build/<branch>/index.html#embed` is Hazel's own app in a mode for another page's `<iframe>`: one read-only cell of Hazel's tiles, with statics on and Hazel's own error marks, showing a program the page posts to it. None of the app's startup runs: no saved state (IndexedDB), saved settings or theme, autosave, worker, or focus grabs. The frame's root has no tabindex, so the frame does not take focus from the page by itself (a click in it focuses it, as it does any frame). Hazel does not run the program there, and the theme is Hazel's default.
+`hazel.org/build/<branch>/index.html#embed` is Hazel's own app in a mode for another page's `<iframe>`: one read-only cell of Hazel's tiles, with statics on and Hazel's own error marks, showing a program the page posts to it. None of the app's startup runs: no saved state (IndexedDB), saved settings or theme, autosave, worker, or focus grabs. The frame's root has no tabindex, so the frame does not take focus from the page by itself (a click in it focuses it, as it does any frame). Hazel does not run the program there, and the theme is Hazel's default. The cell is selectable but not editable: a click places a caret, a drag, a shift-click or a shifted arrow selects, and the arrows move, so Hazel's tile shapes show around the caret and the selection; typing, pasting and cutting change nothing, unless the page asks for an editable cell (below). A new program resets the caret and the selection.
 
 ```js
 const HAZEL = "https://hazel.org";
@@ -104,7 +104,27 @@ Frame to page:
 
 Origins: the frame takes messages only from its parent window, and only from these origins: `https://matthewhammer.org` and `https://www.matthewhammer.org` (Messed Up Dress Up), `localhost` and `127.0.0.1` on any port over http or https (its dev servers), and the frame's own origin, so the frame opened on its own takes a program posted from its console. The list is `site_origins` and `dev_hosts` in `src/web/embed/EmbedProtocol.re`, built into the frame; to embed Hazel in another site, add its origin there. Once the frame has taken a message, it posts only to that message's origin. Before that it posts only `ready` and `crash`, which carry no program, and to any origin (`"*"`).
 
-The frame is `src/web/embed/`: `EmbedModel` (the cell, its update and what to post, free of the DOM, so a page that mounts Hazel's editor itself can reuse them), `EmbedProtocol` (the messages), `EmbedLink` (what the frame takes from its page and posts to it, with the page's window and the posting given, so tests stand in for them) and `EmbedMain` (the frame). Tests: `test/Test_Embed.re`. No browser has loaded `#embed` yet; before this leaves draft, a page on one localhost port framing `index.html#embed` from another (two origins), plus a page on an origin not allowed, checks the parts only a browser shows: fonts, the posted height against the frame, and that the frame does not take focus.
+### Editable cells, one module at a time, and go to definition
+
+Beyond protocol 1, a page can ask for more. Page to frame:
+
+- `{type: "editable", on}`: a cell the page can edit. After each edit the frame posts the new text (`edit`, below). The page keeps the text, and sends `set` again when another cell's text changes.
+- `{type: "focus", module}`: the cell shows one module's body alone, read in the context Hazel has at that body in the whole program (the preamble's types, the modules before it), so its types and errors are the program's. A `module` that is absent, or not a string, is the whole program again.
+- `{type: "theme", dark, contrast}`: Hazel's dark mode and high contrast, as the page's own theme is.
+- `{type: "lines", on}`: Hazel's line numbers beside the cell.
+- `{type: "font", size, family}`: the code's font size in pixels and its family (a CSS font list), as the page's own code is; Hazel measures the font again.
+- `{type: "reveal", name}`: the caret on `name`'s definition in the cell (the name's tile in a `let` or `type` pattern), the tile selected; nothing if the cell does not define it.
+
+Frame to page:
+
+- `{type: "edit", text, edits}`: after an edit in an editable cell, its text as Hazel lays it out (a hole as `?`): the focused module's body, or the whole program. `edits` counts them.
+- `{type: "caret", top}`: where the caret went after a `reveal`, or after a go to definition answered in the cell, in pixels from the cell's top. The frame is as tall as its code and does not scroll itself, so the page scrolls there.
+- `{type: "goto", name, count}`: a go to definition (Ctrl+click, F12, or the right-click menu) whose definition is not in this cell (a type of the preamble, a member of another module): the name under the caret, a dotted path such as `Common.flip2` when it is one, for the page to `reveal` in the cell that has it. `count` grows by one each time.
+- `{type: "history", redo}`: Ctrl+Z, or Ctrl+Shift+Z or Ctrl+Y, typed in an editable cell. The frame keeps no history; the page keeps one and sends the earlier or later text as `set`.
+
+A go to definition starts only in an editable cell: the read-only view has no Ctrl+click or F12. A right-click menu opens downward, and the frame posts a `size` tall enough for it.
+
+The frame is `src/web/embed/`: `EmbedModel` (the cell, its update and what to post, free of the DOM, so a page that mounts Hazel's editor itself can reuse them), `EmbedProtocol` (the messages), `EmbedLink` (what the frame takes from its page and posts to it, with the page's window and the posting given, so tests stand in for them) and `EmbedMain` (the frame). Tests: `test/Test_Embed.re`. Pages that frame it: Messed Up Dress Up's Scripting panel (a frame per module, editable), and two reports, [Scripting a JavaScript App in Hazel](https://matthewhammer.org/hazel/reports/043/) and [Hazel Listings in an Article](https://matthewhammer.org/hazel/reports/044/), whose `hazel-listings.js` turns each `<pre class="hazel">` of a page into a frame. Not checked in a browser yet: a page on an origin not allowed.
 
 ## First use, and next
 

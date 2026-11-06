@@ -22,6 +22,19 @@ type t = {
   mutable sent: EmbedModel.Outbox.sent,
   /* the crashes already posted, each posted once */
   mutable crashes: list(string),
+  /* (ticket 578) a cell the page can edit, when it last asked: the frame
+     takes it after the message (EmbedMain) */
+  mutable editable: option(bool),
+  /* and the module it asked to see alone (Some(None): the whole program) */
+  mutable focus: option(option(string)),
+  /* and the theme it asked for: (dark, high contrast) */
+  mutable theme: option((bool, bool)),
+  /* and whether it asked for line numbers */
+  mutable lines: option(bool),
+  /* and a name it asked to see */
+  mutable reveal: option(string),
+  /* and the font it asked for: (size in px, family) */
+  mutable font: option((option(float), option(string))),
 };
 
 let make = (~parent, ~own_origin, ~post): t => {
@@ -31,6 +44,12 @@ let make = (~parent, ~own_origin, ~post): t => {
   page_origin: None,
   sent: EmbedModel.Outbox.nothing_sent,
   crashes: [],
+  editable: None,
+  focus: None,
+  theme: None,
+  lines: None,
+  reveal: None,
+  font: None,
 };
 
 let send = (link: t, ~target: string, message: EmbedModel.Outbox.message) =>
@@ -76,6 +95,30 @@ let receive = (link: t, event: Js.Unsafe.any): option(EmbedModel.Program.t) => {
     | Some(Set(program)) =>
       link.page_origin = Some(origin);
       Some(program);
+    | Some(Font(size, family)) =>
+      link.page_origin = Some(origin);
+      link.font = Some((size, family));
+      None;
+    | Some(Reveal(name)) =>
+      link.page_origin = Some(origin);
+      link.reveal = Some(name);
+      None;
+    | Some(Lines(on)) =>
+      link.page_origin = Some(origin);
+      link.lines = Some(on);
+      None;
+    | Some(Theme(dark, contrast)) =>
+      link.page_origin = Some(origin);
+      link.theme = Some((dark, contrast));
+      None;
+    | Some(Focus(name)) =>
+      link.page_origin = Some(origin);
+      link.focus = Some(name);
+      None;
+    | Some(Editable(on)) =>
+      link.page_origin = Some(origin);
+      link.editable = Some(on);
+      None;
     | Some(Ping) =>
       link.page_origin = Some(origin);
       link.sent = EmbedModel.Outbox.nothing_sent;
@@ -90,11 +133,13 @@ let receive = (link: t, event: Js.Unsafe.any): option(EmbedModel.Program.t) => {
 
 /* After a display: the size (the height of the frame's content) and the
    status, each posted when it changed, once the page has sent a message */
-let report = (link: t, ~height: int, model: EmbedModel.Model.t): unit =>
+let report =
+    (link: t, ~caret: option(int)=?, ~height: int, model: EmbedModel.Model.t)
+    : unit =>
   switch (link.page_origin) {
   | Some(target) =>
     let (messages, sent) =
-      EmbedModel.Outbox.after_display(~height, model, link.sent);
+      EmbedModel.Outbox.after_display(~caret?, ~height, model, link.sent);
     link.sent = sent;
     List.iter(send(link, ~target), messages);
   | None => ()

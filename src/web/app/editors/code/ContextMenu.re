@@ -163,10 +163,35 @@ let type_annotation_data =
   | _ => []
   };
 
+/* (#2814, Matthew 2026-11-06: "How come we don't get goto def in the right click menu") ~any_name: an editor that
+   another page shows one part of a program in (embed mode) offers Goto definition on any name, not only one whose
+   definition it can find: a name defined in another part (a module member such as Common.flip2, a type of the program's
+   start) is the page's to find, as F12 and Ctrl+click already hand it over. */
+let names_a_thing = (ci: option(Language.Info.t)): bool =>
+  switch (ci) {
+  | Some(
+      InfoExp({
+        user_term: {term: Var(_) | Dot(_) | Constructor(_) | Label(_), _},
+        _,
+      }),
+    )
+  | Some(InfoPat({user_term: {term: Constructor(_), _}, _}))
+  | Some(InfoTyp({user_term: {term: Var(_), _}, _})) => true
+  | _ => false
+  };
+
 let jump_to_binding_data =
-    (ci: option(Language.Info.t)): list(Menu.item(command)) =>
+    (~any_name=false, ci: option(Language.Info.t))
+    : list(Menu.item(command)) =>
   switch (OptUtil.and_then(Language.Info.get_binding_site, ci)) {
   | Some(_) => [
+      action_item(
+        ~shortcut=Shortcuts.goto_definition,
+        "Goto definition",
+        Action.Move(Goal(BindingSiteOfIndicatedVar)),
+      ),
+    ]
+  | None when any_name && names_a_thing(ci) => [
       action_item(
         ~shortcut=Shortcuts.goto_definition,
         "Goto definition",
@@ -425,6 +450,7 @@ let refractor_actions_data =
 
 let get_sections =
     (
+      ~any_name=false,
       ~info_map: Language.Statics.Map.t,
       ~elaborated: Language.Exp.t,
       z: Zipper.t,
@@ -433,7 +459,7 @@ let get_sections =
   let ci = Indicated.ci_of(z, info_map);
   [
     /* Section 1: Navigation & Selection */
-    jump_to_binding_data(ci) @ select_current_term_data(),
+    jump_to_binding_data(~any_name, ci) @ select_current_term_data(),
     /* Section 2: Clipboard */
     clipboard_data(z),
     /* Section 3: Refactoring */
@@ -462,12 +488,13 @@ let flatten_sections =
 
 let get_all_items =
     (
+      ~any_name=false,
       ~info_map: Language.Statics.Map.t,
       ~elaborated: Language.Exp.t,
       z: Zipper.t,
     )
     : list(Menu.item(command)) =>
-  flatten_sections(get_sections(~info_map, ~elaborated, z));
+  flatten_sections(get_sections(~any_name, ~info_map, ~elaborated, z));
 
 /* ============================================================
  * Update + keyboard
@@ -552,6 +579,7 @@ let get_direction =
 
 let view =
     (
+      ~any_name=false,
       ~inject: command => Ui_effect.t(unit),
       ~inject_menu: Menu.action => Ui_effect.t(unit),
       ~syntax: Haz3lcore.CachedSyntax.t,
@@ -563,7 +591,7 @@ let view =
     )
     : Node.t => {
   let caret_point = Zipper.Caret.point(syntax.measured, z);
-  let items = get_all_items(~info_map, ~elaborated, z);
+  let items = get_all_items(~any_name, ~info_map, ~elaborated, z);
   let menu_items =
     Menu.render(
       ~inject_action=inject,

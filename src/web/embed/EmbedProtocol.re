@@ -80,6 +80,21 @@ let origin_allowed = (~own: string, origin: string): bool =>
 
 type incoming =
   | Set(EmbedModel.Program.t)
+  /* (ticket 578) { type: "editable", on }: a cell the page can edit */
+  | Editable(bool)
+  /* { type: "focus", module }: one module's body alone (module absent or
+     not a string: the whole program) */
+  | Focus(option(string))
+  /* { type: "theme", dark, contrast }: Hazel's Colors slide with its
+     dark_mode and high_contrast switches set so */
+  | Theme(bool, bool)
+  /* { type: "lines", on }: Hazel's line numbers beside the cell */
+  | Lines(bool)
+  /* { type: "reveal", name }: the caret on name's definition in the cell */
+  | Reveal(string)
+  /* { type: "font", size, family }: the code's font size in px and its
+     family (a CSS font list), as the page's own editors have them */
+  | Font(option(float), option(string))
   | Ping;
 
 /* j[key] when it is a string */
@@ -115,6 +130,37 @@ let decode = (data: Js.Unsafe.any): option(incoming) =>
       );
     }
   | Some("ping") => Some(Ping)
+  | Some("focus") => Some(Focus(string_field(data, "module")))
+  | Some("font") =>
+    let size =
+      Js.to_string(Js.typeof(Js.Unsafe.get(data, "size"))) == "number"
+        ? Some(Js.float_of_number(Js.Unsafe.get(data, "size"))) : None;
+    Some(Font(size, string_field(data, "family")));
+  | Some("reveal") =>
+    switch (string_field(data, "name")) {
+    | Some(name) => Some(Reveal(name))
+    | None => None
+    }
+  | Some("lines") =>
+    Some(
+      Lines(
+        Js.to_string(Js.typeof(Js.Unsafe.get(data, "on"))) == "boolean"
+        && Js.to_bool(Js.Unsafe.get(data, "on")),
+      ),
+    )
+  | Some("theme") =>
+    let flag = key =>
+      Js.to_string(Js.typeof(Js.Unsafe.get(data, key))) == "boolean"
+      && Js.to_bool(Js.Unsafe.get(data, key));
+    Some(Theme(flag("dark"), flag("contrast")));
+  | Some("editable") =>
+    Some(
+      Editable(
+        HazelLibCore.js_is_object(data)
+        && Js.to_string(Js.typeof(Js.Unsafe.get(data, "on"))) == "boolean"
+        && Js.to_bool(Js.Unsafe.get(data, "on")),
+      ),
+    )
   | _ => None
   };
 
@@ -142,6 +188,21 @@ let encode = (message: EmbedModel.Outbox.message): Js.Unsafe.any => {
              ~incomplete,
              ~program_incomplete,
            ),
+      ]
+    | Caret(top) => [("type", string("caret")), ("top", number(top))]
+    | Goto(name, n) => [
+        ("type", string("goto")),
+        ("name", string(name)),
+        ("count", number(n)),
+      ]
+    | Edited(text, edits) => [
+        ("type", string("edit")),
+        ("text", string(text)),
+        ("edits", number(edits)),
+      ]
+    | History(redo) => [
+        ("type", string("history")),
+        ("redo", Js.Unsafe.inject(Js.bool(redo))),
       ]
     | Crash(message) => [
         ("type", string("crash")),
