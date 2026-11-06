@@ -66,10 +66,10 @@ let problem_status_view =
       message,
       ip,
     )
-  | InfoTyp({cls, marks, message, _}) =>
-    CursorInspector.typ_view(~globals, cls, ~marks, ~message)
-  | InfoTPat({cls, marks, message, _}) =>
-    CursorInspector.tpat_view(~globals, cls, ~marks, ~message)
+  | InfoTyp({cls, marks, message, warnings, _}) =>
+    CursorInspector.typ_view(~globals, cls, ~marks, ~message, ~warnings)
+  | InfoTPat({cls, marks, message, warnings, _}) =>
+    CursorInspector.tpat_view(~globals, cls, ~marks, ~message, ~warnings)
   /* InfoDrv has no marks and routes errors through its own renderer, so
      defer entirely to the cursor inspector's drv_view rather than building
      a generic problem-row from cls/marks/message like the cases above. */
