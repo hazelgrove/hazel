@@ -81,6 +81,7 @@ let int_zero: unit => Exp.t = () => Exp.fresh(Atom(Int(Bigint.zero)));
 let nat_zero: unit => Exp.t = () => Exp.fresh(Atom(Nat(Bigint.zero)));
 let sint_zero: unit => Exp.t = () => Exp.fresh(Atom(SInt(0)));
 let float_zero: unit => Exp.t = () => Exp.fresh(Atom(Float(0.0)));
+let rat_zero: unit => Exp.t = () => Exp.fresh(Atom(Rat(Rational.zero)));
 
 /* `b != 0` at the operand's class. Int/SInt/Nat go through polymorphic
  * inequality (what a user-written guard parses to); float mod's
@@ -95,6 +96,13 @@ let geq_zero_int = (e: Exp.t): Exp.t =>
   Exp.fresh(BinOp(Int(GreaterThanOrEqual), e, int_zero()));
 let geq_zero_sint = (e: Exp.t): Exp.t =>
   Exp.fresh(BinOp(SInt(GreaterThanOrEqual), e, sint_zero()));
+
+/* `base != 0 || e >= 0` for a Rational power: Rational.pow fails only for
+ * a zero base with a negative (Int) exponent; 0 ** 0 is defined. */
+let rat_power_ok = (base: Exp.t, e: Exp.t): Exp.t =>
+  Exp.fresh(
+    BinOp(Bool(Or), neq_zero(rat_zero(), base), geq_zero_int(e)),
+  );
 
 /* `is_finite(arg)` for float→integral conversions. The builtin exists
  * (BuiltinsBase); constructed with a Var head so it matches a
@@ -156,6 +164,9 @@ let builtin_conditions = (name: string, arg: Exp.t): list(Exp.t) =>
     pair_snd(arg) |> Option.map(neq_zero(nat_zero())) |> Option.to_list
   | "float_mod" =>
     pair_snd(arg) |> Option.map(neq_zero_float) |> Option.to_list
+  /* rat(n, d): a zero denominator is a DivideByZero (BuiltinsBase). */
+  | "rat" =>
+    pair_snd(arg) |> Option.map(neq_zero(int_zero())) |> Option.to_list
   | "int_of_float"
   | "sint_of_float"
   | "nat_of_float" => [is_finite(arg)]
@@ -182,6 +193,12 @@ let scan = (exp: Exp.t): list(Exp.t) => {
       emit(geq_zero_int(e2))
     | BinOp(SInt(Power), _, e2) when !nonneg_literal(e2) =>
       emit(geq_zero_sint(e2))
+    /* Rational division and power error only on a zero denominator, or
+     * a zero base raised to a negative Int (Operators.re rat_divide /
+     * rat_power). */
+    | BinOp(Rat(Divide), _, b) => emit(neq_zero(rat_zero(), b))
+    | BinOp(Rat(Power), base, e2) when !nonneg_literal(e2) =>
+      emit(rat_power_ok(base, e2))
     | Ap(_, fn, arg) =>
       switch (unwrap(fn) |> Exp.term_of) {
       /* Caller-vocabulary contract obligation (§2.2): applying a

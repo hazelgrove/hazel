@@ -1,0 +1,6 @@
+# Numeric casts: Int to Rational with the existing constructor rat. #
+# int_to_rat(n) is the exact Rational n, spelled rat(n, 1). It is an #
+# ordinary local function, not a builtin; there is no rat_of_int. #
+# Literal re-kinding (use Rational, expected type) is not a cast: it #
+# only changes how literals and operators are read. #
+let int_to_rat : Int -> Rational = fun n -> rat(n, 1) in

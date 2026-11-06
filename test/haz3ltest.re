@@ -17,7 +17,10 @@ let (suite, _) =
       Test_ListUtil.tests,
       Test_OptUtil.tests,
       Test_Rational.tests,
+      Test_RationalDomainConditions.tests,
+      Test_ListSumIntLibrary.tests,
       Test_Atom.tests,
+      Test_RationalAlgebriteEncoding.tests,
       Test_Operators.tests,
       Test_BuiltinsADT.tests,
       Test_CsvUtil.tests,
@@ -46,6 +49,8 @@ let (suite, _) =
     @ [Test_EditorTransform.tests]
     @ [Test_RationalReadback.tests]
     @ [Test_RationalIntegralModeReadback.tests]
+    @ [Test_NumericCastLibrary.tests]
+    @ [Test_NumericCastProofPath.tests]
     @ Test_Reassociate.tests
     @ Test_MultiProbe.tests
     @ [Test_SampleSelection.tests]
