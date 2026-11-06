@@ -92,6 +92,25 @@ let test_module_keyword_capitalized =
     )
   });
 
+/* A module's sum constructors, used and matched outside it */
+let test_module_sum_constructors_outside =
+  test_case("A module's sum constructors, outside it", `Quick, () => {
+    parse_and_evaluate_test(
+      "1",
+      {|module Common = { type Dir = + N + E + S + W; let opp = fun d : Dir -> case d | N => S | S => N | E => W | W => E end } in case Common.opp(N) | S => 1 | _ => 0 end|},
+    )
+  });
+
+/* ...with a payload, through another module */
+let test_module_sum_payload_in_another_module =
+  test_case(
+    "A module's sum constructor with a payload, in another module", `Quick, () => {
+    parse_and_evaluate_test(
+      "4",
+      {|module Common = { type Out = + Auto + ToRoom(Int) } in module Castle = { let room = fun o : Out -> case o | ToRoom(r) => r + 1 | Auto => 0 end } in Castle.room(ToRoom(3))|},
+    )
+  });
+
 /* Test module keyword inside module body */
 let test_module_keyword_in_mod =
   test_case("Module keyword inside module body", `Quick, () => {
@@ -148,6 +167,8 @@ let tests = (
     test_module_keyword_lowercase,
     test_module_keyword_capitalized,
     test_module_keyword_in_mod,
+    test_module_sum_constructors_outside,
+    test_module_sum_payload_in_another_module,
     test_nested_module_keyword,
     test_module_keyword_annotated,
     test_module_keyword_sig_annotated,
