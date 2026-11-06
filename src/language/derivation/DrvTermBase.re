@@ -1,3 +1,4 @@
+open Poly;
 let continue = x => x;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type any_t = DrvGrammar.any_t(IdTagged.IdTag.t);
@@ -134,7 +135,8 @@ and Exp: {
       ...exp,
       term:
         switch (term) {
-        | Hole(MultiHole(l)) => Hole(MultiHole(List.map(any_map_term, l)))
+        | Hole(MultiHole(l)) =>
+          Hole(MultiHole(List.map(~f=any_map_term, l)))
         | Hole(_) => term
         | Var(v) => Var(v)
         | Quote(s) => Quote(s)
@@ -150,7 +152,7 @@ and Exp: {
           MatchedProd(typ_map_term(t1), typ_map_term(t2))
         | MatchedSum(t1, t2) =>
           MatchedSum(typ_map_term(t1), typ_map_term(t2))
-        | Ctx(e) => Ctx(List.map(exp_map_term, e))
+        | Ctx(e) => Ctx(List.map(~f=exp_map_term, e))
         | Cons(e1, e2) => Cons(exp_map_term(e1), exp_map_term(e2))
         | Concat(e1, e2) => Concat(exp_map_term(e1), exp_map_term(e2))
         | Type(t) => Type(typ_map_term(t))
@@ -162,7 +164,7 @@ and Exp: {
         | Impl(e1, e2) => Impl(exp_map_term(e1), exp_map_term(e2))
         | Truth => Truth
         | Falsity => Falsity
-        | Tuple(es) => Tuple(List.map(exp_map_term, es))
+        | Tuple(es) => Tuple(List.map(~f=exp_map_term, es))
         | NumLit(n) => NumLit(n)
         | Neg(e) => Neg(exp_map_term(e))
         | BinOp(op, e1, e2) =>
@@ -208,13 +210,13 @@ and Exp: {
       | Pair(p1, p2) => is_shadow(p1) || is_shadow(p2)
       | _ => false
       };
-    let subst' = p => is_shadow(p) ? Fun.id : subst;
+    let subst' = p => is_shadow(p) ? Fn.id : subst;
     switch (term) {
     | Hole(_) => e
     | Var(x') => String.equal(x', x) ? v : e
     | Quote(_) => e
     | Parens(e) => Parens(subst(e)) |> rewrap
-    | Tuple(es) => Tuple(List.map(subst, es)) |> rewrap
+    | Tuple(es) => Tuple(List.map(~f=subst, es)) |> rewrap
     // Jdmt
     | Val(_)
     | Eval(_)
@@ -270,9 +272,9 @@ and Exp: {
     /* Bail out to structural equality on holes to avoid infinite loops in
        Bonsai cell updates (the [skip_hole] path short-circuits sooner). */
     | (Hole(_), _) => x == y
-    | (Var(v1), Var(v2)) => v1 == v2
+    | (Var(v1), Var(v2)) => String.equal(v1, v2)
     | (Var(_), _) => false
-    | (Quote(s1), Quote(s2)) => s1 == s2
+    | (Quote(s1), Quote(s2)) => String.equal(s1, s2)
     | (Quote(_), _) => false
     | (Parens(e1), Parens(e2)) => eq(e1, e2)
     | (Parens(_), _) => false
@@ -295,7 +297,8 @@ and Exp: {
       Typ.eq(t11, t21, ~skip_hole) && Typ.eq(t12, t22, ~skip_hole)
     | (MatchedSum(_), _) => false
     | (Ctx(es1), Ctx(es2)) =>
-      List.length(es1) == List.length(es2) && List.for_all2(eq, es1, es2)
+      List.length(es1) == List.length(es2)
+      && List.for_all2_exn(es1, es2, ~f=eq)
     | (Ctx(_), _) => false
     | (Cons(e11, e12), Cons(e21, e22)) => eq(e11, e21) && eq(e12, e22)
     | (Cons(_), _) => false
@@ -323,7 +326,8 @@ and Exp: {
     | (Falsity, Falsity) => true
     | (Falsity, _) => false
     | (Tuple(es1), Tuple(es2)) =>
-      List.length(es1) == List.length(es2) && List.for_all2(eq, es1, es2)
+      List.length(es1) == List.length(es2)
+      && List.for_all2_exn(es1, es2, ~f=eq)
     | (Tuple(_), _) => false
     | (NumLit(n1), NumLit(n2)) => n1 == n2
     | (NumLit(_), _) => false
@@ -385,7 +389,7 @@ and Exp: {
       eq(p, hd, ~skip_hole=false) ? l : splice_on_exist(p, tl)
     };
 
-  let mem_ctx = (p, l) => splice_on_exist(p, l) != [];
+  let mem_ctx = (p, l) => !List.is_empty(splice_on_exist(p, l));
 
   let rec subset_ctx = (s, l) =>
     switch (s, l) {
@@ -408,7 +412,7 @@ and Exp: {
       | (HasType(a, _), HasType(b, _)) => eq(a, b)
       | (Syn(a, _), Syn(b, _)) => eq(a, b)
       | (Ana(a, _), Ana(b, _)) => eq(a, b)
-      | _ => show(p) == show(p')
+      | _ => String.equal(show(p), show(p'))
       };
     let rec insert =
       fun
@@ -459,7 +463,8 @@ and Pat: {
       ...exp,
       term:
         switch (term) {
-        | Hole(MultiHole(l)) => Hole(MultiHole(List.map(any_map_term, l)))
+        | Hole(MultiHole(l)) =>
+          Hole(MultiHole(List.map(~f=any_map_term, l)))
         | Hole(_) => term
         | Quote(s) => Quote(s)
         | Var(v) => Var(v)
@@ -481,9 +486,9 @@ and Pat: {
     /* Bail out to structural equality on holes to avoid infinite loops in
        Bonsai cell updates (the [skip_hole] path short-circuits sooner). */
     | (Hole(_), _) => x == y
-    | (Quote(s1), Quote(s2)) => s1 == s2
+    | (Quote(s1), Quote(s2)) => String.equal(s1, s2)
     | (Quote(_), _) => false
-    | (Var(v1), Var(v2)) => v1 == v2
+    | (Var(v1), Var(v2)) => String.equal(v1, v2)
     | (Var(_), _) => false
     | (Parens(p1), Parens(p2)) => eq(p1, p2)
     | (Parens(_), _) => false
@@ -544,7 +549,8 @@ and Typ: {
       ...exp,
       term:
         switch (term) {
-        | Hole(MultiHole(l)) => Hole(MultiHole(List.map(any_map_term, l)))
+        | Hole(MultiHole(l)) =>
+          Hole(MultiHole(List.map(~f=any_map_term, l)))
         | Hole(_) => term
         | Quote(s) => Quote(s)
         | Num => Num
@@ -570,7 +576,7 @@ and Typ: {
       | Var(x') => String.equal(x', x)
       | _ => false
       };
-    let subst' = p => is_shadow(p) ? Fun.id : subst;
+    let subst' = p => is_shadow(p) ? Fn.id : subst;
     switch (term) {
     | Hole(_) => e
     | Quote(_) => e
@@ -597,7 +603,7 @@ and Typ: {
     /* Bail out to structural equality on holes to avoid infinite loops in
        Bonsai cell updates (the [skip_hole] path short-circuits sooner). */
     | (Hole(_), _) => x == y
-    | (Quote(s1), Quote(s2)) => s1 == s2
+    | (Quote(s1), Quote(s2)) => String.equal(s1, s2)
     | (Quote(_), _) => false
     | (Num, Num) => true
     | (Num, _) => false
@@ -611,7 +617,7 @@ and Typ: {
     | (Unit, _) => false
     | (Sum(t1, t2), Sum(t1', t2')) => eq(t1, t1') && eq(t2, t2')
     | (Sum(_), _) => false
-    | (Var(v1), Var(v2)) => v1 == v2
+    | (Var(v1), Var(v2)) => String.equal(v1, v2)
     | (Var(_), _) => false
     | (Rec({term: Var(a1), _}, a2), Rec({term: Var(b1), _}, b2)) =>
       let rep_id = fresh(Var(Id.mk() |> Id.show));
@@ -677,7 +683,8 @@ and TPat: {
       ...exp,
       term:
         switch (term) {
-        | Hole(MultiHole(l)) => Hole(MultiHole(List.map(any_map_term, l)))
+        | Hole(MultiHole(l)) =>
+          Hole(MultiHole(List.map(~f=any_map_term, l)))
         | Hole(_) => term
         | Quote(s) => Quote(s)
         | Var(v) => Var(v)
@@ -693,9 +700,9 @@ and TPat: {
     /* Bail out to structural equality on holes to avoid infinite loops in
        Bonsai cell updates (the [skip_hole] path short-circuits sooner). */
     | (Hole(_), _) => x == y
-    | (Quote(s1), Quote(s2)) => s1 == s2
+    | (Quote(s1), Quote(s2)) => String.equal(s1, s2)
     | (Quote(_), _) => false
-    | (Var(v1), Var(v2)) => v1 == v2
+    | (Var(v1), Var(v2)) => String.equal(v1, v2)
     | (Var(_), _) => false
     };
   };

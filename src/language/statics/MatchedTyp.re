@@ -90,7 +90,9 @@ let rec prod_strict:
       }
     | Unknown(SynSwitch) => (
         es,
-        Some(List.init(List.length(es), _ => Unknown(SynSwitch) |> temp)),
+        Some(
+          List.init(List.length(es), ~f=_ => Unknown(SynSwitch) |> temp),
+        ),
       )
     | _ => (es, None)
     };
@@ -102,7 +104,8 @@ let prod = (ctx, es, get_label_es, ty, constructor) => {
     es,
     tys_opt
     |> Option.value(
-         ~default=List.init(List.length(es), _ => Unknown(Internal) |> temp),
+         ~default=
+           List.init(List.length(es), ~f=_ => Unknown(Internal) |> temp),
        ),
   );
 };
@@ -124,7 +127,7 @@ let rec args = (ctx, ty, arity): Either.t('a, int) => {
   | Prod(tys) when List.length(tys) == arity => L(tys)
   | Prod(tys) => R(List.length(tys))
   | _ when arity == 1 => L([ty])
-  | Unknown(_) => L(List.init(arity, _ => Unknown(Internal) |> temp))
+  | Unknown(_) => L(List.init(arity, ~f=_ => Unknown(Internal) |> temp))
   | _ => R(1)
   };
 };

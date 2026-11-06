@@ -92,7 +92,12 @@ let lexeme_trace = (e: t): list(option(string)) => {
    applications), so recompute/caching gates must use this variant or
    lexeme-only edits serve stale results (cf. IncrEval.reuse_check). */
 let fast_equal_with_lexemes = (a: t, b: t): bool =>
-  fast_equal(a, b) && lexeme_trace(a) == lexeme_trace(b);
+  fast_equal(a, b)
+  && List.equal(
+       Option.equal(String.equal),
+       lexeme_trace(a),
+       lexeme_trace(b),
+     );
 
 let temp: term => t =
   term => {
@@ -250,7 +255,7 @@ let rec match_tup_label: t => option((LabeledTuple.label, t)) = {
 };
 
 let get_label: t => option(LabeledTuple.label) = {
-  e => match_tup_label(e) |> Option.map(fst);
+  e => match_tup_label(e) |> Option.map(~f=fst);
 };
 
 // Typfun should be treated as a function here as this is only used to
@@ -330,7 +335,7 @@ let rec is_tuple_of_functions = (e: t) =>
     | Parens(e)
     | Projector(_, e)
     | TupLabel(_, e) => is_tuple_of_functions(e)
-    | Tuple(es) => es |> List.for_all(is_fun)
+    | Tuple(es) => es |> List.for_all(~f=is_fun)
     | Dot(e1, e2) =>
       let rec check_tuple = (e1: t, e2: t) =>
         switch (e1.term) {
@@ -527,7 +532,7 @@ let find_by_id = (id: Id.t, exp: t): option(t) => {
     map_term(
       ~f_exp=
         (cont, exp) =>
-          if (rep_id(exp) == id) {
+          if (Id.equal(rep_id(exp), id)) {
             raise(M.Found(exp));
           } else {
             cont(exp);

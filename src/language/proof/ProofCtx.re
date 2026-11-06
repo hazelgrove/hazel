@@ -32,31 +32,32 @@ let of_env = (~builtins, ~ctx: Ctx.t, env: Environment.t(Exp.t)) => {
     Environment.to_list(env)
     |> List.rev
     |> List.fold_left(
-         ((seen_vars, rules), (name, exp)) =>
-           switch (Exp.term_of(exp)) {
-           | Grammar.ProofObject(e) =>
-             let rule = ProofRule.exp_to_rule(e);
-             let typ = ProofRule.rule_to_typ(rule);
-             let coctx =
-               ProofRule.get_coctx(ctx, Typ.temp(Atom(Bool)), rule);
-             let is_captured = CoCtx.has_any(coctx, seen_vars);
-             print_endline("is captured: " ++ string_of_bool(is_captured));
-             let entry = {
-               name,
-               rule,
-               typ,
-               exp: e,
-               is_captured,
-             };
-             ([name, ...seen_vars], [entry, ...rules]);
-           | _ => ([name, ...seen_vars], rules)
-           },
-         ([], builtins),
+         ~f=
+           ((seen_vars, rules), (name, exp)) =>
+             switch (Exp.term_of(exp)) {
+             | Grammar.ProofObject(e) =>
+               let rule = ProofRule.exp_to_rule(e);
+               let typ = ProofRule.rule_to_typ(rule);
+               let coctx =
+                 ProofRule.get_coctx(ctx, Typ.temp(Atom(Bool)), rule);
+               let is_captured = CoCtx.has_any(coctx, seen_vars);
+               print_endline("is captured: " ++ string_of_bool(is_captured));
+               let entry = {
+                 name,
+                 rule,
+                 typ,
+                 exp: e,
+                 is_captured,
+               };
+               ([name, ...seen_vars], [entry, ...rules]);
+             | _ => ([name, ...seen_vars], rules)
+             },
+         ~init=([], builtins),
        );
   rules;
 };
 
 let lookup_rule = (name: string, ctx: t): option(ProofRule.t) =>
   ctx
-  |> List.find_opt(e => e.name == name && e.is_captured == false)
-  |> Option.map(e => e.rule);
+  |> List.find(~f=e => String.equal(e.name, name) && !e.is_captured)
+  |> Option.map(~f=e => e.rule);
