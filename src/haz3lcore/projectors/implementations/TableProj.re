@@ -34,25 +34,30 @@ let table =
       ~parent as _: external_action => Ui_effect.t(unit),
       (headers, rows): (list(LabeledTuple.label), list(list(Exp.t))),
       ~view_seg: (Sort.t, Segment.t) => Node.t,
-    ) =>
+    ) => {
+  let numeric = numeric_columns(rows);
   table_view(
     /* Same shape as TableRenderer's headers, `.column-label` included: the
        stylesheet hangs header typography off that class, so a bare <th> gets
        whatever color it happens to inherit -- which in dark was the muted
        code color, 22 points of lightness off the header's own fill. */
     ~header_cells=
-      List.map(
-        h =>
-          Node.th([
-            Node.span(
-              ~attrs=[Attr.classes(["column-label"])],
-              [Node.text(h)],
-            ),
-          ]),
+      List.mapi(
+        (i, h) =>
+          Node.th(
+            ~attrs=numeric_attrs(numeric, i),
+            [
+              Node.span(
+                ~attrs=[Attr.classes(["column-label"])],
+                [Node.text(h)],
+              ),
+            ],
+          ),
         headers,
       ),
-    ~rows=List.map(row_cells(info.utility, view_seg), rows),
+    ~rows=List.map(row_cells(~numeric, info.utility, view_seg), rows),
   );
+};
 
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]

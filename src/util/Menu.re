@@ -547,3 +547,45 @@ let direction_from_id =
       horizontal: `Right,
     }
   };
+
+/* For a menu measured after render: as direction_of, but flip only toward
+ * the side with more room, so a menu too big for either side keeps opening
+ * down and right. */
+let fit_direction =
+    (~menu_height: float, ~menu_width: float, space: available_space)
+    : open_direction => {
+  vertical:
+    space.below >= menu_height || space.below >= space.above ? `Down : `Up,
+  horizontal:
+    space.right >= menu_width || space.right >= space.left ? `Right : `Left,
+};
+
+/* The editor menu's direction classes (ContextMenu.direction_class), for
+ * menus whose direction is set on the DOM after render, once measured. */
+let open_classes = [
+  "open-down-right",
+  "open-down-left",
+  "open-up-right",
+  "open-up-left",
+];
+
+let open_class = (dir: open_direction): string =>
+  switch (dir) {
+  | {vertical: `Down, horizontal: `Right} => "open-down-right"
+  | {vertical: `Down, horizontal: `Left} => "open-down-left"
+  | {vertical: `Up, horizontal: `Right} => "open-up-right"
+  | {vertical: `Up, horizontal: `Left} => "open-up-left"
+  };
+
+/* Give `elem` the class for `dir`, dropping the others (None: drop all). */
+let set_open_class =
+    (elem: Js.t(Dom_html.element), dir: option(open_direction)): unit => {
+  let keep = Option.map(open_class, dir);
+  List.iter(
+    c =>
+      keep == Some(c)
+        ? elem##.classList##add(Js.string(c))
+        : elem##.classList##remove(Js.string(c)),
+    open_classes,
+  );
+};

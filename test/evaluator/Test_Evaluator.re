@@ -4,6 +4,7 @@ let tests =
     Test_Evaluator_ProbeSteps.tests,
     Test_Evaluator_ProbeCallStack.tests,
     Test_Evaluator_ProbeSelection.tests,
+    Test_Evaluator_ProbeFocus.tests,
   ]
   @ Test_Evaluator_Probes.tests
   @ [
