@@ -371,16 +371,20 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
 /* A recursive type whose body, under any binders, parentheses, projectors
    and non-labels, is one of its own bound variables: `rec x -> x`,
    `rec x -> (x)`, `rec x -> rec y -> x`. It has no unrolling and stands for
-   no type. */
-let non_contractive = (ty: t): bool => {
-  let rec go = (bound: list(string), ty: t): bool =>
+   no type. Some(binder) when [ty] is one, with [binder] the binder its body
+   refers to: the innermost of that name, so the inner one in
+   `rec x -> rec x -> x`. */
+let non_contractive = (ty: t): option(TPat.t) => {
+  let rec go = (bound: list((string, TPat.t)), ty: t): option(TPat.t) =>
     switch (term_of(ty)) {
     | Parens(ty)
     | Projector(_, ty)
     | TupLabel({term: ExplicitNonlabel, _}, ty) => go(bound, ty)
     | Rec(tp, body) =>
-      go(Option.to_list(TPat.tyvar_of_utpat(tp)) @ bound, body)
-    | Var(x) => List.exists(String.equal(x), bound)
+      let named =
+        TPat.tyvar_of_utpat(tp) |> Option.map(x => (x, tp)) |> Option.to_list;
+      go(named @ bound, body);
+    | Var(x) => List.assoc_opt(x, bound)
     | Unknown(_)
     | Atom(_)
     | DrvQuoteTy(_)
@@ -395,7 +399,7 @@ let non_contractive = (ty: t): bool => {
     | ProofOf(_)
     | ProdProjection(_)
     | ProdExtension(_)
-    | Sig(_) => false
+    | Sig(_) => None
     };
   go([], ty);
 };
@@ -404,7 +408,7 @@ let non_contractive = (ty: t): bool => {
    non-contractive. */
 let rec unroll = (ty: t): option(t) =>
   switch (term_of(ty)) {
-  | Rec(_) when non_contractive(ty) => None
+  | Rec(_) when Option.is_some(non_contractive(ty)) => None
   | Rec(tp, body) =>
     let* body = unroll(body);
     let (_, rewrap) = unwrap(ty);
@@ -794,6 +798,21 @@ let equal_up_to_aliases = (ctx: Ctx.t, a: t, b: t): bool => {
     };
   go(~depth=0, ctx, a, b);
 };
+
+/* Whether a type alias [name] is recursive, given its definition [def]:
+   Recursive(`rec name -> def`) when [def] mentions [name], and Plain, with
+   [def] standing as written, otherwise. `type T = T` is Recursive, with the
+   non-contractive `rec T -> T`. Only [def]'s own free variables are read,
+   so a definition reaching [name] through another alias, as in
+   `type y = x in type x = y`, is Plain. */
+[@deriving show({with_path: false})]
+type alias_def =
+  | Plain
+  | Recursive(t);
+
+let recursive_def = (name: Var.t, def: t): alias_def =>
+  List.exists(String.equal(name), free_vars(def))
+    ? Recursive(Rec(TPat.fresh(Var(name)), def) |> temp) : Plain;
 
 /* Structural canonicalization WITHOUT alias expansion: desugars Sig,
    computes tuple projections/extensions, dedups labels, strips wrapper
