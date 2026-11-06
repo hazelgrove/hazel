@@ -11,8 +11,6 @@
 open Util;
 open RuleSpec;
 
-module Map = Stdlib.Map.Make(String);
-
 /* A [specced] is a spec term paired with the concrete term it was matched
    against during verification. */
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -35,7 +33,7 @@ let show_linked = ((spec, syntax): specced): string =>
    [specced] pair they were first matched against. Subsequent occurrences of
    the same name must match equal syntax or verification fails. */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type map = [@opaque] Map.t(specced);
+type map = [@opaque] String.Map.t(specced);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type failure =
@@ -65,13 +63,13 @@ let rec go_spec: ((map, list(failure)), specced) => (map, list(failure)) =
       go_spec(_, (TPat(spec), TPat(syntax)): specced);
     let failunbox = (map, [FailMatch(specced), ...res]);
     let register = s => {
-      switch (Map.find_opt(s, map)) {
+      switch (Map.find(map, s)) {
       | Some((_, syntax') as specced') => (
           map,
           Drv.Any.eq(syntax, syntax', ~skip_hole=false)
             ? res : [NotEqual(specced, specced'), ...res],
         )
-      | None => (Map.add(s, specced, map), res)
+      | None => (Map.set(map, ~key=s, ~data=specced), res)
       };
     };
     switch (spec, syntax) {
@@ -237,7 +235,7 @@ let rec go_spec: ((map, list(failure)), specced) => (map, list(failure)) =
 let go_test = (map: map, test: test): option(failure) => {
   exception Failure(failure);
   let lookup = s =>
-    switch (Map.find_opt(s, map)) {
+    switch (Map.find(map, s)) {
     | Some(specced) => specced
     | None => raise(Unreachable)
     };
@@ -380,7 +378,7 @@ let verify: (t, (Drv.Exp.t, list(Drv.Exp.t))) => res =
       go_specs(
         [concl, ...prems],
         [concl_syntax, ...prems_syntax],
-        (Map.empty, []),
+        (String.Map.empty, []),
       );
     let (m, n) = (List.length(prems), List.length(prems_syntax));
     /* If the premise count doesn't match, or we already found match errors,
