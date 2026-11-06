@@ -138,42 +138,30 @@ let current_toplevel_def =
     (info_map: Statics.Map.t, z: Zipper.t): option(Id.t) => {
   let try_id = id => toplevel_def_body_id(~statics=info_map, ~id);
 
-  let from_indicated = () =>
-    switch (Indicated.index(z)) {
-    | None => None
-    | Some(cursor_id) => try_id(cursor_id)
-    };
+  let from_indicated = () => Option.bind(Indicated.index(z), ~f=try_id);
 
   let from_left = () => {
     let (l_sibs, _) = ZipperBase.sibs_with_sel(z);
     /* trim right-end secondaries, then take the last piece (nearest non-secondary on the left). */
     let trimmed = Segment.trim_secondary(Right, l_sibs);
-    switch (ListUtil.split_last_opt(trimmed)) {
-    | Some((_, last)) => try_id(Piece.id(last))
-    | None => None
-    };
+    Option.bind(ListUtil.last_opt(trimmed), ~f=last =>
+      try_id(Piece.id(last))
+    );
   };
 
   let from_right = () => {
     let (_, r_sibs) = ZipperBase.sibs_with_sel(z);
     let trimmed = Segment.trim_secondary(Left, r_sibs);
-    switch (trimmed) {
-    | [first, ..._] => try_id(Piece.id(first))
-    | [] => None
-    };
+    Option.bind(List.hd(trimmed), ~f=first => try_id(Piece.id(first)));
   };
 
   let from_ancestor = () =>
-    switch (z.relatives.ancestors) {
-    | [] => None
-    | [(ancestor, _), ..._] => try_id(ancestor.id)
-    };
+    Option.bind(List.hd(z.relatives.ancestors), ~f=((ancestor, _)) =>
+      try_id(ancestor.id)
+    );
 
   [from_indicated, from_right, from_left, from_ancestor]
-  |> List.fold_left(
-       ~f=(acc, f) => Option.is_none(acc) ? f() : acc,
-       ~init=None,
-     );
+  |> List.find_map(~f=f => f());
 };
 
 /* Program root id: the single `All`-mode anchor (expands to one probe per row).
@@ -184,10 +172,9 @@ let root_id_result: ref(option(Id.t)) = ref(None);
 
 let program_root_id = (syntax: CachedSyntax.t): option(Id.t) => {
   let stable =
-    switch (root_id_segment^) {
-    | Some(seg) => phys_equal(seg, syntax.segment)
-    | None => false
-    };
+    Option.exists(root_id_segment^, ~f=seg =>
+      phys_equal(seg, syntax.segment)
+    );
   if (stable) {
     root_id_result^;
   } else {
@@ -243,11 +230,9 @@ let update_autoprobe =
       let current_def = current_toplevel_def(info_map, z);
       /* Function-sugar: also anchor the param patterns so params are probed on the header line(s). */
       let current_params =
-        switch (current_def) {
-        | Some(def_id) =>
+        Option.value_map(current_def, ~default=[], ~f=def_id =>
           ProbePerform.function_sugar_param_anchors(info_map, def_id)
-        | None => []
-        };
+        );
       let anchors = Option.to_list(current_def) @ current_params;
       /* def body carries cursor following (gated on auto_focus); the param anchor is added without it, keeping focus on the body's first sample. */
       let add = z =>

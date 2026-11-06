@@ -34,12 +34,8 @@ module Utils = {
       expanded_paths:
         List.filter(
           ~f=
-            (path: string) => {
-              switch (path_to_id_opt(node_map, path)) {
-              | Some(_) => true
-              | None => false
-              }
-            },
+            (path: string) =>
+              Option.is_some(path_to_id_opt(node_map, path)),
           model.expanded_paths,
         ),
     };

@@ -30,11 +30,7 @@ module Make = (P: PARAMS) : Projector => {
     | _ => None
     };
 
-  let init = (any: Language.Any.t) =>
-    switch (value_of(any)) {
-    | Some(_) => Some()
-    | None => None
-    };
+  let init = (any: Language.Any.t) => Option.map(value_of(any), ~f=ignore);
 
   let get = (info: info): P.t =>
     switch (

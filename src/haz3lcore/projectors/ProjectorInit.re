@@ -25,10 +25,10 @@ let init =
     (kind: ProjectorCore.Kind.t, syntax: syntax, any: Language.Any.t)
     : option(syntax) => {
   let (module P) = to_module(kind);
-  switch (P.init(any)) {
-  | None => None
-  | Some(model) => Some(Projector(ProjectorCore.mk(kind, syntax, model)))
-  };
+  P.init(any)
+  |> Option.map(~f=(model): syntax =>
+       Projector(ProjectorCore.mk(kind, syntax, model))
+     );
 };
 
 let init_or_noop =

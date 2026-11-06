@@ -133,7 +133,7 @@ let push_raw =
 
 let pop = (sel: t): option((Piece.t, t)) => {
   let reset_anchor = (content: Segment.t, sel: t): t =>
-    content == []
+    List.is_empty(content)
       ? {
         ...sel,
         content,

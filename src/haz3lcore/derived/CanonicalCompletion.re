@@ -319,8 +319,7 @@ let is_prefix_witness =
     : bool =>
   switch (p) {
   | Tile(t) =>
-    switch (Tile.single_token(t)) {
-    | Some(tok) =>
+    Option.exists(Tile.single_token(t), ~f=tok =>
       Token.length(tok) < Token.length(shard_text)
       && String.equal(
            String.sub(shard_text, ~pos=0, ~len=Token.length(tok)),
@@ -344,8 +343,7 @@ let is_prefix_witness =
                Form.base_molds([tok]),
              )
       )
-    | None => false
-    }
+    )
   | _ => false
   };
 
@@ -591,12 +589,8 @@ let opener_schedule =
      pass but must respect the others' presence */
   let leading_incomplete =
     incomplete
-    |> List.filter(~f=(t: Tile.t) => Tile.l_shard(t) > 0)
     |> List.filter(~f=(t: Tile.t) =>
-         switch (only) {
-         | None => true
-         | Some(id) => Id.equal(t.id, id)
-         }
+         Tile.l_shard(t) > 0 && Option.for_all(only, ~f=Id.equal(t.id))
        );
   if (List.is_empty(leading_incomplete)) {
     [];
@@ -2255,15 +2249,14 @@ let rec complete_segment =
         let was_incomplete = Segment.incomplete_tiles_deep(seg);
         let all_ids = ids_deep(seg);
         let edge_ok = (~right: bool, id: Id.t) =>
-          switch (
-            List.find(~f=(t: Tile.t) => Id.equal(t.id, id), was_incomplete)
-          ) {
-          | None => true
-          | Some(t) =>
-            right
-              ? List.mem(t.shards, Tile.arity(t) - 1, ~equal=Int.equal)
-              : List.mem(t.shards, 0, ~equal=Int.equal)
-          };
+          List.find(~f=(t: Tile.t) => Id.equal(t.id, id), was_incomplete)
+          |> Option.for_all(~f=(t: Tile.t) =>
+               List.mem(
+                 t.shards,
+                 right ? Tile.arity(t) - 1 : 0,
+                 ~equal=Int.equal,
+               )
+             );
         let measurable = (~right: bool, id: Id.t) =>
           List.exists(~f=Id.equal(id), all_ids) && edge_ok(~right, id);
         /* a consumed witness token is the visible alias of the shard

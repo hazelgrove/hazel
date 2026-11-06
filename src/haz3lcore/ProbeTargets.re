@@ -135,14 +135,13 @@ let expansion_results: ref(list((Id.t, list(Id.t)))) = ref([]);
 let ids_from_term =
     (~syntax: CachedSyntax.t, ~info_map, id: Id.t): list(Id.t) => {
   let inputs_stable =
-    switch (expansion_inputs^) {
-    | Some((term_data, terms, measured, prev_info_map)) =>
+    Option.exists(
+      expansion_inputs^, ~f=((term_data, terms, measured, prev_info_map)) =>
       phys_equal(term_data, syntax.term_data)
       && phys_equal(terms, syntax.terms)
       && phys_equal(measured, syntax.measured)
       && phys_equal(prev_info_map, info_map)
-    | None => false
-    };
+    );
   if (!inputs_stable) {
     expansion_inputs :=
       Some((syntax.term_data, syntax.terms, syntax.measured, info_map));
@@ -173,12 +172,10 @@ let sort_ids_lexically =
     List.filter_map(
       ~f=
         id =>
-          switch (
-            TermData.extreme_measures(id, syntax.term_data, syntax.measured)
-          ) {
-          | Some((start_pt, _)) => Some((id, start_pt.row, start_pt.col))
-          | None => None
-          },
+          TermData.extreme_measures(id, syntax.term_data, syntax.measured)
+          |> Option.map(~f=((start_pt: Measured.Point.t, _)) =>
+               (id, start_pt.row, start_pt.col)
+             ),
       ids,
     );
   let sorted =

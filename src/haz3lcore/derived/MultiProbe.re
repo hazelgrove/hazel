@@ -222,154 +222,85 @@ let let_body_is_hole = (term: Language.Any.t): bool =>
 
 let has_function_type = (id: Id.t, info_map: Language.Statics.Map.t): bool =>
   Language.Statics.Map.ty_of(id, info_map)
-  |> Option.map(~f=Language.Typ.is_arrow)
-  |> Option.value(~default=false);
+  |> Option.exists(~f=Language.Typ.is_arrow);
 
 let term_spans_multiple_rows =
     (id: Id.t, data: TermData.t, measured: Measured.t): bool =>
-  switch (TermData.extreme_measures(id, data, measured)) {
-  | Some((start_loc, end_loc)) => start_loc.row < end_loc.row
-  | None => false
-  };
+  TermData.extreme_measures(id, data, measured)
+  |> Option.exists(
+       ~f=((start_loc: Measured.Point.t, end_loc: Measured.Point.t)) =>
+       start_loc.row < end_loc.row
+     );
 
 let term_end_position =
     (candidate_id: Id.t, env: selection_env): option((int, int)) =>
-  switch (TermData.extreme_measures(candidate_id, env.data, env.measured)) {
-  | Some((_, end_loc)) => Some((end_loc.row, end_loc.col))
-  | None => None
-  };
-
-let rec collect_row_terms =
-        (ids: list(Id.t), terms: TermMap.t, acc: list(Language.Any.t))
-        : list(Language.Any.t) =>
-  switch (ids) {
-  | [] => List.rev(acc)
-  | [id, ...rest] =>
-    let next_acc =
-      switch (get_term(id, terms)) {
-      | Some(term) => [term, ...acc]
-      | None => acc
-      };
-    collect_row_terms(rest, terms, next_acc);
-  };
+  TermData.extreme_measures(candidate_id, env.data, env.measured)
+  |> Option.map(~f=((_, end_loc: Measured.Point.t)) =>
+       (end_loc.row, end_loc.col)
+     );
 
 let row_is_hole_only = (ids: list(Id.t), terms: TermMap.t): bool =>
-  switch (collect_row_terms(ids, terms, [])) {
+  switch (List.filter_map(ids, ~f=id => get_term(id, terms))) {
   | [] => false
   | collected_terms => List.for_all(~f=term_is_hole, collected_terms)
   };
 
-let rec collect_terms_for_row =
-        (
-          pieces: list(Piece.t),
-          current_row: int,
-          data: TermData.t,
-          measured: Measured.t,
-          acc: list((Id.t, int)),
-        )
-        : list((Id.t, int)) =>
-  switch (pieces) {
-  | [] => List.rev(acc)
-  | [piece, ...rest] =>
-    let maybe_position =
-      TermData.extreme_measures(Piece.id(piece), data, measured);
-    let next_acc =
-      switch (maybe_position) {
-      | Some((_, end_loc)) when end_loc.row == current_row => [
-          (Piece.id(piece), end_loc.col),
-          ...acc,
-        ]
-      | _ => acc
-      };
-    collect_terms_for_row(rest, current_row, data, measured, next_acc);
-  };
+let collect_terms_for_row =
+    (
+      pieces: list(Piece.t),
+      current_row: int,
+      data: TermData.t,
+      measured: Measured.t,
+    )
+    : list((Id.t, int)) =>
+  List.filter_map(pieces, ~f=piece =>
+    switch (TermData.extreme_measures(Piece.id(piece), data, measured)) {
+    | Some((_, end_loc)) when end_loc.row == current_row =>
+      Some((Piece.id(piece), end_loc.col))
+    | _ => None
+    }
+  );
 
-let compare_by_col_desc = (pair1: (Id.t, int), pair2: (Id.t, int)): int =>
-  switch (pair1, pair2) {
-  | ((_, col1), (_, col2)) => Int.compare(col2, col1)
-  };
-
-let rec ids_from_pairs =
-        (pairs: list((Id.t, int)), acc: list(Id.t)): list(Id.t) =>
-  switch (pairs) {
-  | [] => List.rev(acc)
-  | [(id, _), ...rest] => ids_from_pairs(rest, [id, ...acc])
-  };
-
-let rec build_row_id_lists =
-        (
-          rows: list(Segment.t),
-          start_row: int,
-          index: int,
-          data: TermData.t,
-          measured: Measured.t,
-          acc: list(list(Id.t)),
-        )
-        : list(list(Id.t)) =>
-  switch (rows) {
-  | [] => List.rev(acc)
-  | [row, ...rest] =>
-    let current_row = start_row + index;
-    let terms_with_cols =
-      collect_terms_for_row(row, current_row, data, measured, []);
-    let sorted_pairs =
-      List.sort(~compare=compare_by_col_desc, terms_with_cols);
-    let ids = ids_from_pairs(sorted_pairs, []);
-    build_row_id_lists(
-      rest,
-      start_row,
-      index + 1,
-      data,
-      measured,
-      [ids, ...acc],
-    );
-  };
+let compare_by_col_desc =
+    ((_, col1): (Id.t, int), (_, col2): (Id.t, int)): int =>
+  Int.compare(col2, col1);
 
 let get_row_term_ids_prioritized =
     (id: Id.t, data: TermData.t, measured: Measured.t)
     : option(list(list(Id.t))) => {
   let+ (start_row_idx, term_rows) =
     TermData.get_term_rows(id, data, measured);
-  build_row_id_lists(term_rows, start_row_idx, 0, data, measured, []);
+  List.mapi(term_rows, ~f=(index, row) =>
+    collect_terms_for_row(row, start_row_idx + index, data, measured)
+    |> List.sort(~compare=compare_by_col_desc)
+    |> List.map(~f=fst)
+  );
 };
 
-let rec build_row_contexts =
-        (
-          rows: list(list(Id.t)),
-          terms: TermMap.t,
-          index: int,
-          acc: list(row_context),
-        )
-        : list(row_context) =>
-  switch (rows) {
-  | [] => List.rev(acc)
-  | [ids, ...rest] =>
-    let context = {
-      row_index: index,
+let build_row_contexts =
+    (rows: list(list(Id.t)), terms: TermMap.t): list(row_context) =>
+  List.mapi(rows, ~f=(row_index, ids) =>
+    {
+      row_index,
       ids,
       hole_only: row_is_hole_only(ids, terms),
-    };
-    build_row_contexts(rest, terms, index + 1, [context, ...acc]);
-  };
+    }
+  );
 
 /* Check if a candidate corresponds to an incomplete tile.
  * Incomplete tiles become MultiHoles in the term structure,
  * but we don't want to filter them out like regular holes. */
 let is_incomplete_tile = (candidate_id: Id.t, data: TermData.t): bool =>
-  switch (TermData.root_tile(candidate_id, data)) {
-  | Some(t) => !Tile.is_complete(t)
-  | None => false
-  };
+  TermData.root_tile(candidate_id, data)
+  |> Option.exists(~f=t => !Tile.is_complete(t));
 
 /* Check if a candidate is a Rule tile (| pat => body).
  * Rule tiles never have values — they're structural, not evaluable.
  * When incomplete (just |), they appear as MultiHoles in the term map,
  * so the term-level candidate_allowed_by_rule won't catch them. */
 let is_rule_tile = (candidate_id: Id.t, data: TermData.t): bool =>
-  switch (TermData.root_tile(candidate_id, data)) {
-  | Some(t) => Tile.is_case_rule(t)
-  | _ => false
-  };
+  TermData.root_tile(candidate_id, data)
+  |> Option.exists(~f=Tile.is_case_rule);
 
 /* Check if an incomplete tile is missing a body-determining shard.
  * E.g., `let a = expr` (missing "in") - the body determines the value.
@@ -385,10 +316,8 @@ let is_incomplete_binding_form = (candidate_id: Id.t, data: TermData.t): bool =>
  * keyword like `th` (prefix of `then`). These are transient artifacts
  * of typing and should never be probed or count as alternatives. */
 let is_delimiter_prefix = (candidate_id: Id.t, data: TermData.t): bool =>
-  switch (TermData.root_tile(candidate_id, data)) {
-  | Some(t) => Piece.is_infix_delimiter_op_prefix(Tile(t))
-  | None => false
-  };
+  TermData.root_tile(candidate_id, data)
+  |> Option.exists(~f=t => Piece.is_infix_delimiter_op_prefix(Tile(t)));
 
 /* Check if an id represents a "meaningful" alternative (not a hole,
  * not a delimiter prefix, or an incomplete tile that isn't a binding form). */
@@ -402,31 +331,15 @@ let is_meaningful_alternative =
              && !is_incomplete_binding_form(id, data)) {
     true;
   } else {
-    switch (get_term(id, terms)) {
-    | Some(term) => !term_is_hole(term)
-    | None => false
-    };
+    get_term(id, terms) |> Option.exists(~f=term => !term_is_hole(term));
   };
 
-let rec row_has_non_hole_alternative =
-        (
-          candidate_id: Id.t,
-          ids: list(Id.t),
-          terms: TermMap.t,
-          data: TermData.t,
-        )
-        : bool =>
-  switch (ids) {
-  | [] => false
-  | [id, ...rest] =>
-    if (id == candidate_id) {
-      row_has_non_hole_alternative(candidate_id, rest, terms, data);
-    } else if (is_meaningful_alternative(id, terms, data)) {
-      true;
-    } else {
-      row_has_non_hole_alternative(candidate_id, rest, terms, data);
-    }
-  };
+let row_has_non_hole_alternative =
+    (candidate_id: Id.t, ids: list(Id.t), terms: TermMap.t, data: TermData.t)
+    : bool =>
+  List.exists(ids, ~f=id =>
+    id != candidate_id && is_meaningful_alternative(id, terms, data)
+  );
 
 let candidate_allowed_by_holes =
     (candidate_id: Id.t, row: row_context, env: selection_env): bool =>
@@ -507,10 +420,8 @@ let candidate_allowed_by_delimiter_prefix =
 
 let candidate_allowed_by_mod_declaration =
     (candidate_id: Id.t, env: selection_env): bool =>
-  switch (get_term(candidate_id, env.terms)) {
-  | Some(term) => !term_is_mod_declaration(term)
-  | None => true
-  };
+  get_term(candidate_id, env.terms)
+  |> Option.for_all(~f=term => !term_is_mod_declaration(term));
 
 /* Rule tiles (case arms: | pat => body) never have values and
  * should never be probed. Their children (pat, body) are valid. */
@@ -538,36 +449,23 @@ let candidate_is_allowed =
   && candidate_allowed_by_let_hole(candidate_id, row, env);
 //&& candidate_allowed_by_variables(candidate_id, env, state);
 
-let rec extract_candidate_with_end =
-        (
-          ids: list(Id.t),
-          env: selection_env,
-          target_row: int,
-          target_col: int,
-          acc: list(Id.t),
-        )
-        : (option(Id.t), list(Id.t)) =>
-  switch (ids) {
-  | [] => (None, List.rev(acc))
-  | [id, ...rest] =>
-    let matches =
+let extract_candidate_with_end =
+    (
+      ids: list(Id.t),
+      env: selection_env,
+      (target_row, target_col): (int, int),
+    )
+    : option((Id.t, list(Id.t))) =>
+  Util.ListUtil.find_with_rest(
+    id =>
       switch (term_end_position(id, env)) {
-      | Some((row_value, col_value)) =>
-        row_value == target_row && col_value == target_col
-      | None => false
-      };
-    if (matches) {
-      (Some(id), List.rev_append(acc, rest));
-    } else {
-      extract_candidate_with_end(
-        rest,
-        env,
-        target_row,
-        target_col,
-        [id, ...acc],
-      );
-    };
-  };
+      | Some((row_value, col_value))
+          when row_value == target_row && col_value == target_col =>
+        Some(id)
+      | _ => None
+      },
+    ids,
+  );
 
 /* When the first candidate on a row is an if expression, promote its
  * else branch (which ends at the same position) to be tried first,
@@ -587,21 +485,15 @@ let adjust_candidates_for_if =
   | [] => []
   | [first_id, ...rest] =>
     let is_if_candidate =
-      switch (get_term(first_id, env.terms)) {
-      | Some(term) => term_is_if(term)
-      | None => false
-      };
+      get_term(first_id, env.terms) |> Option.exists(~f=term_is_if);
     if (!is_if_candidate) {
       row.ids;
     } else {
-      switch (term_end_position(first_id, env)) {
-      | Some((target_row, target_col)) =>
-        let (maybe_else, remaining) =
-          extract_candidate_with_end(rest, env, target_row, target_col, []);
-        switch (maybe_else) {
-        | Some(else_id) => [else_id, ...remaining]
-        | None => row.ids
-        };
+      switch (
+        term_end_position(first_id, env)
+        |> Option.bind(~f=extract_candidate_with_end(rest, env))
+      ) {
+      | Some((else_id, remaining)) => [else_id, ...remaining]
       | None => row.ids
       };
     };
@@ -621,25 +513,14 @@ let adjust_candidates_for_incomplete_binding =
     if (!is_incomplete_binding_form(first_id, env.data)) {
       ids;
     } else {
-      switch (term_end_position(first_id, env)) {
-      | Some((target_row, target_col)) =>
-        let (maybe_trailing, remaining) =
-          extract_candidate_with_end(rest, env, target_row, target_col, []);
-        switch (maybe_trailing) {
-        | Some(trailing_id) => [trailing_id, ...remaining]
-        | None => ids
-        };
+      switch (
+        term_end_position(first_id, env)
+        |> Option.bind(~f=extract_candidate_with_end(rest, env))
+      ) {
+      | Some((trailing_id, remaining)) => [trailing_id, ...remaining]
       | None => ids
       };
     }
-  };
-
-let rec collect_pattern_binding_ids =
-        (bindings: list(Language.Binding.t), acc: list(Id.t)): list(Id.t) =>
-  switch (bindings) {
-  | [] => List.rev(acc)
-  | [binding, ...rest] =>
-    collect_pattern_binding_ids(rest, [binding.id, ...acc])
   };
 
 let update_state_with_candidate =
@@ -648,28 +529,31 @@ let update_state_with_candidate =
   switch (Id.Map.find(env.terms, candidate_id)) {
   | Some(Pat(pat)) =>
     let binding_ids =
-      collect_pattern_binding_ids(Language.Pat.bindings(pat), []);
+      List.map(Language.Pat.bindings(pat), ~f=(binding: Language.Binding.t) =>
+        binding.id
+      );
     {seen_patterns: binding_ids @ state.seen_patterns};
   | _ => state
   };
 
-let rec choose_candidate =
-        (
-          candidates: list(Id.t),
-          row: row_context,
-          env: selection_env,
-          state: selection_state,
-        )
-        : (option(Id.t), selection_state) =>
-  switch (candidates) {
-  | [] => (None, state)
-  | [candidate_id, ...rest] =>
-    if (candidate_is_allowed(candidate_id, row, env, state)) {
-      let next_state = update_state_with_candidate(candidate_id, env, state);
-      (Some(candidate_id), next_state);
-    } else {
-      choose_candidate(rest, row, env, state);
-    }
+let choose_candidate =
+    (
+      candidates: list(Id.t),
+      row: row_context,
+      env: selection_env,
+      state: selection_state,
+    )
+    : (option(Id.t), selection_state) =>
+  switch (
+    List.find(candidates, ~f=candidate_id =>
+      candidate_is_allowed(candidate_id, row, env, state)
+    )
+  ) {
+  | Some(candidate_id) => (
+      Some(candidate_id),
+      update_state_with_candidate(candidate_id, env, state),
+    )
+  | None => (None, state)
   };
 
 let select_in_row =
@@ -688,26 +572,13 @@ let select_in_row =
   choose_candidate(adjusted_ids, adjusted_row, env, state);
 };
 
-let rec select_rows =
-        (rows: list(row_context), env: selection_env, state: selection_state)
-        : (list(option(Id.t)), selection_state) =>
-  switch (rows) {
-  | [] => ([], state)
-  | [row, ...rest] =>
-    let (selected, next_state) = select_in_row(row, env, state);
-    let (tail, final_state) = select_rows(rest, env, next_state);
-    ([selected, ...tail], final_state);
-  };
-
 /* Normalize an ID to its term's rep_id.
  * Multi-tile forms (like case expressions) have multiple IDs in their annotation,
  * but the evaluator stores samples keyed by the rep_id. If we probe a non-rep ID,
  * the sample lookup will fail. This ensures we always use the rep_id. */
 let normalize_to_rep_id = (id: Id.t, terms: TermMap.t): Id.t =>
-  switch (Id.Map.find(terms, id)) {
-  | Some(term) => Language.Any.rep_id(term)
-  | None => id
-  };
+  Id.Map.find(terms, id)
+  |> Option.value_map(~default=id, ~f=Language.Any.rep_id);
 
 let ids_to_multiprobe =
     (
@@ -719,20 +590,25 @@ let ids_to_multiprobe =
     )
     : option(list(option(Id.t))) => {
   let+ row_term_ids = get_row_term_ids_prioritized(id, data, measured);
-  let row_contexts = build_row_contexts(row_term_ids, terms, 0, []);
+  let row_contexts = build_row_contexts(row_term_ids, terms);
   let env = {
     terms,
     data,
     measured,
     info_map,
   };
-  let (selections, _) = select_rows(row_contexts, env, empty_state);
+  let (_, selections) =
+    List.fold_map(
+      row_contexts,
+      ~init=empty_state,
+      ~f=(state, row) => {
+        let (selected, next_state) = select_in_row(row, env, state);
+        (next_state, selected);
+      },
+    );
   /* Normalize each selected ID to its rep_id to ensure sample lookup works */
   List.map(
-    ~f=
-      fun
-      | Some(selected_id) => Some(normalize_to_rep_id(selected_id, terms))
-      | None => None,
     selections,
+    ~f=Option.map(~f=selected_id => normalize_to_rep_id(selected_id, terms)),
   );
 };

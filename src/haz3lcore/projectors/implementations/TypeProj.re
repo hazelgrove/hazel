@@ -82,10 +82,10 @@ module M: Projector = {
   };
 
   let samples_of = (info: info): list(Sample.t) =>
-    switch (info.dynamics) {
-    | None => []
-    | Some(dynamics: Dynamics.Info.t) => dynamics.samples
-    };
+    Option.value_map(
+      info.dynamics, ~default=[], ~f=(dynamics: Dynamics.Info.t) =>
+      dynamics.samples
+    );
 
   let reading =
       (~samples: list(Sample.t), model: model, statics: Info.t): reading => {

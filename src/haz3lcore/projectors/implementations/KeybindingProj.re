@@ -64,15 +64,13 @@ module M: Projector = {
     };
 
   let init = (any: Language.Any.t) =>
-    switch (binding_of(any)) {
-    | Some(b) =>
-      Some({
+    Option.map(binding_of(any), ~f=b =>
+      {
         committed: b,
         pending: None,
         isRecording: false,
-      })
-    | None => None
-    };
+      }
+    );
 
   /* Total on purpose: the underlying syntax can be edited out from under a
      projector, and a failwith here takes the whole editor down. */
@@ -278,10 +276,7 @@ module M: Projector = {
   /* What the widget currently shows: a capture in progress wins over what
      the syntax holds, since the syntax is not written until capture ends. */
   let shown_binding = (model, info): S.binding =>
-    switch (model.pending) {
-    | Some(b) => b
-    | None => get(info)
-    };
+    Option.value_or_thunk(model.pending, ~default=() => get(info));
 
   /* Write the captured binding to syntax and leave capture. The ONLY place
      syntax is written, which is what keeps focus alive across keystrokes. */
