@@ -64,10 +64,9 @@ let add_indents = (segment, measured, indent: string, rows: list(string)) =>
     rows;
   } else {
     let measured =
-      switch (measured) {
-      | Some(m) => m
-      | None => measured_no_projectors(segment)
-      };
+      Option.value_or_thunk(measured, ~default=() =>
+        measured_no_projectors(segment)
+      );
     List.mapi(~f=add_indent(measured, indent), rows);
   };
 

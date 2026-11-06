@@ -215,20 +215,12 @@ let atom_lexeme =
       switch (c) {
       | Int(i) =>
         Token.is_int(l)
-        && (
-          switch (Bigint.of_string_opt(l)) {
-          | Some(v) => Bigint.to_string(v) == Bigint.to_string(i)
-          | None => false
-          }
-        )
+        && Option.exists(Bigint.of_string_opt(l), ~f=v =>
+             Bigint.to_string(v) == Bigint.to_string(i)
+           )
       | Float(f) =>
         Token.is_float(l)
-        && (
-          switch (float_of_string_opt(l)) {
-          | Some(v) => v == f
-          | None => false
-          }
-        )
+        && Option.exists(float_of_string_opt(l), ~f=v => v == f)
       | _ => false
       };
     valid ? l : canonical;
@@ -2039,12 +2031,12 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       ]
       @ r,
     );
-  | MultiHole([x]) when op_lexeme(exp.annotation) != None =>
+  | MultiHole([x]) when Option.is_some(op_lexeme(exp.annotation)) =>
     /* Stranded prefix op (see MakeTerm's Pre captures) */
     let op = Option.value_exn(op_lexeme(exp.annotation));
     let+ x = any_to_pretty(~settings, x);
     wrap(exp, [pre_op_tile(exp |> Exp.rep_id, Sort.Exp, op), ...x]);
-  | MultiHole([l, r]) when op_lexeme(exp.annotation) != None =>
+  | MultiHole([l, r]) when Option.is_some(op_lexeme(exp.annotation)) =>
     /* Unknown infix operator (see MakeTerm's exp Bin fallthrough) */
     let op = Option.value_exn(op_lexeme(exp.annotation));
     let id = exp |> Exp.rep_id;
@@ -2799,12 +2791,12 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
       pat,
       [Piece.Projector(ProjectorCore.mk(~id, kind, syntax, model))],
     );
-  | MultiHole([x]) when op_lexeme(pat.annotation) != None =>
+  | MultiHole([x]) when Option.is_some(op_lexeme(pat.annotation)) =>
     /* Stranded prefix op (see MakeTerm's Pre captures) */
     let op = Option.value_exn(op_lexeme(pat.annotation));
     let+ x = any_to_pretty(~settings, x);
     wrap(pat, [pre_op_tile(pat |> Pat.rep_id, Sort.Pat, op), ...x]);
-  | MultiHole([l, r]) when op_lexeme(pat.annotation) != None =>
+  | MultiHole([l, r]) when Option.is_some(op_lexeme(pat.annotation)) =>
     /* Unknown infix operator in pattern position (see MakeTerm's pat
        Bin fallthrough) */
     let op = Option.value_exn(op_lexeme(pat.annotation));
@@ -2926,12 +2918,14 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
         }
       },
     )
-  | Unknown(Hole(MultiHole([x]))) when op_lexeme(typ.annotation) != None =>
+  | Unknown(Hole(MultiHole([x])))
+      when Option.is_some(op_lexeme(typ.annotation)) =>
     /* Stranded prefix op (see MakeTerm's Pre captures) */
     let op = Option.value_exn(op_lexeme(typ.annotation));
     let+ x = any_to_pretty(~settings, x);
     wrap(typ, [pre_op_tile(typ |> Typ.rep_id, Sort.Typ, op), ...x]);
-  | Unknown(Hole(MultiHole([l, r]))) when op_lexeme(typ.annotation) != None =>
+  | Unknown(Hole(MultiHole([l, r])))
+      when Option.is_some(op_lexeme(typ.annotation)) =>
     /* Unknown infix operator in type position (see MakeTerm's typ Bin
        fallthrough) */
     let op = Option.value_exn(op_lexeme(typ.annotation));

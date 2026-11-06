@@ -61,14 +61,14 @@ let by_token = (d: Direction.t, z: t): option(t) =>
    and movement is normal until the caret exits the run. */
 let in_skippable_indent = (z: t): bool =>
   z.caret == Outer
-  && z.selection.content == []
+  && List.is_empty(z.selection.content)
   && (
     switch (z.relatives.siblings) {
     | (l, [Piece.Secondary(w), ..._]) when Secondary.is_space(w) =>
       let rec all_white = (ps: list(Piece.t)) =>
         /* scanning right-to-left from the caret */
         switch (ps) {
-        | [] => z.relatives.ancestors == [] /* buffer start */
+        | [] => List.is_empty(z.relatives.ancestors) /* buffer start */
         | [Piece.Secondary(s), ...rest] =>
           Secondary.is_space(s)
             ? all_white(rest) : Secondary.is_linebreak(s)

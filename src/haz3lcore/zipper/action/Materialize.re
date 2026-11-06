@@ -16,10 +16,8 @@ let rezip = (z: Zipper.t, seg: Segment.t): Zipper.t => {
   };
   switch (anchor) {
   | Some((p, d)) =>
-    switch (Move.jump_to_side_of_id(Direction.toggle(d), z0, Piece.id(p))) {
-    | Some(z) => z
-    | None => z0
-    }
+    Move.jump_to_side_of_id(Direction.toggle(d), z0, Piece.id(p))
+    |> Option.value(~default=z0)
   | None => z0
   };
 };

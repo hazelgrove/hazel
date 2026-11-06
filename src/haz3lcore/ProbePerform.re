@@ -264,25 +264,18 @@ let add_ids_from_multi_term =
     List.filter_map(
       ~f=
         ((id, _)) =>
-          switch (
-            TermData.extreme_measures(id, syntax.term_data, syntax.measured)
-          ) {
-          | Some((_, end_loc)) => Some(end_loc.row)
-          | None => None
-          },
+          TermData.extreme_measures(id, syntax.term_data, syntax.measured)
+          |> Option.map(~f=((_, end_loc: Measured.Point.t)) => end_loc.row),
       z.refractors.manuals,
     );
   let ids =
     List.filter(
       ~f=
         id =>
-          switch (
-            TermData.extreme_measures(id, syntax.term_data, syntax.measured)
-          ) {
-          | Some((_, end_loc)) =>
-            !List.mem(manual_end_rows, end_loc.row, ~equal=Int.equal)
-          | None => true
-          },
+          TermData.extreme_measures(id, syntax.term_data, syntax.measured)
+          |> Option.for_all(~f=((_, end_loc: Measured.Point.t)) =>
+               !List.mem(manual_end_rows, end_loc.row, ~equal=Int.equal)
+             ),
       ids,
     );
   let old_ephemerals = z.refractors.multis.ephemerals;
@@ -496,10 +489,10 @@ let function_sugar_param_anchors =
         | Some(InfoExp({user_term: {term: Let(pat, def, _), _}, _})) =>
           /* Anchor params only when def_id is THIS let's def (the fn body); if it's the `in` body (a call site) the params are someone else's. Stop at the first let either way. */
           if (Id.equal(def_id, IdTagged.rep_id(def))) {
-            switch (FunctionSugar.detect(pat)) {
-            | Some((_, args, _)) => Some(List.map(args, ~f=Pat.rep_id))
-            | None => None
-            };
+            FunctionSugar.detect(pat)
+            |> Option.map(~f=((_, args, _)) =>
+                 List.map(args, ~f=Pat.rep_id)
+               );
           } else {
             None;
           }
@@ -727,10 +720,8 @@ let go =
     | None => z
     }
   | StepInto(call_stack, frame) =>
-    switch (step_into_call_stack(~syntax, ~call_stack, ~frame, info_map, z)) {
-    | Some(z) => z
-    | None => z
-    }
+    step_into_call_stack(~syntax, ~call_stack, ~frame, info_map, z)
+    |> Option.value(~default=z)
   | Pin(call_stack, ap_id) =>
     /* Promote any multi probe to manual so the pin persists across cursor movement. */
     let z =
@@ -762,14 +753,11 @@ let go =
   };
 
 let refractor_kind = (id: Id.t, z: Zipper.t): option(ProjectorCore.Kind.t) => {
-  switch (List.Assoc.find(z.refractors.manuals, id, ~equal=Id.equal)) {
-  | Some(entry: Refractors.entry) => Some(entry.kind)
-  | None =>
-    switch (Id.Map.find(z.refractors.multis.ephemerals, id)) {
-    | Some(entry: Refractors.entry) => Some(entry.kind)
-    | None => None
-    }
-  };
+  Option.first_some(
+    List.Assoc.find(z.refractors.manuals, id, ~equal=Id.equal),
+    Id.Map.find(z.refractors.multis.ephemerals, id),
+  )
+  |> Option.map(~f=(entry: Refractors.entry) => entry.kind);
 };
 
 let can_probe = (id: Id.t, info_map: Statics.Map.t): bool =>

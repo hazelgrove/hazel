@@ -21,11 +21,7 @@ let get =
     (info: info): option((list(LabeledTuple.label), list(list(Exp.t)))) =>
   switch (info.elaborated) {
   | Some(elab_exp) => table_of(Exp(elab_exp))
-  | None =>
-    switch (info.syntax |> info.utility.seg_to_term) {
-    | Some(s) => table_of(s)
-    | None => None
-    }
+  | None => Option.bind(info.syntax |> info.utility.seg_to_term, ~f=table_of)
   };
 
 let table =
@@ -61,11 +57,7 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = unit;
 
-  let init = (any: Any.t) =>
-    switch (table_of(any)) {
-    | Some(_) => Some()
-    | None => None
-    };
+  let init = (any: Any.t) => Option.map(table_of(any), ~f=ignore);
 
   let focusable =
     Focusable.{

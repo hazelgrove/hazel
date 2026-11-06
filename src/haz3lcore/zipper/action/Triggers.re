@@ -111,10 +111,10 @@ let expand_projector = (z: t): option(t) => {
      * [newest(parens), ^^refractor, ...rest] where rest is [third_newest, ..., oldest].
      * We want syntax in the newest position: [oldest, ..., third_newest, syntax...] */
     let (kind, model) =
-      switch (refractor_of_invoke_token(Tile.token(nt, 0))) {
-      | Some(km) => km
-      | None => (of_refractor_trigger(Tile.token(nt, 0)), None)
-      };
+      Option.value_or_thunk(
+        refractor_of_invoke_token(Tile.token(nt, 0)), ~default=() =>
+        (of_refractor_trigger(Tile.token(nt, 0)), None)
+      );
     Zipper.update_siblings(((_, r)) => (List.rev(rest) @ syntax, r), z)
     |> Zipper.add_manual(
          ~model?,
@@ -220,9 +220,11 @@ let expand_livelit = (~ctx, z: t): option(t) =>
  * be mutually exclusive; otherwise the order below is load-bearing. */
 let insert = (~ci: option(Language.Info.t), z: t): t => {
   let ctx =
-    ci
-    |> Option.map(~f=Language.Info.ctx_of)
-    |> Option.value(~default=Language.Ctx.empty);
+    Option.value_map(
+      ci,
+      ~default=Language.Ctx.empty,
+      ~f=Language.Info.ctx_of,
+    );
   let triggers = [expand_projector, expand_livelit(~ctx)];
   List.fold_left(
     ~f=(z, f) => Option.value(f(z), ~default=z),

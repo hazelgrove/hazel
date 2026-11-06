@@ -583,13 +583,9 @@ module Expansion = {
   /* Try to get expansion for a token in a specific sort context.
      Returns None if no expansion exists for this sort. */
   let try_get = (sort: Sort.t, t: Token.t): option((Label.t, Direction.t)) => {
-    let matching =
-      sorted_expansions
-      |> List.find(~f=((tok, s, _, _)) => String.equal(tok, t) && s == sort);
-    switch (matching) {
-    | Some((_, _, lbl, dir)) => Some((lbl, dir))
-    | None => None
-    };
+    sorted_expansions
+    |> List.find(~f=((tok, s, _, _)) => String.equal(tok, t) && s == sort)
+    |> Option.map(~f=((_, _, lbl, dir)) => (lbl, dir));
   };
 
   /* Get expansion for a token in a specific sort context.

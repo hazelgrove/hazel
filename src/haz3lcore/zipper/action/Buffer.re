@@ -9,10 +9,7 @@ let buffer_clear = (z: Zipper.t): Zipper.t =>
   };
 
 let set_tydi_buffer = (ci: option(Language.Info.t), z: Zipper.t): Zipper.t =>
-  switch (TyDi.set_buffer(~ci, z)) {
-  | None => z
-  | Some(z) => z
-  };
+  OptUtil.replace(TyDi.set_buffer(~ci), z);
 
 let set_llm_buffer = (z: Zipper.t, response: string): Zipper.t =>
   switch (

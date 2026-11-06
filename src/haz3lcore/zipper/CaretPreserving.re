@@ -117,10 +117,10 @@ let move_to_predecessor = (z: t, predecessor_ids: Id.Map.t(unit)): option(t) => 
   let z = move_to_start(z);
   let rec go = (z: t, best: option(t)): option(t) => {
     let is_pred =
-      switch (z.relatives.siblings |> fst |> ListUtil.last_opt) {
-      | Some(p) => Id.Map.mem(predecessor_ids, Piece.id(p))
-      | None => false
-      };
+      z.relatives.siblings
+      |> fst
+      |> ListUtil.last_opt
+      |> Option.exists(~f=p => Id.Map.mem(predecessor_ids, Piece.id(p)));
     let best = is_pred ? Some(z) : best;
     switch (Move.local(ByToken, Right, z)) {
     | Some(z) => go(z, best)
@@ -209,12 +209,7 @@ let move_to_id =
       };
     found
       ? needs_adjust ? Move.local(ByToken, Left, z) : Some(z)
-      : (
-        switch (Move.local(ByToken, Right, z)) {
-        | Some(z) => go(z)
-        | None => None
-        }
-      );
+      : Option.bind(Move.local(ByToken, Right, z), ~f=go);
   };
   go(z);
 };
@@ -252,19 +247,8 @@ let reposition_cursor =
       switch (move_to_predecessor(z, predecessor_ids)) {
       | Some(z) => z
       | None =>
-        let rec go = (ancestor_ids, z): option(t) =>
-          switch (ancestor_ids) {
-          | [] => None
-          | [ancestor_id, ...ancestor_ids] =>
-            switch (move_to_id_anc(z, ancestor_id)) {
-            | Some(z) => Some(z)
-            | None => go(ancestor_ids, z)
-            }
-          };
-        switch (go(ancestor_ids, z)) {
-        | Some(z) => z
-        | None => z
-        };
+        List.find_map(ancestor_ids, ~f=move_to_id_anc(z))
+        |> Option.value(~default=z)
       };
     (z, false);
   };

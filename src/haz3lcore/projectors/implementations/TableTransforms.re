@@ -82,17 +82,12 @@ let get_dynamic_type = (exp: Exp.t): option(Typ.t) => {
 
 let can_move_column =
     (columns_opt: option(list(string)), column: string, left: bool) =>
-  switch (columns_opt) {
-  | Some(columns) =>
-    switch (
-      List.findi(columns, ~f=(_, x) => String.equal(x, column))
-      |> Option.map(~f=fst)
-    ) {
-    | Some(idx) => left ? idx > 0 : idx < List.length(columns) - 1
-    | None => false
-    }
-  | None => false
-  };
+  Option.exists(columns_opt, ~f=columns =>
+    List.findi(columns, ~f=(_, x) => String.equal(x, column))
+    |> Option.exists(~f=((idx, _)) =>
+         left ? idx > 0 : idx < List.length(columns) - 1
+       )
+  );
 
 let atom_cls_of_typ = (ty: Typ.t): option(Atom.cls) =>
   switch (Typ.cls_of_term(ty.term)) {

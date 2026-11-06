@@ -122,7 +122,7 @@ let rec tokens_of_segment = (seg: Segment.t): list(Token.t) =>
 and tokens_of_piece = (piece: Piece.t): list(Token.t) =>
   switch (piece) {
   | Piece.Tile(tile)
-      when List.length(tile.shards) == 1 && tile.children == [] =>
+      when List.length(tile.shards) == 1 && List.is_empty(tile.children) =>
     tokens_of_shards([tile])
   | Piece.Tile(tile) => tokens_of_segment(Tile.disassemble(tile))
   | _ => []
@@ -431,9 +431,7 @@ let stats_of = (~anchors: Id.Map.t(unit), seg: Segment.t): repair_stats => {
     complete_multitiles: List.length(complete_ids),
     incomplete_multitiles,
     preserved_anchors:
-      List.length(
-        List.filter(~f=id => Id.Map.mem(anchors, id), complete_ids),
-      ),
+      List.count(complete_ids, ~f=id => Id.Map.mem(anchors, id)),
   };
 };
 
@@ -517,7 +515,7 @@ let rec has_orphaned_trailing_shard = (seg: Segment.t): bool =>
       | Piece.Tile(tile) =>
         !Tile.is_complete(tile)
         && Tile.is_multidelimiter(tile)
-        && Tile.left_missing_shards(tile) != []
+        && !List.is_empty(Tile.left_missing_shards(tile))
         || List.exists(~f=has_orphaned_trailing_shard, tile.children)
       | _ => false,
     seg,
@@ -578,7 +576,8 @@ let go_request = (z: t): t =>
          retry. This handles cascading reassociation where completing
          one layer reveals that an outer ancestor also needs work. */
       let (siblings, affected_ancestors, outer_ancestors) =
-        if (siblings_have_incomplete(siblings) && outer_ancestors != []) {
+        if (siblings_have_incomplete(siblings)
+            && !List.is_empty(outer_ancestors)) {
           let (siblings, more_affected, outer, more_fresh) =
             flatten_to_depth(
               ~fresh_map,

@@ -202,15 +202,9 @@ module Utils = {
 
   let get_oldest_ancestor =
       (info: Info.t, info_map: Id.Map.t(Info.t)): Info.t => {
-    switch (
-      {
-        let* id = ListUtil.hd_opt(List.rev(Info.ancestors_of(info)));
-        Id.Map.find(info_map, id);
-      }
-    ) {
-    | Some(info) => info
-    | None => info
-    };
+    List.last(Info.ancestors_of(info))
+    |> Option.bind(~f=Id.Map.find(info_map))
+    |> Option.value(~default=info);
   };
 };
 
@@ -361,12 +355,8 @@ let parent_id_of = (node: node): option(Id.t) => {
   );
 };
 
-let parent_of = (node_map: t, node: node): option(node) => {
-  switch (parent_id_of(node)) {
-  | Some(p_id) => Some(find(node_map, p_id))
-  | None => None
-  };
-};
+let parent_of = (node_map: t, node: node): option(node) =>
+  Option.map(parent_id_of(node), ~f=find(node_map));
 
 let children_of = (node_map: t, node: node): list(node) => {
   List.map(~f=(id: Id.t) => find(node_map, id), node.children);
@@ -549,11 +539,8 @@ let rec build_children =
 };
 
 let sibling_idx_of = (path: list(Id.t), self: Id.t): int => {
-  path
-  |> List.mapi(~f=(i, id) => (i, id))
-  |> List.find(~f=((_, id)) => id == self)
-  |> Option.map(~f=fst)
-  |> Option.value(~default=-1);
+  List.findi(path, ~f=(_, id) => id == self)
+  |> Option.value_map(~default=-1, ~f=fst);
 };
 
 let build_siblings_and_trim = (node_map: t): t => {

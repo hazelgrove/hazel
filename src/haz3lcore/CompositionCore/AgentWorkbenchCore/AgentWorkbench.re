@@ -81,12 +81,8 @@ module Utils = {
     open Model;
     // =============
 
-    let is_completed = (subtask: subtask): bool => {
-      switch (subtask.completion_info) {
-      | Some(_) => true
-      | None => false
-      };
-    };
+    let is_completed = (subtask: subtask): bool =>
+      Option.is_some(subtask.completion_info);
 
     let is_failed = (subtask: subtask): bool => {
       switch (subtask.completion_info) {
@@ -103,13 +99,8 @@ module Utils = {
       );
     };
 
-    let is_active = (task: task, subtask_name: string): bool => {
-      switch (task.active_subtask) {
-      | Some(active_subtask_name) =>
-        String.equal(active_subtask_name, subtask_name)
-      | None => false
-      };
-    };
+    let is_active = (task: task, subtask_name: string): bool =>
+      Option.exists(task.active_subtask, ~f=String.equal(subtask_name));
 
     let subtask_to_pretty_string = (task: task, subtask: subtask): string => {
       "=== Subtask ===\n"
@@ -203,12 +194,8 @@ module Utils = {
       Maps.StringMap.find(model.task_dict, task_name);
     };
 
-    let is_active = (model: t, task_name: string): bool => {
-      switch (model.active_task) {
-      | Some(active_task_name) => String.equal(active_task_name, task_name)
-      | None => false
-      };
-    };
+    let is_active = (model: t, task_name: string): bool =>
+      Option.exists(model.active_task, ~f=String.equal(task_name));
 
     let task_to_pretty_string = (model: t, task: task): string => {
       "=== Task ===\n"

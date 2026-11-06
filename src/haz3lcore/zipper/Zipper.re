@@ -107,7 +107,7 @@ let rescan_parent_shards = (z: t): t => {
       (sibs: Siblings.t, target: Ancestor.t)
       : option((Siblings.t, Ancestor.t)) => {
     let missing = ancestor_missing(target);
-    if (missing == []) {
+    if (List.is_empty(missing)) {
       None;
     } else {
       let convert = convert_piece(target, missing);
@@ -722,7 +722,8 @@ let directional_unselect = (d: Direction.t, z: t): t => {
 };
 
 let unselect = (z: t): t =>
-  z.selection.content == [] ? z : directional_unselect(z.selection.focus, z);
+  List.is_empty(z.selection.content)
+    ? z : directional_unselect(z.selection.focus, z);
 
 let move = (d: Direction.t, z: t): option(t) =>
   if (Selection.is_empty(z.selection)) {
@@ -894,11 +895,7 @@ let insert_segment = (z: t, seg: Segment.t, ~root): t =>
 let adj_pos = (d: Direction.t, z: t): t =>
   switch (d) {
   | Left => z
-  | Right =>
-    switch (move(Left, z)) {
-    | None => z
-    | Some(z) => z
-    }
+  | Right => OptUtil.replace(move(Left), z)
   };
 
 /* Unselect with the caret Outer: directional_unselect would step an Inner
@@ -971,10 +968,7 @@ let adjacent_monotile_id = (d: Direction.t, z: t): option(Id.t) =>
   };
 
 let adjacent_monotile_or_new_id = (d, z) =>
-  switch (adjacent_monotile_id(d, z)) {
-  | Some(id) => id
-  | None => Id.mk()
-  };
+  Option.value_or_thunk(adjacent_monotile_id(d, z), ~default=Id.mk);
 
 let representative_piece = (z: t): option((Piece.t, Direction.t)) => {
   /* The piece to the left of the caret, or if none exists, the piece to the right */
@@ -1207,12 +1201,13 @@ let do_towards_point =
 
   let is_at_side_of_row = (d: Direction.t, z: t) => {
     let Point.{row, col} = caret_point(z);
-    switch (move(d, z)) {
-    | None => true
-    | Some(z) =>
-      let Point.{row: rowp, col: colp} = caret_point(z);
-      row != rowp || col == colp;
-    };
+    Option.for_all(
+      move(d, z),
+      ~f=z => {
+        let Point.{row: rowp, col: colp} = caret_point(z);
+        row != rowp || col == colp;
+      },
+    );
   };
 
   let direction_to_from = (p1: Point.t, p2: Point.t): Direction.t => {

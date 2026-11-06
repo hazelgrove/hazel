@@ -383,13 +383,10 @@ module Local = {
              | `Tok(p) => [p]
              | `Run(left, run, right, witness) => {
                  let preserved =
-                   switch (
-                     Id.Map.find(old_runs, Piece.id(List.hd_exn(run)))
-                   ) {
-                   | Some((l, old, r)) =>
-                     l == witness && r == id(right) && old == run
-                   | None => false
-                   };
+                   Id.Map.find(old_runs, Piece.id(List.hd_exn(run)))
+                   |> Option.exists(~f=((l, old, r)) =>
+                        l == witness && r == id(right) && old == run
+                      );
                  if (preserved) {
                    run;
                  } else {
@@ -507,10 +504,7 @@ module Local = {
          separator collapse below. Holes INSIDE a member (e.g. `let x = ?`)
          have a non-separator neighbor and are kept. */
       let is_member_boundary = (tok: option(Piece.t)): bool =>
-        switch (tok) {
-        | None => true
-        | Some(t) => is_semi(t)
-        };
+        Option.for_all(tok, ~f=is_semi);
       let rec drop_hole_members = (prev_tok: option(Piece.t), ps) =>
         switch (ps) {
         | [] => []
@@ -621,13 +615,12 @@ module Local = {
     let normalize_top_level = (~before=?, z: Zipper.t): Zipper.t => {
       let after = Zipper.unselect_and_zip(z);
       let old =
-        Option.map(before, ~f=Zipper.unselect_and_zip)
-        |> Option.value(~default=[]);
+        Option.value_map(before, ~default=[], ~f=Zipper.unselect_and_zip);
       let next =
         after
         |> normalize_top_level_whitespace(~before=old)
         |> normalize_module_bodies(~before=old)
-        |> EditIdentity.restore(before == None ? after : old, _);
+        |> EditIdentity.restore(Option.is_none(before) ? after : old, _);
       Segment.ptr_eq(next, after)
         ? z
         : {
@@ -863,7 +856,8 @@ module Local = {
             )
           : None
       ) {
-      | Some(segment) when reserved_binder_garbage(code, segment) != None =>
+      | Some(segment)
+          when Option.is_some(reserved_binder_garbage(code, segment)) =>
         Error(
           Action.Failure.Composition_action_failure(
             "Inserted code does not parse as intended."
@@ -951,7 +945,8 @@ module Local = {
         switch (
           PerfTimer.time("typing-parse", () => Parser.to_segment(code, ~root))
         ) {
-        | Some(segment) when reserved_binder_garbage(code, segment) != None =>
+        | Some(segment)
+            when Option.is_some(reserved_binder_garbage(code, segment)) =>
           Error(
             Action.Failure.Composition_action_failure(
               "Inserted code does not parse as intended."
@@ -1344,7 +1339,7 @@ module Local = {
                rewrite; any other bound-name count change makes old→new use
                site mapping ambiguous, so reject rather than silently leaving
                stale references. */
-            if (old_names != []
+            if (!List.is_empty(old_names)
                 && List.length(old_names) != List.length(new_names)) {
               Error(
                 Action.Failure.Composition_action_failure(
@@ -1394,7 +1389,7 @@ module Local = {
                    spellings but paths stay consistent after follow-up edits
                    (see [[GeneralTreeUtils.get_refs_to_after_pattern_edit]]). */
                 let final_z =
-                  old_names == []
+                  List.is_empty(old_names)
                     ? new_z
                     : GeneralTreeUtils.update_use_sites_of_pat(
                         ~z=new_z,

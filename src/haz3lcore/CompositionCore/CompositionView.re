@@ -77,24 +77,20 @@ module Local = {
       };
     };
 
-    let is_term_folded = (term_data: TermData.t, id: Id.t, z: Zipper.t): bool => {
-      switch (
-        Select.term(
-          ~defs_exclude_bodies=false,
-          ~case_rules=false,
-          term_data,
-          id,
-          z,
-        )
-      ) {
-      | Some(z') =>
-        switch (z'.selection.content) {
-        | [Piece.Projector(pr)] => pr.kind == ProjectorCore.Kind.Fold
-        | _ => false
-        }
-      | None => false
-      };
-    };
+    let is_term_folded = (term_data: TermData.t, id: Id.t, z: Zipper.t): bool =>
+      Select.term(
+        ~defs_exclude_bodies=false,
+        ~case_rules=false,
+        term_data,
+        id,
+        z,
+      )
+      |> Option.exists(~f=(z': Zipper.t) =>
+           switch (z'.selection.content) {
+           | [Piece.Projector(pr)] => pr.kind == ProjectorCore.Kind.Fold
+           | _ => false
+           }
+         );
 
     let collapse_terms = (~z: Zipper.t, ~ids: list(Id.t), ~root) => {
       // Retain only the ids which are not folded
@@ -114,16 +110,9 @@ module Local = {
 
     let collapse_definitions =
         (~z: Zipper.t, ~ids: list(Id.t), ~info_map: Id.Map.t(Info.t), ~root) => {
-      let infos = List.map(~f=(id: Id.t) => Id.Map.find(info_map, id), ids);
       let def_ids =
-        List.filter_map(
-          ~f=
-            (info: option(Info.t)) =>
-              switch (info) {
-              | Some(info) => Some(Utils.get_def_id_of_let(info))
-              | None => None
-              },
-          infos,
+        List.filter_map(ids, ~f=(id: Id.t) =>
+          Id.Map.find(info_map, id) |> Option.map(~f=Utils.get_def_id_of_let)
         )
         |> List.filter(~f=(id: Id.t) => id != Id.invalid);
       collapse_terms(~z, ~ids=def_ids, ~root);
