@@ -903,15 +903,8 @@ and regrout_affix =
           (Trim.empty, l', [p, ...Trim.to_seg(trim)] @ tl);
         | Tile(t) =>
           let children =
-            List.fold_right(
-              ~f=
-                (hd, tl) => {
-                  let tl = tl;
-                  let hd = regrout(Nib.Shape.(concave(), concave()), hd);
-                  [hd, ...tl];
-                },
-              ~init=[],
-              t.children,
+            List.fold_right(t.children, ~init=[], ~f=(hd, tl) =>
+              [regrout(Nib.Shape.(concave(), concave()), hd), ...tl]
             );
           let p =
             Piece.Tile({
@@ -1229,17 +1222,7 @@ let rec find_ctx = (seg: t, id: Id.t): option((t, int, Piece.t)) => {
       } else {
         let deeper =
           switch ((p: Piece.t)) {
-          | Tile(t) =>
-            List.fold_left(
-              ~f=
-                (acc, ch) =>
-                  switch (acc) {
-                  | Some(_) => acc
-                  | None => find_ctx(ch, id)
-                  },
-              ~init=None,
-              t.children,
-            )
+          | Tile(t) => List.find_map(t.children, ~f=ch => find_ctx(ch, id))
           | _ => None
           };
         switch (deeper) {

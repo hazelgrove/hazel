@@ -154,12 +154,9 @@ let governing_lb = (z: Zipper.t): option(Id.t) =>
   switch (last_lb_in_seg(fst(z.relatives.siblings))) {
   | Some(id) => Some(id)
   | None =>
-    List.fold_left(
-      ~f=
-        (acc, (_, sibs): Ancestors.generation) =>
-          Option.is_some(acc) ? acc : last_lb_in_seg(fst(sibs)),
-      ~init=None,
-      z.relatives.ancestors,
+    List.find_map(
+      z.relatives.ancestors, ~f=((_, sibs): Ancestors.generation) =>
+      last_lb_in_seg(fst(sibs))
     )
   };
 

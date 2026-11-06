@@ -228,8 +228,8 @@ module CacheDiag = {
          List.map(~f=(tc: Reply.Model.tool_call) => tc.id, m.tool_calls),
        );
 
-  let total_chars =
-    List.fold_left(~f=(a, s) => a + String.length(s), ~init=0);
+  let total_chars = (xs: list(string)): int =>
+    List.sum((module Int), xs, ~f=String.length);
 
   let common_prefix_chars = (a: list(string), b: list(string)): int => {
     let rec go = (a, b, acc) =>

@@ -159,12 +159,7 @@ let rec var_mention_upat = (name: string, upat: Pat.t): bool => {
   | Cons(up1, up2) =>
     var_mention_upat(name, up1) || var_mention_upat(name, up2)
   | ListLit(l)
-  | Tuple(l) =>
-    List.fold_left(
-      ~f=(acc, up) => {acc || var_mention_upat(name, up)},
-      ~init=false,
-      l,
-    )
+  | Tuple(l) => List.exists(l, ~f=var_mention_upat(name))
   | Parens(up)
   | Projector(_, up)
   | TupLabel(_, up) => var_mention_upat(name, up)
@@ -222,12 +217,7 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | Fun(args, body, _, _) =>
     var_mention_upat(name, args) ? false : var_mention(name, body)
   | ListLit(l)
-  | Tuple(l) =>
-    List.fold_left(
-      ~f=(acc, ue) => {acc || var_mention(name, ue)},
-      ~init=false,
-      l,
-    )
+  | Tuple(l) => List.exists(l, ~f=var_mention(name))
   | Let(p, def, body) =>
     (var_mention_upat(name, p) ? false : var_mention(name, body))
     || var_mention(name, def)
@@ -321,12 +311,7 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | Forall(args, body) =>
     var_mention_upat(name, args) ? false : var_applied(name, body)
   | ListLit(l)
-  | Tuple(l) =>
-    List.fold_left(
-      ~f=(acc, ue) => {acc || var_applied(name, ue)},
-      ~init=false,
-      l,
-    )
+  | Tuple(l) => List.exists(l, ~f=var_applied(name))
   | Let(p, def, body) =>
     (var_mention_upat(name, p) ? false : var_applied(name, body))
     || var_applied(name, def)
@@ -395,11 +380,7 @@ let is_recursive = (name: string, uexp: Exp.t): bool => {
   if (List.is_empty(fn_bodies)) {
     false;
   } else {
-    List.fold_left(
-      ~f=(acc, ue) => {acc && var_mention(name, ue)},
-      ~init=true,
-      fn_bodies,
-    );
+    List.for_all(fn_bodies, ~f=var_mention(name));
   };
 };
 
@@ -459,12 +440,7 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   | ListLit(l)
   | Tuple(l) =>
     //If l has no recursive calls then true
-    !
-      List.fold_left(
-        ~f=(acc, ue) => {acc || var_mention(name, ue)},
-        ~init=false,
-        l,
-      )
+    !List.exists(l, ~f=var_mention(name))
   | Test(_) => false
   | HintedTest(_) => false
   | TyAlias(_, _, u)
@@ -512,11 +488,8 @@ let is_tail_recursive = (name: string, uexp: Exp.t): bool => {
   if (List.is_empty(fn_bodies)) {
     false;
   } else {
-    List.fold_left(
-      ~f=
-        (acc, ue) => {acc && var_mention(name, ue) && tail_check(name, ue)},
-      ~init=true,
-      fn_bodies,
+    List.for_all(fn_bodies, ~f=ue =>
+      var_mention(name, ue) && tail_check(name, ue)
     );
   };
 };
