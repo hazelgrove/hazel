@@ -83,6 +83,20 @@ let test_module_keyword_lowercase =
     parse_and_evaluate_test("1", {|module m = { let x = 1 } in m.x|})
   });
 
+/* A module ascribed a one-member signature, with a member more: an error
+   in statics (the signature does not admit the extra member), but it still
+   runs, and M.x is the member, 1, as a labeled tuple's projection gives */
+let test_module_one_member_signature =
+  test_case(
+    "Projecting a declared member of a module wider than its signature",
+    `Quick,
+    () => {
+    parse_and_evaluate_test(
+      "1",
+      {|module M : { let x : Int } = { let x = 1; let y = 2 } in M.x|},
+    )
+  });
+
 /* Test module keyword with capitalized name in exp context */
 let test_module_keyword_capitalized =
   test_case("Module keyword with capitalized name", `Quick, () => {
@@ -146,6 +160,7 @@ let tests = (
     }),
     /* Module keyword tests */
     test_module_keyword_lowercase,
+    test_module_one_member_signature,
     test_module_keyword_capitalized,
     test_module_keyword_in_mod,
     test_nested_module_keyword,

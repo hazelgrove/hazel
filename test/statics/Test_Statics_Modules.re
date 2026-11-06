@@ -403,6 +403,14 @@ let test_limitation_label_mismatch_hole =
 
 /* ===== MODULE KEYWORD TESTS ===== */
 
+/* A module definition that names its own module: modules are not
+   recursive, so the name is unbound inside it, an error */
+let test_module_names_itself =
+  inconsistent_typecheck(
+    "A module definition that names its own module is an error",
+    {|module F = fun x -> F(x) in 1|} |> parse_exp,
+  );
+
 /* Test module keyword with lowercase name */
 let test_module_keyword_lowercase =
   fully_consistent_typecheck(
@@ -677,6 +685,7 @@ let tests = (
     test_limitation_sig_too_narrow,
     test_limitation_label_mismatch_hole,
     /* Module keyword tests */
+    test_module_names_itself,
     test_module_keyword_lowercase,
     test_module_keyword_capitalized,
     test_module_keyword_in_mod,
