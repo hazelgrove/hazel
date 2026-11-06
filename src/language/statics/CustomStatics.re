@@ -178,31 +178,31 @@ let labels_to_info_map =
       m: Map.t,
     )
     : (list(option(string)), Map.t) => {
-  List.fold_left(
-    ~f=
-      ((labels: list(option(string)), m: Map.t), label) => {
-        let (lab_name, lab_info, _, m) =
-          analyze_label_to_info_map((module S), ~ctx, syn, label, m);
-        /* If expected_labels provided and this label isn't in the set,
-           patch as InvalidLabel and suppress the label name */
-        let (lab_name, m) =
-          switch (label.term, expected_labels, lab_name) {
-          | (Label(name), Some(expected), _)
-              when !List.mem(expected, name, ~equal=String.equal) =>
-            let m =
-              set_marks_exp(
-                m,
-                lab_info.user_term,
-                lab_info.marks @ [InvalidLabel(name, expected)],
-              );
-            (None, m);
-          | _ => (lab_name, m)
-          };
-        (labels @ [lab_name], m);
-      },
-    ~init=([], m),
+  List.fold_map(
     labs,
-  );
+    ~init=m,
+    ~f=(m: Map.t, label) => {
+      let (lab_name, lab_info, _, m) =
+        analyze_label_to_info_map((module S), ~ctx, syn, label, m);
+      /* If expected_labels provided and this label isn't in the set,
+         patch as InvalidLabel and suppress the label name */
+      let (lab_name, m) =
+        switch (label.term, expected_labels, lab_name) {
+        | (Label(name), Some(expected), _)
+            when !List.mem(expected, name, ~equal=String.equal) =>
+          let m =
+            set_marks_exp(
+              m,
+              lab_info.user_term,
+              lab_info.marks @ [InvalidLabel(name, expected)],
+            );
+          (None, m);
+        | _ => (lab_name, m)
+        };
+      (m, lab_name);
+    },
+  )
+  |> Tuple2.swap;
 };
 
 // Common fallback for invalid arguments

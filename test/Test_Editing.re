@@ -5872,23 +5872,12 @@ let pending_delim_tests = [
  * delimiter by its backup mold, so a `-` or `=` carrying a real infix mold
  * must not read as one. */
 let rec find_tile = (tok: string, seg: Segment.t): option(Tile.t) =>
-  List.fold_left(
-    ~f=
-      (acc, p: Piece.t) =>
-        switch (acc, p) {
-        | (Some(_), _) => acc
-        | (None, Tile(t)) when Tile.has_label(t, [tok]) => Some(t)
-        | (None, Tile(t)) =>
-          List.fold_left(
-            ~f=
-              (acc, kid) => Option.is_none(acc) ? find_tile(tok, kid) : acc,
-            ~init=None,
-            t.children,
-          )
-        | (None, _) => None
-        },
-    ~init=None,
-    seg,
+  List.find_map(seg, ~f=(p: Piece.t) =>
+    switch (p) {
+    | Tile(t) when Tile.has_label(t, [tok]) => Some(t)
+    | Tile(t) => List.find_map(t.children, ~f=find_tile(tok))
+    | _ => None
+    }
   );
 
 let test_delim_prefix = (~name, ~acts, ~tok, ~expect): test_case(_) =>

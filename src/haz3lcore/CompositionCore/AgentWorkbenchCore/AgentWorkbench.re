@@ -233,12 +233,10 @@ module Utils = {
         }
       )
       ++ "\nSubtasks:\n"
-      ++ List.fold_left(
-           ~f=
-             (acc: string, subtask: subtask) =>
-               acc ++ subtask_to_pretty_string(task, subtask),
-           ~init="",
-           ordered_subtasks_of(task),
+      ++ String.concat(
+           List.map(ordered_subtasks_of(task), ~f=subtask =>
+             subtask_to_pretty_string(task, subtask)
+           ),
          );
     };
 

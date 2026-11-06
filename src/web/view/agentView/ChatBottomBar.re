@@ -251,11 +251,7 @@ let view =
       };
     };
     let formatted_text =
-      List.fold_left(
-        ~f=(acc, msg) => acc ++ format_message(msg),
-        ~init="",
-        user_facing_messages,
-      );
+      String.concat(List.map(user_facing_messages, ~f=format_message));
     JsUtil.copy_text(formatted_text);
     JsUtil.show_copy_toast();
     Effect.Stop_propagation;

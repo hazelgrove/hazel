@@ -246,11 +246,8 @@ let set_dot_labels_exp =
   };
 
 let map_m = (f, xs, m: Map.t) =>
-  List.fold_left(
-    ~f=((xs, m), x) => f(x, m) |> (((x, m)) => (xs @ [x], m)),
-    ~init=([], m),
-    xs,
-  );
+  List.fold_map(xs, ~init=m, ~f=(m, x) => Tuple2.swap(f(x, m)))
+  |> Tuple2.swap;
 
 let map_m2 = (f, xs, ys, m: Map.t) =>
   List.fold2_exn(

@@ -457,17 +457,10 @@ let get_sections =
 /* Flatten sections by interspersing `Menu.Divider` between non-empty ones. */
 let flatten_sections =
     (sections: list(list(Menu.item(command)))): list(Menu.item(command)) =>
-  List.fold_left(
-    ~f=
-      (acc, section) =>
-        switch (acc, section) {
-        | (_, []) => acc
-        | ([], items) => items
-        | (acc, items) => acc @ [Menu.divider] @ items
-        },
-    ~init=[],
-    sections,
-  );
+  sections
+  |> List.filter(~f=section => !List.is_empty(section))
+  |> List.intersperse(~sep=[Menu.divider])
+  |> List.concat;
 
 let get_all_items =
     (

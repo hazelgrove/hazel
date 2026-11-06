@@ -33,20 +33,10 @@ let separate_and_keep_labels:
   ('a => option((label, 'b)), list('a)) =>
   (list(option(label)), list('a))
  =
-  (get_label, es) => {
-    let results =
-      List.fold_left(
-        ~f=
-          ((ls, ns), e) =>
-            switch (get_label(e)) {
-            | Some((s1, _)) => (ls @ [Some(s1)], ns @ [e])
-            | None => (ls @ [None], ns @ [e])
-            },
-        ~init=([], []),
-        es,
-      );
-    results;
-  };
+  (get_label, es) => (
+    List.map(es, ~f=e => Option.map(get_label(e), ~f=fst)),
+    es,
+  );
 
 // Keeps the labels in x that exist in y. Maintains the order from x.
 let intersect = (xs: list(label), ys: list(label)) => {

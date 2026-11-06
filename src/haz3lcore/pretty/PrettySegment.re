@@ -356,17 +356,8 @@ let piece_precedence = (p: Piece.t): option(int) =>
 
 /* Find the loosest (highest int) precedence among operators in pieces */
 let find_loosest_prec = (pieces: list(Piece.t)): option(int) =>
-  List.fold_left(
-    ~f=
-      (best, p) =>
-        switch (piece_precedence(p), best) {
-        | (Some(prec), None) => Some(prec)
-        | (Some(prec), Some(best_prec)) when prec > best_prec => Some(prec)
-        | _ => best
-        },
-    ~init=None,
-    pieces,
-  );
+  List.filter_map(pieces, ~f=piece_precedence)
+  |> List.max_elt(~compare=Int.compare);
 
 /* Split pieces into operands at operators matching the given precedence.
    Returns (operands, operators) where len(operands) == len(operators) + 1. */
