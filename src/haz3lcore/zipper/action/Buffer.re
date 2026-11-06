@@ -26,7 +26,8 @@ let set_llm_buffer = (z: Zipper.t, response: string): Zipper.t =>
   | Some(content) => Zipper.set_buffer(z, ~content, ~mode=Parsed)
   };
 
-let buffer_accept = (z: Zipper.t): option(Zipper.t) =>
+let buffer_accept =
+    (~ci: option(Language.Info.t), z: Zipper.t): option(Zipper.t) =>
   switch (z.selection.mode) {
   | Normal => None
   | Buffer(Parsed) => Some(Zipper.directional_unselect(Right, z))
@@ -34,6 +35,7 @@ let buffer_accept = (z: Zipper.t): option(Zipper.t) =>
     switch (TyDi.get_unparsed_buffer(z)) {
     | None => None
     | Some(completion) =>
+      let quoted_label = TyDi.quoted_label_completion(~ci, z, completion);
       /* Drop the unparsed buffer before handing the completion to
        * Parser.to_zipper. Parser.to_zipper threads characters through
        * Insert.go, which treats a non-empty selection as something
@@ -42,18 +44,24 @@ let buffer_accept = (z: Zipper.t): option(Zipper.t) =>
        * to wrap the comment-formatted buffer content instead of
        * replacing it. */
       let z = Zipper.clear_unparsed_buffer(z);
-      if (Token.match(Token.regexp(".*\\)::$"), completion)) {
-        /* Slightly hacky. There's currently only one genre of completion
-         * that creates more than one hole on initial expansion: when on eg
-         * 1 :: a|, we suggest "abs( )::" via lookahead. In such a case we
-         * want the caret to end up to the left of the first hole, whereas
-         * pasting would leave it to the left of the second. Thus we move
-         * left to the previous hole. */
-        let* z = Parser.to_zipper(~root=Exp, ~zipper_init=z, completion);
-        let* z = Move.to_next_grout(Left, z);
-        Move.local(ByToken, Left, z);
-      } else {
-        Parser.to_zipper(~root=Exp, ~zipper_init=z, completion);
+      switch (quoted_label) {
+      | Some(quoted) =>
+        let* z = Destruct.delete(Left, z);
+        Parser.to_zipper(~root=Exp, ~zipper_init=z, quoted);
+      | None =>
+        if (Token.match(Token.regexp(".*\\)::$"), completion)) {
+          /* Slightly hacky. There's currently only one genre of completion
+           * that creates more than one hole on initial expansion: when on eg
+           * 1 :: a|, we suggest "abs( )::" via lookahead. In such a case we
+           * want the caret to end up to the left of the first hole, whereas
+           * pasting would leave it to the left of the second. Thus we move
+           * left to the previous hole. */
+          let* z = Parser.to_zipper(~root=Exp, ~zipper_init=z, completion);
+          let* z = Move.to_next_grout(Left, z);
+          Move.local(ByToken, Left, z);
+        } else {
+          Parser.to_zipper(~root=Exp, ~zipper_init=z, completion);
+        }
       };
     }
   };
@@ -65,6 +73,7 @@ let go =
   | Set(TyDi) => Ok(set_tydi_buffer(ci, z))
   | Set(LLM(response)) => Ok(set_llm_buffer(z, response))
   | Accept =>
-    buffer_accept(z) |> Result.of_option(~error=Action.Failure.CantAccept)
+    buffer_accept(~ci, z)
+    |> Result.of_option(~error=Action.Failure.CantAccept)
   | Clear => Ok(buffer_clear(z))
   };

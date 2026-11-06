@@ -124,7 +124,8 @@ let bound_qualified = (ty_expect: Typ.t, ctx: Ctx.t): list(TyDiSuggestion.t) =>
             | Some((label, field_ty))
                 when Typ.is_consistent(ctx, ty_expect, field_ty) =>
               Some({
-                content: name ++ "." ++ label,
+                content:
+                  name ++ "." ++ Token.quote_label_when_necessary(label),
                 strategy: Exp(Common(FromCtx(field_ty))),
               })
             | _ => None
@@ -156,7 +157,11 @@ let bound_qualified_aps =
                   Typ.is_consistent(ctx, ty_expect, ty_out)
                   && !Typ.is_consistent(ctx, ty_expect, field_ty) =>
               Some({
-                content: name ++ "." ++ label ++ "(",
+                content:
+                  name
+                  ++ "."
+                  ++ Token.quote_label_when_necessary(label)
+                  ++ "(",
                 strategy: Exp(Common(FromCtxAp(ty_out))),
               })
             | _ => None
