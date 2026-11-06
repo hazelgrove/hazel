@@ -2,6 +2,22 @@
  * ~ everything below the main panel, but above the code
  * display in the hierarchy */
 
+/* The hidden input every editable editor types through: keystrokes and
+   `input` events originate here, and it is what a phone raises its keyboard
+   for. Zero-sized so the editor row is unaffected; 16px because iOS zooms
+   into smaller inputs. */
+.code-editor-input {
+  width: 0;
+  height: 0;
+  padding: 0;
+  border: 0;
+  margin: 0;
+  opacity: 0;
+  resize: none;
+  overflow: hidden;
+  font-size: 16px;
+}
+
 #main .code-editor {
   /* Only code in primary editor is selectable atm */
   cursor: text;
