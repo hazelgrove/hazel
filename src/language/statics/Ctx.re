@@ -83,13 +83,73 @@ let extend_dummy_tvar = (ctx: t, tvar: TPat.t) =>
   | None => ctx
   };
 
-let lookup_tvar = (ctx: t, name: string): option(kind) =>
-  List.find_map(
+/* An index of one shared tail of entries: the builtin ctx, which every
+ * statics ctx is a user prefix consed onto (Builtins registers it). A
+ * lookup scans the prefix and, on reaching that exact list, answers from
+ * the index, which holds each name's FIRST entry of each kind -- what the
+ * scan would have found. A ctx not ending in it is scanned as before.
+ * A name that misses (a lookup as a type variable, say, of what turns out
+ * to be a variable) used to scan every builtin. */
+type tail_index = {
+  tail: list(entry),
+  tvars: Hashtbl.t(string, kind),
+  vars: Hashtbl.t(string, var_entry),
+  ctrs: Hashtbl.t(string, var_entry),
+};
+
+let tail_index: ref(option(tail_index)) = ref(None);
+
+/* For tests: lookups answered from the index. */
+let tail_index_hits = ref(0);
+
+let index_tail = (tail: list(entry)): unit => {
+  let tvars = Hashtbl.create(64);
+  let vars = Hashtbl.create(256);
+  let ctrs = Hashtbl.create(256);
+  let first = (tbl, name, v) =>
+    if (!Hashtbl.mem(tbl, name)) {
+      Hashtbl.add(tbl, name, v);
+    };
+  List.iter(
     fun
-    | TVarEntry(v) when v.name == name => Some(v.kind)
-    | _ => None,
-    ctx.entries,
+    | TVarEntry(v) => first(tvars, v.name, v.kind)
+    | VarEntry(v) => first(vars, v.name, v)
+    | ConstructorEntry(v) => first(ctrs, v.name, v)
+    | LivelitEntry(_) => (),
+    tail,
   );
+  tail_index :=
+    Some({
+      tail,
+      tvars,
+      vars,
+      ctrs,
+    });
+};
+
+let lookup_tvar = (ctx: t, name: string): option(kind) =>
+  switch (tail_index^) {
+  | None =>
+    List.find_map(
+      fun
+      | TVarEntry(v) when v.name == name => Some(v.kind)
+      | _ => None,
+      ctx.entries,
+    )
+  | Some(ix) =>
+    let rec go = (entries: list(entry)) =>
+      if (entries === ix.tail) {
+        incr(tail_index_hits);
+        Hashtbl.find_opt(ix.tvars, name);
+      } else {
+        switch (entries) {
+        | [] => None
+        | [TVarEntry(v), ..._] when v.name == name => Some(v.kind)
+        | [_, ...rest] => go(rest)
+        };
+      };
+    go(ctx.entries);
+  };
 
 let lookup_tvar_id = (ctx: t, name: string): option(Id.t) =>
   List.find_map(
@@ -115,12 +175,28 @@ let get_id: entry => Id.t =
   | LivelitEntry({name, _}) => Id.mk_str(name);
 
 let lookup_var = (ctx: t, name: string): option(var_entry) =>
-  List.find_map(
-    fun
-    | VarEntry(v) when v.name == name => Some(v)
-    | _ => None,
-    ctx.entries,
-  );
+  switch (tail_index^) {
+  | None =>
+    List.find_map(
+      fun
+      | VarEntry(v) when v.name == name => Some(v)
+      | _ => None,
+      ctx.entries,
+    )
+  | Some(ix) =>
+    let rec go = (entries: list(entry)) =>
+      if (entries === ix.tail) {
+        incr(tail_index_hits);
+        Hashtbl.find_opt(ix.vars, name);
+      } else {
+        switch (entries) {
+        | [] => None
+        | [VarEntry(v), ..._] when v.name == name => Some(v)
+        | [_, ...rest] => go(rest)
+        };
+      };
+    go(ctx.entries);
+  };
 
 /* the NEWEST binding of a capitalized name, whichever kind: a module (or
    any variable) bound after a constructor of the same name shadows it
@@ -142,12 +218,28 @@ let newest_var_or_ctr =
   );
 
 let lookup_ctr = (ctx: t, name: string): option(var_entry) =>
-  List.find_map(
-    fun
-    | ConstructorEntry(t) when t.name == name => Some(t)
-    | _ => None,
-    ctx.entries,
-  );
+  switch (tail_index^) {
+  | None =>
+    List.find_map(
+      fun
+      | ConstructorEntry(t) when t.name == name => Some(t)
+      | _ => None,
+      ctx.entries,
+    )
+  | Some(ix) =>
+    let rec go = (entries: list(entry)) =>
+      if (entries === ix.tail) {
+        incr(tail_index_hits);
+        Hashtbl.find_opt(ix.ctrs, name);
+      } else {
+        switch (entries) {
+        | [] => None
+        | [ConstructorEntry(t), ..._] when t.name == name => Some(t)
+        | [_, ...rest] => go(rest)
+        };
+      };
+    go(ctx.entries);
+  };
 
 let is_alias = (ctx: t, name: string): bool =>
   switch (lookup_tvar(ctx, name)) {
