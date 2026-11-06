@@ -34,7 +34,8 @@ let theorem_binder = (input, name): Info.pat => {
     Id.Map.fold(
       (_id, info: Info.t, acc) =>
         switch (info) {
-        | InfoPat({user_term: {term: Var(n), _}, _} as p) when n == name =>
+        | InfoPat({user_term: {term: Var(n), _}, _} as p)
+            when String.equal(n, name) =>
           Some(p)
         | _ => acc
         },

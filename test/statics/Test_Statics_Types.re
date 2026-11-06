@@ -591,7 +591,7 @@ let tests = (
         "statics",
         fun
         | Failure(msg) =>
-          String.starts_with(~prefix="weak_head_normalize exceeded", msg)
+          String.is_prefix(msg, ~prefix="weak_head_normalize exceeded")
         | _ => false,
         () =>
         ignore(statics(parse_exp("type y = x in type x = y in (1 : y)")))
