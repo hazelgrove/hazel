@@ -68,6 +68,8 @@ let prompt: (string, string) => option(string);
 let font_metrics_from_specimen: unit => (float, float);
 let code_viewport_geometry: unit => option((float, float));
 let on_dpr_change: (unit => unit) => unit;
+/** Runs `f` when the page is hidden or unloaded (tab switch, close, reload). */
+let on_page_leave: (unit => unit) => unit;
 module QueryParams: {
   let get_param: string => option(string);
   let set_param: (string, string) => unit;
