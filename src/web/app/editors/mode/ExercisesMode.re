@@ -187,7 +187,7 @@ module StoreExerciseKey =
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = Haz3lcore.Id.t;
     let default = () =>
-      List.nth_exn(ExerciseSettings.exercises, 0) |> Model.id_of_spec;
+      List.hd_exn(ExerciseSettings.exercises) |> Model.id_of_spec;
     let key = Store.CurrentExercise;
   });
 

@@ -57,11 +57,11 @@ let corpus = [
 /* Columns computed the slow way: segment with the reference, then add up the
  * per-cluster widths. */
 let reference_columns = (s: string): int =>
-  reference_graphemes(s)
-  |> List.fold_left(
-       ~f=(acc, c) => acc + Unicode.Width.columns_of_cluster(c),
-       ~init=0,
-     );
+  List.sum(
+    (module Int),
+    reference_graphemes(s),
+    ~f=Unicode.Width.columns_of_cluster,
+  );
 
 let agrees_with_segmenter = ((name, s)) =>
   test_case(
@@ -88,12 +88,11 @@ let agrees_with_segmenter = ((name, s)) =>
       let n = List.length(reference);
       for (k in 0 to n + 2) {
         let expected =
-          reference
-          |> List.filteri(~f=(i, _) => i < k)
-          |> List.fold_left(
-               ~f=(acc, c) => acc + Unicode.Width.columns_of_cluster(c),
-               ~init=0,
-             );
+          List.sum(
+            (module Int),
+            List.take(reference, k),
+            ~f=Unicode.Width.columns_of_cluster,
+          );
         check(
           int,
           Printf.sprintf("columns_through_prefix %d", k),

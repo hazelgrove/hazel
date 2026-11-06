@@ -282,19 +282,14 @@ let rec count_unknowns = (ty: t): int =>
   | DrvQuoteTy(_)
   | Var(_) => 0
   | Arrow(t1, t2) => count_unknowns(t1) + count_unknowns(t2)
-  | Prod(tys) =>
-    List.fold_left(~f=(acc, ty) => acc + count_unknowns(ty), ~init=0, tys)
+  | Prod(tys) => List.sum((module Int), tys, ~f=count_unknowns)
   | Sum(sm) =>
-    List.fold_left(
-      ~f=
-        (acc, variant) =>
-          switch (variant) {
-          | ConstructorMap.BadEntry(_) => acc
-          | Variant(_, _, ty) =>
-            acc + Option.value_map(ty, ~default=0, ~f=count_unknowns)
-          },
-      ~init=0,
-      sm,
+    List.sum((module Int), sm, ~f=variant =>
+      switch (variant) {
+      | ConstructorMap.BadEntry(_) => 0
+      | Variant(_, _, ty) =>
+        Option.value_map(ty, ~default=0, ~f=count_unknowns)
+      }
     )
   | Rec(_, ty) => count_unknowns(ty)
   | List(ty) => count_unknowns(ty)

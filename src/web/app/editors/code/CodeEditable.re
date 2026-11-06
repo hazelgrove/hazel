@@ -472,7 +472,7 @@ module View = {
             ~head_padding=
               CompletionQuery.chip_at_caret(~seg=Lazy.force(engine_seg), z)
               |> Option.bind(_, ~f=(i: CanonicalCompletion.insertion) =>
-                   List.nth(i.delimiters, 0)
+                   List.hd(i.delimiters)
                  )
               |> Option.bind(_, ~f=(d: CanonicalCompletion.delimiter_info) =>
                    d.typed_len == None

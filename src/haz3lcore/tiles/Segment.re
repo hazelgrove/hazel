@@ -1512,7 +1512,7 @@ module SecondaryCollection = {
     let root = Skel.root(skel);
     let root_indices = Aba.get_as(root);
     let acc =
-      switch (List.nth(root_indices, 0)) {
+      switch (List.hd(root_indices)) {
       | Some(first_idx) =>
         switch (piece_id(seg, first_idx)) {
         | Some(id) => Id.Map.set(acc, ~key=id, ~data=(before, after))

@@ -191,7 +191,7 @@ let structural_tests = [
       switch (abbreviated_12.term) {
       | Tuple(elements) =>
         check(Alcotest.int, "element count at 12", 2, List.length(elements));
-        switch (List.nth_exn(elements, 0)) {
+        switch (List.hd_exn(elements)) {
         | {term: TupLabel(label_exp, _), _} =>
           switch (label_exp.term) {
           | Label(name) =>

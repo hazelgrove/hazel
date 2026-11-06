@@ -82,24 +82,16 @@ let rec piece_width = (p: Piece.t): int =>
        For complete tiles this is the full label; for single-shard
        pieces from decomposition it's just the shard's token. */
     let label_w =
-      List.fold_left(
-        ~f=(acc, s) => acc + Token.length(s),
-        ~init=0,
-        Tile.effective_label(t),
-      );
+      List.sum((module Int), Tile.effective_label(t), ~f=Token.length);
     let children_w =
-      List.fold_left(
-        ~f=(acc, child) => acc + segment_flat_width(child),
-        ~init=0,
-        t.children,
-      );
+      List.sum((module Int), t.children, ~f=segment_flat_width);
     label_w + children_w;
   | Grout(_) => 1
   | Secondary(s) => Secondary.length(s)
   | Projector(_) => 10
   }
 and segment_flat_width = (seg: Segment.t): int =>
-  List.fold_left(~f=(acc, p) => acc + piece_width(p), ~init=0, seg);
+  List.sum((module Int), seg, ~f=piece_width);
 
 /* === Greedy layout algorithm (Lindig-style for strict evaluation) === */
 
@@ -1299,16 +1291,10 @@ and build_infix_chain_doc =
       );
     let is_comma_chain = List.exists(~f=no_fill, operators);
     let chain_w =
-      List.fold_left(
-        ~f=(acc, seg) => acc + segment_flat_width(seg) + 1,
-        ~init=
-          List.fold_left(
-            ~f=(acc, op) => acc + piece_width(op) + 1,
-            ~init=0,
-            operators,
-          ),
-        operands,
-      );
+      List.sum((module Int), operators, ~f=op => piece_width(op) + 1)
+      + List.sum((module Int), operands, ~f=seg =>
+          segment_flat_width(seg) + 1
+        );
     let budget = s.width - 8;
     if (!is_comma_chain && chain_w > budget) {
       let steps = List.zip_exn(operators, rest_operands);
