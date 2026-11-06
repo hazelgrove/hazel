@@ -247,6 +247,25 @@ let net = (marking = [1, 0, 1, 0, 1], transitions = [
 (on_event(net, Fire(0)), on_event(net, Fire(1)), on_event(net, Step), on_event(net, Fire(9)))
 |};
 
+/* each run's reading, as one line of JSON, for ^report(45)'s data */
+let print_raw = (name, series: list((string, list(float)))) =>
+  Printf.printf(
+    "hazel-jit raw %s: {%s}\n",
+    name,
+    String.concat(
+      ", ",
+      List.map(
+        ((k, xs)) =>
+          Printf.sprintf(
+            "\"%s\": [%s]",
+            k,
+            String.concat(", ", List.map(Printf.sprintf("%.4f"), xs)),
+          ),
+        series,
+      ),
+    ),
+  );
+
 /* (slow: not in the quick tests) the best case, measured: a program run n times by the interpreter, and its compiled JS run n
    times, after compiling it once; medians in ms, written to the test's output (its file under _build/_tests) */
 let timing_run = (name, src, n) => {
@@ -313,6 +332,14 @@ let timing_run = (name, src, n) => {
     median(jit),
     List.fold_left(min, infinity, jit),
     median(interp) /. Float.max(median(jit), 1e-6),
+  );
+  print_raw(
+    name,
+    [
+      ("interpreter_ms", interp),
+      ("compile_ms", [compile_ms]),
+      ("compiled_ms", jit),
+    ],
   );
 };
 let timing = (name, src, n) =>
@@ -554,6 +581,15 @@ let boundary_timing_run = n =>
         List.fold_left(min, infinity, through),
         median(interp) /. Float.max(median(through), 1e-6),
         median(call),
+      );
+      print_raw(
+        "the Polygons view through the boundary",
+        [
+          ("compile_ms", [v.compile_ms]),
+          ("interpreter_ms", interp),
+          ("through_boundary_ms", through),
+          ("call_alone_ms", call),
+        ],
       );
     };
   };
