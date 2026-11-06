@@ -46,6 +46,7 @@ let (suite, exit_with_test_status) =
     ]
     @ Test_Unicode.tests
     @ Test_InputEvent.tests
+    @ Test_ContextMenu.tests
     @ Test_WorkerServer.tests
     @ [Test_AgentPersist.tests, Test_AgentHardening.tests]
     @ Test_AgentTools.tests

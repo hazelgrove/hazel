@@ -65,6 +65,7 @@ let pos_style =
 module Shortcuts = {
   let manual_probe = () => Os.is_mac^ ? "⌘E" : "Ctrl+E";
   let goto_definition = "F12";
+  let put_down = "Tab";
   let fold = () => Os.is_mac^ ? "⌥F" : "Alt+F";
   let type_annotation = () => Os.is_mac^ ? "⌥T" : "Alt+T";
   let livelit = () => Os.is_mac^ ? "⌥L" : "Alt+L";
@@ -257,6 +258,14 @@ let select_current_term_data = (): list(Menu.item(command)) => [
   ),
 ];
 
+/* The backpack, dropped at the caret. */
+let put_down_data = (z: Zipper.t): list(Menu.item(command)) =>
+  Zipper.can_put_down(z)
+    ? [
+      action_item(~shortcut=Shortcuts.put_down, "Put down", Action.Put_down),
+    ]
+    : [];
+
 module Projectors = {
   let target_term = (z: Zipper.t, info_map: Language.Statics.Map.t) =>
     switch (z.selection.content) {
@@ -435,7 +444,7 @@ let get_sections =
     /* Section 1: Navigation & Selection */
     jump_to_binding_data(ci) @ select_current_term_data(),
     /* Section 2: Clipboard */
-    clipboard_data(z),
+    clipboard_data(z) @ put_down_data(z),
     /* Section 3: Refactoring */
     introduce_data(ci),
     /* Section 4: Probes/Statics (refractors) */

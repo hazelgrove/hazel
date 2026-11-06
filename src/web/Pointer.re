@@ -21,6 +21,12 @@ module Event = {
     | Forward
     | Unknown(int);
 
+  /* PointerEvent.pointerType; a MouseEvent has none and counts as a mouse. */
+  type pointer_type =
+    | Mouse
+    | Pen
+    | Touch;
+
   /* Data representing a pointer/mouse event. As attributes are
    * needed they can be added here; probably a good idea to keep
    * this data structure restricted to properties common to both
@@ -30,6 +36,7 @@ module Event = {
     loc: Point.t,
     current_target: Js.opt(Js.t(Dom_html.element)),
     button,
+    pointer_type,
     buttons: int,
     shift: held,
     meta: held,
@@ -59,6 +66,17 @@ module Event = {
     },
     current_target: evt##.currentTarget,
     button: button(evt),
+    pointer_type:
+      Js.Optdef.case(
+        Js.Unsafe.coerce(evt)##.pointerType,
+        () => Mouse,
+        s =>
+          switch (Js.to_string(s)) {
+          | "touch" => Touch
+          | "pen" => Pen
+          | _ => Mouse
+          },
+      ),
     buttons: Js.Unsafe.coerce(evt)##.buttons,
     shift: Js.to_bool(evt##.shiftKey) ? Down : Up,
     meta: Js.to_bool(evt##.metaKey) ? Down : Up,
