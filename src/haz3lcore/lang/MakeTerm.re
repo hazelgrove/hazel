@@ -1994,22 +1994,77 @@ let semantic_source = (z: Zipper.t): Segment.t =>
   |> Zipper.clear_unparsed_buffer
   |> Zipper.unselect_and_zip(~erase_buffer=true);
 
+/* A module body as the expression `{ body }`: a ModBody tile around the
+   segment, as FastParse reads text at the Mod root. */
+let mod_body_tile = (seg: Segment.t): Piece.t =>
+  Tile({
+    id: Id.mk(),
+    form: Form.Compound(ModBody),
+    sort: Sort.Exp,
+    shards: [0, 1],
+    children: [seg],
+  });
+
 let from_zip_for_sem_with_completion = (z: Zipper.t, ~root: Sort.t) => {
   /* Semantic terms come from the canonical completion of the visible
    * segment (caret-independent, provenance-recorded), replacing the
-   * old caret-sensitive missing-shard dump. The ~root parameter matches the
-   * dev signature; completion is invoked at Exp. */
-  let _ = root;
+   * old caret-sensitive missing-shard dump. Completion runs at Exp.
+   * An editor rooted at Mod holds a module body (members, no `in`): it
+   * is completed and read inside a ModBody tile, so its term is the
+   * Exp Module(items), the items carrying the editor's own ids, and
+   * the braces a fresh one. Every other root is read as Exp. */
   let seg = semantic_source(z);
-  let result = CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
-  let masks = CanonicalCompletion.masks_of_records(result.shard_records);
-  (
-    go_impl(~masks, result.completed_seg),
-    {
-      source: seg,
-      completed: result.completed_seg,
-    },
-  );
+  switch (root) {
+  | Sort.Mod =>
+    let result =
+      CanonicalCompletion.complete_segment_deep(
+        ~sort=Sort.Exp,
+        [mod_body_tile(seg)],
+      );
+    let masks = CanonicalCompletion.masks_of_records(result.shard_records);
+    /* the snapshot describes the editor's own segment, so without the
+       braces */
+    let completed =
+      switch (result.completed_seg) {
+      | [Tile({children: [inner], _})] => inner
+      | completed => completed
+      };
+    let made = go_impl(~masks, result.completed_seg);
+    /* A body with nothing written in it (whitespace, comments, and the
+       empty editor's own hole) is the empty module, not a module of one
+       hole */
+    let nothing_written =
+      List.for_all(
+        (p: Piece.t) => Piece.is_secondary(p) || Piece.is_grout(p),
+        seg,
+      );
+    (
+      nothing_written
+        ? {
+          ...made,
+          term: {
+            ...made.term,
+            term: Module([]),
+          },
+        }
+        : made,
+      {
+        source: seg,
+        completed,
+      },
+    );
+  | _ =>
+    let result =
+      CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
+    let masks = CanonicalCompletion.masks_of_records(result.shard_records);
+    (
+      go_impl(~masks, result.completed_seg),
+      {
+        source: seg,
+        completed: result.completed_seg,
+      },
+    );
+  };
 };
 
 let from_zip_for_sem_with_completion =

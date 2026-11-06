@@ -1,0 +1,281 @@
+/* Embed mode's state (EmbedMain runs it in a frame): one read-only cell
+   of Hazel's tiles holding the program a page sent, its statics on so the
+   tiles carry Hazel's own error marks, and the status the frame reports
+   back. Free of the DOM and of Page, so a page that mounts Hazel's editor
+   itself can use the same model and update. */
+open Util;
+open Haz3lcore;
+
+/* The program a page sends: one text, or the parts of a program of named
+   modules, as Hazel.analyzeProgram takes them (ModuleProgram) */
+module Program = {
+  type parts = {
+    preamble: string,
+    modules: list((string, string)),
+    tail: string,
+  };
+
+  type t =
+    | Text(string)
+    | Parts(parts);
+
+  /* The program as the one text the cell shows */
+  let text =
+    fun
+    | Text(text) => text
+    | Parts({preamble, modules, tail}) =>
+      ModuleProgram.text_of_parts(~preamble, ~modules, ~tail);
+
+  /* The modules whose holes the status counts: a program's parts name
+     them; in a text, they are the modules it defines */
+  let names =
+    fun
+    | Text(_) => None
+    | Parts({modules, _}) => Some(List.map(fst, modules));
+};
+
+/* The program's errors, holes and incomplete tiles, each with its module
+   (None for the preamble, the tail and the joins between them), as
+   analyzeProgram gives them, but on the cell's own ids */
+module Status = {
+  type t = {
+    errors: list(ModuleProgram.error),
+    holes: list((string, int)),
+    program_holes: int,
+    incomplete: list((string, int)),
+    program_incomplete: int,
+  };
+
+  let of_statics =
+      (~names: option(list(string))=?, statics: CachedStatics.t): t => {
+    let p = ModuleProgram.of_term(~names?, statics.term);
+    let (holes, program_holes) = ModuleProgram.holes(p);
+    let (incomplete, program_incomplete) = ModuleProgram.incomplete(p);
+    {
+      errors: ModuleProgram.errors(p, statics.info_map),
+      holes,
+      program_holes,
+      incomplete,
+      program_incomplete,
+    };
+  };
+};
+
+/* Statics on, and nothing that runs the program: no dynamics, no probes */
+let settings: Settings.t = {
+  ...Settings.Model.init,
+  core: {
+    ...Settings.Model.init.core,
+    dynamics: false,
+    probe_all: false,
+    flip_animations: false,
+  },
+  autoprobe_mode: Haz3lcore.AutoProbe.Off,
+  line_numbers: false,
+};
+
+/* A module's body as last read: its place and name, its text, and what
+   it was read as */
+type body = {
+  place: int,
+  name: string,
+  text: string,
+  read: option(Zipper.t),
+};
+
+module Model = {
+  type t = {
+    /* None until a page sends one */
+    program: option(Program.t),
+    cell: CodeWithStatics.Model.t,
+    status: option(Status.t),
+    font_metrics: FontMetrics.t,
+    /* the bodies of the last program of parts, so a set re-reads only
+       the bodies whose text changed */
+    bodies: list(body),
+  };
+
+  let init: t = {
+    program: None,
+    cell:
+      CodeWithStatics.Model.mk(
+        Editor.Model.mk(Zipper.init(), ~root=Sort.Exp),
+      ),
+    status: None,
+    font_metrics: FontMetrics.init,
+    bodies: [],
+  };
+
+  let globals = (model: t): Globals.t =>
+    Globals.Model.init(~settings, ~font_metrics=model.font_metrics, ());
+};
+
+module Update = {
+  type t =
+    | Set(Program.t)
+    | SetFontMetrics(FontMetrics.t);
+
+  /* A cell holding the zipper, and its statics */
+  let cell_of_zipper = (zipper: Zipper.t): CodeWithStatics.Model.t =>
+    Editor.Model.mk(zipper, ~root=Sort.Exp)
+    |> CodeWithStatics.Model.mk
+    |> CodeWithStatics.Update.calculate(
+         ~settings=settings.core,
+         ~is_edited=true,
+         ~stitch=Fun.id,
+         ~dynamics=Language.Dynamics.Map.empty,
+         ~is_dynamic_term=false,
+       );
+
+  /* Leading spaces are dropped from each line, as for a slide's source:
+     Hazel lays out indentation itself, and draws written spaces on top
+     of it. */
+  let zipper_of_text = (text: string): Zipper.t =>
+    switch (
+      PersistentZipper.parse_text(
+        ~source="embed",
+        ~root=Sort.Exp,
+        StringUtil.trim_leading(text),
+      )
+    ) {
+    | Some(z) => z
+    | None => Zipper.init()
+    };
+
+  /* The program as one zipper, and the bodies read for it. A text is
+     read whole, by the path a saved editor loads by. A program's parts
+     are laid out as one text lays them out (Program.text), but each body
+     is read on its own, inside its own braces (ModuleProgram.
+     zipper_of_parts), and a body whose place, name and text are those of
+     a body last read is not read again. */
+  let read =
+      (~bodies: list(body), program: Program.t): (Zipper.t, list(body)) =>
+    switch (program) {
+    | Text(text) => (zipper_of_text(text), [])
+    | Parts({preamble, modules, tail}) =>
+      let bodies_read = ref([]);
+      let read_body = (place, name, text) => {
+        let body =
+          switch (
+            List.find_opt(
+              (b: body) =>
+                b.place == place && b.name == name && b.text == text,
+              bodies,
+            )
+          ) {
+          | Some(b) => b
+          | None => {
+              place,
+              name,
+              text,
+              read:
+                PersistentZipper.parse_text(
+                  ~source="embed module " ++ name,
+                  ~root=Sort.Mod,
+                  text,
+                ),
+            }
+          };
+        bodies_read := [body, ...bodies_read^];
+        body.read;
+      };
+      switch (
+        ModuleProgram.zipper_of_parts(
+          ~read_body,
+          ~preamble=StringUtil.trim_leading(preamble),
+          ~modules=
+            List.map(
+              ((name, text)) => (name, StringUtil.trim_leading(text)),
+              modules,
+            ),
+          ~tail=StringUtil.trim_leading(tail),
+          (),
+        )
+      ) {
+      | Some(z) => (z, List.rev(bodies_read^))
+      | None => (zipper_of_text(Program.text(program)), [])
+      };
+    };
+
+  let update = (action: t, model: Model.t): Model.t =>
+    switch (action) {
+    | Set(program) when model.program == Some(program) => model
+    | Set(program) =>
+      let (zipper, bodies) = read(~bodies=model.bodies, program);
+      let cell = cell_of_zipper(zipper);
+      {
+        ...model,
+        program: Some(program),
+        cell,
+        status:
+          Some(
+            Status.of_statics(~names=?Program.names(program), cell.statics),
+          ),
+        bodies,
+      };
+    | SetFontMetrics(font_metrics) => {
+        ...model,
+        font_metrics,
+      }
+    };
+};
+
+/* What the frame tells its page, and when: size and status only when
+   they change, since a display comes every animation frame */
+module Outbox = {
+  type message =
+    | Ready(string)
+    | Size(int)
+    | Status(Status.t)
+    | Crash(string);
+
+  type sent = {
+    size: option(int),
+    status: option(Status.t),
+  };
+
+  let nothing_sent = {
+    size: None,
+    status: None,
+  };
+
+  /* After a display: the messages for what changed, and what has then
+     been sent. No status before a program. */
+  let after_display =
+      (~height: int, model: Model.t, sent: sent): (list(message), sent) => {
+    let size = sent.size == Some(height) ? [] : [Size(height)];
+    let status =
+      switch (model.status) {
+      | Some(status) when sent.status != Some(status) => [Status(status)]
+      | _ => []
+      };
+    (
+      size @ status,
+      {
+        size: Some(height),
+        status: Option.is_some(model.status) ? model.status : sent.status,
+      },
+    );
+  };
+};
+
+module View = {
+  open Virtual_dom.Vdom;
+
+  /* The cell: the program's tiles, read-only, with its error marks */
+  let view = (model: Model.t): Node.t =>
+    Node.div(
+      ~attrs=[Attr.class_("cell")],
+      [
+        Node.div(
+          ~attrs=[Attr.classes(["cell-item", "code-editor", "read-only"])],
+          [
+            CodeWithStatics.View.view(
+              ~globals=Model.globals(model),
+              model.cell,
+            ),
+          ],
+        ),
+      ],
+    );
+};

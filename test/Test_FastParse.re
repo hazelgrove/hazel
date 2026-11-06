@@ -405,14 +405,40 @@ let tests = (
         check(bool, "nothing precedes the caret", true, before_caret == []);
       },
     ),
-    test_case("mod root wraps and unwraps", `Quick, () => {
-      check(
-        bool,
-        "member chunk fast-paths at Mod root",
-        true,
-        FastParse.of_text(~root=Mod, "let x = 1") != None,
-      )
-    }),
+    test_case(
+      "mod root wraps and unwraps",
+      `Quick,
+      () => {
+        check(
+          bool,
+          "member chunk fast-paths at Mod root",
+          true,
+          FastParse.of_text(~root=Mod, "let x = 1") != None,
+        );
+        /* a module body whose last member is still being written: retried
+           with a hole, which is stripped again */
+        List.iter(
+          ((text, printed)) =>
+            check(
+              option(string),
+              text ++ " fast-paths at Mod root",
+              Some(printed),
+              FastParse.of_text(~root=Mod, text) |> Option.map(print_seg),
+            ),
+          [
+            ("let x = ", "let x ="),
+            ("let a = 1;", "let a = 1;"),
+            ("let a = 1; let b = ", "let a = 1; let b ="),
+          ],
+        );
+        check(
+          bool,
+          "a leading `;` still falls back",
+          true,
+          FastParse.of_text(~root=Mod, "; let a = 1") == None,
+        );
+      },
+    ),
     test_case("graph module chunk: verbatim + fast", `Quick, () => {
       switch (graph_module) {
       | None => () /* corpus unreachable (sandboxed) */

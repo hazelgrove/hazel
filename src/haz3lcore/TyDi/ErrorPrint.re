@@ -266,7 +266,8 @@ let term_string_of: Info.t => string =
   | InfoMPat({user_term, _}) => Print.term(MPat(user_term))
   | Secondary(_) => failwith("ChatLSP: term_string_of: Secondary");
 
-let all = (info_map: Statics.Map.t): list(string) => {
+/* Every error, once each, with the id of the term it is on */
+let all_with_ids = (info_map: Statics.Map.t): list((Id.t, string)) => {
   Id.Map.fold(
     (_id: Id.t, info: Info.t, acc) =>
       Info.is_error(info) ? [info, ...acc] : acc,
@@ -276,6 +277,12 @@ let all = (info_map: Statics.Map.t): list(string) => {
   |> List.sort_uniq(compare)
   |> List.map(info => {
        let term = term_string_of(info);
-       format_error(term, string_of_marks(info, Info.marks_of(info)));
+       (
+         Info.id_of(info),
+         format_error(term, string_of_marks(info, Info.marks_of(info))),
+       );
      });
 };
+
+let all = (info_map: Statics.Map.t): list(string) =>
+  all_with_ids(info_map) |> List.map(snd);
