@@ -89,9 +89,9 @@ let completed_text = (z: Zipper.t): string => {
   let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
   CanonicalCompletion.for_editor(seg).completed_seg
   |> Printer.of_segment(~holes="", ~concave_holes="", ~refractors=[])
-  |> Stdlib.String.to_seq
-  |> Seq.filter(c => c != ' ' && c != '\n' && c != '\t')
-  |> Stdlib.String.of_seq;
+  |> String.filter(~f=c =>
+       !List.mem([' ', '\n', '\t'], c, ~equal=Char.equal)
+     );
 };
 
 let missing_shards = (z: Zipper.t): int =>

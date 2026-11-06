@@ -1639,9 +1639,7 @@ let tab_dispatch_tests = [
    program modulo whitespace. Guards the type-it-for-me / make-it-so
    split from semantic drift. */
 let strip_ws = (s: string): string =>
-  Stdlib.String.to_seq(s)
-  |> Seq.filter(c => c != ' ' && c != '\n')
-  |> Stdlib.String.of_seq;
+  String.filter(s, ~f=c => !Char.equal(c, ' ') && !Char.equal(c, '\n'));
 
 let tabs_vs_materialize = (~name, ~acts, ()) =>
   test_case(

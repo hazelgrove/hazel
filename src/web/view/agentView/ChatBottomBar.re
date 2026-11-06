@@ -439,7 +439,7 @@ let view =
             | Agent(Some(u)) => Some(u)
             | _ => acc
             },
-        ~init=Stdlib.Option.none,
+        ~init=None: option(_),
         Chat.Utils.get(current_chat),
       );
     let (lit, tooltip) =

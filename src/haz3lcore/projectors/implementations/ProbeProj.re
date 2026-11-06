@@ -622,8 +622,7 @@ let find_best_budget = (width_at: int => int, target_width: int): int => {
 };
 
 module ValueState = {
-  let mousedown: ref(option(Js.t(Dom_html.element))) =
-    ref(Stdlib.Option.None);
+  let mousedown = ref(None: option(Js.t(Dom_html.element)));
 };
 
 let value_view =
