@@ -392,7 +392,7 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
  */
 let is_recursive = (name: string, uexp: Exp.t): bool => {
   let fn_bodies = [] |> find_fn(name, uexp);
-  if (List.length(fn_bodies) == 0) {
+  if (List.is_empty(fn_bodies)) {
     false;
   } else {
     List.fold_left(
@@ -509,7 +509,7 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
  */
 let is_tail_recursive = (name: string, uexp: Exp.t): bool => {
   let fn_bodies = [] |> find_fn(name, uexp);
-  if (List.length(fn_bodies) == 0) {
+  if (List.is_empty(fn_bodies)) {
     false;
   } else {
     List.fold_left(
