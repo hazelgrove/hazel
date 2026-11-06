@@ -19,6 +19,8 @@ _build/
 # Never commit: a broad `git add` swept 84MB bundles into history
 # twice (probes-study 2026-06-10, quiver-assist 2026-07-11).
 _serve/
+# bench/perf-compare.sh: the base checkout it builds, and its report
+_perf/
 _opam/
 
 # ocamlbuild targets
