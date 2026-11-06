@@ -91,18 +91,14 @@ module M: Projector = {
       let scroll_threshold_rows = 10;
 
       let header_row_chars =
-        header
-        |> List.map(~f=Unicode.Width.columns_of_string)
-        |> List.fold_left(~f=(+), ~init=0);
+        List.sum((module Int), header, ~f=Unicode.Width.columns_of_string);
       let widest_row_chars =
         rows
         |> List.map(~f=row =>
-             row
-             |> List.map(~f=e =>
-                  Abbreviate.abbreviate_exp(~available=max_column_length, e)
-                  |> snd
-                )
-             |> List.fold_left(~f=(+), ~init=0, _)
+             List.sum((module Int), row, ~f=e =>
+               Abbreviate.abbreviate_exp(~available=max_column_length, e)
+               |> snd
+             )
            )
         |> List.fold_left(~f=max, ~init=0, _);
       let content_chars = max(header_row_chars, widest_row_chars);

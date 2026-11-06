@@ -3373,7 +3373,7 @@ let tool_json_tests = (
       `Quick,
       () => {
         let tools = CompositionUtils.Public.tools;
-        let first_tool = List.nth_exn(tools, 0);
+        let first_tool = List.hd_exn(tools);
         switch (get_tool_name(first_tool)) {
         | Some("expand") => ()
         | Some(name) =>

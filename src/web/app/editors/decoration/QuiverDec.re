@@ -346,14 +346,13 @@ let chip_view =
 /* Plain-text length of a chip's delimiters (for overlap coalescing) */
 let delimiters_len =
     (delimiters: list(CanonicalCompletion.delimiter_info)): int =>
-  delimiters
-  |> List.map(~f=(d: CanonicalCompletion.delimiter_info) =>
-       String.length(d.text)
-       + (Option.is_some(d.trailing_hole) ? 2 : 0)
-       + (d.leading_hole ? 2 : 0)
-     )
-  |> List.fold_left(~f=(+), ~init=0)
-  |> (n => n + max(0, List.length(delimiters) - 1));
+  List.sum(
+    (module Int), delimiters, ~f=(d: CanonicalCompletion.delimiter_info) =>
+    String.length(d.text)
+    + (Option.is_some(d.trailing_hole) ? 2 : 0)
+    + (d.leading_hole ? 2 : 0)
+  )
+  + max(0, List.length(delimiters) - 1);
 
 /* Overlapping same-row chips coalesce into ONE bubble. The merged
    bubble's text never follows pixel order (a wandering pin would
