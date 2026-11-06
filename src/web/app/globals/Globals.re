@@ -68,6 +68,7 @@ module Action = {
     | Log(log)
     | SetMetaDown(bool)
     | SetSettingsFilter(string)
+    | ExpandInspector(option(Haz3lcore.Id.t))
     | UpdateVisibleRows(VisibleRows.t)
     | RethrowException
     | ClearException
@@ -82,6 +83,10 @@ module Model = {
     // State:
     font_metrics: FontMetrics.t,
     meta_down: bool,
+    /* The term whose cursor inspector a tap has expanded (touch screens,
+       where a long type or error doesn't fit the bar); collapsed whenever
+       the caret is on any other term. */
+    inspector_expanded: option(Haz3lcore.Id.t),
     visible_rows: option(VisibleRows.t),
     /* the settings panel's filter text; not saved */
     settings_filter: string,
@@ -109,6 +114,7 @@ module Model = {
     settings,
     font_metrics,
     meta_down: false,
+    inspector_expanded: None,
     visible_rows: None,
     settings_filter: "",
     color_highlights: None,
