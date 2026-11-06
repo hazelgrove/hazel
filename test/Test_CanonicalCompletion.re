@@ -1877,8 +1877,10 @@ let clippable_guard_tests = {
            backup molds (Form.symbolic_delim_prefixes = `-`, `=`) reach
            the InfixDelimiterPrefix atomic, which molds at all four
            sorts. Re-decided: both frontiers stay far from vacuous, so
-           clippable_sort stands. */
-        "Exp 67/88 | Pat 9/88 | Typ 15/88 | TPat 4/88 | Rul 1/88",
+           clippable_sort stands.
+           Exp 67 -> 66: legacy `\/` (LogicalOrLegacy) lost its Exp row
+           (it had no MakeTerm case; derivation-only now). */
+        "Exp 66/88 | Pat 9/88 | Typ 15/88 | TPat 4/88 | Rul 1/88",
         table,
       )
     ),

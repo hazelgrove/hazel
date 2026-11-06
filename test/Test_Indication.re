@@ -989,6 +989,15 @@ let grout_tests = [
     ~acts=string_to_ltr_actions("1 1") @ mv_l(2),
     ~indicated="~ [R,S]",
   ),
+  /* Concave grout with no whitespace before it (`1⊔"a"`, caret between
+     1 and the grout): the grout takes its left position like an infix
+     operator. It used to lose to the 1, leaving the MultiHole
+     unindicatable from here. */
+  ind_acts(
+    ~name="Operand left, concave grout right (no space): grout indicated",
+    ~acts=string_to_ltr_actions("1\"a\"") @ mv_l(4),
+    ~indicated="~ [R,S]",
+  ),
   /* Between operator and operand: inward bias picks operand (Convex) */
   ind_acts(
     ~name="Operator left, operand right: inward picks operand",

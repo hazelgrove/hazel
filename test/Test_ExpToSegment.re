@@ -661,6 +661,16 @@ let roundtrip_ids_test = (name: string, input: string) =>
 let roundtrip_tests = (
   "Secondary Round-Trip",
   [
+    /* Module patterns print their holes and stranded operators instead
+       of `?` (which also dropped a MultiHole's kids, ids and comments) */
+    roundtrip_test({|Invalid module pattern|}, {|module 1 = 2 in 3|}),
+    /* text only: the kids reprint at Exp (the sort MakeTerm parsed them
+       at), not the MPat sort the editor's tiles carry */
+    roundtrip_text_test(
+      {|Module pattern with stranded operator|},
+      {|module M :: N = 2 in 3|},
+    ),
+    roundtrip_test({|Invalid module item pattern|}, {|{ module 1 = 2 }|}),
     /* Simple atoms */
     roundtrip_test({|Integer literal|}, {|42|}),
     /* Lexeme preservation: non-canonical spellings and hole tokens
@@ -1762,6 +1772,38 @@ let pad_ids_tests = (
     ),
   ],
 );
+
+/* Mod and Sig MultiHoles print their kids (they printed `?`) */
+let mod_sig_multihole_tests = {
+  let x = Language.IdTagged.FreshGrammar.Exp.var("x");
+  let y = Language.IdTagged.FreshGrammar.Exp.var("y");
+  let print = any =>
+    ExpToSegment.any_to_pretty(
+      ~settings=exp_to_segment_roundtrip_settings,
+      any,
+    )
+    |> EditingPrelude.print_seg;
+  [
+    test_case("Mod MultiHole prints its kids", `Quick, () =>
+      check(
+        string,
+        "print",
+        "x y" /* concave grout prints as a space */,
+        print(Mod(Language.Mod.fresh(MultiHole([Exp(x), Exp(y)])))),
+      )
+    ),
+    test_case("Sig MultiHole prints its kids", `Quick, () =>
+      check(
+        string,
+        "print",
+        "x y" /* concave grout prints as a space */,
+        print(Sig(Language.Sig.fresh(MultiHole([Exp(x), Exp(y)])))),
+      )
+    ),
+  ];
+};
+
+let tests = (fst(tests), snd(tests) @ mod_sig_multihole_tests);
 
 let all = [
   tests,

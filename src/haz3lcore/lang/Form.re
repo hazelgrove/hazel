@@ -137,7 +137,10 @@ let rows_of: family => list(row) =
   | FGte => [mk_infix(Exp, P.eqs)]
   | FLte => [mk_infix(Exp, P.eqs)]
   | LogicalAnd => [mk_infix(Exp, P.and_)]
-  | LogicalOrLegacy => [mk_infix(Exp, P.or_), mk_infix(Drv(Exp), P.or_)]
+  /* derivation-only: `\/` is legacy spelling at Exp, where `||` is
+   * the boolean or; an Exp row had no MakeTerm arm, so it only ever
+   * parsed to a hole (and was offered as a TyDi suggestion) */
+  | LogicalOrLegacy => [mk_infix(Drv(Exp), P.or_)]
   | LogicalOr => [mk_infix(Exp, P.or_)]
   | ListConcat => [mk_infix(Exp, P.concat), mk_infix(Drv(Exp), P.plus)]
   | Cons => [

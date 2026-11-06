@@ -1239,6 +1239,8 @@ and shrink_pat: QCheck.Shrink.t(pat) =
           let* shrunk = Shrink.list(l, ~shrink=shrink_pat);
           switch (shrunk) {
           | [] => Iter.return(TuplePat([]))
+          /* a labeled singleton stays a tuple (see TupleExp) */
+          | [TupLabelPat(_, _)] => Iter.return(TuplePat(shrunk))
           | [x] => Iter.return(x)
           | _ => return(TuplePat(shrunk))
           };
@@ -1318,6 +1320,8 @@ and shrink_typ: QCheck.Shrink.t(typ) =
         | TupleType(l) =>
           let* shrunk = Shrink.list(l, ~shrink=shrink_typ);
           switch (shrunk) {
+          /* a labeled singleton stays a tuple (see TupleExp) */
+          | [TupLabelType(_, _)] => Iter.return(TupleType(shrunk))
           | [x] => Iter.return(x)
           | _ => return(TupleType(shrunk))
           };

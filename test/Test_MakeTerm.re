@@ -408,3 +408,74 @@ let tests =
       ),
     ],
   );
+
+open Haz3lcore;
+
+let tok = (sort: Sort.t, t: Token.t): Piece.t =>
+  Piece.mk_tile((Form.Tok(t), sort), []);
+
+/* A stranded operator between mixed-sort kids keeps its spelling: the
+   sort-specific Bin(Exp, _, Typ) catch-all used to shadow the arm that
+   records it. Built directly: `!` has no Typ row, so it molds as the
+   Any-fallback bin, leaving `1` (Exp) and `Int` (Typ) as its kids. */
+let stranded_op_test =
+  test_case(
+    "stranded operator between Exp and Typ keeps its spelling",
+    `Quick,
+    () => {
+      let seg = [
+        tok(Exp, "1"),
+        Piece.mk_tile((Compound(Not), Any), []),
+        tok(Typ, "Int"),
+      ];
+      let term = MakeTerm.go(seg).term;
+      check(option(string), "lexeme", Some("!"), term.annotation.lexeme);
+      check(
+        string,
+        "reprint",
+        "1!Int",
+        Test_ExpToSegment.exp_to_segment_roundtrip(term)
+        |> EditingPrelude.print_seg,
+      );
+    },
+  );
+
+/* Remolding past a projector: a projector is convex, so the shape
+   after it is Convex. remold_template (Drv sorts) used to pass the
+   shape from BEFORE the projector, so the `-` in `True + ^^fold(x) - y`
+   remolded as if it followed the `+`: prefix (UnaryMinus, which ranks
+   first at Drv(Exp)) instead of binary Minus. */
+let remold_past_projector_test =
+  test_case(
+    "Drv remold: shape after a projector is convex",
+    `Quick,
+    () => {
+      let d = Sort.Drv(Exp);
+      let minus = Piece.mk_tile((Compound(Minus), d), []);
+      let seg = [
+        tok(d, "True"),
+        Piece.mk_tile((Compound(Plus), d), []),
+        Piece.Projector(ProjectorCore.mk(Fold, tok(d, "x"), "")),
+        minus,
+        tok(d, "y"),
+      ];
+      let form_of_minus =
+        Segment.remold(seg, d)
+        |> List.find_map(
+             fun
+             | Piece.Tile(t) when t.id == Piece.id(minus) => Some(t.form)
+             | _ => None,
+           );
+      check(
+        option(string),
+        "minus form",
+        Some(Form.show(Compound(Minus))),
+        Option.map(Form.show, form_of_minus),
+      );
+    },
+  );
+
+let tests = (
+  fst(tests),
+  snd(tests) @ [stranded_op_test, remold_past_projector_test],
+);

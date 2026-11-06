@@ -323,16 +323,12 @@ let absent = (table, tok) =>
 let flagged_tests = (
   "TyDiForms.Flagged",
   [
-    /* The manual table claimed Bool for "\\/" but Exp-sort "\\/"
-     * (LogicalOrLegacy) has no Exp MakeTerm case and lowers to a
-     * hole, so its true self type is Unknown */
-    Alcotest.test_case("legacy \\/ derives Unknown, not Bool", `Quick, () =>
-      Alcotest.check(
-        Alcotest.option(typ_t),
-        "\\/",
-        Some(unk),
-        List.assoc_opt("\\/", of_infix_delim),
-      )
+    /* The manual table claimed Bool for "\\/", but legacy "\\/"
+     * (LogicalOrLegacy) is derivation-only: it has no Exp row, so it
+     * is no Exp suggestion at all (it used to have an Exp row with no
+     * MakeTerm case, lowering to a hole, i.e. Unknown) */
+    Alcotest.test_case("legacy \\/ has no entry", `Quick, () =>
+      absent(of_infix_delim, "\\/")
     ),
     /* "!" had a manual Bool entry but is not an infix delim in any
      * sort, so the entry was dead: never a suggestion candidate */

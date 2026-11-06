@@ -243,8 +243,8 @@ and remold_template = (sort: Sort.t, shape, seg: t): t => {
   | [hd, ...tl] =>
     switch (hd) {
     | Secondary(_)
-    | Grout(_)
-    | Projector(_) => [hd, ...remold(shape, tl)]
+    | Grout(_) => [hd, ...remold(shape, tl)]
+    | Projector(p) => [hd, ...remold(snd(ProjectorCore.shapes(p)), tl)]
     | Tile(t) =>
       switch (remold_tile(sort, shape, t)) {
       | None => [Tile(t), ...remold(snd(Tile.shapes(t)), tl)]
@@ -267,9 +267,12 @@ and remold_template_uni = (sort: Sort.t, shape, seg: t): (t, Nib.Shape.t, t) => 
   | [hd, ...tl] =>
     switch (hd) {
     | Secondary(_)
-    | Grout(_)
-    | Projector(_) =>
+    | Grout(_) =>
       let (remolded, shape, rest) = remold_uni(shape, tl);
+      ([hd, ...remolded], shape, rest);
+    | Projector(p) =>
+      let (remolded, shape, rest) =
+        remold_uni(snd(ProjectorCore.shapes(p)), tl);
       ([hd, ...remolded], shape, rest);
     | Tile(t) =>
       switch (remold_tile(sort, shape, t)) {
@@ -452,12 +455,9 @@ and remold_tpat_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
         let (_, shape, _) = shape_affix(Left, remolded, r.shape);
         ([Tile(t), ...remolded], shape, []);
       | Some(t) =>
-        switch (Tile.nibs(t)) {
-        | _ =>
-          let (remolded, shape, rest) =
-            remold_tpat_uni(snd(Tile.shapes(t)), tl, parent_sorts);
-          ([Tile(t), ...remolded], shape, rest);
-        }
+        let (remolded, shape, rest) =
+          remold_tpat_uni(snd(Tile.shapes(t)), tl, parent_sorts);
+        ([Tile(t), ...remolded], shape, rest);
       }
     }
   }
@@ -550,6 +550,13 @@ and remold_exp_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
             remold_template_uni(sort, shape, tl);
           let (remolded_exp, shape, rest) = remold_exp_uni(shape, rest, []);
           ([Piece.Tile(t), ...remolded_drv] @ remolded_exp, shape, rest);
+        /* as in remold_exp */
+        | (_, {shape, sort: Mod}) =>
+          let (remolded_mod, shape, rest) =
+            remold_mod_uni(shape, tl, [Sort.Exp, ...parent_sorts]);
+          let (remolded_exp, shape, rest) =
+            remold_exp_uni(shape, rest, parent_sorts);
+          ([Piece.Tile(t), ...remolded_mod] @ remolded_exp, shape, rest);
         | _ =>
           let (remolded, shape, rest) =
             remold_exp_uni(snd(Tile.shapes(t)), tl, parent_sorts);

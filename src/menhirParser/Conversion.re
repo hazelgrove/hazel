@@ -355,7 +355,10 @@ module rec Exp: {
     switch (mp.term) {
     | Var(name) => VarPat(name)
     | Asc(inner, typ) => AscPat(pat_of_mpat(inner), Typ.of_core(typ))
-    | _ => WildPat
+    /* holes stay holes (WildPat would be a valid binder); as Pat.of_core */
+    | EmptyHole => EmptyHolePat
+    | Invalid(_) => InvalidPat("Invalid")
+    | MultiHole(_) => raise(Failure("MultiHole not supported"))
     };
   };
 

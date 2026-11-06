@@ -16,11 +16,15 @@ type piece = {
    case under inward bias. Without this, they could never be indicated
    from their left side, since the left neighbor's Convex right nib
    would always win. This covers infix operators (Concave, Concave)
-   and application forms like Ap parens (Concave, Convex). */
+   and application forms like Ap parens (Concave, Convex), and concave
+   grout, the missing operator of a MultiHole, which is otherwise
+   unindicatable when no whitespace separates it from its left kid. */
 let has_concave_left_nib = (p: Piece.t): bool =>
   switch (p) {
   | Tile(t) => Tile.has_concave_left_nib(t)
-  | _ => false
+  | Grout(g) => g.shape == Concave
+  | Secondary(_)
+  | Projector(_) => false
   };
 
 /* The caret-facing nib shape of a piece: right nib for L, left nib for R */

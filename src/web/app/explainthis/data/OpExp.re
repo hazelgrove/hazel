@@ -199,12 +199,12 @@ let bool_and2_ex = {
 };
 let bool_or1_ex = {
   sub_id: OrFalse,
-  term: mk_example("false \\/ 2 < 1"),
+  term: mk_example("false || 2 < 1"),
   message: "The left operand evaluates to false, so evaluate the right operand. Since the right operand also evaluates to false, the whole expression evaluates to false.",
 };
 let bool_or2_ex = {
   sub_id: OrTrue,
-  term: mk_example("3 < 4 \\/ false"),
+  term: mk_example("3 < 4 || false"),
   message: "The left operand evaluates to true, so the right operand is not evaluated. The whole expression evaluates to true.",
 };
 let unop_exp_coloring_ids =
@@ -787,7 +787,6 @@ let bool_or_exp_coloring_ids =
     ~left_id,
     ~right_id,
   );
-// TODO Some of the examples are evaluating weirdly and can't type the || in the editor
 let bool_or_exp = (~left_id: Id.t, ~right_id: Id.t): form => {
   id: BinOpExp(Bool(Or)),
   syntactic_form: [exp1, space(), logical_or(), space(), exp2],

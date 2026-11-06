@@ -138,10 +138,14 @@ let is_tile: t => option(Tile.t) =
   | Tile(t) => Some(t)
   | _ => None;
 
+/* Only tiles can be missing shards; a projector's syntax is complete
+   by construction (MakeTerm.for_projection requires it). */
 let is_complete: t => bool =
   fun
   | Tile(t) => Tile.is_complete(t)
-  | _ => true;
+  | Grout(_)
+  | Secondary(_)
+  | Projector(_) => true;
 
 let is_comma: t => bool =
   fun
@@ -196,7 +200,7 @@ let is_term = (p: t) =>
         ) =>
     true
   | Secondary(_) => false // debatable
-  | _ => false
+  | Tile(_) => false
   };
 
 let is_infix_delimiter_op_prefix = (p: t) =>
