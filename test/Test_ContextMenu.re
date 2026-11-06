@@ -12,6 +12,7 @@ let labels = (z: Zipper.t): list(string) =>
        fun
        | Util.Menu.Action({label, _}) => Some(label)
        | Submenu(_)
+       | Inline(_)
        | Divider => None,
      );
 
