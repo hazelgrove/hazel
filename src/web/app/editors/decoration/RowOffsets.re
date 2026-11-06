@@ -13,17 +13,8 @@ let table: Hashtbl.t(int, int) = Hashtbl.create(~size=16, (module Int));
 
 let reset = (): unit => Hashtbl.clear(table);
 
-let claim = (~row: int, ~until_col: int): unit => {
-  let prev =
-    switch (Hashtbl.find(table, row)) {
-    | Some(c) => c
-    | None => 0
-    };
-  Hashtbl.set(table, ~key=row, ~data=max(prev, until_col));
-};
-
 let claimed = (~row: int): int =>
-  switch (Hashtbl.find(table, row)) {
-  | Some(c) => c
-  | None => 0
-  };
+  Hashtbl.find(table, row) |> Option.value(~default=0);
+
+let claim = (~row: int, ~until_col: int): unit =>
+  Hashtbl.set(table, ~key=row, ~data=max(claimed(~row), until_col));

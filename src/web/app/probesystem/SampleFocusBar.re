@@ -35,18 +35,14 @@ let get_fn_info =
         if (Option.is_some(Environment.lookup(Builtins.env_init, name))) {
           None;
         } else {
-          switch (Statics.Map.lookup(fn_id, info_map)) {
-          | Some(ci) => Info.get_binding_site(ci)
-          | None => None
-          };
+          Statics.Map.lookup(fn_id, info_map)
+          |> Option.bind(~f=Info.get_binding_site);
         };
       (Some(name), body_id);
     | Constructor(name, _) =>
       let body_id =
-        switch (Statics.Map.lookup(fn_id, info_map)) {
-        | Some(ci) => Info.get_binding_site(ci)
-        | None => None
-        };
+        Statics.Map.lookup(fn_id, info_map)
+        |> Option.bind(~f=Info.get_binding_site);
       (Some(name), body_id);
     | Fun(_) =>
       /* Anonymous function - the fn_exp itself is the body */
@@ -106,6 +102,17 @@ let get_call_site_target =
  * Used for the "body" icon at the end of the bar.
  * Tier 1: body_id from statics. Tier 2: fn_def_id from Closure.
  * Skips built-in names (non-navigable IDs). */
+/* Whether a call-stack name (possibly suffixed with "+") names a builtin. */
+let is_builtin_stack_name = (stack_name: option(string)): bool =>
+  Option.exists(stack_name, ~f=n =>
+    Option.is_some(
+      Environment.lookup(
+        Builtins.env_init,
+        String.chop_suffix_if_exists(n, ~suffix="+"),
+      ),
+    )
+  );
+
 let get_definition_target =
     (
       ~info_map: Statics.Map.t,
@@ -113,26 +120,13 @@ let get_definition_target =
       ~fn_def_id: option(Id.t),
       ~stack_name: option(string),
     )
-    : option(Id.t) => {
-  let is_builtin_name =
-    switch (stack_name) {
-    | Some(n) =>
-      let base =
-        String.is_suffix(n, ~suffix="+")
-          ? String.sub(n, ~pos=0, ~len=String.length(n) - 1) : n;
-      Option.is_some(Environment.lookup(Builtins.env_init, base));
-    | None => false
-    };
-  if (is_builtin_name) {
+    : option(Id.t) =>
+  if (is_builtin_stack_name(stack_name)) {
     None;
   } else {
     let (_, body_id_opt) = get_fn_info(~info_map, app_id);
-    switch (body_id_opt) {
-    | Some(_) => body_id_opt
-    | None => fn_def_id
-    };
+    Option.first_some(body_id_opt, fn_def_id);
   };
-};
 
 /* Get the parameter pattern target for a breadcrumb's body icon.
  * Looks up the function literal in info_map and extracts the
@@ -144,17 +138,8 @@ let get_param_target =
       ~fn_def_id: option(Id.t),
       ~stack_name: option(string),
     )
-    : option(Id.t) => {
-  let is_builtin_name =
-    switch (stack_name) {
-    | Some(n) =>
-      let base =
-        String.is_suffix(n, ~suffix="+")
-          ? String.sub(n, ~pos=0, ~len=String.length(n) - 1) : n;
-      Option.is_some(Environment.lookup(Builtins.env_init, base));
-    | None => false
-    };
-  if (is_builtin_name) {
+    : option(Id.t) =>
+  if (is_builtin_stack_name(stack_name)) {
     None;
   } else {
     /* First, find the function definition ID */
@@ -175,7 +160,6 @@ let get_param_target =
       }
     };
   };
-};
 
 /* Windowed breadcrumb display: when the call stack has more entries than
  * fit in the available space, we show entry 0 (outermost call), a sliding
@@ -193,10 +177,7 @@ let resolve_display_name =
   | Some(name) => name
   | None =>
     let (name_opt, _) = get_fn_info(~info_map, frame.id);
-    switch (name_opt) {
-    | Some(name) => name
-    | None => {js|λ|js}
-    };
+    Option.value(name_opt, ~default={js|λ|js});
   };
 
 /* Character cost of a separator (❯ + surrounding gaps) */

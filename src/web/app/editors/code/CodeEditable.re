@@ -235,17 +235,13 @@ module Selection = {
     let z = model.editor.state.zipper;
     let refractors =
       z.refractors.manuals @ Id.Map.to_alist(z.refractors.multis.ephemerals);
-    switch (Indicated.index(z)) {
-    | Some(id) =>
-      switch (
-        List.findi(refractors, ~f=(_, (rid, _)) => rid == id)
-        |> Option.map(~f=fst)
-      ) {
-      | Some(idx) => Some(Update.Perform(Project(Focus(idx, Probe, None))))
-      | None => None
-      }
-    | None => None
-    };
+    Indicated.index(z)
+    |> Option.bind(~f=id =>
+         List.findi(refractors, ~f=(_, (rid, _)) => rid == id)
+       )
+    |> Option.map(~f=((idx, _)) =>
+         Update.Perform(Project(Focus(idx, Probe, None)))
+       );
   };
 
   /* Focus a probe on the current line (for end-of-line bounce) */
@@ -255,22 +251,15 @@ module Selection = {
     let caret_row = Zipper.Caret.point(measured, z).row;
     let refractors =
       z.refractors.manuals @ Id.Map.to_alist(z.refractors.multis.ephemerals);
-    let probe_on_row =
-      refractors
-      |> (
-        l =>
-          List.findi(l, ~f=(_, (id, _)) =>
-            switch (Measured.find_by_id(id, measured)) {
-            | Some(m) => m.last.row == caret_row
-            | None => false
-            }
-          )
-          |> Option.map(~f=fst)
-      );
-    switch (probe_on_row) {
-    | Some(idx) => Some(Update.Perform(Project(Focus(idx, Probe, None))))
-    | None => None
-    };
+    List.findi(refractors, ~f=(_, (id, _)) =>
+      Measured.find_by_id(id, measured)
+      |> Option.exists(~f=(m: Measured.measurement) =>
+           m.last.row == caret_row
+         )
+    )
+    |> Option.map(~f=((idx, _)) =>
+         Update.Perform(Project(Focus(idx, Probe, None)))
+       );
   };
 
   let handle_key_event =
@@ -366,10 +355,8 @@ module Selection = {
     };
 
   let jump_to_tile = (id: Id.t, model: Model.t): option(Update.t) => {
-    switch (TermData.root_piece(id, model.editor.syntax.term_data)) {
-    | Some(_) => Some(Perform(Move(Goal(TileId(id)))))
-    | None => None
-    };
+    TermData.root_piece(id, model.editor.syntax.term_data)
+    |> Option.map(~f=_ => Update.Perform(Move(Goal(TileId(id)))));
   };
 };
 

@@ -570,10 +570,9 @@ module Selection = {
   /* Use the selection's live pos to check whether the cursor is in a
      derivation tree cell. */
   let get_derivation_info = (~selection: t, model: Model.t) =>
-    switch (pos_of(selection)) {
-    | Some(pos) => Model.get_derivation_info_at(pos, model)
-    | None => None
-    };
+    Option.bind(pos_of(selection), ~f=pos =>
+      Model.get_derivation_info_at(pos, model)
+    );
 };
 
 // ====== Exercise ======

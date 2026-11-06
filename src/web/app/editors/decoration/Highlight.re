@@ -755,12 +755,8 @@ let incr_eval =
     ids
     |> List.dedup_and_sort(~compare=Id.compare)
     |> List.filter_map(~f=id =>
-         switch (
-           TermData.extreme_measures(id, syntax.term_data, syntax.measured)
-         ) {
-         | Some(range) => Some((id, range))
-         | None => None
-         }
+         TermData.extreme_measures(id, syntax.term_data, syntax.measured)
+         |> Option.map(~f=range => (id, range))
        );
   let range_compare = ((_, (o1, l1)), (_, (o2, l2))) =>
     switch (Point.compare(o1, o2)) {
@@ -789,7 +785,7 @@ let incr_eval =
     pending_eval_ids |> ranged_ids_of |> List.sort(~compare=range_compare);
   let active_ids =
     if (show_active_eval) {
-      pending_eval_ranges |> ListUtil.hd_opt |> Option.to_list;
+      List.take(pending_eval_ranges, 1);
     } else {
       [];
     };

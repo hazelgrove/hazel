@@ -380,11 +380,9 @@ module Update = {
       |> {
         let.calc elab = elab
         and.calc streaming_outbox = streaming_outbox;
-        switch (streaming_outbox) {
-        | Some(streaming_outbox) =>
-          Some(StreamCollector.collect_stream_state(streaming_outbox, elab))
-        | None => None
-        };
+        Option.map(streaming_outbox, ~f=streaming_outbox =>
+          StreamCollector.collect_stream_state(streaming_outbox, elab)
+        );
       };
 
     // Turn state into dynamics map
@@ -723,10 +721,10 @@ module View = {
       List.filter_map(
         ~f=
           ((id, insts)) =>
-            switch (Id.Map.find(measured.tiles, id)) {
-            | Some(ms) => test_status_icon_view(~font_metrics, insts, ms)
-            | None => None
-            },
+            Id.Map.find(measured.tiles, id)
+            |> Option.bind(~f=ms =>
+                 test_status_icon_view(~font_metrics, insts, ms)
+               ),
         test_results.test_map,
       ),
     );

@@ -94,12 +94,6 @@ let paths_signifier_with_kind =
   };
 };
 
-let jump_paths_of_opt = (path: option(string)): list(string) =>
-  switch (path) {
-  | Some(p) => [p]
-  | None => []
-  };
-
 /** UI-facing name for a tool_call. Overrides [tc.name] for cases where the raw
     tool name plus a placeholder signifier would mislead — e.g. [insert_before]
     with no [path] would otherwise render as "insert_before cursor", which reads
@@ -123,7 +117,7 @@ let of_tool_call = (tc: OpenRouter.Reply.Model.tool_call): option(t) => {
     Some({
       category: Edit,
       signifier: path,
-      jump_paths: jump_paths_of_opt(path),
+      jump_paths: Option.to_list(path),
       persists,
     });
   };
@@ -167,7 +161,7 @@ let of_tool_call = (tc: OpenRouter.Reply.Model.tool_call): option(t) => {
     Some({
       category: Edit,
       signifier: path,
-      jump_paths: jump_paths_of_opt(path),
+      jump_paths: Option.to_list(path),
       persists: true,
     });
   | "view_entire_definition"
@@ -195,17 +189,13 @@ let of_tool_call = (tc: OpenRouter.Reply.Model.tool_call): option(t) => {
   | "remove_statics" => paths_tool(~category=Statics, ~persists=false)
   | "create_new_task" =>
     let title =
-      switch (get_field(args, "task")) {
-      | Some(task_json) => get_string_field(task_json, "title")
-      | None => None
-      };
+      get_field(args, "task")
+      |> Option.bind(~f=task_json => get_string_field(task_json, "title"));
     workbench(~signifier=Option.map(~f=truncate_free_text, title));
   | "add_new_subtask_to_active_task" =>
     let title =
-      switch (get_field(args, "subtask")) {
-      | Some(st_json) => get_string_field(st_json, "title")
-      | None => None
-      };
+      get_field(args, "subtask")
+      |> Option.bind(~f=st_json => get_string_field(st_json, "title"));
     workbench(~signifier=Option.map(~f=truncate_free_text, title));
   | "set_active_task"
   | "set_active_subtask" =>

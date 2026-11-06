@@ -102,8 +102,7 @@ module Model = {
           Id.equal(id_of_spec(spec), persistent.cur_exercise),
         ExerciseSettings.exercises,
       )
-      |> Option.map(~f=fst)
-      |> Option.value(~default=0);
+      |> Option.value_map(~default=0, ~f=fst);
     {
       current,
       exercises,

@@ -9,10 +9,10 @@ open Poly;
  * which documents the simplest way to add a new form. */
 
 let feedback_view = (message, up_active, up_action, down_active, down_action) => {
-  div(
-    ~attrs=[clss(["feedback"])],
+  div_c(
+    "feedback",
     [
-      div(~attrs=[clss(["message"])], [text(message)]),
+      div_c("message", [text(message)]),
       div(
         ~attrs=[
           clss(["option"] @ (up_active ? ["active"] : [])),
@@ -148,11 +148,7 @@ let mk_translation_doc =
     | Omd.Code(_, d) => (List.append(msg, [code_node(d)]), mapping)
     | Omd.Link(_, {label, destination, _}) =>
       let (d, mapping) = translate_inline(label, [], mapping, ~inject);
-      let id =
-        switch (Id.of_string(destination)) {
-        | Some(id) => id
-        | None => Id.invalid
-        };
+      let id = Option.value(Id.of_string(destination), ~default=Id.invalid);
       let (inner_msg, mapping) =
         highlight(~globals, ~inject, d, id, mapping);
       (List.append(msg, [inner_msg]), mapping);
@@ -319,10 +315,7 @@ let mk_explanation =
   let feedback =
     globals.settings.explainThis.show_feedback
       ? [explanation_feedback_view(~inject, group_id, form_id, model)] : [];
-  (
-    div([div(~attrs=[clss(["explanation-contents"])], msg)] @ feedback),
-    color_map,
-  );
+  (div([div_c("explanation-contents", msg)] @ feedback), color_map);
 };
 
 let expander_deco =
@@ -461,8 +454,8 @@ let example_view =
                     ),
                   ]
                   : [];
-              div(
-                ~attrs=[clss(["example"])],
+              div_c(
+                "example",
                 [
                   CellEditor.View.view(
                     ~globals,
@@ -484,10 +477,7 @@ let example_view =
                          );
                     },
                   ),
-                  div(
-                    ~attrs=[clss(["explanation"])],
-                    [text(message)] @ feedback,
-                  ),
+                  div_c("explanation", [text(message)] @ feedback),
                 ],
               );
             },
@@ -780,10 +770,7 @@ let decide =
          the format literal and its arguments sit together. `~explanation`
          overrides it for the few callers that describe a different term. */
       let explanation_msg =
-        switch (explanation) {
-        | Some(msg) => msg
-        | None => doc.explanation
-        };
+        Option.value(explanation, ~default=doc.explanation);
       /* A form carries its own colorings; `~colorings` overrides them for the
          least specific form of a group, which is shared across a family of
          groups and so is not built for this particular call site. */
@@ -1700,8 +1687,8 @@ let view_doc =
       [syntax |> CodeViewable.view_segment(~globals)],
       (
         [
-          div(
-            ~attrs=[clss(["explanation-contents"])],
+          div_c(
+            "explanation-contents",
             msg |> mk_translation(~globals, ~inject=_ => ()) |> fst,
           ),
         ],
@@ -1783,7 +1770,7 @@ let color_map_of = (~globals: Globals.t, decision: decision): ColorSteps.t =>
 let section = (~section_clss: string, ~title: string, contents: list(Node.t)) =>
   div(
     ~attrs=[clss(["section", section_clss])],
-    [div(~attrs=[clss(["section-title"])], [text(title)])] @ contents,
+    [div_c("section-title", [text(title)])] @ contents,
   );
 
 let get_color_map =
@@ -1825,8 +1812,8 @@ let view =
   div(
     ~attrs=[Attr.id("explain-this")],
     [
-      div(
-        ~attrs=[clss(["header"])],
+      div_c(
+        "header",
         [
           Widgets.toggle(
             ~tooltip="Toggle highlighting",
@@ -1850,7 +1837,7 @@ let view =
               },
             syn_form_Drv @ explanation_Drv,
           ),
-          div(~attrs=[clss(["hline"])], []),
+          div_c("hline", []),
         ]
       | None => []
       }

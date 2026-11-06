@@ -335,10 +335,9 @@ let term =
     };
   let is_semi = Tile.is_semi(tile);
   let is_not_semi_tile = ((tid, _, _)) =>
-    switch (TermData.root_tile(tid, term_data)) {
-    | Some(t) => !Tile.is_semi(t)
-    | None => true
-    };
+    Option.for_all(TermData.root_tile(tid, term_data), ~f=t =>
+      !Tile.is_semi(t)
+    );
 
   if (is_module && is_semi) {
     let msg = "Arms.term";
@@ -709,8 +708,7 @@ module Indicated = {
         ? "indication-refractored" : "indication";
     let kind_cls =
       refractor_kind
-      |> Option.map(~f=ProjectorCore.Kind.name)
-      |> Option.value(~default="");
+      |> Option.value_map(~default="", ~f=ProjectorCore.Kind.name);
     let cls =
       String.equal(kind_cls, "") ? base_cls : base_cls ++ " " ++ kind_cls;
     /* Simplified style suppresses the shard hexagons: regular terms get just

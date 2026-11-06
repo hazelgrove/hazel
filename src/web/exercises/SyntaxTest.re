@@ -346,7 +346,7 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | Filter(_, u) => var_applied(name, u)
   | TypAp(u, _) =>
     switch (u.term) {
-    | Var(x) => String.equal(x, name) ? true : false
+    | Var(x) => String.equal(x, name)
     | _ => var_applied(name, u)
     }
   | DynamicErrorHole(_) => false

@@ -331,12 +331,9 @@ let view =
            },
       ],
       [
-        div(
-          ~attrs=[clss(["token-context-meter-label"])],
-          [text(meter_base_label)],
-        ),
-        div(
-          ~attrs=[clss(["context-meter-track"])],
+        div_c("token-context-meter-label", [text(meter_base_label)]),
+        div_c(
+          "context-meter-track",
           [
             div(
               ~attrs=[
@@ -362,8 +359,7 @@ let view =
           ],
         ),
         switch (meter_pct_line_opt) {
-        | Some(line) =>
-          div(~attrs=[clss(["token-context-meter-pct"])], [text(line)])
+        | Some(line) => div_c("token-context-meter-pct", [text(line)])
         | None => div(~attrs=[], [])
         },
       ],
@@ -412,16 +408,9 @@ let view =
 
   let model_name_label: option(Node.t) = {
     let agent_globals = globals.settings.agent_globals;
-    switch (agent_globals.active_llm) {
-    | None => None
-    | Some(llm) =>
-      Some(
-        div(
-          ~attrs=[clss(["change-model-current-name"])],
-          [text(pretty_model_name(llm.id))],
-        ),
-      )
-    };
+    Option.map(agent_globals.active_llm, ~f=llm =>
+      div_c("change-model-current-name", [text(pretty_model_name(llm.id))])
+    );
   };
 
   /* Cache indicator: lit when the most recent assistant turn reported
@@ -528,8 +517,8 @@ let view =
             ],
             [text("\xE2\x8C\x83 " ++ current_label)],
           ),
-          div(
-            ~attrs=[clss(["reasoning-effort-menu"])],
+          div_c(
+            "reasoning-effort-menu",
             [
               menu_item("Off", None),
               menu_item("Low", Some(Low)),
@@ -569,18 +558,18 @@ let view =
     );
 
   // Input area at bottom with buttons above
-  div(
-    ~attrs=[clss(["chat-input-container"])],
+  div_c(
+    "chat-input-container",
     [
       // Action buttons row - above input, left side buttons and right side export
       top_bar_collapsed
         ? Node.none
-        : div(
-            ~attrs=[clss(["chat-action-buttons-row"])],
+        : div_c(
+            "chat-action-buttons-row",
             [
               // Left side buttons
-              div(
-                ~attrs=[clss(["chat-action-buttons-left"])],
+              div_c(
+                "chat-action-buttons-left",
                 [
                   // Prompt button
                   if (!String.equal(chunked_chat.prompt, "")) {
@@ -621,8 +610,8 @@ let view =
               ),
               token_context_meter_node,
               // Right side export and copy buttons
-              div(
-                ~attrs=[clss(["chat-action-buttons-right"])],
+              div_c(
+                "chat-action-buttons-right",
                 [
                   div(
                     ~attrs=[
@@ -645,15 +634,12 @@ let view =
             ],
           ),
       if (current_chat.pending_send_queue != []) {
-        div(
-          ~attrs=[clss(["chat-send-queue-panel"])],
+        div_c(
+          "chat-send-queue-panel",
           [
-            div(
-              ~attrs=[clss(["chat-send-queue-header"])],
-              [text("Queue")],
-            ),
-            div(
-              ~attrs=[clss(["chat-send-queue-body"])],
+            div_c("chat-send-queue-header", [text("Queue")]),
+            div_c(
+              "chat-send-queue-body",
               [
                 text(
                   String.concat(~sep="\n\n", current_chat.pending_send_queue),
@@ -689,22 +675,19 @@ let view =
             ),
             Effect.Stop_propagation,
           ]);
-        div(
-          ~attrs=[clss(["chat-input-top-bar"])],
+        div_c(
+          "chat-input-top-bar",
           [
-            div(
-              ~attrs=[clss(["chat-input-top-bar-left"])],
+            div_c(
+              "chat-input-top-bar-left",
               [
                 top_bar_toggle_button,
-                span(
-                  ~attrs=[clss(["session-mode-info"])],
+                span_c(
+                  "session-mode-info",
                   [
-                    span(
-                      ~attrs=[clss(["session-mode-info-icon"])],
-                      [Icons.info],
-                    ),
-                    div(
-                      ~attrs=[clss(["session-mode-info-tooltip"])],
+                    span_c("session-mode-info-icon", [Icons.info]),
+                    div_c(
+                      "session-mode-info-tooltip",
                       [text(mode_explanation)],
                     ),
                   ],
@@ -721,8 +704,8 @@ let view =
                 ),
               ],
             ),
-            div(
-              ~attrs=[clss(["chat-input-top-bar-right"])],
+            div_c(
+              "chat-input-top-bar-right",
               List.filter_map(
                 ~f=x => x,
                 [cache_indicator_label, model_name_label],
@@ -731,15 +714,15 @@ let view =
           ],
         );
       },
-      div(
-        ~attrs=[clss(["chat-message-input-container"])],
+      div_c(
+        "chat-message-input-container",
         [
           switch (slash_menu) {
           | None => div(~attrs=[], [])
           | Some(sm) =>
             let cmds = ChatSlashCommands.filtered(sm.filter);
-            div(
-              ~attrs=[clss(["chat-slash-menu"])],
+            div_c(
+              "chat-slash-menu",
               List.mapi(
                 ~f=
                   (i, (name, desc)) =>
@@ -757,14 +740,8 @@ let view =
                         ),
                       ],
                       [
-                        span(
-                          ~attrs=[clss(["chat-slash-cmd"])],
-                          [text("/" ++ name)],
-                        ),
-                        span(
-                          ~attrs=[clss(["chat-slash-desc"])],
-                          [text(desc)],
-                        ),
+                        span_c("chat-slash-cmd", [text("/" ++ name)]),
+                        span_c("chat-slash-desc", [text(desc)]),
                       ],
                     ),
                 cmds,
@@ -981,15 +958,15 @@ let view =
                   [Icons.send],
                 );
               };
-            div(
-              ~attrs=[clss(["chat-input-bottom-bar"])],
+            div_c(
+              "chat-input-bottom-bar",
               [
-                div(
-                  ~attrs=[clss(["chat-input-bottom-bar-left"])],
+                div_c(
+                  "chat-input-bottom-bar-left",
                   [reasoning_effort_dropup, change_model_button],
                 ),
-                div(
-                  ~attrs=[clss(["chat-input-bottom-bar-right"])],
+                div_c(
+                  "chat-input-bottom-bar-right",
                   [queue_button, primary_button],
                 ),
               ],

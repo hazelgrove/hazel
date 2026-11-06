@@ -61,11 +61,10 @@ module ImplGradingReport = {
   };
 
   let total = (report: t) => List.length(report.hinted_results);
-  let num_passed = (report: t) => {
-    report.hinted_results
-    |> List.filter(~f=((status, _)) => Poly.equal(status, TestStatus.Pass))
-    |> List.length;
-  };
+  let num_passed = (report: t) =>
+    List.count(report.hinted_results, ~f=((status, _)) =>
+      Poly.equal(status, TestStatus.Pass)
+    );
 
   let percentage = (report: t): float => {
     let passed = float_of_int(num_passed(report));

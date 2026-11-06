@@ -1,26 +1,13 @@
 open Util;
 
-let get_name = (tool: API.Json.t): option(string) => {
-  switch (API.Json.dot("function", tool)) {
-  | Some(func) =>
-    switch (API.Json.dot("name", func)) {
-    | Some(name_json) => API.Json.str(name_json)
-    | None => None
-    }
-  | None => None
-  };
-};
+let function_string_field = (key: string, tool: API.Json.t): option(string) =>
+  API.Json.dot("function", tool)
+  |> Option.bind(~f=API.Json.dot(key))
+  |> Option.bind(~f=API.Json.str);
 
-let get_description = (tool: API.Json.t): option(string) => {
-  switch (API.Json.dot("function", tool)) {
-  | Some(func) =>
-    switch (API.Json.dot("description", func)) {
-    | Some(desc_json) => API.Json.str(desc_json)
-    | None => None
-    }
-  | None => None
-  };
-};
+let get_name = function_string_field("name");
+
+let get_description = function_string_field("description");
 
 /** How a tool is gated by session mode (see [[AgentUpdate.tool_allowed_in_mode]]):
     EditGated tools are blocked in Plan and Converse; WorkbenchGated and

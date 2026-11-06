@@ -69,18 +69,14 @@ let init: t = {
 
 let get_explanation_feedback =
     (group_id: group_id, form_id: form_id, model: t): option(feedback_option) => {
-  let forms =
-    List.filter(
-      ~f=(form: form_model) => form.group == group_id && form.form == form_id,
-      model.forms,
-    );
   /* A (group, form) pair should appear at most once, but this reads persisted
      state that a previous version wrote, so tolerate a duplicate rather than
      taking down the sidebar over a stale thumbs-up. */
-  switch (forms) {
-  | [] => None
-  | [form, ..._] => form.explanation_feedback
-  };
+  List.find(
+    ~f=(form: form_model) => form.group == group_id && form.form == form_id,
+    model.forms,
+  )
+  |> Option.bind(~f=(form: form_model) => form.explanation_feedback);
 };
 
 let get_example_feedback =

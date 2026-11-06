@@ -101,8 +101,8 @@ let debug_info_tab = (~globals: Globals.t): Node.t =>
    have one. */
 let coverage_tab: option(Node.t) =
   Option.map(CoverageExport.download, ~f=download =>
-    div(
-      ~attrs=[clss(["coverage-button"])],
+    div_c(
+      "coverage-button",
       [
         tab(
           Icons.export,
@@ -200,8 +200,8 @@ let persistent_view =
   div(
     ~attrs=[Attr.id("persistent")],
     [
-      div(
-        ~attrs=[clss(["tabs"])],
+      div_c(
+        "tabs",
         (
           Option.is_some(tutorial_reference)
             ? [task_reference_tab(~globals)] : []

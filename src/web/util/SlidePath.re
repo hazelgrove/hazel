@@ -60,8 +60,7 @@ let folder_position = (~current: int, paths: list(t)): folder_position => {
   let idxs = folder_indices(~current, paths);
   let index_in_folder =
     ListUtil.findi_opt(i => i == current, idxs)
-    |> Option.map(~f=fst)
-    |> Option.value(~default=0);
+    |> Option.value_map(~default=0, ~f=fst);
   {
     index_in_folder,
     folder_size: List.length(idxs),

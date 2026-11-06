@@ -84,12 +84,10 @@ let enabled_tools =
   List.filter(
     ~f=
       (tool: API.Json.t) =>
-        switch (ToolUtils.get_name(tool)) {
-        | Some(name) =>
+        Option.for_all(ToolUtils.get_name(tool), ~f=name =>
           !List.mem(prompting.disabled_tool_names, name, ~equal=String.equal)
           && tool_allowed_in_mode(mode, name)
-        | None => true
-        },
+        ),
     CompositionUtils.Public.tools,
   );
 // Exponential backoff

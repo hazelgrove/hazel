@@ -81,8 +81,8 @@ let console_header = (~explain_this_inject): Node.t => {
     explain_this_inject(ExplainThisUpdate.SpecificityOpen(true));
   };
   let is_ref = ! console_mode^;
-  div(
-    ~attrs=[clss(["main-title"])],
+  div_c(
+    "main-title",
     [
       span(
         ~attrs=
@@ -90,7 +90,7 @@ let console_header = (~explain_this_inject): Node.t => {
           @ (is_ref ? [] : [Attr.on_pointerdown(switch_to(false))]),
         [text("Reference")],
       ),
-      span(~attrs=[clss(["mode-separator"])], [text(" / ")]),
+      span_c("mode-separator", [text(" / ")]),
       span(
         ~attrs=
           [clss(["mode-label"] @ (is_ref ? ["inactive"] : ["active"]))]
@@ -123,11 +123,7 @@ let view =
       ~f=
         ((heading: option(string), content)) =>
           switch (heading) {
-          | None =>
-            div(
-              ~attrs=[clss(["task-reference-preamble"])],
-              render_md(content),
-            )
+          | None => div_c("task-reference-preamble", render_md(content))
           | Some(h) =>
             Node.details(
               ~attrs=[
@@ -139,21 +135,17 @@ let view =
                   ~attrs=[clss(["task-reference-section-title"])],
                   [text(h)],
                 ),
-                div(
-                  ~attrs=[clss(["task-reference-section-body"])],
-                  render_md(content),
-                ),
+                div_c("task-reference-section-body", render_md(content)),
               ],
             )
           },
       sections,
     );
-  let body_div = div(~attrs=[clss(["task-reference-body"])], section_nodes);
+  let body_div = div_c("task-reference-body", section_nodes);
   let console_on =
-    switch (context.probe_config) {
-    | Some(config) => mem(config.flags, Console)
-    | None => false
-    };
+    Option.exists(context.probe_config, ~f=config =>
+      mem(config.flags, Console)
+    );
   let strip = () =>
     switch (context.probe_config) {
     | Some(config) => strip_view(~globals, ~explain_this_inject, ~config)
@@ -170,8 +162,8 @@ let view =
       console_mode^
         ? ProbeSidebar.printarium_body(~explain_this_inject, ~editor)
         : strip() @ [body_div];
-    div(
-      ~attrs=[clss(["task-reference-panel"])],
+    div_c(
+      "task-reference-panel",
       [
         div(
           ~attrs=[Attr.id("probe-sidebar"), clss(["tutorial-probe-strip"])],
@@ -193,17 +185,12 @@ let view =
             strip,
           ),
         ];
-    div(
-      ~attrs=[clss(["task-reference-panel"])],
+    div_c(
+      "task-reference-panel",
       [
-        div(
-          ~attrs=[clss(["task-reference-header"])],
-          [
-            div(
-              ~attrs=[clss(["task-reference-title"])],
-              [text("Task Reference")],
-            ),
-          ],
+        div_c(
+          "task-reference-header",
+          [div_c("task-reference-title", [text("Task Reference")])],
         ),
         ...strip_div @ [body_div],
       ],

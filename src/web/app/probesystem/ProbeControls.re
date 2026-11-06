@@ -34,8 +34,7 @@ type feature =
 let mem = (flags: list(feature), f: feature) =>
   List.mem(flags, f, ~equal=equal_feature);
 
-let kbd = (shortcut: string) =>
-  span(~attrs=[clss(["kbd-badge"])], [text(shortcut)]);
+let kbd = (shortcut: string) => span_c("kbd-badge", [text(shortcut)]);
 
 let arrow_icon =
     (
@@ -73,21 +72,20 @@ let auto_probe_toggle = (~globals: Globals.t, ~is_new: bool) => {
   div(
     ~attrs=[clss(["toggle-group"] @ (is_new ? ["qr-new"] : []))],
     [
-      div(
-        ~attrs=[clss(["toggle-label"])],
+      div_c(
+        "toggle-label",
         [
           text("Auto Probe"),
           kbd(Util.Os.is_mac^ ? {js|⌘P|js} : "Ctrl+P"),
         ],
       ),
-      div(
-        ~attrs=[clss(["segmented-control"])],
-        /* Caret (follow-the-cursor) mode still exists in the logic but is
+      div_c(
+        "segmented-control", /* Caret (follow-the-cursor) mode still exists in the logic but is
          * hidden from the toggle for now. */
         [segment("Off", Off), segment("All", All)],
       ),
-      div(
-        ~attrs=[clss(["legend-tooltip"])],
+      div_c(
+        "legend-tooltip",
         [text("Off, or probe the whole program (All).")],
       ),
     ],
@@ -114,8 +112,8 @@ let samples_toggle = (~explain_this_inject, ~is_new: bool) => {
   div(
     ~attrs=[clss(["toggle-group"] @ (is_new ? ["qr-new"] : []))],
     [
-      div(
-        ~attrs=[clss(["toggle-label"])],
+      div_c(
+        "toggle-label",
         [
           text("Samples"),
           span(
@@ -124,12 +122,12 @@ let samples_toggle = (~explain_this_inject, ~is_new: bool) => {
           ),
         ],
       ),
-      div(
-        ~attrs=[clss(["segmented-control"])],
+      div_c(
+        "segmented-control",
         [segment("One", is_single), segment("Many", !is_single)],
       ),
-      div(
-        ~attrs=[clss(["legend-tooltip"])],
+      div_c(
+        "legend-tooltip",
         [text("Show at most one sample per probe, or all at once.")],
       ),
     ],
@@ -172,7 +170,7 @@ let quick_ref_row =
       Node.td(~attrs=[clss(["qr-action"])], [text(action)]),
       Node.td(
         ~attrs=[clss(["qr-how"])],
-        [span(~attrs=[clss(["qr-how-text"])], how)] @ badge_nodes,
+        [span_c("qr-how-text", how)] @ badge_nodes,
       ),
     ],
   );
@@ -346,13 +344,10 @@ let quick_ref_panel =
       div(
         ~attrs=[clss(["quick-ref", "panel"] @ context_clss)],
         [
-          div(~attrs=[clss(["title"])], [text("Quick Reference")]),
+          div_c("title", [text("Quick Reference")]),
           Node.table(~attrs=[clss(["qr-table"])], rows),
         ]
-        @ (
-          List.is_empty(icons)
-            ? [] : [div(~attrs=[clss(["qr-icons"])], icons)]
-        ),
+        @ (List.is_empty(icons) ? [] : [div_c("qr-icons", icons)]),
       ),
     ];
 };

@@ -90,7 +90,7 @@ module Utils = {
     // Calling linearize makes this a little costly
     // but it also keeps code safer rather than storing a current tail pointer
     let linear = linearize(chat);
-    ListUtil.hd_opt(List.rev(linear))
+    List.last(linear)
     |> OptUtil.get_or_fail(
          "[Chat.Utils.current_tail] Failed to get current tail",
        );

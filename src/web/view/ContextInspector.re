@@ -2,8 +2,7 @@ open Virtual_dom.Vdom;
 open Node;
 open Util.WebUtil;
 
-let alias_view = (s: string): Node.t =>
-  div(~attrs=[clss(["typ-alias-view"])], [text(s)]);
+let alias_view = (s: string): Node.t => div_c("typ-alias-view", [text(s)]);
 
 let jump_to = entry => Globals.Update.JumpToTile(Language.Ctx.get_id(entry));
 
@@ -38,7 +37,7 @@ let context_entry_view = (~globals, entry: Language.Ctx.entry): Node.t => {
       ],
       [
         div_name([text(name)]),
-        div(~attrs=[clss(["seperator"])], [text(":")]),
+        div_c("seperator", [text(":")]),
         view_type(typ),
       ],
     )
@@ -50,7 +49,7 @@ let context_entry_view = (~globals, entry: Language.Ctx.entry): Node.t => {
       ],
       [
         div_name([alias_view(name)]),
-        div(~attrs=[clss(["seperator"])], [text("::")]),
+        div_c("seperator", [text("::")]),
         Kind.view(~globals, kind),
       ],
     )
@@ -62,7 +61,7 @@ let context_entry_view = (~globals, entry: Language.Ctx.entry): Node.t => {
       ],
       [
         div_name([text("^" ++ name)]),
-        div(~attrs=[clss(["seperator"])], [text(":")]),
+        div_c("seperator", [text(":")]),
         view_type(expansion_t),
       ],
     )
@@ -70,8 +69,8 @@ let context_entry_view = (~globals, entry: Language.Ctx.entry): Node.t => {
 };
 
 let ctx_view = (~globals, ctx: Language.Ctx.t): Node.t =>
-  div(
-    ~attrs=[clss(["context-inspector"])],
+  div_c(
+    "context-inspector",
     List.map(
       ~f=context_entry_view(~globals),
       ctx

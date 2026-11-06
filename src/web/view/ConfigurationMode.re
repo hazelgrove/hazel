@@ -158,8 +158,7 @@ module Model = {
             List.nth_exn(slides, current) |> fst,
           )
         )
-        |> Option.map(~f=fst)
-        |> Option.value(~default=0),
+        |> Option.value_map(~default=0, ~f=fst),
       configs:
         List.map(
           ~f=

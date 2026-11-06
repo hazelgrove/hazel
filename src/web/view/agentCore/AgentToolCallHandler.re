@@ -16,10 +16,10 @@ type result =
     table). Falls back to the empty elaboration, in which case such projectors
     simply decline to attach. */
 let elaborated_of_syntax = (syntax: CachedSyntax.t): Language.Exp.t =>
-  switch (syntax.shape_elaborated) {
-  | Some(e) => e
-  | None => CachedStatics.empty.elaborated
-  };
+  Option.value(
+    syntax.shape_elaborated,
+    ~default=CachedStatics.empty.elaborated,
+  );
 
 /** Shared dispatch for path-indexed overlay tools (probes, statics, syntax
     projectors). Each such tool takes a list of HighLevelNodeMap paths and
