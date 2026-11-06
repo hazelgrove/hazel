@@ -114,7 +114,10 @@ let expand_projector = (z: t): option(t) => {
       | Some(km) => km
       | None => (of_refractor_trigger(Tile.token(nt, 0)), None)
       };
-    Zipper.update_siblings(((_, r)) => (List.rev(rest) @ syntax, r), z)
+    let spliced =
+      Segment.refractor_needs_parens(syntax)
+        ? [Segment.mk_duo(parens.sort, syntax)] : syntax;
+    Zipper.update_siblings(((_, r)) => (List.rev(rest) @ spliced, r), z)
     |> Zipper.add_manual(
          ~model?,
          Segment.root_id(Segment.skel(syntax), syntax),
@@ -355,6 +358,27 @@ let refractor_seg_to_seg_with =
         );
       };
 
+    /* Parens a trigger kept around its target (refractor_needs_parens)
+       are the invocation's own: print `^^probe(1 + 2)`, not
+       `(^^probe(1 + 2))` */
+    let (map, result) =
+      switch (skel) {
+      | Op(root) =>
+        switch (List.map(List.nth(seg), Aba.get_as(root))) {
+        | [Tile({form: Compound(Parens), children: [inner], _})]
+            when Segment.refractor_needs_parens(inner) =>
+          let target = Segment.root_id(Segment.skel(inner), inner);
+          switch (List.assoc_opt(target, map)) {
+          | Some(entry) => (
+              ListUtil.remove_assoc(target, map),
+              wrapper(entry, inner),
+            )
+          | None => (map, result)
+          };
+        | _ => (map, result)
+        }
+      | _ => (map, result)
+      };
     /* Check if this term needs to be wrapped with a refractor invocation */
     let root_id = Segment.root_id(skel, seg);
     switch (List.assoc_opt(root_id, map)) {
