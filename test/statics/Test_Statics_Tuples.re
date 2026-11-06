@@ -697,7 +697,24 @@ let tests = (
         {|'a'|},
         unknown(Internal),
         FIError.(
-          Exp.(label(~ann=Some(Marks([UnexpectedLabelSort("a")])), "a"))
+          Exp.(
+            label_lit(~ann=Some(Marks([UnexpectedLabelSort("a")])), "a")
+          )
+        ),
+      )
+    }),
+    test_case("Label pattern not in tuple", `Quick, () => {
+      annotated_tree_test(
+        {|let 'a' = 1 in 2|},
+        int(),
+        FIError.(
+          Exp.(
+            let_(
+              Pat.label(~ann=Some(Marks([UnexpectedLabelSort("a")])), "a"),
+              int(1),
+              int(2),
+            )
+          )
         ),
       )
     }),

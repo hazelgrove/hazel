@@ -139,7 +139,10 @@ let drop_column = (column: string): transform => {
   IdTagged.FreshGrammar.(
     Rowwise(
       Exp.(
-        deferred_ap(var("omit_labels"), [deferral(InAp), label(column)])
+        deferred_ap(
+          var("omit_labels"),
+          [deferral(InAp), label_lit(column)],
+        )
       ),
     )
   );
@@ -182,7 +185,7 @@ let rename_column = (old_name: string, new_name: string): transform => {
             ap(
               Forward,
               var("omit_labels"),
-              tuple([var("r"), label(old_name)]),
+              tuple([var("r"), label_lit(old_name)]),
             ),
             tuple_entries([
               labeled(new_name, dot(var("r"), Label.label(old_name))),
@@ -439,7 +442,7 @@ let move_column =
             IdTagged.FreshGrammar.Exp.(
               deferred_ap(
                 var("select_labels"),
-                [deferral(InAp)] @ List.map(label, new_columns),
+                [deferral(InAp)] @ List.map(label_lit, new_columns),
               )
             ),
           ),

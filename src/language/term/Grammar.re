@@ -59,7 +59,8 @@ and exp_term('a) =
   | Fun(pat_t('a), exp_t('a), option(typ_t('a)), option(Var.t)) // typ_t field is only used to display types in results
   | TypFun(tpat_t('a), exp_t('a), option(Var.t))
   | Tuple(list(tuple_entry('a, exp_t('a))))
-  | Label(string)
+  /* A backtick label used as a value, e.g. an argument to select_labels */
+  | LabelLit(string)
   | Dot(exp_t('a), label_t('a))
   | LivelitName(string)
   | Var(Var.t)
@@ -214,7 +215,7 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
           Tuple(
             List.map(map_tuple_entry_annotation(f, map_exp_annotation), l),
           )
-        | Label(l) => Label(l)
+        | LabelLit(l) => LabelLit(l)
         | Dot(e, l) =>
           Dot(map_exp_annotation(f, e), map_label_annotation(f, l))
         | Var(v) => Var(v)
@@ -697,8 +698,8 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Tuple(entries),
       annotation: default_annotation(ann),
     };
-    let label = (~ann=?, l): exp_t(DefaultAnnotation.t) => {
-      term: Label(l),
+    let label_lit = (~ann=?, l): exp_t(DefaultAnnotation.t) => {
+      term: LabelLit(l),
       annotation: default_annotation(ann),
     };
     /* An entry labeled with a name; ~ann is the `=` tile's */

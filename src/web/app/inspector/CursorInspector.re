@@ -201,28 +201,6 @@ let core_mark_err_view =
       ]
     | IsMulti => [text("Broken expression")]
 
-    | TupleLabelError({malformed_labels, duplicate_labels, invalid_labels, _}) =>
-      (
-        List.is_empty(malformed_labels)
-          ? []
-          : [
-            text("Malformed labels: "),
-            ...List.map(view_any, malformed_labels),
-          ]
-      )
-      @ (
-        List.is_empty(duplicate_labels)
-          ? []
-          : [
-            text("Duplicate labels: "),
-            ...List.map(code, duplicate_labels),
-          ]
-      )
-      @ (
-        List.is_empty(invalid_labels)
-          ? []
-          : [text("Invalid labels: "), ...List.map(code, invalid_labels)]
-      )
     | DuplicateVar(name, _) => [text("Duplicate Variable:"), code(name)]
     | DuplicateLabel(name, _) => [
         text("Duplicate Label:"),
@@ -248,7 +226,6 @@ let core_mark_err_view =
         | _ => expectation_view(~ana, ~syn)
         }
       };
-    | ExplicitNonlabel => [text("Type error")]
     | Free(_)
     | InexhaustiveMatch(_)
     | IsDeferral(_)
@@ -267,9 +244,7 @@ let core_mark_err_view =
     | ExpectedConstructor
     | TypFreeTypeVariable(_)
     | TypDuplicateConstructor(_)
-    | TypDuplicateLabels(_, _)
     | TypWantTypeFoundAp
-    | TypWantLabel
     | TypWantProduct(_)
     | TypWantConstructorFoundType(_)
     | TypWantConstructorFoundAp
@@ -466,7 +441,19 @@ let underdetermined_typ_view =
       };
     let label_error =
       switch (label) {
-      | Some(_) => [text("the label is not a valid label")]
+      | Some({term: Invalid(token), _}) => [
+          code(token),
+          text("is not a valid label"),
+        ]
+      | Some({term: EmptyHole, _}) => [text("the label is missing")]
+      | Some({term: MultiHole(_), _}) => [
+          text("the label is not a single name"),
+        ]
+      | Some({term: ExplicitNonlabel, _}) => [
+          code("_"),
+          text("names no entry"),
+        ]
+      | Some({term: Label(_), _}) => []
       | None => []
       };
 
@@ -525,7 +512,6 @@ let typ_mark_err_view = (~globals, m: Mark.t) => {
   | TypWantConstructorFoundAp
   | TypWantConstructorFoundType(_) => [text("Expected a constructor")]
   | TypWantTypeFoundAp => [text("Must be part of a sum type")]
-  | TypWantLabel => [text("Expect a valid label")]
   | InvalidLabel(name, expected_labels) =>
     switch (expected_labels) {
     | [] => [
@@ -540,10 +526,6 @@ let typ_mark_err_view = (~globals, m: Mark.t) => {
         text(String.concat(", ", expected_labels)),
       ]
     }
-  | TypDuplicateLabels(labels, _) => [
-      text("Duplicate labels within tuple: "),
-      ...List.map(label_view, labels),
-    ]
   | DuplicateLabel(name, _) => [
       text("Duplicate Label: "),
       label_view(name),
@@ -742,9 +724,7 @@ let exp_mark_err_view =
     ])
   | TypFreeTypeVariable(_)
   | TypDuplicateConstructor(_)
-  | TypDuplicateLabels(_, _)
   | TypWantTypeFoundAp
-  | TypWantLabel
   | TypWantProduct(_)
   | TypWantConstructorFoundType(_)
   | TypWantConstructorFoundAp
@@ -758,10 +738,8 @@ let exp_mark_err_view =
   | FreeConstructor(_)
   | BadToken(_)
   | BadLabel(_)
-  | ExplicitNonlabel
   | UnexpectedLabelSort(_)
   | InvalidLabel(_, _)
-  | TupleLabelError(_)
   | IsMulti
   | DuplicateLabel(_, _)
   | DuplicateVar(_, _)
@@ -1048,9 +1026,22 @@ let tpat_view =
   };
 };
 
-let label_info_view = (cls: Cls.t, marks: list(Mark.t)) =>
+let label_info_view = ({user_term, cls, marks, dot_labels, _}: Info.label) =>
   switch (Mark.highest(marks)) {
-  | None => div_ok([text(Cls.show(cls))])
+  | None =>
+    switch (user_term.term, dot_labels) {
+    | (Label(name), []) => div_ok([text("Label "), label_view(name)])
+    | (Label(name), _) =>
+      div_ok([
+        text("Label "),
+        label_view(name),
+        text(" of a tuple with labels: "),
+        ...List.map(label_view, dot_labels),
+      ])
+    | (EmptyHole, _) => div_ok([text("Fillable by any label")])
+    | (ExplicitNonlabel, _) => div_ok([text("Explicitly unlabeled entry")])
+    | (Invalid(_) | MultiHole(_), _) => div_ok([text(Cls.show(cls))])
+    }
   | Some(BadToken(token)) =>
     div_err([code(token), text("is not a valid label")])
   | Some(IsMulti) => div_err([text("Expected a single label")])
@@ -1076,7 +1067,8 @@ let label_info_view = (cls: Cls.t, marks: list(Mark.t)) =>
       text(" not found in tuple's labels: "),
       ...List.map(label_view, labels),
     ])
-  | Some(m) => div_err([text(Mark.show(m))])
+  /* Label statics produce only the marks above */
+  | Some(_) => div_err([text("Invalid label")])
   };
 
 let view_of_info = (~globals, ci): list(Node.t) => {
@@ -1086,7 +1078,7 @@ let view_of_info = (~globals, ci): list(Node.t) => {
   | InfoMod({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
   | InfoSig({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
   | InfoMPat({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
-  | InfoLabel({cls, marks, _}) => wrapper(label_info_view(cls, marks))
+  | InfoLabel(info) => wrapper(label_info_view(info))
   | InfoExp({cls, message, _} as ie) =>
     wrapper(exp_view(~globals, cls, message, ie))
   | InfoPat({cls, message, _} as ip) =>

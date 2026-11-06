@@ -1010,9 +1010,9 @@ and uexp_to_info_map =
           ),
         m,
       );
-    | Label(name) =>
+    | LabelLit(name) =>
       add(
-        ~elab_term=Label(name) |> rewrap,
+        ~elab_term=LabelLit(name) |> rewrap,
         ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
         ~marks=[UnexpectedLabelSort(name)],
         ~co_ctx=CoCtx.empty,
@@ -2988,8 +2988,8 @@ and upat_to_info_map =
       );
     | Label(name) =>
       add(
-        ~elab_syn_ty=Label(name) |> Typ.temp,
-        ~marks=[],
+        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+        ~marks=[UnexpectedLabelSort(name)],
         ~ctx,
         ~constraint_=Coverage.Constraint.Truth,
         m,

@@ -235,7 +235,7 @@ module rec Exp: {
     | TupleExp(e) => tuple_entries(List.map(entry_of_menhir_ast, e))
     | TupleExtension(e1, e2) =>
       tuple_extension(of_menhir_ast(e1), of_menhir_ast(e2))
-    | Label(s) => label(s)
+    | Label(s) => label_lit(s)
     /* a lone `_` is a deferral, as MakeTerm reads it */
     | ExplicitNonlabel => deferral(OutsideAp)
     | TupLabel(_) as tl => tuple_entries([entry_of_menhir_ast(tl)])
@@ -432,7 +432,7 @@ module rec Exp: {
     | DeferredAp(e, es) =>
       ApExp(of_core(e), TupleExp(List.map(entry_of_core, es)))
     | Fun(p, e, _, name_opt) => Fun(Pat.of_core(p), of_core(e), name_opt)
-    | Label(s) => Label(s)
+    | LabelLit(s) => Label(s)
     | Dot(e, l) => Dot(of_core(e), label_of_core(l))
     | Ap(Reverse, f, arg) => PipelineExp(of_core(arg), of_core(f))
     /* The menhir parser grammar has no syntax for derivation terms, so

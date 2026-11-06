@@ -530,6 +530,7 @@ module Update = {
             ExplainThis.get_color_map(
               ~globals=model.globals,
               ~explainThisModel=model.explain_this,
+              ~indicated=Cursor.indicated_id(cursor_info),
               cursor_info.info,
             )
           }

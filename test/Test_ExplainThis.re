@@ -36,7 +36,11 @@ let qcheck_explainthis_does_not_crash =
     | info_map =>
       Id.Map.iter(
         (_id, info: Info.t) => {
-          let _ = ET.color_map_of(~globals, ET.decide(~docs, Some(info)));
+          let _ =
+            ET.color_map_of(
+              ~globals,
+              ET.decide(~docs, ~indicated=None, Some(info)),
+            );
           ();
         },
         info_map,
@@ -118,7 +122,7 @@ let canonical_id = (info_map, id: Id.t): string =>
 /* Only a `Doc` decision names a group and a form; prose and derivation terms
    carry no colorings to characterize. */
 let doc_of = (~docs, info: Info.t): option(ET.doc) =>
-  switch (ET.decide(~docs, Some(info))) {
+  switch (ET.decide(~docs, ~indicated=None, Some(info))) {
   | ET.Doc(d) => Some(d)
   | ET.NoDoc
   | ET.Prose(_)
@@ -777,12 +781,64 @@ let golden_case = ((name, src)) =>
     },
   );
 
+/* A labeled entry's `=` belongs to its tuple, so the indicated tile decides
+   whether the cursor gets the labeled-entry doc or the tuple doc. */
+let labeled_entry_group = (~indicate: list(Id.t) => option(Id.t)): string => {
+  let info_map = info_map_of("(a=1, b=2)");
+  let tuple =
+    Id.Map.fold(
+      (_id, info: Info.t, acc) =>
+        switch (acc, info) {
+        | (None, InfoExp({user_term: {term: Tuple(entries), _}, _})) =>
+          Some((info, entries))
+        | _ => acc
+        },
+      info_map,
+      None,
+    );
+  switch (tuple) {
+  | None => Alcotest.fail("no tuple info")
+  | Some((info, entries)) =>
+    switch (
+      ET.decide(
+        ~docs,
+        ~indicated=indicate(TupleEntry.eq_ids(entries)),
+        Some(info),
+      )
+    ) {
+    | ET.Doc(d) => Web.ExplainThisForm.show_group_id(d.group.id)
+    | ET.NoDoc
+    | ET.Prose(_)
+    | ET.Markdown(_)
+    | ET.DrvSyntax(_) => Alcotest.fail("no doc for the tuple")
+    }
+  };
+};
+
+let labeled_entry_docs = () => {
+  Alcotest.(check(string))(
+    "the second `=` explains its labeled entry",
+    "LabeledExp",
+    labeled_entry_group(~indicate=ids => List.nth_opt(ids, 1)),
+  );
+  Alcotest.(check(string))(
+    "a comma explains the tuple",
+    "Tuple2Exp",
+    labeled_entry_group(~indicate=_ => None),
+  );
+};
+
 let tests = (
   "ExplainThis",
   [
     QCheck_alcotest.to_alcotest(qcheck_explainthis_does_not_crash),
     Alcotest.test_case("negation labels re-kind by class", `Quick, () =>
       negation_labels()
+    ),
+    Alcotest.test_case(
+      "ExplainThis.decide picks the indicated labeled entry",
+      `Quick,
+      labeled_entry_docs,
     ),
     coverage_case,
     pairing_case,

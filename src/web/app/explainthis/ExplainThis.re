@@ -741,8 +741,34 @@ let get_color_map_deduction =
     )
   );
 
+/* The labeled entry whose `=` tile is indicated. The `=` belongs to its
+   tuple, so the tuple's info is what the cursor finds; a singleton's `=` is
+   the tuple's only tile. */
+let indicated_labeled_entry =
+    (~indicated: option(Id.t), entries: list(TupleEntry.t('v)))
+    : option((Label.t, 'v)) =>
+  switch (entries) {
+  | [Labeled(_, l, v)] => Some((l, v))
+  | _ =>
+    List.find_map(
+      (entry: TupleEntry.t('v)) =>
+        switch (entry, indicated) {
+        | (Labeled(eq, l, v), Some(id))
+            when List.exists(Id.equal(id), eq.ids) =>
+          Some((l, v))
+        | (Labeled(_) | Unlabeled(_), _) => None
+        },
+      entries,
+    )
+  };
+
 let decide =
-    (~docs: ExplainThisModel.t, info: option(Statics.Info.t)): decision => {
+    (
+      ~docs: ExplainThisModel.t,
+      ~indicated: option(Id.t),
+      info: option(Statics.Info.t),
+    )
+    : decision => {
   let get_specificity_level = group_id =>
     Option.map(
       (form: ExplainThisForm.form) => form.id,
@@ -1040,15 +1066,7 @@ let decide =
         | Projector(_)
         | Asc(_) => NoDoc // Shouldn't get hit?
         };
-      | Label(name) => get_message(LabelTerm.labels(name))
-      /* the cursor on a labeled entry's `=` indicates its tuple */
-      | Tuple([Labeled(_, l, e)]) =>
-        get_message(
-          TupLabelExp.labeled_exps(
-            ~label_id=Label.rep_id(l),
-            ~exp_id=Exp.rep_id(e),
-          ),
-        )
+      | LabelLit(name) => get_message(LabelTerm.labels(name))
       | Dot(tup, lab) =>
         get_message(
           DotExp.dot_exp(
@@ -1057,28 +1075,42 @@ let decide =
           ),
         )
       | Tuple(entries) =>
-        let terms = List.map(TupleEntry.value, entries);
-        let n = List.length(terms);
-        let basic = group =>
+        switch (indicated_labeled_entry(~indicated, entries)) {
+        /* the cursor is on this labeled entry's `=` */
+        | Some((l, e)) =>
           get_message(
-            ~explanation=TupleExp.tuple_exp_explanation(~n),
-            group,
-          );
-        switch (n) {
-        | 2 =>
-          let exp1_id = nth_rep_id(terms, 0);
-          let exp2_id = nth_rep_id(terms, 1);
-          leveled(~fallback=basic, TupleExp.tuples2(~exp1_id, ~exp2_id, ~n));
-        | 3 =>
-          let exp1_id = nth_rep_id(terms, 0);
-          let exp2_id = nth_rep_id(terms, 1);
-          let exp3_id = nth_rep_id(terms, 2);
-          leveled(
-            ~fallback=basic,
-            TupleExp.tuples3(~exp1_id, ~exp2_id, ~exp3_id, ~n),
-          );
-        | _ => basic(TupleExp.tuples(~n))
-        };
+            TupLabelExp.labeled_exps(
+              ~label_id=Label.rep_id(l),
+              ~exp_id=Exp.rep_id(e),
+            ),
+          )
+        | None =>
+          let terms = List.map(TupleEntry.value, entries);
+          let n = List.length(terms);
+          let basic = group =>
+            get_message(
+              ~explanation=TupleExp.tuple_exp_explanation(~n),
+              group,
+            );
+          switch (n) {
+          | 2 =>
+            let exp1_id = nth_rep_id(terms, 0);
+            let exp2_id = nth_rep_id(terms, 1);
+            leveled(
+              ~fallback=basic,
+              TupleExp.tuples2(~exp1_id, ~exp2_id, ~n),
+            );
+          | 3 =>
+            let exp1_id = nth_rep_id(terms, 0);
+            let exp2_id = nth_rep_id(terms, 1);
+            let exp3_id = nth_rep_id(terms, 2);
+            leveled(
+              ~fallback=basic,
+              TupleExp.tuples3(~exp1_id, ~exp2_id, ~exp3_id, ~n),
+            );
+          | _ => basic(TupleExp.tuples(~n))
+          };
+        }
       | Var(n) => get_message(TerminalExp.var_exps(n))
       | Let(pat, def, body) =>
         let pat = bypass_parens_and_annot_pat(pat);
@@ -1477,34 +1509,43 @@ let decide =
       };
     | Var(v) => get_message(TerminalPat.var(v))
     | Label(name) => get_message(LabelTerm.labels(name))
-    /* the cursor on a labeled entry's `=` indicates its tuple */
-    | Tuple([Labeled(_, l, p)]) =>
-      get_message(
-        TupLabelPat.labeled_pats(
-          ~label_id=Label.rep_id(l),
-          ~pat_id=Pat.rep_id(p),
-        ),
-      )
     | Tuple(entries) =>
-      let elements = List.map(TupleEntry.value, entries);
-      let n = List.length(elements);
-      let basic = group =>
-        get_message(~explanation=TuplePat.tuple_pat_explanation(~n), group);
-      switch (n) {
-      | 2 =>
-        let elem1_id = nth_rep_id(elements, 0);
-        let elem2_id = nth_rep_id(elements, 1);
-        leveled(~fallback=basic, TuplePat.tuple2(~elem1_id, ~elem2_id, ~n));
-      | 3 =>
-        let elem1_id = nth_rep_id(elements, 0);
-        let elem2_id = nth_rep_id(elements, 1);
-        let elem3_id = nth_rep_id(elements, 2);
-        leveled(
-          ~fallback=basic,
-          TuplePat.tuple3(~elem1_id, ~elem2_id, ~elem3_id, ~n),
-        );
-      | _ => basic(TuplePat.tuple(~n))
-      };
+      switch (indicated_labeled_entry(~indicated, entries)) {
+      /* the cursor is on this labeled entry's `=` */
+      | Some((l, p)) =>
+        get_message(
+          TupLabelPat.labeled_pats(
+            ~label_id=Label.rep_id(l),
+            ~pat_id=Pat.rep_id(p),
+          ),
+        )
+      | None =>
+        let elements = List.map(TupleEntry.value, entries);
+        let n = List.length(elements);
+        let basic = group =>
+          get_message(
+            ~explanation=TuplePat.tuple_pat_explanation(~n),
+            group,
+          );
+        switch (n) {
+        | 2 =>
+          let elem1_id = nth_rep_id(elements, 0);
+          let elem2_id = nth_rep_id(elements, 1);
+          leveled(
+            ~fallback=basic,
+            TuplePat.tuple2(~elem1_id, ~elem2_id, ~n),
+          );
+        | 3 =>
+          let elem1_id = nth_rep_id(elements, 0);
+          let elem2_id = nth_rep_id(elements, 1);
+          let elem3_id = nth_rep_id(elements, 2);
+          leveled(
+            ~fallback=basic,
+            TuplePat.tuple3(~elem1_id, ~elem2_id, ~elem3_id, ~n),
+          );
+        | _ => basic(TuplePat.tuple(~n))
+        };
+      }
     | Ap(x, arg) =>
       let x_id = IdTagged.rep_id(x);
       let arg_id = IdTagged.rep_id(arg);
@@ -1584,37 +1625,46 @@ let decide =
       | _ => basic(ArrowTyp.arrow(~arg_id, ~result_id))
       };
     | Label(name) => get_message(LabelTerm.labels(name))
-    /* the cursor on a labeled entry's `=` indicates its product */
-    | Prod([Labeled(_, l, t)]) =>
-      get_message(
-        TupLabelTyp.labeled_typs(
-          ~label_id=Label.rep_id(l),
-          ~typ_id=Typ.rep_id(t),
-        ),
-      )
     | Prod(entries) =>
-      let elements = List.map(TupleEntry.value, entries);
-      let n = List.length(elements);
-      let basic = group =>
-        get_message(~explanation=TupleTyp.tuple_typ_explanation(~n), group);
-      switch (n) {
-      /* `tuple0` has a single form, so the selected form is always
-         `tuple0_typ` — there is no other level to fall back to. */
-      | 0 => get_message(TupleTyp.tuple0)
-      | 2 =>
-        let elem1_id = nth_rep_id(elements, 0);
-        let elem2_id = nth_rep_id(elements, 1);
-        leveled(~fallback=basic, TupleTyp.tuple2(~elem1_id, ~elem2_id, ~n));
-      | 3 =>
-        let elem1_id = nth_rep_id(elements, 0);
-        let elem2_id = nth_rep_id(elements, 1);
-        let elem3_id = nth_rep_id(elements, 2);
-        leveled(
-          ~fallback=basic,
-          TupleTyp.tuple3(~elem1_id, ~elem2_id, ~elem3_id, ~n),
-        );
-      | _ => basic(TupleTyp.tuple(~n))
-      };
+      switch (indicated_labeled_entry(~indicated, entries)) {
+      /* the cursor is on this labeled entry's `=` */
+      | Some((l, t)) =>
+        get_message(
+          TupLabelTyp.labeled_typs(
+            ~label_id=Label.rep_id(l),
+            ~typ_id=Typ.rep_id(t),
+          ),
+        )
+      | None =>
+        let elements = List.map(TupleEntry.value, entries);
+        let n = List.length(elements);
+        let basic = group =>
+          get_message(
+            ~explanation=TupleTyp.tuple_typ_explanation(~n),
+            group,
+          );
+        switch (n) {
+        /* `tuple0` has a single form, so the selected form is always
+           `tuple0_typ` — there is no other level to fall back to. */
+        | 0 => get_message(TupleTyp.tuple0)
+        | 2 =>
+          let elem1_id = nth_rep_id(elements, 0);
+          let elem2_id = nth_rep_id(elements, 1);
+          leveled(
+            ~fallback=basic,
+            TupleTyp.tuple2(~elem1_id, ~elem2_id, ~n),
+          );
+        | 3 =>
+          let elem1_id = nth_rep_id(elements, 0);
+          let elem2_id = nth_rep_id(elements, 1);
+          let elem3_id = nth_rep_id(elements, 2);
+          leveled(
+            ~fallback=basic,
+            TupleTyp.tuple3(~elem1_id, ~elem2_id, ~elem3_id, ~n),
+          );
+        | _ => basic(TupleTyp.tuple(~n))
+        };
+      }
     | Var(c) when Info.typ_is_constructor_expected(typ_info) =>
       get_message(SumTyp.sum_typ_nullary_constructor_defs(c))
     | Var(v) => get_message(TerminalTyp.var(v))
@@ -1786,13 +1836,25 @@ let section = (~section_clss: string, ~title: string, contents: list(Node.t)) =>
   );
 
 let get_color_map =
-    (~globals: Globals.t, ~explainThisModel: ExplainThisModel.t, info) =>
+    (
+      ~globals: Globals.t,
+      ~explainThisModel: ExplainThisModel.t,
+      ~indicated: option(Id.t),
+      info,
+    ) =>
   narrow_color_map(~globals, () =>
-    fst(color_map_of(~globals, decide(~docs=explainThisModel, info)))
+    fst(
+      color_map_of(
+        ~globals,
+        decide(~docs=explainThisModel, ~indicated, info),
+      ),
+    )
   );
 
 type info = {
   cursor: option(Statics.Info.t),
+  /* The indicated tile, which picks a labeled entry out of its tuple */
+  indicated: option(Id.t),
   deduction: info_deduction,
 };
 
@@ -1811,7 +1873,7 @@ let view =
       ~inject,
       ~docs=explainThisModel,
       ~info=info_cursor,
-      decide(~docs=explainThisModel, info_cursor),
+      decide(~docs=explainThisModel, ~indicated=info.indicated, info_cursor),
     );
   let (syn_form_Drv, (explanation_Drv, _), _) =
     view_deduction(

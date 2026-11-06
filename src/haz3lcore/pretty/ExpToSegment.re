@@ -254,7 +254,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Deferral(_)
   | BuiltinFun(_)
   | Undefined
-  | Label(_)
+  | LabelLit(_)
   | Constructor(_)
   | LivelitName(_) => Precedence.max
 
@@ -487,7 +487,7 @@ let rec parenthesize =
   | Deferral(_)
   | BuiltinFun(_)
   | Tuple([])
-  | Label(_)
+  | LabelLit(_)
   | Undefined => exp
 
   // Forms that currently need to stripped before outputting
@@ -2132,7 +2132,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
           List.map2((id, x) => [mk_form(Comma, id, [])] @ x, ids, xs),
         ),
     );
-  | Label(l) =>
+  | LabelLit(l) =>
     wrap(
       exp,
       label_to_pretty(

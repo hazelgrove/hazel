@@ -89,7 +89,7 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
         | TypFun(_)
         | Tuple(_)
         | TupleExtension(_)
-        | Label(_)
+        | LabelLit(_)
         | Dot(_)
         | TyAlias(_)
         | Use(_)

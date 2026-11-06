@@ -62,7 +62,7 @@ let suggest = (ci: Info.t, z: Zipper.t): list(t) => {
       dot_labels,
     )
   | InfoLabel(_)
-  | InfoExp({cls: Exp(Label), _})
+  | InfoExp({cls: Exp(LabelLit), _})
   | InfoPat({cls: Pat(Label), _})
   | InfoTyp({cls: Typ(Label), _}) => []
   | _ =>

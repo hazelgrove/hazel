@@ -53,27 +53,8 @@ let rec equal_mark: (Mark.t, Mark.t) => bool =
     | (InvalidLabel(l1, ls1), InvalidLabel(l2, ls2)) =>
       l1 == l2 && ls1 == ls2
     | (UnexpectedLabelSort(l1), UnexpectedLabelSort(l2)) => l1 == l2
-    | (
-        TupleLabelError({
-          malformed_labels: m1,
-          duplicate_labels: d1,
-          invalid_labels: i1,
-          typ: t1,
-        }),
-        TupleLabelError({
-          malformed_labels: m2,
-          duplicate_labels: d2,
-          invalid_labels: i2,
-          typ: t2,
-        }),
-      ) =>
-      List.equal(Any.fast_equal, m1, m2)
-      && d1 == d2
-      && i1 == i2
-      && Typ.fast_equal(t1, t2)
     | (IsMulti, IsMulti) => true
     | (FreeConstructor(c1), FreeConstructor(c2)) => Constructor.equal(c1, c2)
-    | (ExplicitNonlabel, ExplicitNonlabel) => true
     | (
         ExpectationMismatch({ana: a1, syn: s1}),
         ExpectationMismatch({ana: a2, syn: s2}),
@@ -110,10 +91,7 @@ let rec equal_mark: (Mark.t, Mark.t) => bool =
     | (TypFreeTypeVariable(a), TypFreeTypeVariable(b)) => a == b
     | (TypDuplicateConstructor(c1), TypDuplicateConstructor(c2)) =>
       Constructor.equal(c1, c2)
-    | (TypDuplicateLabels(ls1, t1), TypDuplicateLabels(ls2, t2)) =>
-      ls1 == ls2 && Typ.fast_equal(t1, t2)
     | (TypWantTypeFoundAp, TypWantTypeFoundAp) => true
-    | (TypWantLabel, TypWantLabel) => true
     | (TypWantProduct(t1), TypWantProduct(t2)) => Typ.fast_equal(t1, t2)
     | (TypWantConstructorFoundType(t1), TypWantConstructorFoundType(t2)) =>
       Typ.fast_equal(t1, t2)
