@@ -120,107 +120,20 @@ let jump_to_side_of_id_by_walking = (d: Direction.t, z, id): option(t) => {
     ? Some(z) : do_until(local(ByToken, Direction.toggle(d)), at_piece, z);
 };
 
-/* Where the walk above ends, found without walking. It goes to one end of
- * the program and steps a token at a time back until the piece is beside
- * the caret: a Zipper.move per token, so focusing a projector near the end
- * of a long program pays for every token before it. `local` steps into
- * tiles but not into a projector's syntax, so when the piece is reached
- * through tiles alone the walk stops at the one boundary beside it, in its
- * own segment: nothing earlier in the walk's order has it as a neighbour
- * (a tile's own children come after its left side and before its right
- * side). That zipper is built here directly. A piece inside a projector's
- * syntax, or no such piece, is left to the walk. Test_Move checks the two
- * agree. */
-let rec has_id_deep = (id: Id.t, seg: Segment.t): bool =>
-  List.exists(
-    (p: Piece.t) =>
-      Piece.id(p) == id
-      || (
-        switch (p) {
-        | Tile(t) => List.exists(has_id_deep(id), t.children)
-        | Projector(pr) => has_id_deep(id, [pr.syntax])
-        | Grout(_)
-        | Secondary(_) => false
-        }
-      ),
-    seg,
-  );
-
-exception Not_through_tiles;
-
-/* The relatives with [id] beside the caret on side [d] of it, if [id] is
- * reached through tiles alone. */
-let relatives_beside_id =
-    (d: Direction.t, id: Id.t, seg: Segment.t): option(Relatives.t) => {
-  let rec in_seg =
-          (seg: Segment.t, ancestors: Ancestors.t): option(Relatives.t) => {
-    let rec go = (pre_rev: Segment.t, suf: Segment.t) =>
-      switch (suf) {
-      | [] => None
-      | [p, ...rest] when Piece.id(p) == id =>
-        let pre = List.rev(pre_rev);
-        Some(
-          Relatives.{
-            siblings:
-              switch (d) {
-              | Left => (pre, suf)
-              | Right => (pre @ [p], rest)
-              },
-            ancestors,
-          },
-        );
-      | [Tile(t) as p, ...rest] =>
-        let sibs = (List.rev(pre_rev), rest);
-        let n = List.length(t.children);
-        let rec child = k =>
-          if (k >= n) {
-            None;
-          } else {
-            let (before, after) = ListUtil.split_n(k, t.children);
-            let (c, after) =
-              switch (after) {
-              | [c, ...after] => (c, after)
-              | [] => failwith("relatives_beside_id: child index")
-              };
-            let anc: Ancestor.t = {
-              id: t.id,
-              form: t.form,
-              sort: t.sort,
-              shards: ListUtil.split_n(k + 1, t.shards),
-              children: (before, after),
-            };
-            switch (in_seg(c, [(anc, sibs), ...ancestors])) {
-            | Some(_) as found => found
-            | None => child(k + 1)
-            };
-          };
-        switch (child(0)) {
-        | Some(_) as found => found
-        | None => go([p, ...pre_rev], rest)
-        };
-      | [Projector(_) as p, ..._] when has_id_deep(id, [p]) =>
-        raise(Not_through_tiles)
-      | [p, ...rest] => go([p, ...pre_rev], rest)
-      };
-    go([], seg);
-  };
-  switch (in_seg(seg, [])) {
-  | found => found
-  | exception Not_through_tiles => None
-  };
-};
-
 /* For tests: jumps made without walking. */
 let direct_jumps = ref(0);
 
+/* Where the walk above ends, without walking: `local` steps into tiles but
+   not projectors, so it stops at the one boundary beside the piece in its
+   own segment, which Zipper.unzip_to_id builds. Ids in projectors walk. */
 let jump_to_side_of_id = (d: Direction.t, z, id): option(t) => {
   let z' = unselect(z);
-  switch (relatives_beside_id(d, id, Zipper.zip(z'))) {
-  | Some(relatives) =>
+  switch (Zipper.unzip_to_id(~side=d, id, Zipper.zip(z'))) {
+  | Some(placed) =>
     incr(direct_jumps);
     Some({
       ...z',
-      relatives,
+      relatives: placed.relatives,
       caret: Outer,
     });
   | None => jump_to_side_of_id_by_walking(d, z, id)
@@ -250,25 +163,62 @@ let shard_locator = (p: option(Piece.t)): option((Id.t, int)) =>
   | _ => None
   };
 
+let is_shard = (tile_id: Id.t, shard_idx: int, p: Piece.t): bool =>
+  switch (p) {
+  | Tile(t) =>
+    Id.equal(t.id, tile_id)
+    && (
+      switch (t.shards) {
+      | [idx] => idx == shard_idx
+      | _ => false
+      }
+    )
+  | _ => false
+  };
+
 /* Navigate so the right-generalized neighbor is the shard identified
  * by (tile_id, shard_idx). by_token-based, so the resulting structural
  * state is canonical. */
-let jump_to_shard = (z: t, tile_id: Id.t, shard_idx: int): option(t) => {
+let jump_to_shard_by_walking =
+    (z: t, tile_id: Id.t, shard_idx: int): option(t) => {
   let at_target = ((_, r): Zipper.neighbors) =>
     switch (r) {
-    | Some(Piece.Tile(t)) =>
-      Id.equal(t.id, tile_id)
-      && (
-        switch (t.shards) {
-        | [idx] => idx == shard_idx
-        | _ => false
-        }
-      )
-    | _ => false
+    | Some(p) => is_shard(tile_id, shard_idx, p)
+    | None => false
     };
   let z = do_to_extreme(local(ByToken, Left), z);
   at_target(Zipper.generalized_neighbors(z))
     ? Some(z) : do_until(local(ByToken, Right), at_target, z);
+};
+
+/* As for jump_to_side_of_id: when the shard is a piece of its own (a
+   single-token tile, or a split one), the walk stops just left of it.
+   Other cases, e.g. a boundary inside an intact multi-token tile, walk. */
+let jump_to_shard = (z: t, tile_id: Id.t, shard_idx: int): option(t) => {
+  let z' = unselect(z);
+  let placed =
+    Zipper.unzip_to_piece(
+      ~side=Left,
+      is_shard(tile_id, shard_idx),
+      Zipper.zip(z'),
+    )
+    |> Option.map((placed: t) =>
+         {
+           ...z',
+           relatives: placed.relatives,
+           caret: Outer,
+         }
+       );
+  switch (placed) {
+  | Some(zp) =>
+    switch (Zipper.generalized_neighbors(zp)) {
+    | (_, Some(p)) when is_shard(tile_id, shard_idx, p) =>
+      incr(direct_jumps);
+      Some(zp);
+    | _ => jump_to_shard_by_walking(z, tile_id, shard_idx)
+    }
+  | None => jump_to_shard_by_walking(z, tile_id, shard_idx)
+  };
 };
 
 /* Post-unselect canonicalization for collapsing a char-level selection
@@ -376,9 +326,9 @@ let to_point = (~measured: Measured.t, ~goal: Point.t, z: t): option(t) =>
   | Some(z) => Some(z)
   };
 
-let to_start: t => t = do_to_extreme(local(ByToken, Left));
+let to_start: t => t = Zipper.caret_to_start;
 
-let to_end: t => t = do_to_extreme(local(ByToken, Right));
+let to_end: t => t = Zipper.caret_to_end;
 
 /* Neighbor in direction d is horizontal whitespace (space, not linebreak) */
 let space_on = (d: Direction.t, z: t): bool =>
