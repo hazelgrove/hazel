@@ -1585,6 +1585,22 @@ let tests = (
       polygons_update_run(~timing=30, ())
     ),
     test_case(
+      "a negative number written with a minus, carried into JS",
+      `Quick,
+      () => {
+        /* (^ticket(716)) a model as the program's text has it, before its run: -1 is a minus before 1 */
+        let js =
+          HazelJitValue.to_js(
+            elaborate(parse_exp("(current = -1, x = -2.5)")),
+          );
+        let read = k =>
+          Js.float_of_number(Js.Unsafe.coerce(Js.Unsafe.get(js, k)));
+        if (read(0) != (-1.) || read(1) != (-2.5)) {
+          fail(Printf.sprintf("got %g and %g", read(0), read(1)));
+        };
+      },
+    ),
+    test_case(
       "a view of many forms, drawn straight from JS, as HazelDOM draws it",
       `Quick,
       () => {

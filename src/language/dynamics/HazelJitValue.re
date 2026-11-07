@@ -93,6 +93,15 @@ let rec to_js = (v: Exp.t): Js.Unsafe.any =>
   | Atom(Nat(n)) => number(Bigint.to_float(n))
   | Atom(SInt(n)) => number(float_of_int(n))
   | Atom(Float(f)) => number(f)
+  /* (^ticket(716)) a negative number as the syntax has it, a minus before it: a model read from the program's text, before
+     its run has a value (current = -1, found by the browser check on the Polygons slide) */
+  | UnOp(Int(Minus) | Float(Minus), e) =>
+    let v = to_js(e);
+    typeof(v) == "number"
+      ? number(-. Js.float_of_number(Js.Unsafe.coerce(v)))
+      : unsupported(
+          "a value hazel-jit does not carry into JS: a minus before a non-number",
+        );
   | Atom(Bool(b)) => inject(Js.bool(b))
   | Atom(String(s)) => jstr(s)
   | ListLit(vs) =>

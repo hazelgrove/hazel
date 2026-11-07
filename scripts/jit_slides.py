@@ -40,7 +40,8 @@ SNAPSHOT = r"""
   const ser = n => {
     if (n.nodeType === 3) return JSON.stringify(n.textContent.replace(uuid, '<id>'));
     if (n.nodeType !== 1) return '';
-    const attrs = [...n.attributes].map(a => a.name + '=' + a.value.replace(uuid, '<id>')).sort().join(' ');
+    // (an element's id is made fresh on every load: left out)
+    const attrs = [...n.attributes].filter(a => a.name !== 'id').map(a => a.name + '=' + a.value.replace(uuid, '<id>')).sort().join(' ');
     return '<' + n.tagName.toLowerCase() + (attrs ? ' ' + attrs : '') + '>' + [...n.childNodes].map(ser).join('') + '</>';
   };
   const ws = [...document.querySelectorAll('.user-livelit')];
@@ -116,7 +117,10 @@ def events(d, slide):
         x, y, label = bs[i % len(bs)]
         D.click_at(d, x, y)
         clicked.append(label)
-        time.sleep(1.2)
+        # (each click's own run landed before the next, both ways: the interpreter's view, slower, showed a button
+        # half drawn and the next click found another one, in the first run of this check)
+        time.sleep(0.5)
+        D.settled(d)
     if slide == "Polygons":
         box = d.js(CANVAS)
         if box:
@@ -127,7 +131,8 @@ def events(d, slide):
                 acts += [{"type": "pause", "duration": 60}, {"type": "pointerMove", "x": px + 6 * k, "y": py + 4 * k}]
             acts += [{"type": "pointerUp", "button": 0}]
             d.pointer(acts)
-            time.sleep(1.5)
+            time.sleep(0.5)
+            D.settled(d)
     D.settled(d)
     return clicked, d.js("return window.__lat || []")
 
@@ -182,6 +187,8 @@ def main():
                                "_before": before, "_after": after}
                 print(f"  {name}, compiled {mode}: {len(before['widgets'])} livelits, loaded in {secs} s, "
                       f"{len(lat)} events timed, counts {json.dumps((after['jit'] or {}).get('counts'))}", flush=True)
+                for why, n in sorted(((after["jit"] or {}).get("why") or {}).items(), key=lambda kv: -kv[1]):
+                    print(f"      {n} x {why[:160]!r}", flush=True)
             compare(name + ", as loaded", entry["on"]["_before"], entry["off"]["_before"], problems)
             compare(name + ", after the events", entry["on"]["_after"], entry["off"]["_after"], problems)
             for mode in ("on", "off"):
