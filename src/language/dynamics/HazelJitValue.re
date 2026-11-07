@@ -18,7 +18,18 @@
 let enabled = ref(true);
 
 open Js_of_ocaml;
-module G = IdTagged.FreshGrammar;
+
+/* The ids the way back gives the terms it makes: FreshGrammar's, each its own. (^ticket(694), 2026-11-07, for measuring
+   only) While shared_ids is set, every term it makes gets one shared, invalid id instead, as CallMemo's keys do, to see
+   what making ids costs it. */
+let shared_ids = ref(false);
+let shared_tag = IdTagged.IdTag.mk_internal([Id.invalid]);
+module G =
+  Grammar.Factory({
+    type t = IdTagged.IdTag.t;
+    let default_value = () =>
+      shared_ids^ ? shared_tag : IdTagged.fresh_annotation();
+  });
 
 let unsupported = HazelJit.unsupported;
 
@@ -129,8 +140,12 @@ let rec shape = (ts: types, depth: int, t: Typ.t): option(Typ.t) =>
   | _ => Some(t)
   };
 
+/* (2026-11-07) a whole number that fits an int (31 bits under js_of_ocaml) directly; only a bigger one by its digits,
+   through Printf and Bigint.of_string, which cost every number about 2 us */
 let whole = (f: float): Bigint.t =>
-  Bigint.of_string(Printf.sprintf("%.0f", f));
+  Float.abs(f) < 1073741824.0
+    ? Bigint.of_int(int_of_float(f))
+    : Bigint.of_string(Printf.sprintf("%.0f", f));
 
 /* ~seen: the functions being carried back, outermost first: one met again inside itself is a recursive function (or
    one that captures itself through another), which a Hazel closure cannot hold as a plain value */
@@ -245,7 +260,11 @@ and of_tuple = (~seen, ts: types, ty: option(Typ.t), v: Js.Unsafe.any): Exp.t =>
         )
         |> Array.to_list
         |> List.map(k => Js.to_string(k))
-        |> List.filter(k => int_of_string_opt(k) == None);
+        /* (2026-11-07) a label is a key that is not an index; int_of_string_opt said so by raising and catching an
+           exception for every label, about 4 us each under js_of_ocaml */
+        |> List.filter(k =>
+             k == "" || !String.for_all(c => c >= '0' && c <= '9', k)
+           );
       let used = ref([]);
       List.init(n, i =>
         switch (
@@ -274,6 +293,191 @@ and of_tuple = (~seen, ts: types, ty: option(Typ.t), v: Js.Unsafe.any): Exp.t =>
     );
   G.Exp.tuple(comps);
 };
+
+/* ---- back as a diff (^ticket(709), a sub-experiment of ^ticket(694); Matthew, 2026-11-07: "the answer back (of_js) as a
+   diff based on the last time we ran it")
+
+   Carrying a whole answer back costs time in its size. When the last run's answer is at hand, in JS and as the Hazel
+   value it was carried back as, only what changed needs carrying: diff, in JS, compares the two answers, and patch
+   applies what it says to the last Hazel value, keeping every part that did not change as it was (the same OCaml
+   values, shared). What diff compares first is identity: the compiled code builds a new answer functionally, so a part
+   it did not touch (a list's tail after the element it replaced, a field it did not set) is the same JS object, and
+   diff stops there without looking inside.
+
+   The diff language, as JS values:
+     null             the same (nothing to carry)
+     {n: v}           new: v, carried back whole (of_js), at the type expected there
+     {c: d}           the same constructor, its argument changed by d
+     {t: [[i, d]..]}  a tuple of the same length, component i changed by d (the others the same)
+     {l: [op..]}      a list, edited in order from its head; after the last op, the rest is the old list's own tail:
+                        {k: n} keep the next n elements, {e: d} change the next by d, {i: v} insert v here,
+                        {x: 1} drop the next, {a: list} the old list ended: append list's elements, new,
+                        {cut: 1} the new list ends here
+   A list is walked from its head, so a change at position k costs time in k, not in the list's length; and keeping
+   runs costs nothing per element on the Hazel side but walking the OCaml list. */
+let diff_js: Lazy.t(Js.Unsafe.any) =
+  lazy(
+    Js.Unsafe.eval_string(
+      {|(function diff(a, b) {
+  if (a === b) return null;
+  if (a === null || b === null || typeof a !== "object" || typeof b !== "object") return {n: b};
+  if (Array.isArray(a)) {
+    if (!Array.isArray(b) || a.length !== b.length) return {n: b};
+    var ch = [];
+    for (var i = 0; i < a.length; i++) { var d = diff(a[i], b[i]); if (d !== null) ch.push([i, d]); }
+    return ch.length ? {t: ch} : null;
+  }
+  if (Object.hasOwn(a, "c")) {
+    if (!Object.hasOwn(b, "c") || a.c !== b.c || Object.hasOwn(a, "v") !== Object.hasOwn(b, "v")) return {n: b};
+    if (!Object.hasOwn(a, "v")) return null;
+    var dc = diff(a.v, b.v);
+    return dc === null ? null : {c: dc};
+  }
+  if (Object.hasOwn(a, "h")) {
+    if (!Object.hasOwn(b, "h")) return {n: b};
+    var ops = [], keep = 0;
+    for (;;) {
+      if (a === b) break;
+      if (a === null) { if (keep) ops.push({k: keep}); keep = 0; ops.push({a: b}); break; }
+      if (b === null) { if (keep) ops.push({k: keep}); keep = 0; ops.push({cut: 1}); break; }
+      if (b.t === a) { if (keep) ops.push({k: keep}); keep = 0; ops.push({i: b.h}); b = b.t; continue; }
+      if (a.t === b) { if (keep) ops.push({k: keep}); keep = 0; ops.push({x: 1}); a = a.t; continue; }
+      var de = diff(a.h, b.h);
+      if (de === null) keep++;
+      else { if (keep) ops.push({k: keep}); keep = 0; ops.push({e: de}); }
+      a = a.t; b = b.t;
+    }
+    return ops.length ? {l: ops} : null;
+  }
+  return {n: b};
+})|},
+    )
+  );
+let diff = (a: Js.Unsafe.any, b: Js.Unsafe.any): Js.Unsafe.any =>
+  Js.Unsafe.fun_call(Lazy.force(diff_js), [|a, b|]);
+
+let js_list = (v: Js.Unsafe.any): list(Js.Unsafe.any) => {
+  let n =
+    int_of_float(Js.float_of_number(Js.Unsafe.coerce(get(v, "length"))));
+  List.init(n, i => Js.Unsafe.get(v, i));
+};
+let int_of = (v: Js.Unsafe.any): int =>
+  int_of_float(Js.float_of_number(Js.Unsafe.coerce(v)));
+
+/* A diff applied to the last answer's Hazel value. A diff that does not fit the value (it was not made from this
+   value's answer) is Unsupported. */
+let rec patch =
+        (ts: types, ty: option(Typ.t), old: Exp.t, d: Js.Unsafe.any): Exp.t =>
+  if (is_null(d)) {
+    old;
+  } else {
+    let ty = Option.bind(ty, shape(ts, 0));
+    if (has(d, "n")) {
+      of_js(ts, ty, get(d, "n"));
+    } else {
+      switch (Exp.term_of(old)) {
+      | Parens(e)
+      | Asc(e, _) => patch(ts, ty, e, d)
+      | Ap(Forward, {term: Constructor(name, _), _} as c, arg)
+          when has(d, "c") =>
+        let arg_ty =
+          switch (
+            Option.bind(
+              Option.join(Hashtbl.find_opt(ts.ctors, name)),
+              shape(ts, 0),
+            )
+          ) {
+          | Some({term: Arrow(a, _), _}) => Some(a)
+          | _ => None
+          };
+        G.Exp.ap(Forward, c, patch(ts, arg_ty, arg, get(d, "c")));
+      | Tuple(items) when has(d, "t") =>
+        let changes =
+          js_list(get(d, "t"))
+          |> List.map(p =>
+               (int_of(Js.Unsafe.get(p, 0)), Js.Unsafe.get(p, 1))
+             );
+        let tys =
+          switch (Option.map((t: Typ.t) => t.term, ty)) {
+          | Some(Prod(tys)) when List.length(tys) == List.length(items) =>
+            List.map(
+              (t: Typ.t) =>
+                switch (Typ.match_tup_label(t)) {
+                | Some((_, t)) => Some(t)
+                | None => Some(t)
+                },
+              tys,
+            )
+          | _ => List.map(_ => None, items)
+          };
+        G.Exp.tuple(
+          List.mapi(
+            (i, (e: Exp.t, t)) =>
+              switch (List.assoc_opt(i, changes)) {
+              | None => e
+              | Some(di) =>
+                switch (Exp.term_of(e)) {
+                | TupLabel(l, inner) =>
+                  G.Exp.tup_label(l, patch(ts, t, inner, di))
+                | _ => patch(ts, t, e, di)
+                }
+              },
+            List.combine(items, tys),
+          ),
+        );
+      | ListLit(xs) when has(d, "l") =>
+        let elt =
+          switch (Option.map((t: Typ.t) => t.term, ty)) {
+          | Some(List(t)) => Some(t)
+          | _ => None
+          };
+        let rec walk_js = (v, acc) =>
+          is_null(v)
+            ? acc
+            : walk_js(get(v, "t"), [of_js(ts, elt, get(v, "h")), ...acc]);
+        /* acc: the new list's elements so far, reversed; xs: what is left of the old list */
+        let rec go = (ops, xs, acc) =>
+          switch (ops) {
+          | [] => List.rev_append(acc, xs)
+          | [op, ...ops] =>
+            if (has(op, "k")) {
+              let rec keep = (n, xs, acc) =>
+                n == 0
+                  ? (xs, acc)
+                  : (
+                    switch (xs) {
+                    | [x, ...xs] => keep(n - 1, xs, [x, ...acc])
+                    | [] => unsupported("patch: kept past the list's end")
+                    }
+                  );
+              let (xs, acc) = keep(int_of(get(op, "k")), xs, acc);
+              go(ops, xs, acc);
+            } else if (has(op, "e")) {
+              switch (xs) {
+              | [x, ...xs] =>
+                go(ops, xs, [patch(ts, elt, x, get(op, "e")), ...acc])
+              | [] => unsupported("patch: changed past the list's end")
+              };
+            } else if (has(op, "i")) {
+              go(ops, xs, [of_js(ts, elt, get(op, "i")), ...acc]);
+            } else if (has(op, "x")) {
+              switch (xs) {
+              | [_, ...xs] => go(ops, xs, acc)
+              | [] => unsupported("patch: dropped past the list's end")
+              };
+            } else if (has(op, "a")) {
+              List.rev(walk_js(get(op, "a"), acc));
+            } else if (has(op, "cut")) {
+              List.rev(acc);
+            } else {
+              unsupported("patch: an edit it does not know");
+            }
+          };
+        G.Exp.list_lit(go(js_list(get(d, "l")), xs, []));
+      | _ => unsupported("patch: the diff does not fit the value")
+      };
+    };
+  };
 
 /* ---- running compiled code */
 

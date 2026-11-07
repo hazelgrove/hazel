@@ -515,6 +515,267 @@ let view_comes_back = (~prefix="", def_src, model_src) => {
   };
 };
 
+/* (^ticket(709)) A diff applied to the last value is the new value, carried back whole: each program gives a pair
+   (old, new), new made from old by compiled code; the diff, when given, is what diff must say */
+let diff_cases = [
+  (
+    "one changed in the middle",
+    "let set = fun (xs, k, p) -> case xs | [] => [] | x :: rest => if k == 0 then p :: rest else x :: set(rest, k - 1, p) end in let xs = [1, 2, 3, 4, 5] in (xs, set(xs, 2, 30))",
+    Some({|{"l":[{"k":2},{"e":{"n":30}}]}|}),
+  ),
+  (
+    "one put at the head",
+    "let xs = [1, 2, 3] in (xs, 0 :: xs)",
+    Some({|{"l":[{"i":0}]}|}),
+  ),
+  (
+    "the head dropped",
+    "let xs = [1, 2, 3] in (xs, case xs | _ :: r => r | [] => [] end)",
+    Some({|{"l":[{"x":1}]}|}),
+  ),
+  ("one put at the end", "let xs = [1, 2, 3] in (xs, xs @ [4])", None),
+  (
+    "cut after two",
+    "let xs = [1, 2, 3] in (xs, case xs | a :: b :: _ => [a, b] | _ => [] end)",
+    Some({|{"l":[{"k":2},{"cut":1}]}|}),
+  ),
+  ("emptied", "let xs = [1, 2, 3] in (xs, [])", Some({|{"n":null}|})),
+  ("nothing changed", "let xs = [1, 2] in (xs, xs)", Some("null")),
+  (
+    "a constructor's argument",
+    "let a = (Some(1), 2) in (a, (Some(5), 2))",
+    Some({|{"t":[[0,{"c":{"n":5}}]]}|}),
+  ),
+  (
+    "a labeled field set, the other kept",
+    "let p = (x = 1, y = [1, 2]) in (p, (x = 2, y = p.y))",
+    Some({|{"t":[[0,{"n":2}]]}|}),
+  ),
+  (
+    "a float in a list",
+    "let xs = [1.5, 2.0] in (xs, case xs | a :: _ => [a, 3.0] | _ => [] end)",
+    None,
+  ),
+];
+let diff_case = ((name, src, want)) =>
+  test_case(
+    "diff: " ++ name,
+    `Quick,
+    () => {
+      let c =
+        HazelJit.compile_full(
+          ~env=Builtins.env_init,
+          elaborate(parse_exp(src)),
+        );
+      let pair = HazelJitValue.instantiate(c.src);
+      let types = HazelJitValue.types_of(c);
+      let old_js = Js.Unsafe.get(pair, 0);
+      let new_js = Js.Unsafe.get(pair, 1);
+      let d = HazelJitValue.diff(old_js, new_js);
+      let shown =
+        Js.to_string(
+          Js.Unsafe.fun_call(
+            Js.Unsafe.pure_js_expr("JSON.stringify"),
+            [|d|],
+          ): Js.t(Js.js_string),
+        );
+      switch (want) {
+      | Some(w) when w != shown =>
+        fail("the diff is " ++ shown ++ ", not " ++ w)
+      | _ => ()
+      };
+      let patched =
+        HazelJitValue.patch(
+          types,
+          None,
+          HazelJitValue.of_js(types, None, old_js),
+          d,
+        );
+      switch (same(HazelJitValue.of_js(types, None, new_js), patched)) {
+      | None => ()
+      | Some(why) => fail("diff " ++ shown ++ ": " ++ why)
+      };
+    },
+  );
+
+/* (^ticket(709), slow) The way back as a diff. A list of n points, (x = i, y = 2i), its middle one replaced by compiled
+   Hazel (a functional set: a new cell for each element before it, the tail after it the same JS object). The new list
+   carried back whole (of_js), and as a diff (HazelJitValue.diff) applied to the last value (patch); the two must agree,
+   and the patched list must keep the old list's own elements wherever nothing changed. */
+let diff_timing_run = () => {
+  let src = "let set = fun (xs, k, p) -> case xs | [] => [] | x :: rest => if k == 0 then p :: rest else x :: set(rest, k - 1, p) end in set";
+  let c =
+    HazelJit.compile_full(
+      ~env=Builtins.env_init,
+      elaborate(parse_exp(src)),
+    );
+  let set = HazelJitValue.instantiate(c.src);
+  let types = HazelJitValue.types_of(c);
+  let points: Js.Unsafe.any =
+    Js.Unsafe.pure_js_expr(
+      "(function (n) { var l = null; for (var i = n - 1; i >= 0; i--) { var p = [i, 2 * i]; p.x = i; p.y = 2 * i; l = {h: p, t: l}; } return l; })",
+    );
+  let point: Js.Unsafe.any =
+    Js.Unsafe.pure_js_expr(
+      "(function () { var p = [-1, -1]; p.x = -1; p.y = -1; return p; })()",
+    );
+  let now = () => Util.JsUtil.precise_timestamp();
+  let median = xs => {
+    let a = Array.of_list(xs);
+    Array.sort(compare, a);
+    a[Array.length(a) / 2];
+  };
+  let times = (reps, f) => {
+    for (_ in 1 to 5) {
+      f();
+    };
+    List.init(
+      reps,
+      _ => {
+        let t0 = now();
+        f();
+        now() -. t0;
+      },
+    );
+  };
+  let items = (e: Exp.t) =>
+    switch (Exp.term_of(e)) {
+    | ListLit(xs) => xs
+    | _ => fail("not a list: " ++ Exp.show(e))
+    };
+  List.iter(
+    n => {
+      let reps = 15;
+      let old_js: Js.Unsafe.any =
+        Js.Unsafe.fun_call(
+          points,
+          [|HazelJitValue.number(float_of_int(n))|],
+        );
+      let old_hz = HazelJitValue.of_js(types, None, old_js);
+      let new_js: Js.Unsafe.any =
+        Js.Unsafe.fun_call(
+          set,
+          [|
+            Js.Unsafe.inject(
+              Js.array([|
+                old_js,
+                HazelJitValue.number(float_of_int(n / 2)),
+                point,
+              |]),
+            ),
+          |],
+        );
+      let d = HazelJitValue.diff(old_js, new_js);
+      let whole = HazelJitValue.of_js(types, None, new_js);
+      let patched = HazelJitValue.patch(types, None, old_hz, d);
+      switch (same(whole, patched)) {
+      | None => ()
+      | Some(why) => fail("patched is not carried back whole: " ++ why)
+      };
+      let shared =
+        List.fold_left2(
+          (k, a, b) => a === b ? k + 1 : k,
+          0,
+          items(old_hz),
+          items(patched),
+        );
+      let full =
+        times(reps, () => ignore(HazelJitValue.of_js(types, None, new_js)));
+      let diffing =
+        times(reps, () => ignore(HazelJitValue.diff(old_js, new_js)));
+      let patching =
+        times(reps, () =>
+          ignore(HazelJitValue.patch(types, None, old_hz, d))
+        );
+      let shown =
+        n <= 100
+          ? Js.to_string(
+              Js.Unsafe.fun_call(
+                Js.Unsafe.pure_js_expr("JSON.stringify"),
+                [|d|],
+              ): Js.t(Js.js_string),
+            )
+          : "(" ++ string_of_int(n) ++ " elements)";
+      Printf.printf(
+        "hazel-jit diff, %d points, the middle one changed: carried back whole median %.4f ms; diffed median %.4f ms, patched median %.4f ms; %d of %d elements the old ones, shared; the diff %s\n",
+        n,
+        median(full),
+        median(diffing),
+        median(patching),
+        shared,
+        n,
+        shown,
+      );
+      print_raw(
+        "the way back as a diff, " ++ string_of_int(n) ++ " points",
+        [
+          ("whole_ms", full),
+          ("diff_ms", diffing),
+          ("patch_ms", patching),
+          ("shared_elements", [float_of_int(shared)]),
+        ],
+      );
+    },
+    [10, 100, 1000, 10000],
+  );
+};
+
+/* (2026-11-07) Two virtual DOM nodes, made raw (virtual-dom's own objects), compared as data: every field, keys in order,
+   functions (the event handlers) only as functions, and a cycle cut. "same (N chars)" or where they first differ. */
+let compare_raw: (Js.Unsafe.any, Js.Unsafe.any) => string = {
+  let f: Js.Unsafe.any =
+    Js.Unsafe.pure_js_expr(
+      {|(function (a, b) {
+  function norm(x, path) {
+    if (typeof x === "function") return "<fn>";
+    if (x === null || typeof x !== "object") return x;
+    if (path.indexOf(x) >= 0) return "<cycle>";
+    path.push(x);
+    var r;
+    if (Array.isArray(x)) r = x.map(function (y) { return norm(y, path); });
+    else {
+      r = {};
+      Object.keys(x).sort().forEach(function (k) { r[k] = norm(x[k], path); });
+      if (x.constructor && x.constructor.name && x.constructor.name !== "Object") r.__ctor = x.constructor.name;
+    }
+    path.pop();
+    return r;
+  }
+  var sa = JSON.stringify(norm(a, [])), sb = JSON.stringify(norm(b, []));
+  if (sa === sb) return "same (" + sa.length + " chars)";
+  var i = 0; while (i < sa.length && sa[i] === sb[i]) i++;
+  return "differ at " + i + ": " + sa.slice(Math.max(0, i - 160), i + 160) + " ||| " + sb.slice(Math.max(0, i - 160), i + 160);
+})|},
+    );
+  (a, b) =>
+    Js.to_string(Js.Unsafe.fun_call(f, [|a, b|]): Js.t(Js.js_string));
+};
+let ignoring_mvu: Haz3lcore.HazelDOM.t = {
+  inject: (_, _) => Virtual_dom.Vdom.Effect.Ignore,
+  view_term: _ => Virtual_dom.Vdom.Node.none,
+  splice_view: _ => None,
+  commit: Haz3lcore.HazelDOM.State,
+};
+/* The Polygons view's answer drawn both ways: carried back as Hazel, run and drawn by HazelDOM; and drawn straight from
+   its JS by HazelJitDOM. The two nodes made raw and compared. */
+let drawn_both_ways =
+    (v: HazelJitValue.view, js_answer: Js.Unsafe.any): string => {
+  let hazel =
+    switch (
+      Haz3lcore.ViewCmdRunner.run(
+        HazelJitValue.of_js(v.types, None, js_answer),
+      )
+    ) {
+    | Ok(h) => Haz3lcore.HazelDOM.go(ignoring_mvu, h)
+    | Error(why) => fail("the view command did not run: " ++ why)
+    };
+  let direct = Haz3lcore.HazelJitDOM.go(ignoring_mvu, v.types, js_answer);
+  compare_raw(
+    Js.Unsafe.inject(Virtual_dom.Vdom.Node.to_raw(hazel)),
+    Js.Unsafe.inject(Virtual_dom.Vdom.Node.to_raw(direct)),
+  );
+};
+
 /* (slow) A render of the Polygons view, timed several ways, medians of n in ms: the interpreter applying the evaluated
    view to the model (what eval_view did, less CallMemo); the compiled view through the boundary (run_view: the model
    into JS, the call, the answer back), its first n renders after compiling and then n more, warmed up; and each of its
@@ -611,13 +872,89 @@ let boundary_timing_run = n =>
             ignore(IdTagged.IdTag.fresh());
           }
         );
+      /* (2026-11-07) the same, made as Id.mk made them before 810df240ea's successor: eight concatenations an id */
+      let old_mk = {
+        let byte = Array.init(256, i => String.make(1, Char.chr(i)));
+        let tail = "\x80\x01\x02\x03\x04\x05\x06\x07";
+        let lo = ref(0);
+        (
+          () => {
+            incr(lo);
+            let l = lo^;
+            let h = 0;
+            Uuidm.unsafe_of_bytes(
+              byte[l land 0xff]
+              ++ byte[l lsr 8 land 0xff]
+              ++ byte[l lsr 16 land 0xff]
+              ++ byte[l lsr 24 land 0x3f]
+              ++ byte[h land 0xff]
+              ++ byte[h lsr 8 land 0xff]
+              ++ byte[0x40 lor h lsr 16 land 0x0f]
+              ++ byte[h lsr 20 land 0xff]
+              ++ tail,
+            );
+          }
+        );
+      };
+      let ids_old =
+        times(() =>
+          for (_ in 1 to made^) {
+            ignore(IdTagged.IdTag.mk_internal([old_mk()]));
+          }
+        );
+      /* and the trip back with no ids to make: every term given one shared id */
+      HazelJitValue.shared_ids := true;
+      let back_shared =
+        times(() => ignore(HazelJitValue.of_js(v.types, None, js_answer)));
+      HazelJitValue.shared_ids := false;
+      /* (Matthew, 2026-11-07: can a view's answer skip Hazel altogether?) what the app does with the Hazel answer after the
+         trip back: ViewCmdRunner runs the command down to its Html, HazelDOM draws that Html as a virtual DOM node (with
+         event handlers that dispatch to an mvu that ignores them here), and the page turns the node into virtual-dom's
+         own (to_raw) to diff it against the page */
+      let mvu: Haz3lcore.HazelDOM.t = {
+        inject: (_, _) => Virtual_dom.Vdom.Effect.Ignore,
+        view_term: _ => Virtual_dom.Vdom.Node.none,
+        splice_view: _ => None,
+        commit: Haz3lcore.HazelDOM.State,
+      };
+      let answer = HazelJitValue.of_js(v.types, None, js_answer);
+      let html =
+        switch (Haz3lcore.ViewCmdRunner.run(answer)) {
+        | Ok(h) => h
+        | Error(why) => fail("the view command did not run: " ++ why)
+        };
+      let run_cmd = times(() => ignore(Haz3lcore.ViewCmdRunner.run(answer)));
+      let draw = times(() => ignore(Haz3lcore.HazelDOM.go(mvu, html)));
+      let node = Haz3lcore.HazelDOM.go(mvu, html);
+      let raw = times(() => ignore(Virtual_dom.Vdom.Node.to_raw(node)));
+      /* (Matthew, 2026-11-07) the direct route: the JS answer drawn straight to the virtual DOM, against the whole Hazel
+         route from the same JS answer (the trip back, the command run, HazelDOM's drawing) */
+      let hazel_route =
+        times(() =>
+          switch (
+            Haz3lcore.ViewCmdRunner.run(
+              HazelJitValue.of_js(v.types, None, js_answer),
+            )
+          ) {
+          | Ok(h) => ignore(Haz3lcore.HazelDOM.go(mvu, h))
+          | Error(why) => fail("not run: " ++ why)
+          }
+        );
+      let direct =
+        times(() =>
+          ignore(Haz3lcore.HazelJitDOM.go(mvu, v.types, js_answer))
+        );
+      let same = drawn_both_ways(v, js_answer);
+      if (String.length(same) < 4 || String.sub(same, 0, 4) != "same") {
+        fail("drawn straight from JS, not HazelDOM's drawing: " ++ same);
+      };
       /* how much each trip carries: the nodes the walk visits (as of_js walks them, each function's captured values
          included), how many of those are distinct objects, and how many it visits inside captured values */
       let census: Js.Unsafe.any =
         Js.Unsafe.pure_js_expr(
           {|(function (root) {
   var c = {visits: 0, distinct_objects: 0, in_captures: 0, functions: 0, cons_cells: 0, tuples: 0, constructors: 0, atoms: 0};
-  var seen = new Set();
+  var seen = new Set(), names = {};
   function walk(v, cap) {
     for (;;) {
       c.visits++; if (cap) c.in_captures++;
@@ -626,12 +963,13 @@ let boundary_timing_run = n =>
       if (!seen.has(v)) { seen.add(v); c.distinct_objects++; }
       if (t === "function") { c.functions++; if (v.$e) for (var i = 0; i < v.$e.length; i++) walk(v.$e[i], true); return; }
       if (Array.isArray(v)) { c.tuples++; for (var j = 0; j < v.length; j++) walk(v[j], cap); return; }
-      if (Object.hasOwn(v, "c")) { c.constructors++; if (Object.hasOwn(v, "v")) { v = v.v; continue; } return; }
+      if (Object.hasOwn(v, "c")) { c.constructors++; names[v.c] = (names[v.c] || 0) + 1; if (Object.hasOwn(v, "v")) { v = v.v; continue; } return; }
       if (Object.hasOwn(v, "h")) { c.cons_cells++; walk(v.h, cap); if (v.t === null) return; v = v.t; continue; }
       return;
     }
   }
   walk(root, false);
+  c.names = names;
   return JSON.stringify(c);
 })|},
         );
@@ -656,12 +994,27 @@ let boundary_timing_run = n =>
         median(back),
       );
       Printf.printf(
-        "hazel-jit boundary census: the model %s; the answer %s; the trip back makes %d terms, and %d fresh ids alone take median %.4f ms\n",
+        "hazel-jit boundary census: the model %s; the answer %s; the trip back makes %d terms, and %d fresh ids alone take median %.4f ms (made the old way, %.4f ms); the trip back with one shared id, median %.4f ms\n",
         count(js_model),
         count(js_answer),
         made^,
         made^,
         median(ids),
+        median(ids_old),
+        median(back_shared),
+      );
+      Printf.printf(
+        "hazel-jit downstream of the trip back: the view command run, median %.4f ms; the Html drawn as a vdom node (HazelDOM.go), median %.4f ms; the node made raw (to_raw), median %.4f ms\n",
+        median(run_cmd),
+        median(draw),
+        median(raw),
+      );
+      Printf.printf(
+        "hazel-jit direct route: from the JS answer to a vdom node through Hazel (trip back, command, HazelDOM), median %.4f ms; straight from JS (HazelJitDOM), median %.4f ms, %.1fx; the two drawings %s\n",
+        median(hazel_route),
+        median(direct),
+        median(hazel_route) /. Float.max(median(direct), 1e-6),
+        same,
       );
       print_raw(
         "the Polygons view through the boundary",
@@ -674,6 +1027,13 @@ let boundary_timing_run = n =>
           ("trip_in_ms", into),
           ("trip_back_ms", back),
           ("fresh_ids_ms", ids),
+          ("fresh_ids_old_ms", ids_old),
+          ("trip_back_shared_id_ms", back_shared),
+          ("view_cmd_run_ms", run_cmd),
+          ("hazeldom_draw_ms", draw),
+          ("vdom_to_raw_ms", raw),
+          ("hazel_route_draw_ms", hazel_route),
+          ("direct_draw_ms", direct),
         ],
       );
     };
@@ -839,10 +1199,41 @@ let tests = (
       "timing: the Polygons view through the boundary, a render", `Slow, () =>
       boundary_timing_run(30)
     ),
+    test_case(
+      "timing: the way back as a diff, one point of n changed", `Slow, () =>
+      diff_timing_run()
+    ),
+    test_case(
+      "the Polygons view drawn straight from JS, as HazelDOM draws it",
+      `Quick,
+      () =>
+      switch (polygons_parts()) {
+      | None => fail("the Polygons slide was not found, or not as expected")
+      | Some((prefix, body, model_src)) =>
+        let program = s => elaborate(parse_exp(prefix ++ s));
+        let model = Test_Evaluator_Prelude.evaluate(program(model_src));
+        switch (
+          HazelJitValue.compile_view(
+            ~env=Builtins.env_init,
+            program("module P = " ++ body ++ " in P"),
+          )
+        ) {
+        | Error(why) => fail("not compiled: " ++ why)
+        | Ok(v) =>
+          let js_answer =
+            Js.Unsafe.fun_call(v.fn, [|HazelJitValue.to_js(model)|]);
+          let same = drawn_both_ways(v, js_answer);
+          if (String.length(same) < 4 || String.sub(same, 0, 4) != "same") {
+            fail("not HazelDOM's drawing: " ++ same);
+          };
+        };
+      }
+    ),
     timing(
       "a recursive sum of 1,000",
       "let sum = fun n -> if n == 0 then 0 else n + sum(n - 1) in sum(1000)",
       30,
     ),
+    ...List.map(diff_case, diff_cases),
   ],
 );
