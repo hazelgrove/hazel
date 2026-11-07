@@ -1374,6 +1374,291 @@ let polygons_view = (name, speed, check) =>
     }
   );
 
+/* (Matthew, 2026-11-07, for ^report(46): "measure the most complex view function of our livelits slide deck (the witch
+   background, or something like that)") The Witch slide's ^picture: its view draws the whole picture the slide composes
+   (skinned(dressed(outfit))), every shape's points as an SVG polygon or polyline, the picture read through a splice
+   (eval_splice). The slide evaluated up to that picture (Test_UserLivelits.run); ^picture's body cut from its module
+   Drawing (it names none of the slide's functions); its view timed on the interpreter, compiled through Hazel, and
+   compiled and drawn straight from JS; the two drawings compared; and the picture printed as JSON for ^report(46)'s
+   other compilers. */
+let witch_parts = (): (string, string, string) => {
+  let path = "hazel-programs/docs/livelits/playground/witch.hz";
+  let path = Sys.file_exists(path) ? path : "../" ++ path;
+  let src =
+    switch (CorpusUtil.read_file(path)) {
+    | Some(t) => t
+    | None => fail("no " ++ path)
+    };
+  let find = (from, needle) => {
+    let n = String.length(needle);
+    let rec go = i =>
+      i + n > String.length(src)
+        ? fail("no " ++ needle)
+        : String.sub(src, i, n) == needle ? i : go(i + 1);
+    go(from);
+  };
+  let matching = i => {
+    let rec go = (j, depth, in_str, in_comment) => {
+      let c = src.[j];
+      if (in_comment) {
+        go(j + 1, depth, false, c != '#');
+      } else if (in_str) {
+        go(j + 1, depth, c != '"', false);
+      } else if (c == '#') {
+        go(j + 1, depth, false, true);
+      } else if (c == '"') {
+        go(j + 1, depth, true, false);
+      } else if (c == '{') {
+        go(j + 1, depth + 1, false, false);
+      } else if (c == '}') {
+        depth == 1 ? j : go(j + 1, depth - 1, false, false);
+      } else {
+        go(j + 1, depth, false, false);
+      };
+    };
+    go(i, 0, false, false);
+  };
+  let types_end = find(0, "module Drawing = {");
+  let def = find(types_end, "let ^picture = {");
+  let open_ = def + String.length("let ^picture = ");
+  let close = matching(open_);
+  let probe = find(close, "let ^^probe(drawn) =");
+  (
+    String.sub(src, 0, types_end),
+    String.sub(src, open_, close - open_ + 1),
+    String.sub(src, 0, probe) ++ "skinned(dressed(outfit))",
+  );
+};
+let witch_view_run = (~n=15, ()) => {
+  let (prefix, body, picture_program) = witch_parts();
+  let now = () => Util.JsUtil.precise_timestamp();
+  let t0 = now();
+  let picture = Test_UserLivelits.run(picture_program);
+  let eval_ms = now() -. t0;
+  let model =
+    IdTagged.FreshGrammar.Exp.tuple([
+      IdTagged.FreshGrammar.Exp.tup_label(
+        IdTagged.FreshGrammar.Exp.label("picture"),
+        Haz3lcore.SpliceStore.mk_ref("witch", picture),
+      ),
+    ]);
+  let view_fn =
+    Test_Evaluator_Prelude.evaluate(
+      elaborate(parse_exp(prefix ++ "module P = " ++ body ++ " in P.view")),
+    );
+  let v =
+    switch (
+      HazelJitValue.compile_view(
+        ~env=Builtins.env_init,
+        elaborate(parse_exp(prefix ++ "module P = " ++ body ++ " in P")),
+      )
+    ) {
+    | Ok(v) => v
+    | Error(why) => fail("^picture not compiled: " ++ why)
+    };
+  {
+    /* (for ^report(46)) the compiled definition's JS, and the runtime it runs with, as JSON strings: its listing, and a
+       benchmark beside the other compilers' output in one Node process */
+
+    let json = (s: string): string =>
+      Js.to_string(
+        Js.Unsafe.fun_call(
+          Js.Unsafe.pure_js_expr("JSON.stringify"),
+          [|Js.Unsafe.inject(Js.string(s))|],
+        ): Js.t(Js.js_string),
+      );
+    switch (
+      HazelJit.compile_full(
+        ~env=Builtins.env_init,
+        elaborate(parse_exp(prefix ++ "module P = " ++ body ++ " in P")),
+      )
+    ) {
+    | c =>
+      print_endline("hazel-jit witch source: " ++ json(c.src));
+      print_endline(
+        "hazel-jit runtime source: " ++ json(HazelJit.Runtime.source),
+      );
+    | exception (HazelJit.Unsupported(why)) =>
+      fail("^picture not compiled: " ++ why)
+    };
+  };
+  let median = xs => {
+    let a = Array.of_list(xs);
+    Array.sort(compare, a);
+    a[Array.length(a) / 2];
+  };
+  let times = f => {
+    for (_ in 1 to 5) {
+      f();
+    };
+    List.init(
+      n,
+      _ => {
+        let t0 = now();
+        f();
+        now() -. t0;
+      },
+    );
+  };
+  let mvu = ignoring_mvu;
+  /* the interpreter, as the app ran a view before hazel-jit: evaluated open, its command run, its Html drawn */
+  let interp_cmd = () =>
+    Evaluator.evaluate_open(
+      ~env=Builtins.env_init,
+      IdTagged.FreshGrammar.Exp.ap(Forward, view_fn, model),
+    );
+  let html =
+    switch (Haz3lcore.ViewCmdRunner.run(interp_cmd())) {
+    | Ok(h) => h
+    | Error(e) => fail("the interpreter's view command: " ++ e)
+    };
+  let interp_eval = times(() => ignore(interp_cmd()));
+  let interp_all =
+    times(() =>
+      switch (Haz3lcore.ViewCmdRunner.run(interp_cmd())) {
+      | Ok(h) => ignore(Haz3lcore.HazelDOM.go(mvu, h))
+      | Error(e) => fail(e)
+      }
+    );
+  let draw_hazel = times(() => ignore(Haz3lcore.HazelDOM.go(mvu, html)));
+  /* compiled: the model in, the call; then drawn straight from its JS, or carried back and drawn through Hazel */
+  let js_model = HazelJitValue.to_js(model);
+  let call = () =>
+    switch (HazelJitValue.call_view(v, model)) {
+    | Ok(js) => js
+    | Error(why) => fail("not run: " ++ why)
+    };
+  let js_answer = call();
+  let trip_in = times(() => ignore(HazelJitValue.to_js(model)));
+  let call_alone =
+    times(() =>
+      ignore(Js.Unsafe.fun_call(v.fn, [|js_model|]): Js.Unsafe.any)
+    );
+  let direct =
+    times(() => ignore(Haz3lcore.HazelJitDOM.go(mvu, v.types, call())));
+  /* the direct drawing in its two parts: the view's work (the call, then its commands run in JS, their continuations
+     making the Html), and the drawing of that Html as virtual DOM */
+  let view_work =
+    times(() => ignore(Haz3lcore.HazelJitDOM.run(v.types, call())));
+  let html_js = Haz3lcore.HazelJitDOM.run(v.types, js_answer);
+  let draw_only =
+    times(() => ignore(Haz3lcore.HazelJitDOM.elem(mvu, v.types, html_js)));
+  /* (through Hazel only when the answer can be carried back: its continuation closes over the module's recursive
+     helpers, each captured by the compiled code before it was assigned) */
+  let (through_hazel, why_not) =
+    switch (HazelJitValue.answer_of(v, js_answer)) {
+    | Error(why) => ([], why)
+    | Ok(_) => (
+        times(() =>
+          switch (HazelJitValue.answer_of(v, call())) {
+          | Ok(cmd) =>
+            switch (Haz3lcore.ViewCmdRunner.run(cmd)) {
+            | Ok(h) => ignore(Haz3lcore.HazelDOM.go(mvu, h))
+            | Error(e) => fail(e)
+            }
+          | Error(e) => fail(e)
+          }
+        ),
+        "",
+      )
+    };
+  /* the drawing from JS, against the interpreter's own (its view evaluated, run and drawn by HazelDOM) */
+  let same =
+    compare_raw(
+      Js.Unsafe.inject(
+        Virtual_dom.Vdom.Node.to_raw(Haz3lcore.HazelDOM.go(mvu, html)),
+      ),
+      Js.Unsafe.inject(
+        Virtual_dom.Vdom.Node.to_raw(
+          Haz3lcore.HazelJitDOM.go(mvu, v.types, js_answer),
+        ),
+      ),
+    );
+  if (String.length(same) < 4 || String.sub(same, 0, 4) != "same") {
+    fail(
+      "the Witch's picture drawn from JS is not the interpreter's drawing: "
+      ++ same,
+    );
+  };
+  /* the picture as plain JSON, for the other compilers: each shape its kind, name, points (x, y), stroke and fill */
+  let plain: Js.Unsafe.any =
+    Js.Unsafe.pure_js_expr(
+      {|(function (m) {
+  const arr = l => { const out = []; for (; l !== null; l = l.t) out.push(l.h); return out; };
+  const pic = m.picture.v[1];
+  const shapes = arr(pic).map(s => { const p = s.v;
+    return { kind: s.c, name: p.name, points: arr(p.points).map(v => [v.at[0], v.at[1], v.label.c === "Anchor" ? v.label.v : null]),
+             stroke: { width: p.stroke.width, color: p.stroke.color }, fill: s.c === "Polygon" ? p.fill : null }; });
+  return JSON.stringify({ shapes, count: shapes.length, points: shapes.reduce((n, s) => n + s.points.length, 0) });
+})|},
+    );
+  let json =
+    Js.to_string(
+      Js.Unsafe.fun_call(plain, [|js_model|]): Js.t(Js.js_string),
+    );
+  Printf.printf(
+    "hazel-jit witch: the slide evaluated in %.0f ms; ^picture compiled in %.1f ms; the view on the interpreter, evaluated median %.2f ms, with its command and drawing median %.2f ms (HazelDOM's drawing alone %.2f ms); compiled: the model in %.3f ms, the call alone %.3f ms, drawn from its JS (the call, the splice, the drawing) %.2f ms (the view's work %.3f ms, the drawing %.2f ms), through Hazel %s; the drawing from JS against the interpreter's: %s\n",
+    eval_ms,
+    v.compile_ms,
+    median(interp_eval),
+    median(interp_all),
+    median(draw_hazel),
+    median(trip_in),
+    median(call_alone),
+    median(direct),
+    median(view_work),
+    median(draw_only),
+    why_not == ""
+      ? Printf.sprintf("%.2f ms", median(through_hazel))
+      : "not possible (" ++ why_not ++ ")",
+    same,
+  );
+  Printf.printf("hazel-jit witch picture json: %s\n", json);
+  /* the svg element the compiled view draws, as markup, for ^report(46) to show */
+  let svg_of: Js.Unsafe.any =
+    Js.Unsafe.pure_js_expr(
+      {|(function (raw) {
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+  const out = n => { if (n.text !== undefined && n.tagName === undefined) return esc(n.text);
+    const a = Object.assign({}, (n.properties && n.properties.attributes) || {});
+    return "<" + n.tagName.toLowerCase() + Object.keys(a).map(k => " " + k + "=\"" + esc(a[k]) + "\"").join("") + ">" + (n.children || []).map(out).join("") + "</" + n.tagName.toLowerCase() + ">"; };
+  const find = n => n.tagName && n.tagName.toLowerCase() === "svg" ? n : (n.children || []).map(find).find(Boolean);
+  const s = find(raw); return s ? out(s) : "";
+})|},
+    );
+  Printf.printf(
+    "hazel-jit witch svg: %s\n",
+    Js.to_string(
+      Js.Unsafe.fun_call(
+        svg_of,
+        [|
+          Js.Unsafe.inject(
+            Virtual_dom.Vdom.Node.to_raw(
+              Haz3lcore.HazelJitDOM.go(mvu, v.types, js_answer),
+            ),
+          ),
+        |],
+      ): Js.t(Js.js_string),
+    ),
+  );
+  print_raw(
+    "the Witch's picture view",
+    [
+      ("interpreter_eval_ms", interp_eval),
+      ("interpreter_view_ms", interp_all),
+      ("hazeldom_draw_ms", draw_hazel),
+      ("trip_in_ms", trip_in),
+      ("call_alone_ms", call_alone),
+      ("direct_draw_ms", direct),
+      ("view_work_ms", view_work),
+      ("draw_only_ms", draw_only),
+      ("through_hazel_ms", through_hazel),
+      ("compile_ms", [v.compile_ms]),
+      ("slide_eval_ms", [eval_ms]),
+    ],
+  );
+};
+
 let tests = (
   "HazelJit",
   [
@@ -1573,6 +1858,10 @@ let tests = (
       petri_compare_run()
     ),
     test_case(
+      "timing: the Witch slide's ^picture view, the deck's largest", `Slow, () =>
+      witch_view_run()
+    ),
+    test_case(
       "the Polygons update, compiled, its model back as a diff: the interpreter's model",
       `Quick,
       () =>
@@ -1598,6 +1887,68 @@ let tests = (
         if (read(0) != (-1.) || read(1) != (-2.5)) {
           fail(Printf.sprintf("got %g and %g", read(0), read(1)));
         };
+      },
+    ),
+    test_case(
+      "what the splice commands hand on, made in JS, is what ViewCmdRunner makes in Hazel",
+      `Quick,
+      () => {
+        let json = (x: Js.Unsafe.any) =>
+          Js.to_string(
+            Js.Unsafe.fun_call(
+              Js.Unsafe.pure_js_expr("JSON.stringify"),
+              [|x|],
+            ): Js.t(Js.js_string),
+          );
+        let r =
+          Haz3lcore.SpliceStore.mk_ref(
+            "s1",
+            IdTagged.FreshGrammar.Exp.int(3),
+          );
+        let r_js = HazelJitValue.to_js(r);
+        let pairs = [
+          (
+            "editor",
+            Haz3lcore.HazelJitDOM.sized(
+              7,
+              Haz3lcore.HazelJitDOM.obj("Splice", Some(r_js)),
+            ),
+            Haz3lcore.ViewCmdRunner.editor_html(r, 7),
+          ),
+          (
+            "result_view",
+            Haz3lcore.HazelJitDOM.sized(
+              7,
+              Haz3lcore.HazelJitDOM.obj("SpliceResult", Some(r_js)),
+            ),
+            Haz3lcore.ViewCmdRunner.result_html(r, 7),
+          ),
+          (
+            "eval_splice",
+            Haz3lcore.HazelJitDOM.obj(
+              "Some",
+              Some(
+                Haz3lcore.HazelJitDOM.obj(
+                  "Val",
+                  Some(HazelJitValue.number(3.)),
+                ),
+              ),
+            ),
+            Haz3lcore.ViewCmdRunner.result_of(
+              IdTagged.FreshGrammar.Exp.int(3),
+            ),
+          ),
+        ];
+        List.iter(
+          ((name, js, hz)) => {
+            let a = json(js);
+            let b = json(HazelJitValue.to_js(hz));
+            if (a != b) {
+              fail(name ++ ": " ++ a ++ " against " ++ b);
+            };
+          },
+          pairs,
+        );
       },
     ),
     test_case(

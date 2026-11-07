@@ -4,7 +4,7 @@
    A compiled view's answer, the JS values its compiled code made, run and drawn straight into the virtual DOM: never
    made into a Hazel value, never walked by HazelDOM. It makes the nodes ViewCmdRunner and HazelDOM.go make from the
    same answer carried back as Hazel: every view command (Pure; Bind, whose continuation is the compiled JS function,
-   called in JS; Editor, EvalSplice and ResultView, the small Hazel values they hand on carried into JS), and every
+   called in JS; Editor, EvalSplice and ResultView, what they hand on made in JS as ViewCmdRunner makes it in Hazel), and every
    element, attribute and handler HazelDOM draws. What is not well formed is Unsupported (HazelJit.Unsupported), and
    the caller draws through Hazel, where HazelDOM shows it as it always has; so do apps (Syntax commit), whose
    messages transform the program's syntax.
@@ -373,10 +373,47 @@ and elems = (mvu, types, v: any): list(Node.t) =>
   List.map(elem(mvu, types), list(v));
 
 /* ---- the view's command, run down to its Html (as ViewCmdRunner.run): a continuation is the compiled JS function,
-   called in JS; what Editor, EvalSplice and ResultView hand it is made as ViewCmdRunner makes it, and carried in */
+   called in JS; what Editor, EvalSplice and ResultView hand it is made in JS, as ViewCmdRunner makes it in Hazel
+   (2026-11-07: carrying the splice's value back to Hazel and in again, only to wrap it, was most of the Witch slide's
+   ^picture render: 20 of 21 ms) */
+let obj = (c: string, v: option(any)): any =>
+  switch (v) {
+  | Some(v) => Js.Unsafe.obj([|("c", V.jstr(c)), ("v", v)|])
+  | None => Js.Unsafe.obj([|("c", V.jstr(c))|])
+  };
+let pair = (a: any, b: any): any => Js.Unsafe.inject(Js.array([|a, b|]));
+let cons_list = (xs: list(any)): any =>
+  List.fold_right(
+    (h, t) => Js.Unsafe.obj([|("h", h), ("t", t)|]),
+    xs,
+    Js.Unsafe.inject(Js.null),
+  );
+/* Div([Style([... min-width n ch ...])], [inner]): ViewCmdRunner.editor_html and result_html's frame */
+let sized = (n: int, inner: any): any =>
+  obj(
+    "Div",
+    Some(
+      pair(
+        cons_list([
+          obj(
+            "Style",
+            Some(
+              cons_list([
+                pair(V.jstr("display"), V.jstr("inline-block")),
+                pair(
+                  V.jstr("min-width"),
+                  V.jstr(string_of_int(n) ++ "ch"),
+                ),
+              ]),
+            ),
+          ),
+        ]),
+        cons_list([inner]),
+      ),
+    ),
+  );
 let rec run = (types, cmd: any): any => {
   let call = (k, x) => Js.Unsafe.fun_call(fn(k), [|x|]);
-  let hazel = v => V.of_js(types, None, v);
   let fixed_width = dim =>
     switch (ctor(dim)) {
     | ("FixedWidth", n) => int(n)
@@ -388,38 +425,38 @@ let rec run = (types, cmd: any): any => {
   | "Bind" => run(types, call(at(body, 1), run(types, at(body, 0))))
   | "Editor" =>
     let args = at(body, 0);
-    let html =
-      ViewCmdRunner.editor_html(
-        hazel(at(args, 0)),
-        fixed_width(at(args, 1)),
-      );
-    run(types, call(at(body, 1), V.to_js(html)));
+    let r = at(args, 0);
+    ignore(splice_ref(r));
+    run(
+      types,
+      call(
+        at(body, 1),
+        sized(fixed_width(at(args, 1)), obj("Splice", Some(r))),
+      ),
+    );
+  /* (a value the trip in carried is a value: ViewCmdRunner.result_of's Some(Val(v)), never Some(Indet)) */
   | "EvalSplice" =>
-    switch (SpliceStore.splice_ref(hazel(at(body, 0)))) {
-    | Some((_, value)) =>
-      run(
-        types,
-        call(at(body, 1), V.to_js(ViewCmdRunner.result_of(value))),
-      )
-    | None => unsupported("drawing: eval_splice: expected a SpliceRef")
-    }
+    let (_, value) = splice_ref(at(body, 0));
+    run(
+      types,
+      call(at(body, 1), obj("Some", Some(obj("Val", Some(value))))),
+    );
   | "ResultView" =>
     let args = at(body, 0);
-    let r = hazel(at(args, 0));
-    let n = fixed_width(at(args, 1));
-    switch (SpliceStore.splice_ref(r)) {
-    | Some((_, value)) =>
-      let shown =
-        ValueChecker.is_value(value)
-          ? IdTagged.FreshGrammar.Exp.ap(
-              Forward,
-              IdTagged.FreshGrammar.Exp.constructor("Some", None),
-              ViewCmdRunner.result_html(r, n),
-            )
-          : IdTagged.FreshGrammar.Exp.constructor("None", None);
-      run(types, call(at(body, 1), V.to_js(shown)));
-    | None => unsupported("drawing: result_view: expected a SpliceRef")
-    };
+    let r = at(args, 0);
+    ignore(splice_ref(r));
+    run(
+      types,
+      call(
+        at(body, 1),
+        obj(
+          "Some",
+          Some(
+            sized(fixed_width(at(args, 1)), obj("SpliceResult", Some(r))),
+          ),
+        ),
+      ),
+    );
   | n => unsupported("drawing: not a view command: " ++ n)
   };
 };
