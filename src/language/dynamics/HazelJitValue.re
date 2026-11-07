@@ -567,6 +567,21 @@ let give_up = (def: Exp.t, why: string): unit =>
       cache^,
     );
 
+/* (^ticket(714)) The two halves of run_view, apart: the compiled view called on the model, its answer left in JS (to draw
+   straight from: HazelJitDOM); and that answer carried back as a Hazel value, when something asks for one */
+let call_view = (v: view, model: Exp.t): result(Js.Unsafe.any, string) =>
+  switch (Js.Unsafe.fun_call(v.fn, [|to_js(model)|])) {
+  | js => Ok(js)
+  | exception (HazelJit.Unsupported(why)) => Error(why)
+  | exception exn => Error(message(exn))
+  };
+let answer_of = (v: view, js: Js.Unsafe.any): result(Exp.t, string) =>
+  switch (of_js(v.types, None, js)) {
+  | e => Ok(e)
+  | exception (HazelJit.Unsupported(why)) => Error(why)
+  | exception exn => Error(message(exn))
+  };
+
 /* The view of a model: the model into JS, the view called, its answer back */
 let run_view = (v: view, model: Exp.t): result(Exp.t, string) =>
   switch (of_js(v.types, None, Js.Unsafe.fun_call(v.fn, [|to_js(model)|]))) {

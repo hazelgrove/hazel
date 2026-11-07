@@ -1235,5 +1235,53 @@ let tests = (
       30,
     ),
     ...List.map(diff_case, diff_cases),
+  ]
+  @ [
+    /* (^ticket(714)) more of HazelDOM's forms than the Polygons view has, and a Bind: drawn straight from the view's JS,
+       the same virtual DOM as through Hazel */
+    test_case(
+      "a view of many forms, drawn straight from JS, as HazelDOM draws it",
+      `Quick,
+      () => {
+        let def = {|{ type Action = + Go + Typed(String) + At((Int, Int)) + Wheel((Int, Int, Float, Float));
+  let view = fun m : (n = Int, label = String) ->
+    Bind(Pure(Text(m.label)), fun t -> Pure(Div([Class("c"), Classes(["a", "b"]), Id("x"), Title("t"), Data(("k", "v")), Style([("color", "red"), ("width", "3px")])],
+      [t, Int(m.n), Float(2.5), Bool(true), Br, Hr([]),
+       Span([OnClick(Go), OnDoubleClick(Go), OnMouseEnter(Go), OnFocus(Go)], [Text("s")]),
+       Input([Type("text"), Value("v"), Placeholder("p"), Disabled(false), Checked(true), MaxLength(5), Name("n"), OnInput(fun s -> Typed(s)), OnChange(fun s -> Typed(s))]),
+       TextArea([ReadOnly(true)], "words"),
+       Select([Required(true)], [Option([Selected(true)], "one"), Option([], "two")]),
+       Img([Src("a.png"), Alt("an a")]),
+       A([Href("https://example.org"), Target("_blank")], [Text("a link")]),
+       Table([], [Tr([], [Td([ColSpan(2)], [Text("cell")])])]),
+       Button([OnClickAt(fun p -> At(p)), OnWheelAt(fun w -> Wheel(w)), BoolAttr(("hidden", false)), AutoFocus(true)], [Text("b")]),
+       Node(("svg", [Width("10"), Height("10")], [Node(("circle", [Create(("r", "3"))], []))]))]))) }|};
+        let model = {|(n = 7, label = "hello")|};
+        let program = s => elaborate(parse_exp(s));
+        switch (
+          HazelJitValue.compile_view(
+            ~env=Builtins.env_init,
+            program("module P = " ++ def ++ " in P"),
+          )
+        ) {
+        | Error(why) => fail("not compiled: " ++ why)
+        | Ok(v) =>
+          let js_answer =
+            Js.Unsafe.fun_call(
+              v.fn,
+              [|
+                HazelJitValue.to_js(
+                  Test_Evaluator_Prelude.evaluate(program(model)),
+                ),
+              |],
+            );
+          let same = drawn_both_ways(v, js_answer);
+          print_endline("hazel-jit many forms: " ++ same);
+          if (String.length(same) < 4 || String.sub(same, 0, 4) != "same") {
+            fail("not HazelDOM's drawing: " ++ same);
+          };
+        };
+      },
+    ),
   ],
 );

@@ -882,38 +882,27 @@ module M: Projector = {
         ),
       );
     };
-  let jit_view = (def_elab: DHExp.t, model: DHExp.t): option(DHExp.t) =>
-    if (! HazelJitValue.enabled^) {
-      None;
-    } else {
-      switch (HazelJitValue.view_of_def(~env=Builtins.env_init, def_elab)) {
-      | Error(why) =>
-        jit_warn(why);
-        None;
-      | Ok(v) =>
-        switch (HazelJitValue.run_view(v, model)) {
-        | Ok(cmd) => Some(cmd)
-        | Error(why) =>
-          HazelJitValue.give_up(def_elab, why);
-          jit_warn(why);
-          None;
-        }
-      };
-    };
+  /* (^ticket(714), ^report(45)'s next step 1) A view's answer, two ways: the
+     Hazel Html the app has always drawn, made only when something asks for
+     it (Lazy); and, when the view ran compiled, the JS its compiled code
+     answered with, which HazelJitDOM draws straight into the virtual DOM,
+     never making it Hazel (about a third of the time). */
+  type view_answer = {
+    html: Lazy.t(result(DHExp.t, string)),
+    js: option((Js_of_ocaml.Js.Unsafe.any, HazelJitValue.types)),
+  };
   /* view_fn: the definition's view, asked for only when the interpreter
      runs it (evaluating the definition is part of that cost) */
-  let eval_view =
+  let eval_view_answer =
       (
         ~def_elab: option(DHExp.t)=?,
         view_fn: unit => result(DHExp.t, string),
         model: DHExp.t,
       )
-      : result(DHExp.t, string) => {
+      : view_answer => {
     let call_memo = Lazy.force(view_calls);
-    let cmd =
-      switch (Option.bind(def_elab, d => jit_view(d, model))) {
-      | Some(cmd) => Ok(cmd)
-      | None =>
+    let interpreted = () =>
+      switch (
         switch (view_fn()) {
         | Error(_) as err => err
         | Ok(view_fn) =>
@@ -922,10 +911,70 @@ module M: Projector = {
             IdTagged.FreshGrammar.Exp.ap(Forward, view_fn, model),
           )
         }
+      ) {
+      | Error(_) as err => err
+      | Ok(cmd) => ViewCmdRunner.run(~call_memo, cmd)
       };
-    switch (cmd) {
-    | Error(_) as err => err
-    | Ok(cmd) => ViewCmdRunner.run(~call_memo, cmd)
+    let compiled =
+      switch (def_elab) {
+      | Some(d) when HazelJitValue.enabled^ =>
+        switch (HazelJitValue.view_of_def(~env=Builtins.env_init, d)) {
+        | Error(why) =>
+          jit_warn(why);
+          None;
+        | Ok(v) =>
+          switch (HazelJitValue.call_view(v, model)) {
+          | Ok(js) => Some((d, v, js))
+          | Error(why) =>
+            HazelJitValue.give_up(d, why);
+            jit_warn(why);
+            None;
+          }
+        }
+      | _ => None
+      };
+    switch (compiled) {
+    | Some((d, v, js)) => {
+        js: Some((js, v.types)),
+        html:
+          lazy(
+            switch (HazelJitValue.answer_of(v, js)) {
+            | Ok(cmd) => ViewCmdRunner.run(~call_memo, cmd)
+            | Error(why) =>
+              HazelJitValue.give_up(d, why);
+              jit_warn(why);
+              interpreted();
+            }
+          ),
+      }
+    | None => {
+        js: None,
+        html: Lazy.from_val(interpreted()),
+      }
+    };
+  };
+  /* A view's answer drawn: straight from its JS when it has one, and every
+     form in it is one HazelJitDOM draws; otherwise its Hazel Html, by
+     HazelDOM, as before (and the console says why, once) */
+  let draw_answer =
+      (mvu: HazelDOM.t, a: view_answer)
+      : result(Virtual_dom.Vdom.Node.t, string) => {
+    let through_hazel = () =>
+      switch (Lazy.force(a.html)) {
+      | Ok(html) when MvuShape.is_html(html) =>
+        Ok(HazelDOM.go(~elide_errors=true, mvu, html))
+      | Ok(_) => Error("livelit view did not produce HTML")
+      | Error(_) as err => err
+      };
+    switch (a.js) {
+    | Some((js, types)) when HazelJitValue.enabled^ =>
+      switch (HazelJitDOM.go(mvu, types, js)) {
+      | node => Ok(node)
+      | exception (HazelJit.Unsupported(why)) =>
+        jit_warn("drawn through Hazel: " ++ why);
+        through_hazel();
+      }
+    | _ => through_hazel()
     };
   };
 
@@ -1028,7 +1077,10 @@ module M: Projector = {
      and lives only here (see opt_ephemeral below). */
   type optimistic_entry = {
     opt_model: TermBase.Exp.t, /* the newest local model, already a value */
-    opt_html: TermBase.Exp.t, /* view(opt_model), evaluated at event time */
+    /* view(opt_model), evaluated at event time: drawn from its JS when it
+       ran compiled, its Hazel Html made only to compare with a sample
+       (^ticket(714)) */
+    opt_view: view_answer,
     /* Squished prints of every syntax state that is legitimately "ours"
        while commits are in flight: the pre-burst base, then each commit,
        oldest first. During a rapid burst the syntax lags the local model
@@ -1112,59 +1164,68 @@ module M: Projector = {
     let store_entry = (new_model, record, ~committed) =>
       switch (record_field(record, "view")) {
       | Some(view_fn) =>
-        switch (eval_view(~def_elab, () => Ok(view_fn), new_model)) {
-        | Ok(html) when MvuShape.is_html(html) =>
-          let prior = Hashtbl.find_opt(optimistic, id);
-          /* Transient and ephemeral events change nothing in the syntax,
-             so the set of syntax states that count as "ours" is
-             unchanged; only committing events append their commit. */
-          let outstanding =
-            switch (committed, gesture, prior) {
-            | (None, _, Some(e))
-            | (Some(_), HazelDOM.Transient, Some(e)) => e.opt_outstanding
-            | (None, _, None)
-            | (Some(_), HazelDOM.Transient, None) => [
-                squish(print_term(model)),
-              ]
-            | (Some(c), HazelDOM.Commit, Some(e)) =>
-              e.opt_outstanding @ [squish(print_term(c))]
-            | (Some(c), HazelDOM.Commit, None) => [
-                squish(print_term(model)),
-                squish(print_term(c)),
-              ]
-            };
-          /* cap the ring; a burst outrunning this many in-flight
-             commits falls back to the authoritative path */
-          let outstanding = {
-            let n = List.length(outstanding);
-            n > 64
-              ? List.filteri((i, _) => i >= n - 64, outstanding)
-              : outstanding;
-          };
-          incr(optimistic_version);
-          Hashtbl.replace(
-            optimistic,
-            id,
-            {
-              opt_model: new_model,
-              opt_html: html,
-              opt_outstanding: outstanding,
-              opt_matched:
-                switch (prior) {
-                | Some(e) => e.opt_matched
-                | None => 0
-                },
-              opt_dirty:
-                Option.is_none(committed) || gesture == HazelDOM.Transient,
-              opt_ephemeral: Option.is_none(committed),
-            },
-          );
-        | _ =>
-          if (Hashtbl.mem(optimistic, id)) {
-            incr(optimistic_version);
-            Hashtbl.remove(optimistic, id);
+        let answer =
+          eval_view_answer(~def_elab, () => Ok(view_fn), new_model);
+        Option.is_some(answer.js)
+        || (
+          switch (Lazy.force(answer.html)) {
+          | Ok(html) => MvuShape.is_html(html)
+          | Error(_) => false
           }
-        }
+        )
+          ? {
+            let prior = Hashtbl.find_opt(optimistic, id);
+            /* Transient and ephemeral events change nothing in the syntax,
+               so the set of syntax states that count as "ours" is
+               unchanged; only committing events append their commit. */
+            let outstanding =
+              switch (committed, gesture, prior) {
+              | (None, _, Some(e))
+              | (Some(_), HazelDOM.Transient, Some(e)) => e.opt_outstanding
+              | (None, _, None)
+              | (Some(_), HazelDOM.Transient, None) => [
+                  squish(print_term(model)),
+                ]
+              | (Some(c), HazelDOM.Commit, Some(e)) =>
+                e.opt_outstanding @ [squish(print_term(c))]
+              | (Some(c), HazelDOM.Commit, None) => [
+                  squish(print_term(model)),
+                  squish(print_term(c)),
+                ]
+              };
+            /* cap the ring; a burst outrunning this many in-flight
+               commits falls back to the authoritative path */
+            let outstanding = {
+              let n = List.length(outstanding);
+              n > 64
+                ? List.filteri((i, _) => i >= n - 64, outstanding)
+                : outstanding;
+            };
+            incr(optimistic_version);
+            Hashtbl.replace(
+              optimistic,
+              id,
+              {
+                opt_model: new_model,
+                opt_view: answer,
+                opt_outstanding: outstanding,
+                opt_matched:
+                  switch (prior) {
+                  | Some(e) => e.opt_matched
+                  | None => 0
+                  },
+                opt_dirty:
+                  Option.is_none(committed) || gesture == HazelDOM.Transient,
+                opt_ephemeral: Option.is_none(committed),
+              },
+            );
+          }
+          : (
+            if (Hashtbl.mem(optimistic, id)) {
+              incr(optimistic_version);
+              Hashtbl.remove(optimistic, id);
+            }
+          );
       | None => ()
       };
     /* Event-time evaluation of the next model (and, best-effort, its
@@ -1272,31 +1333,38 @@ module M: Projector = {
      definition is compared by identity first (it is the same object while
      its item's statics are reused), then structurally; the model
      structurally. */
+  /* (^ticket(714)) the answer kept, both ways: its JS, and its Hazel Html
+     once made. One that failed is not kept. */
   let view_memo:
-    Hashtbl.t(Id.t, (TermBase.Exp.t, TermBase.Exp.t, TermBase.Exp.t)) =
+    Hashtbl.t(Id.t, (TermBase.Exp.t, TermBase.Exp.t, view_answer)) =
     Hashtbl.create(16);
   let memo_view =
       (
         ~id: Id.t,
         ~def_elab: TermBase.Exp.t,
         ~view_model: TermBase.Exp.t,
-        compute: unit => result(TermBase.Exp.t, string),
+        compute: unit => view_answer,
       )
-      : result(TermBase.Exp.t, string) =>
+      : view_answer =>
     switch (Hashtbl.find_opt(view_memo, id)) {
-    | Some((d, m, html))
+    | Some((d, m, a))
         when
           (d === def_elab || Exp.fast_equal(d, def_elab))
-          && (m === view_model || Exp.fast_equal(m, view_model)) =>
-      Ok(html)
+          && (m === view_model || Exp.fast_equal(m, view_model)) => a
     | _ =>
-      let r = compute();
-      switch (r) {
-      | Ok(html) =>
-        Hashtbl.replace(view_memo, id, (def_elab, view_model, html))
-      | Error(_) => Hashtbl.remove(view_memo, id)
+      let a = compute();
+      if (Option.is_some(a.js)
+          || (
+            switch (Lazy.force(a.html)) {
+            | Ok(_) => true
+            | Error(_) => false
+            }
+          )) {
+        Hashtbl.replace(view_memo, id, (def_elab, view_model, a));
+      } else {
+        Hashtbl.remove(view_memo, id);
       };
-      r;
+      a;
     };
 
   let user_view =
@@ -1387,7 +1455,12 @@ module M: Projector = {
           )
           && (
             switch (live) {
-            | Some(l) => Exp.fast_equal(l, entry.opt_html)
+            /* (made Hazel only here, once the models agree) */
+            | Some(l) =>
+              switch (Lazy.force(entry.opt_view.html)) {
+              | Ok(html) => Exp.fast_equal(l, html)
+              | Error(_) => false
+              }
             | None => false
             }
           );
@@ -1421,13 +1494,15 @@ module M: Projector = {
       };
     switch (opt, live) {
     | (Some(entry), _) =>
-      ok(
-        HazelDOM.go(
-          ~elide_errors=true,
+      switch (
+        draw_answer(
           seed(~model=entry.opt_model, ~model_value=Some(entry.opt_model)),
-          entry.opt_html,
-        ),
-      )
+          entry.opt_view,
+        )
+      ) {
+      | Ok(node) => ok(node)
+      | Error(e) => err(e)
+      }
     | (None, Some(html)) =>
       ok(HazelDOM.go(~elide_errors=true, seed(~model, ~model_value), html))
     | (None, None) =>
@@ -1444,44 +1519,59 @@ module M: Projector = {
          An unchanged definition and model draw what they drew last time,
          without evaluating either (view_memo). */
       let view_model = Option.value(model_value, ~default=model);
-      let evaluated =
+      let answer =
         memo_view(~id, ~def_elab, ~view_model, () =>
-          switch (
-            eval_view(
-              ~def_elab,
-              () =>
-                switch (MvuShape.safe_evaluate_open(def_elab)) {
-                | Error(e) => Error("livelit definition error: " ++ e)
-                | Ok(record) =>
-                  switch (record_field(record, "view")) {
-                  | None => Error("livelit definition is missing view")
-                  | Some(view_fn) => Ok(view_fn)
-                  }
-                },
-              view_model,
-            )
-          ) {
-          /* (the definition's own errors keep their words, as before) */
-          | Error(e) when String.starts_with(~prefix="livelit definition", e) =>
-            Error(e)
-          | Error(e) => Error("livelit view error: " ++ e)
-          | Ok(html) => Ok(html)
-          }
+          eval_view_answer(
+            ~def_elab,
+            () =>
+              switch (MvuShape.safe_evaluate_open(def_elab)) {
+              | Error(e) => Error("livelit definition error: " ++ e)
+              | Ok(record) =>
+                switch (record_field(record, "view")) {
+                | None => Error("livelit definition is missing view")
+                | Some(view_fn) => Ok(view_fn)
+                }
+              },
+            view_model,
+          )
         );
-      switch (evaluated) {
-      /* (^ticket(620)) Not run yet, and the model holds a splice: in the
-         syntax a splice is only its code, and the run is what turns it
-         into the ref the view reads, so a view that reads one fails here
-         until then. On a big slide that is the first many seconds. That
-         is waiting, not an error. */
-      | Error(_) when model_value == None && has_splice(model) =>
-        err_or_pending()
-      | Error(e) => err(e)
-      | Ok(html) when MvuShape.is_html(html) =>
-        ok(
-          HazelDOM.go(~elide_errors=true, seed(~model, ~model_value), html),
-        )
-      | Ok(_) => err("livelit view did not produce HTML")
+      /* (the definition's own errors keep their words, as before) */
+      let worded = e =>
+        String.starts_with(~prefix="livelit definition", e)
+        || String.starts_with(~prefix="livelit view did not", e)
+          ? e : "livelit view error: " ++ e;
+      switch (answer.js) {
+      /* (^ticket(714)) ran compiled: drawn from its JS, or else through Hazel */
+      | Some(_) =>
+        switch (draw_answer(seed(~model, ~model_value), answer)) {
+        | Ok(node) => ok(node)
+        | Error(e) => err(worded(e))
+        }
+      | None =>
+        let evaluated =
+          switch (Lazy.force(answer.html)) {
+          | Error(e) => Error(worded(e))
+          | Ok(html) => Ok(html)
+          };
+        switch (evaluated) {
+        /* (^ticket(620)) Not run yet, and the model holds a splice: in the
+           syntax a splice is only its code, and the run is what turns it
+           into the ref the view reads, so a view that reads one fails here
+           until then. On a big slide that is the first many seconds. That
+           is waiting, not an error. */
+        | Error(_) when model_value == None && has_splice(model) =>
+          err_or_pending()
+        | Error(e) => err(e)
+        | Ok(html) when MvuShape.is_html(html) =>
+          ok(
+            HazelDOM.go(
+              ~elide_errors=true,
+              seed(~model, ~model_value),
+              html,
+            ),
+          )
+        | Ok(_) => err("livelit view did not produce HTML")
+        };
       };
     };
   };
