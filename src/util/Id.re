@@ -79,26 +79,35 @@ let mk: unit => t = {
   };
   let lo = ref(0);
   let hi = ref(0);
+  /* Bytes 1 to 15 are the same for 256 ids in a row, so they are made
+   * once for each run of 256 (when the counter's bytes above its lowest
+   * change), and each id is one concatenation, not eight. The same ids as
+   * before. */
+  let suffix = ref("");
+  let suffix_of = ref(-1);
   () => {
     incr(lo);
     if (lo^ >= 1073741824) {
       lo := 0;
       incr(hi);
+      suffix_of := (-1);
     };
     let l = lo^;
     let h = hi^;
-    Uuidm.unsafe_of_bytes(
-      byte[l land 0xff]
-      ++ byte[l lsr 8 land 0xff]
-      ++ byte[l lsr 16 land 0xff]
-      ++ byte[l lsr 24 land 0x3f]
-      ++ byte[h land 0xff]
-      ++ byte[h lsr 8 land 0xff]
-      /* byte 6: the version, 4, then 4 bits of the counter */
-      ++ byte[0x40 lor h lsr 16 land 0x0f]
-      ++ byte[h lsr 20 land 0xff]
-      ++ tail,
-    );
+    if (l lsr 8 != suffix_of^) {
+      suffix_of := l lsr 8;
+      suffix :=
+        byte[l lsr 8 land 0xff]
+        ++ byte[l lsr 16 land 0xff]
+        ++ byte[l lsr 24 land 0x3f]
+        ++ byte[h land 0xff]
+        ++ byte[h lsr 8 land 0xff]
+        /* byte 6: the version, 4, then 4 bits of the counter */
+        ++ byte[0x40 lor h lsr 16 land 0x0f]
+        ++ byte[h lsr 20 land 0xff]
+        ++ tail;
+    };
+    Uuidm.unsafe_of_bytes(byte[l land 0xff] ++ suffix^);
   };
 };
 let namespace_uuid =
