@@ -674,11 +674,30 @@ let give_up = (def: Exp.t, why: string): unit =>
 
 /* (^ticket(714)) The two halves of run_view, apart: the compiled view called on the model, its answer left in JS (to draw
    straight from: HazelJitDOM); and that answer carried back as a Hazel value, when something asks for one */
+/* Why a compiled view did not run: its model could not be carried into JS (Model: that model's fault, and a later one
+   may be carried, so the definition is kept), or the compiled code itself failed (Call).
+   (^report(46), 2026-11-07: the Witch slide's ^picture drew first from the model as written, before the program's run,
+   which holds the splice's code, skinned(dressed(outfit)), not a value. That refusal gave up on the definition for
+   good, so after the run, with the picture in the model, the view still ran on the interpreter: 88 ms in Firefox.) */
+type call_failure =
+  | Model(string)
+  | Call(string);
+let call_view_why =
+    (v: view, model: Exp.t): result(Js.Unsafe.any, call_failure) =>
+  switch (to_js(model)) {
+  | exception (HazelJit.Unsupported(why)) => Error(Model(why))
+  | exception exn => Error(Model(message(exn)))
+  | m =>
+    switch (Js.Unsafe.fun_call(v.fn, [|m|])) {
+    | js => Ok(js)
+    | exception (HazelJit.Unsupported(why)) => Error(Call(why))
+    | exception exn => Error(Call(message(exn)))
+    }
+  };
 let call_view = (v: view, model: Exp.t): result(Js.Unsafe.any, string) =>
-  switch (Js.Unsafe.fun_call(v.fn, [|to_js(model)|])) {
-  | js => Ok(js)
-  | exception (HazelJit.Unsupported(why)) => Error(why)
-  | exception exn => Error(message(exn))
+  switch (call_view_why(v, model)) {
+  | Ok(js) => Ok(js)
+  | Error(Model(why) | Call(why)) => Error(why)
   };
 let answer_of = (v: view, js: Js.Unsafe.any): result(Exp.t, string) =>
   switch (of_js(v.types, None, js)) {

@@ -924,11 +924,19 @@ module M: Projector = {
           HazelJitValue.count(~why, "view on the interpreter");
           None;
         | Ok(v) =>
-          switch (HazelJitValue.call_view(v, model)) {
+          switch (HazelJitValue.call_view_why(v, model)) {
           | Ok(js) =>
             HazelJitValue.count("view compiled");
             Some((d, v, js));
-          | Error(why) =>
+          /* (this model could not go into JS: a view drawn before the
+             program's run has its splices' code in its model, not their
+             values. The next model may go in, so the definition stays
+             compiled; only a failure of its own code gives it up) */
+          | Error(Model(why)) =>
+            jit_warn(why);
+            HazelJitValue.count(~why, "view on the interpreter");
+            None;
+          | Error(Call(why)) =>
             HazelJitValue.give_up(d, why);
             jit_warn(why);
             HazelJitValue.count(~why, "view on the interpreter");

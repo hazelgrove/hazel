@@ -521,9 +521,19 @@ let view_comes_back = (~prefix="", def_src, model_src) => {
    example's own hand-written jsHandler (node/petri.mjs) and the interpreter, on the same 2,000 events (Fire(i mod 4),
    each performed on the marking, as petri.mjs does). Prints the compiled program's JS. */
 let petri_files = () => {
+  /* (from the repository's root, from _build/default/test where CI and the runtest rule run, whose deps copy
+     the petri folder's .hz files there, or from test/) */
   let read = name => {
-    let path = "test/petri/" ++ name ++ ".hz";
-    let path = Sys.file_exists(path) ? path : "../" ++ path;
+    let candidates = [
+      "test/petri/" ++ name ++ ".hz",
+      "petri/" ++ name ++ ".hz",
+      "../test/petri/" ++ name ++ ".hz",
+    ];
+    let path =
+      switch (List.find_opt(Sys.file_exists, candidates)) {
+      | Some(p) => p
+      | None => List.hd(candidates)
+      };
     switch (CorpusUtil.read_file(path)) {
     | Some(t) => t
     | None => fail("no " ++ path)
@@ -1886,6 +1896,60 @@ let tests = (
           Js.float_of_number(Js.Unsafe.coerce(Js.Unsafe.get(js, k)));
         if (read(0) != (-1.) || read(1) != (-2.5)) {
           fail(Printf.sprintf("got %g and %g", read(0), read(1)));
+        };
+      },
+    ),
+    test_case(
+      "a model that cannot go into JS is that model's fault: the definition stays compiled for the next model",
+      `Quick,
+      () => {
+        /* (^report(46), 2026-11-07) the Witch slide's ^picture draws first from its model as written, before the
+           program's run: the splice's code, a variable with no value here. That model cannot go into JS; the one after
+           the run, the picture's value, can. The first refusal used to give up on the definition, so the view stayed on
+           the interpreter after the run too. */
+        let program = s => elaborate(parse_exp(s));
+        let d =
+          program(
+            "module P = { let view = fun m : (n = Int) -> m.n + 1 } in P",
+          );
+        let as_written =
+          IdTagged.FreshGrammar.Exp.tuple([
+            IdTagged.FreshGrammar.Exp.tup_label(
+              IdTagged.FreshGrammar.Exp.label("n"),
+              Haz3lcore.SpliceStore.mk_splice(
+                Id.mk(),
+                IdTagged.FreshGrammar.Exp.var("skinned"),
+              ),
+            ),
+          ]);
+        let v =
+          switch (HazelJitValue.view_of_def(~env=Builtins.env_init, d)) {
+          | Ok(v) => v
+          | Error(why) => fail("not compiled: " ++ why)
+          };
+        switch (HazelJitValue.call_view_why(v, as_written)) {
+        | Error(Model(_)) => ()
+        | Error(Call(why)) =>
+          fail("a model's refusal read as the view's own: " ++ why)
+        | Ok(_) => fail("a splice's code went into JS")
+        };
+        switch (HazelJitValue.view_of_def(~env=Builtins.env_init, d)) {
+        | Ok(_) => ()
+        | Error(why) => fail("the definition was given up: " ++ why)
+        };
+        switch (
+          HazelJitValue.call_view_why(
+            v,
+            Test_Evaluator_Prelude.evaluate(program("(n = 41)")),
+          )
+        ) {
+        | Ok(js) =>
+          let n = Js.float_of_number(Js.Unsafe.coerce(js));
+          if (n != 42.) {
+            fail(Printf.sprintf("the next model gave %g, not 42", n));
+          };
+        | Error(Model(why) | Call(why)) =>
+          fail("the next model did not run: " ++ why)
         };
       },
     ),
