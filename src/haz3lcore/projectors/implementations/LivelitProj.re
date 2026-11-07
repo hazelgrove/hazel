@@ -1582,15 +1582,22 @@ module M: Projector = {
          both ways, for a check in a browser to time
          (globalThis.hazelJit.bench) */
       HazelJitValue.register_bench(
-        ll_name,
+        /* (one entry for each use of the livelit, and apart from it the
+           same use drawn before the program's first run, whose model
+           still holds a splice's code, which stays on the interpreter) */
+        ll_name
+        ++ " "
+        ++ String.sub(Id.to_string(id), 0, 8)
+        ++ (model_value == None ? " (before the run)" : ""),
         ~compiled=
-          () =>
-            ignore(
-              draw_answer(
-                seed(~model, ~model_value),
-                eval_view_answer(~def_elab, view_fn, view_model),
-              ),
-            ),
+          () => {
+            let a = eval_view_answer(~def_elab, view_fn, view_model);
+            switch (a.js, draw_answer(seed(~model, ~model_value), a)) {
+            | (Some(_), Ok(_)) => "compiled"
+            | (None, Ok(_)) => "on the interpreter"
+            | (_, Error(e)) => "error: " ++ e
+            };
+          },
         ~view_only=
           () =>
             switch (
@@ -1598,19 +1605,24 @@ module M: Projector = {
             ) {
             | Ok(v) =>
               switch (HazelJitValue.call_view(v, view_model)) {
-              | Ok(js) => ignore(HazelJitDOM.run(v.types, js))
-              | Error(_) => ()
+              | Ok(js) =>
+                ignore(HazelJitDOM.run(v.types, js));
+                "compiled";
+              | Error(why) => "not compiled: " ++ why
               }
-            | Error(_) => ()
+            | Error(why) => "not compiled: " ++ why
             },
         ~interpreted=
           () =>
-            ignore(
+            switch (
               draw_answer(
                 seed(~model, ~model_value),
                 eval_view_answer(view_fn, view_model),
-              ),
-            ),
+              )
+            ) {
+            | Ok(_) => "on the interpreter"
+            | Error(e) => "error: " ++ e
+            },
       );
       /* (the definition's own errors keep their words, as before) */
       let worded = e =>

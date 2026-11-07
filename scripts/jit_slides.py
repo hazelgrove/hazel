@@ -101,20 +101,23 @@ def fps(ms):
     return f"{1000 / ms:,.0f}" if ms > 0 else "-"
 
 
-def bench(d, sid, n):
+def bench(d, sid, n, views):
     load(d, sid, "on")
     # (the interpreter's runs of a big view take seconds: the script's own time limit raised from WebDriver's 30 s)
     d._req("POST", f"/session/{d.sid}/timeouts", {"script": 600000})
     out = {}
     for name in d.js(BENCH_NAMES) or []:
+        if views and not re.search(views, name):
+            continue
         t0 = time.time()
         r = d.js(BENCH, [name, n])
         if not r:
             continue
         out[name] = r
         c, v, i = r["compiled"]["median"], r["view_only"]["median"], r["interpreted"]["median"]
-        print(f"    bench {name!r} (drawn {r['drawn']}x): compiled, drawn {c:.2f} ms ({fps(c)} fps); its view alone {v:.2f} ms; "
-              f"the interpreter {i:.2f} ms ({fps(i)} fps); {i / c if c else 0:.0f}x; {time.time() - t0:.0f} s", flush=True)
+        print(f"    bench {name!r} (drawn {r['drawn']}x): as the app runs it {c:.3f} ms ({fps(c)} fps, {r['compiled']['said']}); "
+              f"its view alone {v:.3f} ms ({r['view_only']['said'][:80]}); the interpreter {i:.3f} ms ({fps(i)} fps, "
+              f"{r['interpreted']['said'][:60]}); {i / c if c else 0:.0f}x; {time.time() - t0:.0f} s", flush=True)
     return out
 
 
@@ -193,6 +196,7 @@ def main():
     ap.add_argument("--shots")
     ap.add_argument("--bench", default="Witch", help="substring filter on the slides whose views are benched (empty: none)")
     ap.add_argument("--bench-n", type=int, default=15)
+    ap.add_argument("--bench-views", default="picture|polygons", help="a regex on the views benched (empty: every one)")
     args = ap.parse_args()
     if args.shots:
         os.makedirs(args.shots, exist_ok=True)
@@ -221,7 +225,7 @@ def main():
                 for why, n in sorted(((after["jit"] or {}).get("why") or {}).items(), key=lambda kv: -kv[1]):
                     print(f"      {n} x {why[:160]!r}", flush=True)
             if args.bench and args.bench.lower() in name.lower():
-                entry["bench"] = bench(d, sid, args.bench_n)
+                entry["bench"] = bench(d, sid, args.bench_n, args.bench_views)
             compare(name + ", as loaded", entry["on"]["_before"], entry["off"]["_before"], problems)
             compare(name + ", after the events", entry["on"]["_after"], entry["off"]["_after"], problems)
             for mode in ("on", "off"):

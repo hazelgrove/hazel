@@ -47,47 +47,59 @@ let count = (~why="", what: string): unit =>
 let bench_js: Lazy.t(Js_of_ocaml.Js.Unsafe.any) =
   lazy(
     Js_of_ocaml.Js.Unsafe.eval_string(
-      {|(function (name, compiled, view_only, interpreted) {
+      {|(function (key, compiled, view_only, interpreted) {
   var s = globalThis.hazelJit || (globalThis.hazelJit = { counts: {}, why: {} });
   s.views = s.views || {};
-  s.views[name] = { compiled: compiled, view_only: view_only, interpreted: interpreted, drawn: ((s.views[name] || {}).drawn || 0) + 1 };
-  s.bench = s.bench || function (name, n) {
-    var v = s.views[name];
+  s.views[key] = { compiled: compiled, view_only: view_only, interpreted: interpreted, drawn: ((s.views[key] || {}).drawn || 0) + 1 };
+  /* (a browser's clock may tick in whole milliseconds, Firefox's here: each sample is a loop of calls at least 25 ms
+     long, divided by its count) */
+  s.bench = s.bench || function (key, n) {
+    var v = s.views[key];
     if (!v) return null;
     var keep = JSON.stringify({ counts: s.counts, why: s.why });
     var time = function (f) {
-      for (var i = 0; i < 3; i++) f();
+      var said = "", t0 = performance.now();
+      for (var i = 0; i < 3; i++) said = String(f());
+      var per = Math.max((performance.now() - t0) / 3, 0.01), reps = Math.max(1, Math.ceil(25 / per));
       var ts = [];
-      for (var i = 0; i < n; i++) { var t0 = performance.now(); f(); ts.push(performance.now() - t0); }
+      for (var i = 0; i < n; i++) {
+        var t1 = performance.now();
+        for (var r = 0; r < reps; r++) f();
+        ts.push((performance.now() - t1) / reps);
+      }
       ts.sort(function (a, b) { return a - b; });
-      return { median: ts[n >> 1], fastest: ts[0], slowest: ts[n - 1], all: ts };
+      return { median: ts[n >> 1], fastest: ts[0], slowest: ts[n - 1], reps: reps, said: said, all: ts };
     };
-    var out = { name: name, n: n, drawn: v.drawn, compiled: time(v.compiled), view_only: time(v.view_only), interpreted: time(v.interpreted) };
+    var out = { key: key, n: n, drawn: v.drawn, compiled: time(v.compiled), view_only: time(v.view_only), interpreted: time(v.interpreted) };
     var k = JSON.parse(keep); s.counts = k.counts; s.why = k.why;
     return out;
   };
 })|},
     )
   );
+/* each run says how it ran: "compiled", or why not */
 let register_bench =
     (
-      name: string,
-      ~compiled: unit => unit,
-      ~view_only: unit => unit,
-      ~interpreted: unit => unit,
+      key: string,
+      ~compiled: unit => string,
+      ~view_only: unit => string,
+      ~interpreted: unit => string,
     )
-    : unit =>
+    : unit => {
+  let wrap = (f: unit => string) =>
+    Js_of_ocaml.Js.Unsafe.inject(
+      Js_of_ocaml.Js.wrap_callback(() => Js_of_ocaml.Js.string(f())),
+    );
   Js_of_ocaml.Js.Unsafe.fun_call(
     Lazy.force(bench_js),
     [|
-      Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js.string(name)),
-      Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js.wrap_callback(compiled)),
-      Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js.wrap_callback(view_only)),
-      Js_of_ocaml.Js.Unsafe.inject(
-        Js_of_ocaml.Js.wrap_callback(interpreted),
-      ),
+      Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js.string(key)),
+      wrap(compiled),
+      wrap(view_only),
+      wrap(interpreted),
     |],
   );
+};
 
 open Js_of_ocaml;
 
