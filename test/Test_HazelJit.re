@@ -515,9 +515,13 @@ let view_comes_back = (~prefix="", def_src, model_src) => {
   };
 };
 
-/* (slow) A render of the Polygons view, timed three ways, medians of n in ms: the interpreter applying the evaluated
+/* (slow) A render of the Polygons view, timed several ways, medians of n in ms: the interpreter applying the evaluated
    view to the model (what eval_view did, less CallMemo); the compiled view through the boundary (run_view: the model
-   into JS, the call, the answer back); and the compiled call alone, its model already in JS */
+   into JS, the call, the answer back), its first n renders after compiling and then n more, warmed up; and each of its
+   three steps alone: the model into JS, the compiled call on a model already in JS, and the answer back.
+   (2026-11-06 18:52: run first and cold, the whole render's runs fell from 1.8 to 0.45 ms over 30 runs while Node
+   optimized the way back, so a median of them said more about warming up than about a render; every series but the
+   cold one now runs `warm` times untimed first.) */
 let boundary_timing_run = n =>
   switch (polygons_parts()) {
   | None => fail("the Polygons slide was not found, or not as expected")
@@ -529,7 +533,8 @@ let boundary_timing_run = n =>
       Array.sort(compare, a);
       a[Array.length(a) / 2];
     };
-    let times = f =>
+    let warm = 10;
+    let timed = f =>
       List.init(
         n,
         _ => {
@@ -538,6 +543,12 @@ let boundary_timing_run = n =>
           now() -. t0;
         },
       );
+    let times = f => {
+      for (_ in 1 to warm) {
+        f();
+      };
+      timed(f);
+    };
     let view_fn =
       Test_Evaluator_Prelude.evaluate(
         program("module P = " ++ body ++ " in P.view"),
@@ -559,36 +570,110 @@ let boundary_timing_run = n =>
             ),
           )
         );
-      let through =
-        times(() =>
-          switch (HazelJitValue.run_view(v, model)) {
-          | Ok(_) => ()
-          | Error(why) => fail("not run: " ++ why)
-          }
-        );
+      let render = () =>
+        switch (HazelJitValue.run_view(v, model)) {
+        | Ok(_) => ()
+        | Error(why) => fail("not run: " ++ why)
+        };
+      /* the first n renders after compiling, cold, as a livelit's first renders are */
+      let through_cold = timed(render);
       let js_model = HazelJitValue.to_js(model);
       let call =
         times(() =>
           ignore(Js.Unsafe.fun_call(v.fn, [|js_model|]): Js.Unsafe.any)
         );
+      /* (Matthew, 2026-11-06: which trip costs more) the trip in alone, and the trip back alone, on one answer */
+      let into = times(() => ignore(HazelJitValue.to_js(model)));
+      let js_answer: Js.Unsafe.any = Js.Unsafe.fun_call(v.fn, [|js_model|]);
+      let back =
+        times(() => ignore(HazelJitValue.of_js(v.types, None, js_answer)));
+      /* and the whole render again, warmed up like its parts */
+      let through = times(render);
+      /* of the trip back, what making the terms' ids costs: each term of_js builds gets a fresh id (IdTag.fresh, a
+         random UUID), so the same number of fresh ids, timed alone. The terms counted are the answer's, not a closure's
+         body, which is the compiled definition's own and not made again. */
+      let made = ref(0);
+      let _ =
+        Exp.map_term(
+          ~f_exp=
+            (cont, e) => {
+              incr(made);
+              switch (Exp.term_of(e)) {
+              | Closure(_) => e
+              | _ => cont(e)
+              };
+            },
+          HazelJitValue.of_js(v.types, None, js_answer),
+        );
+      let ids =
+        times(() =>
+          for (_ in 1 to made^) {
+            ignore(IdTagged.IdTag.fresh());
+          }
+        );
+      /* how much each trip carries: the nodes the walk visits (as of_js walks them, each function's captured values
+         included), how many of those are distinct objects, and how many it visits inside captured values */
+      let census: Js.Unsafe.any =
+        Js.Unsafe.pure_js_expr(
+          {|(function (root) {
+  var c = {visits: 0, distinct_objects: 0, in_captures: 0, functions: 0, cons_cells: 0, tuples: 0, constructors: 0, atoms: 0};
+  var seen = new Set();
+  function walk(v, cap) {
+    for (;;) {
+      c.visits++; if (cap) c.in_captures++;
+      var t = typeof v;
+      if (v === null || v === undefined || (t !== "object" && t !== "function")) { c.atoms++; return; }
+      if (!seen.has(v)) { seen.add(v); c.distinct_objects++; }
+      if (t === "function") { c.functions++; if (v.$e) for (var i = 0; i < v.$e.length; i++) walk(v.$e[i], true); return; }
+      if (Array.isArray(v)) { c.tuples++; for (var j = 0; j < v.length; j++) walk(v[j], cap); return; }
+      if (Object.hasOwn(v, "c")) { c.constructors++; if (Object.hasOwn(v, "v")) { v = v.v; continue; } return; }
+      if (Object.hasOwn(v, "h")) { c.cons_cells++; walk(v.h, cap); if (v.t === null) return; v = v.t; continue; }
+      return;
+    }
+  }
+  walk(root, false);
+  return JSON.stringify(c);
+})|},
+        );
+      let count = js =>
+        Js.to_string(
+          Js.Unsafe.fun_call(census, [|js|]): Js.t(Js.js_string),
+        );
       Printf.printf(
-        "hazel-jit boundary timing, the Polygons view: n=%d, compile %.2f ms; interpreter median %.3f ms (min %.3f); through the boundary median %.3f ms (min %.3f), %.0fx; the call alone median %.4f ms\n",
+        "hazel-jit boundary timing, the Polygons view: n=%d (warmed up by %d), compile %.2f ms; interpreter median %.3f ms (min %.3f); through the boundary, the first %d renders, median %.3f ms; through the boundary, warm, median %.3f ms (min %.3f), %.0fx; the call alone median %.4f ms; the trip in alone median %.4f ms, the trip back alone median %.4f ms\n",
         n,
+        warm,
         v.compile_ms,
         median(interp),
         List.fold_left(min, infinity, interp),
+        n,
+        median(through_cold),
         median(through),
         List.fold_left(min, infinity, through),
         median(interp) /. Float.max(median(through), 1e-6),
         median(call),
+        median(into),
+        median(back),
+      );
+      Printf.printf(
+        "hazel-jit boundary census: the model %s; the answer %s; the trip back makes %d terms, and %d fresh ids alone take median %.4f ms\n",
+        count(js_model),
+        count(js_answer),
+        made^,
+        made^,
+        median(ids),
       );
       print_raw(
         "the Polygons view through the boundary",
         [
           ("compile_ms", [v.compile_ms]),
           ("interpreter_ms", interp),
+          ("through_boundary_first_ms", through_cold),
           ("through_boundary_ms", through),
           ("call_alone_ms", call),
+          ("trip_in_ms", into),
+          ("trip_back_ms", back),
+          ("fresh_ids_ms", ids),
         ],
       );
     };
