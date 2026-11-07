@@ -515,6 +515,171 @@ let view_comes_back = (~prefix="", def_src, model_src) => {
   };
 };
 
+/* (^ticket(715)) The Polygons livelit's own update, on its slide's model, compiled and its new model carried back as a diff
+   (HazelJitValue.call_update), against the interpreter's (the definition's update applied, its command run): the same
+   model, every action; what it did not change shared. With ~timing, each way timed (medians of n, in ms): the
+   interpreter as the app ran it before (the definition evaluated, then its update), its update alone, and compiled. */
+let polygons_update_run = (~timing=0, ()) =>
+  switch (polygons_parts()) {
+  | None => fail("the Polygons slide was not found, or not as expected")
+  | Some((prefix, body, model_src)) =>
+    module G = IdTagged.FreshGrammar;
+    let program = s => elaborate(parse_exp(prefix ++ s));
+    let model0 = Test_Evaluator_Prelude.evaluate(program(model_src));
+    let update_prog = program("module P = " ++ body ++ " in P.update");
+    let update_fn = Test_Evaluator_Prelude.evaluate(update_prog);
+    let v =
+      switch (
+        HazelJitValue.compile_view(
+          ~env=Builtins.env_init,
+          program("module P = " ++ body ++ " in P"),
+        )
+      ) {
+      | Ok(v) => v
+      | Error(why) => fail("not compiled: " ++ why)
+      };
+    /* the actions, made in the livelit's own scope (elaborated, as its handlers make them): a member added to it */
+    let acts_src = {|[Next, Prev, NewPolygon, NewPath, Toggle, Remove, SetName("roof"), SetFill("#000000"), SetWidth("5"), Down(40, 50), MoveTo(60, 70), Up]|};
+    let with_acts =
+      String.sub(body, 0, String.rindex(body, '}'))
+      ++ ";\n  let test_actions = "
+      ++ acts_src
+      ++ "\n}";
+    let acts =
+      switch (
+        Exp.term_of(
+          Test_Evaluator_Prelude.evaluate(
+            program("module P = " ++ with_acts ++ " in P.test_actions"),
+          ),
+        )
+      ) {
+      | ListLit(xs) when List.length(xs) == 12 => Array.of_list(xs)
+      | _ => fail("the actions did not evaluate to a list of 12")
+      };
+    let interp = (m, a) =>
+      switch (
+        Haz3lcore.UpdateCmdRunner.run(
+          Test_Evaluator_Prelude.evaluate(
+            G.Exp.ap(Forward, G.Exp.ap(Forward, update_fn, m), a),
+          ),
+        )
+      ) {
+      | Ok((m', _)) => m'
+      | Error(e) => fail("the interpreter's update: " ++ e)
+      };
+    let compiled = (m, a) =>
+      switch (HazelJitValue.call_update(v, m, a)) {
+      | Ok(m') => m'
+      | Error(why) => fail("not compiled: " ++ why)
+      };
+    /* a drag: Down adds a point and holds it; MoveTo moves it */
+    let held = interp(model0, acts[9]);
+    let cases = [
+      ("Next", model0, acts[0]),
+      ("Prev", model0, acts[1]),
+      ("NewPolygon", model0, acts[2]),
+      ("NewPath", model0, acts[3]),
+      ("Toggle", model0, acts[4]),
+      ("Remove", model0, acts[5]),
+      ("SetName", model0, acts[6]),
+      ("SetFill", model0, acts[7]),
+      ("SetWidth", model0, acts[8]),
+      ("Down", model0, acts[9]),
+      ("MoveTo, held", held, acts[10]),
+      ("Up, held", held, acts[11]),
+    ];
+    /* the shapes of the new model that are the old model's own (the same OCaml values) */
+    let shapes = (m: Exp.t) =>
+      switch (Exp.term_of(m)) {
+      | Tuple([s, ..._]) =>
+        switch (Exp.term_of(s)) {
+        | TupLabel(_, l) =>
+          switch (Exp.term_of(l)) {
+          | ListLit(xs) => xs
+          | _ => []
+          }
+        | ListLit(xs) => xs
+        | _ => []
+        }
+      | _ => []
+      };
+    let now = () => Util.JsUtil.precise_timestamp();
+    let median = xs => {
+      let a = Array.of_list(xs);
+      Array.sort(compare, a);
+      a[Array.length(a) / 2];
+    };
+    let times = f => {
+      for (_ in 1 to 5) {
+        f();
+      };
+      List.init(
+        timing,
+        _ => {
+          let t0 = now();
+          f();
+          now() -. t0;
+        },
+      );
+    };
+    List.iter(
+      ((name, m, a)) => {
+        let want = interp(m, a);
+        let got = compiled(m, a);
+        switch (same(want, got)) {
+        | None => ()
+        | Some(diff) =>
+          fail(name ++ ": not the interpreter's model: " ++ diff)
+        };
+        let old_shapes = shapes(m);
+        let new_shapes = shapes(got);
+        let kept =
+          List.length(
+            List.filter(
+              s => List.exists(o => o === s, old_shapes),
+              new_shapes,
+            ),
+          );
+        if (timing > 0) {
+          /* (the definition elaborated once, as the app has it, and evaluated each time, as the app did per event) */
+          let with_def =
+            times(() => {
+              let u = Test_Evaluator_Prelude.evaluate(update_prog);
+              ignore(
+                Haz3lcore.UpdateCmdRunner.run(
+                  Test_Evaluator_Prelude.evaluate(
+                    G.Exp.ap(Forward, G.Exp.ap(Forward, u, m), a),
+                  ),
+                ),
+              );
+            });
+          let alone = times(() => ignore(interp(m, a)));
+          let jit = times(() => ignore(compiled(m, a)));
+          Printf.printf(
+            "hazel-jit update, %s: the interpreter with the definition median %.3f ms, its update alone median %.3f ms; compiled, the model back as a diff, median %.4f ms; %d of %d shapes the old ones\n",
+            name,
+            median(with_def),
+            median(alone),
+            median(jit),
+            kept,
+            List.length(new_shapes),
+          );
+          print_raw(
+            "the Polygons update, " ++ name,
+            [
+              ("interpreter_with_definition_ms", with_def),
+              ("interpreter_update_ms", alone),
+              ("compiled_diff_ms", jit),
+              ("shapes_kept", [float_of_int(kept)]),
+              ("shapes", [float_of_int(List.length(new_shapes))]),
+            ],
+          );
+        };
+      },
+      cases,
+    );
+  };
+
 /* (^ticket(709)) A diff applied to the last value is the new value, carried back whole: each program gives a pair
    (old, new), new made from old by compiled code; the diff, when given, is what diff must say */
 let diff_cases = [
@@ -1239,6 +1404,18 @@ let tests = (
   @ [
     /* (^ticket(714)) more of HazelDOM's forms than the Polygons view has, and a Bind: drawn straight from the view's JS,
        the same virtual DOM as through Hazel */
+    test_case(
+      "the Polygons update, compiled, its model back as a diff: the interpreter's model",
+      `Quick,
+      () =>
+      polygons_update_run()
+    ),
+    test_case(
+      "timing: the Polygons update, compiled, its model back as a diff",
+      `Slow,
+      () =>
+      polygons_update_run(~timing=30, ())
+    ),
     test_case(
       "a view of many forms, drawn straight from JS, as HazelDOM draws it",
       `Quick,

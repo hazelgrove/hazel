@@ -1161,134 +1161,167 @@ module M: Projector = {
     /* ~committed=None: an ephemeral store — the syntax is not changing
        (uncommittable model), so like a transient event it leaves the
        set of "ours" syntax states alone. */
-    let store_entry = (new_model, record, ~committed) =>
-      switch (record_field(record, "view")) {
-      | Some(view_fn) =>
-        let answer =
-          eval_view_answer(~def_elab, () => Ok(view_fn), new_model);
-        Option.is_some(answer.js)
-        || (
-          switch (Lazy.force(answer.html)) {
-          | Ok(html) => MvuShape.is_html(html)
-          | Error(_) => false
-          }
-        )
-          ? {
-            let prior = Hashtbl.find_opt(optimistic, id);
-            /* Transient and ephemeral events change nothing in the syntax,
-               so the set of syntax states that count as "ours" is
-               unchanged; only committing events append their commit. */
-            let outstanding =
-              switch (committed, gesture, prior) {
-              | (None, _, Some(e))
-              | (Some(_), HazelDOM.Transient, Some(e)) => e.opt_outstanding
-              | (None, _, None)
-              | (Some(_), HazelDOM.Transient, None) => [
-                  squish(print_term(model)),
-                ]
-              | (Some(c), HazelDOM.Commit, Some(e)) =>
-                e.opt_outstanding @ [squish(print_term(c))]
-              | (Some(c), HazelDOM.Commit, None) => [
-                  squish(print_term(model)),
-                  squish(print_term(c)),
-                ]
-              };
-            /* cap the ring; a burst outrunning this many in-flight
-               commits falls back to the authoritative path */
-            let outstanding = {
-              let n = List.length(outstanding);
-              n > 64
-                ? List.filteri((i, _) => i >= n - 64, outstanding)
-                : outstanding;
-            };
-            incr(optimistic_version);
-            Hashtbl.replace(
-              optimistic,
-              id,
-              {
-                opt_model: new_model,
-                opt_view: answer,
-                opt_outstanding: outstanding,
-                opt_matched:
-                  switch (prior) {
-                  | Some(e) => e.opt_matched
-                  | None => 0
-                  },
-                opt_dirty:
-                  Option.is_none(committed) || gesture == HazelDOM.Transient,
-                opt_ephemeral: Option.is_none(committed),
-              },
-            );
-          }
-          : (
-            if (Hashtbl.mem(optimistic, id)) {
-              incr(optimistic_version);
-              Hashtbl.remove(optimistic, id);
-            }
-          );
-      | None => ()
+    /* (^ticket(715)) the definition, evaluated only when something needs it
+       on the interpreter: its view (the optimistic render of a view that
+       does not run compiled), or its update */
+    let definition = lazy(MvuShape.safe_evaluate_open(def_elab));
+    let view_fn = () =>
+      switch (Lazy.force(definition)) {
+      | Error(e) => Error("livelit definition error: " ++ e)
+      | Ok(record) =>
+        switch (record_field(record, "view")) {
+        | None => Error("livelit definition is missing view")
+        | Some(f) => Ok(f)
+        }
       };
+    let store_entry = (new_model, ~committed) => {
+      let answer = eval_view_answer(~def_elab, view_fn, new_model);
+      Option.is_some(answer.js)
+      || (
+        switch (Lazy.force(answer.html)) {
+        | Ok(html) => MvuShape.is_html(html)
+        | Error(_) => false
+        }
+      )
+        ? {
+          let prior = Hashtbl.find_opt(optimistic, id);
+          /* Transient and ephemeral events change nothing in the syntax,
+             so the set of syntax states that count as "ours" is
+             unchanged; only committing events append their commit. */
+          let outstanding =
+            switch (committed, gesture, prior) {
+            | (None, _, Some(e))
+            | (Some(_), HazelDOM.Transient, Some(e)) => e.opt_outstanding
+            | (None, _, None)
+            | (Some(_), HazelDOM.Transient, None) => [
+                squish(print_term(model)),
+              ]
+            | (Some(c), HazelDOM.Commit, Some(e)) =>
+              e.opt_outstanding @ [squish(print_term(c))]
+            | (Some(c), HazelDOM.Commit, None) => [
+                squish(print_term(model)),
+                squish(print_term(c)),
+              ]
+            };
+          /* cap the ring; a burst outrunning this many in-flight
+             commits falls back to the authoritative path */
+          let outstanding = {
+            let n = List.length(outstanding);
+            n > 64
+              ? List.filteri((i, _) => i >= n - 64, outstanding)
+              : outstanding;
+          };
+          incr(optimistic_version);
+          Hashtbl.replace(
+            optimistic,
+            id,
+            {
+              opt_model: new_model,
+              opt_view: answer,
+              opt_outstanding: outstanding,
+              opt_matched:
+                switch (prior) {
+                | Some(e) => e.opt_matched
+                | None => 0
+                },
+              opt_dirty:
+                Option.is_none(committed) || gesture == HazelDOM.Transient,
+              opt_ephemeral: Option.is_none(committed),
+            },
+          );
+        }
+        : (
+          if (Hashtbl.mem(optimistic, id)) {
+            incr(optimistic_version);
+            Hashtbl.remove(optimistic, id);
+          }
+        );
+    };
     /* Event-time evaluation of the next model (and, best-effort, its
        view for the optimistic entry). `Skip: the update was a no-op, so
        neither commit nor store — without this, the click the browser
        fires after every drag (and any handler returning the model
        unchanged) would pollute history with identity steps. A committing
        no-op still flushes when transient updates left the entry dirty. */
-    let next_model =
-      switch (MvuShape.safe_evaluate_open(def_elab)) {
-      | Error(e) => `Error("definition error: " ++ e)
-      | Ok(record) =>
-        switch (record_field(record, "update")) {
-        | None => `Error("definition is missing update")
-        | Some(update_fn) =>
-          /* Curried, as Figure 3 curries it, and the result is a
-             command: `update(m)(a)` describes the transition and
-             UpdateCmdRunner performs it. */
-          let applied = ap(Forward, ap(Forward, update_fn, base), action);
-          switch (
-            switch (MvuShape.safe_evaluate(applied)) {
-            | Error(_) as err => err
-            | Ok(cmd) => UpdateCmdRunner.run(cmd)
-            }
-          ) {
-          | Error(e) => `Error("update error: " ++ e)
-          | Ok((new_model, _)) when commit_decision(new_model) == `Ephemeral =>
-            /* The model carries a closure, so it cannot live in the
-               syntax tree. Degrade gracefully instead of wedging: keep
-               the widget running off the optimistic entry and skip the
-               syntax commit. Warned once; undo/external edits drop
-               the ephemeral state. */
-            warn_ephemeral(~id, ~ll_name);
-            store_entry(new_model, record, ~committed=None);
-            `Ephemeral;
-          | Ok((new_model, effects)) =>
-            /* A splice effect is a change even when the model is not:
-               set_splice rewrites the client's code, not the refs. */
-            let unchanged =
-              effects == []
-              && squish(print_term(new_model)) == squish(print_term(base));
-            let dirty_prior =
-              switch (Hashtbl.find_opt(optimistic, id)) {
-              | Some(e) => e.opt_dirty
-              | None => false
-              };
-            if (unchanged && (gesture == HazelDOM.Transient || !dirty_prior)) {
-              `Skip;
-            } else {
-              /* What goes in the syntax is the performed update's VALUE.
-                 It used to be a redex, ^name.update((value, action)), left
-                 in the text so probes and the stepper could see the last
-                 transition; but update returns a command now, so that redex
-                 would hold a command tree where a model belongs. The cost:
-                 the transition is no longer visible in the text, and a
-                 definition that is not closed -- which used to fall back
-                 to the redex and the program's own run -- now fails at the
-                 event instead. */
-              let committed = new_model;
-              store_entry(new_model, record, ~committed=Some(committed));
-              `Ok((committed, effects));
-            };
+    let next_of = updated =>
+      switch (updated) {
+      | Error(e) => `Error("update error: " ++ e)
+      | Ok((new_model, _)) when commit_decision(new_model) == `Ephemeral =>
+        /* The model carries a closure, so it cannot live in the
+           syntax tree. Degrade gracefully instead of wedging: keep
+           the widget running off the optimistic entry and skip the
+           syntax commit. Warned once; undo/external edits drop
+           the ephemeral state. */
+        warn_ephemeral(~id, ~ll_name);
+        store_entry(new_model, ~committed=None);
+        `Ephemeral;
+      | Ok((new_model, effects)) =>
+        /* A splice effect is a change even when the model is not:
+           set_splice rewrites the client's code, not the refs. */
+        let unchanged =
+          effects == []
+          && squish(print_term(new_model)) == squish(print_term(base));
+        let dirty_prior =
+          switch (Hashtbl.find_opt(optimistic, id)) {
+          | Some(e) => e.opt_dirty
+          | None => false
           };
+        if (unchanged && (gesture == HazelDOM.Transient || !dirty_prior)) {
+          `Skip;
+        } else {
+          /* What goes in the syntax is the performed update's VALUE.
+             It used to be a redex, ^name.update((value, action)), left
+             in the text so probes and the stepper could see the last
+             transition; but update returns a command now, so that redex
+             would hold a command tree where a model belongs. The cost:
+             the transition is no longer visible in the text, and a
+             definition that is not closed -- which used to fall back
+             to the redex and the program's own run -- now fails at the
+             event instead. */
+          let committed = new_model;
+          store_entry(new_model, ~committed=Some(committed));
+          `Ok((committed, effects));
+        };
+      };
+    /* (^ticket(715), ^report(45)'s next step 2) With Compiled views on, the
+       update runs compiled too: when it answers Pure(new model), the new
+       model comes back as a diff against the model it was given, and the
+       definition is not evaluated for it. Anything else runs on the
+       interpreter, as before. */
+    let compiled_update =
+      HazelJitValue.enabled^
+        ? switch (HazelJitValue.view_of_def(~env=Builtins.env_init, def_elab)) {
+          | Error(_) => None
+          | Ok(v) =>
+            switch (HazelJitValue.call_update(v, base, action)) {
+            | Ok(m) => Some(m)
+            | Error(why) =>
+              jit_warn("an update on the interpreter: " ++ why);
+              None;
+            }
+          }
+        : None;
+    let next_model =
+      switch (compiled_update) {
+      | Some(new_model) => next_of(Ok((new_model, [])))
+      | None =>
+        switch (Lazy.force(definition)) {
+        | Error(e) => `Error("definition error: " ++ e)
+        | Ok(record) =>
+          switch (record_field(record, "update")) {
+          | None => `Error("definition is missing update")
+          | Some(update_fn) =>
+            /* Curried, as Figure 3 curries it, and the result is a
+               command: `update(m)(a)` describes the transition and
+               UpdateCmdRunner performs it. */
+            let applied = ap(Forward, ap(Forward, update_fn, base), action);
+            next_of(
+              switch (MvuShape.safe_evaluate(applied)) {
+              | Error(_) as err => err
+              | Ok(cmd) => UpdateCmdRunner.run(cmd)
+              },
+            );
+          }
         }
       };
     switch (gesture, next_model) {

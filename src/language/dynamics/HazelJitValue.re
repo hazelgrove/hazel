@@ -373,7 +373,16 @@ let rec patch =
   } else {
     let ty = Option.bind(ty, shape(ts, 0));
     if (has(d, "n")) {
-      of_js(ts, ty, get(d, "n"));
+      let v = get(d, "n");
+      /* (^ticket(715)) a number with no type to read it by, where a number was: read as that one was, so a whole Float
+         stays a Float */
+      switch (ty, typeof(v), Exp.term_of(old)) {
+      | (None, "number", Atom(Float(_))) =>
+        G.Exp.float(Js.float_of_number(Js.Unsafe.coerce(v)))
+      | (None, "number", Atom(SInt(_))) =>
+        G.Exp.sint(int_of_float(Js.float_of_number(Js.Unsafe.coerce(v))))
+      | _ => of_js(ts, ty, v)
+      };
     } else {
       switch (Exp.term_of(old)) {
       | Parens(e)
@@ -505,6 +514,8 @@ let message = (exn: exn): string =>
    the types the way back reads by */
 type view = {
   fn: Js.Unsafe.any,
+  /* the definition's module, compiled: its other members (update, ^ticket(715)) */
+  members: Js.Unsafe.any,
   types,
   compile_ms: float,
 };
@@ -539,6 +550,7 @@ let compile_view =
       } else {
         Ok({
           fn,
+          members: m,
           types: types_of(c),
           compile_ms: now() -. t0,
         });
@@ -581,6 +593,52 @@ let answer_of = (v: view, js: Js.Unsafe.any): result(Exp.t, string) =>
   | exception (HazelJit.Unsupported(why)) => Error(why)
   | exception exn => Error(message(exn))
   };
+
+/* (^ticket(715), ^report(45)'s next step 2) The definition's update, compiled, on a model and an action: when it answers
+   Pure(new model), the new model carried back as a diff against the model it was given (patch: every part it did not
+   change is that model's own, the same Hazel value), read by the definition's Model type when it names one. Any other
+   command, or a diff that does not fit, is Error: the caller runs the update on the interpreter, as before. */
+let call_update =
+    (v: view, model: Exp.t, action: Exp.t): result(Exp.t, string) => {
+  let update = get(v.members, "update");
+  if (typeof(update) != "function") {
+    Error("the definition has no update member");
+  } else if (has(update, "$missing")) {
+    Error(
+      "its update did not compile: "
+      ++ Js.to_string(Js.Unsafe.coerce(get(update, "$missing"))),
+    );
+  } else {
+    switch (
+      {
+        let before = to_js(model);
+        let cmd =
+          Js.Unsafe.fun_call(
+            Js.Unsafe.fun_call(update, [|before|]),
+            [|to_js(action)|],
+          );
+        if (typeof(cmd) == "object"
+            && !is_null(cmd)
+            && has(cmd, "c")
+            && Js.to_string(Js.Unsafe.coerce(get(cmd, "c"))) == "Pure"
+            && has(cmd, "v")) {
+          let ty =
+            Option.map(
+              (t: Typ.t) => t,
+              Hashtbl.find_opt(v.types.aliases, "Model"),
+            );
+          patch(v.types, ty, model, diff(before, get(cmd, "v")));
+        } else {
+          unsupported("an update command other than Pure");
+        };
+      }
+    ) {
+    | m => Ok(m)
+    | exception (HazelJit.Unsupported(why)) => Error(why)
+    | exception exn => Error(message(exn))
+    };
+  };
+};
 
 /* The view of a model: the model into JS, the view called, its answer back */
 let run_view = (v: view, model: Exp.t): result(Exp.t, string) =>
