@@ -38,6 +38,57 @@ let count = (~why="", what: string): unit =>
     |],
   );
 
+/* (^report(46)'s next step 3: which time does a page see for a compiled view?) Each livelit view the app draws leaves,
+   under its livelit's name, a way to run it again on the same model, bypassing the app's memo of the last answer: as
+   the app runs it compiled (the model in, the call, its commands run, the drawing), the compiled view without its
+   drawing, and on the interpreter (the definition and the view evaluated, its command run, HazelDOM's drawing).
+   globalThis.hazelJit.bench(name, n) times each n times, after 3 untimed, and puts the counts back as they were. For a
+   check in a browser to call; nothing in the app does. */
+let bench_js: Lazy.t(Js_of_ocaml.Js.Unsafe.any) =
+  lazy(
+    Js_of_ocaml.Js.Unsafe.eval_string(
+      {|(function (name, compiled, view_only, interpreted) {
+  var s = globalThis.hazelJit || (globalThis.hazelJit = { counts: {}, why: {} });
+  s.views = s.views || {};
+  s.views[name] = { compiled: compiled, view_only: view_only, interpreted: interpreted, drawn: ((s.views[name] || {}).drawn || 0) + 1 };
+  s.bench = s.bench || function (name, n) {
+    var v = s.views[name];
+    if (!v) return null;
+    var keep = JSON.stringify({ counts: s.counts, why: s.why });
+    var time = function (f) {
+      for (var i = 0; i < 3; i++) f();
+      var ts = [];
+      for (var i = 0; i < n; i++) { var t0 = performance.now(); f(); ts.push(performance.now() - t0); }
+      ts.sort(function (a, b) { return a - b; });
+      return { median: ts[n >> 1], fastest: ts[0], slowest: ts[n - 1], all: ts };
+    };
+    var out = { name: name, n: n, drawn: v.drawn, compiled: time(v.compiled), view_only: time(v.view_only), interpreted: time(v.interpreted) };
+    var k = JSON.parse(keep); s.counts = k.counts; s.why = k.why;
+    return out;
+  };
+})|},
+    )
+  );
+let register_bench =
+    (
+      name: string,
+      ~compiled: unit => unit,
+      ~view_only: unit => unit,
+      ~interpreted: unit => unit,
+    )
+    : unit =>
+  Js_of_ocaml.Js.Unsafe.fun_call(
+    Lazy.force(bench_js),
+    [|
+      Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js.string(name)),
+      Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js.wrap_callback(compiled)),
+      Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js.wrap_callback(view_only)),
+      Js_of_ocaml.Js.Unsafe.inject(
+        Js_of_ocaml.Js.wrap_callback(interpreted),
+      ),
+    |],
+  );
+
 open Js_of_ocaml;
 
 /* The ids the way back gives the terms it makes: FreshGrammar's, each its own. (^ticket(694), 2026-11-07, for measuring

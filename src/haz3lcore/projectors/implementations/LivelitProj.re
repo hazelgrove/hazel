@@ -1565,22 +1565,53 @@ module M: Projector = {
          An unchanged definition and model draw what they drew last time,
          without evaluating either (view_memo). */
       let view_model = Option.value(model_value, ~default=model);
+      let view_fn = () =>
+        switch (MvuShape.safe_evaluate_open(def_elab)) {
+        | Error(e) => Error("livelit definition error: " ++ e)
+        | Ok(record) =>
+          switch (record_field(record, "view")) {
+          | None => Error("livelit definition is missing view")
+          | Some(view_fn) => Ok(view_fn)
+          }
+        };
       let answer =
         memo_view(~id, ~def_elab, ~view_model, () =>
-          eval_view_answer(
-            ~def_elab,
-            () =>
-              switch (MvuShape.safe_evaluate_open(def_elab)) {
-              | Error(e) => Error("livelit definition error: " ++ e)
-              | Ok(record) =>
-                switch (record_field(record, "view")) {
-                | None => Error("livelit definition is missing view")
-                | Some(view_fn) => Ok(view_fn)
-                }
-              },
-            view_model,
-          )
+          eval_view_answer(~def_elab, view_fn, view_model)
         );
+      /* (^report(46)'s next step 3) this view, again on the same model,
+         both ways, for a check in a browser to time
+         (globalThis.hazelJit.bench) */
+      HazelJitValue.register_bench(
+        ll_name,
+        ~compiled=
+          () =>
+            ignore(
+              draw_answer(
+                seed(~model, ~model_value),
+                eval_view_answer(~def_elab, view_fn, view_model),
+              ),
+            ),
+        ~view_only=
+          () =>
+            switch (
+              HazelJitValue.view_of_def(~env=Builtins.env_init, def_elab)
+            ) {
+            | Ok(v) =>
+              switch (HazelJitValue.call_view(v, view_model)) {
+              | Ok(js) => ignore(HazelJitDOM.run(v.types, js))
+              | Error(_) => ()
+              }
+            | Error(_) => ()
+            },
+        ~interpreted=
+          () =>
+            ignore(
+              draw_answer(
+                seed(~model, ~model_value),
+                eval_view_answer(view_fn, view_model),
+              ),
+            ),
+      );
       /* (the definition's own errors keep their words, as before) */
       let worded = e =>
         String.starts_with(~prefix="livelit definition", e)

@@ -89,6 +89,35 @@ CANVAS = r"""
 """
 
 
+# (^report(46)'s next step 3) each livelit view the page drew, run again on the same model 15 times both ways, bypassing
+# the app's memo (globalThis.hazelJit.bench, in HazelJitValue.register_bench): as the app runs it compiled (model in,
+# call, commands, drawing), the compiled view without its drawing, and on the interpreter (definition, view, command,
+# HazelDOM's drawing). On a fresh load with compiled views on, so the picture is the slide's own.
+BENCH_NAMES = "return (globalThis.hazelJit && globalThis.hazelJit.views) ? Object.keys(globalThis.hazelJit.views) : [];"
+BENCH = "return globalThis.hazelJit.bench(arguments[0], arguments[1]);"
+
+
+def fps(ms):
+    return f"{1000 / ms:,.0f}" if ms > 0 else "-"
+
+
+def bench(d, sid, n):
+    load(d, sid, "on")
+    # (the interpreter's runs of a big view take seconds: the script's own time limit raised from WebDriver's 30 s)
+    d._req("POST", f"/session/{d.sid}/timeouts", {"script": 600000})
+    out = {}
+    for name in d.js(BENCH_NAMES) or []:
+        t0 = time.time()
+        r = d.js(BENCH, [name, n])
+        if not r:
+            continue
+        out[name] = r
+        c, v, i = r["compiled"]["median"], r["view_only"]["median"], r["interpreted"]["median"]
+        print(f"    bench {name!r} (drawn {r['drawn']}x): compiled, drawn {c:.2f} ms ({fps(c)} fps); its view alone {v:.2f} ms; "
+              f"the interpreter {i:.2f} ms ({fps(i)} fps); {i / c if c else 0:.0f}x; {time.time() - t0:.0f} s", flush=True)
+    return out
+
+
 def slide_ids():
     by_name = {}
     for name, sid in D.deck_slides():
@@ -162,6 +191,8 @@ def main():
     ap.add_argument("--only", help="substring filter on slide names")
     ap.add_argument("--out", default="jit.json")
     ap.add_argument("--shots")
+    ap.add_argument("--bench", default="Witch", help="substring filter on the slides whose views are benched (empty: none)")
+    ap.add_argument("--bench-n", type=int, default=15)
     args = ap.parse_args()
     if args.shots:
         os.makedirs(args.shots, exist_ok=True)
@@ -189,6 +220,8 @@ def main():
                       f"{len(lat)} events timed, counts {json.dumps((after['jit'] or {}).get('counts'))}", flush=True)
                 for why, n in sorted(((after["jit"] or {}).get("why") or {}).items(), key=lambda kv: -kv[1]):
                     print(f"      {n} x {why[:160]!r}", flush=True)
+            if args.bench and args.bench.lower() in name.lower():
+                entry["bench"] = bench(d, sid, args.bench_n)
             compare(name + ", as loaded", entry["on"]["_before"], entry["off"]["_before"], problems)
             compare(name + ", after the events", entry["on"]["_after"], entry["off"]["_after"], problems)
             for mode in ("on", "off"):
