@@ -515,6 +515,168 @@ let view_comes_back = (~prefix="", def_src, model_src) => {
   };
 };
 
+/* (^ticket(699), ^report(45)'s next step 6) hazel-jit against the JS a person writes, on ^report(43)'s Petri net: the
+   example's own rule files (matthewhammer/hazeljs-petri-example at 4c85792, its rules folder, copied to test/petri), put
+   together as hazeljs puts them (the preamble, then a module for each), compiled, and its on_event timed beside the
+   example's own hand-written jsHandler (node/petri.mjs) and the interpreter, on the same 2,000 events (Fire(i mod 4),
+   each performed on the marking, as petri.mjs does). Prints the compiled program's JS. */
+let petri_files = () => {
+  let read = name => {
+    let path = "test/petri/" ++ name ++ ".hz";
+    let path = Sys.file_exists(path) ? path : "../" ++ path;
+    switch (CorpusUtil.read_file(path)) {
+    | Some(t) => t
+    | None => fail("no " ++ path)
+    };
+  };
+  read("preamble")
+  ++ "\nmodule Common = {\n"
+  ++ read("Common")
+  ++ "\n} in\nmodule Rules = {\n"
+  ++ read("Rules")
+  ++ "\n} in\nmodule Main = {\n"
+  ++ read("Main")
+  ++ "\n} in\n";
+};
+let petri_compare_run = (~timing=true, ()) => {
+  let program = petri_files();
+  let elab =
+    elaborate(
+      parse_exp(
+        program
+        ++ "(Main.on_event, (marking = Main.marking, transitions = Main.transitions, draw = 0.7))",
+      ),
+    );
+  let c = HazelJit.compile_full(~env=Builtins.env_init, elab);
+  let pair = HazelJitValue.instantiate(c.src);
+  let on_event = Js.Unsafe.get(pair, 0);
+  let net = Js.Unsafe.get(pair, 1);
+  /* the interpreter: the same pair, its handler applied to the net and each event */
+  let interp_pair = Test_Evaluator_Prelude.evaluate(elab);
+  let (interp_fn, interp_net) =
+    switch (Exp.term_of(interp_pair)) {
+    | Tuple([f, n]) => (f, n)
+    | _ => fail("not a pair: " ++ Exp.show(interp_pair))
+    };
+  let runner: Js.Unsafe.any =
+    Js.Unsafe.pure_js_expr(
+      {|(function (compiled, net, steps) {
+  /* the example's own handler (node/petri.mjs, jsHandler), on its own values: arrays, and objects by label */
+  function jsHandler(net, ev) {
+    const t = net.transitions[ev.tag === "Fire" ? ev.value : 0];
+    const ok = t && t.inputs.every(a => net.marking[a.place] >= a.weight);
+    if (!ok) return { tag: "Say", value: ["(js) cannot fire", { tag: "Done" }] };
+    let k = { tag: "Done" };
+    for (const a of [...t.outputs].reverse()) k = { tag: "Put", value: [a.place, a.weight, k] };
+    for (const a of [...t.inputs].reverse()) k = { tag: "Take", value: [a.place, a.weight, k] };
+    return { tag: "Say", value: ["(js) " + t.name, k] };
+  }
+  function perform(cmd, marking) {
+    const m = marking.slice();
+    for (let c = cmd; c && c.tag !== "Done"; ) {
+      const [a, b, rest] = Array.isArray(c.value) ? c.value : [c.value];
+      if (c.tag === "Take") { m[a] -= b; c = rest; } else if (c.tag === "Put") { m[a] += b; c = rest; } else if (c.tag === "Say") { c = b; } else throw new Error(c.tag);
+    }
+    return m;
+  }
+  /* hazel-jit's values: a list as cons cells, a tuple as an array with its labels, a constructor as {c, v} */
+  const list = xs => xs.reduceRight((t, h) => ({ h, t }), null);
+  const array = l => { const out = []; for (; l; l = l.t) out.push(l.h); return out; };
+  const performC = (cmd, marking) => {
+    const m = marking.slice();
+    for (let c = cmd; c && c.c !== "Done"; ) {
+      const [a, b, rest] = c.v;
+      if (c.c === "Take") { m[a] -= b; c = rest; } else if (c.c === "Put") { m[a] += b; c = rest; } else if (c.c === "Say") { c = b; } else throw new Error(c.c);
+    }
+    return m;
+  };
+  const transitionsJs = array(net.transitions).map(t => ({ name: t.name, inputs: array(t.inputs).map(a => ({ place: a.place, weight: a.weight })),
+                                                          outputs: array(t.outputs).map(a => ({ place: a.place, weight: a.weight })) }));
+  const median = xs => xs.slice().sort((a, b) => a - b)[Math.floor(xs.length / 2)];
+  /* the hand-written one */
+  let mj = array(net.marking), tj = [], said = [];
+  for (let i = 0; i < steps; i++) { const t0 = performance.now(); const cmd = jsHandler({ marking: mj, transitions: transitionsJs }, { tag: "Fire", value: i % 4 }); tj.push(performance.now() - t0); mj = performC === null ? mj : perform(cmd, mj); if (i < 8) said.push(cmd.value[0]); }
+  /* the compiled one: the net and the event made as its values, as the app would hand them to it */
+  let mc = array(net.marking), tc = [], saidC = [];
+  for (let i = 0; i < steps; i++) {
+    const n = [list(mc), net.transitions, 0.7]; n.marking = n[0]; n.transitions = n[1]; n.draw = n[2];
+    const t0 = performance.now(); const cmd = compiled([n, { c: "Fire", v: i % 4 }]); tc.push(performance.now() - t0);
+    mc = performC(cmd, mc); if (i < 8) saidC.push(cmd.v[0]);
+  }
+  return JSON.stringify({ js_us: 1000 * median(tj), compiled_us: 1000 * median(tc), js_min_us: 1000 * Math.min(...tj), compiled_min_us: 1000 * Math.min(...tc),
+                          same_markings: JSON.stringify(mj) === JSON.stringify(mc), marking: mc, said, saidC });
+})|},
+    );
+  let r =
+    Js.to_string(
+      Js.Unsafe.fun_call(runner, [|on_event, net, Js.Unsafe.inject(2000)|]):
+                                                                    Js.t(
+                                                                    Js.js_string,
+                                                                    ),
+    );
+  /* the interpreter, on the same events: its handler applied to the net and Fire(i mod 4), 200 of them (each takes ms) */
+  let now = () => Util.JsUtil.precise_timestamp();
+  let fire = i =>
+    IdTagged.FreshGrammar.Exp.ap(
+      Forward,
+      IdTagged.FreshGrammar.Exp.constructor("Fire", None),
+      IdTagged.FreshGrammar.Exp.int(i),
+    );
+  let ti =
+    timing
+      ? List.init(
+          200,
+          i => {
+            let t0 = now();
+            /* (as the app applies a handler, Evaluator.evaluate_open: the test prelude's evaluate runs statics first,
+               which on a closure analyses everything it closes over, and Evaluator.evaluate closes its result) */
+            ignore(
+              Evaluator.evaluate_open(
+                ~env=Builtins.env_init,
+                IdTagged.FreshGrammar.Exp.ap(
+                  Forward,
+                  interp_fn,
+                  IdTagged.FreshGrammar.Exp.tuple([
+                    interp_net,
+                    fire(i mod 4),
+                  ]),
+                ),
+              ),
+            );
+            now() -. t0;
+          },
+        )
+      : [];
+  let median = xs => {
+    let a = Array.of_list(xs);
+    Array.sort(compare, a);
+    Array.length(a) == 0 ? 0. : a[Array.length(a) / 2];
+  };
+  Printf.printf(
+    "hazel-jit petri: %s; the interpreter median %.1f us a call (200 calls, the marking as at the start)\n",
+    r,
+    1000. *. median(ti),
+  );
+  Printf.printf(
+    "hazel-jit petri compiled JS (%d bytes):\n%s\nhazel-jit petri compiled JS: end\n",
+    String.length(c.src),
+    c.src,
+  );
+  if (!(
+        String.length(r) > 0
+        && Str.string_match(Str.regexp({|.*"same_markings":true|}), r, 0)
+      )) {
+    fail(
+      "the compiled rule and the hand-written one end on different markings: "
+      ++ r,
+    );
+  };
+  print_raw(
+    "the Petri rule, compiled and by hand",
+    [("interpreter_ms", ti)],
+  );
+};
+
 /* (^ticket(715)) The Polygons livelit's own update, on its slide's model, compiled and its new model carried back as a diff
    (HazelJitValue.call_update), against the interpreter's (the definition's update applied, its command run): the same
    model, every action; what it did not change shared. With ~timing, each way timed (medians of n, in ms): the
@@ -1404,6 +1566,12 @@ let tests = (
   @ [
     /* (^ticket(714)) more of HazelDOM's forms than the Polygons view has, and a Bind: drawn straight from the view's JS,
        the same virtual DOM as through Hazel */
+    test_case(
+      "timing: the Petri rule of report 043 compiled, beside the hand-written JS",
+      `Slow,
+      () =>
+      petri_compare_run()
+    ),
     test_case(
       "the Polygons update, compiled, its model back as a diff: the interpreter's model",
       `Quick,
