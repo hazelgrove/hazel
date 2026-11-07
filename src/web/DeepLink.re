@@ -19,6 +19,7 @@ module Sidebar = SidebarModel.Settings;
  *   ?select=12,1-14,20             that span selected, instead of a caret
  *   ?outline=ux                    the slide's outline in UX mode (or dev)
  *   ?ux=arm_length,drawn           the rows UX mode shows, by their labels
+ *   ?jit=off                       Compiled views off (on: on), for this visit
  *
  * Lines and columns are 1-based, the way the gutter numbers them, and a
  * column past the end of its line lands at the end of the line -- so
@@ -140,8 +141,18 @@ let settings = (settings: Settings.Model.t): Settings.Model.t => {
     | Some(Closed) => (false, sidebar.panel)
     | Some(Open(p)) => (true, p)
     };
+  /* (^ticket(716)) `jit=on` or `jit=off`: Compiled views (hazel-jit), so a
+     link can show a slide's livelits on the interpreter or compiled, and a
+     check can compare the two */
+  let jit_views =
+    switch (param("jit") |> Option.map(key)) {
+    | Some("off" | "0" | "false" | "no" | "interpreter") => false
+    | Some("on" | "1" | "true" | "yes" | "compiled") => true
+    | _ => settings.jit_views
+    };
   {
     ...settings,
+    jit_views,
     sidebar: {
       ...sidebar,
       show,

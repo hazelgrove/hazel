@@ -17,6 +17,27 @@
 /* The setting (Settings: Compiled views): on, a livelit's view runs as JS compiled from its Hazel */
 let enabled = ref(true);
 
+/* (^ticket(716)) What ran how, counted in the page (globalThis.hazelJit: counts by what, and the reasons a view or an
+   update went to the interpreter or through Hazel), for a check in a browser to read; nothing else reads it */
+let note: Lazy.t(Js_of_ocaml.Js.Unsafe.any) =
+  lazy(
+    Js_of_ocaml.Js.Unsafe.eval_string(
+      {|(function (what, why) {
+  var s = globalThis.hazelJit || (globalThis.hazelJit = { counts: {}, why: {} });
+  s.counts[what] = (s.counts[what] || 0) + 1;
+  if (why) s.why[what + ": " + why] = (s.why[what + ": " + why] || 0) + 1;
+})|},
+    )
+  );
+let count = (~why="", what: string): unit =>
+  Js_of_ocaml.Js.Unsafe.fun_call(
+    Lazy.force(note),
+    [|
+      Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js.string(what)),
+      Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js.string(why)),
+    |],
+  );
+
 open Js_of_ocaml;
 
 /* The ids the way back gives the terms it makes: FreshGrammar's, each its own. (^ticket(694), 2026-11-07, for measuring

@@ -921,13 +921,17 @@ module M: Projector = {
         switch (HazelJitValue.view_of_def(~env=Builtins.env_init, d)) {
         | Error(why) =>
           jit_warn(why);
+          HazelJitValue.count(~why, "view on the interpreter");
           None;
         | Ok(v) =>
           switch (HazelJitValue.call_view(v, model)) {
-          | Ok(js) => Some((d, v, js))
+          | Ok(js) =>
+            HazelJitValue.count("view compiled");
+            Some((d, v, js));
           | Error(why) =>
             HazelJitValue.give_up(d, why);
             jit_warn(why);
+            HazelJitValue.count(~why, "view on the interpreter");
             None;
           }
         }
@@ -969,12 +973,17 @@ module M: Projector = {
     switch (a.js) {
     | Some((js, types)) when HazelJitValue.enabled^ =>
       switch (HazelJitDOM.go(mvu, types, js)) {
-      | node => Ok(node)
+      | node =>
+        HazelJitValue.count("drawn from JS");
+        Ok(node);
       | exception (HazelJit.Unsupported(why)) =>
         jit_warn("drawn through Hazel: " ++ why);
+        HazelJitValue.count(~why, "drawn through Hazel");
         through_hazel();
       }
-    | _ => through_hazel()
+    | _ =>
+      HazelJitValue.count("drawn through Hazel");
+      through_hazel();
     };
   };
 
@@ -1294,9 +1303,12 @@ module M: Projector = {
           | Error(_) => None
           | Ok(v) =>
             switch (HazelJitValue.call_update(v, base, action)) {
-            | Ok(m) => Some(m)
+            | Ok(m) =>
+              HazelJitValue.count("update compiled");
+              Some(m);
             | Error(why) =>
               jit_warn("an update on the interpreter: " ++ why);
+              HazelJitValue.count(~why, "update on the interpreter");
               None;
             }
           }
@@ -1537,7 +1549,8 @@ module M: Projector = {
       | Error(e) => err(e)
       }
     | (None, Some(html)) =>
-      ok(HazelDOM.go(~elide_errors=true, seed(~model, ~model_value), html))
+      HazelJitValue.count("drawn from the run's sample");
+      ok(HazelDOM.go(~elide_errors=true, seed(~model, ~model_value), html));
     | (None, None) =>
       /* The run's model value when there is one: in the surface term
          a marked field is only its code, not the ref it becomes. The
