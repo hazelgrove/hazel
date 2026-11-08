@@ -233,6 +233,10 @@ def print_data_experiment(x):
             print(f"      picture, more: an id {mo['id_ns']} ns; printed as a term {mo['print_term_chars']} chars in {mo['print_term_ms']} ms, "
                   f"as data {mo['print_data_chars']} chars in {mo['print_data_ms']} ms; into JS from the term {mo['into_js_term_ms']} ms, "
                   f"from data {mo['into_js_data_ms']} ms", flush=True)
+            if "build_data_ms" in mo:
+                print(f"      picture, built: {mo['build_data_nodes']} data nodes, {mo['build_term_nodes']} term nodes; "
+                      f"as terms with fresh ids {mo['build_term_fresh_ms']} ms, as terms with no id minted "
+                      f"{mo['build_term_temp_ms']} ms, as data {mo['build_data_ms']} ms", flush=True)
         print(f"      {name}: {m['nodes']} nodes; term {kb(m['term_bytes'])}, data {kb(m['data_bytes'])}, "
               f"data with no sharing table {kb(m['data_noshare_bytes'])}, JSON {kb(m['json_bytes'])}; ms: "
               + ", ".join(f"{k} {v}" for k, v in m["ms"].items()), flush=True)

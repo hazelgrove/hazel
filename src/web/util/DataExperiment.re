@@ -479,6 +479,65 @@ let samples = (): list(Language.Sample.t) =>
     )
   };
 
+/* (^report(47), experiment 2, a first slice) the picture built node by
+   node, three ways: as the evaluator builds a value today (a term, a fresh
+   id on every node, [Exp.fresh]); as a term with the one shared tag and no
+   id minted ([Exp.temp]); and as data. Only the building, not a run: the
+   difference per node, times the nodes a run mints (experiment 3), bounds
+   what building values as data could save inside the evaluator. */
+let rec build_term =
+        (mk: Language.Exp.term => Language.Exp.t, d: Data.t): Language.Exp.t =>
+  switch (d) {
+  | Atom(a) => mk(Atom(a))
+  | List(xs) => mk(ListLit(List.map(build_term(mk), xs)))
+  | Tuple(fs) =>
+    mk(
+      Tuple(
+        List.map(
+          (f: Data.field) =>
+            switch (f.label) {
+            | Some(l) =>
+              mk(TupLabel(mk(Label(l)), build_term(mk, f.value)))
+            | None => build_term(mk, f.value)
+            },
+          fs,
+        ),
+      ),
+    )
+  | Ctor(c, None) => mk(Constructor(c, None))
+  | Ctor(c, Some(v)) =>
+    mk(Ap(Forward, mk(Constructor(c, None)), build_term(mk, v)))
+  };
+
+let rec build_data = (d: Data.t): Data.t =>
+  switch (d) {
+  | Atom(a) => Atom(a)
+  | List(xs) => List(List.map(build_data, xs))
+  | Tuple(fs) =>
+    Tuple(
+      List.map(
+        (f: Data.field) =>
+          {
+            Data.label: f.label,
+            value: build_data(f.value),
+          },
+        fs,
+      ),
+    )
+  | Ctor(c, None) => Ctor(c, None)
+  | Ctor(c, Some(v)) => Ctor(c, Some(build_data(v)))
+  };
+
+/* the nodes a term has, counted as [build_term] makes them */
+let rec term_nodes = (e: Language.Exp.t): int =>
+  switch (e.term) {
+  | ListLit(xs)
+  | Tuple(xs) => List.fold_left((n, x) => n + term_nodes(x), 1, xs)
+  | TupLabel(l, v)
+  | Ap(_, l, v) => 1 + term_nodes(l) + term_nodes(v)
+  | _ => 1
+  };
+
 /* (^report(47)) experiments 3, 4 and 5 on one value: what an id costs to
    mint here; printing it as a term (as results are shown) and as data;
    carrying it into JS, from the term as hazel-jit does and from data */
@@ -486,7 +545,19 @@ let more = (term: Language.Exp.t, data: Data.t): Yojson.Safe.t => {
   let num = f => `Float(Float.round(f *. 10000.) /. 10000.);
   let ts = term_to_string(term);
   let ds = data_to_string(data);
+  let built = build_term(Language.Exp.fresh, data);
   `Assoc([
+    ("build_data_nodes", `Int(Data.count(data))),
+    ("build_term_nodes", `Int(term_nodes(built))),
+    (
+      "build_term_fresh_ms",
+      num(per_op(() => build_term(Language.Exp.fresh, data))),
+    ),
+    (
+      "build_term_temp_ms",
+      num(per_op(() => build_term(Language.Exp.temp, data))),
+    ),
+    ("build_data_ms", num(per_op(() => build_data(data)))),
     (
       "id_ns",
       num(
