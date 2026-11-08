@@ -201,6 +201,12 @@ def print_parts(parts):
         print(f"        probes {pr['count']}, samples {pr['samples']} (+{pr['samples_held']} held): value {mb(pr['value'])}, "
               f"env {mb(pr['env'])}, call stack {mb(pr['call_stack'])}, args {mb(pr['args'])}, frame {mb(pr['frame'])}; "
               f"trace: {ev or 'none'}; span close values {mb(tr['span_close_values'])}, envs {mb(tr['span_close_envs'])}", flush=True)
+        for t in pr["top"][:4]:
+            f = t.get("first")
+            if isinstance(f, dict):
+                env = "; ".join(f"{e['name']} {mb(e['bytes'])}" + (f" ({e['kind']})" if e["kind"] != "value" else "") for e in f["env"][:8])
+                print(f"        probe {t['id'][-50:]}: {t['samples']} samples; its first sample's value {mb(f['value_bytes'])}, "
+                      f"environment {mb(f['env_bytes'])} in {f['env_n']} bindings: {env}", flush=True)
 
 
 # (two sliders: the neck moves the head, the hair and the hat with it; an arm moves only that arm and what it holds)

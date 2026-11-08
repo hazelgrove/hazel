@@ -112,6 +112,8 @@ type walk = {
   parts: Hashtbl.t(string, (int, int)),
   /* each probe: its samples, and their size */
   probes: Hashtbl.t(string, (int, int)),
+  /* each probe's first sample met, for the largest probes' detail */
+  first: Hashtbl.t(string, Obj.t),
   /* the samples' fields, gathered (Marshal'd together, so shared once) */
   values: ref(list(Obj.t)),
   envs: ref(list(Obj.t)),
@@ -146,15 +148,18 @@ let probes = (w: walk, m: Obj.t) =>
     ~held=w.held,
     (k, samples) => {
       let n = ref(0);
+      let id = Util.Id.show(Obj.obj(k));
       iter_list(
         ~held=w.held,
         o => {
           incr(n);
           sample(w, o);
+          if (!is_ref(o) && !Hashtbl.mem(w.first, id)) {
+            Hashtbl.replace(w.first, id, o);
+          };
         },
         samples,
       );
-      let id = Util.Id.show(Obj.obj(k));
       let (b0, n0) =
         Option.value(Hashtbl.find_opt(w.probes, id), ~default=(0, 0));
       Hashtbl.replace(w.probes, id, (b0 + size(samples), n0 + n^));
@@ -191,6 +196,53 @@ let trace = (w: walk, l: Obj.t) =>
       },
     l,
   );
+
+/* a sample's value and environment: each binding's name and size, the
+   largest first (a function's value is Opaque, elided) */
+let sample_detail = (o: Obj.t): Yojson.Safe.t => {
+  let s: Language.Sample.t = Obj.obj(o);
+  let held = ref(0);
+  let entries = ref([]);
+  iter_list(
+    ~held,
+    e =>
+      if (!is_ref(e)) {
+        let en: Language.Sample.Env.entry = Obj.obj(e);
+        let name = is_ref(en.binding) ? "(held)" : en.binding.name;
+        let (kind, b) =
+          if (is_ref(en.value)) {
+            ("held", 0);
+          } else {
+            switch (en.value) {
+            | Opaque => ("opaque", 0)
+            | Val(d) => ("value", size(d))
+            };
+          };
+        entries := [(name, b, kind), ...entries^];
+      },
+    Obj.repr(s.env),
+  );
+  let sorted =
+    List.sort(((_, a, _), (_, b, _)) => compare(b, a), entries^);
+  `Assoc([
+    ("value_bytes", `Int(size(s.value))),
+    ("env_bytes", `Int(size(s.env))),
+    ("env_n", `Int(List.length(sorted))),
+    (
+      "env",
+      `List(
+        List.filteri((i, _) => i < 12, sorted)
+        |> List.map(((n, b, k)) =>
+             `Assoc([
+               ("name", `String(n)),
+               ("bytes", `Int(b)),
+               ("kind", `String(k)),
+             ])
+           ),
+      ),
+    ),
+  ]);
+};
 
 /* a state's fields, under [where] */
 let state = (w: walk, ~where: string, o: Obj.t) =>
@@ -294,6 +346,7 @@ let breakdown = (raw: Active.response): Yojson.Safe.t => {
     held: ref(0),
     parts: Hashtbl.create(16),
     probes: Hashtbl.create(64),
+    first: Hashtbl.create(64),
     values: ref([]),
     envs: ref([]),
     stacks: ref([]),
@@ -353,11 +406,24 @@ let breakdown = (raw: Active.response): Yojson.Safe.t => {
     |> List.sort(((_, a, _), (_, b, _)) => compare(b, a));
   let top =
     List.filteri((i, _) => i < 12, probes)
-    |> List.map(((k, b, n)) =>
+    |> List.mapi((i, (k, b, n)) =>
          `Assoc([
            ("id", `String(k)),
            ("bytes", `Int(b)),
            ("samples", `Int(n)),
+           (
+             "first",
+             i < 4
+               ? switch (Hashtbl.find_opt(w.first, k)) {
+                 | Some(o) =>
+                   switch (sample_detail(o)) {
+                   | j => j
+                   | exception exn => `String(Printexc.to_string(exn))
+                   }
+                 | None => `Null
+                 }
+               : `Null,
+           ),
          ])
        );
   let events =
