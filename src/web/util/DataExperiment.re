@@ -279,9 +279,11 @@ let split = (term: Language.Exp.t, data: Data.t): Yojson.Safe.t => {
   ]);
 };
 
-/* a part's name: its "name" field, if it is a record that has one */
-let name_of = (d: Data.t): option(string) =>
+/* a part's name: its "name" field, if it is a record that has one, or a
+   constructor around one (a shape: Polygon(p), Path(p)) */
+let rec name_of = (d: Data.t): option(string) =>
   switch (d) {
+  | Ctor(_, Some(d)) => name_of(d)
   | Tuple(fs) =>
     List.find_map(
       (f: Data.field) =>
@@ -294,7 +296,17 @@ let name_of = (d: Data.t): option(string) =>
   | _ => None
   };
 
-/* the parts: a list's elements, through a record of one field */
+/* a tuple field's value, under its label */
+let field_term = (t: Language.Exp.t): Language.Exp.t =>
+  switch (Data.peel(t).term) {
+  | TupLabel(_, v) => v
+  | _ => t
+  };
+
+/* the parts: the elements of the first list met going down, term and data
+   side by side, through parens, constructors and records (into the field
+   with the most nodes): the picture's shapes, under the livelit's model
+   (picture = SpliceRef(id, shapes)) */
 let rec parts =
         (term: Language.Exp.t, data: Data.t): list((Language.Exp.t, Data.t)) => {
   let term = Data.peel(term);
@@ -302,12 +314,24 @@ let rec parts =
   | (Parens(e), _) => parts(e, data)
   | (ListLit(ts), List(ds)) when List.length(ts) == List.length(ds) =>
     List.combine(ts, ds)
-  | (Tuple([t]), Tuple([f])) =>
-    switch (Data.peel(t).term) {
-    | TupLabel(_, v) => parts(v, f.value)
-    | _ => parts(t, f.value)
-    }
+  | (Ap(_, {term: Constructor(_), _}, arg), Ctor(_, Some(d))) =>
+    parts(arg, d)
   | (TupLabel(_, v), Tuple([f])) => parts(v, f.value)
+  | (Tuple(ts), Tuple(fs)) when List.length(ts) == List.length(fs) =>
+    switch (
+      List.fold_left(
+        (best, (t, f: Data.field)) =>
+          switch (best) {
+          | Some((_, bd)) when Data.count(bd) >= Data.count(f.value) => best
+          | _ => Some((field_term(t), f.value))
+          },
+        None,
+        List.combine(ts, fs),
+      )
+    ) {
+    | Some((t, d)) => parts(t, d)
+    | None => []
+    }
   | _ => []
   };
 };
