@@ -203,6 +203,129 @@ let measure = (~convert: unit => 'c, term: 'term, data: Data.t): Yojson.Safe.t =
   ]);
 };
 
+/* (Matthew, 2026-11-08: treemaps of the space, before and after the data
+   form) a value's parts, each part's Marshal bytes split four ways, each a
+   difference of exact Marshal sizes, so they add up:
+   - ids and tags: the term, against the same term with every id tag one
+     shared tag (written once, then referred to);
+   - term structure: that, against the part as data;
+   - data structure: the data, against its atoms alone;
+   - data: the atoms themselves (each one's Marshal, less its header). */
+let marshal_header = String.length(Marshal.to_string(0, [])) - 1;
+let mbytes = (v: 'a): int =>
+  String.length(Marshal.to_string(v, [])) - marshal_header;
+
+let one_tag: Lazy.t(Language.IdTagged.IdTag.t) =
+  lazy(Language.IdTagged.IdTag.fresh());
+let shared_tags = (e: Language.Exp.t): Language.Exp.t => {
+  let tag = Lazy.force(one_tag);
+  Language.Exp.map_term(
+    ~f_exp=
+      (continue, e) => {
+        let e: Language.Exp.t = continue(e);
+        {
+          ...e,
+          annotation: tag,
+        };
+      },
+    ~f_pat=
+      (continue, p) => {
+        let p: Language.Pat.t = continue(p);
+        {
+          ...p,
+          annotation: tag,
+        };
+      },
+    ~f_typ=
+      (continue, t) => {
+        let t: Language.Typ.t = continue(t);
+        {
+          ...t,
+          annotation: tag,
+        };
+      },
+    e,
+  );
+};
+
+let rec atoms = (d: Data.t): list(Language.Atom.t) =>
+  switch (d) {
+  | Atom(a) => [a]
+  | Ctor(_, None) => []
+  | Ctor(_, Some(d)) => atoms(d)
+  | List(xs) => List.concat_map(atoms, xs)
+  | Tuple(fs) => List.concat_map((f: Data.field) => atoms(f.value), fs)
+  };
+
+let split = (term: Language.Exp.t, data: Data.t): Yojson.Safe.t => {
+  let t = mbytes(term);
+  let s = mbytes(shared_tags(term));
+  let d = mbytes(data);
+  let p = List.fold_left((n, a) => n + mbytes(a), 0, atoms(data));
+  `Assoc([
+    ("term", `Int(t)),
+    ("shared_tags", `Int(s)),
+    ("data", `Int(d)),
+    ("atoms", `Int(p)),
+  ]);
+};
+
+/* a part's name: its "name" field, if it is a record that has one */
+let name_of = (d: Data.t): option(string) =>
+  switch (d) {
+  | Tuple(fs) =>
+    List.find_map(
+      (f: Data.field) =>
+        switch (f.label, f.value) {
+        | (Some("name"), Atom(String(s))) => Some(s)
+        | _ => None
+        },
+      fs,
+    )
+  | _ => None
+  };
+
+/* the parts: a list's elements, through a record of one field */
+let rec parts =
+        (term: Language.Exp.t, data: Data.t): list((Language.Exp.t, Data.t)) => {
+  let term = Language.DHExp.strip_ascriptions(term);
+  switch (term.term, data) {
+  | (Parens(e), _) => parts(e, data)
+  | (ListLit(ts), List(ds)) when List.length(ts) == List.length(ds) =>
+    List.combine(ts, ds)
+  | (Tuple([t]), Tuple([f])) =>
+    switch (Language.DHExp.strip_ascriptions(t).term) {
+    | TupLabel(_, v) => parts(v, f.value)
+    | _ => parts(t, f.value)
+    }
+  | (TupLabel(_, v), Tuple([f])) => parts(v, f.value)
+  | _ => []
+  };
+};
+
+let tree = (term: Language.Exp.t, data: Data.t): Yojson.Safe.t =>
+  `Assoc([
+    ("whole", split(term, data)),
+    (
+      "parts",
+      `List(
+        List.mapi(
+          (i, (t, d)) =>
+            `Assoc([
+              (
+                "name",
+                `String(
+                  Option.value(name_of(d), ~default=string_of_int(i)),
+                ),
+              ),
+              ("split", split(t, d)),
+            ]),
+          parts(term, data),
+        ),
+      ),
+    ),
+  ]);
+
 /* the last few large messages from the worker, as they came */
 let recent: ref(list(WorkerServer.Active.response)) = ref([]);
 
@@ -261,6 +384,13 @@ let run = (): Yojson.Safe.t => {
       "picture",
       switch (picture) {
       | Some((t, d)) => measure(~convert=() => Data.of_term(t), t, d)
+      | None => `Null
+      },
+    ),
+    (
+      "picture_tree",
+      switch (picture) {
+      | Some((t, d)) => tree(t, d)
       | None => `Null
       },
     ),
