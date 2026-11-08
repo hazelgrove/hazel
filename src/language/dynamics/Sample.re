@@ -66,6 +66,38 @@ module Env = {
   /* Selectively elide dynamic information not currently
    * being used in the live probe UI, for (putative, unbenchmarked)
    * performance purposes for worker de/serialization */
+  /* (^report(46), ^ticket(694)) A value holding a function anywhere in
+     it: a module above all, a record of functions. Written out, each of
+     its functions carries the environment substituted in: on the Witch
+     slide, the Drawing module, in the environment of the ⇓ toggle's probe
+     on the program's last line, was 3.8 MB of a 5.4 MB worker answer. So
+     it is left out like a function. (^ticket(718) is the systematic fix:
+     first-order data in a form of its own.) */
+  let holds_function = (d: DHExp.t): bool => {
+    let found = ref(false);
+    let _ =
+      Exp.map_term(
+        ~f_exp=
+          (continue, e: Exp.t) =>
+            if (found^) {
+              e;
+            } else {
+              switch (e.term) {
+              | Fun(_)
+              | TypFun(_)
+              | FixF(_)
+              | Closure(_)
+              | BuiltinFun(_) =>
+                found := true;
+                e;
+              | _ => continue(e)
+              };
+            },
+        d,
+      );
+    found^;
+  };
+
   let elide =
       (~full=false, env: Environment.t(Exp.t), d: DHExp.t): elided_value =>
     switch ((d |> DHExp.strip_ascriptions).term) {
@@ -73,6 +105,7 @@ module Env = {
     | FixF(_)
     | Closure(_)
     | BuiltinFun(_) when !full => Opaque
+    | _ when !full && holds_function(d) => Opaque
     | _ => Val(d |> DHExp.strip_ascriptions |> Substitution.in_exp(env))
     };
 

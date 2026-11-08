@@ -645,11 +645,15 @@ let post_batch_result = (model, request_id, completed) => {
    probe targets, value, nested incr_eval) stays in the worker, as
    decoding it would dominate main-thread heap churn */
 let slim_hole: Lazy.t(Language.Exp.t) = lazy(Language.Exp.fresh(EmptyHole));
+/* (^report(46)) and its observation trace cleared, as the main thread's own
+   evaluation clears it (clear_transient): the sliced evaluation returns its
+   state as it is, and the trace went to the page, where nothing reads it
+   (1.4 MB of the Witch slide's 5.4 MB answer) */
 let slim_state = (state: Language.EvaluatorState.t) =>
-  Language.EvaluatorState.{
+  Language.EvaluatorState.clear_transient({
     ...state,
     incr_eval: Language.IncrEval.empty,
-  };
+  });
 let slim_entries =
     (incr: Language.IncrEval.t(Language.EvaluatorState.t))
     : Language.IncrEval.t(Language.EvaluatorState.t) =>
