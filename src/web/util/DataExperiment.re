@@ -538,50 +538,79 @@ let rec term_nodes = (e: Language.Exp.t): int =>
   | _ => 1
   };
 
-/* (^report(47)) experiments 3, 4 and 5 on one value: what an id costs to
-   mint here; printing it as a term (as results are shown) and as data;
-   carrying it into JS, from the term as hazel-jit does and from data */
+/* (^report(47)) a time the collector can land in. per_op's batches are
+   25 ms, shorter than a collection of the page's heap, so a batch that holds
+   one reads several times too slow, and which batches do is luck: two runs
+   of 238144b4b8 put building a term with no ids at 5 times quicker and at 3
+   times slower than with fresh ids. Here each batch runs at least 300 ms, so
+   the collections an operation causes are shared out over the calls that
+   cause them, and every batch's time is kept, so the spread shows. */
+let per_op_long = (f: unit => 'a): (float, list(float)) => {
+  let batch = () => {
+    let t0 = Util.BenchMarks.now();
+    let n = ref(0);
+    while (Util.BenchMarks.now() -. t0 < 300. || n^ < 3) {
+      ignore(f());
+      incr(n);
+    };
+    (Util.BenchMarks.now() -. t0) /. float_of_int(n^);
+  };
+  ignore(f());
+  let xs = List.init(5, _ => batch());
+  (List.nth(List.sort(compare, xs), 2), xs);
+};
+
+/* (^report(47)) experiments 2 (a first slice), 3, 4 and 5 on one value:
+   building it three ways; what an id costs to mint here; printing it as a
+   term (as results are shown) and as data; carrying it into JS, from the
+   term as hazel-jit does and from data. Each time is the median of five
+   batches of at least 300 ms, with the batches beside it as [_batches]. */
 let more = (term: Language.Exp.t, data: Data.t): Yojson.Safe.t => {
-  let num = f => `Float(Float.round(f *. 10000.) /. 10000.);
+  let r4 = f => Float.round(f *. 10000.) /. 10000.;
+  let timed = (~scale=1., name, f) => {
+    let (m, xs) = per_op_long(f);
+    [
+      (name, `Float(r4(m *. scale))),
+      (
+        name ++ "_batches",
+        `List(List.map(x => `Float(r4(x *. scale)), xs)),
+      ),
+    ];
+  };
   let ts = term_to_string(term);
   let ds = data_to_string(data);
   let built = build_term(Language.Exp.fresh, data);
-  `Assoc([
-    ("build_data_nodes", `Int(Data.count(data))),
-    ("build_term_nodes", `Int(term_nodes(built))),
-    (
-      "build_term_fresh_ms",
-      num(per_op(() => build_term(Language.Exp.fresh, data))),
-    ),
-    (
-      "build_term_temp_ms",
-      num(per_op(() => build_term(Language.Exp.temp, data))),
-    ),
-    ("build_data_ms", num(per_op(() => build_data(data)))),
-    (
-      "id_ns",
-      num(
-        per_op(() =>
-          for (_ in 1 to 1000) {
-            ignore(Util.Id.mk());
-          }
-        )
-        *. 1000.,
-      ),
-    ),
-    ("print_term_chars", `Int(String.length(ts))),
-    ("print_data_chars", `Int(String.length(ds))),
-    ("print_term_ms", num(per_op(() => term_to_string(term)))),
-    ("print_data_ms", num(per_op(() => data_to_string(data)))),
-    (
-      "into_js_term_ms",
+  `Assoc(
+    [
+      ("timer", `String("median of 5 batches of at least 300 ms")),
+      ("build_data_nodes", `Int(Data.count(data))),
+      ("build_term_nodes", `Int(term_nodes(built))),
+      ("print_term_chars", `Int(String.length(ts))),
+      ("print_data_chars", `Int(String.length(ds))),
+    ]
+    @ timed("build_term_fresh_ms", () =>
+        build_term(Language.Exp.fresh, data)
+      )
+    @ timed("build_term_temp_ms", () => build_term(Language.Exp.temp, data))
+    @ timed("build_data_ms", () => build_data(data))
+    @ timed(~scale=1000., "id_ns", () =>
+        for (_ in 1 to 1000) {
+          ignore(Util.Id.mk());
+        }
+      )
+    @ timed("print_term_ms", () => term_to_string(term))
+    @ timed("print_data_ms", () => data_to_string(data))
+    @ (
       switch (Language.HazelJitValue.to_js(term)) {
-      | _ => num(per_op(() => Language.HazelJitValue.to_js(term)))
-      | exception exn => `String(Printexc.to_string(exn))
-      },
-    ),
-    ("into_js_data_ms", num(per_op(() => Data.to_js(data)))),
-  ]);
+      | _ =>
+        timed("into_js_term_ms", () => Language.HazelJitValue.to_js(term))
+      | exception exn => [
+          ("into_js_term_ms", `String(Printexc.to_string(exn))),
+        ]
+      }
+    )
+    @ timed("into_js_data_ms", () => Data.to_js(data)),
+  );
 };
 
 let run = (): Yojson.Safe.t => {
