@@ -54,12 +54,8 @@ let mark =
 /* f's duration, marked at its start; [extra] is asked for only when marking,
    after f, so it can read what f did */
 let time =
-    (
-      ~extra: unit => list((string, Js.Unsafe.any))=?,
-      what: string,
-      f: unit => 'r,
-    )
-    : 'r =>
+    /* (unit => list((string, Js.Unsafe.any))) */
+    (~extra=?, what: string, f: unit => 'r): 'r =>
   switch (target()) {
   | None => f()
   | Some(a) =>
