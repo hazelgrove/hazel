@@ -302,6 +302,7 @@ let setup_worker_message_handler = worker => {
       let now = Util.JsUtil.precise_timestamp();
       /* (^report(46)) a large answer kept as it came, for its breakdown */
       AnswerParts.keep(evt##.data);
+      DataExperiment.keep(evt##.data);
       let handle = (msg: ServerMessage.t) =>
         switch (msg) {
         | ServerMessage.Shared(_) => () /* unshared before here */

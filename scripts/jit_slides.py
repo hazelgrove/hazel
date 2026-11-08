@@ -209,6 +209,27 @@ def print_parts(parts):
                       f"environment {mb(f['env_bytes'])} in {f['env_n']} bindings: {env}", flush=True)
 
 
+# (^report(47), ^ticket(718): experiment 1) the Witch's picture, and every probe sample that converts, sent each way:
+# as the term by Marshal (today), as first-order data by Marshal (with and without its sharing table), and as plain JS
+# values by structuredClone and by JSON (DataExperiment); read from the last result the worker sent
+DATA_EXPERIMENT = "return globalThis.hazelDataExperiment ? globalThis.hazelDataExperiment() : null;"
+
+
+def print_data_experiment(x):
+    if not x or "error" in x:
+        print(f"    data experiment: {x}", flush=True)
+        return
+    print(f"    data experiment: {x['samples']} samples, {x['converted']} convert to data", flush=True)
+    for name in ("picture", "all_converted"):
+        m = x.get(name)
+        if not m:
+            continue
+        kb = lambda b: f"{b / 1000:.1f} KB" if isinstance(b, (int, float)) else str(b)
+        print(f"      {name}: {m['nodes']} nodes; term {kb(m['term_bytes'])}, data {kb(m['data_bytes'])}, "
+              f"data with no sharing table {kb(m['data_noshare_bytes'])}, JSON {kb(m['json_bytes'])}; ms: "
+              + ", ".join(f"{k} {v}" for k, v in m["ms"].items()), flush=True)
+
+
 # (two sliders: the neck moves the head, the hair and the hat with it; an arm moves only that arm and what it holds)
 EDIT_STEPS = [("neck", 2), ("neck", -2), ("arms (up / down)", 10), ("arms (up / down)", -10)]
 
@@ -282,6 +303,11 @@ def edits(d, sid):
             D.settled(d)
             time.sleep(1)
         out[mode] = rows
+        if mode == "on":
+            d._req("POST", f"/session/{d.sid}/timeouts", {"script": 600000})
+            raw = d.js(DATA_EXPERIMENT, timeout=600)
+            out["data_experiment"] = json.loads(raw) if raw else None
+            print_data_experiment(out["data_experiment"])
     return out
 
 
