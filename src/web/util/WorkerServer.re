@@ -543,6 +543,19 @@ let wtime = (~extra=() => [], what: string, f: unit => 'r): 'r =>
       ];
     r;
   };
+/* (^report(47), experiment 3) how many ids this realm has minted: Id.mk
+   writes its running count into each id's bytes (0 to 3: the low 30 bits;
+   4, 5, 6's low nibble and 7: the high), so a fresh id says how many came
+   before it. Two readings, less one for the second reading's own id, are
+   the ids minted between them, without touching Id.mk. */
+let id_count = (): int => {
+  let b = Uuidm.unsafe_to_bytes(Util.Id.mk());
+  let c = i => Char.code(b.[i]);
+  let lo = c(0) lor c(1) lsl 8 lor c(2) lsl 16 lor (c(3) land 0x3f) lsl 24;
+  let hi = c(4) lor c(5) lsl 8 lor (c(6) land 0x0f) lsl 16 lor c(7) lsl 20;
+  hi * 1073741824 + lo;
+};
+
 let kind_of = (msg: ServerMessage.t): string =>
   switch (msg) {
   | ServerMessage.Ack(_) => "ack"
@@ -973,9 +986,11 @@ and run_scheduled_slice = model => {
 let slice_time_budget_ms = 30.;
 let run_slices_for_budget = model => {
   let t0 = Util.JsUtil.precise_timestamp();
-  /* (^report(46)) on the worker's timeline, with the evaluator's share */
+  /* (^report(46)) on the worker's timeline, with the evaluator's share;
+     (^report(47)) and the ids minted meanwhile */
   let e0 = eval_total^;
   let n = ref(0);
+  let i0 = recording^ ? id_count() : 0;
   let rec go = model => {
     incr(n);
     let next = run_scheduled_slice(model);
@@ -994,6 +1009,7 @@ let run_slices_for_budget = model => {
         [
           ("eval_ms", Core.Time_ns.Span.(to_ms(eval_total^ - e0))),
           ("slices", float_of_int(n^)),
+          ("ids", float_of_int(id_count() - i0 - 1)),
         ],
     "slices",
     () => go(model),

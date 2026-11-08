@@ -129,6 +129,59 @@ module Data = {
     };
 };
 
+/* (^report(47), experiment 4) data printed as Hazel writes it: a list in
+   brackets, a tuple in parens with its labels, a constructor and its
+   argument; numbers and strings as literals */
+let rec data_to_string = (d: Data.t): string =>
+  switch (d) {
+  | Atom(Int(b))
+  | Atom(Nat(b)) => Bigint.to_string(b)
+  | Atom(SInt(i)) => string_of_int(i)
+  | Atom(Float(f)) => Printf.sprintf("%g", f)
+  | Atom(Bool(b)) => b ? "true" : "false"
+  | Atom(String(s)) => "\"" ++ s ++ "\""
+  | List(xs) =>
+    "[" ++ String.concat(", ", List.map(data_to_string, xs)) ++ "]"
+  | Tuple(fs) =>
+    "("
+    ++ String.concat(
+         ", ",
+         List.map(
+           (f: Data.field) =>
+             switch (f.label) {
+             | Some(l) => l ++ " = " ++ data_to_string(f.value)
+             | None => data_to_string(f.value)
+             },
+           fs,
+         ),
+       )
+    ++ ")"
+  | Ctor(c, None) => c
+  | Ctor(c, Some(v)) => c ++ "(" ++ data_to_string(v) ++ ")"
+  };
+
+/* a term printed as the CLI prints a result (src/CLI/Print.re) */
+let term_settings: Haz3lcore.ExpToSegment.Settings.t = {
+  secondary: AutoFormat,
+  parenthesization: Defensive,
+  label_format: QuoteWhenNecessary,
+  inline: false,
+  fold_case_clauses: false,
+  fold_fn_bodies: `NoFold,
+  hide_fixpoints: false,
+  show_ascriptions: true,
+  show_filters: true,
+  show_unknown_as_hole: true,
+  use_literal_lexemes: false,
+  hole_tiles: false,
+  project_tables: false,
+};
+let term_to_string = (e: Language.Exp.t): string =>
+  Haz3lcore.Printer.of_segment(
+    ~holes="?",
+    Haz3lcore.ExpToSegment.exp_to_segment(~settings=term_settings, e),
+  );
+
 /* ms per call: batches of at least 25 ms (Firefox's clock ticks in whole
    ms), the median of five */
 let per_op = (f: unit => 'a): float => {
@@ -426,6 +479,40 @@ let samples = (): list(Language.Sample.t) =>
     )
   };
 
+/* (^report(47)) experiments 3, 4 and 5 on one value: what an id costs to
+   mint here; printing it as a term (as results are shown) and as data;
+   carrying it into JS, from the term as hazel-jit does and from data */
+let more = (term: Language.Exp.t, data: Data.t): Yojson.Safe.t => {
+  let num = f => `Float(Float.round(f *. 10000.) /. 10000.);
+  let ts = term_to_string(term);
+  let ds = data_to_string(data);
+  `Assoc([
+    (
+      "id_ns",
+      num(
+        per_op(() =>
+          for (_ in 1 to 1000) {
+            ignore(Util.Id.mk());
+          }
+        )
+        *. 1000.,
+      ),
+    ),
+    ("print_term_chars", `Int(String.length(ts))),
+    ("print_data_chars", `Int(String.length(ds))),
+    ("print_term_ms", num(per_op(() => term_to_string(term)))),
+    ("print_data_ms", num(per_op(() => data_to_string(data)))),
+    (
+      "into_js_term_ms",
+      switch (Language.HazelJitValue.to_js(term)) {
+      | _ => num(per_op(() => Language.HazelJitValue.to_js(term)))
+      | exception exn => `String(Printexc.to_string(exn))
+      },
+    ),
+    ("into_js_data_ms", num(per_op(() => Data.to_js(data)))),
+  ]);
+};
+
 let run = (): Yojson.Safe.t => {
   let ss = samples();
   let converted =
@@ -452,6 +539,13 @@ let run = (): Yojson.Safe.t => {
       "picture",
       switch (picture) {
       | Some((t, d)) => measure(~convert=() => Data.of_term(t), t, d)
+      | None => `Null
+      },
+    ),
+    (
+      "more",
+      switch (picture) {
+      | Some((t, d)) => more(t, d)
       | None => `Null
       },
     ),
@@ -507,3 +601,12 @@ let keep = (raw: WorkerServer.Active.response): unit =>
       recent := Util.ListUtil.take(4, [raw, ...recent^]);
     };
   };
+
+/* (^report(47), experiment 3) the page's own id count, for the check to read
+   before and after an edit */
+let () =
+  Js.Unsafe.set(
+    Js.Unsafe.global,
+    "hazelIdCount",
+    Js.wrap_callback(() => WorkerServer.id_count()),
+  );

@@ -149,6 +149,8 @@ EDIT = r"""
   st.to = inp.value;
   // (the page's own timeline, Util.BenchMarks: each update, calculate, statics, view and worker message from here)
   window.hazelBenchMarks = [];
+  // (^report(47), experiment 3: the ids the page mints for the edit, from Id.mk's own count)
+  st.ids0 = globalThis.hazelIdCount ? globalThis.hazelIdCount() : null;
   st.t0 = performance.now();
   inp.dispatchEvent(new Event('input', { bubbles: true }));
   inp.dispatchEvent(new Event('change', { bubbles: true }));
@@ -173,10 +175,11 @@ EDIT_DONE = r"""
   let changed = Math.abs(after.length - st.before.length);
   for (let i = 0; i < Math.min(after.length, st.before.length); i++) if (after[i] !== st.before[i]) changed++;
   const r = x => Math.round(x * 10) / 10;
+  const page_ids = (st.ids0 != null && globalThis.hazelIdCount) ? globalThis.hazelIdCount() - st.ids0 - 1 : null;
   const marks = (window.hazelBenchMarks || []).map(m => Object.assign({}, m, { at: r(m.at - st.t0) },
     m.ms === undefined ? {} : { ms: Math.round(m.ms * 100) / 100 })).sort((a, b) => a.at - b.at);
   delete window.hazelBenchMarks;
-  return { marks, label: st.label, from: st.from, to: st.to, own_first_ms: st.own.length ? r(st.own[0]) : null,
+  return { marks, page_ids, label: st.label, from: st.from, to: st.to, own_first_ms: st.own.length ? r(st.own[0]) : null,
            picture_changed_ms: r(st.picChanged), picture_last_ms: r(st.pic[st.pic.length - 1]),
            dynamics: st.dyn, other_batches: st.other, shapes: after.length, shapes_changed: changed,
            jit: globalThis.hazelJit ? JSON.parse(JSON.stringify(globalThis.hazelJit.counts || {})) : null };
@@ -225,6 +228,11 @@ def print_data_experiment(x):
         if not m:
             continue
         kb = lambda b: f"{b / 1000:.1f} KB" if isinstance(b, (int, float)) else str(b)
+        if name == "picture" and x.get("more"):
+            mo = x["more"]
+            print(f"      picture, more: an id {mo['id_ns']} ns; printed as a term {mo['print_term_chars']} chars in {mo['print_term_ms']} ms, "
+                  f"as data {mo['print_data_chars']} chars in {mo['print_data_ms']} ms; into JS from the term {mo['into_js_term_ms']} ms, "
+                  f"from data {mo['into_js_data_ms']} ms", flush=True)
         print(f"      {name}: {m['nodes']} nodes; term {kb(m['term_bytes'])}, data {kb(m['data_bytes'])}, "
               f"data with no sharing table {kb(m['data_noshare_bytes'])}, JSON {kb(m['json_bytes'])}; ms: "
               + ", ".join(f"{k} {v}" for k, v in m["ms"].items()), flush=True)
@@ -256,6 +264,8 @@ def print_marks(got):
                 sums[k] = (n + 1, t + m["ms"])
         top = sorted(sums.items(), key=lambda kv: -kv[1][1])[:10]
         print(f"      {name} ({until} ms): " + "; ".join(f"{k} {t:.0f} ms x{n}" for k, (n, t) in top), flush=True)
+    wids = sum(m.get("ids", 0) for m in marks if m["what"] == "worker: slices" and m["at"] > 0)
+    print(f"      ids minted: by the page {got.get('page_ids')}, by the worker's runs of slices {wids:.0f}", flush=True)
     sums = {}
     for m in marks:
         if m["what"].startswith("worker: ") and "ms" in m:
