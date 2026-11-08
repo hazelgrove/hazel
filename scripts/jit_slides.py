@@ -11,6 +11,9 @@ fresh twice, with Compiled views on (?jit=on) and off (?jit=off):
   buttons, and on Polygons a drag on its drawing), the drawings after them, and the time from each event to the
   first change of the page under it (a MutationObserver on the livelit's projector, from the event's capture).
 
+On the Witch slide (--edit), also small edits, both ways: a slider stepped, and the time to its own livelit's change,
+to the program's run, and to the picture's change, with how many of the picture's shapes changed.
+
 The drawings must be the same both ways, before the events and after them, and a livelit that errors one way must
 error the other. Writes the readings as JSON (--out) and a screenshot each way (--shots). Exits non-zero on a
 difference.
@@ -95,6 +98,117 @@ CANVAS = r"""
 # HazelDOM's drawing). On a fresh load with compiled views on, so the picture is the slide's own.
 BENCH_NAMES = "return (globalThis.hazelJit && globalThis.hazelJit.views) ? Object.keys(globalThis.hazelJit.views) : [];"
 BENCH = "return globalThis.hazelJit.bench(arguments[0], arguments[1]);"
+
+
+# (^report(46): the cost of a small edit) one step of a slider on the slide, as the browser's own input and change
+# events, and from that moment: when the slider's own livelit changes (its update and view, before any run), when the
+# program's run starts and ends (#dynamics's class), and when the picture changes (the livelit that draws the most
+# shapes): the run, then every view on the slide drawn again. Watched on the whole page, since a projector's element
+# may be made anew; each livelit told apart by what it holds, not by its element. Also how many of the picture's
+# shapes the edit changed: what an incremental drawing of the picture would redo.
+EDIT = r"""
+  const [label, delta] = arguments;
+  const lls = () => [...document.querySelectorAll('.user-livelit')];
+  const count = w => w.querySelectorAll('polygon, polyline').length;
+  const shapes = w => [...w.querySelectorAll('polygon, polyline')].map(e => e.outerHTML);
+  const picture = () => lls().reduce((a, w) => (!a || count(w) > count(a)) ? w : a, null);
+  // (a ^slider's view: its label in a span, then the range input)
+  const slider = () => [...document.querySelectorAll('.user-livelit input[type=range]')]
+    .find(i => i.parentElement && i.parentElement.firstElementChild
+               && i.parentElement.firstElementChild.textContent.trim() === label);
+  const inp = slider(), pic = picture();
+  if (!inp || !pic) return null;
+  inp.scrollIntoView({ block: 'center' });
+  const st = { label, from: inp.value, own: [], pic: [], other: 0, dyn: [], before: shapes(pic) };
+  st.sig0 = st.before.join('');
+  window.__edit = st;
+  const dyn = document.querySelector('#dynamics');
+  const mo = new MutationObserver(recs => {
+    const t = performance.now() - st.t0;
+    const p = picture(), s = slider(), own = s && s.closest('.user-livelit');
+    let sawOwn = false, sawPic = false, sawOther = false;
+    for (const r of recs) {
+      if (dyn && r.target === dyn) { st.dyn.push([Math.round(t), dyn.className]); continue; }
+      const el = r.target.nodeType === 1 ? r.target : r.target.parentElement;
+      const w = el && el.closest && el.closest('.user-livelit');
+      if (!w) continue;
+      if (w === own) sawOwn = true; else if (w === p) sawPic = true; else sawOther = true;
+    }
+    if (sawOwn && st.own.length < 50) st.own.push(t);
+    if (sawPic && st.pic.length < 50) {
+      st.pic.push(t);
+      // (the new picture, not a blank or pending one in between)
+      const now = shapes(p);
+      if (st.picChanged === undefined && now.length > 0.8 * st.before.length && now.join('') !== st.sig0) st.picChanged = t;
+    }
+    if (sawOther) st.other++;
+  });
+  st.mo = mo;
+  mo.observe(document.body, { subtree: true, childList: true, attributes: true, characterData: true });
+  inp.value = String(+inp.value + delta);
+  st.to = inp.value;
+  st.t0 = performance.now();
+  inp.dispatchEvent(new Event('input', { bubbles: true }));
+  inp.dispatchEvent(new Event('change', { bubbles: true }));
+  return [st.from, st.to, st.before.length];
+"""
+
+EDIT_DONE = r"""
+  const st = window.__edit;
+  if (!st || st.picChanged === undefined) return null;
+  if (document.querySelector('.livelit-pending, #dynamics.running, #dynamics.pending')) return null;
+  st.mo.disconnect();
+  const count = w => w.querySelectorAll('polygon, polyline').length;
+  const pic = [...document.querySelectorAll('.user-livelit')].reduce((a, w) => (!a || count(w) > count(a)) ? w : a, null);
+  const after = [...pic.querySelectorAll('polygon, polyline')].map(e => e.outerHTML);
+  let changed = Math.abs(after.length - st.before.length);
+  for (let i = 0; i < Math.min(after.length, st.before.length); i++) if (after[i] !== st.before[i]) changed++;
+  const r = x => Math.round(x * 10) / 10;
+  return { label: st.label, from: st.from, to: st.to, own_first_ms: st.own.length ? r(st.own[0]) : null,
+           picture_changed_ms: r(st.picChanged), picture_last_ms: r(st.pic[st.pic.length - 1]),
+           dynamics: st.dyn, other_batches: st.other, shapes: after.length, shapes_changed: changed,
+           jit: globalThis.hazelJit ? JSON.parse(JSON.stringify(globalThis.hazelJit.counts || {})) : null };
+"""
+
+# (two sliders: the neck moves the head, the hair and the hat with it; an arm moves only that arm and what it holds)
+EDIT_STEPS = [("neck", 2), ("neck", -2), ("arms (up / down)", 10), ("arms (up / down)", -10)]
+
+
+def wait_for_value(d, script, secs):
+    t = time.time()
+    while time.time() - t < secs:
+        v = d.js(script)
+        if v:
+            return v
+        time.sleep(0.25)
+    return None
+
+
+def edits(d, sid):
+    """Each small edit both ways, on a fresh load: the slider stepped, then wait for the run and the picture."""
+    out = {}
+    for mode in ("on", "off"):
+        load(d, sid, mode)
+        rows = []
+        for label, delta in EDIT_STEPS:
+            started = d.js(EDIT, [label, delta])
+            if not started or not isinstance(started, list):
+                rows.append({"label": label, "missing": True, "said": started})
+                print(f"    edit {label!r}: no such slider, or no picture ({started!r})", flush=True)
+                continue
+            got = wait_for_value(d, EDIT_DONE, 240)
+            if not got:
+                rows.append({"label": label, "from": started[0], "to": started[1], "timed_out": True})
+                print(f"    edit {label!r} {started[0]} -> {started[1]}: the picture did not change in 240 s", flush=True)
+                continue
+            rows.append(got)
+            print(f"    edit, compiled {mode}: {label!r} {got['from']} -> {got['to']}: the slider's own livelit "
+                  f"{got['own_first_ms']} ms; the picture {got['picture_changed_ms']} ms "
+                  f"({got['shapes_changed']} of {got['shapes']} shapes changed); the run {got['dynamics']}", flush=True)
+            D.settled(d)
+            time.sleep(1)
+        out[mode] = rows
+    return out
 
 
 def fps(ms):
@@ -197,6 +311,7 @@ def main():
     ap.add_argument("--bench", default="Witch", help="substring filter on the slides whose views are benched (empty: none)")
     ap.add_argument("--bench-n", type=int, default=15)
     ap.add_argument("--bench-views", default="picture|polygons", help="a regex on the views benched (empty: every one)")
+    ap.add_argument("--edit", default="Witch", help="substring filter on the slides where small edits are timed (empty: none)")
     args = ap.parse_args()
     if args.shots:
         os.makedirs(args.shots, exist_ok=True)
@@ -226,6 +341,8 @@ def main():
                     print(f"      {n} x {why[:160]!r}", flush=True)
             if args.bench and args.bench.lower() in name.lower():
                 entry["bench"] = bench(d, sid, args.bench_n, args.bench_views)
+            if args.edit and args.edit.lower() in name.lower():
+                entry["edits"] = edits(d, sid)
             compare(name + ", as loaded", entry["on"]["_before"], entry["off"]["_before"], problems)
             compare(name + ", after the events", entry["on"]["_after"], entry["off"]["_after"], problems)
             for mode in ("on", "off"):
