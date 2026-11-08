@@ -147,6 +147,8 @@ EDIT = r"""
   mo.observe(document.body, { subtree: true, childList: true, attributes: true, characterData: true });
   inp.value = String(+inp.value + delta);
   st.to = inp.value;
+  // (the page's own timeline, Util.BenchMarks: each update, calculate, statics, view and worker message from here)
+  window.hazelBenchMarks = [];
   st.t0 = performance.now();
   inp.dispatchEvent(new Event('input', { bubbles: true }));
   inp.dispatchEvent(new Event('change', { bubbles: true }));
@@ -164,7 +166,10 @@ EDIT_DONE = r"""
   let changed = Math.abs(after.length - st.before.length);
   for (let i = 0; i < Math.min(after.length, st.before.length); i++) if (after[i] !== st.before[i]) changed++;
   const r = x => Math.round(x * 10) / 10;
-  return { label: st.label, from: st.from, to: st.to, own_first_ms: st.own.length ? r(st.own[0]) : null,
+  const marks = (window.hazelBenchMarks || []).map(m => Object.assign({}, m, { at: r(m.at - st.t0) },
+    m.ms === undefined ? {} : { ms: Math.round(m.ms * 100) / 100 })).sort((a, b) => a.at - b.at);
+  delete window.hazelBenchMarks;
+  return { marks, label: st.label, from: st.from, to: st.to, own_first_ms: st.own.length ? r(st.own[0]) : null,
            picture_changed_ms: r(st.picChanged), picture_last_ms: r(st.pic[st.pic.length - 1]),
            dynamics: st.dyn, other_batches: st.other, shapes: after.length, shapes_changed: changed,
            jit: globalThis.hazelJit ? JSON.parse(JSON.stringify(globalThis.hazelJit.counts || {})) : null };
@@ -182,6 +187,23 @@ def wait_for_value(d, script, secs):
             return v
         time.sleep(0.25)
     return None
+
+
+def print_marks(got):
+    """where the edit's time went, from the page's timeline: before the first redraw, and until the picture changed"""
+    marks = got.get("marks") or []
+    for name, until in (("before the first redraw", got.get("own_first_ms") or 0), ("until the picture", got["picture_changed_ms"])):
+        sums = {}
+        for m in marks:
+            if m["at"] <= until and "ms" in m:
+                k = m["what"] + (f" ({m['kind']})" if m.get("kind") else "")
+                n, t = sums.get(k, (0, 0.0))
+                sums[k] = (n + 1, t + m["ms"])
+        top = sorted(sums.items(), key=lambda kv: -kv[1][1])[:10]
+        print(f"      {name} ({until} ms): " + "; ".join(f"{k} {t:.0f} ms x{n}" for k, (n, t) in top), flush=True)
+    for m in marks:
+        if m.get("kind") == "result" or m["what"] == "post to worker":
+            print(f"      {m['at']} ms: {m['what']} {json.dumps({k: v for k, v in m.items() if k not in ('what', 'at')})}", flush=True)
 
 
 def edits(d, sid):
@@ -202,6 +224,7 @@ def edits(d, sid):
                 print(f"    edit {label!r} {started[0]} -> {started[1]}: the picture did not change in 240 s", flush=True)
                 continue
             rows.append(got)
+            print_marks(got)
             print(f"    edit, compiled {mode}: {label!r} {got['from']} -> {got['to']}: the slider's own livelit "
                   f"{got['own_first_ms']} ms; the picture {got['picture_changed_ms']} ms "
                   f"({got['shapes_changed']} of {got['shapes']} shapes changed); the run {got['dynamics']}", flush=True)

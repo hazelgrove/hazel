@@ -208,18 +208,35 @@ let post_evaluate = (~full=false, ~metrics=false, worker, request: Request.t) =>
     Util.ShareCodec.Client.reset();
   };
   share_reset := false;
-  let msg =
-    ClientMessage.EvaluateShared(
-      reset,
-      posted_of(~full, ~shared=true, request),
-    );
-  if (metrics) {
-    WorkerMetrics.record_request(request.request_id, msg);
-  };
-  let encoded = Active.encode_request(msg);
-  EvalMetrics.record_sent(~request, ~encoded);
-  worker##postMessage(encoded);
-  hold(request);
+  /* (^report(46)) on the benchmark timeline: the request's pieces made,
+     encoded and posted, with its id and size */
+  let bytes = ref(0.);
+  Util.BenchMarks.time(
+    ~extra=
+      () =>
+        Util.BenchMarks.[
+          ("id", num(float_of_int(request.request_id))),
+          ("bytes", num(bytes^)),
+        ],
+    "post to worker",
+    () => {
+      let msg =
+        ClientMessage.EvaluateShared(
+          reset,
+          posted_of(~full, ~shared=true, request),
+        );
+      if (metrics) {
+        WorkerMetrics.record_request(request.request_id, msg);
+      };
+      let encoded = Active.encode_request(msg);
+      EvalMetrics.record_sent(~request, ~encoded);
+      if (Util.BenchMarks.on()) {
+        bytes := Core.Byte_units.bytes_float(Active.size_request(encoded));
+      };
+      worker##postMessage(encoded);
+      hold(request);
+    },
+  );
 };
 
 let fail_latest = latest => {
@@ -324,7 +341,54 @@ let setup_worker_message_handler = worker => {
           )
         | ServerMessage.Coverage(coverage) => live_coverage := Some(coverage)
         };
-      switch (unshare(Active.decode_response(evt##.data))) {
+      /* (^report(46)) on the benchmark timeline: each message from the
+         worker decoded, then handled, by kind; a result with the worker's
+         own evaluator time */
+      let decoded =
+        Util.BenchMarks.time(
+          ~extra=
+            () =>
+              Util.BenchMarks.[
+                (
+                  "bytes",
+                  num(
+                    Core.Byte_units.bytes_float(
+                      Active.size_response(evt##.data),
+                    ),
+                  ),
+                ),
+              ],
+          "worker message decoded",
+          () => unshare(Active.decode_response(evt##.data)),
+        );
+      let handle = (msg: ServerMessage.t) =>
+        Util.BenchMarks.time(
+          ~extra=
+            () =>
+              Util.BenchMarks.(
+                switch (msg) {
+                | ServerMessage.Result(result) => [
+                    ("kind", str("result")),
+                    ("id", num(float_of_int(result.request_id))),
+                    (
+                      "eval_ms",
+                      num(Core.Time_ns.Span.to_ms(result.eval_time)),
+                    ),
+                  ]
+                | ServerMessage.Stream(_) => [("kind", str("stream"))]
+                | ServerMessage.Ack(_) => [("kind", str("ack"))]
+                | ServerMessage.ReusePlan(_) => [
+                    ("kind", str("reuse plan")),
+                  ]
+                | ServerMessage.Resend(_) => [("kind", str("resend"))]
+                | ServerMessage.Coverage(_) => [("kind", str("coverage"))]
+                | ServerMessage.Shared(_) => [("kind", str("shared"))]
+                }
+              ),
+          "worker message handled",
+          () => handle(msg),
+        );
+      switch (decoded) {
       | Some(Ok(msg)) => handle(msg)
       | None => ()
       | Some(Error ()) =>
