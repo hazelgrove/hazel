@@ -24,6 +24,17 @@ let now = (): float =>
     ),
   );
 
+/* (^report(46)) the epoch's ms at this page's (or worker's) performance.now 0:
+   the worker's marks, made against its own clock, are placed on the page's
+   by it */
+let time_origin = (): float =>
+  Js.float_of_number(
+    Js.Unsafe.get(
+      Js.Unsafe.get(Js.Unsafe.global, "performance"),
+      "timeOrigin",
+    ),
+  );
+
 let num = (f: float): Js.Unsafe.any =>
   Js.Unsafe.inject(Js.number_of_float(f));
 let str = (s: string): Js.Unsafe.any => Js.Unsafe.inject(Js.string(s));

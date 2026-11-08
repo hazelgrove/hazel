@@ -94,10 +94,24 @@ module ClientMessage = {
     | EvaluateShared(bool, Posted.t)
     /* the client could not resolve a shared response: start the responses'
        table over (the client asks for the evaluation again) */
-    | ResetResponses;
+    | ResetResponses
+    /* (^report(46)) keep the worker's own timeline, and send it after each
+       result (ServerMessage.Timeline); false: stop */
+    | Record(bool);
 };
 
 module ServerMessage = {
+  /* (^report(46)) one step of the worker's own timeline: [at] in ms since
+     the epoch (performance's timeOrigin and now), so the page can place it
+     on its own clock; [extra]: a size, or the evaluator's share */
+  [@deriving (show, sexp, yojson)]
+  type mark = {
+    what: string,
+    at: float,
+    ms: float,
+    extra: list((string, float)),
+  };
+
   /* Reuse-pass predictions sent before evaluation slices begin. */
   [@deriving (show, sexp, yojson)]
   type reuse_predictions =
@@ -159,7 +173,10 @@ module ServerMessage = {
     | Shared(bool, t)
     /* The worker's coverage counters so far, after each Result; see
      * CoverageHook. */
-    | Coverage(string);
+    | Coverage(string)
+    /* (^report(46)) the worker's own timeline since the last one, after a
+       result, while the client asks (ClientMessage.Record) */
+    | Timeline(list(mark));
 };
 
 /* Candidate encodings for the worker payloads; `Marshal` is active (see
@@ -507,6 +524,44 @@ let is_latest = (model, request_id) =>
    The worker's sent-set starts over at first, when the client asks
    (ResetResponses), when it grows past ShareCodec.max_entries, and after a
    message too deep to walk, which is sent whole. */
+/* (^report(46)) the worker's own timeline, kept while the client asks
+   (ClientMessage.Record) and posted after each result: what the worker
+   does between a request and its answer. Off, a step costs a test. */
+let recording = ref(false);
+let marks: ref(list(ServerMessage.mark)) = ref([]);
+let epoch_now = (): float =>
+  Util.BenchMarks.time_origin() +. Util.BenchMarks.now();
+let wtime = (~extra=() => [], what: string, f: unit => 'r): 'r =>
+  if (! recording^) {
+    f();
+  } else {
+    let t0 = epoch_now();
+    let r = f();
+    let t1 = epoch_now();
+    marks :=
+      [
+        ServerMessage.{
+          what,
+          at: t0,
+          ms: t1 -. t0,
+          extra: extra(),
+        },
+        ...marks^,
+      ];
+    r;
+  };
+let kind_of = (msg: ServerMessage.t): string =>
+  switch (msg) {
+  | ServerMessage.Ack(_) => "ack"
+  | ServerMessage.ReusePlan(_) => "reuse plan"
+  | ServerMessage.Stream(_) => "stream"
+  | ServerMessage.Result(_) => "result"
+  | ServerMessage.Resend(_) => "resend"
+  | ServerMessage.Shared(_) => "shared"
+  | ServerMessage.Coverage(_) => "coverage"
+  | ServerMessage.Timeline(_) => "timeline"
+  };
+
 let response_reset = ref(true);
 let share_response = (msg: ServerMessage.t): ServerMessage.t => {
   if (Util.ShareCodec.Client.size() > Util.ShareCodec.max_entries) {
@@ -525,10 +580,35 @@ let share_response = (msg: ServerMessage.t): ServerMessage.t => {
     msg;
   };
 };
-let post_message = (msg: ServerMessage.t): unit =>
+let post_message = (msg: ServerMessage.t): unit => {
+  /* (^report(46)) each message's sharing, encoding and posting, on the
+     worker's timeline, with its size */
+  let kind = kind_of(msg);
+  let shared = wtime("share " ++ kind, () => share_response(msg));
+  let bytes = ref(0.);
+  let encoded =
+    wtime(
+      ~extra=() => [("bytes", bytes^)],
+      "encode " ++ kind,
+      () => {
+        let e = Active.encode_response(shared);
+        if (recording^) {
+          bytes := Core.Byte_units.bytes_float(Active.size_response(e));
+        };
+        e;
+      },
+    );
+  wtime("post " ++ kind, () => Js_of_ocaml.Worker.post_message(encoded));
+};
+
+/* the timeline so far, and start over (not itself on it) */
+let post_timeline = () => {
+  let tl = List.rev(marks^);
+  marks := [];
   Js_of_ocaml.Worker.post_message(
-    Active.encode_response(share_response(msg)),
+    Active.encode_response(share_response(ServerMessage.Timeline(tl))),
   );
+};
 
 /* A completed item's last stream, held for the result message when no item
    follows it (see ServerMessage.result.final_streams). */
@@ -553,6 +633,9 @@ let post_batch_result = (model, request_id, completed) => {
     switch (Option.bind(CoverageHook.snapshot, snapshot => snapshot())) {
     | Some(coverage) => post_message(ServerMessage.Coverage(coverage))
     | None => ()
+    };
+    if (recording^) {
+      post_timeline();
     };
   };
 };
@@ -731,20 +814,21 @@ let prune_value_size = (e: Language.Exp.t): Language.Exp.t =>
 /* a finished item's cache stays resident; its response drops it (the UI
    never reads it: prev is worker-resident, predictions come via
    ReusePlan) */
-let complete = (key: key, response: Response.value): (key, Response.value) => {
-  store_resident(key, response);
-  (
-    key,
-    switch (response) {
-    | Ok((exp, state)) =>
-      Ok((
-        exp |> Language.TermPrune.prune_closure_envs |> prune_value_size,
-        slim_state(state),
-      ))
-    | Error(_) as e => e
-    },
-  );
-};
+let complete = (key: key, response: Response.value): (key, Response.value) =>
+  wtime("make result", () => {
+    store_resident(key, response);
+    (
+      key,
+      switch (response) {
+      | Ok((exp, state)) =>
+        Ok((
+          exp |> Language.TermPrune.prune_closure_envs |> prune_value_size,
+          slim_state(state),
+        ))
+      | Error(_) as e => e
+      },
+    );
+  });
 
 let rec evaluate_next_batch_item = (model, request_id, completed, remaining) =>
   switch (remaining) {
@@ -810,7 +894,7 @@ and plan_latest_batch = model =>
       runtime: Idle,
     }
   | Some(request) =>
-    post_reuse_plan(model, request);
+    wtime("reuse plan", () => post_reuse_plan(model, request));
     {
       ...model,
       runtime: Starting,
@@ -879,7 +963,11 @@ and run_scheduled_slice = model => {
 let slice_time_budget_ms = 30.;
 let run_slices_for_budget = model => {
   let t0 = Util.JsUtil.precise_timestamp();
+  /* (^report(46)) on the worker's timeline, with the evaluator's share */
+  let e0 = eval_total^;
+  let n = ref(0);
   let rec go = model => {
+    incr(n);
     let next = run_scheduled_slice(model);
     switch (next.runtime) {
     | Idle => next
@@ -890,7 +978,16 @@ let run_slices_for_budget = model => {
         ? go(next) : next
     };
   };
-  go(model);
+  wtime(
+    ~extra=
+      () =>
+        [
+          ("eval_ms", Core.Time_ns.Span.(to_ms(eval_total^ - e0))),
+          ("slices", float_of_int(n^)),
+        ],
+    "slices",
+    () => go(model),
+  );
 };
 
 /* the pieces of the last request received, by hash: what the client
@@ -1039,7 +1136,7 @@ let install_message_handler = () => {
 
   let start = (posted: Posted.t): unit => {
     post_ack(posted.request_id);
-    switch (receive(posted)) {
+    switch (wtime("request composed", () => receive(posted))) {
     | Composed(request) =>
       eval_total := Core.Time_ns.Span.zero;
       commit({
@@ -1083,7 +1180,20 @@ let install_message_handler = () => {
     };
   };
   let on_request = (req: Active.request): unit =>
-    switch (Active.decode_request(req)) {
+    switch (
+      wtime(
+        ~extra=
+          () =>
+            [
+              (
+                "bytes",
+                Core.Byte_units.bytes_float(Active.size_request(req)),
+              ),
+            ],
+        "request decoded",
+        () => Active.decode_request(req),
+      )
+    ) {
     | ClientMessage.Evaluate(posted) => start(posted)
     | ClientMessage.EvaluateShared(reset, posted) =>
       /* (a piece with a reference it cannot resolve isn't taken: the
@@ -1094,6 +1204,11 @@ let install_message_handler = () => {
       };
       start(posted);
     | ClientMessage.ResetResponses => response_reset := true
+    | ClientMessage.Record(on) =>
+      recording := on;
+      if (!on) {
+        marks := [];
+      };
     };
 
   Js_of_ocaml.Worker.set_onmessage(on_request);

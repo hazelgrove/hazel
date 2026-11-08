@@ -208,6 +208,11 @@ let post_evaluate = (~full=false, ~metrics=false, worker, request: Request.t) =>
     Util.ShareCodec.Client.reset();
   };
   share_reset := false;
+  /* (^report(46)) while the page keeps its benchmark timeline, so does the
+     worker, sent after each result (ServerMessage.Timeline) */
+  if (Util.BenchMarks.on()) {
+    worker##postMessage(Active.encode_request(ClientMessage.Record(true)));
+  };
   /* (^report(46)) on the benchmark timeline: the request's pieces made,
      encoded and posted, with its id and size */
   let bytes = ref(0.);
@@ -295,6 +300,8 @@ let setup_worker_message_handler = worker => {
     Dom.handler(evt => {
       /* Stop the latency clock first thing, before any decode/benchmark. */
       let now = Util.JsUtil.precise_timestamp();
+      /* (^report(46)) a large answer kept as it came, for its breakdown */
+      AnswerParts.keep(evt##.data);
       let handle = (msg: ServerMessage.t) =>
         switch (msg) {
         | ServerMessage.Shared(_) => () /* unshared before here */
@@ -340,6 +347,23 @@ let setup_worker_message_handler = worker => {
             },
           )
         | ServerMessage.Coverage(coverage) => live_coverage := Some(coverage)
+        | ServerMessage.Timeline(marks) =>
+          /* (^report(46)) the worker's own steps, on the page's clock */
+          let origin = Util.BenchMarks.time_origin();
+          List.iter(
+            (m: ServerMessage.mark) =>
+              Util.BenchMarks.(
+                mark(
+                  ~at=m.at -. origin,
+                  ~extra=[
+                    ("ms", num(m.ms)),
+                    ...List.map(((k, v)) => (k, num(v)), m.extra),
+                  ],
+                  "worker: " ++ m.what,
+                )
+              ),
+            marks,
+          );
         };
       /* (^report(46)) on the benchmark timeline: each message from the
          worker decoded, then handled, by kind; a result with the worker's
@@ -382,6 +406,7 @@ let setup_worker_message_handler = worker => {
                   ]
                 | ServerMessage.Resend(_) => [("kind", str("resend"))]
                 | ServerMessage.Coverage(_) => [("kind", str("coverage"))]
+                | ServerMessage.Timeline(_) => [("kind", str("timeline"))]
                 | ServerMessage.Shared(_) => [("kind", str("shared"))]
                 }
               ),

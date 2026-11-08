@@ -159,6 +159,13 @@ EDIT_DONE = r"""
   const st = window.__edit;
   if (!st || st.picChanged === undefined) return null;
   if (document.querySelector('.livelit-pending, #dynamics.running, #dynamics.pending')) return null;
+  // (the worker's own timeline comes after its last result: wait for it, up to 20 s)
+  const bm = window.hazelBenchMarks || [];
+  const lastResult = Math.max(-1, ...bm.filter(m => m.kind === 'result').map(m => m.at));
+  if (!bm.some(m => m.kind === 'timeline' && m.at >= lastResult)) {
+    st.waitTl = st.waitTl || performance.now();
+    if (performance.now() - st.waitTl < 20000) return null;
+  }
   st.mo.disconnect();
   const count = w => w.querySelectorAll('polygon, polyline').length;
   const pic = [...document.querySelectorAll('.user-livelit')].reduce((a, w) => (!a || count(w) > count(a)) ? w : a, null);
@@ -174,6 +181,27 @@ EDIT_DONE = r"""
            dynamics: st.dyn, other_batches: st.other, shapes: after.length, shapes_changed: changed,
            jit: globalThis.hazelJit ? JSON.parse(JSON.stringify(globalThis.hazelJit.counts || {})) : null };
 """
+
+# (^report(46)) what each large answer from the worker held, by its parts' sizes as they crossed (AnswerParts): asked
+# for after the edit's timing is done, since it re-reads every kept message
+ANSWER_PARTS = "return globalThis.hazelAnswerParts ? globalThis.hazelAnswerParts() : null;"
+
+
+def print_parts(parts):
+    for m in parts:
+        if "error" in m:
+            print(f"      answer: error {m['error']}", flush=True)
+            continue
+        mb = lambda b: f"{b / 1e6:.2f} MB" if isinstance(b, (int, float)) else str(b)
+        top = "; ".join(f"{p['part']} {mb(p['bytes'])}" + (f" x{p['n']}" if p["n"] > 1 else "") for p in m["parts"][:8])
+        pr, tr = m["probes"], m["trace"]
+        ev = "; ".join(f"{e['kind']} {e['n']} ({mb(e['bytes'])})" for e in tr["events"])
+        print(f"      answer {m['kind']}: {mb(m['bytes'])} as it crossed, {mb(m['unshared_bytes'])} unshared, "
+              f"{m['held_refs']} held references; {top}", flush=True)
+        print(f"        probes {pr['count']}, samples {pr['samples']} (+{pr['samples_held']} held): value {mb(pr['value'])}, "
+              f"env {mb(pr['env'])}, call stack {mb(pr['call_stack'])}, args {mb(pr['args'])}, frame {mb(pr['frame'])}; "
+              f"trace: {ev or 'none'}; span close values {mb(tr['span_close_values'])}, envs {mb(tr['span_close_envs'])}", flush=True)
+
 
 # (two sliders: the neck moves the head, the hair and the hat with it; an arm moves only that arm and what it holds)
 EDIT_STEPS = [("neck", 2), ("neck", -2), ("arms (up / down)", 10), ("arms (up / down)", -10)]
@@ -201,6 +229,15 @@ def print_marks(got):
                 sums[k] = (n + 1, t + m["ms"])
         top = sorted(sums.items(), key=lambda kv: -kv[1][1])[:10]
         print(f"      {name} ({until} ms): " + "; ".join(f"{k} {t:.0f} ms x{n}" for k, (n, t) in top), flush=True)
+    sums = {}
+    for m in marks:
+        if m["what"].startswith("worker: ") and "ms" in m:
+            n, t, b, e = sums.get(m["what"], (0, 0.0, 0.0, 0.0))
+            sums[m["what"]] = (n + 1, t + m["ms"], b + m.get("bytes", 0), e + m.get("eval_ms", 0))
+    if sums:
+        print("      the worker's own steps: " + "; ".join(
+            f"{k[8:]} {t:.0f} ms x{n}" + (f" ({b / 1e6:.2f} MB)" if b else "") + (f" (evaluator {e:.0f} ms)" if e else "")
+            for k, (n, t, b, e) in sorted(sums.items(), key=lambda kv: -kv[1][1])), flush=True)
     for m in marks:
         if m.get("kind") == "result" or m["what"] == "post to worker":
             print(f"      {m['at']} ms: {m['what']} {json.dumps({k: v for k, v in m.items() if k not in ('what', 'at')})}", flush=True)
@@ -223,8 +260,16 @@ def edits(d, sid):
                 rows.append({"label": label, "from": started[0], "to": started[1], "timed_out": True})
                 print(f"    edit {label!r} {started[0]} -> {started[1]}: the picture did not change in 240 s", flush=True)
                 continue
+            # (the breakdown re-reads megabytes in the page: WebDriver's script limit raised from 30 s)
+            d._req("POST", f"/session/{d.sid}/timeouts", {"script": 600000})
+            t = time.time()
+            raw = d.js(ANSWER_PARTS)
+            got["answer_parts"] = json.loads(raw) if raw else None
+            got["answer_parts_s"] = round(time.time() - t, 1)
             rows.append(got)
             print_marks(got)
+            if got["answer_parts"]:
+                print_parts(got["answer_parts"])
             print(f"    edit, compiled {mode}: {label!r} {got['from']} -> {got['to']}: the slider's own livelit "
                   f"{got['own_first_ms']} ms; the picture {got['picture_changed_ms']} ms "
                   f"({got['shapes_changed']} of {got['shapes']} shapes changed); the run {got['dynamics']}", flush=True)
