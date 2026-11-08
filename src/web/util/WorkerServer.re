@@ -517,13 +517,6 @@ let is_latest = (model, request_id) =>
 /* All worker→client messages cross postMessage in the Active encoding
  * (see ENCODING above): posting the live value graph overflows Chrome's
  * structured clone on deep results (#2368). */
-/* Responses are shared (Util.ShareCodec): a result the client already
-   holds goes as a reference, so a release's result carries what changed. Encoding the whole response was as much
-   of the worker's time per release as evaluating (Kids' Choice, 44 ms
-   profiled), and decoding it a main-thread cost on the way to the redraw.
-   The worker's sent-set starts over at first, when the client asks
-   (ResetResponses), when it grows past ShareCodec.max_entries, and after a
-   message too deep to walk, which is sent whole. */
 /* (^report(46)) the worker's own timeline, kept while the client asks
    (ClientMessage.Record) and posted after each result: what the worker
    does between a request and its answer. Off, a step costs a test. */
@@ -562,6 +555,20 @@ let kind_of = (msg: ServerMessage.t): string =>
   | ServerMessage.Timeline(_) => "timeline"
   };
 
+/* Responses were shared (Util.ShareCodec, ^ticket(513)): a value the client
+   already held went as a reference. Encoding the whole response was as much
+   of the worker's time per release as evaluating (Kids' Choice, 44 ms
+   profiled), and decoding it a main-thread cost on the way to the redraw.
+   (^report(46), Matthew, 2026-11-08: "drop sharing") The worker's answers
+   are not shared any more: on the Witch slide, once its samples no longer
+   wrote out a module whole, sharing a 0.45 MB result took 154 to 255 ms in
+   the worker to save 0.04 MB, more than encoding and decoding all of it, and
+   the hashing of every value it needs is paid again on the page. What the
+   answers carry is meant to be first-order data, which is not expected to
+   share (^ticket(718)). share_response stays for its tests, and the client
+   still decodes a Shared message, until the response side's sharing is
+   removed. The requests keep theirs: the program's pieces, open code that
+   mostly does not change between edits. */
 let response_reset = ref(true);
 let share_response = (msg: ServerMessage.t): ServerMessage.t => {
   if (Util.ShareCodec.Client.size() > Util.ShareCodec.max_entries) {
@@ -581,17 +588,16 @@ let share_response = (msg: ServerMessage.t): ServerMessage.t => {
   };
 };
 let post_message = (msg: ServerMessage.t): unit => {
-  /* (^report(46)) each message's sharing, encoding and posting, on the
-     worker's timeline, with its size */
+  /* (^report(46)) each message's encoding and posting, on the worker's
+     timeline, with its size */
   let kind = kind_of(msg);
-  let shared = wtime("share " ++ kind, () => share_response(msg));
   let bytes = ref(0.);
   let encoded =
     wtime(
       ~extra=() => [("bytes", bytes^)],
       "encode " ++ kind,
       () => {
-        let e = Active.encode_response(shared);
+        let e = Active.encode_response(msg);
         if (recording^) {
           bytes := Core.Byte_units.bytes_float(Active.size_response(e));
         };
@@ -606,7 +612,7 @@ let post_timeline = () => {
   let tl = List.rev(marks^);
   marks := [];
   Js_of_ocaml.Worker.post_message(
-    Active.encode_response(share_response(ServerMessage.Timeline(tl))),
+    Active.encode_response(ServerMessage.Timeline(tl)),
   );
 };
 
