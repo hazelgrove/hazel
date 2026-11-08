@@ -336,28 +336,63 @@ let rec parts =
   };
 };
 
-let tree = (term: Language.Exp.t, data: Data.t): Yojson.Safe.t =>
+/* each part's bytes as it adds them: the Marshal size of the first k parts,
+   less that of the first k - 1, so the parts add up to the whole, and what
+   the parts share (the types every constructor carries) is counted once, on
+   the first part that uses it */
+let marginal = (f: list('a) => int, xs: list('a)): list(int) => {
+  let prev = ref(f([]));
+  let acc = ref([]);
+  List.iteri(
+    (i, _) => {
+      let s = f(Util.ListUtil.take(i + 1, xs));
+      acc := [s - prev^, ...acc^];
+      prev := s;
+    },
+    xs,
+  );
+  List.rev(acc^);
+};
+
+let tree = (term: Language.Exp.t, data: Data.t): Yojson.Safe.t => {
+  let ps = parts(term, data);
+  let ts = List.map(fst, ps);
+  let ds = List.map(snd, ps);
+  let t = marginal(xs => mbytes(xs), ts);
+  let s = marginal(xs => mbytes(List.map(shared_tags, xs)), ts);
+  let d = marginal(xs => mbytes(xs), ds);
+  let a = marginal(xs => mbytes(List.concat_map(atoms, xs)), ds);
   `Assoc([
     ("whole", split(term, data)),
+    ("method", `String("marginal")),
     (
       "parts",
       `List(
         List.mapi(
-          (i, (t, d)) =>
+          (i, (_, dd)) =>
             `Assoc([
               (
                 "name",
                 `String(
-                  Option.value(name_of(d), ~default=string_of_int(i)),
+                  Option.value(name_of(dd), ~default=string_of_int(i)),
                 ),
               ),
-              ("split", split(t, d)),
+              (
+                "split",
+                `Assoc([
+                  ("term", `Int(List.nth(t, i))),
+                  ("shared_tags", `Int(List.nth(s, i))),
+                  ("data", `Int(List.nth(d, i))),
+                  ("atoms", `Int(List.nth(a, i))),
+                ]),
+              ),
             ]),
-          parts(term, data),
+          ps,
         ),
       ),
     ),
   ]);
+};
 
 /* the last few large messages from the worker, as they came */
 let recent: ref(list(WorkerServer.Active.response)) = ref([]);
