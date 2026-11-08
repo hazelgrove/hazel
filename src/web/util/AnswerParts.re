@@ -3,9 +3,10 @@
    the worker is kept as it arrived; globalThis.hazelAnswerParts(), called by
    the Firefox check once an edit's timing is done, breaks each down by its
    parts' sizes, as they crossed: Util.ShareCodec's references to values the
-   page already held count as nothing ("held"), and a part's size is its own
-   Marshal (so parts that share values each count them). It returns JSON,
-   and forgets the messages. */
+   page already held count as next to nothing ("held"). A part's size is an
+   estimate (see [est]) scaled to the bytes the whole message took, and
+   parts that share values each count them. It returns JSON, and forgets
+   the messages. */
 open WorkerServer;
 
 let min_bytes = 100_000;
@@ -25,7 +26,40 @@ let is_ref = (v: 'a): bool =>
     Js.Unsafe.fun_call(Lazy.force(is_ref_fn), [|Js.Unsafe.inject(v)|]),
   );
 
-let size = (v: 'a): int => String.length(Marshal.to_string(v, []));
+/* a value's size, estimated by a walk in JS: a block 8 bytes a field, a
+   string its length, a value met twice once, a reference to a held value
+   one small block. Marshal itself, on megabytes, took more than 90 s an
+   edit in Firefox, too long for the check. */
+let est_fn =
+  lazy(
+    Js.Unsafe.js_expr(
+      {js|(function (v) {
+  var MARK = "\u0001hazel-share-ref";
+  var seen = new Set(), stack = [v], total = 0;
+  while (stack.length) {
+    var x = stack.pop(), t = typeof x;
+    if (t === "string") { total += 8 + x.length; continue; }
+    if (t !== "object" || x === null || seen.has(x)) continue;
+    seen.add(x);
+    if (!Array.isArray(x)) { total += 16 + (typeof x.l === "number" ? x.l : 0); continue; }
+    if (x.length === 4 && x[1] === MARK) { total += 32; continue; }
+    total += 8 * x.length;
+    for (var i = 1; i < x.length; i++) {
+      var y = x[i];
+      if (typeof y === "object" || typeof y === "string") stack.push(y);
+    }
+  }
+  return total;
+})|js},
+    )
+  );
+let est = (v: 'a): int =>
+  Js.Unsafe.fun_call(Lazy.force(est_fn), [|Js.Unsafe.inject(v)|]);
+
+/* the message's bytes over its whole estimate: each part's estimate times
+   this is its share of the bytes that crossed */
+let scale = ref(1.);
+let size = (v: 'a): int => int_of_float(float_of_int(est(v)) *. scale^);
 
 /* a list as it crossed: from a cell the page held, the rest is a reference */
 let iter_list = (~held: ref(int), f: Obj.t => unit, l: Obj.t): unit => {
@@ -272,6 +306,8 @@ let breakdown = (raw: Active.response): Yojson.Safe.t => {
     close_envs: ref([]),
   };
   let kind = kind_of(inner);
+  let est_total = est(inner);
+  scale := float_of_int(bytes) /. float_of_int(max(1, est_total));
   if (!is_ref(inner)) {
     switch (inner) {
     | ServerMessage.Result(r) when !is_ref(r) =>
@@ -342,6 +378,7 @@ let breakdown = (raw: Active.response): Yojson.Safe.t => {
     ("kind", `String(kind)),
     ("bytes", `Int(bytes)),
     ("unshared_bytes", unshared),
+    ("est_total", `Int(est_total)),
     (
       "reset",
       switch (reset) {

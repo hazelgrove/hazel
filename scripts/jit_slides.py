@@ -263,7 +263,7 @@ def edits(d, sid):
             # (the breakdown re-reads megabytes in the page: WebDriver's script limit raised from 30 s)
             d._req("POST", f"/session/{d.sid}/timeouts", {"script": 600000})
             t = time.time()
-            raw = d.js(ANSWER_PARTS)
+            raw = d.js(ANSWER_PARTS, timeout=600)
             got["answer_parts"] = json.loads(raw) if raw else None
             got["answer_parts_s"] = round(time.time() - t, 1)
             rows.append(got)
