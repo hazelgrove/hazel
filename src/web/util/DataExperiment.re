@@ -38,9 +38,18 @@ module Data = {
       Some([]),
     );
 
+  /* the node under its ascriptions: only this node's, not a rewrite of the
+     whole subterm, as DHExp.strip_ascriptions is (called at every node, that
+     made the conversion quadratic: 110 ms for the Witch's picture) */
+  let rec peel = (e: Language.Exp.t): Language.Exp.t =>
+    switch (e.term) {
+    | Asc(d, _) => peel(d)
+    | _ => e
+    };
+
   /* None at the first function, closure, hole or open term */
   let rec of_term = (e: Language.Exp.t): option(t) => {
-    let e = Language.DHExp.strip_ascriptions(e);
+    let e = peel(e);
     switch (e.term) {
     | Atom(a) => Some(Atom(a))
     | ListLit(xs) => Option.map(xs => List(xs), all(of_term, xs))
@@ -54,7 +63,7 @@ module Data = {
     };
   }
   and field = (e: Language.Exp.t): option(field) =>
-    switch (Language.DHExp.strip_ascriptions(e).term) {
+    switch (peel(e).term) {
     | TupLabel({term: Label(l), _}, v) =>
       Option.map(
         value =>
@@ -288,13 +297,13 @@ let name_of = (d: Data.t): option(string) =>
 /* the parts: a list's elements, through a record of one field */
 let rec parts =
         (term: Language.Exp.t, data: Data.t): list((Language.Exp.t, Data.t)) => {
-  let term = Language.DHExp.strip_ascriptions(term);
+  let term = Data.peel(term);
   switch (term.term, data) {
   | (Parens(e), _) => parts(e, data)
   | (ListLit(ts), List(ds)) when List.length(ts) == List.length(ds) =>
     List.combine(ts, ds)
   | (Tuple([t]), Tuple([f])) =>
-    switch (Language.DHExp.strip_ascriptions(t).term) {
+    switch (Data.peel(t).term) {
     | TupLabel(_, v) => parts(v, f.value)
     | _ => parts(t, f.value)
     }
