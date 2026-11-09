@@ -246,6 +246,84 @@ def print_data_experiment(x):
 # (two sliders: the neck moves the head, the hair and the hat with it; an arm moves only that arm and what it holds)
 EDIT_STEPS = [("neck", 2), ("neck", -2), ("arms (up / down)", 10), ("arms (up / down)", -10)]
 
+# (^ticket(722), Matthew 2026-11-08: screenshots of Hazel running, with the frame-rate HUD) a drag of a slider as a
+# browser delivers one: at each frame the slider moves one step and fires `input` (a transient event: the program's
+# text is not changed), sweeping lo to hi and back, and at the end one `change` (the commit). Every frame's time is
+# kept, from requestAnimationFrame, as the HUD times them: a page busy for 300 ms is one 300 ms frame, and in it the
+# slider moved once, as a real drag's pointer moves are folded into the next frame.
+DRAG = r"""
+  const [label, lo, hi, ms] = arguments;
+  const slider = () => [...document.querySelectorAll('.user-livelit input[type=range]')]
+    .find(i => i.parentElement && i.parentElement.firstElementChild
+               && i.parentElement.firstElementChild.textContent.trim() === label);
+  const inp = slider();
+  if (!inp) return null;
+  inp.scrollIntoView({ block: 'center' });
+  const st = { label, from: +inp.value, frames: [], inputs: 0, done: false, t0: performance.now() };
+  window.__drag = st;
+  let v = +inp.value, dir = 1, last = 0;
+  function step(t) {
+    if (last) st.frames.push(Math.round((t - last) * 10) / 10);
+    last = t;
+    if (t - st.t0 >= ms) {
+      const s = slider();
+      if (s) s.dispatchEvent(new Event('change', { bubbles: true }));
+      st.to = v; st.done = true; st.ms = Math.round(t - st.t0);
+      return;
+    }
+    v += dir; if (v >= hi) dir = -1; if (v <= lo) dir = 1;
+    const s = slider();
+    if (s) { s.value = String(v); s.dispatchEvent(new Event('input', { bubbles: true })); st.inputs++; }
+    requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+  return [st.from];
+"""
+DRAG_DONE = "const st = window.__drag; return (st && st.done) ? {label: st.label, from: st.from, to: st.to, ms: st.ms, inputs: st.inputs, frames: st.frames} : null;"
+DRAGS = [("neck", 0, 60)]
+
+
+def drag_stats(frames):
+    frames = sorted(frames)
+    n, total = len(frames), sum(frames)
+    q = lambda p: frames[min(n - 1, int(p * n))]
+    return {"frames": n, "fps": round(1000 * n / total, 1) if total else 0, "median_ms": q(0.5), "p90_ms": q(0.9),
+            "max_ms": frames[-1], "within_16_7": sum(1 for f in frames if f <= 1000 / 60 * 1.05)}
+
+
+def drags(d, sid, shots):
+    """Each slider in DRAGS dragged for 3 s on a fresh load, both ways, with the HUD on: once timed, then once more
+    with a screenshot halfway (a screenshot can itself hold up a frame, so it is not taken in the timed drag)."""
+    out = {}
+    for mode in ("on", "off"):
+        load(d, sid, mode, hud=True)
+        rows = []
+        for label, lo, hi in DRAGS:
+            if not d.js(DRAG, [label, lo, hi, 3000]):
+                rows.append({"label": label, "missing": True})
+                print(f"    drag {label!r}: no such slider", flush=True)
+                continue
+            got = wait_for_value(d, DRAG_DONE, 120)
+            if not got:
+                rows.append({"label": label, "timed_out": True})
+                print(f"    drag {label!r}: did not finish in 120 s", flush=True)
+                continue
+            got["stats"] = drag_stats(got["frames"])
+            st = got["stats"]
+            print(f"    drag, compiled {mode}: {label!r} for {got['ms']} ms: {st['frames']} frames, {st['fps']} fps, "
+                  f"median {st['median_ms']} ms, 90th {st['p90_ms']} ms, longest {st['max_ms']} ms, "
+                  f"{st['within_16_7']} within a 60 fps frame; {got['inputs']} inputs", flush=True)
+            D.settled(d)
+            time.sleep(1)
+            if shots and d.js(DRAG, [label, lo, hi, 3000]):
+                time.sleep(1.8)
+                d.shot(os.path.join(shots, f"drag_{re.sub(r'[^A-Za-z0-9]+', '_', label)}_{mode}.png"))
+                wait_for_value(d, DRAG_DONE, 120)
+                D.settled(d)
+            rows.append(got)
+        out[mode] = rows
+    return out
+
 
 def wait_for_value(d, script, secs):
     t = time.time()
@@ -363,9 +441,9 @@ def slide_ids():
     return [(n, by_name[n]) for n in SLIDES if n in by_name]
 
 
-def load(d, sid, mode):
+def load(d, sid, mode, hud=False):
     t0 = time.time()
-    d.goto(f"/fresh?slide={sid}&panel=none&jit={mode}")
+    d.goto(f"/fresh?slide={sid}&panel=none&jit={mode}" + ("&hud=on" if hud else ""))
     time.sleep(3)
     D.wait_for(d, "return document.querySelectorAll('.user-livelit').length > 0", 120)
     D.settled(d)
@@ -433,6 +511,7 @@ def main():
     ap.add_argument("--bench-n", type=int, default=15)
     ap.add_argument("--bench-views", default="picture|polygons", help="a regex on the views benched (empty: every one)")
     ap.add_argument("--edit", default="Witch", help="substring filter on the slides where small edits are timed (empty: none)")
+    ap.add_argument("--drag", default="Witch", help="substring filter on the slides where a slider's drag is timed, with the HUD (empty: none)")
     args = ap.parse_args()
     if args.shots:
         os.makedirs(args.shots, exist_ok=True)
@@ -464,6 +543,8 @@ def main():
                 entry["bench"] = bench(d, sid, args.bench_n, args.bench_views)
             if args.edit and args.edit.lower() in name.lower():
                 entry["edits"] = edits(d, sid)
+            if args.drag and args.drag.lower() in name.lower():
+                entry["drags"] = drags(d, sid, args.shots)
             compare(name + ", as loaded", entry["on"]["_before"], entry["off"]["_before"], problems)
             compare(name + ", after the events", entry["on"]["_after"], entry["off"]["_after"], problems)
             for mode in ("on", "off"):
