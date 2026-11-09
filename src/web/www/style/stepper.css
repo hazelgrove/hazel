@@ -170,7 +170,7 @@
   z-index: var(--proof-step-raised-z);
 }
 
-.cell-result .cell-result:has(.axiom-box, .rewrite-box) {
+.cell-result .cell-result:has(.rewrite-box, .strategies-box) {
   z-index: var(--proof-step-panel-z);
 }
 
@@ -211,7 +211,8 @@
   white-space: nowrap;
 }
 
-.axiom-box {
+.rewrite-box,
+.strategies-box {
   background-color: var(--menu-bkg);
   border-radius: 0 0 0.5em 0;
   outline: 0.6px solid var(--menu-outline);
@@ -220,17 +221,34 @@
   display: flex;
   flex-direction: column;
   gap: 5px;
+  width: max-content;
+  max-width: 40em;
 }
 
-.rewrite-box {
-  background-color: var(--menu-bkg);
-  border-radius: 0 0 0.5em 0;
-  outline: 0.6px solid var(--menu-outline);
-  box-shadow: 0px 10px 20px var(--menu-shadow);
-  padding: 10px;
+.picker-heading {
+  font-weight: bold;
+  margin-top: 0.3em;
+}
+
+.picker-note,
+.strategy-explanation {
+  color: var(--text-muted);
+}
+
+.rewrite-algebra,
+.strategy,
+.strategy-facts {
   display: flex;
-  flex-direction: column;
-  gap: 5px;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5em;
+}
+
+/* On a line of its own, under the strategy it cites for. */
+.strategy-facts {
+  flex-basis: 100%;
+  margin-left: 1em;
 }
 
 /* STEPPER (OLD) */
@@ -674,26 +692,6 @@
  * cannot be typed into reads as broken. */
 .proof-form-arg-static {
   padding: 0.2em 0;
-}
-
-/* The pick list for a form whose argument must be searched (`revert`,
- * `contradiction`). Same chrome as `.rewrite-box` / `.axiom-box`,
- * laid out in a row because it reads as one line: the keyword followed by
- * the candidates. It holds no editor — picking inserts the step and the
- * argument is then edited in place, in the row's own
- * `.proof-form-arg` slot. */
-.proof-form-box {
-  background-color: var(--menu-bkg);
-  border-radius: 0 0 0.5em 0;
-  outline: 0.6px solid var(--menu-outline);
-  box-shadow: 0px 10px 20px var(--menu-shadow);
-  padding: 10px;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 5px;
-  max-width: 40em;
 }
 
 /* Prover: `have` ------------------------------------------------------

@@ -391,28 +391,22 @@ module Goal = {
 
 // Picking
 
-/* The forms that cite an in-scope fact, picked from a list. */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type fact_form =
-  | Revert
-  | Contradiction;
-
-let keyword = (f: fact_form): string =>
-  switch (f) {
-  | Revert => "revert"
-  | Contradiction => "contradiction"
-  };
-
 /* The boxes a picker button opens below the buttons. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type box =
-  | Axioms
   | Rewrite
-  | Facts(fact_form);
+  | Strategies;
 
 type action =
   | Write(TermBase.Proof.term)
   | Open(box);
+
+/* A button: its label, a tooltip saying what it writes, and its action. */
+type offer = {
+  label: string,
+  tooltip: string,
+  action,
+};
 
 /* What taking the `idx`-th offered step writes: `eval <at_exp> at <n>
  * end`. */
@@ -442,14 +436,12 @@ let refl = (goal: Goal.t, at_exp: Exp.t): option(TermBase.Proof.term) =>
        )
      );
 
-/* The buttons the picker offers for the selection `selected`, as labels
- * and actions. A button only picks, never edits: a form with an argument
- * to search (revert and contradiction match an in-scope fact) opens a
- * pick list, and one with nothing to search (assume, generalize and have
- * take any proposition) writes the step with a hole argument for the
- * user to type into. */
-let offers =
-    (goal: Goal.t, ~selected: option(Exp.t)): list((string, action)) => {
+/* The buttons the picker offers for the selection `selected`. A button
+ * only picks, never edits: a form with an argument to search (a rule to
+ * rewrite with, a fact to cite) opens a box to pick it from, and one with
+ * nothing to search (have, generalize) writes the step with a hole
+ * argument for the user to type into. */
+let offers = (goal: Goal.t, ~selected: option(Exp.t)): list(offer) => {
   let display = goal.display;
   let is_selected = (e: Exp.t) =>
     switch (selected) {
@@ -464,19 +456,38 @@ let offers =
       )
       |> Option.bind(_, take_step(goal))
     ) {
-    | Some(term) => [("Step", Write(term))]
+    | Some(term) => [
+        {
+          label: "Step",
+          tooltip: "Writes `eval`: one evaluation step at the selection",
+          action: Write(term),
+        },
+      ]
     | None => []
     };
   let refl =
     switch (
       List.find_opt(is_selected, goal.refls) |> Option.bind(_, refl(goal))
     ) {
-    | Some(term) => [("Reflexivity", Write(term))]
+    | Some(term) => [
+        {
+          label: "Reflexivity",
+          tooltip: "Writes `axiom refl_eq`: closes an equation of equals",
+          action: Write(term),
+        },
+      ]
     | None => []
     };
   let function_body =
     is_selected(display) && Exp.is_fun(display)
-      ? [("Function Body", Write(Terms.forall()))] : [];
+      ? [
+        {
+          label: "Function Body",
+          tooltip: "Writes `forall ? =>`: names the argument, to prove the body",
+          action: Write(Terms.forall()),
+        },
+      ]
+      : [];
   /* Exactly when the goal is `f == g` at an arrow type, by the checker's
    * own detector, so the button never offers a step that would mark.
    * The arrow type keeps it off `==` between lists of functions. */
@@ -486,94 +497,184 @@ let offers =
     ProofCheck.Funext.goal(~info_map, ~env, display) == None
       ? []
       : [
-        (
-          "Funext",
-          Write(
-            Terms.funext(
-              ~binder=ProofCheck.Funext.binder(~info_map, ~env, display),
+        {
+          label: "Funext",
+          tooltip: "Writes `funext x =>`: proves the functions equal at any x",
+          action:
+            Write(
+              Terms.funext(
+                ~binder=ProofCheck.Funext.binder(~info_map, ~env, display),
+              ),
             ),
-          ),
-        ),
+        },
       ];
   /* With goal `A ==> B`, assuming exactly A strips the antecedent. */
-  let assume_antecedent =
+  let assume =
     switch (Exp.term_of(display)) {
     | BinOp(Bool(Implies), a, _) => [
-        ("Assume antecedent", Write(Terms.assume(~exp=a))),
+        {
+          label: "Assume",
+          tooltip: "Writes `assume A =>`: takes the left side of `A ==> B` as a fact",
+          action: Write(Terms.assume(~exp=a)),
+        },
       ]
     | _ => []
     };
-  let hole = () => Exp.fresh(EmptyHole);
+  let rewrite =
+    selected == None
+      ? []
+      : [
+        {
+          label: "Rewrite ▼",
+          tooltip: "Rewrites the selection, by algebra or with a fact, theorem or axiom",
+          action: Open(Rewrite),
+        },
+      ];
   step
   @ refl
   @ function_body
   @ funext
+  @ assume
+  @ rewrite
   @ [
-    ("Algebra ▼", Open(Rewrite)),
-    ("Assumptions ▼", Open(Axioms)),
-    ("Assume", Write(Terms.assume(~exp=hole()))),
-  ]
-  @ assume_antecedent
-  @ [
-    ("Revert ▼", Open(Facts(Revert))),
-    ("Generalize", Write(Terms.generalize(~exp=hole()))),
-    ("Have", Write(Terms.have(~exp=hole()))),
-    ("Contradiction ▼", Open(Facts(Contradiction))),
-    ("Cases/Induction", Write(Terms.induction(~scrut=selected))),
+    {
+      label: "Strategies ▼",
+      tooltip: "Have, contradiction, cases: steps that shape the rest of the proof",
+      action: Open(Strategies),
+    },
   ];
 };
 
-/* The rules the Assumptions box lists. With no filter typed, those that
- * rewrite the selection; with one, those whose names match it. Bare
- * boolean facts read as `P == true` here, once, so the list and the box
- * agree on what each rule rewrites. The checker's axiom step makes the
- * same call, so a rule shown as applicable is one the checker accepts. */
-let rules =
-    (goal: Goal.t, ~filter: string, ~selected: option(Exp.t))
-    : list(ProofCtx.entry) => {
-  let info_map = Goal.info_map(goal);
-  ProofCtx.of_theorem_ctx(~builtins=Axioms.v, SemanticCtx.get_ctx(goal.ctx))
-  |> List.filter(({name, _}: ProofCtx.entry) =>
-       filter == "" || StringUtil.subseq_search(name, filter)
-     )
-  |> List.map((entry: ProofCtx.entry) =>
-       {
-         ...entry,
-         rule:
-           ProofRule.BoolReading.apply(~info_map=Some(info_map), entry.rule),
-       }
-     )
-  |> List.filter((entry: ProofCtx.entry) =>
-       filter != ""
-       || (
-         switch (selected) {
-         | Some(e) =>
-           ProofRule.Rewrite.is_active(
-             ~info_map,
-             ~env=Goal.env(goal),
-             entry.rule,
-             DHExp.strip_ascriptions(e),
-           )
-         | None => false
-         }
-       )
-     );
+/* A scope's citable rules: its own facts and theorems, then the builtin
+ * axioms, which `ProofCtx.of_theorem_ctx` lists last. */
+let scope_and_axioms =
+    (ctx: SemanticCtx.t): (list(ProofCtx.entry), list(ProofCtx.entry)) => {
+  let all =
+    ProofCtx.of_theorem_ctx(~builtins=Axioms.v, SemanticCtx.get_ctx(ctx));
+  ListUtil.split_n(List.length(all) - List.length(Axioms.v), all);
 };
 
-/* The in-scope facts `revert` and `contradiction` can cite: the rules of
- * the Assumptions box without the builtin axioms (rules, not facts of
- * this scope) and captured entries. Both match a fact by
- * `Exp.fast_equal` (ProofCheck.Discharge.lookup), so typing one is error
- * prone. */
-let facts = (ctx: SemanticCtx.t): list(ProofCtx.entry) =>
-  ProofCtx.of_theorem_ctx(~builtins=Axioms.v, SemanticCtx.get_ctx(ctx))
-  |> List.filter((entry: ProofCtx.entry) =>
-       !entry.is_captured
-       && !List.exists((a: ProofCtx.entry) => a.name == entry.name, Axioms.v)
-     );
+type section = {
+  heading: string,
+  rules: list(ProofCtx.entry),
+};
 
-let pick_fact = (form: fact_form, exp: Exp.t): TermBase.Proof.term =>
-  switch (form) {
-  | Revert => Terms.revert(~exp)
-  | Contradiction => Terms.contradiction(~exp)
-  };
+/* The rules the Rewrite box lists, by source, leaving out empty
+ * sections. With no filter typed, those that rewrite the selection; with
+ * one, those whose names match it. Bare boolean facts read as
+ * `P == true` here, once, so the list and the box agree on what each rule
+ * rewrites. The checker's axiom step makes the same call, so a rule shown
+ * as applicable is one the checker accepts. */
+let rules =
+    (goal: Goal.t, ~filter: string, ~selected: option(Exp.t)): list(section) => {
+  let info_map = Goal.info_map(goal);
+  let shown = entries =>
+    entries
+    |> List.filter(({name, _}: ProofCtx.entry) =>
+         filter == "" || StringUtil.subseq_search(name, filter)
+       )
+    |> List.map((entry: ProofCtx.entry) =>
+         {
+           ...entry,
+           rule:
+             ProofRule.BoolReading.apply(
+               ~info_map=Some(info_map),
+               entry.rule,
+             ),
+         }
+       )
+    |> List.filter((entry: ProofCtx.entry) =>
+         filter != ""
+         || (
+           switch (selected) {
+           | Some(e) =>
+             ProofRule.Rewrite.is_active(
+               ~info_map,
+               ~env=Goal.env(goal),
+               entry.rule,
+               DHExp.strip_ascriptions(e),
+             )
+           | None => false
+           }
+         )
+       );
+  let (scope, axioms) = scope_and_axioms(goal.ctx);
+  [
+    {
+      heading: "Facts and theorems",
+      rules: shown(scope),
+    },
+    {
+      heading: "Axioms",
+      rules: shown(axioms),
+    },
+  ]
+  |> List.filter(section => section.rules != []);
+};
+
+/* A row of the Strategies box. */
+type strategy = {
+  label: string,
+  /* One line on what it is for. */
+  explanation: string,
+  tooltip: string,
+  picks,
+}
+and picks =
+  | Writes(TermBase.Proof.term)
+  /* One step per in-scope fact, by the fact's name. The forms that cite
+   * a fact match it by `Exp.fast_equal` (ProofCheck.Discharge.lookup),
+   * so typing one in is error prone. */
+  | Cites(list((string, TermBase.Proof.term)));
+
+/* The Strategies box, as the strategies most proofs use and those
+ * rarely needed. */
+let strategies =
+    (goal: Goal.t, ~selected: option(Exp.t))
+    : (list(strategy), list(strategy)) => {
+  let hole = () => Exp.fresh(EmptyHole);
+  let cites = term =>
+    Cites(
+      fst(scope_and_axioms(goal.ctx))
+      |> List.filter((entry: ProofCtx.entry) => !entry.is_captured)
+      |> List.map((entry: ProofCtx.entry) =>
+           (entry.name, term(~exp=entry.exp))
+         ),
+    );
+  (
+    [
+      {
+        label: "Have",
+        explanation: "Prove a stepping-stone fact first, then use it here.",
+        tooltip: "Writes `have ? proof ? =>`",
+        picks: Writes(Terms.have(~exp=hole())),
+      },
+      {
+        label: "Contradiction",
+        explanation: "Close an impossible case: pick a fact here that evaluates to false.",
+        tooltip: "Writes `contradiction <fact> end`",
+        picks: cites(Terms.contradiction),
+      },
+      {
+        label: "Cases/Induction",
+        explanation: "Split the proof into one case per form of the selected value.",
+        tooltip: "Writes `induction <selection> end`; add the cases in its row",
+        picks: Writes(Terms.induction(~scrut=selected)),
+      },
+    ],
+    [
+      {
+        label: "Revert",
+        explanation: "Move a fact back into the goal as fact ==> goal, e.g. before induction.",
+        tooltip: "Writes `revert <fact> =>`",
+        picks: cites(Terms.revert),
+      },
+      {
+        label: "Generalize",
+        explanation: "Turn a fixed variable back into a forall, e.g. before induction.",
+        tooltip: "Writes `generalize ? =>`",
+        picks: Writes(Terms.generalize(~exp=hole())),
+      },
+    ],
+  );
+};

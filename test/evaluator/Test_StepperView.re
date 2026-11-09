@@ -153,8 +153,8 @@ let offered = (goal: Picker.Goal.t): list(string) =>
   |> List.filter_map(id => Exp.find_by_id(id, goal.display))
   |> List.map(print);
 
-let labels = (offers: list((string, Picker.action))) =>
-  List.map(fst, offers);
+let labels = (offers: list(Picker.offer)) =>
+  List.map((o: Picker.offer) => o.label, offers);
 
 let written = (term: TermBase.Proof.term): string =>
   Proof(Proof.fresh(term))
@@ -164,9 +164,9 @@ let written = (term: TermBase.Proof.term): string =>
   |> Printer.of_segment(~holes="?", ~refractors=[]);
 
 let write_of = (offers, label): TermBase.Proof.term =>
-  switch (List.assoc_opt(label, offers)) {
-  | Some(Picker.Write(term)) => term
-  | Some(Open(_)) => Alcotest.fail(label ++ " opens a box")
+  switch (List.find_opt((o: Picker.offer) => o.label == label, offers)) {
+  | Some({action: Write(term), _}) => term
+  | Some({action: Open(_), _}) => Alcotest.fail(label ++ " opens a box")
   | None => Alcotest.fail("no " ++ label ++ " offered")
   };
 
@@ -616,7 +616,7 @@ module State = {
       () => {
         let f = Fixture.mk("theorem t = 1 + 2 == 3 proof ? in t");
         let row = first(f.rows);
-        let f = Fixture.act(f, (row.key, Toggle(Axioms)));
+        let f = Fixture.act(f, (row.key, Toggle(Strategies)));
         let changed = {
           ...row,
           goal: Some(parse_exp("2 + 2 == 4")),
@@ -631,12 +631,7 @@ module State = {
             "2 + 2 == 4",
             print(local.goal.written),
           );
-          check(
-            bool,
-            "the box is still open",
-            true,
-            local.box == Axioms(""),
-          );
+          check(bool, "the box is still open", true, local.box == Strategies);
         | None => Alcotest.fail("the row lost its state")
         };
       },
@@ -779,26 +774,41 @@ module Picking = {
     };
   };
 
+  let strategy_labels = (strategies: list(Picker.strategy)) =>
+    List.map((s: Picker.strategy) => s.label, strategies);
+
+  /* The fact names a strategy cites, with the step each writes. */
+  let cited = (strategies: list(Picker.strategy), label) =>
+    switch (
+      List.find_opt((s: Picker.strategy) => s.label == label, strategies)
+    ) {
+    | Some({picks: Cites(facts), _}) =>
+      List.map(((name, term)) => (name, written(term)), facts)
+    | Some({picks: Writes(_), _}) => Alcotest.fail(label ++ " cites no fact")
+    | None => Alcotest.fail("no " ++ label ++ " strategy")
+    };
+
+  let equation = "theorem t = 1 + 2 + 3 == 6 proof ? in t";
+
   let tests = [
+    test_case("with nothing selected, only Strategies", `Quick, () =>
+      check(
+        list(string),
+        "offers",
+        ["Strategies ▼"],
+        labels(Picker.offers(root_goal(equation), ~selected=None)),
+      )
+    ),
     test_case(
-      "with nothing selected, only forms that need no selection",
+      "a selection with no step offers Rewrite and Strategies",
       `Quick,
       () => {
-        let goal = root_goal("theorem t = 1 + 2 + 3 == 6 proof ? in t");
+        let goal = root_goal(equation);
         check(
           list(string),
           "offers",
-          [
-            "Algebra ▼",
-            "Assumptions ▼",
-            "Assume",
-            "Revert ▼",
-            "Generalize",
-            "Have",
-            "Contradiction ▼",
-            "Cases/Induction",
-          ],
-          labels(Picker.offers(goal, ~selected=None)),
+          ["Rewrite ▼", "Strategies ▼"],
+          labels(Picker.offers(goal, ~selected=Some(node(goal, "6")))),
         );
       },
     ),
@@ -806,9 +816,15 @@ module Picking = {
       "selecting a redex offers Step, writing the checker's eval step",
       `Quick,
       () => {
-        let goal = root_goal("theorem t = 1 + 2 + 3 == 6 proof ? in t");
+        let goal = root_goal(equation);
         let offers =
           Picker.offers(goal, ~selected=Some(node(goal, "1 + 2")));
+        check(
+          list(string),
+          "offers",
+          ["Step", "Rewrite ▼", "Strategies ▼"],
+          labels(offers),
+        );
         check(
           string,
           "the step",
@@ -850,7 +866,7 @@ module Picking = {
       },
     ),
     test_case(
-      "an implication offers assuming its antecedent",
+      "only an implication offers Assume, assuming its antecedent",
       `Quick,
       () => {
         let goal =
@@ -859,15 +875,52 @@ module Picking = {
           );
         let offers = Picker.offers(goal, ~selected=None);
         check(
+          list(string),
+          "offers",
+          ["Assume", "Strategies ▼"],
+          labels(offers),
+        );
+        check(
           string,
           "the step",
           "assume x == 2 => ?",
-          written(write_of(offers, "Assume antecedent")),
+          written(write_of(offers, "Assume")),
         );
       },
     ),
     test_case(
-      "Assumptions lists the rules that rewrite the selection",
+      "every button says what it writes",
+      `Quick,
+      () => {
+        let goal =
+          root_goal(
+            "theorem t = forall x -> x == 2 ==> x + 1 == 3 proof ? in t",
+          );
+        let (common, rare) =
+          Picker.strategies(goal, ~selected=Some(node(goal, "x + 1")));
+        check(
+          list(string),
+          "without a tooltip",
+          [],
+          List.map(
+            (o: Picker.offer) => (o.label, o.tooltip),
+            Picker.offers(goal, ~selected=Some(node(goal, "x + 1"))),
+          )
+          @ List.map(
+              (s: Picker.strategy) => (s.label, s.tooltip),
+              common @ rare,
+            )
+          @ List.map(
+              (s: Picker.strategy) => (s.label, s.explanation),
+              common @ rare,
+            )
+          |> List.filter(((_, text)) => text == "")
+          |> List.map(fst),
+        );
+      },
+    ),
+    test_case(
+      "Rewrite lists the rules that rewrite the selection, by source",
       `Quick,
       () => {
         let f =
@@ -875,31 +928,44 @@ module Picking = {
             "theorem t = forall x -> x == 1 ==> x + 0 == 1 proof assume x == 1 => ? in t",
           );
         let goal = Fixture.goal(f, first(body(first(f.rows))));
-        let names = selected =>
-          Picker.rules(
-            goal,
-            ~filter="",
-            ~selected=Some(node(goal, selected)),
-          )
-          |> List.map((e: ProofCtx.entry) => e.name);
+        let sections = (~filter="", selected) =>
+          Picker.rules(goal, ~filter, ~selected)
+          |> List.map(({heading, rules}: Picker.section) =>
+               (heading, List.map((e: ProofCtx.entry) => e.name, rules))
+             );
+        let names = (~filter="", selected) =>
+          sections(~filter, selected) |> List.concat_map(snd);
+        check(
+          option(list(string)),
+          "the hypothesis rewrites x, under the scope's facts",
+          Some(["assume"]),
+          List.assoc_opt(
+            "Facts and theorems",
+            sections(Some(node(goal, "x"))),
+          ),
+        );
         check(
           bool,
-          "the hypothesis rewrites x",
-          true,
-          List.mem("assume", names("x")),
+          "but not 0",
+          false,
+          List.mem("assume", names(Some(node(goal, "0")))),
         );
-        check(bool, "but not 0", false, List.mem("assume", names("0")));
         check(
           bool,
           "a search lists by name, whatever the selection",
           true,
-          Picker.rules(goal, ~filter="assu", ~selected=None)
-          |> List.exists((e: ProofCtx.entry) => e.name == "assume"),
+          List.mem("assume", names(~filter="assu", None)),
+        );
+        check(
+          list(string),
+          "the builtin axioms have a section of their own",
+          ["Axioms"],
+          sections(~filter="refl", None) |> List.map(fst),
         );
       },
     ),
     test_case(
-      "Revert and Contradiction list the scope's facts, not the axioms",
+      "Strategies: Contradiction and Revert cite the scope's facts, not the axioms",
       `Quick,
       () => {
         let f =
@@ -907,17 +973,30 @@ module Picking = {
             "theorem t = forall x -> x == 1 ==> x == 1 proof assume x == 1 => ? in t",
           );
         let goal = Fixture.goal(f, first(body(first(f.rows))));
+        let (common, rare) = Picker.strategies(goal, ~selected=None);
         check(
           list(string),
-          "facts",
-          ["assume"],
-          Picker.facts(goal.ctx) |> List.map((e: ProofCtx.entry) => e.name),
+          "strategies",
+          ["Have", "Contradiction", "Cases/Induction"],
+          strategy_labels(common),
         );
         check(
-          string,
-          "picking one",
-          "revert x == 1 => ?",
-          written(Picker.pick_fact(Revert, parse_exp("x == 1"))),
+          list(string),
+          "rarely needed",
+          ["Revert", "Generalize"],
+          strategy_labels(rare),
+        );
+        check(
+          list(pair(string, string)),
+          "contradiction",
+          [("assume", "contradiction x == 1 end")],
+          cited(common, "Contradiction"),
+        );
+        check(
+          list(pair(string, string)),
+          "revert",
+          [("assume", "revert x == 1 => ?")],
+          cited(rare, "Revert"),
         );
       },
     ),
