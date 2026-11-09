@@ -364,5 +364,39 @@ let tests = (
       "theorem t = (fun x -> x) == (fun x -> x) proof funext y => ? in t",
       [],
     ),
+    check_unused(
+      "theorem with a proof: a statement binder the statement uses",
+      "theorem t = forall x : [Int] -> x == x @ [] proof ? in t",
+      [],
+    ),
+    check_unused(
+      "theorem with a proof: an unused statement binder still warns",
+      "theorem t = forall (x : Int) -> true proof ? in t",
+      ["x"],
+    ),
+    check_unused(
+      "proof: induction case binders",
+      {|theorem t = forall x : [Int] -> x == x @ [] proof
+induction x
+| [] => eval [] @ [] at 0 end; eval $e at 0 end
+| u :: us => eval u :: us @ [] at 0 end
+end in t|},
+      [],
+    ),
+    check_unused(
+      "proof: forall and funext binders",
+      "theorem t = forall (x : Int) -> (fun a -> a + x) == (fun b -> x + b) proof forall x => funext z => ? in t",
+      [],
+    ),
+    check_unused(
+      "proof: fact names",
+      "theorem t = forall (x : Int) -> x == 1 ==> x == 1 proof forall x => assume x == 1 as h => alias k = h => ? in t",
+      [],
+    ),
+    check_unused(
+      "proof: an ordinary binding still warns",
+      "let y = 1 in theorem t = forall (x : Int) -> x == x proof forall x => ? in t",
+      ["y"],
+    ),
   ],
 );
