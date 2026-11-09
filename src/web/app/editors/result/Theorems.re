@@ -47,6 +47,11 @@ module Model = {
     proof_map: ProofMap.t,
     /* The statics of the proofs' syntax. */
     info_map: Statics.Map.t,
+    /* The evaluation the proof map was checked against, which the agent
+     * checks its attempts against too. */
+    checked: option((Haz3lcore.CachedStatics.t, Dynamics.t)),
+    /* The agent's progress filling a hole, by theorem. */
+    fills: Id.Map.t(AgentFill.Status.t),
   };
 
   let init = {
@@ -54,6 +59,8 @@ module Model = {
     thm_map: Id.Map.empty,
     proof_map: ProofMap.empty,
     info_map: Statics.Map.empty,
+    checked: None,
+    fills: Id.Map.empty,
   };
 
   let theorems = (model: t): list((Id.t, theorem)) =>
@@ -83,7 +90,8 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | TheoremUpdate(Id.t, StepperView.Update.t)
-    | ToggleContract(Id.t, int);
+    | ToggleContract(Id.t, int)
+    | Fill(Id.t, AgentFill.Status.t);
 
   let update =
       (~settings: Settings.t, action, model: Model.t): Updated.t(Model.t) => {
@@ -133,6 +141,12 @@ module Update = {
         |> return_quiet(~logged=true);
       | None => model |> raise_invalid_action
       }
+    | Fill(id, status) =>
+      {
+        ...model,
+        fills: Id.Map.add(id, status, model.fills),
+      }
+      |> return_quiet
     };
   };
 
@@ -152,7 +166,10 @@ module Update = {
     | _ =>
       let settings = with_proof_settings(Calc.get_value(settings));
       switch (Calc.get_value(checked)) {
-      | None => Model.init
+      | None => {
+          ...Model.init,
+          fills: model.fills,
+        }
       | Some((checked_statics, dynamics)) =>
         /* The evaluator can't check proofs off the main thread, where it
          * has no statics, so each theorem the evaluation recorded is
@@ -246,6 +263,8 @@ module Update = {
           thm_map: Id.Map.of_list(theorems),
           proof_map,
           info_map,
+          checked: Calc.get_value(checked),
+          fills: model.fills,
         };
       };
     };
@@ -302,6 +321,7 @@ module View = {
           ),
         ) => {
       let status = ProofMap.full_status_of_proof(proof_map, proof);
+      let fill = Id.Map.find_opt(id, model.fills);
       let counter =
         switch (Obligations.Status.open_count(proof_map, proof)) {
         | 0 => []
@@ -371,10 +391,36 @@ module View = {
             ),
           ]
           @ counter
+          @ AgentFill.View.status(fill)
           @ (dots == [] ? [] : [div_c("theorem-contracts", dots)]),
         );
       let contracts =
         sections == [] ? [] : [div_c("theorem-contract-sections", sections)];
+      let hole_actions = (hole: Proof.t) =>
+        AgentFill.View.button(~status=fill, () =>
+          AgentFill.start(
+            ~globals,
+            ~checked=model.checked,
+            ~proof_map,
+            ~theorem_id=id,
+            ~theorem=name,
+            ~statement=stmt,
+            ~set_status=
+              status =>
+                Ui_effect.Expert.handle(inject(Update.Fill(id, status))),
+            ~write=
+              p =>
+                Ui_effect.Expert.handle(
+                  edit_syntax(
+                    Haz3lcore.EditorTransform.mk_proof_patch(
+                      ~target_id=Proof.rep_id(hole),
+                      p,
+                    ),
+                  ),
+                ),
+            hole,
+          )
+        );
       let stepper =
         StepperView.View.view(
           ~globals,
@@ -390,6 +436,7 @@ module View = {
             },
           ~is_toplevel=false,
           ~edit_syntax,
+          ~hole_actions,
           ~backing=main_editor,
           ~info_map=model.info_map,
           ~proof_map,

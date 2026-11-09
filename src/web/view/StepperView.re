@@ -971,6 +971,8 @@ module View = {
         ~is_toplevel: bool,
         /* Writes a patch into the proof text. */
         ~edit_syntax: Picker.Patches.patch => Ui_effect.t(unit),
+        /* Extra controls for a hole that ends its chain. */
+        ~hole_actions: Proof.t => list(Node.t)=_ => [],
         /* The editor holding the proof text, which the sub-editors splice
          * into. */
         ~backing: CodeEditable.Channel.t,
@@ -1227,7 +1229,8 @@ module View = {
             @ [
               Node.div(
                 ~attrs=[Attr.classes(["stepper-controls"])],
-                controls(~top),
+                controls(~top)
+                @ (row.kind == Hole && is_last ? hole_actions(row.step) : []),
               ),
             ],
           );

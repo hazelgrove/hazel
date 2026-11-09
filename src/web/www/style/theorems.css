@@ -84,3 +84,18 @@
   padding-top: 0;
   padding-right: calc(1em + 22px);
 }
+
+.agent-fill-status {
+  align-self: center;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 0.8em;
+  opacity: 0.8;
+}
+
+.agent-fill-button {
+  font-size: 0.75em;
+  cursor: pointer;
+}
