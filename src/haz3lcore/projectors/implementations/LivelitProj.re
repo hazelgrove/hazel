@@ -2325,7 +2325,14 @@ module M: Projector = {
                 ~commit_model,
                 /* Non-historic Layout-level no-op: repaints the frame so a
                    transient (drag) update becomes visible without an edit. */
-                ~repaint=() => local_quiet(),
+                /* (^ticket(722)) or, in the app, a redraw of the page with no
+                   editor action at all (AppBridge.livelit_repaint) */
+                ~repaint=
+                  () =>
+                    switch (AppBridge.livelit_repaint^) {
+                    | Some(f) => f()
+                    | None => local_quiet()
+                    },
                 ~view_term,
                 /* Resolve a splice by the id its SpliceRef carries. Only
                    this livelit's own splices are reachable: a ref naming

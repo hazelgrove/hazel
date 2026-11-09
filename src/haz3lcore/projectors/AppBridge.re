@@ -27,3 +27,9 @@ let checkpoint: ref(Id.t => option(string)) = ref(_ => None);
 let version: ref(int) = ref(0);
 
 let bump = () => version := version^ + 1;
+
+/* (^ticket(722), ^report(50): a drag's frames) A livelit's transient event (an `input` while a slider is dragged)
+   changes nothing in the program, so it asks the page to draw again without an editor action: no syntax rebuilt, no
+   layout, no statics debounce re-armed, nothing logged (Page.Update.LivelitRepaint, Main.apply). Installed by the
+   page each frame; None in the CLI and tests, where the editor action is used instead. */
+let livelit_repaint: ref(option(unit => Ui_effect.t(unit))) = ref(None);

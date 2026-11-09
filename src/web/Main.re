@@ -68,7 +68,15 @@ let apply =
       ~schedule_autosave,
     )
     : CrashHandling.Model.t => {
-  restart_caret_animation();
+  /* (^ticket(722)) a livelit's transient event only asks for a redraw: no caret reflow, no calculate phase */
+  let repaint_only =
+    switch (action) {
+    | Page.Update.LivelitRepaint => true
+    | _ => false
+    };
+  if (!repaint_only) {
+    restart_caret_animation();
+  };
 
   /* This function is split into two phases, update and calculate.
      The intention is that eventually, the calculate phase will be
@@ -119,15 +127,17 @@ let apply =
   };
   // ---------- CALCULATE PHASE ----------
   let model' =
-    Util.BenchMarks.time("calculate", () =>
-      CrashHandling.Update.calculate(
-        ~schedule_action,
-        ~is_edited=updated.is_edit,
-        ~dynamics=true,
-        model,
-        updated.model,
-      )
-    );
+    repaint_only
+      ? updated.model
+      : Util.BenchMarks.time("calculate", () =>
+          CrashHandling.Update.calculate(
+            ~schedule_action,
+            ~is_edited=updated.is_edit,
+            ~dynamics=true,
+            model,
+            updated.model,
+          )
+        );
 
   if (updated.save) {
     schedule_autosave(

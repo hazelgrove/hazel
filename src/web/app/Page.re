@@ -184,6 +184,8 @@ module Update = {
     | MakeActive(selection)
     | Benchmark(benchmark_action)
     | Refresh
+    /* (^ticket(722)) a livelit's transient event: draw again, nothing else (AppBridge.livelit_repaint) */
+    | LivelitRepaint
     | Start
     | Save;
 
@@ -626,6 +628,14 @@ module Update = {
       Benchmark.finish();
       model |> Updated.return_quiet;
     | Refresh => model |> Updated.return_quiet(~recalculate=true)
+    /* a new record, so the page's view runs again (Bonsai compares the model by ===); every editor in it the same,
+       so their memos hold; Main.apply skips the calculate phase for it */
+    | LivelitRepaint =>
+      {
+        ...model,
+        selection: model.selection,
+      }
+      |> Updated.return_quiet
     | Start => model |> return(~historic=false) // Triggers recalculation at the start
     | Save =>
       print_endline("Saving...");
@@ -1177,6 +1187,7 @@ module View = {
     /* Point the core-side app bridge at this frame's store + inject, so
        inline app projectors (HTMLProj) can reach the AppStore. */
     AppBridgeInstall.install(~globals);
+    Haz3lcore.AppBridge.livelit_repaint := Some(() => inject(LivelitRepaint));
     /* the slide program's dynamics, at the inspector's right end */
     let dynamics =
       switch (editors) {
