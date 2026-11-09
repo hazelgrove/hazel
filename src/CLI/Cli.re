@@ -647,7 +647,15 @@ let with_names = (e: Language.Exp.t): (Language.Exp.t, list(string)) => {
   go([], e);
 };
 
-let jit_eval = (check: bool, iterations: int, path: string): unit => {
+let jit_eval =
+    (
+      check: bool,
+      views: bool,
+      step: option(string),
+      iterations: int,
+      path: string,
+    )
+    : unit => {
   open Language;
   let now = () =>
     Js_of_ocaml.Js.Unsafe.global##.performance##now()##valueOf
@@ -656,7 +664,40 @@ let jit_eval = (check: bool, iterations: int, path: string): unit => {
   let t0 = now();
   let parsed = parse_program(program);
   let t1 = now();
-  let (elab, _) = Run.elab_and_eval_info(parsed);
+  /* with --views, as the app elaborates a slide: every livelit use probed, so
+     its view is called in the run (Statics' Projector case,
+     UserLivelit.instrument_view) */
+  let elab =
+    if (views) {
+      let ids = ref(Id.Map.empty);
+      let _ =
+        Exp.map_term(
+          ~f_exp=
+            (continue, e: Exp.t) => {
+              switch (e.term) {
+              | Projector({kind: Livelit, _}, _) =>
+                ids := Id.Map.add(Exp.rep_id(e), (), ids^)
+              | _ => ()
+              };
+              continue(e);
+            },
+          parsed,
+        );
+      Printf.printf(
+        "elaborated as the app does, %d livelit uses' views called in the run\n",
+        Id.Map.cardinal(ids^),
+      );
+      snd(
+        Statics.mk(
+          ~probe_ids=ids^,
+          CoreSettings.on,
+          Builtins.ctx_init(Some(Operators.default_mode)),
+          parsed,
+        ),
+      );
+    } else {
+      fst(Run.elab_and_eval_info(parsed));
+    };
   let (elab, names) = check ? with_names(elab) : (elab, []);
   let t2 = now();
   Printf.printf(
@@ -739,7 +780,7 @@ let jit_eval = (check: bool, iterations: int, path: string): unit => {
         String.length(js_json),
         String.sub(js_json, 0, min(String.length(js_json), 300)),
       );
-      if (check) {
+      let compare_names = (interp_v: Exp.t, js: Js_of_ocaml.Js.Unsafe.any) => {
         let rec strip = (e: Exp.t) =>
           switch (e.term) {
           | Parens(e) => strip(e)
@@ -788,6 +829,9 @@ let jit_eval = (check: bool, iterations: int, path: string): unit => {
         | _ => Printf.printf("the check: the run's value is not the tuple\n")
         };
       };
+      if (check) {
+        compare_names(interp_v, js);
+      };
       switch (HazelJitValue.to_js(interp_v)) {
       | exception exn =>
         Printf.printf(
@@ -818,6 +862,183 @@ let jit_eval = (check: bool, iterations: int, path: string): unit => {
         jit,
         interp /. jit,
       );
+      switch (step) {
+      | None => ()
+      | Some(label) =>
+        module U = Js_of_ocaml.Js.Unsafe;
+        /* each livelit use, as UserLivelit.instrument_view elaborates it: its model, and the definition whose view is
+           called on it */
+        let uses = ref([]);
+        let _ =
+          Exp.map_term(
+            ~f_exp=
+              (continue, e: Exp.t) => {
+                switch (e.term) {
+                | Let(
+                    p,
+                    model,
+                    {
+                      term:
+                        Let(
+                          _,
+                          {
+                            term: Ap(Forward, {term: Dot(def, _), _}, _),
+                            _,
+                          },
+                          _,
+                        ),
+                      _,
+                    },
+                  )
+                    when HazelJit.pat_is("%model", p) =>
+                  uses := [(model, def), ...uses^]
+                | _ => ()
+                };
+                continue(e);
+              },
+            elab,
+          );
+        let names_label = (def: Exp.t): bool => {
+          let found = ref(false);
+          let _ =
+            Exp.map_term(
+              ~f_exp=
+                (continue, e: Exp.t) => {
+                  switch (e.term) {
+                  | Atom(String(s)) when s == label => found := true
+                  | _ => ()
+                  };
+                  continue(e);
+                },
+              def,
+            );
+          found^;
+        };
+        let rec number = (e: Exp.t) =>
+          switch (e.term) {
+          | Parens(e)
+          | Asc(e, _) => number(e)
+          | Atom(Int(n)) => Some(n)
+          | _ => None
+          };
+        switch (
+          List.find_opt(
+            ((m, d)) => names_label(d) && number(m) != None,
+            List.rev(uses^),
+          )
+        ) {
+        | None =>
+          Printf.printf(
+            "the step: no livelit use whose definition names %S and whose model is a number (%d uses)\n",
+            label,
+            List.length(uses^),
+          )
+        | Some((model, _)) =>
+          let n = Option.get(number(model));
+          let n' = Bigint.(+)(n, Bigint.of_int(2));
+          let mid = Exp.rep_id(model);
+          let stepped =
+            Exp.map_term(
+              ~f_exp=
+                (continue, e: Exp.t) =>
+                  Exp.rep_id(e) == mid
+                    ? {
+                      ...e,
+                      term: Atom(Int(n')),
+                    }
+                    : continue(e),
+              elab,
+            );
+          let t6 = now();
+          let interp_v2 = Run.evaluate_elab(stepped);
+          let interp_step = now() -. t6;
+          HazelJit.params_on := true;
+          HazelJit.survey := Some(Hashtbl.create(4));
+          let cp = HazelJit.compile_full(~env=Builtins.env_init, elab);
+          HazelJit.survey := None;
+          HazelJit.params_on := false;
+          let f =
+            U.fun_call(
+              U.pure_js_expr(
+                "(function (src) { return new Function('$R', src); })",
+              ),
+              [|U.inject(Js_of_ocaml.Js.string(cp.src))|],
+            );
+          let r = Lazy.force(HazelJitValue.runtime);
+          let params =
+            U.obj([|
+              (
+                Util.Id.to_string(mid),
+                U.inject(
+                  Js_of_ocaml.Js.number_of_float(Bigint.to_float(n')),
+                ),
+              ),
+            |]);
+          U.set(r, "params", params);
+          U.set(r, "samples", U.obj([||]));
+          let js2: U.any = U.fun_call(f, [|r|]);
+          let nsamples: int =
+            U.fun_call(
+              U.pure_js_expr(
+                "(function (o) { return Object.keys(o).length; })",
+              ),
+              [|U.get(r, "samples")|],
+            );
+          let t7 = now();
+          for (_ in 1 to iterations) {
+            ignore(U.fun_call(f, [|r|]));
+          };
+          let jit_step = (now() -. t7) /. float_of_int(iterations);
+          U.set(r, "params", Js_of_ocaml.Js.null);
+          U.set(r, "samples", Js_of_ocaml.Js.null);
+          Printf.printf(
+            "the step: %S's model %s -> %s. The interpreter, on the program so changed: %.1f ms. Compiled once, the new model a parameter, no new code: %.2f ms a step (%d views sampled)\n%!",
+            label,
+            Bigint.to_string(n),
+            Bigint.to_string(n'),
+            interp_step,
+            jit_step,
+            nsamples,
+          );
+          if (check) {
+            compare_names(interp_v2, js2);
+            /* and that the step changed something: the compiled values before it and after, name by name */
+            let changed =
+              List.filteri(
+                (i, _) =>
+                  !(
+                    U.meth_call(
+                      r,
+                      "eq",
+                      [|U.get(js, i + 1), U.get(js2, i + 1)|],
+                    )
+                    |> Js_of_ocaml.Js.to_bool
+                  ),
+                names,
+              );
+            Printf.printf(
+              "the step changed %d of the %d names: %s\n",
+              List.length(changed),
+              List.length(names),
+              String.concat(", ", changed),
+            );
+          } else {
+            switch (HazelJitValue.to_js(interp_v2)) {
+            | exception exn =>
+              Printf.printf(
+                "the step: no JS form to compare: %s\n",
+                HazelJitValue.message(exn),
+              )
+            | iv =>
+              Printf.printf(
+                "the step: the same value as the interpreter's: %s\n",
+                U.meth_call(r, "eq", [|iv, js2|]) |> Js_of_ocaml.Js.to_bool
+                  ? "yes" : "NO",
+              )
+            };
+          };
+        };
+      };
     };
   };
 };
@@ -838,10 +1059,27 @@ let jit_cmd = {
     let doc = "Compare every name the program's top-level lets bind, not just its value.";
     Arg.(value & flag & info(["check"], ~doc));
   };
+  let step_arg = {
+    let doc = "Simulate a slider's step: the first livelit use whose definition names LABEL, with a number for its model, gets that number plus 2; the interpreter runs the program so changed, and the compiled program, compiled once, gets the new model as a parameter.";
+    Arg.(
+      value & opt(some(string), None) & info(["step"], ~docv="LABEL", ~doc)
+    );
+  };
+  let views_arg = {
+    let doc = "Elaborate as the app does: every livelit use probed, so each use's view is called in the run.";
+    Arg.(value & flag & info(["views"], ~doc));
+  };
   let info = Cmd.info("jit", ~doc);
   Cmd.v(
     info,
-    Term.(const(jit_eval) $ check_arg $ iterations_arg $ file_arg),
+    Term.(
+      const(jit_eval)
+      $ check_arg
+      $ views_arg
+      $ step_arg
+      $ iterations_arg
+      $ file_arg
+    ),
   );
 };
 

@@ -39,6 +39,13 @@ module Runtime = {
     return p === q;
   },
   nomatch(where) { throw new Error("hazel-jit: no pattern matched in " + where); },
+  /* (^ticket(722)) a slide's run with its livelits' models as parameters: params, when set, maps a model's id to its
+     value, in place of the literal the program holds; samples, when set, gets each livelit use's view answer, by its
+     projector's id, as the interpreter samples it */
+  params: null,
+  samples: null,
+  param(id, v) { const p = this.params; return p !== null && Object.prototype.hasOwnProperty.call(p, id) ? p[id] : v; },
+  sample(id, v) { if (this.samples !== null) this.samples[id] = v; return v; },
   reach(why) { throw new Error("hazel-jit: not compiled, and reached: " + why); },
   missing(why) { const f = () => { throw new Error("hazel-jit: not compiled: " + why); }; f.$missing = why; return f; },
   fn(f, k, e) { f.$k = k; f.$e = e; return f; },
@@ -352,6 +359,33 @@ let conj = (tests: list(string)): string =>
    there by its reason and compiled as $R.reach(reason), which throws if the run evaluates it, instead of failing
    the whole term. Off (None) everywhere but the CLI's [jit] command. */
 let survey: ref(option(Hashtbl.t(string, int))) = ref(None);
+
+/* (^ticket(722)) when on, a livelit use's model (UserLivelit.instrument_view's %model) that is a literal compiles as
+   $R.param(its id, the literal), so a run can be given a new model without new code; and the use's view call as
+   $R.sample(the projector's id, the answer). Off but for a slide's compiled run. */
+let params_on: ref(bool) = ref(false);
+
+let rec model_literal = (e: Exp.t): bool =>
+  switch (Exp.term_of(e)) {
+  | Atom(_)
+  | Label(_)
+  | Constructor(_) => true
+  | ListLit(es)
+  | Tuple(es) => List.for_all(model_literal, es)
+  | TupLabel(a, b) => model_literal(a) && model_literal(b)
+  | Ap(Forward, {term: Constructor(_), _}, arg) => model_literal(arg)
+  | Parens(e)
+  | Asc(e, _) => model_literal(e)
+  | _ => false
+  };
+
+let rec pat_is = (x: string, p: Pat.t): bool =>
+  switch (Pat.term_of(p)) {
+  | Var(y) => x == y
+  | Parens(p)
+  | Asc(p, _) => pat_is(x, p)
+  | _ => false
+  };
 /* and, for each reason, the first term that gave it (Exp.show, cut short), for the CLI to print */
 let survey_examples: Hashtbl.t(string, string) = Hashtbl.create(8);
 
@@ -474,10 +508,19 @@ and exp_inner =
     note_ctor(st, name, t);
     "{c: " ++ js_string(name) ++ "}";
   | Ap(Forward, f, arg) =>
-    switch (Exp.term_of(f)) {
-    | Constructor(name, t) =>
+    switch (Exp.term_of(f), Exp.term_of(arg)) {
+    | (Constructor(name, t), _) =>
       note_ctor(st, name, t);
       "{c: " ++ js_string(name) ++ ", v: " ++ go(arg) ++ "}";
+    | (Dot(_, l), Var("%model"))
+        when params_on^ && label_of(l) == Some("view") =>
+      "$R.sample("
+      ++ js_string(Id.to_string(Exp.rep_id(e)))
+      ++ ", ("
+      ++ go(f)
+      ++ ")("
+      ++ go(arg)
+      ++ "))"
     | _ => "(" ++ go(f) ++ ")(" ++ go(arg) ++ ")"
     }
   | Ap(Reverse, _, _) => unsupported("a reverse application")
@@ -499,7 +542,14 @@ and exp_inner =
     ++ " })()";
   | Let(p, e1, e2) =>
     let tmp = fresh(st, scope, "let");
-    let v1 = go(e1);
+    let v1 =
+      params_on^ && pat_is("%model", p) && model_literal(e1)
+        ? "$R.param("
+          ++ js_string(Id.to_string(Exp.rep_id(e1)))
+          ++ ", "
+          ++ go(e1)
+          ++ ")"
+        : go(e1);
     let (tests, binds, lex') = pat(st, scope, lex, p, tmp);
     let check =
       tests == [] ? [] : ["(" ++ conj(tests) ++ ") || $R.nomatch(\"let\")"];
