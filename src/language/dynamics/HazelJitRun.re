@@ -255,58 +255,82 @@ let erase =
   (e, List.rev(uses^), List.rev(models^));
 };
 
-let compile = (e: Exp.t): result(compiled, string) =>
-  Util.BenchMarks.time("hazel-jit: the run compiled", () => {
-    HazelJit.params_on := true;
-    HazelJit.survey := Some(Hashtbl.create(4));
-    Hashtbl.reset(HazelJit.param_of_projector);
-    HazelJit.last_param := None;
-    let r =
-      switch (HazelJit.compile_full(~env=Builtins.env_init, fold_views(e))) {
-      | c =>
-        switch (
-          U.fun_call(
-            U.pure_js_expr(
-              "(function (src) { return new Function('$R', src); })",
-            ),
-            [|U.inject(Js.string(c.src))|],
-          )
-        ) {
-        | fn =>
-          let param_of = Hashtbl.copy(HazelJit.param_of_projector);
-          let (erased, uses, models) = erase(~param_of, e);
-          let given = Hashtbl.create(64);
-          List.iter(
-            ((pid, model)) =>
-              Hashtbl.replace(
-                given,
-                Hashtbl.find(param_of, pid),
-                switch (HazelJitValue.to_js(model)) {
-                | js => print_js(js)
-                | exception _ => "?" ++ string_of_int(Random.bits())
-                },
+let compile = (e: Exp.t): result(compiled, string) => {
+  /* (^report(51)) its two parts' times and the source's size, noted after (the term's nodes counted outside the time) */
+  let timed = ref(None);
+  let r =
+    Util.BenchMarks.time("hazel-jit: the run compiled", () => {
+      HazelJit.params_on := true;
+      HazelJit.survey := Some(Hashtbl.create(4));
+      Hashtbl.reset(HazelJit.param_of_projector);
+      HazelJit.last_param := None;
+      let t0 = HazelJitValue.now();
+      let r =
+        switch (HazelJit.compile_full(~env=Builtins.env_init, fold_views(e))) {
+        | c =>
+          let t1 = HazelJitValue.now();
+          switch (
+            U.fun_call(
+              U.pure_js_expr(
+                "(function (src) { return new Function('$R', src); })",
               ),
-            models,
-          );
-          Ok({
-            program: e,
-            erased,
-            uses,
-            fn,
-            types: HazelJitValue.types_of(c),
-            param_of,
-            params: U.obj([||]),
-            given,
-          });
+              [|U.inject(Js.string(c.src))|],
+            )
+          ) {
+          | fn =>
+            timed :=
+              Some((
+                t1 -. t0,
+                HazelJitValue.now() -. t1,
+                String.length(c.src),
+              ));
+            let param_of = Hashtbl.copy(HazelJit.param_of_projector);
+            let (erased, uses, models) = erase(~param_of, e);
+            let given = Hashtbl.create(64);
+            List.iter(
+              ((pid, model)) =>
+                Hashtbl.replace(
+                  given,
+                  Hashtbl.find(param_of, pid),
+                  switch (HazelJitValue.to_js(model)) {
+                  | js => print_js(js)
+                  | exception _ => "?" ++ string_of_int(Random.bits())
+                  },
+                ),
+              models,
+            );
+            Ok({
+              program: e,
+              erased,
+              uses,
+              fn,
+              types: HazelJitValue.types_of(c),
+              param_of,
+              params: U.obj([||]),
+              given,
+            });
+          | exception exn => Error(HazelJitValue.message(exn))
+          };
+        | exception (HazelJit.Unsupported(why)) => Error(why)
         | exception exn => Error(HazelJitValue.message(exn))
-        }
-      | exception (HazelJit.Unsupported(why)) => Error(why)
-      | exception exn => Error(HazelJitValue.message(exn))
-      };
-    HazelJit.params_on := false;
-    HazelJit.survey := None;
-    r;
-  });
+        };
+      HazelJit.params_on := false;
+      HazelJit.survey := None;
+      r;
+    });
+  switch (timed^) {
+  | Some((to_js_ms, js_ms, chars)) =>
+    HazelJitValue.note_compile(
+      ~what="a slide's whole run",
+      ~to_js_ms,
+      ~js_ms,
+      ~chars,
+      ~nodes=HazelJitValue.nodes_of(e),
+    )
+  | None => ()
+  };
+  r;
+};
 
 /* [c] for the program [e], when [e] is the same but for its parameters' models, each new model given to its
    parameter; and whether any parameter's value changed (the answers then hold for the models before) */
@@ -314,8 +338,16 @@ let reuse = (c: compiled, e: Exp.t): option((compiled, bool)) =>
   Util.BenchMarks.time(
     "hazel-jit: the program compared, its livelits' models left out",
     () => {
-      let (erased, uses, models) = erase(~param_of=c.param_of, e);
-      if (uses != c.uses || !Exp.fast_equal(c.erased, erased)) {
+      let (erased, uses, models) =
+        Util.BenchMarks.time("hazel-jit: the comparison: models left out", () =>
+          erase(~param_of=c.param_of, e)
+        );
+      if (uses != c.uses
+          || !
+               Util.BenchMarks.time(
+                 "hazel-jit: the comparison: the rest equal", () =>
+                 Exp.fast_equal(c.erased, erased)
+               )) {
         None;
       } else {
         switch (
@@ -413,7 +445,12 @@ let current = (): option(compiled) =>
     }
   };
 
-/* The page draws livelits from this program now. Compared or compiled soon after, off this frame. */
+/* Asked for a redraw when the answers are retired after the page has drawn (in note_program's timeout): set by the page
+   (LivelitProj, through AppBridge.livelit_repaint); nothing in the CLI and tests */
+let on_retire: ref(unit => unit) = ref(() => ());
+
+/* The page draws livelits from this program now. Compared or compiled soon after, off this frame, after the paint
+   (run 42651798712: compared in the view, its 29 to 47 ms came before the paint) */
 let note_program = (e: Exp.t): unit =>
   if (HazelJitValue.enabled^) {
     switch (program^) {
@@ -427,7 +464,12 @@ let note_program = (e: Exp.t): unit =>
             U.inject(
               Js.wrap_callback(() =>
                 switch (program^) {
-                | Some(p) when p === e => ignore(current())
+                | Some(p) when p === e =>
+                  let before = retired^;
+                  ignore(current());
+                  if (retired^ != before) {
+                    on_retire^();
+                  };
                 | _ => ()
                 }
               ),
@@ -573,21 +615,26 @@ let step = (~projector: Id.t, ~model: Exp.t): result(int, string) =>
 let caught_up = (~projector: Id.t): unit =>
   switch (source^) {
   | Some(s) when Id.to_string(s) == Id.to_string(projector) =>
-    switch (kept()) {
-    | Some(_) => HazelJitValue.count("the worker caught up: answers kept")
-    | None => retire()
+    switch (program^, compiled^) {
+    | (Some(p), Some(Ok(_))) =>
+      /* the same program, or a new one note_program's timeout will compare */
+      ignore(p);
+      HazelJitValue.count("the worker caught up: answers kept");
+    | _ => retire()
     }
   | _ => ()
   };
 
-/* The latest run's answer for this livelit use, while the compilation still runs the page's program (kept): from the
-   event that ran it until the program changes otherwise. (Before ^report(50)'s next step 4: only while that event's
-   livelit had its optimistic entry, and until the worker caught up.) */
-let answer = (id: Id.t): option((U.any, HazelJitValue.types)) =>
+/* The latest run's answer for this livelit use: while the event that ran it is still the newest word on its livelit's
+   model (its optimistic entry is there: [fresh]), or while the compilation still runs the page's program (kept, which
+   compares a new program; note_program's timeout compares it after the paint). (Before ^report(50)'s next step 4: only
+   while [fresh], and until the worker caught up.) */
+let answer =
+    (~fresh: Id.t => bool, id: Id.t): option((U.any, HazelJitValue.types)) =>
   switch (source^, answer_types^) {
-  | (Some(_), Some(types)) =>
-    switch (kept(), source^) {
-    | (Some(_), Some(_)) =>
+  | (Some(src), Some(types)) =>
+    switch (fresh(src) ? Some() : Option.map(_ => (), kept()), source^) {
+    | (Some (), Some(_)) =>
       Hashtbl.find_opt(answers, Id.to_string(id))
       |> Option.map(js => (js, types))
     | (None, Some(_)) =>

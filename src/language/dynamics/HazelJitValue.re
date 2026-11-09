@@ -38,6 +38,47 @@ let count = (~why="", what: string): unit =>
     |],
   );
 
+/* (^report(51), the cost of compiling) Each compilation the page makes, timed in its two parts: hazel-jit writing the JS
+   source from the elaborated term (to_js_ms), and the browser making it a function and running the definition's
+   module (js_ms); with the source's size and the term's nodes. Kept, the last 400, in globalThis.hazelJit.compiles for
+   a check in a browser to read; nothing else reads it. */
+let compile_note: Lazy.t(Js_of_ocaml.Js.Unsafe.any) =
+  lazy(
+    Js_of_ocaml.Js.Unsafe.eval_string(
+      {|(function (what, to_js_ms, js_ms, chars, nodes) {
+  var s = globalThis.hazelJit || (globalThis.hazelJit = { counts: {}, why: {} });
+  var c = s.compiles || (s.compiles = []);
+  if (c.length < 400) c.push({ what: what, to_js_ms: to_js_ms, js_ms: js_ms, chars: chars, nodes: nodes });
+})|},
+    )
+  );
+let note_compile =
+    (~what: string, ~to_js_ms: float, ~js_ms: float, ~chars: int, ~nodes: int)
+    : unit =>
+  Js_of_ocaml.Js.Unsafe.fun_call(
+    Lazy.force(compile_note),
+    Js_of_ocaml.Js.Unsafe.(
+      [|
+        inject(Js_of_ocaml.Js.string(what)),
+        inject(Js_of_ocaml.Js.number_of_float(to_js_ms)),
+        inject(Js_of_ocaml.Js.number_of_float(js_ms)),
+        inject(Js_of_ocaml.Js.number_of_float(float_of_int(chars))),
+        inject(Js_of_ocaml.Js.number_of_float(float_of_int(nodes))),
+      |]
+    ),
+  );
+/* The nodes of a term: expressions, patterns and types, as Exp.map_term visits them */
+let nodes_of = (e: Exp.t): int => {
+  let n = ref(0);
+  let count = (continue, x) => {
+    incr(n);
+    continue(x);
+  };
+  let _ =
+    Exp.map_term(~f_exp=count, ~f_pat=count, ~f_typ=count, ~f_tpat=count, e);
+  n^;
+};
+
 /* (^report(46)'s next step 3: which time does a page see for a compiled view?) Each livelit view the app draws leaves,
    under its livelit's name, a way to run it again on the same model, bypassing the app's memo of the last answer: as
    the app runs it compiled (the model in, the call, its commands run, the drawing), the compiled view without its
@@ -628,10 +669,20 @@ let compile_view =
   switch (HazelJit.compile_full(~env, def)) {
   | exception (HazelJit.Unsupported(why)) => Error(why)
   | c =>
+    let t1 = now();
     switch (instantiate(c.src)) {
     | exception exn =>
       Error("the compiled definition did not run: " ++ message(exn))
     | m =>
+      let t2 = now();
+      let js_ms = t2 -. t1;
+      note_compile(
+        ~what="a livelit's definition",
+        ~to_js_ms=t1 -. t0,
+        ~js_ms,
+        ~chars=String.length(c.src),
+        ~nodes=nodes_of(def),
+      );
       let fn = get(m, "view");
       if (typeof(fn) != "function") {
         Error("the definition has no view member");
@@ -645,10 +696,10 @@ let compile_view =
           fn,
           members: m,
           types: types_of(c),
-          compile_ms: now() -. t0,
+          compile_ms: t2 -. t0,
         });
       };
-    }
+    };
   };
 };
 

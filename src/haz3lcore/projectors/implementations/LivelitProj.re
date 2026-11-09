@@ -31,6 +31,18 @@ let touch_key = (k: string): unit => {
   incr(optimistic_version);
 };
 let touch = (id: Id.t): unit => touch_key(Id.to_string(id));
+/* (^report(50)'s next step 4) when the slide's compiled run retires its answers after the page has drawn (a program
+   found changed otherwise, after the paint), the page draws again, so no livelit is left showing a stale answer */
+let () =
+  HazelJitRun.on_retire :=
+    (
+      () =>
+        switch (AppBridge.livelit_repaint^) {
+        | Some(f) =>
+          Virtual_dom.Vdom.Effect.Expert.handle_non_dom_event_exn(f())
+        | None => ()
+        }
+    );
 
 /* Commit-vs-ephemeral decision for an event-time update result: a model
    persists to the program text only when it is checkpointable (carries no
@@ -1600,7 +1612,9 @@ module M: Projector = {
       switch (opt) {
       | Some(_) => None
       | None =>
-        switch (HazelJitRun.answer(id)) {
+        switch (
+          HazelJitRun.answer(~fresh=src => Hashtbl.mem(optimistic, src), id)
+        ) {
         | None => None
         | Some((js, types)) =>
           switch (HazelJitDOM.go(seed(~model, ~model_value), types, js)) {

@@ -562,6 +562,10 @@ def main():
                       f"{len(lat)} events timed, counts {json.dumps((after['jit'] or {}).get('counts'))}", flush=True)
                 for why, n in sorted(((after["jit"] or {}).get("why") or {}).items(), key=lambda kv: -kv[1]):
                     print(f"      {n} x {why[:160]!r}", flush=True)
+                # (^report(51)) each compilation the page made: hazel-jit's JS source, then the browser's function
+                for c in ((after["jit"] or {}).get("compiles") or []):
+                    print(f"      compiled {c['what']}: {c['to_js_ms']:.1f} ms to JS + {c['js_ms']:.1f} ms in the "
+                          f"browser, {int(c['chars'])} chars from {int(c['nodes'])} nodes", flush=True)
             if args.bench and args.bench.lower() in name.lower():
                 entry["bench"] = bench(d, sid, args.bench_n, args.bench_views)
             if args.edit and args.edit.lower() in name.lower():
