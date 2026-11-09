@@ -69,16 +69,36 @@ let rec strip = (e: Exp.t): Exp.t =>
   | Asc(e, _) => strip(e)
   | _ => e
   };
-let expansion_parts = (e: Exp.t): option((Exp.t, Exp.t)) =>
+/* A macro livelit's use is expanded at elaboration (Statics' macro case): let %macro_model = model in the body's
+   closure applied to each splice's value. It holds no definition to call view on, so the page notes each use's
+   definition as it draws it (LivelitProj: the context's user_def, closed, the term its events run), by projector id;
+   Firefox run 42549941977 found the Witch's ^picture, the slide's one macro use, the only one not folded. */
+let defs: Hashtbl.t(string, Exp.t) = Hashtbl.create(64);
+let note_def = (id: Id.t, def: Exp.t): unit =>
+  if (HazelJitValue.enabled^) {
+    Hashtbl.replace(defs, Id.to_string(id), def);
+  };
+let expansion_parts =
+    (~projector: Id.t, e: Exp.t): result((Exp.t, Exp.t), string) =>
   switch (Exp.term_of(strip(e))) {
   | Match(scrut, [(_, body), ..._]) =>
     switch (Exp.term_of(strip(scrut)), Exp.term_of(strip(body))) {
     | (Dot(def, l), Ap(Forward, _, model))
         when HazelJit.label_of(l) == Some("expand") =>
-      Some((def, model))
-    | _ => None
+      Ok((def, model))
+    | _ => Error("a match of another shape")
     }
-  | _ => None
+  | Let(p, model, _) when HazelJit.pat_is("%macro_model", p) =>
+    switch (Hashtbl.find_opt(defs, Id.to_string(projector))) {
+    | Some(def) => Ok((def, model))
+    | None => Error("a macro livelit's use, its definition not yet noted")
+    }
+  | _ =>
+    let s = Exp.show(strip(e));
+    Error(
+      "a livelit use's expansion of another shape: "
+      ++ String.sub(s, 0, min(120, String.length(s))),
+    );
   };
 let fold_views = (e: Exp.t): Exp.t => {
   let folded = ref(0);
@@ -89,8 +109,8 @@ let fold_views = (e: Exp.t): Exp.t => {
           switch (continue(e)) {
           | {term: Projector(data, inner), _} as e'
               when data.Grammar.kind == ProjectorKind.Livelit =>
-            switch (expansion_parts(inner)) {
-            | Some((def, model)) =>
+            switch (expansion_parts(~projector=Exp.rep_id(e'), inner)) {
+            | Ok((def, model)) =>
               incr(folded);
               {
                 ...e',
@@ -105,14 +125,8 @@ let fold_views = (e: Exp.t): Exp.t => {
                     ),
                   ),
               };
-            | None =>
-              let s = Exp.show(strip(inner));
-              HazelJitValue.count(
-                ~why=
-                  "a livelit use's expansion of another shape: "
-                  ++ String.sub(s, 0, min(120, String.length(s))),
-                "the slide's run: a use not folded",
-              );
+            | Error(why) =>
+              HazelJitValue.count(~why, "the slide's run: a use not folded");
               e';
             }
           | e' => e'

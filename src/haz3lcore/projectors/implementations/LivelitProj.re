@@ -2250,6 +2250,9 @@ module M: Projector = {
 
         switch (ll) {
         | Some({user_def: Some(def_elab), _}) =>
+          /* (^ticket(722)) this use's definition, for the slide's compiled
+             run to call view on where its expansion holds none (a macro's) */
+          HazelJitRun.note_def(info.id, def_elab);
           let view_term = term =>
             Exp(term)
             |> info.utility.term_to_seg(~inline=true)
