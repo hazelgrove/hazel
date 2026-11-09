@@ -568,6 +568,26 @@ module View = {
 
   /* Recursive: a splice inside this editor renders as another instance
    * of this same view (see `render_splice` below). */
+  /* (^report(50)'s next step 1) the last few editors' decorations and
+     probes' views, each keyed on the physical identity of its inputs (LRU) */
+  module StaticMemo = {
+    let entries: ref(list((array(Obj.t), (list(Node.t), list(Node.t))))) =
+      ref([]);
+    let max = 8;
+    let key_eq = (a: array(Obj.t), b: array(Obj.t)): bool =>
+      Array.length(a) == Array.length(b) && Array.for_all2((===), a, b);
+    let find = (key, f) =>
+      switch (List.find_opt(((k, _)) => key_eq(k, key), entries^)) {
+      | Some((_, v) as e) =>
+        entries := [e, ...List.filter(x => !(x === e), entries^)];
+        v;
+      | None =>
+        let v = f();
+        entries :=
+          [(key, v), ...List.filteri((i, _) => i < max - 1, entries^)];
+        v;
+      };
+  };
   let rec view =
           (
             ~globals: Globals.t,
@@ -589,6 +609,9 @@ module View = {
      * history remain the main editor's — the splice's pieces ARE main
      * editor pieces, so edits in either view are edits to the same
      * segment. */
+    /* (^report(50)'s next step 1) the model as given, before the frame's
+       own copy below: the decorations' memo keys on it */
+    let model_in = model;
     let is_sub = Option.is_some(sub_editor);
     /* Splice sub-editors route keys and pointer goals through the main
      * editor's own handlers (the zipper's splice context frames them);
@@ -817,7 +840,7 @@ module View = {
         (),
       );
     };
-    let edit_decos =
+    let edit_decos_now = () =>
       switch (sub_editor) {
       /* Lean decoration set for region sub-editors: caret + selection
        * only, and only while this frame owns the caret. Their measured
@@ -943,7 +966,7 @@ module View = {
      * (see RefractorView.mk_data). Region (non-splice) sub-editors
      * share the host's frame and skip refractors as before. */
     let render_refractors = is_splice_sub || !is_sub;
-    let refractors_model =
+    let refractors_now = () =>
       if (!render_refractors) {
         [];
       } else {
@@ -980,6 +1003,36 @@ module View = {
           @ List.map(fst, Id.Map.to_list(zipper.refractors.proofs)),
         );
       };
+    /* (^report(50)'s next step 1: draw only what a drag changes) The
+       decorations (caret, selection, completions, the context menu) and
+       the probes' views, made anew at every frame though a drag's frames
+       change none of their inputs (cut A gives the page every editor as it
+       was): kept while each input is the same object, so a drag's frame
+       reuses the very nodes and the vdom diff skips them by reference. */
+    let (edit_decos, refractors_model) =
+      Util.BenchMarks.time("view: decorations and probes", () =>
+        StaticMemo.find(
+          [|
+            Obj.repr(model_in),
+            Obj.repr(dynamics),
+            Obj.repr(selected),
+            Obj.repr(caret_here),
+            Obj.repr(frame),
+            Obj.repr(sub_editor),
+            Obj.repr(globals.settings),
+            Obj.repr(globals.font_metrics),
+            Obj.repr(globals.visible_rows),
+            Obj.repr(globals.color_highlights),
+            Obj.repr(globals.slide_name != None),
+            Obj.repr(pending_eval_ids),
+            Obj.repr(show_active_eval),
+            Obj.repr(expand_selection == Some(true)),
+            Obj.repr(expand_selection == None),
+          |],
+          () =>
+          (edit_decos_now(), refractors_now())
+        )
+      );
     // let t2 = JsUtil.precise_timestamp();
     /* Render a splice as a full recursive sub-editor over the same model:
      * the ~sub_editor argument swaps the splice's cached frame into
