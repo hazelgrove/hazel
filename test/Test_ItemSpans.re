@@ -569,8 +569,8 @@ let read_finished = () => {
     @ List.filter_map(
         name =>
           Option.map(
-            s => ("modaudit " ++ name, Sort.Mod, s),
-            Test_ModAudit.stdlib(name),
+            s => ("stdlib copy " ++ name, Sort.Mod, s),
+            ModHarness.stdlib(name),
           ),
         ["List.hz", "Option.hz"],
       )
@@ -632,7 +632,7 @@ let read_finished = () => {
    parses whole) and its term no longer holds them; extents (TermData) read
    as at the Written division, so selections and probes don't move */
 let read_typing = () => {
-  module MA = Test_ModAudit;
+  module MA = ModHarness;
   let root = Sort.Mod;
   let src = Option.get(MA.stdlib("List.hz"));
   let z0 = MA.load(~root, src);

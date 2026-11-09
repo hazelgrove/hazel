@@ -9,7 +9,7 @@ open Haz3lcore;
    the one Segment.skel builds; keys that leave the levels' shapes alone
    build none; and the last parse is a cold parse's */
 
-module MA = Test_ModAudit;
+module MA = ModHarness;
 module S = ItemSpans;
 
 let root = Sort.Mod;

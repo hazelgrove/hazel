@@ -534,7 +534,7 @@ let brace_nested = () => {
   let root = Sort.Mod;
   let deleted = (src: string) => {
     let z0 = Zipper.unzip(CorpusUtil.seg_of(~root, src));
-    switch (Test_ModAudit.point_of(~off=3, src, "  };")) {
+    switch (ModHarness.point_of(~off=3, src, "  };")) {
     | Some(pt) =>
       List.fold_left(
         perform(~root),
@@ -1314,7 +1314,7 @@ let caret_col = (z: Zipper.t): int => {
   Str.search_forward(Str.regexp_string("¦"), line, 0);
 };
 
-let counter_mod = Test_ModAudit.counter_mod;
+let counter_mod = ModHarness.counter_mod;
 
 let unclosed_enter_cases = [
   /* name, root, program, the line typed after, keys, the caret's column */

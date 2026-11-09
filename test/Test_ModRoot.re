@@ -178,7 +178,7 @@ let sem_at_root = () => {
     items(Zipper.unzip(parse_mod(src))),
   );
   switch (
-    Test_ModAudit.act(
+    ModHarness.act(
       ~root=Mod,
       ~off=String.length("let a = "),
       src,
@@ -390,7 +390,7 @@ let stdlib = () =>
    never a module whole, the parse is go's, and every outline row keeps
    its id */
 let missing_semi = ((root: Sort.t, src, semi, keys), ()) => {
-  module MA = Test_ModAudit;
+  module MA = ModHarness;
   let z0 = MA.load(~root, src);
   let statics = MA.statics_of(~root, z0);
   let step = (z, a) =>

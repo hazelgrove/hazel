@@ -15,9 +15,9 @@ module Cells = Test_Undo.Cells;
    its module bound by `in` */
 let list_hz = () =>
   Option.get(
-    Test_ModAudit.read_any([
-      "test/modaudit/List.hz",
-      "../test/modaudit/List.hz",
+    ModHarness.read_any([
+      "test/programs/List.hz",
+      "../test/programs/List.hz",
     ]),
   );
 let at_root = (~root: Haz3lcore.Sort.t, list: string) =>
@@ -74,9 +74,7 @@ let type_ = (m, s: string) =>
 
 /* the end of [needle]'s first line in [text] */
 let after = (text: string, needle: string): Util.Point.t =>
-  Option.get(
-    Test_ModAudit.point_of(~off=String.length(needle), text, needle),
-  );
+  Option.get(ModHarness.point_of(~off=String.length(needle), text, needle));
 
 /* the caret after List.length's `end;` */
 let loaded = (~root=Haz3lcore.Sort.Mod, ()) => {
