@@ -74,11 +74,6 @@ let check_rewrite = (from_: Exp.t, to_: Exp.t): bool => {
   let to_ = DHExp.strip_ascriptions(to_);
   let left_str = print_exp_for_algebrite(~name_other, from_);
   let right_str = print_exp_for_algebrite(~name_other, to_);
-  print_endline("Checking rewrite:");
-  print_endline("From: " ++ left_str);
-  print_endline("To:   " ++ right_str);
-  print_endline("e1: " ++ Exp.show(from_));
-  print_endline("e2: " ++ Exp.show(to_));
   if (left_str == "Unknown" || right_str == "Unknown") {
     false;
   } else {

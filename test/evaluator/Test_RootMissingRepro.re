@@ -1,14 +1,4 @@
 open Alcotest;
-open Language;
-open Util;
-open Test_Evaluator_Prelude;
-
-module StepperBase = Web.StepperBase;
-
-/* Drives the calculate pipeline Theorems.re runs for each theorem of a
- * user program, then walks every nested stepper root asserting what
- * `StepperBase.Stepper.view` needs of it: a root missing row has a saved
- * proof leaf, and a root step row's proof isn't pending. */
 
 /* User-reported program: STLC progress development with `?` holes left in
  * the two step(_)==NoTm branches and trailing lemma holes. */
@@ -71,156 +61,46 @@ end
 end
 end in progress|prog};
 
-/* --- Invariant walk ---------------------------------------------------
- * Tail missing rows need no leaf of their own: view extends the leaf
- * before them. Every nested stepper (induction case bodies, the bodies
- * of the wrapping forms) is rendered through the same root switch. */
-
-let rec violations_of_root =
-        (path: string, ns: StepperBase.next_step): list(string) =>
-  switch (ns) {
-  | Finished => []
-  | MissingStep(m, tail) =>
-    let here =
-      switch (m.proof |> Calc.get_saved_opt |> Option.join) {
-      | Some(_) => []
-      | None => [
-          path
-          ++ ": root MissingStep has no backing proof leaf (view would failwith)",
-        ]
-      };
-    here @ violations_of_tail(path, tail);
-  | NextStep(sm) =>
-    let here =
-      switch (sm.proof |> Calc.get_saved_opt) {
-      | Some(_) => []
-      | None => [
-          path ++ ": root NextStep proof Pending (view would failwith)",
-        ]
-      };
-    here
-    @ violations_of_kind(path, sm.step_kind)
-    @ violations_of_tail(path, sm.next_step);
-  }
-and violations_of_tail =
-    (path: string, ns: StepperBase.next_step): list(string) =>
-  switch (ns) {
-  | Finished => []
-  | MissingStep(_, tail) => violations_of_tail(path, tail)
-  | NextStep(sm) =>
-    violations_of_kind(path, sm.step_kind)
-    @ violations_of_tail(path, sm.next_step)
-  }
-and violations_of_kind =
-    (path: string, k: StepperBase.step_kind_model): list(string) =>
-  switch (k) {
-  | InductionStep(m) =>
-    m.cases
-    |> List.mapi((i, c: Web.InductionCase.model'(StepperBase.next_step)) =>
-         violations_of_root(
-           Printf.sprintf("%s/induction.case%d", path, i),
-           c.step,
+/* Every row the walk reaches has the checker's entry, and every row with
+ * a goal has its state, in each theorem of a large development. */
+let test_rows_are_checked = () => {
+  let statics = Test_StepperView.Fixture.statics(user_src);
+  let cell =
+    Test_StepperView.Fixture.calculate(
+      ~is_edited=true,
+      statics,
+      Web.EvalResult.Model.init,
+    );
+  let names =
+    Web.Theorems.Model.theorems(cell.theorems)
+    |> List.map(((_, thm: Web.Theorems.Model.theorem)) => thm.name);
+  check(int, "the program has 5 theorems", 5, List.length(names));
+  let violations = name => {
+    let f = Test_StepperView.Fixture.of_cell(~name, statics, cell);
+    Test_StepperView.Fixture.all(f)
+    |> List.concat_map((row: Web.StepperRows.t) =>
+         (
+           row.entry == None
+             ? [name ++ ": a row the checker didn't reach"] : []
          )
-       )
-    |> List.concat
-  | ForallStep(m) => violations_of_root(path ++ "/forall", m.inner_stepper)
-  | FunextStep(m) => violations_of_root(path ++ "/funext", m.inner_stepper)
-  | AssumeStep(m) => violations_of_root(path ++ "/assume", m.inner_stepper)
-  | RevertStep(m) => violations_of_root(path ++ "/revert", m.inner_stepper)
-  | GeneralizeStep(m) =>
-    violations_of_root(path ++ "/generalize", m.inner_stepper)
-  /* `have` has two proof children, so both roots must be checked. */
-  | HaveStep(m) =>
-    violations_of_root(path ++ "/have.subproof", m.sub_stepper)
-    @ violations_of_root(path ++ "/have.body", m.body_stepper)
-  | AxiomStep(_)
-  | AlgebriteStep(_)
-  | ContradictionStep(_)
-  | EvalStep(_) => []
-  };
-
-/* Mimic Theorems.Update.calculate's per-theorem stepper wiring. */
-let mk_thm_steppers = (src: string): list((string, StepperBase.next_step)) => {
-  let exp = parse_exp(src);
-  let (state, info_map, _elab) = Test_ProofMap.eval_with_proof(exp);
-  let pm = EvaluatorState.get_proof_map(state);
-  let settings = {
-    ...CoreSettings.on,
-    evaluation: {
-      ...CoreSettings.on.evaluation,
-      enable_proof: true,
-      stepper_history: true,
-    },
-  };
-  EvaluatorState.get_theorems(state)
-  |> List.map(((id, name, env, stmt)) => {
-       let stmt = stmt |> Substitution.in_exp(Environment.empty);
-       let goal = stmt |> ProofRule.peel_binders |> (((_, _, core)) => core);
-       let ctx =
-         info_map
-         |> Statics.Map.ctx_of(id)
-         |> Option.value(~default=Ctx.empty);
-       let sem_ctx =
-         ProofCheck.peel_stmt_binders(
-           SemanticCtx.of_ctx_and_env(ctx, env),
-           stmt,
+         @ (
+           row.goal != None
+           && Web.StepperView.Model.find(row.key, f.theorem.stepper) == None
+             ? [name ++ ": a row with a goal but no state"] : []
          )
-         |> fst;
-       let proof =
-         switch (Statics.Map.lookup_exp(id, info_map)) {
-         | Some({user_term, _}) =>
-           switch (user_term |> Exp.term_of) {
-           | Theorem(_, _, proof, _) => Some(proof)
-           | _ => None
-           }
-         | None => None
-         };
-       let proof =
-         switch (proof) {
-         | Some(p) => p
-         | None => Proof.fresh(EmptyHole)
-         };
-       let elab_subst =
-         goal |> Substitution.in_exp(Builtins.env_init) |> Exp.replace_all_ids;
-       let root =
-         StepperBase.Stepper.calculate(
-           ~settings=Calc.NewValue(settings),
-           ~ctx=Calc.NewValue(sem_ctx),
-           ~exp=Calc.NewValue(elab_subst),
-           ~ana=Calc.NewValue(Typ.fresh(Atom(Bool))),
-           ~proof=Calc.NewValue(proof),
-           ~proof_map=Calc.NewValue(pm),
-           ~proof_info_map=Calc.NewValue(info_map),
-           StepperBase.init_step,
-         );
-       (name, root);
-     });
-};
-
-let test_no_root_missing_without_leaf = () => {
-  let thms = mk_thm_steppers(user_src);
-  check(Alcotest.int, "program registers 5 theorems", 5, List.length(thms));
-  let all =
-    thms
-    |> List.map(((name, root)) => violations_of_root(name, root))
-    |> List.concat;
-  check(
-    Alcotest.(list(string)),
-    "every stepper root has a backing proof leaf",
-    [],
-    all,
-  );
+       );
+  };
+  check(list(string), "violations", [], List.concat_map(violations, names));
 };
 
 let tests = (
   "Evaluator.RootMissingRepro",
   [
-    /* Slow: the stepper pipeline over this development takes minutes and
-       close to node's 4GB heap. */
+    /* Slow: this development takes minutes to check. */
     test_case(
-      "user STLC progress program: stepper root invariant",
+      "user STLC progress program: every row is checked",
       `Slow,
-      test_no_root_missing_without_leaf,
+      test_rows_are_checked,
     ),
   ],
 );

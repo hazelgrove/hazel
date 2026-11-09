@@ -25,7 +25,7 @@ let tests =
     Test_Evaluator_BuiltinsTupleOperations.tests,
     Test_Evaluator_TypAp.tests,
     Test_Stepper.tests,
-    Test_StepperBase.tests,
+    Test_StepperView.tests,
     Test_Evaluator_Properties.tests,
     Test_Evaluator_Performance.tests,
     Test_Evaluator_Modules.tests,

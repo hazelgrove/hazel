@@ -8,26 +8,34 @@ open Util;
  * find it. Each program's first step produces a negative number, and the
  * hole after it is the row under test. */
 
-module SB = Web.StepperBase;
+module Picker = Web.StepperPicker;
 
-let hole_row = (src: string): Web.MissingStep.Model.t => {
-  let rec find = (row: SB.next_step) =>
-    switch (row) {
-    | MissingStep(m, _) => m
-    | NextStep({next_step, _}) => find(next_step)
-    | Finished => Alcotest.fail("no hole row")
-    };
-  find(fst(Test_ListCaseStep.stepper(src, "t")));
+/* The goal of the hole after the program's first step. */
+let hole_goal = (src: string): Picker.Goal.t => {
+  let f = Test_StepperView.Fixture.mk(src);
+  switch (
+    List.find_opt(
+      (row: Web.StepperRows.t) => row.kind == Hole,
+      Test_StepperView.Fixture.all(f),
+    )
+  ) {
+  | Some(row) => Test_StepperView.Fixture.goal(f, row)
+  | None => Alcotest.fail("no hole row")
+  };
 };
 
 /* What each offered step writes. */
-let written_targets = (m: Web.MissingStep.Model.t): list((Exp.t, int)) =>
-  switch (Calc.get_saved_opt(m.next_steps)) {
-  | Some(AvailableSteps(steps)) =>
-    List.filter_map(Web.MissingStep.Update.written_target(m), steps)
-  | Some(AutoStep(_))
-  | None => []
-  };
+let written_targets = (goal: Picker.Goal.t): list((Exp.t, int)) =>
+  List.mapi((n, _) => Picker.take_step(goal, n), goal.eval_steps)
+  |> List.filter_map(
+       fun
+       | Some(EvalStep({at_exp, at_idx}): TermBase.Proof.term) =>
+         switch (Exp.term_of(at_idx)) {
+         | Atom(Int(n)) => Bigint.to_int(n) |> Option.map(n => (at_exp, n))
+         | _ => None
+         }
+       | _ => None,
+     );
 
 /* The checker's entry for `eval <selector> at <idx> end` written in the
  * hole. */
@@ -59,8 +67,7 @@ let check_written = (src, ~selector, ~idx): ProofMap.entry => {
 /* Only the side without a negative number is offered, and what it writes
  * checks. */
 let offers_only = (src, ~spellable) => {
-  let m = hole_row(src);
-  switch (written_targets(m)) {
+  switch (written_targets(hole_goal(src))) {
   | [(at_exp, idx)] =>
     check(
       string,
@@ -93,9 +100,9 @@ let negative_int = {|theorem t = (0 - 5) * 2 == 0 - 10 proof eval 0 - 5 at 0 end
 let negative_float = {|theorem t = (0.0 -. 2.5) *. 2.0 ==. 0.0 -. 5.0 proof eval 0.0 -. 2.5 at 0 end; ? in 0|};
 
 let test_stale_offer = () => {
-  let m = hole_row(negative_int);
-  let written = Calc.get_saved_opt(m.eval_exp) |> Option.get;
-  let env = Calc.get_saved_opt(m.cached_env) |> Option.get;
+  let goal = hole_goal(negative_int);
+  let written = goal.written;
+  let env = Picker.Goal.env(goal);
   let negative_side =
     switch (Exp.term_of(written)) {
     | BinOp(_, l, _) => l
@@ -110,17 +117,15 @@ let test_stale_offer = () => {
       )
     | AutoStep(_) => Alcotest.fail("the goal has a hidden step")
     };
-  let stale =
-    Web.MissingStep.Model.{
-      ...m,
-      next_steps: Calc.Calculated(EvaluatorStep.AvailableSteps([step])),
-      step_sources: Calc.Calculated([Exp.rep_id(negative_side)]),
-    };
+  let stale = {
+    ...goal,
+    eval_steps: [(step, Exp.rep_id(negative_side))],
+  };
   check(
     bool,
     "taking it writes nothing",
     true,
-    Web.MissingStep.Update.written_target(stale, step) == None,
+    Picker.take_step(stale, 0) == None,
   );
 };
 

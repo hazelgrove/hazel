@@ -549,14 +549,12 @@ let test_parens_transparent_to_checker = () =>
     {|theorem t = (fun x -> x + 1) == (fun x -> 1 + x) proof ( funext x => rewrite x + 1 with 1 + x at 0 end; axiom refl_eq at 0 on 1 + x == 1 + x end ) in t|},
   );
 
-/* The stepper sees through them too: `Proofs.split` must unwrap the parens
- * before looking for a `;` chain, so the head is still the Funext and the
- * promoted row is a FunextStep. */
+/* The stepper sees through them too: the parens are unwrapped before
+ * looking for a `;` chain, so the row is the funext's, with its body. */
 let test_parens_transparent_to_stepper = () => {
   let inner =
     Proof.fresh(Funext(Pat.fresh(Var("x")), Proof.fresh(EmptyHole)));
-  let (head, tail) =
-    Web.StepperBase.Proofs.split(Proof.fresh(Parens(inner)));
+  let (head, tail) = Web.StepperRows.split(Proof.fresh(Parens(inner)));
   Alcotest.check(
     Alcotest.bool,
     "a parenthesized leaf step has no tail",
@@ -565,12 +563,16 @@ let test_parens_transparent_to_stepper = () => {
   );
   switch (head.term) {
   | Funext(_, _) => ()
-  | _ => Alcotest.fail("Proofs.split did not unwrap the parens to the funext")
+  | _ => Alcotest.fail("the parens were not unwrapped to the funext")
   };
-  switch (Web.StepperBase.Proofs.kind(Proof.fresh(Parens(inner)))) {
-  | Some(FunextStep(_)) => ()
-  | _ =>
-    Alcotest.fail("Proofs.kind on a parenthesized funext is not a FunextStep")
+  switch (
+    Web.StepperRows.chain(
+      ~proof_map=ProofMap.empty,
+      Proof.fresh(Parens(inner)),
+    )
+  ) {
+  | [{kind: Step(Body(_)), step: {term: Funext(_), _}, _}, _] => ()
+  | _ => Alcotest.fail("a parenthesized funext is not a funext row")
   };
 };
 

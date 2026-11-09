@@ -276,7 +276,7 @@ let float_target_of = (~ctx: action_ctx, ob: Obligation.t): float_target => {
 };
 
 /* The goal, fit to write into the program, as in
- * `StepperBase.Terms.embed_exp`. `display_goal` is a slice of the program
+ * `StepperPicker.Terms.embed_exp`. `display_goal` is a slice of the program
  * and carries its tiles' ids: written in verbatim, one id would land on
  * two tiles, which crashes the view. */
 let embed_goal = (ob: Obligation.t): Exp.t =>

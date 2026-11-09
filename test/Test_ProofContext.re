@@ -151,7 +151,7 @@ let reply = (req: WorkerServer.Request.value) =>
   };
 
 let ack = (req: WorkerServer.Request.value): EvalResult.Update.t =>
-  UpdateStreamingEval(1, req.generation, IncrEval.empty_outbox);
+  UpdateStreamingEval(req.generation, IncrEval.empty_outbox);
 
 /* Evaluates `cs` on the worker through to its result. */
 let evaluate = (cs, m) => {
@@ -198,7 +198,6 @@ let test_replaced_request_ignored = () => {
   let m = calculate(~is_edited=true, undone, m);
   let current = latest_request();
   let m = update(ack(replaced), m);
-  check(bool, "its ack holds nothing", true, m.stepper_hold.held == None);
   let m = update(UpdateResult(replaced.generation, reply(replaced)), m);
   let m =
     update(

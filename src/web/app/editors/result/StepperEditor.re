@@ -6,10 +6,8 @@ open Haz3lcore;
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
-    // Updated
     editor: CodeSelectable.Model.t,
-    // Read-only
-    taken_steps: list(Id.t),
+    /* Where the offered steps' and reflexivities' underlines go. */
     next_steps: list(Id.t),
     refls: list(Id.t),
   };
@@ -33,6 +31,8 @@ module View = {
     | TakeStep(int)
     | Refl(int);
 
+  /* Underlines on the offered steps and reflexivities. A click on one
+   * selects it, and a click on the selected one takes it. */
   let deco =
       (
         ~syntax: CachedSyntax.t,
@@ -42,79 +42,33 @@ module View = {
         signal: event => Ui_effect.t(unit),
         model: Model.t,
       ) => {
-    open WebUtil;
-
-    let next_steps =
-        (next_steps: list(Id.t), ~inject: int => Ui_effect.t(unit)) =>
-      next_steps
-      |> List.filter_map(TermData.root_tile(_, syntax.term_data))
-      |> List.mapi((i, t: Tile.t) =>
-           div_c(
-             "step-next",
+    let underlines = (~cls, ids, take: int => event) =>
+      ids
+      |> List.mapi((i, id) => (i, id))
+      |> List.filter_map(((i, id)) => {
+           open OptUtil.Syntax;
+           let* tile = TermData.root_tile(id, syntax.term_data);
+           let+ range =
+             TermData.extreme_measures(
+               id,
+               syntax.term_data,
+               CachedSyntax.measured(syntax),
+             );
+           let click =
+             Some(id) == selected_id
+               ? signal(take(i)) : inject(Select(PointToPoint(range)));
+           WebUtil.div_c(
+             cls,
              Arms.term(
-               ~attr=[Attr.on_mousedown(_ => inject(i))],
+               ~attr=[WebUtil.Attr.on_mousedown(_ => click)],
                ~font_metrics,
                ~syntax,
-               t,
+               tile,
              ),
-           )
-         );
-
-    let taken_steps = (taken_steps: list(Id.t)) =>
-      taken_steps
-      |> List.filter_map(TermData.root_tile(_, syntax.term_data))
-      |> List.map(t =>
-           div_c("step-taken", Arms.term(~font_metrics, ~syntax, t))
-         );
-
-    let refl_steps =
-        (refl_steps: list(Id.t), ~inject: int => Ui_effect.t(unit)) =>
-      refl_steps
-      |> List.filter_map(TermData.root_tile(_, syntax.term_data))
-      |> List.mapi((i, t: Tile.t) =>
-           div_c(
-             "step-refl",
-             Arms.term(
-               ~attr=[Attr.on_mousedown(_ => inject(i))],
-               ~font_metrics,
-               ~syntax,
-               t,
-             ),
-           )
-         );
-
-    taken_steps(model.taken_steps)
-    @ next_steps(model.next_steps, ~inject=x =>
-        {
-          open OptUtil.Syntax;
-          let+ range =
-            TermData.extreme_measures(
-              List.nth(model.next_steps, x),
-              model.editor.editor.syntax.term_data,
-              CachedSyntax.measured(model.editor.editor.syntax),
-            );
-          Some(List.nth(model.next_steps, x)) == selected_id
-            ? signal(TakeStep(x)) : inject(Select(PointToPoint(range)));
-        }
-        |> Option.value(~default=Ui_effect.Ignore)
-      )
-    @ refl_steps(model.refls, ~inject=x =>
-        {
-          open OptUtil.Syntax;
-          let+ range =
-            TermData.extreme_measures(
-              List.nth(model.refls, x),
-              model.editor.editor.syntax.term_data,
-              CachedSyntax.measured(model.editor.editor.syntax),
-            );
-          Some(List.nth(model.refls, x)) == selected_id
-            ? signal(Refl(x))
-            : {
-              inject(Select(PointToPoint(range)));
-            };
-        }
-        |> Option.value(~default=Ui_effect.Ignore)
-      );
+           );
+         });
+    underlines(~cls="step-next", model.next_steps, i => TakeStep(i))
+    @ underlines(~cls="step-refl", model.refls, i => Refl(i));
   };
 
   /* Steppers don't support probe dynamics - expressions shown are

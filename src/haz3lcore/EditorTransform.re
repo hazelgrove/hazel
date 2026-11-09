@@ -80,17 +80,6 @@ module Rewrite = {
       )
     };
 
-  let proof =
-      (~target_id: Id.t, replacement: Proof.t, root: Proof.t)
-      : option((Proof.t, Proof.t)) =>
-    replace(
-      ~map_term=(f_proof, p) => Proof.map_term(~f_proof, p),
-      ~rep_id=Proof.rep_id,
-      ~target_id,
-      replacement,
-      root,
-    );
-
   /* For proofs nested in program syntax. */
   let proof_in_exp =
       (~target_id: Id.t, replacement: Proof.t, root: Exp.t)
@@ -464,26 +453,5 @@ let apply_patch = (zipper: Zipper.t, patch: patch): Zipper.t => {
         Rewrite.seq_parent_in_exp(~target_id, root),
       );
     replace_proof(~reflow=true, ~target_id, replacement);
-  };
-};
-
-/* Apply a patch to a proof that is owned directly as an AST rather than
- * as a slice of program syntax (the result stepper's document). No
- * segmentation happens, so `reflow` has nothing to do here. `ExpPatch`
- * has no meaning without a program around the proof. */
-let apply_patch_to_proof = (root: Proof.t, patch: patch): Proof.t => {
-  let replace = (~target_id, replacement) =>
-    switch (Rewrite.proof(~target_id, replacement, root)) {
-    | Some((_, root)) => root
-    | None => root
-    };
-  switch (patch) {
-  | ProofPatch({target_id, replacement, reflow: _}) =>
-    replace(~target_id, replacement)
-  | ProofRemovePatch({target_id}) =>
-    let (target_id, replacement) =
-      Rewrite.step_removal(~target_id, Rewrite.seq_parent(~target_id, root));
-    replace(~target_id, replacement);
-  | ExpPatch(_) => root
   };
 };

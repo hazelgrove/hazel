@@ -9,75 +9,110 @@ open Language;
 
 /* This file follows conventions in [docs/ui-architecture.md] */
 
-/* While the worker evaluates, the theorem steppers are held on the
- * dynamics they last saw: from the worker's ack of a new request until its
- * result arrives or the hold times out (EvalRequest.stepper_hold_ms).
- * Otherwise they would flash, and lose focus, on the partial streaming
- * state, which has no theorems yet. Held, they still recalculate, so their
- * editors stay live. */
-module StepperHold = {
+/* The cell's stepper is the theorem stepper over a hidden editor holding
+ * `theorem cell = ? proof <steps> in ?`. Its proof is real syntax, so
+ * picking a step patches it, its sub-editors splice into it, and the
+ * checker checks it, as in a theorem. Its goal is the cell's elaborated
+ * program rather than the statement. */
+module CellStepper = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
-    /* The generation of the ack that started the hold, so that a stale
-     * timeout can't release a newer hold. */
-    held: option(int),
-    /* The dynamics changed while held, so pass them on once released. */
-    withheld: bool,
-    /* The dynamics the theorem steppers last saw. */
-    dynamics: Calc.saved(option(Dynamics.t)),
+    goal: Exp.t,
+    editor: CodeEditable.Model.t,
+    /* The hidden editor changed since its proof was last checked. */
+    edited: bool,
+    proof_map: ProofMap.t,
+    stepper: StepperView.Model.t,
   };
 
-  let init = {
-    held: None,
-    withheld: false,
-    dynamics: Calc.Pending,
+  let init = (elab: Exp.t): t => {
+    let zipper =
+      Haz3lcore.Parser.to_zipper(~root=Exp, "theorem cell = ? proof ? in ?")
+      |> Option.value(~default=Haz3lcore.Zipper.init());
+    {
+      goal:
+        elab |> Substitution.in_exp(Builtins.env_init) |> Exp.replace_all_ids,
+      editor:
+        CodeEditable.Model.mk(Haz3lcore.Editor.Model.mk(~root=Exp, zipper)),
+      edited: true,
+      proof_map: ProofMap.empty,
+      stepper: StepperView.Model.init,
+    };
   };
 
-  let start = (gen: int, hold: t): t => {
-    ...hold,
-    held: Some(gen),
-  };
-
-  let release = (hold: t): t => {
-    ...hold,
-    held: None,
-  };
-
-  /* A timeout releases only the hold it was set for. */
-  let time_out = (gen: int, hold: t): t =>
-    hold.held == Some(gen) ? release(hold) : hold;
-
-  /* The dynamics for the theorem steppers on this pass. */
-  let calculate =
-      (dynamics: Calc.t(option(Dynamics.t)), hold: t)
-      : (Calc.t(option(Dynamics.t)), t) => {
-    let last = Calc.get_saved(None, hold.dynamics);
-    let (dynamics, withheld) =
-      switch (hold.held, dynamics) {
-      | (Some(_), NewValue(_)) => (Calc.OldValue(last), true)
-      | (Some(_), OldValue(_)) => (Calc.OldValue(last), hold.withheld)
-      | (None, NewValue(d)) => (Calc.NewValue(d), false)
-      | (None, OldValue(d)) => (
-          hold.withheld ? Calc.NewValue(d) : Calc.OldValue(d),
-          false,
-        )
-      };
-    (
-      dynamics,
-      {
-        ...hold,
-        withheld,
-        dynamics: Calc.save(dynamics),
-      },
+  let ctx =
+    SemanticCtx.of_ctx_and_env(
+      Builtins.ctx_init(None),
+      Builtins.closure_env,
     );
-  };
+
+  let theorem_proof = (e: Exp.t): option(Proof.t) =>
+    switch (Exp.term_of(e)) {
+    | Theorem(_, _, proof, _) => Some(proof)
+    | _ => None
+    };
+
+  /* The proof as written. */
+  let proof = (cell: t): Proof.t =>
+    CodeEditable.Model.get_statics(cell.editor).term
+    |> theorem_proof
+    |> Option.value(~default=Proof.fresh(EmptyHole));
+
+  let calculate = (~settings: CoreSettings.t, cell: t): t =>
+    if (!cell.edited) {
+      cell;
+    } else {
+      let editor =
+        CodeEditable.Update.calculate(
+          ~settings,
+          ~is_edited=true,
+          ~stitch=x => x,
+          ~dynamics=Dynamics.Map.empty,
+          ~is_dynamic_term=false,
+          cell.editor,
+        );
+      let statics = CodeEditable.Model.get_statics(editor);
+      /* The checker checks the elaborated proof, which keeps the written
+       * proof's ids. */
+      let proof_map =
+        switch (
+          Option.bind(
+            Exp.find_by_id(Exp.rep_id(statics.term), statics.elaborated),
+            theorem_proof,
+          )
+        ) {
+        | Some(elaborated) =>
+          Evaluator.Proofs.check_proof(
+            ~statics=statics.info_map,
+            ~ctx,
+            ~goal=cell.goal,
+            elaborated,
+          )
+        | None => ProofMap.empty
+        };
+      let cell = {
+        ...cell,
+        editor,
+        edited: false,
+        proof_map,
+      };
+      {
+        ...cell,
+        stepper:
+          StepperView.Update.calculate(
+            ~settings,
+            StepperRows.chain(~proof_map, proof(cell)),
+            cell.stepper,
+          ),
+      };
+    };
 };
 
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type display =
     | Evaluation(Calc.saved(option((Exp.t, CodeSelectable.Model.t))))
-    | Stepper(StepperView.Model.t);
+    | Stepper(CellStepper.t);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
@@ -93,10 +128,8 @@ module Model = {
     streaming_outbox: Calc.saved(option(IncrEval.outbox(EvaluatorState.t))),
     streaming_state: Calc.saved(option(EvaluatorState.t)),
     pending_eval_ids: list(Id.t),
-    stepper_proof: Calc.t(Proof.t),
     display,
     theorems: Theorems.Model.t,
-    stepper_hold: StepperHold.t,
     /* Bumped whenever an input of evaluation (elab, settings, targets)
      * changes. Worker replies carry the generation of their request, and
      * replies to an older request are refused. */
@@ -121,10 +154,8 @@ module Model = {
     streaming_outbox: Calc.Pending,
     streaming_state: Calc.Pending,
     pending_eval_ids: [],
-    stepper_proof: Calc.OldValue(Proof.fresh(EmptyHole)),
     display: Evaluation(Calc.Pending),
     theorems: Theorems.Model.init,
-    stepper_hold: StepperHold.init,
     request_gen: 0,
     request_statics: None,
     checked: Calc.Pending,
@@ -163,8 +194,7 @@ module Model = {
    * main thread with the real statics (empty until calculated, or if the
    * cell contains no theorems). Consumed by the cursor inspector to show
    * incoming/outgoing expressions on proof sub-terms. */
-  let proof_map = (model: t): ProofMap.t =>
-    model.theorems.proof_map |> Calc.get_saved(ProofMap.empty);
+  let proof_map = (model: t): ProofMap.t => model.theorems.proof_map;
 
   let request_gen = (model: t): int => model.request_gen;
 
@@ -191,14 +221,15 @@ module Update = {
   type t =
     | ToggleStepper
     | StepperAction(StepperView.Update.t)
-    | StepperProofPatch(Haz3lcore.EditorTransform.patch)
+    /* Edits to the cell stepper's hidden editor: a picked step, or typing
+     * in one of its sub-editors. */
+    | StepperPatch(Haz3lcore.EditorTransform.patch)
+    | StepperEditorAction(CodeEditable.Update.t)
     | EvalEditorAction(CodeSelectable.Update.t)
-    /* Worker replies carry the generation of the request they answer
-     * (UpdateStreamingEval's first int is the stepper hold's). */
+    /* Worker replies carry the generation of the request they answer. */
     | UpdateResult(int, ProgramResult.t(ProgramResult.inner))
-    | UpdateStreamingEval(int, int, IncrEval.outbox(EvaluatorState.t))
+    | UpdateStreamingEval(int, IncrEval.outbox(EvaluatorState.t))
     | MergeStreamingEval(int, IncrEval.outbox(EvaluatorState.t))
-    | ReleaseStepperHold(int)
     | TheoremsAction(Theorems.Update.t);
 
   /* Whether a cell the user can't edit still takes this action: evaluation
@@ -208,11 +239,11 @@ module Update = {
     switch (action) {
     | UpdateResult(_)
     | UpdateStreamingEval(_)
-    | MergeStreamingEval(_)
-    | ReleaseStepperHold(_) => true
+    | MergeStreamingEval(_) => true
     | ToggleStepper
     | StepperAction(_)
-    | StepperProofPatch(_)
+    | StepperPatch(_)
+    | StepperEditorAction(_)
     | EvalEditorAction(_)
     | TheoremsAction(_) => false
     };
@@ -227,30 +258,54 @@ module Update = {
       }
       |> Updated.return
     | (ToggleStepper, {display: Evaluation(_), _}) =>
+      let elab = model.elab |> Calc.get_saved(Exp.fresh(EmptyHole));
       {
         ...model,
-        display: Stepper(StepperView.Model.init),
+        display: Stepper(CellStepper.init(elab)),
       }
-      |> Updated.return
-    | (StepperAction(a), {display: Stepper(stepper), _}) =>
-      let* stepper = StepperView.Update.update(~settings, a, stepper);
+      |> Updated.return;
+    | (StepperAction(a), {display: Stepper(cell), _}) =>
+      let* stepper = StepperView.Update.update(~settings, a, cell.stepper);
       {
         ...model,
-        display: Stepper(stepper),
+        display:
+          Stepper({
+            ...cell,
+            stepper,
+          }),
       };
-    | (StepperAction(_), _) => model |> Updated.raise_invalid_action
-    | (StepperProofPatch(patch), _) =>
+    | (StepperPatch(patch), {display: Stepper(cell), _}) =>
+      let zipper =
+        Haz3lcore.EditorTransform.apply_patch(
+          cell.editor.editor.state.zipper,
+          patch,
+        );
       {
         ...model,
-        stepper_proof:
-          Calc.NewValue(
-            Haz3lcore.EditorTransform.apply_patch_to_proof(
-              Calc.get_value(model.stepper_proof),
-              patch,
-            ),
-          ),
+        display:
+          Stepper({
+            ...cell,
+            editor: {
+              ...cell.editor,
+              editor: Haz3lcore.Editor.Model.mk(~root=Exp, zipper),
+            },
+            edited: true,
+          }),
       }
-      |> Updated.return
+      |> Updated.return;
+    | (StepperEditorAction(a), {display: Stepper(cell), _}) =>
+      let* editor = CodeEditable.Update.update(~settings, a, cell.editor);
+      {
+        ...model,
+        display:
+          Stepper({
+            ...cell,
+            editor,
+            edited: true,
+          }),
+      };
+    | (StepperAction(_) | StepperPatch(_) | StepperEditorAction(_), _) =>
+      model |> Updated.raise_invalid_action
     | (
         EvalEditorAction(a),
         {display: Evaluation(Calculated(Some((exp, editor)))), _},
@@ -269,7 +324,7 @@ module Update = {
         theorems,
       };
     | (UpdateResult(gen, _), _)
-    | (UpdateStreamingEval(_, gen, _), _)
+    | (UpdateStreamingEval(gen, _), _)
     | (MergeStreamingEval(gen, _), _) when gen != model.request_gen =>
       model |> Updated.return_quiet
     | (UpdateResult(_, result), _) =>
@@ -282,10 +337,9 @@ module Update = {
           | ProgramResult.ResultOk(_)
           | ProgramResult.ResultFail(_) => []
           },
-        stepper_hold: StepperHold.release(model.stepper_hold),
       }
       |> Updated.return_quiet
-    | (UpdateStreamingEval(hold_gen, _, stream), _) =>
+    | (UpdateStreamingEval(_, stream), _) =>
       /* Worker ReusePlan arrives here (via on_ack). Snapshot it for the
        * frozen debug tint; also seed the streaming outbox / pending worklist. */
       {
@@ -296,13 +350,6 @@ module Update = {
         streaming_state: Calc.Pending,
         pending_eval_ids:
           EvalWorklist.remove_streamed_ids(stream, model.pending_eval_ids),
-        stepper_hold: StepperHold.start(hold_gen, model.stepper_hold),
-      }
-      |> Updated.return_quiet
-    | (ReleaseStepperHold(hold_gen), _) =>
-      {
-        ...model,
-        stepper_hold: StepperHold.time_out(hold_gen, model.stepper_hold),
       }
       |> Updated.return_quiet
     | (MergeStreamingEval(_, stream), _) =>
@@ -339,10 +386,8 @@ module Update = {
           streaming_outbox,
           streaming_state,
           pending_eval_ids,
-          stepper_proof,
           display,
           theorems,
-          stepper_hold,
           request_gen,
           request_statics,
           checked,
@@ -354,11 +399,6 @@ module Update = {
       |> Calc.set(settings, ~eq=CoreSettings.eq_ignoring_stepper_modals);
     let elab =
       Calc.set(~eq=Exp.fast_equal_with_lexemes, statics.elaborated, elab);
-    let stepper_proof =
-      switch (elab) {
-      | NewValue(_) => Calc.NewValue(Proof.fresh(EmptyHole))
-      | OldValue(_) => stepper_proof
-      };
     let targets =
       Calc.set(
         ~eq=Id.Map.equal(Sample.equal_capture_spec),
@@ -579,43 +619,23 @@ module Update = {
            )
         |> Calc.save
         |> (x => Model.Evaluation(x));
-      | Stepper(stepper) =>
+      /* A new program starts its proof over. */
+      | Stepper(cell) =>
+        let cell =
+          Calc.is_new(elab) ? CellStepper.init(Calc.get_value(elab)) : cell;
         Model.Stepper(
-          StepperView.Update.calculate(
-            ~settings,
-            ~ctx=
-              OldValue(
-                SemanticCtx.of_ctx_and_env(
-                  Builtins.ctx_init(None),
-                  Builtins.closure_env,
-                ),
-              ),
-            elab,
-            ~proof=stepper_proof,
-            stepper,
-          ),
-        )
-      };
-
-    let (theorems_dynamics, stepper_hold) =
-      StepperHold.calculate(dynamics, stepper_hold);
-
-    // HACK[Matt]: say that statics is updated iff dynamics is updated
-    let statics: Calc.t('a) =
-      switch (theorems_dynamics) {
-      | NewValue(_) => NewValue(statics)
-      | OldValue(_) => OldValue(statics)
+          CellStepper.calculate(~settings=Calc.get_value(settings), cell),
+        );
       };
 
     let theorems =
       Calc.get_value(settings).dynamics
-        ? theorems
-          |> Theorems.Update.calculate(
-               ~settings,
-               ~statics,
-               ~dynamics=theorems_dynamics,
-               ~checked,
-             )
+        ? Theorems.Update.calculate(
+            ~settings,
+            ~statics=Calc.map(_ => statics, elab),
+            ~checked,
+            theorems,
+          )
         : theorems;
 
     (
@@ -630,10 +650,8 @@ module Update = {
         streaming_outbox: streaming_outbox |> Calc.save,
         streaming_state: streaming_state |> Calc.save,
         pending_eval_ids,
-        stepper_proof: stepper_proof |> Calc.make_old,
         display,
         theorems,
-        stepper_hold,
         request_gen,
         request_statics,
         checked: checked |> Calc.save,
@@ -661,12 +679,12 @@ module Selection = {
           editor,
         );
       Update.EvalEditorAction(ci);
-    | (Stepper(focus), Stepper(s)) =>
+    | (Stepper(focus), Stepper(cell)) =>
       let+ ci =
         StepperView.Focus.get_cursor_info(
           ~inject=x => inject(Update.StepperAction(x)),
           ~focus,
-          s,
+          cell.stepper,
         );
       Update.StepperAction(ci);
     | (Evaluation(_), _) => Cursor.empty
@@ -803,7 +821,7 @@ module View = {
           editor |> Calc.get_saved_exc(~print="result editor missing"),
         ),
       ]
-    | Stepper(s) =>
+    | Stepper(cell) =>
       let stepper_view =
         StepperView.View.view(
           ~globals,
@@ -817,8 +835,16 @@ module View = {
             | HideStepper => inject(ToggleStepper)
             | MakeActive(s) => signal(MakeActive(Stepper(s))),
           ~inject=x => inject(StepperAction(x)),
-          ~edit_syntax=patch => inject(StepperProofPatch(patch)),
-          s,
+          ~is_toplevel=true,
+          ~edit_syntax=patch => inject(StepperPatch(patch)),
+          ~backing={
+            model: cell.editor,
+            inject: a => inject(StepperEditorAction(a)),
+          },
+          ~info_map=CodeEditable.Model.get_statics(cell.editor).info_map,
+          ~proof_map=cell.proof_map,
+          CellStepper.proof(cell),
+          cell.stepper,
         );
       /* The stepper renders from the last proof map / elaboration it saw,
        * so on evaluation failure it silently shows stale rows; surface the
@@ -893,9 +919,10 @@ module View = {
            | `Custom(Node.t)
          ]=`EvalResults,
         ~locked: bool,
-        ~edit_syntax: Haz3lcore.EditorTransform.patch => Ui_effect.t(unit)=_ =>
-                                                                    Ui_effect.Ignore,
-        ~main_editor: option(CodeEditable.Channel.t)=None,
+        /* Writes a patch into the cell's program. */
+        ~edit_syntax: Haz3lcore.EditorTransform.patch => Ui_effect.t(unit),
+        /* The cell's editor, which theorem steppers splice into. */
+        ~main_editor: CodeEditable.Channel.t,
         model: Model.t,
       ) =>
     switch (result_kind) {

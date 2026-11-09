@@ -7,7 +7,9 @@ open Util;
  * stepper offers the step the checker takes at `all_lists(xs)` instead,
  * and taking it writes an `eval` step that checks. */
 
-module SB = Web.StepperBase;
+module Rows = Web.StepperRows;
+module Picker = Web.StepperPicker;
+module Fixture = Test_StepperView.Fixture;
 
 let all_lists = {|let all_lists = fun (xs : [Int]) ->
   case xs
@@ -29,95 +31,38 @@ let every_by_cases =
 let both_nil =
   all_lists ++ "theorem both = all_lists([]) == all_lists([]) proof ? in 0";
 
-/* The theorem's stepper and the checker's proof map, set up as
- * Theorems.Update.calculate sets them up. */
-let stepper = (src: string, name: string): (SB.next_step, ProofMap.t) => {
-  let (state, info_map, _) =
-    Test_ProofMap.eval_with_proof(Test_Evaluator_Prelude.parse_exp(src));
-  let pm = EvaluatorState.get_proof_map(state);
-  let settings = {
-    ...CoreSettings.on,
-    evaluation: {
-      ...CoreSettings.on.evaluation,
-      enable_proof: true,
-      stepper_history: true,
-    },
-  };
+/* The goal of a theorem's first row. */
+let first_goal = (f: Fixture.t): Picker.Goal.t =>
+  Fixture.goal(f, Test_StepperView.first(f.rows));
+
+/* The first row of induction case `i`. */
+let case_row = (f: Fixture.t, i): Rows.t =>
   switch (
-    EvaluatorState.get_theorems(state)
-    |> List.find_opt(((_, n, _, _)) => n == name)
+    List.nth_opt(Test_StepperView.cases(Test_StepperView.first(f.rows)), i)
   ) {
-  | None => Alcotest.fail("no theorem " ++ name)
-  | Some((id, _, env, stmt)) =>
-    let stmt = Substitution.in_exp(Environment.empty, stmt);
-    let goal = stmt |> ProofRule.peel_binders |> (((_, _, core)) => core);
-    let ctx =
-      info_map |> Statics.Map.ctx_of(id) |> Option.value(~default=Ctx.empty);
-    let sem_ctx =
-      ProofCheck.peel_stmt_binders(
-        SemanticCtx.of_program_state(ctx, env),
-        stmt,
-      )
-      |> fst;
-    let proof =
-      switch (Statics.Map.lookup_exp(id, info_map)) {
-      | Some({user_term, _}) =>
-        switch (Exp.term_of(user_term)) {
-        | Theorem(_, _, proof, _) => proof
-        | _ => Proof.fresh(EmptyHole)
-        }
-      | None => Proof.fresh(EmptyHole)
-      };
-    let root =
-      SB.Stepper.calculate(
-        ~settings=Calc.NewValue(settings),
-        ~ctx=Calc.NewValue(sem_ctx),
-        ~exp=Calc.NewValue(goal),
-        ~ana=Calc.NewValue(Typ.fresh(Atom(Bool))),
-        ~proof=Calc.NewValue(proof),
-        ~proof_map=Calc.NewValue(pm),
-        ~proof_info_map=Calc.NewValue(info_map),
-        SB.init_step,
-      );
-    (root, pm);
-  };
-};
-
-let missing_step = (row: SB.next_step): Web.MissingStep.Model.t =>
-  switch (row) {
-  | MissingStep(m, _) => m
-  | _ => Alcotest.fail("not a missing step")
+  | Some(rows) => Test_StepperView.first(rows)
+  | None => Alcotest.fail("no case " ++ string_of_int(i))
   };
 
-let case_row = (root: SB.next_step, i): SB.next_step =>
-  switch (root) {
-  | NextStep({step_kind: InductionStep(im), _}) =>
-    switch (List.nth_opt(im.cases, i)) {
-    | Some(c) => c.step
-    | None => Alcotest.fail("no case " ++ string_of_int(i))
-    }
-  | _ => Alcotest.fail("not an induction step")
-  };
+let offered = (goal: Picker.Goal.t): list(EvaluatorStep.step) =>
+  List.map(fst, goal.eval_steps);
 
-let offered = (m: Web.MissingStep.Model.t): list(EvaluatorStep.step) =>
-  switch (Calc.get_saved_opt(m.next_steps)) {
-  | Some(AvailableSteps(steps)) => steps
-  | Some(AutoStep(_))
-  | None => []
-  };
-
-/* The index taking `step` writes, checking that it writes `eval <exp> at
- * <index> end`. */
-let written_index = (m: Web.MissingStep.Model.t, step, ~exp: string): int =>
-  switch (Web.MissingStep.Update.written_target(m, step)) {
-  | Some((at_exp, at_idx)) =>
+/* The index taking the `n`-th offered step writes, checking that it
+ * writes `eval <exp> at <index> end`. */
+let written_index = (goal: Picker.Goal.t, n, ~exp: string): int =>
+  switch (Picker.take_step(goal, n)) {
+  | Some(EvalStep({at_exp, at_idx})) =>
     check(
       bool,
       "writes " ++ exp,
       true,
       Exp.fast_equal(at_exp, Test_Evaluator_Prelude.parse_exp(exp)),
     );
-    at_idx;
+    switch (Exp.term_of(at_idx)) {
+    | Atom(Int(n)) => Bigint.to_int(n) |> Option.value(~default=-1)
+    | _ => Alcotest.fail("the index is not a number")
+    };
+  | Some(_) => Alcotest.fail("taking the step writes something else")
   | None => Alcotest.fail("taking the step writes nothing")
   };
 
@@ -169,8 +114,8 @@ let check_written_proof = (src, ~exp, ~idx, ~outgoing) => {
 };
 
 let test_offers_the_checker_step = () => {
-  let m = missing_step(fst(stepper(every, "every")));
-  let steps = offered(m);
+  let goal = first_goal(Fixture.mk(~name="every", every));
+  let steps = offered(goal);
   check(
     bool,
     "offers a step other than a lookup",
@@ -180,27 +125,22 @@ let test_offers_the_checker_step = () => {
       steps,
     ),
   );
-  let editor: Web.CodeSelectable.Model.t =
-    m.editor |> Calc.get_saved_opt |> Option.get;
-  let highlighted = step =>
-    Haz3lcore.TermData.root_tile(
-      Web.MissingStep.Update.display_step_id(m, step),
-      editor.editor.syntax.term_data,
-    )
+  let highlighted = id =>
+    Haz3lcore.TermData.root_tile(id, goal.editor.editor.syntax.term_data)
     != None;
   check(
     bool,
     "every offered step highlights a tile of the row",
     true,
-    steps != [] && List.for_all(highlighted, steps),
+    steps != [] && List.for_all(highlighted, Picker.Goal.step_ids(goal)),
   );
 };
 
 let test_taking_it_writes_a_checked_step = () => {
-  let m = missing_step(fst(stepper(every, "every")));
-  switch (offered(m)) {
-  | [step] =>
-    check(int, "at index", 0, written_index(m, step, ~exp="all_lists(xs)"));
+  let goal = first_goal(Fixture.mk(~name="every", every));
+  switch (offered(goal)) {
+  | [_] =>
+    check(int, "at index", 0, written_index(goal, 0, ~exp="all_lists(xs)"));
     check_written_proof(every, ~exp="all_lists(xs)", ~idx=0, ~outgoing=None);
   | steps =>
     Alcotest.fail(string_of_int(List.length(steps)) ++ " steps offered")
@@ -210,9 +150,10 @@ let test_taking_it_writes_a_checked_step = () => {
 /* Takes the first offered step in induction case `i`, writes it into the
  * case's hole, and checks the written step. */
 let take_in_case = (i, ~hole, ~exp, ~outgoing) => {
-  let m = missing_step(case_row(fst(stepper(every_by_cases, "every")), i));
-  switch (offered(m)) {
-  | [step, ..._] => check(int, "at index", 0, written_index(m, step, ~exp))
+  let f = Fixture.mk(~name="every", every_by_cases);
+  let goal = Fixture.goal(f, case_row(f, i));
+  switch (offered(goal)) {
+  | [_, ..._] => check(int, "at index", 0, written_index(goal, 0, ~exp))
   | [] => Alcotest.fail("no step offered")
   };
   let src =
@@ -221,39 +162,32 @@ let take_in_case = (i, ~hole, ~exp, ~outgoing) => {
       ~by=hole ++ " => eval " ++ exp ++ " at 0 end",
       every_by_cases,
     );
-  let (root, pm) = stepper(src, "every");
-  switch (case_row(root, i)) {
-  | NextStep({step_kind: EvalStep(_), proof, _}) =>
-    let id = Proof.rep_id(Calc.get_saved_opt(proof) |> Option.get);
-    switch (ProofMap.lookup(id, pm)) {
-    | Some(entry) => check_entry(entry, ~outgoing)
-    | None => Alcotest.fail("no proof-map entry")
-    };
-  | _ => Alcotest.fail("the case is not an eval step")
+  switch (case_row(Fixture.mk(~name="every", src), i)) {
+  | {kind: Step(_), step: {term: EvalStep(_), _}, entry: Some(entry), _} =>
+    check_entry(entry, ~outgoing)
+  | _ => Alcotest.fail("the case is not a checked eval step")
   };
 };
 
 /* One step per side, each highlighting its side and writing the index
  * under which the checker reduces that side. */
 let test_each_occurrence_writes_its_index = () => {
-  let m = missing_step(fst(stepper(both_nil, "both")));
-  let steps = offered(m);
-  check(int, "one step per side", 2, List.length(steps));
+  let goal = first_goal(Fixture.mk(~name="both", both_nil));
+  check(int, "one step per side", 2, List.length(offered(goal)));
   let (left, right) =
-    switch (Exp.term_of(Calc.get_saved_opt(m.full_exp) |> Option.get)) {
+    switch (Exp.term_of(goal.display)) {
     | BinOp(Poly(Equals), l, r) => (l, r)
     | _ => Alcotest.fail("not an == goal")
     };
   let check_side = (side: Exp.t, ~outgoing) =>
     switch (
-      List.find_opt(
-        s =>
-          Web.MissingStep.Update.display_step_id(m, s) == Exp.rep_id(side),
-        steps,
+      List.find_index(
+        id => id == Exp.rep_id(side),
+        Picker.Goal.step_ids(goal),
       )
     ) {
-    | Some(step) =>
-      let idx = written_index(m, step, ~exp="all_lists([])");
+    | Some(n) =>
+      let idx = written_index(goal, n, ~exp="all_lists([])");
       check_written_proof(
         both_nil,
         ~exp="all_lists([])",
