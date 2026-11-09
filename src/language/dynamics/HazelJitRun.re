@@ -273,7 +273,7 @@ let erase =
             erased;
           } else {
             let (u0, m0) = (uses^, models^);
-            let erased =
+            let erased: Exp.t =
               switch (continue(e)) {
               | {term: Projector(data, inner), _} as e'
                   when data.Grammar.kind == ProjectorKind.Livelit =>
