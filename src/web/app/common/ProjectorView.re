@@ -346,6 +346,37 @@ module Model = {
       projector_list,
     );
   };
+
+  /* (^ticket(722), the drag fast path, cut C) mk's answer again, while every input it reads is the same object as
+     before: a drag's frames change no editor state (Page.Update.LivelitRepaint), and making every projector's data
+     again was most of the projector layer's 14 ms a frame (Firefox run 42563736665). The zipper stands for
+     `indicated`, which is made from it anew each frame. A few editors draw each frame (a stack's cells), so a few
+     entries are kept. */
+  type mk_key = {
+    k_syntax: CachedSyntax.t,
+    k_zipper: Zipper.t,
+    k_statics: Language.Statics.Map.t,
+    k_dynamics: Language.Dynamics.Map.t,
+    k_active: bool,
+    k_elaborated: option(Language.Exp.t),
+  };
+  let mk_memo: ref(list((mk_key, list(projector_data)))) = ref([]);
+  let mk_cached = (~key: mk_key, make: unit => list(projector_data)) => {
+    let same = (k: mk_key) =>
+      k.k_syntax === key.k_syntax
+      && k.k_zipper === key.k_zipper
+      && k.k_statics === key.k_statics
+      && k.k_dynamics === key.k_dynamics
+      && k.k_active == key.k_active
+      && k.k_elaborated === key.k_elaborated;
+    switch (List.find_opt(((k, _)) => same(k), mk_memo^)) {
+    | Some((_, data)) => data
+    | None =>
+      let data = Util.BenchMarks.time("view: projector data made", make);
+      mk_memo := [(key, data), ...List.filteri((i, _) => i < 7, mk_memo^)];
+      data;
+    };
+  };
 };
 
 /* Projectors get a default backing decoration similar
@@ -654,6 +685,28 @@ let chip = (~open_panel: Ui_effect.t(unit)): Node.t =>
   );
 
 /* Route top-level metadata to the projector view function. */
+/* Kinds with out-of-band state get a version counter in their views' keys: apps read the AppStore; livelits their
+   optimistic entries and the slide's compiled run (LivelitProj.version_of) */
+let app_version_of = (p: Base.projector): int =>
+  switch (p.kind) {
+  | ProjectorCore.Kind.HTML => AppBridge.version^
+  | ProjectorCore.Kind.Livelit => LivelitProj.version_of(p.id)
+  | _ => 0
+  };
+
+let rec seg_has_splices = (seg: Base.segment): bool =>
+  List.exists(
+    (piece: Base.piece) =>
+      switch (piece) {
+      | Splice(_) => true
+      | Tile(t) => List.exists(seg_has_splices, t.children)
+      | Projector(_)
+      | Grout(_)
+      | Secondary(_) => false
+      },
+    seg,
+  );
+
 let mk_view =
     (
       inject: Action.t => Ui_effect.t(unit),
@@ -677,12 +730,7 @@ let mk_view =
   /* Kinds with out-of-band state get a version counter in the key: apps
      read the AppStore; livelits read the optimistic table, whose updates
      must repaint before the debounced statics refresh. */
-  let app_version =
-    switch (p.kind) {
-    | ProjectorCore.Kind.HTML => AppBridge.version^
-    | ProjectorCore.Kind.Livelit => LivelitProj.version_of(p.id)
-    | _ => 0
-    };
+  let app_version = app_version_of(p);
   /* (^ticket(722)) the program this livelit is drawn from, for its run to
      be compiled with livelits' models as parameters (a physical-equality
      check when it has not changed) */
@@ -935,6 +983,20 @@ let split_views =
 let by_measurement = (pd1: Model.projector_data, pd2: Model.projector_data) =>
   compare(pd1.measurement.origin.row, pd2.measurement.origin.row);
 
+/* (^ticket(722), cut C) each cacheable projector's finished views, by id, from the frame that last drew it; several
+   editors draw in one frame (a stack's cells), so entries are kept across editors, and the whole table is let go
+   past 512 entries, so it holds no closures of projectors long gone */
+type split_entry = {
+  s_pd: Model.projector_data,
+  s_version: int,
+  s_list: list(Id.t),
+  s_font: FontMetrics.t,
+  s_core: Language.CoreSettings.t,
+  s_probe: int,
+  s_out: (Node.t, option(Node.t)),
+};
+let split_memo: Hashtbl.t(Id.t, split_entry) = Hashtbl.create(64);
+
 /* Returns a div containing all projector UIs, intended to
  * be absolutely positioned atop a rendered editor UI */
 let all =
@@ -968,23 +1030,61 @@ let all =
     d.measurement.origin.row,
     d.measurement.last.row,
   );
+  /* (^ticket(722), the drag fast path, cut C) a projector's finished views again, while its data is the same object
+     (Model.mk_cached), its version has not moved, and the frame's settings are the same; a projector holding
+     splices is made every frame, as its view's cache does (its caret decorations read the zipper) */
+  let split = (pd: Model.projector_data) => {
+    let make = () =>
+      split_views(
+        ~skip_inline=false,
+        ~core_settings,
+        ~open_panel,
+        ~render_splice,
+        inject,
+        make_active,
+        font_metrics,
+        pd,
+        projector_list,
+      );
+    let version = app_version_of(pd.p);
+    switch (Hashtbl.find_opt(split_memo, pd.p.id)) {
+    | Some(e)
+        when
+          e.s_pd === pd
+          && e.s_version == version
+          && e.s_list === projector_list
+          && e.s_font == font_metrics
+          && e.s_core == core_settings
+          && e.s_probe == ProbeProj.Settings.version^ =>
+      e.s_out
+    | _ =>
+      let out = make();
+      if (!seg_has_splices(pd.p.syntax)) {
+        if (Hashtbl.length(split_memo) > 512) {
+          Hashtbl.reset(split_memo);
+        };
+        Hashtbl.replace(
+          split_memo,
+          pd.p.id,
+          {
+            s_pd: pd,
+            s_version: version,
+            s_list: projector_list,
+            s_font: font_metrics,
+            s_core: core_settings,
+            s_probe: ProbeProj.Settings.version^,
+            s_out: out,
+          },
+        );
+      };
+      out;
+    };
+  };
   let (base_views, overlay_views) =
     projector_data
     |> filter_by_visibility(visible, _, get_row_range)
     |> List.sort(by_measurement)
-    |> List.map(
-         split_views(
-           ~skip_inline=false,
-           ~core_settings,
-           ~open_panel,
-           ~render_splice,
-           inject,
-           make_active,
-           font_metrics,
-           _,
-           projector_list,
-         ),
-       )
+    |> List.map(split)
     |> List.split;
   let overlay_views = List.filter_map(Fun.id, overlay_views);
   [

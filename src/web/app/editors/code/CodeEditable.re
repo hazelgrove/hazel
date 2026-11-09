@@ -1056,17 +1056,30 @@ module View = {
              pending-eval highlight only */
           ~open_panel,
           ~render_splice,
-          ProjectorView.Model.mk(
-            ~syntax=model.editor.syntax,
-            /* Render this frame's projectors only; nested ones render in
-             * their host splice's sub-editor. */
-            ~projector_list=model.editor.syntax.main_splice.projector_list,
-            ~indicated=Indicated.for_decoration(zipper),
-            ~statics=model.statics.info_map,
-            ~dynamics,
-            ~sample_focus=zipper.refractors.sample_focus,
-            ~editor_active=selected,
-            ~elaborated=Some(model.statics.elaborated),
+          /* (^ticket(722), cut C) the same data while its inputs are the
+             same objects, as on a drag's frames */
+          ProjectorView.Model.mk_cached(
+            ~key={
+              k_syntax: model.editor.syntax,
+              k_zipper: zipper,
+              k_statics: model.statics.info_map,
+              k_dynamics: dynamics,
+              k_active: selected,
+              k_elaborated: Some(model.statics.elaborated),
+            },
+            () =>
+            ProjectorView.Model.mk(
+              ~syntax=model.editor.syntax,
+              /* Render this frame's projectors only; nested ones render in
+               * their host splice's sub-editor. */
+              ~projector_list=model.editor.syntax.main_splice.projector_list,
+              ~indicated=Indicated.for_decoration(zipper),
+              ~statics=model.statics.info_map,
+              ~dynamics,
+              ~sample_focus=zipper.refractors.sample_focus,
+              ~editor_active=selected,
+              ~elaborated=Some(model.statics.elaborated),
+            )
           ),
           /* Index list: action indices (Focus/SetModel/SetTerm/...) are
            * resolved by Perform against the global projector list, so
