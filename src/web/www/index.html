@@ -59,4 +59,64 @@
   <ninja-keys id="ninja-keys-rules" placeholder="Switch Rule" hideBreadcrumbs openHotkey=""></ninja-keys>
 
   <script src="hazel.js"></script>
+
+  <!-- A frame-rate HUD, on with ?hud in the address (?hud=off, or none, leaves it off): the frames the browser drew
+       in the last second, the longest of them, and the last two seconds of frame times against a 60 fps frame
+       (16.7 ms, the green line). Timed with requestAnimationFrame, so a page busy for 300 ms shows as one 300 ms
+       frame, however the work was split. It reads nothing of Hazel's and sends nothing anywhere; a click on it
+       hides it. -->
+  <script>
+    (function () {
+      var q = new URLSearchParams(location.search).get("hud");
+      if (q === null || /^(off|0|false|no)$/i.test(q)) return;
+      var FRAME = 1000 / 60, SPAN = 2000, W = 180, H = 36;
+      var box = document.createElement("div");
+      box.id = "fps-hud";
+      box.title = "frames drawn in the last second; the longest; the last two seconds of frames (green: 16.7 ms, 60 fps). Click to hide.";
+      box.setAttribute("style", "position:fixed;top:8px;right:8px;z-index:2147483647;background:rgba(17,24,39,0.88);" +
+        "color:#f9fafb;font:12px/1.35 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;padding:6px 8px 5px;" +
+        "border-radius:6px;cursor:pointer;user-select:none;box-shadow:0 1px 4px rgba(0,0,0,0.3)");
+      var big = document.createElement("div"), small = document.createElement("div"), cv = document.createElement("canvas");
+      big.setAttribute("style", "font-size:16px;font-weight:700");
+      small.setAttribute("style", "color:#d1d5db");
+      var dpr = window.devicePixelRatio || 1;
+      cv.width = W * dpr; cv.height = H * dpr;
+      cv.setAttribute("style", "display:block;margin-top:4px;width:" + W + "px;height:" + H + "px");
+      box.appendChild(big); box.appendChild(small); box.appendChild(cv);
+      box.addEventListener("click", function () { box.style.display = "none"; });
+      var add = function () { document.body.appendChild(box); };
+      if (document.body) add(); else document.addEventListener("DOMContentLoaded", add);
+      var g = cv.getContext("2d"), frames = [], last = 0, shown = 0;
+      var colour = function (fps) { return fps >= 58 ? "#4ade80" : fps >= 30 ? "#fbbf24" : "#f87171"; };
+      function tick(t) {
+        if (last) frames.push([t, t - last]);
+        last = t;
+        while (frames.length && t - frames[0][0] > SPAN) frames.shift();
+        var n = 0, span = 0, worst = 0;
+        for (var i = frames.length - 1; i >= 0 && t - frames[i][0] <= 1000; i--) {
+          n++; span += frames[i][1]; if (frames[i][1] > worst) worst = frames[i][1];
+        }
+        if (t - shown > 200 && span > 0) {
+          shown = t;
+          var fps = 1000 * n / span;
+          big.textContent = Math.round(fps) + " fps";
+          big.style.color = colour(fps);
+          small.textContent = "longest frame " + Math.round(worst) + " ms";
+        }
+        g.setTransform(dpr, 0, 0, dpr, 0, 0);
+        g.clearRect(0, 0, W, H);
+        var top = 4 * FRAME, x = W;
+        for (var j = frames.length - 1; j >= 0 && x > 0; j--) {
+          var dt = frames[j][1], w = Math.max(1, dt / SPAN * W), h = Math.min(H, dt / top * H);
+          x -= w;
+          g.fillStyle = dt <= FRAME * 1.25 ? "#4ade80" : dt <= 2 * FRAME ? "#fbbf24" : "#f87171";
+          g.fillRect(x, H - h, Math.max(1, w - 0.5), h);
+        }
+        g.fillStyle = "#22c55e";
+        g.fillRect(0, H - FRAME / top * H, W, 1);
+        requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    })();
+  </script>
 </html>
