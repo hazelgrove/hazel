@@ -14,18 +14,26 @@ open Js_of_ocaml;
 module U = Js.Unsafe;
 
 type compiled = {
+  /* the latest program found to be this one but for its livelits' models (^report(50)'s next step 3), the one it was
+     compiled from at first */
   program: Exp.t,
+  /* that program with each parameter's model left out, and every livelit use's projector id in order, to tell whether
+     a new program is the same but for those models (erase) */
+  erased: Exp.t,
+  uses: list(string),
   fn: U.any, /* new Function("$R", src) */
   types: HazelJitValue.types,
   /* each livelit use's projector id with its model's parameter (Id.to_string both); only literal models have one */
   param_of: Hashtbl.t(string, string),
   /* the models given so far, by parameter, kept between events: a drag's steps do not change the program */
   params: U.any,
+  /* each parameter's value as the run last had it (the program's literal, or the latest step's model), as JSON */
+  given: Hashtbl.t(string, string),
 };
 
-/* The program the page draws livelits from, and its compilation (or why there is none) */
+/* The program the page draws livelits from, and its compilation (or why the program it was tried on has none) */
 let program: ref(option(Exp.t)) = ref(None);
-let compiled: ref(option(result(compiled, string))) = ref(None);
+let compiled: ref(option(result(compiled, (Exp.t, string)))) = ref(None);
 
 /* The latest run's answers: each livelit use's view answer, by projector id; the projector whose event ran it; and a
    count of runs, for the page's caches */
@@ -162,6 +170,91 @@ let fold_views = (e: Exp.t): Exp.t => {
   e;
 };
 
+/* (^report(50)'s next step 3: compile once, not again after a step) A step commits its new model to the program, so
+   the page has a new program after each one, and it was compiled again, 126 ms of the page's thread on the Witch
+   (build 8). But the compiled program takes each literal model as a parameter: a program that is the same but for
+   those models runs as the old one with the new models given. Each use's model is found where fold_views finds it, in
+   the use's expansion, and left out (a placeholder in its place), the rest compared as Exp.fast_equal does (ids
+   aside), and every livelit use's projector id compared too, since the compiled program samples views by them. */
+let model_of = (e: Exp.t): option(Exp.t) =>
+  switch (Exp.term_of(strip(e))) {
+  | Match(scrut, [(_, body), ..._]) =>
+    switch (Exp.term_of(strip(scrut)), Exp.term_of(strip(body))) {
+    | (Dot(_, l), Ap(Forward, _, model))
+        when HazelJit.label_of(l) == Some("expand") =>
+      Some(model)
+    | _ => None
+    }
+  | Let(p, model, _) when HazelJit.pat_is("%macro_model", p) => Some(model)
+  | _ => None
+  };
+/* the same expansion with [m] for its model */
+let set = (e: Exp.t, term: Exp.term): Exp.t => {
+  ...e,
+  term,
+};
+let rec with_model = (e: Exp.t, m: Exp.t): option(Exp.t) =>
+  switch (Exp.term_of(e)) {
+  | Parens(x) => Option.map(x => set(e, Parens(x)), with_model(x, m))
+  | Asc(x, t) => Option.map(x => set(e, Asc(x, t)), with_model(x, m))
+  | Match(scrut, [(p, body), ...rest]) =>
+    Option.map(
+      body => set(e, Match(scrut, [(p, body), ...rest])),
+      with_arg(body, m),
+    )
+  | Let(p, _, body) when HazelJit.pat_is("%macro_model", p) =>
+    Some(set(e, Let(p, m, body)))
+  | _ => None
+  }
+and with_arg = (e: Exp.t, m: Exp.t): option(Exp.t) =>
+  switch (Exp.term_of(e)) {
+  | Parens(x) => Option.map(x => set(e, Parens(x)), with_arg(x, m))
+  | Asc(x, t) => Option.map(x => set(e, Asc(x, t)), with_arg(x, m))
+  | Ap(Forward, f, _) => Some(set(e, Ap(Forward, f, m)))
+  | _ => None
+  };
+let left_out: Exp.t =
+  Exp.fresh(Atom(String("%a livelit's model, a parameter of the run")));
+/* The program with each parameter's model left out; every livelit use's projector id in order; and each parameter's
+   use with its model */
+let erase =
+    (~param_of: Hashtbl.t(string, string), e: Exp.t)
+    : (Exp.t, list(string), list((string, Exp.t))) => {
+  let uses = ref([]);
+  let models = ref([]);
+  let keep = (_, x) => x;
+  let e =
+    Exp.map_term(
+      ~f_pat=keep,
+      ~f_typ=keep,
+      ~f_tpat=keep,
+      ~f_exp=
+        (continue, e: Exp.t) =>
+          switch (continue(e)) {
+          | {term: Projector(data, inner), _} as e'
+              when data.Grammar.kind == ProjectorKind.Livelit =>
+            let pid = Id.to_string(Exp.rep_id(e'));
+            uses := [pid, ...uses^];
+            switch (Hashtbl.mem(param_of, pid), model_of(inner)) {
+            | (true, Some(model)) =>
+              switch (with_model(inner, left_out)) {
+              | Some(inner) =>
+                models := [(pid, model), ...models^];
+                {
+                  ...e',
+                  term: Projector(data, inner),
+                };
+              | None => e'
+              }
+            | _ => e'
+            };
+          | e' => e'
+          },
+      e,
+    );
+  (e, List.rev(uses^), List.rev(models^));
+};
+
 let compile = (e: Exp.t): result(compiled, string) =>
   Util.BenchMarks.time("hazel-jit: the run compiled", () => {
     HazelJit.params_on := true;
@@ -180,13 +273,31 @@ let compile = (e: Exp.t): result(compiled, string) =>
           )
         ) {
         | fn =>
+          let param_of = Hashtbl.copy(HazelJit.param_of_projector);
+          let (erased, uses, models) = erase(~param_of, e);
+          let given = Hashtbl.create(64);
+          List.iter(
+            ((pid, model)) =>
+              Hashtbl.replace(
+                given,
+                Hashtbl.find(param_of, pid),
+                switch (HazelJitValue.to_js(model)) {
+                | js => print_js(js)
+                | exception _ => "?" ++ string_of_int(Random.bits())
+                },
+              ),
+            models,
+          );
           Ok({
             program: e,
+            erased,
+            uses,
             fn,
             types: HazelJitValue.types_of(c),
-            param_of: Hashtbl.copy(HazelJit.param_of_projector),
+            param_of,
             params: U.obj([||]),
-          })
+            given,
+          });
         | exception exn => Error(HazelJitValue.message(exn))
         }
       | exception (HazelJit.Unsupported(why)) => Error(why)
@@ -197,36 +308,118 @@ let compile = (e: Exp.t): result(compiled, string) =>
     r;
   });
 
-/* The program's compilation, made now if it has not been */
-let current = (): option(compiled) =>
-  switch (program^) {
-  | None => None
-  | Some(e) =>
-    let c =
-      switch (compiled^) {
-      | Some(Ok(c)) when c.program === e => Ok(c)
-      | Some(Error(_) as err) => err
-      | _ =>
-        let c = compile(e);
-        compiled := Some(c);
-        c;
+/* [c] for the program [e], when [e] is the same but for its parameters' models, each new model given to its
+   parameter; and whether any parameter's value changed (the answers then hold for the models before) */
+let reuse = (c: compiled, e: Exp.t): option((compiled, bool)) =>
+  Util.BenchMarks.time(
+    "hazel-jit: the program compared, its livelits' models left out",
+    () => {
+      let (erased, uses, models) = erase(~param_of=c.param_of, e);
+      if (uses != c.uses || !Exp.fast_equal(c.erased, erased)) {
+        None;
+      } else {
+        switch (
+          List.fold_left(
+            (changed, (pid, model)) => {
+              let mid = Hashtbl.find(c.param_of, pid);
+              let js = HazelJitValue.to_js(model);
+              let p = print_js(js);
+              if (Hashtbl.find_opt(c.given, mid) == Some(p)) {
+                changed;
+              } else {
+                U.set(c.params, Js.string(mid), js);
+                Hashtbl.replace(c.given, mid, p);
+                true;
+              };
+            },
+            false,
+            models,
+          )
+        ) {
+        | changed =>
+          Some((
+            {
+              ...c,
+              program: e,
+            },
+            changed,
+          ))
+        | exception _ => None
+        };
       };
-    switch (c) {
-    | Ok(c) => Some(c)
-    | Error(why) =>
-      warn(why);
+    },
+  );
+
+/* The compilation, when it still runs the program the page draws from: the same program, or one the same but for
+   livelits' models, now given to its parameters. The answers are retired when they no longer hold: the program
+   changed otherwise, or a parameter's value did (an undo, an edit of a model's text). Never compiles. */
+let kept = (): option(compiled) =>
+  switch (program^, compiled^) {
+  | (Some(e), Some(Ok(c))) when c.program === e => Some(c)
+  | (Some(e), Some(Ok(c))) =>
+    switch (reuse(c, e)) {
+    | Some((c, changed)) =>
+      HazelJitValue.count(
+        ~why=
+          changed
+            ? "a livelit's model changed outside a step: answers retired"
+            : "the models the run was given",
+        "the slide's run kept, the program the same but for its livelits' models",
+      );
+      if (changed) {
+        retire();
+      };
+      compiled := Some(Ok(c));
+      Some(c);
+    | None =>
+      HazelJitValue.count(
+        "the slide's run compiled again: the program changed",
+      );
+      compiled := None;
+      retire();
       None;
-    };
+    }
+  | _ => None
   };
 
-/* The page draws livelits from this program now. Compiled soon after, off this frame. */
+/* The program's compilation, made now if it has not been */
+let current = (): option(compiled) =>
+  switch (kept()) {
+  | Some(c) => Some(c)
+  | None =>
+    switch (program^) {
+    | None => None
+    | Some(e) =>
+      let c =
+        switch (compiled^) {
+        | Some(Error((p, why))) when p === e => Error(why)
+        | _ =>
+          let c = compile(e);
+          compiled :=
+            Some(
+              switch (c) {
+              | Ok(c) => Ok(c)
+              | Error(why) => Error((e, why))
+              },
+            );
+          c;
+        };
+      switch (c) {
+      | Ok(c) => Some(c)
+      | Error(why) =>
+        warn(why);
+        None;
+      };
+    }
+  };
+
+/* The page draws livelits from this program now. Compared or compiled soon after, off this frame. */
 let note_program = (e: Exp.t): unit =>
   if (HazelJitValue.enabled^) {
     switch (program^) {
     | Some(p) when p === e => ()
     | _ =>
       program := Some(e);
-      compiled := None;
       ignore(
         U.fun_call(
           U.get(U.global, "setTimeout"),
@@ -245,6 +438,17 @@ let note_program = (e: Exp.t): unit =>
       );
     };
   };
+
+/* (^report(50)'s next step 4) when the compiled run last answered a livelit's event, for the page's request to the
+   worker that the event's commit makes: held, since the livelits are already drawn (WorkerClient) */
+let answered_at: ref(float) = ref(neg_infinity);
+let now_ms = (): float => Js.float_of_number(U.js_expr("Date.now()"));
+/* Whether the compiled run answered a livelit's event in the last [ms]; asked once a request (the flag is cleared) */
+let take_answered = (~ms: float): bool => {
+  let r = now_ms() -. answered_at^ <= ms;
+  answered_at := neg_infinity;
+  r;
+};
 
 /* A livelit's event: its new model given to its parameter and the program run; every livelit's view answer kept.
    The number of answers, or why there are none. */
@@ -285,6 +489,7 @@ let step = (~projector: Id.t, ~model: Exp.t): result(int, string) =>
           Error(why);
         | m =>
           U.set(c.params, Js.string(mid), m);
+          Hashtbl.replace(c.given, mid, print_js(m));
           let r = Lazy.force(HazelJitValue.runtime);
           let samples = U.obj([||]);
           U.set(r, "params", c.params);
@@ -339,6 +544,7 @@ let step = (~projector: Id.t, ~model: Exp.t): result(int, string) =>
             answer_types := Some(c.types);
             source := Some(projector);
             incr(runs);
+            answered_at := now_ms();
             HazelJitValue.count("the slide's run answered");
             Util.BenchMarks.mark(
               ~extra=[
@@ -360,26 +566,37 @@ let step = (~projector: Id.t, ~model: Exp.t): result(int, string) =>
     };
   };
 
-/* The worker's run has caught up with this livelit's model (LivelitProj, as the livelit draws): the answers its event made
-   are retired, and every livelit draws from the run's samples again */
+/* The worker's run has caught up with this livelit's model (LivelitProj, as the livelit draws). Before ^report(50)'s
+   next step 4, the answers its event made were retired then, and every livelit was drawn again from the run's samples,
+   to the same picture. Now they are kept while the compilation still runs the page's program (kept): they are its
+   answers, with every model as the program has it. */
 let caught_up = (~projector: Id.t): unit =>
   switch (source^) {
-  | Some(s) when Id.to_string(s) == Id.to_string(projector) => retire()
+  | Some(s) when Id.to_string(s) == Id.to_string(projector) =>
+    switch (kept()) {
+    | Some(_) => HazelJitValue.count("the worker caught up: answers kept")
+    | None => retire()
+    }
   | _ => ()
   };
 
-/* The latest run's answer for this livelit use, while [fresh] says the run it came from is still ahead of the worker's */
-let answer =
-    (~fresh: Id.t => bool, id: Id.t): option((U.any, HazelJitValue.types)) =>
+/* The latest run's answer for this livelit use, while the compilation still runs the page's program (kept): from the
+   event that ran it until the program changes otherwise. (Before ^report(50)'s next step 4: only while that event's
+   livelit had its optimistic entry, and until the worker caught up.) */
+let answer = (id: Id.t): option((U.any, HazelJitValue.types)) =>
   switch (source^, answer_types^) {
-  | (Some(src), Some(types)) when fresh(src) =>
-    switch (Hashtbl.find_opt(answers, Id.to_string(id))) {
-    | Some(js) => Some((js, types))
-    | None => None
+  | (Some(_), Some(types)) =>
+    switch (kept(), source^) {
+    | (Some(_), Some(_)) =>
+      Hashtbl.find_opt(answers, Id.to_string(id))
+      |> Option.map(js => (js, types))
+    | (None, Some(_)) =>
+      retire();
+      None;
+    | (_, None) => None
     }
-  | (Some(_), _) =>
-    /* the worker's run has caught up: the answers are stale */
+  | (Some(_), None) =>
     retire();
     None;
-  | _ => None
+  | (None, _) => None
   };

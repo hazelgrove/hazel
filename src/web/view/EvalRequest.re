@@ -67,117 +67,123 @@ let request =
         ),
       plan,
     );
-  WorkerClient.request(
-    batch,
-    ~on_result=
-      (~final_streams, results) => {
-        let apply = () => {
-          let plan = Option.value(take_plan(), ~default=[]);
-          List.iter(
-            ((key, result)) => {
-              let result:
-                Language.ProgramResult.t(Language.ProgramResult.inner) =
-                switch (result) {
-                | Ok((r, s)) =>
-                  ResultOk({
-                    result: r,
-                    state: s,
-                  })
-                | Error(e) => ResultFail(e)
+  let post = () => {
+    WorkerClient.request(
+      batch,
+      ~on_result=
+        (~final_streams, results) => {
+          let apply = () => {
+            let plan = Option.value(take_plan(), ~default=[]);
+            List.iter(
+              ((key, result)) => {
+                let result:
+                  Language.ProgramResult.t(Language.ProgramResult.inner) =
+                  switch (result) {
+                  | Ok((r, s)) =>
+                    ResultOk({
+                      result: r,
+                      state: s,
+                    })
+                  | Error(e) => ResultFail(e)
+                  };
+                /* with this item's held plan and final streams, as one
+                   action: one redraw */
+                let of_key = l =>
+                  List.filter_map(
+                    ((k, x)) => k == key ? Some(x) : None,
+                    l,
+                  );
+                switch (of_key(plan), of_key(final_streams)) {
+                | ([], []) =>
+                  dispatch(
+                    pos_of_key(key),
+                    EvalResult.Update.UpdateResult(result),
+                  )
+                | (plan, streams) =>
+                  dispatch(
+                    pos_of_key(key),
+                    EvalResult.Update.ApplyWorkerMessages(
+                      List.nth_opt(plan, 0),
+                      streams,
+                      Some(result),
+                    ),
+                  )
                 };
-              /* with this item's held plan and final streams, as one
-                 action: one redraw */
-              let of_key = l =>
-                List.filter_map(((k, x)) => k == key ? Some(x) : None, l);
-              switch (of_key(plan), of_key(final_streams)) {
-              | ([], []) =>
-                dispatch(
-                  pos_of_key(key),
-                  EvalResult.Update.UpdateResult(result),
-                )
-              | (plan, streams) =>
-                dispatch(
-                  pos_of_key(key),
-                  EvalResult.Update.ApplyWorkerMessages(
-                    List.nth_opt(plan, 0),
-                    streams,
-                    Some(result),
-                  ),
-                )
-              };
-            },
-            results,
-          );
-        };
-        if (stream_unpainted^) {
-          /* only if no newer request has been posted since: its own
-             results replace this one's */
-          after_paint(() =>
-            if (WorkerClient.latest_request_id() == None) {
-              apply();
-            }
-          );
-        } else {
-          apply();
-        };
-      },
-    ~on_timeout=
-      batch => {
-        ignore(take_plan());
-        on_timeout(batch);
-      },
-    ~on_ack=
-      initial => {
-        ignore(take_plan());
-        held_plan :=
-          Some(
-            List.map(
-              ((key, stream)) =>
-                (key, Language.IncrEval.outbox_of_completed(stream)),
-              initial,
-            ),
-          );
-        held_plan_timer :=
-          Some(
-            Js_of_ocaml.Dom_html.setTimeout(
-              () =>
-                switch (take_plan()) {
-                | Some(plan)
-                    when
-                      mine^ != None
-                      && WorkerClient.latest_request_id() == mine^ =>
-                  show_plan(plan)
-                | _ => ()
-                },
-              plan_hold_ms,
-            ),
-          );
-      },
-    ~on_stream=
-      (key, stream) => {
-        if (! stream_unpainted^) {
-          stream_unpainted := true;
-          after_paint(() => stream_unpainted := false);
-        };
-        /* with this key's held plan, as one action: one redraw */
-        switch (take_plan()) {
-        | None =>
-          dispatch(
-            pos_of_key(key),
-            EvalResult.Update.MergeStreamingEval(stream),
-          )
-        | Some(plan) =>
-          show_plan(List.filter(((k, _)) => k != key, plan));
-          dispatch(
-            pos_of_key(key),
-            EvalResult.Update.ApplyWorkerMessages(
-              List.assoc_opt(key, plan),
-              [stream],
-              None,
-            ),
-          );
-        };
-      },
-  );
-  mine := WorkerClient.latest_request_id();
+              },
+              results,
+            );
+          };
+          if (stream_unpainted^) {
+            /* only if no newer request has been posted since: its own
+               results replace this one's */
+            after_paint(() =>
+              if (WorkerClient.latest_request_id() == None) {
+                apply();
+              }
+            );
+          } else {
+            apply();
+          };
+        },
+      ~on_timeout=
+        batch => {
+          ignore(take_plan());
+          on_timeout(batch);
+        },
+      ~on_ack=
+        initial => {
+          ignore(take_plan());
+          held_plan :=
+            Some(
+              List.map(
+                ((key, stream)) =>
+                  (key, Language.IncrEval.outbox_of_completed(stream)),
+                initial,
+              ),
+            );
+          held_plan_timer :=
+            Some(
+              Js_of_ocaml.Dom_html.setTimeout(
+                () =>
+                  switch (take_plan()) {
+                  | Some(plan)
+                      when
+                        mine^ != None
+                        && WorkerClient.latest_request_id() == mine^ =>
+                    show_plan(plan)
+                  | _ => ()
+                  },
+                plan_hold_ms,
+              ),
+            );
+        },
+      ~on_stream=
+        (key, stream) => {
+          if (! stream_unpainted^) {
+            stream_unpainted := true;
+            after_paint(() => stream_unpainted := false);
+          };
+          /* with this key's held plan, as one action: one redraw */
+          switch (take_plan()) {
+          | None =>
+            dispatch(
+              pos_of_key(key),
+              EvalResult.Update.MergeStreamingEval(stream),
+            )
+          | Some(plan) =>
+            show_plan(List.filter(((k, _)) => k != key, plan));
+            dispatch(
+              pos_of_key(key),
+              EvalResult.Update.ApplyWorkerMessages(
+                List.assoc_opt(key, plan),
+                [stream],
+                None,
+              ),
+            );
+          };
+        },
+    );
+    mine := WorkerClient.latest_request_id();
+  };
+  WorkerClient.hold_if_answered(batch, post);
 };

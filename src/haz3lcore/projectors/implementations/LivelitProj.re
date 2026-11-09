@@ -1533,9 +1533,11 @@ module M: Projector = {
           | None => false
           };
         /* (^ticket(722)) and so the compiled run's answers from this
-           livelit's event are no longer ahead of the worker's: retired,
-           whether or not the entry converges (on a slide the run samples
-           no view, so `live` is None and it never does) */
+           livelit's event are no longer ahead of the worker's: kept while
+           the compiled run still holds for the page's program, else
+           retired (HazelJitRun.caught_up), whether or not the entry
+           converges (on a slide the run samples no view, so `live` is
+           None and it never does) */
         if (caught_up) {
           HazelJitRun.caught_up(~projector=id);
         };
@@ -1590,16 +1592,15 @@ module M: Projector = {
           Some(entry);
         };
       };
-    /* (^ticket(722)) the compiled run's answer for this use, while the
-       event that ran it is still ahead of the worker's run (its livelit's
-       optimistic entry not yet converged), drawn straight from its JS */
+    /* (^ticket(722)) the compiled run's answer for this use, drawn
+       straight from its JS, while the run still holds for the page's
+       program (HazelJitRun.answer; ^report(50)'s next step 4: kept after
+       the worker's run catches up) */
     let from_run =
       switch (opt) {
       | Some(_) => None
       | None =>
-        switch (
-          HazelJitRun.answer(~fresh=src => Hashtbl.mem(optimistic, src), id)
-        ) {
+        switch (HazelJitRun.answer(id)) {
         | None => None
         | Some((js, types)) =>
           switch (HazelJitDOM.go(seed(~model, ~model_value), types, js)) {

@@ -261,6 +261,35 @@ let cancel = (): unit => {
   latest_request := None;
 };
 
+/* (^report(50)'s next step 4: leave the worker out when the compiled run has answered) A request made just after the
+   slide's compiled run answered a livelit's event (HazelJitRun.step), as the event's commit makes one: the page's
+   livelits are already drawn from that run, and the worker's answer would only draw them again, to the same picture.
+   So it is held [hold_ms] and replaced by any request made meanwhile: a run of steps costs the worker one run, after the
+   last, and the page takes none of its messages while the steps come. The request in flight, for a model before, is
+   dropped, as posting a newer one would drop it. Probes, tests and every other cell still get the worker's answer,
+   later. */
+let hold_ms = 400.;
+let held_timeout_id = ref(None);
+let hold_if_answered = (batch: Request.batch, post: unit => unit): unit => {
+  clear_timer(held_timeout_id);
+  switch (batch) {
+  | [_, ..._] when Language.HazelJitRun.take_answered(~ms=1000.) =>
+    cancel();
+    Util.BenchMarks.mark("worker request held: the compiled run answered");
+    held_timeout_id :=
+      Some(
+        Dom_html.window##setTimeout(
+          Js.wrap_callback(() => {
+            held_timeout_id := None;
+            post();
+          }),
+          hold_ms,
+        ),
+      );
+  | _ => post()
+  };
+};
+
 /* Shared responses (WorkerServer.post_message): after one named a value
    this client does not hold, the rest of the old stream is ignored until
    the worker starts its table over. */
