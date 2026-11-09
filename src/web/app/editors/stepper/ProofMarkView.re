@@ -92,16 +92,15 @@ let message = (~globals, m: ProofMark.t): list(Node.t) => {
   | FloatAlgebrite => [
       text("Algebraic rewrites are refused on float-typed expressions."),
     ]
-  | MalformedIndex => [text("Expected a numeric index literal.")]
-  | PatternNotFound({at_exp, at_idx}) => [
-      text("Could not find occurrence #" ++ string_of_int(at_idx) ++ " of "),
-      view_exp_box(at_exp),
+  | PatternNotFound({selector, ordinal}) => [
+      text("Could not find a " ++ Token.Ordinal.to_string(ordinal) ++ " "),
+      view_exp_box(selector),
       text(" in the goal."),
     ]
-  | NothingToStep({at_exp}) => [
-      text("Nothing to evaluate in "),
-      view_exp_box(at_exp),
-      text("."),
+  | NothingToStep => [
+      text(
+        "Nothing to evaluate at the root of the goal. Focus on a subterm with `from`.",
+      ),
     ]
   | ExpectedForallGoal => [text("Expected a `forall` goal here.")]
   | ExpectedFunEqGoal => [

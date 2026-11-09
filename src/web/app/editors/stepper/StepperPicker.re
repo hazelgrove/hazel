@@ -19,36 +19,25 @@ module Terms = {
   let embed_exp = (e: Exp.t): Exp.t =>
     e |> Substitution.in_exp(Environment.empty) |> Exp.replace_all_ids;
 
-  let index = (n: int): Exp.t => Exp.fresh(Atom(Int(Bigint.of_int(n))));
-
   let axiom_step =
-      (
-        ~at_idx: int,
-        ~at_exp: Exp.t,
-        ~direction: Direction.t,
-        ~equality: string,
-      )
-      : TermBase.Proof.term =>
+      (~direction: Direction.t, ~equality: string): TermBase.Proof.term =>
     AxiomStep({
-      at_idx: index(at_idx),
-      at_exp: embed_exp(at_exp),
       direction,
       equality: Exp.fresh(Var(equality)),
       instantiation: None,
     });
 
-  let algebrite_step =
-      (~at_idx: int, ~at_exp: Exp.t, ~with_exp: Exp.t): TermBase.Proof.term =>
-    AlgebriteStep({
-      at_idx: index(at_idx),
-      at_exp: embed_exp(at_exp),
-      with_exp: embed_exp(with_exp),
-    });
+  let algebrite_step = (~replacement: Exp.t): TermBase.Proof.term =>
+    AlgebriteStep(embed_exp(replacement));
 
-  let eval_step = (~at_idx: int, ~at_exp: Exp.t): TermBase.Proof.term =>
-    EvalStep({
-      at_idx: index(at_idx),
-      at_exp: embed_exp(at_exp),
+  /* `from <selector> do <step> end`, selecting the match of `selector`
+   * with 0-based `index`. */
+  let focus =
+      (~selector: Exp.t, ~index: int, step: Proof.t): TermBase.Proof.term =>
+    Focus({
+      ordinal: index == 0 ? None : Some(index + 1),
+      selector: embed_exp(selector),
+      body: step,
     });
 
   /* The picker writes the plain forms; `with` clauses (`contradiction`,
@@ -120,7 +109,8 @@ module Terms = {
     | AxiomStep(_)
     | AlgebriteStep(_)
     | Contradiction(_, _)
-    | EvalStep(_) => None
+    | EvalStep
+    | Focus(_) => None
     };
 };
 
@@ -156,11 +146,23 @@ module Patches = {
   let remove = (step: Proof.t): patch =>
     EditorTransform.mk_proof_remove_patch(~target_id=Proof.rep_id(step));
 
+  /* Adds `step` to the end of a focus's steps, given its body. A body
+   * that is still a hole is replaced. */
+  let join = (body: Proof.t, step: Proof.t): patch =>
+    EditorTransform.mk_proof_patch(
+      ~target_id=Proof.rep_id(body),
+      switch (StepperRows.unparen(body).term) {
+      | EmptyHole => step
+      | _ => Proof.fresh(Seq(body, step))
+      },
+    );
+
   /* The repair for an axiom step that doesn't apply: the same step in
-   * the other direction. */
-  let flip_direction = (step: Proof.t): option(patch) =>
-    switch (step.term) {
-    | AxiomStep({at_idx, at_exp, direction, equality, instantiation}) =>
+   * the other direction. A one-step focus is drawn as its step, so it
+   * offers its step's repair. */
+  let rec flip_direction = (step: Proof.t): option(patch) =>
+    switch (step.term, StepperRows.single_step(step)) {
+    | (AxiomStep({direction, equality, instantiation}), _) =>
       Some(
         EditorTransform.mk_proof_patch(
           ~target_id=Proof.rep_id(step),
@@ -168,8 +170,6 @@ module Patches = {
             ...step,
             term:
               AxiomStep({
-                at_idx,
-                at_exp,
                 direction: Direction.toggle(direction),
                 equality,
                 instantiation,
@@ -177,7 +177,8 @@ module Patches = {
           },
         ),
       )
-    | _ => None
+    | (_, Some(inner)) => flip_direction(inner)
+    | (_, None) => None
     };
 
   /* Adding or removing an induction's case rewrites the whole node. */
@@ -219,15 +220,15 @@ module EvalSteps = {
     };
   };
 
-  /* The `n` for which the checker's `eval <at_exp> at <n> end` finds
-   * `at_exp` itself rather than an equal node before it. The checker
+  /* The `n` for which the checker's `from <n+1>th <node> do` finds
+   * `node` itself rather than an equal node before it. The checker
    * matches env-substituted terms (Occurrence.nth_env_target), so
    * `substituted` is the written goal with `env` substituted.
    *
-   * None if `at_exp` holds a negative number. Evaluation produces those,
+   * None if `node` holds a negative number. Evaluation produces those,
    * but source can't spell them: written out, `-5` reads back as a
    * negation, which the checker doesn't match against the number. */
-  let checker_idx = (~env, ~substituted: Exp.t, at_exp: Exp.t): option(int) => {
+  let checker_idx = (~env, ~substituted: Exp.t, node: Exp.t): option(int) => {
     let rec has_negative_number = (e: Exp.t) =>
       switch (Exp.term_of(e)) {
       | Atom(Int(n)) => Bigint.compare(n, Bigint.of_int(0)) < 0
@@ -235,14 +236,14 @@ module EvalSteps = {
       | Atom(Float(f)) => f < 0.0
       | _ => List.exists(has_negative_number, Occurrence.children(e))
       };
-    let target = Substitution.in_exp(env, at_exp);
+    let target = Substitution.in_exp(env, node);
     let rec find = n =>
       switch (Occurrence.nth(target, n, substituted)) {
-      | Some(found) when Exp.rep_id(found) == Exp.rep_id(at_exp) => Some(n)
+      | Some(found) when Exp.rep_id(found) == Exp.rep_id(node) => Some(n)
       | Some(_) => find(n + 1)
       | None => None
       };
-    has_negative_number(at_exp) ? None : find(0);
+    has_negative_number(node) ? None : find(0);
   };
 
   /* The steps to offer on the written goal, each with its source. A step
@@ -262,17 +263,17 @@ module EvalSteps = {
     let offer = (s: EvaluatorStep.step) =>
       self_and_ancestors(EvaluatorStep.get_step_id(s), written)
       |> Option.value(~default=[])
-      |> List.find_map(at_exp =>
-           switch (checker_step(~env, at_exp)) {
+      |> List.find_map(node =>
+           switch (checker_step(~env, node)) {
            | Some(step)
                when
                  checker_idx(
                    ~env,
                    ~substituted=Lazy.force(substituted),
-                   at_exp,
+                   node,
                  )
                  != None =>
-             Some((step, Exp.rep_id(at_exp)))
+             Some((step, Exp.rep_id(node)))
            | _ => None
            }
          );
@@ -306,7 +307,7 @@ module Goal = {
     display: Exp.t,
     editor: CodeSelectable.Model.t,
     /* Each offered step, with the node of `written` that taking it
-     * writes as `eval <node> at <n> end`. */
+     * focuses on to write `eval`. */
     eval_steps: list((EvaluatorStep.step, Id.t)),
     /* Equalities in `display` that reflexivity closes. */
     refls: list(Exp.t),
@@ -397,44 +398,126 @@ type box =
   | Rewrite
   | Strategies;
 
-type action =
-  | Write(TermBase.Proof.term)
-  | Open(box);
+/* A step the picker writes, and where it acts: on the row's whole goal,
+ * or through a focus on one occurrence in it. */
+type pick = {
+  at: option(target),
+  step: Proof.t,
+}
+and target = {
+  /* The occurrence, a node of the goal's display. */
+  node: Exp.t,
+  /* What the focus writes, and which of its matches the occurrence is,
+   * counting from 0. */
+  selector: Exp.t,
+  index: int,
+};
+
+/* Where a step picked on `node` acts: through a focus, unless `node` is
+ * the whole goal. */
+let target = (goal: Goal.t, node: Exp.t): option(target) =>
+  Exp.rep_id(node) == Exp.rep_id(goal.display)
+    ? None
+    : Some({
+        node,
+        selector: node,
+        index:
+          Occurrence.index(node, goal.display) |> Option.value(~default=0),
+      });
+
+/* The proof `pick` writes on its own: its step, focused on its target. */
+let focused = (pick: pick): Proof.t =>
+  switch (pick.at) {
+  | None => pick.step
+  | Some({selector, index, _}) =>
+    Proof.fresh(Terms.focus(~selector, ~index, pick.step))
+  };
+
+/* The patch writing `pick` at `row`. A step picked inside what the focus
+ * just before the row rewrote joins that focus, focusing again within
+ * that part if it is picked on less than all of it. So stepping in one
+ * place grows one focus. */
+let write = (row: StepperRows.t, goal: Goal.t, pick: pick): Patches.patch => {
+  let rewrote =
+    Option.bind(row.after_focus, ((body, result)) =>
+      Exp.find_by_id(
+        Goal.display_id(~written=goal.written, ~display=goal.display, result),
+        goal.display,
+      )
+      |> Option.map(result => (body, result))
+    );
+  switch (rewrote, pick.at) {
+  | (Some((body, result)), Some({node, _} as at))
+      when Exp.find_by_id(Exp.rep_id(node), result) != None =>
+    let within =
+      Exp.rep_id(node) == Exp.rep_id(result)
+        ? None
+        : Some({
+            ...at,
+            index:
+              Occurrence.index(node, result) |> Option.value(~default=0),
+          });
+    Patches.join(
+      body,
+      focused({
+        ...pick,
+        at: within,
+      }),
+    );
+  | _ => Patches.write(row, focused(pick))
+  };
+};
 
 /* A button: its label, a tooltip saying what it writes, and its action. */
 type offer = {
   label: string,
   tooltip: string,
   action,
-};
+}
+and action =
+  | Write(pick)
+  | Open(box);
 
-/* What taking the `idx`-th offered step writes: `eval <at_exp> at <n>
- * end`. */
-let take_step = (goal: Goal.t, idx: int): option(TermBase.Proof.term) => {
+/* What taking the `idx`-th offered step writes: `eval`, focused on the
+ * step's source. */
+let take_step = (goal: Goal.t, idx: int): option(pick) => {
   open OptUtil.Syntax;
   let* (_, source) = List.nth_opt(goal.eval_steps, idx);
-  let* at_exp = Exp.find_by_id(source, goal.written);
+  let* written = Exp.find_by_id(source, goal.written);
   let env = Goal.env(goal);
-  let+ at_idx =
+  let+ index =
     EvalSteps.checker_idx(
       ~env,
       ~substituted=Substitution.in_exp(env, goal.written),
-      at_exp,
+      written,
     );
-  Terms.eval_step(~at_idx, ~at_exp);
+  let node =
+    Exp.find_by_id(
+      Goal.display_id(~written=goal.written, ~display=goal.display, source),
+      goal.display,
+    )
+    |> Option.value(~default=written);
+  {
+    at:
+      source == Exp.rep_id(goal.written)
+        ? None
+        : Some({
+            node,
+            selector: written,
+            index,
+          }),
+    step: Proof.fresh(EvalStep),
+  };
 };
 
-/* Reflexivity is the `refl_eq` axiom at the equality `at_exp`. */
-let refl = (goal: Goal.t, at_exp: Exp.t): option(TermBase.Proof.term) =>
-  Occurrence.index(at_exp, goal.display)
-  |> Option.map(at_idx =>
-       Terms.axiom_step(
-         ~at_idx,
-         ~at_exp,
-         ~direction=Direction.Right,
-         ~equality="refl_eq",
-       )
-     );
+/* Reflexivity is the `refl_eq` axiom at the equality `node`. */
+let refl = (goal: Goal.t, node: Exp.t): pick => {
+  at: target(goal, node),
+  step:
+    Proof.fresh(
+      Terms.axiom_step(~direction=Direction.Right, ~equality="refl_eq"),
+    ),
+};
 
 /* The buttons the picker offers for the selection `selected`. A button
  * only picks, never edits: a form with an argument to search (a rule to
@@ -443,6 +526,10 @@ let refl = (goal: Goal.t, at_exp: Exp.t): option(TermBase.Proof.term) =>
  * argument for the user to type into. */
 let offers = (goal: Goal.t, ~selected: option(Exp.t)): list(offer) => {
   let display = goal.display;
+  let whole = term => {
+    at: None,
+    step: Proof.fresh(term),
+  };
   let is_selected = (e: Exp.t) =>
     switch (selected) {
     | Some(s) => Exp.rep_id(s) == Exp.rep_id(e)
@@ -456,24 +543,22 @@ let offers = (goal: Goal.t, ~selected: option(Exp.t)): list(offer) => {
       )
       |> Option.bind(_, take_step(goal))
     ) {
-    | Some(term) => [
+    | Some(pick) => [
         {
           label: "Step",
           tooltip: "Writes `eval`: one evaluation step at the selection",
-          action: Write(term),
+          action: Write(pick),
         },
       ]
     | None => []
     };
   let refl =
-    switch (
-      List.find_opt(is_selected, goal.refls) |> Option.bind(_, refl(goal))
-    ) {
-    | Some(term) => [
+    switch (List.find_opt(is_selected, goal.refls)) {
+    | Some(e) => [
         {
           label: "Reflexivity",
           tooltip: "Writes `axiom refl_eq`: closes an equation of equals",
-          action: Write(term),
+          action: Write(refl(goal, e)),
         },
       ]
     | None => []
@@ -484,7 +569,7 @@ let offers = (goal: Goal.t, ~selected: option(Exp.t)): list(offer) => {
         {
           label: "Function Body",
           tooltip: "Writes `forall ? =>`: names the argument, to prove the body",
-          action: Write(Terms.forall()),
+          action: Write(whole(Terms.forall())),
         },
       ]
       : [];
@@ -502,8 +587,10 @@ let offers = (goal: Goal.t, ~selected: option(Exp.t)): list(offer) => {
           tooltip: "Writes `funext x =>`: proves the functions equal at any x",
           action:
             Write(
-              Terms.funext(
-                ~binder=ProofCheck.Funext.binder(~info_map, ~env, display),
+              whole(
+                Terms.funext(
+                  ~binder=ProofCheck.Funext.binder(~info_map, ~env, display),
+                ),
               ),
             ),
         },
@@ -515,7 +602,7 @@ let offers = (goal: Goal.t, ~selected: option(Exp.t)): list(offer) => {
         {
           label: "Assume",
           tooltip: "Writes `assume A =>`: takes the left side of `A ==> B` as a fact",
-          action: Write(Terms.assume(~exp=a)),
+          action: Write(whole(Terms.assume(~exp=a))),
         },
       ]
     | _ => []

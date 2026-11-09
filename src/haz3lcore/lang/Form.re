@@ -310,16 +310,16 @@ let rows_of: family => list(row) =
   | ProofAssume => [mk_pre_c(L, P.fun_, Proof, [Exp])]
   | ProofGeneralize => [mk_pre_c(L, P.fun_, Proof, [Exp])]
   | ProofRevert => [mk_pre_c(L, P.fun_, Proof, [Exp])]
-  | ProofAxiom => [mk_op_c(L, Proof, [Exp, Exp, Exp])]
+  | ProofAxiom => [mk_op_c(L, Proof, [Exp])]
   /* Applies the equality right-to-left; `axiom` applies it left-to-right. */
-  | ProofAxiomRev => [mk_op_c(L, Proof, [Exp, Exp, Exp])]
+  | ProofAxiomRev => [mk_op_c(L, Proof, [Exp])]
   | ProofRevertWith => [mk_pre_c(L, P.fun_, Proof, [Exp, Exp, Exp])]
-  | ProofAxiomWith => [mk_op_c(L, Proof, [Exp, Exp, Exp, Exp, Exp])]
-  | ProofAxiomRevWith => [mk_op_c(L, Proof, [Exp, Exp, Exp, Exp, Exp])]
-  | ProofAlgebrite => [mk_op_c(L, Proof, [Exp, Exp, Exp])]
+  | ProofAxiomWith => [mk_op_c(L, Proof, [Exp, Exp, Exp])]
+  | ProofAxiomRevWith => [mk_op_c(L, Proof, [Exp, Exp, Exp])]
+  | ProofAlgebrite => [mk_op_c(L, Proof, [Exp])]
   | ProofContradiction => [mk_op_c(L, Proof, [Exp])]
   | ProofContradictionWith => [mk_op_c(L, Proof, [Exp, Exp, Exp])]
-  | ProofEval => [mk_op_c(L, Proof, [Exp, Exp])]
+  | ProofEval => [mk_op_c(L, Proof, [])]
   | ProofInduction => [mk_op_c(L, Proof, [PRul])]
   /* `have <exp> proof <subproof> => <body>` */
   | ProofHave => [mk_pre_c(L, P.fun_, Proof, [Exp, Proof])]
@@ -330,7 +330,11 @@ let rows_of: family => list(row) =
      ExpToSegment move the name between expression and pattern. */
   | ProofInductionAs => [mk_op_c(L, Proof, [Exp, PRul])]
   /* `alias <name> = <fact> => <proof>` */
-  | ProofAlias => [mk_pre_c(L, P.fun_, Proof, [Pat, Exp])];
+  | ProofAlias => [mk_pre_c(L, P.fun_, Proof, [Pat, Exp])]
+  /* `from <selector> do <proof> end`. An ordinal before the selector
+     (`from 2nd x do`) is a prefix token in the selector's slot (see
+     `Ordinal` below). */
+  | ProofFocus => [mk_op_c(L, Proof, [Exp, Proof])];
 
 /* Join a family's rows with its label (FormId.label_of_family, the
  * label's single home). Failfast: a mold whose child count disagrees
@@ -411,8 +415,8 @@ let infix_delimiter_ops_prefixes: list(Token.t) =
   forms
   |> List.filter_map(((fam, form: def)) => {
        switch ((form.mold.nibs |> snd).shape) {
-       /* The prover's delimiters (`as`, `at`, `on`, `with`, `proof`) would
-          make common short variables (`a`, `o`, `w`, `p`) mold as
+       /* The prover's delimiters (`as`, `do`, `with`, `proof`) would
+          make common short variables (`a`, `d`, `w`, `p`) mold as
           operators in broken buffers outside proofs. */
        | _ when form.mold.out == Proof || form.mold.out == PRul => None
        | _ when fam == Theorem => None
@@ -535,6 +539,9 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
       Token.is_int,
       [op(Exp), op(Pat), op(Drv(Exp)), op(Drv(Typ))],
     )
+  /* Molded as a prefix so that `2nd x + 1` reads as the ordinal over the
+     whole selector. Outside a focus it is an unknown operator. */
+  | Ordinal => (Token.is_ordinal, [Mold.mk_pre(P.fun_, Exp, [])])
   | FloatLit => (Token.is_float, [op(Exp), op(Pat)])
   | LivelitName => (Token.is_livelit, [op(Exp), op(Pat)])
   | ProjectorInvoke => (

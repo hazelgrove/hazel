@@ -177,8 +177,9 @@ let rec proof_contains = (~origin: Id.t, p: Proof.t): bool =>
     | AxiomStep(_)
     | AlgebriteStep(_)
     | Contradiction(_)
-    | EvalStep(_) => false
+    | EvalStep => false
     | Seq(a, b) => proof_contains(~origin, a) || proof_contains(~origin, b)
+    | Focus({body, _})
     | Parens(body)
     | Forall(_, body)
     | Funext(_, body)
@@ -208,10 +209,11 @@ let rec case_vars_to = (~origin: Id.t, ~acc: list(Var.t), p: Proof.t) =>
     | AxiomStep(_)
     | AlgebriteStep(_)
     | Contradiction(_)
-    | EvalStep(_) => acc
+    | EvalStep => acc
     | Seq(a, b) =>
       proof_contains(~origin, a)
         ? case_vars_to(~origin, ~acc, a) : case_vars_to(~origin, ~acc, b)
+    | Focus({body, _})
     | Parens(body)
     | Forall(_, body)
     | Assume(_, _, body)
@@ -339,15 +341,17 @@ let region_of = (~ctx: action_ctx, ob: Obligation.t): option(Proof.t) => {
       | Some(_) as r => r
       | None => scope_body_containing(b)
       }
-    /* Parens are not a scope. */
-    | Parens(inner) => scope_body_containing(inner)
+    /* Parens are not a scope. Nor is a focus: a wrapper inside one would
+       have the focused subterm for its goal. */
+    | Parens(inner)
+    | Focus({body: inner, _}) => scope_body_containing(inner)
     | EmptyHole
     | Invalid(_)
     | MultiHole(_)
     | AxiomStep(_)
     | AlgebriteStep(_)
     | Contradiction(_)
-    | EvalStep(_) => None
+    | EvalStep => None
     };
   let rec region_containing = (root: Proof.t): option(Proof.t) =>
     if (!proof_contains(~origin, root)) {

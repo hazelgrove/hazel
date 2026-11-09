@@ -29,7 +29,14 @@ type step_result = {
   outgoing: Exp.t,
 };
 
-type step_fn = (~env: Environment.t(Exp.t), Exp.t) => option(step_result);
+/* Where a `step_fn` takes its step: at the first redex in evaluation
+ * order, or only at the root of the expression it is given. */
+type redex_at =
+  | Anywhere
+  | Root;
+
+type step_fn =
+  (~env: Environment.t(Exp.t), ~at: redex_at, Exp.t) => option(step_result);
 
 let record =
     (
@@ -121,7 +128,7 @@ module Discharge = {
    * `step_fn` has no termination signal. */
   let evaluate = (~step: step_fn, ~env, e: Exp.t): Exp.t => {
     let rec go = (fuel, e) =>
-      switch (fuel <= 0 ? None : step(~env, e)) {
+      switch (fuel <= 0 ? None : step(~env, ~at=Anywhere, e)) {
       | Some({outgoing, _}) => go(fuel - 1, outgoing)
       | None => e
       };
@@ -439,25 +446,37 @@ let rec peel_stmt_binders =
   | _ => (ctx, goal)
   };
 
+/* `ctx` without the facts that mention any of `names`, for a scope in
+ * which those names are rebound: the facts are about the old binding.
+ * Unlike `ProofCtx`'s capture check, this also hides them from
+ * `Discharge.lookup`. */
+let forget_facts_mentioning =
+    (names: list(Var.t), ctx: SemanticCtx.t): SemanticCtx.t => {
+  let base_ctx = SemanticCtx.get_ctx(ctx);
+  let mentions = (fact: Exp.t) =>
+    ProofRule.mentions_any(ProofRule.exp_to_rule(fact), names);
+  SemanticCtx.of_ctx_and_env(
+    {
+      ...base_ctx,
+      entries:
+        List.filter(
+          (entry: Ctx.entry) =>
+            switch (entry) {
+            | TheoremEntry({prop: Some(fact), _}) => !mentions(fact)
+            | TheoremEntry({prop: None, _})
+            | VarEntry(_)
+            | ConstructorEntry(_)
+            | TVarEntry(_)
+            | LivelitEntry(_) => true
+            },
+          base_ctx.entries,
+        ),
+    },
+    SemanticCtx.get_env(ctx),
+  );
+};
+
 // Rewrite steps
-
-/* The `at <n>` occurrence of `at_exp` in `goal`, located env-aware
- * (`Occurrence.nth_env_target`). */
-let locate =
-    (~info_map, ~env, ~at_idx: int, ~at_exp: Exp.t, goal: Exp.t)
-    : result(Exp.t, ProofMark.t) =>
-  Occurrence.nth_env_target(~info_map, ~env, at_exp, at_idx, goal)
-  |> Option.to_result(
-       ~none=
-         ProofMark.PatternNotFound({
-           at_exp,
-           at_idx,
-         }),
-     );
-
-let read_index = (at_idx: Exp.t): result(int, ProofMark.t) =>
-  ProofSyntax.exp_to_int(at_idx)
-  |> Option.to_result(~none=ProofMark.MalformedIndex);
 
 /* A rewrite step's effect, for a step that only rewrites. */
 let rewritten = (outgoing: Exp.t): step_result => {
@@ -466,7 +485,7 @@ let rewritten = (outgoing: Exp.t): step_result => {
   outgoing,
 };
 
-/* `axiom <rule> at <n> on <target>`: rewrite with a rule in scope. */
+/* `axiom <rule> end`: rewrite the goal with a rule in scope. */
 module Axiom = {
   /* The rewritten goal, with the rule's assumptions instantiated by the
    * match (the conditions the step incurs as obligations) and the
@@ -483,8 +502,6 @@ module Axiom = {
         ~info_map: Statics.Map.t,
         ~env: Environment.t(Exp.t),
         ~ctx: Ctx.t,
-        ~at_idx: int,
-        ~at_exp: Exp.t,
         ~direction: Direction.t,
         ~equality: string,
         ~instantiation: option((Var.t, Exp.t))=None,
@@ -520,10 +537,9 @@ module Axiom = {
                }),
            )
       };
-    let* e = locate(~info_map, ~env, ~at_idx, ~at_exp, goal);
-    /* An explicit citation names the direction and the occurrence, so
-     * the boolean reading's `true |-> P` direction is offered here
-     * although rule discovery suppresses it. */
+    /* An explicit citation names the direction, so the boolean reading's
+     * `true |-> P` direction is offered here although rule discovery
+     * suppresses it. */
     let (l, r) =
       ProofRule.Rewrite.matches(
         ~info_map,
@@ -531,7 +547,7 @@ module Axiom = {
         ~bindings?,
         ~reverse=true,
         rule,
-        e,
+        goal,
       );
     let rewrite =
       switch (direction) {
@@ -556,11 +572,7 @@ module Axiom = {
           ((n, (_, assigned))) => Option.map(e => (n, e), assigned),
           mctx,
         );
-      Ok((
-        Occurrence.replace_by_id(Exp.rep_id(e), goal, w),
-        conditions,
-        instantiations,
-      ));
+      Ok((Exp.replace_all_ids(w), conditions, instantiations));
     };
   };
 
@@ -572,8 +584,6 @@ module Axiom = {
         ~info_map: Statics.Map.t,
         ~ctx: SemanticCtx.t,
         ~origin: Id.t,
-        ~at_idx: Exp.t,
-        ~at_exp: Exp.t,
         ~direction: Direction.t,
         ~equality: Exp.t,
         ~instantiation: option((Exp.t, Exp.t)),
@@ -581,7 +591,6 @@ module Axiom = {
       )
       : result((step_result, list(Obligation.t)), ProofMark.t) => {
     open Result.Syntax;
-    let* at_idx = read_index(at_idx);
     let* equality =
       ProofSyntax.exp_to_name(equality)
       |> Option.to_result(~none=ProofMark.MalformedEqualityName);
@@ -607,8 +616,6 @@ module Axiom = {
         ~info_map,
         ~env=SemanticCtx.get_env(ctx),
         ~ctx=SemanticCtx.get_ctx(ctx),
-        ~at_idx,
-        ~at_exp,
         ~direction,
         ~equality,
         ~instantiation,
@@ -643,55 +650,26 @@ module Axiom = {
   };
 };
 
-/* `algebrite at <n> on <target> with <exp>`: a rewrite computed by the
- * CAS. */
+/* `rewrite <replacement> end`: replace the goal with an expression the
+ * CAS found equal to it. The CAS's field laws are false for IEEE floats,
+ * so a Float-typed rewrite is refused. It reasons in a field, so both
+ * sides' domain conditions are its obligations.
+ *
+ * TODO: re-verify the rewrite itself in the checker. The CAS runs only in
+ * the browser (window.Algebrite; the node test harness has none), so the
+ * checker trusts the UI for the step's equation and checks only its
+ * domain obligations. */
 module Algebrite = {
-  /* The target is located env-aware, like eval and axiom steps.
-   *
-   * The stepper overlay writes the `at <n>` index by counting with
-   * `Occurrence.index` over the goal as displayed, which is env-inlined:
-   * recursive bindings appear as their `FixF` bodies and contribute extra
-   * occurrences. Clicking the `0` of `fold_left(_, sum, 0)` writes
-   * `at 2`, since `sum`'s inlined body has two earlier `0`s. So counting
-   * happens on the substituted tree and the match is mapped back to the
-   * original goal. An occurrence that exists only inside an inlined body
-   * has no id in the original goal and reports PatternNotFound. */
-  let apply =
-      (
-        ~info_map: Statics.Map.t,
-        ~env: Environment.t(Exp.t),
-        ~at_idx: int,
-        ~at_exp: Exp.t,
-        ~with_exp: Exp.t,
-        goal: Exp.t,
-      )
-      : result(Exp.t, ProofMark.t) =>
-    locate(~info_map, ~env, ~at_idx, ~at_exp, goal)
-    |> Result.map(~f=e =>
-         Occurrence.replace_by_id(Exp.rep_id(e), goal, with_exp)
-       );
-
-  /* The step as written. The CAS's field laws are false for IEEE floats,
-   * so a Float-typed rewrite is refused. It reasons in a field, so both
-   * sides' domain conditions are its obligations.
-   *
-   * TODO: re-verify the rewrite itself in the checker. The CAS runs only
-   * in the browser (window.Algebrite; the node test harness has none),
-   * so the checker trusts the UI for the step's equation and checks only
-   * its domain obligations. */
   let check =
       (
         ~step: step_fn,
         ~info_map: Statics.Map.t,
         ~ctx: SemanticCtx.t,
         ~origin: Id.t,
-        ~at_idx: Exp.t,
-        ~at_exp: Exp.t,
-        ~with_exp: Exp.t,
+        ~replacement: Exp.t,
         goal: Exp.t,
       )
       : result((step_result, list(Obligation.t)), ProofMark.t) => {
-    open Result.Syntax;
     /* The statics first, with a syntactic fallback (a float literal or
      * float arithmetic at the head) for expressions the statics didn't
      * reach. */
@@ -716,59 +694,30 @@ module Algebrite = {
       };
     };
     let env = SemanticCtx.get_env(ctx);
-    let* () =
-      is_float(at_exp) || is_float(with_exp)
-        ? Error(ProofMark.FloatAlgebrite) : Ok();
-    let* at_idx = read_index(at_idx);
-    let* out = apply(~info_map, ~env, ~at_idx, ~at_exp, ~with_exp, goal);
-    let obligations =
-      DomainConditions.dedup(
-        DomainConditions.scan(at_exp |> Substitution.in_exp(env))
-        @ DomainConditions.scan(with_exp |> Substitution.in_exp(env)),
-      )
-      |> List.map(
-           Discharge.obligation(~step, ~ctx, ~origin, ~kind=Definedness),
-         );
-    Ok((rewritten(out), obligations));
+    if (is_float(goal) || is_float(replacement)) {
+      Error(ProofMark.FloatAlgebrite);
+    } else {
+      let obligations =
+        DomainConditions.dedup(
+          DomainConditions.scan(goal |> Substitution.in_exp(env))
+          @ DomainConditions.scan(replacement |> Substitution.in_exp(env)),
+        )
+        |> List.map(
+             Discharge.obligation(~step, ~ctx, ~origin, ~kind=Definedness),
+           );
+      Ok((rewritten(Exp.replace_all_ids(replacement)), obligations));
+    };
   };
 };
 
-/* `eval <target> at <n>`: one evaluation step on the target. */
+/* `eval`: one evaluation step at the root of the goal. */
 module Eval = {
   let check =
-      (
-        ~step: step_fn,
-        ~info_map: Statics.Map.t,
-        ~env: Environment.t(Exp.t),
-        ~at_idx: Exp.t,
-        ~at_exp: Exp.t,
-        goal: Exp.t,
-      )
-      : result((step_result, list(Obligation.t)), ProofMark.t) => {
-    open Result.Syntax;
-    let* at_idx = read_index(at_idx);
-    let* e = locate(~info_map, ~env, ~at_idx, ~at_exp, goal);
-    let* {auto_incoming, auto_outgoing, outgoing} =
-      step(~env, e)
-      |> Option.to_result(~none=ProofMark.NothingToStep({at_exp: e}));
-    let lift = Occurrence.replace_by_id(Exp.rep_id(e), goal);
-    Ok((
-      {
-        auto_incoming:
-          List.map(
-            ((justification, output)) => (justification, lift(output)),
-            auto_incoming,
-          ),
-        auto_outgoing:
-          List.map(
-            ((input, justification)) => (lift(input), justification),
-            auto_outgoing,
-          ),
-        outgoing: lift(outgoing),
-      },
-      [],
-    ));
-  };
+      (~step: step_fn, ~env: Environment.t(Exp.t), goal: Exp.t)
+      : result((step_result, list(Obligation.t)), ProofMark.t) =>
+    step(~env, ~at=Root, goal)
+    |> Option.map(result => (result, []))
+    |> Option.to_result(~none=ProofMark.NothingToStep);
 };
 
 /* `funext x => body`: functional extensionality as an intro rule.
@@ -1035,9 +984,9 @@ let definition_obligations = (~step: step_fn, ~ctx: SemanticCtx.t): ProofMap.t =
 
 // The walk
 
-/* An axiom, algebrite or eval step rewrites the goal. With no goal there
- * is nothing to rewrite; a step that doesn't apply is marked and passes
- * the goal through. */
+/* An axiom, algebrite or eval step rewrites the goal at its root. With no
+ * goal there is nothing to rewrite; a step that doesn't apply is marked
+ * and passes the goal through. */
 let check_rewrite =
     (
       ~ctx: SemanticCtx.t,
@@ -1126,7 +1075,7 @@ let rec check =
   | Parens(p) =>
     let (out, m) = check(~step, ~info_map, ~ctx, incoming, p);
     (out, record(~ctx, id, incoming, out, m));
-  | AxiomStep({at_idx, at_exp, direction, equality, instantiation}) =>
+  | AxiomStep({direction, equality, instantiation}) =>
     check_rewrite(
       ~ctx,
       ~id,
@@ -1136,40 +1085,35 @@ let rec check =
         ~info_map,
         ~ctx,
         ~origin=id,
-        ~at_idx,
-        ~at_exp,
         ~direction,
         ~equality,
         ~instantiation,
       ),
     )
-  | AlgebriteStep({at_idx, at_exp, with_exp}) =>
+  | AlgebriteStep(replacement) =>
     check_rewrite(
       ~ctx,
       ~id,
       incoming,
-      Algebrite.check(
-        ~step,
-        ~info_map,
-        ~ctx,
-        ~origin=id,
-        ~at_idx,
-        ~at_exp,
-        ~with_exp,
-      ),
+      Algebrite.check(~step, ~info_map, ~ctx, ~origin=id, ~replacement),
     )
-  | EvalStep({at_idx, at_exp}) =>
+  | EvalStep =>
     check_rewrite(
       ~ctx,
       ~id,
       incoming,
-      Eval.check(
-        ~step,
-        ~info_map,
-        ~env=SemanticCtx.get_env(ctx),
-        ~at_idx,
-        ~at_exp,
-      ),
+      Eval.check(~step, ~env=SemanticCtx.get_env(ctx)),
+    )
+  | Focus({ordinal, selector, body}) =>
+    check_focus(
+      ~step,
+      ~info_map,
+      ~ctx,
+      ~id,
+      incoming,
+      Option.value(~default=1, ordinal),
+      selector,
+      body,
     )
   | Forall(_pat, body) =>
     check_forall(~step, ~info_map, ~ctx, ~id, incoming, body)
@@ -1242,6 +1186,91 @@ and check_subgoal =
   let (out_body, m) = check(~step, ~info_map, ~ctx=body_ctx, subgoal, body);
   let outgoing = is_true(out_body) ? out_body : incoming;
   (outgoing, record(~ctx, ~marks, ~obligations, id, incoming, outgoing, m));
+}
+
+/* `from <ordinal> <selector> do <body> end`: the body is a chain of its
+ * own whose incoming goal is the selected occurrence, and the focus's
+ * outgoing is the goal with that occurrence replaced by the body's
+ * outgoing. Every step of the body relates its goals by `==`, so by
+ * congruence the replaced goal equals the incoming one. The body's
+ * outgoing keeps its ids in the result; its ids are the occurrence's own
+ * or fresh, since every rewrite step freshens what it writes.
+ *
+ * The occurrence may sit under binders of the goal (a `fun`, a
+ * `forall`, a `let` body, a case arm). In the body each variable they
+ * bind is fresh and arbitrary, as `forall x =>` makes it: it is bound to
+ * itself in the env and the facts that mention its name are dropped,
+ * since they are about an outer variable of that name. Rewriting under
+ * a binder is then sound because the body's steps hold for every value
+ * of the variable.
+ *
+ * A selector with no such occurrence is marked, the goal passes through,
+ * and the body is checked with no goal. */
+and check_focus =
+    (~step, ~info_map, ~ctx, ~id, incoming, ordinal, selector, body)
+    : (option(Exp.t), ProofMap.t) => {
+  let env = SemanticCtx.get_env(ctx);
+  let target =
+    Option.bind(incoming, goal =>
+      Occurrence.nth_env_target(~info_map, ~env, selector, ordinal - 1, goal)
+      |> Option.map(target => (goal, target))
+    );
+  switch (incoming, target) {
+  | (None, _) =>
+    check_subgoal(
+      ~step,
+      ~info_map,
+      ~ctx,
+      ~id,
+      ~marks=[ProofMark.MissingIncoming],
+      None,
+      None,
+      body,
+    )
+  | (Some(_), None) =>
+    let (_, m) = check(~step, ~info_map, ~ctx, None, body);
+    (
+      incoming,
+      record(
+        ~ctx,
+        ~marks=[
+          ProofMark.PatternNotFound({
+            selector,
+            ordinal,
+          }),
+        ],
+        id,
+        incoming,
+        incoming,
+        m,
+      ),
+    );
+  | (Some(_), Some((goal, target))) =>
+    let binders = Occurrence.binders(Exp.rep_id(target), goal);
+    let body_ctx =
+      List.fold_left(
+        (ctx, p) =>
+          SemanticCtx.add_from_pattern(
+            forget_facts_mentioning(
+              p |> Pat.bindings |> Binding.variable_names,
+              ctx,
+            ),
+            p,
+            Typ.fresh(Unknown(Internal)),
+          ),
+        ctx,
+        binders,
+      );
+    let (out_body, m) =
+      check(~step, ~info_map, ~ctx=body_ctx, Some(target), body);
+    let outgoing =
+      switch (out_body) {
+      | Some(out) =>
+        Some(Occurrence.replace_by_id(Exp.rep_id(target), goal, out))
+      | None => incoming
+      };
+    (outgoing, record(~ctx, id, incoming, outgoing, m));
+  };
 }
 
 /* The binder comes from the incoming goal, not the proof's pattern. */
@@ -1526,26 +1555,7 @@ and check_generalize = (~step, ~info_map, ~ctx, ~id, incoming, e, body) => {
     /* x's own binder entry stays: it is inert once no fact mentions it
      * (its env binding is the identity `x ↦ Var(x)`), and the body's
      * re-peel of the new binder rebinds it anyway. */
-    let body_ctx =
-      SemanticCtx.of_ctx_and_env(
-        {
-          ...base_ctx,
-          entries:
-            List.filter(
-              (entry: Ctx.entry) =>
-                switch (entry) {
-                | TheoremEntry({prop: Some(fact), _}) => !mentions_x(fact)
-                | TheoremEntry({prop: None, _})
-                | VarEntry(_)
-                | ConstructorEntry(_)
-                | TVarEntry(_)
-                | LivelitEntry(_) => true
-                },
-              base_ctx.entries,
-            ),
-        },
-        SemanticCtx.get_env(ctx),
-      );
+    let body_ctx = forget_facts_mentioning([x], ctx);
     check_subgoal(
       ~step,
       ~info_map,
@@ -1651,8 +1661,8 @@ and check_revert =
  * If `F`, rewritten by an equation the branch also knows, denotes
  * `false`, the branch's hypotheses are jointly unsatisfiable and the
  * branch is vacuous, so concluding `true` is the Kleene reading of ex
- * falso quodlibet. It is what `revert F => ...rewrite...;
- * eval false ==> G at 0 end` proves, in one step.
+ * falso quodlibet. It is what `revert F => ...rewrite...; eval` proves,
+ * in one step, once the antecedent is `false`.
  *
  * Only two things are trusted, both trusted elsewhere too:
  *   1. the step's `with` rewrite, which the user writes and the checker

@@ -8,8 +8,9 @@ open Language;
  * Each step of a `;` chain is a row, showing the goal the step starts
  * from. A chain that ends in a step gets one more row, the step's
  * outgoing goal, where the proof continues. A form's body, an
- * induction's cases and a have's two premises are chains of their own,
- * nested in the form's row. */
+ * induction's cases, a have's two premises and a focus's steps are
+ * chains of their own, nested in the form's row. A focus of one step is
+ * drawn as that step, so it nests nothing. */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type side =
@@ -32,6 +33,10 @@ type t = {
   /* The goal the row shows, as the checker wrote it. None when there is
    * none to show: nothing checked yet, or an earlier step broke. */
   goal: option(Exp.t),
+  /* When the step before the row is a focus: the focus's steps, and the
+   * id of what it put into `goal` in place of the occurrence it selected.
+   * A step picked inside that part joins the focus. */
+  after_focus: option((Proof.t, Id.t)),
 }
 and kind =
   /* A written `?` or unparseable text. A step picked here replaces it. */
@@ -48,7 +53,9 @@ and nested =
   | Premises({
       sub: list(t),
       body: list(t),
-    });
+    })
+  /* The steps of a focus of more than one step. */
+  | Focus(list(t));
 
 /* Grouping parens are transparent: `( funext x => ? )` is a funext row. */
 let rec unparen = (p: Proof.t): Proof.t =>
@@ -91,10 +98,52 @@ let is_alias = (step: Proof.t) =>
   | _ => false
   };
 
+/* The one step of a focus drawn as that step's line: a step with no
+ * nested rows of its own. */
+let single_step = (focus: Proof.t): option(Proof.t) =>
+  switch (focus.term) {
+  | Focus({body, _}) =>
+    let inner = unparen(body);
+    switch (inner.term) {
+    | AxiomStep(_)
+    | AlgebriteStep(_)
+    | EvalStep
+    | Contradiction(_) => Some(inner)
+    | EmptyHole
+    | Invalid(_)
+    | MultiHole(_)
+    | Seq(_)
+    | Parens(_)
+    | Focus(_)
+    | Induction(_)
+    | Forall(_)
+    | Funext(_)
+    | Assume(_)
+    | Alias(_)
+    | Generalize(_)
+    | Revert(_)
+    | Have(_) => None
+    };
+  | _ => None
+  };
+
 /* The rows of the chain `proof`. */
-let rec chain = (~proof_map: ProofMap.t, proof: Proof.t): list(t) => {
+let rec chain =
+        (~proof_map: ProofMap.t, ~after_focus=None, proof: Proof.t): list(t) => {
   let (step, tail) = split(proof);
-  let entry = ProofMap.lookup(Proof.rep_id(step), proof_map);
+  let lookup = p => ProofMap.lookup(Proof.rep_id(p), proof_map);
+  /* A one-step focus's row is its step's: the step's marks and side
+   * conditions, unless the focus itself is at fault. */
+  let entry =
+    switch (lookup(step), Option.bind(single_step(step), lookup)) {
+    | (Some(focus), Some(inner)) =>
+      Some({
+        ...focus,
+        marks: focus.marks == [] ? inner.marks : focus.marks,
+        obligations: focus.obligations @ inner.obligations,
+      })
+    | (entry, _) => entry
+    };
   let goal =
     switch (entry) {
     /* After any automatic steps the checker took first. */
@@ -103,13 +152,14 @@ let rec chain = (~proof_map: ProofMap.t, proof: Proof.t): list(t) => {
     | Some({incoming: None, _})
     | None => None
     };
-  let nested = chain(~proof_map);
+  let nested = chain(~proof_map, ~after_focus=None);
   let row = kind => {
     key: (Proof.rep_id(step), Incoming),
     step,
     kind,
     entry,
     goal,
+    after_focus,
   };
   let row =
     switch (step.term) {
@@ -118,8 +168,10 @@ let rec chain = (~proof_map: ProofMap.t, proof: Proof.t): list(t) => {
     | MultiHole(_) => row(Hole)
     | AxiomStep(_)
     | AlgebriteStep(_)
-    | EvalStep(_)
+    | EvalStep
     | Contradiction(_) => row(Step(Leaf))
+    | Focus({body, _}) =>
+      row(Step(single_step(step) == None ? Focus(nested(body)) : Leaf))
     | Forall(_, body)
     | Funext(_, body)
     | Assume(_, _, body)
@@ -145,8 +197,21 @@ let rec chain = (~proof_map: ProofMap.t, proof: Proof.t): list(t) => {
     | Parens(_)
     | Seq(_, _) => row(Step(Leaf))
     };
+  /* What the focus put into the goal is the outgoing of its body, whose
+   * ids the checker keeps (`ProofCheck.check_focus`). */
+  let next_after_focus =
+    switch (step.term) {
+    | Focus({body, _}) =>
+      lookup(body)
+      |> Option.bind(_, (e: ProofMap.entry) => e.outgoing)
+      |> Option.map(out => (body, Exp.rep_id(out)))
+    | _ => None
+    };
   switch (tail, row.kind) {
-  | (Some(tail), _) => [row, ...chain(~proof_map, tail)]
+  | (Some(tail), _) => [
+      row,
+      ...chain(~proof_map, ~after_focus=next_after_focus, tail),
+    ]
   /* A hole at the end already stands for "the proof continues here". */
   | (None, Hole) => [row]
   /* `have` and `alias` keep their goal, so their body's own last row is
@@ -161,6 +226,7 @@ let rec chain = (~proof_map: ProofMap.t, proof: Proof.t): list(t) => {
         kind: End,
         entry,
         goal: Option.bind(entry, (e: ProofMap.entry) => e.outgoing),
+        after_focus: next_after_focus,
       },
     ]
   };
@@ -177,6 +243,7 @@ let rec all = (rows: list(t)): list(t) =>
            | Step(Cases(cases)) =>
              List.concat_map(((_, c)) => all(c), cases)
            | Step(Premises({sub, body})) => all(sub) @ all(body)
+           | Step(Focus(rows)) => all(rows)
            | Step(Leaf)
            | Hole
            | End => []
@@ -207,7 +274,8 @@ let side_conditions = (row: t): list(Obligation.t) =>
   | (Step(Premises(_)), _)
   | (Hole | End, _)
   | (Step(_), None) => []
-  | (Step(Leaf | Body(_) | Cases(_)), Some(entry)) => entry.obligations
+  | (Step(Leaf | Body(_) | Cases(_) | Focus(_)), Some(entry)) =>
+    entry.obligations
   };
 
 /* The rows that carry on a step's own goal. `have` and `alias` keep the
@@ -216,7 +284,7 @@ let continuation = (row: t): option(list(t)) =>
   switch (row.kind) {
   | Step(Premises({body, _})) => Some(body)
   | Step(Body(rows)) when is_alias(row.step) => Some(rows)
-  | Step(Leaf | Body(_) | Cases(_))
+  | Step(Leaf | Body(_) | Cases(_) | Focus(_))
   | Hole
   | End => None
   };
@@ -241,7 +309,7 @@ let layout = (row: t, ~expanded: list(int)): layout => {
   let arms =
     switch (row.kind, continuation(row)) {
     | (Step(Body(_)), Some(_)) => false
-    | (Step(Body(_) | Cases(_) | Premises(_)), _) => true
+    | (Step(Body(_) | Cases(_) | Premises(_) | Focus(_)), _) => true
     | (Step(Leaf) | Hole | End, _) => false
     };
   conditions == [] && !arms
@@ -281,7 +349,14 @@ module Status = {
       switch (blocked, ProofMark.highest(marks), row.kind) {
       | (true, _, _) => Blocked
       | (false, Some(m), _) => Broken(m)
-      | (false, None, Step(_)) when Proof.args_have_hole(row.step) =>
+      | (false, None, Step(_))
+          when
+            Proof.args_have_hole(row.step)
+            || Option.fold(
+                 ~none=false,
+                 ~some=Proof.args_have_hole,
+                 single_step(row.step),
+               ) =>
         Incomplete
       | (false, None, _) => Clean
       };

@@ -58,7 +58,8 @@ let rec find_contradiction = (p: Proof.t): option(Proof.t) =>
   | MultiHole(_)
   | AxiomStep(_)
   | AlgebriteStep(_)
-  | EvalStep(_) => None
+  | EvalStep => None
+  | Focus({body, _}) => find_contradiction(body)
   };
 
 let substitutions_of = (pm: ProofMap.t, proof: Proof.t): list(string) =>
@@ -135,7 +136,7 @@ let case_eq_src =
   /* `induction` substitutes the case pattern into the goal (so the Z
      branch's goal is already `Z == Z`) but not into the hypotheses,
      which is why the `case_eq` substitution below is needed. */
-  ++ "| Z => eval Z == Z at 0 end "
+  ++ "| Z => from Z == Z do eval end "
   ++ "| S(b) => contradiction isz(e) == true with e = S(b) end "
   ++ "end in t";
 

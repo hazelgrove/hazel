@@ -40,7 +40,7 @@ let has_nothing_to_step = (pm, proof) =>
     pm,
     proof,
     fun
-    | ProofMark.NothingToStep(_) => true
+    | ProofMark.NothingToStep => true
     | _ => false,
   );
 
@@ -69,13 +69,13 @@ let prelude_a = {|let len = fun xs -> case xs | [] => 0 | _ :: t => 1 + len(t) e
 /* Defining equations that close by one `eval` + `refl_eq`: `len` is
  * an ordinary structural recursion, and `fold_left`/`add1` at the empty
  * list reduce to the accumulator. */
-let len_nil = {|theorem len_nil = len([]) == 0 proof eval len([]) at 0 end; axiom refl_eq at 0 on 0 == 0 end in |};
-let len_cons = {|theorem len_cons = forall h: Int -> forall t: [Int] -> len(h :: t) == 1 + len(t) proof eval len(h :: t) at 0 end; axiom refl_eq at 0 on 1 + len(t) == 1 + len(t) end in |};
-let fold_nil = {|theorem fold_nil = forall a: Int -> fold_left([], add1, a) == a proof eval fold_left([], add1, a) at 0 end; axiom refl_eq at 0 on a == a end in |};
-let add1_step = {|theorem add1_step = forall a: Int -> forall b: Int -> add1((a, b)) == a + 1 proof eval add1((a, b)) at 0 end; axiom refl_eq at 0 on a + 1 == a + 1 end in |};
+let len_nil = {|theorem len_nil = len([]) == 0 proof from len([]) do eval end; from 0 == 0 do axiom refl_eq end end in |};
+let len_cons = {|theorem len_cons = forall h: Int -> forall t: [Int] -> len(h :: t) == 1 + len(t) proof from len(h :: t) do eval end; from 1 + len(t) == 1 + len(t) do axiom refl_eq end end in |};
+let fold_nil = {|theorem fold_nil = forall a: Int -> fold_left([], add1, a) == a proof from fold_left([], add1, a) do eval end; from a == a do axiom refl_eq end end in |};
+let add1_step = {|theorem add1_step = forall a: Int -> forall b: Int -> add1((a, b)) == a + 1 proof from add1((a, b)) do eval end; from a + 1 == a + 1 do axiom refl_eq end end in |};
 
 /* `shuffle` is pure arithmetic and closes by the Algebrite rewrite. */
-let shuffle = {|theorem shuffle = forall a: Int -> forall b: Int -> a + (1 + b) == (a + 1) + b proof rewrite a + (1 + b) with (a + 1) + b at 0 end; axiom refl_eq at 0 on (a + 1) + b == (a + 1) + b end in |};
+let shuffle = {|theorem shuffle = forall a: Int -> forall b: Int -> a + (1 + b) == (a + 1) + b proof from a + (1 + b) do rewrite (a + 1) + b end end; from (a + 1) + b == (a + 1) + b do axiom refl_eq end end in |};
 
 /* `fold_cons` closes because:
  *   (1) the closing `refl_eq` lands on an expression containing
@@ -87,10 +87,10 @@ let shuffle = {|theorem shuffle = forall a: Int -> forall b: Int -> a + (1 + b) 
  *       body, not the surface call `fold_left(t, ..)`. The right side
  *       unfolds to the same inlined shape, and `refl_eq` matches the two
  *       up to alpha-renaming of the `fix`/`fun` binders.
- * It takes exactly three `eval $e` after the targeted step. Fewer leaves
- * the sides out of phase; more also fails, because the two sides then
- * step at different rates. See test_fold_cons_proves_by_eval. */
-let fold_cons = {|theorem fold_cons = forall h: Int -> forall t: [Int] -> forall a: Int -> fold_left(h :: t, add1, a) == fold_left(t, add1, a + 1) proof eval fold_left(h :: t, add1, a) at 0 end; eval $e at 0 end; eval $e at 0 end; eval $e at 0 end; axiom refl_eq at 0 on $e == $e end in |};
+ * The left side takes three steps (unfold, apply `add1`, apply the
+ * unfolded body) and the right side one. See
+ * test_fold_cons_proves_by_eval. */
+let fold_cons = {|theorem fold_cons = forall h: Int -> forall t: [Int] -> forall a: Int -> fold_left(h :: t, add1, a) == fold_left(t, add1, a + 1) proof from fold_left(h :: t, add1, a) do eval; from $e(a, h) do eval end; eval end; from fold_left(t, add1, a + 1) do eval end; axiom refl_eq end in |};
 
 let lemmas_a =
   len_nil ++ len_cons ++ fold_nil ++ add1_step ++ shuffle ++ fold_cons;
@@ -124,7 +124,7 @@ let test_a_defining_equations_prove = () => {
  * in the reverse direction (`axiomrev`), rewriting the fold side back
  * into `(acc + 1) + len(xs')`, so the final `refl_eq` lands on a
  * `len`-only expression. thm_a_fwd below closes the other way round. */
-let thm_a = {|theorem lenfold = forall xs: [Int] -> forall acc: Int -> acc + len(xs) == fold_left(xs, add1, acc) proof generalize acc => induction xs | [] => forall acc => axiom len_nil at 0 on len([]) end; axiom fold_nil at 0 on fold_left([], add1, acc) end; rewrite acc + 0 with acc at 0 end; axiom refl_eq at 0 on acc == acc end | x :: xs' => forall acc => axiom len_cons at 0 on len(x :: xs') end; axiom fold_cons at 0 on fold_left(x :: xs', add1, acc) end; axiom shuffle at 0 on acc + (1 + len(xs')) end; axiomrev ih at 0 on fold_left(xs', add1, acc + 1) end; axiom refl_eq at 0 on $e == $e end end in |};
+let thm_a = {|theorem lenfold = forall xs: [Int] -> forall acc: Int -> acc + len(xs) == fold_left(xs, add1, acc) proof generalize acc => induction xs | [] => forall acc => from len([]) do axiom len_nil end end; from fold_left([], add1, acc) do axiom fold_nil end end; from acc + 0 do rewrite acc end end; from acc == acc do axiom refl_eq end end | x :: xs' => forall acc => from len(x :: xs') do axiom len_cons end end; from fold_left(x :: xs', add1, acc) do axiom fold_cons end end; from acc + (1 + len(xs')) do axiom shuffle end end; from fold_left(xs', add1, acc + 1) do axiomrev ih end end; from $e == $e do axiom refl_eq end end end in |};
 
 let test_generalized_accumulator_proves = () => {
   let (pm, proof) =
@@ -145,7 +145,7 @@ let test_generalized_accumulator_proves = () => {
  * the closing move is a plain `axiom refl_eq`. That passes the
  * instantiation gate although `fold_left` applies its abstract function
  * parameter, because a quantified `f` is a total map. */
-let thm_a_fwd = {|theorem lenfoldf = forall xs: [Int] -> forall acc: Int -> acc + len(xs) == fold_left(xs, add1, acc) proof generalize acc => induction xs | [] => forall acc => axiom len_nil at 0 on len([]) end; axiom fold_nil at 0 on fold_left([], add1, acc) end; rewrite acc + 0 with acc at 0 end; axiom refl_eq at 0 on acc == acc end | x :: xs' => forall acc => axiom len_cons at 0 on len(x :: xs') end; axiom fold_cons at 0 on fold_left(x :: xs', add1, acc) end; axiom shuffle at 0 on acc + (1 + len(xs')) end; axiom ih at 0 on (acc + 1) + len(xs') end; axiom refl_eq at 0 on $e == $e end end in |};
+let thm_a_fwd = {|theorem lenfoldf = forall xs: [Int] -> forall acc: Int -> acc + len(xs) == fold_left(xs, add1, acc) proof generalize acc => induction xs | [] => forall acc => from len([]) do axiom len_nil end end; from fold_left([], add1, acc) do axiom fold_nil end end; from acc + 0 do rewrite acc end end; from acc == acc do axiom refl_eq end end | x :: xs' => forall acc => from len(x :: xs') do axiom len_cons end end; from fold_left(x :: xs', add1, acc) do axiom fold_cons end end; from acc + (1 + len(xs')) do axiom shuffle end end; from (acc + 1) + len(xs') do axiom ih end end; from $e == $e do axiom refl_eq end end end in |};
 
 let test_forward_ih_accumulator_proves = () => {
   let (pm, proof) =
@@ -170,15 +170,21 @@ let test_forward_ih_accumulator_proves = () => {
  * after the targeted step is the inlined `fold_left` fix body applied to
  * `(t, add1, ..)`, not the surface call; the proof closes only because
  * the right-hand side unfolds to the same inlined shape and `refl_eq`
- * matches them up to alpha-renaming. So the step count is brittle in
- * both directions: exactly three `eval $e`. */
+ * matches them up to alpha-renaming. One step short, the sides don't
+ * match yet. */
 let test_fold_cons_proves_by_eval = () => {
-  let steps = n =>
+  let fc = proof =>
     prelude_a
-    ++ {|theorem fc = forall h: Int -> forall t: [Int] -> forall a: Int -> fold_left(h :: t, add1, a) == fold_left(t, add1, a + 1) proof eval fold_left(h :: t, add1, a) at 0 end; |}
-    ++ String.concat("", List.init(n, _ => {|eval $e at 0 end; |}))
-    ++ {|axiom refl_eq at 0 on $e == $e end in fc|};
-  let (pm, proof) = run_named("fc", steps(3));
+    ++ {|theorem fc = forall h: Int -> forall t: [Int] -> forall a: Int -> fold_left(h :: t, add1, a) == fold_left(t, add1, a + 1) proof |}
+    ++ proof
+    ++ {| in fc|};
+  let (pm, proof) =
+    run_named(
+      "fc",
+      fc(
+        {|from fold_left(h :: t, add1, a) do eval; from $e(a, h) do eval end; eval end; from fold_left(t, add1, a + 1) do eval end; axiom refl_eq end|},
+      ),
+    );
   Alcotest.check(
     Alcotest.bool,
     "eval DOES step fold_left on a cons -- this was never a stuck-step pin",
@@ -197,19 +203,17 @@ let test_fold_cons_proves_by_eval = () => {
     pm,
     proof,
   );
-  /* The count is exact in both directions: too few steps leaves the two
-   * sides out of phase, too many steps advances them out of phase
-   * again. */
-  List.iter(
-    n => {
-      let (pm, proof) = run_named("fc", steps(n));
-      check_incomplete(
-        "fold_cons does not close with " ++ string_of_int(n) ++ " `eval $e`",
-        pm,
-        proof,
-      );
-    },
-    [0, 1, 2, 4, 5],
+  let (pm, proof) =
+    run_named(
+      "fc",
+      fc(
+        {|from fold_left(h :: t, add1, a) do eval; from $e(a, h) do eval end end; from fold_left(t, add1, a + 1) do eval end; axiom refl_eq end|},
+      ),
+    );
+  check_incomplete(
+    "fold_cons does not close with the left side one step short",
+    pm,
+    proof,
   );
 };
 
@@ -222,7 +226,7 @@ let test_naive_accumulator_is_incomplete = () => {
   let src =
     prelude_a
     ++ lemmas_a
-    ++ {|theorem naive = forall xs: [Int] -> len(xs) == fold_left(xs, add1, 0) proof induction xs | [] => axiom len_nil at 0 on len([]) end; axiom fold_nil at 0 on fold_left([], add1, 0) end; axiom refl_eq at 0 on 0 == 0 end | x :: xs' => axiom len_cons at 0 on len(x :: xs') end; axiom fold_cons at 0 on fold_left(x :: xs', add1, 0) end; axiomrev ih at 0 on fold_left(xs', add1, 0) end; axiom refl_eq at 0 on $e == $e end end in naive|};
+    ++ {|theorem naive = forall xs: [Int] -> len(xs) == fold_left(xs, add1, 0) proof induction xs | [] => from len([]) do axiom len_nil end end; from fold_left([], add1, 0) do axiom fold_nil end end; from 0 == 0 do axiom refl_eq end end | x :: xs' => from len(x :: xs') do axiom len_cons end end; from fold_left(x :: xs', add1, 0) do axiom fold_cons end end; from fold_left(xs', add1, 0) do axiomrev ih end end; from $e == $e do axiom refl_eq end end end in naive|};
   let (pm, proof) = run_named("naive", src);
   Alcotest.check(
     Alcotest.bool,
@@ -243,7 +247,7 @@ let test_naive_accumulator_is_incomplete = () => {
 let test_refl_eq_proves_on_fold_left_expression = () => {
   let src =
     prelude_a
-    ++ {|theorem w = forall t: [Int] -> fold_left(t, add1, 0) == fold_left(t, add1, 0) proof axiom refl_eq at 0 on fold_left(t, add1, 0) == fold_left(t, add1, 0) end in w|};
+    ++ {|theorem w = forall t: [Int] -> fold_left(t, add1, 0) == fold_left(t, add1, 0) proof from fold_left(t, add1, 0) == fold_left(t, add1, 0) do axiom refl_eq end end in w|};
   let (pm, proof) = run_named("w", src);
   Alcotest.check(
     Alcotest.bool,
@@ -256,47 +260,40 @@ let test_refl_eq_proves_on_fold_left_expression = () => {
   /* Control: the same shape over `len` is Proven. */
   let control =
     prelude_a
-    ++ {|theorem w2 = forall t: [Int] -> len(t) == len(t) proof axiom refl_eq at 0 on len(t) == len(t) end in w2|};
+    ++ {|theorem w2 = forall t: [Int] -> len(t) == len(t) proof from len(t) == len(t) do axiom refl_eq end end in w2|};
   let (pm', proof') = run_named("w2", control);
   check_proven("control: refl_eq over `len` closes", pm', proof');
 };
 
-/* Currying is not a barrier, but it makes the step count matter. One
- * `eval` step applies only the outer argument, leaving
- * `(fun acc -> case h :: t | ...)(a)` un-beta-reduced. `eval $e` advances
- * whichever side is reducible, and at exactly five extra steps the two
- * sides land on the same shape and `refl_eq` closes; four is too few and
- * six too many. `eval` can't say "reduce the left side until it matches
- * the right", so the user must count. That is a usability problem, not
- * a limit of the calculus. Same as `fold_cons` above. */
-let test_curried_accumulator_equation_is_step_count_brittle = () => {
-  let steps = n =>
-    {|let fadd = fun xs -> fun acc -> case xs | [] => acc | _ :: t => fadd(t)(acc + 1) end in theorem fadd_cons = forall h: Int -> forall t: [Int] -> forall a: Int -> fadd(h :: t)(a) == fadd(t)(a + 1) proof eval fadd(h :: t)(a) at 0 end; |}
-    ++ String.concat("", List.init(n, _ => {|eval $e at 0 end; |}))
-    ++ {|axiom refl_eq at 0 on $e == $e end in fadd_cons|};
-  let (pm, proof) = run_named("fadd_cons", steps(5));
-  check_mark_free(
-    "the curried cons equation is mark-free at 5 steps",
-    pm,
-    proof,
-  );
-  check_proven(
-    "the curried accumulator's cons equation DOES close, at exactly five `eval $e`",
-    pm,
-    proof,
-  );
-  List.iter(
-    n => {
-      let (pm, proof) = run_named("fadd_cons", steps(n));
-      check_incomplete(
-        "the curried cons equation is out of phase at "
-        ++ string_of_int(n)
-        ++ " `eval $e`",
-        pm,
-        proof,
-      );
-    },
-    [0, 1, 2, 3, 4, 6, 7],
+/* Currying is not a barrier, but the left side's first redex is not its
+ * root: `fadd(h :: t)(a)` applies `fadd(h :: t)`, which has to step
+ * first. Focused there, one step applies the outer argument; then the
+ * left side's root steps to the right side's shape and `refl_eq`
+ * closes. */
+let test_curried_accumulator_equation_closes_by_focus = () => {
+  let fadd_cons = proof =>
+    {|let fadd = fun xs -> fun acc -> case xs | [] => acc | _ :: t => fadd(t)(acc + 1) end in theorem fadd_cons = forall h: Int -> forall t: [Int] -> forall a: Int -> fadd(h :: t)(a) == fadd(t)(a + 1) proof |}
+    ++ proof
+    ++ {| in fadd_cons|};
+  let (pm, proof) =
+    run_named(
+      "fadd_cons",
+      fadd_cons(
+        {|from fadd(h :: t)(a) do from fadd(h :: t) do eval end; eval end; axiom refl_eq end|},
+      ),
+    );
+  check_mark_free("the curried cons equation is mark-free", pm, proof);
+  check_proven("the curried accumulator's cons equation closes", pm, proof);
+  let (pm, proof) =
+    run_named(
+      "fadd_cons",
+      fadd_cons({|from fadd(h :: t)(a) do eval end; axiom refl_eq end|}),
+    );
+  Alcotest.check(
+    Alcotest.bool,
+    "the root of `fadd(h :: t)(a)` is not a redex",
+    true,
+    has_nothing_to_step(pm, proof),
   );
 };
 
@@ -307,9 +304,9 @@ let prelude_fu = {|let len = fun xs -> case xs | [] => 0 | _ :: t => 1 + len(t) 
 let lemmas_fu =
   len_nil
   ++ len_cons
-  ++ {|theorem fa_nil = forall a: Int -> fa(([], a)) == a proof eval fa(([], a)) at 0 end; axiom refl_eq at 0 on a == a end in theorem fa_cons = forall h: Int -> forall t: [Int] -> forall a: Int -> fa((h :: t, a)) == fa((t, a + 1)) proof eval fa((h :: t, a)) at 0 end; axiom refl_eq at 0 on $e == $e end in |}
+  ++ {|theorem fa_nil = forall a: Int -> fa(([], a)) == a proof from fa(([], a)) do eval end; from a == a do axiom refl_eq end end in theorem fa_cons = forall h: Int -> forall t: [Int] -> forall a: Int -> fa((h :: t, a)) == fa((t, a + 1)) proof from fa((h :: t, a)) do eval end; from $e == $e do axiom refl_eq end end in |}
   ++ shuffle;
-let thm_fu = {|theorem lenfa = forall xs: [Int] -> forall acc: Int -> acc + len(xs) == fa((xs, acc)) proof generalize acc => induction xs | [] => forall acc => axiom len_nil at 0 on len([]) end; axiom fa_nil at 0 on fa(([], acc)) end; rewrite acc + 0 with acc at 0 end; axiom refl_eq at 0 on acc == acc end | x :: xs' => forall acc => axiom len_cons at 0 on len(x :: xs') end; axiom fa_cons at 0 on fa((x :: xs', acc)) end; axiom shuffle at 0 on acc + (1 + len(xs')) end; axiomrev ih at 0 on fa((xs', acc + 1)) end; axiom refl_eq at 0 on $e == $e end end in |};
+let thm_fu = {|theorem lenfa = forall xs: [Int] -> forall acc: Int -> acc + len(xs) == fa((xs, acc)) proof generalize acc => induction xs | [] => forall acc => from len([]) do axiom len_nil end end; from fa(([], acc)) do axiom fa_nil end end; from acc + 0 do rewrite acc end end; from acc == acc do axiom refl_eq end end | x :: xs' => forall acc => from len(x :: xs') do axiom len_cons end end; from fa((x :: xs', acc)) do axiom fa_cons end end; from acc + (1 + len(xs')) do axiom shuffle end end; from fa((xs', acc + 1)) do axiomrev ih end end; from $e == $e do axiom refl_eq end end end in |};
 
 let test_uncurried_accumulator_hole_free = () => {
   let (pm, proof) =
@@ -327,25 +324,25 @@ let test_uncurried_accumulator_hole_free = () => {
 
 let prelude_b = {|let rev = fun xs -> case xs | [] => [] | x :: t => rev(t) @ [x] end in |};
 
-let rev_nil = {|theorem rev_nil = rev([]) == [] proof eval rev([]) at 0 end; axiom refl_eq at 0 on ([]: [Int]) == ([]: [Int]) end in |};
-let rev_cons = {|theorem rev_cons = forall x: Int -> forall t: [Int] -> rev(x :: t) == rev(t) @ [x] proof eval rev(x :: t) at 0 end; axiom refl_eq at 0 on rev(t) @ [x] == rev(t) @ [x] end in |};
+let rev_nil = {|theorem rev_nil = rev([]) == [] proof from rev([]) do eval end; from ([]: [Int]) == ([]: [Int]) do axiom refl_eq end end in |};
+let rev_cons = {|theorem rev_cons = forall x: Int -> forall t: [Int] -> rev(x :: t) == rev(t) @ [x] proof from rev(x :: t) do eval end; from rev(t) @ [x] == rev(t) @ [x] do axiom refl_eq end end in |};
 
 /* The append equations. `@` steps on constructor form, so `[] @ m` and
  * `(y :: l) @ m` each take one `eval` step with `l`/`m` still
  * quantified, and `refl_eq` closes (test_append_equations_prove_by_eval). */
-let app_lemmas = {|theorem app_nil_l = forall m: [Int] -> [] @ m == m proof eval [] @ m at 0 end; axiom refl_eq at 0 on m == m end in theorem app_cons = forall y: Int -> forall l: [Int] -> forall m: [Int] -> (y :: l) @ m == y :: (l @ m) proof eval (y :: l) @ m at 0 end; axiom refl_eq at 0 on y :: (l @ m) == y :: (l @ m) end in |};
+let app_lemmas = {|theorem app_nil_l = forall m: [Int] -> [] @ m == m proof from [] @ m do eval end; from m == m do axiom refl_eq end end in theorem app_cons = forall y: Int -> forall l: [Int] -> forall m: [Int] -> (y :: l) @ m == y :: (l @ m) proof from (y :: l) @ m do eval end; from y :: (l @ m) == y :: (l @ m) do axiom refl_eq end end in |};
 
 let lemmas_b = rev_nil ++ rev_cons ++ app_lemmas;
 
 /* The helper that reverse involution needs, itself an induction over xs
  * (with the outer `x` held fixed, so no `generalize` is needed). The nil
- * case is pure computation: five `eval $e`
- * steps take `rev([] @ [x])` down to `x :: []`. The cons case is the
+ * case is pure computation: a focus on `rev([] @ [x])` evaluates it down
+ * to `[x]`, which `x :: []` also steps to. The cons case is the
  * interesting one and closes with app_cons / rev_cons / IH / app_cons /
  * rev_cons. */
-let snoc = {|theorem snoc = forall xs: [Int] -> forall x: Int -> rev(xs @ [x]) == x :: rev(xs) proof induction xs | [] => axiom rev_nil at 0 on rev([]) end; eval $e at 0 end; eval $e at 0 end; eval $e at 0 end; eval $e at 0 end; eval $e at 0 end; axiom refl_eq at 0 on $e == $e end | y :: t => axiom app_cons at 0 on (y :: t) @ [x] end; axiom rev_cons at 0 on rev(y :: (t @ [x])) end; axiom ih at 0 on rev(t @ [x]) end; axiom app_cons at 0 on (x :: rev(t)) @ [y] end; axiom rev_cons at 0 on rev(y :: t) end; axiom refl_eq at 0 on $e == $e end end in |};
+let snoc = {|theorem snoc = forall xs: [Int] -> forall x: Int -> rev(xs @ [x]) == x :: rev(xs) proof induction xs | [] => from rev([]) do axiom rev_nil end end; from rev([] @ [x]) do from [] @ [x] do eval end; eval; from $e([]) do eval end; eval end; from x :: [] do eval end; axiom refl_eq end | y :: t => from (y :: t) @ [x] do axiom app_cons end end; from rev(y :: (t @ [x])) do axiom rev_cons end end; from rev(t @ [x]) do axiom ih end end; from (x :: rev(t)) @ [y] do axiom app_cons end end; from rev(y :: t) do axiom rev_cons end end; from $e == $e do axiom refl_eq end end end in |};
 
-let invol = {|theorem invol = forall xs: [Int] -> rev(rev(xs)) == xs proof induction xs | [] => axiom rev_nil at 0 on rev([]) end; axiom rev_nil at 0 on rev([]) end; axiom refl_eq at 0 on $e == $e end | x :: t => axiom rev_cons at 0 on rev(x :: t) end; axiom snoc at 0 on rev(rev(t) @ [x]) end; axiom ih at 0 on rev(rev(t)) end; axiom refl_eq at 0 on $e == $e end end in |};
+let invol = {|theorem invol = forall xs: [Int] -> rev(rev(xs)) == xs proof induction xs | [] => from rev([]) do axiom rev_nil end end; from rev([]) do axiom rev_nil end end; from $e == $e do axiom refl_eq end end | x :: t => from rev(x :: t) do axiom rev_cons end end; from rev(rev(t) @ [x]) do axiom snoc end end; from rev(rev(t)) do axiom ih end end; from $e == $e do axiom refl_eq end end end in |};
 
 let test_rev_defining_equations_prove = () => {
   List.iter(
@@ -361,7 +358,7 @@ let test_rev_defining_equations_prove = () => {
  * `@` steps on constructor form: each closes by one `eval` + `refl_eq`,
  * with no marks. */
 let test_append_equations_prove_by_eval = () => {
-  let nil_l = {|theorem app_nil_l = forall m: [Int] -> [] @ m == m proof eval [] @ m at 0 end; axiom refl_eq at 0 on m == m end in app_nil_l|};
+  let nil_l = {|theorem app_nil_l = forall m: [Int] -> [] @ m == m proof from [] @ m do eval end; from m == m do axiom refl_eq end end in app_nil_l|};
   let (pm, proof) = run_named("app_nil_l", nil_l);
   Alcotest.check(
     Alcotest.bool,
@@ -371,7 +368,7 @@ let test_append_equations_prove_by_eval = () => {
   );
   check_mark_free("the `[] @ m` proof is mark-free", pm, proof);
   check_proven("`[] @ m == m` is Proven for quantified m", pm, proof);
-  let cons = {|theorem app_cons = forall y: Int -> forall l: [Int] -> forall m: [Int] -> (y :: l) @ m == y :: (l @ m) proof eval (y :: l) @ m at 0 end; axiom refl_eq at 0 on y :: (l @ m) == y :: (l @ m) end in app_cons|};
+  let cons = {|theorem app_cons = forall y: Int -> forall l: [Int] -> forall m: [Int] -> (y :: l) @ m == y :: (l @ m) proof from (y :: l) @ m do eval end; from y :: (l @ m) == y :: (l @ m) do axiom refl_eq end end in app_cons|};
   let (pm', proof') = run_named("app_cons", cons);
   check_mark_free("the `(y :: l) @ m` proof is mark-free", pm', proof');
   check_proven(
@@ -416,19 +413,19 @@ let prelude_c = {|type Nt = +Z + S(Nt) in let to_int = fun n -> case n | Z => 0 
  * steps (unfold, decide `0 <= 0`, select the branch). Hazel's `if` has
  * no `end` delimiter, and writing one produces a hole-riddled
  * elaboration in which of_int looks stuck. */
-let lemmas_c = {|theorem to_z = to_int(Z) == 0 proof eval to_int(Z) at 0 end; axiom refl_eq at 0 on 0 == 0 end in theorem to_s = forall m: Nt -> to_int(S(m)) == 1 + to_int(m) proof eval to_int(S(m)) at 0 end; axiom refl_eq at 0 on 1 + to_int(m) == 1 + to_int(m) end in theorem of_z = of_int(0) == Z proof eval of_int(0) at 0 end; eval $e at 0 end; eval $e at 0 end; axiom refl_eq at 0 on $e == $e end in theorem of_s = forall k: Int -> k > 0 ==> of_int(k) == S(of_int(k - 1)) proof ? in theorem minus_one = forall j: Int -> 1 + j - 1 == j proof rewrite 1 + j - 1 with j at 0 end; axiom refl_eq at 0 on j == j end in |};
+let lemmas_c = {|theorem to_z = to_int(Z) == 0 proof from to_int(Z) do eval end; from 0 == 0 do axiom refl_eq end end in theorem to_s = forall m: Nt -> to_int(S(m)) == 1 + to_int(m) proof from to_int(S(m)) do eval end; from 1 + to_int(m) == 1 + to_int(m) do axiom refl_eq end end in theorem of_z = of_int(0) == Z proof from of_int(0) do eval end; from $e do eval end; from $e do eval end; from $e == $e do axiom refl_eq end end in theorem of_s = forall k: Int -> k > 0 ==> of_int(k) == S(of_int(k - 1)) proof ? in theorem minus_one = forall j: Int -> 1 + j - 1 == j proof from 1 + j - 1 do rewrite j end end; from j == j do axiom refl_eq end end in |};
 
-let round = {|theorem round = forall n: Nt -> of_int(to_int(n)) == n proof induction n | Z => axiom to_z at 0 on to_int(Z) end; axiom of_z at 0 on of_int(0) end; axiom refl_eq at 0 on $e == $e end | S(m) => axiom to_s at 0 on to_int(S(m)) end; axiom of_s at 0 on of_int(1 + to_int(m)) end; axiom minus_one at 0 on 1 + to_int(m) - 1 end; axiom ih at 0 on of_int(to_int(m)) end; axiom refl_eq at 0 on $e == $e end end in |};
+let round = {|theorem round = forall n: Nt -> of_int(to_int(n)) == n proof induction n | Z => from to_int(Z) do axiom to_z end end; from of_int(0) do axiom of_z end end; from $e == $e do axiom refl_eq end end | S(m) => from to_int(S(m)) do axiom to_s end end; from of_int(1 + to_int(m)) do axiom of_s end end; from 1 + to_int(m) - 1 do axiom minus_one end end; from of_int(to_int(m)) do axiom ih end end; from $e == $e do axiom refl_eq end end end in |};
 
 let test_to_int_and_of_int_equations = () => {
-  let to_z = {|theorem to_z = to_int(Z) == 0 proof eval to_int(Z) at 0 end; axiom refl_eq at 0 on 0 == 0 end in to_z|};
+  let to_z = {|theorem to_z = to_int(Z) == 0 proof from to_int(Z) do eval end; from 0 == 0 do axiom refl_eq end end in to_z|};
   let (pm, proof) = run_named("to_z", prelude_c ++ to_z);
   check_proven("to_int(Z) == 0 closes by eval", pm, proof);
-  let to_s = {|theorem to_s = forall m: Nt -> to_int(S(m)) == 1 + to_int(m) proof eval to_int(S(m)) at 0 end; axiom refl_eq at 0 on 1 + to_int(m) == 1 + to_int(m) end in to_s|};
+  let to_s = {|theorem to_s = forall m: Nt -> to_int(S(m)) == 1 + to_int(m) proof from to_int(S(m)) do eval end; from 1 + to_int(m) == 1 + to_int(m) do axiom refl_eq end end in to_s|};
   let (pm, proof) = run_named("to_s", prelude_c ++ to_s);
   check_proven("to_int(S(m)) == 1 + to_int(m) closes by eval", pm, proof);
   /* of_int isn't stuck: it needs three steps through the `if`. */
-  let of_z = {|theorem of_z = of_int(0) == Z proof eval of_int(0) at 0 end; eval $e at 0 end; eval $e at 0 end; axiom refl_eq at 0 on $e == $e end in of_z|};
+  let of_z = {|theorem of_z = of_int(0) == Z proof from of_int(0) do eval; from 0 <= 0 do eval end; eval end; axiom refl_eq end in of_z|};
   let (pm, proof) = run_named("of_z", prelude_c ++ of_z);
   check_proven("of_int(0) == Z closes in three eval steps", pm, proof);
 };
@@ -440,7 +437,7 @@ let test_rewrite_matches_through_the_environment = () => {
   let src =
     prelude_c
     ++ lemmas_c
-    ++ {|theorem r = forall n: Nt -> of_int(to_int(n)) == n proof induction n | Z => ? | S(m) => axiom to_s at 0 on to_int(S(m)) end; axiom of_s at 0 on of_int(1 + to_int(m)) end; rewrite 1 + to_int(m) - 1 with to_int(m) at 0 end end in r|};
+    ++ {|theorem r = forall n: Nt -> of_int(to_int(n)) == n proof induction n | Z => ? | S(m) => from to_int(S(m)) do axiom to_s end end; from of_int(1 + to_int(m)) do axiom of_s end end; from 1 + to_int(m) - 1 do rewrite to_int(m) end end end in r|};
   let (pm, proof) = run_named("r", src);
   Alcotest.check(
     Alcotest.bool,
@@ -452,11 +449,10 @@ let test_rewrite_matches_through_the_environment = () => {
 
 /* PIN: shadowing the reserved `Nat` type name yields an induction with
  * no IHs (citing `ih` is UnknownEquality); the identical program under a
- * non-reserved name has the IH available (the cited pattern is simply
- * absent from that stub goal, hence PatternNotFound rather than
- * UnknownEquality). */
+ * non-reserved name has the IH available (it doesn't rewrite the goal,
+ * so the citation is refused for that, not for an unknown name). */
 let test_nat_is_a_reserved_type_name = () => {
-  let bad = {|type Nat = +Z + S(Nat) in let to_int = fun n -> case n | Z => 0 | S(m) => 1 + to_int(m) end in theorem t = forall n: Nat -> to_int(n) == 0 proof induction n | Z => ? | S(m) => axiom ih at 0 on to_int(m) end end in t|};
+  let bad = {|type Nat = +Z + S(Nat) in let to_int = fun n -> case n | Z => 0 | S(m) => 1 + to_int(m) end in theorem t = forall n: Nat -> to_int(n) == 0 proof induction n | Z => ? | S(m) => axiom ih end end in t|};
   let (pm, proof) = run_named("t", bad);
   Alcotest.check(
     Alcotest.bool,
@@ -464,7 +460,7 @@ let test_nat_is_a_reserved_type_name = () => {
     true,
     has_unknown_equality(pm, proof),
   );
-  let good = {|type Nt = +Z + S(Nt) in let to_int = fun n -> case n | Z => 0 | S(m) => 1 + to_int(m) end in theorem t = forall n: Nt -> to_int(n) == 0 proof induction n | Z => ? | S(m) => axiom ih at 0 on to_int(m) end end in t|};
+  let good = {|type Nt = +Z + S(Nt) in let to_int = fun n -> case n | Z => 0 | S(m) => 1 + to_int(m) end in theorem t = forall n: Nt -> to_int(n) == 0 proof induction n | Z => ? | S(m) => axiom ih end end in t|};
   let (pm', proof') = run_named("t", good);
   Alcotest.check(
     Alcotest.bool,
@@ -541,9 +537,9 @@ let tests = (
       test_refl_eq_proves_on_fold_left_expression,
     ),
     test_case(
-      "A: a curried accumulator's cons equation closes, but only at an exact step count",
+      "A: a curried accumulator's cons equation closes by focusing on its head",
       `Quick,
-      test_curried_accumulator_equation_is_step_count_brittle,
+      test_curried_accumulator_equation_closes_by_focus,
     ),
     test_case(
       "A: the uncurried accumulator theorem proves with no hole lemmas",

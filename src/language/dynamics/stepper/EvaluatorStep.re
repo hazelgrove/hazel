@@ -422,6 +422,17 @@ let get_status = (~settings: CoreSettings.t, exp, env) => {
 
 let get_step_id = (step: step): Id.t => step.d_loc |> DHExp.rep_id;
 
+let is_at_root = (step: step): bool => {
+  let rec at_root = (ctx: EvalCtx.t) =>
+    switch (ctx) {
+    | Mark => true
+    | Term({term: Parens(ctx) | Asc(ctx, _) | Closure(_, ctx), _}) =>
+      at_root(ctx)
+    | Term(_) => false
+    };
+  at_root(step.ctx);
+};
+
 let get_step_kind = (step: step): step_kind => step.knd;
 
 let take_step = (step: EvalObj.t) => {

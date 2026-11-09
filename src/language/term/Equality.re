@@ -979,39 +979,21 @@ let equality =
       | (Seq(a1, a2), Seq(b1, b2)) => proof'(a1, b1) && proof'(a2, b2)
       | (Seq(_, _), _) => false
       | (
-          AxiomStep({
-            at_idx: i1,
-            at_exp: e1,
-            direction: d1,
-            equality: q1,
-            instantiation: n1,
-          }),
-          AxiomStep({
-            at_idx: i2,
-            at_exp: e2,
-            direction: d2,
-            equality: q2,
-            instantiation: n2,
-          }),
+          AxiomStep({direction: d1, equality: q1, instantiation: n1}),
+          AxiomStep({direction: d2, equality: q2, instantiation: n2}),
         ) =>
-        exp'(i1, i2)
-        && exp'(e1, e2)
-        && d1 == d2
-        && exp'(q1, q2)
-        && inst'(n1, n2)
+        d1 == d2 && exp'(q1, q2) && inst'(n1, n2)
       | (AxiomStep(_), _) => false
-      | (
-          AlgebriteStep({at_idx: i1, at_exp: e1, with_exp: w1}),
-          AlgebriteStep({at_idx: i2, at_exp: e2, with_exp: w2}),
-        ) =>
-        exp'(i1, i2) && exp'(e1, e2) && exp'(w1, w2)
+      | (AlgebriteStep(w1), AlgebriteStep(w2)) => exp'(w1, w2)
       | (AlgebriteStep(_), _) => false
+      | (EvalStep, EvalStep) => true
+      | (EvalStep, _) => false
       | (
-          EvalStep({at_idx: i1, at_exp: e1}),
-          EvalStep({at_idx: i2, at_exp: e2}),
+          Focus({ordinal: o1, selector: s1, body: b1}),
+          Focus({ordinal: o2, selector: s2, body: b2}),
         ) =>
-        exp'(i1, i2) && exp'(e1, e2)
-      | (EvalStep(_), _) => false
+        o1 == o2 && exp'(s1, s2) && proof'(b1, b2)
+      | (Focus(_), _) => false
       | (Induction(e1, a1, cs1), Induction(e2, a2, cs2))
           when List.length(cs1) == List.length(cs2) =>
         exp'(e1, e2)

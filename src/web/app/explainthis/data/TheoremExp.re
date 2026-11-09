@@ -42,7 +42,7 @@ let theorem_exp =
       sub_id: Theorem,
       term:
         mk_example(
-          "theorem lem = 1 + 1 == 2 proof eval 1 + 1 at 0 end; axiom refl_eq at 0 on 2 == 2 end in 0",
+          "theorem lem = 1 + 1 == 2 proof from 1 + 1 do eval end; from 2 == 2 do axiom refl_eq end end in 0",
         ),
       message: "The statement `1 + 1 == 2` is proven by evaluating the sum and closing the resulting `2 == 2` by reflexivity. `lem` is now citable in the proofs of later theorems; the body is the ordinary expression `0`.",
     },

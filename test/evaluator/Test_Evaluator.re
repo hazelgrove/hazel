@@ -50,4 +50,5 @@ let tests =
     Test_Equiv_Inductions.tests,
     Test_ListFoldLibrary.tests,
     Test_WherePat.tests,
+    Test_Focus.tests,
   ];

@@ -9,46 +9,46 @@ let library = {|let foldl = fun (xs : [Bool], f, acc : Bool) ->
 let conj = fun (acc : Bool, x : Bool) -> acc && x in
 theorem true_and = forall (p : Bool) -> (true && p) == p proof
   induction p
-  | true => eval true && true at 0 end;
-    eval true == true at 0 end
-  | false => eval true && false at 0 end;
-    eval false == false at 0 end
+  | true => from true && true do eval end;
+    from true == true do eval end
+  | false => from true && false do eval end;
+    from false == false do eval end
   end
 in
 theorem fold_conj_false = forall (xs : [Bool]) -> foldl(xs, conj, false) == false proof
   induction xs
-  | [] => eval foldl([], conj, false) at 0 end;
-    eval false == false at 0 end
-  | h :: t => eval foldl(h :: t, conj, false) at 0 end;
-    eval conj(false, h) at 0 end;
-    eval false && h at 0 end;
-    axiom ih at 0 on foldl(t, conj, false) end;
-    eval false == false at 0 end
+  | [] => from foldl([], conj, false) do eval end;
+    from false == false do eval end
+  | h :: t => from foldl(h :: t, conj, false) do eval end;
+    from conj(false, h) do eval end;
+    from false && h do eval end;
+    from foldl(t, conj, false) do axiom ih end end;
+    from false == false do eval end
   end
 in
 theorem fold_conj_acc = forall (b : Bool) -> forall (xs : [Bool]) ->
   foldl(xs, conj, b) == (b && foldl(xs, conj, true)) proof
   induction b
-  | true => axiom true_and at 0 on true && foldl(xs, conj, true) end;
-    axiom refl_eq at 0 on foldl(xs, conj, true) == foldl(xs, conj, true) end
-  | false => axiom fold_conj_false at 0 on foldl(xs, conj, false) end;
-    eval false && foldl(xs, conj, true) at 0 end;
-    eval false == false at 0 end
+  | true => from true && foldl(xs, conj, true) do axiom true_and end end;
+    from foldl(xs, conj, true) == foldl(xs, conj, true) do axiom refl_eq end end
+  | false => from foldl(xs, conj, false) do axiom fold_conj_false end end;
+    from false && foldl(xs, conj, true) do eval end;
+    from false == false do eval end
   end
 in
 theorem fold_conj_cons = forall (h : Bool) -> forall (t : [Bool]) ->
   foldl(h :: t, conj, true) == (h && foldl(t, conj, true)) proof
-  eval foldl(h :: t, conj, true) at 0 end;
-  eval conj(true, h) at 0 end;
-  eval true && h at 0 end;
-  axiom fold_conj_acc at 0 on foldl(t, conj, h) end;
+  from foldl(h :: t, conj, true) do eval end;
+  from conj(true, h) do eval end;
+  from true && h do eval end;
+  from foldl(t, conj, h) do axiom fold_conj_acc end end;
   induction h
-  | true => axiom true_and at 0 on true && foldl(t, conj, true) end;
-    axiom true_and at 0 on true && foldl(t, conj, true) end;
-    axiom refl_eq at 0 on foldl(t, conj, true) == foldl(t, conj, true) end
-  | false => eval false && foldl(t, conj, true) at 0 end;
-    eval false && foldl(t, conj, true) at 0 end;
-    eval false == false at 0 end
+  | true => from true && foldl(t, conj, true) do axiom true_and end end;
+    from true && foldl(t, conj, true) do axiom true_and end end;
+    from foldl(t, conj, true) == foldl(t, conj, true) do axiom refl_eq end end
+  | false => from false && foldl(t, conj, true) do eval end;
+    from false && foldl(t, conj, true) do eval end;
+    from false == false do eval end
   end
 in
 0|};

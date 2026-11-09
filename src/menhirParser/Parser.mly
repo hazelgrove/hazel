@@ -136,8 +136,9 @@ open AST
 %token AXIOM_REV
 %token REWRITE
 %token WITH
-%token AT
-%token ON
+%token FROM
+%token DO
+%token <int> ORDINAL
 
 
 
@@ -478,12 +479,13 @@ proof:
     | HAVE; e = exp; PROOF; sub = proof; EQUAL_ARROW; pf = proof { ProofHave(e, sub, pf) } %prec PROOF_PRE
     | REVERT; e = exp; EQUAL_ARROW; pf = proof { ProofRevert(e, pf) } %prec PROOF_PRE
     | REVERT; e = exp; WITH; v = exp; SINGLE_EQUAL; i = exp; EQUAL_ARROW; pf = proof { ProofRevertWith(e, v, i, pf) } %prec PROOF_PRE
-    | AXIOM; eq = exp; AT; idx = exp; ON; ae = exp; END { ProofAxiom(eq, idx, ae) }
-    | AXIOM_REV; eq = exp; AT; idx = exp; ON; ae = exp; END { ProofAxiomRev(eq, idx, ae) }
-    | AXIOM; eq = exp; WITH; v = exp; SINGLE_EQUAL; i = exp; AT; idx = exp; ON; ae = exp; END { ProofAxiomWith(eq, v, i, idx, ae) }
-    | AXIOM_REV; eq = exp; WITH; v = exp; SINGLE_EQUAL; i = exp; AT; idx = exp; ON; ae = exp; END { ProofAxiomRevWith(eq, v, i, idx, ae) }
-    | REWRITE; ae = exp; WITH; we = exp; AT; idx = exp; END { ProofAlgebrite(ae, we, idx) }
-    | EVAL; ae = exp; AT; idx = exp; END { ProofEval(ae, idx) }
+    | AXIOM; eq = exp; END { ProofAxiom(eq) }
+    | AXIOM_REV; eq = exp; END { ProofAxiomRev(eq) }
+    | AXIOM; eq = exp; WITH; v = exp; SINGLE_EQUAL; i = exp; END { ProofAxiomWith(eq, v, i) }
+    | AXIOM_REV; eq = exp; WITH; v = exp; SINGLE_EQUAL; i = exp; END { ProofAxiomRevWith(eq, v, i) }
+    | REWRITE; e = exp; END { ProofAlgebrite(e) }
+    | EVAL { ProofEval }
+    | FROM; n = option(ORDINAL); sel = exp; DO; pf = proof; END { ProofFocus(n, sel, pf) }
     | CONTRADICTION; e = exp; END { ProofContradiction(e) }
     | CONTRADICTION; e = exp; WITH; v = exp; SINGLE_EQUAL; i = exp; END { ProofContradictionWith(e, v, i) }
     | INDUCTION; e = exp; cases = list(prul); END { ProofInduction(e, cases) }
@@ -566,7 +568,7 @@ exp:
     | THEOREM; p = pat; SINGLE_EQUAL; e1 = exp; PROOF; pf = proof; IN; e2 = exp { Theorem (p, e1, pf, e2) } %prec LET_EXP
     (* `where` and `assume` are the default names of the hypotheses that
        `where` guards and `assume` install, so they appear in expression
-       position as cited facts: `axiom assume at 0 on n end`. The segment
+       position as cited facts: `axiom assume end`. The segment
        parser reads them as variables there too. *)
     | WHERE { Var "where" }
     | ASSUME { Var "assume" }

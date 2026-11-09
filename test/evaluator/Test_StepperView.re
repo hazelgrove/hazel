@@ -156,16 +156,17 @@ let offered = (goal: Picker.Goal.t): list(string) =>
 let labels = (offers: list(Picker.offer)) =>
   List.map((o: Picker.offer) => o.label, offers);
 
-let written = (term: TermBase.Proof.term): string =>
-  Proof(Proof.fresh(term))
+let written = (p: Proof.t): string =>
+  Proof(p)
   |> ExpToSegment.any_to_segment(
        ~settings=ExpToSegment.Settings.editable(~inline=true),
      )
   |> Printer.of_segment(~holes="?", ~refractors=[]);
 
-let write_of = (offers, label): TermBase.Proof.term =>
+/* What the offer labelled `label` writes on its own row. */
+let write_of = (offers, label): Proof.t =>
   switch (List.find_opt((o: Picker.offer) => o.label == label, offers)) {
-  | Some({action: Write(term), _}) => term
+  | Some({action: Write(pick), _}) => Picker.focused(pick)
   | Some({action: Open(_), _}) => Alcotest.fail(label ++ " opens a box")
   | None => Alcotest.fail("no " ++ label ++ " offered")
   };
@@ -224,7 +225,9 @@ module Walk = {
       `Quick,
       () => {
         let f =
-          Fixture.mk("theorem t = 1 + 4 == 5 proof eval 1 + 4 at 0 end in t");
+          Fixture.mk(
+            "theorem t = 1 + 4 == 5 proof from 1 + 4 do eval end in t",
+          );
         check(list(string), "rows", ["eval", "end"], kinds(f.rows));
         let (step, end_) = (first(f.rows), last(f.rows));
         check(
@@ -248,7 +251,7 @@ module Walk = {
       () => {
         let f =
           Fixture.mk(
-            "theorem t = 1 + 4 == 5 proof eval 1 + 4 at 0 end; ? in t",
+            "theorem t = 1 + 4 == 5 proof from 1 + 4 do eval end; ? in t",
           );
         check(list(string), "rows", ["eval", "hole"], kinds(f.rows));
         check(string, "the hole's goal", "5 == 5", goal(last(f.rows)));
@@ -260,7 +263,7 @@ module Walk = {
       () => {
         let f =
           Fixture.mk(
-            "theorem t = 1 + 4 == 5 proof ?; eval 1 + 4 at 0 end in t",
+            "theorem t = 1 + 4 == 5 proof ?; from 1 + 4 do eval end in t",
           );
         check(
           list(string),
@@ -280,13 +283,7 @@ module Walk = {
       "a step inserted before another heads the chain before the reparse",
       `Quick,
       () => {
-        let step = s =>
-          Proof.fresh(
-            EvalStep({
-              at_idx: parse_exp("0"),
-              at_exp: parse_exp(s),
-            }),
-          );
+        let step = s => Proof.fresh(AlgebriteStep(parse_exp(s)));
         let (a, b, c) = (step("1"), step("2"), step("3"));
         let (head, tail) =
           Rows.split(Proof.fresh(Seq(Proof.fresh(Seq(a, b)), c)));
@@ -304,7 +301,7 @@ module Walk = {
       () => {
         let f =
           Fixture.mk(
-            "theorem t = 1 == 1 proof axiom refl_eq at 0 on 1 == 1 end in t",
+            "theorem t = 1 == 1 proof from 1 == 1 do axiom refl_eq end end in t",
           );
         check(list(string), "rows", ["refl_eq", "end"], kinds(f.rows));
         check(string, "it proves the goal", "true", goal(last(f.rows)));
@@ -343,7 +340,7 @@ module Walk = {
       () => {
         let f =
           Fixture.mk(
-            "theorem t = 1 + 4 == 5 proof axiom refl_eq at 0 on 1 + 4 == 5 end in t",
+            "theorem t = 1 + 4 == 5 proof from 1 + 4 == 5 do axiom refl_eq end end in t",
           );
         let row = first(f.rows);
         switch (Rows.Status.of_row(row)) {
@@ -371,7 +368,7 @@ module Walk = {
 /* A form's body, and a have's premises, are chains of their own, with
  * the goal and scope the checker gave them. */
 module Scopes = {
-  let assume_src = {|theorem t = forall x -> x == 1 proof assume x == 1 => axiom assume at 0 on x end; axiom refl_eq at 0 on 1 == 1 end in t|};
+  let assume_src = {|theorem t = forall x -> x == 1 proof assume x == 1 => from x do axiom assume end end; from 1 == 1 do axiom refl_eq end end in t|};
   let have_src = {|theorem t = forall x -> x == 1 proof have 1 == 1 proof ? => ? in t|};
 
   let tests = [
@@ -499,7 +496,7 @@ module Scopes = {
       () => {
         let f =
           Fixture.mk(
-            {|theorem t = forall x -> x == 1 proof have 1 == 1 proof axiom refl_eq at 0 on 1 == 1 end => ? in t|},
+            {|theorem t = forall x -> x == 1 proof have 1 == 1 proof from 1 == 1 do axiom refl_eq end end => ? in t|},
           );
         let (sub, _) = premises(first(f.rows));
         check(
@@ -585,7 +582,7 @@ module State = {
       () => {
         let f =
           Fixture.mk(
-            {|theorem t = forall x -> x == 1 proof have 1 == 1 proof ? => eval 1 + 1 at 0 end in t|},
+            {|theorem t = forall x -> x == 1 proof have 1 == 1 proof ? => from 1 + 1 do eval end in t|},
           );
         let f = Fixture.act(f, (first(f.rows).key, Goal(Move(Start))));
         let again =
@@ -641,7 +638,9 @@ module State = {
       `Quick,
       () => {
         let f =
-          Fixture.mk("theorem t = 1 + 4 == 5 proof eval 1 + 4 at 0 end in t");
+          Fixture.mk(
+            "theorem t = 1 + 4 == 5 proof from 1 + 4 do eval end in t",
+          );
         let other = Fixture.mk("theorem t = 1 + 4 == 5 proof ? in t");
         let model =
           Stepper.Update.calculate(~settings, other.rows, f.theorem.stepper);
@@ -783,7 +782,10 @@ module Picking = {
       List.find_opt((s: Picker.strategy) => s.label == label, strategies)
     ) {
     | Some({picks: Cites(facts), _}) =>
-      List.map(((name, term)) => (name, written(term)), facts)
+      List.map(
+        ((name, term)) => (name, written(Proof.fresh(term))),
+        facts,
+      )
     | Some({picks: Writes(_), _}) => Alcotest.fail(label ++ " cites no fact")
     | None => Alcotest.fail("no " ++ label ++ " strategy")
     };
@@ -828,7 +830,7 @@ module Picking = {
         check(
           string,
           "the step",
-          "eval 1 + 2 at 0 end",
+          "from 1 + 2 do eval end",
           written(write_of(offers, "Step")),
         );
       },
@@ -843,7 +845,7 @@ module Picking = {
         check(
           string,
           "the step",
-          "axiom refl_eq at 0 on x == x end",
+          "axiom refl_eq end",
           written(write_of(offers, "Reflexivity")),
         );
       },
@@ -1054,7 +1056,7 @@ module Regressions = {
         check(
           string,
           "Step",
-          "eval 1 + 2 at 0 end",
+          "from 1 + 2 do eval end",
           written(write_of(offers, "Step")),
         );
         /* The second click takes the step when the underline is the
@@ -1113,11 +1115,8 @@ module Regressions = {
             | None => Alcotest.fail("the last row has no state")
             };
           switch (Picker.take_step(goal, 0)) {
-          | Some(term) =>
-            update(
-              StepperPatch(Picker.Patches.write(row, Proof.fresh(term))),
-              cell,
-            )
+          | Some(pick) =>
+            update(StepperPatch(Picker.write(row, goal, pick)), cell)
           | None => Alcotest.fail("no step offered")
           };
         };
@@ -1400,16 +1399,20 @@ module Insertion = {
       "a step picked on a hole replaces it, on a step goes before it, on an end row extends the chain",
       `Quick,
       () => {
-        let src = "theorem t = 1 + 4 == 5 proof ?; eval 1 + 4 at 0 end in t";
+        let src = "theorem t = 1 + 4 == 5 proof ?; from 1 + 4 do eval end in t";
         let z = parse_zipper(src);
         let proof_map = Fixture.mk(src).cell.theorems.proof_map;
         let rows = Rows.chain(~proof_map, theorem_proof(z));
         check(list(string), "rows", ["hole", "eval", "end"], kinds(rows));
-        /* The chain after picking `eval 2 + 2 at 0 end` on `row`: each
-         * row's hole or eval target. */
+        /* The chain after picking `from 2 + 2 do eval end` on `row`: each
+         * row's hole or focus selector. */
         let pick = row => {
           let term =
-            Picker.Terms.eval_step(~at_idx=0, ~at_exp=parse_exp("2 + 2"));
+            Picker.Terms.focus(
+              ~selector=parse_exp("2 + 2"),
+              ~index=0,
+              Proof.fresh(EvalStep),
+            );
           EditorTransform.apply_patch(
             z,
             Picker.Patches.write(row, Proof.fresh(term)),
@@ -1419,7 +1422,7 @@ module Insertion = {
           |> List.filter_map((row: Rows.t) =>
                switch (row.kind, row.step.term) {
                | (Hole, _) => Some("?")
-               | (Step(_), EvalStep({at_exp, _})) => Some(print(at_exp))
+               | (Step(_), Focus({selector, _})) => Some(print(selector))
                | _ => None
                }
              );
@@ -1473,13 +1476,13 @@ in
       "the row after a rewrite at an env-inlined index shows the rewritten goal",
       `Quick,
       () => {
-        /* `at 2` names the literal `0` of `sum == fold_left(_, sum, 0)`
-         * counted in the displayed goal: the two before it are in `sum`'s
-         * inlined body. */
+        /* `5th` names the literal `0` of `sum == fold_left(_, sum, 0)`
+         * counted in the displayed goal: the four before it are in the
+         * inlined copies of `sum`. */
         let f =
           Fixture.mk(
             sum
-            ++ "theorem t = sum == fold_left(_, sum, 0) proof rewrite 0 with 0 + 0 at 2 end in t",
+            ++ "theorem t = sum == fold_left(_, sum, 0) proof from 5th 0 do rewrite 0 + 0 end end in t",
           );
         check(list(string), "rows", ["algebra", "end"], kinds(f.rows));
         check(
@@ -1556,7 +1559,7 @@ in
         let f =
           Fixture.mk(
             sum
-            ++ "theorem t = sum([]) == fold_left(_, sum, 0)([]) proof eval fold_left(_, sum, 0)([]) at 0 end in t",
+            ++ "theorem t = sum([]) == fold_left(_, sum, 0)([]) proof from fold_left(_, sum, 0)([]) do eval end in t",
           );
         let goal = Fixture.goal(f, last(f.rows));
         let ids =
@@ -1613,7 +1616,7 @@ in
 /* How a step draws below its row: a line, or a block of side conditions
  * and the goals it creates. */
 module Structure = {
-  let inv = {|theorem inv = forall x where x != 0 -> x / x == 1 proof ? in theorem t = forall x where x != 0 -> forall y -> x / x + y / y == 2 proof axiom inv at 0 on x / x end; axiom inv at 0 on y / y end in t|};
+  let inv = {|theorem inv = forall x where x != 0 -> x / x == 1 proof ? in theorem t = forall x where x != 0 -> forall y -> x / x + y / y == 2 proof from x / x do axiom inv end end; from y / y do axiom inv end end in t|};
 
   let layout =
     Alcotest.testable(
@@ -1708,7 +1711,7 @@ module Structure = {
       () => {
         let forall =
           Fixture.mk(
-            "theorem t = true ==> forall x : Int -> x == x proof assume true => forall x => axiom refl_eq at 0 on x == x end in t",
+            "theorem t = true ==> forall x : Int -> x == x proof assume true => forall x => from x == x do axiom refl_eq end end in t",
           );
         let assume = first(forall.rows);
         check(
@@ -1750,7 +1753,7 @@ module Structure = {
       () => {
         let have =
           Fixture.mk(
-            "theorem t = forall z where z != 0 -> 8 / z == 8 / z proof have z != 0 proof axiom where at 0 on z != 0 end => axiom refl_eq at 0 on 8 / z == 8 / z end in t",
+            "theorem t = forall z where z != 0 -> 8 / z == 8 / z proof have z != 0 proof from z != 0 do axiom where end end => from 8 / z == 8 / z do axiom refl_eq end end in t",
           );
         let row = first(have.rows);
         check(
@@ -1804,7 +1807,7 @@ module Structure = {
           "a division the instantiation brings in",
           ["Definedness"],
           kinds_at(
-            "theorem t = forall z where z != 0 -> 8 / z == 8 / z proof axiom refl_eq at 0 on 8 / z == 8 / z end in t",
+            "theorem t = forall z where z != 0 -> 8 / z == 8 / z proof from 8 / z == 8 / z do axiom refl_eq end end in t",
             first,
           ),
         );
@@ -1822,6 +1825,101 @@ module Structure = {
   ];
 };
 
+/* A focus of one step is drawn as that step; a focus of several opens a
+ * C of its own steps; and a step picked inside what a focus just rewrote
+ * joins the focus. */
+module Focusing = {
+  let tests = [
+    test_case(
+      "a one-step focus is a line named for its step",
+      `Quick,
+      () => {
+        let f =
+          Fixture.mk(
+            "theorem t = 1 + 4 == 5 proof from 1 + 4 do eval end in t",
+          );
+        switch (first(f.rows)) {
+        | {kind: Step(Leaf), _} as row =>
+          check(string, "named for its step", "eval", kind(row))
+        | row => Alcotest.fail("not a line: " ++ kind(row))
+        };
+      },
+    ),
+    test_case(
+      "a focus of several steps nests them, and the next row is the lifted goal",
+      `Quick,
+      () => {
+        let f =
+          Fixture.mk(
+            "theorem t = (2 + 3) * 2 == 10 proof from (2 + 3) * 2 do from 2 + 3 do eval end; eval end; eval in t",
+          );
+        check(
+          list(string),
+          "outer rows",
+          ["focus", "eval", "end"],
+          kinds(f.rows),
+        );
+        switch (first(f.rows).kind) {
+        | Step(Focus(rows)) =>
+          check(
+            list(string),
+            "its steps",
+            ["eval", "eval", "end"],
+            kinds(rows),
+          );
+          check(
+            string,
+            "they start from the selected subterm",
+            "(2 + 3) * 2",
+            goal(first(rows)),
+          );
+        | _ => Alcotest.fail("not a C")
+        };
+        check(
+          string,
+          "the row after it",
+          "10 == 10",
+          goal(List.nth(f.rows, 1)),
+        );
+      },
+    ),
+    test_case(
+      "a step picked inside what a focus rewrote joins the focus",
+      `Quick,
+      () => {
+        let f =
+          Fixture.mk(
+            "theorem t = (2 + 3) * 2 == 10 proof from 2 + 3 do eval end in t",
+          );
+        let row = last(f.rows);
+        let goal = Fixture.goal(f, row);
+        let written_at = printed => {
+          let pick: Picker.pick = {
+            at: Picker.target(goal, Picking.node(goal, printed)),
+            step: Proof.fresh(EvalStep),
+          };
+          switch (Picker.write(row, goal, pick)) {
+          | ProofPatch({replacement, _}) => written(replacement)
+          | _ => Alcotest.fail("not a proof patch")
+          };
+        };
+        check(
+          string,
+          "on the `5` it wrote, the focus's steps grow",
+          "eval; eval",
+          written_at("5"),
+        );
+        check(
+          string,
+          "elsewhere, a step of its own",
+          "from 2 + 3 do eval end; from 5 * 2 do eval end",
+          written_at("5 * 2"),
+        );
+      },
+    ),
+  ];
+};
+
 let tests = (
   "StepperView",
   Walk.tests
@@ -1831,5 +1929,6 @@ let tests = (
   @ Regressions.tests
   @ Display.tests
   @ Insertion.tests
-  @ Structure.tests,
+  @ Structure.tests
+  @ Focusing.tests,
 );

@@ -7,6 +7,7 @@ type cls =
   | AxiomStep
   | AlgebriteStep
   | EvalStep
+  | Focus
   | Induction
   | Forall
   | Funext
@@ -49,7 +50,8 @@ let rec cls_of_term: Grammar.proof_term('a) => cls =
   | Contradiction(_) => Contradiction
   | Have(_, _, _) => Have
   | Alias(_, _, _) => Alias
-  | EvalStep(_) => EvalStep;
+  | EvalStep => EvalStep
+  | Focus(_) => Focus;
 
 let show_cls: cls => string =
   fun
@@ -69,7 +71,8 @@ let show_cls: cls => string =
   | Alias => "Alias step"
   | Have => "Have step"
   | Parens => "Parenthesized proof"
-  | EvalStep => "Eval step";
+  | EvalStep => "Eval step"
+  | Focus => "Focus";
 
 /* Ignores parens and projectors, as `Exp.fast_equal` does. */
 let fast_equal =
@@ -90,9 +93,10 @@ let children = (p: t): list(t) =>
   | MultiHole(_)
   | AxiomStep(_)
   | AlgebriteStep(_)
-  | EvalStep(_)
+  | EvalStep
   | Contradiction(_) => []
   | Seq(p1, p2) => [p1, p2]
+  | Focus({body, _})
   | Parens(body)
   | Forall(_, body)
   | Funext(_, body)
@@ -115,7 +119,8 @@ let rec has_hole = (p: t): bool =>
   | Parens(_)
   | AxiomStep(_)
   | AlgebriteStep(_)
-  | EvalStep(_)
+  | EvalStep
+  | Focus(_)
   | Induction(_)
   | Forall(_)
   | Funext(_)
@@ -130,7 +135,7 @@ let rec has_hole = (p: t): bool =>
 /* Do the step's own arguments contain a hole? Unlike `has_hole`, this
  * skips nested sub-proofs: the stepper shows a hole in a case body as its
  * own "…" row, but a hole in an argument (an induction pattern or
- * scrutinee, a forall binder, an axiom's target, an `as` name) has no
+ * scrutinee, a forall binder, a focus's selector, an `as` name) has no
  * other indicator. */
 let rec args_have_hole = (p: t): bool => {
   module M = {
@@ -184,11 +189,11 @@ let rec args_have_hole = (p: t): bool => {
   | MultiHole(_)
   | Seq(_, _) => false
   | Parens(p) => args_have_hole(p)
-  | AxiomStep({at_idx, at_exp, equality, instantiation, direction: _}) =>
-    exp(at_idx) || exp(at_exp) || exp(equality) || inst(instantiation)
-  | AlgebriteStep({at_idx, at_exp, with_exp}) =>
-    exp(at_idx) || exp(at_exp) || exp(with_exp)
-  | EvalStep({at_idx, at_exp}) => exp(at_idx) || exp(at_exp)
+  | AxiomStep({equality, instantiation, direction: _}) =>
+    exp(equality) || inst(instantiation)
+  | AlgebriteStep(e) => exp(e)
+  | EvalStep => false
+  | Focus({selector, _}) => exp(selector)
   | Induction(scrut, x, cases) =>
     exp(scrut)
     || as_name(x)

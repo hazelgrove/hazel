@@ -79,7 +79,8 @@ let rec find_revert = (p: Proof.t): option(Proof.t) =>
   | AxiomStep(_)
   | AlgebriteStep(_)
   | Contradiction(_)
-  | EvalStep(_) => None
+  | EvalStep => None
+  | Focus({body, _}) => find_revert(body)
   };
 
 /* The antecedent a `revert <name>` moved into the goal, as printed text,
@@ -138,7 +139,7 @@ let test_axiom_step_also_resolves_innermost = () => {
   let (pm, proof) =
     run(
       "theorem t = forall n: Int -> forall m: Int -> n == 1 ==> m == 2 ==> m == m proof "
-      ++ "assume n == 1 => assume m == 2 => axiom assume at 0 on m end; ? in t",
+      ++ "assume n == 1 => assume m == 2 => from m do axiom assume end end; ? in t",
     );
   check_mark_free(
     "an axiom step citing a shadowed name must resolve to the INNER fact, "
@@ -279,7 +280,7 @@ let test_alias_unknown_fact_marks = () => {
   let (pm, proof) =
     run(
       "theorem t = forall n: Int -> n == n proof "
-      ++ "alias hn = n == 99 => axiom refl_eq at 0 on n == n end in t",
+      ++ "alias hn = n == 99 => from n == n do axiom refl_eq end end in t",
     );
   if (!
         has_mark_kind(
@@ -304,7 +305,7 @@ let test_alias_incurs_no_obligation = () => {
     run(
       "theorem t = forall n: Int -> n == 1 ==> n == n proof "
       ++ "assume n == 1 => alias hn = assume => "
-      ++ "axiom refl_eq at 0 on n == n end in t",
+      ++ "from n == n do axiom refl_eq end end in t",
     );
   check_mark_free("alias is mark-free and goal-preserving", pm, proof);
   /* Zero, not "one fewer": the `assume` here is an implication intro
@@ -324,7 +325,7 @@ let test_unknown_name_is_unknown_equality = () => {
   let (pm, proof) =
     run(
       "theorem t = forall n: Int -> n == n proof "
-      ++ "induction n > 0 as hn | true => axiom hzz at 0 on n > 0 end; ? "
+      ++ "induction n > 0 as hn | true => axiom hzz end; ? "
       ++ "| false => ? end in t",
     );
   check_has_unknown_equality(
@@ -341,7 +342,7 @@ let test_as_name_is_scoped_to_its_form = () => {
     run(
       "theorem t = forall n: Int -> n == n proof "
       ++ "induction n > 0 as hn | true => ? | false => ? end; "
-      ++ "axiom hn at 0 on n > 0 end in t",
+      ++ "axiom hn end in t",
     );
   check_has_unknown_equality(
     "an `as` name does not escape its form",

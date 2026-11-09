@@ -59,14 +59,14 @@ let expect_refused = (src: string): unit => {
  * shape. */
 let test_term_adt_size_passes = () =>
   expect_pass(
-    {|type Term = +Var(Int)+Lam(Term)+Ap(Term, Term) in let size = fun e -> case e | Var(n) => 1 | Lam(b) => 1 + size(b) | Ap(e1, e2) => 1 + size(e1) + size(e2) end in theorem t = forall x -> size(x) == size(x) proof axiom refl_eq at 0 on size(x) == size(x) end in t|},
+    {|type Term = +Var(Int)+Lam(Term)+Ap(Term, Term) in let size = fun e -> case e | Var(n) => 1 | Lam(b) => 1 + size(b) | Ap(e1, e2) => 1 + size(e1) + size(e2) end in theorem t = forall x -> size(x) == size(x) proof from size(x) == size(x) do axiom refl_eq end end in t|},
   );
 
 /* The same procedure written with surface `fix` (recursive `let`s
  * elaborate to the same FixF; both spellings must pass). */
 let test_explicit_fix_passes = () =>
   expect_pass(
-    {|type Term = +Var(Int)+Lam(Term)+Ap(Term, Term) in let size = fix f -> fun e -> case e | Var(n) => 1 | Lam(b) => 1 + f(b) | Ap(e1, e2) => 1 + f(e1) + f(e2) end in theorem t = forall x -> size(x) == size(x) proof axiom refl_eq at 0 on size(x) == size(x) end in t|},
+    {|type Term = +Var(Int)+Lam(Term)+Ap(Term, Term) in let size = fix f -> fun e -> case e | Var(n) => 1 | Lam(b) => 1 + f(b) | Ap(e1, e2) => 1 + f(e1) + f(e2) end in theorem t = forall x -> size(x) == size(x) proof from size(x) == size(x) do axiom refl_eq end end in t|},
   );
 
 /* --- List recursion (the Ex_ReverseReverse shapes) ---------------------- */
@@ -76,7 +76,7 @@ let test_explicit_fix_passes = () =>
  * structural call. */
 let test_snoc_rev_pass = () =>
   expect_pass(
-    {|let snoc = fun xs -> fun y -> case xs | [] => [y] | h :: t => h :: snoc(t)(y) end in let rev = fun l -> case l | [] => [] | h :: t => snoc(rev(t))(h) end in theorem t = forall x -> rev(x) == rev(x) proof axiom refl_eq at 0 on rev(x) == rev(x) end in t|},
+    {|let snoc = fun xs -> fun y -> case xs | [] => [y] | h :: t => h :: snoc(t)(y) end in let rev = fun l -> case l | [] => [] | h :: t => snoc(rev(t))(h) end in theorem t = forall x -> rev(x) == rev(x) proof from rev(x) == rev(x) do axiom refl_eq end end in t|},
   );
 
 /* --- Depth: strict subterms through nested pattern layers -------------- */
@@ -85,14 +85,14 @@ let test_snoc_rev_pass = () =>
  * transitive, so `h(b)` passes. */
 let test_nested_pattern_depth_passes = () =>
   expect_pass(
-    {|type Term = +Var(Int)+Lam(Term)+Ap(Term, Term) in let h = fun e -> case e | Ap(Lam(b), a) => h(b) | Ap(e1, e2) => 0 | Lam(b) => 0 | Var(n) => 0 end in theorem t = forall x -> h(x) == h(x) proof axiom refl_eq at 0 on h(x) == h(x) end in t|},
+    {|type Term = +Var(Int)+Lam(Term)+Ap(Term, Term) in let h = fun e -> case e | Ap(Lam(b), a) => h(b) | Ap(e1, e2) => 0 | Lam(b) => 0 | Var(n) => 0 end in theorem t = forall x -> h(x) == h(x) proof from h(x) == h(x) do axiom refl_eq end end in t|},
   );
 
 /* Casing on an already-strict variable: bindings stay strict
  * (subterm-of-subterm), one case at a time. */
 let test_two_step_case_passes = () =>
   expect_pass(
-    {|type Term = +Var(Int)+Lam(Term)+Ap(Term, Term) in let h = fun e -> case e | Ap(l, a) => case l | Lam(b) => h(b) | Var(n) => 0 | Ap(e1, e2) => h(e1) end | Lam(b) => 0 | Var(n) => 0 end in theorem t = forall x -> h(x) == h(x) proof axiom refl_eq at 0 on h(x) == h(x) end in t|},
+    {|type Term = +Var(Int)+Lam(Term)+Ap(Term, Term) in let h = fun e -> case e | Ap(l, a) => case l | Lam(b) => h(b) | Var(n) => 0 | Ap(e1, e2) => h(e1) end | Lam(b) => 0 | Var(n) => 0 end in theorem t = forall x -> h(x) == h(x) proof from h(x) == h(x) do axiom refl_eq end end in t|},
   );
 
 /* --- Non-structural recursion is refused ----------------------------- */
@@ -100,33 +100,33 @@ let test_two_step_case_passes = () =>
 /* `n - 1` is arithmetic, not a subterm. */
 let test_arithmetic_recursion_refused = () =>
   expect_refused(
-    {|let f = fun n -> if n > 0 then f(n - 1) else 0 in theorem t = f(1) == f(1) proof axiom refl_eq at 0 on f(1) == f(1) end in t|},
+    {|let f = fun n -> if n > 0 then f(n - 1) else 0 in theorem t = f(1) == f(1) proof from f(1) == f(1) do axiom refl_eq end end in t|},
   );
 
 /* `f(e)` passes the parameter itself, which is not strict. */
 let test_self_argument_refused = () =>
   expect_refused(
-    {|let f = fun e -> f(e) in theorem t = f(1) == f(1) proof axiom refl_eq at 0 on f(1) == f(1) end in t|},
+    {|let f = fun e -> f(e) in theorem t = f(1) == f(1) proof from f(1) == f(1) do axiom refl_eq end end in t|},
   );
 
 /* A reconstructed argument (`Ap(e1, e1)` builds a new term of the
  * same size) is not a subterm. */
 let test_reconstructed_argument_refused = () =>
   expect_refused(
-    {|type Term = +Var(Int)+Lam(Term)+Ap(Term, Term) in let f = fun e -> case e | Var(n) => 0 | Lam(b) => f(b) | Ap(e1, e2) => f(Ap(e1, e1)) end in theorem t = f(Var(1)) == f(Var(1)) proof axiom refl_eq at 0 on f(Var(1)) == f(Var(1)) end in t|},
+    {|type Term = +Var(Int)+Lam(Term)+Ap(Term, Term) in let f = fun e -> case e | Var(n) => 0 | Lam(b) => f(b) | Ap(e1, e2) => f(Ap(e1, e1)) end in theorem t = f(Var(1)) == f(Var(1)) proof from f(Var(1)) == f(Var(1)) do axiom refl_eq end end in t|},
   );
 
 /* Each call decreases somewhere, but not in one fixed position. */
 let test_inconsistent_positions_refused = () =>
   expect_refused(
-    {|let g = fun a -> fun b -> case a | [] => 0 | h :: t => case b | [] => g(t)(b) | j :: u => g(a)(u) end end in theorem t = g([1])([2]) == g([1])([2]) proof axiom refl_eq at 0 on g([1])([2]) == g([1])([2]) end in t|},
+    {|let g = fun a -> fun b -> case a | [] => 0 | h :: t => case b | [] => g(t)(b) | j :: u => g(a)(u) end end in theorem t = g([1])([2]) == g([1])([2]) proof from g([1])([2]) == g([1])([2]) do axiom refl_eq end end in t|},
   );
 
 /* Shadowing kills the strict-subterm status: `t` is rebound before
  * the call. */
 let test_shadowed_subterm_refused = () =>
   expect_refused(
-    {|let s = fun l -> case l | [] => 0 | h :: t => let t = [] in s(t) end in theorem t = s([1]) == s([1]) proof axiom refl_eq at 0 on s([1]) == s([1]) end in t|},
+    {|let s = fun l -> case l | [] => 0 | h :: t => let t = [] in s(t) end in theorem t = s([1]) == s([1]) proof from s([1]) == s([1]) do axiom refl_eq end end in t|},
   );
 
 let tests = (

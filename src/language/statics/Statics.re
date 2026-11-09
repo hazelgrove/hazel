@@ -758,8 +758,8 @@ and uexp_to_info_map =
         )
       };
     | Var(name) when is_in_filter && MetaVar.is_meta_name(name) =>
-      /* Inside a pattern (a stepper filter, or a proof-step `on`/`at`
-         target slot), a metavariable stands for any expression/value, so
+      /* Inside a pattern (a stepper filter, or a proof focus's
+         selector), a metavariable stands for any expression/value, so
          we synthesize to `?` without consulting the ctx. Returning an
          empty co_ctx is what keeps it from reading as a free variable.
          `MetaVar` owns the naming convention: `$e`, `$v`, and the named
@@ -4552,8 +4552,8 @@ and proof_to_info_map =
       m,
     );
   /* A proof's binders (case patterns, `forall x =>`, `funext x =>`) name
-     parts of the goal, which steps reach through the goal (`eval $e at 0
-     end`) as often as by name, so they count as used. Fact names (`as`,
+     parts of the goal, which steps reach through the goal (`from $e do`)
+     as often as by name, so they count as used. Fact names (`as`,
      `alias`) bind in the theorem namespace, not the variable one, so no
      unused-variable warning applies to them either. */
   let go_binder = (~ana=?, p: Pat.t, m: Map.t) =>
@@ -4561,15 +4561,6 @@ and proof_to_info_map =
   let go_prop = (e: Exp.t, m: Map.t): (Exp.t, Map.t) => {
     let (_, e, m) = go_exp(~ana=Atom(Bool) |> Typ.temp, e, m);
     (e, m);
-  };
-  /* `at <idx> on <target>`. The target is a pattern whose `$e`/`$v`/`$x`
-     metavariables (`MetaVar`) must not read as free variables, which
-     `is_in_filter` gives any metavariable-bearing pattern, not only
-     filters. */
-  let go_at = (at_idx: Exp.t, at_exp: Exp.t, m: Map.t) => {
-    let (_, at_idx, m) = go_exp(~ana=Atom(Int) |> Typ.temp, at_idx, m);
-    let (_, at_exp, m) = go_exp(~is_in_filter=true, at_exp, m);
-    (at_idx, at_exp, m);
   };
   /* An `as <name>` clause is walked for its info, but its ctx is
      discarded: like a theorem's name, it binds in the theorem namespace,
@@ -4600,7 +4591,7 @@ and proof_to_info_map =
     );
   /* `ctx` with `name` bound to a placeholder variable, for walking a name
      that isn't a program variable without marking it `Free`. */
-  let with_placeholder = (name: Var.t): Ctx.t =>
+  let with_placeholder = (~ctx=ctx, name: Var.t): Ctx.t =>
     Ctx.extend(
       ctx,
       VarEntry({
@@ -4724,8 +4715,7 @@ and proof_to_info_map =
   | Parens(p) =>
     let (p, m) = go(p, m);
     add(Parens(p), m);
-  | AxiomStep({at_idx, at_exp, direction, equality, instantiation}) =>
-    let (at_idx, at_exp, m) = go_at(at_idx, at_exp, m);
+  | AxiomStep({direction, equality, instantiation}) =>
     /* The equality slot names a fact; it can't be an arbitrary
        expression. */
     let (cited, equality_elab, m) =
@@ -4754,31 +4744,54 @@ and proof_to_info_map =
       );
     add(
       AxiomStep({
-        at_idx,
-        at_exp,
         direction,
         equality: equality_elab,
         instantiation,
       }),
       m,
     );
-  | AlgebriteStep({at_idx, at_exp, with_exp}) =>
-    let (at_idx, at_exp, m) = go_at(at_idx, at_exp, m);
-    let (_, with_exp, m) = go_exp(with_exp, m);
+  | AlgebriteStep(replacement) =>
+    let (_, replacement, m) = go_exp(replacement, m);
+    add(AlgebriteStep(replacement), m);
+  | EvalStep => add(EvalStep, m)
+  | Focus({ordinal, selector, body}) =>
+    /* The selector is a pattern over the goal. Its `$e`/`$v`/`$x`
+       metavariables (`MetaVar`) must not read as free variables, which
+       `is_in_filter` gives any metavariable-bearing pattern. It may also
+       name variables the goal binds (`x` under a `fun x ->`), which the
+       ctx doesn't have, so a name the ctx lacks is walked as a
+       placeholder; a selector that matches nothing is the checker's to
+       report. */
+    let names = ref([]);
+    let _: Exp.t =
+      Exp.map_term(
+        ~f_exp=
+          (continue, e) => {
+            switch (e.term) {
+            | Var(x)
+                when
+                  Ctx.lookup_var(ctx, x) == None && !MetaVar.is_meta_name(x) =>
+              names := [x, ...names^]
+            | _ => ()
+            };
+            continue(e);
+          },
+        selector,
+      );
+    let selector_ctx =
+      List.fold_left(
+        (ctx, name) => with_placeholder(~ctx, name),
+        ctx,
+        names^,
+      );
+    let (_, selector, m) =
+      go_exp(~ctx=selector_ctx, ~is_in_filter=true, selector, m);
+    let (body, m) = go(body, m);
     add(
-      AlgebriteStep({
-        at_idx,
-        at_exp,
-        with_exp,
-      }),
-      m,
-    );
-  | EvalStep({at_idx, at_exp}) =>
-    let (at_idx, at_exp, m) = go_at(at_idx, at_exp, m);
-    add(
-      EvalStep({
-        at_idx,
-        at_exp,
+      Focus({
+        ordinal,
+        selector,
+        body,
       }),
       m,
     );

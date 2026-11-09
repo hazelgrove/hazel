@@ -142,7 +142,7 @@ let test_forall_where_is_forall_of_where = () =>
  * restriction still discharges the scanned denominator condition
  * Remotely and the theorem is still fully Proven. */
 let test_forall_where_still_proves = () => {
-  let src = {|theorem t = forall z where z != 0 -> 8 / z == 8 / z proof axiom refl_eq at 0 on 8 / z == 8 / z end in t|};
+  let src = {|theorem t = forall z where z != 0 -> 8 / z == 8 / z proof from 8 / z == 8 / z do axiom refl_eq end end in t|};
   let (pm, proof, obs) = obligations(src);
   Alcotest.check(Alcotest.int, "one scanned condition", 1, List.length(obs));
   switch (obs) {
@@ -386,7 +386,7 @@ let test_paren_and_bare_binder_agree = () => {
  * The second arm also carries `!(w != 0)`: an arm is only reached when
  * the arms above it failed, so an earlier overlapping guarded arm
  * contributes its guard's negation. */
-let induction_two_arms = {|theorem t = forall z -> 8 / z == 8 / z proof induction z | w where w != 0 => axiom refl_eq at 0 on 8 / w == 8 / w end | w => axiom refl_eq at 0 on 8 / w == 8 / w end end in t|};
+let induction_two_arms = {|theorem t = forall z -> 8 / z == 8 / z proof induction z | w where w != 0 => from 8 / w == 8 / w do axiom refl_eq end end | w => from 8 / w == 8 / w do axiom refl_eq end end end in t|};
 
 let is_where_entry = (e: Ctx.entry): option(Exp.t) =>
   switch (e) {

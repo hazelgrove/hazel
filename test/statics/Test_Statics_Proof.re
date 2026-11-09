@@ -73,21 +73,21 @@ let tests = (
        referring to it should not produce a FreeHypothesis mark. */
     expects_no_mark(
       "axiom refl_eq is a known hypothesis",
-      {|theorem t = true proof axiom refl_eq at 0 on 1 end in t|},
+      {|theorem t = true proof from 1 do axiom refl_eq end end in t|},
       is_free_hyp,
     ),
     /* A completely unknown name in the axiom equality slot should
        trigger FreeHypothesis. */
     expects_mark(
       "axiom bogus is a free hypothesis",
-      {|theorem t = true proof axiom bogus at 0 on 1 end in t|},
+      {|theorem t = true proof from 1 do axiom bogus end end in t|},
       is_free_hyp,
     ),
     /* `forall x => ...`: `x` should be visible as a variable,
        not as a hypothesis. */
     expects_no_mark(
       "forall binds a variable visible in body",
-      {|theorem t = true proof forall x => axiom refl_eq at 0 on x end in 0|},
+      {|theorem t = true proof forall x => from x do axiom refl_eq end end in 0|},
       is_free_var,
     ),
     /* The theorem introduces the goal's outer `forall`-bound variables
@@ -95,7 +95,7 @@ let tests = (
        `forall x -> x == x` is not a free variable. */
     expects_no_mark(
       "theorem goal forall var is visible in proof",
-      {|theorem t = forall x -> x == x proof axiom refl_eq at 0 on x == x end in 0|},
+      {|theorem t = forall x -> x == x proof from x == x do axiom refl_eq end end in 0|},
       is_free_var,
     ),
     /* Proof induction must be exhaustive: a list induction with only the
@@ -135,7 +135,7 @@ let tests = (
        hypothesis. */
     expects_no_mark(
       "assume body sees the hypothesis",
-      {|theorem t = 1 == 1 proof assume 2 == 2 => axiom assume at 0 on 2 end in t|},
+      {|theorem t = 1 == 1 proof assume 2 == 2 => from 2 do axiom assume end end in t|},
       is_free_hyp,
     ),
     /* The assumption analyzes against Bool: a non-bool assumption is a
@@ -199,7 +199,7 @@ let tests = (
        hypothesis. */
     expects_no_mark(
       "forall-where restriction is citable as `where`",
-      {|theorem t = forall x where x == 1 -> x == 1 proof axiom where at 0 on x end in 0|},
+      {|theorem t = forall x where x == 1 -> x == 1 proof from x do axiom where end end in 0|},
       is_free_hyp,
     ),
     /* --- Proofs are not values ---------------------------------------
@@ -224,7 +224,7 @@ let tests = (
        namespace. */
     expects_no_mark(
       "citation finds a theorem shadowed by a later value binding",
-      {|theorem lem = 1 == 1 proof ? in let lem = 5 in theorem g = true proof axiom lem at 0 on 1 end in lem|},
+      {|theorem lem = 1 == 1 proof ? in let lem = 5 in theorem g = true proof from 1 do axiom lem end end in lem|},
       is_free_hyp,
     ),
     /* (d) Hypotheses are invisible to expressions for the same reason:
@@ -242,32 +242,32 @@ let tests = (
        so naming a split is what makes it visible here. */
     expects_no_mark(
       "an induction `as` name is a known hypothesis at edit time",
-      {|theorem t = forall n -> n == n proof induction n > 0 as h | true => axiom h at 0 on n end | false => ? end in t|},
+      {|theorem t = forall n -> n == n proof induction n > 0 as h | true => from n do axiom h end end | false => ? end in t|},
       is_free_hyp,
     ),
     /* ...and it is visible in every case, not just the first. */
     expects_no_mark(
       "an induction `as` name is visible in every case",
-      {|theorem t = forall n -> n == n proof induction n > 0 as h | true => ? | false => axiom h at 0 on n end end in t|},
+      {|theorem t = forall n -> n == n proof induction n > 0 as h | true => ? | false => from n do axiom h end end end in t|},
       is_free_hyp,
     ),
     /* An `as` name is scoped to its own form. */
     expects_mark(
       "an induction `as` name does not escape its form",
-      {|theorem t = forall n -> n == n proof induction n > 0 as h | true => ? | false => ? end; axiom h at 0 on n end in t|},
+      {|theorem t = forall n -> n == n proof induction n > 0 as h | true => ? | false => ? end; from n do axiom h end end in t|},
       is_free_hyp,
     ),
     /* A duplicate `as` name shadows rather than erroring: the inner
        binding hides the outer, and the citation still resolves. */
     expects_no_mark(
       "a duplicate `as` name shadows without erroring",
-      {|theorem t = forall n -> forall m -> n == n proof induction n > 0 as h | true => induction m > 0 as h | true => axiom h at 0 on m end | false => ? end | false => ? end in t|},
+      {|theorem t = forall n -> forall m -> n == n proof induction n > 0 as h | true => induction m > 0 as h | true => from m do axiom h end end | false => ? end | false => ? end in t|},
       is_free_hyp,
     ),
     /* `assume <e> as <h>` likewise. */
     expects_no_mark(
       "an assume `as` name is a known hypothesis at edit time",
-      {|theorem t = forall n -> n == n proof assume n == 1 as h => axiom h at 0 on n end in t|},
+      {|theorem t = forall n -> n == n proof assume n == 1 as h => from n do axiom h end end in t|},
       is_free_hyp,
     ),
     /* An `as`/`alias` name binds only in the theorem namespace: like the
@@ -281,7 +281,7 @@ let tests = (
        body sees it. */
     expects_no_mark(
       "an alias name is a known hypothesis at edit time",
-      {|theorem t = forall n -> n == n proof assume n == 1 => alias h = assume => axiom h at 0 on n end in t|},
+      {|theorem t = forall n -> n == n proof assume n == 1 => alias h = assume => from n do axiom h end end in t|},
       is_free_hyp,
     ),
     /* The alias's fact slot is a fact reference, not a program variable:

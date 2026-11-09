@@ -5,8 +5,8 @@ open Test_ProofMap.Harness;
 
 /* Explicit instantiation at the citation site:
  *
- *   `axiom <name> with <x> = <e> at <i> on <target> end`
- *   `axiomrev <name> with <x> = <e> at <i> on <target> end`
+ *   `axiom <name> with <x> = <e> end`
+ *   `axiomrev <name> with <x> = <e> end`
  *   `revert <fact> with <x> = <e> => <proof>`
  *
  * For the axiom step the binding is seeded into `MatchExp`'s match
@@ -65,7 +65,7 @@ let test_axiom_underdetermined_without_with = () => {
   let (pm, proof) =
     run_named(
       "g",
-      src("theorem g = f(2) == 3 proof axiom lem at 0 on f(2) end in g"),
+      src("theorem g = f(2) == 3 proof from f(2) do axiom lem end end in g"),
     );
   if (!
         has_mark_kind(
@@ -90,7 +90,7 @@ let test_axiom_with_resolves = () => {
     run_named(
       "g",
       src(
-        "theorem g = f(2) == 3 proof axiom lem with n = 1 at 0 on f(2) end; eval 3 == 3 at 0 end in g",
+        "theorem g = f(2) == 3 proof from f(2) do axiom lem with n = 1 end end; from 3 == 3 do eval end in g",
       ),
     );
   check_mark_free("axiom+with", pm, proof);
@@ -109,7 +109,7 @@ let test_axiomrev_with_resolves = () => {
     run_named(
       "g",
       src(
-        "theorem g = 3 == 3 proof axiomrev lem with n = 1 at 0 on 3 end in g",
+        "theorem g = 3 == 3 proof from 3 do axiomrev lem with n = 1 end end in g",
       ),
     );
   check_mark_free("axiomrev+with", pm, proof);
@@ -122,7 +122,7 @@ let test_axiom_with_unknown_var = () => {
     run_named(
       "g",
       src(
-        "theorem g = f(2) == 3 proof axiom lem with m = 1 at 0 on f(2) end in g",
+        "theorem g = f(2) == 3 proof from f(2) do axiom lem with m = 1 end end in g",
       ),
     );
   if (!
@@ -152,7 +152,7 @@ let test_axiom_with_divergent_is_refused = () => {
       prelude
       ++ diverger
       ++ lem
-      ++ "theorem g = f(2) == 3 proof axiom lem with n = bad(1) at 0 on f(2) end in g",
+      ++ "theorem g = f(2) == 3 proof from f(2) do axiom lem with n = bad(1) end end in g",
     );
   if (!
         has_mark_kind(
@@ -176,7 +176,7 @@ let test_axiom_with_domain_condition = () => {
     run_named(
       "g",
       src(
-        "theorem g = forall d: Int -> f(2) == 3 proof forall d => axiom lem with n = 6 / d at 0 on f(2) end; eval 3 == 3 at 0 end in g",
+        "theorem g = forall d: Int -> f(2) == 3 proof forall d => from f(2) do axiom lem with n = 6 / d end end; from 3 == 3 do eval end in g",
       ),
     );
   check_has_obligation(
@@ -199,7 +199,7 @@ let test_revert_with_instantiates = () => {
       "g",
       prelude
       ++ quantified
-      ++ "theorem g = f(2) == 3 proof revert p with n = 5 => eval 5 + 0 at 0 end; eval 5 == 5 at 0 end; eval true ==> f(2) == 3 at 0 end; eval f(2) at 0 end; eval 2 + 1 at 0 end; eval 3 == 3 at 0 end in g",
+      ++ "theorem g = f(2) == 3 proof revert p with n = 5 => from 5 + 0 do eval end; from 5 == 5 do eval end; from true ==> f(2) == 3 do eval end; from f(2) do eval end; from 2 + 1 do eval end; from 3 == 3 do eval end in g",
     );
   check_mark_free("revert+with", pm, proof);
   check_status("revert+with closes the goal", ProofMap.Proven, pm, proof);
@@ -326,7 +326,13 @@ let zero_mul = "theorem z = forall n: Int -> 0 == n * 0 proof ? in ";
 
 let check_underdetermined_passes_through = (src: string) => {
   let (pm, proof) = run_named("g", zero_mul ++ src);
-  switch (ProofMap.lookup(Proof.rep_id(proof), pm)) {
+  /* The citation, inside the focus on `0`. */
+  let step =
+    switch (proof.term) {
+    | Focus({body, _}) => body
+    | _ => proof
+    };
+  switch (ProofMap.lookup(Proof.rep_id(step), pm)) {
   | Some({
       marks: [UnderdeterminedInstantiation({equality: "z"})],
       incoming,
@@ -345,13 +351,13 @@ let check_underdetermined_passes_through = (src: string) => {
 
 let test_unassigned_binder_in_conclusion = () =>
   check_underdetermined_passes_through(
-    "theorem g = 0 == 0 proof axiom z at 0 on 0 end in g",
+    "theorem g = 0 == 0 proof from 0 do axiom z end end in g",
   );
 
 /* The proof's own `n` doesn't count as an assignment of the rule's. */
 let test_unassigned_binder_shadowed = () =>
   check_underdetermined_passes_through(
-    "theorem g = forall n: Int -> 0 == 0 proof axiom z at 0 on 0 end in g",
+    "theorem g = forall n: Int -> 0 == 0 proof from 0 do axiom z end end in g",
   );
 
 let test_discovery_skips_unassigned_binder = () => {

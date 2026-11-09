@@ -488,7 +488,7 @@ module View = {
         (
           ~globals: Globals.t,
           /* Writes a picked step into the proof. */
-          ~write: TermBase.Proof.term => Ui_effect.t(unit),
+          ~write: Picker.pick => Ui_effect.t(unit),
           ~inject: Update.action => Ui_effect.t(unit),
           ~take_box_focus: Ui_effect.t(unit),
           ~box_focused: bool,
@@ -514,13 +514,26 @@ module View = {
         );
       /* Picking a step forces the record open, or the row just written
        * would not be on screen. */
-      let write = term =>
+      let write = (pick: Picker.pick) =>
         Ui_effect.Many([
           globals.inject_global(Set(Evaluation(ForceShowRecord))),
-          write(term),
+          write(pick),
         ]);
-      let index_of_selected = () =>
-        Occurrence.index(selected_or_hole, goal.display);
+      /* A step picked in a box acts on the selection. */
+      let write_at_selection = term =>
+        switch (selected) {
+        | Some(node) =>
+          write({
+            at: Picker.target(goal, node),
+            step: Proof.fresh(term),
+          })
+        | None => Ui_effect.Ignore
+        };
+      let write_whole = term =>
+        write({
+          at: None,
+          step: Proof.fresh(term),
+        });
       /* Its pointerdown stops here: reaching the goal's editor, it would
        * move the selection. */
       let button = (~tooltip: string, label: string, effect) =>
@@ -550,19 +563,11 @@ module View = {
           | Some(true) => [
               Node.text("Valid"),
               button(
-                ~tooltip="Writes `algebra`: replaces the selection",
+                ~tooltip="Writes `rewrite`: replaces the selection",
                 "Replace",
-                switch (index_of_selected()) {
-                | Some(at_idx) =>
-                  write(
-                    Picker.Terms.algebrite_step(
-                      ~at_idx,
-                      ~at_exp=selected_or_hole,
-                      ~with_exp=replacement,
-                    ),
-                  )
-                | None => Ui_effect.Ignore
-                },
+                write_at_selection(
+                  Picker.Terms.algebrite_step(~replacement),
+                ),
               ),
             ]
           | Some(false) => [Node.text("Not equal")]
@@ -610,14 +615,7 @@ module View = {
       };
       let rule = (entry: ProofCtx.entry) => {
         let apply = (direction, equality) =>
-          write(
-            Picker.Terms.axiom_step(
-              ~at_idx=index_of_selected() |> Option.value(~default=0),
-              ~at_exp=selected_or_hole,
-              ~direction,
-              ~equality,
-            ),
-          );
+          write_at_selection(Picker.Terms.axiom_step(~direction, ~equality));
         AssumptionBox.View.view(
           ~globals,
           ~info_map,
@@ -679,7 +677,7 @@ module View = {
           "strategy",
           switch (picks) {
           | Writes(term) => [
-              button(~tooltip, label, write(term)),
+              button(~tooltip, label, write_whole(term)),
               explanation,
             ]
           | Cites(facts) => [
@@ -695,7 +693,7 @@ module View = {
                     Node.text("with"),
                     ...List.map(
                          ((name, term)) =>
-                           button(~tooltip, name, write(term)),
+                           button(~tooltip, name, write_whole(term)),
                          facts,
                        ),
                   ]
@@ -726,7 +724,7 @@ module View = {
           ~tooltip,
           label,
           switch (action) {
-          | Write(term) => write(term)
+          | Write(pick) => write(pick)
           | Open(box) => inject(Toggle(box))
           },
         );
@@ -776,13 +774,16 @@ module View = {
   };
 
   /* The row's justification: the step's keyword, or the cited equality's
-   * name. */
-  let justification = (step: Proof.t): string =>
+   * name. A one-step focus is drawn as its step. */
+  let rec justification = (step: Proof.t): string =>
     switch (step.term) {
     | AxiomStep({equality, _}) =>
       ProofSyntax.exp_to_name(equality) |> Option.value(~default="")
     | AlgebriteStep(_) => "algebra"
-    | EvalStep(_) => "eval"
+    | EvalStep => "eval"
+    | Focus(_) =>
+      Rows.single_step(step)
+      |> Option.fold(~none="focus", ~some=justification)
     | Contradiction(_) => "contradiction"
     | Forall(_) => "forall"
     | Funext(_) => "extensionality"
@@ -831,17 +832,17 @@ module View = {
           ),
         any,
       );
-    /* Writes `term` where `row`'s picker writes. A form with an argument
+    /* Writes `pick` where `row`'s picker writes. A form with an argument
      * then takes the caret into it: the backing editor's caret moves into
      * the new argument (a sub-editor takes no edits, and draws no caret,
      * while the caret is outside it), the new step's sub-editor takes
      * focus, and DOM focus follows after the render, as the click left it
      * on the button. */
-    let write = (row: Rows.t, term: TermBase.Proof.term) => {
-      let step = Proof.fresh(term);
+    let write = (row: Rows.t, goal: Picker.Goal.t, pick: Picker.pick) => {
+      let step = pick.step;
       let into_arg =
-        switch (Picker.Terms.arg_id(term)) {
-        | Some(arg_id) => [
+        switch (pick.at, Picker.Terms.arg_id(step.term)) {
+        | (None, Some(arg_id)) => [
             backing.inject(Perform(Move(Goal(TileId(arg_id))))),
             take_focus(Splice(Proof.rep_id(step), Arg)),
             Ui_effect.of_sync_fun(
@@ -849,10 +850,11 @@ module View = {
               (),
             ),
           ]
-        | None => []
+        | (_, None)
+        | (Some(_), _) => []
         };
       Ui_effect.Many(
-        [edit_syntax(Picker.Patches.write(row, step))] @ into_arg,
+        [edit_syntax(Picker.write(row, goal, pick))] @ into_arg,
       );
     };
     /* A slice of the proof text, edited in place in the backing editor.
@@ -883,9 +885,9 @@ module View = {
     let goal_editor = (~hints: bool, row: Rows.t, local: Model.local) => {
       let goal = local.goal;
       let selected_id = Option.map(Exp.rep_id, Picker.Goal.selected(goal));
-      let write_opt = term =>
-        term
-        |> Option.map(write(row))
+      let write_opt = pick =>
+        pick
+        |> Option.map(write(row, goal))
         |> Option.value(~default=Ui_effect.Ignore);
       StepperEditor.View.view(
         ~globals,
@@ -895,7 +897,7 @@ module View = {
           | TakeStep(idx) => write_opt(Picker.take_step(goal, idx))
           | Refl(idx) =>
             write_opt(
-              Option.bind(List.nth_opt(goal.refls, idx), Picker.refl(goal)),
+              Option.map(Picker.refl(goal), List.nth_opt(goal.refls, idx)),
             ),
         ~inject=a => inject((row.key, Goal(a))),
         ~selected=focused(Goal(row.key)),
@@ -903,7 +905,7 @@ module View = {
         ~overlays=
           Overlay.view(
             ~globals,
-            ~write=write(row),
+            ~write=write(row, goal),
             ~inject=a => inject((row.key, a)),
             ~take_box_focus=take_focus(Box(row.key)),
             ~box_focused=focused(Box(row.key)),
@@ -1136,7 +1138,24 @@ module View = {
               @ (has_arms ? arms(row, nested) : []),
             )
           };
-        let justification = Node.text(justification(step));
+        /* A one-step focus names its step and what it focuses on. */
+        let justification =
+          switch (Rows.single_step(step), step.term) {
+          | (Some(inner), Focus({ordinal, selector, _})) =>
+            let ordinal =
+              switch (ordinal) {
+              | Some(n) => Token.Ordinal.to_string(n) ++ " "
+              | None => ""
+              };
+            div_c(
+              "step-focus-justification",
+              [
+                Node.text(justification(inner) ++ " · " ++ ordinal),
+                code(Exp(selector)),
+              ],
+            );
+          | _ => Node.text(justification(step))
+          };
         Row.view(
           ~globals,
           ~status,
@@ -1284,7 +1303,20 @@ module View = {
         )
       | (Cases(case_rows), Induction(scrut, _, cases)) =>
         induction(row, scrut, cases, case_rows)
-      | (Leaf | Body(_) | Cases(_) | Premises(_), _) => []
+      /* The selector, its ordinal included, is edited in place in the bar
+       * that opens the C. */
+      | (Focus(rows), Focus({selector, _})) =>
+        dark(
+          arm(
+            [
+              Node.text("from "),
+              form_arg(Exp(selector)),
+              note([Node.text("rewritten in place")]),
+            ],
+            chain(rows),
+          ),
+        )
+      | (Leaf | Body(_) | Cases(_) | Premises(_) | Focus(_), _) => []
       };
     }
     and induction = (row: Rows.t, scrut: Exp.t, cases, case_rows) => {

@@ -984,6 +984,11 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           TyAlias(tpat, def, r)
         | (F(Compound(If)), [Exp(cond), Exp(conseq)]) =>
           If(cond, conseq, r)
+        /* A focus's ordinal (`from 2nd x + 1 do`), read back off the
+           lexeme by the proof form. */
+        | (F(Tok(t)), []) when Token.is_ordinal(t) =>
+          set_lexeme(t);
+          hole(tm);
         | _ => hole(tm)
         },
       )
@@ -1772,12 +1777,10 @@ and proof = unsorted => {
 and proof_term: unsorted => (Proof.term, list(Id.t)) = {
   let ret = (term: Proof.term) => (term, []);
   let hole = unsorted => Proof.hole(kids_of_unsorted(unsorted));
-  let axiom = (direction, ~instantiation=?, equality, at_idx, at_exp) =>
+  let axiom = (direction, ~instantiation=?, equality) =>
     ret(
       AxiomStep({
         equality,
-        at_idx,
-        at_exp,
         direction,
         instantiation,
       }),
@@ -1804,49 +1807,21 @@ and proof_term: unsorted => (Proof.term, list(Id.t)) = {
       | (F(Compound(Parens)), [kid]) =>
         /* Cross-sort parens (see the exp case) */
         ret(Parens(IdTagged.mk_internal([Id.mk()], Proof.hole([kid]))))
-      | (
-          F(Compound(ProofAxiom)),
-          [Exp(equality), Exp(at_idx), Exp(at_exp)],
-        ) =>
-        axiom(Direction.Right, equality, at_idx, at_exp)
-      | (
-          F(Compound(ProofAxiomRev)),
-          [Exp(equality), Exp(at_idx), Exp(at_exp)],
-        ) =>
-        axiom(Direction.Left, equality, at_idx, at_exp)
+      | (F(Compound(ProofAxiom)), [Exp(equality)]) =>
+        axiom(Direction.Right, equality)
+      | (F(Compound(ProofAxiomRev)), [Exp(equality)]) =>
+        axiom(Direction.Left, equality)
       | (
           F(Compound(ProofAxiomWith)),
-          [Exp(equality), Exp(var), Exp(inst), Exp(at_idx), Exp(at_exp)],
+          [Exp(equality), Exp(var), Exp(inst)],
         ) =>
-        axiom(
-          Direction.Right,
-          ~instantiation=(var, inst),
-          equality,
-          at_idx,
-          at_exp,
-        )
+        axiom(Direction.Right, ~instantiation=(var, inst), equality)
       | (
           F(Compound(ProofAxiomRevWith)),
-          [Exp(equality), Exp(var), Exp(inst), Exp(at_idx), Exp(at_exp)],
+          [Exp(equality), Exp(var), Exp(inst)],
         ) =>
-        axiom(
-          Direction.Left,
-          ~instantiation=(var, inst),
-          equality,
-          at_idx,
-          at_exp,
-        )
-      | (
-          F(Compound(ProofAlgebrite)),
-          [Exp(at_exp), Exp(with_exp), Exp(at_idx)],
-        ) =>
-        ret(
-          AlgebriteStep({
-            at_exp,
-            with_exp,
-            at_idx,
-          }),
-        )
+        axiom(Direction.Left, ~instantiation=(var, inst), equality)
+      | (F(Compound(ProofAlgebrite)), [Exp(e)]) => ret(AlgebriteStep(e))
       | (F(Compound(ProofContradiction)), [Exp(e)]) =>
         ret(Contradiction(e, None))
       | (
@@ -1854,13 +1829,35 @@ and proof_term: unsorted => (Proof.term, list(Id.t)) = {
           [Exp(e), Exp(var), Exp(inst)],
         ) =>
         ret(Contradiction(e, Some((var, inst))))
-      | (F(Compound(ProofEval)), [Exp(at_exp), Exp(at_idx)]) =>
-        ret(
-          EvalStep({
-            at_idx,
-            at_exp,
-          }),
-        )
+      | (F(Compound(ProofEval)), []) => ret(EvalStep)
+      /* An ordinal parses as an unknown prefix operator over the rest of
+         the selector, a one-kid MultiHole whose lexeme is the ordinal.
+         Its tile id is absorbed, as induction absorbs its rules'. */
+      | (F(Compound(ProofFocus)), [Exp(selector), Proof(body)]) =>
+        switch (selector) {
+        | {
+            term: MultiHole([Exp(inner)]),
+            annotation: {lexeme: Some(t), ids, _},
+          }
+            when Token.is_ordinal(t) =>
+          adopted_ids := ids @ adopted_ids^;
+          (
+            Focus({
+              ordinal: Token.Ordinal.of_string(t),
+              selector: inner,
+              body,
+            }),
+            ids,
+          );
+        | _ =>
+          ret(
+            Focus({
+              ordinal: None,
+              selector,
+              body,
+            }),
+          )
+        }
       | (F(Compound(ProofInduction)), [PRul(prul)]) =>
         induction(tm, prul, (scrut, cases) => Induction(scrut, None, cases))
       /* The PRul's leading term is the `as` name (see
