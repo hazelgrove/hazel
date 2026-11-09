@@ -654,7 +654,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
 
   /* Interleave shards and children with Break. Children get Nest so
      multi-line children indent relative to keywords. The Group keeps the
-     tile flat when it fits (`eval 1 at 0 end`) even when the surrounding
+     tile flat when it fits (`axiom refl_eq end`) even when the surrounding
      context breaks, e.g. a proof step before a `;`. */
   let keywords_doc = (): doc => {
     let rec build_rest =

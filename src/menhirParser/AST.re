@@ -202,18 +202,18 @@ and proof =
   /* `have <exp> proof <subproof> => <body>`: the asserted proposition,
      its proof, and the body it is a hypothesis for. */
   | ProofHave(exp, proof, proof)
-  /* (equality, at_idx, at_exp) — argument order follows the surface
-     syntax `axiom <equality> at <at_idx> on <at_exp> end`. */
-  | ProofAxiom(exp, exp, exp)
-  | ProofAxiomRev(exp, exp, exp)
-  /* (equality, var, instantiation, at_idx, at_exp) — surface order of
-     `axiom <equality> with <var> = <exp> at <at_idx> on <at_exp> end`. */
-  | ProofAxiomWith(exp, exp, exp, exp, exp)
-  | ProofAxiomRevWith(exp, exp, exp, exp, exp)
-  /* `rewrite <at_exp> with <with_exp> at <at_idx> end` */
-  | ProofAlgebrite(exp, exp, exp)
-  /* `eval <at_exp> at <at_idx> end` */
-  | ProofEval(exp, exp)
+  /* `axiom <equality> end` */
+  | ProofAxiom(exp)
+  | ProofAxiomRev(exp)
+  /* (equality, var, instantiation): `axiom <equality> with <var> = <exp>
+     end`. */
+  | ProofAxiomWith(exp, exp, exp)
+  | ProofAxiomRevWith(exp, exp, exp)
+  /* `rewrite <replacement> end` */
+  | ProofAlgebrite(exp)
+  | ProofEval
+  /* `from [<ordinal>] <selector> do <proof> end` */
+  | ProofFocus(option(int), exp, proof)
   /* `contradiction <exp> end` */
   | ProofContradiction(exp)
   /* `contradiction <fact> with <var> = <exp> end`: the extra (var, exp)

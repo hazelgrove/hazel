@@ -81,7 +81,7 @@ let expect_refused = (src: string): unit => {
  * induction scrutinee is gated separately). */
 let test_abstract_function_applied = () =>
   expect_pass(
-    {|theorem t = forall f: (Int -> Int) -> forall x: Int -> f(x) == f(x) proof axiom refl_eq at 0 on f(x) == f(x) end in t|},
+    {|theorem t = forall f: (Int -> Int) -> forall x: Int -> f(x) == f(x) proof from f(x) == f(x) do axiom refl_eq end end in t|},
   );
 
 /* --- Higher-order builtins -------------------------------------------- */
@@ -92,7 +92,7 @@ let test_abstract_function_applied = () =>
  * assumed total" rule even with no abstract function in sight. */
 let test_fold_left_concrete_function = () =>
   expect_pass(
-    {|let add1 = fun (acc, _) -> acc + 1 in theorem t = forall xs: [Int] -> forall acc: Int -> fold_left(xs, add1, acc) == fold_left(xs, add1, acc) proof axiom refl_eq at 0 on fold_left(xs, add1, acc) == fold_left(xs, add1, acc) end in t|},
+    {|let add1 = fun (acc, _) -> acc + 1 in theorem t = forall xs: [Int] -> forall acc: Int -> fold_left(xs, add1, acc) == fold_left(xs, add1, acc) proof from fold_left(xs, add1, acc) == fold_left(xs, add1, acc) do axiom refl_eq end end in t|},
   );
 
 /* An abstract `f` through `fold_left`. Walking
@@ -108,7 +108,7 @@ let test_fold_left_concrete_function = () =>
  * `eval`, not of totality, so this file tests `E == E` instead. */
 let test_fold_left_abstract_function = () =>
   expect_pass(
-    {|theorem t = forall f: ((Int, Int) -> Int) -> forall x: Int -> forall xs: [Int] -> forall acc: Int -> fold_left(x :: xs, f, acc) == fold_left(x :: xs, f, acc) proof axiom refl_eq at 0 on fold_left(x :: xs, f, acc) == fold_left(x :: xs, f, acc) end in t|},
+    {|theorem t = forall f: ((Int, Int) -> Int) -> forall x: Int -> forall xs: [Int] -> forall acc: Int -> fold_left(x :: xs, f, acc) == fold_left(x :: xs, f, acc) proof from fold_left(x :: xs, f, acc) == fold_left(x :: xs, f, acc) do axiom refl_eq end end in t|},
   );
 
 /* --- Totality is not definedness -------------------------------------- */
@@ -119,13 +119,13 @@ let test_fold_left_abstract_function = () =>
  * no division to scan in `inv == inv` itself. */
 let test_inv_refl_no_divergence = () =>
   expect_pass(
-    {|let inv = fun x -> 1 / x in theorem t = inv == inv proof axiom refl_eq at 0 on inv == inv end in t|},
+    {|let inv = fun x -> 1 / x in theorem t = inv == inv proof from inv == inv do axiom refl_eq end end in t|},
   );
 
 /* The plainest first-order instantiation passes. */
 let test_first_order_var_refl = () =>
   expect_pass(
-    {|theorem t = forall x -> x == x proof axiom refl_eq at 0 on x == x end in t|},
+    {|theorem t = forall x -> x == x proof from x == x do axiom refl_eq end end in t|},
   );
 
 /* --- Refusals --------------------------------------------------------- */
@@ -133,21 +133,21 @@ let test_first_order_var_refl = () =>
 /* Non-structural (arithmetic) recursion: `n - 1` is not a subterm. */
 let test_nonstructural_recursion_refused = () =>
   expect_refused(
-    {|let f = fun n -> if n > 0 then f(n - 1) else 0 in theorem t = f(1) == f(1) proof axiom refl_eq at 0 on f(1) == f(1) end in t|},
+    {|let f = fun n -> if n > 0 then f(n - 1) else 0 in theorem t = f(1) == f(1) proof from f(1) == f(1) do axiom refl_eq end end in t|},
   );
 
 /* `omega` as a value: a looping map is not total, so `omega == omega`
  * is refused even though nothing is applied. */
 let test_omega_as_value_refused = () =>
   expect_refused(
-    {|let omega = fun x -> omega(x) in theorem t = omega == omega proof axiom refl_eq at 0 on omega == omega end in t|},
+    {|let omega = fun x -> omega(x) in theorem t = omega == omega proof from omega == omega do axiom refl_eq end end in t|},
   );
 
 /* A lambda whose body loops is not a total value either: Totality
  * looks at lambda bodies. */
 let test_lambda_with_divergent_body_refused = () =>
   expect_refused(
-    {|let omega = fun x -> omega(x) in theorem t = (fun y -> omega(y)) == (fun y -> omega(y)) proof axiom refl_eq at 0 on (fun y -> omega(y)) == (fun y -> omega(y)) end in t|},
+    {|let omega = fun x -> omega(x) in theorem t = (fun y -> omega(y)) == (fun y -> omega(y)) proof from (fun y -> omega(y)) == (fun y -> omega(y)) do axiom refl_eq end end in t|},
   );
 
 /* --- Instantiating a quantified function at a diverging function ------ */
@@ -158,7 +158,7 @@ let omega_lem =
   "let omega = fun x -> omega(x) in "
   /* A theorem statement's outer binders are auto-introduced
    * (ProofCheck.peel_stmt_binders), so no explicit `forall f =>` step. */
-  ++ "theorem lem = forall f: (Int -> Int) -> f(0) == f(0) proof axiom refl_eq at 0 on f(0) == f(0) end in ";
+  ++ "theorem lem = forall f: (Int -> Int) -> f(0) == f(0) proof from f(0) == f(0) do axiom refl_eq end end in ";
 
 let test_lemma_is_proven = () => {
   let (state, _, elab) = omega_lem ++ "lem" |> parse_exp |> eval_with_proof;
@@ -187,7 +187,7 @@ let test_instantiation_at_omega_refused = () => {
     "let omega = fun x -> omega(x) in "
     ++ "let inc = fun x -> x + 1 in "
     ++ "theorem lem = forall h: (Int -> Int) -> h(1) == 1 ==> inc(2) == 3 proof ? in "
-    ++ "theorem g = inc(2) == 3 proof axiom lem with h = omega at 0 on inc(2) end in g";
+    ++ "theorem g = inc(2) == 3 proof from inc(2) do axiom lem with h = omega end end in g";
   let (state, _, elab) = src |> parse_exp |> eval_with_proof;
   let pm = EvaluatorState.get_proof_map(state);
   let proof = proof_of_named("g", elab);
@@ -203,7 +203,7 @@ let test_instantiation_at_omega_refused = () => {
    having resolved the binder's type. */
 let test_abstract_function_applied_unannotated = () =>
   expect_pass(
-    {|theorem t = forall f -> forall x -> f(x) == f(x) proof axiom refl_eq at 0 on f(x) == f(x) end in t|},
+    {|theorem t = forall f -> forall x -> f(x) == f(x) proof from f(x) == f(x) do axiom refl_eq end end in t|},
   );
 
 let tests = (

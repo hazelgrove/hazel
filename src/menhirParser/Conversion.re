@@ -614,10 +614,8 @@ and Proof: {
   open IndicatedG.Proof;
   let rec of_menhir_ast = (pf: AST.proof): IndicatedG.proof => {
     let inst = (v, i) => (Exp.of_menhir_ast(v), Exp.of_menhir_ast(i));
-    let axiom = (direction, ~instantiation=?, eq, at_idx, at_exp) =>
+    let axiom = (direction, ~instantiation=?, eq) =>
       axiom_step(
-        ~at_idx=Exp.of_menhir_ast(at_idx),
-        ~at_exp=Exp.of_menhir_ast(at_exp),
         ~direction,
         ~equality=Exp.of_menhir_ast(eq),
         ~instantiation,
@@ -660,39 +658,16 @@ and Proof: {
         Exp.of_menhir_ast(e),
         of_menhir_ast(body),
       )
-    | ProofAxiom(eq, at_idx, at_exp) =>
-      axiom(Util.Direction.Right, eq, at_idx, at_exp)
-    | ProofAxiomRev(eq, at_idx, at_exp) =>
-      axiom(Util.Direction.Left, eq, at_idx, at_exp)
-    | ProofAxiomWith(eq, v, i, at_idx, at_exp) =>
-      axiom(
-        Util.Direction.Right,
-        ~instantiation=inst(v, i),
-        eq,
-        at_idx,
-        at_exp,
-      )
-    | ProofAxiomRevWith(eq, v, i, at_idx, at_exp) =>
-      axiom(
-        Util.Direction.Left,
-        ~instantiation=inst(v, i),
-        eq,
-        at_idx,
-        at_exp,
-      )
-    | ProofAlgebrite(at_exp, with_exp, at_idx) =>
-      algebrite_step(
-        ~at_idx=Exp.of_menhir_ast(at_idx),
-        ~at_exp=Exp.of_menhir_ast(at_exp),
-        ~with_exp=Exp.of_menhir_ast(with_exp),
-        (),
-      )
-    | ProofEval(at_exp, at_idx) =>
-      eval_step(
-        ~at_idx=Exp.of_menhir_ast(at_idx),
-        ~at_exp=Exp.of_menhir_ast(at_exp),
-        (),
-      )
+    | ProofAxiom(eq) => axiom(Util.Direction.Right, eq)
+    | ProofAxiomRev(eq) => axiom(Util.Direction.Left, eq)
+    | ProofAxiomWith(eq, v, i) =>
+      axiom(Util.Direction.Right, ~instantiation=inst(v, i), eq)
+    | ProofAxiomRevWith(eq, v, i) =>
+      axiom(Util.Direction.Left, ~instantiation=inst(v, i), eq)
+    | ProofAlgebrite(e) => algebrite_step(Exp.of_menhir_ast(e))
+    | ProofEval => eval_step()
+    | ProofFocus(ordinal, selector, body) =>
+      focus(~ordinal, Exp.of_menhir_ast(selector), of_menhir_ast(body))
     | ProofContradiction(e) => contradiction(Exp.of_menhir_ast(e))
     | ProofContradictionWith(e, v, i) =>
       contradiction(~instantiation=Some(inst(v, i)), Exp.of_menhir_ast(e))
@@ -735,30 +710,22 @@ and Proof: {
         Exp.of_core(i),
         of_core(body),
       )
-    | AxiomStep({at_idx, at_exp, direction, equality, instantiation}) =>
+    | AxiomStep({direction, equality, instantiation}) =>
       /* `axiom` applies the equality left-to-right, `axiomrev`
          right-to-left; a `with` clause picks the -With variants. */
-      let (eq, idx, ae) = (
-        Exp.of_core(equality),
-        Exp.of_core(at_idx),
-        Exp.of_core(at_exp),
-      );
+      let eq = Exp.of_core(equality);
       switch (direction, instantiation) {
-      | (Right, None) => AST.ProofAxiom(eq, idx, ae)
-      | (Left, None) => AST.ProofAxiomRev(eq, idx, ae)
+      | (Right, None) => AST.ProofAxiom(eq)
+      | (Left, None) => AST.ProofAxiomRev(eq)
       | (Right, Some((v, i))) =>
-        AST.ProofAxiomWith(eq, Exp.of_core(v), Exp.of_core(i), idx, ae)
+        AST.ProofAxiomWith(eq, Exp.of_core(v), Exp.of_core(i))
       | (Left, Some((v, i))) =>
-        AST.ProofAxiomRevWith(eq, Exp.of_core(v), Exp.of_core(i), idx, ae)
+        AST.ProofAxiomRevWith(eq, Exp.of_core(v), Exp.of_core(i))
       };
-    | AlgebriteStep({at_idx, at_exp, with_exp}) =>
-      ProofAlgebrite(
-        Exp.of_core(at_exp),
-        Exp.of_core(with_exp),
-        Exp.of_core(at_idx),
-      )
-    | EvalStep({at_idx, at_exp}) =>
-      ProofEval(Exp.of_core(at_exp), Exp.of_core(at_idx))
+    | AlgebriteStep(e) => ProofAlgebrite(Exp.of_core(e))
+    | EvalStep => ProofEval
+    | Focus({ordinal, selector, body}) =>
+      ProofFocus(ordinal, Exp.of_core(selector), of_core(body))
     | Contradiction(e, None) => ProofContradiction(Exp.of_core(e))
     | Contradiction(e, Some((v, i))) =>
       ProofContradictionWith(

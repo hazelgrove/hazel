@@ -84,7 +84,8 @@ let rec cases_closed = (pm: t, proof: Proof.t): bool =>
     | Parens(_)
     | AxiomStep(_)
     | AlgebriteStep(_)
-    | EvalStep(_)
+    | EvalStep
+    | Focus(_)
     | Forall(_)
     | Funext(_)
     | Assume(_)

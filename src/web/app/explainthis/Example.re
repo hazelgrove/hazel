@@ -118,6 +118,7 @@ let mk_axiomrev = mk_tile(ProofAxiomRev, Proof);
 let mk_axiomrev_with = mk_tile(ProofAxiomRevWith, Proof);
 let mk_rewrite_step = mk_tile(ProofAlgebrite, Proof);
 let mk_eval_step = mk_tile(ProofEval, Proof);
+let mk_focus = mk_tile(ProofFocus, Proof);
 let mk_induction = mk_tile(ProofInduction, Proof);
 let mk_proof_rule = mk_tile(Rule, PRul);
 let mk_contradiction = mk_tile(ProofContradiction, Proof);

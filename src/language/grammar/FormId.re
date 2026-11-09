@@ -22,6 +22,7 @@ type atomic_form =
   | String
   | QuotedLabel
   | IntLit
+  | Ordinal
   | FloatLit
   | BoolLit
   | LivelitName
@@ -162,7 +163,8 @@ type family =
   | ProofHave
   | ProofAssumeAs
   | ProofInductionAs
-  | ProofAlias;
+  | ProofAlias
+  | ProofFocus;
 
 /* A form identity, sort-free: label is derived from the form alone;
  * the mold is derived from (form, sort) where sort is the tile's
@@ -284,20 +286,21 @@ let label_of_family: family => Label.t =
   | ProofAssume => ["assume", "=>"]
   | ProofGeneralize => ["generalize", "=>"]
   | ProofRevert => ["revert", "=>"]
-  | ProofAxiom => ["axiom", "at", "on", "end"]
-  | ProofAxiomRev => ["axiomrev", "at", "on", "end"]
+  | ProofAxiom => ["axiom", "end"]
+  | ProofAxiomRev => ["axiomrev", "end"]
   | ProofRevertWith => ["revert", "with", "=", "=>"]
-  | ProofAxiomWith => ["axiom", "with", "=", "at", "on", "end"]
-  | ProofAxiomRevWith => ["axiomrev", "with", "=", "at", "on", "end"]
-  | ProofAlgebrite => ["rewrite", "with", "at", "end"]
+  | ProofAxiomWith => ["axiom", "with", "=", "end"]
+  | ProofAxiomRevWith => ["axiomrev", "with", "=", "end"]
+  | ProofAlgebrite => ["rewrite", "end"]
   | ProofContradiction => ["contradiction", "end"]
   | ProofContradictionWith => ["contradiction", "with", "=", "end"]
-  | ProofEval => ["eval", "at", "end"]
+  | ProofEval => ["eval"]
   | ProofInduction => ["induction", "end"]
   | ProofHave => ["have", "proof", "=>"]
   | ProofAssumeAs => ["assume", "as", "=>"]
   | ProofInductionAs => ["induction", "as", "end"]
-  | ProofAlias => ["alias", "=", "=>"];
+  | ProofAlias => ["alias", "=", "=>"]
+  | ProofFocus => ["from", "do", "end"];
 
 let label_of: t => Label.t =
   fun

@@ -1,6 +1,5 @@
 open Alcotest;
 open Language;
-open Util;
 
 /* Evaluation produces negative numbers that source can't spell: `-5`
  * written out reads back as a negation. So the stepper doesn't offer, or
@@ -29,22 +28,21 @@ let written_targets = (goal: Picker.Goal.t): list((Exp.t, int)) =>
   List.mapi((n, _) => Picker.take_step(goal, n), goal.eval_steps)
   |> List.filter_map(
        fun
-       | Some(EvalStep({at_exp, at_idx}): TermBase.Proof.term) =>
-         switch (Exp.term_of(at_idx)) {
-         | Atom(Int(n)) => Bigint.to_int(n) |> Option.map(n => (at_exp, n))
-         | _ => None
-         }
+       | Some(
+           {at: Some({selector, index, _}), step: {term: EvalStep, _}}: Picker.pick,
+         ) =>
+         Some((selector, index))
        | _ => None,
      );
 
-/* The checker's entry for `eval <selector> at <idx> end` written in the
- * hole. */
+/* The checker's entry for `eval` focused on the `idx`-th `selector`,
+ * written in the hole. */
 let check_written = (src, ~selector, ~idx): ProofMap.entry => {
   let src =
     Test_ListCaseStep.replace_once(
       ~sub="; ? in 0",
       ~by=
-        "; eval " ++ selector ++ " at " ++ string_of_int(idx) ++ " end in 0",
+        "; " ++ Test_ListCaseStep.focused_eval(~exp=selector, ~idx) ++ " in 0",
       src,
     );
   let (state, _, elab) =
@@ -68,12 +66,12 @@ let check_written = (src, ~selector, ~idx): ProofMap.entry => {
  * checks. */
 let offers_only = (src, ~spellable) => {
   switch (written_targets(hole_goal(src))) {
-  | [(at_exp, idx)] =>
+  | [(selector, idx)] =>
     check(
       string,
       "the offered selector",
       spellable,
-      Test_ProofMap.print_exp(at_exp),
+      Test_ProofMap.print_exp(selector),
     );
     check(
       list(string),
@@ -95,9 +93,9 @@ let offers_only = (src, ~spellable) => {
   };
 };
 
-let negative_int = {|theorem t = (0 - 5) * 2 == 0 - 10 proof eval 0 - 5 at 0 end; ? in 0|};
+let negative_int = {|theorem t = (0 - 5) * 2 == 0 - 10 proof from 0 - 5 do eval end; ? in 0|};
 
-let negative_float = {|theorem t = (0.0 -. 2.5) *. 2.0 ==. 0.0 -. 5.0 proof eval 0.0 -. 2.5 at 0 end; ? in 0|};
+let negative_float = {|theorem t = (0.0 -. 2.5) *. 2.0 ==. 0.0 -. 5.0 proof from 0.0 -. 2.5 do eval end; ? in 0|};
 
 let test_stale_offer = () => {
   let goal = hole_goal(negative_int);

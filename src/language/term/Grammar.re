@@ -175,27 +175,33 @@ and proof_term('a) =
    * stepper all look through. It delimits a wrapping form like
    * `funext x => ...` inside a larger proof, such as the left of a `;`. */
   | Parens(proof_t('a))
-  /* `instantiation` is the optional `with <var> = <exp>` clause: an
-   * explicit instantiation of one of the cited rule's binders, seeded
-   * into the match context before matching. One binding per step. */
+  /* The rewrite steps act at the root of the incoming goal; `Focus`
+   * points them at a subterm.
+   *
+   * `axiom <fact> end` rewrites with a rule in scope. `instantiation` is
+   * the optional `with <var> = <exp>` clause: an explicit instantiation
+   * of one of the cited rule's binders, seeded into the match context
+   * before matching. One binding per step. */
   | AxiomStep({
-      at_idx: exp_t('a),
-      at_exp: exp_t('a),
       direction: Direction.t,
       equality: exp_t('a),
       instantiation: option((exp_t('a), exp_t('a))),
     })
-  | AlgebriteStep({
-      at_idx: exp_t('a),
-      at_exp: exp_t('a),
-      with_exp: exp_t('a),
-    })
-  /* Take one evaluation step on the `at_idx`-th occurrence of `at_exp`
-   * in the incoming goal: a rewrite whose replacement is computed. The
-   * checker takes the step function as a parameter. */
-  | EvalStep({
-      at_idx: exp_t('a),
-      at_exp: exp_t('a),
+  /* `rewrite <replacement> end`: replace the goal with an expression the
+   * CAS finds equal to it. */
+  | AlgebriteStep(exp_t('a))
+  /* `eval`: one evaluation step at the root, a rewrite whose replacement
+   * is computed. The checker takes the step function as a parameter. */
+  | EvalStep
+  /* `from <selector> do <proof> end`, or `from 2nd <selector> do ...`:
+   * check <proof> against one occurrence of <selector> in the goal, and
+   * put its result back in place of that occurrence. The selector may use
+   * the `$e`/`$v`/`$x` metavariables. `ordinal` counts matches from 1,
+   * left to right; without one the first match is meant. */
+  | Focus({
+      ordinal: option(int),
+      selector: exp_t('a),
+      body: proof_t('a),
     })
   /* `induction <exp> | ... end`, or `induction <exp> as <name> | ... end`.
    *
@@ -444,24 +450,19 @@ and map_proof_annotation: 'a 'b. ('a => 'b, proof_t('a)) => proof_t('b) =
         | MultiHole(l) => MultiHole(List.map(map_any_annotation(f), l))
         | Seq(p1, p2) => Seq(proof(p1), proof(p2))
         | Parens(p) => Parens(proof(p))
-        | AxiomStep({at_idx, at_exp, direction, equality, instantiation}) =>
+        | AxiomStep({direction, equality, instantiation}) =>
           AxiomStep({
-            at_idx: exp(at_idx),
-            at_exp: exp(at_exp),
             direction,
             equality: exp(equality),
             instantiation: inst(instantiation),
           })
-        | AlgebriteStep({at_idx, at_exp, with_exp}) =>
-          AlgebriteStep({
-            at_idx: exp(at_idx),
-            at_exp: exp(at_exp),
-            with_exp: exp(with_exp),
-          })
-        | EvalStep({at_idx, at_exp}) =>
-          EvalStep({
-            at_idx: exp(at_idx),
-            at_exp: exp(at_exp),
+        | AlgebriteStep(e) => AlgebriteStep(exp(e))
+        | EvalStep => EvalStep
+        | Focus({ordinal, selector, body}) =>
+          Focus({
+            ordinal,
+            selector: exp(selector),
+            body: proof(body),
           })
         | Induction(e, as_name, cases) =>
           Induction(
@@ -1300,43 +1301,31 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       annotation: default_annotation(ann),
     };
     let axiom_step =
-        (
-          ~ann=?,
-          ~at_idx,
-          ~at_exp,
-          ~direction,
-          ~equality,
-          ~instantiation=None,
-          (),
-        )
+        (~ann=?, ~direction, ~equality, ~instantiation=None, ())
         : proof_t(DefaultAnnotation.t) => {
       term:
         AxiomStep({
-          at_idx,
-          at_exp,
           direction,
           equality,
           instantiation,
         }),
       annotation: default_annotation(ann),
     };
-    let algebrite_step =
-        (~ann=?, ~at_idx, ~at_exp, ~with_exp, ())
-        : proof_t(DefaultAnnotation.t) => {
-      term:
-        AlgebriteStep({
-          at_idx,
-          at_exp,
-          with_exp,
-        }),
+    let algebrite_step = (~ann=?, e): proof_t(DefaultAnnotation.t) => {
+      term: AlgebriteStep(e),
       annotation: default_annotation(ann),
     };
-    let eval_step =
-        (~ann=?, ~at_idx, ~at_exp, ()): proof_t(DefaultAnnotation.t) => {
+    let eval_step = (~ann=?, ()): proof_t(DefaultAnnotation.t) => {
+      term: EvalStep,
+      annotation: default_annotation(ann),
+    };
+    let focus =
+        (~ann=?, ~ordinal=None, selector, body): proof_t(DefaultAnnotation.t) => {
       term:
-        EvalStep({
-          at_idx,
-          at_exp,
+        Focus({
+          ordinal,
+          selector,
+          body,
         }),
       annotation: default_annotation(ann),
     };

@@ -452,6 +452,15 @@
 
 /* A hole or a chain's end has no step to justify: its wrap holds only
  * the stepper's controls, so it draws no lozenge. */
+/* A one-step focus's lozenge: the step, then the code it focuses on, on
+ * one line. */
+.step-focus-justification {
+  display: flex;
+  align-items: baseline;
+  gap: 0.3em;
+  white-space: nowrap;
+}
+
 .step-justification-wrap:has(> .missing-step-justification) {
   border: none;
   padding: 0;

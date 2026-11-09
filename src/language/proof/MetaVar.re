@@ -6,15 +6,14 @@
  * which drives Equality's `use_expr_wildcards`, and Statics'
  * `is_in_filter` case that keeps them from reading as free variables).
  *
- * Proof-step target slots (`axiom ... at <idx> on <target>`,
- * `eval <target> at <idx>`) reuse that convention verbatim rather than
- * inventing a second one, so a user who has written a filter already
- * knows the syntax. Nothing new needs to parse: Token.var_regexp
+ * A proof focus's selector (`from <selector> do ... end`) reuses that
+ * convention verbatim rather than inventing a second one, so a user who
+ * has written a filter already knows the syntax. Nothing new needs to parse: Token.var_regexp
  * already admits a `$`-prefixed name, so `$e` arrives as `Var("$e")`.
  *
  * This module only classifies and collects, so that the statics (to
- * suppress free-variable marks) and the proof checker (to select a
- * rewrite site) can share it without depending on each other.
+ * suppress free-variable marks) and the proof checker (to locate a
+ * focus) can share it without depending on each other.
  *
  * Whether an expression is a *value* is not a syntactic question, so, as
  * Equality does with `use_expr_wildcards`, it is an injected predicate

@@ -381,7 +381,8 @@ let external_precedence_proof = (p: Proof.t) =>
   | Parens(_)
   | AxiomStep(_)
   | AlgebriteStep(_)
-  | EvalStep(_)
+  | EvalStep
+  | Focus(_)
   | Contradiction(_)
   | Induction(_, _, _) => Precedence.max
   | Seq(_, _) => Precedence.semi
@@ -1153,33 +1154,32 @@ and parenthesize_proof =
     )
     |> rewrap
   | Have(e, sub, body) => Have(go_exp(e), go(sub), go(body)) |> rewrap
-  | AxiomStep({at_idx, at_exp, direction, equality, instantiation}) =>
+  | AxiomStep({direction, equality, instantiation}) =>
     AxiomStep({
-      at_idx: go_exp(at_idx),
-      at_exp: go_exp(at_exp),
       direction,
       equality: go_exp(equality),
       instantiation:
         Option.map(((v, i)) => (go_exp(v), go_exp(i)), instantiation),
     })
     |> rewrap
-  | AlgebriteStep({at_idx, at_exp, with_exp}) =>
-    AlgebriteStep({
-      at_idx: go_exp(at_idx),
-      at_exp: go_exp(at_exp),
-      with_exp: go_exp(with_exp),
-    })
-    |> rewrap
+  | AlgebriteStep(e) => AlgebriteStep(go_exp(e)) |> rewrap
   | Contradiction(e, inst) =>
     Contradiction(
       go_exp(e),
       Option.map(((v, i)) => (go_exp(v), go_exp(i)), inst),
     )
     |> rewrap
-  | EvalStep({at_idx, at_exp}) =>
-    EvalStep({
-      at_idx: go_exp(at_idx),
-      at_exp: go_exp(at_exp),
+  | EvalStep => proof
+  /* An ordinal is a prefix at `fun_` over the selector. */
+  | Focus({ordinal, selector, body}) =>
+    Focus({
+      ordinal,
+      selector:
+        go_exp(
+          ~level=Option.is_some(ordinal) ? Precedence.fun_ : Precedence.min,
+          selector,
+        ),
+      body: go(body),
     })
     |> rewrap
   | Induction(scrut, as_name, cases) =>
@@ -3555,10 +3555,8 @@ and proof_to_pretty = (~settings: Settings.t, p: Proof.t): pretty => {
     and+ sub = go(sub)
     and+ b = go(body);
     wrap(p, [mk_form(ProofHave, id, [e, sub])] @ b);
-  | AxiomStep({at_idx, at_exp, direction, equality, instantiation}) =>
-    let+ eq = exp_to_pretty(~settings, equality)
-    and+ i = exp_to_pretty(~settings, at_idx)
-    and+ ae = exp_to_pretty(~settings, at_exp);
+  | AxiomStep({direction, equality, instantiation}) =>
+    let+ eq = exp_to_pretty(~settings, equality);
     let inst: list(Segment.t) =
       switch (instantiation) {
       | None => []
@@ -3574,12 +3572,10 @@ and proof_to_pretty = (~settings: Settings.t, p: Proof.t): pretty => {
       | (Right, Some(_)) => ProofAxiomWith
       | (Left, Some(_)) => ProofAxiomRevWith
       };
-    wrap(p, [mk_form(fam, id, List.concat([[eq], inst, [i, ae]]))]);
-  | AlgebriteStep({at_idx, at_exp, with_exp}) =>
-    let+ ae = exp_to_pretty(~settings, at_exp)
-    and+ we = exp_to_pretty(~settings, with_exp)
-    and+ i = exp_to_pretty(~settings, at_idx);
-    wrap(p, [mk_form(ProofAlgebrite, id, [ae, we, i])]);
+    wrap(p, [mk_form(fam, id, [eq, ...inst])]);
+  | AlgebriteStep(e) =>
+    let+ e = exp_to_pretty(~settings, e);
+    wrap(p, [mk_form(ProofAlgebrite, id, [e])]);
   | Contradiction(e, None) =>
     let+ e = exp_to_pretty(~settings, e);
     wrap(p, [mk_form(ProofContradiction, id, [e])]);
@@ -3588,10 +3584,42 @@ and proof_to_pretty = (~settings: Settings.t, p: Proof.t): pretty => {
     and+ v = exp_to_pretty(~settings, v)
     and+ inst = exp_to_pretty(~settings, inst);
     wrap(p, [mk_form(ProofContradictionWith, id, [e, v, inst])]);
-  | EvalStep({at_idx, at_exp}) =>
-    let+ ae = exp_to_pretty(~settings, at_exp)
-    and+ i = exp_to_pretty(~settings, at_idx);
-    wrap(p, [mk_form(ProofEval, id, [ae, i])]);
+  | EvalStep => p_just(wrap(p, [mk_form(ProofEval, id, [])]))
+  | Focus({ordinal, selector, body}) =>
+    let+ sel = exp_to_pretty(~settings, selector)
+    and+ b = go(body);
+    /* ids = [from tile, ordinal tile]: MakeTerm absorbs the ordinal's. */
+    let ordinal_seg =
+      switch (ordinal, IdTagged.ids(p)) {
+      | (None, _) => []
+      | (Some(n), ids) =>
+        let ordinal_id =
+          switch (ids) {
+          | [_, ordinal_id, ..._] => ordinal_id
+          | _ => Id.mk()
+          };
+        let (form, sort) =
+          Form.classify_label(Sort.Exp, [Token.Ordinal.to_string(n)]);
+        let space =
+          switch (sel) {
+          | [Secondary(_), ..._] => []
+          | _ => [Secondary(mk_space(Id.mk()))]
+          };
+        [
+          Tile({
+            id: ordinal_id,
+            form,
+            sort,
+            shards: [0],
+            children: [],
+          }),
+          ...space,
+        ];
+      };
+    wrap(
+      p,
+      [mk_form(ProofFocus, id, [list_append(ordinal_seg, sel), b])],
+    );
   | Induction(scrut, as_name, cases) =>
     /* The PRul child is `<scrut> | p => body | ...`. With an `as` name
        the scrutinee becomes the form's own child and the name leads the

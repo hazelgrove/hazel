@@ -53,17 +53,14 @@ type t =
   /* Algebrite: Float-typed rewrites are refused, because the CAS's field
    * laws are false for IEEE floats. */
   | FloatAlgebrite
-  /* Rewrite steps: `at_idx` isn't a concrete int literal. */
-  | MalformedIndex
-  /* Rewrite steps: `at_exp` pattern not found at the requested
-   * occurrence index in the incoming goal. */
+  /* Focus: the goal has fewer than `ordinal` matches of `selector`. */
   | PatternNotFound({
-      at_exp: Exp.t,
-      at_idx: int,
+      selector: Exp.t,
+      ordinal: int,
     })
-  /* Eval: the occurrence was located but `step_fn` had nothing
-   * reducible to take. */
-  | NothingToStep({at_exp: Exp.t})
+  /* Eval: the root of the goal isn't a redex, even after the steps the
+   * stepper hides (variable lookups and the like). */
+  | NothingToStep
   /* Forall: incoming goal isn't a `forall`/`fun`-binder. */
   | ExpectedForallGoal
   /* Funext: incoming goal isn't an equality (`==`) between two things of

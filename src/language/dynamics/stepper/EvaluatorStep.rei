@@ -27,4 +27,8 @@ let take_step: step => option(Exp.t);
 
 let get_step_id: step => Id.t;
 
+/* Whether the step reduces the whole expression it was found in, up to
+   parentheses, ascriptions and closures. */
+let is_at_root: step => bool;
+
 let get_step_kind: step => Transition.step_kind;

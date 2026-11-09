@@ -51,7 +51,7 @@ let nothing_to_step = (src: string): bool => {
     pm,
     proof,
     fun
-    | ProofMark.NothingToStep(_) => true
+    | ProofMark.NothingToStep => true
     | _ => false,
   );
 };
@@ -64,7 +64,7 @@ let test_append_nil_left = () =>
   check_status(
     "`[] @ m` steps to `m` with m quantified",
     ProofMap.Proven,
-    {|theorem t = forall m: [Int] -> [] @ m == m proof eval [] @ m at 0 end; axiom refl_eq at 0 on m == m end in t|},
+    {|theorem t = forall m: [Int] -> [] @ m == m proof from [] @ m do eval end; from m == m do axiom refl_eq end end in t|},
   );
 
 /* `(y :: l) @ m == y :: (l @ m)`: both the cons tail and the right side are
@@ -74,7 +74,7 @@ let test_append_cons_left = () =>
   check_status(
     "`(y :: l) @ m` peels to `y :: (l @ m)` with l, m quantified",
     ProofMap.Proven,
-    {|theorem t = forall y: Int -> forall l: [Int] -> forall m: [Int] -> (y :: l) @ m == y :: (l @ m) proof eval (y :: l) @ m at 0 end; axiom refl_eq at 0 on y :: (l @ m) == y :: (l @ m) end in t|},
+    {|theorem t = forall y: Int -> forall l: [Int] -> forall m: [Int] -> (y :: l) @ m == y :: (l @ m) proof from (y :: l) @ m do eval end; from y :: (l @ m) == y :: (l @ m) do axiom refl_eq end end in t|},
   );
 
 /* --- 2. The ground fast path ----------------------------------------- */
@@ -86,7 +86,7 @@ let test_ground_concat_still_one_step = () =>
   check_status(
     "`[1, 2] @ [3]` concatenates to a literal",
     ProofMap.Proven,
-    {|theorem t = [1, 2] @ [3] == [1, 2, 3] proof eval [1, 2] @ [3] at 0 end; axiom refl_eq at 0 on [1, 2, 3] == [1, 2, 3] end in t|},
+    {|theorem t = [1, 2] @ [3] == [1, 2, 3] proof from [1, 2] @ [3] do eval end; from [1, 2, 3] == [1, 2, 3] do axiom refl_eq end end in t|},
   );
 
 /* --- 3. What stays stuck --------------------------------------------- */
@@ -100,7 +100,7 @@ let test_var_left_is_stuck = () =>
     "`m @ n` with both sides variables does not step",
     true,
     nothing_to_step(
-      {|theorem t = forall m: [Int] -> forall n: [Int] -> m @ n == m @ n proof eval m @ n at 0 end; ? in t|},
+      {|theorem t = forall m: [Int] -> forall n: [Int] -> m @ n == m @ n proof from m @ n do eval end; ? in t|},
     ),
   );
 
@@ -113,7 +113,7 @@ let test_right_unit_is_stuck = () =>
     "`m @ []` does not step (the right unit needs induction)",
     true,
     nothing_to_step(
-      {|theorem t = forall m: [Int] -> m @ [] == m proof eval m @ [] at 0 end; ? in t|},
+      {|theorem t = forall m: [Int] -> m @ [] == m proof from m @ [] do eval end; ? in t|},
     ),
   );
 
@@ -125,7 +125,7 @@ let test_length_cons_proves = () =>
   check_status(
     "a `case`-defined length proves its cons equation",
     ProofMap.Proven,
-    {|let len = fun l -> case l | [] => 0 | h :: t => 1 + len(t) end in theorem t = forall h: Int -> forall t: [Int] -> len(h :: t) == 1 + len(t) proof eval len(h :: t) at 0 end; axiom refl_eq at 0 on 1 + len(t) == 1 + len(t) end in t|},
+    {|let len = fun l -> case l | [] => 0 | h :: t => 1 + len(t) end in theorem t = forall h: Int -> forall t: [Int] -> len(h :: t) == 1 + len(t) proof from len(h :: t) do eval end; from 1 + len(t) == 1 + len(t) do axiom refl_eq end end in t|},
   );
 
 /* --- 5. The `append` builtin -----------------------------------------
@@ -137,14 +137,14 @@ let test_append_nil_inherits = () =>
   check_status(
     "`append([], m)` unfolds to `[] @ m` and then to `m`",
     ProofMap.Proven,
-    {|theorem t = forall m: [Int] -> append([], m) == m proof eval append([], m) at 0 end; eval $e at 0 end; axiom refl_eq at 0 on m == m end in t|},
+    {|theorem t = forall m: [Int] -> append([], m) == m proof from append([], m) do eval; eval end; axiom refl_eq end in t|},
   );
 
 let test_append_cons_inherits = () =>
   check_status(
     "`append(y :: l, m)` unfolds and peels to `y :: (l @ m)`",
     ProofMap.Proven,
-    {|theorem t = forall y: Int -> forall l: [Int] -> forall m: [Int] -> append(y :: l, m) == y :: (l @ m) proof eval append(y :: l, m) at 0 end; eval $e at 0 end; axiom refl_eq at 0 on y :: (l @ m) == y :: (l @ m) end in t|},
+    {|theorem t = forall y: Int -> forall l: [Int] -> forall m: [Int] -> append(y :: l, m) == y :: (l @ m) proof from append(y :: l, m) do eval; eval end; axiom refl_eq end in t|},
   );
 
 /* --- 6. `fold_left`: steps, but does not refold ------------------------
@@ -156,7 +156,7 @@ let test_append_cons_inherits = () =>
  * `case`-defined builtins are presented, separate from `@`; pinned as
  * Incomplete so it stays visible. */
 
-let fold_left_cons_src = {|theorem t = forall h: Int -> forall t: [Int] -> forall a: Int -> fold_left(h :: t, fun (acc, x) -> acc + x, a) == fold_left(t, fun (acc, x) -> acc + x, a + h) proof eval fold_left(h :: t, fun (acc, x) -> acc + x, a) at 0 end; axiom refl_eq at 0 on fold_left(t, fun (acc, x) -> acc + x, a + h) == fold_left(t, fun (acc, x) -> acc + x, a + h) end in t|};
+let fold_left_cons_src = {|theorem t = forall h: Int -> forall t: [Int] -> forall a: Int -> fold_left(h :: t, fun (acc, x) -> acc + x, a) == fold_left(t, fun (acc, x) -> acc + x, a + h) proof from fold_left(h :: t, fun (acc, x) -> acc + x, a) do eval end; from fold_left(t, fun (acc, x) -> acc + x, a + h) == fold_left(t, fun (acc, x) -> acc + x, a + h) do axiom refl_eq end end in t|};
 
 let test_fold_left_cons_steps = () =>
   Alcotest.check(

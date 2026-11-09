@@ -426,7 +426,7 @@ let substitute_exp = (sub: match_ctx, exp: Exp.t): Exp.t =>
     exp,
   );
 
-/* ---- Pattern matching for proof-step target slots -------------------
+/* ---- Pattern matching for focus selectors ---------------------------
  *
  * A "pattern" here is just an Exp that may contain metavariables (see
  * MetaVar). A pattern with no metavariables is a ground pattern and

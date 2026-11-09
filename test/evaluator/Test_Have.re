@@ -50,12 +50,12 @@ let dump_obligations = (obs: list(Obligation.t)): string =>
 let with_have = (subproof: string): string =>
   "theorem t = forall x: Int -> x == x proof have x == x proof "
   ++ subproof
-  ++ " => axiom refl_eq at 0 on x == x end in t";
+  ++ " => from x == x do axiom refl_eq end end in t";
 
 /* --- 1. a proven subproof discharges the have's obligation ----------- */
 
 let test_proven_subproof_discharges = () => {
-  let (pm, proof) = run(with_have("axiom refl_eq at 0 on x == x end"));
+  let (pm, proof) = run(with_have("from x == x do axiom refl_eq end end"));
   let obs = ProofMap.obligations_of_proof(pm, proof);
   if (obs != []) {
     Alcotest.fail(
@@ -109,7 +109,7 @@ let test_incomplete_subproof_pending = () => {
  * the subproof is still a hole. `8 / z` in the goal makes the axiom step
  * incur `z != 0`, and nothing else in scope covers it. */
 let citable_src = {|theorem t = forall z: Int -> 8 / z == 8 / z
-proof have z != 0 proof ? => axiom refl_eq at 0 on 8 / z == 8 / z end
+proof have z != 0 proof ? => from 8 / z == 8 / z do axiom refl_eq end end
 in t|};
 
 let test_hypothesis_citable_in_body = () => {
@@ -161,7 +161,7 @@ let test_hypothesis_citable_in_body = () => {
  * P proof <cite P> => ...` would prove anything. The subproof is checked
  * in the enclosing scope, so citing `have` there is an unknown fact. */
 let self_cite_src = {|theorem t = forall x: Int -> x == x
-proof have x == 1 proof axiom have at 0 on x end => axiom refl_eq at 0 on x == x end
+proof have x == 1 proof from x do axiom have end end => from x == x do axiom refl_eq end end
 in t|};
 
 let test_subproof_cannot_self_cite = () => {
@@ -200,7 +200,7 @@ let test_form_roundtrips = () => {
 };
 
 let split_probe_src = {|theorem t = forall z: Int -> 8 / z == 8 / z
-proof induction z != 0 | true => axiom refl_eq at 0 on 8 / z == 8 / z end | false => ? end
+proof induction z != 0 | true => from 8 / z == 8 / z do axiom refl_eq end end | false => ? end
 in t|};
 
 /* The obligations panel's split exit, end to end: in the `true` branch
@@ -273,8 +273,9 @@ let rec find_have = (p: Proof.t): option(Proof.t) =>
   | MultiHole(_)
   | AxiomStep(_)
   | AlgebriteStep(_)
-  | EvalStep(_)
+  | EvalStep
   | Contradiction(_) => None
+  | Focus({body, _}) => find_have(body)
   };
 
 /* --- 6. both premises open: two obligations on the have node --------- */
@@ -384,7 +385,7 @@ let test_body_premise_alone = () => {
   let (pm, proof) =
     run(
       {|theorem t = forall x: Int -> x == x
-proof have 1 == 1 proof axiom refl_eq at 0 on 1 == 1 end => ?
+proof have 1 == 1 proof from 1 == 1 do axiom refl_eq end end => ?
 in t|},
     );
   let obs = ProofMap.obligations_of_proof(pm, proof);

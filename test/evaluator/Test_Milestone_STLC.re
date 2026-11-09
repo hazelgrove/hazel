@@ -67,11 +67,7 @@ let smoke = (fn_app: string): unit => {
       ++ fn_app
       ++ " == "
       ++ fn_app
-      ++ " proof axiom refl_eq at 0 on "
-      ++ fn_app
-      ++ " == "
-      ++ fn_app
-      ++ " end in t",
+      ++ " proof axiom refl_eq end in t",
     );
   let (pm, proof) = run_named("t", src);
   check_obligation_count(
@@ -146,15 +142,15 @@ let test_dyn_step_stuck = () => closed_fact("step(TmVar(0)) == NoTm");
 let canonical_impl_src =
   program(
     "theorem canonical = forall e: Term -> forall t1: Ty -> forall t2: Ty -> is_value(e) ==> infer(([], e)) == SomeTy(TArr(t1, t2)) ==> is_lam(e) proof induction e "
-    ++ "| TmVar(n) => eval is_value(TmVar(n)) at 0 end; eval false ==> infer(([], TmVar(n))) == SomeTy(TArr(t1, t2)) ==> is_lam(TmVar(n)) at 0 end "
+    ++ "| TmVar(n) => from is_value(TmVar(n)) do eval end; from false ==> infer(([], TmVar(n))) == SomeTy(TArr(t1, t2)) ==> is_lam(TmVar(n)) do eval end "
     /* FRICTION: evaluating the antecedent to `true` and stripping
      * `true ==> _` by eval doesn't work: the eval step's leading
      * auto-steps fire hidden FixUnwrap transitions inside the untouched
      * middle antecedent, leaving it fix-unrolled and unmatchable for the
      * later assume-intro (fast_equal). Introducing both antecedents by
      * assume avoids evaluating near them. */
-    ++ "| TmLam(t, b) => assume is_value(TmLam(t, b)) => assume infer(([], TmLam(t, b))) == SomeTy(TArr(t1, t2)) => eval is_lam(TmLam(t, b)) at 0 end "
-    ++ "| TmAp(x, y) => eval is_value(TmAp(x, y)) at 0 end; eval false ==> infer(([], TmAp(x, y))) == SomeTy(TArr(t1, t2)) ==> is_lam(TmAp(x, y)) at 0 end "
+    ++ "| TmLam(t, b) => assume is_value(TmLam(t, b)) => assume infer(([], TmLam(t, b))) == SomeTy(TArr(t1, t2)) => from is_lam(TmLam(t, b)) do eval end "
+    ++ "| TmAp(x, y) => from is_value(TmAp(x, y)) do eval end; from false ==> infer(([], TmAp(x, y))) == SomeTy(TArr(t1, t2)) ==> is_lam(TmAp(x, y)) do eval end "
     ++ "end in canonical",
   );
 
@@ -192,9 +188,9 @@ let test_canonical_impl_proven = () => {
 let canonical_where_src =
   program(
     "theorem canonicalw = forall e0: Term where is_value(e0) -> forall t1: Ty -> forall t2: Ty -> infer(([], e0)) == SomeTy(TArr(t1, t2)) ==> is_lam(e0) proof induction e0 "
-    ++ "| TmVar(n) => eval infer(([], TmVar(n))) at 0 end; eval nth_ty(([], n)) at 0 end; eval NoTy == SomeTy(TArr(t1, t2)) at 0 end; eval false ==> is_lam(TmVar(n)) at 0 end "
-    ++ "| TmLam(t, b) => assume infer(([], TmLam(t, b))) == SomeTy(TArr(t1, t2)) => eval is_lam(TmLam(t, b)) at 0 end "
-    ++ "| TmAp(x, y) => revert is_value(e0) => axiom case_eq at 0 on e0 end; eval is_value(TmAp(x, y)) at 0 end; eval false ==> (infer(([], TmAp(x, y))) == SomeTy(TArr(t1, t2)) ==> is_lam(TmAp(x, y))) at 0 end "
+    ++ "| TmVar(n) => from infer(([], TmVar(n))) do eval end; from nth_ty(([], n)) do eval end; from NoTy == SomeTy(TArr(t1, t2)) do eval end; from false ==> is_lam(TmVar(n)) do eval end "
+    ++ "| TmLam(t, b) => assume infer(([], TmLam(t, b))) == SomeTy(TArr(t1, t2)) => from is_lam(TmLam(t, b)) do eval end "
+    ++ "| TmAp(x, y) => revert is_value(e0) => from e0 do axiom case_eq end end; from is_value(TmAp(x, y)) do eval end; from false ==> (infer(([], TmAp(x, y))) == SomeTy(TArr(t1, t2)) ==> is_lam(TmAp(x, y))) do eval end "
     ++ "end in canonicalw",
   );
 
@@ -221,7 +217,7 @@ let test_canonical_where_partial = () => {
 let var_never_types_src =
   program(
     "theorem var_never_types = forall n: Int -> forall t: Ty -> infer(([], TmVar(n))) == SomeTy(t) ==> false proof "
-    ++ "eval infer(([], TmVar(n))) at 0 end; eval nth_ty(([], n)) at 0 end; eval NoTy == SomeTy(t) at 0 end; eval false ==> false at 0 end in var_never_types",
+    ++ "from infer(([], TmVar(n))) do eval end; from nth_ty(([], n)) do eval end; from NoTy == SomeTy(t) do eval end; from false ==> false do eval end in var_never_types",
   );
 
 let test_var_never_types = () => {
@@ -266,7 +262,7 @@ let lemma_step_ap_val1 =
    * cannot be collapsed: quoting it whole fails on the step
    * subterms, and no smaller quote contains the Conditional redex.
    * Proof stops here, mark-free. */
-  ++ ") proof assume is_value(u1) == false => eval step(TmAp(u1, u2)) at 0 end; axiom assume at 0 on is_value(u1) end; ? in ";
+  ++ ") proof assume is_value(u1) == false => from step(TmAp(u1, u2)) do eval end; from is_value(u1) do axiom assume end end; ? in ";
 
 /* Congruence-2 at a lambda head: the head's value-ness is computed by
  * evaluation inside the lemma, so no is_value(head) antecedent is
@@ -275,15 +271,15 @@ let lemma_step_lam_ap2 =
   "theorem step_lam_ap2 = forall w1: Ty -> forall q1: Term -> forall u2: Term -> is_value(u2) == false ==> step(TmAp(TmLam(w1, q1), u2)) == ("
   ++ cong2_case("TmLam(w1, q1)", "u2")
   /* Same FixUnwrap-unroll wall as step_ap_val1. */
-  ++ ") proof assume is_value(u2) == false => eval step(TmAp(TmLam(w1, q1), u2)) at 0 end; eval is_value(TmLam(w1, q1)) at 0 end; axiom assume at 0 on is_value(u2) end; ? in ";
+  ++ ") proof assume is_value(u2) == false => from step(TmAp(TmLam(w1, q1), u2)) do eval end; from is_value(TmLam(w1, q1)) do eval end; from is_value(u2) do axiom assume end end; ? in ";
 
 /* Beta: both sides values, lambda head. */
-let lemma_step_beta = "theorem step_beta = forall w1: Ty -> forall q1: Term -> forall u2: Term -> is_value(u2) == true ==> step(TmAp(TmLam(w1, q1), u2)) == SomeTm(subst((0, u2, q1))) proof assume is_value(u2) == true => eval step(TmAp(TmLam(w1, q1), u2)) at 0 end; eval is_value(TmLam(w1, q1)) at 0 end; axiom assume at 0 on is_value(u2) end; ? in ";
+let lemma_step_beta = "theorem step_beta = forall w1: Ty -> forall q1: Term -> forall u2: Term -> is_value(u2) == true ==> step(TmAp(TmLam(w1, q1), u2)) == SomeTm(subst((0, u2, q1))) proof assume is_value(u2) == true => from step(TmAp(TmLam(w1, q1), u2)) do eval end; from is_value(TmLam(w1, q1)) do eval end; from is_value(u2) do axiom assume end end; ? in ";
 
 /* is_some_tm(SomeTm(v)) == true — needed because evaluating
  * `is_some_tm(SomeTm(subst(...)))` directly would first unfold the
  * CBV-forced `subst` application into an unquotable blob. */
-let lemma_some_tm_is_some = "theorem some_tm_is_some = forall u1: Term -> is_some_tm(SomeTm(u1)) == true proof eval is_some_tm(SomeTm(u1)) at 0 end; axiom refl_eq at 0 on true == true end in ";
+let lemma_some_tm_is_some = "theorem some_tm_is_some = forall u1: Term -> is_some_tm(SomeTm(u1)) == true proof from is_some_tm(SomeTm(u1)) do eval end; from true == true do axiom refl_eq end end in ";
 
 /* The step-unfolding lemmas' proofs are partial (see the FRICTION notes
  * in each source): every retained step is mark-free, no obligations are
@@ -370,13 +366,13 @@ let progress_consequent = "is_value(TmAp(x0, y0)) || is_some_tm(step(TmAp(x0, y0
  * `ceq` is the split's `as` name: auto-installed facts have fixed names
  * and shadow, so every split that gets cited names itself. */
 let noty_leaf = (ceq: string, pair: string): string =>
-  "axiom "
+  "from infer(([], y0)) do axiom "
   ++ ceq
-  ++ " at 0 on infer(([], y0)) end; eval ap_result(("
+  ++ " end end; from ap_result(("
   ++ pair
-  ++ ")) at 0 end; eval NoTy == SomeTy(t0) at 0 end; eval false ==> "
+  ++ ")) do eval end; from NoTy == SomeTy(t0) do eval end; from false ==> "
   ++ progress_consequent
-  ++ " at 0 end";
+  ++ " do eval end";
 
 let progress_src =
   program(
@@ -385,8 +381,8 @@ let progress_src =
     ++ lemma_step_beta
     ++ lemma_some_tm_is_some
     ++ "theorem progress = forall e0: Term -> forall t0: Ty -> infer(([], e0)) == SomeTy(t0) ==> is_value(e0) || is_some_tm(step(e0)) proof generalize t0 => induction e0 "
-    ++ "| TmVar(m0) => forall t0 => eval infer(([], TmVar(m0))) at 0 end; eval nth_ty(([], m0)) at 0 end; eval NoTy == SomeTy(t0) at 0 end; eval false ==> is_value(TmVar(m0)) || is_some_tm(step(TmVar(m0))) at 0 end "
-    ++ "| TmLam(w0, q0) => forall t0 => assume infer(([], TmLam(w0, q0))) == SomeTy(t0) => eval is_value(TmLam(w0, q0)) at 0 end; eval true || is_some_tm(step(TmLam(w0, q0))) at 0 end "
+    ++ "| TmVar(m0) => forall t0 => from infer(([], TmVar(m0))) do eval end; from nth_ty(([], m0)) do eval end; from NoTy == SomeTy(t0) do eval end; from false ==> is_value(TmVar(m0)) || is_some_tm(step(TmVar(m0))) do eval end "
+    ++ "| TmLam(w0, q0) => forall t0 => assume infer(([], TmLam(w0, q0))) == SomeTy(t0) => from is_value(TmLam(w0, q0)) do eval end; from true || is_some_tm(step(TmLam(w0, q0))) do eval end "
     ++ "| TmAp(x0, y0) => forall t0 => "
     /* This case gets two inductive hypotheses, one per recursive
      * sub-term, both named `ih`, so the second shadows the first and only
@@ -394,19 +390,19 @@ let progress_src =
      * out the proposition, and the two leaves below cite `ihx` / `ihy`. */
     ++ "alias ihx = forall t0 -> infer(([], x0)) == SomeTy(t0) ==> is_value(x0) || is_some_tm(step(x0)) => "
     ++ "alias ihy = forall t0 -> infer(([], y0)) == SomeTy(t0) ==> is_value(y0) || is_some_tm(step(y0)) => "
-    ++ "eval infer(([], TmAp(x0, y0))) at 0 end; "
+    ++ "from infer(([], TmAp(x0, y0))) do eval end; "
     /* `as tx` names this split's case equation. Naming is what lets the
      * two deep IH leaves below still cite it: without a name it would be
      * `case_eq`, which the splits nested inside shadow. */
     ++ "induction infer(([], x0)) as tx "
-    ++ "| NoTy => axiom tx at 0 on infer(([], x0)) end; "
+    ++ "| NoTy => from infer(([], x0)) do axiom tx end end; "
     ++ "induction infer(([], y0)) as ty "
     ++ "| NoTy => "
     ++ noty_leaf("ty", "NoTy, NoTy")
     ++ " | SomeTy(s0) => "
     ++ noty_leaf("ty", "NoTy, SomeTy(s0)")
     ++ " end "
-    ++ "| SomeTy(tf0) => axiom tx at 0 on infer(([], x0)) end; "
+    ++ "| SomeTy(tf0) => from infer(([], x0)) do axiom tx end end; "
     ++ "induction tf0 "
     ++ "| TB => induction infer(([], y0)) as ty "
     ++ "| NoTy => "
@@ -417,12 +413,12 @@ let progress_src =
     ++ "| TArr(ta0, tb0) => induction infer(([], y0)) as ty "
     ++ "| NoTy => "
     ++ noty_leaf("ty", "SomeTy(TArr(ta0, tb0)), NoTy")
-    ++ " | SomeTy(s0) => axiom ty at 0 on infer(([], y0)) end; eval ap_result((SomeTy(TArr(ta0, tb0)), SomeTy(s0))) at 0 end; "
+    ++ " | SomeTy(s0) => from infer(([], y0)) do axiom ty end end; from ap_result((SomeTy(TArr(ta0, tb0)), SomeTy(s0))) do eval end; "
     ++ "induction ty_eq((ta0, s0)) as teq "
-    ++ "| false => axiom teq at 0 on ty_eq((ta0, s0)) end; eval if false then SomeTy(tb0) else NoTy at 0 end; eval NoTy == SomeTy(t0) at 0 end; eval false ==> "
+    ++ "| false => from ty_eq((ta0, s0)) do axiom teq end end; from if false then SomeTy(tb0) else NoTy do eval end; from NoTy == SomeTy(t0) do eval end; from false ==> "
     ++ progress_consequent
-    ++ " at 0 end "
-    ++ "| true => axiom teq at 0 on ty_eq((ta0, s0)) end; eval if true then SomeTy(tb0) else NoTy at 0 end; "
+    ++ " do eval end "
+    ++ "| true => from ty_eq((ta0, s0)) do axiom teq end end; from if true then SomeTy(tb0) else NoTy do eval end; "
     ++ "assume SomeTy(tb0) == SomeTy(t0) => "
     /* The `is_value(x0)` split comes before the two goal-evaluating
      * steps: the ex falso leaves below need the goal in its written form
@@ -431,9 +427,9 @@ let progress_src =
      * evaluation is pushed into the only branch that wants it. */
     ++ "induction is_value(x0) as vx "
     /* Congruence-1: the head steps, so the application steps. */
-    ++ "| false => eval is_value(TmAp(x0, y0)) at 0 end; "
-    ++ "eval false || is_some_tm(step(TmAp(x0, y0))) at 0 end; "
-    ++ "axiom step_ap_val1 at 0 on step(TmAp(x0, y0)) end; "
+    ++ "| false => from is_value(TmAp(x0, y0)) do eval end; "
+    ++ "from false || is_some_tm(step(TmAp(x0, y0))) do eval end; "
+    ++ "from step(TmAp(x0, y0)) do axiom step_ap_val1 end end; "
     ++ "induction step(x0) as sx "
     /* Vacuous by the inductive hypothesis. IH(x0) at t0 := tf0, with
      * case_eq infer(([], x0)) == SomeTy(tf0) and is_value(x0) == false,
@@ -445,20 +441,19 @@ let progress_src =
      * `SomeTy(tf0) == SomeTy(tf0)` (refl_eq: true) and D to `false`,
      * leaving `false ==> G`, which McCarthy-collapses to true.
      *
-     * `step(x0)` is rewritten at occurrence 1, not 0, because `nth_exp`
-     * reaches the consequent's occurrence first; and `is_value`/`step` in
-     * the reverted IH are addressable because the IH's inlined closures
-     * match written at_exps under nth_exp_env. */
+     * `is_value`/`step` in the reverted IH are addressable because the
+     * IH's inlined closures match written selectors once the env is
+     * substituted (`Occurrence.nth_env_target`). */
     ++ "| NoTm => revert ihx with t0 = tf0 => "
-    ++ "axiom tx at 0 on infer(([], x0)) end; "
-    ++ "axiom refl_eq at 0 on SomeTy(tf0) == SomeTy(tf0) end; "
-    ++ "eval true ==> is_value(x0) || is_some_tm(step(x0)) at 0 end; "
-    ++ "axiom vx at 0 on is_value(x0) end; "
-    ++ "eval false || is_some_tm(step(x0)) at 0 end; "
-    ++ "axiom sx at 1 on step(x0) end; "
-    ++ "eval is_some_tm(NoTm) at 0 end; "
-    ++ "eval false ==> is_some_tm(case step(x0) | NoTm => NoTm | SomeTm(xp) => SomeTm(TmAp(xp, y0)) end) at 0 end "
-    ++ "| SomeTm(u0) => axiom sx at 0 on step(x0) end; eval is_some_tm(case SomeTm(u0) | NoTm => NoTm | SomeTm(xp) => SomeTm(TmAp(xp, y0)) end) at 0 end "
+    ++ "from infer(([], x0)) do axiom tx end end; "
+    ++ "from SomeTy(tf0) == SomeTy(tf0) do axiom refl_eq end end; "
+    ++ "from true ==> is_value(x0) || is_some_tm(step(x0)) do eval end; "
+    ++ "from is_value(x0) do axiom vx end end; "
+    ++ "from false || is_some_tm(step(x0)) do eval end; "
+    ++ "from step(x0) do axiom sx end end; "
+    ++ "from is_some_tm(NoTm) do eval end; "
+    ++ "from false ==> is_some_tm(case step(x0) | NoTm => NoTm | SomeTm(xp) => SomeTm(TmAp(xp, y0)) end) do eval end "
+    ++ "| SomeTm(u0) => from step(x0) do axiom sx end end; from is_some_tm(case SomeTm(u0) | NoTm => NoTm | SomeTm(xp) => SomeTm(TmAp(xp, y0)) end) do eval end "
     ++ "end "
     ++ "| true => induction x0 as hx0 "
     /* Vacuous by canonical forms: is_value(x0) == true and
@@ -470,32 +465,32 @@ let progress_src =
      * branch is vacuous. The TmAp leaf below uses the revert-based idiom
      * instead, so both stay tested. */
     ++ "| TmVar(m0) => contradiction is_value(x0) == true with x0 = TmVar(m0) end "
-    ++ "| TmLam(w0, q0) => eval is_value(TmAp(TmLam(w0, q0), y0)) at 0 end; "
-    ++ "eval false || is_some_tm(step(TmAp(TmLam(w0, q0), y0))) at 0 end; "
+    ++ "| TmLam(w0, q0) => from is_value(TmAp(TmLam(w0, q0), y0)) do eval end; "
+    ++ "from false || is_some_tm(step(TmAp(TmLam(w0, q0), y0))) do eval end; "
     ++ "induction is_value(y0) as vy "
     /* Beta: the canonical-forms leaf. */
-    ++ "| true => axiom step_beta at 0 on step(TmAp(TmLam(w0, q0), y0)) end; axiom some_tm_is_some at 0 on is_some_tm(SomeTm(subst((0, y0, q0)))) end "
+    ++ "| true => from step(TmAp(TmLam(w0, q0), y0)) do axiom step_beta end end; from is_some_tm(SomeTm(subst((0, y0, q0)))) do axiom some_tm_is_some end end "
     /* Congruence-2 at a lambda head. */
-    ++ "| false => axiom step_lam_ap2 at 0 on step(TmAp(TmLam(w0, q0), y0)) end; "
+    ++ "| false => from step(TmAp(TmLam(w0, q0), y0)) do axiom step_lam_ap2 end end; "
     ++ "induction step(y0) as sy "
     /* The same IH leaf as above, at IH(y0) and t0 := s0 -- cited through
      * the `ihy` alias, since the bare name `ih` here denotes whichever
      * IH was installed innermost. */
     ++ "| NoTm => revert ihy with t0 = s0 => "
-    ++ "axiom ty at 0 on infer(([], y0)) end; "
-    ++ "axiom refl_eq at 0 on SomeTy(s0) == SomeTy(s0) end; "
-    ++ "eval true ==> is_value(y0) || is_some_tm(step(y0)) at 0 end; "
-    ++ "axiom vy at 0 on is_value(y0) end; "
-    ++ "eval false || is_some_tm(step(y0)) at 0 end; "
-    ++ "axiom sy at 1 on step(y0) end; "
-    ++ "eval is_some_tm(NoTm) at 0 end; "
-    ++ "eval false ==> is_some_tm(case step(y0) | NoTm => NoTm | SomeTm(yp) => SomeTm(TmAp(TmLam(w0, q0), yp)) end) at 0 end "
-    ++ "| SomeTm(u0) => axiom sy at 0 on step(y0) end; eval is_some_tm(case SomeTm(u0) | NoTm => NoTm | SomeTm(yp) => SomeTm(TmAp(TmLam(w0, q0), yp)) end) at 0 end "
+    ++ "from infer(([], y0)) do axiom ty end end; "
+    ++ "from SomeTy(s0) == SomeTy(s0) do axiom refl_eq end end; "
+    ++ "from true ==> is_value(y0) || is_some_tm(step(y0)) do eval end; "
+    ++ "from is_value(y0) do axiom vy end end; "
+    ++ "from false || is_some_tm(step(y0)) do eval end; "
+    ++ "from step(y0) do axiom sy end end; "
+    ++ "from is_some_tm(NoTm) do eval end; "
+    ++ "from false ==> is_some_tm(case step(y0) | NoTm => NoTm | SomeTm(yp) => SomeTm(TmAp(TmLam(w0, q0), yp)) end) do eval end "
+    ++ "| SomeTm(u0) => from step(y0) do axiom sy end end; from is_some_tm(case SomeTm(u0) | NoTm => NoTm | SomeTm(yp) => SomeTm(TmAp(TmLam(w0, q0), yp)) end) do eval end "
     ++ "end "
     ++ "end "
     /* Same ex falso as the TmVar leaf: is_value(x0) == true with
      * x0 == TmAp(f0, a0). */
-    ++ "| TmAp(f0, a0) => revert is_value(x0) == true => axiom hx0 at 0 on x0 end; eval is_value(TmAp(f0, a0)) == true at 0 end; eval false == true at 0 end; eval false ==> (is_value(TmAp(TmAp(f0, a0), y0)) || is_some_tm(step(TmAp(TmAp(f0, a0), y0)))) at 0 end "
+    ++ "| TmAp(f0, a0) => revert is_value(x0) == true => from x0 do axiom hx0 end end; from is_value(TmAp(f0, a0)) do eval end; from false == true do eval end; from false ==> (is_value(TmAp(TmAp(f0, a0), y0)) || is_some_tm(step(TmAp(TmAp(f0, a0), y0)))) do eval end "
     ++ "end "
     ++ "end "
     ++ "end "
@@ -558,9 +553,9 @@ let test_progress_proven = () => {
 let unroll_probe = (piece: string): (ProofMap.t, Proof.t) => {
   let src =
     program(
-      "theorem bp = forall u1: Term -> forall u2: Term -> is_value(u1) == false ==> step(TmAp(u1, u2)) == NoTm proof assume is_value(u1) == false => eval step(TmAp(u1, u2)) at 0 end; axiom assume at 0 on is_value(u1) end; eval "
+      "theorem bp = forall u1: Term -> forall u2: Term -> is_value(u1) == false ==> step(TmAp(u1, u2)) == NoTm proof assume is_value(u1) == false => from step(TmAp(u1, u2)) do eval end; from is_value(u1) do axiom assume end end; from "
       ++ piece
-      ++ " at 0 end; ? in bp",
+      ++ " do eval end; ? in bp",
     );
   run_named("bp", src);
 };
@@ -672,7 +667,7 @@ let test_ih_citation_underdetermined_without_with = () => {
            (one per sub-term), both named `ih`, so `ih` denotes the one
            installed innermost, y0's. An `alias` says which one this probe
            is about. */
-        "alias ihx = forall t0 -> infer(([], x0)) == SomeTy(t0) ==> is_value(x0) || is_some_tm(step(x0)) => revert ihx => axiom ihx at 0 on is_value(x0) || is_some_tm(step(x0)) end",
+        "alias ihx = forall t0 -> infer(([], x0)) == SomeTy(t0) ==> is_value(x0) || is_some_tm(step(x0)) => revert ihx => from is_value(x0) || is_some_tm(step(x0)) do axiom ihx end end",
       ),
     );
   if (!
@@ -730,7 +725,7 @@ let test_ih_instantiation_unknown_binder = () => {
 let test_pin_where_fact_uncitable = () => {
   let src =
     program(
-      "theorem wprobe = forall u1: Term where is_value(u1) -> is_lam(u1) proof axiom where at 0 on is_lam(u1) end in wprobe",
+      "theorem wprobe = forall u1: Term where is_value(u1) -> is_lam(u1) proof from is_lam(u1) do axiom where end end in wprobe",
     );
   let (pm, proof) = run_named("wprobe", src);
   if (!

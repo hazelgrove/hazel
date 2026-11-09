@@ -126,13 +126,22 @@ module Proofs = {
   /* One `eval` proof step: the silent steps, the visible step, and the
    * silent steps after it. */
   let step: ProofCheck.step_fn =
-    (~env, e) => {
+    (~env, ~at, e) => {
       /* Unbounded, so never None. */
       let advance_hidden = e =>
         advance_hidden(~env, e) |> Option.value(~default=([], e));
       let (leading_auto_steps, e) = advance_hidden(e);
-      switch (EvaluatorStep.get_status(~settings=CoreSettings.on, e, env)) {
-      | AvailableSteps([s, ..._]) =>
+      let visible_step =
+        switch (EvaluatorStep.get_status(~settings=CoreSettings.on, e, env)) {
+        | AvailableSteps(steps) =>
+          switch (at) {
+          | Anywhere => Util.ListUtil.hd_opt(steps)
+          | Root => List.find_opt(EvaluatorStep.is_at_root, steps)
+          }
+        | AutoStep(_) => None
+        };
+      switch (visible_step) {
+      | Some(s) =>
         switch (EvaluatorStep.take_step(s)) {
         | Some(next) =>
           let (trailing_auto_steps, outgoing) = advance_hidden(next);
@@ -153,8 +162,7 @@ module Proofs = {
           );
         | None => None
         }
-      | AutoStep(_)
-      | AvailableSteps([]) => None
+      | None => None
       };
     };
 

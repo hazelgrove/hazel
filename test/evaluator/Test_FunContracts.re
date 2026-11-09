@@ -81,7 +81,7 @@ let test_funwhere_off_contract_is_an_error = () => {
  * Nothing is pending (the definition's body condition `x != 0` matches
  * the guard). */
 let test_contract_emission_caller_vocabulary = () => {
-  let src = {|let f = fun x where x != 0 -> 100 / x in theorem t = forall y where y != 0 -> f(y) == f(y) proof axiom refl_eq at 0 on f(y) == f(y) end in t|};
+  let src = {|let f = fun x where x != 0 -> 100 / x in theorem t = forall y where y != 0 -> f(y) == f(y) proof from f(y) == f(y) do axiom refl_eq end end in t|};
   let (pm, proof, obs) = obligations(src);
   check_count("exactly the contract obligation", 1, obs);
   switch (obs) {
@@ -111,7 +111,7 @@ let test_contract_emission_caller_vocabulary = () => {
 /* A closed contract call `f(2)`: the instantiated contract `2 != 0`
  * discharges by closed evaluation. */
 let test_closed_contract_call_evaluated = () => {
-  let src = {|let f = fun x where x != 0 -> 100 / x in theorem t = f(2) == f(2) proof axiom refl_eq at 0 on f(2) == f(2) end in t|};
+  let src = {|let f = fun x where x != 0 -> 100 / x in theorem t = f(2) == f(2) proof from f(2) == f(2) do axiom refl_eq end end in t|};
   let (pm, proof, obs) = obligations(src);
   check_count("exactly the contract obligation", 1, obs);
   switch (obs) {
@@ -140,7 +140,7 @@ let test_closed_contract_call_evaluated = () => {
  * function's own id); calls don't re-emit body conditions. Two theorems
  * using it still yield one definition entry. */
 let test_unguarded_definition_obligation_once = () => {
-  let src = {|let g = fun x -> 100 / x in theorem t = forall y -> g(y) == g(y) proof axiom refl_eq at 0 on g(y) == g(y) end in theorem u = g(2) == g(2) proof axiom refl_eq at 0 on g(2) == g(2) end in u|};
+  let src = {|let g = fun x -> 100 / x in theorem t = forall y -> g(y) == g(y) proof from g(y) == g(y) do axiom refl_eq end end in theorem u = g(2) == g(2) proof from g(2) == g(2) do axiom refl_eq end end in u|};
   let (state, _, elab) = src |> parse_exp |> eval_with_proof;
   let pm = EvaluatorState.get_proof_map(state);
   /* Neither use re-emits the body condition. */
@@ -178,7 +178,7 @@ let test_unguarded_definition_obligation_once = () => {
  * `x != 0` matches the guard by fast_equal, leaving no definition
  * obligations. */
 let test_guarded_definition_discharged = () => {
-  let src = {|let f = fun x where x != 0 -> 100 / x in theorem t = 1 == 1 proof axiom refl_eq at 0 on 1 == 1 end in t|};
+  let src = {|let f = fun x where x != 0 -> 100 / x in theorem t = 1 == 1 proof from 1 == 1 do axiom refl_eq end end in t|};
   let (pm, proof, _) = obligations(src);
   check_count(
     "guard covers the body: zero definition obligations",
@@ -196,7 +196,7 @@ let test_guarded_definition_discharged = () => {
 /* A conjunctive guard discharges per conjunct: `x != 0 && x != 1`
  * covers the body's `x != 0` and leaves nothing. */
 let test_conjunctive_guard_discharges = () => {
-  let src = {|let f = fun x where x != 0 && x != 1 -> 100 / x in theorem t = 1 == 1 proof axiom refl_eq at 0 on 1 == 1 end in t|};
+  let src = {|let f = fun x where x != 0 && x != 1 -> 100 / x in theorem t = 1 == 1 proof from 1 == 1 do axiom refl_eq end end in t|};
   let (pm, _, _) = obligations(src);
   check_count(
     "conjunct covers the body condition",
@@ -212,7 +212,7 @@ let test_conjunctive_guard_discharges = () => {
  * obligations and discharged Remote against the where-binders. Proven,
  * nothing pending. */
 let test_nonzero_mul_discharged_by_binders = () => {
-  let src = {|theorem t = forall a where a != 0 -> forall b where b != 0 -> a * b != 0 proof axiom nonzero_mul at 0 on a * b != 0 end in t|};
+  let src = {|theorem t = forall a where a != 0 -> forall b where b != 0 -> a * b != 0 proof from a * b != 0 do axiom nonzero_mul end end in t|};
   let (pm, proof, obs) = obligations(src);
   check_count("the two antecedent obligations", 2, obs);
   let has_goal = (expected: string) =>
@@ -245,7 +245,7 @@ let test_nonzero_mul_discharged_by_binders = () => {
 /* Without the where-binders nothing covers the antecedents:
  * ProvenModulo with the two Pending. */
 let test_nonzero_mul_pending_without_binders = () => {
-  let src = {|theorem t = forall a -> forall b -> a * b != 0 proof axiom nonzero_mul at 0 on a * b != 0 end in t|};
+  let src = {|theorem t = forall a -> forall b -> a * b != 0 proof from a * b != 0 do axiom nonzero_mul end end in t|};
   let (pm, proof, obs) = obligations(src);
   check_count("the two antecedent obligations", 2, obs);
   Alcotest.check(
@@ -268,7 +268,7 @@ let test_nonzero_mul_pending_without_binders = () => {
  * an obligation needs, here as an axiom step rewriting the goal
  * itself. */
 let test_nonzero_of_pos_bridge = () => {
-  let src = {|theorem t = forall a where a > 0 -> a != 0 proof axiom nonzero_of_pos at 0 on a != 0 end in t|};
+  let src = {|theorem t = forall a where a > 0 -> a != 0 proof from a != 0 do axiom nonzero_of_pos end end in t|};
   let (pm, proof, obs) = obligations(src);
   check_count("one antecedent obligation", 1, obs);
   switch (obs) {
@@ -292,7 +292,7 @@ let test_nonzero_of_pos_bridge = () => {
 
 /* Closed antecedents just run: `pos_mul` at literals. */
 let test_pos_mul_closed_evaluated = () => {
-  let src = {|theorem t = 2 * 3 > 0 proof axiom pos_mul at 0 on 2 * 3 > 0 end in t|};
+  let src = {|theorem t = 2 * 3 > 0 proof from 2 * 3 > 0 do axiom pos_mul end end in t|};
   let (pm, proof, obs) = obligations(src);
   check_count("the two antecedent obligations", 2, obs);
   Alcotest.check(

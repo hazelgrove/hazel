@@ -23,7 +23,7 @@ open Test_ProofMap.Harness;
 /* The proof needs `as h0` on the outer assumption: both assumptions
    are named `assume`, and the inner one shadows the outer, so `assume`
    here would rewrite `n` to `1` rather than to `0`. */
-let ex_falso_src = "theorem t = forall n: Int -> n == 0 ==> n == 1 ==> false proof assume n == 0 as h0 => assume n == 1 => revert n == 1 => axiom h0 at 0 on n end; eval 0 == 1 at 0 end; eval false ==> false at 0 end in t";
+let ex_falso_src = "theorem t = forall n: Int -> n == 0 ==> n == 1 ==> false proof assume n == 0 as h0 => assume n == 1 => revert n == 1 => from n do axiom h0 end end; from 0 == 1 do eval end; from false ==> false do eval end in t";
 
 let test_ex_falso = () => {
   let (pm, proof) = run_named("t", ex_falso_src);
@@ -37,7 +37,7 @@ let test_ex_falso = () => {
 
 /* Reverting doesn't consume the fact: it is still citable as a rewrite
  * rule inside the body, and still discharges obligations by lookup. */
-let stays_in_scope_src = "theorem t = forall n: Int -> n == 0 ==> 1 == 1 proof assume n == 0 => revert n == 0 => axiom assume at 0 on n end; eval 0 == 0 ==> 1 == 1 at 0 end; eval true ==> 1 == 1 at 0 end; eval 1 == 1 at 0 end in t";
+let stays_in_scope_src = "theorem t = forall n: Int -> n == 0 ==> 1 == 1 proof assume n == 0 => revert n == 0 => from n do axiom assume end end; from 0 == 0 do eval end; eval; eval in t";
 
 let test_revert_keeps_fact = () => {
   let (pm, proof) = run_named("t", stays_in_scope_src);
@@ -73,7 +73,7 @@ let test_revert_unknown = () => {
 
 /* A `where` guard that is not an equation still has a rewrite reading: a
  * cited fact holds, so it reads as `F == true`. */
-let bool_fact_src = "theorem t = forall b: Bool where b -> b == true proof axiom where at 0 on b end; axiom refl_eq at 0 on true == true end in t";
+let bool_fact_src = "theorem t = forall b: Bool where b -> b == true proof from b do axiom where end end; from true == true do axiom refl_eq end end in t";
 
 let test_bool_fact_rewrite = () => {
   let (pm, proof) = run_named("t", bool_fact_src);
@@ -96,7 +96,7 @@ let lem_bare = "theorem lem = forall x: Int -> x * 0 != 1 proof ? in ";
 let lem_eq = "theorem lem = forall x: Int -> (x * 0 != 1) == true proof ? in ";
 
 /* Forward (`axiom`): the conclusion instance rewrites to `true`. */
-let fwd_src = "theorem t = 7 * 0 != 1 proof axiom lem at 0 on 7 * 0 != 1 end in t";
+let fwd_src = "theorem t = 7 * 0 != 1 proof from 7 * 0 != 1 do axiom lem end end in t";
 
 /* Reverse (`axiomrev`): a `true` in the goal rewrites to the conclusion
  * instance. Enabled for explicit citations only; rule discovery
@@ -104,7 +104,7 @@ let fwd_src = "theorem t = 7 * 0 != 1 proof axiom lem at 0 on 7 * 0 != 1 end in 
  * (`ProofRule.Rewrite.matches`). The `with` clause supplies the
  * instantiation that matching on a bare `true` can't recover, and
  * evaluation then brings the instance back to `true`. */
-let rev_src = "theorem t = true proof axiomrev lem with x = 3 at 0 on true end; eval 3 * 0 at 0 end; eval 0 != 1 at 0 end in t";
+let rev_src = "theorem t = true proof from true do axiomrev lem with x = 3 end end; from 3 * 0 do eval end; from 0 != 1 do eval end in t";
 
 let check_rule_use = (label: string, prelude: string, body: string) => {
   let (pm, proof) = run_named("t", prelude ++ body);
@@ -142,7 +142,7 @@ let test_bare_bool_theorem_as_rule_reverse = () => {
  * a rule marks rather than rewriting the term to `true`. */
 let non_bool_src =
   "theorem lem = forall x: Int -> x * 0 proof ? in "
-  ++ "theorem t = 7 * 0 != 1 proof axiom lem at 0 on 7 * 0 end in t";
+  ++ "theorem t = 7 * 0 != 1 proof from 7 * 0 do axiom lem end end in t";
 
 let test_non_bool_conclusion_stays_inert = () => {
   let (pm, proof) = run_named("t", non_bool_src);
@@ -171,8 +171,8 @@ let adt_prelude = "type Nt = +Z+S(Nt) in let pos = fun e -> case e | Z => true |
 let adt_ih_src =
   adt_prelude
   ++ "theorem t = forall e: Nt -> pos(e) proof induction e "
-  ++ "| Z => eval pos(Z) at 0 end "
-  ++ "| S(b) => revert pos(b) => axiom ih at 0 on pos(b) end; eval true ==> pos(S(b)) at 0 end; eval pos(S(b)) at 0 end "
+  ++ "| Z => from pos(Z) do eval end "
+  ++ "| S(b) => revert pos(b) => from pos(b) do axiom ih end end; from true ==> pos(S(b)) do eval end; from pos(S(b)) do eval end "
   ++ "end in t";
 
 let test_adt_ih = () => {

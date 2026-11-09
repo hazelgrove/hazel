@@ -1472,10 +1472,8 @@ and Proof: {
         | MultiHole(things) => MultiHole(List.map(any_map_term, things))
         | Seq(p1, p2) => Seq(proof_map_term(p1), proof_map_term(p2))
         | Parens(p) => Parens(proof_map_term(p))
-        | AxiomStep({at_idx, at_exp, direction, equality, instantiation}) =>
+        | AxiomStep({direction, equality, instantiation}) =>
           AxiomStep({
-            at_idx: exp_map_term(at_idx),
-            at_exp: exp_map_term(at_exp),
             direction,
             equality: exp_map_term(equality),
             instantiation:
@@ -1484,16 +1482,13 @@ and Proof: {
                 instantiation,
               ),
           })
-        | AlgebriteStep({at_idx, at_exp, with_exp}) =>
-          AlgebriteStep({
-            at_idx: exp_map_term(at_idx),
-            at_exp: exp_map_term(at_exp),
-            with_exp: exp_map_term(with_exp),
-          })
-        | EvalStep({at_idx, at_exp}) =>
-          EvalStep({
-            at_idx: exp_map_term(at_idx),
-            at_exp: exp_map_term(at_exp),
+        | AlgebriteStep(e) => AlgebriteStep(exp_map_term(e))
+        | EvalStep => EvalStep
+        | Focus({ordinal, selector, body}) =>
+          Focus({
+            ordinal,
+            selector: exp_map_term(selector),
+            body: proof_map_term(body),
           })
         | Induction(e, as_name, cases) =>
           Induction(

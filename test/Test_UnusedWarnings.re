@@ -378,8 +378,8 @@ let tests = (
       "proof: induction case binders",
       {|theorem t = forall x : [Int] -> x == x @ [] proof
 induction x
-| [] => eval [] @ [] at 0 end; eval $e at 0 end
-| u :: us => eval u :: us @ [] at 0 end
+| [] => from [] @ [] do eval end; from $e do eval end
+| u :: us => from u :: us @ [] do eval end
 end in t|},
       [],
     ),

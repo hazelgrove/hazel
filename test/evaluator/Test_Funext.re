@@ -45,7 +45,7 @@ let test_happy_path_proven = () =>
   check_status(
     "pointwise commute proves as a function equality",
     ProofMap.Proven,
-    {|theorem t = (fun x -> x + 1) == (fun x -> 1 + x) proof funext x => rewrite x + 1 with 1 + x at 0 end; axiom refl_eq at 0 on 1 + x == 1 + x end in t|},
+    {|theorem t = (fun x -> x + 1) == (fun x -> 1 + x) proof funext x => from x + 1 do rewrite 1 + x end end; from 1 + x == 1 + x do axiom refl_eq end end in t|},
   );
 
 /* The body's incoming goal is the pointwise one. When a side is a
@@ -100,7 +100,7 @@ let test_named_function_refl_proves = () =>
   check_status(
     "`inv == inv` closes pointwise by refl without applying inv",
     ProofMap.Proven,
-    {|let inv = fun x -> 1 / x in theorem t = inv == inv proof funext x => axiom refl_eq at 0 on inv(x) == inv(x) end in t|},
+    {|let inv = fun x -> 1 / x in theorem t = inv == inv proof funext x => from inv(x) == inv(x) do axiom refl_eq end end in t|},
   );
 
 /* --- 2. Control: refl at identical functions, without funext ---------- */
@@ -111,7 +111,7 @@ let test_refl_identical_functions_no_funext = () =>
   check_status(
     "refl closes identical function literals without funext",
     ProofMap.Proven,
-    {|theorem t = (fun x -> x + 1) == (fun x -> x + 1) proof axiom refl_eq at 0 on (fun x -> x + 1) == (fun x -> x + 1) end in t|},
+    {|theorem t = (fun x -> x + 1) == (fun x -> x + 1) proof from (fun x -> x + 1) == (fun x -> x + 1) do axiom refl_eq end end in t|},
   );
 
 /* --- 3. Malformed: funext on a non-function equality ------------------ */
@@ -168,7 +168,7 @@ let test_funext_hole_body_incomplete = () =>
 /* `a -> b -> c` peels once to `f(x) == g(x)`, which is still an arrow; a
  * second `funext y =>` peels again. */
 let test_two_arrow_nested_funext = () => {
-  let src = {|theorem t = (fun x -> fun y -> x + y) == (fun x -> fun y -> y + x) proof funext x => funext y => rewrite x + y with y + x at 0 end; axiom refl_eq at 0 on y + x == y + x end in t|};
+  let src = {|theorem t = (fun x -> fun y -> x + y) == (fun x -> fun y -> y + x) proof funext x => funext y => from x + y do rewrite y + x end end; from y + x == y + x do axiom refl_eq end end in t|};
   let (pm, proof) = run(src);
   let status = ProofMap.full_status_of_proof(pm, proof);
   Alcotest.check(
@@ -207,7 +207,7 @@ let test_two_arrow_inner_goal = () => {
  * `inv == (fun x -> 1 / x)` by evaluating the application is not a
  * clean Proven. */
 let test_partial_function_not_cleanly_proven = () => {
-  let src = {|let inv = fun x -> 1 / x in theorem t = inv == (fun x -> 1 / x) proof funext x => axiom refl_eq at 0 on inv(x) == inv(x) end in t|};
+  let src = {|let inv = fun x -> 1 / x in theorem t = inv == (fun x -> 1 / x) proof funext x => from inv(x) == inv(x) do axiom refl_eq end end in t|};
   let (pm, proof) = run(src);
   let status = ProofMap.full_status_of_proof(pm, proof);
   Alcotest.check(
@@ -226,7 +226,7 @@ let test_partial_function_not_cleanly_proven = () => {
  *
  *   let f : Int -> Int = fun x -> 1 / x in
  *   theorem t = (fun x -> f(f(x))) == (fun x : Int -> x) proof
- *   funext y => eval f at 0 end in t
+ *   funext y => from f do eval end in t
  *
  * If contracting the redex substituted only `x |-> y`, `f` would stay a
  * free `Var` in the pointwise goal, while the per-step env substitution
@@ -278,7 +278,7 @@ let test_letbound_name_is_substituted = () => {
  * separate question (`f`'s definition is already a
  * value); the assertion here is only that the pattern is found. */
 let test_eval_in_funext_body_finds_pattern = () => {
-  let src = funext_repro("funext y => eval f at 0 end");
+  let src = funext_repro("funext y => from f do eval end");
   let (pm, proof) = run(src);
   Alcotest.check(
     Alcotest.bool,
@@ -299,7 +299,7 @@ let test_eval_in_funext_body_finds_pattern = () => {
 /* Same, for an eval of the application rather than the bare name, the
  * form that has a redex to reduce. */
 let test_eval_application_in_funext_body_finds_pattern = () => {
-  let src = funext_repro("funext y => eval f(f(y)) at 0 end");
+  let src = funext_repro("funext y => from f(f(y)) do eval end");
   let (pm, proof) = run(src);
   Alcotest.check(
     Alcotest.bool,
@@ -546,7 +546,7 @@ let test_parens_transparent_to_checker = () =>
   check_status(
     "a parenthesized funext proof still proves",
     ProofMap.Proven,
-    {|theorem t = (fun x -> x + 1) == (fun x -> 1 + x) proof ( funext x => rewrite x + 1 with 1 + x at 0 end; axiom refl_eq at 0 on 1 + x == 1 + x end ) in t|},
+    {|theorem t = (fun x -> x + 1) == (fun x -> 1 + x) proof ( funext x => from x + 1 do rewrite 1 + x end end; from 1 + x == 1 + x do axiom refl_eq end end ) in t|},
   );
 
 /* The stepper sees through them too: the parens are unwrapped before

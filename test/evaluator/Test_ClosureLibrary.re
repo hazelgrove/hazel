@@ -289,7 +289,7 @@ let test_pin_symbolic_comparison_is_stuck = () => {
       theorem(
         "t",
         stmt_nonzero_of_pos,
-        "assume a1 > 0 => eval a1 != 0 at 0 end; ?",
+        "assume a1 > 0 => from a1 != 0 do eval end; ?",
       ),
     );
   if (!
@@ -297,7 +297,7 @@ let test_pin_symbolic_comparison_is_stuck = () => {
           pm,
           proof,
           fun
-          | ProofMark.NothingToStep(_) => true
+          | ProofMark.NothingToStep => true
           | _ => false,
         )) {
     Alcotest.fail(
@@ -325,7 +325,7 @@ let test_pin_no_numeric_induction_hypothesis = () => {
     run_named(
       "t",
       "theorem t = forall a1: Nat -> a1 != 0 proof induction a1 "
-      ++ "| 0 => ? | n => axiom ih at 0 on n != 0 end end in t",
+      ++ "| 0 => ? | n => from n != 0 do axiom ih end end end in t",
     );
   if (!
         has_mark_kind(
@@ -360,7 +360,7 @@ let test_pin_algebrite_launders_the_lemma = () => {
       theorem(
         "t",
         stmt_nonzero_of_pos,
-        "assume a1 > 0 => rewrite a1 != 0 with true at 0 end",
+        "assume a1 > 0 => from a1 != 0 do rewrite true end end",
       ),
     );
   check_status(
@@ -433,8 +433,8 @@ let ex_falso_src =
     ++ "| false => induction a1 "
     /* Inside the inner `a1` split, `case_eq` denotes that split's
      * equation, which shadows the enclosing `a1 != 0` one. */
-    ++ "| 0 => revert a1 > 0 => axiom case_eq at 0 on a1 end; "
-    ++ "eval 0 > 0 at 0 end; eval false ==> false at 0 end "
+    ++ "| 0 => revert a1 > 0 => from a1 do axiom case_eq end end; "
+    ++ "from 0 > 0 do eval end; from false ==> false do eval end "
     ++ "| n => ? end end",
   );
 
@@ -498,7 +498,7 @@ let closed_instance = (name: string, fact: string): string =>
   theorem(
     name,
     "1 == 1",
-    "assume " ++ fact ++ " => axiom refl_eq at 0 on 1 == 1 end",
+    "assume " ++ fact ++ " => from 1 == 1 do axiom refl_eq end end",
   );
 
 let instances: list((string, string)) = [

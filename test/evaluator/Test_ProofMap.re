@@ -165,7 +165,8 @@ module Harness = {
       | AxiomStep(_)
       | AlgebriteStep(_)
       | Contradiction(_)
-      | EvalStep(_) => None
+      | EvalStep => None
+      | Focus({body, _}) => find_marked_sub(pm, body)
       };
     };
   };
@@ -327,24 +328,40 @@ let proof_id_of = (elab: Exp.t): Id.t =>
   | None => Alcotest.fail("no theorem found in elaborated expression")
   };
 
+/* The entry of the step a theorem's proof focuses on. */
+let focused_entry = (state: EvaluatorState.t, elab: Exp.t): ProofMap.entry =>
+  switch (proof_of(elab).term) {
+  | Focus({body, _}) =>
+    switch (
+      ProofMap.lookup(
+        Proof.rep_id(body),
+        EvaluatorState.get_proof_map(state),
+      )
+    ) {
+    | Some(entry) => entry
+    | None => Alcotest.fail("no proof-map entry for the focused step")
+    }
+  | _ => Alcotest.fail("the proof is not a focus")
+  };
+
 /* A parenthesized redex has one hidden transition before the visible
  * arithmetic step. auto_incoming stores (justification, resulting_exp):
  * the expression is therefore the result of removing parentheses, not
  * the input that still contains them. */
 let test_leading_auto_step_trace = () => {
-  let src = {|theorem t = (1 + 2) == 3 proof eval (1 + 2) at 0 end in t|};
+  let src = {|theorem t = (1 + 2) == 3 proof from (1 + 2) do eval end in t|};
   let (state, _, elab) = src |> parse_exp |> eval_with_proof;
-  let entry = proof_entry(state, elab);
+  let entry = focused_entry(state, elab);
   check_exp(
     "incoming precedes hidden step",
-    "(1 + 2) == 3",
+    "(1 + 2)",
     require_exp("expected incoming", entry.incoming),
   );
   switch (entry.auto_incoming) {
   | [("remove parentheses", resulting_exp)] =>
     check_exp(
       "auto_incoming expression follows hidden step",
-      "1 + 2 == 3",
+      "1 + 2",
       resulting_exp,
     )
   | _ => Alcotest.fail("expected one leading remove-parentheses transition")
@@ -357,7 +374,7 @@ let test_leading_auto_step_trace = () => {
   );
   check_exp(
     "outgoing follows visible arithmetic",
-    "3 == 3",
+    "3",
     require_exp("expected outgoing", entry.outgoing),
   );
 };
@@ -367,14 +384,14 @@ let test_leading_auto_step_trace = () => {
  * (input_exp, justification), so it must retain the still-parenthesized
  * input rather than the result of the hidden transition. */
 let test_trailing_auto_step_trace = () => {
-  let src = {|theorem t = (if true then (3) else 4) == 3 proof eval (if true then (3) else 4) at 0 end in t|};
+  let src = {|theorem t = (if true then (3) else 4) == 3 proof from (if true then (3) else 4) do eval end in t|};
   let (state, _, elab) = src |> parse_exp |> eval_with_proof;
-  let entry = proof_entry(state, elab);
+  let entry = focused_entry(state, elab);
   switch (entry.auto_outgoing) {
   | [(input_exp, "remove parentheses")] =>
     check_exp(
       "auto_outgoing expression precedes hidden step",
-      "(3) == 3",
+      "(3)",
       input_exp,
     )
   | _ =>
@@ -385,7 +402,7 @@ let test_trailing_auto_step_trace = () => {
   };
   check_exp(
     "outgoing follows trailing lookup",
-    "3 == 3",
+    "3",
     require_exp("expected outgoing", entry.outgoing),
   );
 };
@@ -393,7 +410,7 @@ let test_trailing_auto_step_trace = () => {
 /* Reflexivity axiom on a closed equality: outgoing of the top-level
  * proof should be `true`, giving a checkmark. */
 let test_refl_checkmark = () => {
-  let src = {|theorem t = 1 == 1 proof axiom refl_eq at 0 on 1 == 1 end in t|};
+  let src = {|theorem t = 1 == 1 proof from 1 == 1 do axiom refl_eq end end in t|};
   let uexp = parse_exp(src);
   let (state, _, elab) = eval_with_proof(uexp);
   let pm = EvaluatorState.get_proof_map(state);
@@ -410,7 +427,7 @@ let test_refl_checkmark = () => {
  * the theorem (outgoing `true`) without needing an explicit `forall`
  * proof step. */
 let test_refl_forall_checkmark = () => {
-  let src = {|theorem t = forall x -> x == x proof axiom refl_eq at 0 on x == x end in t|};
+  let src = {|theorem t = forall x -> x == x proof from x == x do axiom refl_eq end end in t|};
   let uexp = parse_exp(src);
   let (state, _, elab) = eval_with_proof(uexp);
   let pm = EvaluatorState.get_proof_map(state);
@@ -455,7 +472,7 @@ let test_empty_hole_nothing = () => {
  * (`Some(false)` requires outgoing `false`), and it must not be marked
  * proven either — status stays `None`. */
 let test_false_goal_not_checkmark = () => {
-  let src = {|theorem t = 1 == 2 proof axiom refl_eq at 0 on 1 == 2 end in t|};
+  let src = {|theorem t = 1 == 2 proof from 1 == 2 do axiom refl_eq end end in t|};
   let uexp = parse_exp(src);
   let (state, _, elab) = eval_with_proof(uexp);
   let pm = EvaluatorState.get_proof_map(state);
@@ -478,7 +495,7 @@ let test_false_goal_not_checkmark = () => {
  * proof-map entry) onto an empty base and check the entry survives the
  * merge. */
 let test_append_proof_map = () => {
-  let src = {|theorem t = 1 == 1 proof axiom refl_eq at 0 on 1 == 1 end in t|};
+  let src = {|theorem t = 1 == 1 proof from 1 == 1 do axiom refl_eq end end in t|};
   let uexp = parse_exp(src);
   let (state, _, elab) = eval_with_proof(uexp);
   let pid = proof_id_of(elab);
@@ -512,7 +529,7 @@ let marked_id_is_surfaced = (pm: ProofMap.t, proof: Proof.t): bool =>
 
 /* UnknownEquality: an axiom that names a rule not in scope. */
 let test_unknown_equality_mark = () => {
-  let src = {|theorem t = 1 == 1 proof axiom bogus at 0 on 1 == 1 end in t|};
+  let src = {|theorem t = 1 == 1 proof from 1 == 1 do axiom bogus end end in t|};
   let uexp = parse_exp(src);
   let (state, _, elab) = eval_with_proof(uexp);
   let pm = EvaluatorState.get_proof_map(state);
@@ -540,7 +557,7 @@ let test_unknown_equality_mark = () => {
 /* PatternNotFound: axiom's at_exp pattern isn't present at the
  * requested occurrence in the incoming goal. */
 let test_pattern_not_found_mark = () => {
-  let src = {|theorem t = 1 == 1 proof axiom refl_eq at 0 on 5 == 5 end in t|};
+  let src = {|theorem t = 1 == 1 proof from 5 == 5 do axiom refl_eq end end in t|};
   let uexp = parse_exp(src);
   let (state, _, elab) = eval_with_proof(uexp);
   let pm = EvaluatorState.get_proof_map(state);
@@ -564,7 +581,7 @@ let test_pattern_not_found_mark = () => {
  * goal `x + x == 2 * x`, so occurrence 0 must be found and no
  * PatternNotFound mark should be emitted. */
 let test_rewrite_finds_pattern = () => {
-  let src = {|theorem t = forall x -> x + x == 2 * x proof rewrite x + x with 2 * x at 0 end in t|};
+  let src = {|theorem t = forall x -> x + x == 2 * x proof from x + x do rewrite 2 * x end end in t|};
   let uexp = parse_exp(src);
   let (state, _, elab) = eval_with_proof(uexp);
   let pm = EvaluatorState.get_proof_map(state);
@@ -583,13 +600,12 @@ let test_rewrite_finds_pattern = () => {
   );
 };
 
-/* Rewrite occurrence numbering must agree with the stepper overlay,
- * which writes `at <n>` by counting occurrences in the goal as
- * displayed, i.e. env-inlined. In this program the goal
- * `sum == fold_left(_, sum, 0)` contains a single literal `0`, but the
- * inlined body of `sum` contributes two earlier ones, so clicking the
- * `0` in `fold_left(_, sum, 0)` yields `at 2`. Counting on the
- * unsubstituted goal would find no third `0`. */
+/* Focus ordinals must agree with the stepper overlay, which counts
+ * occurrences in the goal as displayed, i.e. env-inlined. In this program
+ * the goal `sum == fold_left(_, sum, 0)` contains a single literal `0`,
+ * but the two inlined copies of `sum` contribute four earlier ones, so
+ * clicking the `0` in `fold_left(_, sum, 0)` yields `5th`. Counting on
+ * the unsubstituted goal would find no fifth `0`. */
 let rewrite_zero_src = {|let plus = fun (x,y) -> x + y in
 let sum(xs) = case xs
 | [] => 0
@@ -600,7 +616,7 @@ in
 theorem t =
     sum == fold_left(_, sum, 0)
 proof
-    rewrite 0 with 0 + 0 at 2 end
+    from 5th 0 do rewrite 0 + 0 end end
 in t|};
 
 let test_rewrite_zero_at_inlined_index = () => {
@@ -609,7 +625,7 @@ let test_rewrite_zero_at_inlined_index = () => {
   let proof = proof_of(elab);
   Alcotest.check(
     Alcotest.bool,
-    "`rewrite 0 with 0 + 0 at 2` must not report PatternNotFound",
+    "`from 5th 0 do rewrite 0 + 0 end` must not report PatternNotFound",
     false,
     has_mark_kind(
       pm,
@@ -619,7 +635,7 @@ let test_rewrite_zero_at_inlined_index = () => {
       | _ => false,
     ),
   );
-  /* And `at 2` must land on the goal's own `0`, not somewhere inside an
+  /* And `5th` must land on the goal's own `0`, not somewhere inside an
    * inlined copy of `sum`. */
   let entry =
     switch (ProofMap.lookup(Proof.rep_id(proof), pm)) {
@@ -638,7 +654,7 @@ let test_rewrite_zero_at_inlined_index = () => {
  * must elaborate to Nat(Plus) and still match. This needs the proof
  * term's expressions to be elaborated too. */
 let test_rewrite_finds_pattern_nat = () => {
-  let src = {|use Nat in theorem t = forall x -> x + x == 2 * x proof rewrite x + x with 2 * x at 0 end in t|};
+  let src = {|use Nat in theorem t = forall x -> x + x == 2 * x proof from x + x do rewrite 2 * x end end in t|};
   let uexp = parse_exp(src);
   let (state, _, elab) = eval_with_proof(uexp);
   let pm = EvaluatorState.get_proof_map(state);
@@ -660,7 +676,7 @@ let test_rewrite_finds_pattern_nat = () => {
 /* NothingToStep: an eval step on a fully-normalised subterm. The literal
  * `1` has no reducible step under the evaluator. */
 let test_nothing_to_step_mark = () => {
-  let src = {|theorem t = 1 == 1 proof eval 1 at 0 end in t|};
+  let src = {|theorem t = 1 == 1 proof from 1 do eval end in t|};
   let uexp = parse_exp(src);
   let (state, _, elab) = eval_with_proof(uexp);
   let pm = EvaluatorState.get_proof_map(state);
@@ -673,7 +689,7 @@ let test_nothing_to_step_mark = () => {
       pm,
       proof,
       fun
-      | ProofMark.NothingToStep(_) => true
+      | ProofMark.NothingToStep => true
       | _ => false,
     ),
   );
@@ -681,7 +697,7 @@ let test_nothing_to_step_mark = () => {
 
 /* ExpectedForallGoal: a `forall` proof when the goal isn't a forall. */
 let test_expected_forall_goal_mark = () => {
-  let src = {|theorem t = 1 == 1 proof forall x => axiom refl_eq at 0 on 1 == 1 end in t|};
+  let src = {|theorem t = 1 == 1 proof forall x => from 1 == 1 do axiom refl_eq end end in t|};
   let uexp = parse_exp(src);
   let (state, _, elab) = eval_with_proof(uexp);
   let pm = EvaluatorState.get_proof_map(state);
@@ -707,7 +723,7 @@ let test_missing_incoming_mark = () => {
    * through, so the second axiom still acts on `1 == 1` and succeeds.
    * The proof reaches `true`, but the broken step keeps it from counting
    * as proven. */
-  let src = {|theorem t = 1 == 1 proof axiom bogus at 0 on 1 == 1 end; axiom refl_eq at 0 on 1 == 1 end in t|};
+  let src = {|theorem t = 1 == 1 proof from 1 == 1 do axiom bogus end end; from 1 == 1 do axiom refl_eq end end in t|};
   let uexp = parse_exp(src);
   let (state, _, elab) = eval_with_proof(uexp);
   let pm = EvaluatorState.get_proof_map(state);
@@ -762,7 +778,7 @@ let test_missing_incoming_mark = () => {
 
 /* Chained eval steps: each step's outgoing feeds the next. */
 let test_one_eval_step_outgoing = () => {
-  let src = {|theorem thm = 1 + 4 == 5 proof eval 1 + 4 at 0 end in thm|};
+  let src = {|theorem thm = 1 + 4 == 5 proof from 1 + 4 do eval end in thm|};
   let (state, _, elab) = src |> parse_exp |> eval_with_proof;
   let entry = proof_entry(state, elab);
   check_exp(
@@ -773,7 +789,7 @@ let test_one_eval_step_outgoing = () => {
 };
 
 let test_two_eval_steps_outgoing = () => {
-  let src = {|theorem thm = 1 + 4 == 5 proof eval 1 + 4 at 0 end; eval 5 == 5 at 0 end in thm|};
+  let src = {|theorem thm = 1 + 4 == 5 proof from 1 + 4 do eval end; from 5 == 5 do eval end in thm|};
   let (state, _, elab) = src |> parse_exp |> eval_with_proof;
   let entry = proof_entry(state, elab);
   check_exp(
@@ -786,7 +802,7 @@ let test_two_eval_steps_outgoing = () => {
 /* A theorem mid-edit (body after `in` still empty) must still get its
    proof checked into the proof map. */
 let test_empty_body_still_checked = () => {
-  let src = "theorem thm = 1 + 4 == 5 proof \neval 1 + 4 at 0 end\n  in";
+  let src = "theorem thm = 1 + 4 == 5 proof \nfrom 1 + 4 do eval end\n  in";
   let (state, _, elab) = src |> parse_exp |> eval_with_proof;
   let entry = proof_entry(state, elab);
   check_exp(
@@ -850,7 +866,7 @@ let axiom_direction_of = (p: Proof.t): option(Util.Direction.t) => {
 };
 
 let test_axiom_direction_roundtrip = () => {
-  let src = {|theorem t = 1 == 1 proof axiomrev refl_eq at 0 on 1 end in t|};
+  let src = {|theorem t = 1 == 1 proof axiomrev refl_eq end in t|};
   let direction_of = (e: Exp.t): option(Util.Direction.t) =>
     switch (find_theorem_proof(e)) {
     | Some(p) => axiom_direction_of(p)
@@ -886,7 +902,7 @@ let test_axiom_direction_roundtrip = () => {
  * doesn't discharge it; a closed `true` assumption would discharge as
  * `Evaluated`, see the next test.) */
 let test_assume_proven_modulo = () => {
-  let src = {|theorem t = 1 == 1 proof assume 1 == 2 => axiom refl_eq at 0 on 1 == 1 end in t|};
+  let src = {|theorem t = 1 == 1 proof assume 1 == 2 => from 1 == 1 do axiom refl_eq end end in t|};
   let (state, _, elab) = src |> parse_exp |> eval_with_proof;
   let pm = EvaluatorState.get_proof_map(state);
   let proof = proof_of(elab);
@@ -917,7 +933,7 @@ let test_assume_proven_modulo = () => {
  * discharges as `Evaluated`, so the theorem is fully Proven despite the
  * assumption. */
 let test_assume_closed_true_discharges_evaluated = () => {
-  let src = {|theorem t = 1 == 1 proof assume 2 == 2 => axiom refl_eq at 0 on 1 == 1 end in t|};
+  let src = {|theorem t = 1 == 1 proof assume 2 == 2 => from 1 == 1 do axiom refl_eq end end in t|};
   let (state, _, elab) = src |> parse_exp |> eval_with_proof;
   let pm = EvaluatorState.get_proof_map(state);
   let proof = proof_of(elab);
@@ -946,7 +962,7 @@ let check_assume_stays_pending = (prefix: string, fact: string, ()) => {
     prefix
     ++ "theorem t = 1 == 1 proof assume "
     ++ fact
-    ++ " => axiom refl_eq at 0 on 1 == 1 end in t";
+    ++ " => from 1 == 1 do axiom refl_eq end end in t";
   let (state, _, elab) = src |> parse_exp |> eval_with_proof;
   let pm = EvaluatorState.get_proof_map(state);
   Alcotest.check(
@@ -966,7 +982,7 @@ let countdown = "let r = fun (n : Int) -> if n == 0 then 0 else r(n - 1) in ";
  * rewrites the goal with the assumed equation, so the theorem is
  * ProvenModulo its single pending obligation. */
 let test_assume_hypothesis_used = () => {
-  let src = {|theorem t = forall x -> x == 1 proof assume x == 1 => axiom assume at 0 on x end; axiom refl_eq at 0 on 1 == 1 end in t|};
+  let src = {|theorem t = forall x -> x == 1 proof assume x == 1 => from x do axiom assume end end; from 1 == 1 do axiom refl_eq end end in t|};
   let (state, _, elab) = src |> parse_exp |> eval_with_proof;
   let pm = EvaluatorState.get_proof_map(state);
   let proof = proof_of(elab);
@@ -986,7 +1002,7 @@ let test_assume_hypothesis_used = () => {
  * obligations are recorded but only one is pending. (`1 == 2` evaluates
  * to `false`, so the outer one stays pending.) */
 let test_nested_assume_discharges_remote = () => {
-  let src = {|theorem t = 1 == 1 proof assume 1 == 2 => assume 1 == 2 => axiom refl_eq at 0 on 1 == 1 end in t|};
+  let src = {|theorem t = 1 == 1 proof assume 1 == 2 => assume 1 == 2 => from 1 == 1 do axiom refl_eq end end in t|};
   let (state, _, elab) = src |> parse_exp |> eval_with_proof;
   let pm = EvaluatorState.get_proof_map(state);
   let proof = proof_of(elab);
@@ -1030,7 +1046,7 @@ let test_nested_assume_discharges_remote = () => {
 /* (d) An assume-free proof has no obligations and full status
  * Proven. */
 let test_no_assume_full_status_proven = () => {
-  let src = {|theorem t = 1 == 1 proof axiom refl_eq at 0 on 1 == 1 end in t|};
+  let src = {|theorem t = 1 == 1 proof from 1 == 1 do axiom refl_eq end end in t|};
   let (state, _, elab) = src |> parse_exp |> eval_with_proof;
   let pm = EvaluatorState.get_proof_map(state);
   let proof = proof_of(elab);
@@ -1144,7 +1160,7 @@ let test_forall_where_parse_and_rule = () => {
  * is B) and no obligation is incurred. A complete proof goes through with
  * full status Proven and zero obligations. */
 let test_impl_intro_via_assume = () => {
-  let src = {|theorem t = forall x -> x == 2 ==> x + 1 == 3 proof assume x == 2 => axiom assume at 0 on x end; eval 2 + 1 at 0 end; axiom refl_eq at 0 on 3 == 3 end in t|};
+  let src = {|theorem t = forall x -> x == 2 ==> x + 1 == 3 proof assume x == 2 => from x do axiom assume end end; from 2 + 1 do eval end; from 3 == 3 do axiom refl_eq end end in t|};
   let (state, _, elab) = src |> parse_exp |> eval_with_proof;
   let pm = EvaluatorState.get_proof_map(state);
   let proof = proof_of(elab);
@@ -1188,7 +1204,7 @@ let test_assume_non_antecedent_keeps_goal = () => {
  * instantiation incurs the instantiated guard, which closed evaluation
  * discharges (`Evaluated`), so full status is Proven. */
 let test_conditional_rule_closed_discharges = () => {
-  let src = {|theorem inv = forall x where x != 0 -> x == x proof axiom refl_eq at 0 on x == x end in theorem u = 2 == 2 proof axiom inv at 0 on 2 end; axiom refl_eq at 0 on 2 == 2 end in u|};
+  let src = {|theorem inv = forall x where x != 0 -> x == x proof from x == x do axiom refl_eq end end in theorem u = 2 == 2 proof from 2 do axiom inv end end; from 2 == 2 do axiom refl_eq end end in u|};
   let (state, _, elab) = src |> parse_exp |> eval_with_proof;
   let pm = EvaluatorState.get_proof_map(state);
   let use_proof = proof_of_named("u", elab);
@@ -1222,7 +1238,7 @@ let test_conditional_rule_closed_discharges = () => {
  * evaluated (open goals never are) and nothing in scope covers it, so it
  * is Pending and the use is ProvenModulo. */
 let test_conditional_rule_open_pending = () => {
-  let src = {|theorem inv = forall x where x != 0 -> x == x proof axiom refl_eq at 0 on x == x end in theorem u = forall y -> y == y proof axiom inv at 0 on y end; axiom refl_eq at 0 on y == y end in u|};
+  let src = {|theorem inv = forall x where x != 0 -> x == x proof from x == x do axiom refl_eq end end in theorem u = forall y -> y == y proof from y do axiom inv end end; from y == y do axiom refl_eq end end in u|};
   let (state, _, elab) = src |> parse_exp |> eval_with_proof;
   let pm = EvaluatorState.get_proof_map(state);
   let use_proof = proof_of_named("u", elab);
@@ -1241,7 +1257,7 @@ let test_conditional_rule_open_pending = () => {
  * named `where`, with no obligation: the proof can rewrite with it and
  * close with no obligations. */
 let test_forall_where_hypothesis_cited = () => {
-  let src = {|theorem t = forall x where x == 1 -> x == 1 proof axiom where at 0 on x end; axiom refl_eq at 0 on 1 == 1 end in t|};
+  let src = {|theorem t = forall x where x == 1 -> x == 1 proof from x do axiom where end end; from 1 == 1 do axiom refl_eq end end in t|};
   let (state, _, elab) = src |> parse_exp |> eval_with_proof;
   let pm = EvaluatorState.get_proof_map(state);
   let proof = proof_of(elab);
@@ -1263,7 +1279,7 @@ let test_forall_where_hypothesis_cited = () => {
  * mentions a metavariable (`k`) the conclusion match cannot fix is
  * refused with UnderdeterminedInstantiation. */
 let test_underdetermined_instantiation = () => {
-  let src = {|theorem r = forall x -> forall k -> k != 0 ==> x == x proof ? in theorem u = 2 == 2 proof axiom r at 0 on 2 end in u|};
+  let src = {|theorem r = forall x -> forall k -> k != 0 ==> x == x proof ? in theorem u = 2 == 2 proof from 2 do axiom r end end in u|};
   let (state, _, elab) = src |> parse_exp |> eval_with_proof;
   let pm = EvaluatorState.get_proof_map(state);
   let use_proof = proof_of_named("u", elab);
@@ -1283,7 +1299,7 @@ let test_underdetermined_instantiation = () => {
 
 /* Built-in Kleene axioms are usable as ordinary axiom steps. */
 let test_kleene_axiom_and_comm = () => {
-  let src = {|theorem t = (true && false) == (false && true) proof axiom and_comm at 0 on true && false end; axiom refl_eq at 0 on (false && true) == (false && true) end in t|};
+  let src = {|theorem t = (true && false) == (false && true) proof from true && false do axiom and_comm end end; from (false && true) == (false && true) do axiom refl_eq end end in t|};
   let (state, _, elab) = src |> parse_exp |> eval_with_proof;
   let pm = EvaluatorState.get_proof_map(state);
   Alcotest.check(
@@ -1295,7 +1311,7 @@ let test_kleene_axiom_and_comm = () => {
 };
 
 let test_kleene_axiom_impl_def = () => {
-  let src = {|theorem t = forall p -> forall q -> (p ==> q) == (!p || q) proof axiom impl_def at 0 on p ==> q end; axiom refl_eq at 0 on (!p || q) == (!p || q) end in t|};
+  let src = {|theorem t = forall p -> forall q -> (p ==> q) == (!p || q) proof from p ==> q do axiom impl_def end end; from (!p || q) == (!p || q) do axiom refl_eq end end in t|};
   let (state, _, elab) = src |> parse_exp |> eval_with_proof;
   let pm = EvaluatorState.get_proof_map(state);
   Alcotest.check(
@@ -1319,7 +1335,7 @@ let test_kleene_axiom_impl_def = () => {
  * pattern locates the equation, and the axiom still applies to the
  * concrete `1 == 1` it matched. Compare test_refl_checkmark. */
 let test_pattern_refl_checkmark = () => {
-  let src = {|theorem t = 1 == 1 proof axiom refl_eq at 0 on $e == $e end in t|};
+  let src = {|theorem t = 1 == 1 proof from $e == $e do axiom refl_eq end end in t|};
   let (state, _, elab) = src |> parse_exp |> eval_with_proof;
   let pm = EvaluatorState.get_proof_map(state);
   Alcotest.check(
@@ -1334,7 +1350,7 @@ let test_pattern_refl_checkmark = () => {
  * renaming the statement's variable doesn't break the proof. Compare
  * test_refl_forall_checkmark. */
 let test_pattern_refl_forall_checkmark = () => {
-  let src = {|theorem t = forall x -> x == x proof axiom refl_eq at 0 on $e == $e end in t|};
+  let src = {|theorem t = forall x -> x == x proof from $e == $e do axiom refl_eq end end in t|};
   let (state, _, elab) = src |> parse_exp |> eval_with_proof;
   let pm = EvaluatorState.get_proof_map(state);
   Alcotest.check(
@@ -1349,7 +1365,7 @@ let test_pattern_refl_forall_checkmark = () => {
  * and the concrete subterm is what steps. Compare
  * test_leading_auto_step_trace, which quotes `(1 + 2)` exactly. */
 let test_pattern_eval_step_outgoing = () => {
-  let src = {|theorem t = (1 + 2) == 3 proof eval $e + $e at 0 end in t|};
+  let src = {|theorem t = (1 + 2) == 3 proof from $e + $e do eval end in t|};
   let (state, _, elab) = src |> parse_exp |> eval_with_proof;
   let entry = proof_entry(state, elab);
   check_exp(
@@ -1362,16 +1378,15 @@ let test_pattern_eval_step_outgoing = () => {
 /* `$v` is value-restricted, so it discriminates where `$e` would not:
  * in `(1 + 2) + (3 + 4)` the outer sum has non-value operands, so it is
  * not a `$v + $v` match and only the two inner sums are. This also
- * exercises `at <idx>` indexing among *pattern* matches; the index
- * counts in `Occurrence.nth`'s traversal order, which reaches a
- * binary operator's right operand first, so `at 1` is the left sum. */
+ * exercises ordinals among *pattern* matches, which count left to
+ * right, so `2nd` is the right sum. */
 let test_pattern_value_metavar_indexing = () => {
-  let src = {|theorem t = (1 + 2) + (3 + 4) == 10 proof eval $v + $v at 1 end in t|};
+  let src = {|theorem t = (1 + 2) + (3 + 4) == 10 proof from 2nd $v + $v do eval end in t|};
   let (state, _, elab) = src |> parse_exp |> eval_with_proof;
   let entry = proof_entry(state, elab);
   check_exp(
-    "second $v + $v match is the left-hand sum",
-    "3 + (3 + 4) == 10",
+    "second $v + $v match is the right-hand sum",
+    "(1 + 2) + 7 == 10",
     require_exp("expected outgoing", entry.outgoing),
   );
 };
@@ -1379,7 +1394,7 @@ let test_pattern_value_metavar_indexing = () => {
 /* A pattern that matches nothing is reported exactly like a missing
  * exact quote. Compare the PatternNotFound test for `5 == 5`. */
 let test_pattern_not_found = () => {
-  let src = {|theorem t = 1 == 1 proof axiom refl_eq at 0 on $e + $e end in t|};
+  let src = {|theorem t = 1 == 1 proof from $e + $e do axiom refl_eq end end in t|};
   let (state, _, elab) = src |> parse_exp |> eval_with_proof;
   let pm = EvaluatorState.get_proof_map(state);
   Alcotest.check(
@@ -1400,7 +1415,7 @@ let test_pattern_not_found = () => {
  * statics case that covers stepper filters covers these slots too, so
  * the program has no free-variable mark. */
 let test_pattern_metavar_not_free = () => {
-  let src = {|theorem t = 1 == 1 proof axiom refl_eq at 0 on $e == $e end in t|};
+  let src = {|theorem t = 1 == 1 proof from $e == $e do axiom refl_eq end end in t|};
   let (statics, _) = statics_and_elab(parse_exp(src));
   let free =
     Id.Map.exists(
@@ -1439,7 +1454,7 @@ let test_citation_survives_value_shadowing = () => {
   /* `lem` states `1 + 1 == 2`, so citing it rewrites `1 + 1` to `2`;
      `g`'s goal then evaluates to `true`. The `let lem = 5` in between
      rebinds the name in the value namespace only. */
-  let src = {|theorem lem = 1 + 1 == 2 proof eval 1 + 1 at 0 end; axiom refl_eq at 0 on 2 == 2 end in let lem = 5 in theorem g = (1 + 1) + 1 == 3 proof axiom lem at 0 on 1 + 1 end; eval 2 + 1 at 0 end; axiom refl_eq at 0 on 3 == 3 end in lem|};
+  let src = {|theorem lem = 1 + 1 == 2 proof from 1 + 1 do eval end; from 2 == 2 do axiom refl_eq end end in let lem = 5 in theorem g = (1 + 1) + 1 == 3 proof from 1 + 1 do axiom lem end end; from 2 + 1 do eval end; from 3 == 3 do axiom refl_eq end end in lem|};
   let (state, _, elab) = src |> parse_exp |> eval_with_proof;
   let pm = EvaluatorState.get_proof_map(state);
   let proof = proof_of_named("g", elab);
@@ -1468,7 +1483,7 @@ let test_citation_survives_value_shadowing = () => {
  * is an ordinary expression (with `t` free), and the theorem is still
  * checked: the proof map is populated. */
 let test_theorem_body_is_ordinary_code = () => {
-  let src = {|theorem t = 1 == 1 proof axiom refl_eq at 0 on 1 == 1 end in 7|};
+  let src = {|theorem t = 1 == 1 proof from 1 == 1 do axiom refl_eq end end in 7|};
   let (state, _, elab) = src |> parse_exp |> eval_with_proof;
   let pm = EvaluatorState.get_proof_map(state);
   let proof = proof_of_named("t", elab);
@@ -1523,7 +1538,7 @@ let test_entries_record_scope = () => {
 let test_unfinished_induction_steps_to_true = () => {
   let (pm, proof) =
     run(
-      {|theorem t = forall xs : [Int] -> xs == xs proof induction xs | [] => axiom refl_eq at 0 on [] == [] end | y :: ys => ? end in t|},
+      {|theorem t = forall xs : [Int] -> xs == xs proof induction xs | [] => from [] == [] do axiom refl_eq end end | y :: ys => ? end in t|},
     );
   let outgoing =
     switch (ProofMap.lookup(Proof.rep_id(proof), pm)) {

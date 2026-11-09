@@ -52,7 +52,7 @@ let str_check = (msg, expected, actual) =>
 let repro = {|let f = fun x where x != 0 -> 100 / x in
 let g = fun w -> 100 / w in
 theorem t = forall y where y != 0 -> forall z -> f(y) + 4 / 2 + 8 / z == f(y) + 4 / 2 + 8 / z
-proof axiom refl_eq at 0 on f(y) + 4 / 2 + 8 / z == f(y) + 4 / 2 + 8 / z end
+proof from f(y) + 4 / 2 + 8 / z == f(y) + 4 / 2 + 8 / z do axiom refl_eq end end
 in t|};
 
 let repro_group = () => {
@@ -131,7 +131,9 @@ let test_repro_status_is_proven_modulo = () => {
  * Incomplete. */
 let test_status_proven_and_incomplete = () => {
   let (pm, proof) =
-    run({|theorem t = 1 == 1 proof axiom refl_eq at 0 on 1 == 1 end in t|});
+    run(
+      {|theorem t = 1 == 1 proof from 1 == 1 do axiom refl_eq end end in t|},
+    );
   bool_check(
     "obligation-free proof is Proven",
     true,
@@ -329,7 +331,7 @@ let test_remote_receipt_is_the_covering_fact = () => {
 let test_display_goal_is_not_env_inlined = () => {
   let src = {|let d = fun q -> q + 1 in
 theorem t = forall y -> 1 == 1
-proof assume d(y) != 0 => axiom refl_eq at 0 on 1 == 1 end
+proof assume d(y) != 0 => from 1 == 1 do axiom refl_eq end end
 in t|};
   let (pm, proof) = run(src);
   let obs = ProofMap.obligations_of_proof(pm, proof);
@@ -458,7 +460,7 @@ let test_float_available_at_theorem_binder = () => {
  * chosen. Both `a` and `b` are theorem binders; the goal mentions only
  * `b`, so the guard lands on `b`'s binder. */
 let inner_binder_src = {|theorem t = forall a: Int -> forall b: Int -> a + 8 / b == a + 8 / b
-proof axiom refl_eq at 0 on a + 8 / b == a + 8 / b end
+proof from a + 8 / b == a + 8 / b do axiom refl_eq end end
 in t|};
 
 let test_float_target_is_innermost = () => {
@@ -477,7 +479,7 @@ let test_float_target_is_innermost = () => {
  * on a case and break exhaustiveness. The option must be offered and
  * disabled, with the reason — never silently dropped, never enabled. */
 let case_scoped_src = {|theorem t = forall n: Int -> 8 / n == 8 / n
-proof induction n | 0 => ? | m => axiom refl_eq at 0 on 8 / m == 8 / m end end
+proof induction n | 0 => ? | m => from 8 / m == 8 / m do axiom refl_eq end end end
 in t|};
 
 let test_float_disabled_at_case_binder = () => {
@@ -623,7 +625,7 @@ let ctx_of_zipper = (z: Haz3lcore.Zipper.t): ObligationsPanel.action_ctx => {
 let float_e2e_src = {|let f = fun x where x != 0 -> 100 / x in
 let g = fun w -> 100 / w in
 theorem t = forall y where y != 0 -> forall z -> f(y) + 4 / 2 + 8 / z == f(y) + 4 / 2 + 8 / z
-proof axiom refl_eq at 0 on f(y) + 4 / 2 + 8 / z == f(y) + 4 / 2 + 8 / z end
+proof from f(y) + 4 / 2 + 8 / z == f(y) + 4 / 2 + 8 / z do axiom refl_eq end end
 in 0|};
 
 let test_float_discharges_after_recheck = () => {

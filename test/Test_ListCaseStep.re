@@ -1,6 +1,5 @@
 open Alcotest;
 open Language;
-open Util;
 
 /* In `all_lists(xs) == true` the stepper's only step is the lookup of
  * `all_lists`, which the checker's `eval` passes through silently. The
@@ -47,24 +46,28 @@ let case_row = (f: Fixture.t, i): Rows.t =>
 let offered = (goal: Picker.Goal.t): list(EvaluatorStep.step) =>
   List.map(fst, goal.eval_steps);
 
-/* The index taking the `n`-th offered step writes, checking that it
- * writes `eval <exp> at <index> end`. */
+/* The 0-based index of the match taking the `n`-th offered step focuses
+ * on, checking that it writes `eval` focused on `exp`. */
 let written_index = (goal: Picker.Goal.t, n, ~exp: string): int =>
   switch (Picker.take_step(goal, n)) {
-  | Some(EvalStep({at_exp, at_idx})) =>
+  | Some({at: Some({selector, index, _}), step: {term: EvalStep, _}}) =>
     check(
       bool,
       "writes " ++ exp,
       true,
-      Exp.fast_equal(at_exp, Test_Evaluator_Prelude.parse_exp(exp)),
+      Exp.fast_equal(selector, Test_Evaluator_Prelude.parse_exp(exp)),
     );
-    switch (Exp.term_of(at_idx)) {
-    | Atom(Int(n)) => Bigint.to_int(n) |> Option.value(~default=-1)
-    | _ => Alcotest.fail("the index is not a number")
-    };
+    index;
   | Some(_) => Alcotest.fail("taking the step writes something else")
   | None => Alcotest.fail("taking the step writes nothing")
   };
+
+/* `from <ordinal> <exp> do eval end`, for the match with 0-based `idx`. */
+let focused_eval = (~exp, ~idx) =>
+  "from "
+  ++ (idx == 0 ? "" : Token.Ordinal.to_string(idx + 1) ++ " ")
+  ++ exp
+  ++ " do eval end";
 
 let replace_once = (~sub, ~by, s) =>
   switch (Str.search_forward(Str.regexp_string(sub), s, 0)) {
@@ -100,12 +103,13 @@ let check_entry = (entry: ProofMap.entry, ~outgoing: option(string)) => {
   );
 };
 
-/* Writes `eval <exp> at <idx> end` as the theorem's proof and checks it. */
+/* Writes `eval` focused on the `idx`-th `exp` as the theorem's proof and
+ * checks it. */
 let check_written_proof = (src, ~exp, ~idx, ~outgoing) => {
   let src =
     replace_once(
       ~sub="proof ?",
-      ~by="proof eval " ++ exp ++ " at " ++ string_of_int(idx) ++ " end",
+      ~by="proof " ++ focused_eval(~exp, ~idx),
       src,
     );
   let (state, _, elab) =
@@ -159,11 +163,11 @@ let take_in_case = (i, ~hole, ~exp, ~outgoing) => {
   let src =
     replace_once(
       ~sub=hole ++ " => ?",
-      ~by=hole ++ " => eval " ++ exp ++ " at 0 end",
+      ~by=hole ++ " => " ++ focused_eval(~exp, ~idx=0),
       every_by_cases,
     );
   switch (case_row(Fixture.mk(~name="every", src), i)) {
-  | {kind: Step(_), step: {term: EvalStep(_), _}, entry: Some(entry), _} =>
+  | {kind: Step(_), step: {term: Focus(_), _}, entry: Some(entry), _} =>
     check_entry(entry, ~outgoing)
   | _ => Alcotest.fail("the case is not a checked eval step")
   };

@@ -1,5 +1,3 @@
-open Util;
-
 /* Small readers and conversions of the syntax proofs are written in,
  * shared by the checker, its definedness analyses and the UI stepper. */
 
@@ -15,13 +13,6 @@ let rec unwrap = (e: Exp.t): Exp.t =>
   | Asc(inner, _)
   | Closure(_, inner) => unwrap(inner)
   | _ => e
-  };
-
-/* Proof syntax stores an `at <n>` index as an expression. */
-let exp_to_int = (e: Exp.t): option(int) =>
-  switch (e |> Exp.term_of) {
-  | Atom(Int(n)) => Bigint.to_int(n)
-  | _ => None
   };
 
 /* The name a bare variable spells: a cited rule or fact, a `with <var>`

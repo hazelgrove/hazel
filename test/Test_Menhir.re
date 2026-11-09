@@ -1291,19 +1291,27 @@ let ex5 = list_of_mylist(x) in
       ),
       menhir_maketerm_equivalent_test(
         "Proof axiom step",
-        "theorem t = forall x -> x == x proof axiom refl_eq at 0 on x == x end in t",
+        "theorem t = forall x -> x == x proof from x == x do axiom refl_eq end end in t",
       ),
       menhir_maketerm_equivalent_test(
         "Proof axiomrev step",
-        "theorem t = forall x -> x == x proof axiomrev refl_eq at 0 on x == x end in t",
+        "theorem t = forall x -> x == x proof from x == x do axiomrev refl_eq end end in t",
       ),
       menhir_maketerm_equivalent_test(
         "Proof eval step",
-        "theorem t = 1 + 1 == 2 proof eval 1 + 1 at 0 end in t",
+        "theorem t = 1 + 1 == 2 proof from 1 + 1 do eval end in t",
       ),
       menhir_maketerm_equivalent_test(
         "Proof rewrite step",
-        "theorem t = 1 + 1 == 2 proof rewrite 1 + 1 with 2 at 0 end in t",
+        "theorem t = 1 + 1 == 2 proof from 1 + 1 do rewrite 2 end end in t",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Proof eval at the root",
+        "theorem t = 2 == 2 proof eval in t",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Proof focus with an ordinal and two steps",
+        "theorem t = (1 + 1) * (1 + 1) == 4 proof from 2nd 1 + 1 do eval; rewrite 2 end end in t",
       ),
       menhir_maketerm_equivalent_test(
         "Proof induction",
@@ -1314,42 +1322,42 @@ let ex5 = list_of_mylist(x) in
          names in expression position. */
       menhir_maketerm_equivalent_test(
         "Hypothesis names `assume` and `where` in expression position",
-        "theorem t = forall b : Bool where b -> b == true proof axiom where at 0 on b end; axiom assume at 0 on b end in t",
+        "theorem t = forall b : Bool where b -> b == true proof from b do axiom where end end; from b do axiom assume end end in t",
       ),
       /* --- full prover programs (from test/evaluator) ------------------ */
       /* Test_Revert.ex_falso_src */
       menhir_maketerm_equivalent_test(
         "Full program: ex falso via assume/revert",
-        "theorem t = forall n: Int -> n == 0 ==> n == 1 ==> false proof assume n == 0 => assume n == 1 => revert n == 1 => axiom assume at 0 on n end; eval 0 == 1 at 0 end; eval false ==> false at 0 end in t",
+        "theorem t = forall n: Int -> n == 0 ==> n == 1 ==> false proof assume n == 0 => assume n == 1 => revert n == 1 => from n do axiom assume end end; from 0 == 1 do eval end; from false ==> false do eval end in t",
       ),
       /* Test_Revert.bool_fact_src: a where-binder plus axiom steps. */
       menhir_maketerm_equivalent_test(
         "Full program: bare-boolean where-fact",
-        "theorem t = forall b: Bool where b -> b == true proof axiom where at 0 on b end; axiom refl_eq at 0 on true == true end in t",
+        "theorem t = forall b: Bool where b -> b == true proof from b do axiom where end end; from true == true do axiom refl_eq end end in t",
       ),
       /* Test_Revert.adt_ih_src: ADT induction with a reverted IH. */
       menhir_maketerm_equivalent_test(
         "Full program: ADT induction with a reverted IH",
-        "type Nt = +Z+S(Nt) in let pos = fun e -> case e | Z => true | S(b) => true end in theorem t = forall e: Nt -> pos(e) proof induction e | Z => eval pos(Z) at 0 end | S(b) => revert pos(b) => axiom ih at 0 on pos(b) end; eval true ==> pos(S(b)) at 0 end; eval pos(S(b)) at 0 end end in t",
+        "type Nt = +Z+S(Nt) in let pos = fun e -> case e | Z => true | S(b) => true end in theorem t = forall e: Nt -> pos(e) proof induction e | Z => from pos(Z) do eval end | S(b) => revert pos(b) => from pos(b) do axiom ih end end; from true ==> pos(S(b)) do eval end; from pos(S(b)) do eval end end in t",
       ),
       /* --- hypothesis naming -------------------------------------------
          The menhir grammar's `as`/`alias` productions must agree with the
          tile-level forms, so these compare the two parsers directly. */
       menhir_maketerm_equivalent_test(
         "assume ... as <name>",
-        "theorem t = forall n: Int -> n == 1 ==> n == n proof assume n == 1 as h => axiom h at 0 on n end; ? in t",
+        "theorem t = forall n: Int -> n == 1 ==> n == n proof assume n == 1 as h => from n do axiom h end end; ? in t",
       ),
       menhir_maketerm_equivalent_test(
         "induction ... as <name>",
-        "theorem t = forall n: Int -> n == n proof induction n > 0 as h | true => axiom h at 0 on n > 0 end | false => ? end in t",
+        "theorem t = forall n: Int -> n == n proof induction n > 0 as h | true => from n > 0 do axiom h end end | false => ? end in t",
       ),
       menhir_maketerm_equivalent_test(
         "alias <name> = <fact>",
-        "theorem t = forall n: Int -> n == 1 ==> n == n proof assume n == 1 => alias h = assume => axiom h at 0 on n end; ? in t",
+        "theorem t = forall n: Int -> n == 1 ==> n == n proof assume n == 1 => alias h = assume => from n do axiom h end end; ? in t",
       ),
       menhir_maketerm_equivalent_test(
         "alias with a spelled-out proposition",
-        "theorem t = forall n: Int -> n == 1 ==> n == n proof assume n == 1 => alias h = n == 1 => axiom h at 0 on n end; ? in t",
+        "theorem t = forall n: Int -> n == 1 ==> n == n proof assume n == 1 => alias h = n == 1 => from n do axiom h end end; ? in t",
       ),
       /* The plain forms keep parsing identically: "as" is a prefix of
          "assume", and `induction`/`assume` share their leading token with
@@ -1390,7 +1398,7 @@ let ex5 = list_of_mylist(x) in
       ),
       of_core_renders_test(
         "of_core: proof steps",
-        "theorem t = 1 + 1 == 2 proof eval 1 + 1 at 0 end; rewrite 1 + 1 with 2 at 0 end; axiom refl_eq at 0 on 2 == 2 end in t",
+        "theorem t = 1 + 1 == 2 proof from 1 + 1 do eval end; from 1 + 1 do rewrite 2 end end; from 2 == 2 do axiom refl_eq end end in t",
       ),
       of_core_renders_test(
         "of_core: proof induction and generalize",

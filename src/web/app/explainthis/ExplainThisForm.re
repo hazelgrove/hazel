@@ -166,6 +166,7 @@ type example_id =
   | ProofAxiomRevWith1
   | ProofRewrite1
   | ProofEval1
+  | ProofFocus1
   | ProofInduction1
   | ProofForall1
   | ProofFunext1
@@ -339,6 +340,7 @@ type form_id =
   | ProofAxiomRevStep
   | ProofRewriteStep
   | ProofEvalStep
+  | ProofFocusStep
   | ProofInductionStep
   | ProofForallStep
   | ProofFunextStep
