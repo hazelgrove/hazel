@@ -35,7 +35,10 @@ let source: ref(option(Id.t)) = ref(None);
 let runs: ref(int) = ref(0);
 
 let warned: Hashtbl.t(string, unit) = Hashtbl.create(4);
-let warn = (why: string) =>
+/* Each time counted with its reason, for a check in a browser to read (HazelJitValue.count); warned in the console
+   once */
+let warn = (why: string) => {
+  HazelJitValue.count(~why, "the slide's run not used");
   if (!Hashtbl.mem(warned, why)) {
     Hashtbl.add(warned, why, ());
     ignore(
@@ -50,6 +53,7 @@ let warn = (why: string) =>
       ),
     );
   };
+};
 
 let compile = (e: Exp.t): result(compiled, string) =>
   Util.BenchMarks.time("hazel-jit: the run compiled", () => {
@@ -141,8 +145,18 @@ let step = (~projector: Id.t, ~model: Exp.t): result(int, string) =>
   if (! HazelJitValue.enabled^) {
     Error("compiled views are off");
   } else {
+    HazelJitValue.count("the slide's run: a livelit's event");
     switch (current()) {
-    | None => Error("no compiled run")
+    | None =>
+      HazelJitValue.count(
+        ~why=
+          switch (program^) {
+          | None => "the page has not said which program it draws from"
+          | Some(_) => "the program did not compile (its reason counted too)"
+          },
+        "the slide's run not used",
+      );
+      Error("no compiled run");
     | Some(c) =>
       switch (Hashtbl.find_opt(c.param_of, Id.to_string(projector))) {
       | None =>
@@ -196,6 +210,7 @@ let step = (~projector: Id.t, ~model: Exp.t): result(int, string) =>
             answer_types := Some(c.types);
             source := Some(projector);
             incr(runs);
+            HazelJitValue.count("the slide's run answered");
             Util.BenchMarks.mark(
               ~extra=[
                 (

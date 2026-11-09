@@ -182,7 +182,8 @@ EDIT_DONE = r"""
   return { marks, page_ids, label: st.label, from: st.from, to: st.to, own_first_ms: st.own.length ? r(st.own[0]) : null,
            picture_changed_ms: r(st.picChanged), picture_last_ms: r(st.pic[st.pic.length - 1]),
            dynamics: st.dyn, other_batches: st.other, shapes: after.length, shapes_changed: changed,
-           jit: globalThis.hazelJit ? JSON.parse(JSON.stringify(globalThis.hazelJit.counts || {})) : null };
+           jit: globalThis.hazelJit ? JSON.parse(JSON.stringify(globalThis.hazelJit.counts || {})) : null,
+           jit_why: globalThis.hazelJit ? JSON.parse(JSON.stringify(globalThis.hazelJit.why || {})) : null };
 """
 
 # (^report(46)) what each large answer from the worker held, by its parts' sizes as they crossed (AnswerParts): asked
@@ -314,6 +315,12 @@ def edits(d, sid):
             print(f"    edit, compiled {mode}: {label!r} {got['from']} -> {got['to']}: the slider's own livelit "
                   f"{got['own_first_ms']} ms; the picture {got['picture_changed_ms']} ms "
                   f"({got['shapes_changed']} of {got['shapes']} shapes changed); the run {got['dynamics']}", flush=True)
+            # (^ticket(722)) the slide's compiled run at this edit: events, answers, and why it was not used (since load)
+            print(f"      the slide's run, since load: " + json.dumps({k: v for k, v in (got.get("jit") or {}).items()
+                                                                  if k.startswith("the slide's run")}), flush=True)
+            for why, n in sorted((got.get("jit_why") or {}).items(), key=lambda kv: -kv[1]):
+                if why.startswith("the slide's run"):
+                    print(f"        {n} x {why[:300]!r}", flush=True)
             D.settled(d)
             time.sleep(1)
         out[mode] = rows
