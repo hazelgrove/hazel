@@ -678,7 +678,7 @@ let mk_view =
   let app_version =
     switch (p.kind) {
     | ProjectorCore.Kind.HTML => AppBridge.version^
-    | ProjectorCore.Kind.Livelit => LivelitProj.optimistic_version^
+    | ProjectorCore.Kind.Livelit => LivelitProj.version_of(p.id)
     | _ => 0
     };
   /* (^ticket(722)) the program this livelit is drawn from, for its run to

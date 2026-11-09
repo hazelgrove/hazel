@@ -33,6 +33,28 @@ let answers: Hashtbl.t(string, U.any) = Hashtbl.create(64);
 let answer_types: ref(option(HazelJitValue.types)) = ref(None);
 let source: ref(option(Id.t)) = ref(None);
 let runs: ref(int) = ref(0);
+/* (^ticket(722), the drag fast path, cut B) which livelit uses' answers the latest step changed, each answer
+   compared as JSON with the one before (its handlers, functions, leave no trace there), for the page to draw again
+   only those; and a count of the times the answers were retired, which moves every livelit's version */
+let printed: Hashtbl.t(string, string) = Hashtbl.create(64);
+let changed: ref(list(string)) = ref([]);
+let retired: ref(int) = ref(0);
+let retire = (): unit => {
+  Hashtbl.reset(answers);
+  Hashtbl.reset(printed);
+  source := None;
+  incr(retired);
+};
+let print_js = (v: U.any): string =>
+  switch (
+    Js.Optdef.to_option(
+      U.fun_call(U.js_expr("JSON.stringify"), [|U.inject(v)|]),
+    )
+  ) {
+  | Some(s) => Js.to_string(s)
+  | None => "undefined"
+  | exception _ => "?" ++ string_of_int(Random.bits())
+  };
 
 let warned: Hashtbl.t(string, unit) = Hashtbl.create(4);
 /* Each time counted with its reason, for a check in a browser to read (HazelJitValue.count); warned in the console
@@ -230,6 +252,7 @@ let step = (~projector: Id.t, ~model: Exp.t): result(int, string) =>
   if (! HazelJitValue.enabled^) {
     Error("compiled views are off");
   } else {
+    changed := [];
     HazelJitValue.count("the slide's run: a livelit's event");
     switch (current()) {
     | None =>
@@ -280,7 +303,9 @@ let step = (~projector: Id.t, ~model: Exp.t): result(int, string) =>
             warn(why);
             Error(why);
           | Ok () =>
+            let before = Hashtbl.copy(printed);
             Hashtbl.reset(answers);
+            Hashtbl.reset(printed);
             let keys: Js.t(Js.js_array(Js.t(Js.js_string))) =
               U.fun_call(U.js_expr("Object.keys"), [|U.inject(samples)|]);
             Array.iter(
@@ -292,6 +317,25 @@ let step = (~projector: Id.t, ~model: Exp.t): result(int, string) =>
                 ),
               Js.to_array(keys),
             );
+            let diff = ref([]);
+            Hashtbl.iter(
+              (k, v) => {
+                let p = print_js(v);
+                Hashtbl.replace(printed, k, p);
+                if (Hashtbl.find_opt(before, k) != Some(p)) {
+                  diff := [k, ...diff^];
+                };
+              },
+              answers,
+            );
+            Hashtbl.iter(
+              (k, _) =>
+                if (!Hashtbl.mem(printed, k)) {
+                  diff := [k, ...diff^];
+                },
+              before,
+            );
+            changed := diff^;
             answer_types := Some(c.types);
             source := Some(projector);
             incr(runs);
@@ -320,9 +364,7 @@ let step = (~projector: Id.t, ~model: Exp.t): result(int, string) =>
    are retired, and every livelit draws from the run's samples again */
 let caught_up = (~projector: Id.t): unit =>
   switch (source^) {
-  | Some(s) when Id.to_string(s) == Id.to_string(projector) =>
-    Hashtbl.reset(answers);
-    source := None;
+  | Some(s) when Id.to_string(s) == Id.to_string(projector) => retire()
   | _ => ()
   };
 
@@ -337,8 +379,7 @@ let answer =
     }
   | (Some(_), _) =>
     /* the worker's run has caught up: the answers are stale */
-    Hashtbl.reset(answers);
-    source := None;
+    retire();
     None;
   | _ => None
   };

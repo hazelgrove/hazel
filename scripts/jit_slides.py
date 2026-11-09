@@ -266,6 +266,8 @@ DRAG = r"""
   (target || inp).scrollIntoView({ block: 'center' });
   const st = { label, from: +inp.value, frames: [], inputs: 0, done: false, t0: performance.now() };
   window.__drag = st;
+  // (the page's own timeline over the drag: update, calculate, view, the compiled run, summed by kind)
+  window.hazelBenchMarks = [];
   let v = +inp.value, dir = 1, last = 0;
   function step(t) {
     if (last) st.frames.push(Math.round((t - last) * 10) / 10);
@@ -284,7 +286,19 @@ DRAG = r"""
   requestAnimationFrame(step);
   return [st.from];
 """
-DRAG_DONE = "const st = window.__drag; return (st && st.done) ? {label: st.label, from: st.from, to: st.to, ms: st.ms, inputs: st.inputs, frames: st.frames} : null;"
+DRAG_DONE = r"""
+  const st = window.__drag;
+  if (!st || !st.done) return null;
+  const sums = {};
+  for (const m of (window.hazelBenchMarks || [])) {
+    if (m.ms === undefined) continue;
+    const k = m.what + (m.kind ? ' (' + m.kind + ')' : '');
+    const s = sums[k] || (sums[k] = { n: 0, ms: 0 });
+    s.n++; s.ms += m.ms;
+  }
+  delete window.hazelBenchMarks;
+  return { label: st.label, from: st.from, to: st.to, ms: st.ms, inputs: st.inputs, frames: st.frames, marks: sums };
+"""
 DRAGS = [("neck", 0, 60)]
 
 
@@ -319,6 +333,9 @@ def drags(d, sid, shots):
             print(f"    drag, compiled {mode}: {label!r} for {got['ms']} ms: {st['frames']} frames, {st['fps']} fps, "
                   f"median {st['median_ms']} ms, 90th {st['p90_ms']} ms, longest {st['max_ms']} ms, "
                   f"{st['within_16_7']} within a 60 fps frame; {got['inputs']} inputs", flush=True)
+            top = sorted((got.get("marks") or {}).items(), key=lambda kv: -kv[1]["ms"])[:10]
+            print("      the page's timeline over the drag: " + "; ".join(
+                f"{k} {v['ms']:.0f} ms x{v['n']} ({v['ms'] / max(1, v['n']):.1f} each)" for k, v in top), flush=True)
             D.settled(d)
             time.sleep(1)
             if shots and d.js(DRAG, [label, lo, hi, 3000, "picture"]):

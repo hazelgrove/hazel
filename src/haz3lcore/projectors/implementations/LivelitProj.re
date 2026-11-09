@@ -10,6 +10,27 @@ open Language;
    event-time optimistic view would sit invisible until the deferred statics
    refresh. */
 let optimistic_version: ref(int) = ref(0);
+/* (^ticket(722), the drag fast path, cut B) each livelit's own version, for ProjectorView's cache: a livelit is drawn
+   again only when its own optimistic entry, or its answer from the slide's compiled run, changed; not every livelit
+   at every event. The run's answers retired (HazelJitRun.retired) move every livelit at once, since each then draws
+   from the run's samples again. optimistic_version still moves with any of them, for caches that hold many
+   livelits (ScratchMode's cells). */
+let livelit_versions: Hashtbl.t(string, int) = Hashtbl.create(64);
+let version_of = (id: Id.t): int =>
+  HazelJitRun.retired^
+  + Option.value(
+      ~default=0,
+      Hashtbl.find_opt(livelit_versions, Id.to_string(id)),
+    );
+let touch_key = (k: string): unit => {
+  Hashtbl.replace(
+    livelit_versions,
+    k,
+    1 + Option.value(~default=0, Hashtbl.find_opt(livelit_versions, k)),
+  );
+  incr(optimistic_version);
+};
+let touch = (id: Id.t): unit => touch_key(Id.to_string(id));
 
 /* Commit-vs-ephemeral decision for an event-time update result: a model
    persists to the program text only when it is checkpointable (carries no
@@ -1233,7 +1254,9 @@ module M: Projector = {
              drawn from (below) before the worker's run comes back. Its own
              failures only leave the samples to draw, as before. */
           ignore(HazelJitRun.step(~projector=id, ~model=new_model));
-          incr(optimistic_version);
+          /* this livelit, and each whose answer from the run changed */
+          touch(id);
+          List.iter(touch_key, HazelJitRun.changed^);
           Hashtbl.replace(
             optimistic,
             id,
@@ -1254,7 +1277,7 @@ module M: Projector = {
         }
         : (
           if (Hashtbl.mem(optimistic, id)) {
-            incr(optimistic_version);
+            touch(id);
             Hashtbl.remove(optimistic, id);
           }
         );
@@ -1550,7 +1573,7 @@ module M: Projector = {
           };
         };
         let drop = () => {
-          incr(optimistic_version);
+          touch(id);
           Hashtbl.remove(optimistic, id);
           None;
         };
