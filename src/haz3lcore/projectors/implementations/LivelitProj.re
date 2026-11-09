@@ -1502,15 +1502,23 @@ module M: Projector = {
            pointer is held) draws the same HTML as the stale sample, and
            yielding to it then threw the step away -- the next MoveTo
            composed from the pre-drag model, and the drag did nothing. */
+        /* the run has caught up with the optimistic model */
+        let caught_up =
+          switch (model_value) {
+          | Some(mv) =>
+            squish(print_term(mv)) == squish(print_term(entry.opt_model))
+          | None => false
+          };
+        /* (^ticket(722)) and so the compiled run's answers from this
+           livelit's event are no longer ahead of the worker's: retired,
+           whether or not the entry converges (on a slide the run samples
+           no view, so `live` is None and it never does) */
+        if (caught_up) {
+          HazelJitRun.caught_up(~projector=id);
+        };
         let converged =
           !entry.opt_ephemeral
-          && (
-            switch (model_value) {
-            | Some(mv) =>
-              squish(print_term(mv)) == squish(print_term(entry.opt_model))
-            | None => false
-            }
-          )
+          && caught_up
           && (
             switch (live) {
             /* (made Hazel only here, once the models agree) */
@@ -1523,14 +1531,23 @@ module M: Projector = {
             }
           );
         let model_print = squish(print_term(model));
+        /* The syntax's state among ours: first at or after the one matched
+           last, and only then earlier (an undo). A step back to a value
+           held before (28 to 30 and back to 28) is the commit just made,
+           at the end of the list; the first match found the 28 the
+           entry began from, took it for an undo and dropped the entry
+           (^report(49), the steps back). */
         let idx = {
-          let rec find = (i, xs) =>
+          let rec find = (~from, i, xs) =>
             switch (xs) {
             | [] => None
-            | [x, ..._] when x == model_print => Some(i)
-            | [_, ...rest] => find(i + 1, rest)
+            | [x, ..._] when i >= from && x == model_print => Some(i)
+            | [_, ...rest] => find(~from, i + 1, rest)
             };
-          find(0, entry.opt_outstanding);
+          switch (find(~from=entry.opt_matched, 0, entry.opt_outstanding)) {
+          | Some(i) => Some(i)
+          | None => find(~from=0, 0, entry.opt_outstanding)
+          };
         };
         let drop = () => {
           incr(optimistic_version);

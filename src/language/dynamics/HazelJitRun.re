@@ -316,6 +316,16 @@ let step = (~projector: Id.t, ~model: Exp.t): result(int, string) =>
     };
   };
 
+/* The worker's run has caught up with this livelit's model (LivelitProj, as the livelit draws): the answers its event made
+   are retired, and every livelit draws from the run's samples again */
+let caught_up = (~projector: Id.t): unit =>
+  switch (source^) {
+  | Some(s) when Id.to_string(s) == Id.to_string(projector) =>
+    Hashtbl.reset(answers);
+    source := None;
+  | _ => ()
+  };
+
 /* The latest run's answer for this livelit use, while [fresh] says the run it came from is still ahead of the worker's */
 let answer =
     (~fresh: Id.t => bool, id: Id.t): option((U.any, HazelJitValue.types)) =>
