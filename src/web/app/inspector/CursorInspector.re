@@ -1134,6 +1134,7 @@ let proof_view = (~globals, ~proof_map: ProofMap.t, info: Info.proof) => {
       substitutions: _,
       marks,
       obligations: _,
+      ctx: _,
     }) =>
     let body = opt_exp("in:", incoming) @ opt_exp("out:", outgoing);
     switch (ProofMark.highest(marks)) {

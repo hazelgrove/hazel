@@ -33,6 +33,7 @@ type step_fn = (~env: Environment.t(Exp.t), Exp.t) => option(step_result);
 
 let record =
     (
+      ~ctx: SemanticCtx.t,
       ~marks: list(ProofMark.t)=[],
       ~auto_incoming: list((string, Exp.t))=[],
       ~auto_outgoing: list((Exp.t, string))=[],
@@ -54,6 +55,7 @@ let record =
       substitutions,
       marks,
       obligations,
+      ctx,
     },
     m,
   );
@@ -981,7 +983,7 @@ let definition_obligations = (~step: step_fn, ~ctx: SemanticCtx.t): ProofMap.t =
           Discharge.obligation(~step, ~ctx, ~origin=fun_id),
           leftover,
         );
-      record(~obligations, fun_id, None, None, m);
+      record(~ctx, ~obligations, fun_id, None, None, m);
     };
   };
   Environment.to_list(env)
@@ -1016,6 +1018,7 @@ let definition_obligations = (~step: step_fn, ~ctx: SemanticCtx.t): ProofMap.t =
  * the goal through. */
 let check_rewrite =
     (
+      ~ctx: SemanticCtx.t,
       ~id: Id.t,
       incoming: option(Exp.t),
       apply:
@@ -1026,6 +1029,7 @@ let check_rewrite =
   | None => (
       None,
       record(
+        ~ctx,
         ~marks=[ProofMark.MissingIncoming],
         id,
         None,
@@ -1040,6 +1044,7 @@ let check_rewrite =
       (
         outgoing,
         record(
+          ~ctx,
           ~auto_incoming,
           ~auto_outgoing,
           ~obligations,
@@ -1051,7 +1056,7 @@ let check_rewrite =
       );
     | Error(mark) => (
         incoming,
-        record(~marks=[mark], id, incoming, incoming, ProofMap.empty),
+        record(~ctx, ~marks=[mark], id, incoming, incoming, ProofMap.empty),
       )
     }
   };
@@ -1072,13 +1077,17 @@ let rec check =
   switch (proof.term) {
   /* A hole is an unfinished proof, not an error: it passes the goal
    * through unmarked, so later steps keep working. */
-  | EmptyHole => (incoming, record(id, incoming, incoming, ProofMap.empty))
+  | EmptyHole => (
+      incoming,
+      record(~ctx, id, incoming, incoming, ProofMap.empty),
+    )
   /* Unparseable proof text, or a multi-hole, whose children aren't proof
    * terms. */
   | Invalid(_)
   | MultiHole(_) => (
       incoming,
       record(
+        ~ctx,
         ~marks=[ProofMark.MalformedProofTerm],
         id,
         incoming,
@@ -1089,14 +1098,15 @@ let rec check =
   | Seq(p1, p2) =>
     let (out1, m1) = check(~step, ~info_map, ~ctx, incoming, p1);
     let (out2, m2) = check(~step, ~info_map, ~ctx, out1, p2);
-    (out2, record(id, incoming, out2, ProofMap.union(m1, m2)));
+    (out2, record(~ctx, id, incoming, out2, ProofMap.union(m1, m2)));
   /* The parens node records the inner step's outgoing too, so the UI can
    * key off either id. */
   | Parens(p) =>
     let (out, m) = check(~step, ~info_map, ~ctx, incoming, p);
-    (out, record(id, incoming, out, m));
+    (out, record(~ctx, id, incoming, out, m));
   | AxiomStep({at_idx, at_exp, direction, equality, instantiation}) =>
     check_rewrite(
+      ~ctx,
       ~id,
       incoming,
       Axiom.check(
@@ -1113,6 +1123,7 @@ let rec check =
     )
   | AlgebriteStep({at_idx, at_exp, with_exp}) =>
     check_rewrite(
+      ~ctx,
       ~id,
       incoming,
       Algebrite.check(
@@ -1127,6 +1138,7 @@ let rec check =
     )
   | EvalStep({at_idx, at_exp}) =>
     check_rewrite(
+      ~ctx,
       ~id,
       incoming,
       Eval.check(
@@ -1183,7 +1195,7 @@ and pass_through =
     (~step, ~info_map, ~ctx, ~id, ~marks, incoming, body)
     : (option(Exp.t), ProofMap.t) => {
   let (_, m) = check(~step, ~info_map, ~ctx, incoming, body);
-  (incoming, record(~marks, id, incoming, incoming, m));
+  (incoming, record(~ctx, ~marks, id, incoming, incoming, m));
 }
 
 /* A form whose body proves a goal of its own instead of the incoming one
@@ -1196,6 +1208,7 @@ and check_subgoal =
       ~step,
       ~info_map,
       ~ctx,
+      ~body_ctx=ctx,
       ~id,
       ~marks=[],
       ~obligations=[],
@@ -1204,9 +1217,9 @@ and check_subgoal =
       body,
     )
     : (option(Exp.t), ProofMap.t) => {
-  let (out_body, m) = check(~step, ~info_map, ~ctx, subgoal, body);
+  let (out_body, m) = check(~step, ~info_map, ~ctx=body_ctx, subgoal, body);
   let outgoing = is_true(out_body) ? out_body : incoming;
-  (outgoing, record(~marks, ~obligations, id, incoming, outgoing, m));
+  (outgoing, record(~ctx, ~marks, ~obligations, id, incoming, outgoing, m));
 }
 
 /* The binder comes from the incoming goal, not the proof's pattern, as
@@ -1225,9 +1238,19 @@ and check_forall = (~step, ~info_map, ~ctx, ~id, incoming, body) =>
       body,
     )
   | Some(Some((p, t, guard, inner))) =>
-    let ctx = SemanticCtx.add_from_pattern(ctx, p, t);
-    let ctx = Option.fold(~none=ctx, ~some=Where.add_facts(ctx), guard);
-    check_subgoal(~step, ~info_map, ~ctx, ~id, incoming, Some(inner), body);
+    let body_ctx = SemanticCtx.add_from_pattern(ctx, p, t);
+    let body_ctx =
+      Option.fold(~none=body_ctx, ~some=Where.add_facts(body_ctx), guard);
+    check_subgoal(
+      ~step,
+      ~info_map,
+      ~ctx,
+      ~body_ctx,
+      ~id,
+      incoming,
+      Some(inner),
+      body,
+    );
   /* No binder to peel: mark it, but let the body keep working on the goal
    * as is. */
   | Some(None) =>
@@ -1276,10 +1299,10 @@ and check_funext = (~step, ~info_map, ~ctx, ~id, incoming, pat, body) => {
         when Option.is_none(SemanticCtx.bind_pattern(pat, domain, Ctx.empty)) =>
       fail(ProofMark.MalformedFunext)
     | Some((l, r, domain)) =>
-      let ctx = SemanticCtx.add_from_pattern(ctx, pat, domain);
+      let body_ctx = SemanticCtx.add_from_pattern(ctx, pat, domain);
       let pointwise =
         Funext.pointwise(
-          ~env=SemanticCtx.get_env(ctx),
+          ~env=SemanticCtx.get_env(body_ctx),
           ~arg=Exp.of_pat(pat),
           l,
           r,
@@ -1288,6 +1311,7 @@ and check_funext = (~step, ~info_map, ~ctx, ~id, incoming, pat, body) => {
         ~step,
         ~info_map,
         ~ctx,
+        ~body_ctx,
         ~id,
         incoming,
         Some(pointwise),
@@ -1323,14 +1347,15 @@ and check_assume = (~step, ~info_map, ~ctx, ~id, incoming, e, as_name, body) => 
   /* Without an `as <h>` clause the name is `assume`, which shadows any
    * enclosing one; naming a nested assumption keeps the outer one
    * citable. */
-  let (ctx, _) =
+  let (body_ctx, _) =
     SemanticCtx.add_hypothesis(
       ctx,
       as_name_or(~default="assume", as_name),
       hyp,
     );
-  let (out_body, m) = check(~step, ~info_map, ~ctx, body_incoming, body);
-  (out_body, record(~obligations, id, incoming, out_body, m));
+  let (out_body, m) =
+    check(~step, ~info_map, ~ctx=body_ctx, body_incoming, body);
+  (out_body, record(~ctx, ~obligations, id, incoming, out_body, m));
 }
 
 /* `have <exp> proof <subproof> => <body>`, the cut rule. With incoming
@@ -1392,6 +1417,7 @@ and check_have = (~step, ~info_map, ~ctx, ~id, incoming, e, sub, body) => {
   (
     out_body,
     record(
+      ~ctx,
       ~obligations=sub_obligations @ body_obligations,
       id,
       incoming,
@@ -1474,7 +1500,7 @@ and check_generalize = (~step, ~info_map, ~ctx, ~id, incoming, e, body) => {
     /* x's own binder entry stays: it is inert once no fact mentions it
      * (its env binding is the identity `x ↦ Var(x)`), and the body's
      * re-peel of the new binder rebinds it anyway. */
-    let ctx =
+    let body_ctx =
       SemanticCtx.of_ctx_and_env(
         {
           ...base_ctx,
@@ -1498,6 +1524,7 @@ and check_generalize = (~step, ~info_map, ~ctx, ~id, incoming, e, body) => {
       ~step,
       ~info_map,
       ~ctx,
+      ~body_ctx,
       ~id,
       incoming,
       Some(subgoal),
@@ -1659,6 +1686,7 @@ and check_contradiction = (~step, ~ctx, ~id, incoming, e, instantiation) => {
   let fail = (~substitutions=[], mark) => (
     incoming,
     record(
+      ~ctx,
       ~substitutions,
       ~marks=[mark],
       id,
@@ -1677,7 +1705,7 @@ and check_contradiction = (~step, ~ctx, ~id, incoming, e, instantiation) => {
       let outgoing = Some(Exp.fresh(Atom(Bool(true))));
       (
         outgoing,
-        record(~substitutions, id, incoming, outgoing, ProofMap.empty),
+        record(~ctx, ~substitutions, id, incoming, outgoing, ProofMap.empty),
       );
     } else {
       fail(~substitutions, ProofMark.ContradictionNotFalse);
@@ -1710,13 +1738,14 @@ and check_alias = (~step, ~info_map, ~ctx, ~id, incoming, x, e, body) => {
       body,
     )
   | (Some(_), names) =>
-    let ctx =
+    let body_ctx =
       switch (names) {
       | [h] => SemanticCtx.add_hypothesis(ctx, h, fact) |> fst
       | _ => ctx
       };
-    let (out_body, m) = check(~step, ~info_map, ~ctx, incoming, body);
-    (out_body, record(id, incoming, out_body, m));
+    let (out_body, m) =
+      check(~step, ~info_map, ~ctx=body_ctx, incoming, body);
+    (out_body, record(~ctx, id, incoming, out_body, m));
   };
 }
 
@@ -1936,6 +1965,7 @@ and check_induction =
   (
     outgoing,
     record(
+      ~ctx,
       ~marks=gate_marks @ marks,
       ~obligations=gate_obligations,
       id,
