@@ -334,7 +334,56 @@ let compile = (e: Exp.t): result(compiled, string) => {
 
 /* [c] for the program [e], when [e] is the same but for its parameters' models, each new model given to its
    parameter; and whether any parameter's value changed (the answers then hold for the models before) */
-let reuse = (c: compiled, e: Exp.t): option((compiled, bool)) =>
+/* (^report(51)) for the check only: how much of the new program is the
+   very objects of the old one (its top-most shared subterms, and the nodes
+   outside them), to see whether a comparison that skips shared subterms by
+   identity would visit only what an edit changed */
+let note_sharing = (old_e: Exp.t, new_e: Exp.t): unit =>
+  if (Util.BenchMarks.on()) {
+    let set = U.new_obj(U.get(U.global, "WeakSet"), [||]);
+    let keep = (_, x) => x;
+    let _ =
+      Exp.map_term(
+        ~f_pat=keep,
+        ~f_typ=keep,
+        ~f_tpat=keep,
+        ~f_exp=
+          (continue, e: Exp.t) => {
+            ignore(U.meth_call(set, "add", [|U.inject(e)|]));
+            continue(e);
+          },
+        old_e,
+      );
+    let shared = ref(0);
+    let fresh = ref(0);
+    let _ =
+      Exp.map_term(
+        ~f_pat=keep,
+        ~f_typ=keep,
+        ~f_tpat=keep,
+        ~f_exp=
+          (continue, e: Exp.t) =>
+            if (Js.to_bool(U.meth_call(set, "has", [|U.inject(e)|]))) {
+              incr(shared);
+              e;
+            } else {
+              incr(fresh);
+              continue(e);
+            },
+        new_e,
+      );
+    Util.BenchMarks.mark(
+      ~extra=[
+        ("shared_subterms", Util.BenchMarks.num(float_of_int(shared^))),
+        ("fresh_nodes", Util.BenchMarks.num(float_of_int(fresh^))),
+        ("same_root", Util.BenchMarks.num(old_e === new_e ? 1. : 0.)),
+      ],
+      "hazel-jit: the program's sharing with the one compared before",
+    );
+  };
+
+let reuse = (c: compiled, e: Exp.t): option((compiled, bool)) => {
+  note_sharing(c.program, e);
   Util.BenchMarks.time(
     "hazel-jit: the program compared, its livelits' models left out",
     () => {
@@ -381,6 +430,7 @@ let reuse = (c: compiled, e: Exp.t): option((compiled, bool)) =>
       };
     },
   );
+};
 
 /* The compilation, when it still runs the program the page draws from: the same program, or one the same but for
    livelits' models, now given to its parameters. The answers are retired when they no longer hold: the program
