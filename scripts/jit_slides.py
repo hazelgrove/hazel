@@ -252,13 +252,18 @@ EDIT_STEPS = [("neck", 2), ("neck", -2), ("arms (up / down)", 10), ("arms (up / 
 # kept, from requestAnimationFrame, as the HUD times them: a page busy for 300 ms is one 300 ms frame, and in it the
 # slider moved once, as a real drag's pointer moves are folded into the next frame.
 DRAG = r"""
-  const [label, lo, hi, ms] = arguments;
+  const [label, lo, hi, ms, view] = arguments;
   const slider = () => [...document.querySelectorAll('.user-livelit input[type=range]')]
     .find(i => i.parentElement && i.parentElement.firstElementChild
                && i.parentElement.firstElementChild.textContent.trim() === label);
+  const count = w => w.querySelectorAll('polygon, polyline').length;
+  const picture = () => [...document.querySelectorAll('.user-livelit')].reduce((a, w) => (!a || count(w) > count(a)) ? w : a, null);
   const inp = slider();
   if (!inp) return null;
-  inp.scrollIntoView({ block: 'center' });
+  // (the slider in view, as a person drags it; or the picture, for a screenshot of it changing: the events reach the
+  // slider wherever the page is scrolled)
+  const target = view === 'picture' ? picture() : inp;
+  (target || inp).scrollIntoView({ block: 'center' });
   const st = { label, from: +inp.value, frames: [], inputs: 0, done: false, t0: performance.now() };
   window.__drag = st;
   let v = +inp.value, dir = 1, last = 0;
@@ -292,14 +297,15 @@ def drag_stats(frames):
 
 
 def drags(d, sid, shots):
-    """Each slider in DRAGS dragged for 3 s on a fresh load, both ways, with the HUD on: once timed, then once more
-    with a screenshot halfway (a screenshot can itself hold up a frame, so it is not taken in the timed drag)."""
+    """Each slider in DRAGS dragged for 3 s on a fresh load, both ways, with the HUD on: once timed, the slider in view,
+    then once more with the picture in view and a screenshot halfway (a screenshot can itself hold up a frame, so it is
+    not taken in the timed drag)."""
     out = {}
     for mode in ("on", "off"):
         load(d, sid, mode, hud=True)
         rows = []
         for label, lo, hi in DRAGS:
-            if not d.js(DRAG, [label, lo, hi, 3000]):
+            if not d.js(DRAG, [label, lo, hi, 3000, "slider"]):
                 rows.append({"label": label, "missing": True})
                 print(f"    drag {label!r}: no such slider", flush=True)
                 continue
@@ -315,7 +321,7 @@ def drags(d, sid, shots):
                   f"{st['within_16_7']} within a 60 fps frame; {got['inputs']} inputs", flush=True)
             D.settled(d)
             time.sleep(1)
-            if shots and d.js(DRAG, [label, lo, hi, 3000]):
+            if shots and d.js(DRAG, [label, lo, hi, 3000, "picture"]):
                 time.sleep(1.8)
                 d.shot(os.path.join(shots, f"drag_{re.sub(r'[^A-Za-z0-9]+', '_', label)}_{mode}.png"))
                 wait_for_value(d, DRAG_DONE, 120)
