@@ -41,7 +41,9 @@ let after_paint = (eff: Ui_effect.t(unit)): Ui_effect.t(unit) =>
             ignore(
               Js_of_ocaml.Dom_html.setTimeout(
                 () =>
-                  Virtual_dom.Vdom.Effect.Expert.handle_non_dom_event_exn(eff),
+                  Virtual_dom.Vdom.Effect.Expert.handle_non_dom_event_exn(
+                    eff,
+                  ),
                 0.,
               ),
             )
