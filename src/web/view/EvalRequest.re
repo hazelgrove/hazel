@@ -30,6 +30,16 @@ let request =
     ) =
     ref(None);
   let held_plan_timer = ref(None);
+  /* (^report(51)) posted after the compiled run answered
+     (WorkerClient.posted_after_answer): the page already shows that answer,
+     so the plan and the streams are held and applied with the result, in
+     the order they came, as one action. On the Witch the stream came about
+     0.7 s before the result and cost the page a calculate (57 to 61 ms) and
+     a whole view (45 ms) that showed nothing new. */
+  let quiet = ref(false);
+  let held_streams:
+    ref(list((WorkerServer.key, WorkerServer.ServerMessage.stream_update))) =
+    ref([]);
   /* this request's id, once posted: a held plan is shown only while it is
      still the latest (not replaced, cancelled or timed out) */
   let mine = ref(None);
@@ -67,13 +77,50 @@ let request =
         ),
       plan,
     );
+  /* the held streams of the keys in [except] left out, each key's with its
+     plan, as one action a key */
+  let flush_held = (~except: list(WorkerServer.key), plan) => {
+    let held = held_streams^;
+    held_streams := [];
+    let keys =
+      List.sort_uniq(
+        compare,
+        List.filter_map(
+          ((k, _)) => List.mem(k, except) ? None : Some(k),
+          held,
+        ),
+      );
+    List.iter(
+      key =>
+        dispatch(
+          pos_of_key(key),
+          EvalResult.Update.ApplyWorkerMessages(
+            List.assoc_opt(key, plan),
+            List.filter_map(((k, x)) => k == key ? Some(x) : None, held),
+            None,
+          ),
+        ),
+      keys,
+    );
+  };
   let post = () => {
+    quiet := WorkerClient.posted_after_answer^;
     WorkerClient.request(
       batch,
       ~on_result=
         (~final_streams, results) => {
           let apply = () => {
             let plan = Option.value(take_plan(), ~default=[]);
+            /* (^report(51)) the streams held for this result, before its
+               final ones */
+            let held = held_streams^;
+            held_streams := [];
+            let final_streams =
+              List.filter(((k, _)) => List.mem_assoc(k, results), held)
+              @ final_streams;
+            held_streams :=
+              List.filter(((k, _)) => !List.mem_assoc(k, results), held);
+            flush_held(~except=[], plan);
             List.iter(
               ((key, result)) => {
                 let result:
@@ -127,7 +174,8 @@ let request =
         },
       ~on_timeout=
         batch => {
-          ignore(take_plan());
+          let plan = Option.value(take_plan(), ~default=[]);
+          flush_held(~except=[], plan);
           on_timeout(batch);
         },
       ~on_ack=
@@ -141,47 +189,52 @@ let request =
                 initial,
               ),
             );
-          held_plan_timer :=
-            Some(
-              Js_of_ocaml.Dom_html.setTimeout(
-                () =>
-                  switch (take_plan()) {
-                  | Some(plan)
-                      when
-                        mine^ != None
-                        && WorkerClient.latest_request_id() == mine^ =>
-                    show_plan(plan)
-                  | _ => ()
-                  },
-                plan_hold_ms,
-              ),
-            );
+          if (! quiet^) {
+            held_plan_timer :=
+              Some(
+                Js_of_ocaml.Dom_html.setTimeout(
+                  () =>
+                    switch (take_plan()) {
+                    | Some(plan)
+                        when
+                          mine^ != None
+                          && WorkerClient.latest_request_id() == mine^ =>
+                      show_plan(plan)
+                    | _ => ()
+                    },
+                  plan_hold_ms,
+                ),
+              );
+          };
         },
       ~on_stream=
-        (key, stream) => {
-          if (! stream_unpainted^) {
-            stream_unpainted := true;
-            after_paint(() => stream_unpainted := false);
-          };
-          /* with this key's held plan, as one action: one redraw */
-          switch (take_plan()) {
-          | None =>
-            dispatch(
-              pos_of_key(key),
-              EvalResult.Update.MergeStreamingEval(stream),
-            )
-          | Some(plan) =>
-            show_plan(List.filter(((k, _)) => k != key, plan));
-            dispatch(
-              pos_of_key(key),
-              EvalResult.Update.ApplyWorkerMessages(
-                List.assoc_opt(key, plan),
-                [stream],
-                None,
-              ),
-            );
-          };
-        },
+        (key, stream) =>
+          if (quiet^) {
+            held_streams := held_streams^ @ [(key, stream)];
+          } else {
+            if (! stream_unpainted^) {
+              stream_unpainted := true;
+              after_paint(() => stream_unpainted := false);
+            };
+            /* with this key's held plan, as one action: one redraw */
+            switch (take_plan()) {
+            | None =>
+              dispatch(
+                pos_of_key(key),
+                EvalResult.Update.MergeStreamingEval(stream),
+              )
+            | Some(plan) =>
+              show_plan(List.filter(((k, _)) => k != key, plan));
+              dispatch(
+                pos_of_key(key),
+                EvalResult.Update.ApplyWorkerMessages(
+                  List.assoc_opt(key, plan),
+                  [stream],
+                  None,
+                ),
+              );
+            };
+          },
     );
     mine := WorkerClient.latest_request_id();
   };

@@ -270,6 +270,11 @@ let cancel = (): unit => {
    later. */
 let hold_ms = 400.;
 let held_timeout_id = ref(None);
+/* (^report(51)) set while a request held for the compiled run's answer is
+   posted: its reuse plan and stream updates restate what the compiled run
+   drew, so EvalRequest holds them for its result */
+let posted_after_answer = ref(false);
+
 let hold_if_answered = (batch: Request.batch, post: unit => unit): unit => {
   clear_timer(held_timeout_id);
   switch (batch) {
@@ -281,7 +286,13 @@ let hold_if_answered = (batch: Request.batch, post: unit => unit): unit => {
         Dom_html.window##setTimeout(
           Js.wrap_callback(() => {
             held_timeout_id := None;
-            post();
+            posted_after_answer := true;
+            switch (post()) {
+            | () => posted_after_answer := false
+            | exception e =>
+              posted_after_answer := false;
+              raise(e);
+            };
           }),
           hold_ms,
         ),
