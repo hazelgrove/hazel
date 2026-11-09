@@ -39,9 +39,27 @@ module Runtime = {
     return p === q;
   },
   nomatch(where) { throw new Error("hazel-jit: no pattern matched in " + where); },
+  reach(why) { throw new Error("hazel-jit: not compiled, and reached: " + why); },
   missing(why) { const f = () => { throw new Error("hazel-jit: not compiled: " + why); }; f.$missing = why; return f; },
   fn(f, k, e) { f.$k = k; f.$e = e; return f; },
   b: {
+    /* (^ticket(722)) %splice_value((model, id)): the value inside the model's SpliceRef((id, v)), found as the
+       interpreter's BuiltinsADT.splice_value finds it, first in a walk from the root, left to right */
+    "%splice_value": ([model, id]) => {
+      const find = x => {
+        if (x === null || typeof x !== "object") return undefined;
+        if (Array.isArray(x)) { for (const y of x) { const r = find(y); if (r !== undefined) return r; } return undefined; }
+        if ("c" in x) {
+          if (x.c === "SpliceRef" && Array.isArray(x.v) && x.v[0] === id) return x.v[1];
+          return "v" in x ? find(x.v) : undefined;
+        }
+        if ("h" in x) { for (let p = x; p !== null; p = p.t) { const r = find(p.h); if (r !== undefined) return r; } }
+        return undefined;
+      };
+      const r = find(model);
+      if (r === undefined) throw new Error("hazel-jit: %splice_value: no ref " + id);
+      return r;
+    },
     string_of_int: n => String(n), string_of_sint: n => String(n), string_of_nat: n => String(n),
     string_of_bool: b => String(b),
     float_of_int: n => n, float_of_sint: n => n, float_of_nat: n => n,
@@ -65,6 +83,7 @@ module Runtime = {
 }|};
   /* the builtins Runtime.source has, by name */
   let builtins = [
+    "%splice_value",
     "string_of_int",
     "string_of_sint",
     "string_of_nat",
@@ -329,9 +348,40 @@ let conj = (tests: list(string)): string =>
 
 /* A term as a JS expression, in a scope (the enclosing JS function's declarations) and a lexical environment (Hazel
    names to JS names) */
+/* (^ticket(722)) a survey of a whole program: when [survey] holds a table, a form hazel-jit does not compile is counted
+   there by its reason and compiled as $R.reach(reason), which throws if the run evaluates it, instead of failing
+   the whole term. Off (None) everywhere but the CLI's [jit] command. */
+let survey: ref(option(Hashtbl.t(string, int))) = ref(None);
+/* and, for each reason, the first term that gave it (Exp.show, cut short), for the CLI to print */
+let survey_examples: Hashtbl.t(string, string) = Hashtbl.create(8);
+
 let rec exp =
         (st: state, scope: scope, lex: list((string, string)), e: Exp.t)
-        : string => {
+        : string =>
+  switch (survey^) {
+  | None => exp_inner(st, scope, lex, e)
+  | Some(tbl) =>
+    switch (exp_inner(st, scope, lex, e)) {
+    | src => src
+    | exception (Unsupported(why)) =>
+      Hashtbl.replace(
+        tbl,
+        why,
+        1 + Option.value(Hashtbl.find_opt(tbl, why), ~default=0),
+      );
+      if (!Hashtbl.mem(survey_examples, why)) {
+        let shown = Exp.show(e);
+        Hashtbl.replace(
+          survey_examples,
+          why,
+          String.sub(shown, 0, min(String.length(shown), 700)),
+        );
+      };
+      "$R.reach(" ++ js_string(why) ++ ")";
+    }
+  }
+and exp_inner =
+    (st: state, scope: scope, lex: list((string, string)), e: Exp.t): string => {
   let go = exp(st, scope, lex);
   switch (Exp.term_of(e)) {
   | Atom(Int(n))
@@ -531,9 +581,11 @@ let rec exp =
   | HintedTest(_) => unsupported("a test")
   | Filter(_) => unsupported("a stepper filter")
   | Quote(_)
-  | Unquote(_)
-  | Splice(_) => unsupported("a quotation or a splice")
-  | Projector(_) => unsupported("a projector")
+  | Unquote(_) => unsupported("a quotation")
+  /* (^ticket(722)) a livelit use and a splice are transparent to the run, as in the interpreter (Transition: each
+     steps to what it holds); what a livelit's projector draws comes from its view, sampled apart from this */
+  | Splice(d)
+  | Projector(_, d) => go(d)
   | Module(items) => module_(st, lex, items)
   | ModuleExp(mp, e1, e2) =>
     /* `module M = e1 in e2`, its name bound as a let's would be */
@@ -729,7 +781,7 @@ and global = (st: state, x: string): string =>
   }
 and builtin = (name: string): string =>
   List.mem(name, Runtime.builtins)
-    ? "$R.b." ++ name : unsupported("the builtin " ++ name);
+    ? "$R.b[" ++ js_string(name) ++ "]" : unsupported("the builtin " ++ name);
 
 /* An elaborated term as the source of a JS function's body, run as new Function("$R", source)(runtime): the builtins it
    uses first, then its value. Raises Unsupported when it holds a form hazel-jit does not compile. */

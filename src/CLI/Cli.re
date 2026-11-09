@@ -582,6 +582,152 @@ let bench_eval = (iterations: int, paths: list(string)): unit => {
   );
 };
 
+/* (^ticket(722)) hazel-jit on a whole program: parse and elaboration timed;
+   what hazel-jit compiles and what it does not, each form it does not
+   counted by its reason (HazelJit.survey: such a form becomes a stub that
+   throws if the run evaluates it); then the interpreter's run timed, and the
+   compiled run's, if it gets through. */
+let jit_eval = (iterations: int, path: string): unit => {
+  open Language;
+  let now = () =>
+    Js_of_ocaml.Js.Unsafe.global##.performance##now()##valueOf
+    |> Js_of_ocaml.Js.float_of_number;
+  let program = read_input(path);
+  let t0 = now();
+  let parsed = parse_program(program);
+  let t1 = now();
+  let (elab, _) = Run.elab_and_eval_info(parsed);
+  let t2 = now();
+  Printf.printf(
+    "%s: parse %.1f ms; statics and elaboration %.1f ms\n%!",
+    path,
+    t1 -. t0,
+    t2 -. t1,
+  );
+  let tbl = Hashtbl.create(16);
+  HazelJit.survey := Some(tbl);
+  let compiled =
+    switch (HazelJit.compile_full(~env=Builtins.env_init, elab)) {
+    | c => Ok(c)
+    | exception (HazelJit.Unsupported(why)) => Error(why)
+    };
+  HazelJit.survey := None;
+  let t3 = now();
+  let missing =
+    List.sort(
+      ((_, a), (_, b)) => compare(b, a),
+      Hashtbl.fold((k, n, acc) => [(k, n), ...acc], tbl, []),
+    );
+  Printf.printf(
+    "compiled in %.1f ms; forms not compiled: %d kinds, %d in all\n",
+    t3 -. t2,
+    List.length(missing),
+    List.fold_left((acc, (_, n)) => acc + n, 0, missing),
+  );
+  List.iter(
+    ((why, n)) => {
+      Printf.printf("  %6d  %s\n", n, why);
+      switch (Hashtbl.find_opt(HazelJit.survey_examples, why)) {
+      | Some(ex) => Printf.printf("          e.g. %s\n", ex)
+      | None => ()
+      };
+    },
+    missing,
+  );
+  ignore(Run.evaluate_elab(elab));
+  let t4 = now();
+  for (_ in 1 to iterations) {
+    ignore(Run.evaluate_elab(elab));
+  };
+  let interp = (now() -. t4) /. float_of_int(iterations);
+  Printf.printf(
+    "interpreter: %.1f ms a run (%d runs after one to warm)\n%!",
+    interp,
+    iterations,
+  );
+  switch (compiled) {
+  | Error(why) => Printf.printf("not compiled at all: %s\n", why)
+  | Ok(c) =>
+    Printf.printf("compiled source: %d KB\n", String.length(c.src) / 1000);
+    switch (HazelJitValue.instantiate(c.src)) {
+    | exception exn =>
+      Printf.printf(
+        "the compiled run stopped: %s\n",
+        HazelJitValue.message(exn),
+      )
+    | js =>
+      /* the same value? the interpreter's carried into JS (HazelJitValue.to_js), compared by the runtime's own
+         structural equality; and what the value is, as JSON */
+      let interp_v = Run.evaluate_elab(elab);
+      let json = (v: Js_of_ocaml.Js.Unsafe.any): string =>
+        switch (
+          Js_of_ocaml.Js.Unsafe.fun_call(
+            Js_of_ocaml.Js.Unsafe.pure_js_expr(
+              "(function (v) { try { return JSON.stringify(v) || String(v); } catch (e) { return 'unprintable: ' + e; } })",
+            ),
+            [|v|],
+          )
+          |> Js_of_ocaml.Js.to_string
+        ) {
+        | s => s
+        | exception _ => "?"
+        };
+      let js_json = json(js);
+      Printf.printf(
+        "the compiled run's value: %d chars of JSON: %s\n",
+        String.length(js_json),
+        String.sub(js_json, 0, min(String.length(js_json), 300)),
+      );
+      switch (HazelJitValue.to_js(interp_v)) {
+      | exception exn =>
+        Printf.printf(
+          "the interpreter's value has no JS form to compare: %s\n",
+          HazelJitValue.message(exn),
+        )
+      | iv =>
+        let eq =
+          Js_of_ocaml.Js.Unsafe.meth_call(
+            Lazy.force(HazelJitValue.runtime),
+            "eq",
+            [|iv, js|],
+          )
+          |> Js_of_ocaml.Js.to_bool;
+        Printf.printf(
+          "the same value as the interpreter's: %s (the interpreter's, as JSON, %d chars)\n%!",
+          eq ? "yes" : "NO",
+          String.length(json(iv)),
+        );
+      };
+      let t5 = now();
+      for (_ in 1 to iterations) {
+        ignore(HazelJitValue.instantiate(c.src));
+      };
+      let jit = (now() -. t5) /. float_of_int(iterations);
+      Printf.printf(
+        "compiled: %.2f ms a run, the JS made anew each time (%.0f times the interpreter's speed)\n",
+        jit,
+        interp /. jit,
+      );
+    };
+  };
+};
+
+let jit_cmd = {
+  let doc = "hazel-jit on a whole program: what it compiles, and its run against the interpreter's.";
+  let iterations_arg = {
+    let doc = "Runs to time each way (default: 3).";
+    Arg.(value & opt(int, 3) & info(["n", "iterations"], ~doc));
+  };
+  let file_arg = {
+    let doc = "A Hazel source file.";
+    Arg.(
+      required & pos(0, some(string), None) & info([], ~docv="FILE", ~doc)
+    );
+  };
+  let info = Cmd.info("jit", ~doc);
+  Cmd.v(info, Term.(const(jit_eval) $ iterations_arg $ file_arg));
+};
+
 /* Common arg: path or "-" for stdin */
 let input_arg = {
   let doc = "Path to Hazel source file, or '-' to read from stdin.";
@@ -755,6 +901,7 @@ let default_cmd = {
       grade_json_cmd,
       grade_report_cmd,
       bench_eval_cmd,
+      jit_cmd,
     ],
   );
 };
