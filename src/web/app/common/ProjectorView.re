@@ -11,10 +11,11 @@ type visible_rows = Globals.VisibleRows.t;
 
 let offside_offset = 4; /* Num characters offset to the right of the end of the line */
 
-/* Cache projector view results to avoid expensive P.view() calls
- * when statics/dynamics haven't changed (e.g. during debounced typing).
- * Per-projector cache keyed on map identity + status + model. Handles
- * multiple editors calling into the same cache without thrashing. */
+/* Cache projector view results to avoid expensive Util.BenchMarks.time("view: a projector drawn", () =>
+          P.view()) calls
+   * when statics/dynamics haven't changed (e.g. during debounced typing).
+   * Per-projector cache keyed on map identity + status + model. Handles
+   * multiple editors calling into the same cache without thrashing. */
 module ViewCache = {
   type entry = {
     statics_map: Language.Statics.Map.t,
@@ -195,7 +196,8 @@ module Model = {
     render_layers: layers,
     status,
     /* Map refs for view cache identity comparison. `elaborated` is the whole-
-     * editor elaborated Exp.t that P.view() may consume via info.elaborated;
+     * editor elaborated Exp.t that Util.BenchMarks.time("view: a projector drawn", () =>
+        P.view()) may consume via info.elaborated;
      * it must participate in the cache key since info.elaborated is derived
      * from it. Refractors pass None. */
     statics_map: Language.Statics.Map.t,
@@ -757,54 +759,56 @@ let mk_view =
     let splice_size = (id: Id.t): Util.Point.t =>
       Measured.splice_size_of(splice_size_map, id);
     let view =
-      P.view({
-        model: p.model,
-        info,
-        local: a => {
-          let new_model = P.update(p.model, info, a);
-          inject(Project(SetModel(idx, p.kind, new_model)));
-        },
-        local_quiet: a => {
-          let new_model = P.update(p.model, info, a);
-          inject(Project(SetModelQuiet(idx, p.kind, new_model)));
-        },
-        parent: a =>
-          switch (a) {
-          | FocusById(id) =>
-            let target_idx = List.find_index(x => x == id, projector_list);
-            switch (target_idx) {
-            | Some(target_idx) =>
-              inject(Project(Focus(target_idx, Probe, None)))
-            | None => Effect.Ignore
-            };
-          | a => inject(handle(idx, p.kind, a))
+      Util.BenchMarks.time("view: a projector drawn", () =>
+        P.view({
+          model: p.model,
+          info,
+          local: a => {
+            let new_model = P.update(p.model, info, a);
+            inject(Project(SetModel(idx, p.kind, new_model)));
           },
-        view_seg:
-          (
-            ~single_line=?,
-            ~background=?,
-            ~classes=?,
-            ~text_only=?,
-            sort,
-            segment,
-          ) =>
-          flex_code(
-            ~font_metrics,
-            ~single_line?,
-            ~background?,
-            ~classes?,
-            ~text_only?,
-            sort,
-            segment,
-          ),
-        splice_view,
-        splice_size,
-        splices,
-        status,
-        core_settings,
-        col_width: font_metrics.col_width,
-        row_height: font_metrics.row_height,
-      });
+          local_quiet: a => {
+            let new_model = P.update(p.model, info, a);
+            inject(Project(SetModelQuiet(idx, p.kind, new_model)));
+          },
+          parent: a =>
+            switch (a) {
+            | FocusById(id) =>
+              let target_idx = List.find_index(x => x == id, projector_list);
+              switch (target_idx) {
+              | Some(target_idx) =>
+                inject(Project(Focus(target_idx, Probe, None)))
+              | None => Effect.Ignore
+              };
+            | a => inject(handle(idx, p.kind, a))
+            },
+          view_seg:
+            (
+              ~single_line=?,
+              ~background=?,
+              ~classes=?,
+              ~text_only=?,
+              sort,
+              segment,
+            ) =>
+            flex_code(
+              ~font_metrics,
+              ~single_line?,
+              ~background?,
+              ~classes?,
+              ~text_only?,
+              sort,
+              segment,
+            ),
+          splice_view,
+          splice_size,
+          splices,
+          status,
+          core_settings,
+          col_width: font_metrics.col_width,
+          row_height: font_metrics.row_height,
+        })
+      );
     if (cacheable) {
       ViewCache.store(
         p.id,

@@ -1045,32 +1045,34 @@ module View = {
         ? Effect.Ignore
         : globals.inject_global(Set(Sidebar(SwitchPanel(Projectors))));
     let projectors =
-      ProjectorView.all(
-        x => inject(Perform(x)),
-        signal(MakeActive),
-        globals.font_metrics,
-        ~core_settings=globals.settings.core,
-        /* no ~visible: projectors render unculled (stale bounds hid them,
-           #2702); the visible range feeds the refractors and the
-           pending-eval highlight only */
-        ~open_panel,
-        ~render_splice,
-        ProjectorView.Model.mk(
-          ~syntax=model.editor.syntax,
-          /* Render this frame's projectors only; nested ones render in
-           * their host splice's sub-editor. */
-          ~projector_list=model.editor.syntax.main_splice.projector_list,
-          ~indicated=Indicated.for_decoration(zipper),
-          ~statics=model.statics.info_map,
-          ~dynamics,
-          ~sample_focus=zipper.refractors.sample_focus,
-          ~editor_active=selected,
-          ~elaborated=Some(model.statics.elaborated),
-        ),
-        /* Index list: action indices (Focus/SetModel/SetTerm/...) are
-         * resolved by Perform against the global projector list, so
-         * every frame must compute them against the same list. */
-        model.editor.syntax.projector_list,
+      Util.BenchMarks.time("view: projectors", () =>
+        ProjectorView.all(
+          x => inject(Perform(x)),
+          signal(MakeActive),
+          globals.font_metrics,
+          ~core_settings=globals.settings.core,
+          /* no ~visible: projectors render unculled (stale bounds hid them,
+             #2702); the visible range feeds the refractors and the
+             pending-eval highlight only */
+          ~open_panel,
+          ~render_splice,
+          ProjectorView.Model.mk(
+            ~syntax=model.editor.syntax,
+            /* Render this frame's projectors only; nested ones render in
+             * their host splice's sub-editor. */
+            ~projector_list=model.editor.syntax.main_splice.projector_list,
+            ~indicated=Indicated.for_decoration(zipper),
+            ~statics=model.statics.info_map,
+            ~dynamics,
+            ~sample_focus=zipper.refractors.sample_focus,
+            ~editor_active=selected,
+            ~elaborated=Some(model.statics.elaborated),
+          ),
+          /* Index list: action indices (Focus/SetModel/SetTerm/...) are
+           * resolved by Perform against the global projector list, so
+           * every frame must compute them against the same list. */
+          model.editor.syntax.projector_list,
+        )
       );
     ProjectorView.ViewCache.log_frame();
     let incr_eval_overlay =
