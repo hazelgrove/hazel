@@ -942,9 +942,10 @@ module MetaListener = {
    redraw would ask for the next build, forever. An action that comes
    while a build waits asks for one more. A livelit's own redraw does not set it
    either: it changes nothing the outline reads. */
+/* (Node has a None of its own, an empty node: hence Stdlib.Option.None) */
 module OutlineAsync = {
-  let shown: ref(option(Node.t)) = ref(None);
-  let latest: ref(option(unit => Node.t)) = ref(None);
+  let shown: ref(option(Node.t)) = ref(Stdlib.Option.None);
+  let latest: ref(option(unit => Node.t)) = ref(Stdlib.Option.None);
   let stale = ref(true);
   let scheduled = ref(false);
   let build = () => {
@@ -952,7 +953,7 @@ module OutlineAsync = {
     switch (latest^) {
     | None => ()
     | Some(make) =>
-      latest := None;
+      latest := Stdlib.Option.None;
       shown := Some(Util.BenchMarks.time("outline, on its own", make));
       switch (Haz3lcore.AppBridge.livelit_repaint^) {
       | Some(f) => Effect.Expert.handle_non_dom_event_exn(f())
