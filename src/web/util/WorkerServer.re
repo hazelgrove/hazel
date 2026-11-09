@@ -200,6 +200,11 @@ module ServerMessage = {
    are not first-order, and a bare literal or constructor (no larger than its placeholder), stay terms. */
 module Wire = {
   open Language;
+  /* Off (Firefox run 42657604986, 1524e96da3): on the Witch only 5 values a message were first-order by of_term's
+     strict reading, and rebuilding every sample record lost the sharing Marshal had kept (the 216 completed entries'
+     sample maps share subtrees), so the answer grew from 0.59 to 0.89 MB. Kept for the next slice, which makes data
+     where samples are made (Sample.Env.elide), and surveyed meanwhile (survey). */
+  let enabled = ref(false);
   module Phys =
     Hashtbl.Make({
       type t = Exp.t;
@@ -343,6 +348,39 @@ module Wire = {
         );
     | m => (m, 0, 0)
     };
+  /* While the worker keeps its timeline: each distinct sample value in a Stream or a Result (by identity), whether it
+     is first-order data, and if not, why (FirstOrder.why_not), as counts; the message unchanged */
+  let survey = (msg: ServerMessage.t): list((string, float)) => {
+    let seen = Phys.create(256);
+    let counts = Hashtbl.create(8);
+    let bump = k =>
+      Hashtbl.replace(
+        counts,
+        k,
+        1 + Option.value(~default=0, Hashtbl.find_opt(counts, k)),
+      );
+    let look = (v: Exp.t): Exp.t => {
+      if (!Phys.mem(seen, v)) {
+        Phys.add(seen, v, v);
+        switch (v.term) {
+        | Atom(_)
+        | Constructor(_) => bump("a bare literal or constructor")
+        | _ =>
+          switch (FirstOrder.why_not(v)) {
+          | None => bump("data")
+          | Some(why) => bump("not data: " ++ why)
+          }
+        };
+      };
+      v;
+    };
+    ignore(map_states(map_samples(look), msg));
+    Hashtbl.fold(
+      (k, n, acc) => [(k, float_of_int(n)), ...acc],
+      counts,
+      [],
+    );
+  };
   /* in the page: the message as the worker meant it, each value made a term once */
   let in_ = (msg: ServerMessage.t): ServerMessage.t =>
     switch (msg) {
@@ -797,6 +835,17 @@ let post_message = (msg: ServerMessage.t): unit => {
   let as_data = ref((0, 0));
   let msg =
     switch (msg) {
+    | ServerMessage.Stream(_)
+    | ServerMessage.Result(_) when ! Wire.enabled^ =>
+      if (recording^) {
+        let counts = ref([]);
+        wtime(
+          ~extra=() => counts^,
+          "samples' values surveyed",
+          () => counts := Wire.survey(msg),
+        );
+      };
+      msg;
     | ServerMessage.Stream(_)
     | ServerMessage.Result(_) =>
       wtime(

@@ -76,3 +76,26 @@ let rec to_term = (d: t): Exp.t =>
   | Ctor(name, ty, Some(a)) =>
     mk(Ap(Forward, mk(Constructor(name, ty)), to_term(a)))
   };
+
+/* Why a value is not first-order data: the first node of [of_term]'s walk that is not, by its constructor's name (or
+   "annotation" for one that carries more than ids); None when it is */
+let rec why_not = (e: Exp.t): option(string) =>
+  switch (e.term) {
+  | Atom(_) when plain(e, ~lexeme_ok=true) => None
+  | _ when !plain(e, ~lexeme_ok=false) => Some("annotation")
+  | ListLit(xs)
+  | Tuple(xs) => List.find_map(why_not, xs)
+  | TupLabel({term: Label(_), _}, v) => why_not(v)
+  | Constructor(_) => None
+  | Ap(Forward, {term: Constructor(_), _}, arg) => why_not(arg)
+  | t =>
+    let s = Exp.show_term(t);
+    Some(
+      switch (String.index_opt(s, ' '), String.index_opt(s, '(')) {
+      | (Some(i), Some(j)) => String.sub(s, 0, min(i, j))
+      | (Some(i), None)
+      | (None, Some(i)) => String.sub(s, 0, i)
+      | (None, None) => s
+      },
+    );
+  };

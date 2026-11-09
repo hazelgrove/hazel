@@ -335,6 +335,15 @@ let test_samples_as_data = (): test_case(_) =>
           final_streams: [],
         });
       let (out, n, differ) = WorkerServer.Wire.out(~check=true, msg);
+      check(
+        list(string),
+        "and the survey finds it data",
+        ["data"],
+        List.filter_map(
+          ((k, _)) => k == "data" ? Some(k) : None,
+          WorkerServer.Wire.survey(msg),
+        ),
+      );
       check(int, "one value went as data, once", 1, n);
       check(int, "and came back the same", 0, differ);
       let back =
