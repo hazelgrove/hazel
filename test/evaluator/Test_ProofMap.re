@@ -1517,6 +1517,23 @@ let test_entries_record_scope = () => {
   );
 };
 
+/* An induction steps to its conclusion, `true`, once its cases cover the
+ * scrutinee, so the row after it never repeats the goal; a case still
+ * open keeps the proof incomplete. */
+let test_unfinished_induction_steps_to_true = () => {
+  let (pm, proof) =
+    run(
+      {|theorem t = forall xs : [Int] -> xs == xs proof induction xs | [] => axiom refl_eq at 0 on [] == [] end | y :: ys => ? end in t|},
+    );
+  let outgoing =
+    switch (ProofMap.lookup(Proof.rep_id(proof), pm)) {
+    | Some({outgoing: Some(e), _}) => print_exp(e)
+    | _ => "<none>"
+    };
+  Alcotest.check(Alcotest.string, "outgoing", "true", outgoing);
+  check_status("an open case", ProofMap.Incomplete, pm, proof);
+};
+
 let tests = (
   "Evaluator.ProofMap",
   [
@@ -1746,6 +1763,11 @@ let tests = (
       "namespace separation: theorem body is ordinary code",
       `Quick,
       test_theorem_body_is_ordinary_code,
+    ),
+    test_case(
+      "an unfinished induction steps to true and stays incomplete",
+      `Quick,
+      test_unfinished_induction_steps_to_true,
     ),
   ],
 );
