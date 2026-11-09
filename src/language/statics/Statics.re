@@ -385,7 +385,10 @@ and uexp_to_info_map =
          `where` hypothesis that the checker installs. */
       | Parens(e1) => proof_ctx_of_goal(ctx, e1, m)
       | Forall(fp, fbody) =>
-        let (fp', _, m) =
+        /* Only the binder's ctx is needed. The statement's own walk has
+           already recorded the binder, with the uses the statement makes;
+           recording it again here, with no uses, would mark it unused. */
+        let (fp', _, _) =
           upat_to_info_map(
             ~is_synswitch=false,
             ~ctx,
@@ -4599,6 +4602,13 @@ and proof_to_info_map =
       p,
       m,
     );
+  /* A proof's binders (case patterns, `forall x =>`, `funext x =>`) name
+     parts of the goal, which steps reach through the goal (`eval $e at 0
+     end`) as often as by name, so they count as used. Fact names (`as`,
+     `alias`) bind in the theorem namespace, not the variable one, so no
+     unused-variable warning applies to them either. */
+  let go_binder = (~ana=?, p: Pat.t, m: Map.t) =>
+    go_pat(~co_ctx=CoCtx.of_bindings(Pat.bindings(p)), ~ana?, p, m);
   let go_prop = (e: Exp.t, m: Map.t): (Exp.t, Map.t) => {
     let (_, e, m) = go_exp(~ana=Atom(Bool) |> Typ.temp, e, m);
     (e, m);
@@ -4619,7 +4629,7 @@ and proof_to_info_map =
     switch (as_name) {
     | None => (None, m)
     | Some(x) =>
-      let (_, x, m) = go_pat(x, m);
+      let (_, x, m) = go_binder(x, m);
       (Some(x), m);
     };
   /* The fact name a pattern gives, read through `Pat.bound_vars` as
@@ -4859,7 +4869,7 @@ and proof_to_info_map =
     let (pats, m) =
       map_m(
         (p, m) => {
-          let (info, p, m) = go_pat(~ana=scrut_info.ty, p, m);
+          let (info, p, m) = go_binder(~ana=scrut_info.ty, p, m);
           ((info, p), m);
         },
         ps,
@@ -4951,29 +4961,14 @@ and proof_to_info_map =
     );
   | Forall(pat, body) =>
     /* The binders enter the variable namespace. */
-    let (pat_info, pat, m) = go_pat(pat, m);
+    let (pat_info, pat, m) = go_binder(pat, m);
     let (body, m) = go(~ctx=pat_info.ctx, body, m);
     add(Forall(pat, body), m);
   | Funext(pat, body) =>
     /* The binder names the argument of the pointwise goal `f(x) == g(x)`
-       the checker builds, and the proof need not mention it. The first
-       pass extends the ctx; the second marks every binder used, so no
-       unused-variable warning fires. */
-    let (pat_info, _, _) = go_pat(pat, m);
+       the checker builds. */
+    let (pat_info, pat, m) = go_binder(pat, m);
     let (body, m) = go(~ctx=pat_info.ctx, body, m);
-    let used =
-      pat
-      |> Pat.bindings
-      |> Binding.variable_names
-      |> List.map(name =>
-           CoCtx.singleton(
-             name,
-             Pat.rep_id(pat),
-             Unknown(Internal) |> Typ.temp,
-           )
-         )
-      |> CoCtx.union;
-    let (_, pat, m) = go_pat(~co_ctx=used, pat, m);
     add(Funext(pat, body), m);
   | Assume(e, as_name, body) =>
     let (e_elab, m) = go_prop(e, m);
@@ -4992,7 +4987,7 @@ and proof_to_info_map =
        given by name or as a proposition (the checker matches it against
        the facts in scope). The body sees the fact under <name>, with the
        statement as written, or, for a name, that fact's statement. */
-    let (_, x_elab, m) = go_pat(x, m);
+    let (_, x_elab, m) = go_binder(x, m);
     let (e_elab, aliased, m) =
       switch (go_fact_name(e, m)) {
       | Some((Some({prop: Some(prop), _}), e, m)) => (e, prop, m)
