@@ -1,8 +1,8 @@
 open Util;
 
 /* For each proof sub-term the checker reaches, keyed by its `rep_id`: the
- * goal going into the step and the goal coming out, plus the marks that
- * the editor shows on that node.
+ * goal going into the step and the goal coming out, the marks that the
+ * editor shows on that node, and the scope it was checked in.
  *
  * `None` on either side means checking broke down here: the incoming goal
  * couldn't be computed because an earlier step failed, or this step's
@@ -22,6 +22,10 @@ type entry = {
   /* Obligations incurred by this step (e.g. an `assume`'s hypothesis),
    * with their discharge provenance. Empty for most steps. */
   obligations: list(Obligation.t),
+  /* The scope the checker checked this step in: the variables and facts
+   * a step written here can use. A form's body is recorded under the
+   * body's own id, with the scope the form opens for it. */
+  ctx: SemanticCtx.t,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]

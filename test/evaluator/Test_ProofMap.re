@@ -1480,9 +1480,51 @@ let test_theorem_body_is_ordinary_code = () => {
   );
 };
 
+/* Each step records the scope it was checked in: a form's own node has
+ * the enclosing scope, its body the scope the form opens. */
+let test_entries_record_scope = () => {
+  let src = {|theorem t = forall (x : Int) -> x == x proof assume x == 1 => ? in t|};
+  let (pm, proof) = run(src);
+  let hole =
+    switch (proof.term) {
+    | Assume(_, _, body) => body
+    | _ => Alcotest.fail("not assume _ => ?")
+    };
+  let ctx_of = (p: Proof.t) =>
+    switch (ProofMap.lookup(Proof.rep_id(p), pm)) {
+    | Some(entry) => entry.ctx
+    | None => Alcotest.fail("no entry")
+    };
+  let fact_names = p =>
+    SemanticCtx.facts(ctx_of(p)) |> List.map(((name, _, _)) => name);
+  check(
+    bool,
+    "the statement's binder is in scope",
+    true,
+    Ctx.lookup_var(SemanticCtx.get_ctx(ctx_of(proof)), "x") != None,
+  );
+  check(
+    bool,
+    "the assume is checked without its hypothesis",
+    false,
+    List.mem("assume", fact_names(proof)),
+  );
+  check(
+    bool,
+    "the assume's body has the hypothesis",
+    true,
+    List.mem("assume", fact_names(hole)),
+  );
+};
+
 let tests = (
   "Evaluator.ProofMap",
   [
+    test_case(
+      "each step records the scope it was checked in",
+      `Quick,
+      test_entries_record_scope,
+    ),
     test_case(
       "one eval step's outgoing feeds the goal",
       `Quick,
