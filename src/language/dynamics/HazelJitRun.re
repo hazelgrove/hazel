@@ -215,13 +215,44 @@ and with_arg = (e: Exp.t, m: Exp.t): option(Exp.t) =>
   };
 let left_out: Exp.t =
   Exp.fresh(Atom(String("%a livelit's model, a parameter of the run")));
+/* (^report(51)) erase's answers remembered per node (a JS WeakMap), for one [param_of]: each node's erased term, and
+   the uses and models under it, in order. After a step on the Witch the new program shares all but 36 to 49 of its
+   nodes with the one before (19 to 31 top-most shared subterms, run 42701761078), so erasing it visits only those, and
+   the comparison (Exp.fast_equal) meets the old erased subterms themselves and stops at its === check. Before: a copy
+   of the whole program (27 to 33 ms) and a walk of both (5 to 10 ms) at every step. */
+let erase_memo: ref(option((Hashtbl.t(string, string), U.any))) =
+  ref(None);
+let memo_for = (param_of: Hashtbl.t(string, string)): U.any =>
+  switch (erase_memo^) {
+  | Some((p, m)) when p === param_of => m
+  | _ =>
+    let m = U.new_obj(U.get(U.global, "WeakMap"), [||]);
+    erase_memo := Some((param_of, m));
+    m;
+  };
+
 /* The program with each parameter's model left out; every livelit use's projector id in order; and each parameter's
    use with its model */
 let erase =
     (~param_of: Hashtbl.t(string, string), e: Exp.t)
     : (Exp.t, list(string), list((string, Exp.t))) => {
+  let memo = memo_for(param_of);
+  /* both in reverse, as they are found */
   let uses = ref([]);
   let models = ref([]);
+  /* what was added to [l] since [l0], in the order it was found */
+  let since = (l, l0) => {
+    let rec go = (l, acc) =>
+      l === l0
+        ? acc
+        : (
+          switch (l) {
+          | [x, ...rest] => go(rest, [x, ...acc])
+          | [] => acc
+          }
+        );
+    go(l, []);
+  };
   let keep = (_, x) => x;
   let e =
     Exp.map_term(
@@ -230,25 +261,50 @@ let erase =
       ~f_tpat=keep,
       ~f_exp=
         (continue, e: Exp.t) =>
-          switch (continue(e)) {
-          | {term: Projector(data, inner), _} as e'
-              when data.Grammar.kind == ProjectorKind.Livelit =>
-            let pid = Id.to_string(Exp.rep_id(e'));
-            uses := [pid, ...uses^];
-            switch (Hashtbl.mem(param_of, pid), model_of(inner)) {
-            | (true, Some(model)) =>
-              switch (with_model(inner, left_out)) {
-              | Some(inner) =>
-                models := [(pid, model), ...models^];
-                {
-                  ...e',
-                  term: Projector(data, inner),
+          if (Js.to_bool(U.meth_call(memo, "has", [|U.inject(e)|]))) {
+            let (
+              erased: Exp.t,
+              us: list(string),
+              ms: list((string, Exp.t)),
+            ) =
+              Obj.magic(U.meth_call(memo, "get", [|U.inject(e)|]));
+            uses := List.rev_append(us, uses^);
+            models := List.rev_append(ms, models^);
+            erased;
+          } else {
+            let (u0, m0) = (uses^, models^);
+            let erased =
+              switch (continue(e)) {
+              | {term: Projector(data, inner), _} as e'
+                  when data.Grammar.kind == ProjectorKind.Livelit =>
+                let pid = Id.to_string(Exp.rep_id(e'));
+                uses := [pid, ...uses^];
+                switch (Hashtbl.mem(param_of, pid), model_of(inner)) {
+                | (true, Some(model)) =>
+                  switch (with_model(inner, left_out)) {
+                  | Some(inner) =>
+                    models := [(pid, model), ...models^];
+                    {
+                      ...e',
+                      term: Projector(data, inner),
+                    };
+                  | None => e'
+                  }
+                | _ => e'
                 };
-              | None => e'
-              }
-            | _ => e'
-            };
-          | e' => e'
+              | e' => e'
+              };
+            ignore(
+              U.meth_call(
+                memo,
+                "set",
+                [|
+                  U.inject(e),
+                  U.inject((erased, since(uses^, u0), since(models^, m0))),
+                |],
+              ),
+            );
+            erased;
           },
       e,
     );
