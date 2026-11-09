@@ -364,6 +364,10 @@ let survey: ref(option(Hashtbl.t(string, int))) = ref(None);
    $R.param(its id, the literal), so a run can be given a new model without new code; and the use's view call as
    $R.sample(the projector's id, the answer). Off but for a slide's compiled run. */
 let params_on: ref(bool) = ref(false);
+/* and, as it compiles, each livelit use's projector id with its model's parameter (both as Id.to_string), for the caller
+   to give a projector's new model to the right parameter; a use whose model is not a literal has none */
+let param_of_projector: Hashtbl.t(string, string) = Hashtbl.create(64);
+let last_param: ref(option(string)) = ref(None);
 
 let rec model_literal = (e: Exp.t): bool =>
   switch (Exp.term_of(e)) {
@@ -514,13 +518,19 @@ and exp_inner =
       "{c: " ++ js_string(name) ++ ", v: " ++ go(arg) ++ "}";
     | (Dot(_, l), Var("%model"))
         when params_on^ && label_of(l) == Some("view") =>
+      let pid = Id.to_string(Exp.rep_id(e));
+      switch (last_param^) {
+      | Some(mid) => Hashtbl.replace(param_of_projector, pid, mid)
+      | None => ()
+      };
+      last_param := None;
       "$R.sample("
       ++ js_string(Id.to_string(Exp.rep_id(e)))
       ++ ", ("
       ++ go(f)
       ++ ")("
       ++ go(arg)
-      ++ "))"
+      ++ "))";
     | _ => "(" ++ go(f) ++ ")(" ++ go(arg) ++ ")"
     }
   | Ap(Reverse, _, _) => unsupported("a reverse application")
@@ -543,13 +553,17 @@ and exp_inner =
   | Let(p, e1, e2) =>
     let tmp = fresh(st, scope, "let");
     let v1 =
-      params_on^ && pat_is("%model", p) && model_literal(e1)
-        ? "$R.param("
-          ++ js_string(Id.to_string(Exp.rep_id(e1)))
-          ++ ", "
-          ++ go(e1)
-          ++ ")"
-        : go(e1);
+      switch (params_on^ && pat_is("%model", p), model_literal(e1)) {
+      | (true, true) =>
+        let mid = Id.to_string(Exp.rep_id(e1));
+        let v = "$R.param(" ++ js_string(mid) ++ ", " ++ go(e1) ++ ")";
+        last_param := Some(mid);
+        v;
+      | (true, false) =>
+        last_param := None;
+        go(e1);
+      | (false, _) => go(e1)
+      };
     let (tests, binds, lex') = pat(st, scope, lex, p, tmp);
     let check =
       tests == [] ? [] : ["(" ++ conj(tests) ++ ") || $R.nomatch(\"let\")"];

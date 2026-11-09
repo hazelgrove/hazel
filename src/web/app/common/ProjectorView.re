@@ -681,6 +681,14 @@ let mk_view =
     | ProjectorCore.Kind.Livelit => LivelitProj.optimistic_version^
     | _ => 0
     };
+  /* (^ticket(722)) the program this livelit is drawn from, for its run to
+     be compiled with livelits' models as parameters (a physical-equality
+     check when it has not changed) */
+  switch (p.kind, elaborated) {
+  | (ProjectorCore.Kind.Livelit, Some(e)) =>
+    Language.HazelJitRun.note_program(e)
+  | _ => ()
+  };
   /* Splice-bearing projectors render live sub-editors whose caret and
    * selection decorations depend on the zipper — which is not part of
    * the cache key — so their views must be rebuilt every frame. */

@@ -1228,6 +1228,11 @@ module M: Projector = {
               ? List.filteri((i, _) => i >= n - 64, outstanding)
               : outstanding;
           };
+          /* (^ticket(722)) the slide's run, compiled, with this new model
+             as its parameter: every livelit's view answer, for each to be
+             drawn from (below) before the worker's run comes back. Its own
+             failures only leave the samples to draw, as before. */
+          ignore(HazelJitRun.step(~projector=id, ~model=new_model));
           incr(optimistic_version);
           Hashtbl.replace(
             optimistic,
@@ -1545,6 +1550,36 @@ module M: Projector = {
           Some(entry);
         };
       };
+    /* (^ticket(722)) the compiled run's answer for this use, while the
+       event that ran it is still ahead of the worker's run (its livelit's
+       optimistic entry not yet converged), drawn straight from its JS */
+    let from_run =
+      switch (opt) {
+      | Some(_) => None
+      | None =>
+        switch (
+          HazelJitRun.answer(~fresh=src => Hashtbl.mem(optimistic, src), id)
+        ) {
+        | None => None
+        | Some((js, types)) =>
+          switch (HazelJitDOM.go(seed(~model, ~model_value), types, js)) {
+          | node =>
+            HazelJitValue.count("drawn from the compiled run");
+            Some(node);
+          | exception (HazelJit.Unsupported(why)) =>
+            jit_warn(
+              "the compiled run's answer drawn from the sample: " ++ why,
+            );
+            None;
+          | exception exn =>
+            jit_warn(
+              "the compiled run's answer drawn from the sample: "
+              ++ Printexc.to_string(exn),
+            );
+            None;
+          }
+        }
+      };
     switch (opt, live) {
     | (Some(entry), _) =>
       switch (
@@ -1556,6 +1591,7 @@ module M: Projector = {
       | Ok(node) => ok(node)
       | Error(e) => err(e)
       }
+    | (None, _) when Option.is_some(from_run) => ok(Option.get(from_run))
     | (None, Some(html)) =>
       HazelJitValue.count("drawn from the run's sample");
       ok(HazelDOM.go(~elide_errors=true, seed(~model, ~model_value), html));
