@@ -521,6 +521,41 @@ let kept = (): option(compiled) =>
   };
 
 /* The program's compilation, made now if it has not been */
+/* (^report(51)) A run just after a compilation, with the models as the program has them, for the printed answers
+   alone: the baseline the first step compares with. Without it the first step found no answer before it, so every
+   livelit counted as changed and all 53 on the Witch were drawn again (its first view 65 ms, the later ones' 6 or 7;
+   run 42703776919). It sets no source, so nothing draws from these answers, and nothing is drawn again for it; it
+   comes after the paint, where the compilation does (note_program). */
+let prime = (c: compiled): unit => {
+  let r = Lazy.force(HazelJitValue.runtime);
+  let samples = U.obj([||]);
+  U.set(r, "params", c.params);
+  U.set(r, "samples", samples);
+  let ran =
+    Util.BenchMarks.time("hazel-jit: the run, after its compilation", () =>
+      switch (U.fun_call(c.fn, [|r|])) {
+      | _ => true
+      | exception _ => false
+      }
+    );
+  U.set(r, "params", Js.null);
+  U.set(r, "samples", Js.null);
+  if (ran) {
+    Hashtbl.reset(printed);
+    let keys: Js.t(Js.js_array(Js.t(Js.js_string))) =
+      U.fun_call(U.js_expr("Object.keys"), [|U.inject(samples)|]);
+    Array.iter(
+      (k: Js.t(Js.js_string)) =>
+        Hashtbl.replace(
+          printed,
+          Js.to_string(k),
+          print_js(U.get(samples, k)),
+        ),
+      Js.to_array(keys),
+    );
+  };
+};
+
 let current = (): option(compiled) =>
   switch (kept()) {
   | Some(c) => Some(c)
@@ -543,7 +578,9 @@ let current = (): option(compiled) =>
           c;
         };
       switch (c) {
-      | Ok(c) => Some(c)
+      | Ok(c) =>
+        prime(c);
+        Some(c);
       | Error(why) =>
         warn(why);
         None;
