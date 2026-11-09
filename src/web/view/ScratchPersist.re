@@ -357,19 +357,23 @@ let save_current' = (prefix: string, model: Model.t): unit => {
   /* Carry the offered-defaults record forward: the model does not hold
      it, and dropping it here would let reconcile_names resurrect a
      slide the user deleted after their first visit. */
-  let known_defaults =
-    switch (load_meta(prefix)) {
-    | Some(m) => m.known_defaults
-    | None => []
-    };
-  save_meta(
-    prefix,
-    {
-      current: model.current,
-      names,
-      known_defaults,
-    },
-  );
+  /* (^report(51)) the autosave's parts, timed for the check: its first
+     run after the Witch loaded took 287 ms, later ones 48 to 58 ms */
+  Util.BenchMarks.time("save: the deck's names", () => {
+    let known_defaults =
+      switch (load_meta(prefix)) {
+      | Some(m) => m.known_defaults
+      | None => []
+      };
+    save_meta(
+      prefix,
+      {
+        current: model.current,
+        names,
+        known_defaults,
+      },
+    );
+  });
   let sp = List.nth(model.scratchpads, model.current);
   switch (sp.dormant, sp.kind) {
   | (true, _) => () /* never write a placeholder over the stored slide */
@@ -381,10 +385,24 @@ let save_current' = (prefix: string, model: Model.t): unit => {
       };
     let ck = content_key(prefix, sp.name);
     let content_unchanged =
-      switch (Hashtbl.find_opt(last_saved_content, ck)) {
-      | Some(prev) => stamp_equal(prev, stamp)
-      | None => false
-      };
+      Util.BenchMarks.time(
+        ~extra=
+          () =>
+            [
+              (
+                "first",
+                Util.BenchMarks.num(
+                  Hashtbl.mem(last_saved_content, ck) ? 0. : 1.,
+                ),
+              ),
+            ],
+        "save: the content compared",
+        () =>
+          switch (Hashtbl.find_opt(last_saved_content, ck)) {
+          | Some(prev) => stamp_equal(prev, stamp)
+          | None => false
+          },
+      );
     if (!content_unchanged) {
       Hashtbl.replace(last_saved_content, ck, stamp);
       /* text, without a live editor (syntax init and zipper sexps are
@@ -402,30 +420,34 @@ let save_current' = (prefix: string, model: Model.t): unit => {
                }
              )
         };
-      save_items(prefix, sp.name, z);
+      Util.BenchMarks.time("save: the items", () =>
+        save_items(prefix, sp.name, z)
+      );
       /* the slide blob carries the editor only; the conversation lives
          solely under the :agent key */
-      save_slide_kind(
-        prefix,
-        sp.name,
-        CodePersist({
-          editor:
-            Some(
-              CellEditor.Model.{
-                editor:
-                  Editor.Model.mk_persistent(
-                    PersistentZipper.of_text(
-                      PersistentZipper.to_string(z) ++ "\n",
+      Util.BenchMarks.time("save: the text", () =>
+        save_slide_kind(
+          prefix,
+          sp.name,
+          CodePersist({
+            editor:
+              Some(
+                CellEditor.Model.{
+                  editor:
+                    Editor.Model.mk_persistent(
+                      PersistentZipper.of_text(
+                        PersistentZipper.to_string(z) ++ "\n",
+                      ),
+                      /* the editor's own root: a Mod-rooted slide saved as
+                         Exp reloads as an expression and wedges */
+                      ~root=Program.root(program),
                     ),
-                    /* the editor's own root: a Mod-rooted slide saved as
-                       Exp reloads as an expression and wedges */
-                    ~root=Program.root(program),
-                  ),
-                result: EvalResult.Model.persist(Program.result(program)),
-              },
-            ),
-          agent: Agent.Persistent.persist(Agent.Utils.init()),
-        }),
+                  result: EvalResult.Model.persist(Program.result(program)),
+                },
+              ),
+            agent: Agent.Persistent.persist(Agent.Utils.init()),
+          }),
+        )
       );
     };
     let outline = Program.outline(program);
@@ -437,40 +459,42 @@ let save_current' = (prefix: string, model: Model.t): unit => {
         pins,
       );
     /* the folds carry over: they're written as they change */
-    write_side(prefix, sp.name, side =>
-      {
-        ...side,
-        caret:
-          switch (program) {
-          /* text saves lose it, so it's restored after hydration; a
-             divided program's is in a cell anyway */
-          | Whole(editor) when !content_unchanged =>
-            try(
-              Some(
-                Zipper.Caret.point(
-                  Haz3lcore.CachedSyntax.measured(
-                    editor.editor.editor.syntax,
+    Util.BenchMarks.time("save: the side", () =>
+      write_side(prefix, sp.name, side =>
+        {
+          ...side,
+          caret:
+            switch (program) {
+            /* text saves lose it, so it's restored after hydration; a
+               divided program's is in a cell anyway */
+            | Whole(editor) when !content_unchanged =>
+              try(
+                Some(
+                  Zipper.Caret.point(
+                    Haz3lcore.CachedSyntax.measured(
+                      editor.editor.editor.syntax,
+                    ),
+                    editor.editor.editor.state.zipper,
                   ),
-                  editor.editor.editor.state.zipper,
-                ),
-              )
-            ) {
+                )
+              ) {
+              | _ => side.caret
+              }
             | _ => side.caret
-            }
-          | _ => side.caret
-          },
-        probes: content_unchanged ? side.probes : Program.probes(program),
-        /* the view can change without the text (a parked pin dropped) */
-        pins: paths(view.pins),
-        zoom:
-          Option.bind(SlideView.zoom_root(view), m =>
-            OutlineTree.label_path(m, outline)
-          ),
-        parked: view.parked,
-        ux: view.mode == SlideView.UX,
-        away: Option.map(paths, view.away_pins),
-        away_parked: view.away_parked,
-      }
+            },
+          probes: content_unchanged ? side.probes : Program.probes(program),
+          /* the view can change without the text (a parked pin dropped) */
+          pins: paths(view.pins),
+          zoom:
+            Option.bind(SlideView.zoom_root(view), m =>
+              OutlineTree.label_path(m, outline)
+            ),
+          parked: view.parked,
+          ux: view.mode == SlideView.UX,
+          away: Option.map(paths, view.away_pins),
+          away_parked: view.away_parked,
+        }
+      )
     );
     /* the agent model changes on every streamed chunk, so a physical
        equality gate saved (and serialized, several MB) many times a
@@ -515,7 +539,9 @@ let save_current' = (prefix: string, model: Model.t): unit => {
 /* a save lands whole or not at all: its items, roster, text and side
    keys go to storage in one transaction */
 let save_current = (prefix: string, model: Model.t): unit =>
-  HazelDB.kv_batch(() => save_current'(prefix, model));
+  Util.BenchMarks.time("save: the slide", () =>
+    HazelDB.kv_batch(() => save_current'(prefix, model))
+  );
 
 let load_scratchpad = (~settings, prefix: string, name: string): Scratchpad.t => {
   stage_side(prefix, name);

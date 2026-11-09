@@ -58,8 +58,13 @@ module Store = {
       ~instructor_mode=m.globals.settings.instructor_mode,
       m.editors,
     );
-    Globals.Model.save(m.globals);
-    ExplainThisModel.Store.save(m.explain_this);
+    /* (^report(51)) timed for the check, with ScratchPersist's parts */
+    Util.BenchMarks.time("save: the settings", () =>
+      Globals.Model.save(m.globals)
+    );
+    Util.BenchMarks.time("save: explain this", () =>
+      ExplainThisModel.Store.save(m.explain_this)
+    );
   };
 };
 
