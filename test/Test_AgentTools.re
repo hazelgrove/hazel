@@ -4991,6 +4991,13 @@ let mod_root_tests = (
         apply_at_mod_root(Replace("M/c", "let c : T = 7")),
       )
     ),
+    test_case("replace the final expression", `Quick, () =>
+      check_rendered(
+        "mod_root_result",
+        mod_root_with("d", ["d + 1"]),
+        apply_at_mod_root(Replace("=>", "d + 1")),
+      )
+    ),
     test_case("replace :definition on a top-level binding", `Quick, () =>
       check_rendered(
         "mod_root_body",

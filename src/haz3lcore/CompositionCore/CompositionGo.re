@@ -376,11 +376,18 @@ let kind_name = (k: P.kind): string =>
   | k => P.kind_word(k)
   };
 
-let part = (p: program, path: string, f: P.found, part: P.part) =>
-  switch (K.part(~root=p.root, f.id, part, p.seg)) {
-  | Some(id) => Ok(id)
+/* what a replace at [path] takes */
+let target = (path: string, f: P.found): result(K.target, string) =>
+  switch (P.target(f)) {
+  | Some(t) => Ok(t)
   | None =>
-    Error("\"" ++ path ++ "\" has no " ++ P.part_word(part) ++ " to replace")
+    Error(
+      "\""
+      ++ path
+      ++ "\" has no "
+      ++ Option.fold(~none="term", ~some=P.part_word, f.part)
+      ++ " to replace",
+    )
   };
 
 /* the block an entry holds: a module's members, a value's body */
@@ -681,7 +688,7 @@ let result_at = (p: program, place: K.place): option((Id.t, bool)) => {
     switch (Option.bind(found(d), ((lv, k)) => P.sub(lv, k))) {
     | Some(lv) => of_level(lv)
     | None =>
-      Option.bind(K.part(~root=p.root, d, Body, p.seg), id =>
+      Option.bind(P.part_of(~root=p.root, p.seg, d, Body), id =>
         switch (pieces_at(~root=p.root, p.seg, id)) {
         | [] => None
         | ps => Some((id, is_hole(ps)))
@@ -796,7 +803,7 @@ let plan_call = (p: program, call: call): result(plan, string) => {
     let insert = K.Insert(place, text(code));
     switch (result_at(p, place), trailing_expression(code)) {
     | (Some((hole, true)), Some((before, last))) =>
-      let fill = K.Replace(hole, text(last));
+      let fill = K.Replace(Term(hole), text(last));
       Ok({
         ...
           plan(
@@ -815,35 +822,32 @@ let plan_call = (p: program, call: call): result(plan, string) => {
   | Replace(path, code) =>
     let* f = resolve(~parts=true, p, path);
     let* () = repeats_binder(p, f, code);
-    let* id =
-      switch (f.part) {
-      | None => Ok(f.id)
-      | Some(pt) => part(p, path, f, pt)
-      };
-    /* new code without a comment keeps the entry's */
+    let* target = target(path, f);
+    /* new code without a comment keeps the entry's (a term keeps the
+       comment above it) */
     let comment =
       f.part == None && !String.starts_with(~prefix="#", String.trim(code))
         ? leading_comment(pieces_at(~root=p.root, p.seg, f.id)) : None;
     let code =
-      switch (comment) {
-      | Some(c) => c ++ "\n" ++ code
-      | None => code
-      };
-    let op =
-      switch (f.part) {
-      | None => K.Replace(id, text(code))
-      | Some(pt) => ReplacePart(f.id, pt, text(code))
+      switch (target, comment) {
+      | (Entry(_), Some(c)) => c ++ "\n" ++ code
+      | _ => code
       };
     let pl = {
-      ...plan(~target=f.id, Replaced(f.part), [op]),
+      ...
+        plan(
+          ~target=f.id,
+          Replaced(f.part),
+          [Replace(target, text(code))],
+        ),
       kept_comment: comment != None,
     };
     let info_map = Lazy.force(p.info_map);
-    /* a part is a node, though its root may head an entry */
     let replaced =
-      f.part == None
-        ? pieces_at(~root=p.root, p.seg, id)
-        : node_pieces_at(~root=p.root, p.seg, id);
+      switch (target) {
+      | Entry(id) => pieces_at(~root=p.root, p.seg, id)
+      | Term(id) => node_pieces_at(~root=p.root, p.seg, id)
+      };
     let binders = binders_in(~info_map, replaced);
     Ok({
       ...pl,
@@ -908,7 +912,10 @@ let plan_call = (p: program, call: call): result(plan, string) => {
           plan(
             ~target=f.id,
             Renamed(old, name, List.length(refs)),
-            List.map(id => K.Replace(id, Token(name)), [binder, ...refs]),
+            List.map(
+              id => K.Replace(Term(id), Token(name)),
+              [binder, ...refs],
+            ),
           ),
         renames: [(binder, name, refs)],
       });
@@ -1012,24 +1019,26 @@ let diff = (~root, m: made): option((string, option(string))) =>
   switch (m.change.steps) {
   | [] => None
   | [first, ..._] =>
-    let row = ListUtil.hd_opt(first.added);
+    let now = text_at(~root, m.change.program);
+    /* the row it made, else the term it put in */
+    let made =
+      switch (first.added, first.replaced) {
+      | ([row, ..._], _)
+      | ([], [(_, row), ..._]) => Some(row)
+      | ([], []) => None
+      };
     switch (m.plan.what, m.plan.target) {
-    | (Added, _) =>
-      Some((
-        "",
-        Option.bind(
-          ListUtil.hd_opt(first.added),
-          text_at(~root, m.change.program),
-        ),
-      ))
+    | (Added, _) => Some(("", Option.bind(made, now)))
     | (Deleted, Some(t)) =>
       Option.map(old => (old, None), text_at(~root, m.before, t))
     | (_, Some(t)) =>
-      let after = Option.value(row, ~default=t);
-      Option.map(
-        old => (old, text_at(~root, m.change.program, after)),
-        text_at(~root, m.before, t),
-      );
+      let after =
+        switch (first.added, now(t)) {
+        | ([row, ..._], _) => now(row)
+        | ([], Some(_) as text) => text
+        | ([], None) => Option.bind(made, now)
+        };
+      Option.map(old => (old, after), text_at(~root, m.before, t));
     | (_, None) => None
     };
   };
@@ -1837,7 +1846,7 @@ module Reply = {
           node_pieces_at(~root=r.root, seg, id)
           |> List.filter(p => !Piece.is_secondary(p))
           |> leading,
-        K.part(~root=r.root, head, Definition, seg),
+        P.part_of(~root=r.root, seg, head, Definition),
       );
     free == []
       ? []
@@ -2097,12 +2106,25 @@ let step_records = (~root, m: made): list(AgentToolResult.step) => {
     let (op, from, into) =
       switch (s.op) {
       | Insert(_) => ("insert", None, Option.bind(made, path(s.program)))
-      | Replace(x, _)
-      | ReplacePart(x, _, _) => (
+      | Replace(Entry(x), _) => (
           "replace",
           path(before, x),
           path(s.program, Option.value(made, ~default=x)),
         )
+      /* a term, by the entry the call named */
+      | Replace(Term(x), _) =>
+        let e = Option.value(m.plan.target, ~default=x);
+        (
+          "replace",
+          path(before, e),
+          switch (path(s.program, e)) {
+          | Some(_) as p => p
+          | None =>
+            Option.bind(ListUtil.hd_opt(s.replaced), ((_, y)) =>
+              where_is(~root, s.program, y)
+            )
+          },
+        );
       | Delete(x) => ("delete", path(before, x), None)
       | Move(x, _) => ("move", path(before, x), path(s.program, x))
       };

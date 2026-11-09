@@ -218,7 +218,7 @@ let relabel = () => {
       seg,
     );
   let before = Zipper.unselect_and_zip(Lazy.force(dew));
-  let replace = id => EntryEdit.Replace(id, Token("outcome"));
+  let replace = id => EntryEdit.Replace(Term(id), Token("outcome"));
   switch (
     EntryEdit.transaction(
       ~root=Exp,

@@ -39,7 +39,7 @@ type kind =
   | Tail;
 
 /* a part of a def, type or module entry; the resolver checks the entry
-   has it, and the kernel finds it */
+   has it, and [target] finds its term */
 type part =
   | Pattern
   /* the whole definition, `fun` heads included */
@@ -748,6 +748,72 @@ let rec find_in = (lv: S.level, id: Id.t): option(list((S.level, int))) => {
 let find = (~root: Sort.t, seg: Segment.t, id: Id.t) => {
   Swept.next_pass(cache);
   find_in(S.top(~root, seg), id);
+};
+
+/* ---- what a replace takes ---- */
+
+/* EntryEdit's: an entry by its anchor, or the term rooted at a piece */
+type target =
+  | Entry(Id.t)
+  | Term(Id.t);
+
+/* a term's root: its skeleton's, else its first piece's */
+let root_id = (ps: Segment.t): option(Id.t) =>
+  switch (content(ps)) {
+  | [] => None
+  | [p] => Some(Piece.id(p))
+  | [p, ..._] =>
+    switch (Segment.root_id(Segment.skel(ps), ps)) {
+    | id => Some(id)
+    | exception _ => Some(Piece.id(p))
+    }
+  };
+
+let rec past_fun_heads = (ps: Segment.t): Segment.t =>
+  switch (ps) {
+  | [p, ...rest] when Piece.is_secondary(p) || S.is_fun_head(p) =>
+    past_fun_heads(rest)
+  | _ => ps
+  };
+
+/* the root of span [k]'s pattern, or of its definition, `fun` heads
+   included (Body: past them) */
+let part_root = (lv: S.level, k: int, pt: part): option(Id.t) =>
+  switch (lv.spans[k].kind, S.head(lv, k)) {
+  | (S.Def, Some((i, t))) =>
+    let def = () =>
+      Tile.ends_with_in(t)
+        ? Option.value(ListUtil.last_opt(t.children), ~default=[])
+        : Array.to_list(
+            Array.sub(lv.pieces, i + 1, snd(lv.spans[k].core) - i - 1),
+          );
+    switch (pt) {
+    | Pattern =>
+      root_id(Option.value(List.nth_opt(t.children, 0), ~default=[]))
+    | Definition => root_id(def())
+    | Body => root_id(past_fun_heads(def()))
+    | Head => None
+    };
+  | _ => None
+  };
+
+/* part [pt] of the entry anchored at [head] */
+let part_of = (~root: Sort.t, seg: Segment.t, head: Id.t, pt: part) =>
+  switch (Option.map(ListUtil.last, find(~root, seg, head))) {
+  | Some((lv, k)) when lv.spans[k].anchor == head => part_root(lv, k, pt)
+  | _ => None
+  };
+
+/* what a replace at [f] takes: a part's term, a block's result's, else
+   the entry */
+let target = (f: found): option(target) => {
+  let (lv, k) = ListUtil.last(f.steps);
+  let term = Option.map(id => Term(id));
+  switch (f.part, f.kind) {
+  | (None, Tail) => term(root_id(S.core(lv, k)))
+  | (None | Some(Head), _) => Some(Entry(f.id))
+  | (Some(pt), _) => term(part_root(lv, k, pt))
+  };
 };
 
 /* the canonical path of the entry anchored at [id] */
