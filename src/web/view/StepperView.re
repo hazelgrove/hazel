@@ -34,6 +34,9 @@ module Model = {
   type local = {
     goal: Picker.Goal.t,
     box,
+    /* The side conditions shown open, by index into the row's
+     * `StepperRows.side_conditions`. */
+    expanded: list(int),
   };
 
   /* Each row's state, by its key (StepperRows.key). */
@@ -76,7 +79,8 @@ module Update = {
     | Toggle(Picker.box)
     | Filter(string)
     | RewriteEditor(CodeEditable.Update.t)
-    | Checked(bool);
+    | Checked(bool)
+    | ToggleCondition(int);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = (Rows.key, action);
@@ -177,6 +181,15 @@ module Update = {
             }),
         })
         |> return_quiet(~logged=true)
+      | (ToggleCondition(i), _) =>
+        set({
+          ...local,
+          expanded:
+            List.mem(i, local.expanded)
+              ? List.filter((!=)(i), local.expanded)
+              : [i, ...local.expanded],
+        })
+        |> return_quiet(~logged=true)
       | (Filter(_) | RewriteEditor(_) | Checked(_), _) =>
         model |> raise_invalid_action
       };
@@ -210,6 +223,7 @@ module Update = {
             | None => {
                 goal: goal(),
                 box: Closed,
+                expanded: [],
               }
             };
           Model.add(row.key, local, acc);
@@ -282,8 +296,11 @@ module View = {
     | MakeActive(Focus.t)
     | HideStepper;
 
-  /* One row's chrome: the goal it starts from, then the transition to the
-   * next row, which holds the justification and a delete button.
+  /* One row's chrome: the goal it starts from, then the step to the next
+   * row. A plain step is the line between the two rows, with its lozenge
+   * (the justification and a delete button) on it. A step with goals of
+   * its own, or with side conditions shown open, opens its line into a
+   * block holding them, with the lozenge on the block's top edge.
    *
    * The same syntax always takes the same space, so status never moves the
    * proof (no scroll jumps). It shows only as a class on the row, which
@@ -306,7 +323,10 @@ module View = {
           ~repair: list(Node.t)=[],
           ~editor_view: Node.t,
           ~justification: Node.t,
-          ~content: list(Node.t)=[],
+          /* Collapsed side conditions, drawn left of the lozenge. */
+          ~dots: list(Node.t)=[],
+          /* The sections of the step's block, if it has one. */
+          ~block: option(list(Node.t))=None,
           (),
         ) => {
       let (row_classes, popup_body) =
@@ -352,33 +372,39 @@ module View = {
         | None => []
         };
       let transition =
-        div_c("step-transition", [justification] @ delete_button);
-      /* A row with block content (induction cases, a forall's body) puts
-       * its transition after the whole block. */
-      let row_classes = row_classes @ (content == [] ? [] : ["has-content"]);
-      [
-        Node.div(
-          ~attrs=[Attr.classes(["step-border"] @ row_classes)],
+        div_c("step-transition", dots @ [justification] @ delete_button);
+      let display = transition_in_display =>
+        div_c(
+          "step-display",
           [
-            div_c(
-              "step-display",
-              [
-                Node.div(
-                  ~attrs=[
-                    Attr.classes(
-                      ["equiv"] @ (show_equiv ? [] : ["equiv-hidden"]),
-                    ),
-                  ],
-                  [Node.text("≡")],
+            Node.div(
+              ~attrs=[
+                Attr.classes(
+                  ["equiv"] @ (show_equiv ? [] : ["equiv-hidden"]),
                 ),
-                div_c("step-output", [editor_view]),
-                transition,
               ],
+              [Node.text("≡")],
             ),
+            div_c("step-output", [editor_view]),
           ]
-          @ content,
-        ),
-      ];
+          @ transition_in_display,
+        );
+      switch (block) {
+      | None => [
+          Node.div(
+            ~attrs=[Attr.classes(["step-border"] @ row_classes)],
+            [display([transition])],
+          ),
+        ]
+      | Some(sections) => [
+          Node.div(
+            ~attrs=[
+              Attr.classes(["step-border", "has-block"] @ row_classes),
+            ],
+            [display([]), div_c("step-block", [transition] @ sections)],
+          ),
+        ]
+      };
     };
 
     /* In place of the goal, when the step above broke: the checker passed
@@ -760,10 +786,10 @@ module View = {
     | Contradiction(_) => "contradiction"
     | Forall(_) => "forall"
     | Funext(_) => "extensionality"
-    | Assume(_) => "Assume"
-    | Revert(_) => "Revert"
-    | Generalize(_) => "Generalize"
-    | Have(_) => "Have"
+    | Assume(_) => "assume"
+    | Revert(_) => "revert"
+    | Generalize(_) => "generalize"
+    | Have(_) => "have"
     | Alias(_) => "alias"
     | Induction(_) => "induction"
     | EmptyHole
@@ -771,28 +797,6 @@ module View = {
     | MultiHole(_)
     | Seq(_)
     | Parens(_) => ""
-    };
-
-  /* A form's argument and how its row labels it. */
-  let arg = (step: Proof.t): option((string, Any.t)) =>
-    switch (step.term) {
-    | Funext(p, _) => Some(("argument: ", Pat(p)))
-    | Assume(e, _, _) => Some(("Assume: ", Exp(e)))
-    | Revert(e, _, _) => Some(("Revert: ", Exp(e)))
-    | Generalize(e, _) => Some(("Generalize: ", Exp(e)))
-    | Have(e, _, _) => Some(("Have: ", Exp(e)))
-    | Forall(_)
-    | Alias(_)
-    | Induction(_)
-    | AxiomStep(_)
-    | AlgebriteStep(_)
-    | EvalStep(_)
-    | Contradiction(_)
-    | EmptyHole
-    | Invalid(_)
-    | MultiHole(_)
-    | Seq(_)
-    | Parens(_) => None
     };
 
   let view =
@@ -936,7 +940,126 @@ module View = {
           ),
         ]
         : [];
-    let rec chain = (~top=false, rows: list(Rows.t)): list(Node.t) => {
+    /* A row drawn for reading only, with no step below it. */
+    let quiet_border = (~clss, ~equiv, content) =>
+      Node.div(
+        ~attrs=[Attr.classes(["step-border", clss])],
+        [div_c("step-display", [equiv] @ content)],
+      );
+    let equiv_hidden = () =>
+      Node.div(
+        ~attrs=[Attr.classes(["equiv", "equiv-hidden"])],
+        [Node.text("≡")],
+      );
+    let target_border = () =>
+      quiet_border(
+        ~clss="target-step",
+        ~equiv=div_c("equiv", [Node.text("≡?")]),
+        [
+          div_c("step-output", [code(Exp(Exp.fresh(Atom(Bool(true)))))]),
+        ],
+      );
+    /* A side condition's dot icon and its section's label. */
+    let condition_kind = (kind: Obligation.kind): (string, string) =>
+      switch (kind) {
+      | Definedness => ("÷", "definedness")
+      | Contract => ("ƒ", "contract")
+      | Premise => ("⇒", "premise")
+      | Assumption => ("⊢", "assumption")
+      };
+    let condition_dot = (~toggle, ob: Obligation.t) => {
+      let (icon, label) = condition_kind(ob.kind);
+      let unproven = Obligation.is_pending(ob);
+      Node.div(
+        ~attrs=[
+          Attr.classes(["condition-dot"] @ (unproven ? ["unproven"] : [])),
+          Attr.title(
+            "Side condition, "
+            ++ label
+            ++ (unproven ? ", unproven" : "")
+            ++ ". Click to show it.",
+          ),
+          Attr.on_click(_ => toggle),
+        ],
+        [Node.text(icon)],
+      );
+    };
+    /* An open side condition: a read-only stepper from its goal to
+     * `true`, the way the checker closed it. */
+    let condition = (~toggle, ob: Obligation.t) => {
+      let (_, label) = condition_kind(ob.kind);
+      let goal = ob.display_goal;
+      let truth = Exp.fresh(Atom(Bool(true)));
+      let closed = justification =>
+        Row.view(
+          ~globals,
+          ~status=Clean,
+          ~show_equiv=true,
+          ~delete=None,
+          ~editor_view=code(Exp(goal)),
+          ~justification=Node.text(justification),
+          (),
+        )
+        @ [
+          quiet_border(
+            ~clss="condition-closed",
+            ~equiv=div_c("equiv", [Node.text("≡")]),
+            [div_c("step-output", [code(Exp(truth))])],
+          ),
+        ];
+      let rows =
+        switch (ob.discharge, Obligation.remote_fact(ob)) {
+        | (Remote(_), Some((name, _))) => closed(name)
+        | (Remote(_), None) => closed("a fact in scope")
+        | (Evaluated, _) => closed("by evaluation")
+        /* TODO: a `?` here opens the picker once a side condition can be
+         * proved in place (`with <condition> by <proof>`). */
+        | (Pending, _) => [
+            quiet_border(
+              ~clss="condition-goal",
+              ~equiv=div_c("equiv", [Node.text("≡")]),
+              [div_c("step-output", [code(Exp(goal))])],
+            ),
+            quiet_border(
+              ~clss="condition-missing",
+              ~equiv=equiv_hidden(),
+              [
+                div_c("step-unknown", [Node.text("?")]),
+                div_c(
+                  "condition-hint",
+                  [
+                    Node.text(
+                      "Not proven yet. Proving a side condition here isn't supported yet.",
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            target_border(),
+          ]
+        };
+      div_c(
+        "step-section condition",
+        [
+          Node.div(
+            ~attrs=[
+              Attr.classes(["step-section-bar"]),
+              Attr.title("Click to collapse"),
+              Attr.on_click(_ => toggle),
+            ],
+            [Node.text(label)],
+          ),
+          div_c("step-slot", [div_c("stepper cell-result", rows)]),
+        ],
+      );
+    };
+    let rec chain = (~top=false, rows: list(Rows.t)): list(Node.t) => [
+      Node.div(
+        ~attrs=[Attr.classes(["stepper", "cell-result"])],
+        rows_view(~top, ~prev_broken=None, rows),
+      ),
+    ]
+    and rows_view = (~top, ~prev_broken, rows: list(Rows.t)): list(Node.t) => {
       let last = ListUtil.last_opt(rows) |> Option.map((r: Rows.t) => r.key);
       let (nodes, _) =
         List.fold_left(
@@ -953,10 +1076,10 @@ module View = {
               );
             (nodes @ node, Rows.Status.broken_mark(status));
           },
-          ([], None),
+          ([], prev_broken),
           rows,
         );
-      [Node.div(~attrs=[Attr.classes(["stepper", "cell-result"])], nodes)];
+      nodes;
     }
     and view_row =
         (~top, ~prev_broken, ~status, ~only, ~is_last, row: Rows.t)
@@ -965,8 +1088,9 @@ module View = {
       /* With history off, only the rows where the proof continues show. */
       | Step(_) when !globals.settings.core.evaluation.stepper_history => []
       | Step(nested) =>
+        let step = row.step;
         let popup_extra =
-          switch (Statics.Map.lookup(Proof.rep_id(row.step), info_map)) {
+          switch (Statics.Map.lookup(Proof.rep_id(step), info_map)) {
           | Some(info) =>
             List.concat_map(
               fun
@@ -977,17 +1101,65 @@ module View = {
             )
           | None => []
           };
+        let conditions = Rows.side_conditions(row);
+        let expanded =
+          switch (Model.find(row.key, model)) {
+          | Some(local) => local.expanded
+          | None => []
+          };
+        let toggle = i => inject((row.key, ToggleCondition(i)));
+        let layout = Rows.layout(row, ~expanded);
+        let is_open = i =>
+          switch (layout) {
+          | Block({conditions, _}) => List.mem(i, conditions)
+          | Line => false
+          };
+        let dots =
+          List.concat(
+            List.mapi(
+              (i, ob) =>
+                is_open(i) ? [] : [condition_dot(~toggle=toggle(i), ob)],
+              conditions,
+            ),
+          );
+        let block =
+          switch (layout) {
+          | Line => None
+          | Block({conditions: open_conditions, arms: has_arms}) =>
+            Some(
+              List.filter_map(
+                i =>
+                  List.nth_opt(conditions, i)
+                  |> Option.map(condition(~toggle=toggle(i))),
+                open_conditions,
+              )
+              @ (has_arms ? arms(row, nested) : []),
+            )
+          };
+        let justification = Node.text(justification(step));
         Row.view(
           ~globals,
           ~status,
           ~show_equiv=prev_broken == None,
-          ~delete=Some(edit_syntax(Picker.Patches.remove(row.step))),
+          ~delete=Some(edit_syntax(Picker.Patches.remove(step))),
           ~popup_extra,
-          ~repair=Row.repairs(~edit_syntax, status, row.step),
+          ~repair=Row.repairs(~edit_syntax, status, step),
           ~editor_view=goal_view(~hints=false, ~prev_broken, row),
-          ~justification=Node.text(justification(row.step)),
-          ~content=content(row, nested),
+          ~justification,
+          ~dots,
+          ~block,
           (),
+        )
+        @ (
+          switch (Rows.continuation(row)) {
+          | Some(rows) =>
+            rows_view(
+              ~top,
+              ~prev_broken=Rows.Status.broken_mark(status),
+              rows,
+            )
+          | None => []
+          }
         );
       | Hole
       | End =>
@@ -1028,61 +1200,91 @@ module View = {
         | (None, None) => [justification]
         };
       }
-    /* What a step row holds below its goal: a form's argument and body,
-     * an induction's cases, a have's premises. */
-    and content = (row: Rows.t, nested: Rows.nested): list(Node.t) => {
+    /* The goals a step creates, as dark arms: a bar naming what the arm
+     * adds over a slot holding the arm's own stepper. */
+    and arms = (row: Rows.t, nested: Rows.nested): list(Node.t) => {
       let step = row.step;
-      let form_arg =
-        switch (arg(step)) {
-        | Some((label, fallback)) => [
-            div_c(
-              "proof-form-arg",
-              [
-                Node.text(label),
-                splice(
-                  ~step,
-                  ~slot=Arg,
-                  ~target=
-                    SubEditor.Target.child(~anchor=Proof.rep_id(step), 0),
-                  fallback,
-                ),
-              ],
-            ),
-          ]
-        | None => []
-        };
+      let note = content => div_c("step-arm-note", content);
+      let arm = (bar, slot) => [
+        div_c("step-arm-bar", bar),
+        div_c("step-slot", slot),
+      ];
+      let dark = sections => [div_c("step-section arm", sections)];
+      let form_arg = fallback =>
+        splice(
+          ~step,
+          ~slot=Arg,
+          ~target=SubEditor.Target.child(~anchor=Proof.rep_id(step), 0),
+          fallback,
+        );
       switch (nested, step.term) {
-      | (Leaf, _) => []
-      | (Body(rows), _) => form_arg @ chain(rows)
-      | (Cases(case_rows), Induction(scrut, _, cases)) =>
-        induction(row, scrut, cases, case_rows)
-      | (Premises({sub, body}), Have(e, _, _)) =>
-        let premise = (~header, rows) =>
-          div_c(
-            "induction-case",
-            [div_c("induction-case-header", header)] @ rows,
-          );
-        let body_goal =
-          switch (body) {
-          | [{goal: Some(g), _}, ..._] => g
-          | _ => row.goal |> Option.value(~default=Exp.fresh(EmptyHole))
+      | (Body(rows), Forall(p, _)) =>
+        let typ =
+          switch (Pat.get_var(p), rows) {
+          | (Some(x), [first, ..._]) =>
+            Rows.ctx(first)
+            |> Option.bind(_, ctx =>
+                 Ctx.lookup_var(SemanticCtx.get_ctx(ctx), x)
+               )
+            |> Option.map((entry: Ctx.var_entry) =>
+                 [Node.text(", any "), code(Typ(entry.typ))]
+               )
+          | _ => None
           };
-        form_arg
-        @ [
-          premise(
-            ~header=[Node.text("proof of "), code(Exp(e))],
+        dark(
+          arm(
+            [
+              div_c("step-arm-code", [code(Pat(p))]),
+              note([Node.text("fixed")] @ Option.value(~default=[], typ)),
+            ],
+            chain(rows),
+          ),
+        );
+      | (Body(rows), Funext(p, _)) =>
+        dark(
+          arm(
+            [form_arg(Pat(p)), note([Node.text("any argument")])],
+            chain(rows),
+          ),
+        )
+      | (Body(rows), Assume(e, as_name, _)) =>
+        let name =
+          as_name
+          |> Option.bind(_, Pat.get_var)
+          |> Option.value(~default="assume");
+        dark(
+          arm(
+            [form_arg(Exp(e)), note([Node.text("as " ++ name)])],
+            chain(rows),
+          ),
+        );
+      | (Body(rows), Revert(e, _, _)) =>
+        dark(
+          arm(
+            [
+              form_arg(Exp(e)),
+              note([Node.text("now a premise of the goal")]),
+            ],
+            chain(rows),
+          ),
+        )
+      | (Body(rows), Generalize(e, _)) =>
+        dark(
+          arm(
+            [form_arg(Exp(e)), note([Node.text("quantified again")])],
+            chain(rows),
+          ),
+        )
+      | (Premises({sub, _}), Have(e, _, _)) =>
+        dark(
+          arm(
+            [form_arg(Exp(e)), note([Node.text("as have")])],
             target_box(sub),
           ),
-          /* The body's own trailing row is its target row. */
-          premise(
-            ~header=[
-              Node.text("with `have`, proof of "),
-              code(Exp(body_goal)),
-            ],
-            chain(body),
-          ),
-        ];
-      | (Cases(_) | Premises(_), _) => []
+        )
+      | (Cases(case_rows), Induction(scrut, _, cases)) =>
+        induction(row, scrut, cases, case_rows)
+      | (Leaf | Body(_) | Cases(_) | Premises(_), _) => []
       };
     }
     and induction = (row: Rows.t, scrut: Exp.t, cases, case_rows) => {
@@ -1093,19 +1295,6 @@ module View = {
         | Some(patch) => edit_syntax(patch)
         | None => Ui_effect.Ignore
         };
-      /* The scrutinee spans the induction tile's first child, up to its
-       * first `| pat => body` rule, if any. */
-      let scrut_view =
-        splice(
-          ~step,
-          ~slot=Scrut,
-          ~target=
-            SubEditor.Target.(
-              child(~anchor, 0)
-              |> until(BeforeOrEnd(NthTile(["|", "=>"], 0)))
-            ),
-          Exp(scrut),
-        );
       /* The facts a case adds to the induction's scope: its pattern's
        * `where` facts, the case equation and the inductive hypotheses. */
       let outer_facts =
@@ -1120,11 +1309,11 @@ module View = {
           |> Option.map(SemanticCtx.facts)
           |> Option.value(~default=[])
           |> List.filter(((_, id, _)) => !List.mem(id, outer_facts))
-          |> List.rev_map(((_, _, fact)) =>
+          |> List.rev_map(((name, _, fact)) =>
                div_c(
-                 "induction-case-hypothesis",
+                 "step-arm-fact",
                  [
-                   Node.text("assume "),
+                   Node.text(name ++ ": "),
                    code(
                      Exp(
                        ProofRule.conclusion_exp(ProofRule.exp_to_rule(fact)),
@@ -1158,24 +1347,18 @@ module View = {
               ),
             Pat(pat),
           );
-        div_c(
-          "induction-case",
-          [
-            /* Hypotheses share the header line: pattern on the left,
-             * "assume …"s off to the right after a fixed gap. */
-            div_c(
-              "induction-case-header",
-              [
-                remove_case,
-                Node.text("Case "),
-                pattern,
-                Node.text(" : "),
-                div_c("induction-case-hypotheses", hypotheses(rows)),
-              ],
-            ),
-          ]
-          @ target_box(rows),
-        );
+        [
+          div_c(
+            "step-arm-bar",
+            [
+              Node.text("| "),
+              pattern,
+              div_c("step-arm-note", hypotheses(rows)),
+              remove_case,
+            ],
+          ),
+          div_c("step-slot", target_box(rows)),
+        ];
       };
       let add_case =
         Widgets.button(
@@ -1187,50 +1370,56 @@ module View = {
             cases @ [(Pat.fresh(EmptyHole), Proof.fresh(EmptyHole))],
           )
         );
-      [div_c("induction-scrut", [Node.text("induction on: "), scrut_view])]
-      @ List.mapi(case, case_rows)
-      @ [add_case];
+      /* The scrutinee is edited in place, in the bar that opens the C. */
+      let scrut_bar =
+        div_c(
+          "step-arm-bar",
+          [
+            Node.text("induction on "),
+            splice(
+              ~step,
+              ~slot=Scrut,
+              ~target=
+                SubEditor.Target.(
+                  child(~anchor, 0)
+                  |> until(BeforeOrEnd(NthTile(["|", "=>"], 0)))
+                ),
+              Exp(scrut),
+            ),
+          ],
+        );
+      [
+        div_c(
+          "step-section arm",
+          [scrut_bar]
+          @ List.concat(List.mapi(case, case_rows))
+          @ [add_case],
+        ),
+      ];
     }
     /* A premise's rows, then, until they reach `true`, the gap left and
      * the `true` they have to reach: a quiet row shaped like a step row,
      * so the chain reads evenly. */
     and target_box = (rows: list(Rows.t)): list(Node.t) => {
-      let target = Exp.fresh(Atom(Bool(true)));
       let reached =
         switch (Rows.reached(rows)) {
-        | Some(e) => Exp.fast_equal(e, target)
+        | Some(e) => Exp.fast_equal(e, Exp.fresh(Atom(Bool(true))))
         | None => false
         };
-      let quiet_row = (~clss, ~equiv, content) =>
-        Node.div(
-          ~attrs=[Attr.classes(["stepper", "cell-result", clss])],
-          [
-            div_c(
-              "step-border",
-              [div_c("step-display", [equiv] @ content)],
-            ),
-          ],
-        );
       chain(rows)
       @ (
         reached
           ? []
           : [
-            quiet_row(
-              ~clss="step-ellipsis",
-              ~equiv=
-                Node.div(
-                  ~attrs=[Attr.classes(["equiv", "equiv-hidden"])],
-                  [Node.text("≡")],
-                ),
-              [div_c("step-output", [Node.text("⋯")])],
-            ),
-            quiet_row(
-              ~clss="target-step",
-              ~equiv=div_c("equiv", [Node.text("≡?")]),
+            div_c(
+              "stepper cell-result",
               [
-                div_c("step-output", [code(Exp(target))]),
-                Node.text("target"),
+                quiet_border(
+                  ~clss="step-ellipsis",
+                  ~equiv=equiv_hidden(),
+                  [div_c("step-output", [Node.text("⋯")])],
+                ),
+                target_border(),
               ],
             ),
           ]

@@ -233,6 +233,7 @@ let mk_ob = (src: string, discharge): Obligation.t => {
   let goal = parse_exp(src);
   Obligation.{
     origin: Id.mk(),
+    kind: Premise,
     bindings: [],
     goal,
     display_goal: goal,
