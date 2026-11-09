@@ -55,6 +55,77 @@ let warn = (why: string) => {
   };
 };
 
+/* A slide is elaborated without its livelits' views in the run: the page gives DefStatics only the cells' pins as
+   probes (Program.probe_ids), so Statics' Projector case does not fold a use's view in, and each user livelit use is
+   still the expansion UserLivelit.mk_expand_dot_def makes, match def.expand { Functional(f) => f(model) | Macro(_) =>
+   ... }. (The CLI's --views probed every use, so the Node numbers ran a program the page never had: Firefox run
+   42548426910 counted "0 of the program's livelit uses" with a parameter.) Here each such use gets its view folded in
+   as Statics folds a probed use's (UserLivelit.instrument_view), for this compiled run only: the model bound once to
+   %model, a parameter when it is a literal, and def.view(%model) sampled at the projector's id. A use already folded
+   (probed) has another shape and is left as it is. */
+let rec strip = (e: Exp.t): Exp.t =>
+  switch (Exp.term_of(e)) {
+  | Parens(e)
+  | Asc(e, _) => strip(e)
+  | _ => e
+  };
+let expansion_parts = (e: Exp.t): option((Exp.t, Exp.t)) =>
+  switch (Exp.term_of(strip(e))) {
+  | Match(scrut, [(_, body), ..._]) =>
+    switch (Exp.term_of(strip(scrut)), Exp.term_of(strip(body))) {
+    | (Dot(def, l), Ap(Forward, _, model))
+        when HazelJit.label_of(l) == Some("expand") =>
+      Some((def, model))
+    | _ => None
+    }
+  | _ => None
+  };
+let fold_views = (e: Exp.t): Exp.t => {
+  let folded = ref(0);
+  let e =
+    Exp.map_term(
+      ~f_exp=
+        (continue, e: Exp.t) =>
+          switch (continue(e)) {
+          | {term: Projector(data, inner), _} as e'
+              when data.Grammar.kind == ProjectorKind.Livelit =>
+            switch (expansion_parts(inner)) {
+            | Some((def, model)) =>
+              incr(folded);
+              {
+                ...e',
+                term:
+                  Projector(
+                    data,
+                    UserLivelit.instrument_view(
+                      ~projector_id=Exp.rep_id(e),
+                      ~def,
+                      ~model,
+                      inner,
+                    ),
+                  ),
+              };
+            | None =>
+              let s = Exp.show(strip(inner));
+              HazelJitValue.count(
+                ~why=
+                  "a livelit use's expansion of another shape: "
+                  ++ String.sub(s, 0, min(120, String.length(s))),
+                "the slide's run: a use not folded",
+              );
+              e';
+            }
+          | e' => e'
+          },
+      e,
+    );
+  HazelJitValue.count(
+    ~why=string_of_int(folded^) ++ " livelit uses' views folded in",
+    "the slide's run compiled",
+  );
+  e;
+};
+
 let compile = (e: Exp.t): result(compiled, string) =>
   Util.BenchMarks.time("hazel-jit: the run compiled", () => {
     HazelJit.params_on := true;
@@ -62,7 +133,7 @@ let compile = (e: Exp.t): result(compiled, string) =>
     Hashtbl.reset(HazelJit.param_of_projector);
     HazelJit.last_param := None;
     let r =
-      switch (HazelJit.compile_full(~env=Builtins.env_init, e)) {
+      switch (HazelJit.compile_full(~env=Builtins.env_init, fold_views(e))) {
       | c =>
         switch (
           U.fun_call(
