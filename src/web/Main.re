@@ -60,7 +60,7 @@ let seed_visible_rows =
   };
 };
 
-let apply =
+let apply_action =
     (
       model: CrashHandling.Model.t,
       action: CrashHandling.Update.t,
@@ -199,6 +199,32 @@ let apply =
   };
   model';
 };
+
+/* (^report(51)) The autosave writes the page's model to storage and
+   changes nothing in it, so it does not go through the update: the very
+   same model comes back, and the page draws nothing again. Through the
+   update, the wrappers made a new model record, so each autosave (a
+   second after each step on the Witch) cost a calculate (11 ms), a whole
+   view (25 ms), the outline built again (20 to 30 ms) and the caret's
+   blink restarted, on top of its own 37 to 46 ms. */
+let apply =
+    (
+      model: CrashHandling.Model.t,
+      action: CrashHandling.Update.t,
+      ~schedule_action,
+      ~schedule_autosave,
+    )
+    : CrashHandling.Model.t =>
+  switch (action) {
+  | Page.Update.Save =>
+    Util.BenchMarks.time("autosave", () =>
+      try(Page.Store.save(model.model.current.current)) {
+      | exn => print_endline("autosave failed: " ++ Printexc.to_string(exn))
+      }
+    );
+    model;
+  | _ => apply_action(model, action, ~schedule_action, ~schedule_autosave)
+  };
 
 let start = default_model => {
   let%sub save_scheduler = BonsaiUtil.Alarm.alarm;
