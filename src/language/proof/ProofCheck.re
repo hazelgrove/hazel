@@ -180,11 +180,18 @@ module Discharge = {
    * discharged if it can be. See Obligation.re for why both goals are
    * kept. */
   let obligation =
-      (~step: step_fn, ~ctx: SemanticCtx.t, ~origin: Id.t, goal: Exp.t)
+      (
+        ~step: step_fn,
+        ~ctx: SemanticCtx.t,
+        ~origin: Id.t,
+        ~kind: Obligation.kind,
+        goal: Exp.t,
+      )
       : Obligation.t => {
     let substituted = goal |> Substitution.in_exp(SemanticCtx.get_env(ctx));
     Obligation.{
       origin,
+      kind,
       bindings: SemanticCtx.get_ctx(ctx).entries,
       goal: substituted,
       display_goal: goal,
@@ -280,7 +287,9 @@ module Gate = {
         };
       let obligations =
         DomainConditions.scan(scrut)
-        |> List.map(Discharge.obligation(~step, ~ctx, ~origin));
+        |> List.map(
+             Discharge.obligation(~step, ~ctx, ~origin, ~kind=Definedness),
+           );
       (marks, obligations);
     };
   };
@@ -614,9 +623,21 @@ module Axiom = {
         }),
       )
     | Ok(domain_conditions) =>
+      /* A condition that is both a premise and a domain condition is
+       * shown once, as the premise the rule states. */
+      let premises = DomainConditions.dedup(conditions);
+      let domain_conditions =
+        DomainConditions.dedup(domain_conditions)
+        |> List.filter(c => !List.exists(Exp.fast_equal(c), premises));
       let obligations =
-        DomainConditions.dedup(conditions @ domain_conditions)
-        |> List.map(Discharge.obligation(~step, ~ctx, ~origin));
+        List.map(
+          Discharge.obligation(~step, ~ctx, ~origin, ~kind=Premise),
+          premises,
+        )
+        @ List.map(
+            Discharge.obligation(~step, ~ctx, ~origin, ~kind=Definedness),
+            domain_conditions,
+          );
       Ok((rewritten(out), obligations));
     };
   };
@@ -705,7 +726,9 @@ module Algebrite = {
         DomainConditions.scan(at_exp |> Substitution.in_exp(env))
         @ DomainConditions.scan(with_exp |> Substitution.in_exp(env)),
       )
-      |> List.map(Discharge.obligation(~step, ~ctx, ~origin));
+      |> List.map(
+           Discharge.obligation(~step, ~ctx, ~origin, ~kind=Definedness),
+         );
     Ok((rewritten(out), obligations));
   };
 };
@@ -979,7 +1002,7 @@ let definition_obligations = (~step: step_fn, ~ctx: SemanticCtx.t): ProofMap.t =
         SemanticCtx.add_from_pattern(ctx, p, Typ.fresh(Unknown(Internal)));
       let obligations =
         List.map(
-          Discharge.obligation(~step, ~ctx, ~origin=fun_id),
+          Discharge.obligation(~step, ~ctx, ~origin=fun_id, ~kind=Contract),
           leftover,
         );
       record(~ctx, ~obligations, fun_id, None, None, m);
@@ -1340,7 +1363,10 @@ and check_assume = (~step, ~info_map, ~ctx, ~id, incoming, e, as_name, body) => 
   let (body_incoming, obligations) =
     switch (consequent) {
     | Some(b) => (Some(b), [])
-    | None => (incoming, [Discharge.obligation(~step, ~ctx, ~origin=id, e)])
+    | None => (
+        incoming,
+        [Discharge.obligation(~step, ~ctx, ~origin=id, ~kind=Assumption, e)],
+      )
     };
   /* Without an `as <h>` clause the name is `assume`, which shadows any
    * enclosing one; naming a nested assumption keeps the outer one
@@ -1390,7 +1416,8 @@ and check_have = (~step, ~info_map, ~ctx, ~id, incoming, e, sub, body) => {
   let (out_sub, m_sub) = check(~step, ~info_map, ~ctx, Some(hyp), sub);
   let sub_obligations =
     proves(out_sub, m_sub, sub)
-      ? [] : [Discharge.obligation(~step, ~ctx, ~origin=id, e)];
+      ? []
+      : [Discharge.obligation(~step, ~ctx, ~origin=id, ~kind=Premise, e)];
   let (body_ctx, _) = SemanticCtx.add_hypothesis(ctx, "have", hyp);
   let (out_body, m_body) =
     check(~step, ~info_map, ~ctx=body_ctx, incoming, body);
@@ -1401,6 +1428,7 @@ and check_have = (~step, ~info_map, ~ctx, ~id, incoming, e, sub, body) => {
     | Some(goal) when !proves(out_body, m_body, body) => [
         Obligation.{
           origin: id,
+          kind: Premise,
           bindings: SemanticCtx.get_ctx(body_ctx).entries,
           goal,
           /* The incoming goal is already env-inlined; there is no
@@ -1580,7 +1608,10 @@ and check_revert =
     | Ok(conditions) =>
       Ok((
         instantiated,
-        List.map(Discharge.obligation(~step, ~ctx, ~origin=id), conditions),
+        List.map(
+          Discharge.obligation(~step, ~ctx, ~origin=id, ~kind=Definedness),
+          conditions,
+        ),
       ))
     };
   };

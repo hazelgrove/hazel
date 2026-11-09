@@ -92,6 +92,7 @@ let find_theorem_stmt = (e: Exp.t): option(Exp.t) => {
  * and `display_goal` (what the user wrote) drive the actions. */
 let mk_obligation = (~origin: Id.t, ~goal: string): Obligation.t => {
   origin,
+  kind: Premise,
   bindings: [],
   goal: parse_exp(goal),
   display_goal: parse_exp(goal),
@@ -129,6 +130,7 @@ let mk_obligation_reusing =
     );
   {
     origin,
+    kind: Premise,
     bindings: [],
     goal,
     display_goal: goal,

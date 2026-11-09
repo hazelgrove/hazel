@@ -36,61 +36,6 @@
   gap: 0.5em;
 }
 
-.induction-scrut {
-  display: flex;
-  flex-direction: row;
-  gap: 0.5em;
-  align-items: center;
-}
-
-.induction-case {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5em;
-  margin-left: 2em;
-}
-
-.induction-case .stepper {
-  margin-left: 2em;
-}
-.induction-case-header {
-  display: flex;
-  flex-direction: row;
-  gap: 0.5em;
-  align-items: center;
-  /* The case's opening line: a touch heavier than the row separators,
-   * with a rounded hook at its left end marking where the case block
-   * begins. */
-  border-top: 2px dotted var(--cell-result-border);
-  border-top-left-radius: 0.6em;
-  padding-top: 0.5em;
-  margin-left: -1em;
-}
-
-/* Hypotheses share the case header line, off to the right of the
- * pattern after a fixed gap; several wrap rather than overflow. */
-.induction-case-hypotheses {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: 1em;
-  margin-left: 1.5em;
-}
-
-.induction-case-hypothesis {
-  display: flex;
-  flex-direction: row;
-  gap: 0.5em;
-  align-items: center;
-}
-
-.induction-case-patten {
-  display: flex;
-  flex-direction: row;
-  gap: 0.5em;
-  align-items: center;
-}
-
 .stepper .subtle-button {
   opacity: 0;
   cursor: pointer;
@@ -102,16 +47,7 @@
   transition: all 0.3s;
 }
 
-.add-case-button {
-  margin-left: 2.5em;
-  color: --frame-4;
-}
-
 .stepper .subtle-button:hover {
-  opacity: 1;
-}
-
-.stepper .induction-case:hover .subtle-button {
   opacity: 1;
 }
 
@@ -508,6 +444,18 @@
   position: relative;
   display: flex;
   align-items: center;
+  border: 1px solid var(--stepper-lozenge-border);
+  border-radius: 0.3em;
+  padding: 0 0.4em;
+  background-color: var(--stepper-lozenge-bkg);
+}
+
+/* A hole or a chain's end has no step to justify: its wrap holds only
+ * the stepper's controls, so it draws no lozenge. */
+.step-justification-wrap:has(> .missing-step-justification) {
+  border: none;
+  padding: 0;
+  background-color: transparent;
 }
 
 /* ---- Transition-aligned justifications ----
@@ -524,18 +472,20 @@
  * bottom edge), + 0.5em = the row's bottom padding, landing the band's
  * center on the next row's border-top. */
 .step-display > .step-transition {
+  /* Into the row's right padding, so the trash can after the lozenge
+   * sits in a column of its own, clear of any block's C. */
+  margin-right: -0.5em;
   display: flex;
   flex-direction: row;
   align-items: center;
   gap: 0.3em;
   transform: translateY(calc(50% + 0.5em));
   z-index: 1;
-  /* Sit on the separator line: opaque background plus side padding so
-   * the line reads as interrupted by the label ("——— eval 🗑") rather
+  /* Sit on the separator line: an opaque background, padded on the left,
+   * so the line reads as interrupted by the label ("——— eval 🗑") rather
    * than struck through it. */
   background-color: var(--cell-result);
   padding-left: 0.4em;
-  padding-right: 0.4em;
 }
 
 /* Per-row delete: rides the transition band next to the justification.
@@ -565,16 +515,6 @@
  * on one column. */
 .step-border .stepper {
   margin-right: calc(-0.5em - 14px);
-}
-
-/* Rows with block content (induction cases, forall bodies): the step's
- * transition is goal → (content) → next row, so the band anchors at the
- * bottom of the whole block instead of under the first line. */
-.step-border.has-content > .step-display > .step-transition {
-  position: absolute;
-  right: 0.5em;
-  bottom: 0;
-  transform: translateY(50%);
 }
 
 /* The trailing row's justification hangs half a step below the last
@@ -673,19 +613,6 @@
   padding: 0 0.3em;
 }
 
-/* Wrapping proof forms (assume / revert / generalize / funext / have):
- * the keyword and argument above the nested rows of the body. */
-
-/* A wrapping form's argument row, above its body's nested stepper. Matches
- * `.induction-scrut`: a label plus the argument in an inline chip. */
-.proof-form-arg {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 0.5em;
-  margin-left: 2em;
-}
-
 /* Read-only fallback for a wrapping form's argument (cell-level stepper,
  * or a moment when the backing segment can't be spliced). Without
  * `.inline-editor-wrapper`'s chrome: an editor-looking box that
@@ -693,13 +620,6 @@
 .proof-form-arg-static {
   padding: 0.2em 0;
 }
-
-/* Prover: `have` ------------------------------------------------------
- *
- * No styles of its own. `have <exp> proof <sub> => <body>` is the cut
- * rule, an ordinary two-premise rule, so its row renders both premises
- * with the `.induction-case` / `.induction-case-header` chrome above:
- * same box, same indent, headers naming the two goals. */
 
 /* Prover: mark messages ---------------------------------------------
  *
@@ -710,4 +630,199 @@
   max-width: 100%;
   white-space: normal;
   overflow-wrap: anywhere;
+}
+
+/* Prover: a step's block ------------------------------------------------
+ *
+ * A step with goals of its own (a form's body, induction's cases, have's
+ * sub-proof) or with side conditions shown open draws a block in place of
+ * the line to the next row: a C open to the right, with the step's
+ * lozenge on its top edge, in the column the other lozenges use. Each
+ * section is a C: a bar naming what it adds, over a light slot holding
+ * a stepper aiming at `true`. Goals the step creates are dark sections,
+ * side conditions mid-tone ones, before them. */
+.step-border.has-block {
+  padding-bottom: 0;
+}
+
+/* The block is the step, so the row after it draws no line of its own. */
+.step-border.has-block + .step-border {
+  border-top-color: transparent;
+}
+
+.step-block {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0.6em 0 0.4em -0.7em;
+}
+
+/* On the block's top edge, half over the block, where the step's line
+ * would be. The lozenge inside carries its own border and fill. */
+.step-block > .step-transition {
+  position: absolute;
+  top: 0;
+  right: -0.5em;
+  transform: translateY(-50%);
+  z-index: 1;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.3em;
+}
+
+.step-block > .step-transition .step-delete {
+  opacity: 0;
+}
+
+.step-block > .step-transition:hover .step-delete,
+.step-border.has-block > .step-display:hover + .step-block .step-delete {
+  opacity: 0.6;
+}
+
+/* The status indicator marks the step, so it sits on the block's top
+ * edge, where the step's line would be. */
+.step-border.has-block::after {
+  display: none;
+}
+
+.step-border.has-block.broken > .step-block::after,
+.step-border.has-block.incomplete > .step-block::after,
+.step-border.has-block.blocked > .step-block::after {
+  content: "";
+  position: absolute;
+  top: -0.75em;
+  height: 1.5em;
+  right: -9px;
+  width: 3px;
+  border-radius: 1.5px;
+  pointer-events: none;
+}
+
+.step-border.has-block.broken > .step-block::after {
+  background-color: var(--step-indicator-broken);
+}
+
+.step-border.has-block.incomplete > .step-block::after {
+  background-color: var(--step-indicator-incomplete);
+}
+
+.step-border.has-block.blocked > .step-block::after {
+  background-image: radial-gradient(
+    circle at 50% 2px,
+    var(--step-indicator-blocked) 1.5px,
+    transparent 1.9px
+  );
+  background-size: 3px 7px;
+  background-repeat: repeat-y;
+}
+
+/* A C stops short of the row's edge, leaving the trash cans' column
+ * clear; its slots run on to the edge, so rows nested in them keep the
+ * lozenge column of the rows outside. */
+.step-section {
+  padding: 0 0 8px 16px;
+  margin-right: 22px;
+  border-radius: 8px 0 0 8px;
+}
+
+.step-section > .step-slot {
+  margin-right: -22px;
+}
+
+.step-section.arm {
+  background-color: var(--stepper-arm);
+  color: var(--stepper-arm-text);
+}
+
+.step-section.condition {
+  background-color: var(--stepper-condition);
+  color: var(--stepper-condition-text);
+}
+
+.step-section-bar,
+.step-arm-bar {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0.4em 0.6em 0.3em 0;
+}
+
+.step-section-bar {
+  font-size: 0.8em;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.step-arm-note {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3em 1em;
+  font-size: 0.8em;
+  opacity: 0.9;
+}
+
+.step-arm-fact {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.3em;
+}
+
+/* Code printed in a dark bar takes the bar's light text, all tokens
+ * alike. Editable chips keep their own colours. */
+.step-arm-code *,
+.step-arm-note * {
+  color: var(--stepper-arm-text) !important;
+}
+
+.step-slot {
+  background-color: var(--cell-result);
+  color: var(--text-default);
+  border-radius: 7px 0 0 7px;
+}
+
+.step-slot > .stepper:first-child > .step-border:first-child {
+  border-top-color: transparent;
+}
+
+.step-section.arm .add-case-button {
+  color: var(--stepper-arm-text);
+  margin-top: 0.3em;
+  width: max-content;
+}
+
+/* A side condition left collapsed: a dot on the step's line, with its
+ * kind's icon. Amber while unproven; open, its `?` row says so. */
+.condition-dot {
+  width: 15px;
+  height: 15px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 1.5px solid var(--stepper-condition-text);
+  background-color: var(--stepper-condition);
+  color: var(--stepper-condition-text);
+  font: 600 11px/13px var(--ui-font), sans-serif;
+  text-align: center;
+  cursor: pointer;
+}
+
+.condition-dot.unproven {
+  border-color: var(--stepper-attention-border);
+  background-color: var(--stepper-attention);
+}
+
+.condition-hint {
+  font-size: 0.8em;
+  opacity: 0.7;
+}
+
+.target-step .step-output,
+.condition-missing .step-unknown {
+  opacity: 0.5;
 }

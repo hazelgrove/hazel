@@ -383,7 +383,7 @@ module Scopes = {
         check(
           list(string),
           "outer rows",
-          ["Assume", "end"],
+          ["assume", "end"],
           kinds(f.rows),
         );
         check(
@@ -438,7 +438,7 @@ module Scopes = {
             "theorem t = forall x -> x == 1 ==> x == 1 proof assume x == 1 => revert x == 1 => ? in t",
           );
         let revert = first(body(first(f.rows)));
-        check(string, "the row", "Revert", kind(revert));
+        check(string, "the row", "revert", kind(revert));
         let hole = first(body(revert));
         check(string, "the body's goal", "x == 1 ==> x == 1", goal(hole));
         check(
@@ -716,7 +716,7 @@ module State = {
             statics,
             Fixture.calculate(~pending=true, ~is_edited=true, statics, cell),
           );
-        check(list(string), "rows", ["Assume", "end"], kinds(f.rows));
+        check(list(string), "rows", ["assume", "end"], kinds(f.rows));
         check(bool, "not checked yet", true, first(f.rows).goal == None);
       },
     ),
@@ -1610,6 +1610,218 @@ in
   ];
 };
 
+/* How a step draws below its row: a line, or a block of side conditions
+ * and the goals it creates. */
+module Structure = {
+  let inv = {|theorem inv = forall x where x != 0 -> x / x == 1 proof ? in theorem t = forall x where x != 0 -> forall y -> x / x + y / y == 2 proof axiom inv at 0 on x / x end; axiom inv at 0 on y / y end in t|};
+
+  let layout =
+    Alcotest.testable(
+      (fmt, l: Rows.layout) =>
+        switch (l) {
+        | Line => Format.fprintf(fmt, "Line")
+        | Block({conditions, arms}) =>
+          Format.fprintf(
+            fmt,
+            "Block([%s], arms: %b)",
+            String.concat(", ", List.map(string_of_int, conditions)),
+            arms,
+          )
+        },
+      (==),
+    );
+
+  let kinds_of = (row: Rows.t) =>
+    Rows.side_conditions(row)
+    |> List.map((ob: Obligation.t) => Obligation.show_kind(ob.kind));
+
+  let tests = [
+    test_case(
+      "a step's side conditions are dots on its line until opened",
+      `Quick,
+      () => {
+        let f = Fixture.mk(inv);
+        let (x, y) =
+          switch (f.rows) {
+          | [x, y, ..._] => (x, y)
+          | _ => Alcotest.fail("two steps expected")
+          };
+        check(list(string), "a premise each", ["Premise"], kinds_of(x));
+        check(
+          list(bool),
+          "the first closed by its where fact, the second open",
+          [false, true],
+          List.map(
+            Obligation.is_pending,
+            Rows.side_conditions(x) @ Rows.side_conditions(y),
+          ),
+        );
+        check(layout, "collapsed", Line, Rows.layout(x, ~expanded=[]));
+        check(
+          layout,
+          "opened",
+          Block({
+            conditions: [0],
+            arms: false,
+          }),
+          Rows.layout(x, ~expanded=[0]),
+        );
+        check(
+          layout,
+          "an index past the conditions opens nothing",
+          Line,
+          Rows.layout(x, ~expanded=[3]),
+        );
+      },
+    ),
+    test_case(
+      "opening a condition is kept across passes, with its row",
+      `Quick,
+      () => {
+        let f = Fixture.mk(inv);
+        let row = first(f.rows);
+        let f = Fixture.act(f, (row.key, ToggleCondition(0)));
+        check(list(int), "open", [0], Fixture.local(f, row).expanded);
+        let model =
+          Stepper.Update.calculate(~settings, f.rows, f.theorem.stepper);
+        check(
+          list(int),
+          "after another pass",
+          [0],
+          switch (Stepper.Model.find(row.key, model)) {
+          | Some(local) => local.expanded
+          | None => Alcotest.fail("the row lost its state")
+          },
+        );
+        let f = Fixture.act(f, (row.key, ToggleCondition(0)));
+        check(
+          list(int),
+          "closed again",
+          [],
+          Fixture.local(f, row).expanded,
+        );
+      },
+    ),
+    test_case(
+      "a form's body and an induction's cases are arms",
+      `Quick,
+      () => {
+        let forall =
+          Fixture.mk(
+            "theorem t = true ==> forall x : Int -> x == x proof assume true => forall x => axiom refl_eq at 0 on x == x end in t",
+          );
+        let assume = first(forall.rows);
+        check(
+          layout,
+          "assume",
+          Block({
+            conditions: [],
+            arms: true,
+          }),
+          Rows.layout(assume, ~expanded=[]),
+        );
+        check(
+          layout,
+          "forall",
+          Block({
+            conditions: [],
+            arms: true,
+          }),
+          Rows.layout(first(body(assume)), ~expanded=[]),
+        );
+        let induction =
+          Fixture.mk(
+            "theorem t = forall xs : [Int] -> xs == xs proof induction xs | [] => ? | y :: ys => ? end in t",
+          );
+        check(
+          layout,
+          "induction",
+          Block({
+            conditions: [],
+            arms: true,
+          }),
+          Rows.layout(first(induction.rows), ~expanded=[]),
+        );
+      },
+    ),
+    test_case(
+      "have and alias keep their goal: the body continues the chain",
+      `Quick,
+      () => {
+        let have =
+          Fixture.mk(
+            "theorem t = forall z where z != 0 -> 8 / z == 8 / z proof have z != 0 proof axiom where at 0 on z != 0 end => axiom refl_eq at 0 on 8 / z == 8 / z end in t",
+          );
+        let row = first(have.rows);
+        check(
+          list(string),
+          "no end row after the have",
+          ["have"],
+          kinds(have.rows),
+        );
+        check(list(string), "its premises are its arms", [], kinds_of(row));
+        check(
+          layout,
+          "a block with the sub-proof",
+          Block({
+            conditions: [],
+            arms: true,
+          }),
+          Rows.layout(row, ~expanded=[]),
+        );
+        check(
+          option(list(string)),
+          "continued by its body",
+          Some(["refl_eq", "end"]),
+          Rows.continuation(row) |> Option.map(kinds),
+        );
+        let alias =
+          Fixture.mk(
+            "theorem t = forall x -> x == 1 ==> x == 1 proof assume x == 1 => alias h = x == 1 => ? in t",
+          );
+        let row = first(body(first(alias.rows)));
+        check(
+          layout,
+          "alias is a line",
+          Line,
+          Rows.layout(row, ~expanded=[]),
+        );
+        check(
+          option(list(string)),
+          "continued by its body",
+          Some(["hole"]),
+          Rows.continuation(row) |> Option.map(kinds),
+        );
+      },
+    ),
+    test_case(
+      "obligations are tagged with their kind",
+      `Quick,
+      () => {
+        let kinds_at = (src, pick) => kinds_of(pick(Fixture.mk(src).rows));
+        check(
+          list(string),
+          "a division the instantiation brings in",
+          ["Definedness"],
+          kinds_at(
+            "theorem t = forall z where z != 0 -> 8 / z == 8 / z proof axiom refl_eq at 0 on 8 / z == 8 / z end in t",
+            first,
+          ),
+        );
+        check(
+          list(string),
+          "an assume that isn't the antecedent",
+          ["Assumption"],
+          kinds_at(
+            "theorem t = forall x -> x == x proof assume x == 1 => ? in t",
+            first,
+          ),
+        );
+      },
+    ),
+  ];
+};
+
 let tests = (
   "StepperView",
   Walk.tests
@@ -1618,5 +1830,6 @@ let tests = (
   @ Picking.tests
   @ Regressions.tests
   @ Display.tests
-  @ Insertion.tests,
+  @ Insertion.tests
+  @ Structure.tests,
 );

@@ -85,6 +85,12 @@ let rec split = (p: Proof.t): (Proof.t, option(Proof.t)) => {
   };
 };
 
+let is_alias = (step: Proof.t) =>
+  switch (step.term) {
+  | Alias(_) => true
+  | _ => false
+  };
+
 /* The rows of the chain `proof`. */
 let rec chain = (~proof_map: ProofMap.t, proof: Proof.t): list(t) => {
   let (step, tail) = split(proof);
@@ -143,6 +149,10 @@ let rec chain = (~proof_map: ProofMap.t, proof: Proof.t): list(t) => {
   | (Some(tail), _) => [row, ...chain(~proof_map, tail)]
   /* A hole at the end already stands for "the proof continues here". */
   | (None, Hole) => [row]
+  /* `have` and `alias` keep their goal, so their body's own last row is
+   * where the proof continues. */
+  | (None, Step(Premises(_))) => [row]
+  | (None, Step(Body(_))) when is_alias(step) => [row]
   | (None, Step(_) | End) => [
       row,
       {
@@ -188,6 +198,59 @@ let reached = (rows: list(t)): option(Exp.t) =>
 /* The scope a step written at the row is checked in. */
 let ctx = (row: t): option(SemanticCtx.t) =>
   Option.map((e: ProofMap.entry) => e.ctx, row.entry);
+
+/* The side conditions a step row shows: the obligations its step
+ * incurs. A have's two premises are drawn as its own goals, the sub-proof
+ * arm and the goal continuing below it, so it shows none. */
+let side_conditions = (row: t): list(Obligation.t) =>
+  switch (row.kind, row.entry) {
+  | (Step(Premises(_)), _)
+  | (Hole | End, _)
+  | (Step(_), None) => []
+  | (Step(Leaf | Body(_) | Cases(_)), Some(entry)) => entry.obligations
+  };
+
+/* The rows that carry on a step's own goal. `have` and `alias` keep the
+ * goal, so their body reads as the rest of the outer chain. */
+let continuation = (row: t): option(list(t)) =>
+  switch (row.kind) {
+  | Step(Premises({body, _})) => Some(body)
+  | Step(Body(rows)) when is_alias(row.step) => Some(rows)
+  | Step(Leaf | Body(_) | Cases(_))
+  | Hole
+  | End => None
+  };
+
+/* How a step is drawn between its row and the next. */
+type layout =
+  /* A line, with the step's lozenge on it. */
+  | Line
+  /* The line opened into a block: the side conditions shown open, by
+   * index into `side_conditions`, then, with `arms`, the goals the step
+   * creates. */
+  | Block({
+      conditions: list(int),
+      arms: bool,
+    });
+
+/* `expanded` is the indices of the side conditions the user opened. */
+let layout = (row: t, ~expanded: list(int)): layout => {
+  let count = List.length(side_conditions(row));
+  let conditions =
+    List.sort_uniq(compare, expanded) |> List.filter(i => i >= 0 && i < count);
+  let arms =
+    switch (row.kind, continuation(row)) {
+    | (Step(Body(_)), Some(_)) => false
+    | (Step(Body(_) | Cases(_) | Premises(_)), _) => true
+    | (Step(Leaf) | Hole | End, _) => false
+    };
+  conditions == [] && !arms
+    ? Line
+    : Block({
+        conditions,
+        arms,
+      });
+};
 
 type row = t;
 

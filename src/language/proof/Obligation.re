@@ -20,10 +20,27 @@ type discharge =
   | Evaluated
   | Pending;
 
+/* Why a step incurs the obligation. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type kind =
+  /* A term the step introduces is defined: a divisor is nonzero, a
+   * list is nonempty (DomainConditions). */
+  | Definedness
+  /* A function definition's body is defined wherever its `where`
+   * contract admits an argument. */
+  | Contract
+  /* A cited rule's assumption, `A` of `A ==> …`, as the match
+   * instantiated it; or a premise of `have`'s cut rule. */
+  | Premise
+  /* An `assume` whose hypothesis isn't the goal's antecedent has to
+   * establish it. */
+  | Assumption;
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   /* The proof step that incurred the obligation. */
   origin: Id.t,
+  kind,
   /* The bindings visible at the obligation site. */
   bindings: list(Ctx.entry),
   /* The environment has been substituted in
