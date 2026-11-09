@@ -31,6 +31,25 @@ let touch_key = (k: string): unit => {
   incr(optimistic_version);
 };
 let touch = (id: Id.t): unit => touch_key(Id.to_string(id));
+/* An effect that runs [eff] after the browser's next paint: at the next animation frame, then a task after it */
+let after_paint = (eff: Ui_effect.t(unit)): Ui_effect.t(unit) =>
+  Ui_effect.of_sync_fun(
+    () =>
+      ignore(
+        Js_of_ocaml.Dom_html.window##requestAnimationFrame(
+          Js_of_ocaml.Js.wrap_callback(_ =>
+            ignore(
+              Js_of_ocaml.Dom_html.setTimeout(
+                () =>
+                  Virtual_dom.Vdom.Effect.Expert.handle_non_dom_event_exn(eff),
+                0.,
+              ),
+            )
+          ),
+        ),
+      ),
+    (),
+  );
 /* (^report(50)'s next step 4) when the slide's compiled run retires its answers after the page has drawn (a program
    found changed otherwise, after the paint), the page draws again, so no livelit is left showing a stale answer */
 let () =
@@ -1196,6 +1215,7 @@ module M: Projector = {
       print_endline("LivelitProj: " ++ msg);
       Ui_effect.Ignore;
     };
+    HazelJitRun.answered_for := None;
     let ap = IdTagged.FreshGrammar.Exp.ap;
     /* Base model for this action. The optimistic entry wins over the
        handler's captured model: a rapid successor event fires from a DOM
@@ -1394,7 +1414,21 @@ module M: Projector = {
          effect; a quiet non-historic action makes the frame repaint. */
       repaint()
     | (Transient, `Error(e)) => fail(e)
-    | (Commit, `Ok(committed, effects)) => commit_model(~effects, committed)
+    | (Commit, `Ok(committed, effects)) =>
+      /* (^report(50)'s next step 2) When the slide's compiled run has
+         answered this event, every livelit can be drawn from its answers
+         now, as a drag's input is (cut A): so the page draws first, and
+         the edit that writes the model into the program, with its
+         statics, syntax and whole-slide view (123 ms before the paint on
+         the Witch, build 8), is made after the browser has painted. */
+      switch (AppBridge.livelit_repaint^, HazelJitRun.answered_for^) {
+      | (Some(_), Some(p)) when p == Id.to_string(id) =>
+        Ui_effect.Many([
+          repaint(),
+          after_paint(commit_model(~effects, committed)),
+        ])
+      | _ => commit_model(~effects, committed)
+      }
     | (Commit, `Error(e)) => fail(e)
     };
   };

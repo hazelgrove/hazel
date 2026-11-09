@@ -481,6 +481,10 @@ let note_program = (e: Exp.t): unit =>
     };
   };
 
+/* (^report(50)'s next step 2) the livelit whose event the compiled run answered last, by projector id: cleared as an
+   event begins (LivelitProj), so the event's commit knows the page can draw it before the edit */
+let answered_for: ref(option(string)) = ref(None);
+
 /* (^report(50)'s next step 4) when the compiled run last answered a livelit's event, for the page's request to the
    worker that the event's commit makes: held, since the livelits are already drawn (WorkerClient) */
 let answered_at: ref(float) = ref(neg_infinity);
@@ -587,6 +591,7 @@ let step = (~projector: Id.t, ~model: Exp.t): result(int, string) =>
             source := Some(projector);
             incr(runs);
             answered_at := now_ms();
+            answered_for := Some(Id.to_string(projector));
             HazelJitValue.count("the slide's run answered");
             Util.BenchMarks.mark(
               ~extra=[
