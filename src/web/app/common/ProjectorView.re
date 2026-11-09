@@ -851,12 +851,21 @@ let mk_view =
       seg,
     );
   let cacheable = !has_splices(p.syntax);
-  /* (^report(51)) a livelit's key on its own statics record and elaborated
-     subterm (ViewCache.program_same), when it has both */
+  /* (^report(51)) a livelit's key on its own statics record, and its own
+     elaborated subterm if it has one (ViewCache.program_same). A livelit
+     elaborates none of its syntax (LivelitProj.elaborate_syntax), so its
+     info.elaborated is None and its view reads the program through its
+     statics record alone */
   let own =
-    switch (p.kind, info.statics, info.elaborated) {
-    | (ProjectorCore.Kind.Livelit, Some(st), Some(el)) =>
-      Some((Obj.repr(st), Obj.repr(el)))
+    switch (p.kind, info.statics) {
+    | (ProjectorCore.Kind.Livelit, Some(st)) =>
+      Some((
+        Obj.repr(st),
+        switch (info.elaborated) {
+        | Some(el) => Obj.repr(el)
+        | None => Obj.repr(0)
+        },
+      ))
     | _ => Stdlib.Option.None
     };
   switch (
@@ -914,17 +923,18 @@ let mk_view =
     let own_parts =
       Util.BenchMarks.on()
         ? [|
+          /* (None as a fresh object: an absent part is never "the same") */
           switch (info.statics) {
           | Some(x) => Obj.repr(x)
-          | None => Obj.repr(0)
+          | None => Obj.repr(ref(0))
           },
           switch (info.dynamics) {
           | Some(x) => Obj.repr(x)
-          | None => Obj.repr(0)
+          | None => Obj.repr(ref(0))
           },
           switch (info.elaborated) {
           | Some(x) => Obj.repr(x)
-          | None => Obj.repr(0)
+          | None => Obj.repr(ref(0))
           },
         |]
         : [||];
