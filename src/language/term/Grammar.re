@@ -207,9 +207,10 @@ and proof_term('a) =
    * check <proof> against one occurrence of <selector> in the goal, and
    * put its result back in place of that occurrence. The selector may use
    * the `$e`/`$v`/`$x` metavariables. `ordinal` counts matches from 1,
-   * left to right; without one the first match is meant. */
+   * left to right; without one the first match is meant. It is annotated
+   * like a term, so its token keeps its id and whitespace. */
   | Focus({
-      ordinal: option(int),
+      ordinal: option(Annotated.t(int, 'a)),
       selector: exp_t('a),
       body: proof_t('a),
     })
@@ -470,7 +471,15 @@ and map_proof_annotation: 'a 'b. ('a => 'b, proof_t('a)) => proof_t('b) =
         | EvalStep => EvalStep
         | Focus({ordinal, selector, body}) =>
           Focus({
-            ordinal,
+            ordinal:
+              Option.map(
+                (o: Annotated.t(int, _)) =>
+                  Annotated.{
+                    term: o.term,
+                    annotation: f(o.annotation),
+                  },
+                ordinal,
+              ),
             selector: exp(selector),
             body: proof(body),
           })
@@ -1333,7 +1342,15 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
         (~ann=?, ~ordinal=None, selector, body): proof_t(DefaultAnnotation.t) => {
       term:
         Focus({
-          ordinal,
+          ordinal:
+            Option.map(
+              n =>
+                Annotated.{
+                  term: n,
+                  annotation: default_annotation(None),
+                },
+              ordinal,
+            ),
           selector,
           body,
         }),

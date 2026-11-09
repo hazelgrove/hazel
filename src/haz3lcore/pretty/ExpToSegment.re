@@ -3588,38 +3588,34 @@ and proof_to_pretty = (~settings: Settings.t, p: Proof.t): pretty => {
   | Focus({ordinal, selector, body}) =>
     let+ sel = exp_to_pretty(~settings, selector)
     and+ b = go(body);
-    /* ids = [from tile, ordinal tile]: MakeTerm absorbs the ordinal's. */
-    let ordinal_seg =
-      switch (ordinal, IdTagged.ids(p)) {
-      | (None, _) => []
-      | (Some(n), ids) =>
-        let ordinal_id =
-          switch (ids) {
-          | [_, ordinal_id, ..._] => ordinal_id
-          | _ => Id.mk()
-          };
+    /* `from` isn't a keyword to the spacing heuristics, which would glue
+       it to a following `(` or ordinal, so the slot opens with a space
+       unless its stored whitespace already does. */
+    let spaced = (seg: Segment.t): Segment.t =>
+      switch (seg) {
+      | [Secondary(_), ..._] => seg
+      | _ => [Secondary(mk_space(Id.mk())), ...seg]
+      };
+    let slot =
+      switch (ordinal) {
+      | None => spaced(sel)
+      | Some(o) =>
         let (form, sort) =
-          Form.classify_label(Sort.Exp, [Token.Ordinal.to_string(n)]);
-        let space =
-          switch (sel) {
-          | [Secondary(_), ..._] => []
-          | _ => [Secondary(mk_space(Id.mk()))]
-          };
-        [
-          Tile({
-            id: ordinal_id,
+          Form.classify_label(Sort.Exp, [Token.Ordinal.to_string(o.term)]);
+        let tile =
+          Piece.Tile({
+            id: IdTagged.rep_id(o),
             form,
             sort,
             shards: [0],
             children: [],
-          }),
-          ...space,
-        ];
+          });
+        spaced(
+          wrap_with_secondary(~secondary=settings.secondary, o, [tile])
+          @ spaced(sel),
+        );
       };
-    wrap(
-      p,
-      [mk_form(ProofFocus, id, [list_append(ordinal_seg, sel), b])],
-    );
+    wrap(p, [mk_form(ProofFocus, id, [slot, b])]);
   | Induction(scrut, as_name, cases) =>
     /* The PRul child is `<scrut> | p => body | ...`. With an `as` name
        the scrutinee becomes the form's own child and the name leads the

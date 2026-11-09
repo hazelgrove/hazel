@@ -992,7 +992,10 @@ let equality =
           Focus({ordinal: o1, selector: s1, body: b1}),
           Focus({ordinal: o2, selector: s2, body: b2}),
         ) =>
-        o1 == o2 && exp'(s1, s2) && proof'(b1, b2)
+        Option.map(Annotated.term_of, o1)
+        == Option.map(Annotated.term_of, o2)
+        && exp'(s1, s2)
+        && proof'(b1, b2)
       | (Focus(_), _) => false
       | (Induction(e1, a1, cs1), Induction(e2, a2, cs2))
           when List.length(cs1) == List.length(cs2) =>

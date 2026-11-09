@@ -1831,19 +1831,28 @@ and proof_term: unsorted => (Proof.term, list(Id.t)) = {
         ret(Contradiction(e, Some((var, inst))))
       | (F(Compound(ProofEval)), []) => ret(EvalStep)
       /* An ordinal parses as an unknown prefix operator over the rest of
-         the selector, a one-kid MultiHole whose lexeme is the ordinal.
-         Its tile id is absorbed, as induction absorbs its rules'. */
+         the selector, a one-kid MultiHole whose lexeme is the ordinal. The
+         ordinal keeps that hole's annotation, so its token prints back
+         with its id and whitespace. Its tile id is also absorbed, as
+         induction absorbs its rules'. */
       | (F(Compound(ProofFocus)), [Exp(selector), Proof(body)]) =>
         switch (selector) {
         | {
             term: MultiHole([Exp(inner)]),
-            annotation: {lexeme: Some(t), ids, _},
+            annotation: {lexeme: Some(t), ids, _} as annotation,
           }
             when Token.is_ordinal(t) =>
           adopted_ids := ids @ adopted_ids^;
           (
             Focus({
-              ordinal: Token.Ordinal.of_string(t),
+              ordinal:
+                Token.Ordinal.of_string(t)
+                |> Option.map(n =>
+                     Annotated.{
+                       term: n,
+                       annotation,
+                     }
+                   ),
               selector: inner,
               body,
             }),

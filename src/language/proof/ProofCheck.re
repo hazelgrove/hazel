@@ -1111,7 +1111,7 @@ let rec check =
       ~ctx,
       ~id,
       incoming,
-      Option.value(~default=1, ordinal),
+      ordinal |> Option.map(Annotated.term_of) |> Option.value(~default=1),
       selector,
       body,
     )

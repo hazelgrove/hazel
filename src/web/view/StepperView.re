@@ -1144,7 +1144,7 @@ module View = {
           | (Some(inner), Focus({ordinal, selector, _})) =>
             let ordinal =
               switch (ordinal) {
-              | Some(n) => Token.Ordinal.to_string(n) ++ " "
+              | Some({term: n, _}) => Token.Ordinal.to_string(n) ++ " "
               | None => ""
               };
             div_c(

@@ -35,7 +35,7 @@ module Terms = {
   let focus =
       (~selector: Exp.t, ~index: int, step: Proof.t): TermBase.Proof.term =>
     Focus({
-      ordinal: index == 0 ? None : Some(index + 1),
+      ordinal: index == 0 ? None : Some(IdTagged.fresh(index + 1)),
       selector: embed_exp(selector),
       body: step,
     });
