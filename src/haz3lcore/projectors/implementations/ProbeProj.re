@@ -2587,75 +2587,103 @@ module M: Projector = {
     /* Inline mode: offside = .live-offside (nav-bar + samples), below = none.
      * Drawer mode: offside = nav-bar wrapper, below = .live-offside (samples).
      * The focusable .live-offside always goes wherever the samples live. */
+    /* (^report(51)) the probe's parts on the check's timeline: after the
+       worker's answer on the Witch, one probe (the picture's, 213 samples)
+       took 33 to 45 ms to draw */
+    let samples_n = () =>
+      switch (info.dynamics) {
+      | Some(d) => [
+          (
+            "samples",
+            Util.BenchMarks.num(float_of_int(List.length(d.samples))),
+          ),
+          (
+            "id",
+            Util.BenchMarks.str(String.sub(Id.to_string(info.id), 0, 8)),
+          ),
+        ]
+      | None => []
+      };
     let data_opt =
-      prepare_offside(info, local, parent, ~settings, ~sort, ~model);
+      Util.BenchMarks.time(
+        ~extra=samples_n, "view: probe, samples prepared", () =>
+        prepare_offside(info, local, parent, ~settings, ~sort, ~model)
+      );
     let stepping = info.stepping != None;
     let drawer = model.drawer_mode || stepping;
     let offside_main =
-      switch (data_opt, drawer) {
-      | (_, true) when info.program_value => Node.div([])
-      | (None, _) => empty_view(~id=info.id, ~settings)
-      | (Some(data), false) =>
-        /* rich content embeds inside each sample chip (value_view);
-           no whole-row replacement in inline mode */
-        live_offside_view(
-          ~display=Inline,
-          ~include_nav_bar=true,
-          ~drawer_mode_active=false,
-          data,
-          local,
-          view_seg,
-          ~settings,
-        )
-      | (Some(data), true) => nav_bar_wrapper_view(data, ~settings)
-      };
+      Util.BenchMarks.time(~extra=samples_n, "view: probe, its row drawn", () =>
+        switch (data_opt, drawer) {
+        | (_, true) when info.program_value => Node.div([])
+        | (None, _) => empty_view(~id=info.id, ~settings)
+        | (Some(data), false) =>
+          /* rich content embeds inside each sample chip (value_view);
+             no whole-row replacement in inline mode */
+          live_offside_view(
+            ~display=Inline,
+            ~include_nav_bar=true,
+            ~drawer_mode_active=false,
+            data,
+            local,
+            view_seg,
+            ~settings,
+          )
+        | (Some(data), true) => nav_bar_wrapper_view(data, ~settings)
+        }
+      );
     /* Content taller than the drawer cap → the drawer scrolls; gates the
      * wrapper's scroll-affordance fade and the rich view's overflow clip. */
     let drawer_overflow =
-      switch (info.stepping) {
-      | Some(_) => false
-      | None =>
-        drawer
-        && (
-          switch (rich_drawer_rows(model, info)) {
-          | Some(n) => n > DrawerHeight.max_rows
-          | None => DrawerHeight.content_rows(info) > DrawerHeight.max_rows
-          }
-        )
-      };
+      Util.BenchMarks.time(
+        ~extra=samples_n, "view: probe, its drawer measured", () =>
+        switch (info.stepping) {
+        | Some(_) => false
+        | None =>
+          drawer
+          && (
+            switch (rich_drawer_rows(model, info)) {
+            | Some(n) => n > DrawerHeight.max_rows
+            | None => DrawerHeight.content_rows(info) > DrawerHeight.max_rows
+            }
+          )
+        }
+      );
     /* In drawer mode an active rich renderer replaces the sample view in
      * the drawer itself; the anchored modal overlay is inline-mode only
      * (anchored to the nav-bar stub, it renders detached/clipped). */
     let rich_drawer =
-      stepping
-        ? Some(steps_drawer_view(~parent, info))
-        : drawer
-          && (
-            switch (rich_drawer_rows(model, info)) {
-            | Some(n) => n > inline_rows_cap
-            | None => false
-            }
-          )
-            ? rich_content(
-                ~settings,
-                model,
-                info,
-                ~local,
-                ~parent,
-                ~view_seg,
-                ~sort,
-              )
-              |> Option.map(content =>
-                   rich_drawer_view(
-                     ~local,
-                     ~overflowing=drawer_overflow,
-                     /* auto-rich (no explicit renderer) has nothing to close:
-                        dismissal would just re-trigger */
-                     ~closable=model.active_renderer != None,
-                     content,
+      Util.BenchMarks.time(
+        ~extra=samples_n, "view: probe, its rich drawer", () =>
+        stepping
+          ? Some(steps_drawer_view(~parent, info))
+          : drawer
+            && (
+              switch (rich_drawer_rows(model, info)) {
+              | Some(n) => n > inline_rows_cap
+              | None => false
+              }
+            )
+              ? rich_content(
+                  ~settings,
+                  model,
+                  info,
+                  ~local,
+                  ~parent,
+                  ~view_seg,
+                  ~sort,
+                )
+                |> Option.map(content =>
+                     rich_drawer_view(
+                       ~local,
+                       ~overflowing=drawer_overflow,
+                       /* auto-rich (no explicit renderer) has nothing to close:
+                          dismissal would just re-trigger */
+                       ~closable=model.active_renderer != None,
+                       content,
+                     )
                    )
-                 )
-            : None;
+              : None
+      );
     /* the anchored modal is retired: small rich views replace the
        offside row, big ones live in the drawer */
     let modal_nodes = [];
@@ -2672,28 +2700,32 @@ module M: Projector = {
       overlay: None,
       offside: Some(offside_node),
       below:
-        switch (data_opt, drawer) {
-        /* the program stopped short of the ⇓ probe: how far it got */
-        | (_, true)
-            when
-              info.program_value && Settings.value_fallback^(info.id) != None =>
-          Settings.value_fallback^(info.id)
-        | (Some(data), true) =>
-          Some(
-            live_offside_view(
-              ~display=Block,
-              ~include_nav_bar=false,
-              ~drawer_mode_active=true,
-              ~rich_content=rich_drawer,
-              ~scrollable=drawer_overflow,
-              data,
-              local,
-              view_seg,
-              ~settings,
-            ),
-          )
-        | _ => None
-        },
+        Util.BenchMarks.time(
+          ~extra=samples_n, "view: probe, its drawer drawn", () =>
+          switch (data_opt, drawer) {
+          /* the program stopped short of the ⇓ probe: how far it got */
+          | (_, true)
+              when
+                info.program_value
+                && Settings.value_fallback^(info.id) != None =>
+            Settings.value_fallback^(info.id)
+          | (Some(data), true) =>
+            Some(
+              live_offside_view(
+                ~display=Block,
+                ~include_nav_bar=false,
+                ~drawer_mode_active=true,
+                ~rich_content=rich_drawer,
+                ~scrollable=drawer_overflow,
+                data,
+                local,
+                view_seg,
+                ~settings,
+              ),
+            )
+          | _ => None
+          }
+        ),
       error: false,
     };
   };
