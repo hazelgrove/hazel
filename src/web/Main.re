@@ -113,6 +113,22 @@ let apply =
   if (updated.is_edit) {
     Util.PerfTimer.record("edit-action/" ++ Lazy.force(edit_label), 0.);
   };
+  /* (^report(51)) any action's constructor path, as the tags of its
+     blocks (the first field at each level), for actions that are not edits:
+     cheap, unlike its sexp, which may carry a worker's whole result */
+  let rec tag_path = (depth: int, o: Obj.t): string =>
+    if (Obj.is_int(o)) {
+      "c" ++ string_of_int(Obj.obj(o): int);
+    } else if (depth == 0) {
+      "";
+    } else {
+      let t = Obj.tag(o);
+      if (t >= Obj.no_scan_tag || Obj.size(o) == 0) {
+        "";
+      } else {
+        string_of_int(t) ++ "/" ++ tag_path(depth - 1, Obj.field(o, 0));
+      };
+    };
   /* (^report(46)) the update on the benchmark timeline, an edit by name */
   if (Util.BenchMarks.on()) {
     Util.BenchMarks.mark(
@@ -123,6 +139,7 @@ let apply =
           "edit",
           Util.BenchMarks.str(updated.is_edit ? Lazy.force(edit_label) : ""),
         ),
+        ("tags", Util.BenchMarks.str(tag_path(7, Obj.repr(action)))),
       ],
       "update",
     );

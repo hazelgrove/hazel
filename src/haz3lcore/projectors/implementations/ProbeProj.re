@@ -756,7 +756,13 @@ let value_view =
             sample,
           )
         @ (Option.is_some(ap_id) ? ["ap"] : [])
-        @ (!ValueChecker.is_value(sample.value) ? ["indet"] : []),
+        @ (
+          !
+            Util.BenchMarks.time("view: probe, a value checked", () =>
+              ValueChecker.is_value(sample.value)
+            )
+            ? ["indet"] : []
+        ),
       ),
       Attr.on_double_click(_ =>
         ctx.auto_rich_ready ? local(ToggleAutoRich) : local(ToggleWindowMode)
@@ -823,56 +829,58 @@ let value_view =
           (),
         );
       let rich_node =
-        switch (ctx.rich_model) {
-        | Some(pm) =>
-          switch (find(RichProbe.renderer_id_of_model(pm))) {
-          | Some(r)
-              when
-                r.can_handle(ctx.sort, sample.value)
-                && (
-                  switch (r.drawer_rows(ctx.sort, sample.value)) {
-                  | Some(n) => n <= inline_rows_cap
-                  | None => true
-                  }
-                ) =>
-            render_rich(r, pm)
-          | _ => None
-          }
-        | None when ctx.auto_rich_on =>
-          switch (
-            List.find_opt(
-              (r: packed_renderer) =>
-                r.can_handle(ctx.sort, sample.value)
-                /* a vacuous match (empty hand) still renders when a
-                   SIBLING sample at this site is real evidence */
-                && (
-                  r.auto_applies(ctx.sort, sample.value)
-                  || List.exists(
-                       (s: Sample.t) => r.auto_applies(ctx.sort, s.value),
-                       ctx.dynamics.samples,
-                     )
-                )
-                && (
-                  ctx.auto_unbounded
-                  || (
+        Util.BenchMarks.time("view: probe, a value's rich view", () =>
+          switch (ctx.rich_model) {
+          | Some(pm) =>
+            switch (find(RichProbe.renderer_id_of_model(pm))) {
+            | Some(r)
+                when
+                  r.can_handle(ctx.sort, sample.value)
+                  && (
                     switch (r.drawer_rows(ctx.sort, sample.value)) {
                     | Some(n) => n <= inline_rows_cap
                     | None => true
                     }
+                  ) =>
+              render_rich(r, pm)
+            | _ => None
+            }
+          | None when ctx.auto_rich_on =>
+            switch (
+              List.find_opt(
+                (r: packed_renderer) =>
+                  r.can_handle(ctx.sort, sample.value)
+                  /* a vacuous match (empty hand) still renders when a
+                     SIBLING sample at this site is real evidence */
+                  && (
+                    r.auto_applies(ctx.sort, sample.value)
+                    || List.exists(
+                         (s: Sample.t) => r.auto_applies(ctx.sort, s.value),
+                         ctx.dynamics.samples,
+                       )
                   )
-                ),
-              renderers,
-            )
-          ) {
-          | Some(r) =>
-            switch (r.init_model(ctx.sort, sample.value)) {
-            | Some(pm) => render_rich(r, pm)
+                  && (
+                    ctx.auto_unbounded
+                    || (
+                      switch (r.drawer_rows(ctx.sort, sample.value)) {
+                      | Some(n) => n <= inline_rows_cap
+                      | None => true
+                      }
+                    )
+                  ),
+                renderers,
+              )
+            ) {
+            | Some(r) =>
+              switch (r.init_model(ctx.sort, sample.value)) {
+              | Some(pm) => render_rich(r, pm)
+              | None => None
+              }
             | None => None
             }
           | None => None
           }
-        | None => None
-        };
+        );
       switch (rich_node) {
       | Some(n) => [div(~attrs=[Attr.classes(["value-rich"])], [n])]
       | None => [view_seg(~text_only=false, seg)]
