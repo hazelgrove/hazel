@@ -1133,20 +1133,31 @@ let key_path = (k: E.key, outline): option(OutlineTree.path) =>
 /* single-slot vdom memo: building the outline is O(program), but its
    inputs change on edits, statics frames and outline use, not per caret
    move.
-   the statics' info map (the record is new every frame), the outline and
-   test results compare by identity, the rest by value */
+   (^report(51): after a click on the Witch slide the outline was built
+   again three times, 44 to 51 ms each: for the click's edit, and for each
+   of the worker's two messages, which change no code but make the syntax
+   anew, so the outline was a new object, and the test results always
+   were.) So the key holds what the outline shows, compared by value: the
+   outline's entries (not the segment it was read from), each test's
+   status, the rows holding livelits; and the statics' info map, by
+   identity, only while there are errors to show from it. The other reads
+   of the info map are a name being typed, whose text is in the key. */
 let memo = Util.Slot.mk();
 /* the cell code's refusals of the rows: per program, not per frame */
 let refusals = Util.Slot.mk();
 let same =
     (
-      (((info_map, error_ids), outline), results, rest),
-      (((info_map', error_ids'), outline'), results', rest'),
+      (((info_map, error_ids), outline: Outline.t), statuses, rest),
+      (((info_map', error_ids'), outline': Outline.t), statuses', rest'),
     ) =>
-  info_map === info_map'
+  Option.equal((===), info_map, info_map')
   && error_ids == error_ids'
-  && outline === outline'
-  && Option.equal((===), results, results')
+  && (
+    outline === outline'
+    || outline.root == outline'.root
+    && outline.entries == outline'.entries
+  )
+  && statuses == statuses'
   && rest == rest';
 
 /* the outline of the slide's whole program in Scratch and Documentation,
@@ -1222,10 +1233,27 @@ let view =
     | Some(p) => Program.outline(p)
     | None => Outline.of_program(~root=Sort.Exp, segment)
     };
+  let statuses =
+    Option.map(
+      (tr: Language.TestResults.t) =>
+        List.map(
+          ((id, instances)) =>
+            (id, Language.TestMap.joint_status(instances)),
+          tr.test_map,
+        ),
+      results,
+    );
   let key = (
-    ((statics.info_map, statics.error_ids), outline),
-    results,
     (
+      (
+        statics.error_ids == [] ? None : Some(statics.info_map),
+        statics.error_ids,
+      ),
+      outline,
+    ),
+    statuses,
+    (
+      is_deck ? OutlineTree.livelit_row_ids(statics.term) : [],
       arrows,
       focused,
       is_deck,
