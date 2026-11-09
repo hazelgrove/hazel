@@ -62,30 +62,63 @@ let rec proof_is_clean = (pm: t, proof: Proof.t): bool =>
   marks_of(Proof.rep_id(proof), pm) == []
   && List.for_all(proof_is_clean(pm), Proof.children(proof));
 
+let outgoing_is = (b: bool, pm: t, proof: Proof.t): bool =>
+  switch (lookup(Proof.rep_id(proof), pm)) {
+  | Some({outgoing: Some(e), _}) =>
+    Exp.fast_equal(e, Exp.temp(Atom(Bool(b))))
+  | Some({outgoing: None, _})
+  | None => false
+  };
+
+/* Every induction case in the subtree reaches `true`. An induction steps
+ * to `true` as soon as its cases cover the scrutinee, finished or not. */
+let rec cases_closed = (pm: t, proof: Proof.t): bool =>
+  (
+    switch (proof.term) {
+    | Induction(_, _, cases) =>
+      List.for_all(((_, body)) => outgoing_is(true, pm, body), cases)
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | Seq(_)
+    | Parens(_)
+    | AxiomStep(_)
+    | AlgebriteStep(_)
+    | EvalStep(_)
+    | Forall(_)
+    | Funext(_)
+    | Assume(_)
+    | Alias(_)
+    | Generalize(_)
+    | Revert(_)
+    | Contradiction(_)
+    | Have(_) => true
+    }
+  )
+  && List.for_all(cases_closed(pm), Proof.children(proof));
+
 /* UI status derived from a proof map for a given proof term:
  * - `Some(true)` (proven) iff the proof's outgoing expression is the
- *   literal `true` and no step in the proof is broken.
+ *   literal `true`, no step in the proof is broken and every induction
+ *   case reaches `true`.
  * - `Some(false)` (disproven) iff the proof's outgoing expression is the
  *   literal `false` and no step in the proof is broken.
- * - `None` otherwise — incomplete proofs (holes), broken steps (marks in
- *   the subtree), or any other non-boolean outgoing. A
+ * - `None` otherwise — incomplete proofs (holes, open induction cases),
+ *   broken steps (marks in the subtree), or any other non-boolean
+ *   outgoing. A
  *   concrete-but-incorrect proof is not a disproof.
  *
  * Mirrors the stepper's expression-validity convention
  * (`true` / `false` / unknown). */
 let status_of_proof = (pm: t, proof: Proof.t): option(bool) =>
-  switch (lookup(Proof.rep_id(proof), pm)) {
-  | Some({outgoing: Some(e), _})
-      when
-        Exp.fast_equal(e, Exp.temp(Atom(Bool(true))))
-        && proof_is_clean(pm, proof) =>
-    Some(true)
-  | Some({outgoing: Some(e), _})
-      when
-        Exp.fast_equal(e, Exp.temp(Atom(Bool(false))))
-        && proof_is_clean(pm, proof) =>
-    Some(false)
-  | _ => None
+  if (!proof_is_clean(pm, proof) || !cases_closed(pm, proof)) {
+    None;
+  } else if (outgoing_is(true, pm, proof)) {
+    Some(true);
+  } else if (outgoing_is(false, pm, proof)) {
+    Some(false);
+  } else {
+    None;
   };
 
 /* All obligations recorded in the proof subtree, in proof-term order. */

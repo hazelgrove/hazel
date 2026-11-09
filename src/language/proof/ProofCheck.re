@@ -1966,11 +1966,6 @@ and check_induction =
         Coverage.check(~strict_unknown=true, constraints, normalized_ty).
           exhaustiveness
         == Exhaustive;
-      let proves_all =
-        List.for_all(
-          ((out, m)) => is_true(out) && ProofMap.error_ids(m) == [],
-          checked,
-        );
       let marks =
         switch (cases, is_exhaustive, Typ.term_of(normalized_ty)) {
         | ([], _, _) => [ProofMark.InductionEmptyCases]
@@ -1980,8 +1975,11 @@ and check_induction =
         | (_, false, Unknown(_)) => [ProofMark.InductionScrutineeUntyped]
         | (_, false, _) => [ProofMark.InductionNotExhaustive]
         };
+      /* The step's conclusion is the goal itself, so it steps to `true`
+       * whether or not its cases are finished; an open case keeps the
+       * proof incomplete (`ProofMap.status_of_proof`). */
       let outgoing =
-        cases != [] && is_exhaustive && proves_all
+        cases != [] && is_exhaustive
           ? Some(Exp.temp(Atom(Bool(true)))) : incoming;
       let m =
         List.fold_left(
