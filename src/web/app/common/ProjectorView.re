@@ -41,6 +41,9 @@ module ViewCache = {
     last_used: int /* tick of the last hit or store */
   };
   let cache: Hashtbl.t(Id.t, entry) = Hashtbl.create(64);
+  /* (^report(51)) why the last lookup missed: the parts of the key that
+     changed, for the check's "view: a projector drawn" marks */
+  let last_miss = ref("");
 
   /* jsoo has no weak refs: an id that stops rendering (autoprobe mints
      fresh probe ids per edit) would pin its entry, and with it a whole
@@ -90,7 +93,43 @@ module ViewCache = {
         );
       };
       Some(e.view);
-    | _ => None
+    | Some(e) =>
+      if (Util.BenchMarks.on()) {
+        last_miss :=
+          String.concat(
+            ",",
+            List.filter_map(
+              ((same, what)) => same ? None : Some(what),
+              [
+                (e.statics_map === statics_map, "statics"),
+                (e.dynamics_map === dynamics_map, "dynamics"),
+                (
+                  Language.Sample.Focus.equal(e.sample_focus, sample_focus),
+                  "sample focus",
+                ),
+                (e.stepping == stepping, "stepping"),
+                (e.program_value == program_value, "program value"),
+                (
+                  CachedSyntax.elaborated_phys_eq(e.elaborated, elaborated),
+                  "elaborated",
+                ),
+                (e.core_settings == core_settings, "settings"),
+                (
+                  e.settings_version == ProbeProj.Settings.version^,
+                  "probe settings",
+                ),
+                (e.app_version == app_version, "version"),
+                (e.font_metrics == font_metrics, "font"),
+                (e.status == status, "status"),
+                (e.model == model, "model"),
+              ],
+            ),
+          );
+      };
+      None;
+    | None =>
+      last_miss := "new";
+      None;
     };
 
   let store =
@@ -827,55 +866,65 @@ let mk_view =
     let splice_size = (id: Id.t): Util.Point.t =>
       Measured.splice_size_of(splice_size_map, id);
     let view =
-      Util.BenchMarks.time("view: a projector drawn", () =>
-        P.view({
-          model: p.model,
-          info,
-          local: a => {
-            let new_model = P.update(p.model, info, a);
-            inject(Project(SetModel(idx, p.kind, new_model)));
-          },
-          local_quiet: a => {
-            let new_model = P.update(p.model, info, a);
-            inject(Project(SetModelQuiet(idx, p.kind, new_model)));
-          },
-          parent: a =>
-            switch (a) {
-            | FocusById(id) =>
-              let target_idx = List.find_index(x => x == id, projector_list);
-              switch (target_idx) {
-              | Some(target_idx) =>
-                inject(Project(Focus(target_idx, Probe, None)))
-              | None => Effect.Ignore
-              };
-            | a => inject(handle(idx, p.kind, a))
+      Util.BenchMarks.time(
+        ~extra=
+          () =>
+            Util.BenchMarks.[
+              ("kind", str(ProjectorCore.Kind.name(p.kind))),
+              ("id", str(String.sub(Id.to_string(p.id), 0, 8))),
+              ("why", str(cacheable ? ViewCache.last_miss^ : "splices")),
+            ],
+        "view: a projector drawn",
+        () =>
+          P.view({
+            model: p.model,
+            info,
+            local: a => {
+              let new_model = P.update(p.model, info, a);
+              inject(Project(SetModel(idx, p.kind, new_model)));
             },
-          view_seg:
-            (
-              ~single_line=?,
-              ~background=?,
-              ~classes=?,
-              ~text_only=?,
-              sort,
-              segment,
-            ) =>
-            flex_code(
-              ~font_metrics,
-              ~single_line?,
-              ~background?,
-              ~classes?,
-              ~text_only?,
-              sort,
-              segment,
-            ),
-          splice_view,
-          splice_size,
-          splices,
-          status,
-          core_settings,
-          col_width: font_metrics.col_width,
-          row_height: font_metrics.row_height,
-        })
+            local_quiet: a => {
+              let new_model = P.update(p.model, info, a);
+              inject(Project(SetModelQuiet(idx, p.kind, new_model)));
+            },
+            parent: a =>
+              switch (a) {
+              | FocusById(id) =>
+                let target_idx =
+                  List.find_index(x => x == id, projector_list);
+                switch (target_idx) {
+                | Some(target_idx) =>
+                  inject(Project(Focus(target_idx, Probe, None)))
+                | None => Effect.Ignore
+                };
+              | a => inject(handle(idx, p.kind, a))
+              },
+            view_seg:
+              (
+                ~single_line=?,
+                ~background=?,
+                ~classes=?,
+                ~text_only=?,
+                sort,
+                segment,
+              ) =>
+              flex_code(
+                ~font_metrics,
+                ~single_line?,
+                ~background?,
+                ~classes?,
+                ~text_only?,
+                sort,
+                segment,
+              ),
+            splice_view,
+            splice_size,
+            splices,
+            status,
+            core_settings,
+            col_width: font_metrics.col_width,
+            row_height: font_metrics.row_height,
+          }),
       );
     if (cacheable) {
       ViewCache.store(
