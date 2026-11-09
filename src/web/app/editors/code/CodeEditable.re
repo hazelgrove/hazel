@@ -1065,7 +1065,7 @@ module View = {
               k_statics: model.statics.info_map,
               k_dynamics: dynamics,
               k_active: selected,
-              k_elaborated: Some(model.statics.elaborated),
+              k_elaborated: model.statics.elaborated,
             },
             () =>
             ProjectorView.Model.mk(

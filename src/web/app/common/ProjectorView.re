@@ -358,7 +358,8 @@ module Model = {
     k_statics: Language.Statics.Map.t,
     k_dynamics: Language.Dynamics.Map.t,
     k_active: bool,
-    k_elaborated: option(Language.Exp.t),
+    /* the elaboration itself: an option made anew each frame is never the same object */
+    k_elaborated: Language.Exp.t,
   };
   let mk_memo: ref(list((mk_key, list(projector_data)))) = ref([]);
   let mk_cached = (~key: mk_key, make: unit => list(projector_data)) => {
@@ -372,7 +373,26 @@ module Model = {
     switch (List.find_opt(((k, _)) => same(k), mk_memo^)) {
     | Some((_, data)) => data
     | None =>
-      let data = Util.BenchMarks.time("view: projector data made", make);
+      /* which input differed from the latest entry's, for the timeline */
+      let why =
+        switch (mk_memo^) {
+        | [] => "first"
+        | [(k, _), ..._] =>
+          k.k_syntax !== key.k_syntax
+            ? "syntax"
+            : k.k_zipper !== key.k_zipper
+                ? "zipper"
+                : k.k_statics !== key.k_statics
+                    ? "statics"
+                    : k.k_dynamics !== key.k_dynamics
+                        ? "dynamics"
+                        : k.k_active != key.k_active ? "active" : "elaborated"
+        };
+      let data =
+        Util.BenchMarks.time(
+          "view: projector data made (" ++ why ++ ")",
+          make,
+        );
       mk_memo := [(key, data), ...List.filteri((i, _) => i < 7, mk_memo^)];
       data;
     };
