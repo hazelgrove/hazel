@@ -76,6 +76,8 @@ let apply =
     };
   if (!repaint_only) {
     restart_caret_animation();
+    /* (^report(51)) the outline is built again, on its own, after the paint */
+    Page.OutlineAsync.stale := true;
   };
 
   /* This function is split into two phases, update and calculate.

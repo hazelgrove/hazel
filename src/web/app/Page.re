@@ -925,6 +925,61 @@ module MetaListener = {
   };
 };
 
+/* (^report(51); Matthew, 2026-11-09: "it runs in its own thread,
+   independent of anything else, and doesn't hold up anything. It's not
+   incremental, it's just asynchronous", and "no memoization, but
+   isolation, instead") The sidebar's outline is not built in the page's
+   view. Each view leaves the outline it would build ([make]); it is built
+   in a task of its own after the browser has painted, from the latest
+   one, and the view draws the last outline built. When that is a new
+   outline, the page is asked to draw again. A browser gives a page one
+   thread for its DOM, so this is a task of that thread, not another
+   thread: an input that comes while it runs waits for it, but no view
+   and no paint does. (After a click on the Witch, build 12, the outline
+   was built three times inside the page's views, 44 to 51 ms each.)
+   [stale] says an action other than this redraw has come since the last
+   build was asked for (Main.apply sets it); without it each build's
+   redraw would ask for the next build, forever. An action that comes
+   while a build waits asks for one more. A livelit's own redraw does not set it
+   either: it changes nothing the outline reads. */
+module OutlineAsync = {
+  let shown: ref(option(Node.t)) = ref(None);
+  let latest: ref(option(unit => Node.t)) = ref(None);
+  let stale = ref(true);
+  let scheduled = ref(false);
+  let build = () => {
+    scheduled := false;
+    switch (latest^) {
+    | None => ()
+    | Some(make) =>
+      latest := None;
+      shown := Some(Util.BenchMarks.time("outline, on its own", make));
+      switch (Haz3lcore.AppBridge.livelit_repaint^) {
+      | Some(f) => Effect.Expert.handle_non_dom_event_exn(f())
+      | None => ()
+      };
+    };
+  };
+  /* the last outline built; [make] builds the next, after the paint, if
+     an action has come since */
+  let get = (make: unit => Node.t): Node.t => {
+    latest := Some(make);
+    if (stale^ && ! scheduled^) {
+      stale := false;
+      scheduled := true;
+      ignore(
+        Dom_html.window##requestAnimationFrame(
+          Js.wrap_callback(_ => ignore(Dom_html.setTimeout(build, 0.))),
+        ),
+      );
+    };
+    switch (shown^) {
+    | Some(n) => n
+    | None => div([])
+    };
+  };
+};
+
 module View = {
   let handlers = (~inject: Update.t => Ui_effect.t(unit)) => {
     MetaListener.sync(down =>
@@ -1288,7 +1343,7 @@ module View = {
         },
       );
     let outline =
-      Util.BenchMarks.time("view: outline", () =>
+      OutlineAsync.get(() =>
         OutlineControl.view(
           ~arrows=globals.settings.outline_arrows,
           ~deck,
