@@ -18,6 +18,9 @@ let offside_offset = 4; /* Num characters offset to the right of the end of the 
    * multiple editors calling into the same cache without thrashing. */
 module ViewCache = {
   type entry = {
+    /* (^report(51)) a livelit's own statics record and elaborated subterm,
+       which stand for statics_map and elaborated in its key (program_same) */
+    own: option((Obj.t, Obj.t)),
     statics_map: Language.Statics.Map.t,
     dynamics_map: Language.Dynamics.Map.t,
     sample_focus: Language.Sample.Focus.t,
@@ -68,9 +71,25 @@ module ViewCache = {
      log_frame ticks once per editor per frame and sweeps stale entries */
   let tick: ref(int) = ref(0);
 
+  /* (^report(51)) whether the program's statics and elaboration are as
+     they were for this entry: for a livelit, by its own statics record (its
+     type, its context, and so the definition it looks up in that context)
+     and its own elaborated subterm, the very objects they were; else by the
+     whole maps. After an edit of one livelit's model on the Witch, the other
+     51 had their own records unchanged but were all drawn again, as the
+     maps were new (7 to 13 ms a view). */
+  let program_same = (e, ~own, ~statics_map, ~elaborated) =>
+    switch (own, e.own) {
+    | (Some((s, x)), Some((s', x'))) => s === s' && x === x'
+    | _ =>
+      e.statics_map === statics_map
+      && CachedSyntax.elaborated_phys_eq(e.elaborated, elaborated)
+    };
+
   let lookup =
       (
         id,
+        ~own,
         ~statics_map,
         ~dynamics_map,
         ~sample_focus,
@@ -87,12 +106,11 @@ module ViewCache = {
     switch (Hashtbl.find_opt(cache, id)) {
     | Some(e)
         when
-          e.statics_map === statics_map
+          program_same(e, ~own, ~statics_map, ~elaborated)
           && e.dynamics_map === dynamics_map
           && Language.Sample.Focus.equal(e.sample_focus, sample_focus)
           && e.stepping == stepping
           && e.program_value == program_value
-          && CachedSyntax.elaborated_phys_eq(e.elaborated, elaborated)
           && e.core_settings == core_settings
           && e.settings_version == ProbeProj.Settings.version^
           && e.app_version == app_version
@@ -118,7 +136,11 @@ module ViewCache = {
             List.filter_map(
               ((same, what)) => same ? None : Some(what),
               [
-                (e.statics_map === statics_map, "statics"),
+                (
+                  program_same(e, ~own, ~statics_map, ~elaborated),
+                  Option.is_none(own)
+                    ? "statics or elaborated" : "own statics or elaborated",
+                ),
                 (e.dynamics_map === dynamics_map, "dynamics"),
                 (
                   Language.Sample.Focus.equal(e.sample_focus, sample_focus),
@@ -126,10 +148,6 @@ module ViewCache = {
                 ),
                 (e.stepping == stepping, "stepping"),
                 (e.program_value == program_value, "program value"),
-                (
-                  CachedSyntax.elaborated_phys_eq(e.elaborated, elaborated),
-                  "elaborated",
-                ),
                 (e.core_settings == core_settings, "settings"),
                 (
                   e.settings_version == ProbeProj.Settings.version^,
@@ -152,6 +170,7 @@ module ViewCache = {
   let store =
       (
         id,
+        ~own,
         ~statics_map,
         ~dynamics_map,
         ~sample_focus,
@@ -169,6 +188,7 @@ module ViewCache = {
       cache,
       id,
       {
+        own,
         statics_map,
         dynamics_map,
         sample_focus,
@@ -831,10 +851,19 @@ let mk_view =
       seg,
     );
   let cacheable = !has_splices(p.syntax);
+  /* (^report(51)) a livelit's key on its own statics record and elaborated
+     subterm (ViewCache.program_same), when it has both */
+  let own =
+    switch (p.kind, info.statics, info.elaborated) {
+    | (ProjectorCore.Kind.Livelit, Some(st), Some(el)) =>
+      Some((Obj.repr(st), Obj.repr(el)))
+    | _ => Stdlib.Option.None
+    };
   switch (
     cacheable
       ? ViewCache.lookup(
           p.id,
+          ~own,
           ~statics_map,
           ~dynamics_map,
           ~sample_focus,
@@ -967,6 +996,7 @@ let mk_view =
     if (cacheable) {
       ViewCache.store(
         p.id,
+        ~own,
         ~statics_map,
         ~dynamics_map,
         ~sample_focus,
