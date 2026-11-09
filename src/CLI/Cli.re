@@ -587,7 +587,67 @@ let bench_eval = (iterations: int, paths: list(string)): unit => {
    counted by its reason (HazelJit.survey: such a form becomes a stub that
    throws if the run evaluates it); then the interpreter's run timed, and the
    compiled run's, if it gets through. */
-let jit_eval = (iterations: int, path: string): unit => {
+/* (^ticket(722), the check) the program with its last expression replaced
+   by a tuple of that expression and every name the program's top-level lets
+   bind (the latest binding of each), so a run's value carries every slider,
+   every part and the picture, to compare one by one */
+let with_names = (e: Language.Exp.t): (Language.Exp.t, list(string)) => {
+  open Language;
+  let rec pat_var = (p: Pat.t): option(string) =>
+    switch (p.term) {
+    | Var(x) => Some(x)
+    | Asc(p, _)
+    | Parens(p) => pat_var(p)
+    | _ => None
+    };
+  let rec go = (names: list(string), e: Exp.t): (Exp.t, list(string)) =>
+    switch (e.term) {
+    | Let(p, def, body) =>
+      let names =
+        switch (pat_var(p)) {
+        | Some(x) => [x, ...List.filter(y => y != x, names)]
+        | None => names
+        };
+      let (body, out) = go(names, body);
+      (
+        {
+          ...e,
+          term: Let(p, def, body),
+        },
+        out,
+      );
+    | TyAlias(tp, ty, body) =>
+      let (body, out) = go(names, body);
+      (
+        {
+          ...e,
+          term: TyAlias(tp, ty, body),
+        },
+        out,
+      );
+    | ModuleExp(mp, m, body) =>
+      let (body, out) = go(names, body);
+      (
+        {
+          ...e,
+          term: ModuleExp(mp, m, body),
+        },
+        out,
+      );
+    | Parens(body) => go(names, body)
+    | _ =>
+      let names = List.rev(names);
+      (
+        Exp.fresh(
+          Tuple([e, ...List.map(x => Exp.fresh(Var(x): Exp.term), names)]),
+        ),
+        names,
+      );
+    };
+  go([], e);
+};
+
+let jit_eval = (check: bool, iterations: int, path: string): unit => {
   open Language;
   let now = () =>
     Js_of_ocaml.Js.Unsafe.global##.performance##now()##valueOf
@@ -597,6 +657,7 @@ let jit_eval = (iterations: int, path: string): unit => {
   let parsed = parse_program(program);
   let t1 = now();
   let (elab, _) = Run.elab_and_eval_info(parsed);
+  let (elab, names) = check ? with_names(elab) : (elab, []);
   let t2 = now();
   Printf.printf(
     "%s: parse %.1f ms; statics and elaboration %.1f ms\n%!",
@@ -678,6 +739,55 @@ let jit_eval = (iterations: int, path: string): unit => {
         String.length(js_json),
         String.sub(js_json, 0, min(String.length(js_json), 300)),
       );
+      if (check) {
+        let rec strip = (e: Exp.t) =>
+          switch (e.term) {
+          | Parens(e) => strip(e)
+          | _ => e
+          };
+        switch (strip(interp_v).term) {
+        | Tuple([_, ...vs]) when List.length(vs) == List.length(names) =>
+          let same = ref(0);
+          let nojs = ref([]);
+          List.iteri(
+            (i, (x, v)) => {
+              let jv: Js_of_ocaml.Js.Unsafe.any =
+                Js_of_ocaml.Js.Unsafe.get(js, i + 1);
+              switch (HazelJitValue.to_js(v)) {
+              | exception _ => nojs := [x, ...nojs^]
+              | iv =>
+                Js_of_ocaml.Js.Unsafe.meth_call(
+                  Lazy.force(HazelJitValue.runtime),
+                  "eq",
+                  [|iv, jv|],
+                )
+                |> Js_of_ocaml.Js.to_bool
+                  ? incr(same)
+                  : {
+                    let a = json(iv);
+                    let b = json(jv);
+                    Printf.printf(
+                      "  DIFFERS: %s\n    interpreter %s\n    compiled    %s\n",
+                      x,
+                      String.sub(a, 0, min(String.length(a), 200)),
+                      String.sub(b, 0, min(String.length(b), 200)),
+                    );
+                  }
+              };
+            },
+            List.combine(names, vs),
+          );
+          Printf.printf(
+            "the check: %d names bound at the top level; %d the same both ways; %d differ; %d with no JS form to compare (functions, modules): %s\n%!",
+            List.length(names),
+            same^,
+            List.length(names) - same^ - List.length(nojs^),
+            List.length(nojs^),
+            String.concat(", ", List.rev(nojs^)),
+          );
+        | _ => Printf.printf("the check: the run's value is not the tuple\n")
+        };
+      };
       switch (HazelJitValue.to_js(interp_v)) {
       | exception exn =>
         Printf.printf(
@@ -724,8 +834,15 @@ let jit_cmd = {
       required & pos(0, some(string), None) & info([], ~docv="FILE", ~doc)
     );
   };
+  let check_arg = {
+    let doc = "Compare every name the program's top-level lets bind, not just its value.";
+    Arg.(value & flag & info(["check"], ~doc));
+  };
   let info = Cmd.info("jit", ~doc);
-  Cmd.v(info, Term.(const(jit_eval) $ iterations_arg $ file_arg));
+  Cmd.v(
+    info,
+    Term.(const(jit_eval) $ check_arg $ iterations_arg $ file_arg),
+  );
 };
 
 /* Common arg: path or "-" for stdin */
