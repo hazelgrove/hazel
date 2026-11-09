@@ -160,6 +160,16 @@ module ServerMessage = {
   [@deriving (show, sexp, yojson)]
   type resend = {request_id: int};
 
+  /* (^ticket(718), ^report(50)'s next step 7) a message's probe samples, their first-order values carried as data
+     (Language.FirstOrder): each such value is a placeholder in the message, a term whose annotation is [marker] (one
+     block in the message, so Marshal keeps it shared, and the page knows it by identity) and whose literal is its
+     index in [datas] (Wire) */
+  [@deriving (show, sexp, yojson)]
+  type wire_data = {
+    marker: Language.IdTagged.IdTag.t,
+    datas: array(Language.FirstOrder.t),
+  };
+
   [@deriving (show, sexp, yojson)]
   type t =
     | Ack(ack)
@@ -176,7 +186,187 @@ module ServerMessage = {
     | Coverage(string)
     /* (^report(46)) the worker's own timeline since the last one, after a
        result, while the client asks (ClientMessage.Record) */
-    | Timeline(list(mark));
+    | Timeline(list(mark))
+    /* a Stream or a Result, its samples' values carried as data (Wire) */
+    | WithData(wire_data, t);
+};
+
+/* (^ticket(718), ^report(50)'s next step 7: values as data where they cross) The worker's answer on the Witch slide is
+   0.59 MB, encoded in 70 ms in the worker and decoded in 13 ms in the page (Firefox run 42566328043), nearly all of it
+   probe samples: 9,099 of them, their values and environments terms with an id on every node. A sample's value, its
+   environment's values and its argument, when closed and first-order (Language.FirstOrder.of_term), go as data: in
+   the worker, [out] puts each in a table beside the message and a placeholder where it was (one for each value, the
+   same value in many samples once); in the page, [in_] makes each a term again, once, and puts it back. Values that
+   are not first-order, and a bare literal or constructor (no larger than its placeholder), stay terms. */
+module Wire = {
+  open Language;
+  module Phys =
+    Hashtbl.Make({
+      type t = Exp.t;
+      let equal = (===);
+      let hash = Hashtbl.hash;
+    });
+  let map_samples =
+      (f: Exp.t => Exp.t, st: EvaluatorState.t): EvaluatorState.t => {
+    let elided = (v: CallStack.elided_value): CallStack.elided_value =>
+      switch (v) {
+      | Val(d) => Val(f(d))
+      | Opaque => Opaque
+      };
+    {
+      ...st,
+      probes:
+        Util.Id.Map.map(
+          List.map((s: Sample.t) =>
+            {
+              ...s,
+              value: f(s.value),
+              env:
+                List.map(
+                  (en: Sample.Env.entry) =>
+                    {
+                      ...en,
+                      value: elided(en.value),
+                    },
+                  s.env,
+                ),
+              args: Option.map(elided, s.args),
+            }
+          ),
+          st.probes,
+        ),
+    };
+  };
+  let map_states =
+      (f: EvaluatorState.t => EvaluatorState.t, msg: ServerMessage.t)
+      : ServerMessage.t => {
+    let outbox = (o: ServerMessage.stream_update): ServerMessage.stream_update => {
+      completed: {
+        entries:
+          Util.Id.Map.map(
+            (en: IncrEval.entry(EvaluatorState.t)) =>
+              {
+                ...en,
+                state: f(en.state),
+              },
+            o.completed.entries,
+          ),
+      },
+      current:
+        Option.map(
+          (c: IncrEval.current(EvaluatorState.t)) =>
+            {
+              ...c,
+              state: f(c.state),
+            },
+          o.current,
+        ),
+    };
+    let stream = (s: ServerMessage.stream): ServerMessage.stream => {
+      ...s,
+      update: outbox(s.update),
+    };
+    switch (msg) {
+    | Stream(s) => Stream(stream(s))
+    | Result(r) =>
+      Result({
+        ...r,
+        final_streams: List.map(stream, r.final_streams),
+        response:
+          List.map(
+            ((k, v): (string, Response.value)) =>
+              (
+                k,
+                switch (v) {
+                | Ok((e, st)) => Ok((e, f(st)))
+                | Error(_) => v
+                },
+              ),
+            r.response,
+          ),
+      })
+    | m => m
+    };
+  };
+  /* in the worker: the message, and how many values went as data and how many of them did not come back the same
+     (checked only when [check]: made a term again, compared as Exp.fast_equal compares, ids aside) */
+  let out = (~check=false, msg: ServerMessage.t): (ServerMessage.t, int, int) =>
+    switch (msg) {
+    | Stream(_)
+    | Result(_) =>
+      let marker = IdTagged.IdTag.fresh();
+      let datas = ref([]);
+      let n = ref(0);
+      let differ = ref(0);
+      let memo = Phys.create(256);
+      let conv = (v: Exp.t): Exp.t =>
+        switch (v.term) {
+        | Atom(_)
+        | Constructor(_) => v
+        | _ =>
+          switch (Phys.find_opt(memo, v)) {
+          | Some(r) => r
+          | None =>
+            let r =
+              switch (FirstOrder.of_term(v)) {
+              | Some(d) =>
+                if (check && !Exp.fast_equal(FirstOrder.to_term(d), v)) {
+                  incr(differ);
+                };
+                let i = n^;
+                incr(n);
+                datas := [d, ...datas^];
+                let p: Exp.t = {
+                  term: Atom(SInt(i)),
+                  annotation: marker,
+                };
+                p;
+              | None => v
+              };
+            Phys.add(memo, v, r);
+            r;
+          }
+        };
+      let msg' = map_states(map_samples(conv), msg);
+      n^ == 0
+        ? (msg, 0, 0)
+        : (
+          ServerMessage.WithData(
+            {
+              marker,
+              datas: Array.of_list(List.rev(datas^)),
+            },
+            msg',
+          ),
+          n^,
+          differ^,
+        );
+    | m => (m, 0, 0)
+    };
+  /* in the page: the message as the worker meant it, each value made a term once */
+  let in_ = (msg: ServerMessage.t): ServerMessage.t =>
+    switch (msg) {
+    | WithData({marker, datas}, inner) =>
+      let terms = Array.make(Array.length(datas), None);
+      let conv = (v: Exp.t): Exp.t =>
+        if (v.annotation === marker) {
+          switch (v.term) {
+          | Atom(SInt(i)) when i >= 0 && i < Array.length(datas) =>
+            switch (terms[i]) {
+            | Some(t) => t
+            | None =>
+              let t = FirstOrder.to_term(datas[i]);
+              terms[i] = Some(t);
+              t;
+            }
+          | _ => v
+          };
+        } else {
+          v;
+        };
+      map_states(map_samples(conv), inner);
+    | m => m
+    };
 };
 
 /* Candidate encodings for the worker payloads; `Marshal` is active (see
@@ -566,6 +756,7 @@ let kind_of = (msg: ServerMessage.t): string =>
   | ServerMessage.Shared(_) => "shared"
   | ServerMessage.Coverage(_) => "coverage"
   | ServerMessage.Timeline(_) => "timeline"
+  | ServerMessage.WithData(_) => "result or stream, values as data"
   };
 
 /* Responses were shared (Util.ShareCodec, ^ticket(513)): a value the client
@@ -601,6 +792,29 @@ let share_response = (msg: ServerMessage.t): ServerMessage.t => {
   };
 };
 let post_message = (msg: ServerMessage.t): unit => {
+  /* (^ticket(718)) its samples' first-order values as data (Wire), checked
+     made terms again while the timeline is kept */
+  let as_data = ref((0, 0));
+  let msg =
+    switch (msg) {
+    | ServerMessage.Stream(_)
+    | ServerMessage.Result(_) =>
+      wtime(
+        ~extra=
+          () =>
+            [
+              ("values", float_of_int(fst(as_data^))),
+              ("not the same back", float_of_int(snd(as_data^))),
+            ],
+        "samples' values as data",
+        () => {
+          let (m, n, differ) = Wire.out(~check=recording^, msg);
+          as_data := (n, differ);
+          m;
+        },
+      )
+    | m => m
+    };
   /* (^report(46)) each message's encoding and posting, on the worker's
      timeline, with its size */
   let kind = kind_of(msg);

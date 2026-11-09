@@ -335,6 +335,7 @@ let setup_worker_message_handler = worker => {
       let handle = (msg: ServerMessage.t) =>
         switch (msg) {
         | ServerMessage.Shared(_) => () /* unshared before here */
+        | ServerMessage.WithData(_) => () /* made terms before here */
         | ServerMessage.Resend({request_id}) =>
           /* (^ticket(513)) a superseded request was missing pieces too:
              what the client counts the worker holding, and the share
@@ -415,6 +416,19 @@ let setup_worker_message_handler = worker => {
           "worker message decoded",
           () => unshare(Active.decode_response(evt##.data)),
         );
+      /* (^ticket(718)) samples' values carried as data, made terms again */
+      let decoded =
+        switch (decoded) {
+        | Some(Ok(ServerMessage.WithData(_) as m)) =>
+          Some(
+            Ok(
+              Util.BenchMarks.time("samples' values made terms", () =>
+                Wire.in_(m)
+              ),
+            ),
+          )
+        | d => d
+        };
       let handle = (msg: ServerMessage.t) =>
         Util.BenchMarks.time(
           ~extra=
@@ -438,6 +452,7 @@ let setup_worker_message_handler = worker => {
                 | ServerMessage.Coverage(_) => [("kind", str("coverage"))]
                 | ServerMessage.Timeline(_) => [("kind", str("timeline"))]
                 | ServerMessage.Shared(_) => [("kind", str("shared"))]
+                | ServerMessage.WithData(_) => [("kind", str("with data"))]
                 }
               ),
           "worker message handled",

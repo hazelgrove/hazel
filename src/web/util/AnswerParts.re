@@ -340,6 +340,9 @@ let breakdown = (raw: Active.response): Yojson.Safe.t => {
   let (reset, inner) =
     switch (msg) {
     | ServerMessage.Shared(reset, m) => (Some(reset), m)
+    /* (^ticket(718)) samples' values carried as data: the message as it
+       crossed, placeholders and all, and the data a part of its own */
+    | ServerMessage.WithData(_, m) => (None, m)
     | m => (None, m)
     };
   let w = {
@@ -359,8 +362,17 @@ let breakdown = (raw: Active.response): Yojson.Safe.t => {
     close_envs: ref([]),
   };
   let kind = kind_of(inner);
-  let est_total = est(inner);
+  let est_total =
+    switch (msg) {
+    | ServerMessage.WithData(_) => est(msg)
+    | _ => est(inner)
+    };
   scale := float_of_int(bytes) /. float_of_int(max(1, est_total));
+  switch (msg) {
+  | ServerMessage.WithData(wd, _) =>
+    add(w.parts, "samples' values as data", size(wd.datas))
+  | _ => ()
+  };
   if (!is_ref(inner)) {
     switch (inner) {
     | ServerMessage.Result(r) when !is_ref(r) =>
