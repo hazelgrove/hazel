@@ -280,12 +280,10 @@ module View = {
          * splices, and route their edits back through MainEditor —
          * the same model + inject the top editor view uses below. */
         ~main_editor=
-          Some(
-            CodeEditable.Channel.{
-              model: model.editor,
-              inject: action => inject(MainEditor(action)),
-            },
-          ),
+          CodeEditable.Channel.{
+            model: model.editor,
+            inject: action => inject(MainEditor(action)),
+          },
         model.result,
       );
     div(

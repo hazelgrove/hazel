@@ -298,8 +298,8 @@ module Where = {
 
   /* Install a binder's `where` restriction as a hypothesis. Peeling a
    * restricted binder needs no obligation. Every peeling site
-   * (`peel_stmt_binders`, the `Forall` proof form, the UI's `ForallStep`)
-   * goes through here so they agree.
+   * (`peel_stmt_binders` and the `Forall` proof form) goes through here so
+   * they agree.
    *
    * A conjunctive guard also installs each conjunct as its own fact, so
    * `Discharge.lookup` finds them; `a && b` holding entails both `a` and
@@ -388,9 +388,8 @@ module Where = {
 // Binders
 
 /* Peel the outermost binder from a "for all pat, P" goal, for the
- * `Forall` proof form and the UI's ForallStep: the binder, its type, its
- * `where` restriction (which the caller installs as a hypothesis) and the
- * body. */
+ * `Forall` proof form: the binder, its type, its `where` restriction
+ * (which the caller installs as a hypothesis) and the body. */
 let rec peel_binder =
         (goal: Exp.t): option((Pat.t, Typ.t, option(Exp.t), Exp.t)) =>
   switch (goal |> Exp.term_of) {
@@ -935,7 +934,7 @@ module Funext = {
      *     stepper;
      *   - `l`/`r` are the incoming goal's own subtrees, so clicking one of
      *     their tokens parks the caret in the outer occurrence.
-     * This is what `StepperBase.Terms.embed_exp` does when splicing an
+     * This is what `StepperPicker.Terms.embed_exp` does when splicing an
      * expression into proof syntax. It has to happen before the ProofMap
      * records the body's incoming goal, since the inner stepper and every
      * lookup on the body resolve against this tree. */
@@ -1222,8 +1221,7 @@ and check_subgoal =
   (outgoing, record(~ctx, ~marks, ~obligations, id, incoming, outgoing, m));
 }
 
-/* The binder comes from the incoming goal, not the proof's pattern, as
- * in the UI's ForallStep. */
+/* The binder comes from the incoming goal, not the proof's pattern. */
 and check_forall = (~step, ~info_map, ~ctx, ~id, incoming, body) =>
   switch (Option.map(peel_binder, incoming)) {
   | None =>

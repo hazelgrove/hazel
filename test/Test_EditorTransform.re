@@ -257,7 +257,7 @@ let tests = (
   "EditorTransform",
   [
     /* The step-picker inserts a wrapping form with an empty argument and
-       then jumps the caret into it (StepperBase.Terms.arg_id). That jump
+       then jumps the caret into it (StepperPicker.Terms.arg_id). That jump
        keys off the argument term's
        rep id, so the id must survive the patch: `ExpToSegment` emits an
        EmptyHole as a Grout stamped with the term's id, and the splice must

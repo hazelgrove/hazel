@@ -148,11 +148,10 @@ module Update = {
   let calculate = CodeWithStatics.Update.calculate;
 };
 
-/* A capability handle on the main editor, passed down to views that
- * render sub-editors (see SubEditor.re): the current model to render
- * splices from, and an inject that routes editor actions back to the
- * main editor's update. Plumbed CellEditor → EvalResult → Theorems →
- * StepperView → step views alongside ~edit_syntax. */
+/* A capability handle on an editor, passed down to views that render
+ * sub-editors (see SubEditor.re): the current model to render splices
+ * from, and an inject that routes editor actions back to the editor's
+ * update. */
 module Channel = {
   type t = {
     model: Model.t,

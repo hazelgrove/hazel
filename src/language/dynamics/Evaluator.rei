@@ -86,6 +86,11 @@ module Proofs: {
     (~max_steps: int=?, ~env: Environment.t(Exp.t), Exp.t) =>
     option((list((Exp.t, string, Exp.t)), Exp.t));
 
+  /* The proof map of `proof` checked against `goal` in `ctx`. */
+  let check_proof:
+    (~statics: Statics.Map.t, ~ctx: SemanticCtx.t, ~goal: Exp.t, Proof.t) =>
+    ProofMap.t;
+
   /* The proof map of a theorem node: its proof checked, and the
    * contracts of the functions in its scope discharged. None for any
    * other node, and without `statics`, since proofs need the typing

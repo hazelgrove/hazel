@@ -158,6 +158,12 @@ module Proofs = {
       };
     };
 
+  let check_proof =
+      (~statics: Statics.Map.t, ~ctx: SemanticCtx.t, ~goal: Exp.t, proof)
+      : ProofMap.t =>
+    ProofCheck.check(~step, ~info_map=statics, ~ctx, Some(goal), proof)
+    |> snd;
+
   let check_theorem =
       (~statics: Statics.Map.t, ~env, exp: DHExp.t): option(ProofMap.t) =>
     switch (exp.term) {
@@ -178,14 +184,7 @@ module Proofs = {
           SemanticCtx.of_program_state(ctx, env),
           goal,
         );
-      let (_, pm) =
-        ProofCheck.check(
-          ~step,
-          ~info_map=statics,
-          ~ctx=sem_ctx,
-          Some(conclusion),
-          proof,
-        );
+      let pm = check_proof(~statics, ~ctx=sem_ctx, ~goal=conclusion, proof);
       /* Discharge function contracts at their definitions, in the
        * theorem's ctx before its binders are peeled. Entries are keyed by
        * the function's id, so repeating this at each theorem is

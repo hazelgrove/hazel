@@ -261,17 +261,9 @@
   fill: var(--exp-ap) !important;
   cursor: pointer;
 }
-.step-taken > svg.shard > path,
-.step-taken > svg.shard > path *:not(.EmptyHole *, .EmptyHole) {
-  border: 1px var(--border-soft);
-  fill: var(--text-faint);
-}
 
 .step-next > svg > path.child-line {
   stroke: var(--border-success-muted);
-}
-.step-taken > svg > path.child-line {
-  stroke: var(--border-soft);
 }
 .step-refl > svg > path.child-line {
   stroke: var(--border-typ);
@@ -288,9 +280,6 @@
   cursor: pointer;
   z-index: var(--stepper-interactive-z) !important;
   filter: drop-shadow(1px 1px var(--shadow-typ)) !important;
-}
-.step-taken > svg.shard {
-  filter: drop-shadow(1px 1px var(--shadow-soft)) !important;
 }
 
 /* In high contrast the plate cannot carry the highlight on its own. The ink
@@ -421,13 +410,13 @@
   background-color: var(--test-panel-bkg)
 }
 
-/* The "⋯" gap row in an incomplete case (StepperTargetBox): shaped like
+/* The "⋯" gap row in an incomplete case (StepperView): shaped like
  * a normal step row but quiet — it marks missing ground, it isn't a
  * step. */
 .step-ellipsis .step-output {
   opacity: 0.4;
 }
-/* Per-row status (see StepperBase.Row). Status must never change the
+/* Per-row status (see StepperView.View.Row). Status must never change the
  * proof's layout, so both indicators live outside the document flow:
  *
  *  1. An indicator line along the row's right edge, drawn by an
@@ -710,7 +699,7 @@
 /* Prover: `have` ------------------------------------------------------
  *
  * No styles of its own. `have <exp> proof <sub> => <body>` is the cut
- * rule, an ordinary two-premise rule, so HaveStep renders both premises
+ * rule, an ordinary two-premise rule, so its row renders both premises
  * with the `.induction-case` / `.induction-case-header` chrome above:
  * same box, same indent, headers naming the two goals. */
 
