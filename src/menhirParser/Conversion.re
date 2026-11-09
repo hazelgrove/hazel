@@ -725,7 +725,11 @@ and Proof: {
     | AlgebriteStep(e) => ProofAlgebrite(Exp.of_core(e))
     | EvalStep => ProofEval
     | Focus({ordinal, selector, body}) =>
-      ProofFocus(ordinal, Exp.of_core(selector), of_core(body))
+      ProofFocus(
+        Option.map(Language.Annotated.term_of, ordinal),
+        Exp.of_core(selector),
+        of_core(body),
+      )
     | Contradiction(e, None) => ProofContradiction(Exp.of_core(e))
     | Contradiction(e, Some((v, i))) =>
       ProofContradictionWith(
