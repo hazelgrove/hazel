@@ -667,6 +667,11 @@ module ValueState = {
   let mousedown: ref(option(Js.t(Dom_html.element))) = ref(Option.None);
 };
 
+/* (^report(51)) remembered per value object: a probe drawn again with the
+   same sample (after an edit, its value the very object it was) checked
+   the whole value again; on the Witch's picture, 4 to 12 ms */
+let is_value_memo = lazy(Util.IdentityMemo.memo(ValueChecker.is_value));
+
 let value_view =
     (
       ~display: sample_display,
@@ -759,7 +764,7 @@ let value_view =
         @ (
           !
             Util.BenchMarks.time("view: probe, a value checked", () =>
-              ValueChecker.is_value(sample.value)
+              Lazy.force(is_value_memo, sample.value)
             )
             ? ["indet"] : []
         ),

@@ -44,6 +44,23 @@ module ViewCache = {
   /* (^report(51)) why the last lookup missed: the parts of the key that
      changed, for the check's "view: a projector drawn" marks */
   let last_miss = ref("");
+  /* (^report(51)) each projector's own statics, dynamics and elaborated
+     term when it was last drawn, to say which of them are the very same
+     objects at its next draw ("S", "D", "E"): whether a key on them, not
+     on the whole maps, would hold. Kept only while the check's marks are on */
+  let own_parts: Hashtbl.t(Id.t, array(Obj.t)) = Hashtbl.create(64);
+  let own_same = (id, parts: array(Obj.t)): string =>
+    switch (Hashtbl.find_opt(own_parts, id)) {
+    | None => "new"
+    | Some(old) =>
+      String.concat(
+        "",
+        List.mapi(
+          (i, o) => o === parts[i] ? List.nth(["S", "D", "E"], i) : "",
+          Array.to_list(old),
+        ),
+      )
+    };
 
   /* jsoo has no weak refs: an id that stops rendering (autoprobe mints
      fresh probe ids per edit) would pin its entry, and with it a whole
@@ -865,15 +882,36 @@ let mk_view =
     let splice_size_map = Measured.splice_sizes(p.syntax);
     let splice_size = (id: Id.t): Util.Point.t =>
       Measured.splice_size_of(splice_size_map, id);
+    let own_parts =
+      Util.BenchMarks.on()
+        ? [|
+          switch (info.statics) {
+          | Some(x) => Obj.repr(x)
+          | None => Obj.repr(0)
+          },
+          switch (info.dynamics) {
+          | Some(x) => Obj.repr(x)
+          | None => Obj.repr(0)
+          },
+          switch (info.elaborated) {
+          | Some(x) => Obj.repr(x)
+          | None => Obj.repr(0)
+          },
+        |]
+        : [||];
     let view =
       Util.BenchMarks.time(
         ~extra=
-          () =>
+          () => {
+            let same = ViewCache.own_same(p.id, own_parts);
+            Hashtbl.replace(ViewCache.own_parts, p.id, own_parts);
             Util.BenchMarks.[
               ("kind", str(ProjectorCore.Kind.name(p.kind))),
               ("id", str(String.sub(Id.to_string(p.id), 0, 8))),
               ("why", str(cacheable ? ViewCache.last_miss^ : "splices")),
-            ],
+              ("own_same", str(same)),
+            ];
+          },
         "view: a projector drawn",
         () =>
           P.view({
