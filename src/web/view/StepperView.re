@@ -20,15 +20,15 @@ module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type box =
     | Closed
-    /* The search typed into the Assumptions box. */
-    | Axioms(string)
-    /* The replacement typed into the Algebra box, and whether the
-     * rewrite checker accepted it. */
+    /* The rule search typed into the Rewrite box, the replacement typed
+     * into its Algebra section, and whether the rewrite checker accepted
+     * that replacement. */
     | Rewrite({
+        filter: string,
         editor: CodeEditable.Model.t,
         valid: option(bool),
       })
-    | Facts(Picker.fact_form);
+    | Strategies;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type local = {
@@ -117,12 +117,11 @@ module Update = {
       | (Toggle(box), _) =>
         let box: Model.box =
           switch (box, local.box) {
-          | (Axioms, Axioms(_))
-          | (Rewrite, Rewrite(_)) => Closed
-          | (Facts(f), Facts(open_f)) when f == open_f => Closed
-          | (Axioms, _) => Axioms("")
+          | (Rewrite, Rewrite(_))
+          | (Strategies, Strategies) => Closed
           | (Rewrite, _) =>
             Rewrite({
+              filter: "",
               editor:
                 CodeEditable.Model.mk(
                   Haz3lcore.Editor.Model.mk(
@@ -133,21 +132,25 @@ module Update = {
                 |> calculate_rewrite,
               valid: None,
             })
-          | (Facts(f), _) => Facts(f)
+          | (Strategies, _) => Strategies
           };
         set({
           ...local,
           box,
         })
         |> return_quiet(~logged=true);
-      | (Filter(filter), Axioms(_)) =>
+      | (Filter(filter), Rewrite(r)) =>
         set({
           ...local,
-          box: Axioms(filter),
+          box:
+            Rewrite({
+              ...r,
+              filter,
+            }),
         })
         |> return_quiet
       /* A changed replacement has to be checked again. */
-      | (RewriteEditor(a), Rewrite({editor: old, valid})) =>
+      | (RewriteEditor(a), Rewrite({editor: old, valid, _} as r)) =>
         let* editor = CodeEditable.Update.update(~settings, a, old);
         let editor = calculate_rewrite(editor);
         let unchanged =
@@ -159,6 +162,7 @@ module Update = {
           ...local,
           box:
             Rewrite({
+              ...r,
               editor,
               valid: unchanged ? valid : None,
             }),
@@ -491,52 +495,27 @@ module View = {
         ]);
       let index_of_selected = () =>
         Occurrence.index(selected_or_hole, goal.display);
-      let axioms = filter =>
-        div_c(
-          "axiom-box",
-          [
-            Node.input(
-              ~attrs=[
-                Attr.value(filter),
-                Attr.placeholder("search assumptions..."),
-                Attr.on_focus(_ => take_box_focus),
-                Attr.on_input((_, s) => inject(Filter(s))),
-              ],
-              (),
+      /* Its pointerdown stops here: reaching the goal's editor, it would
+       * move the selection. */
+      let button = (~tooltip: string, label: string, effect) =>
+        Node.div(
+          ~attrs=[
+            Attr.classes(["proof-button"]),
+            Attr.title(tooltip),
+            Attr.on_pointerdown(_ => Virtual_dom.Vdom.Effect.Stop_propagation),
+            Attr.on_click(_ =>
+              Ui_effect.Many([
+                effect,
+                Virtual_dom.Vdom.Effect.Stop_propagation,
+              ])
             ),
-          ]
-          @ List.map(
-              (ctx_entry: ProofCtx.entry) => {
-                let apply = (direction, equality) =>
-                  write(
-                    Picker.Terms.axiom_step(
-                      ~at_idx=index_of_selected() |> Option.value(~default=0),
-                      ~at_exp=selected_or_hole,
-                      ~direction,
-                      ~equality,
-                    ),
-                  );
-                AssumptionBox.View.view(
-                  ~globals,
-                  ~info_map,
-                  ~env,
-                  ~active_selection=
-                    Some((
-                      selected_or_hole,
-                      [],
-                      fun
-                      | AssumptionBox.EqualityLeft(e) => apply(Left, e)
-                      | AssumptionBox.EqualityRight(e) => apply(Right, e),
-                    )),
-                  {ctx_entry: ctx_entry},
-                );
-              },
-              Picker.rules(goal, ~filter, ~selected),
-            ),
+          ],
+          [Node.text(label)],
         );
+      let heading = text => div_c("picker-heading", [Node.text(text)]);
       /* Replace the selection with an expression the user types, once the
        * rewrite checker accepts the two as equal. */
-      let rewrite = (editor: CodeEditable.Model.t, valid: option(bool)) => {
+      let algebra = (editor: CodeEditable.Model.t, valid: option(bool)) => {
         let replacement =
           Substitution.in_exp(env, Update.replacement(editor));
         let selection = Substitution.in_exp(env, selected_or_hole);
@@ -544,11 +523,9 @@ module View = {
           switch (valid) {
           | Some(true) => [
               Node.text("Valid"),
-              Widgets.button(
-                ~clss=["proof-button"],
-                Node.text("Replace"),
-                ~tooltip="replace",
-                _ =>
+              button(
+                ~tooltip="Writes `algebra`: replaces the selection",
+                "Replace",
                 switch (index_of_selected()) {
                 | Some(at_idx) =>
                   write(
@@ -559,30 +536,28 @@ module View = {
                     ),
                   )
                 | None => Ui_effect.Ignore
-                }
+                },
               ),
             ]
-          | Some(false) => [Node.text("Invalid")]
+          | Some(false) => [Node.text("Not equal")]
           | None => [
-              Widgets.button(
-                ~clss=["proof-button"],
-                Node.text("Check"),
-                ~tooltip="check",
-                _ =>
+              button(
+                ~tooltip="Checks the two are equal by algebra",
+                "Check",
                 inject(
                   Checked(
                     RewriteChecker.check_rewrite(selection, replacement),
                   ),
-                )
+                ),
               ),
             ]
           };
         div_c(
-          "rewrite-box",
+          "rewrite-algebra",
           [
-            Node.text("Replace: "),
+            Node.text("Replace "),
             code(selected_or_hole),
-            Node.text("With: "),
+            Node.text(" with "),
             div_c(
               "inline-editor-wrapper",
               [
@@ -607,52 +582,127 @@ module View = {
           @ check_or_replace,
         );
       };
-      let facts = (form: Picker.fact_form) => {
-        let keyword = Picker.keyword(form);
-        let pick = (entry: ProofCtx.entry) =>
-          Widgets.button(
-            ~clss=["proof-button"],
-            ~tooltip=
-              "Write `"
-              ++ keyword
-              ++ " "
-              ++ entry.name
-              ++ " =>` into the proof",
-            Node.text(entry.name),
-            _ =>
-            write(Picker.pick_fact(form, entry.exp))
+      let rule = (entry: ProofCtx.entry) => {
+        let apply = (direction, equality) =>
+          write(
+            Picker.Terms.axiom_step(
+              ~at_idx=index_of_selected() |> Option.value(~default=0),
+              ~at_exp=selected_or_hole,
+              ~direction,
+              ~equality,
+            ),
           );
+        AssumptionBox.View.view(
+          ~globals,
+          ~info_map,
+          ~env,
+          ~active_selection=
+            Some((
+              selected_or_hole,
+              [],
+              fun
+              | AssumptionBox.EqualityLeft(e) => apply(Left, e)
+              | AssumptionBox.EqualityRight(e) => apply(Right, e),
+            )),
+          {ctx_entry: entry},
+        );
+      };
+      let rewrite = (~filter, ~editor, ~valid) => {
+        let sections =
+          switch (Picker.rules(goal, ~filter, ~selected)) {
+          | [] => [
+              div_c(
+                "picker-note",
+                [
+                  Node.text(
+                    filter == ""
+                      ? "No fact, theorem or axiom rewrites the selection."
+                      : "No rule matches the search.",
+                  ),
+                ],
+              ),
+            ]
+          | sections =>
+            List.concat_map(
+              ({heading: h, rules}: Picker.section) =>
+                [heading(h), ...List.map(rule, rules)],
+              sections,
+            )
+          };
         div_c(
-          "proof-form-box",
-          switch (Picker.facts(goal.ctx)) {
-          | [] => [Node.text("No in-scope facts to " ++ keyword ++ ".")]
-          | facts => [Node.text(keyword ++ " "), ...List.map(pick, facts)]
+          "rewrite-box",
+          [heading("Algebra"), algebra(editor, valid)]
+          @ [
+            Node.input(
+              ~attrs=[
+                Attr.value(filter),
+                Attr.placeholder("search facts, theorems and axioms..."),
+                Attr.on_focus(_ => take_box_focus),
+                Attr.on_input((_, s) => inject(Filter(s))),
+              ],
+              (),
+            ),
+          ]
+          @ sections,
+        );
+      };
+      let strategy = ({label, explanation, tooltip, picks}: Picker.strategy) => {
+        let explanation =
+          div_c("strategy-explanation", [Node.text(explanation)]);
+        div_c(
+          "strategy",
+          switch (picks) {
+          | Writes(term) => [
+              button(~tooltip, label, write(term)),
+              explanation,
+            ]
+          | Cites(facts) => [
+              Node.text(label),
+              explanation,
+              div_c(
+                "strategy-facts",
+                switch (facts) {
+                | [] => [
+                    div_c("picker-note", [Node.text("No facts in scope.")]),
+                  ]
+                | facts => [
+                    Node.text("with"),
+                    ...List.map(
+                         ((name, term)) =>
+                           button(~tooltip, name, write(term)),
+                         facts,
+                       ),
+                  ]
+                },
+              ),
+            ]
           },
+        );
+      };
+      let strategies = () => {
+        let (common, rare) = Picker.strategies(goal, ~selected);
+        div_c(
+          "strategies-box",
+          List.map(strategy, common)
+          @ [heading("Rarely needed"), ...List.map(strategy, rare)],
         );
       };
       let box =
         switch (local.box) {
         | Closed => []
-        | Axioms(filter) => [axioms(filter)]
-        | Rewrite({editor, valid}) => [rewrite(editor, valid)]
-        | Facts(form) => [facts(form)]
+        | Rewrite({filter, editor, valid}) => [
+            rewrite(~filter, ~editor, ~valid),
+          ]
+        | Strategies => [strategies()]
         };
-      let button = ((label: string, action: Picker.action)) =>
-        Node.div(
-          ~attrs=[
-            Attr.classes(["proof-button"]),
-            Attr.on_pointerdown(_ => Virtual_dom.Vdom.Effect.Stop_propagation),
-            Attr.on_click(_ =>
-              Ui_effect.Many([
-                switch (action) {
-                | Write(term) => write(term)
-                | Open(box) => inject(Toggle(box))
-                },
-                Virtual_dom.Vdom.Effect.Stop_propagation,
-              ])
-            ),
-          ],
-          [Node.text(label)],
+      let offer = ({label, tooltip, action}: Picker.offer) =>
+        button(
+          ~tooltip,
+          label,
+          switch (action) {
+          | Write(term) => write(term)
+          | Open(box) => inject(Toggle(box))
+          },
         );
       let editor = goal.editor.editor;
       switch (
@@ -687,7 +737,7 @@ module View = {
                 [
                   div_c(
                     "proof-selection-buttons",
-                    List.map(button, Picker.offers(goal, ~selected)),
+                    List.map(offer, Picker.offers(goal, ~selected)),
                   ),
                 ]
                 @ box,
