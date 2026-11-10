@@ -406,15 +406,33 @@ module Wire = {
       let entries = ref(0);
       let states = ref(0);
       let samples = ref(0);
+      /* each probe's distinct samples (by identity), for the largest */
+      let seen_samples = PhysO.create(1024);
+      let per_probe: Hashtbl.t(string, list(Obj.t)) = Hashtbl.create(64);
       let rec state = (st: EvaluatorState.t): unit =>
         if (!PhysO.mem(seen, Obj.repr(st))) {
           PhysO.add(seen, Obj.repr(st), Obj.repr(st));
           incr(states);
           Util.Id.Map.iter(
-            (_, ss: list(Sample.t)) =>
+            (pid, ss: list(Sample.t)) =>
               List.iter(
                 (smp: Sample.t) => {
                   incr(samples);
+                  if (!PhysO.mem(seen_samples, Obj.repr(smp))) {
+                    PhysO.add(seen_samples, Obj.repr(smp), Obj.repr(smp));
+                    let k = String.sub(Util.Id.to_string(pid), 0, 8);
+                    Hashtbl.replace(
+                      per_probe,
+                      k,
+                      [
+                        Obj.repr(smp),
+                        ...Option.value(
+                             ~default=[],
+                             Hashtbl.find_opt(per_probe, k),
+                           ),
+                      ],
+                    );
+                  };
                   put("sample values", Obj.repr(smp.value));
                   put("sample environments", Obj.repr(smp.env));
                   put(
@@ -470,7 +488,26 @@ module Wire = {
       );
       let bytes = (o: Obj.t): float =>
         float_of_int(String.length(Marshal.to_string(o, [])));
+      /* the eight probes with the most distinct samples: their count, and
+         their bytes (value, environment and all) */
+      let top =
+        Hashtbl.fold((k, os, acc) => [(k, os), ...acc], per_probe, [])
+        |> List.sort(((_, a), (_, b)) =>
+             Int.compare(List.length(b), List.length(a))
+           )
+        |> List.filteri((i, _) => i < 8)
+        |> List.concat_map(((k, os)) =>
+             [
+               ("probe " ++ k ++ " samples", float_of_int(List.length(os))),
+               ("probe " ++ k ++ " bytes", bytes(Obj.repr(os))),
+             ]
+           );
       [
+        ("distinct samples", float_of_int(PhysO.length(seen_samples))),
+        ("probes", float_of_int(Hashtbl.length(per_probe))),
+        ...top,
+      ]
+      @ [
         ("the whole", bytes(Obj.repr(msg))),
         ("entries", float_of_int(entries^)),
         ("states", float_of_int(states^)),
