@@ -407,6 +407,20 @@ let is_compound_prefix = (p: Piece.t): bool =>
   | _ => false
   };
 
+/* Is the infix operator `op` inside the body of `p`? True when `p` is a
+   rule or a prefix form that takes a body (fun, if, let, the proof forms
+   that wrap the rest of a proof) and binds looser than `op`. */
+let takes_into_body = (op: Piece.t, p: Piece.t): bool =>
+  switch (p, infix_precedence(op)) {
+  | (Tile(t), Some(op_prec))
+      when Tile.is_multidelimiter(t) && Tile.is_complete(t) =>
+    switch (Tile.shapes(t)) {
+    | (_, Concave(prec)) => prec > op_prec
+    | (_, Convex) => false
+    }
+  | _ => false
+  };
+
 /* A "trailing hole" is either an implicit empty hole (Convex Grout) or
    an explicit hole (Tile with label `?`). When one of these appears as
    the sole body of a block-like form (e.g., `let x = 1 in ?`), we emit
@@ -634,8 +648,8 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     | _ => None
     };
 
-  /* Attach semi and rest after a tile doc. Used by case/end, test/end,
-     hint/test/end, and other operand forms ending in "end". */
+  /* Attach semi and rest after a tile doc. Used by the operand forms:
+     delimiter pairs and the forms ending in "end". */
   let tile_with_rest = (tile_doc: doc): doc =>
     switch (rest) {
     | [semi, ...rest2] when Piece.is_semi(semi) =>
@@ -652,32 +666,84 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     | _ => cats([tile_doc, Break, Group(segment_to_doc(s, rest))])
     };
 
-  /* Interleave shards and children with Break. Children get Nest so
-     multi-line children indent relative to keywords. The Group keeps the
-     tile flat when it fits (`axiom refl_eq end`) even when the surrounding
-     context breaks, e.g. a proof step before a `;`. */
-  let keywords_doc = (): doc => {
-    let rec build_rest =
-            (idx, triples: list((Tile.t, Segment.t, Tile.t))): doc =>
-      switch (triples) {
-      | [] => Empty
-      | [(_, child, _), ...rest_triples] =>
-        cats([
-          Space,
-          Nest(indent_unit, child_doc(s, child)),
-          Break,
-          shard(idx),
-          build_rest(idx + 1, rest_triples),
-        ])
+  /* A slot of steps is a block, bracketed by the keywords around it as
+     delimiters bracket their contents: the steps go on lines of their own
+     and `closer` starts the line after them, unless the group fits on one
+     line.
+       from e do
+         a;
+         b
+       end */
+  let block_doc = (steps: Segment.t, closer: int): doc =>
+    cats([
+      Nest(indent_unit, cats([Break, child_doc(s, steps)])),
+      Break,
+      shard(closer),
+    ]);
+
+  /* A slot of rules, `<scrutinee> | p => body | ...`: the scrutinee stays
+     on its keyword's line and every rule starts a line. */
+  let rules_doc = (rules: Segment.t): doc =>
+    switch (split_at_next_rule(strip_whitespace(rules))) {
+    | (_, []) => child_doc(s, rules)
+    | (scrut, rules) =>
+      cats([
+        Group(segment_to_doc(s, scrut)),
+        HardBreak,
+        segment_to_doc(s, rules),
+      ])
+    };
+
+  /* The tile's keywords and children. A child follows its keyword on the
+     same line. When the tile doesn't fit on one line, each later keyword
+     starts a line; `closer` goes before the last one, so a Space makes it
+     trail instead (`fun x ->`).
+
+     A slot of steps or rules is the tile's body. What precedes it is
+     grouped apart, so that the header stays on one line when the body
+     breaks, and the keyword closing a body always starts a line. */
+  let keywords = (~closer: doc): doc => {
+    let rec go = (acc: doc, idx: int, slots: list((Sort.t, Segment.t))): doc =>
+      switch (slots) {
+      | [] => acc
+      | [(sort, child), ...slots] =>
+        let acc =
+          switch (sort) {
+          | Proof => cats([Group(acc), block_doc(child, idx)])
+          | Rul
+          | PRul =>
+            cats([Group(acc), Space, rules_doc(child), Break, shard(idx)])
+          | Drv(_)
+          | Any
+          | Pat
+          | Typ
+          | TPat
+          | Exp
+          | Mod
+          | Sig
+          | MPat =>
+            cats([
+              acc,
+              Space,
+              Nest(indent_unit, child_doc(s, child)),
+              slots == [] ? closer : Break,
+              shard(idx),
+            ])
+          };
+        go(acc, idx + 1, slots);
       };
-    Group(cats([shard(0), build_rest(1, triples)]));
+    go(shard(0), 1, Tile.sorted_children(t));
   };
 
+  /* The Group keeps the tile flat when it fits (`axiom refl_eq end`) even
+     when the surrounding context breaks, e.g. a proof step before a `;`. */
+  let keywords_doc = (): doc => Group(keywords(~closer=Break));
+
   switch (t.form) {
-  /* Definition forms: let/=/in, type/=/in, module/=/in */
+  /* Definition forms: let/=/in, type/=/in, module/=/in, theorem/=/proof/in */
   | _ when Tile.is_definition_form(t) =>
     switch (triples) {
-    | [(_, pat_child, _), (_, binding_child, _)] =>
+    | [(_, pat_child, _), (_, binding_child, _), ...steps] =>
       let prefix =
         cats([
           shard(0),
@@ -689,7 +755,10 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
       /* Hanging style: let x = (\n...\n) in
          Otherwise:      let x =\n  (...) in */
       let binding_content = strip_whitespace(binding_child);
-      let in_suffix = cats([Space, shard(last_shard_idx)]);
+      /* The keyword after the binding trails it when it closes the form
+         (` in`). A theorem's `proof` opens the block of its steps instead,
+         and starts a line when the statement breaks. */
+      let in_suffix = cats([steps == [] ? Space : Break, shard(2)]);
       /* Hanging lambda: keep `= fun ... ->` on the binding line when
          prefix + fun header fit the width budget (static decision —
          the greedy fits lookahead cannot express this preference
@@ -753,12 +822,15 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
           }
         };
       let let_in_doc = Group(cats([prefix, binding_doc]));
-      Group(cats([let_in_doc, body_doc(true)]));
+      let definition =
+        switch (steps) {
+        | [] => let_in_doc
+        | [(_, steps, _), ..._] =>
+          Group(cats([let_in_doc, block_doc(steps, last_shard_idx)]))
+        };
+      Group(cats([definition, body_doc(true)]));
     | _ => fallback()
     }
-
-  /* theorem/=/proof/in */
-  | Form.Compound(Theorem) => Group(cats([keywords_doc(), body_doc(true)]))
 
   /* if/then/else */
   | Form.Compound(If) =>
@@ -803,45 +875,41 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     | _ => fallback()
     }
 
-  /* Prefix arrow forms: fun/->, fix/->, typfun/->, poly/->, forall/->, rec/-> */
+  /* Prefix arrow forms: fun/->, fix/->, typfun/->, poly/->, forall/->,
+     rec/->, and the forms that wrap the rest of a proof: forall/=>,
+     assume/as/=>, have/proof/=> */
   | _ when Tile.is_prefix_arrow_form(t) =>
-    switch (triples) {
-    | [(_, param_child, _)] =>
-      let param_doc = child_doc(s, param_child);
-      let header =
-        cats([shard(0), Space, param_doc, Space, shard(last_shard_idx)]);
-      if (s.break_fun_params) {
-        cats([header, body_doc(false)]);
-      } else {
-        switch (rest) {
-        | [] => Group(header)
-        | [p] when is_trailing_hole(p) =>
-          cats([
-            Group(header),
-            Nest(indent_unit, cats([HardBreak, piece_doc(p)])),
-          ])
-        | _ =>
-          switch (split_at_comma(rest)) {
-          | Some(_) => cats([Group(header), body_doc(false)])
+    let header = keywords(~closer=Space);
+    if (s.break_fun_params) {
+      cats([header, body_doc(false)]);
+    } else {
+      switch (rest) {
+      | [] => Group(header)
+      | [p] when is_trailing_hole(p) =>
+        cats([
+          Group(header),
+          Nest(indent_unit, cats([HardBreak, piece_doc(p)])),
+        ])
+      | _ =>
+        switch (split_at_comma(rest)) {
+        | Some(_) => cats([Group(header), body_doc(false)])
+        | None =>
+          switch (try_hanging_delim(rest, ())) {
+          | Some(hanging) => Group(cats([Group(header), Space, hanging]))
           | None =>
-            switch (try_hanging_delim(rest, ())) {
-            | Some(hanging) => Group(cats([Group(header), Space, hanging]))
-            | None =>
-              Group(
-                cats([
-                  Group(header),
-                  Nest(
-                    indent_unit,
-                    cats([Break, Group(segment_to_doc(s, rest))]),
-                  ),
-                ]),
-              )
-            }
+            Group(
+              cats([
+                Group(header),
+                Nest(
+                  indent_unit,
+                  cats([Break, Group(segment_to_doc(s, rest))]),
+                ),
+              ]),
+            )
           }
-        };
+        }
       };
-    | _ => fallback()
-    }
+    };
 
   /* Delimiter pairs: (...), [...], {...} */
   | Form.Compound(Parens | Ap | ListLit | ModBody) =>
@@ -869,11 +937,10 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
           )
         };
       switch (rest) {
-      | [] => delim_doc
       | [next, ..._] when is_paren_or_bracket(next) =>
         /* curried application: (f)(x) stays attached */
         cats([delim_doc, segment_to_doc(s, rest)])
-      | _ => cats([delim_doc, Break, Group(segment_to_doc(s, rest))])
+      | _ => tile_with_rest(delim_doc)
       };
     | _ => fallback()
     }
@@ -891,19 +958,6 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
         cats([delim_doc, segment_to_doc(s, rest)])
       | _ => cats([delim_doc, Break, Group(segment_to_doc(s, rest))])
       };
-    | _ => fallback()
-    }
-
-  /* case/end */
-  | Form.Compound(Case) =>
-    switch (triples) {
-    | [(_, body_child, _)] =>
-      let inner = child_doc(s, body_child);
-      let tile_doc =
-        Group(
-          cats([shard(0), Space, inner, Break, shard(last_shard_idx)]),
-        );
-      tile_with_rest(tile_doc);
     | _ => fallback()
     }
 
@@ -955,84 +1009,9 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     | _ => fallback()
     }
 
-  /* induction/end: the scrutinee stays on the keyword line, each case
-     rule gets its own line with its body indented below, and `end`
-     closes on its own line:
-       induction x
-       | p =>
-         body
-       end
-     With no cases yet it is laid out like the other `end` forms. */
-  | Form.Compound(ProofInduction) =>
-    switch (triples) {
-    | [(_, body_child, _)] =>
-      switch (split_at_next_rule(strip_whitespace(body_child))) {
-      | (_, []) =>
-        let inner = child_doc(s, body_child);
-        let tile_doc =
-          Group(
-            cats([shard(0), Space, inner, Break, shard(last_shard_idx)]),
-          );
-        tile_with_rest(tile_doc);
-      | (scrut, rules) =>
-        let scrut_doc =
-          switch (scrut) {
-          | [] => Empty
-          | _ => cats([Space, Group(segment_to_doc(s, scrut))])
-          };
-        let rec rules_doc = (pieces: list(Piece.t)): doc =>
-          switch (pieces) {
-          | [] => Empty
-          | [r, ...rest'] =>
-            let (body, remaining) = split_at_next_rule(rest');
-            let body_doc =
-              switch (body) {
-              | [] => Empty
-              | _ =>
-                Nest(
-                  indent_unit,
-                  cats([HardBreak, Group(segment_to_doc(s, body))]),
-                )
-              };
-            cats([
-              piece_doc(r),
-              body_doc,
-              switch (remaining) {
-              | [] => Empty
-              | _ => cats([HardBreak, rules_doc(remaining)])
-              },
-            ]);
-          };
-        let tile_doc =
-          cats([
-            shard(0),
-            scrut_doc,
-            HardBreak,
-            rules_doc(rules),
-            HardBreak,
-            shard(last_shard_idx),
-          ]);
-        tile_with_rest(tile_doc);
-      }
-    | _ => fallback()
-    }
-
-  /* Other operand forms ending in "end". With one child, the same
-     treatment as case/end (Space after keyword, Break before end); with
-     several (proof steps like axiom/at/on/end), keywords interleaved with
-     their children. */
-  | _ when Tile.ends_with_end(t) =>
-    switch (triples) {
-    | [(_, body_child, _)] =>
-      let inner = child_doc(s, body_child);
-      let tile_doc =
-        Group(
-          cats([shard(0), Space, inner, Break, shard(last_shard_idx)]),
-        );
-      tile_with_rest(tile_doc);
-    | [_, _, ..._] => tile_with_rest(keywords_doc())
-    | [] => fallback()
-    }
+  /* Other operand forms ending in "end": case, induction, from/do,
+     axiom, rewrite */
+  | _ when Tile.ends_with_end(t) => tile_with_rest(keywords_doc())
 
   /* Rule |/=> (case rule tiles with children) */
   | Form.Compound(Rule) =>
@@ -1120,14 +1099,16 @@ and semi_tail_doc = (s: settings, after: list(Piece.t)): doc => {
 
 /* Split at the first top-level semicolon, but only when the item
    before it has 2+ pieces (single-piece items keep their specialized
-   handling below) */
+   handling below) and is an item of its own: in `fun x -> a; b` and
+   `| p => a; b` the semicolon is part of the body, which lays it out. */
 and split_at_semi_multi =
     (ps: list(Piece.t)): option((list(Piece.t), Piece.t, list(Piece.t))) => {
   let rec go = (acc, ps: list(Piece.t)) =>
     switch (ps) {
     | [] => None
     | [p, ...rest] when Piece.is_semi(p) =>
-      List.length(acc) >= 2 ? Some((List.rev(acc), p, rest)) : None
+      List.length(acc) >= 2 && !List.exists(takes_into_body(p), acc)
+        ? Some((List.rev(acc), p, rest)) : None
     | [p, ...rest] => go([p, ...acc], rest)
     };
   go([], ps);
