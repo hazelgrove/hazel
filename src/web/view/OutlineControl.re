@@ -1172,10 +1172,22 @@ let miss_why = (last, key): string =>
   | None => "first"
   | Some(((((im, ei), o), st, rest), _)) =>
     let (((im', ei'), o'), st', rest') = key;
+    /* each entry's own fields, not its level (which holds the program's
+       tiles: compared whole, with no stop at physical equality, it took
+       10 s on run 42737565018) */
+    let rec shape = (es: list(Outline.entry)) =>
+      List.map(
+        (e: Outline.entry) =>
+          (e.id, e.kind, e.names, e.hint, e.test, e.path, shape(e.children)),
+        es,
+      );
     let entries_same =
-      try(o.Outline.entries == o'.Outline.entries) {
-      | _ => false
-      };
+      o !== o'
+      && (
+        try(shape(o.Outline.entries) == shape(o'.Outline.entries)) {
+        | _ => false
+        }
+      );
     [
       (im !== im', "info_map"),
       (ei != ei', "error_ids"),
