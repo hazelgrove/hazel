@@ -253,8 +253,12 @@ let schemes = [
   ("contrast_dark", true, true),
 ];
 
+/* `light` is the committed text exactly -- source_with_flags requires both
+   flags false -- so it shares the slide's one evaluation above. */
 let scheme_vars = ((_, dark_mode, high_contrast)) =>
-  CC.vars_of_source(source_with_flags(~dark_mode, ~high_contrast));
+  !dark_mode && !high_contrast
+    ? evaluated_vars()
+    : CC.vars_of_source(source_with_flags(~dark_mode, ~high_contrast));
 
 let evaluated_schemes = lazy(List.map(s => (s, scheme_vars(s)), schemes));
 
@@ -519,7 +523,7 @@ let theme_css_path = () =>
   };
 
 let render_theme_css = (): string => {
-  let light = List.assoc(List.hd(schemes), Lazy.force(evaluated_schemes));
+  let light = scheme_vars(List.hd(schemes));
   let decls =
     List.sort(compare, light)
     |> List.map(((n, v)) => Printf.sprintf("  --%s: %s;\n", n, v))
@@ -576,7 +580,11 @@ let tests = [
     [
       /* First on purpose: every case below parses the slide, so if the fast
          path is lost they all take the quadratic one and the suite runs for
-         minutes before anything says why. */
+         minutes before anything says why.
+
+         Analyzing the slide is slow, so every case that analyzes it is
+         Slow; the quick set keeps the ones that only parse it or read the
+         table. */
       test_case(
         "takes the fast parse path",
         `Quick,
@@ -584,23 +592,23 @@ let tests = [
       ),
       test_case(
         "built-in source satisfies expected type",
-        `Quick,
+        `Slow,
         source_satisfies_expected_type,
       ),
-      test_case("analysis is engaged", `Quick, analysis_is_engaged),
-      test_case("slide matches its contract", `Quick, slide_matches_contract),
-      test_case("every value is valid CSS", `Quick, every_value_is_css),
+      test_case("analysis is engaged", `Slow, analysis_is_engaged),
+      test_case("slide matches its contract", `Slow, slide_matches_contract),
+      test_case("every value is valid CSS", `Slow, every_value_is_css),
       test_case("scheme flags read once", `Quick, flags_are_read_once),
       test_case("fan-out table is well formed", `Quick, table_is_well_formed),
       test_case(
         "a partial theme yields nothing",
-        `Quick,
+        `Slow,
         a_partial_theme_yields_nothing,
       ),
-      test_case("colors match golden", `Quick, colors_match_golden),
+      test_case("colors match golden", `Slow, colors_match_golden),
       test_case(
         "generated stylesheet is current",
-        `Quick,
+        `Slow,
         theme_css_is_current,
       ),
       test_case(
@@ -610,12 +618,12 @@ let tests = [
       ),
       test_case(
         "every scheme is complete and valid CSS",
-        `Quick,
+        `Slow,
         every_scheme_is_complete_and_css,
       ),
       test_case(
         "schemes are pairwise distinct",
-        `Quick,
+        `Slow,
         schemes_are_pairwise_distinct,
       ),
     ],
