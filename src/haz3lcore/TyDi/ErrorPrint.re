@@ -81,11 +81,6 @@ let module_missing_members_parts = (names: list(Var.t)): list(part) => [
   ...codes(names),
 ];
 
-let module_extra_members_parts = (names: list(Var.t)): list(part) => [
-  Text("Module has members its signature does not declare: "),
-  ...codes(names),
-];
-
 let module_member_is_type_parts = (name: Var.t): list(part) => [
   Code(name),
   Text(
@@ -125,11 +120,17 @@ let core_mark_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   let ana = Statics.ana_skip_explicit_nonlabel(ana);
   let expectation = (ana: Typ.t, syn: Typ.t) => {
     let shown = Typ.surface_names_in(~ctx, [ana, syn]);
-    prn(
-      "Expecting type %s but got inconsistent type %s",
-      Print.typ(shown(ana)),
-      Print.typ(shown(syn)),
-    );
+    Option.is_some(Typ.coercion(ctx, ~from=syn, ~to_=ana))
+      ? prn(
+          "Expecting type %s but got the wider type %s; an ascription seals the extra members",
+          Print.typ(shown(ana)),
+          Print.typ(shown(syn)),
+        )
+      : prn(
+          "Expecting type %s but got inconsistent type %s",
+          Print.typ(shown(ana)),
+          Print.typ(shown(syn)),
+        );
   };
   switch (m) {
   | BadLabel(_)
@@ -232,8 +233,6 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   | LabelNotFound(_, _) => "Label not found"
   | ModuleMissingMembers(names) =>
     string_of_parts(module_missing_members_parts(names))
-  | ModuleExtraMembers(names) =>
-    string_of_parts(module_extra_members_parts(names))
   | ModuleMemberNotFound(not_found) =>
     member_not_found_string("member", not_found)
   | ModuleMemberIsType(name) =>

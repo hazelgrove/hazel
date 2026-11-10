@@ -2218,6 +2218,69 @@ let rec meet =
   };
 };
 
+/* Coercive subtyping `from ≲ to_`, checked only at coercion sites: an
+   ascription, an annotated binder, an application argument. Consistency, or,
+   structurally through tuple components, a signature with more members than
+   `to_` declares; the runtime coercion is the sealing cast in Ascriptions.re.
+   Returns the coerced expression's type: the meet, or the sealed signature.
+   Everywhere else the relation is `meet`. */
+let rec coercion = (ctx: Ctx.t, ~from: t, ~to_: t): option(t) =>
+  switch (meet(ctx, to_, from)) {
+  | Some(_) as r => r
+  | None =>
+    switch (
+      term_of(weak_head_normalize(ctx, from)),
+      term_of(weak_head_normalize(ctx, to_)),
+    ) {
+    | (Parens(f), _) => coercion(ctx, ~from=f, ~to_)
+    | (_, Parens(t)) => coercion(ctx, ~from, ~to_=t)
+    | (TupLabel({term: ExplicitNonlabel, _}, f), _) =>
+      coercion(ctx, ~from=f, ~to_)
+    | (_, TupLabel({term: ExplicitNonlabel, _}, t)) =>
+      coercion(ctx, ~from, ~to_=t)
+    | (Sig(Closed(f)), Sig(Closed(t))) =>
+      sig_sub(ctx, ~from=f, ~to_=t) ? Some(to_) : None
+    | (Sig(Open(_)), _)
+    | (_, Sig(Open(_))) => raise(Sig.OpenSignature)
+    | (Prod(fs), Prod(ts)) when List.length(fs) == List.length(ts) =>
+      let+ tys =
+        List.map2((f, t) => coercion(ctx, ~from=f, ~to_=t), fs, ts)
+        |> OptUtil.sequence;
+      Prod(tys) |> temp;
+    | (TupLabel(lf, f), TupLabel(lt, t)) =>
+      let* l = meet(ctx, lt, lf);
+      let+ t = coercion(ctx, ~from=f, ~to_=t);
+      TupLabel(l, t) |> temp;
+    | _ => None
+    }
+  }
+/* `from <: to_` for signatures: every member `to_` declares is provided by
+   `from` with a type that coerces to it; members of `from` that `to_` does
+   not declare are ignored. Members are compared resolved (see
+   `resolved_items`), so neither signature's own type names are in play. A
+   hole item in `from` stands for the members it lacks. */
+and sig_sub =
+    (ctx: Ctx.t, ~from: ClosedSig.t(Sig.t), ~to_: ClosedSig.t(Sig.t)): bool => {
+  let from_items = resolved_items(Closed(from));
+  let from_members = Sig.members(from_items);
+  let hole_from = Sig.has_hole_item(from_items);
+  let provided = (m: Sig.member) =>
+    switch (m) {
+    | Val(x, t_to) =>
+      switch (Sig.find_value(from_members, x)) {
+      | Some(t_from) =>
+        Option.is_some(coercion(ctx, ~from=t_from, ~to_=t_to))
+      | None => hole_from
+      }
+    | TypeManifest(name, d_to) =>
+      switch (Sig.find_type_def(from_members, name)) {
+      | Some(d_from) => Option.is_some(meet(ctx, d_to, d_from))
+      | None => hole_from
+      }
+    };
+  List.for_all(provided, Sig.members(resolved_items(Closed(to_))));
+};
+
 /* REQUIRES NORMALIZED TYPES
    Remove synswitches from t1 by matching against t2 */
 let rec match_synswitch = (t1: t, t2: t) => {
