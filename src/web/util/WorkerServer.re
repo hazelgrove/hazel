@@ -502,7 +502,28 @@ module Wire = {
                ("probe " ++ k ++ " bytes", bytes(Obj.repr(os))),
              ]
            );
+      /* what two cuts would leave, each keeping the rest as it is (so as
+         shared): (1) the result without its final streams, the cache
+         entries finished since the last stream, applied just before it;
+         (2) also without the cache in its states (each entry's state holds
+         every probe so far, and the page reads only the result's own) */
+      let no_cache = (st: EvaluatorState.t): EvaluatorState.t => {
+        ...st,
+        incr_eval: IncrEval.empty,
+      };
+      let cut1 =
+        switch (msg) {
+        | Result(r) =>
+          ServerMessage.Result({
+            ...r,
+            final_streams: [],
+          })
+        | m => m
+        };
+      let cut2 = map_states(no_cache, cut1);
       [
+        ("cut 1: no final streams", bytes(Obj.repr(cut1))),
+        ("cut 2: and no cache in the states", bytes(Obj.repr(cut2))),
         ("distinct samples", float_of_int(PhysO.length(seen_samples))),
         ("probes", float_of_int(Hashtbl.length(per_probe))),
         ...top,
