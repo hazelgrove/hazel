@@ -49,15 +49,36 @@ let rec model_of_use = (e: Exp.t): option(Exp.t) =>
   | _ => None
   };
 
+/* the body a let-like node goes on to: a program's next top-level item */
+let body_of = (x: Exp.t): option(Exp.t) =>
+  switch (x.term) {
+  | Let(_, _, b)
+  | Bind(_, _, b)
+  | Theorem(_, _, b)
+  | TyAlias(_, _, b)
+  | Use(_, b)
+  | ModuleExp(_, _, b)
+  | Seq(_, b)
+  | Filter(_, b)
+  | Parens(b)
+  | Asc(b, _) => Some(b)
+  | _ => None
+  };
+
 /* [e] with the node of id [target] replaced by [f] of it, copying only the
-   path to it: below the root, a node is entered only if [path] holds its id.
-   None if the walk does not meet [target], or [f] answers None */
+   path to it: below the root, a node is entered only if [path] holds its id,
+   or it is on the program's spine, the body of a let-like node the walk came
+   down from the root by. The statics analyze each top-level item on its own
+   (DefStatics), so a literal's ancestors stop at its item's root; in the
+   program, that item sits in the body of every item before it. None if the
+   walk does not meet [target], or [f] answers None */
 let along =
     (~path: Id.t => bool, ~target: Id.t, f: Exp.t => option(Exp.t), e: Exp.t)
     : option(Exp.t) => {
   /* None: not met yet; Some(true): replaced; Some(false): [f] said None */
   let met = ref(None);
   let root = ref(true);
+  let spine: Hashtbl.t(Id.t, unit) = Hashtbl.create(16);
   let go = (cont, x: Exp.t) =>
     if (met^ != None) {
       x;
@@ -70,11 +91,21 @@ let along =
         met := Some(false);
         x;
       };
-    } else if (root^ || path(Exp.rep_id(x))) {
-      root := false;
-      cont(x);
     } else {
-      x;
+      let on_path = path(Exp.rep_id(x));
+      let on_spine = root^ || Hashtbl.mem(spine, Exp.rep_id(x));
+      if (on_path || on_spine) {
+        root := false;
+        if (on_spine && !on_path) {
+          switch (body_of(x)) {
+          | Some(b) => Hashtbl.replace(spine, Exp.rep_id(b), ())
+          | None => ()
+          };
+        };
+        cont(x);
+      } else {
+        x;
+      };
     };
   let e' =
     Exp.map_term(
