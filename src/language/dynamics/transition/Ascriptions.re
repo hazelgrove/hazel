@@ -225,12 +225,11 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       | None => None
       };
     | (Constructor(_, Some(Some(t))), t')
-        when
-          /* the constructor's own type may be a compact alias of a
-             recursive builtin sum (Null : JSON): resolve it the way
-             the ascription's type was, or the unrolled target never
-             reads as consistent and the cast sticks */
-          unrolled_consistent(ctx, t, t' |> Typ.temp) =>
+        /* the constructor's own type may be a compact alias of a
+           recursive builtin sum (Null : JSON): resolve it the way
+           the ascription's type was, or the unrolled target never
+           reads as consistent and the cast sticks */
+        when unrolled_consistent(ctx, t, t' |> Typ.temp) =>
       Some(e)
     | (ProofObject(e1), ProofOf(e2)) when Exp.fast_equal(e1, e2) =>
       Some(

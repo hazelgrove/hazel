@@ -967,7 +967,8 @@ let rec meet =
   | (TupLabel({term: ExplicitNonlabel, _}, ty1'), _) => meet'(ty1', ty2)
   | (_, TupLabel({term: ExplicitNonlabel, _}, ty2')) => meet'(ty1, ty2')
   | (Unknown(p1), Unknown(p2)) =>
-    p1 == p2 ? Some(ty1) : Some(Unknown(meet_type_provenance(p1, p2)) |> temp)
+    p1 == p2
+      ? Some(ty1) : Some(Unknown(meet_type_provenance(p1, p2)) |> temp)
   | (Unknown(_), _) => Some(ty2)
   | (_, Unknown(_)) => Some(ty1)
   | (Var(n1), Var(n2)) =>
