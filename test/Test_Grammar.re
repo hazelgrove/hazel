@@ -190,6 +190,7 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
         )
       | Sig => assert(false) /* Excluded: Sig is surface syntax only */
       | TypeMember => type_member("T")
+      | Escaped => assert(false) /* Excluded: avoidance produces it, not syntax */
       }
     )
   );
@@ -267,6 +268,7 @@ let tests = (
           (cls: Typ.cls) => {
             switch (cls) {
             | Constructor
+            | Escaped
             | Sig => ()
             | _ =>
               check(

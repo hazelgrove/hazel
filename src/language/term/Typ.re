@@ -27,7 +27,8 @@ type cls =
   | ProdProjection
   | ProdExtension
   | Sig
-  | TypeMember;
+  | TypeMember
+  | Escaped;
 
 include TermBase.Typ;
 
@@ -103,7 +104,8 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | ProdProjection(_) => ProdProjection
   | ProdExtension(_) => ProdExtension
   | Sig(_) => Sig
-  | TypeMember(_) => TypeMember;
+  | TypeMember(_) => TypeMember
+  | Escaped(_) => Escaped;
 
 let show_cls: cls => string =
   fun
@@ -131,7 +133,8 @@ let show_cls: cls => string =
   | ProdProjection => "Tuple projection"
   | ProdExtension => "Tuple extension"
   | Sig => "Signature type"
-  | TypeMember => "Type member";
+  | TypeMember => "Type member"
+  | Escaped => "Escaped abstract type";
 
 let rec is_arrow = (typ: t) => {
   switch (typ.term) {
@@ -154,7 +157,8 @@ let rec is_arrow = (typ: t) => {
   | ProdProjection(_)
   | ProdExtension(_)
   | Sig(_)
-  | TypeMember(_) => false
+  | TypeMember(_)
+  | Escaped(_) => false
   };
 };
 
@@ -253,6 +257,8 @@ let rec free_vars =
     | `Var
     | `TypeMember => []
     }
+  /* The label is provenance, not a type: the binder it names is gone. */
+  | Escaped(_) => []
   | Parens(ty)
   | Projector(_, ty) => go(ty)
   | List(ty) => go(ty)
@@ -362,6 +368,7 @@ let rec count_unknowns = (ty: t): int =>
   | TupLabel(_, ty) => count_unknowns(ty)
   | ProdProjection(ty1, _) => count_unknowns(ty1)
   | ProdExtension(ty1, ty2) => count_unknowns(ty1) + count_unknowns(ty2)
+  | Escaped(_) => 0
   /* A hole item could declare anything, so it counts as one. */
   | Sig(s) =>
     List.fold_left(
@@ -413,7 +420,8 @@ let rec subst = (~binder: binder=`TVar, s: t, x: TPat.t, ty: t): t =>
       | ExplicitNonlabel
       | Unknown(_)
       | ProofOf(_)
-      | DrvQuoteTy(_) => ty
+      | DrvQuoteTy(_)
+      | Escaped(_) => ty
       | TypeMember(y) =>
         switch (binder) {
         | `TypeMember when String.equal(str, y) => s
@@ -525,6 +533,7 @@ let resolved_items =
     (
       ~self: option(t)=?,
       ~abstract: option(Var.t => t)=?,
+      ~value: option(Var.t => option(t))=?,
       s: Grammar.signature(IdTagged.IdTag.t),
     )
     : list(Sig.t) => {
@@ -552,10 +561,24 @@ let resolved_items =
               (name, abstract_member(name)),
               ...List.remove_assoc(name, sub),
             ]
+          /* A later member may be typed by a path through this one
+             (`Inner.T`), rooted at its leaf: through [self] that is the
+             path through it, else the path into its own type. */
+          | SigLet(_)
+          | SigModule(_) =>
+            switch (Sig.member_of_item(item)) {
+            | Some(Val(name, typ)) =>
+              let provided = Option.bind(value, f => f(name));
+              let default = Option.value(~default=typ, path_member(name));
+              [
+                (name, Option.value(~default, provided)),
+                ...List.remove_assoc(name, sub),
+              ];
+            | Some(TypeManifest(_) | TypeAbstract(_))
+            | None => sub
+            }
           | SigType(_)
           | SigTypeAbstract(_)
-          | SigLet(_)
-          | SigModule(_)
           | Invalid(_)
           | EmptyHole
           | MultiHole(_) => sub
@@ -572,11 +595,17 @@ let resolved_items =
    where it is bound abstract (`extend_sig_item`): equal to itself only. */
 let rigid_member = (name: Var.t): t => Var(name) |> temp;
 
+/* A path through a sibling member read as it stands, rooted at the
+   member's leaf, for comparing: stuck, so equal to itself only. */
+let rigid_root = (name: Var.t): option(t) =>
+  Some(TypeMember(name) |> temp);
+
 /* The members of a closed signature, each typed independently of the others
    (or through [self], see `resolved_items`). Every reading of a member's
    type goes through here. */
-let sig_members = (~self: option(t)=?, ~abstract=?, s): list(Sig.member) =>
-  Sig.members(resolved_items(~self?, ~abstract?, s));
+let sig_members =
+    (~self: option(t)=?, ~abstract=?, ~value=?, s): list(Sig.member) =>
+  Sig.members(resolved_items(~self?, ~abstract?, ~value?, s));
 
 let rec has_fun = (typ: t) =>
   switch (typ.term) {
@@ -593,7 +622,8 @@ let rec has_fun = (typ: t) =>
   | Label(_)
   | ExplicitNonlabel
   | Var(_)
-  | TypeMember(_) => false
+  | TypeMember(_)
+  | Escaped(_) => false
   | List(t) => has_fun(t)
   | Rec(_, t) => has_fun(t)
   | Sum(sm) =>
@@ -649,7 +679,8 @@ let non_contractive = (ty: t): option(TPat.t) => {
     | ProdProjection(_)
     | ProdExtension(_)
     | Sig(_)
-    | TypeMember(_) => None
+    | TypeMember(_)
+    | Escaped(_) => None
     };
   go([], ty);
 };
@@ -747,7 +778,8 @@ let rec var_ids = (ty: t): list((string, Id.t)) =>
   | DrvQuoteTy(_)
   | ExplicitNonlabel
   | Label(_)
-  | ProofOf(_) => []
+  | ProofOf(_)
+  | Escaped(_) => []
   | Rec(_, ty)
   | Poly(_, ty)
   | Parens(ty)
@@ -781,6 +813,7 @@ let rec binders = (ty: t): list((string, Id.t)) => {
   | DrvQuoteTy(_)
   | Var(_)
   | TypeMember(_)
+  | Escaped(_)
   | ExplicitNonlabel
   | Label(_)
   | ProofOf(_) => []
@@ -953,7 +986,8 @@ let rec unroll = (ty: t): option(t) =>
   | ProdProjection(_)
   | ProdExtension(_)
   | Sig(_)
-  | TypeMember(_) => Some(ty)
+  | TypeMember(_)
+  | Escaped(_) => Some(ty)
   };
 
 /* Substitute each [(binder, name, def)] for [name] where it is free in
@@ -1091,7 +1125,75 @@ let rec path_root = (ty: t): option(Var.t) =>
   | Rec(_)
   | Poly(_)
   | Sig(_)
-  | TypeMember(_) => None
+  | TypeMember(_)
+  | Escaped(_) => None
+  };
+
+/* The roots of every type path in [ty]. */
+let rec path_roots = (ty: t): list(Var.t) =>
+  switch (term_of(ty)) {
+  | ProdProjection(p, {term: Label(_), _}) =>
+    switch (path_root(ty)) {
+    | Some(x) => [x]
+    | None => path_roots(p)
+    }
+  | Unknown(_)
+  | Atom(_)
+  | DrvQuoteTy(_)
+  | Var(_)
+  | ProofOf(_)
+  | ExplicitNonlabel
+  | Label(_)
+  | TypeMember(_)
+  | Escaped(_) => []
+  | Arrow(t1, t2)
+  | ProdProjection(t1, t2)
+  | ProdExtension(t1, t2) => path_roots(t1) @ path_roots(t2)
+  | Prod(tys) => List.concat_map(path_roots, tys)
+  | Sum(sm) =>
+    List.concat_map(
+      fun
+      | ConstructorMap.BadEntry(_) => []
+      | Variant(_, _, ty) => Option.fold(~none=[], ~some=path_roots, ty),
+      sm,
+    )
+  | Rec(_, ty)
+  | List(ty)
+  | Parens(ty)
+  | Projector(_, ty)
+  | Poly(_, ty)
+  | TupLabel(_, ty) => path_roots(ty)
+  | Sig(s) =>
+    Sig.items(s)
+    |> List.concat_map(item => List.concat_map(path_roots, item_types(item)))
+  };
+
+/* Whether a type path is rooted at a member leaf: a path through a sibling
+   member of a closed signature, which survives only when it reaches an
+   abstract member, so it is stuck as it stands. */
+let rec leaf_rooted = (ty: t): bool =>
+  switch (term_of(ty)) {
+  | TypeMember(_) => true
+  | Parens(ty)
+  | Projector(_, ty)
+  | ProdProjection(ty, _) => leaf_rooted(ty)
+  | Unknown(_)
+  | Atom(_)
+  | DrvQuoteTy(_)
+  | Label(_)
+  | ExplicitNonlabel
+  | Var(_)
+  | ProofOf(_)
+  | List(_)
+  | Arrow(_)
+  | Prod(_)
+  | TupLabel(_)
+  | ProdExtension(_)
+  | Sum(_)
+  | Rec(_)
+  | Poly(_)
+  | Sig(_)
+  | Escaped(_) => false
   };
 
 /* Whether a type path is rooted at a module value, as against a signature
@@ -1119,6 +1221,7 @@ let rec weak_head_normalize = (~rec_counter, ctx: Ctx.t, ty: t): t =>
       }
     | TupLabel({term: ExplicitNonlabel, _}, ty) =>
       weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty)
+    | ProdProjection(_) when leaf_rooted(ty) => ty
     | ProdProjection(t, label) =>
       let (_, rewrap) = unwrap(ty);
       let default = Unknown(Internal) |> rewrap;
@@ -1283,7 +1386,8 @@ let strengthen = (ty: t, ~path: t): t =>
   | Rec(_)
   | Poly(_)
   | Sig(Open(_))
-  | TypeMember(_) => ty
+  | TypeMember(_)
+  | Escaped(_) => ty
   };
 
 /* The signature items a module path denotes, if any, each independent of
@@ -1319,7 +1423,8 @@ let head_sig =
   | Sum(_)
   | Rec(_)
   | Poly(_)
-  | TypeMember(_) => None
+  | TypeMember(_)
+  | Escaped(_) => None
   };
 
 /* The items of [ty]'s signature, if it is one, each independent. */
@@ -1327,12 +1432,49 @@ let as_sig = (ctx: Ctx.t, ty: t): option(ClosedSig.t(Sig.t)) =>
   head_sig(ctx, ty)
   |> Option.map(s => ClosedSig.of_items(resolved_items(s)));
 
+/* What an escaping abstract path becomes where nothing names it: an escaped
+   abstract type whose identity comes from a site, or plain unknown, which is
+   what a failed implicit resolution wants, since the failure is already
+   reported and opacity would only cascade. */
+type escape_to =
+  | EscapesAt(Id.t)
+  | ErasesToUnknown;
+
+/* `m.Inner.T` as text: the label an escaped type keeps for display. */
+let rec path_label = (ty: t): string =>
+  switch (term_of(ty)) {
+  | Var(x)
+  | TypeMember(x) => x
+  | Parens(ty)
+  | Projector(_, ty) => path_label(ty)
+  | ProdProjection(p, {term: Label(l), _}) => path_label(p) ++ "." ++ l
+  | Escaped(e) => Grammar.escaped_label(e)
+  | Unknown(_)
+  | Atom(_)
+  | DrvQuoteTy(_)
+  | Label(_)
+  | ExplicitNonlabel
+  | ProofOf(_)
+  | List(_)
+  | Arrow(_)
+  | Prod(_)
+  | TupLabel(_)
+  | ProdProjection(_)
+  | ProdExtension(_)
+  | Sum(_)
+  | Rec(_)
+  | Poly(_)
+  | Sig(_) => "?"
+  };
+
 /* [ty] read outside the scope of the values [escaping] bind: a type path
    rooted at one of them (`m.T`) is replaced by what it denotes in [ctx],
-   the scope's context, or by `?` where it denotes nothing there. A path
-   root names the newest type or value of its name, so a path through a
-   type of that name does not escape. */
-let rec avoid = (ctx: Ctx.t, ~escaping: list(Var.t), ty: t): t => {
+   the scope's context, or, where it denotes nothing there, by what
+   [escape_to] says: an escaped abstract type identified by that site and
+   the path, or plain unknown. A path root names the newest type or value
+   of its name, so a path through a type of that name does not escape. */
+let rec avoid =
+        (ctx: Ctx.t, ~escape_to: escape_to, ~escaping: list(Var.t), ty: t): t => {
   let escapes = root =>
     List.exists(String.equal(root), escaping)
     && (
@@ -1342,24 +1484,133 @@ let rec avoid = (ctx: Ctx.t, ~escaping: list(Var.t), ty: t): t => {
       | Some(`TVar(_)) => false
       }
     );
+  /* An escaping path: what it denotes in [ctx], or stuck there, an
+     abstract member of the escaping module that nothing outside can name. */
+  let escaping_path =
+      (ty: t)
+      : [
+          | `Denotes(t)
+          | `Stuck(t)
+          | `No
+        ] =>
+    switch (term_of(ty), path_root(ty)) {
+    | (ProdProjection(_), Some(root)) when escapes(root) =>
+      let denoted = weak_head_normalize(ctx, ty);
+      switch (term_of(denoted), path_root(denoted)) {
+      | (ProdProjection(_), Some(root')) when String.equal(root, root') =>
+        `Stuck(denoted)
+      | _ => `Denotes(denoted)
+      };
+    | _ => `No
+    };
+  let stuck = (ty: t) =>
+    switch (escaping_path(ty)) {
+    | `Stuck(_) => true
+    | `Denotes(_)
+    | `No => false
+    };
+  /* Nothing outside names this abstract type any more: it becomes an
+     escaped one rather than `?` (still abstract, still consistent with `?`,
+     no longer consistent with a concrete type), its identity derived from
+     the site and the path so the same escape at the same site is the same
+     type on every pass. */
+  let escaped = (w: t): term =>
+    switch (escape_to) {
+    | ErasesToUnknown => Unknown(Internal)
+    | EscapesAt(site) =>
+      let label = path_label(w);
+      Escaped({
+        id: Id.mk_str(Id.to_string(site) ++ "!" ++ label),
+        label,
+      });
+    };
   switch (escaping) {
   | [] => ty
   | [_, ..._] =>
     map_term(
       ~f_typ=
-        (continue, ty) =>
-          switch (term_of(ty), path_root(ty)) {
-          | (ProdProjection(_), Some(root)) when escapes(root) =>
-            let denoted = weak_head_normalize(ctx, ty);
-            switch (term_of(denoted), path_root(denoted)) {
-            | (ProdProjection(_), Some(root'))
-                when String.equal(root, root') =>
-              let (_, rewrap) = unwrap(ty);
-              Unknown(Internal) |> rewrap;
-            | _ => avoid(ctx, ~escaping, denoted)
-            };
-          | _ => continue(ty)
-          },
+        (continue, ty) => {
+          let (_, rewrap) = unwrap(ty);
+          switch (escaping_path(ty)) {
+          | `Stuck(w) => escaped(w) |> rewrap
+          | `Denotes(denoted) => avoid(ctx, ~escape_to, ~escaping, denoted)
+          | `No =>
+            switch (term_of(ty)) {
+            /* Generativity: a member defined as a stuck escaping path is
+               abstract outside the scope (`fun (m : S) -> m : S -> S`); the
+               members typed by it name it by its leaf already. */
+            | Sig(Closed(items)) =>
+              /* [named]: the stuck paths earlier members are now abstract
+                 for; a later mention of one is that member's leaf. */
+              let name_paths = (named, ty) =>
+                map_term(
+                  ~f_typ=
+                    (continue, t) =>
+                      switch (
+                        List.find_opt(
+                          ((path, _)) => fast_equal(t, path),
+                          named,
+                        )
+                      ) {
+                      | Some((_, name)) =>
+                        let (_, rewrap) = unwrap(t);
+                        TypeMember(name) |> rewrap;
+                      | None => continue(t)
+                      },
+                  ty,
+                );
+              let (_, rev) =
+                List.fold_left(
+                  ((named, acc), item: Sig.t) => {
+                    let item = Sig.map_typ(name_paths(named), item);
+                    switch (item.term) {
+                    | SigType({term: Var(name), _} as tp, def)
+                        when stuck(def) => (
+                        [(def, name), ...named],
+                        [
+                          {
+                            ...item,
+                            term: Grammar.SigTypeAbstract(tp),
+                          },
+                          ...acc,
+                        ],
+                      )
+                    | SigType(tp, def) when stuck(def) => (
+                        named,
+                        [
+                          {
+                            ...item,
+                            term: Grammar.SigTypeAbstract(tp),
+                          },
+                          ...acc,
+                        ],
+                      )
+                    | SigType(_)
+                    | SigTypeAbstract(_)
+                    | SigLet(_)
+                    | SigModule(_)
+                    | Invalid(_)
+                    | EmptyHole
+                    | MultiHole(_) => (
+                        named,
+                        [
+                          Sig.map_typ(
+                            avoid(ctx, ~escape_to, ~escaping),
+                            item,
+                          ),
+                          ...acc,
+                        ],
+                      )
+                    };
+                  },
+                  ([], []),
+                  ClosedSig.items(items),
+                );
+              Sig(Closed(ClosedSig.of_items(List.rev(rev)))) |> rewrap;
+            | _ => continue(ty)
+            }
+          };
+        },
       ty,
     )
   };
@@ -1400,6 +1651,30 @@ let unshadow = (ctx: Ctx.t, name: string): option(string) =>
   } else {
     None;
   };
+
+/* Give every distinct escaped abstract type in [ty] an id derived from
+   [site] and its old id, so each application site sees its own abstract
+   types (the generative reading: two calls of the same function return
+   incomparable types) while the same site stays stable across statics
+   passes, which is what keeps re-checking an elaboration type-equal. */
+let freshen_escaped = (~site: Id.t, ty: t): t =>
+  map_term(
+    ~f_typ=
+      (cont, ty) =>
+        switch (term_of(ty)) {
+        | Escaped({id, label}) => {
+            ...ty,
+            term:
+              Escaped({
+                id:
+                  Id.mk_str(Id.to_string(site) ++ ":" ++ Id.to_string(id)),
+                label,
+              }),
+          }
+        | _ => cont(ty)
+        },
+    ty,
+  );
 
 /* A `Rec` or `Poly` binder and its body, renamed by `unshadow` when the
    binder's name would capture. */
@@ -1625,7 +1900,8 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
   | DrvQuoteTy(_)
   | ExplicitNonlabel
   | Label(_)
-  | TypeMember(_) => ty
+  | TypeMember(_)
+  | Escaped(_) => ty
   | Parens(t)
   | Projector(_, t) => normalize(ctx, t)
   | List(t) => List(normalize(ctx, t)) |> rewrap
@@ -1723,7 +1999,8 @@ let fun_in = (ctx: Ctx.t, ty: t): option(fun_in) => {
         | DrvQuoteTy(_)
         | Label(_)
         | ExplicitNonlabel
-        | TypeMember(_) => None
+        | TypeMember(_)
+        | Escaped(_) => None
         | Sig(s) =>
           List.find_map(
             (m: Sig.member) =>
@@ -1782,9 +2059,10 @@ let equal_up_to_aliases = (ctx: Ctx.t, a: t, b: t): bool => {
       | (_, Sig(Open(_))) => raise(Sig.OpenSignature)
       | (Sig(sx), Sig(sy)) =>
         /* Order-insensitive, as in [meet]. */
-        let xs = resolved_items(~abstract=rigid_member, sx);
+        let xs =
+          resolved_items(~abstract=rigid_member, ~value=rigid_root, sx);
         let mx = Sig.members(xs);
-        let my = sig_members(~abstract=rigid_member, sy);
+        let my = sig_members(~abstract=rigid_member, ~value=rigid_root, sy);
         /* Each member is compared where the earlier value and module
            members are bound: a later one may be typed by a path through
            them. */
@@ -1881,6 +2159,24 @@ type sig_item_scope = {
   ctx: Ctx.t,
 };
 
+/* [ty] with every path rooted at one of the value or module members
+   [roots] rooted at that member's leaf instead: in a closed signature the
+   name means the sibling, and a closed item names no sibling by a variable.
+   Such a path survives normalization only when the member it reaches is
+   abstract. */
+let to_member_roots = (roots: list(Var.t), ty: t): t =>
+  List.fold_left(
+    (ty, root) =>
+      subst(
+        ~binder=`Var,
+        TypeMember(root) |> temp,
+        Var(root) |> TPat.fresh,
+        ty,
+      ),
+    ty,
+    roots,
+  );
+
 /* The closed items of [scopes], as a closed signature. */
 let closed_of_scopes = (scopes: list(sig_item_scope)): ClosedSig.t(Sig.t) =>
   scopes
@@ -1915,6 +2211,7 @@ let rec close = (ctx: Ctx.t, ty: t): t => {
   | ExplicitNonlabel
   | Var(_)
   | TypeMember(_)
+  | Escaped(_)
   | ProofOf(_) => ty
   | Parens(t) => Parens(close(ctx, t)) |> rewrap
   | Projector(d, t) => Projector(d, close(ctx, t)) |> rewrap
@@ -1954,7 +2251,7 @@ and sig_item_scopes = (ctx: Ctx.t, items: list(Sig.t)): list(sig_item_scope) => 
   let is_type_member = n => List.exists(String.equal(n), type_members);
   /* [earlier]: the type members declared before the item, each of which it
      names by its leaf. */
-  let close_item = (ctx, ~earlier, item: Sig.t) => {
+  let close_item = (ctx, ~earlier, ~earlier_values, item: Sig.t) => {
     let closed =
       switch (item.term) {
       | SigType(tp, _) => alias_def(ctx, tp)
@@ -1967,10 +2264,13 @@ and sig_item_scopes = (ctx: Ctx.t, items: list(Sig.t)): list(sig_item_scope) => 
       };
     Sig.map_typ(
       ty =>
-        normalize(
-          ~expand=is_type_member,
-          ctx,
-          to_type_members(earlier, closed(ty)),
+        to_member_roots(
+          earlier_values,
+          normalize(
+            ~expand=is_type_member,
+            ctx,
+            to_type_members(earlier, closed(ty)),
+          ),
         ),
       item,
     );
@@ -1984,7 +2284,8 @@ and sig_item_scopes = (ctx: Ctx.t, items: list(Sig.t)): list(sig_item_scope) => 
     List.fold_left(
       ((ctx, seen, sub, acc), written: Sig.t) => {
         let earlier = List.map(fst, sub);
-        let closed = close_item(ctx, ~earlier, written);
+        let earlier_values = Sig.value_names(seen);
+        let closed = close_item(ctx, ~earlier, ~earlier_values, written);
         let independent = Sig.map_typ(resolve_type_members(sub), closed);
         let (closed, seen, sub, ctx_after) =
           switch (Sig.read_item(closed)) {
@@ -2074,7 +2375,8 @@ let reduced_path = (ctx: Ctx.t, ty: t): option(t) =>
     | Rec(_)
     | Poly(_)
     | Sig(_)
-    | TypeMember(_) => Some(reduced)
+    | TypeMember(_)
+    | Escaped(_) => Some(reduced)
     };
   | Unknown(_)
   | Atom(_)
@@ -2093,7 +2395,8 @@ let reduced_path = (ctx: Ctx.t, ty: t): option(t) =>
   | Rec(_)
   | Poly(_)
   | Sig(_)
-  | TypeMember(_) => None
+  | TypeMember(_)
+  | Escaped(_) => None
   };
 
 /* One binder to compare the bodies of two binding forms under, [body1]
@@ -2318,8 +2621,10 @@ let rec meet =
     /* Member types are compared independent; a left item kept as written
        keeps its leaves, which name members the result has. */
     let x_written = ClosedSig.items(xs);
-    let xs = resolved_items(~abstract=rigid_member, Closed(xs));
-    let ys = resolved_items(~abstract=rigid_member, Closed(ys));
+    let xs =
+      resolved_items(~abstract=rigid_member, ~value=rigid_root, Closed(xs));
+    let ys =
+      resolved_items(~abstract=rigid_member, ~value=rigid_root, Closed(ys));
     let x_items =
       List.combine(x_written, xs)
       |> List.filter(((_, item)) =>
@@ -2397,6 +2702,11 @@ let rec meet =
   | (Sig(Open(_)), _)
   | (_, Sig(Open(_))) => raise(Sig.OpenSignature)
   | (Sig(_), _) => None
+  /* An escaped abstract type is consistent with itself and, through the
+     Unknown cases above, with `?`. Nothing else. */
+  | (Escaped(e1), Escaped(e2)) =>
+    Grammar.escaped_equal(e1, e2) ? Some(ty1) : None
+  | (Escaped(_), _) => None
   };
 };
 
@@ -2480,7 +2790,13 @@ and sig_sub =
     };
   List.for_all(
     provided,
-    Sig.members(resolved_items(~abstract=realized, Closed(to_))),
+    Sig.members(
+      resolved_items(
+        ~abstract=realized,
+        ~value=Sig.find_value(from_members),
+        Closed(to_),
+      ),
+    ),
   );
 };
 
@@ -2503,7 +2819,8 @@ let rec match_synswitch = (t1: t, t2: t) => {
   | (Rec(_), _)
   | (ProofOf(_), _)
   | (ProdProjection(_), _)
-  | (ProdExtension(_), _) => t1
+  | (ProdExtension(_), _)
+  | (Escaped(_), _) => t1
   // These might
   | (List(ty1), List(ty2)) => List(match_synswitch(ty1, ty2)) |> rewrap1
   | (List(_), _) => t1
@@ -2585,7 +2902,8 @@ let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
       | ProdProjection(_)
       | ProdExtension(_)
       | Sig(_)
-      | TypeMember(_) => None
+      | TypeMember(_)
+      | Escaped(_) => None
       }
     }
   | _ => None
@@ -2614,6 +2932,7 @@ let rec is_syn = (ty: t): bool =>
   | ProdExtension(_)
   | ExplicitNonlabel
   | TypeMember(_)
+  | Escaped(_)
   | Sig(_) => false
   };
 
@@ -2638,6 +2957,7 @@ let rec is_ana_atom = (ty: t) =>
   | ProdExtension(_)
   | Sum(_)
   | TypeMember(_)
+  | Escaped(_)
   | Sig(_) => None
   };
 
@@ -2663,6 +2983,7 @@ let rec is_syn_plus = (ty: t): bool =>
   | ProdProjection(_)
   | ProdExtension(_)
   | TypeMember(_)
+  | Escaped(_)
   | Sig(_) => false
   };
 
@@ -2699,6 +3020,7 @@ let rec needs_parens = (ty: t): bool =>
   | Prod(_)
   | Sum(_) => true /* disambiguate between (A + B) -> C and A + (B -> C) */
   | Sig(_) => false /* already wrapped in {} */
+  | Escaped(_) => false /* one atom: the path it came from */
   };
 
 let pretty_print_tvar = (tv: TPat.t): string =>
@@ -2798,6 +3120,7 @@ let rec pretty_print = (ty: t): string =>
     "{ "
     ++ String.concat("; ", List.map(sig_item_str, Sig.items(s)))
     ++ " }";
+  | Escaped(e) => Grammar.escaped_label(e)
   }
 and ctr_pretty_print =
   fun
@@ -2862,6 +3185,7 @@ let all_ids = (ty: t): list(Id.t) => {
     | ExplicitNonlabel
     | Var(_)
     | TypeMember(_)
+    | Escaped(_)
     | ProofOf(_) => ()
     /* Syntactic, not `Sig.members`: an item whose name is a hole still
        prints. */
@@ -2936,6 +3260,8 @@ let rec diff =
   | (ExplicitNonlabel, _) => get_ids()
   | (TypeMember(x1), TypeMember(x2)) when String.equal(x1, x2) => []
   | (TypeMember(_), _) => get_ids()
+  | (Escaped(e1), Escaped(e2)) when Grammar.escaped_equal(e1, e2) => []
+  | (Escaped(_), _) => get_ids()
   | (Var(v1), Var(v2)) when v1 == v2 => []
   | (Var(name), _) =>
     switch (expand(name)) {

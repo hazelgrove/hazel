@@ -681,6 +681,7 @@ and Typ: {
         | Label(_)
         | ExplicitNonlabel
         | TypeMember(_)
+        | Escaped(_)
         | Var(_) => term
         | List(t) => List(typ_map_term(t))
         | Unknown(Hole(MultiHole(things))) =>

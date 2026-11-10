@@ -2120,6 +2120,11 @@ and uexp_to_info_map =
           )
         | None =>
           let (ty_in, ty_out) = MatchedTyp.arrow_tolerant(ctx, fn.ty);
+          /* Generativity: an abstract type that escaped the function's own
+             scope is a fresh one at every call, so two calls of the same
+             function return incomparable types. Deriving the identity from
+             this application's id keeps it stable across passes. */
+          let ty_out = Typ.freshen_escaped(~site=Exp.rep_id(uexp), ty_out);
           let (arg, arg_elab, m) = go(~ana=ty_in, ~coercible=true, arg, m);
           let elab_term = Ap(dir, fn_elab, arg_elab) |> rewrap;
           let co_ap = CoCtx.union([fn.co_ctx, arg.co_ctx]);
@@ -2302,9 +2307,20 @@ and uexp_to_info_map =
          recorded `ana`). `p'.ty` preserves the ana. */
       let (p, p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, ~ana=p'.ty, p, m);
-      let avoid = Typ.avoid(p.ctx, ~escaping=Pat.bound_vars(p.user_term));
+      let avoid =
+        Typ.avoid(
+          p.ctx,
+          ~escape_to=EscapesAt(Exp.rep_id(uexp)),
+          ~escaping=Pat.bound_vars(p.user_term),
+        );
       /* At a coercion site the body's checked type is the codomain, and the
-         elaborated body carries the sealing cast. */
+         elaborated body carries the sealing cast. Paths rooted at the
+         parameter cannot leave the body (Typ.avoid), and that includes the
+         later components of the parameter itself: a component annotated
+         `x : m.T` says nothing to a caller, who cannot name `m`. Only this
+         copy of the domain is closed; `p.ty` keeps the precise type for the
+         coverage check and for the elaborated ascription, so runtime casts
+         do not move. */
       let e_elab =
         coercible
           ? fresh_ascription(ctx, e_elab, e.elab_syn_ty, Some(e.ty)) : e_elab;
@@ -2412,6 +2428,7 @@ and uexp_to_info_map =
         ~elab_syn_ty=
           Typ.avoid(
             b.ctx_scope,
+            ~escape_to=EscapesAt(Exp.rep_id(uexp)),
             ~escaping=Pat.bound_vars(binder),
             body.elab_syn_ty,
           ),
@@ -2614,7 +2631,12 @@ and uexp_to_info_map =
       let e_syn_tys =
         List.map2(
           ((e: Info.exp, ctx), p) =>
-            Typ.avoid(ctx, ~escaping=Pat.bound_vars(p), e.elab_syn_ty),
+            Typ.avoid(
+              ctx,
+              ~escape_to=EscapesAt(Exp.rep_id(e.user_term)),
+              ~escaping=Pat.bound_vars(p),
+              e.elab_syn_ty,
+            ),
           List.combine(es, p_ctxs),
           ps,
         );
@@ -2699,18 +2721,20 @@ and uexp_to_info_map =
         Match(scrut_elab, List.combine(ps_elabs, es_elabs)) |> rewrap;
       /* Compute the `elab_syn_ty` that a fresh re-synthesis of the
          elaborated Match would produce. See analogous comment on If. */
-      let branch_fresh_syn = (e: Info.exp) => {
+      let branch_fresh_syn = ((e: Info.exp, e_syn_ty: Typ.t)) => {
         let wrapped =
           switch (result_ty.term) {
           | Unknown(Internal) => false
           | _ => !Typ.equal_up_to_aliases(ctx, result_ty, e.ty)
           };
-        wrapped ? result_ty : e.elab_syn_ty;
+        /* The branch's type as it leaves the arm: paths rooted at the
+           arm's binders cannot (`e_syn_tys`). */
+        wrapped ? result_ty : e_syn_ty;
       };
       let (elab_syn_ty, _) =
         ConstructorStaticsHelpers.syn_marks_match(
           ctx,
-          List.map(branch_fresh_syn, es),
+          List.map(branch_fresh_syn, List.combine(es, e_syn_tys)),
           branch_ids,
         );
       add(
@@ -2893,20 +2917,33 @@ and uexp_to_info_map =
         List.mapi((i, item) => (Mod.rep_id(item), i), items)
         |> List.to_seq
         |> Id.Map.of_seq;
+      /* The value names each item binds, by position: a later item's type
+         may go through one of them (`Inner.T`). */
+      let value_binders: list((Var.t, int)) =
+        List.concat(
+          List.mapi(
+            (i, item: Mod.t) =>
+              List.map(name => (name, i), Mod.bound_names(item)),
+            items,
+          ),
+        );
       let export = (~item: Mod.t, ctx, ty) => {
-        let before =
+        let declared_before = (names: list((Var.t, int))) =>
           switch (Id.Map.find_opt(Mod.rep_id(item), position)) {
           | Some(i) =>
             List.filter_map(
               ((name, j)) => j < i ? Some(name) : None,
-              last_declared,
+              names,
             )
           | None => []
           };
-        Typ.normalize(
-          ~expand=n => List.exists(String.equal(n), declared),
-          ctx,
-          Typ.to_type_members(before, ty),
+        Typ.to_member_roots(
+          declared_before(value_binders),
+          Typ.normalize(
+            ~expand=n => List.exists(String.equal(n), declared),
+            ctx,
+            Typ.to_type_members(declared_before(last_declared), ty),
+          ),
         );
       };
       /* Each item with the names it exports: those it binds that no later
@@ -4602,7 +4639,10 @@ and utyp_to_info_map =
   | Atom(_)
   | Label(_)
   | Var(_)
-  | TypeMember(_) =>
+  | TypeMember(_)
+  /* Not surface syntax: only avoidance produces it, so no node of the
+     user's program is ever an escaped type. */
+  | Escaped(_) =>
     /* Names are resolved in this function's status rules */
     add(~ty=utyp, m)
   | List(t) =>
