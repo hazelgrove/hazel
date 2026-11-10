@@ -304,7 +304,7 @@ let inspector = () =>
       check(
         string,
         "t.x's x " ++ what,
-        "Dot operator : x",
+        "Label : Int",
         inspect(~info_map=mk(~root=Sort.Exp, z), z),
       );
     },

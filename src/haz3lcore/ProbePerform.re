@@ -371,11 +371,14 @@ let toggle_multi =
     }
   };
 
-/* Definition forms (Let/Test): the unified probe action uses a multi probe (per-line expansion) rather than manual. */
+/* Definition forms (Let/Test, binding members): the unified probe action uses a multi probe (per-line expansion) rather than manual. */
 let is_definition_form = (id: Id.t, info_map: Statics.Map.t): bool =>
   switch (Statics.Map.lookup(id, info_map)) {
   | Some(InfoExp({user_term: {term: Let(_, _, _), _}, _})) => true
   | Some(InfoExp({user_term: {term: Test(_) | HintedTest(_, _), _}, _})) =>
+    true
+  /* a module's binding member, as a `let` */
+  | Some(InfoMod({user_term: {term: ModLet(_) | ModuleMod(_), _}, _})) =>
     true
   | _ => false
   };
@@ -495,6 +498,13 @@ let function_sugar_param_anchors =
           } else {
             None;
           }
+        | Some(InfoMod({user_term: {term: ModLet(pat, def), _}, _})) =>
+          Id.equal(def_id, IdTagged.rep_id(def))
+            ? Option.map(
+                ((_, args, _)) => List.map(Pat.rep_id, args),
+                Pat.function_sugar(pat),
+              )
+            : None
         | _ => climb(rest)
         }
       };

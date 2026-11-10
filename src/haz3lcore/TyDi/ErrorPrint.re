@@ -450,8 +450,11 @@ let self_reference = (~info_map, info: Info.t): option(string) => {
     switch (i) {
     | InfoExp({user_term: {term: Let(p, def, _), _}, _}) =>
       Pat.get_var(p) == Some(name) && is_module(def)
-    | InfoExp({user_term: {term: ModuleExp(mp, def, _), _}, _}) =>
+    | InfoExp({user_term: {term: ModuleExp(mp, def, _), _}, _})
+    | InfoMod({user_term: {term: ModuleMod(mp, def), _}, _}) =>
       mpat_var(mp) == Some(name) && is_module(def)
+    | InfoMod({user_term: {term: ModLet(p, def), _}, _}) =>
+      Pat.get_var(p) == Some(name) && is_module(def)
     | _ => false
     };
   let encloses = name =>

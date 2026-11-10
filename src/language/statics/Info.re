@@ -612,7 +612,7 @@ let member_binder =
     items,
   );
 
-/* the definition [binder] is bound to, when a `let` or `module` binds it:
+/* the definition [binder] is bound to, when a `let`, `module` or member binds it:
    as analyzed under its own id, since DefStatics binds a module literal
    to a stand-in and analyzes the literal on its own */
 let definition_of = (~info_map: Id.Map.t(t), binder: Id.t): option(Exp.t) => {
@@ -627,6 +627,17 @@ let definition_of = (~info_map: Id.Map.t(t), binder: Id.t): option(Exp.t) => {
       | Some(
           InfoExp({
             user_term: {term: Let(_, def, _) | ModuleExp(_, def, _), _},
+            _,
+          }),
+        ) =>
+        switch (Id.Map.find_opt(Exp.rep_id(def), info_map)) {
+        | Some(InfoExp({user_term, _})) => Some(user_term)
+        | _ => Some(def)
+        }
+      /* a module's member */
+      | Some(
+          InfoMod({
+            user_term: {term: ModLet(_, def) | ModuleMod(_, def), _},
             _,
           }),
         ) =>
