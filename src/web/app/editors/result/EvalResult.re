@@ -416,8 +416,10 @@ module Update = {
         let.calc result = result
         and.calc streaming_outbox = streaming_outbox;
         switch (result, streaming_outbox) {
-        | (ProgramResult.ResultPending(_), Some(streaming_outbox)) =>
-          streaming_outbox.completed
+        | (ProgramResult.ResultPending(_), Some(streaming_outbox)) => {
+            ...streaming_outbox.completed,
+            steps: Calc.get_saved(IncrEval.empty, incr_eval).steps,
+          }
         | (ProgramResult.ResultPending(_), None) =>
           incr_eval |> Calc.get_saved(IncrEval.empty)
         | (ProgramResult.ResultFail(_), _) => IncrEval.empty
