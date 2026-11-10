@@ -126,7 +126,8 @@ let (suite, exit_with_test_status) =
     @ [Test_SubEditor.tests]
     @ [Test_ListCaseStep.tests]
     @ [Test_ProofContext.tests]
-    @ [Test_NegativeSelector.tests],
+    @ [Test_NegativeSelector.tests]
+    @ [Test_ProverKnownBugs.tests],
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");
 Bisect.Runtime.write_coverage_data();
