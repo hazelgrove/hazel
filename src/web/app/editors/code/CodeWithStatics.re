@@ -218,7 +218,11 @@ module Update = {
        step on the Witch slide (run 42826692242) */
     let patched =
       is_edited
-      && statics_mode == StaticsMode.Normal
+      && (
+        statics_mode == StaticsMode.Normal
+        || statics_mode == StaticsMode.Force
+        && StaticsDebounce.clean_commit^
+      )
       && Option.is_none(projected)
       && !probes_differ(editor.state.zipper, statics)
         ? Util.BenchMarks.time(
