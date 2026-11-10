@@ -217,12 +217,14 @@ let fast_paste =
   switch (fast_paste_blocker(clipboard, z, ~root)) {
   | Some(why) => Error("gate refused — " ++ why)
   | None =>
+    /* untrimmed: an edge linebreak is pasted text, and the gate's
+       boundary check was made on these edges */
     switch (
       FastParse.parsed_of_text(
         ~materialize=Triggers.invoked_projector,
         ~collect_refractors=true,
         ~root,
-        String.trim(clipboard),
+        clipboard,
       )
     ) {
     | Error(why) => Error("parse bailed — " ++ why)

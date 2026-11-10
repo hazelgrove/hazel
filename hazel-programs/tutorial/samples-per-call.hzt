@@ -29,5 +29,18 @@ watering_amount(250, Full);
 watering_amount(180, New);
 watering_amount(50, ¿)
 
+@solution
+type MoonPhase = New + Waxing + Full + Waning in
+let watering_amount(base: Int, phase: MoonPhase): Int =
+  case phase
+  | New => base + 50
+  | Full => base - 30
+  | _ => base
+  end
+in
+watering_amount(250, Full);
+watering_amount(180, New);
+watering_amount(50, Waning)
+
 @test
 test answer == 50 end

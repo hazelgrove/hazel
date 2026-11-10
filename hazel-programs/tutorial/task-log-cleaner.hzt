@@ -81,5 +81,36 @@ test
   == "🌗 Crescent: foggy, checked moth traps"
 end
 
+@solution
+let clean_entry(entry: String): String =
+  let trimmed = string_trim(entry) in
+  let unnumbered = string_replace("#[0-9]+", trimmed, "") in
+  let colons = string_replace(" *-- *", unnumbered, ": ") in
+  let spaced = string_replace("  +", colons, " ") in
+  string_trim(spaced)
+
+
+in
+
+test
+  clean_entry("  #42 🌕 Full Moon -- clear skies, planted moonbloom  ")
+  == "🌕 Full Moon: clear skies, planted moonbloom"
+end;
+
+test
+  clean_entry("#7 🌑  New Moon--cloudy,   harvested starfern")
+  == "🌑 New Moon: cloudy, harvested starfern"
+end;
+
+test
+  clean_entry("  #103 🌓 Half Moon -- light rain, pruned duskrose  ")
+  == "🌓 Half Moon: light rain, pruned duskrose"
+end;
+
+test
+  clean_entry("#15 🌗 Crescent--foggy,  checked   moth traps")
+  == "🌗 Crescent: foggy, checked moth traps"
+end
+
 @test
 0
