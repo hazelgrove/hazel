@@ -348,7 +348,7 @@ let mod_root_items = () => {
       ~settings,
       MakeTerm.Incr.term_of_mod(CorpusUtil.seg_of(~root=Mod, mod_root_src)),
     );
-  check(int, "5 mod items + the exports tail", 6, List.length(ds.items));
+  check(int, "5 mod items", 5, List.length(ds.items));
 };
 
 /* the spine root's elab_term is the whole suffix: incremental eval reuses
@@ -840,7 +840,7 @@ let small = [
        and all its members re-analyze, then the tail */
     script(
       "module M = {\n  let x = k + 1;\n  let y = 2\n} in\nlet k = 1 in\nM.x",
-      [op(MoveUp, ["k"]) |> analyzed(5)],
+      [op(MoveUp, ["k"]) |> analyzed(4)],
     ),
   ),
   test_case(
@@ -898,8 +898,8 @@ let type_deps = [
     `Quick,
     script(
       "module M = {\n  let f : () -> Bool = fun _ -> true;\n  let g = 1\n} in\nlet consume = M.f(()) in\n9",
-      /* M, its f member, the exports-tail member, and the consumer */
-      [token("Bool", "String") |> analyzed(4)],
+      /* M, its f member, and the consumer */
+      [token("Bool", "String") |> analyzed(3)],
     ),
   ),
   test_case(
@@ -1149,15 +1149,15 @@ let sealed_modules = [
       [token("180", "181") |> analyzed(1)],
     ),
   ),
-  /* by a type member's definition: the module item, its members and
-     exports tail, then the item whole */
+  /* by a type member's definition: the module item and its members,
+     then the item whole */
   test_case(
     "a type member defined otherwise",
     `Quick,
     sealed(
       "module M : {type T = Int; let x : T} = {\n  type T = Bool;\n  let x = 180\n} in\nM.x",
       [
-        token("180", "181") |> analyzed(5),
+        token("180", "181") |> analyzed(4),
         /* met, then unmet again */
         token(~at=`Last, ~keep_id=true, "Bool", "Int"),
         token("181", "182") |> analyzed(2),
@@ -1202,9 +1202,9 @@ let modexp_chains = [
         /* Holes, the member and a's link; the test now fails */
         token(~keep_id=true, "1", "5") |> analyzed(3),
         token("2", "6") |> analyzed(3),
-        /* k, then b (the one link that reads it), Holes' exports tail
-           and the program's tail, which reads Holes */
-        token("10", "false") |> analyzed(6),
+        /* Holes, k, its member, b (the one link that reads k) and the
+           program's tail, which reads Holes */
+        token("10", "false") |> analyzed(5),
         /* the tail link (b goes unused) */
         token(~at=`Last, "b", "a") |> analyzed(3),
         /* a retyped: its link and the tail, which reads a */

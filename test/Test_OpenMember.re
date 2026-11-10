@@ -152,8 +152,8 @@ let undo_redo = (~root, ()) => {
   per_member(~root, "undo", outline);
   check(
     option(int),
-    "the analysis: an item per member, and the exports",
-    Some(List.length(rows(outline)) + 1),
+    "the analysis: an item per member",
+    Some(List.length(rows(outline))),
     member_items(Program.statics(Cells.program(m)).term),
   );
   let m = refresh(Cells.run(m, Test_Undo.redo));
