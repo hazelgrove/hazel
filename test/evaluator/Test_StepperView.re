@@ -720,6 +720,43 @@ module State = {
       },
     ),
     test_case(
+      "a folded theorem keeps its stepper",
+      `Quick,
+      () => {
+        let names = src =>
+          Fixture.statics(src)
+          |> Fixture.calculate(~is_edited=true, _, Web.EvalResult.Model.init)
+          |> (cell => Web.Theorems.Model.theorems(cell.theorems))
+          |> List.map(((_, thm: Web.Theorems.Model.theorem)) => thm.name);
+        let t = "theorem t = 1 == 1 proof ? in ";
+        let u = "theorem u = 2 == 2 proof ? in ";
+        check(
+          list(string),
+          "whole program",
+          ["t", "u"],
+          names("^^fold(" ++ t ++ u ++ "t)"),
+        );
+        check(
+          list(string),
+          "the rest of the program",
+          ["t", "u"],
+          names(t ++ "^^fold(" ++ u ++ "t)"),
+        );
+        check(
+          list(string),
+          "statement",
+          ["t"],
+          names("theorem t = ^^fold(1 == 1) proof ? in t"),
+        );
+        check(
+          list(string),
+          "under a let",
+          ["u"],
+          names("let x = ^^fold(" ++ u ++ "1) in x"),
+        );
+      },
+    ),
+    test_case(
       "a theorem's stepper goes when the theorem does",
       `Quick,
       () => {
