@@ -559,24 +559,30 @@ let probes_in = (~probe_ids, it: item): SubexpProbeTargets.t =>
     SubexpProbeTargets.empty,
   );
 
-/* the `f(x)` and `f(x) : T` wrappers of a function definition carry its
-   name's info, unused warning included (FunctionSugar.add_binder_infos) */
+/* the `f(x)`, `f(x)(y)` and `f(x) : T` wrappers of a function
+   definition carry its name's info, unused warning included
+   (FunctionSugar.add_binder_infos) */
 let fun_wrapper_ids = (node: Exp.t, name_id: Id.t): list(Id.t) => {
-  let names_it = (p: Pat.t) =>
+  /* the Aps down the spine to the name, outermost first */
+  let rec spine = (p: Pat.t): option(list(Id.t)) =>
     switch (p.term) {
-    | Ap(fn, _) => Pat.rep_id(fn) == name_id
-    | _ => false
+    | Ap(fn, _) when Pat.rep_id(fn) == name_id => Some([Pat.rep_id(p)])
+    | Ap(fn, _) => Option.map(ids => [Pat.rep_id(p), ...ids], spine(fn))
+    | _ => None
+    };
+  let of_binder = (p: Pat.t) =>
+    switch (p.term) {
+    | Asc(inner, _) =>
+      Option.fold(
+        ~none=[],
+        ~some=ids => [Pat.rep_id(p), ...ids],
+        spine(inner),
+      )
+    | _ => Option.value(~default=[], spine(p))
     };
   switch (node.term) {
-  | Let(p, _, _) =>
-    switch (p.term) {
-    | Asc(inner, _) when names_it(inner) => [
-        Pat.rep_id(p),
-        Pat.rep_id(inner),
-      ]
-    | _ when names_it(p) => [Pat.rep_id(p)]
-    | _ => []
-    }
+  | Let(p, _, _)
+  | Module([{term: ModLet(p, _), _}]) => of_binder(p)
   | _ => []
   };
 };
