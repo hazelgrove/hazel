@@ -145,6 +145,20 @@ module Update = {
     | MergeStreamingEval(IncrEval.outbox(EvaluatorState.t))
     | TheoremsAction(Theorems.Update.t);
 
+  /* Whether a cell the user can't edit still takes this action: evaluation
+     results arrive as these whether or not the cell is editable. Exhaustive on
+     purpose, so a new action has to be classified here. */
+  let applies_to_read_only = (action: t): bool =>
+    switch (action) {
+    | UpdateResult(_)
+    | UpdateStreamingEval(_)
+    | MergeStreamingEval(_) => true
+    | ToggleStepper
+    | StepperAction(_)
+    | EvalEditorAction(_)
+    | TheoremsAction(_) => false
+    };
+
   // Update is meant to make minimal changes to the model, and calculate will do the rest.
   let update = (~settings, action, model: Model.t): Updated.t(Model.t) => {
     switch (action, model) {
@@ -446,8 +460,10 @@ module Update = {
         let.calc result = result
         and.calc streaming_outbox = streaming_outbox;
         switch (result, streaming_outbox) {
-        | (ProgramResult.ResultPending(_), Some(streaming_outbox)) =>
-          streaming_outbox.completed
+        | (ProgramResult.ResultPending(_), Some(streaming_outbox)) => {
+            ...streaming_outbox.completed,
+            steps: Calc.get_saved(IncrEval.empty, incr_eval).steps,
+          }
         | (ProgramResult.ResultPending(_), None) =>
           incr_eval |> Calc.get_saved(IncrEval.empty)
         | (ProgramResult.ResultFail(_), _) => IncrEval.empty
