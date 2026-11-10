@@ -1359,6 +1359,10 @@ let view =
                         Util.BenchMarks.[
                           ("pieces", num(float_of_int(walked))),
                           ("asked", num(float_of_int(asked))),
+                          (
+                            "tiles kept",
+                            num(float_of_int(ScratchFocus.refusals_reused^)),
+                          ),
                         ];
                       },
                     "outline: refusals",
@@ -1373,6 +1377,7 @@ let view =
                           ),
                         ~want=
                           id => Id.Map.mem(id, OutlineTree.row_ids(outline)),
+                        ~rows=OutlineTree.row_ids(outline),
                         switch (program) {
                         | Some(Divided(d)) => Divided.document(d)
                         | _ => segment
