@@ -348,37 +348,6 @@ let rec flatten = (ns: list(node)): list(node) =>
 let collect = (ns: list(node)): list(Id.t) =>
   List.filter_map(n => n.o_id, flatten(ns));
 
-/* the rows [errors] badge, among [rows]: each error's deepest row in its
-   item, and the rows holding it past that, modules included, whose
-   roll-up badge shows while they are collapsed */
-let error_rows =
-    (~info_map: Id.Map.t(Info.t), ~rows: list(Id.t), errors: list(Id.t))
-    : (list(Id.t), list(Id.t)) => {
-  let in_rows = id => List.mem(id, rows);
-  List.fold_left(
-    ((direct, roll), err) => {
-      let (own, held) =
-        switch (Id.Map.find_opt(err, info_map)) {
-        | Some(info) => (
-            [err, ...Info.within_item(~info_map, info)],
-            [err, ...Info.containers(~info_map, info)],
-          )
-        | None => ([err], [err])
-        };
-      let holders = List.filter(in_rows, held);
-      switch (List.filter(in_rows, own)) {
-      | [] => (direct, holders @ roll)
-      | [deepest, ..._] => (
-          [deepest, ...direct],
-          List.filter(id => !Id.equal(id, deepest), holders) @ roll,
-        )
-      };
-    },
-    ([], []),
-    errors,
-  );
-};
-
 /* the row with id [fid], and the rows above it outermost first */
 let find = (fid: Id.t, o: t): option((list(node), node)) => {
   let rec go = (above, ns: list(node)) =>
@@ -608,6 +577,37 @@ let row_ids = (o: t): Id.Map.t(unit) =>
       collect(rows(o)),
     )
   );
+
+/* the rows errors badge, each error at the entry that owns it in the
+   agent's map too (Outline.errors_by_entry): [direct], that entry's
+   nearest row, and [roll], the rows above that one, whose badge shows
+   while they are collapsed */
+let error_badges =
+    (~info_map: Statics.Map.t, error_ids: list(Id.t), o: t)
+    : (list(Id.t), list(Id.t)) => {
+  let rows = row_ids(o);
+  let row_of = (e: O.entry) =>
+    List.find_opt(id => Id.Map.mem(id, rows), [e.id, e.anchor]);
+  Id.Map.fold(
+    (owner, _, (direct, roll)) =>
+      switch (
+        Option.bind(O.find(o, owner), ((above, e)) =>
+          List.find_map(row_of, [e, ...List.rev(above)])
+        )
+      ) {
+      | Some(r) =>
+        let above =
+          switch (Option.bind(trail_of(r, o), ListUtil.split_last_opt)) {
+          | Some((above, _)) => above
+          | None => []
+          };
+        ([r, ...direct], above @ roll);
+      | None => (direct, roll)
+      },
+    O.errors_by_entry(o, ~info_map, error_ids),
+    ([], []),
+  );
+};
 
 /* the row holding [id]: its own, else its nearest ancestor's in its item */
 let enclosing_row = (~info_map: Statics.Map.t, id: Id.t, o: t): option(Id.t) =>

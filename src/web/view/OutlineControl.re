@@ -1246,10 +1246,10 @@ let view =
     key,
     () => {
       let (error_items, error_subtree) =
-        OutlineTree.error_rows(
+        OutlineTree.error_badges(
           ~info_map=statics.info_map,
-          ~rows=OutlineTree.collect(OutlineTree.rows(outline)),
           statics.error_ids,
+          outline,
         );
       let label = id =>
         switch (OutlineTree.node_of(id, outline)) {

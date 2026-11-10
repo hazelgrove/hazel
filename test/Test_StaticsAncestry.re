@@ -368,11 +368,7 @@ let error_rollup = (~root, src, ~own, ~rolls, ~not_rolls, ()) => {
         | _ => fail("no row " ++ label)
         };
       let (direct, roll) =
-        O.error_rows(
-          ~info_map=st.info_map,
-          ~rows=O.collect(O.rows(outline)),
-          st.error_ids,
-        );
+        O.error_badges(~info_map=st.info_map, st.error_ids, outline);
       check(
         bool,
         what ++ ": " ++ own ++ " owns the error",
@@ -425,6 +421,17 @@ let rollup_tests = [
       ~own="x",
       ~rolls=["Inner", "Outer"],
       ~not_rolls=["v", "w", "y"],
+    ),
+  ),
+  test_case(
+    "an error in a function's local rolls up into the function",
+    `Quick,
+    error_rollup(
+      ~root=Exp,
+      "let a = 1 in\nlet f = fun n ->\n  let y = n + true in\n  y\nin\nf(a)",
+      ~own="y",
+      ~rolls=["f"],
+      ~not_rolls=["a"],
     ),
   ),
   test_case(
