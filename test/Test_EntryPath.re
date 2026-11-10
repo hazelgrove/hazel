@@ -395,7 +395,7 @@ let here = path => read_any([path, "../" ++ path]);
 
 let corpora = (): list((string, Sort.t, Segment.t)) => {
   let list_src =
-    Option.get(here("test/modaudit/List.hz"))
+    Option.get(here("test/programs/List.hz"))
     |> Util.StringUtil.strip_final_newline;
   [
     ("Mega 1k", Sort.Exp, CorpusUtil.mega_seg(~root=Exp, "mega-1k.hz")),

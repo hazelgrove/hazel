@@ -195,7 +195,7 @@ let rec shape = (seg: Segment.t): string =>
    after it: among a module's members (FastParse at Mod, [sort] Mod), and
    in an expression ([sort] Exp) */
 let paste_parity = (~sort: Sort.t, (root, src, needle, clip), ()) => {
-  module MA = Test_ModAudit;
+  module MA = ModHarness;
   let z0 = MA.load(~root, src);
   let z =
     switch (

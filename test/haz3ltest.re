@@ -130,7 +130,6 @@ let (suite, exit_with_test_status) =
     @ Test_DynamicTypInfer.tests
     @ Test_CanonicalCompletion.tests
     @ Test_CompletionScoreboard.tests
-    @ [Test_ModAudit.tests]
     @ Test_CompletionVisualization.tests
     @ Test_QuiverDisplay.tests
     @ Test_TabDispatch.tests

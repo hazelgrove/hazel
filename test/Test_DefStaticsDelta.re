@@ -105,7 +105,7 @@ let moved_ids = [
   (
     "a `;` into a module whose `}` isn't typed, at a Mod root",
     Sort.Mod,
-    Test_ModAudit.counter_mod,
+    ModHarness.counter_mod,
     "  let start = 0;",
     "\nmodule N = {\nlet a = 1;\nl",
   ),
@@ -119,7 +119,7 @@ let moved_ids = [
   (
     "a missing `;` typed over as a `+`, at a Mod root",
     Sort.Mod,
-    Test_ModAudit.counter_mod,
+    ModHarness.counter_mod,
     "module Counter = {",
     "\nlet q = fun x -> x +",
   ),
