@@ -175,7 +175,9 @@ module Update = {
 
     /* 3. Update the zipper */
     let+ zipper =
-      Perform.go(~settings, ~statics=old_statics, ~syntax, a, state, ~root);
+      Util.BenchMarks.time("update: the zipper's action", () =>
+        Perform.go(~settings, ~statics=old_statics, ~syntax, a, state, ~root)
+      );
     let zipper = ProbePerform.settle_stepping(a, zipper);
 
     /* Layout-level edits (projector SetModel) are run through `calculate`
