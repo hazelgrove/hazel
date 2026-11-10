@@ -292,20 +292,20 @@ let proof_tests = [
     },
   ),
   test_case(
-    "after three failed rounds the fewest-marks attempt is kept",
+    "after the last failed round the fewest-marks attempt is kept",
     `Quick,
     () => {
       let run =
         Stub.run(
           Cell.mk(assume_src),
-          [
-            "axiom nope end; axiom nope end",
+          List.init(Fill.max_rounds - 2, _ => "axiom nope end; axiom nope end")
+          @ [
             "from n == 3 do axiom assume end end",
             "from 7 do eval end; from 8 do eval end",
           ],
         );
       switch (List.rev(run.statuses)) {
-      | [GaveUp(3, last), ..._] =>
+      | [GaveUp(n, last), ..._] when n == Fill.max_rounds =>
         check_contains(~msg="the last mark", last, "`from 7 do eval end`")
       | _ =>
         fail(

@@ -12,7 +12,7 @@ open Js_of_ocaml;
  * attempt is written into the editor: the first without problems, or,
  * after the last round, the one with the fewest. */
 
-let max_rounds = 3;
+let max_rounds = 20;
 
 /* Used when the agent panel has no model selected. */
 let default_model_id = "google/gemini-3-flash-preview";
