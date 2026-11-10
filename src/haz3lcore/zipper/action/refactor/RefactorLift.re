@@ -74,7 +74,12 @@ let lift_site = (~target: Id.t, program: Exp.t): option(lift_site_t) =>
           | Let(op, odef, _) when same_node(odef, top) =>
             switch (FunctionSugar.detect(op)) {
             | Some((_, args, _)) =>
-              Some((anc, LiftSugar, block, pat_var_names(args) |> List.rev))
+              Some((
+                anc,
+                LiftSugar,
+                block,
+                List.concat_map(pat_var_names, args) |> List.rev,
+              ))
             | None => None
             }
           | _ => None

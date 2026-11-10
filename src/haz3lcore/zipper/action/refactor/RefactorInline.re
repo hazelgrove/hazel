@@ -793,6 +793,8 @@ let pat_unused = (~info_map: Statics.Map.t, p: Pat.t): bool =>
     |> List.exists((w: Warning.list_item) =>
          switch (w) {
          | Pat(UnusedVar(_)) => true
+         | TPat(_)
+         | Typ(_) => false
          }
        )
   | _ => false
