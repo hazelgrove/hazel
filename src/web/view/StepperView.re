@@ -915,6 +915,7 @@ module View = {
           editor: goal.editor,
           next_steps: hints ? Picker.Goal.step_ids(goal) : [],
           refls: hints ? List.map(Exp.rep_id, goal.refls) : [],
+          focus: Picker.Goal.focus_id(goal, row),
         },
       );
     };
@@ -1138,24 +1139,6 @@ module View = {
               @ (has_arms ? arms(row, nested) : []),
             )
           };
-        /* A one-step focus names its step and what it focuses on. */
-        let justification =
-          switch (Rows.single_step(step), step.term) {
-          | (Some(inner), Focus({ordinal, selector, _})) =>
-            let ordinal =
-              switch (ordinal) {
-              | Some({term: n, _}) => Token.Ordinal.to_string(n) ++ " "
-              | None => ""
-              };
-            div_c(
-              "step-focus-justification",
-              [
-                Node.text(justification(inner) ++ " · " ++ ordinal),
-                code(Exp(selector)),
-              ],
-            );
-          | _ => Node.text(justification(step))
-          };
         Row.view(
           ~globals,
           ~status,
@@ -1164,7 +1147,7 @@ module View = {
           ~popup_extra,
           ~repair=Row.repairs(~edit_syntax, status, step),
           ~editor_view=goal_view(~hints=false, ~prev_broken, row),
-          ~justification,
+          ~justification=Node.text(justification(step)),
           ~dots,
           ~block,
           (),

@@ -1827,8 +1827,25 @@ module Structure = {
 
 /* A focus of one step is drawn as that step; a focus of several opens a
  * C of its own steps; and a step picked inside what a focus just rewrote
- * joins the focus. */
+ * joins the focus. What a focus selects is underlined in the goal above
+ * it. */
 module Focusing = {
+  /* The node of `goal`'s display underlined for `row`'s focus, printed,
+   * and which of the display's occurrences of it it is, counting from 0. */
+  let underlined = (goal: Picker.Goal.t, row: Rows.t): (string, int) =>
+    switch (
+      Option.bind(Picker.Goal.focus_id(goal, row), id =>
+        Exp.find_by_id(id, goal.display)
+      )
+    ) {
+    | Some(node) => (
+        print(node),
+        Occurrence.index(node, goal.display) |> Option.value(~default=-1),
+      )
+    | None => Alcotest.fail("nothing underlined")
+    };
+  let underline = pair(string, int);
+
   let tests = [
     test_case(
       "a one-step focus is a line named for its step",
@@ -1914,6 +1931,101 @@ module Focusing = {
           "elsewhere, a step of its own",
           "from 2 + 3 do eval end; from 5 * 2 do eval end",
           written_at("5 * 2"),
+        );
+      },
+    ),
+    test_case(
+      "a one-step focus underlines the occurrence its ordinal picks",
+      `Quick,
+      () => {
+        let f =
+          Fixture.mk(
+            "theorem t = (1 + 1) * (1 + 1) == 4 proof from 2nd 1 + 1 do eval end; eval in t",
+          );
+        let row = first(f.rows);
+        check(
+          underline,
+          "the second 1 + 1",
+          ("(1 + 1)", 1),
+          underlined(Fixture.goal(f, row), row),
+        );
+        check(
+          bool,
+          "the row after it underlines nothing",
+          true,
+          Picker.Goal.focus_id(
+            Fixture.goal(f, List.nth(f.rows, 1)),
+            List.nth(f.rows, 1),
+          )
+          == None,
+        );
+      },
+    ),
+    test_case(
+      "a focus of several steps underlines its occurrence above the C, and a focus inside it underlines within the C's goal",
+      `Quick,
+      () => {
+        let f =
+          Fixture.mk(
+            "theorem t = (2 + 3) * 2 + (2 + 3) * 2 == 20 proof from 2nd (2 + 3) * 2 do from 2 + 3 do eval end; eval end; eval in t",
+          );
+        let row = first(f.rows);
+        check(
+          underline,
+          "above the C",
+          ("(2 + 3) * 2", 1),
+          underlined(Fixture.goal(f, row), row),
+        );
+        switch (row.kind) {
+        | Step(Focus(rows)) =>
+          let inner = first(rows);
+          check(
+            underline,
+            "inside the C",
+            ("(2 + 3)", 0),
+            underlined(Fixture.goal(f, inner), inner),
+          );
+        | _ => Alcotest.fail("not a C")
+        };
+      },
+    ),
+    test_case(
+      "the underline lands on the displayed form of a definition the goal names",
+      `Quick,
+      () => {
+        let f =
+          Fixture.mk(
+            "let k = fun x -> x + 1 in theorem t = 7 + k(2) == 10 proof from k(2) do eval end; eval in t",
+          );
+        let row = first(f.rows);
+        check(
+          underline,
+          "the inlined call",
+          ("(fun x -> x + 1)(2)", 0),
+          underlined(Fixture.goal(f, row), row),
+        );
+      },
+    ),
+    test_case(
+      "the underline is found in a goal with ids of its own",
+      `Quick,
+      () => {
+        let f =
+          Fixture.mk(
+            "theorem t = (1 + 1) * (1 + 1) == 4 proof from 2nd 1 + 1 do eval end; eval in t",
+          );
+        let row = first(f.rows);
+        let goal =
+          switch (row.goal, Rows.ctx(row)) {
+          | (Some(written), Some(ctx)) =>
+            Picker.Goal.mk(~settings, ~ctx, Exp.replace_all_ids(written))
+          | _ => Alcotest.fail("the row has no goal")
+          };
+        check(
+          underline,
+          "the second 1 + 1",
+          ("(1 + 1)", 1),
+          underlined(goal, row),
         );
       },
     ),

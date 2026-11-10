@@ -377,6 +377,18 @@ module Goal = {
       goal.eval_steps,
     );
 
+  /* The displayed id of the occurrence `row`'s focus selects, where its
+   * underline goes. A goal carried over from an earlier check prints the
+   * same as `row.goal` but may not share its ids, so this maps by position
+   * from `row.goal` rather than from `written`. */
+  let focus_id = (goal: t, row: StepperRows.t): option(Id.t) =>
+    switch (row.goal, row.focus_target) {
+    | (Some(written), Some(target)) =>
+      Occurrence.map_rep_id(~from=written, ~onto=goal.display, target)
+    | (None, _)
+    | (_, None) => None
+    };
+
   /* The node the user selected in the goal's editor, read off the editor
    * itself so it can't lag the selection. */
   let selected = (goal: t): option(Exp.t) => {
