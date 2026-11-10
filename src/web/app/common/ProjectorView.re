@@ -200,7 +200,39 @@ module ViewCache = {
           && e.font_metrics == font_metrics
           && e.status == status
           && e.model == model =>
-      if (e.last_used != tick^) {
+      /* (^report(51)) a hit on reads equal by value takes the new map and
+         its samples, so the next look at the same map is a pointer: after
+         each edit on the Witch the run's map was the one the answer brought,
+         but each livelit's entry held the map it was drawn with, and 100
+         to 102 values were compared again (run 42814828261) */
+      if (e.dynamics_map !== dynamics_map) {
+        Hashtbl.replace(
+          cache,
+          id,
+          {
+            ...e,
+            last_used: tick^,
+            dynamics_map,
+            reads:
+              Option.map(
+                (r: reads) =>
+                  {
+                    ...r,
+                    at:
+                      List.map(
+                        ((rid, _)) =>
+                          (
+                            rid,
+                            Language.Dynamics.Map.lookup(rid, dynamics_map),
+                          ),
+                        r.at,
+                      ),
+                  },
+                e.reads,
+              ),
+          },
+        );
+      } else if (e.last_used != tick^) {
         Hashtbl.replace(
           cache,
           id,
