@@ -26,11 +26,23 @@ type node = {
   o_hint: option(string),
   /* a named row's binding token, and its sort (Pat, TPat or MPat) */
   o_binder: option((Id.t, Sort.t)),
+  /* the names a definition binds after its label's, in order: shown, not
+     part of the label (paths, keys and rename read the label) */
+  o_more: list(string),
   o_children: list(node),
 };
 
 let row =
-    (~id=?, ~label="", ~test=?, ~hint=?, ~binder=?, ~kids=[], kind: kind)
+    (
+      ~id=?,
+      ~label="",
+      ~test=?,
+      ~hint=?,
+      ~binder=?,
+      ~more=[],
+      ~kids=[],
+      kind: kind,
+    )
     : node => {
   o_label: label,
   o_kind: kind,
@@ -38,6 +50,7 @@ let row =
   o_test: test,
   o_hint: hint,
   o_binder: binder,
+  o_more: more,
   o_children: kids,
 };
 
@@ -48,35 +61,6 @@ module Piece = Haz3lcore.Piece;
 module Tile = Haz3lcore.Tile;
 module Form = Haz3lcore.Form;
 module Printer = Haz3lcore.Printer;
-
-/* a let's row name and token: its pattern's leading variable, through
-   parentheses, projectors, a function head, an ascription, a label and a
-   tuple's first part */
-let rec lead_var = (pat: Haz3lcore.Segment.t): option((string, Id.t)) => {
-  let c = O.content(pat);
-  let rec first = (ps: list(Piece.t)) =>
-    switch (ps) {
-    | [Tile(t), ..._] when Tile.is_comma(t) => []
-    | [p, ...ps] => [p, ...first(ps)]
-    | [] => []
-    };
-  let first = first(c);
-  switch (first) {
-  | [Tile({children: [inner], _} as t)] when Tile.label(t) == ["(", ")"] =>
-    lead_var(inner)
-  | [Projector(pr)] => lead_var([pr.syntax])
-  | [Tile(v), ...rest] =>
-    switch (Tile.single_token(v), rest) {
-    | (Some(x), [Tile(lab), ...inner]) when Tile.is_tuple_label_eq(lab) =>
-      Token.is_var(x) ? lead_var(inner) : None
-    | (Some(x), [])
-    | (Some(x), [Tile(_), ..._]) when Haz3lcore.EntryPath.is_binder(x) =>
-      Some((x, v.id))
-    | _ => None
-    }
-  | _ => None
-  };
-};
 
 /* each entry's rows, while it's the same entry (Outline keeps an
    unchanged entry's object) */
@@ -125,27 +109,25 @@ and entry_rows = (~top: bool, e: O.entry): list(node) => {
   let id = e.id;
   let at_mod = e.lv.sort == Sort.Mod;
   switch (e.kind) {
+  /* named by the first name it binds, as its path is */
   | Def =>
-    switch (O.parts(e.lv, e.k)) {
-    | None => []
-    | Some((pat, def)) =>
-      switch (lead_var(pat)) {
-      | None => []
-      | Some((name, tok)) =>
-        let binder = (tok, Sort.Pat);
-        let below = below(e, def);
-        let (kind, kids) =
-          if (e.fn) {
-            (KFn, block_rows(below));
-          } else if (e.literal) {
-            (KModule, rows_of(~top=false, below));
-          } else if (starts_abstraction(def)) {
-            (KConst, []);
-          } else {
-            (KConst, rows_of(~top=false, below));
-          };
-        [row(~id, ~label=name, ~binder, ~kids, kind)];
-      }
+    switch (e.names, O.parts(e.lv, e.k)) {
+    | ([(name, tok), ...more], Some((_, def))) =>
+      let binder = (tok, Sort.Pat);
+      let more = List.map(fst, more);
+      let below = below(e, def);
+      let (kind, kids) =
+        if (e.fn) {
+          (KFn, block_rows(below));
+        } else if (e.literal) {
+          (KModule, rows_of(~top=false, below));
+        } else if (starts_abstraction(def)) {
+          (KConst, []);
+        } else {
+          (KConst, rows_of(~top=false, below));
+        };
+      [row(~id, ~label=name, ~binder, ~more, ~kids, kind)];
+    | _ => []
     }
   | Type =>
     switch (e.names) {

@@ -554,9 +554,10 @@ let live_label = (props: props, n: OutlineTree.node): OutlineTree.node =>
   switch (
     Option.bind(n.o_id, id => List.assoc_opt(id, props.focused_entries))
   ) {
-  | Some(Some(live)) => {
+  | Some(Some(live)) when live != n.o_label => {
       ...n,
       o_label: live,
+      o_more: [],
     }
   | _ => n
   };
@@ -937,9 +938,15 @@ let rec node_view =
     };
   let label =
     div(
-      /* a hinted test's whole name, which its row may clip */
+      /* a hinted test's whole name, which its row may clip; every name
+         a definition binds */
       ~attrs=
         Option.to_list(Option.map(Attr.title, n.o_hint))
+        @ (
+          n.o_more == []
+            ? []
+            : [Attr.title(String.concat(", ", [n.o_label, ...n.o_more]))]
+        )
         @ [
           clss(
             ["outline-label", kind_cls(n.o_kind)]
@@ -1229,6 +1236,10 @@ and words = (n: OutlineTree.node, name_view) =>
       span(~attrs=[clss(["outline-synthetic"])], [text(n.o_label)]),
     ]
   | KTest when n.o_hint != None => [name_view(clipped(n.o_label))]
+  | _ when n.o_more != [] => [
+      name_view(n.o_label),
+      span(~attrs=[clss(["outline-more"])], [text({js|…|js})]),
+    ]
   | _ => [name_view(n.o_label)]
   }
 

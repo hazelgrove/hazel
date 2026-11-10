@@ -209,8 +209,9 @@ let content = (seg: Segment.t): list(Piece.t) =>
 let is_binder = (x: Token.t): bool =>
   Token.is_var(x) || Token.is_livelit(x);
 
-/* the names a pattern binds: its vars, but not a function definition's
-   parameters (`f(x)`), a label (`x = p`) or past an ascription's `:` */
+/* the names a pattern binds: its vars, through projectors, but not a
+   function definition's parameters (`f(x)`), a label (`x = p`) or past an
+   ascription's `:` */
 let rec pat_binders = (seg: Segment.t): list((string, Id.t)) => {
   let rec go = (ps: list(Piece.t), ~asc, acc) =>
     switch (ps) {
@@ -236,6 +237,7 @@ let rec pat_binders = (seg: Segment.t): list((string, Id.t)) => {
           List.rev_append(List.concat_map(pat_binders, t.children), acc),
         )
       }
+    | [Projector(pr), ...rest] => go([pr.syntax, ...rest], ~asc, acc)
     | [_, ...rest] => go(rest, ~asc, acc)
     };
   List.rev(go(content(seg), ~asc=false, []));
