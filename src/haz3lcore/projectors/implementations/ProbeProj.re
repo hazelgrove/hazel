@@ -2265,6 +2265,7 @@ module M: Projector = {
     };
   };
 
+  let dynamics = true;
   let elaborate_syntax = false;
 
   let focusable =

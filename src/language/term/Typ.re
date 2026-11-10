@@ -42,7 +42,7 @@ let fresh_atom: Atom.cls => t = cls => fresh(Atom(cls));
 let temp: term => t =
   term => {
     term,
-    annotation: IdTagged.IdTag.temp(),
+    annotation: IdTagged.IdTag.temp,
   };
 
 let all_ids_temp = {
@@ -53,7 +53,7 @@ let all_ids_temp = {
     (continue, exp) =>
       {
         term: exp.term,
-        annotation: IdTagged.IdTag.temp(),
+        annotation: IdTagged.IdTag.temp,
       }
       |> continue;
   map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f);
@@ -332,35 +332,97 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
   | Some(str) =>
     let (term, rewrap) = Annotated.unwrap(ty);
     switch (term) {
-    | Atom(_) => ty
-    | Label(name) => Grammar.Label(name) |> rewrap
-    | ExplicitNonlabel => ExplicitNonlabel |> rewrap
-    | Unknown(prov) => Unknown(prov) |> rewrap
+    | Atom(_)
+    | Label(_)
+    | ExplicitNonlabel
+    | Unknown(_)
+    | ProofOf(_) => ty
     | Arrow(ty1, ty2) =>
-      Arrow(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap
-    | Prod(tys) => Prod(List.map(subst(s, x), tys)) |> rewrap
-    | TupLabel(label, ty) => TupLabel(label, subst(s, x, ty)) |> rewrap
+      let ty1' = subst(s, x, ty1);
+      let ty2' = subst(s, x, ty2);
+      if (ty1' === ty1 && ty2' === ty2) {
+        ty;
+      } else {
+        Grammar.Arrow(ty1', ty2') |> rewrap;
+      };
+    | Prod(tys) =>
+      let tys' = List.map(subst(s, x), tys);
+      if (List.for_all2((a, b) => a === b, tys, tys')) {
+        ty;
+      } else {
+        Prod(tys') |> rewrap;
+      };
+    | TupLabel(label, t) =>
+      let label' = subst(s, x, label);
+      let t' = subst(s, x, t);
+      if (label' === label && t' === t) {
+        ty;
+      } else {
+        TupLabel(label', t') |> rewrap;
+      };
     | Sum(sm) =>
-      Sum(ConstructorMap.map(Option.map(subst(s, x)), sm)) |> rewrap
-    | Poly(tp2, ty) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
-      Poly(tp2, ty) |> rewrap
-    | Poly(tp2, ty) =>
-      let (tp2', ty') = avoid_capture(tp2, ty);
-      Poly(tp2', subst(s, x, ty')) |> rewrap;
-    | Rec(tp2, ty) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
-      Rec(tp2, ty) |> rewrap
-    | Rec(tp2, ty) =>
-      let (tp2', ty') = avoid_capture(tp2, ty);
-      Rec(tp2', subst(s, x, ty')) |> rewrap;
-    | List(ty) => List(subst(s, x, ty)) |> rewrap
-    | Var(y) => str == y ? s : Var(y) |> rewrap
-    | Parens(ty) => Parens(subst(s, x, ty)) |> rewrap
-    | Projector(data, ty) => Projector(data, subst(s, x, ty)) |> rewrap
+      let sm' = ConstructorMap.map(Option.map(subst(s, x)), sm);
+      if (sm' === sm) {
+        ty;
+      } else {
+        Sum(sm') |> rewrap;
+      };
+    | Poly(tp2, _) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) => ty
+    | Poly(tp2, t) =>
+      let (tp2', t') = avoid_capture(tp2, t);
+      let t'' = subst(s, x, t');
+      if (tp2' === tp2 && t'' === t) {
+        ty;
+      } else {
+        Poly(tp2', t'') |> rewrap;
+      };
+    | Rec(tp2, _) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) => ty
+    | Rec(tp2, t) =>
+      let (tp2', t') = avoid_capture(tp2, t);
+      let t'' = subst(s, x, t');
+      if (tp2' === tp2 && t'' === t) {
+        ty;
+      } else {
+        Rec(tp2', t'') |> rewrap;
+      };
+    | List(t) =>
+      let t' = subst(s, x, t);
+      if (t' === t) {
+        ty;
+      } else {
+        List(t') |> rewrap;
+      };
+    | Var(y) => str == y ? s : ty
+    | Parens(t) =>
+      let t' = subst(s, x, t);
+      if (t' === t) {
+        ty;
+      } else {
+        Parens(t') |> rewrap;
+      };
+    | Projector(data, t) =>
+      let t' = subst(s, x, t);
+      if (t' === t) {
+        ty;
+      } else {
+        Projector(data, t') |> rewrap;
+      };
     | ProdProjection(t1, t2) =>
-      ProdProjection(subst(s, x, t1), subst(s, x, t2)) |> rewrap
+      let t1' = subst(s, x, t1);
+      let t2' = subst(s, x, t2);
+      if (t1' === t1 && t2' === t2) {
+        ty;
+      } else {
+        ProdProjection(t1', t2') |> rewrap;
+      };
     | ProdExtension(t1, t2) =>
-      ProdExtension(subst(s, x, t1), subst(s, x, t2)) |> rewrap
-    | ProofOf(e) => ProofOf(e) |> rewrap
+      let t1' = subst(s, x, t1);
+      let t2' = subst(s, x, t2);
+      if (t1' === t1 && t2' === t2) {
+        ty;
+      } else {
+        ProdExtension(t1', t2') |> rewrap;
+      };
     | Sig(_) => ty
     | DrvQuoteTy(_) => ty
     };
@@ -583,32 +645,39 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
   | Label(_) => ty
   | Parens(t)
   | Projector(_, t) => normalize(ctx, t)
-  | List(t) => List(normalize(ctx, t)) |> rewrap
+  | List(t) =>
+    let t' = normalize(ctx, t);
+    t === t' ? ty : List(t') |> rewrap;
   | Arrow(t1, t2) =>
-    Arrow(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
+    let t1' = normalize(ctx, t1);
+    let t2' = normalize(ctx, t2);
+    t1 === t1' && t2 === t2' ? ty : Arrow(t1', t2') |> rewrap;
   | Prod(ts) =>
-    let ts = List.map(normalize(ctx), ts);
+    let ts' = List.map(normalize(ctx), ts);
     let duplicate_labels =
-      LabeledTuple.get_duplicate_labels(match_tup_label, ts);
-    let ts =
+      LabeledTuple.get_duplicate_labels(match_tup_label, ts');
+    let ts'' =
       List.is_empty(duplicate_labels)
-        ? ts : remove_duplicate_labels(~duplicate_labels, ts);
-    Prod(ts) |> rewrap;
+        ? ts' : remove_duplicate_labels(~duplicate_labels, ts');
+    List.length(ts) == List.length(ts'') && List.for_all2((===), ts, ts'')
+      ? ty : Prod(ts'') |> rewrap;
   | ProdProjection(_) => weak_head_normalize(ctx, ty) |> normalize(ctx)
   | ProdExtension(_) => weak_head_normalize(ctx, ty) |> normalize(ctx)
-  | TupLabel({term: ExplicitNonlabel, _}, ty) => normalize(ctx, ty) // Drop ExplicitNonlabel in normalization
-  | TupLabel(label, ty) =>
-    TupLabel(normalize(ctx, label), normalize(ctx, ty)) |> rewrap
+  | TupLabel({term: ExplicitNonlabel, _}, ty) => normalize(ctx, ty)
+  | TupLabel(label, t) =>
+    let label' = normalize(ctx, label);
+    let t' = normalize(ctx, t);
+    label === label' && t === t' ? ty : TupLabel(label', t') |> rewrap;
   | Sum(ts) =>
-    Sum(ConstructorMap.map(Option.map(normalize(ctx)), ts)) |> rewrap
-  | Rec(tpat, ty) =>
-    /* NOTE: Dummy tvar added has fake id but shouldn't matter
-       as in current implementation Recs do not occur in the
-       surface syntax, so we won't try to jump to them. */
-    Rec(tpat, normalize(Ctx.extend_dummy_tvar(ctx, tpat), ty)) |> rewrap
-  | Poly(name, ty) =>
-    Poly(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
-  | ProofOf(_) => ty // Todo: should we normalize this?
+    let ts' = ConstructorMap.map(Option.map(normalize(ctx)), ts);
+    ts === ts' ? ty : Sum(ts') |> rewrap;
+  | Rec(tpat, t) =>
+    let t' = normalize(Ctx.extend_dummy_tvar(ctx, tpat), t);
+    t === t' ? ty : Rec(tpat, t') |> rewrap;
+  | Poly(name, t) =>
+    let t' = normalize(Ctx.extend_dummy_tvar(ctx, name), t);
+    t === t' ? ty : Poly(name, t') |> rewrap;
+  | ProofOf(_) => ty
   | Sig(items) =>
     /* Desugar signature to labeled tuple type:
        { let x : Int; let y : Bool } => (x=Int, y=Bool)
@@ -890,6 +959,7 @@ let rec meet =
       equal(ty_rec', ty_meet) ? ty_rec : ty_meet;
     };
   switch (term_of(ty1), term_of(ty2)) {
+  | _ when ty1 === ty2 => Some(ty1)
   | (_, Parens(ty2))
   | (_, Projector(_, ty2)) => meet'(ty1, ty2)
   | (Parens(ty1), _)
@@ -897,7 +967,8 @@ let rec meet =
   | (TupLabel({term: ExplicitNonlabel, _}, ty1'), _) => meet'(ty1', ty2)
   | (_, TupLabel({term: ExplicitNonlabel, _}, ty2')) => meet'(ty1, ty2')
   | (Unknown(p1), Unknown(p2)) =>
-    Some(Unknown(meet_type_provenance(p1, p2)) |> temp)
+    p1 == p2
+      ? Some(ty1) : Some(Unknown(meet_type_provenance(p1, p2)) |> temp)
   | (Unknown(_), _) => Some(ty2)
   | (_, Unknown(_)) => Some(ty1)
   | (Var(n1), Var(n2)) =>
@@ -913,6 +984,38 @@ let rec meet =
       | (None, None) => None
       };
     }
+  /* Var-Rec fast path: when a Var resolves to the very Rec we're
+     meeting with, return the compact Var form without meeting the
+     (possibly large) bodies. Matching the bound tyvar name alone is
+     NOT sufficient — two structurally different recursive types can
+     share a bound name — so the alias body is verified against the
+     Rec: `===` catches the common case (the Rec originates from this
+     ctx entry, and subst/normalize preserve sharing), `equal` the
+     rest. Anything else falls through to the general Var expansion. */
+  | (Var(name), Rec(tp2, _))
+      when
+        TPat.tyvar_of_utpat(tp2) == Some(name)
+        && (
+          switch (Ctx.lookup_alias(ctx, name)) {
+          | Some({term: Rec(tp1, _), _} as ty_alias) =>
+            TPat.tyvar_of_utpat(tp1) == Some(name)
+            && (ty_alias === ty2 || equal(ty_alias, ty2))
+          | _ => false
+          }
+        ) =>
+    Some(ty1)
+  | (Rec(tp1, _), Var(name))
+      when
+        TPat.tyvar_of_utpat(tp1) == Some(name)
+        && (
+          switch (Ctx.lookup_alias(ctx, name)) {
+          | Some({term: Rec(tp2, _), _} as ty_alias) =>
+            TPat.tyvar_of_utpat(tp2) == Some(name)
+            && (ty_alias === ty1 || equal(ty_alias, ty1))
+          | _ => false
+          }
+        ) =>
+    Some(ty2)
   | (Var(name), _) =>
     let* ty_name = Ctx.lookup_alias(ctx, name);
     let+ ty_meet = meet'(ty_name, ty2);
@@ -951,15 +1054,27 @@ let rec meet =
       when LabeledTuple.match_labels(name1, name2) =>
     Some(ty1)
   | (Label(_), _) => None
-  | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
-    let* ty1 = meet'(ty1, ty1');
-    let+ ty2 = meet'(ty2, ty2');
-    Arrow(ty1, ty2) |> temp;
+  | (Arrow(a1, a2), Arrow(b1, b2)) =>
+    let* r1 = meet'(a1, b1);
+    let+ r2 = meet'(a2, b2);
+    if (r1 === a1 && r2 === a2) {
+      ty1;
+    } else if (r1 === b1 && r2 === b2) {
+      ty2;
+    } else {
+      Grammar.Arrow(r1, r2) |> temp;
+    };
   | (Arrow(_), _) => None
-  | (TupLabel(lab1, ty1'), TupLabel(lab2, ty2')) =>
-    let* lab = meet'(lab1, lab2);
-    let+ ty = meet'(ty1', ty2');
-    TupLabel(lab, ty) |> temp;
+  | (TupLabel(la, a), TupLabel(lb, b)) =>
+    let* rl = meet'(la, lb);
+    let+ r = meet'(a, b);
+    if (rl === la && r === a) {
+      ty1;
+    } else if (rl === lb && r === b) {
+      ty2;
+    } else {
+      Grammar.TupLabel(rl, r) |> temp;
+    };
   | (TupLabel(_), _) => None
   | (Prod(tys1), Prod(tys2)) =>
     let tys1 =
@@ -987,9 +1102,15 @@ let rec meet =
     let+ sm' = ConstructorMap.meet(equal, meet(~seen, ctx), sm1, sm2);
     Sum(sm') |> temp;
   | (Sum(_), _) => None
-  | (List(ty1), List(ty2)) =>
-    let+ ty = meet'(ty1, ty2);
-    List(ty) |> temp;
+  | (List(a), List(b)) =>
+    let+ r = meet'(a, b);
+    if (r === a) {
+      ty1;
+    } else if (r === b) {
+      ty2;
+    } else {
+      Grammar.List(r) |> temp;
+    };
   | (List(_), _) => None
   | (ProofOf(e1), ProofOf(e2)) =>
     Equality.semantic.exp(e1, e2) ? Some(ty1) : None
@@ -1308,6 +1429,22 @@ and paren_pretty_print = typ =>
   } else {
     pretty_print(typ);
   };
+
+/* Replaces rec types with a variable with the same name as
+ * their rec parameter. Intended mostly for printing */
+let abstract_rec_types =
+  map_term(
+    ~f_typ=
+      (continue, t) =>
+        switch (t.term) {
+        | Rec({term: Var(name), _}, _) => {
+            ...t,
+            term: Var(name),
+          }
+        | _ => continue(t)
+        },
+    _,
+  );
 
 /**
  * Converts a list of types (`tys`) into a product type.

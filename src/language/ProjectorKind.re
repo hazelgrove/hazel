@@ -18,6 +18,7 @@ type t =
   | TextArea
   | Table
   | Csv
+  | HTML
   | Keybinding
   | Color;
 
@@ -31,6 +32,7 @@ let livelit_projectors: list(t) = [
   Table,
   Card,
   Livelit,
+  HTML,
   Keybinding,
   Color,
 ];
@@ -55,6 +57,7 @@ let name = (p: t): string =>
   | TextArea => "text"
   | Table => "table"
   | Csv => "csv"
+  | HTML => "html"
   | Keybinding => "keybinding"
   | Color => "color"
   };

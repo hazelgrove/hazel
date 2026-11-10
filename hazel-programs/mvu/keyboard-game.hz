@@ -1,0 +1,143 @@
+# Firefly #
+
+# Steer a firefly around the grove with the arrow keys. Global keyboard #
+# input arrives through OnDocumentKeyDown. #
+
+type Action =
+  + MoveUp
+  + MoveDown
+  + MoveLeft
+  + MoveRight
+  + NoOp
+in
+
+type Model = (
+  x = Int,
+  y = Int
+) in
+
+let max(a: Int, b: Int) : Int = if a > b then a else b in
+let min(a: Int, b: Int) : Int = if a < b then a else b in
+
+let step : Int = 20 in
+
+# The grove is taller than it is wide so it fits the projector sidebar #
+# without a horizontal scrollbar. The firefly is 40px, so it can travel #
+# to groveW/groveH less its own size. #
+let groveW : Int = 280 in
+let groveH : Int = 380 in
+let fly : Int = 40 in
+let maxX : Int = groveW - fly in
+let maxY : Int = groveH - fly in
+
+let init: Model = (
+  x = 120,
+  y = 170
+) in
+
+let update(model: Model, action: Action): Model =
+  case action
+  | MoveUp => (x = model.x, y = max(0, model.y - step))
+  | MoveDown => (x = model.x, y = min(maxY, model.y + step))
+  | MoveLeft => (x = max(0, model.x - step), y = model.y)
+  | MoveRight => (x = min(maxX, model.x + step), y = model.y)
+  | NoOp => model
+  end
+in
+
+# Night sky: very dark with a slight purple cast, on Hazel's TYP hue #
+let sky: String = "oklch(21% 0.04 300)" in
+let skyEdge: String = "oklch(40% 0.05 300)" in
+let skyText: String = "oklch(68% 0.03 300)" in
+let glow: String = "oklch(88% 0.16 95)" in
+
+let view(model: Model): HTML =
+  Div(
+    [
+      Id("grove"),
+      Style([
+        ("width", string_of_int(groveW) ++ "px"),
+        ("height", string_of_int(groveH) ++ "px"),
+        ("position", "relative"),
+        ("overflow", "hidden"),
+        ("margin", "0 auto"),
+        ("background", sky),
+        ("border", "1px solid " ++ skyEdge),
+        ("border-radius", "0.4em"),
+        ("font-family", "var(--code-font)"),
+        ("font-size", "0.75em"),
+        ("color", skyText)
+      ])
+    ],
+    [
+      Div(
+        [Style([("text-align", "center"), ("padding", "0.7em")])],
+        [Text("Arrow keys to steer")]
+      ),
+      Div(
+        [Style([
+          ("width", string_of_int(fly) ++ "px"),
+          ("height", string_of_int(fly) ++ "px"),
+          ("background", glow),
+          ("position", "absolute"),
+          ("left", string_of_int(model.x) ++ "px"),
+          ("top", string_of_int(model.y) ++ "px"),
+          ("border-radius", "50%"),
+          ("box-shadow", "0 0 18px " ++ glow),
+          ("transition", "all 0.1s ease")
+        ])],
+        []
+      ),
+      Div(
+        [Style([("position", "absolute"), ("bottom", "0.6em"), ("left", "0.8em")])],
+        [Text("(" ++ string_of_int(model.x) ++ ", " ++ string_of_int(model.y) ++ ")")]
+      )
+    ]
+  )
+in
+
+let subs(_model: Model): Sub =
+  OnDocumentKeyDown(fun (e: KeyEvent) ->
+    if e.key == "ArrowUp" then MoveUp
+    else if e.key == "ArrowDown" then MoveDown
+    else if e.key == "ArrowLeft" then MoveLeft
+    else if e.key == "ArrowRight" then MoveRight
+    else NoOp
+  )
+in
+
+# Tests #
+
+hint "moving steps one square"
+test update((x=100, y=100), MoveUp).y == 80 end;
+
+hint "each direction moves its own axis"
+test
+  let m = update((x=100, y=100), MoveRight) in
+  m.x == 120 && m.y == 100
+end;
+
+hint "clamped at the edges of the grove"
+test
+  let up = update((x=100, y=0), MoveUp) in
+  let right = update((x=maxX, y=100), MoveRight) in
+  let down = update((x=100, y=maxY), MoveDown) in
+  up.y == 0
+    && right.x == maxX
+    && down.y == maxY
+end;
+
+hint "other keys do nothing"
+test
+  let m = update((x=100, y=100), NoOp) in
+  m.x == 100 && m.y == 100
+end;
+
+# Nothing here issues a command, so `update` returns a bare Model and is #
+# lifted into the (Model, Cmd) shape the app tuple expects. #
+
+let noCmd(f: (Model, Action) -> Model): (Model, Action) -> (Model, Cmd) =
+  fun (model, action) -> (f(model, action), CmdNone)
+in
+
+^^html_sidebar((init, noCmd(update), view, subs))

@@ -3341,8 +3341,8 @@ let tool_json_tests = (
       `Quick,
       () => {
         let tools = CompositionUtils.Public.tools;
-        /* 36 while DocPacks is empty (read_docs is not offered) */
-        check(int, "tool count", 36, List.length(tools));
+        /* 37: DocPacks has packs here, so read_docs is offered */
+        check(int, "tool count", 37, List.length(tools));
       },
     ),
     test_case(
