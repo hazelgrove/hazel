@@ -436,7 +436,18 @@ module Model = {
    * Such errors get no arms anywhere (see Arms.tiles_data), so the
    * projector chrome reports them. Splice contents report errors in
    * their own sub-editors, and nested projectors on their own chrome. */
-  let has_hidden_error =
+  /* (^report(51)) has_hidden_error's answers, by the projector's very
+     syntax and statics map: it walked each projector's syntax and looked
+     up every tile in it on each pass that made the projectors' data again,
+     as at each worker's answer, though the statics were the same. Its
+     time is on the "view: projector data made" mark */
+  let hidden_error_ms = ref(0.);
+  let hidden_errors:
+    Hashtbl.t(Id.t, (Base.segment, Language.Statics.Map.t, bool)) =
+    Hashtbl.create(64);
+  let hidden_ids: Hashtbl.t(Id.t, (Base.segment, list(Id.t))) =
+    Hashtbl.create(64);
+  let has_hidden_error_now =
       (p: Base.projector, statics: Language.Statics.Map.t): bool => {
     let rec hidden_tile_ids = (seg: Base.segment): list(Id.t) =>
       List.concat_map(
@@ -453,7 +464,18 @@ module Model = {
           },
         seg,
       );
-    hidden_tile_ids(p.syntax)
+    let ids =
+      switch (Hashtbl.find_opt(hidden_ids, p.id)) {
+      | Some((seg, ids)) when seg === p.syntax => ids
+      | _ =>
+        let ids = hidden_tile_ids(p.syntax);
+        if (Hashtbl.length(hidden_ids) > 512) {
+          Hashtbl.reset(hidden_ids);
+        };
+        Hashtbl.replace(hidden_ids, p.id, (p.syntax, ids));
+        ids;
+      };
+    ids
     |> List.exists(id =>
          switch (Language.Statics.Map.lookup(id, statics)) {
          | Some(info) => Language.Info.is_error(info)
@@ -461,6 +483,20 @@ module Model = {
          }
        );
   };
+  let has_hidden_error =
+      (p: Base.projector, statics: Language.Statics.Map.t): bool =>
+    switch (Hashtbl.find_opt(hidden_errors, p.id)) {
+    | Some((seg, st, found)) when seg === p.syntax && st === statics => found
+    | _ =>
+      let t0 = Util.BenchMarks.now();
+      let found = has_hidden_error_now(p, statics);
+      hidden_error_ms := hidden_error_ms^ +. (Util.BenchMarks.now() -. t0);
+      if (Hashtbl.length(hidden_errors) > 512) {
+        Hashtbl.reset(hidden_errors);
+      };
+      Hashtbl.replace(hidden_errors, p.id, (p.syntax, statics, found));
+      found;
+    };
 
   let mk_status =
       (
@@ -586,8 +622,12 @@ module Model = {
                         ? "dynamics"
                         : k.k_active != key.k_active ? "active" : "elaborated"
         };
+      hidden_error_ms := 0.;
       let data =
         Util.BenchMarks.time(
+          ~extra=
+            () =>
+              [("hidden errors ms", Util.BenchMarks.num(hidden_error_ms^))],
           "view: projector data made (" ++ why ++ ")",
           make,
         );
