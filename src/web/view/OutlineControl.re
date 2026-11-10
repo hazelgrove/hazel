@@ -1352,22 +1352,32 @@ let view =
                 refusals,
                 (program, outline),
                 () =>
-                  Util.BenchMarks.time("outline: refusals", () =>
-                    ScratchFocus.refusals(
-                      /* outside a slide, an editor is expression-rooted */
-                      ~root=
-                        Option.fold(
-                          ~none=Sort.Exp,
-                          ~some=Program.root,
-                          program,
-                        ),
-                      ~want=
-                        id => Id.Map.mem(id, OutlineTree.row_ids(outline)),
-                      switch (program) {
-                      | Some(Divided(d)) => Divided.document(d)
-                      | _ => segment
+                  Util.BenchMarks.time(
+                    ~extra=
+                      () => {
+                        let (walked, asked) = ScratchFocus.refusals_walked^;
+                        Util.BenchMarks.[
+                          ("pieces", num(float_of_int(walked))),
+                          ("asked", num(float_of_int(asked))),
+                        ];
                       },
-                    )
+                    "outline: refusals",
+                    () =>
+                      ScratchFocus.refusals(
+                        /* outside a slide, an editor is expression-rooted */
+                        ~root=
+                          Option.fold(
+                            ~none=Sort.Exp,
+                            ~some=Program.root,
+                            program,
+                          ),
+                        ~want=
+                          id => Id.Map.mem(id, OutlineTree.row_ids(outline)),
+                        switch (program) {
+                        | Some(Divided(d)) => Divided.document(d)
+                        | _ => segment
+                        },
+                      ),
                   ),
               )
             );

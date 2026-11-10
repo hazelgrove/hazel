@@ -634,9 +634,18 @@ type refusal =
 /* of the items [want] picks, those the entry makers above refuse for one
    of these, from one walk over [seg] rather than a search per item. Under
    a projector only a headless span cut outside it opens */
+/* (^report(51), step 1) the last walk's pieces and calls to [want], for
+   the check */
+let refusals_walked = ref((0, 0));
 let refusals =
     (~root: Sort.t, ~want: Id.t => bool, seg: Segment.t): Id.Map.t(refusal) => {
   let out = ref(Id.Map.empty);
+  let walked = ref(0);
+  let asked = ref(0);
+  let want = id => {
+    incr(asked);
+    want(id);
+  };
   /* the steps from the piece at [path]'s end down to [id], inside it */
   let below = (path: list(step), id: Id.t): list(step) => {
     let (above, st) = ListUtil.split_last(path);
@@ -659,6 +668,7 @@ let refusals =
     List.iter(
       (p: Piece.t) => {
         let id = Piece.id(p);
+        incr(walked);
         if (under !== top
             && want(id)
             && (
@@ -672,12 +682,12 @@ let refusals =
         };
         switch (p) {
         | Tile(t) =>
-          if (want(id)
-              && !Tile.is_complete(t)
+          if (!Tile.is_complete(t)
+              && want(id)
               && Option.is_none(Lazy.force(under))) {
             out := Id.Map.add(id, Unfinished, out^);
           };
-          if (want(id) && is_use(t)) {
+          if (is_use(t) && want(id)) {
             out := Id.Map.add(id, Directive, out^);
           };
           List.iter(walk(~under), t.children);
@@ -698,6 +708,7 @@ let refusals =
       level,
     );
   walk(~under=top, seg);
+  refusals_walked := (walked^, asked^);
   out^;
 };
 
