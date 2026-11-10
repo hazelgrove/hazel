@@ -59,5 +59,10 @@ let add_tax = fun price -> price +. price *. 0.5 in
 let totals = map([3.0, 7.0, 5.0], add_tax) in
 totals
 
+@solution
+let add_tax = fun price -> ^^probe(^^probe(price) +. price *. 0.5) in
+let totals = map([3.0, 7.0, 5.0], add_tax) in
+^^probe(totals)
+
 @test
 test true end
