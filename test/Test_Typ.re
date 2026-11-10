@@ -2173,9 +2173,397 @@ let cyclic_alias_tests = {
   );
 };
 
+let meet_rec_binder_tests = {
+  module F = IdTagged.FreshGrammar;
+  let ctx = Builtins.ctx_init(None);
+  let rec_ = (x, body) => F.Typ.rec_(F.TPat.var(x), body(F.Typ.var(x)));
+  let poly = (x, body) => F.Typ.poly(F.TPat.var(x), body(F.Typ.var(x)));
+  let case = (name, ty1, ty2, expected) =>
+    test_case(name, `Quick, () =>
+      check(option(typ), name, expected, Typ.meet(ctx, ty1, ty2))
+    );
+  /* With `x` and `b` aliases of Int, a free `x` or `b` is Int, and must not
+     become the other type's bound variable. Each pair is met both ways. */
+  let binder_capture_cases = {
+    let ctx =
+      List.fold_left(
+        (ctx, name) => Ctx.extend_alias(ctx, name, Id.invalid, F.Typ.int()),
+        ctx,
+        ["x", "b"],
+      );
+    let consistent = (name, ty1, ty2, expected) =>
+      test_case(name, `Quick, () =>
+        List.iter(
+          ((ty1, ty2)) =>
+            check(
+              bool,
+              name,
+              expected,
+              Option.is_some(Typ.meet(ctx, ty1, ty2)),
+            ),
+          [(ty1, ty2), (ty2, ty1)],
+        )
+      );
+    let hole_rec = body => F.Typ.rec_(F.TPat.empty_hole(), body);
+    [
+      consistent(
+        "a name free beside a hole binder is not the other's bound variable",
+        rec_("x", x => F.Typ.prod([x, F.Typ.int()])),
+        hole_rec(F.Typ.prod([F.Typ.var("x"), F.Typ.int()])),
+        false,
+      ),
+      consistent(
+        "renaming to the other binder captures no free name",
+        rec_("b", b => F.Typ.prod([b, b])),
+        rec_("a", a => F.Typ.prod([a, F.Typ.var("b")])),
+        false,
+      ),
+      consistent(
+        "a free name meets what it stands for",
+        rec_("b", b => F.Typ.prod([b, F.Typ.int()])),
+        rec_("a", a => F.Typ.prod([a, F.Typ.var("b")])),
+        true,
+      ),
+      consistent(
+        "a polymorphic identity is not a function returning a free name",
+        poly("b", b => F.Typ.arrow(b, b)),
+        poly("a", a => F.Typ.arrow(a, F.Typ.var("b"))),
+        false,
+      ),
+      consistent(
+        "a name free beside a hole type binder is not the other's bound variable",
+        poly("x", x => F.Typ.prod([x, F.Typ.int()])),
+        F.Typ.poly(
+          F.TPat.empty_hole(),
+          F.Typ.prod([F.Typ.var("x"), F.Typ.int()]),
+        ),
+        false,
+      ),
+      consistent(
+        "a polymorphic type meets a hole type binder over an unknown body",
+        poly("a", a => F.Typ.arrow(a, a)),
+        F.Typ.poly(F.TPat.empty_hole(), F.Typ.unknown(Internal)),
+        true,
+      ),
+    ];
+  };
+  (
+    "Typ.meet on recursive and polymorphic types",
+    [
+      case(
+        "differently named binders are the same variable",
+        rec_("a", a => F.Typ.prod([a, F.Typ.int()])),
+        rec_("b", b => F.Typ.prod([b, F.Typ.int()])),
+        Some(rec_("a", a => F.Typ.prod([a, F.Typ.int()]))),
+      ),
+      case(
+        "a recursive occurrence is not a hole",
+        rec_("a", a => F.Typ.prod([a, F.Typ.int()])),
+        rec_("b", _ => F.Typ.prod([F.Typ.bool(), F.Typ.int()])),
+        None,
+      ),
+    ]
+    @ binder_capture_cases,
+  );
+};
+
+let alias_def =
+  testable(
+    Fmt.using(Typ.show_alias_def, Fmt.string),
+    (a: Typ.alias_def, b: Typ.alias_def) =>
+    switch (a, b) {
+    | (Plain, Plain) => true
+    | (Recursive(a), Recursive(b)) => Typ.fast_equal(a, b)
+    | (Plain | Recursive(_), _) => false
+    }
+  );
+
+let recursive_def_tests = {
+  module F = IdTagged.FreshGrammar;
+  let int_and = ty => F.Typ.prod([F.Typ.int(), ty]);
+  let case = (name, alias, def, expected) =>
+    test_case(name, `Quick, () =>
+      check(
+        alias_def,
+        name,
+        expected,
+        Typ.recursive_def(F.TPat.var(alias), def),
+      )
+    );
+  (
+    "Typ.recursive_def",
+    [
+      case(
+        "a definition not mentioning the alias is plain",
+        "T",
+        int_and(F.Typ.int()),
+        Typ.Plain,
+      ),
+      case(
+        "a definition mentioning the alias is recursive, as written",
+        "T",
+        int_and(F.Typ.var("T")),
+        Typ.Recursive(
+          F.Typ.rec_(F.TPat.var("T"), int_and(F.Typ.var("T"))),
+        ),
+      ),
+      case(
+        "a definition mentioning the alias only through a projection is recursive, as written",
+        "M",
+        F.Typ.prod([
+          F.Typ.tup_label(
+            F.Typ.label("T"),
+            F.Typ.prod_projection(F.Typ.var("M"), F.Typ.label("T")),
+          ),
+        ]),
+        Typ.Recursive(
+          F.Typ.rec_(
+            F.TPat.var("M"),
+            F.Typ.prod([
+              F.Typ.tup_label(
+                F.Typ.label("T"),
+                F.Typ.prod_projection(F.Typ.var("M"), F.Typ.label("T")),
+              ),
+            ]),
+          ),
+        ),
+      ),
+      case(
+        "the alias alone is the non-contractive recursive type",
+        "T",
+        F.Typ.var("T"),
+        Typ.Recursive(F.Typ.rec_(F.TPat.var("T"), F.Typ.var("T"))),
+      ),
+      case(
+        "the alias in parentheses is the non-contractive recursive type",
+        "T",
+        F.Typ.parens(F.Typ.var("T")),
+        Typ.Recursive(F.Typ.rec_(F.TPat.var("T"), F.Typ.var("T"))),
+      ),
+      test_case(
+        "the recursive type is bound by the alias itself",
+        `Quick,
+        () => {
+          let alias = F.TPat.var("T");
+          let loop =
+            switch (Typ.recursive_def(alias, F.Typ.var("T"))) {
+            | Recursive(ty) => Typ.non_contractive(ty)
+            | Plain => None
+            };
+          check(
+            option(testable_id),
+            "the loop's binder is the alias's",
+            Some(TPat.rep_id(alias)),
+            Option.map(TPat.rep_id, loop),
+          );
+        },
+      ),
+    ],
+  );
+};
+
+let unroll_tests = {
+  module F = IdTagged.FreshGrammar;
+  let x = F.TPat.var("x");
+  let y = F.TPat.var("y");
+  let int_list = F.Typ.rec_(x, F.Typ.prod([F.Typ.int(), F.Typ.var("x")]));
+  let case = (name, expected, ty) =>
+    test_case(name, `Quick, () =>
+      check(option(typ), name, expected, Typ.unroll(ty))
+    );
+  (
+    "Typ.unroll",
+    [
+      case(
+        "a productive type unrolls one level",
+        Some(F.Typ.prod([F.Typ.int(), int_list])),
+        int_list,
+      ),
+      case(
+        "a self-loop has no unrolling",
+        None,
+        F.Typ.rec_(x, F.Typ.var("x")),
+      ),
+      case(
+        "binders around a self-loop have no unrolling",
+        None,
+        F.Typ.rec_(x, F.Typ.rec_(y, F.Typ.var("x"))),
+      ),
+      case(
+        "a self-loop in parentheses has no unrolling",
+        None,
+        F.Typ.rec_(x, F.Typ.parens(F.Typ.var("x"))),
+      ),
+      case(
+        "a self-loop under a binder with a hole has no unrolling",
+        None,
+        F.Typ.rec_(x, F.Typ.rec_(F.TPat.empty_hole(), F.Typ.var("x"))),
+      ),
+      case(
+        "a self-loop under a projector has no unrolling",
+        None,
+        F.Typ.rec_(
+          x,
+          F.Typ.projector(
+            {
+              kind: Fold,
+              model: "",
+            },
+            F.Typ.var("x"),
+          ),
+        ),
+      ),
+      case(
+        "a self-loop under a non-label has no unrolling",
+        None,
+        F.Typ.rec_(
+          x,
+          F.Typ.tup_label(F.Typ.explicit_non_label(), F.Typ.var("x")),
+        ),
+      ),
+      {
+        let inner =
+          F.Typ.rec_(y, F.Typ.prod([F.Typ.var("x"), F.Typ.var("y")]));
+        let outer = F.Typ.rec_(x, F.Typ.prod([F.Typ.var("x"), inner]));
+        case(
+          "nested binders unroll to the first non-Rec head",
+          Some(
+            F.Typ.prod([
+              outer,
+              F.Typ.rec_(y, F.Typ.prod([outer, F.Typ.var("y")])),
+            ]),
+          ),
+          F.Typ.rec_(x, inner),
+        );
+      },
+      case(
+        "a binder with a hole unrolls to its body",
+        Some(F.Typ.prod([F.Typ.int(), int_list])),
+        F.Typ.rec_(
+          x,
+          F.Typ.rec_(
+            F.TPat.empty_hole(),
+            F.Typ.prod([F.Typ.int(), F.Typ.var("x")]),
+          ),
+        ),
+      ),
+      case(
+        "a non-recursive type is unchanged",
+        Some(F.Typ.int()),
+        F.Typ.int(),
+      ),
+    ],
+  );
+};
+
+let meet_rec_tests = {
+  module F = IdTagged.FreshGrammar;
+  let ctx = Builtins.ctx_init(None);
+  let t = F.TPat.var("T");
+  let unknown = () => F.Typ.unknown(Internal);
+  let rec_prod = F.Typ.rec_(t, F.Typ.prod([F.Typ.var("T"), F.Typ.int()]));
+  let rec_prod_with_unknown =
+    F.Typ.rec_(t, F.Typ.prod([unknown(), F.Typ.var("T")]));
+  let case = (name, ctx, ty1, ty2, expected) =>
+    test_case(name, `Quick, () =>
+      check(option(typ), name, expected, Typ.meet(ctx, ty1, ty2))
+    );
+  (
+    "Typ.meet through recursive types",
+    [
+      case(
+        "a recursive type meets the shape of its unrolling as itself",
+        ctx,
+        rec_prod,
+        F.Typ.prod([unknown(), F.Typ.int()]),
+        Some(rec_prod),
+      ),
+      case(
+        "on either side",
+        ctx,
+        F.Typ.prod([unknown(), F.Typ.int()]),
+        rec_prod,
+        Some(rec_prod),
+      ),
+      case(
+        "a more precise other side gives the meet of the unrolling",
+        ctx,
+        rec_prod_with_unknown,
+        F.Typ.prod([F.Typ.int(), unknown()]),
+        Some(F.Typ.prod([F.Typ.int(), rec_prod_with_unknown])),
+      ),
+      case(
+        "a shape the unrolling does not have meets nothing",
+        ctx,
+        rec_prod,
+        F.Typ.bool(),
+        None,
+      ),
+      case(
+        "a self-loop meets nothing",
+        ctx,
+        F.Typ.rec_(F.TPat.var("x"), F.Typ.var("x")),
+        F.Typ.int(),
+        None,
+      ),
+      case(
+        "through the alias name",
+        Ctx.extend_alias(ctx, "T", Id.invalid, rec_prod),
+        F.Typ.var("T"),
+        F.Typ.prod([unknown(), F.Typ.int()]),
+        Some(F.Typ.var("T")),
+      ),
+    ],
+  );
+};
+
+/* Pairs that regenerate themselves when unrolled: the comparison must come
+   back to a pair it has seen and stop there. */
+let meet_out_of_phase_tests = {
+  module F = IdTagged.FreshGrammar;
+  let ctx = Builtins.ctx_init(None);
+  let b = F.TPat.var("b");
+  /* rec b -> Int -> Int -> b */
+  let two_step =
+    F.Typ.rec_(
+      b,
+      F.Typ.arrow(F.Typ.int(), F.Typ.arrow(F.Typ.int(), F.Typ.var("b"))),
+    );
+  let consistent = (name, ty1, ty2, expected) =>
+    test_case(name, `Quick, () =>
+      check(bool, name, expected, Option.is_some(Typ.meet(ctx, ty1, ty2)))
+    );
+  (
+    "Typ.meet on out-of-phase recursive types",
+    [
+      consistent(
+        "a recursive type against its other phase is consistent",
+        two_step,
+        F.Typ.arrow(F.Typ.int(), two_step),
+        true,
+      ),
+      consistent(
+        "on either side",
+        F.Typ.arrow(F.Typ.int(), two_step),
+        two_step,
+        true,
+      ),
+      consistent(
+        "a mismatch in the other phase is found",
+        two_step,
+        F.Typ.arrow(F.Typ.bool(), two_step),
+        false,
+      ),
+    ],
+  );
+};
+
 let tests = [
   meet_tests,
   fun_in_tests,
+  meet_rec_binder_tests,
+  meet_rec_tests,
+  meet_out_of_phase_tests,
   fast_equal_tests,
   diff_tests,
   sig_tests,
@@ -2188,4 +2576,6 @@ let tests = [
   avoid_tests,
   escaped_tests,
   cyclic_alias_tests,
+  recursive_def_tests,
+  unroll_tests,
 ];
