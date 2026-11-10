@@ -1177,7 +1177,8 @@ type split_entry = {
 };
 let split_memo: Hashtbl.t(Id.t, split_entry) = Hashtbl.create(64);
 /* the view and shape split_views last wrapped, for the memo's entry */
-let last_split: ref(option((View.t, ProjectorCore.Shape.t))) = ref(None);
+let last_split: ref(option((View.t, ProjectorCore.Shape.t))) =
+  ref(Stdlib.Option.None);
 /* (^report(51)) for the check's mark: time in shape_of, and how many
    projectors kept their finished views across new data */
 let shape_ms = ref(0.);
@@ -1370,14 +1371,17 @@ let all =
     | Some(e) when e.s_pd === pd && same_frame(e) => e.s_out
     | found =>
       incr(remade);
-      last_split := None;
+      last_split := Stdlib.Option.None;
       let out =
         split_views(
           ~skip_inline=false,
           ~core_settings,
           ~open_panel,
           ~render_splice,
-          ~kept=?Option.bind(found, e => same_frame(e) ? Some(e) : None),
+          ~kept=?
+            Option.bind(found, e =>
+              same_frame(e) ? Some(e) : Stdlib.Option.None
+            ),
           inject,
           make_active,
           font_metrics,

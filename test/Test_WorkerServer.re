@@ -424,11 +424,12 @@ let test_plain_data_is_value = (): test_case(_) =>
       check(bool, "data by its shape", true, ValueChecker.is_data(v));
       check(bool, "data by the step rules", true, by_rules(v));
       check(bool, "data is a value", true, ValueChecker.is_value(v));
-      let not_data = [
-        Exp.var("x"),
-        Exp.list_lit([Exp.string("a"), Exp.var("x")]),
-        Exp.fn(Pat.var("x"), Exp.var("x"), None, None),
-      ];
+      let not_data =
+        IdTagged.FreshGrammar.[
+          Exp.var("x"),
+          Exp.list_lit([Exp.string("a"), Exp.var("x")]),
+          Exp.fn(Pat.var("x"), Exp.var("x"), None, None),
+        ];
       List.iter(
         e => {
           check(
