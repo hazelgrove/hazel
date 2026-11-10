@@ -9,7 +9,6 @@ let prepare = (~settings: ExpToSegment.Settings.t, typ: Typ.t) => {
   typ:
     typ
     |> Typ.surface_names
-    |> Typ.desugar_sig(Ctx.empty)
     |> ExpToSegment.parenthesize_typ(
          ~parenthesization=settings.parenthesization,
          ~show_filters=settings.show_filters,

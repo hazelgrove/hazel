@@ -183,7 +183,8 @@ and mod_item =
 
 and sig_item =
   | SigItemLet(pat)
-  | SigItemType(tpat, typ);
+  | SigItemType(tpat, typ)
+  | SigItemModule(pat);
 
 /* Mixed into the generators so the MakeTerm/Menhir equivalence tests
  * exercise the name alphabet rather than only ASCII.

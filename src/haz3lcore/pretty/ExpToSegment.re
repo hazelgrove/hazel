@@ -267,6 +267,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Test(_)
   | HintedTest(_)
   | ProofObject(_)
+  | Module(_)
   | Match(_) => Precedence.max
 
   | Asc(_) => Precedence.asc
@@ -298,7 +299,6 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
 
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
   | MultiHole(_) => Precedence.min
-  | Module(_) => Precedence.min
   | ModuleExp(_) => Precedence.let_
   };
 };
@@ -351,7 +351,8 @@ let external_precedence_typ = (tp: Typ.t) =>
   | Parens(_)
   | Projector(_)
   | ProofOf(_)
-  | List(_) => Precedence.max
+  | List(_)
+  | Sig(_) => Precedence.max
 
   // Other forms
   | Prod([]) => Precedence.max // the atomic () unit-type token (#2296)
@@ -369,7 +370,6 @@ let external_precedence_typ = (tp: Typ.t) =>
 
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
   | Unknown(Hole(MultiHole(_))) => Precedence.min
-  | Sig(_) => Precedence.min
   };
 
 /* Conditional parenthesization helpers.
@@ -736,8 +736,21 @@ let rec parenthesize =
       ),
     )
     |> rewrap
-  | Module(_) => exp /* Phase 1.2: proper module parenthesization */
-  | ModuleExp(_) => exp
+  | Module(items) =>
+    Module(
+      List.map(
+        parenthesize_mod(~parenthesization, ~show_filters, ~show_ascriptions),
+        items,
+      ),
+    )
+    |> rewrap
+  | ModuleExp(mp, def, body) =>
+    ModuleExp(
+      mp,
+      parenthesize(def) |> paren_at(Precedence.min),
+      parenthesize(body) |> paren_assoc_at(Precedence.let_),
+    )
+    |> rewrap
   };
 }
 and parenthesize_pat =
@@ -858,11 +871,9 @@ and parenthesize_typ =
 
   // Other forms
   | Parens(t) =>
-    Parens(
-      parenthesize_typ(~already_paren=true, t)
-      |> paren_typ_at(Precedence.min),
-    )
-    |> rewrap
+    /* Already parenthesized: paren_typ_at(min) here would add a layer around
+       every min-precedence t. */
+    Parens(parenthesize_typ(~already_paren=true, t)) |> rewrap
   | Projector(data, t) =>
     Projector(data, parenthesize_typ(t) |> paren_typ_at(Precedence.min))
     |> rewrap
@@ -966,7 +977,16 @@ and parenthesize_typ =
       ),
     )
     |> rewrap
-  | Sig(_) => term |> rewrap
+  | Sig(s) =>
+    let item =
+      Sig.map_typ(t => parenthesize_typ(t) |> paren_typ_at(Precedence.min));
+    Sig(
+      switch (s) {
+      | Open(items) => Open(List.map(item, items))
+      | Closed(items) => Closed(ClosedSig.map(item, items))
+      },
+    )
+    |> rewrap;
   };
 }
 
@@ -1045,6 +1065,56 @@ and parenthesize_rul =
   };
 }
 
+and parenthesize_mod =
+    (
+      ~parenthesization: Settings.parenthesization,
+      ~show_filters: bool,
+      ~show_ascriptions: bool,
+      item: Mod.t,
+    )
+    : Mod.t => {
+  let parenthesize =
+    parenthesize(~parenthesization, ~show_filters, ~show_ascriptions);
+  let definition = e =>
+    parenthesize(e) |> paren_at(~parenthesization, Precedence.min);
+  let (term, rewrap: Mod.term => Mod.t) = IdTagged.unwrap(item);
+  switch (term) {
+  | Invalid(_)
+  | EmptyHole => item
+  | MultiHole(xs) =>
+    MultiHole(
+      List.map(
+        parenthesize_any(~parenthesization, ~show_ascriptions, ~show_filters),
+        xs,
+      ),
+    )
+    |> rewrap
+  | ModLet(p, e) =>
+    ModLet(
+      parenthesize_pat(~parenthesization, ~show_filters, ~show_ascriptions, p)
+      |> paren_pat_at(~parenthesization, Precedence.min),
+      definition(e),
+    )
+    |> rewrap
+  | ModType(tp, t) =>
+    ModType(
+      parenthesize_tpat(
+        ~parenthesization,
+        ~show_filters,
+        ~show_ascriptions,
+        tp,
+      ),
+      parenthesize_typ(~parenthesization, ~show_filters, ~show_ascriptions, t)
+      |> paren_typ_at(~parenthesization, Precedence.min),
+    )
+    |> rewrap
+  /* Not `definition`: a fresh Parens would split the item from the
+     expression it shares ids with. */
+  | ModExp(e) => ModExp(parenthesize(e)) |> rewrap
+  | ModuleMod(mp, e) => ModuleMod(mp, definition(e)) |> rewrap
+  | ModVal(x, e) => ModVal(x, definition(e)) |> rewrap
+  };
+}
 and parenthesize_any =
     (
       ~parenthesization: Settings.parenthesization,
@@ -1103,11 +1173,19 @@ and parenthesize_any =
         r,
       ),
     )
-  /* Parenthesization for Drv, Mod, Sig, MPat, and Any is not yet defined.
+  /* Parenthesization for Drv, Sig, MPat, and Any is not yet defined.
      Pretty-printing produces the term as-is; this is sound (never adds
      invalid parens) but may omit disambiguating parens in nested contexts. */
   | Drv(_) => any
-  | Mod(_) => any
+  | Mod(m) =>
+    Mod(
+      parenthesize_mod(
+        ~parenthesization,
+        ~show_filters,
+        ~show_ascriptions,
+        m,
+      ),
+    )
   | Sig(_) => any
   | MPat(_) => any
   | Any(_) => any
@@ -1124,8 +1202,10 @@ let should_add_space = (s1, s2) =>
   | _ when String.starts_with(s2, ~prefix=":") => false
   | _ when String.ends_with(s1, ~suffix="::") => true
   | _ when String.ends_with(s1, ~suffix=":") =>
+    /* After `:`, an operator character would lex into the same token (`:+`);
+       `$` also needs the gap. */
     String.starts_with(s2, ~prefix="$")
-    || String.starts_with(s2, ~prefix="!")
+    || Token.begins_with_potential_operator(s2)
   | _ when String.ends_with(s1, ~suffix=" ") => false
   | _ when String.starts_with(s2, ~prefix=" ") => false
   | _ when String.ends_with(s1, ~suffix="\n") => false
@@ -2547,6 +2627,15 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
                ]
                @ e,
              );
+           | ModVal(x, e) =>
+             /* An evaluated binding (dynamics only) displays as `let x = e`. */
+             let+ p = pat_to_pretty(~settings, Pat.fresh(Var(x)))
+             and+ e = go(e);
+             wrap_item(
+               item,
+               [mk_form(~sort=Sort.Mod, ModLet, item |> Mod.rep_id, [p])]
+               @ e,
+             );
            | MultiHole(es) =>
              let+ es = es |> List.map(any_to_pretty(~settings)) |> all;
              wrap_item(item, List.flatten(es));
@@ -3123,13 +3212,13 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
           ),
       );
     };
-  | Sig([]) =>
+  | Sig(s) when List.is_empty(Sig.items(s)) =>
     /* Empty sig: {} */
     wrap(
       typ,
       text_to_pretty(typ |> Typ.rep_id, Sort.Typ, Token.empty_module),
     )
-  | Sig(items) =>
+  | Sig(s) =>
     /* Non-empty sig: { let x : Int; type T = Bool; ... } */
     let ids =
       IdTagged.ids(typ) |> PadIds.pad_ids(PadIds.necessary_ids(typ));
@@ -3137,7 +3226,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     let ids = List.tl(ids);
     let wrap_item = wrap_with_secondary(~secondary=settings.secondary);
     let+ items_pretty =
-      items
+      Sig.items(s)
       |> List.map((item: Sig.t) =>
            switch (item.term) {
            | SigLet(p) =>
@@ -3154,6 +3243,14 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
                [mk_form(~sort=Sort.Sig, ModType, item |> Sig.rep_id, [tp])]
                @ t,
              );
+           | SigModule(mp) =>
+             p_just(
+               wrap_item(
+                 item,
+                 [mk_form(~sort=Sort.Sig, SigModule, item |> Sig.rep_id, [])]
+                 @ mpat_to_seg(~settings, mp),
+               ),
+             )
            | EmptyHole =>
              let item_id = item |> Sig.rep_id;
              let seg =
@@ -3276,6 +3373,10 @@ and mod_to_pretty = (~settings: Settings.t, item: Mod.t): pretty => {
       item,
       [mk_form(ModuleMod, item |> Mod.rep_id, [mp_seg])] @ e,
     );
+  | ModVal(x, e) =>
+    let+ p = pat_to_pretty(~settings, Pat.fresh(Var(x)))
+    and+ e = exp_to_pretty(~settings, e);
+    wrap_item(item, [mk_form(ModLet, item |> Mod.rep_id, [p])] @ e);
   | EmptyHole =>
     let seg =
       switch (hole_lexeme(item.annotation)) {
@@ -3310,6 +3411,14 @@ and sig_to_pretty = (~settings: Settings.t, item: Sig.t): pretty => {
     let+ tp = tpat_to_pretty(~settings, tp)
     and+ t = typ_to_pretty(~settings, t);
     wrap_item(item, [mk_form(ModType, item |> Sig.rep_id, [tp])] @ t);
+  | SigModule(mp) =>
+    p_just(
+      wrap_item(
+        item,
+        [mk_form(SigModule, item |> Sig.rep_id, [])]
+        @ mpat_to_seg(~settings, mp),
+      ),
+    )
   | EmptyHole =>
     let seg =
       switch (hole_lexeme(item.annotation)) {

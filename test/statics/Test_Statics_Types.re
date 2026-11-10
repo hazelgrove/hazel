@@ -480,6 +480,16 @@ let tests = (
         ),
       ),
     ),
+    fully_consistent_typecheck(
+      "A type alias shadowed later keeps its meaning in earlier annotations",
+      {|type T = Int in let x : T = 1 in type T = Bool in x + 1|},
+      Some(FTemp.Typ.int()),
+    ),
+    fully_consistent_typecheck(
+      "A type alias shadowed by a type function's variable keeps its meaning",
+      {|type X = Int in let a : X = 1 in (typfun X -> a + 1)@<Bool>|},
+      Some(FTemp.Typ.int()),
+    ),
     /* A later alias of the same name must not capture references made by
        earlier aliases: `Skel` means the first `T` (as in OCaml, cf.
        haz3lcore's Skel.Stacks), so resolving the second `T` terminates. */

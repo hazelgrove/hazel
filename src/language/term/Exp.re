@@ -18,6 +18,10 @@ type cls =
   | TupleExtension
   | Tuple
   | Dot
+  /* A Dot whose left side is a module or a labeled tuple: classes statics
+     gives, not term forms. */
+  | ModuleProjection
+  | TupleProjection
   | Var
   | Let
   | Theorem
@@ -123,21 +127,18 @@ let strip_projectors =
   );
 
 /* `e` with the type variable `x` renamed to `x'` where it refers to the
-   binding being renamed: not in the scope of a type binder of `x`, nor in
-   that of a module named `x`, since a module's name roots type paths. A
-   `let` names a module when its definition is a module or a name
-   [is_module] holds of. */
-let rec rename_tvar =
-        (~is_module: string => bool, x: string, x': string, e: t): t => {
-  let rename_tvar = rename_tvar(~is_module);
-  let rename_typ = (_, ty) => Typ.rename_var(x, x', ty);
-  let defines_module = (def: t) =>
-    switch (term_of(def)) {
-    | Module(_) => true
-    | Var(y)
-    | Constructor(y, _) => is_module(y)
-    | _ => false
-    };
+   binding being renamed: not in the scope of a type binder of `x`. A path
+   root `x` (in `x.T`) names the newest type or value of its name, so in
+   the scope of a value named `x`, which may be a module, path roots `x`
+   are left alone ([~roots=false]); a bare type `x` still is the binding. */
+let rec rename_tvar = (~roots=true, x: string, x': string, e: t): t => {
+  let rename_typ = (~roots, _, ty) => Typ.rename_var(~roots, x, x', ty);
+  let binds = (p: Pat.t) =>
+    List.exists(String.equal(x), Pat.bound_vars(p));
+  /* a binder's types, and the scope it binds over */
+  let pat = p => Pat.map_term(~f_typ=rename_typ(~roots), p);
+  let scope = (p, body) =>
+    rename_tvar(~roots=roots && !binds(p), x, x', body);
   map_term(
     ~f_exp=
       (continue, e) => {
@@ -145,63 +146,73 @@ let rec rename_tvar =
         switch (term) {
         | TyAlias(tp, _, _)
         | TypFun(tp, _, _) when TPat.binds(x, tp) => e
-        | ModuleExp(mp, def, body)
-            when List.exists(String.equal(x), MPat.names(mp)) =>
-          ModuleExp(
-            MPat.map_term(~f_typ=rename_typ, mp),
-            rename_tvar(x, x', def),
-            body,
+        | Let(p, def, body) =>
+          Let(pat(p), rename_tvar(~roots, x, x', def), scope(p, body))
+          |> rewrap
+        | Fun(p, body, ty, name) =>
+          Fun(
+            pat(p),
+            scope(p, body),
+            Option.map(Typ.rename_var(~roots, x, x'), ty),
+            name,
           )
           |> rewrap
-        | Let(p, def, body)
-            when
-              List.exists(String.equal(x), Pat.bound_vars(p))
-              && defines_module(def) =>
-          Let(
-            Pat.map_term(~f_typ=rename_typ, p),
-            rename_tvar(x, x', def),
-            body,
+        | FixF(p, body, env) => FixF(pat(p), scope(p, body), env) |> rewrap
+        | Match(scrut, rules) =>
+          Match(
+            rename_tvar(~roots, x, x', scrut),
+            List.map(((p, body)) => (pat(p), scope(p, body)), rules),
+          )
+          |> rewrap
+        | ModuleExp(mp, def, body) =>
+          ModuleExp(
+            MPat.map_term(~f_typ=rename_typ(~roots), mp),
+            rename_tvar(~roots, x, x', def),
+            rename_tvar(
+              ~roots=
+                roots && !Option.equal(String.equal, Some(x), MPat.name(mp)),
+              x,
+              x',
+              body,
+            ),
           )
           |> rewrap
         | Module(items) =>
-          Module(rename_tvar_in_items(~is_module, x, x', items)) |> rewrap
+          Module(rename_tvar_in_items(~roots, x, x', items)) |> rewrap
         | _ => continue(e)
         };
       },
-    ~f_typ=rename_typ,
+    ~f_typ=rename_typ(~roots),
     e,
   );
 }
 and rename_tvar_in_items =
-    (~is_module: string => bool, x: string, x': string, items: list(Mod.t))
-    : list(Mod.t) => {
-  let rename_typ = (_, ty) => Typ.rename_var(x, x', ty);
+    (~roots, x: string, x': string, items: list(Mod.t)): list(Mod.t) =>
   switch (items) {
   | [] => []
   | [{term: ModType(tp, _), _}, ..._] when TPat.binds(x, tp) => items
-  | [{term: ModuleMod(mp, def), _} as item, ...items]
-      when List.exists(String.equal(x), MPat.names(mp)) =>
-    let (_, rewrap) = IdTagged.unwrap(item);
+  | [item, ...items] =>
+    let binds_value =
+      switch (item.term) {
+      | ModLet(p, _) => List.exists(String.equal(x), Pat.bound_vars(p))
+      | ModuleMod(mp, _) =>
+        Option.equal(String.equal, Some(x), MPat.name(mp))
+      | ModVal(y, _) => String.equal(x, y)
+      | ModType(_)
+      | ModExp(_)
+      | Invalid(_)
+      | EmptyHole
+      | MultiHole(_) => false
+      };
     [
-      (
-        ModuleMod(
-          MPat.map_term(~f_typ=rename_typ, mp),
-          rename_tvar(~is_module, x, x', def),
-        ): Mod.term
-      )
-      |> rewrap,
-      ...items,
-    ];
-  | [item, ...items] => [
       Mod.map_term(
-        ~f_exp=(_, e) => rename_tvar(~is_module, x, x', e),
-        ~f_typ=rename_typ,
+        ~f_exp=(_, e) => rename_tvar(~roots, x, x', e),
+        ~f_typ=(_, ty) => Typ.rename_var(~roots, x, x', ty),
         item,
       ),
-      ...rename_tvar_in_items(~is_module, x, x', items),
-    ]
+      ...rename_tvar_in_items(~roots=roots && !binds_value, x, x', items),
+    ];
   };
-};
 
 let rec cls_of_term: type a. Grammar.exp_term(a) => cls =
   fun
@@ -284,6 +295,8 @@ let show_cls: cls => string =
   | TupLabel => "Tuple Item"
   | TupleExtension => "Tuple Extension"
   | Dot => "Dot operator"
+  | ModuleProjection => "Module projection"
+  | TupleProjection => "Labeled tuple projection"
   | Var => "Variable reference"
   | Let => "Let expression"
   | Theorem => "Theorem expression"
@@ -559,8 +572,26 @@ let (replace_all_ids, replace_all_ids_typ) = {
       }
       |> continue;
   (
-    map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
-    Typ.map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
+    map_term(
+      ~f_exp=f,
+      ~f_pat=f,
+      ~f_typ=f,
+      ~f_tpat=f,
+      ~f_rul=f,
+      ~f_mod=f,
+      ~f_sig=f,
+      ~f_mpat=f,
+    ),
+    Typ.map_term(
+      ~f_exp=f,
+      ~f_pat=f,
+      ~f_typ=f,
+      ~f_tpat=f,
+      ~f_rul=f,
+      ~f_mod=f,
+      ~f_sig=f,
+      ~f_mpat=f,
+    ),
   );
 };
 

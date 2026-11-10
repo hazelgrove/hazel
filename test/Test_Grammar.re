@@ -53,7 +53,9 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | TupLabel => tup_label(label("label"), empty_hole())
       | Tuple => tuple([])
       | TupleExtension => tuple_extension(empty_hole(), empty_hole())
-      | Dot => dot(empty_hole(), empty_hole())
+      | Dot
+      | ModuleProjection
+      | TupleProjection => dot(empty_hole(), empty_hole())
       | LivelitName => livelit_name("^slider")
       | LivelitAp => livelit_ap(Forward, livelit_name("^slider"), int(1))
       | Var => var("x")
@@ -220,6 +222,8 @@ let tests = (
             switch (cls) {
             | Projector // Excluding projectors from cls
             | Parens => () // Parens and projectors are transparent (return inner cls)
+            | ModuleProjection
+            | TupleProjection => () // Given by statics from the left side's type, not by the term
             | _ =>
               check(
                 cls_testable,

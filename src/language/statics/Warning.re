@@ -16,28 +16,30 @@ type list_item =
   | TPat(warning_typ)
   | Typ(warning_typ);
 
-/* The warnings for binding type alias [name] to [def]. */
-let type_binding = (name, def: Typ.alias_def): list(list_item) =>
-  switch (def) {
-  | Recursive(ty) when Option.is_some(Typ.non_contractive(ty)) => [
-      TPat(NonContractive(name)),
-    ]
-  | Recursive(_)
-  | Plain => []
-  };
-
-/* The warnings for a written recursive type [ty] whose binder is [binder].
-   Of nested binders, only the one the body reduces to is warned:
-   `rec x -> rec y -> x` on the outer type, `rec x -> rec y -> y` and
-   `rec x -> rec x -> x` on the inner one. */
-let rec_type = (binder: TPat.t, ty): list(list_item) =>
+/* The name [binder] binds, when [ty] is non-contractive and its body reduces
+   to that binder. Of nested binders, only that one is: `rec x -> rec y -> x`
+   loops at the outer binder, `rec x -> rec y -> y` and `rec x -> rec x -> x`
+   at the inner one. */
+let loops_at = (binder: TPat.t, ty): option(string) =>
   switch (TPat.tyvar_of_utpat(binder), Typ.non_contractive(ty)) {
   | (Some(name), Some(loop))
-      when Id.equal(TPat.rep_id(loop), TPat.rep_id(binder)) => [
-      Typ(NonContractive(name)),
-    ]
-  | (Some(_) | None, Some(_) | None) => []
+      when Id.equal(TPat.rep_id(loop), TPat.rep_id(binder)) =>
+    Some(name)
+  | (Some(_) | None, Some(_) | None) => None
   };
+
+/* The warnings for binding the type alias [binder] to [ty], the type it
+   stands for, whose recursive binder is [binder] itself. */
+let type_binding = (binder: TPat.t, ty): list(list_item) =>
+  loops_at(binder, ty)
+  |> Option.map(name => TPat(NonContractive(name)))
+  |> Option.to_list;
+
+/* The warnings for a written recursive type [ty] whose binder is [binder]. */
+let rec_type = (binder: TPat.t, ty): list(list_item) =>
+  loops_at(binder, ty)
+  |> Option.map(name => Typ(NonContractive(name)))
+  |> Option.to_list;
 
 let var_is_unused = (co_ctx, name): list(list_item) =>
   String.starts_with(~prefix="_", name)

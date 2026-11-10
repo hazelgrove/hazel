@@ -127,11 +127,13 @@ let update' = (x: t('a), f: 'a => 'b, y: t('b)): t('b) =>
   };
 
 /* Using set, we can compare some value to the previously saved value, and create
-   a new t('a) that indicates whether the value has changed. */
+   a new t('a) that indicates whether the value has changed. The same object is
+   unchanged whatever eq says, so a non-reflexive eq costs one recompute rather
+   than one per frame. */
 let set = (~eq: ('a, 'a) => bool=(==), x: 'a, y: saved('a)) =>
   switch (y) {
   | Pending => NewValue(x)
-  | Calculated(x') when eq(x, x') => OldValue(x)
+  | Calculated(x') when x === x' || eq(x, x') => OldValue(x)
   | Calculated(_) => NewValue(x)
   };
 
