@@ -425,18 +425,90 @@ let name_of_line = (e: entry): string =>
   | _ => ""
   };
 
-/* a key, as text mode reads it */
+/* a key, as both modes read it */
 type press = {
   key: string,
   code: string,
   alt: bool,
-  /* ⌘, or Ctrl off the Mac */
+  /* the command key: ⌘ on a Mac, Ctrl elsewhere */
   meta: bool,
-  /* Ctrl on the Mac: the field's own (emacs) keys */
+  /* the other one: Ctrl on a Mac (the field's own emacs keys), ⊞
+     elsewhere */
   ctrl: bool,
   shift: bool,
   composing: bool,
 };
+
+let press_of = (~composing: bool, k: Key.t): press => {
+  let mac = k.sys == Mac;
+  {
+    key:
+      switch (k.key) {
+      | D(key)
+      | U(key) => key
+      },
+    code: k.code,
+    alt: k.alt == Down,
+    meta: (mac ? k.meta : k.ctrl) == Down,
+    ctrl: (mac ? k.ctrl : k.meta) == Down,
+    shift: k.shift == Down,
+    composing,
+  };
+};
+
+/* [p] held exactly these modifiers */
+let only = (~alt=false, ~meta=false, ~shift=false, p: press): bool =>
+  p.alt == alt && p.meta == meta && p.shift == shift && !p.ctrl;
+
+/* what a structural key does, the same in both modes */
+type structural =
+  | Item(def_op)
+  | Fold
+  | Menu
+  | Leave;
+
+type modifier =
+  | Alt
+  | Cmd
+  | Shift;
+
+type trigger =
+  | Key(string)
+  /* a letter, as ⌥ changes its key */
+  | Code(string);
+
+/* the structural keys, each on its exact modifiers */
+let structural_keys: list((trigger, list(modifier), structural)) = [
+  (Key("ArrowUp"), [Alt], Item(MoveUp)),
+  (Key("ArrowDown"), [Alt], Item(MoveDown)),
+  (Code("KeyD"), [Cmd], Item(Duplicate)),
+  (Key("Backspace"), [Cmd], Item(Delete)),
+  (Code("KeyF"), [Alt], Fold),
+  (Key("."), [Cmd], Menu),
+  (Key("F10"), [Shift], Menu),
+  (Code("KeyO"), [Alt], Leave),
+];
+
+let structural = (p: press): option(structural) =>
+  p.composing
+    ? None
+    : List.find_map(
+        ((trigger, mods, s)) =>
+          (
+            switch (trigger) {
+            | Key(k) => p.key == k
+            | Code(c) => p.code == c
+            }
+          )
+          && only(
+               ~alt=List.mem(Alt, mods),
+               ~meta=List.mem(Cmd, mods),
+               ~shift=List.mem(Shift, mods),
+               p,
+             )
+            ? Some(s) : None,
+        structural_keys,
+      );
 
 /* the caret where a key finds it: in the line's field (its selection),
    or, before the field has the keys, the model's */
@@ -719,7 +791,7 @@ let live_key =
   let above = () => at > 0 ? to_end(at - 1) : Save(Leave);
   let blank = String.trim(name) == "";
   let kw = Option.fold(~none="", ~some=f => f.f_kw, t.fresh);
-  let alone = !p.alt && !p.meta && !p.shift;
+  let alone = only(p);
   /* where the line goes in a level ([out]: out of one): last into the
      module or value above it; out of the module or value it's the last
      line of, just after that */
@@ -736,124 +808,118 @@ let live_key =
       Option.map(m => New(m, Below), level.r_node.o_id)
     | _ => None
     };
-  switch (p.key) {
-  /* IME and dead keys compose text in a field, and this line isn't one:
-     refused */
-  | _ when p.composing => Flash
-  | "Dead"
-  | "Process" => Flash
-  | "Shift"
-  | "Alt"
-  | "Meta"
-  | "Control"
-  | "CapsLock" => Page
-  | "Escape" => Save(Done)
-  | "Enter" when p.meta || p.shift => Save(Leave)
-  | "Enter" when p.alt || p.ctrl => Swallow
-  /* a blank last line in a module or a value's body goes out of it, as
-     ⇧Tab takes it; elsewhere it's gone, and text mode with it */
-  | "Enter" when blank =>
-    switch (shifted(~out=true)) {
-    | Some(to_) => Shift(to_)
-    | None => Save(Leave)
-    }
-  | "Enter" => Save(Next)
-  | "Tab" when !p.alt && !p.meta && !p.ctrl =>
-    switch (shifted(~out=p.shift)) {
-    | Some(to_) => Shift(to_)
-    | None => Flash
-    }
-  | "Tab"
-  | "F2" => Swallow
-  /* not an item to move yet */
-  | "ArrowUp"
-  | "ArrowDown" when p.alt && !p.meta && !p.shift => Flash
-  | "ArrowUp" when p.meta && !p.alt && !p.shift =>
-    at == 0 ? Type(Step(Left, Edge)) : to_start(0)
-  | "ArrowDown" when p.meta && !p.alt && !p.shift =>
-    at == n - 1 ? Type(Step(Right, Edge)) : to_end(n - 1)
-  | "ArrowUp" when alone => vertical(~up=true, max(0, at - 1))
-  | "ArrowDown" when alone => vertical(~up=false, min(n - 1, at + 1))
-  | "PageUp" when alone => vertical(~up=true, max(0, at - page()))
-  | "PageDown" when alone => vertical(~up=false, min(n - 1, at + page()))
-  /* ⌥: a word; ⌘: the name's start or end */
-  | ("ArrowLeft" | "ArrowRight") as k when !p.ctrl && !(p.alt && p.meta) =>
-    horizontal(
-      k == "ArrowLeft" ? Left : Right,
-      p.alt ? Word : p.meta ? Edge : Char,
-    )
-  | ("Home" | "End") as k when !p.alt && !p.meta && !p.ctrl =>
-    horizontal(k == "Home" ? Left : Right, Edge)
-  | "ArrowUp"
-  | "ArrowDown"
-  | "ArrowLeft"
-  | "ArrowRight"
-  | "Home"
-  | "End"
-  | "PageUp"
-  | "PageDown" => Swallow
+  switch (structural(p)) {
   /* ⌘⌫: the definition goes, named or not */
-  | "Backspace" when p.meta =>
+  | Some(Item(Delete)) =>
     switch (t.fresh) {
     | Some(f) => Drop(f.f_id, at > 0 ? Some(end_of(lines, at - 1)) : None)
     | None => above()
     }
-  | "Backspace" when p.ctrl => Swallow
-  | "Backspace" when !blank => Type(Erase(Left, p.alt ? Word : Char))
-  /* at a blank name's start: a type or module's keyword goes first */
-  | "Backspace" when kw != "" && t.fresh != None => Rekind("")
-  /* a blank name: the line goes, and its definition with it */
-  | "Backspace" => above()
-  | "Delete" when !p.meta && !p.ctrl && !p.shift && !blank =>
-    Type(Erase(Right, p.alt ? Word : Char))
-  | "Delete" => Flash
-  | _ when p.alt && !p.meta && p.code == "KeyF" => Flash
-  | _ when p.alt && !p.meta && p.code == "KeyO" => Exit
-  | "." when p.meta => Menu
-  | "F10" when p.shift => Menu
-  | _ when p.meta && !p.alt && !p.shift && p.code == "KeyD" => Flash
-  /* the page's undo takes the definition away, typed name and all */
-  | _
-      when
-        p.meta && !p.alt && !p.shift && String.lowercase_ascii(p.key) == "z" =>
-    switch (t.fresh) {
-    | Some(_) when at > 0 =>
-      let (l, c) = end_of(lines, at - 1);
-      Undo(l, c);
-    | Some(_) => Page
-    /* not in yet: the Enter that made it */
-    | None => above()
+  /* not an item to move, copy or fold yet */
+  | Some(Item(_) | Fold) => Flash
+  | Some(Menu) => Menu
+  | Some(Leave) => Exit
+  | None =>
+    switch (p.key) {
+    /* IME and dead keys compose text in a field, and this line isn't one:
+       refused */
+    | _ when p.composing => Flash
+    | "Dead"
+    | "Process" => Flash
+    | "Shift"
+    | "Alt"
+    | "Meta"
+    | "Control"
+    | "CapsLock" => Page
+    | "Escape" => Save(Done)
+    | "Enter" when only(~meta=true, p) || only(~shift=true, p) =>
+      Save(Leave)
+    | "Enter" when !alone => Swallow
+    /* a blank last line in a module or a value's body goes out of it, as
+       ⇧Tab takes it; elsewhere it's gone, and text mode with it */
+    | "Enter" when blank =>
+      switch (shifted(~out=true)) {
+      | Some(to_) => Shift(to_)
+      | None => Save(Leave)
+      }
+    | "Enter" => Save(Next)
+    | "Tab" when !p.alt && !p.meta && !p.ctrl =>
+      switch (shifted(~out=p.shift)) {
+      | Some(to_) => Shift(to_)
+      | None => Flash
+      }
+    | "Tab"
+    | "F2" => Swallow
+    | "ArrowUp" when only(~meta=true, p) =>
+      at == 0 ? Type(Step(Left, Edge)) : to_start(0)
+    | "ArrowDown" when only(~meta=true, p) =>
+      at == n - 1 ? Type(Step(Right, Edge)) : to_end(n - 1)
+    | "ArrowUp" when alone => vertical(~up=true, max(0, at - 1))
+    | "ArrowDown" when alone => vertical(~up=false, min(n - 1, at + 1))
+    | "PageUp" when alone => vertical(~up=true, max(0, at - page()))
+    | "PageDown" when alone => vertical(~up=false, min(n - 1, at + page()))
+    /* ⌥: a word; ⌘: the name's start or end */
+    | ("ArrowLeft" | "ArrowRight") as k when !p.ctrl && !(p.alt && p.meta) =>
+      horizontal(
+        k == "ArrowLeft" ? Left : Right,
+        p.alt ? Word : p.meta ? Edge : Char,
+      )
+    | ("Home" | "End") as k when !p.alt && !p.meta && !p.ctrl =>
+      horizontal(k == "Home" ? Left : Right, Edge)
+    | "ArrowUp"
+    | "ArrowDown"
+    | "ArrowLeft"
+    | "ArrowRight"
+    | "Home"
+    | "End"
+    | "PageUp"
+    | "PageDown" => Swallow
+    | "Backspace" when p.meta || p.ctrl => Swallow
+    | "Backspace" when !blank => Type(Erase(Left, p.alt ? Word : Char))
+    /* at a blank name's start: a type or module's keyword goes first */
+    | "Backspace" when kw != "" && t.fresh != None => Rekind("")
+    /* a blank name: the line goes, and its definition with it */
+    | "Backspace" => above()
+    | "Delete" when !p.meta && !p.ctrl && !p.shift && !blank =>
+      Type(Erase(Right, p.alt ? Word : Char))
+    | "Delete" => Flash
+    /* the page's undo takes the definition away, typed name and all */
+    | _ when only(~meta=true, p) && String.lowercase_ascii(p.key) == "z" =>
+      switch (t.fresh) {
+      | Some(_) when at > 0 =>
+        let (l, c) = end_of(lines, at - 1);
+        Undo(l, c);
+      | Some(_) => Page
+      /* not in yet: the Enter that made it */
+      | None => above()
+      }
+    | _ when only(~meta=true, p) && String.lowercase_ascii(p.key) == "a" =>
+      Type(SelectAll)
+    | _ when only(~meta=true, p) && String.lowercase_ascii(p.key) == "v" =>
+      Paste
+    /* what's drawn: what was just seen selected (the clipboard is written
+       as the key goes down) */
+    | ("c" | "C" | "x" | "X") as c when only(~meta=true, p) =>
+      sel
+        ? Copy(
+            slice(name, min(col, anchor), max(col, anchor)),
+            String.lowercase_ascii(c) == "x",
+          )
+        : Swallow
+    | _ when p.meta => Page
+    | _ when p.ctrl => Swallow
+    /* a value's name begun `type ` or `module `: that kind instead */
+    | " "
+        when
+          kw == ""
+          && t.fresh != None
+          && !sel
+          && col == len
+          && (name == "type" || name == "module") =>
+      Rekind(name ++ " ")
+    | _ when Unicode.count_codepoints(p.key) == 1 => Type(Insert(p.key))
+    | _ => Swallow
     }
-  | _
-      when
-        p.meta && !p.alt && !p.shift && String.lowercase_ascii(p.key) == "a" =>
-    Type(SelectAll)
-  | _
-      when
-        p.meta && !p.alt && !p.shift && String.lowercase_ascii(p.key) == "v" =>
-    Paste
-  /* what's drawn: what was just seen selected (the clipboard is written
-     as the key goes down) */
-  | ("c" | "C" | "x" | "X") as c when p.meta && !p.alt && !p.shift =>
-    sel
-      ? Copy(
-          slice(name, min(col, anchor), max(col, anchor)),
-          String.lowercase_ascii(c) == "x",
-        )
-      : Swallow
-  | _ when p.meta => Page
-  | _ when p.ctrl => Swallow
-  /* a value's name begun `type ` or `module `: that kind instead */
-  | " "
-      when
-        kw == ""
-        && t.fresh != None
-        && !sel
-        && col == len
-        && (name == "type" || name == "module") =>
-    Rekind(name ++ " ")
-  | _ when Unicode.count_codepoints(p.key) == 1 => Type(Insert(p.key))
-  | _ => Swallow
   };
 };
 
@@ -908,114 +974,118 @@ let decide_row =
       );
     Edit(text, col);
   };
-  let alone = !p.alt && !p.meta && !p.shift;
-  switch (p.key) {
-  | _ when p.composing => Field
-  | "Shift"
-  | "Alt"
-  | "Meta"
-  | "Control"
-  | "CapsLock" => Page
-  | "Escape" => Save(Done)
-  | "Enter" when p.meta || p.shift => Save(Leave)
-  | "Enter" when p.alt || p.ctrl => Swallow
-  | "Enter" when !here_ghost =>
-    switch (item) {
-    | Some(id) => Go(New(id, new_place(~blank, r)), 0, None)
-    | None => Flash
-    }
-  | "Enter" =>
-    switch (r.r_node.o_kind, item) {
-    | (KTrail, _) => Flash
-    | (KTest, Some(id)) => NewTest(NewTestBelow, id)
-    | (KTests, _) =>
-      switch (
-        List.filter_map((c: OutlineTree.node) => c.o_id, r.r_node.o_children)
-      ) {
-      | [] => Flash
-      | [first, ..._] as ids =>
-        r.r_expanded
-          ? NewTest(NewTestAbove, first)
-          : NewTest(NewTestBelow, ListUtil.last(ids))
+  let alone = only(p);
+  switch (structural(p)) {
+  | Some(Item(o)) => op(o)
+  | Some(Fold) => r.r_node.o_children != [] ? Fold(r.r_path) : Flash
+  | Some(Menu) => Menu
+  | Some(Leave) => Exit
+  | None =>
+    switch (p.key) {
+    | _ when p.composing => Field
+    | "Shift"
+    | "Alt"
+    | "Meta"
+    | "Control"
+    | "CapsLock" => Page
+    | "Escape" => Save(Done)
+    | "Enter" when only(~meta=true, p) || only(~shift=true, p) =>
+      Save(Leave)
+    | "Enter" when !alone => Swallow
+    | "Enter" when !here_ghost =>
+      switch (item) {
+      | Some(id) => Go(New(id, new_place(~blank, r)), 0, None)
+      | None => Flash
       }
-    | (_, Some(id)) => Go(New(id, Below), 0, None)
-    | (_, None) => Flash
+    | "Enter" =>
+      switch (r.r_node.o_kind, item) {
+      | (KTrail, _) => Flash
+      | (KTest, Some(id)) => NewTest(NewTestBelow, id)
+      | (KTests, _) =>
+        switch (
+          List.filter_map(
+            (c: OutlineTree.node) => c.o_id,
+            r.r_node.o_children,
+          )
+        ) {
+        | [] => Flash
+        | [first, ..._] as ids =>
+          r.r_expanded
+            ? NewTest(NewTestAbove, first)
+            : NewTest(NewTestBelow, ListUtil.last(ids))
+        }
+      | (_, Some(id)) => Go(New(id, Below), 0, None)
+      | (_, None) => Flash
+      }
+    /* Tab: into the module or value above, last; ⇧Tab: out of the one
+       it's the last item of */
+    | "Tab" when !p.alt && !p.meta && !p.ctrl =>
+      switch (beside(~skip=None, lines, lines[at]), p.shift) {
+      | (Some({b_above: Some(above), _}), false)
+          when joins(~above, r.r_node.o_kind) =>
+        op(Indent)
+      | (Some({b_level: Some(level), b_below, _}), true)
+          when leaves(~level, b_below) =>
+        op(Outdent)
+      | _ => Flash
+      }
+    | "Tab"
+    | "F2" => Swallow
+    | "ArrowUp" when only(~meta=true, p) => at == 0 ? Place(0) : to_start(0)
+    | "ArrowDown" when only(~meta=true, p) =>
+      at == n - 1 ? Place(len) : to_end(n - 1)
+    | "ArrowUp" when alone => vertical(~up=true, max(0, at - 1))
+    | "ArrowDown" when alone => vertical(~up=false, min(n - 1, at + 1))
+    | "PageUp" when alone => vertical(~up=true, max(0, at - page()))
+    | "PageDown" when alone => vertical(~up=false, min(n - 1, at + page()))
+    | "ArrowLeft" when alone =>
+      here_ghost || !sel && col == 0
+        ? at > 0 ? to_end(at - 1) : Swallow : own(Place(col - 1))
+    | "ArrowRight" when alone =>
+      here_ghost || !sel && col >= len
+        ? at < n - 1 ? to_start(at + 1) : Swallow : own(Place(col + 1))
+    | "Home" when alone && !here_ghost => own(Place(0))
+    | "End" when alone && !here_ghost => own(Place(len))
+    | "ArrowUp"
+    | "ArrowDown"
+    | "ArrowLeft"
+    | "ArrowRight"
+    | "Home"
+    | "End"
+    | "PageUp"
+    | "PageDown" => here_ghost ? Swallow : own(Swallow)
+    | "Backspace" when p.meta => Swallow
+    | "Backspace" when here_ghost => Flash
+    /* at the field's start, a keyword typed before it goes first */
+    | "Backspace" when kw != "" && !sel && col == 0 => Edit(value, 0)
+    | "Backspace" when sel || col > 0 =>
+      p.alt || p.ctrl ? own(Swallow) : own(typed("", col - 1, col))
+    | "Backspace" =>
+      switch (item) {
+      | Some(id) when String.trim(value) == "" && blank(id) =>
+        Remove(
+          id,
+          at > 0
+            ? Some(end_of(lines, at - 1))
+            : at < n - 1 ? Some((line_of(lines[at + 1]), 0)) : None,
+        )
+      /* rows never merge */
+      | _ => Flash
+      }
+    | "Delete" when here_ghost => Flash
+    | "Delete" when alone && (sel || col < len) =>
+      own(typed("", col, col + 1))
+    | "Delete" when alone => Flash
+    | _
+        when
+          p.meta && !p.alt && !p.ctrl && String.lowercase_ascii(p.key) == "z" =>
+      p.shift ? Page : unsaved ? Revert : Page
+    | _ when p.meta => here_ghost ? Page : Field
+    | _ when p.ctrl => here_ghost ? Swallow : Field
+    | _ when Unicode.count_codepoints(p.key) == 1 =>
+      here_ghost ? Flash : own(typed(p.key, col, col))
+    | _ => here_ghost ? Swallow : Field
     }
-  /* Tab: into the module or value above, last; ⇧Tab: out of the one
-     it's the last item of */
-  | "Tab" when !p.alt && !p.meta && !p.ctrl =>
-    switch (beside(~skip=None, lines, lines[at]), p.shift) {
-    | (Some({b_above: Some(above), _}), false)
-        when joins(~above, r.r_node.o_kind) =>
-      op(Indent)
-    | (Some({b_level: Some(level), b_below, _}), true)
-        when leaves(~level, b_below) =>
-      op(Outdent)
-    | _ => Flash
-    }
-  | "Tab"
-  | "F2" => Swallow
-  | "ArrowUp"
-  | "ArrowDown" when p.alt && !p.meta && !p.shift =>
-    op(p.key == "ArrowUp" ? MoveUp : MoveDown)
-  | "ArrowUp" when p.meta && !p.alt && !p.shift =>
-    at == 0 ? Place(0) : to_start(0)
-  | "ArrowDown" when p.meta && !p.alt && !p.shift =>
-    at == n - 1 ? Place(len) : to_end(n - 1)
-  | "ArrowUp" when alone => vertical(~up=true, max(0, at - 1))
-  | "ArrowDown" when alone => vertical(~up=false, min(n - 1, at + 1))
-  | "PageUp" when alone => vertical(~up=true, max(0, at - page()))
-  | "PageDown" when alone => vertical(~up=false, min(n - 1, at + page()))
-  | "ArrowLeft" when alone =>
-    here_ghost || !sel && col == 0
-      ? at > 0 ? to_end(at - 1) : Swallow : own(Place(col - 1))
-  | "ArrowRight" when alone =>
-    here_ghost || !sel && col >= len
-      ? at < n - 1 ? to_start(at + 1) : Swallow : own(Place(col + 1))
-  | "Home" when alone && !here_ghost => own(Place(0))
-  | "End" when alone && !here_ghost => own(Place(len))
-  | "ArrowUp"
-  | "ArrowDown"
-  | "ArrowLeft"
-  | "ArrowRight"
-  | "Home"
-  | "End"
-  | "PageUp"
-  | "PageDown" => here_ghost ? Swallow : own(Swallow)
-  | "Backspace" when p.meta => op(Delete)
-  | "Backspace" when here_ghost => Flash
-  /* at the field's start, a keyword typed before it goes first */
-  | "Backspace" when kw != "" && !sel && col == 0 => Edit(value, 0)
-  | "Backspace" when sel || col > 0 =>
-    p.alt || p.ctrl ? own(Swallow) : own(typed("", col - 1, col))
-  | "Backspace" =>
-    switch (item) {
-    | Some(id) when String.trim(value) == "" && blank(id) =>
-      Remove(
-        id,
-        at > 0
-          ? Some(end_of(lines, at - 1))
-          : at < n - 1 ? Some((line_of(lines[at + 1]), 0)) : None,
-      )
-    /* rows never merge */
-    | _ => Flash
-    }
-  | "Delete" when here_ghost => Flash
-  | "Delete" when alone && (sel || col < len) => own(typed("", col, col + 1))
-  | "Delete" when alone => Flash
-  | _ when p.alt && !p.meta && p.code == "KeyF" =>
-    r.r_node.o_children != [] ? Fold(r.r_path) : Flash
-  | _ when p.alt && !p.meta && p.code == "KeyO" => Exit
-  | "." when p.meta => Menu
-  | "F10" when p.shift => Menu
-  | _ when p.meta && !p.alt && !p.shift && p.code == "KeyD" => op(Duplicate)
-  | _ when p.meta && !p.alt && String.lowercase_ascii(p.key) == "z" =>
-    p.shift ? Page : unsaved ? Revert : Page
-  | _ when p.meta => here_ghost ? Page : Field
-  | _ when p.ctrl => here_ghost ? Swallow : Field
-  | _ when Unicode.count_codepoints(p.key) == 1 =>
-    here_ghost ? Flash : own(typed(p.key, col, col))
-  | _ => here_ghost ? Swallow : Field
   };
 };
 

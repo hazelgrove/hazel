@@ -635,7 +635,7 @@ let sidebar = (src: string) => {
     toggled := [];
     text := None;
     ignore(
-      S.keys(~props, ~on, ~visible, OutlineHarness.keydown(~meta, key)),
+      S.keys(~props, ~on, ~visible, OutlineHarness.keydown(~cmd=meta, key)),
     );
     (toggled^, text^);
   };

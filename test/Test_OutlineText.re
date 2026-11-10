@@ -67,12 +67,14 @@ let find_line = (lines: array(E.entry), which: string): int => {
 };
 let line_of = (lines, which) => E.line_of(lines[find_line(lines, which)]);
 
-let k = (~alt=false, ~meta=false, ~shift=false, ~code=?, key): E.press => {
+let k =
+    (~alt=false, ~meta=false, ~ctrl=false, ~shift=false, ~code=?, key)
+    : E.press => {
   key,
   code: Option.value(code, ~default=key),
   alt,
   meta,
-  ctrl: false,
+  ctrl,
   shift,
   composing: false,
 };
@@ -2655,7 +2657,7 @@ let lone_run_row_ops = () => {
   let keys = [
     (E.MoveUp, H.keydown(~alt=true, "ArrowUp")),
     (MoveDown, H.keydown(~alt=true, "ArrowDown")),
-    (Duplicate, H.keydown(~meta=true, ~code="KeyD", "d")),
+    (Duplicate, H.keydown(~cmd=true, ~code="KeyD", "d")),
     (Delete, H.keydown("Delete")),
   ];
   List.iter(
@@ -3025,6 +3027,417 @@ let kind_undo = () => {
   reset();
 };
 
+/* the structural keys, shared by both modes: each on its exact
+   modifiers; the command key ⌘ on a Mac, Ctrl elsewhere */
+let structural_table = () => {
+  let s =
+    testable(
+      Fmt.of_to_string(s =>
+        switch (s) {
+        | None => "nothing"
+        | Some(E.Item(o)) => E.show_def_op(o)
+        | Some(Fold) => "fold"
+        | Some(Menu) => "menu"
+        | Some(Leave) => "leave"
+        }
+      ),
+      (==),
+    );
+  List.iter(
+    ((name, p, expected)) => check(s, name, expected, E.structural(p)),
+    [
+      ({js|⌥↑|js}, k(~alt=true, "ArrowUp"), Some(E.Item(MoveUp))),
+      ({js|⌥↓|js}, k(~alt=true, "ArrowDown"), Some(Item(MoveDown))),
+      ({js|⇧⌥↓|js}, k(~alt=true, ~shift=true, "ArrowDown"), None),
+      (
+        {js|⌘D|js},
+        k(~meta=true, ~code="KeyD", "d"),
+        Some(Item(Duplicate)),
+      ),
+      ({js|⇧⌘D|js}, k(~meta=true, ~shift=true, ~code="KeyD", "D"), None),
+      ({js|⌘⌫|js}, k(~meta=true, "Backspace"), Some(Item(Delete))),
+      ({js|⌥⌘⌫|js}, k(~alt=true, ~meta=true, "Backspace"), None),
+      ({js|⇧⌘⌫|js}, k(~shift=true, ~meta=true, "Backspace"), None),
+      ({js|⌥F|js}, k(~alt=true, ~code="KeyF", {js|ƒ|js}), Some(Fold)),
+      (
+        {js|⇧⌥F|js},
+        k(~alt=true, ~shift=true, ~code="KeyF", {js|Ï|js}),
+        None,
+      ),
+      ({js|⌘.|js}, k(~meta=true, "."), Some(Menu)),
+      ({js|⌥⌘.|js}, k(~alt=true, ~meta=true, "."), None),
+      ({js|⇧F10|js}, k(~shift=true, "F10"), Some(Menu)),
+      ("F10", k("F10"), None),
+      ({js|⌥O|js}, k(~alt=true, ~code="KeyO", {js|ø|js}), Some(Leave)),
+      ({js|⌥⌘O|js}, k(~alt=true, ~meta=true, ~code="KeyO", "o"), None),
+      ("Ctrl+D on a Mac", k(~ctrl=true, ~code="KeyD", "d"), None),
+      (
+        {js|Ctrl+⌘D on a Mac|js},
+        k(~ctrl=true, ~meta=true, ~code="KeyD", "d"),
+        None,
+      ),
+      ({js|Ctrl+⌫ on a Mac|js}, k(~ctrl=true, "Backspace"), None),
+      ("Ctrl+. on a Mac", k(~ctrl=true, "."), None),
+      (
+        {js|Ctrl+⌥↓ on a Mac|js},
+        k(~ctrl=true, ~alt=true, "ArrowDown"),
+        None,
+      ),
+      (
+        {js|⌘D mid-composition|js},
+        {
+          ...k(~meta=true, ~code="KeyD", "d"),
+          composing: true,
+        },
+        None,
+      ),
+    ],
+  );
+  /* a keydown's Ctrl and ⌘ (⊞) by platform */
+  let d = (~sys, ~meta=false, ~ctrl=false, ()): Util.Key.t => {
+    key: D("d"),
+    code: "KeyD",
+    sys,
+    shift: Up,
+    meta: meta ? Down : Up,
+    ctrl: ctrl ? Down : Up,
+    alt: Up,
+  };
+  let of_ = key => E.structural(E.press_of(~composing=false, key));
+  check(
+    s,
+    {js|Mac: ⌘D|js},
+    Some(Item(Duplicate)),
+    of_(d(~sys=Mac, ~meta=true, ())),
+  );
+  check(s, "Mac: Ctrl+D", None, of_(d(~sys=Mac, ~ctrl=true, ())));
+  check(
+    s,
+    "PC: Ctrl+D",
+    Some(Item(Duplicate)),
+    of_(d(~sys=PC, ~ctrl=true, ())),
+  );
+  check(s, {js|PC: ⊞+D|js}, None, of_(d(~sys=PC, ~meta=true, ())));
+};
+
+/* row mode: each key on its exact modifiers, on a Mac and off it */
+let strict_rows = () => {
+  let was_mac = Util.Os.is_mac^;
+  let leave = Virtual_dom.Vdom.Effect.of_sync_fun(() => (), ());
+  let zoom_out = Virtual_dom.Vdom.Effect.of_sync_fun(() => (), ());
+  let rec holds = (e, eff: Virtual_dom.Vdom.Effect.t(unit)) =>
+    eff === e
+    || (
+      switch (eff) {
+      | Virtual_dom.Vdom.Effect.Many(l) => List.exists(holds(e), l)
+      | _ => false
+      }
+    );
+  /* what [key] did with the cursor on beta's row: [] for nothing (the
+     key passed on) */
+  let row = key => {
+    let did = ref([]);
+    let say = s => did := [s, ...did^];
+    let start = O.label_path(id("beta"), term);
+    let cursor = ref(start);
+    let text = ref(None);
+    let on =
+      H.handlers(
+        ~cursor,
+        ~text,
+        ~def_op=
+          (o, _) => {
+            say(E.show_def_op(o));
+            H.ignore;
+          },
+        ~toggle_collapse=
+          _ => {
+            say("fold");
+            H.ignore;
+          },
+        ~toggle=
+          _ => {
+            say("open");
+            H.ignore;
+          },
+        ~leave,
+        ~zoom_out,
+        (),
+      );
+    let eff =
+      Web.OutlineSidebar.keys(
+        ~props=H.props(),
+        ~on,
+        ~visible=H.visible(term),
+        key,
+      );
+    if (cursor^ != start) {
+      say("move");
+    };
+    if (text^ != None) {
+      say("text");
+    };
+    if (holds(leave, eff)) {
+      say("leave");
+    };
+    if (holds(zoom_out, eff)) {
+      say("zoom out");
+    };
+    switch (eff) {
+    | Virtual_dom.Vdom.Effect.Ignore => ()
+    | _ when did^ == [] => say("acts")
+    | _ => ()
+    };
+    List.rev(did^);
+  };
+  let key = H.keydown;
+  List.iter(
+    mac => {
+      Util.Os.is_mac := mac;
+      let on_ = (mac ? "Mac: " : "PC: ") ++ "row mode: ";
+      List.iter(
+        ((name, expected, k)) =>
+          check(list(string), on_ ++ name, expected, row(k)),
+        [
+          ({js|↓|js}, ["move"], key("ArrowDown")),
+          ({js|⇧↓|js}, [], key(~shift=true, "ArrowDown")),
+          ({js|⇧↑|js}, [], key(~shift=true, "ArrowUp")),
+          ({js|⌘↓|js}, [], key(~cmd=true, "ArrowDown")),
+          ({js|⌥↓|js}, ["MoveDown"], key(~alt=true, "ArrowDown")),
+          ({js|⇧⌥↓|js}, [], key(~alt=true, ~shift=true, "ArrowDown")),
+          ({js|⌘D|js}, ["Duplicate"], key(~cmd=true, ~code="KeyD", "d")),
+          (
+            {js|⇧⌘D|js},
+            [],
+            key(~cmd=true, ~shift=true, ~code="KeyD", "D"),
+          ),
+          ({js|⌘⌫|js}, ["Delete"], key(~cmd=true, "Backspace")),
+          ({js|⌥⌘⌫|js}, [], key(~cmd=true, ~alt=true, "Backspace")),
+          ("Delete", ["Delete"], key("Delete")),
+          ({js|⇧Delete|js}, [], key(~shift=true, "Delete")),
+          (
+            {js|⌥F|js},
+            ["fold"],
+            key(~alt=true, ~code="KeyF", {js|ƒ|js}),
+          ),
+          (
+            {js|⇧⌥F|js},
+            [],
+            key(~alt=true, ~shift=true, ~code="KeyF", {js|Ï|js}),
+          ),
+          (
+            {js|⌥O|js},
+            ["leave"],
+            key(~alt=true, ~code="KeyO", {js|ø|js}),
+          ),
+          (
+            {js|⌥⌘O|js},
+            [],
+            key(~alt=true, ~cmd=true, ~code="KeyO", {js|ø|js}),
+          ),
+          ({js|⌥⌘.|js}, [], key(~alt=true, ~cmd=true, ".")),
+          ({js|Ctrl⇧F10|js}, [], key(~cmd=true, ~shift=true, "F10")),
+          ("Esc", ["leave"], key("Escape")),
+          ({js|⇧Esc, as ever|js}, ["leave"], key(~shift=true, "Escape")),
+          ("Space", ["open"], key(" ")),
+          ({js|⇧Space|js}, [], key(~shift=true, " ")),
+          ("Enter", ["acts"], key("Enter")),
+          ({js|⌥Enter|js}, [], key(~alt=true, "Enter")),
+          ("Home", ["move"], key("Home")),
+          ({js|⇧Home|js}, [], key(~shift=true, "Home")),
+          ({js|⇧PageDown|js}, [], key(~shift=true, "PageDown")),
+          ({js|⌥←|js}, ["zoom out"], key(~alt=true, "ArrowLeft")),
+          ({js|⇧⌥←|js}, [], key(~alt=true, ~shift=true, "ArrowLeft")),
+          ({js|⌘Enter|js}, ["text"], key(~cmd=true, "Enter")),
+          ({js|⇧⌘Enter|js}, [], key(~cmd=true, ~shift=true, "Enter")),
+          ("F2", ["text"], key("F2")),
+          ({js|⇧F2|js}, [], key(~shift=true, "F2")),
+          /* the other key: Ctrl on a Mac, ⊞ elsewhere */
+          (
+            "the other key+D",
+            [],
+            mac
+              ? key(~ctrl=true, ~code="KeyD", "d")
+              : key(~meta=true, ~code="KeyD", "d"),
+          ),
+          (
+            {js|the other key+⌫|js},
+            [],
+            mac
+              ? key(~ctrl=true, "Backspace") : key(~meta=true, "Backspace"),
+          ),
+          (
+            "the other key+.",
+            [],
+            mac ? key(~ctrl=true, ".") : key(~meta=true, "."),
+          ),
+          (
+            {js|the other key+⌘D|js},
+            [],
+            mac
+              ? key(~ctrl=true, ~cmd=true, ~code="KeyD", "d")
+              : key(~meta=true, ~cmd=true, ~code="KeyD", "d"),
+          ),
+        ],
+      );
+    },
+    [true, false],
+  );
+  Util.Os.is_mac := was_mac;
+};
+
+/* text mode: the structural keys on their exact modifiers; the field's
+   own keys (Shift selects, Delete a character) kept */
+let strict_text = () => {
+  let beta = id("beta");
+  let path = {
+    let ls = lines();
+    switch (ls[find_line(ls, "beta")]) {
+    | Of_row(r) => r.r_path
+    | Of_new(_) => fail("a row")
+    };
+  };
+  let in_field = (~col=2, p) => press(~field=true, ~col, "beta", p);
+  List.iter(
+    ((name, expected, p)) => check(outcome, name, expected, in_field(p)),
+    [
+      ({js|⇧↓ selects|js}, Field, k(~shift=true, "ArrowDown")),
+      ({js|⇧→ too|js}, Field, k(~shift=true, "ArrowRight")),
+      ({js|⌥↓|js}, Op(MoveDown, beta), k(~alt=true, "ArrowDown")),
+      ({js|⇧⌥↓|js}, Field, k(~alt=true, ~shift=true, "ArrowDown")),
+      ({js|⌘D|js}, Op(Duplicate, beta), k(~meta=true, ~code="KeyD", "d")),
+      (
+        {js|⇧⌘D|js},
+        Field,
+        k(~meta=true, ~shift=true, ~code="KeyD", "D"),
+      ),
+      ({js|⌘⌫|js}, Op(Delete, beta), k(~meta=true, "Backspace")),
+      ({js|⌥⌘⌫|js}, Swallow, k(~alt=true, ~meta=true, "Backspace")),
+      ({js|⇧⌘⌫|js}, Swallow, k(~shift=true, ~meta=true, "Backspace")),
+      ({js|⌥⌫, a word|js}, Field, k(~alt=true, "Backspace")),
+      ("Delete, a character", Field, k("Delete")),
+      ({js|⌥F|js}, Fold(path), k(~alt=true, ~code="KeyF", {js|ƒ|js})),
+      (
+        {js|⇧⌥F|js},
+        Field,
+        k(~alt=true, ~shift=true, ~code="KeyF", {js|Ï|js}),
+      ),
+      ({js|⌘.|js}, Menu, k(~meta=true, ".")),
+      ({js|⌥⌘.|js}, Field, k(~alt=true, ~meta=true, ".")),
+      ({js|⇧F10|js}, Menu, k(~shift=true, "F10")),
+      ({js|⌥O|js}, Exit, k(~alt=true, ~code="KeyO", {js|ø|js})),
+      ({js|⌥⌘O|js}, Field, k(~alt=true, ~meta=true, ~code="KeyO", "o")),
+      ("Ctrl+D on a Mac", Field, k(~ctrl=true, ~code="KeyD", "d")),
+      ({js|Ctrl+⌫ on a Mac|js}, Field, k(~ctrl=true, "Backspace")),
+      ("Ctrl+. on a Mac", Field, k(~ctrl=true, ".")),
+      ({js|⌘Enter|js}, Save(Leave), k(~meta=true, "Enter")),
+      ({js|⇧Enter|js}, Save(Leave), k(~shift=true, "Enter")),
+      ({js|⇧⌘Enter|js}, Swallow, k(~shift=true, ~meta=true, "Enter")),
+      ({js|⌥⌘Enter|js}, Swallow, k(~alt=true, ~meta=true, "Enter")),
+      (
+        {js|Ctrl+⌘↓ on a Mac|js},
+        Field,
+        k(~ctrl=true, ~meta=true, "ArrowDown"),
+      ),
+      ({js|Ctrl+↓ on a Mac|js}, Field, k(~ctrl=true, "ArrowDown")),
+    ],
+  );
+  /* a new line: not an item to move, copy or fold yet */
+  let f = fresh();
+  let on_new = p =>
+    press(~on=New(beta, Below), ~fresh=f, ~live=named("x", 1), "+", p);
+  let drop =
+    switch (on_new(k(~meta=true, "Backspace"))) {
+    | Drop(d, _) => d == f.f_id
+    | _ => false
+    };
+  check(bool, {js|new line: ⌘⌫ drops it|js}, true, drop);
+  List.iter(
+    ((name, expected, p)) =>
+      check(outcome, "new line: " ++ name, expected, on_new(p)),
+    [
+      ({js|⌥⌘⌫|js}, Swallow, k(~alt=true, ~meta=true, "Backspace")),
+      ({js|⌥↓|js}, Flash, k(~alt=true, "ArrowDown")),
+      ({js|⇧⌥↓|js}, Swallow, k(~alt=true, ~shift=true, "ArrowDown")),
+      ({js|⌘D|js}, Flash, k(~meta=true, ~code="KeyD", "d")),
+      ({js|⇧⌘D|js}, Page, k(~meta=true, ~shift=true, ~code="KeyD", "D")),
+      ({js|⌥F|js}, Flash, k(~alt=true, ~code="KeyF", {js|ƒ|js})),
+      ({js|⌘.|js}, Menu, k(~meta=true, ".")),
+      ({js|⌥⌘.|js}, Page, k(~alt=true, ~meta=true, ".")),
+      ({js|⌥O|js}, Exit, k(~alt=true, ~code="KeyO", {js|ø|js})),
+      ({js|⌥⌘O|js}, Page, k(~alt=true, ~meta=true, ~code="KeyO", "o")),
+      ({js|⇧⌘Enter|js}, Swallow, k(~shift=true, ~meta=true, "Enter")),
+      (
+        {js|⇧→ selects|js},
+        Type(Select(Right, Char)),
+        k(~shift=true, "ArrowRight"),
+      ),
+    ],
+  );
+};
+
+/* text mode through the sidebar: one press read for both modes, Ctrl
+   the command key off the Mac only */
+let strict_text_platforms = () => {
+  let was_mac = Util.Os.is_mac^;
+  let visible = H.visible(term);
+  let beta = id("beta");
+  let ops_of = key => {
+    let text = ref(Some(E.at(line_of(lines(), "beta"), ~col=2)));
+    let ops = ref([]);
+    let on = H.handlers(~text, ~ops, ());
+    ignore(Web.OutlineSidebar.keys(~props=H.props(), ~on, ~visible, key));
+    List.rev(ops^);
+  };
+  let ops =
+    testable(
+      Fmt.of_to_string(l =>
+        String.concat("; ", List.map(((o, _)) => E.show_def_op(o), l))
+      ),
+      (==),
+    );
+  List.iter(
+    mac => {
+      Util.Os.is_mac := mac;
+      let on_ = (mac ? "Mac: " : "PC: ") ++ "text mode: ";
+      let ctrl = (~code=?, k) => H.keydown(~ctrl=true, ~code?, k);
+      let d = ctrl(~code="KeyD", "d");
+      check(
+        ops,
+        on_ ++ "Ctrl+D",
+        mac ? [] : [(E.Duplicate, beta)],
+        ops_of(d),
+      );
+      check(
+        ops,
+        on_ ++ {js|Ctrl+⌫|js},
+        mac ? [] : [(E.Delete, beta)],
+        ops_of(ctrl("Backspace")),
+      );
+      check(
+        ops,
+        on_ ++ {js|⌘ (⊞) +D|js},
+        mac ? [(E.Duplicate, beta)] : [],
+        ops_of(H.keydown(~meta=true, ~code="KeyD", "d")),
+      );
+      check(
+        ops,
+        on_ ++ {js|⌥↓|js},
+        [(E.MoveDown, beta)],
+        ops_of(H.keydown(~alt=true, "ArrowDown")),
+      );
+      check(
+        ops,
+        on_ ++ {js|⇧⌥↓|js},
+        [],
+        ops_of(H.keydown(~alt=true, ~shift=true, "ArrowDown")),
+      );
+    },
+    [true, false],
+  );
+  Util.Os.is_mac := was_mac;
+};
+
 let tests = (
   "OutlineText",
   [
@@ -3083,5 +3496,9 @@ let tests = (
     test_case("a new line's refusal follows its name", `Quick, live_rechecks),
     test_case("a rename's refusal follows its text", `Quick, rename_rechecks),
     test_case("a kind change is one undo step", `Quick, kind_undo),
+    test_case("structural keys: exact modifiers", `Quick, structural_table),
+    test_case("row mode: exact modifiers", `Quick, strict_rows),
+    test_case("text mode: exact modifiers", `Quick, strict_text),
+    test_case("text mode: Ctrl by platform", `Quick, strict_text_platforms),
   ],
 );
