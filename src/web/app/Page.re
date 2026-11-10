@@ -959,10 +959,20 @@ module OutlineAsync = {
     | None => ()
     | Some(make) =>
       latest := Stdlib.Option.None;
-      shown := Some(Util.BenchMarks.time("outline, on its own", make));
-      switch (Haz3lcore.AppBridge.livelit_repaint^) {
-      | Some(f) => Effect.Expert.handle_non_dom_event_exn(f())
-      | None => ()
+      let built = Util.BenchMarks.time("outline, on its own", make);
+      /* (^report(51)) the outline's memo gives back the very node when
+         nothing it shows has changed: then no redraw of the page */
+      let changed =
+        switch (shown^) {
+        | Some(old) => old !== built
+        | Stdlib.Option.None => true
+        };
+      shown := Some(built);
+      if (changed) {
+        switch (Haz3lcore.AppBridge.livelit_repaint^) {
+        | Some(f) => Effect.Expert.handle_non_dom_event_exn(f())
+        | None => ()
+        };
       };
     };
   };

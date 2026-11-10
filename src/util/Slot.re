@@ -7,7 +7,7 @@ let mk = (): t('k, 'v) => ref(None);
 let get =
     (
       ~same: ('k, 'k) => bool=(===),
-      ~on_miss: (unit => 'v) => 'v=?,
+      ~on_miss=?,
       slot: t('k, 'v),
       key: 'k,
       f: unit => 'v,
