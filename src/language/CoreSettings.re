@@ -52,6 +52,11 @@ type t = {
   statics: bool,
   elaborate: bool,
   assist: bool,
+  /* Reify type-shape obligations (owed tuple commas/holes) into the
+     semantic term: statics gets per-element ana instead of arity
+     errors; dynamics evaluates the presumed shape. Display of the
+     obligations is unconditional; this knob gates only semantics. */
+  reify_obligations: bool,
   dynamics: bool,
   probe_all: bool,
   /* Completion-triggered local re-indentation (experimental) */
@@ -77,6 +82,7 @@ let off: t = {
   statics: false,
   elaborate: false,
   assist: false,
+  reify_obligations: false,
   dynamics: false,
   probe_all: false,
   auto_reindent: false,
@@ -92,6 +98,7 @@ let on: t = {
   statics: true,
   elaborate: true,
   assist: true,
+  reify_obligations: true,
   dynamics: true,
   probe_all: false, /* Off by default even in "on" config - opt-in feature */
   auto_reindent: true,

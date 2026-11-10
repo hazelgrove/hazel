@@ -12,7 +12,7 @@ let exercise : Exercise.t =
          prelude =
            {
              zipper =
-               "((selection((focus Left)(content())(mode Normal)(anchor_caret \
+               "((selection((focus Left)(content())(anchor_caret \
                 Outer)(smart_rounded \
                 false)))(relatives((siblings(()((Grout((id \
                 4142fcba-10d7-46a5-aa4f-39e5e83fea37)(shape \
@@ -25,7 +25,7 @@ let exercise : Exercise.t =
          setup =
            {
              zipper =
-               "((selection((focus Left)(content())(mode Normal)(anchor_caret \
+               "((selection((focus Left)(content())(anchor_caret \
                 Outer)(smart_rounded \
                 false)))(relatives((siblings(()((Grout((id \
                 54bc9a91-0c32-4fce-a146-23a705a914c1)(shape \
@@ -44,8 +44,8 @@ let exercise : Exercise.t =
                      jdmt =
                        {
                          zipper =
-                           "((selection((focus Left)(content())(mode \
-                            Normal)(anchor_caret Outer)(smart_rounded \
+                           "((selection((focus Left)(content())(anchor_caret \
+                            Outer)(smart_rounded \
                             false)))(relatives((siblings(((Tile((id \
                             f7f0a7a8-744f-4897-a9dc-ecdc225fe9ca)(form(Compound \
                             Let))(sort(Drv Exp))(shards(0 1 \
