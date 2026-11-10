@@ -133,13 +133,14 @@ let show_action = (a: Action.t) =>
      an empty pair (`[?]`) where typing the closer yields the empty
      literal (`[]`). Cosmetic.
    - completion-time re-indent × child-relative indentation (the
-     `[ ( ⏎ i¦` pin): typing `]` closes the list, auto re-indent
-     moves `i` in two spaces, and inside the list's child the
-     partition heuristic counts the `(`'s indent from the child's
-     start (1), not its screen column (2), so the indented `i` now
-     reads as the paren's continuation: `[ (?) ⏎ i?]` becomes
-     `[ ( ⏎ i)]`. Holds with re-indent off. Candidate fix: compare
-     screen columns in nested partitions (untested).
+     `[ ( ⏎ + 1¦` pin, first found as `[ ( ⏎ i¦` while `i` read as an
+     operator): typing `]` closes the list, auto re-indent moves the
+     line in two spaces, and inside the list's child the partition
+     heuristic counts the `(`'s indent from the child's start (1), not
+     its screen column (2), so the indented line now reads as the
+     paren's continuation: `[ (?) + 1]` becomes `[ (+ 1)]`. Holds with
+     re-indent off. Candidate fix: compare screen columns in nested
+     partitions (untested).
    The pins below keep the first and third visible; when either
    changes, flip the pin. */
 let unfaithful = (~strict=false, z: Zipper.t): option(string) =>
@@ -422,10 +423,16 @@ let curated = [
       bool,
       "strict sweep still finds it",
       true,
-      type_string(dedent(type_string(Zipper.init(), " [ (\n")), "i")
+      type_string(dedent(type_string(Zipper.init(), " [ (\n")), "+ 1")
       |> positions
       |> List.exists(z => unfaithful(~strict=true, z) != None),
     )
+  ),
+  /* a keyword's prefix starting the line starts something new, so the
+     line no longer continues the paren */
+  check_sweep(
+    "`i` starting the line below `[ (`",
+    type_string(dedent(type_string(Zipper.init(), " [ (\n")), "i"),
   ),
   /* coalescing geometry (fuzz-found): the merged bubble is drawn at
      the owned member's pin, not the group's leftmost — overlap must
