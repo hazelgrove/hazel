@@ -41,7 +41,7 @@ module Model = {
   let mk_from_exp =
       (
         ~settings: Language.CoreSettings.t,
-        ~inline=false,
+        ~inline=Inline.Block,
         ~root: Sort.t,
         term: Language.Exp.t,
       ) => {
@@ -50,7 +50,7 @@ module Model = {
         term,
         ~settings=ExpToSegment.Settings.of_core(~inline, settings),
       );
-    let seg = inline ? seg : PrettySegment.prettify(seg);
+    let seg = inline == Inline.Inline ? seg : PrettySegment.prettify(seg);
     seg |> Zipper.unzip |> Editor.Model.mk(~root) |> mk;
   };
 
