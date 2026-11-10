@@ -861,71 +861,157 @@ and uexp_to_info_map =
       };
     | TupleExtension(e1, e2) =>
       let (t1, e1_elab, m) = go(e1, m);
-      let m =
-        switch (Typ.weak_head_normalize(ctx, t1.ty).term) {
-        | Prod(_)
-        | Unknown(_) => m
-        | _ => append_mark_exp(m, e1, [TupleExtensionRequiresTuples])
-        };
       let (t2, e2_elab, m) = go(e2, m);
-      let m =
-        switch (Typ.weak_head_normalize(ctx, t2.ty).term) {
-        | Prod(_)
-        | Unknown(_) => m
-        | _ => append_mark_exp(m, e2, [TupleExtensionRequiresTuples])
+      let arrow = (ty: Typ.t) =>
+        switch (Typ.weak_head_normalize(ctx, ty).term) {
+        | Arrow(dom, cod) => Some((dom, cod))
+        | _ => None
         };
-
-      let co_ctx = CoCtx.union([t1.co_ctx, t2.co_ctx]);
-      let probe_targets =
-        SubexpProbeTargets.union_all([t1.probe_targets, t2.probe_targets]);
-      let elab_term = TupleExtension(e1_elab, e2_elab) |> rewrap;
-
-      switch (
-        Typ.weak_head_normalize(ctx, t1.ty).term,
-        Typ.weak_head_normalize(ctx, t2.ty).term,
-      ) {
-      | (Prod(ts1), Prod(ts2)) =>
-        let extract_entry: Typ.t => (option(string), Typ.t) = (
-          t =>
-            switch (Typ.match_tup_label(t)) {
-            | Some((name, t)) => (Some(name), t)
-            | None => (None, t)
-            }
+      switch (arrow(t1.ty), arrow(t2.ty)) {
+      /* Two functions out of sum types glue into one function out of the
+         glued sum: it dispatches on the constructor to the side that owns
+         it, with that side's recursive calls redirected to the glued
+         function. */
+      | (Some((dom1, cod1)), Some((dom2, cod2))) =>
+        let dom = ProdExtension(dom1, dom2) |> Typ.fresh;
+        let cod =
+          switch (Typ.meet(ctx, cod1, cod2)) {
+          | Some(cod) => cod
+          | None => ProdExtension(cod1, cod2) |> Typ.fresh
+          };
+        let m =
+          Typ.get_sum_constructors(ctx, dom) == None
+            ? append_mark_exp(m, e1, [TupleExtensionRequiresTuples]) : m;
+        let (left, right, self, arg) = (
+          "glued.l",
+          "glued.r",
+          "glued",
+          "glued.arg",
         );
-        let e1_entries = List.map(extract_entry, ts1);
-        let e2_entries = List.map(extract_entry, ts2);
-
-        let ty: Grammar.typ_t(IdTagged.IdTag.t) =
-          IdTagged.FreshGrammar.Typ.(
-            prod(
-              List.map(
-                ((lab, d)) =>
-                  switch (lab) {
-                  | Some(l) => tup_label(label(l), d)
-                  | None => d
-                  },
-                LabeledTuple.extension(e1_entries, e2_entries),
-              ),
+        let var = x => Var(x) |> Exp.fresh;
+        let pvar = x => Var(x) |> Pat.fresh;
+        let rules = (side, dom) =>
+          switch (Typ.get_sum_constructors(ctx, dom)) {
+          | None => []
+          | Some(sm) =>
+            List.filter_map(
+              fun
+              | ConstructorMap.Variant(ctr, _, arg_ty) => {
+                  let ctr_pat: Pat.t =
+                    Constructor(ctr, Some(None)) |> Pat.fresh;
+                  let pat =
+                    switch (arg_ty) {
+                    | None => ctr_pat
+                    | Some(_) => Ap(ctr_pat, Wild |> Pat.fresh) |> Pat.fresh
+                    };
+                  /* The extension of a function by a function is that
+                     function with its recursive calls redirected. */
+                  let rebound =
+                    TupleExtension(var(side), var(self)) |> Exp.fresh;
+                  Some((pat, Ap(Forward, rebound, var(arg)) |> Exp.fresh));
+                }
+              | BadEntry(_) => None,
+              sm,
             )
-          );
-
+          };
+        let glued =
+          FixF(
+            pvar(self),
+            Fun(
+              pvar(arg),
+              Match(var(arg), rules(left, dom1) @ rules(right, dom2))
+              |> Exp.fresh,
+              None,
+              Some(self ++ "+"),
+            )
+            |> Exp.fresh,
+            None,
+          )
+          |> Exp.fresh;
         add(
-          ~elab_term,
-          ~elab_syn_ty=ty,
+          ~elab_term=
+            Let(
+              pvar(left),
+              e1_elab,
+              Let(pvar(right), e2_elab, glued) |> Exp.fresh,
+            )
+            |> rewrap,
+          ~elab_syn_ty=Arrow(dom, cod) |> Typ.fresh,
           ~marks=[],
-          ~co_ctx,
-          ~probe_targets,
+          ~co_ctx=CoCtx.union([t1.co_ctx, t2.co_ctx]),
+          ~probe_targets=
+            SubexpProbeTargets.union_all([
+              t1.probe_targets,
+              t2.probe_targets,
+            ]),
           m,
         );
       | _ =>
-        add(
-          ~elab_term,
-          ~elab_syn_ty=IdTagged.FreshGrammar.Typ.unknown(Internal),
-          ~marks=[],
-          ~co_ctx,
-          ~probe_targets,
-          m,
-        )
+        let m =
+          switch (Typ.weak_head_normalize(ctx, t1.ty).term) {
+          | Prod(_)
+          | Unknown(_) => m
+          | _ => append_mark_exp(m, e1, [TupleExtensionRequiresTuples])
+          };
+        let m =
+          switch (Typ.weak_head_normalize(ctx, t2.ty).term) {
+          | Prod(_)
+          | Unknown(_) => m
+          | _ => append_mark_exp(m, e2, [TupleExtensionRequiresTuples])
+          };
+
+        let co_ctx = CoCtx.union([t1.co_ctx, t2.co_ctx]);
+        let probe_targets =
+          SubexpProbeTargets.union_all([t1.probe_targets, t2.probe_targets]);
+        let elab_term = TupleExtension(e1_elab, e2_elab) |> rewrap;
+
+        switch (
+          Typ.weak_head_normalize(ctx, t1.ty).term,
+          Typ.weak_head_normalize(ctx, t2.ty).term,
+        ) {
+        | (Prod(ts1), Prod(ts2)) =>
+          let extract_entry: Typ.t => (option(string), Typ.t) = (
+            t =>
+              switch (Typ.match_tup_label(t)) {
+              | Some((name, t)) => (Some(name), t)
+              | None => (None, t)
+              }
+          );
+          let e1_entries = List.map(extract_entry, ts1);
+          let e2_entries = List.map(extract_entry, ts2);
+
+          let ty: Grammar.typ_t(IdTagged.IdTag.t) =
+            IdTagged.FreshGrammar.Typ.(
+              prod(
+                List.map(
+                  ((lab, d)) =>
+                    switch (lab) {
+                    | Some(l) => tup_label(label(l), d)
+                    | None => d
+                    },
+                  LabeledTuple.extension(e1_entries, e2_entries),
+                ),
+              )
+            );
+
+          add(
+            ~elab_term,
+            ~elab_syn_ty=ty,
+            ~marks=[],
+            ~co_ctx,
+            ~probe_targets,
+            m,
+          );
+        | _ =>
+          add(
+            ~elab_term,
+            ~elab_syn_ty=IdTagged.FreshGrammar.Typ.unknown(Internal),
+            ~marks=[],
+            ~co_ctx,
+            ~probe_targets,
+            m,
+          )
+        };
       };
 
     | Tuple(es) =>
@@ -3792,6 +3878,13 @@ and utyp_to_info_map =
             whnormalized: Typ.product_extension(t1s, t2s) |> Typ.fresh,
           }),
         )
+      | (Sum(_) | Rec(_), Sum(_) | Rec(_)) =>
+        ok(
+          Message.WHNormalizedTo({
+            unnormalized: utyp,
+            whnormalized: Typ.weak_head_normalize(ctx, utyp),
+          }),
+        )
       | (Prod(_), _) =>
         ok(
           Message.TypeUnderdetermined(
@@ -3941,8 +4034,11 @@ and utyp_to_info_map =
     let m = go(~expects=ProductExpected, t, m) |> snd;
     add(~expects=TypeExpected, m);
   | ProdExtension(t1, t2) =>
-    let m = go(~expects=ProductExpected, t1, m) |> snd;
-    let m = go(~expects=ProductExpected, t2, m) |> snd;
+    let expects: TypExpectation.t =
+      Typ.get_sum_constructors(ctx, utyp) == None
+        ? ProductExpected : TypeExpected;
+    let m = go(~expects, t1, m) |> snd;
+    let m = go(~expects, t2, m) |> snd;
     add(m);
   | ExplicitNonlabel =>
     let ancestors = List.tl(ancestors_inclusive); // Recover original ancestors

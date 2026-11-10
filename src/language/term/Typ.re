@@ -507,6 +507,51 @@ let remove_duplicate_labels =
   List.rev(rev_deduplicated);
 };
 
+/* Glues two sum types into one holding the constructors of both, with each
+   side's recursive references retargeted to the glued type. A constructor
+   on both sides keeps the left side's argument type. */
+let glue_sums = (t1: t, t2: t): option(term) => {
+  let rec_var = (ty: t) =>
+    switch (ty.term) {
+    | Rec(tp, _) => TPat.tyvar_of_utpat(tp)
+    | _ => None
+    };
+  let self =
+    switch (List.filter_map(rec_var, [t1, t2])) {
+    | [] => None
+    | names => Some(String.concat("_", names))
+    };
+  let ctrs = (ty: t) =>
+    switch (ty.term, self) {
+    | (Sum(sm), _) => Some(sm)
+    | (Rec(tp, {term: Sum(_), _} as body), Some(self)) =>
+      switch (subst(Var(self) |> temp, tp, body).term) {
+      | Sum(sm) => Some(sm)
+      | _ => None
+      }
+    | _ => None
+    };
+  switch (ctrs(t1), ctrs(t2)) {
+  | (Some(sm1), Some(sm2)) =>
+    let only_right =
+      List.filter(
+        fun
+        | ConstructorMap.Variant(ctr, _, _) =>
+          ConstructorMap.get_entry(ctr, sm1) == None
+        | BadEntry(_) => true,
+        sm2,
+      );
+    let sum: term = Sum(sm1 @ only_right);
+    Some(
+      switch (self) {
+      | None => sum
+      | Some(self) => Rec(Var(self) |> TPat.fresh, sum |> temp)
+      },
+    );
+  | _ => None
+  };
+};
+
 let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   if (rec_counter > 1000) {
     failwith("weak_head_normalize exceeded 1000 recursive calls");
@@ -553,8 +598,11 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
     switch (t1.term, t2.term) {
     | (Prod(tys1), Prod(tys2)) => product_extension(tys1, tys2) |> rewrap
     | _ =>
+      switch (glue_sums(t1, t2)) {
+      | Some(glued) => glued |> rewrap
       // It would be better to do this via a more direct error recovery mechanism in statics
-      Unknown(Internal) |> rewrap
+      | None => Unknown(Internal) |> rewrap
+      }
     };
   | _ => ty
   };

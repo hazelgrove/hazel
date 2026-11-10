@@ -1101,27 +1101,70 @@ module Transition = (EV: EV_MODE) => {
         req_final(req(env), e1 => TupleExtension1(e1, e2) |> wrap_ctx, e1)
       and. e2' =
         req_final(req(env), e2 => TupleExtension2(e1, e2) |> wrap_ctx, e2);
-      let-unbox e1_entries = (LabeledTupleEntries, e1');
-      let-unbox e2_entries = (LabeledTupleEntries, e2');
+      /* A function extended by a function is the first with its recursive
+         calls redirected to the second. */
+      let rec rebind = (f: DHExp.t): option(DHExp.t) =>
+        switch (f.term) {
+        | Parens(f)
+        | Asc(f, _) => rebind(f)
+        | Closure(fn_env, {term: Fun(p, body, ty, name), _} as fn) =>
+          let fn_env =
+            switch (name) {
+            /* The name of a recursive function ends in "+". */
+            | Some(name) when String.ends_with(~suffix="+", name) =>
+              Environment.extend(
+                fn_env,
+                (String.sub(name, 0, String.length(name) - 1), e2'),
+              )
+            | _ => fn_env
+            };
+          /* The parameter is ascribed the function's own domain, which
+             would reject the other function's constructors. */
+          let rec unascribed = (p: Pat.t) =>
+            switch (p.term) {
+            | Parens(p)
+            | Asc(p, _) => unascribed(p)
+            | _ => p
+            };
+          let term: Exp.term = Fun(unascribed(p), body, ty, name);
+          let fn = {
+            ...fn,
+            term,
+          };
+          Some(generated(Closure(fn_env, fn)));
+        | _ => None
+        };
+      switch (rebind(e1')) {
+      | Some(rebound) =>
+        Step({
+          expr: rebound,
+          side_effects: [],
+          kind: TupleExtension,
+          is_value: true,
+        })
+      | None =>
+        let-unbox e1_entries = (LabeledTupleEntries, e1');
+        let-unbox e2_entries = (LabeledTupleEntries, e2');
 
-      let tuple: Grammar.exp_t(IdTagged.IdTag.t) =
-        tuple(
-          List.map(
-            ((lab, d)) =>
-              switch (lab) {
-              | Some(l) => tup_label(label(l), d)
-              | None => d
-              },
-            LabeledTuple.extension(e1_entries, e2_entries),
-          ),
-        );
+        let tuple: Grammar.exp_t(IdTagged.IdTag.t) =
+          tuple(
+            List.map(
+              ((lab, d)) =>
+                switch (lab) {
+                | Some(l) => tup_label(label(l), d)
+                | None => d
+                },
+              LabeledTuple.extension(e1_entries, e2_entries),
+            ),
+          );
 
-      Step({
-        expr: tuple,
-        side_effects: [],
-        kind: TupleExtension,
-        is_value: true,
-      });
+        Step({
+          expr: tuple,
+          side_effects: [],
+          kind: TupleExtension,
+          is_value: true,
+        });
+      };
     | Cons(d1, d2) =>
       let. _ = otherwise(env, (d1, d2) => Cons(d1, d2) |> rewrap)
       and. d1' = req_final(req(env), d1 => Cons1(d1, d2) |> wrap_ctx, d1)
