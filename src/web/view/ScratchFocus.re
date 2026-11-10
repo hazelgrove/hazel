@@ -648,21 +648,33 @@ let refusals =
         Option.value(way(id, st.lv.pieces[st.i]), ~default=[]),
       );
   };
-  /* [under]: the steps down to the projector the walk is in */
-  let rec walk = (~under: option(list(step)), level: Segment.t) =>
+  /* [under]: the steps down to the projector the walk is in, made only
+     when a wanted row is found inside it. (^report(51), step 1: made for
+     every projector, each a search from the program's root, they were 30
+     to 38 ms of the outline's 41 to 52 after each edit on the Witch, whose
+     53 livelits hold no row; run 42757570753.) The same answers: each is
+     forced just where it was read */
+  let top: Lazy.t(option(list(step))) = Lazy.from_val(None);
+  let rec walk = (~under: Lazy.t(option(list(step))), level: Segment.t) =>
     List.iter(
       (p: Piece.t) => {
         let id = Piece.id(p);
-        switch (under) {
-        | Some(path)
-            when
-              want(id) && Option.is_none(locate_along(id, below(path, id))) =>
-          out := Id.Map.add(id, Projected, out^)
-        | _ => ()
+        if (under !== top
+            && want(id)
+            && (
+              switch (Lazy.force(under)) {
+              | Some(path) =>
+                Option.is_none(locate_along(id, below(path, id)))
+              | None => false
+              }
+            )) {
+          out := Id.Map.add(id, Projected, out^);
         };
         switch (p) {
         | Tile(t) =>
-          if (Option.is_none(under) && want(id) && !Tile.is_complete(t)) {
+          if (want(id)
+              && !Tile.is_complete(t)
+              && Option.is_none(Lazy.force(under))) {
             out := Id.Map.add(id, Unfinished, out^);
           };
           if (want(id) && is_use(t)) {
@@ -671,10 +683,12 @@ let refusals =
           List.iter(walk(~under), t.children);
         | Projector(pr) =>
           let path =
-            switch (under) {
-            | Some(path) => Some(below(path, id))
-            | None => find_path(~root, id, seg)
-            };
+            lazy(
+              switch (Lazy.force(under)) {
+              | Some(path) => Some(below(path, id))
+              | None => find_path(~root, id, seg)
+              }
+            );
           walk(~under=path, pr.syntax);
         | Splice(_)
         | Grout(_)
@@ -683,7 +697,7 @@ let refusals =
       },
       level,
     );
-  walk(~under=None, seg);
+  walk(~under=top, seg);
   out^;
 };
 
