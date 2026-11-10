@@ -593,7 +593,9 @@ let shape_of = (p: Base.projector, info: ProjectorBase.info) => {
   /* Splice sizes are intrinsic to the projector's own syntax -- they do
      not depend on where the parent lays it out -- so this measures them
      here rather than threading the view's map down. */
+  let t_sizes = Util.BenchMarks.now();
   let splice_size_map = Measured.splice_sizes(p.syntax);
+  shape_sizes_ms := shape_sizes_ms^ +. (Util.BenchMarks.now() -. t_sizes);
   let splice_size = (id: Id.t): Util.Point.t =>
     Measured.splice_size_of(splice_size_map, id);
   switch (p.placement) {
@@ -1185,6 +1187,12 @@ let last_split: ref(option((View.t, ProjectorCore.Shape.t))) =
    projectors kept their finished views across new data */
 let shape_ms = ref(0.);
 let kept_wrapped = ref(0);
+/* (^report(51)) shape_of's longest call at a pass, and whose: at two of
+   build 34's four answers the shapes took 31 ms though nothing was
+   evaluated or walked (run 42809664205); and its splice sizes apart */
+let shape_longest_ms = ref(0.);
+let shape_longest = ref("");
+let shape_sizes_ms = ref(0.);
 
 /* Extract and collate different layers of the resulting view
  * in order to stratify z-levels across all projectors */
@@ -1235,7 +1243,15 @@ let split_views =
     );
   let t_shape = Util.BenchMarks.now();
   let shape = shape_of(p, projector_data.info);
-  shape_ms := shape_ms^ +. (Util.BenchMarks.now() -. t_shape);
+  let dt_shape = Util.BenchMarks.now() -. t_shape;
+  shape_ms := shape_ms^ +. dt_shape;
+  if (dt_shape > shape_longest_ms^) {
+    shape_longest_ms := dt_shape;
+    shape_longest :=
+      ProjectorCore.Kind.name(p.kind)
+      ++ " "
+      ++ String.sub(Id.to_string(p.id), 0, 8);
+  };
   last_split := Some((views, shape));
   switch (kept) {
   | Some(e)
@@ -1379,6 +1395,9 @@ let all =
     compare_ms := 0.
   );
   shape_ms := 0.;
+  shape_longest_ms := 0.;
+  shape_longest := "";
+  shape_sizes_ms := 0.;
   kept_wrapped := 0;
   LivelitProj.shapes_evaluated := 0;
   LivelitProj.applied_anew := 0;
@@ -1454,6 +1473,9 @@ let all =
             ),
             ("compare ms", Util.BenchMarks.num(ViewCache.compare_ms^)),
             ("shape ms", Util.BenchMarks.num(shape_ms^)),
+            ("shape: longest ms", Util.BenchMarks.num(shape_longest_ms^)),
+            ("shape: longest", Util.BenchMarks.str(shape_longest^)),
+            ("shape: sizes ms", Util.BenchMarks.num(shape_sizes_ms^)),
             (
               "shapes evaluated",
               Util.BenchMarks.num(

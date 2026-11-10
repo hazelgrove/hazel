@@ -557,7 +557,16 @@ module M: Projector = {
           )
         };
       switch (hit) {
-      | Some((_, _, _, found)) => found
+      | Some((_, _, args', found)) when args' === args => found
+      | Some((_, _, _, found) as e) =>
+        /* found by a walk: the new arguments stand for the old, at the
+           front, so the next look finds them by pointer */
+        Hashtbl.replace(
+          applied,
+          llname,
+          [(ll, ty_n, args, found), ...List.filter(e' => e' !== e, seen)],
+        );
+        found;
       | None =>
         incr(applied_anew);
         let found = apply_use(ctx, ll, llname, ty, args);
