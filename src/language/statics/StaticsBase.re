@@ -127,15 +127,22 @@ module Map = {
           let binds = Pat.bindings(pat);
           /* function-def sugar: Pat.bindings drops the function name f, so
              also match f's own binding here, else the enclosing let is never
-             found. (Can't reuse FunctionSugar.detect: it depends on StaticsBase.) */
+             found. Curried sugar `f(x)(y)` nests the Aps, so walk the spine to
+             the head. (Can't reuse FunctionSugar.detect: it depends on
+             StaticsBase.) */
+          let rec spine_head_binds = (fn: Pat.t) =>
+            switch (IdTagged.term_of(fn)) {
+            | Ap(fn, _) => spine_head_binds(fn)
+            | _ => Pat.bindings(fn)
+            };
           let fn_name_binds =
             switch (IdTagged.term_of(pat)) {
             | Asc(inner, _) =>
               switch (IdTagged.term_of(inner)) {
-              | Ap(fn, _) => Pat.bindings(fn)
+              | Ap(fn, _) => spine_head_binds(fn)
               | _ => []
               }
-            | Ap(fn, _) => Pat.bindings(fn)
+            | Ap(fn, _) => spine_head_binds(fn)
             | _ => []
             };
           List.exists(
@@ -366,8 +373,7 @@ let prepend_pat_mark =
     warnings
     @ (
       switch (info.user_term.term) {
-      | Var(name) =>
-        Warning.to_list(Warning.var_is_unused(info.co_ctx, name))
+      | Var(name) => Warning.var_is_unused(info.co_ctx, name)
       | _ => []
       }
     );

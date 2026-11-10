@@ -1,0 +1,1 @@
+let snapshot = None;
