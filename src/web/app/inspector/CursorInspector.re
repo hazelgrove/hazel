@@ -342,16 +342,40 @@ let core_mark_err_view =
   );
 };
 
-let common_warn_view = (warning: Warning.t) => {
+let common_warn_view =
+    (~globals, ~ctx: Ctx.t, warning: Warning.list_item): list(Node.t) =>
   switch (warning) {
-  | WarningPat(UnusedVar(name)) => [
+  | Pat(UnusedVar(name)) => [
       text("Warning: Variable"),
       code(name),
       text("is unused."),
     ]
-  | None => []
+  | TPat(NonContractive(name)) => [
+      text("Warning: Type"),
+      view_type(~globals, ~ctx, Var(name) |> Typ.fresh),
+      text("is defined as itself."),
+    ]
+  | Typ(NonContractive(name)) => [
+      text("Warning: Recursive type"),
+      code("rec " ++ name),
+      text("is defined as itself."),
+    ]
   };
-};
+
+/* [warnings] when there are any and warnings are displayed, else [ok]. */
+let warn_or_ok_view =
+    (
+      ~globals: Globals.t,
+      ~ctx: Ctx.t,
+      warnings: list(Warning.list_item),
+      ok: list(Node.t),
+    )
+    : Node.t =>
+  switch (warnings) {
+  | [_, ..._] when globals.settings.core.display_warnings =>
+    div_warn(List.concat_map(common_warn_view(~globals, ~ctx), warnings))
+  | _ => div_ok(ok)
+  };
 let common_ok_view =
     (
       ~globals,
@@ -1032,31 +1056,30 @@ let pat_view =
           cls,
           ok,
         );
-      switch (info.warnings) {
-      | [Pat(UnusedVar(name))] =>
-        if (globals.settings.core.display_warnings) {
-          div_warn(common_warn_view(WarningPat(UnusedVar(name))));
-        } else {
-          div_ok(ok_view);
-        }
-      | _ => div_ok(ok_view)
-      };
+      warn_or_ok_view(~globals, ~ctx=info.ctx, info.warnings, ok_view);
     };
 };
 
 let typ_view =
     (
-      ~globals,
+      ~globals: Globals.t,
       ~ctx: Ctx.t,
       cls: Cls.t,
       ~marks: list(Mark.t),
       ~message: option(Message.t),
+      ~warnings: list(Warning.list_item),
     )
     : Node.t =>
   switch (marks) {
   | [] =>
     switch (message) {
-    | Some(TypOk(o)) => div_ok(typ_ok_view(~globals, ~ctx, cls, o))
+    | Some(TypOk(o)) =>
+      warn_or_ok_view(
+        ~globals,
+        ~ctx,
+        warnings,
+        typ_ok_view(~globals, ~ctx, cls, o),
+      )
     | Some(Pat(_) | Exp(_) | TPatOk(_)) =>
       div_err([text("(internal) expected TypOk")])
     | None => div_err([text("(internal) missing type ok payload")])
@@ -1070,11 +1093,12 @@ let typ_view =
 
 let tpat_view =
     (
-      ~globals,
+      ~globals: Globals.t,
       ~ctx: Ctx.t,
       _: Cls.t,
       ~marks: list(Mark.t),
       ~message: option(Message.t),
+      ~warnings: list(Warning.list_item),
     )
     : Node.t => {
   let view_type = view_type(~globals, ~ctx);
@@ -1084,7 +1108,12 @@ let tpat_view =
     | Some(TPatOk(Message.Empty)) =>
       div_ok([text("Fillable with a new alias")])
     | Some(TPatOk(Var(name))) =>
-      div_ok([ContextInspector.alias_view(name)])
+      warn_or_ok_view(
+        ~globals,
+        ~ctx,
+        warnings,
+        [ContextInspector.alias_view(name)],
+      )
     | Some(Pat(_) | Exp(_) | TypOk(_)) =>
       div_err([text("(internal) expected TPatOk")])
     | None => div_err([text("(internal) missing tpat ok payload")])
@@ -1129,10 +1158,10 @@ let view_of_info = (~globals, ci): list(Node.t) => {
     wrapper(exp_view(~globals, cls, message, ie))
   | InfoPat({cls, message, _} as ip) =>
     wrapper(pat_view(~globals, cls, message, ip))
-  | InfoTyp({cls, marks, message, ctx, _}) =>
-    wrapper(typ_view(~globals, ~ctx, cls, ~marks, ~message))
-  | InfoTPat({cls, marks, message, ctx, _}) =>
-    wrapper(tpat_view(~globals, ~ctx, cls, ~marks, ~message))
+  | InfoTyp({cls, marks, message, ctx, warnings, _}) =>
+    wrapper(typ_view(~globals, ~ctx, cls, ~marks, ~message, ~warnings))
+  | InfoTPat({cls, marks, message, ctx, warnings, _}) =>
+    wrapper(tpat_view(~globals, ~ctx, cls, ~marks, ~message, ~warnings))
   | InfoDrv(ci) => wrapper(DrvCursorInspector.drv_view(~globals, ci))
   };
 };
