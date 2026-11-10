@@ -574,6 +574,27 @@ let test_add_abbr_shifts_references = () => {
   };
 };
 
+/* A repeat call hits; 8 newer exercise states evict the entry. */
+let test_stitch_term_memo_bounded = () => {
+  let eds = eds_of_blank_spec();
+  let stitched = Web.DerivationExercise.stitch_term(eds);
+  check(
+    bool,
+    "repeat call returns the cached result",
+    true,
+    Web.DerivationExercise.stitch_term(eds) === stitched,
+  );
+  for (_ in 1 to 8) {
+    ignore(Web.DerivationExercise.stitch_term(eds_of_blank_spec()));
+  };
+  check(
+    bool,
+    "evicted after 8 newer states",
+    false,
+    Web.DerivationExercise.stitch_term(eds) === stitched,
+  );
+};
+
 /* ----------------------- test registration ----------------------- */
 
 let tests = (
@@ -661,6 +682,11 @@ let tests = (
       "add_abbr shifts existing refs",
       `Quick,
       test_add_abbr_shifts_references,
+    ),
+    test_case(
+      "stitch_term memo is bounded",
+      `Quick,
+      test_stitch_term_memo_bounded,
     ),
   ],
 );
