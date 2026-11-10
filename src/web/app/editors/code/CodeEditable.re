@@ -72,6 +72,8 @@ module Update = {
              | ToggleLineComment => Always
              | Project(_)
              | Unselect(_)
+             | SyncReplace(_)
+             | UpdateRemoteCarets
              | Structural(_)
              | Probe(_) => Never
              };
@@ -79,9 +81,20 @@ module Update = {
          );
     switch (action) {
     | Perform(action) =>
-      settings.core.flip_animations && Action.should_animate(action)
-        ? Animation.request([Animation.Actions.move("caret")]) : ();
-
+      if (settings.core.flip_animations) {
+        switch (action) {
+        | UpdateRemoteCarets =>
+          let remote_transitions =
+            PatchworkComm.get_remote_carets()
+            |> List.map(((user_id, _)) =>
+                 Animation.Actions.move("remote-caret-" ++ user_id)
+               );
+          Animation.request(remote_transitions);
+        | _ when Action.should_animate(action) =>
+          Animation.request([Animation.Actions.move("caret")])
+        | _ => ()
+        };
+      };
       perform(action, model);
     | DebugConsole(key) =>
       DebugConsole.print(~settings, model, key);
@@ -437,6 +450,12 @@ module View = {
         ~font_metrics=globals.font_metrics,
         z,
       ),
+    ]
+    @ RemoteCaretDec.view_all(
+        ~measured=syntax.measured,
+        ~font_metrics=globals.font_metrics,
+      )
+    @ [
       Arms.Indicated.term(
         ~refine_sort=
           (id, mold_out) =>
