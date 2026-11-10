@@ -1140,14 +1140,52 @@ let memo = Util.Slot.mk();
 let refusals = Util.Slot.mk();
 let same =
     (
-      (((info_map, error_ids), outline), results, rest),
-      (((info_map', error_ids'), outline'), results', rest'),
+      (((info_map, error_ids), outline), statuses, rest),
+      (((info_map', error_ids'), outline'), statuses', rest'),
     ) =>
   info_map === info_map'
   && error_ids == error_ids'
   && outline === outline'
-  && Option.equal((===), results, results')
+  && statuses == statuses'
   && rest == rest';
+
+/* (^report(51)) the rows' ✓/✗: each test's joint status, by value. A run's
+   answer is a new results record every time, so keyed by identity the
+   outline was drawn again after every answer, tests or none */
+let statuses_of =
+    (results: option(Language.TestResults.t))
+    : option(list((Id.t, Language.TestStatus.t))) =>
+  Option.map(
+    (tr: Language.TestResults.t) =>
+      List.map(
+        ((id, instances)) =>
+          (id, Language.TestMap.joint_status(instances)),
+        tr.test_map,
+      ),
+    results,
+  );
+
+/* (^report(51)) for the check: which of the key's parts differ from the
+   last drawn outline's */
+let miss_why = (last, key): string =>
+  switch (last) {
+  | None => "first"
+  | Some(((((im, ei), o), st, rest), _)) =>
+    let (((im', ei'), o'), st', rest') = key;
+    let entries_same =
+      try(o.Outline.entries == o'.Outline.entries) {
+      | _ => false
+      };
+    [
+      (im !== im', "info_map"),
+      (ei != ei', "error_ids"),
+      (o !== o', entries_same ? "outline(entries same)" : "outline"),
+      (st != st', "statuses"),
+      (rest != rest', "rest"),
+    ]
+    |> List.filter_map(((b, s)) => b ? Some(s) : None)
+    |> String.concat(" ");
+  };
 
 /* the outline of the slide's whole program in Scratch and Documentation,
    else of the current editor's [statics] and [segment] */
@@ -1218,13 +1256,15 @@ let view =
     };
   /* this slide's program, never another document's */
   let outline =
-    switch (program) {
-    | Some(p) => Program.outline(p)
-    | None => Outline.of_program(~root=Sort.Exp, segment)
-    };
+    Util.BenchMarks.time("outline: its entries", () =>
+      switch (program) {
+      | Some(p) => Program.outline(p)
+      | None => Outline.of_program(~root=Sort.Exp, segment)
+      }
+    );
   let key = (
     ((statics.info_map, statics.error_ids), outline),
-    results,
+    statuses_of(results),
     (
       arrows,
       focused,
@@ -1243,8 +1283,15 @@ let view =
       statics_on,
     ),
   );
+  /* (^report(51)) a miss timed for the check, with which parts differ */
+  let why = Util.BenchMarks.on() ? miss_why(memo^, key) : "";
   Util.Slot.get(
     ~same,
+    ~on_miss=
+      Util.BenchMarks.time(
+        ~extra=() => [("why", Util.BenchMarks.str(why))],
+        "outline: drawn",
+      ),
     memo,
     key,
     () => {
