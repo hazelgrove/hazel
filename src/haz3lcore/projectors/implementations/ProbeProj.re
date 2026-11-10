@@ -330,6 +330,7 @@ let select_samples =
   let first_idx =
     Sample.Selection.most_aligned_index(
       ~ap_id,
+      ~below=dynamics.below,
       dynamics.sample_focus,
       samples,
     );
@@ -1474,6 +1475,7 @@ let mv_least_distant_sample = (ctx: probe_ctx, _evt): Effect.t(unit) => {
   switch (
     Sample.Selection.most_aligned_sample(
       ~ap_id,
+      ~below=dynamics.below,
       ~cursor=dynamics.sample_focus,
       samples,
     )
@@ -1548,6 +1550,7 @@ let move_cursor = (ctx: probe_ctx, offset: int) => {
   let cursor_idx =
     Sample.Selection.most_aligned_index(
       ~ap_id,
+      ~below=dynamics.below,
       dynamics.sample_focus,
       samples,
     );
@@ -1583,6 +1586,7 @@ let nav_bar_view = (ctx: probe_ctx, ~num_total, ~show_arrows: bool) => {
     switch (
       Sample.Selection.most_aligned_index(
         ~ap_id=ctx.ap_id,
+        ~below=ctx.dynamics.below,
         ctx.dynamics.sample_focus,
         samples,
       )
@@ -2020,7 +2024,8 @@ let prepare_offside =
     let is_cursor_aligned =
       switch (dynamics.sample_focus.pinned_stack) {
       | None =>
-        /* Unpinned: legacy alignment (looser, has fallback tiers). */
+        /* Unpinned: legacy alignment (looser, has fallback tiers), so
+           ↑/↓ also reaches a line showing ⊖, where Cmd+Enter aligns it. */
         Sample.Selection.most_aligned_index(
           ~ap_id,
           dynamics.sample_focus,

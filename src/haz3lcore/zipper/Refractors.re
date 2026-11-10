@@ -60,6 +60,19 @@ let empty_multi_state = {
   ephemerals: Id.Map.empty,
 };
 
+/* When a probe is added, this stores the target IDs (in lexical order)
+   so that when evaluation results return, we can set the sample focus
+   to the first sample of the first probe that has samples. */
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type pending_probe_cursor = {
+  ids: list(Id.t),
+  /* Set by the automatic requests (post-edit alignment, new autoprobe
+     lines, autoprobe re-anchoring): they move the focus only to fill a
+     gap, i.e. when the probe would otherwise show ⊖. Explicit requests
+     (adding or focusing a probe) always capture. */
+  only_if_not_aligned: bool,
+};
+
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = {
   manuals: RefractorList.t,
@@ -68,10 +81,7 @@ type t = {
   /* anchor ids of the top-level def being auto-probed; usually one (the body),
      but `let f(args) = body` sugar also anchors the param pattern, so it's a list. */
   autoprobe_target: list(Id.t),
-  /* When a probe is added, this stores the target IDs (in lexical order)
-     so that when evaluation results return, we can set the sample focus
-     to the first sample of the first probe that has samples. */
-  pending_probe_cursor: option(list(Id.t)),
+  pending_probe_cursor: option(pending_probe_cursor),
 };
 
 let init = {

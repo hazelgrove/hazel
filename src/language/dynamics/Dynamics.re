@@ -17,6 +17,10 @@ module Info = {
      * — "during the pinned evaluation" — instead of stack-id suffixes,
      * which is also the correct semantics for pinning non-call spans. */
     pinned_interval: option((int, int)),
+    /* This probe's sample in the coordinated choice for lines below the
+     * sightline (Sample.Selection.coordinated_below), resolved from every
+     * probe's samples at info-assembly time. */
+    below: Sample.Selection.below,
   };
 
   let is_in = (di: t): option(Sample.t) => {
@@ -33,6 +37,7 @@ module Info = {
   let most_aligned_sample = (ap_id: option(Id.t), di: t): option(Sample.t) =>
     Sample.Selection.most_aligned_sample(
       ~ap_id,
+      ~below=di.below,
       ~cursor=di.sample_focus,
       di.samples,
     );

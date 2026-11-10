@@ -48,6 +48,8 @@ let legend_sample =
       pinned_span: None,
     },
     pinned_interval: None,
+    /* one sample, drawn on its own */
+    below: PerLine,
   };
   let settings = {
     ...ProbeProj.Settings.s^,
