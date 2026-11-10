@@ -1,0 +1,129 @@
+@title
+Views / Gantt Strip
+
+@flags
+version=1 id=b3000006-0006-0006-0006-000000000006
+
+@prompt
+A `Run` is a CPU schedule: which job holds the processor, from when to when. `^gantt` draws one as a Gantt strip, a track per job on one fixed time axis. On the line a view has two lines of room, so the strip is drawn compact, scaled to the sample's width; in the probe's drawer (**Cmd/Ctrl+↓**) it is drawn full size, three lines tall, with the time axis labeled. Every `Run` probe in scope draws this way, and the four calls compare scheduling policies: first come first served, shortest job first, and round robin with two quanta.
+
+@code
+# A CPU schedule: which job runs, from when to when #
+type Run = + Run([(String, Int, Int)]) in
+
+# A Gantt strip: a track per job, on one time axis (0 to 10) #
+let ^gantt = {
+  type Model = Run;
+
+  type Action = + Nothing;
+
+  let s : Int -> String = string_of_int;
+
+  # The jobs in order of first appearance #
+  let jobs(slots: [(String, Int, Int)]): [String] =
+    fold_left(slots, fun (seen: [String], (j, _, _): (String, Int, Int)) ->
+      if mem(seen, j) then seen else seen @ [j], []);
+
+  let track(js: [String], j: String): Int =
+    case js
+    | []        => 0
+    | k :: rest => if k == j then 0 else 1 + track(rest, j)
+    end;
+
+  let text(x: Int, y: Int, anchor: String, size: Int, op: String, str: String): HTML =
+    Node("text",
+      [Create("x", s(x)), Create("y", s(y)), Create("text-anchor", anchor),
+       Style([("font-family", "var(--code-font)"),
+              ("font-size", s(size) ++ "px"),
+              ("fill", "currentColor"),
+              ("fill-opacity", op)])],
+      [Text(str)]);
+
+  let rule(x1: Int, x2: Int, y1: Int, y2: Int): HTML =
+    Node("line",
+      [Create("x1", s(x1)), Create("x2", s(x2)),
+       Create("y1", s(y1)), Create("y2", s(y2)),
+       Style([("stroke", "currentColor"), ("stroke-opacity", "0.45")])],
+      []);
+
+  # Tracks pitch px apart, job names in size px in a column left px wide, #
+  # tick px a time unit (0 to 10), and the axis labeled or not #
+  let strip(r: Run, pitch: Int, size: Int, left: Int, tick: Int, labeled: Bool): HTML =
+    case r
+    | Run(slots) =>
+      let js = jobs(slots) in
+      let bar = pitch * 7 / 16 in
+      let axis = pitch * length(js) + 2 in
+      let x(t: Int): Int = left + tick * t in
+      let labels =
+        mapi(js, fun (i: Int, j: String) ->
+          text(left - 6, pitch * i + pitch * 3 / 4, "end", size, "0.75", j)) in
+      let bars =
+        map(slots, fun ((j, a, b): (String, Int, Int)) ->
+          Node("rect",
+            [Create("x", s(x(a))), Create("width", s(tick * (b - a) - 1)),
+             Create("y", s(pitch * track(js, j) + (pitch - bar) / 2)),
+             Create("height", s(bar)),
+             Create("rx", "1.5"), Style([("fill", "currentColor")])],
+            [])) in
+      let ticks =
+        map([0, 5, 10], fun t ->
+          Node("g", [],
+            rule(x(t), x(t), axis, axis + 3)
+            :: (if labeled then [text(x(t), axis + size + 2, "middle", size - 1, "0.6", s(t))]
+                else []))) in
+      let h = if labeled then axis + size + 4 else axis + 5 in
+      Node("svg",
+        [Create("viewBox", "0 0 " ++ s(x(10) + 10) ++ " " ++ s(h)),
+         Width(s(x(10) + 10)), Height(s(h))],
+        labels @ bars @ [rule(x(0), x(10), axis, axis)] @ ticks)
+    end;
+
+  # On the line: two lines, the strip fit to the sample's width (a column #
+  # being about 10px); in the drawer, full size #
+  let view(r: Model, ctx: ViewContext): HTML =
+    case ctx.room
+    | Lines(_, cols) =>
+      let tick = (cols * 104 / 10 - 50) / 10 in
+      strip(r, 13, 10, 40, if tick < 3 then 3 else if tick > 14 then 14 else tick, false)
+    | Free => strip(r, 16, 11, 46, 14, true)
+    end;
+
+  let init : Model = Run([("a", 0, 2), ("b", 2, 5)]);
+
+  let update(m: Model, _: Action): Model = m;
+
+  let expand(m: Model): Run = m;
+
+  let wrap(v: Run): Model = v;
+
+  let shape : LivelitShape = Block(20, 3)
+} in
+
+# Round robin: run the head job for up to q ticks, then requeue the rest #
+let rr(q: Int, queue: [(String, Int)], t: Int): [(String, Int, Int)] =
+  case queue
+  | [] => []
+  | (job, left) :: rest =>
+    let run = if left < q then left else q in
+    let later = if left > run then rest @ [(job, left - run)] else rest in
+    (job, t, t + run) :: rr(q, later, t + run)
+  end
+in
+
+# A queue's schedule, probed #
+let schedule(q: Int, queue: [(String, Int)]): Run =
+  let run = Run(rr(q, queue, 0)) in
+  ^^probe(run)
+
+in
+
+[
+  # first come, first served #
+  schedule(10, [("build", 5), ("lint", 2), ("test", 3)]),
+  # shortest job first #
+  schedule(10, [("lint", 2), ("test", 3), ("build", 5)]),
+  # round robin, two ticks at a time, then one #
+  schedule(2, [("build", 5), ("lint", 2), ("test", 3)]),
+  schedule(1, [("build", 5), ("lint", 2), ("test", 3)])
+]

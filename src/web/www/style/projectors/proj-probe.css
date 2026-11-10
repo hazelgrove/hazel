@@ -627,6 +627,57 @@
   color: var(--text-pat);
 }
 
+/* A livelit view in a chip draws in the sample's ink: these mirror the token
+ * rules above, state for state, so `currentColor` marks recede exactly as
+ * text does. The 0.7 fade goes into the ink's alpha rather than the
+ * element's opacity: colors a view picks itself (a swatch, a red exception
+ * mark) are data and keep their strength. A view whose own colors should
+ * recede with the ink (say, one half of a chart) can take the fade from
+ * --sample-fade, e.g. `opacity: var(--sample-fade, 1)`. */
+.live-offside .value .rich-livelit-view {
+  color: var(--sample-neutral-text);
+  --sample-fade: 1;
+}
+.indicated .live-offside .value.focus .rich-livelit-view {
+  color: var(--sample-focus-text);
+}
+.live-offside .value.focus .rich-livelit-view {
+  color: var(--exp-indicated);
+}
+.live-offside.Many .value.unrelated .rich-livelit-view,
+.live-offside.Many .value.off-focus .rich-livelit-view {
+  color: color-mix(in srgb, var(--sample-off-text) 70%, transparent);
+  --sample-fade: 0.7;
+}
+.live-offside.Many .value.tangent-before .rich-livelit-view {
+  color: color-mix(in srgb, var(--sample-above-text) 70%, transparent);
+  --sample-fade: 0.7;
+}
+.live-offside.Many .value.tangent-after .rich-livelit-view {
+  color: color-mix(in srgb, var(--sample-below-text) 70%, transparent);
+  --sample-fade: 0.7;
+}
+.live-offside.Single .value.unrelated .rich-livelit-view {
+  color: var(--sample-neutral-text);
+}
+.live-offside.Single .value.tangent-before .rich-livelit-view {
+  color: var(--sample-above-text);
+}
+.live-offside.Single .value.tangent-after .rich-livelit-view {
+  color: var(--sample-below-text);
+}
+.live-offside.Single .value.off-focus .rich-livelit-view {
+  color: var(--sample-off-text);
+}
+.live-offside.Many .value.related-before .rich-livelit-view,
+.live-offside.Single .value.related-before .rich-livelit-view {
+  color: var(--sample-above-related-text);
+}
+.live-offside.Many .value.related-after .rich-livelit-view,
+.live-offside.Single .value.related-after .rich-livelit-view {
+  color: var(--text-pat);
+}
+
 /* .live-offside.Many .sample:has(.value.cursor-unrelated) .code-text .token {
   color: white;
 } */
@@ -685,26 +736,6 @@
   background-position: center;
   background-repeat: no-repeat;
   scale: 0.75;
-}
-
-.sample-context-menu .action-item.rich-probe-action .table-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 1.3em;
-  width: 1.3em;
-  border-radius: 1em;
-  background-color: var(--surface-label);
-  scale: 0.75;
-}
-
-.sample-context-menu .action-item.rich-probe-action .table-badge svg {
-  width: 70%;
-  height: 70%;
-}
-
-.sample-context-menu .action-item.rich-probe-action .table-badge svg path {
-  fill: var(--text-inverse);
 }
 
 .live-offside .live-env {
@@ -1015,6 +1046,17 @@
   }
 }
 
+/* ---- rich html renderer: a sample value rendered as its actual DOM ---- */
+.rich-html-view {
+  /* inert display: handler attrs in the value never fire */
+  pointer-events: none;
+  overflow: auto;
+  max-height: 100%;
+  background: white;
+  border-radius: 3px;
+  padding: 4px 6px;
+}
+
 /* rich content embedded in a sample chip: inert, so the chip's own
    interactions (dropdown, capture, dbl-click toggle) stay in charge */
 /* a chip holding rich content centers it as a flex box — as an inline
@@ -1038,4 +1080,153 @@
 .value .value-rich .projector {
   position: static;
   display: inline-block;
+}
+
+/* On the line a view has the room it is told (ProbeProj.value_view): the
+   line's lines, and the sample's width in columns of the code font (a
+   column is the code font's advance, 0.6em; the chip's own font is the
+   UI's, so `ch` here would be narrower). It is
+   clipped to that room instead of spilling over, and fades out at an edge
+   it overflows. Only there: each axis's fade runs on that axis's scroll
+   timeline, which is inactive (no fade) while the view fits. Safe
+   alignment keeps an overflowing view's start inside the room. */
+@property --room-fade-x {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --room-fade-y {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@keyframes room-fade-x {
+  from,
+  to {
+    --room-fade-x: 1.5ch;
+  }
+}
+@keyframes room-fade-y {
+  from,
+  to {
+    --room-fade-y: 0.6em;
+  }
+}
+.live-offside .value .value-rich.in-room {
+  max-width: calc(var(--room-cols) * 0.6 * var(--base-font-size));
+  max-height: calc(
+    var(--room-lines) * var(--base-font-size) * var(--line-height)
+  );
+  overflow: hidden;
+  justify-content: safe center;
+  align-items: safe center;
+  animation:
+    room-fade-x linear both,
+    room-fade-y linear both;
+  animation-timeline: scroll(self x), scroll(self y);
+  -webkit-mask-image:
+    linear-gradient(
+      to right,
+      #000 calc(100% - var(--room-fade-x)),
+      transparent
+    ),
+    linear-gradient(
+      to bottom,
+      #000 calc(100% - var(--room-fade-y)),
+      transparent
+    );
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(
+      to right,
+      #000 calc(100% - var(--room-fade-x)),
+      transparent
+    ),
+    linear-gradient(
+      to bottom,
+      #000 calc(100% - var(--room-fade-y)),
+      transparent
+    );
+  mask-composite: intersect;
+}
+
+/* A livelit view in a chip draws straight onto the chip: no backdrop of its
+   own and nothing clipped but its room (.in-room above), and the chip keeps
+   a text chip's height (the sample code's 1.41 line), so a one-line view
+   centers where text would sit and a view drawn to that height fills the
+   chip. Its ink is set with the token colors above. The drawer keeps the
+   neutral .rich-html-view surface. */
+.live-offside .value .value-rich:has(> .rich-livelit-view) {
+  padding: 0;
+  min-height: calc(var(--base-font-size) * 1.41);
+}
+.live-offside .value .rich-livelit-view {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  overflow: visible;
+}
+/* The view's root as a flex item: an inline root (a bare svg or span) would
+   otherwise sit on a text baseline, with a descender gap under it. */
+.live-offside .value .rich-livelit-view .MVU-render {
+  display: flex;
+  align-items: center;
+}
+
+/* a list of a type with a view: the elements' views in a row */
+.rich-livelit-view.rich-livelit-list {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: flex-end;
+  justify-content: center;
+}
+/* ...on one line in a sample chip: the chip sizes to its content, which
+   makes a wrapping row one view wide, stacking the views into a column
+   over the code below (the probe reserves one view's rows) */
+.value .rich-livelit-view.rich-livelit-list {
+  flex-wrap: nowrap;
+}
+
+/* A livelit view in a drawer chip: the chip sits at the top of its line
+   box, so it is as tall as the view (on the text baseline, the line box
+   added a descender gap under it, and a view as tall as the rows its
+   shape reserves overflowed the drawer by that much). */
+.below-wrapper .live-offside .value:has(.rich-livelit-view) {
+  vertical-align: top;
+}
+
+/* In the drawer, a livelit view sits in its chip as a card, a sibling of
+   the drawer's table: the cream fill, a 1px border in the drawer's edge
+   color, rounded corners, barely lifted. The chip gives way to it: no
+   padding or backing of its own, its corners and focus ring rounded to
+   the card's. Its top edge overlaps the drawer's, as the table's does, so
+   a view as tall as the rows its shape reserves less one card border
+   (five lines: 5 x 25.13px - 1px) fills them. No padding inside either:
+   the view draws to the card's edges and keeps its own margins, and the
+   card clips it to its corners. The ink is the code's, far stronger on
+   the cream than the drawer's tan or a faded sample's green. */
+.below-wrapper .live-offside .value:has(.rich-livelit-view) {
+  margin-top: -1px;
+  padding: 0;
+  border-radius: 6px;
+  background-color: transparent !important;
+}
+.below-wrapper .live-offside .value .value-rich > .rich-livelit-view {
+  background: var(--df-bg);
+  border: 1px solid var(--probe-drawer-edge);
+  border-radius: 6px;
+  box-shadow: 0 1px 2px color-mix(in oklch, var(--SHADOW) 25%, transparent);
+  overflow: hidden;
+  color: var(--code-text);
+}
+.below-wrapper .live-offside .sample-group:has(.rich-livelit-view) {
+  gap: 8px;
+}
+/* ...and the row stays top-aligned beside it: the inline baseline rule
+   (.projector.probe .live-offside) outranks the drawer's flex-start, and
+   on a baseline a One-mode ⋯ pushed the card 2px down, past its rows. */
+.projector.probe .below-wrapper .live-offside:has(.rich-livelit-view) {
+  align-items: flex-start;
 }

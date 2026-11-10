@@ -1,0 +1,154 @@
+@title
+Views / Sparkline
+
+@flags
+version=1 id=b3000001-0001-0001-0001-000000000001
+
+@prompt
+A `Trace` is one shipment's hourly temperatures, with the safe range they must stay within. The livelit `^trace` expands to a `Trace`, and its `wrap` member lets it draw any `Trace` value: here as a sparkline, where the band is the safe range, red dots are readings outside it, and the number is the last reading. Every probe of type `Trace` in the livelit's scope draws its samples this way, so the eight calls below line up as eight sparklines on one scale. Double-click a sample to see it as text.
+
+Its `view` also takes a `ViewContext`, which tells it how much room it has. On the line, a sample's room is its width: narrow a sample (click it, then **Shift+←**) and its sparkline keeps the latest readings that fit. In the probe's drawer (**Cmd/Ctrl+↓**) a view sizes itself, and this one labels the safe range and the hours.
+
+@code
+# A shipment's hourly temperatures (°C) and its safe range (low, high) #
+type Trace = + Trace([Int], Int, Int) in
+
+# Sparklines: Tufte, Beautiful Evidence (2006) #
+let ^trace = {
+  type Model = Trace;
+
+  type Action = + Nothing;
+
+  let s : Int -> String = string_of_int;
+
+  # In half pixels: 7px a reading, one scale (0 to 12 °C) for all #
+  let x(i: Int): Int = 3 + 14 * i;
+
+  let y(t: Int): Int =
+    42 - 3 * (if t > 12 then 12 else if t < 0 then 0 else t);
+
+  let dot(i: Int, t: Int, r: String, fill: String): HTML =
+    Node("circle",
+      [Create("cx", s(x(i))), Create("cy", s(y(t))),
+       Create("r", r), Style([("fill", fill)])],
+      []);
+
+  # On the line: the band, the readings, and the last one #
+  let spark(temps: [Int], lo: Int, hi: Int): HTML =
+    let n = length(temps) in
+    let w = x(n - 1) + 3 in
+    let last = nth(temps, n - 1) in
+    let band =
+      Node("rect",
+        [Create("width", s(w)),
+         Create("y", s(y(hi))), Create("height", s(y(lo) - y(hi))),
+         Style([("fill", "currentColor"), ("fill-opacity", "0.13")])],
+        []) in
+    let points =
+      mapi(temps, fun (i: Int, t: Int) -> s(x(i)) ++ "," ++ s(y(t))) in
+    let line =
+      Node("polyline",
+        [Create("points", string_join(" ", points)),
+         Style([("fill", "none"), ("stroke", "currentColor"),
+                ("stroke-width", "2"), ("stroke-linejoin", "round")])],
+        []) in
+    let alarms =
+      mapi(temps, fun (i: Int, t: Int) ->
+        if t < lo || t > hi then dot(i, t, "3.2", "var(--text-error)")
+        else Node("g", [], [])) in
+    Div([Style([("display", "flex"), ("align-items", "center"), ("gap", "3px")])],
+      [Node("svg",
+         [Create("viewBox", "0 0 " ++ s(w) ++ " 48"),
+          Width(s(w / 2)), Height("24"),
+          Style([("overflow", "visible")])],
+         [band, line, dot(n - 1, last, "2.5", "currentColor")] @ alarms),
+       Span([Style([("font-family", "var(--code-font)"), ("font-size", "13px")])],
+         [Text(s(last))])]);
+
+  # The latest readings that fit a sample cols columns wide, a column #
+  # being about 10px (the code font at its default size) #
+  let latest(temps: [Int], cols: Int): [Int] =
+    let k = (cols * 104 / 10 - 15) / 7 in
+    drop(temps, length(temps) - (if k < 2 then 2 else k));
+
+  # In the drawer: the safe range's bounds and the hours, labeled #
+  let chart(temps: [Int], lo: Int, hi: Int): HTML =
+    let n = length(temps) in
+    let cx(i: Int): Int = 26 + 9 * i in
+    let cy(t: Int): Int =
+      36 - 5 * (if t > 12 then 12 else if t < 0 then 0 else t) / 2 in
+    let last = nth(temps, n - 1) in
+    let label(lx: Int, ly: Int, anchor: String, size: String, str: String): HTML =
+      Node("text",
+        [Create("x", s(lx)), Create("y", s(ly)), Create("text-anchor", anchor),
+         Style([("font-family", "var(--code-font)"), ("font-size", size),
+                ("fill", "currentColor")])],
+        [Text(str)]) in
+    let mark(i: Int, t: Int, r: String, fill: String): HTML =
+      Node("circle",
+        [Create("cx", s(cx(i))), Create("cy", s(cy(t))),
+         Create("r", r), Style([("fill", fill)])],
+        []) in
+    let band =
+      Node("rect",
+        [Create("x", "23"), Create("width", s(cx(n - 1) - 20)),
+         Create("y", s(cy(hi))), Create("height", s(cy(lo) - cy(hi))),
+         Style([("fill", "currentColor"), ("fill-opacity", "0.13")])],
+        []) in
+    let line =
+      Node("polyline",
+        [Create("points",
+           string_join(" ",
+             mapi(temps, fun (i: Int, t: Int) -> s(cx(i)) ++ "," ++ s(cy(t))))),
+         Style([("fill", "none"), ("stroke", "currentColor"),
+                ("stroke-width", "1.5"), ("stroke-linejoin", "round")])],
+        []) in
+    let alarms =
+      mapi(temps, fun (i: Int, t: Int) ->
+        if t < lo || t > hi then mark(i, t, "2.6", "var(--text-error)")
+        else Node("g", [], [])) in
+    let w = cx(n - 1) + 30 in
+    Node("svg",
+      [Create("viewBox", "0 0 " ++ s(w) ++ " 48"), Width(s(w)), Height("48")],
+      [band, line, mark(n - 1, last, "2.2", "currentColor")] @ alarms
+      @ [label(20, cy(hi) + 3, "end", "10px", s(hi) ++ "°"),
+         label(20, cy(lo) + 3, "end", "10px", s(lo) ++ "°"),
+         label(cx(0), 47, "middle", "9px", "0h"),
+         label(cx(n - 1), 47, "middle", "9px", s(n - 1) ++ "h"),
+         label(cx(n - 1) + 7, cy(last) + 4, "start", "12px", s(last) ++ "°")]);
+
+  # Told its room: on the line, the sample's width; in the drawer, Free #
+  let view(tr: Model, ctx: ViewContext): HTML =
+    case (tr, ctx.room)
+    | (Trace(temps, lo, hi), Lines(_, cols)) => spark(latest(temps, cols), lo, hi)
+    | (Trace(temps, lo, hi), Free) => chart(temps, lo, hi)
+    end;
+
+  let init : Model = Trace([4, 6, 9, 7, 5], 2, 8);
+
+  let update(m: Model, _: Action): Model = m;
+
+  let expand(m: Model): Trace = m;
+
+  let wrap(v: Trace): Model = v;
+
+  let shape : LivelitShape = Block(16, 2)
+} in
+
+# How many readings left the safe range #
+let breaches(tr: Trace): Int =
+  case ^^probe(tr)
+  | Trace(temps, lo, hi) => length(filter(temps, fun t -> t < lo || t > hi))
+  end
+in
+
+[
+  breaches(Trace([4, 5, 5, 6, 9, 12, 8, 5, 4, 3, 1, 2], 2, 8)),
+  breaches(Trace([5, 5, 6, 6, 7, 7, 6, 5, 5, 4, 4, 4], 2, 8)),
+  breaches(Trace([3, 4, 10, 4, 3, 3, 4, 5, 6, 7, 8, 9], 2, 8)),
+  breaches(Trace([6, 6, 5, 4, 3, 2, 1, 0, 1, 2, 3, 4], 2, 8)),
+  breaches(Trace([4, 4, 5, 5, 6, 6, 7, 7, 8, 9, 11, 12], 2, 8)),
+  breaches(Trace([5, 6, 5, 6, 5, 6, 5, 6, 5, 6, 5, 6], 2, 8)),
+  breaches(Trace([7, 8, 9, 8, 7, 6, 7, 8, 9, 10, 9, 8], 2, 8)),
+  breaches(Trace([2, 3, 2, 3, 4, 5, 4, 3, 2, 1, 2, 3], 2, 8))
+]

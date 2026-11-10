@@ -1,0 +1,162 @@
+@title
+Views / Piano Roll
+
+@flags
+version=1 id=b3000007-0007-0007-0007-000000000007
+
+@prompt
+A `Tune` is a list of notes, each a MIDI pitch, a start, and a length in eighth notes. `^roll` draws one as a piano roll: time across the bar, pitch up over the tune's own range, with the black keys' rows shaded and each C marked. At five lines it is too tall for the line, where the samples stay text, so it opens in the probe's drawer: right-click a sample and choose **View as** (or expand the probe, **Cmd/Ctrl+↓**). Every `Tune` probe in scope draws this way, so in Many mode the drawer shows a motif and three classic transformations of it side by side: moved up a fourth, turned upside down, and played backward.
+
+@code
+# A tune: notes of (MIDI pitch, start, length), times in eighths #
+type Tune = + Tune([(Int, Int, Int)]) in
+
+# A piano roll for the probe drawer, five lines tall #
+let ^roll = {
+  type Model = Tune;
+
+  type Action = + Nothing;
+
+  let s : Int -> String = string_of_int;
+
+  # Size in px: a gutter for the labels, then 16px an eighth #
+  let w : Int = 290;
+
+  let h : Int = 124;
+
+  let gutter : Int = 26;
+
+  let axis : Int = 256;
+
+  let black(p: Int): Bool =
+    let k = p - p / 12 * 12 in
+    k == 1 || k == 3 || k == 6 || k == 8 || k == 10;
+
+  let low(ns: [(Int, Int, Int)]): Int =
+    fold_left(ns, fun (m: Int, (p, _, _): (Int, Int, Int)) ->
+      if p < m then p else m, 127);
+
+  let high(ns: [(Int, Int, Int)]): Int =
+    fold_left(ns, fun (m: Int, (p, _, _): (Int, Int, Int)) ->
+      if p > m then p else m, 0);
+
+  # When the last note ends #
+  let fin(ns: [(Int, Int, Int)]): Int =
+    fold_left(ns, fun (m: Int, (_, at, len): (Int, Int, Int)) ->
+      if at + len > m then at + len else m, 0);
+
+  let box(x: Int, y: Int, wd: Int, ht: Int, round: Int, fill: String): HTML =
+    Node("rect",
+      [Create("x", s(x)), Create("y", s(y)),
+       Create("width", s(wd)), Create("height", s(ht)),
+       Create("rx", s(round)), Style([("fill", fill)])],
+      []);
+
+  # A one-pixel line, on the pixel grid #
+  let rule(x1: Int, y1: Int, x2: Int, y2: Int, stroke: String): HTML =
+    Node("line",
+      [Create("x1", s(x1) ++ ".5"), Create("y1", s(y1) ++ ".5"),
+       Create("x2", s(x2) ++ ".5"), Create("y2", s(y2) ++ ".5"),
+       Style([("stroke", stroke)])],
+      []);
+
+  let faint(pct: String): String =
+    "color-mix(in srgb, currentColor " ++ pct ++ ", transparent)";
+
+  let view(t: Model): HTML =
+    case t
+    | Tune(ns) =>
+      # A row a semitone: an octave at least, centered on the tune #
+      let span = high(ns) - low(ns) + 3 in
+      let rows = if span < 12 then 12 else span in
+      let top = (low(ns) + high(ns) + rows) / 2 in
+      let row = h / rows in
+      let y(p: Int): Int = (h - rows * row) / 2 + (top - p) * row in
+      # Whole bars of 16 eighths #
+      let bars = (fin(ns) + 15) / 16 in
+      let n = 16 * (if bars < 1 then 1 else bars) in
+      let x(at: Int): Int = gutter + at * axis / n in
+      let pitches = range(top - rows + 1, top) in
+      let cs = filter(pitches, fun (p: Int) -> p - p / 12 * 12 == 0) in
+      let lanes =
+        map(filter(pitches, black), fun (p: Int) ->
+          box(0, y(p), w, row, 0, "var(--surface-default)")) in
+      let beats =
+        map(range(0, n / 2), fun (i: Int) ->
+          rule(x(2 * i), 0, x(2 * i), h,
+               if i - i / 4 * 4 == 0 then "var(--probe-drawer-edge)"
+               else "var(--border-raised)")) in
+      let octaves =
+        map(cs, fun (p: Int) ->
+          rule(0, y(p) + row, w, y(p) + row, faint("25%"))) in
+      let labels =
+        map(cs, fun (p: Int) ->
+          Node("text",
+            [Create("x", "6"), Create("y", s(y(p) + row / 2)),
+             Create("dominant-baseline", "central"),
+             Style([("font-family", "var(--code-font)"),
+                    ("font-size", "12px"),
+                    ("fill", faint("80%"))])],
+            [Text("C" ++ s(p / 12 - 1))])) in
+      let notes =
+        map(ns, fun ((p, at, len): (Int, Int, Int)) ->
+          box(x(at) + 1, y(p) + 1, x(at + len) - x(at) - 2, row - 2, 2,
+              "currentColor")) in
+      Node("svg",
+        [Create("viewBox", "0 0 " ++ s(w) ++ " " ++ s(h)),
+         Width(s(w)), Height(s(h))],
+        lanes @ beats @ octaves @ labels @ notes)
+    end;
+
+  let init : Model = Tune([(60, 0, 2), (64, 2, 2), (67, 4, 4)]);
+
+  let update(m: Model, _: Action): Model = m;
+
+  let expand(m: Model): Tune = m;
+
+  let wrap(v: Tune): Model = v;
+
+  let shape : LivelitShape = Block(28, 5)
+} in
+
+# Up k semitones #
+let transpose(k: Int, t: Tune): Tune =
+  case t
+  | Tune(ns) =>
+    Tune(map(ns, fun ((p, at, len): (Int, Int, Int)) -> (p + k, at, len)))
+  end
+in
+
+# Upside down, around middle C #
+let invert(t: Tune): Tune =
+  case t
+  | Tune(ns) =>
+    Tune(map(ns, fun ((p, at, len): (Int, Int, Int)) -> (120 - p, at, len)))
+  end
+in
+
+# Back to front, in a 16-eighth bar #
+let retrograde(t: Tune): Tune =
+  case t
+  | Tune(ns) =>
+    Tune(map(ns, fun ((p, at, len): (Int, Int, Int)) -> (p, 16 - at - len, len)))
+  end
+in
+
+# Play a tune: the probe sees each one #
+let play(t: Tune): Int =
+  case ^^probe(t)
+  | Tune(ns) => length(ns)
+  end
+in
+
+# Seven notes in one bar #
+let motif =
+  Tune([(60, 0, 2), (62, 2, 1), (64, 3, 1), (67, 4, 4),
+        (69, 8, 2), (67, 10, 2), (64, 12, 4)])
+in
+
+[play(motif),
+ play(transpose(5, motif)),
+ play(invert(motif)),
+ play(retrograde(motif))]

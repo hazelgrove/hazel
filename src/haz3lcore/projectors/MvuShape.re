@@ -298,12 +298,78 @@ let html_constructor_names: list(string) = variant_names(BuiltinsADT.HTML.t);
 let is_html_constructor = (name: string): bool =>
   List.mem(name, html_constructor_names);
 
+/* the head constructor's own type, when the evaluator typed it */
+let head_constructor_type = (d: DHExp.t): option(Typ.t) => {
+  let d = strip_wrappers(d);
+  let fn =
+    switch (d.term) {
+    | Ap(Forward, fn, _) => strip_wrappers(fn)
+    | _ => d
+    };
+  switch (fn.term) {
+  | Constructor(_, Some(Some(ty))) => Some(ty)
+  | _ => None
+  };
+};
+
+/* the type a constructor builds: the codomain of its arrow, else itself */
+let rec constructed_type = (ty: Typ.t): Typ.t =>
+  switch (Typ.term_of(ty)) {
+  | Arrow(_, out) => constructed_type(out)
+  | Parens(t) => constructed_type(t)
+  | _ => ty
+  };
+
+let rec names_html = (ty: Typ.t): bool =>
+  switch (Typ.term_of(ty)) {
+  | Var("HTML") => true
+  | Rec({term: Var("HTML"), _}, _) => true
+  | Parens(t) => names_html(t)
+  | _ => false
+  };
+
 // Is this value HTML (an application of an HTML constructor, or a nullary
-// one like Br)?
+// one like Br)? A user constructor may share a name with an HTML one (P,
+// A, Option, Label …): when the evaluator typed the constructor, its type
+// decides; only an untyped constructor goes by name.
 let is_html = (d: DHExp.t): bool =>
   switch (of_constructor(d)) {
-  | Some((name, _)) => is_html_constructor(name)
+  | Some((name, _)) =>
+    is_html_constructor(name)
+    && (
+      switch (head_constructor_type(d)) {
+      | Some(ty) => names_html(constructed_type(ty))
+      | None => true
+      }
+    )
   | None => false
+  };
+
+/* A value finished all the way down (function bodies aside: they are
+   code). `is_html` looks at the head only, so it accepts HTML with stuck
+   insides: `Text(string_of_int(?))`, an attribute built from `"0 " ++ ?`. */
+let rec is_settled = (d: DHExp.t): bool =>
+  switch (d.term) {
+  | Atom(_)
+  | Label(_)
+  | ExplicitNonlabel
+  | Constructor(_)
+  | BuiltinFun(_)
+  | Fun(_)
+  | TypFun(_)
+  | FixF(_) => true
+  | Asc(d, _)
+  | Parens(d)
+  | Closure(_, d) => is_settled(d)
+  | TupLabel(l, d) => is_settled(l) && is_settled(d)
+  | ListLit(ds)
+  | Tuple(ds) => List.for_all(is_settled, ds)
+  | Ap(Forward, fn, arg) =>
+    switch (strip_wrappers(fn).term) {
+    | Constructor(_) => is_settled(arg)
+    | _ => false
+    }
+  | _ => false
   };
 
 // === Checkpoints ===

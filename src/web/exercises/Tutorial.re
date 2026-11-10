@@ -66,14 +66,20 @@ let id_of = p => {
    folder segment, and never let one title be a proper prefix of another. */
 let path_of = (p: p('a)): SlidePath.t => SlidePath.of_string(p.title);
 
-/* The probes tutorial's folder. Its lessons teach reading values through
-   probes, so their editor shows no result row (TutorialMode) and their Task
-   Reference panel carries the probe strip. Named here rather than in the
+/* The probes tutorial's folders. Their lessons teach reading values through
+   probes, so their editor shows no result row (TutorialMode), their Task
+   Reference panel carries the probe strip, and entering one applies its
+   probe settings (TutorialProbeConfig). "Views" is the sequel: livelits
+   that draw the probed values of their type. Named here rather than in the
    probe modules because the view layer cannot reach those: ProbeSidebar
    depends on Editors, which depends on TutorialMode. */
 let probes_folder = "Probes";
+let views_folder = "Views";
 let is_probes_lesson = (p: p('a)): bool =>
-  SlidePath.folders(path_of(p)) == [probes_folder];
+  switch (SlidePath.folders(path_of(p))) {
+  | [folder] => folder == probes_folder || folder == views_folder
+  | _ => false
+  };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pos =

@@ -313,7 +313,7 @@ let toggle_controls_view = (~globals: Globals.t, ~explain_this_inject) => {
     [
       ProbeControls.auto_probe_toggle(~globals, ~is_new=false),
       {
-        /* Rich views toggle */
+        /* Rich Probes toggle (the setting is auto_rich_default) */
         let on = ProbeProj.Settings.s^.auto_rich_default;
         let segment = (label, active) =>
           div(
@@ -331,7 +331,7 @@ let toggle_controls_view = (~globals: Globals.t, ~explain_this_inject) => {
         div(
           ~attrs=[clss(["toggle-group"])],
           [
-            div(~attrs=[clss(["toggle-label"])], [text("Rich Views")]),
+            div(~attrs=[clss(["toggle-label"])], [text("Rich Probes")]),
             div(
               ~attrs=[clss(["segmented-control"])],
               [segment("On", on), segment("Off", !on)],

@@ -4,6 +4,24 @@ open Language;
 
 module Sexp = Sexplib.Sexp;
 
+/* How the sample menu's "View as" list names a view: as it is written
+   (a livelit's `^name`, set in the code font) or as prose (Table). */
+[@deriving show({with_path: false})]
+type view_label = {
+  name: string,
+  code: bool,
+};
+
+/* How much room a rendering has: Free in the probe's drawer, where it
+   sizes itself, and Lines(lines, columns) in a sample chip on the line
+   (lines_on_line, and the sample's width), where it is clipped to that
+   room. Livelit views are told (see UserLivelit.room). */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type room = UserLivelit.room;
+
+/* The lines a view has on the line: two, as a hand of cards needs */
+let lines_on_line = 2;
+
 /* A rich probe renderer: a domain-specific view of probed values.
    - value: the parsed representation; `parse` succeeding means the
      renderer can show the expression.
@@ -21,8 +39,17 @@ module type RichProbe = {
 
   let update: (model, action) => model;
   /* Parse an expression into its domain-specific value representation.
-     This extracts the structured data needed for interactive visualization. */
-  let parse: (Sort.t, Exp.t) => option(value);
+     This extracts the structured data needed for interactive visualization.
+     ~statics is the probed expression's info (type + context), for
+     renderers that apply by TYPE rather than by value shape. */
+  let parse: (~statics: option(Info.t), Sort.t, Exp.t) => option(value);
+  /* `parse` for the view a model selects: also takes a view offered only
+     on request (`on_request`), which `parse` never finds */
+  let parse_chosen:
+    (~statics: option(Info.t), Sort.t, Exp.t, model) => option(value);
+  /* The views offered for a value only on request, in the "View as" list,
+     never by an automatic pick: the livelits whose type merely fits */
+  let on_request: (~statics: option(Info.t), Sort.t, Exp.t) => list(model);
   /* Whether a parsed value is positive evidence that this renderer should
      be picked AUTOMATICALLY (auto-rich embeds, wells). Explicit picks ignore
      it. Lets a renderer decline vacuous matches (an empty list parses as an
@@ -36,7 +63,18 @@ module type RichProbe = {
 
   /* Height in editor rows when the rendering replaces the sample view in
      the drawer, so the framework can reserve the right number of lines. */
-  let drawer_rows: value => int;
+  let drawer_rows: (model, value) => int;
+  /* Height in editor rows in a sample chip on the line: the view goes
+     there if this is at most lines_on_line, else it waits for the drawer */
+  let line_rows: (model, value) => int;
+
+  /* The views this renderer offers for a value, as the models that select
+     them, in the order an automatic pick prefers them (its pick is the
+     first). Most renderers offer one; the livelit renderer offers every
+     livelit whose view renders the value. */
+  let views: value => list(model);
+  /* The name of the view a model selects for a value */
+  let label: (model, value) => view_label;
 
   let badge: Node.t;
 
@@ -50,6 +88,7 @@ module type RichProbe = {
       ~local: action => Ui_effect.t(unit),
       ~parent: external_action => Ui_effect.t(unit),
       ~sort: Sort.t,
+      ~room: room,
       unit
     ) =>
     Node.t;
@@ -74,14 +113,46 @@ type packed_action =
 
 type packed_renderer = {
   id: string,
-  can_handle: (Sort.t, Exp.t) => bool,
+  can_handle: (~statics: option(Info.t), Sort.t, Exp.t) => bool,
   /* can_handle AND the renderer's auto_applies — the predicate every
      automatic renderer pick goes through */
-  auto_applies: (Sort.t, Exp.t) => bool,
-  init_model: (Sort.t, Exp.t) => option(packed_model),
+  auto_applies: (~statics: option(Info.t), Sort.t, Exp.t) => bool,
+  init_model:
+    (~statics: option(Info.t), Sort.t, Exp.t) => option(packed_model),
   empty_model: packed_model,
   update_model: (packed_model, packed_action) => packed_model,
-  drawer_rows: (Sort.t, Exp.t) => option(int),
+  /* whether the view a model selects draws a value: can_handle, for a
+     chosen view (which may be one offered only on request) */
+  handles: (packed_model, ~statics: option(Info.t), Sort.t, Exp.t) => bool,
+  /* ~model: the view chosen for the probe; None for an automatic pick */
+  drawer_rows:
+    (
+      ~statics: option(Info.t),
+      ~model: option(packed_model),
+      Sort.t,
+      Exp.t
+    ) =>
+    option(int),
+  line_rows:
+    (
+      ~statics: option(Info.t),
+      ~model: option(packed_model),
+      Sort.t,
+      Exp.t
+    ) =>
+    option(int),
+  /* the views offered for a value, each named and with its model */
+  views:
+    (~statics: option(Info.t), Sort.t, Exp.t) =>
+    list((view_label, packed_model)),
+  /* ...and those offered only on request */
+  on_request:
+    (~statics: option(Info.t), Sort.t, Exp.t) =>
+    list((view_label, packed_model)),
+  /* the name of the view a model selects for a value */
+  label:
+    (packed_model, ~statics: option(Info.t), Sort.t, Exp.t) =>
+    option(view_label),
   render_model:
     (
       packed_model,
@@ -91,6 +162,7 @@ type packed_renderer = {
       ~local: packed_action => Ui_effect.t(unit),
       ~parent: external_action => Ui_effect.t(unit),
       ~sort: Sort.t,
+      ~room: room,
       unit
     ) =>
     option(Node.t),
@@ -147,25 +219,77 @@ let pack_renderer =
     };
   {
     id,
-    can_handle: (sort, exp) => Option.is_some(R.parse(sort, exp)),
-    auto_applies: (sort, exp) =>
-      switch (R.parse(sort, exp)) {
+    can_handle: (~statics, sort, exp) =>
+      Option.is_some(R.parse(~statics, sort, exp)),
+    auto_applies: (~statics, sort, exp) =>
+      switch (R.parse(~statics, sort, exp)) {
       | Some(v) => R.auto_applies(v)
       | None => false
       },
-    init_model: (sort, exp) =>
-      R.parse(sort, exp) |> Option.map(v => PModel(id, model_id, R.init(v))),
+    init_model: (~statics, sort, exp) =>
+      R.parse(~statics, sort, exp)
+      |> Option.map(v => PModel(id, model_id, R.init(v))),
     empty_model: PModel(id, model_id, R.empty),
-    drawer_rows: (sort, exp) =>
-      R.parse(sort, exp) |> Option.map(R.drawer_rows),
+    handles: (pm, ~statics, sort, exp) =>
+      switch (cast_model(pm)) {
+      | Some(m) => Option.is_some(R.parse_chosen(~statics, sort, exp, m))
+      | None => false
+      },
+    drawer_rows: (~statics, ~model, sort, exp) =>
+      switch (Option.bind(model, cast_model)) {
+      | Some(m) =>
+        R.parse_chosen(~statics, sort, exp, m)
+        |> Option.map(v => R.drawer_rows(m, v))
+      | None =>
+        R.parse(~statics, sort, exp)
+        |> Option.map(v => R.drawer_rows(R.init(v), v))
+      },
+    line_rows: (~statics, ~model, sort, exp) =>
+      switch (Option.bind(model, cast_model)) {
+      | Some(m) =>
+        R.parse_chosen(~statics, sort, exp, m)
+        |> Option.map(v => R.line_rows(m, v))
+      | None =>
+        R.parse(~statics, sort, exp)
+        |> Option.map(v => R.line_rows(R.init(v), v))
+      },
+    views: (~statics, sort, exp) =>
+      switch (R.parse(~statics, sort, exp)) {
+      | Some(v) =>
+        List.map(
+          m => (R.label(m, v), PModel(id, model_id, m)),
+          R.views(v),
+        )
+      | None => []
+      },
+    on_request: (~statics, sort, exp) =>
+      List.filter_map(
+        m =>
+          R.parse_chosen(~statics, sort, exp, m)
+          |> Option.map(v => (R.label(m, v), PModel(id, model_id, m))),
+        R.on_request(~statics, sort, exp),
+      ),
+    label: (pm, ~statics, sort, exp) =>
+      switch (cast_model(pm)) {
+      | Some(m) =>
+        R.parse_chosen(~statics, sort, exp, m)
+        |> Option.map(v => R.label(m, v))
+      | None => None
+      },
     update_model: (pm, pa) =>
       switch (cast_model(pm), cast_action(pa)) {
       | (Some(m), Some(a)) => PModel(id, model_id, R.update(m, a))
       | _ => pm
       },
-    render_model: (pm, ~info, ~exp, ~view_seg, ~local, ~parent, ~sort, ()) =>
-      switch (cast_model(pm), R.parse(sort, exp)) {
-      | (Some(m), Some(value)) =>
+    render_model:
+      (pm, ~info, ~exp, ~view_seg, ~local, ~parent, ~sort, ~room, ()) =>
+      switch (
+        Option.bind(cast_model(pm), m =>
+          R.parse_chosen(~statics=info.statics, sort, exp, m)
+          |> Option.map(v => (m, v))
+        )
+      ) {
+      | Some((m, value)) =>
         Some(
           R.render(
             ~info,
@@ -176,10 +300,11 @@ let pack_renderer =
             ~local=a => local(PAction(id, action_id, a)),
             ~parent,
             ~sort,
+            ~room,
             (),
           ),
         )
-      | _ => None
+      | None => None
       },
     sexp_of_model_payload: pm =>
       switch (cast_model(pm)) {
