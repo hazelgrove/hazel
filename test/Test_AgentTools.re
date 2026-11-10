@@ -3878,8 +3878,20 @@ let rename_and_path_safety_tests = (
         expect_failure_mentioning(
           "let a = 1 in a",
           Rename("a", None, "B"),
-          ["is not a value's name"],
+          ["won't do as a new name: value names start lowercase"],
           "rename_non_name",
+        );
+        expect_failure_mentioning(
+          "let a = 1 in a",
+          Rename("a", None, "$x"),
+          ["a name is one identifier"],
+          "rename_quote",
+        );
+        expect_failure_mentioning(
+          "let a = 1 in a",
+          Rename("a", None, "M.x"),
+          ["a name is one identifier"],
+          "rename_qualified",
         );
       },
     ),
