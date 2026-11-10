@@ -478,25 +478,25 @@ let test_disjoint_arms_do_not_overlap = () => {
     Alcotest.bool,
     "`[]` and `h :: t` are constructor-disjoint",
     false,
-    ProofCheck.Where.pats_overlap(pat("| h :: t"), pat("| []")),
+    Induction.pats_overlap(pat("| h :: t"), pat("| []")),
   );
   Alcotest.check(
     Alcotest.bool,
     "`true` and `false` are constructor-disjoint",
     false,
-    ProofCheck.Where.pats_overlap(pat("| true"), pat("| false")),
+    Induction.pats_overlap(pat("| true"), pat("| false")),
   );
   Alcotest.check(
     Alcotest.bool,
     "a variable pattern overlaps everything",
     true,
-    ProofCheck.Where.pats_overlap(pat("| w"), pat("| []")),
+    Induction.pats_overlap(pat("| w"), pat("| []")),
   );
   Alcotest.check(
     Alcotest.bool,
     "same constructor overlaps",
     true,
-    ProofCheck.Where.pats_overlap(pat("| h :: t"), pat("| a :: b")),
+    Induction.pats_overlap(pat("| h :: t"), pat("| a :: b")),
   );
 };
 

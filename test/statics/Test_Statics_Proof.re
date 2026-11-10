@@ -66,6 +66,50 @@ let is_inexhaustive =
   | Mark.InexhaustiveMatch(_) => true
   | _ => false;
 
+/* Hovering `name` in the program: its info has no marks and
+   its scope has `name` as a fact. */
+let cites_fact_in_scope = (name: string, source: string) =>
+  test_case(
+    "hovering `" ++ name ++ "` resolves it as a fact in scope",
+    `Quick,
+    () => {
+      let m = statics(parse_exp(source));
+      let hovered =
+        Id.Map.fold(
+          (_, info: Info.t, found) =>
+            switch (found, info) {
+            | (None, InfoExp({user_term: {term: Var(x), _}, _} as e))
+                when x == name =>
+              Some(e)
+            | _ => found
+            },
+          m,
+          None,
+        );
+      switch (hovered) {
+      | None => Alcotest.fail("no `" ++ name ++ "` in the program")
+      | Some(e) =>
+        Alcotest.(check(list(string)))(
+          "no marks",
+          [],
+          List.map(Mark.show, e.marks),
+        );
+        Alcotest.check(
+          bool,
+          "a fact in scope",
+          true,
+          Ctx.lookup_theorem(e.ctx, name) != None,
+        );
+      };
+    },
+  );
+
+/* A list induction whose cons case cites `fact`. */
+let snoc_citing = fact =>
+  {|theorem t = forall xs: [Int] -> forall x: Int -> xs @ [x] == xs @ [x] proof induction xs | [] => ? | y :: rest => from rest @ [x] do axiom |}
+  ++ fact
+  ++ {| end end end in t|};
+
 let tests = (
   "Statics.Proof",
   [
@@ -238,8 +282,7 @@ let tests = (
     /* --- Hypothesis naming, at edit time ------------------------------
        The statics installs an `as` name in the theorem namespace, so a
        citation of it resolves while the user types, not only when the
-       checker runs. The statics doesn't model an `induction`'s `case_eq`,
-       so naming a split is what makes it visible here. */
+       checker runs. */
     expects_no_mark(
       "an induction `as` name is a known hypothesis at edit time",
       {|theorem t = forall n -> n == n proof induction n > 0 as h | true => from n do axiom h end end | false => ? end in t|},
@@ -298,6 +341,84 @@ let tests = (
       "aliasing an unknown name marks at edit time",
       {|theorem t = forall n -> n == n proof alias h = nosuchfact => ? in t|},
       is_free_hyp,
+    ),
+    /* --- The facts an induction case installs ------------------------
+       A case body sees what `ProofCheck.check_induction` gives it: an
+       `ih` per recursive position, the case equation and the arm's
+       `where` facts. */
+    expects_no_mark(
+      "`ih` is in scope in a recursive case",
+      snoc_citing("ih"),
+      is_free_hyp,
+    ),
+    cites_fact_in_scope("ih", snoc_citing("ih")),
+    expects_mark(
+      "`ih` is not in scope in a base case",
+      {|theorem t = forall xs: [Int] -> xs == xs proof induction xs | [] => from xs do axiom ih end end | y :: rest => ? end in t|},
+      is_free_hyp,
+    ),
+    expects_no_mark(
+      "`case_eq` is in scope in a case",
+      snoc_citing("case_eq"),
+      is_free_hyp,
+    ),
+    cites_fact_in_scope("case_eq", snoc_citing("case_eq")),
+    expects_mark(
+      "an `as` name replaces `case_eq`",
+      {|theorem t = forall xs: [Int] -> xs == xs proof induction xs as h | [] => from xs do axiom case_eq end end | y :: rest => ? end in t|},
+      is_free_hyp,
+    ),
+    /* The case equation `xs == y :: xs` would mention the pattern's own
+       `xs`, not the scrutinee, so the checker doesn't install it. */
+    expects_mark(
+      "no `case_eq` when the pattern rebinds the scrutinee",
+      {|theorem t = forall xs: [Int] -> xs == xs proof induction xs | [] => ? | y :: xs => from xs do axiom case_eq end end end in t|},
+      is_free_hyp,
+    ),
+    expects_mark(
+      "an unknown name in a case still errors",
+      snoc_citing("nosuchfact"),
+      is_free_hyp,
+    ),
+    expects_no_mark(
+      "a case arm's guard is citable as `where`",
+      {|theorem t = forall xs: [Int] -> xs == xs proof induction xs | [] => ? | y :: rest where y > 0 => from xs do axiom where end end | y :: rest => ? end in t|},
+      is_free_hyp,
+    ),
+    /* The last arm is reached only when the guarded arm above failed. */
+    expects_no_mark(
+      "an earlier overlapping arm's negated guard is citable as `where`",
+      {|theorem t = forall xs: [Int] -> xs == xs proof induction xs | [] => ? | y :: rest where y > 0 => ? | y :: rest => from xs do axiom where end end end in t|},
+      is_free_hyp,
+    ),
+    expects_mark(
+      "a constructor-disjoint earlier arm gives no `where`",
+      {|theorem t = forall xs: [Int] -> xs == xs proof induction xs | y :: rest where y > 0 => ? | y :: rest => ? | [] => from xs do axiom where end end end in t|},
+      is_free_hyp,
+    ),
+    /* --- Other forms that extend a body's scope ---------------------- */
+    expects_no_mark(
+      "a `have` body sees the hypothesis",
+      {|theorem t = 1 == 1 proof have 2 == 2 proof ? => from 1 do axiom have end end in t|},
+      is_free_hyp,
+    ),
+    /* The subproof proves the `have`; it can't cite it. */
+    expects_mark(
+      "a `have` subproof doesn't see the hypothesis",
+      {|theorem t = 1 == 1 proof have 2 == 2 proof from 2 do axiom have end end => ? in t|},
+      is_free_hyp,
+    ),
+    /* `x` is bound by the goal's `fun x ->` around the focused `x + 0`,
+       which the checker brings into the focus body's scope. */
+    expects_no_mark(
+      "a focus body sees a binder its selector names",
+      {|theorem t = (fun x -> x + 0) == (fun x -> x) proof from x + 0 do rewrite x end end; ? in 0|},
+      is_free_var,
+    ),
+    expects_mark(
+      "a focus body's binder names don't escape it",
+      {|theorem t = (fun x -> x + 0) == (fun x -> x) proof from x + 0 do rewrite x end end; rewrite x in 0|},
+      is_free_var,
     ),
   ],
 );
