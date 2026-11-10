@@ -298,6 +298,7 @@ let of_segment_inner =
       seg: Segment.t,
       shape_map: Id.Map.t(ProjectorCore.Shape.t),
       refractor_rows: Id.Map.t(int),
+      hidden_hole: option(Id.t),
     )
     : t => {
   module DeferredLinebreaks = MkDeferredLinebreaks();
@@ -336,7 +337,7 @@ let of_segment_inner =
   };
 
   let add_grout = (acc: measure_acc, g: Grout.t): measure_acc => {
-    let size = Point.mk(~row=0, ~col=1);
+    let size = Point.mk(~row=0, ~col=hidden_hole == Some(g.id) ? 0 : 1);
     let (measure, map) = calc_inline(acc.pos, acc.map, size);
     {
       seg: [Piece.Grout(g), ...acc.seg],
@@ -483,6 +484,7 @@ let of_segment =
     (
       ~indent_level as _: Id.Map.t(int)=Id.Map.empty,
       ~is_single_line as _: bool=false,
+      ~hidden_hole: option(Id.t)=None,
       seg: Segment.t,
       shape_map: Id.Map.t(ProjectorCore.Shape.t),
       refractor_rows: Id.Map.t(int),
@@ -492,7 +494,7 @@ let of_segment =
    * compatibility with dev callers (ProjectorView, etc.) but are
    * ignored here — canonical-completion manages indentation via
    * real whitespace in the segment, not via an indent_level map. */
-  of_segment_memo(seg, shape_map, refractor_rows);
+  of_segment_memo(seg, shape_map, refractor_rows, hidden_hole);
 
 /* Width in characters of row at measurement.origin */
 let start_row_width = (measurement: measurement, measured: t): int =>

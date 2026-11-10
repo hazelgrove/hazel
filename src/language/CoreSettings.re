@@ -70,6 +70,10 @@ type t = {
    * pairing is swapped. Only affects the mouse — keyboard Shift+Arrow is
    * always char-level (modifier → smart). */
   selection_chunkiness: bool,
+  /* Implicit polymorphism and inferred binder types (Inference): statics
+     runs a second pass when there is anything to infer. */
+  [@sexp.default true] [@yojson.default true]
+  inference: bool,
   evaluation: Evaluation.t,
 };
 
@@ -85,6 +89,7 @@ let off: t = {
   flip_animations: false,
   display_warnings: false,
   selection_chunkiness: false,
+  inference: true,
   evaluation: Evaluation.init,
 };
 
@@ -100,6 +105,7 @@ let on: t = {
   flip_animations: true,
   display_warnings: true,
   selection_chunkiness: false,
+  inference: true,
   evaluation: Evaluation.init,
 };
 

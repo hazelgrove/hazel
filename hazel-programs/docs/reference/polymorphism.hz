@@ -1,57 +1,226 @@
 # Polymorphism #
 
-# We can take types as parameters to type functions, #
-# and use them in annoatations in the body: #
-let id = typfun A -> fun x : A -> x in
+# A polymorphic function works at many types. Hazel works this out #
+# for you: a function whose argument types nothing pins down gets a #
+# poly type, and each use picks the types it needs. #
 
-# Such functions are applied like so: #
-let ex1 = id@<Int>(1) in # 1 #
+# Put the cursor on a definition to see its type, and on a use #
+# to see which instance that use is. #
 
-# We can annotate the type of a type function with a poly. #
-let const : poly A -> poly B -> A -> B -> A = 
-  typfun A -> typfun B -> fun x -> fun y -> x in
-let ex2 = const@<Int>@<String>(2)("Hello World") in # 2 #
+# INFERRED POLYMORPHISM #
 
-# We can go beyond rank 1 polymorphism: #
-let apply_both : poly A -> poly B -> (poly D -> D -> D) -> (A , B) -> (A , B) =
-  typfun A -> typfun B -> fun f -> fun (x, y) -> (f@<A>(x), f@<B>(y)) in  
-let ex3 = apply_both@<Int>@<String>(id)(3, "Hello World") in # (3, "Hello World") # 
+# id gets the type poly a -> a -> a: for any type a, it takes #
+# an a and gives back an a. #
+let id(x) = x in
 
-# Finally, here is a more in-depth, yet applicable example: polymorphic map #
-let emptylist : poly A -> [A] = typfun A -> [] in # polymorphic constant #
-let map : poly A -> poly B -> (A -> B) -> ([A] -> [B]) = 
-  typfun A -> typfun B -> fun f : (A -> B) -> fun l : [A] -> 
-    case l
-    | h :: t => f(h) :: map@<A>@<B>(f)(t)
-    | _ => emptylist@<B>   
-    end in
-let ex4 = map@<Int>@<String>(string_of_int)([1,2,3]) in # ["1", "2", "3"] #
+let ex1 = (id(1), id("one"), id(true)) in
+# (1, "one", true) #
 
+# Each use is applied to the types it needs behind the scenes: #
+# id(1) runs as id@<Int>(1). Results and the stepper hide this. #
+let pair(x, y) = (x, y) in
 
-# Recursive types #
+let swap(a, b) = (b, a) in
 
-# We can express recursive types using type aliases #
-type MyList = Nil + Cons(Int, MyList) in
+let ex2 = (
+  pair(1, "one"),
+  swap(true, 2.5)
+) in
+# ((1, "one"), (2.5, true)) #
 
-# Hazel does not (yet) support higher-kinded or existential types, #
-# So we cannot implement our own polymorphic lists. #
+# FUNCTIONS THAT TAKE OR RETURN FUNCTIONS #
 
-# Now anything that returns an element of the least fixed point matches MyList. #
-let x : MyList = Cons(1, Cons(2, Cons(3, Nil))) in
+# twice : poly a -> (a -> a, a) -> a #
+let twice(f, x) = f(f(x)) in
 
-# Note that if the sum is the top level operator, #
-# type aliases are implicitly least fixed points on their own name: #
-type MyList2 = Nil + Cons(Int, MyList2) in
-type Broken = Int -> (HasInt(Int) + HasMore(Int, Broken)) in 
+# compose : poly a -> poly b -> poly c -> (a -> b, c -> a) -> c -> b #
+let compose(f, g) = fun x -> f(g(x)) in
 
+let ex3 = (
+  twice(fun n -> n + 1, 0),
+  compose(string_of_int, fun n -> n * 2)(5)
+) in
+# (2, "10") #
 
-let list_of_mylist : (MyList -> [Int]) = fun myl : MyList -> 
-  case myl 
-  | Nil => []
-  | Cons(h, t) => h :: list_of_mylist(t)    
+# RECURSIVE POLYMORPHIC FUNCTIONS #
+
+# Inside its own definition, a recursive call uses the same types; #
+# the definition is generalized once it is done. #
+let map(f, xs) =
+  case xs
+  | [] => []
+  | x :: rest => f(x) :: map(f, rest)
   end in
-let ex5 = list_of_mylist(x) in # [1, 2, 3] #
 
+let filter(keep, xs) =
+  case xs
+  | [] => []
+  | x :: rest =>
+    if keep(x)
+    then x :: filter(keep, rest)
+    else filter(keep, rest)
+  end in
 
-# All output from examples: #
-(ex1, ex2, ex3, ex4, ex5)
+let fold(f, acc, xs) =
+  case xs
+  | [] => acc
+  | x :: rest => fold(f, f(acc, x), rest)
+  end in
+
+let length(xs) = fold(fun (n, _) -> n + 1, 0, xs) in
+
+# The list builtins are polymorphic the same way: put the cursor on #
+# reverse below to see poly a -> [a] -> [a]. #
+let ex4 = (
+  map(fun n -> n * 10, [1, 2, 3]),
+  map(string_of_int, [4, 5]),
+  filter(fun s -> string_length(s) > 1, ["a", "bb", "ccc"]),
+  fold(fun (sum, n) -> sum + n, 0, [1, 2, 3]),
+  length([true, false]),
+  reverse(["x", "y", "z"])
+) in
+# ([10, 20, 30], ["4", "5"], ["bb", "ccc"], 6, 2, ["z", "y", "x"]) #
+
+# WRITING THE TYPES YOURSELF #
+
+# A lowercase name in an annotation is a type variable. The definition #
+# that mentions it binds it, so it can stand for any type, and the #
+# definition has to work for every type. Pick any lowercase name. #
+let zip(xs : [a], ys : [b]) : [(a, b)] =
+  case (xs, ys)
+  | (x :: xt, y :: yt) => (x, y) :: zip(xt, yt)
+  | _ => []
+  end in
+
+let keep_if(pred : elem -> Bool, items : [elem]) : [elem] =
+  case items
+  | [] => []
+  | item :: rest =>
+    if pred(item)
+    then item :: keep_if(pred, rest)
+    else keep_if(pred, rest)
+  end in
+
+let ex5 = (
+  zip([1, 2], ["one", "two"]),
+  keep_if(fun b -> b, [true, false, true])
+) in
+# ([(1, "one"), (2, "two")], [true, true]) #
+
+# An annotation with a specific type makes a definition less general. #
+let sum(xs : [Int]) = fold(fun (s, n) -> s + n, 0, xs) in
+
+# Try: put the cursor just after x in id(x) above and type a colon. #
+# The type inference found shows in the hole; Tab writes it in. #
+
+# WHAT ISN'T GENERALIZED #
+
+# Constraints still apply: succ is Int -> Int, not polymorphic. #
+let succ(n) = n + 1 in
+
+# A definition that has to run to produce its value isn't generalized, #
+# so both is ? -> ?: it works, but isn't checked. Written as a function, #
+# both_fn is poly a -> a -> a. #
+let both = compose(id, id) in
+
+let both_fn(x) = compose(id, id)(x) in
+
+# An unfinished definition isn't generalized: the hole might still use #
+# x at some type. Try: fill the hole with x + 1. #
+let later(x) = ? in
+
+# A type hole you write yourself stays gradual. #
+let anything(x : ?) = x in
+
+let ex6 = (
+  sum([1, 2, 3]),
+  succ(41),
+  both(1),
+  both_fn(true),
+  anything("any")
+) in
+# (6, 42, 1, true, "any") #
+
+# TYPE ERRORS #
+
+# 1. succ is not polymorphic, so a String argument is an error. #
+let error1 = succ("one") in
+
+# 2. When one use of a polymorphic function needs two different types, #
+# the error goes on the function, not on whichever argument came last. #
+# Put the cursor on id to see both types. #
+let error2 = id(1) ++ "!" in
+
+# 3. A parameter used as two different types is marked where it is #
+# defined, with both types listed. Try: annotate n with one of them #
+# and watch the error move to the use that disagrees. #
+let show(n) =
+  if n
+  then "yes"
+  else string_of_int(n)
+in
+
+# 4. A written type variable has to stay general: x : a can't be #
+# added to 1, because a might not be Int. #
+let bump(x : a) = x + 1 in
+
+# EXPLICIT POLYMORPHISM #
+
+# Type parameters can also be written out: poly binds a type variable #
+# in a type, typfun binds one in an expression, and @<...> applies a #
+# type function to a type. Each binder works like fun: any name works, #
+# as long as every use matches its binder. #
+let const : poly A -> poly B -> (A, B) -> A =
+  typfun A -> typfun B -> fun (x, _) -> x
+in
+
+# Explicitly polymorphic functions can be called either way. #
+let ex7 = (
+  const(2, "two"),
+  const@<Int>@<String>(2, "two")
+) in
+# (2, 2) #
+
+# Writing the poly out is still necessary when an argument must itself #
+# be polymorphic. Any polymorphic function can be passed, including #
+# inferred ones like id. Try: pass succ instead of id. #
+let apply_both : poly A -> poly B -> (poly D -> D -> D, A, B) -> (A, B) =
+  typfun A -> typfun B -> fun (f, x, y) -> (f@<A>(x), f@<B>(y))
+in
+
+let ex8 = apply_both(id, 3, "three") in
+# (3, "three") #
+
+# RECURSIVE TYPES #
+
+# A type alias can refer to itself. When a sum is the alias's top-level #
+# operator, the alias is the least fixed point of its own definition. #
+type IntList = Nil + Cons(Int, IntList) in
+
+let ints : IntList = Cons(1, Cons(2, Cons(3, Nil))) in
+
+let to_list(l : IntList) : [Int] =
+  case l
+  | Nil => []
+  | Cons(h, t) => h :: to_list(t)
+  end in
+
+let ex9 = to_list(ints) in
+# [1, 2, 3] #
+
+# Type aliases can't take type parameters yet, so IntList can't be #
+# made into a list of any element type. #
+
+# ALL OUTPUT FROM EXAMPLES #
+
+(
+  ex1,
+  ex2,
+  ex3,
+  ex4,
+  ex5,
+  ex6,
+  ex7,
+  ex8,
+  ex9
+)

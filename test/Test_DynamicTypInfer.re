@@ -99,7 +99,7 @@ let basic_tests = [
   dynamic_typ_test(
     "Arrow via function",
     {|let f = fun x -> x + 1 in ^^probe(f)|},
-    Some("? -> Int"),
+    Some("Int -> Int"),
   ),
 ];
 

@@ -270,6 +270,7 @@ let handle_tuple_operation =
             inferred_label: None,
             label_sort: false,
             dot_labels: [],
+            instance: None,
           }),
           m,
         );
@@ -472,6 +473,7 @@ let group_by_label_statics =
             inferred_label: None,
             label_sort: false,
             dot_labels: [],
+            instance: None,
           }),
           m,
         );

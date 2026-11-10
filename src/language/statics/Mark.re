@@ -71,6 +71,9 @@ type t =
       ana: Typ.t,
       syn: Typ.t,
     })
+  /* An implicit type hole (an unannotated binder's type, or an implicit
+     type argument) constrained to incompatible types. */
+  | InferenceConflict(list(Typ.t))
   | BadToken(string)
   | BadLabel(Any.t)
   | InvalidLabel(LabeledTuple.label, list(LabeledTuple.label))

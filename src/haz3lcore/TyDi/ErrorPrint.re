@@ -47,6 +47,11 @@ let core_mark_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   | IsMulti => "Broken expression"
   | CompareFun(ty) =>
     prn("values of type %s cannot be compared", Print.typ(ty))
+  | InferenceConflict(tys) =>
+    prn(
+      "Inferred conflicting types: %s",
+      String.concat(", ", List.map(Print.typ, tys)),
+    )
   | FreeConstructor(_name) => prn("Constructor is not defined")
   | ExpectationMismatch({ana, syn}) => expectation(ana, syn)
   | NoMeet(PolyEq, tys)
@@ -162,6 +167,7 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   | DuplicateVar(_, _)
   | ExpectationMismatch(_)
   | NoMeet(_)
+  | InferenceConflict(_)
   | CompareFun(_) => common_from_core()
   };
 };

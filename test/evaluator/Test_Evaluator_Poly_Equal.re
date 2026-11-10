@@ -109,8 +109,13 @@ let tests = (
         evaluation_test(
           ~ignore_dynamic_errors=true,
           "Hidden containing arrow caught in dynamics",
+          /* `f` is generalized, so what reaches `==` is a type function. */
           dynamic_error_hole(
-            elaborate(parse_exp("(fun x -> x) == (fun x -> x)")),
+            elaborate(
+              parse_exp(
+                "(typfun a -> fun x -> x) == (typfun a -> fun x -> x)",
+              ),
+            ),
             Incomparable,
           ),
           elaborate(parse_exp("let f = fun x -> x in f == f")),
