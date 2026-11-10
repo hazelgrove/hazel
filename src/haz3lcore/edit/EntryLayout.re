@@ -626,8 +626,8 @@ let settle = (~apart=[], b: block, js: list(int)): Segment.t => {
 /* item [k] taken out of [b]: the block's pieces without it, and its
    place. A member block's last member hands its terminator to the one
    above. A body's first item, before the result: a result on its last
-   line goes back onto the head's line, as does a constant's value when
-   the item spanned lines (it was put on a line of its own for it) */
+   line goes back onto the head's line, as does a constant's value on a
+   line of its own (where a move puts it), the head's `in` after it */
 let take = (b: block, k: int): (Segment.t, origin) => {
   let n = Array.length(b.sl);
   let sl = b.sl[k];
@@ -661,21 +661,24 @@ let take = (b: block, k: int): (Segment.t, origin) => {
     let head = line_indent(b, ws_back(b, sl.lo));
     let onto_head = (rest: Segment.t) =>
       ListUtil.truncate(ws_back(b, sl.lo), b.seg) @ [space()] @ rest;
-    /* a constant's value it put on the line below it */
-    let to_head =
-      rejoin && lbs == 1 && n == 2 && !fn_body(b) && spans_lines(bare(b, k));
+    /* a constant's value on the line below it */
+    let to_head = rejoin && lbs == 1 && n == 2 && !fn_body(b);
     let seg =
       if (rejoin && lbs == 0) {
         onto_head(ListUtil.remove_first_n(x, b.seg));
       } else if (to_head) {
         let r = b.sl[k + 1];
         let i = indent_end(b, k + 1);
+        let e = ws_back(b, r.eol);
+        let rest = ListUtil.remove_first_n(e, b.seg);
+        /* a let's body (the let's kid): its `in` back on the value's line */
+        let in_ = b.lv.offset == 0 && List.for_all(Nav.is_edge_ws, rest);
         onto_head(
           shift_by(
             head - item_indent(b, k + 1),
-            ListUtil.slice(i, r.eol - i, b.seg),
+            ListUtil.slice(i, e - i, b.seg),
           )
-          @ ListUtil.remove_first_n(r.eol, b.seg),
+          @ (in_ ? [space()] : rest),
         );
       } else if (lbs > 0 && own) {
         ListUtil.truncate(sl.lo, b.seg)
@@ -1085,9 +1088,9 @@ let wrapped_fun = (def: Segment.t): bool => {
    body is (on its line when it's one line). A statement can't go into a
    member's body, where its `;` would end the member. Moved before a
    lone result: above a result on its own line, the gap it takes along
-   between them; on the head's line when it's one line; else on lines of
-   its own past the head's, and a constant's value with it (a function's
-   result stays on its last line). [first]: its first, above any other */
+   between them; else on lines of its own past the head's, the result on
+   the next, and the head's `in` on the one after. [first]: its first,
+   above any other */
 let body_last =
     (
       ~mod_root: bool,
@@ -1142,22 +1145,12 @@ let body_last =
         | Fresh(_) => at_edge(b, ~first, ~arrival, item)
         | Moved(_) when g > 0 || starts_line(b, g) =>
           at_edge(b, ~first, ~arrival, item)
-        | Moved(origin, src_indent) when !spans_lines(item) =>
-          Some(
-            put(
-              b,
-              ~at=Above(g),
-              ~lines=false,
-              ~offset=origin.offset,
-              ~src_indent,
-              ~member=false,
-              item,
-            ),
-          )
         | Moved(origin, src_indent) =>
           let r = b.sl[g];
           let head = item_indent(b, g);
           let ind = head + 2 + origin.offset;
+          let e = ws_back(b, r.eol);
+          let rest = ListUtil.remove_first_n(e, b.seg);
           Some(
             ListUtil.truncate(ws_back(b, r.lo), b.seg)
             @ lead(ind)
@@ -1165,13 +1158,9 @@ let body_last =
                 Option.fold(~none=0, ~some=src => ind - src, src_indent),
                 item,
               )
-            @ (
-              fn_body(b)
-                ? [space(), ...ListUtil.remove_first_n(r.lo, b.seg)]
-                : lead(head + 2)
-                  @ shift_by(2, ListUtil.slice(r.lo, r.eol - r.lo, b.seg))
-                  @ ListUtil.remove_first_n(r.eol, b.seg)
-            ),
+            @ lead(head + 2)
+            @ shift_by(2, ListUtil.slice(r.lo, e - r.lo, b.seg))
+            @ (kid && List.for_all(Nav.is_edge_ws, rest) ? lead(head) : rest),
           );
         };
       Option.map(body => Nav.splice_def(~root, d, body, seg), placed);

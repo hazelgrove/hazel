@@ -492,7 +492,7 @@ let move = () => {
   let fa = run(f, [Move(head("a", f), LastIn(Body(head("f", f))))]);
   expect(
     "into a value's body",
-    "let f = fun x -> let a = 1 in x in\nf(a)",
+    "let f = fun x ->\n  let a = 1 in\n  x\nin\nf(a)",
     fa,
   );
   check(
