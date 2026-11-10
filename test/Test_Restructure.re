@@ -1865,7 +1865,7 @@ let refused_delete_cursor = (): unit => {
       (),
     );
   let props = OutlineHarness.props(~cursor=cursor^, ());
-  let cmd_backspace = OutlineHarness.keydown(~meta=true, "Backspace");
+  let cmd_backspace = OutlineHarness.keydown(~cmd=true, "Backspace");
   ignore(Web.OutlineSidebar.keys(~props, ~on, ~visible, cmd_backspace));
   check(bool, "the delete was tried and refused", true, refused^);
   check(bool, "the cursor stays on the row", true, cursor^ == path(result));

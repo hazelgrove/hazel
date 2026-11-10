@@ -1511,7 +1511,8 @@ let text_lines =
 /* the outline's keys: arrows move and fold, Page keys move a screenful,
    Enter shows, Space opens as a cell; Alt with arrows moves rows and
    zooms; ⌥F folds; ⌘D duplicates, ⌘⌫ deletes; Esc (or Alt+O) returns;
-   ⌘Enter, F2 type names (text mode) */
+   ⌘Enter, F2 type names (text mode). Each on its exact modifiers, ⌘ being
+   Ctrl off the Mac (E.press_of) */
 let keys =
     (~props: props, ~on: handlers, ~visible: array(visible_row), evt)
     : Effect.t(unit) => {
@@ -1525,14 +1526,6 @@ let keys =
     i < 0 || n == 0 ? None : Some(visible[min(i, n - 1)].r_path);
   let go = i => on.set_cursor(target(i));
   let cur = idx >= 0 ? Some(visible[idx]) : None;
-  let k = Util.Key.mk(KeyDown, evt);
-  let key =
-    switch (k.key) {
-    | D(key)
-    | U(key) => key
-    };
-  let (code, alt, shift) = (k.code, k.alt == Down, k.shift == Down);
-  let meta = k.meta == Down || k.ctrl == Down;
   /* mid-composition (an IME's, a dead key's) the field has the key */
   let composing =
     Js_of_ocaml.Js.Optdef.case(
@@ -1540,6 +1533,13 @@ let keys =
       () => false,
       Js_of_ocaml.Js.to_bool,
     );
+  let press = E.press_of(~composing, Util.Key.mk(KeyDown, evt));
+  let key = press.key;
+  let (bare, cmd, alt) = (
+    E.only(press),
+    E.only(~meta=true, press),
+    E.only(~alt=true, press),
+  );
   let is_field = el =>
     Js_of_ocaml.Js.to_bool(
       el##.classList##contains(Js_of_ocaml.Js.string("outline-edit-input")),
@@ -1575,13 +1575,12 @@ let keys =
     );
   };
   let nav_key = () =>
-    switch (key, alt, meta, cur) {
-    | (".", false, true, Some(r)) => open_menu(r)
-    | ("F10", false, false, Some(r)) when shift => open_menu(r)
-    | ("Escape", _, _, _) => Some(on.leave)
-    | _ when alt && code == "KeyO" => Some(on.leave)
+    switch (E.structural(press), key, cur) {
+    | (Some(Item(o)), _, Some(r)) =>
+      Option.map(id => on.def_op(o, id), item_of(r))
+    | (Some(Item(_) | Menu), _, None) => None
     /* ⌥F folds, as the editor's Fold does */
-    | (_, true, false, _) when code == "KeyF" =>
+    | (Some(Fold), _, _) =>
       Some(
         switch (cur) {
         | Some(r) when r.r_node.o_children != [] =>
@@ -1589,64 +1588,61 @@ let keys =
         | _ => Effect.Ignore
         },
       )
-    | ("ArrowDown", false, false, _) =>
+    | (Some(Menu), _, Some(r)) => open_menu(r)
+    | (Some(Leave), _, _)
+    | (None, "Escape", _) => Some(on.leave)
+    | (None, "ArrowRight", Some(r)) when alt && is_module(r) =>
+      Option.map(on.zoom_in, id_of(r))
+    | (None, "ArrowLeft", _) when alt => Some(on.zoom_out)
+    /* the cursor moves only once the delete lands (DefOp); text mode's
+       Delete is a character's */
+    | (None, "Delete", Some(r)) when bare =>
+      Option.map(id => on.def_op(Delete, id), item_of(r))
+    | (None, _, _) when !bare => None
+    | (None, "ArrowDown", _) =>
       Some(idx + 1 < n ? go(idx + 1) : Effect.Ignore)
-    | ("ArrowUp", false, false, _) =>
-      Some(idx >= 0 ? go(idx - 1) : Effect.Ignore)
-    | ("Home", false, false, _) => Some(go(-1))
-    | ("End", false, false, _) => Some(go(n - 1))
-    | ("PageDown", false, false, _) =>
+    | (None, "ArrowUp", _) => Some(idx >= 0 ? go(idx - 1) : Effect.Ignore)
+    | (None, "Home", _) => Some(go(-1))
+    | (None, "End", _) => Some(go(n - 1))
+    | (None, "PageDown", _) =>
       Some(go(min(n - 1, idx + Util.JsUtil.outline_page_rows())))
-    | ("PageUp", false, false, _) =>
+    | (None, "PageUp", _) =>
       Some(
         go(idx > 0 ? max(0, idx - Util.JsUtil.outline_page_rows()) : (-1)),
       )
-    | ("ArrowRight", false, false, None) => Some(go(0))
-    | ("ArrowRight", false, false, Some(r)) =>
+    | (None, "ArrowRight", None) => Some(go(0))
+    | (None, "ArrowRight", Some(r)) =>
       Some(
         r.r_node.o_children == []
           ? Effect.Ignore
           : r.r_expanded ? go(idx + 1) : on.toggle_collapse(r.r_path),
       )
-    | ("ArrowLeft", false, false, Some(r)) =>
+    | (None, "ArrowLeft", Some(r)) =>
       Some(
         r.r_expanded
           ? on.toggle_collapse(r.r_path) : on.set_cursor(r.r_parent),
       )
-    | ("Enter", false, false, None) =>
+    | (None, "Enter", None) =>
       Some(
         props.header.h_open > 0
           ? on.show_whole(true)
           : props.header.h_parked > 0 ? on.show_whole(false) : Effect.Ignore,
       )
-    | ("Enter", false, false, Some(r)) =>
+    | (None, "Enter", Some(r)) =>
       Some(
         switch (id_of(r)) {
         | Some(id) => show(props, on, id)
         | None => on.toggle_collapse(r.r_path)
         },
       )
-    | (" ", false, false, Some(r)) =>
+    | (None, " ", Some(r)) =>
       Some(
         switch (open_close(props, on, r.r_node)) {
         | Some(act) => act()
         | None => Effect.Ignore
         },
       )
-    | ("ArrowUp", true, false, Some(r)) =>
-      Option.map(id => on.def_op(MoveUp, id), item_of(r))
-    | ("ArrowDown", true, false, Some(r)) =>
-      Option.map(id => on.def_op(MoveDown, id), item_of(r))
-    | ("ArrowRight", true, false, Some(r)) when is_module(r) =>
-      Option.map(on.zoom_in, id_of(r))
-    | ("ArrowLeft", true, false, _) => Some(on.zoom_out)
-    | (_, false, true, Some(r)) when code == "KeyD" =>
-      Option.map(id => on.def_op(Duplicate, id), item_of(r))
-    /* the cursor moves only once the delete lands (DefOp) */
-    | ("Backspace", false, true, Some(r))
-    | ("Delete", false, false, Some(r)) =>
-      Option.map(id => on.def_op(Delete, id), item_of(r))
-    | _ => None
+    | (None, _, _) => None
     };
   /* text mode: the outline as a text area of names (OutlineEdit) */
   let text_key = (t: E.t): verdict =>
@@ -1683,16 +1679,6 @@ let keys =
       let (start, stop): (int, int) =
         in_field
           ? (field##.selectionStart, field##.selectionEnd) : (t'.col, t'.col);
-      let mac = Util.Os.is_mac^;
-      let press: E.press = {
-        key,
-        code,
-        alt,
-        meta: mac ? k.meta == Down : k.ctrl == Down,
-        ctrl: mac && k.ctrl == Down,
-        shift,
-        composing,
-      };
       let outcome =
         E.decide(
           ~lines,
@@ -1845,22 +1831,23 @@ let keys =
       | Undo(line, col) => Pass(go(~discard=true, line, col, None))
       };
     };
+  /* text mode, on the cursor's row */
+  let start = () =>
+    switch (cur, n) {
+    | (Some(r), _) => Act(start_text(~on, r))
+    | (None, 0) => Pass(Effect.Ignore)
+    | (None, _) => Act(start_text(~on, visible[0]))
+    };
   /* a thunk: building a key's effect can move the cursor at once, so
      keys the menu takes must not build it */
   let act = (): verdict =>
-    switch (on.text.get(), key, meta, cur) {
+    switch (on.text.get(), key) {
     /* the browser copies it */
-    | (Some(_), "c" | "C", true, _) when list_selection() =>
-      Own(Effect.Ignore)
-    | (Some(t), _, _, _) => text_key(t)
-    | (None, "Enter", true, _)
-    | (None, "F2", _, _) =>
-      switch (cur, n) {
-      | (Some(r), _) => Act(start_text(~on, r))
-      | (None, 0) => Pass(Effect.Ignore)
-      | (None, _) => Act(start_text(~on, visible[0]))
-      }
-    | (None, _, _, _) =>
+    | (Some(_), "c" | "C") when cmd && list_selection() => Own(Effect.Ignore)
+    | (Some(t), _) => text_key(t)
+    | (None, "Enter") when cmd => start()
+    | (None, "F2") when bare => start()
+    | (None, _) =>
       switch (nav_key()) {
       | Some(eff) => Act(eff)
       | None => Pass(Effect.Ignore)
