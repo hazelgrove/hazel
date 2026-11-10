@@ -14,7 +14,7 @@ let exercise : DerivationExercise.spec =
              4608e291-678c-449b-b492-663b763b207b)(shape \
              Convex))))))(ancestors())))(caret \
              Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-             -1)(pinned_stack())(indicated_call())(time())(seq \
+             -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
              0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
           backup_text = "";
         };
@@ -55,7 +55,7 @@ let exercise : DerivationExercise.spec =
              \")))))((Grout((id 7b511b73-9d61-4a77-9114-579206175a33)(shape \
              Convex))))))(ancestors())))(caret \
              Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-             -1)(pinned_stack())(indicated_call())(time())(seq \
+             -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
              0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
           backup_text = "let $ab = of_ctx [A /\\ B] end in ";
         };
@@ -90,7 +90,7 @@ let exercise : DerivationExercise.spec =
                          6c695218-ee9a-4082-9a66-6099cff1ba35)(form(Tok \
                          B))(sort(Drv Exp)))))()))(ancestors())))(caret \
                          Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                         -1)(pinned_stack())(indicated_call())(time())(seq \
+                         -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                          0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                       backup_text = "$ab |- A /\\ B";
                     };
@@ -147,7 +147,7 @@ let exercise : DerivationExercise.spec =
                          fcc47be3-2c2e-411d-a3d9-8760f269edac)(form(Tok \
                          A))(sort(Drv Exp))))))))))()))(ancestors())))(caret \
                          Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                         -1)(pinned_stack())(indicated_call())(time())(seq \
+                         -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                          0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                       backup_text = "[] |- (A /\\ B) ==> (B /\\ A)";
                     };
@@ -182,7 +182,7 @@ let exercise : DerivationExercise.spec =
                                996cc49c-e5d7-4031-a076-1841a8639e8b)(form(Tok \
                                A))(sort(Drv Exp)))))()))(ancestors())))(caret \
                                Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                               -1)(pinned_stack())(indicated_call())(time())(seq \
+                               -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                                0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                             backup_text = "$ab |- B /\\ A";
                           };
@@ -210,7 +210,7 @@ let exercise : DerivationExercise.spec =
                                      B))(sort(Drv \
                                      Exp)))))()))(ancestors())))(caret \
                                      Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                                     -1)(pinned_stack())(indicated_call())(time())(seq \
+                                     -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                                      0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                                   backup_text = "$ab |- B";
                                 };
@@ -238,7 +238,7 @@ let exercise : DerivationExercise.spec =
                                      A))(sort(Drv \
                                      Exp)))))()))(ancestors())))(caret \
                                      Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                                     -1)(pinned_stack())(indicated_call())(time())(seq \
+                                     -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                                      0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                                   backup_text = "$ab |- A";
                                 };

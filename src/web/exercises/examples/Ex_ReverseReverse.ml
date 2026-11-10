@@ -169,7 +169,7 @@ let exercise : Exercise.t =
                 \")))))((Grout((id 2567f067-c8de-4ca2-940e-b2d796774665)(shape \
                 Convex))))))(ancestors())))(caret \
                 Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                -1)(pinned_stack())(indicated_call())(time())(seq \
+                -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                 0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
              backup_text =
                "let snoc = fun (t, h) ->\n\
@@ -194,7 +194,7 @@ let exercise : Exercise.t =
                 d99aef7b-4e33-4302-8845-ad23ac1f0225)(shape \
                 Convex))))))(ancestors())))(caret \
                 Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                -1)(pinned_stack())(indicated_call())(time())(seq \
+                -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                 0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
              backup_text = "";
            };
@@ -247,7 +247,7 @@ let exercise : Exercise.t =
                 \")))))((Grout((id d672e3e8-daae-461d-88f8-ad3a8deaa4a7)(shape \
                 Convex))))))(ancestors())))(caret \
                 Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                -1)(pinned_stack())(indicated_call())(time())(seq \
+                -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                 0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
              backup_text =
                "theorem rev_rev =\nforall xs:[Int] -> rev(rev(xs)) == xs\nin ";
