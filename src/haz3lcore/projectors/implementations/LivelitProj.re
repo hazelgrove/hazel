@@ -2445,6 +2445,16 @@ module M: Projector = {
             );
             Ui_effect.Ignore;
           } else if (existing == [] && SpliceStore.splice_ids(written) == []) {
+            /* (^ticket(721)) the old model's ids kept when the new one has
+               its shape, as typing over a literal keeps its tile: the
+               program's statics then still describe it, and a commit that
+               changes only literals is patched in, not analyzed again
+               (ModelIds, ModelPatch) */
+            let written =
+              Option.value(
+                ~default=written,
+                ModelIds.same_shape_ids(model, written),
+              );
             switch (
               info.utility.lift_syntax(
                 ~inline=true,

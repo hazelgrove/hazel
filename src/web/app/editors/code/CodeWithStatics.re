@@ -212,11 +212,37 @@ module Update = {
       && statics_mode != StaticsMode.Defer;
     /* A deferred edit can change external typing context even when this
        editor's source is unchanged. Implied-hole info must wait for refresh. */
+    /* (^ticket(721)) a livelit's commit that changed only its model's
+       literals: the statics kept, the new literals put in (ModelPatch), in
+       place of the edited item analyzed again, 12 to 28 ms after a slider's
+       step on the Witch slide (run 42826692242) */
+    let patched =
+      is_edited
+      && statics_mode == StaticsMode.Normal
+      && Option.is_none(projected)
+      && !probes_differ(editor.state.zipper, statics)
+        ? Util.BenchMarks.time(
+            ~extra=
+              () =>
+                Util.BenchMarks.[
+                  ("refused", str(Haz3lcore.ModelPatch.refused^)),
+                ],
+            "statics: patched",
+            () => {
+              Haz3lcore.ModelPatch.refused := "";
+              Haz3lcore.ModelPatch.patched(
+                ~zipper=editor.state.zipper,
+                statics,
+              );
+            },
+          )
+        : Stdlib.Option.None;
     let statics =
       needs_refresh
-        ? switch (projected) {
-          | Some(p) => p
-          | None => do_init(editor)
+        ? switch (projected, patched) {
+          | (Some(p), _) => p
+          | (None, Some(s)) => s
+          | (None, None) => do_init(editor)
           }
         : is_edited
             ? {

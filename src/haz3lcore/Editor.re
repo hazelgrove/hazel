@@ -179,6 +179,25 @@ module Update = {
         Perform.go(~settings, ~statics=old_statics, ~syntax, a, state, ~root)
       );
     let zipper = ProbePerform.settle_stepping(a, zipper);
+    /* (^ticket(721)) a livelit's commit that changes only its model's
+       literals, the ids kept: noted, so its statics are patched, not worked
+       out again (CodeWithStatics, ModelPatch) */
+    switch (a) {
+    | Project(SetSyntax(idx, ProjectorCore.Kind.Livelit, seg)) =>
+      switch (
+        Option.bind(List.nth_opt(syntax.projector_list, idx), id =>
+          Option.map(
+            (p: Base.projector) => (id, p),
+            Id.Map.find_opt(id, syntax.projectors),
+          )
+        )
+      ) {
+      | Some((id, p)) =>
+        ModelPatch.note_commit(~projector=id, ~old=p.syntax, ~seg, zipper)
+      | None => ModelPatch.noted := None
+      }
+    | _ => ModelPatch.noted := None
+    };
 
     /* Layout-level edits (projector SetModel) are run through `calculate`
      * with is_edited=false so statics/evaluation are reused, but the
