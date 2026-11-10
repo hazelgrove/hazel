@@ -1291,6 +1291,10 @@ let all =
   /* (^ticket(722), the drag fast path, cut C) a projector's finished views again, while its data is the same object
      (Model.mk_cached), its version has not moved, and the frame's settings are the same; a projector holding
      splices is made every frame, as its view's cache does (its caret decorations read the zipper) */
+  /* (^report(51)) how many projectors' views were made again, for the
+     check's mark: at the worker's answer on the Witch, "view: projectors"
+     spent some 23 ms outside any projector drawn (run 42761046647) */
+  let remade = ref(0);
   let split = (pd: Model.projector_data) => {
     let make = () =>
       split_views(
@@ -1316,6 +1320,7 @@ let all =
           && e.s_probe == ProbeProj.Settings.version^ =>
       e.s_out
     | _ =>
+      incr(remade);
       let out = make();
       if (!seg_has_splices(pd.p.syntax)) {
         if (Hashtbl.length(split_memo) > 512) {
@@ -1339,11 +1344,26 @@ let all =
     };
   };
   let (base_views, overlay_views) =
-    projector_data
-    |> filter_by_visibility(visible, _, get_row_range)
-    |> List.sort(by_measurement)
-    |> List.map(split)
-    |> List.split;
+    Util.BenchMarks.time(
+      ~extra=
+        () =>
+          [
+            ("remade", Util.BenchMarks.num(float_of_int(remade^))),
+            (
+              "projectors",
+              Util.BenchMarks.num(
+                float_of_int(List.length(projector_data)),
+              ),
+            ),
+          ],
+      "view: projectors' views",
+      () =>
+        projector_data
+        |> filter_by_visibility(visible, _, get_row_range)
+        |> List.sort(by_measurement)
+        |> List.map(split)
+        |> List.split,
+    );
   let overlay_views = List.filter_map(Fun.id, overlay_views);
   [
     div_c(
