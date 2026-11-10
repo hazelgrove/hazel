@@ -1002,7 +1002,38 @@ let presplit_orphans = (seg: t): t =>
        | p => [p],
      );
 
-let rescan = (seg: t): t => {
+/* Promote a complete singleton tile to an incomplete multi-token form
+ * if its expansion has a mold with out == sort. E.g., standalone `|`
+ * (label ["|"]) in Rul sort becomes ["|","=>"][0] (incomplete Rule). */
+let try_sort_expand = (sort: Sort.t, t: Tile.t): option(Tile.t) =>
+  if (sort == Any
+      || Tile.arity(t) > 1
+      || !Tile.is_complete(t)
+      || List.length(t.shards) != 1) {
+    None;
+  } else {
+    let tok = Tile.token(t, 0);
+    let (label, _) = Form.Expansion.get(sort, tok);
+    if (List.length(label) <= 1) {
+      None;
+    } else {
+      /* first base candidate of the expanded label at this sort;
+       * equivalent to the old Molds.try_get + List.hd */
+      switch (Form.remold_candidates(label, sort)) {
+      | [] => None
+      | [(form, form_sort), ..._] =>
+        Some({
+          ...t,
+          form,
+          sort: form_sort,
+          shards: [0],
+          children: [],
+        })
+      };
+    };
+  };
+
+let rescan = (~sort: Sort.t=Any, seg: t): t => {
   let has_incomplete =
     List.exists(
       p =>
@@ -1012,7 +1043,9 @@ let rescan = (seg: t): t => {
         },
       seg,
     );
-  if (!has_incomplete) {
+  /* When sort is provided, we may need to promote tokens even if
+   * no incomplete tiles exist yet. Skip the fast path in that case. */
+  if (sort == Any && !has_incomplete) {
     seg;
   } else {
     /* Walk left-to-right with a STACK of expectation frames.
@@ -1079,7 +1112,16 @@ let rescan = (seg: t): t => {
                 let new_frame = mk_frame(t);
                 [hd, ...go(~frame=new_frame, ~stack=[frame, ...stack], tl)];
               } else {
-                [hd, ...go(~frame, ~stack, tl)];
+                /* Complete singleton: try sort-aware expansion */
+                switch (try_sort_expand(sort, t)) {
+                | Some(promoted) =>
+                  let new_frame = mk_frame(promoted);
+                  [
+                    Piece.Tile(promoted),
+                    ...go(~frame=new_frame, ~stack=[frame, ...stack], tl),
+                  ];
+                | None => [hd, ...go(~frame, ~stack, tl)]
+                };
               }
             };
           } else if (!Tile.is_complete(t)) {
@@ -1094,6 +1136,53 @@ let rescan = (seg: t): t => {
     go(seg);
   };
 };
+
+/* Like reassemble but reforges children of complete tiles when the
+ * child sort differs from the parent sort. This handles tokens that
+ * were created in one sort context but end up in a different sort
+ * after reassembly (e.g., standalone | and => becoming Rule tiles
+ * when they end up inside a case body in Rul sort). */
+let rec reassemble_reforge = (sort: Sort.t, seg: t): t =>
+  switch (incomplete_tiles(seg)) {
+  | [] => seg
+  | [t, ..._] =>
+    switch (Aba.trim(split_by_matching(t.id, seg))) {
+    | None => seg
+    | Some((seg_l, match, seg_r)) =>
+      let t = Tile.reassemble(match);
+      let children =
+        if (Tile.is_complete(t)) {
+          List.map2(
+            (child, child_sort) =>
+              if (child_sort != sort) {
+                reforge(child_sort, child);
+              } else {
+                reassemble_reforge(sort, child);
+              },
+            t.children,
+            Tile.mold(t).in_,
+          );
+        } else {
+          List.map(reassemble_reforge(sort), t.children);
+        };
+      let children = inner_regrout(children);
+      let p =
+        Tile.to_piece({
+          ...t,
+          children,
+        });
+      seg_l @ [p, ...reassemble_reforge(sort, seg_r)];
+    }
+  }
+/* Reforge: given a sort context, apply sort-aware rescan (promoting
+ * tokens to multi-token forms), reassemble with recursive reforging
+ * of children where sort changes, and remold. */
+and reforge = (sort: Sort.t, seg: t): t =>
+  seg
+  |> presplit_orphans
+  |> rescan(~sort)
+  |> reassemble_reforge(sort)
+  |> remold(_, sort);
 
 let trim_f: (list(Base.piece) => list(Base.piece), Direction.t, t) => t =
   (trim_l, d, ps) => {
