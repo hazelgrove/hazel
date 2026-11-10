@@ -124,6 +124,71 @@ let meet_expectations =
     es,
   );
 
+/* The type path an expression is, if it is one: a module variable (the
+   newest binding of its name, not a type), or a member of one, `M.P`. A
+   capitalized module name is written as a constructor until statics reads
+   it as the variable it is bound as. */
+let rec path_of_exp = (ctx: Ctx.t, e: Exp.t): option(Typ.t) =>
+  switch (Exp.term_of(e)) {
+  | Parens(e) => path_of_exp(ctx, e)
+  | Var(name)
+  | Constructor(name, _) =>
+    switch (Ctx.newest_tvar_or_var(ctx, name)) {
+    | Some(`Var(_)) => Some(Var(name) |> Typ.temp)
+    | Some(`TVar(_))
+    | None => None
+    }
+  | Dot(e, {term: Label(label), _}) =>
+    path_of_exp(ctx, e)
+    |> Option.map(path =>
+         ProdProjection(path, Label(label) |> Typ.temp) |> Typ.temp
+       )
+  | Dot(_)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | DynamicErrorHole(_)
+  | Deferral(_)
+  | Undefined
+  | Atom(_)
+  | DrvQuote(_)
+  | ListLit(_)
+  | Fun(_)
+  | TypFun(_)
+  | Tuple(_)
+  | Label(_)
+  | ExplicitNonlabel
+  | TupLabel(_)
+  | LivelitName(_)
+  | Let(_)
+  | Theorem(_)
+  | ProofObject(_)
+  | Forall(_)
+  | FixF(_)
+  | TyAlias(_)
+  | Use(_)
+  | Ap(_)
+  | TypAp(_)
+  | DeferredAp(_)
+  | If(_)
+  | Seq(_)
+  | Test(_)
+  | HintedTest(_)
+  | Filter(_)
+  | Closure(_)
+  | Projector(_)
+  | Cons(_)
+  | ListConcat(_)
+  | UnOp(_)
+  | BinOp(_)
+  | BuiltinFun(_)
+  | Match(_)
+  | TupleExtension(_)
+  | Asc(_)
+  | Module(_)
+  | ModuleExp(_) => None
+  };
+
 /* The expectation on a binder pattern, assembled from the signature's
    expectations on the names it binds: none when it binds none of them. A
    component the signature says nothing about is left to synthesis. */
@@ -143,6 +208,19 @@ let rec expected_pat_type =
            ty,
            names: [x],
          }
+       )
+  /* `let implicit M = ...`: the instance is expected at the member's type,
+     like a plain binder of its name. */
+  | Implicit(mp) =>
+    MPat.name(mp)
+    |> Option.bind(_, x =>
+         Sig.find_value(expected, x)
+         |> Option.map(ty =>
+              {
+                ty,
+                names: [x],
+              }
+            )
        )
   | Asc(p, _)
   | Parens(p)

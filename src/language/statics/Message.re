@@ -34,6 +34,12 @@ type exp =
   /* `t.y` where the tuple has no label y: the dot's payload; the error is
      on the label. */
   | TupleLabelNotFound(LabeledTuple.label, list(LabeledTuple.label))
+  /* An application whose implicit parameters were resolved: each binder
+     with the instance chosen for it, plus the usual type payload. */
+  | ImplicitResolved({
+      resolved: list((Var.t, Var.t)),
+      common: ok_common,
+    })
   | Common(ok_common);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]

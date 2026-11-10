@@ -145,6 +145,7 @@ let monotonicity_tests =
       ("list 5", "[1, 2, 3, 4, 5]"),
       ("binary op", "1 + 2"),
       ("let expr", "let x = 1 in x + 1"),
+      ("implicit parameter", "fun (implicit S : SHOW, x : S.T) -> x"),
       ("constructor app", "Some(42)"),
       ("labeled tuple", "(alpha=1, beta=2, gamma=3)"),
       ("empty list", "[]"),

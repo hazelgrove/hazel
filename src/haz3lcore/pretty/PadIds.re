@@ -141,6 +141,7 @@ let rec pad_variant_anns = (ty: Typ.t): Typ.t => {
       Sig(Open(List.map(Sig.map_typ(pad_variant_anns), items)))
     | Sig(Closed(items)) =>
       Sig(Closed(ClosedSig.map(Sig.map_typ(pad_variant_anns), items)))
+    | Implicit(mp) => Implicit(MPat.map_typ(pad_variant_anns, mp))
     | Unknown(_)
     | Atom(_)
     | DrvQuoteTy(_)

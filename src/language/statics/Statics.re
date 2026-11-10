@@ -1670,72 +1670,10 @@ and uexp_to_info_map =
            member named as a value, is marked on the label; the dot carries
            the same as a message. Unless a hole item in the signature could
            declare x: then x is unknown. */
-        /* The type path the left side is, if it is one: a module variable
-           (the newest binding of its name, not a type), or a member of one,
-           `M.P`. */
-        let rec path_of = (e: Exp.t): option(Typ.t) =>
-          switch (Exp.term_of(e)) {
-          | Parens(e) => path_of(e)
-          | Var(name) =>
-            switch (Ctx.newest_tvar_or_var(ctx, name)) {
-            | Some(`Var(_)) => Some(Var(name) |> Typ.temp)
-            | Some(`TVar(_))
-            | None => None
-            }
-          | Dot(e, {term: Label(label), _}) =>
-            path_of(e)
-            |> Option.map(path =>
-                 ProdProjection(path, Label(label) |> Typ.temp) |> Typ.temp
-               )
-          | Dot(_)
-          | Invalid(_)
-          | EmptyHole
-          | MultiHole(_)
-          | DynamicErrorHole(_)
-          | Deferral(_)
-          | Undefined
-          | Atom(_)
-          | DrvQuote(_)
-          | ListLit(_)
-          | Constructor(_)
-          | Fun(_)
-          | TypFun(_)
-          | Tuple(_)
-          | Label(_)
-          | ExplicitNonlabel
-          | TupLabel(_)
-          | LivelitName(_)
-          | Let(_)
-          | Theorem(_)
-          | ProofObject(_)
-          | Forall(_)
-          | FixF(_)
-          | TyAlias(_)
-          | Use(_)
-          | Ap(_)
-          | TypAp(_)
-          | DeferredAp(_)
-          | If(_)
-          | Seq(_)
-          | Test(_)
-          | HintedTest(_)
-          | Filter(_)
-          | Closure(_)
-          | Projector(_)
-          | Cons(_)
-          | ListConcat(_)
-          | UnOp(_)
-          | BinOp(_)
-          | BuiltinFun(_)
-          | Match(_)
-          | TupleExtension(_)
-          | Asc(_)
-          | Module(_)
-          | ModuleExp(_) => None
-          };
         /* Read through the path, a member's type names the path's type
            members (`M.x : M.T`); otherwise each member stands alone. */
-        let members = Typ.sig_members(~self=?path_of(e1_elab), s);
+        let members =
+          Typ.sig_members(~self=?ModuleHelpers.path_of_exp(ctx, e1_elab), s);
         let labels = Sig.value_names(members);
         let dot = (~marks=?, ~message=?, ~elab_syn_ty, child) =>
           dot(
@@ -2133,32 +2071,90 @@ and uexp_to_info_map =
              function return incomparable types. Deriving the identity from
              this application's id keeps it stable across passes. */
           let ty_out = Typ.freshen_escaped(~site=Exp.rep_id(uexp), ty_out);
-          let (arg, arg_elab, m) = go(~ana=ty_in, ~coercible=true, arg, m);
-          let elab_term = Ap(dir, fn_elab, arg_elab) |> rewrap;
-          let co_ap = CoCtx.union([fn.co_ctx, arg.co_ctx]);
-          let probe_targets_ap =
-            SubexpProbeTargets.union_all([
-              fn.probe_targets,
-              arg.probe_targets,
-            ]);
-          Id.is_nullary_ap_flag(IdTagged.ids(arg.user_term))
-          && !Typ.is_consistent(ctx, ty_in, Prod([]) |> Typ.temp)
-            ? add(
-                ~elab_term,
-                ~elab_syn_ty=ty_out,
-                ~marks=[BadTrivAp(ty_in)],
-                ~co_ctx=co_ap,
-                ~probe_targets=probe_targets_ap,
-                m,
-              )
-            : add(
-                ~elab_term,
-                ~elab_syn_ty=ty_out,
-                ~marks=[],
-                ~co_ctx=co_ap,
-                ~probe_targets=probe_targets_ap,
-                m,
+          /* A domain with implicit components: probe the argument once for
+             its arity and component types, then analyze it against the
+             explicit components with the binders instantiated. */
+          let implicit_plan =
+            switch (MatchedTyp.implicit_components(ctx, ty_in)) {
+            | Some(comps) =>
+              let (probe, _, _) = go(~ana=syn, arg, m);
+              Implicits.plan(
+                ctx,
+                ~ana,
+                ~comps,
+                ~cod=ty_out,
+                ~arg,
+                ~arg_ty=probe.ty,
               );
+            | None => None
+            };
+          switch (implicit_plan) {
+          | Some(plan) =>
+            let site = Exp.rep_id(uexp);
+            let (arg, arg_elab, m) =
+              go(~ana=plan.ty_in, ~coercible=true, arg, m);
+            let arg_elab = Implicits.splice(~site, plan, arg_elab);
+            /* Resolution marks and the resolved instances are reported on
+               the application. */
+            let message =
+              switch (plan.resolved) {
+              | [] => None
+              | resolved =>
+                Some(
+                  Message.Exp(
+                    ImplicitResolved({
+                      resolved,
+                      common: syn_ana_ok_common(ctx, ana, plan.ty_out),
+                    }),
+                  ),
+                )
+              };
+            add(
+              ~elab_term=Ap(dir, fn_elab, arg_elab) |> rewrap,
+              ~elab_syn_ty=plan.ty_out,
+              ~marks=plan.marks,
+              ~message?,
+              ~co_ctx=
+                CoCtx.union([
+                  fn.co_ctx,
+                  arg.co_ctx,
+                  Implicits.co_ctx(~site, plan),
+                ]),
+              ~probe_targets=
+                SubexpProbeTargets.union_all([
+                  fn.probe_targets,
+                  arg.probe_targets,
+                ]),
+              m,
+            );
+          | None =>
+            let (arg, arg_elab, m) = go(~ana=ty_in, ~coercible=true, arg, m);
+            let elab_term = Ap(dir, fn_elab, arg_elab) |> rewrap;
+            let co_ap = CoCtx.union([fn.co_ctx, arg.co_ctx]);
+            let probe_targets_ap =
+              SubexpProbeTargets.union_all([
+                fn.probe_targets,
+                arg.probe_targets,
+              ]);
+            Id.is_nullary_ap_flag(IdTagged.ids(arg.user_term))
+            && !Typ.is_consistent(ctx, ty_in, Prod([]) |> Typ.temp)
+              ? add(
+                  ~elab_term,
+                  ~elab_syn_ty=ty_out,
+                  ~marks=[BadTrivAp(ty_in)],
+                  ~co_ctx=co_ap,
+                  ~probe_targets=probe_targets_ap,
+                  m,
+                )
+              : add(
+                  ~elab_term,
+                  ~elab_syn_ty=ty_out,
+                  ~marks=[],
+                  ~co_ctx=co_ap,
+                  ~probe_targets=probe_targets_ap,
+                  m,
+                );
+          };
         };
       }
     | TypAp(fn, utyp) =>
@@ -2299,7 +2295,12 @@ and uexp_to_info_map =
       };
     | Fun(p, e, typ, n) =>
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
+      /* Implicit binders stay nameable in the codomain: the arrow's own
+         domain binds them. */
+      let binders = Pat.implicit_binders(p);
       let (mode_pat, mode_body) = MatchedTyp.arrow_tolerant(ctx, ana);
+      let (mode_pat, mode_body) =
+        Implicits.rename_expected(~binders, mode_pat, mode_body);
       let mode_pat = Option.value(~default=mode_pat, typ);
       let (p', _, _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=mode_pat, p, m);
@@ -2319,7 +2320,11 @@ and uexp_to_info_map =
         Typ.avoid(
           p.ctx,
           ~escape_to=EscapesAt(Exp.rep_id(uexp)),
-          ~escaping=Pat.bound_vars(p.user_term),
+          ~escaping=
+            List.filter(
+              x => !List.mem(x, binders),
+              Pat.bound_vars(p.user_term),
+            ),
         );
       /* At a coercion site the body's checked type is the codomain, and the
          elaborated body carries the sealing cast. Paths rooted at the
@@ -4337,6 +4342,40 @@ and upat_to_info_map =
         ~constraint_=p.constraint_,
         m,
       );
+    | Implicit(mp) =>
+      /* `implicit S : SIG` binds S like `S : SIG`. Its type is the implicit
+         binder itself, so a function parameter's tuple type carries the
+         binder at the component's position. An expectation that is itself a
+         binder is met by its signature. */
+      let (_, _, m) =
+        mpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, mp, m);
+      let ana_inner =
+        switch (Typ.term_of(Typ.weak_head_normalize(ctx, ana))) {
+        | Implicit(mp_ana) => Typ.implicit_sig(mp_ana)
+        | _ => ana
+        };
+      let (p, _, m) = go(~ctx, ~ana=ana_inner, MPat.to_pat(mp), m);
+      /* The binder is an implicit instance in its scope (Implicits.re). */
+      let ctx_bound =
+        switch (MPat.name(mp)) {
+        | Some(x) => Ctx.mark_implicit(p.ctx, x)
+        | None => p.ctx
+        };
+      let marks =
+        switch (Typ.term_of(Typ.weak_head_normalize(ctx, p.ty))) {
+        | Sig(_)
+        | Unknown(_) => []
+        | _ => [Mark.ImplicitBinderNotModule(p.ty)]
+        };
+      add(
+        ~elab_term=Implicit(MPat.map_typ(Typ.normalize(ctx), mp)) |> rewrap,
+        ~elab_syn_ty=Implicit(MPat.with_typ(mp, p.ty)) |> Typ.temp,
+        ~marks,
+        ~ctx=ctx_bound,
+        ~probe_targets=p.probe_targets,
+        ~constraint_=p.constraint_,
+        m,
+      );
     };
 
   // This is to allow lifting single values into a singleton labeled tuple when the label is not present
@@ -4380,6 +4419,11 @@ and utyp_to_info_map =
     )
     : (Info.typ, Map.t) => {
   open TypExpectation;
+  /* An arrow domain is the one place an implicit binder may appear; its
+     components are otherwise ordinary types. */
+  let expects0 = expects;
+  let in_arrow_domain = expects0 == ArrowDomainExpected;
+  let expects = in_arrow_domain ? TypeExpected : expects0;
   let ids = IdTagged.ids(utyp);
   let (term, rewrap) = Typ.unwrap(utyp);
   /* On the closed type the node denotes, so that a signature literal in a
@@ -4395,6 +4439,18 @@ and utyp_to_info_map =
     };
     switch (expects, ty.term) {
     | (_, Unknown(Hole(Invalid(token)))) => err(BadToken(token))
+    /* A parenthesized binder is reported once, on the binder. */
+    | (_, Parens({term: Implicit(_), _})) => ok(Message.Type(ty))
+    | (_, Implicit(_)) when !in_arrow_domain => err(ImplicitBinderPosition)
+    | (_, Implicit(mp)) =>
+      let sig_ = Typ.implicit_sig(mp);
+      switch (Typ.term_of(Typ.weak_head_normalize(ctx, sig_))) {
+      | Sig(_)
+      | Unknown(_) => ok(Message.Type(ty))
+      | _ => err(ImplicitBinderNotModule(sig_))
+      };
+    /* Demoted above; only an explicit ~expects can reach here. */
+    | (ArrowDomainExpected, _) => status_for_node(~expects=TypeExpected, ty)
     | (LabelExpected(_), Unknown(Hole(EmptyHole))) =>
       ok(Message.EmptyLabel)
     | (
@@ -4657,14 +4713,21 @@ and utyp_to_info_map =
     let (t, m) = go(t, m);
     add(~ty=List(t.ty) |> rewrap, m);
   | Parens(t) =>
-    let (t, m) = go(t, m);
+    let (t, m) = go(~expects=expects0, t, m);
     add(~ty=Parens(t.ty) |> rewrap, m);
   | Projector(d, t) =>
     let (t, m) = go(t, m);
     add(~ty=Projector(d, t.ty) |> rewrap, m);
+  | Implicit(mp) =>
+    /* The MPat pass checks the annotation. */
+    let (_, _, m) =
+      mpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, mp, m);
+    add(~ty=Implicit(MPat.map_typ(Typ.close(ctx), mp)) |> rewrap, m);
   | Arrow(t1, t2) =>
-    let (t1, m) = go(t1, m);
-    let (t2, m) = go(t2, m);
+    /* The domain's implicit binders scope over the codomain. */
+    let (t1, m) = go(~expects=ArrowDomainExpected, t1, m);
+    let ctx_cod = Typ.bind_implicits(ctx, Typ.implicit_binders(t1.ty));
+    let (t2, m) = go(~ctx=ctx_cod, t2, m);
     add(~ty=Arrow(t1.ty, t2.ty) |> rewrap, m);
   | Prod(ts) =>
     let duplicate_labels =
@@ -4674,11 +4737,24 @@ and utyp_to_info_map =
       | Label(_)
       | TupLabel(_, _) when !List.is_empty(duplicate_labels) =>
         LabelExpected(Duplicate, duplicate_labels)
-      | _ => TypeExpected
+      | _ => in_arrow_domain ? ArrowDomainExpected : TypeExpected
       };
-    let (ts, m) =
-      map_m((t: Typ.t) => go(~expects=expects_of(t), t), ts, m);
-    add(~ty=Prod(List.map((t: Info.typ) => t.ty, ts)) |> rewrap, m);
+    /* In an arrow domain an implicit binder scopes over the later items. */
+    let ((_, rev), m) =
+      List.fold_left(
+        (((ctx, acc), m), t: Typ.t) => {
+          let (t, m) = go(~ctx, ~expects=expects_of(t), t, m);
+          let ctx =
+            switch (in_arrow_domain ? Typ.component_binder(t.ty) : None) {
+            | Some(b) => Typ.bind_implicit(ctx, b)
+            | None => ctx
+            };
+          ((ctx, [t.ty, ...acc]), m);
+        },
+        ((ctx, []), m),
+        ts,
+      );
+    add(~ty=Prod(List.rev(rev)) |> rewrap, m);
   | ProdProjection(t, label) =>
     let (t, m) = go(~expects=ProductExpected, t, m);
     let label_expects: TypExpectation.t =

@@ -165,6 +165,9 @@ let core_mark_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
       }
     };
   | ExplicitNonlabel => "(static error)"
+  | ImplicitBinderNotModule(ty) =>
+    prn("An implicit binder needs a signature type, not %s", Print.typ(ty))
+  | ImplicitBinderPosition => "An implicit binder belongs in a function's parameter type"
   | _ => "(static error)"
   };
 };
@@ -266,6 +269,52 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
         path,
       )
     }
+  | ImplicitNotFound({binder, signature, constraints, candidates}) =>
+    let of_sig =
+      switch (Typ.term_of(signature)) {
+      | Unknown(_) => "" /* an unannotated binder: nothing to name */
+      | _ => " of " ++ Print.typ(signature)
+      };
+    let required =
+      switch (constraints) {
+      | [] => ""
+      | _ =>
+        " with "
+        ++ String.concat(
+             ", ",
+             List.map(
+               ((name, ty)) => name ++ " = " ++ Print.typ(ty),
+               constraints,
+             ),
+           )
+      };
+    let scope =
+      switch (candidates) {
+      | [] => "no implicit instances are in scope"
+      | _ =>
+        "the implicit instances in scope are "
+        ++ String.concat(", ", candidates)
+      };
+    prn(
+      "No implicit instance%s%s for %s; %s",
+      of_sig,
+      required,
+      binder,
+      scope,
+    );
+  | ImplicitAmbiguous({binder, signature, candidates}) =>
+    prn(
+      "Implicit %s%s is ambiguous: %s all fit",
+      binder,
+      switch (Typ.term_of(signature)) {
+      | Unknown(_) => "" /* an unannotated binder: nothing to name */
+      | _ => " : " ++ Print.typ(signature)
+      },
+      String.concat(", ", candidates),
+    )
+  | ImplicitBinderNotModule(ty) =>
+    prn("An implicit binder needs a signature type, not %s", Print.typ(ty))
+  | ImplicitBinderPosition => "An implicit binder belongs in a function's parameter type"
   | IsLivelitName({name, _}) =>
     switch (Ctx.lookup_livelit(ctx, name)) {
     | None => "Livelit unbound and not found"
@@ -385,6 +434,9 @@ let sig_mark_string: Mark.t => string =
       prn("%s %s is declared more than once in this signature", kind, name);
     }
   | SigLetNotAName => "Not a member name: a signature declares members one at a time"
+  | ImplicitBinderNotModule(ty) =>
+    prn("An implicit binder needs a signature type, not %s", Print.typ(ty))
+  | ImplicitBinderPosition => "An implicit binder belongs in a function's parameter type"
   | _ => "(static error)";
 
 let tpat_mark_string: Mark.t => string =

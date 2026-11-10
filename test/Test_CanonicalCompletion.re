@@ -1882,8 +1882,12 @@ let clippable_guard_tests = {
            label enters the table, carrying the atomic molds the bare
            `module` token already had at those sorts. Re-decided: every
            frontier moves by one label, so clippable_sort stands.
-           89 -> 90: SigTypeAbstract's `["type"]` label, likewise. */
-        "Exp 69/90 | Pat 11/90 | Typ 17/90 | TPat 6/90 | Rul 1/90",
+           89 -> 90: SigTypeAbstract's `["type"]` label, likewise.
+           90 -> 92: the implicit binder's `["implicit"]` (a Pat form, and
+           the bare token's atoms elsewhere) and `["implicit", ":"]` (a Typ
+           form). Re-decided: each frontier moves by at most two labels,
+           so clippable_sort stands. */
+        "Exp 70/92 | Pat 12/92 | Typ 19/92 | TPat 7/92 | Rul 1/92",
         table,
       )
     ),
