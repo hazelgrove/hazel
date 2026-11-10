@@ -122,7 +122,7 @@ module Ctr = {
         |> Map.of_list,
       )
     | Rec(_) =>
-      switch (Typ.unroll_to_non_rec(ty)) {
+      switch (Typ.unroll(ty)) {
       | None => Unknown
       | Some(ty') => all_ctrs_of_typ(ty')
       }
