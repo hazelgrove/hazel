@@ -702,12 +702,9 @@ and remold_mod = (shape, seg: t): t =>
       switch (remold_tile(Mod, shape, t)) {
       | None =>
         /* No Mod form - try Exp since bare expressions are valid module items */
-        switch (remold_tile(Exp, shape, t)) {
-        | None => [Tile(t), ...remold_mod(snd(Tile.shapes(t)), tl)]
-        | Some(t) =>
-          let (remolded, shape, rest) =
-            remold_exp_uni(snd(Tile.shapes(t)), tl, [Mod]);
-          [Piece.Tile(t), ...remolded] @ remold_mod(shape, rest);
+        switch (remold_exp_uni(shape, seg, [Mod])) {
+        | ([], _, _) => [Tile(t), ...remold_mod(snd(Tile.shapes(t)), tl)]
+        | (remolded, shape, rest) => remolded @ remold_mod(shape, rest)
         }
       | Some(t) when !Tile.has_end(Right, t) =>
         let (_, r) = Tile.nibs(t);
