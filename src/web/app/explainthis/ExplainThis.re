@@ -487,6 +487,20 @@ let example_view =
     ];
 };
 
+/* Curried function-definition sugar `f(x)(y)…` as `(f, [x, y, …])`: Some only
+   when there are at least two argument groups. */
+let curried_spine = (pat: Pat.t): option((Pat.t, list(Pat.t))) => {
+  let rec go = (p: Pat.t, args) =>
+    switch (p.term) {
+    | Ap(fn, arg) => go(fn, [arg, ...args])
+    | _ => (p, args)
+    };
+  switch (go(pat, [])) {
+  | (head, [_, _, ..._] as args) => Some((head, args))
+  | _ => None
+  };
+};
+
 let rec bypass_parens_and_annot_pat = (pat: Pat.t) => {
   switch (pat.term) {
   | Parens(p)
@@ -1180,10 +1194,18 @@ let decide =
           let x_id = IdTagged.rep_id(x);
           let arg_id = IdTagged.rep_id(arg);
           let lets_ap =
-            switch (x.term) {
-            | Constructor(_, _) =>
+            switch (x.term, curried_spine(pat)) {
+            | (Constructor(_, _), _) =>
               LetExp.lets_conap(~def_id, ~x_id, ~arg_id, ~pat_id)
-            | _ => LetExp.lets_funap(~def_id, ~x_id, ~arg_id, ~pat_id)
+            | (_, Some((head, args))) =>
+              LetExp.lets_curried_funap(
+                ~def_id,
+                ~x_id=IdTagged.rep_id(head),
+                ~arg_ids=List.map(IdTagged.rep_id, args),
+                ~pat_id,
+              )
+            | (_, None) =>
+              LetExp.lets_funap(~def_id, ~x_id, ~arg_id, ~pat_id)
             };
           leveled(~fallback=basic, lets_ap);
         | Constructor(v, _) =>
@@ -1474,9 +1496,17 @@ let decide =
     | Ap(x, arg) =>
       let x_id = IdTagged.rep_id(x);
       let arg_id = IdTagged.rep_id(arg);
-      switch (x.term) {
-      | Constructor(_, _) => get_message(AppPat.conaps(~x_id, ~arg_id))
-      | _ => get_message(AppPat.funaps(~x_id, ~arg_id))
+      switch (x.term, curried_spine(bypass_parens_pat(term))) {
+      | (Constructor(_, _), _) =>
+        get_message(AppPat.conaps(~x_id, ~arg_id))
+      | (_, Some((head, args))) =>
+        get_message(
+          AppPat.curried_funaps(
+            ~x_id=IdTagged.rep_id(head),
+            ~arg_ids=List.map(IdTagged.rep_id, args),
+          ),
+        )
+      | (_, None) => get_message(AppPat.funaps(~x_id, ~arg_id))
       };
     | Constructor(con, _) => get_message(TerminalPat.ctr(con))
     | Asc(pat, typ) =>
