@@ -74,6 +74,7 @@
          - data-float-anchor-class: class name of ancestor to position relative to
          - data-float-local-top: local Y offset in pixels
          - data-float-local-left: local X offset in pixels
+         - data-float-flip (optional): flip up/left when out of room
          - style "position: fixed; visibility: hidden; top: 0; left: 0;"
 
       2. Call setup_scroll_listener() once at app startup
@@ -105,6 +106,36 @@ let get_data_string =
   |> Option.map(Js.to_string);
 };
 
+/* The bottom of an anchor's visible part, within its nearest scrolling
+   ancestor and the viewport: a drawer sample taller than the drawer ends
+   out of sight, and so would a menu opened below it */
+let visible_bottom = (anchor: Js.t(Dom_html.element)): float => {
+  let rec scroller = (node: Js.t(Dom.node)) =>
+    switch (Js.Opt.to_option(node##.parentNode)) {
+    | None => None
+    | Some(p) =>
+      switch (Dom_html.CoerceTo.element(p) |> Js.Opt.to_option) {
+      | None => None
+      | Some(el) =>
+        let style = Dom_html.window##getComputedStyle(el);
+        switch (Js.to_string(Js.Unsafe.coerce(style)##.overflowY)) {
+        | "auto"
+        | "scroll" => Some(el)
+        | _ => scroller(p)
+        };
+      }
+    };
+  let bottom =
+    min(
+      anchor##getBoundingClientRect##.bottom,
+      float_of_int(Dom_html.window##.innerHeight),
+    );
+  switch (scroller(JsUtil.element_to_node(anchor))) {
+  | Some(s) => min(bottom, s##getBoundingClientRect##.bottom)
+  | None => bottom
+  };
+};
+
 /* Update position of a single floating element */
 let update_one = (el: Js.t(Dom_html.element)): unit => {
   switch (get_data_string(el, "anchor-class")) {
@@ -117,10 +148,11 @@ let update_one = (el: Js.t(Dom_html.element)): unit => {
       let local_top = get_data_float(el, "local-top");
       let local_left = get_data_float(el, "local-left");
       /* `anchor-edge: bottom`: open below a variable-height anchor (e.g. a
-       * multi-line drawer sample) without knowing its height at build time. */
+       * multi-line drawer sample) without knowing its height at build time;
+       * below its visible part, when it runs out of sight. */
       let base_top =
         switch (get_data_string(el, "anchor-edge")) {
-        | Some("bottom") => rect##.bottom
+        | Some("bottom") => visible_bottom(anchor)
         | _ => rect##.top
         };
       let raw_top = base_top +. local_top;
@@ -147,6 +179,38 @@ let update_one = (el: Js.t(Dom_html.element)): unit => {
         | _ => true
         };
       let viewport_left = rect##.left +. local_left;
+      /* `flip`: a menu that opens down-right of its anchor flips above it
+       * and/or right-aligns to it when its measured size doesn't fit within
+       * #main (Menu.fit_direction); the open-* class names the side taken. */
+      let (viewport_top, viewport_left) =
+        switch (get_data_string(el, "flip")) {
+        | None => (viewport_top, viewport_left)
+        | Some(_) =>
+          let height = float_of_int(el##.offsetHeight) +. local_top;
+          let width = float_of_int(el##.offsetWidth) +. local_left;
+          let dir =
+            Menu.fit_direction(
+              ~menu_height=height,
+              ~menu_width=width,
+              Menu.space_from(
+                ~anchor_top=rect##.top,
+                ~anchor_bot=base_top,
+                ~anchor_left=rect##.left,
+                ~anchor_right=rect##.right,
+              ),
+            );
+          Menu.set_open_class(el, Some(dir));
+          (
+            switch (dir.vertical) {
+            | `Down => viewport_top
+            | `Up => rect##.top -. height
+            },
+            switch (dir.horizontal) {
+            | `Right => viewport_left
+            | `Left => rect##.right -. width
+            },
+          );
+        };
       el##.style##.top := Js.string(Printf.sprintf("%fpx", viewport_top));
       el##.style##.left := Js.string(Printf.sprintf("%fpx", viewport_left));
       el##.style##.visibility := Js.string(visible ? "visible" : "hidden");

@@ -56,10 +56,8 @@ let find_with_rest:
   ('a => option('b), list('a)) => option(('b, list('a)));
 /** `List.assoc`, failing with the given message. */
 let assoc_err: ('a, list(('a, 'b)), string) => 'b;
-/** The runs of `Some`s between `None`s. */
+/** The runs of `Some`s between `None`s; n `None`s give n + 1 lists. */
 let split_at_nones: list(option('a)) => list(list('a));
-/** The first and last element of each non-empty list. */
-let first_and_last: list(list('a)) => list(('a, 'a));
 /** `List.rev_append`. */
 let rev_concat: (list('a), list('a)) => list('a);
 let unzip3: list(('a, 'b, 'c)) => (list('a), list('b), list('c));
