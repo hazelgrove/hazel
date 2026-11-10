@@ -386,6 +386,7 @@ module Wire = {
      as the whole is), to see what the answer carries before changing how it
      is made. Parts overlap the whole, and a state's parts are counted once
      however many entries hold it */
+  let parts_on = ref(false);
   module PhysO =
     Hashtbl.Make({
       type t = Obj.t;
@@ -1064,8 +1065,9 @@ let post_message = (msg: ServerMessage.t): unit => {
         );
       };
       /* (^ticket(718)) a result's bytes by part, marked with no time (the
-         marshalling it takes is the diagnostic's own) */
-      if (recording^) {
+         marshalling it takes is the diagnostic's own, and in the worker's
+         time to answer: so off but when weighing) */
+      if (recording^ && Wire.parts_on^) {
         switch (msg) {
         | ServerMessage.Result(_) =>
           let ps = Wire.parts(msg);
@@ -1125,11 +1127,15 @@ let post_timeline = () => {
 let held_final_streams: ref(list(ServerMessage.stream)) = ref([]);
 
 let post_batch_result = (model, request_id, completed) => {
-  let final_streams =
-    List.filter(
-      (s: ServerMessage.stream) => s.request_id == request_id,
-      List.rev(held_final_streams^),
-    );
+  /* (^ticket(718)) The last item's final stream goes with its result no
+     more: the page applies the two as one action, and a result, Ok or
+     failed, sets the streamed outbox aside (EvalResult's calculate) and
+     reads its dynamics from the result's own state; so the stream was
+     decoded and merged only to be dropped. On the Witch, 112 KB of the
+     577 KB answer: the cache entries finished since the last stream, 216
+     states with every probe so far (run 42743574584). An earlier item's
+     final stream still goes as a Stream when the next item starts. */
+  let final_streams = [];
   held_final_streams := [];
   if (is_latest(model, request_id)) {
     post_message(
