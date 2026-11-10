@@ -398,6 +398,57 @@ let test_samples_as_data = (): test_case(_) =>
     },
   );
 
+/* (^report(51)) plain data is a Value by a look at its shape, as by the
+   step rules; anything else is still asked of the step rules */
+let test_plain_data_is_value = (): test_case(_) =>
+  test_case(
+    "plain data is a value by its shape, as by the step rules",
+    `Quick,
+    () => {
+      let data =
+        FirstOrder.(
+          List([
+            Tuple([
+              Label("x", Atom(Float(1.), None)),
+              Label("y", Atom(Float(2.5), Some("2.50"))),
+            ]),
+            Ctor("Some", None, Some(Atom(String("a"), None))),
+            Ctor("None", None, None),
+            List([]),
+            Atom(Bool(true), None),
+          ])
+        );
+      let v = FirstOrder.to_term(data);
+      let by_rules = (e: Exp.t) =>
+        ValueChecker.check_value(Environment.empty, e) == ValueChecker.Value;
+      check(bool, "data by its shape", true, ValueChecker.is_data(v));
+      check(bool, "data by the step rules", true, by_rules(v));
+      check(bool, "data is a value", true, ValueChecker.is_value(v));
+      let not_data = [
+        Exp.var("x"),
+        Exp.list_lit([Exp.string("a"), Exp.var("x")]),
+        Exp.fn(Pat.var("x"), Exp.var("x"), None, None),
+      ];
+      List.iter(
+        e => {
+          check(
+            bool,
+            "not data by its shape",
+            false,
+            ValueChecker.is_data(e),
+          );
+          check(
+            bool,
+            "asked of the step rules",
+            by_rules(e),
+            ValueChecker.is_value(e),
+          );
+        },
+        not_data,
+      );
+    },
+  );
+
 let tests = [
   (
     "WorkerServer encodings",
@@ -412,6 +463,7 @@ let tests = [
       test_shared_responses(),
       test_shared_response_recovery(),
       test_samples_as_data(),
+      test_plain_data_is_value(),
     ],
   ),
 ];
