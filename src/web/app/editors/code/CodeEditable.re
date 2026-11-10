@@ -1103,6 +1103,8 @@ module View = {
           let chunk_override = drag_chunkiness_override(pointer);
           if (!is_sub) {
             EdgeScroll.update(
+              ~container,
+              ~client_x=float_of_int(pointer.loc.col),
               ~client_y=float_of_int(pointer.loc.row),
               ~on_scroll=() => {
                 let goal =

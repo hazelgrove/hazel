@@ -71,42 +71,32 @@ let capture =
 /* Bring the indicated sample into a comfort band, minimal motion. Margin
  * adapts to width: small samples get a lookahead preview; one that fits is
  * shown fully; one wider than the viewport aligns its left edge (read from
- * the start). scrollLeft set directly — smooth scrolling queues badly. */
-let scroll_horizontally = (el: Js.t(Dom_html.element)): unit => {
-  let doc = Dom_html.document;
-  Js.Opt.iter(
-    doc##getElementById(Js.string("main")),
-    main => {
-      let el_rect = el##getBoundingClientRect;
-      let main_rect = main##getBoundingClientRect;
-      let vp_left = main_rect##.left;
-      let vp_right = main_rect##.right;
-      let width = vp_right -. vp_left;
-      let pad = 16.;
-      let lookahead = width *. 0.10;
-      let el_width = el_rect##.right -. el_rect##.left;
-      let m = Float.max(pad, Float.min(lookahead, width -. el_width -. pad));
-      let delta =
-        if (el_width > width -. 2. *. pad) {
-          el_rect##.left -. (vp_left +. pad);
-        } else if (el_rect##.left < vp_left +. m) {
-          el_rect##.left -. (vp_left +. m);
-        } else if (el_rect##.right > vp_right -. m) {
-          el_rect##.right -. (vp_right -. m);
-        } else {
-          0.;
-        };
-      if (delta != 0.0) {
-        let sl: float = Js.Unsafe.get(main, Js.string("scrollLeft"));
-        Js.Unsafe.set(
-          main,
-          Js.string("scrollLeft"),
-          Float.max(0., sl +. delta),
-        );
+ * the start). The viewport is that of the sample's code scroller, which is
+ * what scrolls a sample sideways. Scrolls directly: smooth scrolling queues
+ * badly. */
+let scroll_horizontally = (el: Js.t(Dom_html.element)): unit =>
+  switch (JsUtil.CodeScroll.containing(el)) {
+  | None => ()
+  | Some(scroller) =>
+    let el_rect = el##getBoundingClientRect;
+    let (vp_left, vp_right) = JsUtil.CodeScroll.visible_x(scroller);
+    let width = vp_right -. vp_left;
+    let pad = 16.;
+    let lookahead = width *. 0.10;
+    let el_width = el_rect##.right -. el_rect##.left;
+    let m = Float.max(pad, Float.min(lookahead, width -. el_width -. pad));
+    let delta =
+      if (el_width > width -. 2. *. pad) {
+        el_rect##.left -. (vp_left +. pad);
+      } else if (el_rect##.left < vp_left +. m) {
+        el_rect##.left -. (vp_left +. m);
+      } else if (el_rect##.right > vp_right -. m) {
+        el_rect##.right -. (vp_right -. m);
+      } else {
+        0.;
       };
-    },
-  );
-};
+    JsUtil.CodeScroll.scroll_by(scroller, delta);
+  };
 
 let consume = (): unit =>
   switch (pending^) {

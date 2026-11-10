@@ -392,6 +392,56 @@ let adjust_scroll = (container: Js.t(Dom_html.element), delta: float) =>
     container##.scrollTop := int_of_float(target);
   };
 
+/* A cell's code scrolls sideways in a box of its own (CellEditor.View),
+ * with any line numbers stuck to the box's left edge. */
+module CodeScroll = {
+  let class_name = "code-scroll";
+
+  let containing =
+      (el: Js.t(Dom_html.element)): option(Js.t(Dom_html.element)) =>
+    find_ancestor_with_class(el, class_name);
+
+  /* The viewport x-range in which the scroller shows code: its box, less
+   * the line numbers. */
+  let visible_x = (scroller: Js.t(Dom_html.element)): (float, float) => {
+    let rect = scroller##getBoundingClientRect;
+    let line_numbers =
+      scroller##querySelector(Js.string(".line-numbers")) |> Js.Opt.to_option;
+    let left =
+      switch (line_numbers) {
+      | Some(line_numbers) => line_numbers##getBoundingClientRect##.right
+      | None => rect##.left
+      };
+    (left, rect##.right);
+  };
+
+  /* Float arithmetic, as scrollLeft is sub-pixel: see
+   * setup_focus_bar_scroll_compensation. */
+  let scroll_by = (scroller: Js.t(Dom_html.element), delta: float): unit =>
+    if (delta != 0.) {
+      let current: float = Js.Unsafe.get(scroller, Js.string("scrollLeft"));
+      Js.Unsafe.set(scroller, Js.string("scrollLeft"), current +. delta);
+    };
+
+  /* Scroll sideways so that el is visible, with a 10% margin. Does nothing
+   * for an element outside a code scroller. */
+  let scroll_into_view = (el: Js.t(Dom_html.element)): unit =>
+    switch (containing(el)) {
+    | None => ()
+    | Some(scroller) =>
+      let (left, right) = visible_x(scroller);
+      let margin = (right -. left) *. 0.10;
+      let el_rect = el##getBoundingClientRect;
+      let left_gap = el_rect##.left -. (left +. margin);
+      let right_gap = el_rect##.right -. (right -. margin);
+      if (left_gap < 0.) {
+        scroll_by(scroller, left_gap);
+      } else if (right_gap > 0.) {
+        scroll_by(scroller, right_gap);
+      };
+    };
+};
+
 /* Scroll vertically so that el_rect is visible within the container,
  * with a 10% margin. Only adjusts scrollTop, never scrollLeft. */
 let scroll_vertically_into_view =
@@ -429,9 +479,10 @@ let scroll_vertically_into_view_ancestors =
   go(element_to_node(el));
 };
 
-/* Whether any of the caret shows in its scroll container, or in the
- * viewport if it has none. Read before a re-render, this is what the user
- * sees now, not what the coming layout will show. */
+/* Whether any of the caret shows in its scroll container (the viewport, if
+ * it has none) and, sideways, in its code scroller. Read before a
+ * re-render, this is what the user sees now, not what the coming layout
+ * will show. */
 let caret_in_view = (): bool =>
   switch (get_elem_by_id_opt("caret")) {
   | None => false
@@ -444,12 +495,20 @@ let caret_in_view = (): bool =>
         (c##.top, c##.bottom);
       | None => (0., float_of_int(Dom_html.window##.innerHeight))
       };
-    rect##.bottom > top && rect##.top < bottom;
+    let in_code_scroll =
+      switch (CodeScroll.containing(caret)) {
+      | Some(scroller) =>
+        let (left, right) = CodeScroll.visible_x(scroller);
+        rect##.right > left && rect##.left < right;
+      | None => true
+      };
+    rect##.bottom > top && rect##.top < bottom && in_code_scroll;
   };
 
 let scroll_cursor_into_view_if_needed = () =>
   try({
     let caret_elem = get_elem_by_id("caret");
+    CodeScroll.scroll_into_view(caret_elem);
     switch (find_scroll_container(caret_elem)) {
     | Some(container) => scroll_vertically_into_view(container, caret_elem)
     | None =>
@@ -533,9 +592,10 @@ let delay = (delay: float, callback: unit => unit) => {
   ();
 };
 
-/* Publish #main's content width as `--main-scroll-width` (read by the cell
- * width rule). Two passes: reset the var first so the cell's own prior width
- * doesn't inflate the measurement, force layout, then read scrollWidth. */
+/* Publish #main's content width as `--main-scroll-width` (read by the probe
+ * drawer's stripe, proj-probe.css). Two passes: reset the var first so the
+ * stripe's own prior width doesn't inflate the measurement, force layout,
+ * then read scrollWidth. */
 let update_main_scroll_width = () =>
   Js.Opt.iter(
     Dom_html.document##getElementById(Js.string("main")),
