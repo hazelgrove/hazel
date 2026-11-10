@@ -430,35 +430,72 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
   };
 };
 
-let unroll = (ty: t): t =>
-  switch (term_of(ty)) {
-  | Rec(tp, ty_body) =>
-    switch (TPat.tyvar_of_utpat(tp)) {
-    | None => ty_body
-    | Some(_) => subst(ty, tp, ty_body)
-    }
-  | _ => ty
-  };
+/* A recursive type whose body, under any binders, parentheses, projectors
+   and non-labels, is one of its own bound variables: `rec x -> x`,
+   `rec x -> (x)`, `rec x -> rec y -> x`. It has no unrolling and stands for
+   no type. Some(binder) when [ty] is one, with [binder] the binder its body
+   refers to: the innermost of that name, so the inner one in
+   `rec x -> rec x -> x`. */
+let non_contractive = (ty: t): option(TPat.t) => {
+  let rec go = (bound: list((string, TPat.t)), ty: t): option(TPat.t) =>
+    switch (term_of(ty)) {
+    | Parens(ty)
+    | Projector(_, ty)
+    | TupLabel({term: ExplicitNonlabel, _}, ty) => go(bound, ty)
+    | Rec(tp, body) =>
+      let named =
+        TPat.tyvar_of_utpat(tp) |> Option.map(x => (x, tp)) |> Option.to_list;
+      go(named @ bound, body);
+    | Var(x) => List.assoc_opt(x, bound)
+    | Unknown(_)
+    | Atom(_)
+    | DrvQuoteTy(_)
+    | List(_)
+    | Arrow(_)
+    | Sum(_)
+    | Prod(_)
+    | ExplicitNonlabel
+    | Label(_)
+    | TupLabel(_)
+    | Poly(_)
+    | ProofOf(_)
+    | ProdProjection(_)
+    | ProdExtension(_)
+    | Sig(_) => None
+    };
+  go([], ty);
+};
 
-/* Unroll a Rec type until its head is not a Rec. Returns None on self-loop
-   types like `rec x -> x` where unrolling cannot make progress. Normalizes
-   the body first so that vacuous inner Recs (e.g. `rec x -> (rec ? -> x)`)
-   are recognized as the equivalent self-loop. See hazelgrove/hazel#2235,
-   #1624. */
-let rec unroll_to_non_rec = (ty: t): option(t) =>
+/* Unroll a recursive type until its head is not a Rec; None when it is
+   non-contractive. */
+let rec unroll = (ty: t): option(t) =>
   switch (term_of(ty)) {
+  | Rec(_) when Option.is_some(non_contractive(ty)) => None
   | Rec(tp, body) =>
-    switch (unroll_to_non_rec(body)) {
-    | None => None
-    | Some(body') =>
-      switch (TPat.tyvar_of_utpat(tp), term_of(body')) {
-      | (Some(w), Var(v)) when v == w => None
-      | _ =>
-        let (_, rewrap) = Annotated.unwrap(ty);
-        unroll_to_non_rec(unroll(Grammar.Rec(tp, body') |> rewrap));
-      }
-    }
-  | _ => Some(ty)
+    let* body = unroll(body);
+    let (_, rewrap) = unwrap(ty);
+    switch (TPat.tyvar_of_utpat(tp)) {
+    | None => Some(body)
+    | Some(_) => Some(subst(Rec(tp, body) |> rewrap, tp, body))
+    };
+  | Unknown(_)
+  | Atom(_)
+  | DrvQuoteTy(_)
+  | Var(_)
+  | List(_)
+  | Arrow(_)
+  | Sum(_)
+  | Prod(_)
+  | ExplicitNonlabel
+  | Label(_)
+  | TupLabel(_)
+  | Parens(_)
+  | Projector(_)
+  | Poly(_)
+  | ProofOf(_)
+  | ProdProjection(_)
+  | ProdExtension(_)
+  | Sig(_) => Some(ty)
   };
 
 /* Type Equality: This coincides with alpha equivalence for normalized types.
@@ -831,6 +868,21 @@ let equal_up_to_aliases = (ctx: Ctx.t, a: t, b: t): bool => {
   go(~depth=0, ctx, a, b);
 };
 
+/* Whether a type alias [name] is recursive, given its definition [def]:
+   Recursive(`rec name -> def`) when [def] mentions [name], and Plain, with
+   [def] standing as written, otherwise. `type T = T` is Recursive, with the
+   non-contractive `rec T -> T`. Only [def]'s own free variables are read,
+   so a definition reaching [name] through another alias, as in
+   `type y = x in type x = y`, is Plain. */
+[@deriving show({with_path: false})]
+type alias_def =
+  | Plain
+  | Recursive(t);
+
+let recursive_def = (name: Var.t, def: t): alias_def =>
+  List.exists(String.equal(name), free_vars(def))
+    ? Recursive(Rec(TPat.fresh(Var(name)), def) |> temp) : Plain;
+
 /* Structural canonicalization WITHOUT alias expansion: desugars Sig,
    computes tuple projections/extensions, dedups labels, strips wrapper
    noise — but leaves every alias compact. This is the right form for
@@ -839,206 +891,236 @@ let equal_up_to_aliases = (ctx: Ctx.t, a: t, b: t): bool => {
    made large-sum programs quadratically slow downstream. */
 let canonicalize = (ctx: Ctx.t, ty: t): t =>
   normalize(~expand=_ => false, ctx, ty);
-let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) =>
-  if (ty1 === ty2) {
-    Some(ty1);
-  } else {
-    let meet' = meet(ctx);
-    switch (term_of(ty1), term_of(ty2)) {
-    | (_, Parens(ty2))
-    | (_, Projector(_, ty2)) => meet'(ty1, ty2)
-    | (Parens(ty1), _)
-    | (Projector(_, ty1), _) => meet'(ty1, ty2)
-    | (TupLabel({term: ExplicitNonlabel, _}, ty1'), _) => meet'(ty1', ty2)
-    | (_, TupLabel({term: ExplicitNonlabel, _}, ty2')) => meet'(ty1, ty2')
-    | (Unknown(p1), Unknown(p2)) =>
-      if (p1 == p2) {
-        Some(ty1);
-      } else {
-        Some(Unknown(meet_type_provenance(p1, p2)) |> temp);
-      }
-    | (Unknown(_), _) => Some(ty2)
-    | (_, Unknown(_)) => Some(ty1)
-    | (Var(n1), Var(n2)) =>
-      if (n1 == n2) {
-        Some(ty1);
-      } else {
-        let ty1' = Ctx.lookup_alias(ctx, n1);
-        let ty2' = Ctx.lookup_alias(ctx, n2);
-        switch (ty1', ty2') {
-        | (Some(ty1), Some(ty2)) => meet'(ty1, ty2)
-        | (Some(ty1), None) => meet'(ty1, ty2)
-        | (None, Some(ty2)) => meet'(ty1, ty2)
-        | (None, None) => None
-        };
-      }
-    /* Var-Rec fast path: when a Var resolves to the very Rec we're
-       meeting with, return the compact Var form without meeting the
-       (possibly large) bodies. Matching the bound tyvar name alone is
-       NOT sufficient — two structurally different recursive types can
-       share a bound name — so the alias body is verified against the
-       Rec: `===` catches the common case (the Rec originates from this
-       ctx entry, and subst/normalize preserve sharing), `equal` the
-       rest. Unrolled-but-equivalent bodies fall through to the general
-       expansion, which still re-compacts to the Var when the meet
-       equals the alias. */
-    | (Var(name), Rec(tp2, _)) =>
-      switch (TPat.tyvar_of_utpat(tp2)) {
-      | Some(rec_name) when rec_name == name =>
-        switch (Ctx.lookup_alias(ctx, name)) {
-        | Some({term: Rec(tp1, _), _} as ty_alias)
-            when
-              TPat.tyvar_of_utpat(tp1) == Some(name)
-              && (ty_alias === ty2 || equal(ty_alias, ty2)) =>
-          Some(ty1)
-        | _ =>
-          /* Var resolves to something other than the same Rec;
-             fall through to general Var expansion */
-          let* ty_name = Ctx.lookup_alias(ctx, name);
-          let+ ty_meet = meet'(ty_name, ty2);
-          equal(ty_name, ty_meet) ? ty1 : ty_meet;
-        }
-      | _ =>
-        let* ty_name = Ctx.lookup_alias(ctx, name);
-        let+ ty_meet = meet'(ty_name, ty2);
-        equal(ty_name, ty_meet) ? ty1 : ty_meet;
-      }
-    | (Rec(tp1, _), Var(name)) =>
-      switch (TPat.tyvar_of_utpat(tp1)) {
-      | Some(rec_name) when rec_name == name =>
-        switch (Ctx.lookup_alias(ctx, name)) {
-        | Some({term: Rec(tp2, _), _} as ty_alias)
-            when
-              TPat.tyvar_of_utpat(tp2) == Some(name)
-              && (ty_alias === ty1 || equal(ty_alias, ty1)) =>
-          Some(ty2)
-        | _ =>
-          let* ty_name = Ctx.lookup_alias(ctx, name);
-          let+ ty_meet = meet'(ty_name, ty1);
-          equal(ty_name, ty_meet) ? ty2 : ty_meet;
-        }
-      | _ =>
-        let* ty_name = Ctx.lookup_alias(ctx, name);
-        let+ ty_meet = meet'(ty_name, ty1);
-        equal(ty_name, ty_meet) ? ty2 : ty_meet;
-      }
-    | (Var(name), _) =>
-      let* ty_name = Ctx.lookup_alias(ctx, name);
-      let+ ty_meet = meet'(ty_name, ty2);
-      equal(ty_name, ty_meet) ? ty1 : ty_meet;
-    | (_, Var(name)) =>
-      let* ty_name = Ctx.lookup_alias(ctx, name);
-      let+ ty_meet = meet'(ty_name, ty1);
-      equal(ty_name, ty_meet) ? ty2 : ty_meet;
-    /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
-    | (ProdProjection(_), _) => meet'(weak_head_normalize(ctx, ty1), ty2)
-    | (_, ProdProjection(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
-    | (ProdExtension(_), _) => meet'(weak_head_normalize(ctx, ty1), ty2)
-    | (_, ProdExtension(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
-    | (Rec(tp1, ty1), Rec(tp2, ty2)) =>
-      let ctx = Ctx.extend_dummy_tvar(ctx, tp1);
-      let ty1' =
-        switch (TPat.tyvar_of_utpat(tp1), TPat.tyvar_of_utpat(tp2)) {
-        | (Some(x1), Some(x2)) when x1 == x2 => ty1 /* Same var name, skip subst */
-        | (_, Some(x2)) => subst(Var(x2) |> temp, tp1, ty1)
-        | (_, None) => ty1
-        };
-      let+ ty_body = meet(ctx, ty1', ty2);
-      Rec(tp1, ty_body) |> temp;
-    | (Rec(_), _) => None
-    | (Poly(x1, ty1), Poly(x2, ty2)) =>
-      let ty1' =
-        switch (TPat.tyvar_of_utpat(x2)) {
-        | Some(x2) => subst(Var(x2) |> temp, x1, ty1)
-        | None => ty1
-        };
-      let ctx = Ctx.extend_dummy_tvar(ctx, x2);
-      let+ ty_body = meet(ctx, ty1', ty2);
-      Poly(x2, ty_body) |> temp;
-    /* Note for above: there is no danger of free variable capture as
-       subst itself performs capture avoiding substitution. However this
-       may generate internal type variable names that in corner cases can
-       be exposed to the user. We preserve the variable name of the
-       second type to preserve synthesized type variable names, which
-       come from user annotations. */
-    | (Poly(_), _) => None
-    | (Atom(c1), Atom(c2)) when c1 == c2 => Some(ty1)
-    | (Atom(_), _) => None
-    | (DrvQuoteTy(d1), DrvQuoteTy(d2)) when d1 == d2 => Some(ty1)
-    | (DrvQuoteTy(_), _) => None
-    | (Label(_), Label("")) => Some(ty1)
-    | (Label(""), Label(_)) => Some(ty2)
-    | (Label(name1), Label(name2))
-        when LabeledTuple.match_labels(name1, name2) =>
-      Some(ty1)
-    | (Label(_), _) => None
-    | (Arrow(a1, a2), Arrow(b1, b2)) =>
-      let* r1 = meet'(a1, b1);
-      let+ r2 = meet'(a2, b2);
-      if (r1 === a1 && r2 === a2) {
-        ty1;
-      } else if (r1 === b1 && r2 === b2) {
-        ty2;
-      } else {
-        Grammar.Arrow(r1, r2) |> temp;
-      };
-    | (Arrow(_), _) => None
-    | (TupLabel(la, a), TupLabel(lb, b)) =>
-      let* rl = meet'(la, lb);
-      let+ r = meet'(a, b);
-      if (rl === la && r === a) {
-        ty1;
-      } else if (rl === lb && r === b) {
-        ty2;
-      } else {
-        Grammar.TupLabel(rl, r) |> temp;
-      };
-    | (TupLabel(_), _) => None
-    | (Prod(tys1), Prod(tys2)) =>
-      let tys1 =
-        remove_duplicate_labels(
-          ~duplicate_labels=
-            LabeledTuple.get_duplicate_labels(match_tup_label, tys1),
-          tys1,
-        );
-      let tys2 =
-        remove_duplicate_labels(
-          ~duplicate_labels=
-            LabeledTuple.get_duplicate_labels(match_tup_label, tys2),
-          tys2,
-        );
 
-      if (List.length(tys1) != List.length(tys2)) {
-        None;
-      } else {
-        let* tys = ListUtil.map2_opt(meet', tys1, tys2);
-        let+ tys = OptUtil.sequence(tys);
-        Prod(tys) |> temp;
-      };
-    | (Prod(_), _) => None
-    | (Sum(sm1), Sum(sm2)) =>
-      let+ sm' = ConstructorMap.meet(equal, meet(ctx), sm1, sm2);
-      Sum(sm') |> temp;
-    | (Sum(_), _) => None
-    | (List(a), List(b)) =>
-      let+ r = meet'(a, b);
-      if (r === a) {
-        ty1;
-      } else if (r === b) {
-        ty2;
-      } else {
-        Grammar.List(r) |> temp;
-      };
-    | (List(_), _) => None
-    | (ProofOf(e1), ProofOf(e2)) =>
-      Equality.semantic.exp(e1, e2) ? Some(ty1) : None
-    | (ProofOf(_), _) => None
-    // We would prefer for this to be a sort difference and never appear in a meet.
-    // These get marked in statics but that does not remove them from the utyp's propagated on parents.
-    | (ExplicitNonlabel, _) => None
-    | (Sig(_), _) => None
+/* One binder to compare the bodies of two binding forms under, [body1]
+   bound by [tp1] and [body2] by [tp2], with each body renamed to it. Its
+   name must not be free in either form, or renaming would capture that
+   free variable: the second binder, else the first, else a fresh name. */
+let shared_binder =
+    (tp1: TPat.t, body1: t, tp2: TPat.t, body2: t): (TPat.t, t, t) => {
+  let free = (tp, body) =>
+    lazy(free_vars(~bound=Option.to_list(TPat.tyvar_of_utpat(tp)), body));
+  let (free1, free2) = (free(tp1, body1), free(tp2, body2));
+  let free_in = (x, free) =>
+    List.exists(String.equal(x), Lazy.force(free));
+  let rename = (x, tp, body) => subst(Var(x) |> temp, tp, body);
+  switch (TPat.tyvar_of_utpat(tp1), TPat.tyvar_of_utpat(tp2)) {
+  | (Some(x1), Some(x2)) when String.equal(x1, x2) => (tp1, body1, body2) /* no renaming needed */
+  | (_, Some(x2)) when !free_in(x2, free1) => (
+      tp2,
+      rename(x2, tp1, body1),
+      body2,
+    )
+  | (Some(x1), _) when !free_in(x1, free2) => (
+      tp1,
+      body1,
+      rename(x1, tp2, body2),
+    )
+  | (Some(x), _)
+  | (None, Some(x)) =>
+    /* Source names may contain `_α`, so a generated name is checked. */
+    let rec fresh = () => {
+      let x' = fresh_var(x);
+      free_in(x', free1) || free_in(x', free2) ? fresh() : x';
     };
+    let fresh_name = fresh();
+    let fresh_tp = Var(fresh_name) |> TPat.fresh;
+    (
+      fresh_tp,
+      rename(fresh_name, tp1, body1),
+      rename(fresh_name, tp2, body2),
+    );
+  | (None, None) => (tp2, body1, body2)
   };
+};
+
+/* [seen] holds the (recursive type, other type) pairs being met through an
+   unrolling on the way here. */
+let rec meet =
+        (~seen: list((t, t))=[], ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
+  let meet' = meet(~seen, ctx);
+  /* [ty_rec] against [ty] through [ty_rec]'s unrolling, which [meet_unrolled]
+     meets in [ty_rec]'s position. A pair already in [seen] is consistent: the
+     only way back to it is through heads that matched (Amadio and Cardelli),
+     and the recursive type is its meet. The result is [ty_rec] itself when
+     the meet is exactly its unrolling. */
+  let through_unrolling =
+      (
+        ty_rec: t,
+        ty: t,
+        meet_unrolled: (~seen: list((t, t)), t) => option(t),
+      )
+      : option(t) =>
+    if (List.exists(((r, o)) => equal(r, ty_rec) && equal(o, ty), seen)) {
+      Some(ty_rec);
+    } else {
+      let* ty_rec' = unroll(ty_rec);
+      let+ ty_meet = meet_unrolled(~seen=[(ty_rec, ty), ...seen], ty_rec');
+      equal(ty_rec', ty_meet) ? ty_rec : ty_meet;
+    };
+  switch (term_of(ty1), term_of(ty2)) {
+  | _ when ty1 === ty2 => Some(ty1)
+  | (_, Parens(ty2))
+  | (_, Projector(_, ty2)) => meet'(ty1, ty2)
+  | (Parens(ty1), _)
+  | (Projector(_, ty1), _) => meet'(ty1, ty2)
+  | (TupLabel({term: ExplicitNonlabel, _}, ty1'), _) => meet'(ty1', ty2)
+  | (_, TupLabel({term: ExplicitNonlabel, _}, ty2')) => meet'(ty1, ty2')
+  | (Unknown(p1), Unknown(p2)) =>
+    p1 == p2
+      ? Some(ty1) : Some(Unknown(meet_type_provenance(p1, p2)) |> temp)
+  | (Unknown(_), _) => Some(ty2)
+  | (_, Unknown(_)) => Some(ty1)
+  | (Var(n1), Var(n2)) =>
+    if (n1 == n2) {
+      Some(ty1);
+    } else {
+      let ty1' = Ctx.lookup_alias(ctx, n1);
+      let ty2' = Ctx.lookup_alias(ctx, n2);
+      switch (ty1', ty2') {
+      | (Some(ty1), Some(ty2)) => meet'(ty1, ty2)
+      | (Some(ty1), None) => meet'(ty1, ty2)
+      | (None, Some(ty2)) => meet'(ty1, ty2)
+      | (None, None) => None
+      };
+    }
+  /* Var-Rec fast path: when a Var resolves to the very Rec we're
+     meeting with, return the compact Var form without meeting the
+     (possibly large) bodies. Matching the bound tyvar name alone is
+     NOT sufficient — two structurally different recursive types can
+     share a bound name — so the alias body is verified against the
+     Rec: `===` catches the common case (the Rec originates from this
+     ctx entry, and subst/normalize preserve sharing), `equal` the
+     rest. Anything else falls through to the general Var expansion. */
+  | (Var(name), Rec(tp2, _))
+      when
+        TPat.tyvar_of_utpat(tp2) == Some(name)
+        && (
+          switch (Ctx.lookup_alias(ctx, name)) {
+          | Some({term: Rec(tp1, _), _} as ty_alias) =>
+            TPat.tyvar_of_utpat(tp1) == Some(name)
+            && (ty_alias === ty2 || equal(ty_alias, ty2))
+          | _ => false
+          }
+        ) =>
+    Some(ty1)
+  | (Rec(tp1, _), Var(name))
+      when
+        TPat.tyvar_of_utpat(tp1) == Some(name)
+        && (
+          switch (Ctx.lookup_alias(ctx, name)) {
+          | Some({term: Rec(tp2, _), _} as ty_alias) =>
+            TPat.tyvar_of_utpat(tp2) == Some(name)
+            && (ty_alias === ty1 || equal(ty_alias, ty1))
+          | _ => false
+          }
+        ) =>
+    Some(ty2)
+  | (Var(name), _) =>
+    let* ty_name = Ctx.lookup_alias(ctx, name);
+    let+ ty_meet = meet'(ty_name, ty2);
+    equal(ty_name, ty_meet) ? ty1 : ty_meet;
+  | (_, Var(name)) =>
+    let* ty_name = Ctx.lookup_alias(ctx, name);
+    let+ ty_meet = meet'(ty_name, ty1);
+    equal(ty_name, ty_meet) ? ty2 : ty_meet;
+  /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
+  | (ProdProjection(_), _) => meet'(weak_head_normalize(ctx, ty1), ty2)
+  | (_, ProdProjection(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
+  | (ProdExtension(_), _) => meet'(weak_head_normalize(ctx, ty1), ty2)
+  | (_, ProdExtension(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
+  | (Rec(tp1, body1), Rec(tp2, body2)) =>
+    let (tp, body1, body2) = shared_binder(tp1, body1, tp2, body2);
+    let+ ty_body = meet(~seen, Ctx.extend_dummy_tvar(ctx, tp), body1, body2);
+    Rec(tp, ty_body) |> temp;
+  /* A recursive type meets a structural one through its unrolling; a
+     non-contractive type has no unrolling and meets nothing. */
+  | (Rec(_), _) =>
+    through_unrolling(ty1, ty2, (~seen, ty1') => meet(~seen, ctx, ty1', ty2))
+  | (_, Rec(_)) =>
+    through_unrolling(ty2, ty1, (~seen, ty2') => meet(~seen, ctx, ty1, ty2'))
+  | (Poly(tp1, body1), Poly(tp2, body2)) =>
+    let (tp, body1, body2) = shared_binder(tp1, body1, tp2, body2);
+    let+ ty_body = meet(~seen, Ctx.extend_dummy_tvar(ctx, tp), body1, body2);
+    Poly(tp, ty_body) |> temp;
+  | (Poly(_), _) => None
+  | (Atom(c1), Atom(c2)) when c1 == c2 => Some(ty1)
+  | (Atom(_), _) => None
+  | (DrvQuoteTy(d1), DrvQuoteTy(d2)) when d1 == d2 => Some(ty1)
+  | (DrvQuoteTy(_), _) => None
+  | (Label(_), Label("")) => Some(ty1)
+  | (Label(""), Label(_)) => Some(ty2)
+  | (Label(name1), Label(name2))
+      when LabeledTuple.match_labels(name1, name2) =>
+    Some(ty1)
+  | (Label(_), _) => None
+  | (Arrow(a1, a2), Arrow(b1, b2)) =>
+    let* r1 = meet'(a1, b1);
+    let+ r2 = meet'(a2, b2);
+    if (r1 === a1 && r2 === a2) {
+      ty1;
+    } else if (r1 === b1 && r2 === b2) {
+      ty2;
+    } else {
+      Grammar.Arrow(r1, r2) |> temp;
+    };
+  | (Arrow(_), _) => None
+  | (TupLabel(la, a), TupLabel(lb, b)) =>
+    let* rl = meet'(la, lb);
+    let+ r = meet'(a, b);
+    if (rl === la && r === a) {
+      ty1;
+    } else if (rl === lb && r === b) {
+      ty2;
+    } else {
+      Grammar.TupLabel(rl, r) |> temp;
+    };
+  | (TupLabel(_), _) => None
+  | (Prod(tys1), Prod(tys2)) =>
+    let tys1 =
+      remove_duplicate_labels(
+        ~duplicate_labels=
+          LabeledTuple.get_duplicate_labels(match_tup_label, tys1),
+        tys1,
+      );
+    let tys2 =
+      remove_duplicate_labels(
+        ~duplicate_labels=
+          LabeledTuple.get_duplicate_labels(match_tup_label, tys2),
+        tys2,
+      );
+
+    if (List.length(tys1) != List.length(tys2)) {
+      None;
+    } else {
+      let* tys = ListUtil.map2_opt(meet', tys1, tys2);
+      let+ tys = OptUtil.sequence(tys);
+      Prod(tys) |> temp;
+    };
+  | (Prod(_), _) => None
+  | (Sum(sm1), Sum(sm2)) =>
+    let+ sm' = ConstructorMap.meet(equal, meet(~seen, ctx), sm1, sm2);
+    Sum(sm') |> temp;
+  | (Sum(_), _) => None
+  | (List(a), List(b)) =>
+    let+ r = meet'(a, b);
+    if (r === a) {
+      ty1;
+    } else if (r === b) {
+      ty2;
+    } else {
+      Grammar.List(r) |> temp;
+    };
+  | (List(_), _) => None
+  | (ProofOf(e1), ProofOf(e2)) =>
+    Equality.semantic.exp(e1, e2) ? Some(ty1) : None
+  | (ProofOf(_), _) => None
+  // We would prefer for this to be a sort difference and never appear in a meet.
+  // These get marked in statics but that does not remove them from the utyp's propagated on parents.
+  | (ExplicitNonlabel, _) => None
+  | (Sig(_), _) => None
+  };
+};
 
 /* REQUIRES NORMALIZED TYPES
    Remove synswitches from t1 by matching against t2 */
@@ -1115,29 +1197,33 @@ let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
   | Parens(ty) => get_sum_constructors(ctx, ty)
   | Sum(sm) => Some(sm)
   | Rec(_) =>
-    /* Note: We must unroll here to get right ctr types;
-       otherwise the rec parameter will leak. However, seeing
-       as substitution is too expensive to be used here, we
-       currently making the optimization that, since all
-       recursive types are type alises which use the alias name
-       as the recursive parameter, and type aliases cannot be
-       shadowed, it is safe to simply remove the Rec constructor,
-       provided we haven't escaped the context in which the alias
-       is bound. If either of the above assumptions become invalid,
-       the below code will be incorrect! */
-    let ty =
-      switch (ty |> term_of) {
-      | Rec({term: Var(x), _}, _ty_body) =>
-        switch (Ctx.lookup_alias(ctx, x)) {
-        | None => unroll(ty)
-        | Some(_) => unroll(ty)
-        }
-      | _ => ty
-      };
-    switch (ty |> term_of) {
-    | Sum(sm) => Some(sm)
-    | _ => None
-    };
+    /* Unrolled so that the constructor types do not mention the rec
+       parameter. */
+    switch (unroll(ty)) {
+    | None => None
+    | Some(ty) =>
+      switch (term_of(ty)) {
+      | Sum(sm) => Some(sm)
+      | Unknown(_)
+      | Atom(_)
+      | DrvQuoteTy(_)
+      | Var(_)
+      | List(_)
+      | Arrow(_)
+      | Prod(_)
+      | ExplicitNonlabel
+      | Label(_)
+      | TupLabel(_)
+      | Parens(_)
+      | Projector(_)
+      | Rec(_)
+      | Poly(_)
+      | ProofOf(_)
+      | ProdProjection(_)
+      | ProdExtension(_)
+      | Sig(_) => None
+      }
+    }
   | _ => None
   };
 };

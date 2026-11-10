@@ -130,14 +130,19 @@ let value_exports = (items: list(Mod.t)): list(value_export) => {
       let exports =
         switch (item.term) {
         | ModLet(pat, _) =>
+          /* Funlet: the whole binder carries the function's type (see
+             FunctionSugar.add_binder_infos). Searching it by name could
+             land on a parameter that shadows the function, e.g.
+             `let g(x)(g) = …`. */
+          let is_funlet = Option.is_some(FunctionSugar.detect(pat));
           modlet_bound_vars(pat)
           |> List.filter(keep)
           |> List.map(name =>
                {
                  name,
-                 pat: pat_for_bound_name(name, pat),
+                 pat: is_funlet ? pat : pat_for_bound_name(name, pat),
                }
-             )
+             );
         | ModuleMod(mp, _) =>
           let pat = mpat_to_pat(mp);
           mpat_names(mp)
@@ -228,10 +233,9 @@ let rec collect_type_exports =
            switch (tpat.term) {
            | Var(name) =>
              let (resolved, alias_ty) =
-               if (List.mem(name, Typ.free_vars(typ))) {
-                 let ty_rec = Rec(Var(name) |> TPat.fresh, typ) |> Typ.temp;
-                 (ty_rec, ty_rec);
-               } else {
+               switch (Typ.recursive_def(name, typ)) {
+               | Typ.Recursive(ty_rec) => (ty_rec, ty_rec)
+               | Typ.Plain =>
                  let locals = List.map(fst, acc);
                  (
                    Typ.normalize(~expand=n => List.mem(n, locals), ctx, typ),

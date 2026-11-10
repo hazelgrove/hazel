@@ -27,8 +27,8 @@ let execute = (): bool =>
   switch (scheduled^) {
   | Some(Editor) =>
     scheduled := None;
-    /* focus the editor itself, not the clipboard shim: the caret CSS
-       is gated on `.code-editor:focus` */
+    /* focus the editor itself: the caret CSS is gated on
+       `.code-editor:focus` */
     JsUtil.focus_active_editor();
     true;
   | Some(Cell) =>
@@ -56,8 +56,43 @@ open Js_of_ocaml;
 
 let kept: ref(option(string)) = ref(None);
 let blur_expected: ref(bool) = ref(false);
+/* A press outside the kept probe since the last frame. */
+let pressed_elsewhere: ref(bool) = ref(false);
 
 let expect_blur = (): unit => blur_expected := true;
+
+/* Both a vdom drop and a press on plain text leave focus on #page; only the
+   press is deliberate (it may be starting a text selection). Capture phase,
+   since projectors stop pointerdown propagation. */
+let install_press_tracking = (): unit => {
+  let _: Dom_html.event_listener_id =
+    Dom_html.addEventListenerWithOptions(
+      Dom_html.document,
+      Dom_html.Event.make("pointerdown"),
+      ~capture=Js._true,
+      Dom_html.handler((evt: Js.t(Dom_html.event)) => {
+        switch (kept^, Js.Opt.to_option(evt##.target)) {
+        | (Some(id), Some(target)) =>
+          let inside =
+            switch (JsUtil.get_elem_by_id_opt(id)) {
+            | Some(el) =>
+              Js.to_bool(
+                Js.Unsafe.meth_call(
+                  el,
+                  "contains",
+                  [|Js.Unsafe.inject(target)|],
+                ),
+              )
+            | None => false
+            };
+          pressed_elsewhere := !inside;
+        | _ => ()
+        };
+        Js._true;
+      }),
+    );
+  ();
+};
 
 let focus_no_scroll = (elem: Js.t(Dom_html.element)): unit =>
   Js.Unsafe.meth_call(
@@ -91,11 +126,12 @@ let keep_focus = (): unit => {
           switch (active) {
           | None => true
           | Some(el) =>
-            let tag = Js.to_string(el##.tagName);
-            let eid = Js.to_string(el##.id);
-            tag == "BODY" || eid == "page" || eid == "clipboard-shim";
+            Js.to_string(el##.tagName) == "BODY"
+            || Js.to_string(el##.id) == "page"
           };
-        if (fell_to_nothing) {
+        if (fell_to_nothing && pressed_elsewhere^) {
+          kept := None;
+        } else if (fell_to_nothing) {
           switch (JsUtil.get_elem_by_id_opt(id)) {
           | Some(elem) => focus_no_scroll(elem)
           | None => kept := None /* probe gone: culled out or deleted */
@@ -106,4 +142,5 @@ let keep_focus = (): unit => {
       };
     }
   };
+  pressed_elsewhere := false;
 };

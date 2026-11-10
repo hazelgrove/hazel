@@ -194,9 +194,7 @@ module M: Projector = {
      the blur that ends it — recording would start on click and never clear. */
   let focus_element = (id: Id.t) =>
     switch (JsUtil.get_elem_by_id_opt(Id.cls(id))) {
-    | Some(el) =>
-      JsUtil.projector_holds_focus := true;
-      el##focus;
+    | Some(el) => el##focus
     | None => ()
     };
 
@@ -393,29 +391,17 @@ module M: Projector = {
              handle pointerdown too — moving the caret and pulling focus onto
              the cell. No Prevent_default: that would suppress the native
              focus we are relying on. */
-          Attr.on_pointerdown(_ => {
-            /* Raised HERE, before focus moves: the clipboard shim's focusout
-               fires before this input's focusin, so anything set later is
-               too late to stop the page taking focus back. */
-            JsUtil.projector_holds_focus := true;
-            Effect.Stop_propagation;
-          }),
-          /* Stop_propagation is load-bearing: Page.re attaches a page-level
-             on_focus that calls JsUtil.focus_clipboard_shim(), and focus
-             events bubble — so without this, focusing here is immediately
-             redirected to the clipboard shim and recording never starts. */
-          Attr.on_focus(_ => {
-            JsUtil.projector_holds_focus := true;
-            Effect.Many([local(StartRecording), Effect.Stop_propagation]);
-          }),
+          Attr.on_pointerdown(_ => Effect.Stop_propagation),
+          Attr.on_focus(_ =>
+            Effect.Many([local(StartRecording), Effect.Stop_propagation])
+          ),
           /* Clicking away finishes too, writing whatever was captured. */
-          Attr.on_blur(_ => {
-            JsUtil.projector_holds_focus := false;
+          Attr.on_blur(_ =>
             Effect.Many([
               finish(model, info, ~local, ~parent),
               Effect.Stop_propagation,
-            ]);
-          }),
+            ])
+          ),
           Attr.on_keydown(key_handler(model, info, ~local, ~parent)),
         ],
         (),

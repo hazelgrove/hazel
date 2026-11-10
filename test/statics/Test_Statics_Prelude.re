@@ -5,7 +5,8 @@ let testable_typ = testable(Fmt.using(Typ.show, Fmt.string), Typ.fast_equal);
 
 [@deriving show({with_path: false})]
 type issue =
-  | Marks(list(Mark.t));
+  | Marks(list(Mark.t))
+  | Warnings(list(Warning.list_item));
 
 let source_equal = (a: Typ.source, b: Typ.source) =>
   Id.equal(a.id, b.id) && Typ.fast_equal(a.ty, b.ty);
@@ -127,6 +128,10 @@ let rec equal_mark: (Mark.t, Mark.t) => bool =
 let equal_issue = (a: issue, b: issue): bool =>
   switch (a, b) {
   | (Marks(xs), Marks(ys)) => List.equal(equal_mark, xs, ys)
+  | (Warnings(xs), Warnings(ys)) =>
+    List.equal(Warning.equal_list_item, xs, ys)
+  | (Marks(_), Warnings(_))
+  | (Warnings(_), Marks(_)) => false
   };
 
 let testable_issue: testable(issue) =
@@ -172,9 +177,14 @@ let annotate_static_errors = (exp: TermBase.exp_t, info_map: Statics.Map.t) => {
     ({ids, _}: IdTagged.IdTag.t) => {
       switch (Statics.Map.lookup(List.hd(ids), info_map)) {
       | Some(info) =>
-        switch (Info.marks_of(info)) {
-        | [] => None
-        | ms => Some(Marks(ms))
+        switch (Info.marks_of(info), Info.warnings_of(info)) {
+        | ([], []) => None
+        | (ms, []) => Some(Marks(ms))
+        | ([], ws) => Some(Warnings(ws))
+        | ([_, ..._], [_, ..._]) =>
+          Alcotest.fail(
+            "Both marks and warnings on the id: " ++ Id.show(List.hd(ids)),
+          )
         }
       | None =>
         Alcotest.fail("No info found for the id: " ++ Id.show(List.hd(ids)))
@@ -207,18 +217,44 @@ let type_of = (~static_map=?, f) => {
   Statics.Map.ty_of(IdTagged.rep_id(f), m);
 };
 
-let annotated_tree_test = (name, expected_type, expected_error_tree) => {
-  let term = fresh(Grammar.map_exp_annotation(_ => (), expected_error_tree));
+let syntax_exp: testable(Grammar.exp_t(unit)) =
+  testable(
+    Fmt.using([%derive.show: Grammar.exp_t(unit)], Fmt.string),
+    Grammar.equal_exp_t(((), ()) => true),
+  );
+
+/* The statics of [expected_error_tree] put exactly the annotated marks and
+   warnings on each node, and give it [expected_type]. With [source], the
+   term checked is [source]'s parse, which must equal the tree node for node,
+   parentheses included. */
+let annotated_tree_test =
+    (~source=?, name, expected_type, expected_error_tree) => {
+  let syntax = Grammar.map_exp_annotation(_ => (), expected_error_tree);
+  let term =
+    switch (source) {
+    | Some(source) =>
+      let term = parse_exp(source);
+      Alcotest.check(
+        syntax_exp,
+        "Parse of " ++ source,
+        syntax,
+        Grammar.map_exp_annotation(_ => (), term),
+      );
+      term;
+    | None => fresh(syntax)
+    };
   let s = statics(term);
-  let annotated: Grammar.exp_t(option(issue)) =
-    annotate_static_errors(term, s);
-  let typ = type_of(~static_map=s, term);
-  Alcotest.check(annotated_exp, name, expected_error_tree, annotated);
+  Alcotest.check(
+    annotated_exp,
+    name,
+    expected_error_tree,
+    annotate_static_errors(term, s),
+  );
   Alcotest.check(
     testable_typ,
     "Expected Type",
     expected_type,
-    Option.get(typ),
+    Option.get(type_of(~static_map=s, term)),
   );
 };
 

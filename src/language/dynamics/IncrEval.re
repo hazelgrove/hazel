@@ -45,7 +45,11 @@ type entry('state) = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t('state) = {entries: Id.Map.t(entry('state))};
+type t('state) = {
+  entries: Id.Map.t(entry('state)),
+  /* Steps of the evaluation that produced this cache. */
+  steps: int,
+};
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type current('state) = {
@@ -59,7 +63,10 @@ type outbox('state) = {
   current: option(current('state)),
 };
 
-let empty: t('state) = {entries: Id.Map.empty};
+let empty: t('state) = {
+  entries: Id.Map.empty,
+  steps: 0,
+};
 
 let empty_outbox: outbox('state) = {
   completed: empty,
@@ -78,6 +85,7 @@ let outbox_is_empty = (outbox: outbox('state)): bool =>
 
 let add_entry =
     (id: Id.t, entry: entry('state), incr: t('state)): t('state) => {
+  ...incr,
   entries: Id.Map.add(id, entry, incr.entries),
 };
 
@@ -99,6 +107,7 @@ let set_outbox_current =
 };
 
 let add_stream = (stream: t('state), incr: t('state)): t('state) => {
+  ...incr,
   entries:
     Id.Map.union(
       (_, _old, new_) => Some(new_),
@@ -325,6 +334,13 @@ let reuse_check =
   let* entry = Id.Map.find_opt(id, prev.entries);
   let* info = EvalInfo.find_opt(id, eval_info);
 
+  let* current_reuse_map = reuse_map_for_co_ctx(reuse_map, info.co_ctx);
+  let* () =
+    OptUtil.some_if(
+      equal_reuse_map(entry.prev_reuse_map, current_reuse_map),
+      (),
+    );
+
   let elab_same =
     Exp.fast_equal(entry.prev_elab, info.elab_term)
     /* fast_equal ignores annotations; lexeme-only edits (e.g. an unknown
@@ -332,13 +348,6 @@ let reuse_check =
        so they must invalidate reuse too */
     && Exp.lexeme_trace(entry.prev_elab) == Exp.lexeme_trace(info.elab_term);
   let* () = OptUtil.some_if(elab_same, ());
-
-  let* current_reuse_map = reuse_map_for_co_ctx(reuse_map, info.co_ctx);
-  let* () =
-    OptUtil.some_if(
-      equal_reuse_map(entry.prev_reuse_map, current_reuse_map),
-      (),
-    );
 
   let* () =
     OptUtil.some_if(
