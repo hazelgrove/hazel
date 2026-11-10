@@ -99,9 +99,12 @@ let (suite, exit_with_test_status) =
       Test_StepProvenance.tests,
       Test_ObsTraceShadow.tests,
       Test_ObsBench.tests,
+      Test_Ascriptions.tests,
+      Test_PerfBudgets.tests,
     ]
     @ [Test_GradingReport.tests]
     @ Test_SlidePath.tests
+    @ Test_HazelDB.tests
     @ Test_Tutorial.tests
     @ Test_TutorialText.tests
     @ [Test_TutorialProbeSettings.tests]

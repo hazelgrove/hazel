@@ -56,6 +56,7 @@ let slide_keeps_indentation = () => {
 let tests = (
   "FastParseCorpus",
   [
+    /* Slow: it parses every .hz program in the repo */
     test_case(
       "a slide keeps its indentation",
       `Quick,
@@ -63,7 +64,7 @@ let tests = (
     ),
     test_case(
       "every corpus program fast-paths",
-      `Quick,
+      `Slow,
       () => {
         let files =
           ["hazel-programs", "../hazel-programs"]

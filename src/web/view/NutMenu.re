@@ -100,6 +100,12 @@ let semantics = (~globals: Globals.t): section => {
       "Infer the types of unannotated definitions, including polymorphic ones (type checking runs twice when there is something to infer)",
     ),
     toggle(
+      "Warnings",
+      globals.settings.core.display_warnings,
+      DisplayWarnings,
+      "Show warnings, such as unused variables, in the code, the inspector and the problems panel",
+    ),
+    toggle(
       "Code completion",
       globals.settings.core.assist,
       Assist,

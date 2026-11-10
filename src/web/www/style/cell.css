@@ -2,16 +2,6 @@
  * ~ everything below the main panel, but above the code
  * display in the hierarchy */
 
-#clipboard-shim {
-  /* probably overkill for hiding it... */
-  position: fixed;
-  opacity: 0.01;
-  width: 1em;
-  height: 1em;
-  top: -1em;
-  left: -1em;
-}
-
 #main .code-editor {
   /* Only code in primary editor is selectable atm */
   cursor: text;
@@ -277,14 +267,6 @@
 
 .prompt-content {
   font-size: 1rem;
-}
-
-/* Allow selecting the prompt prose (overrides #page { user-select: none }).
-   Selecting prompt text also moves DOM focus off the editor, which
-   correctly drops the active-cell accent back to its idle pale state. */
-.prompt-content,
-.prompt-content * {
-  user-select: text;
 }
 
 /* Markdown paragraphs inside a prompt. Each blank line in the source

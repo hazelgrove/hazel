@@ -810,7 +810,10 @@ let tests = (
             let_(
               Pat.(
                 asc(
-                  var("extra_label"),
+                  var(
+                    ~ann=Some(Warnings([Pat(UnusedVar("extra_label"))])),
+                    "extra_label",
+                  ),
                   Typ.(
                     parens(prod([int(), tup_label(label("a"), string())]))
                   ),
@@ -1077,12 +1080,18 @@ let tests = (
                         tup_label(
                           ~ann=single_duplicate_a_pat_ann,
                           label(~ann=duplicate_a_label_pat_ann, "a"),
-                          var("a"),
+                          var(
+                            ~ann=Some(Warnings([Pat(UnusedVar("a"))])),
+                            "a",
+                          ),
                         ),
                         tup_label(
                           ~ann=single_duplicate_a_pat_ann,
                           label(~ann=duplicate_a_label_pat_ann, "a"),
-                          var("b"),
+                          var(
+                            ~ann=Some(Warnings([Pat(UnusedVar("b"))])),
+                            "b",
+                          ),
                         ),
                       ],
                     ),
