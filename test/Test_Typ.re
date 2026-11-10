@@ -971,6 +971,52 @@ let meet_out_of_phase_tests = {
   );
 };
 
+/* The cursor inspector prints recursive types by their binder, so a
+   recursive alias reads as `List` rather than its unrolled definition */
+let abstract_rec_tests = {
+  let list_rec = () =>
+    Typ.fresh(
+      Rec(
+        TPat.fresh(Var("List")),
+        Typ.fresh(Prod([Typ.fresh(Atom(Int)), Typ.fresh(Var("List"))])),
+      ),
+    );
+  (
+    "Typ.abstract_rec_types",
+    [
+      test_case("a rec type prints as its binder", `Quick, () =>
+        check(
+          typ,
+          "abstracted",
+          Typ.fresh(Var("List")),
+          Typ.abstract_rec_types(list_rec()),
+        )
+      ),
+      test_case("rec types inside an arrow are abstracted", `Quick, () =>
+        check(
+          typ,
+          "abstracted",
+          Typ.fresh(
+            Arrow(Typ.fresh(Var("List")), Typ.fresh(Var("List"))),
+          ),
+          Typ.abstract_rec_types(Typ.fresh(Arrow(list_rec(), list_rec()))),
+        )
+      ),
+      test_case(
+        "types without rec are unchanged",
+        `Quick,
+        () => {
+          let t =
+            Typ.fresh(
+              Arrow(Typ.fresh(Atom(Int)), Typ.fresh(Atom(Bool))),
+            );
+          check(typ, "unchanged", t, Typ.abstract_rec_types(t));
+        },
+      ),
+    ],
+  );
+};
+
 let tests = [
   meet_tests,
   meet_rec_binder_tests,
@@ -980,4 +1026,5 @@ let tests = [
   diff_tests,
   recursive_def_tests,
   unroll_tests,
+  abstract_rec_tests,
 ];
