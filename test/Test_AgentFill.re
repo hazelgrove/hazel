@@ -171,6 +171,47 @@ let proof_tests = [
       check_contains(~msg="grammar", system, "## Proof syntax");
     },
   ),
+  test_case(
+    "goals name the functions the checker inlined, without ascriptions",
+    `Quick,
+    () => {
+      let run =
+        Stub.run(
+          Cell.mk(
+            "let rev = fun xs -> case xs | [] => [] | x :: t => rev(t) @ [x] end in\ntheorem t = forall x: Int -> forall t: [Int] -> rev(x :: t) == rev(t) @ [x] proof from rev(x :: t) do eval end; ?? in 0",
+          ),
+          ["axiom refl_eq end"],
+        );
+      let prompt = Stub.prompt(run, 1);
+      check_contains(
+        ~msg="goal",
+        prompt,
+        "Goal at `??`: `rev(t) @ [x] == rev(t) @ [x]`",
+      );
+      check(bool, "no inlined body", false, contains(prompt, "fold"));
+    },
+  ),
+  test_case(
+    "a reply is read back as the editor will hold it",
+    `Quick,
+    () => {
+      let read = r =>
+        switch (Fill.ProofHole.parse(r)) {
+        | Ok(p) => Fill.print_any(~inline=false, Proof(p))
+        | Error(why) => fail(why)
+        };
+      let once =
+        read(
+          "from 1st if $e then $e else $e do eval; eval end; axiom refl_eq end",
+        );
+      check(
+        string,
+        "printing and reading again changes nothing",
+        once,
+        read(once),
+      );
+    },
+  ),
   test_case("a fenced reply parses as its proof", `Quick, () =>
     check(
       result(string, string),

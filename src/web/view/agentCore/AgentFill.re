@@ -43,12 +43,20 @@ type app = {
   write: Haz3lcore.EditorTransform.patch => unit,
 };
 
+/* A goal as the model sees it. The checker inlines definitions into
+ * goals, so a function is printed by its name, as the stepper shows it,
+ * not by its body. Ascriptions are left out: elaboration adds them
+ * (`[]: [Int]`), and a binder's type prints fully expanded. The
+ * default display settings are used, not the user's, so the model's
+ * notation doesn't depend on them. */
 let print_exp = (e: Exp.t): string =>
   e
   |> Haz3lcore.ExpToSegment.exp_to_segment(
-       /* The model always sees the same notation, whatever the user's
-          display settings. */
-       ~settings=ProofMarkView.code_view_settings(CoreSettings.on),
+       ~settings={
+         ...ProofMarkView.code_view_settings(CoreSettings.on),
+         fold_fn_bodies: `Text,
+         show_ascriptions: false,
+       },
      )
   |> Haz3lcore.Printer.of_segment(~holes="?", ~refractors=[]);
 
@@ -315,17 +323,20 @@ module ProofHole = {
     );
 
   /* The reply read as the proof of a throwaway theorem, so it parses
-   * with whatever the proof grammar is. */
-  let parse = (reply: string): result(Proof.t, string) =>
-    switch (
-      parse_exp(
-        "theorem fill = true proof " ++ strip_fences(reply) ++ " in 0",
-      )
-    ) {
-    | Ok({term: Theorem(_, _, proof, _), _}) => Ok(proof)
-    | Ok(_) => Error("your reply doesn't read as a proof")
-    | Error(why) => Error(why)
-    };
+   * with whatever the proof grammar is, then printed and read again: that
+   * is the proof the editor will hold, which can differ when the printer
+   * drops parentheses the reply needed. */
+  let parse = (reply: string): result(Proof.t, string) => {
+    let read = text =>
+      switch (parse_exp("theorem fill = true proof " ++ text ++ " in 0")) {
+      | Ok({term: Theorem(_, _, proof, _), _}) => Ok(proof)
+      | Ok(_) => Error("your reply doesn't read as a proof")
+      | Error(why) => Error(why)
+      };
+    Stdlib.Result.bind(read(strip_fences(reply)), proof =>
+      read(print_any(~inline=false, Proof(proof)))
+    );
+  };
 
   /* The theorem whose proof has the hole: its id and statement. */
   let theorem_of = (~hole_id: Id.t, program: Exp.t): option((Id.t, Exp.t)) => {
@@ -722,7 +733,12 @@ module ExpHole = {
         ~retry,
         ~attempt=
           reply =>
-            switch (parse_exp(strip_fences(reply))) {
+            /* Read back as the editor will hold it, as for proofs. */
+            switch (
+              Stdlib.Result.bind(parse_exp(strip_fences(reply)), exp =>
+                parse_exp(print_any(~inline=false, Exp(exp)))
+              )
+            ) {
             | Error(why) => Unusable(why)
             | Ok(exp) => check(~core, ~errors_before, ~hole_id, program, exp)
             },
