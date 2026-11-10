@@ -137,7 +137,7 @@ let patch_one =
     : option(CachedStatics.t) => {
   OptUtil.Syntax.(
     switch (Statics.Map.lookup(l, s.info_map)) {
-    | Some(InfoExp(li)) when List.mem(projector, li.ancestors) =>
+    | Some(Info.InfoExp(li)) when List.mem(projector, li.ancestors) =>
       let chain = [l, ...li.ancestors];
       let on =
         List.fold_left(
@@ -156,7 +156,7 @@ let patch_one =
           (acc, id) => {
             let* m = acc;
             switch (Statics.Map.lookup(id, m)) {
-            | Some(InfoExp(i)) =>
+            | Some(Info.InfoExp(i)) =>
               let* user_term =
                 switch (user(i.user_term)) {
                 | Some(t) => Some(t)
@@ -204,7 +204,7 @@ let patch_one =
         elaborated,
         info_map,
       };
-    | Some(InfoExp(_)) => no("the literal not in the use")
+    | Some(Info.InfoExp(_)) => no("the literal not in the use")
     | _ => no("no record of the literal")
     }
   );
