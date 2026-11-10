@@ -17,6 +17,13 @@ let flat_ellipses_term = () =>
 let flat_ellipses_term_pat = (): TermBase.pat_t =>
   IdTagged.fresh(Invalid(flat_ellipses): Pat.term);
 let available = ref(0);
+/* (^report(51)) when set, the walk passes through ascriptions (in
+   expressions and patterns) and projectors (in expressions), as if
+   DHExp.strip_ascriptions and Exp.strip_projectors had run first. Those
+   rewrite the whole value; this touches only what the budget reaches. On
+   the Witch, a probe's row for a new picture value (134 KB) took 44 to
+   92 ms, nearly all of it in those two rewrites. */
+let see_through = ref(false);
 
 module AbbrevBudget = {
   /* Display columns, matching the rest of the budget accounting. */
@@ -421,7 +428,13 @@ let indet_term_typ: Typ.term = Unknown(Internal);
 let indet_term_pat: Pat.term = Invalid("?");
 let indet_term_tpat: TPat.term = Invalid("?");
 
-let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
+let rec abbreviate_exp = (exp: Exp.t): Exp.t =>
+  switch (exp.term) {
+  | Asc(e, _) when see_through^ => abbreviate_exp(e)
+  | Projector(_, e) when see_through^ => abbreviate_exp(e)
+  | _ => abbreviate_exp_node(exp)
+  }
+and abbreviate_exp_node = (exp: Exp.t): Exp.t => {
   let initial = available^;
   if (initial <= 0) {
     /* Unit-cost atoms: don't replace with ellipsis (same cost, less informative) */
@@ -1365,7 +1378,12 @@ and abbreviate_mpat = (mp: MPat.t): MPat.t => {
     };
   rewrap(term);
 }
-and abbreviate_pat = (pat: Pat.t): Pat.t => {
+and abbreviate_pat = (pat: Pat.t): Pat.t =>
+  switch (pat.term) {
+  | Asc(p, _) when see_through^ => abbreviate_pat(p)
+  | _ => abbreviate_pat_node(pat)
+  }
+and abbreviate_pat_node = (pat: Pat.t): Pat.t => {
   let initial = available^;
   if (initial <= 0) {
     switch (pat.term) {
@@ -1872,9 +1890,19 @@ and abbreviate_any = (any: Any.t): Any.t =>
   | Any(_) => any
   };
 
-let abbreviate_exp = (~available as a=12, exp: Exp.t): (Exp.t, int) => {
+let abbreviate_exp =
+    (~see_through as st=false, ~available as a=12, exp: Exp.t): (Exp.t, int) => {
   available := a;
-  let exp = abbreviate_exp(exp);
+  see_through := st;
+  let exp =
+    switch (abbreviate_exp(exp)) {
+    | exp =>
+      see_through := false;
+      exp;
+    | exception e =>
+      see_through := false;
+      raise(e);
+    };
   let length_exp = a - available^;
   if (a < 0) {
     (flat_ellipses_term(), ellipsis_cost);

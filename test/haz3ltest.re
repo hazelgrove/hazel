@@ -103,6 +103,8 @@ let (suite, exit_with_test_status) =
       Test_PatternMatch.tests,
       Test_Equality.tests,
       Test_Substitution.tests,
+      Test_HazelJit.tests,
+      Test_ModelPatch.tests,
     ]
     @ Test_Unicode.tests
     @ Test_WorkerServer.tests

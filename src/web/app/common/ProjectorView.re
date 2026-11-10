@@ -11,12 +11,95 @@ type visible_rows = Globals.VisibleRows.t;
 
 let offside_offset = 4; /* Num characters offset to the right of the end of the line */
 
-/* Cache projector view results to avoid expensive P.view() calls
- * when statics/dynamics haven't changed (e.g. during debounced typing).
- * Per-projector cache keyed on map identity + status + model. Handles
- * multiple editors calling into the same cache without thrashing. */
+/* Cache projector view results to avoid expensive Util.BenchMarks.time("view: a projector drawn", () =>
+          P.view()) calls
+   * when statics/dynamics haven't changed (e.g. during debounced typing).
+   * Per-projector cache keyed on map identity + status + model. Handles
+   * multiple editors calling into the same cache without thrashing. */
 module ViewCache = {
+  /* (^report(51)) for the check's "view: projectors' views" mark: time in
+     the cache's lookups, in the walks for splices, in the views made
+     (mk_view), and how many sample values were compared by value. At the
+     worker's answer on the Witch all 53 livelits' views were made again for
+     16 to 41 ms, 2 of them drawn (run 42771757499) */
+  let lookup_ms = ref(0.);
+  let splices_ms = ref(0.);
+  let mk_view_ms = ref(0.);
+  let compared = ref(0);
+  let compare_ms = ref(0.);
+  /* (^report(51)) what a livelit's drawing read of the run: the samples at
+     its own id and at each id it looked up (info.dynamics_at), and its own
+     pinned interval. Every answer of the run is a new map, so keyed on the
+     map's identity all 52 unchanged livelits on the Witch were drawn again
+     after each answer (25 to 87 ms a step on run 42713728065); keyed on
+     what each read, compared by value, only those whose samples changed */
+  type reads = {
+    pinned: option((int, int)),
+    at: list((Id.t, option(list(Language.Sample.t)))),
+  };
+  let by_seq = (xs: list(Language.Sample.t)): list(Language.Sample.t) =>
+    List.sort(
+      (a: Language.Sample.t, b: Language.Sample.t) =>
+        Int.compare(a.seq, b.seq),
+      xs,
+    );
+  let samples_same =
+      (
+        a: option(list(Language.Sample.t)),
+        b: option(list(Language.Sample.t)),
+      )
+      : bool =>
+    switch (a, b) {
+    | (Stdlib.Option.None, Stdlib.Option.None) => true
+    | (Some(xs), Some(ys)) =>
+      xs === ys
+      || List.length(xs) == List.length(ys)
+      && List.for_all2(
+           (x: Language.Sample.t, y: Language.Sample.t) =>
+             x.value === y.value
+             || {
+               let t0 = Util.BenchMarks.now();
+               let same = Language.Exp.fast_equal(x.value, y.value);
+               incr(compared);
+               compare_ms := compare_ms^ +. (Util.BenchMarks.now() -. t0);
+               same;
+             },
+           by_seq(xs),
+           by_seq(ys),
+         )
+    | _ => false
+    };
+  let reads_hold =
+      (
+        reads: option(reads),
+        ~pinned: option((int, int)),
+        dynamics_map: Language.Dynamics.Map.t,
+      )
+      : bool =>
+    switch (reads) {
+    | Some(r) =>
+      r.pinned == pinned
+      && List.for_all(
+           ((id, old)) =>
+             samples_same(
+               old,
+               Language.Dynamics.Map.lookup(id, dynamics_map),
+             ),
+           r.at,
+         )
+    | Stdlib.Option.None => false
+    };
+  /* (^report(51)) each cached projector's info at its latest draw or hit,
+     for its handlers: a view kept across a new map acts on the newest */
+  let latest: Hashtbl.t(Id.t, ProjectorBase.info) = Hashtbl.create(64);
+  let latest_info = (id: Id.t, info: ProjectorBase.info): ProjectorBase.info =>
+    Option.value(~default=info, Hashtbl.find_opt(latest, id));
   type entry = {
+    /* (^report(51)) a livelit's reads of the run when it was drawn */
+    reads: option(reads),
+    /* (^report(51)) a livelit's own statics record and elaborated subterm,
+       which stand for statics_map and elaborated in its key (program_same) */
+    own: option((Obj.t, Obj.t)),
     statics_map: Language.Statics.Map.t,
     dynamics_map: Language.Dynamics.Map.t,
     sample_focus: Language.Sample.Focus.t,
@@ -40,6 +123,26 @@ module ViewCache = {
     last_used: int /* tick of the last hit or store */
   };
   let cache: Hashtbl.t(Id.t, entry) = Hashtbl.create(64);
+  /* (^report(51)) why the last lookup missed: the parts of the key that
+     changed, for the check's "view: a projector drawn" marks */
+  let last_miss = ref("");
+  /* (^report(51)) each projector's own statics, dynamics and elaborated
+     term when it was last drawn, to say which of them are the very same
+     objects at its next draw ("S", "D", "E"): whether a key on them, not
+     on the whole maps, would hold. Kept only while the check's marks are on */
+  let own_parts: Hashtbl.t(Id.t, array(Obj.t)) = Hashtbl.create(64);
+  let own_same = (id, parts: array(Obj.t)): string =>
+    switch (Hashtbl.find_opt(own_parts, id)) {
+    | None => "new"
+    | Some(old) =>
+      String.concat(
+        "",
+        List.mapi(
+          (i, o) => o === parts[i] ? List.nth(["S", "D", "E"], i) : "",
+          Array.to_list(old),
+        ),
+      )
+    };
 
   /* jsoo has no weak refs: an id that stops rendering (autoprobe mints
      fresh probe ids per edit) would pin its entry, and with it a whole
@@ -47,9 +150,26 @@ module ViewCache = {
      log_frame ticks once per editor per frame and sweeps stale entries */
   let tick: ref(int) = ref(0);
 
+  /* (^report(51)) whether the program's statics and elaboration are as
+     they were for this entry: for a livelit, by its own statics record (its
+     type, its context, and so the definition it looks up in that context)
+     and its own elaborated subterm, the very objects they were; else by the
+     whole maps. After an edit of one livelit's model on the Witch, the other
+     51 had their own records unchanged but were all drawn again, as the
+     maps were new (7 to 13 ms a view). */
+  let program_same = (e, ~own, ~statics_map, ~elaborated) =>
+    switch (own, e.own) {
+    | (Some((s, x)), Some((s', x'))) => s === s' && x === x'
+    | _ =>
+      e.statics_map === statics_map
+      && CachedSyntax.elaborated_phys_eq(e.elaborated, elaborated)
+    };
+
   let lookup =
       (
         id,
+        ~own,
+        ~pinned,
         ~statics_map,
         ~dynamics_map,
         ~sample_focus,
@@ -66,19 +186,53 @@ module ViewCache = {
     switch (Hashtbl.find_opt(cache, id)) {
     | Some(e)
         when
-          e.statics_map === statics_map
-          && e.dynamics_map === dynamics_map
+          program_same(e, ~own, ~statics_map, ~elaborated)
+          && (
+            e.dynamics_map === dynamics_map
+            || reads_hold(e.reads, ~pinned, dynamics_map)
+          )
           && Language.Sample.Focus.equal(e.sample_focus, sample_focus)
           && e.stepping == stepping
           && e.program_value == program_value
-          && CachedSyntax.elaborated_phys_eq(e.elaborated, elaborated)
           && e.core_settings == core_settings
           && e.settings_version == ProbeProj.Settings.version^
           && e.app_version == app_version
           && e.font_metrics == font_metrics
           && e.status == status
           && e.model == model =>
-      if (e.last_used != tick^) {
+      /* (^report(51)) a hit on reads equal by value takes the new map and
+         its samples, so the next look at the same map is a pointer: after
+         each edit on the Witch the run's map was the one the answer brought,
+         but each livelit's entry held the map it was drawn with, and 100
+         to 102 values were compared again (run 42814828261) */
+      if (e.dynamics_map !== dynamics_map) {
+        Hashtbl.replace(
+          cache,
+          id,
+          {
+            ...e,
+            last_used: tick^,
+            dynamics_map,
+            reads:
+              Option.map(
+                (r: reads) =>
+                  {
+                    ...r,
+                    at:
+                      List.map(
+                        ((rid, _)) =>
+                          (
+                            rid,
+                            Language.Dynamics.Map.lookup(rid, dynamics_map),
+                          ),
+                        r.at,
+                      ),
+                  },
+                e.reads,
+              ),
+          },
+        );
+      } else if (e.last_used != tick^) {
         Hashtbl.replace(
           cache,
           id,
@@ -89,12 +243,54 @@ module ViewCache = {
         );
       };
       Some(e.view);
-    | _ => None
+    | Some(e) =>
+      if (Util.BenchMarks.on()) {
+        last_miss :=
+          String.concat(
+            ",",
+            List.filter_map(
+              ((same, what)) => same ? None : Some(what),
+              [
+                (
+                  program_same(e, ~own, ~statics_map, ~elaborated),
+                  Option.is_none(own)
+                    ? "statics or elaborated" : "own statics or elaborated",
+                ),
+                (
+                  e.dynamics_map === dynamics_map
+                  || reads_hold(e.reads, ~pinned, dynamics_map),
+                  "dynamics",
+                ),
+                (
+                  Language.Sample.Focus.equal(e.sample_focus, sample_focus),
+                  "sample focus",
+                ),
+                (e.stepping == stepping, "stepping"),
+                (e.program_value == program_value, "program value"),
+                (e.core_settings == core_settings, "settings"),
+                (
+                  e.settings_version == ProbeProj.Settings.version^,
+                  "probe settings",
+                ),
+                (e.app_version == app_version, "version"),
+                (e.font_metrics == font_metrics, "font"),
+                (e.status == status, "status"),
+                (e.model == model, "model"),
+              ],
+            ),
+          );
+      };
+      None;
+    | None =>
+      last_miss := "new";
+      None;
     };
 
   let store =
       (
         id,
+        ~own,
+        ~reads,
         ~statics_map,
         ~dynamics_map,
         ~sample_focus,
@@ -112,6 +308,8 @@ module ViewCache = {
       cache,
       id,
       {
+        reads,
+        own,
         statics_map,
         dynamics_map,
         sample_focus,
@@ -143,6 +341,7 @@ module ViewCache = {
           [],
         );
       List.iter(Hashtbl.remove(cache), stale);
+      List.iter(Hashtbl.remove(latest), stale);
     };
   };
 };
@@ -195,7 +394,8 @@ module Model = {
     render_layers: layers,
     status,
     /* Map refs for view cache identity comparison. `elaborated` is the whole-
-     * editor elaborated Exp.t that P.view() may consume via info.elaborated;
+     * editor elaborated Exp.t that Util.BenchMarks.time("view: a projector drawn", () =>
+        P.view()) may consume via info.elaborated;
      * it must participate in the cache key since info.elaborated is derived
      * from it. Refractors pass None. */
     statics_map: Language.Statics.Map.t,
@@ -236,7 +436,18 @@ module Model = {
    * Such errors get no arms anywhere (see Arms.tiles_data), so the
    * projector chrome reports them. Splice contents report errors in
    * their own sub-editors, and nested projectors on their own chrome. */
-  let has_hidden_error =
+  /* (^report(51)) has_hidden_error's answers, by the projector's very
+     syntax and statics map: it walked each projector's syntax and looked
+     up every tile in it on each pass that made the projectors' data again,
+     as at each worker's answer, though the statics were the same. Its
+     time is on the "view: projector data made" mark */
+  let hidden_error_ms = ref(0.);
+  let hidden_errors:
+    Hashtbl.t(Id.t, (Base.segment, Language.Statics.Map.t, bool)) =
+    Hashtbl.create(64);
+  let hidden_ids: Hashtbl.t(Id.t, (Base.segment, list(Id.t))) =
+    Hashtbl.create(64);
+  let has_hidden_error_now =
       (p: Base.projector, statics: Language.Statics.Map.t): bool => {
     let rec hidden_tile_ids = (seg: Base.segment): list(Id.t) =>
       List.concat_map(
@@ -253,7 +464,18 @@ module Model = {
           },
         seg,
       );
-    hidden_tile_ids(p.syntax)
+    let ids =
+      switch (Hashtbl.find_opt(hidden_ids, p.id)) {
+      | Some((seg, ids)) when seg === p.syntax => ids
+      | _ =>
+        let ids = hidden_tile_ids(p.syntax);
+        if (Hashtbl.length(hidden_ids) > 512) {
+          Hashtbl.reset(hidden_ids);
+        };
+        Hashtbl.replace(hidden_ids, p.id, (p.syntax, ids));
+        ids;
+      };
+    ids
     |> List.exists(id =>
          switch (Language.Statics.Map.lookup(id, statics)) {
          | Some(info) => Language.Info.is_error(info)
@@ -261,6 +483,20 @@ module Model = {
          }
        );
   };
+  let has_hidden_error =
+      (p: Base.projector, statics: Language.Statics.Map.t): bool =>
+    switch (Hashtbl.find_opt(hidden_errors, p.id)) {
+    | Some((seg, st, found)) when seg === p.syntax && st === statics => found
+    | _ =>
+      let t0 = Util.BenchMarks.now();
+      let found = has_hidden_error_now(p, statics);
+      hidden_error_ms := hidden_error_ms^ +. (Util.BenchMarks.now() -. t0);
+      if (Hashtbl.length(hidden_errors) > 512) {
+        Hashtbl.reset(hidden_errors);
+      };
+      Hashtbl.replace(hidden_errors, p.id, (p.syntax, statics, found));
+      found;
+    };
 
   let mk_status =
       (
@@ -344,6 +580,61 @@ module Model = {
       projector_list,
     );
   };
+
+  /* (^ticket(722), the drag fast path, cut C) mk's answer again, while every input it reads is the same object as
+     before: a drag's frames change no editor state (Page.Update.LivelitRepaint), and making every projector's data
+     again was most of the projector layer's 14 ms a frame (Firefox run 42563736665). The zipper stands for
+     `indicated`, which is made from it anew each frame. A few editors draw each frame (a stack's cells), so a few
+     entries are kept. */
+  type mk_key = {
+    k_syntax: CachedSyntax.t,
+    k_zipper: Zipper.t,
+    k_statics: Language.Statics.Map.t,
+    k_dynamics: Language.Dynamics.Map.t,
+    k_active: bool,
+    /* the elaboration itself: an option made anew each frame is never the same object */
+    k_elaborated: Language.Exp.t,
+  };
+  let mk_memo: ref(list((mk_key, list(projector_data)))) = ref([]);
+  let mk_cached = (~key: mk_key, make: unit => list(projector_data)) => {
+    let same = (k: mk_key) =>
+      k.k_syntax === key.k_syntax
+      && k.k_zipper === key.k_zipper
+      && k.k_statics === key.k_statics
+      && k.k_dynamics === key.k_dynamics
+      && k.k_active == key.k_active
+      && k.k_elaborated === key.k_elaborated;
+    switch (List.find_opt(((k, _)) => same(k), mk_memo^)) {
+    | Some((_, data)) => data
+    | None =>
+      /* which input differed from the latest entry's, for the timeline */
+      let why =
+        switch (mk_memo^) {
+        | [] => "first"
+        | [(k, _), ..._] =>
+          k.k_syntax !== key.k_syntax
+            ? "syntax"
+            : k.k_zipper !== key.k_zipper
+                ? "zipper"
+                : k.k_statics !== key.k_statics
+                    ? "statics"
+                    : k.k_dynamics !== key.k_dynamics
+                        ? "dynamics"
+                        : k.k_active != key.k_active ? "active" : "elaborated"
+        };
+      hidden_error_ms := 0.;
+      let data =
+        Util.BenchMarks.time(
+          ~extra=
+            () =>
+              [("hidden errors ms", Util.BenchMarks.num(hidden_error_ms^))],
+          "view: projector data made (" ++ why ++ ")",
+          make,
+        );
+      mk_memo := [(key, data), ...List.filteri((i, _) => i < 7, mk_memo^)];
+      data;
+    };
+  };
 };
 
 /* Projectors get a default backing decoration similar
@@ -369,12 +660,17 @@ let backing_deco =
 
 /* The backing needs the projector shape (a Tab draws differently);
    mirrors ShapeMapSemantics placement switch. */
+/* (^report(51)) shape_of's time measuring splice sizes, for the check's
+   mark "view: projectors' views" */
+let shape_sizes_ms = ref(0.);
 let shape_of = (p: Base.projector, info: ProjectorBase.info) => {
   let (module P) = ProjectorInit.to_module(p.kind);
   /* Splice sizes are intrinsic to the projector's own syntax -- they do
      not depend on where the parent lays it out -- so this measures them
      here rather than threading the view's map down. */
+  let t_sizes = Util.BenchMarks.now();
   let splice_size_map = Measured.splice_sizes(p.syntax);
+  shape_sizes_ms := shape_sizes_ms^ +. (Util.BenchMarks.now() -. t_sizes);
   let splice_size = (id: Id.t): Util.Point.t =>
     Measured.splice_size_of(splice_size_map, id);
   switch (p.placement) {
@@ -652,6 +948,28 @@ let chip = (~open_panel: Ui_effect.t(unit)): Node.t =>
   );
 
 /* Route top-level metadata to the projector view function. */
+/* Kinds with out-of-band state get a version counter in their views' keys: apps read the AppStore; livelits their
+   optimistic entries and the slide's compiled run (LivelitProj.version_of) */
+let app_version_of = (p: Base.projector): int =>
+  switch (p.kind) {
+  | ProjectorCore.Kind.HTML => AppBridge.version^
+  | ProjectorCore.Kind.Livelit => LivelitProj.version_of(p.id)
+  | _ => 0
+  };
+
+let rec seg_has_splices = (seg: Base.segment): bool =>
+  List.exists(
+    (piece: Base.piece) =>
+      switch (piece) {
+      | Splice(_) => true
+      | Tile(t) => List.exists(seg_has_splices, t.children)
+      | Projector(_)
+      | Grout(_)
+      | Secondary(_) => false
+      },
+    seg,
+  );
+
 let mk_view =
     (
       inject: Action.t => Ui_effect.t(unit),
@@ -675,12 +993,15 @@ let mk_view =
   /* Kinds with out-of-band state get a version counter in the key: apps
      read the AppStore; livelits read the optimistic table, whose updates
      must repaint before the debounced statics refresh. */
-  let app_version =
-    switch (p.kind) {
-    | ProjectorCore.Kind.HTML => AppBridge.version^
-    | ProjectorCore.Kind.Livelit => LivelitProj.optimistic_version^
-    | _ => 0
-    };
+  let app_version = app_version_of(p);
+  /* (^ticket(722)) the program this livelit is drawn from, for its run to
+     be compiled with livelits' models as parameters (a physical-equality
+     check when it has not changed) */
+  switch (p.kind, elaborated) {
+  | (ProjectorCore.Kind.Livelit, Some(e)) =>
+    Language.HazelJitRun.note_program(e)
+  | _ => ()
+  };
   /* Splice-bearing projectors render live sub-editors whose caret and
    * selection decorations depend on the zipper — which is not part of
    * the cache key — so their views must be rebuilt every frame. */
@@ -696,11 +1017,53 @@ let mk_view =
         },
       seg,
     );
+  let t_splices = Util.BenchMarks.now();
   let cacheable = !has_splices(p.syntax);
+  ViewCache.splices_ms :=
+    ViewCache.splices_ms^ +. (Util.BenchMarks.now() -. t_splices);
+  let t_lookup = Util.BenchMarks.now();
+  /* (^report(51)) a livelit's key on its own statics record, and its own
+     elaborated subterm if it has one (ViewCache.program_same). A livelit
+     elaborates none of its syntax (LivelitProj.elaborate_syntax), so its
+     info.elaborated is None and its view reads the program through its
+     statics record alone */
+  /* A probe is keyed on its statics record alone: ProbeProj reads
+     neither its elaborated subterm, which an edit elsewhere makes anew,
+     nor the statics of other ids. After an edit of a livelit's model on
+     the Witch both probes were drawn again, their own records the same,
+     4 to 13 ms a view (run 42811452787). Its run is still keyed on the
+     whole map (reads below): a probe's samples carry their call stacks
+     and steps as well as their values. */
+  let own =
+    switch (p.kind, info.statics) {
+    | (ProjectorCore.Kind.Livelit, Some(st)) =>
+      Some((
+        Obj.repr(st),
+        switch (info.elaborated) {
+        | Some(el) => Obj.repr(el)
+        | None => Obj.repr(0)
+        },
+      ))
+    | (ProjectorCore.Kind.Probe, Some(st)) =>
+      Some((Obj.repr(st), Obj.repr(0)))
+    | _ => Stdlib.Option.None
+    };
+  /* (^report(51)) a livelit is kept across a run's new answer while what it
+     read of the run is the same (ViewCache.reads) */
+  let is_livelit = p.kind == ProjectorCore.Kind.Livelit;
+  let pinned =
+    Option.bind(info.dynamics, (d: Language.Dynamics.Info.t) =>
+      d.pinned_interval
+    );
+  if (cacheable) {
+    Hashtbl.replace(ViewCache.latest, p.id, info);
+  };
   switch (
     cacheable
       ? ViewCache.lookup(
           p.id,
+          ~own,
+          ~pinned,
           ~statics_map,
           ~dynamics_map,
           ~sample_focus,
@@ -716,11 +1079,26 @@ let mk_view =
       : None
   ) {
   | Some(view) =>
+    ViewCache.lookup_ms :=
+      ViewCache.lookup_ms^ +. (Util.BenchMarks.now() -. t_lookup);
     ViewCache.hits := ViewCache.hits^ + 1;
     view;
   | None =>
     ViewCache.misses := ViewCache.misses^ + 1;
     let (module P) = ProjectorInit.to_module(p.kind);
+    /* (^report(51)) a livelit's lookups of the run, while it is drawn */
+    let read_at = ref([]);
+    let info =
+      is_livelit
+        ? {
+          ...info,
+          dynamics_at: id => {
+            let r = info.dynamics_at(id);
+            read_at := [(id, r), ...read_at^];
+            r;
+          },
+        }
+        : info;
     let idx = List.find_index(x => x == p.id, projector_list) |> Option.get;
     /* Walk the projector's syntax (including tile children) collecting every
      * splice regardless of nesting. Splices inside nested projectors are not
@@ -748,58 +1126,107 @@ let mk_view =
     let splice_size_map = Measured.splice_sizes(p.syntax);
     let splice_size = (id: Id.t): Util.Point.t =>
       Measured.splice_size_of(splice_size_map, id);
-    let view =
-      P.view({
-        model: p.model,
-        info,
-        local: a => {
-          let new_model = P.update(p.model, info, a);
-          inject(Project(SetModel(idx, p.kind, new_model)));
-        },
-        local_quiet: a => {
-          let new_model = P.update(p.model, info, a);
-          inject(Project(SetModelQuiet(idx, p.kind, new_model)));
-        },
-        parent: a =>
-          switch (a) {
-          | FocusById(id) =>
-            let target_idx = List.find_index(x => x == id, projector_list);
-            switch (target_idx) {
-            | Some(target_idx) =>
-              inject(Project(Focus(target_idx, Probe, None)))
-            | None => Effect.Ignore
-            };
-          | a => inject(handle(idx, p.kind, a))
+    let own_parts =
+      Util.BenchMarks.on()
+        ? [|
+          /* (None as a fresh object: an absent part is never "the same") */
+          switch (info.statics) {
+          | Some(x) => Obj.repr(x)
+          | None => Obj.repr(ref(0))
           },
-        view_seg:
-          (
-            ~single_line=?,
-            ~background=?,
-            ~classes=?,
-            ~text_only=?,
-            sort,
-            segment,
-          ) =>
-          flex_code(
-            ~font_metrics,
-            ~single_line?,
-            ~background?,
-            ~classes?,
-            ~text_only?,
-            sort,
-            segment,
-          ),
-        splice_view,
-        splice_size,
-        splices,
-        status,
-        core_settings,
-        col_width: font_metrics.col_width,
-        row_height: font_metrics.row_height,
-      });
+          switch (info.dynamics) {
+          | Some(x) => Obj.repr(x)
+          | None => Obj.repr(ref(0))
+          },
+          switch (info.elaborated) {
+          | Some(x) => Obj.repr(x)
+          | None => Obj.repr(ref(0))
+          },
+        |]
+        : [||];
+    let view =
+      Util.BenchMarks.time(
+        ~extra=
+          () => {
+            let same = ViewCache.own_same(p.id, own_parts);
+            Hashtbl.replace(ViewCache.own_parts, p.id, own_parts);
+            Util.BenchMarks.[
+              ("kind", str(ProjectorCore.Kind.name(p.kind))),
+              ("id", str(String.sub(Id.to_string(p.id), 0, 8))),
+              ("why", str(cacheable ? ViewCache.last_miss^ : "splices")),
+              ("own_same", str(same)),
+            ];
+          },
+        "view: a projector drawn",
+        () =>
+          P.view({
+            model: p.model,
+            info,
+            local: a => {
+              let new_model =
+                P.update(p.model, ViewCache.latest_info(p.id, info), a);
+              inject(Project(SetModel(idx, p.kind, new_model)));
+            },
+            local_quiet: a => {
+              let new_model =
+                P.update(p.model, ViewCache.latest_info(p.id, info), a);
+              inject(Project(SetModelQuiet(idx, p.kind, new_model)));
+            },
+            parent: a =>
+              switch (a) {
+              | FocusById(id) =>
+                let target_idx =
+                  List.find_index(x => x == id, projector_list);
+                switch (target_idx) {
+                | Some(target_idx) =>
+                  inject(Project(Focus(target_idx, Probe, None)))
+                | None => Effect.Ignore
+                };
+              | a => inject(handle(idx, p.kind, a))
+              },
+            view_seg:
+              (
+                ~single_line=?,
+                ~background=?,
+                ~classes=?,
+                ~text_only=?,
+                sort,
+                segment,
+              ) =>
+              flex_code(
+                ~font_metrics,
+                ~single_line?,
+                ~background?,
+                ~classes?,
+                ~text_only?,
+                sort,
+                segment,
+              ),
+            splice_view,
+            splice_size,
+            splices,
+            status,
+            core_settings,
+            col_width: font_metrics.col_width,
+            row_height: font_metrics.row_height,
+          }),
+      );
     if (cacheable) {
       ViewCache.store(
         p.id,
+        ~own,
+        ~reads=
+          is_livelit
+            ? Some(
+                {
+                  pinned,
+                  at: [
+                    (p.id, Language.Dynamics.Map.lookup(p.id, dynamics_map)),
+                    ...read_at^,
+                  ],
+                }: ViewCache.reads,
+              )
+            : Stdlib.Option.None,
         ~statics_map,
         ~dynamics_map,
         ~sample_focus,
@@ -818,6 +1245,38 @@ let mk_view =
   };
 };
 
+/* (^ticket(722), cut C) each cacheable projector's finished views, by id, from the frame that last drew it; several
+   editors draw in one frame (a stack's cells), so entries are kept across editors, and the whole table is let go
+   past 512 entries, so it holds no closures of projectors long gone. (^report(51)) With the view the cache gave
+   and the shape it was wrapped with: a new frame's data (new maps, at a worker's answer) whose view comes back
+   the very same, for the same projector, place, status and shape, keeps the finished views too */
+type split_entry = {
+  s_pd: Model.projector_data,
+  s_version: int,
+  s_list: list(Id.t),
+  s_font: FontMetrics.t,
+  s_core: Language.CoreSettings.t,
+  s_probe: int,
+  s_views: View.t,
+  s_shape: ProjectorCore.Shape.t,
+  s_out: (Node.t, option(Node.t)),
+};
+let split_memo: Hashtbl.t(Id.t, split_entry) = Hashtbl.create(64);
+/* each editor's projector list, by its first id, as it last drew */
+let lists_seen: Hashtbl.t(Id.t, list(Id.t)) = Hashtbl.create(8);
+/* the view and shape split_views last wrapped, for the memo's entry */
+let last_split: ref(option((View.t, ProjectorCore.Shape.t))) =
+  ref(Stdlib.Option.None);
+/* (^report(51)) for the check's mark: time in shape_of, and how many
+   projectors kept their finished views across new data */
+let shape_ms = ref(0.);
+let kept_wrapped = ref(0);
+/* (^report(51)) shape_of's longest call at a pass, and whose: at two of
+   build 34's four answers the shapes took 31 ms though nothing was
+   evaluated or walked (run 42809664205); and its splice sizes apart */
+let shape_longest_ms = ref(0.);
+let shape_longest = ref("");
+
 /* Extract and collate different layers of the resulting view
  * in order to stratify z-levels across all projectors */
 let split_views =
@@ -832,6 +1291,7 @@ let split_views =
       ~open_panel: Ui_effect.t(unit)=Effect.Ignore,
       ~render_splice:
          (~projector_idx: int, ~splice_idx: int, Base.splice) => Node.t,
+      ~kept: option(split_entry)=?,
       {p, offside_base, measurement, status, render_layers, _} as projector_data: Model.projector_data,
       projector_list: list(Id.t),
     )
@@ -839,6 +1299,7 @@ let split_views =
   let idx = List.find_index(x => x == p.id, projector_list) |> Option.get;
   let chipped =
     !skip_inline && ProjectorCore.Placement.is_sidebar(p.placement);
+  let t_view = Util.BenchMarks.now();
   let views =
     mk_view(
       inject,
@@ -848,6 +1309,8 @@ let split_views =
       projector_data,
       projector_list,
     );
+  ViewCache.mk_view_ms :=
+    ViewCache.mk_view_ms^ +. (Util.BenchMarks.now() -. t_view);
   let wrapper =
     view_wrapper(
       ~inject,
@@ -861,63 +1324,88 @@ let split_views =
       ~kind=p.kind,
       ~id=p.id,
     );
+  let t_shape = Util.BenchMarks.now();
   let shape = shape_of(p, projector_data.info);
-  let line_view = {
-    let offside_view =
-      views.offside
-      |> Option.map(
-           offside_wrapper(
-             font_metrics,
-             offside_base,
-             ~row=measurement.origin.row,
-             ~origin_col=measurement.origin.col,
-           ),
-         )
-      |> Option.to_list;
-    let below_view =
-      views.below
-      |> Option.map(below_wrapper(font_metrics, measurement.origin.col))
-      |> Option.to_list;
-    /* A Tab projector's wrapper div spans only its top row (that is all
-       the measurement covers), so mount the GUI in an extent layer sized
-       to the full hang-below region; per-kind CSS positions within it. */
-    let tab_extent = (view: Node.t): Node.t =>
-      switch (shape.vertical) {
-      | Tab(rows) when rows > 0 =>
-        div(
-          ~attrs=[
-            Attr.class_("tab-extent"),
-            Attr.create(
-              "style",
-              Printf.sprintf(
-                "top: 1px; bottom: auto; height: %fpx;",
-                float_of_int(rows + 1) *. font_metrics.row_height -. 2.,
-              ),
-            ),
-          ],
-          [view],
-        )
-      | _ => view
-      };
-    /* A docked projector shows a chip here; its primary UI is rendered by
-     * ProjectorPanel instead. Overlay and offside layers are unaffected by
-     * placement. Refractors (skip_inline) never occupy the inline slot. */
-    let inline_view =
-      skip_inline
-        ? [] : chipped ? [chip(~open_panel)] : [tab_extent(views.inline)];
-    wrapper(
-      inline_view
-      @ [backing_deco(~font_metrics, ~measurement, ~shape, p)]
-      @ offside_view
-      @ below_view,
-    );
+  let dt_shape = Util.BenchMarks.now() -. t_shape;
+  shape_ms := shape_ms^ +. dt_shape;
+  if (dt_shape > shape_longest_ms^) {
+    shape_longest_ms := dt_shape;
+    shape_longest :=
+      ProjectorCore.Kind.name(p.kind)
+      ++ " "
+      ++ String.sub(Id.to_string(p.id), 0, 8);
   };
-  let overlay_view =
-    Option.map(
-      v => wrapper([v]),
-      render_layers == Model.OffsideOnly ? Option.none : views.overlay,
-    );
-  (line_view, overlay_view);
+  last_split := Some((views, shape));
+  switch (kept) {
+  | Some(e)
+      when
+        e.s_views === views
+        && e.s_pd.p === p
+        && e.s_pd.measurement == measurement
+        && e.s_pd.offside_base == offside_base
+        && e.s_pd.status == status
+        && e.s_pd.render_layers == render_layers
+        && e.s_shape == shape =>
+    incr(kept_wrapped);
+    e.s_out;
+  | _ =>
+    let line_view = {
+      let offside_view =
+        views.offside
+        |> Option.map(
+             offside_wrapper(
+               font_metrics,
+               offside_base,
+               ~row=measurement.origin.row,
+               ~origin_col=measurement.origin.col,
+             ),
+           )
+        |> Option.to_list;
+      let below_view =
+        views.below
+        |> Option.map(below_wrapper(font_metrics, measurement.origin.col))
+        |> Option.to_list;
+      /* A Tab projector's wrapper div spans only its top row (that is all
+         the measurement covers), so mount the GUI in an extent layer sized
+         to the full hang-below region; per-kind CSS positions within it. */
+      let tab_extent = (view: Node.t): Node.t =>
+        switch (shape.vertical) {
+        | Tab(rows) when rows > 0 =>
+          div(
+            ~attrs=[
+              Attr.class_("tab-extent"),
+              Attr.create(
+                "style",
+                Printf.sprintf(
+                  "top: 1px; bottom: auto; height: %fpx;",
+                  float_of_int(rows + 1) *. font_metrics.row_height -. 2.,
+                ),
+              ),
+            ],
+            [view],
+          )
+        | _ => view
+        };
+      /* A docked projector shows a chip here; its primary UI is rendered by
+       * ProjectorPanel instead. Overlay and offside layers are unaffected by
+       * placement. Refractors (skip_inline) never occupy the inline slot. */
+      let inline_view =
+        skip_inline
+          ? [] : chipped ? [chip(~open_panel)] : [tab_extent(views.inline)];
+      wrapper(
+        inline_view
+        @ [backing_deco(~font_metrics, ~measurement, ~shape, p)]
+        @ offside_view
+        @ below_view,
+      );
+    };
+    let overlay_view =
+      Option.map(
+        v => wrapper([v]),
+        render_layers == Model.OffsideOnly ? Option.none : views.overlay,
+      );
+    (line_view, overlay_view);
+  };
 };
 
 let by_measurement = (pd1: Model.projector_data, pd2: Model.projector_data) =>
@@ -941,6 +1429,25 @@ let all =
       projector_data: list(Model.projector_data),
       projector_list: list(Id.t),
     ) => {
+  /* (^report(51)) a list of the same ids as the one an editor last drew
+     with stands for it, so its projectors keep their finished views (the
+     memo asks for the very list): after an edit the list is new though its
+     ids are the same, and the redraw then wrapped all 53 livelits on the
+     Witch again (run 42775688527) */
+  let projector_list =
+    switch (projector_list) {
+    | [] => projector_list
+    | [first, ..._] =>
+      switch (Hashtbl.find_opt(lists_seen, first)) {
+      | Some(l) when l === projector_list || l == projector_list => l
+      | _ =>
+        if (Hashtbl.length(lists_seen) > 64) {
+          Hashtbl.reset(lists_seen);
+        };
+        Hashtbl.replace(lists_seen, first, projector_list);
+        projector_list;
+      }
+    };
   let render_splice =
     Option.value(
       render_splice,
@@ -956,24 +1463,145 @@ let all =
     d.measurement.origin.row,
     d.measurement.last.row,
   );
+  /* (^ticket(722), the drag fast path, cut C) a projector's finished views again, while its data is the same object
+     (Model.mk_cached), its version has not moved, and the frame's settings are the same; a projector holding
+     splices is made every frame, as its view's cache does (its caret decorations read the zipper) */
+  /* (^report(51)) how many projectors' views were made again, for the
+     check's mark: at the worker's answer on the Witch, "view: projectors"
+     spent some 23 ms outside any projector drawn (run 42761046647) */
+  let remade = ref(0);
+  ViewCache.(
+    lookup_ms := 0.;
+    splices_ms := 0.;
+    mk_view_ms := 0.;
+    compared := 0;
+    compare_ms := 0.
+  );
+  shape_ms := 0.;
+  shape_longest_ms := 0.;
+  shape_longest := "";
+  shape_sizes_ms := 0.;
+  kept_wrapped := 0;
+  LivelitProj.shapes_evaluated := 0;
+  LivelitProj.applied_anew := 0;
+  LivelitProj.shape_def_ms := 0.;
+  LivelitProj.shape_value_ms := 0.;
+  LivelitProj.shape_values_walked := 0;
+  let split = (pd: Model.projector_data) => {
+    let version = app_version_of(pd.p);
+    let same_frame = (e: split_entry) =>
+      e.s_version == version
+      && e.s_list === projector_list
+      && e.s_font == font_metrics
+      && e.s_core == core_settings
+      && e.s_probe == ProbeProj.Settings.version^;
+    switch (Hashtbl.find_opt(split_memo, pd.p.id)) {
+    | Some(e) when e.s_pd === pd && same_frame(e) => e.s_out
+    | found =>
+      incr(remade);
+      last_split := Stdlib.Option.None;
+      let out =
+        split_views(
+          ~skip_inline=false,
+          ~core_settings,
+          ~open_panel,
+          ~render_splice,
+          ~kept=?
+            Option.bind(found, e =>
+              same_frame(e) ? Some(e) : Stdlib.Option.None
+            ),
+          inject,
+          make_active,
+          font_metrics,
+          pd,
+          projector_list,
+        );
+      switch (last_split^) {
+      | Some((s_views, s_shape)) when !seg_has_splices(pd.p.syntax) =>
+        if (Hashtbl.length(split_memo) > 512) {
+          Hashtbl.reset(split_memo);
+        };
+        Hashtbl.replace(
+          split_memo,
+          pd.p.id,
+          {
+            s_pd: pd,
+            s_version: version,
+            s_list: projector_list,
+            s_font: font_metrics,
+            s_core: core_settings,
+            s_probe: ProbeProj.Settings.version^,
+            s_views,
+            s_shape,
+            s_out: out,
+          },
+        );
+      | _ => ()
+      };
+      out;
+    };
+  };
   let (base_views, overlay_views) =
-    projector_data
-    |> filter_by_visibility(visible, _, get_row_range)
-    |> List.sort(by_measurement)
-    |> List.map(
-         split_views(
-           ~skip_inline=false,
-           ~core_settings,
-           ~open_panel,
-           ~render_splice,
-           inject,
-           make_active,
-           font_metrics,
-           _,
-           projector_list,
-         ),
-       )
-    |> List.split;
+    Util.BenchMarks.time(
+      ~extra=
+        () =>
+          [
+            ("remade", Util.BenchMarks.num(float_of_int(remade^))),
+            ("kept: lookup ms", Util.BenchMarks.num(ViewCache.lookup_ms^)),
+            ("splices walk ms", Util.BenchMarks.num(ViewCache.splices_ms^)),
+            ("mk_view ms", Util.BenchMarks.num(ViewCache.mk_view_ms^)),
+            (
+              "values compared",
+              Util.BenchMarks.num(float_of_int(ViewCache.compared^)),
+            ),
+            ("compare ms", Util.BenchMarks.num(ViewCache.compare_ms^)),
+            ("shape ms", Util.BenchMarks.num(shape_ms^)),
+            ("shape: longest ms", Util.BenchMarks.num(shape_longest_ms^)),
+            ("shape: longest", Util.BenchMarks.str(shape_longest^)),
+            ("shape: sizes ms", Util.BenchMarks.num(shape_sizes_ms^)),
+            (
+              "shapes evaluated",
+              Util.BenchMarks.num(
+                float_of_int(LivelitProj.shapes_evaluated^),
+              ),
+            ),
+            (
+              "applied anew",
+              Util.BenchMarks.num(float_of_int(LivelitProj.applied_anew^)),
+            ),
+            (
+              "shape: def ms",
+              Util.BenchMarks.num(LivelitProj.shape_def_ms^),
+            ),
+            (
+              "shape: value ms",
+              Util.BenchMarks.num(LivelitProj.shape_value_ms^),
+            ),
+            (
+              "shape: values walked",
+              Util.BenchMarks.num(
+                float_of_int(LivelitProj.shape_values_walked^),
+              ),
+            ),
+            (
+              "kept wrapped",
+              Util.BenchMarks.num(float_of_int(kept_wrapped^)),
+            ),
+            (
+              "projectors",
+              Util.BenchMarks.num(
+                float_of_int(List.length(projector_data)),
+              ),
+            ),
+          ],
+      "view: projectors' views",
+      () =>
+        projector_data
+        |> filter_by_visibility(visible, _, get_row_range)
+        |> List.sort(by_measurement)
+        |> List.map(split)
+        |> List.split,
+    );
   let overlay_views = List.filter_map(Fun.id, overlay_views);
   [
     div_c(

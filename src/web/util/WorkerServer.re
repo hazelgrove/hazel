@@ -94,10 +94,24 @@ module ClientMessage = {
     | EvaluateShared(bool, Posted.t)
     /* the client could not resolve a shared response: start the responses'
        table over (the client asks for the evaluation again) */
-    | ResetResponses;
+    | ResetResponses
+    /* (^report(46)) keep the worker's own timeline, and send it after each
+       result (ServerMessage.Timeline); false: stop */
+    | Record(bool);
 };
 
 module ServerMessage = {
+  /* (^report(46)) one step of the worker's own timeline: [at] in ms since
+     the epoch (performance's timeOrigin and now), so the page can place it
+     on its own clock; [extra]: a size, or the evaluator's share */
+  [@deriving (show, sexp, yojson)]
+  type mark = {
+    what: string,
+    at: float,
+    ms: float,
+    extra: list((string, float)),
+  };
+
   /* Reuse-pass predictions sent before evaluation slices begin. */
   [@deriving (show, sexp, yojson)]
   type reuse_predictions =
@@ -146,6 +160,16 @@ module ServerMessage = {
   [@deriving (show, sexp, yojson)]
   type resend = {request_id: int};
 
+  /* (^ticket(718), ^report(50)'s next step 7) a message's probe samples, their first-order values carried as data
+     (Language.FirstOrder): each such value is a placeholder in the message, a term whose annotation is [marker] (one
+     block in the message, so Marshal keeps it shared, and the page knows it by identity) and whose literal is its
+     index in [datas] (Wire) */
+  [@deriving (show, sexp, yojson)]
+  type wire_data = {
+    marker: Language.IdTagged.IdTag.t,
+    datas: array(Language.FirstOrder.t),
+  };
+
   [@deriving (show, sexp, yojson)]
   type t =
     | Ack(ack)
@@ -159,7 +183,467 @@ module ServerMessage = {
     | Shared(bool, t)
     /* The worker's coverage counters so far, after each Result; see
      * CoverageHook. */
-    | Coverage(string);
+    | Coverage(string)
+    /* (^report(46)) the worker's own timeline since the last one, after a
+       result, while the client asks (ClientMessage.Record) */
+    | Timeline(list(mark))
+    /* a Stream or a Result, its samples' values carried as data (Wire) */
+    | WithData(wire_data, t);
+};
+
+/* (^ticket(718), ^report(50)'s next step 7: values as data where they cross) The worker's answer on the Witch slide is
+   0.59 MB, encoded in 70 ms in the worker and decoded in 13 ms in the page (Firefox run 42566328043), nearly all of it
+   probe samples: 9,099 of them, their values and environments terms with an id on every node. A sample's value, its
+   environment's values and its argument, when closed and first-order (Language.FirstOrder.of_term), go as data: in
+   the worker, [out] puts each in a table beside the message and a placeholder where it was (one for each value, the
+   same value in many samples once); in the page, [in_] makes each a term again, once, and puts it back. Values that
+   are not first-order, and a bare literal or constructor (no larger than its placeholder), stay terms. */
+module Wire = {
+  open Language;
+  /* Off from 22cd278106 (Firefox run 42657604986, 1524e96da3): on the Witch only 5 values a message were first-order by
+     of_term's strict reading, and rebuilding every sample record lost the sharing Marshal had kept (the 216 completed
+     entries' sample maps share subtrees), so the answer grew from 0.59 to 0.89 MB. On again for results only: a result
+     carries one state since 01a5e8ecb0 (no final stream), and the survey finds every sample value first-order or a bare
+     literal (17 and 94 a result, run 42739071781). Streams stay terms (post_message's is_result). */
+  let enabled = ref(true);
+  module Phys =
+    Hashtbl.Make({
+      type t = Exp.t;
+      let equal = (===);
+      let hash = Hashtbl.hash;
+    });
+  let map_samples =
+      (f: Exp.t => Exp.t, st: EvaluatorState.t): EvaluatorState.t => {
+    let elided = (v: CallStack.elided_value): CallStack.elided_value =>
+      switch (v) {
+      | Val(d) => Val(f(d))
+      | Opaque => Opaque
+      };
+    {
+      ...st,
+      probes:
+        Util.Id.Map.map(
+          List.map((s: Sample.t) =>
+            {
+              ...s,
+              value: f(s.value),
+              env:
+                List.map(
+                  (en: Sample.Env.entry) =>
+                    {
+                      ...en,
+                      value: elided(en.value),
+                    },
+                  s.env,
+                ),
+              args: Option.map(elided, s.args),
+            }
+          ),
+          st.probes,
+        ),
+    };
+  };
+  let map_states =
+      (f: EvaluatorState.t => EvaluatorState.t, msg: ServerMessage.t)
+      : ServerMessage.t => {
+    let outbox = (o: ServerMessage.stream_update): ServerMessage.stream_update => {
+      completed: {
+        entries:
+          Util.Id.Map.map(
+            (en: IncrEval.entry(EvaluatorState.t)) =>
+              {
+                ...en,
+                state: f(en.state),
+              },
+            o.completed.entries,
+          ),
+      },
+      current:
+        Option.map(
+          (c: IncrEval.current(EvaluatorState.t)) =>
+            {
+              ...c,
+              state: f(c.state),
+            },
+          o.current,
+        ),
+    };
+    let stream = (s: ServerMessage.stream): ServerMessage.stream => {
+      ...s,
+      update: outbox(s.update),
+    };
+    switch (msg) {
+    | Stream(s) => Stream(stream(s))
+    | Result(r) =>
+      Result({
+        ...r,
+        final_streams: List.map(stream, r.final_streams),
+        response:
+          List.map(
+            ((k, v): (string, Response.value)) =>
+              (
+                k,
+                switch (v) {
+                | Ok((e, st)) => Ok((e, f(st)))
+                | Error(_) => v
+                },
+              ),
+            r.response,
+          ),
+      })
+    | m => m
+    };
+  };
+  /* in the worker: the message, and how many values went as data and how many of them did not come back the same
+     (checked only when [check]: made a term again, compared as Exp.fast_equal compares, ids aside) */
+  /* (^ticket(718)) the last [out]'s own parts, ms: FirstOrder.of_term on the values, and the check (to_term and
+     fast_equal, only when [check]); the rest of its time is rebuilding the states around them. The check runs in
+     every recorded run, so its time was counted as making data (29-41 ms on the Witch, run 42747955240) */
+  let of_term_ms = ref(0.);
+  let check_ms = ref(0.);
+  let out = (~check=false, msg: ServerMessage.t): (ServerMessage.t, int, int) =>
+    switch (msg) {
+    | Stream(_)
+    | Result(_) =>
+      of_term_ms := 0.;
+      check_ms := 0.;
+      let marker = IdTagged.IdTag.fresh();
+      let datas = ref([]);
+      let n = ref(0);
+      let differ = ref(0);
+      let memo = Phys.create(256);
+      let conv = (v: Exp.t): Exp.t =>
+        switch (v.term) {
+        | Atom(_)
+        | Constructor(_) => v
+        | _ =>
+          switch (Phys.find_opt(memo, v)) {
+          | Some(r) => r
+          | None =>
+            let t0 = Util.BenchMarks.now();
+            let fo = FirstOrder.of_term(v);
+            let t1 = Util.BenchMarks.now();
+            of_term_ms := of_term_ms^ +. (t1 -. t0);
+            let r =
+              switch (fo) {
+              | Some(d) =>
+                if (check) {
+                  if (!Exp.fast_equal(FirstOrder.to_term(d), v)) {
+                    incr(differ);
+                  };
+                  check_ms := check_ms^ +. (Util.BenchMarks.now() -. t1);
+                };
+                let i = n^;
+                incr(n);
+                datas := [d, ...datas^];
+                let p: Exp.t = {
+                  term: Atom(SInt(i)),
+                  annotation: marker,
+                };
+                p;
+              | None => v
+              };
+            Phys.add(memo, v, r);
+            r;
+          }
+        };
+      let msg' = map_states(map_samples(conv), msg);
+      n^ == 0
+        ? (msg, 0, 0)
+        : (
+          ServerMessage.WithData(
+            {
+              marker,
+              datas: Array.of_list(List.rev(datas^)),
+            },
+            msg',
+          ),
+          n^,
+          differ^,
+        );
+    | m => (m, 0, 0)
+    };
+  /* While the worker keeps its timeline: each distinct sample value in a Stream or a Result (by identity), whether it
+     is first-order data, and if not, why (FirstOrder.why_not), as counts; the message unchanged */
+  let survey = (msg: ServerMessage.t): list((string, float)) => {
+    let seen = Phys.create(256);
+    let counts = Hashtbl.create(8);
+    let bump = k =>
+      Hashtbl.replace(
+        counts,
+        k,
+        1 + Option.value(~default=0, Hashtbl.find_opt(counts, k)),
+      );
+    let look = (v: Exp.t): Exp.t => {
+      if (!Phys.mem(seen, v)) {
+        Phys.add(seen, v, v);
+        switch (v.term) {
+        | Atom(_)
+        | Constructor(_) => bump("a bare literal or constructor")
+        | _ =>
+          switch (FirstOrder.why_not(v)) {
+          | None => bump("data")
+          | Some(why) => bump("not data: " ++ why)
+          }
+        };
+      };
+      v;
+    };
+    ignore(map_states(map_samples(look), msg));
+    Hashtbl.fold(
+      (k, n, acc) => [(k, float_of_int(n)), ...acc],
+      counts,
+      [],
+    );
+  };
+  /* (^ticket(718)) While the worker keeps its timeline: a Result's bytes by
+     part, each part's objects marshalled together (so shared within a part,
+     as the whole is), to see what the answer carries before changing how it
+     is made. Parts overlap the whole, and a state's parts are counted once
+     however many entries hold it */
+  let parts_on = ref(false);
+  module PhysO =
+    Hashtbl.Make({
+      type t = Obj.t;
+      let equal = (===);
+      let hash = Hashtbl.hash;
+    });
+  let parts = (msg: ServerMessage.t): list((string, float)) =>
+    switch (msg) {
+    | Result(r) =>
+      let seen = PhysO.create(256);
+      let bags: Hashtbl.t(string, list(Obj.t)) = Hashtbl.create(16);
+      let put = (k: string, o: Obj.t): unit =>
+        Hashtbl.replace(
+          bags,
+          k,
+          [o, ...Option.value(~default=[], Hashtbl.find_opt(bags, k))],
+        );
+      let entries = ref(0);
+      let states = ref(0);
+      let samples = ref(0);
+      /* each probe's distinct samples (by identity), for the largest */
+      let seen_samples = PhysO.create(1024);
+      let per_probe: Hashtbl.t(string, list(Obj.t)) = Hashtbl.create(64);
+      let rec state = (st: EvaluatorState.t): unit =>
+        if (!PhysO.mem(seen, Obj.repr(st))) {
+          PhysO.add(seen, Obj.repr(st), Obj.repr(st));
+          incr(states);
+          Util.Id.Map.iter(
+            (pid, ss: list(Sample.t)) =>
+              List.iter(
+                (smp: Sample.t) => {
+                  incr(samples);
+                  if (!PhysO.mem(seen_samples, Obj.repr(smp))) {
+                    PhysO.add(seen_samples, Obj.repr(smp), Obj.repr(smp));
+                    let k = String.sub(Util.Id.to_string(pid), 0, 8);
+                    Hashtbl.replace(
+                      per_probe,
+                      k,
+                      [
+                        Obj.repr(smp),
+                        ...Option.value(
+                             ~default=[],
+                             Hashtbl.find_opt(per_probe, k),
+                           ),
+                      ],
+                    );
+                  };
+                  put("sample values", Obj.repr(smp.value));
+                  put("sample environments", Obj.repr(smp.env));
+                  put(
+                    "samples' other fields",
+                    Obj.repr((
+                      smp.call_stack,
+                      smp.args,
+                      smp.frame,
+                      smp.syntax_id,
+                    )),
+                  );
+                },
+                ss,
+              ),
+            st.probes,
+          );
+          put("tests and theorems", Obj.repr((st.tests, st.theorems)));
+          put("observation traces", Obj.repr((st.obs_trace, st.obs_opens)));
+          incr_eval(st.incr_eval);
+        }
+      and incr_eval = (ie: IncrEval.t(EvaluatorState.t)): unit =>
+        Util.Id.Map.iter(
+          (_, en: IncrEval.entry(EvaluatorState.t)) => {
+            incr(entries);
+            put("entries' elaborated pieces", Obj.repr(en.prev_elab));
+            put("entries' reuse maps", Obj.repr(en.prev_reuse_map));
+            put("entries' probe targets", Obj.repr(en.prev_probe_targets));
+            put("entries' values", Obj.repr(en.value));
+            state(en.state);
+          },
+          ie.entries,
+        );
+      let outbox = (o: ServerMessage.stream_update) => {
+        incr_eval(o.completed);
+        Option.iter(
+          (c: IncrEval.current(EvaluatorState.t)) => state(c.state),
+          o.current,
+        );
+      };
+      List.iter(
+        (s: ServerMessage.stream) => outbox(s.update),
+        r.final_streams,
+      );
+      List.iter(
+        ((_, v): (string, Response.value)) =>
+          switch (v) {
+          | Ok((e, st)) =>
+            put("the program's values", Obj.repr(e));
+            state(st);
+          | Error(_) => ()
+          },
+        r.response,
+      );
+      let bytes = (o: Obj.t): float =>
+        float_of_int(String.length(Marshal.to_string(o, [])));
+      /* the eight probes with the most distinct samples: their count, and
+         their bytes (value, environment and all) */
+      let top =
+        Hashtbl.fold((k, os, acc) => [(k, os), ...acc], per_probe, [])
+        |> List.map(((k, os)) =>
+             (k, List.length(os), bytes(Obj.repr(os)))
+           )
+        |> List.sort(((_, _, a), (_, _, b)) => Float.compare(b, a))
+        |> List.filteri((i, _) => i < 8)
+        |> List.concat_map(((k, n, b)) =>
+             [
+               ("probe " ++ k ++ " samples", float_of_int(n)),
+               ("probe " ++ k ++ " bytes", b),
+             ]
+           );
+      /* the result's own states' probes: with their environments left out,
+         and with their values left out */
+      let response_probes = (keep: Sample.t => Sample.t) =>
+        switch (msg) {
+        | Result(r) =>
+          List.filter_map(
+            ((_, v): (string, Response.value)) =>
+              switch (v) {
+              | Ok((_, st)) =>
+                Some(Util.Id.Map.map(List.map(keep), st.probes))
+              | Error(_) => None
+              },
+            r.response,
+          )
+        | _ => []
+        };
+      let bare: Exp.t = {
+        term: Atom(SInt(0)),
+        annotation: IdTagged.IdTag.fresh(),
+      };
+      let values_only =
+        bytes(
+          Obj.repr(
+            response_probes(smp =>
+              {
+                ...smp,
+                env: [],
+              }
+            ),
+          ),
+        );
+      let envs_only =
+        bytes(
+          Obj.repr(
+            response_probes(smp =>
+              {
+                ...smp,
+                value: bare,
+              }
+            ),
+          ),
+        );
+      let neither =
+        bytes(
+          Obj.repr(
+            response_probes(smp =>
+              {
+                ...smp,
+                value: bare,
+                env: [],
+              }
+            ),
+          ),
+        );
+      /* what two cuts would leave, each keeping the rest as it is (so as
+         shared): (1) the result without its final streams, the cache
+         entries finished since the last stream, applied just before it;
+         (2) also without the cache in its states (each entry's state holds
+         every probe so far, and the page reads only the result's own) */
+      let no_cache = (st: EvaluatorState.t): EvaluatorState.t => {
+        ...st,
+        incr_eval: IncrEval.empty,
+      };
+      let cut1 =
+        switch (msg) {
+        | Result(r) =>
+          ServerMessage.Result({
+            ...r,
+            final_streams: [],
+          })
+        | m => m
+        };
+      let cut2 = map_states(no_cache, cut1);
+      [
+        ("result probes, values (no environments)", values_only),
+        ("result probes, environments (no values)", envs_only),
+        ("result probes, neither", neither),
+        ("cut 1: no final streams", bytes(Obj.repr(cut1))),
+        ("cut 2: and no cache in the states", bytes(Obj.repr(cut2))),
+        ("distinct samples", float_of_int(PhysO.length(seen_samples))),
+        ("probes", float_of_int(Hashtbl.length(per_probe))),
+        ...top,
+      ]
+      @ [
+        ("the whole", bytes(Obj.repr(msg))),
+        ("entries", float_of_int(entries^)),
+        ("states", float_of_int(states^)),
+        ("samples", float_of_int(samples^)),
+        ...Hashtbl.fold(
+             (k, os, acc) => [(k, bytes(Obj.repr(os))), ...acc],
+             bags,
+             [],
+           ),
+      ];
+    | _ => []
+    };
+  /* in the page: the message as the worker meant it, each value made a term once. [to_term_ms]: the last [in_]'s
+     FirstOrder.to_term, the rest of its time rebuilding the states around them (^ticket(718)) */
+  let to_term_ms = ref(0.);
+  let in_ = (msg: ServerMessage.t): ServerMessage.t =>
+    switch (msg) {
+    | WithData({marker, datas}, inner) =>
+      to_term_ms := 0.;
+      let terms = Array.make(Array.length(datas), None);
+      let conv = (v: Exp.t): Exp.t =>
+        if (v.annotation === marker) {
+          switch (v.term) {
+          | Atom(SInt(i)) when i >= 0 && i < Array.length(datas) =>
+            switch (terms[i]) {
+            | Some(t) => t
+            | None =>
+              let t0 = Util.BenchMarks.now();
+              let t = FirstOrder.to_term(datas[i]);
+              to_term_ms := to_term_ms^ +. (Util.BenchMarks.now() -. t0);
+              terms[i] = Some(t);
+              t;
+            }
+          | _ => v
+          };
+        } else {
+          v;
+        };
+      map_states(map_samples(conv), inner);
+    | m => m
+    };
 };
 
 /* Candidate encodings for the worker payloads; `Marshal` is active (see
@@ -500,13 +984,72 @@ let is_latest = (model, request_id) =>
 /* All worker→client messages cross postMessage in the Active encoding
  * (see ENCODING above): posting the live value graph overflows Chrome's
  * structured clone on deep results (#2368). */
-/* Responses are shared (Util.ShareCodec): a result the client already
-   holds goes as a reference, so a release's result carries what changed. Encoding the whole response was as much
+/* (^report(46)) the worker's own timeline, kept while the client asks
+   (ClientMessage.Record) and posted after each result: what the worker
+   does between a request and its answer. Off, a step costs a test. */
+let recording = ref(false);
+let marks: ref(list(ServerMessage.mark)) = ref([]);
+let epoch_now = (): float =>
+  Util.BenchMarks.time_origin() +. Util.BenchMarks.now();
+let wtime = (~extra=() => [], what: string, f: unit => 'r): 'r =>
+  if (! recording^) {
+    f();
+  } else {
+    let t0 = epoch_now();
+    let r = f();
+    let t1 = epoch_now();
+    marks :=
+      [
+        ServerMessage.{
+          what,
+          at: t0,
+          ms: t1 -. t0,
+          extra: extra(),
+        },
+        ...marks^,
+      ];
+    r;
+  };
+/* (^report(47), experiment 3) how many ids this realm has minted: Id.mk
+   writes its running count into each id's bytes (0 to 3: the low 30 bits;
+   4, 5, 6's low nibble and 7: the high), so a fresh id says how many came
+   before it. Two readings, less one for the second reading's own id, are
+   the ids minted between them, without touching Id.mk. */
+let id_count = (): int => {
+  let b = Uuidm.unsafe_to_bytes(Util.Id.mk());
+  let c = i => Char.code(b.[i]);
+  let lo = c(0) lor c(1) lsl 8 lor c(2) lsl 16 lor (c(3) land 0x3f) lsl 24;
+  let hi = c(4) lor c(5) lsl 8 lor (c(6) land 0x0f) lsl 16 lor c(7) lsl 20;
+  hi * 1073741824 + lo;
+};
+
+let kind_of = (msg: ServerMessage.t): string =>
+  switch (msg) {
+  | ServerMessage.Ack(_) => "ack"
+  | ServerMessage.ReusePlan(_) => "reuse plan"
+  | ServerMessage.Stream(_) => "stream"
+  | ServerMessage.Result(_) => "result"
+  | ServerMessage.Resend(_) => "resend"
+  | ServerMessage.Shared(_) => "shared"
+  | ServerMessage.Coverage(_) => "coverage"
+  | ServerMessage.Timeline(_) => "timeline"
+  | ServerMessage.WithData(_) => "result or stream, values as data"
+  };
+
+/* Responses were shared (Util.ShareCodec, ^ticket(513)): a value the client
+   already held went as a reference. Encoding the whole response was as much
    of the worker's time per release as evaluating (Kids' Choice, 44 ms
    profiled), and decoding it a main-thread cost on the way to the redraw.
-   The worker's sent-set starts over at first, when the client asks
-   (ResetResponses), when it grows past ShareCodec.max_entries, and after a
-   message too deep to walk, which is sent whole. */
+   (^report(46), Matthew, 2026-11-08: "drop sharing") The worker's answers
+   are not shared any more: on the Witch slide, once its samples no longer
+   wrote out a module whole, sharing a 0.45 MB result took 154 to 255 ms in
+   the worker to save 0.04 MB, more than encoding and decoding all of it, and
+   the hashing of every value it needs is paid again on the page. What the
+   answers carry is meant to be first-order data, which is not expected to
+   share (^ticket(718)). share_response stays for its tests, and the client
+   still decodes a Shared message, until the response side's sharing is
+   removed. The requests keep theirs: the program's pieces, open code that
+   mostly does not change between edits. */
 let response_reset = ref(true);
 let share_response = (msg: ServerMessage.t): ServerMessage.t => {
   if (Util.ShareCodec.Client.size() > Util.ShareCodec.max_entries) {
@@ -525,21 +1068,105 @@ let share_response = (msg: ServerMessage.t): ServerMessage.t => {
     msg;
   };
 };
-let post_message = (msg: ServerMessage.t): unit =>
+/* (^ticket(718)) values as data only in a result: a stream carries the
+   cache's entries, many states sharing their samples, and rebuilding their
+   maps lost Marshal's sharing (1524e96da3); a result, with no final stream
+   since 01a5e8ecb0, carries one state */
+let is_result = (msg: ServerMessage.t): bool =>
+  switch (msg) {
+  | ServerMessage.Result(_) => true
+  | _ => false
+  };
+let post_message = (msg: ServerMessage.t): unit => {
+  /* (^ticket(718)) its samples' first-order values as data (Wire), checked
+     made terms again while the timeline is kept */
+  let as_data = ref((0, 0));
+  let msg =
+    switch (msg) {
+    | ServerMessage.Stream(_)
+    | ServerMessage.Result(_) when ! Wire.enabled^ || !is_result(msg) =>
+      if (recording^) {
+        let counts = ref([]);
+        wtime(
+          ~extra=() => counts^,
+          "samples' values surveyed",
+          () => counts := Wire.survey(msg),
+        );
+      };
+      /* (^ticket(718)) a result's bytes by part, marked with no time (the
+         marshalling it takes is the diagnostic's own, and in the worker's
+         time to answer: so off but when weighing) */
+      if (recording^ && Wire.parts_on^) {
+        switch (msg) {
+        | ServerMessage.Result(_) =>
+          let ps = Wire.parts(msg);
+          wtime(~extra=() => ps, "the answer's parts, in bytes", () => ());
+        | _ => ()
+        };
+      };
+      msg;
+    | ServerMessage.Stream(_)
+    | ServerMessage.Result(_) =>
+      wtime(
+        ~extra=
+          () =>
+            [
+              ("values", float_of_int(fst(as_data^))),
+              ("not the same back", float_of_int(snd(as_data^))),
+              ("of_term ms", Wire.of_term_ms^),
+              ("check ms", Wire.check_ms^),
+            ],
+        "samples' values as data",
+        () => {
+          let (m, n, differ) = Wire.out(~check=recording^, msg);
+          as_data := (n, differ);
+          m;
+        },
+      )
+    | m => m
+    };
+  /* (^report(46)) each message's encoding and posting, on the worker's
+     timeline, with its size */
+  let kind = kind_of(msg);
+  let bytes = ref(0.);
+  let encoded =
+    wtime(
+      ~extra=() => [("bytes", bytes^)],
+      "encode " ++ kind,
+      () => {
+        let e = Active.encode_response(msg);
+        if (recording^) {
+          bytes := Core.Byte_units.bytes_float(Active.size_response(e));
+        };
+        e;
+      },
+    );
+  wtime("post " ++ kind, () => Js_of_ocaml.Worker.post_message(encoded));
+};
+
+/* the timeline so far, and start over (not itself on it) */
+let post_timeline = () => {
+  let tl = List.rev(marks^);
+  marks := [];
   Js_of_ocaml.Worker.post_message(
-    Active.encode_response(share_response(msg)),
+    Active.encode_response(ServerMessage.Timeline(tl)),
   );
+};
 
 /* A completed item's last stream, held for the result message when no item
    follows it (see ServerMessage.result.final_streams). */
 let held_final_streams: ref(list(ServerMessage.stream)) = ref([]);
 
 let post_batch_result = (model, request_id, completed) => {
-  let final_streams =
-    List.filter(
-      (s: ServerMessage.stream) => s.request_id == request_id,
-      List.rev(held_final_streams^),
-    );
+  /* (^ticket(718)) The last item's final stream goes with its result no
+     more: the page applies the two as one action, and a result, Ok or
+     failed, sets the streamed outbox aside (EvalResult's calculate) and
+     reads its dynamics from the result's own state; so the stream was
+     decoded and merged only to be dropped. On the Witch, 112 KB of the
+     577 KB answer: the cache entries finished since the last stream, 216
+     states with every probe so far (run 42743574584). An earlier item's
+     final stream still goes as a Stream when the next item starts. */
+  let final_streams = [];
   held_final_streams := [];
   if (is_latest(model, request_id)) {
     post_message(
@@ -554,6 +1181,9 @@ let post_batch_result = (model, request_id, completed) => {
     | Some(coverage) => post_message(ServerMessage.Coverage(coverage))
     | None => ()
     };
+    if (recording^) {
+      post_timeline();
+    };
   };
 };
 
@@ -562,11 +1192,15 @@ let post_batch_result = (model, request_id, completed) => {
    probe targets, value, nested incr_eval) stays in the worker, as
    decoding it would dominate main-thread heap churn */
 let slim_hole: Lazy.t(Language.Exp.t) = lazy(Language.Exp.fresh(EmptyHole));
+/* (^report(46)) and its observation trace cleared, as the main thread's own
+   evaluation clears it (clear_transient): the sliced evaluation returns its
+   state as it is, and the trace went to the page, where nothing reads it
+   (1.4 MB of the Witch slide's 5.4 MB answer) */
 let slim_state = (state: Language.EvaluatorState.t) =>
-  Language.EvaluatorState.{
+  Language.EvaluatorState.clear_transient({
     ...state,
     incr_eval: Language.IncrEval.empty,
-  };
+  });
 let slim_entries =
     (incr: Language.IncrEval.t(Language.EvaluatorState.t))
     : Language.IncrEval.t(Language.EvaluatorState.t) =>
@@ -731,20 +1365,21 @@ let prune_value_size = (e: Language.Exp.t): Language.Exp.t =>
 /* a finished item's cache stays resident; its response drops it (the UI
    never reads it: prev is worker-resident, predictions come via
    ReusePlan) */
-let complete = (key: key, response: Response.value): (key, Response.value) => {
-  store_resident(key, response);
-  (
-    key,
-    switch (response) {
-    | Ok((exp, state)) =>
-      Ok((
-        exp |> Language.TermPrune.prune_closure_envs |> prune_value_size,
-        slim_state(state),
-      ))
-    | Error(_) as e => e
-    },
-  );
-};
+let complete = (key: key, response: Response.value): (key, Response.value) =>
+  wtime("make result", () => {
+    store_resident(key, response);
+    (
+      key,
+      switch (response) {
+      | Ok((exp, state)) =>
+        Ok((
+          exp |> Language.TermPrune.prune_closure_envs |> prune_value_size,
+          slim_state(state),
+        ))
+      | Error(_) as e => e
+      },
+    );
+  });
 
 let rec evaluate_next_batch_item = (model, request_id, completed, remaining) =>
   switch (remaining) {
@@ -810,7 +1445,7 @@ and plan_latest_batch = model =>
       runtime: Idle,
     }
   | Some(request) =>
-    post_reuse_plan(model, request);
+    wtime("reuse plan", () => post_reuse_plan(model, request));
     {
       ...model,
       runtime: Starting,
@@ -879,7 +1514,13 @@ and run_scheduled_slice = model => {
 let slice_time_budget_ms = 30.;
 let run_slices_for_budget = model => {
   let t0 = Util.JsUtil.precise_timestamp();
+  /* (^report(46)) on the worker's timeline, with the evaluator's share;
+     (^report(47)) and the ids minted meanwhile */
+  let e0 = eval_total^;
+  let n = ref(0);
+  let i0 = recording^ ? id_count() : 0;
   let rec go = model => {
+    incr(n);
     let next = run_scheduled_slice(model);
     switch (next.runtime) {
     | Idle => next
@@ -890,7 +1531,17 @@ let run_slices_for_budget = model => {
         ? go(next) : next
     };
   };
-  go(model);
+  wtime(
+    ~extra=
+      () =>
+        [
+          ("eval_ms", Core.Time_ns.Span.(to_ms(eval_total^ - e0))),
+          ("slices", float_of_int(n^)),
+          ("ids", float_of_int(id_count() - i0 - 1)),
+        ],
+    "slices",
+    () => go(model),
+  );
 };
 
 /* the pieces of the last request received, by hash: what the client
@@ -1039,7 +1690,7 @@ let install_message_handler = () => {
 
   let start = (posted: Posted.t): unit => {
     post_ack(posted.request_id);
-    switch (receive(posted)) {
+    switch (wtime("request composed", () => receive(posted))) {
     | Composed(request) =>
       eval_total := Core.Time_ns.Span.zero;
       commit({
@@ -1083,7 +1734,20 @@ let install_message_handler = () => {
     };
   };
   let on_request = (req: Active.request): unit =>
-    switch (Active.decode_request(req)) {
+    switch (
+      wtime(
+        ~extra=
+          () =>
+            [
+              (
+                "bytes",
+                Core.Byte_units.bytes_float(Active.size_request(req)),
+              ),
+            ],
+        "request decoded",
+        () => Active.decode_request(req),
+      )
+    ) {
     | ClientMessage.Evaluate(posted) => start(posted)
     | ClientMessage.EvaluateShared(reset, posted) =>
       /* (a piece with a reference it cannot resolve isn't taken: the
@@ -1094,6 +1758,11 @@ let install_message_handler = () => {
       };
       start(posted);
     | ClientMessage.ResetResponses => response_reset := true
+    | ClientMessage.Record(on) =>
+      recording := on;
+      if (!on) {
+        marks := [];
+      };
     };
 
   Js_of_ocaml.Worker.set_onmessage(on_request);

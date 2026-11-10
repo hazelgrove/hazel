@@ -52,6 +52,10 @@ module Model = {
     /* outline rows fold from a drawn arrow; off, from their sigil */
     [@sexp.default false]
     outline_arrows: bool,
+    /* (^ticket(694), hazel-jit) livelits' views run as JS compiled from
+       their Hazel; off, on the interpreter */
+    [@sexp.default true]
+    jit_views: bool,
   };
 
   let init = {
@@ -129,6 +133,7 @@ module Model = {
     inspector_expanded: false,
     tail_probe: true,
     outline_arrows: false,
+    jit_views: true,
   };
 
   /* Keep the persisted fields compatible with existing preferences, while
@@ -200,7 +205,8 @@ module Update = {
     | SimpleIndication
     | InspectorExpanded
     | TailProbe
-    | OutlineArrows;
+    | OutlineArrows
+    | JitViews;
 
   let update = (~action, ~settings: Model.t): Updated.t(Model.t) => {
     (
@@ -537,6 +543,12 @@ module Update = {
           ...settings,
           show_row_lines: !settings.show_row_lines,
         }
+      | JitViews =>
+        Language.HazelJitValue.enabled := !settings.jit_views;
+        {
+          ...settings,
+          jit_views: !settings.jit_views,
+        };
       | ShowPendingEval =>
         Language.EvalWorklist.compute_enabled :=
           !settings.show_incremental_deco;

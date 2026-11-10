@@ -16,11 +16,10 @@ let seg_of_exp = (utility: utility, exp: Exp.t): (Segment.t, int) => {
 
 let abbreviated_seg_of_uncached =
     (utility: utility, available: int, exp: Exp.t): (Segment.t, int) => {
+  /* (^report(51)) the ascriptions and projectors passed through as the
+     abbreviation walks, not stripped from the whole value first */
   let (abbr_exp, _length) =
-    exp
-    |> DHExp.strip_ascriptions
-    |> Exp.strip_projectors
-    |> Abbreviate.abbreviate_exp(~available);
+    Abbreviate.abbreviate_exp(~see_through=true, ~available, exp);
   seg_of_exp(utility, abbr_exp);
 };
 

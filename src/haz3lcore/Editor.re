@@ -175,8 +175,29 @@ module Update = {
 
     /* 3. Update the zipper */
     let+ zipper =
-      Perform.go(~settings, ~statics=old_statics, ~syntax, a, state, ~root);
+      Util.BenchMarks.time("update: the zipper's action", () =>
+        Perform.go(~settings, ~statics=old_statics, ~syntax, a, state, ~root)
+      );
     let zipper = ProbePerform.settle_stepping(a, zipper);
+    /* (^ticket(721)) a livelit's commit that changes only its model's
+       literals, the ids kept: noted, so its statics are patched, not worked
+       out again (CodeWithStatics, ModelPatch) */
+    switch (a) {
+    | Project(SetSyntax(idx, ProjectorCore.Kind.Livelit, seg)) =>
+      switch (
+        Option.bind(List.nth_opt(syntax.projector_list, idx), id =>
+          Option.map(
+            (p: Base.projector) => (id, p),
+            Id.Map.find_opt(id, syntax.projectors),
+          )
+        )
+      ) {
+      | Some((id, p)) =>
+        ModelPatch.note_commit(~projector=id, ~old=p.syntax, ~seg, zipper)
+      | None => ModelPatch.noted := None
+      }
+    | _ => ModelPatch.noted := None
+    };
 
     /* Layout-level edits (projector SetModel) are run through `calculate`
      * with is_edited=false so statics/evaluation are reused, but the
@@ -240,65 +261,79 @@ module Update = {
      * update — so callers don't need to plumb "statics changed" signals. */
     let syntax = is_edited ? CachedSyntax.mark_old(syntax) : syntax;
     let syntax =
-      PerfTimer.time("editor-syntax", () =>
-        CachedSyntax.calculate(
-          ~root,
-          ~segment?,
-          zipper,
-          statics.info_map,
-          new_dynamics,
-          ~elaborated=Some(statics.elaborated),
-          syntax,
-        )
+      /* (^report(51)) the parts of a calculate's "syntax", for the check:
+         the cache, the probe effects, the autoprobe, the tail and proofs */
+      Util.BenchMarks.time(
+        ~extra=
+          () => [("path", Util.BenchMarks.str(CachedSyntax.last_path^))],
+        "syntax: the cache",
+        () =>
+          PerfTimer.time("editor-syntax", () =>
+            CachedSyntax.calculate(
+              ~root,
+              ~segment?,
+              zipper,
+              statics.info_map,
+              new_dynamics,
+              ~elaborated=Some(statics.elaborated),
+              syntax,
+            )
+          ),
       );
 
     /* 3. Probe effects: collision cleanup, auto-probe regeneration,
      *    step-into focus resolution, and cursor reset. May mutate
      *    refractors (manuals/ephemerals). */
     let zipper =
-      ProbeFocus.editor_effects(
-        ~is_edited,
-        ~syntax,
-        ~info_map=statics.info_map,
-        ~dynamics=new_dynamics,
-        zipper,
+      Util.BenchMarks.time("syntax: probe effects", () =>
+        ProbeFocus.editor_effects(
+          ~is_edited,
+          ~syntax,
+          ~info_map=statics.info_map,
+          ~dynamics=new_dynamics,
+          zipper,
+        )
       );
 
     /* 4. Handle auto probe (Off/Caret/All — see AutoProbe.t). */
     let zipper =
-      switch (autoprobe_mode) {
-      | Off =>
-        AutoProbePerform.clear_autoprobe(
+      Util.BenchMarks.time("syntax: autoprobe", () =>
+        switch (autoprobe_mode) {
+        | Off =>
+          AutoProbePerform.clear_autoprobe(
+            ~syntax,
+            ~info_map=statics.info_map,
+            zipper,
+          )
+        | Caret
+        | All =>
+          let z =
+            AutoProbePerform.update_autoprobe(
+              ~mode=autoprobe_mode,
+              ~syntax,
+              ~info_map=statics.info_map,
+              zipper,
+            );
+          /* Resolve pending_probe_cursor again since update_autoprobe
+             may have set it after editor_effects already ran */
+          ProbeFocus.resolve_pending_probe_cursor(
+            ~dynamics=new_dynamics,
+            ~syntax,
+            ~info_map=statics.info_map,
+            z,
+          );
+        }
+      );
+    let zipper =
+      Util.BenchMarks.time("syntax: tail and proofs", () =>
+        AutoProbePerform.update_tail(
+          ~on=tail_probe,
           ~syntax,
           ~info_map=statics.info_map,
           zipper,
         )
-      | Caret
-      | All =>
-        let z =
-          AutoProbePerform.update_autoprobe(
-            ~mode=autoprobe_mode,
-            ~syntax,
-            ~info_map=statics.info_map,
-            zipper,
-          );
-        /* Resolve pending_probe_cursor again since update_autoprobe
-           may have set it after editor_effects already ran */
-        ProbeFocus.resolve_pending_probe_cursor(
-          ~dynamics=new_dynamics,
-          ~syntax,
-          ~info_map=statics.info_map,
-          z,
-        );
-      };
-    let zipper =
-      AutoProbePerform.update_tail(
-        ~on=tail_probe,
-        ~syntax,
-        ~info_map=statics.info_map,
-        zipper,
-      )
-      |> AutoProbePerform.update_proofs(~proofs, ~syntax);
+        |> AutoProbePerform.update_proofs(~proofs, ~syntax)
+      );
 
     Model.{
       root,

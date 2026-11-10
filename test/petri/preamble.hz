@@ -1,0 +1,5 @@
+type Arc = (place = Int, weight = Int) in
+type Transition = (name = String, inputs = [Arc], outputs = [Arc]) in
+type Net = (marking = [Int], transitions = [Transition], draw = Float) in
+type Event = + Fire(Int) + Step in
+type Cmd = + Done + Take(Int, Int, Cmd) + Put(Int, Int, Cmd) + Say(String, Cmd) in

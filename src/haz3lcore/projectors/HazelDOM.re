@@ -97,28 +97,28 @@ let on_payload =
 let on_input = (mvu: t, ~gesture=Commit, handler, _evt, arg) =>
   on_payload(mvu, ~gesture, "input", handler, Exp.string(arg));
 
-let on_mouse = (mvu: t, ~gesture=Commit, handler, evt) => {
-  /* MouseEvent value (labeled tuple, see BuiltinsADT.Event.mouse) */
-  let mouse_event =
-    Exp.tuple([
-      field("x", Exp.float(float_of_int(evt##.clientX))),
-      field("y", Exp.float(float_of_int(evt##.clientY))),
-      field("button", Exp.int(evt##.button)),
-      field("ctrl", Exp.bool(Js_of_ocaml.Js.to_bool(evt##.ctrlKey))),
-      field("shift", Exp.bool(Js_of_ocaml.Js.to_bool(evt##.shiftKey))),
-      field("alt", Exp.bool(Js_of_ocaml.Js.to_bool(evt##.altKey))),
-      field("meta", Exp.bool(Js_of_ocaml.Js.to_bool(evt##.metaKey))),
-      /* Not in js_of_ocaml's event class type, so read unsafely -- the
-         same way JsUtil reaches performance.now(). Both clocks share
-         that origin, so handled - occurred is the queue delay. */
-      field(
-        "occurred",
-        Exp.float(Js_of_ocaml.Js.Unsafe.coerce(evt)##.timeStamp),
-      ),
-      field("handled", Exp.float(JsUtil.precise_timestamp())),
-    ]);
-  on_payload(mvu, ~gesture, "mouse", handler, mouse_event);
-};
+/* MouseEvent value (labeled tuple, see BuiltinsADT.Event.mouse); also
+   HazelJitDOM's, which carries it into a compiled handler (^ticket(714)) */
+let mouse_event_value = evt =>
+  Exp.tuple([
+    field("x", Exp.float(float_of_int(evt##.clientX))),
+    field("y", Exp.float(float_of_int(evt##.clientY))),
+    field("button", Exp.int(evt##.button)),
+    field("ctrl", Exp.bool(Js_of_ocaml.Js.to_bool(evt##.ctrlKey))),
+    field("shift", Exp.bool(Js_of_ocaml.Js.to_bool(evt##.shiftKey))),
+    field("alt", Exp.bool(Js_of_ocaml.Js.to_bool(evt##.altKey))),
+    field("meta", Exp.bool(Js_of_ocaml.Js.to_bool(evt##.metaKey))),
+    /* Not in js_of_ocaml's event class type, so read unsafely -- the
+       same way JsUtil reaches performance.now(). Both clocks share
+       that origin, so handled - occurred is the queue delay. */
+    field(
+      "occurred",
+      Exp.float(Js_of_ocaml.Js.Unsafe.coerce(evt)##.timeStamp),
+    ),
+    field("handled", Exp.float(JsUtil.precise_timestamp())),
+  ]);
+let on_mouse = (mvu: t, ~gesture=Commit, handler, evt) =>
+  on_payload(mvu, ~gesture, "mouse", handler, mouse_event_value(evt));
 
 /* Pointer position relative to the element the handler is attached to, as
    an (x, y) int pair — what a widget needs to interpret events on its own
@@ -163,20 +163,20 @@ let capture_on_pointerdown =
 /* Wheel payload: (x, y, dx, dy) — element-relative position plus scroll
    deltas. Default is prevented so a zoom/pan surface doesn't also scroll
    the page. */
-let on_wheel_at = (mvu: t, handler, evt) => {
+let wheel_value = evt => {
   let (x, y) = relative_xy(evt);
-  let payload =
-    Exp.tuple([
-      px(x),
-      px(y),
-      Exp.float(evt##.deltaX),
-      Exp.float(evt##.deltaY),
-    ]);
-  Effect.Many([
-    Effect.Prevent_default,
-    on_payload(mvu, "wheel-at", handler, payload),
+  Exp.tuple([
+    px(x),
+    px(y),
+    Exp.float(evt##.deltaX),
+    Exp.float(evt##.deltaY),
   ]);
 };
+let on_wheel_at = (mvu: t, handler, evt) =>
+  Effect.Many([
+    Effect.Prevent_default,
+    on_payload(mvu, "wheel-at", handler, wheel_value(evt)),
+  ]);
 
 let on_key = (mvu: t, handler, evt) =>
   on_payload(mvu, "keyboard", handler, SubManager.key_event_of_js(evt));

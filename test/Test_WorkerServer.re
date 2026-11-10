@@ -278,6 +278,178 @@ let test_shared_response_recovery = (): test_case(_) =>
     },
   );
 
+/* (^ticket(718), ^report(50)'s next step 7) A sample's first-order value, in its value and its environment, crosses
+   as data (WorkerServer.Wire) and Marshal, and comes back the same value; the same value in two samples goes once; a
+   bare literal stays a term. */
+let test_samples_as_data = (): test_case(_) =>
+  test_case(
+    "samples' first-order values cross as data",
+    `Quick,
+    () => {
+      let d =
+        FirstOrder.(
+          List([
+            Tuple([
+              Label("x", Atom(Float(1.), None)),
+              Label("y", Atom(Float(2.5), Some("2.50"))),
+            ]),
+            Ctor("Some", None, Some(Atom(String("a"), None))),
+            Atom(Bool(true), None),
+          ])
+        );
+      let v = FirstOrder.to_term(d);
+      let atom: Exp.t = IdTagged.fresh(Atom(String("alone")): Exp.term);
+      let sample = (value: Exp.t, seq: int): Sample.t => {
+        id: seq,
+        syntax_id: Util.Id.mk(),
+        value,
+        env: [
+          {
+            binding: {
+              name: "p",
+              id: Util.Id.mk(),
+            },
+            value: Val(v),
+          },
+        ],
+        call_stack: [],
+        args: None,
+        frame: None,
+        time: 0.,
+        seq,
+        origin: Probe,
+        step_start: 0,
+        step_end: 0,
+      };
+      let pid = Util.Id.mk();
+      let state = {
+        ...EvaluatorState.empty,
+        probes:
+          Util.Id.Map.singleton(pid, [sample(v, 1), sample(atom, 2)]),
+      };
+      let msg =
+        WorkerServer.ServerMessage.Result({
+          request_id: 1,
+          response: [("cell", Ok((v, state)))],
+          eval_time,
+          final_streams: [],
+        });
+      let (out, n, differ) = WorkerServer.Wire.out(~check=true, msg);
+      check(
+        list(string),
+        "and the survey finds it data",
+        ["data"],
+        List.filter_map(
+          ((k, _)) => k == "data" ? Some(k) : None,
+          WorkerServer.Wire.survey(msg),
+        ),
+      );
+      check(int, "one value went as data, once", 1, n);
+      check(int, "and came back the same", 0, differ);
+      let back =
+        WorkerServer.Wire.in_(
+          rt_of_encoding(
+            (module WorkerServer.MarshalEncoding),
+            ~clone=true,
+            out,
+          ),
+        );
+      switch (back) {
+      | WorkerServer.ServerMessage.Result({
+          response: [(_, Ok((_, st)))],
+          _,
+        }) =>
+        switch (Util.Id.Map.find_opt(pid, st.probes)) {
+        | Some([s1, s2]) =>
+          check(bool, "the value back", true, Exp.fast_equal(s1.value, v));
+          check(
+            bool,
+            "the environment's value back",
+            true,
+            switch (s1.env) {
+            | [{value: Val(e), _}] => Exp.fast_equal(e, v)
+            | _ => false
+            },
+          );
+          let spelled = ref(false);
+          let _ =
+            Exp.map_term(
+              ~f_exp=
+                (continue, e: Exp.t) => {
+                  switch (e.term, e.annotation.lexeme) {
+                  | (Atom(Float(_)), Some("2.50")) => spelled := true
+                  | _ => ()
+                  };
+                  continue(e);
+                },
+              s1.value,
+            );
+          check(bool, "the literal's spelling kept", true, spelled^);
+          check(
+            bool,
+            "the bare literal stays",
+            true,
+            Exp.fast_equal(s2.value, atom),
+          );
+        | _ => fail("the samples did not come back")
+        }
+      | _ => fail("not a result")
+      };
+    },
+  );
+
+/* (^report(51)) plain data is a Value by a look at its shape, as by the
+   step rules; anything else is still asked of the step rules */
+let test_plain_data_is_value = (): test_case(_) =>
+  test_case(
+    "plain data is a value by its shape, as by the step rules",
+    `Quick,
+    () => {
+      let data =
+        FirstOrder.(
+          List([
+            Tuple([
+              Label("x", Atom(Float(1.), None)),
+              Label("y", Atom(Float(2.5), Some("2.50"))),
+            ]),
+            Ctor("Some", None, Some(Atom(String("a"), None))),
+            Ctor("None", None, None),
+            List([]),
+            Atom(Bool(true), None),
+          ])
+        );
+      let v = FirstOrder.to_term(data);
+      let by_rules = (e: Exp.t) =>
+        ValueChecker.check_value(Environment.empty, e) == ValueChecker.Value;
+      check(bool, "data by its shape", true, ValueChecker.is_data(v));
+      check(bool, "data by the step rules", true, by_rules(v));
+      check(bool, "data is a value", true, ValueChecker.is_value(v));
+      let not_data =
+        IdTagged.FreshGrammar.[
+          Exp.var("x"),
+          Exp.list_lit([Exp.string("a"), Exp.var("x")]),
+          Exp.fn(Pat.var("x"), Exp.var("x"), None, None),
+        ];
+      List.iter(
+        e => {
+          check(
+            bool,
+            "not data by its shape",
+            false,
+            ValueChecker.is_data(e),
+          );
+          check(
+            bool,
+            "asked of the step rules",
+            by_rules(e),
+            ValueChecker.is_value(e),
+          );
+        },
+        not_data,
+      );
+    },
+  );
+
 let tests = [
   (
     "WorkerServer encodings",
@@ -291,6 +463,8 @@ let tests = [
       test_isomorphic(~name="Sexp", (module WorkerServer.SexpEncoding)),
       test_shared_responses(),
       test_shared_response_recovery(),
+      test_samples_as_data(),
+      test_plain_data_is_value(),
     ],
   ),
 ];

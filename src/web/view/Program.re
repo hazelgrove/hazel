@@ -49,6 +49,30 @@ let outline = (p: t): Outline.t =>
     )
   };
 
+/* (^report(51)) whether [outline] has this program's outline already, so
+   asking for it builds nothing: after an edit on the Witch the first to
+   ask, the outline's mark in the page's view, built it, 5 to 14 ms of the
+   view (run 42820611040) */
+let outline_made = (p: t): bool =>
+  switch (p) {
+  | Whole(e) =>
+    switch (
+      CachedSyntax.semantic_source(
+        e.editor.editor.state.zipper,
+        e.editor.editor.syntax,
+      )
+    ) {
+    | Some(seg) => Outline.made(~root=root(p), seg)
+    | None => false
+    }
+  | Divided(d) =>
+    switch (documents^) {
+    | Some((k, doc)) when Divided.same_content(k, d) =>
+      Outline.made(~root=root(p), doc)
+    | _ => false
+    }
+  };
+
 let statics = (p: t): CachedStatics.t =>
   switch (p) {
   | Whole(e) => e.editor.statics

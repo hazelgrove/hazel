@@ -410,23 +410,39 @@ let of_def_statics =
       ds: DefStatics.t,
     )
     : t => {
-  term,
-  elaborated:
-    switch (elaborated) {
-    | Some(e) => e
-    | None =>
-      switch (DefStatics.whole_elab(ds)) {
-      | Some(elab) => elab
-      | None => dh_err("Compositional elaboration gap")
+  /* (^report(51), ^ticket(721)) each part timed for the check: after a
+     slider's step on the Witch the statics took 16 to 20 ms (run
+     42822587416), and a model-only edit could keep some of them */
+  let elaborated =
+    Util.BenchMarks.time("statics: elaboration", () =>
+      switch (elaborated) {
+      | Some(e) => e
+      | None =>
+        switch (DefStatics.whole_elab(ds)) {
+        | Some(elab) => elab
+        | None => dh_err("Compositional elaboration gap")
+        }
       }
-    },
-  info_map: ds.merged,
-  error_ids: DefStatics.all_error_ids(ds),
-  warning_ids: DefStatics.all_warning_ids(ds),
-  targets: compute_targets(~settings, ~info_map=ds.merged, ~probe_ids, ()),
-  completion: None,
-  /* set by callers that have the pins */
-  pins: Id.Map.empty,
+    );
+  let (error_ids, warning_ids) =
+    Util.BenchMarks.time("statics: errors and warnings", () =>
+      (DefStatics.all_error_ids(ds), DefStatics.all_warning_ids(ds))
+    );
+  let targets =
+    Util.BenchMarks.time("statics: probe targets", () =>
+      compute_targets(~settings, ~info_map=ds.merged, ~probe_ids, ())
+    );
+  {
+    term,
+    elaborated,
+    info_map: ds.merged,
+    error_ids,
+    warning_ids,
+    targets,
+    completion: None,
+    /* set by callers that have the pins */
+    pins: Id.Map.empty,
+  };
 };
 
 /* per-item statics via DefStatics: an edit re-analyzes only the dirty
@@ -434,7 +450,10 @@ let of_def_statics =
    stack). takes a term so callers holding a segment skip the zipper */
 let init_compositional_term =
     (~settings: CoreSettings.t, ~probe_ids, term: Exp.t): t => {
-  let ds = DefStatics.calc_auto(~settings, ~probe_ids, term);
+  let ds =
+    Util.BenchMarks.time("statics: items", () =>
+      DefStatics.calc_auto(~settings, ~probe_ids, term)
+    );
   of_def_statics(
     ~settings,
     ~probe_ids,
@@ -471,8 +490,11 @@ let init_compositional =
       | Some(seg) => seg
       | None => MakeTerm.semantic_source(z)
       };
-    let (seg, term) = MakeTerm.semantic_parse(~root, ~shared?, source);
-    let term = stitch(term);
+    let (seg, term) =
+      Util.BenchMarks.time("statics: parse", () =>
+        MakeTerm.semantic_parse(~root, ~shared?, source)
+      );
+    let term = Util.BenchMarks.time("statics: stitch", () => stitch(term));
     /* stacked cells pass the union of their zippers' probes */
     let probe_ids =
       switch (probe_ids) {

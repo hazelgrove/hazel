@@ -1,0 +1,68 @@
+# hazel-jit in the app, in a real Firefox (^ticket(716), ^ticket(717): ^report(45)'s next steps 4 and 5):
+# scripts/jit_slides.py loads each polygon slide with Compiled views on and off, compares the livelits' drawings and
+# what the page counts, runs the same events both ways and times them. From a release build. Runs on a push to
+# trial/694-view-jit that touches hazel-jit, the projectors, the script or this file, or by hand.
+name: hazel-jit in Firefox
+
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Run just the slides whose names contain this (empty: every one)"
+        required: false
+        default: ""
+  push:
+    branches:
+      - "trial/694-view-jit"
+    paths:
+      - "src/language/dynamics/HazelJit*.re"
+      - "src/haz3lcore/projectors/**"
+      - "src/web/DeepLink.re"
+      - "src/web/app/globals/Globals.re"
+      - "scripts/jit_slides.py"
+      - ".github/workflows/jit.yml"
+
+concurrency:
+  group: jit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  Jit:
+    name: hazel-jit in Firefox
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout the hazel repo
+        uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-hazel-toolchain
+
+      - name: Build Release
+        run: |
+          export DUNE_CACHE=enabled
+          dune build src --profile release
+
+      - name: Serve the build
+        run: |
+          nohup python3 scripts/dev_serve.py --port 8111 > serve.log 2>&1 &
+          for i in $(seq 1 60); do python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8111/', timeout=2)" && break; sleep 1; done
+
+      - name: The polygon slides, compiled and not
+        run: |
+          firefox --version; geckodriver --version | head -1
+          python3 scripts/jit_slides.py --port 8111 --only "${{ github.event.inputs.only || '' }}" --out jit.json --shots jit-shots 2>&1 | tee jit.log
+          exit ${PIPESTATUS[0]}
+        timeout-minutes: 90
+
+      - name: Keep the readings, the screenshots and the log
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: jit-slides
+          path: |
+            jit.json
+            jit-shots
+            jit.log
+            serve.log
