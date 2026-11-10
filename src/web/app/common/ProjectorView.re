@@ -17,6 +17,16 @@ let offside_offset = 4; /* Num characters offset to the right of the end of the 
    * Per-projector cache keyed on map identity + status + model. Handles
    * multiple editors calling into the same cache without thrashing. */
 module ViewCache = {
+  /* (^report(51)) for the check's "view: projectors' views" mark: time in
+     the cache's lookups, in the walks for splices, in the views made
+     (mk_view), and how many sample values were compared by value. At the
+     worker's answer on the Witch all 53 livelits' views were made again for
+     16 to 41 ms, 2 of them drawn (run 42771757499) */
+  let lookup_ms = ref(0.);
+  let splices_ms = ref(0.);
+  let mk_view_ms = ref(0.);
+  let compared = ref(0);
+  let compare_ms = ref(0.);
   /* (^report(51)) what a livelit's drawing read of the run: the samples at
      its own id and at each id it looked up (info.dynamics_at), and its own
      pinned interval. Every answer of the run is a new map, so keyed on the
@@ -46,7 +56,14 @@ module ViewCache = {
       || List.length(xs) == List.length(ys)
       && List.for_all2(
            (x: Language.Sample.t, y: Language.Sample.t) =>
-             x.value === y.value || Language.Exp.fast_equal(x.value, y.value),
+             x.value === y.value
+             || {
+               let t0 = Util.BenchMarks.now();
+               let same = Language.Exp.fast_equal(x.value, y.value);
+               incr(compared);
+               compare_ms := compare_ms^ +. (Util.BenchMarks.now() -. t0);
+               same;
+             },
            by_seq(xs),
            by_seq(ys),
          )
@@ -923,7 +940,11 @@ let mk_view =
         },
       seg,
     );
+  let t_splices = Util.BenchMarks.now();
   let cacheable = !has_splices(p.syntax);
+  ViewCache.splices_ms :=
+    ViewCache.splices_ms^ +. (Util.BenchMarks.now() -. t_splices);
+  let t_lookup = Util.BenchMarks.now();
   /* (^report(51)) a livelit's key on its own statics record, and its own
      elaborated subterm if it has one (ViewCache.program_same). A livelit
      elaborates none of its syntax (LivelitProj.elaborate_syntax), so its
@@ -972,6 +993,8 @@ let mk_view =
       : None
   ) {
   | Some(view) =>
+    ViewCache.lookup_ms :=
+      ViewCache.lookup_ms^ +. (Util.BenchMarks.now() -. t_lookup);
     ViewCache.hits := ViewCache.hits^ + 1;
     view;
   | None =>
@@ -1157,6 +1180,7 @@ let split_views =
   let idx = List.find_index(x => x == p.id, projector_list) |> Option.get;
   let chipped =
     !skip_inline && ProjectorCore.Placement.is_sidebar(p.placement);
+  let t_view = Util.BenchMarks.now();
   let views =
     mk_view(
       inject,
@@ -1166,6 +1190,8 @@ let split_views =
       projector_data,
       projector_list,
     );
+  ViewCache.mk_view_ms :=
+    ViewCache.mk_view_ms^ +. (Util.BenchMarks.now() -. t_view);
   let wrapper =
     view_wrapper(
       ~inject,
@@ -1295,6 +1321,13 @@ let all =
      check's mark: at the worker's answer on the Witch, "view: projectors"
      spent some 23 ms outside any projector drawn (run 42761046647) */
   let remade = ref(0);
+  ViewCache.(
+    lookup_ms := 0.;
+    splices_ms := 0.;
+    mk_view_ms := 0.;
+    compared := 0;
+    compare_ms := 0.
+  );
   let split = (pd: Model.projector_data) => {
     let make = () =>
       split_views(
@@ -1349,6 +1382,14 @@ let all =
         () =>
           [
             ("remade", Util.BenchMarks.num(float_of_int(remade^))),
+            ("kept: lookup ms", Util.BenchMarks.num(ViewCache.lookup_ms^)),
+            ("splices walk ms", Util.BenchMarks.num(ViewCache.splices_ms^)),
+            ("mk_view ms", Util.BenchMarks.num(ViewCache.mk_view_ms^)),
+            (
+              "values compared",
+              Util.BenchMarks.num(float_of_int(ViewCache.compared^)),
+            ),
+            ("compare ms", Util.BenchMarks.num(ViewCache.compare_ms^)),
             (
               "projectors",
               Util.BenchMarks.num(
