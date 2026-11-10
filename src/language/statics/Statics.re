@@ -1640,13 +1640,78 @@ and uexp_to_info_map =
           m,
         );
       let unknown = Unknown(Internal) |> Typ.temp;
-      switch (Typ.as_sig(ctx, info_e1.ty)) {
-      | Some(items) =>
+      switch (Typ.head_sig(ctx, info_e1.ty)) {
+      | Some(s) =>
         /* `m.x`: the module's value member x. A missing member, or a type
            member named as a value, is marked on the label; the dot carries
            the same as a message. Unless a hole item in the signature could
            declare x: then x is unknown. */
-        let members = Sig.members(ClosedSig.items(items));
+        /* The type path the left side is, if it is one: a module variable
+           (the newest binding of its name, not a type), or a member of one,
+           `M.P`. */
+        let rec path_of = (e: Exp.t): option(Typ.t) =>
+          switch (Exp.term_of(e)) {
+          | Parens(e) => path_of(e)
+          | Var(name) =>
+            switch (Ctx.newest_tvar_or_var(ctx, name)) {
+            | Some(`Var(_)) => Some(Var(name) |> Typ.temp)
+            | Some(`TVar(_))
+            | None => None
+            }
+          | Dot(e, {term: Label(label), _}) =>
+            path_of(e)
+            |> Option.map(path =>
+                 ProdProjection(path, Label(label) |> Typ.temp) |> Typ.temp
+               )
+          | Dot(_)
+          | Invalid(_)
+          | EmptyHole
+          | MultiHole(_)
+          | DynamicErrorHole(_)
+          | Deferral(_)
+          | Undefined
+          | Atom(_)
+          | DrvQuote(_)
+          | ListLit(_)
+          | Constructor(_)
+          | Fun(_)
+          | TypFun(_)
+          | Tuple(_)
+          | Label(_)
+          | ExplicitNonlabel
+          | TupLabel(_)
+          | LivelitName(_)
+          | Let(_)
+          | Theorem(_)
+          | ProofObject(_)
+          | Forall(_)
+          | FixF(_)
+          | TyAlias(_)
+          | Use(_)
+          | Ap(_)
+          | TypAp(_)
+          | DeferredAp(_)
+          | If(_)
+          | Seq(_)
+          | Test(_)
+          | HintedTest(_)
+          | Filter(_)
+          | Closure(_)
+          | Projector(_)
+          | Cons(_)
+          | ListConcat(_)
+          | UnOp(_)
+          | BinOp(_)
+          | BuiltinFun(_)
+          | Match(_)
+          | TupleExtension(_)
+          | Asc(_)
+          | Module(_)
+          | ModuleExp(_) => None
+          };
+        /* Read through the path, a member's type names the path's type
+           members (`M.x : M.T`); otherwise each member stands alone. */
+        let members = Typ.sig_members(~self=?path_of(e1_elab), s);
         let labels = Sig.value_names(members);
         let dot = (~marks=?, ~message=?, ~elab_syn_ty, child) =>
           dot(
@@ -1663,7 +1728,7 @@ and uexp_to_info_map =
           | Some(ty) =>
             label_child(~marks=[], ~elab_syn_ty=ty, labels, m)
             |> dot(~elab_syn_ty=ty)
-          | None when Sig.has_hole_item(ClosedSig.items(items)) =>
+          | None when Sig.has_hole_item(Sig.items(s)) =>
             label_child(~marks=[], ~elab_syn_ty=unknown, labels, m)
             |> dot(~elab_syn_ty=unknown)
           | None =>
@@ -2217,7 +2282,8 @@ and uexp_to_info_map =
          recorded `ana`). `p'.ty` preserves the ana. */
       let (p, p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, ~ana=p'.ty, p, m);
-      let syn_ty_fun = Arrow(p.ty, e.elab_syn_ty) |> Typ.temp;
+      let avoid = Typ.avoid(p.ctx, ~escaping=Pat.bound_vars(p.user_term));
+      let syn_ty_fun = Arrow(avoid(p.ty), avoid(e.elab_syn_ty)) |> Typ.temp;
       /* Irrefutable patterns exhaust any type: skip the coverage check
          and, more importantly, the deep normalize it requires. */
       let p_constraint = Info.pat_constraint(p);
@@ -2316,7 +2382,12 @@ and uexp_to_info_map =
       let m = FunctionSugar.add_binder_infos(m, ~user_pat=p);
       add(
         ~elab_term=Let(f.p_elab, f.def_elab, body_elab) |> rewrap,
-        ~elab_syn_ty=body.elab_syn_ty,
+        ~elab_syn_ty=
+          Typ.avoid(
+            b.ctx_scope,
+            ~escaping=Pat.bound_vars(binder),
+            body.elab_syn_ty,
+          ),
         ~marks=f.marks,
         ~co_ctx=f.co_ctx,
         ~probe_targets=
@@ -2513,7 +2584,13 @@ and uexp_to_info_map =
           p_ctxs,
         );
 
-      let e_syn_tys = List.map((e: Info.exp) => e.elab_syn_ty, es);
+      let e_syn_tys =
+        List.map2(
+          ((e: Info.exp, ctx), p) =>
+            Typ.avoid(ctx, ~escaping=Pat.bound_vars(p), e.elab_syn_ty),
+          List.combine(es, p_ctxs),
+          ps,
+        );
       let e_co_ctxs = List.map(Info.exp_co_ctx, es);
       let (syn_ty_match, marks_match) =
         ConstructorStaticsHelpers.syn_marks_match(ctx, e_syn_tys, branch_ids);
@@ -2747,14 +2824,51 @@ and uexp_to_info_map =
           ~some=ModuleHelpers.expected_members(~ctx, ~declared),
           ana_items,
         );
-      /* The exported signature is closed: the body's own type names are
-         expanded in it. */
-      let export = (ctx, ty) =>
+      /* The exported signature is closed. In an item's type, a type member
+         the signature declares before the item is named by its leaf: the
+         body's last declaration of that name, where the signature has it,
+         precedes the item. The body's other type names are expanded. */
+      let last_declared: list((Var.t, int)) =
+        List.fold_left(
+          ((acc, i), item: Mod.t) =>
+            switch (item.term) {
+            | ModType({term: Var(name), _}, _) => (
+                [(name, i), ...List.remove_assoc(name, acc)],
+                i + 1,
+              )
+            | ModType(_)
+            | ModLet(_)
+            | ModExp(_)
+            | ModuleMod(_)
+            | ModVal(_)
+            | Invalid(_)
+            | EmptyHole
+            | MultiHole(_) => (acc, i + 1)
+            },
+          ([], 0),
+          items,
+        )
+        |> fst;
+      let position: Id.Map.t(int) =
+        List.mapi((i, item) => (Mod.rep_id(item), i), items)
+        |> List.to_seq
+        |> Id.Map.of_seq;
+      let export = (~item: Mod.t, ctx, ty) => {
+        let before =
+          switch (Id.Map.find_opt(Mod.rep_id(item), position)) {
+          | Some(i) =>
+            List.filter_map(
+              ((name, j)) => j < i ? Some(name) : None,
+              last_declared,
+            )
+          | None => []
+          };
         Typ.normalize(
           ~expand=n => List.exists(String.equal(n), declared),
           ctx,
-          ty,
+          Typ.to_type_members(before, ty),
         );
+      };
       /* Each item with the names it exports: those it binds that no later
          item rebinds. */
       let exports: Id.Map.t(list(Var.t)) =
@@ -2867,7 +2981,7 @@ and uexp_to_info_map =
           |> List.filter_map(x =>
                Ctx.lookup_var(b.ctx_scope, x)
                |> Option.map((entry: Ctx.var_entry) =>
-                    member(x, export(b.ctx_scope, entry.typ))
+                    member(x, export(~item, b.ctx_scope, entry.typ))
                   )
              );
         let m =
@@ -2997,7 +3111,7 @@ and uexp_to_info_map =
                 ...c,
                 members: [
                   Sig.item_of_member(
-                    TypeManifest(name, export(ctx, a.ty_def)),
+                    TypeManifest(name, export(~item, ctx, a.ty_def)),
                   ),
                   ...c.members,
                 ],
@@ -3073,7 +3187,7 @@ and uexp_to_info_map =
                 {
                   ...c,
                   members: [
-                    Sig.item_of_member(Val(x, export(ctx, e.ty))),
+                    Sig.item_of_member(Val(x, export(~item, ctx, e.ty))),
                     ...c.members,
                   ],
                   co_ctx,
@@ -4430,7 +4544,8 @@ and utyp_to_info_map =
   | DrvQuoteTy(_)
   | Atom(_)
   | Label(_)
-  | Var(_) =>
+  | Var(_)
+  | TypeMember(_) =>
     /* Names are resolved in this function's status rules */
     add(~ty=utyp, m)
   | List(t) =>

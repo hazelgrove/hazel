@@ -35,7 +35,8 @@ let head = (ctx: Ctx.t, ty: Typ.t): Typ.t => {
   | ProofOf(_)
   | ProdProjection(_)
   | ProdExtension(_)
-  | Sig(_) => ty
+  | Sig(_)
+  | TypeMember(_) => ty
   };
 };
 

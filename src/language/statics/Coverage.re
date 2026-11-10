@@ -150,6 +150,7 @@ module Ctr = {
     | Sig(_)
     | ProdProjection(_)
     | ProdExtension(_)
+    | TypeMember(_)
     | Var(_) => Infinite
     | Parens(_)
     | Projector(_)
@@ -426,6 +427,7 @@ module UnseenPatternList: UnseenPatternList = {
     | ProofOf(_)
     | DrvQuoteTy(_)
     | Sig(_)
+    | TypeMember(_)
     | Var(_) => unseen_pattern
     | Parens(_)
     | Projector(_)
@@ -565,6 +567,7 @@ module UnseenPatternList: UnseenPatternList = {
     | ProofOf(_)
     | DrvQuoteTy(_)
     | Sig(_)
+    | TypeMember(_)
     | Var(_) => cons_wild(unseen_pattern)
     | Parens(_)
     | Projector(_)
@@ -630,6 +633,7 @@ module UnseenPatternList: UnseenPatternList = {
     | ProofOf(_)
     | DrvQuoteTy(_)
     | Sig(_)
+    | TypeMember(_)
     | Var(_) => cons_wild(unseen_pattern)
     | Parens(_)
     | Projector(_)

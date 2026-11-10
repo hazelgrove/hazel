@@ -94,7 +94,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
          member the module lacks is a hole: statics allows that only when a
          hole item stands in for it. */
       let members =
-        Sig.closed_members(s)
+        Typ.sig_members(s)
         |> List.filter_map((m: Sig.member) =>
              switch (m) {
              | Val(x, ty) => Some((x, ty))
