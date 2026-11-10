@@ -789,6 +789,9 @@ let equality =
     | (SigType(tp1, t1), SigType(tp2, t2)) =>
       tpat'(tp1, tp2) && typ'(t1, t2)
     | (SigType(_, _), _) => false
+    | (SigTypeAbstract(tp1), SigTypeAbstract(tp2)) => tpat'(tp1, tp2)
+    | (SigTypeAbstract(_), _) => false
+    /* Sub-module member names are labels too: compare literally. */
     | (SigModule(mp1), SigModule(mp2)) =>
       mpat_names_equal(alphas_exp, alphas_typ, mp1, mp2)
     | (SigModule(_), _) => false

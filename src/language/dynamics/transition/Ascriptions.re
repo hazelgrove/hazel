@@ -98,7 +98,8 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         |> List.filter_map((m: Sig.member) =>
              switch (m) {
              | Val(x, ty) => Some((x, ty))
-             | TypeManifest(_) => None
+             | TypeManifest(_)
+             | TypeAbstract(_) => None
              }
            );
       let picked =

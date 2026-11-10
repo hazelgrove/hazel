@@ -115,7 +115,8 @@ let named_fields = (ctx: Ctx.t, typ: Typ.t): list((string, Typ.t)) =>
     |> List.filter_map((m: Sig.member) =>
          switch (m) {
          | Val(label, field_ty) => Some((label, field_ty))
-         | TypeManifest(_) => None
+         | TypeManifest(_)
+         | TypeAbstract(_) => None
          }
        )
   | _ => []

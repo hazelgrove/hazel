@@ -23,6 +23,9 @@ let module_member_to_string =
 type module_members = {
   listed: list(Var.t),
   hole: bool,
+  /* Abstract members reached through a signature alias rather than a
+     module: no module is named, so nothing names them. */
+  unnameable: list(Var.t),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]

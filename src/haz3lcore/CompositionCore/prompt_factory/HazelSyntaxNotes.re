@@ -168,7 +168,7 @@ let self = [
   "",
   "## Modules",
   "",
-  "Modules use curly braces `{ }` with semicolon-separated items. A module is a first-class value whose type is a signature such as `{ let x : Int; type T = Int }`; signatures are distinct from labeled tuple types.",
+  "Modules use curly braces `{ }` with semicolon-separated items. A module is a first-class value whose type is a signature such as `{ let x : Int; type T = Int }`; signatures are distinct from labeled tuple types. A signature item `type T` with no definition is an abstract type member: a module sealed by `module M : { type T; let x : T } = ...` must define T, but outside it T is known only as the opaque path type `M.T`.",
   "",
   "```",
   "# Basic module #",

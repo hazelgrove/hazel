@@ -5,6 +5,7 @@ type cls =
   | MultiHole
   | SigLet
   | SigType
+  | SigTypeAbstract
   | SigModule;
 
 include TermBase.Sig;
@@ -26,6 +27,7 @@ let cls_of_term: Grammar.sig_term('a) => cls =
   | MultiHole(_) => MultiHole
   | SigLet(_) => SigLet
   | SigType(_, _) => SigType
+  | SigTypeAbstract(_) => SigTypeAbstract
   | SigModule(_) => SigModule;
 
 let show_cls: cls => string =
@@ -35,6 +37,7 @@ let show_cls: cls => string =
   | EmptyHole => "Signature hole"
   | SigLet => "Let declaration"
   | SigType => "Type declaration"
+  | SigTypeAbstract => "Abstract type declaration"
   | SigModule => "Module declaration";
 
 let temp: term => t =
@@ -47,14 +50,16 @@ let temp: term => t =
    A signature type is a dependent record: later items may mention earlier
    type members by their bare name. Canonical items are
    `SigLet(Asc(Var x, τ))`, `SigModule(Asc(Var m, τ))` and
-   `SigType(Var T, τ)`; a `module m : S` member is a value member. In a
+   `SigType(Var T, τ)`; a `module m : S` member is a value member, `type T`
+   with no definition an abstract type member. In a
    closed signature (Typ.close) every item declares a member, and no two
    members share a name and kind. */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type member =
   | Val(Var.t, TermBase.Typ.t)
-  | TypeManifest(Var.t, TermBase.Typ.t);
+  | TypeManifest(Var.t, TermBase.Typ.t)
+  | TypeAbstract(Var.t);
 
 /* The type a `let` item's pattern is written with: its annotation, under
    parentheses, projectors and labels. */
@@ -112,7 +117,9 @@ let read_item = (item: t): reading =>
   | SigLet(p) => read_pat(p)
   | SigModule(mp) => read_mpat(mp)
   | SigType({term: Var(name), _}, ty) => Member(TypeManifest(name, ty))
+  | SigTypeAbstract({term: Var(name), _}) => Member(TypeAbstract(name))
   | SigType(_, _)
+  | SigTypeAbstract(_)
   | Invalid(_)
   | EmptyHole
   | MultiHole(_) => Incomplete
@@ -135,6 +142,7 @@ let is_hole = (item: t): bool =>
   | MultiHole(_) => true
   | SigLet(_)
   | SigType(_)
+  | SigTypeAbstract(_)
   | SigModule(_)
   | Invalid(_) => false
   };
@@ -165,6 +173,8 @@ let item_of_member = (m: member): t =>
   switch (m) {
   | Val(x, ty) => TempGrammar.(Sig.sig_let(Pat.asc(Pat.var(x), ty)))
   | TypeManifest(name, ty) => TempGrammar.(Sig.sig_type(TPat.var(name), ty))
+  | TypeAbstract(name) =>
+    TempGrammar.(Sig.sig_type_abstract(TPat.var(name)))
   };
 
 /* `module m : ty` — a sub-module member. */
@@ -240,6 +250,7 @@ let map_typ = (f: TermBase.Typ.t => TermBase.Typ.t, item: t): t => {
       ...item,
       term: SigModule(mpat_map(mp)),
     }
+  | SigTypeAbstract(_)
   | Invalid(_)
   | EmptyHole
   | MultiHole(_) => item
@@ -252,6 +263,7 @@ let typ_of_item = (item: t): option(TermBase.Typ.t) =>
   | SigLet(p) => typ_of_pat(p)
   | SigType(_, ty) => Some(ty)
   | SigModule({term: Asc(_, ty), _}) => Some(ty)
+  | SigTypeAbstract(_)
   | SigModule(_)
   | Invalid(_)
   | EmptyHole
@@ -262,26 +274,34 @@ let value_names = (ms: list(member)): list(Var.t) =>
   List.filter_map(
     fun
     | Val(x, _) => Some(x)
-    | TypeManifest(_) => None,
+    | TypeManifest(_)
+    | TypeAbstract(_) => None,
     ms,
   );
 
+/* Names of type members, manifest or abstract. */
 let type_names = (ms: list(member)): list(Var.t) =>
   List.filter_map(
     fun
-    | TypeManifest(x, _) => Some(x)
+    | TypeManifest(x, _)
+    | TypeAbstract(x) => Some(x)
     | Val(_) => None,
     ms,
   );
 
 /* Whether two members are the same name of the same kind: values and
-   modules share a namespace, type members have their own. */
+   modules share a namespace, type members have their own, manifest and
+   abstract alike. */
 let same_kind = (a: member, b: member) =>
   switch (a, b) {
   | (Val(x, _), Val(y, _))
-  | (TypeManifest(x, _), TypeManifest(y, _)) => String.equal(x, y)
-  | (Val(_), TypeManifest(_))
-  | (TypeManifest(_), Val(_)) => false
+  | (
+      TypeManifest(x, _) | TypeAbstract(x),
+      TypeManifest(y, _) | TypeAbstract(y),
+    ) =>
+    String.equal(x, y)
+  | (Val(_), TypeManifest(_) | TypeAbstract(_))
+  | (TypeManifest(_) | TypeAbstract(_), Val(_)) => false
   };
 
 let find_value = (ms: list(member), name: Var.t): option(TermBase.Typ.t) =>
@@ -289,15 +309,28 @@ let find_value = (ms: list(member), name: Var.t): option(TermBase.Typ.t) =>
     fun
     | Val(x, ty) when String.equal(x, name) => Some(ty)
     | Val(_)
-    | TypeManifest(_) => None,
+    | TypeManifest(_)
+    | TypeAbstract(_) => None,
     ms,
   );
 
-let find_type_def = (ms: list(member), name: Var.t): option(TermBase.Typ.t) =>
+/* The first type member named [name], manifest or abstract. */
+let find_type = (ms: list(member), name: Var.t): option(member) =>
   List.find_map(
     fun
-    | TypeManifest(x, ty) when String.equal(x, name) => Some(ty)
+    | (TypeManifest(x, _) | TypeAbstract(x)) as m when String.equal(x, name) =>
+      Some(m)
     | Val(_)
-    | TypeManifest(_) => None,
+    | TypeManifest(_)
+    | TypeAbstract(_) => None,
     ms,
   );
+
+/* The definition of the last MANIFEST type member named [name]. */
+let find_type_def = (ms: list(member), name: Var.t): option(TermBase.Typ.t) =>
+  switch (find_type(ms, name)) {
+  | Some(TypeManifest(_, ty)) => Some(ty)
+  | Some(TypeAbstract(_))
+  | Some(Val(_))
+  | None => None
+  };
