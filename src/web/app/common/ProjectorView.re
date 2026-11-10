@@ -17,7 +17,69 @@ let offside_offset = 4; /* Num characters offset to the right of the end of the 
    * Per-projector cache keyed on map identity + status + model. Handles
    * multiple editors calling into the same cache without thrashing. */
 module ViewCache = {
+  /* (^report(51)) what a livelit's drawing read of the run: the samples at
+     its own id and at each id it looked up (info.dynamics_at), and its own
+     pinned interval. Every answer of the run is a new map, so keyed on the
+     map's identity all 52 unchanged livelits on the Witch were drawn again
+     after each answer (25 to 87 ms a step on run 42713728065); keyed on
+     what each read, compared by value, only those whose samples changed */
+  type reads = {
+    pinned: option((int, int)),
+    at: list((Id.t, option(list(Language.Sample.t)))),
+  };
+  let by_seq = (xs: list(Language.Sample.t)): list(Language.Sample.t) =>
+    List.sort(
+      (a: Language.Sample.t, b: Language.Sample.t) =>
+        Int.compare(a.seq, b.seq),
+      xs,
+    );
+  let samples_same =
+      (
+        a: option(list(Language.Sample.t)),
+        b: option(list(Language.Sample.t)),
+      )
+      : bool =>
+    switch (a, b) {
+    | (Stdlib.Option.None, Stdlib.Option.None) => true
+    | (Some(xs), Some(ys)) =>
+      xs === ys
+      || List.length(xs) == List.length(ys)
+      && List.for_all2(
+           (x: Language.Sample.t, y: Language.Sample.t) =>
+             x.value === y.value || Language.Exp.fast_equal(x.value, y.value),
+           by_seq(xs),
+           by_seq(ys),
+         )
+    | _ => false
+    };
+  let reads_hold =
+      (
+        reads: option(reads),
+        ~pinned: option((int, int)),
+        dynamics_map: Language.Dynamics.Map.t,
+      )
+      : bool =>
+    switch (reads) {
+    | Some(r) =>
+      r.pinned == pinned
+      && List.for_all(
+           ((id, old)) =>
+             samples_same(
+               old,
+               Language.Dynamics.Map.lookup(id, dynamics_map),
+             ),
+           r.at,
+         )
+    | Stdlib.Option.None => false
+    };
+  /* (^report(51)) each cached projector's info at its latest draw or hit,
+     for its handlers: a view kept across a new map acts on the newest */
+  let latest: Hashtbl.t(Id.t, ProjectorBase.info) = Hashtbl.create(64);
+  let latest_info = (id: Id.t, info: ProjectorBase.info): ProjectorBase.info =>
+    Option.value(~default=info, Hashtbl.find_opt(latest, id));
   type entry = {
+    /* (^report(51)) a livelit's reads of the run when it was drawn */
+    reads: option(reads),
     /* (^report(51)) a livelit's own statics record and elaborated subterm,
        which stand for statics_map and elaborated in its key (program_same) */
     own: option((Obj.t, Obj.t)),
@@ -90,6 +152,7 @@ module ViewCache = {
       (
         id,
         ~own,
+        ~pinned,
         ~statics_map,
         ~dynamics_map,
         ~sample_focus,
@@ -107,7 +170,10 @@ module ViewCache = {
     | Some(e)
         when
           program_same(e, ~own, ~statics_map, ~elaborated)
-          && e.dynamics_map === dynamics_map
+          && (
+            e.dynamics_map === dynamics_map
+            || reads_hold(e.reads, ~pinned, dynamics_map)
+          )
           && Language.Sample.Focus.equal(e.sample_focus, sample_focus)
           && e.stepping == stepping
           && e.program_value == program_value
@@ -141,7 +207,11 @@ module ViewCache = {
                   Option.is_none(own)
                     ? "statics or elaborated" : "own statics or elaborated",
                 ),
-                (e.dynamics_map === dynamics_map, "dynamics"),
+                (
+                  e.dynamics_map === dynamics_map
+                  || reads_hold(e.reads, ~pinned, dynamics_map),
+                  "dynamics",
+                ),
                 (
                   Language.Sample.Focus.equal(e.sample_focus, sample_focus),
                   "sample focus",
@@ -171,6 +241,7 @@ module ViewCache = {
       (
         id,
         ~own,
+        ~reads,
         ~statics_map,
         ~dynamics_map,
         ~sample_focus,
@@ -188,6 +259,7 @@ module ViewCache = {
       cache,
       id,
       {
+        reads,
         own,
         statics_map,
         dynamics_map,
@@ -220,6 +292,7 @@ module ViewCache = {
           [],
         );
       List.iter(Hashtbl.remove(cache), stale);
+      List.iter(Hashtbl.remove(latest), stale);
     };
   };
 };
@@ -868,11 +941,22 @@ let mk_view =
       ))
     | _ => Stdlib.Option.None
     };
+  /* (^report(51)) a livelit is kept across a run's new answer while what it
+     read of the run is the same (ViewCache.reads) */
+  let is_livelit = p.kind == ProjectorCore.Kind.Livelit;
+  let pinned =
+    Option.bind(info.dynamics, (d: Language.Dynamics.Info.t) =>
+      d.pinned_interval
+    );
+  if (cacheable) {
+    Hashtbl.replace(ViewCache.latest, p.id, info);
+  };
   switch (
     cacheable
       ? ViewCache.lookup(
           p.id,
           ~own,
+          ~pinned,
           ~statics_map,
           ~dynamics_map,
           ~sample_focus,
@@ -893,6 +977,19 @@ let mk_view =
   | None =>
     ViewCache.misses := ViewCache.misses^ + 1;
     let (module P) = ProjectorInit.to_module(p.kind);
+    /* (^report(51)) a livelit's lookups of the run, while it is drawn */
+    let read_at = ref([]);
+    let info =
+      is_livelit
+        ? {
+          ...info,
+          dynamics_at: id => {
+            let r = info.dynamics_at(id);
+            read_at := [(id, r), ...read_at^];
+            r;
+          },
+        }
+        : info;
     let idx = List.find_index(x => x == p.id, projector_list) |> Option.get;
     /* Walk the projector's syntax (including tile children) collecting every
      * splice regardless of nesting. Splices inside nested projectors are not
@@ -957,11 +1054,13 @@ let mk_view =
             model: p.model,
             info,
             local: a => {
-              let new_model = P.update(p.model, info, a);
+              let new_model =
+                P.update(p.model, ViewCache.latest_info(p.id, info), a);
               inject(Project(SetModel(idx, p.kind, new_model)));
             },
             local_quiet: a => {
-              let new_model = P.update(p.model, info, a);
+              let new_model =
+                P.update(p.model, ViewCache.latest_info(p.id, info), a);
               inject(Project(SetModelQuiet(idx, p.kind, new_model)));
             },
             parent: a =>
@@ -1007,6 +1106,18 @@ let mk_view =
       ViewCache.store(
         p.id,
         ~own,
+        ~reads=
+          is_livelit
+            ? Some(
+                {
+                  pinned,
+                  at: [
+                    (p.id, Language.Dynamics.Map.lookup(p.id, dynamics_map)),
+                    ...read_at^,
+                  ],
+                }: ViewCache.reads,
+              )
+            : Stdlib.Option.None,
         ~statics_map,
         ~dynamics_map,
         ~sample_focus,
