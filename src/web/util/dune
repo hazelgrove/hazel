@@ -1,0 +1,15 @@
+; Browser-session coverage (`make coverage-web`, docs/browser-coverage.md). The
+; enabled variant names Bisect, which only an --instrument-with bisect_ppx build
+; links, so HAZEL_WEB_COVERAGE=1 must come with that flag.
+
+(rule
+ (enabled_if
+  (= %{env:HAZEL_WEB_COVERAGE=0} 1))
+ (action
+  (copy CoverageHook.enabled.re CoverageHook.re)))
+
+(rule
+ (enabled_if
+  (<> %{env:HAZEL_WEB_COVERAGE=0} 1))
+ (action
+  (copy CoverageHook.disabled.re CoverageHook.re)))

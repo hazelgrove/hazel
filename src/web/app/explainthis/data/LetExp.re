@@ -760,6 +760,52 @@ let let_funap_exp = (~def_id: Id.t, ~x_id: Id.t, ~arg_id: Id.t): form => {
   examples: [let_funap_ex],
 };
 
+let let_curried_funap_ex = {
+  sub_id: Let(Ap),
+  term: mk_example("let add(x)(y) = x + y\nin add(3)(4)"),
+  message: "add takes x and returns a function that takes y, so add(3) is a function adding 3 and add(3)(4) evaluates to 7.",
+};
+let let_curried_funap_exp =
+    (~def_id: Id.t, ~x_id: Id.t, ~arg_ids: list(Id.t)): form => {
+  let args =
+    List.mapi((i, _) => pat("p_arg" ++ string_of_int(i + 1)), arg_ids);
+  let aps = List.map(a => mk_ap_pat([[a]]), args);
+  {
+    id: let_funap_exp_id,
+    syntactic_form: [
+      mk_let([
+        [space(), pat_fun] @ aps @ [space()],
+        [space(), exp_def, space()],
+      ]),
+      linebreak(),
+      exp("e_body"),
+    ],
+    colorings: [
+      (Piece.id(pat_fun), x_id),
+      (Piece.id(exp_def), def_id),
+      ...List.map2((a, id) => (Piece.id(a), id), args, arg_ids),
+    ],
+    expandable_id: None,
+    explanation:
+      Printf.sprintf(
+        "Defines a curried [*function*](%s) %s, whose result is the [*definition*](%s).",
+        Id.to_string(x_id),
+        AppPat.curried_args_phrase(arg_ids),
+        Id.to_string(def_id),
+      ),
+    examples: [let_curried_funap_ex],
+  };
+};
+
+let lets_curried_funap =
+    (~def_id: Id.t, ~x_id: Id.t, ~arg_ids: list(Id.t), ~pat_id: Id.t): group => {
+  id: LetExp(ApFunc),
+  forms: [
+    let_curried_funap_exp(~def_id, ~x_id, ~arg_ids),
+    let_base_exp(~def_id, ~pat_id),
+  ],
+};
+
 let lets_emptyhole = (~def_id: Id.t, ~pat_id: Id.t): group => {
   id: LetExp(EmptyHole),
   forms: [
