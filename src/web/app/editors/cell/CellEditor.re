@@ -243,6 +243,9 @@ module View = {
         ~lines=false,
         /* opt out for cells that are not the viewport-culling scope */
         ~cull=true,
+        /* opt out for cells that are as wide as their code, which then has
+           nowhere to scroll */
+        ~scroll_code=true,
         model: Model.t,
       ) => {
     let (footer, overlays) =
@@ -286,36 +289,45 @@ module View = {
           },
         model.result,
       );
+    let editor =
+      CodeEditable.View.view(
+        ~globals,
+        ~signal=
+          locked
+            ? _ => Ui_effect.Ignore
+            : fun
+              | MakeActive => signal(MakeActive(MainEditor)),
+        ~edit_mode=
+          locked
+            ? EditMode.ReadOnly
+            : Editable({
+                inject: action => inject(MainEditor(action)),
+                escape: _ => Ui_effect.Ignore,
+                take_focus: _ => Ui_effect.Ignore,
+                focus: selected == Some(MainEditor) ? Some() : None,
+              }),
+        ~overlays=overlays(model.editor.editor),
+        ~lines,
+        ~cull,
+        ~dynamics=EvalResult.Model.dynamics(model.result),
+        ~predicted_reuse=EvalResult.Model.predicted_reuse(model.result),
+        ~pending_eval_ids=EvalResult.Model.pending_eval_ids(model.result),
+        ~show_active_eval=EvalResult.Model.eval_is_pending(model.result),
+        ~proof_map=EvalResult.Model.proof_map(model.result),
+        model.editor,
+      );
     div(
       ~attrs=[Attr.classes(["cell", locked ? "locked" : "unlocked"])],
       Option.to_list(caption)
       @ [
-        CodeEditable.View.view(
-          ~globals,
-          ~signal=
-            locked
-              ? _ => Ui_effect.Ignore
-              : fun
-                | MakeActive => signal(MakeActive(MainEditor)),
-          ~edit_mode=
-            locked
-              ? EditMode.ReadOnly
-              : Editable({
-                  inject: action => inject(MainEditor(action)),
-                  escape: _ => Ui_effect.Ignore,
-                  take_focus: _ => Ui_effect.Ignore,
-                  focus: selected == Some(MainEditor) ? Some() : None,
-                }),
-          ~overlays=overlays(model.editor.editor),
-          ~lines,
-          ~cull,
-          ~dynamics=EvalResult.Model.dynamics(model.result),
-          ~predicted_reuse=EvalResult.Model.predicted_reuse(model.result),
-          ~pending_eval_ids=EvalResult.Model.pending_eval_ids(model.result),
-          ~show_active_eval=EvalResult.Model.eval_is_pending(model.result),
-          ~proof_map=EvalResult.Model.proof_map(model.result),
-          model.editor,
-        ),
+        /* The code scrolls sideways in this box (cell.css), so a long line
+         * widens neither the cell nor the result views in the footer. */
+        scroll_code
+          ? div(
+              ~attrs=[Attr.class_(Util.JsUtil.CodeScroll.class_name)],
+              [editor],
+            )
+          : editor,
       ]
       @ footer,
     );

@@ -1006,6 +1006,7 @@ module View = {
           ~caption: option(string)=?,
           ~subcaption: option(string)=?,
           ~result_kind=`NoResults,
+          ~scroll_code=?,
           this_pos: DerivationExercise.pos,
           cell: CellEditor.Model.t,
         ) => {
@@ -1021,6 +1022,7 @@ module View = {
           },
         ~inject=a => inject(Editor(this_pos, a)),
         ~result_kind,
+        ~scroll_code?,
         ~caption=
           switch (caption) {
           | Some(c) => CellCommon.caption(c, ~rest=?subcaption)
@@ -1033,7 +1035,8 @@ module View = {
     let conclusion_view = (~pos, ~editor) =>
       div(
         ~attrs=[Attr.class_("deduction-concl")],
-        [editor_view(pos, editor)],
+        /* a conclusion's cell is as wide as its code */
+        [editor_view(~scroll_code=false, pos, editor)],
       );
 
     let deduction_view = (~children_node, ~pos, ~res, ~rule, ~editor) =>
