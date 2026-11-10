@@ -965,6 +965,32 @@ let nest_map =
 let member_inputs =
     (~expected: list(Sig.member), members: list(Mod.t)): list(member_input) => {
   let declared = ModuleHelpers.declared_type_names(members);
+  /* the expectations by name (a signature declares each member once) */
+  let (vals, types) =
+    List.fold_right(
+      (m: Sig.member, (vs, ts)) =>
+        switch (m) {
+        | Val(x, _) => (
+            SMap.update(
+              x,
+              l => Some([m, ...Option.value(~default=[], l)]),
+              vs,
+            ),
+            ts,
+          )
+        | TypeManifest(t, _) => (
+            vs,
+            SMap.update(
+              t,
+              l => Some([m, ...Option.value(~default=[], l)]),
+              ts,
+            ),
+          )
+        },
+      expected,
+      (SMap.empty, SMap.empty),
+    );
+  let find = (map, x) => Option.value(~default=[], SMap.find_opt(x, map));
   /* right to left: a member exports the names no later member rebinds */
   let (_, _, inputs) =
     List.fold_right(
@@ -974,28 +1000,12 @@ let member_inputs =
         let (i_expected, later_types) =
           switch (item.term) {
           | ModType({term: Var(n), _}, _) => (
-              SSet.mem(n, later_types)
-                ? []
-                : List.filter(
-                    (m: Sig.member) =>
-                      switch (m) {
-                      | TypeManifest(t, _) => String.equal(t, n)
-                      | Val(_) => false
-                      },
-                    expected,
-                  ),
+              SSet.mem(n, later_types) ? [] : find(types, n),
               SSet.add(n, later_types),
             )
           | ModLet(_)
           | ModuleMod(_) => (
-              List.filter(
-                (m: Sig.member) =>
-                  switch (m) {
-                  | Val(x, _) => List.exists(String.equal(x), exported)
-                  | TypeManifest(_) => false
-                  },
-                expected,
-              ),
+              List.concat_map(find(vals), exported),
               later_types,
             )
           | _ => ([], later_types)
