@@ -3159,6 +3159,22 @@ let segment_cache_tests = [
     ~paste_text="bar",
     ~expect=`Miss,
   ),
+  test_case(
+    "Cache hit: paste over a selection whose edges would merge",
+    `Quick,
+    () => {
+      /* Cmd+A, Cmd+C, Cmd+V: the selected `foo` is replaced, not a
+         neighbor, so the copy pastes back as its segment */
+      let z = perform(Zipper.init(), mk("foo¦") @ [Select(All)]);
+      Parser.set_segment_cache(Parser.to_segment("foo", ~root=Exp), "foo");
+      check(
+        bool,
+        "hit",
+        true,
+        Parser.try_segment_paste("foo", z, ~root=Exp) != None,
+      );
+    },
+  ),
   segment_cache_test(
     ~name="Cache miss: inner caret",
     ~setup="fo¦o",
