@@ -99,6 +99,7 @@ module Model = {
       /* Only the active encoding (Marshal) is benchmarked by default; Direct
          and Sexp start unchecked. */
       worker_encodings: [WorkerServer.Marshal],
+      settings_folded: ["Stepper", "Developer"],
     },
     quiver_flagpole: false,
     quiver: true, /* On by default (andrew 2026-07-09) */
@@ -412,6 +413,14 @@ module Update = {
           ...settings,
           sidebar: SidebarModel.Settings.toggle_encoding(e, settings.sidebar),
         }
+      | Sidebar(ToggleSettingsFolded(name)) => {
+          ...settings,
+          sidebar:
+            SidebarModel.Settings.toggle_settings_folded(
+              name,
+              settings.sidebar,
+            ),
+        }
       | ExplainThis(ToggleShowFeedback) => {
           ...settings,
           explainThis: {
@@ -528,7 +537,7 @@ module Update = {
       }
     )
     |> Updated.return(
-         ~scroll_active=false,
+         ~scroll=Never,
          ~historic=
            switch (action) {
            | Evaluation(ShowSettings) => false

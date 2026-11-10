@@ -55,6 +55,14 @@ garden,
 ) in
 topped
 
+@solution
+let garden: [Int] = [250, 180, 50, 200] in
+let topped = map(
+garden, 
+fun w -> w + 50
+) in
+topped
+
 @test
 test garden == [250, 180, 50, 200] end;
 test topped == [300, 230, 100, 250] end
