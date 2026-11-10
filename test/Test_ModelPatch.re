@@ -151,12 +151,12 @@ let tests = (
           ZipperBase.MapPiece.of_segment(
             (p: Piece.t) =>
               switch (p) {
-              | Tile(t) when t.label == ["1"] =>
+              | Tile(t) when Tile.label(t) == ["1"] =>
                 one := Some(t.id);
                 [
                   Tile({
                     ...t,
-                    label: ["5"],
+                    form: Form.Tok("5"),
                   }),
                 ];
               | p => [p]
