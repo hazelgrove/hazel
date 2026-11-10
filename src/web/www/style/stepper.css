@@ -216,6 +216,17 @@
   cursor: pointer;
 }
 
+/* What a focus selects: a line in the color of the C a focus opens,
+   drawn under the text rather than as a plate, and not clickable, so it
+   can't be taken for an offered step. It sits above projectors, whose
+   boxes would otherwise hide it under a folded name. */
+.step-focus {
+  pointer-events: none;
+  box-sizing: border-box;
+  border-bottom: 2px solid var(--stepper-arm);
+  z-index: calc(var(--projector-hover-z) + 1);
+}
+
 .step-next > svg > path.child-line {
   stroke: var(--border-success-muted);
 }
@@ -452,15 +463,6 @@
 
 /* A hole or a chain's end has no step to justify: its wrap holds only
  * the stepper's controls, so it draws no lozenge. */
-/* A one-step focus's lozenge: the step, then the code it focuses on, on
- * one line. */
-.step-focus-justification {
-  display: flex;
-  align-items: baseline;
-  gap: 0.3em;
-  white-space: nowrap;
-}
-
 .step-justification-wrap:has(> .missing-step-justification) {
   border: none;
   padding: 0;
