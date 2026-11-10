@@ -306,7 +306,7 @@ let go =
       ~elaborated: Language.Exp.t,
       ~root,
       /* the syntax cache's layout of [z], for [update_measured] */
-      ~measured: option(Measured.t)=?,
+      ~measured: option(Measured.t),
     )
     : result(ZipperBase.t, Action.Failure.t) => {
   let update = update_measured(~measured);
