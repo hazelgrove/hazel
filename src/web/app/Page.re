@@ -712,12 +712,10 @@ module View = {
           ? [] : [inject(Globals(SetMetaDown(meta_down)))];
       /* Skip page-level shortcuts when the user is typing in a form
          element (e.g. an <input>/<textarea>/<select> rendered by a
-         HazelDOM sidebar app). The clipboard shim is a textarea but
-         needs page handling, so it carves out by id. */
+         HazelDOM sidebar app). */
       let target_is_input =
         switch (key.target_tag) {
-        | Some("INPUT" | "TEXTAREA" | "SELECT") =>
-          key.target_id != Some(JsUtil.clipboard_shim_id)
+        | Some("INPUT" | "TEXTAREA" | "SELECT") => true
         | _ => false
         };
       /* Page-level keys only. Editor-specific keys are handled by
