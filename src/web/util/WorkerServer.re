@@ -296,10 +296,17 @@ module Wire = {
   };
   /* in the worker: the message, and how many values went as data and how many of them did not come back the same
      (checked only when [check]: made a term again, compared as Exp.fast_equal compares, ids aside) */
+  /* (^ticket(718)) the last [out]'s own parts, ms: FirstOrder.of_term on the values, and the check (to_term and
+     fast_equal, only when [check]); the rest of its time is rebuilding the states around them. The check runs in
+     every recorded run, so its time was counted as making data (29-41 ms on the Witch, run 42747955240) */
+  let of_term_ms = ref(0.);
+  let check_ms = ref(0.);
   let out = (~check=false, msg: ServerMessage.t): (ServerMessage.t, int, int) =>
     switch (msg) {
     | Stream(_)
     | Result(_) =>
+      of_term_ms := 0.;
+      check_ms := 0.;
       let marker = IdTagged.IdTag.fresh();
       let datas = ref([]);
       let n = ref(0);
@@ -313,11 +320,18 @@ module Wire = {
           switch (Phys.find_opt(memo, v)) {
           | Some(r) => r
           | None =>
+            let t0 = Util.BenchMarks.now();
+            let fo = FirstOrder.of_term(v);
+            let t1 = Util.BenchMarks.now();
+            of_term_ms := of_term_ms^ +. (t1 -. t0);
             let r =
-              switch (FirstOrder.of_term(v)) {
+              switch (fo) {
               | Some(d) =>
-                if (check && !Exp.fast_equal(FirstOrder.to_term(d), v)) {
-                  incr(differ);
+                if (check) {
+                  if (!Exp.fast_equal(FirstOrder.to_term(d), v)) {
+                    incr(differ);
+                  };
+                  check_ms := check_ms^ +. (Util.BenchMarks.now() -. t1);
                 };
                 let i = n^;
                 incr(n);
@@ -601,10 +615,13 @@ module Wire = {
       ];
     | _ => []
     };
-  /* in the page: the message as the worker meant it, each value made a term once */
+  /* in the page: the message as the worker meant it, each value made a term once. [to_term_ms]: the last [in_]'s
+     FirstOrder.to_term, the rest of its time rebuilding the states around them (^ticket(718)) */
+  let to_term_ms = ref(0.);
   let in_ = (msg: ServerMessage.t): ServerMessage.t =>
     switch (msg) {
     | WithData({marker, datas}, inner) =>
+      to_term_ms := 0.;
       let terms = Array.make(Array.length(datas), None);
       let conv = (v: Exp.t): Exp.t =>
         if (v.annotation === marker) {
@@ -613,7 +630,9 @@ module Wire = {
             switch (terms[i]) {
             | Some(t) => t
             | None =>
+              let t0 = Util.BenchMarks.now();
               let t = FirstOrder.to_term(datas[i]);
+              to_term_ms := to_term_ms^ +. (Util.BenchMarks.now() -. t0);
               terms[i] = Some(t);
               t;
             }
@@ -1094,6 +1113,8 @@ let post_message = (msg: ServerMessage.t): unit => {
             [
               ("values", float_of_int(fst(as_data^))),
               ("not the same back", float_of_int(snd(as_data^))),
+              ("of_term ms", Wire.of_term_ms^),
+              ("check ms", Wire.check_ms^),
             ],
         "samples' values as data",
         () => {

@@ -433,8 +433,12 @@ let setup_worker_message_handler = worker => {
         | Some(Ok(ServerMessage.WithData(_) as m)) =>
           Some(
             Ok(
-              Util.BenchMarks.time("samples' values made terms", () =>
-                Wire.in_(m)
+              Util.BenchMarks.time(
+                ~extra=
+                  () =>
+                    [("to_term ms", Util.BenchMarks.num(Wire.to_term_ms^))],
+                "samples' values made terms",
+                () => Wire.in_(m),
               ),
             ),
           )
