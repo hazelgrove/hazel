@@ -241,7 +241,7 @@ let update =
         let final_z =
           CompositionGo.Local.PerformUtils.normalize_top_level(
             ~before=z,
-            Materialize.all(new_z, ~root=Exp),
+            CompositionGo.Local.PerformUtils.materialize(~before=z, new_z),
           )
           |> LocalReformat.go_region(~before_pieces);
         let new_editor_model = Editor.Model.mk(final_z, ~root=Exp);

@@ -33,12 +33,13 @@ let prepared = (z: Zipper.t): Segment.t =>
    delimiter can land glued to its neighbor (end|in re-lexes as one
    token). SpaceNormalize inserts the space the lexer would have
    forced; it only fires at glom junctions, which parsed user
-   material cannot contain. */
-let all = (z: Zipper.t, ~root: Sort.t): Zipper.t =>
+   material cannot contain. ~skip: subtrees known to be parsed
+   material, left as is. */
+let all = (~skip=?, z: Zipper.t, ~root: Sort.t): Zipper.t =>
   rezip(
     z,
     CanonicalCompletion.materialize_all(~sort=root, prepared(z))
-    |> SpaceNormalize.go,
+    |> SpaceNormalize.go(~skip?),
   );
 
 let one = (z: Zipper.t, ~root: Sort.t, id: Id.t): option(Zipper.t) =>
