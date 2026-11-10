@@ -1315,11 +1315,17 @@ let view =
     memo,
     key,
     () => {
+      /* (^report(51), step 1) the parts of a miss, timed for the check: the
+         error rows, the refusals, the livelit rows, each row's blank body
+         (summed), and the rows drawn */
+      let blank_ms = ref(0.);
       let (error_items, error_subtree) =
-        OutlineTree.error_rows(
-          ~info_map=statics.info_map,
-          ~rows=OutlineTree.collect(OutlineTree.rows(outline)),
-          statics.error_ids,
+        Util.BenchMarks.time("outline: error rows", () =>
+          OutlineTree.error_rows(
+            ~info_map=statics.info_map,
+            ~rows=OutlineTree.collect(OutlineTree.rows(outline)),
+            statics.error_ids,
+          )
         );
       let label = id =>
         switch (OutlineTree.node_of(id, outline)) {
@@ -1346,19 +1352,22 @@ let view =
                 refusals,
                 (program, outline),
                 () =>
-                  ScratchFocus.refusals(
-                    /* outside a slide, an editor is expression-rooted */
-                    ~root=
-                      Option.fold(
-                        ~none=Sort.Exp,
-                        ~some=Program.root,
-                        program,
-                      ),
-                    ~want=id => Id.Map.mem(id, OutlineTree.row_ids(outline)),
-                    switch (program) {
-                    | Some(Divided(d)) => Divided.document(d)
-                    | _ => segment
-                    },
+                  Util.BenchMarks.time("outline: refusals", () =>
+                    ScratchFocus.refusals(
+                      /* outside a slide, an editor is expression-rooted */
+                      ~root=
+                        Option.fold(
+                          ~none=Sort.Exp,
+                          ~some=Program.root,
+                          program,
+                        ),
+                      ~want=
+                        id => Id.Map.mem(id, OutlineTree.row_ids(outline)),
+                      switch (program) {
+                      | Some(Divided(d)) => Divided.document(d)
+                      | _ => segment
+                      },
+                    )
                   ),
               )
             );
@@ -1396,11 +1405,16 @@ let view =
             Language.TestMap.lookup(id, tr.test_map)
             |> Option.map(Language.TestMap.joint_status)
           ),
-        blank: id =>
-          switch (program) {
-          | Some(p) => blank_body(p, id)
-          | None => false
-          },
+        blank: id => {
+          let t0 = Util.BenchMarks.now();
+          let b =
+            switch (program) {
+            | Some(p) => blank_body(p, id)
+            | None => false
+            };
+          blank_ms := blank_ms^ +. (Util.BenchMarks.now() -. t0);
+          b;
+        },
         live,
         check:
           refusal(
@@ -1424,7 +1438,10 @@ let view =
           | Some(v) when is_deck =>
             Some({
               ux_mode: v.mode == SlideView.UX,
-              ux_rows: OutlineTree.livelit_row_ids(statics.term),
+              ux_rows:
+                Util.BenchMarks.time("outline: livelit rows", () =>
+                  OutlineTree.livelit_row_ids(statics.term)
+                ),
               ux_shown:
                 List.map(
                   (p: SlideView.pin) => p.p_id,
@@ -1697,7 +1714,11 @@ let view =
         get_menu_sel: () => menu_sel^,
         def_op: (op, id) => inject(DefOp(op, id)),
       };
-      OutlineSidebar.view(~props, ~on, outline);
+      Util.BenchMarks.time(
+        ~extra=() => [("blank ms", Util.BenchMarks.num(blank_ms^))],
+        "outline: rows drawn",
+        () => OutlineSidebar.view(~props, ~on, outline),
+      );
     },
   );
 };
