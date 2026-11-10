@@ -76,9 +76,16 @@ let rec in_exp = (~fns=Inline, env: Environment.t(Exp.t), exp: Exp.t) =>
           FixF(p', in_exp(~fns, env', e), None) |> rewrap;
 
         // Cases with binders: remove binder from env
+        /* The binder scopes over the body only, so the definition is
+           substituted in the OUTER env. In env', a binder that in_pat
+           renamed away from capture (x to x') maps x to x' there too, so
+           `let x = f(x) in ...` became `let x' = f(x') in ...`: the
+           definition's x, which means the outer one, went unbound. A
+           recursive let is no exception: its definition is elaborated to a
+           FixF, which binds the name itself. */
         | Let(p, e1, e2) =>
           let (env', p') = in_pat(~fns, env, env, p);
-          Let(p', in_exp(~fns, env', e1), in_exp(~fns, env', e2)) |> rewrap;
+          Let(p', in_exp(~fns, env, e1), in_exp(~fns, env', e2)) |> rewrap;
         | Match(e, cases) =>
           Match(
             in_exp(~fns, env, e),
@@ -94,7 +101,7 @@ let rec in_exp = (~fns=Inline, env: Environment.t(Exp.t), exp: Exp.t) =>
           FixF(p', in_exp(~fns, env', e), None) |> rewrap;
         | Theorem(p, e1, e2) =>
           let (env', p') = in_pat(~fns, env, env, p);
-          Theorem(p', in_exp(~fns, env', e1), in_exp(~fns, env', e2))
+          Theorem(p', in_exp(~fns, env, e1), in_exp(~fns, env', e2))
           |> rewrap;
         | Forall(pat, e) =>
           let (env', pat') = in_pat(~fns, env, env, pat);
