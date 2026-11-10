@@ -566,9 +566,10 @@ let selected_text = (z: t): string => {
 };
 
 /* Check if text is valid for wrapping in the given delimiter.
- * Rejects text containing the delimiter char or newlines. */
+ * Comments allow linebreaks; strings and labels remain single-line. */
 let is_valid_quote_content = (delim: string, text: string): bool =>
-  !String.contains(text, '\n') && !String.contains(text, delim.[0]);
+  (Token.is_comment_delim(delim) || !String.contains(text, '\n'))
+  && !String.contains(text, delim.[0]);
 
 /* Wrap selection in a quote delimiter (string, label, or comment).
  * Returns None if the text contains invalid characters, causing
@@ -651,8 +652,36 @@ let go = (~auto_indent: bool, char: string, z: t, ~root): option(t) => {
       Some(z)
     | (Inner(idx), (_, Some(t))) =>
       let idx = idx + 1;
+      let char =
+        if (auto_indent && char == "\n" && Token.is_comment(t)) {
+          let (prefix, _) = Token.split_nth(t, idx);
+          let lines = String.split_on_char('\n', prefix);
+          let indent =
+            if (List.length(lines) == 1) {
+              let measured =
+                Measured.of_segment(
+                  Zipper.unselect_and_zip(z),
+                  Id.Map.empty,
+                  Id.Map.empty,
+                );
+              switch (Zipper.generalized_neighbor(Right, z)) {
+              | Some(p) => Measured.find_p(p, measured).origin.col
+              | None => 0
+              };
+            } else {
+              let line = Util.ListUtil.last(lines);
+              let n = ref(0);
+              while (n^ < String.length(line) && line.[n^] == ' ') {
+                incr(n);
+              };
+              n^;
+            };
+          "\n" ++ String.make(indent, ' ');
+        } else {
+          char;
+        };
       let new_token = Token.insert_nth(idx, char, t);
-      let z = Caret.set(Inner(idx), z);
+      let z = Caret.set(Inner(idx + Token.length(char) - 1), z);
       Token.is_potential_token(new_token)
         ? z
           |> replace_shard_inplace(Right, new_token, ~root)
@@ -678,6 +707,8 @@ let go =
       ~root,
     )
     : option(t) => {
+  /* Grapheme segmentation keeps a CRLF pair together during paste. */
+  let char = char == "\r\n" ? "\n" : char;
   let+ z = go(~auto_indent, char, z, ~root);
   let z = Triggers.insert(~ci, z);
   let z =

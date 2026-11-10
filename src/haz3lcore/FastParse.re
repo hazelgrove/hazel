@@ -87,13 +87,16 @@ let gap_pieces = (gap: string): list(Piece.t) => {
         go(i + 1, [Piece.Secondary(Secondary.mk_newline(Id.mk())), ...acc])
       | '\r' => go(i + 1, acc)
       | '#' =>
-        /* single-line comment: consume through the closing # */
+        /* A comment is one secondary, including its internal linebreaks. */
         let j = ref(i + 1);
-        while (j^ < n && gap.[j^] != '#' && gap.[j^] != '\n') {
+        while (j^ < n && gap.[j^] != '#') {
           incr(j);
         };
         if (j^ < n && gap.[j^] == '#') {
           let comment = String.sub(gap, i, j^ - i + 1);
+          if (String.contains(comment, '\r')) {
+            raise(Mismatch);
+          };
           go(
             j^ + 1,
             [Piece.Secondary(Secondary.mk(Id.mk(), comment)), ...acc],

@@ -70,7 +70,7 @@ module TextArea = {
           col,
         }
       | [line, ...rest] =>
-        let line_length = String.length(line);
+        let line_length = Js.string(line)##.length;
         if (cur_pos <= line_length) {
           {
             row,
@@ -105,27 +105,21 @@ module TextArea = {
     let full_row = List.nth(lines, row);
     {
       rows: rel(row, List.length(lines) - 1),
-      cols: rel(col, String.length(full_row)),
+      cols: rel(col, Js.string(full_row)##.length),
     };
   };
 
-  let caret_at_start = (textarea: t): bool => {
-    let {rows, cols} = caret_rel_pos(textarea);
-    rows == First && cols == First;
-  };
+  /* DOM selection offsets are UTF-16, and a range at a boundary is still a
+   * selection: arrows should collapse/extend it before leaving the field. */
+  let caret_at_start = (textarea: t): bool =>
+    textarea##.selectionStart == 0 && textarea##.selectionEnd == 0;
 
-  let caret_at_end = (textarea: t): bool => {
-    /* precondition: lines nonempty */
-    let lines = lines(textarea);
-    let {rows, cols} = caret_rel_pos(textarea);
-    switch (rows, cols, List.rev(lines)) {
-    | (Last, Last, _) => true
-    | (Last, First, ["", ..._]) => true
-    | (First, Last, [_]) => true
-    | (First, First, [""]) => true
-    | _ => false
-    };
-  };
+  let caret_at_end = (textarea: t): bool =>
+    textarea##.selectionStart ==
+    textarea##.value##.length
+    &&
+    textarea##.selectionEnd ==
+    textarea##.value##.length;
 
   let is_last_pos = id => caret_at_end(get(id));
   let is_first_pos = id => caret_at_start(get(id));
@@ -138,7 +132,7 @@ module TextArea = {
 
   let set_caret_to_end = (textarea: t): unit => {
     textarea##focus;
-    let content_length = String.length(content(textarea));
+    let content_length = textarea##.value##.length;
     textarea##.selectionStart := content_length;
     textarea##.selectionEnd := content_length;
   };

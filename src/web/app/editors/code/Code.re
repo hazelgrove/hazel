@@ -158,9 +158,27 @@ let view =
       Node.text(lb_icon ++ token);
     | Whitespace(str) when str == Token.space => Node.text(ws_icon)
     | Whitespace(_) => failwith("Code: Unrecognized Secondary")
-    | Comment(str) when List.mem(secondary.id, buffer_ids) =>
-      comment_text(~font_metrics, "in-unparsed-buffer", str)
-    | Comment(str) => comment_text(~font_metrics, "comment", str)
+    | Comment(str) =>
+      let cls =
+        List.mem(secondary.id, buffer_ids) ? "in-unparsed-buffer" : "comment";
+      let lines = String.split_on_char('\n', str);
+      let nodes =
+        List.mapi(
+          (i, line) =>
+            (
+              i == 0
+                ? []
+                : [
+                  Node.text(
+                    String.make(DeferredLinebreaks.of_secondary(), '\n'),
+                  ),
+                ]
+            )
+            @ [comment_text(~font_metrics, cls, line)],
+          lines,
+        )
+        |> List.flatten;
+      span(nodes);
     };
 
   let of_projector = (pr: Base.projector) => {

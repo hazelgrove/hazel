@@ -43,8 +43,11 @@ let of_list = Unicode.of_list;
 let empty = ""; /* This is invalid for view */
 let space = " ";
 let linebreak = "\n";
-let comment_regexp = regexp("^#[^#\n]*#$"); /* Multiline comments not supported */
-let is_comment = t => match(comment_regexp, t) || t == "#";
+let comment_regexp = regexp("^#[^#]*#$");
+/* JS regex `$` also matches before a final newline. Do not absorb the
+   newline typed AFTER a closed comment into that comment. */
+let is_comment = t =>
+  String.ends_with(~suffix="#", t) && match(comment_regexp, t) || t == "#";
 let is_comment_delim = t => t == "#";
 let is_secondary = t => List.mem(t, [space, linebreak]) || is_comment(t);
 
@@ -109,6 +112,56 @@ let is_string_or_comment = t =>
   is_string(t) || is_comment(t) || is_quoted_label(t);
 let is_string_or_comment_delim = t =>
   is_string_delim(t) || is_comment_delim(t) || is_quoted_label_delim(t);
+
+/* Source indentation is recomputed for code, but leading whitespace inside
+   a comment is content. Scan ASCII delimiters without changing UTF-8 bytes;
+   hashes in strings or quoted labels must not open comments. */
+let trim_leading_code_whitespace = (s: string): string => {
+  let s =
+    s
+    |> StringUtil.replace(regexp("\r\n"), _, "\n")
+    |> StringUtil.replace(regexp("\r"), _, "\n");
+  let result = Buffer.create(String.length(s));
+  let quote = ref(None);
+  let escaped = ref(false);
+  let line_start = ref(true);
+  String.iter(
+    c =>
+      if (c == '\n') {
+        Buffer.add_char(result, c);
+        line_start := true;
+        if (quote^ != Some('#')) {
+          quote := None;
+        };
+        escaped := false;
+      } else if (quote^ == None && line_start^ && (c == ' ' || c == '\t')) {
+        ();
+      } else {
+        Buffer.add_char(result, c);
+        line_start := false;
+        switch (quote^) {
+        | Some('#') =>
+          if (c == '#') {
+            quote := None;
+          }
+        | Some(q) =>
+          if (escaped^) {
+            escaped := false;
+          } else if (c == '\\') {
+            escaped := true;
+          } else if (c == q) {
+            quote := None;
+          }
+        | None =>
+          if (c == '#' || c == '"' || c == '`') {
+            quote := Some(c);
+          }
+        };
+      },
+    s,
+  );
+  Buffer.contents(result);
+};
 
 let true_ = "true";
 let false_ = "false";
