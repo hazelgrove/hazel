@@ -360,8 +360,7 @@ let prepend_pat_mark =
     warnings
     @ (
       switch (info.user_term.term) {
-      | Var(name) =>
-        Warning.to_list(Warning.var_is_unused(info.co_ctx, name))
+      | Var(name) => Warning.var_is_unused(info.co_ctx, name)
       | _ => []
       }
     );

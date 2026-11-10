@@ -589,15 +589,42 @@ let rec has_fun = (typ: t) =>
     )
   };
 
-let unroll = (ty: t): t =>
-  switch (term_of(ty)) {
-  | Rec(tp, ty_body) =>
-    switch (TPat.tyvar_of_utpat(tp)) {
-    | None => ty_body
-    | Some(_) => subst(ty, tp, ty_body)
-    }
-  | _ => ty
-  };
+/* A recursive type whose body, under any binders, parentheses, projectors
+   and non-labels, is one of its own bound variables: `rec x -> x`,
+   `rec x -> (x)`, `rec x -> rec y -> x`. It has no unrolling and stands for
+   no type. Some(binder) when [ty] is one, with [binder] the binder its body
+   refers to: the innermost of that name, so the inner one in
+   `rec x -> rec x -> x`. */
+let non_contractive = (ty: t): option(TPat.t) => {
+  let rec go = (bound: list((string, TPat.t)), ty: t): option(TPat.t) =>
+    switch (term_of(ty)) {
+    | Parens(ty)
+    | Projector(_, ty)
+    | TupLabel({term: ExplicitNonlabel, _}, ty) => go(bound, ty)
+    | Rec(tp, body) =>
+      let named =
+        TPat.tyvar_of_utpat(tp) |> Option.map(x => (x, tp)) |> Option.to_list;
+      go(named @ bound, body);
+    | Var(x) => List.assoc_opt(x, bound)
+    | Unknown(_)
+    | Atom(_)
+    | DrvQuoteTy(_)
+    | List(_)
+    | Arrow(_)
+    | Sum(_)
+    | Prod(_)
+    | ExplicitNonlabel
+    | Label(_)
+    | TupLabel(_)
+    | Poly(_)
+    | ProofOf(_)
+    | ProdProjection(_)
+    | ProdExtension(_)
+    | Sig(_)
+    | TypeMember(_) => None
+    };
+  go([], ty);
+};
 
 /* `ty` with the type variable `x` renamed to `x'` where it refers to the
    binding being renamed: not under a binder of `x`, nor in the signature
@@ -866,25 +893,37 @@ let surface_names_in = (~ctx: Ctx.t=Ctx.empty, tys: list(t)): (t => t) => {
 
 let surface_names = (ty: t): t => surface_names_in([ty], ty);
 
-/* Unroll a Rec type until its head is not a Rec. Returns None on self-loop
-   types like `rec x -> x` where unrolling cannot make progress. Normalizes
-   the body first so that vacuous inner Recs (e.g. `rec x -> (rec ? -> x)`)
-   are recognized as the equivalent self-loop. See hazelgrove/hazel#2235,
-   #1624. */
-let rec unroll_to_non_rec = (ty: t): option(t) =>
+/* Unroll a recursive type until its head is not a Rec; None when it is
+   non-contractive. */
+let rec unroll = (ty: t): option(t) =>
   switch (term_of(ty)) {
+  | Rec(_) when Option.is_some(non_contractive(ty)) => None
   | Rec(tp, body) =>
-    switch (unroll_to_non_rec(body)) {
-    | None => None
-    | Some(body') =>
-      switch (TPat.tyvar_of_utpat(tp), term_of(body')) {
-      | (Some(w), Var(v)) when v == w => None
-      | _ =>
-        let (_, rewrap) = Annotated.unwrap(ty);
-        unroll_to_non_rec(unroll(Grammar.Rec(tp, body') |> rewrap));
-      }
-    }
-  | _ => Some(ty)
+    let* body = unroll(body);
+    let (_, rewrap) = unwrap(ty);
+    switch (TPat.tyvar_of_utpat(tp)) {
+    | None => Some(body)
+    | Some(_) => Some(subst(Rec(tp, body) |> rewrap, tp, body))
+    };
+  | Unknown(_)
+  | Atom(_)
+  | DrvQuoteTy(_)
+  | Var(_)
+  | List(_)
+  | Arrow(_)
+  | Sum(_)
+  | Prod(_)
+  | ExplicitNonlabel
+  | Label(_)
+  | TupLabel(_)
+  | Parens(_)
+  | Projector(_)
+  | Poly(_)
+  | ProofOf(_)
+  | ProdProjection(_)
+  | ProdExtension(_)
+  | Sig(_)
+  | TypeMember(_) => Some(ty)
   };
 
 /* Substitute each [(binder, name, def)] for [name] where it is free in
@@ -1091,12 +1130,16 @@ and path_head = (~rec_counter, ctx: Ctx.t, t: t): option(t) =>
     | _ => Some(head_type(~rec_counter, ctx, t))
     };
   }
-/* Weak head normal form, unrolling a recursive type once. */
+/* Weak head normal form, a recursive type unrolled to its head; a
+   non-contractive one stays as it is. */
 and head_type = (~rec_counter, ctx: Ctx.t, ty: t): t => {
   let ty = weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty);
   switch (term_of(ty)) {
   | Rec(_) =>
-    weak_head_normalize(~rec_counter=rec_counter + 1, ctx, unroll(ty))
+    switch (unroll(ty)) {
+    | Some(ty) => weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty)
+    | None => ty
+    }
   | _ => ty
   };
 };
@@ -1656,6 +1699,26 @@ let equal_up_to_aliases = (ctx: Ctx.t, a: t, b: t): bool => {
   go(~depth=0, ctx, a, b);
 };
 
+/* Whether a type alias bound by [tpat] is recursive, given its definition
+   [def]: Recursive(`rec tpat -> def`) when [def] mentions the alias's name,
+   and Plain, with [def] standing as written, otherwise. The `rec` binds
+   [tpat] itself, so the alias and its recursive type share one binder.
+   `type T = T` is Recursive, with the non-contractive `rec T -> T`. Only
+   [def]'s own free variables are read, so a definition reaching the alias
+   through another alias, as in `type y = x in type x = y`, is Plain. */
+[@deriving show({with_path: false})]
+type alias_def =
+  | Plain
+  | Recursive(t);
+
+let recursive_def = (tpat: TPat.t, def: t): alias_def =>
+  switch (TPat.tyvar_of_utpat(tpat)) {
+  | Some(name) when List.exists(String.equal(name), free_vars(def)) =>
+    Recursive(Rec(tpat, def) |> temp)
+  | Some(_)
+  | None => Plain
+  };
+
 /* Structural canonicalization WITHOUT alias expansion: desugars Sig,
    computes tuple projections/extensions, dedups labels, strips wrapper
    noise — but leaves every alias compact. This is the right form for
@@ -1742,16 +1805,14 @@ let rec close = (ctx: Ctx.t, ty: t): t => {
 and close_items = (ctx: Ctx.t, items: list(Sig.t)): ClosedSig.t(Sig.t) =>
   closed_of_scopes(sig_item_scopes(ctx, items))
 /* The type an alias [tp] defined as [def] stands for: [def] closed with
-   the alias's own name abstract, recursive if it mentions itself, bound
-   then by [tp] itself so the `rec` binder is the alias's. */
-and alias_def = (ctx: Ctx.t, tp: TPat.t, def: t): t =>
-  switch (TPat.tyvar_of_utpat(tp)) {
-  | None => close(ctx, def)
-  | Some(name) =>
-    let def = close(extend_binder(ctx, tp, [def]), def);
-    List.exists(String.equal(name), free_vars(def))
-      ? Rec(tp, def) |> temp : def;
-  }
+   the alias's own name abstract, then recursive as recursive_def says. */
+and alias_def = (ctx: Ctx.t, tp: TPat.t, def: t): t => {
+  let def = close(extend_binder(ctx, tp, [def]), def);
+  switch (recursive_def(tp, def)) {
+  | Recursive(ty_rec) => ty_rec
+  | Plain => def
+  };
+}
 and sig_item_scopes = (ctx: Ctx.t, items: list(Sig.t)): list(sig_item_scope) => {
   let type_members = Sig.type_names(Sig.members(items));
   let is_type_member = n => List.exists(String.equal(n), type_members);
@@ -1892,8 +1953,72 @@ let reduced_path = (ctx: Ctx.t, ty: t): option(t) =>
   | TypeMember(_) => None
   };
 
-let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
-  let meet' = meet(ctx);
+/* One binder to compare the bodies of two binding forms under, [body1]
+   bound by [tp1] and [body2] by [tp2], with each body renamed to it. Its
+   name must not be free in either form, or renaming would capture that
+   free variable: the second binder, else the first, else a fresh name. */
+let shared_binder =
+    (tp1: TPat.t, body1: t, tp2: TPat.t, body2: t): (TPat.t, t, t) => {
+  let free = (tp, body) =>
+    lazy(free_vars(~bound=Option.to_list(TPat.tyvar_of_utpat(tp)), body));
+  let (free1, free2) = (free(tp1, body1), free(tp2, body2));
+  let free_in = (x, free) =>
+    List.exists(String.equal(x), Lazy.force(free));
+  let rename = (x, tp, body) => subst(Var(x) |> temp, tp, body);
+  switch (TPat.tyvar_of_utpat(tp1), TPat.tyvar_of_utpat(tp2)) {
+  | (Some(x1), Some(x2)) when String.equal(x1, x2) => (tp1, body1, body2) /* no renaming needed */
+  | (_, Some(x2)) when !free_in(x2, free1) => (
+      tp2,
+      rename(x2, tp1, body1),
+      body2,
+    )
+  | (Some(x1), _) when !free_in(x1, free2) => (
+      tp1,
+      body1,
+      rename(x1, tp2, body2),
+    )
+  | (Some(x), _)
+  | (None, Some(x)) =>
+    /* Source names may contain `_α`, so a generated name is checked. */
+    let rec fresh = () => {
+      let x' = fresh_var(x);
+      free_in(x', free1) || free_in(x', free2) ? fresh() : x';
+    };
+    let fresh_name = fresh();
+    let fresh_tp = Var(fresh_name) |> TPat.fresh;
+    (
+      fresh_tp,
+      rename(fresh_name, tp1, body1),
+      rename(fresh_name, tp2, body2),
+    );
+  | (None, None) => (tp2, body1, body2)
+  };
+};
+
+/* [seen] holds the (recursive type, other type) pairs being met through an
+   unrolling on the way here. */
+let rec meet =
+        (~seen: list((t, t))=[], ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
+  let meet' = meet(~seen, ctx);
+  /* [ty_rec] against [ty] through [ty_rec]'s unrolling, which [meet_unrolled]
+     meets in [ty_rec]'s position. A pair already in [seen] is consistent: the
+     only way back to it is through heads that matched (Amadio and Cardelli),
+     and the recursive type is its meet. The result is [ty_rec] itself when
+     the meet is exactly its unrolling. */
+  let through_unrolling =
+      (
+        ty_rec: t,
+        ty: t,
+        meet_unrolled: (~seen: list((t, t)), t) => option(t),
+      )
+      : option(t) =>
+    if (List.exists(((r, o)) => equal(r, ty_rec) && equal(o, ty), seen)) {
+      Some(ty_rec);
+    } else {
+      let* ty_rec' = unroll(ty_rec);
+      let+ ty_meet = meet_unrolled(~seen=[(ty_rec, ty), ...seen], ty_rec');
+      equal(ty_rec', ty_meet) ? ty_rec : ty_meet;
+    };
   switch (term_of(ty1), term_of(ty2)) {
   | (_, Parens(ty2))
   | (_, Projector(_, ty2)) => meet'(ty1, ty2)
@@ -1944,37 +2069,22 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   | (_, ProdProjection(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
   | (ProdExtension(_), _) => meet'(weak_head_normalize(ctx, ty1), ty2)
   | (_, ProdExtension(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
-  | (Rec(tp1, ty1), Rec(tp2, ty2)) =>
-    let ty1' =
-      switch (TPat.tyvar_of_utpat(tp2)) {
-      | Some(x2) => subst(Var(x2) |> temp, tp1, ty1)
-      | None => ty1
-      };
-    let ctx = extend_binder(ctx, tp1, [ty1', ty2]);
-    let+ ty_body = meet(ctx, ty1', ty2);
-    Rec(tp1, ty_body) |> temp;
-  /* A signature alias that mentions itself is a Rec; a self-loop unrolls
-     to nothing. */
-  | (Rec(_), Sig(_)) =>
-    Option.bind(unroll_to_non_rec(ty1), ty1 => meet'(ty1, ty2))
-  | (Sig(_), Rec(_)) =>
-    Option.bind(unroll_to_non_rec(ty2), ty2 => meet'(ty1, ty2))
-  | (Rec(_), _) => None
-  | (Poly(x1, ty1), Poly(x2, ty2)) =>
-    let ty1' =
-      switch (TPat.tyvar_of_utpat(x2)) {
-      | Some(x2) => subst(Var(x2) |> temp, x1, ty1)
-      | None => ty1
-      };
-    let ctx = extend_binder(ctx, x2, [ty1', ty2]);
-    let+ ty_body = meet(ctx, ty1', ty2);
-    Poly(x2, ty_body) |> temp;
-  /* Note for above: `subst` is capture-avoiding (see its definition),
-     so renaming `x1` to `x2` via substitution is safe. In rare cases
-     where capture does trigger, `subst` generates fresh internal type
-     variable names via `fresh_var` that may be exposed to the user. We
-     preserve the variable name of the second type to preserve
-     synthesized type variable names, which come from user annotations. */
+  | (Rec(tp1, body1), Rec(tp2, body2)) =>
+    let (tp, body1, body2) = shared_binder(tp1, body1, tp2, body2);
+    let+ ty_body =
+      meet(~seen, extend_binder(ctx, tp, [body1, body2]), body1, body2);
+    Rec(tp, ty_body) |> temp;
+  /* A recursive type meets a structural one through its unrolling; a
+     non-contractive type has no unrolling and meets nothing. */
+  | (Rec(_), _) =>
+    through_unrolling(ty1, ty2, (~seen, ty1') => meet(~seen, ctx, ty1', ty2))
+  | (_, Rec(_)) =>
+    through_unrolling(ty2, ty1, (~seen, ty2') => meet(~seen, ctx, ty1, ty2'))
+  | (Poly(tp1, body1), Poly(tp2, body2)) =>
+    let (tp, body1, body2) = shared_binder(tp1, body1, tp2, body2);
+    let+ ty_body =
+      meet(~seen, extend_binder(ctx, tp, [body1, body2]), body1, body2);
+    Poly(tp, ty_body) |> temp;
   | (Poly(_), _) => None
   | (Atom(c1), Atom(c2)) when c1 == c2 => Some(ty1)
   | (Atom(_), _) => None
@@ -2019,7 +2129,7 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     };
   | (Prod(_), _) => None
   | (Sum(sm1), Sum(sm2)) =>
-    let+ sm' = ConstructorMap.meet(equal, meet(ctx), sm1, sm2);
+    let+ sm' = ConstructorMap.meet(equal, meet(~seen, ctx), sm1, sm2);
     Sum(sm') |> temp;
   | (Sum(_), _) => None
   | (List(ty1), List(ty2)) =>
@@ -2184,29 +2294,34 @@ let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
   | Parens(ty) => get_sum_constructors(ctx, ty)
   | Sum(sm) => Some(sm)
   | Rec(_) =>
-    /* Note: We must unroll here to get right ctr types;
-       otherwise the rec parameter will leak. However, seeing
-       as substitution is too expensive to be used here, we
-       currently making the optimization that, since all
-       recursive types are type alises which use the alias name
-       as the recursive parameter, and type aliases cannot be
-       shadowed, it is safe to simply remove the Rec constructor,
-       provided we haven't escaped the context in which the alias
-       is bound. If either of the above assumptions become invalid,
-       the below code will be incorrect! */
-    let ty =
-      switch (ty |> term_of) {
-      | Rec({term: Var(x), _}, _ty_body) =>
-        switch (Ctx.lookup_alias(ctx, x)) {
-        | None => unroll(ty)
-        | Some(_) => unroll(ty)
-        }
-      | _ => ty
-      };
-    switch (ty |> term_of) {
-    | Sum(sm) => Some(sm)
-    | _ => None
-    };
+    /* Unrolled so that the constructor types do not mention the rec
+       parameter. */
+    switch (unroll(ty)) {
+    | None => None
+    | Some(ty) =>
+      switch (term_of(ty)) {
+      | Sum(sm) => Some(sm)
+      | Unknown(_)
+      | Atom(_)
+      | DrvQuoteTy(_)
+      | Var(_)
+      | List(_)
+      | Arrow(_)
+      | Prod(_)
+      | ExplicitNonlabel
+      | Label(_)
+      | TupLabel(_)
+      | Parens(_)
+      | Projector(_)
+      | Rec(_)
+      | Poly(_)
+      | ProofOf(_)
+      | ProdProjection(_)
+      | ProdExtension(_)
+      | Sig(_)
+      | TypeMember(_) => None
+      }
+    }
   | _ => None
   };
 };

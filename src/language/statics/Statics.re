@@ -369,9 +369,8 @@ and uexp_to_info_map =
       switch (Pat.get_num_of_vars(p), Exp.get_num_of_functions(def)) {
       | (Some(num_vars), Some(num_fns))
           when num_vars != 0 && num_vars == num_fns =>
-        let norm = Typ.weak_head_normalize(ctx, syn);
-        let arrow_like = t =>
-          Typ.is_arrow_like(Typ.weak_head_normalize(ctx, t));
+        let norm = MatchedTyp.head(ctx, syn);
+        let arrow_like = t => Typ.is_arrow_like(MatchedTyp.head(ctx, t));
         switch (norm |> Typ.term_of) {
         | Prod(syns) when List.length(syns) == num_vars =>
           syns |> List.for_all(arrow_like)
@@ -1420,7 +1419,7 @@ and uexp_to_info_map =
           ty_list,
         );
       let tuple_elab =
-        switch (Typ.weak_head_normalize(ctx, ana).term) {
+        switch (MatchedTyp.head(ctx, ana).term) {
         | Prod(ts) =>
           Tuple(
             LabeledTuple.rearrange(
@@ -2312,10 +2311,14 @@ and uexp_to_info_map =
         m,
       );
     | Forall(p, e) =>
-      let (p, p_elab, m) =
+      let (p', _, _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, p, m);
       let (e, e_elab, m) =
-        go(~ctx=p.ctx, ~ana=Atom(Bool) |> Typ.temp, e, m);
+        go(~ctx=p'.ctx, ~ana=Atom(Bool) |> Typ.temp, e, m);
+      /* Re-analyze the binder with the body's co_ctx so its unused warning
+         sees uses in the body. */
+      let (p, p_elab, m) =
+        go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, p, m);
       add(
         ~elab_term=Forall(p_elab, e_elab) |> rewrap,
         ~elab_syn_ty=Atom(Bool) |> Typ.temp,
@@ -2403,9 +2406,15 @@ and uexp_to_info_map =
           m,
         );
       let (e2, e2_elab, m) = go(~ctx=p'.ctx, ~ana, e2, m);
-      /* add co_ctx to pattern */
       let (p, p_elab, m) =
-        go_pat(~is_synswitch=false, ~co_ctx=e2.co_ctx, ~ana=syn, p, m);
+        go_pat(
+          ~is_synswitch=false,
+          ~warn_unused=false,
+          ~co_ctx=e2.co_ctx,
+          ~ana=p'.ty,
+          p,
+          m,
+        );
       add(
         ~elab_term=Theorem(p_elab, e1_elab, e2_elab) |> rewrap,
         ~elab_syn_ty=e2.elab_syn_ty,
@@ -2427,13 +2436,19 @@ and uexp_to_info_map =
       );
     | Theorem(p, e1, e2) =>
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
-      let (_, e1_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
+      let (e1', e1_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
       let (p', _, _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
       let (e2, e2_elab, m) = go(~ctx=p'.ctx, ~ana, e2, m);
-      /* add co_ctx to pattern */
       let (p, p_elab, m) =
-        go_pat(~is_synswitch=false, ~co_ctx=e2.co_ctx, ~ana=syn, p, m);
+        go_pat(
+          ~is_synswitch=false,
+          ~warn_unused=false,
+          ~co_ctx=e2.co_ctx,
+          ~ana=syn,
+          p,
+          m,
+        );
       add(
         ~elab_term=Theorem(p_elab, e1_elab, e2_elab) |> rewrap,
         ~elab_syn_ty=e2.elab_syn_ty,
@@ -2441,11 +2456,16 @@ and uexp_to_info_map =
         ~co_ctx=
           CoCtx.union([
             p'.co_ctx,
+            e1'.co_ctx,
             CoCtx.mk(ctx, p.ctx, e2.co_ctx),
             pat_typ_refs,
           ]),
         ~probe_targets=
-          SubexpProbeTargets.union_all([p.probe_targets, e2.probe_targets]),
+          SubexpProbeTargets.union_all([
+            p.probe_targets,
+            e1'.probe_targets,
+            e2.probe_targets,
+          ]),
         m,
       );
     | ProofObject(e) =>
@@ -2675,22 +2695,28 @@ and uexp_to_info_map =
         m,
       );
     | TyAlias(typat, utyp, body) =>
-      let m =
-        utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, typat, m)
-        |> snd;
       switch (typat.term) {
-      | Var(name) when !Ctx.is_base_typ(name) =>
-        let (name, typat, utyp, body) =
-          switch (Typ.unshadow(ctx, name)) {
-          | None => (name, typat, utyp, body)
-          | Some(name') => (
-              name',
-              TPat.rename(name', typat),
-              Typ.rename_var(name, name', utyp),
-              Exp.rename_tvar(name, name', body),
+      | Var(written) when !Ctx.is_base_typ(written) =>
+        let (name, bound, utyp, body) =
+          switch (Typ.unshadow(ctx, written)) {
+          | None => (written, typat, utyp, body)
+          | Some(name) => (
+              name,
+              TPat.rename(name, typat),
+              Typ.rename_var(written, name, utyp),
+              Exp.rename_tvar(written, name, body),
             )
           };
-        let (a, m) = alias_binding(~ctx, typat, name, utyp, m);
+        let (a, m) = alias_binding(~ctx, bound, name, utyp, m);
+        let m =
+          utpat_to_info_map(
+            ~ctx,
+            ~ancestors=ancestors_inclusive,
+            ~warnings=Warning.type_binding(typat, a.ty_def),
+            typat,
+            m,
+          )
+          |> snd;
         let (
           {co_ctx, probe_targets, elab_syn_ty: ty_body, _}: Info.exp,
           body_elab,
@@ -2698,7 +2724,7 @@ and uexp_to_info_map =
         ) =
           go(~ctx=a.ctx_scope, ~ana, body, m);
         /* Make sure types don't escape their scope */
-        let ty_escape = Typ.subst(a.ty_def, typat, ty_body);
+        let ty_escape = Typ.subst(a.ty_def, bound, ty_body);
         add(
           ~elab_term=body_elab,
           ~elab_syn_ty=ty_escape,
@@ -2711,6 +2737,9 @@ and uexp_to_info_map =
       | Invalid(_)
       | EmptyHole
       | MultiHole(_) =>
+        let m =
+          utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, typat, m)
+          |> snd;
         let (
           {co_ctx, probe_targets, elab_syn_ty: ty_body, _}: Info.exp,
           body_elab,
@@ -2733,7 +2762,7 @@ and uexp_to_info_map =
           ~probe_targets,
           m,
         );
-      };
+      }
     | Use(typ, body) =>
       let (typ, m) =
         utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, typ, m);
@@ -3341,6 +3370,7 @@ and upat_to_info_map =
       ~ana: Typ.t=Unknown(Internal) |> Typ.temp,
       ~under_ascription: bool=false,
       ~probe_ids: Id.Map.t(unit)=Id.Map.empty,
+      ~warn_unused: bool=true,
       upat: Pat.t,
       m: Map.t,
     )
@@ -3391,7 +3421,7 @@ and upat_to_info_map =
       warnings
       @ (
         switch (user_term.term) {
-        | Var(name) => Warning.to_list(Warning.var_is_unused(co_ctx, name))
+        | Var(name) when warn_unused => Warning.var_is_unused(co_ctx, name)
         | _ => []
         }
       );
@@ -3451,6 +3481,7 @@ and upat_to_info_map =
       ~ana,
       ~under_ascription,
       ~probe_ids,
+      ~warn_unused,
       upat,
       m: Map.t,
     );
@@ -3468,6 +3499,7 @@ and upat_to_info_map =
             ~ancestors=ancestors_inclusive,
             ~ana,
             ~probe_ids,
+            ~warn_unused,
             pat,
             m,
           ),
@@ -3480,6 +3512,7 @@ and upat_to_info_map =
             ~ancestors=ancestors_inclusive,
             ~ana,
             ~probe_ids,
+            ~warn_unused,
             pat,
             m,
           ),
@@ -4472,7 +4505,7 @@ and utyp_to_info_map =
     };
   };
   /* [ty] is [utyp] closed, built from the children's closed types. */
-  let add = (~expects=expects, ~utyp=utyp, ~ty: Typ.t, m) => {
+  let add = (~expects=expects, ~utyp=utyp, ~ty: Typ.t, ~warnings=[], m) => {
     let st = status_for_node(~expects, ty);
     let cls: Cls.t =
       switch (expects, Typ.cls_of_term(utyp.term)) {
@@ -4491,7 +4524,7 @@ and utyp_to_info_map =
       marks: fst(st),
       message: Option.map(x => Message.TypOk(x), snd(st)),
       expects,
-      warnings: [],
+      warnings,
       user_term: utyp,
       ty,
     };
@@ -4682,7 +4715,7 @@ and utyp_to_info_map =
       |> snd;
     let m =
       utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
-    add(~ty, m);
+    add(~ty, ~warnings=Warning.rec_type(utpat, ty), m);
   | Sig(s) =>
     /* Written items scope sequentially, each read where the earlier ones
        are bound closed; closed items are independent. An item that binds
@@ -4730,7 +4763,8 @@ and utyp_to_info_map =
   };
 }
 and utpat_to_info_map =
-    (~ctx, ~ancestors, utpat: TPat.t, m: Map.t): (Info.tpat, Map.t) => {
+    (~ctx, ~ancestors, ~warnings=[], utpat: TPat.t, m: Map.t)
+    : (Info.tpat, Map.t) => {
   let ids = IdTagged.ids(utpat);
   let term = IdTagged.term_of(utpat);
   let status_for_node =
@@ -4752,7 +4786,7 @@ and utpat_to_info_map =
       ancestors,
       marks: fst(st),
       message: Option.map(x => Message.TPatOk(x), snd(st)),
-      warnings: [],
+      warnings,
       ctx,
       user_term: utpat,
     };
