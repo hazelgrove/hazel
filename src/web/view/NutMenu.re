@@ -343,6 +343,12 @@ let developer = (~globals: Globals.t): section => {
         "Show elaborated (internal) expressions",
       ),
       toggle(
+        "Action explorer",
+        globals.settings.show_action_explorer,
+        ToggleActionExplorer,
+        "Show action explorer for coding agent",
+      ),
+      toggle(
         "Probe all",
         globals.settings.core.probe_all,
         ProbeAll,
