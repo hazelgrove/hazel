@@ -30,7 +30,7 @@ let livelit_line = (k: ProjectorKind.t): option(string) =>
   | TextArea => Some("- **text** — Multiline string literal editor.")
   | Livelit =>
     Some(
-      "- **livelit** — Custom livelit projector for structured literal editing.",
+      "- **livelit** — Shows a livelit's GUI at a use `^name(model)`. Programs can DEFINE their own livelits — `let ^name = { init; update; view; expand } in ...` — giving any data type an embedded editing widget; write uses as `^^livelit(^name(model))`. Call `read_docs(\"livelits\")` before defining one.",
     )
   | Table =>
     Some(

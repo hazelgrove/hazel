@@ -54,20 +54,22 @@ Node("text", [Create("x", "80"), Create("y", "55")], [Text("a node")])
 
 Keep width/height equal to the viewBox size so `...At` handler coordinates
 equal viewBox coordinates. For direct manipulation (drag, draw), attach the
-`...At` handlers to the svg root — they only fire while the pointer is over
-it. The drag idiom, a held flag in the model:
+`...At` handlers to the svg root. Hover moves fire only while the pointer
+is over it, but a press on it captures the pointer: once a drag starts,
+move/up keep firing even when the pointer leaves the element, so gestures
+don't drop at the edge. The drag idiom, a held flag in the model:
 
 ```
 type DragAction = Press + MoveTo(Int, Int) + Release in
 let init = (100, 50, false) in
-let update = fun (m, a) ->
+let update(m, a) =
 let (x, y, held) = m in
 case a
 | Press => (x, y, true)
 | MoveTo(nx, ny) => if held then (nx, ny, true) else m
 | Release => (x, y, false)
 end in
-let view = fun m ->
+let view(m) =
 let (x, y, held) = m in
 Node("svg",
 [Create("viewBox", "0 0 200 100"), Width("200"), Height("100"),
@@ -78,8 +80,8 @@ OnMouseUpAt(fun p -> Release)],
 Create("r", "12"), Create("fill", if held then "coral" else "teal"),
 OnMouseDownAt(fun p -> Press)],
 [])]) in
-let subs = fun m -> SubNone in
-let noCmd = fun f -> fun (m, a) -> (f((m, a)), CmdNone) in
+let subs(m) = SubNone in
+let noCmd(f) = fun (m, a) -> (f((m, a)), CmdNone) in
 ^^html((init, noCmd(update), view, subs))
 ```
 
@@ -89,15 +91,15 @@ let noCmd = fun f -> fun (m, a) -> (f((m, a)), CmdNone) in
 type Model = Int in
 type Action = Int in
 let init : Model = 0 in
-let update = fun (m, a) : (Model, Action) -> m + a in
-let view = fun m : Model ->
+let update(m: Model, a: Action) = m + a in
+let view(m: Model) =
 Div([], [
 Button([OnClick(-1)], [Text("-")]),
 Int(m),
 Button([OnClick(1)], [Text("+")])
 ]) in
-let subs = fun m : Model -> SubNone in
-let noCmd = fun f -> fun (m, a) -> (f((m, a)), CmdNone) in
+let subs(m: Model) = SubNone in
+let noCmd(f) = fun (m, a) -> (f((m, a)), CmdNone) in
 ^^html((init, noCmd(update), view, subs))
 ```
 
@@ -113,6 +115,89 @@ let noCmd = fun f -> fun (m, a) -> (f((m, a)), CmdNone) in
   (`test update((0, 1)) == 1 end`) and probes; the user interacts with
   the rendered app.
 - Style with `Style([...])` inline CSS; keep it modest.
+|},
+};
+
+let livelits: pack = {
+  name: "livelits",
+  blurb: "define a custom embedded GUI (livelit) for a data type and use it at values of that type — read before creating in-program widgets",
+  body: {|# Defining an embedded GUI (user-defined livelit)
+
+A program can define its own widget for editing values of some type, then
+use it wherever such values appear below the definition. A livelit is a
+module bound to a livelit name (`^` prefix):
+
+```
+let ^pct = {
+type Model = Int;
+type Action = Int;
+let init : Model = 50;
+let update(m: Model, a: Action) = a;
+let view(m: Model) =
+Div([], [
+Input([Type("range"), Min("0"), Max("100"), Value(string_of_int(m)),
+OnInput(fun s -> int_of_string(s))]),
+Text(string_of_int(m))
+]);
+let expand(m: Model) = m
+} in
+^^livelit(^pct(25)) + ^^livelit(^pct(75))
+```
+
+- `init : Model` — the model a fresh use starts with
+- `update : (Model, Action) -> Model` — no commands, unlike apps
+- `view : Model -> HTML` — same HTML/handler vocabulary as apps
+  (see read_docs("mvu")); handlers emit Actions
+- `expand : Model -> T` — what a use MEANS to the program: `^pct(25)`
+  evaluates to `expand(25)`
+
+## Rules
+
+- Each use `^name(model)` carries its own model in its own argument.
+  Wrap uses in `^^livelit(...)` so the GUI shows; a bare `^name(model)`
+  is still a valid expression, just without the widget.
+- Helpers and type members are ordinary module members; keep the
+  definition self-contained (helpers inside the module).
+- Optional member `let shape = ...` sets the widget's TEXT footprint
+  (a LivelitShape): `Inline(w)` is one line, w columns; `Block(w, h)`
+  is h lines with code flowing below; `Tab(w, h)` is h lines with code
+  continuing on the TOP line beside the widget (good for compact
+  square-ish widgets used inline). Default Inline(24). The view mounts
+  centered in a content box just inside the chevron end-caps and is
+  CLIPPED to it. Prefer views that FILL the box — Width/Height "100%",
+  svg scaled via viewBox — so any reasonable footprint looks right.
+  Views needing exact pixels (coordinate click math) should size
+  snugly (a line is ~25px); overshoot clips, it never overlaps code.
+- Models and Actions must be first-order data (ints, strings, tuples,
+  constructors) — they live in the program text.
+- Member access is ordinary syntax: `^pct.expand(25)` works anywhere.
+- `Create("data-hint", "drag me")` on a view element shows an instant
+  tooltip on hover — advertise non-obvious gestures this way.
+- When the user operates the widget, the argument is rewritten to the
+  transition `^name.update(prev, action)` — this is expected; it
+  evaluates in the program (probes inside update fire) and stays
+  visible as the last interaction.
+- Gestures: mouse-down and mouse-move actions preview the next model
+  live WITHOUT rewriting the program; the gesture-ending event (mouse
+  up, click, ...) commits once. So a drag is smooth and lands as a
+  single undo step — but a model changed only by down/move never
+  commits until some committing event fires: give every gesture a
+  mouse-up handler. OnInput streams work the same way: each input
+  event previews and the release/blur commits once, so a slider scrub
+  is also a single edit. Updates that return the model unchanged
+  commit nothing, so a stray click can't pollute history.
+- Editing a definition: tool paths descend into the module — update
+  ONE member via update_definition on "^name/member" (types too:
+  "^name/Model"), add members with insert_after/insert_before at a
+  member path, remove with delete_binding_clause. Don't re-emit the
+  whole module to change one member.
+
+## When to reach for one
+
+When a program contains values a user would rather manipulate directly
+than type — colors, ranges, coordinates, enums — define a livelit for
+that type and wrap the value uses. Prefer a builtin (`^^slider`,
+`^^check`, ...) when one already fits.
 |},
 };
 
@@ -134,7 +219,7 @@ A four-note loop (`Every` drives ticks only while running):
 ```
 type SeqAction = Tick + Toggle in
 let notes = [262., 330., 392., 523.] in
-let update = fun (m, a) ->
+let update(m, a) =
 let (i, on) = m in
 case a
 | Toggle => ((i, if on then false else true), CmdNone)
@@ -143,11 +228,11 @@ if on
 then ((int_mod(i + 1, 4), on), PlayTone(nth(notes, i), 120.))
 else (m, CmdNone)
 end in
-let view = fun (i, on) ->
+let view(i, on) =
 Div([], [
 Button([OnClick(Toggle)], [Text(if on then "stop" else "play")]),
 Int(i)]) in
-let subs = fun (i, on) ->
+let subs(i, on) =
 if on then Every(250., fun t -> Tick) else SubNone in
 ^^html(((0, false), update, view, subs))
 ```
@@ -164,8 +249,8 @@ Evaluation is deterministic — there is no random() function. Two idioms:
 - For reproducible generative art, thread a seed through the model:
 
 ```
-let next = fun s -> int_mod(s * 1103515245 + 12345, 2147483648) in
-let unit_float = fun s -> float_of_int(s) /. 2147483648. in
+let next(s) = int_mod(s * 1103515245 + 12345, 2147483648) in
+let unit_float(s) = float_of_int(s) /. 2147483648. in
 unit_float(next(42))
 ```
 
@@ -185,7 +270,7 @@ attributes and labels (string_of_float output is noisy).
 |},
 };
 
-let all: list(pack) = [mvu, creative];
+let all: list(pack) = [mvu, livelits, creative];
 
 let lookup = (name: string): option(pack) =>
   List.find_opt(p => p.name == String.trim(name), all);

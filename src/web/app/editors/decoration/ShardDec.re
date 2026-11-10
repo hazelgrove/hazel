@@ -80,6 +80,29 @@ let chonky_path_base =
   );
 };
 
+/* Tab shape: both chevrons sit on the TOP row (text flows on past the
+   projector on its own line) and a full-width body hangs below for
+   [rows] additional lines. With rows = 0 this reduces to the ordinary
+   single-row token shape. */
+let tab_path_base =
+    ((l, r), x_offset, length: float, rows: int): list(SvgUtil.Path.cmd) => {
+  List.flatten(
+    SvgUtil.Path.[
+      [
+        M({
+          x: -. x_offset,
+          y: 0.,
+        }),
+        H_({dx: length}),
+      ],
+      chevron(r, Right),
+      [v(~y=rows + 1), H_({dx: -. length}), v(~y=1)],
+      chevron(l, Left),
+      [Z],
+    ],
+  );
+};
+
 let length_of = (length, d_l, d_r) =>
   float_of_int(length)
   +. shape_adjust(Left, d_l)
@@ -122,3 +145,41 @@ let simple =
 
 let relative = (shard_dims: shard_dims) =>
   simple(~absolute=false, shard_dims, []);
+
+let tab_path = ((d_l, d_r), length: int, rows: int): list(SvgUtil.Path.cmd) =>
+  tab_path_base(
+    (d_l, d_r),
+    offset_of(d_l),
+    length_of(length, d_l, d_r),
+    rows,
+  );
+
+/* Tab-shaped backing (chevrons on the top line, body hanging [rows]
+   lines below). The measurement of a Tab projector spans only its top
+   row, so the hang-below extent arrives separately. */
+let relative_tab =
+    ({font_metrics, tips: (l, r), measurement}: shard_dims, ~rows: int)
+    : Node.t =>
+  DecUtil.code_svg_sized(
+    ~font_metrics,
+    /* a Tab projector's measurement spans only its top row; grow the
+       svg box to cover the hanging body too */
+    ~measurement={
+      ...measurement,
+      last: {
+        ...measurement.last,
+        row: measurement.last.row + rows,
+      },
+    },
+    ~base_cls=["shard"],
+    ~path_cls=[],
+    ~absolute=false,
+    tab_path(
+      (
+        Option.map(Nib.Shape.direction_of(Left), l),
+        Option.map(Nib.Shape.direction_of(Right), r),
+      ),
+      measurement.last.col - measurement.origin.col,
+      rows,
+    ),
+  );
