@@ -458,11 +458,19 @@ and uexp_to_info_map =
            definition's marks and elaborates it. */
         (def, def_elab, def_base.ty, m);
       };
+    /* A module item annotated wider than the signature expects fits it by
+       sealing: inside the body it is bound at its own annotation, and the
+       module's exported signature seals it (ModuleHelpers.sealed). */
     let ty_p =
       switch (ana_pat) {
       | None => def_ty
       | Some(expected) =>
-        Typ.meet(ctx, expected, def_ty) |> Option.value(~default=expected)
+        switch (Typ.meet(ctx, expected, def_ty)) {
+        | Some(ty) => ty
+        | None =>
+          Option.is_some(Typ.coercion(ctx, ~from=def_ty, ~to_=expected))
+            ? def_ty : expected
+        }
       };
     let (p_scope, _, _) =
       go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=ty_p, p, m);
