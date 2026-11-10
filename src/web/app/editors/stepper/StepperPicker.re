@@ -311,6 +311,9 @@ module Goal = {
     eval_steps: list((EvaluatorStep.step, Id.t)),
     /* Equalities in `display` that reflexivity closes. */
     refls: list(Exp.t),
+    /* What the goal was built with: how it prints, and which steps it
+     * offers. */
+    settings: CoreSettings.t,
   };
 
   let env = (goal: t) => SemanticCtx.get_env(goal.ctx);
@@ -357,6 +360,7 @@ module Goal = {
       editor,
       eval_steps,
       refls,
+      settings,
     };
   };
 
@@ -399,6 +403,57 @@ module Goal = {
       CachedSyntax.measured(editor.syntax),
     )
     |> Option.bind(_, id => Exp.find_by_id(id, goal.display));
+  };
+
+  /* `goal` built again with `settings`. The node that was selected is
+   * selected again, or the caret goes back to the node it was at.
+   * Substitution gives what it inlines fresh ids each time, so the node is
+   * found by its position in the display. */
+  let rebuild = (~settings: CoreSettings.t, goal: t): t => {
+    let rebuilt = mk(~settings, ~ctx=goal.ctx, goal.written);
+    let zipper = goal.editor.editor.state.zipper;
+    let (node, restore) =
+      switch (selected(goal)) {
+      | Some(node) => (
+          Some(Exp.rep_id(node)),
+          (id => Action.Select(Term(Id(id, zipper.selection.focus)))),
+        )
+      | None => (
+          Indicated.index(zipper),
+          (id => Action.Move(Goal(TileId(id)))),
+        )
+      };
+    let moved =
+      Option.bind(
+        node,
+        id => {
+          let id =
+            Occurrence.map_rep_id(
+              ~from=goal.display,
+              ~onto=rebuilt.display,
+              id,
+            )
+            |> Option.value(~default=id);
+          Editor.Update.update(
+            ~settings,
+            restore(id),
+            rebuilt.editor.statics,
+            rebuilt.editor.dynamics,
+            rebuilt.editor.editor,
+          )
+          |> Stdlib.Result.to_option;
+        },
+      );
+    switch (moved) {
+    | Some(editor) => {
+        ...rebuilt,
+        editor: {
+          ...rebuilt.editor,
+          editor,
+        },
+      }
+    | None => rebuilt
+    };
   };
 };
 

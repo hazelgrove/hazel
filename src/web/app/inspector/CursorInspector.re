@@ -136,7 +136,7 @@ let view_any = (~globals, any: Any.t) =>
   any
   |> CodeViewable.view_any(
        ~globals,
-       ~settings=ProofMarkView.code_view_settings,
+       ~settings=ProofMarkView.code_view_settings(globals.settings.core),
      )
   |> code_box_container;
 
@@ -144,7 +144,7 @@ let view_type = (~globals, typ: Typ.t) =>
   typ
   |> CodeViewable.view_typ(
        ~globals,
-       ~settings=ProofMarkView.code_view_settings,
+       ~settings=ProofMarkView.code_view_settings(globals.settings.core),
      )
   |> code_box_container;
 

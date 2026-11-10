@@ -196,9 +196,9 @@ module Update = {
     };
 
   /* The state for `rows`, rebuilt from the walk: a row carries over its
-   * last state, preparing its goal again only if the goal changed, and a
-   * row the walk doesn't reach is dropped with its state. A row with no
-   * goal has nothing to pick on, so no state. */
+   * last state, preparing its goal again only if the goal or the settings
+   * changed, and a row the walk doesn't reach is dropped with its state.
+   * A row with no goal has nothing to pick on, so no state. */
   let calculate =
       (~settings: CoreSettings.t, rows: list(Rows.t), model: Model.t)
       : Model.t =>
@@ -209,13 +209,20 @@ module Update = {
           let goal = () => Picker.Goal.mk(~settings, ~ctx, written);
           let local: Model.local =
             switch (Model.find(row.key, model)) {
-            | Some(local) when Picker.Goal.is_for(local.goal, ~ctx, written) => {
+            | Some(local) when Picker.Goal.is_for(local.goal, ~ctx, written) =>
+              let carried = {
+                ...local.goal,
+                ctx,
+              };
+              {
                 ...local,
-                goal: {
-                  ...local.goal,
-                  ctx,
-                },
-              }
+                goal:
+                  CoreSettings.eq_ignoring_stepper_modals(
+                    carried.settings,
+                    settings,
+                  )
+                    ? carried : Picker.Goal.rebuild(~settings, carried),
+              };
             | Some(local) => {
                 ...local,
                 goal: goal(),
@@ -504,12 +511,7 @@ module View = {
       let code = (e: Exp.t) =>
         CodeViewable.view_any(
           ~globals,
-          ~settings=
-            ExpToSegment.Settings.of_core(
-              ~inline=true,
-              ~fold_fn_bodies=`Text,
-              globals.settings.core,
-            ),
+          ~settings=ProofMarkView.code_view_settings(globals.settings.core),
           Exp(e),
         );
       /* Picking a step forces the record open, or the row just written
@@ -824,12 +826,7 @@ module View = {
     let code = (any: Any.t) =>
       CodeViewable.view_any(
         ~globals,
-        ~settings=
-          Haz3lcore.ExpToSegment.Settings.of_core(
-            ~inline=true,
-            ~fold_fn_bodies=`Text,
-            globals.settings.core,
-          ),
+        ~settings=ProofMarkView.code_view_settings(globals.settings.core),
         any,
       );
     /* Writes `pick` where `row`'s picker writes. A form with an argument
