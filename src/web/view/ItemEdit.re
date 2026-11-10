@@ -417,7 +417,7 @@ let apply_rename =
     (~mod_root: bool, rn: renaming, row: Id.t, seg: Segment.t)
     : result(Segment.t, K.reason) => {
   let root = root_of(mod_root);
-  let token = id => K.Replace(id, Token(rn.rn_name));
+  let token = id => K.Replace(Term(id), Token(rn.rn_name));
   let tokens =
     List.map(
       token,
@@ -431,7 +431,7 @@ let apply_rename =
     | None => []
     /* the kernel remakes a blank definition as the kind's blank, as
        [refit] expects */
-    | Some((kind, _)) => [K.Replace(row, Token(kind_kw(kind)))]
+    | Some((kind, _)) => [K.Replace(Entry(row), Token(kind_kw(kind)))]
     };
   run(~mod_root, seg, tokens @ rekind) |> Result.map(~f=fst);
 };

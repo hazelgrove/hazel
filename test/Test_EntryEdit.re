@@ -45,6 +45,10 @@ let rec tile_ids = (seg: Segment.t): list(Id.t) =>
     seg,
   );
 
+/* the term part [pt] of [head]'s entry is rooted at, as a path names it */
+let part = (~root=Sort.Exp, pt, head, seg): K.target =>
+  Term(Option.get(EntryPath.part_of(~root, seg, head, pt)));
+
 let run = (~root=Sort.Exp, seg, ops) =>
   switch (K.transaction(~root, seg, ops)) {
   | Ok(c) => c
@@ -192,15 +196,18 @@ let replace = () => {
   expect(
     "an entry by its head",
     "let a = 1 in\nlet c = 2 in\nb",
-    run(seg, [Replace(b, Text("let c = 2"))]),
+    run(seg, [Replace(Entry(b), Text("let c = 2"))]),
   );
   let lined = seg_of("let a(x) =\n  x + 1\nin\nlet b = 2 in\nb");
   expect(
     "spanning lines: `in` on a line of its own",
     "let a(x) =\n  x + 1\nin\nlet c(y) =\n  y\nin\nb",
-    run(lined, [Replace(head("b", lined), Text("let c(y) =\n  y in"))]),
+    run(
+      lined,
+      [Replace(Entry(head("b", lined)), Text("let c(y) =\n  y in"))],
+    ),
   );
-  let def = Option.get(K.part(~root=Exp, b, Definition, seg));
+  let def = part(Definition, b, seg);
   expect(
     "a definition",
     "let a = 1 in\nlet b = a * 10 in\nb",
@@ -208,7 +215,7 @@ let replace = () => {
   );
   /* a definition's doc comment: new code's own replaces it */
   let doc = seg_of("let f(x) =\n  # old #\n  x + 1\nin\nf(1)");
-  let body = Option.get(K.part(~root=Exp, head("f", doc), Definition, doc));
+  let body = part(Definition, head("f", doc), doc);
   expect(
     "a definition with a comment of its own: it replaces the old",
     "let f(x) =\n  # new #\n  x + 2\nin\nf(1)",
@@ -227,15 +234,13 @@ let replace = () => {
       apart,
       [
         Replace(
-          Option.get(
-            K.part(~root=Exp, head("f", apart), Definition, apart),
-          ),
+          part(Definition, head("f", apart), apart),
           Text("# new #\nx + 2"),
         ),
       ],
     ),
   );
-  let pat = Option.get(K.part(~root=Exp, b, Pattern, seg));
+  let pat = part(Pattern, b, seg);
   expect(
     "a pattern",
     "let a = 1 in\nlet (p, q) = a + 1 in\nb",
@@ -244,13 +249,31 @@ let replace = () => {
   expect(
     "a subterm",
     "let a = 1 in\nlet b = 7 + 1 in\nb",
-    run(seg, [Replace(CorpusUtil.last_tile("a", seg), Text("7"))]),
+    run(seg, [Replace(Term(CorpusUtil.last_tile("a", seg)), Text("7"))]),
   );
   let tail = CorpusUtil.last_tile("b", seg);
   expect(
     "a block's result",
     "let a = 1 in\nlet b = a + 1 in\nb * b",
-    run(seg, [Replace(tail, Text("b * b"))]),
+    run(seg, [Replace(Term(tail), Text("b * b"))]),
+  );
+  check(
+    bool,
+    "a block's result is no entry",
+    true,
+    refused(seg, [Replace(Entry(tail), Text("b * b"))]).reason
+    == NotAnEntry,
+  );
+  check(
+    bool,
+    "nor is a term in one",
+    true,
+    refused(
+      seg,
+      [Replace(Entry(CorpusUtil.last_tile("a", seg)), Text("7"))],
+    ).
+      reason
+    == NotAnEntry,
   );
   let cs = seg_of("case 1 | 1 => 2 | _ => 3 end");
   let rule =
@@ -270,10 +293,10 @@ let replace = () => {
   expect(
     "a case rule, through its result",
     "case 1 | 0 => 5 | _ => 3 end",
-    run(cs, [Replace(rule, Text("| 0 => 5"))]),
+    run(cs, [Replace(Term(rule), Text("| 0 => 5"))]),
   );
   let t = seg_of("type T = Int in 1");
-  let tdef = Option.get(K.part(~root=Exp, head("T", t), Definition, t));
+  let tdef = part(Definition, head("T", t), t);
   expect(
     "a type definition, read as a type",
     "type T = (Int, Bool) in 1",
@@ -284,7 +307,7 @@ let replace = () => {
 let token = () => {
   let seg = seg_of(chain);
   let use = CorpusUtil.last_tile("a", seg);
-  let c = run(seg, [Replace(use, Token("z"))]);
+  let c = run(seg, [Replace(Term(use), Token("z"))]);
   expect("a token's new text", "let a = 1 in\nlet b = z + 1 in\nb", c);
   check(
     bool,
@@ -297,7 +320,13 @@ let token = () => {
   let h = head("m", m);
   let name = CorpusUtil.tile("m", m);
   let c =
-    run(m, [Replace(name, Token("M")), Replace(h, Token("module"))]);
+    run(
+      m,
+      [
+        Replace(Term(name), Token("M")),
+        Replace(Entry(h), Token("module")),
+      ],
+    );
   expect("a head's keyword re-reads it", "module M = {} in 1", c);
   check(
     bool,
@@ -311,7 +340,10 @@ let token = () => {
     bool,
     "a multi-token tile takes no token",
     true,
-    refused(fold, [Replace(CorpusUtil.tile("+", fold), Token("-"))]).
+    refused(
+      fold,
+      [Replace(Term(CorpusUtil.tile("+", fold)), Token("-"))],
+    ).
       reason
     == NotAToken,
   );
@@ -566,7 +598,8 @@ let entrywise = () => {
   );
   let seg = seg_of(chain);
   let b = head("b", seg);
-  let c = run(seg, [Replace(b, Text("let b = a + 1 in\nlet e = b"))]);
+  let c =
+    run(seg, [Replace(Entry(b), Text("let b = a + 1 in\nlet e = b"))]);
   check(
     list(string),
     "a replace's entries, one at a time",
@@ -616,8 +649,7 @@ let entrywise = () => {
    lines of its own one level in, `in` alone below; on one line, on the
    head's line, `in` ending it */
 let definition_layout = () => {
-  let def = (name, seg) =>
-    Option.get(K.part(~root=Exp, head(name, seg), Definition, seg));
+  let def = (name, seg) => part(Definition, head(name, seg), seg);
   let cased = "case sc\n| 0 => 0\n| _ => 1\nend";
   let one = seg_of("let scale(k: Int): Int -> Int = fun sc -> sc in\nscale");
   expect(
@@ -690,7 +722,7 @@ let definition_layout = () => {
       top,
       [
         Replace(
-          Option.get(K.part(~root=Mod, head("x", top), Definition, top)),
+          part(~root=Mod, Definition, head("x", top), top),
           Text("case 1\n| _ => 2\nend"),
         ),
       ],
@@ -701,9 +733,9 @@ let definition_layout = () => {
 /* a definition whose code starts with local entries: the whole right
    side of its `=`, not its first local, whose head is the same piece */
 let definition_of_locals = () => {
-  let part = (~root=Sort.Exp, name, seg) =>
-    K.ReplacePart(head(name, seg), Definition, Text("x * 2"))
-    |> (op => run(~root, seg, [op]));
+  let def = (name, seg) => part(Definition, head(name, seg), seg);
+  let part = (name, seg) =>
+    run(seg, [Replace(def(name, seg), Text("x * 2"))]);
   let one = seg_of("let f(x) =\n  let a = x in\n  a\nin\nf(1)");
   expect("one local", "let f(x) = x * 2 in\nf(1)", part("f", one));
   let many =
@@ -712,30 +744,12 @@ let definition_of_locals = () => {
   expect(
     "new locals for old",
     "let f(x) =\n  let c = x + 1 in\n  c * 2\nin\nf(1)",
-    run(
-      many,
-      [
-        ReplacePart(
-          head("f", many),
-          Definition,
-          Text("let c = x + 1 in\nc * 2"),
-        ),
-      ],
-    ),
+    run(many, [Replace(def("f", many), Text("let c = x + 1 in\nc * 2"))]),
   );
   expect(
     "a local's `in` by house style",
     "let f(x) =\n  let c = x + 1 in\n  c * 2\nin\nf(1)",
-    run(
-      one,
-      [
-        ReplacePart(
-          head("f", one),
-          Definition,
-          Text("let c = x + 1\nin\nc * 2"),
-        ),
-      ],
-    ),
+    run(one, [Replace(def("f", one), Text("let c = x + 1\nin\nc * 2"))]),
   );
   let tested = seg_of("let f(x) =\n  test x == x end;\n  x\nin\nf(1)");
   expect("a test first", "let f(x) = x * 2 in\nf(1)", part("f", tested));
@@ -743,7 +757,7 @@ let definition_of_locals = () => {
   expect(
     "a `fun` head is the definition's",
     "let f = fun y -> y in\nf(1)",
-    run(fn, [ReplacePart(head("f", fn), Definition, Text("fun y -> y"))]),
+    run(fn, [Replace(def("f", fn), Text("fun y -> y"))]),
   );
   let m =
     seg_of(
@@ -762,7 +776,7 @@ let definition_of_locals = () => {
   expect(
     "the first local, whole, by its head",
     "let f(x) =\n  let z = 0 in\n  let b = a in\n  b\nin\nf(1)",
-    run(many, [Replace(head("a", many), Text("let z = 0"))]),
+    run(many, [Replace(Entry(head("a", many)), Text("let z = 0"))]),
   );
 };
 

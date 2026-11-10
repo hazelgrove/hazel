@@ -36,9 +36,12 @@ let entry_id = (~root, seg, path: string): option(Id.t) =>
 
 /* its definition's, where a syntax projector goes */
 let definition_id = (~root, seg, path: string): option(Id.t) =>
-  Option.bind(entry_id(~root, seg, path), head =>
-    EntryEdit.part(~root, head, Definition, seg)
-  );
+  switch (EntryPath.resolve_string(~root, seg, path)) {
+  | Ok(f) =>
+    let (lv, k) = Util.ListUtil.last(f.steps);
+    EntryPath.part_root(lv, k, Definition);
+  | Error(_) => None
+  };
 
 let apply_overlay_action =
     (

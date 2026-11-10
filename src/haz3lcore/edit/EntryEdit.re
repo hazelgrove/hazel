@@ -42,32 +42,27 @@ type template =
 [@deriving (show({with_path: false}), eq)]
 type source =
   /* an entry's text, its `;` or `in` optional (the place's form decides),
-     or a node's; fresh ids */
+     or a term's; fresh ids */
   | Text(string)
   | Template(template)
-  /* another entry or node, fresh ids */
+  /* another entry or term, fresh ids */
   | Copy(Id.t)
-  /* one token's new text, its id kept. A definition's keyword (`let`,
-     `type`, `module`) re-reads its head as that kind; a blank definition
-     becomes the kind's blank */
+  /* a single-token term's new text, its id kept; or an entry's keyword
+     (`let`, `type`, `module`), re-reading its head as that kind, a blank
+     definition becoming the kind's blank */
   | Token(string);
 
-/* parts of a definition, as paths name them: its head, its pattern's
-   node, its definition's, and its body's: the definition past its `fun`
-   heads */
+/* Replace's target: an entry by its anchor (a definition, `use` or
+   statement, not a block's result), the row as written, what follows
+   kept; or the term rooted at a piece, a case rule from its `|` through
+   its result */
 [@deriving (show({with_path: false}), eq)]
-type part = EntryPath.part = | Pattern | Definition | Body | Head;
+type target = EntryPath.target = | Entry(Id.t) | Term(Id.t);
 
-/* Replace takes any node: an entry by its anchor (or first tile), else
-   the term rooted at the piece, a case rule from its `|` through its
-   result; a token with Token. ReplacePart takes a definition's part by
-   its head: a definition starting with a local entry is rooted at that
-   entry's head, which as Replace's id names the entry */
 [@deriving (show({with_path: false}), eq)]
 type op =
   | Insert(place, source)
-  | Replace(Id.t, source)
-  | ReplacePart(Id.t, part, source)
+  | Replace(target, source)
   | Delete(Id.t)
   /* ids kept, converting `;` ⇄ `in` between member and let-chain forms */
   | Move(Id.t, place);
@@ -118,6 +113,7 @@ type reason =
   | IntoItself
   | Unreadable
   | NotAToken
+  | NotAnEntry
   | NoPlace;
 
 /* short: the outline is narrow */
@@ -136,6 +132,7 @@ let describe = (r: reason): string =>
   | IntoItself => "it can't go into itself"
   | Unreadable => "the text doesn't read here"
   | NotAToken => "only a token takes new text"
+  | NotAnEntry => "it isn't an entry"
   | NoPlace => "it can't go there"
   };
 
@@ -606,39 +603,6 @@ let def_gaps = (n: node): option(def_gaps) => {
 
 let node_pieces = (n: node): Segment.t =>
   ListUtil.slice(n.lo, n.hi + 1 - n.lo, n.level);
-
-/* a node's id: its root's, else its first piece's */
-let root_id = (ps: Segment.t): option(Id.t) =>
-  switch (List.filter(p => !Piece.is_secondary(p), ps)) {
-  | [] => None
-  | [p] => Some(Piece.id(p))
-  | [p, ..._] =>
-    switch (Segment.root_id(Segment.skel(ps), ps)) {
-    | id => Some(id)
-    | exception _ => Some(Piece.id(p))
-    }
-  };
-
-let rec past_fun_heads = (ps: Segment.t): Segment.t =>
-  switch (ps) {
-  | [p, ...rest] when Piece.is_secondary(p) || ItemSpans.is_fun_head(p) =>
-    past_fun_heads(rest)
-  | _ => ps
-  };
-
-let part =
-    (~root: Sort.t, head: Id.t, part: part, seg: Segment.t): option(Id.t) =>
-  switch (Nav.tile_ctx(~root, head, seg)) {
-  | Some((_, _, t) as at) when Nav.is_def_head(t) =>
-    switch (part) {
-    | Head => Some(t.id)
-    | Pattern => root_id(Nav.pat_of(t))
-    | Definition => Option.bind(Nav.def_at(at), root_id)
-    | Body =>
-      Option.bind(Nav.def_at(at), def => root_id(past_fun_heads(def)))
-    }
-  | _ => None
-  };
 
 /* ---- ops ---- */
 
@@ -1171,15 +1135,15 @@ let rekind =
   };
 };
 
-let token = (c: ctx, op, x: Id.t, txt: string, seg: Segment.t): step => {
+/* entry [x]'s head re-read as keyword [kw]'s */
+let keyword = (c: ctx, op, x: Id.t, kw: string, seg: Segment.t): step => {
   let path = need(~id=x, Missing, Nav.find_path(~root=c.root, x, seg));
   let (up, level, i) = Nav.home(~seg, path);
   let level' =
     switch (List.nth(level, i)) {
-    /* a plain token's text is a token run's (transaction) */
     | Tile(t)
-        when Nav.is_def_head(t) && List.mem(txt, ["let", "type", "module"]) =>
-      need(~id=x, Unreadable, rekind(txt, level, i, t))
+        when Nav.is_def_head(t) && List.mem(kw, ["let", "type", "module"]) =>
+      need(~id=x, Unreadable, rekind(kw, level, i, t))
     | _ => refuse(~id=x, NotAToken)
     };
   done_(
@@ -1214,18 +1178,14 @@ let doc_start = (level: Segment.t, i: int): int => {
   go(i, 0, i);
 };
 
-/* an entry named by its anchor or first tile, rather than a node in it */
-let names_entry = (c: ctx, x: Id.t, seg: Segment.t): option(entry) =>
-  switch (L.locate(~mod_root=c.mod_root, x, seg)) {
-  | Some((b, j, rebuild))
-      when b.lv.spans[j].anchor == x || b.lv.spans[j].first == Some(x) =>
-    Some({
-      b,
-      j,
-      rebuild,
-    })
-  | _ => None
+/* the entry anchored at [x], not a block's result */
+let named = (c: ctx, x: Id.t, seg: Segment.t): entry => {
+  let e = entry(~mod_root=c.mod_root, x, seg);
+  if (anchor(e.b, e.j) != x || !e.b.in_module && !L.movable(e.b, e.j)) {
+    refuse(~id=x, NotAnEntry);
   };
+  e;
+};
 
 /* the term rooted at piece [x] */
 let replace_node = (c: ctx, op, x: Id.t, src: source, seg: Segment.t): step => {
@@ -1273,84 +1233,66 @@ let replace_node = (c: ctx, op, x: Id.t, src: source, seg: Segment.t): step => {
       );
       pre @ L.unfused(pre, L.shift_by(indent, ps), post) @ post;
     };
-  let made = Option.value(root_id(ps), ~default=x);
+  let made = Option.value(EntryPath.root_id(ps), ~default=x);
   done_(
     ~replaced=[(x, made)],
     ~focus=Some(made),
     op,
-    Nav.rebuild(~seg, n.up, level),
+    settled(c, ~inner=true, ps, Nav.rebuild(~seg, n.up, level)),
   );
 };
 
-let replace = (c: ctx, op, x: Id.t, src: source, seg: Segment.t): list(step) =>
-  switch (src, names_entry(c, x, seg)) {
-  | (Token(txt), _) => [token(c, op, x, txt, seg)]
-  | (_, Some(e)) =>
-    let tail = !e.b.in_module && !L.movable(e.b, e.j);
-    let (item, src_indent) =
-      if (tail) {
-        let txt =
-          switch (src) {
-          | Text(txt) => txt
-          | Copy(y) => L.text_of(node_pieces(node(~root=c.root, y, seg)))
-          | Template(_)
-          | Token(_) => refuse(~id=x, Result)
-          };
-        (
-          L.lay_in(~indent=0, need(Unreadable, parse_at(Exp, txt))),
-          Some(0),
-        );
-      } else {
-        let (item, stmt, src_indent) =
-          entry_of(c, ~member=e.b.in_module, src, seg);
-        if (stmt && !e.b.stmts) {
-          refuse(~id=x, NoStatement);
-        };
-        (item, src_indent);
-      };
-    let at = L.indent_end(e.b, e.j);
-    let shift =
-      Option.fold(
-        ~none=0,
-        ~some=src => L.item_indent(e.b, e.j) - src,
-        src_indent,
-      );
-    let (pre, post) = (
-      ListUtil.truncate(at, e.b.seg),
-      ListUtil.remove_first_n(e.b.sl[e.j].core, e.b.seg),
+let replace_entry =
+    (c: ctx, op, x: Id.t, src: source, seg: Segment.t): list(step) => {
+  let e = named(c, x, seg);
+  let (item, stmt, src_indent) =
+    entry_of(c, ~member=e.b.in_module, src, seg);
+  if (stmt && !e.b.stmts) {
+    refuse(~id=x, NoStatement);
+  };
+  let at = L.indent_end(e.b, e.j);
+  let shift =
+    Option.fold(
+      ~none=0,
+      ~some=src => L.item_indent(e.b, e.j) - src,
+      src_indent,
     );
-    let level = pre @ L.unfused(pre, L.shift_by(shift, item), post) @ post;
-    let row = L.row_id(item);
-    let step =
-      done_(
-        ~replaced=[(x, Option.value(row, ~default=x))],
-        ~added=Option.to_list(row),
-        ~removed=[x],
-        ~focus=row,
-        op,
-        settled(c, ~inner=true, item, e.rebuild(level)),
-      );
-    tail ? [step] : entrywise(c, item, step);
-  | (_, None) => [replace_node(c, op, x, src, seg)]
-  };
-
-let replace_part =
-    (c: ctx, op, head: Id.t, pt: part, src: source, seg: Segment.t)
-    : list(step) => {
-  let x = need(~id=head, Missing, part(~root=c.root, head, pt, seg));
-  switch (pt, src) {
-  | (Head, _)
-  | (_, Token(_)) => replace(c, op, x, src, seg)
-  | (Pattern | Definition | Body, _) => [replace_node(c, op, x, src, seg)]
-  };
+  let (pre, post) = (
+    ListUtil.truncate(at, e.b.seg),
+    ListUtil.remove_first_n(e.b.sl[e.j].core, e.b.seg),
+  );
+  let level = pre @ L.unfused(pre, L.shift_by(shift, item), post) @ post;
+  let row = L.row_id(item);
+  entrywise(
+    c,
+    item,
+    done_(
+      ~replaced=[(x, Option.value(row, ~default=x))],
+      ~added=Option.to_list(row),
+      ~removed=[x],
+      ~focus=row,
+      op,
+      settled(c, ~inner=true, item, e.rebuild(level)),
+    ),
+  );
 };
+
+let replace = (c: ctx, op, t: target, src: source, seg: Segment.t) =>
+  switch (t, src) {
+  | (Entry(x), Token(kw)) =>
+    ignore(named(c, x, seg));
+    [keyword(c, op, x, kw, seg)];
+  | (Entry(x), _) => replace_entry(c, op, x, src, seg)
+  /* a plain token's text is a token run's (transaction) */
+  | (Term(x), Token(_)) => refuse(~id=x, NotAToken)
+  | (Term(x), _) => [replace_node(c, op, x, src, seg)]
+  };
 
 /* an op's steps: one per entry it lands */
 let run = (c: ctx, seg: Segment.t, op: op): list(step) =>
   switch (op) {
   | Insert(place, src) => insert(c, op, place, src, seg)
-  | Replace(x, src) => replace(c, op, x, src, seg)
-  | ReplacePart(h, pt, src) => replace_part(c, op, h, pt, src, seg)
+  | Replace(t, src) => replace(c, op, t, src, seg)
   | Delete(x) => [delete(c, op, x, seg)]
   | Move(x, place) => [move(c, op, x, place, seg)]
   };
@@ -1362,7 +1304,7 @@ let token_run =
     : (list((Id.t, string, list(Nav.step))), list(op)) => {
   let rec go = (acc, ops) =>
     switch (ops) {
-    | [Replace(x, Token(txt)), ...rest] =>
+    | [Replace(Term(x), Token(txt)), ...rest] =>
       switch (Nav.find_path(~root=c.root, x, seg)) {
       | Some(path) =>
         let st = ListUtil.last(path);
@@ -1437,7 +1379,7 @@ let transaction =
               done_(
                 ~replaced=[(x, x)],
                 ~focus=Some(x),
-                Replace(x, Token(txt)),
+                Replace(Term(x), Token(txt)),
                 program,
               ),
             run,
