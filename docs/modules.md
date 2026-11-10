@@ -299,6 +299,42 @@ members (`M.P` is a module-typed member of `M`). A type alias whose
 definition is a signature also supports `S.T`. `P.x` on a labeled tuple
 *type* alias still projects the label's type.
 
+## The standard library as modules
+
+```
+List.map([1, 2, 3], fun x -> x * 2)     -- [2, 4, 6]
+String.of_int(42) ++ String.uppercase("ok")
+Float.sqrt(9.0) >. Float.pi
+Option.map((Some(2), fun x -> x + 1))
+```
+
+Every builtin keeps its flat name, so `String.length` and `string_length`
+are the same function and no existing program changes meaning. The modules
+are built in `BuiltinsModules.re` from the same builtin records the flat
+names come from: the signature's member types and the module's member values
+are both derived, so a member cannot drift from the function it names, and
+the member IS the implementation rather than a copy of it. A module builtin
+is an ordinary constant whose type is a signature and whose value is a
+module whose items are already evaluated, which is what the environment
+requires of anything it hands to a program.
+
+`SHOW` and `ORD` are shipped as signature types, with an instance per base
+type: `ShowInt`, `ShowFloat`, `ShowBool`, `ShowString`, `OrdInt`,
+`OrdFloat`, `OrdString`. Their type members are manifest, since resolution
+selects an instance by that member. They are NOT ambient: a program marks
+what it wants, which is one line per instance.
+
+```
+let implicit A = ShowInt in
+let show = fun (implicit S : SHOW, x : S.T) -> S.show(x) in
+show(3)
+```
+
+Making them ambient is a language decision rather than a library one, and it
+needs a priority or coherence rule first: with none, a program that writes
+its own instance for a base type under any other name makes every call
+ambiguous against the shipped one.
+
 ## Not Yet Supported
 
 - **Abstract type members.** Signatures cannot yet declare `type T` without a
@@ -537,6 +573,7 @@ parts for code that walks them (composition, probe targets). Sig items are
 | `src/language/term/ClosedSig.re`, `.rei` | Closed signature items, abstract                                  |
 | `src/language/term/Mod.re`              | Mod term utilities and evaluated-binding helpers                   |
 | `src/language/term/MPat.re`             | MPat term utilities                                                |
+| `src/language/builtins/BuiltinsModules.re` | The standard library grouped into modules, and the shipped implicit instances |
 | `src/language/term/Typ.re`              | `close`, `sig_item_scopes`, `alias_def`, `extend_ctx`, Sig meet and normalization, `path_sig`, `fun_in` |
 | `src/language/statics/Ctx.re`           | `newest_var_or_ctr`, `newest_tvar_or_var`: the newest binding of a capitalized name, and of a path root |
 | `src/language/statics/ModuleHelpers.re` | Signature expectations per binder (`expected_members`, `expected_pat_type`), `sealed`, missing and extra members, module references in written types |

@@ -217,6 +217,16 @@ let (let-unbox) = ((request, v), f) => {
   f(result);
 };
 
+/* Whether a definition reached by a lookup, out of an environment or out of
+   a module value, is already final. Everything an environment holds is a
+   value except a fixpoint, which still has to unroll, and a let, which may
+   be a mutually recursive one. */
+let looked_up_is_final = (d: DHExp.t): bool =>
+  switch (d |> Exp.term_of) {
+  | FixF(_, _, _)
+  | Let(_, _, _) => false
+  | _ => true
+  };
 module type EV_MODE = {
   type result;
   type inner_result;
@@ -505,19 +515,13 @@ module Transition = (EV: EV_MODE) => {
       switch (Environment.lookup(env, x)) {
       | Some({term: Var(y), _}) when x == y => Indet // Used in proof to refer to a bound variable.
       | Some(d) =>
-        let is_value =
-          switch (d |> Exp.term_of) {
-          | FixF(_, _, _) => false // fixpoints aren't final
-          | Let(_, _, _) => false // could be mutually-recursive fixpoint
-          | _ => true // all other closure entries should be final
-          };
         Step({
           expr: d |> fast_copy(Id.mk()),
           side_effects: [],
           kind: VarLookup,
-          is_value,
+          is_value: looked_up_is_final(d),
           at: None,
-        });
+        })
       | None =>
         let.wrap_closure _ = (env, d);
         Indet;
@@ -1064,7 +1068,10 @@ module Transition = (EV: EV_MODE) => {
       and. d2' = req_final(req(env), d2 => Dot2(d1, d2) |> wrap_ctx, d2);
       switch (DHExp.term_of(d2'), DHExp.term_of(d1')) {
       /* `m.x`: the module's member x. A module stuck on an item keeps its
-         environment for the rest. */
+         environment for the rest. A module the program built has already
+         evaluated its definitions, but one that came from the environment
+         carries them raw, so a definition is judged the way a variable's is:
+         a fixpoint still has to unroll. */
       | (Label(name), Module(items))
       | (Label(name), Closure(_, {term: Module(items), _})) =>
         switch (Mod.member(items, name)) {
@@ -1073,7 +1080,7 @@ module Transition = (EV: EV_MODE) => {
             expr: v,
             side_effects: [],
             kind: Dot,
-            is_value: true,
+            is_value: looked_up_is_final(v),
             at: None,
           })
         | None => Indet
