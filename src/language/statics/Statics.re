@@ -4812,7 +4812,9 @@ and proof_to_info_map =
        name variables the goal binds (`x` under a `fun x ->`), which the
        ctx doesn't have, so a name the ctx lacks is walked as a
        placeholder; a selector that matches nothing is the checker's to
-       report. */
+       report. The body is walked with those names too, since the checker
+       binds the goal's binders around the target in it. A binder the
+       selector doesn't name stays unknown here. */
     let names = ref([]);
     let _: Exp.t =
       Exp.map_term(
@@ -4837,7 +4839,7 @@ and proof_to_info_map =
       );
     let (_, selector, m) =
       go_exp(~ctx=selector_ctx, ~is_in_filter=true, selector, m);
-    let (body, m) = go(body, m);
+    let (body, m) = go(~ctx=selector_ctx, body, m);
     add(
       Focus({
         ordinal,
@@ -4888,25 +4890,56 @@ and proof_to_info_map =
         ps,
         m,
       );
-    /* With `as <name>`, each case body sees the case equation
-       `scrut == pat` under that name, built as `ProofCheck.check`'s
-       induction arm builds it, so both agree on what the name denotes.
-       The checker's default name, `case_eq`, isn't modelled here. */
-    let body_ctx = ((info: Info.pat, pat: Pat.t)) =>
-      switch (Option.bind(as_name, fact_name)) {
-      | Some(h) =>
-        with_fact(
-          ~ctx=info.ctx,
-          h,
-          ~id=IdTagged.rep_id(pat),
-          Exp.fresh(BinOp(Poly(Equals), scrut, Exp.of_pat(pat))),
+    /* Each case body sees the facts `ProofCheck.check_induction`
+       installs, in the same order, so a name shadows as it does there:
+       the arm's `where` facts, the case equation `scrut == pat` (named
+       `case_eq` unless `as` names it, and absent when the pattern rebinds
+       a variable of the scrutinee), and an `ih` per recursive position.
+       An `ih` is the goal at the induction with a recursive position in
+       place of the scrutinee. The statics don't track the goal, so its
+       statement is left unknown. */
+    let case_eq_name =
+      Option.bind(as_name, fact_name) |> Option.value(~default="case_eq");
+    let body_ctx = (i, (info: Info.pat, pat: Pat.t)) => {
+      let id = IdTagged.rep_id(pat);
+      let earlier = List.filteri((j, _) => j < i, ps);
+      let ihs = Induction.hypotheses(~tyctx=ctx, m, scrut_info.ty, pat);
+      let case_ctx =
+        List.fold_left(
+          (case_ctx, g) => with_fact(~ctx=case_ctx, "where", ~id, g),
+          info.ctx,
+          Induction.where_facts(~earlier, pat),
+        );
+      let case_ctx =
+        CoCtx.has_any(
+          scrut_info.co_ctx,
+          pat |> Pat.bindings |> Binding.variable_names,
         )
-      | None => info.ctx
-      };
+          ? case_ctx
+          : with_fact(
+              ~ctx=case_ctx,
+              case_eq_name,
+              ~id,
+              Exp.fresh(BinOp(Poly(Equals), scrut, Exp.of_pat(pat))),
+            );
+      List.fold_left(
+        (case_ctx, _) =>
+          Ctx.extend_theorem(
+            case_ctx,
+            {
+              name: "ih",
+              id,
+              prop: None,
+            },
+          ),
+        case_ctx,
+        ihs,
+      );
+    };
     let (bodies, m) =
       map_m2(
-        (pat, body, m) => go(~ctx=body_ctx(pat), body, m),
-        pats,
+        (ctx, body, m) => go(~ctx, body, m),
+        List.mapi(body_ctx, pats),
         bodies,
         m,
       );

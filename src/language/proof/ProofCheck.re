@@ -346,59 +346,6 @@ module Where = {
     | Some(g) => add_facts(ctx, g)
     | None => ctx
     };
-
-  /* Could `p1` and `p2` match the same value? Conservatively yes unless
-   * their head constructors are both known and different. */
-  let pats_overlap = (p1: Pat.t, p2: Pat.t): bool => {
-    /* A coarse head-constructor key. `None` means "matches anything"
-     * (variable / wildcard / hole), which overlaps everything. */
-    let rec head_key = (p: Pat.t): option(string) =>
-      switch (p |> Pat.term_of) {
-      | Where(p, _)
-      | Parens(p)
-      | Projector(_, p)
-      | Asc(p, _)
-      | TupLabel(_, p) => head_key(p)
-      | Constructor(c, _) => Some("ctr:" ++ c)
-      | Ap(c, _) => Pat.ctr_name(c) |> Option.map(c => "ctr:" ++ c)
-      | Cons(_, _) => Some("cons")
-      | ListLit(ps) => Some("list:" ++ string_of_int(List.length(ps)))
-      | Tuple(ps) => Some("tuple:" ++ string_of_int(List.length(ps)))
-      | Atom(a) => Some("atom:" ++ Atom.show(a))
-      | Label(l) => Some("label:" ++ l)
-      | Var(_)
-      | Wild
-      | EmptyHole
-      | MultiHole(_)
-      | Invalid(_)
-      | ExplicitNonlabel => None
-      };
-    switch (head_key(p1), head_key(p2)) {
-    | (Some(k1), Some(k2)) => k1 == k2
-    | _ => true
-    };
-  };
-
-  /* Facts a case arm inherits from the arms above it: an arm is only
-   * reached when every earlier arm failed, so an earlier guarded arm that
-   * could have matched this value contributes `!g`. Constructor-disjoint
-   * earlier arms contribute nothing: `| Z =>` must not import the `S`
-   * arm's negated guard.
-   *
-   * `!g` is installed whole (never conjunct-split: `!(a && b)` does not
-   * entail `!a`), under the same `where` name as a positive guard. */
-  let add_earlier_negations =
-      (ctx: SemanticCtx.t, ~earlier: list(Pat.t), pat: Pat.t): SemanticCtx.t =>
-    List.fold_left(
-      (ctx, prev) =>
-        switch (Exp.split_pat_guard(prev)) {
-        | (prev_base, Some(g)) when pats_overlap(prev_base, pat) =>
-          add_facts(ctx, Exp.fresh(UnOp(Bool(Not), g)))
-        | _ => ctx
-        },
-      ctx,
-      earlier,
-    );
 };
 
 // Binders
@@ -1876,15 +1823,11 @@ and check_induction =
       );
     let case_ctx = SemanticCtx.add_from_pattern(ctx, pat, scrut_ty);
     let case_env = SemanticCtx.get_env(case_ctx);
-    /* Matching the arm means its guard held, so inside the arm the guard
-     * is a citable `where` fact, and every earlier arm that could have
-     * matched this value failed, so its guard's negation is a fact too.
-     * The arm's own guard is installed after the negations, so it is the
-     * most recent `where`. */
     let case_ctx =
-      Where.add_pat_facts(
-        Where.add_earlier_negations(case_ctx, ~earlier, pat),
-        pat,
+      List.fold_left(
+        Where.add_facts,
+        case_ctx,
+        Induction.where_facts(~earlier, pat),
       );
     /* The case equation, unless the pattern's variables capture the
      * scrutinee. `induction <e> as <h>` names it `h` in every case;

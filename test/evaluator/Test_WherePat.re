@@ -633,7 +633,7 @@ let proofs = [
     `Quick,
     () => {
       let overlap = (p1, p2) =>
-        ProofCheck.Where.pats_overlap(
+        Induction.pats_overlap(
           first_arm_pattern("case ? | " ++ p1 ++ " => 1 end"),
           first_arm_pattern("case ? | " ++ p2 ++ " => 1 end"),
         );
