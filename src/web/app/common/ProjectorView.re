@@ -588,6 +588,9 @@ let backing_deco =
 
 /* The backing needs the projector shape (a Tab draws differently);
    mirrors ShapeMapSemantics placement switch. */
+/* (^report(51)) shape_of's time measuring splice sizes, for the check's
+   mark "view: projectors' views" */
+let shape_sizes_ms = ref(0.);
 let shape_of = (p: Base.projector, info: ProjectorBase.info) => {
   let (module P) = ProjectorInit.to_module(p.kind);
   /* Splice sizes are intrinsic to the projector's own syntax -- they do
@@ -1192,7 +1195,6 @@ let kept_wrapped = ref(0);
    evaluated or walked (run 42809664205); and its splice sizes apart */
 let shape_longest_ms = ref(0.);
 let shape_longest = ref("");
-let shape_sizes_ms = ref(0.);
 
 /* Extract and collate different layers of the resulting view
  * in order to stratify z-levels across all projectors */
