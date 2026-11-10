@@ -48,8 +48,8 @@ type entry = {
 /* a definition: its elaboration, a hole for its body (and, when its
    members are pieces of their own, for its nested value), and the eval
    info it owns. a module's member also has its binding as the module's
-   value holds it (ModuleHelpers.refold_item), the hollow's definition in
-   it; a type member, which the value drops, has none */
+   value holds it (its hollow is its module of it); a type member, which
+   the value drops, has none */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type item = {
   hollow: Exp.t,
@@ -142,16 +142,6 @@ let slots = (layout: layout): list(slot) => {
 
 exception Malformed(string);
 
-/* a split item's elaboration: its nested value at its let's definition */
-let plug = (hollow: Exp.t, nested: Exp.t): Exp.t =>
-  switch (hollow.term) {
-  | Let(p, _, body) => {
-      ...hollow,
-      term: Let(p, nested, body),
-    }
-  | _ => raise(Malformed("a split item's elaboration is not a let"))
-  };
-
 /* a split member's binding: its nested value as the definition */
 let plug_binding = (binding: Mod.t, nested: Exp.t): Mod.t => {
   ...binding,
@@ -163,6 +153,21 @@ let plug_binding = (binding: Mod.t, nested: Exp.t): Mod.t => {
     | _ => raise(Malformed("a split member's binding binds nothing"))
     },
 };
+
+/* a split item's elaboration: its nested value at its let's definition,
+   or, a member's (its module of it), in its binding */
+let plug = (hollow: Exp.t, nested: Exp.t): Exp.t =>
+  switch (hollow.term) {
+  | Let(p, _, body) => {
+      ...hollow,
+      term: Let(p, nested, body),
+    }
+  | Module([binding]) => {
+      ...hollow,
+      term: Module([plug_binding(binding, nested)]),
+    }
+  | _ => raise(Malformed("a split item's elaboration is not a let"))
+  };
 
 /* an item's terms, which its entries refer to */
 type built = {

@@ -129,7 +129,7 @@ let wants = (term: Exp.t): Id.Map.t(want) => {
     | Some(_) =>
       def_row(id, Pat.rep_id(pat), def);
       /* `let f(x) = …`: [def] is the function's body */
-      Option.is_some(FunctionSugar.detect(pat))
+      Option.is_some(Pat.function_sugar(pat))
         ? of_block(def) : def_kids(def);
       1;
     | None => 0

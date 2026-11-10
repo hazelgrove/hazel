@@ -486,11 +486,29 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
     )
   | ExplicitHole => (
       Token.is_explicit_hole,
-      [op(Exp), op(Pat), op(Typ), op(TPat), op(Drv(Typ))],
+      [
+        op(Exp),
+        op(Pat),
+        op(Typ),
+        op(TPat),
+        op(Mod),
+        op(Sig),
+        op(MPat),
+        op(Drv(Typ)),
+      ],
     )
   | ImplicitHoleMarker => (
       Token.is_implicit_hole_marker,
-      [op(Exp), op(Pat), op(Typ), op(TPat), op(Drv(Typ))],
+      [
+        op(Exp),
+        op(Pat),
+        op(Typ),
+        op(TPat),
+        op(Mod),
+        op(Sig),
+        op(MPat),
+        op(Drv(Typ)),
+      ],
     )
   /* an operator hole: a bin at grout precedence, so `1 ⧖ 2` parses
      without extra grout and stripping the tile leaves exactly the
@@ -854,8 +872,8 @@ let remold_candidates = (label: Label.t, sort: Sort.t): list((t, Sort.t)) =>
 
 /* Like remold_candidates, but compound forms only: a single token never
    resolves to an atomic form (a variable) here. */
-let compound_remold_candidates =
-    (label: Label.t, sort: Sort.t): list((t, Sort.t)) =>
+let compound_remold_candidates = (label: Label.t, sort: Sort.t): list(t) =>
   compound_defs(label)
-  |> List.filter(((_, m): (family, Mold.t)) => m.out == sort)
-  |> List.map(((fam, _)) => (Compound(fam), sort));
+  |> List.filter_map(((fam, m): (family, Mold.t)) =>
+       Sort.equal(m.out, sort) ? Some(Compound(fam)) : None
+     );

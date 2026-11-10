@@ -297,23 +297,20 @@ and remold_level = (~shape=?, ~owed: list(Token.t)=[], seg: t, s: Sort.t): t => 
 }
 and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
   open OptUtil.Syntax;
-  /* A label with no form in this sort: an incomplete tile whose present
-     shards spell a complete compound form of the sort takes that form, so
-     `let y = 2` still owed its `in` becomes the module item once a `;` puts
-     it in a module body. Only with its first shard present: the `=` left
-     when an item's `let` is deleted spells the labeled-tuple `=`, and must
-     keep owing its `let` instead. */
+  /* No form for this label in s: an incomplete tile with its first shard
+     takes a compound form of s spelled by its present shards. (A lone `=`
+     must keep owing its `let`, not become the labeled-tuple `=`.) */
   let candidates =
     switch (Form.remold_candidates(Tile.label(t), s)) {
-    | [] when Tile.is_complete(t) || !Tile.has_end(Left, t) => []
+    | [] when !Tile.has_end(Left, t) => []
     | [] =>
       let shards = List.init(List.length(t.shards), Fun.id);
       Form.compound_remold_candidates(Tile.effective_label(t), s)
-      |> List.map(((form, sort)) =>
+      |> List.map(form =>
            {
              ...t,
              form,
-             sort,
+             sort: s,
              shards,
            }
          );
@@ -440,10 +437,9 @@ and remold_template_uni = (sort: Sort.t, shape, seg: t): (t, Nib.Shape.t, t) => 
     }
   };
 }
-/* A tile with no form in the sort being remolded keeps its mold. While it
-   is still owed shards, what follows it is its next child and is molded in
-   that child's sort, not in this one: `x : T` typed after a `let` still
-   owed its `=` is a pattern whatever came before the `let`. */
+/* What follows t: while t still owes shards, its next child, remolded in
+   that child's sort (`x : T` typed after a `let` still owed its `=` is a
+   pattern whatever came before the `let`); otherwise more of the same sort. */
 and remold_after = (t: Tile.t, tl: t, same_sort: (Nib.Shape.t, t) => t): t =>
   if (Tile.has_end(Right, t)) {
     [Tile(t), ...same_sort(snd(Tile.shapes(t)), tl)];
@@ -862,8 +858,7 @@ and remold_mod = (shape, seg: t): t =>
         switch (remold_tile(Exp, shape, t)) {
         | None => remold_after(t, tl, remold_mod)
         | Some(t) when !Tile.has_end(Right, t) =>
-          let (_, r) = Tile.nibs(t);
-          [Tile(t), ...remold(~shape=r.shape, tl, r.sort)];
+          remold_after(t, tl, remold_mod)
         | Some(t) =>
           let (remolded, shape, rest) =
             remold_exp_uni(snd(Tile.shapes(t)), tl, [Mod]);
@@ -919,16 +914,13 @@ and remold_sig = (shape, seg: t): t =>
           let (remolded, shape, rest) = remold_typ_uni(shape, tl, [Sig]);
           [Piece.Tile(t), ...remolded] @ remold_sig(shape, rest);
         | (_, {shape, sort: MPat}) =>
-          let (remolded, shape, rest) =
-            remold_mpat_uni(shape, tl, [Sort.Sig]);
+          let (remolded, shape, rest) = remold_mpat_uni(shape, tl, [Sig]);
           [Piece.Tile(t), ...remolded] @ remold_sig(shape, rest);
         | _ => [Tile(t), ...remold_sig(snd(Tile.shapes(t)), tl)]
         }
       }
     }
   }
-/* The MPat body of a `module m : S` signature item: a name, optionally
-   followed by a `:` ascription whose right operand is a type. */
 and remold_mpat_uni =
     (shape, seg: t, parent_sorts: list(Sort.t)): (t, Nib.Shape.t, t) =>
   switch (seg) {

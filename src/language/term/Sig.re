@@ -45,119 +45,142 @@ let temp: term => t =
 
 /* ==================== Member view ====================
    A signature type is a dependent record: later items may mention earlier
-   type members by their bare name. This view exposes the well-formed items
-   (holes, invalid items and non-variable patterns are skipped) so that the
-   type checker can treat a `Sig` uniformly. Canonical items are
+   type members by their bare name. Canonical items are
    `SigLet(Asc(Var x, τ))`, `SigModule(Asc(Var m, τ))` and
-   `SigType(Var T, τ)`. A `module m : S` member is a value member. */
+   `SigType(Var T, τ)`; a `module m : S` member is a value member. In a
+   closed signature (Typ.close) every item declares a member, and no two
+   members share a name and kind. */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type member =
   | Val(Var.t, TermBase.Typ.t)
   | TypeManifest(Var.t, TermBase.Typ.t);
 
-let typ_temp = (term: TermBase.Typ.term): TermBase.Typ.t => {
-  term,
-  annotation: IdTagged.IdTag.temp(),
-};
-
-let unknown_typ = () => typ_temp(Unknown(Internal));
-
-let rec var_of_pat = (p: TermBase.Pat.t): option(Var.t) =>
+/* The type a `let` item's pattern is written with: its annotation, under
+   parentheses, projectors and labels. */
+let rec typ_of_pat = (p: TermBase.Pat.t): option(TermBase.Typ.t) =>
   switch (p.term) {
-  | Var(x) => Some(x)
-  | Parens(p) => var_of_pat(p)
+  | Asc(_, ty) => Some(ty)
+  | Parens(p)
+  | Projector(_, p)
+  | TupLabel(_, p) => typ_of_pat(p)
   | _ => None
   };
 
-let rec val_of_pat = (p: TermBase.Pat.t): option(member) =>
+/* What a written item declares. */
+[@deriving show({with_path: false})]
+type reading =
+  | Member(member)
+  /* A hole or invalid piece where the member would be named. */
+  | Incomplete
+  /* A `let` whose pattern is not a name, `let (a, b) : (Int, Int)`. */
+  | NotAName;
+
+/* The name is read under the same wrappers as its annotation. */
+let rec read_pat = (p: TermBase.Pat.t): reading =>
   switch (p.term) {
-  | Parens(p) => val_of_pat(p)
-  | Var(x) => Some(Val(x, unknown_typ()))
-  | Asc(p', ty) =>
-    switch (var_of_pat(p')) {
-    | Some(x) => Some(Val(x, ty))
-    | None => None
+  | Parens(p)
+  | Projector(_, p)
+  | TupLabel(_, p) => read_pat(p)
+  | Asc(p, ty) =>
+    switch (read_pat(p)) {
+    | Member(Val(x, _)) => Member(Val(x, ty))
+    | reading => reading
     }
-  | _ => None
+  | Var(x) => Member(Val(x, TempGrammar.Typ.unknown(Internal)))
+  | EmptyHole
+  | MultiHole(_)
+  | Invalid(_) => Incomplete
+  | _ => NotAName
   };
 
-let rec name_of_mpat = (mp: TermBase.MPat.t): option(Var.t) =>
+let read_mpat = (mp: TermBase.MPat.t): reading =>
   switch (mp.term) {
-  | Var(x) => Some(x)
-  | Asc(inner, _) => name_of_mpat(inner)
+  | Var(x) => Member(Val(x, TempGrammar.Typ.unknown(Internal)))
+  | Asc(inner, ty) =>
+    switch (MPat.name(inner)) {
+    | Some(x) => Member(Val(x, ty))
+    | None => Incomplete
+    }
   | Invalid(_)
   | EmptyHole
-  | MultiHole(_) => None
+  | MultiHole(_) => Incomplete
   };
 
-let val_of_mpat = (mp: TermBase.MPat.t): option(member) =>
-  switch (mp.term) {
-  | Var(x) => Some(Val(x, unknown_typ()))
-  | Asc(inner, ty) => name_of_mpat(inner) |> Option.map(x => Val(x, ty))
-  | Invalid(_)
-  | EmptyHole
-  | MultiHole(_) => None
-  };
-
-let member_of_item = (item: t): option(member) =>
+let read_item = (item: t): reading =>
   switch (item.term) {
-  | SigLet(p) => val_of_pat(p)
-  | SigModule(mp) => val_of_mpat(mp)
-  | SigType({term: Var(name), _}, ty) => Some(TypeManifest(name, ty))
+  | SigLet(p) => read_pat(p)
+  | SigModule(mp) => read_mpat(mp)
+  | SigType({term: Var(name), _}, ty) => Member(TypeManifest(name, ty))
   | SigType(_, _)
   | Invalid(_)
   | EmptyHole
-  | MultiHole(_) => None
+  | MultiHole(_) => Incomplete
+  };
+
+let member_of_item = (item: t): option(member) =>
+  switch (read_item(item)) {
+  | Member(m) => Some(m)
+  | Incomplete
+  | NotAName => None
   };
 
 let members = (items: list(t)): list(member) =>
   List.filter_map(member_of_item, items);
 
-let pat_var = (x: Var.t): TermBase.Pat.t => {
-  term: Var(x),
-  annotation: IdTagged.IdTag.temp(),
-};
+/* A hole item could declare any member. */
+let is_hole = (item: t): bool =>
+  switch (item.term) {
+  | EmptyHole
+  | MultiHole(_) => true
+  | SigLet(_)
+  | SigType(_)
+  | SigModule(_)
+  | Invalid(_) => false
+  };
 
-let mpat_var = (x: Var.t): TermBase.MPat.t => {
-  term: Var(x),
-  annotation: IdTagged.IdTag.temp(),
-};
+let has_hole_item = (items: list(t)): bool => List.exists(is_hole, items);
+
+/* An open signature reached an operation that reads its members' types.
+   Those read closed signatures only; Typ.close makes one where a type is
+   read from the syntax, so an open one here is a bug in that reading. */
+exception OpenSignature;
+
+/* The items of a signature in either reading, for a syntactic walk that
+   does not read a member's type: printing, collecting ids, counting. */
+let items = (s: TermBase.signature): list(t) =>
+  switch (s) {
+  | Open(items) => items
+  | Closed(items) => ClosedSig.items(items)
+  };
+
+/* The items of a closed signature, for an operation that reads their types. */
+let closed = (s: TermBase.signature): ClosedSig.t(t) =>
+  switch (s) {
+  | Open(_) => raise(OpenSignature)
+  | Closed(items) => items
+  };
+
+let closed_members = (s: TermBase.signature): list(member) =>
+  members(ClosedSig.items(closed(s)));
 
 let item_of_member = (m: member): t =>
   switch (m) {
-  | Val(x, ty) =>
-    let asc: TermBase.Pat.t = {
-      term: Asc(pat_var(x), ty),
-      annotation: IdTagged.IdTag.temp(),
-    };
-    temp(SigLet(asc));
-  | TypeManifest(name, ty) =>
-    let tpat: TermBase.TPat.t = {
-      term: Var(name),
-      annotation: IdTagged.IdTag.temp(),
-    };
-    temp(SigType(tpat, ty));
+  | Val(x, ty) => TempGrammar.(Sig.sig_let(Pat.asc(Pat.var(x), ty)))
+  | TypeManifest(name, ty) => TempGrammar.(Sig.sig_type(TPat.var(name), ty))
   };
 
 /* `module m : ty` — a sub-module member. */
-let module_item = (name: Var.t, ty: TermBase.Typ.t): t => {
-  let asc: TermBase.MPat.t = {
-    term: Asc(mpat_var(name), ty),
-    annotation: IdTagged.IdTag.temp(),
-  };
-  temp(SigModule(asc));
-};
-
-let of_members = (ms: list(member)): list(t) =>
-  List.map(item_of_member, ms);
+let module_item = (name: Var.t, ty: TermBase.Typ.t): t =>
+  TempGrammar.(Sig.sig_module(MPat.asc(MPat.var(name), ty)));
 
 /* Apply [f] to the type carried by a well-formed item, keeping the item's
-   form (`let`, `type` or `module`). A member written without a type carries
-   `?`; it gains an ascription only if [f] refines that. */
+   form (`let`, `type` or `module`). An item written without a type, `let x`,
+   is read as `let x : ?`: [f] is applied to `?`, and the item is ascribed
+   the result unless that is still `?`. */
 let map_typ = (f: TermBase.Typ.t => TermBase.Typ.t, item: t): t => {
   let refined = (): option(TermBase.Typ.t) =>
-    switch (f(unknown_typ())) {
+    switch (f(TempGrammar.Typ.unknown(Internal))) {
     | {term: Unknown(_), _} => None
     | ty => Some(ty)
     };
@@ -171,11 +194,19 @@ let map_typ = (f: TermBase.Typ.t => TermBase.Typ.t, item: t): t => {
         ...p,
         term: (Parens(pat_map(p')): TermBase.Pat.term),
       }
+    | Projector(d, p') => {
+        ...p,
+        term: (Projector(d, pat_map(p')): TermBase.Pat.term),
+      }
+    | TupLabel(l, p') => {
+        ...p,
+        term: (TupLabel(l, pat_map(p')): TermBase.Pat.term),
+      }
     | Var(x) =>
       switch (refined()) {
       | Some(ty) => {
           ...p,
-          term: (Asc(pat_var(x), ty): TermBase.Pat.term),
+          term: (Asc(TempGrammar.Pat.var(x), ty): TermBase.Pat.term),
         }
       | None => p
       }
@@ -191,7 +222,7 @@ let map_typ = (f: TermBase.Typ.t => TermBase.Typ.t, item: t): t => {
       switch (refined()) {
       | Some(ty) => {
           ...mp,
-          term: (Asc(mpat_var(x), ty): TermBase.MPat.term),
+          term: (Asc(TempGrammar.MPat.var(x), ty): TermBase.MPat.term),
         }
       | None => mp
       }
@@ -218,95 +249,58 @@ let map_typ = (f: TermBase.Typ.t => TermBase.Typ.t, item: t): t => {
   };
 };
 
-let dedup_names = (names: list(Var.t)): list(Var.t) =>
-  List.fold_left(
-    (acc, n) => List.mem(n, acc) ? acc : acc @ [n],
-    [],
-    names,
-  );
+/* The type an item is written with, the one [map_typ] maps. */
+let typ_of_item = (item: t): option(TermBase.Typ.t) =>
+  switch (item.term) {
+  | SigLet(p) => typ_of_pat(p)
+  | SigType(_, ty) => Some(ty)
+  | SigModule({term: Asc(_, ty), _}) => Some(ty)
+  | SigModule(_)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_) => None
+  };
 
 let value_names = (ms: list(member)): list(Var.t) =>
-  ms
-  |> List.filter_map(
-       fun
-       | Val(x, _) => Some(x)
-       | TypeManifest(_) => None,
-     )
-  |> dedup_names;
+  List.filter_map(
+    fun
+    | Val(x, _) => Some(x)
+    | TypeManifest(_) => None,
+    ms,
+  );
 
 let type_names = (ms: list(member)): list(Var.t) =>
-  ms
-  |> List.filter_map(
-       fun
-       | TypeManifest(x, _) => Some(x)
-       | Val(_) => None,
-     )
-  |> dedup_names;
+  List.filter_map(
+    fun
+    | TypeManifest(x, _) => Some(x)
+    | Val(_) => None,
+    ms,
+  );
 
+/* Whether two members are the same name of the same kind: values and
+   modules share a namespace, type members have their own. */
 let same_kind = (a: member, b: member) =>
   switch (a, b) {
   | (Val(x, _), Val(y, _))
-  | (TypeManifest(x, _), TypeManifest(y, _)) => x == y
+  | (TypeManifest(x, _), TypeManifest(y, _)) => String.equal(x, y)
   | (Val(_), TypeManifest(_))
   | (TypeManifest(_), Val(_)) => false
   };
 
-/* Keep only the last member of each name and kind (a later binding
-   shadows an earlier one), preserving the order of the survivors. */
-let dedup_last = (ms: list(member)): list(member) => {
-  let rec go = (ms: list(member)) =>
-    switch (ms) {
-    | [] => []
-    | [m, ...rest] =>
-      List.exists(same_kind(m), rest) ? go(rest) : [m, ...go(rest)]
-    };
-  go(ms);
-};
-
-/* The well-formed items, keeping only the last of each name and kind. */
-let dedup_last_items = (items: list(t)): list(t) => {
-  let rec go = (items: list(t)) =>
-    switch (items) {
-    | [] => []
-    | [item, ...rest] =>
-      switch (member_of_item(item)) {
-      | None => go(rest)
-      | Some(m) =>
-        let shadowed =
-          List.exists(
-            later =>
-              switch (member_of_item(later)) {
-              | Some(m') => same_kind(m, m')
-              | None => false
-              },
-            rest,
-          );
-        shadowed ? go(rest) : [item, ...go(rest)];
-      }
-    };
-  go(items);
-};
-
-/* Lookups take the LAST member with the name: a later binding shadows an
-   earlier one, which is also how module bodies export their bindings. */
 let find_value = (ms: list(member), name: Var.t): option(TermBase.Typ.t) =>
-  List.fold_left(
-    (acc, m) =>
-      switch (m) {
-      | Val(x, ty) when x == name => Some(ty)
-      | _ => acc
-      },
-    None,
+  List.find_map(
+    fun
+    | Val(x, ty) when String.equal(x, name) => Some(ty)
+    | Val(_)
+    | TypeManifest(_) => None,
     ms,
   );
 
 let find_type_def = (ms: list(member), name: Var.t): option(TermBase.Typ.t) =>
-  List.fold_left(
-    (acc, m) =>
-      switch (m) {
-      | TypeManifest(x, ty) when x == name => Some(ty)
-      | _ => acc
-      },
-    None,
+  List.find_map(
+    fun
+    | TypeManifest(x, ty) when String.equal(x, name) => Some(ty)
+    | Val(_)
+    | TypeManifest(_) => None,
     ms,
   );

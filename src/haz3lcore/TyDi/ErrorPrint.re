@@ -25,43 +25,114 @@ module Print = {
     term |> ExpToSegment.any_to_segment(~settings) |> seg(~holes="?");
   };
 
-  let typ = (ty: Typ.t): string => term(Typ(ty));
+  let typ = (ty: Typ.t): string => term(Typ(Typ.surface_names(ty)));
 };
 
 let prn = Printf.sprintf;
 
-let type_member_capture_string = names =>
-  switch (names) {
-  | [name] =>
-    prn(
-      "Type variable %s collides with a type member named %s in this signature, so %s cannot be mentioned inside it; rename the type variable",
-      name,
-      name,
-      name,
-    )
-  | _ =>
-    prn(
-      "Type variables %s collide with type members of the same names in this signature, so they cannot be mentioned inside it; rename them",
-      String.concat(", ", names),
-    )
-  };
+/* A message the cursor inspector also shows, as parts: printed to a string
+   here, rendered to a view there. */
+type part =
+  | Text(string)
+  | Code(string)
+  | Label(string)
+  | Type(Typ.t);
+
+let string_of_parts = (parts: list(part)): string =>
+  parts
+  |> List.map(
+       fun
+       | Text(s)
+       | Code(s)
+       | Label(s) => s
+       | Type(ty) => Print.typ(ty),
+     )
+  |> String.concat("");
+
+let codes = (names: list(Var.t)): list(part) =>
+  Util.ListUtil.join(Text(", "), List.map(name => Code(name), names));
+
+/* [what] names the sort of member, e.g. "type member". */
+let member_not_found_parts =
+    (what: string, {name, members}: Mark.member_not_found): list(part) =>
+  [Text("Module has no " ++ what ++ " "), Label(name)]
+  @ (
+    switch (members) {
+    | [] => []
+    | _ => [
+        Text("; its " ++ what ++ "s are "),
+        ...Util.ListUtil.join(
+             Text(", "),
+             List.map(m => Label(m), members),
+           ),
+      ]
+    }
+  );
+
+let type_member_mismatch_parts = (name, ~expected, ~actual): list(part) => [
+  Text("Type member "),
+  Code(name),
+  Text(" is defined as "),
+  Type(actual),
+  Text(" but its signature declares "),
+  Type(expected),
+];
+
+let module_missing_members_parts = (names: list(Var.t)): list(part) => [
+  Text("Module is missing members required by its signature: "),
+  ...codes(names),
+];
+
+let module_extra_members_parts = (names: list(Var.t)): list(part) => [
+  Text("Module has members its signature does not declare: "),
+  ...codes(names),
+];
+
+let module_member_is_type_parts = (name: Var.t): list(part) => [
+  Code(name),
+  Text(
+    " is a type member of the module, not a value; use it in a type position",
+  ),
+];
+
+let compare_fun_parts = ({ty, found}: Mark.compare_fun): list(part) =>
+  [Text("Values of type "), Type(ty), Text(" cannot be compared: ")]
+  @ (
+    switch (found.members) {
+    | [] when Typ.fast_equal(ty, found.ty) => [
+        Text("functions have no equality"),
+      ]
+    | [] => [
+        Text("the function type "),
+        Type(found.ty),
+        Text(" has no equality"),
+      ]
+    | members => [
+        Text("member "),
+        Code(String.concat(".", members)),
+        Text(" has the function type "),
+        Type(found.ty),
+        Text(", which has no equality"),
+      ]
+    }
+  );
+
+let member_not_found_string = (what, not_found) =>
+  string_of_parts(member_not_found_parts(what, not_found));
 
 let type_member_mismatch_string = (name, ~expected, ~actual) =>
-  prn(
-    "Type member %s is %s but its signature declares %s",
-    name,
-    Print.typ(actual),
-    Print.typ(expected),
-  );
+  string_of_parts(type_member_mismatch_parts(name, ~expected, ~actual));
 
 let core_mark_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   let ana = Statics.ana_skip_explicit_nonlabel(ana);
-  let expectation = (ana: Typ.t, syn: Typ.t) =>
+  let expectation = (ana: Typ.t, syn: Typ.t) => {
+    let shown = Typ.surface_names_in(~ctx, [ana, syn]);
     prn(
       "Expecting type %s but got inconsistent type %s",
-      Print.typ(ana),
-      Print.typ(syn),
+      Print.typ(shown(ana)),
+      Print.typ(shown(syn)),
     );
+  };
   switch (m) {
   | BadLabel(_)
   | InvalidLabel(_, _) => "Invalid label"
@@ -71,15 +142,18 @@ let core_mark_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   | UnexpectedLabelSort(_) => "Unexpected label sort"
   | BadToken(token) => prn("\"%s\" isn't a valid token", token)
   | IsMulti => "Broken expression"
-  | CompareFun(ty) =>
-    prn("values of type %s cannot be compared", Print.typ(ty))
+  | CompareFun(c) => string_of_parts(compare_fun_parts(c))
   | FreeConstructor(_name) => prn("Constructor is not defined")
   | ExpectationMismatch({ana, syn}) => expectation(ana, syn)
   | NoMeet(PolyEq, tys)
   | NoMeet(_, tys) when ana.term == Unknown(SynSwitch) =>
     prn(
       "Expecting branches to have consistent types but got types: %s",
-      List.map(Print.typ, Typ.of_source(tys)) |> String.concat(", "),
+      {
+        let tys = Typ.of_source(tys);
+        List.map(ty => Print.typ(Typ.surface_names_in(~ctx, tys, ty)), tys)
+        |> String.concat(", ");
+      },
     )
   | NoMeet(wrap, _tys) =>
     let syn: Typ.t = SynTy.meet_of(wrap, Unknown(Internal) |> Typ.temp);
@@ -159,32 +233,15 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
     prn("Theorem pattern is not of the form p : t, got %s", Print.typ(typ))
   | LabelNotFound(_, _) => "Label not found"
   | ModuleMissingMembers(names) =>
-    prn("Module is missing members: %s", String.concat(", ", names))
+    string_of_parts(module_missing_members_parts(names))
   | ModuleExtraMembers(names) =>
-    prn(
-      "Module has members its signature does not declare: %s",
-      String.concat(", ", names),
-    )
-  | ModuleMemberNotFound({name, members, type_member}) =>
-    if (type_member) {
-      prn(
-        "%s is a type member of the module, not a value; use it in a type position",
-        name,
-      );
-    } else {
-      switch (members) {
-      | [] => prn("Module has no member %s; it has no members", name)
-      | _ =>
-        prn(
-          "Module has no member %s; its members are %s",
-          name,
-          String.concat(", ", members),
-        )
-      };
-    }
+    string_of_parts(module_extra_members_parts(names))
+  | ModuleMemberNotFound(not_found) =>
+    member_not_found_string("member", not_found)
+  | ModuleMemberIsType(name) =>
+    string_of_parts(module_member_is_type_parts(name))
   | ModuleTypeMemberMismatch({name, expected, actual}) =>
     type_member_mismatch_string(name, ~expected, ~actual)
-  | TypeMemberCapture(names) => type_member_capture_string(names)
   | IsLivelitName({name, _}) =>
     switch (Ctx.lookup_livelit(ctx, name)) {
     | None => "Livelit unbound and not found"
@@ -202,7 +259,9 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   | TypWantConstructorFoundAp
   | TypParseFailure
   | TPatShadowsType(_)
-  | TPatNotAVar(_) => "(internal)"
+  | TPatNotAVar(_)
+  | SigDuplicateMember(_)
+  | SigLetNotAName => "(internal)"
   | Redundant
   | ExpectedConstructor => "(internal)"
   | FreeConstructor(_)
@@ -264,32 +323,34 @@ let typ_mark_string: Mark.t => string =
   | DuplicateLabel(name, _) => prn("Type %s is already defined", name)
   | TypWantProduct(ty) =>
     prn("Expected a module or tuple type, found type %s", Print.typ(ty))
-  | ModuleTypeMemberNotFound({name, members, submodule}) => {
-      let what = submodule ? "sub-module" : "type member";
-      switch (members) {
-      | [] => prn("Module has no %s %s; it has no %ss", what, name, what)
-      | _ =>
-        prn(
-          "Module has no %s %s; its %ss are %s",
-          what,
-          name,
-          what,
-          String.concat(", ", members),
-        )
-      };
-    }
+  | ModuleTypeMemberNotFound(member, not_found) =>
+    member_not_found_string(
+      TypExpectation.module_member_to_string(member),
+      not_found,
+    )
   | TypWantModule({name, typ}) =>
     prn("%s is a value of type %s, not a module", name, Print.typ(typ))
   | ModuleTypeMemberMismatch({name, expected, actual}) =>
     type_member_mismatch_string(name, ~expected, ~actual)
-  | TypeMemberCapture(names) => type_member_capture_string(names)
+  | _ => "(static error)";
+
+let sig_mark_string: Mark.t => string =
+  fun
+  | SigDuplicateMember(member) => {
+      let (kind, name) =
+        switch (member) {
+        | Val(name, _) => ("Member", name)
+        | TypeManifest(name, _) => ("Type member", name)
+        };
+      prn("%s %s is declared more than once in this signature", kind, name);
+    }
+  | SigLetNotAName => "Not a member name: a signature declares members one at a time"
   | _ => "(static error)";
 
 let tpat_mark_string: Mark.t => string =
   fun
   | TPatNotAVar(_) => "Not a valid type name" //TODO: elaborate
   | TPatShadowsType(name, _) => "Can't shadow type " ++ name //TODO: elaborate
-  | TypeMemberCapture(names) => type_member_capture_string(names)
   | _ => "(static error)";
 
 let marks_string = (info: Info.t, marks: list(Mark.t)): string =>
@@ -322,6 +383,16 @@ let marks_string = (info: Info.t, marks: list(Mark.t)): string =>
       | Some(m) => tpat_mark_string(m)
       | None => ""
       }
+    }
+  | InfoMod({ctx, _}) =>
+    switch (Mark.highest(marks)) {
+    | Some(m) => exp_mark_to_string(ctx, Unknown(Internal) |> Typ.temp, m)
+    | None => "(static error)"
+    }
+  | InfoSig(_) =>
+    switch (Mark.highest(marks)) {
+    | Some(m) => sig_mark_string(m)
+    | None => "(static error)"
     }
   | _ => "(static error)"
   };

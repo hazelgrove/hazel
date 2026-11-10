@@ -562,7 +562,7 @@ module Reply = {
     model: b.model,
     is_edit: a.is_edit || b.is_edit,
     recalculate: a.recalculate || b.recalculate,
-    scroll_active: a.scroll_active || b.scroll_active,
+    scroll: Updated.merge_scroll(a.scroll, b.scroll),
     logged: a.logged || b.logged,
     historic: a.historic || b.historic,
     tentative: a.tentative || b.tentative,

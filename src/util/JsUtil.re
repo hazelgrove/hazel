@@ -611,6 +611,24 @@ let find_scroll_container_cached =
   };
 };
 
+/* Whether any of the caret shows in its scroll container, or in the
+ * viewport if it has none. Read before a re-render, this is what the user
+ * sees now, not what the coming layout will show. */
+let caret_in_view = (): bool =>
+  switch (get_elem_by_id_opt("caret")) {
+  | None => false
+  | Some(caret) =>
+    let rect = caret##getBoundingClientRect;
+    let (top, bottom) =
+      switch (find_scroll_container(caret)) {
+      | Some(container) =>
+        let c = container##getBoundingClientRect;
+        (c##.top, c##.bottom);
+      | None => (0., float_of_int(Dom_html.window##.innerHeight))
+      };
+    rect##.bottom > top && rect##.top < bottom;
+  };
+
 /* after a jump: a caret out of comfortable view comes to a fifth of the
    way down its scroll container, with the lines above it in sight */
 let align_caret_near_top = (): unit =>
@@ -1057,3 +1075,29 @@ let observe_drawer_width = (~report: int => unit): unit =>
       ();
     };
   };
+
+/* The rest of the first class beginning with [prefix] on the element an
+   event targets, or on one of its ancestors. */
+let class_at_target =
+    (~prefix: string, evt: Js.t(Dom_html.mouseEvent)): option(string) => {
+  let rec find = (el: Js.t(Dom_html.element)) => {
+    let classes =
+      Js.Opt.case(
+        el##getAttribute(Js.string("class")),
+        () => [],
+        c => String.split_on_char(' ', Js.to_string(c)),
+      );
+    let n = String.length(prefix);
+    switch (List.find_opt(String.starts_with(~prefix), classes)) {
+    | Some(c) => Some(String.sub(c, n, String.length(c) - n))
+    | None =>
+      Js.Opt.case(
+        el##.parentNode,
+        () => None,
+        parent =>
+          Js.Opt.case(Dom_html.CoerceTo.element(parent), () => None, find),
+      )
+    };
+  };
+  Js.Opt.case(evt##.target, () => None, find);
+};

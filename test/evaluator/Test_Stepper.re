@@ -101,6 +101,24 @@ let tests = (
         ),
       )
     }),
+    /* As in the evaluator, where an evaluated member's closure never sees
+       the bindings after it. */
+    test_case(
+      "A module binding does not reach the members before it",
+      `Quick,
+      () => {
+        let source = {|{ let g = fun u -> h; let h = 1; let k = 2 }|};
+        check(
+          step_limited,
+          source ++ " is a value as written",
+          LimitedCompleted((
+            elaborate(parse_exp(source)),
+            EvaluatorState.empty,
+          )),
+          full_small_step_reduction(elaborate(parse_exp(source))),
+        );
+      },
+    ),
     /* The binding rewrites the whole module, but the step belongs to the item:
        that is what the stepper highlights and what the user clicks. */
     test_case(
@@ -122,6 +140,61 @@ let tests = (
             EvaluatorStep.get_step_id(step),
           )
         | [] => fail("expected a module binding step")
+        };
+      },
+    ),
+    /* The item is rendered as its expression, so the step highlights that;
+       the stepper refreshes every id after a step, so the comparison is
+       within one state. */
+    test_case(
+      "Discarding a bare expression item is anchored on the expression",
+      `Quick,
+      () => {
+        let discard_step = exp =>
+          steps(exp)
+          |> List.find_opt(step =>
+               switch (EvaluatorStep.get_step_kind(step)) {
+               | ModuleDiscardExp => true
+               | _ => false
+               }
+             );
+        let rec to_discard = (fuel, exp) =>
+          switch (discard_step(exp), steps(exp)) {
+          | (Some(step), _) => Some((exp, step))
+          | (None, [first, ..._]) when fuel > 0 =>
+            Option.bind(
+              EvaluatorStep.take_step(first),
+              to_discard(fuel - 1),
+            )
+          | (None, _) => None
+          };
+        switch (
+          to_discard(
+            10,
+            elaborate(parse_exp({|{ let a = 1; a + 1; let b = 2 }|})),
+          )
+        ) {
+        | Some((exp, step)) =>
+          let expression_id =
+            switch (Exp.term_of(exp)) {
+            | Module(items) =>
+              List.find_map(
+                (item: Mod.t) =>
+                  switch (item.term) {
+                  | ModExp(e) => Some(Exp.rep_id(e))
+                  | _ => None
+                  },
+                items,
+              )
+            | _ => None
+            };
+          check(
+            option(id),
+            "the expression item",
+            expression_id,
+            Some(EvaluatorStep.get_step_id(step)),
+          );
+        | None => fail("expected a discard step")
         };
       },
     ),
@@ -166,10 +239,8 @@ let tests = (
         };
       },
     ),
-    /* The stepper takes a step by clicking what it is anchored on, so a step
-       anchored on an id the rendered program lacks can never be taken. The
-       stepper refreshes every id before its first step, which is what parts
-       a bare expression item's id from its expression's. */
+    /* Every step's id must be in the rendered program, or it can't be
+       clicked. replace_all_ids mirrors the stepper's refresh. */
     test_case(
       "Every module step is anchored on rendered syntax",
       `Quick,
@@ -197,7 +268,10 @@ let tests = (
                   )
                   ++ " is anchored on rendered syntax",
                   true,
-                  List.mem(EvaluatorStep.get_step_id(step), rendered),
+                  List.exists(
+                    Id.equal(EvaluatorStep.get_step_id(step)),
+                    rendered,
+                  ),
                 ),
               steps,
             );
@@ -205,10 +279,13 @@ let tests = (
               EvaluatorStep.take_step(first) |> Option.iter(go(fuel - 1));
             };
           };
-        go(
-          20,
-          elaborate(parse_exp({|{ (); let x = 1 + 1; let y = x * 2 }|}))
-          |> Exp.replace_all_ids,
+        List.iter(
+          source =>
+            go(20, elaborate(parse_exp(source)) |> Exp.replace_all_ids),
+          [
+            {|{ (); let x = 1 + 1; let y = x * 2 }|},
+            {|{ let x = 1 + 1; (); let y = x * 2 }|},
+          ],
         );
       },
     ),

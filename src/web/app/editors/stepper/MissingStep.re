@@ -393,13 +393,11 @@ module View = {
         );
       };
 
-      /* Matched against the selected id rather than the expression it resolves
-         to: a step anchored on a module item has no expression to match. */
       let show_step_button =
         switch (model.selected_id |> Calc.get_saved_exc(~print="Selected Id")) {
         | Some(selected_id) =>
           List.find_index(
-            x => x == selected_id,
+            Id.equal(selected_id),
             model.next_steps
             |> Calc.get_saved_exc(~print="next_steps")
             |> (

@@ -482,6 +482,18 @@ module rec Exp: {
         },
         indicated_exp,
       );
+    let e =
+      Exp.map_term(
+        ~f_mod=
+          (cont, item) => {
+            let item = cont(item);
+            switch (item.term) {
+            | ModExp(e) => Mod.of_exp(e)
+            | _ => item
+            };
+          },
+        e,
+      );
     let ids = Dynarray.to_list(indicated_ids);
     (e, ids);
   };
@@ -565,7 +577,7 @@ and Typ: {
     | ProofOfType(e) => proof_of(Exp.of_menhir_ast(e))
     | Sig(items) => {
         annotation: false,
-        term: Sig(List.map(SigItem.of_menhir_ast, items)),
+        term: Sig(Open(List.map(SigItem.of_menhir_ast, items))),
       }
     | IndicationTyp(t) => {
         annotation: true,
@@ -640,7 +652,9 @@ and Typ: {
     /* Same as DrvQuote in the Exp case: no menhir syntax for Drv types. */
     | DrvQuoteTy(_) => raise(Failure("DrvQuoteTy not supported"))
     | Projector(_, t) => of_core(t)
-    | Sig(items) => Sig(List.map(SigItem.of_core, items))
+    | Sig(Open(items)) => Sig(List.map(SigItem.of_core, items))
+    | Sig(Closed(items)) =>
+      Sig(List.map(SigItem.of_core, Language.ClosedSig.items(items)))
     };
   };
 }
@@ -796,7 +810,6 @@ and ModItem: {
     | ModuleMod(mp, e) =>
       ModItemModule(Exp.pat_of_mpat(mp), Exp.of_core(e))
     | ModVal(x, e) =>
-      /* Evaluated binding (dynamics only): print as `let x = e`. */
       ModItemLet(Pat.of_core(IndicatedG.Pat.var(x)), Exp.of_core(e))
     | Invalid(_)
     | EmptyHole

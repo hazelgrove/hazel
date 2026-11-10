@@ -664,15 +664,13 @@ let parent_id = (id: Id.t, info_map: Language.Statics.Map.t): option(Id.t) =>
     Language.Info.parent_id_of,
   );
 
-/* See `parent_of_indicated`. A module member is no body: members
- * elaborate as nested Lets, each the "body" of the one before */
+/* See `parent_of_indicated` */
 let def_body_indicated =
     (z: t, info_map: Language.Statics.Map.t): option(Id.t) => {
   let* id = Indicated.index(z);
   let* parent_id = parent_id(id, info_map);
   let* ci_parent = Language.Statics.Map.lookup_exp(parent_id, info_map);
   switch (ci_parent) {
-  | {cls: Mod(ModLet | ModType | ModuleMod), _} => None
   | {user_term: {term: Let(_, _, body) | TyAlias(_, _, body), _}, _} =>
     let body_id = Language.IdTagged.rep_id(body);
     id == body_id ? Some(body_id) : None;
@@ -728,33 +726,9 @@ let is_rule_tile =
   | Piece.Tile({form: Form.Compound(Rule), _}) => true
   | _ => false;
 
-/* Check if id has a module item cls (ModLet, ModType, etc.).
- * Module items are elaborated as nested Lets, so they need
- * special handling to avoid escalating between siblings. */
-let has_mod_cls = (id, info_map) =>
-  switch (Id.Map.find_opt(id, info_map)) {
-  | Some(
-      Language.Statics.Info.InfoExp({
-        cls: Mod(ModLet | ModType | ModuleMod | ModExp),
-        _,
-      }),
-    ) =>
-    true
-  | _ => false
-  };
-
-/* Check if from_id is the body of the definition at parent_id.
- * Returns false for module items (elaborated as nested Lets
- * where each item appears as the "body" of the previous). */
+/* Check if from_id is the body of the definition at parent_id. */
 let is_def_body = (from_id, parent_id, info_map) =>
   switch (Language.Statics.Map.lookup(parent_id, info_map)) {
-  | Some(
-      Language.Statics.Info.InfoExp({
-        cls: Mod(ModLet | ModType | ModuleMod),
-        _,
-      }),
-    ) =>
-    false
   | Some(
       Language.Statics.Info.InfoExp({
         user_term: {term: Let(_, _, body) | TyAlias(_, _, body), _},
@@ -789,10 +763,8 @@ let parent_of_indicated = (z: t, term_data, info_map) => {
 };
 
 /* A module member grows to the member list holding it: its module's
- * `{…}`, or a Mod root's members, first to last. By the zipper, not by
- * statics: a member's statics parent is the member before it (items
- * elaborate as nested Lets), and compositional statics gives a member
- * none at all. */
+ * `{…}`, or a Mod root's members, first to last. By the zipper, as a Mod
+ * root's members have no `{…}` to select */
 let enclosing_members = (z: t, term_data: TermData.t, info_map) =>
   switch (Zipper.parent(z)) {
   | Some(p) => select_as_parent(Piece.id(p), z, term_data, info_map)
@@ -807,6 +779,19 @@ let enclosing_members = (z: t, term_data: TermData.t, info_map) =>
         z,
       )
     };
+  };
+
+/* Whether [id] is a module member: an item, or a bare expression item,
+ * which shares its expression's ids and so its info */
+let is_member = (id, info_map) =>
+  switch (Language.Statics.Map.lookup(id, info_map)) {
+  | Some(Language.Info.InfoMod(_)) => true
+  | Some(Language.Info.InfoExp({ancestors: [parent, ..._], _})) =>
+    switch (Language.Statics.Map.lookup_exp(parent, info_map)) {
+    | Some({user_term: {term: Module(_), _}, _}) => true
+    | _ => false
+    }
+  | _ => false
   };
 
 /* Escalate from a fully-matched selection to its parent.
@@ -883,7 +868,7 @@ let select_enclosing_term =
         | Some(z') => z'.selection.content == sel
         | None => false
         };
-      if (sel_matches && has_mod_cls(root_id, info_map)) {
+      if (sel_matches && is_member(root_id, info_map)) {
         enclosing_members(z0, term_data, info_map);
       } else if (sel_matches) {
         let* parent_id = parent_id(root_id, info_map);

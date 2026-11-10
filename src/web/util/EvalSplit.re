@@ -16,17 +16,29 @@ open Haz3lcore;
 open Language;
 module P = EvalPieces;
 
+/* what a split item holds around its nested value: a let's pattern and
+   body, or a member's bare expression item, as elaborated */
+type shell =
+  | LetShell(Pat.t, Exp.t)
+  | MemberShell(Mod.t);
+
+let shell_equal = (a: shell, b: shell): bool =>
+  switch (a, b) {
+  | (LetShell(p, b), LetShell(p', b')) => p === p' && b === b'
+  | (MemberShell(m), MemberShell(m')) => m === m'
+  | _ => false
+  };
+
 /* what a piece was cut from, to tell when it still holds. [skip]: the
    keys it leaves to pieces above. a module member's piece also holds its
    binding */
 type source =
   | Plain(Statics.Map.t, Exp.t, list(Id.t), option(Mod.t)) /* map, elab, skip, binding */
-  /* the let's annotation, pattern and body, its own map, skip, its
-     entries as projected, and its binding */
+  /* the item's annotation and shell, its own map, skip, its entries as
+     projected, and its binding */
   | Shell(
       IdTagged.IdTag.t,
-      Pat.t,
-      Exp.t,
+      shell,
       Statics.Map.t,
       list(Id.t),
       list(P.entry),
@@ -217,18 +229,14 @@ let entries_equal = (a: list(P.entry), b: list(P.entry)): bool =>
     b,
   );
 
-/* a module member's binding as its module's value holds it
-   (ModuleHelpers.refold_item), from its source and its elaboration's
-   let, the link it makes in the module's chain. a type member makes no
-   link, and the value drops it */
-let bind = (src: Mod.t, it: DefStatics.item, elab: Exp.t): option(Mod.t) =>
+/* a module member's binding as its module's value holds it, from its
+   elaboration, its module of it. a type member has none: the value drops
+   it */
+let bind = (src: Mod.t, elab: Exp.t): option(Mod.t) =>
   switch (src.term, elab.term) {
-  | (ModType(_), _) =>
-    Option.equal(Id.equal, it.d_hole, Some(Exp.rep_id(elab)))
-      ? None
-      : raise(Unsplittable("a type member's elaboration is not its body"))
-  | (_, Let(p, def, _)) => Some(ModuleHelpers.refold_item(src, p, def))
-  | _ => raise(Unsplittable("a member's elaboration is not a let"))
+  | (ModType(_), Module([])) => None
+  | (_, Module([binding])) => Some(binding)
+  | _ => raise(Unsplittable("a member's elaboration is not its module"))
   };
 
 /* bindings alike. a binding's definition is its hollow's, which a kept
@@ -244,24 +252,32 @@ type nested =
   | Members(list(Mod.t));
 
 /* a definition's nested value is its members' chain finished, when
-   DefStatics built it so: a module literal's value or a let-chain
-   member's chain at its let's definition */
+   DefStatics built it so: a module literal's value at its let's
+   definition, or a let-chain member's chain as its expression */
 let split_of = (it: DefStatics.item) =>
-  switch (it.d_nest, it.d_members, it.d_elab.term) {
-  | (Some(n), [_, ..._], Let(p, v, body)) =>
-    switch (DefStatics.top_sum(n.n_sums)) {
-    | Some({s_elab: Some(top), _}) =>
+  switch (it.d_nest, it.d_members) {
+  | (Some(n), [_, ..._]) =>
+    switch (DefStatics.top_sum(n.n_sums), it.d_elab.term) {
+    | (Some({s_elab: Some(_), _}), Let(p, v, body)) =>
       switch (DefStatics.module_literal_members(~ctx=it.d_ctx_in, it.d_node)) {
       | Some((_, def, members, _)) =>
         switch (Statics.Map.lookup_exp(Exp.rep_id(def), n.n_wrap)) {
         | Some(info) when info.elab_term === v =>
-          Some((Members(members), n, v, p, body))
+          Some((Members(members), n, v, LetShell(p, body)))
         | _ => None
         }
-      | None =>
-        Option.is_some(DefStatics.modexp_chain(it.d_node)) && v === top
-          ? Some((Links, n, v, p, body)) : None
+      | None => None
       }
+    | (Some({s_elab: Some(top), _}), Module([{term: ModExp(v), _} as b]))
+        when
+          v === top
+          && Option.is_some(
+               Option.bind(
+                 DefStatics.member_of(it.d_node),
+                 DefStatics.member_chain,
+               ),
+             ) =>
+      Some((Links, n, v, MemberShell(b)))
     | _ => None
     }
   | _ => None
@@ -377,7 +393,7 @@ let roots_piece =
   use(acc, key, c);
 };
 
-/* a split item's piece: its let, a hole for the nested value (in its
+/* a split item's piece: its shell, a hole for the nested value (in its
    binding too, if a member). the module's own map is rebuilt whenever a
    member changes, so its entries are compared as projected, as root
    entries are */
@@ -390,21 +406,29 @@ let shell_piece =
       it: DefStatics.item,
       t: terms,
       n: DefStatics.nest,
-      ~p: Pat.t,
-      ~body: Exp.t,
+      ~shell: shell,
       ~skip: list(Id.t),
       ~src: option(Mod.t),
     ) => {
   let hollow: Exp.t = {
     ...it.d_elab,
-    term: Let(p, placeholder, body),
+    term:
+      switch (shell) {
+      | LetShell(p, body) => Let(p, placeholder, body)
+      | MemberShell(b) =>
+        Module([
+          {
+            ...b,
+            term: ModExp(placeholder),
+          },
+        ])
+      },
   };
-  let binding = lazy(Option.bind(src, src => bind(src, it, hollow)));
+  let binding = lazy(Option.bind(src, src => bind(src, hollow)));
   let source = entries =>
     Shell(
       it.d_elab.annotation,
-      p,
-      body,
+      shell,
       n.n_wrap,
       skip,
       entries,
@@ -413,11 +437,10 @@ let shell_piece =
   let fresh = lazy(project(acc, t, ~skip, Id.Map.bindings(n.n_wrap)));
   let c =
     switch (Hashtbl.find_opt(old, key)) {
-    | Some({source: Shell(a, p', b, w, skip', entries, was), _} as c)
+    | Some({source: Shell(a, shell', w, skip', entries, was), _} as c)
         when
           a === it.d_elab.annotation
-          && p' === p
-          && b === body
+          && shell_equal(shell', shell)
           && ids_equal(skip', skip)
           && (w === n.n_wrap || entries_equal(Lazy.force(fresh), entries))
           && same_binding(was, Lazy.force(binding)) => {
@@ -468,7 +491,7 @@ let node_piece =
 
 /* [items]' pieces from [old]'s, and the chain's new cache. [shadowed]:
    the root keys of the items holding the chain, whose entries sit in
-   pieces above. [srcs]: a module's members, the items but the tail */
+   pieces above. [srcs]: a module's members, its items */
 let rec chain =
         (
           acc: acc,
@@ -486,8 +509,8 @@ let rec chain =
   let srcs =
     switch (srcs) {
     | [] => List.map(_ => None, items)
-    | _ when List.length(srcs) == List.length(items) - 1 =>
-      List.map(Option.some, srcs) @ [None]
+    | _ when List.length(srcs) == List.length(items) =>
+      List.map(Option.some, srcs)
     | _ => raise(Unsplittable("members and items differ"))
     };
   /* the worker finds a chain's items by id */
@@ -514,7 +537,7 @@ let rec chain =
     let skip = List.map(fst, s.s_overlay) @ shadowed;
     let key: P.key = Item(it.d_id);
     switch (split_of(it)) {
-    | Some((nested, n, v, p, body)) =>
+    | Some((nested, n, v, shell)) =>
       let m =
         switch (Hashtbl.find_opt(old.members, it.d_id)) {
         | Some(m) when m.nest === n && ids_equal(m.shadowed, skip) => m
@@ -568,8 +591,7 @@ let rec chain =
           it,
           t,
           n,
-          ~p,
-          ~body,
+          ~shell,
           ~skip,
           ~src,
         );
@@ -600,7 +622,7 @@ let rec chain =
         own: it.d_elab,
         nested: None,
       };
-      let binding = lazy(Option.bind(src, src => bind(src, it, it.d_elab)));
+      let binding = lazy(Option.bind(src, src => bind(src, it.d_elab)));
       let slot =
         piece(
           acc,

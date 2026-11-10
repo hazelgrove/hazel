@@ -173,6 +173,31 @@ let tests = (
       [],
     ),
     check_unused(
+      "module: a signature's own module member is not a use",
+      "module P = { type T = Int } in let m : { module P : { type T = Bool }; let x : P.T } = { module P = { type T = Bool }; let x = true } in m",
+      ["P"],
+    ),
+    check_unused(
+      "module: a path before a same-named module member means the outer module",
+      "module P = { type T = Int } in let m : { let x : P.T; module P : { type T = Bool } } = { let x = 1; module P = { type T = Bool } } in m",
+      [],
+    ),
+    check_unused(
+      "module: used via qualified type inside a signature literal",
+      "module M = { type T = Int } in let s : { let y : M.T } = { let y = 1 } in s",
+      [],
+    ),
+    check_unused(
+      "module: used via qualified type inside a signature alias",
+      "module M = { type T = Int } in type S = { let y : M.T } in let s : S = { let y = 1 } in s",
+      [],
+    ),
+    check_unused(
+      "module: used via qualified type in a module signature's type member",
+      "module M = { type T = Int } in module N : { type U = M.T } = { type U = Int } in N",
+      [],
+    ),
+    check_unused(
       "module: used via qualified type in expression ascription",
       "module M = { type T = Int } in (5 : M.T) + 0",
       [],

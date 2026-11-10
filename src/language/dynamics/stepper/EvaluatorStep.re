@@ -430,10 +430,7 @@ let get_status = (~settings: CoreSettings.t, exp, env) => {
 };
 
 let get_step_id = (step: step): Id.t =>
-  switch (step.at) {
-  | Some(id) => id
-  | None => step.d_loc |> DHExp.rep_id
-  };
+  Option.value(step.at, ~default=DHExp.rep_id(step.d_loc));
 
 let get_step_kind = (step: step): step_kind => step.knd;
 

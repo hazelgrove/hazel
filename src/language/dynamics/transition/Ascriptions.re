@@ -80,14 +80,15 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
               TupLabel(l, inner') |> DHExp.fresh,
             ),
           );
-    | (Module(items), Sig(sig_items)) when Mod.is_value_shape(items) =>
+    | (Module(items), Sig(s)) =>
       /* Sealing: keep the signature's value members, in signature order,
-         ascribing each to its declared type. Type members have no runtime
-         content. A member the module lacks leaves the ascription stuck;
-         statics has already marked it. */
+         ascribing each to its declared type, and, when a hole item in the
+         signature could declare them, the module's other members as they
+         are. A module still evaluating leaves the ascription stuck. A
+         member the module lacks is a hole: statics allows that only when a
+         hole item stands in for it. */
       let members =
-        Sig.members(sig_items)
-        |> Sig.dedup_last
+        Sig.closed_members(s)
         |> List.filter_map((m: Sig.member) =>
              switch (m) {
              | Val(x, ty) => Some((x, ty))
@@ -95,14 +96,34 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
              }
            );
       let picked =
-        members
-        |> List.map(((x, ty)) =>
-             Mod.modval_lookup(items, x)
-             |> Option.map(v =>
-                  Mod.fresh(ModVal(x, recur(Asc(v, ty) |> DHExp.fresh)))
-                )
-           )
-        |> Util.OptUtil.sequence;
+        Mod.value_bindings(items)
+        |> Option.map(bindings => {
+             let declared =
+               members
+               |> List.map(((x, ty)) => {
+                    let d =
+                      switch (
+                        Util.ListUtil.assoc_opt_by(String.equal, x, bindings)
+                      ) {
+                      | Some(v) => recur(Asc(v, ty) |> DHExp.fresh)
+                      | None => DHExp.fresh(EmptyHole)
+                      };
+                    Mod.fresh(ModVal(x, d));
+                  });
+             let undeclared =
+               Sig.has_hole_item(Sig.items(s))
+                 ? bindings
+                   |> List.filter(((x, _)) =>
+                        !
+                          List.exists(
+                            ((y, _)) => String.equal(x, y),
+                            members,
+                          )
+                      )
+                   |> List.map(((x, v)) => Mod.fresh(ModVal(x, v)))
+                 : [];
+             declared @ undeclared;
+           });
       switch (picked) {
       | Some(items') =>
         Some(

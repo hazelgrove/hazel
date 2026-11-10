@@ -68,7 +68,9 @@ let suggest = (~root: Sort.t, ~seg=?, ci: Info.t, z: Zipper.t): list(t) => {
       dot_labels,
     )
   | InfoTyp({
-      expects: TypExpectation.LabelProjectionExpected(Some(labels)),
+      expects:
+        TypExpectation.LabelProjectionExpected(Some(labels)) |
+        TypExpectation.ModuleMemberExpected(_, {listed: labels, _}),
       _,
     })
       when labels != [] =>
@@ -79,16 +81,6 @@ let suggest = (~root: Sort.t, ~seg=?, ci: Info.t, z: Zipper.t): list(t) => {
           strategy: Typ(FromCtx),
         },
       labels,
-    )
-  | InfoTyp({expects: TypExpectation.ModuleMemberExpected({members, _}), _})
-      when members != [] =>
-    List.map(
-      label =>
-        TyDiSuggestion.{
-          content: label,
-          strategy: Typ(FromCtx),
-        },
-      members,
     )
   | InfoExp({label_sort: true, _})
   | InfoPat({label_sort: true, _})

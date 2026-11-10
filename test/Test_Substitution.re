@@ -73,11 +73,8 @@ let tests = (
         check(exp, "f -> g, g -> h in fix f. f", expected, result);
       },
     ),
-    /* A module member's name is its label, so it must not be renamed away
-       from capture the way an ordinary binder is: `M.x` would stop finding
-       it. The substitution shadows for the items that follow instead. This
-       bites through the stepper, which substitutes the whole builtin
-       environment, so a member named after any builtin would break. */
+    /* A member's name is its label: substitution shadows it instead of
+       renaming it. */
     test_case(
       "a module member is shadowed, not renamed",
       `Quick,

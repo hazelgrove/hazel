@@ -25,6 +25,18 @@ let label_view = (label: string): Node.t =>
     [text(Haz3lcore.Token.quote_label_when_necessary(label))],
   );
 
+let parts_view = (~view_type, parts: list(Haz3lcore.ErrorPrint.part)) =>
+  List.map(
+    (part: Haz3lcore.ErrorPrint.part) =>
+      switch (part) {
+      | Text(s) => text(s)
+      | Code(s) => code(s)
+      | Label(s) => label_view(s)
+      | Type(ty) => view_type(ty)
+      },
+    parts,
+  );
+
 let cls_view = (ci: Info.t): Node.t => {
   let cls = ci |> Info.cls_of;
   let cls_text =
@@ -120,10 +132,58 @@ let view_any = (~globals, any: Any.t) =>
   |> CodeViewable.view_any(~globals, ~settings=code_view_settings)
   |> code_box_container;
 
-let view_type = (~globals, typ: Typ.t) =>
-  typ
-  |> CodeViewable.view_typ(~globals, ~settings=code_view_settings)
+/* A type as it reads at the cursor among the types shown with it,
+   [together] (by default just itself; see Typ.surface_names_in). Each type
+   variable the program binds is a link to where it is bound. */
+let view_type =
+    (~globals: Globals.t, ~ctx: Ctx.t, ~together=?, typ: Typ.t): Node.t => {
+  let tys = Option.value(together, ~default=[typ]);
+  let binders = Typ.binding_sites_in(~ctx, tys, typ);
+  let index = name =>
+    ListUtil.findi_opt(((shown, _)) => String.equal(shown, name), binders)
+    |> Option.map(fst);
+  let (segment, vars, binder_tiles) =
+    Haz3lcore.TypToSegment.typ_to_segment_with_var_ids(
+      ~settings=code_view_settings,
+      Typ.surface_names_in(~ctx, tys, typ),
+    );
+  let links =
+    List.filter_map(
+      ((name, tile)) => index(name) |> Option.map(i => (tile, i)),
+      vars @ binder_tiles,
+    );
+  let classes = tile =>
+    switch (List.find_opt(((t, _)) => Id.compare(t, tile) == 0, links)) {
+    | Some((_, i)) => ["binding-link", "binding-link-" ++ string_of_int(i)]
+    | None => []
+    };
+  let jump = evt =>
+    switch (
+      Util.JsUtil.class_at_target(~prefix="binding-link-", evt)
+      |> Fun.flip(Option.bind, int_of_string_opt)
+      |> Fun.flip(Option.bind, List.nth_opt(binders))
+    ) {
+    | Some((_, id)) => globals.inject_global(JumpToTile(id))
+    | None => Effect.Ignore
+    };
+  /* A name with a tag (see Typ.split_tag) does not parse as a type, so the
+     sort its token shows as is said here. */
+  let is_tile = (tiles, id) =>
+    List.exists(((_, t)) => Id.compare(t, id) == 0, tiles);
+  let refine_sort = (id, sort: Haz3lcore.Sort.t): Haz3lcore.Sort.t =>
+    if (is_tile(vars, id)) {
+      Typ;
+    } else if (is_tile(binder_tiles, id)) {
+      TPat;
+    } else {
+      sort;
+    };
+  div(
+    ~attrs=[Attr.on_click(jump)],
+    [CodeViewable.view_segment(~classes, ~refine_sort, ~globals, segment)],
+  )
   |> code_box_container;
+};
 
 let core_mark_err_view =
     (
@@ -137,7 +197,7 @@ let core_mark_err_view =
       cls: Cls.t,
       m: Mark.t,
     ) => {
-  let view_type = view_type(~globals);
+  let view_type = view_type(~globals, ~ctx);
   let view_any = view_any(~globals);
   let ana = Statics.ana_skip_explicit_nonlabel(ana);
   let expectation_view = (~ana: Typ.t, ~syn: Typ.t) =>
@@ -148,16 +208,20 @@ let core_mark_err_view =
         code(an_label),
       ]
     | _ =>
+      let together = [syn, ana, ...Option.to_list(lifted_ty)];
       colon_prefix(show_type_colon)
       @ [
-        view_type(syn) |> code_box_container,
+        view_type(~together, syn) |> code_box_container,
         text("inconsistent with expected type"),
-        view_type(ana) |> code_box_container,
+        view_type(~together, ana) |> code_box_container,
       ]
       @ (
         switch (lifted_ty) {
         | None => []
-        | Some(lifted) => [text(" lifted to"), view_type(lifted)]
+        | Some(lifted) => [
+            text(" lifted to"),
+            view_type(~together, lifted),
+          ]
         }
       )
       @ (
@@ -169,7 +233,7 @@ let core_mark_err_view =
             ...ListUtil.join(text(","), List.map(code, introduced_labels)),
           ]
         }
-      )
+      );
     };
   (
     switch (m) {
@@ -229,14 +293,18 @@ let core_mark_err_view =
         text("Duplicate Label:"),
         label_view(name),
       ]
-    | CompareFun(ty) => [text("values cannot be compared:"), view_type(ty)]
+    | CompareFun(c) =>
+      parts_view(~view_type, Haz3lcore.ErrorPrint.compare_fun_parts(c))
     | ExpectationMismatch({ana, syn}) => expectation_view(~ana, ~syn)
     | NoMeet(PolyEq, tys)
     | NoMeet(_, tys) when ana.term == Unknown(SynSwitch) => [
         text(elements_noun(cls) ++ " have inconsistent types:"),
         ...ListUtil.join(
              text(","),
-             List.map(view_type, Typ.of_source(tys)),
+             {
+               let tys = Typ.of_source(tys);
+               List.map(ty => view_type(~together=tys, ty), tys);
+             },
            ),
       ]
     | NoMeet(wrap, _) =>
@@ -264,8 +332,8 @@ let core_mark_err_view =
     | ModuleMissingMembers(_)
     | ModuleExtraMembers(_)
     | ModuleMemberNotFound(_)
+    | ModuleMemberIsType(_)
     | ModuleTypeMemberMismatch(_)
-    | TypeMemberCapture(_)
     | BadOperator(_)
     | BadLivelitModel(_)
     | BadTheorem(_)
@@ -283,7 +351,9 @@ let core_mark_err_view =
     | TypWantConstructorFoundAp
     | TypParseFailure
     | TPatShadowsType(_)
-    | TPatNotAVar(_) => [text("Type error")]
+    | TPatNotAVar(_)
+    | SigDuplicateMember(_)
+    | SigLetNotAName => [text("Type error")]
     }
   )
   @ (
@@ -293,6 +363,13 @@ let core_mark_err_view =
     }
   );
 };
+
+let label_not_found_view = (name, labels): list(Node.t) => [
+  text("Label "),
+  label_view(name),
+  text(" not found in tuple's labels: "),
+  ...List.map(label_view, labels),
+];
 
 let common_warn_view = (warning: Warning.t) => {
   switch (warning) {
@@ -307,6 +384,7 @@ let common_warn_view = (warning: Warning.t) => {
 let common_ok_view =
     (
       ~globals,
+      ~ctx: Ctx.t,
       ~show_type_colon=true,
       ~reordered: bool,
       ~introduced_labels: list(LabeledTuple.label),
@@ -316,7 +394,7 @@ let common_ok_view =
       cls: Cls.t,
       ok: Message.ok_common,
     ) => {
-  let view_type = view_type(~globals);
+  let view_type = view_type(~globals, ~ctx);
   (
     switch (cls, ok) {
     | (Pat(EmptyHole), _) when label_sort => []
@@ -422,7 +500,10 @@ let common_ok_view =
     | (_, Ana(InternallyInconsistent({ana, nomeet: tys}))) =>
       [
         text(elements_noun(cls) ++ " have inconsistent types:"),
-        ...ListUtil.join(text(","), List.map(view_type, tys)),
+        ...ListUtil.join(
+             text(","),
+             List.map(ty => view_type(~together=tys, ty), tys),
+           ),
       ]
       @ [text("but consistent with expected"), view_type(ana)]
     }
@@ -436,8 +517,8 @@ let common_ok_view =
 };
 
 let underdetermined_typ_view =
-    (~globals, underdetermined: Message.underdetermined_typ) => {
-  let view_type = view_type(~globals);
+    (~globals, ~ctx: Ctx.t, underdetermined: Message.underdetermined_typ) => {
+  let view_type = view_type(~globals, ~ctx);
   switch (underdetermined) {
   | ProdExtensionUnderdetermined(tys) => [
       text("Cannot determine type of product extension with argument types:"),
@@ -450,15 +531,15 @@ let underdetermined_typ_view =
       ...List.map(code, labels),
     ]
   | ModuleTypeMemberMissing(name, members) =>
-    [text("Module has no type member "), label_view(name)]
-    @ (
-      switch (members) {
-      | [] => [text("; it has no type members")]
-      | _ => [
-          text("; its type members are "),
-          ...ListUtil.join(text(", "), List.map(label_view, members)),
-        ]
-      }
+    parts_view(
+      ~view_type,
+      Haz3lcore.ErrorPrint.member_not_found_parts(
+        TypExpectation.module_member_to_string(TypeMember),
+        {
+          name,
+          members,
+        },
+      ),
     )
   | ProdProjectionBadArgs({product, label}) =>
     let product_error =
@@ -491,8 +572,8 @@ let underdetermined_typ_view =
   };
 };
 
-let typ_ok_view = (~globals, cls: Cls.t, ok: Message.ok_typ) => {
-  let view_type = view_type(~globals);
+let typ_ok_view = (~globals, ~ctx: Ctx.t, cls: Cls.t, ok: Message.ok_typ) => {
+  let view_type = view_type(~globals, ~ctx);
   switch (ok) {
   | EmptyLabel => []
   | Type(_) when cls == Typ(EmptyHole) => [text("Fillable by any type")]
@@ -521,33 +602,22 @@ let typ_ok_view = (~globals, cls: Cls.t, ok: Message.ok_typ) => {
       view_type(sum_ty),
     ]
   | TypeUnderdetermined(underdetermined) =>
-    underdetermined_typ_view(~globals, underdetermined)
+    underdetermined_typ_view(~globals, ~ctx, underdetermined)
   };
 };
 
-let type_member_capture_view = names =>
-  [text("Type variable ")]
-  @ ListUtil.join(text(", "), List.map(code, names))
-  @ [
-    text(
-      " collides with a type member of the same name in this signature; rename the type variable",
-    ),
-  ];
-
-let type_member_mismatch_view = (~view_type, name, ~expected, ~actual) => [
-  text("Type member "),
-  code(name),
-  text(" is defined as "),
-  view_type(actual),
-  text(" but its signature declares "),
-  view_type(expected),
-];
-
-let typ_mark_err_view = (~globals, m: Mark.t) => {
-  let view_type = view_type(~globals);
+let typ_mark_err_view = (~globals, ~ctx: Ctx.t, m: Mark.t) => {
+  let view_type = view_type(~globals, ~ctx);
   switch (m) {
   | ModuleTypeMemberMismatch({name, expected, actual}) =>
-    type_member_mismatch_view(~view_type, name, ~expected, ~actual)
+    parts_view(
+      ~view_type,
+      Haz3lcore.ErrorPrint.type_member_mismatch_parts(
+        name,
+        ~expected,
+        ~actual,
+      ),
+    )
   | TypFreeTypeVariable(name) => [
       view_type(Var(name) |> Typ.fresh),
       text("not found"),
@@ -588,18 +658,14 @@ let typ_mark_err_view = (~globals, m: Mark.t) => {
       text("Expected a module or tuple type, found type"),
       view_type(ty),
     ]
-  | ModuleTypeMemberNotFound({name, members, submodule}) =>
-    let what = submodule ? "sub-module" : "type member";
-    [text("Module has no " ++ what ++ " "), label_view(name)]
-    @ (
-      switch (members) {
-      | [] => [text("; it has no " ++ what ++ "s")]
-      | _ => [
-          text("; its " ++ what ++ "s are "),
-          ...ListUtil.join(text(", "), List.map(label_view, members)),
-        ]
-      }
-    );
+  | ModuleTypeMemberNotFound(member, not_found) =>
+    parts_view(
+      ~view_type,
+      Haz3lcore.ErrorPrint.member_not_found_parts(
+        TypExpectation.module_member_to_string(member),
+        not_found,
+      ),
+    )
   | TypWantModule({name, typ}) => [
       code(name),
       text("is a value of type"),
@@ -628,6 +694,11 @@ let rec automatic_inserted_labels_pat =
   | _ => []
   };
 
+let inexhaustive_view = (~globals, what: string, example): list(Node.t) => [
+  text(what ++ " is inexhaustive. An example of a missing pattern is "),
+  view_any(~globals, example),
+];
+
 let exp_mark_err_view =
     (~globals, ~show_type_colon=true, cls: Cls.t, m: Mark.t, info: Info.exp) => {
   let introduced_labels =
@@ -643,8 +714,7 @@ let exp_mark_err_view =
     | _ => None
     };
   let inferred_label = info.inferred_label;
-  let view_type = view_type(~globals);
-  let view_any = view_any(~globals);
+  let view_type = view_type(~globals, ~ctx=info.ctx);
   let ctx = info.ctx;
   let ana = info.ana;
   let common_from_core = () =>
@@ -663,7 +733,7 @@ let exp_mark_err_view =
     );
   switch (m) {
   | Free(name) => div_err([code(name), text("not found")])
-  | InexhaustiveMatch(_, inner_marks, example) =>
+  | InexhaustiveMatch(inner_marks, example) =>
     let cls_str = Cls.show(cls);
     let additional =
       switch (
@@ -676,28 +746,23 @@ let exp_mark_err_view =
       | _ => None
       };
     switch (additional) {
-    | None =>
-      div_err([
-        text(
-          cls_str ++ " is inexhaustive. An example of a missing pattern is ",
-        ),
-        view_any(example),
-      ])
+    | None => div_err(inexhaustive_view(~globals, cls_str, example))
     | Some(tys) =>
-      let cls_str = String.uncapitalize_ascii(cls_str);
       div_err([
         div_err([
           text(elements_noun(cls) ++ " have inconsistent types:"),
-          ...ListUtil.join(text(","), List.map(view_type, tys)),
+          ...ListUtil.join(
+               text(","),
+               List.map(ty => view_type(~together=tys, ty), tys),
+             ),
         ])
         |> code_box_container,
-        text(
-          "; "
-          ++ cls_str
-          ++ " is inexhaustive. An example of a missing pattern is ",
-        ),
-        view_any(example),
-      ]);
+        ...inexhaustive_view(
+             ~globals,
+             "; " ++ String.uncapitalize_ascii(cls_str),
+             example,
+           ),
+      ])
     };
   | IsDeferral(InAp) =>
     div_err([
@@ -780,47 +845,46 @@ let exp_mark_err_view =
     }
   | BadOperator(msg) => div_err([text("Invalid operator: "), text(msg)])
   | LabelNotFound(name, labels) =>
-    div_err([
-      text("Label "),
-      label_view(name),
-      text(" not found in tuple's labels: "),
-      ...List.map(label_view, labels),
-    ])
+    div_err(label_not_found_view(name, labels))
   | ModuleMissingMembers(names) =>
-    div_err([
-      text("Module is missing members required by its signature: "),
-      ...ListUtil.join(text(", "), List.map(code, names)),
-    ])
-  | ModuleMemberNotFound({name, members, type_member}) =>
-    if (type_member) {
-      div_err([
-        code(name),
-        text(
-          " is a type member of the module, not a value; use it in a type position",
-        ),
-      ]);
-    } else {
-      div_err(
-        [text("Module has no member "), code(name)]
-        @ (
-          switch (members) {
-          | [] => [text("; it has no members")]
-          | _ => [
-              text("; its members are "),
-              ...ListUtil.join(text(", "), List.map(code, members)),
-            ]
-          }
-        ),
-      );
-    }
+    div_err(
+      parts_view(
+        ~view_type,
+        Haz3lcore.ErrorPrint.module_missing_members_parts(names),
+      ),
+    )
+  | ModuleMemberNotFound(not_found) =>
+    div_err(
+      parts_view(
+        ~view_type,
+        Haz3lcore.ErrorPrint.member_not_found_parts("member", not_found),
+      ),
+    )
+  | ModuleMemberIsType(name) =>
+    div_err(
+      parts_view(
+        ~view_type,
+        Haz3lcore.ErrorPrint.module_member_is_type_parts(name),
+      ),
+    )
   | ModuleExtraMembers(names) =>
-    div_err([
-      text("Module has members its signature does not declare: "),
-      ...ListUtil.join(text(", "), List.map(code, names)),
-    ])
+    div_err(
+      parts_view(
+        ~view_type,
+        Haz3lcore.ErrorPrint.module_extra_members_parts(names),
+      ),
+    )
   | ModuleTypeMemberMismatch({name, expected, actual}) =>
-    div_err(type_member_mismatch_view(~view_type, name, ~expected, ~actual))
-  | TypeMemberCapture(names) => div_err(type_member_capture_view(names))
+    div_err(
+      parts_view(
+        ~view_type,
+        Haz3lcore.ErrorPrint.type_member_mismatch_parts(
+          name,
+          ~expected,
+          ~actual,
+        ),
+      ),
+    )
   | BadLivelitModel(_) => div_err([text("Bad internal livelit model")])
   | BadTheorem(typ) =>
     div_err([
@@ -839,8 +903,10 @@ let exp_mark_err_view =
   | TypWantConstructorFoundAp
   | TypParseFailure
   | TPatShadowsType(_)
-  | TPatNotAVar(_) =>
-    div_err([text("(internal) typ/tpat mark on expression")])
+  | TPatNotAVar(_)
+  | SigDuplicateMember(_)
+  | SigLetNotAName =>
+    div_err([text("(internal) typ/tpat/sig mark on expression")])
   | Redundant
   | ExpectedConstructor =>
     div_err([text("(internal) pattern-only mark on expression")])
@@ -894,6 +960,7 @@ let exp_view =
       div_ok(
         common_ok_view(
           ~globals,
+          ~ctx=info.ctx,
           ~show_type_colon,
           ~lifted_ty,
           ~reordered,
@@ -905,24 +972,31 @@ let exp_view =
         ),
       )
     | Exp(AnaDeferralConsistent(ana)) =>
-      div_ok([text("Expecting type"), view_type(~globals, ana)])
-    | Exp(ModuleMemberNotFound({name, members})) =>
+      div_ok([
+        text("Expecting type"),
+        view_type(~globals, ~ctx=info.ctx, ana),
+      ])
+    | Exp(ModuleMemberNotFound(not_found)) =>
       div_ok(
-        [text("Module has no member "), code(name)]
-        @ (
-          switch (members) {
-          | [] => [text("; it has no members")]
-          | _ => [
-              text("; its members are "),
-              ...ListUtil.join(text(", "), List.map(code, members)),
-            ]
-          }
+        parts_view(
+          ~view_type=view_type(~globals, ~ctx=info.ctx),
+          Haz3lcore.ErrorPrint.member_not_found_parts("member", not_found),
+        ),
+      )
+    | Exp(TupleLabelNotFound(name, labels)) =>
+      div_ok(label_not_found_view(name, labels))
+    | Exp(ModuleMemberIsType(name)) =>
+      div_ok(
+        parts_view(
+          ~view_type=view_type(~globals, ~ctx=info.ctx),
+          Haz3lcore.ErrorPrint.module_member_is_type_parts(name),
         ),
       )
     | Exp(Common(ok)) =>
       div_ok(
         common_ok_view(
           ~globals,
+          ~ctx=info.ctx,
           ~show_type_colon,
           ~lifted_ty,
           ~reordered,
@@ -1057,6 +1131,7 @@ let pat_view =
       let ok_view =
         common_ok_view(
           ~globals,
+          ~ctx=info.ctx,
           ~show_type_colon,
           ~lifted_ty,
           ~reordered=
@@ -1085,6 +1160,7 @@ let pat_view =
 let typ_view =
     (
       ~globals,
+      ~ctx: Ctx.t,
       cls: Cls.t,
       ~marks: list(Mark.t),
       ~message: option(Message.t),
@@ -1093,22 +1169,52 @@ let typ_view =
   switch (marks) {
   | [] =>
     switch (message) {
-    | Some(TypOk(o)) => div_ok(typ_ok_view(~globals, cls, o))
+    | Some(TypOk(o)) => div_ok(typ_ok_view(~globals, ~ctx, cls, o))
     | Some(Pat(_) | Exp(_) | TPatOk(_)) =>
       div_err([text("(internal) expected TypOk")])
     | None => div_err([text("(internal) missing type ok payload")])
     }
   | ms =>
     switch (Mark.highest(ms)) {
-    | Some(m) => div_err(typ_mark_err_view(~globals, m))
+    | Some(m) => div_err(typ_mark_err_view(~globals, ~ctx, m))
     | None => div_err([text("(internal) missing type mark")])
     }
   };
 
+let mod_view =
+    (
+      ~globals,
+      ~ctx: Ctx.t,
+      cls: Cls.t,
+      ~marks: list(Mark.t),
+      ~ty: option(Typ.t),
+    )
+    : Node.t =>
+  switch (Mark.highest(marks)) {
+  | Some(InexhaustiveMatch(_, example)) =>
+    div_err(inexhaustive_view(~globals, Cls.show(cls), example))
+  | Some(_) => div_err([text("Type error")])
+  | None =>
+    let cls_text = text(Cls.show(cls));
+    switch (cls, ty) {
+    | (_, None) => div_ok([cls_text])
+    | (Mod(ModType), Some(ty)) =>
+      div_ok([cls_text, text("="), view_type(~globals, ~ctx, ty)])
+    | (_, Some(ty)) =>
+      div_ok([cls_text, text(":"), view_type(~globals, ~ctx, ty)])
+    };
+  };
+
 let tpat_view =
-    (~globals, _: Cls.t, ~marks: list(Mark.t), ~message: option(Message.t))
+    (
+      ~globals,
+      ~ctx: Ctx.t,
+      _: Cls.t,
+      ~marks: list(Mark.t),
+      ~message: option(Message.t),
+    )
     : Node.t => {
-  let view_type = view_type(~globals);
+  let view_type = view_type(~globals, ~ctx);
   switch (marks) {
   | [] =>
     switch (message) {
@@ -1143,28 +1249,51 @@ let tpat_view =
           text("Can't shadow existing type variable"),
           view_type(Var(name) |> Typ.fresh),
         ])
-      | TypeMemberCapture(names) => div_err(type_member_capture_view(names))
       | _ => div_err([text("Type pattern error")])
       }
     }
   };
 };
 
+/* A signature item: its class, or the error the signature attributes to
+   it. */
+let sig_view = (cls: Cls.t, ~marks: list(Mark.t)): Node.t =>
+  switch (Mark.highest(marks)) {
+  | None => div_ok([text(cls |> Cls.show)])
+  | Some(SigDuplicateMember(member)) =>
+    let (kind, name) =
+      switch (member) {
+      | Val(name, _) => ("Member ", name)
+      | TypeManifest(name, _) => ("Type member ", name)
+      };
+    div_err([
+      text(kind),
+      code(name),
+      text(" is declared more than once in this signature"),
+    ]);
+  | Some(SigLetNotAName) =>
+    div_err([
+      text("Not a member name: a signature declares members one at a time"),
+    ])
+  | Some(_) => div_err([text("Signature error")])
+  };
+
 let view_of_info = (~globals, ci): list(Node.t) => {
   let wrapper = status_view => [term_view(~globals, ci), status_view];
   switch (ci) {
   | Secondary(_) => wrapper(div([]))
-  | InfoMod({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
-  | InfoSig({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
+  | InfoMod({cls, marks, ty, ctx, _}) =>
+    wrapper(mod_view(~globals, ~ctx, cls, ~marks, ~ty))
+  | InfoSig({cls, marks, _}) => wrapper(sig_view(cls, ~marks))
   | InfoMPat({cls, _}) => wrapper(div_ok([text(cls |> Cls.show)]))
   | InfoExp({cls, message, _} as ie) =>
     wrapper(exp_view(~globals, cls, message, ie))
   | InfoPat({cls, message, _} as ip) =>
     wrapper(pat_view(~globals, cls, message, ip))
-  | InfoTyp({cls, marks, message, _}) =>
-    wrapper(typ_view(~globals, cls, ~marks, ~message))
-  | InfoTPat({cls, marks, message, _}) =>
-    wrapper(tpat_view(~globals, cls, ~marks, ~message))
+  | InfoTyp({cls, marks, message, ctx, _}) =>
+    wrapper(typ_view(~globals, ~ctx, cls, ~marks, ~message))
+  | InfoTPat({cls, marks, message, ctx, _}) =>
+    wrapper(tpat_view(~globals, ~ctx, cls, ~marks, ~message))
   | InfoDrv(ci) => wrapper(DrvCursorInspector.drv_view(~globals, ci))
   };
 };

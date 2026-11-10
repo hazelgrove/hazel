@@ -18,6 +18,10 @@ let rep_id: t => Id.t = IdTagged.rep_id;
 
 let fresh: term => t = IdTagged.fresh;
 
+/* A bare expression item is its expression: they share ids. */
+let of_exp = (e: TermBase.Exp.t): t =>
+  IdTagged.mk_internal(IdTagged.ids(e), ModExp(e): term);
+
 let hole = (tms: list(TermBase.Any.t)): TermBase.Mod.term =>
   switch (tms) {
   | [] => EmptyHole
@@ -52,12 +56,66 @@ let temp: term => t =
     annotation: IdTagged.IdTag.temp(),
   };
 
+/* The value pattern a binding item binds: a `let` item's binder, a
+   `module` item's name. */
+let binder = (item: t): option(TermBase.Pat.t) =>
+  switch (item.term) {
+  | ModLet(p, _) => Some(Pat.binder(p))
+  | ModuleMod(mp, _) => Some(MPat.to_pat(mp))
+  | ModVal(_, _)
+  | ModType(_, _)
+  | ModExp(_)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_) => None
+  };
+
+/* The parts of an item as written: what it binds, and what it binds it to.
+   A bare expression item is its expression; an evaluated binding has no
+   written pattern. */
+let pat = (item: t): option(TermBase.Any.t) =>
+  switch (item.term) {
+  | ModLet(p, _) => Some(Pat(p))
+  | ModuleMod(mp, _) => Some(MPat(mp))
+  | ModType(tp, _) => Some(TPat(tp))
+  | ModVal(_, _)
+  | ModExp(_)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_) => None
+  };
+
+let def = (item: t): option(TermBase.Any.t) =>
+  switch (item.term) {
+  | ModLet(_, e)
+  | ModuleMod(_, e)
+  | ModExp(e)
+  | ModVal(_, e) => Some(Exp(e))
+  | ModType(_, ty) => Some(Typ(ty))
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_) => None
+  };
+
+/* The value names an item binds for the items after it. */
+let bound_names = (item: t): list(Var.t) =>
+  switch (item.term) {
+  | ModVal(x, _) => [x]
+  | ModLet(_)
+  | ModuleMod(_)
+  | ModType(_, _)
+  | ModExp(_)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_) =>
+    binder(item) |> Option.map(Pat.bound_vars) |> Option.value(~default=[])
+  };
+
 /* ==================== Evaluated bindings (dynamics) ====================
    A module evaluates item by item; each evaluated binding becomes a ModVal
-   item. A module whose items are all ModVal is a module value. */
+   item. */
 
-/* Replace the definition carried by an item (used to plug evaluation
-   contexts back in). */
+/* Replace the definition carried by an item. */
 let with_def = (item: t, d: TermBase.Exp.t): t =>
   switch (item.term) {
   | ModLet(p, _) => {
@@ -81,16 +139,6 @@ let with_def = (item: t, d: TermBase.Exp.t): t =>
   | EmptyHole
   | MultiHole(_) => item
   };
-
-let is_value_shape = (items: list(t)): bool =>
-  List.for_all(
-    (item: t) =>
-      switch (item.term) {
-      | ModVal(_, _) => true
-      | _ => false
-      },
-    items,
-  );
 
 /* Split at the first item that is not yet an evaluated binding. */
 let split_pending = (items: list(t)): (list(t), option((t, list(t)))) => {
@@ -132,27 +180,66 @@ let with_modval_defs =
   go(items, defs);
 };
 
-/* The value bound to [name]; the last binding wins. */
-let modval_lookup = (items: list(t), name: Var.t): option(TermBase.Exp.t) =>
-  List.fold_left(
-    (acc, item: t) =>
-      switch (item.term) {
-      | ModVal(x, d) when x == name => Some(d)
-      | _ => acc
-      },
-    None,
-    items,
-  );
+/* The bindings of a module value: None while any item is still pending. */
+let value_bindings =
+    (items: list(t)): option(list((Var.t, TermBase.Exp.t))) =>
+  items
+  |> List.map((item: t) =>
+       switch (item.term) {
+       | ModVal(x, d) => Some((x, d))
+       | _ => None
+       }
+     )
+  |> Util.OptUtil.sequence;
 
-/* Record an evaluated binding. A later binding of the same name replaces
-   an earlier one and is exported at its own position, so a module value
-   has one entry per exported name, in the order Sig.dedup_last gives its
-   type. */
+/* The bindings of two module values paired by name: None unless both are
+   values binding the same names. */
+let paired_bindings =
+    (items1: list(t), items2: list(t))
+    : option(list((TermBase.Exp.t, TermBase.Exp.t))) =>
+  switch (value_bindings(items1), value_bindings(items2)) {
+  | (Some(b1), Some(b2)) when List.length(b1) == List.length(b2) =>
+    b1
+    |> List.map(((x, v1)) =>
+         Util.ListUtil.assoc_opt_by(String.equal, x, b2)
+         |> Option.map(v2 => (v1, v2))
+       )
+    |> Util.OptUtil.sequence
+  | _ => None
+  };
+
+/* Member [name] of a module, which may be stuck on an item: its value, if an
+   evaluated item binds it and no item from the stuck one on binds it again. */
+let member = (items: list(t), name: Var.t): option(TermBase.Exp.t) => {
+  let (evaluated, pending) = split_pending(items);
+  let rebound =
+    switch (pending) {
+    | None => false
+    | Some((item, rest)) =>
+      List.exists(
+        (item: t) => List.exists(String.equal(name), bound_names(item)),
+        [item, ...rest],
+      )
+    };
+  rebound
+    ? None
+    : List.find_map(
+        (item: t) =>
+          switch (item.term) {
+          | ModVal(x, d) when String.equal(x, name) => Some(d)
+          | _ => None
+          },
+        evaluated,
+      );
+};
+
+/* Record an evaluated binding at the end, replacing any earlier binding of
+   [name]. */
 let add_modval = (items: list(t), name: Var.t, d: TermBase.Exp.t): list(t) =>
   List.filter(
     (item: t) =>
       switch (item.term) {
-      | ModVal(x, _) => x != name
+      | ModVal(x, _) => !String.equal(x, name)
       | _ => true
       },
     items,

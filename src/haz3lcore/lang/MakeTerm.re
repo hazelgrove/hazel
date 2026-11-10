@@ -118,8 +118,9 @@ let is_sig_seq = is_nary(Any.is_sig, is_semi_form);
    during parsing and need to be flattened into a proper list for Module(items).
    Non-Mod children (from broken parse states during editing) are wrapped as
    module items to isolate breakage — valid items keep their statics. A
-   wrapper's id derives from its child's, so the member keeps its outline
-   row across parses */
+   wrapped expression shares its ids with the item (a stray child's gets
+   one derived from it), so the member keeps its outline row across
+   parses */
 let rec flatten_mod = (m: TermBase.Mod.t): list(TermBase.Mod.t) =>
   switch (m.term) {
   | MultiHole(kids) =>
@@ -127,23 +128,15 @@ let rec flatten_mod = (m: TermBase.Mod.t): list(TermBase.Mod.t) =>
     |> List.map(
          fun
          | Grammar.Mod(m) => flatten_mod(m)
-         | Grammar.Exp(e) => [
-             IdTagged.mk_internal(
-               [Id.derive(~salt="mod-exp", Exp.rep_id(e))],
-               ModExp(e): TermBase.Mod.term,
-             ),
-           ]
-         | other => {
-             let id = Id.derive(~salt="mod-other", Any.rep_id(other));
-             [
+         | Grammar.Exp(e) => [Mod.of_exp(e)]
+         | other => [
+             Mod.of_exp(
                IdTagged.mk_internal(
-                 [id],
-                 ModExp(
-                   IdTagged.mk_internal([id], MultiHole([other]): Exp.term),
-                 ): TermBase.Mod.term,
+                 [Id.derive(~salt="mod-other", Any.rep_id(other))],
+                 MultiHole([other]): Exp.term,
                ),
-             ];
-           },
+             ),
+           ],
        )
     |> List.flatten
   | ModLet(_, _)
@@ -1483,11 +1476,11 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
     | ([(_id, (F(Compound(ModBody)), [Sig(body)]))], []) =>
       /* SigBody: parse signature body, similar to ModBody in exp_term */
       switch (body) {
-      | {term: EmptyHole, _} => ret(Sig([]))
+      | {term: EmptyHole, _} => ret(Sig(Open([body])))
       | {annotation: {ids, _}, term: MultiHole(_)} =>
         adopted_ids := ids @ adopted_ids^;
-        (Sig(flatten_sig(body)), ids);
-      | _ => ret(Sig(flatten_sig(body)))
+        (Sig(Open(flatten_sig(body))), ids);
+      | _ => ret(Sig(Open(flatten_sig(body))))
       }
     | ([(_id, tile)], []) =>
       /* Atomic type spellings (base atoms, Void, Drv quote types):
@@ -1500,7 +1493,8 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       ret(
         switch (base_atom, tile) {
         | (_, (F(f), [])) when is_empty_tuple_form(f) => Prod([])
-        | (_, (F(Tok(t)), [])) when Token.is_empty_module(t) => Sig([])
+        | (_, (F(Tok(t)), [])) when Token.is_empty_module(t) =>
+          Sig(Open([]))
         | (Some(term), _) => term
         | (_, (F(Tok("_")), [])) => ExplicitNonlabel
         | (_, (F(Compound(ProofOf)), [Exp(exp)])) => ProofOf(exp)

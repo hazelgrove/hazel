@@ -268,7 +268,7 @@ let golden_leading: list((string, Typ.t)) = [
 let derived_new: list((string, Typ.t)) = [
   ("()", Typ.temp(Prod([]))),
   ("[]", Typ.temp(List(unk))),
-  ("{}", Typ.temp(Sig([]))),
+  ("{}", Typ.temp(Sig(Closed(ClosedSig.of_items([]))))),
 ];
 
 /* Non-trivial leading entries the manual table lacked */
@@ -669,7 +669,22 @@ let ci_sort_tests = (
   ],
 );
 
+/* A type binder that reuses a name in scope is renamed with its scope
+   (Typ.unshadow); completion offers the name as written, never the
+   renamed one, which would not parse. */
+let renamed_type_name_tests = (
+  "TyDi.RenamedTypeName",
+  [
+    tydi_test(
+      ~name="An alias shadowing a type variable completes as written",
+      ~code="typfun Tee -> type Tee = Int in let x : Te¦ = 1 in x",
+      ~expect=Some("e"),
+    ),
+  ],
+);
+
 let tests = [
+  renamed_type_name_tests,
   dot_label_tests,
   variable_tests,
   constructor_tests,

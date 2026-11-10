@@ -25,6 +25,14 @@ type latest = {
   resent: bool,
 };
 
+/* The live worker's latest coverage, and the last from each worker
+ * restart_worker terminated. See CoverageHook. */
+let live_coverage: ref(option(string)) = ref(None);
+let retired_coverage: ref(list(string)) = ref([]);
+
+let worker_coverage = (): list(string) =>
+  Option.to_list(live_coverage^) @ retired_coverage^;
+
 let next_request_id = ref(0);
 let latest_request: ref(option(latest)) = ref(None);
 let ack_timeout_id = ref(None);
@@ -178,6 +186,7 @@ let setup_worker_message_handler = worker => {
             EvalMetrics.record_done(~now, ~encoded=evt##.data, result);
           },
         )
+      | ServerMessage.Coverage(coverage) => live_coverage := Some(coverage)
       };
       Js._true;
     });
@@ -212,6 +221,8 @@ let restart_worker = (): unit => {
   | None => ()
   };
   Hashtbl.reset(held);
+  retired_coverage := worker_coverage();
+  live_coverage := None;
   worker_ref.contents = Some(init_worker());
 };
 

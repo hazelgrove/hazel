@@ -195,6 +195,270 @@ let fast_equal_tests = (
     ),
   ],
 );
+/* `type A = B in type B = A` bound raw: B captures A's forward reference
+   and the aliases cycle. Statics never binds so (Typ.unshadow renames the
+   second binder), but a cycle must still not hang normalization. */
+let alias_cycle_tests = {
+  let pp = Fmt.using(Typ.show, Fmt.string);
+  /* which name the cap stops on depends on its parity */
+  let stuck =
+    testable(pp, (_, ty) =>
+      switch (Typ.term_of(ty)) {
+      | Var("A" | "B") => true
+      | _ => false
+      }
+    );
+  (
+    "Typ alias cycles",
+    [
+      test_case(
+        "a raw alias cycle normalizes to a stuck alias rather than throwing",
+        `Quick,
+        () => {
+          let ctx =
+            Ctx.extend_alias(Ctx.empty, "A", Id.mk(), Var("B") |> Typ.temp)
+            |> Ctx.extend_alias(_, "B", Id.mk(), Var("A") |> Typ.temp);
+          let var_a = Var("A") |> Typ.temp;
+          let expected = Var("B") |> Typ.temp;
+          check(stuck, "normalize", expected, Typ.normalize(ctx, var_a));
+          /* Out of fuel, the weak head is unknown: a stuck alias would be
+             re-expanded by every caller, exponentially for a chain of them. */
+          check(
+            bool,
+            "weak_head_normalize",
+            true,
+            switch (Typ.term_of(Typ.weak_head_normalize(ctx, var_a))) {
+            | Unknown(Internal) => true
+            | _ => false
+            },
+          );
+        },
+      ),
+    ],
+  );
+};
+
+let unshadow_tests = {
+  let abstract = (name): Ctx.tvar_entry => {
+    name,
+    id: Id.mk(),
+    kind: Abstract,
+  };
+  let renamed = option(string);
+  let poly = (x, body) =>
+    Poly(Var(x) |> TPat.temp, body(Var(x) |> Typ.temp)) |> Typ.temp;
+  let arrow = (t1, t2) => Arrow(t1, t2) |> Typ.temp;
+  let var = x => Var(x) |> Typ.temp;
+  (
+    "Typ.unshadow",
+    [
+      test_case("a name not in scope binds as written", `Quick, () =>
+        check(renamed, "T", None, Typ.unshadow(Ctx.empty, "T"))
+      ),
+      test_case("a name in scope is numbered", `Quick, () =>
+        check(
+          renamed,
+          "T",
+          Some("T#1"),
+          Typ.unshadow(Ctx.extend_tvar(Ctx.empty, abstract("T")), "T"),
+        )
+      ),
+      test_case("the number passes one in ctx", `Quick, () =>
+        check(
+          renamed,
+          "T",
+          Some("T#2"),
+          Typ.unshadow(
+            Ctx.extend_tvar(Ctx.empty, abstract("T"))
+            |> Ctx.extend_tvar(_, abstract("T#1")),
+            "T",
+          ),
+        )
+      ),
+      test_case(
+        "a name an alias mentions while unbound is numbered", `Quick, () =>
+        check(
+          renamed,
+          "T",
+          Some("T#1"),
+          Typ.unshadow(
+            Ctx.extend_alias(Ctx.empty, "S", Id.mk(), var("T")),
+            "T",
+          ),
+        )
+      ),
+      test_case(
+        "Typ.rename_var renames up to a binder of the same name",
+        `Quick,
+        () => {
+          let poly_t = poly("T", t => t);
+          check(
+            typ,
+            "(T, U, poly T -> T)",
+            Prod([var("T#1"), var("U"), poly_t]) |> Typ.temp,
+            Typ.rename_var(
+              "T",
+              "T#1",
+              Prod([var("T"), var("U"), poly_t]) |> Typ.temp,
+            ),
+          );
+        },
+      ),
+      test_case("a renamed name is shown as written", `Quick, () =>
+        check(
+          typ,
+          "poly T -> T",
+          poly("T", t => t),
+          Typ.surface_names(poly("T#1", t => t)),
+        )
+      ),
+      test_case(
+        "a binder sharing a written name with another is tagged with its id",
+        `Quick,
+        () => {
+          let inner = Id.mk();
+          let ty =
+            poly("T", t =>
+              arrow(
+                t,
+                Poly(
+                  IdTagged.mk_internal([inner], Var("T#1"): TPat.term),
+                  t,
+                )
+                |> Typ.temp,
+              )
+            );
+          let shown = Typ.surface_name_in([ty]);
+          check(string, "T", "T", shown("T"));
+          check(string, "T#1", "T~" ++ Id.str3(inner), shown("T#1"));
+        },
+      ),
+      test_case(
+        "of two bindings with one written name, the one ctx means shows plain",
+        `Quick,
+        () => {
+          let outer = Id.mk();
+          let ctx =
+            Ctx.extend_tvar(
+              Ctx.empty,
+              {
+                name: "T",
+                id: outer,
+                kind: Abstract,
+              },
+            )
+            |> Ctx.extend_tvar(_, abstract("T#1"));
+          let shown = Typ.surface_name_in(~ctx, [var("T#1"), var("T")]);
+          check(string, "T#1", "T", shown("T#1"));
+          check(string, "T", "T~" ++ Id.str3(outer), shown("T"));
+        },
+      ),
+      test_case(
+        "a binding its name does not mean in ctx is tagged even shown alone",
+        `Quick,
+        () => {
+          let outer = Id.mk();
+          let ctx =
+            Ctx.extend_tvar(
+              Ctx.empty,
+              {
+                name: "T",
+                id: outer,
+                kind: Abstract,
+              },
+            )
+            |> Ctx.extend_tvar(_, abstract("T#1"));
+          check(
+            string,
+            "T",
+            "T~" ++ Id.str3(outer),
+            Typ.surface_name_in(~ctx, [var("T")], "T"),
+          );
+        },
+      ),
+      test_case(
+        "a type variable is linked to its binder in the type, else in ctx",
+        `Quick,
+        () => {
+          let outer = Id.mk();
+          let inner = Id.mk();
+          let ctx =
+            Ctx.extend_tvar(
+              Ctx.empty,
+              {
+                name: "T",
+                id: outer,
+                kind: Abstract,
+              },
+            )
+            |> Ctx.extend_tvar(
+                 _,
+                 {
+                   name: "B",
+                   id: Id.invalid,
+                   kind: Abstract,
+                 },
+               );
+          let ty =
+            Prod([
+              var("T"),
+              var("B"),
+              Poly(
+                IdTagged.mk_internal([inner], Var("U"): TPat.term),
+                var("U"),
+              )
+              |> Typ.temp,
+            ])
+            |> Typ.temp;
+          check(
+            list(pair(string, string)),
+            "name, binder",
+            [("T", Id.to_string(outer)), ("U", Id.to_string(inner))],
+            Typ.binding_sites_in(~ctx, [ty], ty)
+            |> List.map(((name, id)) => (name, Id.to_string(id))),
+          );
+        },
+      ),
+      test_case(
+        "two bindings of one name are linked apart, by the names they show as",
+        `Quick,
+        () => {
+          let outer = Id.mk();
+          let inner = Id.mk();
+          let ctx =
+            Ctx.extend_tvar(
+              Ctx.empty,
+              {
+                name: "T",
+                id: outer,
+                kind: Abstract,
+              },
+            )
+            |> Ctx.extend_tvar(
+                 _,
+                 {
+                   name: "T#1",
+                   id: inner,
+                   kind: Abstract,
+                 },
+               );
+          let ty = Prod([var("T"), var("T#1")]) |> Typ.temp;
+          check(
+            list(pair(string, string)),
+            "name, binder",
+            [
+              ("T~" ++ Id.str3(outer), Id.to_string(outer)),
+              ("T", Id.to_string(inner)),
+            ],
+            Typ.binding_sites_in(~ctx, [ty], ty)
+            |> List.map(((name, id)) => (name, Id.to_string(id))),
+          );
+        },
+      ),
+    ],
+  );
+};
+
 let testable_id = testable(Fmt.using(Id.show, Fmt.string), (==));
 let diff_tests = (
   "Typ.diff",
@@ -609,14 +873,17 @@ let diff_tests = (
   ],
 );
 
+module F = IdTagged.FreshGrammar;
+let sv = (x, ty) => F.Sig.sig_let(F.Pat.asc(F.Pat.var(x), ty));
+let st = (t, ty) => F.Sig.sig_type(F.TPat.var(t), ty);
+let sg = items => F.Typ.sig_(items);
+/* A signature already closed, as Typ.close leaves one. */
+let cs = items => Typ.temp(Sig(Closed(ClosedSig.of_items(items))));
+
 /* Signature types: consistency is exact (same member names), normalization
    keeps the Sig constructor, and member projection substitutes the
    signature's own type members. */
 let sig_tests = {
-  module F = IdTagged.FreshGrammar;
-  let sv = (x, ty) => F.Sig.sig_let(F.Pat.asc(F.Pat.var(x), ty));
-  let st = (t, ty) => F.Sig.sig_type(F.TPat.var(t), ty);
-  let sg = items => F.Typ.sig_(items);
   let ti = F.Typ.int();
   let tb = F.Typ.bool();
   let tu = F.Typ.unknown(Internal);
@@ -629,16 +896,37 @@ let sig_tests = {
         check(
           opt_typ,
           "same",
-          Some(sg([sv("x", ti)])),
-          Typ.meet(ctx, sg([sv("x", ti)]), sg([sv("x", ti)])),
+          Some(cs([sv("x", ti)])),
+          Typ.meet(ctx, cs([sv("x", ti)]), cs([sv("x", ti)])),
         )
       ),
-      test_case("meet refines an tu member", `Quick, () =>
+      test_case(
+        "meet keeps a shadowed type member an earlier item mentions",
+        `Quick,
+        () => {
+          let s =
+            Typ.close(
+              ctx,
+              sg([st("T", ti), sv("x", F.Typ.var("T")), st("T", tb)]),
+            );
+          check(
+            option(typ),
+            "x projects to Int",
+            Some(ti),
+            switch (Option.map(Typ.term_of, Typ.meet(ctx, s, s))) {
+            | Some(Sig(Closed(items))) =>
+              Sig.find_value(Sig.members(ClosedSig.items(items)), "x")
+            | _ => None
+            },
+          );
+        },
+      ),
+      test_case("meet refines an unknown member", `Quick, () =>
         check(
           opt_typ,
           "refined",
-          Some(sg([sv("x", ti)])),
-          Typ.meet(ctx, sg([sv("x", ti)]), sg([sv("x", tu)])),
+          Some(cs([sv("x", ti)])),
+          Typ.meet(ctx, cs([sv("x", ti)]), cs([sv("x", tu)])),
         )
       ),
       test_case("meet is exact: no width", `Quick, () =>
@@ -648,8 +936,8 @@ let sig_tests = {
           None,
           Typ.meet(
             ctx,
-            sg([sv("x", ti)]),
-            sg([sv("x", ti), sv("y", tb)]),
+            cs([sv("x", ti)]),
+            cs([sv("x", ti), sv("y", tb)]),
           ),
         )
       ),
@@ -658,18 +946,18 @@ let sig_tests = {
           opt_typ,
           "names differ",
           None,
-          Typ.meet(ctx, sg([sv("x", ti)]), sg([sv("y", ti)])),
+          Typ.meet(ctx, cs([sv("x", ti)]), cs([sv("y", ti)])),
         )
       ),
       test_case("meet matches members by name, left order", `Quick, () =>
         check(
           opt_typ,
           "reordered",
-          Some(sg([sv("x", ti), sv("y", tb)])),
+          Some(cs([sv("x", ti), sv("y", tb)])),
           Typ.meet(
             ctx,
-            sg([sv("x", ti), sv("y", tb)]),
-            sg([sv("y", tb), sv("x", ti)]),
+            cs([sv("x", ti), sv("y", tb)]),
+            cs([sv("y", tb), sv("x", ti)]),
           ),
         )
       ),
@@ -677,11 +965,11 @@ let sig_tests = {
         check(
           opt_typ,
           "type member",
-          Some(sg([st("T", ti), sv("x", F.Typ.var("T"))])),
+          Some(cs([st("T", ti), sv("x", F.Typ.var("T"))])),
           Typ.meet(
             ctx,
-            sg([st("T", ti), sv("x", F.Typ.var("T"))]),
-            sg([st("T", ti), sv("x", F.Typ.var("T"))]),
+            cs([st("T", ti), sv("x", F.Typ.var("T"))]),
+            cs([st("T", ti), sv("x", F.Typ.var("T"))]),
           ),
         )
       ),
@@ -690,7 +978,7 @@ let sig_tests = {
           opt_typ,
           "manifest differ",
           None,
-          Typ.meet(ctx, sg([st("T", ti)]), sg([st("T", tb)])),
+          Typ.meet(ctx, cs([st("T", ti)]), cs([st("T", tb)])),
         )
       ),
       test_case(
@@ -702,37 +990,37 @@ let sig_tests = {
             bool,
             "sig vs prod",
             false,
-            Typ.is_consistent(ctx, sg([sv("x", ti)]), prod),
+            Typ.is_consistent(ctx, cs([sv("x", ti)]), prod),
           );
           check(
             bool,
             "prod vs sig",
             false,
-            Typ.is_consistent(ctx, prod, sg([sv("x", ti)])),
+            Typ.is_consistent(ctx, prod, cs([sv("x", ti)])),
           );
           check(
             bool,
             "empty sig vs unit",
             false,
-            Typ.is_consistent(ctx, sg([]), F.Typ.prod([])),
+            Typ.is_consistent(ctx, cs([]), F.Typ.prod([])),
           );
         },
       ),
       test_case(
-        "meet with tu",
+        "meet with unknown",
         `Quick,
         () => {
           check(
             opt_typ,
             "sig meet ?",
-            Some(sg([sv("x", ti)])),
-            Typ.meet(ctx, sg([sv("x", ti)]), tu),
+            Some(cs([sv("x", ti)])),
+            Typ.meet(ctx, cs([sv("x", ti)]), tu),
           );
           check(
             opt_typ,
             "? meet sig",
-            Some(sg([sv("x", ti)])),
-            Typ.meet(ctx, tu, sg([sv("x", ti)])),
+            Some(cs([sv("x", ti)])),
+            Typ.meet(ctx, tu, cs([sv("x", ti)])),
           );
         },
       ),
@@ -744,81 +1032,218 @@ let sig_tests = {
           check(
             typ,
             "alias expanded",
-            sg([sv("x", ti)]),
-            Typ.normalize(ctx, sg([sv("x", F.Typ.var("A"))])),
+            cs([sv("x", ti)]),
+            Typ.normalize(ctx, cs([sv("x", F.Typ.var("A"))])),
           );
+        },
+      ),
+      test_case(
+        "close substitutes the earlier type members into later items",
+        `Quick,
+        () =>
+        check(
+          typ,
+          "closed",
+          cs([st("T", ti), sv("x", ti)]),
+          Typ.close(ctx, sg([st("T", ti), sv("x", F.Typ.var("T"))])),
+        )
+      ),
+      test_case(
+        "close: a member before the type member means the outer alias, expanded",
+        `Quick,
+        () => {
+          let ctx = Ctx.extend_alias(ctx, "T", Id.invalid, tb);
           check(
             typ,
-            "member alias expanded",
-            sg([st("T", ti), sv("x", ti)]),
-            Typ.normalize(
+            "closed",
+            cs([sv("x", tb), st("T", ti)]),
+            Typ.close(ctx, sg([sv("x", F.Typ.var("T")), st("T", ti)])),
+          );
+        },
+      ),
+      test_case(
+        "close makes a self-mentioning type member recursive",
+        `Quick,
+        () => {
+          let pair_t = F.Typ.prod([ti, F.Typ.var("T")]);
+          let rec_t = F.Typ.rec_(F.TPat.var("T"), pair_t);
+          check(
+            typ,
+            "closed",
+            cs([st("T", rec_t), sv("x", rec_t)]),
+            Typ.close(
               ctx,
-              sg([st("T", ti), sv("x", F.Typ.var("T"))]),
+              sg([st("T", pair_t), sv("x", F.Typ.var("T"))]),
             ),
           );
         },
       ),
       test_case(
-        "free_vars respects type member binders",
+        "close roots a path at an earlier module member",
         `Quick,
         () => {
+          let sm = (x, ty) =>
+            F.Sig.sig_module(F.MPat.asc(F.MPat.var(x), ty));
+          let p_u = F.Typ.prod_projection(F.Typ.var("P"), F.Typ.label("U"));
           check(
-            list(string),
-            "member bound",
-            [],
-            Typ.free_vars(sg([st("T", ti), sv("x", F.Typ.var("T"))])),
-          );
-          check(
-            list(string),
-            "outer alias free",
-            ["A"],
-            Typ.free_vars(sg([sv("x", F.Typ.var("A"))])),
+            typ,
+            "closed",
+            cs([sm("P", cs([st("U", ti)])), sv("y", ti)]),
+            Typ.close(
+              ctx,
+              sg([sm("P", sg([st("U", ti)])), sv("y", p_u)]),
+            ),
           );
         },
       ),
       test_case(
-        "member projection substitutes type members",
+        "free_vars: a closed signature's members bind nothing",
         `Quick,
         () => {
-          let s = [st("T", ti), sv("x", F.Typ.var("T"))];
           check(
-            opt_typ,
-            "type member",
-            Some(ti),
-            Typ.sig_project_type(s, "T"),
+            list(string),
+            "outer alias free",
+            ["A"],
+            Typ.free_vars(cs([sv("x", F.Typ.var("A"))])),
           );
           check(
-            opt_typ,
-            "value member",
-            Some(ti),
-            Typ.sig_project_value(s, "x"),
+            list(string),
+            "a closed member mentioning a sibling's name means the outer one",
+            ["T"],
+            Typ.free_vars(cs([st("T", ti), sv("x", F.Typ.var("T"))])),
           );
-          check(opt_typ, "missing", None, Typ.sig_project_value(s, "nope"));
+          check(
+            list(string),
+            "closed: nothing free",
+            [],
+            Typ.free_vars(
+              Typ.close(ctx, sg([st("T", ti), sv("x", F.Typ.var("T"))])),
+            ),
+          );
+          let p_u = F.Typ.prod_projection(F.Typ.var("P"), F.Typ.label("U"));
+          check(
+            list(string),
+            "~binder=`Var: path roots only",
+            ["P"],
+            Typ.free_vars(~binder=`Var, F.Typ.arrow(p_u, F.Typ.var("Q"))),
+          );
         },
       ),
-      test_case("pretty printing", `Quick, () =>
-        check(
-          string,
-          "printed",
-          "{ let x : Int; type T = Int }",
-          Typ.pretty_print(sg([sv("x", ti), st("T", ti)])),
-        )
+      test_case(
+        "close: a nested signature's same-named type member does not make the outer one recursive",
+        `Quick,
+        () => {
+          let inner = sg([st("T", ti), sv("x", F.Typ.var("T"))]);
+          check(
+            typ,
+            "closed",
+            cs([st("T", cs([st("T", ti), sv("x", ti)]))]),
+            Typ.close(ctx, sg([st("T", inner)])),
+          );
+        },
+      ),
+      test_case(
+        "close reads a closed signature's members alone, not in order",
+        `Quick,
+        () => {
+          let s = cs([st("T", ti), sv("x", F.Typ.var("T"))]);
+          check(typ, "x keeps the outer T", s, Typ.close(ctx, s));
+        },
+      ),
+      test_case(
+        "an operation reading an open signature's members raises",
+        `Quick,
+        () => {
+          let s = sg([sv("x", ti)]);
+          check_raises("subst", Sig.OpenSignature, () =>
+            ignore(Typ.subst(ti, F.TPat.var("a"), s))
+          );
+          check_raises("normalize", Sig.OpenSignature, () =>
+            ignore(Typ.normalize(ctx, s))
+          );
+          check_raises("meet", Sig.OpenSignature, () =>
+            ignore(Typ.meet(ctx, s, cs([sv("x", ti)])))
+          );
+          check_raises("meet against a non-signature", Sig.OpenSignature, () =>
+            ignore(Typ.meet(ctx, s, ti))
+          );
+          check_raises("has_fun", Sig.OpenSignature, () =>
+            ignore(Typ.has_fun(s))
+          );
+          check_raises("count_unknowns", Sig.OpenSignature, () =>
+            ignore(Typ.count_unknowns(s))
+          );
+        },
+      ),
+      test_case(
+        "a hole item is an unknown",
+        `Quick,
+        () => {
+          check(
+            bool,
+            "with a hole item",
+            true,
+            Typ.contains_unknown(cs([sv("x", ti), F.Sig.empty_hole()])),
+          );
+          check(
+            bool,
+            "without",
+            false,
+            Typ.contains_unknown(cs([sv("x", ti)])),
+          );
+        },
+      ),
+      test_case(
+        "free_vars scopes an open signature's items sequentially",
+        `Quick,
+        () => {
+          let p_t = F.Typ.prod_projection(F.Typ.var("P"), F.Typ.label("T"));
+          check(
+            list(string),
+            "an outer path root and an outer alias; sibling-bound names are not free",
+            ["P", "Q"],
+            Typ.free_vars(
+              sg([
+                sv("x", p_t),
+                F.Sig.sig_module(
+                  F.MPat.asc(F.MPat.var("P"), sg([st("T", tb)])),
+                ),
+                sv("y", p_t),
+                st("T", F.Typ.var("Q")),
+                sv("z", F.Typ.var("T")),
+              ]),
+            ),
+          );
+        },
+      ),
+      test_case(
+        "pretty printing",
+        `Quick,
+        () => {
+          check(
+            string,
+            "as written",
+            "{ let x : Int; type T = Int }",
+            Typ.pretty_print(sg([sv("x", ti), st("T", ti)])),
+          );
+          check(
+            string,
+            "closed members as they are",
+            "{ type T = Int; let x : Int }",
+            Typ.pretty_print(cs([st("T", ti), sv("x", ti)])),
+          );
+        },
       ),
     ],
   );
 };
 
-/* A signature that names a same-named outer binding,
-     let m = { type T = Int } in let m : { type T = m.T } = ... in ... m.T ...
-   has no weak head normal form: normalizing `m.T` asks path_sig what `m`
-   denotes, finds the inner `m`, whose signature defines `T` as `m.T`, and is
-   back where it started. Out of fuel the type has to come back unreduced so
-   statics reports a type error, instead of the whole analysis dying on
-   Failure("weak_head_normalize exceeded 1000 recursive calls"). */
+/* `m.T` in the inner `m`'s own signature resolves to the inner `m`: the
+   path has no weak head normal form. Nor has a cyclic alias, which the walk
+   gives up on instead of exploring once per branch. */
 let cyclic_path_tests = {
-  module F = IdTagged.FreshGrammar;
   let m_t = F.Typ.prod_projection(F.Typ.var("m"), F.Typ.label("T"));
-  let self_sig = F.Typ.sig_([F.Sig.sig_type(F.TPat.var("T"), m_t)]);
+  let self_sig = cs([F.Sig.sig_type(F.TPat.var("T"), m_t)]);
   let ctx =
     Ctx.extend(
       Builtins.ctx_init(None),
@@ -833,85 +1258,173 @@ let cyclic_path_tests = {
     "Typ.CyclicPath",
     [
       test_case(
-        "a member path through a same-named binding normalizes without raising",
+        "a member path through a same-named binding normalizes to unknown",
+        `Quick,
+        () =>
+        check(
+          typ,
+          "unknown",
+          F.Typ.unknown(Internal),
+          Typ.weak_head_normalize(ctx, m_t),
+        )
+      ),
+      test_case(
+        "a cyclic alias through a tuple extension normalizes to unknown",
         `Quick,
         () => {
-          ignore(Typ.weak_head_normalize(ctx, m_t));
-          check(bool, "returned", true, true);
+          let alias = (name, def): Ctx.entry =>
+            TVarEntry({
+              name,
+              id: Id.invalid,
+              kind: Singleton(def),
+            });
+          let ctx =
+            Ctx.extend(
+              Ctx.extend(
+                Builtins.ctx_init(None),
+                alias("A", F.Typ.var("B")),
+              ),
+              alias(
+                "B",
+                F.Typ.prod_extension(F.Typ.var("A"), F.Typ.var("A")),
+              ),
+            );
+          check(
+            typ,
+            "unknown",
+            F.Typ.unknown(Internal),
+            Typ.weak_head_normalize(ctx, F.Typ.var("A")),
+          );
         },
       ),
     ],
   );
 };
 
-let subst_captures_tests = {
-  module F = IdTagged.FreshGrammar;
-  let sv = (x, ty) => F.Sig.sig_let(F.Pat.asc(F.Pat.var(x), ty));
-  let st = (t, ty) => F.Sig.sig_type(F.TPat.var(t), ty);
-  let sg = items => F.Typ.sig_(items);
+/* [fun_in] names the signature members the function is found under. */
+let fun_in_tests = {
+  let ctx = Builtins.ctx_init(None);
+  let ti = F.Typ.int();
+  let to_int = F.Typ.arrow(ti, ti);
+  let sm = (x, ty) => F.Sig.sig_module(F.MPat.asc(F.MPat.var(x), ty));
+  let members = (found: option(Typ.fun_in)) =>
+    Option.map((f: Typ.fun_in) => f.members, found);
+  (
+    "Typ.fun_in",
+    [
+      test_case("a type without a function has none", `Quick, () =>
+        check(
+          option(list(string)),
+          "none",
+          None,
+          members(Typ.fun_in(ctx, F.Typ.prod([ti, F.Typ.list(ti)]))),
+        )
+      ),
+      test_case("a function in a tuple is under no member", `Quick, () =>
+        check(
+          option(list(string)),
+          "no members",
+          Some([]),
+          members(Typ.fun_in(ctx, F.Typ.prod([ti, to_int]))),
+        )
+      ),
+      test_case(
+        "a function in a sub-module's member is under both members", `Quick, () =>
+        check(
+          option(list(string)),
+          "Inner.g",
+          Some(["Inner", "g"]),
+          members(
+            Typ.fun_in(
+              ctx,
+              cs([sm("Inner", cs([sv("g", to_int)])), sv("x", ti)]),
+            ),
+          ),
+        )
+      ),
+      test_case(
+        "an alias to a function is a function",
+        `Quick,
+        () => {
+          let ctx = Ctx.extend_alias(ctx, "F", Id.invalid, to_int);
+          check(
+            option(list(string)),
+            "through the alias",
+            Some([]),
+            members(Typ.fun_in(ctx, F.Typ.var("F"))),
+          );
+        },
+      ),
+    ],
+  );
+};
+
+let subst_tests = {
   let ti = F.Typ.int();
   let a = F.TPat.var("a");
   let t_var = F.Typ.var("T");
   let a_to_int = F.Typ.arrow(F.Typ.var("a"), ti);
-  /* [subst_captures] names exactly the type members on which [subst]
-     degraded the items after them to `?`, and otherwise agrees with it. */
-  let case = (name, s, ty, expected) =>
-    test_case(
-      name,
-      `Quick,
-      () => {
-        let (ty', captured) = Typ.subst_captures(s, a, ty);
-        check(list(string), "captured members", expected, captured);
-        check(typ, "agrees with subst", Typ.subst(s, a, ty), ty');
-        check(
-          bool,
-          "degraded iff captured",
-          switch (expected) {
-          | [] => false
-          | _ => true
-          },
-          Typ.contains_unknown(ty') && !Typ.contains_unknown(ty),
-        );
-      },
+  let t_to_int = F.Typ.arrow(t_var, ti);
+  /* A closed signature's members bind nothing: [subst] substitutes into
+     each item, and a free name of `s` named like a member is the outer one. */
+  let case = (name, ty, expected) =>
+    test_case(name, `Quick, () =>
+      check(typ, "substituted", expected, Typ.subst(t_var, a, ty))
     );
   (
-    "Typ.SubstCaptures",
+    "Typ.Subst",
     [
       case(
-        "a clean substitution captures nothing",
-        ti,
-        sg([st("T", ti), sv("v", a_to_int)]),
-        [],
+        "a member named like a free variable of s does not capture it",
+        cs([st("T", ti), sv("v", a_to_int)]),
+        cs([st("T", ti), sv("v", t_to_int)]),
       ),
       case(
-        "a member named like a free variable of s captures the items after it",
-        t_var,
-        sg([st("T", ti), sv("v", a_to_int)]),
-        ["T"],
+        "a member's own definition is substituted into",
+        cs([sv("v", F.Typ.var("a")), st("T", F.Typ.var("a"))]),
+        cs([sv("v", t_var), st("T", t_var)]),
       ),
       case(
-        "a member named like x shadows it: nothing to capture",
-        t_var,
-        sg([st("a", ti), sv("v", a_to_int)]),
-        [],
+        "a member named like x does not shadow it",
+        cs([st("a", ti), sv("v", a_to_int)]),
+        cs([st("a", ti), sv("v", t_to_int)]),
       ),
       case(
-        "a member declared after every use of x does not capture",
-        t_var,
-        sg([sv("v", a_to_int), st("T", ti)]),
-        [],
+        "a type binder named like x shadows it",
+        F.Typ.poly(a, cs([st("T", ti), sv("v", a_to_int)])),
+        F.Typ.poly(a, cs([st("T", ti), sv("v", a_to_int)])),
       ),
       case(
-        "a colliding member with no later use of x does not capture",
-        t_var,
-        sg([st("T", ti), sv("w", ti)]),
-        [],
+        "a member's signature type is substituted into",
+        cs([sv("m", cs([st("T", ti), sv("v", a_to_int)]))]),
+        cs([sv("m", cs([st("T", ti), sv("v", t_to_int)]))]),
       ),
       case(
-        "a capture inside a member's own signature type is found",
-        t_var,
-        sg([sv("m", sg([st("T", ti), sv("v", a_to_int)]))]),
-        ["T"],
+        "a variant's payload is substituted into",
+        F.Typ.sum([
+          ConstructorMap.Variant(
+            "A",
+            ConstructorMap.empty_variant_ann,
+            Some(F.Typ.var("a")),
+          ),
+          ConstructorMap.Variant("B", ConstructorMap.empty_variant_ann, None),
+        ]),
+        F.Typ.sum([
+          ConstructorMap.Variant(
+            "A",
+            ConstructorMap.empty_variant_ann,
+            Some(t_var),
+          ),
+          ConstructorMap.Variant("B", ConstructorMap.empty_variant_ann, None),
+        ]),
+      ),
+      test_case(
+        "subst leaves a signature it touches nothing in equal to itself",
+        `Quick,
+        () => {
+          let s = cs([st("T", F.Typ.prod([ti, t_var]))]);
+          check(typ, "unchanged", s, Typ.subst(ti, a, s));
+        },
       ),
     ],
   );
@@ -919,9 +1432,12 @@ let subst_captures_tests = {
 
 let tests = [
   meet_tests,
+  fun_in_tests,
   fast_equal_tests,
   diff_tests,
   sig_tests,
   cyclic_path_tests,
-  subst_captures_tests,
+  subst_tests,
+  alias_cycle_tests,
+  unshadow_tests,
 ];

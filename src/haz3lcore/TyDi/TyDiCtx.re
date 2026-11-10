@@ -110,14 +110,11 @@ let bound_constructor_aps =
 let named_fields = (ctx: Ctx.t, typ: Typ.t): list((string, Typ.t)) =>
   switch (Typ.normalize(ctx, typ) |> Typ.term_of) {
   | Prod(ts) => List.filter_map(Typ.match_tup_label, ts)
-  | Sig(items) =>
-    Sig.members(items)
-    |> Sig.dedup_last
+  | Sig(Closed(items)) =>
+    Sig.members(ClosedSig.items(items))
     |> List.filter_map((m: Sig.member) =>
          switch (m) {
-         | Val(label, _) =>
-           Typ.sig_project_value(items, label)
-           |> Option.map(field_ty => (label, field_ty))
+         | Val(label, field_ty) => Some((label, field_ty))
          | TypeManifest(_) => None
          }
        )
@@ -186,7 +183,7 @@ let typ_context_entries = (ctx: Ctx.t): list(TyDiSuggestion.t) =>
     fun
     | Ctx.TVarEntry({kind: Singleton(_), name, _}) =>
       Some({
-        content: name,
+        content: Typ.surface_name(name),
         strategy: Typ(FromCtx),
       })
     | _ => None,

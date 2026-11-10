@@ -101,6 +101,7 @@ let (suite, exit_with_test_status) =
       Test_HazelJson_JsonADT.tests,
       Test_PatternMatch.tests,
       Test_Equality.tests,
+      Test_Calc.tests,
       Test_Substitution.tests,
     ]
     @ Test_Unicode.tests
@@ -114,7 +115,10 @@ let (suite, exit_with_test_status) =
     @ Test_AgentReply.tests
     @ [Test_AgentUX.tests]
     @ Test_ExpToSegment.all
+    @ Test_Exp.tests
     @ Test_Typ.tests
+    @ Test_Mod.tests
+    @ Test_Sig.tests
     @ Test_Statics.tests
     @ Test_Elaboration.tests
     @ Test_Evaluator.tests
@@ -167,9 +171,11 @@ let (suite, exit_with_test_status) =
       Test_ObsTraceShadow.tests,
       Test_ObsBench.tests,
       Test_Ascriptions.tests,
+      Test_PerfBudgets.tests,
     ]
     @ [Test_GradingReport.tests]
     @ Test_SlidePath.tests
+    @ Test_HazelDB.tests
     @ Test_Tutorial.tests
     @ Test_TutorialText.tests
     @ [Test_TutorialProbeSettings.tests]
@@ -177,6 +183,7 @@ let (suite, exit_with_test_status) =
     @ Test_DerivationCase.tests
     @ [Test_ShardCrashRepro.tests]
     @ Test_PromptFactory.tests
+    @ [Test_ErrorPrint.tests]
     @ Test_ShortcutConfiguration.tests
     @ Test_ColorConfiguration.tests
     @ Test_ConfigurationMode.tests

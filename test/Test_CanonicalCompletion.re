@@ -1911,10 +1911,7 @@ let clippable_guard_tests = {
            the InfixDelimiterPrefix atomic, which molds at all four
            sorts. Re-decided: both frontiers stay far from vacuous, so
            clippable_sort stands.
-           88 -> 89, +1 at Exp/Pat/Typ/TPat: SigModule's `["module"]`
-           label enters the table, carrying the atomic molds the bare
-           `module` token already had at those sorts. Re-decided: every
-           frontier moves by one label, so clippable_sort stands. */
+           88 -> 89, +1 at Exp/Pat/Typ/TPat: SigModule's `module` label. */
         "Exp 68/89 | Pat 10/89 | Typ 16/89 | TPat 5/89 | Rul 1/89",
         table,
       )
@@ -1988,9 +1985,11 @@ let depth_tests = [
   ),
 ];
 let depth_count_tests = [
+  /* Slow: completion grows faster than quadratically in this nesting, and
+     parsing the prefixes with the typing parser costs more still */
   test_case(
     "30 nested let prefixes leave nothing incomplete",
-    `Quick,
+    `Slow,
     () => {
       let seg =
         must_parse(String.concat("", List.init(30, _ => "let x = ")) ++ "1");

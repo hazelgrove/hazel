@@ -132,26 +132,19 @@ module Map = {
       | [ancestor_id, ...rest] =>
         let* ci = lookup(ancestor_id, statics);
         switch (ci) {
-        | InfoExp({user_term: {term: Let(pat, def, _), _}, _}) =>
-          let binds = Pat.bindings(pat);
-          /* function-def sugar: Pat.bindings drops the function name f, so
-             also match f's own binding here, else the enclosing let is never
-             found. (Can't reuse FunctionSugar.detect: it depends on StaticsBase.) */
-          let fn_name_binds =
-            switch (IdTagged.term_of(pat)) {
-            | Asc(inner, _) =>
-              switch (IdTagged.term_of(inner)) {
-              | Ap(fn, _) => Pat.bindings(fn)
-              | _ => []
-              }
-            | Ap(fn, _) => Pat.bindings(fn)
-            | _ => []
-            };
+        | InfoExp({user_term: {term: Let(pat, def, _), _}, _})
+        | InfoMod({user_term: {term: ModLet(pat, def), _}, _}) =>
+          /* Pat.bindings drops the function-definition sugar's name: match
+             that binding too, else the enclosing let is never found. */
+          let binds = Pat.bindings(pat) @ Pat.bindings(Pat.binder(pat));
+          List.exists((b: Binding.t) => b.id == binding_id, binds)
+            ? Some(IdTagged.rep_id(def)) : climb(rest);
+        | InfoMod({user_term: {term: ModuleMod(mp, def), _}, _}) =>
           List.exists(
             (b: Binding.t) => b.id == binding_id,
-            binds @ fn_name_binds,
+            Pat.bindings(MPat.to_pat(mp)),
           )
-            ? Some(IdTagged.rep_id(def)) : climb(rest);
+            ? Some(IdTagged.rep_id(def)) : climb(rest)
         | InfoExp(_) => None
         | _ => climb(rest)
         };
@@ -181,6 +174,7 @@ module Map = {
     switch (lookup(id, m)) {
     | Some(InfoExp({ty, _}))
     | Some(InfoPat({ty, _})) => Some(ty)
+    | Some(InfoMod({ty, _})) => ty
     | _ => None
     };
 
@@ -293,19 +287,6 @@ let fixed_typ = (ctx: Ctx.t, ana: Typ.t, elab_syn_ty: Typ.t): Typ.t =>
       ana;
     }
   };
-
-/* The one way statics substitutes into a type: a substitution Typ.subst had
-   to degrade to `?` (see its `Sig` arm) is marked here, so the degradation is
-   never silent. `make ci-check` rejects a direct Typ.subst under statics. */
-let subst_marked = (s: Typ.t, x: TPat.t, ty: Typ.t): (Typ.t, list(Mark.t)) => {
-  let (ty', captured) = Typ.subst_captures(s, x, ty);
-  let marks =
-    switch (captured) {
-    | [] => []
-    | _ => [Mark.TypeMemberCapture(captured)]
-    };
-  (ty', marks);
-};
 
 let patch_elab_syn_ty_exp = (m: Map.t, e: Exp.t, new_syn_ty: Typ.t): Map.t =>
   switch (Map.lookup(Exp.rep_id(e), m)) {
@@ -505,6 +486,7 @@ module type ExpressionStatics = {
       ~inferred_label: option(string)=?,
       ~label_sort: bool=?,
       ~dot_labels: list(string)=?,
+      ~cls: Cls.t=?,
       Map.t
     ) =>
     (Info.exp, Exp.t, Map.t);

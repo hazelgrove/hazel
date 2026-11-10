@@ -796,6 +796,38 @@ let rename_tests = (
       },
     ),
     test_case(
+      "rename renames a member (internal uses follow)",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let m = {\n  let x = 1;\n  let y = x\n} in m.y",
+            Rename("m/x", None, "z"),
+          );
+        check_rendered(
+          "update_pat_member_rename",
+          "let m = {\n  let z = 1;\n  let y = z\n} in m.y",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "rename renames a member with no use sites",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let m = {\n  let x = 1\n} in 42",
+            Rename("m/x", None, "z"),
+          );
+        check_rendered(
+          "update_pat_unused_member_rename",
+          "let m = {\n  let z = 1\n} in 42",
+          result,
+        );
+      },
+    ),
+    test_case(
       "rename renames across multiple use sites",
       `Quick,
       () => {
@@ -3647,9 +3679,12 @@ let ascribed_binding_tests = (
         check_rendered("deleting all bindings leaves hole", "?", result);
       },
     ),
+    /* The two verbatim repros are Slow: each runs the 1.4K-character
+       program through the typing parser. The chess-shaped cases above keep
+       the same shapes in the quick set. */
     test_case(
       "verbatim chess program: Piece is present in node map",
-      `Quick,
+      `Slow,
       () => {
         /* Exact program from the live-editor repro. `delete Piece`
            reportedly fails with "Path 'Piece' not found in node map" even though
@@ -3698,7 +3733,7 @@ let ascribed_binding_tests = (
     ),
     test_case(
       "verbatim chess program: delete Piece finds it, and its use",
-      `Quick,
+      `Slow,
       () => {
         /* Single action repro of the exact user flow: send the chess program,
            ask to delete `Piece`. Should succeed (the binding exists). */
@@ -4869,10 +4904,12 @@ let module_member_tests = (
     ),
     test_case(
       "oversized chunk on the fast path succeeds",
-      `Quick,
+      `Slow,
       () => {
         /* The size cap guards only the quadratic fallback; Menhir-
-           parseable chunks of any size take the linear fast path. */
+           parseable chunks of any size take the linear fast path. Slow:
+           re-selecting the new 400-term definition to revalidate its
+           projectors (Select.term) walks it token by token. */
         let big =
           String.concat(" + ", List.init(400, i => string_of_int(i)));
         switch (

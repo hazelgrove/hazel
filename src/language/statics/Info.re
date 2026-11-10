@@ -76,6 +76,7 @@ type pat = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type typ = {
   user_term: Typ.t,
+  ty: Typ.t, /* the type the annotation denotes: [user_term] closed (Typ.close) */
   ancestors,
   ctx: Ctx.t,
   expects: TypExpectation.t,
@@ -104,6 +105,10 @@ type mod_ = {
   sort: Sort.t,
   ctx: Ctx.t,
   ancestors,
+  marks: list(Mark.t),
+  ty: option(Typ.t), /* of the binder a let or module item declares; a type item's definition */
+  co_ctx: CoCtx.t, /* of the item and the items after it, its bindings consumed */
+  scope_co_ctx: CoCtx.t /* of the items after it, which its bindings scope over */
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -114,6 +119,7 @@ type sig_ = {
   sort: Sort.t,
   ctx: Ctx.t,
   ancestors,
+  marks: list(Mark.t),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -152,7 +158,6 @@ type t =
 let sort_of: t => Sort.t =
   fun
   | InfoDrv(drv) => Drv(DrvInfo.sort_of(drv))
-  | InfoExp({cls: Mod(_), _}) => Mod
   | InfoExp(_) => Exp
   | InfoPat(_) => Pat
   | InfoTyp(_) => Typ
@@ -435,10 +440,10 @@ let marks_of: t => list(Mark.t) =
   | InfoExp({marks, _})
   | InfoPat({marks, _}) => marks
   | InfoTyp({marks, _})
-  | InfoTPat({marks, _}) => marks
+  | InfoTPat({marks, _})
+  | InfoMod({marks, _})
+  | InfoSig({marks, _}) => marks
   | InfoDrv(_) /* Drv errors are tracked separately via DrvInfo.error_of. */
-  | InfoMod(_)
-  | InfoSig(_)
   | InfoMPat(_)
   | Secondary(_) => [];
 

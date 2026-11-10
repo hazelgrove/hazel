@@ -41,7 +41,14 @@ let of_delim' =
         };
       let plurality = plurality == 1 ? "mono" : "poly";
       let in_buffer = is_in_buffer ? ["in-parsed-buffer"] : [];
-      let var_class = is_ref(token, sort) ? ["ref"] : [];
+      /* A type name shown with a tag telling two bindings of it apart */
+      let (name, tag) =
+        switch (sort) {
+        | Typ
+        | TPat => Language.Typ.split_tag(token)
+        | _ => (token, None)
+        };
+      let var_class = is_ref(name, sort) ? ["ref"] : [];
       let keyword_class = Token.is_keyword(token) ? ["keyword"] : [];
       span(
         ~attrs=[
@@ -55,8 +62,16 @@ let of_delim' =
         /* Wide clusters (emoji, CJK) need an explicit cell so the glyph
            occupies the two columns Measured gave it. Pure ASCII -- nearly
            every token -- skips straight to a text node. */
-        Unicode.is_simple_ascii(token)
-          ? [text(token)] : GraphemeView.render(~font_metrics, token),
+        (
+          Unicode.is_simple_ascii(name)
+            ? [text(name)] : GraphemeView.render(~font_metrics, name)
+        )
+        @ (
+          switch (tag) {
+          | Some(tag) => [span_c("binder-tag", [text(tag)])]
+          | None => []
+          }
+        ),
       );
     },
   );

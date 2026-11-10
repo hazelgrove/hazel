@@ -18,6 +18,10 @@ type cls =
   | TupleExtension
   | Tuple
   | Dot
+  /* A Dot whose left side is a module or a labeled tuple: classes statics
+     gives, not term forms. */
+  | ModuleProjection
+  | TupleProjection
   | Var
   | Let
   | Theorem
@@ -122,6 +126,94 @@ let strip_projectors =
     _,
   );
 
+/* `e` with the type variable `x` renamed to `x'` where it refers to the
+   binding being renamed: not in the scope of a type binder of `x`. A path
+   root `x` (in `x.T`) names the newest type or value of its name, so in
+   the scope of a value named `x`, which may be a module, path roots `x`
+   are left alone ([~roots=false]); a bare type `x` still is the binding. */
+let rec rename_tvar = (~roots=true, x: string, x': string, e: t): t => {
+  let rename_typ = (~roots, _, ty) => Typ.rename_var(~roots, x, x', ty);
+  let binds = (p: Pat.t) =>
+    List.exists(String.equal(x), Pat.bound_vars(p));
+  /* a binder's types, and the scope it binds over */
+  let pat = p => Pat.map_term(~f_typ=rename_typ(~roots), p);
+  let scope = (p, body) =>
+    rename_tvar(~roots=roots && !binds(p), x, x', body);
+  map_term(
+    ~f_exp=
+      (continue, e) => {
+        let (term, rewrap) = unwrap(e);
+        switch (term) {
+        | TyAlias(tp, _, _)
+        | TypFun(tp, _, _) when TPat.binds(x, tp) => e
+        | Let(p, def, body) =>
+          Let(pat(p), rename_tvar(~roots, x, x', def), scope(p, body))
+          |> rewrap
+        | Fun(p, body, ty, name) =>
+          Fun(
+            pat(p),
+            scope(p, body),
+            Option.map(Typ.rename_var(~roots, x, x'), ty),
+            name,
+          )
+          |> rewrap
+        | FixF(p, body, env) => FixF(pat(p), scope(p, body), env) |> rewrap
+        | Match(scrut, rules) =>
+          Match(
+            rename_tvar(~roots, x, x', scrut),
+            List.map(((p, body)) => (pat(p), scope(p, body)), rules),
+          )
+          |> rewrap
+        | ModuleExp(mp, def, body) =>
+          ModuleExp(
+            MPat.map_term(~f_typ=rename_typ(~roots), mp),
+            rename_tvar(~roots, x, x', def),
+            rename_tvar(
+              ~roots=
+                roots && !Option.equal(String.equal, Some(x), MPat.name(mp)),
+              x,
+              x',
+              body,
+            ),
+          )
+          |> rewrap
+        | Module(items) =>
+          Module(rename_tvar_in_items(~roots, x, x', items)) |> rewrap
+        | _ => continue(e)
+        };
+      },
+    ~f_typ=rename_typ(~roots),
+    e,
+  );
+}
+and rename_tvar_in_items =
+    (~roots, x: string, x': string, items: list(Mod.t)): list(Mod.t) =>
+  switch (items) {
+  | [] => []
+  | [{term: ModType(tp, _), _}, ..._] when TPat.binds(x, tp) => items
+  | [item, ...items] =>
+    let binds_value =
+      switch (item.term) {
+      | ModLet(p, _) => List.exists(String.equal(x), Pat.bound_vars(p))
+      | ModuleMod(mp, _) =>
+        Option.equal(String.equal, Some(x), MPat.name(mp))
+      | ModVal(y, _) => String.equal(x, y)
+      | ModType(_)
+      | ModExp(_)
+      | Invalid(_)
+      | EmptyHole
+      | MultiHole(_) => false
+      };
+    [
+      Mod.map_term(
+        ~f_exp=(_, e) => rename_tvar(~roots, x, x', e),
+        ~f_typ=(_, ty) => Typ.rename_var(~roots, x, x', ty),
+        item,
+      ),
+      ...rename_tvar_in_items(~roots=roots && !binds_value, x, x', items),
+    ];
+  };
+
 let rec cls_of_term: type a. Grammar.exp_term(a) => cls =
   fun
   | Invalid(_) => Invalid
@@ -203,6 +295,8 @@ let show_cls: cls => string =
   | TupLabel => "Tuple Item"
   | TupleExtension => "Tuple Extension"
   | Dot => "Dot operator"
+  | ModuleProjection => "Module projection"
+  | TupleProjection => "Labeled tuple projection"
   | Var => "Variable reference"
   | Let => "Let expression"
   | Theorem => "Theorem expression"
@@ -460,40 +554,44 @@ let rec get_num_of_functions = (e: t) =>
   };
 
 let (replace_all_ids, replace_all_ids_typ) = {
-  let fresh: 'a. IdTagged.t('a) => IdTagged.t('a) =
-    x => {
-      ...x,
-      annotation: {
-        /* fresh ids; keep the lexeme (hole flavor, unknown-op tokens)
-           so re-idded results still display faithfully. Secondary and
-           shard provenance stay dropped: display of results is
-           AutoFormat and the tile-id references are invalidated. */
-        ...IdTagged.IdTag.mk_internal([Id.mk()]),
-        lexeme: x.annotation.lexeme,
-      },
-    };
   let f:
     'a.
     (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
    =
-    (continue, x) => x |> fresh |> continue;
-  /* map_term has no hook for a module item, so its id is replaced with the
-     module's. */
-  let f_exp = (continue, exp: t) =>
-    switch (exp.term) {
-    | Module(items) =>
-      f(
-        continue,
-        {
-          ...exp,
-          term: (Module(List.map(fresh, items)): term),
+    (continue, exp) =>
+      {
+        ...exp,
+        annotation: {
+          /* fresh ids; keep the lexeme (hole flavor, unknown-op tokens)
+             so re-idded results still display faithfully. Secondary and
+             shard provenance stay dropped: display of results is
+             AutoFormat and the tile-id references are invalidated. */
+          ...IdTagged.IdTag.mk_internal([Id.mk()]),
+          lexeme: exp.annotation.lexeme,
         },
-      )
-    | _ => f(continue, exp)
-    };
+      }
+      |> continue;
   (
-    map_term(~f_exp, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
-    Typ.map_term(~f_exp, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
+    map_term(
+      ~f_exp=f,
+      ~f_pat=f,
+      ~f_typ=f,
+      ~f_tpat=f,
+      ~f_rul=f,
+      ~f_mod=f,
+      ~f_sig=f,
+      ~f_mpat=f,
+    ),
+    Typ.map_term(
+      ~f_exp=f,
+      ~f_pat=f,
+      ~f_typ=f,
+      ~f_tpat=f,
+      ~f_rul=f,
+      ~f_mod=f,
+      ~f_sig=f,
+      ~f_mpat=f,
+    ),
   );
 };
 

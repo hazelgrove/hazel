@@ -34,22 +34,20 @@ let toplevel_def_body_id = (~statics: Statics.Map.t, ~id: Id.t): option(Id.t) =>
       Some(IdTagged.rep_id(e1))
     | Some(InfoExp({user_term: {term: TyAlias(_), _}, _})) => None
     | Some(InfoExp({user_term, _})) => Some(IdTagged.rep_id(user_term))
+    | Some(
+        InfoMod({
+          user_term: {term: ModLet(_, def) | ModuleMod(_, def), _},
+          _,
+        }),
+      ) =>
+      Some(IdTagged.rep_id(def))
     | _ => None
     };
 
-  /* a definition with items of its own, which the walk goes into: a
-     module literal, or a module statement's let chain */
+  /* a definition with items of its own, which the walk goes into */
   let holds_items = (def: Exp.t): bool =>
     switch (def.term) {
     | Module(_) => true
-    | Let(_)
-    | TyAlias(_)
-    | ModuleExp(_)
-    | Seq(_) =>
-      switch (Statics.Map.lookup(IdTagged.rep_id(def), statics)) {
-      | Some(InfoExp({cls: Mod(ModExp), _})) => true
-      | _ => false
-      }
     | _ => false
     };
 
@@ -74,6 +72,15 @@ let toplevel_def_body_id = (~statics: Statics.Map.t, ~id: Id.t): option(Id.t) =>
           walk(idx - 1)
         | Some(InfoExp({user_term: {term: Module(_), _}, _})) =>
           walk(idx - 1)
+        | Some(
+            InfoMod({
+              user_term: {term: ModLet(_, def) | ModuleMod(_, def), _},
+              _,
+            }),
+          ) =>
+          Id.equal(child_id, IdTagged.rep_id(def)) && holds_items(def)
+            ? walk(idx - 1) : Some(IdTagged.rep_id(def))
+        | Some(InfoMod({user_term: {term: ModType(_), _}, _})) => None
         | Some(InfoExp({user_term: {term: Seq(e1, e2), _}, _})) =>
           let e1_id = IdTagged.rep_id(e1);
           let e2_id = IdTagged.rep_id(e2);
@@ -244,15 +251,14 @@ let update_autoprobe =
       }
     | Caret =>
       let current_def = current_toplevel_def(info_map, z);
-      /* Function-sugar: also anchor the param pattern so params are probed on the header line(s). */
-      let current_param =
+      /* Function-sugar: also anchor the param patterns so params are probed on the header line(s). */
+      let current_params =
         switch (current_def) {
         | Some(def_id) =>
-          ProbePerform.function_sugar_param_anchor(info_map, def_id)
-        | None => None
+          ProbePerform.function_sugar_param_anchors(info_map, def_id)
+        | None => []
         };
-      let anchors =
-        Option.to_list(current_def) @ Option.to_list(current_param);
+      let anchors = Option.to_list(current_def) @ current_params;
       /* def body carries cursor following (gated on auto_focus); the param anchor is added without it, keeping focus on the body's first sample. */
       let add = z =>
         switch (current_def) {
@@ -267,18 +273,19 @@ let update_autoprobe =
               ~info_map,
               z,
             );
-          switch (current_param) {
-          | Some(param_id) =>
-            ProbePerform.add_multi(
-              param_id,
-              ~drill=false,
-              ~set_pending_cursor=false,
-              ~syntax,
-              ~info_map,
-              z,
-            )
-          | None => z
-          };
+          List.fold_left(
+            (z, param_id) =>
+              ProbePerform.add_multi(
+                param_id,
+                ~drill=false,
+                ~set_pending_cursor=false,
+                ~syntax,
+                ~info_map,
+                z,
+              ),
+            z,
+            current_params,
+          );
         };
       (anchors, add);
     };

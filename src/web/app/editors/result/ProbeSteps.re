@@ -157,7 +157,7 @@ let update = (~settings, a: StepperView.Update.t, ps: t): Updated.t(t) => {
     historic: false,
     recalculate: true,
     /* the main editor's caret isn't what moved */
-    scroll_active: false,
+    scroll: Never,
   };
 };
 
