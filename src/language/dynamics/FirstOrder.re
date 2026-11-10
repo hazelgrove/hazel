@@ -48,12 +48,14 @@ let rec of_term = (e: Exp.t): option(t) =>
   | _ when !plain(e, ~lexeme_ok=false) => None
   | ListLit(xs) => Option.map(xs => List(xs), all(of_term, xs))
   | Tuple(xs) => Option.map(xs => Tuple(xs), all(of_term, xs))
-  | TupLabel({term: Label(l), _} as lab, v)
-      when plain(lab, ~lexeme_ok=false) =>
+  /* (a label's name and a constructor's type are in the term: their own
+     annotations are not asked to be plain, as why_not does not ask it. With
+     them asked, every record value was refused: on the Witch 5 values a
+     result went as data, not its picture; run 42746886195) */
+  | TupLabel({term: Label(l), _}, v) =>
     Option.map(v => Label(l, v), of_term(v))
   | Constructor(name, ty) => Some(Ctor(name, ty, None))
-  | Ap(Forward, {term: Constructor(name, ty), _} as c, arg)
-      when plain(c, ~lexeme_ok=false) =>
+  | Ap(Forward, {term: Constructor(name, ty), _}, arg) =>
     Option.map(a => Ctor(name, ty, Some(a)), of_term(arg))
   | _ => None
   };
