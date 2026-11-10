@@ -11,6 +11,15 @@ include StaticsBase;
 let add_info = Map.add_info;
 let add_missing_info = Map.add_missing_info;
 
+/* Whether a name a `let` is defined as names a module in ctx, so that the
+   `let` also binds its type paths. */
+let is_module = (ctx: Ctx.t, name: string): bool =>
+  switch (Ctx.lookup_tvar(ctx, name)) {
+  | Some(Singleton(_)) => true
+  | Some(Abstract)
+  | None => false
+  };
+
 let rec any_to_info_map =
         (
           ~ctx: Ctx.t,
@@ -1965,9 +1974,26 @@ and uexp_to_info_map =
     | TypFun(utpat, body, tfname) =>
       let (name_expected_opt, item) =
         MatchedTyp.poly_pair_tolerant(ctx, ana);
-      let (mode_body, ctx_body) =
+      let m =
+        utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m)
+        |> snd;
+      let (utpat, body, mode_body, ctx_body) =
         switch (TPat.tyvar_of_utpat(utpat)) {
         | Some(name) when !Ctx.is_base_typ(name) =>
+          let (name, utpat, body) =
+            switch (Typ.unshadow(ctx, name)) {
+            | None => (name, utpat, body)
+            | Some(name') => (
+                name',
+                TPat.rename(name', utpat),
+                Exp.rename_tvar(
+                  ~is_module=is_module(ctx),
+                  name,
+                  name',
+                  body,
+                ),
+              )
+            };
           let mode_body = {
             switch (name_expected_opt) {
             | Some(name_expected) =>
@@ -1976,7 +2002,7 @@ and uexp_to_info_map =
             };
           };
           let ctx_body =
-            Typ.extend_tvar(
+            Ctx.extend_tvar(
               ctx,
               {
                 name,
@@ -1984,13 +2010,10 @@ and uexp_to_info_map =
                 kind: Abstract,
               },
             );
-          (mode_body, ctx_body);
+          (utpat, body, mode_body, ctx_body);
         | Some(_)
-        | None => (item, ctx)
+        | None => (utpat, body, item, ctx)
         };
-      let m =
-        utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m)
-        |> snd;
       let (body, body_elab, m) = go(~ctx=ctx_body, ~ana=mode_body, body, m);
       add(
         ~elab_term=TypFun(utpat, body_elab, tfname) |> rewrap,
@@ -2547,36 +2570,38 @@ and uexp_to_info_map =
         m,
       );
     | TyAlias(typat, utyp, body) =>
-      /* Desugar Sig types so that type aliases like `type T = {let x : Int}`
-         store Prod([TupLabel(...)]) rather than Sig([...]) in the context.
-         This ensures meet/join can unify them with module expression types. */
-      let utyp_desugared = Typ.desugar_sig(ctx, utyp);
-      let alias =
-        switch (typat.term) {
-        | Var(name) when !Ctx.is_base_typ(name) =>
-          Some((name, Typ.recursive_def(name, utyp_desugared)))
-        | Var(_)
-        | Invalid(_)
-        | EmptyHole
-        | MultiHole(_) => None
-        };
-      let warnings =
-        switch (alias) {
-        | Some((name, def)) => Warning.type_binding(name, def)
-        | None => []
-        };
-      let m =
-        utpat_to_info_map(
-          ~ctx,
-          ~ancestors=ancestors_inclusive,
-          ~warnings,
-          typat,
-          m,
-        )
-        |> snd;
-      switch (alias) {
-      | Some((name, def)) =>
-        let bind = ty => Typ.extend_alias(ctx, name, TPat.rep_id(typat), ty);
+      switch (typat.term) {
+      | Var(written) when !Ctx.is_base_typ(written) =>
+        let (name, bound, utyp, body) =
+          switch (Typ.unshadow(ctx, written)) {
+          | None => (written, typat, utyp, body)
+          | Some(name) => (
+              name,
+              TPat.rename(name, typat),
+              Typ.rename_var(written, name, utyp),
+              Exp.rename_tvar(
+                ~is_module=is_module(ctx),
+                written,
+                name,
+                body,
+              ),
+            )
+          };
+        /* Desugar Sig types so that type aliases like `type T = {let x : Int}`
+           store Prod([TupLabel(...)]) rather than Sig([...]) in the context.
+           This ensures meet/join can unify them with module expression types. */
+        let utyp_desugared = Typ.desugar_sig(ctx, utyp);
+        let def = Typ.recursive_def(bound, utyp_desugared);
+        let m =
+          utpat_to_info_map(
+            ~ctx,
+            ~ancestors=ancestors_inclusive,
+            ~warnings=Warning.type_binding(written, def),
+            typat,
+            m,
+          )
+          |> snd;
+        let bind = ty => Ctx.extend_alias(ctx, name, TPat.rep_id(bound), ty);
         let (ty_def, ctx_def, ctx_body) =
           switch (def) {
           | Plain => (utyp_desugared, ctx, bind(utyp_desugared))
@@ -2596,7 +2621,7 @@ and uexp_to_info_map =
         ) =
           go(~ctx=ctx_body, ~ana, body, m);
         /* Make sure types don't escape their scope */
-        let ty_escape = Typ.subst(ty_def, typat, ty_body);
+        let ty_escape = Typ.subst(ty_def, bound, ty_body);
         let m =
           utyp_to_info_map(
             ~ctx=ctx_def,
@@ -2619,7 +2644,13 @@ and uexp_to_info_map =
           ~probe_targets,
           m,
         );
-      | None =>
+      | Var(_)
+      | Invalid(_)
+      | EmptyHole
+      | MultiHole(_) =>
+        let m =
+          utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, typat, m)
+          |> snd;
         let (
           {co_ctx, probe_targets, elab_syn_ty: ty_body, _}: Info.exp,
           body_elab,
@@ -2643,7 +2674,7 @@ and uexp_to_info_map =
           ~probe_targets,
           m,
         );
-      };
+      }
     | Use(typ, body) =>
       let (typ, m) =
         utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, typ, m);
@@ -2704,17 +2735,13 @@ and uexp_to_info_map =
          annotations, and the Module's own add() checks the overall type against
          ana. Using ~ana here would double-count type inconsistencies (once on
          the expansion's inner tuple, once on the Module expression). */
-      let lowered = ModuleHelpers.lower(~ctx, ~ana, items);
+      let lowered = ModuleHelpers.lower(~ana, items);
       let (expanded_info, expanded_elab, m) = go(lowered.expanded, m);
       let m = ModuleHelpers.reclassify_expanded_module_items(items, m);
       /* Build actual Prod type from module's exported bindings, rather than
          using expanded_info.ty which masks width errors via fixed_typ. */
       let actual_ty =
-        ModuleHelpers.module_actual_type(
-          ~local_names=List.map(fst, lowered.type_exports),
-          lowered.value_exports,
-          m,
-        );
+        ModuleHelpers.module_actual_type(~ctx, lowered.value_exports, m);
       let module_elab =
         ModuleHelpers.module_elab(
           ~module_exp_id=Exp.rep_id(uexp),
@@ -3997,8 +4024,19 @@ and utyp_to_info_map =
       );
     add(m);
   | Poly({term: Var(name), _} as utpat, tbody) =>
+    let m =
+      utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
+    let (name, utpat, tbody) =
+      switch (Typ.unshadow(ctx, name)) {
+      | None => (name, utpat, tbody)
+      | Some(name') => (
+          name',
+          TPat.rename(name', utpat),
+          Typ.rename_var(name, name', tbody),
+        )
+      };
     let body_ctx =
-      Typ.extend_tvar(
+      Ctx.extend_tvar(
         ctx,
         {
           name,
@@ -4015,8 +4053,6 @@ and utyp_to_info_map =
         m,
       )
       |> snd;
-    let m =
-      utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
     add(m); // TODO: check with andrew
   | Poly(utpat, tbody) =>
     let m =
@@ -4042,8 +4078,22 @@ and utyp_to_info_map =
       );
     add(m);
   | Rec({term: Var(name), _} as utpat, tbody) =>
+    let m =
+      utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
+    let (name, utyp, tbody) =
+      switch (Typ.unshadow(ctx, name)) {
+      | None => (name, utyp, tbody)
+      | Some(name') =>
+        let tbody = Typ.rename_var(name, name', tbody);
+        let (_, rewrap) = IdTagged.unwrap(utyp);
+        (
+          name',
+          (Rec(TPat.rename(name', utpat), tbody): Typ.term) |> rewrap,
+          tbody,
+        );
+      };
     let body_ctx =
-      Typ.extend_tvar(
+      Ctx.extend_tvar(
         ctx,
         {
           name,
@@ -4060,8 +4110,6 @@ and utyp_to_info_map =
         m,
       )
       |> snd;
-    let m =
-      utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
     add(~warnings=Warning.rec_type(utpat, utyp), m); // TODO: check with andrew
   | Rec(utpat, tbody) =>
     let m =

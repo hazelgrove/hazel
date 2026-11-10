@@ -49,7 +49,7 @@ let context_entry_view = (~globals, entry: Language.Ctx.entry): Node.t => {
         clss(["context-entry", "code"]),
       ],
       [
-        div_name([alias_view(name)]),
+        div_name([alias_view(Language.Typ.surface_name(name))]),
         div(~attrs=[clss(["seperator"])], [text("::")]),
         Kind.view(~globals, kind),
       ],

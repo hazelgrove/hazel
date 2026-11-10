@@ -256,6 +256,227 @@ let alias_cycle_tests = {
   );
 };
 
+let unshadow_tests = {
+  let abstract = (name): Ctx.tvar_entry => {
+    name,
+    id: Id.mk(),
+    kind: Abstract,
+  };
+  let renamed = option(string);
+  let poly = (x, body) =>
+    Poly(Var(x) |> TPat.temp, body(Var(x) |> Typ.temp)) |> Typ.temp;
+  let arrow = (t1, t2) => Arrow(t1, t2) |> Typ.temp;
+  let var = x => Var(x) |> Typ.temp;
+  (
+    "Typ.unshadow",
+    [
+      test_case("a name not in scope binds as written", `Quick, () =>
+        check(renamed, "T", None, Typ.unshadow(Ctx.empty, "T"))
+      ),
+      test_case("a name in scope is numbered", `Quick, () =>
+        check(
+          renamed,
+          "T",
+          Some("T#1"),
+          Typ.unshadow(Ctx.extend_tvar(Ctx.empty, abstract("T")), "T"),
+        )
+      ),
+      test_case("the number passes one in ctx", `Quick, () =>
+        check(
+          renamed,
+          "T",
+          Some("T#2"),
+          Typ.unshadow(
+            Ctx.extend_tvar(Ctx.empty, abstract("T"))
+            |> Ctx.extend_tvar(_, abstract("T#1")),
+            "T",
+          ),
+        )
+      ),
+      test_case(
+        "a name an alias mentions while unbound is numbered", `Quick, () =>
+        check(
+          renamed,
+          "T",
+          Some("T#1"),
+          Typ.unshadow(
+            Ctx.extend_alias(Ctx.empty, "S", Id.mk(), var("T")),
+            "T",
+          ),
+        )
+      ),
+      test_case(
+        "Typ.rename_var renames up to a binder of the same name",
+        `Quick,
+        () => {
+          let poly_t = poly("T", t => t);
+          check(
+            typ,
+            "(T, U, poly T -> T)",
+            Prod([var("T#1"), var("U"), poly_t]) |> Typ.temp,
+            Typ.rename_var(
+              "T",
+              "T#1",
+              Prod([var("T"), var("U"), poly_t]) |> Typ.temp,
+            ),
+          );
+        },
+      ),
+      test_case("a renamed name is shown as written", `Quick, () =>
+        check(
+          typ,
+          "poly T -> T",
+          poly("T", t => t),
+          Typ.surface_names(poly("T#1", t => t)),
+        )
+      ),
+      test_case(
+        "a binder sharing a written name with another is tagged with its id",
+        `Quick,
+        () => {
+          let inner = Id.mk();
+          let ty =
+            poly("T", t =>
+              arrow(
+                t,
+                Poly(
+                  IdTagged.mk_internal([inner], Var("T#1"): TPat.term),
+                  t,
+                )
+                |> Typ.temp,
+              )
+            );
+          let shown = Typ.surface_name_in([ty]);
+          check(string, "T", "T", shown("T"));
+          check(string, "T#1", "T~" ++ Id.str3(inner), shown("T#1"));
+        },
+      ),
+      test_case(
+        "of two bindings with one written name, the one ctx means shows plain",
+        `Quick,
+        () => {
+          let outer = Id.mk();
+          let ctx =
+            Ctx.extend_tvar(
+              Ctx.empty,
+              {
+                name: "T",
+                id: outer,
+                kind: Abstract,
+              },
+            )
+            |> Ctx.extend_tvar(_, abstract("T#1"));
+          let shown = Typ.surface_name_in(~ctx, [var("T#1"), var("T")]);
+          check(string, "T#1", "T", shown("T#1"));
+          check(string, "T", "T~" ++ Id.str3(outer), shown("T"));
+        },
+      ),
+      test_case(
+        "a binding its name does not mean in ctx is tagged even shown alone",
+        `Quick,
+        () => {
+          let outer = Id.mk();
+          let ctx =
+            Ctx.extend_tvar(
+              Ctx.empty,
+              {
+                name: "T",
+                id: outer,
+                kind: Abstract,
+              },
+            )
+            |> Ctx.extend_tvar(_, abstract("T#1"));
+          check(
+            string,
+            "T",
+            "T~" ++ Id.str3(outer),
+            Typ.surface_name_in(~ctx, [var("T")], "T"),
+          );
+        },
+      ),
+      test_case(
+        "a type variable is linked to its binder in the type, else in ctx",
+        `Quick,
+        () => {
+          let outer = Id.mk();
+          let inner = Id.mk();
+          let ctx =
+            Ctx.extend_tvar(
+              Ctx.empty,
+              {
+                name: "T",
+                id: outer,
+                kind: Abstract,
+              },
+            )
+            |> Ctx.extend_tvar(
+                 _,
+                 {
+                   name: "B",
+                   id: Id.invalid,
+                   kind: Abstract,
+                 },
+               );
+          let ty =
+            Prod([
+              var("T"),
+              var("B"),
+              Poly(
+                IdTagged.mk_internal([inner], Var("U"): TPat.term),
+                var("U"),
+              )
+              |> Typ.temp,
+            ])
+            |> Typ.temp;
+          check(
+            list(pair(string, string)),
+            "name, binder",
+            [("T", Id.to_string(outer)), ("U", Id.to_string(inner))],
+            Typ.binding_sites_in(~ctx, [ty], ty)
+            |> List.map(((name, id)) => (name, Id.to_string(id))),
+          );
+        },
+      ),
+      test_case(
+        "two bindings of one name are linked apart, by the names they show as",
+        `Quick,
+        () => {
+          let outer = Id.mk();
+          let inner = Id.mk();
+          let ctx =
+            Ctx.extend_tvar(
+              Ctx.empty,
+              {
+                name: "T",
+                id: outer,
+                kind: Abstract,
+              },
+            )
+            |> Ctx.extend_tvar(
+                 _,
+                 {
+                   name: "T#1",
+                   id: inner,
+                   kind: Abstract,
+                 },
+               );
+          let ty = Prod([var("T"), var("T#1")]) |> Typ.temp;
+          check(
+            list(pair(string, string)),
+            "name, binder",
+            [
+              ("T~" ++ Id.str3(outer), Id.to_string(outer)),
+              ("T", Id.to_string(inner)),
+            ],
+            Typ.binding_sites_in(~ctx, [ty], ty)
+            |> List.map(((name, id)) => (name, Id.to_string(id))),
+          );
+        },
+      ),
+    ],
+  );
+};
+
 let testable_id = testable(Fmt.using(Id.show, Fmt.string), (==));
 let diff_tests = (
   "Typ.diff",
@@ -780,7 +1001,12 @@ let recursive_def_tests = {
   let int_and = ty => F.Typ.prod([F.Typ.int(), ty]);
   let case = (name, alias, def, expected) =>
     test_case(name, `Quick, () =>
-      check(alias_def, name, expected, Typ.recursive_def(alias, def))
+      check(
+        alias_def,
+        name,
+        expected,
+        Typ.recursive_def(F.TPat.var(alias), def),
+      )
     );
   (
     "Typ.recursive_def",
@@ -831,6 +1057,24 @@ let recursive_def_tests = {
         "T",
         F.Typ.parens(F.Typ.var("T")),
         Typ.Recursive(F.Typ.rec_(F.TPat.var("T"), F.Typ.var("T"))),
+      ),
+      test_case(
+        "the recursive type is bound by the alias itself",
+        `Quick,
+        () => {
+          let alias = F.TPat.var("T");
+          let loop =
+            switch (Typ.recursive_def(alias, F.Typ.var("T"))) {
+            | Recursive(ty) => Typ.non_contractive(ty)
+            | Plain => None
+            };
+          check(
+            option(testable_id),
+            "the loop's binder is the alias's",
+            Some(TPat.rep_id(alias)),
+            Option.map(TPat.rep_id, loop),
+          );
+        },
       ),
     ],
   );
@@ -1039,6 +1283,7 @@ let tests = [
   meet_out_of_phase_tests,
   fast_equal_tests,
   alias_cycle_tests,
+  unshadow_tests,
   diff_tests,
   recursive_def_tests,
   unroll_tests,

@@ -1763,7 +1763,44 @@ let pad_ids_tests = (
   ],
 );
 
+/* A type binder statics renamed (Typ.unshadow) prints as the user wrote it,
+   so results and the stepper show the program's own names. */
+let renamed_binder_tests = (
+  "ExpToSegment.RenamedBinder",
+  [
+    test_case(
+      "a renamed type binder prints as written",
+      `Quick,
+      () => {
+        let written =
+          switch (Parser.to_term("typfun y -> (? : y)", ~root=Exp)) {
+          | Some(e) => e
+          | None => fail("parse failure")
+          };
+        let renamed =
+          switch (Exp.unwrap(written)) {
+          | (TypFun(tp, body, name), rewrap) =>
+            TypFun(
+              TPat.rename("y#1", tp),
+              Exp.rename_tvar(~is_module=_ => false, "y", "y#1", body),
+              name,
+            )
+            |> rewrap
+          | _ => fail("expected a type function")
+          };
+        check(
+          string,
+          "printed",
+          print_seg(exp_to_segment(written)),
+          print_seg(exp_to_segment(renamed)),
+        );
+      },
+    ),
+  ],
+);
+
 let all = [
+  renamed_binder_tests,
   tests,
   pad_ids_tests,
   roundtrip_tests,
