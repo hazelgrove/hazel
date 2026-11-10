@@ -31,5 +31,8 @@ Type `2` after the `+` to complete the expression.
 @code
 2 + ¿
 
+@solution
+2 + 2
+
 @test
 test answer == 4 end

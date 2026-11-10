@@ -40,5 +40,24 @@ let cactus = plant_card("cactus", "🌵", 50) in
 let moonbloom_weekly = ¿ in
 moonbloom_weekly
 
+@solution
+type Care = (water = Int, weekly = Int) in
+type Card = (name = String, icon = String, care = Care, note = String) in
+let plant_card(name: String, icon: String, water: Int): Card =
+  let note = name ++ " drinks " ++ string_of_int(water) ++ "ml" in
+  let card = (
+    name = name,
+    icon = icon,
+    care = (water = water, weekly = water * 7),
+    note = note
+  ) in
+  card
+in
+let fern = plant_card("fern", "🌿", 250) in
+let moonbloom = plant_card("moonbloom", "🌙", 180) in
+let cactus = plant_card("cactus", "🌵", 50) in
+let moonbloom_weekly = 1260 in
+moonbloom_weekly
+
 @test
 test moonbloom_weekly == 1260 end

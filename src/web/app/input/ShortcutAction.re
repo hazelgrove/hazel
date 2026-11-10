@@ -106,6 +106,7 @@ type t =
   | ReparseCurrentEditor
   | ToggleStatics
   | ToggleCompletion
+  | ToggleWarnings
   | CompletionDisplayQuiver
   | CompletionDisplayFlag
   | CompletionDisplayNone
@@ -343,6 +344,12 @@ let meta = (a: t): action_meta =>
     }
   | ToggleCompletion => {
       label: "Toggle Completion",
+      section: Settings,
+      mdIcon: "tune",
+      default_binding: Unbound,
+    }
+  | ToggleWarnings => {
+      label: "Toggle Warnings",
       section: Settings,
       mdIcon: "tune",
       default_binding: Unbound,
