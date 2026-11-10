@@ -381,6 +381,108 @@ module Wire = {
       [],
     );
   };
+  /* (^ticket(718)) While the worker keeps its timeline: a Result's bytes by
+     part, each part's objects marshalled together (so shared within a part,
+     as the whole is), to see what the answer carries before changing how it
+     is made. Parts overlap the whole, and a state's parts are counted once
+     however many entries hold it */
+  module PhysO =
+    Hashtbl.Make({
+      type t = Obj.t;
+      let equal = (===);
+      let hash = Hashtbl.hash;
+    });
+  let parts = (msg: ServerMessage.t): list((string, float)) =>
+    switch (msg) {
+    | Result(r) =>
+      let seen = PhysO.create(256);
+      let bags: Hashtbl.t(string, list(Obj.t)) = Hashtbl.create(16);
+      let put = (k: string, o: Obj.t): unit =>
+        Hashtbl.replace(
+          bags,
+          k,
+          [o, ...Option.value(~default=[], Hashtbl.find_opt(bags, k))],
+        );
+      let entries = ref(0);
+      let states = ref(0);
+      let samples = ref(0);
+      let rec state = (st: EvaluatorState.t): unit =>
+        if (!PhysO.mem(seen, Obj.repr(st))) {
+          PhysO.add(seen, Obj.repr(st), Obj.repr(st));
+          incr(states);
+          Util.Id.Map.iter(
+            (_, ss: list(Sample.t)) =>
+              List.iter(
+                (smp: Sample.t) => {
+                  incr(samples);
+                  put("sample values", Obj.repr(smp.value));
+                  put("sample environments", Obj.repr(smp.env));
+                  put(
+                    "samples' other fields",
+                    Obj.repr((
+                      smp.call_stack,
+                      smp.args,
+                      smp.frame,
+                      smp.syntax_id,
+                    )),
+                  );
+                },
+                ss,
+              ),
+            st.probes,
+          );
+          put("tests and theorems", Obj.repr((st.tests, st.theorems)));
+          put("observation traces", Obj.repr((st.obs_trace, st.obs_opens)));
+          incr_eval(st.incr_eval);
+        }
+      and incr_eval = (ie: IncrEval.t(EvaluatorState.t)): unit =>
+        Util.Id.Map.iter(
+          (_, en: IncrEval.entry(EvaluatorState.t)) => {
+            incr(entries);
+            put("entries' elaborated pieces", Obj.repr(en.prev_elab));
+            put("entries' reuse maps", Obj.repr(en.prev_reuse_map));
+            put("entries' probe targets", Obj.repr(en.prev_probe_targets));
+            put("entries' values", Obj.repr(en.value));
+            state(en.state);
+          },
+          ie.entries,
+        );
+      let outbox = (o: ServerMessage.stream_update) => {
+        incr_eval(o.completed);
+        Option.iter(
+          (c: IncrEval.current(EvaluatorState.t)) => state(c.state),
+          o.current,
+        );
+      };
+      List.iter(
+        (s: ServerMessage.stream) => outbox(s.update),
+        r.final_streams,
+      );
+      List.iter(
+        ((_, v): (string, Response.value)) =>
+          switch (v) {
+          | Ok((e, st)) =>
+            put("the program's values", Obj.repr(e));
+            state(st);
+          | Error(_) => ()
+          },
+        r.response,
+      );
+      let bytes = (o: Obj.t): float =>
+        float_of_int(String.length(Marshal.to_string(o, [])));
+      [
+        ("the whole", bytes(Obj.repr(msg))),
+        ("entries", float_of_int(entries^)),
+        ("states", float_of_int(states^)),
+        ("samples", float_of_int(samples^)),
+        ...Hashtbl.fold(
+             (k, os, acc) => [(k, bytes(Obj.repr(os))), ...acc],
+             bags,
+             [],
+           ),
+      ];
+    | _ => []
+    };
   /* in the page: the message as the worker meant it, each value made a term once */
   let in_ = (msg: ServerMessage.t): ServerMessage.t =>
     switch (msg) {
@@ -844,6 +946,16 @@ let post_message = (msg: ServerMessage.t): unit => {
           "samples' values surveyed",
           () => counts := Wire.survey(msg),
         );
+      };
+      /* (^ticket(718)) a result's bytes by part, marked with no time (the
+         marshalling it takes is the diagnostic's own) */
+      if (recording^) {
+        switch (msg) {
+        | ServerMessage.Result(_) =>
+          let ps = Wire.parts(msg);
+          wtime(~extra=() => ps, "the answer's parts, in bytes", () => ());
+        | _ => ()
+        };
       };
       msg;
     | ServerMessage.Stream(_)
