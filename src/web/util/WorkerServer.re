@@ -492,16 +492,71 @@ module Wire = {
          their bytes (value, environment and all) */
       let top =
         Hashtbl.fold((k, os, acc) => [(k, os), ...acc], per_probe, [])
-        |> List.sort(((_, a), (_, b)) =>
-             Int.compare(List.length(b), List.length(a))
+        |> List.map(((k, os)) =>
+             (k, List.length(os), bytes(Obj.repr(os)))
            )
+        |> List.sort(((_, _, a), (_, _, b)) => Float.compare(b, a))
         |> List.filteri((i, _) => i < 8)
-        |> List.concat_map(((k, os)) =>
+        |> List.concat_map(((k, n, b)) =>
              [
-               ("probe " ++ k ++ " samples", float_of_int(List.length(os))),
-               ("probe " ++ k ++ " bytes", bytes(Obj.repr(os))),
+               ("probe " ++ k ++ " samples", float_of_int(n)),
+               ("probe " ++ k ++ " bytes", b),
              ]
            );
+      /* the result's own states' probes: with their environments left out,
+         and with their values left out */
+      let response_probes = (keep: Sample.t => Sample.t) =>
+        switch (msg) {
+        | Result(r) =>
+          List.filter_map(
+            ((_, v): (string, Response.value)) =>
+              switch (v) {
+              | Ok((_, st)) =>
+                Some(Util.Id.Map.map(List.map(keep), st.probes))
+              | Error(_) => None
+              },
+            r.response,
+          )
+        | _ => []
+        };
+      let bare: Exp.t = {
+        term: Atom(SInt(0)),
+        annotation: IdTagged.IdTag.fresh(),
+      };
+      let values_only =
+        bytes(
+          Obj.repr(
+            response_probes(smp =>
+              {
+                ...smp,
+                env: [],
+              }
+            ),
+          ),
+        );
+      let envs_only =
+        bytes(
+          Obj.repr(
+            response_probes(smp =>
+              {
+                ...smp,
+                value: bare,
+              }
+            ),
+          ),
+        );
+      let neither =
+        bytes(
+          Obj.repr(
+            response_probes(smp =>
+              {
+                ...smp,
+                value: bare,
+                env: [],
+              }
+            ),
+          ),
+        );
       /* what two cuts would leave, each keeping the rest as it is (so as
          shared): (1) the result without its final streams, the cache
          entries finished since the last stream, applied just before it;
@@ -522,6 +577,9 @@ module Wire = {
         };
       let cut2 = map_states(no_cache, cut1);
       [
+        ("result probes, values (no environments)", values_only),
+        ("result probes, environments (no values)", envs_only),
+        ("result probes, neither", neither),
         ("cut 1: no final streams", bytes(Obj.repr(cut1))),
         ("cut 2: and no cache in the states", bytes(Obj.repr(cut2))),
         ("distinct samples", float_of_int(PhysO.length(seen_samples))),
