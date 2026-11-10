@@ -279,7 +279,7 @@ module ViewComponents = {
                           code_with_statics,
                           current_chat,
                         );
-                      copy_via_shim(snapshot);
+                      copy_text(snapshot);
                       show_copy_toast();
                       Effect.Stop_propagation;
                     }),

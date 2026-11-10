@@ -56,6 +56,16 @@ let fern: Plant = ¿ in
 
 (caption, fern.water)
 
+@solution
+let plant: (String, Int) = ("moonleaf", 250) in
+let (name, water) = plant in
+let caption = name ++ " needs " ++ string_of_int(water) ++ "ml" in
+
+type Plant = (name = String, water = Int) in
+let fern: Plant = (name = "fern", water = 200) in
+
+(caption, fern.water)
+
 @test
 test caption == "moonleaf needs 250ml" end;
 test fern.water == 200 end
