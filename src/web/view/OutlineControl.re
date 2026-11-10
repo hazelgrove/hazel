@@ -1175,11 +1175,19 @@ let miss_why = (last, key): string =>
     /* each entry's own fields, not its level (which holds the program's
        tiles: compared whole, with no stop at physical equality, it took
        10 s on run 42737565018) */
-    let rec shape = (es: list(Outline.entry)) =>
+    let shape = (es: list(Outline.entry)) =>
       List.map(
         (e: Outline.entry) =>
-          (e.id, e.kind, e.names, e.hint, e.test, e.path, shape(e.children)),
-        es,
+          (
+            e.id,
+            e.kind,
+            e.names,
+            e.hint,
+            e.test,
+            e.path,
+            List.length(e.children),
+          ),
+        Outline.flatten(es),
       );
     let entries_same =
       o !== o'
