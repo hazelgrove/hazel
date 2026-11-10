@@ -1347,8 +1347,13 @@ module View = {
       | Documentation(m) => Some(("doc", m))
       | _ => None
       };
+    /* (^report(51)) timed: after an edit on the Witch the main view spent
+       7 to 10 ms between the editors and the sample focus bar with no mark
+       (run 42818821410) */
     let outline_mark =
-      OutlineControl.mark(~deck, ~zipper=current_editor.editor.state.zipper);
+      Util.BenchMarks.time("view: outline mark", () =>
+        OutlineControl.mark(~deck, ~zipper=current_editor.editor.state.zipper)
+      );
     OutlineFollow.mark := outline_mark;
     let outline_marks =
       create(
@@ -1359,18 +1364,20 @@ module View = {
         },
       );
     let outline =
-      OutlineAsync.get(() =>
-        OutlineControl.view(
-          ~arrows=globals.settings.outline_arrows,
-          ~deck,
-          ~statics=current_editor.statics,
-          ~segment=
-            Haz3lcore.CachedSyntax.segment(current_editor.editor.syntax),
-          ~inject=a => inject(Editors(Scratch(Outline(a)))),
-          ~inject_workspace=a => inject(Editors(Scratch(Workspace(a)))),
-          ~jump=id => globals.inject_global(JumpToTile(id)),
-          ~leave=Effect.of_sync_fun(() => JsUtil.focus_active_editor(), ()),
-          ~statics_on=globals.settings.core.statics,
+      Util.BenchMarks.time("view: outline asked for", () =>
+        OutlineAsync.get(() =>
+          OutlineControl.view(
+            ~arrows=globals.settings.outline_arrows,
+            ~deck,
+            ~statics=current_editor.statics,
+            ~segment=
+              Haz3lcore.CachedSyntax.segment(current_editor.editor.syntax),
+            ~inject=a => inject(Editors(Scratch(Outline(a)))),
+            ~inject_workspace=a => inject(Editors(Scratch(Workspace(a)))),
+            ~jump=id => globals.inject_global(JumpToTile(id)),
+            ~leave=Effect.of_sync_fun(() => JsUtil.focus_active_editor(), ()),
+            ~statics_on=globals.settings.core.statics,
+          )
         )
       );
     let indicated_id =
