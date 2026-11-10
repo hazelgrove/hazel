@@ -477,7 +477,14 @@ let of_segment_inner =
   go(~top_level=true, initial_acc, seg).map;
 };
 
-let of_segment_memo = Core.Memo.general(of_segment_inner);
+/* Keyed on all three arguments: memoizing the curried of_segment_inner
+   cached only its partial application on the segment (and, unbounded,
+   kept every segment it saw alive), so every call measured again.
+   Results are whole-program maps, hence the small bound. */
+let of_segment_memo =
+  Core.Memo.general(~cache_size_bound=16, ((seg, shape_map, refractor_rows)) =>
+    of_segment_inner(seg, shape_map, refractor_rows)
+  );
 
 let of_segment =
     (
@@ -492,7 +499,7 @@ let of_segment =
    * compatibility with dev callers (ProjectorView, etc.) but are
    * ignored here — canonical-completion manages indentation via
    * real whitespace in the segment, not via an indent_level map. */
-  of_segment_memo(seg, shape_map, refractor_rows);
+  of_segment_memo((seg, shape_map, refractor_rows));
 
 /* Width in characters of row at measurement.origin */
 let start_row_width = (measurement: measurement, measured: t): int =>
