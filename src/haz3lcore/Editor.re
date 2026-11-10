@@ -242,18 +242,22 @@ module Update = {
     let syntax =
       /* (^report(51)) the parts of a calculate's "syntax", for the check:
          the cache, the probe effects, the autoprobe, the tail and proofs */
-      Util.BenchMarks.time("syntax: the cache", () =>
-        PerfTimer.time("editor-syntax", () =>
-          CachedSyntax.calculate(
-            ~root,
-            ~segment?,
-            zipper,
-            statics.info_map,
-            new_dynamics,
-            ~elaborated=Some(statics.elaborated),
-            syntax,
-          )
-        )
+      Util.BenchMarks.time(
+        ~extra=
+          () => [("path", Util.BenchMarks.str(CachedSyntax.last_path^))],
+        "syntax: the cache",
+        () =>
+          PerfTimer.time("editor-syntax", () =>
+            CachedSyntax.calculate(
+              ~root,
+              ~segment?,
+              zipper,
+              statics.info_map,
+              new_dynamics,
+              ~elaborated=Some(statics.elaborated),
+              syntax,
+            )
+          ),
       );
 
     /* 3. Probe effects: collision cleanup, auto-probe regeneration,

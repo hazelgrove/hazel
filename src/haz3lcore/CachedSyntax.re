@@ -329,15 +329,19 @@ let with_caches_of = (~from: t, s: t): t => {
 let refresh_shapes =
     (~root, z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) => {
   let (shape_map, splice_layout, projector_errors) =
-    ProjectorInfo.ShapeMapSemantics.mk(
-      old.projectors,
-      z.refractors,
-      info_map,
-      dyn_map,
-      ~elaborated,
+    Util.BenchMarks.time("syntax: shapes", () =>
+      ProjectorInfo.ShapeMapSemantics.mk(
+        old.projectors,
+        z.refractors,
+        info_map,
+        dyn_map,
+        ~elaborated,
+      )
     );
   let refractor_rows =
-    mk_refractor_rows(z, old.term_data, info_map, dyn_map, ~elaborated);
+    Util.BenchMarks.time("syntax: refractor rows", () =>
+      mk_refractor_rows(z, old.term_data, info_map, dyn_map, ~elaborated)
+    );
   let refractor_rows =
     Id.Map.equal((==), refractor_rows, old.refractor_rows)
       ? old.refractor_rows : refractor_rows;
@@ -354,12 +358,14 @@ let refresh_shapes =
       ? (old.shape_map, old.main_splice.measured)
       : (
         shape_map,
-        Measured.Incr.of_segment(
-          ~root,
-          ~cache=old.m_cache,
-          old.main_splice.segment,
-          shape_map,
-          refractor_rows,
+        Util.BenchMarks.time("syntax: measured", () =>
+          Measured.Incr.of_segment(
+            ~root,
+            ~cache=old.m_cache,
+            old.main_splice.segment,
+            shape_map,
+            refractor_rows,
+          )
         ),
       );
   {
@@ -368,7 +374,10 @@ let refresh_shapes =
       ...old.main_splice,
       measured,
     },
-    splices: mk_splice_map(old.main_splice.segment, shape_map),
+    splices:
+      Util.BenchMarks.time("syntax: splice map", () =>
+        mk_splice_map(old.main_splice.segment, shape_map)
+      ),
     shape_map,
     refractor_rows,
     projector_errors,
@@ -411,6 +420,11 @@ let elaborated_phys_eq =
 /* cost follows the change: new segment → full `mk`; new statics,
  * dynamics or refractor inputs → refresh_shapes; else just selection_ids.
  * [segment]: [z]'s zip, when the caller has it */
+/* (^report(51)) which way the last calculate went, and why, for the
+   check's "syntax: the cache" mark: at the worker's answer on the Witch the
+   first of a cell's two passes took 9 to 26 ms (run 42770858700) */
+let last_path = ref("");
+
 let calculate =
     (
       ~root=Sort.Exp,
@@ -421,6 +435,34 @@ let calculate =
       ~elaborated=None,
       old: t,
     ) => {
+  if (Util.BenchMarks.on()) {
+    last_path :=
+      old.old
+        ? "old"
+        : String.concat(
+            " ",
+            List.filter_map(
+              ((b, name)) => b ? Some(name) : None,
+              [
+                (info_map !== old.shape_info_map, "statics"),
+                (dyn_map !== old.shape_dyn_map, "dynamics"),
+                (
+                  !elaborated_phys_eq(elaborated, old.shape_elaborated),
+                  "elaborated",
+                ),
+                (z.refractors.manuals !== old.cached_manuals, "manuals"),
+                (
+                  z.refractors.multis.ephemerals !== old.cached_ephemerals,
+                  "ephemerals",
+                ),
+                (z.refractors.tail_target != old.cached_tail, "tail"),
+                (z.refractors.stepping != old.cached_stepping, "stepping"),
+                (DrawerFit.layout^ != old.cached_layout, "layout"),
+                (z.refractors.proofs !== old.cached_proofs, "proofs"),
+              ],
+            ),
+          );
+  };
   let refractor_inputs_changed =
     z.refractors.manuals !== old.cached_manuals
     || z.refractors.multis.ephemerals !== old.cached_ephemerals
