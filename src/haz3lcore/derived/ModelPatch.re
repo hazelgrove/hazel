@@ -114,7 +114,7 @@ let swap_model = (l: Id.t, lit: Exp.t, p: Exp.t): option(Exp.t) => {
       let+ inner' = HazelJitRun.with_model(inner, m');
       {
         ...p,
-        term: Projector(data, inner'),
+        term: (Projector(data, inner'): Exp.term),
       };
     | _ => None
     }
