@@ -1159,6 +1159,30 @@ let mk_view =
   };
 };
 
+/* (^ticket(722), cut C) each cacheable projector's finished views, by id, from the frame that last drew it; several
+   editors draw in one frame (a stack's cells), so entries are kept across editors, and the whole table is let go
+   past 512 entries, so it holds no closures of projectors long gone. (^report(51)) With the view the cache gave
+   and the shape it was wrapped with: a new frame's data (new maps, at a worker's answer) whose view comes back
+   the very same, for the same projector, place, status and shape, keeps the finished views too */
+type split_entry = {
+  s_pd: Model.projector_data,
+  s_version: int,
+  s_list: list(Id.t),
+  s_font: FontMetrics.t,
+  s_core: Language.CoreSettings.t,
+  s_probe: int,
+  s_views: View.t,
+  s_shape: ProjectorCore.Shape.t,
+  s_out: (Node.t, option(Node.t)),
+};
+let split_memo: Hashtbl.t(Id.t, split_entry) = Hashtbl.create(64);
+/* the view and shape split_views last wrapped, for the memo's entry */
+let last_split: ref(option((View.t, ProjectorCore.Shape.t))) = ref(None);
+/* (^report(51)) for the check's mark: time in shape_of, and how many
+   projectors kept their finished views across new data */
+let shape_ms = ref(0.);
+let kept_wrapped = ref(0);
+
 /* Extract and collate different layers of the resulting view
  * in order to stratify z-levels across all projectors */
 let split_views =
@@ -1173,6 +1197,7 @@ let split_views =
       ~open_panel: Ui_effect.t(unit)=Effect.Ignore,
       ~render_splice:
          (~projector_idx: int, ~splice_idx: int, Base.splice) => Node.t,
+      ~kept: option(split_entry)=?,
       {p, offside_base, measurement, status, render_layers, _} as projector_data: Model.projector_data,
       projector_list: list(Id.t),
     )
@@ -1205,81 +1230,84 @@ let split_views =
       ~kind=p.kind,
       ~id=p.id,
     );
+  let t_shape = Util.BenchMarks.now();
   let shape = shape_of(p, projector_data.info);
-  let line_view = {
-    let offside_view =
-      views.offside
-      |> Option.map(
-           offside_wrapper(
-             font_metrics,
-             offside_base,
-             ~row=measurement.origin.row,
-             ~origin_col=measurement.origin.col,
-           ),
-         )
-      |> Option.to_list;
-    let below_view =
-      views.below
-      |> Option.map(below_wrapper(font_metrics, measurement.origin.col))
-      |> Option.to_list;
-    /* A Tab projector's wrapper div spans only its top row (that is all
-       the measurement covers), so mount the GUI in an extent layer sized
-       to the full hang-below region; per-kind CSS positions within it. */
-    let tab_extent = (view: Node.t): Node.t =>
-      switch (shape.vertical) {
-      | Tab(rows) when rows > 0 =>
-        div(
-          ~attrs=[
-            Attr.class_("tab-extent"),
-            Attr.create(
-              "style",
-              Printf.sprintf(
-                "top: 1px; bottom: auto; height: %fpx;",
-                float_of_int(rows + 1) *. font_metrics.row_height -. 2.,
+  shape_ms := shape_ms^ +. (Util.BenchMarks.now() -. t_shape);
+  last_split := Some((views, shape));
+  switch (kept) {
+  | Some(e)
+      when
+        e.s_views === views
+        && e.s_pd.p === p
+        && e.s_pd.measurement == measurement
+        && e.s_pd.offside_base == offside_base
+        && e.s_pd.status == status
+        && e.s_pd.render_layers == render_layers
+        && e.s_shape == shape =>
+    incr(kept_wrapped);
+    e.s_out;
+  | _ =>
+    let line_view = {
+      let offside_view =
+        views.offside
+        |> Option.map(
+             offside_wrapper(
+               font_metrics,
+               offside_base,
+               ~row=measurement.origin.row,
+               ~origin_col=measurement.origin.col,
+             ),
+           )
+        |> Option.to_list;
+      let below_view =
+        views.below
+        |> Option.map(below_wrapper(font_metrics, measurement.origin.col))
+        |> Option.to_list;
+      /* A Tab projector's wrapper div spans only its top row (that is all
+         the measurement covers), so mount the GUI in an extent layer sized
+         to the full hang-below region; per-kind CSS positions within it. */
+      let tab_extent = (view: Node.t): Node.t =>
+        switch (shape.vertical) {
+        | Tab(rows) when rows > 0 =>
+          div(
+            ~attrs=[
+              Attr.class_("tab-extent"),
+              Attr.create(
+                "style",
+                Printf.sprintf(
+                  "top: 1px; bottom: auto; height: %fpx;",
+                  float_of_int(rows + 1) *. font_metrics.row_height -. 2.,
+                ),
               ),
-            ),
-          ],
-          [view],
-        )
-      | _ => view
-      };
-    /* A docked projector shows a chip here; its primary UI is rendered by
-     * ProjectorPanel instead. Overlay and offside layers are unaffected by
-     * placement. Refractors (skip_inline) never occupy the inline slot. */
-    let inline_view =
-      skip_inline
-        ? [] : chipped ? [chip(~open_panel)] : [tab_extent(views.inline)];
-    wrapper(
-      inline_view
-      @ [backing_deco(~font_metrics, ~measurement, ~shape, p)]
-      @ offside_view
-      @ below_view,
-    );
+            ],
+            [view],
+          )
+        | _ => view
+        };
+      /* A docked projector shows a chip here; its primary UI is rendered by
+       * ProjectorPanel instead. Overlay and offside layers are unaffected by
+       * placement. Refractors (skip_inline) never occupy the inline slot. */
+      let inline_view =
+        skip_inline
+          ? [] : chipped ? [chip(~open_panel)] : [tab_extent(views.inline)];
+      wrapper(
+        inline_view
+        @ [backing_deco(~font_metrics, ~measurement, ~shape, p)]
+        @ offside_view
+        @ below_view,
+      );
+    };
+    let overlay_view =
+      Option.map(
+        v => wrapper([v]),
+        render_layers == Model.OffsideOnly ? Option.none : views.overlay,
+      );
+    (line_view, overlay_view);
   };
-  let overlay_view =
-    Option.map(
-      v => wrapper([v]),
-      render_layers == Model.OffsideOnly ? Option.none : views.overlay,
-    );
-  (line_view, overlay_view);
 };
 
 let by_measurement = (pd1: Model.projector_data, pd2: Model.projector_data) =>
   compare(pd1.measurement.origin.row, pd2.measurement.origin.row);
-
-/* (^ticket(722), cut C) each cacheable projector's finished views, by id, from the frame that last drew it; several
-   editors draw in one frame (a stack's cells), so entries are kept across editors, and the whole table is let go
-   past 512 entries, so it holds no closures of projectors long gone */
-type split_entry = {
-  s_pd: Model.projector_data,
-  s_version: int,
-  s_list: list(Id.t),
-  s_font: FontMetrics.t,
-  s_core: Language.CoreSettings.t,
-  s_probe: int,
-  s_out: (Node.t, option(Node.t)),
-};
-let split_memo: Hashtbl.t(Id.t, split_entry) = Hashtbl.create(64);
 
 /* Returns a div containing all projector UIs, intended to
  * be absolutely positioned atop a rendered editor UI */
@@ -1328,34 +1356,36 @@ let all =
     compared := 0;
     compare_ms := 0.
   );
+  shape_ms := 0.;
+  kept_wrapped := 0;
   let split = (pd: Model.projector_data) => {
-    let make = () =>
-      split_views(
-        ~skip_inline=false,
-        ~core_settings,
-        ~open_panel,
-        ~render_splice,
-        inject,
-        make_active,
-        font_metrics,
-        pd,
-        projector_list,
-      );
     let version = app_version_of(pd.p);
+    let same_frame = (e: split_entry) =>
+      e.s_version == version
+      && e.s_list === projector_list
+      && e.s_font == font_metrics
+      && e.s_core == core_settings
+      && e.s_probe == ProbeProj.Settings.version^;
     switch (Hashtbl.find_opt(split_memo, pd.p.id)) {
-    | Some(e)
-        when
-          e.s_pd === pd
-          && e.s_version == version
-          && e.s_list === projector_list
-          && e.s_font == font_metrics
-          && e.s_core == core_settings
-          && e.s_probe == ProbeProj.Settings.version^ =>
-      e.s_out
-    | _ =>
+    | Some(e) when e.s_pd === pd && same_frame(e) => e.s_out
+    | found =>
       incr(remade);
-      let out = make();
-      if (!seg_has_splices(pd.p.syntax)) {
+      last_split := None;
+      let out =
+        split_views(
+          ~skip_inline=false,
+          ~core_settings,
+          ~open_panel,
+          ~render_splice,
+          ~kept=?Option.bind(found, e => same_frame(e) ? Some(e) : None),
+          inject,
+          make_active,
+          font_metrics,
+          pd,
+          projector_list,
+        );
+      switch (last_split^) {
+      | Some((s_views, s_shape)) when !seg_has_splices(pd.p.syntax) =>
         if (Hashtbl.length(split_memo) > 512) {
           Hashtbl.reset(split_memo);
         };
@@ -1369,9 +1399,12 @@ let all =
             s_font: font_metrics,
             s_core: core_settings,
             s_probe: ProbeProj.Settings.version^,
+            s_views,
+            s_shape,
             s_out: out,
           },
         );
+      | _ => ()
       };
       out;
     };
@@ -1390,6 +1423,11 @@ let all =
               Util.BenchMarks.num(float_of_int(ViewCache.compared^)),
             ),
             ("compare ms", Util.BenchMarks.num(ViewCache.compare_ms^)),
+            ("shape ms", Util.BenchMarks.num(shape_ms^)),
+            (
+              "kept wrapped",
+              Util.BenchMarks.num(float_of_int(kept_wrapped^)),
+            ),
             (
               "projectors",
               Util.BenchMarks.num(
