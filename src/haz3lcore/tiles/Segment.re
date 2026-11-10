@@ -183,6 +183,54 @@ let shape_affix =
   go((d == Left ? List.rev : Fun.id)(affix), r);
 };
 
+/* The first tile of [seg] holding the placeholder operator mold of a
+   mid-form keyword's proper prefix (`t` of `then`, `te` of `test`) as the
+   first content of its line, where no open form before it, nor [owed],
+   expects that keyword: with its operand form, so it starts something new
+   as any variable there does, rather than continuing the line above. */
+let fresh_line_prefix =
+    (~owed: list(Token.t), seg: t): option((Id.t, Form.t, Sort.t)) => {
+  /* an open form before [id] expects a keyword [tok] begins */
+  let expected = (id, tok) => {
+    let begins = dt =>
+      Token.length(tok) < Token.length(dt)
+      && String.sub(dt, 0, Token.length(tok)) == tok;
+    let rec go = (ps: t) =>
+      switch (ps) {
+      | [] => false
+      | [p, ..._] when Piece.id(p) == id => false
+      | [Tile(t), ...ps] =>
+        let r = Tile.r_shard(t);
+        List.exists(
+          i => i > r && begins(Tile.token(t, i)),
+          Tile.missing_shard_indices(t),
+        )
+        || go(ps);
+      | [_, ...ps] => go(ps)
+      };
+    List.exists(begins, owed) || go(seg);
+  };
+  let rec go = (fresh, ps: t) =>
+    switch (ps) {
+    | [] => None
+    | [p, ...ps] when Piece.is_linebreak(p) => go(true, ps)
+    | [Secondary(_) as p, ...ps] when Piece.is_space(p) => go(fresh, ps)
+    | [Grout(_), ...ps] => go(fresh, ps)
+    | [Tile({form: TokInfix(tok), id, sort, _}), ..._]
+        when
+          fresh
+          && Token.is_potential_operand(tok)
+          && List.mem(
+               (Form.Tok(tok), sort),
+               Form.remold_candidates([tok], sort),
+             )
+          && !expected(id, tok) =>
+      Some((id, Form.Tok(tok), sort))
+    | [_, ...ps] => go(false, ps)
+    };
+  go(false, seg);
+};
+
 let rec remold = (~shape=Nib.Shape.concave(), seg: t, s: Sort.t) =>
   switch (s) {
   | Drv(_) => remold_template(s, shape, seg)
@@ -196,6 +244,57 @@ let rec remold = (~shape=Nib.Shape.concave(), seg: t, s: Sort.t) =>
   | Sig => remold_sig(shape, seg)
   | MPat => remold_mpat(shape, seg)
   }
+/* A whole level, as [remold], with each fresh-line prefix in its operand
+   form: a convex grout holds its place while the level is remolded, as a
+   variable there would */
+and remold_level = (~shape=?, ~owed: list(Token.t)=[], seg: t, s: Sort.t): t => {
+  let rec go = (pinned: Id.Map.t(Tile.t)) => {
+    let hold = (p: Piece.t) =>
+      switch (p) {
+      | Tile({id, _}) when Id.Map.mem(id, pinned) =>
+        Piece.Grout({
+          id,
+          shape: Convex,
+        })
+      | p => p
+      };
+    let restore = (p: Piece.t) =>
+      switch (p) {
+      | Grout({id, _}) when Id.Map.mem(id, pinned) =>
+        Piece.Tile(Id.Map.find(id, pinned))
+      | p => p
+      };
+    let r =
+      Id.Map.is_empty(pinned)
+        ? remold(~shape?, seg, s)
+        : List.map(restore, remold(~shape?, List.map(hold, seg), s));
+    let original = id =>
+      List.find_map(
+        fun
+        | Piece.Tile(t) when t.id == id => Some(t)
+        | _ => None,
+        seg,
+      );
+    switch (fresh_line_prefix(~owed, r)) {
+    | Some((id, form, sort)) =>
+      switch (original(id)) {
+      | Some(t) =>
+        let t =
+          t.form == form && t.sort == sort
+            ? t
+            : {
+              ...t,
+              form,
+              sort,
+            };
+        go(Id.Map.add(id, t, pinned));
+      | None => r
+      }
+    | None => r
+    };
+  };
+  go(Id.Map.empty);
+}
 and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
   open OptUtil.Syntax;
   /* A label with no form in this sort: an incomplete tile whose present
@@ -252,7 +351,7 @@ and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
                 + 1 == r
                 && List.nth(remolded_mold.in_, l)
                 != List.nth(orig_mold.in_, l)) {
-              remold(child, List.nth(remolded_mold.in_, l));
+              remold_level(child, List.nth(remolded_mold.in_, l));
             } else {
               child;
             };
@@ -897,6 +996,9 @@ and remold_mpat = (shape, seg: t): t =>
       }
     }
   };
+
+/* a tail is remolded within its level's walk; callers remold whole levels */
+let remold = remold_level;
 
 /* Note: This was previously memoized via Core.Memo.general(~cache_size_bound=10000, ...).
    The ~sort parameter (added for Mod/Sig grout precedence) broke the single-arg cache.

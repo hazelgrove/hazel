@@ -1122,24 +1122,21 @@ let corpus_sweep = () =>
 
 let counter_unfinished = "module Counter = {\n  let start = 0;\n  let next = (start + 1\n  let after = next + 1\n} in\nCounter.after";
 
-/* the rows are kept from the head keyword on (a prefix of one, `t` of
-   `then`, reads as an operator meanwhile, as at the top level); the last
-   state reads as [expect], with [synth] shards synthesized (an unfinished
-   member's), and the line [marked] holding the missing `;`'s grout */
+/* the rows are kept at every key (a prefix of a keyword, `t` of `type`,
+   starts a member as any variable does); the last state reads as
+   [expect], with [synth] shards synthesized (an unfinished member's), and
+   the line [marked] holding the missing `;`'s grout */
 let member_head = ((name, root, src, after, keys, expect, synth, marked), ()) => {
   let z0 = at_line(~root, src, after);
   let before = rows(~root, z0);
   let zs = type_line(~root, z0, keys);
-  let head = String.index(keys, ' ');
   List.iteri(
     (k, z) =>
-      if (k >= head) {
-        check_kept(
-          Printf.sprintf("%s, key %d (%S)", name, k, text(z)),
-          before,
-          rows(~root, z),
-        );
-      },
+      check_kept(
+        Printf.sprintf("%s, key %d (%S)", name, k, text(z)),
+        before,
+        rows(~root, z),
+      ),
     zs,
   );
   let z = Util.ListUtil.last(zs);
@@ -1238,6 +1235,116 @@ let member_head_cases = [
     ],
     2,
     "~let z = 1~",
+  ),
+];
+
+/* ---- a mid-form keyword's prefix at a member line, no form above
+   expecting the keyword, starts a member as `l` does: `t`, `te`, `tes` of
+   `test` leave `after` as it was. An operator there, or the keyword a form
+   above expects, still continues the line above ---- */
+
+let after_row = (~root, z) =>
+  List.find_map(
+    ((_, r: row)) => r.label == "after" ? Some(show_row(r)) : None,
+    rows(~root, z),
+  );
+
+let lines = (z: Zipper.t): list(string) =>
+  List.map(String.trim, String.split_on_char('\n', text(z)));
+
+let keyword_prefix = ((name, root, src, after), ()) => {
+  let zs = type_line(~root, at_line(~root, src, after), "test 1 == 1 end");
+  List.iteri(
+    (k, z) =>
+      check(
+        option(string),
+        Printf.sprintf("%s, key %d (%S): after", name, k, text(z)),
+        Some("after : Int"),
+        after_row(~root, z),
+      ),
+    zs,
+  );
+  /* the line reads as after a missing `;`, as `l` there does */
+  List.iter(
+    k =>
+      check(
+        bool,
+        Printf.sprintf(
+          "%s: %S starts its own line",
+          name,
+          String.sub("test", 0, k),
+        ),
+        true,
+        List.mem("~" ++ String.sub("test", 0, k), lines(List.nth(zs, k))),
+      ),
+    [1, 2, 3],
+  );
+};
+
+let keyword_prefix_cases = [
+  ("a module's last member", Sort.Exp, counter, "  let after = next + 1"),
+  (
+    "the last member at a Mod root",
+    Sort.Mod,
+    counter_members,
+    "let after = next + 1",
+  ),
+];
+
+/* what continues the line above joins its member at every key: no line
+   reads as after a missing `;`, and the last state has [expect] */
+let continues = ((name, root, src, after, keys, expect), ()) => {
+  let zs = type_line(~root, at_line(~root, src, after), keys);
+  List.iteri(
+    (k, z) =>
+      check(
+        list(string),
+        Printf.sprintf("%s, key %d (%S): no new member", name, k, text(z)),
+        [],
+        List.filter(l => String.length(l) > 0 && l.[0] == '~', lines(z)),
+      ),
+    zs,
+  );
+  check(
+    list(string),
+    name ++ ": rows",
+    expect,
+    paths(rows(~root, Util.ListUtil.last(zs))),
+  );
+};
+
+let continues_cases = [
+  (
+    "an operator",
+    Sort.Exp,
+    counter,
+    "  let after = next + 1",
+    "+ 2",
+    counter_rows(~root=Exp, []),
+  ),
+  (
+    "an operator at a Mod root",
+    Sort.Mod,
+    counter_members,
+    "let after = next + 1",
+    "+ 2",
+    counter_rows(~root=Mod, []),
+  ),
+  (
+    "`then` and `else` at a Mod root",
+    Sort.Mod,
+    "let a = 1;\nlet x = if a == 1",
+    "let x = if a == 1",
+    "then 2\nelse 3;",
+    ["/a : Int", "/x : Int"],
+  ),
+  (
+    "`then` and `else` in a module",
+    Sort.Exp,
+    "module M = {\n  let a = 1;\n  let x = if a == 1\n} in\nM.x",
+    "  let x = if a == 1",
+    "then 2\nelse 3",
+    ["/M : ", "/M/a : Int", "/M/x : Int", "/trail : "],
   ),
 ];
 
@@ -1752,6 +1859,24 @@ let tests = (
       ((name, _, _, _, _, _, _, _) as c) =>
         test_case("a member head: " ++ name, `Quick, member_head(c)),
       member_head_cases,
+    )
+  @ List.map(
+      ((name, _, _, _) as c) =>
+        test_case(
+          "a keyword's prefix at a member line: " ++ name,
+          `Quick,
+          keyword_prefix(c),
+        ),
+      keyword_prefix_cases,
+    )
+  @ List.map(
+      ((name, _, _, _, _, _) as c) =>
+        test_case(
+          "continues the member above: " ++ name,
+          `Quick,
+          continues(c),
+        ),
+      continues_cases,
     )
   @ [
     test_case(
