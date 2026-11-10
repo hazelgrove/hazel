@@ -374,10 +374,16 @@ let refresh_shapes =
       ...old.main_splice,
       measured,
     },
+    /* (^report(51)) the splice map is made of the segment and the shapes
+       alone, so the same shapes keep it, as they keep the measured layout
+       above: at the worker's answer on the Witch it was made again for 2 to
+       4 ms though no shape had changed (run 42772671441) */
     splices:
-      Util.BenchMarks.time("syntax: splice map", () =>
-        mk_splice_map(old.main_splice.segment, shape_map)
-      ),
+      shapes_equal
+        ? old.splices
+        : Util.BenchMarks.time("syntax: splice map", () =>
+            mk_splice_map(old.main_splice.segment, shape_map)
+          ),
     shape_map,
     refractor_rows,
     projector_errors,
