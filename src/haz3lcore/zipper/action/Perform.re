@@ -399,6 +399,7 @@ let rec go_unguarded =
       refractor_list,
       ~elaborated=statics.elaborated,
       ~root,
+      ~measured=CachedSyntax.measured(syntax),
     );
   | Move(SplicePoint(splice_id, goal)) =>
     switch (CachedSyntax.splice_opt(splice_id, syntax)) {

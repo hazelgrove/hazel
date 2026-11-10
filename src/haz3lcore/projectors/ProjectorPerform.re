@@ -151,6 +151,49 @@ let update =
     : ZipperBase.t =>
   ZipperBase.MapPiece.fast_local_seg(update_piece(f, id), id, z);
 
+/* (^ticket(721)) [update], stepping only into the pieces whose measured
+   extent holds projector [id]'s: a livelit's commit walked the whole
+   program to find its projector, 11 to 20 ms on the Witch slide (run
+   42826692242). The layout is the syntax cache's for [z], before the
+   action; a piece it cannot place is not entered, and if that misses the
+   projector the whole walk runs, as before */
+let update_measured =
+    (
+      ~measured: option(Measured.t),
+      f: Base.projector => Base.projector,
+      id: Id.t,
+      z: ZipperBase.t,
+    )
+    : ZipperBase.t =>
+  switch (
+    Option.bind(measured, m =>
+      Measured.find_by_id_quiet(id, m) |> Option.map(t => (m, t))
+    )
+  ) {
+  | None => update(f, id, z)
+  | Some((m, target)) =>
+    let le = (a: Point.t, b: Point.t) =>
+      a.row < b.row || a.row == b.row && a.col <= b.col;
+    let within = (p: Piece.t) =>
+      Piece.id(p) == id
+      || (
+        switch (
+          try(Some(Measured.find_p(p, m))) {
+          | _ => None
+          }
+        ) {
+        | Some(e) => le(e.origin, target.origin) && le(target.last, e.last)
+        | None => false
+        }
+      );
+    ZipperBase.MapPiece.fast_local_seg_within(
+      ~within,
+      update_piece(f, id),
+      id,
+      z,
+    );
+  };
+
 let inside_projector = (id: Id.t, z: Zipper.t): bool =>
   List.exists(
     ((ancestor, _)) =>
@@ -262,8 +305,11 @@ let go =
       refractor_list: list(Id.t),
       ~elaborated: Language.Exp.t,
       ~root,
+      /* the syntax cache's layout of [z], for [update_measured] */
+      ~measured: option(Measured.t)=?,
     )
     : result(ZipperBase.t, Action.Failure.t) => {
+  let update = update_measured(~measured);
   /* Indices are baked into view closures at render time and can be stale
    * by the time the action runs, so resolve via nth_opt: an out-of-range
    * index drops the action (Cant_project) rather than raising mid-update. */
