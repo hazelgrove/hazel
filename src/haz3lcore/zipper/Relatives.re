@@ -142,9 +142,22 @@ let remold_parent = (~root, ancestors: Ancestors.t): Ancestors.t =>
     };
   };
 
+/* the keywords the parent still owes between the caret's level and its
+   next shard */
+let owed = (ancestors: Ancestors.t): list(Token.t) =>
+  switch (ancestors) {
+  | [(a: Ancestor.t, _), ..._] =>
+    switch (ListUtil.last_opt(fst(a.shards)), snd(a.shards)) {
+    | (Some(l), [r, ..._]) =>
+      Ancestor.label(a) |> List.filteri((i, _) => l < i && i < r)
+    | _ => []
+    }
+  | [] => []
+  };
+
 let remold = ({siblings, ancestors}: t, root: Sort.t): t => {
   let s = Ancestors.sort(root, ancestors);
-  let siblings = Siblings.remold(siblings, s);
+  let siblings = Siblings.remold(~owed=owed(ancestors), siblings, s);
   let ancestors = remold_parent(~root, ancestors);
   {
     ancestors,

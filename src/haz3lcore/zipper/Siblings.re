@@ -20,8 +20,8 @@ let concat = (sibss: list(t)): t =>
   |> PairUtil.map_fst(List.concat)
   |> PairUtil.map_snd(List.concat);
 
-let remold = ((pre, _) as sibs: t, s: Sort.t): t =>
-  Segment.remold(zip(sibs), s) |> unzip(List.length(pre));
+let remold = (~owed=[], (pre, _) as sibs: t, s: Sort.t): t =>
+  Segment.remold(~owed, zip(sibs), s) |> unzip(List.length(pre));
 
 let shapes = ((pre, suf): t) => {
   let s = Nib.Shape.concave();

@@ -1095,6 +1095,39 @@ let entry_experience_tests = [
   ),
 ];
 
+/* A mid-form keyword's prefix starting a line ends the definition above
+   unless a form there expects that keyword: `t` of `test` reads as `l`
+   does, `i` of `in` stays the pending `in` */
+let typed_after = (src, keys) =>
+  Test_Editing.mk(src) @ Test_Editing.string_to_ltr_actions(keys);
+let keyword_prefix_line_tests = [
+  edit_case(
+    ~name="`te` starting a line ends the definition above",
+    ~acts=typed_after("let a = 1 in\nlet b = a + 1¦", "\nte"),
+    ~expected="let a = 1 in\nlet b = a + 1in\nte",
+  ),
+  edit_case(
+    ~name="`l` starting a line ends the definition above",
+    ~acts=typed_after("let a = 1 in\nlet b = a + 1¦", "\nl"),
+    ~expected="let a = 1 in\nlet b = a + 1in\nl",
+  ),
+  edit_case(
+    ~name="`i` starting a line is the pending `in`",
+    ~acts=typed_after("let a = 1 in\nlet b = a + 1¦", "\ni"),
+    ~expected="let a = 1 in\nlet b = a + 1\nin?",
+  ),
+  edit_case(
+    ~name="`th` starting a line is the pending `then`",
+    ~acts=typed_after("let b = if true¦", "\nth"),
+    ~expected="let b = if true\nthen?else?in?",
+  ),
+  edit_case(
+    ~name="`+ 2` starting a line continues the definition above",
+    ~acts=typed_after("let a = 1 in\nlet b = a + 1¦", "\n+ 2"),
+    ~expected="let a = 1 in\nlet b = a + 1\n+ 2in?",
+  ),
+];
+
 /* === Leading witnesses: a >=2-char token at the opener position of
    a tile expecting that opener completes in place (the tile's
    surviving shards carry the expectation; no mold gate exists in
@@ -2029,6 +2062,7 @@ let tests: list((string, list(Alcotest.test_case(unit)))) = [
   ),
   ("CanonicalCompletion: case-repair (edit-derived)", case_repair_edit_tests),
   ("CanonicalCompletion: entry-experience", entry_experience_tests),
+  ("CanonicalCompletion: keyword-prefix lines", keyword_prefix_line_tests),
   ("CanonicalCompletion: leading-witness", leading_witness_tests),
   ("CanonicalCompletion: symbolic-witness", symbolic_witness_tests),
   ("CanonicalCompletion: opener-walls", opener_wall_tests),

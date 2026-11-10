@@ -1436,11 +1436,11 @@ let nesting_values = () => {
     ("into a function", f, "g", op(Indent), Some(f_in)),
     ("and out again", f_in, "g", op(Outdent), Some(f)),
     (
-      "a constant's body gets one",
+      "a constant's body gets one, on lines of its own",
       "let x = 1 + 2 in\nlet moved = 5 in\nx",
       "moved",
       op(Indent),
-      Some("let x = let moved = 5 in 1 + 2 in\n\nx"),
+      Some("let x =\n  let moved = 5 in\n  1 + 2\nin\n\nx"),
     ),
     (
       "on its own line when the body is",
@@ -1454,7 +1454,21 @@ let nesting_values = () => {
       "let f = fun x -> x * 2 in\nlet g = 5 in\nf(g)",
       "g",
       op(Indent),
-      Some("let f = fun x -> let g = 5 in x * 2 in\n\nf(g)"),
+      Some("let f = fun x ->\n  let g = 5 in\n  x * 2\nin\n\nf(g)"),
+    ),
+    (
+      "out of a constant's body: the value back on the head's line",
+      "let x =\n  let moved = 5 in\n  1 + 2\nin\nx",
+      "moved",
+      op(Outdent),
+      Some("let x = 1 + 2 in\n\nlet moved = 5 in\n\nx"),
+    ),
+    (
+      "out of a function's body: its result stays on its line",
+      "let f = fun x ->\n  let g = 5 in\n  x * 2\nin\nf(g)",
+      "g",
+      op(Outdent),
+      Some("let f = fun x ->\n  x * 2\nin\n\nlet g = 5 in\n\nf(g)"),
     ),
     (
       "out of a one-line body, onto a line of its own",
@@ -1603,13 +1617,13 @@ let gaps = () => {
     "let start = 0;\n\nlet next = start + 1;\n\nlet after = next + 1",
     (Indent, Outdent),
     "after",
-    "let start = 0;\n\nlet next = let after = next + 1 in start + 1",
+    "let start = 0;\n\nlet next =\n  let after = next + 1 in\n  start + 1",
   );
 };
 
 /* a doc comment starts a line: an item with one goes into a one-line
-   body on lines of its own, a constant's value on its own line below,
-   a function's result after it; and comes back out whole */
+   body on lines of its own, the result on its own line below; and comes
+   back out whole, a constant's value back on its head's line */
 let doc_comments = () => {
   let src = "let init = (1, 2) in\n\n# doc for f #\nlet f = fun x -> x in\n\n# doc for g #\nlet g = 2 in\n\nf";
   law(
@@ -1617,14 +1631,50 @@ let doc_comments = () => {
     src,
     (Indent, Outdent),
     "f",
-    "let init =\n  # doc for f #\n  let f = fun x -> x in\n  (1, 2) in\n\n# doc for g #\nlet g = 2 in\n\nf",
+    "let init =\n  # doc for f #\n  let f = fun x -> x in\n  (1, 2)\nin\n\n# doc for g #\nlet g = 2 in\n\nf",
+  );
+  /* a function's result stays on its line on the way out, as it does
+     for a function written so */
+  check(
+    list(option(string)),
+    "into a function",
+    [
+      Some(
+        "let init = (1, 2) in\n\n# doc for f #\nlet f = fun x ->\n  # doc for g #\n  let g = 2 in\n  x\nin\n\nf",
+      ),
+      Some(
+        "let init = (1, 2) in\n\n# doc for f #\nlet f = fun x ->\n  x\nin\n\n# doc for g #\nlet g = 2 in\n\nf",
+      ),
+    ],
+    walk(src, [(Indent, "g"), (Outdent, "g")]),
+  );
+};
+
+/* an item moved into a one-line definition's body: the body on lines of
+   its own, the `in` on its own line; out again, the value back on the
+   head's line */
+let one_line_bodies = () => {
+  law(
+    "into a constant",
+    "let init = (1, 2) in\n\nlet f = fun x -> x in\n\nf",
+    (Indent, Outdent),
+    "f",
+    "let init =\n  let f = fun x -> x in\n  (1, 2)\nin\n\nf",
   );
   law(
-    "into a function",
-    src,
+    "a two-line item into a constant",
+    "let init = (1, 2) in\n\nlet f =\n  fun x ->\n    x\nin\n\nf",
     (Indent, Outdent),
-    "g",
-    "let init = (1, 2) in\n\n# doc for f #\nlet f = fun x ->\n  # doc for g #\n  let g = 2 in x in\n\nf",
+    "f",
+    "let init =\n  let f =\n    fun x ->\n      x\n  in\n  (1, 2)\nin\n\nf",
+  );
+  law(
+    ~root=Mod,
+    "into a member constant",
+    "let init = (1, 2);\n\nlet f = fun x -> x;\n\nf",
+    (Indent, Outdent),
+    "f",
+    "let init =\n  let f = fun x -> x in\n  (1, 2);\n\nf",
   );
 };
 
@@ -1854,6 +1904,11 @@ let tests = (
     ),
     test_case("ops and their inverses keep blank lines", `Quick, gaps),
     test_case("a doc comment goes in and out whole", `Quick, doc_comments),
+    test_case(
+      "into a one-line body: lines of its own",
+      `Quick,
+      one_line_bodies,
+    ),
     test_case("an item keeps its indentation's offset", `Quick, offsets),
     test_case("a let chain moved by an earlier edit", `Quick, shifted_chain),
     test_case("no statement into a member's body", `Quick, member_statements),
