@@ -386,7 +386,11 @@ let refresh_shapes =
           ),
     shape_map,
     refractor_rows,
-    projector_errors,
+    /* (^report(51)) kept when equal, as the problems' list in the
+       sidebar is kept while these are the same objects */
+    projector_errors:
+      Id.Map.equal((==), projector_errors, old.projector_errors)
+        ? old.projector_errors : projector_errors,
     splice_layout,
     cached_manuals: z.refractors.manuals,
     cached_ephemerals: z.refractors.multis.ephemerals,

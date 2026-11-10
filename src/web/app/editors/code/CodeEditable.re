@@ -1030,7 +1030,12 @@ module View = {
             Obj.repr(expand_selection == None),
           |],
           () =>
-          (edit_decos_now(), refractors_now())
+          (
+            /* (^report(51)) timed apart: at a worker's answer the two
+               took 9 to 26 ms (run 42783064879) */
+            Util.BenchMarks.time("view: decorations", edit_decos_now),
+            Util.BenchMarks.time("view: probes' views", refractors_now),
+          )
         )
       );
     // let t2 = JsUtil.precise_timestamp();

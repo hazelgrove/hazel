@@ -531,13 +531,32 @@ module M: Projector = {
     | (Some(ll), None) => Some(ll)
     | (Some(ll), Some(args)) =>
       let ty_n = Option.map(Typ.normalize(ctx), ty);
-      let same = ((ll', ty', args', _)) =>
-        ll' === ll
-        && Option.equal(Typ.fast_equal, ty', ty_n)
-        && (args' === args || Exp.fast_equal_with_lexemes(args', args));
+      let same_head = ((ll', ty', _, _)) =>
+        ll' === ll && Option.equal(Typ.fast_equal, ty', ty_n);
       let seen =
         Option.value(~default=[], Hashtbl.find_opt(applied, llname));
-      switch (List.find_opt(same, seen)) {
+      /* the use's very arguments first, a pointer each; then equal ones,
+         as after an edit remakes the terms. A document can use one
+         livelit many times (the Witch: ^slider 29 times, ^choice 18), so
+         the list keeps up to 64 and drops only its oldest; at 16, and
+         emptied when full, build 32 applied 38 to 43 of the Witch's 53
+         anew at each pass. */
+      let hit =
+        switch (
+          List.find_opt(
+            ((_, _, args', _) as e) => args' === args && same_head(e),
+            seen,
+          )
+        ) {
+        | Some(e) => Some(e)
+        | None =>
+          List.find_opt(
+            ((_, _, args', _) as e) =>
+              same_head(e) && Exp.fast_equal_with_lexemes(args', args),
+            seen,
+          )
+        };
+      switch (hit) {
       | Some((_, _, _, found)) => found
       | None =>
         incr(applied_anew);
@@ -545,7 +564,10 @@ module M: Projector = {
         Hashtbl.replace(
           applied,
           llname,
-          [(ll, ty_n, args, found), ...List.length(seen) >= 16 ? [] : seen],
+          [
+            (ll, ty_n, args, found),
+            ...List.filteri((i, _) => i < 63, seen),
+          ],
         );
         found;
       };
