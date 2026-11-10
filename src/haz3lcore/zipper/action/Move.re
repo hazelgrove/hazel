@@ -403,10 +403,16 @@ let to_linebreak_raw = (d: Direction.t, z: t): option(t) =>
   do_until_linebreak(local(ByToken, d), d, z);
 
 /* Move to the line boundary, then skip back past leading/trailing
- * spaces to the first/last content on the line. */
+ * spaces to the first/last content on the line. A line of only spaces
+ * has no content, so stay at the boundary. */
 let to_linebreak = (d: Direction.t, z: t): option(t) => {
   let+ z = to_linebreak_raw(d, z);
-  skip_spaces(Direction.toggle(d), z);
+  let skipped = skip_spaces(Direction.toggle(d), z);
+  Zipper.linebreak_on(
+    Direction.toggle(d),
+    Zipper.generalized_neighbors(skipped),
+  )
+    ? z : skipped;
 };
 
 let to_next_problem =
