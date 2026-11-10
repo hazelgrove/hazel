@@ -35,7 +35,8 @@ type elab =
   | Inline(Exp.t)
   | Graft /* the item's elaboration, the items below grafted in */
   | Own /* the item's elaboration, its nested value in place */
-  | Nested; /* a split item's nested value */
+  | Nested /* a split item's nested value */
+  | Value; /* the module value a node piece finishes */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type entry = {
@@ -65,8 +66,9 @@ type content =
      next one's, which only a piece of their own keeps shared */
   | Roots(list((Id.t, list(entry))))
   | Targets(Sample.targets)
-  /* a module value's node: the module's annotation (its ids) */
-  | Node(IdTagged.IdTag.t)
+  /* a module value's node: the module's annotation (its ids), and a Mod
+     root's own entries */
+  | Node(IdTagged.IdTag.t, list(entry))
   | Whole(Exp.t, EvalInfo.t);
 
 let encode = (c: content): string => Marshal.to_string(c, []);
@@ -187,6 +189,7 @@ let resolve = (b: built, e: entry): EvalInfo.entry => {
       | Some(v) => v
       | None => raise(Malformed("a nested value on an unsplit item"))
       }
+    | Value => raise(Malformed("a module value outside its node"))
     },
   co_ctx: e.co_ctx,
   probe_targets: e.probe_targets,
@@ -214,17 +217,39 @@ let assemble =
     | Some(c) => c
     | None => raise(Malformed("a piece went missing"))
     };
-  let finish_with = (f: finish, top: Exp.t, bindings: list(Mod.t)): Exp.t =>
+  /* and the node's entries, which read the value */
+  let finish_with = (f: finish, top: Exp.t, bindings: list(Mod.t), map) =>
     switch (f) {
-    | Chain => top
+    | Chain => (top, map)
     | ModuleValue(s) =>
       switch (get(s)) {
-      | Node(annotation) =>
+      | Node(annotation, entries) =>
         let value: Exp.t = {
           annotation,
           term: Module(bindings),
         };
-        value;
+        (
+          value,
+          List.fold_left(
+            (map, e: entry) =>
+              Id.Map.add(
+                e.id,
+                EvalInfo.{
+                  elab_term:
+                    switch (e.elab) {
+                    | Value => value
+                    | Inline(x) => x
+                    | _ => raise(Malformed("a node entry of an item's term"))
+                    },
+                  co_ctx: e.co_ctx,
+                  probe_targets: e.probe_targets,
+                },
+                map,
+              ),
+            map,
+            entries,
+          ),
+        );
       | _ => raise(Malformed("a module's node piece holds no node"))
       }
     };
@@ -244,7 +269,7 @@ let assemble =
             | None => (it.hollow, None, it.binding, map)
             | Some((f, members)) =>
               let (top, inner, map) = compose(members, map);
-              let v = finish_with(f, top, inner);
+              let (v, map) = finish_with(f, top, inner, map);
               (
                 plug(it.hollow, v),
                 Some(v),
@@ -319,8 +344,9 @@ let assemble =
       | Targets(t) => t
       | _ => raise(Malformed("a targets piece holds no targets"))
       };
+    let (program, statics) = finish_with(finish, top, bindings, statics);
     Ok((
-      finish_with(finish, top, bindings),
+      program,
       {
         statics,
         targets,

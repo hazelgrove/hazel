@@ -17,7 +17,7 @@ open Language;
 module P = EvalPieces;
 
 /* what a split item holds around its nested value: a let's pattern and
-   body, or a member's bare expression item, as elaborated */
+   body, or a member's binding, as elaborated */
 type shell =
   | LetShell(Pat.t, Exp.t)
   | MemberShell(Mod.t);
@@ -25,7 +25,17 @@ type shell =
 let shell_equal = (a: shell, b: shell): bool =>
   switch (a, b) {
   | (LetShell(p, b), LetShell(p', b')) => p === p' && b === b'
-  | (MemberShell(m), MemberShell(m')) => m === m'
+  /* a member's binding is rebuilt around its value: its parts kept */
+  | (MemberShell(m), MemberShell(m')) =>
+    m === m'
+    || m.annotation === m'.annotation
+    && (
+      switch (m.term, m'.term) {
+      | (ModLet(p, _), ModLet(p', _)) => p === p'
+      | (ModExp(_), ModExp(_)) => true
+      | _ => false
+      }
+    )
   | _ => false
   };
 
@@ -46,7 +56,8 @@ type source =
     )
   /* skip; per item, its root infos and their entries as projected */
   | Roots(list(Id.t), list((Id.t, list((Id.t, Info.t)), list(P.entry))))
-  | Node(IdTagged.IdTag.t) /* a module value's annotation */
+  /* a module value's annotation, and a Mod root's own entries */
+  | Node(IdTagged.IdTag.t, list(P.entry))
   | Targets(Sample.targets)
   | Whole(Exp.t, Statics.Map.t, Sample.targets);
 
@@ -219,7 +230,8 @@ let entries_equal = (a: list(P.entry), b: list(P.entry)): bool =>
         | (Inline(e1), Inline(e2)) => e1 === e2
         | (Graft, Graft)
         | (Own, Own)
-        | (Nested, Nested) => true
+        | (Nested, Nested)
+        | (Value, Value) => true
         | _ => false
         }
       )
@@ -278,6 +290,16 @@ let split_of = (it: DefStatics.item) =>
                ),
              ) =>
       Some((Links, n, v, MemberShell(b)))
+    | (Some({s_elab: Some(_), _}), Module([{term: ModLet(_, v), _} as b])) =>
+      switch (Option.map(Mod.def, DefStatics.member_of(it.d_node))) {
+      | Some(Some(Exp({term: Module(members), _} as def))) =>
+        switch (Statics.Map.lookup_exp(Exp.rep_id(def), n.n_wrap)) {
+        | Some(info) when info.elab_term === v =>
+          Some((Members(members), n, v, MemberShell(b)))
+        | _ => None
+        }
+      | _ => None
+      }
     | _ => None
     }
   | _ => None
@@ -415,13 +437,7 @@ let shell_piece =
     term:
       switch (shell) {
       | LetShell(p, body) => Let(p, placeholder, body)
-      | MemberShell(b) =>
-        Module([
-          {
-            ...b,
-            term: ModExp(placeholder),
-          },
-        ])
+      | MemberShell(b) => Module([P.plug_binding(b, placeholder)])
       },
   };
   let binding = lazy(Option.bind(src, src => bind(src, hollow)));
@@ -467,15 +483,36 @@ let shell_piece =
   use(acc, key, c);
 };
 
-/* a module value's node: its annotation, kept while it reads the same */
+/* a module value's node: its annotation, kept while it reads the same,
+   and a Mod root's own entries ([infos]), which read [value] */
 let node_piece =
     (
       acc: acc,
       ~old: Hashtbl.t(P.key, cached),
       ~into: Hashtbl.t(P.key, cached),
+      ~infos: list((Id.t, Info.t))=[],
+      ~value: option(Exp.t)=?,
       key: P.key,
       annotation: IdTagged.IdTag.t,
-    ) =>
+    ) => {
+  let entries =
+    List.filter_map(
+      ((id, info)) =>
+        EvalInfo.entry_of_info(acc.witnessing, info)
+        |> Option.map((e: EvalInfo.entry) =>
+             P.{
+               id,
+               elab:
+                 switch (value) {
+                 | Some(v) when e.elab_term === v => Value
+                 | _ => Inline(e.elab_term)
+                 },
+               co_ctx: e.co_ctx,
+               probe_targets: e.probe_targets,
+             }
+           ),
+      infos,
+    );
   piece(
     acc,
     ~old,
@@ -483,11 +520,18 @@ let node_piece =
     key,
     ~holds=
       fun
-      | Node(a) => a === annotation || IdTagged.IdTag.equal(a, annotation)
+      | Node(a, es) =>
+        (a === annotation || IdTagged.IdTag.equal(a, annotation))
+        && entries_equal(es, entries)
       | _ => false,
     ~make=() =>
-    (Node(annotation), Node(annotation): P.content, 0)
+    (
+      Node(annotation, entries),
+      Node(annotation, entries): P.content,
+      List.length(infos),
+    )
   );
+};
 
 /* [items]' pieces from [old]'s, and the chain's new cache. [shadowed]:
    the root keys of the items holding the chain, whose entries sit in
@@ -761,6 +805,14 @@ let split =
           acc,
           ~old=doc.singles,
           ~into=doc.singles,
+          /* the root's own info, which no item holds */
+          ~infos=
+            List.filter_map(
+              id =>
+                Option.map(i => (id, i), Id.Map.find_opt(id, ds.merged)),
+              IdTagged.ids(root),
+            ),
+          ~value=statics.elaborated,
           Node(Exp.rep_id(root)): P.key,
           statics.elaborated.annotation,
         ),
