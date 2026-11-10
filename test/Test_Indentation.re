@@ -81,12 +81,10 @@ let indentation_tests = [
     check(
       testable(Fmt.string, String.equal),
       "flush repro 2",
-      /* NOTE vs artifact-grout: there the same gesture suggests 2
-         (level_of derives the let's def hole fresh, so the fresh
-         line reads as the def slot); this branch's stored-grout
-         channel has no hole here, so the suggestion is flat. Both
-         are NON-ADDITIVE, which is the pinned property. */
-      "let a =\nlet b =\nlet c =\nlet d =\n9",
+      /* on this branch level_of derives the let's def hole fresh, so
+         the fresh line reads as the def slot (suggestion 2); the
+         pinned property either way is NON-ADDITIVE */
+      "let a =\nlet b =\nlet c =\nlet d =\n  9",
       [Action.Paste("let a =\nlet b =\nlet c =\nlet d =")]
       @ string_to_ltr_actions("\n9")
       |> perform(Zipper.init())
@@ -450,7 +448,7 @@ fun x ->
 |},
     ~goal={|let a =
   fun x ->
-    ?|},
+    |},
   ),
   test_indent(
     ~name="Indentation Incomplete Flow 3",
@@ -461,7 +459,7 @@ case x
     ~goal={|let a =
   fun x ->
     case x
-    |?|},
+    ||},
   ),
   test_indent(
     ~name="Indentation Incomplete Flow 4",
@@ -474,7 +472,7 @@ case x
   fun x ->
     case x
     | _ =>
-      ?|},
+      |},
   ),
   test_indent(
     ~name="Indentation - Wrapping immediate next lines",
@@ -516,7 +514,7 @@ fun x ->
     ~goal={|let a = (
   fun x ->
     1,
-  ?|},
+  |},
   ),
   /* ================================================================
      CONTINUATION LINE INDENTATION
@@ -671,7 +669,7 @@ end|},
     ~init={|case 1
 ||},
     ~goal={|case 1
-|?|},
+||},
   ),
   /* Pattern position after incomplete bar: no indent. Patterns are typically
    * on the same line as `|`, and if multiline, staying at bar level is fine. */
@@ -682,7 +680,7 @@ end|},
 |},
     ~goal={|case 1
 |
-?|},
+|},
   ),
   test_indent(
     ~name="Case: after arrow, expecting rule body",
@@ -691,7 +689,7 @@ end|},
 |},
     ~goal={|case 1
 | A =>
-  ?|},
+  |},
   ),
   test_indent(
     ~name="Case: rule body on separate line",
@@ -709,7 +707,7 @@ end|},
 ||},
     ~goal={|case 1
 | A => 1
-|?|},
+||},
   ),
   /* Same as above - pattern position stays at bar level */
   test_indent(
@@ -721,7 +719,7 @@ end|},
     ~goal={|case 1
 | A => 1
 |
-?|},
+|},
   ),
   /* COMPLETE CASE (with `end`) */
   test_indent(
@@ -739,7 +737,7 @@ end|},
 |
 end|},
     ~goal={|case 1
-|?
+|
 end|},
   ),
   test_indent(
@@ -1096,17 +1094,19 @@ let indent_ux_tests = [
       string_to_ltr_actions("let a = \n")
       @ string_to_ltr_actions("    ")
       @ [bsp, bsp],
-    ~expected="let a = \n    ?",
+    /* raw edit state is grout-free (upstream pins a trailing ?) */
+    ~expected="let a = \n    ",
   ),
   ux_case(
     ~name="backspace at line start inverts enter (indent + linebreak)",
     ~acts=string_to_ltr_actions("fun q ->\n") @ [bsp],
-    ~expected="fun q ->?",
+    /* raw edit state is grout-free; holes are derived downstream */
+    ~expected="fun q ->",
   ),
   ux_case(
     ~name="backspace deletes a blank line in one keystroke",
     ~acts=string_to_ltr_actions("fun q ->\n\n") @ [bsp],
-    ~expected="fun q ->\n  ?",
+    ~expected="fun q ->\n  ",
   ),
   ux_case(
     ~name="shift+backspace dedents at first-content",
@@ -1121,7 +1121,7 @@ let indent_ux_tests = [
     ~acts=
       string_to_ltr_actions("fun q ->\nx")
       @ [Action.AdjustIndent(Left, AtBoundary)],
-    ~expected="fun q ->\n  ?",
+    ~expected="fun q ->\n  ",
   ),
   ux_case(
     ~name="indent line from any caret position",
@@ -1140,7 +1140,9 @@ let indent_ux_tests = [
     ~name="left from first-content lands at previous line end",
     ~acts=
       string_to_ltr_actions("fun q ->\nx") @ mv_l(2) @ [Action.Insert("2")],
-    ~expected="fun q ->2 \n  x",
+    /* the phantom trailing space was system material; typed content
+       lands flush at the line end now */
+    ~expected="fun q ->2\n  x",
   ),
   ux_case(
     ~name="right from line end skips indentation to first content",
@@ -1149,7 +1151,7 @@ let indent_ux_tests = [
       @ mv_l(2)
       @ mv_r(1)
       @ [Action.Insert("+")],
-    ~expected="fun q ->\n  ?+x",
+    ~expected="fun q ->\n  +x",
   ),
   ux_case(
     ~name="blank lines keep one reachable position (their end)",
@@ -1157,14 +1159,16 @@ let indent_ux_tests = [
       string_to_ltr_actions("fun q ->\n\nx")
       @ mv_l(2)
       @ [Action.Insert("1")],
-    ~expected="fun q ->\n  1 \n  x",
+    /* trailing space after 1 was system material (same class as the
+       case above) */
+    ~expected="fun q ->\n  1\n  x",
   ),
   ux_case(
     ~name="home is smart: lands at first content",
     ~acts=
       string_to_ltr_actions("fun q ->\nx")
       @ [Action.Move(Line(Left)), Action.Insert("+")],
-    ~expected="fun q ->\n  ?+x",
+    ~expected="fun q ->\n  +x",
   ),
 ];
 
@@ -1176,8 +1180,10 @@ let grout_indent_tests = [
   test_indent_after_format(
     ~name="hole branches indent like literal branches",
     ~init="let f =\nfun x ->\nlet x =\nif x < 0 then\nelse\nin\nf(3)",
+    /* raw print is grout-free; the guarded property (hole branches
+       indent like literal ones, no else/in drift) is the indentation */
     ~goal=
-      "let f =\n  fun x ->\n    let x =\n      if x < 0 then?\n      else?\n    in\n    f(3)",
+      "let f =\n  fun x ->\n    let x =\n      if x < 0 then\n      else\n    in\n    f(3)",
   ),
   test_indent_after_format(
     ~name="literal branches (mirror of the hole case)",

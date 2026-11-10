@@ -37,6 +37,8 @@ let view_segment = (~globals: Globals.t, segment: Segment.t) => {
   let shape_map = ProjectorCore.Shape.Map.empty; // assume no projectors
   let refractor_rows = Id.Map.empty; //assume no refractors
   let term_data = TermData.empty; //assume no indication/selection decoratinos
+  /* a converted value/type's holes own no space: give each a cell */
+  let segment = GroutCells.back_holes(segment);
   view(
     ~globals,
     ~measured=Measured.of_segment(segment, shape_map, refractor_rows),

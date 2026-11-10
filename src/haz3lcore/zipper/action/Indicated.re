@@ -178,7 +178,69 @@ let indicated =
 
 /* For visual decoration (caret side, arms, projector/refractor highlighting).
    Ignores secondary. Used by CaretDec, Arms, CodeEditable. */
-let for_decoration = indicated(~no_ws=true, ~ign=Piece.is_secondary);
+/* The hole displayed at the caret, derived the same way GroutPlace
+   mints it (grout never lives in the edit state): nearest
+   non-secondary neighbors' facing nibs conflict -> the placed hole,
+   with its deterministic id, computable caret-side with no
+   coordination. The returned piece IS the display's hole (same id),
+   so deco highlighting and info lookups both join. */
+let virtual_hole = (z: ZipperBase.t): option(Grout.t) => {
+  let (l_opt, r_opt) =
+    Siblings.neighbors(
+      Siblings.trim_secondary(ZipperBase.sibs_with_sel(z)),
+    );
+  let shape_of = (side: Direction.t, p: option(Piece.t)): Nib.Shape.t =>
+    switch (p) {
+    | None => Nib.Shape.concave()
+    | Some(p) =>
+      switch (Piece.shapes(p)) {
+      | Some((l, r)) => side == Direction.Left ? r : l
+      | None => Nib.Shape.concave()
+      }
+    };
+  let l_shape = shape_of(Left, l_opt);
+  let r_shape = shape_of(Right, r_opt);
+  if (Nib.Shape.fits(l_shape, r_shape)) {
+    None;
+  } else {
+    let ctx =
+      switch (z.relatives.ancestors) {
+      | [] => GroutPlace.root_ctx
+      | [(a, _), ..._] =>
+        GroutPlace.child_ctx(
+          ~tile=a.id,
+          ~child=List.length(fst(a.children)),
+        )
+      };
+    let shape = GroutPlace.shape_of_nib(Nib.Shape.flip(l_shape));
+    Some(
+      Grout.{
+        id:
+          GroutPlace.hole_id(
+            ~ctx,
+            ~l=Option.map(Piece.id, l_opt),
+            ~r=Option.map(Piece.id, r_opt),
+            ~shape,
+          ),
+        shape,
+      },
+    );
+  };
+};
+
+let virtual_hole_id = (z: ZipperBase.t): option(Id.t) =>
+  virtual_hole(z) |> Option.map((g: Grout.t) => g.id);
+
+let for_decoration = (z: ZipperBase.t) =>
+  switch (virtual_hole(z)) {
+  | Some(g) =>
+    Some({
+      piece: Piece.Grout(g),
+      side: Right,
+      relation: Sibling,
+    })
+  | None => indicated(~no_ws=true, ~ign=Piece.is_secondary, z)
+  };
 
 /* For identity/direction queries that always need an answer, even in
    whitespace. Ignores secondary but returns them as fallback. */
@@ -228,40 +290,47 @@ let index = (z: ZipperBase.t): option(Id.t) =>
 let ci_of =
     (z: ZipperBase.t, info_map: Language.Statics.Map.t)
     : option(Language.Statics.Info.t) =>
-  /* First try the decoration indication function. If it succeeds,
-   * look up the piece's info. If not (e.g. only secondary neighbors),
-   * create a 'virtual' info map entry for the secondary notation,
-   * borrowing semantic context from a nearby 'proxy' term. */
-  switch (for_decoration(z)) {
-  | Some({piece, _}) => Id.Map.find_opt(Piece.id(piece), info_map)
-  | None =>
-    let sibs = ZipperBase.sibs_with_sel(z);
-    let* cls =
-      switch (Siblings.neighbors(sibs)) {
-      /* If on side of comment, say we're on comment */
-      | (Some(Secondary(sl)), Some(Secondary(_)))
-          when Secondary.is_comment(sl) =>
-        Some(Language.Secondary.cls_of(sl))
-      | (Some(Secondary(_)), Some(Secondary(sr)))
-          when Secondary.is_comment(sr) =>
-        Some(Language.Secondary.cls_of(sr))
-      | (_, Some(Secondary(s)))
-      | (Some(Secondary(s)), _) => Some(Language.Secondary.cls_of(s))
-      | _ => None
-      };
-    let* proxy_id =
-      switch (Siblings.neighbors(Siblings.trim_secondary(sibs))) {
-      | (_, Some(p))
-      | (Some(p), _) => Some(Piece.id(p))
-      | _ => None
-      };
-    let+ ci = Id.Map.find_opt(proxy_id, info_map);
-    Language.Statics.Info.Secondary({
-      id: proxy_id,
-      cls: Secondary(cls),
-      sort: Language.Statics.Info.sort_of(ci),
-      ctx: Language.Statics.Info.ctx_of(ci),
-    });
+  /* the caret at a displayed hole: its derived id is in the map by
+     construction whenever a hole is really shown here */
+  switch (virtual_hole_id(z)) {
+  | Some(hid) when Id.Map.mem(hid, info_map) =>
+    Id.Map.find_opt(hid, info_map)
+  | _ =>
+    /* First try the decoration indication function. If it succeeds,
+     * look up the piece's info. If not (e.g. only secondary neighbors),
+     * create a 'virtual' info map entry for the secondary notation,
+     * borrowing semantic context from a nearby 'proxy' term. */
+    switch (for_decoration(z)) {
+    | Some({piece, _}) => Id.Map.find_opt(Piece.id(piece), info_map)
+    | None =>
+      let sibs = ZipperBase.sibs_with_sel(z);
+      let* cls =
+        switch (Siblings.neighbors(sibs)) {
+        /* If on side of comment, say we're on comment */
+        | (Some(Secondary(sl)), Some(Secondary(_)))
+            when Secondary.is_comment(sl) =>
+          Some(Language.Secondary.cls_of(sl))
+        | (Some(Secondary(_)), Some(Secondary(sr)))
+            when Secondary.is_comment(sr) =>
+          Some(Language.Secondary.cls_of(sr))
+        | (_, Some(Secondary(s)))
+        | (Some(Secondary(s)), _) => Some(Language.Secondary.cls_of(s))
+        | _ => None
+        };
+      let* proxy_id =
+        switch (Siblings.neighbors(Siblings.trim_secondary(sibs))) {
+        | (_, Some(p))
+        | (Some(p), _) => Some(Piece.id(p))
+        | _ => None
+        };
+      let+ ci = Id.Map.find_opt(proxy_id, info_map);
+      Language.Statics.Info.Secondary({
+        id: proxy_id,
+        cls: Secondary(cls),
+        sort: Language.Statics.Info.sort_of(ci),
+        ctx: Language.Statics.Info.ctx_of(ci),
+      });
+    }
   };
 
 /* For type-directed completion (TyDi): returns the ci of the

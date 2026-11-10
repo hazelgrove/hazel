@@ -85,7 +85,9 @@ let reformat_tests = [
       check(
         string,
         "unsettled child preserved as typed",
-        "(\n  let y =\n    1\n   3)",
+        /* col 3 was a grout cell; zero-width grout leaves the typed
+           indent honestly at 2 */
+        "(\n  let y =\n    1\n  3)",
         got,
       );
     },

@@ -53,7 +53,7 @@ let chip_metrics = (font_metrics: FontMetrics.t): FontMetrics.t => {
 };
 
 let hole_glyph = (~font_metrics: FontMetrics.t, shape: Grout.shape): Node.t =>
-  EmptyHoleDec.view(chip_metrics(font_metrics), shape);
+  EmptyHoleDec.view((chip_metrics(font_metrics), shape, EmptyHoleDec.Boxed));
 
 /* The implicit marker in a completion payload is rendered as a hole, never
    as source text. Literal spaces are retained by the chip's white-space CSS. */

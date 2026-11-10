@@ -50,3 +50,6 @@ let view:
     the cursor's. Exported for Test_ImpliedHole. */
 let info_for_view:
   (~quiver: bool, Cursor.cursor('action)) => option(Language.Info.t);
+
+/** How the bar prints types and terms. Exported for Test_GroutGeometry. */
+let code_view_settings: Haz3lcore.ExpToSegment.Settings.t;

@@ -51,7 +51,8 @@ module Model = {
         ~settings=ExpToSegment.Settings.of_core(~inline, settings),
       );
     let seg = inline ? seg : PrettySegment.prettify(seg);
-    seg |> Zipper.unzip |> Editor.Model.mk(~root) |> mk;
+    /* a converted value: its holes get a cell of their own */
+    seg |> Zipper.unzip |> Editor.Model.mk_with(~back_holes=true, ~root) |> mk;
   };
 
   let get_statics = (model: t) => model.statics;
