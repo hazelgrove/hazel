@@ -34,6 +34,9 @@ type ColorOverrides = ^^fold((
   # how much of the remaining way to the ink probe sample text is moved: #
   # 0. keeps the shared placement, 1. is the ink itself #
   `probe-text-toward-ink` = Float,
+  # how far a chart's series sit above (or below) the lightness each is #
+  # stated at, which is the light scheme's #
+  `chart-series-shift` = Float,
   `hole-empty` = ColorValue,
   `projector-textarea-text` = ColorValue,
   `inspector-badge` = ColorValue,
@@ -85,6 +88,9 @@ let probe_text(c, t, sat) =
 let sort_plate(c) =
   color_with_lightness(
     color_saturate(c, role.`cursor-tint`), role.`cursor-level`) in
+# a chart series: a fixed hue, so a series keeps its color in every #
+# scheme, moved up or down by the scheme's shift #
+let series(l, c, h) = Oklch(l +. role.`chart-series-shift`, c, h) in
 (
   palette = p,
   roles = (
@@ -220,6 +226,21 @@ let sort_plate(c) =
       # the arm from an indicated term to its statics card #
       `statics-arm` = wash(p.`statics-background`, 0.5533, 3.177)
     ),
+    # charts drawn by Hazel programs: the frame, then the categorical #
+    # series in the order a chart uses them #
+    chart = (
+      `grid` = p.`frame-2`,
+      `axis-text` = p.`frame-4`,
+      `label-text` = p.`frame-3`,
+      `series-1` = series(68., 0.13, 80.),
+      `series-2` = series(58., 0.11, 235.),
+      `series-3` = series(62., 0.12, 150.),
+      `series-4` = series(60., 0.13, 45.),
+      `series-5` = series(62., 0.1, 195.),
+      `series-6` = series(56., 0.12, 320.),
+      `series-7` = series(64., 0.12, 125.),
+      `series-8` = series(55., 0.07, 250.)
+    ),
     # the agent workbench: the banner shown while history is compacted #
     agent = (
       `banner` = Fade(wash(p.`pattern`, 0.9333, 0.4), 12.),
@@ -253,6 +274,7 @@ let light_roles(p : ColorPalette): ColorOverrides = ^^fold((
   `cursor-level` = 95.,
   `step-next-level` = 85.,
   `probe-text-toward-ink` = 0.,
+  `chart-series-shift` = 0.,
   `hole-empty` = p.`attention-1`,
   `projector-textarea-text` = p.`frame-3`,
   `inspector-badge` = p.`frame-3`,
@@ -332,6 +354,7 @@ let dark_roles(p : ColorPalette): ColorOverrides = ^^fold((
   `cursor-level` = 40.,
   `step-next-level` = 31.,
   `probe-text-toward-ink` = 0.,
+  `chart-series-shift` = 10.,
   `hole-empty` = p.`surface-2`,
   `projector-textarea-text` = p.`ink`,
   `inspector-badge` = p.`frame-2`,
@@ -440,7 +463,8 @@ let contrast_light = ^^fold(let p = palette_of(
   ) in
   theme_of(p, light_roles(p) ... (
     `contrast` = true,
-    `step-next-level` = 90.
+    `step-next-level` = 90.,
+    `chart-series-shift` = -18.
   ))) in
 
 # ── high contrast, dark ── #
@@ -503,7 +527,8 @@ let contrast_dark = ^^fold(let p = palette_of(
     `step-next-level` = 27.,
     # light text on a dark fill needs more lightness than dark text on a #
     # light one to read as well, so the shared placement falls short here #
-    `probe-text-toward-ink` = 0.55
+    `probe-text-toward-ink` = 0.55,
+    `chart-series-shift` = 22.
   ))) in
 
 case (dark_mode, high_contrast)

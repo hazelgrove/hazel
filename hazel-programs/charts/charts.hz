@@ -1,0 +1,380 @@
+# CHARTS #
+
+# A charting library written in Hazel. Nothing here is built into Hazel: #
+# charts are ordinary functions returning HTML, drawn with the generic #
+# Node/Create escape hatches, which render SVG. Fork any of it. #
+
+module Svg = {
+  # Numbers reach SVG as attribute strings. #
+  let f2 : Float -> String = fun x -> to_fixed(x, 2);
+  let at : (String, Float) -> Attr = fun (k, v) -> Create(k, to_fixed(v, 2));
+
+  # Axis labels: drop the decimals when a tick lands on a whole number. #
+  let num : Float -> String =
+    fun v ->
+      if v -. floor(v) ==. 0.0 && abs_float(v) <. 100000000.0
+      then string_of_int(int_of_float(v))
+      else to_fixed(v, 2);
+
+  let root : (Float, Float, [HTML]) -> HTML =
+    fun (w, h, kids) ->
+      Node("svg", [
+        Create("viewBox", "0 0 " ++ f2(w) ++ " " ++ f2(h)),
+        Create("preserveAspectRatio", "xMidYMid meet"),
+        Class("chart-svg")
+      ], kids);
+
+  let g : (Float, Float, [HTML]) -> HTML =
+    fun (dx, dy, kids) ->
+      Node("g", [Create("transform",
+        "translate(" ++ f2(dx) ++ "," ++ f2(dy) ++ ")")], kids);
+
+  # A native SVG tooltip. Nested inside a shape, the browser shows it on hover. #
+  let tip : String -> HTML = fun s -> Node("title", [], [Text(s)]);
+
+  let rect : (Float, Float, Float, Float, String, [HTML]) -> HTML =
+    fun (x, y, w, h, fill, kids) ->
+      Node("rect", [at("x", x), at("y", y), at("width", w), at("height", h),
+                    Create("fill", fill), Class("chart-mark")], kids);
+
+  let circle : (Float, Float, Float, String, [HTML]) -> HTML =
+    fun (cx, cy, r, fill, kids) ->
+      Node("circle", [at("cx", cx), at("cy", cy), at("r", r),
+                      Create("fill", fill), Class("chart-mark")], kids);
+
+  let seg : (Float, Float, Float, Float, String) -> HTML =
+    fun (x1, y1, x2, y2, cls) ->
+      Node("line", [at("x1", x1), at("y1", y1), at("x2", x2), at("y2", y2),
+                    Class(cls)], []);
+
+  let path : (String, String, String, [HTML]) -> HTML =
+    fun (d, fill, cls, kids) ->
+      Node("path", [Create("d", d), Create("fill", fill), Class(cls)], kids);
+
+  let text : (Float, Float, String, String) -> HTML =
+    fun (x, y, cls, s) ->
+      Node("text", [at("x", x), at("y", y), Class(cls)], [Text(s)])
+} in
+
+module Scale = {
+  # Map x from [d0,d1] onto [r0,r1]. A degenerate domain pins to the middle #
+  # of the range rather than dividing by zero. #
+  let linear : (Float, Float, Float, Float, Float) -> Float =
+    fun (d0, d1, r0, r1, x) ->
+      if d1 -. d0 ==. 0.0
+      then (r0 +. r1) /. 2.0
+      else r0 +. (x -. d0) /. (d1 -. d0) *. (r1 -. r0);
+
+  # Band i of n across [r0,r1], as (start, width). `pad` is the fraction of #
+  # each step left as gutter, split evenly on both sides. #
+  let band : (Int, Int, Float, Float, Float) -> (Float, Float) =
+    fun (n, i, r0, r1, pad) ->
+      let count = if n <= 0 then 1 else n in
+      let step = (r1 -. r0) /. float_of_int(count) in
+      (r0 +. step *. float_of_int(i) +. step *. pad /. 2.0,
+       step *. (1.0 -. pad));
+
+  # A "nice" step: the 1/2/5 x 10^k closest to span/count. #
+  let step : (Float, Int) -> Float =
+    fun (span, count) ->
+      let n = if count <= 0 then 1 else count in
+      let raw = span /. float_of_int(n) in
+      if raw <=. 0.0
+      then 1.0
+      else
+        let mag = 10.0 **. floor(log10(raw)) in
+        let norm = raw /. mag in
+        let mult =
+          if norm <. 1.5 then 1.0
+          else if norm <. 3.0 then 2.0
+          else if norm <. 7.0 then 5.0
+          else 10.0
+        in
+        mult *. mag;
+
+  # Round a domain outward to whole steps. Returns (lo, hi, step). #
+  let nice : (Float, Float, Int) -> (Float, Float, Float) =
+    fun (lo, hi, count) ->
+      if hi -. lo <=. 0.0
+      then (lo, lo +. 1.0, 1.0)
+      else
+        let s = step(hi -. lo, count) in
+        (floor(lo /. s) *. s, ceil(hi /. s) *. s, s);
+
+  let ticks : (Float, Float, Float) -> [Float] =
+    fun (lo, hi, s) ->
+      if s <=. 0.0
+      then [lo]
+      else
+        let k = int_of_float(floor((hi -. lo) /. s +. 0.5)) in
+        init(k + 1, fun i -> lo +. float_of_int(i) *. s)
+} in
+
+module Chart = {
+  # Geometry. One fixed drawing size; the SVG viewBox scales it to fit. #
+  let w = 320.0;
+  let h = 220.0;
+  let ml = 38.0;
+  let mr = 14.0;
+  let mt = 12.0;
+  let mb = 30.0;
+  let iw = w -. ml -. mr;
+  let ih = h -. mt -. mb;
+  let tickCount = 4;
+
+  # Series colors come from CSS custom properties, so charts follow the #
+  # editor theme without any color logic here. #
+  let palette : [String] = [
+    "var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)",
+    "var(--chart-5)", "var(--chart-6)", "var(--chart-7)", "var(--chart-8)"
+  ];
+  let color : Int -> String = fun i -> nth(palette, int_mod(i, 8));
+
+  let empty : HTML =
+    Svg.root(w, h, [Svg.text(w /. 2.0, h /. 2.0, "chart-empty", "no data")]);
+
+  let minOf : [Float] -> Float =
+    fun xs -> fold_left(xs, fun (a, x) -> if x <. a then x else a, infinity);
+  let maxOf : [Float] -> Float =
+    fun xs -> fold_left(xs, fun (a, x) -> if x >. a then x else a, neg_infinity);
+
+  # A horizontal gridline plus its left-hand value label, per y tick. #
+  let yAxis : (Float, Float, Float) -> [HTML] =
+    fun (lo, hi, s) ->
+      concat(map(Scale.ticks(lo, hi, s), fun t ->
+        let y = Scale.linear(lo, hi, ih, 0.0, t) in
+        [Svg.seg(0.0, y, iw, y, "chart-grid"),
+         Svg.text(0.0 -. 6.0, y +. 3.5, "chart-axis-text chart-axis-y", Svg.num(t))]));
+
+  # ===== BAR ===== #
+
+  # Categories are the union of every series' labels, in first-seen order, #
+  # and each series looks its own values up by label. A series that has no #
+  # value at a category leaves a gap instead of shifting its later bars #
+  # into someone else's slot. #
+  let unionLabels : [[String]] -> [String] =
+    fun lss ->
+      fold_left(concat(lss), fun (acc, l) ->
+        if mem(acc, l) then acc else acc @ [l], []);
+
+  let bars : ([String], [(name=String, data=[(label=String, value=Float)])], Bool) -> HTML =
+    fun (cats, series, showLegend) ->
+      let ns = length(series) in
+      let allValues =
+        concat(map(series, fun s -> map(s.data, fun r -> r.value))) in
+      if length(cats) == 0 || length(allValues) == 0
+      then empty
+      else
+        # Bars are read against a zero baseline, so the domain always includes 0. #
+        let vmin = minOf(allValues) in
+        let vmax = maxOf(allValues) in
+        let (lo, hi, step) =
+          Scale.nice(if vmin >. 0.0 then 0.0 else vmin,
+                     if vmax <. 0.0 then 0.0 else vmax,
+                     tickCount) in
+        let zeroY = Scale.linear(lo, hi, ih, 0.0, 0.0) in
+        let marks =
+          concat(mapi(series, fun (si, s) ->
+            let pairs = map(s.data, fun r -> (r.label, r.value)) in
+            concat(mapi(cats, fun (ci, cat) ->
+              case assoc_opt(pairs, cat)
+              | None => []
+              | Some(v) =>
+                  let (cx, cw) = Scale.band(length(cats), ci, 0.0, iw, 0.25) in
+                  let (bx, bw) = Scale.band(ns, si, cx, cx +. cw, 0.08) in
+                  let y = Scale.linear(lo, hi, ih, 0.0, v) in
+                  let top = if y <. zeroY then y else zeroY in
+                  let hgt = abs_float(zeroY -. y) in
+                  [Svg.rect(bx, top, bw, hgt, color(si),
+                     [Svg.tip(cat ++ ": " ++ Svg.num(v))])]
+              end)))) in
+        # Value labels only when there is room: one series, few categories. #
+        let valueLabels =
+          if ns == 1 && length(cats) <= 12
+          then
+            let pairs = map(nth(series, 0).data, fun r -> (r.label, r.value)) in
+            concat(mapi(cats, fun (ci, cat) ->
+              case assoc_opt(pairs, cat)
+              | None => []
+              | Some(v) =>
+                  let (cx, cw) = Scale.band(length(cats), ci, 0.0, iw, 0.25) in
+                  let y = Scale.linear(lo, hi, ih, 0.0, v) in
+                  [Svg.text(cx +. cw /. 2.0,
+                            (if v >=. 0.0 then y -. 4.0 else y +. 10.0),
+                            "chart-value", Svg.num(v))]
+              end))
+          else [] in
+        let xLabels =
+          mapi(cats, fun (ci, cat) ->
+            let (cx, cw) = Scale.band(length(cats), ci, 0.0, iw, 0.25) in
+            Svg.text(cx +. cw /. 2.0, ih +. 14.0, "chart-axis-text chart-axis-x", cat)) in
+        let legend =
+          if showLegend
+          then mapi(series, fun (si, s) ->
+                 Svg.g(float_of_int(si) *. 76.0, 0.0, [
+                   Svg.rect(0.0, 0.0 -. 7.0, 8.0, 8.0, color(si), []),
+                   Svg.text(12.0, 0.0, "chart-legend", s.name)]))
+          else [] in
+        Svg.root(w, h, [
+          Svg.g(ml, mt, yAxis(lo, hi, step) @ marks @ valueLabels @ xLabels),
+          Svg.g(ml, h -. 6.0, legend)]);
+
+  let bar : [(label=String, value=Float)] -> HTML =
+    fun rows -> bars(map(rows, fun r -> r.label), [(name="", data=rows)], false);
+
+  let groupedBar : [(name=String, data=[(label=String, value=Float)])] -> HTML =
+    fun series ->
+      bars(unionLabels(map(series, fun s -> map(s.data, fun r -> r.label))),
+           series, true);
+
+  # ===== LINE / SCATTER ===== #
+
+  let xy : ([(x=Float, y=Float)], Bool) -> HTML =
+    fun (pts, connect) ->
+      if length(pts) == 0
+      then empty
+      else
+        let xs = map(pts, fun p -> p.x) in
+        let ys = map(pts, fun p -> p.y) in
+        let (x0, x1, xstep) = Scale.nice(minOf(xs), maxOf(xs), tickCount) in
+        let (y0, y1, ystep) = Scale.nice(minOf(ys), maxOf(ys), tickCount) in
+        let px = fun p -> Scale.linear(x0, x1, 0.0, iw, p.x) in
+        let py = fun p -> Scale.linear(y0, y1, ih, 0.0, p.y) in
+        let dots =
+          map(pts, fun p ->
+            Svg.circle(px(p), py(p), 2.5, color(0),
+              [Svg.tip("(" ++ Svg.num(p.x) ++ ", " ++ Svg.num(p.y) ++ ")")])) in
+        let stroke =
+          if connect
+          then [Svg.path(
+                  string_join("",
+                    mapi(pts, fun (i, p) ->
+                      (if i == 0 then "M " else " L ")
+                      ++ Svg.f2(px(p)) ++ "," ++ Svg.f2(py(p)))),
+                  "none", "chart-line", [])]
+          else [] in
+        let xLabels =
+          map(Scale.ticks(x0, x1, xstep), fun t ->
+            Svg.text(Scale.linear(x0, x1, 0.0, iw, t), ih +. 14.0,
+                     "chart-axis-text chart-axis-x", Svg.num(t))) in
+        Svg.root(w, h, [
+          Svg.g(ml, mt, yAxis(y0, y1, ystep) @ stroke @ dots @ xLabels)]);
+
+  let line : [(x=Float, y=Float)] -> HTML = fun pts -> xy(pts, true);
+  let scatter : [(x=Float, y=Float)] -> HTML = fun pts -> xy(pts, false);
+
+  # ===== PIE ===== #
+
+  let pie : [(label=String, value=Float)] -> HTML =
+    fun rows ->
+      # Negative slices have no meaning in a pie; clamp them away. #
+      let vals = map(rows, fun r -> if r.value <. 0.0 then 0.0 else r.value) in
+      let total = fold_left(vals, fun (a, v) -> a +. v, 0.0) in
+      if length(rows) == 0 || total <=. 0.0
+      then empty
+      else
+        let cx = 92.0 in
+        let cy = h /. 2.0 in
+        let r = 76.0 in
+        # Running start angle for each slice, in turns (0..1). #
+        let starts =
+          fold_left(vals, fun (acc, v) ->
+            acc @ [(case rev(acc) | [] => 0.0 | s::_ => s end) +. v /. total],
+            [0.0]) in
+        let arc = fun (a0, a1, fill, tipText) ->
+          let ang = fun a -> a *. 2.0 *. pi in
+          let ptx = fun a -> cx +. r *. sin(ang(a)) in
+          let pty = fun a -> cy -. r *. cos(ang(a)) in
+          # A slice covering the whole circle has no arc endpoints to name. #
+          if a1 -. a0 >=. 0.999999
+          then Svg.circle(cx, cy, r, fill, [Svg.tip(tipText)])
+          else
+            Svg.path(
+              "M " ++ Svg.f2(cx) ++ "," ++ Svg.f2(cy)
+              ++ " L " ++ Svg.f2(ptx(a0)) ++ "," ++ Svg.f2(pty(a0))
+              ++ " A " ++ Svg.f2(r) ++ "," ++ Svg.f2(r) ++ " 0 "
+              ++ (if a1 -. a0 >. 0.5 then "1" else "0") ++ " 1 "
+              ++ Svg.f2(ptx(a1)) ++ "," ++ Svg.f2(pty(a1)) ++ " Z",
+              fill, "chart-mark", [Svg.tip(tipText)]) in
+        let slices =
+          concat(mapi(zip(rows, vals), fun (i, rv) ->
+            let (row, v) = rv in
+            if v <=. 0.0
+            then []
+            else [arc(nth(starts, i), nth(starts, i + 1), color(i),
+                      row.label ++ ": " ++ Svg.num(row.value))])) in
+        let legend =
+          mapi(rows, fun (i, row) ->
+            Svg.g(0.0, float_of_int(i) *. 14.0, [
+              Svg.rect(0.0, 0.0 -. 7.0, 8.0, 8.0, color(i), []),
+              Svg.text(12.0, 0.0, "chart-legend",
+                       row.label ++ "  " ++ Svg.num(row.value))])) in
+        Svg.root(w, h, [Svg.g(0.0, 0.0, slices), Svg.g(186.0, 24.0, legend)])
+} in
+
+# ===== A GALLERY OF ALL FIVE KINDS ===== #
+
+# Two surfaces draw the same values, and this slide is set up to show both. #
+
+# Each chart below carries its own ^^probe_html, so it draws beside the code #
+# that builds it — that rich probe renders an expression's evaluated value. #
+
+# The gallery Div at the very bottom is the program's RESULT, and the #
+# evaluation output can draw that too: turn on Nut menu -> Value Display -> #
+# HTML. Off, the result prints as a constructor tree, which is worth looking #
+# at once — every chart here is just that tree. On, the same value renders #
+# as the figures. Nothing about the program changes either way. #
+
+
+let sales : [(label=String, value=Float)] = [
+  ("Kale", 42.0), ("Chard", 31.0), ("Leek", 24.0),
+  ("Beet", 18.0), ("Fennel", 12.0)
+] in
+
+let harvest = ^^probe_html(Chart.bar(sales)) in
+
+
+# Series need not agree on their categories: Fall has no Kale and Spring no #
+# Leek, so each leaves a gap there rather than shifting its other bars. #
+
+let seasons : [(name=String, data=[(label=String, value=Float)])] = [
+  (name="Spring", data=[("Kale", 12.0), ("Chard", 8.0), ("Beet", 5.0)]),
+  (name="Fall", data=[("Chard", 5.0), ("Leek", 9.0), ("Beet", 11.0)])
+] in
+
+let bySeason = ^^probe_html(Chart.groupedBar(seasons)) in
+
+
+# The same points, connected and not. #
+
+let growth : [(x=Float, y=Float)] = [
+  (0.0, 2.0), (1.0, 3.5), (2.0, 3.0), (3.0, 6.5), (4.0, 8.0), (5.0, 7.5)
+] in
+
+let overTime = ^^probe_html(Chart.line(growth)) in
+
+
+let spread = ^^probe_html(Chart.scatter(growth)) in
+
+
+let plot : [(label=String, value=Float)] = [
+  ("Beds", 5.0), ("Paths", 2.0), ("Compost", 1.0), ("Pond", 2.0)
+] in
+
+let byArea = ^^probe_html(Chart.pie(plot)) in
+
+
+# ===== THE GALLERY ITSELF ===== #
+
+let figure : (String, HTML) -> HTML =
+  fun (caption, chart) ->
+    Div([Class("chart-figure")], [Div([Class("chart-caption")], [Text(caption)]), chart])
+in
+
+Div([Class("chart-gallery")], [
+  figure("Harvest by crop", harvest),
+  figure("Harvest by season", bySeason),
+  figure("Growth over time", overTime),
+  figure("Growth, unconnected", spread),
+  figure("Garden by area", byArea)
+])

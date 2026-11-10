@@ -185,7 +185,80 @@ attributes and labels (string_of_float output is noisy).
 |},
 };
 
-let all: list(pack) = [mvu, creative];
+let charts: pack = {
+  name: "charts",
+  blurb: "draw a chart from data — there is no chart type or chart projector, charts are HTML values you build with Node/Create; read before plotting anything",
+  body: {|# Charting
+
+Hazel has no `Chart` type and no chart projector. A chart is an ordinary
+HTML value, so you build one the same way you build any other drawing:
+`Node(tag, attrs, children)` with SVG tags, and `Create(name, value)` for
+SVG attributes. Nothing about charting is built in — scales, axes, ticks,
+legends and colors are yours to write, which also means yours to change.
+
+## Viewing one
+
+A chart is *computed*, so its HTML only exists after evaluation:
+
+- `^^probe_html(expr)` renders the evaluated value of any HTML-valued
+  expression. This is what you want for a chart.
+- `^^html(expr)` renders the projector's *syntax*, so it suits HTML you
+  wrote out literally, and MVU apps — see read_docs("mvu").
+
+## Building one
+
+Map data to coordinates yourself; it is a few lines.
+
+```
+let sales : [(label=String, value=Float)] = [("Kale", 42.0), ("Chard", 31.0)] in
+let bar : (Int, Float) -> HTML =
+  fun (i, v) ->
+    Node("rect", [
+      Create("x", to_fixed(float_of_int(i) *. 40.0 +. 5.0, 2)),
+      Create("y", to_fixed(100.0 -. v, 2)),
+      Create("width", "30"),
+      Create("height", to_fixed(v, 2)),
+      Create("fill", "var(--chart-1)")
+    ], [Node("title", [], [Text("hover text")])])
+in
+^^probe_html(
+  Node("svg", [Create("viewBox", "0 0 100 100")],
+    mapi(sales, fun (i, r) -> bar(i, r.value))))
+```
+
+Points worth copying:
+
+- Coordinates are strings. Use `to_fixed(f, digits)`, never
+  `string_of_float` — its output is noisy.
+- SVG y grows downward, so a bar's `y` is its top: `baseline - height`.
+- `Node("title", [], [Text(s)])` nested in a shape is the browser's native
+  tooltip. Don't build your own.
+- Colors: `var(--chart-1)` .. `var(--chart-8)` follow the editor theme.
+  Class names `chart-mark`, `chart-grid`, `chart-axis-text`,
+  `chart-axis-x`, `chart-axis-y`, `chart-value`, `chart-legend` and
+  `chart-empty` are already styled.
+- Say "no data" for an empty series rather than drawing bare axes, and
+  guard any division by a domain width that could be zero.
+
+## The library
+
+`hazel-programs/charts/charts.hz` — the **Charts** documentation slide — is
+a worked implementation with `Svg`, `Scale` (linear, band, nice, ticks) and
+`Chart` (bar, groupedBar, line, scatter, pie) modules. There are no imports
+across files, so paste the module block into the program to use it, or
+adapt the parts you need. Full reference: docs/charts.md.
+
+## Charts as inputs
+
+Handlers work on SVG shapes, so a chart can be edited by dragging. Attach
+`OnMouseDownAt` / `OnMouseMoveAt` / `OnMouseUpAt` to the svg root (not the
+shape, or a fast drag loses the pointer), and keep `Width`/`Height` equal
+to the `viewBox` size so handler pixels are viewBox coordinates. That needs
+the app machinery from read_docs("mvu").
+|},
+};
+
+let all: list(pack) = [mvu, creative, charts];
 
 let lookup = (name: string): option(pack) =>
   List.find_opt(p => p.name == String.trim(name), all);

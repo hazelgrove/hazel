@@ -144,6 +144,12 @@ let value_display = (~globals: Globals.t): section => {
         "Project tables in evaluated results",
       ),
       toggle(
+        "HTML",
+        s.project_html,
+        Evaluation(ProjectHtml),
+        "Render HTML values in evaluated results",
+      ),
+      toggle(
         "Ascriptions",
         s.show_ascriptions,
         Evaluation(ShowAscriptions),
