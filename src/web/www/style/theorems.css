@@ -99,3 +99,9 @@
   font-size: 0.75em;
   cursor: pointer;
 }
+
+/* The status of a fill started by typing `??`, above the cell's result. */
+.agent-fill {
+  display: flex;
+  padding: 0.2em 1em;
+}

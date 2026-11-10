@@ -25,7 +25,7 @@ let self: list(string) =
     "- `rewrite <replacement> end`: an algebraic rewrite of the root, checked by a computer-algebra system.",
     "- `contradiction <fact> end`: closes any goal when the fact in scope evaluates to `false`. `contradiction <fact> with <x> = <e> end` first replaces `x` by `e`, which needs `x == e` in scope.",
     "",
-    "To act on a subterm, focus on it: `from <selector> do <steps> end` runs the steps on the first occurrence of the selector in the goal, counting left to right, and puts the result back. `from 2nd <selector> do ... end` picks the second occurrence, and so on (`3rd`, `4th`). A selector may use `$e` to match any expression, `$v` any value and `$x` any variable. Inside the focus, the steps act on the root of the focused subterm.",
+    "To act on a subterm, focus on it: `from <selector> do <steps> end` runs the steps on the first occurrence of the selector in the goal, counting left to right, and puts the result back. `from 2nd <selector> do ... end` picks the second occurrence, and so on (`3rd`, `4th`). A selector may use `$e` to match any expression, `$v` any value and `$x` any variable. Inside the focus, the steps act on the root of the focused subterm. `axiom` and `rewrite` close with their own `end`, so a focus around one ends `end end`: `from n + n do rewrite 2 * n end end; axiom refl_eq end`.",
     "",
     "These forms run the rest of the chain, after `=>`, in a new scope:",
     "",

@@ -739,6 +739,25 @@ module Update = {
       switch (scratchpad.kind) {
       | Code({editor, agent}) =>
         let* new_ed = CellEditor.Update.update(~settings, a, editor);
+        switch (a) {
+        | MainEditor(action) =>
+          AgentFill.Typed.start(
+            ~core=Theorems.with_proof_settings(settings.core),
+            ~agent=settings.agent_globals,
+            ~dynamics=Option.map(snd, editor.result.theorems.checked),
+            ~app={
+              set_status: s =>
+                schedule_action(CellAction(ResultAction(Fill(s)))),
+              write: patch =>
+                schedule_action(CellAction(PatchMainEditor(patch))),
+            },
+            ~before=editor.editor.editor.state.zipper,
+            ~after=new_ed.editor.editor.state.zipper,
+            action,
+          )
+        | ResultAction(_)
+        | PatchMainEditor(_) => ()
+        };
         let new_sp =
           ListUtil.put_nth(
             model.current,

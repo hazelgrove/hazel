@@ -141,6 +141,8 @@ module Model = {
      * or after it fails, the pair stays, so a proof is never checked
      * against one program's statics and another's environment. */
     checked: Calc.saved(option((Haz3lcore.CachedStatics.t, Dynamics.t))),
+    /* The agent's progress filling a `??` typed in the cell. */
+    fill: option(AgentFill.Status.t),
   };
 
   let init = {
@@ -159,6 +161,7 @@ module Model = {
     request_gen: 0,
     request_statics: None,
     checked: Calc.Pending,
+    fill: None,
   };
 
   let probe_results = (model: t): option(Sample.Map.t) =>
@@ -230,7 +233,8 @@ module Update = {
     | UpdateResult(int, ProgramResult.t(ProgramResult.inner))
     | UpdateStreamingEval(int, IncrEval.outbox(EvaluatorState.t))
     | MergeStreamingEval(int, IncrEval.outbox(EvaluatorState.t))
-    | TheoremsAction(Theorems.Update.t);
+    | TheoremsAction(Theorems.Update.t)
+    | Fill(AgentFill.Status.t);
 
   /* Whether a cell the user can't edit still takes this action: evaluation
      results arrive as these whether or not the cell is editable. Exhaustive on
@@ -239,7 +243,8 @@ module Update = {
     switch (action) {
     | UpdateResult(_)
     | UpdateStreamingEval(_)
-    | MergeStreamingEval(_) => true
+    | MergeStreamingEval(_)
+    | Fill(_) => true
     | ToggleStepper
     | StepperAction(_)
     | StepperPatch(_)
@@ -323,6 +328,12 @@ module Update = {
         ...model,
         theorems,
       };
+    | (Fill(status), _) =>
+      {
+        ...model,
+        fill: Some(status),
+      }
+      |> Updated.return_quiet
     | (UpdateResult(gen, _), _)
     | (UpdateStreamingEval(gen, _), _)
     | (MergeStreamingEval(gen, _), _) when gen != model.request_gen =>
@@ -391,6 +402,7 @@ module Update = {
           request_gen,
           request_statics,
           checked,
+          fill,
         }: Model.t,
       ) => {
     // Check whether settings / elab / targets have changed
@@ -655,6 +667,7 @@ module Update = {
         request_gen,
         request_statics,
         checked: checked |> Calc.save,
+        fill,
       }: Model.t
     );
   };
@@ -964,7 +977,10 @@ module View = {
       let theorems =
         List.length(theorems) == 0
           ? [] : [WebUtil.div_c("theorems", theorems)];
-      (result @ theorems, test_overlay);
+      let fill =
+        AgentFill.View.status(model.fill)
+        |> List.map(status => WebUtil.div_c("agent-fill", [status]));
+      (fill @ result @ theorems, test_overlay);
 
     // Just showing elaboration because evaluation is off:
     | `EvalResults

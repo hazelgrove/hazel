@@ -397,30 +397,24 @@ module View = {
       let contracts =
         sections == [] ? [] : [div_c("theorem-contract-sections", sections)];
       let hole_actions = (hole: Proof.t) =>
-        AgentFill.View.button(~status=fill, () =>
-          AgentFill.start(
-            ~globals,
-            ~checked=model.checked,
-            ~proof_map,
-            ~theorem_id=id,
-            ~theorem=name,
-            ~statement=stmt,
-            ~set_status=
-              status =>
-                Ui_effect.Expert.handle(inject(Update.Fill(id, status))),
-            ~write=
-              p =>
-                Ui_effect.Expert.handle(
-                  edit_syntax(
-                    Haz3lcore.EditorTransform.mk_proof_patch(
-                      ~target_id=Proof.rep_id(hole),
-                      p,
-                    ),
-                  ),
-                ),
-            hole,
+        switch (model.checked) {
+        | Some((statics, dynamics)) =>
+          AgentFill.View.button(~status=fill, () =>
+            AgentFill.ProofHole.start(
+              ~core=globals.settings.core,
+              ~ask=AgentFill.ask_agent(globals.settings.agent_globals),
+              ~dynamics=Some(dynamics),
+              ~app={
+                set_status: status =>
+                  Ui_effect.Expert.handle(inject(Update.Fill(id, status))),
+                write: patch => Ui_effect.Expert.handle(edit_syntax(patch)),
+              },
+              ~program=statics.term,
+              Proof.rep_id(hole),
+            )
           )
-        );
+        | None => []
+        };
       let stepper =
         StepperView.View.view(
           ~globals,
