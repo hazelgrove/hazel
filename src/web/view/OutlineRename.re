@@ -113,27 +113,15 @@ let capture =
     ? Some(name ++ " is already in use here") : None;
 };
 
-/* a plain name as the language reads one: not `_`, a literal, any
-   form's keyword, `$`-prefixed or qualified. Short reasons: the outline
-   is narrow */
-let check_name = (kind, name: string): option(string) => {
-  let spaced = String.exists(c => String.contains(" \t\n\r", c), name);
-  let plain =
-    name != ""
-    && name.[0] != '$'
-    && !String.contains(name, '.')
-    && !List.mem(name, FormId.delims);
-  let (value, upper) = (Token.is_var(name), Token.is_ctr(name));
-  switch (kind) {
-  | _ when spaced => Some("names have no spaces")
-  | _ when Token.is_keyword(name) => Some(name ++ " is a keyword")
-  | _ when !plain || !value && !upper => Some("a name is one identifier")
-  | KValue when !value => Some("value names start lowercase")
-  | KType
-  | KModule when !upper => Some("type and module names start with a capital")
-  | _ => None
-  };
-};
+let check_name = (kind, name: string): option(string) =>
+  Rename.check_name(
+    switch (kind) {
+    | KValue => Value
+    | KType => Type
+    | KModule => Module
+    },
+    name,
+  );
 
 /* the references to relabel as [it] is named [name], as a [kind]'s: none
    when nothing changes; else why not */

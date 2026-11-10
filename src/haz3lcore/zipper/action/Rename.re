@@ -5,6 +5,34 @@ open Language;
    resolves both). Shared by the outline's rename and the assistant's
    rename. */
 
+/* what a new name binds: values take a lowercase identifier, modules a
+   capitalized one, types either */
+type name_kind =
+  | Value
+  | Type
+  | Module;
+
+/* why [name] can't name a [kind]: it must be one plain identifier, not a
+   keyword, `$`-prefixed (a quote) or qualified (a use). Short reasons:
+   the outline is narrow */
+let check_name = (kind: name_kind, name: string): option(string) => {
+  let spaced = String.exists(c => String.contains(" \t\n\r", c), name);
+  let plain =
+    name != ""
+    && name.[0] != '$'
+    && !String.contains(name, '.')
+    && !List.mem(name, FormId.delims);
+  let (lower, upper) = (Token.is_var(name), Token.is_ctr(name));
+  switch (kind) {
+  | _ when spaced => Some("names have no spaces")
+  | _ when Token.is_keyword(name) => Some(name ++ " is a keyword")
+  | _ when !plain || !lower && !upper => Some("a name is one identifier")
+  | Value when !lower => Some("value names start lowercase")
+  | Module when !upper => Some("module names start with a capital")
+  | _ => None
+  };
+};
+
 /* every token naming [binder] but its own */
 let find_references = (~info_map: Statics.Map.t, binder: Id.t): list(Id.t) =>
   Statics.Map.ids_referencing_binding(info_map, binder)

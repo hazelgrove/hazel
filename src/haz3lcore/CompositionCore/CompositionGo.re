@@ -421,18 +421,14 @@ let at_end = (p: program): K.place => {
   };
 };
 
-/* a name the entry's kind takes: a rename's, not a pattern's */
-let is_name = (kind: P.kind, s: string): bool =>
-  !Token.is_keyword(s)
-  && !List.mem(s, Form.delims)
-  && (
-    switch (kind) {
-    | Def => Token.is_var(s)
-    | Type => Token.is_typ_var(s)
-    | Module => Token.is_ctr(s)
-    | _ => false
-    }
-  );
+/* why [s] can't be the new name of an entry of [kind] */
+let name_problem = (kind: P.kind, s: string): option(string) =>
+  switch (kind) {
+  | Def => Rename.check_name(Value, s)
+  | Type => Rename.check_name(Type, s)
+  | Module => Rename.check_name(Module, s)
+  | _ => Some("only definitions, types and modules are renamed")
+  };
 
 /* [binder]'s uses in [seg] by [info_map]: tokens of [seg] */
 let uses_in = (~root, ~info_map, seg: Segment.t, binder: Id.t): list(Id.t) =>
@@ -891,21 +887,11 @@ let plan_call = (p: program, call: call): result(plan, string) => {
       | None => binder_of(path, f, P.entry(lv, k).binders)
       };
     let name = String.trim(name);
-    if (!is_name(f.kind, name)) {
-      Error(
-        "\""
-        ++ name
-        ++ "\" is not a "
-        ++ (
-          switch (f.kind) {
-          | Def => "value's name: lowercase, not a keyword"
-          | _ => "type's or module's name: capitalized"
-          }
-        ),
-      );
-    } else if (name == old) {
-      Ok(plan(~target=f.id, Renamed(old, name, 0), []));
-    } else {
+    switch (name_problem(f.kind, name)) {
+    | Some(why) => Error("\"" ++ name ++ "\" won't do as a new name: " ++ why)
+    | None when name == old =>
+      Ok(plan(~target=f.id, Renamed(old, name, 0), []))
+    | None =>
       let refs = uses(p, binder);
       Ok({
         ...

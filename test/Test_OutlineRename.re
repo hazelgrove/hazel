@@ -120,7 +120,7 @@ let names = () => {
   refused("let foo = 1 in foo", "foo", "Foo");
   refused("let foo = 1 in foo", "foo", "let");
   refused("let foo = 1 in foo", "foo", "two words");
-  refused("type T = Int in 1", "T", "t");
+  renamed("type T = Int in 1", "T", "t", "type t = Int in 1");
   /* the wildcard, literals, any form's keyword, qualified names */
   List.iter(
     name => refused("let foo = 1 in foo", "foo", name),
@@ -144,12 +144,6 @@ let messages = () => {
       ("Foo", "value names start lowercase"),
       ("bar", "bar is already in use here"),
     ],
-  );
-  refused_as(
-    "type T = Int in 1",
-    "T",
-    "t",
-    "type and module names start with a capital",
   );
   /* an outer name used inside would now find the renamed item */
   refused_as(
@@ -218,12 +212,7 @@ a|js},
     "let t",
     "a value needs a value body",
   );
-  refused_as(
-    m,
-    "m",
-    "module m",
-    "type and module names start with a capital",
-  );
+  refused_as(m, "m", "module m", "module names start with a capital");
   refused_as(mm, "M", "let M", "value names start lowercase");
   refused_as(
     {js|let (a, b) = ¿ in
