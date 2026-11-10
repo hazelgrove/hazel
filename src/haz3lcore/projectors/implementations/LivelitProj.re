@@ -404,6 +404,10 @@ let splice_marked_fields = (seg: Base.segment): option(Base.segment) => {
   wrapped^ > 0 ? Some(seg') : None;
 };
 
+/* (^report(51)) how many times a livelit's shape function was evaluated,
+   for the check's "view: projectors' views" mark */
+let shapes_evaluated = ref(0);
+
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = unit;
@@ -617,7 +621,16 @@ module M: Projector = {
      model sample, and cached per projector on that sample. None for a
      constant shape (read statically: UserLivelit.shape_of), and before any
      sample exists; the static shape stands in then. */
-  let shape_samples: Hashtbl.t(Id.t, (int, option(ProjectorShape.t))) =
+  /* (^report(51)) kept by the definition and the model's value, not the
+     sample's number: each run of the worker numbers its samples anew, so
+     at each answer every livelit's shape function was evaluated again for
+     the same model, and a number seen before could hold another value (the projectors' shapes 3 to 29 ms at an answer on
+     the Witch, run 42775688527) */
+  let shape_samples:
+    Hashtbl.t(
+      Id.t,
+      (TermBase.Exp.t, TermBase.Exp.t, option(ProjectorShape.t)),
+    ) =
     Hashtbl.create(16);
   let model_shape =
       (info: info, def_elab: TermBase.Exp.t, model: TermBase.Exp.t)
@@ -640,8 +653,12 @@ module M: Projector = {
     | None => None
     | Some(s) =>
       switch (Hashtbl.find_opt(shape_samples, info.id)) {
-      | Some((seq, shape)) when seq == s.seq => shape
+      | Some((d, v, shape))
+          when
+            (d === def_elab || Exp.fast_equal(d, def_elab))
+            && (v === s.value || Exp.fast_equal(v, s.value)) => shape
       | _ =>
+        incr(shapes_evaluated);
         let shape =
           switch (MvuShape.safe_evaluate_open(unsealed(def_elab))) {
           | Error(_) => None
@@ -668,7 +685,7 @@ module M: Projector = {
             | None => None
             }
           };
-        Hashtbl.replace(shape_samples, info.id, (s.seq, shape));
+        Hashtbl.replace(shape_samples, info.id, (def_elab, s.value, shape));
         shape;
       }
     };

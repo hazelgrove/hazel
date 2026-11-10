@@ -1176,6 +1176,8 @@ type split_entry = {
   s_out: (Node.t, option(Node.t)),
 };
 let split_memo: Hashtbl.t(Id.t, split_entry) = Hashtbl.create(64);
+/* each editor's projector list, by its first id, as it last drew */
+let lists_seen: Hashtbl.t(Id.t, list(Id.t)) = Hashtbl.create(8);
 /* the view and shape split_views last wrapped, for the memo's entry */
 let last_split: ref(option((View.t, ProjectorCore.Shape.t))) =
   ref(Stdlib.Option.None);
@@ -1328,6 +1330,25 @@ let all =
       projector_data: list(Model.projector_data),
       projector_list: list(Id.t),
     ) => {
+  /* (^report(51)) a list of the same ids as the one an editor last drew
+     with stands for it, so its projectors keep their finished views (the
+     memo asks for the very list): after an edit the list is new though its
+     ids are the same, and the redraw then wrapped all 53 livelits on the
+     Witch again (run 42775688527) */
+  let projector_list =
+    switch (projector_list) {
+    | [] => projector_list
+    | [first, ..._] =>
+      switch (Hashtbl.find_opt(lists_seen, first)) {
+      | Some(l) when l === projector_list || l == projector_list => l
+      | _ =>
+        if (Hashtbl.length(lists_seen) > 64) {
+          Hashtbl.reset(lists_seen);
+        };
+        Hashtbl.replace(lists_seen, first, projector_list);
+        projector_list;
+      }
+    };
   let render_splice =
     Option.value(
       render_splice,
@@ -1359,6 +1380,7 @@ let all =
   );
   shape_ms := 0.;
   kept_wrapped := 0;
+  LivelitProj.shapes_evaluated := 0;
   let split = (pd: Model.projector_data) => {
     let version = app_version_of(pd.p);
     let same_frame = (e: split_entry) =>
@@ -1428,6 +1450,12 @@ let all =
             ),
             ("compare ms", Util.BenchMarks.num(ViewCache.compare_ms^)),
             ("shape ms", Util.BenchMarks.num(shape_ms^)),
+            (
+              "shapes evaluated",
+              Util.BenchMarks.num(
+                float_of_int(LivelitProj.shapes_evaluated^),
+              ),
+            ),
             (
               "kept wrapped",
               Util.BenchMarks.num(float_of_int(kept_wrapped^)),
