@@ -38,12 +38,96 @@ let unzip = (~direction: Direction.t=Right, seg: Segment.t): t => {
   refractors: Refractor.init,
 };
 
-/* caret-to-start via a single structural rebuild: preserves refractors and
-   avoids Move.to_start's slow per-token walk (too slow for many editors). */
-let caret_to_start = (z: t): t => {
-  ...unzip(~direction=Left, zip(z)),
-  refractors: z.refractors,
+exception Not_through_tiles;
+
+/* Unzips [seg] with the caret on [side] of the first piece, in document
+   order, that [matches], descending through tiles only. None if that piece
+   is inside a projector's syntax or absent; Move then walks. */
+let unzip_to_piece =
+    (~side: Direction.t=Left, matches: Piece.t => bool, seg: Segment.t)
+    : option(t) => {
+  let rec has_match_deep = (seg: Segment.t): bool =>
+    List.exists(
+      (p: Piece.t) =>
+        matches(p)
+        || (
+          switch (p) {
+          | Tile(t) => List.exists(has_match_deep, t.children)
+          | Projector(pr) => has_match_deep([pr.syntax])
+          | Grout(_)
+          | Secondary(_) => false
+          }
+        ),
+      seg,
+    );
+  let rec in_seg =
+          (seg: Segment.t, ancestors: Ancestors.t): option(Relatives.t) => {
+    let rec go = (pre_rev: Segment.t, suf: Segment.t) =>
+      switch (suf) {
+      | [] => None
+      | [p, ...rest] when matches(p) =>
+        let pre = List.rev(pre_rev);
+        Some(
+          Relatives.{
+            siblings:
+              switch (side) {
+              | Left => (pre, suf)
+              | Right => (pre @ [p], rest)
+              },
+            ancestors,
+          },
+        );
+      | [Tile(t) as p, ...rest] =>
+        let sibs = (List.rev(pre_rev), rest);
+        let n = List.length(t.children);
+        let rec child = k =>
+          if (k >= n) {
+            None;
+          } else {
+            let (before, after) = ListUtil.split_n(k, t.children);
+            let (c, after) =
+              switch (after) {
+              | [c, ...after] => (c, after)
+              | [] => failwith("unzip_to_piece: child index")
+              };
+            let anc: Ancestor.t = {
+              id: t.id,
+              form: t.form,
+              sort: t.sort,
+              shards: ListUtil.split_n(k + 1, t.shards),
+              children: (before, after),
+            };
+            switch (in_seg(c, [(anc, sibs), ...ancestors])) {
+            | Some(_) as found => found
+            | None => child(k + 1)
+            };
+          };
+        switch (child(0)) {
+        | Some(_) as found => found
+        | None => go([p, ...pre_rev], rest)
+        };
+      | [Projector(_) as p, ..._] when has_match_deep([p]) =>
+        raise(Not_through_tiles)
+      | [p, ...rest] => go([p, ...pre_rev], rest)
+      };
+    go([], seg);
+  };
+  switch (in_seg(seg, [])) {
+  | Some(relatives) =>
+    Some({
+      selection: Selection.mk([]),
+      relatives,
+      caret: Outer,
+      refractors: Refractor.init,
+    })
+  | None => None
+  | exception Not_through_tiles => None
+  };
 };
+
+let unzip_to_id =
+    (~side: Direction.t=Left, id: Id.t, seg: Segment.t): option(t) =>
+  unzip_to_piece(~side, p => Piece.id(p) == id, seg);
 
 let regrout = (d: Direction.t, z: t): t => {
   assert(Selection.is_empty(z.selection));
@@ -603,6 +687,17 @@ let normalize_char_selection = (z: t): t =>
 
 let unselect_and_zip = (~erase_buffer=false, z: t): Segment.t =>
   z |> unselect(~erase_buffer) |> zip;
+
+/* The buffer extremes in one structural rebuild, not a token walk */
+let caret_to_start = (z: t): t => {
+  ...unzip(~direction=Left, unselect_and_zip(z)),
+  refractors: z.refractors,
+};
+
+let caret_to_end = (z: t): t => {
+  ...unzip(~direction=Right, unselect_and_zip(z)),
+  refractors: z.refractors,
+};
 
 let replace_selection = (focus, segment, z: t): t => {
   ...z,
