@@ -955,6 +955,13 @@ let mk_view =
      elaborates none of its syntax (LivelitProj.elaborate_syntax), so its
      info.elaborated is None and its view reads the program through its
      statics record alone */
+  /* A probe is keyed on its statics record alone: ProbeProj reads
+     neither its elaborated subterm, which an edit elsewhere makes anew,
+     nor the statics of other ids. After an edit of a livelit's model on
+     the Witch both probes were drawn again, their own records the same,
+     4 to 13 ms a view (run 42811452787). Its run is still keyed on the
+     whole map (reads below): a probe's samples carry their call stacks
+     and steps as well as their values. */
   let own =
     switch (p.kind, info.statics) {
     | (ProjectorCore.Kind.Livelit, Some(st)) =>
@@ -965,6 +972,8 @@ let mk_view =
         | None => Obj.repr(0)
         },
       ))
+    | (ProjectorCore.Kind.Probe, Some(st)) =>
+      Some((Obj.repr(st), Obj.repr(0)))
     | _ => Stdlib.Option.None
     };
   /* (^report(51)) a livelit is kept across a run's new answer while what it
