@@ -344,9 +344,19 @@ let rm_multi =
 };
 
 let rm_manual = (ids: list(Id.t), z: Zipper.t): Zipper.t =>
-  Zipper.update_manuals(
-    map => List.filter(((id, _)) => !List.mem(id, ids), map),
-    z,
+  /* (^report(51)) the very same list when none of [ids] is in it: the
+     syntax cache keys on its identity, and each calculate's probe effects
+     ask to remove the colliding probes, mostly none. A new list each time
+     made every next calculate refresh the shapes as if the probes had
+     changed: at the worker's answer on the Witch, 8 to 19 ms for nothing
+     (run 42772671441) */
+  (
+    List.exists(((id, _)) => List.mem(id, ids), z.refractors.manuals)
+      ? Zipper.update_manuals(
+          map => List.filter(((id, _)) => !List.mem(id, ids), map),
+          z,
+        )
+      : z
   )
   |> maybe_rm_pin(ids)
   |> maybe_reset_cursor;

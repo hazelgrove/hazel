@@ -225,6 +225,33 @@ let program_text_kept = () => {
   );
 };
 
+/* (^report(51)) removing no probe keeps the very same list of probes,
+   which the syntax cache keys on by identity */
+let rm_none_keeps_list = () => {
+  let seg = CorpusUtil.seg_of("let b = 3 * 4 in\nb + 1");
+  let times = CorpusUtil.tile("*", seg);
+  let z =
+    ZipperBase.update_refractors(Zipper.unzip(seg), r =>
+      Refractors.{
+        ...r,
+        manuals: [(times, probe)],
+      }
+    );
+  let kept = (what, z': Zipper.t) =>
+    check(bool, what, true, z'.refractors.manuals === z.refractors.manuals);
+  kept("nothing to remove", ProbePerform.rm_manual([], z));
+  kept(
+    "an id with no probe",
+    ProbePerform.rm_manual([CorpusUtil.tile("+", seg)], z),
+  );
+  check(
+    int,
+    "a probed id removed",
+    0,
+    List.length(ProbePerform.rm_manual([times], z).refractors.manuals),
+  );
+};
+
 let tests = (
   "ProbePersist",
   [
@@ -245,6 +272,11 @@ let tests = (
       "the autosave's text, unchanged pieces kept, is the whole print",
       `Quick,
       program_text_kept,
+    ),
+    test_case(
+      "removing no probe keeps the probes' list",
+      `Quick,
+      rm_none_keeps_list,
     ),
   ],
 );
