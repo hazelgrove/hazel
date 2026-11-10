@@ -200,11 +200,12 @@ module ServerMessage = {
    are not first-order, and a bare literal or constructor (no larger than its placeholder), stay terms. */
 module Wire = {
   open Language;
-  /* Off (Firefox run 42657604986, 1524e96da3): on the Witch only 5 values a message were first-order by of_term's
-     strict reading, and rebuilding every sample record lost the sharing Marshal had kept (the 216 completed entries'
-     sample maps share subtrees), so the answer grew from 0.59 to 0.89 MB. Kept for the next slice, which makes data
-     where samples are made (Sample.Env.elide), and surveyed meanwhile (survey). */
-  let enabled = ref(false);
+  /* Off from 22cd278106 (Firefox run 42657604986, 1524e96da3): on the Witch only 5 values a message were first-order by
+     of_term's strict reading, and rebuilding every sample record lost the sharing Marshal had kept (the 216 completed
+     entries' sample maps share subtrees), so the answer grew from 0.59 to 0.89 MB. On again for results only: a result
+     carries one state since 01a5e8ecb0 (no final stream), and the survey finds every sample value first-order or a bare
+     literal (17 and 94 a result, run 42739071781). Streams stay terms (post_message's is_result). */
+  let enabled = ref(true);
   module Phys =
     Hashtbl.Make({
       type t = Exp.t;
@@ -1048,6 +1049,15 @@ let share_response = (msg: ServerMessage.t): ServerMessage.t => {
     msg;
   };
 };
+/* (^ticket(718)) values as data only in a result: a stream carries the
+   cache's entries, many states sharing their samples, and rebuilding their
+   maps lost Marshal's sharing (1524e96da3); a result, with no final stream
+   since 01a5e8ecb0, carries one state */
+let is_result = (msg: ServerMessage.t): bool =>
+  switch (msg) {
+  | ServerMessage.Result(_) => true
+  | _ => false
+  };
 let post_message = (msg: ServerMessage.t): unit => {
   /* (^ticket(718)) its samples' first-order values as data (Wire), checked
      made terms again while the timeline is kept */
@@ -1055,7 +1065,7 @@ let post_message = (msg: ServerMessage.t): unit => {
   let msg =
     switch (msg) {
     | ServerMessage.Stream(_)
-    | ServerMessage.Result(_) when ! Wire.enabled^ =>
+    | ServerMessage.Result(_) when ! Wire.enabled^ || !is_result(msg) =>
       if (recording^) {
         let counts = ref([]);
         wtime(
