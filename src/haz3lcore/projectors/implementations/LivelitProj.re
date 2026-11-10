@@ -407,6 +407,14 @@ let splice_marked_fields = (seg: Base.segment): option(Base.segment) => {
 /* (^report(51)) how many times a livelit's shape function was evaluated,
    for the check's "view: projectors' views" mark */
 let shapes_evaluated = ref(0);
+/* (^report(51)) how many times a use's livelit was applied to its type
+   and arguments anew, not found in lookup_use's memo */
+let applied_anew = ref(0);
+/* (^report(51)) the shape cache's checks: its definitions compared, and
+   its model values compared that were not the very same value */
+let shape_def_ms = ref(0.);
+let shape_value_ms = ref(0.);
+let shape_values_walked = ref(0);
 
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -468,37 +476,79 @@ module M: Projector = {
      parameters when it gives them. The arguments are the use's own terms;
      they are closed, as statics requires, so they mean here what they
      mean there. */
+  /* (^report(51)) the livelits applied to uses' arguments, by the
+     livelit's name: a use with arguments gets the very livelit it got
+     last time while its livelit, type and arguments are the same, where
+     each lookup applied it anew, and one with a type argument, like
+     `Drawing.^choice@<Hair>(..)`, had its whole definition instantiated
+     anew. The caches keyed on a definition (a shape's, a view's) then
+     find it by identity, not by a walk of two equal copies. The arguments
+     are a use's own few terms. */
+  let applied:
+    Hashtbl.t(
+      string,
+      list(
+        (
+          LivelitCtx.raw_livelit,
+          option(Typ.t),
+          TermBase.Exp.t,
+          option(LivelitCtx.raw_livelit),
+        ),
+      ),
+    ) =
+    Hashtbl.create(16);
+  let apply_use =
+      (ctx: Ctx.t, ll: LivelitCtx.raw_livelit, llname: string, ty, args) => {
+    /* `^a@<T>(args)`: ^a at T, then applied; at run time the same,
+       reached through ^a's own runtime reference (instantiate drops
+       it) */
+    let head =
+      switch (ty) {
+      | Some(ty) =>
+        (TypAp(UserLivelit.runtime_ref(ll), ty): TermBase.Exp.term)
+        |> Exp.fresh
+      | None => UserLivelit.runtime_ref(ll)
+      };
+    Option.bind(
+      UserLivelit.at_type(
+        ~name=llname,
+        ~id=ll.id,
+        ~ty=Option.map(Typ.normalize(ctx), ty),
+        ll,
+      ),
+      ll =>
+      UserLivelit.apply_args(
+        ~name=llname,
+        ~id=ll.id,
+        ~args,
+        ~runtime=IdTagged.FreshGrammar.Exp.ap(Operators.Forward, head, args),
+        ll,
+      )
+    );
+  };
   let lookup_use = (ctx: Ctx.t, llname: string, ty, args) =>
     switch (Ctx.lookup_livelit(ctx, llname), args) {
     | (Some(ll), None) => Some(ll)
     | (Some(ll), Some(args)) =>
-      /* `^a@<T>(args)`: ^a at T, then applied; at run time the same,
-         reached through ^a's own runtime reference (instantiate drops
-         it) */
-      let head =
-        switch (ty) {
-        | Some(ty) =>
-          (TypAp(UserLivelit.runtime_ref(ll), ty): TermBase.Exp.term)
-          |> Exp.fresh
-        | None => UserLivelit.runtime_ref(ll)
-        };
-      Option.bind(
-        UserLivelit.at_type(
-          ~name=llname,
-          ~id=ll.id,
-          ~ty=Option.map(Typ.normalize(ctx), ty),
-          ll,
-        ),
-        ll =>
-        UserLivelit.apply_args(
-          ~name=llname,
-          ~id=ll.id,
-          ~args,
-          ~runtime=
-            IdTagged.FreshGrammar.Exp.ap(Operators.Forward, head, args),
-          ll,
-        )
-      );
+      let ty_n = Option.map(Typ.normalize(ctx), ty);
+      let same = ((ll', ty', args', _)) =>
+        ll' === ll
+        && Option.equal(Typ.fast_equal, ty', ty_n)
+        && (args' === args || Exp.fast_equal_with_lexemes(args', args));
+      let seen =
+        Option.value(~default=[], Hashtbl.find_opt(applied, llname));
+      switch (List.find_opt(same, seen)) {
+      | Some((_, _, _, found)) => found
+      | None =>
+        incr(applied_anew);
+        let found = apply_use(ctx, ll, llname, ty, args);
+        Hashtbl.replace(
+          applied,
+          llname,
+          [(ll, ty_n, args, found), ...List.length(seen) >= 16 ? [] : seen],
+        );
+        found;
+      };
     | (None, _) => None
     };
 
@@ -652,11 +702,23 @@ module M: Projector = {
     switch (latest) {
     | None => None
     | Some(s) =>
+      let same_def = d => {
+        let t = Util.BenchMarks.now();
+        let r = d === def_elab || Exp.fast_equal(d, def_elab);
+        shape_def_ms := shape_def_ms^ +. (Util.BenchMarks.now() -. t);
+        r;
+      };
+      let same_value = v =>
+        v === s.value
+        || {
+          incr(shape_values_walked);
+          let t = Util.BenchMarks.now();
+          let r = Exp.fast_equal(v, s.value);
+          shape_value_ms := shape_value_ms^ +. (Util.BenchMarks.now() -. t);
+          r;
+        };
       switch (Hashtbl.find_opt(shape_samples, info.id)) {
-      | Some((d, v, shape))
-          when
-            (d === def_elab || Exp.fast_equal(d, def_elab))
-            && (v === s.value || Exp.fast_equal(v, s.value)) => shape
+      | Some((d, v, shape)) when same_def(d) && same_value(v) => shape
       | _ =>
         incr(shapes_evaluated);
         let shape =
@@ -687,7 +749,7 @@ module M: Projector = {
           };
         Hashtbl.replace(shape_samples, info.id, (def_elab, s.value, shape));
         shape;
-      }
+      };
     };
   };
 

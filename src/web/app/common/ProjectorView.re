@@ -1381,6 +1381,10 @@ let all =
   shape_ms := 0.;
   kept_wrapped := 0;
   LivelitProj.shapes_evaluated := 0;
+  LivelitProj.applied_anew := 0;
+  LivelitProj.shape_def_ms := 0.;
+  LivelitProj.shape_value_ms := 0.;
+  LivelitProj.shape_values_walked := 0;
   let split = (pd: Model.projector_data) => {
     let version = app_version_of(pd.p);
     let same_frame = (e: split_entry) =>
@@ -1454,6 +1458,24 @@ let all =
               "shapes evaluated",
               Util.BenchMarks.num(
                 float_of_int(LivelitProj.shapes_evaluated^),
+              ),
+            ),
+            (
+              "applied anew",
+              Util.BenchMarks.num(float_of_int(LivelitProj.applied_anew^)),
+            ),
+            (
+              "shape: def ms",
+              Util.BenchMarks.num(LivelitProj.shape_def_ms^),
+            ),
+            (
+              "shape: value ms",
+              Util.BenchMarks.num(LivelitProj.shape_value_ms^),
+            ),
+            (
+              "shape: values walked",
+              Util.BenchMarks.num(
+                float_of_int(LivelitProj.shape_values_walked^),
               ),
             ),
             (

@@ -295,6 +295,9 @@ DRAG_DONE = r"""
     const k = m.what + (m.kind ? ' (' + m.kind + ')' : '');
     const s = sums[k] || (sums[k] = { n: 0, ms: 0 });
     s.n++; s.ms += m.ms;
+    /* a mark's counters, summed over the drag (^report(51)) */
+    for (const [x, v] of Object.entries(m))
+      if (typeof v === 'number' && x !== 'ms' && x !== 'at') { s.x = s.x || {}; s.x[x] = (s.x[x] || 0) + v; }
   }
   delete window.hazelBenchMarks;
   return { label: st.label, from: st.from, to: st.to, ms: st.ms, inputs: st.inputs, frames: st.frames, marks: sums };
@@ -336,6 +339,10 @@ def drags(d, sid, shots):
             top = sorted((got.get("marks") or {}).items(), key=lambda kv: -kv[1]["ms"])[:10]
             print("      the page's timeline over the drag: " + "; ".join(
                 f"{k} {v['ms']:.0f} ms x{v['n']} ({v['ms'] / max(1, v['n']):.1f} each)" for k, v in top), flush=True)
+            pv = ((got.get("marks") or {}).get("view: projectors' views") or {}).get("x")
+            if pv:
+                print("      the projectors' views' counters over the drag: " + "; ".join(
+                    f"{k} {v:.0f}" for k, v in sorted(pv.items())), flush=True)
             D.settled(d)
             time.sleep(1)
             if shots and d.js(DRAG, [label, lo, hi, 3000, "picture"]):
