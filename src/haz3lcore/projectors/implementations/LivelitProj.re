@@ -698,10 +698,16 @@ module M: Projector = {
      at each answer every livelit's shape function was evaluated again for
      the same model, and a number seen before could hold another value (the projectors' shapes 3 to 29 ms at an answer on
      the Witch, run 42775688527) */
+  /* (^report(51)) and whether the shape read the model at all: only a
+     `shape` that is a function of it does. One that does not is kept by
+     its definition alone, as a model's value can be large (one Witch
+     livelit's took 8 to 13 ms to compare, at each frame of a drag on build
+     33); and a value walked and found equal stands for the old, so the
+     next look finds it by pointer */
   let shape_samples:
     Hashtbl.t(
       Id.t,
-      (TermBase.Exp.t, TermBase.Exp.t, option(ProjectorShape.t)),
+      (TermBase.Exp.t, TermBase.Exp.t, option(ProjectorShape.t), bool),
     ) =
     Hashtbl.create(16);
   let model_shape =
@@ -740,12 +746,21 @@ module M: Projector = {
           r;
         };
       switch (Hashtbl.find_opt(shape_samples, info.id)) {
-      | Some((d, v, shape)) when same_def(d) && same_value(v) => shape
+      | Some((d, _, shape, false)) when same_def(d) => shape
+      | Some((d, v, shape, true)) when same_def(d) && same_value(v) =>
+        if (v !== s.value) {
+          Hashtbl.replace(
+            shape_samples,
+            info.id,
+            (def_elab, s.value, shape, true),
+          );
+        };
+        shape;
       | _ =>
         incr(shapes_evaluated);
-        let shape =
+        let (shape, by_model) =
           switch (MvuShape.safe_evaluate_open(unsealed(def_elab))) {
-          | Error(_) => None
+          | Error(_) => (None, false)
           | Ok(record) =>
             switch (MvuShape.record_field_open(record, "shape")) {
             | Some(f) =>
@@ -761,15 +776,19 @@ module M: Projector = {
                     ),
                   )
                 ) {
-                | Ok(v) => UserLivelit.shape_of(v)
-                | Error(_) => None
+                | Ok(v) => (UserLivelit.shape_of(v), true)
+                | Error(_) => (None, true)
                 }
-              | _ => None
+              | _ => (None, false)
               }
-            | None => None
+            | None => (None, false)
             }
           };
-        Hashtbl.replace(shape_samples, info.id, (def_elab, s.value, shape));
+        Hashtbl.replace(
+          shape_samples,
+          info.id,
+          (def_elab, s.value, shape, by_model),
+        );
         shape;
       };
     };
