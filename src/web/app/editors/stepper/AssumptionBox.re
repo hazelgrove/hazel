@@ -72,11 +72,7 @@ module View = {
       | _ => []
       };
     let code_settings =
-      Haz3lcore.ExpToSegment.Settings.of_core(
-        ~inline=true,
-        ~fold_fn_bodies=`Text,
-        globals.settings.core,
-      );
+      ProofMarkView.code_view_settings(globals.settings.core);
     /* A fact with a bare boolean conclusion is used as `P == true`, and
      * says so. */
     let reading_note =

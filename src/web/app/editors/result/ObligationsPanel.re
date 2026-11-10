@@ -454,7 +454,7 @@ let view_goal = (~globals, exp: Exp.t) =>
     [
       CodeViewable.view_exp(
         ~globals,
-        ~settings=ProofMarkView.code_view_settings,
+        ~settings=ProofMarkView.code_view_settings(globals.settings.core),
         exp,
       ),
     ],

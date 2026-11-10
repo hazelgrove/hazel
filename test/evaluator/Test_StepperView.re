@@ -574,6 +574,37 @@ module Scopes = {
 };
 
 /* The stored state: one entry per row, kept while the row lasts. */
+/* A goal whose display folds two functions: `twice`, inlined from the
+ * env, and the lambda passed to it. */
+module Settings_change = {
+  let src = "let twice = fun f -> fun x -> f(f(x)) in theorem t = twice(fun y -> y + 1)(3) == 5 proof ? in t";
+
+  /* The goal's `twice(fun y -> y + 1)`, whose `twice` substitution
+   * inlines with ids of its own, and its `3`. */
+  let lhs = (goal: Picker.Goal.t): (Exp.t, Exp.t) =>
+    switch (Exp.term_of(goal.display)) {
+    | BinOp(_, lhs, _) =>
+      switch (Exp.term_of(lhs)) {
+      | Ap(_, applied, three) => (applied, three)
+      | _ => Alcotest.fail("not an application")
+      }
+    | _ => Alcotest.fail("not an equation")
+    };
+  let applied = goal => fst(lhs(goal));
+  let three = goal => snd(lhs(goal));
+
+  let show_fn_bodies = (settings: CoreSettings.t): CoreSettings.t => {
+    ...settings,
+    evaluation: {
+      ...settings.evaluation,
+      show_fn_bodies: true,
+    },
+  };
+
+  let text = (goal: Picker.Goal.t): string =>
+    Printer.of_zipper(~holes="?", goal.editor.editor.state.zipper);
+};
+
 module State = {
   let tests = [
     test_case(
@@ -586,7 +617,11 @@ module State = {
           );
         let f = Fixture.act(f, (first(f.rows).key, Goal(Move(Start))));
         let again =
-          Stepper.Update.calculate(~settings, f.rows, f.theorem.stepper);
+          Stepper.Update.calculate(
+            ~settings=Web.Theorems.with_proof_settings(settings),
+            f.rows,
+            f.theorem.stepper,
+          );
         List.iter(
           (row: Rows.t) =>
             switch (
@@ -629,6 +664,124 @@ module State = {
             print(local.goal.written),
           );
           check(bool, "the box is still open", true, local.box == Strategies);
+        | None => Alcotest.fail("the row lost its state")
+        };
+      },
+    ),
+    test_case(
+      "a settings change prepares a goal again, keeping its selection and open box",
+      `Quick,
+      () => {
+        let f = Fixture.mk(Settings_change.src);
+        let row = first(f.rows);
+        let applied = Settings_change.applied(Fixture.goal(f, row));
+        let f =
+          Fixture.act(
+            f,
+            (
+              row.key,
+              Goal(Select(Term(Id(Exp.rep_id(applied), Right)))),
+            ),
+          );
+        let f = Fixture.act(f, (row.key, Toggle(Strategies)));
+        let before = Fixture.local(f, row);
+        let shown = Settings_change.show_fn_bodies(before.goal.settings);
+        let model =
+          Stepper.Update.calculate(
+            ~settings=shown,
+            f.rows,
+            f.theorem.stepper,
+          );
+        switch (Stepper.Model.find(row.key, model)) {
+        | Some(local) =>
+          check(
+            bool,
+            "built with the new settings",
+            true,
+            local.goal.settings == shown,
+          );
+          check(
+            string,
+            "printed with function bodies",
+            "(fun f -> fun x -> f(f(x)))(fun y -> y + 1)(3) == 5",
+            Settings_change.text(local.goal),
+          );
+          check(
+            option(string),
+            "the same node selected",
+            Some(print(Settings_change.applied(local.goal))),
+            Option.map(print, Picker.Goal.selected(local.goal)),
+          );
+          check(bool, "the box is still open", true, local.box == Strategies);
+        | None => Alcotest.fail("the row lost its state")
+        };
+      },
+    ),
+    test_case(
+      "a settings change keeps the caret by the same node",
+      `Quick,
+      () => {
+        let f = Fixture.mk(Settings_change.src);
+        let row = first(f.rows);
+        let three = Settings_change.three(Fixture.goal(f, row));
+        let f =
+          Fixture.act(
+            f,
+            (row.key, Goal(Move(Goal(TileId(Exp.rep_id(three)))))),
+          );
+        let before = Fixture.local(f, row);
+        let model =
+          Stepper.Update.calculate(
+            ~settings=Settings_change.show_fn_bodies(before.goal.settings),
+            f.rows,
+            f.theorem.stepper,
+          );
+        switch (Stepper.Model.find(row.key, model)) {
+        | Some(local) =>
+          check(
+            option(string),
+            "the caret at the 3",
+            Some("3"),
+            Indicated.index(local.goal.editor.editor.state.zipper)
+            |> Option.map(id =>
+                 switch (Exp.find_by_id(id, local.goal.display)) {
+                 | Some(e) => print(e)
+                 | None => "not in the goal"
+                 }
+               ),
+          )
+        | None => Alcotest.fail("the row lost its state")
+        };
+      },
+    ),
+    test_case(
+      "opening the history doesn't prepare goals again",
+      `Quick,
+      () => {
+        let f = Fixture.mk(Settings_change.src);
+        let row = first(f.rows);
+        let before = Fixture.local(f, row);
+        let settings = before.goal.settings;
+        let model =
+          Stepper.Update.calculate(
+            ~settings={
+              ...settings,
+              evaluation: {
+                ...settings.evaluation,
+                stepper_history: !settings.evaluation.stepper_history,
+              },
+            },
+            f.rows,
+            f.theorem.stepper,
+          );
+        switch (Stepper.Model.find(row.key, model)) {
+        | Some(local) =>
+          check(
+            bool,
+            "the same editor",
+            true,
+            local.goal.editor === before.goal.editor,
+          )
         | None => Alcotest.fail("the row lost its state")
         };
       },

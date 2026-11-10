@@ -8,35 +8,43 @@ open Language;
    inspector, the stepper and the obligations panel so a failure reads the
    same everywhere. */
 
-/* How the inspector, the marks and the obligations show expressions:
- * inline, with function bodies folded and fixpoints hidden, since an
- * `eval` step can leave recursive definitions inlined in a goal. */
-let code_view_settings: Haz3lcore.ExpToSegment.Settings.t = {
-  secondary: AutoFormat,
-  parenthesization: Defensive,
-  label_format: QuoteWhenNecessary,
-  inline: true,
-  fold_case_clauses: false,
-  fold_fn_bodies: `Fold,
-  hide_fixpoints: true,
-  show_ascriptions: true,
-  show_filters: false,
-  show_unknown_as_hole: true,
-  use_literal_lexemes: false,
+/* How the prover's read-only views show expressions: inline, with the
+ * user's display settings. A read-only view draws no projectors, so a
+ * folded function shows as its name rather than as a fold, and tables
+ * print as code. */
+let code_view_settings =
+    (settings: CoreSettings.t): Haz3lcore.ExpToSegment.Settings.t => {
+  ...
+    Haz3lcore.ExpToSegment.Settings.of_core(
+      ~inline=true,
+      ~fold_fn_bodies=settings.evaluation.show_fn_bodies ? `NoFold : `Text,
+      settings,
+    ),
   project_tables: false,
-  hole_tiles: false,
 };
 
 let view_exp = (~globals, exp: Exp.t) =>
   div(
     ~attrs=[clss(["code-box-container"])],
-    [CodeViewable.view_exp(~globals, ~settings=code_view_settings, exp)],
+    [
+      CodeViewable.view_exp(
+        ~globals,
+        ~settings=code_view_settings(globals.settings.core),
+        exp,
+      ),
+    ],
   );
 
 let view_any = (~globals, any: Any.t) =>
   div(
     ~attrs=[clss(["code-box-container"])],
-    [CodeViewable.view_any(~globals, ~settings=code_view_settings, any)],
+    [
+      CodeViewable.view_any(
+        ~globals,
+        ~settings=code_view_settings(globals.settings.core),
+        any,
+      ),
+    ],
   );
 
 /* The statics' inexhaustiveness message (Mark.InexhaustiveMatch), worded
