@@ -62,14 +62,30 @@ let fast_equal =
     exp;
 let equal = fast_equal;
 
-/* In-order trace of annotation lexemes. Paired with fast_equal (which
-   guarantees aligned structure), comparing traces detects lexeme-only
-   differences — e.g. editing an unknown operator @@ -> @@@ changes
-   display and stuck-application semantics but not term structure. */
-let lexeme_trace = (e: t): list(option(string)) => {
+/* In-order trace of the annotation fields that change display but not
+   structure: lexemes (editing an unknown operator @@ -> @@@ changes display
+   and stuck-application semantics) and shard-provenance masks (typing the
+   `)` of `f(5` completes the tile). Paired with fast_equal, which
+   guarantees aligned structure. Mask ids are left out, as fast_equal
+   ignores ids. */
+let annotation_trace =
+    (e: t)
+    : list((option(string), list((list(int), list((int, int)))))) => {
   let acc = ref([]);
   let f = (continue, t: IdTagged.t(_)) => {
-    acc := [t.annotation.lexeme, ...acc^];
+    let masks =
+      List.map(
+        ((_, m: IdTagged.IdTag.incomplete_mask)) =>
+          (
+            m.present,
+            List.map(
+              (p: IdTagged.IdTag.shard_prefix) => (p.shard, p.len),
+              m.prefixes,
+            ),
+          ),
+        t.annotation.incomplete,
+      );
+    acc := [(t.annotation.lexeme, masks), ...acc^];
     continue(t);
   };
   let _ =
@@ -87,12 +103,11 @@ let lexeme_trace = (e: t): list(option(string)) => {
   acc^;
 };
 
-/* fast_equal plus lexeme comparison. fast_equal ignores annotations, but
-   lexemes carry display and semantics (hole flavor, stuck unknown-op
-   applications), so recompute/caching gates must use this variant or
-   lexeme-only edits serve stale results (cf. IncrEval.reuse_check). */
+/* fast_equal plus annotation_trace. Recompute/caching gates must use this
+   variant, or lexeme-only and completion-only edits serve stale results
+   (cf. IncrEval.reuse_check). */
 let fast_equal_with_lexemes = (a: t, b: t): bool =>
-  fast_equal(a, b) && lexeme_trace(a) == lexeme_trace(b);
+  fast_equal(a, b) && annotation_trace(a) == annotation_trace(b);
 
 let temp: term => t =
   term => {
