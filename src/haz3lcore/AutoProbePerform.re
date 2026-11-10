@@ -95,6 +95,8 @@ let toplevel_def_body_id = (~statics: Statics.Map.t, ~id: Id.t): option(Id.t) =>
           } else {
             None;
           }
+        /* a Mod root, which per-item statics gives no info */
+        | None => walk(idx - 1)
         | _ => Some(anc_id)
         };
       };
