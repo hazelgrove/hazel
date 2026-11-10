@@ -274,6 +274,60 @@ let item_store = (prefix: string, name: string): ItemPersist.store => {
 let last_item_saves: Hashtbl.t(string, ItemPersist.saved) =
   Hashtbl.create(8);
 
+/* (^report(51), step 8) The program's text for the autosave, as
+   PersistentZipper.to_string prints it, printing again only the top-level
+   pieces that changed since the last save: a step changes one item, and
+   printing all of the Witch's 2,222 lines was 25 to 48 ms of each
+   autosave (run 42758371511). The text is the top-level pieces' texts
+   joined (Base.segment_to_string) whenever no probe wraps a top-level
+   piece, the probes being passed down unchanged; when one does, or the
+   probes changed since the last print, it is printed whole, as before */
+module PhysPiece =
+  Hashtbl.Make({
+    type t = Piece.t;
+    let equal = (===);
+    let hash = Hashtbl.hash;
+  });
+let printed: ref((Refractors.RefractorList.t, PhysPiece.t(string))) =
+  ref(([], PhysPiece.create(1)));
+let program_text = (z: Zipper.t): string => {
+  let refractors = z.refractors.manuals;
+  let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+  if (List.exists(p => List.mem_assoc(Piece.id(p), refractors), seg)) {
+    PersistentZipper.to_string(z);
+  } else {
+    let (refs0, prev) = printed^;
+    let same_refs =
+      refs0 === refractors
+      || Refractors.RefractorList.equal(refs0, refractors);
+    let next = PhysPiece.create(256);
+    let text =
+      List.map(
+        (p: Piece.t) => {
+          let s =
+            switch (same_refs ? PhysPiece.find_opt(prev, p) : None) {
+            | Some(s) => s
+            | None =>
+              Haz3lcore.Base.piece_to_string(
+                ~holes=MarkerParse.default_implicit_hole,
+                ~concave_holes=Token.concave_hole_marker,
+                ~refractors,
+                ~refractor_seg_to_seg=Triggers.refractor_seg_to_seg,
+                ~projector_to_segment=Triggers.projector_to_invoke,
+                p,
+              )
+            };
+          PhysPiece.replace(next, p, s);
+          s;
+        },
+        seg,
+      )
+      |> String.concat("");
+    printed := (refractors, next);
+    text;
+  };
+};
+
 let save_items = (prefix: string, name: string, z: Zipper.t): unit => {
   let ck = content_key(prefix, name);
   let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
@@ -430,7 +484,7 @@ let save_current' = (prefix: string, model: Model.t): unit => {
       Util.BenchMarks.time("save: the text", () => {
         let text =
           Util.BenchMarks.time("save: the text printed", () =>
-            PersistentZipper.to_string(z)
+            program_text(z)
           );
         let result =
           Util.BenchMarks.time("save: the result persisted", () =>
