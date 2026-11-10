@@ -1,8 +1,10 @@
 /* (^ticket(721)) A livelit's commit that changes only its model's literals:
    the model keeps its ids (ModelIds.same_shape_ids), the changed literals are
    found (ModelIds.literal_changes), and the statics' terms are copied only
-   along the path to each (ModelPatch.along). The whole patch, on a slide's
-   statics, is exercised by the Firefox check on the Witch slide. */
+   along the path to each (ModelPatch.along); and an item patched, not
+   analyzed, gives the statics a cold analysis of the edited program gives
+   (ModelPatch.item_patch). A livelit's use, the patch inside its expansion,
+   is exercised by the Firefox check on the Witch slide. */
 open Alcotest;
 open Haz3lcore;
 open Language;
@@ -127,6 +129,91 @@ let tests = (
           | _ => fail("the outer tuple lost")
           }
         };
+      },
+    ),
+    test_case(
+      "item_patch: a literal changed, the statics a cold analysis makes",
+      `Quick,
+      () => {
+        let statics_of = z =>
+          CachedStatics.init_compositional(
+            ~settings=CoreSettings.on,
+            ~stitch=x => x,
+            ~root=Sort.Exp,
+            z,
+          );
+        let seg = CorpusUtil.seg_of("let x = 1 in\nlet y = 10 in\nx + y");
+        DefStatics.slots := [];
+        let _ = statics_of(Zipper.unzip(seg));
+        /* the literal 1 retyped as 5, its tile's id kept */
+        let one = ref(None);
+        let seg' =
+          ZipperBase.MapPiece.of_segment(
+            (p: Piece.t) =>
+              switch (p) {
+              | Tile(t) when t.label == ["1"] =>
+                one := Some(t.id);
+                [
+                  Tile({
+                    ...t,
+                    label: ["5"],
+                  }),
+                ];
+              | p => [p]
+              },
+            seg,
+          );
+        let z' = Zipper.unzip(seg');
+        let changes: ModelPatch.changes = {
+          c_projector: None,
+          c_literals: [Option.get(one^)],
+        };
+        let patched =
+          ModelPatch.with_item_patch(changes, () => statics_of(z'));
+        check(int, "one item patched", 1, DefStatics.items_patched^);
+        DefStatics.slots := [];
+        let cold = statics_of(z');
+        check(
+          bool,
+          "the same elaboration",
+          true,
+          Exp.fast_equal(patched.elaborated, cold.elaborated),
+        );
+        check(
+          int,
+          "the same keys",
+          Id.Map.cardinal(cold.info_map),
+          Id.Map.cardinal(patched.info_map),
+        );
+        Id.Map.iter(
+          (k, info) =>
+            switch (info, Id.Map.find_opt(k, patched.info_map)) {
+            | (Info.InfoExp(c), Some(Info.InfoExp(p))) =>
+              check(
+                bool,
+                "a record's term",
+                true,
+                Exp.fast_equal(c.user_term, p.user_term),
+              );
+              check(
+                bool,
+                "a record's elaborated term",
+                true,
+                Exp.fast_equal(c.elab_term, p.elab_term)
+                && Exp.lexeme_trace(c.elab_term)
+                == Exp.lexeme_trace(p.elab_term),
+              );
+              check(
+                bool,
+                "a record's type",
+                true,
+                Typ.fast_equal(c.ty, p.ty),
+              );
+            | (_, Some(_)) => ()
+            | (_, None) => fail("a key missing from the patched statics")
+            },
+          cold.info_map,
+        );
       },
     ),
     test_case(
