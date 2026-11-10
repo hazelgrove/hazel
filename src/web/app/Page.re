@@ -596,7 +596,7 @@ module Update = {
               action_highlights: ids,
             },
           }
-          |> Updated.return(~is_edit=false, ~scroll_active=false)
+          |> Updated.return(~is_edit=false, ~scroll=Never)
         | Error(msg) =>
           {
             ...model,
@@ -605,7 +605,7 @@ module Update = {
               result_msg: Some(msg),
             },
           }
-          |> Updated.return(~is_edit=false, ~scroll_active=false)
+          |> Updated.return(~is_edit=false, ~scroll=Never)
         }
       | _ =>
         switch (execute_action_explorer(model)) {
@@ -633,7 +633,7 @@ module Update = {
               result_msg: Some(msg),
             },
           }
-          |> Updated.return(~is_edit=false, ~scroll_active=false)
+          |> Updated.return(~is_edit=false, ~scroll=Never)
         }
       }
     | ActionExplorer(SetPath(path) as action) =>
@@ -651,7 +651,7 @@ module Update = {
           action_highlights: ids,
         },
       }
-      |> Updated.return(~is_edit=false, ~scroll_active=false, ~historic=false);
+      |> Updated.return(~is_edit=false, ~scroll=Never, ~historic=false);
     | ActionExplorer(SetSelector(selector) as action) =>
       let ae =
         ActionExplorer.Update.update(~action, ~model=model.action_explorer);
@@ -681,7 +681,7 @@ module Update = {
           action_highlights: ids,
         },
       }
-      |> Updated.return(~is_edit=false, ~scroll_active=false, ~historic=false);
+      |> Updated.return(~is_edit=false, ~scroll=Never, ~historic=false);
     | ActionExplorer(action) =>
       let ae =
         ActionExplorer.Update.update(~action, ~model=model.action_explorer);
@@ -689,7 +689,7 @@ module Update = {
         ...model,
         action_explorer: ae,
       }
-      |> Updated.return(~is_edit=false, ~scroll_active=false, ~historic=false);
+      |> Updated.return(~is_edit=false, ~scroll=Never, ~historic=false);
     | MakeActive(selection) =>
       {
         ...model,
