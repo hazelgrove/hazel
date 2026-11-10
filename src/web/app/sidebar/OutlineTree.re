@@ -26,11 +26,23 @@ type node = {
   o_hint: option(string),
   /* a named row's binding token, and its sort (Pat, TPat or MPat) */
   o_binder: option((Id.t, Sort.t)),
+  /* the names a definition binds after its label's, in order: shown, not
+     part of the label (paths, keys and rename read the label) */
+  o_more: list(string),
   o_children: list(node),
 };
 
 let row =
-    (~id=?, ~label="", ~test=?, ~hint=?, ~binder=?, ~kids=[], kind: kind)
+    (
+      ~id=?,
+      ~label="",
+      ~test=?,
+      ~hint=?,
+      ~binder=?,
+      ~more=[],
+      ~kids=[],
+      kind: kind,
+    )
     : node => {
   o_label: label,
   o_kind: kind,
@@ -38,6 +50,7 @@ let row =
   o_test: test,
   o_hint: hint,
   o_binder: binder,
+  o_more: more,
   o_children: kids,
 };
 
@@ -48,35 +61,6 @@ module Piece = Haz3lcore.Piece;
 module Tile = Haz3lcore.Tile;
 module Form = Haz3lcore.Form;
 module Printer = Haz3lcore.Printer;
-
-/* a let's row name and token: its pattern's leading variable, through
-   parentheses, projectors, a function head, an ascription, a label and a
-   tuple's first part */
-let rec lead_var = (pat: Haz3lcore.Segment.t): option((string, Id.t)) => {
-  let c = O.content(pat);
-  let rec first = (ps: list(Piece.t)) =>
-    switch (ps) {
-    | [Tile(t), ..._] when Tile.is_comma(t) => []
-    | [p, ...ps] => [p, ...first(ps)]
-    | [] => []
-    };
-  let first = first(c);
-  switch (first) {
-  | [Tile({children: [inner], _} as t)] when Tile.label(t) == ["(", ")"] =>
-    lead_var(inner)
-  | [Projector(pr)] => lead_var([pr.syntax])
-  | [Tile(v), ...rest] =>
-    switch (Tile.single_token(v), rest) {
-    | (Some(x), [Tile(lab), ...inner]) when Tile.is_tuple_label_eq(lab) =>
-      Token.is_var(x) ? lead_var(inner) : None
-    | (Some(x), [])
-    | (Some(x), [Tile(_), ..._]) when Haz3lcore.EntryPath.is_binder(x) =>
-      Some((x, v.id))
-    | _ => None
-    }
-  | _ => None
-  };
-};
 
 /* each entry's rows, while it's the same entry (Outline keeps an
    unchanged entry's object) */
@@ -125,27 +109,25 @@ and entry_rows = (~top: bool, e: O.entry): list(node) => {
   let id = e.id;
   let at_mod = e.lv.sort == Sort.Mod;
   switch (e.kind) {
+  /* named by the first name it binds, as its path is */
   | Def =>
-    switch (O.parts(e.lv, e.k)) {
-    | None => []
-    | Some((pat, def)) =>
-      switch (lead_var(pat)) {
-      | None => []
-      | Some((name, tok)) =>
-        let binder = (tok, Sort.Pat);
-        let below = below(e, def);
-        let (kind, kids) =
-          if (e.fn) {
-            (KFn, block_rows(below));
-          } else if (e.literal) {
-            (KModule, rows_of(~top=false, below));
-          } else if (starts_abstraction(def)) {
-            (KConst, []);
-          } else {
-            (KConst, rows_of(~top=false, below));
-          };
-        [row(~id, ~label=name, ~binder, ~kids, kind)];
-      }
+    switch (e.names, O.parts(e.lv, e.k)) {
+    | ([(name, tok), ...more], Some((_, def))) =>
+      let binder = (tok, Sort.Pat);
+      let more = List.map(fst, more);
+      let below = below(e, def);
+      let (kind, kids) =
+        if (e.fn) {
+          (KFn, block_rows(below));
+        } else if (e.literal) {
+          (KModule, rows_of(~top=false, below));
+        } else if (starts_abstraction(def)) {
+          (KConst, []);
+        } else {
+          (KConst, rows_of(~top=false, below));
+        };
+      [row(~id, ~label=name, ~binder, ~more, ~kids, kind)];
+    | _ => []
     }
   | Type =>
     switch (e.names) {
@@ -365,37 +347,6 @@ let rec flatten = (ns: list(node)): list(node) =>
 /* their ids, in that order */
 let collect = (ns: list(node)): list(Id.t) =>
   List.filter_map(n => n.o_id, flatten(ns));
-
-/* the rows [errors] badge, among [rows]: each error's deepest row in its
-   item, and the rows holding it past that, modules included, whose
-   roll-up badge shows while they are collapsed */
-let error_rows =
-    (~info_map: Id.Map.t(Info.t), ~rows: list(Id.t), errors: list(Id.t))
-    : (list(Id.t), list(Id.t)) => {
-  let in_rows = id => List.mem(id, rows);
-  List.fold_left(
-    ((direct, roll), err) => {
-      let (own, held) =
-        switch (Id.Map.find_opt(err, info_map)) {
-        | Some(info) => (
-            [err, ...Info.within_item(~info_map, info)],
-            [err, ...Info.containers(~info_map, info)],
-          )
-        | None => ([err], [err])
-        };
-      let holders = List.filter(in_rows, held);
-      switch (List.filter(in_rows, own)) {
-      | [] => (direct, holders @ roll)
-      | [deepest, ..._] => (
-          [deepest, ...direct],
-          List.filter(id => !Id.equal(id, deepest), holders) @ roll,
-        )
-      };
-    },
-    ([], []),
-    errors,
-  );
-};
 
 /* the row with id [fid], and the rows above it outermost first */
 let find = (fid: Id.t, o: t): option((list(node), node)) => {
@@ -626,6 +577,37 @@ let row_ids = (o: t): Id.Map.t(unit) =>
       collect(rows(o)),
     )
   );
+
+/* the rows errors badge, each error at the entry that owns it in the
+   agent's map too (Outline.errors_by_entry): [direct], that entry's
+   nearest row, and [roll], the rows above that one, whose badge shows
+   while they are collapsed */
+let error_badges =
+    (~info_map: Statics.Map.t, error_ids: list(Id.t), o: t)
+    : (list(Id.t), list(Id.t)) => {
+  let rows = row_ids(o);
+  let row_of = (e: O.entry) =>
+    List.find_opt(id => Id.Map.mem(id, rows), [e.id, e.anchor]);
+  Id.Map.fold(
+    (owner, _, (direct, roll)) =>
+      switch (
+        Option.bind(O.find(o, owner), ((above, e)) =>
+          List.find_map(row_of, [e, ...List.rev(above)])
+        )
+      ) {
+      | Some(r) =>
+        let above =
+          switch (Option.bind(trail_of(r, o), ListUtil.split_last_opt)) {
+          | Some((above, _)) => above
+          | None => []
+          };
+        ([r, ...direct], above @ roll);
+      | None => (direct, roll)
+      },
+    O.errors_by_entry(o, ~info_map, error_ids),
+    ([], []),
+  );
+};
 
 /* the row holding [id]: its own, else its nearest ancestor's in its item */
 let enclosing_row = (~info_map: Statics.Map.t, id: Id.t, o: t): option(Id.t) =>

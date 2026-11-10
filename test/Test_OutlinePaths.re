@@ -181,6 +181,96 @@ let livelit_kinds = () =>
     ),
   );
 
+/* a definition's row is named by the first name its pattern binds, as
+   its path is; the names after it are the row's [o_more] */
+let bound_names = () => {
+  let src = "let [a] = [1] in\nlet Some(x) = Some(1) in\nlet (p, q) = (1, 2) in\nlet (y, 2) = (1, 2) in\nlet f(n) = n in\nlet z : Int = 1 in\nlet [] = [] in\na";
+  let e = term_of_text(src);
+  check(
+    string,
+    "rows",
+    "const a, const x, const p, const y, fn f, const z, trail",
+    kinds(OutlineTree.rows(e)),
+  );
+  let more =
+    OutlineTree.flatten(OutlineTree.rows(e))
+    |> List.filter_map((n: OutlineTree.node) =>
+         n.o_more == []
+           ? None : Some(n.o_label ++ "+" ++ String.concat(",", n.o_more))
+       );
+  check(list(string), "extra names", ["p+q"], more);
+  let paths =
+    List.map(
+      ((_, path)) =>
+        String.concat(
+          "/",
+          List.map((s: OutlineTree.path_seg) => s.s_label, path),
+        ),
+      all_rows(e),
+    );
+  check(
+    list(string),
+    "label paths",
+    ["a", "x", "p", "y", "f", "z", ""],
+    paths,
+  );
+  check_self_resolution("bound names", src);
+  check(
+    string,
+    "through a projector",
+    "const x, const p, trail",
+    kinds(
+      OutlineTree.rows(
+        CorpusUtil.outline_of(
+          CorpusUtil.seg_of(
+            "let ^^fold(x) = 1 in\nlet (^^fold(p), q) = (1, 2) in\nx",
+          ),
+        ),
+      ),
+    ),
+  );
+  /* rename from a row renames the name it shows */
+  let rename = (src, label, name) => {
+    let seg = CorpusUtil.seg_of(src);
+    let term = MakeTerm.Incr.term_of(seg);
+    let info_map = DefStatics.calc(~settings=CoreSettings.on, term).merged;
+    let outline = CorpusUtil.outline_of(seg);
+    switch (
+      List.find_opt(
+        (n: OutlineTree.node) => n.o_label == label,
+        OutlineTree.flatten(OutlineTree.rows(outline)),
+      )
+    ) {
+    | Some({o_id: Some(row), _}) =>
+      switch (CorpusUtil.rename_row(~info_map, ~outline, row, name, seg)) {
+      | Ok(seg) => CorpusUtil.text_of(seg)
+      | Error(why) => "refused: " ++ why
+      }
+    | _ => fail("no row " ++ label)
+    };
+  };
+  let renamed = (src, label, name, want) =>
+    check(
+      string,
+      label ++ " -> " ++ name,
+      CorpusUtil.text_of(CorpusUtil.seg_of(want)),
+      rename(src, label, name),
+    );
+  renamed("let [a] = [1] in\na", "a", "b", "let [b] = [1] in\nb");
+  renamed(
+    "let Some(x) = Some(1) in\nx",
+    "x",
+    "w",
+    "let Some(w) = Some(1) in\nw",
+  );
+  renamed(
+    "let (p, q) = (1, 2) in\np + q",
+    "p",
+    "r",
+    "let (r, q) = (1, 2) in\nr + q",
+  );
+};
+
 let cases = [
   test_case(
     "a test added elsewhere leaves a test's path",
@@ -188,6 +278,7 @@ let cases = [
     test_elsewhere,
   ),
   test_case("a module alias's row is a module", `Quick, alias_kinds),
+  test_case("a row is named by its first bound name", `Quick, bound_names),
   test_case("a livelit definition's row and members", `Quick, livelit_kinds),
   test_case("a definition being typed at the end has its row", `Quick, () =>
     check(

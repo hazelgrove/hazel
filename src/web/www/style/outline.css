@@ -397,6 +397,13 @@
   opacity: 0.85;
 }
 
+/* a definition binding more names than its row's: one faded ellipsis */
+#outline-sidebar .outline-more {
+  margin-left: 0.1em;
+  color: var(--ol-faded);
+  opacity: 0.85;
+}
+
 /* live test status: glyph carries the ✓/✗/? */
 #outline-sidebar .ol-pass .outline-glyph {
   color: var(--test-pass);
