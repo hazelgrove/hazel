@@ -657,16 +657,19 @@ let rec parenthesize =
       c // TODO: Parenthesize through closure
     )
     |> rewrap
+  /* A type alone in a delimited slot is bare, whatever its precedence:
+     nothing there can capture it, and `type t = (+A + B) in` doesn't
+     define its constructors. */
   | TyAlias(tp, t, e) =>
     TyAlias(
       tp,
-      parenthesize_typ(t) |> paren_typ_at(Precedence.min),
+      parenthesize_typ(t),
       parenthesize(e) |> paren_assoc_at(Precedence.let_),
     )
     |> rewrap
   | Use(t, e) =>
     Use(
-      parenthesize_typ(t) |> paren_typ_at(Precedence.min),
+      parenthesize_typ(t),
       parenthesize(e) |> paren_assoc_at(Precedence.let_),
     )
     |> rewrap
@@ -687,7 +690,7 @@ let rec parenthesize =
   | TypAp(e, tp) =>
     TypAp(
       parenthesize(e) |> paren_assoc_at(Precedence.ap),
-      parenthesize_typ(tp) |> paren_typ_at(Precedence.min),
+      parenthesize_typ(tp),
     )
     |> rewrap
   | DeferredAp(e, es) =>
@@ -916,17 +919,9 @@ and parenthesize_typ =
   | DrvQuoteTy(_) => typ
 
   // Other forms
-  | Parens(t) =>
-    Parens(
-      parenthesize_typ(~already_paren=true, t)
-      |> paren_typ_at(Precedence.min),
-    )
-    |> rewrap
-  | Projector(data, t) =>
-    Projector(data, parenthesize_typ(t) |> paren_typ_at(Precedence.min))
-    |> rewrap
-  | List(t) =>
-    List(parenthesize_typ(t) |> paren_typ_at(Precedence.min)) |> rewrap
+  | Parens(t) => Parens(parenthesize_typ(~already_paren=true, t)) |> rewrap
+  | Projector(data, t) => Projector(data, parenthesize_typ(t)) |> rewrap
+  | List(t) => List(parenthesize_typ(t)) |> rewrap
   | Prod([]) => typ
   | Prod([t])
       when

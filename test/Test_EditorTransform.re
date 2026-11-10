@@ -610,9 +610,9 @@ let tests = (
       "multi-step proof replacing one step of a seq keeps all steps",
       `Quick,
       () => {
-        /* Replacing a step-with-siblings by a multi-piece proof can't be
-           spliced safely (proofs have no parens form), so this exercises
-           the whole-program fallback; the steps must still all be there. */
+        /* A multi-piece proof can't be spliced in beside the step's
+           siblings, so the theorem's whole proof is replaced; the steps
+           must still all be there. */
         let target = "theorem t = 1 == 1 proof from y do axiom y end end; from z do axiom z end end in t";
         let z = parse_zipper(target);
         let select = (e: Exp.t) =>
@@ -639,7 +639,7 @@ let tests = (
       },
     ),
     test_case(
-      "patching a case body reflows only the induction tile",
+      "patching a case body keeps the statement and the other case",
       `Quick,
       () => {
         let statement = "1  ==  1";
@@ -751,10 +751,10 @@ let tests = (
         check(
           string,
           "second step chains onto the first",
-          "theorem thm = 1 + 4 == 5 proof \n"
-          ++ "from 1 + 4 do eval end;\n"
-          ++ "from 5 == 5 do eval end\n"
-          ++ "  in?",
+          "theorem thm = 1 + 4 == 5 proof\n"
+          ++ "  from 1 + 4 do eval end;\n"
+          ++ "  from 5 == 5 do eval end\n"
+          ++ "in?",
           serialize(out),
         );
       },

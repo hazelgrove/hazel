@@ -1283,6 +1283,26 @@ let defensive_idempotence_tests = (
       {|Let with ascribed pattern|},
       {|let x : [Int] = [1] in x|},
     ),
+    defensive_idempotence_test(
+      {|Sum type definition|},
+      {|type T = +A + B(T) in A|},
+    ),
+    defensive_idempotence_test(
+      {|Parenthesized sum type|},
+      {|let x : [(+A + B)] = [] in x|},
+    ),
+    /* A parenthesized sum doesn't define its constructors, so a program
+       printed with one doesn't read back as the program it was. */
+    test_case({|Sum type definition is printed bare|}, `Quick, () =>
+      check(
+        string,
+        "no parentheses around the sum",
+        {|type T = + A + B(T) in A|},
+        editable_print(
+          Test_Evaluator_Prelude.parse_exp({|type T = +A + B(T) in A|}),
+        ),
+      )
+    ),
   ],
 );
 
@@ -2115,10 +2135,81 @@ let proof_embedded_paren_tests = {
   );
 };
 
+/* A focus's selector reads back as the same term from its `from … do`
+   slot, whatever form it is: the slot is delimited, so the selector needs
+   no parentheses (only an ordinal before it binds, at `fun_`). Checked
+   with both parsers, and with the linebreaks the printer puts in. */
+let selector_roundtrip_test = (~ordinal=?, selector: string) =>
+  test_case(
+    selector,
+    `Quick,
+    () => {
+      let exp =
+        theorem_around(
+          Focus({
+            ordinal: Option.map(IdTagged.fresh, ordinal),
+            selector: Test_Evaluator_Prelude.parse_exp(selector),
+            body: Proof.fresh(EvalStep),
+          }),
+        );
+      List.iter(
+        inline => {
+          let printed =
+            print_seg(
+              ExpToSegment.exp_to_segment(
+                exp,
+                ~settings=ExpToSegment.Settings.editable(~inline),
+              ),
+            );
+          let reads_back = (parser: string, reparsed: option(Exp.t)) =>
+            switch (reparsed) {
+            | Some(reparsed) =>
+              check(
+                Test_Evaluator_Prelude.dhexp_typ,
+                parser ++ ": " ++ printed,
+                exp,
+                reparsed,
+              )
+            | None =>
+              Alcotest.fail(parser ++ " failed to reparse: " ++ printed)
+            };
+          reads_back("typing parser", Parser.to_term(printed, ~root=Exp));
+          reads_back(
+            "fast parser",
+            PersistentZipper.parse_text(~source="test", ~root=Exp, printed)
+            |> Option.map(z => MakeTerm.from_zip_for_sem(z, ~root=Exp).term),
+          );
+        },
+        [true, false],
+      );
+    },
+  );
+
+let selector_roundtrip_tests = (
+  "Round-Trip: Focus Selectors",
+  [
+    selector_roundtrip_test("x"),
+    selector_roundtrip_test("f(x) + 1"),
+    selector_roundtrip_test("a == b"),
+    selector_roundtrip_test("a == b && c == d"),
+    selector_roundtrip_test("if a then b else c"),
+    selector_roundtrip_test("if $e then $e else $e"),
+    selector_roundtrip_test("case x | 0 => 1 | _ => 2 end"),
+    selector_roundtrip_test("fun x -> x + 1"),
+    selector_roundtrip_test("let y = 1 in y + 1"),
+    selector_roundtrip_test("a; b"),
+    selector_roundtrip_test("1 + (if a then b else c)"),
+    selector_roundtrip_test(~ordinal=2, "x + 1"),
+    selector_roundtrip_test(~ordinal=2, "if a then b else c"),
+    selector_roundtrip_test(~ordinal=2, "let y = 1 in y + 1"),
+  ],
+);
+
 let all = [
   tests,
   pad_ids_tests,
   proof_embedded_paren_tests,
+  selector_roundtrip_tests,
   roundtrip_tests,
   roundtrip_incomplete_tests,
   roundtrip_defensive_paren_tests,

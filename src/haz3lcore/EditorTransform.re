@@ -1,7 +1,3 @@
-/* Capture the haz3lcore `Secondary` before `open Language` shadows it with
- * the term-level `Language.Secondary` (which has no `mk_newline`). */
-let mk_newline = Secondary.mk_newline;
-
 open Language;
 open Util;
 
@@ -20,6 +16,8 @@ type patch =
   | ProofPatch({
       target_id: Id.t,
       replacement: Proof.t,
+      /* When set, lay out the proof of the theorem the replacement is in
+       * (see `Reflow.proof`). Defaults on. */
       reflow: bool,
     })
   /* Remove a proof step, with its `;`, from its enclosing `Seq`, or
@@ -122,6 +120,30 @@ module Rewrite = {
     result^;
   };
 
+  /* The theorem whose proof has the node `proof_id`: its id and its whole
+   * proof. */
+  let theorem_around =
+      (~proof_id: Id.t, root: Exp.t): option((Id.t, Proof.t)) => {
+    let rec has_node = (p: Proof.t): bool =>
+      Proof.rep_id(p) == proof_id
+      || List.exists(has_node, Proof.children(p));
+    let result = ref(None);
+    let _: Exp.t =
+      Exp.map_term(
+        ~f_exp=
+          (cont, e) => {
+            switch (e.term) {
+            | Theorem(_, _, proof, _) when result^ == None && has_node(proof) =>
+              result := Some((Exp.rep_id(e), proof))
+            | _ => ()
+            };
+            cont(e);
+          },
+        root,
+      );
+    result^;
+  };
+
   /* Removing a step rewrites its enclosing `Seq` to the surviving sibling,
    * so the step and its `;` leave the text together. A step that is the
    * whole proof becomes a hole. Returns the id to replace and what
@@ -154,31 +176,22 @@ module Splice = {
       a,
     );
 
-  let newline = (): Piece.t => Piece.secondary(mk_newline(Id.mk()));
-
   type outcome =
     | NotFound /* extent not in this subtree */
-    | Spliced /* replaced and reflowed in place */
-    | NeedsParentPrettify /* replaced raw in a direct child of an induction
-                             tile; that tile lays out as a unit, so the
-                             parent must prettify the whole tile */
-    | Failed; /* extent found but can't be spliced safely — use fallback */
+    | Spliced
+    | Failed; /* extent found but can't be spliced safely */
 
   /* The range is found by id: term ids come from the pieces they were
    * parsed from, and the serializer stamps term ids back onto the pieces
    * it emits, so serializing the old sub-term yields the ids of the
    * pieces it occupies (plus fresh secondary ids, which match nothing).
    *
+   * With `reflow` the replacement is pretty-printed by itself.
+   *
    * None when the range can't be found or the splice wouldn't reparse
    * faithfully. */
   let local =
-      (
-        ~old_node: Any.t,
-        ~replacement: Any.t,
-        ~reflow: bool,
-        ~wrap_block: bool,
-        seg: Segment.t,
-      )
+      (~old_node: Any.t, ~replacement: Any.t, ~reflow: bool, seg: Segment.t)
       : option(Segment.t) => {
     let old_ids =
       old_node
@@ -191,26 +204,7 @@ module Splice = {
     let raw_atomic =
       List.length(List.filter(p => !Piece.is_secondary(p), raw)) <= 1;
     let is_match = (p: Piece.t) => Id.Map.mem(Piece.id(p), old_ids);
-    /* Bracket `seg` with linebreaks, but only where the splice context
-     * doesn't already provide one, checking the (all-secondary) margin of
-     * the surrounding pieces. Unconditional brackets (like the fallback's
-     * `wrap_block`) would add a blank line per patch here, since the
-     * surrounding text survives the splice. */
-    let ensure_boundary_linebreaks =
-        (~pre: Segment.t, ~post: Segment.t, seg: Segment.t): Segment.t => {
-      let rec margin_has_linebreak = (ps: list(Piece.t)): bool =>
-        switch (ps) {
-        | [p, ...rest] when Piece.is_secondary(p) =>
-          Piece.is_linebreak(p) || margin_has_linebreak(rest)
-        | _ => false
-        };
-      let lead = margin_has_linebreak(List.rev(pre)) ? [] : [newline()];
-      let trail = margin_has_linebreak(post) ? [] : [newline()];
-      lead @ seg @ trail;
-    };
-    let rec go =
-            (~parent_is_induction: bool, seg: Segment.t)
-            : (Segment.t, outcome) => {
+    let rec go = (seg: Segment.t): (Segment.t, outcome) => {
       let matched_idxs =
         seg
         |> List.mapi((i, p) => is_match(p) ? Some(i) : None)
@@ -236,8 +230,9 @@ module Splice = {
           let post = List.filteri((i, _) => i > hi, seg);
           /* If the old sub-term shares this level with sibling pieces
            * (operators, other steps), a multi-piece replacement could
-           * re-associate on reparse. Expressions get a defensive Parens;
-           * proofs have no parens form, so bail to the fallback. */
+           * re-associate on reparse. Expressions get a defensive Parens.
+           * Proofs fail here, and `apply_patch` replaces the theorem's
+           * whole proof instead, which has its slot to itself. */
           let partial = List.exists(p => !Piece.is_secondary(p), pre @ post);
           let new_seg =
             if (!partial || raw_atomic) {
@@ -251,17 +246,8 @@ module Splice = {
           switch (new_seg) {
           | None => (seg, Failed)
           | Some(new_seg) =>
-            if (reflow && parent_is_induction) {
-              (pre @ new_seg @ post, NeedsParentPrettify);
-            } else {
-              let formatted =
-                reflow ? PrettySegment.prettify(new_seg) : new_seg;
-              let formatted =
-                reflow && wrap_block
-                  ? ensure_boundary_linebreaks(~pre, ~post, formatted)
-                  : formatted;
-              (pre @ formatted @ post, Spliced);
-            }
+            let new_seg = reflow ? PrettySegment.prettify(new_seg) : new_seg;
+            (pre @ new_seg @ post, Spliced);
           };
         };
       };
@@ -277,15 +263,9 @@ module Splice = {
                   ((cs, oc), child) =>
                     switch (oc) {
                     | NotFound =>
-                      let (child', oc') =
-                        go(
-                          ~parent_is_induction=
-                            Tile.has_label(t, ["induction", "end"]),
-                          child,
-                        );
+                      let (child', oc') = go(child);
                       ([child', ...cs], oc');
                     | Spliced
-                    | NeedsParentPrettify
                     | Failed => ([child, ...cs], oc)
                     },
                   ([], NotFound),
@@ -296,15 +276,7 @@ module Splice = {
                   ...t,
                   children: List.rev(rev_children),
                 });
-              switch (outcome) {
-              | NeedsParentPrettify => (
-                  List.rev(PrettySegment.prettify([tile])) @ acc,
-                  Spliced,
-                )
-              | Spliced => ([tile, ...acc], Spliced)
-              | NotFound
-              | Failed => ([p, ...acc], outcome)
-              };
+              ([tile, ...acc], outcome);
             | _ => ([p, ...acc], outcome)
             },
           ([], NotFound),
@@ -312,135 +284,142 @@ module Splice = {
         );
       (List.rev(rev_pieces), outcome);
     };
-    switch (go(~parent_is_induction=false, seg)) {
+    switch (go(seg)) {
     | (seg', Spliced) => Some(seg')
-    | (_, NotFound | Failed | NeedsParentPrettify) => None
+    | (_, NotFound | Failed) => None
     };
   };
 
-  /* Re-serialize the whole program. With `reflow_root`, pretty-print just
-   * the sub-segment rooted there and leave the rest as serialized. The
-   * root's id is a top-level piece of the tile child that holds it (e.g.
-   * the `proof` child of a `Theorem` tile), so that child is the one
-   * prettified. `wrap_block` brackets it with linebreaks so a proof body
-   * lays out as a block under `proof`. When the id is only at the top
-   * level (a root-level replacement), the whole segment is prettified. */
-  let whole_program =
-      (~reflow_root: option(Id.t), ~wrap_block: bool, root: Exp.t): Segment.t => {
+  /* Re-serialize the whole program. That discards its layout, so with
+   * `reflow` all of it is pretty-printed. */
+  let whole_program = (~reflow: bool, root: Exp.t): Segment.t => {
     let seg = to_segment(Exp(root));
-    switch (reflow_root) {
-    | None => seg
-    | Some(root_id) =>
-      let format = (child: Segment.t): Segment.t => {
-        let pretty = PrettySegment.prettify(child);
-        wrap_block ? [newline()] @ pretty @ [newline()] : pretty;
-      };
-      let contains_root = (child: Segment.t): bool =>
-        List.exists((p: Piece.t) => Piece.id(p) == root_id, child);
-      let rec reflow_seg = (seg: Segment.t): (Segment.t, bool) =>
-        List.fold_left(
-          ((acc, found), p: Piece.t) =>
-            if (found) {
-              (acc @ [p], true);
-            } else {
-              switch (p) {
-              /* Induction lays out as a unit (scrutinee on the keyword
-               * line, each case body on its own indented line; see
-               * PrettySegment's induction/end rule), so a replacement
-               * landing in its slot reflows the whole tile rather than
-               * the bare slot content, which wouldn't know it's an
-               * induction. */
-              | Tile(t)
-                  when
-                    Tile.has_label(t, ["induction", "end"])
-                    && List.exists(contains_root, t.children) => (
-                  acc @ PrettySegment.prettify([Tile(t)]),
-                  true,
-                )
-              | Tile(t) =>
-                let (children, found') = reflow_children(t.children);
-                (
-                  acc
-                  @ [
-                    Tile({
-                      ...t,
-                      children,
-                    }),
-                  ],
-                  found',
-                );
-              | Grout(_)
-              | Secondary(_)
-              | Projector(_) => (acc @ [p], false)
-              };
-            },
-          ([], false),
-          seg,
-        )
-      and reflow_children =
-          (children: list(Segment.t)): (list(Segment.t), bool) =>
-        List.fold_left(
-          ((acc, found), child: Segment.t) =>
-            if (found) {
-              (acc @ [child], true);
-            } else if (contains_root(child)) {
-              (acc @ [format(child)], true);
-            } else {
-              let (child', found') = reflow_seg(child);
-              (acc @ [child'], found');
-            },
-          ([], false),
-          children,
-        );
-      let (out, found) = reflow_seg(seg);
-      found ? out : PrettySegment.prettify(seg);
-    };
+    reflow ? PrettySegment.prettify(seg) : seg;
+  };
+};
+
+/* Laying out a theorem's proof again after an edit to it. */
+module Reflow = {
+  /* The proof is laid out as a whole and inside its theorem, because an
+   * edit to one step changes the lines around it: a second step turns a
+   * one-line proof into a block, and the block is indented from where the
+   * theorem sits. Only the slot of the proof is rewritten, so the
+   * statement and the program around the theorem keep their text. */
+  let proof = (~theorem_id: Id.t, seg: Segment.t): Segment.t => {
+    /* `f` gives the new contents of a slot of steps, from the theorem's
+     * tile and the slot's index in it. */
+    let map_steps = (f: (Tile.t, int) => Segment.t): (Segment.t => Segment.t) =>
+      Segment.map_deep(
+        List.map((p: Piece.t) =>
+          switch (p) {
+          | Tile(t) when t.id == theorem_id =>
+            Piece.Tile({
+              ...t,
+              children:
+                List.mapi(
+                  (i, (sort, child)) =>
+                    Sort.equal(sort, Proof) ? f(t, i) : child,
+                  Tile.sorted_children(t),
+                ),
+            })
+          | _ => p
+          }
+        ),
+      );
+    let laid_out =
+      map_steps(
+        (t, i) =>
+          /* Spacing first: the spliced-in steps come from the serializer,
+           * which writes `| x:: t =>`, and the pretty printer keeps a
+           * rule's pattern as it finds it. */
+          switch (
+            [Piece.Tile(t)]
+            |> SpaceNormalize.go(~canonicalize=true)
+            |> PrettySegment.prettify
+          ) {
+          | [Tile(pretty)]
+              when List.length(pretty.children) == List.length(t.children) =>
+            List.nth(pretty.children, i)
+          | _ => List.nth(t.children, i)
+          },
+        seg,
+      );
+    let levels = Indentation.level_map(laid_out);
+    map_steps(
+      (t, i) =>
+        Indentation.fix_indentation_in_segment(
+          levels,
+          List.nth(t.children, i),
+        ),
+      laid_out,
+    );
   };
 };
 
 let apply_patch = (zipper: Zipper.t, patch: patch): Zipper.t => {
   let root = MakeTerm.from_zip_for_sem(zipper, ~root=Exp).term;
-  /* A proof body lays out as a block under its keyword; an expression
-   * splices in as it is. */
-  let write = (~reflow, ~wrap_block, ~old_node, ~new_node, new_root) =>
-    CaretPreserving.transform(zipper, seg =>
-      switch (
-        Splice.local(
-          ~old_node,
-          ~replacement=new_node,
-          ~reflow,
-          ~wrap_block,
-          seg,
-        )
-      ) {
-      | Some(seg) => seg
-      | None =>
-        let reflow_root = reflow ? Some(Any.rep_id(new_node)) : None;
-        Splice.whole_program(~reflow_root, ~wrap_block, new_root);
-      }
-    );
+  /* A proof's replacement is written in as it is serialized, and with
+   * `reflow` the theorem's whole proof is then laid out. */
   let replace_proof = (~reflow, ~target_id, replacement) =>
     switch (Rewrite.proof_in_exp(~target_id, replacement, root)) {
     | Some((old, new_root)) =>
-      write(
-        ~reflow,
-        ~wrap_block=true,
-        ~old_node=Proof(old),
-        ~new_node=Proof(replacement),
-        new_root,
-      )
+      let theorem =
+        Rewrite.theorem_around(
+          ~proof_id=Proof.rep_id(replacement),
+          new_root,
+        );
+      /* A replacement of several pieces can't be spliced in beside the
+       * old node's siblings, but its theorem's whole proof can take the
+       * place of the old one. */
+      let whole_proofs =
+        switch (Rewrite.theorem_around(~proof_id=target_id, root), theorem) {
+        | (Some((_, before)), Some((_, after))) => [(before, after)]
+        | _ => []
+        };
+      CaretPreserving.transform(
+        zipper,
+        seg => {
+          let spliced =
+            List.find_map(
+              ((before, after)) =>
+                Splice.local(
+                  ~old_node=Proof(before),
+                  ~replacement=Proof(after),
+                  ~reflow=false,
+                  seg,
+                ),
+              [(old, replacement), ...whole_proofs],
+            );
+          let seg =
+            switch (spliced) {
+            | Some(seg) => seg
+            | None => Splice.whole_program(~reflow, new_root)
+            };
+          switch (theorem) {
+          | Some((theorem_id, _)) when reflow =>
+            Reflow.proof(~theorem_id, seg)
+          | _ => seg
+          };
+        },
+      );
     | None => zipper
     };
   switch (patch) {
   | ExpPatch({target_id, replacement, reflow}) =>
     switch (Rewrite.exp(~target_id, replacement, root)) {
     | Some((old, new_root)) =>
-      write(
-        ~reflow,
-        ~wrap_block=false,
-        ~old_node=Exp(old),
-        ~new_node=Exp(replacement),
-        new_root,
+      CaretPreserving.transform(zipper, seg =>
+        switch (
+          Splice.local(
+            ~old_node=Exp(old),
+            ~replacement=Exp(replacement),
+            ~reflow,
+            seg,
+          )
+        ) {
+        | Some(seg) => seg
+        | None => Splice.whole_program(~reflow, new_root)
+        }
       )
     | None => zipper
     }
