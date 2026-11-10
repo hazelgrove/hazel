@@ -425,30 +425,40 @@ let save_current' = (prefix: string, model: Model.t): unit => {
       );
       /* the slide blob carries the editor only; the conversation lives
          solely under the :agent key */
-      Util.BenchMarks.time("save: the text", () =>
-        save_slide_kind(
-          prefix,
-          sp.name,
-          CodePersist({
-            editor:
-              Some(
-                CellEditor.Model.{
-                  editor:
-                    Editor.Model.mk_persistent(
-                      PersistentZipper.of_text(
-                        PersistentZipper.to_string(z) ++ "\n",
+      /* (^report(51), step 8) its parts timed for the check: the program
+         printed, its result persisted, and the blob written */
+      Util.BenchMarks.time("save: the text", () => {
+        let text =
+          Util.BenchMarks.time("save: the text printed", () =>
+            PersistentZipper.to_string(z)
+          );
+        let result =
+          Util.BenchMarks.time("save: the result persisted", () =>
+            EvalResult.Model.persist(Program.result(program))
+          );
+        Util.BenchMarks.time("save: the text written", () =>
+          save_slide_kind(
+            prefix,
+            sp.name,
+            CodePersist({
+              editor:
+                Some(
+                  CellEditor.Model.{
+                    editor:
+                      Editor.Model.mk_persistent(
+                        PersistentZipper.of_text(text ++ "\n"),
+                        /* the editor's own root: a Mod-rooted slide saved as
+                           Exp reloads as an expression and wedges */
+                        ~root=Program.root(program),
                       ),
-                      /* the editor's own root: a Mod-rooted slide saved as
-                         Exp reloads as an expression and wedges */
-                      ~root=Program.root(program),
-                    ),
-                  result: EvalResult.Model.persist(Program.result(program)),
-                },
-              ),
-            agent: Agent.Persistent.persist(Agent.Utils.init()),
-          }),
-        )
-      );
+                    result,
+                  },
+                ),
+              agent: Agent.Persistent.persist(Agent.Utils.init()),
+            }),
+          )
+        );
+      });
     };
     let outline = Program.outline(program);
     let paths = (pins: list(SlideView.pin)) =>
