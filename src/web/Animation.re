@@ -170,6 +170,20 @@ let go = (): unit =>
     tracked_elems := [];
   };
 
+/* the caret glide is 125ms (Actions.move); a new request while the
+   previous glide is still in flight reads as decoration lag */
+let last_caret_glide: ref(float) = ref(0.);
+let caret_glide_available = (): bool => {
+  let now: float = Js_of_ocaml.Js.Unsafe.global##.Date##now();
+  if (now -. last_caret_glide^ > 170.) {
+    last_caret_glide := now;
+    true;
+  } else {
+    last_caret_glide := now; /* keep suppressing until input pauses */
+    false;
+  };
+};
+
 /* Request animations. Call this during the MVU update */
 let request = (transitions: list(transition)): unit => {
   tracked_elems :=
