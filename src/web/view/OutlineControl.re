@@ -1082,14 +1082,20 @@ let shown_memo = Util.Slot.mk();
 
 /* the row holding the editor's caret, or where it shows when folded away
    (OutlineFollow) */
+/* (^report(51)) the last mark, by the slide and the caret's candidates:
+   while they are the same and the edited program's outline is not built
+   yet, the mark stands, and the outline is built after the paint, on its
+   own (Page's OutlineAsync), not in the page's view. After an edit of a
+   livelit's model on the Witch the mark built it, 5 to 14 ms of the view
+   (run 42820611040); the outline drawn next asks for it again and the
+   page is drawn again if it changed */
+let last_mark:
+  ref(option((option((string, string)), list(Id.t), option(E.key)))) =
+  ref(None);
 let mark = (~deck: option(deck), ~zipper: Zipper.t): option(E.key) =>
   switch (program_of(deck)) {
   | None => None
   | Some(p) =>
-    let statics = Program.statics(p);
-    let outline = Program.outline(p);
-    let row_of = id =>
-      OutlineTree.enclosing_row(~info_map=statics.info_map, id, outline);
     /* the indicated term, else the enclosing tiles, else the
        neighbours (a caret in a comment or between items) */
     let candidates =
@@ -1103,24 +1109,38 @@ let mark = (~deck: option(deck), ~zipper: Zipper.t): option(E.key) =>
         | (l, r) => List.filter_map(x => Option.map(Piece.id, x), [r, l])
         }
       );
-    let row =
-      switch (List.find_map(row_of, candidates), p) {
-      | (Some(r), _) => Some(r)
-      | (None, Divided(d)) => Option.map(fst, Divided.active(d))
-      | (None, Whole(_)) => None
-      };
-    let folds = folds(deck);
-    Option.map(
-      r =>
-        Util.Slot.get(
-          ~same=
-            ((t, r, f), (t', r', f')) => t === t' && r == r' && f === f',
-          shown_memo,
-          (outline, r, folds),
-          () => shown_row(~folds, r, outline),
-        ),
-      row,
-    );
+    let slide = Option.map(d => (fst(d), slide_name(d)), deck);
+    switch (last_mark^) {
+    | Some((s, c, m))
+        when s == slide && c == candidates && !Program.outline_made(p) => m
+    | _ =>
+      let statics = Program.statics(p);
+      let outline = Program.outline(p);
+      let row_of = id =>
+        OutlineTree.enclosing_row(~info_map=statics.info_map, id, outline);
+      let row =
+        switch (List.find_map(row_of, candidates), p) {
+        | (Some(r), _) => Some(r)
+        | (None, Divided(d)) => Option.map(fst, Divided.active(d))
+        | (None, Whole(_)) => None
+        };
+      let folds = folds(deck);
+      let m =
+        Option.map(
+          r =>
+            Util.Slot.get(
+              ~same=
+                ((t, r, f), (t', r', f')) =>
+                  t === t' && r == r' && f === f',
+              shown_memo,
+              (outline, r, folds),
+              () => shown_row(~folds, r, outline),
+            ),
+          row,
+        );
+      last_mark := Some((slide, candidates, m));
+      m;
+    };
   };
 
 /* the path of the row [k] names in [outline]: a run's is its tests' parent */
