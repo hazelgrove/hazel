@@ -26,6 +26,25 @@ let pinned = (id, what, ~theorem="bad", ~now, src) =>
     )
   );
 
+let parse_exp = Test_Evaluator_Prelude.parse_exp;
+
+let statics_marks = (src): list(Mark.t) => {
+  let (_, statics, _) = src |> parse_exp |> eval_with_proof;
+  Id.Map.fold((_, info, acc) => Info.marks_of(info) @ acc, statics, []);
+};
+
+/* The shape of a chain of `eval`, `assume` and hole steps, with every
+ * nesting explicit. */
+let rec shape = (p: Proof.t): string =>
+  switch (p.term) {
+  | Seq(a, b) => "(" ++ shape(a) ++ "; " ++ shape(b) ++ ")"
+  | Assume(_, _, body) => "assume(" ++ shape(body) ++ ")"
+  | Parens(q) => shape(q)
+  | EvalStep => "eval"
+  | EmptyHole => "?"
+  | _ => "other"
+  };
+
 let tests = (
   "ProverKnownBugs",
   [
@@ -132,6 +151,158 @@ let tests = (
           "PROVER-NAT-NO-IH still behaves as filed",
           "Incomplete",
           status_of("t", proof_of("Nat")),
+        );
+      },
+    ),
+    Alcotest.test_case(
+      "PROVER-STATICS-GENERALIZE-SCOPE: statics keeps facts generalize hides",
+      `Quick,
+      () => {
+        let src = "theorem t = forall x: Int where x > 0 -> x + 0 == x proof generalize x => revert where => ? in t";
+        let (pm, proof) = run_named("t", src);
+        Alcotest.check(
+          Alcotest.bool,
+          "the checker can't find `where`",
+          true,
+          has_mark_kind(
+            pm,
+            proof,
+            fun
+            | UnknownFactReverted => true
+            | _ => false,
+          ),
+        );
+        Alcotest.check(
+          Alcotest.bool,
+          "PROVER-STATICS-GENERALIZE-SCOPE still behaves as filed",
+          false,
+          List.exists(
+            fun
+            | Mark.FreeHypothesis(_) => true
+            | _ => false,
+            statics_marks(src),
+          ),
+        );
+      },
+    ),
+    Alcotest.test_case(
+      "PROVER-STATICS-FOCUS-BINDERS: a focus body can't name a goal binder its selector doesn't",
+      `Quick,
+      () => {
+        let src = "theorem t = (fun x: Int -> x + 0) == (fun x: Int -> x + (x - x)) proof from 0 do rewrite x - x end end in t";
+        let (pm, proof) = run_named("t", src);
+        Alcotest.check(
+          Alcotest.bool,
+          "the checker binds `x` in the body",
+          true,
+          find_marked_sub(pm, proof) == None,
+        );
+        Alcotest.check(
+          Alcotest.bool,
+          "PROVER-STATICS-FOCUS-BINDERS still behaves as filed",
+          true,
+          List.mem(Mark.Free("x"), statics_marks(src)),
+        );
+      },
+    ),
+    Alcotest.test_case(
+      "PROVER-PRINT-SEQ-SCOPE: a left-nested chain reprints with a later step inside an assume",
+      `Quick,
+      () => {
+        let flatten_left = (p: Proof.t): Proof.t =>
+          switch (p.term) {
+          | Seq({term: Parens(inner), _}, rest) => {
+              ...p,
+              term: Seq(inner, rest),
+            }
+          | _ => p
+          };
+        let built =
+          parse_exp(
+            "theorem t = 1 == 1 proof (eval; assume 1 == 1 => ?); eval in t",
+          )
+          |> Exp.map_term(~f_exp=(continue, e) =>
+               switch (e.term) {
+               | Theorem(p, stmt, proof, body) => {
+                   ...e,
+                   term: Theorem(p, stmt, flatten_left(proof), body),
+                 }
+               | _ => continue(e)
+               }
+             );
+        Alcotest.check(
+          Alcotest.string,
+          "the chain as built",
+          "((eval; assume(?)); eval)",
+          shape(proof_of(built)),
+        );
+        Alcotest.check(
+          Alcotest.string,
+          "PROVER-PRINT-SEQ-SCOPE still behaves as filed",
+          "(eval; assume((?; eval)))",
+          shape(proof_of(parse_exp(print_exp(built)))),
+        );
+      },
+    ),
+    Alcotest.test_case(
+      "PROVER-MENHIR-PROOF-PARENS: menhir can't parse parentheses around a proof",
+      `Quick,
+      () => {
+        let src = "theorem t = 1 == 1 proof (eval) in t";
+        let _: Exp.t = parse_exp(src);
+        let _: MenhirParser.AST.exp =
+          MenhirParser.Interface.parse_program(
+            "theorem t = 1 == 1 proof eval in t",
+          );
+        Alcotest.check(
+          Alcotest.bool,
+          "PROVER-MENHIR-PROOF-PARENS still behaves as filed",
+          true,
+          switch (MenhirParser.Interface.parse_program(src)) {
+          | _ => false
+          | exception _ => true
+          },
+        );
+      },
+    ),
+    Alcotest.test_case(
+      "PROVER-MENHIR-HAVE-CITE: menhir can't cite a have",
+      `Quick,
+      () => {
+        let src = "theorem t = 1 == 1 proof have 1 == 1 proof ? => axiom have end in t";
+        let _: Exp.t = parse_exp(src);
+        let _: MenhirParser.AST.exp =
+          MenhirParser.Interface.parse_program(
+            "theorem t = 1 == 1 proof have 1 == 1 proof ? => axiom refl_eq end in t",
+          );
+        Alcotest.check(
+          Alcotest.bool,
+          "PROVER-MENHIR-HAVE-CITE still behaves as filed",
+          true,
+          switch (MenhirParser.Interface.parse_program(src)) {
+          | _ => false
+          | exception _ => true
+          },
+        );
+      },
+    ),
+    Alcotest.test_case(
+      "PROVER-HAVE-OPEN-CASES: a have whose subproof has open induction cases incurs no premise",
+      `Quick,
+      () => {
+        let src = "theorem bad = false proof have false proof induction [1] | [] => ? | h :: t => ? end => contradiction have end in bad";
+        let (pm, proof) = run_named("bad", src);
+        Alcotest.check(
+          Alcotest.string,
+          "the open cases keep the proof incomplete",
+          "Incomplete",
+          status_of("bad", src),
+        );
+        Alcotest.check(
+          Alcotest.int,
+          "PROVER-HAVE-OPEN-CASES still behaves as filed",
+          0,
+          List.length(ProofMap.pending_obligations(pm, proof)),
         );
       },
     ),
