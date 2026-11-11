@@ -306,5 +306,31 @@ let tests = (
         );
       },
     ),
+    Alcotest.test_case(
+      "PROVER-FOCUS-INLINED-VAR: a selector naming a function in the env finds no occurrence",
+      `Quick,
+      () => {
+        let (pm, _) =
+          run_named(
+            "bad",
+            "let rev = fun xs -> case xs | [] => [] | x :: t => rev(t) @ [x] end in theorem bad = rev([]) == [] proof from rev do eval end; ? in bad",
+          );
+        Alcotest.check(
+          Alcotest.bool,
+          "PROVER-FOCUS-INLINED-VAR still behaves as filed",
+          true,
+          Id.Map.exists(
+            (_, entry: ProofMap.entry) =>
+              List.exists(
+                fun
+                | ProofMark.PatternNotFound(_) => true
+                | _ => false,
+                entry.marks,
+              ),
+            pm,
+          ),
+        );
+      },
+    ),
   ],
 );
