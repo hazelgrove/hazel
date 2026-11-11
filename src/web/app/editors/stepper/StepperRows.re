@@ -37,9 +37,11 @@ type t = {
    * id of what it put into `goal` in place of the occurrence it selected.
    * A step picked inside that part joins the focus. */
   after_focus: option((Proof.t, Id.t)),
-  /* When the step is a focus that found its occurrence: the occurrence's
-   * id in `goal`. */
-  focus_target: option(Id.t),
+  /* The id in `goal` of the part the step acts on: the occurrence a focus
+   * selected, or all of `goal` for a step that rewrites it whole. None
+   * for a step that changes the goal's shape or closes it from facts
+   * (forall, induction, contradiction, ...). */
+  acts_on: option(Id.t),
 }
 and kind =
   /* A written `?` or unparseable text. A step picked here replaces it. */
@@ -156,14 +158,30 @@ let rec chain =
     | None => None
     };
   let nested = chain(~proof_map, ~after_focus=None);
-  /* The checker starts a focus's body from the occurrence it selected. */
-  let focus_target =
+  let acts_on =
     switch (step.term) {
+    /* The checker starts a focus's body from the occurrence it selected. */
     | Focus({body, _}) =>
       lookup(body)
       |> Option.bind(_, (e: ProofMap.entry) => e.incoming)
       |> Option.map(Exp.rep_id)
-    | _ => None
+    | AxiomStep(_)
+    | AlgebriteStep(_)
+    | EvalStep => Option.map(Exp.rep_id, goal)
+    | EmptyHole
+    | Invalid(_)
+    | MultiHole(_)
+    | Seq(_)
+    | Parens(_)
+    | Contradiction(_)
+    | Forall(_)
+    | Funext(_)
+    | Assume(_)
+    | Revert(_)
+    | Generalize(_)
+    | Have(_)
+    | Alias(_)
+    | Induction(_) => None
     };
   let row = kind => {
     key: (Proof.rep_id(step), Incoming),
@@ -172,7 +190,7 @@ let rec chain =
     entry,
     goal,
     after_focus,
-    focus_target,
+    acts_on,
   };
   let row =
     switch (step.term) {
@@ -240,7 +258,7 @@ let rec chain =
         entry,
         goal: Option.bind(entry, (e: ProofMap.entry) => e.outgoing),
         after_focus: next_after_focus,
-        focus_target: None,
+        acts_on: None,
       },
     ]
   };

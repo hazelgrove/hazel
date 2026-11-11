@@ -216,15 +216,21 @@
   cursor: pointer;
 }
 
-/* What a focus selects: a line in the color of the C a focus opens,
-   drawn under the text rather than as a plate, and not clickable, so it
-   can't be taken for an offered step. It sits above projectors, whose
-   boxes would otherwise hide it under a folded name. */
-.step-focus {
+/* What the step below acts on: a line in the color of the C a focus
+   opens, drawn under the text rather than as a plate, and not clickable,
+   so it can't be taken for an offered step. It sits above projectors,
+   whose boxes would otherwise hide it under a folded name. */
+.step-acts-on {
   pointer-events: none;
   box-sizing: border-box;
   border-bottom: 2px solid var(--stepper-arm);
   z-index: calc(var(--projector-hover-z) + 1);
+}
+
+/* The same line under all of a read-only goal, which has no overlays. */
+.step-acts-on-whole .code-text {
+  text-decoration: underline 2px var(--stepper-arm);
+  text-underline-offset: 0.3em;
 }
 
 .step-next > svg > path.child-line {

@@ -198,6 +198,14 @@ module Patches = {
 
 // Goals
 
+/* The node with `id` and the nodes enclosing it, nearest first. */
+let rec self_and_ancestors = (id, e: Exp.t): option(list(Exp.t)) =>
+  Exp.rep_id(e) == id
+    ? Some([e])
+    : Occurrence.children(e)
+      |> List.find_map(self_and_ancestors(id))
+      |> Option.map(path => path @ [e]);
+
 /* The `eval` steps the picker offers. The checker's `eval` step passes
  * through `VarLookup`s silently (Evaluator.Proofs.advance_hidden), so a
  * step can't always be written at its own node: in `all_lists(xs) ==
@@ -253,13 +261,6 @@ module EvalSteps = {
       (~settings: CoreSettings.t, ~env, written: Exp.t)
       : list((EvaluatorStep.step, Id.t)) => {
     let substituted = lazy(Substitution.in_exp(env, written));
-    /* The node with `id` and the nodes enclosing it, nearest first. */
-    let rec self_and_ancestors = (id, e: Exp.t): option(list(Exp.t)) =>
-      Exp.rep_id(e) == id
-        ? Some([e])
-        : Occurrence.children(e)
-          |> List.find_map(self_and_ancestors(id))
-          |> Option.map(path => path @ [e]);
     let offer = (s: EvaluatorStep.step) =>
       self_and_ancestors(EvaluatorStep.get_step_id(s), written)
       |> Option.value(~default=[])
@@ -381,17 +382,49 @@ module Goal = {
       goal.eval_steps,
     );
 
-  /* The displayed id of the occurrence `row`'s focus selects, where its
-   * underline goes. A goal carried over from an earlier check prints the
-   * same as `row.goal` but may not share its ids, so this maps by position
-   * from `row.goal` rather than from `written`. */
-  let focus_id = (goal: t, row: StepperRows.t): option(Id.t) =>
-    switch (row.goal, row.focus_target) {
-    | (Some(written), Some(target)) =>
-      Occurrence.map_rep_id(~from=written, ~onto=goal.display, target)
+  /* Where the underline marking what `row`'s step acts on goes: the
+   * displayed id of that part. A goal carried over from an earlier check
+   * prints the same as `row.goal` but may not share its ids, so this maps
+   * by position from `row.goal` rather than from `written`.
+   *
+   * The editor may not draw that node. Inside a folded function it is in
+   * the editor's term but not drawn, so the underline goes on the nearest
+   * drawn node around it there, the fold. A hidden ascription isn't in the
+   * editor's term at all, so the underline goes on the first drawn node
+   * inside it. */
+  let acts_on = (goal: t, row: StepperRows.t): option(Id.t) => {
+    let syntax = goal.editor.editor.syntax;
+    let drawn = (e: Exp.t) =>
+      TermData.extreme_measures(
+        Exp.rep_id(e),
+        syntax.term_data,
+        CachedSyntax.measured(syntax),
+      )
+      != None;
+    let rec inside = (e: Exp.t) =>
+      drawn(e)
+        ? Some(e)
+        : (
+          switch (Occurrence.children(e)) {
+          | [child] => inside(child)
+          | _ => None
+          }
+        );
+    let editor_term = CodeEditable.Model.get_statics(goal.editor).term;
+    switch (row.goal, row.acts_on) {
+    | (Some(written), Some(part)) =>
+      Occurrence.map_rep_id(~from=written, ~onto=goal.display, part)
+      |> Option.bind(_, id =>
+           switch (self_and_ancestors(id, editor_term)) {
+           | Some(path) => List.find_opt(drawn, path)
+           | None => Option.bind(Exp.find_by_id(id, goal.display), inside)
+           }
+         )
+      |> Option.map(Exp.rep_id)
     | (None, _)
     | (_, None) => None
     };
+  };
 
   /* The node the user selected in the goal's editor, read off the editor
    * itself so it can't lag the selection. */

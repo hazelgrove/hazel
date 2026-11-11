@@ -539,13 +539,15 @@ module View = {
       let code = code(~globals);
       let goal = ob.display_goal;
       let truth = Exp.fresh(Atom(Bool(true)));
+      /* Closed by evaluating it or citing a fact, so the step acts on all
+       * of the goal. */
       let closed = justification =>
         Row.view(
           ~globals,
           ~status=Clean,
           ~show_equiv=true,
           ~delete=None,
-          ~editor_view=code(Exp(goal)),
+          ~editor_view=div_c("step-acts-on-whole", [code(Exp(goal))]),
           ~justification=Node.text(justification),
           (),
         )
@@ -1067,7 +1069,7 @@ module View = {
           editor: goal.editor,
           next_steps: hints ? Picker.Goal.step_ids(goal) : [],
           refls: hints ? List.map(Exp.rep_id, goal.refls) : [],
-          focus: Picker.Goal.focus_id(goal, row),
+          acts_on: Picker.Goal.acts_on(goal, row),
         },
       );
     };
