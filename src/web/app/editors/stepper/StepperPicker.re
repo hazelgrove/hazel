@@ -532,6 +532,25 @@ let focused = (pick: pick): Proof.t =>
 let write = (row: StepperRows.t, pick: pick): Patches.patch =>
   Patches.write(row, focused(pick));
 
+/* The patch writing `steps` after `row`'s goal, one row each, or None
+ * for no steps. */
+let write_steps =
+    (row: StepperRows.t, steps: list(Proof.t)): option(Patches.patch) =>
+  switch (List.rev(steps)) {
+  | [] => None
+  | [last, ...earlier] =>
+    Some(
+      Patches.write(
+        row,
+        List.fold_left(
+          (rest, step) => Proof.fresh(Seq(step, rest)),
+          last,
+          earlier,
+        ),
+      ),
+    )
+  };
+
 /* What taking the `idx`-th offered step writes: `eval`, focused on the
  * step's source. */
 let take_step = (goal: Goal.t, idx: int): option(pick) => {

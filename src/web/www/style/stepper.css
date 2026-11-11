@@ -199,6 +199,36 @@
   background-color: var(--cell-result);
 }
 
+.box-hint-none {
+  color: var(--text-error-strong);
+}
+
+.box-hint:has(.box-hint-none) .box-key {
+  opacity: 0.45;
+}
+
+/* What Enter would write, dashed: it isn't written yet. */
+.write-preview {
+  font-family: var(--ui-font);
+  font-size: 0.8em;
+  padding: 0 0.7em;
+  border: 1px dashed var(--stepper-lozenge-border);
+  border-radius: 999px;
+  background-color: var(--cell-result);
+  color: var(--cell-result-text);
+  white-space: nowrap;
+}
+
+.write-preview.searching {
+  opacity: 0.6;
+}
+
+.write-preview.none {
+  border-color: oklch(55% 0.15 30);
+  background-color: oklch(93% 0.04 30);
+  color: oklch(45% 0.15 30);
+}
+
 /* The Proof strategy tab's buttons sit on the panel, not on a code
  * background: they aren't code. */
 .strategy-buttons {

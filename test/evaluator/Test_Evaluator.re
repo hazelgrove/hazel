@@ -26,6 +26,7 @@ let tests =
     Test_Evaluator_TypAp.tests,
     Test_Stepper.tests,
     Test_StepperView.tests,
+    Test_StepSearch.tests,
     Test_Evaluator_Properties.tests,
     Test_Evaluator_Performance.tests,
     Test_Evaluator_Modules.tests,

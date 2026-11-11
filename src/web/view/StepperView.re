@@ -34,6 +34,12 @@ module Model = {
     editor: CodeEditable.Model.t,
     /* What Tab takes, for the goal and its selection. */
     ghost: option(Picker.Ghost.t),
+    /* The search for steps to the typed goal, while the box holds a
+     * complete expression. */
+    search: option(StepSearch.t),
+    /* Counts the searches started and the slices run, so that each
+     * render of a running search asks for its next slice once. */
+    generation: int,
     /* The strategy whose menu is open, by its label. */
     menu: option(string),
   };
@@ -94,6 +100,9 @@ module Update = {
     | Goal(CodeSelectable.Update.t)
     | Tab(Model.tab)
     | BoxEditor(CodeEditable.Update.t)
+    /* Runs a slice of the box's search, if it is still the search of
+     * that generation. */
+    | SearchSlice(int)
     | Menu(option(string))
     | ToggleCondition(int);
 
@@ -115,6 +124,37 @@ module Update = {
   let ghost = (goal: Picker.Goal.t) =>
     Picker.Ghost.mk(goal, ~selected=Picker.Goal.selected(goal));
 
+  /* The goal typed into the box, or None while it is empty or
+   * incomplete. */
+  let wanted = (editor: CodeEditable.Model.t): option(Exp.t) => {
+    let statics = CodeEditable.Model.get_statics(editor);
+    let rec complete = (e: Exp.t) =>
+      switch (Exp.term_of(e)) {
+      | EmptyHole
+      | MultiHole(_)
+      | Invalid(_) => false
+      | _ => List.for_all(complete, Occurrence.children(e))
+      };
+    statics.error_ids == [] && complete(statics.term)
+      ? Some(statics.elaborated) : None;
+  };
+
+  /* A new search, for the box's text against `goal`. */
+  let search = (goal: Picker.Goal.t, box: Model.box): Model.box => {
+    ...box,
+    search:
+      Option.map(
+        wanted => StepSearch.start(goal, ~wanted),
+        wanted(box.editor),
+      ),
+    generation: box.generation + 1,
+  };
+
+  /* How long a slice of the search may run before the browser gets its
+   * turn. A slice ends only between candidates, so it can run over by
+   * one check. */
+  let slice_ms = 15.;
+
   let new_box = (~settings, goal: Picker.Goal.t): Model.box => {
     tab: None,
     editor:
@@ -123,6 +163,8 @@ module Update = {
       )
       |> calculate_box(~settings, goal),
     ghost: ghost(goal),
+    search: None,
+    generation: 0,
     menu: None,
   };
 
@@ -168,12 +210,40 @@ module Update = {
           menu: None,
         })
         |> return_quiet(~logged=true)
+      /* A changed text is searched for afresh. */
       | (BoxEditor(a), Some(box)) =>
         let* editor = CodeEditable.Update.update(~settings, a, box.editor);
+        let editor =
+          calculate_box(~settings=settings.core, local.goal, editor);
+        let changed =
+          !
+            Exp.fast_equal_with_lexemes(
+              CodeEditable.Model.get_statics(box.editor).term,
+              CodeEditable.Model.get_statics(editor).term,
+            );
+        let box = {
+          ...box,
+          editor,
+        };
+        set_box(changed ? search(local.goal, box) : box);
+      | (SearchSlice(generation), Some({search: Some(search), _} as box))
+          when generation == box.generation && search.status == Searching =>
+        let deadline = JsUtil.precise_timestamp() +. slice_ms;
         set_box({
           ...box,
-          editor: calculate_box(~settings=settings.core, local.goal, editor),
-        });
+          search:
+            Some(
+              StepSearch.run(
+                ~continue_=() => JsUtil.precise_timestamp() < deadline,
+                ~algebra=RewriteChecker.check_rewrite,
+                local.goal,
+                search,
+              ),
+            ),
+          generation: generation + 1,
+        })
+        |> return_quiet;
+      | (SearchSlice(_), _) => model |> return_quiet
       | (Menu(menu), Some(box)) =>
         set_box({
           ...box,
@@ -205,18 +275,22 @@ module Update = {
       (acc, row: Rows.t) =>
         switch (row.goal, Rows.ctx(row)) {
         | (Some(written), Some(ctx)) =>
-          /* A box carries its text over to its row's new goal. */
+          /* A box carries its text over to its row's new goal, and
+           * searches again from it. */
           let with_goal = (local: Model.local, goal): Model.local => {
             ...local,
             goal,
             box:
               Option.map(
                 (box: Model.box) =>
-                  {
-                    ...box,
-                    editor: calculate_box(~settings, goal, box.editor),
-                    ghost: ghost(goal),
-                  },
+                  search(
+                    goal,
+                    {
+                      ...box,
+                      editor: calculate_box(~settings, goal, box.editor),
+                      ghost: ghost(goal),
+                    },
+                  ),
                 local.box,
               ),
           };
@@ -636,6 +710,43 @@ module View = {
     };
   };
 
+  /* Runs the write box's search a slice at a time. Each render of a new
+   * generation of a running search asks for one more slice, after the
+   * browser has had its turn, so typing never waits on the search. A new
+   * search waits a moment first, in case the user is still typing. */
+  module SearchSlices = {
+    module Spec = {
+      module State = Unit;
+      module Input = {
+        type t = {
+          generation: int,
+          running: bool,
+          fresh: bool,
+          slice: Ui_effect.t(unit),
+        };
+        let sexp_of_t = (input: t) =>
+          Sexplib0.Sexp.Atom(string_of_int(input.generation));
+        let combine = (_, latest) => latest;
+      };
+      let ask = (input: Input.t) =>
+        if (input.running) {
+          JsUtil.delay(input.fresh ? 150. : 0., () =>
+            Virtual_dom.Vdom.Effect.Expert.handle_non_dom_event_exn(
+              input.slice,
+            )
+          );
+        };
+      let init = (_, _) => ();
+      let on_mount = (input, (), _) => ask(input);
+      let update = (~old_input: Input.t, ~new_input: Input.t, (), _) =>
+        if (old_input.generation != new_input.generation) {
+          ask(new_input);
+        };
+      let destroy = (_, (), _) => ();
+    };
+    include Virtual_dom.Vdom.Attr.Hooks.Make(Spec);
+  };
+
   /* The write box, under the goal of an unfinished chain, with its tabs
    * above it. */
   module Box = {
@@ -670,6 +781,8 @@ module View = {
           ~tabs: list(Model.tab),
           ~inject: Update.action => Ui_effect.t(unit),
           ~write: Picker.pick => Ui_effect.t(unit),
+          /* Writes the steps the search found, one row each. */
+          ~write_steps: list(Proof.t) => Ui_effect.t(unit),
           ~take_focus: Ui_effect.t(unit),
           ~focused: bool,
           /* Controls for the hole the box writes in place of. */
@@ -699,10 +812,20 @@ module View = {
       let input = () => {
         let empty = Model.is_empty(box);
         let ghost = empty ? box.ghost : None;
+        let found =
+          switch (box.search) {
+          | Some({status: Found([_, ..._] as steps), _}) => Some(steps)
+          | Some({status: Found([]) | Searching | NotFound, _})
+          | None => None
+          };
         let keys = (key: Key.t) =>
-          switch (ghost) {
-          | Some(ghost) when plain("Tab", key) => Some(write(ghost.pick))
-          /* Shift+Enter still breaks the line. */
+          switch (ghost, found) {
+          | (Some(ghost), _) when plain("Tab", key) =>
+            Some(write(ghost.pick))
+          | (_, Some(steps)) when plain("Enter", key) =>
+            Some(write_steps(steps))
+          /* With nothing found, Enter does nothing. Shift+Enter still
+           * breaks the line. */
           | _ when plain("Enter", key) => Some(Ui_effect.Ignore)
           | _ => None
           };
@@ -724,15 +847,47 @@ module View = {
             box.editor,
           );
         let (ghost, hint) =
-          switch (ghost) {
-          | Some(g) => (
+          switch (ghost, box.search) {
+          | (Some(g), _) => (
               [div_c("box-ghost", [code(g.result)])],
               [keycap("Tab"), Node.text(g.rule)],
             )
-          | None => ([], [])
+          | (None, Some({status: Found([_, ..._]), _})) => (
+              [],
+              [keycap("Enter")],
+            )
+          | (None, Some({status: NotFound, _})) => (
+              [],
+              [
+                keycap("Enter"),
+                div_c(
+                  "box-hint-none",
+                  [Node.text("nothing proves this step")],
+                ),
+              ],
+            )
+          | (None, Some({status: Found([]), _})) => (
+              [],
+              [Node.text("the goal already")],
+            )
+          | (None, Some({status: Searching, _}) | None) => ([], [])
           };
-        div_c(
-          "box-input",
+        let slices =
+          switch (box.search) {
+          | Some(search) =>
+            Attr.create_hook(
+              "write-box-search",
+              SearchSlices.create({
+                generation: box.generation,
+                running: search.status == Searching,
+                fresh: search.checks == 0 && search.expanding == None,
+                slice: inject(SearchSlice(box.generation)),
+              }),
+            )
+          | None => Attr.empty
+          };
+        Node.div(
+          ~attrs=[Attr.classes(["box-input"]), slices],
           [
             Node.div(
               ~attrs=[
@@ -1133,10 +1288,33 @@ module View = {
         let unknown =
           row.kind == Hole && !is_last
             ? [div_c("step-unknown", [Node.text("?")])] : [];
+        /* What Enter would write, previewed on the line above the box. */
+        let preview =
+          switch (Model.find(row.key, model)) {
+          | Some({box: Some(box), _})
+              when is_last && Box.current(~tabs, box) == Write =>
+            let lozenge = (clss, text) => [
+              div_c("write-preview " ++ clss, [Node.text(text)]),
+            ];
+            switch (box.search) {
+            | Some({status: Found([_, ..._] as steps), _}) =>
+              lozenge(
+                "",
+                String.concat(" · ", List.map(justification, steps)),
+              )
+            | Some({status: NotFound, _}) =>
+              lozenge("none", "no step gets here")
+            | Some({status: Searching, _}) => lozenge("searching", "…")
+            | Some({status: Found([]), _})
+            | None => []
+            };
+          | _ => []
+          };
         let justification =
           div_c(
             "missing-step-justification",
             unknown
+            @ preview
             @ [
               Node.div(
                 ~attrs=[Attr.classes(["stepper-controls"])],
@@ -1171,6 +1349,18 @@ module View = {
                 ~tabs,
                 ~inject=a => inject((row.key, a)),
                 ~write=write(row),
+                ~write_steps=
+                  steps =>
+                    switch (Picker.write_steps(row, steps)) {
+                    | Some(patch) =>
+                      Ui_effect.Many([
+                        globals.inject_global(
+                          Set(Evaluation(ForceShowRecord)),
+                        ),
+                        edit_syntax(patch),
+                      ])
+                    | None => Ui_effect.Ignore
+                    },
                 ~take_focus=take_focus(Box(row.key)),
                 ~focused=focused(Box(row.key)),
                 ~hole_actions=row.kind == Hole ? hole_actions(row.step) : [],

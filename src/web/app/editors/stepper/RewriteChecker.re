@@ -51,13 +51,19 @@ let rec print_exp_for_algebrite = (~name_other, exp: Exp.t): string =>
   | _ => name_other(exp)
   };
 
+/* The page loads Algebrite. Where it isn't loaded, as in the test
+ * harness, nothing is equal by algebra. */
 let checkEquality = (expr1, expr2): bool => {
   let algebrite = Js.Unsafe.global##.Algebrite;
-  let diffExpr = Printf.sprintf("simplify((%s)-(%s))", expr1, expr2);
-  let algebrite_result = algebrite##run(Js.string(diffExpr));
-  switch (Js.to_string(algebrite_result)) {
-  | "0" => true
-  | _ => false
+  if (Js.to_string(Js.typeof(algebrite)) == "undefined") {
+    false;
+  } else {
+    let diffExpr = Printf.sprintf("simplify((%s)-(%s))", expr1, expr2);
+    let algebrite_result = algebrite##run(Js.string(diffExpr));
+    switch (Js.to_string(algebrite_result)) {
+    | "0" => true
+    | _ => false
+    };
   };
 };
 
