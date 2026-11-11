@@ -742,7 +742,63 @@ let chat_tests =
     ),
   ];
 
+let reasoning_tests = [
+  test_case(
+    "the fill reasons at medium effort, or at the panel's",
+    `Quick,
+    () => {
+      let show = r =>
+        Option.map(OpenRouter.Payload.Model.show_reasoning, r)
+        |> Option.value(~default="none");
+      let agent = Web.AgentGlobals.init();
+      check(
+        string,
+        "default model",
+        "(Effort Medium)",
+        show(Fill.reasoning(agent)),
+      );
+      check(
+        string,
+        "panel's effort",
+        "(Effort High)",
+        show(
+          Fill.reasoning({
+            ...agent,
+            reasoning_effort: Some(High),
+          }),
+        ),
+      );
+      let plain: OpenRouter.AvailableLLMs.Model.llm_info = {
+        id: "some/model",
+        name: "Some model",
+        pricing: {
+          prompt: "0",
+          completion: "0",
+        },
+        context_length: None,
+        supports_reasoning: false,
+      };
+      check(
+        string,
+        "a model that can't reason",
+        "none",
+        show(
+          Fill.reasoning({
+            ...agent,
+            active_llm: Some(plain),
+          }),
+        ),
+      );
+    },
+  ),
+];
+
 let tests = (
   "AgentFill",
-  proof_tests @ typed_tests @ cancel_tests @ Tools.tests @ chat_tests,
+  proof_tests
+  @ typed_tests
+  @ cancel_tests
+  @ Tools.tests
+  @ chat_tests
+  @ reasoning_tests,
 );

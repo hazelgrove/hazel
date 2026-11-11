@@ -330,6 +330,15 @@ module Active = {
     );
 };
 
+/* How hard the model reasons: at the panel's effort, or else medium, when
+ * it can. On bench/agentfill the default model proves clearly more at
+ * medium effort than at its own default. */
+let reasoning =
+    (agent: AgentGlobals.Model.t): option(OpenRouter.Payload.Model.reasoning) =>
+  agent.active_llm == None || AgentGlobals.active_supports_reasoning(agent)
+    ? Some(Effort(Option.value(~default=Medium, agent.reasoning_effort)))
+    : None;
+
 /* The model the agent panel would use, asked through its key. */
 let ask_agent = (agent: AgentGlobals.Model.t): result(Loop.ask, string) =>
   switch (Option.map(String.trim, agent.api_key)) {
@@ -339,6 +348,7 @@ let ask_agent = (agent: AgentGlobals.Model.t): result(Loop.ask, string) =>
     let model_id =
       AgentGlobals.get_active_llm_id(agent)
       |> Option.value(~default=default_model_id);
+    let reasoning = reasoning(agent);
     log("model " ++ model_id);
     Ok(
       (messages, k) => {
@@ -347,6 +357,7 @@ let ask_agent = (agent: AgentGlobals.Model.t): result(Loop.ask, string) =>
             ~model_id,
             ~messages,
             ~tools=[],
+            ~reasoning?,
             (),
           );
         OpenRouter.Utils.start_chat(~key, ~payload, ~handler=response =>
