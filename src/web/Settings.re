@@ -53,7 +53,7 @@ module Model = {
       format_shortcut: Language.CoreSettings.FormatShortcut.Spaces,
       indentation_ux: true,
       flip_animations: true,
-      animate_all_edits: false,
+      animate_all_edits: true,
       drag_refactor: false,
       drag_chain: Language.CoreSettings.DragChain.SameKind,
       drag_push: true,
