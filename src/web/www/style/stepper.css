@@ -809,7 +809,7 @@
 }
 
 /* A side condition left collapsed: a dot on the step's line, with its
- * kind's icon. Amber while unproven; open, its `?` row says so. */
+ * kind's icon. Red while unproven; open, its `?` row holds the exits. */
 .condition-dot {
   width: 15px;
   height: 15px;
@@ -824,8 +824,42 @@
 }
 
 .condition-dot.unproven {
-  border-color: var(--stepper-attention-border);
-  background-color: var(--stepper-attention);
+  border-color: var(--border-error-strong);
+  background-color: var(--border-error);
+  color: var(--light-page-color);
+}
+
+.condition-exits {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3em;
+}
+
+/* Drawn like a step's lozenge. */
+.condition-exit {
+  font-family: inherit;
+  font-size: 0.8em;
+  padding: 0.1em 0.5em;
+  border: 1px solid var(--stepper-lozenge-border);
+  border-radius: 0.3em;
+  background-color: var(--stepper-lozenge-bkg);
+  color: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.condition-exit:hover:not(.disabled) {
+  background-color: var(--stepper-lozenge-border);
+  color: var(--light-page-color);
+}
+
+/* An exit that doesn't apply stays visible; its title says why. */
+.condition-exit.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  text-decoration: line-through;
 }
 
 .condition-hint {

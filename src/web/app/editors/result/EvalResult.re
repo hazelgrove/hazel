@@ -843,6 +843,7 @@ module View = {
           },
           ~info_map=CodeEditable.Model.get_statics(cell.editor).info_map,
           ~proof_map=cell.proof_map,
+          ~exits=_ => [],
           CellStepper.proof(cell),
           cell.stepper,
         );

@@ -320,9 +320,9 @@ module Where = {
    * A conjunctive guard also installs each conjunct as its own fact, so
    * `Discharge.lookup` finds them; `a && b` holding entails both `a` and
    * `b` under the Kleene reading. `definition_obligations` treats a
-   * `fun p where g` contract the same way. The obligations panel's float
-   * exit depends on it when the binder already has a guard, since
-   * `ObligationsPanel.float_binder_exp` extends the guard with `&&`.
+   * `fun p where g` contract the same way. The Add to statement and Add to
+   * contract exits depend on it when the binder already has a guard,
+   * since `Obligations.Exits.restrict` extends the guard with `&&`.
    *
    * All entries go under the one name `where`, and the whole guard is
    * installed last, so that `Ctx.lookup_theorem`, which takes the most
@@ -864,7 +864,7 @@ module Funext = {
 
 /* Definition-time discharge of function contracts.
  *
- * When a theorem is checked, every function definition its proof context
+ * When a theorem is checked, every function definition its context
  * can see (env-bound, non-builtin, non-recursive) is scanned once:
  *   - `fun p where g -> body`: each of the body's domain conditions is
  *     discharged if it is `Exp.fast_equal` to the guard `g` or one of
@@ -873,12 +873,12 @@ module Funext = {
  *     here once rather than at every call (DomainConditions.scan doesn't
  *     descend into function bodies).
  *
- * Leftovers are recorded in the ProofMap under the function term's id,
- * a non-proof id, so the entry has only obligations, each with `origin`
- * the function's id. Recording is idempotent across theorems. Because
- * the function's id is not inside any proof subtree, these obligations
- * don't affect Proven/ProvenModulo status; they are shown at the
- * definition in the obligations panel.
+ * Leftovers are recorded in a ProofMap of their own under the function
+ * term's id, so each entry has only obligations, each with `origin` the
+ * function's id. Recording is idempotent across theorems. Because the
+ * function's id is not inside any proof subtree, these obligations don't
+ * affect Proven/ProvenModulo status; they are shown on each theorem that
+ * has the function in scope.
  *
  * The body scan runs with the parameter's bindings visible, so
  * conditions may mention the parameter. */
