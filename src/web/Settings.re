@@ -53,6 +53,12 @@ module Model = {
       format_shortcut: Language.CoreSettings.FormatShortcut.Spaces,
       indentation_ux: true,
       flip_animations: true,
+      animate_all_edits: true,
+      drag_chain: Language.CoreSettings.DragChain.SameKind,
+      drag_push: true,
+      drag_composites: true,
+      drag_labels: true,
+      drag_tracks: true,
       display_warnings: true,
       selection_chunkiness: false,
       evaluation: {
@@ -171,6 +177,12 @@ module Update = {
     | ExplainThis(ExplainThisModel.Settings.action)
     | DisplayWarnings
     | FlipAnimations
+    | AnimateAllEdits
+    | DragChain
+    | DragPush
+    | DragComposites
+    | DragLabels
+    | DragTracks
     | CompletionDisplay(CompletionDisplay.t)
     | AutoprobeMode
     | SetAutoprobe(Haz3lcore.AutoProbe.t)
@@ -255,6 +267,55 @@ module Update = {
           core: {
             ...settings.core,
             flip_animations: !settings.core.flip_animations,
+          },
+        }
+      | AnimateAllEdits => {
+          ...settings,
+          core: {
+            ...settings.core,
+            animate_all_edits: !settings.core.animate_all_edits,
+          },
+        }
+      | DragChain => {
+          ...settings,
+          core: {
+            ...settings.core,
+            drag_chain:
+              Language.CoreSettings.DragChain.(
+                switch (settings.core.drag_chain) {
+                | Off => SameKind
+                | SameKind
+                | Everything => Off
+                }
+              ),
+          },
+        }
+      | DragPush => {
+          ...settings,
+          core: {
+            ...settings.core,
+            drag_push: !settings.core.drag_push,
+          },
+        }
+      | DragComposites => {
+          ...settings,
+          core: {
+            ...settings.core,
+            drag_composites: !settings.core.drag_composites,
+          },
+        }
+      | DragLabels => {
+          ...settings,
+          core: {
+            ...settings.core,
+            drag_labels: !settings.core.drag_labels,
+          },
+        }
+      | DragTracks => {
+          ...settings,
+          core: {
+            ...settings.core,
+            drag_tracks: !settings.core.drag_tracks,
           },
         }
       | DisplayWarnings => {

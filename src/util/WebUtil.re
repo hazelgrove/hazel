@@ -11,6 +11,7 @@ open Js_of_ocaml;
 let clss = Attr.classes;
 
 let div_c = cls => div(~attrs=[Attr.class_(cls)]);
+let div_id_c = (id, cls) => div(~attrs=[Attr.id(id), Attr.class_(cls)]);
 let span_c = cls => span(~attrs=[Attr.class_(cls)]);
 
 let div_empty = div(~attrs=[Attr.create("style", "display:none")], []);

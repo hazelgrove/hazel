@@ -1,0 +1,108 @@
+# REFACTORING: FUNCTIONS AND TUPLES #
+# Signatures change and every call site follows. Put the caret #
+# on a token, then (ctrl+alt on PC): #
+#   cmd+ctrl+Left / Right  on a parameter or an argument: swap #
+#                          it with its neighbor everywhere #
+#   cmd+ctrl+Right         just after the parameters' closing ): #
+#                          add a parameter (calls get a hole) #
+#   cmd+ctrl+Left          just after that ): drop the last #
+#                          parameter, if nothing uses it #
+#   cmd+ctrl+Left / Right  on a tuple pattern's variable or value: #
+#                          swap components #
+# Right-click for Add param, Remove param, Split let, Eta-Reduce #
+# and Eta-Expand. #
+
+# ===== SWAPPING PARAMETERS ===== #
+
+# P1 caret on hi, Right: the definition and all three calls #
+# swap their second and third positions #
+let clamp = fun (lo, hi, x) ->
+  if x < lo then lo else if x > hi then hi else x
+in
+let c1 = clamp(0, 10, 42) in
+let c2 = clamp(0, 10, 7) in
+let c3 = clamp(5, 6, 0 - 3) in
+
+# P2 from a call site: caret on the 3 below, Left #
+let minus(a, b) = a - b in
+let diff = minus(10, 3) in
+
+# P3 recursion follows too: caret on base, Right. The #
+# recursive call is a call site like any other #
+let power = fun (base, n) ->
+  if n == 0 then 1 else base * power(base, n - 1)
+in
+let p8 = power(2, 3) in
+
+# P4 four parameters: caret on c, Left, Left walks it to the #
+# front #
+let mix = fun (a, b, c, d) -> a * 1000 + b * 100 + c * 10 + d in
+let mixed = mix(1, 2, 3, 4) in
+
+# ===== ADDING AND REMOVING PARAMETERS ===== #
+
+# A1 caret just after the ) of greet's parameter, Right: a new #
+# parameter appears and each call gets a hole to fill #
+let greet(name) = "Hi, " ++ name in
+let g1 = greet("Ada") in
+let g2 = greet("Alan") in
+
+# A2 the same from the menu: right-click let scale, Add param #
+# to scale #
+let scale = fun (x, factor) -> x * factor in
+let scaled = scale(3, 4) in
+
+# A3 spare is never used: caret just after the ) below, Left. #
+# The 99s vanish from the calls #
+let carry = fun (load, spare) -> load * 2 in
+let h1 = carry(45, 99) in
+let h2 = carry(10, 99) in
+
+# A4 any unused parameter, by menu: right-click unused, Remove #
+# param unused #
+let pair = fun (left, unused, right) -> left + right in
+let paired = pair(1, 2, 3) in
+
+# A5 dead press: every parameter of clamp is used, so Left #
+# just after its ) does nothing (try it on P1's clamp) #
+
+# ===== TUPLE PATTERNS ===== #
+
+# T1 caret on w, Right: the pattern and the value swap #
+# together, so w and h keep their meanings #
+let (w, h) = (16, 9) in
+
+# T2 three components: caret on g, Right, then Left #
+let (r, g, b) = (255, 128, 0) in
+
+# T3 from the value side: caret on 2.5, Left #
+let (mass, speed) = (10, 2.5) in
+
+# T4 split: right-click the let below, Split let: one let per #
+# component. Then inline or move them independently #
+let (low, high) = (100, 900) in
+
+# T5 split three ways #
+let (x, y, z) = (1, 2, 3) in
+
+# ===== ETA ===== #
+
+# E1 a wrapper that only forwards: right-click fun, Eta-Reduce #
+let inc = fun n -> n + 1 in
+let wrap = fun n -> inc(n) in
+
+# E2 the reverse: right-click inc in the call below, Eta-Expand #
+let apply = fun (f, v) -> f(v) in
+let applied = apply(inc, 41) in
+
+# E3 any function-valued use: right-click inc below, #
+# Eta-Expand; then right-click the new fun, Eta-Reduce #
+let bump = inc in
+
+# E4 forwarding a pair reduces too: right-click fun, Eta-Reduce #
+let add = fun (a, b) -> a + b in
+let adder = fun (a, b) -> add(a, b) in
+
+(c1, c2, c3, diff, p8, mixed, g1, g2, scaled, h1, h2, paired,
+  w - h, r + g + b, mass, low + high, x + y + z, wrap(41),
+  applied, bump(1), adder(1, 2), speed)

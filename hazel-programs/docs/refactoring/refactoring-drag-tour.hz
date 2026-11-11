@@ -1,0 +1,236 @@
+# DRAG TOUR: hold Cmd (Ctrl on PC) and pull tokens. A grab #
+# offers every refactoring that moves what you grabbed, each as a #
+# track. With Settings > Drag Ladders on, a track runs on through #
+# that refactoring repeated, one dot per step. Nothing changes until #
+# you let go; release lands on the nearest dot as ONE undo step (Esc, #
+# or letting go short of the first dot, changes nothing). Settings > #
+# Drag Pushes Through: a blocked move carries what it depends on, or #
+# lifts out as a helper. Settings > Drag Composites: one pull runs #
+# through extract, hoist, sink, merge and feed (section 15). #
+
+# 1 HOIST / SINK: grab a let (its let, =, in, or name) and pull #
+# vertically - the let moves its LINE. Keep pulling: gamma climbs #
+# past bravo, then past the comment (a line like any other: comments #
+# and blank lines never ride along), then past alpha; pull back down #
+# and it retraces. #
+
+let ladder =
+  let alpha = 100 in
+  # big ones below #
+  let bravo = 250 in
+  let gamma = 425 in
+  alpha + bravo + gamma
+in
+
+# 2 FEED (inline next use): grab the DEFINITION itself, by its #
+# root the *, and pull DOWN - feeding moves the value, not the #
+# line. A full-size copy splits off and flies to the nearest use; #
+# the original stays while other uses remain, and the LAST feed #
+# moves the definition itself. One pull runs through all three uses. #
+# (A use never feeds itself by drag: uses mean themselves.) #
+
+let rate = 365 in
+let budget = rate * 24 in
+let spending = budget + budget + budget in
+
+# 3 EXTRACT: grab the + inside the first parens and pull UP - the #
+# subexpression gets its own binding on a fresh line above. To move #
+# the new binding further, grab its let. #
+
+let volume = (ladder + 55) * (ladder - 45) in
+
+# extract inside a function body: the same pull lands the binding at #
+# the top of the body, indented under the function's head. #
+
+let scale(factor) =
+  factor * (ladder + 40)
+in
+
+# 4 CASE: grab an arm's |, =>, or pattern and pull vertically to #
+# REORDER the arms; overlapping patterns refuse to cross (nothing #
+# moves past the wildcard). Expanding the _ is right-click only. #
+
+type Meal = Soup + Salad + Combo(Int) in
+let lunch : Meal = Combo(12) in
+let dinner : Meal = Salad in
+let price =
+  case lunch
+  | Soup => 400
+  | Combo(size) => size * 100
+  | _ => 700
+  end
+in
+
+# grab end and pull it DOWN: the missing constructors arrive one by #
+# one, one per dot, so one pull can add them all. The Int case below #
+# is written on one line, so its end moves RIGHT, and it adds a #
+# wildcard instead. (Both start inexhaustive on purpose.) #
+
+let stamp =
+  case dinner
+  | Soup => 111
+  end
+in
+let ticket = case ladder | 775 => true end in
+
+# 5 IF: grab a whole BRANCH and pull it onto the other: grab the 900 #
+# and pull it UP onto price's slot - the guard negates and the #
+# branches trade places (do it again to unwrap the !). #
+
+let cheap =
+  if price < 900
+  then price
+  else 900
+in
+
+# the same on one line: grab "cool" and pull it LEFT onto "cold". #
+
+let feel(t) = if t < 10 then "cold" else "cool" in
+
+# 6 PARAMETERS: pull a param LEFT/RIGHT to swap neighbors (the call #
+# sites follow); keep pulling to carry it across several. Pull the #
+# closing ) RIGHT to append a parameter, LEFT to shed the last one #
+# when unused (spare below) - the ) itself moves either way, so the #
+# parens stay even with one parameter left. #
+
+let blend(redx, greenx, bluex) = redx + greenx * bluex in
+let mixture = blend(10, 20, 30) in
+let carry(load, spare) = load * 2 in
+let hauled = carry(45, 99) in
+
+# 7 TUPLE PATTERN: pull low or high sideways - the components and #
+# their definition values rotate together. #
+
+let (low, high) = (100, 900) in
+let span = high - low in
+
+# 8 PASS-THROUGH: sink prize into award's body, and hoist it back #
+# out. Watch the line breaks settle at each landing. Then grab its #
+# 900 and pull it down into an arm: a copy feeds the first use. #
+
+let prize = 900 in
+let award(place) =
+  case place
+  | 1 => prize
+  | _ => prize - 800
+  end
+in
+
+# 9 PUSH THROUGH: grab let total and pull UP. total needs sub, so #
+# sub is pushed up ahead of it, past tip; keep pulling and the pair #
+# leaves pushy's definition. Pulling back down sinks total alone - #
+# pushed lines stay where they were pushed. #
+
+let pushy =
+  let tip = 9 in
+  let sub = 40 in
+  let total = sub + 2 in
+  total + tip
+in
+
+# lift: square needs r, so it cannot leave area on its own. Pull #
+# let square UP and it lifts out as a helper taking r (landing above #
+# this example); the use becomes square(r). #
+
+let area(r) =
+  let square = r * r in
+  square * 314 / 100
+in
+
+# 10 MERGE: twins dissolve into one. Grab let fee and pull UP onto #
+# tax (every fee becomes tax), or grab tax and pull DOWN onto fee. #
+
+let twins =
+  let cost = 800 in
+  let tax = cost / 10 in
+  let fee = cost / 10 in
+  cost + tax + fee
+in
+
+# 11 MOVE INTO CALLER (the inverse of the lift in 9): sq was lifted #
+# out of disk. Grab let sq and pull DOWN: it moves back inside disk #
+# as a local let, and the call sq(r) becomes plain sq. #
+
+let sq(r) = r * r in
+let disk(r) =
+  sq(r) * 314 / 100
+in
+
+# two parameters move back the same way (grab let hyp2, DOWN). But #
+# twice_sq has two callers, so neither can take it: DOWN on it #
+# pushes its users along instead. #
+
+let hyp2(a, b) = a * a + b * b in
+let norm(a, b) =
+  hyp2(a, b) / 2
+in
+let twice_sq(x) = x * x * 2 in
+let one(x) = twice_sq(x) + 1 in
+let two(x) = twice_sq(x) - 1 in
+
+# 12 SPLIT OUT and JOIN: grab bb in the pattern and pull it DOWN onto #
+# its own line; grab let bb there and pull it back UP into the tuple. #
+# The same grab of bb also swaps it LEFT. A name inside a pattern #
+# moves only itself: the whole line moves by its let, = or in. #
+
+let (rr, gg, bb) = (255, 128, 0) in
+let shade = rr + gg + bb in
+
+# two plain lets join into a pair: grab let tall and pull UP-RIGHT #
+# into wide's pattern (hoist pulls straight up, past wide's line). #
+# Join is offered between ANY two neighboring plain lets that don't #
+# depend on each other - notice it on lets all over this slide. #
+
+let wide = 16 in
+let tall = 9 in
+let ratio = wide * 100 / tall in
+
+# 13 FEED A FUNCTION: grab the SECOND * of cube's definition (the #
+# root of n * n * n) and pull DOWN: a copy of fun n -> n * n * n #
+# lands on the first call (Enter on that fun reduces it); one pull #
+# runs through every call, the last one consuming cube. #
+
+let cube(n) = n * n * n in
+let vol = cube(3) + cube(4) in
+
+# 14 TINY TARGETS: deliberately small handles, for feel. #
+
+let a = 1 in
+let b = a + a + a in
+
+# 15 COMPOSITES (Settings > Drag Composites): once a value is moving, #
+# one pull runs through every move that changes where it lives. Grab #
+# the / of price * rate / 100 and pull UP: it gets its own line, keeps #
+# climbing past fee and tip, and lifts out once rate holds it in. #
+
+let checkout(price) =
+  let rate = 8 in
+  let tip = price / 5 in
+  let fee = 3 in
+  price + tip + fee + price * rate / 100
+in
+
+# extract a function: grab the first * (the root of r * r) and pull #
+# UP. It is bound inside wheel's body, lifts out as a helper taking r #
+# when r blocks it, then hoists past rim. #
+
+let rim = 3 in
+let wheel(r) =
+  r * r * 314 / 100
+in
+
+# extract, climb, merge: grab the / of the last cost / 10 and pull UP. #
+# It is bound, climbs past tip, and lands on tax, which already holds #
+# the same value: the two merge, and the use becomes tax. #
+
+let books =
+  let cost = 800 in
+  let tax = cost / 10 in
+  let tip = 5 in
+  cost + tax + tip + cost / 10
+in
+
+(ladder, spending, volume, scale(2), price, stamp, ticket, cheap,
+  feel(5), mixture, hauled, span, award(1), pushy, area(10), twins,
+  disk(10), norm(3, 4), one(2), two(2), shade, ratio, vol, b,
+  checkout(100), wheel(rim), books)
