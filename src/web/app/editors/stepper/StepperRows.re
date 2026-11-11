@@ -274,6 +274,23 @@ let reached = (rows: list(t)): option(Exp.t) =>
   | None => None
   };
 
+/* Whether the proof continues at the row: a hole, or the row after a
+ * step that leaves the next goal to prove. A form proving a goal of its
+ * own (forall, assume, induction, ...) passes its goal through until its
+ * body closes it, so the row after it is not where the proof goes on. */
+let continues = (row: t): bool =>
+  switch (row.kind, unparen(row.step).term) {
+  | (Hole, _) => true
+  | (Step(_), _) => false
+  | (
+      End,
+      Forall(_) | Funext(_) | Assume(_) | Revert(_) | Generalize(_) |
+      Induction(_),
+    ) =>
+    false
+  | (End, _) => true
+  };
+
 /* The scope a step written at the row is checked in. */
 let ctx = (row: t): option(SemanticCtx.t) =>
   Option.map((e: ProofMap.entry) => e.ctx, row.entry);

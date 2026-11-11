@@ -250,6 +250,71 @@ let tests = (
       },
     ),
     test_case(
+      "a rule named in full lists each of its uses, in each direction, with the goal it gives",
+      `Quick,
+      () => {
+        let g =
+          goal(
+            ~inside=true,
+            "theorem t = forall x -> x == 1 ==> x + 0 == 1 proof assume x == 1 => ? in t",
+          );
+        let suggestions =
+          Search.Suggestions.run(
+            ~continue_=() => true,
+            g,
+            Search.Suggestions.start(~rule=Some("assume")),
+          );
+        check(
+          list(pair(string, string)),
+          "uses",
+          [
+            ("from x do axiom assume end end", "1 + 0 == 1"),
+            ("from 1 do axiomrev assume end end", "x + 0 == x"),
+          ],
+          List.map(
+            (use: Search.Suggestions.suggestion) =>
+              (written(use.step), Test_ProofMap.print_exp(use.result)),
+            suggestions.found,
+          ),
+        );
+        check(
+          bool,
+          "listed",
+          true,
+          List.length(
+            Search.items(g, ~typed_name=Some("assume"), Some(suggestions)),
+          )
+          == 2,
+        );
+      },
+    ),
+    test_case(
+      "typing the start of a name lists the names in scope it completes to",
+      `Quick,
+      () => {
+        let g =
+          goal(
+            ~inside=true,
+            "theorem t = forall x -> x == 1 ==> x + 0 == 1 proof assume x == 1 => ? in t",
+          );
+        let completions = start =>
+          Search.items(g, ~typed_name=Some(start), None)
+          |> List.filter_map((item: Search.item) =>
+               switch (item) {
+               | Complete(name) => Some(name)
+               | Use(_) => None
+               }
+             );
+        check(list(string), "ass", ["assume"], completions("ass"));
+        check(
+          list(string),
+          "the axioms too",
+          ["nonzero_of_neg", "nonzero_of_pos", "nonzero_mul", "not_not"],
+          completions("no"),
+        );
+      },
+    ),
+    test_case(
       "run in slices, the search finds what it finds in one go",
       `Quick,
       () => {

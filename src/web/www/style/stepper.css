@@ -229,6 +229,50 @@
   color: oklch(45% 0.15 30);
 }
 
+/* Under the box: the goal each use of a rule gives, or the names the
+ * text completes to. */
+.box-items {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--light-page-color);
+  border: 1px solid var(--cell-result-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.box-item {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1em;
+  padding: 0.2em 0.6em;
+  cursor: pointer;
+  border-top: 1px solid var(--cell-result);
+}
+
+.box-item:first-child {
+  border-top: none;
+}
+
+.box-item.on {
+  background-color: var(--stepper-lozenge-bkg);
+}
+
+.box-item-rule,
+.box-item-note {
+  font-family: var(--ui-font);
+  font-size: 0.75em;
+  white-space: nowrap;
+  color: var(--cell-result-text);
+}
+
+.box-item-rule {
+  padding: 0 0.7em;
+  border: 1px solid var(--stepper-lozenge-border);
+  border-radius: 999px;
+}
+
 /* The Proof strategy tab's buttons sit on the panel, not on a code
  * background: they aren't code. */
 .strategy-buttons {
@@ -377,6 +421,15 @@
   pointer-events: none;
   box-sizing: border-box;
   border-bottom: 2px solid var(--stepper-arm);
+  z-index: calc(var(--projector-hover-z) + 1);
+}
+
+/* Where the suggestion the user is choosing would act: dashed, as it
+   isn't written yet. */
+.step-previewing {
+  pointer-events: none;
+  box-sizing: border-box;
+  border-bottom: 2px dashed var(--stepper-arm);
   z-index: calc(var(--projector-hover-z) + 1);
 }
 
