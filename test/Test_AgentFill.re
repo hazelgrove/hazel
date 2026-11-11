@@ -65,8 +65,27 @@ module Stub = {
     (ask, requests);
   };
 
-  let run = (cell: Cell.t, replies: list(string)): run => {
-    let (ask, requests) = ask(replies);
+  /* A model that answers only when the test calls `answer`, so a test
+   * can act while a request is in flight. */
+  let pending = () => {
+    let waiting = ref(None);
+    let requests = ref([]);
+    let ask = (messages, k) => {
+      requests := requests^ @ [messages];
+      waiting := Some(k);
+    };
+    let answer = reply =>
+      switch (waiting^) {
+      | Some(k) =>
+        waiting := None;
+        k(Ok(reply));
+      | None => fail("no request is waiting")
+      };
+    (ask, requests, answer);
+  };
+
+  /* Starts a fill with `ask`; the run reads what it has done so far. */
+  let start = (~ask, cell: Cell.t): (unit => run) => {
     let statuses = ref([]);
     let written = ref(None);
     Fill.Typed.fill(
@@ -85,10 +104,18 @@ module Stub = {
       ~program=cell.program,
       cell.hole_id,
     );
-    {
-      requests: requests^,
+    () => {
+      requests: [],
       statuses: statuses^,
       written: written^,
+    };
+  };
+
+  let run = (cell: Cell.t, replies: list(string)): run => {
+    let (ask, requests) = ask(replies);
+    {
+      ...start(~ask, cell, ()),
+      requests: requests^,
     };
   };
 
@@ -478,4 +505,45 @@ let typed_tests = [
   ),
 ];
 
-let tests = ("AgentFill", proof_tests @ typed_tests);
+let cancel_tests = [
+  test_case(
+    "deleting the hole cancels its fill: nothing more is asked or written",
+    `Quick,
+    () => {
+      let cell = Cell.mk(assume_src);
+      let (ask, requests, answer) = Stub.pending();
+      let run = Stub.start(~ask, cell);
+      Fill.Typed.edited(Option.get(Parser.to_zipper("0", ~root=Exp)));
+      answer(assume_fill);
+      check_statuses([Filling(1), Cancelled], run());
+      check(bool, "nothing written", true, run().written == None);
+      check(int, "one request", 1, List.length(requests^));
+    },
+  ),
+  test_case(
+    "an edit that keeps the hole doesn't cancel",
+    `Quick,
+    () => {
+      let cell = Cell.mk(assume_src);
+      let (ask, _, answer) = Stub.pending();
+      let run = Stub.start(~ask, cell);
+      Fill.Typed.edited(cell.zipper);
+      answer(assume_fill);
+      check_statuses([Filling(1), Filled(1)], run());
+    },
+  ),
+  test_case(
+    "stop cancels the fills in progress",
+    `Quick,
+    () => {
+      let cell = Cell.mk(assume_src);
+      let (ask, _, answer) = Stub.pending();
+      let run = Stub.start(~ask, cell);
+      Fill.Active.cancel_all();
+      answer(assume_fill);
+      check_statuses([Filling(1), Cancelled], run());
+    },
+  ),
+];
+
+let tests = ("AgentFill", proof_tests @ typed_tests @ cancel_tests);

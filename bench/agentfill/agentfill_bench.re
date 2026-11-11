@@ -375,7 +375,8 @@ let run_item =
         | Filling(_) => ()
         | Filled(_)
         | GaveUp(_)
-        | Failed(_) =>
+        | Failed(_)
+        | Cancelled =>
           if (! finished^) {
             finished := true;
             finish();

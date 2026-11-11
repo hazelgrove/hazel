@@ -23,7 +23,8 @@ module Status = {
     | Filling(int)
     | Filled(int)
     | GaveUp(int, string)
-    | Failed(string);
+    | Failed(string)
+    | Cancelled;
 
   let to_string = (status: t): string => {
     let rounds = n => Printf.sprintf("%d round%s", n, n == 1 ? "" : "s");
@@ -33,6 +34,7 @@ module Status = {
     | Filled(n) => "filled in " ++ rounds(n)
     | GaveUp(n, last) => "gave up after " ++ rounds(n) ++ ": " ++ last
     | Failed(why) => "couldn't fill: " ++ why
+    | Cancelled => "cancelled"
     };
   };
 };
@@ -150,6 +152,8 @@ module Loop = {
         ~set_status: Status.t => unit,
         ~write: 'a => unit,
         ~log: string => unit,
+        /* Once true, the fill asks nothing more and writes nothing. */
+        ~cancelled: unit => bool=() => false,
         first: string,
       )
       : unit => {
@@ -165,13 +169,18 @@ module Loop = {
       set_status(status);
     };
     /* `history` is the exchange so far, `prompt` this round's message. */
-    let rec round = (n, history, prompt, best) => {
+    let rec round = (n, history, prompt, best) =>
+      if (!cancelled()) {
+        round_(n, history, prompt, best);
+      }
+    and round_ = (n, history, prompt, best) => {
       set_status(Filling(n));
       log(Printf.sprintf("round %d, to the model:\n%s", n, prompt));
       let messages =
         history @ [OpenRouter.Message.Utils.mk_user_msg(prompt)];
       ask([system, ...messages], reply =>
         switch (reply) {
+        | _ when cancelled() => log(Printf.sprintf("round %d cancelled", n))
         | Error(why) =>
           log(Printf.sprintf("round %d failed: %s", n, why));
           give_up(best, Failed(why));
@@ -214,6 +223,61 @@ module Loop = {
 
 let log = (msg: string): unit =>
   Firebug.console##log(Js.string("[agent fill] " ++ msg));
+
+/* The fills in progress, by the hole each fills, so an edit that removes
+ * a hole, or the stop button, can cancel its fill. A fill is a chain of
+ * callbacks that lives only as long as the page, so this is not part of
+ * any model. */
+module Active = {
+  let cancels: ref(Id.Map.t(unit => unit)) = ref(Id.Map.empty);
+
+  /* Registers a fill of `hole_id`. The returned app takes it off the
+   * register when the fill ends; the returned function says whether it
+   * has been cancelled. */
+  let track = (~hole_id: Id.t, app: app): (app, unit => bool) => {
+    let cancelled = ref(false);
+    cancels :=
+      Id.Map.add(
+        hole_id,
+        () => {
+          cancelled := true;
+          cancels := Id.Map.remove(hole_id, cancels^);
+          app.set_status(Cancelled);
+        },
+        cancels^,
+      );
+    let set_status = (status: Status.t) => {
+      switch (status) {
+      | Filling(_) => ()
+      | Filled(_)
+      | GaveUp(_)
+      | Failed(_)
+      | Cancelled => cancels := Id.Map.remove(hole_id, cancels^)
+      };
+      app.set_status(status);
+    };
+    (
+      {
+        ...app,
+        set_status,
+      },
+      () => cancelled^,
+    );
+  };
+
+  let cancel_all = () => Id.Map.iter((_, cancel) => cancel(), cancels^);
+
+  /* Cancels each fill whose hole isn't among `ids`, the ids of the
+   * program as edited. */
+  let cancel_missing = (ids: list(Id.t)) =>
+    Id.Map.iter(
+      (hole_id, cancel) =>
+        if (!List.mem(hole_id, ids)) {
+          cancel();
+        },
+      cancels^,
+    );
+};
 
 /* The model the agent panel would use, asked through its key. */
 let ask_agent = (agent: AgentGlobals.Model.t): result(Loop.ask, string) =>
@@ -518,6 +582,7 @@ module ProofHole = {
     | (_, _, None) =>
       app.set_status(Failed("the evaluation hasn't reached this theorem"))
     | (Ok(ask), Some((theorem_id, statement)), Some((_, name, env, _))) =>
+      let (app, cancelled) = Active.track(~hole_id, app);
       let entry =
         Option.bind(check_theorem(~core, ~env, ~theorem_id, program), pm =>
           ProofMap.lookup(hole_id, pm)
@@ -550,6 +615,7 @@ module ProofHole = {
               | Ok(proof) =>
                 check(~core, ~env, ~theorem_id, ~hole_id, program, proof)
               },
+          ~cancelled,
           ~set_status=app.set_status,
           ~write=
             p =>
@@ -726,6 +792,7 @@ module ExpHole = {
     | (_, None) =>
       app.set_status(Failed("the statics haven't reached this hole"))
     | (Ok(ask), Some(hole)) =>
+      let (app, cancelled) = Active.track(~hole_id, app);
       let errors_before = Haz3lcore.ErrorPrint.all(info_map);
       Loop.run(
         ~ask,
@@ -742,6 +809,7 @@ module ExpHole = {
             | Error(why) => Unusable(why)
             | Ok(exp) => check(~core, ~errors_before, ~hole_id, program, exp)
             },
+        ~cancelled,
         ~set_status=app.set_status,
         ~write=
           e =>
@@ -760,14 +828,12 @@ module ExpHole = {
 /* A fill starts when an edit types `??`, not whenever a program has one:
  * a program loaded with `??` in it starts nothing. */
 module Typed = {
-  let llm_hole_ids = (z: Haz3lcore.Zipper.t): list(Id.t) => {
+  let tiles = (z: Haz3lcore.Zipper.t): list(Haz3lcore.Tile.t) => {
     let rec go = (seg: Haz3lcore.Segment.t) =>
       List.concat_map(
         (p: Haz3lcore.Piece.t) =>
           switch (p) {
-          | Tile(t) =>
-            (Haz3lcore.Tile.label(t) == [Token.llm_hole] ? [t.id] : [])
-            @ List.concat_map(go, t.children)
+          | Tile(t) => [t, ...List.concat_map(go, t.children)]
           | Grout(_)
           | Secondary(_)
           | Projector(_) => []
@@ -776,6 +842,19 @@ module Typed = {
       );
     go(Haz3lcore.Zipper.unselect_and_zip(z));
   };
+
+  let llm_hole_ids = (z: Haz3lcore.Zipper.t): list(Id.t) =>
+    tiles(z)
+    |> List.filter(t => Haz3lcore.Tile.label(t) == [Token.llm_hole])
+    |> List.map((t: Haz3lcore.Tile.t) => t.id);
+
+  /* After any edit: cancels the fills whose hole the edit removed. */
+  let edited = (z: Haz3lcore.Zipper.t): unit =>
+    if (!Id.Map.is_empty(Active.cancels^)) {
+      Active.cancel_missing(
+        List.map((t: Haz3lcore.Tile.t) => t.id, tiles(z)),
+      );
+    };
 
   /* The `??` holes that `action` typed, going from `before` to `after`. */
   let holes =
@@ -840,7 +919,7 @@ module View = {
     let filling =
       switch (status) {
       | Some(Filling(_)) => true
-      | Some(Filled(_) | GaveUp(_) | Failed(_))
+      | Some(Filled(_) | GaveUp(_) | Failed(_) | Cancelled)
       | None => false
       };
     [
@@ -859,7 +938,27 @@ module View = {
 
   let status = (status: option(Status.t)): list(Node.t) =>
     switch (status) {
-    | Some(s) => [
+    | Some(s) =>
+      let stop =
+        switch (s) {
+        | Filling(_) => [
+            Node.button(
+              ~attrs=[
+                Attr.classes(["agent-fill-stop"]),
+                Attr.title("Stop filling"),
+                Attr.on_click(_ =>
+                  Ui_effect.of_sync_fun(Active.cancel_all, ())
+                ),
+              ],
+              [Node.text("stop")],
+            ),
+          ]
+        | Filled(_)
+        | GaveUp(_)
+        | Failed(_)
+        | Cancelled => []
+        };
+      [
         Node.div(
           ~attrs=[
             Attr.classes(["agent-fill-status"]),
@@ -868,6 +967,7 @@ module View = {
           [Node.text(Status.to_string(s))],
         ),
       ]
+      @ stop;
     | None => []
     };
 };

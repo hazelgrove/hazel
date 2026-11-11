@@ -105,3 +105,9 @@
   display: flex;
   padding: 0.2em 1em;
 }
+
+.agent-fill-stop {
+  align-self: center;
+  font-size: 0.75em;
+  cursor: pointer;
+}

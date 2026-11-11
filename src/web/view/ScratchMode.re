@@ -739,6 +739,7 @@ module Update = {
       switch (scratchpad.kind) {
       | Code({editor, agent}) =>
         let* new_ed = CellEditor.Update.update(~settings, a, editor);
+        AgentFill.Typed.edited(new_ed.editor.editor.state.zipper);
         switch (a) {
         | MainEditor(action) =>
           AgentFill.Typed.start(
