@@ -397,6 +397,185 @@ let run_item =
   );
 };
 
+// The chat agent's way: proof tools in a tool-calling loop
+
+/* The chat bridge in run.js: an OpenAI-style request with tools, answered
+ * with the model's message as JSON. */
+let bridge_chat =
+    (
+      messages: list(Yojson.Safe.t),
+      tools: list(Yojson.Safe.t),
+      k: result(Yojson.Safe.t, string) => unit,
+    ) =>
+  Js.Unsafe.fun_call(
+    Js.Unsafe.global##.benchChat,
+    [|
+      Js.Unsafe.inject(
+        Js.string(
+          Yojson.Safe.to_string(
+            `Assoc([("messages", `List(messages)), ("tools", `List(tools))]),
+          ),
+        ),
+      ),
+      Js.Unsafe.inject(
+        Js.wrap_callback((ok, text) =>
+          k(
+            Js.to_bool(ok)
+              ? Ok(Yojson.Safe.from_string(Js.to_string(text)))
+              : Error(Js.to_string(text)),
+          )
+        ),
+      ),
+    |],
+  );
+
+let tools_system = "You are Filbert, the agent in the Hazel editor. The user asks you to fill a hole in a theorem's proof. Use the tools: read the `proofs` docs, look at the hole with proof_holes, try proofs with check_proof as often as you need, and write the proof with fill_proof once it proves the goal.";
+
+/* One theorem, the way the chat agent fills it: the request typing `??`
+ * sends, the proof tools, at most `turns` model calls. */
+let run_tools_item = (~turns: int, item: Yojson.Safe.t, k: Yojson.Safe.t => unit) => {
+  open Yojson.Safe.Util;
+  let name = item |> member("name") |> to_string;
+  let src = item |> member("program") |> to_string;
+  let reference =
+    switch (item |> member("reference")) {
+    | `String(r) => Some(fst(theorem(~name, r)))
+    | _ => None
+    };
+  let z = zipper(src);
+  let program = term(z);
+  let hole_id =
+    switch (Fill.Typed.llm_hole_ids(z)) {
+    | [id, ..._] => id
+    | [] => failwith("no ?? in " ++ name)
+    };
+  let cell: Web.CellEditor.Model.t = {
+    ...Web.CellEditor.Model.mk(Editor.Model.mk(z, ~root=Exp)),
+    result: evaluate(program),
+  };
+  let tools = [
+    ProofTools.proof_holes,
+    ProofTools.check_proof,
+    ProofTools.fill_proof,
+    DocsTools.read_docs,
+  ];
+  let finish = (~turn, ~why, cell: Web.CellEditor.Model.t) => {
+    let text = Printer.of_zipper(~holes="?", cell.editor.editor.state.zipper);
+    let (status, proof) = theorem(~name, text);
+    k(
+      `Assoc([
+        ("name", `String(name)),
+        ("tier", item |> member("tier")),
+        (
+          "reference",
+          switch (reference) {
+          | Some(s) => `String(s)
+          | None => `Null
+          },
+        ),
+        ("statuses", `List([`String(why ++ " after " ++ string_of_int(turn) ++ " calls")])),
+        ("result", `String(status)),
+        ("proof", `String(proof)),
+      ]),
+    );
+  };
+  let execute = (cell, call: Yojson.Safe.t) => {
+    let id = call |> member("id") |> to_string;
+    let f = call |> member("function");
+    let tool_name = f |> member("name") |> to_string;
+    let args =
+      switch (f |> member("arguments")) {
+      | `String(a) =>
+        try(Yojson.Safe.from_string(a)) {
+        | _ => `Assoc([])
+        }
+      | a => a
+      };
+    let (proved, content, cell) =
+      switch (CompositionUtils.Public.action_of(~tool_name, ~args)) {
+      | ProofRequest(r) =>
+        let (ok, text, edited) =
+          Web.AgentProofTools.answer(~settings=Web.Settings.Model.init, r, cell);
+        let wrote =
+          switch (r) {
+          | FillProof(_) => ok
+          | ProofHoles
+          | CheckProof(_) => false
+          };
+        (wrote, text, Option.value(~default=cell, edited));
+      | DocsRequest(topic) => (
+          false,
+          switch (DocPacks.lookup(topic)) {
+          | Some(pack) => pack.body
+          | None => "Unknown docs topic " ++ topic
+          },
+          cell,
+        )
+      | Action(_)
+      | Failure(_) => (false, "That tool isn't available here.", cell)
+      };
+    (
+      proved,
+      `Assoc([
+        ("role", `String("tool")),
+        ("tool_call_id", `String(id)),
+        ("content", `String(content)),
+      ]),
+      cell,
+    );
+  };
+  let rec turn = (n, messages, cell) =>
+    if (n > turns) {
+      finish(~turn=n - 1, ~why="stopped", cell);
+    } else {
+      bridge_chat(messages, tools, reply =>
+        switch (reply) {
+        | Error(why) => finish(~turn=n, ~why="failed: " ++ why, cell)
+        | Ok(message) =>
+          switch (message |> member("tool_calls")) {
+          | `List([_, ..._] as calls) =>
+            let (proved, results, cell) =
+              List.fold_left(
+                ((proved, results, cell), call) => {
+                  let (p, result, cell) = execute(cell, call);
+                  (proved || p, results @ [result], cell);
+                },
+                (false, [], cell),
+                calls,
+              );
+            let assistant =
+              `Assoc([
+                ("role", `String("assistant")),
+                (
+                  "content",
+                  switch (message |> member("content")) {
+                  | `String(c) => `String(c)
+                  | _ => `String("")
+                  },
+                ),
+                ("tool_calls", `List(calls)),
+              ]);
+            proved
+              ? finish(~turn=n, ~why="filled", cell)
+              : turn(n + 1, messages @ [assistant, ...results], cell);
+          | _ => finish(~turn=n, ~why="answered without a tool", cell)
+          }
+        }
+      );
+    };
+  turn(
+    1,
+    [
+      `Assoc([("role", `String("system")), ("content", `String(tools_system))]),
+      `Assoc([
+        ("role", `String("user")),
+        ("content", `String(Fill.Typed.request(~core, program, hole_id))),
+      ]),
+    ],
+    cell,
+  );
+};
+
 let () = {
   let config =
     Js.to_string(Js.Unsafe.global##.benchConfig) |> Yojson.Safe.from_string;
@@ -452,7 +631,16 @@ let () = {
             ),
           |],
         );
-      run_item(~intervention, item, result => go(rest, [result, ...acc]));
+      switch (config |> member("mode")) {
+      | `String("tools") =>
+        run_tools_item(
+          ~turns=config |> member("turns") |> to_int,
+          item,
+          result => go(rest, [result, ...acc]),
+        )
+      | _ =>
+        run_item(~intervention, item, result => go(rest, [result, ...acc]))
+      };
     };
   go(items, []);
 };
