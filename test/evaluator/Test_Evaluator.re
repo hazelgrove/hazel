@@ -36,7 +36,7 @@ let tests =
     Test_Definedness.tests,
     Test_StructuralRecursion.tests,
     Test_FunContracts.tests,
-    Test_ObligationsPanel.tests,
+    Test_Obligations.tests,
     Test_Generalize.tests,
     Test_Revert.tests,
     Test_Contradiction.tests,

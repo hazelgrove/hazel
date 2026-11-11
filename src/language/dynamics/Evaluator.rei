@@ -91,11 +91,14 @@ module Proofs: {
     (~statics: Statics.Map.t, ~ctx: SemanticCtx.t, ~goal: Exp.t, Proof.t) =>
     ProofMap.t;
 
-  /* The proof map of a theorem node: its proof checked, and the
-   * contracts of the functions in its scope discharged. None for any
-   * other node, and without `statics`, since proofs need the typing
-   * context. */
+  /* A theorem node checked: its proof, and the contracts of the functions
+   * in its scope, each keyed by the function's id. None for any other
+   * node, and without `statics`, since proofs need the typing context. */
+  type checked_theorem = {
+    proof_map: ProofMap.t,
+    contracts: ProofMap.t,
+  };
   let check_theorem:
     (~statics: Statics.Map.t, ~env: Environment.t(Exp.t), Exp.t) =>
-    option(ProofMap.t);
+    option(checked_theorem);
 };

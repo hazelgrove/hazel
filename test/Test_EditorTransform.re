@@ -56,23 +56,37 @@ let is_eval_step = (p: Proof.t): bool =>
   | _ => false
   };
 
+/* Every `fun` in the term, outermost first. */
+let find_funs = (e: Exp.t): list(Exp.t) => {
+  let found = ref([]);
+  let f_exp = (continue, e: Exp.t): Exp.t => {
+    switch (e.term) {
+    | Fun(_) => found := found^ @ [e]
+    | _ => ()
+    };
+    continue(e);
+  };
+  let _ = TermBase.Exp.map_term(~f_exp, e);
+  found^;
+};
+
 let is_focus_step = (p: Proof.t): bool =>
   switch (p.term) {
   | Focus(_) => true
   | _ => false
   };
 
-/* --- the (!) action-menu patches --------------------------------------
+/* --- the exits' patches ---------------------------------------------
  *
- * `Web.ObligationsPanel` owns the pure patch builders for the three exits;
+ * `Web.Obligations.Exits` owns the pure patch builders for the exits;
  * these tests drive them end to end through `apply_patch` and read the
  * resulting program text. The obligations are built by hand rather than
  * run through the checker on purpose: ids are per-parse, so a patch must
  * target ids from the same zipper it is applied to (the checker's
  * elaborated copy has its own id space — that path is covered by the
- * model-level tests in Test_ObligationsPanel). */
+ * model-level tests in Test_Obligations). */
 
-module Panel = Web.ObligationsPanel;
+module Exits = Web.Obligations.Exits;
 
 /* The first Theorem's statement sub-term. */
 let find_theorem_stmt = (e: Exp.t): option(Exp.t) => {
@@ -88,8 +102,8 @@ let find_theorem_stmt = (e: Exp.t): option(Exp.t) => {
   found^;
 };
 
-/* An obligation as the panel sees one: only `origin` (the incurring step)
- * and `display_goal` (what the user wrote) drive the actions. */
+/* An obligation as its exits see one: only `origin` (the incurring step)
+ * and `display_goal` (what the user wrote) drive them. */
 let mk_obligation = (~origin: Id.t, ~goal: string): Obligation.t => {
   origin,
   kind: Premise,
@@ -100,7 +114,7 @@ let mk_obligation = (~origin: Id.t, ~goal: string): Obligation.t => {
 };
 
 /* An obligation whose `display_goal` reuses ids from the program `z`,
-   the way the real panel's goals do (they are slices of the checked
+   the way real obligations' goals do (they are slices of the checked
    program). `<var> != 0`, built around the program's own `var` tile. */
 let find_var = (~name: Var.t, e: Exp.t): Exp.t => {
   let found = ref(None);
@@ -183,11 +197,15 @@ let check_no_duplicate_tile_ids = (~msg: string, z: Haz3lcore.Zipper.t) => {
   );
 };
 
-let action_ctx_of = (z: Haz3lcore.Zipper.t): Panel.action_ctx => {
+let exits_ctx_of = (z: Haz3lcore.Zipper.t): Exits.ctx => {
   let term = zipper_term(z);
   {
     stmt: find_theorem_stmt(term),
-    proof: find_theorem_proof(term),
+    proof:
+      switch (find_theorem_proof(term)) {
+      | Some(p) => p
+      | None => Alcotest.fail("no proof")
+      },
   };
 };
 
@@ -874,16 +892,12 @@ let tests = (
           parse_zipper(
             "theorem t = forall n: Int -> 8 / n == 8 / n proof ? in t",
           );
-        let ctx = action_ctx_of(z);
-        let origin =
-          switch (ctx.proof) {
-          | Some(p) => Proof.rep_id(p)
-          | None => Alcotest.fail("no proof")
-          };
+        let ctx = exits_ctx_of(z);
+        let origin = Proof.rep_id(ctx.proof);
         let patch =
           require_patch(
             "float action should be available for a theorem binder",
-            Panel.float_patch(~ctx, mk_obligation(~origin, ~goal="n != 0")),
+            Exits.float_patch(~ctx, mk_obligation(~origin, ~goal="n != 0")),
           );
         let out =
           Haz3lcore.EditorTransform.apply_patch(z, patch) |> serialize;
@@ -915,16 +929,12 @@ let tests = (
           parse_zipper(
             "theorem t = forall n: Int where n > 0 -> 8 / n == 8 / n proof ? in t",
           );
-        let ctx = action_ctx_of(z);
-        let origin =
-          switch (ctx.proof) {
-          | Some(p) => Proof.rep_id(p)
-          | None => Alcotest.fail("no proof")
-          };
+        let ctx = exits_ctx_of(z);
+        let origin = Proof.rep_id(ctx.proof);
         let patch =
           require_patch(
             "float action available",
-            Panel.float_patch(~ctx, mk_obligation(~origin, ~goal="n != 0")),
+            Exits.float_patch(~ctx, mk_obligation(~origin, ~goal="n != 0")),
           );
         let out =
           Haz3lcore.EditorTransform.apply_patch(z, patch) |> serialize;
@@ -942,17 +952,17 @@ let tests = (
           parse_zipper(
             "theorem t = 1 + 4 == 5 proof from 1 + 4 do eval end; from 5 == 5 do eval end in t",
           );
-        let ctx = action_ctx_of(z);
+        let ctx = exits_ctx_of(z);
         /* Incurred by the first step; the region is the whole chain. */
         let origin =
-          switch (ctx.proof |> Option.map(find_proofs(is_eval_step))) {
-          | Some([first, ..._]) => Proof.rep_id(first)
+          switch (find_proofs(is_eval_step, ctx.proof)) {
+          | [first, ..._] => Proof.rep_id(first)
           | _ => Alcotest.fail("no eval steps")
           };
         let patch =
           require_patch(
             "have action should be available",
-            Panel.have_patch(~ctx, mk_obligation(~origin, ~goal="2 != 0")),
+            Exits.have_patch(~ctx, mk_obligation(~origin, ~goal="2 != 0")),
           );
         let out =
           Haz3lcore.EditorTransform.apply_patch(z, patch) |> serialize;
@@ -1007,16 +1017,16 @@ let tests = (
           parse_zipper(
             "theorem t = 1 + 4 == 5 proof from 1 + 4 do eval end; from 5 == 5 do eval end in t",
           );
-        let ctx = action_ctx_of(z);
+        let ctx = exits_ctx_of(z);
         let origin =
-          switch (ctx.proof |> Option.map(find_proofs(is_eval_step))) {
-          | Some([first, ..._]) => Proof.rep_id(first)
+          switch (find_proofs(is_eval_step, ctx.proof)) {
+          | [first, ..._] => Proof.rep_id(first)
           | _ => Alcotest.fail("no eval steps")
           };
         let patch =
           require_patch(
             "split action should be available",
-            Panel.split_patch(~ctx, mk_obligation(~origin, ~goal="2 != 0")),
+            Exits.split_patch(~ctx, mk_obligation(~origin, ~goal="2 != 0")),
           );
         let out =
           Haz3lcore.EditorTransform.apply_patch(z, patch) |> serialize;
@@ -1072,16 +1082,12 @@ let tests = (
           parse_zipper(
             "theorem t = forall n: Int -> 8 / n == 8 / n proof ? in t",
           );
-        let ctx = action_ctx_of(z);
-        let origin =
-          switch (ctx.proof) {
-          | Some(p) => Proof.rep_id(p)
-          | None => Alcotest.fail("no proof")
-          };
+        let ctx = exits_ctx_of(z);
+        let origin = Proof.rep_id(ctx.proof);
         let patch =
           require_patch(
             "float action available for a program-sourced goal",
-            Panel.float_patch(
+            Exits.float_patch(
               ~ctx,
               mk_obligation_reusing(~origin, ~var="n", z),
             ),
@@ -1099,6 +1105,37 @@ let tests = (
       },
     ),
     test_case(
+      "contract patch turns `fun w ->` into `fun w where <goal> ->`, with fresh tile ids",
+      `Quick,
+      () => {
+        let z = parse_zipper("let g = fun w where w > 0 -> 100 / w in g(1)");
+        let func =
+          switch (find_funs(zipper_term(z))) {
+          | [f, ..._] => Some(f)
+          | [] => Alcotest.fail("no fun")
+          };
+        let patch =
+          switch (
+            Exits.for_contract(
+              ~func,
+              mk_obligation_reusing(~origin=Id.mk(), ~var="w", z),
+            )
+          ) {
+          | [{patch: Some(p), _}] => p
+          | _ => Alcotest.fail("Add to contract unavailable")
+          };
+        let patched = Haz3lcore.EditorTransform.apply_patch(z, patch);
+        check_no_duplicate_tile_ids(
+          ~msg="contract patch reused the goal's program ids",
+          patched,
+        );
+        let out = serialize(patched);
+        check_contains(~msg="old guard kept", out, "w > 0");
+        check_contains(~msg="new guard conjoined", out, "&& w != 0");
+        check_contains(~msg="the body survives", out, "100 / w");
+      },
+    ),
+    test_case(
       "have patch on a program-sourced goal mints fresh tile ids",
       `Quick,
       () => {
@@ -1106,16 +1143,16 @@ let tests = (
           parse_zipper(
             "theorem t = forall n: Int -> 8 / n == 8 / n proof from 8 / n do eval end in t",
           );
-        let ctx = action_ctx_of(z);
+        let ctx = exits_ctx_of(z);
         let origin =
-          switch (ctx.proof |> Option.map(find_proofs(is_eval_step))) {
-          | Some([first, ..._]) => Proof.rep_id(first)
+          switch (find_proofs(is_eval_step, ctx.proof)) {
+          | [first, ..._] => Proof.rep_id(first)
           | _ => Alcotest.fail("no eval steps")
           };
         let patch =
           require_patch(
             "have action available",
-            Panel.have_patch(
+            Exits.have_patch(
               ~ctx,
               mk_obligation_reusing(~origin, ~var="n", z),
             ),
@@ -1140,16 +1177,16 @@ let tests = (
           parse_zipper(
             "theorem t = forall n: Int -> 8 / n == 8 / n proof from 8 / n do eval end in t",
           );
-        let ctx = action_ctx_of(z);
+        let ctx = exits_ctx_of(z);
         let origin =
-          switch (ctx.proof |> Option.map(find_proofs(is_eval_step))) {
-          | Some([first, ..._]) => Proof.rep_id(first)
+          switch (find_proofs(is_eval_step, ctx.proof)) {
+          | [first, ..._] => Proof.rep_id(first)
           | _ => Alcotest.fail("no eval steps")
           };
         let patch =
           require_patch(
             "split action available",
-            Panel.split_patch(
+            Exits.split_patch(
               ~ctx,
               mk_obligation_reusing(~origin, ~var="n", z),
             ),

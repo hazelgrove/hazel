@@ -2,14 +2,13 @@ open Alcotest;
 open Language;
 open Test_Evaluator_Prelude;
 
-module ObligationsPanel = Web.ObligationsPanel;
+module Status = Web.Obligations.Status;
+module Exits = Web.Obligations.Exits;
 
-/* The obligations panel.
- *
- * Covers the pure functions the theorem panel is built from — the
- * ProvenModulo status mapping, obligation grouping (proof-tree vs
- * definition-time), display ordering, discharge receipts — plus the
- * core-side `Obligation.display_goal` that makes goals printable.
+/* A theorem's obligations as its header and side-condition circles show
+ * them: the status and its counter of open obligations, the exits that
+ * discharge a pending one, and the core-side `Obligation.display_goal`
+ * that makes goals printable.
  *
  * Reuses the Test_ProofMap harness like Test_Definedness. */
 
@@ -55,17 +54,12 @@ theorem t = forall y where y != 0 -> forall z -> f(y) + 4 / 2 + 8 / z == f(y) + 
 proof from f(y) + 4 / 2 + 8 / z == f(y) + 4 / 2 + 8 / z do axiom refl_eq end end
 in t|};
 
-let repro_group = () => {
-  let (pm, proof) = run(repro);
-  (pm, proof, ObligationsPanel.group_of(~pm, ~proofs=[proof]));
-};
-
 /* --- status mapping ----------------------------------------------- */
 
 /* The four statuses get four distinct chip classes; ProvenModulo is
  * neither the proven nor the incomplete one. */
 let test_status_classes_distinct = () => {
-  let cls = ObligationsPanel.status_class;
+  let cls = Status.class_;
   str_check("Proven", "true", cls(ProofMap.Proven));
   str_check("Refuted", "false", cls(ProofMap.Refuted));
   str_check("Incomplete", "unknown", cls(ProofMap.Incomplete));
@@ -83,27 +77,28 @@ let test_status_classes_distinct = () => {
   );
 };
 
-/* The label carries the asterisk and the pending count, singular or
- * plural. */
+/* ProvenModulo reads as proven: its class and the header's counter set
+ * it apart. */
 let test_status_labels = () => {
-  let (_, _, g) = repro_group();
-  let pending = List.filter(Obligation.is_pending, g.proof);
-  str_check("Proven", "proven true", ObligationsPanel.status_label(Proven));
-  str_check("Refuted", "disproven", ObligationsPanel.status_label(Refuted));
-  str_check(
-    "Incomplete",
-    "incomplete",
-    ObligationsPanel.status_label(Incomplete),
-  );
-  str_check(
-    "one pending",
-    "proven* (1 pending obligation)",
-    ObligationsPanel.status_label(ProvenModulo(pending)),
-  );
-  str_check(
-    "two pending",
-    "proven* (2 pending obligations)",
-    ObligationsPanel.status_label(ProvenModulo(pending @ pending)),
+  str_check("Proven", "proven true", Status.label(Proven));
+  str_check("ProvenModulo", "proven true", Status.label(ProvenModulo([])));
+  str_check("Refuted", "disproven", Status.label(Refuted));
+  str_check("Incomplete", "incomplete", Status.label(Incomplete));
+};
+
+/* The counter counts the proof's pending obligations only: the repro's
+ * pending definition-time obligation, at `g`, isn't the theorem's. */
+let test_open_count = () => {
+  let (pm, proof) = run(repro);
+  int_check("one open obligation", 1, Status.open_count(pm, proof));
+  let (pm, proof) =
+    run(
+      {|theorem t = 1 == 1 proof from 1 == 1 do axiom refl_eq end end in t|},
+    );
+  int_check(
+    "none in an obligation-free proof",
+    0,
+    Status.open_count(pm, proof),
   );
 };
 
@@ -111,7 +106,7 @@ let test_status_labels = () => {
  * is pending, so the chip is the ProvenModulo one — while the bool status
  * (which `Theorems.get_score` grades on) stays `Some(true)`. */
 let test_repro_status_is_proven_modulo = () => {
-  let (pm, proof, _) = repro_group();
+  let (pm, proof) = run(repro);
   switch (ProofMap.full_status_of_proof(pm, proof)) {
   | ProvenModulo(obs) =>
     int_check("exactly one pending", 1, List.length(obs))
@@ -147,176 +142,33 @@ let test_status_proven_and_incomplete = () => {
   );
 };
 
-/* --- grouping (proof tree vs definitions) ---------------------------- */
-
-let test_group_proof_obligations = () => {
-  let (_, _, g) = repro_group();
-  int_check("three obligations in the proof", 3, List.length(g.proof));
-  let classes = List.map(ObligationsPanel.discharge_class, g.proof);
-  Alcotest.check(
-    Alcotest.list(Alcotest.string),
-    "pending first, then the receipts in proof order",
-    ["pending", "evaluated", "remote"],
-    classes,
-  );
-  switch (g.proof) {
-  | [pending, evaluated, remote] =>
-    check_exp("pending goal", "z != 0", pending.display_goal);
-    check_exp("evaluated goal", "2 != 0", evaluated.display_goal);
-    check_exp("remote goal", "y != 0", remote.display_goal);
-  | _ => Alcotest.fail("unexpected obligation count")
-  };
-};
-
-/* Definition-time obligations are keyed by the function's id, so
- * `obligations_of_proof` never sees them; they show up in the
- * definitions group, and only them — no proof-step entry leaks in. */
-let test_group_definition_obligations = () => {
-  let (_, _, g) = repro_group();
-  int_check("one definition obligation", 1, List.length(g.definitions));
-  switch (g.definitions) {
-  | [ob] =>
-    check_exp("g's body condition", "w != 0", ob.display_goal);
-    bool_check("and it is pending", true, Obligation.is_pending(ob));
-  | _ => Alcotest.fail("unexpected definition obligation count")
-  };
-  /* Disjointness: nothing appears in both groups. */
-  bool_check(
-    "the two groups are disjoint",
-    false,
-    List.exists(
-      (d: Obligation.t) =>
-        List.exists(
-          (p: Obligation.t) => Exp.fast_equal(p.goal, d.goal),
-          g.proof,
-        ),
-      g.definitions,
-    ),
-  );
-  bool_check(
-    "group is non-empty",
-    false,
-    ObligationsPanel.group_is_empty(g),
-  );
-  bool_check(
-    "the empty group is empty",
-    true,
-    ObligationsPanel.group_is_empty(ObligationsPanel.empty_group),
-  );
-};
-
-/* Excluding the proof from the definition walk is what keeps a proof
- * step out of the definitions group: with no proofs excluded the shape
- * filter alone still finds exactly the definition entry here, and
- * excluding the theorem's proof does not remove it (it is not a proof
- * step). */
-let test_definition_walk_excludes_proof_ids = () => {
-  let (pm, proof, _) = repro_group();
-  int_check(
-    "shape filter alone",
-    1,
-    List.length(ProofMap.definition_obligations(pm)),
-  );
-  int_check(
-    "with the proof excluded",
-    1,
-    List.length(ProofMap.definition_obligations(~proofs=[proof], pm)),
-  );
-  bool_check(
-    "every id of the proof tree is a proof id",
-    true,
-    List.mem(Proof.rep_id(proof), ProofMap.rep_ids_of_proof(proof)),
-  );
-};
-
-/* --- display ordering ----------------------------------------------- */
-
-let mk_ob = (src: string, discharge): Obligation.t => {
-  let goal = parse_exp(src);
-  Obligation.{
-    origin: Id.mk(),
-    kind: Premise,
-    bindings: [],
-    goal,
-    display_goal: goal,
-    discharge,
-  };
-};
-
-let test_sort_pending_first_stable = () => {
-  let obs = [
-    mk_ob("1 != 0", Obligation.Evaluated),
-    mk_ob("2 != 0", Obligation.Pending),
-    mk_ob("3 != 0", Obligation.Remote(Id.mk())),
-    mk_ob("4 != 0", Obligation.Pending),
-  ];
-  let sorted = ObligationsPanel.sort_for_display(obs);
-  switch (sorted) {
-  | [a, b, c, d] =>
-    check_exp("first pending", "2 != 0", a.goal);
-    check_exp("second pending", "4 != 0", b.goal);
-    check_exp("then the receipts, in order", "1 != 0", c.goal);
-    check_exp("then the receipts, in order", "3 != 0", d.goal);
-  | _ => Alcotest.fail("sorting changed the obligation count")
-  };
-  int_check(
-    "sorting preserves the count",
-    List.length(obs),
-    List.length(sorted),
-  );
-};
-
-/* --- receipts -------------------------------------------------------- */
+/* --- covering facts ------------------------------------------------- */
 
 /* A Remote discharge recovers its covering fact from the obligation's own
- * recorded bindings — the receipt the panel shows next to the goal. */
-let test_remote_receipt_is_the_covering_fact = () => {
-  let (_, _, g) = repro_group();
-  let remote =
-    List.find(
-      (ob: Obligation.t) => ObligationsPanel.discharge_class(ob) == "remote",
-      g.proof,
-    );
-  switch (Obligation.remote_fact(remote)) {
-  | Some((name, fact)) =>
-    str_check("the binder that covers it", "where", name);
-    check_exp("the fact's statement", "y != 0", fact);
-    str_check(
-      "and the label names the source in prose",
-      "discharged by a `where` restriction",
-      ObligationsPanel.discharge_label(remote),
-    );
-  | None => Alcotest.fail("no receipt recovered for a Remote discharge")
-  };
-  /* Non-Remote discharges have no fact, and say why they are silent. */
+ * recorded bindings: an open closed circle's justification names it. */
+let test_remote_fact_is_the_covering_fact = () => {
+  let (pm, proof) = run(repro);
+  let obs = ProofMap.obligations_of_proof(pm, proof);
   List.iter(
     (ob: Obligation.t) =>
-      switch (ObligationsPanel.discharge_class(ob)) {
-      | "evaluated" =>
-        bool_check(
-          "evaluated has no fact",
-          true,
-          Obligation.remote_fact(ob) == None,
-        );
-        str_check(
-          "evaluated label",
-          "discharged by evaluation",
-          ObligationsPanel.discharge_label(ob),
-        );
-      | "pending" =>
-        bool_check(
-          "pending has no fact",
-          true,
-          Obligation.remote_fact(ob) == None,
-        );
-        str_check(
-          "pending label",
-          "pending — nothing in scope covers this",
-          ObligationsPanel.discharge_label(ob),
-        );
-      | _ => ()
+      switch (ob.discharge, Obligation.remote_fact(ob)) {
+      | (Remote(_), Some((name, fact))) =>
+        str_check("the binder that covers it", "where", name);
+        check_exp("the fact's statement", "y != 0", fact);
+      | (Remote(_), None) =>
+        Alcotest.fail("no covering fact recovered for a Remote discharge")
+      | (Evaluated | Pending, fact) =>
+        bool_check("only a Remote discharge has a fact", true, fact == None)
       },
-    g.proof,
+    obs,
+  );
+  bool_check(
+    "the repro has a Remote discharge",
+    true,
+    List.exists(
+      (ob: Obligation.t) => Obligation.remote_fact(ob) != None,
+      obs,
+    ),
   );
 };
 
@@ -362,7 +214,7 @@ in t|};
 /* An obligation with nothing to inline is unaffected: display and
  * semantic goals agree. */
 let test_display_goal_agrees_when_nothing_to_inline = () => {
-  let (_, _, g) = repro_group();
+  let (pm, proof) = run(repro);
   List.iter(
     (ob: Obligation.t) =>
       bool_check(
@@ -370,11 +222,11 @@ let test_display_goal_agrees_when_nothing_to_inline = () => {
         true,
         Exp.fast_equal(ob.goal, ob.display_goal),
       ),
-    g.proof,
+    ProofMap.obligations_of_proof(pm, proof),
   );
 };
 
-/* --- the (!) action menu --------------------------------------------- */
+/* --- a step's exits ------------------------------------------------- */
 
 /* Availability is computed from the obligation's own data plus the
  * theorem's syntax, so these tests run the real checker and read the real
@@ -395,16 +247,15 @@ let stmt_of = (elab: Exp.t): option(Exp.t) => {
   found^;
 };
 
-let run_with_ctx =
-    (src: string): (ProofMap.t, Proof.t, ObligationsPanel.action_ctx) => {
+let run_with_ctx = (src: string): (ProofMap.t, Proof.t, Exits.ctx) => {
   let (state, _, elab) = src |> parse_exp |> eval_with_proof;
   let proof = proof_of(elab);
   (
     EvaluatorState.get_proof_map(state),
     proof,
-    ObligationsPanel.{
+    {
       stmt: stmt_of(elab),
-      proof: Some(proof),
+      proof,
     },
   );
 };
@@ -429,7 +280,7 @@ let one_pending = (msg, pm, proof): Obligation.t =>
 let test_float_available_at_theorem_binder = () => {
   let (pm, proof, ctx) = run_with_ctx(repro);
   let ob = one_pending("repro", pm, proof);
-  switch (ObligationsPanel.float_target_of(~ctx, ob)) {
+  switch (Exits.float_target_of(~ctx, ob)) {
   | FloatTo(b) =>
     str_check(
       "the float target is the binder of the goal's variable",
@@ -439,20 +290,17 @@ let test_float_available_at_theorem_binder = () => {
   | UnsoundAtCase => Alcotest.fail("expected FloatTo, got UnsoundAtCase")
   | NoBinder => Alcotest.fail("expected FloatTo, got NoBinder")
   };
-  let actions = ObligationsPanel.actions_of(~ctx, ob);
+  let actions = Exits.for_step(~ctx, ob);
   int_check("three exits offered", 3, List.length(actions));
   bool_check(
     "all three are enabled",
     true,
-    List.for_all((a: ObligationsPanel.action) => a.patch != None, actions),
+    List.for_all((a: Exits.t) => a.patch != None, actions),
   );
   str_check(
     "labels, in menu order",
     "Add to statement|Prove here|Split on it",
-    String.concat(
-      "|",
-      List.map((a: ObligationsPanel.action) => a.label, actions),
-    ),
+    String.concat("|", List.map((a: Exits.t) => a.label, actions)),
   );
 };
 
@@ -466,7 +314,7 @@ in t|};
 let test_float_target_is_innermost = () => {
   let (pm, proof, ctx) = run_with_ctx(inner_binder_src);
   let ob = one_pending("inner binder", pm, proof);
-  switch (ObligationsPanel.float_target_of(~ctx, ob)) {
+  switch (Exits.float_target_of(~ctx, ob)) {
   | FloatTo(b) =>
     str_check("target is the inner binder", "b", String.concat(",", b.vars))
   | UnsoundAtCase => Alcotest.fail("expected FloatTo, got UnsoundAtCase")
@@ -503,9 +351,9 @@ let test_float_disabled_at_case_binder = () => {
   bool_check(
     "the float target is the unsound one",
     true,
-    ObligationsPanel.float_target_of(~ctx, ob) == UnsoundAtCase,
+    Exits.float_target_of(~ctx, ob) == UnsoundAtCase,
   );
-  switch (ObligationsPanel.actions_of(~ctx, ob)) {
+  switch (Exits.for_step(~ctx, ob)) {
   | [float, prove, split] =>
     bool_check("float is disabled", true, float.patch == None);
     bool_check(
@@ -523,7 +371,7 @@ let test_float_disabled_at_case_binder = () => {
   };
   /* And the wrapping region is inside the case, so the emitted `have`'s
    * proposition can mention `m` at all. */
-  switch (ObligationsPanel.region_of(~ctx, ob)) {
+  switch (Exits.region_of(~ctx, ob)) {
   | Some(region) =>
     bool_check(
       "the region is the case body, not the whole proof",
@@ -533,51 +381,59 @@ let test_float_disabled_at_case_binder = () => {
     bool_check(
       "and it contains the incurring step",
       true,
-      ObligationsPanel.proof_contains(~origin=ob.origin, region),
+      Exits.proof_contains(~origin=ob.origin, region),
     );
   | None => Alcotest.fail("no wrapping region found for a case obligation")
   };
 };
 
-/* Discharged rows carry no menu: they are receipts. */
-let test_no_actions_on_discharged_rows = () => {
+/* A discharged obligation has no exits. */
+let test_no_exits_when_discharged = () => {
   let (pm, proof, ctx) = run_with_ctx(repro);
   let discharged =
     ProofMap.obligations_of_proof(pm, proof)
     |> List.filter(ob => !Obligation.is_pending(ob));
   bool_check(
-    "the repro has discharged rows to check",
+    "the repro has discharged obligations to check",
     true,
     List.length(discharged) > 0,
   );
   List.iter(
     ob =>
       int_check(
-        "no actions on a discharged obligation",
+        "no exits on a discharged obligation",
         0,
-        List.length(ObligationsPanel.actions_of(~ctx, ob)),
+        List.length(Exits.for_step(~ctx, ob)),
       ),
     discharged,
   );
 };
 
-/* With no syntax to act on — the definition-time section, whose
- * obligations belong to no proof tree — float reports NoBinder and the
- * wrapping actions are unavailable rather than misdirected. */
-let test_no_context_degrades = () => {
+/* Against a theorem whose statement has no binder and whose proof
+ * doesn't hold the incurring step, float reports NoBinder and the wrapping
+ * exits are disabled, with a reason, rather than misdirected. */
+let test_exits_disabled_outside_the_theorem = () => {
   let (pm, proof, _) = run_with_ctx(repro);
   let ob = one_pending("repro", pm, proof);
-  let ctx = ObligationsPanel.no_action_ctx;
+  let ctx: Exits.ctx = {
+    stmt: None,
+    proof: Proof.fresh(EmptyHole),
+  };
   bool_check(
     "no statement means nothing to float onto",
     true,
-    ObligationsPanel.float_target_of(~ctx, ob) == NoBinder,
+    Exits.float_target_of(~ctx, ob) == NoBinder,
   );
-  switch (ObligationsPanel.actions_of(~ctx, ob)) {
+  switch (Exits.for_step(~ctx, ob)) {
   | [float, prove, split] =>
     bool_check("float disabled", true, float.patch == None);
     bool_check("prove here disabled", true, prove.patch == None);
     bool_check("split disabled", true, split.patch == None);
+    bool_check(
+      "and says why",
+      true,
+      contains_substring(prove.title, "Unavailable"),
+    );
   | actions =>
     Alcotest.fail(
       "expected three actions, got " ++ string_of_int(List.length(actions)),
@@ -593,7 +449,7 @@ let test_no_context_degrades = () => {
  * was edited.
  *
  * The patch target ids come from the zipper (per-parse ids), so the
- * action_ctx is built from the zipper's own term; the obligation is the
+ * exits' ctx is built from the zipper's own term; the obligation is the
  * real one from a checker run on the same source, so its display_goal is
  * exactly what the browser would embed. */
 
@@ -609,13 +465,13 @@ let serialize = (z: Haz3lcore.Zipper.t): string =>
 let zipper_term = (z: Haz3lcore.Zipper.t): Exp.t =>
   Haz3lcore.MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
 
-let ctx_of_zipper = (z: Haz3lcore.Zipper.t): ObligationsPanel.action_ctx => {
+let ctx_of_zipper = (z: Haz3lcore.Zipper.t): Exits.ctx => {
   let term = zipper_term(z);
   {
     stmt: stmt_of(term),
     proof:
       switch (Test_ProofMap.find_theorem_proof(term)) {
-      | Some(p) => Some(p)
+      | Some(p) => p
       | None => Alcotest.fail("no theorem proof in the zipper term")
       },
   };
@@ -638,7 +494,7 @@ let test_float_discharges_after_recheck = () => {
   let z = zipper_of(float_e2e_src);
   let ctx = ctx_of_zipper(z);
   let patch =
-    switch (ObligationsPanel.float_patch(~ctx, ob)) {
+    switch (Exits.float_patch(~ctx, ob)) {
     | Some(p) => p
     | None => Alcotest.fail("float patch unavailable for the repro")
     };
@@ -694,8 +550,99 @@ let test_float_discharges_after_recheck = () => {
   };
 };
 
+/* --- a contract's exit ----------------------------------------------- */
+
+/* Definition-time obligations sit at the function's id, in an entry with
+ * no goals and no marks. */
+let contract_obligations = (pm: ProofMap.t): list(Obligation.t) =>
+  Id.Map.fold(
+    (_, entry: ProofMap.entry, acc) =>
+      switch (entry) {
+      | {incoming: None, outgoing: None, marks: [], obligations, _} =>
+        acc @ obligations
+      | _ => acc
+      },
+    pm,
+    [],
+  );
+
+/* The first `fun` in the term. */
+let first_fun = (e: Exp.t): option(Exp.t) => {
+  let found = ref(None);
+  let f_exp = (continue, e: Exp.t): Exp.t =>
+    switch (e.term) {
+    | Fun(_) when found^ == None =>
+      found := Some(e);
+      e;
+    | _ => continue(e)
+    };
+  let _ = TermBase.Exp.map_term(~f_exp, e);
+  found^;
+};
+
+let contract_src = {|let g = fun w -> 100 / w in
+theorem t = 1 == 1 proof from 1 == 1 do axiom refl_eq end end
+in 0|};
+
+let one_contract = (src: string): Obligation.t => {
+  let (pm, _) = run(src);
+  switch (contract_obligations(pm)) {
+  | [ob] => ob
+  | obs =>
+    Alcotest.fail(
+      "expected one contract obligation, got "
+      ++ string_of_int(List.length(obs)),
+    )
+  };
+};
+
+/* Without the function's syntax (it is in another cell), the one exit
+ * shows disabled, saying why. */
+let test_contract_exit_needs_the_function = () => {
+  let ob = one_contract(contract_src);
+  switch (Exits.for_contract(~func=None, ob)) {
+  | [exit] =>
+    str_check("the exit", "Add to contract", exit.label);
+    bool_check("disabled", true, exit.patch == None);
+    bool_check(
+      "and says why",
+      true,
+      contains_substring(exit.title, "Unavailable"),
+    );
+  | exits =>
+    Alcotest.fail(
+      "expected one exit, got " ++ string_of_int(List.length(exits)),
+    )
+  };
+};
+
+/* Check, patch with Add to contract, reparse, check again: the guard
+ * covers the body, so no contract obligation is left. */
+let test_contract_exit_discharges_after_recheck = () => {
+  let ob = one_contract(contract_src);
+  check_exp("the contract's goal", "w != 0", ob.goal);
+  let z = zipper_of(contract_src);
+  let patch =
+    switch (Exits.for_contract(~func=first_fun(zipper_term(z)), ob)) {
+    | [{patch: Some(p), _}] => p
+    | _ => Alcotest.fail("Add to contract unavailable")
+    };
+  let out = Haz3lcore.EditorTransform.apply_patch(z, patch) |> serialize;
+  bool_check(
+    "the parameter carries the guard — got:\n" ++ out,
+    true,
+    contains_substring(out, "fun w where w != 0"),
+  );
+  let (pm', _) = run(out);
+  int_check(
+    "no contract obligation after the patch — patched program:\n" ++ out,
+    0,
+    List.length(contract_obligations(pm')),
+  );
+};
+
 let tests = (
-  "ObligationsPanel",
+  "Obligations",
   [
     test_case(
       "float is available at a theorem binder, all three exits live",
@@ -713,14 +660,24 @@ let tests = (
       test_float_disabled_at_case_binder,
     ),
     test_case(
-      "discharged rows carry no action menu",
+      "a discharged obligation has no exits",
       `Quick,
-      test_no_actions_on_discharged_rows,
+      test_no_exits_when_discharged,
     ),
     test_case(
-      "no syntax context degrades to disabled actions",
+      "exits outside the theorem are disabled, with a reason",
       `Quick,
-      test_no_context_degrades,
+      test_exits_disabled_outside_the_theorem,
+    ),
+    test_case(
+      "Add to contract is disabled without the function's syntax",
+      `Quick,
+      test_contract_exit_needs_the_function,
+    ),
+    test_case(
+      "Add to contract: no contract obligation after reparse and re-check",
+      `Quick,
+      test_contract_exit_discharges_after_recheck,
     ),
     test_case(
       "the four statuses map to four distinct chips",
@@ -728,9 +685,14 @@ let tests = (
       test_status_classes_distinct,
     ),
     test_case(
-      "ProvenModulo's label is asterisked and counted",
+      "ProvenModulo's label reads as proven",
       `Quick,
       test_status_labels,
+    ),
+    test_case(
+      "the counter counts the proof's pending obligations",
+      `Quick,
+      test_open_count,
     ),
     test_case(
       "one pending obligation makes a proven theorem ProvenModulo",
@@ -743,29 +705,9 @@ let tests = (
       test_status_proven_and_incomplete,
     ),
     test_case(
-      "proof-tree obligations, pending first",
+      "a Remote discharge has its covering fact",
       `Quick,
-      test_group_proof_obligations,
-    ),
-    test_case(
-      "definition-time obligations group separately",
-      `Quick,
-      test_group_definition_obligations,
-    ),
-    test_case(
-      "the definition walk excludes proof-step ids",
-      `Quick,
-      test_definition_walk_excludes_proof_ids,
-    ),
-    test_case(
-      "display ordering is pending-first and stable",
-      `Quick,
-      test_sort_pending_first_stable,
-    ),
-    test_case(
-      "a Remote discharge shows its covering fact",
-      `Quick,
-      test_remote_receipt_is_the_covering_fact,
+      test_remote_fact_is_the_covering_fact,
     ),
     test_case(
       "display_goal is the pre-substitution goal",

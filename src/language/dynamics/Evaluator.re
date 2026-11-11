@@ -172,8 +172,13 @@ module Proofs = {
     ProofCheck.check(~step, ~info_map=statics, ~ctx, Some(goal), proof)
     |> snd;
 
+  type checked_theorem = {
+    proof_map: ProofMap.t,
+    contracts: ProofMap.t,
+  };
+
   let check_theorem =
-      (~statics: Statics.Map.t, ~env, exp: DHExp.t): option(ProofMap.t) =>
+      (~statics: Statics.Map.t, ~env, exp: DHExp.t): option(checked_theorem) =>
     switch (exp.term) {
     | Theorem(_, goal, proof, _) when !Id.Map.is_empty(statics) =>
       let ctx =
@@ -192,17 +197,19 @@ module Proofs = {
           SemanticCtx.of_program_state(ctx, env),
           goal,
         );
-      let pm = check_proof(~statics, ~ctx=sem_ctx, ~goal=conclusion, proof);
-      /* Discharge function contracts at their definitions, in the
-       * theorem's ctx before its binders are peeled. Entries are keyed by
-       * the function's id, so repeating this at each theorem is
-       * harmless. */
-      let def_pm =
+      let proof_map =
+        check_proof(~statics, ~ctx=sem_ctx, ~goal=conclusion, proof);
+      /* Function contracts are discharged at their definitions, in the
+       * theorem's ctx before its binders are peeled. */
+      let contracts =
         ProofCheck.definition_obligations(
           ~step,
           ~ctx=SemanticCtx.of_program_state(ctx, env),
         );
-      Some(ProofMap.union(def_pm, pm));
+      Some({
+        proof_map,
+        contracts,
+      });
     | _ => None
     };
 };
@@ -237,11 +244,16 @@ let rec evaluate =
     evaluate(~prev, ~track_reuse, ~reused_ids, ~eval_info, ~statics, ~outbox);
   let expr_id = DHExp.rep_id(exp);
   /* Check a theorem's proof when evaluation reaches it, and merge the
-   * resulting proof map into the state. `Transition` ignores proofs, so
-   * proof checking happens only here. */
+   * resulting proof maps into the state. `Transition` ignores proofs, so
+   * proof checking happens only here. Contract entries are keyed by the
+   * function's id, so merging them again at each theorem is harmless. */
   Proofs.check_theorem(~statics, ~env, exp)
-  |> Option.iter(pm =>
-       parent_state := EvaluatorState.merge_proof_map(parent_state^, pm)
+  |> Option.iter(({proof_map, contracts}: Proofs.checked_theorem) =>
+       parent_state :=
+         EvaluatorState.merge_proof_map(
+           parent_state^,
+           ProofMap.union(contracts, proof_map),
+         )
      );
   /* Outbox publication keys only on proper program nodes
    * (EvalInfo.is_program_node).

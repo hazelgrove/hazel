@@ -132,41 +132,6 @@ let rec obligations_of_proof = (pm: t, proof: Proof.t): list(Obligation.t) => {
   here @ List.concat_map(obligations_of_proof(pm), Proof.children(proof));
 };
 
-/* Every id at which a step of this proof term is recorded. */
-let rec rep_ids_of_proof = (proof: Proof.t): list(Id.t) => [
-  Proof.rep_id(proof),
-  ...List.concat_map(rep_ids_of_proof, Proof.children(proof)),
-];
-
-/* Definition-time obligations (from `ProofCheck.definition_obligations`)
- * share this map but are keyed by a function's id, so
- * `obligations_of_proof` doesn't see them. An entry is one when both hold:
- *
- *  1. it has the shape the checker gives them: no incoming or outgoing
- *     goal, no marks, at least one obligation;
- *  2. its key is not the id of a step of any of `proofs`.
- *
- * (1) alone would also catch a proof step recorded with no goals and no
- * mark; (2) alone would catch the steps of other cells' proofs. `proofs`
- * should be every proof whose obligations are displayed separately. */
-let definition_obligations =
-    (~proofs: list(Proof.t)=[], pm: t): list(Obligation.t) => {
-  let is_definition_entry = (entry: entry): bool =>
-    switch (entry) {
-    | {incoming: None, outgoing: None, marks: [], obligations: [_, ..._], _} =>
-      true
-    | _ => false
-    };
-  let proof_ids = List.concat_map(rep_ids_of_proof, proofs);
-  Id.Map.fold(
-    (id, entry, acc) =>
-      is_definition_entry(entry) && !List.mem(id, proof_ids)
-        ? acc @ entry.obligations : acc,
-    pm,
-    [],
-  );
-};
-
 /* The still-undischarged obligations in the proof subtree. */
 let pending_obligations = (pm: t, proof: Proof.t): list(Obligation.t) =>
   obligations_of_proof(pm, proof) |> List.filter(Obligation.is_pending);

@@ -303,6 +303,13 @@ module View = {
     | MakeActive(Focus.t)
     | HideStepper;
 
+  let code = (~globals: Globals.t, any: Any.t) =>
+    CodeViewable.view_any(
+      ~globals,
+      ~settings=ProofMarkView.code_view_settings(globals.settings.core),
+      any,
+    );
+
   /* One row's chrome: the goal it starts from, then the step to the next
    * row. A plain step is the line between the two rows, with its lozenge
    * (the justification and a delete button) on it. A step with goals of
@@ -419,6 +426,32 @@ module View = {
     let view_error_above = (~globals: Globals.t, mark: ProofMark.t) =>
       div_c("step-error-inline", ProofMarkView.message(~globals, mark));
 
+    /* A row drawn for reading only, with no step below it. */
+    let quiet = (~clss, ~equiv, content) =>
+      Node.div(
+        ~attrs=[Attr.classes(["step-border", clss])],
+        [div_c("step-display", [equiv] @ content)],
+      );
+
+    let equiv_hidden = () =>
+      Node.div(
+        ~attrs=[Attr.classes(["equiv", "equiv-hidden"])],
+        [Node.text("≡")],
+      );
+
+    /* The `true` a chain aims at. */
+    let target = (~globals) =>
+      quiet(
+        ~clss="target-step",
+        ~equiv=div_c("equiv", [Node.text("≡?")]),
+        [
+          div_c(
+            "step-output",
+            [code(~globals, Exp(Exp.fresh(Atom(Bool(true)))))],
+          ),
+        ],
+      );
+
     /* The repairs a broken step offers: removing it, and, for an axiom
      * that doesn't apply, trying the other direction. */
     let repairs =
@@ -458,6 +491,131 @@ module View = {
       | Blocked
       | Pending => []
       };
+    };
+  };
+
+  /* A side condition: a circle on a line, which opens into a section
+   * holding a read-only stepper from its goal to `true`. A closed one
+   * shows how the checker closed it; a pending one's `?` row holds the
+   * exits that discharge it. A step's circles sit on its line, a
+   * theorem's contracts' on its header. */
+  module Condition = {
+    /* The circle's icon and the section's label. */
+    let kind = (kind: Obligation.kind): (string, string) =>
+      switch (kind) {
+      | Definedness => ("÷", "definedness")
+      | Contract => ("ƒ", "contract")
+      | Premise => ("⇒", "premise")
+      | Assumption => ("⊢", "assumption")
+      };
+
+    let dot = (~toggle: Ui_effect.t(unit), ob: Obligation.t) => {
+      let (icon, label) = kind(ob.kind);
+      let unproven = Obligation.is_pending(ob);
+      Node.div(
+        ~attrs=[
+          Attr.classes(["condition-dot"] @ (unproven ? ["unproven"] : [])),
+          Attr.title(
+            "Side condition, "
+            ++ label
+            ++ (unproven ? ", unproven" : "")
+            ++ ". Click to show it.",
+          ),
+          Attr.on_click(_ => toggle),
+        ],
+        [Node.text(icon)],
+      );
+    };
+
+    let view =
+        (
+          ~globals: Globals.t,
+          ~edit_syntax: Picker.Patches.patch => Ui_effect.t(unit),
+          ~exits: list(Obligations.Exits.t),
+          ~toggle: Ui_effect.t(unit),
+          ob: Obligation.t,
+        ) => {
+      let (_, label) = kind(ob.kind);
+      let code = code(~globals);
+      let goal = ob.display_goal;
+      let truth = Exp.fresh(Atom(Bool(true)));
+      let closed = justification =>
+        Row.view(
+          ~globals,
+          ~status=Clean,
+          ~show_equiv=true,
+          ~delete=None,
+          ~editor_view=code(Exp(goal)),
+          ~justification=Node.text(justification),
+          (),
+        )
+        @ [
+          Row.quiet(
+            ~clss="condition-closed",
+            ~equiv=div_c("equiv", [Node.text("≡")]),
+            [div_c("step-output", [code(Exp(truth))])],
+          ),
+        ];
+      let exit = (e: Obligations.Exits.t) =>
+        Node.button(
+          ~attrs=
+            (
+              switch (e.patch) {
+              | Some(patch) => [
+                  Attr.classes(["condition-exit"]),
+                  Attr.on_click(_ => edit_syntax(patch)),
+                ]
+              | None => [
+                  Attr.classes(["condition-exit", "disabled"]),
+                  Attr.disabled,
+                ]
+              }
+            )
+            @ [Attr.title(e.title)],
+          [Node.text(e.label)],
+        );
+      let rows =
+        switch (ob.discharge, Obligation.remote_fact(ob)) {
+        | (Remote(_), Some((name, _))) => closed(name)
+        | (Remote(_), None) => closed("a fact in scope")
+        | (Evaluated, _) => closed("by evaluation")
+        /* TODO: a `?` here opens the picker once a side condition can be
+         * proved in place (`with <condition> by <proof>`). */
+        | (Pending, _) => [
+            Row.quiet(
+              ~clss="condition-goal",
+              ~equiv=div_c("equiv", [Node.text("≡")]),
+              [div_c("step-output", [code(Exp(goal))])],
+            ),
+            Row.quiet(
+              ~clss="condition-missing",
+              ~equiv=Row.equiv_hidden(),
+              [
+                div_c("step-unknown", [Node.text("?")]),
+                switch (exits) {
+                | [] =>
+                  div_c("condition-hint", [Node.text("Not proven yet.")])
+                | _ => div_c("condition-exits", List.map(exit, exits))
+                },
+              ],
+            ),
+            Row.target(~globals),
+          ]
+        };
+      div_c(
+        "step-section condition",
+        [
+          Node.div(
+            ~attrs=[
+              Attr.classes(["step-section-bar"]),
+              Attr.title("Click to collapse"),
+              Attr.on_click(_ => toggle),
+            ],
+            [Node.text(label)],
+          ),
+          div_c("step-slot", [div_c("stepper cell-result", rows)]),
+        ],
+      );
     };
   };
 
@@ -817,18 +975,15 @@ module View = {
         /* The statics of the proof text. */
         ~info_map: Statics.Map.t,
         ~proof_map: ProofMap.t,
+        /* What a pending side condition offers to discharge it. */
+        ~exits: Obligation.t => list(Obligations.Exits.t),
         proof: Proof.t,
         model: Model.t,
       )
       : list(Node.t) => {
     let take_focus = f => signal(MakeActive(f));
     let focused = f => selected == Some(f);
-    let code = (any: Any.t) =>
-      CodeViewable.view_any(
-        ~globals,
-        ~settings=ProofMarkView.code_view_settings(globals.settings.core),
-        any,
-      );
+    let code = code(~globals);
     /* Writes `pick` where `row`'s picker writes. A form with an argument
      * then takes the caret into it: the backing editor's caret moves into
      * the new argument (a sub-editor takes no edits, and draws no caret,
@@ -940,119 +1095,6 @@ module View = {
           ),
         ]
         : [];
-    /* A row drawn for reading only, with no step below it. */
-    let quiet_border = (~clss, ~equiv, content) =>
-      Node.div(
-        ~attrs=[Attr.classes(["step-border", clss])],
-        [div_c("step-display", [equiv] @ content)],
-      );
-    let equiv_hidden = () =>
-      Node.div(
-        ~attrs=[Attr.classes(["equiv", "equiv-hidden"])],
-        [Node.text("≡")],
-      );
-    let target_border = () =>
-      quiet_border(
-        ~clss="target-step",
-        ~equiv=div_c("equiv", [Node.text("≡?")]),
-        [
-          div_c("step-output", [code(Exp(Exp.fresh(Atom(Bool(true)))))]),
-        ],
-      );
-    /* A side condition's dot icon and its section's label. */
-    let condition_kind = (kind: Obligation.kind): (string, string) =>
-      switch (kind) {
-      | Definedness => ("÷", "definedness")
-      | Contract => ("ƒ", "contract")
-      | Premise => ("⇒", "premise")
-      | Assumption => ("⊢", "assumption")
-      };
-    let condition_dot = (~toggle, ob: Obligation.t) => {
-      let (icon, label) = condition_kind(ob.kind);
-      let unproven = Obligation.is_pending(ob);
-      Node.div(
-        ~attrs=[
-          Attr.classes(["condition-dot"] @ (unproven ? ["unproven"] : [])),
-          Attr.title(
-            "Side condition, "
-            ++ label
-            ++ (unproven ? ", unproven" : "")
-            ++ ". Click to show it.",
-          ),
-          Attr.on_click(_ => toggle),
-        ],
-        [Node.text(icon)],
-      );
-    };
-    /* An open side condition: a read-only stepper from its goal to
-     * `true`, the way the checker closed it. */
-    let condition = (~toggle, ob: Obligation.t) => {
-      let (_, label) = condition_kind(ob.kind);
-      let goal = ob.display_goal;
-      let truth = Exp.fresh(Atom(Bool(true)));
-      let closed = justification =>
-        Row.view(
-          ~globals,
-          ~status=Clean,
-          ~show_equiv=true,
-          ~delete=None,
-          ~editor_view=code(Exp(goal)),
-          ~justification=Node.text(justification),
-          (),
-        )
-        @ [
-          quiet_border(
-            ~clss="condition-closed",
-            ~equiv=div_c("equiv", [Node.text("≡")]),
-            [div_c("step-output", [code(Exp(truth))])],
-          ),
-        ];
-      let rows =
-        switch (ob.discharge, Obligation.remote_fact(ob)) {
-        | (Remote(_), Some((name, _))) => closed(name)
-        | (Remote(_), None) => closed("a fact in scope")
-        | (Evaluated, _) => closed("by evaluation")
-        /* TODO: a `?` here opens the picker once a side condition can be
-         * proved in place (`with <condition> by <proof>`). */
-        | (Pending, _) => [
-            quiet_border(
-              ~clss="condition-goal",
-              ~equiv=div_c("equiv", [Node.text("≡")]),
-              [div_c("step-output", [code(Exp(goal))])],
-            ),
-            quiet_border(
-              ~clss="condition-missing",
-              ~equiv=equiv_hidden(),
-              [
-                div_c("step-unknown", [Node.text("?")]),
-                div_c(
-                  "condition-hint",
-                  [
-                    Node.text(
-                      "Not proven yet. Proving a side condition here isn't supported yet.",
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            target_border(),
-          ]
-        };
-      div_c(
-        "step-section condition",
-        [
-          Node.div(
-            ~attrs=[
-              Attr.classes(["step-section-bar"]),
-              Attr.title("Click to collapse"),
-              Attr.on_click(_ => toggle),
-            ],
-            [Node.text(label)],
-          ),
-          div_c("step-slot", [div_c("stepper cell-result", rows)]),
-        ],
-      );
-    };
     let rec chain = (~top=false, rows: list(Rows.t)): list(Node.t) => [
       Node.div(
         ~attrs=[Attr.classes(["stepper", "cell-result"])],
@@ -1118,7 +1160,7 @@ module View = {
           List.concat(
             List.mapi(
               (i, ob) =>
-                is_open(i) ? [] : [condition_dot(~toggle=toggle(i), ob)],
+                is_open(i) ? [] : [Condition.dot(~toggle=toggle(i), ob)],
               conditions,
             ),
           );
@@ -1130,7 +1172,15 @@ module View = {
               List.filter_map(
                 i =>
                   List.nth_opt(conditions, i)
-                  |> Option.map(condition(~toggle=toggle(i))),
+                  |> Option.map(ob =>
+                       Condition.view(
+                         ~globals,
+                         ~edit_syntax,
+                         ~exits=exits(ob),
+                         ~toggle=toggle(i),
+                         ob,
+                       )
+                     ),
                 open_conditions,
               )
               @ (has_arms ? arms(row, nested) : []),
@@ -1426,12 +1476,12 @@ module View = {
             div_c(
               "stepper cell-result",
               [
-                quiet_border(
+                Row.quiet(
                   ~clss="step-ellipsis",
-                  ~equiv=equiv_hidden(),
+                  ~equiv=Row.equiv_hidden(),
                   [div_c("step-output", [Node.text("⋯")])],
                 ),
-                target_border(),
+                Row.target(~globals),
               ],
             ),
           ]
