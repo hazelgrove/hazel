@@ -252,12 +252,6 @@ let code_display = (~globals: Globals.t): section => {
           "Experimental: ghost-animate code movement on every edit",
         ),
         toggle(
-          "Drag refactoring",
-          globals.settings.core.drag_refactor,
-          DragRefactor,
-          "Modal: drag a token to pull it along refactoring tracks",
-        ),
-        toggle(
           "Drag ladders",
           globals.settings.core.drag_chain
           != Language.CoreSettings.DragChain.Off,

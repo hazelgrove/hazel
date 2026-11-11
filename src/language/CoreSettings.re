@@ -59,7 +59,10 @@ module DragChain = {
     | Everything;
 };
 
+/* Extra fields are tolerated so settings saved by an older build (e.g.
+   the removed `drag_refactor`) still load instead of resetting. */
 [@deriving (show({with_path: false}), sexp, yojson)]
+[@sexp.allow_extra_fields]
 type t = {
   statics: bool,
   elaborate: bool,
@@ -78,9 +81,6 @@ type t = {
   /* Experimental: FLIP-ghost every edit's code movement, not just
    * refactor invocations (see GhostFlip.re) */
   animate_all_edits: bool,
-  /* Modal drag-to-refactor: plain drag on a token pulls it along
-   * candidate transform tracks (CodeDrag.re) */
-  drag_refactor: bool,
   [@sexp.default DragChain.SameKind]
   drag_chain: DragChain.t,
   /* a blocked drag move pushes through: carries its dependencies or
@@ -119,7 +119,6 @@ let off: t = {
   indentation_ux: false,
   flip_animations: false,
   animate_all_edits: false,
-  drag_refactor: false,
   drag_chain: DragChain.SameKind,
   drag_push: true,
   drag_composites: true,
@@ -141,7 +140,6 @@ let on: t = {
   indentation_ux: true,
   flip_animations: true,
   animate_all_edits: false,
-  drag_refactor: false,
   drag_chain: DragChain.SameKind,
   drag_push: true,
   drag_composites: true,

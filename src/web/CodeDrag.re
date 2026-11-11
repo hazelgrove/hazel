@@ -123,6 +123,8 @@ type session = {
   commit: list((Action.refactor, Id.t)) => unit,
   /* put the caret on a tile, so the indication marks what is held */
   focus: Id.t => unit,
+  /* released before the drag began */
+  click: unit => unit,
   ladders: bool,
   push: bool,
   show_labels: bool,
@@ -1326,6 +1328,9 @@ let on_up = (_e: Js.t(Dom_html.event)): unit =>
   switch (session^) {
   | None => ()
   | Some(s) =>
+    if (!s.began) {
+      s.click();
+    };
     /* dragged something undraggable: make the refusal visible */
     if (s.began && !s.had_cands) {
       CodeFlip.shake_dead_press(~segment=?s.segment, ());
@@ -1391,6 +1396,7 @@ let arm =
     (
       ~commit: list((Action.refactor, Id.t)) => unit,
       ~focus: Id.t => unit,
+      ~click: unit => unit,
       ~ladders: bool,
       ~push: bool,
       ~show_labels: bool,
@@ -1406,6 +1412,7 @@ let arm =
   let s = {
     commit,
     focus,
+    click,
     ladders,
     push,
     show_labels,

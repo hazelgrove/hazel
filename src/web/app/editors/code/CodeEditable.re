@@ -1018,12 +1018,11 @@ module View = {
             ),
           ),
         ]);
-      | {button: Left, shift: Up, meta: Up, ctrl: Up, alt: Up, _}
-          when globals.settings.core.drag_refactor =>
-        /* modal drag-to-refactor (Settings > Drag Refactoring): a
-           plain drag pulls the grabbed construct along candidate
-           tracks; candidates are enumerated by CodeDrag.sync once
-           the caret lands at the grab point */
+      | {button: Left, sys: PC, ctrl: Down, _}
+      | {button: Left, sys: Mac, meta: Down, _} =>
+        /* Cmd/Ctrl: a drag pulls the grabbed construct along candidate
+           tracks (enumerated by CodeDrag.sync once the caret lands at
+           the grab point); a click jumps to the binding site */
         CodeDrag.arm(
           /* the path to the rung reached, one undo step */
           ~commit=
@@ -1035,6 +1034,11 @@ module View = {
             id =>
               Bonsai.Effect.Expert.handle(
                 inject(Perform(Move(Goal(TileId(id))))),
+              ),
+          ~click=
+            () =>
+              Bonsai.Effect.Expert.handle(
+                inject(Perform(Move(Goal(BindingSiteOfIndicatedVar)))),
               ),
           ~ladders=
             globals.settings.core.drag_chain
@@ -1053,13 +1057,6 @@ module View = {
           signal(MakeActive),
           inject(Perform(Move(Point(loc(mouse), None)))),
         ]);
-      | {button: Left, sys: PC, ctrl: Down, _}
-      | {button: Left, sys: Mac, meta: Down, _} =>
-        Effect.Many([
-          signal(MakeActive),
-          inject(Perform(Move(Point(loc(mouse), None)))),
-          inject(Perform(Move(Goal(BindingSiteOfIndicatedVar)))),
-        ])
       | {button: Right, ctrl, _} when ctrl != Down =>
         /* Right-click inside the selection keeps it (so the menu's
            Cut/Copy apply to it); outside, move the caret to the click

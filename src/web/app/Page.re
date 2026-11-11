@@ -658,10 +658,12 @@ module Selection = {
   };
 };
 
-/* Bare-cmd tracking must not depend on events reaching the page's
-   bubble-phase listener — the editor stops propagation on keys it
-   handles, stranding the meta-down flag (stuck ref-underlines).
-   A document-level CAPTURE listener sees every key first. */
+/* Bare command-key tracking (Cmd on Mac, Ctrl elsewhere: the key
+   that makes a click jump to a binding and a drag refactor) must not
+   depend on events reaching the page's bubble-phase listener — the
+   editor stops propagation on keys it handles, stranding the meta-down
+   flag (stuck ref-underlines). A document-level CAPTURE listener sees
+   every key first. */
 module MetaListener = {
   open Js_of_ocaml;
   let dispatch: ref(bool => unit) = ref(_ => ());
@@ -669,9 +671,10 @@ module MetaListener = {
   let state = ref(false);
   let on_key = (e: Js.t(Dom_html.event)): unit => {
     let coerced = Js.Unsafe.coerce(e);
+    let meta = Js.to_bool(coerced##.metaKey)
+    and ctrl = Js.to_bool(coerced##.ctrlKey);
     let bare_meta =
-      Js.to_bool(coerced##.metaKey)
-      && !Js.to_bool(coerced##.ctrlKey)
+      (Os.is_mac^ ? meta && !ctrl : ctrl && !meta)
       && !Js.to_bool(coerced##.altKey)
       && !Js.to_bool(coerced##.shiftKey);
     if (bare_meta != state^) {

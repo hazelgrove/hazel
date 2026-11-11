@@ -317,7 +317,6 @@ module View = {
     let container_classes =
       ["code-container"]
       @ (globals.meta_down ? ["meta-down"] : [])
-      @ (globals.settings.core.drag_refactor ? ["drag-refactor-mode"] : [])
       @ (globals.settings.show_row_lines ? ["show-row-lines"] : [])
       /* the cell the viewport-culling range is measured on
          (JsUtil.code_viewport_geometry) */

@@ -196,12 +196,14 @@
   cursor: default;
 }
 
-.code-container.meta-down .token.ref {
-  cursor: pointer;
+/* Cmd/Ctrl held: drag a token to refactor, click a reference to jump
+   to its binding */
+.code-container.meta-down .code-text .token {
+  cursor: grab;
 }
 
-.code-container.drag-refactor-mode .code-text .token {
-  cursor: grab;
+.code-container.meta-down .code-text .token.ref {
+  cursor: pointer;
 }
 
 /* mid-drag the caret RIDES the grabbed token's scrub (CodeDrag adds

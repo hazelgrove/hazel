@@ -54,7 +54,6 @@ module Model = {
       indentation_ux: true,
       flip_animations: true,
       animate_all_edits: true,
-      drag_refactor: false,
       drag_chain: Language.CoreSettings.DragChain.SameKind,
       drag_push: true,
       drag_composites: true,
@@ -179,7 +178,6 @@ module Update = {
     | DisplayWarnings
     | FlipAnimations
     | AnimateAllEdits
-    | DragRefactor
     | DragChain
     | DragPush
     | DragComposites
@@ -276,13 +274,6 @@ module Update = {
           core: {
             ...settings.core,
             animate_all_edits: !settings.core.animate_all_edits,
-          },
-        }
-      | DragRefactor => {
-          ...settings,
-          core: {
-            ...settings.core,
-            drag_refactor: !settings.core.drag_refactor,
           },
         }
       | DragChain => {
