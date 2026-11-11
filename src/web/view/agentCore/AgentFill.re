@@ -24,7 +24,10 @@ module Status = {
     | Filled(int)
     | GaveUp(int, string)
     | Failed(string)
-    | Cancelled;
+    | Cancelled
+    /* Filbert is filling the hole in the chat, or has filled it. */
+    | InChat
+    | FilledInChat;
 
   let to_string = (status: t): string => {
     let rounds = n => Printf.sprintf("%d round%s", n, n == 1 ? "" : "s");
@@ -35,6 +38,8 @@ module Status = {
     | GaveUp(n, last) => "gave up after " ++ rounds(n) ++ ": " ++ last
     | Failed(why) => "couldn't fill: " ++ why
     | Cancelled => "cancelled"
+    | InChat => "filling in the chat…"
+    | FilledInChat => "filled in the chat"
     };
   };
 };
@@ -229,30 +234,64 @@ let log = (msg: string): unit =>
  * callbacks that lives only as long as the page, so this is not part of
  * any model. */
 module Active = {
-  let cancels: ref(Id.Map.t(unit => unit)) = ref(Id.Map.empty);
+  type entry = {
+    /* Started by typing `??`: turning it back into `?` cancels it too. */
+    typed: bool,
+    /* The user deleted the hole, or stopped the fill. */
+    cancel: unit => unit,
+    /* The agent's own edit removed the hole. */
+    settle: unit => unit,
+  };
+
+  let entries: ref(Id.Map.t(entry)) = ref(Id.Map.empty);
 
   /* Registers a fill of `hole_id`. The returned app takes it off the
    * register when the fill ends; the returned function says whether it
-   * has been cancelled. */
-  let track = (~hole_id: Id.t, app: app): (app, unit => bool) => {
+   * has been cancelled. `settled` is the status once the agent's edit
+   * removes the hole; without one that counts as cancelling. */
+  let track =
+      (
+        ~hole_id: Id.t,
+        ~typed=false,
+        ~on_cancel=() => (),
+        ~settled: option(Status.t)=?,
+        app: app,
+      )
+      : (app, unit => bool) => {
     let cancelled = ref(false);
-    cancels :=
+    let remove = () => entries := Id.Map.remove(hole_id, entries^);
+    let cancel = () => {
+      cancelled := true;
+      remove();
+      app.set_status(Cancelled);
+      on_cancel();
+    };
+    let settle = () =>
+      switch (settled) {
+      | Some(status) =>
+        remove();
+        app.set_status(status);
+      | None => cancel()
+      };
+    entries :=
       Id.Map.add(
         hole_id,
-        () => {
-          cancelled := true;
-          cancels := Id.Map.remove(hole_id, cancels^);
-          app.set_status(Cancelled);
+        {
+          typed,
+          cancel,
+          settle,
         },
-        cancels^,
+        entries^,
       );
     let set_status = (status: Status.t) => {
       switch (status) {
-      | Filling(_) => ()
+      | Filling(_)
+      | InChat => ()
       | Filled(_)
       | GaveUp(_)
       | Failed(_)
-      | Cancelled => cancels := Id.Map.remove(hole_id, cancels^)
+      | Cancelled
+      | FilledInChat => remove()
       };
       app.set_status(status);
     };
@@ -265,17 +304,29 @@ module Active = {
     );
   };
 
-  let cancel_all = () => Id.Map.iter((_, cancel) => cancel(), cancels^);
+  let cancel_all = () => Id.Map.iter((_, e) => e.cancel(), entries^);
 
-  /* Cancels each fill whose hole isn't among `ids`, the ids of the
-   * program as edited. */
-  let cancel_missing = (ids: list(Id.t)) =>
+  /* After a user's edit: cancels each fill whose hole isn't among `ids`,
+   * the ids of the program as edited, or, for a fill started by typing
+   * `??`, among `llm_ids`, its `??` holes. */
+  let cancel_missing = (~ids: list(Id.t), ~llm_ids: list(Id.t)) =>
     Id.Map.iter(
-      (hole_id, cancel) =>
-        if (!List.mem(hole_id, ids)) {
-          cancel();
+      (hole_id, e) =>
+        if (!List.mem(hole_id, e.typed ? llm_ids : ids)) {
+          e.cancel();
         },
-      cancels^,
+      entries^,
+    );
+
+  /* After the agent's edit: settles each fill whose hole isn't among
+   * `ids`. */
+  let settle_missing = (ids: list(Id.t)) =>
+    Id.Map.iter(
+      (hole_id, e) =>
+        if (!List.mem(hole_id, ids)) {
+          e.settle();
+        },
+      entries^,
     );
 };
 
@@ -336,12 +387,7 @@ module ProofHole = {
         "",
       ]
       @ Haz3lcore.ProofGrammarNotes.self
-      @ ["", "## Builtin axioms", "", "Citable by name in every proof:", ""]
-      @ List.map(
-          ((name, stmt)) =>
-            "- `" ++ name ++ "`: `" ++ print_exp(stmt) ++ "`",
-          Axioms.axioms,
-        ),
+      @ Haz3lcore.ProofGrammarNotes.axioms,
     );
 
   let first = (hole: t): string =>
@@ -534,23 +580,89 @@ module ProofHole = {
     marks @ open_cases @ obligations @ unfinished;
   };
 
-  /* `proof` in place of the hole, checked. */
-  let check =
+  /* The facts in scope in `ctx`, innermost first, one per name: a name
+   * cites its innermost fact. */
+  let facts = (ctx: SemanticCtx.t): list((string, string)) =>
+    List.fold_left(
+      (facts, (name, _, prop)) =>
+        List.mem_assoc(name, facts)
+          ? facts : facts @ [(name, print_exp(prop))],
+      [],
+      SemanticCtx.facts(ctx),
+    );
+
+  /* Where `proof` leaves work to do: the goal at each `?` in it and at
+   * the start of each induction case, with the facts there that aren't
+   * among `known` (an induction's `ih` and `case_eq`, an `assume`). */
+  let open_goals =
+      (~known: list((string, string)), pm: ProofMap.t, proof: Proof.t)
+      : list(string) => {
+    let describe = (where, p: Proof.t) =>
+      switch (ProofMap.lookup(Proof.rep_id(p), pm)) {
+      | Some({incoming: Some(goal), ctx, _}) =>
+        let new_facts =
+          List.filter(fact => !List.mem(fact, known), facts(ctx));
+        [
+          where
+          ++ ": the goal is `"
+          ++ print_exp(goal)
+          ++ "`"
+          ++ (
+            switch (new_facts) {
+            | [] => ""
+            | facts =>
+              "; hypotheses: "
+              ++ String.concat(
+                   ", ",
+                   List.map(
+                     ((n, p)) => "`" ++ n ++ "`: `" ++ p ++ "`",
+                     facts,
+                   ),
+                 )
+            }
+          ),
+        ];
+      | _ => []
+      };
+    let rec go = (p: Proof.t) =>
+      (
+        switch (p.term) {
+        | EmptyHole => describe("At a `?`", p)
+        | Induction(_, _, cases) =>
+          List.concat_map(
+            ((pat, body)) =>
+              describe("In the case `" ++ print_any(Pat(pat)) ++ "`", body),
+            cases,
+          )
+        | _ => []
+        }
+      )
+      @ List.concat_map(go, Proof.children(p));
+    go(proof);
+  };
+
+  /* The proof map of the theorem with `proof` in place of the hole; None
+   * when the hole is gone. */
+  let checked_map =
       (~core, ~env, ~theorem_id, ~hole_id, program: Exp.t, proof: Proof.t)
-      : Loop.outcome(Proof.t) =>
-    switch (
+      : option(ProofMap.t) =>
+    Option.bind(
       Haz3lcore.EditorTransform.Rewrite.proof_in_exp(
         ~target_id=hole_id,
         proof,
         program,
-      )
-    ) {
+      ),
+      ((_, filled)) =>
+      check_theorem(~core, ~env, ~theorem_id, filled)
+    );
+
+  /* `proof` in place of the hole, checked. */
+  let check =
+      (~core, ~env, ~theorem_id, ~hole_id, program: Exp.t, proof: Proof.t)
+      : Loop.outcome(Proof.t) =>
+    switch (checked_map(~core, ~env, ~theorem_id, ~hole_id, program, proof)) {
+    | Some(pm) => Checked(proof, problems(pm, proof))
     | None => HoleGone
-    | Some((_, filled)) =>
-      switch (check_theorem(~core, ~env, ~theorem_id, filled)) {
-      | Some(pm) => Checked(proof, problems(pm, proof))
-      | None => HoleGone
-      }
     };
 
   /* Fills `hole_id`, a hole in a theorem's proof in `program`, checking
@@ -589,20 +701,12 @@ module ProofHole = {
         );
       switch (entry) {
       | Some({incoming: Some(goal), ctx, _}) =>
-        let facts =
-          List.fold_left(
-            (facts, (name, _, prop)) =>
-              List.mem_assoc(name, facts)
-                ? facts : facts @ [(name, print_exp(prop))],
-            [],
-            SemanticCtx.facts(ctx),
-          );
         let hole = {
           program: print_program(~hole_id, program),
           theorem: name,
           statement: print_exp(statement),
           goal: print_exp(goal),
-          facts,
+          facts: facts(ctx),
         };
         Loop.run(
           ~ask,
@@ -825,8 +929,9 @@ module ExpHole = {
 
 // Typing `??`
 
-/* A fill starts when an edit types `??`, not whenever a program has one:
- * a program loaded with `??` in it starts nothing. */
+/* Typing `??` asks the chat agent to fill it. A request is made when an
+ * edit types `??`, not whenever a program has one: a program loaded with
+ * `??` in it asks nothing. */
 module Typed = {
   let tiles = (z: Haz3lcore.Zipper.t): list(Haz3lcore.Tile.t) => {
     let rec go = (seg: Haz3lcore.Segment.t) =>
@@ -848,12 +953,19 @@ module Typed = {
     |> List.filter(t => Haz3lcore.Tile.label(t) == [Token.llm_hole])
     |> List.map((t: Haz3lcore.Tile.t) => t.id);
 
-  /* After any edit: cancels the fills whose hole the edit removed. */
+  let ids = (z: Haz3lcore.Zipper.t): list(Id.t) =>
+    List.map((t: Haz3lcore.Tile.t) => t.id, tiles(z));
+
+  /* After a user's edit: cancels the fills whose hole the edit removed. */
   let edited = (z: Haz3lcore.Zipper.t): unit =>
-    if (!Id.Map.is_empty(Active.cancels^)) {
-      Active.cancel_missing(
-        List.map((t: Haz3lcore.Tile.t) => t.id, tiles(z)),
-      );
+    if (!Id.Map.is_empty(Active.entries^)) {
+      Active.cancel_missing(~ids=ids(z), ~llm_ids=llm_hole_ids(z));
+    };
+
+  /* After the agent's edit: settles the fills whose hole it filled. */
+  let agent_edited = (z: Haz3lcore.Zipper.t): unit =>
+    if (!Id.Map.is_empty(Active.entries^)) {
+      Active.settle_missing(ids(z));
     };
 
   /* The `??` holes that `action` typed, going from `before` to `after`. */
@@ -883,14 +995,49 @@ module Typed = {
       ? ExpHole.start(~core, ~ask, ~app, ~program, hole_id)
       : ProofHole.start(~core, ~ask, ~dynamics, ~app, ~program, hole_id);
 
-  /* Starts a fill for each hole `action` typed. The fills start after
-   * the edit, so typing isn't held up by their statics. */
-  let start =
+  /* What to ask the chat agent, for the `??` at `hole_id`. */
+  let request = (~core, program: Exp.t, hole_id: Id.t): string =>
+    switch (Exp.find_by_id(hole_id, program)) {
+    | Some(_) =>
+      let expected =
+        Option.bind(
+          ExpHole.describe(
+            ~program,
+            ~info_map=ExpHole.statics(~core, program).info_map,
+            hole_id,
+          ),
+          (hole: ExpHole.t) =>
+          hole.expected
+        );
+      "Fill the `??` I just typed with an expression"
+      ++ (
+        switch (expected) {
+        | Some(ty) => " of type `" ++ ty ++ "`"
+        | None => ""
+        }
+      )
+      ++ ", using what is in scope there. Change nothing else in the program.";
+    | None =>
+      let theorem =
+        Option.bind(ProofHole.theorem_of(~hole_id, program), ((id, _)) =>
+          switch (Option.map(Exp.term_of, Exp.find_by_id(id, program))) {
+          | Some(Theorem(name, _, _, _)) => Pat.get_var(name)
+          | _ => None
+          }
+        );
+      "Fill the `??` I just typed in the proof of theorem `"
+      ++ Option.value(~default="?", theorem)
+      ++ "`. Read the `proofs` docs first. Use proof_holes to see its goal and the facts in scope, check_proof to try proofs (a few steps at a time, leaving `?` for the rest, is fine), and fill_proof to write the proof once it proves the goal.";
+    };
+
+  /* Asks the chat agent, through `send`, to fill each `??` that `action`
+   * typed. Deleting the hole, or stop, runs `stop`. */
+  let ask_chat =
       (
         ~core: CoreSettings.t,
-        ~agent: AgentGlobals.Model.t,
-        ~dynamics: option(Dynamics.t),
         ~app: app,
+        ~send: string => unit,
+        ~stop: unit => unit,
         ~before: Haz3lcore.Zipper.t,
         ~after: Haz3lcore.Zipper.t,
         action: CodeEditable.Update.t,
@@ -899,13 +1046,27 @@ module Typed = {
     switch (holes(action, ~before, ~after)) {
     | [] => ()
     | ids =>
+      /* After the edit, so typing isn't held up by the statics. */
       JsUtil.delay(
         0.0,
         () => {
           let program =
             Haz3lcore.MakeTerm.from_zip_for_sem(after, ~root=Exp).term;
-          let ask = ask_agent(agent);
-          List.iter(fill(~core, ~ask, ~dynamics, ~app, ~program), ids);
+          List.iter(
+            hole_id => {
+              let (app, _) =
+                Active.track(
+                  ~hole_id,
+                  ~typed=true,
+                  ~on_cancel=stop,
+                  ~settled=FilledInChat,
+                  app,
+                );
+              app.set_status(InChat);
+              send(request(~core, program, hole_id));
+            },
+            ids,
+          );
         },
       )
     };
@@ -918,8 +1079,8 @@ module View = {
       (~status: option(Status.t), start: unit => unit): list(Node.t) => {
     let filling =
       switch (status) {
-      | Some(Filling(_)) => true
-      | Some(Filled(_) | GaveUp(_) | Failed(_) | Cancelled)
+      | Some(Filling(_) | InChat) => true
+      | Some(Filled(_) | GaveUp(_) | Failed(_) | Cancelled | FilledInChat)
       | None => false
       };
     [
@@ -941,7 +1102,8 @@ module View = {
     | Some(s) =>
       let stop =
         switch (s) {
-        | Filling(_) => [
+        | Filling(_)
+        | InChat => [
             Node.button(
               ~attrs=[
                 Attr.classes(["agent-fill-stop"]),
@@ -956,7 +1118,8 @@ module View = {
         | Filled(_)
         | GaveUp(_)
         | Failed(_)
-        | Cancelled => []
+        | Cancelled
+        | FilledInChat => []
         };
       [
         Node.div(

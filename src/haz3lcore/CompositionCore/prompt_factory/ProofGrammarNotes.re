@@ -47,3 +47,22 @@ let self: list(string) =
     "",
   ]
   @ List.map(e => "```\n" ++ e ++ "\n```", examples);
+
+/* The builtin axioms, citable by name in every proof. */
+let axioms: list(string) =
+  ["", "## Builtin axioms", "", "Citable by name in every proof:", ""]
+  @ List.map(
+      ((name, stmt)) =>
+        "- `"
+        ++ name
+        ++ "`: `"
+        ++ (
+          stmt
+          |> ExpToSegment.exp_to_segment(
+               ~settings=ExpToSegment.Settings.editable(~inline=true),
+             )
+          |> Printer.of_segment(~holes="?", ~refractors=[])
+        )
+        ++ "`",
+      Language.Axioms.axioms,
+    );

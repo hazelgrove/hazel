@@ -372,11 +372,13 @@ let run_item =
       set_status: s => {
         statuses := statuses^ @ [s];
         switch (s) {
-        | Filling(_) => ()
+        | Filling(_)
+        | InChat => ()
         | Filled(_)
         | GaveUp(_)
         | Failed(_)
-        | Cancelled =>
+        | Cancelled
+        | FilledInChat =>
           if (! finished^) {
             finished := true;
             finish();

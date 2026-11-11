@@ -56,6 +56,8 @@ let registry: list((string, entry)) = {
       names,
     );
   entries("View", Ungated, ["expand", "collapse"])
+  @ entries("Proof", Ungated, ["proof_holes", "check_proof"])
+  @ entries("Proof", EditGated, ["fill_proof"])
   /* mirrors the conditional offer in CompositionUtils.Local.tools */
   @ (
     Haz3lcore.DocPacks.all == []

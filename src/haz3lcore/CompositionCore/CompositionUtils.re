@@ -2,10 +2,18 @@ open Util;
 open CompositionActions;
 open Language;
 
+/* The proof tools, answered by the web layer, which has the prover. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type proof_request =
+  | ProofHoles
+  | CheckProof(int, string)
+  | FillProof(int, string);
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action_wrapper =
   | Action(action)
   | DocsRequest(string) /* read_docs: answered from DocPacks, no editor change */
+  | ProofRequest(proof_request)
   | Failure(string);
 
 module Local = {
@@ -17,6 +25,7 @@ module Local = {
   let tools =
     [ViewTools.expand, ViewTools.collapse]
     @ docs_tools
+    @ [ProofTools.proof_holes, ProofTools.check_proof, ProofTools.fill_proof]
     @ [
       ProbeTools.place_probe,
       ProbeTools.remove_probe,
@@ -84,6 +93,18 @@ module Local = {
       switch (API.Json.dot("topic", args)) {
       | Some(`String(topic)) => DocsRequest(topic)
       | _ => Failure("read_docs requires a `topic` string argument")
+      };
+    } else if (tool_name == "proof_holes") {
+      ProofRequest(ProofHoles);
+    } else if (tool_name == "check_proof" || tool_name == "fill_proof") {
+      switch (API.Json.dot("hole", args), API.Json.dot("proof", args)) {
+      | (Some(`Int(hole)), Some(`String(proof))) =>
+        ProofRequest(
+          tool_name == "check_proof"
+            ? CheckProof(hole, proof) : FillProof(hole, proof),
+        )
+      | _ =>
+        Failure(tool_name ++ " requires a `hole` number and a `proof` string")
       };
     } else {
       action_of_editor(~tool_name, ~args);

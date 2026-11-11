@@ -715,6 +715,7 @@ module Update = {
         let (new_agent, updated_editor) =
           Agent.Update.update(a, agent, editor, settings, schedule_agent);
         let* new_ed = updated_editor;
+        AgentFill.Typed.agent_edited(new_ed.editor.editor.state.zipper);
         let new_sp =
           ListUtil.put_nth(
             model.current,
@@ -742,16 +743,25 @@ module Update = {
         AgentFill.Typed.edited(new_ed.editor.editor.state.zipper);
         switch (a) {
         | MainEditor(action) =>
-          AgentFill.Typed.start(
+          AgentFill.Typed.ask_chat(
             ~core=Theorems.with_proof_settings(settings.core),
-            ~agent=settings.agent_globals,
-            ~dynamics=Option.map(snd, editor.result.theorems.checked),
             ~app={
               set_status: s =>
                 schedule_action(CellAction(ResultAction(Fill(s)))),
               write: patch =>
                 schedule_action(CellAction(PatchMainEditor(patch))),
             },
+            ~send=
+              text =>
+                schedule_action(
+                  AgentAction(
+                    SendMessage(
+                      Message.Utils.mk_user_message(text),
+                      agent.chat_system.current,
+                    ),
+                  ),
+                ),
+            ~stop=() => schedule_action(AgentAction(StopAgenticLoop)),
             ~before=editor.editor.editor.state.zipper,
             ~after=new_ed.editor.editor.state.zipper,
             action,

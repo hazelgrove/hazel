@@ -158,6 +158,9 @@ let status = testable(Fmt.of_to_string(Fill.Status.show), (==));
 let check_statuses = (expected, run: Stub.run) =>
   check(list(status), "statuses", expected, run.statuses);
 
+let check_statuses_ref = (expected, statuses) =>
+  check(list(status), "statuses", expected, statuses);
+
 /* Fails with the checker's view of the proof when it isn't proven. */
 let check_proven = (src: string): unit => {
   let f = Fixture.mk(src);
@@ -546,4 +549,200 @@ let cancel_tests = [
   ),
 ];
 
-let tests = ("AgentFill", proof_tests @ typed_tests @ cancel_tests);
+/* The chat agent's proof tools, on a cell evaluated as the editor
+ * evaluates it. */
+module Tools = {
+  let pos_src = "type Nt = +Z+S(Nt) in\nlet pos = fun e -> case e | Z => true | S(b) => true end in\ntheorem t = forall e: Nt -> pos(e) proof ?? in 0";
+
+  let cell = (src: string): Web.CellEditor.Model.t => {
+    let c = Cell.mk(src);
+    let statics = Fixture.statics_of_term(c.program);
+    {
+      ...Web.CellEditor.Model.mk(Editor.Model.mk(c.zipper, ~root=Exp)),
+      result:
+        Fixture.calculate(
+          ~is_edited=true,
+          statics,
+          Web.EvalResult.Model.init,
+        ),
+    };
+  };
+
+  let answer = (request, cell) =>
+    Web.AgentProofTools.answer(
+      ~settings=Web.Settings.Model.init,
+      request,
+      cell,
+    );
+
+  let tests = [
+    test_case(
+      "proof_holes lists each hole with its goal and the facts there",
+      `Quick,
+      () => {
+        let (ok, text, edited) = answer(ProofHoles, cell(assume_src));
+        check(bool, "ok", true, ok);
+        check_contains(~msg="hole", text, "Hole 1 (`??`, to fill)");
+        check_contains(~msg="goal", text, "goal: `n == 1`");
+        check_contains(~msg="fact", text, "- `assume`: `n == 1`");
+        check(bool, "no edit", true, edited == None);
+      },
+    ),
+    test_case(
+      "check_proof reports the goal and hypotheses at each open case",
+      `Quick,
+      () => {
+        let (ok, text, _) =
+          answer(
+            CheckProof(1, "induction e | Z => ? | S(b) => ? end"),
+            cell(pos_src),
+          );
+        check(bool, "not yet", false, ok);
+        check_contains(
+          ~msg="case",
+          text,
+          "In the case `S(b)`: the goal is `pos(S(b))`; hypotheses: `ih`: `pos(b)`",
+        );
+      },
+    ),
+    test_case(
+      "check_proof accepts a proof that proves the goal",
+      `Quick,
+      () => {
+        let (ok, text, edited) =
+          answer(CheckProof(1, assume_fill), cell(assume_src));
+        check(bool, "proves", true, ok);
+        check(string, "report", "This proof proves the goal.", text);
+        check(bool, "no edit", true, edited == None);
+      },
+    ),
+    test_case(
+      "fill_proof writes the proof into the cell",
+      `Quick,
+      () => {
+        let (ok, _, edited) =
+          answer(FillProof(1, assume_fill), cell(assume_src));
+        check(bool, "proves", true, ok);
+        switch (edited) {
+        | Some(c) =>
+          check_proven(
+            Printer.of_zipper(~holes="?", c.editor.editor.state.zipper),
+          )
+        | None => fail("nothing written")
+        };
+      },
+    ),
+    test_case(
+      "a hole number that isn't there is an error",
+      `Quick,
+      () => {
+        let (ok, text, _) =
+          answer(CheckProof(2, "eval"), cell(assume_src));
+        check(bool, "fails", false, ok);
+        check_contains(~msg="why", text, "There is no proof hole 2");
+      },
+    ),
+    test_case("the proofs docs pack holds the notes and axioms", `Quick, () =>
+      switch (DocPacks.lookup("proofs")) {
+      | Some(pack) =>
+        check_contains(~msg="syntax", pack.body, "## Proof syntax");
+        check_contains(~msg="axioms", pack.body, "- `refl_eq`:");
+      | None => fail("no proofs pack")
+      }
+    ),
+  ];
+};
+
+/* Typing `??` asks the chat agent; the fill it starts ends when the
+ * agent's edit fills the hole, and is cancelled when the user deletes
+ * it. */
+let chat_tests = [
+  test_case(
+    "the chat request names the theorem and the tools",
+    `Quick,
+    () => {
+      let c = Cell.mk(assume_src);
+      let text = Fill.Typed.request(~core, c.program, c.hole_id);
+      check_contains(~msg="theorem", text, "proof of theorem `t`");
+      check_contains(~msg="tools", text, "check_proof");
+    },
+  ),
+  test_case(
+    "the chat request gives an expression's type",
+    `Quick,
+    () => {
+      let c = Cell.mk(exp_src);
+      check_contains(
+        ~msg="type",
+        Fill.Typed.request(~core, c.program, c.hole_id),
+        "with an expression of type `Bool`",
+      );
+    },
+  ),
+  test_case(
+    "the agent filling the hole settles the fill; deleting it stops the chat",
+    `Quick,
+    () => {
+      let c = Cell.mk(assume_src);
+      let gone = Option.get(Parser.to_zipper("0", ~root=Exp));
+      let track = () => {
+        let statuses = ref([]);
+        let stopped = ref(false);
+        let (app, _) =
+          Fill.Active.track(
+            ~hole_id=c.hole_id,
+            ~on_cancel=() => stopped := true,
+            ~settled=FilledInChat,
+            {
+              set_status: s => statuses := statuses^ @ [s],
+              write: _ => (),
+            },
+          );
+        app.set_status(InChat);
+        (statuses, stopped);
+      };
+      let (statuses, stopped) = track();
+      Fill.Typed.agent_edited(gone);
+      check_statuses_ref([InChat, FilledInChat], statuses^);
+      check(bool, "chat left running", false, stopped^);
+      let (statuses, stopped) = track();
+      Fill.Typed.edited(gone);
+      check_statuses_ref([InChat, Cancelled], statuses^);
+      check(bool, "chat stopped", true, stopped^);
+    },
+  ),
+];
+
+let chat_tests =
+  chat_tests
+  @ [
+    test_case(
+      "backspacing ?? to ? cancels the fill it started",
+      `Quick,
+      () => {
+        let z = Option.get(Parser.to_zipper("1 + ??", ~root=Exp));
+        let hole_id = List.hd(Fill.Typed.llm_hole_ids(z));
+        let statuses = ref([]);
+        let (app, _) =
+          Fill.Active.track(
+            ~hole_id,
+            ~typed=true,
+            ~settled=FilledInChat,
+            {
+              set_status: s => statuses := statuses^ @ [s],
+              write: _ => (),
+            },
+          );
+        app.set_status(InChat);
+        Fill.Typed.edited(
+          Test_Autoprobe.perform(z, [Destruct(Local(Left, ByChar))]),
+        );
+        check_statuses_ref([InChat, Cancelled], statuses^);
+      },
+    ),
+  ];
+
+let tests = (
+  "AgentFill",
+  proof_tests @ typed_tests @ cancel_tests @ Tools.tests @ chat_tests,
+);
