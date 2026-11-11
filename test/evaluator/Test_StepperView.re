@@ -153,23 +153,12 @@ let offered = (goal: Picker.Goal.t): list(string) =>
   |> List.filter_map(id => Exp.find_by_id(id, goal.display))
   |> List.map(print);
 
-let labels = (offers: list(Picker.offer)) =>
-  List.map((o: Picker.offer) => o.label, offers);
-
 let written = (p: Proof.t): string =>
   Proof(p)
   |> ExpToSegment.any_to_segment(
        ~settings=ExpToSegment.Settings.editable(~inline=true),
      )
   |> Printer.of_segment(~holes="?", ~refractors=[]);
-
-/* What the offer labelled `label` writes on its own row. */
-let write_of = (offers, label): Proof.t =>
-  switch (List.find_opt((o: Picker.offer) => o.label == label, offers)) {
-  | Some({action: Write(pick), _}) => Picker.focused(pick)
-  | Some({action: Open(_), _}) => Alcotest.fail(label ++ " opens a box")
-  | None => Alcotest.fail("no " ++ label ++ " offered")
-  };
 
 /* Every tile id in a segment, children and folded projector interiors
  * included. A repeated id makes `Highlight.of_tile` raise a shard
@@ -484,7 +473,7 @@ module Scopes = {
         check(string, "its goal", "1 == 1", goal(first(sub)));
         check(
           bool,
-          "a picker row: it has state",
+          "a row to write in: it has state",
           true,
           Stepper.Model.find(first(sub).key, f.theorem.stepper) != None,
         );
@@ -606,7 +595,40 @@ module Settings_change = {
 };
 
 module State = {
+  let tab = (local: Stepper.Model.local) =>
+    Option.bind(local.box, (box: Stepper.Model.box) => box.tab);
+
   let tests = [
+    test_case(
+      "the row where a chain continues has a write box, and a step row none",
+      `Quick,
+      () => {
+        let f =
+          Fixture.mk(
+            "theorem t = (1 + 1) * 2 == 4 proof from 1 + 1 do eval end in t",
+          );
+        check(
+          list(bool),
+          "has a box",
+          [false, true],
+          List.map(row => Fixture.local(f, row).box != None, f.rows),
+        );
+        let row = last(f.rows);
+        check(
+          bool,
+          "no tab picked",
+          true,
+          tab(Fixture.local(f, row)) == None,
+        );
+        let f = Fixture.act(f, (row.key, Tab(Step)));
+        check(
+          bool,
+          "the tab picked",
+          true,
+          tab(Fixture.local(f, row)) == Some(Step),
+        );
+      },
+    ),
     test_case(
       "a recalculation keeps each row's editor while its goal is unchanged",
       `Quick,
@@ -643,12 +665,12 @@ module State = {
       },
     ),
     test_case(
-      "a changed goal is prepared again, keeping the row's open box",
+      "a changed goal is prepared again, keeping the row's box",
       `Quick,
       () => {
         let f = Fixture.mk("theorem t = 1 + 2 == 3 proof ? in t");
         let row = first(f.rows);
-        let f = Fixture.act(f, (row.key, Toggle(Strategies)));
+        let f = Fixture.act(f, (row.key, Tab(Strategy)));
         let changed = {
           ...row,
           goal: Some(parse_exp("2 + 2 == 4")),
@@ -663,13 +685,18 @@ module State = {
             "2 + 2 == 4",
             print(local.goal.written),
           );
-          check(bool, "the box is still open", true, local.box == Strategies);
+          check(
+            bool,
+            "the box keeps its tab",
+            true,
+            tab(local) == Some(Strategy),
+          );
         | None => Alcotest.fail("the row lost its state")
         };
       },
     ),
     test_case(
-      "a settings change prepares a goal again, keeping its selection and open box",
+      "a settings change prepares a goal again, keeping its selection and box",
       `Quick,
       () => {
         let f = Fixture.mk(Settings_change.src);
@@ -683,7 +710,7 @@ module State = {
               Goal(Select(Term(Id(Exp.rep_id(applied), Right)))),
             ),
           );
-        let f = Fixture.act(f, (row.key, Toggle(Strategies)));
+        let f = Fixture.act(f, (row.key, Tab(Strategy)));
         let before = Fixture.local(f, row);
         let shown = Settings_change.show_fn_bodies(before.goal.settings);
         let model =
@@ -712,7 +739,12 @@ module State = {
             Some(print(Settings_change.applied(local.goal))),
             Option.map(print, Picker.Goal.selected(local.goal)),
           );
-          check(bool, "the box is still open", true, local.box == Strategies);
+          check(
+            bool,
+            "the box keeps its tab",
+            true,
+            tab(local) == Some(Strategy),
+          );
         | None => Alcotest.fail("the row lost its state")
         };
       },
@@ -937,7 +969,8 @@ module State = {
   ];
 };
 
-/* What the picker offers, as a function of the goal and the selection. */
+/* What the write box offers, as a function of the goal and the
+ * selection. */
 module Picking = {
   let root_goal = src => {
     let f = Fixture.mk(src);
@@ -963,201 +996,150 @@ module Picking = {
     };
   };
 
-  let strategy_labels = (strategies: list(Picker.strategy)) =>
-    List.map((s: Picker.strategy) => s.label, strategies);
+  /* The ghost's rule, the step Tab writes, and what the ghost shows. */
+  let ghost = (~selected=None, goal) =>
+    Picker.Ghost.mk(goal, ~selected)
+    |> Option.map((g: Picker.Ghost.t) =>
+         (g.rule, written(Picker.focused(g.pick)), print(g.result))
+       );
 
-  /* The fact names a strategy cites, with the step each writes. */
-  let cited = (strategies: list(Picker.strategy), label) =>
+  let ghost_t = option(triple(string, string, string));
+
+  let labels = (strategies: list(Picker.Strategies.strategy)) =>
+    List.map((s: Picker.Strategies.strategy) => s.label, strategies);
+
+  /* What a strategy writes: its one step, or each choice's. */
+  let writes = (strategies: list(Picker.Strategies.strategy), label) =>
     switch (
-      List.find_opt((s: Picker.strategy) => s.label == label, strategies)
-    ) {
-    | Some({picks: Cites(facts), _}) =>
-      List.map(
-        ((name, term)) => (name, written(Proof.fresh(term))),
-        facts,
+      List.find_opt(
+        (s: Picker.Strategies.strategy) => s.label == label,
+        strategies,
       )
-    | Some({picks: Writes(_), _}) => Alcotest.fail(label ++ " cites no fact")
+    ) {
+    | Some({writes: Writes(term), _}) => [
+        ("", written(Proof.fresh(term))),
+      ]
+    | Some({writes: Chooses(choices), _}) =>
+      List.map(
+        (c: Picker.Strategies.choice) =>
+          (print(c.label), written(Proof.fresh(c.term))),
+        choices,
+      )
     | None => Alcotest.fail("no " ++ label ++ " strategy")
     };
 
   let equation = "theorem t = 1 + 2 + 3 == 6 proof ? in t";
+  let implication = "theorem t = forall x -> x == 2 ==> x + 1 == 3 proof ? in t";
 
   let tests = [
-    test_case("with nothing selected, only Strategies", `Quick, () =>
+    test_case(
+      "an empty box's ghost is the goal's next eval step, written where the checker takes it",
+      `Quick,
+      () =>
       check(
-        list(string),
-        "offers",
-        ["Strategies ▼"],
-        labels(Picker.offers(root_goal(equation), ~selected=None)),
+        ghost_t,
+        "ghost",
+        Some(("eval", "from 1 + 2 do eval end", "3 + 3 == 6")),
+        ghost(root_goal(equation)),
+      )
+    ),
+    test_case("a goal reflexivity closes has the ghost `true`", `Quick, () =>
+      check(
+        ghost_t,
+        "ghost",
+        Some(("refl", "axiom refl_eq end", "true")),
+        ghost(
+          root_goal("theorem t = forall (x : Int) -> x == x proof ? in t"),
+        ),
       )
     ),
     test_case(
-      "a selection with no step offers Rewrite and Strategies",
+      "with part of the goal selected, the ghost is that part's own step and what the part becomes",
       `Quick,
       () => {
-        let goal = root_goal(equation);
+        let goal = root_goal("theorem t = 2 * (1 + 1) == 4 proof ? in t");
+        check(
+          ghost_t,
+          "ghost",
+          Some(("eval", "from (1 + 1) do eval end", "2")),
+          ghost(~selected=Some(node(goal, "1 + 1")), goal),
+        );
+        check(
+          ghost_t,
+          "a part with no step has none",
+          None,
+          ghost(~selected=Some(node(goal, "4")), goal),
+        );
+      },
+    ),
+    test_case(
+      "the goal's own introduction comes first: Assume for an implication",
+      `Quick,
+      () => {
+        let goal = root_goal(implication);
+        let intros = Picker.Strategies.intros(goal);
+        check(list(string), "intros", ["Assume"], labels(intros));
+        check(
+          list(pair(string, string)),
+          "it assumes the antecedent",
+          [("", "assume x == 2 => ?")],
+          writes(intros, "Assume"),
+        );
         check(
           list(string),
-          "offers",
-          ["Rewrite ▼", "Strategies ▼"],
-          labels(Picker.offers(goal, ~selected=Some(node(goal, "6")))),
+          "an equation has none",
+          [],
+          labels(Picker.Strategies.intros(root_goal(equation))),
         );
       },
     ),
     test_case(
-      "selecting a redex offers Step, writing the checker's eval step",
-      `Quick,
-      () => {
-        let goal = root_goal(equation);
-        let offers =
-          Picker.offers(goal, ~selected=Some(node(goal, "1 + 2")));
-        check(
-          list(string),
-          "offers",
-          ["Step", "Rewrite ▼", "Strategies ▼"],
-          labels(offers),
-        );
-        check(
-          string,
-          "the step",
-          "from 1 + 2 do eval end",
-          written(write_of(offers, "Step")),
-        );
-      },
-    ),
-    test_case(
-      "selecting an equality offers Reflexivity",
-      `Quick,
-      () => {
-        let goal =
-          root_goal("theorem t = forall (x : Int) -> x == x proof ? in t");
-        let offers = Picker.offers(goal, ~selected=Some(goal.display));
-        check(
-          string,
-          "the step",
-          "axiom refl_eq end",
-          written(write_of(offers, "Reflexivity")),
-        );
-      },
-    ),
-    test_case(
-      "a function equality offers Funext, named after the lambda's binder",
+      "a function equality's introduction is Funext, named after the lambda's binder",
       `Quick,
       () => {
         let goal =
           root_goal(
             "theorem t = (fun x -> x + 1) == (fun x -> 1 + x) proof ? in t",
           );
-        let offers = Picker.offers(goal, ~selected=None);
         check(
-          string,
-          "the step",
-          "funext x => ?",
-          written(write_of(offers, "Funext")),
+          list(pair(string, string)),
+          "funext",
+          [("", "funext x => ?")],
+          writes(Picker.Strategies.intros(goal), "Funext"),
         );
       },
     ),
     test_case(
-      "only an implication offers Assume, assuming its antecedent",
+      "then the strategies any goal can use, each saying what it writes",
       `Quick,
       () => {
-        let goal =
-          root_goal(
-            "theorem t = forall x -> x == 2 ==> x + 1 == 3 proof ? in t",
-          );
-        let offers = Picker.offers(goal, ~selected=None);
+        let general = Picker.Strategies.general(root_goal(implication));
         check(
           list(string),
-          "offers",
-          ["Assume", "Strategies ▼"],
-          labels(offers),
+          "strategies",
+          [
+            "Induction",
+            "Cases",
+            "Have",
+            "Contradiction",
+            "Generalize",
+            "Revert",
+          ],
+          labels(general),
         );
-        check(
-          string,
-          "the step",
-          "assume x == 2 => ?",
-          written(write_of(offers, "Assume")),
-        );
-      },
-    ),
-    test_case(
-      "every button says what it writes",
-      `Quick,
-      () => {
-        let goal =
-          root_goal(
-            "theorem t = forall x -> x == 2 ==> x + 1 == 3 proof ? in t",
-          );
-        let (common, rare) =
-          Picker.strategies(goal, ~selected=Some(node(goal, "x + 1")));
         check(
           list(string),
           "without a tooltip",
           [],
-          List.map(
-            (o: Picker.offer) => (o.label, o.tooltip),
-            Picker.offers(goal, ~selected=Some(node(goal, "x + 1"))),
-          )
-          @ List.map(
-              (s: Picker.strategy) => (s.label, s.tooltip),
-              common @ rare,
-            )
-          @ List.map(
-              (s: Picker.strategy) => (s.label, s.explanation),
-              common @ rare,
-            )
-          |> List.filter(((_, text)) => text == "")
-          |> List.map(fst),
+          general
+          @ Picker.Strategies.intros(root_goal(implication))
+          |> List.filter((s: Picker.Strategies.strategy) => s.tooltip == "")
+          |> labels,
         );
       },
     ),
     test_case(
-      "Rewrite lists the rules that rewrite the selection, by source",
-      `Quick,
-      () => {
-        let f =
-          Fixture.mk(
-            "theorem t = forall x -> x == 1 ==> x + 0 == 1 proof assume x == 1 => ? in t",
-          );
-        let goal = Fixture.goal(f, first(body(first(f.rows))));
-        let sections = (~filter="", selected) =>
-          Picker.rules(goal, ~filter, ~selected)
-          |> List.map(({heading, rules}: Picker.section) =>
-               (heading, List.map((e: ProofCtx.entry) => e.name, rules))
-             );
-        let names = (~filter="", selected) =>
-          sections(~filter, selected) |> List.concat_map(snd);
-        check(
-          option(list(string)),
-          "the hypothesis rewrites x, under the scope's facts",
-          Some(["assume"]),
-          List.assoc_opt(
-            "Facts and theorems",
-            sections(Some(node(goal, "x"))),
-          ),
-        );
-        check(
-          bool,
-          "but not 0",
-          false,
-          List.mem("assume", names(Some(node(goal, "0")))),
-        );
-        check(
-          bool,
-          "a search lists by name, whatever the selection",
-          true,
-          List.mem("assume", names(~filter="assu", None)),
-        );
-        check(
-          list(string),
-          "the builtin axioms have a section of their own",
-          ["Axioms"],
-          sections(~filter="refl", None) |> List.map(fst),
-        );
-      },
-    ),
-    test_case(
-      "Strategies: Contradiction and Revert cite the scope's facts, not the axioms",
+      "Contradiction and Revert choose among the scope's facts, not the axioms, then a hole",
       `Quick,
       () => {
         let f =
@@ -1165,105 +1147,84 @@ module Picking = {
             "theorem t = forall x -> x == 1 ==> x == 1 proof assume x == 1 => ? in t",
           );
         let goal = Fixture.goal(f, first(body(first(f.rows))));
-        let (common, rare) = Picker.strategies(goal, ~selected=None);
-        check(
-          list(string),
-          "strategies",
-          ["Have", "Contradiction", "Cases/Induction"],
-          strategy_labels(common),
-        );
-        check(
-          list(string),
-          "rarely needed",
-          ["Revert", "Generalize"],
-          strategy_labels(rare),
-        );
+        let general = Picker.Strategies.general(goal);
         check(
           list(pair(string, string)),
           "contradiction",
-          [("assume", "contradiction x == 1 end")],
-          cited(common, "Contradiction"),
+          [
+            ("x == 1", "contradiction x == 1 end"),
+            ("?", "contradiction ? end"),
+          ],
+          writes(general, "Contradiction"),
         );
         check(
           list(pair(string, string)),
           "revert",
-          [("assume", "revert x == 1 => ?")],
-          cited(rare, "Revert"),
+          [("x == 1", "revert x == 1 => ?"), ("?", "revert ? => ?")],
+          writes(general, "Revert"),
+        );
+      },
+    ),
+    test_case(
+      "Induction chooses among the goal's variables of an inductive type, Cases among its variables and calls",
+      `Quick,
+      () => {
+        let f =
+          Fixture.mk(
+            "let len = fun xs -> case xs | [] => 0 | _ :: t => 1 + len(t) end in theorem t = forall (xs : [Int]) -> forall (n : Int) -> len(xs) + n >= n proof forall xs => forall n => ? in t",
+          );
+        let row = first(body(first(body(first(f.rows)))));
+        let general = Picker.Strategies.general(Fixture.goal(f, row));
+        check(
+          list(pair(string, string)),
+          "induction",
+          [("xs", "induction xs end"), ("?", "induction ? end")],
+          writes(general, "Induction"),
+        );
+        check(
+          list(pair(string, string)),
+          "cases",
+          [
+            ("n", "induction n end"),
+            ("xs", "induction xs end"),
+            ("len(xs)", "induction len(xs) end"),
+            ("?", "induction ? end"),
+          ],
+          writes(general, "Cases"),
         );
       },
     ),
   ];
 };
 
-/* A row's selection reaches its picker, and the cell stepper advances. */
+/* Taking an offered step writes it, and the cell stepper advances. */
 module Regressions = {
-  /* The id and measured range of the offered step at `printed`. */
-  let step_range = (goal: Picker.Goal.t, printed: string) => {
-    let id =
-      switch (
-        Picker.Goal.step_ids(goal)
-        |> List.find_opt(id =>
-             Option.map(print, Exp.find_by_id(id, goal.display))
-             == Some(printed)
-           )
-      ) {
-      | Some(id) => id
-      | None => Alcotest.fail("no step offered at " ++ printed)
-      };
-    let syntax = goal.editor.editor.syntax;
-    switch (
-      TermData.extreme_measures(
-        id,
-        syntax.term_data,
-        CachedSyntax.measured(syntax),
-      )
-    ) {
-    | Some(range) => (id, range)
-    | None => Alcotest.fail("the step has no measured range")
+  /* What writing `pick` at `row` puts into the proof. */
+  let written_at = (row: Rows.t, pick: Picker.pick): string =>
+    switch (Picker.write(row, pick)) {
+    | ProofPatch({replacement, _}) => written(replacement)
+    | _ => Alcotest.fail("not a proof patch")
     };
-  };
 
   let tests = [
     test_case(
-      "theorem stepper: a redex selected in a row offers Step, a second click takes it, and Algebra shows it",
+      "theorem stepper: taking an offered step writes the checker's eval step in place of the hole",
       `Quick,
       () => {
         let f = Fixture.mk("theorem t = 1 + 2 + 3 == 6 proof ? in t");
         let row = first(f.rows);
-        let (id, range) = step_range(Fixture.goal(f, row), "1 + 2");
-        /* The first click on an underline selects it (StepperEditor.deco). */
-        let f =
-          Fixture.act(f, (row.key, Goal(Select(PointToPoint(range)))));
         let goal = Fixture.goal(f, row);
-        let selected = Picker.Goal.selected(goal);
-        check(
-          option(string),
-          "the selection",
-          Some("1 + 2"),
-          Option.map(print, selected),
-        );
-        let offers = Picker.offers(goal, ~selected);
-        check(
-          string,
-          "Step",
-          "from 1 + 2 do eval end",
-          written(write_of(offers, "Step")),
-        );
-        /* The second click takes the step when the underline is the
-         * selection. */
-        check(
-          option(Alcotest.testable(Id.pp, Id.equal)),
-          "the underline is the selection",
-          Some(id),
-          Option.map(Exp.rep_id, selected),
-        );
-        let f = Fixture.act(f, (row.key, Toggle(Rewrite)));
-        check(
-          option(string),
-          "the Algebra box replaces the selection",
-          Some("1 + 2"),
-          Picker.Goal.selected(Fixture.goal(f, row)) |> Option.map(print),
-        );
+        check(list(string), "offered", ["1 + 2"], offered(goal));
+        switch (Picker.take_step(goal, 0)) {
+        | Some(pick) =>
+          check(
+            string,
+            "written",
+            "from 1 + 2 do eval end",
+            written_at(row, pick),
+          )
+        | None => Alcotest.fail("no step offered")
+        };
       },
     ),
     test_case(
@@ -1306,7 +1267,7 @@ module Regressions = {
             };
           switch (Picker.take_step(goal, 0)) {
           | Some(pick) =>
-            update(StepperPatch(Picker.write(row, goal, pick)), cell)
+            update(StepperPatch(Picker.write(row, pick)), cell)
           | None => Alcotest.fail("no step offered")
           };
         };
@@ -1336,7 +1297,7 @@ module Regressions = {
   ];
 };
 
-/* What the picker writes into the proof text, and that it reads back. A
+/* What the stepper writes into the proof text, and that it reads back. A
  * form with nothing to search goes in with a hole argument, and the
  * caret jumps into that argument, so the hole has to be a caret target. */
 module Insertion = {
@@ -2091,7 +2052,7 @@ module Focusing = {
       },
     ),
     test_case(
-      "a step picked inside what a focus rewrote joins the focus",
+      "a step taken inside what a focus rewrote is a row of its own",
       `Quick,
       () => {
         let f =
@@ -2100,28 +2061,20 @@ module Focusing = {
           );
         let row = last(f.rows);
         let goal = Fixture.goal(f, row);
-        let written_at = printed => {
-          let pick: Picker.pick = {
-            at: Picker.target(goal, Picking.node(goal, printed)),
-            step: Proof.fresh(EvalStep),
-          };
-          switch (Picker.write(row, goal, pick)) {
-          | ProofPatch({replacement, _}) => written(replacement)
-          | _ => Alcotest.fail("not a proof patch")
-          };
+        let pick: Picker.pick = {
+          at: Picker.target(goal, Picking.node(goal, "5 * 2")),
+          step: Proof.fresh(EvalStep),
         };
-        check(
-          string,
-          "on the `5` it wrote, the focus's steps grow",
-          "eval; eval",
-          written_at("5"),
-        );
-        check(
-          string,
-          "elsewhere, a step of its own",
-          "from 2 + 3 do eval end; from 5 * 2 do eval end",
-          written_at("5 * 2"),
-        );
+        switch (Picker.write(row, pick)) {
+        | ProofPatch({replacement, _}) =>
+          check(
+            string,
+            "after the focus",
+            "from 2 + 3 do eval end; from 5 * 2 do eval end",
+            written(replacement),
+          )
+        | _ => Alcotest.fail("not a proof patch")
+        };
       },
     ),
     test_case(

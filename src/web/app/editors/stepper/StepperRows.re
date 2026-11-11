@@ -33,10 +33,6 @@ type t = {
   /* The goal the row shows, as the checker wrote it. None when there is
    * none to show: nothing checked yet, or an earlier step broke. */
   goal: option(Exp.t),
-  /* When the step before the row is a focus: the focus's steps, and the
-   * id of what it put into `goal` in place of the occurrence it selected.
-   * A step picked inside that part joins the focus. */
-  after_focus: option((Proof.t, Id.t)),
   /* The id in `goal` of the part the step acts on: the occurrence a focus
    * selected, or all of `goal` for a step that rewrites it whole. None
    * for a step that changes the goal's shape or closes it from facts
@@ -133,8 +129,7 @@ let single_step = (focus: Proof.t): option(Proof.t) =>
   };
 
 /* The rows of the chain `proof`. */
-let rec chain =
-        (~proof_map: ProofMap.t, ~after_focus=None, proof: Proof.t): list(t) => {
+let rec chain = (~proof_map: ProofMap.t, proof: Proof.t): list(t) => {
   let (step, tail) = split(proof);
   let lookup = p => ProofMap.lookup(Proof.rep_id(p), proof_map);
   /* A one-step focus's row is its step's: the step's marks and side
@@ -157,7 +152,7 @@ let rec chain =
     | Some({incoming: None, _})
     | None => None
     };
-  let nested = chain(~proof_map, ~after_focus=None);
+  let nested = chain(~proof_map);
   let acts_on =
     switch (step.term) {
     /* The checker starts a focus's body from the occurrence it selected. */
@@ -189,7 +184,6 @@ let rec chain =
     kind,
     entry,
     goal,
-    after_focus,
     acts_on,
   };
   let row =
@@ -228,21 +222,8 @@ let rec chain =
     | Parens(_)
     | Seq(_, _) => row(Step(Leaf))
     };
-  /* What the focus put into the goal is the outgoing of its body, whose
-   * ids the checker keeps (`ProofCheck.check_focus`). */
-  let next_after_focus =
-    switch (step.term) {
-    | Focus({body, _}) =>
-      lookup(body)
-      |> Option.bind(_, (e: ProofMap.entry) => e.outgoing)
-      |> Option.map(out => (body, Exp.rep_id(out)))
-    | _ => None
-    };
   switch (tail, row.kind) {
-  | (Some(tail), _) => [
-      row,
-      ...chain(~proof_map, ~after_focus=next_after_focus, tail),
-    ]
+  | (Some(tail), _) => [row, ...chain(~proof_map, tail)]
   /* A hole at the end already stands for "the proof continues here". */
   | (None, Hole) => [row]
   /* `have` and `alias` keep their goal, so their body's own last row is
@@ -257,7 +238,6 @@ let rec chain =
         kind: End,
         entry,
         goal: Option.bind(entry, (e: ProofMap.entry) => e.outgoing),
-        after_focus: next_after_focus,
         acts_on: None,
       },
     ]

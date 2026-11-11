@@ -658,6 +658,8 @@ module View = {
         ~proof_map: Language.ProofMap.t=Language.ProofMap.empty,
         ~expand_selection=?,
         ~sub_editor: option(SubEditor.t)=None,
+        /* The host's own keys, which win over the editor's. */
+        ~keys: Key.t => option(Ui_effect.t(unit))=_ => None,
         model: Model.t,
       ) => {
     let is_sub = Option.is_some(sub_editor);
@@ -1154,9 +1156,7 @@ module View = {
             && z.relatives.ancestors == []
             && snd(Siblings.neighbors(z.relatives.siblings)) == None
           };
-        /* Key.listener (not Key.handler): handler adds its own tabindex(0),
-           duplicating this div's tabindex — vdom warns every render */
-        Key.listener(~f=key => {
+        let editor_keys = (key: Key.t) => {
           /* 1. Check for arrow key escape at boundaries FIRST.
            *    Keyboard.handle_key_event always returns Some for arrows,
            *    so boundary escape must be checked before delegation. */
@@ -1265,8 +1265,21 @@ module View = {
               ])
             | None => Effect.Ignore
             }
+          };
+        };
+        /* Key.listener (not Key.handler): handler adds its own tabindex(0),
+           duplicating this div's tabindex — vdom warns every render */
+        Key.listener(~f=key =>
+          switch (keys(key)) {
+          | Some(effect) =>
+            Effect.Many([
+              Effect.Prevent_default,
+              Effect.Stop_propagation,
+              effect,
+            ])
+          | None => editor_keys(key)
           }
-        });
+        );
       };
     Node.div(
       ~attrs=[

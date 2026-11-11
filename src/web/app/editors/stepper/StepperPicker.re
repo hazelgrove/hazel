@@ -2,14 +2,14 @@ open Util;
 open Language;
 open Haz3lcore;
 
-/* The step picker: what a row offers for the part of its goal the user
- * selected, as proof terms to write and boxes to open. Everything here
- * is a pure function of the row's goal, its scope and the selection, so
- * it can be tested without the UI. */
+/* What the write box offers and writes: the steps a row's goal can take,
+ * what Tab takes, the strategies, and the proof terms and patches they
+ * write. Everything here is a pure function of the row's goal, its scope
+ * and the selection, so it can be tested without the UI. */
 
 // Proof Terms
 
-/* The proof terms the picker writes. */
+/* The proof terms the stepper writes. */
 module Terms = {
   /* An expression sliced from a row's goal, made fit to write into the
    * proof. Its tile ids already occur in the rendered theorem, so they
@@ -40,7 +40,7 @@ module Terms = {
       body: step,
     });
 
-  /* The picker writes the plain forms; `with` clauses (`contradiction`,
+  /* The stepper writes the plain forms; `with` clauses (`contradiction`,
    * `revert`) and `as` names (`induction`) are typed in afterwards. */
   let contradiction = (~exp: Exp.t): TermBase.Proof.term =>
     Contradiction(embed_exp(exp), None);
@@ -206,7 +206,7 @@ let rec self_and_ancestors = (id, e: Exp.t): option(list(Exp.t)) =>
       |> List.find_map(self_and_ancestors(id))
       |> Option.map(path => path @ [e]);
 
-/* The `eval` steps the picker offers. The checker's `eval` step passes
+/* The `eval` steps the stepper offers. The checker's `eval` step passes
  * through `VarLookup`s silently (Evaluator.Proofs.advance_hidden), so a
  * step can't always be written at its own node: in `all_lists(xs) ==
  * true` the only step is the lookup of `all_lists`. Each step is offered
@@ -289,7 +289,7 @@ module EvalSteps = {
   };
 };
 
-/* A row's goal, prepared for picking: its editor, which holds the
+/* A row's goal, prepared for stepping: its editor, which holds the
  * selection, and the steps on offer. Preparing one is expensive, so the
  * stepper keeps it with the goal it was made from (see `is_for`).
  *
@@ -492,14 +492,9 @@ module Goal = {
 
 // Picking
 
-/* The boxes a picker button opens below the buttons. */
+/* A step to write, and where it acts: on the row's whole goal, or through
+ * a focus on one occurrence in it. */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type box =
-  | Rewrite
-  | Strategies;
-
-/* A step the picker writes, and where it acts: on the row's whole goal,
- * or through a focus on one occurrence in it. */
 type pick = {
   at: option(target),
   step: Proof.t,
@@ -533,50 +528,9 @@ let focused = (pick: pick): Proof.t =>
     Proof.fresh(Terms.focus(~selector, ~index, pick.step))
   };
 
-/* The patch writing `pick` at `row`. A step picked inside what the focus
- * just before the row rewrote joins that focus, focusing again within
- * that part if it is picked on less than all of it. So stepping in one
- * place grows one focus. */
-let write = (row: StepperRows.t, goal: Goal.t, pick: pick): Patches.patch => {
-  let rewrote =
-    Option.bind(row.after_focus, ((body, result)) =>
-      Exp.find_by_id(
-        Goal.display_id(~written=goal.written, ~display=goal.display, result),
-        goal.display,
-      )
-      |> Option.map(result => (body, result))
-    );
-  switch (rewrote, pick.at) {
-  | (Some((body, result)), Some({node, _} as at))
-      when Exp.find_by_id(Exp.rep_id(node), result) != None =>
-    let within =
-      Exp.rep_id(node) == Exp.rep_id(result)
-        ? None
-        : Some({
-            ...at,
-            index:
-              Occurrence.index(node, result) |> Option.value(~default=0),
-          });
-    Patches.join(
-      body,
-      focused({
-        ...pick,
-        at: within,
-      }),
-    );
-  | _ => Patches.write(row, focused(pick))
-  };
-};
-
-/* A button: its label, a tooltip saying what it writes, and its action. */
-type offer = {
-  label: string,
-  tooltip: string,
-  action,
-}
-and action =
-  | Write(pick)
-  | Open(box);
+/* The patch writing `pick` as a row of its own after `row`'s goal. */
+let write = (row: StepperRows.t, pick: pick): Patches.patch =>
+  Patches.write(row, focused(pick));
 
 /* What taking the `idx`-th offered step writes: `eval`, focused on the
  * step's source. */
@@ -619,117 +573,21 @@ let refl = (goal: Goal.t, node: Exp.t): pick => {
     ),
 };
 
-/* The buttons the picker offers for the selection `selected`. A button
- * only picks, never edits: a form with an argument to search (a rule to
- * rewrite with, a fact to cite) opens a box to pick it from, and one with
- * nothing to search (have, generalize) writes the step with a hole
- * argument for the user to type into. */
-let offers = (goal: Goal.t, ~selected: option(Exp.t)): list(offer) => {
-  let display = goal.display;
-  let whole = term => {
-    at: None,
-    step: Proof.fresh(term),
-  };
-  let is_selected = (e: Exp.t) =>
-    switch (selected) {
-    | Some(s) => Exp.rep_id(s) == Exp.rep_id(e)
-    | None => false
-    };
-  let step =
-    switch (
-      List.find_index(
-        id => Option.map(Exp.rep_id, selected) == Some(id),
-        Goal.step_ids(goal),
+/* The goal `proof` leaves, checked from `goal` alone rather than as part
+ * of its theorem, or None if the checker marks any step of it. */
+let outgoing = (goal: Goal.t, written: Exp.t, proof: Proof.t): option(Exp.t) => {
+  let checked =
+    Evaluator.Proofs.check_proof(
+      ~statics=Goal.info_map(goal),
+      ~ctx=goal.ctx,
+      ~goal=written,
+      proof,
+    );
+  ProofMap.error_ids(checked) == []
+    ? Option.bind(ProofMap.lookup(Proof.rep_id(proof), checked), e =>
+        e.outgoing
       )
-      |> Option.bind(_, take_step(goal))
-    ) {
-    | Some(pick) => [
-        {
-          label: "Step",
-          tooltip: "Writes `eval`: one evaluation step at the selection",
-          action: Write(pick),
-        },
-      ]
-    | None => []
-    };
-  let refl =
-    switch (List.find_opt(is_selected, goal.refls)) {
-    | Some(e) => [
-        {
-          label: "Reflexivity",
-          tooltip: "Writes `axiom refl_eq`: closes an equation of equals",
-          action: Write(refl(goal, e)),
-        },
-      ]
-    | None => []
-    };
-  let function_body =
-    is_selected(display) && Exp.is_fun(display)
-      ? [
-        {
-          label: "Function Body",
-          tooltip: "Writes `forall ? =>`: names the argument, to prove the body",
-          action: Write(whole(Terms.forall())),
-        },
-      ]
-      : [];
-  /* Exactly when the goal is `f == g` at an arrow type, by the checker's
-   * own detector, so the button never offers a step that would mark.
-   * The arrow type keeps it off `==` between lists of functions. */
-  let info_map = Goal.info_map(goal);
-  let env = Goal.env(goal);
-  let funext =
-    ProofCheck.Funext.goal(~info_map, ~env, display) == None
-      ? []
-      : [
-        {
-          label: "Funext",
-          tooltip: "Writes `funext x =>`: proves the functions equal at any x",
-          action:
-            Write(
-              whole(
-                Terms.funext(
-                  ~binder=ProofCheck.Funext.binder(~info_map, ~env, display),
-                ),
-              ),
-            ),
-        },
-      ];
-  /* With goal `A ==> B`, assuming exactly A strips the antecedent. */
-  let assume =
-    switch (Exp.term_of(display)) {
-    | BinOp(Bool(Implies), a, _) => [
-        {
-          label: "Assume",
-          tooltip: "Writes `assume A =>`: takes the left side of `A ==> B` as a fact",
-          action: Write(whole(Terms.assume(~exp=a))),
-        },
-      ]
-    | _ => []
-    };
-  let rewrite =
-    selected == None
-      ? []
-      : [
-        {
-          label: "Rewrite ▼",
-          tooltip: "Rewrites the selection, by algebra or with a fact, theorem or axiom",
-          action: Open(Rewrite),
-        },
-      ];
-  step
-  @ refl
-  @ function_body
-  @ funext
-  @ assume
-  @ rewrite
-  @ [
-    {
-      label: "Strategies ▼",
-      tooltip: "Have, contradiction, cases: steps that shape the rest of the proof",
-      action: Open(Strategies),
-    },
-  ];
+    : None;
 };
 
 /* A scope's citable rules: its own facts and theorems, then the builtin
@@ -741,127 +599,253 @@ let scope_and_axioms =
   ListUtil.split_n(List.length(all) - List.length(Axioms.v), all);
 };
 
-type section = {
-  heading: string,
-  rules: list(ProofCtx.entry),
+// The write box
+
+/* What Tab takes in an empty write box: reflexivity when it closes the
+ * goal, or else the goal's next eval step. With part of the goal selected,
+ * the step is the selection's own, and the ghost is what the selection
+ * becomes. */
+module Ghost = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {
+    /* The rule's name, shown beside the Tab key. */
+    rule: string,
+    pick,
+    /* As the row would show it. */
+    result: Exp.t,
+  };
+
+  let mk = (goal: Goal.t, ~selected: option(Exp.t)): option(t) => {
+    open OptUtil.Syntax;
+    /* A step on `(1 + 1)` has the parens as its source, so a selection of
+     * `1 + 1` takes in the parens around it. */
+    let rec widen = (node, ancestors) =>
+      switch (ancestors) {
+      | [parens, ...rest] =>
+        switch (Exp.term_of(parens)) {
+        | Parens(_) => widen(parens, rest)
+        | _ => node
+        }
+      | [] => node
+      };
+    let node =
+      switch (selected) {
+      | Some(s) =>
+        switch (self_and_ancestors(Exp.rep_id(s), goal.display)) {
+        | Some([_, ...ancestors]) => widen(s, ancestors)
+        | Some([])
+        | None => s
+        }
+      | None => goal.display
+      };
+    let is_node = (e: Exp.t) => Exp.rep_id(e) == Exp.rep_id(node);
+    let inside = id => Exp.find_by_id(id, node) != None;
+    let candidate =
+      List.exists(is_node, goal.refls)
+        ? Some(("refl", refl(goal, node)))
+        : List.find_index(inside, Goal.step_ids(goal))
+          |> Option.bind(_, take_step(goal))
+          |> Option.map(pick => ("eval", pick));
+    let* (rule, pick) = candidate;
+    let+ written = outgoing(goal, goal.written, focused(pick));
+    let display = Goal.display_of(~ctx=goal.ctx, written);
+    {
+      rule,
+      pick,
+      result:
+        Occurrence.map_rep_id(
+          ~from=goal.display,
+          ~onto=display,
+          Exp.rep_id(node),
+        )
+        |> Option.bind(_, id => Exp.find_by_id(id, display))
+        |> Option.value(~default=display),
+    };
+  };
 };
 
-/* The rules the Rewrite box lists, by source, leaving out empty
- * sections. With no filter typed, those that rewrite the selection; with
- * one, those whose names match it. Bare boolean facts read as
- * `P == true` here, once, so the list and the box agree on what each rule
- * rewrites. The checker's axiom step makes the same call, so a rule shown
- * as applicable is one the checker accepts. */
-let rules =
-    (goal: Goal.t, ~filter: string, ~selected: option(Exp.t)): list(section) => {
-  let info_map = Goal.info_map(goal);
-  let shown = entries =>
-    entries
-    |> List.filter(({name, _}: ProofCtx.entry) =>
-         filter == "" || StringUtil.subseq_search(name, filter)
-       )
-    |> List.map((entry: ProofCtx.entry) =>
-         {
-           ...entry,
-           rule:
-             ProofRule.BoolReading.apply(
-               ~info_map=Some(info_map),
-               entry.rule,
-             ),
-         }
-       )
-    |> List.filter((entry: ProofCtx.entry) =>
-         filter != ""
-         || (
-           switch (selected) {
-           | Some(e) =>
-             ProofRule.Rewrite.is_active(
-               ~info_map,
-               ~env=Goal.env(goal),
-               entry.rule,
-               DHExp.strip_ascriptions(e),
-             )
-           | None => false
+/* The Proof strategy tab: the goal's own introduction, then the
+ * strategies any goal can use. One with something to choose, a variable
+ * or a fact, offers the choices in a menu, ending with a hole to type
+ * into. */
+module Strategies = {
+  type choice = {
+    label: Exp.t,
+    term: TermBase.Proof.term,
+  };
+
+  type strategy = {
+    label: string,
+    /* What it writes and what for. */
+    tooltip: string,
+    /* Shown beside the label, as Assume shows the antecedent it assumes. */
+    argument: option(Exp.t),
+    writes,
+  }
+  and writes =
+    | Writes(TermBase.Proof.term)
+    | Chooses(list(choice));
+
+  let intros = (goal: Goal.t): list(strategy) => {
+    let display = goal.display;
+    let info_map = Goal.info_map(goal);
+    let env = Goal.env(goal);
+    let forall =
+      Exp.is_fun(display)
+        ? [
+          {
+            label: "Forall",
+            tooltip: "Writes `forall x =>`: names the argument, to prove the body for any x",
+            argument: None,
+            writes: Writes(Terms.forall()),
+          },
+        ]
+        : [];
+    /* Exactly when the goal is `f == g` at an arrow type, by the checker's
+     * own detector, so it never writes a step that would mark. */
+    let funext =
+      ProofCheck.Funext.goal(~info_map, ~env, display) == None
+        ? []
+        : [
+          {
+            label: "Funext",
+            tooltip: "Writes `funext x =>`: proves the functions equal at any argument x",
+            argument: None,
+            writes:
+              Writes(
+                Terms.funext(
+                  ~binder=ProofCheck.Funext.binder(~info_map, ~env, display),
+                ),
+              ),
+          },
+        ];
+    /* With goal `A ==> B`, assuming exactly A strips the antecedent. */
+    let assume =
+      switch (Exp.term_of(display)) {
+      | BinOp(Bool(Implies), a, _) => [
+          {
+            label: "Assume",
+            tooltip: "Writes `assume A =>`: adds A as a fact and proves the rest",
+            argument: Some(a),
+            writes: Writes(Terms.assume(~exp=a)),
+          },
+        ]
+      | _ => []
+      };
+    forall @ funext @ assume;
+  };
+
+  let general = (goal: Goal.t): list(strategy) => {
+    let ctx = SemanticCtx.get_ctx(goal.ctx);
+    let hole = Exp.fresh(EmptyHole);
+    let choose = (term, labels) =>
+      Chooses(
+        List.map(
+          label =>
+            {
+              label,
+              term: term(~exp=label),
+            },
+          labels,
+        )
+        @ [
+          {
+            label: hole,
+            term: term(~exp=hole),
+          },
+        ],
+      );
+    let rec nodes = (e: Exp.t) => [
+      e,
+      ...List.concat_map(nodes, Occurrence.children(e)),
+    ];
+    let distinct = ListUtil.dedup_f(Exp.fast_equal);
+    /* The goal's variables that name values in scope, not functions. */
+    let variables =
+      nodes(goal.written)
+      |> List.filter_map((e: Exp.t) =>
+           switch (Exp.term_of(e)) {
+           | Var(x) =>
+             Ctx.lookup_var(ctx, x)
+             |> Option.map((entry: Ctx.var_entry) =>
+                  (e, Typ.weak_head_normalize(ctx, entry.typ))
+                )
+           | _ => None
            }
          )
-       );
-  let (scope, axioms) = scope_and_axioms(goal.ctx);
-  [
-    {
-      heading: "Facts and theorems",
-      rules: shown(scope),
-    },
-    {
-      heading: "Axioms",
-      rules: shown(axioms),
-    },
-  ]
-  |> List.filter(section => section.rules != []);
-};
-
-/* A row of the Strategies box. */
-type strategy = {
-  label: string,
-  /* One line on what it is for. */
-  explanation: string,
-  tooltip: string,
-  picks,
-}
-and picks =
-  | Writes(TermBase.Proof.term)
-  /* One step per in-scope fact, by the fact's name. The forms that cite
-   * a fact match it by `Exp.fast_equal` (ProofCheck.Discharge.lookup),
-   * so typing one in is error prone. */
-  | Cites(list((string, TermBase.Proof.term)));
-
-/* The Strategies box, as the strategies most proofs use and those
- * rarely needed. */
-let strategies =
-    (goal: Goal.t, ~selected: option(Exp.t))
-    : (list(strategy), list(strategy)) => {
-  let hole = () => Exp.fresh(EmptyHole);
-  let cites = term =>
-    Cites(
+      |> List.filter(((_, ty)) =>
+           switch (Typ.term_of(ty)) {
+           | Arrow(_) => false
+           | _ => true
+           }
+         );
+    let inductive =
+      variables
+      |> List.filter(((_, ty)) =>
+           switch (Typ.term_of(ty)) {
+           | List(_)
+           | Sum(_)
+           | Rec(_) => true
+           | _ => false
+           }
+         )
+      |> List.map(fst)
+      |> distinct;
+    /* What a case split can split on: a variable, or a call. */
+    let splittable =
+      nodes(goal.written)
+      |> List.filter((e: Exp.t) =>
+           switch (Exp.term_of(e)) {
+           | Ap(_) => true
+           | _ => false
+           }
+         )
+      |> (calls => List.map(fst, variables) @ calls)
+      |> distinct;
+    let facts =
       fst(scope_and_axioms(goal.ctx))
       |> List.filter((entry: ProofCtx.entry) => !entry.is_captured)
-      |> List.map((entry: ProofCtx.entry) =>
-           (entry.name, term(~exp=entry.exp))
-         ),
-    );
-  (
+      |> List.map((entry: ProofCtx.entry) => entry.exp)
+      |> distinct;
+    let induction = (~exp) => Terms.induction(~scrut=Some(exp));
     [
       {
+        label: "Induction",
+        tooltip: "Writes `induction x end`: one case per form of x, each with its inductive hypotheses",
+        argument: None,
+        writes: choose(induction, inductive),
+      },
+      {
+        label: "Cases",
+        tooltip: "Writes `induction e end` on any expression: one case per form of its value",
+        argument: None,
+        writes: choose(induction, splittable),
+      },
+      {
         label: "Have",
-        explanation: "Prove a stepping-stone fact first, then use it here.",
-        tooltip: "Writes `have ? proof ? =>`",
-        picks: Writes(Terms.have(~exp=hole())),
+        tooltip: "Writes `have ? proof ? =>`: proves a stepping-stone fact first, then uses it here",
+        argument: None,
+        writes: Writes(Terms.have(~exp=hole)),
       },
       {
         label: "Contradiction",
-        explanation: "Close an impossible case: pick a fact here that evaluates to false.",
-        tooltip: "Writes `contradiction <fact> end`",
-        picks: cites(Terms.contradiction),
-      },
-      {
-        label: "Cases/Induction",
-        explanation: "Split the proof into one case per form of the selected value.",
-        tooltip: "Writes `induction <selection> end`; add the cases in its row",
-        picks: Writes(Terms.induction(~scrut=selected)),
-      },
-    ],
-    [
-      {
-        label: "Revert",
-        explanation: "Move a fact back into the goal as fact ==> goal, e.g. before induction.",
-        tooltip: "Writes `revert <fact> =>`",
-        picks: cites(Terms.revert),
+        tooltip: "Writes `contradiction <fact> end`: closes an impossible case with a fact that evaluates to false",
+        argument: None,
+        writes: choose(Terms.contradiction, facts),
       },
       {
         label: "Generalize",
-        explanation: "Turn a fixed variable back into a forall, e.g. before induction.",
-        tooltip: "Writes `generalize ? =>`",
-        picks: Writes(Terms.generalize(~exp=hole())),
+        tooltip: "Writes `generalize x =>`: makes x arbitrary again, a forall in the goal, e.g. before induction",
+        argument: None,
+        writes:
+          choose(Terms.generalize, List.map(fst, variables) |> distinct),
       },
-    ],
-  );
+      {
+        label: "Revert",
+        tooltip: "Writes `revert <fact> =>`: moves a fact back into the goal as fact ==> goal, e.g. before induction",
+        argument: None,
+        writes: choose(Terms.revert, facts),
+      },
+    ];
+  };
 };

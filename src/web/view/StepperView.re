@@ -3,13 +3,15 @@ open Language;
 
 /* The stepper: a proof drawn as a chain of rows, one per step, each
  * showing the goal the step starts from and the step's justification.
+ * Where a chain is unfinished, its last row holds the write box, where the
+ * user writes the next step.
  *
  * The rows are a projection of the proof syntax and the checker's
  * ProofMap (StepperRows), walked again on every render. A row changes
  * the proof only by patching its syntax (StepperPicker.Patches); the
  * next check gives the next rows. The only state is each row's own UI
- * state: its goal's editor, which holds the selection, and the picker
- * box it has open. */
+ * state: its goal's editor, which holds the selection, and its write
+ * box. */
 
 /* This file follows conventions in [docs/ui-architecture.md] */
 
@@ -18,22 +20,29 @@ module Picker = StepperPicker;
 
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type box =
-    | Closed
-    /* The rule search typed into the Rewrite box, the replacement typed
-     * into its Algebra section, and whether the rewrite checker accepted
-     * that replacement. */
-    | Rewrite({
-        filter: string,
-        editor: CodeEditable.Model.t,
-        valid: option(bool),
-      })
-    | Strategies;
+  type tab =
+    | Write
+    | Step
+    | Strategy;
+
+  /* The write box at the end of an unfinished chain. Its text stays while
+   * the row exists, and goes with it. */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type box = {
+    /* None until the user picks a tab: then the stepper's default. */
+    tab: option(tab),
+    editor: CodeEditable.Model.t,
+    /* What Tab takes, for the goal and its selection. */
+    ghost: option(Picker.Ghost.t),
+    /* The strategy whose menu is open, by its label. */
+    menu: option(string),
+  };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type local = {
     goal: Picker.Goal.t,
-    box,
+    /* For a row where its chain continues. */
+    box: option(box),
     /* The side conditions shown open, by index into the row's
      * `StepperRows.side_conditions`. */
     expanded: list(int),
@@ -68,6 +77,13 @@ module Model = {
         outgoing: Id.Map.add(id, local, model.outgoing),
       }
     };
+
+  /* Whether nothing is typed in the box. */
+  let is_empty = (box: box): bool =>
+    switch (Exp.term_of(CodeEditable.Model.get_statics(box.editor).term)) {
+    | EmptyHole => true
+    | _ => false
+    };
 };
 
 /* A row's actions. The stepper's other kind of action, a patch to the
@@ -76,17 +92,39 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action =
     | Goal(CodeSelectable.Update.t)
-    | Toggle(Picker.box)
-    | Filter(string)
-    | RewriteEditor(CodeEditable.Update.t)
-    | Checked(bool)
+    | Tab(Model.tab)
+    | BoxEditor(CodeEditable.Update.t)
+    | Menu(option(string))
     | ToggleCondition(int);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = (Rows.key, action);
 
-  let replacement = (editor: CodeEditable.Model.t): Exp.t =>
-    CodeEditable.Model.get_statics(editor).elaborated;
+  /* The box's text is an expression in the goal's scope. */
+  let calculate_box = (~settings, goal: Picker.Goal.t, editor) =>
+    CodeEditable.Update.calculate(
+      ~settings,
+      ~is_edited=true,
+      ~is_dynamic_term=true,
+      ~dynamics=Dynamics.Map.empty,
+      ~stitch=x => x,
+      ~ctx=SemanticCtx.get_ctx(goal.ctx),
+      editor,
+    );
+
+  let ghost = (goal: Picker.Goal.t) =>
+    Picker.Ghost.mk(goal, ~selected=Picker.Goal.selected(goal));
+
+  let new_box = (~settings, goal: Picker.Goal.t): Model.box => {
+    tab: None,
+    editor:
+      CodeEditable.Model.mk(
+        Haz3lcore.Editor.Model.mk(Haz3lcore.Zipper.init(), ~root=Exp),
+      )
+      |> calculate_box(~settings, goal),
+    ghost: ghost(goal),
+    menu: None,
+  };
 
   let update =
       (~settings: Settings.t, (key, action): t, model: Model.t)
@@ -96,89 +134,50 @@ module Update = {
     | Some(local) =>
       open Updated;
       let set = (local: Model.local) => Model.add(key, local, model);
-      /* The replacement's statics, which give its elaborated form. */
-      let calculate_rewrite =
-        CodeEditable.Update.calculate(
-          ~settings=settings.core,
-          ~is_edited=true,
-          ~is_dynamic_term=true,
-          ~dynamics=Dynamics.Map.empty,
-          ~stitch=x => x,
-          ~ctx=SemanticCtx.get_ctx(local.goal.ctx),
-        );
+      let set_box = (box: Model.box) =>
+        set({
+          ...local,
+          box: Some(box),
+        });
       switch (action, local.box) {
+      /* A changed selection changes what Tab takes. */
       | (Goal(a), _) =>
         let* editor =
           CodeSelectable.Update.update(~settings, a, local.goal.editor);
+        let goal = {
+          ...local.goal,
+          editor,
+        };
         set({
           ...local,
-          goal: {
-            ...local.goal,
-            editor,
-          },
+          goal,
+          box:
+            Option.map(
+              (box: Model.box) =>
+                {
+                  ...box,
+                  ghost: ghost(goal),
+                },
+              local.box,
+            ),
         });
-      /* The button that opened a box closes it. */
-      | (Toggle(box), _) =>
-        let box: Model.box =
-          switch (box, local.box) {
-          | (Rewrite, Rewrite(_))
-          | (Strategies, Strategies) => Closed
-          | (Rewrite, _) =>
-            Rewrite({
-              filter: "",
-              editor:
-                CodeEditable.Model.mk(
-                  Haz3lcore.Editor.Model.mk(
-                    Haz3lcore.Zipper.init(),
-                    ~root=Exp,
-                  ),
-                )
-                |> calculate_rewrite,
-              valid: None,
-            })
-          | (Strategies, _) => Strategies
-          };
-        set({
-          ...local,
-          box,
+      | (Tab(tab), Some(box)) =>
+        set_box({
+          ...box,
+          tab: Some(tab),
+          menu: None,
         })
-        |> return_quiet(~logged=true);
-      | (Filter(filter), Rewrite(r)) =>
-        set({
-          ...local,
-          box:
-            Rewrite({
-              ...r,
-              filter,
-            }),
-        })
-        |> return_quiet
-      /* A changed replacement has to be checked again. */
-      | (RewriteEditor(a), Rewrite({editor: old, valid, _} as r)) =>
-        let* editor = CodeEditable.Update.update(~settings, a, old);
-        let editor = calculate_rewrite(editor);
-        let unchanged =
-          Exp.fast_equal_with_lexemes(
-            replacement(old),
-            replacement(editor),
-          );
-        set({
-          ...local,
-          box:
-            Rewrite({
-              ...r,
-              editor,
-              valid: unchanged ? valid : None,
-            }),
+        |> return_quiet(~logged=true)
+      | (BoxEditor(a), Some(box)) =>
+        let* editor = CodeEditable.Update.update(~settings, a, box.editor);
+        set_box({
+          ...box,
+          editor: calculate_box(~settings=settings.core, local.goal, editor),
         });
-      | (Checked(valid), Rewrite(r)) =>
-        set({
-          ...local,
-          box:
-            Rewrite({
-              ...r,
-              valid: Some(valid),
-            }),
+      | (Menu(menu), Some(box)) =>
+        set_box({
+          ...box,
+          menu,
         })
         |> return_quiet(~logged=true)
       | (ToggleCondition(i), _) =>
@@ -190,7 +189,7 @@ module Update = {
               : [i, ...local.expanded],
         })
         |> return_quiet(~logged=true)
-      | (Filter(_) | RewriteEditor(_) | Checked(_), _) =>
+      | (Tab(_) | BoxEditor(_) | Menu(_), None) =>
         model |> raise_invalid_action
       };
     };
@@ -198,7 +197,7 @@ module Update = {
   /* The state for `rows`, rebuilt from the walk: a row carries over its
    * last state, preparing its goal again only if the goal or the settings
    * changed, and a row the walk doesn't reach is dropped with its state.
-   * A row with no goal has nothing to pick on, so no state. */
+   * A row with no goal has nothing to step, so no state. */
   let calculate =
       (~settings: CoreSettings.t, rows: list(Rows.t), model: Model.t)
       : Model.t =>
@@ -206,32 +205,48 @@ module Update = {
       (acc, row: Rows.t) =>
         switch (row.goal, Rows.ctx(row)) {
         | (Some(written), Some(ctx)) =>
-          let goal = () => Picker.Goal.mk(~settings, ~ctx, written);
+          /* A box carries its text over to its row's new goal. */
+          let with_goal = (local: Model.local, goal): Model.local => {
+            ...local,
+            goal,
+            box:
+              Option.map(
+                (box: Model.box) =>
+                  {
+                    ...box,
+                    editor: calculate_box(~settings, goal, box.editor),
+                    ghost: ghost(goal),
+                  },
+                local.box,
+              ),
+          };
           let local: Model.local =
             switch (Model.find(row.key, model)) {
             | Some(local) when Picker.Goal.is_for(local.goal, ~ctx, written) =>
-              let carried = {
+              let goal = {
                 ...local.goal,
                 ctx,
               };
+              CoreSettings.eq_ignoring_stepper_modals(goal.settings, settings)
+                ? {
+                  ...local,
+                  goal,
+                }
+                : with_goal(local, Picker.Goal.rebuild(~settings, goal));
+            | Some(local) =>
+              with_goal(local, Picker.Goal.mk(~settings, ~ctx, written))
+            | None =>
+              let goal = Picker.Goal.mk(~settings, ~ctx, written);
               {
-                ...local,
-                goal:
-                  CoreSettings.eq_ignoring_stepper_modals(
-                    carried.settings,
-                    settings,
-                  )
-                    ? carried : Picker.Goal.rebuild(~settings, carried),
-              };
-            | Some(local) => {
-                ...local,
-                goal: goal(),
-              }
-            | None => {
-                goal: goal(),
-                box: Closed,
+                goal,
+                box:
+                  switch (row.kind) {
+                  | Hole
+                  | End => Some(new_box(~settings, goal))
+                  | Step(_) => None
+                  },
                 expanded: [],
-              }
+              };
             };
           Model.add(row.key, local, acc);
         | (None, _)
@@ -254,7 +269,7 @@ module Focus = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Goal(Rows.key)
-    /* The input of the box a row has open. */
+    /* A row's write box. */
     | Box(Rows.key)
     /* A sub-editor onto the proof text (SubEditor), by its step's id. Its
      * caret is the backing editor's, so this only says which one has
@@ -281,15 +296,15 @@ module Focus = {
       }
     | Box(key) =>
       switch (Model.find(key, model)) {
-      | Some({box: Rewrite({editor, _}), _}) =>
+      | Some({box: Some({editor, _}), _}) =>
         let+ ci =
           CodeEditable.Selection.get_cursor_info(
-            ~inject=a => inject((key, RewriteEditor(a))),
+            ~inject=a => inject((key, BoxEditor(a))),
             ~selection=(),
             editor,
           );
-        (key, Update.RewriteEditor(ci));
-      | Some(_)
+        (key, Update.BoxEditor(ci));
+      | Some({box: None, _})
       | None => empty
       }
     | Splice(_) => empty
@@ -581,7 +596,7 @@ module View = {
         | (Remote(_), Some((name, _))) => closed(name)
         | (Remote(_), None) => closed("a fact in scope")
         | (Evaluated, _) => closed("by evaluation")
-        /* TODO: a `?` here opens the picker once a side condition can be
+        /* TODO: a `?` here holds a write box once a side condition can be
          * proved in place (`with <condition> by <proof>`). */
         | (Pending, _) => [
             Row.quiet(
@@ -621,317 +636,206 @@ module View = {
     };
   };
 
-  /* The picker over a row's goal: its buttons for the selection, and the
-   * box one of them opened, placed under the selection. */
-  module Overlay = {
-    open Haz3lcore;
+  /* The write box, under the goal of an unfinished chain, with its tabs
+   * above it. */
+  module Box = {
+    let label = (tab: Model.tab) =>
+      switch (tab) {
+      | Write => "Write next step"
+      | Step => "Step"
+      | Strategy => "Proof strategy"
+      };
 
-    let segment_bounds = (~measured: Measured.t, segment: Segment.t) => {
-      open OptUtil.Syntax;
-      let* first_piece = ListUtil.hd_opt(segment);
-      let Point.{row: start_y, col: start_x} =
-        Measured.find_p(~msg="segment_bounds", first_piece, measured).origin;
-      let* last_piece = ListUtil.last_opt(segment);
-      let Point.{row: end_y, col: end_x} =
-        Measured.find_p(~msg="segment_bounds", last_piece, measured).last;
-      let rows = List.init(end_y - start_y + 1, i => start_y + i);
-      let row = r => Measured.Rows.find(r, measured.rows);
-      let left =
-        List.fold_left(
-          (acc, r) => Int.min(acc, row(r).content_start),
-          start_x,
-          rows,
-        );
-      let right =
-        List.fold_left(
-          (acc, r) => r == end_y ? acc : Int.max(acc, row(r).max_col),
-          end_x,
-          rows,
-        );
-      Some((left, right, start_y, end_y + 1));
-    };
+    /* The tab the user picked, or the stepper's default, its first. */
+    let current = (~tabs: list(Model.tab), box: Model.box): Model.tab =>
+      switch (box.tab, tabs) {
+      | (Some(tab), _) when List.mem(tab, tabs) => tab
+      | (_, [first, ..._]) => first
+      | (_, []) => Write
+      };
+
+    let keycap = name => div_c("box-key", [Node.text(name)]);
+
+    /* A key with no modifiers held. */
+    let plain = (name, key: Key.t) =>
+      switch (key) {
+      | {key: D(k), shift: Up, meta: Up, ctrl: Up, alt: Up, _} => k == name
+      | _ => false
+      };
 
     let view =
         (
           ~globals: Globals.t,
-          /* Writes a picked step into the proof. */
-          ~write: Picker.pick => Ui_effect.t(unit),
+          /* The first is the stepper's default. */
+          ~tabs: list(Model.tab),
           ~inject: Update.action => Ui_effect.t(unit),
-          ~take_box_focus: Ui_effect.t(unit),
-          ~box_focused: bool,
-          local: Model.local,
+          ~write: Picker.pick => Ui_effect.t(unit),
+          ~take_focus: Ui_effect.t(unit),
+          ~focused: bool,
+          /* Controls for the hole the box writes in place of. */
+          ~hole_actions: list(Node.t),
+          box: Model.box,
+          goal: Picker.Goal.t,
         )
-        : list(Node.t) => {
-      let goal = local.goal;
-      let selected = Picker.Goal.selected(goal);
-      let selected_or_hole =
-        selected |> Option.value(~default=Exp.fresh(EmptyHole));
-      let env = Picker.Goal.env(goal);
-      let info_map = Picker.Goal.info_map(goal);
-      let code = (e: Exp.t) =>
-        CodeViewable.view_any(
-          ~globals,
-          ~settings=ProofMarkView.code_view_settings(globals.settings.core),
-          Exp(e),
-        );
-      /* Picking a step forces the record open, or the row just written
-       * would not be on screen. */
-      let write = (pick: Picker.pick) =>
-        Ui_effect.Many([
-          globals.inject_global(Set(Evaluation(ForceShowRecord))),
-          write(pick),
-        ]);
-      /* A step picked in a box acts on the selection. */
-      let write_at_selection = term =>
-        switch (selected) {
-        | Some(node) =>
-          write({
-            at: Picker.target(goal, node),
-            step: Proof.fresh(term),
-          })
-        | None => Ui_effect.Ignore
-        };
-      let write_whole = term =>
-        write({
-          at: None,
-          step: Proof.fresh(term),
-        });
-      /* Its pointerdown stops here: reaching the goal's editor, it would
-       * move the selection. */
-      let button = (~tooltip: string, label: string, effect) =>
-        Node.div(
-          ~attrs=[
-            Attr.classes(["proof-button"]),
-            Attr.title(tooltip),
-            Attr.on_pointerdown(_ => Virtual_dom.Vdom.Effect.Stop_propagation),
-            Attr.on_click(_ =>
-              Ui_effect.Many([
-                effect,
-                Virtual_dom.Vdom.Effect.Stop_propagation,
-              ])
-            ),
-          ],
-          [Node.text(label)],
-        );
-      let heading = text => div_c("picker-heading", [Node.text(text)]);
-      /* Replace the selection with an expression the user types, once the
-       * rewrite checker accepts the two as equal. */
-      let algebra = (editor: CodeEditable.Model.t, valid: option(bool)) => {
-        let replacement =
-          Substitution.in_exp(env, Update.replacement(editor));
-        let selection = Substitution.in_exp(env, selected_or_hole);
-        let check_or_replace =
-          switch (valid) {
-          | Some(true) => [
-              Node.text("Valid"),
-              button(
-                ~tooltip="Writes `rewrite`: replaces the selection",
-                "Replace",
-                write_at_selection(
-                  Picker.Terms.algebrite_step(~replacement),
-                ),
-              ),
-            ]
-          | Some(false) => [Node.text("Not equal")]
-          | None => [
-              button(
-                ~tooltip="Checks the two are equal by algebra",
-                "Check",
-                inject(
-                  Checked(
-                    RewriteChecker.check_rewrite(selection, replacement),
-                  ),
-                ),
-              ),
-            ]
-          };
+        : Node.t => {
+      let tab = current(~tabs, box);
+      let code = (e: Exp.t) => code(~globals, Exp(e));
+      let tab_bar =
         div_c(
-          "rewrite-algebra",
-          [
-            Node.text("Replace "),
-            code(selected_or_hole),
-            Node.text(" with "),
-            div_c(
-              "inline-editor-wrapper",
-              [
-                CodeEditable.View.view(
-                  ~globals,
-                  ~signal=
-                    fun
-                    | MakeActive => take_box_focus,
-                  ~edit_mode=
-                    EditMode.Editable({
-                      inject: a => inject(RewriteEditor(a)),
-                      escape: _ => Ui_effect.Ignore,
-                      take_focus: _ => Ui_effect.Ignore,
-                      focus: box_focused ? Some() : None,
-                    }),
-                  ~dynamics=Dynamics.Map.empty,
-                  editor,
-                ),
-              ],
-            ),
-          ]
-          @ check_or_replace,
-        );
-      };
-      let rule = (entry: ProofCtx.entry) => {
-        let apply = (direction, equality) =>
-          write_at_selection(Picker.Terms.axiom_step(~direction, ~equality));
-        AssumptionBox.View.view(
-          ~globals,
-          ~info_map,
-          ~env,
-          ~active_selection=
-            Some((
-              selected_or_hole,
-              [],
-              fun
-              | AssumptionBox.EqualityLeft(e) => apply(Left, e)
-              | AssumptionBox.EqualityRight(e) => apply(Right, e),
-            )),
-          {ctx_entry: entry},
-        );
-      };
-      let rewrite = (~filter, ~editor, ~valid) => {
-        let sections =
-          switch (Picker.rules(goal, ~filter, ~selected)) {
-          | [] => [
-              div_c(
-                "picker-note",
-                [
-                  Node.text(
-                    filter == ""
-                      ? "No fact, theorem or axiom rewrites the selection."
-                      : "No rule matches the search.",
-                  ),
+          "box-tabs",
+          List.map(
+            t =>
+              Node.div(
+                ~attrs=[
+                  Attr.classes(["box-tab"] @ (t == tab ? ["on"] : [])),
+                  Attr.on_click(_ => inject(Tab(t))),
                 ],
+                [Node.text(label(t))],
               ),
-            ]
-          | sections =>
-            List.concat_map(
-              ({heading: h, rules}: Picker.section) =>
-                [heading(h), ...List.map(rule, rules)],
-              sections,
+            tabs,
+          )
+          @ [div_c("box-hole-actions", hole_actions)],
+        );
+      let input = () => {
+        let empty = Model.is_empty(box);
+        let ghost = empty ? box.ghost : None;
+        let keys = (key: Key.t) =>
+          switch (ghost) {
+          | Some(ghost) when plain("Tab", key) => Some(write(ghost.pick))
+          /* Shift+Enter still breaks the line. */
+          | _ when plain("Enter", key) => Some(Ui_effect.Ignore)
+          | _ => None
+          };
+        let editor =
+          CodeEditable.View.view(
+            ~globals,
+            ~signal=
+              fun
+              | MakeActive => take_focus,
+            ~edit_mode=
+              EditMode.Editable({
+                inject: a => inject(BoxEditor(a)),
+                escape: _ => Ui_effect.Ignore,
+                take_focus: _ => Ui_effect.Ignore,
+                focus: focused ? Some() : None,
+              }),
+            ~dynamics=Dynamics.Map.empty,
+            ~keys,
+            box.editor,
+          );
+        let (ghost, hint) =
+          switch (ghost) {
+          | Some(g) => (
+              [div_c("box-ghost", [code(g.result)])],
+              [keycap("Tab"), Node.text(g.rule)],
             )
+          | None => ([], [])
           };
         div_c(
-          "rewrite-box",
-          [heading("Algebra"), algebra(editor, valid)]
-          @ [
-            Node.input(
+          "box-input",
+          [
+            Node.div(
               ~attrs=[
-                Attr.value(filter),
-                Attr.placeholder("search facts, theorems and axioms..."),
-                Attr.on_focus(_ => take_box_focus),
-                Attr.on_input((_, s) => inject(Filter(s))),
+                Attr.classes(["box-editor"] @ (empty ? ["empty"] : [])),
               ],
-              (),
+              [editor] @ ghost,
             ),
-          ]
-          @ sections,
-        );
-      };
-      let strategy = ({label, explanation, tooltip, picks}: Picker.strategy) => {
-        let explanation =
-          div_c("strategy-explanation", [Node.text(explanation)]);
-        div_c(
-          "strategy",
-          switch (picks) {
-          | Writes(term) => [
-              button(~tooltip, label, write_whole(term)),
-              explanation,
-            ]
-          | Cites(facts) => [
-              Node.text(label),
-              explanation,
-              div_c(
-                "strategy-facts",
-                switch (facts) {
-                | [] => [
-                    div_c("picker-note", [Node.text("No facts in scope.")]),
-                  ]
-                | facts => [
-                    Node.text("with"),
-                    ...List.map(
-                         ((name, term)) =>
-                           button(~tooltip, name, write_whole(term)),
-                         facts,
-                       ),
-                  ]
-                },
-              ),
-            ]
-          },
+            div_c("box-hint", hint),
+          ],
         );
       };
       let strategies = () => {
-        let (common, rare) = Picker.strategies(goal, ~selected);
-        div_c(
-          "strategies-box",
-          List.map(strategy, common)
-          @ [heading("Rarely needed"), ...List.map(strategy, rare)],
-        );
-      };
-      let box =
-        switch (local.box) {
-        | Closed => []
-        | Rewrite({filter, editor, valid}) => [
-            rewrite(~filter, ~editor, ~valid),
-          ]
-        | Strategies => [strategies()]
-        };
-      let offer = ({label, tooltip, action}: Picker.offer) =>
-        button(
-          ~tooltip,
-          label,
-          switch (action) {
-          | Write(pick) => write(pick)
-          | Open(box) => inject(Toggle(box))
-          },
-        );
-      let editor = goal.editor.editor;
-      switch (
-        segment_bounds(
-          ~measured=CachedSyntax.measured(editor.syntax),
-          editor.state.zipper.selection.content,
-        )
-      ) {
-      | None => []
-      | Some((left, right, top, bottom)) => [
+        let button = (~clss=[], ~tooltip, contents, effect) =>
           Node.div(
             ~attrs=[
-              Attr.classes(["missing-step-overlay-align"]),
-              DecUtil.position(
-                ~width=right - left,
-                ~height=bottom - top,
-                ~font_metrics=globals.font_metrics,
-                Point.{
-                  col: left,
-                  row: top,
-                },
-              ),
+              Attr.classes(["strategy-button"] @ clss),
+              Attr.title(tooltip),
+              Attr.on_click(_ => effect),
             ],
-            [
+            contents,
+          );
+        /* A strategy is an occasional intervention: after one, the box
+         * goes back to writing steps. */
+        let write_whole = term =>
+          Ui_effect.Many([
+            inject(Tab(Write)),
+            write({
+              at: None,
+              step: Proof.fresh(term),
+            }),
+          ]);
+        let strategy = (~intro, s: Picker.Strategies.strategy) =>
+          switch (s.writes) {
+          | Writes(term) =>
+            button(
+              ~clss=intro ? ["intro"] : [],
+              ~tooltip=s.tooltip,
+              [Node.text(s.label)]
+              @ (
+                switch (s.argument) {
+                | Some(e) => [div_c("strategy-argument", [code(e)])]
+                | None => []
+                }
+              ),
+              write_whole(term),
+            )
+          | Chooses(choices) =>
+            let is_open = box.menu == Some(s.label);
+            let choice = (c: Picker.Strategies.choice) =>
               Node.div(
                 ~attrs=[
-                  Attr.class_("proof-context-box"),
-                  Attr.on_pointerdown(_ =>
-                    Virtual_dom.Vdom.Effect.Stop_propagation
-                  ),
+                  Attr.classes(["strategy-choice"]),
+                  Attr.on_click(_ => write_whole(c.term)),
                 ],
                 [
-                  div_c(
-                    "proof-selection-buttons",
-                    List.map(offer, Picker.offers(goal, ~selected)),
-                  ),
-                ]
-                @ box,
+                  switch (Exp.term_of(c.label)) {
+                  | EmptyHole =>
+                    div_c("strategy-hole", [Node.text("? to fill in")])
+                  | _ => code(c.label)
+                  },
+                ],
+              );
+            div_c(
+              "strategy-chooser",
+              [
+                button(
+                  ~clss=is_open ? ["open"] : [],
+                  ~tooltip=s.tooltip,
+                  [
+                    Node.text(s.label),
+                    div_c("strategy-caret", [Node.text("▾")]),
+                  ],
+                  inject(Menu(is_open ? None : Some(s.label))),
+                ),
+              ]
+              @ (
+                is_open
+                  ? [div_c("strategy-menu", List.map(choice, choices))] : []
               ),
-            ],
-          ),
-        ]
+            );
+          };
+        let intros = Picker.Strategies.intros(goal);
+        div_c(
+          "strategy-buttons",
+          List.map(strategy(~intro=true), intros)
+          @ (intros == [] ? [] : [div_c("strategy-separator", [])])
+          @ List.map(
+              strategy(~intro=false),
+              Picker.Strategies.general(goal),
+            ),
+        );
       };
+      div_c(
+        "write-box",
+        [tab_bar]
+        @ (
+          switch (tab) {
+          | Write => [input()]
+          | Step => []
+          | Strategy => [strategies()]
+          }
+        ),
+      );
     };
   };
 
@@ -971,6 +875,9 @@ module View = {
         ~is_toplevel: bool,
         /* Writes a patch into the proof text. */
         ~edit_syntax: Picker.Patches.patch => Ui_effect.t(unit),
+        /* Extra controls for a hole that ends its chain, drawn beside the
+         * write box's tabs. */
+        ~hole_actions: Proof.t => list(Node.t)=_ => [],
         /* The editor holding the proof text, which the sub-editors splice
          * into. */
         ~backing: CodeEditable.Channel.t,
@@ -986,13 +893,14 @@ module View = {
     let take_focus = f => signal(MakeActive(f));
     let focused = f => selected == Some(f);
     let code = code(~globals);
-    /* Writes `pick` where `row`'s picker writes. A form with an argument
-     * then takes the caret into it: the backing editor's caret moves into
-     * the new argument (a sub-editor takes no edits, and draws no caret,
-     * while the caret is outside it), the new step's sub-editor takes
-     * focus, and DOM focus follows after the render, as the click left it
-     * on the button. */
-    let write = (row: Rows.t, goal: Picker.Goal.t, pick: Picker.pick) => {
+    /* Writes `pick` as the step after `row`'s goal, forcing the record
+     * open, or the row just written would not be on screen. A form with an
+     * argument then takes the caret into it: the backing editor's caret
+     * moves into the new argument (a sub-editor takes no edits, and draws
+     * no caret, while the caret is outside it), the new step's sub-editor
+     * takes focus, and DOM focus follows after the render, as the click
+     * left it on the button. */
+    let write = (row: Rows.t, pick: Picker.pick) => {
       let step = pick.step;
       let into_arg =
         switch (pick.at, Picker.Terms.arg_id(step.term)) {
@@ -1008,7 +916,11 @@ module View = {
         | (Some(_), _) => []
         };
       Ui_effect.Many(
-        [edit_syntax(Picker.write(row, goal, pick))] @ into_arg,
+        [
+          globals.inject_global(Set(Evaluation(ForceShowRecord))),
+          edit_syntax(Picker.write(row, pick)),
+        ]
+        @ into_arg,
       );
     };
     /* A slice of the proof text, edited in place in the backing editor.
@@ -1033,15 +945,13 @@ module View = {
         ],
       );
     };
-    /* The goal's editor, with the picker over its selection. Step rows
-     * draw no passive hints (step underlines, reflexivity markers): those
-     * belong to the rows where the proof continues. */
+    /* The goal's editor. With `hints`, the steps it offers are
+     * highlighted, and a click on one takes it. */
     let goal_editor = (~hints: bool, row: Rows.t, local: Model.local) => {
       let goal = local.goal;
-      let selected_id = Option.map(Exp.rep_id, Picker.Goal.selected(goal));
       let write_opt = pick =>
         pick
-        |> Option.map(write(row, goal))
+        |> Option.map(write(row))
         |> Option.value(~default=Ui_effect.Ignore);
       StepperEditor.View.view(
         ~globals,
@@ -1055,16 +965,6 @@ module View = {
             ),
         ~inject=a => inject((row.key, Goal(a))),
         ~selected=focused(Goal(row.key)),
-        ~selected_id,
-        ~overlays=
-          Overlay.view(
-            ~globals,
-            ~write=write(row, goal),
-            ~inject=a => inject((row.key, a)),
-            ~take_box_focus=take_focus(Box(row.key)),
-            ~box_focused=focused(Box(row.key)),
-            local,
-          ),
         {
           editor: goal.editor,
           next_steps: hints ? Picker.Goal.step_ids(goal) : [],
@@ -1097,10 +997,23 @@ module View = {
           ),
         ]
         : [];
-    let rec chain = (~top=false, rows: list(Rows.t)): list(Node.t) => [
+    /* The cell's own stepper steps a program, so it has no Proof strategy
+     * tab, and starts on Step. */
+    let tabs: list(Model.tab) =
+      is_toplevel ? [Step, Write] : [Write, Step, Strategy];
+    /* A chain's rows, then, until they reach it, the `true` a proof aims
+     * at: a quiet row shaped like a step row, so the chain reads evenly. A
+     * focus's chain rewrites part of a goal, so it aims at nothing. */
+    let rec chain =
+            (~top=false, ~target=!is_toplevel, rows: list(Rows.t))
+            : list(Node.t) => [
       Node.div(
         ~attrs=[Attr.classes(["stepper", "cell-result"])],
-        rows_view(~top, ~prev_broken=None, rows),
+        rows_view(~top, ~prev_broken=None, rows)
+        @ (
+          target && !ProofCheck.is_true(Rows.reached(rows))
+            ? [Row.target(~globals)] : []
+        ),
       ),
     ]
     and rows_view = (~top, ~prev_broken, rows: list(Rows.t)): list(Node.t) => {
@@ -1215,7 +1128,7 @@ module View = {
       | Hole
       | End =>
         /* A `?` marks a hole written mid-proof, a step to come back for.
-         * A row at the end needs no mark: the picker already says the
+         * A row at the end needs no mark: the write box already says the
          * proof continues here. */
         let unknown =
           row.kind == Hole && !is_last
@@ -1236,6 +1149,37 @@ module View = {
         let delete =
           row.kind == Hole && !only
             ? Some(edit_syntax(Picker.Patches.remove(row.step))) : None;
+        /* A finished chain, or one after a broken step, has nothing to
+         * write. */
+        let box =
+          switch (prev_broken, Model.find(row.key, model)) {
+          | (None, Some({box: Some(box), goal, _}))
+              when is_last && !ProofCheck.is_true(row.goal) =>
+            Some((box, goal))
+          | _ => None
+          };
+        let hints =
+          switch (box) {
+          | Some((box, _)) => Box.current(~tabs, box) == Step
+          | None => false
+          };
+        let box =
+          switch (box) {
+          | Some((box, goal)) => [
+              Box.view(
+                ~globals,
+                ~tabs,
+                ~inject=a => inject((row.key, a)),
+                ~write=write(row),
+                ~take_focus=take_focus(Box(row.key)),
+                ~focused=focused(Box(row.key)),
+                ~hole_actions=row.kind == Hole ? hole_actions(row.step) : [],
+                box,
+                goal,
+              ),
+            ]
+          | None => []
+          };
         switch (prev_broken, Model.find(row.key, model)) {
         | (Some(_), _)
         | (None, Some(_)) =>
@@ -1244,10 +1188,11 @@ module View = {
             ~status,
             ~show_equiv=prev_broken == None,
             ~delete,
-            ~editor_view=goal_view(~hints=true, ~prev_broken, row),
+            ~editor_view=goal_view(~hints, ~prev_broken, row),
             ~justification,
             (),
           )
+          @ box
         | (None, None) => [justification]
         };
       }
@@ -1330,7 +1275,7 @@ module View = {
         dark(
           arm(
             [form_arg(Exp(e)), note([Node.text("as have")])],
-            target_box(sub),
+            chain(sub),
           ),
         )
       | (Cases(case_rows), Induction(scrut, _, cases)) =>
@@ -1345,7 +1290,7 @@ module View = {
               form_arg(Exp(selector)),
               note([Node.text("rewritten in place")]),
             ],
-            chain(rows),
+            chain(~target=false, rows),
           ),
         )
       | (Leaf | Body(_) | Cases(_) | Premises(_) | Focus(_), _) => []
@@ -1421,7 +1366,7 @@ module View = {
               remove_case,
             ],
           ),
-          div_c("step-slot", target_box(rows)),
+          div_c("step-slot", chain(rows)),
         ];
       };
       let add_case =
@@ -1460,34 +1405,6 @@ module View = {
           @ [add_case],
         ),
       ];
-    }
-    /* A premise's rows, then, until they reach `true`, the gap left and
-     * the `true` they have to reach: a quiet row shaped like a step row,
-     * so the chain reads evenly. */
-    and target_box = (rows: list(Rows.t)): list(Node.t) => {
-      let reached =
-        switch (Rows.reached(rows)) {
-        | Some(e) => Exp.fast_equal(e, Exp.fresh(Atom(Bool(true))))
-        | None => false
-        };
-      chain(rows)
-      @ (
-        reached
-          ? []
-          : [
-            div_c(
-              "stepper cell-result",
-              [
-                Row.quiet(
-                  ~clss="step-ellipsis",
-                  ~equiv=Row.equiv_hidden(),
-                  [div_c("step-output", [Node.text("⋯")])],
-                ),
-                Row.target(~globals),
-              ],
-            ),
-          ]
-      );
     };
     let settings_modal =
       is_toplevel && globals.settings.core.evaluation.show_settings

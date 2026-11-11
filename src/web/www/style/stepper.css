@@ -92,51 +92,7 @@
 
 /* PROVER */
 
-.missing-step-overlay-align {
-  position: absolute;
-}
-
-/* Every result row is an isolated stacking context, so a later sibling row
- * (or editor layers up to --projector-overlay-z, e.g. .code-text) would paint
- * over the active proof row's controls and an open assumptions/rewrite panel.
- * Raise the nested row above them; only nested rows, so the outermost proof
- * stays an ordinary isolated cell and the page's context menu stays on top. */
-.cell-result .cell-result:has(.missing-step-overlay-align) {
-  position: relative;
-  z-index: var(--proof-step-raised-z);
-}
-
-.cell-result .cell-result:has(.rewrite-box, .strategies-box) {
-  z-index: var(--proof-step-panel-z);
-}
-
-/* A context menu opened inside a proof (in a case pattern, the induction
- * scrutinee or a rewrite box) shares the proof's stacking context with the
- * raised rows above, so it and its backdrop have to clear them too. */
-.cell-result .context-menu-backdrop {
-  z-index: calc(var(--proof-step-panel-z) + 1);
-}
-
-.cell-result .context-menu {
-  z-index: calc(var(--proof-step-panel-z) + 2);
-}
-
-.proof-context-box {
-  position: absolute;
-  top: calc(100% + 0.5em);
-  left: 2em;
-  z-index: var(--context-inspector-z);
-  display: flex;
-  flex-direction: column;
-  gap: 0.5em;
-}
-
-.proof-selection-buttons {
-  display: flex;
-  flex-direction: row;
-  gap: 0.5em;
-}
-
+/* A broken step's repair buttons, in its popup. */
 .proof-button {
   cursor: pointer;
   pointer-events: all;
@@ -147,44 +103,211 @@
   white-space: nowrap;
 }
 
-.rewrite-box,
-.strategies-box {
-  background-color: var(--menu-bkg);
-  border-radius: 0 0 0.5em 0;
-  outline: 0.6px solid var(--menu-outline);
-  box-shadow: 0px 10px 20px var(--menu-shadow);
-  padding: 10px;
+/* The write box: tabs over a code box, under the goal of an unfinished
+ * chain. Indented to line up with the goal's text past the `≡`. */
+.write-box {
+  position: relative;
+  padding: 0.3em 1.5em 0.4em 2.6em;
+  margin-right: 14px;
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  width: max-content;
-  max-width: 40em;
+  gap: 0.25em;
 }
 
-.picker-heading {
-  font-weight: bold;
-  margin-top: 0.3em;
-}
-
-.picker-note,
-.strategy-explanation {
+.box-tabs {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 1.1em;
+  font-family: var(--ui-font);
+  font-size: 0.8em;
+  font-weight: 600;
   color: var(--text-muted);
 }
 
-.rewrite-algebra,
-.strategy,
-.strategy-facts {
+.box-tab {
+  cursor: pointer;
+  padding-bottom: 2px;
+  border-bottom: 2px solid transparent;
+}
+
+.box-tab:hover {
+  color: var(--cell-result-text);
+}
+
+.box-tab.on {
+  color: var(--stepper-condition-text);
+  border-bottom-color: var(--stepper-condition-text);
+}
+
+.box-hole-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 0.4em;
+}
+
+.box-input {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.6em;
+  background-color: var(--light-page-color);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  padding: 0.25em 0.6em;
+}
+
+.box-editor {
+  position: relative;
+  flex-grow: 1;
+  min-width: 4em;
+}
+
+#main .box-editor .code-editor {
+  padding-left: 0;
+}
+
+/* An empty box draws no hole: it shows what Tab takes instead. */
+.box-editor.empty .empty-hole {
+  visibility: hidden;
+}
+
+/* What Tab takes, faded behind an empty box. */
+.box-ghost {
+  position: absolute;
+  inset: 0 auto auto 0;
+  pointer-events: none;
+  opacity: 0.45;
+}
+
+.box-hint {
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+  font-family: var(--ui-font);
+  font-size: 0.75em;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.box-key {
+  font-size: 0.9em;
+  border: 1px solid var(--cell-result-border);
+  border-radius: 3px;
+  padding: 0 0.35em;
+  color: var(--cell-result-text);
+  background-color: var(--cell-result);
+}
+
+/* The Proof strategy tab's buttons sit on the panel, not on a code
+ * background: they aren't code. */
+.strategy-buttons {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5em;
+  align-items: flex-start;
+  gap: 0.4em;
+  padding: 0.15em 0;
 }
 
-/* On a line of its own, under the strategy it cites for. */
-.strategy-facts {
-  flex-basis: 100%;
-  margin-left: 1em;
+.strategy-button {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4em;
+  cursor: pointer;
+  font-family: var(--ui-font);
+  font-size: 0.85em;
+  padding: 0.2em 0.7em;
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  background-color: var(--cell-result);
+  color: var(--stepper-condition-text);
+  white-space: nowrap;
+}
+
+.strategy-button:hover,
+.strategy-button.open {
+  background-color: var(--stepper-lozenge-bkg);
+}
+
+/* The goal's own introduction comes first, dark. */
+.strategy-button.intro {
+  background-color: var(--stepper-arm);
+  border-color: var(--stepper-arm);
+  color: var(--stepper-arm-text);
+}
+
+.strategy-button.intro .code-text,
+.strategy-button.intro .token {
+  color: var(--stepper-arm-text);
+  opacity: 0.85;
+}
+
+.strategy-hole {
+  font-family: var(--ui-font);
+  font-size: 0.85em;
+  color: var(--text-muted);
+}
+
+.strategy-caret {
+  font-size: 0.8em;
+  opacity: 0.7;
+}
+
+.strategy-separator {
+  align-self: stretch;
+  width: 1px;
+  background-color: var(--cell-result-border);
+  margin: 0 0.2em;
+}
+
+.strategy-chooser {
+  position: relative;
+}
+
+.strategy-menu {
+  position: absolute;
+  top: calc(100% + 3px);
+  left: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 100%;
+  background-color: var(--menu-bkg);
+  border: 0.6px solid var(--menu-outline);
+  border-radius: 4px;
+  box-shadow: 0px 6px 14px var(--menu-shadow);
+  padding: 0.2em 0;
+}
+
+.strategy-choice {
+  cursor: pointer;
+  padding: 0.15em 0.8em;
+  white-space: nowrap;
+}
+
+.strategy-choice:hover {
+  background-color: var(--menu-item-hover-bkg);
+}
+
+/* Every result row is an isolated stacking context, so the rows after an
+ * open strategy menu would paint over it. Raise the chain holding it;
+ * only nested chains, so the outermost proof stays an ordinary isolated
+ * cell and the page's context menu stays on top. */
+.cell-result .cell-result:has(.strategy-menu) {
+  position: relative;
+  z-index: var(--proof-step-panel-z);
+}
+
+/* A context menu opened inside a proof (in a case pattern, the induction
+ * scrutinee or the write box) shares the proof's stacking context with
+ * the raised chain above, so it and its backdrop have to clear it too. */
+.cell-result .context-menu-backdrop {
+  z-index: calc(var(--proof-step-panel-z) + 1);
+}
+
+.cell-result .context-menu {
+  z-index: calc(var(--proof-step-panel-z) + 2);
 }
 
 /* STEPPER (OLD) */
@@ -340,53 +463,10 @@
   cursor: not-allowed;
 }
 
-.assumption-box {
-  display: flex;
-  flex-direction: row;
-  gap : 1em;
-  align-items: center;
-  margin-left: 2em;
-}
-
-/* The bare-boolean reading a rule is used under, rendered alongside its
-   statement (AssumptionBox). De-emphasized to match the obligations
-   panel's receipt labels: it is a note about the statement, not a second
-   statement. */
-.assumption-reading {
-  display: flex;
-  align-items: center;
-  gap: 0.25em;
-  opacity: 0.75;
-  font-size: 0.9em;
-}
-
-/* A shadowed fact (AssumptionBox): a nearer introduction of the same
-   fixed hypothesis name is what that name reaches, so this row's
-   rewrite buttons are disabled and the row reads as inert. It is still
-   listed — the fact is in scope and still true, and `alias` can give it
-   a name of its own. */
-.assumption-box.shadowed {
-  opacity: 0.55;
-}
-
-.assumption-shadowed {
-  display: flex;
-  align-items: center;
-  gap: 0.25em;
-  font-size: 0.9em;
-  font-style: italic;
-}
-
 .step-placeholder {
   background-color: var(--test-panel-bkg)
 }
 
-/* The "⋯" gap row in an incomplete case (StepperView): shaped like
- * a normal step row but quiet — it marks missing ground, it isn't a
- * step. */
-.step-ellipsis .step-output {
-  opacity: 0.4;
-}
 /* Per-row status (see StepperView.View.Row). Status must never change the
  * proof's layout, so both indicators live outside the document flow:
  *

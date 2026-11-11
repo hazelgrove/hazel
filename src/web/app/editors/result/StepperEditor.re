@@ -33,14 +33,12 @@ module View = {
     | TakeStep(int)
     | Refl(int);
 
-  /* Underlines on the offered steps and reflexivities. A click on one
-   * selects it, and a click on the selected one takes it. */
+  /* Highlights on the offered steps and reflexivities. A click on one
+   * takes it. */
   let deco =
       (
         ~syntax: CachedSyntax.t,
         ~font_metrics: FontMetrics.t,
-        ~inject: Update.t => Ui_effect.t(unit),
-        ~selected_id: option(Id.t),
         signal: event => Ui_effect.t(unit),
         model: Model.t,
       ) => {
@@ -49,20 +47,11 @@ module View = {
       |> List.mapi((i, id) => (i, id))
       |> List.filter_map(((i, id)) => {
            open OptUtil.Syntax;
-           let* tile = TermData.root_tile(id, syntax.term_data);
-           let+ range =
-             TermData.extreme_measures(
-               id,
-               syntax.term_data,
-               CachedSyntax.measured(syntax),
-             );
-           let click =
-             Some(id) == selected_id
-               ? signal(take(i)) : inject(Select(PointToPoint(range)));
+           let+ tile = TermData.root_tile(id, syntax.term_data);
            WebUtil.div_c(
              cls,
              Arms.term(
-               ~attr=[WebUtil.Attr.on_mousedown(_ => click)],
+               ~attr=[WebUtil.Attr.on_mousedown(_ => signal(take(i)))],
                ~font_metrics,
                ~syntax,
                tile,
@@ -125,7 +114,6 @@ module View = {
         ~signal: event => 'a,
         ~overlays=[],
         ~selected,
-        ~selected_id,
         ~_dynamics: Language.Dynamics.Map.t=Language.Dynamics.Map.empty,
         model: Model.t,
       ) => {
@@ -148,8 +136,6 @@ module View = {
         @ deco(
             ~syntax=model.editor.editor.syntax,
             ~font_metrics=globals.font_metrics,
-            ~inject,
-            ~selected_id,
             signal,
             model,
           ),
