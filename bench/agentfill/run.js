@@ -41,6 +41,16 @@ globalThis.benchConfig = JSON.stringify({
   turns: parseInt(opt("rounds", "12")),
 });
 
+// Network failures are retried twice, so they don't count as the model's.
+const post = (body, tries = 3) =>
+  fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: "Bearer " + key },
+    // A stalled connection otherwise holds the run up indefinitely.
+    signal: AbortSignal.timeout(180000),
+    body: JSON.stringify(body),
+  }).catch((e) => (tries > 1 ? post(body, tries - 1) : Promise.reject(e)));
+
 let current = null;
 let calls = 0;
 let itemCalls = 0;
@@ -71,17 +81,13 @@ globalThis.benchAsk = (messagesJson, k) => {
     return;
   }
   calls++;
-  fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: "Bearer " + key },
-    body: JSON.stringify({
+  post({
       model,
       messages,
       temperature: 1.0,
       usage: { include: true },
       ...(reasoning ? { reasoning: { effort: reasoning } } : {}),
-    }),
-  })
+    })
     .then((r) => r.json())
     .then((j) => {
       if (j.error) {
@@ -110,18 +116,14 @@ globalThis.benchChat = (payloadJson, k) => {
     return;
   }
   calls++;
-  fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: "Bearer " + key },
-    body: JSON.stringify({
+  post({
       model,
       messages,
       tools,
       temperature: 1.0,
       usage: { include: true },
       ...(reasoning ? { reasoning: { effort: reasoning } } : {}),
-    }),
-  })
+    })
     .then((r) => r.json())
     .then((j) => {
       if (j.error) {

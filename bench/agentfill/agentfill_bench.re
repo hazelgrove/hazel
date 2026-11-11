@@ -413,7 +413,10 @@ let bridge_chat =
       Js.Unsafe.inject(
         Js.string(
           Yojson.Safe.to_string(
-            `Assoc([("messages", `List(messages)), ("tools", `List(tools))]),
+            `Assoc([
+              ("messages", `List(messages)),
+              ("tools", `List(tools)),
+            ]),
           ),
         ),
       ),
@@ -433,7 +436,8 @@ let tools_system = "You are Filbert, the agent in the Hazel editor. The user ask
 
 /* One theorem, the way the chat agent fills it: the request typing `??`
  * sends, the proof tools, at most `turns` model calls. */
-let run_tools_item = (~turns: int, item: Yojson.Safe.t, k: Yojson.Safe.t => unit) => {
+let run_tools_item =
+    (~turns: int, item: Yojson.Safe.t, k: Yojson.Safe.t => unit) => {
   open Yojson.Safe.Util;
   let name = item |> member("name") |> to_string;
   let src = item |> member("program") |> to_string;
@@ -473,7 +477,12 @@ let run_tools_item = (~turns: int, item: Yojson.Safe.t, k: Yojson.Safe.t => unit
           | None => `Null
           },
         ),
-        ("statuses", `List([`String(why ++ " after " ++ string_of_int(turn) ++ " calls")])),
+        (
+          "statuses",
+          `List([
+            `String(why ++ " after " ++ string_of_int(turn) ++ " calls"),
+          ]),
+        ),
         ("result", `String(status)),
         ("proof", `String(proof)),
       ]),
@@ -495,7 +504,11 @@ let run_tools_item = (~turns: int, item: Yojson.Safe.t, k: Yojson.Safe.t => unit
       switch (CompositionUtils.Public.action_of(~tool_name, ~args)) {
       | ProofRequest(r) =>
         let (ok, text, edited) =
-          Web.AgentProofTools.answer(~settings=Web.Settings.Model.init, r, cell);
+          Web.AgentProofTools.answer(
+            ~settings=Web.Settings.Model.init,
+            r,
+            cell,
+          );
         let wrote =
           switch (r) {
           | FillProof(_) => ok
@@ -566,7 +579,10 @@ let run_tools_item = (~turns: int, item: Yojson.Safe.t, k: Yojson.Safe.t => unit
   turn(
     1,
     [
-      `Assoc([("role", `String("system")), ("content", `String(tools_system))]),
+      `Assoc([
+        ("role", `String("system")),
+        ("content", `String(tools_system)),
+      ]),
       `Assoc([
         ("role", `String("user")),
         ("content", `String(Fill.Typed.request(~core, program, hole_id))),
@@ -634,9 +650,8 @@ let () = {
       switch (config |> member("mode")) {
       | `String("tools") =>
         run_tools_item(
-          ~turns=config |> member("turns") |> to_int,
-          item,
-          result => go(rest, [result, ...acc]),
+          ~turns=config |> member("turns") |> to_int, item, result =>
+          go(rest, [result, ...acc])
         )
       | _ =>
         run_item(~intervention, item, result => go(rest, [result, ...acc]))
