@@ -2024,7 +2024,7 @@ module Focusing = {
    * and which of the display's occurrences of it it is, counting from 0. */
   let underlined = (goal: Picker.Goal.t, row: Rows.t): (string, int) =>
     switch (
-      Option.bind(Picker.Goal.focus_id(goal, row), id =>
+      Option.bind(Picker.Goal.acts_on(goal, row), id =>
         Exp.find_by_id(id, goal.display)
       )
     ) {
@@ -2139,15 +2139,12 @@ module Focusing = {
           ("(1 + 1)", 1),
           underlined(Fixture.goal(f, row), row),
         );
+        let next = List.nth(f.rows, 1);
         check(
-          bool,
-          "the row after it underlines nothing",
-          true,
-          Picker.Goal.focus_id(
-            Fixture.goal(f, List.nth(f.rows, 1)),
-            List.nth(f.rows, 1),
-          )
-          == None,
+          underline,
+          "the `eval` after it, all of its goal",
+          ("(1 + 1) * 2 == 4", 0),
+          underlined(Fixture.goal(f, next), next),
         );
       },
     ),
@@ -2216,6 +2213,132 @@ module Focusing = {
           "the second 1 + 1",
           ("(1 + 1)", 1),
           underlined(goal, row),
+        );
+      },
+    ),
+    test_case(
+      "a step on the whole goal underlines all of it: eval, axiom, rewrite",
+      `Quick,
+      () => {
+        let whole = (src, named) => {
+          let f = Fixture.mk(src);
+          let row =
+            switch (List.find_opt(r => kind(r) == named, Fixture.all(f))) {
+            | Some(row) => row
+            | None => Alcotest.fail("no " ++ named ++ " row")
+            };
+          check(
+            underline,
+            named,
+            (goal(row), 0),
+            underlined(Fixture.goal(f, row), row),
+          );
+        };
+        whole("theorem t = 4 == 4 proof eval in t", "eval");
+        whole(
+          "theorem t = forall x: Int -> x == x proof forall x => axiom refl_eq end in t",
+          "refl_eq",
+        );
+        whole(
+          "theorem t = 4 / 2 == 2 proof rewrite 2 == 2 end; eval in t",
+          "algebra",
+        );
+      },
+    ),
+    test_case(
+      "a step that changes the goal's shape underlines nothing",
+      `Quick,
+      () => {
+        let f =
+          Fixture.mk(
+            "theorem t = forall x: Int -> x == x proof forall x => axiom refl_eq end in t",
+          );
+        let row = first(f.rows);
+        check(string, "a forall", "forall", kind(row));
+        check(
+          bool,
+          "nothing underlined",
+          true,
+          Picker.Goal.acts_on(Fixture.goal(f, row), row) == None,
+        );
+      },
+    ),
+    test_case(
+      "an occurrence with a hidden ascription underlines what it ascribes",
+      `Quick,
+      () => {
+        /* The checker's goal reads `x :: rev([]) : [Int]`, and the
+         * selector matches the ascription first. */
+        let f =
+          Fixture.mk(
+            "let rev = fun xs -> case xs | [] => [] | x :: t => rev(t) @ [x] end in theorem t = forall x: Int -> [x] == x :: rev([]) proof forall x => from rev([]) do eval end; ? in t",
+          );
+        let row =
+          switch (
+            List.find_opt(
+              (r: Rows.t) =>
+                switch (r.step.term) {
+                | Focus(_) => true
+                | _ => false
+                },
+              Fixture.all(f),
+            )
+          ) {
+          | Some(row) => row
+          | None => Alcotest.fail("no focus row")
+          };
+        let goal = Fixture.goal(f, row);
+        check(
+          bool,
+          "the checker selected the ascription",
+          true,
+          switch (row.goal, row.acts_on) {
+          | (Some(written), Some(part)) =>
+            switch (Exp.find_by_id(part, written)) {
+            | Some({term: Asc(_), _}) => true
+            | _ => false
+            }
+          | _ => false
+          },
+        );
+        check(
+          option(string),
+          "the application, not its ascription",
+          Some("application"),
+          Picker.Goal.acts_on(goal, row)
+          |> Option.bind(_, id => Exp.find_by_id(id, goal.display))
+          |> Option.map((e: Exp.t) =>
+               switch (Exp.term_of(e)) {
+               | Ap(_) => "application"
+               | _ => print(e)
+               }
+             ),
+        );
+      },
+    ),
+    test_case(
+      "an occurrence inside a folded function underlines the fold",
+      `Quick,
+      () => {
+        let f =
+          Fixture.mk(
+            "theorem t = (fun x: Int -> x + 0) == (fun x: Int -> x) proof from x + 0 do rewrite x end end; axiom refl_eq end in t",
+          );
+        let row = first(f.rows);
+        let goal = Fixture.goal(f, row);
+        let term = Web.CodeEditable.Model.get_statics(goal.editor).term;
+        check(
+          option(string),
+          "a fold",
+          Some("fold"),
+          Picker.Goal.acts_on(goal, row)
+          |> Option.bind(_, id => Exp.find_by_id(id, term))
+          |> Option.map((e: Exp.t) =>
+               switch (Exp.term_of(e)) {
+               | Projector(_) => "fold"
+               | _ => print(e)
+               }
+             ),
         );
       },
     ),

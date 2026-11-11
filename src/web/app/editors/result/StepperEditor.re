@@ -10,8 +10,8 @@ module Model = {
     /* Where the offered steps' and reflexivities' underlines go. */
     next_steps: list(Id.t),
     refls: list(Id.t),
-    /* The occurrence the step below selects through a focus. */
-    focus: option(Id.t),
+    /* The part the step below acts on. */
+    acts_on: option(Id.t),
   };
 };
 
@@ -71,9 +71,9 @@ module View = {
          });
     /* A plain line under each row the term covers, with no click: it
      * marks where the step below acts, which isn't a step to take. */
-    let focus =
+    let acts_on =
       switch (
-        Option.bind(model.focus, id =>
+        Option.bind(model.acts_on, id =>
           TermData.extreme_measures(
             id,
             syntax.term_data,
@@ -92,7 +92,7 @@ module View = {
              let col_to = row == last.row ? last.col : shape.content_end;
              Virtual_dom.Vdom.Node.div(
                ~attrs=[
-                 WebUtil.Attr.classes(["step-focus"]),
+                 WebUtil.Attr.classes(["step-acts-on"]),
                  DecUtil.abs_style(
                    ~font_metrics,
                    {
@@ -113,7 +113,7 @@ module View = {
       };
     underlines(~cls="step-next", model.next_steps, i => TakeStep(i))
     @ underlines(~cls="step-refl", model.refls, i => Refl(i))
-    @ focus;
+    @ acts_on;
   };
 
   /* Steppers don't support probe dynamics - expressions shown are
