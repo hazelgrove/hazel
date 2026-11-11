@@ -6,6 +6,7 @@
 let examples: list(string) = [
   "theorem t = 1 + 4 == 5 proof from 1 + 4 do eval end; eval in 0",
   "theorem t = (1 + 2) + (3 + 4) == 10 proof from 2nd $v + $v do eval end; from $v + $v do eval end; from $v + $v do eval end; eval in 0",
+  "theorem t = (if 1 < 2 then 3 else 4) == 3 proof from if $e then $e else $e do from 1 < 2 do eval end; eval end; eval in 0",
   "theorem t = (true && false) == (false && true) proof from true && false do axiom and_comm end end; axiom refl_eq end in 0",
   "let double = fun x -> x + x in\ntheorem t = forall n: Int -> double(n) == 2 * n proof from double(n) do eval end; from n + n do rewrite 2 * n end end; axiom refl_eq end in 0",
   "theorem t = forall n: Int -> n == 1 ==> n == 1 proof assume n == 1 => from n do axiom assume end end; eval in 0",
@@ -28,7 +29,7 @@ let self: list(string) =
     "- `rewrite <replacement> end`: an algebraic rewrite of the root, checked by a computer-algebra system.",
     "- `contradiction <fact> end`: closes any goal when the fact in scope evaluates to `false`. `contradiction <fact> with <x> = <e> end` first replaces `x` by `e`, which needs `x == e` in scope.",
     "",
-    "To act on a subterm, focus on it: `from <selector> do <steps> end` runs the steps on the first occurrence of the selector in the goal, counting left to right, and puts the result back. `from 2nd <selector> do ... end` picks the second occurrence, and so on (`3rd`, `4th`). A selector may use `$e` to match any expression, `$v` any value and `$x` any variable. Inside the focus, the steps act on the root of the focused subterm. `axiom` and `rewrite` close with their own `end`, so a focus around one ends `end end`: `from n + n do rewrite 2 * n end end; axiom refl_eq end`.",
+    "To act on a subterm, focus on it: `from <selector> do <steps> end` runs the steps on the first occurrence of the selector in the goal, counting left to right, and puts the result back. `from 2nd <selector> do ... end` picks the second occurrence, and so on (`3rd`, `4th`). A selector may use `$e` to match any expression, `$v` any value and `$x` any variable, and is otherwise an ordinary expression: `if c then a else b` has no `end` (`case` does), so `from if $e then $e else $e do eval end` focuses on an `if`; an `end` after its `else` branch would close the `from`. Inside the focus, the steps act on the root of the focused subterm. `axiom` and `rewrite` close with their own `end`, so a focus around one ends `end end`: `from n + n do rewrite 2 * n end end; axiom refl_eq end`.",
     "",
     "These forms run the rest of the chain, after `=>`, in a new scope:",
     "",
