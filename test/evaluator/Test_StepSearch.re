@@ -262,7 +262,7 @@ let tests = (
           Search.Suggestions.run(
             ~continue_=() => true,
             g,
-            Search.Suggestions.start(~rule=Some("assume")),
+            Search.Suggestions.start(~rule=Some("assume"), ~at=None),
           );
         check(
           list(pair(string, string)),
@@ -311,6 +311,48 @@ let tests = (
           "the axioms too",
           ["nonzero_of_neg", "nonzero_of_pos", "nonzero_mul", "not_not"],
           completions("no"),
+        );
+      },
+    ),
+    test_case(
+      "with part of the goal selected, the box's text is that part's replacement, and the uses listed are inside it",
+      `Quick,
+      () => {
+        let f = Fixture.mk("theorem t = 2 * (1 + 1) == 4 proof ? in t");
+        let row = first(f.rows);
+        let part =
+          Test_StepperView.Picking.node(Fixture.goal(f, row), "(1 + 1)");
+        let f =
+          Fixture.act(
+            f,
+            (row.key, Goal(Select(Term(Id(Exp.rep_id(part), Right))))),
+          );
+        let f = Fixture.act(f, (row.key, BoxEditor(Perform(Paste("2")))));
+        let box = (f: Fixture.t) =>
+          switch (Fixture.local(f, row).box) {
+          | Some(box) => box
+          | None => Alcotest.fail("no box")
+          };
+        let rec slices = (n, f: Fixture.t) =>
+          Web.StepperView.Model.running(box(f)) && n < 100
+            ? slices(
+                n + 1,
+                Fixture.act(f, (row.key, SearchSlice(box(f).generation))),
+              )
+            : box(f);
+        let box = slices(0, f);
+        check(
+          steps,
+          "found",
+          Some(["from (1 + 1) do eval end"]),
+          Option.bind(box.search, s => found(s)),
+        );
+        check(
+          bool,
+          "the uses are looked for inside the part",
+          true,
+          Option.bind(box.suggestions, (s: Search.Suggestions.t) => s.at)
+          != None,
         );
       },
     ),

@@ -114,6 +114,40 @@
   gap: 0.25em;
 }
 
+/* Writing a selected part's replacement, the box moves right of the part,
+ * an arrow running to it from the part. 3.3em in is the goal's first
+ * column: the box's padding and its input's. */
+.write-box {
+  transition: padding-left 0.4s ease-in-out;
+}
+
+.write-box.replacing {
+  padding-left: calc(3.3em + var(--shift));
+}
+
+.write-arrow {
+  position: absolute;
+  left: 3.3em;
+  top: -10px;
+  overflow: visible;
+  pointer-events: none;
+  fill: none;
+  stroke: var(--cell-result-text);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 3;
+  animation: write-arrow-in 0.6s ease-in both;
+}
+
+@keyframes write-arrow-in {
+  0%,
+  50% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
 .box-tabs {
   display: flex;
   flex-direction: row;

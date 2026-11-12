@@ -162,12 +162,47 @@ module Update = {
     | _ => None
     };
 
+  /* The part of the goal selected, when it is less than all of it. */
+  let selected_part = (goal: Picker.Goal.t): option(Exp.t) =>
+    switch (Picker.Goal.selected(goal)) {
+    | Some(part) when Exp.rep_id(part) != Exp.rep_id(goal.display) =>
+      Some(part)
+    | Some(_)
+    | None => None
+    };
+
   /* What the box's text asks for against `goal`: a search for it as a
    * goal and the uses of every rule, or, when it names a rule, that
-   * rule's uses alone. Suggestions already listed for the same rules are
-   * kept, unless the goal is new. */
+   * rule's uses alone. With part of the goal selected, the text is that
+   * part's replacement, and the uses are those inside it. Suggestions
+   * already listed for the same rules and part are kept, unless the goal
+   * is new. */
   let search =
       (~new_goal=false, goal: Picker.Goal.t, box: Model.box): Model.box => {
+    let part = selected_part(goal);
+    let wanted =
+      switch (part) {
+      | Some(part) =>
+        Option.map(
+          typed =>
+            Exp.map_term(
+              ~f_exp=
+                (cont, e) =>
+                  Exp.rep_id(e) == Exp.rep_id(part) ? typed : cont(e),
+              goal.display,
+            ),
+          wanted(box.editor),
+        )
+      | None => wanted(box.editor)
+      };
+    let at =
+      Option.bind(part, part =>
+        Occurrence.map_rep_id(
+          ~from=goal.display,
+          ~onto=goal.written,
+          Exp.rep_id(part),
+        )
+      );
     let rule =
       switch (typed_name(box.editor)) {
       | Some(name) when List.mem_assoc(name, StepSearch.names(goal)) =>
@@ -179,18 +214,16 @@ module Update = {
       ...box,
       search:
         rule == None
-          ? Option.map(
-              wanted => StepSearch.start(goal, ~wanted),
-              wanted(box.editor),
-            )
+          ? Option.map(wanted => StepSearch.start(goal, ~wanted), wanted)
           : None,
       suggestions:
         switch (box.suggestions) {
         | _ when Model.is_empty(box) => None
-        | Some(suggestions) when suggestions.rule == rule && !new_goal =>
+        | Some(suggestions)
+            when suggestions.rule == rule && suggestions.at == at && !new_goal =>
           Some(suggestions)
         | Some(_)
-        | None => Some(StepSearch.Suggestions.start(~rule))
+        | None => Some(StepSearch.Suggestions.start(~rule, ~at))
         },
       chosen: None,
       generation: box.generation + 1,
@@ -231,7 +264,8 @@ module Update = {
           box: Some(box),
         });
       switch (action, local.box) {
-      /* A changed selection changes what Tab takes. */
+      /* A changed selection changes what Tab takes, and what the box's
+       * text replaces. */
       | (Goal(a), _) =>
         let* editor =
           CodeSelectable.Update.update(~settings, a, local.goal.editor);
@@ -239,16 +273,19 @@ module Update = {
           ...local.goal,
           editor,
         };
+        let part = goal => Option.map(Exp.rep_id, selected_part(goal));
         set({
           ...local,
           goal,
           box:
             Option.map(
-              (box: Model.box) =>
-                {
+              (box: Model.box) => {
+                let box = {
                   ...box,
                   ghost: ghost(goal),
-                },
+                };
+                part(goal) == part(local.goal) ? box : search(goal, box);
+              },
               local.box,
             ),
         });
@@ -879,6 +916,22 @@ module View = {
       );
     };
 
+    /* The first and last columns of the goal's selected part, on its
+     * first line. */
+    let columns = (goal: Picker.Goal.t): option((int, int)) => {
+      open OptUtil.Syntax;
+      let editor = goal.editor.editor;
+      let measured = Haz3lcore.CachedSyntax.measured(editor.syntax);
+      let segment = editor.state.zipper.selection.content;
+      let* first = ListUtil.hd_opt(segment);
+      let+ last = ListUtil.last_opt(segment);
+      let start =
+        Haz3lcore.Measured.find_p(~msg="Box.columns", first, measured).origin;
+      let end_ =
+        Haz3lcore.Measured.find_p(~msg="Box.columns", last, measured).last;
+      (start.col, end_.row == start.row ? end_.col : start.col + 1);
+    };
+
     /* A use's step, as written: `axiom name` or `axiomrev name`. */
     let rule_label = (step: Proof.t) =>
       switch (Rows.single_step(step) |> Option.value(~default=step)) {
@@ -910,10 +963,17 @@ module View = {
           ~focused: bool,
           /* Controls for the hole the box writes in place of. */
           ~hole_actions: list(Node.t),
+          /* The columns of the goal's selected part, when the box writes
+           * its replacement: the box moves right of it, with an arrow
+           * from it. */
+          ~replacing: option((int, int)),
           box: Model.box,
           goal: Picker.Goal.t,
         )
         : Node.t => {
+      /* Strategies act on the whole goal, so a selected part hides
+       * them. */
+      let tabs = replacing == None ? tabs : [Model.Write];
       let tab = current(~tabs, box);
       let code = (e: Exp.t) => code(~globals, Exp(e));
       let tab_bar =
@@ -1181,9 +1241,62 @@ module View = {
             ),
         );
       };
-      div_c(
-        "write-box",
-        [tab_bar]
+      /* In pixels from the goal's first column, which the box's text
+       * lines up with. The arrow starts just under the goal and ends at
+       * the middle of the box's input, 55px further down. */
+      let (shift, arrow) =
+        switch (replacing) {
+        | Some((left, right)) =>
+          let col = c => float_of_int(c) *. globals.font_metrics.col_width;
+          let start = (col(left) +. col(right)) /. 2.;
+          let end_ = col(right) +. 10.;
+          let path =
+            Printf.sprintf(
+              "M %.1f 0 C %.1f 45, %.1f 55, %.1f 55 M %.1f 50 L %.1f 55 L %.1f 60",
+              start,
+              start,
+              start +. 10.,
+              end_,
+              end_ -. 6.,
+              end_,
+              end_ -. 6.,
+            );
+          (
+            [
+              Attr.create(
+                "style",
+                Printf.sprintf("--shift: %.1fpx", end_ +. 4.),
+              ),
+            ],
+            [
+              Node.create_svg(
+                "svg",
+                ~attrs=[
+                  Attr.classes(["write-arrow"]),
+                  Attr.create("width", Printf.sprintf("%.0f", end_ +. 2.)),
+                  Attr.create("height", "62"),
+                ],
+                [
+                  Node.create_svg(
+                    "path",
+                    ~attrs=[Attr.create("d", path)],
+                    [],
+                  ),
+                ],
+              ),
+            ],
+          );
+        | None => ([], [])
+        };
+      Node.div(
+        ~attrs=[
+          Attr.classes(
+            ["write-box"] @ (replacing == None ? [] : ["replacing"]),
+          ),
+          ...shift,
+        ],
+        arrow
+        @ [tab_bar]
         @ (
           switch (tab) {
           | Write => input()
@@ -1303,8 +1416,32 @@ module View = {
     };
     /* The goal's editor. With `hints`, the steps it offers are
      * highlighted, and a click on one takes it. */
+    /* With `into_box`, what is typed goes to the row's write box, which
+     * writes the selected part's replacement. */
     let goal_editor =
-        (~hints: bool, ~previewing, row: Rows.t, local: Model.local) => {
+        (
+          ~hints: bool,
+          ~previewing,
+          ~into_box,
+          row: Rows.t,
+          local: Model.local,
+        ) => {
+      let keys = (key: Key.t) =>
+        switch (key) {
+        | {key: D(text), meta: Up, ctrl: Up, alt: Up, _}
+            when into_box && String.length(text) == 1 =>
+          Some(
+            Ui_effect.Many([
+              take_focus(Box(row.key)),
+              inject((row.key, BoxEditor(Perform(Insert(text))))),
+              Ui_effect.of_sync_fun(
+                () => Haz3lcore.FocusEffect.schedule_cell(),
+                (),
+              ),
+            ]),
+          )
+        | _ => None
+        };
       let goal = local.goal;
       let write_opt = pick =>
         pick
@@ -1322,6 +1459,7 @@ module View = {
             ),
         ~inject=a => inject((row.key, Goal(a))),
         ~selected=focused(Goal(row.key)),
+        ~keys,
         {
           editor: goal.editor,
           next_steps: hints ? Picker.Goal.step_ids(goal) : [],
@@ -1331,10 +1469,12 @@ module View = {
         },
       );
     };
-    let goal_view = (~hints, ~previewing=None, ~prev_broken, row: Rows.t) =>
+    let goal_view =
+        (~hints, ~previewing=None, ~into_box=false, ~prev_broken, row: Rows.t) =>
       switch (prev_broken, Model.find(row.key, model)) {
       | (Some(mark), _) => Row.view_error_above(~globals, mark)
-      | (None, Some(local)) => goal_editor(~hints, ~previewing, row, local)
+      | (None, Some(local)) =>
+        goal_editor(~hints, ~previewing, ~into_box, row, local)
       | (None, None) => div_c("step-placeholder", [Node.text("—")])
       };
     let controls = (~top) =>
@@ -1544,6 +1684,14 @@ module View = {
           | Some((box, _)) => Box.current(~tabs, box) == Step
           | None => false
           };
+        /* With part of the goal selected, the box writes its
+         * replacement. */
+        let replacing =
+          switch (box) {
+          | Some((box, goal)) when Box.current(~tabs, box) == Write =>
+            Update.selected_part(goal) == None ? None : Box.columns(goal)
+          | _ => None
+          };
         /* Where the highlighted use of a rule would act. */
         let previewing =
           switch (box) {
@@ -1586,6 +1734,7 @@ module View = {
                 ~take_focus=take_focus(Box(row.key)),
                 ~focused=focused(Box(row.key)),
                 ~hole_actions=row.kind == Hole ? hole_actions(row.step) : [],
+                ~replacing,
                 box,
                 goal,
               ),
@@ -1600,7 +1749,14 @@ module View = {
             ~status,
             ~show_equiv=prev_broken == None,
             ~delete,
-            ~editor_view=goal_view(~hints, ~previewing, ~prev_broken, row),
+            ~editor_view=
+              goal_view(
+                ~hints,
+                ~previewing,
+                ~into_box=replacing != None,
+                ~prev_broken,
+                row,
+              ),
             ~justification,
             (),
           )

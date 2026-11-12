@@ -116,12 +116,14 @@ module View = {
         ~inject,
         ~signal: event => 'a,
         ~overlays=[],
+        ~keys: Util.Key.t => option(Ui_effect.t(unit))=_ => None,
         ~selected,
         ~_dynamics: Language.Dynamics.Map.t=Language.Dynamics.Map.empty,
         model: Model.t,
       ) => {
     CodeSelectable.View.view(
       ~expand_selection=true,
+      ~keys,
       ~dynamics=Language.Dynamics.Map.empty,
       ~signal=
         fun

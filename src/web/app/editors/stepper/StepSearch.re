@@ -488,7 +488,8 @@ let run =
 
 /* What the box lists under itself: the goal each use of a rule would
  * give. With a rule named, every use of that rule; otherwise every use of
- * any rule. Run in slices, as the search is. */
+ * any rule. With part of the goal selected, only the uses inside it. Run
+ * in slices, as the search is. */
 module Suggestions = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type suggestion = {
@@ -502,13 +503,16 @@ module Suggestions = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     rule: option(string),
+    /* The selected part, by its id in the written goal. */
+    at: option(Id.t),
     /* The uses not yet checked, None until they are listed. */
     pending: option(list((Exp.t, Proof.t))),
     found: list(suggestion),
   };
 
-  let start = (~rule: option(string)): t => {
+  let start = (~rule: option(string), ~at: option(Id.t)): t => {
     rule,
+    at,
     pending: None,
     found: [],
   };
@@ -531,7 +535,11 @@ module Suggestions = {
                 ~keep=(_, _) => true,
                 goal,
                 p,
-                Prepared.parts(p, goal.written),
+                Prepared.parts(
+                  p,
+                  Option.bind(t.at, id => Exp.find_by_id(id, goal.written))
+                  |> Option.value(~default=goal.written),
+                ),
               ),
             ),
         });
