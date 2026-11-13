@@ -289,13 +289,45 @@ module Update = {
               local.box,
             ),
         });
+      /* Step and Proof strategy act on the whole goal, so they drop a
+       * selection made to write a part's replacement. */
       | (Tab(tab), Some(box)) =>
-        set_box({
-          ...box,
-          tab: Some(tab),
-          menu: None,
+        let (goal, box) =
+          switch (tab, selected_part(local.goal)) {
+          | (Step | Strategy, Some(_)) =>
+            let unselected =
+              CodeSelectable.Update.update(
+                ~settings,
+                Unselect(None),
+                local.goal.editor,
+              );
+            let goal = {
+              ...local.goal,
+              editor: unselected.model,
+            };
+            (
+              goal,
+              search(
+                goal,
+                {
+                  ...box,
+                  ghost: ghost(goal),
+                },
+              ),
+            );
+          | (Write | Step | Strategy, _) => (local.goal, box)
+          };
+        set({
+          ...local,
+          goal,
+          box:
+            Some({
+              ...box,
+              tab: Some(tab),
+              menu: None,
+            }),
         })
-        |> return_quiet(~logged=true)
+        |> return_quiet(~logged=true);
       /* A changed text is searched for afresh. */
       | (BoxEditor(a), Some(box)) =>
         let* editor = CodeEditable.Update.update(~settings, a, box.editor);
@@ -984,9 +1016,6 @@ module View = {
           goal: Picker.Goal.t,
         )
         : Node.t => {
-      /* Strategies act on the whole goal, so a selected part hides
-       * them. */
-      let tabs = replacing == None ? tabs : [Model.Write];
       let tab = current(~tabs, box);
       let code = (e: Exp.t) => code(~globals, Exp(e));
       let tab_bar =

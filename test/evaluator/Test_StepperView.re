@@ -752,6 +752,7 @@ module State = {
         let f = Fixture.mk(Settings_change.src);
         let row = first(f.rows);
         let applied = Settings_change.applied(Fixture.goal(f, row));
+        let f = Fixture.act(f, (row.key, Tab(Strategy)));
         let f =
           Fixture.act(
             f,
@@ -760,7 +761,6 @@ module State = {
               Goal(Select(Term(Id(Exp.rep_id(applied), Right)))),
             ),
           );
-        let f = Fixture.act(f, (row.key, Tab(Strategy)));
         let before = Fixture.local(f, row);
         let shown = Settings_change.show_fn_bodies(before.goal.settings);
         let model =
@@ -1257,6 +1257,26 @@ module Regressions = {
     };
 
   let tests = [
+    test_case(
+      "Step and Proof strategy drop a selection of part of the goal, and Write keeps it",
+      `Quick,
+      () => {
+        let f = Fixture.mk("theorem t = 2 * (1 + 1) == 4 proof ? in t");
+        let row = first(f.rows);
+        let part = Picking.node(Fixture.goal(f, row), "(1 + 1)");
+        let f =
+          Fixture.act(
+            f,
+            (row.key, Goal(Select(Term(Id(Exp.rep_id(part), Right))))),
+          );
+        let selected = (f: Fixture.t) =>
+          Option.map(print, Picker.Goal.selected(Fixture.goal(f, row)));
+        let f = Fixture.act(f, (row.key, Tab(Write)));
+        check(option(string), "Write", Some("(1 + 1)"), selected(f));
+        let f = Fixture.act(f, (row.key, Tab(Strategy)));
+        check(option(string), "Proof strategy", None, selected(f));
+      },
+    ),
     test_case(
       "theorem stepper: taking an offered step writes the checker's eval step in place of the hole",
       `Quick,
