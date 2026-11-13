@@ -630,6 +630,37 @@ module State = {
       },
     ),
     test_case(
+      "a focus's steps end in a write box only when the focus ends its chain",
+      `Quick,
+      () => {
+        let inner_end = src => {
+          let f = Fixture.mk(src);
+          switch (first(f.rows).kind) {
+          | Step(Focus(rows)) =>
+            let row = last(rows);
+            (row.continues, Fixture.local(f, row).box != None);
+          | _ => Alcotest.fail("not a C")
+          };
+        };
+        check(
+          pair(bool, bool),
+          "last in its chain",
+          (true, true),
+          inner_end(
+            "theorem t = (1 + 1) * 2 == 4 proof from (1 + 1) * 2 do from 1 + 1 do eval end; eval end in t",
+          ),
+        );
+        check(
+          pair(bool, bool),
+          "with a step after it",
+          (false, false),
+          inner_end(
+            "theorem t = (1 + 1) * 2 == 4 proof from (1 + 1) * 2 do from 1 + 1 do eval end; eval end; eval in t",
+          ),
+        );
+      },
+    ),
+    test_case(
       "a recalculation keeps each row's editor while its goal is unchanged",
       `Quick,
       () => {

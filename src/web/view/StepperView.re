@@ -434,11 +434,24 @@ module Update = {
               let goal = Picker.Goal.mk(~settings, ~ctx, written);
               {
                 goal,
-                box:
-                  Rows.continues(row)
-                    ? Some(new_box(~settings, goal)) : None,
+                box: None,
                 expanded: [],
               };
+            };
+          /* A row keeps its key when the steps after it change whether a
+           * step can be written there. */
+          let local =
+            switch (row.continues, local.box) {
+            | (true, None) => {
+                ...local,
+                box: Some(new_box(~settings, local.goal)),
+              }
+            | (false, Some(_)) => {
+                ...local,
+                box: None,
+              }
+            | (true, Some(_))
+            | (false, None) => local
             };
           Model.add(row.key, local, acc);
         | (None, _)
@@ -1675,7 +1688,7 @@ module View = {
         let box =
           switch (prev_broken, Model.find(row.key, model)) {
           | (None, Some({box: Some(box), goal, _}))
-              when is_last && !ProofCheck.is_true(row.goal) =>
+              when is_last && row.continues && !ProofCheck.is_true(row.goal) =>
             Some((box, goal))
           | _ => None
           };

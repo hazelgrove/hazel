@@ -38,6 +38,9 @@ type t = {
    * for a step that changes the goal's shape or closes it from facts
    * (forall, induction, contradiction, ...). */
   acts_on: option(Id.t),
+  /* Whether a step can be written at the row, in its write box: in place
+   * of a hole, or after the chain's last step where the proof goes on. */
+  continues: bool,
 }
 and kind =
   /* A written `?` or unparseable text. A step picked here replaces it. */
@@ -128,8 +131,11 @@ let single_step = (focus: Proof.t): option(Proof.t) =>
   | _ => None
   };
 
-/* The rows of the chain `proof`. */
-let rec chain = (~proof_map: ProofMap.t, proof: Proof.t): list(t) => {
+/* The rows of the chain `proof`. With `open_end` off, a step can't be
+ * written after the chain's last one: the chain is a focus's steps, and
+ * more steps follow the focus, so a step there would go between rows. */
+let rec chain =
+        (~proof_map: ProofMap.t, ~open_end=true, proof: Proof.t): list(t) => {
   let (step, tail) = split(proof);
   let lookup = p => ProofMap.lookup(Proof.rep_id(p), proof_map);
   /* A one-step focus's row is its step's: the step's marks and side
@@ -152,7 +158,10 @@ let rec chain = (~proof_map: ProofMap.t, proof: Proof.t): list(t) => {
     | Some({incoming: None, _})
     | None => None
     };
-  let nested = chain(~proof_map);
+  let nested = chain(~proof_map, ~open_end=true);
+  /* `have` and `alias` keep their goal, so their body is the rest of this
+   * chain. */
+  let rest = chain(~proof_map, ~open_end);
   let acts_on =
     switch (step.term) {
     /* The checker starts a focus's body from the occurrence it selected. */
@@ -185,6 +194,7 @@ let rec chain = (~proof_map: ProofMap.t, proof: Proof.t): list(t) => {
     entry,
     goal,
     acts_on,
+    continues: kind == Hole,
   };
   let row =
     switch (step.term) {
@@ -196,13 +206,21 @@ let rec chain = (~proof_map: ProofMap.t, proof: Proof.t): list(t) => {
     | EvalStep
     | Contradiction(_) => row(Step(Leaf))
     | Focus({body, _}) =>
-      row(Step(single_step(step) == None ? Focus(nested(body)) : Leaf))
+      row(
+        Step(
+          single_step(step) == None
+            ? Focus(
+                chain(~proof_map, ~open_end=open_end && tail == None, body),
+              )
+            : Leaf,
+        ),
+      )
     | Forall(_, body)
     | Funext(_, body)
     | Assume(_, _, body)
     | Revert(_, _, body)
-    | Generalize(_, body)
-    | Alias(_, _, body) => row(Step(Body(nested(body))))
+    | Generalize(_, body) => row(Step(Body(nested(body))))
+    | Alias(_, _, body) => row(Step(Body(rest(body))))
     | Induction(_, _, cases) =>
       row(
         Step(
@@ -214,7 +232,7 @@ let rec chain = (~proof_map: ProofMap.t, proof: Proof.t): list(t) => {
         Step(
           Premises({
             sub: nested(sub),
-            body: nested(body),
+            body: rest(body),
           }),
         ),
       )
@@ -223,7 +241,7 @@ let rec chain = (~proof_map: ProofMap.t, proof: Proof.t): list(t) => {
     | Seq(_, _) => row(Step(Leaf))
     };
   switch (tail, row.kind) {
-  | (Some(tail), _) => [row, ...chain(~proof_map, tail)]
+  | (Some(tail), _) => [row, ...chain(~proof_map, ~open_end, tail)]
   /* A hole at the end already stands for "the proof continues here". */
   | (None, Hole) => [row]
   /* `have` and `alias` keep their goal, so their body's own last row is
@@ -239,6 +257,33 @@ let rec chain = (~proof_map: ProofMap.t, proof: Proof.t): list(t) => {
         entry,
         goal: Option.bind(entry, (e: ProofMap.entry) => e.outgoing),
         acts_on: None,
+        /* A form proving a goal of its own (forall, assume, induction,
+         * ...) passes its goal through until its body closes it, so the
+         * proof doesn't go on after it. */
+        continues:
+          open_end
+          && (
+            switch (unparen(step).term) {
+            | Forall(_)
+            | Funext(_)
+            | Assume(_)
+            | Revert(_)
+            | Generalize(_)
+            | Induction(_) => false
+            | EmptyHole
+            | Invalid(_)
+            | MultiHole(_)
+            | Seq(_)
+            | Parens(_)
+            | AxiomStep(_)
+            | AlgebriteStep(_)
+            | EvalStep
+            | Focus(_)
+            | Contradiction(_)
+            | Alias(_)
+            | Have(_) => true
+            }
+          ),
       },
     ]
   };
@@ -272,23 +317,6 @@ let reached = (rows: list(t)): option(Exp.t) =>
   | Some({kind: Hole | Step(_), entry, _}) =>
     Option.bind(entry, (e: ProofMap.entry) => e.outgoing)
   | None => None
-  };
-
-/* Whether the proof continues at the row: a hole, or the row after a
- * step that leaves the next goal to prove. A form proving a goal of its
- * own (forall, assume, induction, ...) passes its goal through until its
- * body closes it, so the row after it is not where the proof goes on. */
-let continues = (row: t): bool =>
-  switch (row.kind, unparen(row.step).term) {
-  | (Hole, _) => true
-  | (Step(_), _) => false
-  | (
-      End,
-      Forall(_) | Funext(_) | Assume(_) | Revert(_) | Generalize(_) |
-      Induction(_),
-    ) =>
-    false
-  | (End, _) => true
   };
 
 /* The scope a step written at the row is checked in. */
