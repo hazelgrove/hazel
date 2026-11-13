@@ -119,6 +119,7 @@ rule token =
     | "false" { FALSE }
     | "module" { MODULE }
     | "let" { LET }
+    | "where" { WHERE }
     | "in" { IN }
     | "end" { END }
     | "fun" { FUN }

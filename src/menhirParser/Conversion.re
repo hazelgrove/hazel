@@ -614,6 +614,7 @@ and Pat: {
     | InvalidPat(s) => invalid(s)
     | AtomPat(c) => basic(c)
     | AscPat(p, t) => asc(of_menhir_ast(p), Typ.of_menhir_ast(t))
+    | WherePat(p, g) => where_(of_menhir_ast(p), Exp.of_menhir_ast(g))
     | VarPat(x) => var(x)
     | ConstructorPat(x, ty) =>
       constructor(x, Option.map(Option.map(Typ.of_menhir_ast), ty))
@@ -649,6 +650,7 @@ and Pat: {
     | Wild => WildPat
     | MultiHole(_) => raise(Failure("MultiHole not supported"))
     | Asc(p, t) => AscPat(of_core(p), Typ.of_core(t))
+    | Where(p, g) => WherePat(of_core(p), Exp.of_core(g))
     | Parens(p) => ParenPat(of_core(p))
     | Label(s) => LabelPat(s)
     | ExplicitNonlabel => ExplicitNonlabel

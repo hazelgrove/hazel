@@ -275,6 +275,11 @@ and match_pat = (pat_r: Pat.t, pat: Pat.t): option(alphas) =>
   | (_, Projector(_, p2)) => match_pat(pat_r, p2)
   | (Asc(p1, _), _) => match_pat(p1, pat)
   | (_, Asc(p2, _)) => match_pat(pat_r, p2)
+  /* Matching a guard would mean matching its expression under the
+     pattern's alphas; until that is needed, a guarded pattern matches
+     nothing. */
+  | (Where(_), _)
+  | (_, Where(_)) => None
   | (Invalid(x), Invalid(y)) when x == y => Some([])
   | (Invalid(_), _) => None
   | (EmptyHole, EmptyHole) => Some([])

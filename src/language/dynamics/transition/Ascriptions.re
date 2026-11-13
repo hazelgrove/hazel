@@ -64,6 +64,8 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Closure(ce, d), t) =>
       transition(~recursive, Asc(d, t |> Typ.fresh) |> DHExp.fresh)
       |> Option.map(d => Closure(ce, d) |> DHExp.fresh)
+    /* `(p where g) : t1` would print as `p where (g : t1)`. */
+    | (Fun({term: Where(_), _}, _, _, _), Arrow(_, _)) => None
     | (Fun(p, body, closure_ty, name), Arrow(t1, t2)) =>
       Some(
         IdTagged.fast_copy(

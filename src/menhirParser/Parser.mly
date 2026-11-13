@@ -94,6 +94,7 @@ open AST
 %token L_NOT
 (*bitwise ops*)
 %token COMMA
+%token WHERE
 %token COLON
 %token EOF
 %token IN
@@ -136,6 +137,12 @@ open AST
    module bodies, the parser reduces exp to modItemExp rather than shifting
    ';' for Seq. This only affects the modItemExp production. */
 %nonassoc MOD_ITEM_EXP
+
+/* `p where g` (Precedence.pat_where): looser than every operator that can
+   appear on either side, so `h :: t where a && b` is
+   `Where(Cons(h, t), a && b)`, and tighter than the structural forms, so
+   the guard ends at the binder's `->`, the rule's `=>` or the let's `=`. */
+%nonassoc WHERE
 
 %right L_OR
 %right L_AND
@@ -339,7 +346,7 @@ funAscElem:
 
 (* KNOWN CONFLICT FAMILIES (menhir default resolutions, all pinned by
    the MenhirParser/MenhirFuzz/MenhirCorpus differential suites):
-   1. fun-parameter CONS/COLON (below) — shift keeps them parameter-level.
+   1. fun-parameter CONS/COLON/WHERE (below) — shift keeps them parameter-level.
    2. ~53 s/r states after `<form> ... exp` with COMMA/UNIT lookahead,
       introduced by the bare-tuple-at-let and nullary-ap productions —
       shift continues the inner exp, which is MakeTerm parity.
@@ -350,7 +357,7 @@ funAscElem:
       semantic actions, either wins.
    Adding grammar rules? Rerun the three suites; do not trust silence. *)
 (* KNOWN CONFLICT (one s/r + one r/r state, resolved by default): after
-   `FUN nonAscriptingPat`, CONS/COLON could continue at the parameter
+   `FUN nonAscriptingPat`, CONS/COLON/WHERE could continue at the parameter
    level (funConsPat/funAscElem) or inside a generic `pat`. The default
    shift keeps them at the parameter level, which is MakeTerm parity —
    pinned by the MenhirParser equivalence tests. *)
@@ -361,11 +368,14 @@ funConsPat:
 funPat:
     | OPEN_PAREN; p1 = pat; COLON; t1 = typ; CLOSE_PAREN;  { ParenPat(AscPat(p1, t1)) }
     | p = funAscElem; { p }
+    (* `fun p where g -> e` and `fun p : T where g -> e` *)
+    | p = funAscElem; WHERE; g = exp; { WherePat(p, g) }
     (* Multi-parameter sugar: fun a, b -> e binds a tuple pattern *)
     | p = funAscElem; COMMA; ps = separated_nonempty_list(COMMA, funAscElem);
       { TuplePat(p :: ps) }
 
 pat:
+    | p1 = pat; WHERE; g = exp;  { WherePat(p1, g) }
     | p1 = pat; COLON; t1 = typ;  { AscPat(p1, t1) }
     (* | p1 = pat; AS; p2 = pat; { AsPat(p1, p2) } *)
     | p1 = pat; CONS; p2 = pat { ConsPat(p1, p2) } 

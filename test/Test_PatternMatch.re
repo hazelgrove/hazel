@@ -51,7 +51,7 @@ let tests = (
           switch (r1, r2) {
           | (DoesNotMatch, DoesNotMatch) => true
           | (IndetMatch, IndetMatch) => true
-          | (Matches(env1), Matches(env2)) =>
+          | (Matches(Complete(env1)), Matches(Complete(env2))) =>
             List.equal(
               Environment.equal_binding(Language.Exp.fast_equal),
               List.sort(compare, env1),
@@ -63,10 +63,12 @@ let tests = (
         check(
           testable(PatternMatch.pp_match_result, equal_match_result),
           "Labeled Tuple with casts",
-          Matches([
-            ("b", Exp.(bool(true))),
-            ("a", Exp.(string("get_acne"))),
-          ]),
+          Matches(
+            Complete([
+              ("b", Exp.(bool(true))),
+              ("a", Exp.(string("get_acne"))),
+            ]),
+          ),
           matches,
         );
       },

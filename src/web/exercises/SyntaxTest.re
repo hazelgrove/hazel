@@ -30,7 +30,8 @@ let rec find_in_let =
   | (Projector(_, up), _) => find_in_let(name, up, def, l)
   | (_, Parens(ue))
   | (_, Projector(_, ue)) => find_in_let(name, upat, ue, l)
-  | (Asc(up, _), _) => find_in_let(name, up, def, l)
+  | (Asc(up, _), _)
+  | (Where(up, _), _) => find_in_let(name, up, def, l)
   | (Var(x), Fun(_)) => x == name ? [def, ...l] : l
   | (TupLabel(_, up), TupLabel(_, ue)) => find_in_let(name, up, ue, l)
   | (TupLabel(_, up), _) => find_in_let(name, up, def, l)
@@ -169,7 +170,8 @@ let rec var_mention_upat = (name: string, upat: Pat.t): bool => {
   | TupLabel(_, up) => var_mention_upat(name, up)
   | Ap(up1, up2) =>
     var_mention_upat(name, up1) || var_mention_upat(name, up2)
-  | Asc(up, _) => var_mention_upat(name, up)
+  | Asc(up, _)
+  | Where(up, _) => var_mention_upat(name, up)
   };
 };
 

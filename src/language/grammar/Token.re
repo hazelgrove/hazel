@@ -309,8 +309,12 @@ let quote_label_when_necessary = (l: string): string =>
  * Derived from BaseAtom.table, the single home for these spellings. */
 let base_typs = BaseAtom.base_typs;
 let is_base_typ = match(regexp("^(" ++ concat("|", base_typs) ++ ")$"));
+/* In an ascribed guarded pattern (`fun b : Bool where b -> _`) `where`
+   follows a type, so it must not mold as a type variable or the type
+   would absorb it. */
 let is_typ_var = str =>
-  is_var(str) || unicode_match(capitalized_name_regexp, str);
+  str != "where"
+  && (is_var(str) || unicode_match(capitalized_name_regexp, str));
 
 /* List literals */
 let list_start = "[";

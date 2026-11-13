@@ -148,6 +148,7 @@ type example_id =
   | Asc2
   | Asc3
   | Module1
+  | FunWhere1
   | ModLet1
   | ModType1
   | Sig1
@@ -299,6 +300,7 @@ type form_id =
   | AscExp
   | TupleExtensionExp
   | ModuleExp
+  | FunWhereExp
   | ModLetDecl
   | ModTypeDecl
   | SigTyp

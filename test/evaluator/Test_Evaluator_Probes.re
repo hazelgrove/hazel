@@ -1328,11 +1328,68 @@ in f((a=5, b=6))|},
   ),
 ];
 
+/* A guard is evaluated as part of the program, so probes inside it
+ * record like any other, including a guard nested inside a pattern and
+ * a guard that turns out false. */
+let where_guard_tests = [
+  probe_line_test(
+    "Probe in a case guard",
+    {|case 5 | x where ^^probe(x > 0) => x | _ => 0 end|},
+    [(0, ["true"])],
+  ),
+  probe_line_test(
+    "Probe in a false case guard",
+    {|case -1 | x where ^^probe(x > 0) => x | _ => 0 end|},
+    [(0, ["false"])],
+  ),
+  probe_line_test(
+    "Probe in a guard nested inside a pattern",
+    {|case (1, (2, 3))
+| (a, (b where ^^probe(b > a), c)) => c
+| _ => 0 end|},
+    [(1, ["true"])],
+  ),
+  probe_line_test(
+    "Probe in a guard on a function parameter",
+    {|let f = fun x where ^^probe(x != 0) -> 100 / x
+in f(4)|},
+    [(0, ["true"])],
+  ),
+  probe_line_test(
+    "Probe in a guard on a let pattern",
+    {|let x where ^^probe(x > 0) = 3 in x|},
+    [(0, ["true"])],
+  ),
+  probe_count_test(
+    "Probe in a guard records once per call",
+    {|let f = fun x where ^^probe(x != 0) -> 100 / x
+in f(1) + f(2) + f(4)|},
+    [(0, 3)],
+  ),
+  /* A pattern probe records once matching reaches its sub-pattern, so
+     here it records 5 though the arm's guard then fails. */
+  probe_line_test(
+    "Pattern probe in a guarded arm",
+    {|case (5, 1)
+| (^^probe(a), b where b > a) => a
+| _ => 0 end|},
+    [(1, ["5"])],
+  ),
+  probe_line_test(
+    "Pattern probe after a guard records when the guard holds",
+    {|case (1, 5)
+| (a where a > 0, ^^probe(b)) => b
+| _ => 0 end|},
+    [(1, ["5"])],
+  ),
+];
+
 let tests = [
   ("Evaluator.Probes.Basic", basic_tests),
   ("Evaluator.Probes.Operators", operator_tests),
   ("Evaluator.Probes.Compound", compound_expression_tests),
   ("Evaluator.Probes.Patterns", pattern_probe_tests),
+  ("Evaluator.Probes.WhereGuards", where_guard_tests),
   ("Evaluator.Probes.Nested", nested_probe_tests),
   ("Evaluator.Probes.Recursion", recursion_tests),
   ("Evaluator.Probes.Ascription", ascription_tests),

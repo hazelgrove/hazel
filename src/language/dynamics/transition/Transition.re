@@ -487,6 +487,61 @@ module Transition = (EV: EV_MODE) => {
       | `Substitution => d |> Substitution.in_exp(env)
       };
 
+    /* A match that stopped at a `where` guard `g`, as
+         if g then
+           case v | p => body | fallback_pat(p) => fallback end
+         else fallback
+       where `p` is the rest of the pattern and `v` the rest of the value.
+       `scope` is the environment plus the bindings so far: what `g`, the
+       rest and the body see. */
+    let rec guarded = (~scope, ~body, ~fallback_pat, ~fallback, g, rest) => {
+      let then_ =
+        switch (rest) {
+        | [] => subst_env(scope, body)
+        | [Check(g'), ...rest] =>
+          guarded(~scope, ~body, ~fallback_pat, ~fallback, g', rest)
+        | [Match(_), ..._] =>
+          let (p, v) = rest_as_pattern(rest);
+          subst_env(
+            scope,
+            generated(
+              Match(v, [(p, body), (fallback_pat(p), fallback)]),
+            ),
+          );
+        };
+      generated(If(subst_env(scope, g), then_, fallback));
+    };
+
+    /* What a `fun` application or `let` steps to once its pattern has
+       matched. A guard that fails, here or later in the pattern, is an
+       error around `failed`, the application or `let` itself. Matching
+       the rest falls back to it only when the rest matches without its
+       guards, so a structural mismatch stays stuck, as it is with no
+       guards. */
+    let enter = (~env, ~body, ~failed, m: matched) =>
+      switch (m) {
+      | Complete(bindings) =>
+        subst_env(Environment.add_bindings(env, bindings), body)
+      | Guarded({bindings, guard, rest}) =>
+        guarded(
+          ~scope=Environment.add_bindings(env, bindings),
+          ~body,
+          ~fallback_pat=Pat.without_guards,
+          ~fallback=dynamic_error_hole(failed, UnsatisfiedWhere),
+          guard,
+          rest,
+        )
+      };
+
+    /* A step to an error hole around a failed `fun` or `let` (see `enter`)
+       is final, or the hole would evaluate the application again,
+       forever. */
+    let is_error_hole = d =>
+      switch (DHExp.term_of(d)) {
+      | DynamicErrorHole(_) => true
+      | _ => false
+      };
+
     // Transition rules
     switch (term) {
     | Var(x) =>
@@ -531,22 +586,28 @@ module Transition = (EV: EV_MODE) => {
         req_final(req(env), d1 => Let1(dp, d1, d2) |> wrap_ctx, d1);
       let.wrap_closure _ = (env, Let(dp, d1', d2) |> rewrap);
       let {matches, samples} = matches(targets, dp, d1');
-      let matches_str = {
-        switch (matches) {
-        | IndetMatch
-        | DoesNotMatch => ""
-        | Matches(env) =>
-          env |> List.rev |> List.map(((s, _)) => s) |> String.concat(", ")
-        };
-      };
-
       switch (matches) {
       | IndetMatch
       | DoesNotMatch => Indet
-      | Matches(env') =>
-        let env' = Environment.add_bindings(env, env');
+      | Matches(m) =>
+        let bindings =
+          switch (m) {
+          | Complete(bindings)
+          | Guarded({bindings, _}) => bindings
+          };
+        let matches_str =
+          bindings
+          |> List.rev
+          |> List.map(((s, _)) => s)
+          |> String.concat(", ");
         Step({
-          expr: subst_env(env', d2),
+          expr:
+            enter(
+              ~env,
+              ~body=d2,
+              ~failed=subst_env(env, Let(dp, d1', d2) |> rewrap),
+              m,
+            ),
           side_effects: [
             RecordPatMatch({
               pat: dp,
@@ -752,10 +813,15 @@ module Transition = (EV: EV_MODE) => {
           switch (matches.matches) {
           | IndetMatch
           | DoesNotMatch => Indet
-          | Matches(added_env) =>
-            let env'' = Environment.add_bindings(replacement_env, added_env);
+          | Matches(m) =>
             Step({
-              expr: subst_env(env'', d3),
+              expr:
+                enter(
+                  ~env=replacement_env,
+                  ~body=d3,
+                  ~failed=Ap(dir, d1', d2') |> rewrap,
+                  m,
+                ),
               side_effects: [
                 RecordStackFrame(fn_name, Some(d2'), fn_def_id),
                 /* Use pre-req_final `d2` so dirty propagation walks the
@@ -768,19 +834,21 @@ module Transition = (EV: EV_MODE) => {
               ],
               kind: FunAp,
               is_value: false,
-            });
+            })
           };
         | FunNoEnv(dp, d3) when mode == `Substitution =>
           let matches = matches(targets, dp, d2');
           switch (matches.matches) {
           | IndetMatch
           | DoesNotMatch => Indet
-          | Matches(added_env) =>
+          | Matches(m) =>
             Step({
               expr:
-                subst_env(
-                  Environment.add_bindings(Environment.empty, added_env),
-                  d3,
+                enter(
+                  ~env=Environment.empty,
+                  ~body=d3,
+                  ~failed=Ap(dir, d1', d2') |> rewrap,
+                  m,
                 ),
               side_effects: [
                 RecordStackFrame(fn_name, Some(d2'), fn_def_id),
@@ -907,14 +975,13 @@ module Transition = (EV: EV_MODE) => {
       and. c' = req_final(req(env), c => If1(c, d1, d2) |> wrap_ctx, c);
       let.wrap_closure _ = (env, If(c', d1, d2) |> rewrap);
       let-unbox b = (Atom(Bool), c');
+      let branch = b ? d1 : d2;
       Step({
-        expr: {
-          b ? d1 : d2;
-        },
+        expr: branch,
         side_effects: [],
         // Attach c' to indicate which branch taken.
         kind: Conditional(b),
-        is_value: false,
+        is_value: is_error_hole(branch),
       });
     | UnOp(op, d1) =>
       let. _ = otherwise(env, d1 => UnOp(op, d1) |> rewrap)
@@ -1170,16 +1237,36 @@ module Transition = (EV: EV_MODE) => {
         | [(dp, d2), ...rules] => {
             let matches = matches(targets, dp, d1');
             switch (matches.matches) {
-            | Matches(env') => Some((dp, env', d2, matches.samples))
+            | Matches(m) => Some((dp, m, d2, rules, matches.samples))
             | DoesNotMatch => next_rule(rules)
             | IndetMatch => None
             };
           }
       );
       switch (next_rule(rules)) {
-      | Some((dp, env', d2, samples)) =>
+      | Some((dp, m, d2, later_rules, samples)) =>
+        let (expr, is_value) =
+          switch (m) {
+          | Complete(bindings) => (
+              subst_env(Environment.add_bindings(env, bindings), d2),
+              is_error_hole(d2),
+            )
+          | Guarded({bindings, guard, rest}) =>
+            let fallback =
+              subst_env(env, generated(Match(d1', later_rules)));
+            let expr =
+              guarded(
+                ~scope=Environment.add_bindings(env, bindings),
+                ~body=d2,
+                ~fallback_pat=_ => Pat.fresh(Wild),
+                ~fallback,
+                guard,
+                rest,
+              );
+            (expr, false);
+          };
         Step({
-          expr: subst_env(Environment.add_bindings(env, env'), d2),
+          expr,
           /* Use the pre-req_final scrutinee `d1` (not `d1'`) so dirty
            * propagation walks its stable source ids, which carry cache
            * entries. */
@@ -1191,8 +1278,8 @@ module Transition = (EV: EV_MODE) => {
             }),
           ],
           kind: CaseApply,
-          is_value: false,
-        })
+          is_value,
+        });
       | None =>
         let.wrap_closure _ = (env, Match(d1', rules) |> rewrap);
         Indet;

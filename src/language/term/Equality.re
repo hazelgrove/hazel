@@ -612,6 +612,16 @@ let equality =
       let* alphas2 = pat'(p2, p4);
       Some(Alphas.combine(alphas1, alphas2));
     | (Ap(_, _), _) => None
+    /* The guard is in the scope of `p`'s bindings, so compare it under
+       their alphas, as for `Fun`. */
+    | (Where(p1', g1), Where(p2', g2)) =>
+      switch (pat'(p1', p2')) {
+      | Some(alphas_exp') =>
+        let alphas_exp'' = Alphas.combine(alphas_exp', alphas_exp);
+        exp(alphas_exp'', alphas_typ, g1, g2) ? Some(alphas_exp') : None;
+      | None => None
+      }
+    | (Where(_, _), _) => None
     };
   }
   and typ =

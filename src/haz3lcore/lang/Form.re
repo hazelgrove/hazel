@@ -145,6 +145,7 @@ let rows_of: family => list(row) =
       mk_infix(Pat, P.cons),
       mk(L, Mold.mk_bin'(P.cons, Drv(Exp), Drv(Exp), [], Drv(Exp))),
     ]
+  | Where => [mk_infix(Pat, ~l=Pat, ~r=Exp, P.pat_where)]
   | TypeAsc => [
       mk_infix(Pat, ~l=Pat, ~r=Typ, P.asc),
       mk_infix(Exp, ~l=Exp, ~r=Typ, P.asc),

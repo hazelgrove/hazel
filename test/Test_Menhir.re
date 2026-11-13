@@ -290,6 +290,41 @@ let tests =
          ascription (arrow types need parens), single-caret livelits.
          Equivalence against MakeTerm is the contract that matters. */
       menhir_maketerm_equivalent_test("multi-param fun", "fun a, b -> a + b"),
+      /* `where` patterns: the guard takes whole operators on either side
+         and ends at `,`, `->`, `=>` and `=`. */
+      full_parser_test(
+        "FunWhere",
+        fn(
+          Pat.where_(
+            Pat.var("x"),
+            bin_op(Poly(NotEquals), var("x"), int(0)),
+          ),
+          bin_op(Int(Divide), int(100), var("x")),
+          None,
+          None,
+        ),
+        "fun x where x != 0 -> 100 / x",
+      ),
+      menhir_maketerm_equivalent_test(
+        "FunWhere guard takes a conjunction",
+        "fun x where x != 0 && x != 1 -> x",
+      ),
+      menhir_maketerm_equivalent_test(
+        "FunWhere with an ascribed parameter",
+        "fun b : Bool where b -> 1",
+      ),
+      menhir_maketerm_equivalent_test(
+        "LetWhere",
+        "let x where x > 0 = 1 in x",
+      ),
+      menhir_maketerm_equivalent_test(
+        "CaseWhere on a cons",
+        "case [1] | h :: t where h != 0 => 1 | _ => 2 end",
+      ),
+      menhir_maketerm_equivalent_test(
+        "CaseWhere on a tuple component",
+        "case (1, 2) | (x where x > 0, y) => y | _ => 0 end",
+      ),
       /* Gap fill 2026-08-14: ascribed unit parameter (UNIT lives at the
          funPat level, which had no ascription production). */
       menhir_maketerm_equivalent_test(

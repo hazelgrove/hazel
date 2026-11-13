@@ -93,6 +93,15 @@ let if_ = 36;
 let fun_ = 37;
 // fun x -> _____
 
+/* `p where g` (Pat `where` Exp -> Pat). Looser than every operator that
+ * can appear on either side, so both operands are taken whole:
+ *   h :: t where h != 0 && t == []  ==>  Where(h :: t, h != 0 && t == [])
+ * Tighter than `comma`, `let_` and `rule_sep`, so the guard stays in its
+ * binding position and attaches to one tuple component:
+ *   (x where x > 0, y)  ==>  (Where(x, x > 0), y)
+ * Parenthesize a tuple to guard it as a whole. */
+let pat_where = 38;
+
 let lab = 39;
 
 let case_ = 42;
