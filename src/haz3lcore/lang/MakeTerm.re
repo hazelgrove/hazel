@@ -1246,6 +1246,15 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
       )
     | _ => ret(hole(tm))
     }
+  | Bin(Pat(p), tiles, Exp(g)) as tm =>
+    switch (tiles) {
+    | ([(_id, (F(Compound(Where)), []))], []) => ret(Where(p, g))
+    | ([(_id, (F(f), []))], []) when op_lexeme(f) != None =>
+      /* Unknown infix operator (see the exp Bin fallthrough) */
+      Option.iter(set_lexeme, op_lexeme(f));
+      ret(hole(tm));
+    | _ => ret(hole(tm))
+    }
   | Bin(Pat(p), tiles, Typ(ty)) as tm =>
     switch (tiles) {
     | ([(_id, (F(Compound(TypeAsc)), []))], []) => ret(Asc(p, ty))

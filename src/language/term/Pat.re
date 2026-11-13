@@ -17,7 +17,8 @@ type cls =
   | Projector
   | ApFunc
   | ApCons
-  | Asc;
+  | Asc
+  | Where;
 
 include TermBase.Pat;
 
@@ -60,7 +61,8 @@ let cls_of_term: Grammar.pat_term('a) => cls =
   | Projector(_) => Projector
   | Ap({term: Constructor(_), _}, _) => ApCons
   | Ap(_) => ApFunc
-  | Asc(_) => Asc;
+  | Asc(_) => Asc
+  | Where(_) => Where;
 
 let show_cls: cls => string =
   fun
@@ -86,13 +88,15 @@ let show_cls: cls => string =
   | Projector => "Projector"
   | ApCons => "Constructor application"
   | ApFunc => "Function definition"
-  | Asc => "Annotation";
+  | Asc => "Annotation"
+  | Where => "Guarded pattern";
 
 let rec is_var = (pat: t): option(Var.t) => {
   switch (pat.term) {
   | Parens(pat)
   | Projector(_, pat)
   | TupLabel(_, pat)
+  | Where(pat, _)
   | Asc(pat, _) => is_var(pat)
   | Var(v) => Some(v)
   | Invalid(_)
@@ -117,6 +121,7 @@ let rec is_tuple_of_vars = (pat: t) =>
     | Parens(pat)
     | Projector(_, pat)
     | Asc(pat, _)
+    | Where(pat, _)
     | TupLabel(_, pat) => is_tuple_of_vars(pat)
     | Tuple(pats) => pats |> List.for_all(x => x |> is_var |> Option.is_some)
     | Label(_)
@@ -140,7 +145,8 @@ let rec get_var = (pat: t) => {
   | Projector(_, pat)
   | TupLabel(_, pat) => get_var(pat)
   | Var(x) => Some(x)
-  | Asc(x, _) => get_var(x)
+  | Asc(x, _)
+  | Where(x, _) => get_var(x)
   | Invalid(_)
   | EmptyHole
   | MultiHole(_)
@@ -164,6 +170,7 @@ let rec get_num_of_vars = (pat: t) =>
     | Parens(pat)
     | Projector(_, pat)
     | Asc(pat, _)
+    | Where(pat, _)
     | TupLabel(_, pat) => get_num_of_vars(pat)
     | Tuple(pats) => is_tuple_of_vars(pat) ? Some(List.length(pats)) : None
     | Label(_)
@@ -181,12 +188,49 @@ let rec get_num_of_vars = (pat: t) =>
     }
   };
 
+/* Does `p` carry a `where` guard anywhere? Coverage leaves guarded
+   `case` rows out, since a guard can fail. */
+let rec is_guarded = (p: t): bool =>
+  switch (p |> term_of) {
+  | Where(_, _) => true
+  | Parens(p)
+  | Projector(_, p)
+  | Asc(p, _)
+  | TupLabel(_, p) => is_guarded(p)
+  | Cons(p1, p2)
+  | Ap(p1, p2) => is_guarded(p1) || is_guarded(p2)
+  | ListLit(ps)
+  | Tuple(ps) => List.exists(is_guarded, ps)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | Wild
+  | Atom(_)
+  | Var(_)
+  | Label(_)
+  | ExplicitNonlabel
+  | Constructor(_) => false
+  };
+
+/* `p` without its `where` guards: what it matches structurally. */
+let rec without_guards = (p: t): t =>
+  map_term(
+    ~f_pat=
+      (continue, p: t) =>
+        switch (p.term) {
+        | Where(p, _) => without_guards(p)
+        | _ => continue(p)
+        },
+    p,
+  );
+
 let rec ctr_name = (p: t): option(Constructor.t) =>
   switch (p.term) {
   | Constructor(name, _) => Some(name)
   | Parens(p)
   | Projector(_, p) => ctr_name(p)
   | Asc(_)
+  | Where(_)
   | Invalid(_)
   | EmptyHole
   | MultiHole(_)
@@ -228,6 +272,7 @@ let rec bindings = (dp: t): Binding.s =>
   | ExplicitNonlabel
   | Constructor(_) => []
   | Asc(y, _)
+  | Where(y, _)
   | Parens(y)
   | Projector(_, y)
   | TupLabel(_, y) => bindings(y)

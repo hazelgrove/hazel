@@ -6,6 +6,7 @@ let tests =
     Test_Evaluator_ProbeSelection.tests,
   ]
   @ Test_Evaluator_Probes.tests
+  @ Test_WherePat.tests
   @ [
     Test_Evaluator_Livelit.tests,
     Test_Evaluator_Builtins.tests,

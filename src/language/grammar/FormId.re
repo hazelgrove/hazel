@@ -79,6 +79,7 @@ type family =
   | LogicalOr
   | ListConcat
   | Cons
+  | Where
   | TypeAsc
   | TupleLabeled
   | Dot
@@ -196,6 +197,7 @@ let label_of_family: family => Label.t =
   | LogicalOr => ["||"]
   | ListConcat => ["@"]
   | Cons => ["::"]
+  | Where => ["where"]
   | TypeAsc => [":"]
   | TupleLabeled => ["="]
   | Dot => ["."]

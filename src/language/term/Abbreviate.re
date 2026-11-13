@@ -1414,6 +1414,23 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
           };
         }
 
+      | Where(p, g) =>
+        if (available^ < 3) {
+          available := available^ - ellipsis_cost;
+          Invalid(flat_ellipses);
+        } else if (available^ <= 3) {
+          Invalid("…where…");
+        } else {
+          available := available^ - 7; // " where "
+          let p' = abbreviate_pat(p);
+          if (available^ > 1) {
+            let g' = abbreviate_exp(g);
+            Where(p', g');
+          } else {
+            Where(p', g);
+          };
+        }
+
       | ListLit(ps) =>
         if (available^ < 3) {
           available := available^ - ellipsis_cost;

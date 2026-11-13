@@ -396,6 +396,15 @@ and remold_pat_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
           let (remolded_pat, shape, rest) =
             remold_pat_uni(shape, rest, parent_sorts);
           ([Piece.Tile(t), ...remolded_typ] @ remolded_pat, shape, rest);
+        /* A Pat tile with an Exp right nib: the `where` guard. Without
+           this case the guard would be remolded as a pattern, reading
+           `p where f(x)` as a constructor application. */
+        | (_, {shape, sort: Exp}) =>
+          let (remolded_exp, shape, rest) =
+            remold_exp_uni(shape, tl, [Sort.Pat, ...parent_sorts]);
+          let (remolded_pat, shape, rest) =
+            remold_pat_uni(shape, rest, parent_sorts);
+          ([Piece.Tile(t), ...remolded_exp] @ remolded_pat, shape, rest);
         | _ =>
           let (remolded, shape, rest) =
             remold_pat_uni(snd(Tile.shapes(t)), tl, parent_sorts);
@@ -424,6 +433,11 @@ and remold_pat = (shape, seg: t): t =>
         | (_, {shape, sort: Typ}) =>
           let (remolded, shape, rest) =
             remold_typ_uni(shape, tl, [Sort.Pat]);
+          [Piece.Tile(t), ...remolded] @ remold_pat(shape, rest);
+        /* Exp right nib: the `where` guard. See remold_pat_uni. */
+        | (_, {shape, sort: Exp}) =>
+          let (remolded, shape, rest) =
+            remold_exp_uni(shape, tl, [Sort.Pat]);
           [Piece.Tile(t), ...remolded] @ remold_pat(shape, rest);
         | _ => [Tile(t), ...remold_pat(snd(Tile.shapes(t)), tl)]
         }
@@ -518,6 +532,21 @@ and remold_exp_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
          Exp-level semicolon entirely or find a more principled disambiguation approach. */
       | Some(t)
           when Tile.is_semi(t) && List.exists((==)(Sort.Mod), parent_sorts) => (
+          [],
+          shape,
+          seg,
+        )
+      /* A `where` guard ends at a comma: `(x where x > 0, y)` is a tuple
+         pattern whose first component is guarded. */
+      | Some(t)
+          when
+            Tile.has_label_of(t, Comma)
+            && (
+              switch (parent_sorts) {
+              | [Sort.Pat, ..._] => true
+              | _ => false
+              }
+            ) => (
           [],
           shape,
           seg,

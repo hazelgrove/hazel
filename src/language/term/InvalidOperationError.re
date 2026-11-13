@@ -6,7 +6,8 @@ type t =
   | NegativeExponent
   | NegativeNat
   | IntegerTooBig
-  | Incomparable;
+  | Incomparable
+  | UnsatisfiedWhere;
 
 let err_msg = (err: t): string =>
   switch (err) {
@@ -17,4 +18,5 @@ let err_msg = (err: t): string =>
   | NegativeNat => "Error: Cannot convert negative number to Nat"
   | IntegerTooBig => "Error: Integer too big"
   | Incomparable => "Error: Incomparable Types"
+  | UnsatisfiedWhere => "Error: The value doesn't satisfy the pattern's `where` condition"
   };

@@ -1186,3 +1186,29 @@ module CheckMatrix: CheckMatrix = {
 };
 
 let check = CheckMatrix.check;
+
+/* Coverage of a `case`, one row per arm. A guarded row (`| p where g =>`)
+ * is not a case split: the guard can fail at runtime, so the row neither
+ * covers its constructor nor makes a later row redundant. Guarded rows are
+ * left out of the matrix, and redundant rows are reported by their
+ * position among all rows. So `| S(m) where P | S(m) | Z` is exhaustive
+ * and `| S(m) where P | Z` is not. Complementary guards (`x > 0` /
+ * `x <= 0`) with no catch-all are reported inexhaustive: deciding them
+ * would need an SMT solver. */
+let check_rows =
+    (rows: list((Pat.t, Constraint.t)), ty: Typ.t): CheckMatrix.t => {
+  let unguarded =
+    rows
+    |> List.mapi((i, (p, c)) => (i, p, c))
+    |> List.filter(((_, p, _)) => !Pat.is_guarded(p));
+  let {exhaustiveness, redundant_rows}: CheckMatrix.t =
+    check(List.map(((_, _, c)) => c, unguarded), ty);
+  let row_of = i => {
+    let (row, _, _) = List.nth(unguarded, i);
+    row;
+  };
+  {
+    exhaustiveness,
+    redundant_rows: List.map(row_of, redundant_rows),
+  };
+};

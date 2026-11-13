@@ -95,6 +95,11 @@ and pat_term('a) =
   | Projector(projector_data, pat_t('a))
   | Ap(pat_t('a), pat_t('a))
   | Asc(pat_t('a), typ_t('a))
+  /* `p where g`: matches when `p` matches and the boolean `g` holds. `g`
+     sees the bindings to its left in the enclosing pattern, `p`'s
+     included. Matching is structural; `Transition`'s `Match`, `Ap` and
+     `Let` rules evaluate the guard as an ordinary `if`. */
+  | Where(pat_t('a), exp_t('a))
 and pat_t('a) = Annotated.t(pat_term('a), 'a)
 and typ_term('a) =
   | Unknown(type_provenance('a))
@@ -348,6 +353,8 @@ and map_pat_annotation: 'a 'b. ('a => 'b, pat_t('a)) => pat_t('b) =
           Ap(map_pat_annotation(f, p1), map_pat_annotation(f, p2))
         | Asc(p, t) =>
           Asc(map_pat_annotation(f, p), map_typ_annotation(f, t))
+        | Where(p, g) =>
+          Where(map_pat_annotation(f, p), map_exp_annotation(f, g))
         },
       annotation: new_annotation,
     };
@@ -867,6 +874,11 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
 
     let asc = (~ann=?, p, t): pat_t(DefaultAnnotation.t) => {
       term: Asc(p, t),
+      annotation: default_annotation(ann),
+    };
+
+    let where_ = (~ann=?, p, g): pat_t(DefaultAnnotation.t) => {
+      term: Where(p, g),
       annotation: default_annotation(ann),
     };
   };

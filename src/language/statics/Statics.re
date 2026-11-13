@@ -11,6 +11,35 @@ include StaticsBase;
 let add_info = Map.add_info;
 let add_missing_info = Map.add_missing_info;
 
+/* What the `where` guards in `p` use, once `p` is in `m`. Those uses
+   count as uses in the scope `p` binds into: a guard can name `p`'s
+   variables as well as outer ones. */
+let guard_co_ctx = (p: Pat.t, m: Map.t): CoCtx.t => {
+  let uses = ref([]);
+  let _: Pat.t =
+    Pat.map_term(
+      ~f_pat=
+        (continue, p: Pat.t) => {
+          switch (p.term) {
+          | Where(_, g) =>
+            switch (Id.Map.find_opt(Exp.rep_id(g), m)) {
+            | Some(InfoExp(info)) => uses := [info.co_ctx, ...uses^]
+            | _ => ()
+            }
+          | _ => ()
+          };
+          continue(p);
+        },
+      p,
+    );
+  CoCtx.union(uses^);
+};
+
+/* The uses a binder of `p` exposes: those in the scope `p` binds into
+   (`body_co_ctx`) and in `p`'s guards, less what `p` binds. */
+let binder_co_ctx = (ctx, p_ctx, p: Pat.t, m: Map.t, body_co_ctx) =>
+  CoCtx.mk(ctx, p_ctx, CoCtx.union([body_co_ctx, guard_co_ctx(p, m)]));
+
 let rec any_to_info_map =
         (
           ~ctx: Ctx.t,
@@ -303,8 +332,26 @@ and uexp_to_info_map =
       );
     (List.split(pairs), m);
   };
-  let go_pat =
-    upat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, ~probe_ids);
+  /* A binder's pattern, which sees uses in its own guards as well as
+     `co_ctx`, the uses in the scope it binds into. */
+  let go_pat = (~is_synswitch, ~co_ctx, ~ana=?, ~warn_unused=?, p, m) => {
+    let go = co_ctx =>
+      upat_to_info_map(
+        ~ctx,
+        ~ancestors=ancestors_inclusive,
+        ~probe_ids,
+        ~is_synswitch,
+        ~co_ctx,
+        ~ana?,
+        ~warn_unused?,
+        p,
+        m,
+      );
+    let (_, _, m') as result = go(co_ctx);
+    let guard_uses = guard_co_ctx(p, m');
+    guard_uses == CoCtx.empty
+      ? result : go(CoCtx.union([co_ctx, guard_uses]));
+  };
   let go_typ = utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive);
   /* Analyze an expression in label position. Adds info for the label
      directly (like TupLabel does for its children) and returns
@@ -1939,7 +1986,11 @@ and uexp_to_info_map =
         ~elab_term,
         ~elab_syn_ty=syn_ty_fun,
         ~marks=marks_fun,
-        ~co_ctx=CoCtx.union([CoCtx.mk(ctx, p.ctx, e.co_ctx), pat_typ_refs]),
+        ~co_ctx=
+          CoCtx.union([
+            binder_co_ctx(ctx, p.ctx, p.user_term, m, e.co_ctx),
+            pat_typ_refs,
+          ]),
         ~probe_targets=
           SubexpProbeTargets.union_all([p.probe_targets, e.probe_targets]),
         m,
@@ -1957,7 +2008,7 @@ and uexp_to_info_map =
         ~elab_term=Forall(p_elab, e_elab) |> rewrap,
         ~elab_syn_ty=Atom(Bool) |> Typ.temp,
         ~marks=[],
-        ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx),
+        ~co_ctx=binder_co_ctx(ctx, p.ctx, p.user_term, m, e.co_ctx),
         ~probe_targets=
           SubexpProbeTargets.union_all([p.probe_targets, e.probe_targets]),
         m,
@@ -2241,7 +2292,7 @@ and uexp_to_info_map =
         ~co_ctx=
           CoCtx.union([
             def.co_ctx,
-            CoCtx.mk(ctx, p_ana.ctx, body.co_ctx),
+            binder_co_ctx(ctx, p_ana.ctx, p, m, body.co_ctx),
             pat_typ_refs,
           ]),
         ~probe_targets=
@@ -2349,7 +2400,10 @@ and uexp_to_info_map =
         ~elab_syn_ty=p'.elab_syn_ty,
         ~marks=[],
         ~co_ctx=
-          CoCtx.union([CoCtx.mk(ctx, p''.ctx, e'.co_ctx), pat_typ_refs]),
+          CoCtx.union([
+            binder_co_ctx(ctx, p''.ctx, p, m, e'.co_ctx),
+            pat_typ_refs,
+          ]),
         ~probe_targets=
           SubexpProbeTargets.union_all([p''.probe_targets, e'.probe_targets]),
         m,
@@ -2470,7 +2524,10 @@ and uexp_to_info_map =
 
       let normalized_scrut_ty = Typ.normalize(ctx, scrut.ty);
       let Coverage.CheckMatrix.{exhaustiveness, redundant_rows} =
-        Coverage.check(constraints, normalized_scrut_ty);
+        Coverage.check_rows(
+          List.combine(ps, constraints),
+          normalized_scrut_ty,
+        );
 
       let marks_match' =
         switch (exhaustiveness) {
@@ -2499,7 +2556,12 @@ and uexp_to_info_map =
       let co_ctx =
         CoCtx.union([
           scrut.co_ctx,
-          ...List.map2(CoCtx.mk(ctx), p_ctxs, e_co_ctxs),
+          ...List.map2(
+               (p_ctx, (p, e_co_ctx)) =>
+                 binder_co_ctx(ctx, p_ctx, p, m, e_co_ctx),
+               p_ctxs,
+               List.combine(ps, e_co_ctxs),
+             ),
         ]);
       let probe_targets =
         SubexpProbeTargets.union_all(
@@ -3675,6 +3737,32 @@ and upat_to_info_map =
         ~marks=[],
         ~ctx=p.ctx,
         ~probe_targets=p.probe_targets,
+        ~constraint_=p.constraint_,
+        m,
+      );
+    | Where(p, g) =>
+      /* `p where g` types as `p` does. `g` analyzes against Bool in `p`'s
+         context, which holds everything bound to its left in the
+         enclosing pattern, `p` included. */
+      let (p, p_elab, m) = go(p, m);
+      let (g', g_elab, m) =
+        uexp_to_info_map(
+          ~ctx=p.ctx,
+          ~ana=Atom(Bool) |> Typ.temp,
+          ~ancestors=ancestors_inclusive,
+          ~probe_ids,
+          g,
+          m,
+        );
+      add(
+        ~elab_term=Where(p_elab, g_elab) |> rewrap,
+        ~elab_syn_ty=p.elab_syn_ty,
+        ~ctx=p.ctx,
+        ~probe_targets=
+          SubexpProbeTargets.union_all([p.probe_targets, g'.probe_targets]),
+        /* A `fun` or `let` pattern's guard narrows its domain; it doesn't
+           split the value. `case` drops guarded rows instead
+           (`Coverage.check_rows`). */
         ~constraint_=p.constraint_,
         m,
       );

@@ -199,6 +199,11 @@ and in_pat =
     let t' = in_typ(env_outer, t);
     let (env', p1') = in_pat(env_outer, env_acc, p1);
     (env', Asc(p1', t') |> Pat.fresh);
+  /* The guard sees the bindings to its left, `p1`'s included, which is
+     what the accumulator holds after `p1`. */
+  | Where(p1, g) =>
+    let (env', p1') = in_pat(env_outer, env_acc, p1);
+    (env', Where(p1', in_exp(env', g)) |> Pat.fresh);
   };
 }
 

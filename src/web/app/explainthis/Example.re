@@ -97,6 +97,10 @@ let mk_pause = mk_tile(FilterPause, Exp);
 let mk_debug = mk_tile(FilterDebug, Exp);
 let mk_theorem = mk_tile(Theorem, Exp);
 let mk_forall = mk_tile(Forall, Exp);
+/* `fun p where g -> e` is the `fun` tile with the infix `where` pattern in
+   its parameter slot. */
+let mk_fun_where = (p: list(Piece.t), g: list(Piece.t)) =>
+  mk_fun([p @ [mk_monotile(Where, Pat)] @ g]);
 let mk_proof_of = mk_tile(ProofOf, Typ);
 let linebreak = () => Piece.Secondary(Secondary.mk_newline(Id.mk()));
 let space = () => Piece.Secondary(Secondary.mk_space(Id.mk()));

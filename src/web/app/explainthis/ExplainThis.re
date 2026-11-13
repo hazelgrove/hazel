@@ -1026,6 +1026,14 @@ let decide =
             ~fallback=basic,
             FunctionExp.functions_ctr(~pat_id, ~body_id, ~name=v),
           )
+        | Where(p, g) =>
+          message_single(
+            FunWhereExp.single(
+              ~pat_id=IdTagged.rep_id(p),
+              ~guard_id=IdTagged.rep_id(g),
+              ~body_id,
+            ),
+          )
         | TupLabel(_)
         | Invalid(_)
         | Parens(_)
@@ -1212,6 +1220,10 @@ let decide =
           leveled(
             ~fallback=basic,
             LetExp.lets_ctr(~def_id, ~pat_id, ~name=v, ~body_id),
+          )
+        | Where(_) =>
+          basic(
+            ExplainThisForm.singleton(LetExp.let_base_exp(~def_id, ~pat_id)),
           )
         | TupLabel(_)
         | ExplicitNonlabel
@@ -1514,6 +1526,10 @@ let decide =
       let typ_id = IdTagged.rep_id(typ);
       get_message(TypAnnPat.typann(~pat_id, ~typ_id));
     | Invalid(_) => Prose("Not a valid pattern")
+    | Where(_) =>
+      Markdown(
+        "Guarded pattern. Matches when the pattern on the left matches and then the boolean condition on the right is `true`. The condition can use the variables bound to its left.",
+      )
     | Parens(_)
     | Projector(_) =>
       // Shouldn't be hit?
