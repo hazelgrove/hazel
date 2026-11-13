@@ -44,6 +44,12 @@ module Model = {
     /* Counts the searches started and the slices run, so that each
      * render of a running search asks for its next slice once. */
     generation: int,
+    /* Counts the changes to what the box searches for. */
+    edits: int,
+    /* Whether typing has paused since the last edit. Until it has, a
+     * search that found nothing doesn't say so: the text is likely half
+     * typed. */
+    paused: bool,
     /* The strategy whose menu is open, by its label. */
     menu: option(string),
   };
@@ -120,6 +126,9 @@ module Update = {
     /* Runs a slice of the box's search, if it is still the search of
      * that generation. */
     | SearchSlice(int)
+    /* Typing has paused since the edit counted, unless another came
+     * after it. */
+    | Paused(int)
     /* An item listed under the box, by index, or none. */
     | Choose(option(int))
     /* Replaces the box's text with a name it completes to. */
@@ -228,6 +237,8 @@ module Update = {
         },
       chosen: None,
       generation: box.generation + 1,
+      edits: box.edits + 1,
+      paused: false,
     };
   };
 
@@ -248,6 +259,8 @@ module Update = {
     suggestions: None,
     chosen: None,
     generation: 0,
+    edits: 0,
+    paused: true,
     menu: None,
   };
 
@@ -389,6 +402,13 @@ module Update = {
         })
         |> return_quiet;
       | (SearchSlice(_), _) => model |> return_quiet
+      | (Paused(edits), Some(box)) when edits == box.edits =>
+        set_box({
+          ...box,
+          paused: true,
+        })
+        |> return_quiet
+      | (Paused(_), _) => model |> return_quiet
       | (Choose(chosen), Some(box)) =>
         set_box({
           ...box,
@@ -990,6 +1010,36 @@ module View = {
     include Virtual_dom.Vdom.Attr.Hooks.Make(Spec);
   };
 
+  /* Tells the box when typing has paused: 500 ms after its last edit. */
+  module Pause = {
+    module Spec = {
+      module State = Unit;
+      module Input = {
+        type t = {
+          edits: int,
+          paused: Ui_effect.t(unit),
+        };
+        let sexp_of_t = (input: t) =>
+          Sexplib0.Sexp.Atom(string_of_int(input.edits));
+        let combine = (_, latest) => latest;
+      };
+      let wait = (input: Input.t) =>
+        JsUtil.delay(500., () =>
+          Virtual_dom.Vdom.Effect.Expert.handle_non_dom_event_exn(
+            input.paused,
+          )
+        );
+      let init = (_, _) => ();
+      let on_mount = (input, (), _) => wait(input);
+      let update = (~old_input: Input.t, ~new_input: Input.t, (), _) =>
+        if (old_input.edits != new_input.edits) {
+          wait(new_input);
+        };
+      let destroy = (_, (), _) => ();
+    };
+    include Virtual_dom.Vdom.Attr.Hooks.Make(Spec);
+  };
+
   /* Gives the focused box DOM focus when it is drawn or starts showing its
    * editor, unless DOM focus is already there. A write moves focus to a
    * box drawn only after the write's reparse, under a new key, which
@@ -1149,6 +1199,15 @@ module View = {
       | _ => ""
       };
 
+    /* What the box's search says: still looking until it has finished
+     * and typing has paused, so a half-typed goal never shows red. */
+    let verdict = (box: Model.box): option(StepSearch.status) =>
+      switch (box.search) {
+      | Some({status: NotFound, _}) when !box.paused => Some(Searching)
+      | Some({status, _}) => Some(status)
+      | None => None
+      };
+
     let keycap = name => div_c("box-key", [Node.text(name)]);
 
     /* A key with no modifiers held. */
@@ -1285,17 +1344,17 @@ module View = {
           | None => None
           };
         let (ghost, hint) =
-          switch (ghost, named, box.search) {
+          switch (ghost, named, verdict(box)) {
           | (Some(g), _, _) => (
               [div_c("box-ghost", [code(g.result)])],
               [keycap("Tab"), Node.text(g.rule)],
             )
           | (None, Some(kind), _) => ([], [Node.text(kind)])
-          | (None, None, Some({status: Found([_, ..._]), _})) => (
+          | (None, None, Some(Found([_, ..._]))) => (
               [],
               [keycap("Enter")],
             )
-          | (None, None, Some({status: NotFound, _})) => (
+          | (None, None, Some(NotFound)) => (
               [],
               [
                 keycap("Enter"),
@@ -1305,11 +1364,11 @@ module View = {
                 ),
               ],
             )
-          | (None, None, Some({status: Found([]), _})) => (
+          | (None, None, Some(Found([]))) => (
               [],
               [Node.text("the goal already")],
             )
-          | (None, None, Some({status: Searching, _}) | None) => ([], [])
+          | (None, None, Some(Searching) | None) => ([], [])
           };
         let slices =
           Model.running(box)
@@ -1359,7 +1418,19 @@ module View = {
           );
         [
           Node.div(
-            ~attrs=[Attr.classes(["box-input"]), slices],
+            ~attrs=[
+              Attr.classes(["box-input"]),
+              slices,
+              box.paused
+                ? Attr.empty
+                : Attr.create_hook(
+                    "write-box-pause",
+                    Pause.create({
+                      edits: box.edits,
+                      paused: inject(Paused(box.edits)),
+                    }),
+                  ),
+            ],
             [
               Node.div(
                 ~attrs=[
@@ -1937,16 +2008,15 @@ module View = {
             let lozenge = (clss, text) => [
               div_c("write-preview " ++ clss, [Node.text(text)]),
             ];
-            switch (box.search) {
-            | Some({status: Found([_, ..._] as steps), _}) =>
+            switch (Box.verdict(box)) {
+            | Some(Found([_, ..._] as steps)) =>
               lozenge(
                 "",
                 String.concat(" · ", List.map(justification, steps)),
               )
-            | Some({status: NotFound, _}) =>
-              lozenge("none", "no step gets here")
-            | Some({status: Searching, _}) => lozenge("searching", "…")
-            | Some({status: Found([]), _})
+            | Some(NotFound) => lozenge("none", "no step gets here")
+            | Some(Searching) => lozenge("searching", "searching…")
+            | Some(Found([]))
             | None => []
             };
           | _ => []

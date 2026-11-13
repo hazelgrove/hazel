@@ -2799,7 +2799,65 @@ module Writing = {
     };
   };
 
+  let box = (f: Fixture.t): Stepper.Model.box =>
+    switch (Fixture.local(f, box_row(f)).box) {
+    | Some(box) => box
+    | None => Alcotest.fail("no box")
+    };
+
+  /* Types `text` into the box and runs its search to the end. */
+  let type_ = (f: Fixture.t, text: string): Fixture.t => {
+    let key = box_row(f).key;
+    let rec run = (f, slices) =>
+      slices > 1000 || !Stepper.Model.running(box(f))
+        ? f
+        : run(
+            Fixture.act(f, (key, SearchSlice(box(f).generation))),
+            slices + 1,
+          );
+    run(Fixture.act(f, (key, BoxEditor(Perform(Insert(text))))), 0);
+  };
+
   let tests = [
+    test_case(
+      "a search that finds nothing says so only once typing has paused",
+      `Quick,
+      () => {
+        let f = mk("theorem t = (1 + 1) * (2 + 0) == 4 proof ? in t").f;
+        let key = box_row(f).key;
+        let verdict = f => Stepper.View.Box.verdict(box(f));
+        let f = type_(f, "2");
+        check(
+          bool,
+          "the search found nothing",
+          true,
+          Option.map((s: Web.StepSearch.t) => s.status, box(f).search)
+          == Some(Web.StepSearch.NotFound),
+        );
+        check(
+          bool,
+          "while typing",
+          true,
+          verdict(f) == Some(Web.StepSearch.Searching),
+        );
+        let edits = box(f).edits;
+        let f = type_(f, "2");
+        let f = Fixture.act(f, (key, Paused(edits)));
+        check(
+          bool,
+          "a pause after an earlier edit",
+          true,
+          verdict(f) == Some(Web.StepSearch.Searching),
+        );
+        let f = Fixture.act(f, (key, Paused(box(f).edits)));
+        check(
+          bool,
+          "once paused",
+          true,
+          verdict(f) == Some(Web.StepSearch.NotFound),
+        );
+      },
+    ),
     test_case(
       "after each Tab, focus goes to the box where the proof goes on",
       `Quick,

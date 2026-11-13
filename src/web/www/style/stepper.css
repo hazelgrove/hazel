@@ -251,6 +251,9 @@
   background-color: var(--cell-result);
   color: var(--cell-result-text);
   white-space: nowrap;
+  /* So that the lozenge doesn't change width with each key. */
+  min-width: 7em;
+  text-align: center;
 }
 
 .write-preview.searching {
