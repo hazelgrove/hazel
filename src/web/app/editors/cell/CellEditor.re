@@ -270,6 +270,14 @@ module View = {
             Effect.Many([
               signal(MakeActive(MainEditor)),
               inject(MainEditor(Perform(Move(Goal(TileId(id)))))),
+            ])
+          | ReturnToEditor =>
+            Effect.Many([
+              signal(MakeActive(MainEditor)),
+              Effect.of_sync_fun(
+                () => Haz3lcore.FocusEffect.schedule_cell(),
+                (),
+              ),
             ]),
         ~inject=a => inject(ResultAction(a)),
         ~selected={

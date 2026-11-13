@@ -709,7 +709,9 @@ module View = {
 
   type event =
     | MakeActive(Selection.t)
-    | JumpTo(Id.t);
+    | JumpTo(Id.t)
+    /* Focus leaves the result for the cell's editor. */
+    | ReturnToEditor;
 
   let error_msg = (err: ProgramResult.error) =>
     switch (err) {
@@ -836,7 +838,8 @@ module View = {
           ~signal=
             fun
             | HideStepper => inject(ToggleStepper)
-            | MakeActive(s) => signal(MakeActive(Stepper(s))),
+            | MakeActive(s) => signal(MakeActive(Stepper(s)))
+            | ReturnToEditor => signal(ReturnToEditor),
           ~inject=x => inject(StepperAction(x)),
           ~is_toplevel=true,
           ~edit_syntax=patch => inject(StepperPatch(patch)),
@@ -954,6 +957,7 @@ module View = {
           : Theorems.View.view(
               ~globals,
               ~take_focus=f => signal(MakeActive(Theorems(f))),
+              ~return_to_editor=signal(ReturnToEditor),
               ~inject=a => inject(TheoremsAction(a)),
               ~selected=
                 switch (selected) {

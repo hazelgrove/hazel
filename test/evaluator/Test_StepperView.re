@@ -2721,6 +2721,132 @@ module Focusing = {
  * asks it to. A click in the stepper leaves that caret where it was, so
  * its updates mustn't ask, or the page jumps to a caret the user has
  * scrolled away from. */
+/* What a write leaves for the next one: focus on the box where the proof
+ * goes on, open on the same tab. */
+module Writing = {
+  /* A theorem's cell, with the zipper of its program, which writes patch. */
+  type t = {
+    zipper: Zipper.t,
+    f: Fixture.t,
+  };
+
+  let check_zipper =
+      (~pending=false, ~name="t", zipper: Zipper.t, cell): Fixture.t => {
+    let statics =
+      Fixture.statics_of_term(
+        MakeTerm.from_zip_for_sem(zipper, ~root=Exp).term,
+      );
+    Fixture.of_cell(
+      ~name,
+      statics,
+      Fixture.calculate(~pending, ~is_edited=true, statics, cell),
+    );
+  };
+
+  let mk = (src: string): t => {
+    let zipper = Insertion.parse_zipper(src);
+    {
+      zipper,
+      f: check_zipper(zipper, Web.EvalResult.Model.init),
+    };
+  };
+
+  /* Writes `patch` and checks the program again, keeping the steppers'
+   * state, as the page does. */
+  let write = (~pending=false, w: t, patch): t => {
+    let zipper = EditorTransform.apply_patch(w.zipper, patch);
+    {
+      zipper,
+      f: check_zipper(~pending, zipper, w.f.cell),
+    };
+  };
+
+  /* The row holding a box, the one a write from the box goes on at. */
+  let box_row = (f: Fixture.t): Rows.t =>
+    switch (
+      List.filter(
+        (row: Rows.t) =>
+          switch (Stepper.Model.find(row.key, f.theorem.stepper)) {
+          | Some({box: Some(_), _}) => true
+          | _ => false
+          },
+        Fixture.all(f),
+      )
+    ) {
+    | [row] => row
+    | rows =>
+      Alcotest.fail(string_of_int(List.length(rows)) ++ " rows with a box")
+    };
+
+  /* Takes the ghost at the box, as Tab does, giving the program after and
+   * the key focus moves to. */
+  let tab = (w: t): (t, Rows.key) => {
+    let row = box_row(w.f);
+    switch (Stepper.Update.ghost(Fixture.goal(w.f, row))) {
+    | Some(ghost) =>
+      let written = Picker.focused(ghost.pick);
+      let next =
+        switch (Stepper.Focus.after_write([written])) {
+        | Some(next) => next
+        | None => Alcotest.fail("no box to go on at")
+        };
+      let w = {
+        ...w,
+        f: Fixture.act(w.f, (row.key, Wrote(next))),
+      };
+      (write(w, Picker.Patches.write(row, written)), next);
+    | None => Alcotest.fail("no ghost")
+    };
+  };
+
+  let tests = [
+    test_case(
+      "after each Tab, focus goes to the box where the proof goes on",
+      `Quick,
+      () => {
+        let w = mk("theorem t = (1 + 1) * (2 + 0) == 4 proof ? in t");
+        let (w, next) = tab(w);
+        check(bool, "the first Tab's box", true, box_row(w.f).key == next);
+        let (w, next) = tab(w);
+        check(bool, "the second Tab's box", true, box_row(w.f).key == next);
+        check(string, "its goal", "2 * 2 == 4", goal(box_row(w.f)));
+      },
+    ),
+    test_case(
+      "a box written from on the Step tab is followed by one on the Step tab",
+      `Quick,
+      () => {
+        let w = mk("theorem t = (1 + 1) * (2 + 0) == 4 proof ? in t");
+        let w = {
+          ...w,
+          f: Fixture.act(w.f, (box_row(w.f).key, Tab(Step))),
+        };
+        let (w, _) = tab(w);
+        switch (Fixture.local(w.f, box_row(w.f)).box) {
+        | Some(box) =>
+          check(bool, "on Step", true, box.tab == Some(Stepper.Model.Step))
+        | None => Alcotest.fail("no box")
+        };
+      },
+    ),
+    test_case(
+      "a write that leaves holes goes on at the first of them",
+      `Quick,
+      () => {
+        let w = mk("theorem t = forall n : Int -> n == n proof ? in t");
+        let row = box_row(w.f);
+        let written =
+          Proof.fresh(
+            Forall(Pat.fresh(Var("n")), Proof.fresh(EmptyHole)),
+          );
+        let next = Stepper.Focus.after_write([written]);
+        let w = write(w, Picker.Patches.write(row, written));
+        check(bool, "the body's box", true, Some(box_row(w.f).key) == next);
+      },
+    ),
+  ];
+};
+
 module Scrolling = {
   let not_always = (updated: Web.Updated.t(_)) =>
     switch (updated.scroll) {
@@ -3013,5 +3139,6 @@ let tests = (
   @ Structure.tests
   @ Focusing.tests
   @ Focusing.generalizing_tests
+  @ Writing.tests
   @ Scrolling.tests,
 );

@@ -278,6 +278,7 @@ module View = {
       (
         ~globals: Globals.t,
         ~take_focus: Focus.t => Ui_effect.t(unit),
+        ~return_to_editor: Ui_effect.t(unit),
         ~inject: Update.t => Ui_effect.t(unit),
         ~selected: option(Focus.t),
         /* Writes a patch into the cell's program. */
@@ -381,7 +382,8 @@ module View = {
           ~signal=
             fun
             | MakeActive(f) => take_focus((id, f))
-            | HideStepper => Ui_effect.Ignore,
+            | HideStepper => Ui_effect.Ignore
+            | ReturnToEditor => return_to_editor,
           ~inject=a => inject(Update.TheoremUpdate(id, a)),
           ~selected=
             switch (selected) {
