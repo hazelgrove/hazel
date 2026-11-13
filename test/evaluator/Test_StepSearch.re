@@ -58,6 +58,19 @@ let arithmetic = "theorem t = (1 + 1) * 2 == 4 proof ? in t";
 let tests = (
   "StepSearch",
   [
+    test_case("a typed negative number is the number a step gives", `Quick, () =>
+      check(
+        steps,
+        "steps",
+        Some(["from 0 - 5 do eval end"]),
+        found(
+          search(
+            goal("theorem t = 0 - 5 + 2 == 0 - 3 proof ? in t"),
+            "-5 + 2 == 0 - 3",
+          ),
+        ),
+      )
+    ),
     test_case(
       "one eval step reaches the typed goal, written where the checker takes it",
       `Quick,

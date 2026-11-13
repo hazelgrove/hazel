@@ -1283,6 +1283,52 @@ module Regressions = {
     | _ => Alcotest.fail("not a proof patch")
     };
 
+  /* The cell stepper's goals for `src` after taking the only step the
+   * last row offers `steps` times. */
+  let cell_walk = (src: string, ~steps: int): list(string) => {
+    let statics = Fixture.statics(src);
+    let cell =
+      Fixture.calculate(~is_edited=true, statics, Web.EvalResult.Model.init);
+    let update = (action, cell) => {
+      let updated =
+        Web.EvalResult.Update.update(
+          ~settings=Web.Settings.Model.init,
+          action,
+          cell,
+        );
+      Fixture.calculate(~is_edited=false, statics, updated.model);
+    };
+    let stepper = (cell: Web.EvalResult.Model.t) =>
+      switch (cell.display) {
+      | Stepper(s) => s
+      | Evaluation(_) => Alcotest.fail("the stepper is off")
+      };
+    let rows = cell =>
+      Rows.chain(
+        ~proof_map=stepper(cell).proof_map,
+        Web.EvalResult.CellStepper.proof(stepper(cell)),
+      );
+    let step = cell => {
+      let row = last(rows(cell));
+      let goal =
+        switch (Stepper.Model.find(row.key, stepper(cell).stepper)) {
+        | Some(local) => local.goal
+        | None => Alcotest.fail("the last row has no state")
+        };
+      switch (Picker.take_step(goal, 0)) {
+      | Some(pick) => update(StepperPatch(Picker.write(row, pick)), cell)
+      | None => Alcotest.fail("no step offered at " ++ print(goal.written))
+      };
+    };
+    let cell =
+      List.fold_left(
+        (cell, _) => step(cell),
+        update(ToggleStepper, cell),
+        List.init(steps, Fun.id),
+      );
+    List.map(goal, rows(cell));
+  };
+
   let tests = [
     test_case(
       "Step and Proof strategy drop a selection of part of the goal, and Write keeps it",
@@ -1302,6 +1348,39 @@ module Regressions = {
         check(option(string), "Write", Some("(1 + 1)"), selected(f));
         let f = Fixture.act(f, (row.key, Tab(Strategy)));
         check(option(string), "Proof strategy", None, selected(f));
+      },
+    ),
+    test_case(
+      "a step inside a call's argument is offered at the argument, not at the call",
+      `Quick,
+      () => {
+        let f =
+          Fixture.mk(
+            "let len = fun xs -> case xs | [] => 0 | _ :: t => 1 + len(t) end in theorem t = forall xs: [Int] -> len(xs @ []) == len(xs) proof induction xs | [] => ? | y :: ys => ? end in t",
+          );
+        let row = first(List.hd(cases(first(f.rows))));
+        let goal = Fixture.goal(f, row);
+        check(
+          list(string),
+          "offered",
+          ["len([])", "[] @ []"],
+          offered(goal),
+        );
+        List.iteri(
+          (n, _) =>
+            switch (Picker.take_step(goal, n)) {
+            | Some(pick) =>
+              check(
+                bool,
+                written(Picker.focused(pick)) ++ " checks",
+                true,
+                Picker.outgoing(goal, goal.written, Picker.focused(pick))
+                != None,
+              )
+            | None => Alcotest.fail("an offered step writes nothing")
+            },
+          goal.eval_steps,
+        );
       },
     ),
     test_case(
@@ -1325,71 +1404,24 @@ module Regressions = {
       },
     ),
     test_case(
-      "cell stepper: taking a step advances to the next goal",
+      "cell stepper: taking a step advances to the next goal", `Quick, () =>
+      check(
+        list(string),
+        "the goals",
+        ["1 + 2 + 3", "3 + 3", "6"],
+        cell_walk("1 + 2 + 3", ~steps=2),
+      )
+    ),
+    test_case(
+      "cell stepper: a goal holding a negative number still steps at its root",
       `Quick,
-      () => {
-        let statics = Fixture.statics("1 + 2 + 3");
-        let cell =
-          Fixture.calculate(
-            ~is_edited=true,
-            statics,
-            Web.EvalResult.Model.init,
-          );
-        let update = (action, cell) => {
-          let updated =
-            Web.EvalResult.Update.update(
-              ~settings=Web.Settings.Model.init,
-              action,
-              cell,
-            );
-          Fixture.calculate(~is_edited=false, statics, updated.model);
-        };
-        let stepper = (cell: Web.EvalResult.Model.t) =>
-          switch (cell.display) {
-          | Stepper(s) => s
-          | Evaluation(_) => Alcotest.fail("the stepper is off")
-          };
-        let rows = cell =>
-          Rows.chain(
-            ~proof_map=stepper(cell).proof_map,
-            Web.EvalResult.CellStepper.proof(stepper(cell)),
-          );
-        /* Takes the only step the last row offers. */
-        let step = cell => {
-          let row = last(rows(cell));
-          let goal =
-            switch (Stepper.Model.find(row.key, stepper(cell).stepper)) {
-            | Some(local) => local.goal
-            | None => Alcotest.fail("the last row has no state")
-            };
-          switch (Picker.take_step(goal, 0)) {
-          | Some(pick) =>
-            update(StepperPatch(Picker.write(row, pick)), cell)
-          | None => Alcotest.fail("no step offered")
-          };
-        };
-        let cell = update(ToggleStepper, cell);
-        check(
-          list(string),
-          "first",
-          ["1 + 2 + 3"],
-          List.map(goal, rows(cell)),
-        );
-        let cell = step(cell);
-        check(
-          list(string),
-          "after one step",
-          ["1 + 2 + 3", "3 + 3"],
-          List.map(goal, rows(cell)),
-        );
-        let cell = step(cell);
-        check(
-          list(string),
-          "after two",
-          ["1 + 2 + 3", "3 + 3", "6"],
-          List.map(goal, rows(cell)),
-        );
-      },
+      () =>
+      check(
+        list(string),
+        "the goals",
+        ["0 - 5 + 2", "-5 + 2", "-3"],
+        cell_walk("0 - 5 + 2", ~steps=2),
+      )
     ),
   ];
 };

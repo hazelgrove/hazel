@@ -227,7 +227,7 @@ let tests = (
       take_in_case(
         1,
         ~hole="x :: t",
-        ~exp="all_lists(x :: t)",
+        ~exp="all_lists(x:: t)",
         ~outgoing=None,
       )
     ),

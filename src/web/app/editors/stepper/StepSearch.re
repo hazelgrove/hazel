@@ -72,7 +72,19 @@ type t = {
 /* Goals compared up to ascriptions and the names of binders. */
 let same = Equality.ignoring_ascriptions.exp;
 
-let comparable = DHExp.strip_ascriptions;
+/* A goal as it is compared: without ascriptions, and with a negated
+ * number read as the negative number. Evaluation gives `-3` as a number,
+ * while typing `-3` gives the negation of `3`. */
+let comparable = (e: Exp.t): Exp.t =>
+  DHExp.strip_ascriptions(e)
+  |> Exp.map_term(~f_exp=(continue, e) => {
+       let (term, rewrap) = Exp.unwrap(e);
+       switch (term) {
+       | UnOp(Int(Minus), {term: Atom(Int(n)), _}) =>
+         rewrap(Atom(Int(Bigint.neg(n))))
+       | _ => continue(e)
+       };
+     });
 
 /* Whether `e` is the typed goal: as written, or else once the scope's
  * definitions they name are unfolded where they differ. */

@@ -207,11 +207,12 @@ let rec self_and_ancestors = (id, e: Exp.t): option(list(Exp.t)) =>
       |> Option.map(path => path @ [e]);
 
 /* The `eval` steps the stepper offers. The checker's `eval` step passes
- * through `VarLookup`s silently (Evaluator.Proofs.advance_hidden), so a
- * step can't always be written at its own node: in `all_lists(xs) ==
- * true` the only step is the lookup of `all_lists`. Each step is offered
- * as the step the checker takes at the nearest node around it where it
- * takes one, here `all_lists(xs)`, and that node is the step's source. */
+ * through `VarLookup`s silently (Evaluator.Proofs.advance_hidden), and
+ * then takes a step only at the root of its goal, so a step can't always
+ * be written at its own node: in `all_lists(xs) == true` the only step is
+ * the lookup of `all_lists`. Each step is offered as the step the checker
+ * takes at the nearest node around it where it takes one, here
+ * `all_lists(xs)`, and that node is the step's source. */
 module EvalSteps = {
   /* Past this many silent steps nothing is offered, so a goal whose
    * hidden steps diverge can't hang the stepper. */
@@ -222,8 +223,7 @@ module EvalSteps = {
     let* (_, e) =
       Evaluator.Proofs.advance_hidden(~max_steps=max_silent_steps, ~env, e);
     switch (EvaluatorStep.get_status(~settings=CoreSettings.on, e, env)) {
-    | AvailableSteps([s, ..._]) => Some(s)
-    | AvailableSteps([])
+    | AvailableSteps(steps) => List.find_opt(EvaluatorStep.is_at_root, steps)
     | AutoStep(_) => None
     };
   };
@@ -247,7 +247,8 @@ module EvalSteps = {
 
   /* The steps to offer on `goal`, each with its source. A step with no
    * source the checker can find isn't offered, and steps with the same
-   * source are offered once. */
+   * source are offered once. A step at the whole goal needs no selector,
+   * so it is offered even where `checker_idx` refuses one. */
   let offered =
       (~settings: CoreSettings.t, ~env, goal: Exp.t)
       : list((EvaluatorStep.step, Id.t)) => {
@@ -256,7 +257,10 @@ module EvalSteps = {
       |> Option.value(~default=[])
       |> List.find_map(node =>
            switch (checker_step(~env, node)) {
-           | Some(step) when checker_idx(goal, node) != None =>
+           | Some(step)
+               when
+                 Exp.rep_id(node) == Exp.rep_id(goal)
+                 || checker_idx(goal, node) != None =>
              Some((step, Exp.rep_id(node)))
            | _ => None
            }
@@ -541,7 +545,10 @@ let take_step = (goal: Goal.t, idx: int): option(pick) => {
   open OptUtil.Syntax;
   let* (_, source) = List.nth_opt(goal.eval_steps, idx);
   let* node = Exp.find_by_id(source, goal.written);
-  let+ _ = EvalSteps.checker_idx(goal.written, node);
+  /* A step at the root needs no selector. */
+  let+ _ =
+    source == Exp.rep_id(goal.written)
+      ? Some(0) : EvalSteps.checker_idx(goal.written, node);
   {
     at: target(goal, node),
     step: Proof.fresh(EvalStep),
