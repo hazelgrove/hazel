@@ -1477,7 +1477,12 @@ module View = {
           editor: goal.editor,
           next_steps: hints ? Picker.Goal.step_ids(goal) : [],
           refls: hints ? List.map(Exp.rep_id, goal.refls) : [],
-          acts_on: Picker.Goal.acts_on(goal, row),
+          /* The selected part the box writes a replacement for, underlined
+           * as a focus's part is. */
+          acts_on:
+            into_box
+              ? Option.map(Exp.rep_id, Update.selected_part(goal))
+              : Picker.Goal.acts_on(goal, row),
           previewing,
         },
       );
