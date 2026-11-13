@@ -343,6 +343,21 @@ module Update = {
           ...box,
           editor,
         };
+        /* An empty box showing a ghost keeps its caret before the hole,
+         * where the ghost starts. */
+        let box =
+          Model.is_empty(box) && box.ghost != None
+            ? {
+              ...box,
+              editor:
+                CodeEditable.Update.update(
+                  ~settings,
+                  Perform(Move(Start)),
+                  box.editor,
+                ).
+                  model,
+            }
+            : box;
         set_box(changed ? search(local.goal, box) : box);
       /* The search first, then the suggestions. */
       | (SearchSlice(generation), Some(box))

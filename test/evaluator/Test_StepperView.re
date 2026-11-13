@@ -680,6 +680,34 @@ module State = {
       },
     ),
     test_case(
+      "an empty box showing a ghost keeps its caret before the hole",
+      `Quick,
+      () => {
+        let f = Fixture.mk("theorem t = (1 + 1) * 2 == 4 proof ? in t");
+        let row = first(f.rows);
+        let at_start = (f: Fixture.t) =>
+          switch (Fixture.local(f, row).box) {
+          | Some(box) =>
+            let z = box.editor.editor.state.zipper;
+            fst(Siblings.neighbors(z.relatives.siblings)) == None
+            && z.relatives.ancestors == [];
+          | None => Alcotest.fail("no box")
+          };
+        List.iter(
+          ((label, move)) =>
+            check(
+              bool,
+              label,
+              true,
+              at_start(
+                Fixture.act(f, (row.key, BoxEditor(Perform(Move(move))))),
+              ),
+            ),
+          [("End", Action.End), ("Right", Local(Right, ByChar))],
+        );
+      },
+    ),
+    test_case(
       "a recalculation keeps each row's editor while its goal is unchanged",
       `Quick,
       () => {
