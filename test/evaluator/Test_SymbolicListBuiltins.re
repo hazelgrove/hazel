@@ -147,16 +147,13 @@ let test_append_cons_inherits = () =>
     {|theorem t = forall y: Int -> forall l: [Int] -> forall m: [Int] -> append(y :: l, m) == y :: (l @ m) proof from append(y :: l, m) do eval; eval end; axiom refl_eq end in t|},
   );
 
-/* --- 6. `fold_left`: steps, but does not refold ------------------------
+/* --- 6. `fold_left`: steps, and names its recursive call ---------------
  *
- * `fold_left` is a HazelFn `case`, so an `eval` on a cons steps. But it
- * doesn't refold: the residual is the fixpoint's body inlined and
- * applied, not the surface term `fold_left(t, f, a + h)`, so the defining
- * equation doesn't close by reflexivity. That is a question about how
- * `case`-defined builtins are presented, separate from `@`; pinned as
- * Incomplete so it stays visible. */
+ * `fold_left` is a HazelFn `case`, so an `eval` on a cons steps, leaving
+ * the recursive call as `fold_left(t, f, f(a, h))`. With the function
+ * applied, the defining equation closes by reflexivity. */
 
-let fold_left_cons_src = {|theorem t = forall h: Int -> forall t: [Int] -> forall a: Int -> fold_left(h :: t, fun (acc, x) -> acc + x, a) == fold_left(t, fun (acc, x) -> acc + x, a + h) proof from fold_left(h :: t, fun (acc, x) -> acc + x, a) do eval end; from fold_left(t, fun (acc, x) -> acc + x, a + h) == fold_left(t, fun (acc, x) -> acc + x, a + h) do axiom refl_eq end end in t|};
+let fold_left_cons_src = {|theorem t = forall h: Int -> forall t: [Int] -> forall a: Int -> fold_left(h :: t, fun (acc, x) -> acc + x, a) == fold_left(t, fun (acc, x) -> acc + x, a + h) proof from fold_left(h :: t, fun (acc, x) -> acc + x, a) do eval end; from (fun (acc, x) -> acc + x)((a, h)) do eval end; axiom refl_eq in t|};
 
 let test_fold_left_cons_steps = () =>
   Alcotest.check(
@@ -166,10 +163,10 @@ let test_fold_left_cons_steps = () =>
     nothing_to_step(fold_left_cons_src),
   );
 
-let test_fold_left_cons_does_not_refold = () =>
+let test_fold_left_cons_closes = () =>
   check_status(
-    "pin: fold_left's cons equation does not close, because eval does not refold",
-    ProofMap.Incomplete,
+    "fold_left's cons equation closes",
+    ProofMap.Proven,
     fold_left_cons_src,
   );
 
@@ -222,9 +219,9 @@ let tests = (
       test_fold_left_cons_steps,
     ),
     test_case(
-      "pin: fold_left's cons equation does not refold, so stays Incomplete",
+      "fold_left's cons equation closes by eval and reflexivity",
       `Quick,
-      test_fold_left_cons_does_not_refold,
+      test_fold_left_cons_closes,
     ),
   ],
 );

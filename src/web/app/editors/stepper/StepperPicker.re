@@ -229,14 +229,12 @@ module EvalSteps = {
   };
 
   /* The `n` for which the checker's `from <n+1>th <node> do` finds
-   * `node` itself rather than an equal node before it. The checker
-   * matches env-substituted terms (Occurrence.nth_env_target), so
-   * `substituted` is the written goal with `env` substituted.
+   * `node` itself in `goal` rather than an equal node before it.
    *
    * None if `node` holds a negative number. Evaluation produces those,
    * but source can't spell them: written out, `-5` reads back as a
    * negation, which the checker doesn't match against the number. */
-  let checker_idx = (~env, ~substituted: Exp.t, node: Exp.t): option(int) => {
+  let checker_idx = (goal: Exp.t, node: Exp.t): option(int) => {
     let rec has_negative_number = (e: Exp.t) =>
       switch (Exp.term_of(e)) {
       | Atom(Int(n)) => Bigint.compare(n, Bigint.of_int(0)) < 0
@@ -244,42 +242,27 @@ module EvalSteps = {
       | Atom(Float(f)) => f < 0.0
       | _ => List.exists(has_negative_number, Occurrence.children(e))
       };
-    let target = Substitution.in_exp(env, node);
-    let rec find = n =>
-      switch (Occurrence.nth(target, n, substituted)) {
-      | Some(found) when Exp.rep_id(found) == Exp.rep_id(node) => Some(n)
-      | Some(_) => find(n + 1)
-      | None => None
-      };
-    has_negative_number(node) ? None : find(0);
+    has_negative_number(node) ? None : Occurrence.index(node, goal);
   };
 
-  /* The steps to offer on the written goal, each with its source. A step
-   * with no source the checker can find isn't offered, and steps with the
-   * same source are offered once. */
+  /* The steps to offer on `goal`, each with its source. A step with no
+   * source the checker can find isn't offered, and steps with the same
+   * source are offered once. */
   let offered =
-      (~settings: CoreSettings.t, ~env, written: Exp.t)
+      (~settings: CoreSettings.t, ~env, goal: Exp.t)
       : list((EvaluatorStep.step, Id.t)) => {
-    let substituted = lazy(Substitution.in_exp(env, written));
     let offer = (s: EvaluatorStep.step) =>
-      self_and_ancestors(EvaluatorStep.get_step_id(s), written)
+      self_and_ancestors(EvaluatorStep.get_step_id(s), goal)
       |> Option.value(~default=[])
       |> List.find_map(node =>
            switch (checker_step(~env, node)) {
-           | Some(step)
-               when
-                 checker_idx(
-                   ~env,
-                   ~substituted=Lazy.force(substituted),
-                   node,
-                 )
-                 != None =>
+           | Some(step) when checker_idx(goal, node) != None =>
              Some((step, Exp.rep_id(node)))
            | _ => None
            }
          );
     let candidates =
-      switch (EvaluatorStep.get_status(~settings, written, env)) {
+      switch (EvaluatorStep.get_status(~settings, goal, env)) {
       | AutoStep(s) => [s]
       | AvailableSteps(steps) => steps
       };
@@ -291,26 +274,19 @@ module EvalSteps = {
 
 /* A row's goal, prepared for stepping: its editor, which holds the
  * selection, and the steps on offer. Preparing one is expensive, so the
- * stepper keeps it with the goal it was made from (see `is_for`).
- *
- * The checker keeps goals as written (`sum == fold_left(_, sum, 0)`),
- * with the program's names as Vars. The row shows the goal with the env
- * substituted, which turns the names into the functions the env holds,
- * printed folded (`<sum>`). Once only: a second pass would unfold the
- * recursive calls inside the inlined bodies. Eval steps work on the
- * written form, where an inlined `FixF`, which isn't a value, doesn't
- * hide every steppable place behind its unwrap. */
+ * stepper keeps it with the goal it was made from (see `is_for`). The
+ * goal is shown as the checker keeps it, naming the program's
+ * definitions. */
 module Goal = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     written: Exp.t,
     ctx: SemanticCtx.t,
-    display: Exp.t,
     editor: CodeSelectable.Model.t,
     /* Each offered step, with the node of `written` that taking it
      * focuses on to write `eval`. */
     eval_steps: list((EvaluatorStep.step, Id.t)),
-    /* Equalities in `display` that reflexivity closes. */
+    /* Equalities in `written` that reflexivity closes. */
     refls: list(Exp.t),
     /* What the goal was built with: how it prints, and which steps it
      * offers. */
@@ -319,20 +295,10 @@ module Goal = {
 
   let env = (goal: t) => SemanticCtx.get_env(goal.ctx);
 
-  let display_of = (~ctx: SemanticCtx.t, written: Exp.t): Exp.t =>
-    Substitution.in_exp(SemanticCtx.get_env(ctx), written);
-
-  /* Map a step's source from the written goal onto the displayed one, so
-   * underlines land on `<sum>` rather than a vanished `Var`. */
-  let display_id = (~written: Exp.t, ~display: Exp.t, source: Id.t): Id.t =>
-    Occurrence.map_rep_id(~from=written, ~onto=display, source)
-    |> Option.value(~default=source);
-
   let mk = (~settings: CoreSettings.t, ~ctx: SemanticCtx.t, written: Exp.t): t => {
     let env = SemanticCtx.get_env(ctx);
-    let display = display_of(~ctx, written);
     let editor =
-      CodeSelectable.Model.mk_from_exp(~settings, ~root=Exp, display)
+      CodeSelectable.Model.mk_from_exp(~settings, ~root=Exp, written)
       |> CodeEditable.Update.calculate(
            ~settings,
            ~is_edited=true,
@@ -342,22 +308,17 @@ module Goal = {
            ~ctx=SemanticCtx.get_ctx(ctx),
          );
     let eval_steps = EvalSteps.offered(~settings, ~env, written);
-    let step_ids =
-      List.map(
-        ((_, id)) => display_id(~written, ~display, id),
-        eval_steps,
-      );
+    let step_ids = List.map(snd, eval_steps);
     let refls =
       MatchExp.find_refls(
         ~info_map=CodeEditable.Model.get_statics(editor).info_map,
-        ~env,
-        display,
+        ~defs=env,
+        written,
       )
       |> List.filter(e => !List.mem(Exp.rep_id(e), step_ids));
     {
       written,
       ctx,
-      display,
       editor,
       eval_steps,
       refls,
@@ -365,29 +326,51 @@ module Goal = {
     };
   };
 
-  /* Whether `goal` shows `written` in `ctx`. Comparing the displayed
-   * forms catches a changed definition the written goal mentions. */
-  let is_for = (goal: t, ~ctx: SemanticCtx.t, written: Exp.t): bool =>
+  /* Whether `goal` is for `written` in `ctx`: the same goal, whose names
+   * are defined by the same text. A definition is compared by its own
+   * text, not by the definitions it calls. */
+  let is_for = (goal: t, ~ctx: SemanticCtx.t, written: Exp.t): bool => {
+    let rec text = (e: Exp.t): Exp.t =>
+      switch (Exp.term_of(e)) {
+      | Closure(_, inner) => text(inner)
+      | FixF(p, body, Some(_)) => Exp.fresh(FixF(p, body, None))
+      | _ => e
+      };
+    let names = ref([]);
+    let _: Exp.t =
+      Exp.map_term(
+        ~f_exp=
+          (continue, e) =>
+            switch (Exp.term_of(e)) {
+            | Var(x) =>
+              names := [x, ...names^];
+              e;
+            | _ => continue(e)
+            },
+        written,
+      );
+    let same_definition = x =>
+      Option.equal(
+        (a, b) => Exp.fast_equal(text(a), text(b)),
+        Environment.lookup(env(goal), x),
+        Environment.lookup(SemanticCtx.get_env(ctx), x),
+      );
     Exp.fast_equal(goal.written, written)
-    && Exp.fast_equal(goal.display, display_of(~ctx, written));
+    && List.for_all(same_definition, names^);
+  };
 
   let info_map = (goal: t): Statics.Map.t =>
     CodeEditable.Model.get_statics(goal.editor).info_map;
 
-  /* The displayed ids of the offered steps, where their underlines go. */
-  let step_ids = (goal: t): list(Id.t) =>
-    List.map(
-      ((_, id)) =>
-        display_id(~written=goal.written, ~display=goal.display, id),
-      goal.eval_steps,
-    );
+  /* The ids of the offered steps' sources, where their underlines go. */
+  let step_ids = (goal: t): list(Id.t) => List.map(snd, goal.eval_steps);
 
-  /* Where the underline marking what `row`'s step acts on goes: the
-   * displayed id of that part. A goal carried over from an earlier check
-   * prints the same as `row.goal` but may not share its ids, so this maps
-   * by position from `row.goal` rather than from `written`.
+  /* Where the underline marking what `row`'s step acts on goes. A goal
+   * carried over from an earlier check prints the same as `row.goal` but
+   * may not share its ids, so the part is found by its position in
+   * `row.goal`.
    *
-   * The editor may not draw that node. Inside a folded function it is in
+   * The editor may not draw that node. Inside a folded lambda it is in
    * the editor's term but not drawn, so the underline goes on the nearest
    * drawn node around it there, the fold. A hidden ascription isn't in the
    * editor's term at all, so the underline goes on the first drawn node
@@ -412,12 +395,12 @@ module Goal = {
         );
     let editor_term = CodeEditable.Model.get_statics(goal.editor).term;
     switch (row.goal, row.acts_on) {
-    | (Some(written), Some(part)) =>
-      Occurrence.map_rep_id(~from=written, ~onto=goal.display, part)
-      |> Option.bind(_, id =>
-           switch (self_and_ancestors(id, editor_term)) {
+    | (Some(row_goal), Some(part)) =>
+      Occurrence.at_same_position(~from=row_goal, ~onto=goal.written, part)
+      |> Option.bind(_, (node: Exp.t) =>
+           switch (self_and_ancestors(Exp.rep_id(node), editor_term)) {
            | Some(path) => List.find_opt(drawn, path)
-           | None => Option.bind(Exp.find_by_id(id, goal.display), inside)
+           | None => inside(node)
            }
          )
       |> Option.map(Exp.rep_id)
@@ -435,13 +418,11 @@ module Goal = {
       editor.syntax.term_data,
       CachedSyntax.measured(editor.syntax),
     )
-    |> Option.bind(_, id => Exp.find_by_id(id, goal.display));
+    |> Option.bind(_, id => Exp.find_by_id(id, goal.written));
   };
 
   /* `goal` built again with `settings`. The node that was selected is
-   * selected again, or the caret goes back to the node it was at.
-   * Substitution gives what it inlines fresh ids each time, so the node is
-   * found by its position in the display. */
+   * selected again, or the caret goes back to the node it was at. */
   let rebuild = (~settings: CoreSettings.t, goal: t): t => {
     let rebuilt = mk(~settings, ~ctx=goal.ctx, goal.written);
     let zipper = goal.editor.editor.state.zipper;
@@ -457,25 +438,15 @@ module Goal = {
         )
       };
     let moved =
-      Option.bind(
-        node,
-        id => {
-          let id =
-            Occurrence.map_rep_id(
-              ~from=goal.display,
-              ~onto=rebuilt.display,
-              id,
-            )
-            |> Option.value(~default=id);
-          Editor.Update.update(
-            ~settings,
-            restore(id),
-            rebuilt.editor.statics,
-            rebuilt.editor.dynamics,
-            rebuilt.editor.editor,
-          )
-          |> Stdlib.Result.to_option;
-        },
+      Option.bind(node, id =>
+        Editor.Update.update(
+          ~settings,
+          restore(id),
+          rebuilt.editor.statics,
+          rebuilt.editor.dynamics,
+          rebuilt.editor.editor,
+        )
+        |> Stdlib.Result.to_option
       );
     switch (moved) {
     | Some(editor) => {
@@ -500,7 +471,7 @@ type pick = {
   step: Proof.t,
 }
 and target = {
-  /* The occurrence, a node of the goal's display. */
+  /* The occurrence, a node of the goal. */
   node: Exp.t,
   /* What the focus writes, and which of its matches the occurrence is,
    * counting from 0. */
@@ -511,13 +482,13 @@ and target = {
 /* Where a step picked on `node` acts: through a focus, unless `node` is
  * the whole goal. */
 let target = (goal: Goal.t, node: Exp.t): option(target) =>
-  Exp.rep_id(node) == Exp.rep_id(goal.display)
+  Exp.rep_id(node) == Exp.rep_id(goal.written)
     ? None
     : Some({
         node,
         selector: node,
         index:
-          Occurrence.index(node, goal.display) |> Option.value(~default=0),
+          Occurrence.index(node, goal.written) |> Option.value(~default=0),
       });
 
 /* The proof `pick` writes on its own: its step, focused on its target. */
@@ -556,27 +527,15 @@ let write_steps =
 let take_step = (goal: Goal.t, idx: int): option(pick) => {
   open OptUtil.Syntax;
   let* (_, source) = List.nth_opt(goal.eval_steps, idx);
-  let* written = Exp.find_by_id(source, goal.written);
-  let env = Goal.env(goal);
-  let+ index =
-    EvalSteps.checker_idx(
-      ~env,
-      ~substituted=Substitution.in_exp(env, goal.written),
-      written,
-    );
-  let node =
-    Exp.find_by_id(
-      Goal.display_id(~written=goal.written, ~display=goal.display, source),
-      goal.display,
-    )
-    |> Option.value(~default=written);
+  let* node = Exp.find_by_id(source, goal.written);
+  let+ index = EvalSteps.checker_idx(goal.written, node);
   {
     at:
       source == Exp.rep_id(goal.written)
         ? None
         : Some({
             node,
-            selector: written,
+            selector: node,
             index,
           }),
     step: Proof.fresh(EvalStep),
@@ -592,9 +551,10 @@ let refl = (goal: Goal.t, node: Exp.t): pick => {
     ),
 };
 
-/* The goal `proof` leaves, checked from `goal` alone rather than as part
+/* `proof` checked from `written` in `goal`'s scope, rather than as part
  * of its theorem, or None if the checker marks any step of it. */
-let outgoing = (goal: Goal.t, written: Exp.t, proof: Proof.t): option(Exp.t) => {
+let check =
+    (goal: Goal.t, written: Exp.t, proof: Proof.t): option(ProofMap.t) => {
   let checked =
     Evaluator.Proofs.check_proof(
       ~statics=Goal.info_map(goal),
@@ -602,12 +562,18 @@ let outgoing = (goal: Goal.t, written: Exp.t, proof: Proof.t): option(Exp.t) => 
       ~goal=written,
       proof,
     );
-  ProofMap.error_ids(checked) == []
-    ? Option.bind(ProofMap.lookup(Proof.rep_id(proof), checked), e =>
-        e.outgoing
-      )
-    : None;
+  ProofMap.error_ids(checked) == [] ? Some(checked) : None;
 };
+
+/* The goal a step of a checked proof leaves. */
+let outgoing_of = (checked: ProofMap.t, step: Proof.t): option(Exp.t) =>
+  Option.bind(ProofMap.lookup(Proof.rep_id(step), checked), e => e.outgoing);
+
+/* The goal `proof` leaves, checked as `check` does. */
+let outgoing = (goal: Goal.t, written: Exp.t, proof: Proof.t): option(Exp.t) =>
+  Option.bind(check(goal, written, proof), checked =>
+    outgoing_of(checked, proof)
+  );
 
 /* A scope's citable rules: its own facts and theorems, then the builtin
  * axioms, which `ProofCtx.of_theorem_ctx` lists last. */
@@ -650,12 +616,12 @@ module Ghost = {
     let node =
       switch (selected) {
       | Some(s) =>
-        switch (self_and_ancestors(Exp.rep_id(s), goal.display)) {
+        switch (self_and_ancestors(Exp.rep_id(s), goal.written)) {
         | Some([_, ...ancestors]) => widen(s, ancestors)
         | Some([])
         | None => s
         }
-      | None => goal.display
+      | None => goal.written
       };
     let is_node = (e: Exp.t) => Exp.rep_id(e) == Exp.rep_id(node);
     let inside = id => Exp.find_by_id(id, node) != None;
@@ -666,19 +632,23 @@ module Ghost = {
           |> Option.bind(_, take_step(goal))
           |> Option.map(pick => ("eval", pick));
     let* (rule, pick) = candidate;
-    let+ written = outgoing(goal, goal.written, focused(pick));
-    let display = Goal.display_of(~ctx=goal.ctx, written);
+    let proof = focused(pick);
+    let* checked = check(goal, goal.written, proof);
+    /* What `node` becomes. A focus keeps the ids around the occurrence it
+     * replaces, so a selection wider than the step's own part is found by
+     * its id. */
+    let+ result =
+      switch (pick.at) {
+      | Some({node: part, _}) when Exp.rep_id(part) != Exp.rep_id(node) =>
+        outgoing_of(checked, proof)
+        |> Option.bind(_, Exp.find_by_id(Exp.rep_id(node)))
+      | Some(_)
+      | None => outgoing_of(checked, pick.step)
+      };
     {
       rule,
       pick,
-      result:
-        Occurrence.map_rep_id(
-          ~from=goal.display,
-          ~onto=display,
-          Exp.rep_id(node),
-        )
-        |> Option.bind(_, id => Exp.find_by_id(id, display))
-        |> Option.value(~default=display),
+      result,
     };
   };
 };
@@ -706,11 +676,11 @@ module Strategies = {
     | Chooses(list(choice));
 
   let intros = (goal: Goal.t): list(strategy) => {
-    let display = goal.display;
+    let written = goal.written;
     let info_map = Goal.info_map(goal);
     let env = Goal.env(goal);
     let forall =
-      Exp.is_fun(display)
+      Exp.is_fun(written)
         ? [
           {
             label: "Forall",
@@ -723,7 +693,7 @@ module Strategies = {
     /* Exactly when the goal is `f == g` at an arrow type, by the checker's
      * own detector, so it never writes a step that would mark. */
     let funext =
-      ProofCheck.Funext.goal(~info_map, ~env, display) == None
+      ProofCheck.Funext.goal(~info_map, ~env, written) == None
         ? []
         : [
           {
@@ -733,14 +703,14 @@ module Strategies = {
             writes:
               Writes(
                 Terms.funext(
-                  ~binder=ProofCheck.Funext.binder(~info_map, ~env, display),
+                  ~binder=ProofCheck.Funext.binder(~info_map, ~env, written),
                 ),
               ),
           },
         ];
     /* With goal `A ==> B`, assuming exactly A strips the antecedent. */
     let assume =
-      switch (Exp.term_of(display)) {
+      switch (Exp.term_of(written)) {
       | BinOp(Bool(Implies), a, _) => [
           {
             label: "Assume",

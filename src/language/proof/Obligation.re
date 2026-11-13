@@ -43,19 +43,10 @@ type t = {
   kind,
   /* The bindings visible at the obligation site. */
   bindings: list(Ctx.entry),
-  /* The environment has been substituted in
-   * (`ProofCheck.Discharge.obligation`), so discharge by lookup or by closed
-   * evaluation works on terms as closed as possible. */
+  /* As written: it names the program's definitions. */
   goal: Exp.t,
-  /* The goal before substitution, for display only. Substituting a
-   * closure-valued variable into a guard like `y != 0` prints as a whole
-   * closure dump, and un-substituting is impossible in general, so the
-   * checker records what the user wrote. The checker never reads it. */
-  display_goal: Exp.t,
   discharge,
 };
-
-let display_goal_of = (ob: t): Exp.t => ob.display_goal;
 
 /* For a `Remote` discharge, the covering fact's name and statement,
  * found by id among the obligation's own bindings (`Ctx.TheoremEntry`s).

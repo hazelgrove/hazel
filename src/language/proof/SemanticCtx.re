@@ -6,8 +6,9 @@ open Util;
      with variables, such as in the stepper.
 
      Hypotheses live only in the theorem namespace of `ctx`
-     (`Ctx.TheoremEntry`), never in `env`. The prover still needs `env`:
-     obligations and facts are env-substituted before discharge.
+     (`Ctx.TheoremEntry`), never in `env`. Goals and facts name the
+     program's definitions, and `env` is what those names mean
+     (`Definitions`).
  */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -21,38 +22,6 @@ let of_ctx_and_env: (Ctx.t, Environment.t(Exp.t)) => t =
     ctx,
     env,
   };
-
-/* Pairs a `Ctx.t` from the statics with the runtime environment at the
-   same program point.
-
-   Theorem statements recorded by the statics are in the user's
-   vocabulary (`f(2) == 3` where `f` is a let-bound function), while the
-   checker computes with env-inlined terms (`Substitution.in_exp`), so the
-   statements are substituted here, once.
-
-   Unlike `of_ctx_and_env`, this substitutes: facts installed later by
-   `add_hypothesis` are substituted by their caller, and substituting one
-   a second time alpha-renames the binders inside its inlined closures,
-   after which by-name citation no longer finds it. */
-let of_program_state = (ctx: Ctx.t, env: Environment.t(Exp.t)): t => {
-  ctx: {
-    ...ctx,
-    entries:
-      List.map(
-        (entry: Ctx.entry) =>
-          switch (entry) {
-          | TheoremEntry({prop: Some(prop), _} as e) =>
-            Ctx.TheoremEntry({
-              ...e,
-              prop: Some(prop |> Substitution.in_exp(env)),
-            })
-          | e => e
-          },
-        ctx.entries,
-      ),
-  },
-  env,
-};
 
 /* `ctx` with the variables `dhpat` binds, at their types when `dhpat`
    has type `ty`. `None` when `dhpat` can't have that type. */

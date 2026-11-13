@@ -43,10 +43,9 @@ let prelude =
   ++ "let infer = fun p -> case p | (ctx, TmVar(n)) => nth_ty((ctx, n)) | (ctx, TmLam(t, b)) => lam_result((t, infer((t :: ctx, b)))) | (ctx, TmAp(e1, e2)) => ap_result((infer((ctx, e1)), infer((ctx, e2)))) end in "
   ++ "let is_value = fun e -> case e | TmVar(n) => false | TmLam(t, b) => true | TmAp(x, y) => false end in "
   /* is_lam's branch order differs from is_value's on purpose. With the
-   * same order the two definitions are alpha-equal after env
-   * substitution, and `nth_exp_env` (which matches at_exp modulo env)
-   * resolves `is_value(TmVar(n))` to an `is_lam(TmVar(n))`
-   * occurrence. */
+   * same order the two definitions are alpha-equal, and a selector
+   * `is_value(TmVar(n))` with no occurrence as written would match an
+   * `is_lam(TmVar(n))` once both are unfolded. */
   ++ "let is_lam = fun e -> case e | TmLam(t, b) => true | TmVar(n) => false | TmAp(x, y) => false end in "
   ++ "let is_some_tm = fun m -> case m | NoTm => false | SomeTm(x) => true end in "
   ++ "let shift = fun p -> case p | (d, c, TmVar(n)) => (if n < c then TmVar(n) else TmVar(n + d)) | (d, c, TmLam(t, b)) => TmLam(t, shift((d, c + 1, b))) | (d, c, TmAp(x, y)) => TmAp(shift((d, c, x)), shift((d, c, y))) end in "
@@ -170,21 +169,7 @@ let test_canonical_impl_proven = () => {
  * closed by `revert`ing it into the goal, where the case_eq
  * `e == TmAp(x, y)` rewrites it into a closed computation, evaluation
  * falsifies it, and McCarthy `==>` returns `true`: the revert-based ex
- * falso idiom.
- *
- * The theorem binder is `e0`, not `e`: the at_exp of the case_eq
- * citation is the bare binder, and `is_value`'s own parameter is `e`, so
- * an `e` binder here is shadowed inside the inlined closure and the
- * occurrence is not addressable (the file's 0-suffix convention).
- *
- * (Reverting at the top of the proof, before the induction, also works
- * for TmVar/TmAp -- the induction substitutes the scrutinee inside the
- * reverted antecedent too, so no case_eq needs naming -- but it then
- * blocks TmLam, whose reverted antecedent is `true`: stripping it by eval
- * auto-steps into the untouched consequent and fix-unrolls `infer`, and
- * stripping it by assume-intro fails because the intro test compares a
- * re-substituted antecedent. Reverting only in the leaf that needs it
- * avoids both.) */
+ * falso idiom. */
 let canonical_where_src =
   program(
     "theorem canonicalw = forall e0: Term where is_value(e0) -> forall t1: Ty -> forall t2: Ty -> infer(([], e0)) == SomeTy(TArr(t1, t2)) ==> is_lam(e0) proof induction e0 "
@@ -253,15 +238,8 @@ let cong2_case = (hd: string, arg: string): string =>
 let lemma_step_ap_val1 =
   "theorem step_ap_val1 = forall u1: Term -> forall u2: Term -> is_value(u1) == false ==> step(TmAp(u1, u2)) == ("
   ++ cong1_case("u1", "u2")
-  /* FRICTION (pinned below): after the eval unfolds
-   * `step`, the goal's recursive occurrences `step(u1)` / `step(u2)`
-   * were created by the hidden FixUnwrap self-substitution, and such
-   * self-unrolled occurrences never match written at_exps under
-   * nth_exp_env (env-substituted occurrences of other definitions --
-   * is_value, subst -- do match). The three-way conditional therefore
-   * cannot be collapsed: quoting it whole fails on the step
-   * subterms, and no smaller quote contains the Conditional redex.
-   * Proof stops here, mark-free. */
+  /* TODO: finish the proof by collapsing the conditional the eval
+   * leaves. `progress` cites the lemma as stated. */
   ++ ") proof assume is_value(u1) == false => from step(TmAp(u1, u2)) do eval end; from is_value(u1) do axiom assume end end; ? in ";
 
 /* Congruence-2 at a lambda head: the head's value-ness is computed by
@@ -270,7 +248,7 @@ let lemma_step_ap_val1 =
 let lemma_step_lam_ap2 =
   "theorem step_lam_ap2 = forall w1: Ty -> forall q1: Term -> forall u2: Term -> is_value(u2) == false ==> step(TmAp(TmLam(w1, q1), u2)) == ("
   ++ cong2_case("TmLam(w1, q1)", "u2")
-  /* Same FixUnwrap-unroll wall as step_ap_val1. */
+  /* TODO: finish, as for step_ap_val1. */
   ++ ") proof assume is_value(u2) == false => from step(TmAp(TmLam(w1, q1), u2)) do eval end; from is_value(TmLam(w1, q1)) do eval end; from is_value(u2) do axiom assume end end; ? in ";
 
 /* Beta: both sides values, lambda head. */
@@ -334,9 +312,7 @@ let test_lemma_some_tm_is_some = () =>
  *
  * by generalize t => induction e. TmVar and TmLam close outright. The
  * TmAp case is driven by ADT/bool splits on the computed scrutinees of
- * infer's unfolding (each split needs an explicit case_eq rewrite --
- * computed-scrutinee splits do not substitute in the goal), closing
- * every branch the vocabulary can close:
+ * infer's unfolding, closing every branch the vocabulary can close:
  *   - all branches where infer computes NoTy: antecedent evaluates to
  *     false, McCarthy `==>` collapses the goal to true;
  *   - head-not-value + step(x0) = SomeTm(_): congruence lemma;
@@ -353,22 +329,15 @@ let test_lemma_some_tm_is_some = () =>
  *     instantiated there (`revert ih with t0 = tf0`), rewrite its
  *     antecedent away with the case_eqs in scope, and the same ex falso
  *     collapse finishes it.
- * `progress` is fully Proven (test_progress_proven).
- *
- * Binder naming: all proof-level binders are 0-suffixed, disjoint from
- * every prelude-internal binder, so evaluator inlining never
- * capture-renames and quoted at_exps keep matching. */
+ * `progress` is fully Proven (test_progress_proven). */
 
 let progress_consequent = "is_value(TmAp(x0, y0)) || is_some_tm(step(TmAp(x0, y0)))";
 
-/* One antecedent-falsified leaf: rewrite the remaining infer call by its
- * case_eq, collapse ap_result by evaluation, falsify, McCarthy-collapse.
- * `ceq` is the split's `as` name: auto-installed facts have fixed names
- * and shadow, so every split that gets cited names itself. */
-let noty_leaf = (ceq: string, pair: string): string =>
-  "from infer(([], y0)) do axiom "
-  ++ ceq
-  ++ " end end; from ap_result(("
+/* One antecedent-falsified leaf: collapse ap_result by evaluation,
+ * falsify, McCarthy-collapse. The splits on `infer` calls have already
+ * replaced them in the goal. */
+let noty_leaf = (pair: string): string =>
+  "from ap_result(("
   ++ pair
   ++ ")) do eval end; from NoTy == SomeTy(t0) do eval end; from false ==> "
   ++ progress_consequent
@@ -395,36 +364,34 @@ let progress_src =
      * two deep IH leaves below still cite it: without a name it would be
      * `case_eq`, which the splits nested inside shadow. */
     ++ "induction infer(([], x0)) as tx "
-    ++ "| NoTy => from infer(([], x0)) do axiom tx end end; "
+    ++ "| NoTy => "
     ++ "induction infer(([], y0)) as ty "
     ++ "| NoTy => "
-    ++ noty_leaf("ty", "NoTy, NoTy")
+    ++ noty_leaf("NoTy, NoTy")
     ++ " | SomeTy(s0) => "
-    ++ noty_leaf("ty", "NoTy, SomeTy(s0)")
+    ++ noty_leaf("NoTy, SomeTy(s0)")
     ++ " end "
-    ++ "| SomeTy(tf0) => from infer(([], x0)) do axiom tx end end; "
+    ++ "| SomeTy(tf0) => "
     ++ "induction tf0 "
     ++ "| TB => induction infer(([], y0)) as ty "
     ++ "| NoTy => "
-    ++ noty_leaf("ty", "SomeTy(TB), NoTy")
+    ++ noty_leaf("SomeTy(TB), NoTy")
     ++ " | SomeTy(s0) => "
-    ++ noty_leaf("ty", "SomeTy(TB), SomeTy(s0)")
+    ++ noty_leaf("SomeTy(TB), SomeTy(s0)")
     ++ " end "
     ++ "| TArr(ta0, tb0) => induction infer(([], y0)) as ty "
     ++ "| NoTy => "
-    ++ noty_leaf("ty", "SomeTy(TArr(ta0, tb0)), NoTy")
-    ++ " | SomeTy(s0) => from infer(([], y0)) do axiom ty end end; from ap_result((SomeTy(TArr(ta0, tb0)), SomeTy(s0))) do eval end; "
+    ++ noty_leaf("SomeTy(TArr(ta0, tb0)), NoTy")
+    ++ " | SomeTy(s0) => from ap_result((SomeTy(TArr(ta0, tb0)), SomeTy(s0))) do eval end; "
     ++ "induction ty_eq((ta0, s0)) as teq "
-    ++ "| false => from ty_eq((ta0, s0)) do axiom teq end end; from if false then SomeTy(tb0) else NoTy do eval end; from NoTy == SomeTy(t0) do eval end; from false ==> "
+    ++ "| false => from if false then SomeTy(tb0) else NoTy do eval end; from NoTy == SomeTy(t0) do eval end; from false ==> "
     ++ progress_consequent
     ++ " do eval end "
-    ++ "| true => from ty_eq((ta0, s0)) do axiom teq end end; from if true then SomeTy(tb0) else NoTy do eval end; "
+    ++ "| true => from if true then SomeTy(tb0) else NoTy do eval end; "
     ++ "assume SomeTy(tb0) == SomeTy(t0) => "
     /* The `is_value(x0)` split comes before the two goal-evaluating
-     * steps: the ex falso leaves below need the goal in its written form
-     * (`eval false || is_some_tm(step(...))` auto-steps `step` into an
-     * inlined closure blob that no written at_exp can quote), so the
-     * evaluation is pushed into the only branch that wants it. */
+     * steps, so the ex falso leaves below get the goal as written and the
+     * evaluation happens only in the branch that wants it. */
     ++ "induction is_value(x0) as vx "
     /* Congruence-1: the head steps, so the application steps. */
     ++ "| false => from is_value(TmAp(x0, y0)) do eval end; "
@@ -439,11 +406,7 @@ let progress_src =
      * citation has to say what t0 is. `revert ih with t0 = tf0` moves the
      * instance into the goal; then the case_eqs in scope rewrite A to
      * `SomeTy(tf0) == SomeTy(tf0)` (refl_eq: true) and D to `false`,
-     * leaving `false ==> G`, which McCarthy-collapses to true.
-     *
-     * `is_value`/`step` in the reverted IH are addressable because the
-     * IH's inlined closures match written selectors once the env is
-     * substituted (`Occurrence.nth_env_target`). */
+     * leaving `false ==> G`, which McCarthy-collapses to true. */
     ++ "| NoTm => revert ihx with t0 = tf0 => "
     ++ "from infer(([], x0)) do axiom tx end end; "
     ++ "from SomeTy(tf0) == SomeTy(tf0) do axiom refl_eq end end; "
@@ -452,8 +415,8 @@ let progress_src =
     ++ "from false || is_some_tm(step(x0)) do eval end; "
     ++ "from step(x0) do axiom sx end end; "
     ++ "from is_some_tm(NoTm) do eval end; "
-    ++ "from false ==> is_some_tm(case step(x0) | NoTm => NoTm | SomeTm(xp) => SomeTm(TmAp(xp, y0)) end) do eval end "
-    ++ "| SomeTm(u0) => from step(x0) do axiom sx end end; from is_some_tm(case SomeTm(u0) | NoTm => NoTm | SomeTm(xp) => SomeTm(TmAp(xp, y0)) end) do eval end "
+    ++ "from false ==> is_some_tm(case NoTm | NoTm => NoTm | SomeTm(xp) => SomeTm(TmAp(xp, y0)) end) do eval end "
+    ++ "| SomeTm(u0) => from is_some_tm(case SomeTm(u0) | NoTm => NoTm | SomeTm(xp) => SomeTm(TmAp(xp, y0)) end) do eval end "
     ++ "end "
     ++ "| true => induction x0 as hx0 "
     /* Vacuous by canonical forms: is_value(x0) == true and
@@ -484,8 +447,8 @@ let progress_src =
     ++ "from false || is_some_tm(step(y0)) do eval end; "
     ++ "from step(y0) do axiom sy end end; "
     ++ "from is_some_tm(NoTm) do eval end; "
-    ++ "from false ==> is_some_tm(case step(y0) | NoTm => NoTm | SomeTm(yp) => SomeTm(TmAp(TmLam(w0, q0), yp)) end) do eval end "
-    ++ "| SomeTm(u0) => from step(y0) do axiom sy end end; from is_some_tm(case SomeTm(u0) | NoTm => NoTm | SomeTm(yp) => SomeTm(TmAp(TmLam(w0, q0), yp)) end) do eval end "
+    ++ "from false ==> is_some_tm(case NoTm | NoTm => NoTm | SomeTm(yp) => SomeTm(TmAp(TmLam(w0, q0), yp)) end) do eval end "
+    ++ "| SomeTm(u0) => from is_some_tm(case SomeTm(u0) | NoTm => NoTm | SomeTm(yp) => SomeTm(TmAp(TmLam(w0, q0), yp)) end) do eval end "
     ++ "end "
     ++ "end "
     /* Same ex falso as the TmVar leaf: is_value(x0) == true with
@@ -539,16 +502,12 @@ let test_progress_proven = () => {
   check_status("progress is fully Proven", ProofMap.Proven, pm, proof);
 };
 
-/* --- Checker-limitation pins: at_exp addressability ---------------------
+/* --- Addressing occurrences in an unfolded body ------------------------
 
-   After `eval step(TmAp(u1, u2))` unfolds step's body into the goal:
-   - occurrences inlined from the closure environment (is_value applied,
-     subst applied inside a branch body) still match written at_exps
-     (nth_exp_env pre-substitutes both sides) -- positive control below;
-   - occurrences of `step` itself, created by the hidden FixUnwrap
-     self-substitution, don't match the written `step(u1)` --
-     PatternNotFound although the application is visibly there. This is
-     what blocks the three step-unfolding lemma proofs. */
+   After `eval step(TmAp(u1, u2))` unfolds step's body into the goal, the
+   calls in it name their functions, so written selectors find them: one
+   to another definition (`is_value(u2)`) and a recursive one
+   (`step(u1)`). */
 
 let unroll_probe = (piece: string): (ProofMap.t, Proof.t) => {
   let src =
@@ -560,33 +519,16 @@ let unroll_probe = (piece: string): (ProofMap.t, Proof.t) => {
   run_named("bp", src);
 };
 
-/* Positive control: env-inlined `is_value(u2)` inside the unfolded body
- * is addressable (the eval finds and steps it). */
-let test_pin_env_inlined_addressable = () => {
-  let (pm, proof) = unroll_probe("is_value(u2)");
-  if (Test_ProofMap.find_marked_sub(pm, proof) != None) {
-    Alcotest.fail(
-      "env-inlined is_value(u2) should be addressable\n" ++ dump(pm, proof),
-    );
-  };
-};
-
-/* The pin: the self-unrolled `step(u1)` is not addressable. */
-let test_pin_self_unrolled_unaddressable = () => {
-  let (pm, proof) = unroll_probe("step(u1)");
-  if (!
-        has_mark_kind(
-          pm,
-          proof,
-          fun
-          | ProofMark.PatternNotFound(_) => true
-          | _ => false,
-        )) {
-    Alcotest.fail(
-      "self-unrolled step(u1) unexpectedly became addressable -- a "
-      ++ "checker improvement landed; unblock the step lemmas!\n"
-      ++ dump(pm, proof),
-    );
+let test_unfolded_call_addressable = (piece: string, ()) => {
+  let (pm, proof) = unroll_probe(piece);
+  if (has_mark_kind(
+        pm,
+        proof,
+        fun
+        | ProofMark.PatternNotFound(_) => true
+        | _ => false,
+      )) {
+    Alcotest.fail(piece ++ " should be addressable\n" ++ dump(pm, proof));
   };
 };
 
@@ -820,14 +762,14 @@ let tests = (
       test_pin_where_fact_uncitable,
     ),
     test_case(
-      "pin: env-inlined occurrences are addressable",
+      "a call to another definition in an unfolded body is addressable",
       `Quick,
-      test_pin_env_inlined_addressable,
+      test_unfolded_call_addressable("is_value(u2)"),
     ),
     test_case(
-      "pin: FixUnwrap self-unrolled occurrences are not",
+      "a recursive call in an unfolded body is addressable",
       `Quick,
-      test_pin_self_unrolled_unaddressable,
+      test_unfolded_call_addressable("step(u1)"),
     ),
   ],
 );

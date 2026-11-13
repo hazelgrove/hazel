@@ -103,17 +103,16 @@ let find_theorem_stmt = (e: Exp.t): option(Exp.t) => {
 };
 
 /* An obligation as its exits see one: only `origin` (the incurring step)
- * and `display_goal` (what the user wrote) drive them. */
+ * and `goal` drive them. */
 let mk_obligation = (~origin: Id.t, ~goal: string): Obligation.t => {
   origin,
   kind: Premise,
   bindings: [],
   goal: parse_exp(goal),
-  display_goal: parse_exp(goal),
   discharge: Pending,
 };
 
-/* An obligation whose `display_goal` reuses ids from the program `z`,
+/* An obligation whose goal reuses ids from the program `z`,
    the way real obligations' goals do (they are slices of the checked
    program). `<var> != 0`, built around the program's own `var` tile. */
 let find_var = (~name: Var.t, e: Exp.t): Exp.t => {
@@ -147,7 +146,6 @@ let mk_obligation_reusing =
     kind: Premise,
     bindings: [],
     goal,
-    display_goal: goal,
     discharge: Pending,
   };
 };
@@ -1067,7 +1065,7 @@ let tests = (
     ),
     /* --- id hygiene: patched syntax must not duplicate tile ids ------
      *
-     * In the browser the obligation's `display_goal` is a slice of the
+     * In the browser the obligation's goal is a slice of the
      * checked program, so its exps carry the ids the program's tiles were
      * parsed from. Embedding that slice verbatim puts one id on two
      * tiles; `Measured.find_shards` then returns both occurrences' shards

@@ -112,16 +112,21 @@ module Discharge = {
     | _ => e
     };
 
-  /* The id of a fact in scope (`SemanticCtx.facts`) that is
-   * `Exp.fast_equal` to `goal`, up to `strip_eq_true`. */
+  /* The id of a fact in scope (`SemanticCtx.facts`) equal to `goal`, up
+   * to `strip_eq_true`: as written, or else once the definitions they
+   * name are unfolded where they differ. */
   let lookup = (ctx: SemanticCtx.t, goal: Exp.t): option(Id.t) => {
     let goal_nf = strip_eq_true(goal);
-    SemanticCtx.facts(ctx)
-    |> List.find_map(((_name, id, fact)) =>
-         Exp.fast_equal(fact, goal)
-         || Exp.fast_equal(strip_eq_true(fact), goal_nf)
-           ? Some(id) : None
-       );
+    let find = same =>
+      SemanticCtx.facts(ctx)
+      |> List.find_map(((_name, id, fact)) =>
+           same(fact, goal) || same(strip_eq_true(fact), goal_nf)
+             ? Some(id) : None
+         );
+    switch (find(Exp.fast_equal)) {
+    | Some(_) as found => found
+    | None => find(MatchExp.equal_modulo(~defs=SemanticCtx.get_env(ctx)))
+    };
   };
 
   /* Runs `step` to a fixpoint. The fuel bound is generous, since
@@ -135,14 +140,18 @@ module Discharge = {
     go(1000, e);
   };
 
-  /* How `goal`, env-substituted, is discharged: by lookup, or else by
-   * closed evaluation to `true`. Only a goal with no free variables
-   * (`2 != 0`) is evaluated, and not one that calls a recursive
-   * function: only explicit steps (`eval`, `contradiction`) run those. */
+  /* How `goal` is discharged: by lookup, or else by closed evaluation to
+   * `true`. Only a goal whose free variables are all definitions
+   * (`2 != 0`, `f(2) > 0`) is evaluated, and not one that calls a
+   * recursive function: only explicit steps (`eval`, `contradiction`) run
+   * those. Both are judged on a copy with the definitions substituted. */
   let find = (~step: step_fn, ~ctx: SemanticCtx.t, goal: Exp.t) => {
+    let substituted =
+      lazy(Substitution.in_exp(SemanticCtx.get_env(ctx), goal));
     /* Statics against an empty ctx leave an empty co-context exactly
      * when there are no free variables. */
     let is_closed = () => {
+      let goal = Lazy.force(substituted);
       let (statics, _) =
         Statics.mk(
           ~ana=Typ.temp(Atom(Bool)),
@@ -155,9 +164,9 @@ module Discharge = {
       | None => true
       };
     };
-    /* After env substitution, every recursive function a goal can call
-     * (written in the goal, in a user's closure or in a builtin) is a
-     * `FixF` node in it. */
+    /* With its definitions substituted, every recursive function a goal
+     * can call (written in the goal, in a user's closure or in a builtin)
+     * is a `FixF` node in it. */
     let has_fixpoint = () => {
       let found = ref(false);
       let _: Exp.t =
@@ -170,7 +179,7 @@ module Discharge = {
                 e;
               | _ => continue(e)
               },
-          goal,
+          Lazy.force(substituted),
         );
       found^;
     };
@@ -184,8 +193,7 @@ module Discharge = {
   };
 
   /* The obligation to prove `goal`, incurred at step `origin` and
-   * discharged if it can be. See Obligation.re for why both goals are
-   * kept. */
+   * discharged if it can be. */
   let obligation =
       (
         ~step: step_fn,
@@ -194,29 +202,20 @@ module Discharge = {
         ~kind: Obligation.kind,
         goal: Exp.t,
       )
-      : Obligation.t => {
-    let substituted = goal |> Substitution.in_exp(SemanticCtx.get_env(ctx));
+      : Obligation.t =>
     Obligation.{
       origin,
       kind,
       bindings: SemanticCtx.get_ctx(ctx).entries,
-      goal: substituted,
-      display_goal: goal,
-      discharge: find(~step, ~ctx, substituted),
+      goal,
+      discharge: find(~step, ~ctx, goal),
     };
-  };
 };
 
-/* The proposition a `revert`, `contradiction` or `alias` step cites.
- *
- * A bare hypothesis name is looked up in the theorem namespace, so
- * `revert ih` names the same thing `axiom ih` does. It is not
- * substituted: installed facts are already env-substituted, and
- * substituting one again alpha-renames the binders inside its inlined
- * closures, after which it no longer `fast_equal`s the stored fact.
- *
- * A spelled-out proposition is substituted, to bring the user's
- * vocabulary into the inlined form of the stored facts. */
+/* The proposition a `revert`, `contradiction` or `alias` step cites: a
+ * hypothesis or theorem by name, looked up in the theorem namespace so
+ * that `revert ih` names the same thing `axiom ih` does, or else the
+ * proposition as spelled out. */
 let cited_fact = (~ctx: SemanticCtx.t, e: Exp.t): Exp.t => {
   let named =
     Option.bind(ProofSyntax.exp_to_name(e), name =>
@@ -225,7 +224,7 @@ let cited_fact = (~ctx: SemanticCtx.t, e: Exp.t): Exp.t => {
   switch (named) {
   | Some({prop: Some(prop), _}) => prop
   | Some({prop: None, _})
-  | None => e |> Substitution.in_exp(SemanticCtx.get_env(ctx))
+  | None => e
   };
 };
 
@@ -245,30 +244,30 @@ module Gate = {
   let instantiations =
       (~ctx: SemanticCtx.t, instantiations: list((Var.t, Exp.t)))
       : result(list(Exp.t), Var.t) => {
-    /* Substitution inlines visible definitions (so Totality checks their
-     * bodies), recursive ones surface their FixF spine, and quantified
-     * binders stay bare Vars. */
-    let substituted =
-      List.map(
-        ((n, e)) =>
-          (n, e |> Substitution.in_exp(SemanticCtx.get_env(ctx))),
-        instantiations,
-      );
+    let env = SemanticCtx.get_env(ctx);
+    /* Totality reads the bodies of the definitions an instantiation
+     * calls, so it checks a copy with them substituted: recursive ones
+     * surface their FixF spine, and quantified binders stay bare Vars. */
     let divergent =
       List.find_map(
         ((n, e)) =>
-          switch (Totality.check(~ctx=SemanticCtx.get_ctx(ctx), e)) {
+          switch (
+            Totality.check(
+              ~ctx=SemanticCtx.get_ctx(ctx),
+              Substitution.in_exp(env, e),
+            )
+          ) {
           | Ok () => None
           | Error(_) => Some(n)
           },
-        substituted,
+        instantiations,
       );
     switch (divergent) {
     | Some(n) => Error(n)
     | None =>
       Ok(
-        substituted
-        |> List.concat_map(((_, e)) => DomainConditions.scan(e))
+        instantiations
+        |> List.concat_map(((_, e)) => DomainConditions.scan(~defs=env, e))
         |> DomainConditions.dedup,
       )
     };
@@ -283,17 +282,23 @@ module Gate = {
   let scrutinee =
       (~step: step_fn, ~ctx: SemanticCtx.t, ~origin: Id.t, scrut: Exp.t)
       : (list(ProofMark.t), list(Obligation.t)) => {
-    let scrut = scrut |> Substitution.in_exp(SemanticCtx.get_env(ctx));
+    let env = SemanticCtx.get_env(ctx);
     switch (ProofSyntax.exp_to_name(scrut)) {
-    | Some(_) => ([], [])
+    | Some(x) when !Definitions.is_definition(env, x) => ([], [])
+    | Some(_)
     | None =>
       let marks =
-        switch (Totality.check(~ctx=SemanticCtx.get_ctx(ctx), scrut)) {
+        switch (
+          Totality.check(
+            ~ctx=SemanticCtx.get_ctx(ctx),
+            Substitution.in_exp(env, scrut),
+          )
+        ) {
         | Ok () => []
         | Error(_) => [ProofMark.PossiblyDivergentScrutinee]
         };
       let obligations =
-        DomainConditions.scan(scrut)
+        DomainConditions.scan(~defs=env, scrut)
         |> List.map(
              Discharge.obligation(~step, ~ctx, ~origin, ~kind=Definedness),
            );
@@ -329,7 +334,6 @@ module Where = {
    * recent match, resolves `where` to the guard the user wrote, as
    * `Statics.proof_ctx_of_goal` records it. */
   let add_facts = (ctx: SemanticCtx.t, g: Exp.t): SemanticCtx.t => {
-    let g = g |> Substitution.in_exp(SemanticCtx.get_env(ctx));
     let install = (ctx, fact) =>
       SemanticCtx.add_hypothesis(ctx, "where", fact) |> fst;
     let ctx =
@@ -349,6 +353,49 @@ module Where = {
 };
 
 // Binders
+
+/* `ctx` without the facts that mention any of `names`, for a scope in
+ * which those names are rebound: the facts are about the old binding.
+ * Unlike `ProofCtx`'s capture check, this also hides them from
+ * `Discharge.lookup`. */
+let forget_facts_mentioning =
+    (names: list(Var.t), ctx: SemanticCtx.t): SemanticCtx.t => {
+  let base_ctx = SemanticCtx.get_ctx(ctx);
+  let mentions = (fact: Exp.t) =>
+    ProofRule.mentions_any(ProofRule.exp_to_rule(fact), names);
+  SemanticCtx.of_ctx_and_env(
+    {
+      ...base_ctx,
+      entries:
+        List.filter(
+          (entry: Ctx.entry) =>
+            switch (entry) {
+            | TheoremEntry({prop: Some(fact), _}) => !mentions(fact)
+            | TheoremEntry({prop: None, _})
+            | VarEntry(_)
+            | ConstructorEntry(_)
+            | TVarEntry(_)
+            | LivelitEntry(_) => true
+            },
+          base_ctx.entries,
+        ),
+    },
+    SemanticCtx.get_env(ctx),
+  );
+};
+
+/* `ctx` extended with the variables `p` binds, at type `ty`. Every proof
+ * binder goes through here. Names in goals and facts are resolved by
+ * scope, so a fact that mentions a rebound name is about what the name
+ * meant outside, and is dropped. That covers a binder that shadows a
+ * definition (`forall len ->`) as well as one that shadows an earlier
+ * binder. */
+let bind = (ctx: SemanticCtx.t, p: Pat.t, ty: Typ.t): SemanticCtx.t =>
+  SemanticCtx.add_from_pattern(
+    forget_facts_mentioning(p |> Pat.bindings |> Binding.variable_names, ctx),
+    p,
+    ty,
+  );
 
 /* Peel the outermost binder from a "for all pat, P" goal, for the
  * `Forall` proof form: the binder, its type, its `where` restriction
@@ -387,41 +434,10 @@ let rec peel_stmt_binders =
   /* Transparent, for the reason spelled out on `peel_binder`. */
   | Parens(inner) => peel_stmt_binders(ctx, inner)
   | Forall(p, body) =>
-    let ctx =
-      SemanticCtx.add_from_pattern(ctx, p, Typ.fresh(Unknown(Internal)));
+    let ctx = bind(ctx, p, Typ.fresh(Unknown(Internal)));
     peel_stmt_binders(Where.add_pat_facts(ctx, p), body);
   | _ => (ctx, goal)
   };
-
-/* `ctx` without the facts that mention any of `names`, for a scope in
- * which those names are rebound: the facts are about the old binding.
- * Unlike `ProofCtx`'s capture check, this also hides them from
- * `Discharge.lookup`. */
-let forget_facts_mentioning =
-    (names: list(Var.t), ctx: SemanticCtx.t): SemanticCtx.t => {
-  let base_ctx = SemanticCtx.get_ctx(ctx);
-  let mentions = (fact: Exp.t) =>
-    ProofRule.mentions_any(ProofRule.exp_to_rule(fact), names);
-  SemanticCtx.of_ctx_and_env(
-    {
-      ...base_ctx,
-      entries:
-        List.filter(
-          (entry: Ctx.entry) =>
-            switch (entry) {
-            | TheoremEntry({prop: Some(fact), _}) => !mentions(fact)
-            | TheoremEntry({prop: None, _})
-            | VarEntry(_)
-            | ConstructorEntry(_)
-            | TVarEntry(_)
-            | LivelitEntry(_) => true
-            },
-          base_ctx.entries,
-        ),
-    },
-    SemanticCtx.get_env(ctx),
-  );
-};
 
 // Rewrite steps
 
@@ -464,15 +480,13 @@ module Axiom = {
      * `~info_map` settles conclusions whose shape doesn't (a `where`
      * guard that is a plain variable, a Bool-typed application). */
     let rule = ProofRule.BoolReading.apply(~info_map=Some(info_map), rule);
-    /* The `with` instantiation is env-substituted, like every other
-     * expression the checker computes with. */
     let* bindings =
       switch (instantiation) {
       | None => Ok(None)
       | Some((var, inst)) =>
         ProofRule.Rewrite.seed(
           var,
-          inst |> Substitution.in_exp(env),
+          inst,
           ProofRule.Rewrite.empty_bindings(rule.bindings),
         )
         |> Option.map(Option.some)
@@ -646,8 +660,8 @@ module Algebrite = {
     } else {
       let obligations =
         DomainConditions.dedup(
-          DomainConditions.scan(goal |> Substitution.in_exp(env))
-          @ DomainConditions.scan(replacement |> Substitution.in_exp(env)),
+          DomainConditions.scan(~defs=env, goal)
+          @ DomainConditions.scan(~defs=env, replacement),
         )
         |> List.map(
              Discharge.obligation(~step, ~ctx, ~origin, ~kind=Definedness),
@@ -657,14 +671,29 @@ module Algebrite = {
   };
 };
 
-/* `eval`: one evaluation step at the root of the goal. */
+/* `eval`: one evaluation step at the root of the goal. The evaluator
+ * inlines the definitions it looks up, and the goals it leaves name them
+ * again (`Definitions.fold`). */
 module Eval = {
   let check =
       (~step: step_fn, ~env: Environment.t(Exp.t), goal: Exp.t)
-      : result((step_result, list(Obligation.t)), ProofMark.t) =>
+      : result((step_result, list(Obligation.t)), ProofMark.t) => {
+    let fold = Definitions.fold(env);
     step(~env, ~at=Root, goal)
-    |> Option.map(result => (result, []))
+    |> Option.map(({auto_incoming, auto_outgoing, outgoing}) =>
+         (
+           {
+             auto_incoming:
+               List.map(((j, e)) => (j, fold(e)), auto_incoming),
+             auto_outgoing:
+               List.map(((e, j)) => (fold(e), j), auto_outgoing),
+             outgoing: fold(outgoing),
+           },
+           [],
+         )
+       )
     |> Option.to_result(~none=ProofMark.NothingToStep);
+  };
 };
 
 /* `funext x => body`: functional extensionality as an intro rule.
@@ -804,11 +833,8 @@ module Funext = {
     };
   };
 
-  /* The body's goal `l(x) == r(x)`, for the funext binder read as the
-   * expression `arg`. `env` maps the binder to itself (`x |-> Var(x)`),
-   * which Substitution leaves alone, so the pointwise goal keeps
-   * mentioning `x` while every other name a contracted lambda body
-   * refers to is resolved.
+  /* The body's goal `l(x) == r(x)`, for the funext binder `binder` read
+   * as an expression.
    *
    * When a side is a literal lambda, the application is a beta-redex
    * whose argument is a bound variable (hence a value), so contracting
@@ -824,23 +850,22 @@ module Funext = {
    *     partiality surfaces at the step that applies the function.
    *   - a non-variable parameter pattern (a tuple, say): there is no
    *     single name to substitute for. */
-  let pointwise =
-      (~env: Environment.t(Exp.t), ~arg: Exp.t, l: Exp.t, r: Exp.t): Exp.t => {
+  let pointwise = (~binder: Pat.t, l: Exp.t, r: Exp.t): Exp.t => {
+    let arg = Exp.of_pat(binder);
+    /* The binder's own variables map to themselves, so that substitution
+     * renames a lambda's inner binder that would capture them. */
+    let binder_vars =
+      List.map(x => (x, Exp.fresh(Var(x))), Pat.bound_vars(binder));
     let rec apply = (f: Exp.t): Exp.t =>
       switch (f |> Exp.term_of) {
       | Parens(inner) => apply(inner)
       | Fun(p, body, _, _) =>
         switch (ProofSyntax.pat_to_name(p)) {
-        /* The body is substituted under the whole env, not just
-         * `x |-> arg`. A literal lambda can mention let-bound names from
-         * the surrounding proof (`let f = ... in theorem ... funext y =>`),
-         * and if those stay free `Var`s here, the later per-step env
-         * substitution replaces them with fresh-id copies that no longer
-         * match the ids in the goal, so every `eval`/`rewrite` lookup
-         * misses. `extend` puts the binder last so it shadows any
-         * same-named outer binding. */
         | Some(x) =>
-          body |> Substitution.in_exp(Environment.extend(env, (x, arg)))
+          body
+          |> Substitution.in_exp(
+               Environment.of_bindings(binder_vars @ [(x, arg)]),
+             )
         | None => Exp.fresh(Ap(Forward, f, arg))
         }
       | _ => Exp.fresh(Ap(Forward, f, arg))
@@ -888,7 +913,7 @@ let definition_obligations = (~step: step_fn, ~ctx: SemanticCtx.t): ProofMap.t =
     let conjuncts =
       guard |> Option.map(Where.conjuncts) |> Option.value(~default=[]);
     let leftover =
-      DomainConditions.scan(body)
+      DomainConditions.scan(~defs=env, body)
       |> List.filter(c => !List.exists(Exp.fast_equal(c), conjuncts));
     switch (leftover) {
     | [] => m
@@ -1196,15 +1221,7 @@ and check_focus =
     let binders = Occurrence.binders(Exp.rep_id(target), goal);
     let body_ctx =
       List.fold_left(
-        (ctx, p) =>
-          SemanticCtx.add_from_pattern(
-            forget_facts_mentioning(
-              p |> Pat.bindings |> Binding.variable_names,
-              ctx,
-            ),
-            p,
-            Typ.fresh(Unknown(Internal)),
-          ),
+        (ctx, p) => bind(ctx, p, Typ.fresh(Unknown(Internal))),
         ctx,
         binders,
       );
@@ -1235,7 +1252,7 @@ and check_forall = (~step, ~info_map, ~ctx, ~id, incoming, body) =>
       body,
     )
   | Some(Some((p, t, guard, inner))) =>
-    let body_ctx = SemanticCtx.add_from_pattern(ctx, p, t);
+    let body_ctx = bind(ctx, p, t);
     let body_ctx =
       Option.fold(~none=body_ctx, ~some=Where.add_facts(body_ctx), guard);
     check_subgoal(
@@ -1270,7 +1287,8 @@ and check_forall = (~step, ~info_map, ~ctx, ~id, incoming, body) =>
  * Incoming `f == g` at an arrow type; the body's incoming is the
  * pointwise `f(x) == g(x)`, with `x` bound at the domain type. One arrow
  * per `funext`: for a curried `a -> b -> c`, `f(x) == g(x)` is still at
- * an arrow type, and a second `funext y =>` peels again. On failure, as
+ * an arrow type, and a second `funext y =>` peels again. A binder free
+ * in `f` or `g` would capture that use, and is marked. On failure, as
  * for `forall`: mark, and let the body keep working on the goal as
  * written. */
 and check_funext = (~step, ~info_map, ~ctx, ~id, incoming, pat, body) => {
@@ -1296,43 +1314,46 @@ and check_funext = (~step, ~info_map, ~ctx, ~id, incoming, pat, body) => {
         when Option.is_none(SemanticCtx.bind_pattern(pat, domain, Ctx.empty)) =>
       fail(ProofMark.MalformedFunext)
     | Some((l, r, domain)) =>
-      let body_ctx = SemanticCtx.add_from_pattern(ctx, pat, domain);
-      let pointwise =
-        Funext.pointwise(
-          ~env=SemanticCtx.get_env(body_ctx),
-          ~arg=Exp.of_pat(pat),
-          l,
-          r,
+      let captured =
+        List.find_opt(
+          x =>
+            ProofRule.occurs_free_any([x], l)
+            || ProofRule.occurs_free_any([x], r),
+          Pat.bound_vars(pat),
         );
-      check_subgoal(
-        ~step,
-        ~info_map,
-        ~ctx,
-        ~body_ctx,
-        ~id,
-        incoming,
-        Some(pointwise),
-        body,
-      );
+      switch (captured) {
+      | Some(var) => fail(ProofMark.BinderCaptures({var: var}))
+      | None =>
+        check_subgoal(
+          ~step,
+          ~info_map,
+          ~ctx,
+          ~body_ctx=bind(ctx, pat, domain),
+          ~id,
+          incoming,
+          Some(Funext.pointwise(~binder=pat, l, r)),
+          body,
+        )
+      };
     }
   };
 }
 
 /* Hypothesize `e` for the body's scope. Two readings:
- *   - Implication intro: if the incoming goal is `A ==> B` and `e` is
- *     `Exp.fast_equal` to A, the body's incoming is B and no obligation
- *     is incurred.
+ *   - Implication intro: if the incoming goal is `A ==> B` and `e` is A
+ *     (modulo the definitions in scope), the body's incoming is B and no
+ *     obligation is incurred.
  *   - Otherwise the goal is unchanged and the step incurs an obligation
  *     to establish `e`, discharged against the enclosing scope's facts so
  *     an assume never discharges itself.
  * The outgoing is the body's. */
 and check_assume = (~step, ~info_map, ~ctx, ~id, incoming, e, as_name, body) => {
-  let env = SemanticCtx.get_env(ctx);
-  let hyp = e |> Substitution.in_exp(env);
   let consequent =
     switch (Option.map(Exp.term_of, incoming)) {
     | Some(BinOp(Bool(Implies), a, b))
-        when Exp.fast_equal(a |> Substitution.in_exp(env), hyp) =>
+        when
+          Exp.fast_equal(a, e)
+          || MatchExp.equal_modulo(~defs=SemanticCtx.get_env(ctx), a, e) =>
       Some(b)
     | _ => None
     };
@@ -1351,7 +1372,7 @@ and check_assume = (~step, ~info_map, ~ctx, ~id, incoming, e, as_name, body) => 
     SemanticCtx.add_hypothesis(
       ctx,
       as_name_or(~default="assume", as_name),
-      hyp,
+      e,
     );
   let (out_body, m) =
     check(~step, ~info_map, ~ctx=body_ctx, body_incoming, body);
@@ -1388,13 +1409,12 @@ and check_assume = (~step, ~info_map, ~ctx, ~id, incoming, e, as_name, body) => 
  * outside the have's scope anyway and which the stepper never writes. */
 and check_have = (~step, ~info_map, ~ctx, ~id, incoming, e, sub, body) => {
   let proves = (out, m, p) => is_true(out) && ProofMap.proof_is_clean(m, p);
-  let hyp = e |> Substitution.in_exp(SemanticCtx.get_env(ctx));
-  let (out_sub, m_sub) = check(~step, ~info_map, ~ctx, Some(hyp), sub);
+  let (out_sub, m_sub) = check(~step, ~info_map, ~ctx, Some(e), sub);
   let sub_obligations =
     proves(out_sub, m_sub, sub)
       ? []
       : [Discharge.obligation(~step, ~ctx, ~origin=id, ~kind=Premise, e)];
-  let (body_ctx, _) = SemanticCtx.add_hypothesis(ctx, "have", hyp);
+  let (body_ctx, _) = SemanticCtx.add_hypothesis(ctx, "have", e);
   let (out_body, m_body) =
     check(~step, ~info_map, ~ctx=body_ctx, incoming, body);
   /* In the extended scope, so the panel's local context for this row
@@ -1407,9 +1427,6 @@ and check_have = (~step, ~info_map, ~ctx, ~id, incoming, e, sub, body) => {
           kind: Premise,
           bindings: SemanticCtx.get_ctx(body_ctx).entries,
           goal,
-          /* The incoming goal is already env-inlined; there is no
-           * as-written form. */
-          display_goal: goal,
           discharge: Pending,
         },
       ]
@@ -1550,7 +1567,6 @@ and check_revert =
       |> Option.to_result(
            ~none=ProofMark.RevertFactNotQuantified({var: "?"}),
          );
-    let inst = inst |> Substitution.in_exp(SemanticCtx.get_env(ctx));
     let* instantiated =
       ProofRule.instantiate_binder(x, inst, fact)
       |> Option.to_result(~none=ProofMark.RevertFactNotQuantified({var: x}));
@@ -1639,10 +1655,7 @@ and check_contradiction = (~step, ~ctx, ~id, incoming, e, instantiation) => {
    * the user named.
    *
    * `<var> == <exp>` (or `<exp> == <var>`) must be found by
-   * `Discharge.lookup`. Both sides are env-substituted first, to bring
-   * the user's vocabulary into the inlined form the stored facts have
-   * (as `cited_fact` does for a spelled-out proposition). `<var>` must
-   * be a bare variable.
+   * `Discharge.lookup`. `<var>` must be a bare variable.
    *
    * One binding is applied once. The cited fact may license its own
    * rewrite (`contradiction n == 1 with n = 1 end`), but that only lands
@@ -1651,8 +1664,6 @@ and check_contradiction = (~step, ~ctx, ~id, incoming, e, instantiation) => {
     switch (instantiation) {
     | None => Ok((fact, []))
     | Some((var, inst)) =>
-      let var = var |> Substitution.in_exp(env);
-      let inst = inst |> Substitution.in_exp(env);
       let known = (l, r) =>
         Discharge.lookup(ctx, Exp.temp(BinOp(Poly(Equals), l, r))) != None;
       switch (ProofSyntax.exp_to_name(var)) {
@@ -1821,8 +1832,7 @@ and check_induction =
         added_vars,
         goal,
       );
-    let case_ctx = SemanticCtx.add_from_pattern(ctx, pat, scrut_ty);
-    let case_env = SemanticCtx.get_env(case_ctx);
+    let case_ctx = bind(ctx, pat, scrut_ty);
     let case_ctx =
       List.fold_left(
         Where.add_facts,
@@ -1838,14 +1848,9 @@ and check_induction =
         : SemanticCtx.add_hypothesis(
             case_ctx,
             as_name_or(~default="case_eq", as_name),
-            Exp.fresh(BinOp(Poly(Equals), scrut, Exp.of_pat(pat)))
-            |> Substitution.in_exp(case_env),
+            Exp.fresh(BinOp(Poly(Equals), scrut, Exp.of_pat(pat))),
           )
           |> fst;
-    /* IHs are stored env-substituted, like the case equation: rules are
-     * matched against env-substituted targets (MatchExp.match_exp
-     * substitutes the exp side), so a fact citing a definition by bare
-     * name (`Var ra`) would never match its inlined value. */
     let ihs =
       Induction.hypotheses(~tyctx, info_map, scrut_ty, pat)
       |> List.filter_map(h =>
@@ -1853,15 +1858,31 @@ and check_induction =
              h,
              incoming |> Option.value(~default=Exp.fresh(EmptyHole)),
            )
-         )
-      |> List.map(Substitution.in_exp(case_env));
+         );
     let case_ctx =
       List.fold_left(
         (ctx, ih) => SemanticCtx.add_hypothesis(ctx, "ih", ih) |> fst,
         case_ctx,
         ihs,
       );
-    (Option.bind(incoming, replace_scrut(pat)), case_ctx);
+    /* `replace_scrut` gives no goal when a pattern variable would capture
+     * a use in the goal away from the scrutinee. */
+    let case_goal = Option.bind(incoming, replace_scrut(pat));
+    let captured =
+      switch (incoming, case_goal) {
+      | (Some(goal), None) =>
+        let free_in = (e, x) => ProofRule.occurs_free_any([x], e);
+        Some(
+          List.find_opt(
+            x => free_in(goal, x) && !free_in(scrut, x),
+            added_vars,
+          )
+          |> Option.value(~default="?"),
+        );
+      | (Some(_), Some(_))
+      | (None, _) => None
+      };
+    (case_goal, case_ctx, captured);
   };
   /* `Exp.of_pat` reads a wildcard as `true`, so a wildcard case's goal
    * would substitute `true` for the scrutinee. The whole split is refused
@@ -1896,11 +1917,19 @@ and check_induction =
         List.mapi(
           (i, (pat, body)) => {
             let earlier = List.filteri((j, _) => j < i, pats);
-            let (case_goal, case_ctx) = case(~earlier, pat);
-            check(~step, ~info_map, ~ctx=case_ctx, case_goal, body);
+            let (case_goal, case_ctx, captured) = case(~earlier, pat);
+            (
+              check(~step, ~info_map, ~ctx=case_ctx, case_goal, body),
+              captured,
+            );
           },
           cases,
         );
+      let captures =
+        switch (List.find_map(snd, checked)) {
+        | Some(var) => [ProofMark.BinderCaptures({var: var})]
+        | None => []
+        };
       /* A guarded arm contributes no coverage constraint, as in the
        * statics, so `| S(m) where P => .. | Z => .. end` is reported not
        * exhaustive. Strict mode also catches nested `Unknown`s, e.g. an
@@ -1920,14 +1949,17 @@ and check_induction =
           exhaustiveness
         == Exhaustive;
       let marks =
-        switch (cases, is_exhaustive, Typ.term_of(normalized_ty)) {
-        | ([], _, _) => [ProofMark.InductionEmptyCases]
-        | (_, true, _) => []
-        /* Covers a missing type too, which falls back to
-         * `Unknown(Internal)` above. */
-        | (_, false, Unknown(_)) => [ProofMark.InductionScrutineeUntyped]
-        | (_, false, _) => [ProofMark.InductionNotExhaustive]
-        };
+        captures
+        @ (
+          switch (cases, is_exhaustive, Typ.term_of(normalized_ty)) {
+          | ([], _, _) => [ProofMark.InductionEmptyCases]
+          | (_, true, _) => []
+          /* Covers a missing type too, which falls back to
+           * `Unknown(Internal)` above. */
+          | (_, false, Unknown(_)) => [ProofMark.InductionScrutineeUntyped]
+          | (_, false, _) => [ProofMark.InductionNotExhaustive]
+          }
+        );
       /* The step's conclusion is the goal itself, so it steps to `true`
        * whether or not its cases are finished; an open case keeps the
        * proof incomplete (`ProofMap.status_of_proof`). */
@@ -1936,7 +1968,7 @@ and check_induction =
           ? Some(Exp.temp(Atom(Bool(true)))) : incoming;
       let m =
         List.fold_left(
-          (acc, (_, m)) => ProofMap.union(acc, m),
+          (acc, ((_, m), _)) => ProofMap.union(acc, m),
           ProofMap.empty,
           checked,
         );

@@ -21,6 +21,9 @@ let rec are_alpha_equiv = (alphas: alphas, x: string, y: string): bool =>
 let is_in_alphas_l = (alphas: alphas, x: string): bool =>
   List.exists(((x1, _)) => x == x1, alphas);
 
+let is_in_alphas_r = (alphas: alphas, y: string): bool =>
+  List.exists(((_, y1)) => y == y1, alphas);
+
 /* Match exp against another pattern exp_r.
 
      - alphas: list of alpha equivalences, e.g. [("x", "y")] means x in exp_r
@@ -29,19 +32,23 @@ let is_in_alphas_l = (alphas: alphas, x: string): bool =>
        None if not matched but can be matched.
      - exp_r: the pattern expression to match against.
      - exp: the expression to match.
+     - defs: the definitions a free name on either side may be unfolded to,
+       where the other side has structure the name hides. Names are
+       compared as written first.
    */
 
 let rec match_exp =
         (
           ~info_map: Statics.Map.t,
           ~meta: option(MetaVar.env)=None,
+          ~defs: Environment.t(Exp.t)=Environment.empty,
           alphas: alphas,
           ctx: match_ctx,
           exp_r: Exp.t,
           exp: Exp.t,
         )
         : option(match_ctx) => {
-  let match_exp = match_exp(~info_map, ~meta);
+  let match_exp = match_exp(~info_map, ~meta, ~defs);
   switch (exp_r |> Exp.term_of, exp |> Exp.term_of) {
   /* Parens */
   | (Parens(e1), _)
@@ -95,7 +102,18 @@ let rec match_exp =
       }
     };
   | (Var(x), Var(y)) when are_alpha_equiv(alphas, x, y) => Some(ctx)
+  | (Var(x), _) when !is_in_alphas_l(alphas, x) =>
+    switch (Definitions.unfold(defs, x)) {
+    | Some(value) => match_exp(alphas, ctx, value, exp)
+    | None => None
+    }
   | (Var(_), _) => None
+  | (_, Var(y))
+      when !is_in_alphas_r(alphas, y) && Definitions.is_definition(defs, y) =>
+    switch (Definitions.unfold(defs, y)) {
+    | Some(value) => match_exp(alphas, ctx, exp_r, value)
+    | None => None
+    }
   /* Forms with binders */
   /* Forms without binders */
   | (Invalid(x), Invalid(y)) when x == y => Some(ctx)
@@ -141,11 +159,13 @@ let rec match_exp =
   | (Constructor(c1, _), Constructor(c2, _)) when c1 == c2 => Some(ctx)
   | (Constructor(_, _), _) => None
   | (Fun(p1, e1, _, _), Fun(p2, e2, _, _)) =>
-    let* (alphas, ctx) = match_binder(~info_map, ~meta, alphas, ctx, p1, p2);
+    let* (alphas, ctx) =
+      match_binder(~info_map, ~meta, ~defs, alphas, ctx, p1, p2);
     match_exp(alphas, ctx, e1, e2);
   | (Fun(_, _, _, _), _) => None
   | (Forall(p1, e1), Forall(p2, e2)) =>
-    let* (alphas, ctx) = match_binder(~info_map, ~meta, alphas, ctx, p1, p2);
+    let* (alphas, ctx) =
+      match_binder(~info_map, ~meta, ~defs, alphas, ctx, p1, p2);
     match_exp(alphas, ctx, e1, e2);
   | (Forall(_, _), _) => None
   | (TypFun(tp1, e1, _), TypFun(tp2, e2, _)) =>
@@ -292,6 +312,7 @@ and match_binder =
     (
       ~info_map: Statics.Map.t,
       ~meta: option(MetaVar.env),
+      ~defs: Environment.t(Exp.t),
       alphas: alphas,
       ctx: match_ctx,
       p_r: Pat.t,
@@ -306,7 +327,7 @@ and match_binder =
     switch (g_r, g) {
     | (None, None) => Some(ctx)
     | (Some(g_r), Some(g)) =>
-      match_exp(~info_map, ~meta, alphas, ctx, g_r, g)
+      match_exp(~info_map, ~meta, ~defs, alphas, ctx, g_r, g)
     | _ => None
     };
   (alphas, ctx);
@@ -452,13 +473,12 @@ let meta_ctx = (pat: Exp.t): match_ctx =>
   |> List.map(name => (name, (Unknown(Internal) |> Typ.temp, None)));
 
 /* Match `pat` against `exp`, returning the metavariable assignments.
- * `env` is used only to decide `$v`; unlike `match_exp` this does not
- * substitute it into `exp` (callers that need that do it themselves, so
- * that they can map the match back to the un-substituted term). */
+ * `env` is used only to decide `$v`. */
 let match_pattern =
     (
       ~info_map: Statics.Map.t=Statics.Map.empty,
       ~env: Environment.t(Exp.t)=Environment.empty,
+      ~defs: Environment.t(Exp.t)=Environment.empty,
       ~alphas: alphas=[],
       pat: Exp.t,
       exp: Exp.t,
@@ -467,6 +487,7 @@ let match_pattern =
   match_exp(
     ~info_map,
     ~meta=Some(meta_env(~env)),
+    ~defs,
     alphas,
     meta_ctx(pat),
     pat,
@@ -477,30 +498,33 @@ let matches_pattern =
     (
       ~info_map=Statics.Map.empty,
       ~env=Environment.empty,
+      ~defs=Environment.empty,
       pat: Exp.t,
       exp: Exp.t,
     )
     : bool =>
-  match_pattern(~info_map, ~env, pat, exp) |> Option.is_some;
+  match_pattern(~info_map, ~env, ~defs, pat, exp) |> Option.is_some;
 
-/* TODO[Matt]: we can probably make this faster by avoiding substituting
-   if we know it doesn't match */
 let match_exp =
     (
       ~info_map,
       ~alphas=[],
-      ~exp_env: Environment.t(Exp.t),
+      ~defs: Environment.t(Exp.t),
       ~exp_r_ctx: match_ctx,
       exp_r: Exp.t,
       exp: Exp.t,
-    ) => {
-  let exp = Substitution.in_exp(exp_env, exp);
-  match_exp(~info_map, alphas, exp_r_ctx, exp_r, exp);
-};
+    ) =>
+  match_exp(~info_map, ~defs, alphas, exp_r_ctx, exp_r, exp);
+
+/* Whether `a` and `b` are the same term once the definitions in `defs`
+ * they name are unfolded. */
+let equal_modulo = (~defs: Environment.t(Exp.t), a: Exp.t, b: Exp.t): bool =>
+  match_exp(~info_map=Statics.Map.empty, ~defs, ~exp_r_ctx=[], a, b)
+  |> Option.is_some;
 
 /* The equations `a == b` in `e` whose sides match, which reflexivity
  * closes. */
-let find_refls = (~info_map, ~env, e) => {
+let find_refls = (~info_map, ~defs, e) => {
   let refls = ref([]);
   let _ =
     Exp.map_term(
@@ -509,7 +533,7 @@ let find_refls = (~info_map, ~env, e) => {
           switch (exp |> Exp.term_of) {
           | BinOp(Poly(Equals), e1, e2)
               when
-                match_exp(~info_map, ~exp_env=env, ~exp_r_ctx=[], e1, e2)
+                match_exp(~info_map, ~defs, ~exp_r_ctx=[], e1, e2)
                 |> Option.is_some =>
             refls := [exp, ...refls^];
             cont(exp);

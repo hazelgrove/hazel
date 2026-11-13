@@ -24,20 +24,20 @@ theorem progress = forall e0: Term -> forall t0: Ty -> infer(([], e0)) == SomeTy
   alias ihx = forall t0 -> infer(([], x0)) == SomeTy(t0) ==> is_value(x0) || is_some_tm(step(x0)) =>
   alias ihy = forall t0 -> infer(([], y0)) == SomeTy(t0) ==> is_value(y0) || is_some_tm(step(y0)) =>
   from infer(([], TmAp(x0, y0))) do eval end; induction infer(([], x0)) as tx
-  | NoTy => from infer(([], x0)) do axiom tx end end; induction infer(([], y0)) as ty
-    | NoTy => from infer(([], y0)) do axiom ty end end; from ap_result((NoTy, NoTy)) do eval end; from NoTy == SomeTy(t0) do eval end; from false ==> $e do eval end
-    | SomeTy(s0) => from infer(([], y0)) do axiom ty end end; from ap_result((NoTy, SomeTy(s0))) do eval end; from NoTy == SomeTy(t0) do eval end; from false ==> $e do eval end
+  | NoTy => induction infer(([], y0)) as ty
+    | NoTy => from ap_result((NoTy, NoTy)) do eval end; from NoTy == SomeTy(t0) do eval end; from false ==> $e do eval end
+    | SomeTy(s0) => from ap_result((NoTy, SomeTy(s0))) do eval end; from NoTy == SomeTy(t0) do eval end; from false ==> $e do eval end
     end
-  | SomeTy(tf0) => from infer(([], x0)) do axiom tx end end; induction tf0
+  | SomeTy(tf0) => induction tf0
     | TB => induction infer(([], y0)) as ty
-      | NoTy => from infer(([], y0)) do axiom ty end end; from ap_result((SomeTy(TB), NoTy)) do eval end; from NoTy == SomeTy(t0) do eval end; from false ==> $e do eval end
-      | SomeTy(s0) => from infer(([], y0)) do axiom ty end end; from ap_result((SomeTy(TB), SomeTy(s0))) do eval end; from NoTy == SomeTy(t0) do eval end; from false ==> $e do eval end
+      | NoTy => from ap_result((SomeTy(TB), NoTy)) do eval end; from NoTy == SomeTy(t0) do eval end; from false ==> $e do eval end
+      | SomeTy(s0) => from ap_result((SomeTy(TB), SomeTy(s0))) do eval end; from NoTy == SomeTy(t0) do eval end; from false ==> $e do eval end
       end
     | TArr(ta0, tb0) => induction infer(([], y0)) as ty
-      | NoTy => from infer(([], y0)) do axiom ty end end; from ap_result((SomeTy(TArr(ta0, tb0)), NoTy)) do eval end; from NoTy == SomeTy(t0) do eval end; from false ==> $e do eval end
-      | SomeTy(s0) => from infer(([], y0)) do axiom ty end end; from ap_result((SomeTy(TArr(ta0, tb0)), SomeTy(s0))) do eval end; induction ty_eq((ta0, s0)) as teq
-        | false => from ty_eq((ta0, s0)) do axiom teq end end; from if false then SomeTy(tb0) else NoTy do eval end; from NoTy == SomeTy(t0) do eval end; from false ==> $e do eval end
-        | true => from ty_eq((ta0, s0)) do axiom teq end end; from if true then SomeTy(tb0) else NoTy do eval end; assume SomeTy(tb0) == SomeTy(t0) => induction is_value(x0) as vx
+      | NoTy => from ap_result((SomeTy(TArr(ta0, tb0)), NoTy)) do eval end; from NoTy == SomeTy(t0) do eval end; from false ==> $e do eval end
+      | SomeTy(s0) => from ap_result((SomeTy(TArr(ta0, tb0)), SomeTy(s0))) do eval end; induction ty_eq((ta0, s0)) as teq
+        | false => from if false then SomeTy(tb0) else NoTy do eval end; from NoTy == SomeTy(t0) do eval end; from false ==> $e do eval end
+        | true => from if true then SomeTy(tb0) else NoTy do eval end; assume SomeTy(tb0) == SomeTy(t0) => induction is_value(x0) as vx
           | false => from is_value(TmAp(x0, y0)) do eval end; from false || $e do eval end; from step(TmAp(x0, y0)) do axiom step_ap_val1 end end; induction step(x0) as sx
             | NoTm => revert ihx with t0 = tf0 =>
               from infer(([], x0)) do axiom tx end end;
@@ -45,10 +45,10 @@ theorem progress = forall e0: Term -> forall t0: Ty -> infer(([], e0)) == SomeTy
               from true ==> is_value(x0) || is_some_tm(step(x0)) do eval end;
               from is_value(x0) do axiom vx end end;
               from false || is_some_tm(step(x0)) do eval end;
-              from 2nd step(x0) do axiom sx end end;
+              from step(x0) do axiom sx end end;
               from is_some_tm(NoTm) do eval end;
               from false ==> $e do eval end
-            | SomeTm(u0) => from step(x0) do axiom sx end end; from is_some_tm(case SomeTm(u0) | NoTm => NoTm | SomeTm(xp) => SomeTm(TmAp(xp, y0)) end) do eval end
+            | SomeTm(u0) => from is_some_tm(case SomeTm(u0) | NoTm => NoTm | SomeTm(xp) => SomeTm(TmAp(xp, y0)) end) do eval end
             end
           | true => induction x0
             | TmVar(m0) => contradiction is_value(x0) == true with x0 = TmVar(m0) end
@@ -61,10 +61,10 @@ theorem progress = forall e0: Term -> forall t0: Ty -> infer(([], e0)) == SomeTy
                   from true ==> is_value(y0) || is_some_tm(step(y0)) do eval end;
                   from is_value(y0) do axiom vy end end;
                   from false || is_some_tm(step(y0)) do eval end;
-                  from 2nd step(y0) do axiom sy end end;
+                  from step(y0) do axiom sy end end;
                   from is_some_tm(NoTm) do eval end;
                   from false ==> $e do eval end
-                | SomeTm(u0) => from step(y0) do axiom sy end end; from is_some_tm(case SomeTm(u0) | NoTm => NoTm | SomeTm(yp) => SomeTm(TmAp(TmLam(w0, q0), yp)) end) do eval end
+                | SomeTm(u0) => from is_some_tm(case SomeTm(u0) | NoTm => NoTm | SomeTm(yp) => SomeTm(TmAp(TmLam(w0, q0), yp)) end) do eval end
                 end
               end
             | TmAp(f0, a0) => contradiction is_value(x0) == true with x0 = TmAp(f0, a0) end

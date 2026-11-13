@@ -7,8 +7,7 @@ module Exits = Web.Obligations.Exits;
 
 /* A theorem's obligations as its header and side-condition circles show
  * them: the status and its counter of open obligations, the exits that
- * discharge a pending one, and the core-side `Obligation.display_goal`
- * that makes goals printable.
+ * discharge a pending one, and the goals as written.
  *
  * Reuses the Test_ProofMap harness like Test_Definedness. */
 
@@ -172,15 +171,11 @@ let test_remote_fact_is_the_covering_fact = () => {
   );
 };
 
-/* --- readable goals (Obligation.display_goal) ----------------------- */
+/* --- readable goals ------------------------------------------------ */
 
-/* `ProofCheck.Discharge.obligation` env-substitutes the goal before running the
- * discharge channels, so an obligation whose text mentions a let-bound
- * function ends up carrying that function's whole body — a closure dump
- * where the user wrote `d(y) != 0`.
- * `display_goal` keeps what was written. Both are recorded, and only the
- * latter is rendered. */
-let test_display_goal_is_not_env_inlined = () => {
+/* An obligation's goal is kept as written, naming the function rather
+ * than carrying its body. */
+let test_goal_is_as_written = () => {
   let src = {|let d = fun q -> q + 1 in
 theorem t = forall y -> 1 == 1
 proof assume d(y) != 0 => from 1 == 1 do axiom refl_eq end end
@@ -189,41 +184,9 @@ in t|};
   let obs = ProofMap.obligations_of_proof(pm, proof);
   int_check("one assumption obligation", 1, List.length(obs));
   switch (obs) {
-  | [ob] =>
-    check_exp(
-      "display goal is what was written",
-      "d(y) != 0",
-      ob.display_goal,
-    );
-    bool_check(
-      "the semantic goal has been env-substituted, so it differs",
-      false,
-      Exp.fast_equal(ob.goal, ob.display_goal),
-    );
-    /* Size is the whole point: the inlined goal is strictly bigger. */
-    bool_check(
-      "the printed form is smaller than the semantic one",
-      true,
-      String.length(Exp.show(ob.display_goal))
-      < String.length(Exp.show(ob.goal)),
-    );
+  | [ob] => check_exp("the goal is what was written", "d(y) != 0", ob.goal)
   | _ => ()
   };
-};
-
-/* An obligation with nothing to inline is unaffected: display and
- * semantic goals agree. */
-let test_display_goal_agrees_when_nothing_to_inline = () => {
-  let (pm, proof) = run(repro);
-  List.iter(
-    (ob: Obligation.t) =>
-      bool_check(
-        "closed/parameter-only goals are printed as-is",
-        true,
-        Exp.fast_equal(ob.goal, ob.display_goal),
-      ),
-    ProofMap.obligations_of_proof(pm, proof),
-  );
 };
 
 /* --- a step's exits ------------------------------------------------- */
@@ -336,8 +299,7 @@ let test_float_disabled_at_case_binder = () => {
   let ob =
     switch (
       List.find_opt(
-        (ob: Obligation.t) =>
-          ProofRule.occurs_free_any(["m"], Obligation.display_goal_of(ob)),
+        (ob: Obligation.t) => ProofRule.occurs_free_any(["m"], ob.goal),
         obs,
       )
     ) {
@@ -710,14 +672,9 @@ let tests = (
       test_remote_fact_is_the_covering_fact,
     ),
     test_case(
-      "display_goal is the pre-substitution goal",
+      "an obligation's goal is as written",
       `Quick,
-      test_display_goal_is_not_env_inlined,
-    ),
-    test_case(
-      "display_goal agrees with goal when nothing inlines",
-      `Quick,
-      test_display_goal_agrees_when_nothing_to_inline,
+      test_goal_is_as_written,
     ),
     test_case(
       "float patch: obligation discharges after reparse and re-check",

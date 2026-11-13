@@ -117,6 +117,11 @@ let message = (~globals, m: ProofMark.t): list(Node.t) => {
   | MalformedFunext => [
       text("`funext` needs a variable pattern to name the argument."),
     ]
+  | BinderCaptures({var}) => [
+      text(
+        "`" ++ var ++ "` is already used in the goal. Choose another name.",
+      ),
+    ]
   | MalformedGeneralize => [
       text("`generalize` expects a bare in-scope variable."),
     ]

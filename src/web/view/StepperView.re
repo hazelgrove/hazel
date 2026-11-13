@@ -165,7 +165,7 @@ module Update = {
   /* The part of the goal selected, when it is less than all of it. */
   let selected_part = (goal: Picker.Goal.t): option(Exp.t) =>
     switch (Picker.Goal.selected(goal)) {
-    | Some(part) when Exp.rep_id(part) != Exp.rep_id(goal.display) =>
+    | Some(part) when Exp.rep_id(part) != Exp.rep_id(goal.written) =>
       Some(part)
     | Some(_)
     | None => None
@@ -189,20 +189,13 @@ module Update = {
               ~f_exp=
                 (cont, e) =>
                   Exp.rep_id(e) == Exp.rep_id(part) ? typed : cont(e),
-              goal.display,
+              goal.written,
             ),
           wanted(box.editor),
         )
       | None => wanted(box.editor)
       };
-    let at =
-      Option.bind(part, part =>
-        Occurrence.map_rep_id(
-          ~from=goal.display,
-          ~onto=goal.written,
-          Exp.rep_id(part),
-        )
-      );
+    let at = Option.map(Exp.rep_id, part);
     let rule =
       switch (typed_name(box.editor)) {
       | Some(name) when List.mem_assoc(name, StepSearch.names(goal)) =>
@@ -804,7 +797,7 @@ module View = {
         ) => {
       let (_, label) = kind(ob.kind);
       let code = code(~globals);
-      let goal = ob.display_goal;
+      let goal = ob.goal;
       let truth = Exp.fresh(Atom(Bool(true)));
       /* Closed by evaluating it or citing a fact, so the step acts on all
        * of the goal. */
@@ -954,8 +947,9 @@ module View = {
       let gives_typed = (item: StepSearch.item) =>
         switch (item, box.search) {
         | (Use(use), Some(search)) =>
-          StepSearch.same(
-            StepSearch.comparable(goal, use.result),
+          StepSearch.reaches(
+            goal,
+            StepSearch.comparable(use.result),
             search.wanted,
           )
         | _ => false
@@ -1196,7 +1190,7 @@ module View = {
                 ),
               ]
             | Use(use) => [
-                code(Picker.Goal.display_of(~ctx=goal.ctx, use.result)),
+                code(use.result),
                 div_c("box-item-rule", [Node.text(rule_label(use.step))]),
               ]
             },
@@ -1759,14 +1753,7 @@ module View = {
           | Some((box, goal)) when Box.current(~tabs, box) == Write =>
             let (items, highlighted) = Box.listing(goal, box);
             switch (Option.bind(highlighted, List.nth_opt(items))) {
-            | Some(Use(use)) =>
-              Some(
-                Picker.Goal.display_id(
-                  ~written=goal.written,
-                  ~display=goal.display,
-                  Exp.rep_id(use.part),
-                ),
-              )
+            | Some(Use(use)) => Some(Exp.rep_id(use.part))
             | Some(Complete(_))
             | None => None
             };

@@ -40,7 +40,7 @@ let match_check =
     Language.MatchExp.match_exp(
       ~info_map,
       ~alphas,
-      ~exp_env=Language.Environment.empty,
+      ~defs=Language.Environment.empty,
       ~exp_r_ctx=ctx_in,
       exp_r',
       exp',

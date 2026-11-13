@@ -34,10 +34,7 @@ let dump_obligations = (obs: list(Obligation.t)): string =>
   obs
   |> List.map((ob: Obligation.t) =>
        "  "
-       ++ String.map(
-            c => c == '\n' ? ' ' : c,
-            print_exp(Obligation.display_goal_of(ob)),
-          )
+       ++ String.map(c => c == '\n' ? ' ' : c, print_exp(ob.goal))
        ++ " -> "
        ++ Obligation.show_discharge(ob.discharge)
      )
@@ -324,10 +321,7 @@ let test_two_open_premises = () => {
     true,
     List.exists(
       (ob: Obligation.t) =>
-        Exp.fast_equal(
-          Obligation.display_goal_of(ob),
-          elaborated_exp("x == 2"),
-        ),
+        Exp.fast_equal(ob.goal, elaborated_exp("x == 2")),
       obs,
     ),
   );
@@ -336,10 +330,7 @@ let test_two_open_premises = () => {
     true,
     List.exists(
       (ob: Obligation.t) =>
-        Exp.fast_equal(
-          Obligation.display_goal_of(ob),
-          elaborated_exp("x == x"),
-        ),
+        Exp.fast_equal(ob.goal, elaborated_exp("x == x")),
       obs,
     ),
   );
@@ -348,10 +339,7 @@ let test_two_open_premises = () => {
   switch (
     List.find_opt(
       (ob: Obligation.t) =>
-        Exp.fast_equal(
-          Obligation.display_goal_of(ob),
-          elaborated_exp("x == x"),
-        ),
+        Exp.fast_equal(ob.goal, elaborated_exp("x == x")),
       obs,
     )
   ) {
@@ -395,11 +383,7 @@ in t|},
     "and it is the incoming goal:\n" ++ dump,
     true,
     switch (obs) {
-    | [ob] =>
-      Exp.fast_equal(
-        Obligation.display_goal_of(ob),
-        elaborated_exp("x == x"),
-      )
+    | [ob] => Exp.fast_equal(ob.goal, elaborated_exp("x == x"))
     | _ => false
     },
   );

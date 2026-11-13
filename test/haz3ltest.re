@@ -127,6 +127,7 @@ let (suite, exit_with_test_status) =
     @ [Test_ListCaseStep.tests]
     @ [Test_ProofContext.tests]
     @ [Test_NegativeSelector.tests]
+    @ [Test_DefinitionNames.tests]
     @ [Test_ProverKnownBugs.tests],
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");

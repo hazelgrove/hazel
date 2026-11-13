@@ -175,6 +175,27 @@ let test_ordinals = () => {
   );
 };
 
+/* A selector that is just a definition's name finds it in the goal. */
+let test_selector_naming_a_definition = () => {
+  let (pm, proof) =
+    run_named(
+      "t",
+      "let rev = fun xs -> case xs | [] => [] | x :: t => rev(t) @ [x] end in theorem t = rev([]) == [] proof from rev do eval end; ? in t",
+    );
+  check(
+    bool,
+    "found\n" ++ dump(pm, proof),
+    false,
+    has(
+      fun
+      | ProofMark.PatternNotFound(_) => true
+      | _ => false,
+      pm,
+      proof,
+    ),
+  );
+};
+
 let tests = (
   "Evaluator.Focus",
   [
@@ -214,6 +235,11 @@ let tests = (
       "an outer fact does not reach under a binder",
       `Quick,
       test_outer_fact_does_not_reach_under_a_binder,
+    ),
+    test_case(
+      "a selector naming a definition finds it",
+      `Quick,
+      test_selector_naming_a_definition,
     ),
   ],
 );

@@ -70,6 +70,10 @@ type t =
   /* Funext: the binder is not a pattern that can be added to the semantic
      context (so the pointwise goal would have a free/unbindable name). */
   | MalformedFunext
+  /* Funext / induction: a variable the binder or case pattern binds is
+   * also free in the goal it would be put around, so it would capture
+   * that use. */
+  | BinderCaptures({var: string})
   /* Generalize: the argument isn't a bare in-scope variable (a peeled
    * binder that can be re-quantified). */
   | MalformedGeneralize

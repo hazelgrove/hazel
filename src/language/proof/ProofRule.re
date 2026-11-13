@@ -86,30 +86,6 @@ let conclusion_exp = (rule: t): Exp.t =>
 
 // Instantiating a binder
 
-/* Binder identification for the `with <var> = ...` clause.
- *
- * The name a binder carries in an installed fact is not always the name
- * the user wrote: `Substitution.in_exp` alpha-renames a binder that
- * shadows something already in the environment by appending primes
- * (`Environment.free_name` / `Var.next_name`), and generated inductive
- * hypotheses are env-substituted before installation. That renaming is
- * invisible in the program text, so a user citing `with t0 = ...` can't
- * know whether the fact's binder is `t0'` or `t0'''`.
- *
- * So binders are identified modulo trailing primes, exact matches first.
- * This doesn't loosen discharge: it only names which of a rule's own
- * binders is being instantiated. */
-let same_binder = (supplied: Var.t, actual: Var.t): bool => {
-  let strip_primes = (x: Var.t): Var.t => {
-    let n = ref(String.length(x));
-    while (n^ > 0 && x.[n^ - 1] == '\'') {
-      decr(n);
-    };
-    String.sub(x, 0, n^);
-  };
-  supplied == actual || strip_primes(supplied) == strip_primes(actual);
-};
-
 /* Eliminate the quantifier over `x` in a proposition by substituting
  * `e` for it, the semantics of `revert <fact> with x = e`:
  *
@@ -120,25 +96,20 @@ let same_binder = (supplied: Var.t, actual: Var.t): bool => {
  * an antecedent. Binders quantified outside `x` stay in place. `None`
  * when no binder in the prefix is named `x`. */
 let rec instantiate_binder = (x: Var.t, e: Exp.t, prop: Exp.t): option(Exp.t) => {
-  let subst = (actual: Var.t, body: Exp.t) =>
-    Substitution.in_exp(Environment.of_bindings([(actual, e)]), body);
+  let subst = (body: Exp.t) =>
+    Substitution.in_exp(Environment.of_bindings([(x, e)]), body);
   switch (prop |> Exp.term_of) {
   | Parens(inner) => instantiate_binder(x, e, inner)
   | Forall(pat, body) =>
     let (base, guard) = Exp.split_pat_guard(pat);
-    /* The binder's actual name may carry renaming primes the citation
-     * doesn't (see `same_binder`). */
-    switch (ProofSyntax.pat_to_name(base) |> OptUtil.filter(same_binder(x))) {
-    | Some(actual) =>
+    switch (ProofSyntax.pat_to_name(base)) {
+    | Some(actual) when actual == x =>
       switch (guard) {
-      | None => Some(subst(actual, body))
+      | None => Some(subst(body))
       | Some(g) =>
-        Some(
-          Exp.fresh(
-            BinOp(Bool(Implies), subst(actual, g), subst(actual, body)),
-          ),
-        )
+        Some(Exp.fresh(BinOp(Bool(Implies), subst(g), subst(body))))
       }
+    | Some(_)
     | None =>
       instantiate_binder(x, e, body)
       |> Option.map(b => Exp.fresh(Forall(pat, b)))
@@ -300,30 +271,19 @@ module Rewrite = {
 
   /* Pre-assign one of the rule's binders in a match context, for a
    * `with <var> = <exp>` clause. `None` when `name` is not a binder of the
-   * rule, which the caller reports as `UnknownInstantiationVar`. Exact
-   * match first, prime-insensitive fallback second (see `same_binder`);
-   * the outermost matching binder wins. */
+   * rule, which the caller reports as `UnknownInstantiationVar`. */
   let seed =
       (name: Var.t, exp: Exp.t, bindings: MatchExp.match_ctx)
-      : option(MatchExp.match_ctx) => {
-    let target =
-      if (MatchExp.match_ctx_has(bindings, name)) {
-        Some(name);
-      } else {
-        List.find_map(
-          ((n, (_, _))) => same_binder(name, n) ? Some(n) : None,
-          bindings,
-        );
-      };
-    target
-    |> Option.map(target =>
-         List.map(
-           ((n, (t, e))) =>
-             n == target ? (n, (t, Some(exp))) : (n, (t, e)),
-           bindings,
-         )
-       );
-  };
+      : option(MatchExp.match_ctx) =>
+    MatchExp.match_ctx_has(bindings, name)
+      ? Some(
+          List.map(
+            ((n, (t, e))) =>
+              n == name ? (n, (t, Some(exp))) : (n, (t, e)),
+            bindings,
+          ),
+        )
+      : None;
 
   /* A rewrite from a match that left a binder unassigned would bring the
    * rule's own variable into the goal free. */
@@ -347,13 +307,7 @@ module Rewrite = {
       | None => empty_bindings(rule.bindings)
       };
     let via = (from, to_) =>
-      MatchExp.match_exp(
-        ~info_map,
-        ~exp_env=env,
-        ~exp_r_ctx=bindings,
-        from,
-        exp,
-      )
+      MatchExp.match_exp(~info_map, ~defs=env, ~exp_r_ctx=bindings, from, exp)
       |> Option.map(mctx => (MatchExp.substitute_exp(mctx, to_), mctx));
     switch (rule.conclusion) {
     /* Right matches the LHS and rewrites to the RHS. */
@@ -463,12 +417,8 @@ let occurs_free_any =
 
 /* Does the rule's core proposition (its assumptions as a `==>` chain
  * onto its conclusion) mention any of `vs` free, modulo the rule's own
- * binders?
- *
- * A free-variable walk rather than statics on the core: env-substituted
- * facts have whole function definitions inlined, and running statics on
- * them (~600k info-map nodes for docs/stlc-progress-example.hazel)
- * overflows a browser worker's stack. */
+ * binders? A free-variable walk, since it runs on every fact in scope at
+ * every binder. */
 let mentions_any = (rule: t, vs: list(Var.t)): bool => {
   let core =
     List.fold_right(

@@ -30,8 +30,7 @@ module Picker = StepperPicker;
 
 let max_depth = 3;
 let max_checks = 300;
-/* The parts a step may act on, nearest the differing part first. A goal
- * an eval step has unfolded a definition into has thousands. */
+/* The parts a step may act on, nearest the differing part first. */
 let max_parts = 40;
 
 /* A goal the search reached, the steps that reach it, in order, and the
@@ -57,8 +56,7 @@ type status =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
-  /* The typed goal, with the scope's definitions substituted in, as every
-   * goal is compared: it names a function an eval step may have inlined. */
+  /* The typed goal, without ascriptions, as every goal is compared. */
   wanted: Exp.t,
   status,
   /* The node being expanded, with its candidate steps not yet checked. */
@@ -71,13 +69,16 @@ type t = {
   checks: int,
 };
 
-/* Goals compared, as substituted: an eval step inlines a definition, and
- * substitution renames the binders of what it inlines to avoid capture,
- * differently in different goals. */
+/* Goals compared up to ascriptions and the names of binders. */
 let same = Equality.ignoring_ascriptions.exp;
 
-let comparable = (goal: Picker.Goal.t, e: Exp.t): Exp.t =>
-  e |> Substitution.in_exp(Picker.Goal.env(goal)) |> DHExp.strip_ascriptions;
+let comparable = DHExp.strip_ascriptions;
+
+/* Whether `e` is the typed goal: as written, or else once the scope's
+ * definitions they name are unfolded where they differ. */
+let reaches = (goal: Picker.Goal.t, e: Exp.t, wanted: Exp.t): bool =>
+  same(e, wanted)
+  || MatchExp.equal_modulo(~defs=Picker.Goal.env(goal), e, wanted);
 
 let rec unwrap = (e: Exp.t): Exp.t =>
   switch (Exp.term_of(e)) {
@@ -119,11 +120,11 @@ let differs = (compared: Exp.t, wanted: Exp.t): int =>
   |> Option.fold(~none=0, ~some=((p, _)) => size(p));
 
 let start = (goal: Picker.Goal.t, ~wanted: Exp.t): t => {
-  let wanted = comparable(goal, wanted);
-  let here = comparable(goal, goal.written);
+  let wanted = comparable(wanted);
+  let here = comparable(goal.written);
   {
     wanted,
-    status: same(here, wanted) ? Found([]) : Searching,
+    status: reaches(goal, here, wanted) ? Found([]) : Searching,
     expanding: None,
     frontier: [
       {
@@ -150,31 +151,21 @@ let rec arithmetic = (e: Exp.t): bool =>
   | _ => false
   };
 
-/* The steps to try from `from`, acting inside `part`, a part of it whose
- * typed replacement is `wanted`. */
-/* A goal prepared for proposing steps on. Substituting is slow where the
- * scope's functions are large, so it is done once, and a part's
- * substituted form is found in the result by its id. */
+/* A goal prepared for proposing steps on: as written, and without
+ * ascriptions, as it is compared. */
 module Prepared = {
   type t = {
     written: Exp.t,
-    substituted: Exp.t,
     compared: Exp.t,
   };
 
-  let mk = (goal: Picker.Goal.t, written: Exp.t): t => {
-    let substituted = Substitution.in_exp(Picker.Goal.env(goal), written);
-    {
-      written,
-      substituted,
-      compared: DHExp.strip_ascriptions(substituted),
-    };
+  let mk = (written: Exp.t): t => {
+    written,
+    compared: comparable(written),
   };
 
-  /* The parts of `root` a step may act on, nearest it first, each with
-   * its substituted form. A name the substitution replaced, a
-   * function's, is left out: no rule rewrites a function's name, and its
-   * definition is slow to match. */
+  /* The parts of `root` a step may act on, nearest it first, each as it
+   * is compared. */
   let parts = (p: t, root: Exp.t): list((Exp.t, Exp.t)) => {
     let rec breadth_first = (found, n, queue) =>
       switch (queue) {
@@ -186,21 +177,15 @@ module Prepared = {
     breadth_first([], 0, [root])
     |> List.filter_map(node =>
          Exp.find_by_id(Exp.rep_id(node), p.compared)
-         |> Option.map(substituted => (node, substituted))
+         |> Option.map(compared => (node, compared))
        );
   };
 
   /* `step` at `node`: through a focus, unless `node` is the whole goal. */
-  let at =
-      (goal: Picker.Goal.t, p: t, node: Exp.t, step: TermBase.Proof.term)
-      : option(Proof.t) =>
+  let at = (p: t, node: Exp.t, step: TermBase.Proof.term): option(Proof.t) =>
     Exp.rep_id(node) == Exp.rep_id(p.written)
       ? Some(Proof.fresh(step))
-      : Picker.EvalSteps.checker_idx(
-          ~env=Picker.Goal.env(goal),
-          ~substituted=p.substituted,
-          node,
-        )
+      : Picker.EvalSteps.checker_idx(p.written, node)
         |> Option.map(index =>
              Proof.fresh(
                Picker.Terms.focus(~selector=node, ~index, Proof.fresh(step)),
@@ -263,8 +248,7 @@ let rule_uses =
          | BoolFact(p) => (Some(p), None)
          | Other(_) => (None, None)
          };
-       /* Matching is slow on a part holding the scope's definitions, so a
-        * part whose head can't match is passed over first. */
+       /* A part whose head can't match is passed over before matching. */
        let applies = (side, part: Exp.t) =>
          switch (side) {
          | Some(side) =>
@@ -275,22 +259,19 @@ let rule_uses =
        /* Forward first, as a rule is read. */
        let uses = (side, direction) =>
          List.filter_map(
-           ((node, substituted)) =>
-             applies(side, substituted)
-               /* The part is substituted already, and matching would
-                * substitute it again. */
+           ((node, compared)) =>
+             applies(side, compared)
                ? {
                  let (l, r) =
                    ProofRule.Rewrite.apply(
                      ~info_map,
-                     ~env=Environment.empty,
+                     ~env=Picker.Goal.env(goal),
                      rule,
-                     substituted,
+                     compared,
                    );
                  switch (direction == Direction.Right ? r : l) {
                  | Some(result) when keep(node, result) =>
                    Prepared.at(
-                     goal,
                      p,
                      node,
                      Picker.Terms.axiom_step(
@@ -323,17 +304,15 @@ let candidates =
     : list((move, Proof.t)) => {
   let env = Picker.Goal.env(goal);
   let info_map = Picker.Goal.info_map(goal);
-  let p = Prepared.mk(goal, from.goal);
+  let p = Prepared.mk(from.goal);
   let within = Prepared.parts(p, part);
-  let part_substituted =
+  let part_compared =
     switch (within) {
-    | [(_, substituted), ..._] => substituted
-    | [] => part |> Substitution.in_exp(env) |> DHExp.strip_ascriptions
+    | [(_, compared), ..._] => compared
+    | [] => comparable(part)
     };
   /* Whether rewriting `node` to `result` shrinks the part that differs
-   * from the typed goal. Only the path down to `node` is rebuilt, its ids
-   * the same in the written goal, which is small, as in the substituted
-   * one, which holds the definitions. */
+   * from the typed goal. Only the path down to `node` is rebuilt. */
   let shrinks = (node: Exp.t, result: Exp.t) => {
     let path =
       Picker.self_and_ancestors(Exp.rep_id(node), from.goal)
@@ -352,17 +331,15 @@ let candidates =
       );
     differs(rewritten, wanted) < from.differs;
   };
-  let at = Prepared.at(goal, p);
+  let at = Prepared.at(p);
   let evals =
     Picker.EvalSteps.offered(~settings=goal.settings, ~env, from.goal)
     |> List.filter_map(((_, source)) =>
          Exp.find_by_id(source, part)
          |> Option.bind(_, node => at(node, EvalStep))
        );
-  /* Found with the definitions substituted in, as the checker matches;
-   * substitution keeps the ids of the equalities themselves. */
   let refls =
-    MatchExp.find_refls(~info_map, ~env, part_substituted)
+    MatchExp.find_refls(~info_map, ~defs=env, part_compared)
     |> List.filter_map(e => Exp.find_by_id(Exp.rep_id(e), part))
     |> List.filter_map(node =>
          at(
@@ -379,7 +356,7 @@ let candidates =
     arithmetic(part)
     && has_variable(part)
     && arithmetic(wanted_part)
-    && algebra(part_substituted, wanted_part)
+    && algebra(part_compared, wanted_part)
       ? Option.to_list(
           at(part, Picker.Terms.algebrite_step(~replacement=wanted_part)),
         )
@@ -416,11 +393,13 @@ let run =
       };
       let reached =
         Picker.outgoing(goal, node.goal, step)
-        |> Option.map(e => (e, comparable(goal, e)));
+        |> Option.map(e => (e, comparable(e)));
       let steps = node.steps @ [step];
       switch (reached) {
       | Some((e, compared)) when !List.exists(same(compared), t.seen) =>
-        let differs = differs(compared, t.wanted);
+        let differs =
+          reaches(goal, compared, t.wanted)
+            ? 0 : differs(compared, t.wanted);
         switch (differs, move) {
         | (0, _) =>
           loop({
@@ -446,9 +425,9 @@ let run =
       | None => loop(t)
       };
     | (Searching, Some((_, [])) | None, [node, ...rest]) =>
-      /* The differing part is found in the substituted goal, which keeps
-       * the ids of all but what it inlined. */
-      let compared = comparable(goal, node.goal);
+      /* The differing part is found in the goal as compared, which keeps
+       * the ids of all but the ascriptions it drops. */
+      let compared = comparable(node.goal);
       let written = (part: Exp.t) =>
         Picker.self_and_ancestors(Exp.rep_id(part), compared)
         |> Option.value(~default=[])
@@ -525,7 +504,7 @@ module Suggestions = {
       | Some([]) => t
       | _ when !continue_() => t
       | None =>
-        let p = Prepared.mk(goal, goal.written);
+        let p = Prepared.mk(goal.written);
         loop({
           ...t,
           pending:

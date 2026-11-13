@@ -46,8 +46,7 @@ open Util;
  *     sites (it is still discharged at the definition); only simple
  *     variable parameters, possibly in Parens/Asc, are instantiated.
  *   - an applied inline unguarded lambda `(fun x -> 1/x)(y)` emits
- *     nothing: it is neither a contract application nor an env-bound
- *     definition.
+ *     nothing: it is neither a contract application nor a definition.
  *
  * Identical conditions are deduplicated (Exp.fast_equal). */
 
@@ -118,8 +117,14 @@ let builtin_conditions = (name: string, arg: Exp.t): list(Exp.t) => {
 // The scan
 
 /* The domain conditions of every partial-primitive application in
- * `exp`, in traversal (pre-)order, deduplicated. */
-let scan = (exp: Exp.t): list(Exp.t) => {
+ * `exp`, in traversal (pre-)order, deduplicated. Names in `exp` that
+ * `defs` defines are looked through to find contract functions. */
+let scan = (~defs: Environment.t(Exp.t), exp: Exp.t): list(Exp.t) => {
+  let is_contract = (e: Exp.t): bool =>
+    switch (ProofSyntax.unwrap(e) |> Exp.term_of) {
+    | Fun(p, _, _, _) => Exp.pat_guard(p) != None
+    | _ => false
+    };
   /* A manifestly non-negative exponent literal needs no condition. */
   let nonneg_literal = (e: Exp.t): bool =>
     switch (ProofSyntax.unwrap(e) |> Exp.term_of) {
@@ -143,6 +148,20 @@ let scan = (exp: Exp.t): list(Exp.t) => {
     | BinOp(SInt(Power), _, e2) when !nonneg_literal(e2) =>
       emit(Exp.fresh(BinOp(SInt(GreaterThanOrEqual), e2, sint_zero())))
     | Ap(_, fn, arg) =>
+      /* A definition is unfolded only if it is a contract function. */
+      let fn =
+        switch (ProofSyntax.exp_to_name(fn)) {
+        | Some(name)
+            when
+              Option.fold(
+                ~none=false,
+                ~some=is_contract,
+                Environment.lookup(defs, name),
+              ) =>
+          Definitions.unfold(defs, name) |> Option.value(~default=fn)
+        | Some(_)
+        | None => fn
+        };
       switch (ProofSyntax.unwrap(fn) |> Exp.term_of) {
       /* A contract function's guard instantiated by the argument,
        * `g[p := arg]`. The body is discharged once, at the definition.
@@ -165,7 +184,7 @@ let scan = (exp: Exp.t): list(Exp.t) => {
       | Var(name)
       | BuiltinFun(name) => List.iter(emit, builtin_conditions(name, arg))
       | _ => ()
-      }
+      };
     | _ => ()
     };
   let _: Exp.t =

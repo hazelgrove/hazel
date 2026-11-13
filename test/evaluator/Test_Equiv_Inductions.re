@@ -83,13 +83,10 @@ let shuffle = {|theorem shuffle = forall a: Int -> forall b: Int -> a + (1 + b) 
  *       and a quantified `f` is a total map, so the instantiation gate
  *       lets it through;
  *   (2) enough `eval` steps make both sides converge to the same `case`
- *       on `t`. There is no refolding: the residual is the inlined `fix`
- *       body, not the surface call `fold_left(t, ..)`. The right side
- *       unfolds to the same inlined shape, and `refl_eq` matches the two
- *       up to alpha-renaming of the `fix`/`fun` binders.
- * The left side takes three steps (unfold, apply `add1`, apply the
- * unfolded body) and the right side one. See
- * test_fold_cons_proves_by_eval. */
+ *       on `t`, which `refl_eq` matches up to alpha-renaming.
+ * The left side takes three steps (step the cons, which leaves
+ * `fold_left(t, add1, add1(a, h))`, apply `add1`, unfold on `t`) and the
+ * right side one. See test_fold_cons_proves_by_eval. */
 let fold_cons = {|theorem fold_cons = forall h: Int -> forall t: [Int] -> forall a: Int -> fold_left(h :: t, add1, a) == fold_left(t, add1, a + 1) proof from fold_left(h :: t, add1, a) do eval; from $e(a, h) do eval end; eval end; from fold_left(t, add1, a + 1) do eval end; axiom refl_eq end in |};
 
 let lemmas_a =
@@ -165,12 +162,7 @@ let test_forward_ih_accumulator_proves = () => {
   );
 };
 
-/* `fold_cons` proves by eval alone. This also pins the shape of what
- * happens, so a failure is legible: `eval` doesn't refold. The residual
- * after the targeted step is the inlined `fold_left` fix body applied to
- * `(t, add1, ..)`, not the surface call; the proof closes only because
- * the right-hand side unfolds to the same inlined shape and `refl_eq`
- * matches them up to alpha-renaming. One step short, the sides don't
+/* `fold_cons` proves by eval alone. One step short, the sides don't
  * match yet. */
 let test_fold_cons_proves_by_eval = () => {
   let fc = proof =>

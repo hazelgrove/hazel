@@ -220,7 +220,7 @@ let test_partial_function_not_cleanly_proven = () => {
   );
 };
 
-/* --- 7. Contraction resolves let-bound names -------------------------- */
+/* --- 7. Contraction keeps let-bound names ----------------------------- */
 
 /* A literal lambda whose body mentions a let-bound name:
  *
@@ -228,48 +228,21 @@ let test_partial_function_not_cleanly_proven = () => {
  *   theorem t = (fun x -> f(f(x))) == (fun x : Int -> x) proof
  *   funext y => from f do eval end in t
  *
- * If contracting the redex substituted only `x |-> y`, `f` would stay a
- * free `Var` in the pointwise goal, while the per-step env substitution
- * replaces it with a fresh-id copy of `fun x -> 1 / x` in the eval
- * target, so the id-based lookup would miss and every step would report
- * PatternNotFound. Contracting under the full semantic env resolves `f`
- * identically on both sides of the lookup. */
+ * Contracting the redex substitutes only `x |-> y`, so the pointwise goal
+ * names `f` as the lambda did, and later steps find it by name. */
 
 let funext_repro = (body: string): string =>
   "let f : Int -> Int = fun x -> 1 / x in theorem t = (fun x -> f(f(x))) == (fun x : Int -> x) proof "
   ++ body
   ++ " in t";
 
-/* The pointwise LHS must mention `f`'s definition, not a bare `Var("f")`
- * head. Printed rather than string-matched: the exact rendering of a
- * substituted lambda is not the invariant, the absence of a free `f` is. */
-let test_letbound_name_is_substituted = () => {
-  let src = funext_repro("funext y => ?");
-  let (pm, proof) = run(src);
-  let goal = incoming_of(pm, funext_body(proof));
-  let printed = print_exp(goal);
-  let (l, _) =
-    switch (goal |> Exp.term_of) {
-    | BinOp(Poly(Equals), l, r) => (l, r)
-    | _ => Alcotest.fail("expected an `==` body goal, got: " ++ printed)
-    };
-  /* Any non-Var head of the outer application means the definition got
-   * inlined. */
-  let rec head_is_var = (e: Exp.t): bool =>
-    switch (e |> Exp.term_of) {
-    | Parens(inner) => head_is_var(inner)
-    | Ap(_, fn, _) => head_is_var(fn)
-    | Var(_) => true
-    | _ => false
-    };
+let test_letbound_name_is_kept = () => {
+  let (pm, proof) = run(funext_repro("funext y => ?"));
   Alcotest.check(
-    Alcotest.bool,
-    "the let-bound `f` is inlined in the pointwise goal, not left free "
-    ++ "(got: "
-    ++ printed
-    ++ ")",
-    false,
-    head_is_var(l),
+    Alcotest.string,
+    "the pointwise goal",
+    "f(f(y)) == y",
+    print_exp(incoming_of(pm, funext_body(proof))),
   );
 };
 
@@ -655,9 +628,9 @@ let tests = (
       test_partial_function_not_cleanly_proven,
     ),
     test_case(
-      "a let-bound name is inlined when funext contracts the redex",
+      "a let-bound name is kept when funext contracts the redex",
       `Quick,
-      test_letbound_name_is_substituted,
+      test_letbound_name_is_kept,
     ),
     test_case(
       "`eval f` inside a funext body is not a PatternNotFound",

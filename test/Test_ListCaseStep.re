@@ -179,7 +179,7 @@ let test_each_occurrence_writes_its_index = () => {
   let goal = first_goal(Fixture.mk(~name="both", both_nil));
   check(int, "one step per side", 2, List.length(offered(goal)));
   let (left, right) =
-    switch (Exp.term_of(goal.display)) {
+    switch (Exp.term_of(goal.written)) {
     | BinOp(Poly(Equals), l, r) => (l, r)
     | _ => Alcotest.fail("not an == goal")
     };

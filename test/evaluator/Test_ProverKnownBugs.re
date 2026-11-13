@@ -61,18 +61,6 @@ let tests = (
       "theorem bad = forall xs: [Int] where xs == [1] -> false proof induction xs | [] => contradiction where with xs = [] end | h :: t => contradiction ih end end in bad",
     ),
     pinned(
-      "PROVER-SHADOWED-FACT",
-      "a fact about an outer x discharges a goal about a new x",
-      ~now="Proven",
-      "theorem bad = forall x: Int -> x == 0 ==> (forall x: Int -> x == 0) proof assume x == 0 => forall x => assume x == 0 as h => from x do axiom h end end; eval in bad",
-    ),
-    pinned(
-      "PROVER-FUNEXT-CAPTURE",
-      "a funext binder free in the functions is captured",
-      ~now="Proven",
-      "theorem bad = forall y: Int -> (fun z: Int -> y) == (fun z: Int -> z) proof funext y => axiom refl_eq end in bad",
-    ),
-    pinned(
       "PROVER-REWRITE-UNCHECKED",
       "the checker accepts any rewrite replacement",
       ~now="Proven",
@@ -303,32 +291,6 @@ let tests = (
           "PROVER-HAVE-OPEN-CASES still behaves as filed",
           0,
           List.length(ProofMap.pending_obligations(pm, proof)),
-        );
-      },
-    ),
-    Alcotest.test_case(
-      "PROVER-FOCUS-INLINED-VAR: a selector naming a function in the env finds no occurrence",
-      `Quick,
-      () => {
-        let (pm, _) =
-          run_named(
-            "bad",
-            "let rev = fun xs -> case xs | [] => [] | x :: t => rev(t) @ [x] end in theorem bad = rev([]) == [] proof from rev do eval end; ? in bad",
-          );
-        Alcotest.check(
-          Alcotest.bool,
-          "PROVER-FOCUS-INLINED-VAR still behaves as filed",
-          true,
-          Id.Map.exists(
-            (_, entry: ProofMap.entry) =>
-              List.exists(
-                fun
-                | ProofMark.PatternNotFound(_) => true
-                | _ => false,
-                entry.marks,
-              ),
-            pm,
-          ),
         );
       },
     ),

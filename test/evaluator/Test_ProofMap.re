@@ -600,12 +600,9 @@ let test_rewrite_finds_pattern = () => {
   );
 };
 
-/* Focus ordinals must agree with the stepper overlay, which counts
- * occurrences in the goal as displayed, i.e. env-inlined. In this program
- * the goal `sum == fold_left(_, sum, 0)` contains a single literal `0`,
- * but the two inlined copies of `sum` contribute four earlier ones, so
- * clicking the `0` in `fold_left(_, sum, 0)` yields `5th`. Counting on
- * the unsubstituted goal would find no fifth `0`. */
+/* A focus ordinal counts occurrences in the goal as written: the goal
+ * `sum == fold_left(_, sum, 0)` has one `0`, though `sum`'s body has
+ * more. */
 let rewrite_zero_src = {|let plus = fun (x,y) -> x + y in
 let sum(xs) = case xs
 | [] => 0
@@ -616,27 +613,13 @@ in
 theorem t =
     sum == fold_left(_, sum, 0)
 proof
-    from 5th 0 do rewrite 0 + 0 end end
+    from 0 do rewrite 0 + 0 end end
 in t|};
 
-let test_rewrite_zero_at_inlined_index = () => {
+let test_rewrite_zero_as_written = () => {
   let (state, _, elab) = rewrite_zero_src |> parse_exp |> eval_with_proof;
   let pm = EvaluatorState.get_proof_map(state);
   let proof = proof_of(elab);
-  Alcotest.check(
-    Alcotest.bool,
-    "`from 5th 0 do rewrite 0 + 0 end` must not report PatternNotFound",
-    false,
-    has_mark_kind(
-      pm,
-      proof,
-      fun
-      | ProofMark.PatternNotFound(_) => true
-      | _ => false,
-    ),
-  );
-  /* And `5th` must land on the goal's own `0`, not somewhere inside an
-   * inlined copy of `sum`. */
   let entry =
     switch (ProofMap.lookup(Proof.rep_id(proof), pm)) {
     | Some(entry) => entry
@@ -1607,9 +1590,9 @@ let tests = (
     ),
     test_case("rewrite finds pattern", `Quick, test_rewrite_finds_pattern),
     test_case(
-      "rewrite at an env-inlined occurrence index",
+      "a focus ordinal counts occurrences as written",
       `Quick,
-      test_rewrite_zero_at_inlined_index,
+      test_rewrite_zero_as_written,
     ),
     test_case(
       "rewrite finds pattern under use Nat",

@@ -8,10 +8,7 @@ open Util;
  * reads the occurrence back with `nth_env_target`. */
 
 /* Immediate expression children, in `map_term` order, including those
- * inside patterns (`where` guards). Used to walk two
- * trees in lockstep when one is the env-substituted display of the other:
- * wrapping nodes (`Ap`, `BinOp`, …) keep their ids, but a `Var` may
- * become a `Fun`/`FixF` with a fresh id. */
+ * inside patterns (`where` guards). */
 let children = (e: Exp.t): list(Exp.t) => {
   let kids = ref([]);
   let root_id = Exp.rep_id(e);
@@ -161,17 +158,10 @@ let nth_target =
   MetaVar.has_meta(selector)
     ? nth_pattern(~info_map, ~env, selector, n, e2) : nth(selector, n, e2);
 
-/* `nth_target` with both sides env-substituted first.
- *
- * Proof-level `eval` steps run the evaluator, which substitutes the
- * runtime env into branch bodies and so inlines recursive bindings like
- * `rev` as `FixF(Var(name), ...)`. Selectors written in later steps still
- * say `Var(name)`, so both sides are substituted before matching, and
- * the match is mapped back to the unsubstituted `e2` by `Exp.rep_id`,
- * so callers see the goal as the user wrote it. `Substitution.in_exp`
- * preserves the ids of wrapping nodes (`Ap`, `Tuple`, `BinOp`, ...), so
- * the id is present in `e2`. It leaves metavariables alone, since no
- * binding can be named `$...`.
+/* `nth_target` modulo the definitions in `env`. The goal is searched as
+ * written first. Only if it has too few occurrences there is it searched
+ * again, unfolding a name where it hides structure the selector has
+ * (`MatchExp`'s `~defs`).
  *
  * Equality compares up to parens/projectors, ascriptions,
  * alpha-renaming (expression and type), function names, filters and
@@ -183,12 +173,7 @@ let nth_target =
  * "target not found". This is why the theorem context records
  * elaborated statements (`Statics`' Theorem arm):
  * `ProofCtx.of_theorem_ctx` splices a cited rule's right-hand side into
- * elaborated goals.
- *
- * Substitution renames a binder of `e2` that shadows a name in `env`, so
- * a selector naming that binder's variable (`b` under `fun b ->` when
- * the theorem binds `b` too) only matches the goal as written, where it
- * is looked for when the substituted goal has no match. */
+ * elaborated goals. */
 let nth_env_target =
     (
       ~info_map: Statics.Map.t,
@@ -197,20 +182,16 @@ let nth_env_target =
       n: int,
       e2: Exp.t,
     )
-    : option(Exp.t) => {
-  let substituted =
-    nth_target(
-      ~info_map,
-      ~env,
-      Substitution.in_exp(env, selector),
+    : option(Exp.t) =>
+  switch (nth_target(~info_map, ~env, selector, n, e2)) {
+  | Some(_) as found => found
+  | None =>
+    nth_matching(
+      MatchExp.matches_pattern(~info_map, ~env, ~defs=env, selector),
       n,
-      Substitution.in_exp(env, e2),
-    );
-  switch (substituted) {
-  | Some(matched) => Exp.find_by_id(Exp.rep_id(matched), e2)
-  | None => nth_target(~info_map, ~env, selector, n, e2)
+      e2,
+    )
   };
-};
 
 /* `exp` with the node whose id is `id` replaced by `new_exp`, ids and
  * all, so `new_exp` can be found again in the result. The caller ensures
@@ -221,26 +202,17 @@ let replace_by_id = (id: Id.t, exp: Exp.t, new_exp: Exp.t) =>
     exp,
   );
 
-/* The id of the node in `onto` that occupies the same position as `id`
- * in `from`. `Some(id)` when the id survived substitution; the inlined
- * function when a `Var` was replaced by a `Fun`/`FixF`/`Closure`. */
-let rec map_rep_id = (~from: Exp.t, ~onto: Exp.t, id: Id.t): option(Id.t) =>
+/* The node of `onto` at the position the node with id `id` has in
+ * `from`, for two copies of one term with different ids. */
+let rec at_same_position =
+        (~from: Exp.t, ~onto: Exp.t, id: Id.t): option(Exp.t) =>
   if (Exp.rep_id(from) == id) {
-    Some(Exp.rep_id(onto));
+    Some(onto);
   } else {
-    let from_kids = children(from);
-    let onto_kids = children(onto);
+    let (from_kids, onto_kids) = (children(from), children(onto));
     List.length(from_kids) == List.length(onto_kids)
-      ? List.fold_left2(
-          (acc, f, o) =>
-            switch (acc) {
-            | Some(_) as s => s
-            | None => map_rep_id(~from=f, ~onto=o, id)
-            },
-          None,
-          from_kids,
-          onto_kids,
-        )
+      ? List.combine(from_kids, onto_kids)
+        |> List.find_map(((f, o)) => at_same_position(~from=f, ~onto=o, id))
       : None;
   };
 

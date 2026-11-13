@@ -184,7 +184,7 @@ module Exits = {
     | NoBinder;
 
   let float_target_of = (~ctx: ctx, ob: Obligation.t): float_target => {
-    let goal = Obligation.display_goal_of(ob);
+    let goal = ob.goal;
     let mentions = (v: Var.t) => ProofRule.occurs_free_any([v], goal);
     let case_vars =
       proof_contains(~origin=ob.origin, ctx.proof)
@@ -207,13 +207,11 @@ module Exits = {
   };
 
   /* The goal, fit to write into the program, as in
-   * `StepperPicker.Terms.embed_exp`. `display_goal` is a slice of the
-   * program and carries its tiles' ids: written in verbatim, one id would
-   * land on two tiles, which crashes the view. */
+   * `StepperPicker.Terms.embed_exp`. The goal is a slice of the program
+   * and carries its tiles' ids: written in verbatim, one id would land on
+   * two tiles, which crashes the view. */
   let embed_goal = (ob: Obligation.t): Exp.t =>
-    Obligation.display_goal_of(ob)
-    |> Substitution.in_exp(Environment.empty)
-    |> Exp.replace_all_ids;
+    ob.goal |> Substitution.in_exp(Environment.empty) |> Exp.replace_all_ids;
 
   /* `p` restricted by `<goal>`, or with an existing guard `g`, by
    * `g && <goal>`: a `forall`'s binder or a `fun`'s parameter. */

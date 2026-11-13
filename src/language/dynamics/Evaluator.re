@@ -194,7 +194,7 @@ module Proofs = {
        * so the two agree. */
       let (sem_ctx, conclusion) =
         ProofCheck.peel_stmt_binders(
-          SemanticCtx.of_program_state(ctx, env),
+          SemanticCtx.of_ctx_and_env(ctx, env),
           goal,
         );
       let proof_map =
@@ -204,7 +204,7 @@ module Proofs = {
       let contracts =
         ProofCheck.definition_obligations(
           ~step,
-          ~ctx=SemanticCtx.of_program_state(ctx, env),
+          ~ctx=SemanticCtx.of_ctx_and_env(ctx, env),
         );
       Some({
         proof_map,

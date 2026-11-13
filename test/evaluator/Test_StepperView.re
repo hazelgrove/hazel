@@ -150,7 +150,7 @@ let facts = (row: Rows.t): list((string, string)) =>
 /* The offered eval steps' displayed nodes, printed. */
 let offered = (goal: Picker.Goal.t): list(string) =>
   Picker.Goal.step_ids(goal)
-  |> List.filter_map(id => Exp.find_by_id(id, goal.display))
+  |> List.filter_map(id => Exp.find_by_id(id, goal.written))
   |> List.map(print);
 
 let written = (p: Proof.t): string =>
@@ -563,15 +563,14 @@ module Scopes = {
 };
 
 /* The stored state: one entry per row, kept while the row lasts. */
-/* A goal whose display folds two functions: `twice`, inlined from the
- * env, and the lambda passed to it. */
+/* A goal holding a lambda, which the display folds unless function
+ * bodies are shown. */
 module Settings_change = {
   let src = "let twice = fun f -> fun x -> f(f(x)) in theorem t = twice(fun y -> y + 1)(3) == 5 proof ? in t";
 
-  /* The goal's `twice(fun y -> y + 1)`, whose `twice` substitution
-   * inlines with ids of its own, and its `3`. */
+  /* The goal's `twice(fun y -> y + 1)` and its `3`. */
   let lhs = (goal: Picker.Goal.t): (Exp.t, Exp.t) =>
-    switch (Exp.term_of(goal.display)) {
+    switch (Exp.term_of(goal.written)) {
     | BinOp(_, lhs, _) =>
       switch (Exp.term_of(lhs)) {
       | Ap(_, applied, three) => (applied, three)
@@ -808,7 +807,7 @@ module State = {
           check(
             string,
             "printed with function bodies",
-            "(fun f -> fun x -> f(f(x)))(fun y -> y + 1)(3) == 5",
+            "twice(fun y -> y + 1)(3) == 5",
             Settings_change.text(local.goal),
           );
           check(
@@ -854,7 +853,7 @@ module State = {
             Some("3"),
             Indicated.index(local.goal.editor.editor.state.zipper)
             |> Option.map(id =>
-                 switch (Exp.find_by_id(id, local.goal.display)) {
+                 switch (Exp.find_by_id(id, local.goal.written)) {
                  | Some(e) => print(e)
                  | None => "not in the goal"
                  }
@@ -1066,7 +1065,7 @@ module Picking = {
             };
             cont(e);
           },
-        goal.display,
+        goal.written,
       );
     switch (found^) {
     | Some(e) => e
@@ -1699,8 +1698,8 @@ module Insertion = {
   ];
 };
 
-/* Goals as rows show them: env-substituted for display, as written for
- * the eval steps. */
+/* Goals as rows show them: as written, naming the program's
+ * definitions. */
 module Display = {
   let sum = {|let sum(xs) = case xs
 | [] => 0
@@ -1722,16 +1721,13 @@ in
 
   let tests = [
     test_case(
-      "the row after a rewrite at an env-inlined index shows the rewritten goal",
+      "a focus ordinal counts occurrences in the goal as shown",
       `Quick,
       () => {
-        /* `5th` names the literal `0` of `sum == fold_left(_, sum, 0)`
-         * counted in the displayed goal: the four before it are in the
-         * inlined copies of `sum`. */
         let f =
           Fixture.mk(
             sum
-            ++ "theorem t = sum == fold_left(_, sum, 0) proof from 5th 0 do rewrite 0 + 0 end end in t",
+            ++ "theorem t = sum == fold_left(_, sum, 0) proof from 0 do rewrite 0 + 0 end end in t",
           );
         check(list(string), "rows", ["algebra", "end"], kinds(f.rows));
         check(
@@ -1743,7 +1739,7 @@ in
       },
     ),
     test_case(
-      "a row shows its goal with the env substituted",
+      "a row shows its goal naming the definitions",
       `Quick,
       () => {
         let f =
@@ -1752,16 +1748,11 @@ in
           );
         let goal = Fixture.goal(f, first(f.rows));
         check(string, "as written", "f(y) == f(y)", print(goal.written));
-        check(
-          bool,
-          "displayed with f inlined",
-          true,
-          has(is_fun, goal.display),
-        );
+        check(bool, "no function inlined", false, has(is_fun, goal.written));
       },
     ),
     test_case(
-      "an end row shows the outgoing goal with the env substituted",
+      "an end row shows the outgoing goal naming the definitions",
       `Quick,
       () => {
         let f =
@@ -1775,16 +1766,11 @@ in
           kinds(f.rows),
         );
         let goal = Fixture.goal(f, last(f.rows));
-        check(
-          bool,
-          "displayed with f inlined",
-          true,
-          has(is_fun, goal.display),
-        );
+        check(bool, "no function inlined", false, has(is_fun, goal.written));
       },
     ),
     test_case(
-      "inlined recursive applications still offer eval steps",
+      "applications of a recursive function offer eval steps",
       `Quick,
       () => {
         let f =
@@ -1834,7 +1820,7 @@ in
       },
     ),
     test_case(
-      "a funext body still offers eval of an applied recursive function",
+      "a funext body offers eval of an applied recursive function",
       `Quick,
       () => {
         let f =
@@ -1844,17 +1830,10 @@ in
           );
         let goal = Fixture.goal(f, first(body(first(f.rows))));
         check(
-          bool,
-          "the pointwise goal is displayed with sum inlined",
-          true,
-          has(
-            e =>
-              switch (e.term) {
-              | FixF(_) => true
-              | _ => false
-              },
-            goal.display,
-          ),
+          string,
+          "the pointwise goal",
+          "sum(xs) == fold_left(_, sum, 0)(xs)",
+          print(goal.written),
         );
         check(bool, "steps offered", true, offered(goal) != []);
       },
@@ -2084,12 +2063,12 @@ module Focusing = {
   let underlined = (goal: Picker.Goal.t, row: Rows.t): (string, int) =>
     switch (
       Option.bind(Picker.Goal.acts_on(goal, row), id =>
-        Exp.find_by_id(id, goal.display)
+        Exp.find_by_id(id, goal.written)
       )
     ) {
     | Some(node) => (
         print(node),
-        Occurrence.index(node, goal.display) |> Option.value(~default=-1),
+        Occurrence.index(node, goal.written) |> Option.value(~default=-1),
       )
     | None => Alcotest.fail("nothing underlined")
     };
@@ -2228,7 +2207,7 @@ module Focusing = {
       },
     ),
     test_case(
-      "the underline lands on the displayed form of a definition the goal names",
+      "the underline lands on a call to a definition",
       `Quick,
       () => {
         let f =
@@ -2238,8 +2217,8 @@ module Focusing = {
         let row = first(f.rows);
         check(
           underline,
-          "the inlined call",
-          ("(fun x -> x + 1)(2)", 0),
+          "the call",
+          ("k(2)", 0),
           underlined(Fixture.goal(f, row), row),
         );
       },
@@ -2357,7 +2336,7 @@ module Focusing = {
           "the application, not its ascription",
           Some("application"),
           Picker.Goal.acts_on(goal, row)
-          |> Option.bind(_, id => Exp.find_by_id(id, goal.display))
+          |> Option.bind(_, id => Exp.find_by_id(id, goal.written))
           |> Option.map((e: Exp.t) =>
                switch (Exp.term_of(e)) {
                | Ap(_) => "application"
@@ -2510,6 +2489,175 @@ module Scrolling = {
   ];
 };
 
+/* An offer writes a step that survives being printed into the program,
+ * read back and checked again, and names definitions as the goal does. */
+module Round_trip = {
+  let len = "let len = fun xs -> case xs | [] => 0 | x :: t => 1 + len(t) end in ";
+
+  let has_fun = (text: string): bool =>
+    Test_ProofMap.contains(text, "fun ")
+    || Test_ProofMap.contains(text, "fix ");
+
+  /* `template` with its `%%` filled. */
+  let fill = (template: string, text: string): string =>
+    switch (String.split_on_char('%', template)) {
+    | [before, "", after] => before ++ text ++ after
+    | _ => Alcotest.fail("the template needs one %%")
+    };
+
+  /* The program with `step` written at `%%`, after checking that it
+   * names no function bodies. */
+  let write = (template: string, step: Proof.t): string => {
+    let text = written(step);
+    check(bool, "written without bodies: " ++ text, false, has_fun(text));
+    fill(template, text);
+  };
+
+  let check_clean = (src: string) => {
+    let (pm, proof) = Test_ProofMap.run_named("t", src);
+    check(
+      option(string),
+      "reread and rechecked\n" ++ src ++ "\n" ++ Test_ProofMap.dump(pm, proof),
+      None,
+      Test_ProofMap.find_marked_sub(pm, proof)
+      |> Option.map(((_, marks)) =>
+           marks |> List.map(ProofMark.show) |> String.concat("; ")
+         ),
+    );
+    (pm, proof);
+  };
+
+  /* The choice of a strategy's menu whose label prints as `label`. */
+  let choice = (strategies, ~strategy: string, ~label: string) =>
+    switch (
+      List.find_opt(
+        (s: Picker.Strategies.strategy) => s.label == strategy,
+        strategies,
+      )
+    ) {
+    | Some({writes: Chooses(choices), _}) =>
+      switch (
+        List.find_opt(
+          (c: Picker.Strategies.choice) => print(c.label) == label,
+          choices,
+        )
+      ) {
+      | Some(c) => Proof.fresh(c.term)
+      | None =>
+        Alcotest.fail(
+          "no choice "
+          ++ label
+          ++ " among "
+          ++ String.concat(
+               ", ",
+               List.map(
+                 (c: Picker.Strategies.choice) => print(c.label),
+                 choices,
+               ),
+             ),
+        )
+      }
+    | Some({writes: Writes(_), _})
+    | None => Alcotest.fail("no menu " ++ strategy)
+    };
+
+  let tests = [
+    test_case(
+      "Tab's steps, written in turn, prove the theorem",
+      `Quick,
+      () => {
+        let template =
+          len
+          ++ "theorem t = forall y: Int -> forall ys: [Int] -> len(y :: ys) == 1 + len(ys) proof %% in t";
+        let rec go = (steps, rounds) => {
+          let src = fill(template, String.concat("; ", steps @ ["?"]));
+          let f = Fixture.mk(src);
+          let goal = Fixture.goal(f, last(f.rows));
+          switch (Picker.Ghost.mk(goal, ~selected=None)) {
+          | Some(ghost) when rounds > 0 =>
+            let text = written(Picker.focused(ghost.pick));
+            check(
+              bool,
+              "written without bodies: " ++ text,
+              false,
+              has_fun(text),
+            );
+            go(steps @ [text], rounds - 1);
+          | _ => steps
+          };
+        };
+        let steps = go([], 4);
+        let src = fill(template, String.concat("; ", steps));
+        let (pm, proof) = check_clean(src);
+        check(
+          string,
+          "proven by " ++ String.concat("; ", steps),
+          "Proven",
+          ProofMap.show_full_status(
+            ProofMap.full_status_of_proof(pm, proof),
+          ),
+        );
+      },
+    ),
+    test_case(
+      "Assume writes the antecedent as written",
+      `Quick,
+      () => {
+        let template = "let k = fun x -> x + 1 in theorem t = forall n: Int -> k(n) == 2 ==> k(n) > 1 proof %% in t";
+        let f = Fixture.mk(fill(template, "?"));
+        let goal = Fixture.goal(f, last(f.rows));
+        let step =
+          switch (
+            List.find_opt(
+              (s: Picker.Strategies.strategy) => s.label == "Assume",
+              Picker.Strategies.intros(goal),
+            )
+          ) {
+          | Some({writes: Writes(term), _}) => Proof.fresh(term)
+          | _ => Alcotest.fail("no Assume")
+          };
+        check_clean(write(template, step)) |> ignore;
+      },
+    ),
+    test_case(
+      "Revert writes a fact about a definition as written",
+      `Quick,
+      () => {
+        let template =
+          len
+          ++ "theorem t = forall ys: [Int] -> len(ys) == 0 ==> len(ys @ []) == 0 proof assume len(ys) == 0 => %% in t";
+        let f = Fixture.mk(fill(template, "?"));
+        let goal = Fixture.goal(f, last(body(first(f.rows))));
+        let step =
+          choice(
+            Picker.Strategies.general(goal),
+            ~strategy="Revert",
+            ~label="len(ys) == 0",
+          );
+        check_clean(write(template, step)) |> ignore;
+      },
+    ),
+    test_case(
+      "Contradiction writes a fact about a definition as written",
+      `Quick,
+      () => {
+        let template =
+          len
+          ++ "theorem t = len([]) == 1 ==> false proof assume len([]) == 1 => %% in t";
+        let f = Fixture.mk(fill(template, "?"));
+        let goal = Fixture.goal(f, last(body(first(f.rows))));
+        let step =
+          choice(
+            Picker.Strategies.general(goal),
+            ~strategy="Contradiction",
+            ~label="len([]) == 1",
+          );
+        check_clean(write(template, step)) |> ignore;
+      },
+    ),
+  ];
+};
+
 let tests = (
   "StepperView",
   Walk.tests
@@ -2518,6 +2666,7 @@ let tests = (
   @ Picking.tests
   @ Regressions.tests
   @ Display.tests
+  @ Round_trip.tests
   @ Insertion.tests
   @ Structure.tests
   @ Focusing.tests
