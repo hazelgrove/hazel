@@ -630,6 +630,25 @@ module State = {
       },
     ),
     test_case(
+      "every hole has a write box, in the middle of a proof too",
+      `Quick,
+      () => {
+        let f =
+          Fixture.mk(
+            "theorem t = (1 + 1) * 2 == 4 proof ?; from 1 + 1 do eval end in t",
+          );
+        check(
+          list(pair(string, bool)),
+          "rows and boxes",
+          [("hole", true), ("eval", false), ("end", true)],
+          List.map(
+            row => (kind(row), Fixture.local(f, row).box != None),
+            f.rows,
+          ),
+        );
+      },
+    ),
+    test_case(
       "a focus's steps end in a write box only when the focus ends its chain",
       `Quick,
       () => {

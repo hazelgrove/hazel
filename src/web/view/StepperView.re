@@ -1638,9 +1638,8 @@ module View = {
         );
       | Hole
       | End =>
-        /* A `?` marks a hole written mid-proof, a step to come back for.
-         * A row at the end needs no mark: the write box already says the
-         * proof continues here. */
+        /* A `?` marks a hole written mid-proof, whose box writes between
+         * rows. At the end, the box alone says the proof continues here. */
         let unknown =
           row.kind == Hole && !is_last
             ? [div_c("step-unknown", [Node.text("?")])] : [];
@@ -1648,7 +1647,7 @@ module View = {
         let preview =
           switch (Model.find(row.key, model)) {
           | Some({box: Some(box), _})
-              when is_last && Box.current(~tabs, box) == Write =>
+              when row.continues && Box.current(~tabs, box) == Write =>
             let lozenge = (clss, text) => [
               div_c("write-preview " ++ clss, [Node.text(text)]),
             ];
@@ -1688,7 +1687,7 @@ module View = {
         let box =
           switch (prev_broken, Model.find(row.key, model)) {
           | (None, Some({box: Some(box), goal, _}))
-              when is_last && row.continues && !ProofCheck.is_true(row.goal) =>
+              when row.continues && !ProofCheck.is_true(row.goal) =>
             Some((box, goal))
           | _ => None
           };
