@@ -363,7 +363,7 @@ module Update = {
             },
           ),
         )
-        |> return;
+        |> return(~scroll=IfCaretVisible);
       | (Menu(menu), Some(box)) =>
         set_box({
           ...box,
@@ -1120,7 +1120,7 @@ module View = {
               Attr.classes(
                 ["box-item"] @ (highlighted == Some(i) ? ["on"] : []),
               ),
-              Attr.on_click(_ => take(item)),
+              Attr.on_click(_ => Ui_effect.Many([take_focus, take(item)])),
             ],
             switch (item) {
             | Complete(name) => [

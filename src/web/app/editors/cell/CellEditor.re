@@ -93,6 +93,9 @@ module Update = {
           result: updated.model,
         },
       };
+    /* A patch comes from a click elsewhere, which leaves the caret where it
+     * was, so the view stays where the user is rather than going back to
+     * the caret. */
     | PatchMainEditor(patch) =>
       CodeWithStatics.StaticsDebounce.force_on_next := true; // Avoid debounce because these are triggered by clicks.
       let new_zipper =
@@ -105,7 +108,7 @@ module Update = {
           editor: new_inner_editor,
         },
       }
-      |> Updated.return;
+      |> Updated.return(~scroll=IfCaretVisible);
     };
   };
 

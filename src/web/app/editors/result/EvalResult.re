@@ -251,19 +251,22 @@ module Update = {
   // Update is meant to make minimal changes to the model, and calculate will do the rest.
   let update = (~settings, action, model: Model.t): Updated.t(Model.t) => {
     switch (action, model) {
+    /* Toggling the stepper and its patches, from clicks in the stepper,
+     * leave the caret where it was, so they don't take the view back to
+     * it. */
     | (ToggleStepper, {display: Stepper(_), _}) =>
       {
         ...model,
         display: Evaluation(Calc.Pending),
       }
-      |> Updated.return
+      |> Updated.return(~scroll=IfCaretVisible)
     | (ToggleStepper, {display: Evaluation(_), _}) =>
       let elab = model.elab |> Calc.get_saved(Exp.fresh(EmptyHole));
       {
         ...model,
         display: Stepper(CellStepper.init(elab)),
       }
-      |> Updated.return;
+      |> Updated.return(~scroll=IfCaretVisible);
     | (StepperAction(a), {display: Stepper(cell), _}) =>
       let* stepper = StepperView.Update.update(~settings, a, cell.stepper);
       {
@@ -292,7 +295,7 @@ module Update = {
             edited: true,
           }),
       }
-      |> Updated.return;
+      |> Updated.return(~scroll=IfCaretVisible);
     | (StepperEditorAction(a), {display: Stepper(cell), _}) =>
       let* editor = CodeEditable.Update.update(~settings, a, cell.editor);
       {

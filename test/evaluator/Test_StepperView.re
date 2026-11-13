@@ -2298,6 +2298,120 @@ module Focusing = {
   ];
 };
 
+/* The page scrolls to the focused editor's caret after an update that
+ * asks it to. A click in the stepper leaves that caret where it was, so
+ * its updates mustn't ask, or the page jumps to a caret the user has
+ * scrolled away from. */
+module Scrolling = {
+  let not_always = (updated: Web.Updated.t(_)) =>
+    switch (updated.scroll) {
+    | Always => false
+    | IfCaretVisible
+    | Never => true
+    };
+
+  let tests = [
+    test_case(
+      "the stepper's patch to the cell's program doesn't scroll to its caret",
+      `Quick,
+      () => {
+        let src = "theorem t = 1 + 1 == 2 proof ? in t";
+        let z = Insertion.parse_zipper(src);
+        let patch =
+          EditorTransform.mk_proof_patch(
+            ~target_id=Proof.rep_id(Insertion.theorem_proof(z)),
+            Proof.fresh(EvalStep),
+          );
+        check(
+          bool,
+          "PatchMainEditor",
+          true,
+          not_always(
+            Web.CellEditor.Update.update(
+              ~settings=Web.Settings.Model.init,
+              PatchMainEditor(patch),
+              Web.CellEditor.Model.mk(Editor.Model.mk(~root=Exp, z)),
+            ),
+          ),
+        );
+      },
+    ),
+    test_case(
+      "the cell stepper's toggle and patches don't scroll to a caret",
+      `Quick,
+      () => {
+        let statics = Fixture.statics("1 + 2 + 3");
+        let cell =
+          Fixture.calculate(
+            ~is_edited=true,
+            statics,
+            Web.EvalResult.Model.init,
+          );
+        let update = (action, cell) =>
+          Web.EvalResult.Update.update(
+            ~settings=Web.Settings.Model.init,
+            action,
+            cell,
+          );
+        let toggled = update(ToggleStepper, cell);
+        check(bool, "ToggleStepper", true, not_always(toggled));
+        let cell =
+          Fixture.calculate(~is_edited=false, statics, toggled.model);
+        let stepper =
+          switch (cell.display) {
+          | Stepper(s) => s
+          | Evaluation(_) => Alcotest.fail("the stepper is off")
+          };
+        let row =
+          last(
+            Rows.chain(
+              ~proof_map=stepper.proof_map,
+              Web.EvalResult.CellStepper.proof(stepper),
+            ),
+          );
+        check(
+          bool,
+          "StepperPatch",
+          true,
+          not_always(
+            update(
+              StepperPatch(
+                Picker.Patches.write(row, Proof.fresh(EvalStep)),
+              ),
+              cell,
+            ),
+          ),
+        );
+      },
+    ),
+    test_case(
+      "the write box's tabs, menus and list don't scroll to a caret",
+      `Quick,
+      () => {
+        let f = Fixture.mk("theorem t = 1 + 1 == 2 proof ? in t");
+        let row = first(f.rows);
+        let update = action =>
+          Stepper.Update.update(
+            ~settings=Web.Settings.Model.init,
+            (row.key, action),
+            f.theorem.stepper,
+          );
+        List.iter(
+          ((label, action)) =>
+            check(bool, label, true, not_always(update(action))),
+          [
+            ("Tab", Stepper.Update.Tab(Strategy)),
+            ("Menu", Menu(Some("Induction"))),
+            ("Choose", Choose(Some(0))),
+            ("SearchSlice", SearchSlice(0)),
+            ("Complete", Complete("refl_eq")),
+          ],
+        );
+      },
+    ),
+  ];
+};
+
 let tests = (
   "StepperView",
   Walk.tests
@@ -2308,5 +2422,6 @@ let tests = (
   @ Display.tests
   @ Insertion.tests
   @ Structure.tests
-  @ Focusing.tests,
+  @ Focusing.tests
+  @ Scrolling.tests,
 );
