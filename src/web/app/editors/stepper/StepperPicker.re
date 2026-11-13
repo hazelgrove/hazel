@@ -480,16 +480,29 @@ and target = {
 };
 
 /* Where a step picked on `node` acts: through a focus, unless `node` is
- * the whole goal. */
+ * the whole goal. The focus writes `node` with as much of it replaced by
+ * `$e` as still selects `node`, so the step survives edits to the parts
+ * of the goal it doesn't need. */
 let target = (goal: Goal.t, node: Exp.t): option(target) =>
   Exp.rep_id(node) == Exp.rep_id(goal.written)
     ? None
-    : Some({
+    : {
+      let (selector, index) =
+        Occurrence.generalize(
+          ~info_map=Goal.info_map(goal),
+          ~env=Goal.env(goal),
+          ~index=
+            Occurrence.index(node, goal.written) |> Option.value(~default=0),
+          node,
+          Exp.rep_id(node),
+          goal.written,
+        );
+      Some({
         node,
-        selector: node,
-        index:
-          Occurrence.index(node, goal.written) |> Option.value(~default=0),
+        selector,
+        index,
       });
+    };
 
 /* The proof `pick` writes on its own: its step, focused on its target. */
 let focused = (pick: pick): Proof.t =>
@@ -528,16 +541,9 @@ let take_step = (goal: Goal.t, idx: int): option(pick) => {
   open OptUtil.Syntax;
   let* (_, source) = List.nth_opt(goal.eval_steps, idx);
   let* node = Exp.find_by_id(source, goal.written);
-  let+ index = EvalSteps.checker_idx(goal.written, node);
+  let+ _ = EvalSteps.checker_idx(goal.written, node);
   {
-    at:
-      source == Exp.rep_id(goal.written)
-        ? None
-        : Some({
-            node,
-            selector: node,
-            index,
-          }),
+    at: target(goal, node),
     step: Proof.fresh(EvalStep),
   };
 };

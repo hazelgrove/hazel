@@ -202,6 +202,57 @@ let replace_by_id = (id: Id.t, exp: Exp.t, new_exp: Exp.t) =>
     exp,
   );
 
+/* `selector` with as many of its subterms replaced by `$e` as keep
+ * `nth_env_target` resolving it to the node with id `node` in `goal`, at
+ * an index no greater than `index`, and the index it resolves at. Only a
+ * replacement that passes this check is kept, so a `selector` that misses
+ * the node comes back unchanged. Subterms are tried outermost first, then
+ * left to right, so a whole argument becomes one `$e` before its parts are
+ * tried. */
+let generalize =
+    (
+      ~info_map: Statics.Map.t,
+      ~env: Environment.t(Exp.t),
+      ~index: int,
+      selector: Exp.t,
+      node: Id.t,
+      goal: Exp.t,
+    )
+    : (Exp.t, int) => {
+  let index_of = candidate =>
+    List.init(index + 1, n => n)
+    |> List.find_opt(n =>
+         Option.map(
+           Exp.rep_id,
+           nth_env_target(~info_map, ~env, candidate, n, goal),
+         )
+         == Some(node)
+       );
+  List.fold_left(
+    ((current, _) as best, sub) =>
+      switch (Exp.find_by_id(Exp.rep_id(sub), current)) {
+      /* Inside a subterm already replaced. */
+      | None => best
+      /* The `_` of `f(_, x)` is what makes it a partial application:
+       * written as `$e(…)` it reads back as a call. */
+      | Some({term: Deferral(_), _}) => best
+      | Some(_) =>
+        let candidate =
+          replace_by_id(
+            Exp.rep_id(sub),
+            current,
+            Exp.fresh(Var(MetaVar.any_name)),
+          );
+        switch (index_of(candidate)) {
+        | Some(n) => (candidate, n)
+        | None => best
+        };
+      },
+    (selector, index),
+    in_source_order(~stop=_ => false, selector),
+  );
+};
+
 /* The node of `onto` at the position the node with id `id` has in
  * `from`, for two copies of one term with different ids. */
 let rec at_same_position =

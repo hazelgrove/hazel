@@ -46,18 +46,14 @@ let case_row = (f: Fixture.t, i): Rows.t =>
 let offered = (goal: Picker.Goal.t): list(EvaluatorStep.step) =>
   List.map(fst, goal.eval_steps);
 
-/* The 0-based index of the match taking the `n`-th offered step focuses
- * on, checking that it writes `eval` focused on `exp`. */
-let written_index = (goal: Picker.Goal.t, n, ~exp: string): int =>
+/* What taking the `n`-th offered step writes, checking that it is `eval`
+ * focused on `exp`: the focus's selector, printed, and the 0-based index
+ * of its match. */
+let written_focus = (goal: Picker.Goal.t, n, ~exp: string): (string, int) =>
   switch (Picker.take_step(goal, n)) {
-  | Some({at: Some({selector, index, _}), step: {term: EvalStep, _}}) =>
-    check(
-      bool,
-      "writes " ++ exp,
-      true,
-      Exp.fast_equal(selector, Test_Evaluator_Prelude.parse_exp(exp)),
-    );
-    index;
+  | Some({at: Some({node, selector, index}), step: {term: EvalStep, _}}) =>
+    check(string, "focuses on", exp, Test_ProofMap.print_exp(node));
+    (Test_ProofMap.print_exp(selector), index);
   | Some(_) => Alcotest.fail("taking the step writes something else")
   | None => Alcotest.fail("taking the step writes nothing")
   };
@@ -144,8 +140,9 @@ let test_taking_it_writes_a_checked_step = () => {
   let goal = first_goal(Fixture.mk(~name="every", every));
   switch (offered(goal)) {
   | [_] =>
-    check(int, "at index", 0, written_index(goal, 0, ~exp="all_lists(xs)"));
-    check_written_proof(every, ~exp="all_lists(xs)", ~idx=0, ~outgoing=None);
+    let (selector, idx) = written_focus(goal, 0, ~exp="all_lists(xs)");
+    check(int, "at index", 0, idx);
+    check_written_proof(every, ~exp=selector, ~idx, ~outgoing=None);
   | steps =>
     Alcotest.fail(string_of_int(List.length(steps)) ++ " steps offered")
   };
@@ -156,14 +153,15 @@ let test_taking_it_writes_a_checked_step = () => {
 let take_in_case = (i, ~hole, ~exp, ~outgoing) => {
   let f = Fixture.mk(~name="every", every_by_cases);
   let goal = Fixture.goal(f, case_row(f, i));
-  switch (offered(goal)) {
-  | [_, ..._] => check(int, "at index", 0, written_index(goal, 0, ~exp))
-  | [] => Alcotest.fail("no step offered")
-  };
+  let (selector, idx) =
+    switch (offered(goal)) {
+    | [_, ..._] => written_focus(goal, 0, ~exp)
+    | [] => Alcotest.fail("no step offered")
+    };
   let src =
     replace_once(
       ~sub=hole ++ " => ?",
-      ~by=hole ++ " => " ++ focused_eval(~exp, ~idx=0),
+      ~by=hole ++ " => " ++ focused_eval(~exp=selector, ~idx),
       every_by_cases,
     );
   switch (case_row(Fixture.mk(~name="every", src), i)) {
@@ -191,10 +189,10 @@ let test_each_occurrence_writes_its_index = () => {
       )
     ) {
     | Some(n) =>
-      let idx = written_index(goal, n, ~exp="all_lists([])");
+      let (selector, idx) = written_focus(goal, n, ~exp="all_lists([])");
       check_written_proof(
         both_nil,
-        ~exp="all_lists([])",
+        ~exp=selector,
         ~idx,
         ~outgoing=Some(outgoing),
       );

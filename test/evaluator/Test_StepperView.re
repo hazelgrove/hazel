@@ -1116,7 +1116,7 @@ module Picking = {
       check(
         ghost_t,
         "ghost",
-        Some(("eval", "from 1 + 2 do eval end", "3 + 3 == 6")),
+        Some(("eval", "from $e + 2 do eval end", "3 + 3 == 6")),
         ghost(root_goal(equation)),
       )
     ),
@@ -1138,7 +1138,7 @@ module Picking = {
         check(
           ghost_t,
           "ghost",
-          Some(("eval", "from (1 + 1) do eval end", "2")),
+          Some(("eval", "from ($e + $e) do eval end", "2")),
           ghost(~selected=Some(node(goal, "1 + 1")), goal),
         );
         check(
@@ -1317,7 +1317,7 @@ module Regressions = {
           check(
             string,
             "written",
-            "from 1 + 2 do eval end",
+            "from $e + 2 do eval end",
             written_at(row, pick),
           )
         | None => Alcotest.fail("no step offered")
@@ -2074,6 +2074,143 @@ module Focusing = {
     };
   let underline = pair(string, int);
 
+  /* What picking `eval` on `node`, a node of `goal`, writes at `row`. */
+  let eval_written = (row: Rows.t, goal: Picker.Goal.t, node: Exp.t): string =>
+    switch (
+      Picker.write(
+        row,
+        {
+          at: Picker.target(goal, node),
+          step: Proof.fresh(EvalStep),
+        },
+      )
+    ) {
+    | ProofPatch({replacement, _}) => written(replacement)
+    | _ => Alcotest.fail("not a proof patch")
+    };
+
+  /* The goal `src`'s proof ends on, failing if the checker marks a step. */
+  let ends_on = (src: string): string => {
+    let f = Fixture.mk(src);
+    List.iter(
+      (row: Rows.t) =>
+        switch (row.entry) {
+        | Some({marks: [_, ..._] as marks, _}) =>
+          Alcotest.fail(
+            "marked: "
+            ++ String.concat(", ", List.map(ProofMark.show, marks)),
+          )
+        | Some(_)
+        | None => ()
+        },
+      Fixture.all(f),
+    );
+    goal(last(f.rows));
+  };
+
+  /* Each case picks `eval` on a node of the hole's goal, checks what the
+   * picker writes, then checks that what it wrote selects that node. */
+  let generalizing_tests = [
+    test_case(
+      "a focus writes `$e` for each part of its selection that its match doesn't need",
+      `Quick,
+      () => {
+        let f = Fixture.mk("theorem t = 1 + 2 + 3 == 6 proof ? in t");
+        let row = first(f.rows);
+        let goal = Fixture.goal(f, row);
+        check(
+          string,
+          "`$e + $e` would select `1 + 2 + 3`",
+          "from $e + 2 do eval end",
+          eval_written(row, goal, Picking.node(goal, "1 + 2")),
+        );
+        check(
+          string,
+          "it selects the `1 + 2`",
+          "3 + 3 == 6",
+          ends_on(
+            "theorem t = 1 + 2 + 3 == 6 proof from $e + 2 do eval end in t",
+          ),
+        );
+      },
+    ),
+    test_case(
+      "a focus keeps its ordinal, generalizing only what keeps it",
+      `Quick,
+      () => {
+        let f = Fixture.mk("theorem t = (1 + 1) * (1 + 1) == 4 proof ? in t");
+        let row = first(f.rows);
+        let goal = Fixture.goal(f, row);
+        let second =
+          switch (Occurrence.nth(parse_exp("1 + 1"), 1, goal.written)) {
+          | Some(node) => node
+          | None => Alcotest.fail("no second 1 + 1")
+          };
+        check(
+          string,
+          "the second `1 + 1`",
+          "from 2nd ($e + $e) do eval end",
+          eval_written(row, goal, second),
+        );
+        check(
+          string,
+          "it selects the second `1 + 1`",
+          "(1 + 1) * 2 == 4",
+          ends_on(
+            "theorem t = (1 + 1) * (1 + 1) == 4 proof from 2nd ($e + $e) do eval end in t",
+          ),
+        );
+      },
+    ),
+    test_case(
+      "a focus keeps the `_` of a partial application, and reads back",
+      `Quick,
+      () => {
+        let src = "let add = fun (a, b) -> a + b in let g = fun x -> x + 1 in theorem t = g(3) == add(_, 1)(3) proof %% in t";
+        let fill = proof =>
+          Str.global_replace(Str.regexp_string("%%"), proof, src);
+        let f = Fixture.mk(fill("?"));
+        let row = first(f.rows);
+        let goal = Fixture.goal(f, row);
+        let step =
+          eval_written(row, goal, Picking.node(goal, "add(_, 1)(3)"));
+        check(
+          bool,
+          step ++ " keeps the `_`",
+          true,
+          String.contains(step, '_'),
+        );
+        ends_on(fill(step)) |> ignore;
+      },
+    ),
+    test_case(
+      "a focus on a call writes `$e` for the function and its argument",
+      `Quick,
+      () => {
+        let f =
+          Fixture.mk(
+            "let k = fun x -> x + 1 in theorem t = 7 + k(2) == 10 proof ? in t",
+          );
+        let row = first(f.rows);
+        let goal = Fixture.goal(f, row);
+        check(
+          string,
+          "the call",
+          "from $e($e) do eval end",
+          eval_written(row, goal, Picking.node(goal, "k(2)")),
+        );
+        check(
+          string,
+          "it selects `k(2)`",
+          "7 + (2 + 1) == 10",
+          ends_on(
+            "let k = fun x -> x + 1 in theorem t = 7 + k(2) == 10 proof from $e($e) do eval end in t",
+          ),
+        );
+      },
+    ),
+  ];
+
   let tests = [
     test_case(
       "a one-step focus is a line named for its step",
@@ -2147,7 +2284,7 @@ module Focusing = {
           check(
             string,
             "after the focus",
-            "from 2 + 3 do eval end; from 5 * 2 do eval end",
+            "from 2 + 3 do eval end; from $e * $e do eval end",
             written(replacement),
           )
         | _ => Alcotest.fail("not a proof patch")
@@ -2670,5 +2807,6 @@ let tests = (
   @ Insertion.tests
   @ Structure.tests
   @ Focusing.tests
+  @ Focusing.generalizing_tests
   @ Scrolling.tests,
 );

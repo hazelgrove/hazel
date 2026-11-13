@@ -131,10 +131,10 @@ let tests = (
   "NegativeSelector",
   [
     test_case("a negative Int isn't quoted", `Quick, () =>
-      offers_only(negative_int, ~spellable="0 - 10")
+      offers_only(negative_int, ~spellable="$e - $e")
     ),
     test_case("a negative Float isn't quoted", `Quick, () =>
-      offers_only(negative_float, ~spellable="0.0 -. 5.0")
+      offers_only(negative_float, ~spellable="$e -. $e")
     ),
     test_case(
       "a stale offer quoting a negative number writes nothing",
