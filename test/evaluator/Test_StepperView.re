@@ -1384,6 +1384,51 @@ module Regressions = {
       },
     ),
     test_case(
+      "a strategy's `?` argument leaves its step unfinished, not wrong",
+      `Quick,
+      () =>
+      List.iter(
+        step => {
+          let f =
+            Fixture.mk(
+              "theorem t = forall n: Int -> n > 5 ==> n > 3 proof assume n > 5 => "
+              ++ step
+              ++ " in t",
+            );
+          check(
+            list(string),
+            step ++ ": marks",
+            [],
+            List.concat_map(
+              (row: Rows.t) =>
+                switch (row.entry) {
+                | Some(entry) => List.map(ProofMark.show, entry.marks)
+                | None => []
+                },
+              Fixture.all(f),
+            ),
+          );
+          check(
+            string,
+            step ++ ": status",
+            "incomplete",
+            Web.Obligations.Status.label(
+              ProofMap.full_status_of_proof(
+                f.cell.theorems.proof_map,
+                f.theorem.proof,
+              ),
+            ),
+          );
+        },
+        [
+          "revert ? => ?",
+          "generalize ? => ?",
+          "have ? proof ? => ?",
+          "contradiction ? end",
+        ],
+      )
+    ),
+    test_case(
       "theorem stepper: taking an offered step writes the checker's eval step in place of the hole",
       `Quick,
       () => {

@@ -224,12 +224,7 @@ let tests = (
       )
     ),
     test_case("in the x :: t case body", `Quick, () =>
-      take_in_case(
-        1,
-        ~hole="x :: t",
-        ~exp="all_lists(x:: t)",
-        ~outgoing=None,
-      )
+      take_in_case(1, ~hole="x :: t", ~exp="all_lists(x:: t)", ~outgoing=None)
     ),
     test_case(
       "equal occurrences each write their own index",

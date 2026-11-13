@@ -1004,6 +1004,15 @@ let check_rewrite =
     }
   };
 
+/* A form whose argument is still a hole, as the stepper writes
+ * `revert ? =>`, is unfinished rather than wrong: like a hole step, it
+ * passes the goal through unmarked. */
+let is_hole = (e: Exp.t): bool =>
+  switch (Exp.term_of(e)) {
+  | EmptyHole => true
+  | _ => false
+  };
+
 /* Threads `incoming` through the proof tree, returning the outgoing goal
  * (if the proof propagates) and a proof map with an entry at every proof
  * sub-term id. */
@@ -1093,6 +1102,14 @@ let rec check =
     check_funext(~step, ~info_map, ~ctx, ~id, incoming, pat, body)
   | Assume(e, as_name, body) =>
     check_assume(~step, ~info_map, ~ctx, ~id, incoming, e, as_name, body)
+  /* Nothing is assumed, and the goal passes through. */
+  | Have(e, sub, body) when is_hole(e) =>
+    let (_, m_sub) = check(~step, ~info_map, ~ctx, Some(e), sub);
+    let (_, m_body) = check(~step, ~info_map, ~ctx, incoming, body);
+    (
+      incoming,
+      record(~ctx, id, incoming, incoming, ProofMap.union(m_sub, m_body)),
+    );
   | Have(e, sub, body) =>
     check_have(~step, ~info_map, ~ctx, ~id, incoming, e, sub, body)
   | Generalize(e, body) =>
@@ -1484,6 +1501,8 @@ and check_generalize = (~step, ~info_map, ~ctx, ~id, incoming, e, body) => {
       None,
       body,
     )
+  | (Some(_), None) when is_hole(e) =>
+    pass_through(~step, ~info_map, ~ctx, ~id, ~marks=[], incoming, body)
   /* The argument isn't a bare in-scope variable. */
   | (Some(_), None) =>
     pass_through(
@@ -1592,6 +1611,8 @@ and check_revert =
     pass_through(~step, ~info_map, ~ctx, ~id, ~marks=[mark], incoming, body);
   switch (incoming, Discharge.lookup(ctx, fact)) {
   | (None, _) => fail(ProofMark.MissingIncoming)
+  | (Some(_), None) when is_hole(e) =>
+    pass_through(~step, ~info_map, ~ctx, ~id, ~marks=[], incoming, body)
   | (Some(_), None) => fail(ProofMark.UnknownFactReverted)
   | (Some(goal), Some(_)) =>
     let antecedent =
@@ -1694,6 +1715,10 @@ and check_contradiction = (~step, ~ctx, ~id, incoming, e, instantiation) => {
   );
   switch (incoming, Discharge.lookup(ctx, fact), substituted) {
   | (None, _, _) => fail(ProofMark.MissingIncoming)
+  | (Some(_), None, _) when is_hole(e) => (
+      incoming,
+      record(~ctx, id, incoming, incoming, ProofMap.empty),
+    )
   | (Some(_), None, _) => fail(ProofMark.UnknownFactContradicted)
   | (Some(_), Some(_), Error(mark)) => fail(mark)
   | (Some(_), Some(_), Ok((fact, substitutions))) =>
