@@ -144,6 +144,9 @@ module Update = {
         /* A completed evaluation and the statics of its request
          * (EvalResult.Model.checked). */
         ~checked: Calc.t(option((Haz3lcore.CachedStatics.t, Dynamics.t))),
+        /* Whether a newer evaluation is running, whose check will give the
+         * goals of steps written since `checked`. */
+        ~checking: bool,
         model: Model.t,
       )
       : Model.t =>
@@ -225,6 +228,7 @@ module Update = {
           let stepper =
             StepperView.Update.calculate(
               ~settings,
+              ~checking,
               StepperRows.chain(~proof_map, proof),
               stepper,
             );

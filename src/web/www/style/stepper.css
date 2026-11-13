@@ -646,6 +646,40 @@
   background-repeat: repeat-y;
 }
 
+/* A goal not established yet: borrowed from the row above while its step
+ * is checked, or still to be proven by the body of the form above. */
+.step-border.goal-pending > .step-display > .step-output {
+  opacity: 0.5;
+}
+
+/* A check usually lands within a moment, so a borrowed goal fades only
+ * if it doesn't. */
+.step-border.checking > .step-display > .step-output {
+  animation: checking-fade 0.3s ease-in 0.4s both;
+}
+
+@keyframes checking-fade {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.5;
+  }
+}
+
+.write-preview.checking {
+  animation: checking-show 0.3s ease-in 0.4s both;
+}
+
+@keyframes checking-show {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 0.6;
+  }
+}
+
 /* Blocked rows keep rendering (never dropped); grey the body so the
  * chain visibly reads as "on hold" below the break. Opacity does not
  * affect layout. */

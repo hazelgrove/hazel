@@ -62,6 +62,22 @@ module Model = {
     /* The side conditions shown open, by index into the row's
      * `StepperRows.side_conditions`. */
     expanded: list(int),
+    /* The row's step is written but not checked yet, so `goal` is the
+     * goal of the row above, shown until the check gives the row its
+     * own. */
+    checking: bool,
+  };
+
+  /* A write from a row's box, kept until the steps written are checked. */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type write = {
+    /* The goal of the row written from, which the rows of the steps
+     * written show until they are checked. */
+    from: Picker.Goal.t,
+    /* The box where the proof goes on, and the tab it opens on: the tab
+     * written from. That box exists only once the write is reparsed. */
+    next: Rows.key,
+    tab: option(tab),
   };
 
   /* Each row's state, by its key (StepperRows.key). */
@@ -69,16 +85,13 @@ module Model = {
   type t = {
     incoming: Id.Map.t(local),
     outgoing: Id.Map.t(local),
-    /* After a write, the box where the proof goes on and the tab it opens
-     * on: the tab of the box written from. That box is drawn only once
-     * its row exists, after the write's reparse. */
-    carried_tab: option((Rows.key, tab)),
+    last_write: option(write),
   };
 
   let init = {
     incoming: Id.Map.empty,
     outgoing: Id.Map.empty,
-    carried_tab: None,
+    last_write: None,
   };
 
   let find = ((id, side): Rows.key, model: t): option(local) =>
@@ -247,14 +260,14 @@ module Update = {
    * one check. */
   let slice_ms = 15.;
 
-  let new_box = (~settings, goal: Picker.Goal.t): Model.box => {
+  let new_box = (~settings, ~checking, goal: Picker.Goal.t): Model.box => {
     tab: None,
     editor:
       CodeEditable.Model.mk(
         Haz3lcore.Editor.Model.mk(Haz3lcore.Zipper.init(), ~root=Exp),
       )
       |> calculate_box(~settings, goal),
-    ghost: ghost(goal),
+    ghost: checking ? None : ghost(goal),
     search: None,
     suggestions: None,
     chosen: None,
@@ -264,6 +277,16 @@ module Update = {
     menu: None,
   };
 
+  /* A box under a borrowed goal offers nothing: its offers would act on
+   * the wrong goal. */
+  let quiet = (box: Model.box): Model.box => {
+    ...box,
+    ghost: None,
+    search: None,
+    suggestions: None,
+    chosen: None,
+  };
+
   let update =
       (~settings: Settings.t, (key, action): t, model: Model.t)
       : Updated.t(Model.t) =>
@@ -271,7 +294,17 @@ module Update = {
     | None => model |> Updated.raise_invalid_action
     | Some(local) =>
       open Updated;
-      let set = (local: Model.local) => Model.add(key, local, model);
+      let set = (local: Model.local) =>
+        Model.add(
+          key,
+          local.checking
+            ? {
+              ...local,
+              box: Option.map(quiet, local.box),
+            }
+            : local,
+          model,
+        );
       let set_box = (box: Model.box) =>
         set({
           ...local,
@@ -452,13 +485,17 @@ module Update = {
       | (Wrote(next), _) =>
         {
           ...model,
-          carried_tab:
-            switch (local.box) {
-            | Some({tab: Some((Write | Step) as tab), _}) =>
-              Some((next, tab))
-            | Some({tab: Some(Strategy) | None, _})
-            | None => None
-            },
+          last_write:
+            Some({
+              from: local.goal,
+              next,
+              tab:
+                switch (local.box) {
+                | Some({tab: Some((Write | Step) as tab), _}) => Some(tab)
+                | Some({tab: Some(Strategy) | None, _})
+                | None => None
+                },
+            }),
         }
         |> return_quiet
       | (Tab(_) | BoxEditor(_) | Choose(_) | Complete(_) | Menu(_), None) =>
@@ -466,113 +503,204 @@ module Update = {
       };
     };
 
+  /* While a check runs, the rows of steps written since the last check
+   * have no goal. Each borrows the goal and scope of the row above it, or
+   * at the start of a chain those of the row written from, so that the
+   * chain keeps its rows, and its box, until the check lands. */
+  let borrowed =
+      (~written_from: option((Exp.t, SemanticCtx.t)), rows: list(Rows.t))
+      : list((Rows.key, (Exp.t, SemanticCtx.t))) => {
+    let rec chain = (above, rows: list(Rows.t)) =>
+      List.fold_left(
+        ((acc, above), row: Rows.t) => {
+          let (here, acc) =
+            switch (row.goal, Rows.ctx(row), row.entry, above) {
+            | (Some(goal), Some(ctx), _, _) => (Some((goal, ctx)), acc)
+            | (_, _, None, Some(above)) => (
+                Some(above),
+                [(row.key, above), ...acc],
+              )
+            | (_, _, Some(_), _)
+            | (_, _, None, None) => (None, acc)
+            };
+          let nested =
+            switch (row.kind) {
+            | Step(Body(rows))
+            | Step(Focus(rows)) => chain(None, rows)
+            | Step(Cases(cases)) =>
+              List.concat_map(((_, rows)) => chain(None, rows), cases)
+            | Step(Premises({sub, body})) =>
+              chain(None, sub) @ chain(None, body)
+            | Step(Leaf)
+            | Hole
+            | End => []
+            };
+          let below =
+            switch (row.entry) {
+            | Some({outgoing: Some(outgoing), ctx, _}) =>
+              Some((outgoing, ctx))
+            | Some({outgoing: None, _})
+            | None => here
+            };
+          (nested @ acc, below);
+        },
+        ([], above == None ? written_from : above),
+        rows,
+      )
+      |> fst;
+    chain(None, rows);
+  };
+
   /* The state for `rows`, rebuilt from the walk: a row carries over its
    * last state, preparing its goal again only if the goal or the settings
    * changed, and a row the walk doesn't reach is dropped with its state.
-   * A row with no goal has nothing to step, so no state. */
+   * A row with no goal has nothing to step, so no state, unless
+   * `checking` says a check will give it one. */
   let calculate =
-      (~settings: CoreSettings.t, rows: list(Rows.t), model: Model.t)
+      (
+        ~settings: CoreSettings.t,
+        ~checking=false,
+        rows: list(Rows.t),
+        model: Model.t,
+      )
       : Model.t => {
-    let calculated =
-      List.fold_left(
-        (acc, row: Rows.t) =>
-          switch (row.goal, Rows.ctx(row)) {
-          | (Some(written), Some(ctx)) =>
-            /* A box carries its text over to its row's new goal, and
-             * searches again from it. */
-            let with_goal = (local: Model.local, goal): Model.local => {
-              ...local,
-              goal,
-              box:
-                Option.map(
-                  (box: Model.box) =>
-                    search(
-                      ~new_goal=true,
-                      goal,
-                      {
+    let borrowed =
+      checking
+        ? borrowed(
+            ~written_from=
+              Option.map(
+                (w: Model.write) => (w.from.written, w.from.ctx),
+                model.last_write,
+              ),
+            rows,
+          )
+        : [];
+    List.fold_left(
+      (acc, row: Rows.t) => {
+        let source =
+          switch (
+            row.goal,
+            Rows.ctx(row),
+            List.assoc_opt(row.key, borrowed),
+          ) {
+          | (Some(written), Some(ctx), _) => Some((written, ctx, false))
+          | (_, _, Some((written, ctx))) => Some((written, ctx, true))
+          | (_, _, None) => None
+          };
+        switch (source) {
+        | Some((written, ctx, checking)) =>
+          /* A box carries its text over to its row's new goal, and
+           * searches again from it. */
+          let with_goal = (local: Model.local, goal): Model.local => {
+            ...local,
+            goal,
+            checking,
+            box:
+              Option.map(
+                (box: Model.box) => {
+                  let editor = calculate_box(~settings, goal, box.editor);
+                  checking
+                    ? quiet({
                         ...box,
-                        editor: calculate_box(~settings, goal, box.editor),
-                        ghost: ghost(goal),
-                      },
-                    ),
-                  local.box,
-                ),
-            };
-            let local: Model.local =
-              switch (Model.find(row.key, model)) {
-              | Some(local)
-                  when Picker.Goal.is_for(local.goal, ~ctx, written) =>
-                let goal = {
-                  ...local.goal,
-                  ctx,
-                };
+                        editor,
+                      })
+                    : search(
+                        ~new_goal=true,
+                        goal,
+                        {
+                          ...box,
+                          editor,
+                          ghost: ghost(goal),
+                        },
+                      );
+                },
+                local.box,
+              ),
+          };
+          let local: Model.local =
+            switch (Model.find(row.key, model)) {
+            | Some(local) when Picker.Goal.is_for(local.goal, ~ctx, written) =>
+              let goal = {
+                ...local.goal,
+                ctx,
+              };
+              switch (
                 CoreSettings.eq_ignoring_stepper_modals(
                   goal.settings,
                   settings,
-                )
-                  ? {
-                    ...local,
-                    goal,
-                  }
-                  : with_goal(local, Picker.Goal.rebuild(~settings, goal));
-              | Some(local) =>
-                with_goal(local, Picker.Goal.mk(~settings, ~ctx, written))
-              | None =>
-                let goal = Picker.Goal.mk(~settings, ~ctx, written);
-                {
+                ),
+                local.checking == checking,
+              ) {
+              | (true, true) => {
+                  ...local,
                   goal,
-                  box: None,
-                  expanded: [],
-                };
-              };
-            /* A row keeps its key when the steps after it change whether a
-             * step can be written there. */
-            let local =
-              switch (row.continues, local.box) {
-              | (true, None) =>
-                let tab =
-                  switch (model.carried_tab) {
-                  | Some((key, tab)) when key == row.key => Some(tab)
-                  | Some(_)
-                  | None => None
-                  };
-                {
-                  ...local,
-                  box:
-                    Some({
-                      ...new_box(~settings, local.goal),
-                      tab,
-                    }),
-                };
-              | (false, Some(_)) => {
-                  ...local,
-                  box: None,
                 }
-              | (true, Some(_))
-              | (false, None) => local
+              | (true, false) => with_goal(local, goal)
+              | (false, _) =>
+                with_goal(local, Picker.Goal.rebuild(~settings, goal))
               };
-            Model.add(row.key, local, acc);
-          | (None, _)
-          | (_, None) => acc
-          },
-        {
-          ...Model.init,
-          carried_tab: model.carried_tab,
-        },
-        Rows.all(rows),
-      );
-    switch (calculated.carried_tab) {
-    | Some((key, _)) =>
-      switch (Model.find(key, calculated)) {
-      | Some({box: Some(_), _}) => {
-          ...calculated,
-          carried_tab: None,
-        }
-      | Some({box: None, _})
-      | None => calculated
-      }
-    | None => calculated
-    };
+            | Some(local) =>
+              with_goal(local, Picker.Goal.mk(~settings, ~ctx, written))
+            | None => {
+                /* A borrowed goal is usually the one written from, whose
+                 * preparation can be reused. */
+                goal:
+                  switch (model.last_write) {
+                  | Some({from, _})
+                      when
+                        checking
+                        && Picker.Goal.is_for(from, ~ctx, written)
+                        && CoreSettings.eq_ignoring_stepper_modals(
+                             from.settings,
+                             settings,
+                           ) => {
+                      ...from,
+                      ctx,
+                    }
+                  | Some(_)
+                  | None => Picker.Goal.mk(~settings, ~ctx, written)
+                  },
+                box: None,
+                expanded: [],
+                checking,
+              }
+            };
+          /* A row keeps its key when the steps after it change whether a
+           * step can be written there. */
+          let local =
+            switch (row.continues, local.box) {
+            | (true, None) =>
+              let tab =
+                switch (model.last_write) {
+                | Some({next, tab, _}) when next == row.key => tab
+                | Some(_)
+                | None => None
+                };
+              let box = {
+                ...new_box(~settings, ~checking, local.goal),
+                tab,
+              };
+              {
+                ...local,
+                box: Some(checking ? quiet(box) : box),
+              };
+            | (false, Some(_)) => {
+                ...local,
+                box: None,
+              }
+            | (true, Some(_))
+            | (false, None) => local
+            };
+          Model.add(row.key, local, acc);
+        | None => acc
+        };
+      },
+      {
+        ...Model.init,
+        last_write: checking ? model.last_write : None,
+      },
+      Rows.all(rows),
+    );
   };
 };
 
@@ -684,6 +812,12 @@ module View = {
            * of a goal: hidden rather than removed, so the text stays
            * aligned. */
           ~show_equiv: bool,
+          /* The goal is what a form's body has still to prove: drawn
+           * faded, with `≡?`. */
+          ~pending: bool=false,
+          /* The goal is borrowed while the step is checked: drawn faded
+           * if the check takes a while. */
+          ~checking: bool=false,
           ~delete: option(Ui_effect.t(unit)),
           /* Detail for the popup, e.g. an induction's missing pattern. */
           ~popup_extra: list(Node.t)=[],
@@ -750,12 +884,16 @@ module View = {
                   ["equiv"] @ (show_equiv ? [] : ["equiv-hidden"]),
                 ),
               ],
-              [Node.text("≡")],
+              [Node.text(pending ? "≡?" : "≡")],
             ),
             div_c("step-output", [editor_view]),
           ]
           @ transition_in_display,
         );
+      let row_classes =
+        row_classes
+        @ (pending || checking ? ["goal-pending"] : [])
+        @ (checking ? ["checking"] : []);
       switch (block) {
       | None => [
           Node.div(
@@ -1846,6 +1984,11 @@ module View = {
         goal_editor(~hints, ~previewing, ~into_box, row, local)
       | (None, None) => div_c("step-placeholder", [Node.text("—")])
       };
+    let checking = (row: Rows.t) =>
+      switch (Model.find(row.key, model)) {
+      | Some(local) => local.checking
+      | None => false
+      };
     let controls = (~top) =>
       top && is_toplevel
         ? [
@@ -1972,6 +2115,7 @@ module View = {
           ~globals,
           ~status,
           ~show_equiv=prev_broken == None,
+          ~checking=checking(row),
           ~delete=Some(edit_syntax(Picker.Patches.remove(step))),
           ~popup_extra,
           ~repair=
@@ -2001,13 +2145,14 @@ module View = {
           row.kind == Hole && !is_last
             ? [div_c("step-unknown", [Node.text("?")])] : [];
         /* What Enter would write, previewed on the line above the box. */
+        let lozenge = (clss, text) => [
+          div_c("write-preview " ++ clss, [Node.text(text)]),
+        ];
         let preview =
           switch (Model.find(row.key, model)) {
+          | Some({checking: true, _}) => lozenge("checking", "checking…")
           | Some({box: Some(box), _})
               when row.continues && Box.current(~tabs, box) == Write =>
-            let lozenge = (clss, text) => [
-              div_c("write-preview " ++ clss, [Node.text(text)]),
-            ];
             switch (Box.verdict(box)) {
             | Some(Found([_, ..._] as steps)) =>
               lozenge(
@@ -2018,7 +2163,7 @@ module View = {
             | Some(Searching) => lozenge("searching", "searching…")
             | Some(Found([]))
             | None => []
-            };
+            }
           | _ => []
           };
         let justification =
@@ -2049,9 +2194,16 @@ module View = {
           };
         let hints =
           switch (box) {
-          | Some((box, _)) => Box.current(~tabs, box) == Step
+          | Some((box, _)) =>
+            Box.current(~tabs, box) == Step && !checking(row)
           | None => false
           };
+        /* A form's goal passes to the row after it as proven only once its
+         * body proves it. */
+        let unproven =
+          row.kind == End
+          && !row.continues
+          && ProofMap.status_of_proof(proof_map, row.step) != Some(true);
         /* With part of the goal selected, the box writes its
          * replacement. */
         let replacing =
@@ -2107,6 +2259,8 @@ module View = {
             ~globals,
             ~status,
             ~show_equiv=prev_broken == None,
+            ~pending=unproven,
+            ~checking=checking(row),
             ~delete,
             ~editor_view=
               goal_view(

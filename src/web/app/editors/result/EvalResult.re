@@ -637,6 +637,12 @@ module Update = {
             ~settings,
             ~statics=Calc.map(_ => statics, elab),
             ~checked,
+            ~checking=
+              switch (Calc.get_value(result)) {
+              | ResultPending(_) => true
+              | ResultOk(_)
+              | ResultFail(_) => false
+              },
             theorems,
           )
         : theorems;

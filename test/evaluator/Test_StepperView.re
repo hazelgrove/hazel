@@ -2871,6 +2871,65 @@ module Writing = {
       },
     ),
     test_case(
+      "while a write is checked, its rows show the goal above and the box stays",
+      `Quick,
+      () => {
+        let w = mk("theorem t = (1 + 1) * (2 + 0) == 4 proof ? in t");
+        let row = box_row(w.f);
+        let goal_before = goal(row);
+        let written =
+          switch (Stepper.Update.ghost(Fixture.goal(w.f, row))) {
+          | Some(ghost) => Picker.focused(ghost.pick)
+          | None => Alcotest.fail("no ghost")
+          };
+        let patch = Picker.Patches.write(row, written);
+        let w = {
+          ...w,
+          f:
+            Fixture.act(
+              w.f,
+              (
+                row.key,
+                Wrote(Option.get(Stepper.Focus.after_write([written]))),
+              ),
+            ),
+        };
+        let checking = write(~pending=true, w, patch);
+        let row = box_row(checking.f);
+        let local = Fixture.local(checking.f, row);
+        check(bool, "checking", true, local.checking);
+        check(
+          string,
+          "the goal above",
+          goal_before,
+          print(local.goal.written),
+        );
+        check(
+          bool,
+          "the box offers nothing",
+          true,
+          Option.bind(local.box, (box: Stepper.Model.box) => box.ghost)
+          == None,
+        );
+        let checked = write(w, patch);
+        let local = Fixture.local(checked.f, box_row(checked.f));
+        check(bool, "checked", false, local.checking);
+        check(
+          string,
+          "its own goal",
+          "(1 + 1) * 2 == 4",
+          goal(box_row(checked.f)),
+        );
+        check(
+          bool,
+          "the box offers a step",
+          true,
+          Option.bind(local.box, (box: Stepper.Model.box) => box.ghost)
+          != None,
+        );
+      },
+    ),
+    test_case(
       "a box written from on the Step tab is followed by one on the Step tab",
       `Quick,
       () => {
