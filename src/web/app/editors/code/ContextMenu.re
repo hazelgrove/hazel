@@ -39,13 +39,17 @@ let caret_bottom_offset = (font_metrics: FontMetrics.t): float => {
   row_height +. shadow;
 };
 
-let pos_style =
+/* Where the menu's corner goes, in pixels from the code container's
+ * origin. The menu is position: fixed (see FloatingElement): it usually
+ * extends past the code's top or bottom edge, where the box a cell's code
+ * scrolls in (cell.css) would clip it. */
+let pos_attrs =
     (
       point: Point.t,
       font_metrics: FontMetrics.t,
       direction: Menu.open_direction,
     )
-    : string => {
+    : list(Attr.t) => {
   let left = Float.of_int(point.col) *. font_metrics.col_width;
   let caret_top = Float.of_int(point.row) *. font_metrics.row_height;
   let caret_bottom = caret_top +. caret_bottom_offset(font_metrics);
@@ -54,7 +58,15 @@ let pos_style =
     | `Down => caret_bottom +. caret_menu_gap
     | `Up => caret_top -. caret_menu_gap
     };
-  Printf.sprintf("position: absolute; left: %fpx; top: %fpx;", left, top);
+  [
+    Attr.create("data-float-anchor-class", "code-container"),
+    Attr.create("data-float-local-top", Float.to_string(top)),
+    Attr.create("data-float-local-left", Float.to_string(left)),
+    Attr.create(
+      "style",
+      "position: fixed; visibility: hidden; top: 0; left: 0;",
+    ),
+  ];
 };
 
 /* ============================================================
@@ -562,7 +574,7 @@ let view =
       z: Haz3lcore.Zipper.t,
     )
     : Node.t => {
-  let caret_point = Zipper.Caret.point(syntax.measured, z);
+  let caret_point = Zipper.Caret.point(CachedSyntax.measured(syntax), z);
   let items = get_all_items(~info_map, ~elaborated, z);
   let menu_items =
     Menu.render(
@@ -578,12 +590,15 @@ let view =
   } else {
     let direction = get_direction(caret_point, font_metrics);
     let dir_class = direction_class(direction);
-    let style = pos_style(caret_point, font_metrics, direction);
-
     div(
       ~attrs=[
-        Attr.classes(["context-menu", "nut-menu", dir_class]),
-        Attr.create("style", style),
+        Attr.classes([
+          "context-menu",
+          "nut-menu",
+          "floating-fixed",
+          dir_class,
+        ]),
+        ...pos_attrs(caret_point, font_metrics, direction),
       ],
       [div_c("group", [div_c("contents", menu_items)])],
     );

@@ -23,6 +23,8 @@ type any_t('a) =
   | Mod(mod_t('a))
   | Sig(sig_t('a))
   | MPat(mpat_t('a))
+  | Proof(proof_t('a))
+  | PRul(prul_t('a))
   | Any(unit)
 and exp_term('a) =
   | Invalid(string)
@@ -39,6 +41,8 @@ and exp_term('a) =
      that it is a free constructor, while Some(Some(t)) means it has type t. In user expressions
      this field is None.*/
   | Constructor(string, option(option(typ_t('a))))
+  /* `fun p where g -> e` is `Fun(Where(p, g), e)`: a function contract
+     lives on the parameter pattern. See `Where` in `pat_term`. */
   | Fun(pat_t('a), exp_t('a), option(typ_t('a)), option(Var.t)) // typ_t field is only used to display types in results
   | TypFun(tpat_t('a), exp_t('a), option(Var.t))
   | Tuple(list(exp_t('a)))
@@ -49,8 +53,9 @@ and exp_term('a) =
   | LivelitName(string)
   | Var(Var.t)
   | Let(pat_t('a), exp_t('a), exp_t('a))
-  | Theorem(pat_t('a), exp_t('a), exp_t('a))
-  | ProofObject(exp_t('a))
+  | Theorem(pat_t('a), exp_t('a), proof_t('a), exp_t('a))
+  /* `forall p where g -> e` is `Forall(Where(p, g), e)`. The checker
+     reads it as `forall p -> g ==> e` (`ProofRule.exp_to_rule`). */
   | Forall(pat_t('a), exp_t('a))
   | FixF(pat_t('a), exp_t('a), option(Environment.t(exp_t('a))))
   | TyAlias(tpat_t('a), typ_t('a), exp_t('a))
@@ -117,7 +122,6 @@ and typ_term('a) =
   | Projector(projector_data, typ_t('a))
   | Rec(tpat_t('a), typ_t('a))
   | Poly(tpat_t('a), typ_t('a))
-  | ProofOf(exp_t('a))
   | ProdProjection(typ_t('a), typ_t('a))
   | ProdExtension(typ_t('a), typ_t('a))
   | Sig(list(sig_t('a)))
@@ -133,6 +137,12 @@ and rul_term('a) =
   | MultiHole(list(any_t('a)))
   | Rules(exp_t('a), list((pat_t('a), exp_t('a))))
 and rul_t('a) = Annotated.t(rul_term('a), 'a)
+and prul_term('a) =
+  | Invalid(string)
+  | MultiHole(list(any_t('a)))
+  // Scrutinee + (pattern, proof-body) cases, as the child of `induction`.
+  | ProofRules(exp_t('a), list((pat_t('a), proof_t('a))))
+and prul_t('a) = Annotated.t(prul_term('a), 'a)
 and mod_term('a) =
   | Invalid(string)
   | EmptyHole
@@ -156,6 +166,108 @@ and mpat_term('a) =
   | Var(Var.t)
   | Asc(mpat_t('a), typ_t('a))
 and mpat_t('a) = Annotated.t(mpat_term('a), 'a)
+and proof_term('a) =
+  | Invalid(string)
+  | EmptyHole
+  | MultiHole(list(any_t('a)))
+  | Seq(proof_t('a), proof_t('a))
+  /* `( <proof> )`: grouping only, which the checker, statics and
+   * stepper all look through. It delimits a wrapping form like
+   * `funext x => ...` inside a larger proof, such as the left of a `;`. */
+  | Parens(proof_t('a))
+  /* The rewrite steps act at the root of the incoming goal; `Focus`
+   * points them at a subterm.
+   *
+   * `rewrite <fact> end` rewrites with a rule in scope, and
+   * `rewrite <- <fact> end` with it right to left. `instantiation` is
+   * the optional `with <var> = <exp>` clause: an explicit instantiation
+   * of one of the cited rule's binders, seeded into the match context
+   * before matching. One binding per step. */
+  | AxiomStep({
+      direction: Direction.t,
+      equality: exp_t('a),
+      instantiation: option((exp_t('a), exp_t('a))),
+    })
+  /* `algebra <replacement> end`: replace the goal with an expression the
+   * CAS finds equal to it. */
+  | AlgebriteStep(exp_t('a))
+  /* `step`: one evaluation step at the root, a rewrite whose replacement
+   * is computed. The checker takes the step function as a parameter. */
+  | EvalStep
+  /* `from <selector> do <proof> end`, or `from <selector> at 2 do ...`:
+   * check <proof> against one occurrence of <selector> in the goal, and
+   * put its result back in place of that occurrence. The selector may use
+   * the `$e`/`$v`/`$x` metavariables. `ordinal` counts matches from 1,
+   * left to right; without one the first match is meant. It is annotated
+   * like a term, so its token keeps its id and whitespace. */
+  | Focus({
+      ordinal: option(Annotated.t(int, 'a)),
+      selector: exp_t('a),
+      body: proof_t('a),
+    })
+  /* `induction <exp> | ... end`, or `induction <exp> as <name> | ... end`.
+   *
+   * The `as` clause names the case equation each case gets, which is
+   * otherwise `case_eq` and shadows any enclosing `case_eq`. Naming it
+   * lets a nested split keep citing an outer split's equation. */
+  | Induction(
+      exp_t('a),
+      option(pat_t('a)),
+      list((pat_t('a), proof_t('a))),
+    )
+  | Forall(pat_t('a), proof_t('a))
+  /* `funext x => <proof>`: functional extensionality as an intro rule.
+   * With goal `f == g` at an arrow type, the sub-proof's goal is
+   * `f(x) == g(x)`, with `x` bound at the domain type. A curried goal
+   * needs one `funext` per arrow.
+   *
+   * It isn't an axiom because axioms are rewrite equalities, and stating
+   * funext as one would quantify over functions at unknown types. Its
+   * shape is `Forall`'s: a binder wrapping a body proof. */
+  | Funext(pat_t('a), proof_t('a))
+  /* `assume <exp> => <proof>`, or `assume <exp> as <name> => <proof>`:
+   * hypothesize `<exp>` in the sub-proof, incurring an obligation to
+   * establish it. The hypothesis is named `assume` unless the `as`
+   * clause names it, and shadows an enclosing one of the same name. */
+  | Assume(exp_t('a), option(pat_t('a)), proof_t('a))
+  /* `alias <name> = <fact> => <proof>`: name a fact already in scope.
+   * Resolves <fact> as `revert` does (by name, or by spelling out the
+   * proposition) and makes the same proposition citable as <name> in the
+   * sub-proof. It assumes nothing new and leaves the goal alone; it lets
+   * a fact stay citable after a hypothesis of the same name shadows it.
+   * An unresolvable <fact> is marked `UnknownFactReverted`. */
+  | Alias(pat_t('a), exp_t('a), proof_t('a))
+  /* `generalize x => <proof>`: re-quantify the in-scope variable `x`, so
+   * the sub-proof's goal is `forall x -> G` (with `x`'s `where`
+   * restriction back on the binder). Used before `induction` to get
+   * quantified induction hypotheses. */
+  | Generalize(exp_t('a), proof_t('a))
+  /* `revert <exp> => <proof>`: move an in-scope fact back into the goal,
+   * the converse of `assume`. With goal `G` and in-scope fact `F`, the
+   * sub-proof's goal is `F ==> G`. No obligation: `F` holds here, so
+   * `(F ==> G) == G` under the Kleene reading.
+   *
+   * With the optional `with <var> = <exp>` clause, the fact must be
+   * quantified, and the antecedent is the fact instantiated at `exp`. */
+  | Revert(exp_t('a), option((exp_t('a), exp_t('a))), proof_t('a))
+  /* `contradiction <exp> end`: ex falso. Like `rewrite` and `step` it
+   * has no body. It closes any goal by showing that the in-scope fact
+   * `<exp>` is false given what else is known, so the branch is vacuous;
+   * the outgoing goal is `true`.
+   *
+   * The optional `with <var> = <exp>` clause means something different
+   * here than on axiom/revert: it rewrites the cited fact by the in-scope
+   * equation `var == exp`. The checker checks that the equation is in
+   * scope and substitutes only that binding; no other equations are
+   * used. One binding per step. */
+  | Contradiction(exp_t('a), option((exp_t('a), exp_t('a))))
+  /* `have <exp> proof <subproof> => <body>`: forward reasoning, i.e.
+   * `assume` with a proof attached.
+   * The subproof's goal is <exp>, and <body> can cite <exp> as `have`.
+   * Until the subproof closes, the `have` carries the obligation for
+   * <exp>. */
+  | Have(exp_t('a), proof_t('a), proof_t('a))
+and proof_t('a) = Annotated.t(proof_term('a), 'a)
 and stepper_filter_kind_t('a) =
   | Filter(filter('a))
   | Residue(int, FilterAction.t)
@@ -217,13 +329,13 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
             map_exp_annotation(f, e1),
             map_exp_annotation(f, e2),
           )
-        | Theorem(p, e1, e2) =>
+        | Theorem(p, e1, pf, e2) =>
           Theorem(
             map_pat_annotation(f, p),
             map_exp_annotation(f, e1),
+            map_proof_annotation(f, pf),
             map_exp_annotation(f, e2),
           )
-        | ProofObject(t) => ProofObject(map_exp_annotation(f, t))
         | Forall(p, e) =>
           Forall(map_pat_annotation(f, p), map_exp_annotation(f, e))
         | FixF(p, e, _) =>
@@ -320,7 +432,65 @@ and map_any_annotation: 'a 'b. ('a => 'b, any_t('a)) => any_t('b) =
     | Mod(m) => Mod(map_mod_annotation(f, m))
     | Sig(s) => Sig(map_sig_annotation(f, s))
     | MPat(mp) => MPat(map_mpat_annotation(f, mp))
+    | Proof(p) => Proof(map_proof_annotation(f, p))
+    | PRul(r) => PRul(map_prul_annotation(f, r))
     | Any(_) => Any()
+    };
+  }
+and map_proof_annotation: 'a 'b. ('a => 'b, proof_t('a)) => proof_t('b) =
+  (f, e) => {
+    let annotation = f(e.annotation);
+    let exp = map_exp_annotation(f);
+    let pat = map_pat_annotation(f);
+    let proof = map_proof_annotation(f);
+    let inst = Option.map(((v, i)) => (exp(v), exp(i)));
+    {
+      term:
+        switch (e.term) {
+        | Invalid(s) => Invalid(s)
+        | EmptyHole => EmptyHole
+        | MultiHole(l) => MultiHole(List.map(map_any_annotation(f), l))
+        | Seq(p1, p2) => Seq(proof(p1), proof(p2))
+        | Parens(p) => Parens(proof(p))
+        | AxiomStep({direction, equality, instantiation}) =>
+          AxiomStep({
+            direction,
+            equality: exp(equality),
+            instantiation: inst(instantiation),
+          })
+        | AlgebriteStep(e) => AlgebriteStep(exp(e))
+        | EvalStep => EvalStep
+        | Focus({ordinal, selector, body}) =>
+          Focus({
+            ordinal:
+              Option.map(
+                (o: Annotated.t(int, _)) =>
+                  Annotated.{
+                    term: o.term,
+                    annotation: f(o.annotation),
+                  },
+                ordinal,
+              ),
+            selector: exp(selector),
+            body: proof(body),
+          })
+        | Induction(e, as_name, cases) =>
+          Induction(
+            exp(e),
+            Option.map(pat, as_name),
+            List.map(((p, body)) => (pat(p), proof(body)), cases),
+          )
+        | Forall(x, body) => Forall(pat(x), proof(body))
+        | Funext(x, body) => Funext(pat(x), proof(body))
+        | Assume(e, as_name, body) =>
+          Assume(exp(e), Option.map(pat, as_name), proof(body))
+        | Alias(x, e, body) => Alias(pat(x), exp(e), proof(body))
+        | Generalize(e, body) => Generalize(exp(e), proof(body))
+        | Revert(e, i, body) => Revert(exp(e), inst(i), proof(body))
+        | Contradiction(e, i) => Contradiction(exp(e), inst(i))
+        | Have(e, sub, body) => Have(exp(e), proof(sub), proof(body))
+        },
+      annotation,
     };
   }
 and map_pat_annotation: 'a 'b. ('a => 'b, pat_t('a)) => pat_t('b) =
@@ -379,7 +549,6 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
           Rec(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
         | Poly(tp, t) =>
           Poly(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
-        | ProofOf(e) => ProofOf(map_exp_annotation(f, e))
         | Prod(l) => Prod(List.map(x => map_typ_annotation(f, x), l))
         | Label(l) => Label(l)
         | ExplicitNonlabel => ExplicitNonlabel
@@ -434,6 +603,29 @@ and map_rul_annotation: 'a 'b. ('a => 'b, rul_t('a)) => rul_t('b) =
             List.map(
               ((p, e)) =>
                 (map_pat_annotation(f, p), map_exp_annotation(f, e)),
+              l,
+            ),
+          )
+        },
+      annotation: new_annotation,
+    };
+  }
+and map_prul_annotation: 'a 'b. ('a => 'b, prul_t('a)) => prul_t('b) =
+  (f, e) => {
+    let (term, annotation) = (e.term, e.annotation);
+    let new_annotation = f(annotation);
+    {
+      term:
+        switch (term) {
+        | Invalid(s) => Invalid(s)
+        | MultiHole(l) =>
+          MultiHole(List.map(x => map_any_annotation(f, x), l))
+        | ProofRules(e, l) =>
+          ProofRules(
+            map_exp_annotation(f, e),
+            List.map(
+              ((p, pr)) =>
+                (map_pat_annotation(f, p), map_proof_annotation(f, pr)),
               l,
             ),
           )
@@ -549,6 +741,7 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
   type tpat = tpat_t(DefaultAnnotation.t);
   type typ_provenance = type_provenance(DefaultAnnotation.t);
   type mod_ = mod_t(DefaultAnnotation.t);
+  type proof = proof_t(DefaultAnnotation.t);
 
   let default_annotation = ann =>
     Option.value(~default=DefaultAnnotation.default_value(), ann);
@@ -675,12 +868,8 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Let(p, e1, e2),
       annotation: default_annotation(ann),
     };
-    let theorem = (~ann=?, p, e1, e2): exp_t(DefaultAnnotation.t) => {
-      term: Theorem(p, e1, e2),
-      annotation: default_annotation(ann),
-    };
-    let proof_object = (~ann=?, t): exp_t(DefaultAnnotation.t) => {
-      term: ProofObject(t),
+    let theorem = (~ann=?, p, e1, pf, e2): exp_t(DefaultAnnotation.t) => {
+      term: Theorem(p, e1, pf, e2),
       annotation: default_annotation(ann),
     };
     let forall = (~ann=?, p, e): exp_t(DefaultAnnotation.t) => {
@@ -972,10 +1161,6 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Poly(tp, t),
       annotation: default_annotation(ann),
     };
-    let proof_of = (~ann=?, e): typ_t(DefaultAnnotation.t) => {
-      term: ProofOf(e),
-      annotation: default_annotation(ann),
-    };
     let empty_hole = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
       term: Unknown(Hole(EmptyHole)),
       annotation: default_annotation(ann),
@@ -1012,6 +1197,21 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let rul_rules = (~ann=?, e, l): rul_t(DefaultAnnotation.t) => {
       term: Rules(e, l),
+      annotation: default_annotation(ann),
+    };
+  };
+
+  module PRul = {
+    let prul_invalid = (~ann=?, s): prul_t(DefaultAnnotation.t) => {
+      term: Invalid(s),
+      annotation: default_annotation(ann),
+    };
+    let prul_hole = (~ann=?, l): prul_t(DefaultAnnotation.t) => {
+      term: MultiHole(l),
+      annotation: default_annotation(ann),
+    };
+    let prul_proof_rules = (~ann=?, e, l): prul_t(DefaultAnnotation.t) => {
+      term: ProofRules(e, l),
       annotation: default_annotation(ann),
     };
   };
@@ -1089,6 +1289,102 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let asc = (~ann=?, mp, t): mpat_t(DefaultAnnotation.t) => {
       term: Asc(mp, t),
+      annotation: default_annotation(ann),
+    };
+  };
+
+  module Proof = {
+    let invalid = (~ann=?, s): proof_t(DefaultAnnotation.t) => {
+      term: Invalid(s),
+      annotation: default_annotation(ann),
+    };
+    let empty_hole = (~ann=?, ()): proof_t(DefaultAnnotation.t) => {
+      term: EmptyHole,
+      annotation: default_annotation(ann),
+    };
+    let multi_hole = (~ann=?, l): proof_t(DefaultAnnotation.t) => {
+      term: MultiHole(l),
+      annotation: default_annotation(ann),
+    };
+    let seq = (~ann=?, p1, p2): proof_t(DefaultAnnotation.t) => {
+      term: Seq(p1, p2),
+      annotation: default_annotation(ann),
+    };
+    let axiom_step =
+        (~ann=?, ~direction, ~equality, ~instantiation=None, ())
+        : proof_t(DefaultAnnotation.t) => {
+      term:
+        AxiomStep({
+          direction,
+          equality,
+          instantiation,
+        }),
+      annotation: default_annotation(ann),
+    };
+    let algebrite_step = (~ann=?, e): proof_t(DefaultAnnotation.t) => {
+      term: AlgebriteStep(e),
+      annotation: default_annotation(ann),
+    };
+    let eval_step = (~ann=?, ()): proof_t(DefaultAnnotation.t) => {
+      term: EvalStep,
+      annotation: default_annotation(ann),
+    };
+    let focus =
+        (~ann=?, ~ordinal=None, selector, body): proof_t(DefaultAnnotation.t) => {
+      term:
+        Focus({
+          ordinal:
+            Option.map(
+              n =>
+                Annotated.{
+                  term: n,
+                  annotation: default_annotation(None),
+                },
+              ordinal,
+            ),
+          selector,
+          body,
+        }),
+      annotation: default_annotation(ann),
+    };
+    let induction =
+        (~ann=?, ~as_name=None, e, cases): proof_t(DefaultAnnotation.t) => {
+      term: Induction(e, as_name, cases),
+      annotation: default_annotation(ann),
+    };
+    let forall = (~ann=?, x, body): proof_t(DefaultAnnotation.t) => {
+      term: Forall(x, body),
+      annotation: default_annotation(ann),
+    };
+    let funext = (~ann=?, x, body): proof_t(DefaultAnnotation.t) => {
+      term: Funext(x, body),
+      annotation: default_annotation(ann),
+    };
+    let assume =
+        (~ann=?, ~as_name=None, e, body): proof_t(DefaultAnnotation.t) => {
+      term: Assume(e, as_name, body),
+      annotation: default_annotation(ann),
+    };
+    let alias = (~ann=?, x, e, body): proof_t(DefaultAnnotation.t) => {
+      term: Alias(x, e, body),
+      annotation: default_annotation(ann),
+    };
+    let generalize = (~ann=?, e, body): proof_t(DefaultAnnotation.t) => {
+      term: Generalize(e, body),
+      annotation: default_annotation(ann),
+    };
+    let revert =
+        (~ann=?, ~instantiation=None, e, body): proof_t(DefaultAnnotation.t) => {
+      term: Revert(e, instantiation, body),
+      annotation: default_annotation(ann),
+    };
+    let contradiction =
+        (~ann=?, ~instantiation=None, e): proof_t(DefaultAnnotation.t) => {
+      term: Contradiction(e, instantiation),
+      annotation: default_annotation(ann),
+    };
+    let have = (~ann=?, e, sub, body): proof_t(DefaultAnnotation.t) => {
+      term: Have(e, sub, body),
       annotation: default_annotation(ann),
     };
   };

@@ -327,7 +327,14 @@ module Update = {
         };
       | None => Updated.return_quiet(model)
       }
-    | Editor(pos, ResultAction(UpdateResult(_)) as action) =>
+    | Editor(pos, ResultAction(UpdateResult(_, _)) as action) =>
+      let cell = DerivationExercise.get_stitched(pos, model.cells);
+      let* new_cell = CellEditor.Update.update(~settings, action, cell);
+      {
+        ...model,
+        cells: DerivationExercise.put_stitched(pos, model.cells, new_cell),
+      };
+    | Editor(pos, PatchMainEditor(_) as action) =>
       let cell = DerivationExercise.get_stitched(pos, model.cells);
       let* new_cell = CellEditor.Update.update(~settings, action, cell);
       {
@@ -417,6 +424,15 @@ module Update = {
         stitched_elabs,
       );
 
+    /* A timeout fails every cell, tagged with the generation each had when
+     * this batch was enqueued, so a cell that has re-requested since
+     * ignores it. */
+    let timeout_gens =
+      DerivationExercise.map_stitched(
+        (_, cell: CellEditor.Model.t) =>
+          EvalResult.Model.request_gen(cell.result),
+        cells,
+      );
     EvalRequest.request(
       worker_request^,
       ~pos_of_key=DerivationExercise.pos_of_key,
@@ -427,14 +443,14 @@ module Update = {
         _ =>
           ignore(
             DerivationExercise.map_stitched(
-              (pos, _) =>
+              (pos, gen) =>
                 schedule_action(
                   Editor(
                     pos,
-                    ResultAction(UpdateResult(ResultFail(Timeout))),
+                    ResultAction(UpdateResult(gen, ResultFail(Timeout))),
                   ),
                 ),
-              model.cells,
+              timeout_gens,
             ),
           ),
     );
@@ -990,6 +1006,7 @@ module View = {
           ~caption: option(string)=?,
           ~subcaption: option(string)=?,
           ~result_kind=`NoResults,
+          ~scroll_code=?,
           this_pos: DerivationExercise.pos,
           cell: CellEditor.Model.t,
         ) => {
@@ -1005,6 +1022,7 @@ module View = {
           },
         ~inject=a => inject(Editor(this_pos, a)),
         ~result_kind,
+        ~scroll_code?,
         ~caption=
           switch (caption) {
           | Some(c) => CellCommon.caption(c, ~rest=?subcaption)
@@ -1017,7 +1035,8 @@ module View = {
     let conclusion_view = (~pos, ~editor) =>
       div(
         ~attrs=[Attr.class_("deduction-concl")],
-        [editor_view(pos, editor)],
+        /* a conclusion's cell is as wide as its code */
+        [editor_view(~scroll_code=false, pos, editor)],
       );
 
     let deduction_view = (~children_node, ~pos, ~res, ~rule, ~editor) =>

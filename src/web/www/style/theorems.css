@@ -36,6 +36,64 @@
   animation: jello 1s ease 0s 1 normal none;
 }
 
+.theorem-status.false {
+  background-color: var(--test-fail-active);
+}
+
 .theorem-status.unknown {
   color: var(--light-page-color);
+}
+
+/* Proven, with obligations still open: proven-green pulled toward the
+ * stepper's "incomplete" tan, and no `jello`, as it isn't a clean win. */
+.theorem-status.modulo {
+  background-color: color-mix(
+    in srgb,
+    var(--test-pass) 45%,
+    var(--step-indicator-incomplete)
+  );
+  color: var(--test-percent-text);
+}
+
+.theorem-open-count {
+  height: 1.7em;
+  display: flex;
+  align-items: center;
+  padding: 0 0.8em;
+  font-size: 0.7em;
+  border-radius: 1.08em;
+  border: 1.5px solid var(--border-error);
+  color: var(--text-error-strong);
+  box-sizing: border-box;
+}
+
+.theorem-contracts {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.3em;
+  margin-left: auto;
+}
+
+/* A section's slot runs 22px past its C (stepper.css), which the right
+ * padding leaves room for. */
+.theorem > .theorem-contract-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-top: 0;
+  padding-right: calc(1em + 22px);
+}
+
+/* A theorem the program no longer reaches, drawn as it was last checked
+ * until it is back. */
+.theorem.stale > :not(.theorem-header) {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.theorem-status.stale {
+  background-color: transparent;
+  border: 1px dashed var(--cell-result-text);
+  color: var(--cell-result-text);
 }

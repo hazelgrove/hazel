@@ -1,100 +1,1835 @@
 open Util;
 open Language;
 
+/* The stepper: a proof drawn as a chain of rows, one per step, each
+ * showing the goal the step starts from and the step's justification.
+ * Where a chain is unfinished, its last row holds the write box, where the
+ * user writes the next step.
+ *
+ * The rows are a projection of the proof syntax and the checker's
+ * ProofMap (StepperRows), walked again on every render. A row changes
+ * the proof only by patching its syntax (StepperPicker.Patches); the
+ * next check gives the next rows. The only state is each row's own UI
+ * state: its goal's editor, which holds the selection, and its write
+ * box. */
+
 /* This file follows conventions in [docs/ui-architecture.md] */
+
+module Rows = StepperRows;
+module Picker = StepperPicker;
 
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type tab =
+    | Write
+    | Step
+    | Strategy;
+
+  /* The write box at the end of an unfinished chain. Its text stays while
+   * the row exists, and goes with it. */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type box = {
+    /* None until the user picks a tab: then the stepper's default. */
+    tab: option(tab),
+    editor: CodeEditable.Model.t,
+    /* What Tab takes, for the goal and its selection. */
+    ghost: option(Picker.Ghost.t),
+    /* The search for steps to the typed goal, while the box holds a
+     * complete expression. */
+    search: option(StepSearch.t),
+    /* The rules' uses listed under the box, while it holds text. */
+    suggestions: option(StepSearch.Suggestions.t),
+    /* The listed item chosen with the arrow keys. */
+    chosen: option(int),
+    /* Counts the searches started and the slices run, so that each
+     * render of a running search asks for its next slice once. */
+    generation: int,
+    /* Counts the changes to what the box searches for. */
+    edits: int,
+    /* Whether typing has paused since the last edit. Until it has, a
+     * search that found nothing doesn't say so: the text is likely half
+     * typed. */
+    paused: bool,
+    /* The strategy whose menu is open, by its label. */
+    menu: option(string),
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type local = {
+    goal: Picker.Goal.t,
+    /* For a row where its chain continues. */
+    box: option(box),
+    /* The side conditions shown open, by index into the row's
+     * `StepperRows.side_conditions`. */
+    expanded: list(int),
+    /* The row's step is written but not checked yet, so `goal` is the
+     * goal of the row above, shown until the check gives the row its
+     * own. */
+    checking: bool,
+  };
+
+  /* A write from a row's box, kept until the steps written are checked. */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type write = {
+    /* The goal of the row written from, which the rows of the steps
+     * written show until they are checked. */
+    from: Picker.Goal.t,
+    /* The box where the proof goes on, and the tab it opens on: the tab
+     * written from. That box exists only once the write is reparsed. */
+    next: Rows.key,
+    tab: option(tab),
+  };
+
+  /* A step deleted with steps inside it, which the stepper offers to put
+   * back. */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type deletion = {
+    step: Proof.t,
+    /* The steps it took with it, itself included. */
+    count: int,
+    place,
+  }
+  /* Where it goes back: before or after the step it was chained with, or
+   * in place of the hole it left. */
+  and place =
+    | Before(Id.t)
+    | After(Id.t)
+    | Over(Id.t);
+
+  /* Each row's state, by its key (StepperRows.key). */
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
-    cached_elab_subst: Calc.saved(Exp.t),
-    root: StepperBase.step_model,
+    incoming: Id.Map.t(local),
+    outgoing: Id.Map.t(local),
+    last_write: option(write),
+    deletion: option(deletion),
   };
 
   let init = {
-    cached_elab_subst: Calc.Pending,
-    root: StepperBase.init_step,
+    incoming: Id.Map.empty,
+    outgoing: Id.Map.empty,
+    last_write: None,
+    deletion: None,
   };
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = {root: StepperBase.persistent_step};
-
-  let persist = (model: t): persistent => {
-    root: StepperBase.Stepper.persist(model.root),
-  };
-
-  let unpersist = (p: persistent): t => {
-    {
-      cached_elab_subst: Calc.Pending,
-      root: StepperBase.Stepper.unpersist(p.root),
+  let find = ((id, side): Rows.key, model: t): option(local) =>
+    switch (side) {
+    | Incoming => Id.Map.find_opt(id, model.incoming)
+    | Outgoing => Id.Map.find_opt(id, model.outgoing)
     };
-  };
 
-  let get_validity = (m: t) => StepperBase.Stepper.get_validity(m.root);
+  let add = ((id, side): Rows.key, local: local, model: t): t =>
+    switch (side) {
+    | Incoming => {
+        ...model,
+        incoming: Id.Map.add(id, local, model.incoming),
+      }
+    | Outgoing => {
+        ...model,
+        outgoing: Id.Map.add(id, local, model.outgoing),
+      }
+    };
+
+  /* Whether the box's search or suggestions have work left. */
+  let running = (box: box): bool =>
+    switch (box.search, box.suggestions) {
+    | (Some({status: Searching, _}), _) => true
+    | (_, Some(suggestions)) => !StepSearch.Suggestions.is_done(suggestions)
+    | (_, None) => false
+    };
+
+  /* Whether nothing is typed in the box. */
+  let is_empty = (box: box): bool =>
+    switch (Exp.term_of(CodeEditable.Model.get_statics(box.editor).term)) {
+    | EmptyHole => true
+    | _ => false
+    };
 };
 
+/* A row's actions. The stepper's other kind of action, a patch to the
+ * proof, goes to whoever owns the proof text (`~edit_syntax`). */
 module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = StepperBase.step_action;
+  type action =
+    | Goal(CodeSelectable.Update.t)
+    | Tab(Model.tab)
+    | BoxEditor(CodeEditable.Update.t)
+    /* Runs a slice of the box's search, if it is still the search of
+     * that generation. */
+    | SearchSlice(int)
+    /* Typing has paused since the edit counted, unless another came
+     * after it. */
+    | Paused(int)
+    /* An item listed under the box, by index, or none. */
+    | Choose(option(int))
+    /* Replaces the box's text with a name it completes to. */
+    | Complete(string)
+    | Menu(option(string))
+    | ToggleCondition(int)
+    /* A step was written at the row, and the proof goes on at the box
+     * with this key, which keeps the row's tab. */
+    | Wrote(Rows.key)
+    /* The stepper's own actions, whatever the row. */
+    | Deleted(Model.deletion)
+    | ForgetDeletion;
 
-  let update = (~settings, action, model: Model.t) => {
-    open Updated;
-    let* root = StepperBase.Stepper.update(~settings, action, model.root);
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = (Rows.key, action);
+
+  /* The box's text is an expression in the goal's scope. */
+  let calculate_box = (~settings, goal: Picker.Goal.t, editor) =>
+    CodeEditable.Update.calculate(
+      ~settings,
+      ~is_edited=true,
+      ~is_dynamic_term=true,
+      ~dynamics=Dynamics.Map.empty,
+      ~stitch=x => x,
+      ~ctx=SemanticCtx.get_ctx(goal.ctx),
+      editor,
+    );
+
+  let ghost = (goal: Picker.Goal.t) =>
+    Picker.Ghost.mk(goal, ~selected=Picker.Goal.selected(goal));
+
+  /* The goal typed into the box, or None while it is empty or
+   * incomplete. */
+  let wanted = (editor: CodeEditable.Model.t): option(Exp.t) => {
+    let statics = CodeEditable.Model.get_statics(editor);
+    let rec complete = (e: Exp.t) =>
+      switch (Exp.term_of(e)) {
+      | EmptyHole
+      | MultiHole(_)
+      | Invalid(_) => false
+      | _ => List.for_all(complete, Occurrence.children(e))
+      };
+    statics.error_ids == [] && complete(statics.term)
+      ? Some(statics.elaborated) : None;
+  };
+
+  /* The box's text, if it is a single name. */
+  let typed_name = (editor: CodeEditable.Model.t): option(string) =>
+    switch (Exp.term_of(CodeEditable.Model.get_statics(editor).term)) {
+    | Var(x) => Some(x)
+    | _ => None
+    };
+
+  /* The part of the goal selected, when it is less than all of it. */
+  let selected_part = (goal: Picker.Goal.t): option(Exp.t) =>
+    switch (Picker.Goal.selected(goal)) {
+    | Some(part) when Exp.rep_id(part) != Exp.rep_id(goal.written) =>
+      Some(part)
+    | Some(_)
+    | None => None
+    };
+
+  /* What the box's text asks for against `goal`: a search for it as a
+   * goal and the uses of every rule, or, when it names a rule, that
+   * rule's uses alone. With part of the goal selected, the text is that
+   * part's replacement, and the uses are those inside it. Suggestions
+   * already listed for the same rules and part are kept, unless the goal
+   * is new. */
+  let search =
+      (~new_goal=false, goal: Picker.Goal.t, box: Model.box): Model.box => {
+    let part = selected_part(goal);
+    let wanted =
+      switch (part) {
+      | Some(part) =>
+        Option.map(
+          typed =>
+            Exp.map_term(
+              ~f_exp=
+                (cont, e) =>
+                  Exp.rep_id(e) == Exp.rep_id(part) ? typed : cont(e),
+              goal.written,
+            ),
+          wanted(box.editor),
+        )
+      | None => wanted(box.editor)
+      };
+    let at = Option.map(Exp.rep_id, part);
+    let rule =
+      switch (typed_name(box.editor)) {
+      | Some(name) when List.mem_assoc(name, StepSearch.names(goal)) =>
+        Some(name)
+      | Some(_)
+      | None => None
+      };
     {
-      ...model,
-      root,
+      ...box,
+      search:
+        rule == None
+          ? Option.map(wanted => StepSearch.start(goal, ~wanted), wanted)
+          : None,
+      suggestions:
+        switch (box.suggestions) {
+        | _ when Model.is_empty(box) => None
+        | Some(suggestions)
+            when suggestions.rule == rule && suggestions.at == at && !new_goal =>
+          Some(suggestions)
+        | Some(_)
+        | None => Some(StepSearch.Suggestions.start(~rule, ~at))
+        },
+      chosen: None,
+      generation: box.generation + 1,
+      edits: box.edits + 1,
+      /* An empty box has nothing to hold back. */
+      paused: Model.is_empty(box),
     };
   };
 
+  /* How long a slice of the search may run before the browser gets its
+   * turn. A slice ends only between candidates, so it can run over by
+   * one check. */
+  let slice_ms = 15.;
+
+  let new_box = (~settings, ~checking, goal: Picker.Goal.t): Model.box => {
+    tab: None,
+    editor:
+      CodeEditable.Model.mk(
+        Haz3lcore.Editor.Model.mk(Haz3lcore.Zipper.init(), ~root=Exp),
+      )
+      |> calculate_box(~settings, goal),
+    ghost: checking ? None : ghost(goal),
+    search: None,
+    suggestions: None,
+    chosen: None,
+    generation: 0,
+    edits: 0,
+    paused: true,
+    menu: None,
+  };
+
+  /* A box under a borrowed goal offers nothing: its offers would act on
+   * the wrong goal. */
+  let quiet = (box: Model.box): Model.box => {
+    ...box,
+    ghost: None,
+    search: None,
+    suggestions: None,
+    chosen: None,
+  };
+
+  let update =
+      (~settings: Settings.t, (key, action): t, model: Model.t)
+      : Updated.t(Model.t) =>
+    switch (action, Model.find(key, model)) {
+    | (Deleted(deletion), _) =>
+      {
+        ...model,
+        deletion: Some(deletion),
+      }
+      |> Updated.return_quiet
+    | (ForgetDeletion, _) =>
+      {
+        ...model,
+        deletion: None,
+      }
+      |> Updated.return_quiet
+    | (_, None) => model |> Updated.raise_invalid_action
+    | (_, Some(local)) =>
+      open Updated;
+      let set = (local: Model.local) =>
+        Model.add(
+          key,
+          local.checking
+            ? {
+              ...local,
+              box: Option.map(quiet, local.box),
+            }
+            : local,
+          model,
+        );
+      let set_box = (box: Model.box) =>
+        set({
+          ...local,
+          box: Some(box),
+        });
+      switch (action, local.box) {
+      /* A changed selection changes what Tab takes, and what the box's
+       * text replaces. */
+      | (Goal(a), _) =>
+        let* editor =
+          CodeSelectable.Update.update(~settings, a, local.goal.editor);
+        let goal = {
+          ...local.goal,
+          editor,
+        };
+        let part = goal => Option.map(Exp.rep_id, selected_part(goal));
+        set({
+          ...local,
+          goal,
+          box:
+            Option.map(
+              (box: Model.box) => {
+                let box = {
+                  ...box,
+                  ghost: ghost(goal),
+                };
+                part(goal) == part(local.goal) ? box : search(goal, box);
+              },
+              local.box,
+            ),
+        });
+      /* Step and Proof strategy act on the whole goal, so they drop a
+       * selection made to write a part's replacement. */
+      | (Tab(tab), Some(box)) =>
+        let (goal, box) =
+          switch (tab, selected_part(local.goal)) {
+          | (Step | Strategy, Some(_)) =>
+            let unselected =
+              CodeSelectable.Update.update(
+                ~settings,
+                Unselect(None),
+                local.goal.editor,
+              );
+            let goal = {
+              ...local.goal,
+              editor: unselected.model,
+            };
+            (
+              goal,
+              search(
+                goal,
+                {
+                  ...box,
+                  ghost: ghost(goal),
+                },
+              ),
+            );
+          | (Write | Step | Strategy, _) => (local.goal, box)
+          };
+        set({
+          ...local,
+          goal,
+          box:
+            Some({
+              ...box,
+              tab: Some(tab),
+              menu: None,
+            }),
+        })
+        |> return_quiet(~logged=true);
+      /* A changed text is searched for afresh. */
+      | (BoxEditor(a), Some(box)) =>
+        let* editor = CodeEditable.Update.update(~settings, a, box.editor);
+        let editor =
+          calculate_box(~settings=settings.core, local.goal, editor);
+        let changed =
+          !
+            Exp.fast_equal_with_lexemes(
+              CodeEditable.Model.get_statics(box.editor).term,
+              CodeEditable.Model.get_statics(editor).term,
+            );
+        let box = {
+          ...box,
+          editor,
+        };
+        /* An empty box showing a ghost keeps its caret before the hole,
+         * where the ghost starts. */
+        let box =
+          Model.is_empty(box) && box.ghost != None
+            ? {
+              ...box,
+              editor:
+                CodeEditable.Update.update(
+                  ~settings,
+                  Perform(Move(Start)),
+                  box.editor,
+                ).
+                  model,
+            }
+            : box;
+        set_box(changed ? search(local.goal, box) : box);
+      /* The search first, then the suggestions. */
+      | (SearchSlice(generation), Some(box))
+          when generation == box.generation && Model.running(box) =>
+        let deadline = JsUtil.precise_timestamp() +. slice_ms;
+        let continue_ = () => JsUtil.precise_timestamp() < deadline;
+        set_box({
+          ...box,
+          search:
+            Option.map(
+              (search: StepSearch.t) =>
+                search.status == Searching
+                  ? StepSearch.run(
+                      ~continue_,
+                      ~algebra=RewriteChecker.check_rewrite,
+                      local.goal,
+                      search,
+                    )
+                  : search,
+              box.search,
+            ),
+          suggestions:
+            Option.map(
+              StepSearch.Suggestions.run(~continue_, local.goal),
+              box.suggestions,
+            ),
+          generation: generation + 1,
+        })
+        |> return_quiet;
+      | (SearchSlice(_), _) => model |> return_quiet
+      | (Paused(edits), Some(box)) when edits == box.edits =>
+        set_box({
+          ...box,
+          paused: true,
+        })
+        |> return_quiet
+      | (Paused(_), _) => model |> return_quiet
+      | (Choose(chosen), Some(box)) =>
+        set_box({
+          ...box,
+          chosen,
+        })
+        |> return_quiet(~logged=true)
+      | (Complete(name), Some(box)) =>
+        let editor =
+          Haz3lcore.Parser.to_zipper(~root=Exp, name)
+          |> Option.value(~default=Haz3lcore.Zipper.init())
+          |> Haz3lcore.Editor.Model.mk(~root=Exp)
+          |> CodeEditable.Model.mk
+          |> calculate_box(~settings=settings.core, local.goal);
+        set_box(
+          search(
+            local.goal,
+            {
+              ...box,
+              editor,
+            },
+          ),
+        )
+        |> return(~scroll=IfCaretVisible);
+      | (Menu(menu), Some(box)) =>
+        set_box({
+          ...box,
+          menu,
+        })
+        |> return_quiet(~logged=true)
+      | (ToggleCondition(i), _) =>
+        set({
+          ...local,
+          expanded:
+            List.mem(i, local.expanded)
+              ? List.filter((!=)(i), local.expanded)
+              : [i, ...local.expanded],
+        })
+        |> return_quiet(~logged=true)
+      /* A strategy is an occasional intervention, so the box after it
+       * opens on the stepper's default tab. */
+      | (Wrote(next), _) =>
+        {
+          ...model,
+          deletion: None,
+          last_write:
+            Some({
+              from: local.goal,
+              next,
+              tab:
+                switch (local.box) {
+                | Some({tab: Some((Write | Step) as tab), _}) => Some(tab)
+                | Some({tab: Some(Strategy) | None, _})
+                | None => None
+                },
+            }),
+        }
+        |> return_quiet
+      | (Tab(_) | BoxEditor(_) | Choose(_) | Complete(_) | Menu(_), None) =>
+        model |> raise_invalid_action
+      | (Deleted(_) | ForgetDeletion, _) => model |> return_quiet
+      };
+    };
+
+  /* While a check runs, the rows of steps written since the last check
+   * have no goal. Each borrows the goal and scope of the row above it, or
+   * at the start of a chain those of the row written from, so that the
+   * chain keeps its rows, and its box, until the check lands. */
+  let borrowed =
+      (~written_from: option((Exp.t, SemanticCtx.t)), rows: list(Rows.t))
+      : list((Rows.key, (Exp.t, SemanticCtx.t))) => {
+    let rec chain = (above, rows: list(Rows.t)) =>
+      List.fold_left(
+        ((acc, above), row: Rows.t) => {
+          let (here, acc) =
+            switch (row.goal, Rows.ctx(row), row.entry, above) {
+            | (Some(goal), Some(ctx), _, _) => (Some((goal, ctx)), acc)
+            | (_, _, None, Some(above)) => (
+                Some(above),
+                [(row.key, above), ...acc],
+              )
+            | (_, _, Some(_), _)
+            | (_, _, None, None) => (None, acc)
+            };
+          let nested =
+            switch (row.kind) {
+            | Step(Body(rows))
+            | Step(Focus(rows)) => chain(None, rows)
+            | Step(Cases(cases)) =>
+              List.concat_map(((_, rows)) => chain(None, rows), cases)
+            | Step(Premises({sub, body})) =>
+              chain(None, sub) @ chain(None, body)
+            | Step(Leaf)
+            | Hole
+            | End => []
+            };
+          let below =
+            switch (row.entry) {
+            | Some({outgoing: Some(outgoing), ctx, _}) =>
+              Some((outgoing, ctx))
+            | Some({outgoing: None, _})
+            | None => here
+            };
+          (nested @ acc, below);
+        },
+        ([], above == None ? written_from : above),
+        rows,
+      )
+      |> fst;
+    chain(None, rows);
+  };
+
+  /* The state for `rows`, rebuilt from the walk: a row carries over its
+   * last state, preparing its goal again only if the goal or the settings
+   * changed, and a row the walk doesn't reach is dropped with its state.
+   * A row with no goal has nothing to step, so no state, unless
+   * `checking` says a check will give it one. */
   let calculate =
       (
-        ~settings: Calc.t(CoreSettings.t),
-        ~ctx: Calc.t(SemanticCtx.t),
-        elab: Calc.t(Exp.t),
-        ~ana=Calc.OldValue(Typ.fresh(Unknown(SynSwitch))),
-        {cached_elab_subst, root}: Model.t,
+        ~settings: CoreSettings.t,
+        ~checking=false,
+        rows: list(Rows.t),
+        model: Model.t,
       )
       : Model.t => {
-    let elab_subst =
-      cached_elab_subst
-      |> {
-        open Calc.Syntax;
-        let.calc elab = elab;
-        elab |> Substitution.in_exp(Builtins.env_init) |> Exp.replace_all_ids;
-      };
-    let (root, _, _) =
-      StepperBase.Stepper.calculate(
-        ~settings,
-        ~ctx,
-        ~exp=elab_subst,
-        ~ana,
-        root,
-      );
-    {
-      cached_elab_subst: elab_subst |> Calc.save,
-      root,
-    };
+    let borrowed =
+      checking
+        ? borrowed(
+            ~written_from=
+              Option.map(
+                (w: Model.write) => (w.from.written, w.from.ctx),
+                model.last_write,
+              ),
+            rows,
+          )
+        : [];
+    List.fold_left(
+      (acc, row: Rows.t) => {
+        let source =
+          switch (
+            row.goal,
+            Rows.ctx(row),
+            List.assoc_opt(row.key, borrowed),
+          ) {
+          | (Some(written), Some(ctx), _) => Some((written, ctx, false))
+          | (_, _, Some((written, ctx))) => Some((written, ctx, true))
+          | (_, _, None) => None
+          };
+        switch (source) {
+        | Some((written, ctx, checking)) =>
+          /* A box carries its text over to its row's new goal, and
+           * searches again from it. */
+          let with_goal = (local: Model.local, goal): Model.local => {
+            ...local,
+            goal,
+            checking,
+            box:
+              Option.map(
+                (box: Model.box) => {
+                  let editor = calculate_box(~settings, goal, box.editor);
+                  checking
+                    ? quiet({
+                        ...box,
+                        editor,
+                      })
+                    : search(
+                        ~new_goal=true,
+                        goal,
+                        {
+                          ...box,
+                          editor,
+                          ghost: ghost(goal),
+                        },
+                      );
+                },
+                local.box,
+              ),
+          };
+          let local: Model.local =
+            switch (Model.find(row.key, model)) {
+            | Some(local) when Picker.Goal.is_for(local.goal, ~ctx, written) =>
+              let goal = {
+                ...local.goal,
+                ctx,
+              };
+              switch (
+                CoreSettings.eq_ignoring_stepper_modals(
+                  goal.settings,
+                  settings,
+                ),
+                local.checking == checking,
+              ) {
+              | (true, true) => {
+                  ...local,
+                  goal,
+                }
+              | (true, false) => with_goal(local, goal)
+              | (false, _) =>
+                with_goal(local, Picker.Goal.rebuild(~settings, goal))
+              };
+            | Some(local) =>
+              with_goal(local, Picker.Goal.mk(~settings, ~ctx, written))
+            | None => {
+                /* A borrowed goal is usually the one written from, whose
+                 * preparation can be reused. */
+                goal:
+                  switch (model.last_write) {
+                  | Some({from, _})
+                      when
+                        checking
+                        && Picker.Goal.is_for(from, ~ctx, written)
+                        && CoreSettings.eq_ignoring_stepper_modals(
+                             from.settings,
+                             settings,
+                           ) => {
+                      ...from,
+                      ctx,
+                    }
+                  | Some(_)
+                  | None => Picker.Goal.mk(~settings, ~ctx, written)
+                  },
+                box: None,
+                expanded: [],
+                checking,
+              }
+            };
+          /* A row keeps its key when the steps after it change whether a
+           * step can be written there. */
+          let local =
+            switch (row.continues, local.box) {
+            | (true, None) =>
+              let tab =
+                switch (model.last_write) {
+                | Some({next, tab, _}) when next == row.key => tab
+                | Some(_)
+                | None => None
+                };
+              let box = {
+                ...new_box(~settings, ~checking, local.goal),
+                tab,
+              };
+              {
+                ...local,
+                box: Some(checking ? quiet(box) : box),
+              };
+            | (false, Some(_)) => {
+                ...local,
+                box: None,
+              }
+            | (true, Some(_))
+            | (false, None) => local
+            };
+          Model.add(row.key, local, acc);
+        | None => acc
+        };
+      },
+      {
+        ...Model.init,
+        last_write: checking ? model.last_write : None,
+        deletion: model.deletion,
+      },
+      Rows.all(rows),
+    );
   };
 };
 
 module Focus = {
+  /* Which sub-editor of a step: a form's argument, an induction's
+   * scrutinee, or its i-th case's pattern. */
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = StepperBase.step_focus;
+  type slot =
+    | Arg
+    | Scrut
+    | Pattern(int);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Goal(Rows.key)
+    /* A row's write box. */
+    | Box(Rows.key)
+    /* A sub-editor onto the proof text (SubEditor), by its step's id. Its
+     * caret is the backing editor's, so this only says which one has
+     * focus. */
+    | Splice(Id.t, slot);
+
+  /* The box where the proof goes on once `steps` are written in a chain:
+   * the first hole they leave, or the row after the last of them. The
+   * steps keep their ids through the write's reparse, so the key is known
+   * before that row exists. */
+  let after_write = (steps: list(Proof.t)): option(Rows.key) => {
+    let rec first_hole = (p: Proof.t) =>
+      switch (p.term) {
+      | EmptyHole => Some(p)
+      | _ => List.find_map(first_hole, Proof.children(p))
+      };
+    switch (List.find_map(first_hole, steps), ListUtil.last_opt(steps)) {
+    | (Some(hole), _) => Some((Proof.rep_id(hole), Incoming))
+    | (None, Some(last)) => Some((Proof.rep_id(last), Outgoing))
+    | (None, None) => None
+    };
+  };
 
   open Cursor;
 
   let get_cursor_info =
-      (~inject, ~focus: t, model: Model.t): cursor(Update.t) => {
-    let+ ci =
-      StepperBase.Stepper.get_cursor_info(~inject, ~focus, model.root);
-    ci;
-  };
+      (~inject: Update.t => Ui_effect.t(unit), ~focus: t, model: Model.t)
+      : cursor(Update.t) =>
+    switch (focus) {
+    | Goal(key) =>
+      switch (Model.find(key, model)) {
+      | Some(local) =>
+        let+ ci =
+          CodeSelectable.Selection.get_cursor_info(
+            ~inject=a => inject((key, Goal(a))),
+            ~selection=(),
+            local.goal.editor,
+          );
+        (key, Update.Goal(ci));
+      | None => empty
+      }
+    | Box(key) =>
+      switch (Model.find(key, model)) {
+      | Some({box: Some({editor, _}), _}) =>
+        let+ ci =
+          CodeEditable.Selection.get_cursor_info(
+            ~inject=a => inject((key, BoxEditor(a))),
+            ~selection=(),
+            editor,
+          );
+        (key, Update.BoxEditor(ci));
+      | Some({box: None, _})
+      | None => empty
+      }
+    | Splice(_) => empty
+    };
 };
 
 module View = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  open WebUtil;
+
   type event =
     | MakeActive(Focus.t)
-    | HideStepper;
+    | HideStepper
+    /* Focus leaves the stepper for the editor holding the program. */
+    | ReturnToEditor;
+
+  let code = (~globals: Globals.t, any: Any.t) =>
+    CodeViewable.view_any(
+      ~globals,
+      ~settings=ProofMarkView.code_view_settings(globals.settings.core),
+      any,
+    );
+
+  /* One row's chrome: the goal it starts from, then the step to the next
+   * row. A plain step is the line between the two rows, with its lozenge
+   * (the justification and a delete button) on it. A step with goals of
+   * its own, or with side conditions shown open, opens its line into a
+   * block holding them, with the lozenge on the block's top edge.
+   *
+   * The same syntax always takes the same space, so status never moves the
+   * proof (no scroll jumps). It shows only as a class on the row, which
+   * draws an indicator along the row's right edge (red broken, tan
+   * incomplete, dotted light red blocked), and as a popup above the
+   * justification, hidden until the justification is clicked, holding the
+   * message, any detail and the repair buttons. Both are out of the flow. */
+  module Row = {
+    let view =
+        (
+          ~globals: Globals.t,
+          ~status: Rows.Status.t,
+          /* Off for a row that shows the error of the step above instead
+           * of a goal: hidden rather than removed, so the text stays
+           * aligned. */
+          ~show_equiv: bool,
+          /* The goal is what a form's body has still to prove: drawn
+           * faded, with `≡?`. */
+          ~pending: bool=false,
+          /* The goal is borrowed while the step is checked: drawn faded
+           * if the check takes a while. */
+          ~checking: bool=false,
+          ~delete: option(Ui_effect.t(unit)),
+          /* Detail for the popup, e.g. an induction's missing pattern. */
+          ~popup_extra: list(Node.t)=[],
+          ~repair: list(Node.t)=[],
+          ~editor_view: Node.t,
+          ~justification: Node.t,
+          /* Collapsed side conditions, drawn left of the lozenge. */
+          ~dots: list(Node.t)=[],
+          /* The sections of the step's block, if it has one. */
+          ~block: option(list(Node.t))=None,
+          (),
+        ) => {
+      let (row_classes, popup_body) =
+        switch (status) {
+        | Clean => (["ok"], [])
+        | Pending => (["pending"], [])
+        | Incomplete => (["incomplete"], [])
+        | Broken(mark) => (
+            ["broken"],
+            ProofMarkView.message(~globals, mark) @ popup_extra @ repair,
+          )
+        | Blocked => (
+            ["blocked"],
+            [Node.text("Waiting on the step above.")] @ popup_extra @ repair,
+          )
+        };
+      /* The popup sits inside the focusable wrapper, so a click on a
+       * repair button keeps focus within it (`:focus-within` holds) and
+       * lands before the popup hides. */
+      let justification =
+        switch (popup_body) {
+        | [] => div_c("step-justification-wrap", [justification])
+        | _ =>
+          Node.div(
+            ~attrs=[
+              Attr.classes(["step-justification-wrap", "has-popup"]),
+              Attr.create("tabindex", "0"),
+            ],
+            [div_c("step-error-popup", popup_body), justification],
+          )
+        };
+      let delete_button =
+        switch (delete) {
+        | Some(d) => [
+            Widgets.button(
+              ~clss=["step-delete"],
+              ~tooltip="Delete this step",
+              Icons.trash,
+              _ =>
+              d
+            ),
+          ]
+        | None => []
+        };
+      let transition =
+        div_c("step-transition", dots @ [justification] @ delete_button);
+      let display = transition_in_display =>
+        div_c(
+          "step-display",
+          [
+            Node.div(
+              ~attrs=[
+                Attr.classes(
+                  ["equiv"] @ (show_equiv ? [] : ["equiv-hidden"]),
+                ),
+              ],
+              [Node.text(pending ? "≡?" : "≡")],
+            ),
+            div_c("step-output", [editor_view]),
+          ]
+          @ transition_in_display,
+        );
+      let row_classes =
+        row_classes
+        @ (pending || checking ? ["goal-pending"] : [])
+        @ (checking ? ["checking"] : []);
+      switch (block) {
+      | None => [
+          Node.div(
+            ~attrs=[Attr.classes(["step-border"] @ row_classes)],
+            [display([transition])],
+          ),
+        ]
+      | Some(sections) => [
+          Node.div(
+            ~attrs=[
+              Attr.classes(["step-border", "has-block"] @ row_classes),
+            ],
+            [display([]), div_c("step-block", [transition] @ sections)],
+          ),
+        ]
+      };
+    };
+
+    /* In place of the goal, when the step above broke: the checker passed
+     * its goal through, so printing it again would be noise. */
+    let view_error_above = (~globals: Globals.t, mark: ProofMark.t) =>
+      div_c("step-error-inline", ProofMarkView.message(~globals, mark));
+
+    /* A row drawn for reading only, with no step below it. */
+    let quiet = (~clss, ~equiv, content) =>
+      Node.div(
+        ~attrs=[Attr.classes(["step-border", clss])],
+        [div_c("step-display", [equiv] @ content)],
+      );
+
+    let equiv_hidden = () =>
+      Node.div(
+        ~attrs=[Attr.classes(["equiv", "equiv-hidden"])],
+        [Node.text("≡")],
+      );
+
+    /* The `true` a chain aims at. */
+    let target = (~globals) =>
+      quiet(
+        ~clss="target-step",
+        ~equiv=div_c("equiv", [Node.text("≡?")]),
+        [
+          div_c(
+            "step-output",
+            [code(~globals, Exp(Exp.fresh(Atom(Bool(true)))))],
+          ),
+        ],
+      );
+
+    /* The repairs a broken step offers: removing it, and, for an axiom
+     * that doesn't apply, trying the other direction. */
+    let repairs =
+        (
+          ~edit_syntax: Picker.Patches.patch => Ui_effect.t(unit),
+          ~info_map: Statics.Map.t,
+          ~proof_map: ProofMap.t,
+          status: Rows.Status.t,
+          step: Proof.t,
+        )
+        : list(Node.t) => {
+      let button = (~tooltip, label, patch) =>
+        Widgets.button(~clss=["proof-button"], ~tooltip, Node.text(label), _ =>
+          edit_syntax(patch)
+        );
+      switch (status) {
+      | Broken(mark) =>
+        let flip =
+          switch (mark) {
+          | RuleDoesNotApply(_) =>
+            Picker.Patches.flip_direction(~info_map, ~proof_map, step)
+            |> Option.map(
+                 button(
+                   ~tooltip="Apply the equality in the other direction",
+                   "Try other direction",
+                 ),
+               )
+            |> Option.to_list
+          | _ => []
+          };
+        flip
+        @ [
+          button(
+            ~tooltip="Replace this step with a hole",
+            "Remove step",
+            Picker.Patches.remove(step),
+          ),
+        ];
+      | Clean
+      | Incomplete
+      | Blocked
+      | Pending => []
+      };
+    };
+  };
+
+  /* A side condition: a circle on a line, which opens into a section
+   * holding a read-only stepper from its goal to `true`. A closed one
+   * shows how the checker closed it; a pending one's `?` row holds the
+   * exits that discharge it. A step's circles sit on its line, a
+   * theorem's contracts' on its header. */
+  module Condition = {
+    /* The circle's icon and the section's label. */
+    let kind = (kind: Obligation.kind): (string, string) =>
+      switch (kind) {
+      | Definedness => ("÷", "definedness")
+      | Contract => ("ƒ", "contract")
+      | Premise => ("⇒", "premise")
+      | Assumption => ("⊢", "assumption")
+      };
+
+    let dot = (~toggle: Ui_effect.t(unit), ob: Obligation.t) => {
+      let (icon, label) = kind(ob.kind);
+      let unproven = Obligation.is_pending(ob);
+      Node.div(
+        ~attrs=[
+          Attr.classes(["condition-dot"] @ (unproven ? ["unproven"] : [])),
+          Attr.title(
+            "Side condition, "
+            ++ label
+            ++ (unproven ? ", unproven" : "")
+            ++ ". Click to show it.",
+          ),
+          Attr.on_click(_ => toggle),
+        ],
+        [Node.text(icon)],
+      );
+    };
+
+    let view =
+        (
+          ~globals: Globals.t,
+          ~edit_syntax: Picker.Patches.patch => Ui_effect.t(unit),
+          ~exits: list(Obligations.Exits.t),
+          ~toggle: Ui_effect.t(unit),
+          ob: Obligation.t,
+        ) => {
+      let (_, label) = kind(ob.kind);
+      let code = code(~globals);
+      let goal = ob.goal;
+      let truth = Exp.fresh(Atom(Bool(true)));
+      /* Closed by evaluating it or citing a fact, so the step acts on all
+       * of the goal. */
+      let closed = justification =>
+        Row.view(
+          ~globals,
+          ~status=Clean,
+          ~show_equiv=true,
+          ~delete=None,
+          ~editor_view=div_c("step-acts-on-whole", [code(Exp(goal))]),
+          ~justification=Node.text(justification),
+          (),
+        )
+        @ [
+          Row.quiet(
+            ~clss="condition-closed",
+            ~equiv=div_c("equiv", [Node.text("≡")]),
+            [div_c("step-output", [code(Exp(truth))])],
+          ),
+        ];
+      let exit = (e: Obligations.Exits.t) =>
+        Node.button(
+          ~attrs=
+            (
+              switch (e.patch) {
+              | Some(patch) => [
+                  Attr.classes(["condition-exit"]),
+                  Attr.on_click(_ => edit_syntax(patch)),
+                ]
+              | None => [
+                  Attr.classes(["condition-exit", "disabled"]),
+                  Attr.disabled,
+                ]
+              }
+            )
+            @ [Attr.title(e.title)],
+          [Node.text(e.label)],
+        );
+      let rows =
+        switch (ob.discharge, Obligation.remote_fact(ob)) {
+        | (Remote(_), Some((name, _))) => closed(name)
+        | (Remote(_), None) => closed("a fact in scope")
+        | (Evaluated, _) => closed("by evaluation")
+        /* TODO: a `?` here holds a write box once a side condition can be
+         * proved in place (`with <condition> by <proof>`). */
+        | (Pending, _) => [
+            Row.quiet(
+              ~clss="condition-goal",
+              ~equiv=div_c("equiv", [Node.text("≡")]),
+              [div_c("step-output", [code(Exp(goal))])],
+            ),
+            Row.quiet(
+              ~clss="condition-missing",
+              ~equiv=Row.equiv_hidden(),
+              [
+                div_c("step-unknown", [Node.text("?")]),
+                switch (exits) {
+                | [] =>
+                  div_c("condition-hint", [Node.text("Not proven yet.")])
+                | _ => div_c("condition-exits", List.map(exit, exits))
+                },
+              ],
+            ),
+            Row.target(~globals),
+          ]
+        };
+      div_c(
+        "step-section condition",
+        [
+          Node.div(
+            ~attrs=[
+              Attr.classes(["step-section-bar"]),
+              Attr.title("Click to collapse"),
+              Attr.on_click(_ => toggle),
+            ],
+            [Node.text(label)],
+          ),
+          div_c("step-slot", [div_c("stepper cell-result", rows)]),
+        ],
+      );
+    };
+  };
+
+  /* Runs the write box's search a slice at a time. Each render of a new
+   * generation of a running search asks for one more slice, after the
+   * browser has had its turn, so typing never waits on the search. A new
+   * search waits a moment first, in case the user is still typing. */
+  module SearchSlices = {
+    module Spec = {
+      module State = Unit;
+      module Input = {
+        type t = {
+          generation: int,
+          fresh: bool,
+          slice: Ui_effect.t(unit),
+        };
+        let sexp_of_t = (input: t) =>
+          Sexplib0.Sexp.Atom(string_of_int(input.generation));
+        let combine = (_, latest) => latest;
+      };
+      let ask = (input: Input.t) =>
+        JsUtil.delay(input.fresh ? 150. : 0., () =>
+          Virtual_dom.Vdom.Effect.Expert.handle_non_dom_event_exn(input.slice)
+        );
+      let init = (_, _) => ();
+      let on_mount = (input, (), _) => ask(input);
+      let update = (~old_input: Input.t, ~new_input: Input.t, (), _) =>
+        if (old_input.generation != new_input.generation) {
+          ask(new_input);
+        };
+      let destroy = (_, (), _) => ();
+    };
+    include Virtual_dom.Vdom.Attr.Hooks.Make(Spec);
+  };
+
+  /* Tells the box when typing has paused: 500 ms after its last edit. */
+  module Pause = {
+    module Spec = {
+      module State = Unit;
+      module Input = {
+        type t = {
+          edits: int,
+          paused: Ui_effect.t(unit),
+        };
+        let sexp_of_t = (input: t) =>
+          Sexplib0.Sexp.Atom(string_of_int(input.edits));
+        let combine = (_, latest) => latest;
+      };
+      let wait = (input: Input.t) =>
+        JsUtil.delay(500., () =>
+          Virtual_dom.Vdom.Effect.Expert.handle_non_dom_event_exn(
+            input.paused,
+          )
+        );
+      let init = (_, _) => ();
+      let on_mount = (input, (), _) => wait(input);
+      let update = (~old_input: Input.t, ~new_input: Input.t, (), _) =>
+        if (old_input.edits != new_input.edits) {
+          wait(new_input);
+        };
+      let destroy = (_, (), _) => ();
+    };
+    include Virtual_dom.Vdom.Attr.Hooks.Make(Spec);
+  };
+
+  /* Gives the focused box DOM focus when it is drawn or starts showing its
+   * editor, unless DOM focus is already there. A write moves focus to a
+   * box drawn only after the write's reparse, under a new key, which
+   * nothing else would focus. */
+  module DomFocus = {
+    module Spec = {
+      module State = Unit;
+      module Input = {
+        type t = {
+          focused: bool,
+          key: Rows.key,
+          /* Whether the box shows its editor, which takes focus from the
+           * box when it appears. */
+          editing: bool,
+        };
+        let sexp_of_t = (input: t) =>
+          Sexplib0.Sexp.Atom(
+            Id.to_string(fst(input.key))
+            ++ string_of_bool(input.focused)
+            ++ string_of_bool(input.editing),
+          );
+        let combine = (_, latest) => latest;
+      };
+      let take = (elem: Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element)) =>
+        JsUtil.delay(
+          0.,
+          () => {
+            open Js_of_ocaml;
+            /* The Step tab has no editor, so the box itself takes focus. */
+            let target =
+              Js.Opt.get(elem##querySelector(Js.string(".code-editor")), () =>
+                elem
+              );
+            let inside =
+              switch (Js.Opt.to_option(Dom_html.document##.activeElement)) {
+              | Some(active) =>
+                Js.to_bool(
+                  Js.Unsafe.meth_call(
+                    target,
+                    "contains",
+                    [|Js.Unsafe.inject(active)|],
+                  ),
+                )
+              | None => false
+              };
+            if (!inside) {
+              Js.Unsafe.meth_call(
+                target,
+                "focus",
+                [|
+                  Js.Unsafe.obj([|
+                    ("preventScroll", Js.Unsafe.inject(Js._true)),
+                  |]),
+                |],
+              );
+            };
+          },
+        );
+      let init = (_, _) => ();
+      let on_mount = (input: Input.t, (), elem) =>
+        if (input.focused) {
+          take(elem);
+        };
+      let update = (~old_input: Input.t, ~new_input: Input.t, (), elem) =>
+        if (new_input.focused
+            && (
+              !old_input.focused
+              || old_input.key != new_input.key
+              || old_input.editing != new_input.editing
+            )) {
+          take(elem);
+        };
+      let destroy = (_, (), _) => ();
+    };
+    include Virtual_dom.Vdom.Attr.Hooks.Make(Spec);
+  };
+
+  /* The write box, under the goal of an unfinished chain, with its tabs
+   * above it. */
+  module Box = {
+    let label = (tab: Model.tab) =>
+      switch (tab) {
+      | Write => "Write"
+      | Step => "Step"
+      | Strategy => "Strategy"
+      };
+
+    /* The tab the user picked, or the stepper's default, its first. */
+    let current = (~tabs: list(Model.tab), box: Model.box): Model.tab =>
+      switch (box.tab, tabs) {
+      | (Some(tab), _) when List.mem(tab, tabs) => tab
+      | (_, [first, ..._]) => first
+      | (_, []) => Write
+      };
+
+    /* What the box lists, at most eight, and which is highlighted: the
+     * one chosen with the arrows, or else the first completion, the first
+     * use of a rule named in full, or the use that gives the typed goal. */
+    let listing =
+        (goal: Picker.Goal.t, box: Model.box)
+        : (list(StepSearch.item), option(int)) => {
+      let items =
+        StepSearch.items(
+          goal,
+          ~typed_name=Update.typed_name(box.editor),
+          box.suggestions,
+        )
+        |> ListUtil.take(8);
+      let gives_typed = (item: StepSearch.item) =>
+        switch (item, box.search) {
+        | (Use(use), Some(search)) =>
+          StepSearch.reaches(
+            goal,
+            StepSearch.comparable(use.result),
+            search.wanted,
+          )
+        | _ => false
+        };
+      let named =
+        switch (items, box.suggestions) {
+        | ([Complete(_), ..._], _)
+        | ([_, ..._], Some({rule: Some(_), _})) => Some(0)
+        | _ => List.find_index(gives_typed, items)
+        };
+      (
+        items,
+        switch (box.chosen) {
+        | Some(i) when i < List.length(items) => Some(i)
+        | Some(_)
+        | None => named
+        },
+      );
+    };
+
+    /* The first and last columns of the goal's selected part, on its
+     * first line. */
+    let columns = (goal: Picker.Goal.t): option((int, int)) => {
+      open OptUtil.Syntax;
+      let editor = goal.editor.editor;
+      let measured = Haz3lcore.CachedSyntax.measured(editor.syntax);
+      let segment = editor.state.zipper.selection.content;
+      let* first = ListUtil.hd_opt(segment);
+      let+ last = ListUtil.last_opt(segment);
+      let start =
+        Haz3lcore.Measured.find_p(~msg="Box.columns", first, measured).origin;
+      let end_ =
+        Haz3lcore.Measured.find_p(~msg="Box.columns", last, measured).last;
+      (start.col, end_.row == start.row ? end_.col : start.col + 1);
+    };
+
+    /* A use's step, as written: `rewrite name` or `rewrite <- name`. */
+    let rule_label = (step: Proof.t) =>
+      switch (Rows.single_step(step) |> Option.value(~default=step)) {
+      | {term: AxiomStep({direction, equality, _}), _} =>
+        (direction == Left ? "rewrite <- " : "rewrite ")
+        ++ (ProofSyntax.exp_to_name(equality) |> Option.value(~default=""))
+      | _ => ""
+      };
+
+    /* What the box's search says: still looking until it has finished
+     * and typing has paused, so a half-typed goal never shows red. */
+    let verdict = (box: Model.box): option(StepSearch.status) =>
+      switch (box.search) {
+      | Some({status: NotFound, _}) when !box.paused => Some(Searching)
+      | Some({status, _}) => Some(status)
+      | None => None
+      };
+
+    let keycap = name => div_c("box-key", [Node.text(name)]);
+
+    /* A key with no modifiers held. */
+    let plain = (name, key: Key.t) =>
+      switch (key) {
+      | {key: D(k), shift: Up, meta: Up, ctrl: Up, alt: Up, _} => k == name
+      | _ => false
+      };
+
+    let view =
+        (
+          ~globals: Globals.t,
+          ~key: Rows.key,
+          /* The first is the stepper's default. */
+          ~tabs: list(Model.tab),
+          ~inject: Update.action => Ui_effect.t(unit),
+          ~write: Picker.pick => Ui_effect.t(unit),
+          /* Writes the steps the search found, one row each. */
+          ~write_steps: list(Proof.t) => Ui_effect.t(unit),
+          ~take_focus: Ui_effect.t(unit),
+          ~focused: bool,
+          /* Escape takes focus out of the box. */
+          ~escape: Ui_effect.t(unit),
+          /* Controls for the hole the box writes in place of. */
+          ~hole_actions: list(Node.t),
+          /* The columns of the goal's selected part, when the box writes
+           * its replacement: the box moves right of it, with an arrow
+           * from it. */
+          ~replacing: option((int, int)),
+          box: Model.box,
+          goal: Picker.Goal.t,
+        )
+        : Node.t => {
+      let tab = current(~tabs, box);
+      let code = (e: Exp.t) => code(~globals, Exp(e));
+      let tab_bar =
+        div_c(
+          "box-tabs",
+          List.map(
+            t =>
+              Node.div(
+                ~attrs=[
+                  Attr.classes(["box-tab"] @ (t == tab ? ["on"] : [])),
+                  Attr.on_click(_ => inject(Tab(t))),
+                ],
+                [Node.text(label(t))],
+              ),
+            tabs,
+          )
+          @ [div_c("box-hole-actions", hole_actions)],
+        );
+      let input = () => {
+        let empty = Model.is_empty(box);
+        let ghost = empty ? box.ghost : None;
+        let found =
+          switch (box.search) {
+          | Some({status: Found([_, ..._] as steps), _}) => Some(steps)
+          | Some({status: Found([]) | Searching | NotFound, _})
+          | None => None
+          };
+        let (items, highlighted) = listing(goal, box);
+        let take = (item: StepSearch.item) =>
+          switch (item) {
+          | Complete(name) => inject(Complete(name))
+          | Use(use) => write_steps([use.step])
+          };
+        let highlighted_item =
+          Option.bind(highlighted, i => List.nth_opt(items, i));
+        let count = List.length(items);
+        let keys = (key: Key.t) =>
+          switch (ghost, highlighted_item, found) {
+          | (Some(ghost), _, _) when plain("Tab", key) =>
+            Some(write(ghost.pick))
+          | (_, Some(Complete(name)), _) when plain("Tab", key) =>
+            Some(inject(Complete(name)))
+          | (_, Some(item), _) when plain("Tab", key) => Some(take(item))
+          /* Tab never leaves the box, so that pressing it again while the
+           * proof is rechecked doesn't walk into the page. */
+          | _ when plain("Tab", key) => Some(Ui_effect.Ignore)
+          | _ when plain("Escape", key) => Some(escape)
+          /* The arrows choose among the items, and so don't move between
+           * the box's lines while there are any. */
+          | _ when plain("ArrowDown", key) && count > 0 =>
+            let next = Option.fold(~none=0, ~some=i => i + 1, highlighted);
+            Some(inject(Choose(Some(min(next, count - 1)))));
+          | _ when plain("ArrowUp", key) && count > 0 =>
+            Some(
+              inject(
+                Choose(
+                  switch (highlighted) {
+                  | Some(i) when i > 0 => Some(i - 1)
+                  | Some(_)
+                  | None => None
+                  },
+                ),
+              ),
+            )
+          | (_, Some(item), _) when plain("Enter", key) =>
+            Some(take(item))
+          | (_, None, Some(steps)) when plain("Enter", key) =>
+            Some(write_steps(steps))
+          /* With nothing found, Enter does nothing. Shift+Enter still
+           * breaks the line. */
+          | _ when plain("Enter", key) => Some(Ui_effect.Ignore)
+          | _ => None
+          };
+        let editor =
+          CodeEditable.View.view(
+            ~globals,
+            ~signal=
+              fun
+              | MakeActive => take_focus,
+            ~edit_mode=
+              EditMode.Editable({
+                inject: a => inject(BoxEditor(a)),
+                escape: _ => Ui_effect.Ignore,
+                take_focus: _ => Ui_effect.Ignore,
+                focus: focused ? Some() : None,
+              }),
+            ~dynamics=Dynamics.Map.empty,
+            ~keys,
+            box.editor,
+          );
+        let named =
+          switch (Update.typed_name(box.editor)) {
+          | Some(name) =>
+            List.assoc_opt(name, StepSearch.names(goal))
+            |> Option.map(kind =>
+                 switch (kind) {
+                 | `Scope => "a fact in scope"
+                 | `Axiom => "an axiom"
+                 }
+               )
+          | None => None
+          };
+        let (ghost, hint) =
+          switch (ghost, named, verdict(box)) {
+          | (Some(g), _, _) => (
+              [div_c("box-ghost", [code(g.result)])],
+              [keycap("Tab"), Node.text(g.rule)],
+            )
+          | (None, Some(kind), _) => ([], [Node.text(kind)])
+          | (None, None, Some(Found([_, ..._]))) => (
+              [],
+              [keycap("Enter")],
+            )
+          | (None, None, Some(NotFound)) => (
+              [],
+              [
+                keycap("Enter"),
+                div_c(
+                  "box-hint-none",
+                  [Node.text("nothing proves this step")],
+                ),
+              ],
+            )
+          | (None, None, Some(Found([]))) => (
+              [],
+              [Node.text("the goal already")],
+            )
+          | (None, None, Some(Searching) | None) => ([], [])
+          };
+        let slices =
+          Model.running(box)
+            ? Attr.create_hook(
+                "write-box-search",
+                SearchSlices.create({
+                  generation: box.generation,
+                  fresh:
+                    switch (box.search) {
+                    | Some(search) =>
+                      search.checks == 0 && search.expanding == None
+                    | None => false
+                    },
+                  slice: inject(SearchSlice(box.generation)),
+                }),
+              )
+            : Attr.empty;
+        let item = (i, item: StepSearch.item) =>
+          Node.div(
+            ~attrs=[
+              Attr.classes(
+                ["box-item"] @ (highlighted == Some(i) ? ["on"] : []),
+              ),
+              Attr.on_click(_ => Ui_effect.Many([take_focus, take(item)])),
+            ],
+            switch (item) {
+            | Complete(name) => [
+                code(Exp.fresh(Var(name))),
+                div_c(
+                  "box-item-note",
+                  [
+                    Node.text(
+                      switch (List.assoc_opt(name, StepSearch.names(goal))) {
+                      | Some(`Axiom) => "axiom"
+                      | Some(`Scope)
+                      | None => "in scope"
+                      },
+                    ),
+                  ],
+                ),
+              ]
+            | Use(use) => [
+                code(use.result),
+                div_c("box-item-rule", [Node.text(rule_label(use.step))]),
+              ]
+            },
+          );
+        [
+          Node.div(
+            ~attrs=[
+              Attr.classes(["box-input"]),
+              slices,
+              box.paused
+                ? Attr.empty
+                : Attr.create_hook(
+                    "write-box-pause",
+                    Pause.create({
+                      edits: box.edits,
+                      paused: inject(Paused(box.edits)),
+                    }),
+                  ),
+            ],
+            [
+              Node.div(
+                ~attrs=[
+                  Attr.classes(["box-editor"] @ (empty ? ["empty"] : [])),
+                ],
+                [editor] @ ghost,
+              ),
+              div_c("box-hint", hint),
+            ],
+          ),
+        ]
+        @ (items == [] ? [] : [div_c("box-items", List.mapi(item, items))]);
+      };
+      let strategies = () => {
+        let button = (~clss=[], ~tooltip, contents, effect) =>
+          Node.div(
+            ~attrs=[
+              Attr.classes(["strategy-button"] @ clss),
+              Attr.title(tooltip),
+              Attr.on_click(_ => effect),
+            ],
+            contents,
+          );
+        /* A strategy is an occasional intervention: after one, the box
+         * goes back to writing steps. */
+        let write_whole = term =>
+          Ui_effect.Many([
+            inject(Tab(Write)),
+            write({
+              at: None,
+              step: Proof.fresh(term),
+            }),
+          ]);
+        let strategy = (~intro, s: Picker.Strategies.strategy) =>
+          switch (s.writes) {
+          | Writes(term) =>
+            button(
+              ~clss=intro ? ["intro"] : [],
+              ~tooltip=s.tooltip,
+              [Node.text(s.label)]
+              @ (
+                switch (s.argument) {
+                | Some(e) => [div_c("strategy-argument", [code(e)])]
+                | None => []
+                }
+              ),
+              write_whole(term),
+            )
+          | Chooses(choices) =>
+            let is_open = box.menu == Some(s.label);
+            let choice = (c: Picker.Strategies.choice) =>
+              Node.div(
+                ~attrs=[
+                  Attr.classes(["strategy-choice"]),
+                  Attr.on_click(_ => write_whole(c.term)),
+                ],
+                [
+                  switch (Exp.term_of(c.label)) {
+                  | EmptyHole =>
+                    div_c("strategy-hole", [Node.text("? to fill in")])
+                  | _ => code(c.label)
+                  },
+                ],
+              );
+            div_c(
+              "strategy-chooser",
+              [
+                button(
+                  ~clss=is_open ? ["open"] : [],
+                  ~tooltip=s.tooltip,
+                  [
+                    Node.text(s.label),
+                    div_c("strategy-caret", [Node.text("▾")]),
+                  ],
+                  inject(Menu(is_open ? None : Some(s.label))),
+                ),
+              ]
+              @ (
+                is_open
+                  ? [div_c("strategy-menu", List.map(choice, choices))] : []
+              ),
+            );
+          };
+        let intros = Picker.Strategies.intros(goal);
+        div_c(
+          "strategy-buttons",
+          List.map(strategy(~intro=true), intros)
+          @ (intros == [] ? [] : [div_c("strategy-separator", [])])
+          @ List.map(
+              strategy(~intro=false),
+              Picker.Strategies.general(goal),
+            ),
+        );
+      };
+      /* In pixels from the goal's first column, which the box's text
+       * lines up with. The arrow starts just under the goal and ends at
+       * the middle of the box's input, 55px further down. */
+      let (shift, arrow) =
+        switch (replacing) {
+        | Some((left, right)) =>
+          let col = c => float_of_int(c) *. globals.font_metrics.col_width;
+          let start = (col(left) +. col(right)) /. 2.;
+          let end_ = col(right) +. 10.;
+          let path =
+            Printf.sprintf(
+              "M %.1f 0 C %.1f 45, %.1f 55, %.1f 55 M %.1f 50 L %.1f 55 L %.1f 60",
+              start,
+              start,
+              start +. 10.,
+              end_,
+              end_ -. 6.,
+              end_,
+              end_ -. 6.,
+            );
+          (
+            [
+              Attr.create(
+                "style",
+                Printf.sprintf("--shift: %.1fpx", end_ +. 4.),
+              ),
+            ],
+            [
+              Node.create_svg(
+                "svg",
+                ~attrs=[
+                  Attr.classes(["write-arrow"]),
+                  Attr.create("width", Printf.sprintf("%.0f", end_ +. 2.)),
+                  Attr.create("height", "62"),
+                ],
+                [
+                  Node.create_svg(
+                    "path",
+                    ~attrs=[Attr.create("d", path)],
+                    [],
+                  ),
+                ],
+              ),
+            ],
+          );
+        | None => ([], [])
+        };
+      /* Keys the box's editor doesn't get: one that arrives before the
+       * click into the box has made it the focused editor, and any on the
+       * Step tab, which has no editor. Typing there switches to Write. */
+      let outer_keys =
+        focused && tab != Step
+          ? Attr.empty
+          : Key.listener(~f=key =>
+              switch (key) {
+              | {key: D(text), meta: Up, ctrl: Up, alt: Up, _}
+                  when String.length(text) == 1 =>
+                Ui_effect.Many([
+                  Virtual_dom.Vdom.Effect.Prevent_default,
+                  Virtual_dom.Vdom.Effect.Stop_propagation,
+                  inject(Tab(Write)),
+                  take_focus,
+                  inject(BoxEditor(Perform(Insert(text)))),
+                ])
+              | _ when focused && plain("Escape", key) => escape
+              | _ when focused && plain("Tab", key) => Virtual_dom.Vdom.Effect.Prevent_default
+              | _ => Ui_effect.Ignore
+              }
+            );
+      Node.div(
+        ~attrs=
+          [
+            Attr.classes(
+              ["write-box"] @ (replacing == None ? [] : ["replacing"]),
+            ),
+            outer_keys,
+            Attr.create_hook(
+              "write-box-focus",
+              DomFocus.create({
+                focused,
+                key,
+                editing: tab == Write,
+              }),
+            ),
+            ...shift,
+          ]
+          @ (tab == Step ? [Attr.tabindex(-1)] : []),
+        arrow
+        @ [
+          tab_bar,
+          div_c(
+            "box-body",
+            switch (tab) {
+            | Write => input()
+            | Step => []
+            | Strategy => [strategies()]
+            },
+          ),
+        ],
+      );
+    };
+  };
+
+  /* The row's justification: the step's keyword, or the cited equality's
+   * name. A one-step focus is drawn as its step. */
+  let rec justification = (step: Proof.t): string =>
+    switch (step.term) {
+    | AxiomStep({equality, direction, _}) =>
+      (direction == Left ? "← " : "")
+      ++ (ProofSyntax.exp_to_name(equality) |> Option.value(~default=""))
+    | AlgebriteStep(_) => "algebra"
+    | EvalStep => "step"
+    | Focus(_) =>
+      Rows.single_step(step)
+      |> Option.fold(~none="focus", ~some=justification)
+    | Contradiction(_) => "contradiction"
+    | Forall(_) => "forall"
+    | Funext(_) => "extensionality"
+    | Assume(_) => "assume"
+    | Revert(_) => "revert"
+    | Generalize(_) => "generalize"
+    | Have(_) => "have"
+    | Alias(_) => "alias"
+    | Induction(_) => "induction"
+    | EmptyHole
+    | Invalid(_)
+    | MultiHole(_)
+    | Seq(_)
+    | Parens(_) => ""
+    };
 
   let view =
       (
@@ -102,9 +1837,790 @@ module View = {
         ~signal: event => Ui_effect.t(unit),
         ~inject: Update.t => Ui_effect.t(unit),
         ~selected: option(Focus.t),
-        ~is_toplevel=true,
+        ~is_toplevel: bool,
+        /* Writes a patch into the proof text. */
+        ~edit_syntax: Picker.Patches.patch => Ui_effect.t(unit),
+        /* Extra controls for a hole that ends its chain, drawn beside the
+         * write box's tabs. */
+        ~hole_actions: Proof.t => list(Node.t)=_ => [],
+        /* The editor holding the proof text, which the sub-editors splice
+         * into. */
+        ~backing: CodeEditable.Channel.t,
+        /* The statics of the proof text. */
+        ~info_map: Statics.Map.t,
+        ~proof_map: ProofMap.t,
+        /* What a pending side condition offers to discharge it. */
+        ~exits: Obligation.t => list(Obligations.Exits.t),
+        proof: Proof.t,
         model: Model.t,
-      ) => {
+      )
+      : list(Node.t) => {
+    let take_focus = f => signal(MakeActive(f));
+    let focused = f => selected == Some(f);
+    let code = code(~globals);
+    /* The steps written for `steps` at `row`: bridged to the step after a
+     * hole, with each focus's selector generalized. */
+    let final_steps = (row: Rows.t, steps: list(Proof.t)) =>
+      switch (Model.find(row.key, model)) {
+      | Some(local) =>
+        StepSearch.Bridge.steps(
+          ~algebra=RewriteChecker.check_rewrite,
+          ~proof,
+          local.goal,
+          row,
+          steps,
+        )
+        |> StepSearch.generalized(local.goal)
+      | None => steps
+      };
+    /* Writes `steps` after `row`'s goal with `patch`, forcing the record
+     * open, or the rows just written would not be on screen. Focus goes
+     * to the box where the proof goes on, with the tab of the box written
+     * from, so that the next step is written the same way. */
+    let write_patch = (row: Rows.t, steps: list(Proof.t), patch) => {
+      let next = Focus.after_write(steps);
+      let carry =
+        switch (next) {
+        | Some(next) => [inject((row.key, Wrote(next)))]
+        | None => []
+        };
+      let focus =
+        switch (next) {
+        | Some(next) => [take_focus(Box(next))]
+        | None => []
+        };
+      Ui_effect.Many(
+        [globals.inject_global(Set(Evaluation(ForceShowRecord)))]
+        @ carry
+        @ [edit_syntax(patch)]
+        @ focus,
+      );
+    };
+    /* A form with an argument to fill in takes the caret into it instead of
+     * the box: the backing editor's caret moves into the new argument (a
+     * sub-editor takes no edits, and draws no caret, while the caret is
+     * outside it), the new step's sub-editor takes focus, and DOM focus
+     * follows after the render, as the click left it on the button. */
+    let write = (row: Rows.t, pick: Picker.pick) => {
+      let step = pick.step;
+      let steps = final_steps(row, [Picker.focused(pick)]);
+      let into = (patch, id, slot: Focus.slot) =>
+        Ui_effect.Many([
+          globals.inject_global(Set(Evaluation(ForceShowRecord))),
+          edit_syntax(patch),
+          backing.inject(Perform(Move(Goal(TileId(id))))),
+          take_focus(Splice(Proof.rep_id(step), slot)),
+          Ui_effect.of_sync_fun(
+            () => Haz3lcore.FocusEffect.schedule_cell(),
+            (),
+          ),
+        ]);
+      switch (
+        Picker.write_steps(row, steps),
+        pick.at,
+        Picker.Terms.arg_id(step.term),
+        step.term,
+      ) {
+      | (None, _, _, _) => Ui_effect.Ignore
+      | (Some(patch), None, Some(arg_id), _) => into(patch, arg_id, Arg)
+      /* An induction on a scrutinee still to fill in has no case, and so
+       * no box, yet. */
+      | (
+          Some(patch),
+          None,
+          None,
+          Induction({term: EmptyHole, _} as scrut, _, []),
+        ) =>
+        into(patch, Exp.rep_id(scrut), Scrut)
+      | (Some(patch), None, None, _)
+      | (Some(patch), Some(_), _, _) => write_patch(row, steps, patch)
+      };
+    };
+    let write_steps = (row: Rows.t, steps: list(Proof.t)) => {
+      let steps = final_steps(row, steps);
+      switch (Picker.write_steps(row, steps)) {
+      | Some(patch) => write_patch(row, steps, patch)
+      | None => Ui_effect.Ignore
+      };
+    };
+    /* A slice of the proof text, edited in place in the backing editor.
+     * Read-only while the slice can't be found there (the statics lagging
+     * an edit). */
+    let splice = (~step: Proof.t, ~slot: Focus.slot, ~target, fallback: Any.t) => {
+      let focus = Focus.Splice(Proof.rep_id(step), slot);
+      div_c(
+        "inline-editor-wrapper",
+        [
+          switch (SubEditor.mk(backing.model.editor, ~target)) {
+          | Some(sub) =>
+            CodeEditable.View.view_sub(
+              ~globals,
+              ~channel=backing,
+              ~take_focus=take_focus(focus),
+              ~focused=focused(focus),
+              sub,
+            )
+          | None => div_c("proof-form-arg-static", [code(fallback)])
+          },
+        ],
+      );
+    };
+    /* The goal's editor. With `hints`, the steps it offers are
+     * highlighted, and a click on one takes it. */
+    /* With `into_box`, what is typed goes to the row's write box, which
+     * writes the selected part's replacement. */
+    let goal_editor =
+        (
+          ~hints: bool,
+          ~previewing,
+          ~into_box,
+          row: Rows.t,
+          local: Model.local,
+        ) => {
+      let keys = (key: Key.t) =>
+        switch (key) {
+        /* With a selection, Escape clears it. */
+        | {key: D("Escape"), shift: Up, meta: Up, ctrl: Up, alt: Up, _}
+            when Picker.Goal.selected(local.goal) == None =>
+          Some(signal(ReturnToEditor))
+        | {key: D(text), meta: Up, ctrl: Up, alt: Up, _}
+            when into_box && String.length(text) == 1 =>
+          Some(
+            Ui_effect.Many([
+              take_focus(Box(row.key)),
+              inject((row.key, BoxEditor(Perform(Insert(text))))),
+              Ui_effect.of_sync_fun(
+                () => Haz3lcore.FocusEffect.schedule_cell(),
+                (),
+              ),
+            ]),
+          )
+        | _ => None
+        };
+      let goal = local.goal;
+      let write_opt = pick =>
+        pick
+        |> Option.map(write(row))
+        |> Option.value(~default=Ui_effect.Ignore);
+      StepperEditor.View.view(
+        ~globals,
+        ~signal=
+          fun
+          | MakeActive => take_focus(Goal(row.key))
+          | TakeStep(idx) => write_opt(Picker.take_step(goal, idx))
+          | Refl(idx) =>
+            write_opt(
+              Option.map(Picker.refl(goal), List.nth_opt(goal.refls, idx)),
+            ),
+        ~inject=a => inject((row.key, Goal(a))),
+        ~selected=focused(Goal(row.key)),
+        ~keys,
+        {
+          editor: goal.editor,
+          next_steps: hints ? Picker.Goal.step_ids(goal) : [],
+          refls: hints ? List.map(Exp.rep_id, goal.refls) : [],
+          /* The selected part the box writes a replacement for, underlined
+           * as a focus's part is. */
+          acts_on:
+            into_box
+              ? Option.map(Exp.rep_id, Update.selected_part(goal))
+              : Picker.Goal.acts_on(goal, row),
+          previewing,
+        },
+      );
+    };
+    let goal_view =
+        (~hints, ~previewing=None, ~into_box=false, ~prev_broken, row: Rows.t) =>
+      switch (prev_broken, Model.find(row.key, model)) {
+      | (Some(mark), _) => Row.view_error_above(~globals, mark)
+      | (None, Some(local)) =>
+        goal_editor(~hints, ~previewing, ~into_box, row, local)
+      | (None, None) => div_c("step-placeholder", [Node.text("—")])
+      };
+    /* Deletes `step`, its `;` with it, or leaves a hole when it is the
+     * whole proof. A step with others inside it is remembered with where
+     * it was, so that the note above the stepper can put it back. */
+    let delete = (step: Proof.t) => {
+      let id = Proof.rep_id(step);
+      let rec beside = (p: Proof.t): option(Model.place) =>
+        switch (p.term) {
+        | Seq(a, b) when Proof.rep_id(a) == id =>
+          Some(Before(Proof.rep_id(b)))
+        | Seq(a, b) when Proof.rep_id(b) == id =>
+          Some(After(Proof.rep_id(a)))
+        | _ => List.find_map(beside, Proof.children(p))
+        };
+      let (patch, place) =
+        switch (beside(proof)) {
+        | Some(place) => (Picker.Patches.remove(step), place)
+        | None =>
+          let hole = Proof.fresh(EmptyHole);
+          (
+            Haz3lcore.EditorTransform.mk_proof_patch(~target_id=id, hole),
+            Model.Over(Proof.rep_id(hole)),
+          );
+        };
+      let rec count = (p: Proof.t) =>
+        List.fold_left(
+          (n, child) => n + count(child),
+          switch (p.term) {
+          | Seq(_)
+          | Parens(_)
+          | EmptyHole
+          | Invalid(_)
+          | MultiHole(_) => 0
+          | AxiomStep(_)
+          | AlgebriteStep(_)
+          | EvalStep
+          | Focus(_)
+          | Contradiction(_)
+          | Forall(_)
+          | Funext(_)
+          | Assume(_)
+          | Revert(_)
+          | Generalize(_)
+          | Have(_)
+          | Alias(_)
+          | Induction(_) => 1
+          },
+          Proof.children(p),
+        );
+      let count = count(step);
+      Ui_effect.Many(
+        (
+          count > 1
+            ? [
+              inject((
+                (id, Incoming),
+                Deleted({
+                  step,
+                  count,
+                  place,
+                }),
+              )),
+            ]
+            : []
+        )
+        @ [edit_syntax(patch)],
+      );
+    };
+    let checking = (row: Rows.t) =>
+      switch (Model.find(row.key, model)) {
+      | Some(local) => local.checking
+      | None => false
+      };
+    let controls = (~top) =>
+      top && is_toplevel
+        ? [
+          Widgets.button(Icons.gear, _ =>
+            globals.inject_global(Set(Evaluation(ShowSettings)))
+          ),
+          Widgets.toggle(
+            ~tooltip="Show History",
+            "h",
+            globals.settings.core.evaluation.stepper_history,
+            _ =>
+            globals.inject_global(Set(Evaluation(ShowRecord)))
+          ),
+          Widgets.toggle(~tooltip="Show Stepper", "s", true, _ =>
+            signal(HideStepper)
+          ),
+        ]
+        : [];
+    /* The cell's own stepper steps a program, so it has no Proof strategy
+     * tab, and starts on Step. */
+    let tabs: list(Model.tab) =
+      is_toplevel ? [Step, Write] : [Write, Step, Strategy];
+    /* A chain's rows, then, until they reach it, the `true` a proof aims
+     * at: a quiet row shaped like a step row, so the chain reads evenly. A
+     * focus's chain rewrites part of a goal, so it aims at nothing. */
+    let rec chain =
+            (
+              ~top=false,
+              ~target=!is_toplevel,
+              ~note: list(Node.t)=[],
+              rows: list(Rows.t),
+            )
+            : list(Node.t) => [
+      Node.div(
+        ~attrs=[Attr.classes(["stepper", "cell-result"])],
+        note
+        @ rows_view(~top, ~prev_broken=None, rows)
+        @ (
+          target && !ProofCheck.is_true(Rows.reached(rows))
+            ? [Row.target(~globals)] : []
+        ),
+      ),
+    ]
+    and rows_view = (~top, ~prev_broken, rows: list(Rows.t)): list(Node.t) => {
+      let last = ListUtil.last_opt(rows) |> Option.map((r: Rows.t) => r.key);
+      let (nodes, _) =
+        List.fold_left(
+          ((nodes, prev_broken), row: Rows.t) => {
+            let status = Rows.Status.of_row(row);
+            let node =
+              view_row(
+                ~top,
+                ~prev_broken,
+                ~status,
+                ~only=List.length(rows) == 1,
+                ~is_last=last == Some(row.key),
+                row,
+              );
+            (nodes @ node, Rows.Status.broken_mark(status));
+          },
+          ([], prev_broken),
+          rows,
+        );
+      nodes;
+    }
+    and view_row =
+        (~top, ~prev_broken, ~status, ~only, ~is_last, row: Rows.t)
+        : list(Node.t) =>
+      switch (row.kind) {
+      /* With history off, only the rows where the proof continues show. */
+      | Step(_) when !globals.settings.core.evaluation.stepper_history => []
+      | Step(nested) =>
+        let step = row.step;
+        let popup_extra =
+          switch (Statics.Map.lookup(Proof.rep_id(step), info_map)) {
+          | Some(info) =>
+            List.concat_map(
+              fun
+              | Mark.InexhaustiveMatch(_, _, example) =>
+                ProofMarkView.inexhaustive_message(~globals, example)
+              | _ => [],
+              Info.marks_of(info),
+            )
+          | None => []
+          };
+        let conditions = Rows.side_conditions(row);
+        let expanded =
+          switch (Model.find(row.key, model)) {
+          | Some(local) => local.expanded
+          | None => []
+          };
+        let toggle = i => inject((row.key, ToggleCondition(i)));
+        let layout = Rows.layout(row, ~expanded);
+        let is_open = i =>
+          switch (layout) {
+          | Block({conditions, _}) => List.mem(i, conditions)
+          | Line => false
+          };
+        let dots =
+          List.concat(
+            List.mapi(
+              (i, ob) =>
+                is_open(i) ? [] : [Condition.dot(~toggle=toggle(i), ob)],
+              conditions,
+            ),
+          );
+        let block =
+          switch (layout) {
+          | Line => None
+          | Block({conditions: open_conditions, arms: has_arms}) =>
+            Some(
+              List.filter_map(
+                i =>
+                  List.nth_opt(conditions, i)
+                  |> Option.map(ob =>
+                       Condition.view(
+                         ~globals,
+                         ~edit_syntax,
+                         ~exits=exits(ob),
+                         ~toggle=toggle(i),
+                         ob,
+                       )
+                     ),
+                open_conditions,
+              )
+              @ (has_arms ? arms(row, nested) : []),
+            )
+          };
+        Row.view(
+          ~globals,
+          ~status,
+          ~show_equiv=prev_broken == None,
+          ~checking=checking(row),
+          ~delete=Some(delete(step)),
+          ~popup_extra,
+          ~repair=
+            Row.repairs(~edit_syntax, ~info_map, ~proof_map, status, step),
+          ~editor_view=goal_view(~hints=false, ~prev_broken, row),
+          ~justification=Node.text(justification(step)),
+          ~dots,
+          ~block,
+          (),
+        )
+        @ (
+          switch (Rows.continuation(row)) {
+          | Some(rows) =>
+            rows_view(
+              ~top,
+              ~prev_broken=Rows.Status.broken_mark(status),
+              rows,
+            )
+          | None => []
+          }
+        );
+      | Hole
+      | End =>
+        /* A `?` marks a hole written mid-proof, whose box writes between
+         * rows. At the end, the box alone says the proof continues here. */
+        let unknown =
+          row.kind == Hole && !is_last
+            ? [div_c("step-unknown", [Node.text("?")])] : [];
+        /* What Enter would write, previewed on the line above the box. */
+        let lozenge = (clss, text) => [
+          div_c("write-preview " ++ clss, [Node.text(text)]),
+        ];
+        let preview =
+          switch (Model.find(row.key, model)) {
+          | Some({checking: true, _}) => lozenge("checking", "checking…")
+          | Some({box: Some(box), _})
+              when row.continues && Box.current(~tabs, box) == Write =>
+            switch (Box.verdict(box)) {
+            | Some(Found([_, ..._] as steps)) =>
+              lozenge(
+                "",
+                String.concat(" · ", List.map(justification, steps)),
+              )
+            | Some(NotFound) => lozenge("none", "no step gets here")
+            | Some(Searching) => lozenge("searching", "searching…")
+            | Some(Found([]))
+            | None => []
+            }
+          | _ => []
+          };
+        let justification =
+          div_c(
+            "missing-step-justification",
+            unknown
+            @ preview
+            @ [
+              Node.div(
+                ~attrs=[Attr.classes(["stepper-controls"])],
+                controls(~top),
+              ),
+            ],
+          );
+        /* Splices the written `?`, and its `;`, out of the proof. A hole
+         * that is the whole chain is left alone. */
+        let delete =
+          row.kind == Hole && !only
+            ? Some(edit_syntax(Picker.Patches.remove(row.step))) : None;
+        /* A finished chain, or one after a broken step, has nothing to
+         * write. */
+        let box =
+          switch (prev_broken, Model.find(row.key, model)) {
+          | (None, Some({box: Some(box), goal, _}))
+              when row.continues && !ProofCheck.is_true(row.goal) =>
+            Some((box, goal))
+          | _ => None
+          };
+        let hints =
+          switch (box) {
+          | Some((box, _)) =>
+            Box.current(~tabs, box) == Step && !checking(row)
+          | None => false
+          };
+        /* A form's goal passes to the row after it as proven only once its
+         * body proves it. */
+        let unproven =
+          row.kind == End
+          && !row.continues
+          && ProofMap.status_of_proof(proof_map, row.step) != Some(true);
+        /* With part of the goal selected, the box writes its
+         * replacement. */
+        let replacing =
+          switch (box) {
+          | Some((box, goal)) when Box.current(~tabs, box) == Write =>
+            Update.selected_part(goal) == None ? None : Box.columns(goal)
+          | _ => None
+          };
+        /* Where the highlighted use of a rule would act. */
+        let previewing =
+          switch (box) {
+          | Some((box, goal)) when Box.current(~tabs, box) == Write =>
+            let (items, highlighted) = Box.listing(goal, box);
+            switch (Option.bind(highlighted, List.nth_opt(items))) {
+            | Some(Use(use)) => Some(Exp.rep_id(use.part))
+            | Some(Complete(_))
+            | None => None
+            };
+          | _ => None
+          };
+        let box =
+          switch (box) {
+          | Some((box, goal)) => [
+              Box.view(
+                ~globals,
+                ~key=row.key,
+                ~tabs,
+                ~inject=a => inject((row.key, a)),
+                ~write=write(row),
+                ~write_steps=write_steps(row),
+                ~take_focus=take_focus(Box(row.key)),
+                ~focused=focused(Box(row.key)),
+                ~escape=
+                  Ui_effect.Many([
+                    take_focus(Goal(row.key)),
+                    Ui_effect.of_sync_fun(
+                      () => Haz3lcore.FocusEffect.schedule_cell(),
+                      (),
+                    ),
+                  ]),
+                ~hole_actions=row.kind == Hole ? hole_actions(row.step) : [],
+                ~replacing,
+                box,
+                goal,
+              ),
+            ]
+          | None => []
+          };
+        switch (prev_broken, Model.find(row.key, model)) {
+        | (Some(_), _)
+        | (None, Some(_)) =>
+          Row.view(
+            ~globals,
+            ~status,
+            ~show_equiv=prev_broken == None,
+            ~pending=unproven,
+            ~checking=checking(row),
+            ~delete,
+            ~editor_view=
+              goal_view(
+                ~hints,
+                ~previewing,
+                ~into_box=replacing != None,
+                ~prev_broken,
+                row,
+              ),
+            ~justification,
+            (),
+          )
+          @ box
+        | (None, None) => [justification]
+        };
+      }
+    /* The goals a step creates, as dark arms: a bar naming what the arm
+     * adds over a slot holding the arm's own stepper. */
+    and arms = (row: Rows.t, nested: Rows.nested): list(Node.t) => {
+      let step = row.step;
+      let note = content => div_c("step-arm-note", content);
+      let arm = (bar, slot) => [
+        div_c("step-arm-bar", bar),
+        div_c("step-slot", slot),
+      ];
+      let dark = sections => [div_c("step-section arm", sections)];
+      let form_arg = fallback =>
+        splice(
+          ~step,
+          ~slot=Arg,
+          ~target=SubEditor.Target.child(~anchor=Proof.rep_id(step), 0),
+          fallback,
+        );
+      switch (nested, step.term) {
+      | (Body(rows), Forall(p, _)) =>
+        let typ =
+          switch (Pat.get_var(p), rows) {
+          | (Some(x), [first, ..._]) =>
+            Rows.ctx(first)
+            |> Option.bind(_, ctx =>
+                 Ctx.lookup_var(SemanticCtx.get_ctx(ctx), x)
+               )
+            |> Option.map((entry: Ctx.var_entry) =>
+                 [Node.text(", any "), code(Typ(entry.typ))]
+               )
+          | _ => None
+          };
+        dark(
+          arm(
+            [
+              div_c("step-arm-code", [code(Pat(p))]),
+              note([Node.text("fixed")] @ Option.value(~default=[], typ)),
+            ],
+            chain(rows),
+          ),
+        );
+      | (Body(rows), Funext(p, _)) =>
+        dark(
+          arm(
+            [form_arg(Pat(p)), note([Node.text("any argument")])],
+            chain(rows),
+          ),
+        )
+      | (Body(rows), Assume(e, as_name, _)) =>
+        let name =
+          as_name
+          |> Option.bind(_, Pat.get_var)
+          |> Option.value(~default="assume");
+        dark(
+          arm(
+            [form_arg(Exp(e)), note([Node.text("as " ++ name)])],
+            chain(rows),
+          ),
+        );
+      | (Body(rows), Revert(e, _, _)) =>
+        dark(
+          arm(
+            [
+              form_arg(Exp(e)),
+              note([Node.text("now a premise of the goal")]),
+            ],
+            chain(rows),
+          ),
+        )
+      | (Body(rows), Generalize(e, _)) =>
+        dark(
+          arm(
+            [form_arg(Exp(e)), note([Node.text("quantified again")])],
+            chain(rows),
+          ),
+        )
+      | (Premises({sub, _}), Have(e, _, _)) =>
+        dark(
+          arm(
+            [form_arg(Exp(e)), note([Node.text("as have")])],
+            chain(sub),
+          ),
+        )
+      | (Cases(case_rows), Induction(scrut, _, cases)) =>
+        induction(row, scrut, cases, case_rows)
+      /* The selector, its ordinal included, is edited in place in the bar
+       * that opens the C. */
+      | (Focus(rows), Focus({selector, _})) =>
+        dark(
+          arm(
+            [
+              Node.text("from "),
+              form_arg(Exp(selector)),
+              note([Node.text("rewritten in place")]),
+            ],
+            chain(~target=false, rows),
+          ),
+        )
+      | (Leaf | Body(_) | Cases(_) | Premises(_) | Focus(_), _) => []
+      };
+    }
+    and induction = (row: Rows.t, scrut: Exp.t, cases, case_rows) => {
+      let step = row.step;
+      let anchor = Proof.rep_id(step);
+      let set_cases = cases =>
+        switch (Picker.Patches.set_cases(step, cases)) {
+        | Some(patch) => edit_syntax(patch)
+        | None => Ui_effect.Ignore
+        };
+      /* The facts a case adds to the induction's scope: its pattern's
+       * `where` facts, the case equation and the inductive hypotheses. */
+      let outer_facts =
+        Rows.ctx(row)
+        |> Option.map(SemanticCtx.facts)
+        |> Option.value(~default=[])
+        |> List.map(((_, id, _)) => id);
+      let hypotheses = (rows: list(Rows.t)) =>
+        switch (rows) {
+        | [first, ..._] =>
+          Rows.ctx(first)
+          |> Option.map(SemanticCtx.facts)
+          |> Option.value(~default=[])
+          |> List.filter(((_, id, _)) => !List.mem(id, outer_facts))
+          |> List.rev_map(((name, _, fact)) =>
+               div_c(
+                 "step-arm-fact",
+                 [
+                   Node.text(name ++ ": "),
+                   code(
+                     Exp(
+                       ProofRule.conclusion_exp(ProofRule.exp_to_rule(fact)),
+                     ),
+                   ),
+                 ],
+               )
+             )
+        | [] => []
+        };
+      let case = (i, (pat: Pat.t, rows)) => {
+        let remove_case =
+          Widgets.button(
+            Icons.trash,
+            _ =>
+              switch (ListUtil.remove_nth(i, cases)) {
+              | Some(cases) => set_cases(cases)
+              | None => Ui_effect.Ignore
+              },
+            ~tooltip="Remove case",
+            ~clss=["subtle-button"],
+          );
+        let pattern =
+          splice(
+            ~step,
+            ~slot=Pattern(i),
+            ~target=
+              SubEditor.Target.(
+                child(~anchor, 0)
+                |> descend(NthTile(["|", "=>"], i), ~child=0)
+              ),
+            Pat(pat),
+          );
+        [
+          div_c(
+            "step-arm-bar",
+            [
+              Node.text("| "),
+              pattern,
+              div_c("step-arm-note", hypotheses(rows)),
+              remove_case,
+            ],
+          ),
+          div_c("step-slot", chain(rows)),
+        ];
+      };
+      let add_case =
+        Picker.Patches.add_case(
+          step,
+          ~marks=
+            Option.fold(
+              ~none=[],
+              ~some=(e: ProofMap.entry) => e.marks,
+              row.entry,
+            ),
+        )
+        |> Option.map(patch =>
+             Widgets.button(
+               Node.text("Case ..."),
+               ~tooltip="Add case",
+               ~clss=["subtle-button", "add-case-button"],
+               _ =>
+               edit_syntax(patch)
+             )
+           )
+        |> Option.to_list;
+      /* The scrutinee is edited in place, in the bar that opens the C. */
+      let scrut_bar =
+        div_c(
+          "step-arm-bar",
+          [
+            Node.text("induction on "),
+            splice(
+              ~step,
+              ~slot=Scrut,
+              ~target=
+                SubEditor.Target.(
+                  child(~anchor, 0)
+                  |> until(BeforeOrEnd(NthTile(["|", "=>"], 0)))
+                ),
+              Exp(scrut),
+            ),
+          ],
+        );
+      [
+        div_c(
+          "step-section arm",
+          [scrut_bar] @ List.concat(List.mapi(case, case_rows)) @ add_case,
+        ),
+      ];
+    };
     let settings_modal =
       is_toplevel && globals.settings.core.evaluation.show_settings
         ? SettingsModal.view(
@@ -112,15 +2628,74 @@ module View = {
             globals.settings.core.evaluation,
           )
         : [];
+    /* After a delete that took several steps, a note offering to put them
+     * back, for as long as where they go is still there. */
+    let deletion_note =
+      switch (model.deletion) {
+      | Some({step, count, place}) =>
+        let rec find = (id, p: Proof.t) =>
+          Proof.rep_id(p) == id
+            ? Some(p) : List.find_map(find(id), Proof.children(p));
+        let put_back =
+          switch (place) {
+          | Before(id) =>
+            find(id, proof)
+            |> Option.map(next => Proof.fresh(Seq(step, next)))
+            |> Option.map(
+                 Haz3lcore.EditorTransform.mk_proof_patch(~target_id=id),
+               )
+          | After(id) =>
+            find(id, proof)
+            |> Option.map(prev => Proof.fresh(Seq(prev, step)))
+            |> Option.map(
+                 Haz3lcore.EditorTransform.mk_proof_patch(~target_id=id),
+               )
+          | Over(id) =>
+            find(id, proof)
+            |> Option.map(_ =>
+                 Haz3lcore.EditorTransform.mk_proof_patch(~target_id=id, step)
+               )
+          };
+        let forget =
+          inject(((Proof.rep_id(proof), Incoming), ForgetDeletion));
+        switch (put_back) {
+        | Some(patch) => [
+            div_c(
+              "deletion-note",
+              [
+                Node.text(Printf.sprintf("Deleted %d steps", count)),
+                Node.button(
+                  ~attrs=[
+                    Attr.classes(["deletion-undo"]),
+                    Attr.title("Put them back"),
+                    Attr.on_click(_ =>
+                      Ui_effect.Many([
+                        forget,
+                        globals.inject_global(
+                          Set(Evaluation(ForceShowRecord)),
+                        ),
+                        edit_syntax(patch),
+                      ])
+                    ),
+                  ],
+                  [Node.text("Undo")],
+                ),
+                Node.button(
+                  ~attrs=[
+                    Attr.classes(["deletion-dismiss"]),
+                    Attr.title("Dismiss"),
+                    Attr.on_click(_ => forget),
+                  ],
+                  [Node.text("×")],
+                ),
+              ],
+            ),
+          ]
+        | None => []
+        };
+      | None => []
+      };
     settings_modal
-    @ StepperBase.Stepper.view(
-        ~globals,
-        ~take_focus=f => signal(MakeActive(f)),
-        ~hide_stepper=signal(HideStepper),
-        ~inject=u => inject(u),
-        ~is_toplevel,
-        ~focus=selected,
-        model.root,
-      );
+    @ chain(~top=true, ~note=deletion_note, Rows.chain(~proof_map, proof));
   };
 };

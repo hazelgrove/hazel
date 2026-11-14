@@ -37,6 +37,7 @@ let core_mark_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
       Print.typ(syn),
     );
   switch (m) {
+  | DynamicError(err) => InvalidOperationError.err_msg(err)
   | BadLabel(_)
   | InvalidLabel(_, _) => "Invalid label"
   | DuplicateLabel(_, _) => "Duplicate label"
@@ -45,9 +46,9 @@ let core_mark_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   | UnexpectedLabelSort(_) => "Unexpected label sort"
   | BadToken(token) => prn("\"%s\" isn't a valid token", token)
   | IsMulti => "Broken expression"
+  | FreeConstructor(_name) => prn("Constructor is not defined")
   | CompareFun(ty) =>
     prn("values of type %s cannot be compared", Print.typ(ty))
-  | FreeConstructor(_name) => prn("Constructor is not defined")
   | ExpectationMismatch({ana, syn}) => expectation(ana, syn)
   | NoMeet(PolyEq, tys)
   | NoMeet(_, tys) when ana.term == Unknown(SynSwitch) =>
@@ -91,7 +92,10 @@ let drv_error: DrvInfo.error => string =
 let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   let common_from_core = () => core_mark_string(ctx, ana, m);
   switch (m) {
+  | DynamicError(_) => common_from_core()
   | Free(name) => "Variable " ++ name ++ " is not bound"
+  | FreeHypothesis(name) => "Hypothesis " ++ name ++ " is not in scope"
+  | AxiomSlotNotHypothesis(_) => "Axiom slot must reference a hypothesis by name"
   | InexhaustiveMatch(_) => "Match is not exhaustive"
   | IsDeferral(InAp) => "(internal)"
   | IsDeferral(_) => "Unused deferral"
@@ -264,6 +268,7 @@ let term_string_of: Info.t => string =
   | InfoMod({user_term, _}) => Print.term(Mod(user_term))
   | InfoSig({user_term, _}) => Print.term(Sig(user_term))
   | InfoMPat({user_term, _}) => Print.term(MPat(user_term))
+  | InfoProof({user_term, _}) => Print.term(Proof(user_term))
   | Secondary(_) => failwith("ChatLSP: term_string_of: Secondary");
 
 let all = (info_map: Statics.Map.t): list(string) => {

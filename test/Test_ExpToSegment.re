@@ -858,6 +858,20 @@ in f(42)|},
       {|Ids stable: let/fun/case|},
       {|let f = fun x -> case x | A => 1 end in f(2)|},
     ),
+    /* The ids of an induction's `|`/`=>` rule tiles. These tiles live in
+       the induction's `PRul` child, so `MakeTerm` absorbs their ids onto
+       the `Induction` term for `ExpToSegment` to re-emit. Losing them
+       passes the id-ignoring `segments` check and fails only
+       `equiv (strict mod grout)`. Both arities, because the as-variant
+       absorbs from a different child position. */
+    roundtrip_ids_test(
+      {|Ids stable: proof induction rules|},
+      {|theorem x = 1 proof induction y | a => from y do rewrite y end end | b => ? end in x|},
+    ),
+    roundtrip_ids_test(
+      {|Ids stable: proof induction-as rules|},
+      {|theorem x = 1 proof induction y as h | a => from y do rewrite h end end | b => ? end in x|},
+    ),
     roundtrip_test({|Sum type: spaced|}, {|type T = + A + B in T|}),
     roundtrip_test({|Sum type: compact|}, {|type T = +A+B in T|}),
     /* Bare sums: the parse's id count distinguishes `A + B` from
@@ -938,21 +952,191 @@ end|}),
     roundtrip_test({|Forall: simple|}, {|forall a -> 1|}),
     roundtrip_test({|Forall: with spaces|}, {|forall a  ->  1|}),
     roundtrip_test({|Forall: compact|}, {|forall a->1|}),
+    /* restricted forall (where-binder) */
+    roundtrip_test(
+      {|ForallWhere: simple|},
+      {|forall a where a != 0 -> a == a|},
+    ),
+    /* function contract (fun-where binder) */
+    roundtrip_test({|FunWhere: simple|}, {|fun a where a != 0 -> 100 / a|}),
+    roundtrip_test(
+      {|FunWhere: conjunctive guard|},
+      {|fun a where a != 0 && a != 1 -> 100 / a|},
+    ),
+    /* material implication */
+    roundtrip_test({|Implies: simple|}, {|true ==> false|}),
+    roundtrip_test({|Implies: with equalities|}, {|a == b ==> c == d|}),
+    roundtrip_test({|Implies: chained|}, {|a ==> b ==> c|}),
+    roundtrip_test({|Implies: left-parenthesized|}, {|(a ==> b) ==> c|}),
     /* Use expressions (use ... in) */
     roundtrip_test({|Use: simple|}, {|use Nat in 1|}),
     roundtrip_test({|Use: spaced|}, {|use Nat  in  1|}),
     roundtrip_test({|Use: compact|}, {|use Nat in 1|}),
-    /* ProofOf (proof_of ... end) - type-level */
-    roundtrip_test({|ProofOf: simple|}, {|1 : proof_of 1 end|}),
-    roundtrip_test({|ProofOf: spaced|}, {|1 : proof_of  1  end|}),
-    /* ProofObject (proof_object ... end) - expression-level */
-    roundtrip_test({|ProofObject: simple|}, {|proof_object 1 end|}),
-    roundtrip_test({|ProofObject: spaced|}, {|proof_object  1  end|}),
-    roundtrip_test({|ProofObject: with expr|}, {|proof_object 1 + 2 end|}),
-    /* Theorem expressions (theorem ... = ... in) */
-    roundtrip_test({|Theorem: simple|}, {|theorem x = 1 in x|}),
-    roundtrip_test({|Theorem: spaced|}, {|theorem x  =  1  in  x|}),
-    roundtrip_test({|Theorem: compact|}, {|theorem x=1 in x|}),
+    /* Theorem expressions (theorem ... = ... proof ... in ...) */
+    roundtrip_test(
+      {|Theorem: simple|},
+      {|theorem x = 1 proof from y do rewrite y end end in x|},
+    ),
+    /* Grouping parens at Proof sort. Without them, `(` in a proof slot
+       would remold as an Exp paren and the wrapping form inside it would
+       become a MultiHole. */
+    roundtrip_test(
+      {|Theorem: parenthesized proof|},
+      {|theorem x = 1 proof ( from y do rewrite y end end ) in x|},
+    ),
+    /* Control: an unwritten hole body prints back as a `?` monotile, with
+       and without the parens, as grout does elsewhere. */
+    roundtrip_test(
+      {|Theorem: funext with an unwritten hole body|},
+      {|theorem x = 1 proof funext y =>? in x|},
+    ),
+    roundtrip_test(
+      {|Theorem: parenthesized funext with an unwritten hole body|},
+      {|theorem x = 1 proof ( funext y =>? ) in x|},
+    ),
+    roundtrip_test(
+      {|Theorem: parenthesized funext with a hole body|},
+      {|theorem x = 1 proof ( funext y => ? ) in x|},
+    ),
+    roundtrip_test(
+      {|Theorem: parenthesized proof as the left arm of a `;`|},
+      {|theorem x = 1 proof ( funext y => ? ); from y do rewrite y end end in x|},
+    ),
+    roundtrip_test(
+      {|Theorem: spaced|},
+      {|theorem x  =  1  proof  from y do rewrite y end end  in  x|},
+    ),
+    roundtrip_test(
+      {|Theorem: compact|},
+      {|theorem x=1 proof from y do rewrite y end end in x|},
+    ),
+    /* Proof: induction (single case, case-like syntax — no `with` keyword) */
+    roundtrip_test(
+      {|Induction: single-case|},
+      {|theorem x = 1 proof induction y | a => from y do rewrite y end end end in x|},
+    ),
+    /* Proof: induction (multi-case) */
+    roundtrip_test(
+      {|Induction: multi-case|},
+      {|theorem x = 1 proof induction y | a => from y do rewrite y end end | b => from z do rewrite z end end end in x|},
+    ),
+    /* Proof: forall (quantified variable) */
+    roundtrip_test(
+      {|Forall: simple|},
+      {|theorem x = 1 proof forall y => from y do rewrite y end end in x|},
+    ),
+    /* Proof: assume (hypothesized proposition) */
+    roundtrip_test(
+      {|Assume: simple|},
+      {|theorem x = 1 proof assume 2 == 2 => from y do rewrite y end end in x|},
+    ),
+    roundtrip_test(
+      {|Assume: nested|},
+      {|theorem x = 1 proof assume 2 == 2 => assume 3 == 3 => from y do rewrite y end end in x|},
+    ),
+    /* Proof: a focus. The occurrence after `at` keeps its whitespace. */
+    roundtrip_test(
+      {|Focus: at|},
+      {|theorem x = 1 proof from y + 1 at 2 do step end in x|},
+    ),
+    roundtrip_test(
+      {|Focus: at, spaced|},
+      {|theorem x = 1 proof from y + 1  at  2  do step end in x|},
+    ),
+    /* "at" is a prefix of `atom`, which switches the focus to its `at`
+       form while it is typed (see `Insert.plain_of_at_variant`). */
+    roundtrip_test(
+      {|Focus: a selector starting with at|},
+      {|theorem x = 1 proof from atom do step end in x|},
+    ),
+    roundtrip_test(
+      {|Focus: at, after a selector starting with at|},
+      {|theorem x = 1 proof from atom at 2 do step end in x|},
+    ),
+    roundtrip_test(
+      {|Focus: nested, several steps|},
+      {|theorem x = 1 proof from y at 11 do from z do step; step end end in x|},
+    ),
+    /* Proof: explicit instantiation (`with <var> = <exp>` on a citation
+       step). Each with-variant is a distinct compound form beside its
+       plain form, so both spellings must round-trip. */
+    roundtrip_test(
+      {|AxiomWith: simple|},
+      {|theorem x = 1 proof from y do rewrite y with n = 2 end end in x|},
+    ),
+    roundtrip_test(
+      {|AxiomWith: spaced|},
+      {|theorem x = 1 proof from y do rewrite y  with  n  =  2 end end in x|},
+    ),
+    /* The step keeps no annotation for its `<-`, so the space before it
+       prints with a new id. */
+    roundtrip_test(
+      ~known_equiv_gap=true,
+      {|AxiomRevWith: simple|},
+      {|theorem x = 1 proof from y do rewrite <- y with n = 2 end end in x|},
+    ),
+    roundtrip_test(
+      {|RevertWith: simple|},
+      {|theorem x = 1 proof revert y with n = 2 => from y do rewrite y end end in x|},
+    ),
+    roundtrip_test(
+      {|RevertWith: compound instantiation|},
+      {|theorem x = 1 proof revert y with n = 2 + 3 => from y do rewrite y end end in x|},
+    ),
+    /* `contradiction <fact> with <var> = <exp> end` reuses the same
+       with-clause shards on a step with no body. */
+    roundtrip_test(
+      {|ContradictionWith: simple|},
+      {|theorem x = 1 proof contradiction y with n = 2 end in x|},
+    ),
+    roundtrip_test(
+      {|ContradictionWith: compound rewrite|},
+      {|theorem x = 1 proof contradiction y == 1 with n = 2 + 3 end in x|},
+    ),
+    roundtrip_test(
+      {|Contradiction: plain still round-trips|},
+      {|theorem x = 1 proof contradiction y == 1 end in x|},
+    ),
+    /* The plain forms must keep round-tripping unchanged: `with` is only
+       absorbed by a citation step that is still missing its own shards. */
+    roundtrip_test(
+      {|Revert: plain still round-trips|},
+      {|theorem x = 1 proof revert y => from y do rewrite y end end in x|},
+    ),
+    roundtrip_test(
+      {|Algebrite: `with` still belongs to algebra|},
+      {|theorem x = 1 proof from y do algebra z end end in x|},
+    ),
+    /* Hypothesis naming. The `as` variants share their leading token with
+       the plain forms, and "as" is a prefix of "assume", so these pin that
+       the named forms survive a round trip and that the plain ones do too
+       with an `assume` nearby (see `Insert.plain_of_as_variant`). */
+    roundtrip_test(
+      {|AssumeAs: names the hypothesis|},
+      {|theorem x = 1 proof assume y == 1 as h => from y do rewrite h end end in x|},
+    ),
+    roundtrip_test(
+      {|InductionAs: names the case equation|},
+      {|theorem x = 1 proof induction y | true => ? | false => ? end in x|},
+    ),
+    roundtrip_test(
+      {|InductionAs: with an as-clause|},
+      {|theorem x = 1 proof induction y as h | true => from y do rewrite h end end | false => ? end in x|},
+    ),
+    roundtrip_test(
+      {|Alias: retroactive naming|},
+      {|theorem x = 1 proof alias h = assume => from y do rewrite h end end in x|},
+    ),
+    roundtrip_test(
+      {|Alias: fact spelled out as a proposition|},
+      {|theorem x = 1 proof alias h = y == 1 => from y do rewrite h end end in x|},
+    ),
+    /* `assume` typed inside an induction must not leave an `as` shard
+       behind: the token passes through "as" on the way. */
+    roundtrip_test(
+      {|Induction: plain survives an assume in a case body|},
+      {|theorem x = 1 proof induction y | true => assume y == 1 => ? | false => ? end in x|},
+    ),
     /* Module expressions: empty module roundtrip */
     roundtrip_test({|Module: empty|}, {|{}|}),
     /* Module text round-trip tests */
@@ -1053,6 +1237,88 @@ let roundtrip_defensive_paren_tests = (
        The type-level construct is `poly` (type poly tpat -> typ). */
     /* Nested rec/poly types */
     roundtrip_test({|Nested rec types|}, {|1 : rec t -> rec u -> (t, u)|}),
+  ],
+);
+
+/* Defensive printing must be idempotent: parse → print → parse → print
+   reaches a fixed point after the first print. Otherwise every editor
+   round-trip (e.g. EditorTransform patches on proof edits) adds a layer
+   of parens, e.g. on an ascription that is already parenthesized
+   (`forall x:(([Int]))` after two induction-case edits). Settings mirror
+   EditorTransform.Splice.to_segment. */
+let editable_print = (exp: Exp.t): string =>
+  print_seg(
+    ExpToSegment.exp_to_segment(
+      exp,
+      ~settings={
+        ...ExpToSegment.Settings.editable(~inline=true),
+        use_literal_lexemes: false,
+      },
+    ),
+  );
+
+let defensive_idempotence_test = (name: string, input: string) =>
+  test_case(name, `Quick, () => {
+    switch (Parser.to_term(input, ~root=Exp)) {
+    | Some(term) =>
+      let once = editable_print(term);
+      switch (Parser.to_term(once, ~root=Exp)) {
+      | Some(term') =>
+        let twice = editable_print(term');
+        check(string, {|Defensive print fixed point|}, once, twice);
+      | None => Alcotest.fail({|Failed to re-parse printed text: |} ++ once)
+      };
+    | None => Alcotest.fail({|Failed to parse|})
+    }
+  });
+
+let defensive_idempotence_tests = (
+  "Defensive Print Idempotence",
+  [
+    defensive_idempotence_test(
+      {|Forall with list-type ascription|},
+      {|forall x:[Int] -> x == x|},
+    ),
+    defensive_idempotence_test(
+      {|Forall with atomic-type ascription|},
+      {|forall x:Int -> x == x|},
+    ),
+    defensive_idempotence_test(
+      {|Forall with pre-parenthesized ascription|},
+      {|forall x:([Int]) -> x == x|},
+    ),
+    defensive_idempotence_test(
+      {|Forall with arrow-type ascription|},
+      {|forall f:(Int -> Int) -> f == f|},
+    ),
+    defensive_idempotence_test(
+      {|Fun with ascribed pattern|},
+      {|fun (x : Int) -> x|},
+    ),
+    defensive_idempotence_test(
+      {|Let with ascribed pattern|},
+      {|let x : [Int] = [1] in x|},
+    ),
+    defensive_idempotence_test(
+      {|Sum type definition|},
+      {|type T = +A + B(T) in A|},
+    ),
+    defensive_idempotence_test(
+      {|Parenthesized sum type|},
+      {|let x : [(+A + B)] = [] in x|},
+    ),
+    /* A parenthesized sum doesn't define its constructors, so a program
+       printed with one doesn't read back as the program it was. */
+    test_case({|Sum type definition is printed bare|}, `Quick, () =>
+      check(
+        string,
+        "no parentheses around the sum",
+        {|type T = + A + B(T) in A|},
+        editable_print(
+          Test_Evaluator_Prelude.parse_exp({|type T = +A + B(T) in A|}),
+        ),
+      )
+    ),
   ],
 );
 
@@ -1763,12 +2029,207 @@ let pad_ids_tests = (
   ],
 );
 
+/* Expressions embedded in proof steps get the same defensive parens as
+   any other expression. Steps inserted by the stepper UI are built, not
+   parsed, so they carry no explicit Parens node: `parenthesize` has to
+   descend through the proof to add them, otherwise a `fun`/`fun where`
+   in application-head position reparses as the argument being applied
+   inside the body (`(fun x -> 100 / x)(y)` printing as
+   `fun x -> 100 / x(y)`). */
+let built_fun_ap = (~guard: bool, ()): Exp.t => {
+  let body = Test_Evaluator_Prelude.parse_exp({|100 / x|});
+  let pat = Pat.fresh(Var("x"));
+  let f =
+    Exp.fresh(
+      Fun(
+        guard
+          ? Pat.fresh(
+              Where(pat, Test_Evaluator_Prelude.parse_exp({|x != 0|})),
+            )
+          : pat,
+        body,
+        None,
+        None,
+      ),
+    );
+  Exp.fresh(Ap(Forward, f, Test_Evaluator_Prelude.parse_exp({|y|})));
+};
+
+let theorem_around = (pf: TermBase.Proof.term): Exp.t =>
+  Exp.fresh(
+    Theorem(
+      Pat.fresh(Var("t")),
+      Test_Evaluator_Prelude.parse_exp({|1 == 1|}),
+      Proof.fresh(pf),
+      Exp.fresh(Var("t")),
+    ),
+  );
+
+let proof_paren_test =
+    (name: string, pf: TermBase.Proof.term, expected: string) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let printed = editable_print(theorem_around(pf));
+      check(string, "printed with defensive parens", expected, printed);
+      /* and it reparses to the same text */
+      switch (Parser.to_term(printed, ~root=Exp)) {
+      | Some(t) =>
+        check(string, "reparse fixed point", printed, editable_print(t))
+      | None => Alcotest.fail("failed to reparse: " ++ printed)
+      };
+    },
+  );
+
+let proof_embedded_paren_tests = {
+  let focus = (selector, step: TermBase.Proof.term): TermBase.Proof.term =>
+    Focus({
+      ordinal: None,
+      selector,
+      body: Proof.fresh(step),
+    });
+  let refl: TermBase.Proof.term =
+    AxiomStep({
+      direction: Util.Direction.Right,
+      equality: Exp.fresh(Var("refl")),
+      instantiation: None,
+    });
+  (
+    "Defensive Parens: Proof-Embedded Expressions",
+    [
+      proof_paren_test(
+        {|focus selector: fun where in application head|},
+        focus(built_fun_ap(~guard=true, ()), refl),
+        {|theorem t = 1 == 1 proof from (fun x where x != 0 -> 100 / x)(y) do rewrite refl end end in t|},
+      ),
+      proof_paren_test(
+        {|focus selector: plain fun in application head|},
+        focus(built_fun_ap(~guard=false, ()), refl),
+        {|theorem t = 1 == 1 proof from (fun x -> 100 / x)(y) do rewrite refl end end in t|},
+      ),
+      proof_paren_test(
+        {|assume hypothesis: fun where in application head|},
+        Assume(built_fun_ap(~guard=true, ()), None, Proof.fresh(EmptyHole)),
+        {|theorem t = 1 == 1 proof assume(fun x where x != 0 -> 100 / x)(y) => ? in t|},
+      ),
+      proof_paren_test(
+        {|contradiction argument: fun where in application head|},
+        Contradiction(built_fun_ap(~guard=true, ()), None),
+        {|theorem t = 1 == 1 proof contradiction(fun x where x != 0 -> 100 / x)(y) end in t|},
+      ),
+      /* A built `Seq` whose left arm is a wrapping form: the wrapping
+         form's body slot extends rightward (P.fun_ is looser than P.semi),
+         so without grouping parens `funext y => ?; step` reparses as
+         `Funext(y, Seq(?, eval))`. */
+      proof_paren_test(
+        {|Seq left arm: a wrapping form is parenthesized|},
+        Seq(
+          Proof.fresh(
+            Funext(Pat.fresh(Var("y")), Proof.fresh(EmptyHole)),
+          ),
+          Proof.fresh(EvalStep),
+        ),
+        {|theorem t = 1 == 1 proof(funext y => ?); step in t|},
+      ),
+      /* Control: `;` is associative and right-associative, so a
+         left-nested Seq still prints flat — no parens churn. */
+      proof_paren_test(
+        {|Seq left arm: a nested Seq still prints flat|},
+        Seq(
+          Proof.fresh(
+            Seq(
+              Proof.fresh(focus(Exp.fresh(Var("a")), EvalStep)),
+              Proof.fresh(focus(Exp.fresh(Var("b")), EvalStep)),
+            ),
+          ),
+          Proof.fresh(focus(Exp.fresh(Var("c")), EvalStep)),
+        ),
+        {|theorem t = 1 == 1 proof from a do step end; from b do step end; from c do step end in t|},
+      ),
+    ],
+  );
+};
+
+/* A focus's selector reads back as the same term from its `from … do`
+   slot, whatever form it is: the slot is delimited, so the selector needs
+   no parentheses. Checked with both parsers, and with the linebreaks the
+   printer puts in. */
+let selector_roundtrip_test = (~ordinal=?, selector: string) =>
+  test_case(
+    selector,
+    `Quick,
+    () => {
+      let exp =
+        theorem_around(
+          Focus({
+            ordinal: Option.map(IdTagged.fresh, ordinal),
+            selector: Test_Evaluator_Prelude.parse_exp(selector),
+            body: Proof.fresh(EvalStep),
+          }),
+        );
+      List.iter(
+        inline => {
+          let printed =
+            print_seg(
+              ExpToSegment.exp_to_segment(
+                exp,
+                ~settings=ExpToSegment.Settings.editable(~inline),
+              ),
+            );
+          let reads_back = (parser: string, reparsed: option(Exp.t)) =>
+            switch (reparsed) {
+            | Some(reparsed) =>
+              check(
+                Test_Evaluator_Prelude.dhexp_typ,
+                parser ++ ": " ++ printed,
+                exp,
+                reparsed,
+              )
+            | None =>
+              Alcotest.fail(parser ++ " failed to reparse: " ++ printed)
+            };
+          reads_back("typing parser", Parser.to_term(printed, ~root=Exp));
+          reads_back(
+            "fast parser",
+            PersistentZipper.parse_text(~source="test", ~root=Exp, printed)
+            |> Option.map(z => MakeTerm.from_zip_for_sem(z, ~root=Exp).term),
+          );
+        },
+        [true, false],
+      );
+    },
+  );
+
+let selector_roundtrip_tests = (
+  "Round-Trip: Focus Selectors",
+  [
+    selector_roundtrip_test("x"),
+    selector_roundtrip_test("f(x) + 1"),
+    selector_roundtrip_test("a == b"),
+    selector_roundtrip_test("a == b && c == d"),
+    selector_roundtrip_test("if a then b else c"),
+    selector_roundtrip_test("if $e then $e else $e"),
+    selector_roundtrip_test("case x | 0 => 1 | _ => 2 end"),
+    selector_roundtrip_test("fun x -> x + 1"),
+    selector_roundtrip_test("let y = 1 in y + 1"),
+    selector_roundtrip_test("a; b"),
+    selector_roundtrip_test("1 + (if a then b else c)"),
+    selector_roundtrip_test(~ordinal=2, "x + 1"),
+    selector_roundtrip_test(~ordinal=2, "if a then b else c"),
+    selector_roundtrip_test(~ordinal=2, "let y = 1 in y + 1"),
+  ],
+);
+
 let all = [
   tests,
   pad_ids_tests,
+  proof_embedded_paren_tests,
+  selector_roundtrip_tests,
   roundtrip_tests,
   roundtrip_incomplete_tests,
   roundtrip_defensive_paren_tests,
+  defensive_idempotence_tests,
   roundtrip_larger_programs,
   roundtrip_grout_string_tests,
   roundtrip_projector_tests,

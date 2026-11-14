@@ -30,52 +30,45 @@
   flex-grow: 1;
 }
 
+/* Out of the flow, so that it comes and goes without moving the proof. */
+.stepper:has(> .deletion-note) {
+  position: relative;
+}
+
+.deletion-note {
+  position: absolute;
+  top: 0.3em;
+  right: 1.5em;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.15em 0.4em 0.15em 0.8em;
+  font-family: var(--ui-font);
+  font-size: 0.75em;
+  color: var(--cell-result-text);
+  background-color: var(--light-page-color);
+  border: 1px solid var(--border-default);
+  border-radius: 999px;
+}
+
+.deletion-note button {
+  font: inherit;
+  color: var(--stepper-condition-text);
+  background: none;
+  border: none;
+  padding: 0 0.2em;
+  cursor: pointer;
+}
+
+.deletion-undo {
+  font-weight: 600;
+}
+
 .stepper-controls {
   display: flex;
   flex-direction: row;
   gap: 0.5em;
-}
-
-.induction-scrut {
-  display: flex;
-  flex-direction: row;
-  gap: 0.5em;
-  align-items: center;
-}
-
-.induction-case {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5em;
-  margin-left: 2em;
-}
-
-.induction-case .stepper {
-  margin-left: 2em;
-}
-.induction-case-header {
-  display: flex;
-  flex-direction: row;
-  gap: 0.5em;
-  align-items: center;
-  border-top: 1px dotted var(--cell-result-border);
-  padding-top: 0.5em;
-  margin-left: -1em;
-}
-
-.induction-case-hypothesis {
-  display: flex;
-  flex-direction: row;
-  gap: 0.5em;
-  margin-left: 3em;
-  align-items: center;
-}
-
-.induction-case-patten {
-  display: flex;
-  flex-direction: row;
-  gap: 0.5em;
-  align-items: center;
 }
 
 .stepper .subtle-button {
@@ -89,21 +82,19 @@
   transition: all 0.3s;
 }
 
-.add-case-button {
-  margin-left: 2.5em;
-  color: --frame-4;
-}
-
 .stepper .subtle-button:hover {
-  opacity: 1;
-}
-
-.stepper .induction-case:hover .subtle-button {
   opacity: 1;
 }
 
 *:hover > .subtle-button {
   opacity: 1;
+}
+
+/* Inline chips get their spacing from the wrapper's own padding; the
+ * main-editor gutter (`#main .code-editor { padding-left: 1em }`,
+ * reserved for when line numbers are off) doesn't apply here. */
+#main .inline-editor-wrapper .code-editor {
+  padding-left: 0;
 }
 
 /* The hexagon is drawn by ::before rather than by clipping the wrapper:
@@ -136,51 +127,7 @@
 
 /* PROVER */
 
-.missing-step-overlay-align {
-  position: absolute;
-}
-
-/* Every result row is an isolated stacking context, so a later sibling row
- * (or editor layers up to --projector-overlay-z, e.g. .code-text) would paint
- * over the active proof row's controls and an open assumptions/rewrite panel.
- * Raise the nested row above them; only nested rows, so the outermost proof
- * stays an ordinary isolated cell and the page's context menu stays on top. */
-.cell-result .cell-result:has(.missing-step-overlay-align) {
-  position: relative;
-  z-index: var(--proof-step-raised-z);
-}
-
-.cell-result .cell-result:has(.axiom-box, .rewrite-box) {
-  z-index: var(--proof-step-panel-z);
-}
-
-/* A context menu opened inside a proof (in a case pattern, the induction
- * scrutinee or a rewrite box) shares the proof's stacking context with the
- * raised rows above, so it and its backdrop have to clear them too. */
-.cell-result .context-menu-backdrop {
-  z-index: calc(var(--proof-step-panel-z) + 1);
-}
-
-.cell-result .context-menu {
-  z-index: calc(var(--proof-step-panel-z) + 2);
-}
-
-.proof-context-box {
-  position: absolute;
-  top: calc(100% + 0.5em);
-  left: 2em;
-  z-index: var(--context-inspector-z);
-  display: flex;
-  flex-direction: column;
-  gap: 0.5em;
-}
-
-.proof-selection-buttons {
-  display: flex;
-  flex-direction: row;
-  gap: 0.5em;
-}
-
+/* A broken step's repair buttons, in its popup. */
 .proof-button {
   cursor: pointer;
   pointer-events: all;
@@ -191,26 +138,338 @@
   white-space: nowrap;
 }
 
-.axiom-box {
-  background-color: var(--menu-bkg);
-  border-radius: 0 0 0.5em 0;
-  outline: 0.6px solid var(--menu-outline);
-  box-shadow: 0px 10px 20px var(--menu-shadow);
-  padding: 10px;
+/* The write box: tabs over a code box, under the goal of an unfinished
+ * chain. Indented to line up with the goal's text past the `≡`. */
+.write-box {
+  position: relative;
+  padding: 0.3em 1.5em 0.4em 2.6em;
+  margin-right: 14px;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 0.25em;
 }
 
-.rewrite-box {
-  background-color: var(--menu-bkg);
-  border-radius: 0 0 0.5em 0;
-  outline: 0.6px solid var(--menu-outline);
-  box-shadow: 0px 10px 20px var(--menu-shadow);
-  padding: 10px;
+/* Writing a selected part's replacement, the box moves right of the part,
+ * an arrow running to it from the part. 3.3em in is the goal's first
+ * column: the box's padding and its input's. */
+.write-box {
+  transition: padding-left 0.4s ease-in-out;
+}
+
+/* The box keeps room for its tabs and some text, so near the right of a
+ * long goal it stops short of the part, the arrow running into it. */
+.write-box.replacing {
+  padding-left: min(calc(3.3em + var(--shift)), calc(100% - 1.5em - 22em));
+}
+
+.write-arrow {
+  position: absolute;
+  left: 3.3em;
+  top: -10px;
+  overflow: visible;
+  pointer-events: none;
+  fill: none;
+  stroke: var(--cell-result-text);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 3;
+  animation: write-arrow-in 0.6s ease-in both;
+}
+
+@keyframes write-arrow-in {
+  0%,
+  50% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.box-tabs {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 1.1em;
+  font-family: var(--ui-font);
+  font-size: 0.8em;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.box-tab {
+  white-space: nowrap;
+  cursor: pointer;
+  padding-bottom: 2px;
+  border-bottom: 2px solid transparent;
+}
+
+.box-tab:hover {
+  color: var(--cell-result-text);
+}
+
+.box-tab.on {
+  color: var(--stepper-condition-text);
+  border-bottom-color: var(--stepper-condition-text);
+}
+
+/* What a tab shows under the tabs, at least as tall as the Write tab's
+ * box, so switching tabs doesn't move what is below. */
+.box-body {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 0.25em;
+  min-height: 2.2em;
+}
+
+.box-hole-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 0.4em;
+}
+
+/* Above the arrow, which near the right of a long goal ends inside the
+ * box. */
+.box-input {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.6em;
+  background-color: var(--light-page-color);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  padding: 0.25em 0.6em;
+}
+
+.box-editor {
+  position: relative;
+  flex-grow: 1;
+  min-width: 4em;
+}
+
+#main .box-editor .code-editor {
+  padding-left: 0;
+}
+
+/* An empty box draws no hole: it shows what Tab takes instead. */
+.box-editor.empty .empty-hole {
+  visibility: hidden;
+}
+
+/* What Tab takes, faded behind an empty box. */
+.box-ghost {
+  position: absolute;
+  inset: 0 auto auto 0;
+  pointer-events: none;
+  opacity: 0.45;
+}
+
+.box-hint {
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+  font-family: var(--ui-font);
+  font-size: 0.75em;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.box-key {
+  font-size: 0.9em;
+  border: 1px solid var(--cell-result-border);
+  border-radius: 3px;
+  padding: 0 0.35em;
+  color: var(--cell-result-text);
+  background-color: var(--cell-result);
+}
+
+.box-hint-none {
+  color: var(--text-error-strong);
+}
+
+.box-hint:has(.box-hint-none) .box-key {
+  opacity: 0.45;
+}
+
+/* What Enter would write, dashed: it isn't written yet. */
+.write-preview {
+  font-family: var(--ui-font);
+  font-size: 0.8em;
+  padding: 0 0.7em;
+  border: 1px dashed var(--stepper-lozenge-border);
+  border-radius: 999px;
+  background-color: var(--cell-result);
+  color: var(--cell-result-text);
+  white-space: nowrap;
+  /* So that the lozenge doesn't change width with each key. */
+  min-width: 7em;
+  text-align: center;
+}
+
+.write-preview.searching {
+  opacity: 0.6;
+}
+
+.write-preview.none {
+  border-color: oklch(55% 0.15 30);
+  background-color: oklch(93% 0.04 30);
+  color: oklch(45% 0.15 30);
+}
+
+/* Under the box: the goal each use of a rule gives, or the names the
+ * text completes to. */
+.box-items {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--light-page-color);
+  border: 1px solid var(--cell-result-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.box-item {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1em;
+  padding: 0.2em 0.6em;
+  cursor: pointer;
+  border-top: 1px solid var(--cell-result);
+}
+
+.box-item:first-child {
+  border-top: none;
+}
+
+.box-item.on {
+  background-color: var(--stepper-lozenge-bkg);
+}
+
+.box-item-rule,
+.box-item-note {
+  font-family: var(--ui-font);
+  font-size: 0.75em;
+  white-space: nowrap;
+  color: var(--cell-result-text);
+}
+
+.box-item-rule {
+  padding: 0 0.7em;
+  border: 1px solid var(--stepper-lozenge-border);
+  border-radius: 999px;
+}
+
+/* The Proof strategy tab's buttons sit on the panel, not on a code
+ * background: they aren't code. */
+.strategy-buttons {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.4em;
+  padding: 0.15em 0;
+}
+
+.strategy-button {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4em;
+  cursor: pointer;
+  font-family: var(--ui-font);
+  font-size: 0.85em;
+  padding: 0.2em 0.7em;
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  background-color: var(--cell-result);
+  color: var(--stepper-condition-text);
+  white-space: nowrap;
+}
+
+.strategy-button:hover,
+.strategy-button.open {
+  background-color: var(--stepper-lozenge-bkg);
+}
+
+/* The goal's own introduction comes first, dark. */
+.strategy-button.intro {
+  background-color: var(--stepper-arm);
+  border-color: var(--stepper-arm);
+  color: var(--stepper-arm-text);
+}
+
+.strategy-button.intro .code-text,
+.strategy-button.intro .token {
+  color: var(--stepper-arm-text);
+  opacity: 0.85;
+}
+
+.strategy-hole {
+  font-family: var(--ui-font);
+  font-size: 0.85em;
+  color: var(--text-muted);
+}
+
+.strategy-caret {
+  font-size: 0.8em;
+  opacity: 0.7;
+}
+
+.strategy-separator {
+  align-self: stretch;
+  width: 1px;
+  background-color: var(--cell-result-border);
+  margin: 0 0.2em;
+}
+
+.strategy-chooser {
+  position: relative;
+}
+
+.strategy-menu {
+  position: absolute;
+  top: calc(100% + 3px);
+  left: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 100%;
+  background-color: var(--menu-bkg);
+  border: 0.6px solid var(--menu-outline);
+  border-radius: 4px;
+  box-shadow: 0px 6px 14px var(--menu-shadow);
+  padding: 0.2em 0;
+}
+
+.strategy-choice {
+  cursor: pointer;
+  padding: 0.15em 0.8em;
+  white-space: nowrap;
+}
+
+.strategy-choice:hover {
+  background-color: var(--menu-item-hover-bkg);
+}
+
+/* Every result row is an isolated stacking context, so the rows after an
+ * open strategy menu would paint over it. Raise the chain holding it;
+ * only nested chains, so the outermost proof stays an ordinary isolated
+ * cell and the page's context menu stays on top. */
+.cell-result .cell-result:has(.strategy-menu) {
+  position: relative;
+  z-index: var(--proof-step-panel-z);
+}
+
+/* A context menu opened inside a proof (in a case pattern, the induction
+ * scrutinee or the write box) shares the proof's stacking context with
+ * the raised chain above, so it and its backdrop have to clear it too. */
+.cell-result .context-menu-backdrop {
+  z-index: calc(var(--proof-step-panel-z) + 1);
+}
+
+.cell-result .context-menu {
+  z-index: calc(var(--proof-step-panel-z) + 2);
 }
 
 /* STEPPER (OLD) */
@@ -241,17 +500,35 @@
   fill: var(--exp-ap) !important;
   cursor: pointer;
 }
-.step-taken > svg.shard > path,
-.step-taken > svg.shard > path *:not(.EmptyHole *, .EmptyHole) {
-  border: 1px var(--border-soft);
-  fill: var(--text-faint);
+
+/* What the step below acts on: a line in the color of the C a focus
+   opens, drawn under the text rather than as a plate, and not clickable,
+   so it can't be taken for an offered step. It sits above projectors,
+   whose boxes would otherwise hide it under a folded name. */
+.step-acts-on {
+  pointer-events: none;
+  box-sizing: border-box;
+  border-bottom: 2px solid var(--stepper-arm);
+  z-index: calc(var(--projector-hover-z) + 1);
+}
+
+/* Where the suggestion the user is choosing would act: dashed, as it
+   isn't written yet. */
+.step-previewing {
+  pointer-events: none;
+  box-sizing: border-box;
+  border-bottom: 2px dashed var(--stepper-arm);
+  z-index: calc(var(--projector-hover-z) + 1);
+}
+
+/* The same line under all of a read-only goal, which has no overlays. */
+.step-acts-on-whole .code-text {
+  text-decoration: underline 2px var(--stepper-arm);
+  text-underline-offset: 0.3em;
 }
 
 .step-next > svg > path.child-line {
   stroke: var(--border-success-muted);
-}
-.step-taken > svg > path.child-line {
-  stroke: var(--border-soft);
 }
 .step-refl > svg > path.child-line {
   stroke: var(--border-typ);
@@ -268,9 +545,6 @@
   cursor: pointer;
   z-index: var(--stepper-interactive-z) !important;
   filter: drop-shadow(1px 1px var(--shadow-typ)) !important;
-}
-.step-taken > svg.shard {
-  filter: drop-shadow(1px 1px var(--shadow-soft)) !important;
 }
 
 /* In high contrast the plate cannot carry the highlight on its own. The ink
@@ -360,14 +634,531 @@
   cursor: not-allowed;
 }
 
-.assumption-box {
-  display: flex;
-  flex-direction: row;
-  gap : 1em;
-  align-items: center;
-  margin-left: 2em;
-}
-
 .step-placeholder {
   background-color: var(--test-panel-bkg)
+}
+
+/* Per-row status (see StepperView.View.Row). Status must never change the
+ * proof's layout, so both indicators live outside the document flow:
+ *
+ *  1. An indicator line along the row's right edge, drawn by an
+ *     absolutely-positioned ::after: solid red = broken, tan =
+ *     incomplete, dotted lighter red = blocked (waiting on the step
+ *     above). Ok/pending rows draw nothing.
+ *  2. A popup anchored above the justification, hidden until the
+ *     justification is clicked, carrying the error message and repair
+ *     actions. */
+.step-border {
+  position: relative;
+  /* Reserved gutter for the status indicator line. Always present —
+   * whether or not an indicator is drawn — so a row gaining or losing
+   * status never shifts layout. Because it's margin (not padding), the
+   * gutter sits outside the dotted separators between steps: the
+   * indicator floats in clear space to the right of the row. */
+  margin-right: 14px;
+}
+
+/* Lozenge-shaped line, rounded caps, centered in the gutter. Like the
+ * justification, the status describes the transition out of this row
+ * (the step), not the expression — so the lozenge is a fixed-height
+ * mark centered on the same between-rows boundary the justification
+ * sits on, rather than spanning the row. */
+.step-border.broken::after,
+.step-border.incomplete::after,
+.step-border.blocked::after {
+  content: "";
+  position: absolute;
+  top: calc(100% - 0.75em);
+  height: 1.5em;
+  right: -9px;
+  width: 3px;
+  border-radius: 1.5px;
+  pointer-events: none;
+}
+
+.step-border.broken::after {
+  background-color: var(--step-indicator-broken);
+}
+
+.step-border.incomplete::after {
+  background-color: var(--step-indicator-incomplete);
+}
+
+.step-border.blocked::after {
+  /* Round dots via a repeating radial gradient (border dots render
+   * square in some engines), keeping the dotted variant in the same
+   * rounded language as the solid lozenges. */
+  background-image: radial-gradient(
+    circle at 50% 2px,
+    var(--step-indicator-blocked) 1.5px,
+    transparent 1.9px
+  );
+  background-size: 3px 7px;
+  background-repeat: repeat-y;
+}
+
+/* A goal not established yet: borrowed from the row above while its step
+ * is checked, or still to be proven by the body of the form above. */
+.step-border.goal-pending > .step-display > .step-output {
+  opacity: 0.5;
+}
+
+/* A check usually lands within a moment, so a borrowed goal fades only
+ * if it doesn't. */
+.step-border.checking > .step-display > .step-output {
+  animation: checking-fade 0.3s ease-in 0.4s both;
+}
+
+@keyframes checking-fade {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.5;
+  }
+}
+
+.write-preview.checking {
+  animation: checking-show 0.3s ease-in 0.4s both;
+}
+
+@keyframes checking-show {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 0.6;
+  }
+}
+
+/* Blocked rows keep rendering (never dropped); grey the body so the
+ * chain visibly reads as "on hold" below the break. Opacity does not
+ * affect layout. */
+.step-border.blocked > .step-display {
+  opacity: 0.5;
+}
+
+/* The justification wrapper anchors the popup. When the row has
+ * something to explain, it reads as a button and toggles the popup via
+ * :focus-within (the popup is inside the wrapper, so clicking a repair
+ * button keeps focus within it and the click lands). */
+.step-justification-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--stepper-lozenge-border);
+  border-radius: 0.3em;
+  padding: 0 0.4em;
+  background-color: var(--stepper-lozenge-bkg);
+}
+
+/* A hole or a chain's end has no step to justify: its wrap holds only
+ * the stepper's controls, so it draws no lozenge. */
+.step-justification-wrap:has(> .missing-step-justification) {
+  border: none;
+  padding: 0;
+  background-color: transparent;
+}
+
+/* ---- Transition-aligned justifications ----
+ *
+ * A justification lives semantically between two steps: it explains how
+ * the expression above becomes the expression below. So it renders
+ * offset half a step down, sitting on the boundary line between the two
+ * rows. The offset is a pure transform: the wrap still occupies its
+ * original slot in the row's flex layout, so expression width, row
+ * heights, and selection geometry are untouched (and the popup anchor
+ * moves with it).
+ *
+ * 50% = half the band's own height (from row-center to the content's
+ * bottom edge), + 0.5em = the row's bottom padding, landing the band's
+ * center on the next row's border-top. */
+.step-display > .step-transition {
+  /* Into the row's right padding, so the trash can after the lozenge
+   * sits in a column of its own, clear of any block's C. */
+  margin-right: -0.5em;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.3em;
+  transform: translateY(calc(50% + 0.5em));
+  z-index: 1;
+  /* Sit on the separator line: an opaque background, padded on the left,
+   * so the line reads as interrupted by the label ("——— eval 🗑") rather
+   * than struck through it. */
+  background-color: var(--cell-result);
+  padding-left: 0.4em;
+}
+
+/* Per-row delete: rides the transition band next to the justification.
+ * Subtle until the row is hovered — it's a destructive affordance, not
+ * information. Hover is keyed to the row's own display line (not
+ * .step-border, which for induction/forall wraps every nested row and
+ * would light up all the trash cans at once). */
+.step-transition .step-delete {
+  opacity: 0;
+  transition: opacity 0.1s ease-in;
+  cursor: pointer;
+}
+
+.step-display:hover .step-delete {
+  opacity: 0.6;
+}
+
+.step-transition .step-delete:hover {
+  opacity: 1;
+}
+
+/* Nested steppers (induction cases, forall bodies, target-box rows) sit
+ * inside their parent row's .step-border, which insets them on the
+ * right by its padding plus the indicator gutter, compounding per
+ * nesting level. Cancel the parent's inset, so every row's right edge
+ * (and with it the transition band and status lozenge gutter) lies flat
+ * on one column. */
+.step-border .stepper {
+  margin-right: calc(-0.5em - 14px);
+}
+
+/* The trailing row's justification hangs half a step below the last
+ * row; give it room instead of clipping — but only when nothing follows
+ * (inside a target box the "⋯" row comes next, and the band should sit
+ * on the shared boundary, not float above it). */
+.stepper:last-child {
+  padding-bottom: 1.2em;
+}
+
+.step-justification-wrap.has-popup {
+  cursor: pointer;
+  border: 1px solid var(--step-indicator-broken);
+  border-radius: 0.3em;
+  padding: 0 0.4em;
+  background-color: color-mix(
+    in srgb,
+    var(--step-indicator-broken) 12%,
+    transparent
+  );
+}
+
+.step-border.blocked .step-justification-wrap.has-popup {
+  border-color: var(--step-indicator-blocked);
+  background-color: color-mix(
+    in srgb,
+    var(--step-indicator-blocked) 12%,
+    transparent
+  );
+}
+
+.step-justification-wrap.has-popup:focus {
+  outline: none;
+}
+
+.step-error-popup {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 0.4em);
+  right: 0;
+  z-index: var(--stepper-interactive-z);
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.3em;
+  width: max-content;
+  max-width: 26em;
+  padding: 0.5em 0.75em;
+  border: 1px solid var(--step-indicator-broken);
+  border-radius: 0.3em;
+  background-color: var(--test-panel-bkg);
+  box-shadow: 0 2px 8px var(--menu-shadow);
+  font-size: 0.85em;
+  cursor: default;
+}
+
+.step-border.blocked .step-error-popup {
+  border-color: var(--step-indicator-blocked);
+}
+
+.step-justification-wrap.has-popup:focus-within > .step-error-popup {
+  display: flex;
+}
+
+/* Inline error text in a row's expression slot: when the step above is
+ * broken the checker passes the goal through unchanged, so rather than
+ * reprint the identical expression the row says what went wrong. */
+.step-error-inline {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.3em;
+  color: var(--step-indicator-broken);
+  font-size: 0.85em;
+}
+
+/* Error rows keep the ≡ slot for column alignment but don't show it —
+ * their content is a message, not an equivalent expression. */
+.equiv.equiv-hidden {
+  visibility: hidden;
+}
+
+/* A missing step's justification: the transition out of the row is not
+ * yet known. */
+.missing-step-justification {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.3em;
+}
+
+.step-unknown {
+  opacity: 0.6;
+  font-weight: bold;
+  padding: 0 0.3em;
+}
+
+/* Read-only fallback for a wrapping form's argument (cell-level stepper,
+ * or a moment when the backing segment can't be spliced). Without
+ * `.inline-editor-wrapper`'s chrome: an editor-looking box that
+ * cannot be typed into reads as broken. */
+.proof-form-arg-static {
+  padding: 0.2em 0;
+}
+
+/* Prover: mark messages ---------------------------------------------
+ *
+ * The wildcard-split refusal is much longer than the other marks, so it
+ * may shrink and wrap inside its slot. */
+.induction-wildcard-warning {
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* Prover: a step's block ------------------------------------------------
+ *
+ * A step with goals of its own (a form's body, induction's cases, have's
+ * sub-proof) or with side conditions shown open draws a block in place of
+ * the line to the next row: a C open to the right, with the step's
+ * lozenge on its top edge, in the column the other lozenges use. Each
+ * section is a C: a bar naming what it adds, over a light slot holding
+ * a stepper aiming at `true`. Goals the step creates are dark sections,
+ * side conditions mid-tone ones, before them. */
+.step-border.has-block {
+  padding-bottom: 0;
+}
+
+/* The block is the step, so the row after it draws no line of its own. */
+.step-border.has-block + .step-border {
+  border-top-color: transparent;
+}
+
+.step-block {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0.6em 0 0.4em -0.7em;
+}
+
+/* On the block's top edge, half over the block, where the step's line
+ * would be. The lozenge inside carries its own border and fill. */
+.step-block > .step-transition {
+  position: absolute;
+  top: 0;
+  right: -0.5em;
+  transform: translateY(-50%);
+  z-index: 1;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.3em;
+}
+
+.step-block > .step-transition .step-delete {
+  opacity: 0;
+}
+
+.step-block > .step-transition:hover .step-delete,
+.step-border.has-block > .step-display:hover + .step-block .step-delete {
+  opacity: 0.6;
+}
+
+/* The status indicator marks the step, so it sits on the block's top
+ * edge, where the step's line would be. */
+.step-border.has-block::after {
+  display: none;
+}
+
+.step-border.has-block.broken > .step-block::after,
+.step-border.has-block.incomplete > .step-block::after,
+.step-border.has-block.blocked > .step-block::after {
+  content: "";
+  position: absolute;
+  top: -0.75em;
+  height: 1.5em;
+  right: -9px;
+  width: 3px;
+  border-radius: 1.5px;
+  pointer-events: none;
+}
+
+.step-border.has-block.broken > .step-block::after {
+  background-color: var(--step-indicator-broken);
+}
+
+.step-border.has-block.incomplete > .step-block::after {
+  background-color: var(--step-indicator-incomplete);
+}
+
+.step-border.has-block.blocked > .step-block::after {
+  background-image: radial-gradient(
+    circle at 50% 2px,
+    var(--step-indicator-blocked) 1.5px,
+    transparent 1.9px
+  );
+  background-size: 3px 7px;
+  background-repeat: repeat-y;
+}
+
+/* A C stops short of the row's edge, leaving the trash cans' column
+ * clear; its slots run on to the edge, so rows nested in them keep the
+ * lozenge column of the rows outside. */
+.step-section {
+  padding: 0 0 8px 16px;
+  margin-right: 22px;
+  border-radius: 8px 0 0 8px;
+}
+
+.step-section > .step-slot {
+  margin-right: -22px;
+}
+
+.step-section.arm {
+  background-color: var(--stepper-arm);
+  color: var(--stepper-arm-text);
+}
+
+.step-section.condition {
+  background-color: var(--stepper-condition);
+  color: var(--stepper-condition-text);
+}
+
+.step-section-bar,
+.step-arm-bar {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0.4em 0.6em 0.3em 0;
+}
+
+.step-section-bar {
+  font-size: 0.8em;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.step-arm-note {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3em 1em;
+  font-size: 0.8em;
+  opacity: 0.9;
+}
+
+.step-arm-fact {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.3em;
+}
+
+/* Code printed in a dark bar takes the bar's light text, all tokens
+ * alike. Editable chips keep their own colours. */
+.step-arm-code *,
+.step-arm-note * {
+  color: var(--stepper-arm-text) !important;
+}
+
+.step-slot {
+  background-color: var(--cell-result);
+  color: var(--text-default);
+  border-radius: 7px 0 0 7px;
+}
+
+.step-slot > .stepper:first-child > .step-border:first-child {
+  border-top-color: transparent;
+}
+
+.step-section.arm .add-case-button {
+  color: var(--stepper-arm-text);
+  margin-top: 0.3em;
+  width: max-content;
+}
+
+/* A side condition left collapsed: a dot on the step's line, with its
+ * kind's icon. Red while unproven; open, its `?` row holds the exits. */
+.condition-dot {
+  width: 15px;
+  height: 15px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 1.5px solid var(--stepper-condition-text);
+  background-color: var(--stepper-condition);
+  color: var(--stepper-condition-text);
+  font: 600 11px/13px var(--ui-font), sans-serif;
+  text-align: center;
+  cursor: pointer;
+}
+
+.condition-dot.unproven {
+  border-color: var(--border-error-strong);
+  background-color: var(--border-error);
+  color: var(--light-page-color);
+}
+
+.condition-exits {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3em;
+}
+
+/* Drawn like a step's lozenge. */
+.condition-exit {
+  font-family: inherit;
+  font-size: 0.8em;
+  padding: 0.1em 0.5em;
+  border: 1px solid var(--stepper-lozenge-border);
+  border-radius: 0.3em;
+  background-color: var(--stepper-lozenge-bkg);
+  color: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.condition-exit:hover:not(.disabled) {
+  background-color: var(--stepper-lozenge-border);
+  color: var(--light-page-color);
+}
+
+/* An exit that doesn't apply stays visible; its title says why. */
+.condition-exit.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  text-decoration: line-through;
+}
+
+.condition-hint {
+  font-size: 0.8em;
+  opacity: 0.7;
+}
+
+.target-step .step-output,
+.condition-missing .step-unknown {
+  opacity: 0.5;
 }

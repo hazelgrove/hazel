@@ -201,6 +201,7 @@ let evaluated = (result: Language.Exp.t): Web.EvalResult.Model.t => {
     Web.EvalResult.Update.update(
       ~settings=Web.Settings.Model.init,
       UpdateResult(
+        Web.EvalResult.Model.request_gen(Web.EvalResult.Model.init),
         ResultOk({
           result,
           state: Language.EvaluatorState.empty,

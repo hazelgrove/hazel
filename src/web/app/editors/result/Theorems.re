@@ -1,90 +1,85 @@
 open Util;
-open Calc.Syntax;
 open Language;
+
+/* The theorems of a cell, each with its stepper and contracts. The
+ * theorems and their proof map come from the last completed evaluation,
+ * checked with the statics of its request. Their proofs' syntax is read
+ * from the current statics, so a step just written has its row (and its
+ * sub-editors, which take focus) at once; it shows a goal once a check
+ * reaches it. */
+
+/* This file follows conventions in [docs/ui-architecture.md] */
+
+/* Theorem steppers always show the proof's history. */
+let with_proof_settings = (settings: CoreSettings.t): CoreSettings.t => {
+  ...settings,
+  evaluation: {
+    ...settings.evaluation,
+    enable_proof: true,
+    stepper_history: true,
+  },
+};
 
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type theorem = {
     name: string,
-    ctx: Calc.saved(Ctx.t),
-    env: Calc.saved(Environment.t(Exp.t)),
-    sem_ctx: Calc.saved(SemanticCtx.t),
-    goal_exp: Calc.saved(Exp.t),
-    stepper_view: StepperView.Model.t,
-  };
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent_theorem = {stepper_view: StepperView.Model.persistent};
-
-  let theorem_init = name => {
-    name,
-    ctx: Calc.Pending,
-    env: Calc.Pending,
-    sem_ctx: Calc.Pending,
-    goal_exp: Calc.Pending,
-    stepper_view: StepperView.Model.init,
+    /* The statement as written. The Add to statement exit rewrites one
+     * of its `forall` binders, so it needs the syntactic term, ids and
+     * all. */
+    stmt: option(Exp.t),
+    /* The proof as written; a hole when there is none. */
+    proof: Proof.t,
+    stepper: StepperView.Model.t,
+    /* The obligations of the functions in the theorem's scope, discharged
+     * at their definitions. */
+    contracts: list(Obligation.t),
+    /* The contracts shown open, by index into `contracts`. */
+    open_contracts: list(int),
+    /* While the program no longer reaches the theorem, or its proof can't
+     * be found, the stepper is drawn as it last was, with the proof map
+     * it was checked with, and keeps its state for when the theorem is
+     * back. */
+    stale: option(ProofMap.t),
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
+    /* In program order. */
+    thms: list(Id.t),
     thm_map: Id.Map.t(theorem),
-    thms: Calc.saved(list(Id.t)),
+    /* The cell's ProofMap, shared by all its theorems. */
+    proof_map: ProofMap.t,
+    /* The statics of the proofs' syntax. */
+    info_map: Statics.Map.t,
   };
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = {thm_map: Id.Map.t(persistent_theorem)};
 
   let init = {
+    thms: [],
     thm_map: Id.Map.empty,
-    thms: Calc.Pending,
+    proof_map: ProofMap.empty,
+    info_map: Statics.Map.empty,
   };
 
-  let persist = (model: t): persistent => {
-    thm_map:
-      Id.Map.map(
-        (thm: theorem) =>
-          {stepper_view: StepperView.Model.persist(thm.stepper_view)},
-        model.thm_map,
-      ),
-  };
-
-  let unpersist = (p: persistent): t => {
-    thm_map:
-      Id.Map.map(
-        (p_thm: persistent_theorem): theorem =>
-          {
-            name: "?",
-            ctx: Calc.Pending,
-            env: Calc.Pending,
-            sem_ctx: Calc.Pending,
-            goal_exp: Calc.Pending,
-            stepper_view: StepperView.Model.unpersist(p_thm.stepper_view),
-          },
-        p.thm_map,
-      ),
-    thms: Calc.Pending,
-  };
+  let theorems = (model: t): list((Id.t, theorem)) =>
+    List.filter_map(
+      id => Id.Map.find_opt(id, model.thm_map) |> Option.map(t => (id, t)),
+      model.thms,
+    );
 
   let get_score = (model: t): option((float, float)) => {
-    open OptUtil.Syntax;
-    let* thms = model.thms |> Calc.get_saved_opt;
-    let total = float_of_int(List.length(thms));
-    let correct =
-      List.fold_left(
-        (acc, id) =>
-          acc
-          +. (
-            switch (Id.Map.find_opt(id, model.thm_map)) {
-            | Some(thm) =>
-              StepperView.Model.get_validity(thm.stepper_view) == Some(true)
-                ? 1.0 : 0.0
-            | None => 0.0
-            }
-          ),
-        0.0,
+    let thms =
+      List.filter(((_, thm)) => thm.stale == None, theorems(model));
+    let proven =
+      List.filter(
+        ((_, thm)) =>
+          ProofMap.status_of_proof(model.proof_map, thm.proof) == Some(true),
         thms,
       );
-    Some((correct, total));
+    Some((
+      float_of_int(List.length(proven)),
+      float_of_int(List.length(thms)),
+    ));
   };
 };
 
@@ -93,208 +88,230 @@ module Update = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | TheoremUpdate(int, StepperView.Update.t);
+    | TheoremUpdate(Id.t, StepperView.Update.t)
+    | ToggleContract(Id.t, int);
 
-  let update = (~settings, action, model: Model.t): Updated.t(Model.t) => {
-    let settings =
-      Settings.Model.{
-        ...settings,
-        core: {
-          ...settings.core,
-          evaluation: {
-            ...settings.core.evaluation,
-            enable_proof: true,
-            stepper_history: true,
-          },
-        },
-      };
+  let update =
+      (~settings: Settings.t, action, model: Model.t): Updated.t(Model.t) => {
+    let settings = {
+      ...settings,
+      core: with_proof_settings(settings.core),
+    };
     switch (action) {
-    | TheoremUpdate(n, action) =>
-      let id_and_thm = {
-        open OptUtil.Syntax;
-        let* id = List.nth_opt(model.thms |> Calc.get_saved([]), n);
-        let* thm = Id.Map.find_opt(id, model.thm_map);
-        Some((id, thm));
-      };
-      switch (id_and_thm) {
-      | Some((id, thm)) =>
-        let* stepper_view =
-          StepperView.Update.update(~settings, action, thm.stepper_view);
-        let thm_map =
-          Id.Map.add(
-            id,
-            {
-              ...thm,
-              stepper_view,
-            },
-            model.thm_map,
-          );
-        Model.{
+    | TheoremUpdate(id, action) =>
+      switch (Id.Map.find_opt(id, model.thm_map)) {
+      | Some(thm) =>
+        let* stepper =
+          StepperView.Update.update(~settings, action, thm.stepper);
+        {
           ...model,
-          thm_map,
+          thm_map:
+            Id.Map.add(
+              id,
+              {
+                ...thm,
+                stepper,
+              },
+              model.thm_map,
+            ),
         };
-      | None => model |> Updated.raise_invalid_action
-      };
+      | None => model |> raise_invalid_action
+      }
+    | ToggleContract(id, i) =>
+      switch (Id.Map.find_opt(id, model.thm_map)) {
+      | Some(thm) =>
+        let open_contracts =
+          List.mem(i, thm.open_contracts)
+            ? List.filter((!=)(i), thm.open_contracts)
+            : [i, ...thm.open_contracts];
+        {
+          ...model,
+          thm_map:
+            Id.Map.add(
+              id,
+              {
+                ...thm,
+                open_contracts,
+              },
+              model.thm_map,
+            ),
+        }
+        |> return_quiet(~logged=true);
+      | None => model |> raise_invalid_action
+      }
     };
   };
 
   let calculate =
       (
         ~settings: Calc.t(CoreSettings.t),
+        /* The cell's current statics. */
         ~statics: Calc.t(Haz3lcore.CachedStatics.t),
-        ~dynamics: Calc.t(option(Dynamics.t)),
-        {thm_map, thms}: Model.t,
-      ) => {
-    let settings' = {
-      ...Calc.get_value(settings),
-      evaluation: {
-        ...Calc.get_value(settings).evaluation,
-        enable_proof: true,
-        stepper_history: true,
-      },
-    };
-    let settings =
-      switch (settings) {
-      | OldValue(_) => Calc.OldValue(settings')
-      | NewValue(_) => Calc.NewValue(settings')
-      };
-    let thms =
-      thms
-      |> {
-        let.calc dynamics = dynamics;
-        let theorems =
-          switch (dynamics) {
-          | None => []
-          | Some(d) => d.theorems
-          };
-        let theorems =
-          List.map(
-            ((a, b, c, d)) => {
-              let d' = ProofRule.exp_to_rule(d);
-              (a, b, c, d');
-            },
-            theorems,
-          );
-        List.map(((id, _, _, _)) => id, theorems) |> List.rev;
-      }
-      |> Calc.old_if_same'(thms);
-
-    // Calculate visible steppers
-    let thm_map =
-      dynamics
-      |> Calc.get_value
-      |> (
-        fun
-        | None => []
-        | Some(x) => x.theorems
+        /* A completed evaluation and the statics of its request
+         * (EvalResult.Model.checked). */
+        ~checked: Calc.t(option((Haz3lcore.CachedStatics.t, Dynamics.t))),
+        /* Whether a newer evaluation is running, whose check will give the
+         * goals of steps written since `checked`. */
+        ~checking: bool,
+        model: Model.t,
       )
-      |> List.map(((a, b, c, d)) => {
-           let d' =
-             ProofRule.exp_to_rule(
-               d |> Substitution.in_exp(Environment.empty),
-             );
-           (a, b, c, d');
-         })
-      |> List.fold_left(
-           (acc, (id, name, env', rule: ProofRule.t)) =>
-             Id.Map.update(
-               id,
-               (opt: option(Model.theorem)) => {
-                 let Model.{
-                   name: _,
-                   ctx,
-                   env,
-                   sem_ctx,
-                   goal_exp,
-                   stepper_view,
-                 } =
-                   Option.value(~default=Model.theorem_init("?"), opt);
-
-                 let goal_exp =
-                   Calc.set(
-                     ~eq=Exp.fast_equal_with_lexemes,
-                     rule |> ProofRule.conclusion_exp,
-                     goal_exp,
-                   );
-
-                 let ctx =
-                   ctx
-                   |> {
-                     let.calc statics = statics;
-                     statics.info_map
-                     |> Statics.Map.ctx_of(id)
-                     |> Option.value(~default=Ctx.empty)
-                     |> List.fold_left(
-                          Ctx.extend,
-                          _,
-                          rule.bindings |> List.rev,
-                        );
-                   };
-
-                 let env = Calc.set(~eq=Environment.id_equal, env', env);
-
-                 let sem_ctx =
-                   sem_ctx
-                   |> {
-                     let.calc ctx = ctx
-                     and.calc env = env;
-                     SemanticCtx.of_ctx_and_env(ctx, env);
-                   };
-
-                 let stepper_view =
-                   StepperView.Update.calculate(
-                     ~settings,
-                     ~ctx=sem_ctx,
-                     ~ana=Calc.OldValue(Typ.fresh(Atom(Bool))),
-                     goal_exp,
-                     stepper_view,
-                   );
-
-                 Some({
-                   name,
-                   ctx: ctx |> Calc.save,
-                   env: env |> Calc.save,
-                   sem_ctx: sem_ctx |> Calc.save,
-                   goal_exp: goal_exp |> Calc.save,
-                   stepper_view,
-                 });
-               },
-               acc,
-             ),
-           thm_map,
-         );
-
-    Model.{
-      thm_map,
-      thms: thms |> Calc.save,
+      : Model.t =>
+    switch (settings, statics, checked) {
+    | (OldValue(_), OldValue(_), OldValue(_)) => model
+    | _ =>
+      let settings = with_proof_settings(Calc.get_value(settings));
+      switch (Calc.get_value(checked)) {
+      | None => Model.init
+      | Some((checked_statics, dynamics)) =>
+        /* The evaluator can't check proofs off the main thread, where it
+         * has no statics, so each theorem the evaluation recorded is
+         * checked here, with the env it recorded. Theorems are recorded
+         * latest first, and a later theorem's entries win, as in the
+         * evaluator. */
+        let (proof_map, contracts_of) =
+          if (Calc.is_new(checked)) {
+            let checks =
+              List.rev(dynamics.theorems)
+              |> List.filter_map(((id, _, env, _)) =>
+                   Option.bind(
+                     Exp.find_by_id(id, checked_statics.elaborated), node =>
+                     Evaluator.Proofs.check_theorem(
+                       ~statics=checked_statics.info_map,
+                       ~env,
+                       node,
+                     )
+                   )
+                   |> Option.map(checked => (id, checked))
+                 );
+            let proof_map =
+              List.fold_left(
+                (acc, (_, checked: Evaluator.Proofs.checked_theorem)) =>
+                  ProofMap.union(acc, checked.proof_map),
+                ProofMap.empty,
+                checks,
+              );
+            let contracts_of = id =>
+              switch (List.assoc_opt(id, checks)) {
+              | Some({contracts, _}) =>
+                Id.Map.fold(
+                  (_, entry: ProofMap.entry, acc) => acc @ entry.obligations,
+                  contracts,
+                  [],
+                )
+              | None => []
+              };
+            (proof_map, contracts_of);
+          } else {
+            let contracts_of = id =>
+              switch (Id.Map.find_opt(id, model.thm_map)) {
+              | Some(thm) => thm.contracts
+              | None => []
+              };
+            (model.proof_map, contracts_of);
+          };
+        let info_map = Calc.get_value(statics).info_map;
+        let syntax = id =>
+          switch (Statics.Map.lookup_exp(id, info_map)) {
+          | Some(info) => Some(info)
+          | None => Statics.Map.lookup_exp(id, checked_statics.info_map)
+          };
+        let stale = (thm: Model.theorem) => {
+          ...thm,
+          stale: Some(Option.value(~default=model.proof_map, thm.stale)),
+        };
+        /* Each theorem keeps its stepper's state from the last pass. */
+        let theorem = ((id, name, _, _)) =>
+          switch (
+            syntax(id)
+            |> Option.map((info: Info.exp) => Exp.term_of(info.user_term)),
+            Id.Map.find_opt(id, model.thm_map),
+          ) {
+          | (Some(Theorem(_, stmt, proof, _)), last) =>
+            let (stepper, open_contracts) =
+              switch (last) {
+              | Some(thm) => (thm.stepper, thm.open_contracts)
+              | None => (StepperView.Model.init, [])
+              };
+            let stepper =
+              StepperView.Update.calculate(
+                ~settings,
+                ~checking,
+                StepperRows.chain(~proof_map, proof),
+                stepper,
+              );
+            (
+              id,
+              Model.{
+                name,
+                stmt: Some(stmt),
+                proof,
+                stepper,
+                contracts: contracts_of(id),
+                open_contracts,
+                stale: None,
+              },
+            );
+          | (_, Some(thm)) => (id, stale(thm))
+          | (_, None) => (
+              id,
+              Model.{
+                name,
+                stmt: None,
+                proof: Proof.fresh(EmptyHole),
+                stepper: StepperView.Model.init,
+                contracts: contracts_of(id),
+                open_contracts: [],
+                stale: None,
+              },
+            )
+          };
+        let reached = List.rev_map(theorem, dynamics.theorems);
+        /* A theorem the evaluation didn't reach, after a typo above it,
+         * stays while it is still in the program. */
+        let unreached =
+          List.filter_map(
+            id =>
+              switch (
+                List.mem_assoc(id, reached),
+                Id.Map.find_opt(id, model.thm_map),
+                Statics.Map.lookup_exp(id, info_map),
+              ) {
+              | (false, Some(thm), Some(_)) => Some((id, stale(thm)))
+              | (true, _, _)
+              | (false, None, _)
+              | (false, _, None) => None
+              },
+            model.thms,
+          );
+        let theorems = reached @ unreached;
+        {
+          thms: List.map(fst, theorems),
+          thm_map: Id.Map.of_list(theorems),
+          proof_map,
+          info_map,
+        };
+      };
     };
-  };
 };
 
 module Focus = {
   open Cursor;
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = (int, StepperView.Focus.t);
 
-  let get_cursor_info = (~inject, ~focus: t, model: Model.t) => {
-    let id_and_thm = {
-      open OptUtil.Syntax;
-      let* id = List.nth_opt(model.thms |> Calc.get_saved([]), focus |> fst);
-      let* thm = Id.Map.find_opt(id, model.thm_map);
-      Some((id, thm));
-    };
-    switch (id_and_thm) {
-    | Some((_id, thm)) =>
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = (Id.t, StepperView.Focus.t);
+
+  let get_cursor_info = (~inject, ~focus as (id, focus): t, model: Model.t) =>
+    switch (Id.Map.find_opt(id, model.thm_map)) {
+    | Some(thm) =>
       let+ c =
         StepperView.Focus.get_cursor_info(
-          ~inject=x => inject(Update.TheoremUpdate(focus |> fst, x)),
-          ~focus=snd(focus),
-          thm.stepper_view,
+          ~inject=x => inject(Update.TheoremUpdate(id, x)),
+          ~focus,
+          thm.stepper,
         );
-      Update.TheoremUpdate(focus |> fst, c);
+      Update.TheoremUpdate(id, c);
     | None => Cursor.empty
     };
-  };
 };
 
 module View = {
@@ -304,73 +321,158 @@ module View = {
       (
         ~globals: Globals.t,
         ~take_focus: Focus.t => Ui_effect.t(unit),
+        ~return_to_editor: Ui_effect.t(unit),
         ~inject: Update.t => Ui_effect.t(unit),
         ~selected: option(Focus.t),
+        /* Writes a patch into the cell's program. */
+        ~edit_syntax: Haz3lcore.EditorTransform.patch => Ui_effect.t(unit),
+        /* The cell's editor, which the steppers' sub-editors splice into. */
+        ~main_editor: CodeEditable.Channel.t,
         model: Model.t,
       ) => {
     let globals = {
       ...globals,
       settings: {
         ...globals.settings,
-        core: {
-          ...globals.settings.core,
-          evaluation: {
-            ...globals.settings.core.evaluation,
-            enable_proof: true,
-            stepper_history: true,
-          },
-        },
+        core: with_proof_settings(globals.settings.core),
       },
     };
-    switch (model.thms |> Calc.get_saved([])) {
-    | [] => []
-    | xs =>
-      List.mapi(
-        (idx, id) => {
-          let Model.{stepper_view, name, _} = Id.Map.find(id, model.thm_map);
-          let status =
-            switch (StepperView.Model.get_validity(stepper_view)) {
-            | Some(true) =>
+    let theorem =
+        (
+          (
+            id,
+            {name, stmt, proof, stepper, contracts, open_contracts, stale}: Model.theorem,
+          ),
+        ) => {
+      let proof_map = Option.value(~default=model.proof_map, stale);
+      /* A stale stepper is for reading: its proof may not be where it was
+       * in the program. */
+      let edit_syntax = stale == None ? edit_syntax : (_ => Ui_effect.Ignore);
+      let status = ProofMap.full_status_of_proof(proof_map, proof);
+      let counter =
+        switch (Obligations.Status.open_count(proof_map, proof)) {
+        | 0 => []
+        | n => [
+            Node.div(
+              ~attrs=[
+                Attr.classes(["theorem-open-count"]),
+                Attr.title(
+                  string_of_int(n)
+                  ++ (n == 1 ? " open obligation" : " open obligations"),
+                ),
+              ],
+              [Node.text(string_of_int(n) ++ " open")],
+            ),
+          ]
+        };
+      let toggle = i => inject(Update.ToggleContract(id, i));
+      let contract_exits = (ob: Obligation.t) =>
+        Obligations.Exits.for_contract(
+          ~func=
+            Statics.Map.lookup_exp(ob.origin, model.info_map)
+            |> Option.map((info: Info.exp) => info.user_term),
+          ob,
+        );
+      let dots =
+        List.concat(
+          List.mapi(
+            (i, ob) =>
+              List.mem(i, open_contracts)
+                ? []
+                : [StepperView.View.Condition.dot(~toggle=toggle(i), ob)],
+            contracts,
+          ),
+        );
+      let sections =
+        List.concat(
+          List.mapi(
+            (i, ob) =>
+              List.mem(i, open_contracts)
+                ? [
+                  StepperView.View.Condition.view(
+                    ~globals,
+                    ~edit_syntax,
+                    ~exits=contract_exits(ob),
+                    ~toggle=toggle(i),
+                    ob,
+                  ),
+                ]
+                : [],
+            contracts,
+          ),
+        );
+      let header =
+        div_c(
+          "theorem-header",
+          [
+            Node.strong([Node.text("Proof of theorem ")]),
+            Node.text(name),
+            switch (stale) {
+            | Some(_) =>
               Node.div(
-                ~attrs=[Attr.classes(["theorem-status", "true"])],
-                [Node.text("proven true")],
+                ~attrs=[
+                  Attr.classes(["theorem-status", "stale"]),
+                  Attr.title(
+                    "The program doesn't run as far as this theorem, or its proof can't be found. This is how it was last checked.",
+                  ),
+                ],
+                [Node.text("not checked")],
               )
-            | Some(false)
             | None =>
               Node.div(
-                ~attrs=[Attr.classes(["theorem-status", "unknown"])],
-                [Node.text("incomplete")],
+                ~attrs=[
+                  Attr.classes([
+                    "theorem-status",
+                    Obligations.Status.class_(status),
+                  ]),
+                ],
+                [Node.text(Obligations.Status.label(status))],
               )
-            };
-          let header =
-            WebUtil.div_c(
-              "theorem-header",
-              [
-                Node.strong([Node.text("Proof of theorem ")]),
-                Node.text(name),
-                status,
-              ],
-            );
-          let stepper =
-            StepperView.View.view(
-              ~globals,
-              ~signal=
-                fun
-                | MakeActive(f) => take_focus((idx, f))
-                | HideStepper => Ui_effect.Ignore,
-              ~inject=a => inject(Update.TheoremUpdate(idx, a)),
-              ~selected=
-                switch (selected) {
-                | Some((idx', s)) when idx == idx' => Some(s)
-                | _ => None
-                },
-              ~is_toplevel=false,
-              stepper_view,
-            );
-          div_c("theorem", [header, ...stepper]);
-        },
-        xs,
-      )
+            },
+          ]
+          @ counter
+          @ (dots == [] ? [] : [div_c("theorem-contracts", dots)]),
+        );
+      let contracts =
+        sections == [] ? [] : [div_c("theorem-contract-sections", sections)];
+      let stepper =
+        StepperView.View.view(
+          ~globals,
+          ~signal=
+            fun
+            | MakeActive(f) => take_focus((id, f))
+            | HideStepper => Ui_effect.Ignore
+            | ReturnToEditor => return_to_editor,
+          ~inject=a => inject(Update.TheoremUpdate(id, a)),
+          ~selected=
+            switch (selected) {
+            | Some((id', f)) when id == id' => Some(f)
+            | _ => None
+            },
+          ~is_toplevel=false,
+          ~edit_syntax,
+          ~backing=main_editor,
+          ~info_map=model.info_map,
+          ~proof_map,
+          ~exits=
+            Obligations.Exits.for_step(
+              ~ctx={
+                stmt,
+                proof,
+                proof_map,
+                info_map: model.info_map,
+              },
+            ),
+          proof,
+          stepper,
+        );
+      Node.div(
+        ~attrs=[
+          Attr.classes(["theorem"] @ (stale == None ? [] : ["stale"])),
+        ],
+        [header] @ contracts @ stepper,
+      );
     };
+    List.map(theorem, Model.theorems(model));
   };
 };

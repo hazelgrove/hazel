@@ -203,10 +203,6 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Constructor(_, Some(Some(t))), t')
         when unrolled_consistent(t, t' |> Typ.temp) =>
       Some(e)
-    | (ProofObject(e1), ProofOf(e2)) when Exp.fast_equal(e1, e2) =>
-      Some(
-        IdTagged.fast_copy(DHExp.rep_id(e), ProofObject(e1) |> DHExp.fresh),
-      )
     | (Test(_), Prod([])) => Some(e)
     // These are non-value cases we're handling to process ascriptions as early as possible
     | (BinOp(bin_op, _, _), _) =>
@@ -314,7 +310,6 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Test(_), _)
     | (HintedTest(_), _)
     | (Cons(_), _)
-    | (ProofObject(_), _)
     | (Constructor(_), _)
     | (Module(_), _)
     | (ModuleExp(_), _) => None

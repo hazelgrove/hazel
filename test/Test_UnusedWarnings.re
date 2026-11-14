@@ -103,22 +103,6 @@ let tests = (
         );
       },
     ),
-    test_case(
-      "theorem: binder's info has the proof type",
-      `Quick,
-      () => {
-        let t = theorem_binder("theorem t = true in t", "t");
-        check(
-          bool,
-          "t : ProofOf(...)",
-          true,
-          switch (Typ.term_of(t.ty)) {
-          | ProofOf(_) => true
-          | _ => false
-          },
-        );
-      },
-    ),
     check_unused("forall: used binder", "forall (x : Int) -> x == x", []),
     check_unused("forall: unused binder", "forall (x : Int) -> true", ["x"]),
     check_unused(
@@ -372,6 +356,47 @@ let tests = (
       "tuple extension: both operands use different variables",
       "let x = (a=1, b=2) in let y = 3 in x ... (a=y)",
       [],
+    ),
+    /* Funext binders name the arbitrary argument of the pointwise goal;
+       the proof need not mention them. */
+    check_unused(
+      "funext: binder not flagged unused in a hole body",
+      "theorem t = (fun x -> x) == (fun x -> x) proof funext y => ? in t",
+      [],
+    ),
+    check_unused(
+      "theorem with a proof: a statement binder the statement uses",
+      "theorem t = forall x : [Int] -> x == x @ [] proof ? in t",
+      [],
+    ),
+    check_unused(
+      "theorem with a proof: an unused statement binder still warns",
+      "theorem t = forall (x : Int) -> true proof ? in t",
+      ["x"],
+    ),
+    check_unused(
+      "proof: induction case binders",
+      {|theorem t = forall x : [Int] -> x == x @ [] proof
+induction x
+| [] => from [] @ [] do step end; from $e do step end
+| u :: us => from u :: us @ [] do step end
+end in t|},
+      [],
+    ),
+    check_unused(
+      "proof: forall and funext binders",
+      "theorem t = forall (x : Int) -> (fun a -> a + x) == (fun b -> x + b) proof forall x => funext z => ? in t",
+      [],
+    ),
+    check_unused(
+      "proof: fact names",
+      "theorem t = forall (x : Int) -> x == 1 ==> x == 1 proof forall x => assume x == 1 as h => alias k = h => ? in t",
+      [],
+    ),
+    check_unused(
+      "proof: an ordinary binding still warns",
+      "let y = 1 in theorem t = forall (x : Int) -> x == x proof forall x => ? in t",
+      ["y"],
     ),
   ],
 );

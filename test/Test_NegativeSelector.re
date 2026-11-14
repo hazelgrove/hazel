@@ -1,0 +1,145 @@
+open Alcotest;
+open Language;
+
+/* Evaluation produces negative numbers that source can't spell: `-5`
+ * written out reads back as a negation. So the stepper doesn't offer, or
+ * write, a `step` step whose selector holds one; the checker could never
+ * find it. Each program's first step produces a negative number, and the
+ * hole after it is the row under test. */
+
+module Picker = Web.StepperPicker;
+
+/* The goal of the hole after the program's first step. */
+let hole_goal = (src: string): Picker.Goal.t => {
+  let f = Test_StepperView.Fixture.mk(src);
+  switch (
+    List.find_opt(
+      (row: Web.StepperRows.t) => row.kind == Hole,
+      Test_StepperView.Fixture.all(f),
+    )
+  ) {
+  | Some(row) => Test_StepperView.Fixture.goal(f, row)
+  | None => Alcotest.fail("no hole row")
+  };
+};
+
+/* What each offered step writes. */
+let written_targets = (goal: Picker.Goal.t): list((Exp.t, int)) =>
+  List.mapi((n, _) => Picker.take_step(goal, n), goal.eval_steps)
+  |> List.filter_map(
+       fun
+       | Some(
+           {at: Some({selector, index, _}), step: {term: EvalStep, _}}: Picker.pick,
+         ) =>
+         Some((selector, index))
+       | _ => None,
+     );
+
+/* The checker's entry for `step` focused on the `idx`-th `selector`,
+ * written in the hole. */
+let check_written = (src, ~selector, ~idx): ProofMap.entry => {
+  let src =
+    Test_ListCaseStep.replace_once(
+      ~sub="; ? in 0",
+      ~by=
+        "; " ++ Test_ListCaseStep.focused_eval(~exp=selector, ~idx) ++ " in 0",
+      src,
+    );
+  let (state, _, elab) =
+    Test_ProofMap.eval_with_proof(Test_Evaluator_Prelude.parse_exp(src));
+  switch (Test_ProofMap.proof_of(elab).term) {
+  | Seq(_, second) =>
+    switch (
+      ProofMap.lookup(
+        Proof.rep_id(second),
+        EvaluatorState.get_proof_map(state),
+      )
+    ) {
+    | Some(entry) => entry
+    | None => Alcotest.fail("no entry for the written step")
+    }
+  | _ => Alcotest.fail("the proof is not two steps")
+  };
+};
+
+/* Only the side without a negative number is offered, and what it writes
+ * checks. */
+let offers_only = (src, ~spellable) => {
+  switch (written_targets(hole_goal(src))) {
+  | [(selector, idx)] =>
+    check(
+      string,
+      "the offered selector",
+      spellable,
+      Test_ProofMap.print_exp(selector),
+    );
+    check(
+      list(string),
+      "the written step checks",
+      [],
+      List.map(
+        ProofMark.show,
+        check_written(src, ~selector=spellable, ~idx).marks,
+      ),
+    );
+  | targets =>
+    Alcotest.fail(
+      "offered: "
+      ++ String.concat(
+           ", ",
+           List.map(((e, _)) => Test_ProofMap.print_exp(e), targets),
+         ),
+    )
+  };
+};
+
+let negative_int = {|theorem t = (0 - 5) * 2 == 0 - 10 proof from 0 - 5 do step end; ? in 0|};
+
+let negative_float = {|theorem t = (0.0 -. 2.5) *. 2.0 ==. 0.0 -. 5.0 proof from 0.0 -. 2.5 do step end; ? in 0|};
+
+let test_stale_offer = () => {
+  let goal = hole_goal(negative_int);
+  let written = goal.written;
+  let env = Picker.Goal.env(goal);
+  let negative_side =
+    switch (Exp.term_of(written)) {
+    | BinOp(_, l, _) => l
+    | _ => Alcotest.fail("not an == goal")
+    };
+  let step =
+    switch (EvaluatorStep.get_status(~settings=CoreSettings.on, written, env)) {
+    | AvailableSteps(steps) =>
+      List.find(
+        s => EvaluatorStep.get_step_id(s) == Exp.rep_id(negative_side),
+        steps,
+      )
+    | AutoStep(_) => Alcotest.fail("the goal has a hidden step")
+    };
+  let stale = {
+    ...goal,
+    eval_steps: [(step, Exp.rep_id(negative_side))],
+  };
+  check(
+    bool,
+    "taking it writes nothing",
+    true,
+    Picker.take_step(stale, 0) == None,
+  );
+};
+
+let tests = (
+  "NegativeSelector",
+  [
+    test_case("a negative Int isn't quoted", `Quick, () =>
+      offers_only(negative_int, ~spellable="$e - $e")
+    ),
+    test_case("a negative Float isn't quoted", `Quick, () =>
+      offers_only(negative_float, ~spellable="$e -. $e")
+    ),
+    test_case(
+      "a stale offer quoting a negative number writes nothing",
+      `Quick,
+      test_stale_offer,
+    ),
+  ],
+);

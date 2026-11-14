@@ -111,6 +111,30 @@ let menhir_roundtrip_test = (name: string, source: string) =>
     },
   );
 
+/* Compares menhir ASTs directly. Used to check `Conversion.Exp.of_core`,
+   the core -> menhir-AST direction, which `menhir_matches` never
+   exercises. */
+let ast_check =
+  (testable(Fmt.using(AST.show_exp, Fmt.string)))(AST.equal_exp)
+  |> Alcotest.check;
+
+/* Round-trip through the other direction: take the segment parser's core
+   term for `src`, render it back to a menhir AST with `of_core`, and
+   require it to equal what menhir parses from the same text. */
+let of_core_renders_test = (name: string, src: string) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let core = make_term_parse(src);
+      ast_check(
+        "of_core(MakeTerm parse) matches menhir parse",
+        Interface.parse_program(src),
+        Conversion.Exp.of_core(Grammar.map_exp_annotation(_ => false, core)),
+      );
+    },
+  );
+
 let menhir_maketerm_equivalent_test =
     (~speed_level=`Quick, name: string, actual: string) =>
   test_case(name, speed_level, () => {
@@ -1115,6 +1139,275 @@ let ex5 = list_of_mylist(x) in
         "Capitalized name in dot RHS",
         Fresh.Exp.(dot(var("m"), label("X"))),
         {|m.X|},
+      ),
+      /* ===================================================================
+         Prover syntax
+         =================================================================== */
+      /* --- `==>` : right-associative, one level looser than `||` ------- */
+      full_parser_test(
+        "Implies",
+        bin_op(Bool(Implies), var("a"), var("b")),
+        "a ==> b",
+      ),
+      full_parser_test(
+        "Implies is right associative",
+        bin_op(
+          Bool(Implies),
+          var("a"),
+          bin_op(Bool(Implies), var("b"), var("c")),
+        ),
+        "a ==> b ==> c",
+      ),
+      full_parser_test(
+        "Implies binds looser than equality",
+        bin_op(
+          Bool(Implies),
+          bin_op(Poly(Equals), var("a"), var("b")),
+          bin_op(Poly(Equals), var("c"), var("d")),
+        ),
+        "a == b ==> c == d",
+      ),
+      full_parser_test(
+        "Implies binds looser than disjunction",
+        bin_op(
+          Bool(Implies),
+          bin_op(Bool(Or), var("a"), var("b")),
+          bin_op(Bool(Or), var("c"), var("d")),
+        ),
+        "a || b ==> c || d",
+      ),
+      full_parser_test(
+        "Conjunction binds tighter than implies",
+        bin_op(
+          Bool(Implies),
+          bin_op(Bool(And), var("a"), var("b")),
+          var("c"),
+        ),
+        "a && b ==> c",
+      ),
+      /* --- `forall` and the `where` binders ---------------------------- */
+      full_parser_test(
+        "Forall",
+        forall(Pat.var("x"), bin_op(Poly(Equals), var("x"), var("x"))),
+        "forall x -> x == x",
+      ),
+      full_parser_test(
+        "Forall with ascribed binder",
+        forall(
+          Pat.asc(Pat.var("n"), Typ.int()),
+          bin_op(Poly(Equals), var("n"), int(0)),
+        ),
+        "forall n : Int -> n == 0",
+      ),
+      /* The body extends across `==>`: fun_ (37) is looser than impl (34). */
+      full_parser_test(
+        "Forall body swallows implications",
+        forall(
+          Pat.asc(Pat.var("n"), Typ.int()),
+          bin_op(
+            Bool(Implies),
+            bin_op(Poly(Equals), var("n"), int(0)),
+            bin_op(Poly(Equals), var("n"), int(1)),
+          ),
+        ),
+        "forall n : Int -> n == 0 ==> n == 1",
+      ),
+      full_parser_test(
+        "ForallWhere",
+        forall(
+          Pat.where_(
+            Pat.var("x"),
+            bin_op(Poly(NotEquals), var("x"), int(0)),
+          ),
+          bin_op(
+            Poly(Equals),
+            bin_op(Int(Divide), var("x"), var("x")),
+            int(1),
+          ),
+        ),
+        "forall x where x != 0 -> x / x == 1",
+      ),
+      full_parser_test(
+        "ForallWhere with ascribed binder",
+        forall(
+          Pat.where_(Pat.asc(Pat.var("b"), Typ.bool()), var("b")),
+          bin_op(Poly(Equals), var("b"), bool(true)),
+        ),
+        "forall b : Bool where b -> b == true",
+      ),
+      full_parser_test(
+        "FunWhere",
+        fn(
+          Pat.where_(
+            Pat.var("x"),
+            bin_op(Poly(NotEquals), var("x"), int(0)),
+          ),
+          bin_op(Int(Divide), int(100), var("x")),
+          None,
+          None,
+        ),
+        "fun x where x != 0 -> 100 / x",
+      ),
+      /* The guard extends across `&&` (and_ 32 is tighter than fun_ 37). */
+      full_parser_test(
+        "FunWhere guard swallows conjunction",
+        fn(
+          Pat.where_(
+            Pat.var("x"),
+            bin_op(
+              Bool(And),
+              bin_op(Poly(NotEquals), var("x"), int(0)),
+              bin_op(Poly(NotEquals), var("x"), int(1)),
+            ),
+          ),
+          var("x"),
+          None,
+          None,
+        ),
+        "fun x where x != 0 && x != 1 -> x",
+      ),
+      /* --- proof prefix forms ------------------------------------------ */
+      menhir_maketerm_equivalent_test(
+        "Theorem with an empty-hole proof",
+        "theorem t = forall x -> x == x proof ? in t",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Proof assume",
+        "theorem t = forall n : Int -> n == 0 ==> n == 0 proof assume n == 0 => ? in t",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Proof revert",
+        "theorem t = forall n : Int -> n == 0 ==> 1 == 1 proof assume n == 0 => revert n == 0 => ? in t",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Proof generalize",
+        "theorem t = forall n : Int -> n == n proof forall n => generalize n => ? in t",
+      ),
+      /* `assume e => a; b` puts the whole sequence in the body: the prefix
+         forms sit at fun_ (37), looser than the proof `;` at semi (35). */
+      menhir_maketerm_equivalent_test(
+        "Proof prefix binds looser than proof sequencing",
+        "theorem t = forall x -> x == x proof assume x == x => ?; ? in t",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Proof rewrite step",
+        "theorem t = forall x -> x == x proof from x == x do rewrite refl end end in t",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Proof rewrite <- step",
+        "theorem t = forall x -> x == x proof from x == x do rewrite <- refl end end in t",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Proof eval step",
+        "theorem t = 1 + 1 == 2 proof from 1 + 1 do step end in t",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Proof algebra step",
+        "theorem t = 1 + 1 == 2 proof from 1 + 1 do algebra 2 end end in t",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Proof step at the root",
+        "theorem t = 2 == 2 proof step in t",
+      ),
+      /* `step` is a proof step only where a step goes. */
+      menhir_maketerm_equivalent_test(
+        "A function named step, focused on and stepped",
+        "let step = fun x -> x in theorem t = step(1) == 1 proof from step(1) do step end; step in t",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Proof focus at an occurrence, with two steps",
+        "theorem t = (1 + 1) * (1 + 1) == 4 proof from 1 + 1 at 2 do step; algebra 2 end end in t",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Proof induction",
+        "theorem t = forall n : Int -> n == n proof induction n | 0 => ? | m => ? end in t",
+      ),
+      /* `where` and `assume` are ProofCheck's base names for where-guard
+         and assume-intro hypotheses, so they also appear as cited fact
+         names in expression position. */
+      menhir_maketerm_equivalent_test(
+        "Hypothesis names `assume` and `where` in expression position",
+        "theorem t = forall b : Bool where b -> b == true proof from b do rewrite where end end; from b do rewrite assume end end in t",
+      ),
+      /* --- full prover programs (from test/evaluator) ------------------ */
+      /* Test_Revert.ex_falso_src */
+      menhir_maketerm_equivalent_test(
+        "Full program: ex falso via assume/revert",
+        "theorem t = forall n: Int -> n == 0 ==> n == 1 ==> false proof assume n == 0 => assume n == 1 => revert n == 1 => from n do rewrite assume end end; from 0 == 1 do step end; from false ==> false do step end in t",
+      ),
+      /* Test_Revert.bool_fact_src: a where-binder plus axiom steps. */
+      menhir_maketerm_equivalent_test(
+        "Full program: bare-boolean where-fact",
+        "theorem t = forall b: Bool where b -> b == true proof from b do rewrite where end end; from true == true do rewrite refl end end in t",
+      ),
+      /* Test_Revert.adt_ih_src: ADT induction with a reverted IH. */
+      menhir_maketerm_equivalent_test(
+        "Full program: ADT induction with a reverted IH",
+        "type Nt = +Z+S(Nt) in let pos = fun e -> case e | Z => true | S(b) => true end in theorem t = forall e: Nt -> pos(e) proof induction e | Z => from pos(Z) do step end | S(b) => revert pos(b) => from pos(b) do rewrite ih_b end end; from true ==> pos(S(b)) do step end; from pos(S(b)) do step end end in t",
+      ),
+      /* --- hypothesis naming -------------------------------------------
+         The menhir grammar's `as`/`alias` productions must agree with the
+         tile-level forms, so these compare the two parsers directly. */
+      menhir_maketerm_equivalent_test(
+        "assume ... as <name>",
+        "theorem t = forall n: Int -> n == 1 ==> n == n proof assume n == 1 as h => from n do rewrite h end end; ? in t",
+      ),
+      menhir_maketerm_equivalent_test(
+        "induction ... as <name>",
+        "theorem t = forall n: Int -> n == n proof induction n > 0 as h | true => from n > 0 do rewrite h end end | false => ? end in t",
+      ),
+      menhir_maketerm_equivalent_test(
+        "alias <name> = <fact>",
+        "theorem t = forall n: Int -> n == 1 ==> n == n proof assume n == 1 => alias h = assume => from n do rewrite h end end; ? in t",
+      ),
+      menhir_maketerm_equivalent_test(
+        "alias with a spelled-out proposition",
+        "theorem t = forall n: Int -> n == 1 ==> n == n proof assume n == 1 => alias h = n == 1 => from n do rewrite h end end; ? in t",
+      ),
+      /* The plain forms keep parsing identically: "as" is a prefix of
+         "assume", and `induction`/`assume` share their leading token with
+         their as-variants. */
+      menhir_maketerm_equivalent_test(
+        "plain induction with an assume in a case body",
+        "theorem t = forall n: Int -> n == n proof induction n > 0 | true => assume n == 1 => ? | false => ? end in t",
+      ),
+      /* Test_Contradiction.conflicting_src: the terminal form. */
+      menhir_maketerm_equivalent_test(
+        "Full program: contradiction step",
+        "theorem t = forall n: Int -> n == 1 ==> n == 2 ==> false proof assume n == 1 => assume n == 2 => contradiction n == 1 end in t",
+      ),
+      /* Test_Contradiction.conflicting_src with an explicit `with`
+         clause: the same with-shards as revert/axiom, on a terminal step. */
+      menhir_maketerm_equivalent_test(
+        "Full program: contradiction step with explicit substitution",
+        "theorem t = forall n: Int -> n == 1 ==> n == 2 ==> false proof assume n == 1 => assume n == 2 => contradiction n == 1 with n = 2 end in t",
+      ),
+      /* Test_FunContracts style: a fun-contract used by a theorem. */
+      menhir_maketerm_equivalent_test(
+        "Full program: fun contract plus theorem",
+        "let f = fun x where x != 0 -> 100 / x in theorem t = forall y where y != 0 -> f(y) == 100 / y proof ? in t",
+      ),
+      /* --- core -> menhir AST (Conversion.of_core) ---------------------- */
+      of_core_renders_test("of_core: implies", "a ==> b ==> c"),
+      of_core_renders_test(
+        "of_core: fun where",
+        "fun x where x != 0 -> 100 / x",
+      ),
+      of_core_renders_test(
+        "of_core: forall where",
+        "forall x where x != 0 -> x / x == 1",
+      ),
+      of_core_renders_test(
+        "of_core: theorem with assume/revert",
+        "theorem t = forall n : Int -> n == 0 ==> 1 == 1 proof assume n == 0 => revert n == 0 => ? in t",
+      ),
+      of_core_renders_test(
+        "of_core: proof steps",
+        "theorem t = 1 + 1 == 2 proof from 1 + 1 do step end; from 1 + 1 do algebra 2 end end; from 2 == 2 do rewrite refl end end in t",
+      ),
+      of_core_renders_test(
+        "of_core: proof induction and generalize",
+        "theorem t = forall n : Int -> n == n proof forall n => generalize n => induction n | 0 => ? | m => ? end in t",
       ),
       QCheck_alcotest.to_alcotest(qcheck_menhir_maketerm_equivalent_test),
       QCheck_alcotest.to_alcotest(qcheck_menhir_serialized_equivalent_test),

@@ -1,3 +1,11 @@
+/* A segment laid out on its own: what a sub-editor renders of a region
+ * of the main editor's segment. */
+type splice = {
+  segment: Segment.t,
+  measured: Measured.t,
+  projector_list: list(Id.t),
+};
+
 type t = {
   old: bool,
   segment: Segment.t,
@@ -214,3 +222,6 @@ let calculate = (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) => {
       };
   };
 };
+
+let measured = (syntax: t) => syntax.measured;
+let segment = (syntax: t) => syntax.segment;

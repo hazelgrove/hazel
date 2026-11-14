@@ -166,17 +166,25 @@ module Update = {
         };
       | None => Updated.return_quiet(model)
       }
-    | Editor(pos, ResultAction(result_action) as action)
+    | Editor(pos, (ResultAction(_) | PatchMainEditor(_)) as action)
         when
           Tutorial.is_editable(pos, ~instructor_mode)
-          || EvalResult.Update.applies_to_read_only(result_action) =>
+          || (
+            switch (action) {
+            | ResultAction(result_action) =>
+              EvalResult.Update.applies_to_read_only(result_action)
+            | MainEditor(_)
+            | PatchMainEditor(_) => false
+            }
+          ) =>
       let cell = Tutorial.get_stitched(pos, model.cells);
       let* new_cell = CellEditor.Update.update(~settings, action, cell);
       {
         ...model,
         cells: Tutorial.put_stitched(pos, model.cells, new_cell),
       };
-    | Editor(_, ResultAction(_)) => Updated.raise_invalid_action(model) // TODO: I think this case should never happen
+    | Editor(_, ResultAction(_) | PatchMainEditor(_)) =>
+      Updated.raise_invalid_action(model) // TODO: I think this case should never happen
     | RefreshStatics =>
       CodeWithStatics.StaticsDebounce.force_on_next := true;
       model |> Updated.return_quiet(~recalculate=true);
@@ -256,6 +264,15 @@ module Update = {
         stitched_elabs,
         model.cells,
       );
+    /* A timeout fails every cell, tagged with the generation each had when
+     * this batch was enqueued, so a cell that has re-requested since
+     * ignores it. */
+    let timeout_gens =
+      Tutorial.map_stitched(
+        (_, cell: CellEditor.Model.t) =>
+          EvalResult.Model.request_gen(cell.result),
+        cells,
+      );
     EvalRequest.request(
       worker_request^,
       ~pos_of_key=Tutorial.pos_of_key,
@@ -266,14 +283,14 @@ module Update = {
         _ =>
           ignore(
             Tutorial.map_stitched(
-              (pos, _) =>
+              (pos, gen) =>
                 schedule_action(
                   Editor(
                     pos,
-                    ResultAction(UpdateResult(ResultFail(Timeout))),
+                    ResultAction(UpdateResult(gen, ResultFail(Timeout))),
                   ),
                 ),
-              model.cells,
+              timeout_gens,
             ),
           ),
     );

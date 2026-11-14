@@ -343,6 +343,15 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
   },
 ];
 
+/* Compiling a malformed regexp throws a JS exception. The string builtins
+   take their patterns from user code, so they return None (stuck) instead
+   of letting the exception escape the evaluator. */
+let catch_malformed_regexp = (f: unit => 'a): option('a) =>
+  switch (f()) {
+  | x => Some(x)
+  | exception _ => None
+  };
+
 let string_fns: list(BuiltinsUtil.fn) = [
   {
     name: "string_length",
@@ -493,7 +502,8 @@ let string_fns: list(BuiltinsUtil.fn) = [
       binary((d1, d2) => {
         let-unbox regexp = (Atom(String), d1);
         let-unbox str = (Atom(String), d2);
-        Some(Exp.bool(HazelString.matches(regexp, str)));
+        catch_malformed_regexp(() => HazelString.matches(regexp, str))
+        |> Option.map(b => Exp.bool(b));
       }),
     custom_statics: None,
   },
@@ -506,7 +516,8 @@ let string_fns: list(BuiltinsUtil.fn) = [
         let-unbox regexp = (Atom(String), d1);
         let-unbox str = (Atom(String), d2);
         let-unbox repl = (Atom(String), d3);
-        Some(Exp.string(HazelString.replace(regexp, str, repl)));
+        catch_malformed_regexp(() => HazelString.replace(regexp, str, repl))
+        |> Option.map(s => Exp.string(s));
       }),
     custom_statics: None,
   },
@@ -521,14 +532,25 @@ let string_fns: list(BuiltinsUtil.fn) = [
         let-unbox regexp = (Atom(String), d1);
         let-unbox str = (Atom(String), d2);
         let-unbox idx = (Atom(Int), d3);
-        Some(
-          Exp.int(
-            switch (Bigint.to_int(idx)) {
-            | None => (-1)
-            | Some(idx) => HazelString.search(regexp, str, idx)
-            },
-          ),
-        );
+        switch (Bigint.to_int(idx)) {
+        | None =>
+          /* An index that doesn't fit in an OCaml int is off-domain, not a
+             regex miss, so it errors: a -1 would be a defined result that
+             proofs could rely on. */
+          Some(
+            Exp.dynamic_error_hole(
+              Exp.ap(
+                Operators.Forward,
+                Exp.builtin_fun("string_search"),
+                d1,
+              ),
+              InvalidOperationError.IndexOutOfBounds,
+            ),
+          )
+        | Some(idx) =>
+          catch_malformed_regexp(() => HazelString.search(regexp, str, idx))
+          |> Option.map(i => Exp.int(i))
+        };
       }),
     custom_statics: None,
   },

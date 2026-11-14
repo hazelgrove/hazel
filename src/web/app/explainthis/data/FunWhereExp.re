@@ -21,7 +21,7 @@ let single = (~pat_id: Id.t, ~guard_id: Id.t, ~body_id: Id.t): Simple.t => {
     ),
     explanation:
       Printf.sprintf(
-        "A function whose argument must satisfy a condition. Applied to an argument, it matches the argument against the [*parameter*](%s), then evaluates the [*condition*](%s), which can use the parameter's variables. If the condition is `true`, the [*body*](%s) runs; if it is `false`, the application is an error.",
+        "A function whose argument must satisfy a condition. Applied to an argument, it matches the argument against the [*parameter*](%s), then evaluates the [*condition*](%s), which can use the parameter's variables. If the condition is `true`, the [*body*](%s) runs; if it is `false`, the application is an error. In a proof the condition is a contract: the body is checked with it assumed, and each call `f(e)` has to establish it for its argument (`e != 0`).",
         pat_id |> Id.to_string,
         guard_id |> Id.to_string,
         body_id |> Id.to_string,

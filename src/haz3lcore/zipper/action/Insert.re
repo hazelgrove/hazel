@@ -22,13 +22,43 @@ let expansion = (sort: Sort.t, t: Token.t, z: t): (Label.t, Direction.t) => {
     | Some(a) when Form.has_label_of(a.form, Case) => true
     | _ => false
     };
+  /* Induction owns its case rules as case does, with or without an `as`
+     name. */
+  let is_induction = (f: Form.t): bool =>
+    switch (f) {
+    | Form.Compound(ProofInduction | ProofInductionAs) => true
+    | _ => false
+    };
+  let before_induction_shard = (z: t): bool =>
+    List.exists(
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile({form, shards: [0], _}) => is_induction(form)
+        /* `induction <e> as <h>`: the rules follow the `as` shard */
+        | Tile({form: Form.Compound(ProofInductionAs), shards: [0, 1], _}) =>
+          true
+        | _ => false
+        },
+      z.relatives.siblings |> fst,
+    );
+  let inside_induction = (z: t): bool =>
+    switch (Ancestors.parent(z.relatives.ancestors)) {
+    | Some(a) => is_induction(a.form)
+    | None => false
+    };
   switch (t) {
   | _ when Token.is_string_delim(t) || Token.is_quoted_label_delim(t) =>
     /* Special case for constructing string/label literals. */
     ([t ++ t], Left)
-  | "|" when before_case_shard(z) || inside_case(z) =>
-    /* SPECIAL CASE: Case rule delimiter.
-       Inside a case, always expand | to Rule form regardless of local sort.
+  | "|"
+      when
+        before_case_shard(z)
+        || inside_case(z)
+        || before_induction_shard(z)
+        || inside_induction(z) =>
+    /* SPECIAL CASE: Case and induction rule delimiter.
+       Inside a case or induction, always expand | to Rule form regardless
+       of local sort; remolding then picks its Rul or PRul row.
 
        Why this is needed: The Rule form's left nib is Exp (it expects an
        expression). But rule bodies can have type ascriptions like `expr : Type`,
@@ -121,6 +151,84 @@ let insert_shard_core =
   };
 };
 
+/* Proof steps with a `with`, `as` or `at` variant share the plain step's
+ * leading token, so they expand to the plain form and the later
+ * `with`/`as`/`at` token switches the tile to the variant. This rewrites the
+ * nearest tile left of the caret that `variant` maps to a new family. The
+ * scan stops at any other incomplete tile, since the token belongs to it. */
+let switch_variant = (variant: Tile.t => option(Form.family), z: t): t => {
+  let (pre, suf) = z.relatives.siblings;
+  let rec go = (rev_pre: list(Piece.t)): option(list(Piece.t)) =>
+    switch (rev_pre) {
+    | [] => None
+    | [Tile(t) as p, ...rest] =>
+      switch (variant(t)) {
+      | Some(fam) =>
+        Some([
+          Tile({
+            ...t,
+            form: Compound(fam),
+            sort: Proof,
+          }),
+          ...rest,
+        ])
+      | None when !Tile.is_complete(t) => None
+      | None => go(rest) |> Option.map(rest' => [p, ...rest'])
+      }
+    | [p, ...rest] => go(rest) |> Option.map(rest' => [p, ...rest'])
+    };
+  switch (go(List.rev(pre))) {
+  | Some(rev_pre') => {
+      ...z,
+      relatives: {
+        ...z.relatives,
+        siblings: (List.rev(rev_pre'), suf),
+      },
+    }
+  | None => z
+  };
+};
+
+let with_variant = (t: Tile.t): option(Form.family) =>
+  switch (t.form, t.shards) {
+  | (Compound(ProofAxiom), [0]) => Some(ProofAxiomWith)
+  | (Compound(ProofRevert), [0]) => Some(ProofRevertWith)
+  | (Compound(ProofContradiction), [0]) => Some(ProofContradictionWith)
+  | _ => None
+  };
+
+let as_variant = (t: Tile.t): option(Form.family) =>
+  switch (t.form, t.shards) {
+  | (Compound(ProofAssume), [0]) => Some(ProofAssumeAs)
+  | (Compound(ProofInduction), [0]) => Some(ProofInductionAs)
+  | _ => None
+  };
+
+let at_variant = (t: Tile.t): option(Form.family) =>
+  switch (t.form, t.shards) {
+  | (Compound(ProofFocus), [0]) => Some(ProofFocusAt)
+  | _ => None
+  };
+
+/* "as" is a prefix of "assume", so typing `assume` passes through an
+ * "as" token that switches an enclosing assume/induction to its as-form,
+ * and the next keystroke removes that "as" shard again. An as-form whose
+ * "as" shard is not down is restored to the plain form. A real switch is
+ * unaffected: insert_shard places the "as" in the same call. */
+let plain_of_as_variant = (t: Tile.t): option(Form.family) =>
+  switch (t.form, t.shards) {
+  | (Compound(ProofAssumeAs), [0]) => Some(ProofAssume)
+  | (Compound(ProofInductionAs), [0]) => Some(ProofInduction)
+  | _ => None
+  };
+
+/* As for "as": "at" is a prefix of names like `atom`. */
+let plain_of_at_variant = (t: Tile.t): option(Form.family) =>
+  switch (t.form, t.shards) {
+  | (Compound(ProofFocusAt), [0]) => Some(ProofFocus)
+  | _ => None
+  };
+
 /* Insert a new shard based on token `t` on the `d`-side of the caret */
 let insert_shard =
     (
@@ -131,7 +239,18 @@ let insert_shard =
       z: t,
       ~root,
     )
-    : t =>
+    : t => {
+  let z =
+    t == "with" && Zipper.find_missing_shard(t, z) == None
+      ? switch_variant(with_variant, z) : z;
+  let z =
+    t == "as" && Zipper.find_missing_shard(t, z) == None
+      ? switch_variant(as_variant, z)
+      : switch_variant(plain_of_as_variant, z);
+  let z =
+    t == "at" && Zipper.find_missing_shard(t, z) == None
+      ? switch_variant(at_variant, z)
+      : switch_variant(plain_of_at_variant, z);
   if (Zipper.find_missing_shard(t, z) != None) {
     let z = destroy_selection(z);
     let target = Zipper.find_missing_shard(t, z) |> Option.get;
@@ -146,6 +265,7 @@ let insert_shard =
       ~root,
     );
   };
+};
 
 /* Replace `d`-neighbor shard with a new one based on token `t` */
 let replace_shard =

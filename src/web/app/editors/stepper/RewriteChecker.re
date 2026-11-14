@@ -51,13 +51,19 @@ let rec print_exp_for_algebrite = (~name_other, exp: Exp.t): string =>
   | _ => name_other(exp)
   };
 
+/* The page loads Algebrite. Where it isn't loaded, as in the test
+ * harness, nothing is equal by algebra. */
 let checkEquality = (expr1, expr2): bool => {
   let algebrite = Js.Unsafe.global##.Algebrite;
-  let diffExpr = Printf.sprintf("simplify((%s)-(%s))", expr1, expr2);
-  let algebrite_result = algebrite##run(Js.string(diffExpr));
-  switch (Js.to_string(algebrite_result)) {
-  | "0" => true
-  | _ => false
+  if (Js.to_string(Js.typeof(algebrite)) == "undefined") {
+    false;
+  } else {
+    let diffExpr = Printf.sprintf("simplify((%s)-(%s))", expr1, expr2);
+    let algebrite_result = algebrite##run(Js.string(diffExpr));
+    switch (Js.to_string(algebrite_result)) {
+    | "0" => true
+    | _ => false
+    };
   };
 };
 
@@ -74,11 +80,6 @@ let check_rewrite = (from_: Exp.t, to_: Exp.t): bool => {
   let to_ = DHExp.strip_ascriptions(to_);
   let left_str = print_exp_for_algebrite(~name_other, from_);
   let right_str = print_exp_for_algebrite(~name_other, to_);
-  print_endline("Checking rewrite:");
-  print_endline("From: " ++ left_str);
-  print_endline("To:   " ++ right_str);
-  print_endline("e1: " ++ Exp.show(from_));
-  print_endline("e2: " ++ Exp.show(to_));
   if (left_str == "Unknown" || right_str == "Unknown") {
     false;
   } else {

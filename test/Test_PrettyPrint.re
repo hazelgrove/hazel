@@ -1224,6 +1224,80 @@ else 3|},
   ),
 ];
 
+/* === Sequences ===
+   `;` binds tighter than a rule and than the prefix forms that take a body
+   (fun, if, let), so a sequence that follows one is its body. */
+
+let sequence_tests = [
+  test_format_seg(
+    ~name="A sequence after an arrow is the function's body",
+    ~input="fun x -> a; b",
+    ~expected={|fun x ->
+  a;
+  b|},
+    (),
+  ),
+  test_format_seg(
+    ~name="A sequence in a case rule goes below the rule",
+    ~input="case s | a => x; y | b => z end",
+    ~expected={|case s
+| a =>
+  x;
+  y
+| b => z
+end|},
+    (),
+  ),
+  test_format_seg(
+    ~name="A sequence after else is in the else branch",
+    ~input="if c then a else b; d",
+    ~expected={|if c
+then a
+else b;
+d|},
+    (),
+  ),
+  test_format_seg(
+    ~name="A let in a sequence keeps the lines after it",
+    ~input="a; let x = 1 in b; c",
+    ~expected={|a;
+let x = 1 in
+b;
+c|},
+    (),
+  ),
+  test_format_seg(
+    ~name="A semicolon stays with the parentheses before it",
+    ~input="(a); b",
+    ~expected={|(a);
+b|},
+    (),
+  ),
+];
+
+/* === Case scrutinees === */
+
+let scrutinee_tests = [
+  test_format_seg(
+    ~name="An application scrutinee still breaks the rules",
+    ~input="case f(x) | 0 => 1 end",
+    ~expected={|case f(x)
+| 0 => 1
+end|},
+    (),
+  ),
+  test_format_seg(
+    ~name="An operator in the scrutinee breaks apart from those in the rules",
+    ~width=30,
+    ~input="case alpha + beta | 0 => gamma + delta | _ => e end",
+    ~expected={|case alpha + beta
+| 0 => gamma + delta
+| _ => e
+end|},
+    (),
+  ),
+];
+
 /* === SpaceNormalize canonicalize (Format(Spacing) backend) === */
 
 let respace = (input: string): string =>
@@ -1333,6 +1407,8 @@ let tests = [
   ("PrettyPrint.Breaking", breaking_tests),
   ("PrettyPrint.Delimiters", delimiter_tests),
   ("PrettyPrint.Case", case_tests),
+  ("PrettyPrint.Scrutinees", scrutinee_tests),
+  ("PrettyPrint.Sequences", sequence_tests),
   ("PrettyPrint.Complex", complex_tests),
   ("PrettyPrint.CommaCompound", comma_compound_tests),
   ("PrettyPrint.Realworld", realworld_tests),

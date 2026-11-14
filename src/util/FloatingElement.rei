@@ -16,6 +16,6 @@
 /* Position every `.floating-fixed` in the document. Call after each render. */
 let update_all: unit => unit;
 
-/* Keep floating elements positioned while `#main` scrolls. Call once at
-   startup; repeat calls are ignored. */
+/* Keep floating elements positioned while `#main`, or a scroller inside it,
+   scrolls. Call once at startup; repeat calls are ignored. */
 let setup_scroll_listener: unit => unit;

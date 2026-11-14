@@ -73,7 +73,8 @@ let problem_status_view = (~globals, ci: Language.Info.t): Node.t =>
       ~attrs=[clss(["problem-description"])],
       [text(Language.Cls.show(cls))],
     )
-  | Secondary(_) => div([])
+  | Secondary(_)
+  | InfoProof(_) => div([])
   };
 
 let line_num_view =

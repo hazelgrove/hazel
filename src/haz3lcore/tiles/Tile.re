@@ -75,14 +75,7 @@ let ends_with_end = (t: t): bool =>
 /* definition forms: let/type/theorem/module */
 let is_definition_form = (t: t): bool =>
   switch (label(t)) {
-  | [_, "=", "in"] => true
-  | _ => false
-  };
-
-/* binder prefix forms: fun/fix/typfun/poly/forall/rec */
-let is_prefix_arrow_form = (t: t): bool =>
-  switch (label(t)) {
-  | [_, "->"] => true
+  | [_, "=", ..._] => ends_with_in(t)
   | _ => false
   };
 
@@ -128,6 +121,15 @@ let shapes = (t: t) => {
 let has_concave_left_nib = (t: t): bool =>
   switch (mold(t).nibs) {
   | ({shape: Concave(_), _}, _) => true
+  | _ => false
+  };
+
+/* binder prefix forms: fun/fix/typfun/poly/forall/rec, and the forms that
+ * wrap the rest of a proof (forall/assume/have/...). A rule also ends in
+ * `=>`, but has a left operand. */
+let is_prefix_arrow_form = (t: t): bool =>
+  switch (label(t) |> List.rev) {
+  | ["->" | "=>", _, ..._] => !has_concave_left_nib(t)
   | _ => false
   };
 

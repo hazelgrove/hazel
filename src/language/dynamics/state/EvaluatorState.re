@@ -40,6 +40,7 @@ type t = {
   obs_trace: list(ObsTrace.event),
   step_count: int,
   incr_eval,
+  proof_map: ProofMap.t /* Incoming/outgoing expressions per proof sub-term id */
 }
 
 // Note[Matt]: There are probably memory improvements to be made here by untying this knot.
@@ -68,6 +69,7 @@ let empty: t = {
   step_count: 0,
   theorems: [],
   incr_eval: IncrEval.empty,
+  proof_map: ProofMap.empty,
 };
 
 let empty_at = (step_count: int): t => {
@@ -134,6 +136,7 @@ let append = (base: t, ext: t): t => {
      * carry through. */
     obs_opens: base.obs_opens,
     obs_trace,
+    proof_map: ProofMap.union(base.proof_map, ext.proof_map),
   };
 };
 
@@ -177,11 +180,20 @@ let get_probes = ({probes, _}) => probes;
 
 let get_theorems = ({theorems, _}) => theorems;
 
+let get_proof_map = ({proof_map, _}) => proof_map;
+
 let get_incr_eval = ({incr_eval, _}: t) => incr_eval;
 
 let add_incr_entry = (state: t, id: Id.t, entry: IncrEval.entry(t)): t => {
   ...state,
   incr_eval: IncrEval.add_entry(id, entry, state.incr_eval),
+};
+
+let merge_proof_map = ({proof_map, _} as es, pm) => {
+  {
+    ...es,
+    proof_map: ProofMap.union(proof_map, pm),
+  };
 };
 
 let update =

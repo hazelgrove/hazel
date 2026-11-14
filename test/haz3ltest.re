@@ -58,6 +58,7 @@ let (suite, exit_with_test_status) =
     @ Test_Evaluator.tests
     @ Test_Editing.tests
     @ Test_TypToSegment.tests
+    @ [Test_EditorTransform.tests]
     @ Test_Reassociate.tests
     @ Test_MultiProbe.tests
     @ [Test_SampleSelection.tests]
@@ -80,14 +81,17 @@ let (suite, exit_with_test_status) =
     @ Test_RoundtripFuzz.tests
     @ Test_LocalReformat.tests
     @ Test_MatchExp.tests
+    @ Test_MatchExp.pattern_tests
+    @ Test_ProofRuleMentions.tests
+    @ [Test_InductionWildcard.tests]
     @ Test_RefractorSerialization.tests
     @ [
       Test_TableCore.tests,
-      Test_StepperPasses.tests,
       Test_TableTransforms.tests,
       Test_RichProbeRegistry.tests,
     ]
     @ Test_PrettyPrint.tests
+    @ Test_ProofLayout.tests
     @ Test_TyDi.tests
     @ [Test_Move.tests]
     @ [Test_UnusedWarnings.tests]
@@ -118,7 +122,13 @@ let (suite, exit_with_test_status) =
     @ [Test_SettingsPanel.tests]
     @ Test_ShortcutAction.tests
     @ Test_Color.tests
-    @ [Test_ExplainThis.tests],
+    @ [Test_ExplainThis.tests]
+    @ [Test_SubEditor.tests]
+    @ [Test_ListCaseStep.tests]
+    @ [Test_ProofContext.tests]
+    @ [Test_NegativeSelector.tests]
+    @ [Test_DefinitionNames.tests]
+    @ [Test_ProverKnownBugs.tests],
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");
 Bisect.Runtime.write_coverage_data();
