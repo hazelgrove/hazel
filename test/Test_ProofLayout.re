@@ -11,8 +11,8 @@ let layout = Test_PrettyPrint.test_format_seg;
 let form_tests = [
   layout(
     ~name="a short proof stays on the theorem's line",
-    ~input="theorem t = 1 == 1 proof eval in t",
-    ~expected={|theorem t = 1 == 1 proof eval in
+    ~input="theorem t = 1 == 1 proof step in t",
+    ~expected={|theorem t = 1 == 1 proof step in
 t|},
     (),
   ),
@@ -25,10 +25,10 @@ t|},
   ),
   layout(
     ~name="several steps go one per line, between `proof` and `in`",
-    ~input="theorem t = 1 == 1 proof from 1 do eval end; eval in t",
+    ~input="theorem t = 1 == 1 proof from 1 do step end; step in t",
     ~expected={|theorem t = 1 == 1 proof
-  from 1 do eval end;
-  eval
+  from 1 do step end;
+  step
 in
 t|},
     (),
@@ -37,10 +37,10 @@ t|},
     ~name="one step too long for the theorem's line goes below it",
     ~width=40,
     ~input=
-      "theorem t = f(1) + g(2) == 3 proof from f(1) + g(2) do eval end in t",
+      "theorem t = f(1) + g(2) == 3 proof from f(1) + g(2) do step end in t",
     ~expected=
       {|theorem t = f(1) + g(2) == 3 proof
-  from f(1) + g(2) do eval end
+  from f(1) + g(2) do step end
 in
 t|},
     (),
@@ -49,13 +49,13 @@ t|},
     ~name="a statement too long for its line breaks as a let's would",
     ~width=40,
     ~input=
-      "theorem t = some_function(1) + another(2) == the_result(3) proof eval in t",
+      "theorem t = some_function(1) + another(2) == the_result(3) proof step in t",
     ~expected=
       {|theorem t =
   some_function(1) + another(2)
   == the_result(3)
 proof
-  eval
+  step
 in
 t|},
     (),
@@ -65,12 +65,12 @@ t|},
       "a quantified statement keeps its first binder on the theorem's line",
     ~width=50,
     ~input=
-      "theorem t = forall x: Int -> forall y: Int -> x + y == y + x proof eval in t",
+      "theorem t = forall x: Int -> forall y: Int -> x + y == y + x proof step in t",
     ~expected=
       {|theorem t = forall x : Int ->
   forall y : Int -> x + y == y + x
 proof
-  eval
+  step
 in
 t|},
     (),
@@ -78,14 +78,14 @@ t|},
   layout(
     ~name="a focus with several steps is a block",
     ~input=
-      "theorem t = 1 == 1 proof from (2 + 3) * 2 do from 2 + 3 do eval end; eval end; eval in t",
+      "theorem t = 1 == 1 proof from (2 + 3) * 2 do from 2 + 3 do step end; step end; step in t",
     ~expected=
       {|theorem t = 1 == 1 proof
   from (2 + 3) * 2 do
-    from 2 + 3 do eval end;
-    eval
+    from 2 + 3 do step end;
+    step
   end;
-  eval
+  step
 in
 t|},
     (),
@@ -93,13 +93,13 @@ t|},
   layout(
     ~name="a focus on a metavariable selector",
     ~input=
-      "theorem t = 1 == 1 proof from $e([]) at 2 do eval end; from $e(a, h) do eval; eval end in t",
+      "theorem t = 1 == 1 proof from $e([]) at 2 do step end; from $e(a, h) do step; step end in t",
     ~expected=
       {|theorem t = 1 == 1 proof
-  from $e([]) at 2 do eval end;
+  from $e([]) at 2 do step end;
   from $e(a, h) do
-    eval;
-    eval
+    step;
+    step
   end
 in
 t|},
@@ -109,11 +109,11 @@ t|},
     ~name="a focus with one step too long for its line is a block",
     ~width=50,
     ~input=
-      "theorem t = 1 == 1 proof from a_long_function(x, y + 1) do axiom a_long_lemma with n = f(1, 2) end end in t",
+      "theorem t = 1 == 1 proof from a_long_function(x, y + 1) do rewrite a_long_lemma with n = f(1, 2) end end in t",
     ~expected=
       {|theorem t = 1 == 1 proof
   from a_long_function(x, y + 1) do
-    axiom a_long_lemma with n = f(1, 2) end
+    rewrite a_long_lemma with n = f(1, 2) end
   end
 in
 t|},
@@ -122,21 +122,21 @@ t|},
   layout(
     ~name="a wrapping form with a short body stays on one line",
     ~input=
-      "theorem t = forall n: Int -> n == n proof forall n => axiom refl_eq end in t",
+      "theorem t = forall n: Int -> n == n proof forall n => rewrite refl end in t",
     ~expected=
-      {|theorem t = forall n : Int -> n == n proof forall n => axiom refl_eq end in
+      {|theorem t = forall n : Int -> n == n proof forall n => rewrite refl end in
 t|},
     (),
   ),
   layout(
     ~name="a wrapping form's steps are indented below it, as a fun's body is",
     ~input=
-      "theorem t = 1 == 1 proof forall n => from n + 0 do rewrite n end end; axiom refl_eq end in t",
+      "theorem t = 1 == 1 proof forall n => from n + 0 do algebra n end end; rewrite refl end in t",
     ~expected=
       {|theorem t = 1 == 1 proof
   forall n =>
-    from n + 0 do rewrite n end end;
-    axiom refl_eq end
+    from n + 0 do algebra n end end;
+    rewrite refl end
 in
 t|},
     (),
@@ -144,12 +144,12 @@ t|},
   layout(
     ~name="wrapping forms nest",
     ~input=
-      "theorem t = 1 == 1 proof alias h = assume => revert x with n = 2 => from y do axiom h with n = 2 end end; contradiction y == 1 with n = 2 + 3 end in t",
+      "theorem t = 1 == 1 proof alias h = assume => revert x with n = 2 => from y do rewrite h with n = 2 end end; contradiction y == 1 with n = 2 + 3 end in t",
     ~expected=
       {|theorem t = 1 == 1 proof
   alias h = assume =>
     revert x with n = 2 =>
-      from y do axiom h with n = 2 end end;
+      from y do rewrite h with n = 2 end end;
       contradiction y == 1 with n = 2 + 3 end
 in
 t|},
@@ -157,13 +157,13 @@ t|},
   ),
   layout(
     ~name="a wrapping form after other steps takes the steps after it",
-    ~input="theorem t = 1 == 1 proof eval; forall x => eval; eval in t",
+    ~input="theorem t = 1 == 1 proof step; forall x => step; step in t",
     ~expected=
       {|theorem t = 1 == 1 proof
-  eval;
+  step;
   forall x =>
-    eval;
-    eval
+    step;
+    step
 in
 t|},
     (),
@@ -181,15 +181,15 @@ t|},
   layout(
     ~name="a have's proof is a block, closed by `=>`",
     ~input=
-      "theorem t = 1 == 1 proof assume p as h => have q proof from q do axiom h end end; eval => axiom refl_eq end in t",
+      "theorem t = 1 == 1 proof assume p as h => have q proof from q do rewrite h end end; step => rewrite refl end in t",
     ~expected=
       {|theorem t = 1 == 1 proof
   assume p as h =>
     have q proof
-      from q do axiom h end end;
-      eval
+      from q do rewrite h end end;
+      step
     =>
-      axiom refl_eq end
+      rewrite refl end
 in
 t|},
     (),
@@ -197,12 +197,12 @@ t|},
   layout(
     ~name="a have with a one-step proof keeps it on its line",
     ~input=
-      "theorem t = 1 == 1 proof have q proof eval => eval; axiom refl_eq end in t",
+      "theorem t = 1 == 1 proof have q proof step => step; rewrite refl end in t",
     ~expected=
       {|theorem t = 1 == 1 proof
-  have q proof eval =>
-    eval;
-    axiom refl_eq end
+  have q proof step =>
+    step;
+    rewrite refl end
 in
 t|},
     (),
@@ -210,14 +210,14 @@ t|},
   layout(
     ~name="induction is laid out as case is",
     ~input=
-      "theorem t = 1 == 1 proof induction xs | [] => eval | y :: t => from rev(y :: t) do axiom rev_cons end end; axiom refl_eq end end in t",
+      "theorem t = 1 == 1 proof induction xs | [] => step | y :: t => from rev(y :: t) do rewrite rev_cons end end; rewrite refl end end in t",
     ~expected=
       {|theorem t = 1 == 1 proof
   induction xs
-  | [] => eval
+  | [] => step
   | y :: t =>
-    from rev(y :: t) do axiom rev_cons end end;
-    axiom refl_eq end
+    from rev(y :: t) do rewrite rev_cons end end;
+    rewrite refl end
   end
 in
 t|},
@@ -225,11 +225,11 @@ t|},
   ),
   layout(
     ~name="induction with one short case still gives it a line",
-    ~input="theorem t = 1 == 1 proof induction f(b) | true => eval end in t",
+    ~input="theorem t = 1 == 1 proof induction f(b) | true => step end in t",
     ~expected=
       {|theorem t = 1 == 1 proof
   induction f(b)
-  | true => eval
+  | true => step
   end
 in
 t|},
@@ -238,11 +238,11 @@ t|},
   layout(
     ~name="induction-as keeps its scrutinee and name on one line",
     ~input=
-      "theorem t = 1 == 1 proof induction is_value(x) as h | true => from b do axiom h end end | false => ? end in t",
+      "theorem t = 1 == 1 proof induction is_value(x) as h | true => from b do rewrite h end end | false => ? end in t",
     ~expected=
       {|theorem t = 1 == 1 proof
   induction is_value(x) as h
-  | true => from b do axiom h end end
+  | true => from b do rewrite h end end
   | false => ?
   end
 in
@@ -252,18 +252,18 @@ t|},
   layout(
     ~name="an induction inside a case of another",
     ~input=
-      "theorem t = 1 == 1 proof induction xs | [] => induction ys | [] => eval | z :: zs => eval; eval end | y :: t => eval end in t",
+      "theorem t = 1 == 1 proof induction xs | [] => induction ys | [] => step | z :: zs => step; step end | y :: t => step end in t",
     ~expected=
       {|theorem t = 1 == 1 proof
   induction xs
   | [] =>
     induction ys
-    | [] => eval
+    | [] => step
     | z :: zs =>
-      eval;
-      eval
+      step;
+      step
     end
-  | y :: t => eval
+  | y :: t => step
   end
 in
 t|},
@@ -272,16 +272,16 @@ t|},
   layout(
     ~name="a wrapped induction, its cases wrapped in turn",
     ~input=
-      "theorem t = 1 == 1 proof generalize acc => induction xs | [] => forall acc => eval; eval | y :: t => forall acc => eval end in t",
+      "theorem t = 1 == 1 proof generalize acc => induction xs | [] => forall acc => step; step | y :: t => forall acc => step end in t",
     ~expected=
       {|theorem t = 1 == 1 proof
   generalize acc =>
     induction xs
     | [] =>
       forall acc =>
-        eval;
-        eval
-    | y :: t => forall acc => eval
+        step;
+        step
+    | y :: t => forall acc => step
     end
 in
 t|},
@@ -291,10 +291,10 @@ t|},
     ~name="a citation too long for its line breaks before its keywords",
     ~width=30,
     ~input=
-      "theorem t = 1 == 1 proof axiom a_long_lemma_name with n = some_function(1, 2) end in t",
+      "theorem t = 1 == 1 proof rewrite a_long_lemma_name with n = some_function(1, 2) end in t",
     ~expected=
       {|theorem t = 1 == 1 proof
-  axiom a_long_lemma_name
+  rewrite a_long_lemma_name
   with n
   = some_function(1, 2)
   end
@@ -304,10 +304,10 @@ t|},
   ),
   layout(
     ~name="a parenthesized proof keeps its `;`",
-    ~input="theorem t = 1 == 1 proof (forall x => eval); eval in t",
+    ~input="theorem t = 1 == 1 proof (forall x => step); step in t",
     ~expected={|theorem t = 1 == 1 proof
-  (forall x => eval);
-  eval
+  (forall x => step);
+  step
 in
 t|},
     (),
@@ -315,12 +315,12 @@ t|},
   layout(
     ~name="a theorem in an indented position",
     ~input=
-      "let f = fun x -> theorem t = 1 == 1 proof from 1 do eval end; eval in t in f",
+      "let f = fun x -> theorem t = 1 == 1 proof from 1 do step end; step in t in f",
     ~expected=
       {|let f = fun x ->
   theorem t = 1 == 1 proof
-    from 1 do eval end;
-    eval
+    from 1 do step end;
+    step
   in
   t in
 f|},
@@ -337,117 +337,117 @@ let add = fun (acc, p) -> acc + p in
 
 # Warm-ups #
 theorem occurrences = (1 + 1) * (1 + 1) == 4 proof
-  from 1 + 1 at 2 do eval end;
-  from 1 + 1 do eval end;
-  from 2 * 2 do eval end;
-  eval
+  from 1 + 1 at 2 do step end;
+  from 1 + 1 do step end;
+  from 2 * 2 do step end;
+  step
 in
 theorem nested = (2 + 3) * 2 == 10 proof
   from (2 + 3) * 2 do
-    from 2 + 3 do eval end;
-    eval
+    from 2 + 3 do step end;
+    step
   end;
-  eval
+  step
 in
 theorem algebra = 4 / 2 == 2 proof
-  from 4 / 2 do rewrite 2 end end;
-  eval
+  from 4 / 2 do algebra 2 end end;
+  step
 in
 # Under a binder x is a fixed, arbitrary Int. #
 theorem under_fun = (fun x: Int -> x + 0) == (fun x: Int -> x) proof
-  from x + 0 do rewrite x end end;
-  axiom refl_eq end
+  from x + 0 do algebra x end end;
+  rewrite refl end
 in
 
 # Lists #
 theorem rev_nil = rev([]) == [] proof
-  from rev([]) do eval end;
-  axiom refl_eq end
+  from rev([]) do step end;
+  rewrite refl end
 in
 theorem rev_cons = forall x: Int -> forall t: [Int] -> rev(x :: t) == rev(t) @ [x] proof
-  from rev(x :: t) do eval end;
-  axiom refl_eq end
+  from rev(x :: t) do step end;
+  rewrite refl end
 in
 theorem app_cons = forall y: Int -> forall l: [Int] -> forall m: [Int] -> (y :: l) @ m == y :: (l @ m) proof
-  from (y :: l) @ m do eval end;
-  axiom refl_eq end
+  from (y :: l) @ m do step end;
+  rewrite refl end
 in
 theorem snoc = forall xs: [Int] -> forall x: Int -> rev(xs @ [x]) == x :: rev(xs) proof
   induction xs
   | [] =>
-    from rev([]) do axiom rev_nil end end;
+    from rev([]) do rewrite rev_nil end end;
     from rev([] @ [x]) do
-      from [] @ [x] do eval end;
-      eval;
-      from rev([]) do eval end;
-      eval
+      from [] @ [x] do step end;
+      step;
+      from rev([]) do step end;
+      step
     end;
-    from x :: [] do eval end;
-    axiom refl_eq end
+    from x :: [] do step end;
+    rewrite refl end
   | y :: t =>
-    from (y :: t) @ [x] do axiom app_cons end end;
-    from rev(y :: (t @ [x])) do axiom rev_cons end end;
-    from rev(t @ [x]) do axiom ih end end;
-    from (x :: rev(t)) @ [y] do axiom app_cons end end;
-    from rev(y :: t) do axiom rev_cons end end;
-    axiom refl_eq end
+    from (y :: t) @ [x] do rewrite app_cons end end;
+    from rev(y :: (t @ [x])) do rewrite rev_cons end end;
+    from rev(t @ [x]) do rewrite ih_t end end;
+    from (x :: rev(t)) @ [y] do rewrite app_cons end end;
+    from rev(y :: t) do rewrite rev_cons end end;
+    rewrite refl end
   end
 in
 theorem invol = forall xs: [Int] -> rev(rev(xs)) == xs proof
   induction xs
   | [] =>
-    from rev([]) do axiom rev_nil end end;
-    from rev([]) do axiom rev_nil end end;
-    axiom refl_eq end
+    from rev([]) do rewrite rev_nil end end;
+    from rev([]) do rewrite rev_nil end end;
+    rewrite refl end
   | x :: t =>
-    from rev(x :: t) do axiom rev_cons end end;
-    from rev(rev(t) @ [x]) do axiom snoc end end;
-    from rev(rev(t)) do axiom ih end end;
-    axiom refl_eq end
+    from rev(x :: t) do rewrite rev_cons end end;
+    from rev(rev(t) @ [x]) do rewrite snoc end end;
+    from rev(rev(t)) do rewrite ih_t end end;
+    rewrite refl end
   end
 in
 
 # A simple total and a fold-based fast total agree #
 theorem total_nil = total([]) == 0 proof
-  from total([]) do eval end;
-  axiom refl_eq end
+  from total([]) do step end;
+  rewrite refl end
 in
 theorem total_cons = forall p: Int -> forall rest: [Int] -> total(p :: rest) == p + total(rest) proof
-  from total(p :: rest) do eval end;
-  axiom refl_eq end
+  from total(p :: rest) do step end;
+  rewrite refl end
 in
 theorem fold_nil = forall a: Int -> fold_left([], add, a) == a proof
-  from fold_left([], add, a) do eval end;
-  axiom refl_eq end
+  from fold_left([], add, a) do step end;
+  rewrite refl end
 in
 theorem fold_cons = forall h: Int -> forall t: [Int] -> forall a: Int -> fold_left(h :: t, add, a) == fold_left(t, add, a + h) proof
-  from fold_left(h :: t, add, a) do eval; from add(a, h) do eval end; eval end;
-  from fold_left(t, add, a + h) do eval end;
-  axiom refl_eq end
+  from fold_left(h :: t, add, a) do step; from add(a, h) do step end; step end;
+  from fold_left(t, add, a + h) do step end;
+  rewrite refl end
 in
 theorem shuffle = forall a: Int -> forall b: Int -> forall c: Int -> a + (b + c) == (a + b) + c proof
-  from a + (b + c) do rewrite (a + b) + c end end;
-  axiom refl_eq end
+  from a + (b + c) do algebra (a + b) + c end end;
+  rewrite refl end
 in
 theorem total_acc = forall prices: [Int] -> forall acc: Int -> acc + total(prices) == fold_left(prices, add, acc) proof
   generalize acc => induction prices
   | [] => forall acc =>
-    from total([]) do axiom total_nil end end;
-    from fold_left([], add, acc) do axiom fold_nil end end;
-    from acc + 0 do rewrite acc end end;
-    axiom refl_eq end
+    from total([]) do rewrite total_nil end end;
+    from fold_left([], add, acc) do rewrite fold_nil end end;
+    from acc + 0 do algebra acc end end;
+    rewrite refl end
   | p :: rest => forall acc =>
-    from total(p :: rest) do axiom total_cons end end;
-    from fold_left(p :: rest, add, acc) do axiom fold_cons end end;
-    from acc + (p + total(rest)) do axiom shuffle end end;
-    from fold_left(rest, add, acc + p) do axiomrev ih end end;
-    axiom refl_eq end
+    from total(p :: rest) do rewrite total_cons end end;
+    from fold_left(p :: rest, add, acc) do rewrite fold_cons end end;
+    from acc + (p + total(rest)) do rewrite shuffle end end;
+    from fold_left(rest, add, acc + p) do rewrite <- ih_rest end end;
+    rewrite refl end
   end
 in
 theorem totals_agree = forall prices: [Int] -> total(prices) == fold_left(prices, add, 0) proof
-  from fold_left(prices, add, 0) do axiomrev total_acc end end;
-  from 0 + total(prices) do rewrite total(prices) end end;
-  axiom refl_eq end
+  from fold_left(prices, add, 0) do rewrite <- total_acc end end;
+  from 0 + total(prices) do algebra total(prices) end end;
+  rewrite refl end
 in
 
 # To try: #
@@ -481,12 +481,12 @@ let canonical_theorems = [
 
 let fold_cons_proof = {|proof
   from fold_left(h :: t, add, a) do
-    eval;
-    from add(a, h) do eval end;
-    eval
+    step;
+    from add(a, h) do step end;
+    step
   end;
-  from fold_left(t, add, a + h) do eval end;
-  axiom refl_eq end
+  from fold_left(t, add, a + h) do step end;
+  rewrite refl end
 in|};
 
 let total_acc_proof = {|proof
@@ -494,17 +494,17 @@ let total_acc_proof = {|proof
     induction prices
     | [] =>
       forall acc =>
-        from total([]) do axiom total_nil end end;
-        from fold_left([], add, acc) do axiom fold_nil end end;
-        from acc + 0 do rewrite acc end end;
-        axiom refl_eq end
+        from total([]) do rewrite total_nil end end;
+        from fold_left([], add, acc) do rewrite fold_nil end end;
+        from acc + 0 do algebra acc end end;
+        rewrite refl end
     | p :: rest =>
       forall acc =>
-        from total(p :: rest) do axiom total_cons end end;
-        from fold_left(p :: rest, add, acc) do axiom fold_cons end end;
-        from acc + (p + total(rest)) do axiom shuffle end end;
-        from fold_left(rest, add, acc + p) do axiomrev ih end end;
-        axiom refl_eq end
+        from total(p :: rest) do rewrite total_cons end end;
+        from fold_left(p :: rest, add, acc) do rewrite fold_cons end end;
+        from acc + (p + total(rest)) do rewrite shuffle end end;
+        from fold_left(rest, add, acc + p) do rewrite <- ih_rest end end;
+        rewrite refl end
     end
 in|};
 
@@ -559,10 +559,10 @@ let examples_tests = [
         formatted,
         {|theorem nested = (2 + 3) * 2 == 10 proof
   from (2 + 3) * 2 do
-    from 2 + 3 do eval end;
-    eval
+    from 2 + 3 do step end;
+    step
   end;
-  eval
+  step
 in|},
       );
       check_contains(
@@ -573,22 +573,22 @@ in|},
 proof
   induction xs
   | [] =>
-    from rev([]) do axiom rev_nil end end;
+    from rev([]) do rewrite rev_nil end end;
     from rev([] @ [x]) do
-      from [] @ [x] do eval end;
-      eval;
-      from rev([]) do eval end;
-      eval
+      from [] @ [x] do step end;
+      step;
+      from rev([]) do step end;
+      step
     end;
-    from x :: [] do eval end;
-    axiom refl_eq end
+    from x :: [] do step end;
+    rewrite refl end
   | y :: t =>
-    from (y :: t) @ [x] do axiom app_cons end end;
-    from rev(y :: (t @ [x])) do axiom rev_cons end end;
-    from rev(t @ [x]) do axiom ih end end;
-    from (x :: rev(t)) @ [y] do axiom app_cons end end;
-    from rev(y :: t) do axiom rev_cons end end;
-    axiom refl_eq end
+    from (y :: t) @ [x] do rewrite app_cons end end;
+    from rev(y :: (t @ [x])) do rewrite rev_cons end end;
+    from rev(t @ [x]) do rewrite ih_t end end;
+    from (x :: rev(t)) @ [y] do rewrite app_cons end end;
+    from rev(y :: t) do rewrite rev_cons end end;
+    rewrite refl end
   end
 in|},
       );
@@ -719,8 +719,8 @@ module Edit = {
           string,
           "occurrences",
           replace_first(
-            ~before="  from 2 * 2 do eval end;\n  eval\nin",
-            ~after="  from 2 * 2 do eval end;\n  eval;\n  eval\nin",
+            ~before="  from 2 * 2 do step end;\n  step\nin",
+            ~after="  from 2 * 2 do step end;\n  step;\n  step\nin",
             serialize(z),
           ),
           serialize(add_step(eval_step(), "occurrences", z)),
@@ -736,8 +736,8 @@ module Edit = {
           string,
           "invol",
           replace_first(
-            ~before="    axiom refl_eq end\n  | x :: t =>",
-            ~after="    axiom refl_eq end;\n    eval\n  | x :: t =>",
+            ~before="    rewrite refl end\n  | x :: t =>",
+            ~after="    rewrite refl end;\n    step\n  | x :: t =>",
             serialize(z),
           ),
           serialize(
@@ -762,8 +762,8 @@ module Edit = {
           "snoc",
           replace_first(
             ~before=
-              "    from rev(y :: t) do axiom rev_cons end end;\n    axiom refl_eq end\n  end",
-            ~after="    from rev(y :: t) do axiom rev_cons end end\n  end",
+              "    from rev(y :: t) do rewrite rev_cons end end;\n    rewrite refl end\n  end",
+            ~after="    from rev(y :: t) do rewrite rev_cons end end\n  end",
             serialize(z),
           ),
           serialize(
@@ -786,14 +786,14 @@ module Edit = {
         check(
           string,
           "one step",
-          "theorem t = 1 == 1 proof eval in t",
+          "theorem t = 1 == 1 proof step in t",
           serialize(z),
         );
         let z = add_step(eval_step(), "t", z);
         check(
           string,
           "two steps",
-          "theorem t = 1 == 1 proof\n  eval;\n  eval\nin t",
+          "theorem t = 1 == 1 proof\n  step;\n  step\nin t",
           serialize(z),
         );
       },
@@ -804,12 +804,12 @@ module Edit = {
       () => {
         let z =
           parse_zipper(
-            "let f = fun x ->\n  theorem t = 1 == 1 proof eval in\n  t\nin f",
+            "let f = fun x ->\n  theorem t = 1 == 1 proof step in\n  t\nin f",
           );
         check(
           string,
           "nested theorem",
-          "let f = fun x ->\n  theorem t = 1 == 1 proof\n    eval;\n    eval\n  in\n  t\nin f",
+          "let f = fun x ->\n  theorem t = 1 == 1 proof\n    step;\n    step\n  in\n  t\nin f",
           serialize(add_step(eval_step(), "t", z)),
         );
       },
@@ -835,16 +835,16 @@ theorem t = forall xs: [Int] -> rev(rev(xs)) == xs proof
   # first #
   induction xs  # scrut #
   | [] =>
-    from rev([]) do axiom rev_nil end end;  # base one #
-    from rev([]) do  axiom rev_nil  end end;   axiom refl_eq end
+    from rev([]) do rewrite rev_nil end end;  # base one #
+    from rev([]) do  rewrite rev_nil  end end;   rewrite refl end
   | x :: t =>
     # step #
-    from rev(x :: t) do axiom rev_cons end end;
+    from rev(x :: t) do rewrite rev_cons end end;
     from rev(rev(t)) do
-      axiom ih end;   # in focus #
-      eval
+      rewrite ih_t end;   # in focus #
+      step
     end;
-    axiom refl_eq end  # last #
+    rewrite refl end  # last #
   end
 in t|};
 
@@ -952,8 +952,8 @@ in t|};
       check_write(
         ~expected=
           Edit.replace_first(
-            ~before="   axiom refl_eq end\n",
-            ~after="   axiom refl_eq end;\n    eval\n",
+            ~before="   rewrite refl end\n",
+            ~after="   rewrite refl end;\n    step\n",
             program,
           ),
         z =>
@@ -967,8 +967,8 @@ in t|};
       check_write(
         ~expected=
           Edit.replace_first(
-            ~before="axiom refl_eq end  # last #\n",
-            ~after="axiom refl_eq end;  # last #\n    eval\n",
+            ~before="rewrite refl end  # last #\n",
+            ~after="rewrite refl end;  # last #\n    step\n",
             program,
           ),
         z =>
@@ -980,7 +980,7 @@ in t|};
         ~expected=
           Edit.replace_first(
             ~before="    from rev(rev(t)) do\n",
-            ~after="    eval;\n    from rev(rev(t)) do\n",
+            ~after="    step;\n    from rev(rev(t)) do\n",
             program,
           ),
         z =>
@@ -991,8 +991,8 @@ in t|};
       check_write(
         ~expected=
           Edit.replace_first(
-            ~before="      eval\n    end;",
-            ~after="      eval;\n      eval\n    end;",
+            ~before="      step\n    end;",
+            ~after="      step;\n      step\n    end;",
             program,
           ),
         z =>
@@ -1025,8 +1025,9 @@ in t|};
       check_write(
         ~expected=
           Edit.replace_first(
-            ~before="\n    from rev([]) do  axiom rev_nil  end end;   axiom",
-            ~after="\n    axiom",
+            ~before=
+              "\n    from rev([]) do  rewrite rev_nil  end end;   rewrite",
+            ~after="\n    rewrite",
             program,
           ),
         z =>
@@ -1037,7 +1038,7 @@ in t|};
       check_write(
         ~expected=
           Edit.replace_first(
-            ~before="    end;\n    axiom refl_eq end  # last #\n",
+            ~before="    end;\n    rewrite refl end  # last #\n",
             ~after="    end  # last #\n",
             program,
           ),
@@ -1082,8 +1083,8 @@ in t|};
     ),
     test_case("a second step turns a one-line proof into a block", `Quick, () =>
       check_write(
-        ~src="theorem t = 1 == 1 proof  eval # done # in t",
-        ~expected="theorem t = 1 == 1 proof\n  eval;\n  eval # done #\nin t",
+        ~src="theorem t = 1 == 1 proof  step # done # in t",
+        ~expected="theorem t = 1 == 1 proof\n  step;\n  step # done #\nin t",
         z =>
         Patches.write(row(End, Edit.proof_of("t", zipper_term(z))), eval())
       )
@@ -1091,9 +1092,9 @@ in t|};
     test_case("Tab keeps steps the user put on one line", `Quick, () =>
       check_write(
         ~src=
-          "theorem t = (1 + 1) * (1 + 1) == 4 proof\n  from 1 + 1 at 2 do eval end;   from 1 + 1 do eval end;\n  eval\nin t",
+          "theorem t = (1 + 1) * (1 + 1) == 4 proof\n  from 1 + 1 at 2 do step end;   from 1 + 1 do step end;\n  step\nin t",
         ~expected=
-          "theorem t = (1 + 1) * (1 + 1) == 4 proof\n  from 1 + 1 at 2 do eval end;   from 1 + 1 do eval end;\n  eval;\n  eval\nin t",
+          "theorem t = (1 + 1) * (1 + 1) == 4 proof\n  from 1 + 1 at 2 do step end;   from 1 + 1 do step end;\n  step;\n  step\nin t",
         z =>
         Patches.write(
           row(End, Edit.last_step(Edit.proof_of("t", zipper_term(z)))),
@@ -1104,9 +1105,9 @@ in t|};
     test_case(
       "flipping an axiom's direction rewrites only its keyword", `Quick, () =>
       check_write(
-        ~src="theorem t = 1 == 1 proof\n  axiom  # which #  refl_eq end\nin t",
+        ~src="theorem t = 1 == 1 proof\n  rewrite  # which #  refl end\nin t",
         ~expected=
-          "theorem t = 1 == 1 proof\n  axiomrev  # which #  refl_eq end\nin t",
+          "theorem t = 1 == 1 proof\n  rewrite <-  # which #  refl end\nin t",
         z => {
           let step = Edit.proof_of("t", zipper_term(z));
           switch (step.term) {
@@ -1130,9 +1131,9 @@ in t|};
     test_case("a rebuilt node keeps its steps' literal spellings", `Quick, () =>
       check_write(
         ~src=
-          "theorem t = forall b: Bool -> 1 == 1 proof\n  induction b\n  | true => from 007 + 1 do eval end\n  end\nin t",
+          "theorem t = forall b: Bool -> 1 == 1 proof\n  induction b\n  | true => from 007 + 1 do step end\n  end\nin t",
         ~expected=
-          "theorem t = forall b: Bool -> 1 == 1 proof\n  induction b\n  | true => from 007 + 1 do eval end\n  | ? => ?\n  end\nin t",
+          "theorem t = forall b: Bool -> 1 == 1 proof\n  induction b\n  | true => from 007 + 1 do step end\n  | ? => ?\n  end\nin t",
         z =>
         switch (
           Patches.add_case(
@@ -1180,7 +1181,7 @@ in t|};
             (
               "at the step written after",
               edited,
-              "axiom refl_eq end;\n    eval",
+              "rewrite refl end;\n    step",
             ),
             ("at a later step", later, "from rev(rev(t)) do"),
           ],
@@ -1200,8 +1201,8 @@ in
 theorem t = forall n: Int ->  # any n #
   8 / n == 8 / n proof
   # first #
-  from 8 / n do eval end;  # one #
-  eval
+  from 8 / n do step end;  # one #
+  step
 in t|};
 
   let first_eval_origin = z =>
@@ -1217,9 +1218,9 @@ in t|};
         ~expected=
           Edit.replace_first(
             ~before=
-              "proof\n  # first #\n  from 8 / n do eval end;  # one #\n  eval\n",
+              "proof\n  # first #\n  from 8 / n do step end;  # one #\n  step\n",
             ~after=
-              "proof\n  have n != 0 proof ? =>\n    # first #\n    from 8 / n do eval end;  # one #\n    eval\n",
+              "proof\n  have n != 0 proof ? =>\n    # first #\n    from 8 / n do step end;  # one #\n    step\n",
             exits_program,
           ),
         z =>
@@ -1238,9 +1239,9 @@ in t|};
         ~src=exits_program,
         ~expected=
           Edit.replace_first(
-            ~before="  from 8 / n do eval end;  # one #\n  eval\n",
+            ~before="  from 8 / n do step end;  # one #\n  step\n",
             ~after=
-              "  induction n != 0\n  | true =>\n    from 8 / n do eval end;  # one #\n    eval\n  | false => ?\n  end\n",
+              "  induction n != 0\n  | true =>\n    from 8 / n do step end;  # one #\n    step\n  | false => ?\n  end\n",
             exits_program,
           ),
         z =>

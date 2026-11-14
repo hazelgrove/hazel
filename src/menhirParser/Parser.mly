@@ -132,9 +132,9 @@ open AST
 %token INDUCTION
 %token ALIAS
 %token AS
-%token AXIOM
-%token AXIOM_REV
 %token REWRITE
+%token LEFT_ARROW
+%token ALGEBRA
 %token WITH
 %token FROM
 %token DO
@@ -478,12 +478,12 @@ proof:
     | HAVE; e = exp; PROOF; sub = proof; EQUAL_ARROW; pf = proof { ProofHave(e, sub, pf) } %prec PROOF_PRE
     | REVERT; e = exp; EQUAL_ARROW; pf = proof { ProofRevert(e, pf) } %prec PROOF_PRE
     | REVERT; e = exp; WITH; v = exp; SINGLE_EQUAL; i = exp; EQUAL_ARROW; pf = proof { ProofRevertWith(e, v, i, pf) } %prec PROOF_PRE
-    | AXIOM; eq = exp; END { ProofAxiom(eq) }
-    | AXIOM_REV; eq = exp; END { ProofAxiomRev(eq) }
-    | AXIOM; eq = exp; WITH; v = exp; SINGLE_EQUAL; i = exp; END { ProofAxiomWith(eq, v, i) }
-    | AXIOM_REV; eq = exp; WITH; v = exp; SINGLE_EQUAL; i = exp; END { ProofAxiomRevWith(eq, v, i) }
-    | REWRITE; e = exp; END { ProofAlgebrite(e) }
-    | EVAL { ProofEval }
+    | REWRITE; eq = exp; END { ProofAxiom(eq) }
+    | REWRITE; LEFT_ARROW; eq = exp; END { ProofAxiomRev(eq) }
+    | REWRITE; eq = exp; WITH; v = exp; SINGLE_EQUAL; i = exp; END { ProofAxiomWith(eq, v, i) }
+    | REWRITE; LEFT_ARROW; eq = exp; WITH; v = exp; SINGLE_EQUAL; i = exp; END { ProofAxiomRevWith(eq, v, i) }
+    | ALGEBRA; e = exp; END { ProofAlgebrite(e) }
+    | x = IDENT { if x = "step" then ProofEval else failwith ("Parse error: not a proof step: " ^ x) }
     | FROM; sel = exp; DO; pf = proof; END { ProofFocus(None, sel, pf) }
     | FROM; sel = exp; AT; n = INT; DO; pf = proof; END { ProofFocus(Some(Bigint.to_int_exn n), sel, pf) }
     | CONTRADICTION; e = exp; END { ProofContradiction(e) }
@@ -568,7 +568,7 @@ exp:
     | THEOREM; p = pat; SINGLE_EQUAL; e1 = exp; PROOF; pf = proof; IN; e2 = exp { Theorem (p, e1, pf, e2) } %prec LET_EXP
     (* `where` and `assume` are the default names of the hypotheses that
        `where` guards and `assume` install, so they appear in expression
-       position as cited facts: `axiom assume end`. The segment
+       position as cited facts: `rewrite assume end`. The segment
        parser reads them as variables there too. *)
     | WHERE { Var "where" }
     | ASSUME { Var "assume" }

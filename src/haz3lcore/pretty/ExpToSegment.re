@@ -1149,10 +1149,15 @@ and parenthesize_proof =
     )
     |> rewrap
   | Have(e, sub, body) => Have(go_exp(e), go(sub), go(body)) |> rewrap
+  /* `<-` is a prefix at `fun_` over the fact. */
   | AxiomStep({direction, equality, instantiation}) =>
     AxiomStep({
       direction,
-      equality: go_exp(equality),
+      equality:
+        go_exp(
+          ~level=direction == Left ? Precedence.fun_ : Precedence.min,
+          equality,
+        ),
       instantiation:
         Option.map(((v, i)) => (go_exp(v), go_exp(i)), instantiation),
     })
@@ -3547,6 +3552,31 @@ and proof_to_pretty = (~settings: Settings.t, p: Proof.t): pretty => {
     wrap(p, [mk_form(ProofHave, id, [e, sub])] @ b);
   | AxiomStep({direction, equality, instantiation}) =>
     let+ eq = exp_to_pretty(~settings, equality);
+    /* MakeTerm absorbs the arrow's tile id into the step's ids, after
+       the step's own. The whitespace before the arrow isn't kept, so it
+       is one space, with an id derived from the arrow's. */
+    let eq =
+      switch (direction) {
+      | Right => eq
+      | Left =>
+        let arrow_id =
+          switch (IdTagged.ids(p)) {
+          | [_, arrow_id, ..._] => arrow_id
+          | _ => Id.derive(~salt="rewrite-back", id)
+          };
+        let (form, sort) = Form.classify_label(Sort.Exp, ["<-"]);
+        [
+          Secondary(mk_space(Id.derive(~salt="space", arrow_id))),
+          Tile({
+            id: arrow_id,
+            form,
+            sort,
+            shards: [0],
+            children: [],
+          }),
+        ]
+        @ eq;
+      };
     let inst: list(Segment.t) =
       switch (instantiation) {
       | None => []
@@ -3556,11 +3586,9 @@ and proof_to_pretty = (~settings: Settings.t, p: Proof.t): pretty => {
         ]
       };
     let fam: Form.family =
-      switch (direction, instantiation) {
-      | (Right, None) => ProofAxiom
-      | (Left, None) => ProofAxiomRev
-      | (Right, Some(_)) => ProofAxiomWith
-      | (Left, Some(_)) => ProofAxiomRevWith
+      switch (instantiation) {
+      | None => ProofAxiom
+      | Some(_) => ProofAxiomWith
       };
     wrap(p, [mk_form(fam, id, [eq, ...inst])]);
   | AlgebriteStep(e) =>

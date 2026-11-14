@@ -106,32 +106,32 @@ let cites_fact_in_scope = (name: string, source: string) =>
 
 /* A list induction whose cons case cites `fact`. */
 let snoc_citing = fact =>
-  {|theorem t = forall xs: [Int] -> forall x: Int -> xs @ [x] == xs @ [x] proof induction xs | [] => ? | y :: rest => from rest @ [x] do axiom |}
+  {|theorem t = forall xs: [Int] -> forall x: Int -> xs @ [x] == xs @ [x] proof induction xs | [] => ? | y :: rest => from rest @ [x] do rewrite |}
   ++ fact
   ++ {| end end end in t|};
 
 let tests = (
   "Statics.Proof",
   [
-    /* Built-in axiom `refl_eq` is a hypothesis, so an axiom step
+    /* Built-in axiom `refl` is a hypothesis, so an axiom step
        referring to it should not produce a FreeHypothesis mark. */
     expects_no_mark(
-      "axiom refl_eq is a known hypothesis",
-      {|theorem t = true proof from 1 do axiom refl_eq end end in t|},
+      "rewrite refl is a known hypothesis",
+      {|theorem t = true proof from 1 do rewrite refl end end in t|},
       is_free_hyp,
     ),
     /* A completely unknown name in the axiom equality slot should
        trigger FreeHypothesis. */
     expects_mark(
-      "axiom bogus is a free hypothesis",
-      {|theorem t = true proof from 1 do axiom bogus end end in t|},
+      "rewrite bogus is a free hypothesis",
+      {|theorem t = true proof from 1 do rewrite bogus end end in t|},
       is_free_hyp,
     ),
     /* `forall x => ...`: `x` should be visible as a variable,
        not as a hypothesis. */
     expects_no_mark(
       "forall binds a variable visible in body",
-      {|theorem t = true proof forall x => from x do axiom refl_eq end end in 0|},
+      {|theorem t = true proof forall x => from x do rewrite refl end end in 0|},
       is_free_var,
     ),
     /* The theorem introduces the goal's outer `forall`-bound variables
@@ -139,7 +139,7 @@ let tests = (
        `forall x -> x == x` is not a free variable. */
     expects_no_mark(
       "theorem goal forall var is visible in proof",
-      {|theorem t = forall x -> x == x proof from x == x do axiom refl_eq end end in 0|},
+      {|theorem t = forall x -> x == x proof from x == x do rewrite refl end end in 0|},
       is_free_var,
     ),
     /* Proof induction must be exhaustive: a list induction with only the
@@ -179,7 +179,7 @@ let tests = (
        hypothesis. */
     expects_no_mark(
       "assume body sees the hypothesis",
-      {|theorem t = 1 == 1 proof assume 2 == 2 => from 2 do axiom assume end end in t|},
+      {|theorem t = 1 == 1 proof assume 2 == 2 => from 2 do rewrite assume end end in t|},
       is_free_hyp,
     ),
     /* The assumption analyzes against Bool: a non-bool assumption is a
@@ -243,7 +243,7 @@ let tests = (
        hypothesis. */
     expects_no_mark(
       "forall-where restriction is citable as `where`",
-      {|theorem t = forall x where x == 1 -> x == 1 proof from x do axiom where end end in 0|},
+      {|theorem t = forall x where x == 1 -> x == 1 proof from x do rewrite where end end in 0|},
       is_free_hyp,
     ),
     /* --- Proofs are not values ---------------------------------------
@@ -264,11 +264,11 @@ let tests = (
       is_free_var,
     ),
     /* (c) ...and a later `let` of the same name doesn't hide the theorem
-       from an `axiom` slot, which looks the name up in the theorem
+       from a `rewrite` slot, which looks the name up in the theorem
        namespace. */
     expects_no_mark(
       "citation finds a theorem shadowed by a later value binding",
-      {|theorem lem = 1 == 1 proof ? in let lem = 5 in theorem g = true proof from 1 do axiom lem end end in lem|},
+      {|theorem lem = 1 == 1 proof ? in let lem = 5 in theorem g = true proof from 1 do rewrite lem end end in lem|},
       is_free_hyp,
     ),
     /* (d) Hypotheses are invisible to expressions for the same reason:
@@ -285,32 +285,32 @@ let tests = (
        checker runs. */
     expects_no_mark(
       "an induction `as` name is a known hypothesis at edit time",
-      {|theorem t = forall n -> n == n proof induction n > 0 as h | true => from n do axiom h end end | false => ? end in t|},
+      {|theorem t = forall n -> n == n proof induction n > 0 as h | true => from n do rewrite h end end | false => ? end in t|},
       is_free_hyp,
     ),
     /* ...and it is visible in every case, not just the first. */
     expects_no_mark(
       "an induction `as` name is visible in every case",
-      {|theorem t = forall n -> n == n proof induction n > 0 as h | true => ? | false => from n do axiom h end end end in t|},
+      {|theorem t = forall n -> n == n proof induction n > 0 as h | true => ? | false => from n do rewrite h end end end in t|},
       is_free_hyp,
     ),
     /* An `as` name is scoped to its own form. */
     expects_mark(
       "an induction `as` name does not escape its form",
-      {|theorem t = forall n -> n == n proof induction n > 0 as h | true => ? | false => ? end; from n do axiom h end end in t|},
+      {|theorem t = forall n -> n == n proof induction n > 0 as h | true => ? | false => ? end; from n do rewrite h end end in t|},
       is_free_hyp,
     ),
     /* A duplicate `as` name shadows rather than erroring: the inner
        binding hides the outer, and the citation still resolves. */
     expects_no_mark(
       "a duplicate `as` name shadows without erroring",
-      {|theorem t = forall n -> forall m -> n == n proof induction n > 0 as h | true => induction m > 0 as h | true => from m do axiom h end end | false => ? end | false => ? end in t|},
+      {|theorem t = forall n -> forall m -> n == n proof induction n > 0 as h | true => induction m > 0 as h | true => from m do rewrite h end end | false => ? end | false => ? end in t|},
       is_free_hyp,
     ),
     /* `assume <e> as <h>` likewise. */
     expects_no_mark(
       "an assume `as` name is a known hypothesis at edit time",
-      {|theorem t = forall n -> n == n proof assume n == 1 as h => from n do axiom h end end in t|},
+      {|theorem t = forall n -> n == n proof assume n == 1 as h => from n do rewrite h end end in t|},
       is_free_hyp,
     ),
     /* An `as`/`alias` name binds only in the theorem namespace: like the
@@ -324,7 +324,7 @@ let tests = (
        body sees it. */
     expects_no_mark(
       "an alias name is a known hypothesis at edit time",
-      {|theorem t = forall n -> n == n proof assume n == 1 => alias h = assume => from n do axiom h end end in t|},
+      {|theorem t = forall n -> n == n proof assume n == 1 => alias h = assume => from n do rewrite h end end in t|},
       is_free_hyp,
     ),
     /* The alias's fact slot is a fact reference, not a program variable:
@@ -344,17 +344,17 @@ let tests = (
     ),
     /* --- The facts an induction case installs ------------------------
        A case body sees what `ProofCheck.check_induction` gives it: an
-       `ih` per recursive position, the case equation and the arm's
+       `ih_<var>` per recursive position, the case equation and the arm's
        `where` facts. */
     expects_no_mark(
-      "`ih` is in scope in a recursive case",
-      snoc_citing("ih"),
+      "`ih_rest` is in scope in a recursive case",
+      snoc_citing("ih_rest"),
       is_free_hyp,
     ),
-    cites_fact_in_scope("ih", snoc_citing("ih")),
+    cites_fact_in_scope("ih_rest", snoc_citing("ih_rest")),
     expects_mark(
-      "`ih` is not in scope in a base case",
-      {|theorem t = forall xs: [Int] -> xs == xs proof induction xs | [] => from xs do axiom ih end end | y :: rest => ? end in t|},
+      "`ih_rest` is not in scope in a base case",
+      {|theorem t = forall xs: [Int] -> xs == xs proof induction xs | [] => from xs do rewrite ih_rest end end | y :: rest => ? end in t|},
       is_free_hyp,
     ),
     expects_no_mark(
@@ -365,14 +365,14 @@ let tests = (
     cites_fact_in_scope("case_eq", snoc_citing("case_eq")),
     expects_mark(
       "an `as` name replaces `case_eq`",
-      {|theorem t = forall xs: [Int] -> xs == xs proof induction xs as h | [] => from xs do axiom case_eq end end | y :: rest => ? end in t|},
+      {|theorem t = forall xs: [Int] -> xs == xs proof induction xs as h | [] => from xs do rewrite case_eq end end | y :: rest => ? end in t|},
       is_free_hyp,
     ),
     /* The case equation `xs == y :: xs` would mention the pattern's own
        `xs`, not the scrutinee, so the checker doesn't install it. */
     expects_mark(
       "no `case_eq` when the pattern rebinds the scrutinee",
-      {|theorem t = forall xs: [Int] -> xs == xs proof induction xs | [] => ? | y :: xs => from xs do axiom case_eq end end end in t|},
+      {|theorem t = forall xs: [Int] -> xs == xs proof induction xs | [] => ? | y :: xs => from xs do rewrite case_eq end end end in t|},
       is_free_hyp,
     ),
     expects_mark(
@@ -382,42 +382,42 @@ let tests = (
     ),
     expects_no_mark(
       "a case arm's guard is citable as `where`",
-      {|theorem t = forall xs: [Int] -> xs == xs proof induction xs | [] => ? | y :: rest where y > 0 => from xs do axiom where end end | y :: rest => ? end in t|},
+      {|theorem t = forall xs: [Int] -> xs == xs proof induction xs | [] => ? | y :: rest where y > 0 => from xs do rewrite where end end | y :: rest => ? end in t|},
       is_free_hyp,
     ),
     /* The last arm is reached only when the guarded arm above failed. */
     expects_no_mark(
       "an earlier overlapping arm's negated guard is citable as `where`",
-      {|theorem t = forall xs: [Int] -> xs == xs proof induction xs | [] => ? | y :: rest where y > 0 => ? | y :: rest => from xs do axiom where end end end in t|},
+      {|theorem t = forall xs: [Int] -> xs == xs proof induction xs | [] => ? | y :: rest where y > 0 => ? | y :: rest => from xs do rewrite where end end end in t|},
       is_free_hyp,
     ),
     expects_mark(
       "a constructor-disjoint earlier arm gives no `where`",
-      {|theorem t = forall xs: [Int] -> xs == xs proof induction xs | y :: rest where y > 0 => ? | y :: rest => ? | [] => from xs do axiom where end end end in t|},
+      {|theorem t = forall xs: [Int] -> xs == xs proof induction xs | y :: rest where y > 0 => ? | y :: rest => ? | [] => from xs do rewrite where end end end in t|},
       is_free_hyp,
     ),
     /* --- Other forms that extend a body's scope ---------------------- */
     expects_no_mark(
       "a `have` body sees the hypothesis",
-      {|theorem t = 1 == 1 proof have 2 == 2 proof ? => from 1 do axiom have end end in t|},
+      {|theorem t = 1 == 1 proof have 2 == 2 proof ? => from 1 do rewrite have end end in t|},
       is_free_hyp,
     ),
     /* The subproof proves the `have`; it can't cite it. */
     expects_mark(
       "a `have` subproof doesn't see the hypothesis",
-      {|theorem t = 1 == 1 proof have 2 == 2 proof from 2 do axiom have end end => ? in t|},
+      {|theorem t = 1 == 1 proof have 2 == 2 proof from 2 do rewrite have end end => ? in t|},
       is_free_hyp,
     ),
     /* `x` is bound by the goal's `fun x ->` around the focused `x + 0`,
        which the checker brings into the focus body's scope. */
     expects_no_mark(
       "a focus body sees a binder its selector names",
-      {|theorem t = (fun x -> x + 0) == (fun x -> x) proof from x + 0 do rewrite x end end; ? in 0|},
+      {|theorem t = (fun x -> x + 0) == (fun x -> x) proof from x + 0 do algebra x end end; ? in 0|},
       is_free_var,
     ),
     expects_mark(
       "a focus body's binder names don't escape it",
-      {|theorem t = (fun x -> x + 0) == (fun x -> x) proof from x + 0 do rewrite x end end; rewrite x in 0|},
+      {|theorem t = (fun x -> x + 0) == (fun x -> x) proof from x + 0 do algebra x end end; algebra x in 0|},
       is_free_var,
     ),
   ],

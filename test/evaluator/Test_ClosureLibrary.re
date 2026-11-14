@@ -10,7 +10,7 @@ open Test_ProofMap.Harness;
  * relate two predicates when some cited equation mentions both, and no
  * built-in axiom mentions two different arithmetic comparisons: the
  * Kleene axioms are purely boolean (`and_comm`, `impl_def`, ...),
- * `refl_eq` is reflexivity, and the only equations relating `>` to `!=`,
+ * `refl` is reflexivity, and the only equations relating `>` to `!=`,
  * or `a > 0`/`b > 0` to `a * b > 0`, are the six closure lemmas
  * themselves, which would be circular. Evaluation can't bridge the gap
  * either: on a symbolic operand a comparison is stuck (`NothingToStep`,
@@ -289,7 +289,7 @@ let test_pin_symbolic_comparison_is_stuck = () => {
       theorem(
         "t",
         stmt_nonzero_of_pos,
-        "assume a1 > 0 => from a1 != 0 do eval end; ?",
+        "assume a1 > 0 => from a1 != 0 do step end; ?",
       ),
     );
   if (!
@@ -311,13 +311,13 @@ let test_pin_symbolic_comparison_is_stuck = () => {
 /* (C2) No numeric induction. `induction` on an Int or Nat binder is
  * accepted, but the only patterns available are a literal and a
  * catch-all variable: there is no successor pattern, hence no inductive
- * hypothesis (`ih` is not even in scope). This is what blocks `pow_pos`:
+ * hypothesis (`ih_n` is not even in scope). This is what blocks `pow_pos`:
  * its proof wants induction on the exponent with a quantified IH, and
  * `generalize` can supply the quantification but there is no induction
  * principle to hand it to.
  *
  * Making the exponent a `Nat` doesn't help: Nat is an atom type, not an
- * inductive one (the probe below is over Nat and still has no `ih`), and
+ * inductive one (the probe below is over Nat and still has no `ih_n`), and
  * `**` parses to the Int operator class, so a Nat-typed variant would be
  * a lemma about a different operator. */
 let test_pin_no_numeric_induction_hypothesis = () => {
@@ -325,25 +325,25 @@ let test_pin_no_numeric_induction_hypothesis = () => {
     run_named(
       "t",
       "theorem t = forall a1: Nat -> a1 != 0 proof induction a1 "
-      ++ "| 0 => ? | n => from n != 0 do axiom ih end end end in t",
+      ++ "| 0 => ? | n => from n != 0 do rewrite ih_n end end end in t",
     );
   if (!
         has_mark_kind(
           pm,
           proof,
           fun
-          | ProofMark.UnknownEquality("ih") => true
+          | ProofMark.UnknownEquality("ih_n") => true
           | _ => false,
         )) {
     Alcotest.fail(
-      "a numeric induction produced an `ih` -- an induction principle "
+      "a numeric induction produced an `ih_n` -- an induction principle "
       ++ "for Nat/Int landed; pow_pos may now be provable!\n"
       ++ dump(pm, proof),
     );
   };
 };
 
-/* (C3) Algebrite, pinned as a hazard. `rewrite (a1 != 0) with true`
+/* (C3) Algebrite, pinned as a hazard. `algebra (a1 != 0) with true`
  * drives `nonzero_of_pos` to fully Proven, not because the CAS agrees
  * (this is a boolean comparison, not a field identity) but because the
  * checker doesn't re-verify an Algebrite step's equation (see the TODO
@@ -360,7 +360,7 @@ let test_pin_algebrite_launders_the_lemma = () => {
       theorem(
         "t",
         stmt_nonzero_of_pos,
-        "assume a1 > 0 => from a1 != 0 do rewrite true end end",
+        "assume a1 > 0 => from a1 != 0 do algebra true end end",
       ),
     );
   check_status(
@@ -433,8 +433,8 @@ let ex_falso_src =
     ++ "| false => induction a1 "
     /* Inside the inner `a1` split, `case_eq` denotes that split's
      * equation, which shadows the enclosing `a1 != 0` one. */
-    ++ "| 0 => revert a1 > 0 => from a1 do axiom case_eq end end; "
-    ++ "from 0 > 0 do eval end; from false ==> false do eval end "
+    ++ "| 0 => revert a1 > 0 => from a1 do rewrite case_eq end end; "
+    ++ "from 0 > 0 do step end; from false ==> false do step end "
     ++ "| n => ? end end",
   );
 
@@ -498,7 +498,7 @@ let closed_instance = (name: string, fact: string): string =>
   theorem(
     name,
     "1 == 1",
-    "assume " ++ fact ++ " => from 1 == 1 do axiom refl_eq end end",
+    "assume " ++ fact ++ " => from 1 == 1 do rewrite refl end end",
   );
 
 let instances: list((string, string)) = [

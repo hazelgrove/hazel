@@ -180,8 +180,8 @@ and exp =
 /* The proof sort (`proof_term` in Grammar.re). Like the tiles, the
    `with` and `as` variants are separate constructors, and `AxiomStep`'s
    direction is encoded by the two ProofAxiom* constructors:
-   `axiom` applies its equality left-to-right (Direction.Right),
-   `axiomrev` right-to-left (Direction.Left). */
+   `rewrite` applies its equality left-to-right (Direction.Right),
+   `rewrite <-` right-to-left (Direction.Left). */
 and proof =
   | EmptyHoleProof
   | ProofSeq(proof, proof)
@@ -202,14 +202,14 @@ and proof =
   /* `have <exp> proof <subproof> => <body>`: the asserted proposition,
      its proof, and the body it is a hypothesis for. */
   | ProofHave(exp, proof, proof)
-  /* `axiom <equality> end` */
+  /* `rewrite <equality> end` */
   | ProofAxiom(exp)
   | ProofAxiomRev(exp)
-  /* (equality, var, instantiation): `axiom <equality> with <var> = <exp>
+  /* (equality, var, instantiation): `rewrite <equality> with <var> = <exp>
      end`. */
   | ProofAxiomWith(exp, exp, exp)
   | ProofAxiomRevWith(exp, exp, exp)
-  /* `rewrite <replacement> end` */
+  /* `algebra <replacement> end` */
   | ProofAlgebrite(exp)
   | ProofEval
   /* `from <selector> [at <n>] do <proof> end` */

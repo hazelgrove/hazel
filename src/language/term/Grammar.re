@@ -178,7 +178,8 @@ and proof_term('a) =
   /* The rewrite steps act at the root of the incoming goal; `Focus`
    * points them at a subterm.
    *
-   * `axiom <fact> end` rewrites with a rule in scope. `instantiation` is
+   * `rewrite <fact> end` rewrites with a rule in scope, and
+   * `rewrite <- <fact> end` with it right to left. `instantiation` is
    * the optional `with <var> = <exp>` clause: an explicit instantiation
    * of one of the cited rule's binders, seeded into the match context
    * before matching. One binding per step. */
@@ -187,10 +188,10 @@ and proof_term('a) =
       equality: exp_t('a),
       instantiation: option((exp_t('a), exp_t('a))),
     })
-  /* `rewrite <replacement> end`: replace the goal with an expression the
+  /* `algebra <replacement> end`: replace the goal with an expression the
    * CAS finds equal to it. */
   | AlgebriteStep(exp_t('a))
-  /* `eval`: one evaluation step at the root, a rewrite whose replacement
+  /* `step`: one evaluation step at the root, a rewrite whose replacement
    * is computed. The checker takes the step function as a parameter. */
   | EvalStep
   /* `from <selector> do <proof> end`, or `from <selector> at 2 do ...`:
@@ -249,7 +250,7 @@ and proof_term('a) =
    * With the optional `with <var> = <exp>` clause, the fact must be
    * quantified, and the antecedent is the fact instantiated at `exp`. */
   | Revert(exp_t('a), option((exp_t('a), exp_t('a))), proof_t('a))
-  /* `contradiction <exp> end`: ex falso. Like the axiom and eval steps it
+  /* `contradiction <exp> end`: ex falso. Like `rewrite` and `step` it
    * has no body. It closes any goal by showing that the in-scope fact
    * `<exp>` is false given what else is known, so the branch is vacuous;
    * the outgoing goal is `true`.

@@ -5,21 +5,21 @@ open Language;
  * goal the user typed, found by breadth-first search, so the fewest steps
  * win.
  *
- * Its moves are steps a user could write: `eval`, at the goal's root or
+ * Its moves are steps a user could write: `step`, at the goal's root or
  * through a focus on a part that can step; reflexivity; each fact, theorem
- * and axiom in either direction, at each part it rewrites; and `rewrite`
+ * and axiom in either direction, at each part it rewrites; and `algebra`
  * of a part with a variable in it to the typed part, when the algebra
  * check says they're equal. The checker trusts the algebra check rather
- * than verify it, so arithmetic with no variables is left to eval.
+ * than verify it, so arithmetic with no variables is left to `step`.
  * Each candidate is checked by the checker against the goal it starts
  * from, not by checking the theorem again, so a step found is a step the
  * checker accepts.
  *
  * Moves act only inside the smallest part of the goal that differs from
  * the typed goal: a step elsewhere would change something already right.
- * A rule can rewrite most goals somehow (`axiomrev not_not` turns any
+ * A rule can rewrite most goals somehow (`rewrite <- not_not` turns any
  * boolean `b` into `!!b`), so a rule's step is kept only if it shrinks
- * that part; an eval step, which may unfold a definition first, is kept
+ * that part; a `step`, which may unfold a definition first, is kept
  * either way.
  *
  * The search goes `max_depth` steps deep, one more on a small goal, and
@@ -231,14 +231,14 @@ let rule_uses =
   |> List.filter((entry: ProofCtx.entry) =>
        !entry.is_captured
        && !entry.is_shadowed
-       && entry.name != "refl_eq"
+       && entry.name != "refl"
        && Option.fold(~none=true, ~some=(==)(entry.name), only)
      )
   |> List.concat_map((entry: ProofCtx.entry) => {
        let rule =
          ProofRule.BoolReading.apply(~info_map=Some(info_map), entry.rule);
        /* A side that is just one of the rule's variables matches every
-        * part, as `axiomrev and_true` rewrites any `a` to `a && true`.
+        * part, as `rewrite <- and_true` rewrites any `a` to `a && true`.
         * Such a step only wraps the goal, so it isn't proposed. */
        let rec is_variable = (side: Exp.t) =>
          switch (Exp.term_of(side)) {
@@ -363,7 +363,7 @@ let candidates =
     |> List.filter_map(node =>
          at(
            node,
-           Picker.Terms.axiom_step(~direction=Right, ~equality="refl_eq"),
+           Picker.Terms.axiom_step(~direction=Right, ~equality="refl"),
          )
        );
   let rec has_variable = (e: Exp.t) =>
@@ -691,7 +691,7 @@ let generalized = (goal: Picker.Goal.t, steps: list(Proof.t)): list(Proof.t) => 
   written;
 };
 
-/* Writing at a hole with a step after it, as in `?; from 1 + 4 do eval
+/* Writing at a hole with a step after it, as in `?; from 1 + 4 do step
  * end`. A hole passes its goal through, so that step was written against
  * the hole's goal, and steps written in the hole change the goal it acts
  * on. The steps are written in place of the hole when the step after

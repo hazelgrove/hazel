@@ -255,7 +255,7 @@ let rec self_and_ancestors = (id, e: Exp.t): option(list(Exp.t)) =>
       |> List.find_map(self_and_ancestors(id))
       |> Option.map(path => path @ [e]);
 
-/* The `eval` steps the stepper offers. The checker's `eval` step passes
+/* The `step`s the stepper offers. The checker's `step` passes
  * through `VarLookup`s silently (Evaluator.Proofs.advance_hidden), and
  * then takes a step only at the root of its goal, so a step can't always
  * be written at its own node: in `all_lists(xs) == true` the only step is
@@ -337,7 +337,7 @@ module Goal = {
     ctx: SemanticCtx.t,
     editor: CodeSelectable.Model.t,
     /* Each offered step, with the node of `written` that taking it
-     * focuses on to write `eval`. */
+     * focuses on to write `step`. */
     eval_steps: list((EvaluatorStep.step, Id.t)),
     /* Equalities in `written` that reflexivity closes. */
     refls: list(Exp.t),
@@ -588,7 +588,7 @@ let write_steps =
     )
   };
 
-/* What taking the `idx`-th offered step writes: `eval`, focused on the
+/* What taking the `idx`-th offered step writes: `step`, focused on the
  * step's source. */
 let take_step = (goal: Goal.t, idx: int): option(pick) => {
   open OptUtil.Syntax;
@@ -604,12 +604,12 @@ let take_step = (goal: Goal.t, idx: int): option(pick) => {
   };
 };
 
-/* Reflexivity is the `refl_eq` axiom at the equality `node`. */
+/* Reflexivity is the `refl` axiom at the equality `node`. */
 let refl = (goal: Goal.t, node: Exp.t): pick => {
   at: target(goal, node),
   step:
     Proof.fresh(
-      Terms.axiom_step(~direction=Direction.Right, ~equality="refl_eq"),
+      Terms.axiom_step(~direction=Direction.Right, ~equality="refl"),
     ),
 };
 
@@ -726,7 +726,7 @@ module Ghost = {
       switch (List.exists(is_node, goal.refls), preferred_step) {
       | (true, _) => Some(("refl", refl(goal, node)))
       | (false, Some(idx)) =>
-        take_step(goal, idx) |> Option.map(pick => ("eval", pick))
+        take_step(goal, idx) |> Option.map(pick => ("step", pick))
       | (false, None) =>
         List.find_opt((e: Exp.t) => inside(Exp.rep_id(e)), goal.refls)
         |> Option.map(e => ("refl", refl(goal, e)))

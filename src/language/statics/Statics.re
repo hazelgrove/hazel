@@ -4894,10 +4894,10 @@ and proof_to_info_map =
        installs, in the same order, so a name shadows as it does there:
        the arm's `where` facts, the case equation `scrut == pat` (named
        `case_eq` unless `as` names it, and absent when the pattern rebinds
-       a variable of the scrutinee), and an `ih` per recursive position.
-       An `ih` is the goal at the induction with a recursive position in
-       place of the scrutinee. The statics don't track the goal, so its
-       statement is left unknown. */
+       a variable of the scrutinee), and an `ih_<var>` per recursive
+       position. An inductive hypothesis is the goal at the induction with
+       a recursive position in place of the scrutinee. The statics don't
+       track the goal, so its statement is left unknown. */
     let case_eq_name =
       Option.bind(as_name, fact_name) |> Option.value(~default="case_eq");
     let body_ctx = (i, (info: Info.pat, pat: Pat.t)) => {
@@ -4923,11 +4923,11 @@ and proof_to_info_map =
               Exp.fresh(BinOp(Poly(Equals), scrut, Exp.of_pat(pat))),
             );
       List.fold_left(
-        (case_ctx, _) =>
+        (case_ctx, h) =>
           Ctx.extend_theorem(
             case_ctx,
             {
-              name: "ih",
+              name: Induction.hypothesis_name(h),
               id,
               prop: None,
             },
@@ -5088,7 +5088,7 @@ and proof_to_info_map =
    `ProofCtx` and `ProofRule`); keep the two in sync. */
 let initial_theorems: list(Ctx.theorem_entry) =
   [
-    "refl_eq",
+    "refl",
     "impl_def",
     "and_comm",
     "or_comm",

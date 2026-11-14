@@ -711,7 +711,7 @@ and Proof: {
         of_core(body),
       )
     | AxiomStep({direction, equality, instantiation}) =>
-      /* `axiom` applies the equality left-to-right, `axiomrev`
+      /* `rewrite` applies the equality left-to-right, `rewrite <-`
          right-to-left; a `with` clause picks the -With variants. */
       let eq = Exp.of_core(equality);
       switch (direction, instantiation) {

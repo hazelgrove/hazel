@@ -29,7 +29,7 @@ let is_float_algebrite: ProofMark.t => bool =
  * value: the instantiated guard `2 != 0` discharges by closed
  * evaluation; the instantiation `x := 2` itself scans to nothing. */
 let test_guarded_division_closed = () => {
-  let src = {|theorem inv = forall x where x != 0 -> x / x == 1 proof ? in theorem u = 2 / 2 == 1 proof from 2 / 2 do axiom inv end end; from 1 == 1 do axiom refl_eq end end in u|};
+  let src = {|theorem inv = forall x where x != 0 -> x / x == 1 proof ? in theorem u = 2 / 2 == 1 proof from 2 / 2 do rewrite inv end end; from 1 == 1 do rewrite refl end end in u|};
   let (state, _, elab) = src |> parse_exp |> eval_with_proof;
   let pm = EvaluatorState.get_proof_map(state);
   let use_proof = proof_of_named("u", elab);
@@ -58,7 +58,7 @@ let test_guarded_division_closed = () => {
  * denominator condition `z != 0`, which stays Pending (open goals are
  * never evaluated). */
 let test_open_division_instantiation_pending = () => {
-  let src = {|theorem u = forall y -> forall z -> y / z == y / z proof from y / z == y / z do axiom refl_eq end end in u|};
+  let src = {|theorem u = forall y -> forall z -> y / z == y / z proof from y / z == y / z do rewrite refl end end in u|};
   let (pm, proof, obs) = obligations(src);
   check_count("one scanned obligation", 1, obs);
   switch (obs) {
@@ -85,7 +85,7 @@ let test_open_division_instantiation_pending = () => {
 /* A conditional rule instantiated at a term containing division emits
  * both the instantiated guard and the scanned denominator condition. */
 let test_conditional_rule_plus_domain_scan = () => {
-  let src = {|theorem inv = forall x where x != 0 -> x / x == 1 proof ? in theorem u = forall a -> forall b -> (a / b) / (a / b) == 1 proof from (a / b) / (a / b) do axiom inv end end; from 1 == 1 do axiom refl_eq end end in u|};
+  let src = {|theorem inv = forall x where x != 0 -> x / x == 1 proof ? in theorem u = forall a -> forall b -> (a / b) / (a / b) == 1 proof from (a / b) / (a / b) do rewrite inv end end; from 1 == 1 do rewrite refl end end in u|};
   let (state, _, elab) = src |> parse_exp |> eval_with_proof;
   let pm = EvaluatorState.get_proof_map(state);
   let use_proof = proof_of_named("u", elab);
@@ -121,7 +121,7 @@ let test_conditional_rule_plus_domain_scan = () => {
  *
  * Both sides must be elaborated (see `Occurrence.nth_env_target`). */
 let test_where_covers_scanned_condition = () => {
-  let src = {|theorem t = forall z where z != 0 -> 8 / z == 8 / z proof from 8 / z == 8 / z do axiom refl_eq end end in t|};
+  let src = {|theorem t = forall z where z != 0 -> 8 / z == 8 / z proof from 8 / z == 8 / z do rewrite refl end end in t|};
   let (pm, proof, obs) = obligations(src);
   check_count("exactly the scanned denominator condition", 1, obs);
   switch (obs) {
@@ -151,7 +151,7 @@ let test_where_covers_scanned_condition = () => {
 /* The same, with the restriction extended by `&&`, as the panel's exit
  * does when the binder already carries a guard. */
 let test_where_conjunct_covers_scanned_condition = () => {
-  let src = {|theorem t = forall z where z > 0 && z != 0 -> 8 / z == 8 / z proof from 8 / z == 8 / z do axiom refl_eq end end in t|};
+  let src = {|theorem t = forall z where z > 0 && z != 0 -> 8 / z == 8 / z proof from 8 / z == 8 / z do rewrite refl end end in t|};
   let (_pm, _proof, obs) = obligations(src);
   check_count("exactly the scanned denominator condition", 1, obs);
   switch (obs) {
@@ -178,7 +178,7 @@ let test_where_conjunct_covers_scanned_condition = () => {
  * must look through the parens, or the restriction is never installed
  * and the floated condition stays Pending. */
 let test_parenthesized_where_binder_still_installs = () => {
-  let src = {|theorem t = forall y -> (forall z where z != 0 -> y + 8 / z == y + 8 / z) proof from y + 8 / z == y + 8 / z do axiom refl_eq end end in t|};
+  let src = {|theorem t = forall y -> (forall z where z != 0 -> y + 8 / z == y + 8 / z) proof from y + 8 / z == y + 8 / z do rewrite refl end end in t|};
   let (pm, proof, obs) = obligations(src);
   check_count("exactly the scanned denominator condition", 1, obs);
   switch (obs) {
@@ -209,7 +209,7 @@ let test_parenthesized_where_binder_still_installs = () => {
 /* The common instantiations, a quantified variable or a sum of them,
  * emit no marks and no obligations. */
 let test_instantiation_exemption_var = () => {
-  let src = {|theorem t = forall x -> x == x proof from x == x do axiom refl_eq end end in t|};
+  let src = {|theorem t = forall x -> x == x proof from x == x do rewrite refl end end in t|};
   let (pm, proof, obs) = obligations(src);
   check_count("x := x emits zero obligations", 0, obs);
   Alcotest.check(
@@ -227,7 +227,7 @@ let test_instantiation_exemption_var = () => {
 };
 
 let test_instantiation_exemption_total_ops = () => {
-  let src = {|theorem t = forall a -> forall b -> a + b == a + b proof from a + b == a + b do axiom refl_eq end end in t|};
+  let src = {|theorem t = forall a -> forall b -> a + b == a + b proof from a + b == a + b do rewrite refl end end in t|};
   let (pm, proof, obs) = obligations(src);
   check_count("x := a + b emits zero obligations", 0, obs);
   Alcotest.check(
@@ -243,7 +243,7 @@ let test_instantiation_exemption_total_ops = () => {
 /* Instantiating at a call of a general-recursive function is refused:
  * divergence is never an obligation. */
 let test_divergent_instantiation_refused = () => {
-  let src = {|let f = fun n -> if n > 0 then f(n - 1) else 0 in theorem t = f(1) == f(1) proof from f(1) == f(1) do axiom refl_eq end end in t|};
+  let src = {|let f = fun n -> if n > 0 then f(n - 1) else 0 in theorem t = f(1) == f(1) proof from f(1) == f(1) do rewrite refl end end in t|};
   let (pm, proof, obs) = obligations(src);
   Alcotest.check(
     Alcotest.bool,
@@ -263,7 +263,7 @@ let test_divergent_instantiation_refused = () => {
 /* The same recursive call inside an eval step is fine: eval steps
  * preserve denotation and have no gates. */
 let test_recursive_call_in_eval_step_ungated = () => {
-  let src = {|let f = fun n -> if n > 0 then f(n - 1) else 0 in theorem t = f(1) == 0 proof from f(1) do eval end in t|};
+  let src = {|let f = fun n -> if n > 0 then f(n - 1) else 0 in theorem t = f(1) == 0 proof from f(1) do step end in t|};
   let (pm, proof, obs) = obligations(src);
   check_count("eval step incurs no obligations", 0, obs);
   Alcotest.check(
@@ -281,7 +281,7 @@ let test_recursive_call_in_eval_step_ungated = () => {
  * unannotated binder is refused separately, for having an unknown
  * scrutinee type (tests below). */
 let test_induction_bare_variable_no_gate = () => {
-  let src = {|theorem t = forall b: Bool -> b == b proof induction b | true => from true == true do axiom refl_eq end end | false => from false == false do axiom refl_eq end end end in t|};
+  let src = {|theorem t = forall b: Bool -> b == b proof induction b | true => from true == true do rewrite refl end end | false => from false == false do rewrite refl end end end in t|};
   let (pm, proof, obs) = obligations(src);
   check_count("bare-variable induction emits zero obligations", 0, obs);
   Alcotest.check(
@@ -385,7 +385,7 @@ let check_mark = (msg, src, pred) => {
 let user_repro = {|let f = fun x where x != 0 -> 100 / x in
 let g = fun w -> 100 / w in
 theorem t = forall y where y != 0 -> forall z -> f(y) + 4 / 2 + 8 / z == f(y) + 4 / 2 + 8 / z
-proof induction z != 0 | true => from f(y) + 4 / 2 + 8 / z == f(y) + 4 / 2 + 8 / z do axiom refl_eq end end end
+proof induction z != 0 | true => from f(y) + 4 / 2 + 8 / z == f(y) + 4 / 2 + 8 / z do rewrite refl end end end
 in 0|};
 
 let test_user_repro_not_proven = () => {
@@ -404,15 +404,15 @@ let test_user_repro_not_proven = () => {
 let untyped_witnesses = [
   (
     "forall b -> b == true",
-    {|theorem t = forall b -> b == true proof induction b | true => from true == true do axiom refl_eq end end end in t|},
+    {|theorem t = forall b -> b == true proof induction b | true => from true == true do rewrite refl end end end in t|},
   ),
   (
     "forall n -> n == 0",
-    {|theorem t = forall n -> n == 0 proof induction n | 0 => from 0 == 0 do axiom refl_eq end end end in t|},
+    {|theorem t = forall n -> n == 0 proof induction n | 0 => from 0 == 0 do rewrite refl end end end in t|},
   ),
   (
     "forall xs -> xs == []",
-    {|theorem t = forall xs -> xs == [] proof induction xs | [] => from [] == [] do axiom refl_eq end end end in t|},
+    {|theorem t = forall xs -> xs == [] proof induction xs | [] => from [] == [] do rewrite refl end end end in t|},
   ),
 ];
 
@@ -431,7 +431,7 @@ let test_untyped_scrutinee_witnesses_refused = () =>
  * exhaustiveness path (the type is known, a case is missing). The control
  * confirming the bool-split constraints reach Coverage. */
 let test_annotated_true_only_not_proven = () => {
-  let src = {|theorem t = forall b: Bool -> b == b proof induction b | true => from true == true do axiom refl_eq end end end in t|};
+  let src = {|theorem t = forall b: Bool -> b == b proof induction b | true => from true == true do rewrite refl end end end in t|};
   check_not_proven("annotated Bool, `true` only, does not certify", src);
   check_mark(
     "flagged InductionNotExhaustive, not Untyped",
@@ -458,7 +458,7 @@ let funext_annotated_lambdas = {|theorem t = (fun xs:[Int] -> 0) == (fun xs:[Int
 
 /* (3) An annotated scrutinee with both cases certifies. */
 let test_annotated_both_cases_proven = () => {
-  let src = {|theorem t = forall b: Bool -> b == b proof induction b | true => from true == true do axiom refl_eq end end | false => from false == false do axiom refl_eq end end end in t|};
+  let src = {|theorem t = forall b: Bool -> b == b proof induction b | true => from true == true do rewrite refl end end | false => from false == false do rewrite refl end end end in t|};
   Alcotest.check(
     Alcotest.bool,
     "annotated Bool with both cases is Proven",
@@ -473,7 +473,7 @@ let test_annotated_both_cases_proven = () => {
  * unknown, `b` may range over `Int`. The checker doesn't infer `Bool`
  * from the case patterns. */
 let test_untyped_both_cases_still_refused = () => {
-  let src = {|theorem t = forall b -> b == b proof induction b | true => from true == true do axiom refl_eq end end | false => from false == false do axiom refl_eq end end end in t|};
+  let src = {|theorem t = forall b -> b == b proof induction b | true => from true == true do rewrite refl end end | false => from false == false do rewrite refl end end end in t|};
   check_not_proven("untyped scrutinee with both bool cases is refused", src);
   check_mark("with the untyped mark", src, is_induction_untyped);
 };
@@ -483,7 +483,7 @@ let test_untyped_both_cases_still_refused = () => {
 /* A single wildcard/variable case is a genuine catch-all: it covers any
  * type, known or not, so it certifies even on an untyped scrutinee. */
 let test_untyped_wildcard_case_still_proven = () => {
-  let src = {|theorem t = forall b -> b == b proof induction b | x => from x == x do axiom refl_eq end end end in t|};
+  let src = {|theorem t = forall b -> b == b proof induction b | x => from x == x do rewrite refl end end end in t|};
   Alcotest.check(
     Alcotest.bool,
     "catch-all case on an untyped scrutinee is Proven",
@@ -495,7 +495,7 @@ let test_untyped_wildcard_case_still_proven = () => {
 /* `Unknown` in a position coverage never consults is fine: splitting a
  * `[?]` scrutinizes the list spine, not the element type. */
 let test_unknown_element_type_still_proven = () => {
-  let src = {|theorem t = forall xs: [?] -> xs == xs proof induction xs | [] => from [] == [] do axiom refl_eq end end | y :: ys => from y :: ys == y :: ys do axiom refl_eq end end end in t|};
+  let src = {|theorem t = forall xs: [?] -> xs == xs proof induction xs | [] => from [] == [] do rewrite refl end end | y :: ys => from y :: ys == y :: ys do rewrite refl end end end in t|};
   Alcotest.check(
     Alcotest.bool,
     "list-of-unknown-element split is Proven",
@@ -509,7 +509,7 @@ let test_unknown_element_type_still_proven = () => {
 /* A rewrite whose sides contain division emits the denominator
  * obligation (deduplicated across the two sides). */
 let test_algebrite_division_obligation = () => {
-  let src = {|theorem t = forall a -> forall b -> a / b == a / b proof from a / b do rewrite a / b end end in t|};
+  let src = {|theorem t = forall a -> forall b -> a / b == a / b proof from a / b do algebra a / b end end in t|};
   let (pm, proof, obs) = obligations(src);
   check_count("one deduplicated denominator obligation", 1, obs);
   switch (obs) {
@@ -527,7 +527,7 @@ let test_algebrite_division_obligation = () => {
 /* Float-typed Algebrite rewrites are refused: CAS field laws are false
  * for IEEE floats. */
 let test_algebrite_float_refused = () => {
-  let src = {|theorem t = forall x -> x +. 1. ==. x +. 1. proof from x +. 1. do rewrite 1. +. x end end in t|};
+  let src = {|theorem t = forall x -> x +. 1. ==. x +. 1. proof from x +. 1. do algebra 1. +. x end end in t|};
   let (pm, proof, obs) = obligations(src);
   Alcotest.check(
     Alcotest.bool,
@@ -543,7 +543,7 @@ let test_algebrite_float_refused = () => {
 /* Float division is IEEE-total: `1. /. 0.` is the value infinity.
  * Instantiating at it emits no obligation and no refusal. */
 let test_float_division_is_total = () => {
-  let src = {|theorem t = 1. /. 0. == 1. /. 0. proof from 1. /. 0. == 1. /. 0. do axiom refl_eq end end in t|};
+  let src = {|theorem t = 1. /. 0. == 1. /. 0. proof from 1. /. 0. == 1. /. 0. do rewrite refl end end in t|};
   let (pm, proof, obs) = obligations(src);
   check_count("float division emits zero obligations", 0, obs);
   Alcotest.check(
@@ -563,7 +563,7 @@ let test_float_division_is_total = () => {
 /* --- Eval steps stay free --------------------------------------------- */
 
 let test_eval_step_division_no_gate = () => {
-  let src = {|theorem t = 4 / 2 == 2 proof from 4 / 2 do eval end; from 2 == 2 do eval end in t|};
+  let src = {|theorem t = 4 / 2 == 2 proof from 4 / 2 do step end; from 2 == 2 do step end in t|};
   let (pm, proof, obs) = obligations(src);
   check_count("eval steps over division incur nothing", 0, obs);
   Alcotest.check(
@@ -578,7 +578,7 @@ let test_eval_step_division_no_gate = () => {
 
 /* `int_mod(a, b)` emits `b != 0`. */
 let test_mod_builtin_condition = () => {
-  let src = {|theorem t = forall a -> forall b -> int_mod(a, b) == int_mod(a, b) proof from int_mod(a, b) == int_mod(a, b) do axiom refl_eq end end in t|};
+  let src = {|theorem t = forall a -> forall b -> int_mod(a, b) == int_mod(a, b) proof from int_mod(a, b) == int_mod(a, b) do rewrite refl end end in t|};
   let (_pm, _proof, obs) = obligations(src);
   check_count("one mod obligation", 1, obs);
   switch (obs) {
@@ -590,7 +590,7 @@ let test_mod_builtin_condition = () => {
 /* Int power with a variable exponent emits `y >= 0` (NegativeExponent
  * is the error; Nat power would be total). */
 let test_power_exponent_condition = () => {
-  let src = {|theorem t = forall x -> forall y -> x ** y == x ** y proof from x ** y == x ** y do axiom refl_eq end end in t|};
+  let src = {|theorem t = forall x -> forall y -> x ** y == x ** y proof from x ** y == x ** y do rewrite refl end end in t|};
   let (_pm, _proof, obs) = obligations(src);
   check_count("one exponent obligation", 1, obs);
   switch (obs) {
@@ -602,7 +602,7 @@ let test_power_exponent_condition = () => {
 /* `int_of_float` at a closed finite float: the `is_finite` condition is
  * emitted and discharges by closed evaluation. */
 let test_of_float_is_finite_condition = () => {
-  let src = {|theorem t = int_of_float(2.5) == int_of_float(2.5) proof from int_of_float(2.5) == int_of_float(2.5) do axiom refl_eq end end in t|};
+  let src = {|theorem t = int_of_float(2.5) == int_of_float(2.5) proof from int_of_float(2.5) == int_of_float(2.5) do rewrite refl end end in t|};
   let (pm, proof, obs) = obligations(src);
   check_count("one is_finite obligation", 1, obs);
   Alcotest.check(

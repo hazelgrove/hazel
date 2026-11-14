@@ -70,7 +70,7 @@ let where_single = (~pat_id: Id.t, ~guard_id: Id.t, ~body_id: Id.t): Simple.t =>
         term:
           mk_example(
             "theorem inv = forall x where x != 0 -> x / x == 1 proof ? in
-theorem u = 2 / 2 == 1 proof from 2 / 2 do axiom inv end end; from 1 == 1 do axiom refl_eq end end in 0",
+theorem u = 2 / 2 == 1 proof from 2 / 2 do rewrite inv end end; from 1 == 1 do rewrite refl end end in 0",
           ),
         message: "Without the restriction `x / x == 1` is not a theorem, because `0 / 0` is an error rather than `1`. Citing `inv` at `2 / 2` incurs the restriction as the obligation `2 != 0`, which is closed by evaluating it.",
       },

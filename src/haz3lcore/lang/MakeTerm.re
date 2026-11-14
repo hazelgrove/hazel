@@ -937,6 +937,10 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       ret(
         switch (t) {
         | (F(Compound(UnaryMinus)), []) => UnOp(Int(Minus), r)
+        /* Read back by the rewrite step that holds it. */
+        | (F(Compound(RewriteBack)), []) =>
+          set_lexeme("<-");
+          hole(tm);
         | (F(Compound(Not)), []) => UnOp(Bool(Not), r)
         | (F(Compound(Fun)), [Pat(pat)]) => Fun(pat, r, None, None)
         | (F(Compound(Forall)), [Pat(pat)]) => Forall(pat, r)
@@ -1772,14 +1776,33 @@ and proof = unsorted => {
 and proof_term: unsorted => (Proof.term, list(Id.t)) = {
   let ret = (term: Proof.term) => (term, []);
   let hole = unsorted => Proof.hole(kids_of_unsorted(unsorted));
-  let axiom = (direction, ~instantiation=?, equality) =>
-    ret(
-      AxiomStep({
-        equality,
-        direction,
-        instantiation,
-      }),
-    );
+  /* `rewrite <- h` parses as an unknown prefix over `h`, a one-kid
+     MultiHole whose lexeme is the arrow (see Form.RewriteBack). Its tile
+     id is absorbed, as induction absorbs its rules'. */
+  let axiom = (~instantiation=?, equality: Exp.t): (Proof.term, list(Id.t)) =>
+    switch (equality) {
+    | {
+        term: MultiHole([Exp(inner)]),
+        annotation: {lexeme: Some("<-"), ids, _},
+      } =>
+      adopted_ids := ids @ adopted_ids^;
+      (
+        AxiomStep({
+          equality: inner,
+          direction: Left,
+          instantiation,
+        }),
+        ids,
+      );
+    | _ =>
+      ret(
+        AxiomStep({
+          equality,
+          direction: Right,
+          instantiation,
+        }),
+      )
+    };
   /* Absorbs the PRul's `|`/`=>` ids, as Case does with Rules. `mk` gets
      the PRul's leading term and its cases. */
   let induction = (tm, prul: PRul.t, mk) =>
@@ -1802,20 +1825,12 @@ and proof_term: unsorted => (Proof.term, list(Id.t)) = {
       | (F(Compound(Parens)), [kid]) =>
         /* Cross-sort parens (see the exp case) */
         ret(Parens(IdTagged.mk_internal([Id.mk()], Proof.hole([kid]))))
-      | (F(Compound(ProofAxiom)), [Exp(equality)]) =>
-        axiom(Direction.Right, equality)
-      | (F(Compound(ProofAxiomRev)), [Exp(equality)]) =>
-        axiom(Direction.Left, equality)
+      | (F(Compound(ProofAxiom)), [Exp(equality)]) => axiom(equality)
       | (
           F(Compound(ProofAxiomWith)),
           [Exp(equality), Exp(var), Exp(inst)],
         ) =>
-        axiom(Direction.Right, ~instantiation=(var, inst), equality)
-      | (
-          F(Compound(ProofAxiomRevWith)),
-          [Exp(equality), Exp(var), Exp(inst)],
-        ) =>
-        axiom(Direction.Left, ~instantiation=(var, inst), equality)
+        axiom(~instantiation=(var, inst), equality)
       | (F(Compound(ProofAlgebrite)), [Exp(e)]) => ret(AlgebriteStep(e))
       | (F(Compound(ProofContradiction)), [Exp(e)]) =>
         ret(Contradiction(e, None))

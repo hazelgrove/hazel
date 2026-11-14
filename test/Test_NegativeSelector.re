@@ -3,7 +3,7 @@ open Language;
 
 /* Evaluation produces negative numbers that source can't spell: `-5`
  * written out reads back as a negation. So the stepper doesn't offer, or
- * write, an `eval` step whose selector holds one; the checker could never
+ * write, a `step` step whose selector holds one; the checker could never
  * find it. Each program's first step produces a negative number, and the
  * hole after it is the row under test. */
 
@@ -35,7 +35,7 @@ let written_targets = (goal: Picker.Goal.t): list((Exp.t, int)) =>
        | _ => None,
      );
 
-/* The checker's entry for `eval` focused on the `idx`-th `selector`,
+/* The checker's entry for `step` focused on the `idx`-th `selector`,
  * written in the hole. */
 let check_written = (src, ~selector, ~idx): ProofMap.entry => {
   let src =
@@ -93,9 +93,9 @@ let offers_only = (src, ~spellable) => {
   };
 };
 
-let negative_int = {|theorem t = (0 - 5) * 2 == 0 - 10 proof from 0 - 5 do eval end; ? in 0|};
+let negative_int = {|theorem t = (0 - 5) * 2 == 0 - 10 proof from 0 - 5 do step end; ? in 0|};
 
-let negative_float = {|theorem t = (0.0 -. 2.5) *. 2.0 ==. 0.0 -. 5.0 proof from 0.0 -. 2.5 do eval end; ? in 0|};
+let negative_float = {|theorem t = (0.0 -. 2.5) *. 2.0 ==. 0.0 -. 5.0 proof from 0.0 -. 2.5 do step end; ? in 0|};
 
 let test_stale_offer = () => {
   let goal = hole_goal(negative_int);

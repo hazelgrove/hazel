@@ -557,14 +557,14 @@ let with_where_fact = (fact: string, obs: list(Obligation.t)) =>
 /* Both arms owe `w != 0` (from `8 / w`). The first arm's guard discharges
    it. The second arm is reached only when the first failed, so it carries
    the first guard's negation, and its obligation stays pending. */
-let induction_two_arms = {|theorem t = forall z -> 8 / z == 8 / z proof induction z | w where w != 0 => from 8 / w == 8 / w do axiom refl_eq end end | w => from 8 / w == 8 / w do axiom refl_eq end end end in t|};
+let induction_two_arms = {|theorem t = forall z -> 8 / z == 8 / z proof induction z | w where w != 0 => from 8 / w == 8 / w do rewrite refl end end | w => from 8 / w == 8 / w do rewrite refl end end end in t|};
 
 let proofs = [
   test_case(
     "a forall's guard discharges its body's condition",
     `Quick,
     () => {
-      let src = {|theorem t = forall z where z != 0 -> 8 / z == 8 / z proof from 8 / z == 8 / z do axiom refl_eq end end in t|};
+      let src = {|theorem t = forall z where z != 0 -> 8 / z == 8 / z proof from 8 / z == 8 / z do rewrite refl end end in t|};
       let (pm, proof, obs) = obligations(src);
       switch (obs) {
       | [ob] =>

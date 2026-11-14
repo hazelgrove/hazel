@@ -62,6 +62,16 @@ and hypotheses_inner = (~tyctx, m, t, pat) =>
   | _ => hypotheses_inner'(~tyctx, m, t, pat)
   };
 
+/* The name an inductive hypothesis is cited by: `ih_t` for the
+   sub-pattern `t`. A sub-pattern that isn't a variable, like `S(n)` in
+   `S(S(n))`, has no variable to name it after, so it is plain `ih`. */
+let rec hypothesis_name = (pat: Pat.t): string =>
+  switch (pat |> Pat.term_of) {
+  | Var(x) => "ih_" ++ x
+  | Where(p, _) => hypothesis_name(p)
+  | _ => "ih"
+  };
+
 /* Could `p1` and `p2` match the same value? Conservatively yes unless
    their head constructors are both known and different. */
 let pats_overlap = (p1: Pat.t, p2: Pat.t): bool => {

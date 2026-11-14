@@ -50,7 +50,7 @@ let str_check = (msg, expected, actual) =>
 let repro = {|let f = fun x where x != 0 -> 100 / x in
 let g = fun w -> 100 / w in
 theorem t = forall y where y != 0 -> forall z -> f(y) + 4 / 2 + 8 / z == f(y) + 4 / 2 + 8 / z
-proof from f(y) + 4 / 2 + 8 / z == f(y) + 4 / 2 + 8 / z do axiom refl_eq end end
+proof from f(y) + 4 / 2 + 8 / z == f(y) + 4 / 2 + 8 / z do rewrite refl end end
 in t|};
 
 /* --- status mapping ----------------------------------------------- */
@@ -79,9 +79,9 @@ let test_status_classes_distinct = () => {
 /* ProvenModulo reads as proven: its class and the header's counter set
  * it apart. */
 let test_status_labels = () => {
-  str_check("Proven", "proven true", Status.label(Proven));
-  str_check("ProvenModulo", "proven true", Status.label(ProvenModulo([])));
-  str_check("Refuted", "disproven", Status.label(Refuted));
+  str_check("Proven", "proven", Status.label(Proven));
+  str_check("ProvenModulo", "proven", Status.label(ProvenModulo([])));
+  str_check("Refuted", "refuted", Status.label(Refuted));
   str_check("Incomplete", "incomplete", Status.label(Incomplete));
 };
 
@@ -92,7 +92,7 @@ let test_open_count = () => {
   int_check("one open obligation", 1, Status.open_count(pm, proof));
   let (pm, proof) =
     run(
-      {|theorem t = 1 == 1 proof from 1 == 1 do axiom refl_eq end end in t|},
+      {|theorem t = 1 == 1 proof from 1 == 1 do rewrite refl end end in t|},
     );
   int_check(
     "none in an obligation-free proof",
@@ -126,7 +126,7 @@ let test_repro_status_is_proven_modulo = () => {
 let test_status_proven_and_incomplete = () => {
   let (pm, proof) =
     run(
-      {|theorem t = 1 == 1 proof from 1 == 1 do axiom refl_eq end end in t|},
+      {|theorem t = 1 == 1 proof from 1 == 1 do rewrite refl end end in t|},
     );
   bool_check(
     "obligation-free proof is Proven",
@@ -178,7 +178,7 @@ let test_remote_fact_is_the_covering_fact = () => {
 let test_goal_is_as_written = () => {
   let src = {|let d = fun q -> q + 1 in
 theorem t = forall y -> 1 == 1
-proof assume d(y) != 0 => from 1 == 1 do axiom refl_eq end end
+proof assume d(y) != 0 => from 1 == 1 do rewrite refl end end
 in t|};
   let (pm, proof) = run(src);
   let obs = ProofMap.obligations_of_proof(pm, proof);
@@ -275,7 +275,7 @@ let test_float_available_at_theorem_binder = () => {
  * chosen. Both `a` and `b` are theorem binders; the goal mentions only
  * `b`, so the guard lands on `b`'s binder. */
 let inner_binder_src = {|theorem t = forall a: Int -> forall b: Int -> a + 8 / b == a + 8 / b
-proof from a + 8 / b == a + 8 / b do axiom refl_eq end end
+proof from a + 8 / b == a + 8 / b do rewrite refl end end
 in t|};
 
 let test_float_target_is_innermost = () => {
@@ -295,7 +295,7 @@ let test_float_target_is_innermost = () => {
  * on a case and break exhaustiveness. The option must be offered and
  * disabled, with the reason — never silently dropped, never enabled. */
 let case_scoped_src = {|theorem t = forall n: Int -> 8 / n == 8 / n
-proof induction n | 0 => ? | m => from 8 / m == 8 / m do axiom refl_eq end end end
+proof induction n | 0 => ? | m => from 8 / m == 8 / m do rewrite refl end end end
 in t|};
 
 let test_float_disabled_at_case_binder = () => {
@@ -452,7 +452,7 @@ let ctx_of_zipper = (z: Haz3lcore.Zipper.t): Exits.ctx => {
 let float_e2e_src = {|let f = fun x where x != 0 -> 100 / x in
 let g = fun w -> 100 / w in
 theorem t = forall y where y != 0 -> forall z -> f(y) + 4 / 2 + 8 / z == f(y) + 4 / 2 + 8 / z
-proof from f(y) + 4 / 2 + 8 / z == f(y) + 4 / 2 + 8 / z do axiom refl_eq end end
+proof from f(y) + 4 / 2 + 8 / z == f(y) + 4 / 2 + 8 / z do rewrite refl end end
 in 0|};
 
 let test_float_discharges_after_recheck = () => {
@@ -552,7 +552,7 @@ let first_fun = (e: Exp.t): option(Exp.t) => {
 };
 
 let contract_src = {|let g = fun w -> 100 / w in
-theorem t = 1 == 1 proof from 1 == 1 do axiom refl_eq end end
+theorem t = 1 == 1 proof from 1 == 1 do rewrite refl end end
 in 0|};
 
 let one_contract = (src: string): Obligation.t => {
@@ -617,7 +617,7 @@ let test_contract_exit_discharges_after_recheck = () => {
 let test_split_disabled_when_it_breaks_a_step = () => {
   let (pm, proof, ctx) =
     run_with_ctx(
-      "theorem t = forall x: Int -> x == 1 proof assume x == 1 => from x do axiom assume end end; from 1 == 1 do axiom refl_eq end end in t",
+      "theorem t = forall x: Int -> x == 1 proof assume x == 1 => from x do rewrite assume end end; from 1 == 1 do rewrite refl end end in t",
     );
   let ob = one_pending("split", pm, proof);
   switch (Exits.for_step(~ctx, ob)) {
@@ -654,7 +654,7 @@ let test_contract_goal_as_written = () => {
     one_contract(
       {|let k = 3 in
 let g = fun w -> 100 / (w - k) in
-theorem t = 1 == 1 proof from 1 == 1 do axiom refl_eq end end
+theorem t = 1 == 1 proof from 1 == 1 do rewrite refl end end
 in 0|},
     );
   check_exp("the contract's goal", "w - k != 0", ob.goal);

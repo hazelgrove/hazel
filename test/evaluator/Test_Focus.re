@@ -36,7 +36,7 @@ let test_at_selects_the_nth_match = () => {
   let (pm, proof) =
     run_named(
       "t",
-      "theorem t = (1 + 1) * (1 + 1) == 4 proof from 1 + 1 at 2 do eval end; ? in t",
+      "theorem t = (1 + 1) * (1 + 1) == 4 proof from 1 + 1 at 2 do step end; ? in t",
     );
   check(
     string,
@@ -50,7 +50,7 @@ let test_missing_occurrence_is_marked = () => {
   let (pm, proof) =
     run_named(
       "t",
-      "theorem t = (1 + 1) * (1 + 1) == 4 proof from 1 + 1 at 3 do eval end in t",
+      "theorem t = (1 + 1) * (1 + 1) == 4 proof from 1 + 1 at 3 do step end in t",
     );
   check(
     bool,
@@ -70,14 +70,14 @@ let test_steps_chain_inside_a_focus = () => {
   let (pm, proof) =
     run_named(
       "t",
-      "theorem t = (2 + 3) * 2 == 10 proof from (2 + 3) * 2 do from 2 + 3 do eval end; eval end; eval in t",
+      "theorem t = (2 + 3) * 2 == 10 proof from (2 + 3) * 2 do from 2 + 3 do step end; step end; step in t",
     );
   check_mark_free("a focus of two steps", pm, proof);
   check_proven("its result is lifted into the goal", pm, proof);
 };
 
 let test_eval_refuses_a_root_that_is_not_a_redex = () => {
-  let (pm, proof) = run_named("t", "theorem t = 1 + 2 == 3 proof eval in t");
+  let (pm, proof) = run_named("t", "theorem t = 1 + 2 == 3 proof step in t");
   check(
     bool,
     "`1 + 2 == 3` can't step at its root",
@@ -90,7 +90,7 @@ let test_obligations_belong_to_the_inner_step = () => {
   let (pm, proof) =
     run_named(
       "t",
-      "theorem t = 4 / 2 == 2 proof from 4 / 2 do rewrite 2 end end; ? in t",
+      "theorem t = 4 / 2 == 2 proof from 4 / 2 do algebra 2 end end; ? in t",
     );
   let focus = head(proof);
   let obligations = p =>
@@ -114,7 +114,7 @@ let test_eval_under_a_binder = () => {
   let (pm, proof) =
     run_named(
       "t",
-      "theorem t = (fun x: Int -> 1 + 2) == (fun x: Int -> 3) proof from 1 + 2 do eval end; axiom refl_eq end in t",
+      "theorem t = (fun x: Int -> 1 + 2) == (fun x: Int -> 3) proof from 1 + 2 do step end; rewrite refl end in t",
     );
   check_mark_free("a closed subterm of a lambda body steps", pm, proof);
   check_proven("and the lambdas are then equal", pm, proof);
@@ -124,7 +124,7 @@ let test_open_term_does_not_step = () => {
   let (pm, proof) =
     run_named(
       "t",
-      "theorem t = (fun x: Int -> x + 0) == (fun x: Int -> x) proof from x + 0 do eval end in t",
+      "theorem t = (fun x: Int -> x + 0) == (fun x: Int -> x) proof from x + 0 do step end in t",
     );
   check(
     bool,
@@ -135,13 +135,13 @@ let test_open_term_does_not_step = () => {
 };
 
 let test_outer_fact_does_not_reach_under_a_binder = () => {
-  let control = {|theorem t = forall b: Bool where b -> b && true == true proof from b do axiom where end end; ? in t|};
+  let control = {|theorem t = forall b: Bool where b -> b && true == true proof from b do rewrite where end end; ? in t|};
   let (pm, proof) = run_named("t", control);
   check_mark_free("control: the fact rewrites the outer `b`", pm, proof);
   let (pm, proof) =
     run_named(
       "t",
-      {|theorem t = forall b: Bool where b -> (fun b: Bool -> b) == (fun b: Bool -> true) proof from b do axiom where end end in t|},
+      {|theorem t = forall b: Bool where b -> (fun b: Bool -> b) == (fun b: Bool -> true) proof from b do rewrite where end end in t|},
     );
   check(
     bool,
@@ -166,7 +166,7 @@ let test_occurrence_is_a_positive_literal = () =>
           "t",
           "theorem t = 1 + 1 == 2 proof from 1 + 1 at "
           ++ at
-          ++ " do eval end in t",
+          ++ " do step end in t",
         );
       check(
         bool,
@@ -186,7 +186,7 @@ let test_selector_naming_a_definition = () => {
   let (pm, proof) =
     run_named(
       "t",
-      "let rev = fun xs -> case xs | [] => [] | x :: t => rev(t) @ [x] end in theorem t = rev([]) == [] proof from rev do eval end; ? in t",
+      "let rev = fun xs -> case xs | [] => [] | x :: t => rev(t) @ [x] end in theorem t = rev([]) == [] proof from rev do step end; ? in t",
     );
   check(
     bool,

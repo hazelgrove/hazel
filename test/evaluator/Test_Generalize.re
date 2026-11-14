@@ -38,7 +38,7 @@ let is_forall_where = (e: Exp.t): bool =>
  * `forall y -> x + y == y + x`; re-peel it and close by rewrite + refl.
  * The theorem is fully Proven. */
 let test_mechanics_requantified_goal = () => {
-  let src = {|theorem t = forall x -> forall y -> x + y == y + x proof generalize y => forall y => from x + y do rewrite y + x end end; from y + x == y + x do axiom refl_eq end end in t|};
+  let src = {|theorem t = forall x -> forall y -> x + y == y + x proof generalize y => forall y => from x + y do algebra y + x end end; from y + x == y + x do rewrite refl end end in t|};
   let (pm, proof) = run(src);
   let body = generalize_body(proof);
   let body_goal = incoming_of(pm, body);
@@ -61,7 +61,7 @@ let test_mechanics_requantified_goal = () => {
 /* A hypothesis about x must become unavailable inside `generalize x`:
  * citing it fails with the ordinary unknown-equality behavior. */
 let test_captured_hypothesis_not_citable = () => {
-  let src = {|theorem t = forall x -> x == 1 proof assume x == 1 => generalize x => forall x => from x do axiom assume end end in t|};
+  let src = {|theorem t = forall x -> x == 1 proof assume x == 1 => generalize x => forall x => from x do rewrite assume end end in t|};
   let (pm, proof) = run(src);
   Alcotest.check(
     Alcotest.bool,
@@ -87,7 +87,7 @@ let test_captured_hypothesis_not_citable = () => {
  * the generalize, since lookup can't see the removed fact; the same
  * program without `generalize` discharges it Remote. */
 let test_captured_fact_does_not_discharge = () => {
-  let src = {|theorem t = forall x -> x == x proof assume x != 0 => generalize x => forall x => assume x != 0 => from x == x do axiom refl_eq end end in t|};
+  let src = {|theorem t = forall x -> x == x proof assume x != 0 => generalize x => forall x => assume x != 0 => from x == x do rewrite refl end end in t|};
   let (pm, proof) = run(src);
   let obs = ProofMap.obligations_of_proof(pm, proof);
   Alcotest.check(
@@ -104,7 +104,7 @@ let test_captured_fact_does_not_discharge = () => {
   );
   /* Control: without the generalize, the inner assume discharges
    * against the outer one by lookup (Remote). */
-  let control = {|theorem t = forall x -> x == x proof assume x != 0 => assume x != 0 => from x == x do axiom refl_eq end end in t|};
+  let control = {|theorem t = forall x -> x == x proof assume x != 0 => assume x != 0 => from x == x do rewrite refl end end in t|};
   let (pm', proof') = run(control);
   let obs' = ProofMap.obligations_of_proof(pm', proof');
   Alcotest.check(
@@ -128,7 +128,7 @@ let test_captured_fact_does_not_discharge = () => {
  * `x :: ys`, a different instantiation from the peeled ys, which the
  * unquantified IH can't give and `generalize ys` does. Helper equations are supplied as hole-proof lemmas (the test
  * targets the generalize/IH machinery, not list algebra). */
-let quantified_ih_src = {|let ra = fun xs -> fun ys -> case xs | [] => ys | h :: t => ra(t)(h :: ys) end in let len = fun l -> case l | [] => 0 | h :: t => 1 + len(t) end in theorem ra_nil = forall zs -> ra([])(zs) == zs proof ? in theorem ra_cons = forall h -> forall t -> forall zs -> ra(h :: t)(zs) == ra(t)(h :: zs) proof ? in theorem len_nil = len([]) == 0 proof ? in theorem len_cons = forall h -> forall t -> len(h :: t) == 1 + len(t) proof ? in theorem shuffle = forall a -> forall b -> a + (1 + b) == (1 + a) + b proof ? in theorem u = forall xs: [Int] -> forall ys -> len(ra(xs)(ys)) == len(xs) + len(ys) proof generalize ys => induction xs | [] => forall ys => from ra([])(ys) do axiom ra_nil end end; from len([]) do axiom len_nil end end; from 0 + len(ys) do rewrite len(ys) end end; from len(ys) == len(ys) do axiom refl_eq end end | x :: xs' => forall ys => from ra(x :: xs')(ys) do axiom ra_cons end end; from len(ra(xs')(x :: ys)) do axiom ih end end; from len(x :: ys) do axiom len_cons end end; from len(x :: xs') do axiom len_cons end end; from len(xs') + (1 + len(ys)) do axiom shuffle end end; from (1 + len(xs')) + len(ys) == (1 + len(xs')) + len(ys) do axiom refl_eq end end end in u|};
+let quantified_ih_src = {|let ra = fun xs -> fun ys -> case xs | [] => ys | h :: t => ra(t)(h :: ys) end in let len = fun l -> case l | [] => 0 | h :: t => 1 + len(t) end in theorem ra_nil = forall zs -> ra([])(zs) == zs proof ? in theorem ra_cons = forall h -> forall t -> forall zs -> ra(h :: t)(zs) == ra(t)(h :: zs) proof ? in theorem len_nil = len([]) == 0 proof ? in theorem len_cons = forall h -> forall t -> len(h :: t) == 1 + len(t) proof ? in theorem shuffle = forall a -> forall b -> a + (1 + b) == (1 + a) + b proof ? in theorem u = forall xs: [Int] -> forall ys -> len(ra(xs)(ys)) == len(xs) + len(ys) proof generalize ys => induction xs | [] => forall ys => from ra([])(ys) do rewrite ra_nil end end; from len([]) do rewrite len_nil end end; from 0 + len(ys) do algebra len(ys) end end; from len(ys) == len(ys) do rewrite refl end end | x :: xs' => forall ys => from ra(x :: xs')(ys) do rewrite ra_cons end end; from len(ra(xs')(x :: ys)) do rewrite ih_xs' end end; from len(x :: ys) do rewrite len_cons end end; from len(x :: xs') do rewrite len_cons end end; from len(xs') + (1 + len(ys)) do rewrite shuffle end end; from (1 + len(xs')) + len(ys) == (1 + len(xs')) + len(ys) do rewrite refl end end end in u|};
 
 let test_quantified_ih_proves = () => {
   let (pm, proof) = run_named("u", quantified_ih_src);
@@ -155,7 +155,7 @@ let test_quantified_ih_proves = () => {
  * equation at the peeled ys, and citing it at `x :: ys` fails
  * (RuleDoesNotApply). */
 let test_unquantified_ih_too_weak = () => {
-  let src = {|let ra = fun xs -> fun ys -> case xs | [] => ys | h :: t => ra(t)(h :: ys) end in let len = fun l -> case l | [] => 0 | h :: t => 1 + len(t) end in theorem ra_cons = forall h -> forall t -> forall zs -> ra(h :: t)(zs) == ra(t)(h :: zs) proof ? in theorem u = forall xs: [Int] -> forall ys -> len(ra(xs)(ys)) == len(xs) + len(ys) proof induction xs | [] => ? | x :: xs' => from ra(x :: xs')(ys) do axiom ra_cons end end; from len(ra(xs')(x :: ys)) do axiom ih end end end in u|};
+  let src = {|let ra = fun xs -> fun ys -> case xs | [] => ys | h :: t => ra(t)(h :: ys) end in let len = fun l -> case l | [] => 0 | h :: t => 1 + len(t) end in theorem ra_cons = forall h -> forall t -> forall zs -> ra(h :: t)(zs) == ra(t)(h :: zs) proof ? in theorem u = forall xs: [Int] -> forall ys -> len(ra(xs)(ys)) == len(xs) + len(ys) proof induction xs | [] => ? | x :: xs' => from ra(x :: xs')(ys) do rewrite ra_cons end end; from len(ra(xs')(x :: ys)) do rewrite ih_xs' end end end in u|};
   let (pm, proof) = run_named("u", src);
   Alcotest.check(
     Alcotest.bool,
@@ -184,7 +184,7 @@ let test_unquantified_ih_too_weak = () => {
  * re-peeling, a division axiom's `n != 0` condition discharges against
  * the reinstalled `where` hypothesis. */
 let test_where_restriction_travels = () => {
-  let src = {|theorem inv = forall w where w != 0 -> w / w == 1 proof ? in theorem t = forall n where n != 0 -> n / n == 1 proof generalize n => forall n => from n / n do axiom inv end end; from 1 == 1 do axiom refl_eq end end in t|};
+  let src = {|theorem inv = forall w where w != 0 -> w / w == 1 proof ? in theorem t = forall n where n != 0 -> n / n == 1 proof generalize n => forall n => from n / n do rewrite inv end end; from 1 == 1 do rewrite refl end end in t|};
   let (pm, proof) = run_named("t", src);
   let body = generalize_body(proof);
   let body_goal = incoming_of(pm, body);
@@ -226,7 +226,7 @@ let has_malformed_generalize = (pm, proof) =>
 
 /* `generalize 5`: not a variable, so marked; the goal passes through. */
 let test_generalize_literal_marked = () => {
-  let src = {|theorem t = forall x -> x == x proof generalize 5 => from x == x do axiom refl_eq end end in t|};
+  let src = {|theorem t = forall x -> x == x proof generalize 5 => from x == x do rewrite refl end end in t|};
   let (pm, proof) = run(src);
   Alcotest.check(
     Alcotest.bool,
@@ -244,7 +244,7 @@ let test_generalize_literal_marked = () => {
 
 /* `generalize z` with z not in scope: same mark. */
 let test_generalize_out_of_scope_marked = () => {
-  let src = {|theorem t = forall x -> x == x proof generalize z => from x == x do axiom refl_eq end end in t|};
+  let src = {|theorem t = forall x -> x == x proof generalize z => from x == x do rewrite refl end end in t|};
   let (pm, proof) = run(src);
   Alcotest.check(
     Alcotest.bool,

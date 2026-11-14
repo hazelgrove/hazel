@@ -311,11 +311,13 @@ let rows_of: family => list(row) =
   | ProofGeneralize => [mk_pre_c(L, P.fun_, Proof, [Exp])]
   | ProofRevert => [mk_pre_c(L, P.fun_, Proof, [Exp])]
   | ProofAxiom => [mk_op_c(L, Proof, [Exp])]
-  /* Applies the equality right-to-left; `axiom` applies it left-to-right. */
-  | ProofAxiomRev => [mk_op_c(L, Proof, [Exp])]
   | ProofRevertWith => [mk_pre_c(L, P.fun_, Proof, [Exp, Exp, Exp])]
   | ProofAxiomWith => [mk_op_c(L, Proof, [Exp, Exp, Exp])]
-  | ProofAxiomRevWith => [mk_op_c(L, Proof, [Exp, Exp, Exp])]
+  /* `rewrite <- h end` applies `h` right to left. The arrow is a prefix
+     over the whole fact in the rewrite's slot, since the slot directly
+     follows `rewrite`; MakeTerm reads it back as the step's direction.
+     Outside a rewrite it is an error. */
+  | RewriteBack => [mk_prefix(Exp, P.fun_)]
   | ProofAlgebrite => [mk_op_c(L, Proof, [Exp])]
   | ProofContradiction => [mk_op_c(L, Proof, [Exp])]
   | ProofContradictionWith => [mk_op_c(L, Proof, [Exp, Exp, Exp])]

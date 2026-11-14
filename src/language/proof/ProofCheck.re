@@ -143,7 +143,7 @@ module Discharge = {
   /* How `goal` is discharged: by lookup, or else by closed evaluation to
    * `true`. Only a goal whose free variables are all definitions
    * (`2 != 0`, `f(2) > 0`) is evaluated, and not one that calls a
-   * recursive function: only explicit steps (`eval`, `contradiction`) run
+   * recursive function: only explicit steps (`step`, `contradiction`) run
    * those. Both are judged on a copy with the definitions substituted. */
   let find = (~step: step_fn, ~ctx: SemanticCtx.t, goal: Exp.t) => {
     let substituted =
@@ -214,7 +214,7 @@ module Discharge = {
 
 /* The proposition a `revert`, `contradiction` or `alias` step cites: a
  * hypothesis or theorem by name, looked up in the theorem namespace so
- * that `revert ih` names the same thing `axiom ih` does, or else the
+ * that `revert h` names the same thing `rewrite h` does, or else the
  * proposition as spelled out. */
 let cited_fact = (~ctx: SemanticCtx.t, e: Exp.t): Exp.t => {
   let named =
@@ -671,7 +671,7 @@ module Algebrite = {
   };
 };
 
-/* `eval`: one evaluation step at the root of the goal. The evaluator
+/* `step`: one evaluation step at the root of the goal. The evaluator
  * inlines the definitions it looks up, and the goals it leaves name them
  * again (`Definitions.fold`). */
 module Eval = {
@@ -840,10 +840,10 @@ module Funext = {
    * whose argument is a bound variable (hence a value), so contracting
    * it is definitional: it renames the parameter and discovers nothing.
    * Contracting here lets `(fun x -> x + 1) == (fun x -> 1 + x)` be
-   * proved by a pointwise `rewrite` without a leading `eval` on each
+   * proved by a pointwise `algebra` without a leading `step` on each
    * side. Not contracted:
    *   - a named function (`inv(x)`, `f(x)`). Unfolding a definition is
-   *     `eval`'s job, and keeping the `Ap` is why `refl_eq` closes
+   *     `step`'s job, and keeping the `Ap` is why `refl` closes
    *     `inv(x) == inv(x)` without ever applying `inv`.
    *   - a contract lambda (`fun p where g -> body`). Contracting it would
    *     drop `g`, and funext adds no `where` restriction of its own:
@@ -1644,7 +1644,7 @@ and check_revert =
  * If `F`, rewritten by an equation the branch also knows, denotes
  * `false`, the branch's hypotheses are jointly unsatisfiable and the
  * branch is vacuous, so concluding `true` is the Kleene reading of ex
- * falso quodlibet. It is what `revert F => ...rewrite...; eval` proves,
+ * falso quodlibet. It is what `revert F => ...rewrite...; step` proves,
  * in one step, once the antecedent is `false`.
  *
  * Only two things are trusted, both trusted elsewhere too:
@@ -1882,10 +1882,12 @@ and check_induction =
              h,
              incoming |> Option.value(~default=Exp.fresh(EmptyHole)),
            )
+           |> Option.map(ih => (Induction.hypothesis_name(h), ih))
          );
     let case_ctx =
       List.fold_left(
-        (ctx, ih) => SemanticCtx.add_hypothesis(ctx, "ih", ih) |> fst,
+        (ctx, (name, ih)) =>
+          SemanticCtx.add_hypothesis(ctx, name, ih) |> fst,
         case_ctx,
         ihs,
       );

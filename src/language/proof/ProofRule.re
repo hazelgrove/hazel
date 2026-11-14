@@ -291,7 +291,7 @@ module Rewrite = {
     List.exists(((_, (_, assigned))) => assigned == None, mctx);
 
   /* The rule's rewrites of `exp` in each direction, (Left, Right), i.e.
-   * (`axiomrev`, `axiom`), each with the match context that produced it,
+   * (`rewrite <-`, `rewrite`), each with the match context that produced it,
    * so callers can instantiate the rule's assumptions and detect
    * unassigned binders. `~bindings` overrides the initial (all
    * unassigned) match context, which is how a `with` clause is seeded. */
@@ -312,9 +312,9 @@ module Rewrite = {
     switch (rule.conclusion) {
     /* Right matches the LHS and rewrites to the RHS. */
     | Equality(a, b) => (via(b, a), via(a, b))
-    /* Read as `P == true`. Forward (`axiom`) rewrites `P` to `true`.
+    /* Read as `P == true`. Forward (`rewrite`) rewrites `P` to `true`.
      *
-     * Reverse (`axiomrev`) rewrites a `true` in the goal to `P`. That is
+     * Reverse (`rewrite <-`) rewrites a `true` in the goal to `P`. That is
      * sound, but `true` occurs everywhere, so offering it during rule
      * discovery would make every boolean rule "active" at every `true`.
      * Only an explicit citation, which names the rule, the direction and

@@ -866,11 +866,11 @@ in f(42)|},
        absorbs from a different child position. */
     roundtrip_ids_test(
       {|Ids stable: proof induction rules|},
-      {|theorem x = 1 proof induction y | a => from y do axiom y end end | b => ? end in x|},
+      {|theorem x = 1 proof induction y | a => from y do rewrite y end end | b => ? end in x|},
     ),
     roundtrip_ids_test(
       {|Ids stable: proof induction-as rules|},
-      {|theorem x = 1 proof induction y as h | a => from y do axiom h end end | b => ? end in x|},
+      {|theorem x = 1 proof induction y as h | a => from y do rewrite h end end | b => ? end in x|},
     ),
     roundtrip_test({|Sum type: spaced|}, {|type T = + A + B in T|}),
     roundtrip_test({|Sum type: compact|}, {|type T = +A+B in T|}),
@@ -975,14 +975,14 @@ end|}),
     /* Theorem expressions (theorem ... = ... proof ... in ...) */
     roundtrip_test(
       {|Theorem: simple|},
-      {|theorem x = 1 proof from y do axiom y end end in x|},
+      {|theorem x = 1 proof from y do rewrite y end end in x|},
     ),
     /* Grouping parens at Proof sort. Without them, `(` in a proof slot
        would remold as an Exp paren and the wrapping form inside it would
        become a MultiHole. */
     roundtrip_test(
       {|Theorem: parenthesized proof|},
-      {|theorem x = 1 proof ( from y do axiom y end end ) in x|},
+      {|theorem x = 1 proof ( from y do rewrite y end end ) in x|},
     ),
     /* Control: an unwritten hole body prints back as a `?` monotile, with
        and without the parens, as grout does elsewhere. */
@@ -1000,85 +1000,88 @@ end|}),
     ),
     roundtrip_test(
       {|Theorem: parenthesized proof as the left arm of a `;`|},
-      {|theorem x = 1 proof ( funext y => ? ); from y do axiom y end end in x|},
+      {|theorem x = 1 proof ( funext y => ? ); from y do rewrite y end end in x|},
     ),
     roundtrip_test(
       {|Theorem: spaced|},
-      {|theorem x  =  1  proof  from y do axiom y end end  in  x|},
+      {|theorem x  =  1  proof  from y do rewrite y end end  in  x|},
     ),
     roundtrip_test(
       {|Theorem: compact|},
-      {|theorem x=1 proof from y do axiom y end end in x|},
+      {|theorem x=1 proof from y do rewrite y end end in x|},
     ),
     /* Proof: induction (single case, case-like syntax — no `with` keyword) */
     roundtrip_test(
       {|Induction: single-case|},
-      {|theorem x = 1 proof induction y | a => from y do axiom y end end end in x|},
+      {|theorem x = 1 proof induction y | a => from y do rewrite y end end end in x|},
     ),
     /* Proof: induction (multi-case) */
     roundtrip_test(
       {|Induction: multi-case|},
-      {|theorem x = 1 proof induction y | a => from y do axiom y end end | b => from z do axiom z end end end in x|},
+      {|theorem x = 1 proof induction y | a => from y do rewrite y end end | b => from z do rewrite z end end end in x|},
     ),
     /* Proof: forall (quantified variable) */
     roundtrip_test(
       {|Forall: simple|},
-      {|theorem x = 1 proof forall y => from y do axiom y end end in x|},
+      {|theorem x = 1 proof forall y => from y do rewrite y end end in x|},
     ),
     /* Proof: assume (hypothesized proposition) */
     roundtrip_test(
       {|Assume: simple|},
-      {|theorem x = 1 proof assume 2 == 2 => from y do axiom y end end in x|},
+      {|theorem x = 1 proof assume 2 == 2 => from y do rewrite y end end in x|},
     ),
     roundtrip_test(
       {|Assume: nested|},
-      {|theorem x = 1 proof assume 2 == 2 => assume 3 == 3 => from y do axiom y end end in x|},
+      {|theorem x = 1 proof assume 2 == 2 => assume 3 == 3 => from y do rewrite y end end in x|},
     ),
     /* Proof: a focus. The occurrence after `at` keeps its whitespace. */
     roundtrip_test(
       {|Focus: at|},
-      {|theorem x = 1 proof from y + 1 at 2 do eval end in x|},
+      {|theorem x = 1 proof from y + 1 at 2 do step end in x|},
     ),
     roundtrip_test(
       {|Focus: at, spaced|},
-      {|theorem x = 1 proof from y + 1  at  2  do eval end in x|},
+      {|theorem x = 1 proof from y + 1  at  2  do step end in x|},
     ),
     /* "at" is a prefix of `atom`, which switches the focus to its `at`
        form while it is typed (see `Insert.plain_of_at_variant`). */
     roundtrip_test(
       {|Focus: a selector starting with at|},
-      {|theorem x = 1 proof from atom do eval end in x|},
+      {|theorem x = 1 proof from atom do step end in x|},
     ),
     roundtrip_test(
       {|Focus: at, after a selector starting with at|},
-      {|theorem x = 1 proof from atom at 2 do eval end in x|},
+      {|theorem x = 1 proof from atom at 2 do step end in x|},
     ),
     roundtrip_test(
       {|Focus: nested, several steps|},
-      {|theorem x = 1 proof from y at 11 do from z do eval; eval end end in x|},
+      {|theorem x = 1 proof from y at 11 do from z do step; step end end in x|},
     ),
     /* Proof: explicit instantiation (`with <var> = <exp>` on a citation
        step). Each with-variant is a distinct compound form beside its
        plain form, so both spellings must round-trip. */
     roundtrip_test(
       {|AxiomWith: simple|},
-      {|theorem x = 1 proof from y do axiom y with n = 2 end end in x|},
+      {|theorem x = 1 proof from y do rewrite y with n = 2 end end in x|},
     ),
     roundtrip_test(
       {|AxiomWith: spaced|},
-      {|theorem x = 1 proof from y do axiom y  with  n  =  2 end end in x|},
+      {|theorem x = 1 proof from y do rewrite y  with  n  =  2 end end in x|},
     ),
+    /* The step keeps no annotation for its `<-`, so the space before it
+       prints with a new id. */
     roundtrip_test(
+      ~known_equiv_gap=true,
       {|AxiomRevWith: simple|},
-      {|theorem x = 1 proof from y do axiomrev y with n = 2 end end in x|},
+      {|theorem x = 1 proof from y do rewrite <- y with n = 2 end end in x|},
     ),
     roundtrip_test(
       {|RevertWith: simple|},
-      {|theorem x = 1 proof revert y with n = 2 => from y do axiom y end end in x|},
+      {|theorem x = 1 proof revert y with n = 2 => from y do rewrite y end end in x|},
     ),
     roundtrip_test(
       {|RevertWith: compound instantiation|},
-      {|theorem x = 1 proof revert y with n = 2 + 3 => from y do axiom y end end in x|},
+      {|theorem x = 1 proof revert y with n = 2 + 3 => from y do rewrite y end end in x|},
     ),
     /* `contradiction <fact> with <var> = <exp> end` reuses the same
        with-clause shards on a step with no body. */
@@ -1098,11 +1101,11 @@ end|}),
        absorbed by a citation step that is still missing its own shards. */
     roundtrip_test(
       {|Revert: plain still round-trips|},
-      {|theorem x = 1 proof revert y => from y do axiom y end end in x|},
+      {|theorem x = 1 proof revert y => from y do rewrite y end end in x|},
     ),
     roundtrip_test(
-      {|Algebrite: `with` still belongs to rewrite|},
-      {|theorem x = 1 proof from y do rewrite z end end in x|},
+      {|Algebrite: `with` still belongs to algebra|},
+      {|theorem x = 1 proof from y do algebra z end end in x|},
     ),
     /* Hypothesis naming. The `as` variants share their leading token with
        the plain forms, and "as" is a prefix of "assume", so these pin that
@@ -1110,7 +1113,7 @@ end|}),
        with an `assume` nearby (see `Insert.plain_of_as_variant`). */
     roundtrip_test(
       {|AssumeAs: names the hypothesis|},
-      {|theorem x = 1 proof assume y == 1 as h => from y do axiom h end end in x|},
+      {|theorem x = 1 proof assume y == 1 as h => from y do rewrite h end end in x|},
     ),
     roundtrip_test(
       {|InductionAs: names the case equation|},
@@ -1118,15 +1121,15 @@ end|}),
     ),
     roundtrip_test(
       {|InductionAs: with an as-clause|},
-      {|theorem x = 1 proof induction y as h | true => from y do axiom h end end | false => ? end in x|},
+      {|theorem x = 1 proof induction y as h | true => from y do rewrite h end end | false => ? end in x|},
     ),
     roundtrip_test(
       {|Alias: retroactive naming|},
-      {|theorem x = 1 proof alias h = assume => from y do axiom h end end in x|},
+      {|theorem x = 1 proof alias h = assume => from y do rewrite h end end in x|},
     ),
     roundtrip_test(
       {|Alias: fact spelled out as a proposition|},
-      {|theorem x = 1 proof alias h = y == 1 => from y do axiom h end end in x|},
+      {|theorem x = 1 proof alias h = y == 1 => from y do rewrite h end end in x|},
     ),
     /* `assume` typed inside an induction must not leave an `as` shard
        behind: the token passes through "as" on the way. */
@@ -2089,7 +2092,7 @@ let proof_embedded_paren_tests = {
   let refl: TermBase.Proof.term =
     AxiomStep({
       direction: Util.Direction.Right,
-      equality: Exp.fresh(Var("refl_eq")),
+      equality: Exp.fresh(Var("refl")),
       instantiation: None,
     });
   (
@@ -2098,12 +2101,12 @@ let proof_embedded_paren_tests = {
       proof_paren_test(
         {|focus selector: fun where in application head|},
         focus(built_fun_ap(~guard=true, ()), refl),
-        {|theorem t = 1 == 1 proof from (fun x where x != 0 -> 100 / x)(y) do axiom refl_eq end end in t|},
+        {|theorem t = 1 == 1 proof from (fun x where x != 0 -> 100 / x)(y) do rewrite refl end end in t|},
       ),
       proof_paren_test(
         {|focus selector: plain fun in application head|},
         focus(built_fun_ap(~guard=false, ()), refl),
-        {|theorem t = 1 == 1 proof from (fun x -> 100 / x)(y) do axiom refl_eq end end in t|},
+        {|theorem t = 1 == 1 proof from (fun x -> 100 / x)(y) do rewrite refl end end in t|},
       ),
       proof_paren_test(
         {|assume hypothesis: fun where in application head|},
@@ -2117,7 +2120,7 @@ let proof_embedded_paren_tests = {
       ),
       /* A built `Seq` whose left arm is a wrapping form: the wrapping
          form's body slot extends rightward (P.fun_ is looser than P.semi),
-         so without grouping parens `funext y => ?; eval` reparses as
+         so without grouping parens `funext y => ?; step` reparses as
          `Funext(y, Seq(?, eval))`. */
       proof_paren_test(
         {|Seq left arm: a wrapping form is parenthesized|},
@@ -2127,7 +2130,7 @@ let proof_embedded_paren_tests = {
           ),
           Proof.fresh(EvalStep),
         ),
-        {|theorem t = 1 == 1 proof(funext y => ?); eval in t|},
+        {|theorem t = 1 == 1 proof(funext y => ?); step in t|},
       ),
       /* Control: `;` is associative and right-associative, so a
          left-nested Seq still prints flat — no parens churn. */
@@ -2142,7 +2145,7 @@ let proof_embedded_paren_tests = {
           ),
           Proof.fresh(focus(Exp.fresh(Var("c")), EvalStep)),
         ),
-        {|theorem t = 1 == 1 proof from a do eval end; from b do eval end; from c do eval end in t|},
+        {|theorem t = 1 == 1 proof from a do step end; from b do step end; from c do step end in t|},
       ),
     ],
   );

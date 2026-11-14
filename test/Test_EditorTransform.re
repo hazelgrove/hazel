@@ -410,7 +410,7 @@ let tests = (
       `Quick,
       () => {
         let target = "theorem t = 1 + 1 + 1 == 2 proof ? in t";
-        let two_step = "theorem u = 1 == 1 proof from 1 do eval end; from 1 do eval end in u";
+        let two_step = "theorem u = 1 == 1 proof from 1 do step end; from 1 do step end in u";
         let reflowed = patch_proof(target, two_step);
         let flat = patch_proof(~reflow=false, target, two_step);
         check(
@@ -426,7 +426,7 @@ let tests = (
       `Quick,
       () => {
         let target = "theorem t = 1 == 1 proof ? in t";
-        let induction = "theorem u = 1 == 1 proof induction y | a => from y do axiom y end end | b => from z do axiom z end end end in u";
+        let induction = "theorem u = 1 == 1 proof induction y | a => from y do rewrite y end end | b => from z do rewrite z end end end in u";
         let reflowed = patch_proof(target, induction);
         let flat = patch_proof(~reflow=false, target, induction);
         check(
@@ -449,7 +449,7 @@ let tests = (
         let out =
           patch_proof(
             target,
-            "theorem u = 1 == 1 proof from 1 do eval end; from 1 do eval end in u",
+            "theorem u = 1 == 1 proof from 1 do step end; from 1 do step end in u",
           );
         check_contains(~msg="statement survives untouched", out, statement);
       },
@@ -462,7 +462,7 @@ let tests = (
         let out =
           patch_proof(
             target,
-            "theorem u = 1 == 1 proof from 1 do eval end in u",
+            "theorem u = 1 == 1 proof from 1 do step end in u",
           );
         check_contains(~msg="comment survives", out, "#keep me exactly#");
       },
@@ -477,7 +477,7 @@ let tests = (
         let out =
           patch_proof(
             target,
-            "theorem u = 1 == 1 proof from 1 do eval end in u",
+            "theorem u = 1 == 1 proof from 1 do step end in u",
           );
         check_contains(
           ~msg="literal spelling survives",
@@ -495,7 +495,7 @@ let tests = (
         let out =
           patch_proof(
             target,
-            "theorem u = 1 == 1 proof from 1 do eval end in u",
+            "theorem u = 1 == 1 proof from 1 do step end in u",
           );
         check_contains(~msg="binding layout survives", out, binding);
       },
@@ -513,10 +513,10 @@ let tests = (
           | _ => None
           };
         let replacement =
-          theorem_proof("theorem u = 1 == 1 proof from 1 do eval end in u");
+          theorem_proof("theorem u = 1 == 1 proof from 1 do step end in u");
         let out = patch_proof_zipper(~select, z, replacement) |> serialize;
         check_contains(~msg="first theorem survives", out, first);
-        check_contains(~msg="patch landed", out, "from 1 do eval end");
+        check_contains(~msg="patch landed", out, "from 1 do step end");
       },
     ),
     /* ---- Stability: repeated patching must not accumulate anything ---- */
@@ -525,7 +525,7 @@ let tests = (
       `Quick,
       () => {
         let target = "theorem t = forall x:[Int] -> x == x proof ? in t";
-        let replacement_src = "theorem u = 1 == 1 proof from 1 do eval end; from 1 do eval end in u";
+        let replacement_src = "theorem u = 1 == 1 proof from 1 do step end; from 1 do step end in u";
         let z1 =
           patch_proof_zipper(
             parse_zipper(target),
@@ -547,11 +547,11 @@ let tests = (
         let one_case =
           "theorem t = "
           ++ statement
-          ++ " proof induction y | a => from y do axiom y end end end in t";
+          ++ " proof induction y | a => from y do rewrite y end end end in t";
         let two_case =
           "theorem t = "
           ++ statement
-          ++ " proof induction y | a => from y do axiom y end end | b => from z do axiom z end end end in t";
+          ++ " proof induction y | a => from y do rewrite y end end | b => from z do rewrite z end end end in t";
         let z = parse_zipper(one_case);
         let z = patch_proof_zipper(z, theorem_proof(two_case));
         check_contains(
@@ -630,7 +630,7 @@ let tests = (
         /* A multi-piece proof can't be spliced in beside the step's
            siblings, so the theorem's whole proof is replaced; the steps
            must still all be there. */
-        let target = "theorem t = 1 == 1 proof from y do axiom y end end; from z do axiom z end end in t";
+        let target = "theorem t = 1 == 1 proof from y do rewrite y end end; from z do rewrite z end end in t";
         let z = parse_zipper(target);
         let select = (e: Exp.t) =>
           switch (find_theorem_proof(e)) {
@@ -643,10 +643,10 @@ let tests = (
           };
         let replacement =
           theorem_proof(
-            "theorem u = 1 == 1 proof from 1 do eval end; from 2 do eval end in u",
+            "theorem u = 1 == 1 proof from 1 do step end; from 2 do step end in u",
           );
         let out = patch_proof_zipper(~select, z, replacement);
-        let expected = "theorem t = 1 == 1 proof from 1 do eval end; from 2 do eval end; from z do axiom z end end in t";
+        let expected = "theorem t = 1 == 1 proof from 1 do step end; from 2 do step end; from z do rewrite z end end in t";
         check(
           dhexp_typ,
           "all three steps present in order",
@@ -663,7 +663,7 @@ let tests = (
         let target =
           "theorem t = "
           ++ statement
-          ++ " proof induction y | a => from y do axiom y end end | b => from z do axiom z end end end in t";
+          ++ " proof induction y | a => from y do rewrite y end end | b => from z do rewrite z end end end in t";
         let z = parse_zipper(target);
         let select = (e: Exp.t) =>
           switch (find_theorem_proof(e)) {
@@ -675,20 +675,20 @@ let tests = (
           | None => None
           };
         let replacement =
-          theorem_proof("theorem u = 1 == 1 proof from 9 do eval end in u");
+          theorem_proof("theorem u = 1 == 1 proof from 9 do step end in u");
         let out = patch_proof_zipper(~select, z, replacement);
         let text = serialize(out);
         check_contains(~msg="statement intact", text, statement);
         check_contains(
           ~msg="patched case body landed",
           text,
-          "from 9 do eval end",
+          "from 9 do step end",
         );
         /* The untouched case is still present with its tokens intact. */
         check_contains(
           ~msg="sibling case intact",
           text,
-          "from z do axiom z end end",
+          "from z do rewrite z end end",
         );
       },
     ),
@@ -697,7 +697,7 @@ let tests = (
       `Quick,
       () => {
         let target = "theorem t = forall x:[Int] -> x == x proof ? in t";
-        let replacement_src = "theorem u = 1 == 1 proof induction y | a => from y do axiom y end end | b => from z do axiom z end end end in u";
+        let replacement_src = "theorem u = 1 == 1 proof induction y | a => from y do rewrite y end end | b => from z do rewrite z end end end in u";
         let z =
           patch_proof_zipper(
             parse_zipper(target),
@@ -728,7 +728,7 @@ let tests = (
             Haz3lcore.EditorTransform.mk_proof_patch(
               ~target_id=Id.mk(),
               theorem_proof(
-                "theorem u = 1 == 1 proof from 1 do eval end in u",
+                "theorem u = 1 == 1 proof from 1 do step end in u",
               ),
             ),
           );
@@ -741,7 +741,7 @@ let tests = (
       () => {
         /* Mirrors the stepper UI's ExtendProof patch: taking a second
            step replaces the previous step's leaf with Seq(leaf, new). */
-        let target = "theorem thm = 1 + 4 == 5 proof \nfrom 1 + 4 do eval end\n  in";
+        let target = "theorem thm = 1 + 4 == 5 proof \nfrom 1 + 4 do step end\n  in";
         let z = parse_zipper(target);
         let prev =
           switch (find_theorem_proof(zipper_term(z))) {
@@ -754,7 +754,7 @@ let tests = (
           };
         let head =
           theorem_proof(
-            "theorem u = 1 == 1 proof from 5 == 5 do eval end in u",
+            "theorem u = 1 == 1 proof from 5 == 5 do step end in u",
           );
         let replacement = Proof.fresh(Seq(prev, head));
         let out =
@@ -771,8 +771,8 @@ let tests = (
           string,
           "second step chains onto the first",
           "theorem thm = 1 + 4 == 5 proof \n"
-          ++ "from 1 + 4 do eval end;\n"
-          ++ "  from 5 == 5 do eval end\n"
+          ++ "from 1 + 4 do step end;\n"
+          ++ "  from 5 == 5 do step end\n"
           ++ "  in?",
           serialize(out),
         );
@@ -788,17 +788,17 @@ let tests = (
           patch_proof(
             ~reflow=false,
             target,
-            "theorem u = 1 == 1 proof from 1 do eval end in u",
+            "theorem u = 1 == 1 proof from 1 do step end in u",
           );
         check_contains(~msg="statement intact", out, statement);
-        check_contains(~msg="patch landed", out, "from 1 do eval end");
+        check_contains(~msg="patch landed", out, "from 1 do step end");
       },
     ),
     test_case(
       "remove patch splices a mid-chain step and its semicolon",
       `Quick,
       () => {
-        let src = "theorem t = 1 + 4 == 5 proof from 1 + 4 do eval end; from 1 + 3 do eval end; from 5 == 5 do eval end in t";
+        let src = "theorem t = 1 + 4 == 5 proof from 1 + 4 do step end; from 1 + 3 do step end; from 5 == 5 do step end in t";
         let z = parse_zipper(src);
         let target_id =
           switch (find_theorem_proof(zipper_term(z))) {
@@ -821,11 +821,11 @@ let tests = (
           false,
           contains_substring(out, "1 + 3"),
         );
-        check_contains(~msg="first step kept", out, "from 1 + 4 do eval end");
+        check_contains(~msg="first step kept", out, "from 1 + 4 do step end");
         check_contains(
           ~msg="third step kept",
           out,
-          "from 5 == 5 do eval end",
+          "from 5 == 5 do step end",
         );
         /* The `;` went with the step: the result reparses to a two-step
          * chain with no hole where the step was. */
@@ -852,7 +852,7 @@ let tests = (
       "remove patch on the sole step leaves a hole proof",
       `Quick,
       () => {
-        let src = "theorem t = 1 + 4 == 5 proof from 1 + 4 do eval end in t";
+        let src = "theorem t = 1 + 4 == 5 proof from 1 + 4 do step end in t";
         let z = parse_zipper(src);
         let target_id =
           switch (find_theorem_proof(zipper_term(z))) {
@@ -869,7 +869,7 @@ let tests = (
           bool,
           "step is gone — got:\n" ++ out,
           false,
-          contains_substring(out, "eval"),
+          contains_substring(out, "step"),
         );
         let reparsed =
           switch (find_theorem_proof(parse_exp(out))) {
@@ -951,7 +951,7 @@ let tests = (
       () => {
         let z =
           parse_zipper(
-            "theorem t = 1 + 4 == 5 proof from 1 + 4 do eval end; from 5 == 5 do eval end in t",
+            "theorem t = 1 + 4 == 5 proof from 1 + 4 do step end; from 5 == 5 do step end in t",
           );
         let ctx = exits_ctx_of(z);
         /* Incurred by the first step; the region is the whole chain. */
@@ -973,12 +973,12 @@ let tests = (
         check_contains(
           ~msg="first step preserved",
           out,
-          "from 1 + 4 do eval end",
+          "from 1 + 4 do step end",
         );
         check_contains(
           ~msg="second step preserved",
           out,
-          "from 5 == 5 do eval end",
+          "from 5 == 5 do step end",
         );
         /* Reparse: a Have whose body still holds both steps. */
         switch (find_theorem_proof(parse_exp(out))) {
@@ -1016,7 +1016,7 @@ let tests = (
       () => {
         let z =
           parse_zipper(
-            "theorem t = 1 + 4 == 5 proof from 1 + 4 do eval end; from 5 == 5 do eval end in t",
+            "theorem t = 1 + 4 == 5 proof from 1 + 4 do step end; from 5 == 5 do step end in t",
           );
         let ctx = exits_ctx_of(z);
         let origin =
@@ -1035,7 +1035,7 @@ let tests = (
         check_contains(~msg="on the obligation goal", out, "2 != 0");
         check_contains(~msg="true case", out, "true");
         check_contains(~msg="false case", out, "false");
-        check_contains(~msg="steps preserved", out, "from 1 + 4 do eval end");
+        check_contains(~msg="steps preserved", out, "from 1 + 4 do step end");
         switch (find_theorem_proof(parse_exp(out))) {
         | Some({term: Induction(_, _, cases), _}) =>
           check(int, "two cases", 2, List.length(cases));
@@ -1142,7 +1142,7 @@ let tests = (
       () => {
         let z =
           parse_zipper(
-            "theorem t = forall n: Int -> 8 / n == 8 / n proof from 8 / n do eval end in t",
+            "theorem t = forall n: Int -> 8 / n == 8 / n proof from 8 / n do step end in t",
           );
         let ctx = exits_ctx_of(z);
         let origin =
@@ -1176,7 +1176,7 @@ let tests = (
       () => {
         let z =
           parse_zipper(
-            "theorem t = forall n: Int -> 8 / n == 8 / n proof from 8 / n do eval end in t",
+            "theorem t = forall n: Int -> 8 / n == 8 / n proof from 8 / n do step end in t",
           );
         let ctx = exits_ctx_of(z);
         let origin =

@@ -32,42 +32,42 @@ let tests = (
       "after a case that checks",
       `Quick,
       check_refused(
-        {|theorem w = forall b: Bool -> b == true proof induction b | true => from true == true do axiom refl_eq end end | _ => from true == true do axiom refl_eq end end end in true|},
+        {|theorem w = forall b: Bool -> b == true proof induction b | true => from true == true do rewrite refl end end | _ => from true == true do rewrite refl end end end in true|},
       ),
     ),
     test_case(
       "in a cons head",
       `Quick,
       check_refused(
-        {|let first = fun xs -> case xs | [] => true | h :: t => h end in theorem w = forall xs: [Bool] -> first(xs) == true proof induction xs | [] => from first([]) do eval end; from true == true do axiom refl_eq end end | _ :: t => from first(true :: t) do eval end; from true == true do axiom refl_eq end end end in true|},
+        {|let first = fun xs -> case xs | [] => true | h :: t => h end in theorem w = forall xs: [Bool] -> first(xs) == true proof induction xs | [] => from first([]) do step end; from true == true do rewrite refl end end | _ :: t => from first(true :: t) do step end; from true == true do rewrite refl end end end in true|},
       ),
     ),
     test_case(
       "nested in a cons head",
       `Quick,
       check_refused(
-        {|let first = fun xs -> case xs | [] => true | [] :: rest => true | (h :: t) :: rest => h end in theorem w = forall xs: [[Bool]] -> first(xs) == true proof induction xs | [] => from first([]) do eval end; from true == true do axiom refl_eq end end | [] :: rest => from first([] :: rest) do eval end; from true == true do axiom refl_eq end end | (_ :: t) :: rest => from first((true :: t) :: rest) do eval end; from true == true do axiom refl_eq end end end in true|},
+        {|let first = fun xs -> case xs | [] => true | [] :: rest => true | (h :: t) :: rest => h end in theorem w = forall xs: [[Bool]] -> first(xs) == true proof induction xs | [] => from first([]) do step end; from true == true do rewrite refl end end | [] :: rest => from first([] :: rest) do step end; from true == true do rewrite refl end end | (_ :: t) :: rest => from first((true :: t) :: rest) do step end; from true == true do rewrite refl end end end in true|},
       ),
     ),
     test_case(
       "in a constructor payload",
       `Quick,
       check_refused(
-        {|type N = +Z + S((Bool, Bool)) in let first = fun n -> case n | Z => true | S((a, y)) => a end in theorem w = forall n: N -> first(n) == true proof induction n | Z => from first(Z) do eval end; from true == true do axiom refl_eq end end | S((_, _)) => from first(S((true, true))) do eval end; from true == true do axiom refl_eq end end end in true|},
+        {|type N = +Z + S((Bool, Bool)) in let first = fun n -> case n | Z => true | S((a, y)) => a end in theorem w = forall n: N -> first(n) == true proof induction n | Z => from first(Z) do step end; from true == true do rewrite refl end end | S((_, _)) => from first(S((true, true))) do step end; from true == true do rewrite refl end end end in true|},
       ),
     ),
     test_case(
       "in an ascribed tuple",
       `Quick,
       check_refused(
-        {|theorem w = forall p: (Bool, Bool) -> p == (true, true) proof induction p | ((_, _) : (Bool, Bool)) => from (true, true) == (true, true) do axiom refl_eq end end end in true|},
+        {|theorem w = forall p: (Bool, Bool) -> p == (true, true) proof induction p | ((_, _) : (Bool, Bool)) => from (true, true) == (true, true) do rewrite refl end end end in true|},
       ),
     ),
     test_case(
       "under a where guard",
       `Quick,
       check_refused(
-        {|theorem w = forall b: Bool -> b == true proof induction b | _ where true => from true == true do axiom refl_eq end end | x => ? end in true|},
+        {|theorem w = forall b: Bool -> b == true proof induction b | _ where true => from true == true do rewrite refl end end | x => ? end in true|},
       ),
     ),
   ],

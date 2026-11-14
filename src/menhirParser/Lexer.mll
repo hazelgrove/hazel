@@ -19,7 +19,9 @@ let semi_token () =
 (* The prover's hard keywords. Matching them as separate rules overflows
    ocamllex's transition table, so `identifier` looks them up instead.
    `assume` and `where` (a rule below) are also hypothesis names in
-   ProofCheck, so the parser accepts them in expression position too. *)
+   ProofCheck, so the parser accepts them in expression position too.
+   `step` is not one, so that programs can still name a function `step`:
+   the parser reads it as a proof step from an IDENT. *)
 let prover_keywords : (string, token) Hashtbl.t =
   let t = Hashtbl.create 32 in
   List.iter (fun (k, v) -> Hashtbl.replace t k v)
@@ -27,8 +29,8 @@ let prover_keywords : (string, token) Hashtbl.t =
       ("funext", FUNEXT); ("assume", ASSUME);
       ("generalize", GENERALIZE); ("have", HAVE); ("revert", REVERT);
       ("contradiction", CONTRADICTION); ("induction", INDUCTION);
-      ("alias", ALIAS); ("as", AS); ("axiomrev", AXIOM_REV);
-      ("axiom", AXIOM); ("rewrite", REWRITE); ("with", WITH);
+      ("alias", ALIAS); ("as", AS); ("rewrite", REWRITE);
+      ("algebra", ALGEBRA); ("with", WITH);
       ("from", FROM); ("at", AT); ("do", DO) ];
   t
 
@@ -167,6 +169,7 @@ rule token =
     | "/" { DIVIDE }
     | "**" {POWER}
     | "<" { LESS_THAN}
+    | "<-" { LEFT_ARROW }
     | "<=" { LESS_THAN_EQUAL }
     | ">" { GREATER_THAN }
     | ">=" { GREATER_THAN_EQUAL }

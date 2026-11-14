@@ -966,23 +966,23 @@ let test_restricted_binders_documented = () => {
    a stub. Between them the sources cover every step form that takes
    children. */
 let proof_sources = [
-  "theorem t = 1 + 4 == 5 proof from 1 + 4 do eval end; from 5 == 5 do eval end in 0",
-  "theorem t = 1 + 1 == 2 proof from 1 + 1 do rewrite 2 end end in 0",
-  "theorem t = (true && false) == (false && true) proof from true && false do axiom and_comm end end in 0",
-  "theorem t = (true && false) == (false && true) proof from false && true do axiomrev and_comm end end in 0",
-  "theorem t = forall x -> x == x proof forall x => from x == x do axiom refl_eq end end in 0",
-  "theorem t = forall n: Int -> n == 1 ==> n == 1 proof assume n == 1 => from n == 1 do axiom assume end end in 0",
+  "theorem t = 1 + 4 == 5 proof from 1 + 4 do step end; from 5 == 5 do step end in 0",
+  "theorem t = 1 + 1 == 2 proof from 1 + 1 do algebra 2 end end in 0",
+  "theorem t = (true && false) == (false && true) proof from true && false do rewrite and_comm end end in 0",
+  "theorem t = (true && false) == (false && true) proof from false && true do rewrite <- and_comm end end in 0",
+  "theorem t = forall x -> x == x proof forall x => from x == x do rewrite refl end end in 0",
+  "theorem t = forall n: Int -> n == 1 ==> n == 1 proof assume n == 1 => from n == 1 do rewrite assume end end in 0",
   "theorem t = forall n: Int -> false ==> n == n proof assume false => contradiction false end in 0",
   "theorem t = forall n: Int -> n == 1 ==> n == 2 ==> false proof assume n == 1 => assume n == 2 => contradiction n == 1 with n = 2 end in 0",
-  "theorem t = forall x -> x == 1 proof have 1 == 1 proof from 1 == 1 do axiom refl_eq end end => ? in 0",
-  "theorem inv = forall w where w != 0 -> w / w == 1 proof ? in theorem t = forall n where n != 0 -> n / n == 1 proof generalize n => forall n => from n / n do axiom inv end end in 0",
+  "theorem t = forall x -> x == 1 proof have 1 == 1 proof from 1 == 1 do rewrite refl end end => ? in 0",
+  "theorem inv = forall w where w != 0 -> w / w == 1 proof ? in theorem t = forall n where n != 0 -> n / n == 1 proof generalize n => forall n => from n / n do rewrite inv end end in 0",
   "let f = fun x where x != 0 -> 100 / x in theorem t = forall y -> f(y) == f(y) proof ? in 0",
-  "let f = fun x -> x + 1 in theorem lem = forall n: Int -> n == 1 ==> f(2) == 3 proof ? in theorem g = f(2) == 3 proof from f(2) do axiom lem with n = 1 end end in 0",
+  "let f = fun x -> x + 1 in theorem lem = forall n: Int -> n == 1 ==> f(2) == 3 proof ? in theorem g = f(2) == 3 proof from f(2) do rewrite lem with n = 1 end end in 0",
   "let f = fun x -> x + 1 in theorem p = forall n: Int -> n + 0 == n proof ? in theorem g = f(2) == 3 proof revert p with n = 5 => ? in 0",
   "theorem t = forall n: Int -> forall m: Int -> n == n proof induction n > 0 as hn | true => induction m > 0 | true => revert hn => ? | false => ? end | false => ? end in 0",
   "theorem t = forall x: Int -> forall y: Int -> x == 1 ==> y == 2 ==> x == x proof assume x == 1 => assume y == 2 as hy => revert hy => ? in 0",
-  "theorem t = forall n: Int -> n == 1 ==> n == n proof assume n == 1 => alias hn = assume => from n == n do axiom refl_eq end end in 0",
-  "type Nt = +Z+S(Nt) in let pos = fun e -> case e | Z => true | S(b) => true end in theorem t = forall e: Nt -> pos(e) proof induction e | Z => from pos(Z) do eval end | S(b) => revert pos(b) => from pos(b) do axiom ih end end end in 0",
+  "theorem t = forall n: Int -> n == 1 ==> n == n proof assume n == 1 => alias hn = assume => from n == n do rewrite refl end end in 0",
+  "type Nt = +Z+S(Nt) in let pos = fun e -> case e | Z => true | S(b) => true end in theorem t = forall e: Nt -> pos(e) proof induction e | Z => from pos(Z) do step end | S(b) => revert pos(b) => from pos(b) do rewrite ih_b end end end in 0",
 ];
 
 let parse_exp = (s: string) =>
@@ -1004,7 +1004,7 @@ let test_cursor_on_proof_step_explains = () => {
           switch (info) {
           | InfoProof({user_term, _}) =>
             switch (user_term.term) {
-            /* The degenerate forms and `eval` have no children to color. */
+            /* The degenerate forms and `step` have no children to color. */
             | EmptyHole
             | MultiHole(_)
             | Invalid(_)

@@ -155,8 +155,7 @@ let insert_shard_core =
  * leading token, so they expand to the plain form and the later
  * `with`/`as`/`at` token switches the tile to the variant. This rewrites the
  * nearest tile left of the caret that `variant` maps to a new family. The
- * scan stops at any other incomplete tile, since the token belongs to it:
- * `rewrite <e> with` awaits its own `with`. */
+ * scan stops at any other incomplete tile, since the token belongs to it. */
 let switch_variant = (variant: Tile.t => option(Form.family), z: t): t => {
   let (pre, suf) = z.relatives.siblings;
   let rec go = (rev_pre: list(Piece.t)): option(list(Piece.t)) =>
@@ -193,7 +192,6 @@ let switch_variant = (variant: Tile.t => option(Form.family), z: t): t => {
 let with_variant = (t: Tile.t): option(Form.family) =>
   switch (t.form, t.shards) {
   | (Compound(ProofAxiom), [0]) => Some(ProofAxiomWith)
-  | (Compound(ProofAxiomRev), [0]) => Some(ProofAxiomRevWith)
   | (Compound(ProofRevert), [0]) => Some(ProofRevertWith)
   | (Compound(ProofContradiction), [0]) => Some(ProofContradictionWith)
   | _ => None

@@ -54,7 +54,7 @@ let tests = (
           run_named(
             "t",
             len
-            ++ "theorem t = forall y: Int -> forall ys: [Int] -> len(y :: ys) == 1 + len(ys) proof from len(y :: ys) do eval end; ? in t",
+            ++ "theorem t = forall y: Int -> forall ys: [Int] -> len(y :: ys) == 1 + len(ys) proof from len(y :: ys) do step end; ? in t",
           );
         let d = dump(pm, proof);
         Alcotest.check(
@@ -72,7 +72,7 @@ let tests = (
         let (pm, proof) =
           run_named(
             "t",
-            "let add = fun (acc, x) -> acc + x in theorem t = forall h: Int -> forall l: [Int] -> forall a: Int -> fold_left(h :: l, add, a) == fold_left(l, add, a + h) proof from fold_left(h :: l, add, a) do eval end; ? in t",
+            "let add = fun (acc, x) -> acc + x in theorem t = forall h: Int -> forall l: [Int] -> forall a: Int -> fold_left(h :: l, add, a) == fold_left(l, add, a + h) proof from fold_left(h :: l, add, a) do step end; ? in t",
           );
         let d = dump(pm, proof);
         Alcotest.check(
@@ -94,8 +94,8 @@ let tests = (
         | UnknownEquality(_) => true
         | _ => false,
         len
-        ++ "theorem len_nil = len([]) == 0 proof from len([]) do eval end; eval in "
-        ++ "theorem t = forall len: ([Int] -> Int) -> len([]) == 0 proof axiom len_nil end in t",
+        ++ "theorem len_nil = len([]) == 0 proof from len([]) do step end; step in "
+        ++ "theorem t = forall len: ([Int] -> Int) -> len([]) == 0 proof rewrite len_nil end in t",
       )
     ),
     Alcotest.test_case(
@@ -108,7 +108,7 @@ let tests = (
         | NothingToStep => true
         | _ => false,
         len
-        ++ "theorem t = forall len: ([Int] -> Int) -> len([]) == 0 proof from len([]) do eval end in t",
+        ++ "theorem t = forall len: ([Int] -> Int) -> len([]) == 0 proof from len([]) do step end in t",
       )
     ),
     Alcotest.test_case(
@@ -116,7 +116,7 @@ let tests = (
       check_marked(
         "captures",
         captures,
-        "let k = 5 in theorem t = (fun z: Int -> k) == (fun z: Int -> 5) proof funext k => axiom refl_eq end in t",
+        "let k = 5 in theorem t = (fun z: Int -> k) == (fun z: Int -> 5) proof funext k => rewrite refl end in t",
       )
     ),
     Alcotest.test_case(
@@ -124,7 +124,7 @@ let tests = (
       check_status(
         ~theorem="bad",
         "Incomplete",
-        "theorem bad = forall y: Int -> (fun z: Int -> y) == (fun z: Int -> z) proof funext y => axiom refl_eq end in bad",
+        "theorem bad = forall y: Int -> (fun z: Int -> y) == (fun z: Int -> z) proof funext y => rewrite refl end in bad",
       )
     ),
     Alcotest.test_case(
@@ -132,7 +132,7 @@ let tests = (
       check_status(
         ~theorem="bad",
         "Incomplete",
-        "theorem bad = forall x: Int -> x == 0 ==> x == 0 proof assume x == 0 => generalize x => forall x => axiom assume end in bad",
+        "theorem bad = forall x: Int -> x == 0 ==> x == 0 proof assume x == 0 => generalize x => forall x => rewrite assume end in bad",
       )
     ),
     Alcotest.test_case(
@@ -151,7 +151,7 @@ let tests = (
         ~theorem="bad",
         "Incomplete",
         "let hd0 = fun l -> case l | [] => true | y :: _ => y == 0 end in "
-        ++ "theorem bad = forall x: Int -> forall xs: [Int] -> x == 0 ==> hd0(xs) proof assume x == 0 => induction xs | [] => ? | x :: t => eval; axiom assume end in bad",
+        ++ "theorem bad = forall x: Int -> forall xs: [Int] -> x == 0 ==> hd0(xs) proof assume x == 0 => induction xs | [] => ? | x :: t => step; rewrite assume end in bad",
       )
     ),
     Alcotest.test_case(
@@ -161,8 +161,8 @@ let tests = (
       check_status(
         ~theorem="bad",
         "Incomplete",
-        "let k = 0 in theorem k0 = k == 0 proof from k do eval end; eval in "
-        ++ "theorem bad = (fun k: Int -> k) == (fun k: Int -> 0) proof from k do axiom k0 end end; axiom refl_eq in bad",
+        "let k = 0 in theorem k0 = k == 0 proof from k do step end; step in "
+        ++ "theorem bad = (fun k: Int -> k) == (fun k: Int -> 0) proof from k do rewrite k0 end end; rewrite refl in bad",
       )
     ),
     Alcotest.test_case(
@@ -172,7 +172,7 @@ let tests = (
       check_status(
         ~theorem="bad",
         "Incomplete",
-        "let k = 0 in theorem bad = true ==> (forall k: Int -> k == 0) proof have k == 0 proof eval => assume true => forall k => axiom have end in bad",
+        "let k = 0 in theorem bad = true ==> (forall k: Int -> k == 0) proof have k == 0 proof step => assume true => forall k => rewrite have end in bad",
       )
     ),
     Alcotest.test_case(
@@ -182,7 +182,7 @@ let tests = (
       check_status(
         ~theorem="bad",
         "Incomplete",
-        "theorem bad = forall x: Int -> x == 0 ==> (forall x: Int -> x == 0) proof assume x == 0 => forall x => axiom assume end in bad",
+        "theorem bad = forall x: Int -> x == 0 ==> (forall x: Int -> x == 0) proof assume x == 0 => forall x => rewrite assume end in bad",
       )
     ),
     Alcotest.test_case(
@@ -192,7 +192,7 @@ let tests = (
       check_status(
         ~theorem="bad",
         "ProvenModulo",
-        "theorem bad = forall x: Int -> x == 0 ==> (forall x: Int -> x == 0) proof assume x == 0 => forall x => assume x == 0 as h => from x do axiom h end end; eval in bad",
+        "theorem bad = forall x: Int -> x == 0 ==> (forall x: Int -> x == 0) proof assume x == 0 => forall x => assume x == 0 as h => from x do rewrite h end end; step in bad",
       )
     ),
   ],

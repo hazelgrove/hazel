@@ -10,8 +10,8 @@ module Status = {
   let label = (status: ProofMap.full_status): string =>
     switch (status) {
     | Proven
-    | ProvenModulo(_) => "proven true"
-    | Refuted => "disproven"
+    | ProvenModulo(_) => "proven"
+    | Refuted => "refuted"
     | Incomplete => "incomplete"
     };
 

@@ -7,7 +7,7 @@ type entry = {
   exp: Exp.t,
   is_captured: bool,
   /* Hidden by a nearer entry of the same name. Hypothesis names are fixed
-     and shadow, so a scope can hold several `case_eq`s or `ih`s and only
+     and shadow, so a scope can hold several `case_eq`s or `ih_t`s and only
      the innermost is reachable by that name. A shadowed entry is kept so
      the UI can show the fact, which is still in scope and still true,
      while saying that its name does not reach it. */
@@ -47,7 +47,7 @@ let of_theorem_ctx = (~builtins, ctx: Ctx.t): t => {
    * The result has to stay innermost-first, with the built-in axioms last.
    * Hypothesis names are fixed and shadow, and `lookup_rule` takes the
    * first match by name, so this order decides what a shadowed name means
-   * to an `axiom` step.
+   * to a `rewrite` step.
    * It has to agree with `revert`, which resolves through
    * `Ctx.lookup_theorem`, also first-match over these entries. */
   let (_, rev_rules) =

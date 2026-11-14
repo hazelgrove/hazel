@@ -1297,9 +1297,9 @@ module View = {
   module Box = {
     let label = (tab: Model.tab) =>
       switch (tab) {
-      | Write => "Write next step"
+      | Write => "Write"
       | Step => "Step"
-      | Strategy => "Proof strategy"
+      | Strategy => "Strategy"
       };
 
     /* The tab the user picked, or the stepper's default, its first. */
@@ -1365,11 +1365,11 @@ module View = {
       (start.col, end_.row == start.row ? end_.col : start.col + 1);
     };
 
-    /* A use's step, as written: `axiom name` or `axiomrev name`. */
+    /* A use's step, as written: `rewrite name` or `rewrite <- name`. */
     let rule_label = (step: Proof.t) =>
       switch (Rows.single_step(step) |> Option.value(~default=step)) {
       | {term: AxiomStep({direction, equality, _}), _} =>
-        (direction == Left ? "axiomrev " : "axiom ")
+        (direction == Left ? "rewrite <- " : "rewrite ")
         ++ (ProofSyntax.exp_to_name(equality) |> Option.value(~default=""))
       | _ => ""
       };
@@ -1807,10 +1807,11 @@ module View = {
    * name. A one-step focus is drawn as its step. */
   let rec justification = (step: Proof.t): string =>
     switch (step.term) {
-    | AxiomStep({equality, _}) =>
-      ProofSyntax.exp_to_name(equality) |> Option.value(~default="")
+    | AxiomStep({equality, direction, _}) =>
+      (direction == Left ? "← " : "")
+      ++ (ProofSyntax.exp_to_name(equality) |> Option.value(~default=""))
     | AlgebriteStep(_) => "algebra"
-    | EvalStep => "eval"
+    | EvalStep => "step"
     | Focus(_) =>
       Rows.single_step(step)
       |> Option.fold(~none="focus", ~some=justification)

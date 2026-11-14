@@ -78,7 +78,7 @@ let drain_streaming_outbox:
 
 /* Checking theorems' proofs. */
 module Proofs: {
-  /* The steps an `eval` proof step passes through silently from an
+  /* The steps a `step` proof step passes through silently from an
    * expression (auto-hidden steps and `VarLookup`s), each as (input,
    * justification, output), and the expression they reach. None if there
    * are more than `max_steps`. */

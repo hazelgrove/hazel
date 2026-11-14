@@ -4,7 +4,7 @@
  * definitions by name (`len(xs)`), resolved in the environment of the
  * scope they are in. There a definition is bound to its value and a proof
  * variable to itself. A definition's body enters a goal only where a step
- * needs it: `eval` looks names up as the evaluator does, and comparisons
+ * needs it: `step` looks names up as the evaluator does, and comparisons
  * unfold a name where the other side has structure (`MatchExp`). */
 
 let is_definition = (env: Environment.t(Exp.t), x: Var.t): bool =>

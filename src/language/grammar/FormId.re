@@ -150,10 +150,9 @@ type family =
   | ProofGeneralize
   | ProofRevert
   | ProofAxiom
-  | ProofAxiomRev
   | ProofRevertWith
   | ProofAxiomWith
-  | ProofAxiomRevWith
+  | RewriteBack
   | ProofAlgebrite
   | ProofContradiction
   | ProofContradictionWith
@@ -286,15 +285,14 @@ let label_of_family: family => Label.t =
   | ProofAssume => ["assume", "=>"]
   | ProofGeneralize => ["generalize", "=>"]
   | ProofRevert => ["revert", "=>"]
-  | ProofAxiom => ["axiom", "end"]
-  | ProofAxiomRev => ["axiomrev", "end"]
+  | ProofAxiom => ["rewrite", "end"]
   | ProofRevertWith => ["revert", "with", "=", "=>"]
-  | ProofAxiomWith => ["axiom", "with", "=", "end"]
-  | ProofAxiomRevWith => ["axiomrev", "with", "=", "end"]
-  | ProofAlgebrite => ["rewrite", "end"]
+  | ProofAxiomWith => ["rewrite", "with", "=", "end"]
+  | RewriteBack => ["<-"]
+  | ProofAlgebrite => ["algebra", "end"]
   | ProofContradiction => ["contradiction", "end"]
   | ProofContradictionWith => ["contradiction", "with", "=", "end"]
-  | ProofEval => ["eval"]
+  | ProofEval => ["step"]
   | ProofInduction => ["induction", "end"]
   | ProofHave => ["have", "proof", "=>"]
   | ProofAssumeAs => ["assume", "as", "=>"]

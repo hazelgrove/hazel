@@ -6,7 +6,7 @@ open Example;
 /* ExplainThis documentation for the Proof sort — the prover's step forms.
  *
  * House rule for this file: every message names the citable hypotheses the
- * step brings into scope (`where`, `assume`, `case_eq`, `ih`, `have`) and
+ * step brings into scope (`where`, `assume`, `case_eq`, `ih_t`, `have`) and
  * says whether the step incurs an obligation, because that is what a user
  * sitting on the step needs in order to write the next one. */
 
@@ -63,7 +63,7 @@ let seq = (~fst_id: Id.t, ~snd_id: Id.t): Simple.t => {
         sub_id: ProofSeq1,
         term:
           mk_example(
-            "theorem t = 1 + 4 == 5 proof from 1 + 4 do eval end; eval in 0",
+            "theorem t = 1 + 4 == 5 proof from 1 + 4 do step end; step in 0",
           ),
         message: "The first step evaluates `1 + 4`, leaving the goal `5 == 5`; the second evaluates that to `true`.",
       },
@@ -71,7 +71,7 @@ let seq = (~fst_id: Id.t, ~snd_id: Id.t): Simple.t => {
   };
 };
 
-// Citation: axiom / axiomrev, with and without `with`
+// Citation: rewrite / rewrite <-, with and without `with`
 
 let axiom = (~name_id: Id.t): Simple.t => {
   let nm = exp("fact");
@@ -81,7 +81,7 @@ let axiom = (~name_id: Id.t): Simple.t => {
     abstract: ([mk_axiom([slot(nm)])], [(Piece.id(nm), name_id)]),
     explanation:
       Printf.sprintf(
-        "Cites the [*fact*](%s) — a theorem, a built-in axiom, or a hypothesis in scope such as `where`, `assume`, `case_eq`, `ih` or `have` — and applies it left-to-right as a rewrite of the whole goal, or, inside a `from`, of the focused subterm. A cited fact whose statement is a bare boolean proposition `P` reads as `P == true`, so citing it rewrites `P` to `true`. A bare name resolves to the innermost introduction still in scope, so at depth `case_eq` and `ih` mean this split's; a fact that a nearer name hides is still listed, greyed out, until an `alias` gives it a name of its own. Instantiating a quantified or restricted fact incurs its restrictions here as obligations. Add `with x = e` when the match cannot recover a binder on its own.",
+        "Cites the [*fact*](%s) — a theorem, a built-in axiom, or a hypothesis in scope such as `where`, `assume`, `case_eq`, `ih_t` or `have` — and applies it left-to-right as a rewrite of the whole goal, or, inside a `from`, of the focused subterm. A cited fact whose statement is a bare boolean proposition `P` reads as `P == true`, so citing it rewrites `P` to `true`. A bare name resolves to the innermost introduction still in scope, so at depth `case_eq` and `ih_t` mean this split's; a fact that a nearer name hides is still listed, greyed out, until an `alias` gives it a name of its own. Instantiating a quantified or restricted fact incurs its restrictions here as obligations. Add `with x = e` when the match cannot recover a binder on its own.",
         name_id |> Id.to_string,
       ),
     examples: [
@@ -89,9 +89,9 @@ let axiom = (~name_id: Id.t): Simple.t => {
         sub_id: ProofAxiom1,
         term:
           mk_example(
-            "theorem t = (true && false) == (false && true) proof from true && false do axiom and_comm end; axiom refl_eq end in 0",
+            "theorem t = (true && false) == (false && true) proof from true && false do rewrite and_comm end; rewrite refl end in 0",
           ),
-        message: "`and_comm` is one of the built-in Kleene laws for the boolean connectives. Citing it on the focused `true && false` rewrites that side of the equation, and `refl_eq` then closes the goal.",
+        message: "`and_comm` is one of the built-in Kleene laws for the boolean connectives. Citing it on the focused `true && false` rewrites that side of the equation, and `refl` then closes the goal.",
       },
     ],
   };
@@ -122,7 +122,7 @@ let axiom_with = (~name_id: Id.t, ~var_id: Id.t, ~inst_id: Id.t): Simple.t => {
         sub_id: ProofAxiomWith1,
         term:
           mk_example(
-            "let f = fun x -> x + 1 in\ntheorem lem = forall n: Int -> n == 1 ==> f(2) == 3 proof ? in\ntheorem g = f(2) == 3 proof from f(2) do axiom lem with n = 1 end; eval in 0",
+            "let f = fun x -> x + 1 in\ntheorem lem = forall n: Int -> n == 1 ==> f(2) == 3 proof ? in\ntheorem g = f(2) == 3 proof from f(2) do rewrite lem with n = 1 end; step in 0",
           ),
         message: "`lem`'s binder `n` occurs only in its antecedent, so matching `f(2)` leaves `n` undetermined and the citation is refused without a `with` clause. `with n = 1` supplies it; the antecedent `1 == 1` is then the obligation this step incurs.",
       },
@@ -135,10 +135,13 @@ let axiomrev = (~name_id: Id.t): Simple.t => {
   {
     group_id: ProofAxiomRevStep,
     form_id: ProofAxiomRevStep,
-    abstract: ([mk_axiomrev([slot(nm)])], [(Piece.id(nm), name_id)]),
+    abstract: (
+      [mk_axiom([[space(), mk_rewrite_back(), ...slot(nm)]])],
+      [(Piece.id(nm), name_id)],
+    ),
     explanation:
       Printf.sprintf(
-        "The reverse direction of `axiom`: cites the [*fact*](%s) and applies its equation right-to-left, replacing the goal, or the focused subterm inside a `from`, with the equation's left-hand side. Sound for the same reason as the forward direction: the two sides denote the same value at every instantiation. On a fact whose statement is a bare boolean proposition `P`, the reverse direction rewrites a `true` into `P`; because `true` occurs everywhere, that reading is only ever applied to a fact you cite by name, and never offered by rule discovery.",
+        "The reverse direction of `rewrite`: cites the [*fact*](%s) and applies its equation right-to-left, replacing the goal, or the focused subterm inside a `from`, with the equation's left-hand side. Sound for the same reason as the forward direction: the two sides denote the same value at every instantiation. On a fact whose statement is a bare boolean proposition `P`, the reverse direction rewrites a `true` into `P`; because `true` occurs everywhere, that reading is only ever applied to a fact you cite by name, and never offered by rule discovery.",
         name_id |> Id.to_string,
       ),
     examples: [
@@ -146,7 +149,7 @@ let axiomrev = (~name_id: Id.t): Simple.t => {
         sub_id: ProofAxiomRev1,
         term:
           mk_example(
-            "theorem t = (true && false) == (false && true) proof from false && true do axiomrev and_comm end; axiom refl_eq end in 0",
+            "theorem t = (true && false) == (false && true) proof from false && true do rewrite <- and_comm end; rewrite refl end in 0",
           ),
         message: "`and_comm` reads `$e && $f == $f && $e`. Applied in reverse to the focused `false && true`, it rewrites that occurrence into `true && false`, making both sides of the equation identical.",
       },
@@ -160,7 +163,13 @@ let axiomrev_with = (~name_id: Id.t, ~var_id: Id.t, ~inst_id: Id.t): Simple.t =>
     group_id: ProofAxiomRevStep,
     form_id: ProofAxiomRevStep,
     abstract: (
-      [mk_axiomrev_with([slot(nm), slot(vr), slot(it)])],
+      [
+        mk_axiom_with([
+          [space(), mk_rewrite_back(), ...slot(nm)],
+          slot(vr),
+          slot(it),
+        ]),
+      ],
       [
         (Piece.id(nm), name_id),
         (Piece.id(vr), var_id),
@@ -179,7 +188,7 @@ let axiomrev_with = (~name_id: Id.t, ~var_id: Id.t, ~inst_id: Id.t): Simple.t =>
         sub_id: ProofAxiomRevWith1,
         term:
           mk_example(
-            "let f = fun x -> x + 1 in\ntheorem lem = forall n: Int -> n == 1 ==> f(2) == 3 proof ? in\ntheorem g = 3 == 3 proof from 3 do axiomrev lem with n = 1 end in 0",
+            "let f = fun x -> x + 1 in\ntheorem lem = forall n: Int -> n == 1 ==> f(2) == 3 proof ? in\ntheorem g = 3 == 3 proof from 3 do rewrite <- lem with n = 1 end in 0",
           ),
         message: "Used in reverse, `lem` rewrites the first `3` in the goal back into `f(2)`. Its binder `n` is invisible in the conclusion either way, so the `with` clause is what makes the citation resolvable.",
       },
@@ -187,15 +196,15 @@ let axiomrev_with = (~name_id: Id.t, ~var_id: Id.t, ~inst_id: Id.t): Simple.t =>
   };
 };
 
-// Rewrite / eval / focus
+// Algebra / step / focus
 
-let rewrite = (~with_id: Id.t): Simple.t => {
+let algebra = (~with_id: Id.t): Simple.t => {
   let wi = exp("e");
   {
     group_id: ProofRewriteStep,
     form_id: ProofRewriteStep,
     abstract: (
-      [mk_rewrite_step([slot(wi)])],
+      [mk_algebra_step([slot(wi)])],
       [(Piece.id(wi), with_id)],
     ),
     explanation:
@@ -208,7 +217,7 @@ let rewrite = (~with_id: Id.t): Simple.t => {
         sub_id: ProofRewrite1,
         term:
           mk_example(
-            "theorem t = 1 + 1 == 2 proof from 1 + 1 do rewrite 2 end in 0",
+            "theorem t = 1 + 1 == 2 proof from 1 + 1 do algebra 2 end in 0",
           ),
         message: "Focuses on `1 + 1` and rewrites it to `2`, leaving the goal `2 == 2`.",
       },
@@ -226,7 +235,7 @@ let eval_step: Simple.t = {
       sub_id: ProofEval1,
       term:
         mk_example(
-          "theorem t = 2 + 3 == 5 proof from 2 + 3 do eval end; eval in 0",
+          "theorem t = 2 + 3 == 5 proof from 2 + 3 do step end; step in 0",
         ),
       message: "The root `2 + 3 == 5` can't step while `2 + 3` isn't a value, so the first step focuses on `2 + 3` and evaluates it to `5`. The second evaluates `5 == 5` to `true`.",
     },
@@ -253,7 +262,7 @@ let focus = (~selector_id: Id.t, ~body_id: Id.t): Simple.t => {
         sub_id: ProofFocus1,
         term:
           mk_example(
-            "theorem t = (1 + 2) + (3 + 4) == 10 proof from $v + $v at 2 do eval end; from $v + $v do eval end; eval; eval in 0",
+            "theorem t = (1 + 2) + (3 + 4) == 10 proof from $v + $v at 2 do step end; from $v + $v do step end; step; step in 0",
           ),
         message: "`$v + $v` matches an addition of two values. `at 2` picks the second, so the first focus evaluates `3 + 4`, leaving `(1 + 2) + 7 == 10`; the second evaluates `1 + 2`. Then the root steps twice: `3 + 7` to `10`, and `10 == 10` to `true`.",
       },
@@ -278,7 +287,7 @@ let induction = (~scrut_id: Id.t): Simple.t => {
     ),
     explanation:
       Printf.sprintf(
-        "Splits the goal into one case per pattern of the [*scrutinee*](%s). On a variable of an algebraic data type this is structural induction: the cases must cover the type exhaustively, and inside each case the pattern's equation is citable as `case_eq`, together with an inductive hypothesis `ih` for every sub-term of the scrutinee's own type. On a computed scrutinee, or a boolean one, it is case analysis instead — no `ih`, the split must still be exhaustive, the scrutinee's type must be known, and the scrutinee must be visibly terminating. Both names are fixed and shadow the enclosing ones, so inside a nested split they mean this split's: write `induction <e> as <name>` to keep an outer equation citable at depth, and `alias` to reach a hypothesis a nearer `ih` hides. Write `generalize` before the induction to get forall-quantified hypotheses, which can then be cited at other instantiations.",
+        "Splits the goal into one case per pattern of the [*scrutinee*](%s). On a variable of an algebraic data type this is structural induction: the cases must cover the type exhaustively, and inside each case the pattern's equation is citable as `case_eq`, together with an inductive hypothesis for every variable whose type is the scrutinee's own, named after it: `ih_t` for `t`. On a computed scrutinee, or a boolean one, it is case analysis instead — no inductive hypotheses, the split must still be exhaustive, the scrutinee's type must be known, and the scrutinee must be visibly terminating. The names shadow the enclosing ones, so inside a nested split they mean this split's: write `induction <e> as <name>` to keep an outer equation citable at depth, and `alias` to reach a hypothesis a nearer one of the same name hides. Write `generalize` before the induction to get forall-quantified hypotheses, which can then be cited at other instantiations.",
         scrut_id |> Id.to_string,
       ),
     examples: [
@@ -286,9 +295,9 @@ let induction = (~scrut_id: Id.t): Simple.t => {
         sub_id: ProofInduction1,
         term:
           mk_example(
-            "type Nt = +Z+S(Nt) in\nlet pos = fun e -> case e | Z => true | S(b) => true end in\ntheorem t = forall e: Nt -> pos(e) proof induction e\n| Z => from pos(Z) do eval end\n| S(b) => revert pos(b) => from pos(b) do axiom ih end end; from true ==> pos(S(b)) do eval end; from pos(S(b)) do eval end\nend in 0",
+            "type Nt = +Z+S(Nt) in\nlet pos = fun e -> case e | Z => true | S(b) => true end in\ntheorem t = forall e: Nt -> pos(e) proof induction e\n| Z => from pos(Z) do step end\n| S(b) => revert pos(b) => from pos(b) do rewrite ih_b end end; from true ==> pos(S(b)) do step end; from pos(S(b)) do step end\nend in 0",
           ),
-        message: "The two cases cover `Nt` exhaustively. The base case evaluates outright; the step case cites the inductive hypothesis `ih`, which states the goal for the sub-term `b`.",
+        message: "The two cases cover `Nt` exhaustively. The base case evaluates outright; the step case cites the inductive hypothesis `ih_b`, which states the goal for the sub-term `b`.",
       },
     ],
   };
@@ -316,7 +325,7 @@ let forall_step = (~pat_id: Id.t, ~body_id: Id.t): Simple.t => {
         sub_id: ProofForall1,
         term:
           mk_example(
-            "theorem t = forall x -> x == x proof forall x => from x == x do axiom refl_eq end end in 0",
+            "theorem t = forall x -> x == x proof forall x => from x == x do rewrite refl end end in 0",
           ),
         message: "Peeling `forall x` leaves the goal `x == x` for an arbitrary `x`, which reflexivity closes.",
       },
@@ -347,7 +356,7 @@ let funext_step = (~pat_id: Id.t, ~body_id: Id.t): Simple.t => {
         sub_id: ProofFunext1,
         term:
           mk_example(
-            "theorem t = (fun x -> x + 1) == (fun x -> 1 + x) proof funext x => from x + 1 do rewrite 1 + x end end; from 1 + x == 1 + x do axiom refl_eq end end in 0",
+            "theorem t = (fun x -> x + 1) == (fun x -> 1 + x) proof funext x => from x + 1 do algebra 1 + x end end; from 1 + x == 1 + x do rewrite refl end end in 0",
           ),
         message: "`funext x` turns the function equality into `(fun x -> x + 1)(x) == (fun x -> 1 + x)(x)`, which the pointwise rewrite closes.",
       },
@@ -375,7 +384,7 @@ let assume = (~exp_id: Id.t, ~body_id: Id.t): Simple.t => {
         sub_id: ProofAssume1,
         term:
           mk_example(
-            "theorem t = forall n: Int -> n == 1 ==> n == 1 proof assume n == 1 => from n == 1 do axiom assume end end in 0",
+            "theorem t = forall n: Int -> n == 1 ==> n == 1 proof assume n == 1 => from n == 1 do rewrite assume end end in 0",
           ),
         message: "The assumption is the goal's own antecedent, so this is implication introduction and incurs nothing. The hypothesis is then cited by its name, `assume`, to rewrite the remaining goal to `true`.",
       },
@@ -394,7 +403,7 @@ let generalize = (~exp_id: Id.t, ~body_id: Id.t): Simple.t => {
     ),
     explanation:
       Printf.sprintf(
-        "Re-quantifies an already-peeled [*variable*](%s), so the [*rest of the proof*](%s) proves `forall x -> goal` instead of the goal at this one value. Written before `induction`, this is what makes the inductive hypotheses forall-quantified, so they can be cited at instantiations other than the one in hand. The price is capture: every fact mentioning the variable — assumptions, `case_eq`, earlier `ih`s — is unavailable inside. A `where` restriction on the variable travels back onto the new binder, and is a citable `where` again once you re-peel it.",
+        "Re-quantifies an already-peeled [*variable*](%s), so the [*rest of the proof*](%s) proves `forall x -> goal` instead of the goal at this one value. Written before `induction`, this is what makes the inductive hypotheses forall-quantified, so they can be cited at instantiations other than the one in hand. The price is capture: every fact mentioning the variable — assumptions, `case_eq`, earlier inductive hypotheses — is unavailable inside. A `where` restriction on the variable travels back onto the new binder, and is a citable `where` again once you re-peel it.",
         exp_id |> Id.to_string,
         body_id |> Id.to_string,
       ),
@@ -403,7 +412,7 @@ let generalize = (~exp_id: Id.t, ~body_id: Id.t): Simple.t => {
         sub_id: ProofGeneralize1,
         term:
           mk_example(
-            "theorem inv = forall w where w != 0 -> w / w == 1 proof ? in\ntheorem t = forall n where n != 0 -> n / n == 1 proof generalize n => forall n => from n / n do axiom inv end end; from 1 == 1 do axiom refl_eq end end in 0",
+            "theorem inv = forall w where w != 0 -> w / w == 1 proof ? in\ntheorem t = forall n where n != 0 -> n / n == 1 proof generalize n => forall n => from n / n do rewrite inv end end; from 1 == 1 do rewrite refl end end in 0",
           ),
         message: "`generalize n` re-quantifies the peeled `n`, carrying its `where` restriction back onto the new binder; re-peeling with `forall n` makes the restriction a citable `where` fact again, which discharges the obligation that citing `inv` incurs.",
       },
@@ -433,9 +442,9 @@ let revert = (~exp_id: Id.t, ~body_id: Id.t): Simple.t => {
         sub_id: ProofRevert1,
         term:
           mk_example(
-            "type Nt = +Z+S(Nt) in\nlet pos = fun e -> case e | Z => true | S(b) => true end in\ntheorem t = forall e: Nt -> pos(e) proof induction e\n| Z => from pos(Z) do eval end\n| S(b) => revert pos(b) => from pos(b) do axiom ih end end; from true ==> pos(S(b)) do eval end; from pos(S(b)) do eval end\nend in 0",
+            "type Nt = +Z+S(Nt) in\nlet pos = fun e -> case e | Z => true | S(b) => true end in\ntheorem t = forall e: Nt -> pos(e) proof induction e\n| Z => from pos(Z) do step end\n| S(b) => revert pos(b) => from pos(b) do rewrite ih_b end end; from true ==> pos(S(b)) do step end; from pos(S(b)) do step end\nend in 0",
           ),
-        message: "In the step case the inductive hypothesis `pos(b)` is reverted into the goal, giving `pos(b) ==> pos(S(b))`. Citing `ih` rewrites the antecedent to `true`, and evaluation takes the implication away.",
+        message: "In the step case the inductive hypothesis `pos(b)` is reverted into the goal, giving `pos(b) ==> pos(S(b))`. Citing `ih_b` rewrites the antecedent to `true`, and evaluation takes the implication away.",
       },
     ],
   };
@@ -469,7 +478,7 @@ let revert_with =
         sub_id: ProofRevertWith1,
         term:
           mk_example(
-            "let f = fun x -> x + 1 in\ntheorem p = forall n: Int -> n + 0 == n proof ? in\ntheorem g = f(2) == 3 proof revert p with n = 5 => from 5 + 0 do eval end; from 5 == 5 do eval end; from true ==> f(2) == 3 do eval end; from f(2) do eval end; from 2 + 1 do eval end; from 3 == 3 do eval end in 0",
+            "let f = fun x -> x + 1 in\ntheorem p = forall n: Int -> n + 0 == n proof ? in\ntheorem g = f(2) == 3 proof revert p with n = 5 => from 5 + 0 do step end; from 5 == 5 do step end; from true ==> f(2) == 3 do step end; from f(2) do step end; from 2 + 1 do step end; from 3 == 3 do step end in 0",
           ),
         message: "`revert p with n = 5` cashes the instance `5 + 0 == 5` into the goal, not the quantified statement. Evaluating that antecedent to `true` lets the implication be stepped away, leaving the original goal.",
       },
@@ -564,7 +573,7 @@ let have = (~exp_id: Id.t, ~sub_id: Id.t, ~body_id: Id.t): Simple.t => {
         sub_id: ProofHave1,
         term:
           mk_example(
-            "theorem t = forall x -> x == 1 proof have 1 == 1 proof from 1 == 1 do axiom refl_eq end end => ? in 0",
+            "theorem t = forall x -> x == 1 proof have 1 == 1 proof from 1 == 1 do rewrite refl end end => ? in 0",
           ),
         message: "The sub-proof closes `1 == 1` by reflexivity, so `1 == 1` is a hypothesis named `have` in the body. Leaving the sub-proof a hole instead would keep `1 == 1` as a pending obligation.",
       },
@@ -590,7 +599,7 @@ let induction_as = (~scrut_id: Id.t, ~name_id: Id.t): Simple.t => {
     ),
     explanation:
       Printf.sprintf(
-        "Splits the goal into one case per pattern of the [*scrutinee*](%s), and gives this split's case equation the [*name*](%s) in place of the fixed `case_eq`. One name covers the whole split: the equation still differs case by case, only the name is shared. That is the point of writing it — a deeper split installs `case_eq` again and shadows the bare name, but it cannot shadow this one, so the equation stays citable from any leaf underneath. Everything else is as an unnamed `induction`: the cases must be exhaustive, each recursive sub-term still contributes a hypothesis under the fixed name `ih`, and a computed or boolean scrutinee makes this case analysis rather than induction. The name lives in the theorem namespace, never the variable one, and is visible only inside this form.",
+        "Splits the goal into one case per pattern of the [*scrutinee*](%s), and gives this split's case equation the [*name*](%s) in place of the fixed `case_eq`. One name covers the whole split: the equation still differs case by case, only the name is shared. That is the point of writing it — a deeper split installs `case_eq` again and shadows the bare name, but it cannot shadow this one, so the equation stays citable from any leaf underneath. Everything else is as an unnamed `induction`: the cases must be exhaustive, each recursive variable still contributes a hypothesis named after it, and a computed or boolean scrutinee makes this case analysis rather than induction. The name lives in the theorem namespace, never the variable one, and is visible only inside this form.",
         scrut_id |> Id.to_string,
         name_id |> Id.to_string,
       ),
@@ -655,7 +664,7 @@ let alias = (~name_id: Id.t, ~exp_id: Id.t, ~body_id: Id.t): Simple.t => {
     ),
     explanation:
       Printf.sprintf(
-        "Installs a fact that is already in scope under a second [*name*](%s), for the [*rest of the proof*](%s). The [*fact*](%s) is resolved exactly as `revert` resolves its argument — by its bare name, or by spelling the proposition out — and nothing else happens: no obligation, and no change to the goal, because nothing is assumed that was not already known. It is pure renaming, and it is the escape hatch for shadowing: take an alias of an outer `case_eq`, `assume` or `ih` just before the split or assumption that will install that name again, and the outer fact stays citable underneath. Spelling the proposition out is the only way to reach a fact that is already hidden where you are standing — which is how the second `ih` of a case with two recursive sub-terms is reached, since both are `ih`.",
+        "Installs a fact that is already in scope under a second [*name*](%s), for the [*rest of the proof*](%s). The [*fact*](%s) is resolved exactly as `revert` resolves its argument — by its bare name, or by spelling the proposition out — and nothing else happens: no obligation, and no change to the goal, because nothing is assumed that was not already known. It is pure renaming, and it is the escape hatch for shadowing: take an alias of an outer `case_eq`, `assume` or `ih_t` just before the split or assumption that will install that name again, and the outer fact stays citable underneath. Spelling the proposition out is the only way to reach a fact that is already hidden where you are standing.",
         name_id |> Id.to_string,
         body_id |> Id.to_string,
         exp_id |> Id.to_string,
@@ -695,7 +704,7 @@ let rec single = (p: Proof.t): Simple.t =>
     | (Left, Some((v, i))) =>
       axiomrev_with(~name_id, ~var_id=Exp.rep_id(v), ~inst_id=Exp.rep_id(i))
     };
-  | AlgebriteStep(e) => rewrite(~with_id=Exp.rep_id(e))
+  | AlgebriteStep(e) => algebra(~with_id=Exp.rep_id(e))
   | EvalStep => eval_step
   | Focus({selector, body, _}) =>
     focus(~selector_id=Exp.rep_id(selector), ~body_id=Proof.rep_id(body))

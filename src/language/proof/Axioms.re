@@ -53,7 +53,7 @@ let c = var("c");
 
 let axioms: list((string, Exp.t)) = [
   /* Reflexivity of equality. */
-  ("refl_eq", forall("x", eq(eq(var("x"), var("x")), tt))),
+  ("refl", forall("x", eq(eq(var("x"), var("x")), tt))),
   /* Definition of implication. Kleene: ==> is *defined* as !a || b. */
   ("impl_def", foralls(["a", "b"], eq(a ==>> b, neg(a) ||| b))),
   /* Commutativity / associativity: Kleene ∧/∨ are symmetric. */

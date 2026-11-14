@@ -62,7 +62,7 @@ let tests = (
       check(
         steps,
         "steps",
-        Some(["from 0 - 5 do eval end"]),
+        Some(["from 0 - 5 do step end"]),
         found(
           search(
             goal("theorem t = 0 - 5 + 2 == 0 - 3 proof ? in t"),
@@ -81,7 +81,7 @@ let tests = (
           check(
             list(string),
             "steps",
-            ["from ($e + $e) do eval end", "from $e * $e do eval end"],
+            ["from ($e + $e) do step end", "from $e * $e do step end"],
             List.map(written, Search.generalized(g, steps)),
           )
         | Searching
@@ -93,7 +93,7 @@ let tests = (
       "at a hole with a step after it, a write keeps the hole unless that step still checks",
       `Quick,
       () => {
-        /* `from 1 + 4 do eval end`, written in the hole. */
+        /* `from 1 + 4 do step end`, written in the hole. */
         let step =
           Proof.fresh(
             Picker.Terms.focus(
@@ -117,15 +117,15 @@ let tests = (
         check(
           list(string),
           "the step after still checks",
-          ["from 1 + 4 do eval end"],
-          bridged("theorem t = 1 + 4 == 5 proof ?; eval in t"),
+          ["from 1 + 4 do step end"],
+          bridged("theorem t = 1 + 4 == 5 proof ?; step in t"),
         );
         check(
           list(string),
           "it doesn't, and nothing leads back",
-          ["from 1 + 4 do eval end", "?"],
+          ["from 1 + 4 do step end", "?"],
           bridged(
-            "theorem t = 1 + 4 == 5 proof ?; from 1 + 4 do eval end in t",
+            "theorem t = 1 + 4 == 5 proof ?; from 1 + 4 do step end in t",
           ),
         );
       },
@@ -146,7 +146,7 @@ let tests = (
         check(
           steps,
           "steps",
-          Some(["from (1 + 1) do eval end"]),
+          Some(["from (1 + 1) do step end"]),
           found(search(g, "2 * 2 == 4")),
         );
       },
@@ -159,16 +159,16 @@ let tests = (
         check(
           steps,
           "two",
-          Some(["from (1 + 1) do eval end", "from 2 * 2 do eval end"]),
+          Some(["from (1 + 1) do step end", "from 2 * 2 do step end"]),
           found(search(g, "4 == 4")),
         );
         check(
           steps,
           "to true",
           Some([
-            "from (1 + 1) do eval end",
-            "from 2 * 2 do eval end",
-            "eval",
+            "from (1 + 1) do step end",
+            "from 2 * 2 do step end",
+            "step",
           ]),
           found(search(g, "true")),
         );
@@ -200,19 +200,19 @@ let tests = (
         check(
           steps,
           "forward",
-          Some(["from x do axiom assume end end"]),
+          Some(["from x do rewrite assume end end"]),
           found(search(g, "1 + 0 == 1")),
         );
         check(
           steps,
           "backward",
-          Some(["from 1 do axiomrev assume end end"]),
+          Some(["from 1 do rewrite <- assume end end"]),
           found(search(g, "x + 0 == x")),
         );
       },
     ),
     test_case(
-      "a rule that only wraps a part, as `axiomrev not_not` turns b into !!b, isn't tried",
+      "a rule that only wraps a part, as `rewrite <- not_not` turns b into !!b, isn't tried",
       `Quick,
       () =>
       check(
@@ -233,7 +233,7 @@ let tests = (
         check(
           steps,
           "steps",
-          Some(["from rev(xs @ ys) do axiom rev_app end end"]),
+          Some(["from rev(xs @ ys) do rewrite rev_app end end"]),
           found(
             search(
               Fixture.goal(f, first(f.rows)),
@@ -254,7 +254,7 @@ let tests = (
         check(
           steps,
           "steps",
-          Some(["axiom refl_eq end"]),
+          Some(["rewrite refl end"]),
           found(search(g, "true")),
         );
       },
@@ -271,7 +271,7 @@ let tests = (
         check(
           steps,
           "steps",
-          Some(["from x + x do rewrite 2 * x end end"]),
+          Some(["from x + x do algebra 2 * x end end"]),
           found(search(~algebra, g, "2 * x == 2 * x")),
         );
         check(
@@ -309,7 +309,7 @@ let tests = (
         check(
           steps,
           "found",
-          Some(["from (1 + 1) do eval end", "from 2 * 2 do eval end"]),
+          Some(["from (1 + 1) do step end", "from 2 * 2 do step end"]),
           found(search),
         );
         switch (search.status) {
@@ -319,7 +319,7 @@ let tests = (
             check(
               string,
               "in place of the hole",
-              "from (1 + 1) do eval end; from 2 * 2 do eval end",
+              "from (1 + 1) do step end; from 2 * 2 do step end",
               written(replacement),
             )
           | _ => Alcotest.fail("not a proof patch")
@@ -348,8 +348,8 @@ let tests = (
           list(pair(string, string)),
           "uses",
           [
-            ("from x do axiom assume end end", "1 + 0 == 1"),
-            ("from 1 do axiomrev assume end end", "x + 0 == x"),
+            ("from x do rewrite assume end end", "1 + 0 == 1"),
+            ("from 1 do rewrite <- assume end end", "x + 0 == x"),
           ],
           List.map(
             (use: Search.Suggestions.suggestion) =>
@@ -424,7 +424,7 @@ let tests = (
         check(
           steps,
           "found",
-          Some(["from (1 + 1) do eval end"]),
+          Some(["from (1 + 1) do step end"]),
           Option.bind(box.search, s => found(s)),
         );
         check(

@@ -35,7 +35,7 @@ type node_or_list =
 
 /* The theorem namespace. A theorem entry names a judgment, not a value:
    theorems, axioms, and the hypotheses that `assume`/`where`/`case_eq`/
-   `ih`/`have` install. Like the type namespace (`TVarEntry`), it is
+   `ih_<var>`/`have` install. Like the type namespace (`TVarEntry`), it is
    separate from variables: a theorem and a variable of the same name
    don't shadow each other. */
 [@deriving (show({with_path: false}), sexp, yojson)]

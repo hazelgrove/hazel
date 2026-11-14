@@ -5,8 +5,8 @@ open Test_ProofMap.Harness;
 
 /* Explicit instantiation at the citation site:
  *
- *   `axiom <name> with <x> = <e> end`
- *   `axiomrev <name> with <x> = <e> end`
+ *   `rewrite <name> with <x> = <e> end`
+ *   `rewrite <- <name> with <x> = <e> end`
  *   `revert <fact> with <x> = <e> => <proof>`
  *
  * For the axiom step the binding is seeded into `MatchExp`'s match
@@ -65,7 +65,9 @@ let test_axiom_underdetermined_without_with = () => {
   let (pm, proof) =
     run_named(
       "g",
-      src("theorem g = f(2) == 3 proof from f(2) do axiom lem end end in g"),
+      src(
+        "theorem g = f(2) == 3 proof from f(2) do rewrite lem end end in g",
+      ),
     );
   if (!
         has_mark_kind(
@@ -90,7 +92,7 @@ let test_axiom_with_resolves = () => {
     run_named(
       "g",
       src(
-        "theorem g = f(2) == 3 proof from f(2) do axiom lem with n = 1 end end; from 3 == 3 do eval end in g",
+        "theorem g = f(2) == 3 proof from f(2) do rewrite lem with n = 1 end end; from 3 == 3 do step end in g",
       ),
     );
   check_mark_free("axiom+with", pm, proof);
@@ -103,16 +105,16 @@ let test_axiom_with_resolves = () => {
   check_status("axiom+with closes the goal", ProofMap.Proven, pm, proof);
 };
 
-/* `axiomrev` takes the clause too (right-to-left application). */
+/* `rewrite <-` takes the clause too (right-to-left application). */
 let test_axiomrev_with_resolves = () => {
   let (pm, proof) =
     run_named(
       "g",
       src(
-        "theorem g = 3 == 3 proof from 3 do axiomrev lem with n = 1 end end in g",
+        "theorem g = 3 == 3 proof from 3 do rewrite <- lem with n = 1 end end in g",
       ),
     );
-  check_mark_free("axiomrev+with", pm, proof);
+  check_mark_free("rewrite <-+with", pm, proof);
 };
 
 /* A `with` clause naming something that is not a binder of the cited
@@ -122,7 +124,7 @@ let test_axiom_with_unknown_var = () => {
     run_named(
       "g",
       src(
-        "theorem g = f(2) == 3 proof from f(2) do axiom lem with m = 1 end end in g",
+        "theorem g = f(2) == 3 proof from f(2) do rewrite lem with m = 1 end end in g",
       ),
     );
   if (!
@@ -152,7 +154,7 @@ let test_axiom_with_divergent_is_refused = () => {
       prelude
       ++ diverger
       ++ lem
-      ++ "theorem g = f(2) == 3 proof from f(2) do axiom lem with n = bad(1) end end in g",
+      ++ "theorem g = f(2) == 3 proof from f(2) do rewrite lem with n = bad(1) end end in g",
     );
   if (!
         has_mark_kind(
@@ -176,7 +178,7 @@ let test_axiom_with_domain_condition = () => {
     run_named(
       "g",
       src(
-        "theorem g = forall d: Int -> f(2) == 3 proof forall d => from f(2) do axiom lem with n = 6 / d end end; from 3 == 3 do eval end in g",
+        "theorem g = forall d: Int -> f(2) == 3 proof forall d => from f(2) do rewrite lem with n = 6 / d end end; from 3 == 3 do step end in g",
       ),
     );
   check_has_obligation(
@@ -199,7 +201,7 @@ let test_revert_with_instantiates = () => {
       "g",
       prelude
       ++ quantified
-      ++ "theorem g = f(2) == 3 proof revert p with n = 5 => from 5 + 0 do eval end; from 5 == 5 do eval end; from true ==> f(2) == 3 do eval end; from f(2) do eval end; from 2 + 1 do eval end; from 3 == 3 do eval end in g",
+      ++ "theorem g = f(2) == 3 proof revert p with n = 5 => from 5 + 0 do step end; from 5 == 5 do step end; from true ==> f(2) == 3 do step end; from f(2) do step end; from 2 + 1 do step end; from 3 == 3 do step end in g",
     );
   check_mark_free("revert+with", pm, proof);
   check_status("revert+with closes the goal", ProofMap.Proven, pm, proof);
@@ -239,7 +241,7 @@ let ih_src = (cite: string): string =>
   ++ " end in ihp";
 
 let test_revert_ih_by_name = () => {
-  let (pm, proof) = run_named("ihp", ih_src("revert ih => ?"));
+  let (pm, proof) = run_named("ihp", ih_src("revert ih_r0 => ?"));
   if (has_mark_kind(
         pm,
         proof,
@@ -254,8 +256,9 @@ let test_revert_ih_by_name = () => {
 };
 
 let test_revert_ih_with_instantiation = () => {
-  let (pm, proof) = run_named("ihp", ih_src("revert ih with k0 = 7 => ?"));
-  check_mark_free("revert ih with k0 = 7", pm, proof);
+  let (pm, proof) =
+    run_named("ihp", ih_src("revert ih_r0 with k0 = 7 => ?"));
+  check_mark_free("revert ih_r0 with k0 = 7", pm, proof);
   /* The antecedent moved into the goal is the instance at 7: the
      quantifier is gone and `7` has replaced the binder. */
   let d = dump(pm, proof);
@@ -351,13 +354,13 @@ let check_underdetermined_passes_through = (src: string) => {
 
 let test_unassigned_binder_in_conclusion = () =>
   check_underdetermined_passes_through(
-    "theorem g = 0 == 0 proof from 0 do axiom z end end in g",
+    "theorem g = 0 == 0 proof from 0 do rewrite z end end in g",
   );
 
 /* The proof's own `n` doesn't count as an assignment of the rule's. */
 let test_unassigned_binder_shadowed = () =>
   check_underdetermined_passes_through(
-    "theorem g = forall n: Int -> 0 == 0 proof from 0 do axiom z end end in g",
+    "theorem g = forall n: Int -> 0 == 0 proof from 0 do rewrite z end end in g",
   );
 
 let test_discovery_skips_unassigned_binder = () => {
@@ -391,7 +394,7 @@ let tests = (
       test_axiom_with_resolves,
     ),
     test_case(
-      "axiomrev+with resolves too",
+      "rewrite <-+with resolves too",
       `Quick,
       test_axiomrev_with_resolves,
     ),

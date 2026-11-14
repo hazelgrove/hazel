@@ -58,7 +58,7 @@ let test_checked_with_statics = () => {
       Test_Evaluator_Prelude.parse_exp(
         {|theorem t = forall (b : Bool) -> b || true proof
   induction b
-  | true => from true || true do eval end
+  | true => from true || true do step end
   end
 in 0|},
       ),
@@ -82,8 +82,8 @@ let before_edit =
   Test_Evaluator_Prelude.parse_exp(
     {|let (k, j) : (Bool, Int) = (true, 40 + 1) in theorem t = k || j == 41 proof
   induction k
-  | true => from true || j == 41 do eval end
-  | false => from false || j == 41 do eval end
+  | true => from true || j == 41 do step end
+  | false => from false || j == 41 do step end
   end
 in 0|},
   );

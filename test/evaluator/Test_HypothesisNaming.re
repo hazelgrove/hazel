@@ -6,8 +6,8 @@ open Test_ProofMap.Harness;
  *
  * The rules under test:
  *
- *   1. Every auto-installed fact takes its base name (`case_eq`, `ih`,
- *      `where`, `assume`, `have`) with no freshening, so a second
+ *   1. Every auto-installed fact takes its base name (`case_eq`,
+ *      `ih_<var>`, `where`, `assume`, `have`) with no freshening, so a second
  *      introduction in an inner scope shadows the first
  *      (`SemanticCtx.add_hypothesis`).
  *   2. Citation resolves innermost first, because `Ctx.extend` prepends
@@ -19,8 +19,7 @@ open Test_ProofMap.Harness;
  *      leaf can still cite an outer introduction.
  *   4. `alias <h> = <fact> => ...` binds an already-known fact to a
  *      second name: the way to reach a fact that has already been
- *      shadowed, and the only way to reach one of the two IHs a
- *      two-sub-term induction case installs (both are `ih`). */
+ *      shadowed. */
 
 let marks_of = (pm, proof): list(ProofMark.t) =>
   switch (find_marked_sub(pm, proof)) {
@@ -133,13 +132,13 @@ let test_shadowed_name_resolves_innermost = () => {
  * through `SemanticCtx`/`Ctx.lookup_theorem`; an axiom step resolves it
  * through `ProofCtx.lookup_rule` over `ProofCtx.of_theorem_ctx`. Both
  * have to agree, or a name would mean one thing to `revert` and another
- * to `axiom`. Here the two candidate facts have different left-hand
+ * to `rewrite`. Here the two candidate facts have different left-hand
  * sides, so only the innermost reading can rewrite the target `m`. */
 let test_axiom_step_also_resolves_innermost = () => {
   let (pm, proof) =
     run(
       "theorem t = forall n: Int -> forall m: Int -> n == 1 ==> m == 2 ==> m == m proof "
-      ++ "assume n == 1 => assume m == 2 => from m do axiom assume end end; ? in t",
+      ++ "assume n == 1 => assume m == 2 => from m do rewrite assume end end; ? in t",
     );
   check_mark_free(
     "an axiom step citing a shadowed name must resolve to the INNER fact, "
@@ -257,8 +256,7 @@ let test_alias_keeps_outer_fact_past_a_shadow = () => {
 
 /* An alias resolves its fact the way `revert` does, so it also accepts
  * the proposition spelled out. That is the only way to reach a fact that
- * is already shadowed where the alias is written, as with the two IHs of
- * a two-sub-term induction case, which are both `ih`. */
+ * is already shadowed where the alias is written. */
 let test_alias_by_spelled_out_proposition = () => {
   let (pm, proof) =
     run(
@@ -280,7 +278,7 @@ let test_alias_unknown_fact_marks = () => {
   let (pm, proof) =
     run(
       "theorem t = forall n: Int -> n == n proof "
-      ++ "alias hn = n == 99 => from n == n do axiom refl_eq end end in t",
+      ++ "alias hn = n == 99 => from n == n do rewrite refl end end in t",
     );
   if (!
         has_mark_kind(
@@ -305,7 +303,7 @@ let test_alias_incurs_no_obligation = () => {
     run(
       "theorem t = forall n: Int -> n == 1 ==> n == n proof "
       ++ "assume n == 1 => alias hn = assume => "
-      ++ "from n == n do axiom refl_eq end end in t",
+      ++ "from n == n do rewrite refl end end in t",
     );
   check_mark_free("alias is mark-free and goal-preserving", pm, proof);
   /* Zero, not "one fewer": the `assume` here is an implication intro
@@ -325,7 +323,7 @@ let test_unknown_name_is_unknown_equality = () => {
   let (pm, proof) =
     run(
       "theorem t = forall n: Int -> n == n proof "
-      ++ "induction n > 0 as hn | true => axiom hzz end; ? "
+      ++ "induction n > 0 as hn | true => rewrite hzz end; ? "
       ++ "| false => ? end in t",
     );
   check_has_unknown_equality(
@@ -342,7 +340,7 @@ let test_as_name_is_scoped_to_its_form = () => {
     run(
       "theorem t = forall n: Int -> n == n proof "
       ++ "induction n > 0 as hn | true => ? | false => ? end; "
-      ++ "axiom hn end in t",
+      ++ "rewrite hn end in t",
     );
   check_has_unknown_equality(
     "an `as` name does not escape its form",
@@ -361,7 +359,7 @@ let tests = (
       test_shadowed_name_resolves_innermost,
     ),
     test_case(
-      "axiom steps resolve innermost too",
+      "rewrite steps resolve innermost too",
       `Quick,
       test_axiom_step_also_resolves_innermost,
     ),

@@ -155,12 +155,12 @@ let tests = (
     /* --- `forall` inside a theorem ------------------------------------ */
     expects_no_warning(
       "forall in a theorem statement is quiet",
-      {|theorem t = forall x -> x == x proof from x == x do axiom refl_eq end end in 0|},
+      {|theorem t = forall x -> x == x proof from x == x do rewrite refl end end in 0|},
       is_forall_warning,
     ),
     expects_no_errors(
       "forall in a theorem statement is not an error",
-      {|theorem t = forall x -> x == x proof from x == x do axiom refl_eq end end in 0|},
+      {|theorem t = forall x -> x == x proof from x == x do rewrite refl end end in 0|},
     ),
     /* The continuation after `in` is ordinary code, so a `forall` there
        still warns even though it sits inside a `theorem` term. */
@@ -215,7 +215,7 @@ let tests = (
        inside the theorem block and must not warn. */
     expects_no_warning(
       "forall inside a proof is quiet",
-      {|theorem t = true proof from (forall x -> x == x) do axiom refl_eq end end in 0|},
+      {|theorem t = true proof from (forall x -> x == x) do rewrite refl end end in 0|},
       is_forall_warning,
     ),
     /* --- stepper editors count as inside a theorem -------------------- */

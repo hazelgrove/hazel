@@ -89,10 +89,10 @@ let continues_delegation =
     delegations,
   );
 
-/* Checking theorems' proofs. Their `eval` steps reduce with the stepper
+/* Checking theorems' proofs. Their `step` steps reduce with the stepper
  * (`EvaluatorStep`), not with this module's trampoline. */
 module Proofs = {
-  /* The steps an `eval` proof step passes through silently. One proof
+  /* The steps a `step` proof step passes through silently. One proof
    * step is one meaningful reduction, so besides the stepper's auto-hidden
    * steps it also passes through `VarLookup`s. */
   let advance_hidden = (~max_steps=?, ~env, e) => {
@@ -123,7 +123,7 @@ module Proofs = {
     advance(~taken=0, e);
   };
 
-  /* One `eval` proof step: the silent steps, the visible step, and the
+  /* One `step` proof step: the silent steps, the visible step, and the
    * silent steps after it. */
   let step: ProofCheck.step_fn =
     (~env, ~at, e) => {

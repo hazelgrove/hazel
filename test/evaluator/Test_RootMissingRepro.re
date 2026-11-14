@@ -17,42 +17,42 @@ let is_some_tm = fun m -> case m | NoTm => false | SomeTm(x) => true end in
 let shift = fun p -> case p | (d, c, TmVar(n)) => (if n < c then TmVar(n) else TmVar(n + d)) | (d, c, TmLam(t, b)) => TmLam(t, shift((d, c + 1, b))) | (d, c, TmAp(x, y)) => TmAp(shift((d, c, x)), shift((d, c, y))) end in
 let subst = fun p -> case p | (j, v, TmVar(n)) => (if n == j then v else TmVar(n)) | (j, v, TmLam(t, b)) => TmLam(t, subst((j + 1, shift((1, 0, v)), b))) | (j, v, TmAp(x, y)) => TmAp(subst((j, v, x)), subst((j, v, y))) end in
 let step = fun e -> case e | TmVar(n) => NoTm | TmLam(t, b) => NoTm | TmAp(x, y) => (if is_value(x) then (if is_value(y) then case x | TmVar(n) => NoTm | TmLam(t, b) => SomeTm(subst((0, y, b))) | TmAp(f, a) => NoTm end else case step(y) | NoTm => NoTm | SomeTm(yp) => SomeTm(TmAp(x, yp)) end) else case step(x) | NoTm => NoTm | SomeTm(xp) => SomeTm(TmAp(xp, y)) end) end in
-theorem step_ap_val1 = forall u1: Term -> forall u2: Term -> is_value(u1) == false ==> step(TmAp(u1, u2)) == (case step(u1) | NoTm => NoTm | SomeTm(xp) => SomeTm(TmAp(xp, u2)) end) proof assume is_value(u1) == false => from step(TmAp(u1, u2)) do eval end; from is_value(u1) do axiom assume end end; ? in
-theorem step_lam_ap2 = forall w1: Ty -> forall q1: Term -> forall u2: Term -> is_value(u2) == false ==> step(TmAp(TmLam(w1, q1), u2)) == (case step(u2) | NoTm => NoTm | SomeTm(yp) => SomeTm(TmAp(TmLam(w1, q1), yp)) end) proof assume is_value(u2) == false => from step(TmAp(TmLam(w1, q1), u2)) do eval end; from is_value(TmLam(w1, q1)) do eval end; from is_value(u2) do axiom assume end end; ? in
-theorem step_beta = forall w1: Ty -> forall q1: Term -> forall u2: Term -> is_value(u2) == true ==> step(TmAp(TmLam(w1, q1), u2)) == SomeTm(subst((0, u2, q1))) proof assume is_value(u2) == true => from step(TmAp(TmLam(w1, q1), u2)) do eval end; from is_value(TmLam(w1, q1)) do eval end; from is_value(u2) do axiom assume end end; ? in
-theorem some_tm_is_some = forall u1: Term -> is_some_tm(SomeTm(u1)) == true proof from is_some_tm(SomeTm(u1)) do eval end; from true == true do axiom refl_eq end end in
+theorem step_ap_val1 = forall u1: Term -> forall u2: Term -> is_value(u1) == false ==> step(TmAp(u1, u2)) == (case step(u1) | NoTm => NoTm | SomeTm(xp) => SomeTm(TmAp(xp, u2)) end) proof assume is_value(u1) == false => from step(TmAp(u1, u2)) do step end; from is_value(u1) do rewrite assume end end; ? in
+theorem step_lam_ap2 = forall w1: Ty -> forall q1: Term -> forall u2: Term -> is_value(u2) == false ==> step(TmAp(TmLam(w1, q1), u2)) == (case step(u2) | NoTm => NoTm | SomeTm(yp) => SomeTm(TmAp(TmLam(w1, q1), yp)) end) proof assume is_value(u2) == false => from step(TmAp(TmLam(w1, q1), u2)) do step end; from is_value(TmLam(w1, q1)) do step end; from is_value(u2) do rewrite assume end end; ? in
+theorem step_beta = forall w1: Ty -> forall q1: Term -> forall u2: Term -> is_value(u2) == true ==> step(TmAp(TmLam(w1, q1), u2)) == SomeTm(subst((0, u2, q1))) proof assume is_value(u2) == true => from step(TmAp(TmLam(w1, q1), u2)) do step end; from is_value(TmLam(w1, q1)) do step end; from is_value(u2) do rewrite assume end end; ? in
+theorem some_tm_is_some = forall u1: Term -> is_some_tm(SomeTm(u1)) == true proof from is_some_tm(SomeTm(u1)) do step end; from true == true do rewrite refl end end in
 theorem progress = forall e0: Term -> forall t0: Ty -> infer(([], e0)) == SomeTy(t0) ==> is_value(e0) || is_some_tm(step(e0)) proof generalize t0 => induction e0
-| TmVar(m0) => forall t0 => from infer(([], TmVar(m0))) do eval end; from nth_ty(([], m0)) do eval end; from NoTy == SomeTy(t0) do eval end; from false ==> is_value(TmVar(m0)) || is_some_tm(step(TmVar(m0))) do eval end
-| TmLam(w0, q0) => forall t0 => assume infer(([], TmLam(w0, q0))) == SomeTy(t0) => from is_value(TmLam(w0, q0)) do eval end; from true || is_some_tm(step(TmLam(w0, q0))) do eval end
-| TmAp(x0, y0) => forall t0 => from infer(([], TmAp(x0, y0))) do eval end; induction infer(([], x0)) as tx
-| NoTy => from infer(([], x0)) do axiom tx end end; induction infer(([], y0)) as ty
-| NoTy => from infer(([], y0)) do axiom ty end end; from ap_result((NoTy, NoTy)) do eval end; from NoTy == SomeTy(t0) do eval end; from false ==> is_value(TmAp(x0, y0)) || is_some_tm(step(TmAp(x0, y0))) do eval end
-| SomeTy(s0) => from infer(([], y0)) do axiom ty end end; from ap_result((NoTy, SomeTy(s0))) do eval end; from NoTy == SomeTy(t0) do eval end; from false ==> is_value(TmAp(x0, y0)) || is_some_tm(step(TmAp(x0, y0))) do eval end
+| TmVar(m0) => forall t0 => from infer(([], TmVar(m0))) do step end; from nth_ty(([], m0)) do step end; from NoTy == SomeTy(t0) do step end; from false ==> is_value(TmVar(m0)) || is_some_tm(step(TmVar(m0))) do step end
+| TmLam(w0, q0) => forall t0 => assume infer(([], TmLam(w0, q0))) == SomeTy(t0) => from is_value(TmLam(w0, q0)) do step end; from true || is_some_tm(step(TmLam(w0, q0))) do step end
+| TmAp(x0, y0) => forall t0 => from infer(([], TmAp(x0, y0))) do step end; induction infer(([], x0)) as tx
+| NoTy => from infer(([], x0)) do rewrite tx end end; induction infer(([], y0)) as ty
+| NoTy => from infer(([], y0)) do rewrite ty end end; from ap_result((NoTy, NoTy)) do step end; from NoTy == SomeTy(t0) do step end; from false ==> is_value(TmAp(x0, y0)) || is_some_tm(step(TmAp(x0, y0))) do step end
+| SomeTy(s0) => from infer(([], y0)) do rewrite ty end end; from ap_result((NoTy, SomeTy(s0))) do step end; from NoTy == SomeTy(t0) do step end; from false ==> is_value(TmAp(x0, y0)) || is_some_tm(step(TmAp(x0, y0))) do step end
 end
-| SomeTy(tf0) => from infer(([], x0)) do axiom tx end end; induction tf0
+| SomeTy(tf0) => from infer(([], x0)) do rewrite tx end end; induction tf0
 | TB => induction infer(([], y0)) as ty
-| NoTy => from infer(([], y0)) do axiom ty end end; from ap_result((SomeTy(TB), NoTy)) do eval end; from NoTy == SomeTy(t0) do eval end; from false ==> is_value(TmAp(x0, y0)) || is_some_tm(step(TmAp(x0, y0))) do eval end
-| SomeTy(s0) => from infer(([], y0)) do axiom ty end end; from ap_result((SomeTy(TB), SomeTy(s0))) do eval end; from NoTy == SomeTy(t0) do eval end; from false ==> is_value(TmAp(x0, y0)) || is_some_tm(step(TmAp(x0, y0))) do eval end
+| NoTy => from infer(([], y0)) do rewrite ty end end; from ap_result((SomeTy(TB), NoTy)) do step end; from NoTy == SomeTy(t0) do step end; from false ==> is_value(TmAp(x0, y0)) || is_some_tm(step(TmAp(x0, y0))) do step end
+| SomeTy(s0) => from infer(([], y0)) do rewrite ty end end; from ap_result((SomeTy(TB), SomeTy(s0))) do step end; from NoTy == SomeTy(t0) do step end; from false ==> is_value(TmAp(x0, y0)) || is_some_tm(step(TmAp(x0, y0))) do step end
 end
 | TArr(ta0, tb0) => induction infer(([], y0)) as ty
-| NoTy => from infer(([], y0)) do axiom ty end end; from ap_result((SomeTy(TArr(ta0, tb0)), NoTy)) do eval end; from NoTy == SomeTy(t0) do eval end; from false ==> is_value(TmAp(x0, y0)) || is_some_tm(step(TmAp(x0, y0))) do eval end
-| SomeTy(s0) => from infer(([], y0)) do axiom ty end end; from ap_result((SomeTy(TArr(ta0, tb0)), SomeTy(s0))) do eval end; induction ty_eq((ta0, s0)) as teq
-| false => from ty_eq((ta0, s0)) do axiom teq end end; from if false then SomeTy(tb0) else NoTy do eval end; from NoTy == SomeTy(t0) do eval end; from false ==> is_value(TmAp(x0, y0)) || is_some_tm(step(TmAp(x0, y0))) do eval end
-| true => from ty_eq((ta0, s0)) do axiom teq end end; from if true then SomeTy(tb0) else NoTy do eval end; assume SomeTy(tb0) == SomeTy(t0) => induction is_value(x0)
-| false => from is_value(TmAp(x0, y0)) do eval end; from false || is_some_tm(step(TmAp(x0, y0))) do eval end; from step(TmAp(x0, y0)) do axiom step_ap_val1 end end; induction step(x0) as sx
+| NoTy => from infer(([], y0)) do rewrite ty end end; from ap_result((SomeTy(TArr(ta0, tb0)), NoTy)) do step end; from NoTy == SomeTy(t0) do step end; from false ==> is_value(TmAp(x0, y0)) || is_some_tm(step(TmAp(x0, y0))) do step end
+| SomeTy(s0) => from infer(([], y0)) do rewrite ty end end; from ap_result((SomeTy(TArr(ta0, tb0)), SomeTy(s0))) do step end; induction ty_eq((ta0, s0)) as teq
+| false => from ty_eq((ta0, s0)) do rewrite teq end end; from if false then SomeTy(tb0) else NoTy do step end; from NoTy == SomeTy(t0) do step end; from false ==> is_value(TmAp(x0, y0)) || is_some_tm(step(TmAp(x0, y0))) do step end
+| true => from ty_eq((ta0, s0)) do rewrite teq end end; from if true then SomeTy(tb0) else NoTy do step end; assume SomeTy(tb0) == SomeTy(t0) => induction is_value(x0)
+| false => from is_value(TmAp(x0, y0)) do step end; from false || is_some_tm(step(TmAp(x0, y0))) do step end; from step(TmAp(x0, y0)) do rewrite step_ap_val1 end end; induction step(x0) as sx
 | NoTm => ?
-| SomeTm(u0) => from step(x0) do axiom sx end end; from is_some_tm(case SomeTm(u0) | NoTm => NoTm | SomeTm(xp) => SomeTm(TmAp(xp, y0)) end) do eval end
+| SomeTm(u0) => from step(x0) do rewrite sx end end; from is_some_tm(case SomeTm(u0) | NoTm => NoTm | SomeTm(xp) => SomeTm(TmAp(xp, y0)) end) do step end
 end
 | true => induction x0 as hx0
-| TmVar(m0) => revert is_value(x0) == true => from x0 do axiom hx0 end end; from is_value(TmVar(m0)) == true do eval end; from false == true do eval end; from false ==> (is_value(TmAp(TmVar(m0), y0)) || is_some_tm(step(TmAp(TmVar(m0), y0)))) do eval end
-| TmLam(w0, q0) => from is_value(TmAp(TmLam(w0, q0), y0)) do eval end; from false || is_some_tm(step(TmAp(TmLam(w0, q0), y0))) do eval end; induction is_value(y0)
-| true => from step(TmAp(TmLam(w0, q0), y0)) do axiom step_beta end end; from is_some_tm(SomeTm(subst((0, y0, q0)))) do axiom some_tm_is_some end end
-| false => from step(TmAp(TmLam(w0, q0), y0)) do axiom step_lam_ap2 end end; induction step(y0) as sy
+| TmVar(m0) => revert is_value(x0) == true => from x0 do rewrite hx0 end end; from is_value(TmVar(m0)) == true do step end; from false == true do step end; from false ==> (is_value(TmAp(TmVar(m0), y0)) || is_some_tm(step(TmAp(TmVar(m0), y0)))) do step end
+| TmLam(w0, q0) => from is_value(TmAp(TmLam(w0, q0), y0)) do step end; from false || is_some_tm(step(TmAp(TmLam(w0, q0), y0))) do step end; induction is_value(y0)
+| true => from step(TmAp(TmLam(w0, q0), y0)) do rewrite step_beta end end; from is_some_tm(SomeTm(subst((0, y0, q0)))) do rewrite some_tm_is_some end end
+| false => from step(TmAp(TmLam(w0, q0), y0)) do rewrite step_lam_ap2 end end; induction step(y0) as sy
 | NoTm => ?
-| SomeTm(u0) => from step(y0) do axiom sy end end; from is_some_tm(case SomeTm(u0) | NoTm => NoTm | SomeTm(yp) => SomeTm(TmAp(TmLam(w0, q0), yp)) end) do eval end
+| SomeTm(u0) => from step(y0) do rewrite sy end end; from is_some_tm(case SomeTm(u0) | NoTm => NoTm | SomeTm(yp) => SomeTm(TmAp(TmLam(w0, q0), yp)) end) do step end
 end
 end
-| TmAp(f0, a0) => revert is_value(x0) == true => from x0 do axiom hx0 end end; from is_value(TmAp(f0, a0)) == true do eval end; from false == true do eval end; from false ==> (is_value(TmAp(TmAp(f0, a0), y0)) || is_some_tm(step(TmAp(TmAp(f0, a0), y0)))) do eval end
+| TmAp(f0, a0) => revert is_value(x0) == true => from x0 do rewrite hx0 end end; from is_value(TmAp(f0, a0)) == true do step end; from false == true do step end; from false ==> (is_value(TmAp(TmAp(f0, a0), y0)) || is_some_tm(step(TmAp(TmAp(f0, a0), y0)))) do step end
 end
 end
 end

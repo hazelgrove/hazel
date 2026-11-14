@@ -735,7 +735,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
     go(shard(0), 1, Tile.sorted_children(t));
   };
 
-  /* The Group keeps the tile flat when it fits (`axiom refl_eq end`) even
+  /* The Group keeps the tile flat when it fits (`rewrite refl end`) even
      when the surrounding context breaks, e.g. a proof step before a `;`. */
   let keywords_doc = (): doc => Group(keywords(~closer=Break));
 

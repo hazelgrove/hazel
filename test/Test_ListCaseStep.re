@@ -2,9 +2,9 @@ open Alcotest;
 open Language;
 
 /* In `all_lists(xs) == true` the stepper's only step is the lookup of
- * `all_lists`, which the checker's `eval` passes through silently. The
+ * `all_lists`, which the checker's `step` passes through silently. The
  * stepper offers the step the checker takes at `all_lists(xs)` instead,
- * and taking it writes an `eval` step that checks. */
+ * and taking it writes a `step` step that checks. */
 
 module Rows = Web.StepperRows;
 module Picker = Web.StepperPicker;
@@ -46,7 +46,7 @@ let case_row = (f: Fixture.t, i): Rows.t =>
 let offered = (goal: Picker.Goal.t): list(EvaluatorStep.step) =>
   List.map(fst, goal.eval_steps);
 
-/* What taking the `n`-th offered step writes, checking that it is `eval`
+/* What taking the `n`-th offered step writes, checking that it is `step`
  * focused on `exp`: the focus's selector, printed, and the 0-based index
  * of its match. */
 let written_focus = (goal: Picker.Goal.t, n, ~exp: string): (string, int) =>
@@ -58,12 +58,12 @@ let written_focus = (goal: Picker.Goal.t, n, ~exp: string): (string, int) =>
   | None => Alcotest.fail("taking the step writes nothing")
   };
 
-/* `from <exp> at <n> do eval end`, for the match with 0-based `idx`. */
+/* `from <exp> at <n> do step end`, for the match with 0-based `idx`. */
 let focused_eval = (~exp, ~idx) =>
   "from "
   ++ exp
   ++ (idx == 0 ? "" : " at " ++ string_of_int(idx + 1))
-  ++ " do eval end";
+  ++ " do step end";
 
 let replace_once = (~sub, ~by, s) =>
   switch (Str.search_forward(Str.regexp_string(sub), s, 0)) {
@@ -99,7 +99,7 @@ let check_entry = (entry: ProofMap.entry, ~outgoing: option(string)) => {
   );
 };
 
-/* Writes `eval` focused on the `idx`-th `exp` as the theorem's proof and
+/* Writes `step` focused on the `idx`-th `exp` as the theorem's proof and
  * checks it. */
 let check_written_proof = (src, ~exp, ~idx, ~outgoing) => {
   let src =
