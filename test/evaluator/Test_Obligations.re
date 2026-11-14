@@ -648,6 +648,18 @@ let test_float_disabled_for_a_later_variable = () => {
   );
 };
 
+/* A contract's goal names the definitions it uses, as written. */
+let test_contract_goal_as_written = () => {
+  let ob =
+    one_contract(
+      {|let k = 3 in
+let g = fun w -> 100 / (w - k) in
+theorem t = 1 == 1 proof from 1 == 1 do axiom refl_eq end end
+in 0|},
+    );
+  check_exp("the contract's goal", "w - k != 0", ob.goal);
+};
+
 let tests = (
   "Obligations",
   [
@@ -660,6 +672,11 @@ let tests = (
       "float is disabled for a variable the proof binds",
       `Quick,
       test_float_disabled_for_a_later_variable,
+    ),
+    test_case(
+      "a contract's goal names definitions as written",
+      `Quick,
+      test_contract_goal_as_written,
     ),
     test_case(
       "float is available at a theorem binder, all three exits live",

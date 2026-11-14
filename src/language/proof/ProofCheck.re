@@ -935,10 +935,9 @@ let definition_obligations = (~step: step_fn, ~ctx: SemanticCtx.t): ProofMap.t =
          if (Totality.is_builtin(SemanticCtx.get_ctx(ctx), name)) {
            m;
          } else {
-           /* Resolve closures and inline visible definitions so the body
-            * scan sees concrete terms; substitution keeps the id of the
-            * function node itself. */
-           let v = ProofSyntax.unwrap(value |> Substitution.in_exp(env));
+           /* The body as written: its names resolve in `env`, as a
+            * goal's do, so the obligations show them. */
+           let v = ProofSyntax.unwrap(value);
            switch (v |> Exp.term_of) {
            /* `fun p where g -> body` is `Fun(Where(p, g), body)`: split
               the contract guard back off the parameter. */
