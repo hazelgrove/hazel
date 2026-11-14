@@ -72,6 +72,55 @@ let tests = (
       )
     ),
     test_case(
+      "at a hole with a step after it, a write keeps the hole unless that step still checks",
+      `Quick,
+      () => {
+        /* `from 1 + 4 do eval end`, written in the hole. */
+        let step =
+          Proof.fresh(
+            Picker.Terms.focus(
+              ~selector=Test_Evaluator_Prelude.parse_exp("1 + 4"),
+              ~index=0,
+              Proof.fresh(EvalStep),
+            ),
+          );
+        let bridged = src => {
+          let f = Fixture.mk(src);
+          let row = first(f.rows);
+          Search.Bridge.steps(
+            ~algebra=no_algebra,
+            ~proof=f.theorem.proof,
+            Fixture.goal(f, row),
+            row,
+            [step],
+          )
+          |> List.map(written);
+        };
+        check(
+          list(string),
+          "the step after still checks",
+          ["from 1 + 4 do eval end"],
+          bridged("theorem t = 1 + 4 == 5 proof ?; eval in t"),
+        );
+        check(
+          list(string),
+          "it doesn't, and nothing leads back",
+          ["from 1 + 4 do eval end", "?"],
+          bridged(
+            "theorem t = 1 + 4 == 5 proof ?; from 1 + 4 do eval end in t",
+          ),
+        );
+      },
+    ),
+    test_case("the algebra check takes a call as an unknown", `Quick, () =>
+      check(
+        bool,
+        "a part with a call is arithmetic",
+        true,
+        Search.arithmetic(Test_Evaluator_Prelude.parse_exp("0 + len(ys)")),
+      )
+    ),
+    test_case(
       "one eval step reaches the typed goal, written where the checker takes it",
       `Quick,
       () => {

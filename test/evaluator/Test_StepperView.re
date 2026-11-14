@@ -1330,6 +1330,47 @@ module Picking = {
       },
     ),
     test_case(
+      "with no eval step left, the ghost is reflexivity inside the goal",
+      `Quick,
+      () => {
+        let goal =
+          root_goal(
+            "theorem t = forall n: Int -> n == 1 ==> n == n proof ? in t",
+          );
+        switch (Picker.Ghost.mk(goal, ~selected=None)) {
+        | Some(g) =>
+          check(string, "the rule", "refl", g.rule);
+          check(
+            string,
+            "what the goal becomes",
+            "n == 1 ==> true",
+            print(g.result),
+          );
+        | None => Alcotest.fail("no ghost")
+        };
+      },
+    ),
+    test_case(
+      "on an equation, the ghost steps a part only one side has, the left first",
+      `Quick,
+      () => {
+        let goal =
+          root_goal(
+            "let len = fun xs -> case xs | [] => 0 | _ :: t => 1 + len(t) end in theorem t = forall ys: [Int] -> len([] @ ys) == len([]) + len(ys) proof ? in t",
+          );
+        check(
+          ghost_t,
+          "ghost",
+          Some((
+            "eval",
+            "from $e @ $e do eval end",
+            "len(ys) == len([]) + len(ys)",
+          )),
+          ghost(goal),
+        );
+      },
+    ),
+    test_case(
       "Induction chooses among the goal's variables of an inductive type, Cases among its variables and calls",
       `Quick,
       () => {

@@ -22,13 +22,15 @@ open Language;
  * that part; an eval step, which may unfold a definition first, is kept
  * either way.
  *
- * The search goes `max_depth` steps deep and checks at most `max_checks`
- * candidates. It runs in slices (`run`), so a slow check never holds up
- * typing for longer than one candidate takes. */
+ * The search goes `max_depth` steps deep, one more on a small goal, and
+ * checks at most `max_checks` candidates. It runs in slices (`run`), so a
+ * slow check never holds up typing for longer than one candidate takes. */
 
 module Picker = StepperPicker;
 
 let max_depth = 3;
+/* A goal of at most this many nodes is searched one step deeper. */
+let small_goal = 15;
 let max_checks = 300;
 /* The parts a step may act on, nearest the differing part first. */
 let max_parts = 40;
@@ -67,6 +69,7 @@ type t = {
   /* Every goal reached, in the form `wanted` is in. */
   seen: list(Exp.t),
   checks: int,
+  depth: int,
 };
 
 /* Goals compared up to ascriptions and the names of binders. */
@@ -148,14 +151,18 @@ let start = (goal: Picker.Goal.t, ~wanted: Exp.t): t => {
     next: [],
     seen: [here],
     checks: 0,
+    depth: size(here) <= small_goal ? max_depth + 1 : max_depth,
   };
 };
 
-/* What can be checked as `rewrite`: arithmetic, with no booleans in it. */
+/* What can be checked as `rewrite`: arithmetic, with no booleans in it.
+ * The algebra check treats a call as an unknown, the same unknown for
+ * equal calls, so `0 + len(ys)` is `len(ys)`. */
 let rec arithmetic = (e: Exp.t): bool =>
   switch (Exp.term_of(e)) {
   | Atom(Int(_))
-  | Var(_) => true
+  | Var(_)
+  | Ap(_) => true
   | Parens(e)
   | UnOp(Int(Minus), e) => arithmetic(e)
   | BinOp(Int(Plus | Minus | Times | Divide | Power), a, b) =>
@@ -446,7 +453,7 @@ let run =
         |> List.find_map(e => Exp.find_by_id(Exp.rep_id(e), node.goal))
         |> Option.value(~default=node.goal);
       let steps =
-        List.length(node.steps) >= max_depth
+        List.length(node.steps) >= t.depth
           ? []
           : differing(compared, t.wanted)
             |> Option.map(((part, wanted)) => (written(part), wanted))
@@ -613,5 +620,132 @@ let items =
   | ([_, ..._], _) => List.map(name => Complete(name), completions)
   | ([], Some(s)) => List.map(use => Use(use), s.found)
   | ([], None) => []
+  };
+};
+
+/* Writing at a hole with a step after it, as in `?; from 1 + 4 do eval
+ * end`. A hole passes its goal through, so that step was written against
+ * the hole's goal, and steps written in the hole change the goal it acts
+ * on. The steps are written in place of the hole when the step after
+ * still checks once they are taken. Otherwise the search looks for steps
+ * back to the hole's goal: found, they are written too; not found, the
+ * hole stays after the written steps, marking the gap still to bridge. */
+module Bridge = {
+  /* The step after `hole` in its chain in `proof`. */
+  let step_after = (proof: Proof.t, hole: Proof.t): option(Proof.t) => {
+    let rec chain = (p: Proof.t): list(Proof.t) =>
+      switch (StepperRows.split(p)) {
+      | (head, Some(rest)) => [head, ...chain(rest)]
+      | (head, None) => [head]
+      };
+    let found = ref(None);
+    let _: Proof.t =
+      Proof.map_term(
+        ~f_proof=
+          (continue, p) => {
+            switch (p.term, found^) {
+            | (Seq(_), None) =>
+              let steps = chain(p);
+              switch (
+                List.find_index(
+                  s => Proof.rep_id(s) == Proof.rep_id(hole),
+                  steps,
+                )
+              ) {
+              | Some(i) => found := List.nth_opt(steps, i + 1)
+              | None => ()
+              };
+            | _ => ()
+            };
+            continue(p);
+          },
+        proof,
+      );
+    found^;
+  };
+
+  /* Bounds the search a write runs before the write lands. */
+  let max_checks = 40;
+
+  let rec is_rewrite = (step: Proof.t) =>
+    switch (step.term) {
+    | EvalStep
+    | AxiomStep(_)
+    | AlgebriteStep(_) => true
+    | Focus({body, _})
+    | Parens(body) => is_rewrite(StepperRows.unparen(body))
+    | EmptyHole
+    | Invalid(_)
+    | MultiHole(_)
+    | Seq(_)
+    | Forall(_)
+    | Funext(_)
+    | Assume(_)
+    | Have(_)
+    | Generalize(_)
+    | Revert(_)
+    | Alias(_)
+    | Contradiction(_)
+    | Induction(_) => false
+    };
+
+  /* What writing `steps` at `row`, whose goal is `goal`, writes: the steps
+   * alone, unless `row` is a hole with a step after it in `proof`. */
+  let steps =
+      (
+        ~algebra: (Exp.t, Exp.t) => bool,
+        ~proof: Proof.t,
+        goal: Picker.Goal.t,
+        row: StepperRows.t,
+        steps: list(Proof.t),
+      )
+      : list(Proof.t) => {
+    let seq = steps =>
+      switch (List.rev(steps)) {
+      | [] => None
+      | [last, ...earlier] =>
+        Some(
+          List.fold_left(
+            (rest, step) => Proof.fresh(Seq(step, rest)),
+            last,
+            earlier,
+          ),
+        )
+      };
+    let after =
+      row.kind == Hole && List.for_all(is_rewrite, steps)
+        ? step_after(proof, row.step) : None;
+    switch (after, seq(steps)) {
+    | (Some(next), Some(written)) =>
+      let next_checks =
+        Picker.check(goal, goal.written, Proof.fresh(Seq(written, next)))
+        != None;
+      switch (Picker.outgoing(goal, goal.written, written)) {
+      | _ when next_checks => steps
+      | Some(reached) =>
+        let from =
+          Picker.Goal.mk(~settings=goal.settings, ~ctx=goal.ctx, reached);
+        let checks = ref(0);
+        let search =
+          run(
+            ~continue_=
+              () => {
+                incr(checks);
+                checks^ <= max_checks;
+              },
+            ~algebra,
+            from,
+            start(from, ~wanted=goal.written),
+          );
+        switch (search.status) {
+        | Found(more) => steps @ more
+        | Searching
+        | NotFound => steps @ [Proof.fresh(EmptyHole)]
+        };
+      | None => steps @ [Proof.fresh(EmptyHole)]
+      };
+    | (None, _)
+    | (_, None) => steps
+    };
   };
 };

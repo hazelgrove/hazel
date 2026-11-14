@@ -687,12 +687,50 @@ module Ghost = {
       };
     let is_node = (e: Exp.t) => Exp.rep_id(e) == Exp.rep_id(node);
     let inside = id => Exp.find_by_id(id, node) != None;
+    /* The step to take in `node`. On an equation, a part that also occurs
+     * on the other side is left alone, as stepping it only makes the sides
+     * differ, and the left side goes first; then the outermost part. */
+    let preferred_step = {
+      let sides =
+        switch (Exp.term_of(ProofSyntax.unwrap(node))) {
+        | BinOp(Poly(Equals), l, r) => Some((l, r))
+        | _ => None
+        };
+      let rank = (source: Exp.t) => {
+        let (shared, right) =
+          switch (sides) {
+          | Some((l, r)) =>
+            let on_left = Exp.find_by_id(Exp.rep_id(source), l) != None;
+            (Occurrence.index(source, on_left ? r : l) != None, !on_left);
+          | None => (false, false)
+          };
+        let depth =
+          self_and_ancestors(Exp.rep_id(source), node)
+          |> Option.fold(~none=0, ~some=List.length);
+        (shared, right, depth);
+      };
+      Goal.step_ids(goal)
+      |> List.mapi((idx, id) => (idx, id))
+      |> List.filter(((_, id)) => inside(id))
+      |> List.filter_map(((idx, id)) =>
+           Exp.find_by_id(id, goal.written)
+           |> Option.map(source => (rank(source), idx))
+         )
+      |> List.stable_sort(((a, _), (b, _)) => compare(a, b))
+      |> List.map(snd)
+      |> ListUtil.hd_opt;
+    };
+    /* Reflexivity inside the part, as in `n == 1 ==> n == n`, only when
+     * no eval step is left. */
     let candidate =
-      List.exists(is_node, goal.refls)
-        ? Some(("refl", refl(goal, node)))
-        : List.find_index(inside, Goal.step_ids(goal))
-          |> Option.bind(_, take_step(goal))
-          |> Option.map(pick => ("eval", pick));
+      switch (List.exists(is_node, goal.refls), preferred_step) {
+      | (true, _) => Some(("refl", refl(goal, node)))
+      | (false, Some(idx)) =>
+        take_step(goal, idx) |> Option.map(pick => ("eval", pick))
+      | (false, None) =>
+        List.find_opt((e: Exp.t) => inside(Exp.rep_id(e)), goal.refls)
+        |> Option.map(e => ("refl", refl(goal, e)))
+      };
     let* (rule, pick) = candidate;
     let proof = focused(pick);
     let* checked = check(goal, goal.written, proof);

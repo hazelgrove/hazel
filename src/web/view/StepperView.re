@@ -1417,6 +1417,23 @@ module View = {
     let take_focus = f => signal(MakeActive(f));
     let focused = f => selected == Some(f);
     let code = code(~globals);
+    /* The patch writing `steps` at `row`, bridging to the step after a
+     * hole. */
+    let write_steps = (row: Rows.t, steps: list(Proof.t)) =>
+      (
+        switch (Model.find(row.key, model)) {
+        | Some(local) =>
+          StepSearch.Bridge.steps(
+            ~algebra=RewriteChecker.check_rewrite,
+            ~proof,
+            local.goal,
+            row,
+            steps,
+          )
+        | None => steps
+        }
+      )
+      |> Picker.write_steps(row);
     /* Writes `pick` as the step after `row`'s goal, forcing the record
      * open, or the row just written would not be on screen. A form with an
      * argument then takes the caret into it: the backing editor's caret
@@ -1439,13 +1456,17 @@ module View = {
         | (_, None)
         | (Some(_), _) => []
         };
-      Ui_effect.Many(
-        [
-          globals.inject_global(Set(Evaluation(ForceShowRecord))),
-          edit_syntax(Picker.write(row, pick)),
-        ]
-        @ into_arg,
-      );
+      switch (write_steps(row, [Picker.focused(pick)])) {
+      | Some(patch) =>
+        Ui_effect.Many(
+          [
+            globals.inject_global(Set(Evaluation(ForceShowRecord))),
+            edit_syntax(patch),
+          ]
+          @ into_arg,
+        )
+      | None => Ui_effect.Ignore
+      };
     };
     /* A slice of the proof text, edited in place in the backing editor.
      * Read-only while the slice can't be found there (the statics lagging
@@ -1774,7 +1795,7 @@ module View = {
                 ~write=write(row),
                 ~write_steps=
                   steps =>
-                    switch (Picker.write_steps(row, steps)) {
+                    switch (write_steps(row, steps)) {
                     | Some(patch) =>
                       Ui_effect.Many([
                         globals.inject_global(
