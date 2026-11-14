@@ -151,9 +151,9 @@ let insert_shard_core =
   };
 };
 
-/* Proof steps with a `with` or `as` variant share the plain step's
+/* Proof steps with a `with`, `as` or `at` variant share the plain step's
  * leading token, so they expand to the plain form and the later
- * `with`/`as` token switches the tile to the variant. This rewrites the
+ * `with`/`as`/`at` token switches the tile to the variant. This rewrites the
  * nearest tile left of the caret that `variant` maps to a new family. The
  * scan stops at any other incomplete tile, since the token belongs to it:
  * `rewrite <e> with` awaits its own `with`. */
@@ -206,6 +206,12 @@ let as_variant = (t: Tile.t): option(Form.family) =>
   | _ => None
   };
 
+let at_variant = (t: Tile.t): option(Form.family) =>
+  switch (t.form, t.shards) {
+  | (Compound(ProofFocus), [0]) => Some(ProofFocusAt)
+  | _ => None
+  };
+
 /* "as" is a prefix of "assume", so typing `assume` passes through an
  * "as" token that switches an enclosing assume/induction to its as-form,
  * and the next keystroke removes that "as" shard again. An as-form whose
@@ -215,6 +221,13 @@ let plain_of_as_variant = (t: Tile.t): option(Form.family) =>
   switch (t.form, t.shards) {
   | (Compound(ProofAssumeAs), [0]) => Some(ProofAssume)
   | (Compound(ProofInductionAs), [0]) => Some(ProofInduction)
+  | _ => None
+  };
+
+/* As for "as": "at" is a prefix of names like `atom`. */
+let plain_of_at_variant = (t: Tile.t): option(Form.family) =>
+  switch (t.form, t.shards) {
+  | (Compound(ProofFocusAt), [0]) => Some(ProofFocus)
   | _ => None
   };
 
@@ -236,6 +249,10 @@ let insert_shard =
     t == "as" && Zipper.find_missing_shard(t, z) == None
       ? switch_variant(as_variant, z)
       : switch_variant(plain_of_as_variant, z);
+  let z =
+    t == "at" && Zipper.find_missing_shard(t, z) == None
+      ? switch_variant(at_variant, z)
+      : switch_variant(plain_of_at_variant, z);
   if (Zipper.find_missing_shard(t, z) != None) {
     let z = destroy_selection(z);
     let target = Zipper.find_missing_shard(t, z) |> Option.get;

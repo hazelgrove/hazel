@@ -1165,15 +1165,10 @@ and parenthesize_proof =
     )
     |> rewrap
   | EvalStep => proof
-  /* An ordinal is a prefix at `fun_` over the selector. */
   | Focus({ordinal, selector, body}) =>
     Focus({
       ordinal,
-      selector:
-        go_exp(
-          ~level=Option.is_some(ordinal) ? Precedence.fun_ : Precedence.min,
-          selector,
-        ),
+      selector: go_exp(selector),
       body: go(body),
     })
     |> rewrap
@@ -3582,35 +3577,30 @@ and proof_to_pretty = (~settings: Settings.t, p: Proof.t): pretty => {
   | EvalStep => p_just(wrap(p, [mk_form(ProofEval, id, [])]))
   | Focus({ordinal, selector, body}) =>
     let+ sel = exp_to_pretty(~settings, selector)
+    and+ at =
+      switch (ordinal) {
+      | Some({term: n, annotation}) when n > 1 =>
+        let at: Exp.t = {
+          term: Atom(Int(Bigint.of_int(n))),
+          annotation,
+        };
+        Some(exp_to_pretty(~settings, at));
+      | Some(_)
+      | None => None
+      }
     and+ b = go(body);
     /* `from` isn't a keyword to the spacing heuristics, which would glue
-       it to a following `(` or ordinal, so the slot opens with a space
-       unless its stored whitespace already does. */
-    let spaced = (seg: Segment.t): Segment.t =>
-      switch (seg) {
-      | [Secondary(_), ..._] => seg
-      | _ => [Secondary(mk_space(Id.mk())), ...seg]
+       it to a following `(`, so the slot opens with a space unless its
+       stored whitespace already does. */
+    let sel =
+      switch (sel) {
+      | [Secondary(_), ..._] => sel
+      | _ => [Secondary(mk_space(Id.mk())), ...sel]
       };
-    let slot =
-      switch (ordinal) {
-      | None => spaced(sel)
-      | Some(o) =>
-        let (form, sort) =
-          Form.classify_label(Sort.Exp, [Token.Ordinal.to_string(o.term)]);
-        let tile =
-          Piece.Tile({
-            id: IdTagged.rep_id(o),
-            form,
-            sort,
-            shards: [0],
-            children: [],
-          });
-        spaced(
-          wrap_with_secondary(~secondary=settings.secondary, o, [tile])
-          @ spaced(sel),
-        );
-      };
-    wrap(p, [mk_form(ProofFocus, id, [slot, b])]);
+    switch (at) {
+    | None => wrap(p, [mk_form(ProofFocus, id, [sel, b])])
+    | Some(at) => wrap(p, [mk_form(ProofFocusAt, id, [sel, at, b])])
+    };
   | Induction(scrut, as_name, cases) =>
     /* The PRul child is `<scrut> | p => body | ...`. With an `as` name
        the scrutinee becomes the form's own child and the name leads the

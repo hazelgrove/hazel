@@ -331,10 +331,9 @@ let rows_of: family => list(row) =
   | ProofInductionAs => [mk_op_c(L, Proof, [Exp, PRul])]
   /* `alias <name> = <fact> => <proof>` */
   | ProofAlias => [mk_pre_c(L, P.fun_, Proof, [Pat, Exp])]
-  /* `from <selector> do <proof> end`. An ordinal before the selector
-     (`from 2nd x do`) is a prefix token in the selector's slot (see
-     `Ordinal` below). */
-  | ProofFocus => [mk_op_c(L, Proof, [Exp, Proof])];
+  | ProofFocus => [mk_op_c(L, Proof, [Exp, Proof])]
+  /* `from <selector> at <n> do <proof> end`, the nth occurrence. */
+  | ProofFocusAt => [mk_op_c(L, Proof, [Exp, Exp, Proof])];
 
 /* Join a family's rows with its label (FormId.label_of_family, the
  * label's single home). Failfast: a mold whose child count disagrees
@@ -539,9 +538,6 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
       Token.is_int,
       [op(Exp), op(Pat), op(Drv(Exp)), op(Drv(Typ))],
     )
-  /* Molded as a prefix so that `2nd x + 1` reads as the ordinal over the
-     whole selector. Outside a focus it is an unknown operator. */
-  | Ordinal => (Token.is_ordinal, [Mold.mk_pre(P.fun_, Exp, [])])
   | FloatLit => (Token.is_float, [op(Exp), op(Pat)])
   | LivelitName => (Token.is_livelit, [op(Exp), op(Pat)])
   | ProjectorInvoke => (

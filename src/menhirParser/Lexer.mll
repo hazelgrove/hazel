@@ -29,7 +29,7 @@ let prover_keywords : (string, token) Hashtbl.t =
       ("contradiction", CONTRADICTION); ("induction", INDUCTION);
       ("alias", ALIAS); ("as", AS); ("axiomrev", AXIOM_REV);
       ("axiom", AXIOM); ("rewrite", REWRITE); ("with", WITH);
-      ("from", FROM); ("do", DO) ];
+      ("from", FROM); ("at", AT); ("do", DO) ];
   t
 
 let advance_line lexbuf =
@@ -53,8 +53,6 @@ let parse_float_string s =
 let float = ['0'-'9']+ '.' ['0'-'9']*
 (* negative ints are done through unop *)
 let int = ['0'-'9'] ['0'-'9']*
-(* `1st`, `2nd`, ...; Token.Ordinal decides which spellings are ordinals. *)
-let ordinal = ['1'-'9'] ['0'-'9']* ("st" | "nd" | "rd" | "th")
 
 let string = '"' ([^ '"' '\\'] | '\\' _)* '"'
 let quoted_label = '`' ([^ '`' '\\'] | '\\' [''' '\\'])* '`'
@@ -127,10 +125,6 @@ rule token =
     | whitespace {token lexbuf }
     | comment { token lexbuf }
     | newline { advance_line lexbuf; token lexbuf}
-    | ordinal as o
-      { match Language.Token.Ordinal.of_string o with
-        | Some n -> ORDINAL n
-        | None -> raise (Failure ("Lex error: not an ordinal: " ^ o)) }
     | ints as i { INT (Bigint.of_string i) }
     | float as f { FLOAT (parse_float_string f )}
     | string as s { STRING (String.sub s 1 (String.length s - 2)) }

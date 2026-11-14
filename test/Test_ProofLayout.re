@@ -93,10 +93,10 @@ t|},
   layout(
     ~name="a focus on a metavariable selector",
     ~input=
-      "theorem t = 1 == 1 proof from 2nd $e([]) do eval end; from $e(a, h) do eval; eval end in t",
+      "theorem t = 1 == 1 proof from $e([]) at 2 do eval end; from $e(a, h) do eval; eval end in t",
     ~expected=
       {|theorem t = 1 == 1 proof
-  from 2nd $e([]) do eval end;
+  from $e([]) at 2 do eval end;
   from $e(a, h) do
     eval;
     eval
@@ -336,8 +336,8 @@ let total = fun prices -> case prices | [] => 0 | p :: rest => p + total(rest) e
 let add = fun (acc, p) -> acc + p in
 
 # Warm-ups #
-theorem ordinals = (1 + 1) * (1 + 1) == 4 proof
-  from 2nd 1 + 1 do eval end;
+theorem occurrences = (1 + 1) * (1 + 1) == 4 proof
+  from 1 + 1 at 2 do eval end;
   from 1 + 1 do eval end;
   from 2 * 2 do eval end;
   eval
@@ -462,7 +462,7 @@ in
 /* The theorems of `examples` whose proofs are written as the pretty printer
    lays them out. */
 let canonical_theorems = [
-  "ordinals",
+  "occurrences",
   "nested",
   "algebra",
   "under_fun",
@@ -717,13 +717,13 @@ module Edit = {
         let z = Lazy.force(examples_zipper);
         check(
           string,
-          "ordinals",
+          "occurrences",
           replace_first(
             ~before="  from 2 * 2 do eval end;\n  eval\nin",
             ~after="  from 2 * 2 do eval end;\n  eval;\n  eval\nin",
             serialize(z),
           ),
-          serialize(add_step(eval_step(), "ordinals", z)),
+          serialize(add_step(eval_step(), "occurrences", z)),
         );
       },
     ),
@@ -1091,9 +1091,9 @@ in t|};
     test_case("Tab keeps steps the user put on one line", `Quick, () =>
       check_write(
         ~src=
-          "theorem t = (1 + 1) * (1 + 1) == 4 proof\n  from 2nd 1 + 1 do eval end;   from 1 + 1 do eval end;\n  eval\nin t",
+          "theorem t = (1 + 1) * (1 + 1) == 4 proof\n  from 1 + 1 at 2 do eval end;   from 1 + 1 do eval end;\n  eval\nin t",
         ~expected=
-          "theorem t = (1 + 1) * (1 + 1) == 4 proof\n  from 2nd 1 + 1 do eval end;   from 1 + 1 do eval end;\n  eval;\n  eval\nin t",
+          "theorem t = (1 + 1) * (1 + 1) == 4 proof\n  from 1 + 1 at 2 do eval end;   from 1 + 1 do eval end;\n  eval;\n  eval\nin t",
         z =>
         Patches.write(
           row(End, Edit.last_step(Edit.proof_of("t", zipper_term(z)))),

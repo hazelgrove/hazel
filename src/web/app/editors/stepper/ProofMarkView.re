@@ -100,8 +100,13 @@ let message = (~globals, m: ProofMark.t): list(Node.t) => {
   | FloatAlgebrite => [
       text("Algebraic rewrites are refused on float-typed expressions."),
     ]
+  | PatternNotFound({selector, ordinal: 1}) => [
+      text("Could not find "),
+      view_exp_box(selector),
+      text(" in the goal."),
+    ]
   | PatternNotFound({selector, ordinal}) => [
-      text("Could not find a " ++ Token.Ordinal.to_string(ordinal) ++ " "),
+      text("Could not find occurrence " ++ string_of_int(ordinal) ++ " of "),
       view_exp_box(selector),
       text(" in the goal."),
     ]

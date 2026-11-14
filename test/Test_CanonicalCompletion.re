@@ -1879,7 +1879,7 @@ let clippable_guard_tests = {
            (Form.symbolic_delim_prefixes = `-`, `=`), which mold at all
            four sorts. All four also count the proof's one-token `eval`,
            which as a bare word takes the atomic molds. */
-        "Exp 69/107 | Pat 11/107 | Typ 15/107 | TPat 5/107 | Rul 1/107",
+        "Exp 69/108 | Pat 11/108 | Typ 15/108 | TPat 5/108 | Rul 1/108",
         table,
       )
     ),

@@ -351,13 +351,13 @@ let pattern_tests = [
         `Quick,
         pattern_check("1 + 2", "1 + 3", false),
       ),
-      /* A focus's ordinal indexes among pattern matches.
+      /* A focus's `at n` indexes among pattern matches.
        * 1. The match is the parenthesized node: pattern matching
        *    ignores parens, so the outermost matching node is `(1 + 2)`
        *    itself, which is also the node the exact-match lookup
        *    returns.
        * 2. Matches count left to right in the source. `nth_pattern` uses
-       *    the same traversal as `Occurrence.nth`, so an ordinal counts
+       *    the same traversal as `Occurrence.nth`, so `at n` counts
        *    pattern matches in the order it counts exact occurrences. */
       test_case(
         "nth_exp_pat: first $v + $v match",

@@ -1176,7 +1176,7 @@ and check_subgoal =
   (outgoing, record(~ctx, ~marks, ~obligations, id, incoming, outgoing, m));
 }
 
-/* `from <ordinal> <selector> do <body> end`: the body is a chain of its
+/* `from <selector> at <n> do <body> end`: the body is a chain of its
  * own whose incoming goal is the selected occurrence, and the focus's
  * outgoing is the goal with that occurrence replaced by the body's
  * outgoing. Every step of the body relates its goals by `==`, so by

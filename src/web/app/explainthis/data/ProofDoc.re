@@ -244,7 +244,7 @@ let focus = (~selector_id: Id.t, ~body_id: Id.t): Simple.t => {
     ),
     explanation:
       Printf.sprintf(
-        "Focuses on the first occurrence of the [*selector*](%s) in the goal, or a later one with `2nd`, `3rd`, … before it, counting left to right, and runs the [*steps*](%s) on that subterm alone. Their result goes back into the goal in place of the occurrence: each step rewrote the subterm to an equal one, so the goal is equal too. The selector may use `$e` to match any expression, `$v` any value and `$x` any variable. It may match inside a `fun`, a `forall`, a `let` body or a case arm; there each variable bound around the occurrence is a fixed, arbitrary value, as under `forall x =>`, so facts about an outer variable of the same name don't apply. The steps' obligations are their own.",
+        "Focuses on the first occurrence of the [*selector*](%s) in the goal, or the nth with `at n` after it, counting from 1, left to right, and runs the [*steps*](%s) on that subterm alone. Their result goes back into the goal in place of the occurrence: each step rewrote the subterm to an equal one, so the goal is equal too. The selector may use `$e` to match any expression, `$v` any value and `$x` any variable. It may match inside a `fun`, a `forall`, a `let` body or a case arm; there each variable bound around the occurrence is a fixed, arbitrary value, as under `forall x =>`, so facts about an outer variable of the same name don't apply. The steps' obligations are their own.",
         selector_id |> Id.to_string,
         body_id |> Id.to_string,
       ),
@@ -253,9 +253,9 @@ let focus = (~selector_id: Id.t, ~body_id: Id.t): Simple.t => {
         sub_id: ProofFocus1,
         term:
           mk_example(
-            "theorem t = (1 + 2) + (3 + 4) == 10 proof from 2nd $v + $v do eval end; from $v + $v do eval end; eval; eval in 0",
+            "theorem t = (1 + 2) + (3 + 4) == 10 proof from $v + $v at 2 do eval end; from $v + $v do eval end; eval; eval in 0",
           ),
-        message: "`$v + $v` matches an addition of two values. `2nd` picks the second, so the first focus evaluates `3 + 4`, leaving `(1 + 2) + 7 == 10`; the second evaluates `1 + 2`. Then the root steps twice: `3 + 7` to `10`, and `10 == 10` to `true`.",
+        message: "`$v + $v` matches an addition of two values. `at 2` picks the second, so the first focus evaluates `3 + 4`, leaving `(1 + 2) + 7 == 10`; the second evaluates `1 + 2`. Then the root steps twice: `3 + 7` to `10`, and `10 == 10` to `true`.",
       },
     ],
   };

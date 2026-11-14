@@ -58,11 +58,11 @@ let written_focus = (goal: Picker.Goal.t, n, ~exp: string): (string, int) =>
   | None => Alcotest.fail("taking the step writes nothing")
   };
 
-/* `from <ordinal> <exp> do eval end`, for the match with 0-based `idx`. */
+/* `from <exp> at <n> do eval end`, for the match with 0-based `idx`. */
 let focused_eval = (~exp, ~idx) =>
   "from "
-  ++ (idx == 0 ? "" : Token.Ordinal.to_string(idx + 1) ++ " ")
   ++ exp
+  ++ (idx == 0 ? "" : " at " ++ string_of_int(idx + 1))
   ++ " do eval end";
 
 let replace_once = (~sub, ~by, s) =>

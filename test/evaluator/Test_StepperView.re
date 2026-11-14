@@ -2354,7 +2354,7 @@ module Focusing = {
         check(
           string,
           "the second `1 + 1`",
-          "from 2nd ($e + $e) do eval end",
+          "from ($e + $e) at 2 do eval end",
           eval_written(row, goal, second),
         );
         check(
@@ -2362,7 +2362,7 @@ module Focusing = {
           "it selects the second `1 + 1`",
           "(1 + 1) * 2 == 4",
           ends_on(
-            "theorem t = (1 + 1) * (1 + 1) == 4 proof from 2nd ($e + $e) do eval end in t",
+            "theorem t = (1 + 1) * (1 + 1) == 4 proof from ($e + $e) at 2 do eval end in t",
           ),
         );
       },
@@ -2502,7 +2502,7 @@ module Focusing = {
       () => {
         let f =
           Fixture.mk(
-            "theorem t = (1 + 1) * (1 + 1) == 4 proof from 2nd 1 + 1 do eval end; eval in t",
+            "theorem t = (1 + 1) * (1 + 1) == 4 proof from 1 + 1 at 2 do eval end; eval in t",
           );
         let row = first(f.rows);
         check(
@@ -2526,7 +2526,7 @@ module Focusing = {
       () => {
         let f =
           Fixture.mk(
-            "theorem t = (2 + 3) * 2 + (2 + 3) * 2 == 20 proof from 2nd (2 + 3) * 2 do from 2 + 3 do eval end; eval end; eval in t",
+            "theorem t = (2 + 3) * 2 + (2 + 3) * 2 == 20 proof from (2 + 3) * 2 at 2 do from 2 + 3 do eval end; eval end; eval in t",
           );
         let row = first(f.rows);
         check(
@@ -2571,7 +2571,7 @@ module Focusing = {
       () => {
         let f =
           Fixture.mk(
-            "theorem t = (1 + 1) * (1 + 1) == 4 proof from 2nd 1 + 1 do eval end; eval in t",
+            "theorem t = (1 + 1) * (1 + 1) == 4 proof from 1 + 1 at 2 do eval end; eval in t",
           );
         let row = first(f.rows);
         let goal =

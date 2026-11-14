@@ -22,7 +22,6 @@ type atomic_form =
   | String
   | QuotedLabel
   | IntLit
-  | Ordinal
   | FloatLit
   | BoolLit
   | LivelitName
@@ -164,7 +163,8 @@ type family =
   | ProofAssumeAs
   | ProofInductionAs
   | ProofAlias
-  | ProofFocus;
+  | ProofFocus
+  | ProofFocusAt;
 
 /* A form identity, sort-free: label is derived from the form alone;
  * the mold is derived from (form, sort) where sort is the tile's
@@ -300,7 +300,8 @@ let label_of_family: family => Label.t =
   | ProofAssumeAs => ["assume", "as", "=>"]
   | ProofInductionAs => ["induction", "as", "end"]
   | ProofAlias => ["alias", "=", "=>"]
-  | ProofFocus => ["from", "do", "end"];
+  | ProofFocus => ["from", "do", "end"]
+  | ProofFocusAt => ["from", "at", "do", "end"];
 
 let label_of: t => Label.t =
   fun

@@ -984,11 +984,6 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           TyAlias(tpat, def, r)
         | (F(Compound(If)), [Exp(cond), Exp(conseq)]) =>
           If(cond, conseq, r)
-        /* A focus's ordinal (`from 2nd x + 1 do`), read back off the
-           lexeme by the proof form. */
-        | (F(Tok(t)), []) when Token.is_ordinal(t) =>
-          set_lexeme(t);
-          hole(tm);
         | _ => hole(tm)
         },
       )
@@ -1830,43 +1825,44 @@ and proof_term: unsorted => (Proof.term, list(Id.t)) = {
         ) =>
         ret(Contradiction(e, Some((var, inst))))
       | (F(Compound(ProofEval)), []) => ret(EvalStep)
-      /* An ordinal parses as an unknown prefix operator over the rest of
-         the selector, a one-kid MultiHole whose lexeme is the ordinal. The
-         ordinal keeps that hole's annotation, so its token prints back
-         with its id and whitespace. Its tile id is also absorbed, as
-         induction absorbs its rules'. */
       | (F(Compound(ProofFocus)), [Exp(selector), Proof(body)]) =>
-        switch (selector) {
-        | {
-            term: MultiHole([Exp(inner)]),
-            annotation: {lexeme: Some(t), ids, _} as annotation,
-          }
-            when Token.is_ordinal(t) =>
+        ret(
+          Focus({
+            ordinal: None,
+            selector,
+            body,
+          }),
+        )
+      /* The occurrence keeps its literal's annotation, so it prints back
+         with its id and whitespace, and the focus absorbs the literal's
+         tile id. Anything but a positive literal makes the focus a hole. */
+      | (
+          F(Compound(ProofFocusAt)),
+          [Exp(selector), Exp(at), Proof(body)],
+        ) =>
+        let n =
+          switch (at.term) {
+          | Atom(Int(n)) => Bigint.to_int(n)
+          | _ => None
+          };
+        switch (n) {
+        | Some(n) when n >= 1 =>
+          let ids = at.annotation.ids;
           adopted_ids := ids @ adopted_ids^;
           (
             Focus({
               ordinal:
-                Token.Ordinal.of_string(t)
-                |> Option.map(n =>
-                     Annotated.{
-                       term: n,
-                       annotation,
-                     }
-                   ),
-              selector: inner,
+                Some({
+                  term: n,
+                  annotation: at.annotation,
+                }),
+              selector,
               body,
             }),
             ids,
           );
-        | _ =>
-          ret(
-            Focus({
-              ordinal: None,
-              selector,
-              body,
-            }),
-          )
-        }
+        | _ => ret(hole(tm))
+        };
       | (F(Compound(ProofInduction)), [PRul(prul)]) =>
         induction(tm, prul, (scrut, cases) => Induction(scrut, None, cases))
       /* The PRul's leading term is the `as` name (see

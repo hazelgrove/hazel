@@ -1034,15 +1034,28 @@ end|}),
       {|Assume: nested|},
       {|theorem x = 1 proof assume 2 == 2 => assume 3 == 3 => from y do axiom y end end in x|},
     ),
-    /* Proof: a focus. An ordinal is a token of its own in the selector's
-       slot, so it has to come back out with its space. */
+    /* Proof: a focus. The occurrence after `at` keeps its whitespace. */
     roundtrip_test(
-      {|Focus: ordinal|},
-      {|theorem x = 1 proof from 2nd y + 1 do eval end in x|},
+      {|Focus: at|},
+      {|theorem x = 1 proof from y + 1 at 2 do eval end in x|},
+    ),
+    roundtrip_test(
+      {|Focus: at, spaced|},
+      {|theorem x = 1 proof from y + 1  at  2  do eval end in x|},
+    ),
+    /* "at" is a prefix of `atom`, which switches the focus to its `at`
+       form while it is typed (see `Insert.plain_of_at_variant`). */
+    roundtrip_test(
+      {|Focus: a selector starting with at|},
+      {|theorem x = 1 proof from atom do eval end in x|},
+    ),
+    roundtrip_test(
+      {|Focus: at, after a selector starting with at|},
+      {|theorem x = 1 proof from atom at 2 do eval end in x|},
     ),
     roundtrip_test(
       {|Focus: nested, several steps|},
-      {|theorem x = 1 proof from 11th y do from z do eval; eval end end in x|},
+      {|theorem x = 1 proof from y at 11 do from z do eval; eval end end in x|},
     ),
     /* Proof: explicit instantiation (`with <var> = <exp>` on a citation
        step). Each with-variant is a distinct compound form beside its
@@ -2137,8 +2150,8 @@ let proof_embedded_paren_tests = {
 
 /* A focus's selector reads back as the same term from its `from … do`
    slot, whatever form it is: the slot is delimited, so the selector needs
-   no parentheses (only an ordinal before it binds, at `fun_`). Checked
-   with both parsers, and with the linebreaks the printer puts in. */
+   no parentheses. Checked with both parsers, and with the linebreaks the
+   printer puts in. */
 let selector_roundtrip_test = (~ordinal=?, selector: string) =>
   test_case(
     selector,

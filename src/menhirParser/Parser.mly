@@ -138,7 +138,7 @@ open AST
 %token WITH
 %token FROM
 %token DO
-%token <int> ORDINAL
+%token AT
 
 
 
@@ -484,7 +484,8 @@ proof:
     | AXIOM_REV; eq = exp; WITH; v = exp; SINGLE_EQUAL; i = exp; END { ProofAxiomRevWith(eq, v, i) }
     | REWRITE; e = exp; END { ProofAlgebrite(e) }
     | EVAL { ProofEval }
-    | FROM; n = option(ORDINAL); sel = exp; DO; pf = proof; END { ProofFocus(n, sel, pf) }
+    | FROM; sel = exp; DO; pf = proof; END { ProofFocus(None, sel, pf) }
+    | FROM; sel = exp; AT; n = INT; DO; pf = proof; END { ProofFocus(Some(Bigint.to_int_exn n), sel, pf) }
     | CONTRADICTION; e = exp; END { ProofContradiction(e) }
     | CONTRADICTION; e = exp; WITH; v = exp; SINGLE_EQUAL; i = exp; END { ProofContradictionWith(e, v, i) }
     | INDUCTION; e = exp; cases = list(prul); END { ProofInduction(e, cases) }

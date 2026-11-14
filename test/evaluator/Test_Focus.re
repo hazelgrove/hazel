@@ -2,7 +2,7 @@ open Alcotest;
 open Language;
 open Test_ProofMap.Harness;
 
-/* `from <ordinal> <selector> do <steps> end`: the steps act on one
+/* `from <selector> at <n> do <steps> end`: the steps act on one
  * occurrence of the selector, and their result is put back in the goal.
  * The rewrite steps themselves act only at the root of their goal. */
 
@@ -32,11 +32,11 @@ let nothing_to_step: ProofMark.t => bool =
   | NothingToStep => true
   | _ => false;
 
-let test_ordinal_selects_the_nth_match = () => {
+let test_at_selects_the_nth_match = () => {
   let (pm, proof) =
     run_named(
       "t",
-      "theorem t = (1 + 1) * (1 + 1) == 4 proof from 2nd 1 + 1 do eval end; ? in t",
+      "theorem t = (1 + 1) * (1 + 1) == 4 proof from 1 + 1 at 2 do eval end; ? in t",
     );
   check(
     string,
@@ -50,7 +50,7 @@ let test_missing_occurrence_is_marked = () => {
   let (pm, proof) =
     run_named(
       "t",
-      "theorem t = (1 + 1) * (1 + 1) == 4 proof from 3rd 1 + 1 do eval end in t",
+      "theorem t = (1 + 1) * (1 + 1) == 4 proof from 1 + 1 at 3 do eval end in t",
     );
   check(
     bool,
@@ -157,23 +157,29 @@ let test_outer_fact_does_not_reach_under_a_binder = () => {
   );
 };
 
-let test_ordinals = () => {
-  check(
-    list(string),
-    "spelled",
-    ["1st", "2nd", "3rd", "4th", "11th", "12th", "13th", "21st", "112th"],
-    List.map(Token.Ordinal.to_string, [1, 2, 3, 4, 11, 12, 13, 21, 112]),
+/* Anything but a positive literal after `at` makes the focus a hole. */
+let test_occurrence_is_a_positive_literal = () =>
+  List.iter(
+    at => {
+      let (_, proof) =
+        run_named(
+          "t",
+          "theorem t = 1 + 1 == 2 proof from 1 + 1 at "
+          ++ at
+          ++ " do eval end in t",
+        );
+      check(
+        bool,
+        "`at " ++ at ++ "` is not a focus",
+        false,
+        switch (proof.term) {
+        | Focus(_) => true
+        | _ => false
+        },
+      );
+    },
+    ["0", "x", "?"],
   );
-  check(
-    list(option(int)),
-    "read back, and only in their own spelling",
-    [Some(22), Some(101), None, None, None, None],
-    List.map(
-      Token.Ordinal.of_string,
-      ["22nd", "101st", "2th", "0th", "01st", "st"],
-    ),
-  );
-};
 
 /* A selector that is just a definition's name finds it in the goal. */
 let test_selector_naming_a_definition = () => {
@@ -199,11 +205,15 @@ let test_selector_naming_a_definition = () => {
 let tests = (
   "Evaluator.Focus",
   [
-    test_case("ordinals", `Quick, test_ordinals),
     test_case(
-      "an ordinal selects the nth match",
+      "an occurrence is a positive literal",
       `Quick,
-      test_ordinal_selects_the_nth_match,
+      test_occurrence_is_a_positive_literal,
+    ),
+    test_case(
+      "at n selects the nth match",
+      `Quick,
+      test_at_selects_the_nth_match,
     ),
     test_case(
       "a missing occurrence is marked",

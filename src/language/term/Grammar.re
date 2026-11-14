@@ -193,7 +193,7 @@ and proof_term('a) =
   /* `eval`: one evaluation step at the root, a rewrite whose replacement
    * is computed. The checker takes the step function as a parameter. */
   | EvalStep
-  /* `from <selector> do <proof> end`, or `from 2nd <selector> do ...`:
+  /* `from <selector> do <proof> end`, or `from <selector> at 2 do ...`:
    * check <proof> against one occurrence of <selector> in the goal, and
    * put its result back in place of that occurrence. The selector may use
    * the `$e`/`$v`/`$x` metavariables. `ordinal` counts matches from 1,

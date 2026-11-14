@@ -1361,10 +1361,10 @@ let test_pattern_eval_step_outgoing = () => {
 /* `$v` is value-restricted, so it discriminates where `$e` would not:
  * in `(1 + 2) + (3 + 4)` the outer sum has non-value operands, so it is
  * not a `$v + $v` match and only the two inner sums are. This also
- * exercises ordinals among *pattern* matches, which count left to
- * right, so `2nd` is the right sum. */
+ * exercises `at n` among *pattern* matches, which count left to
+ * right, so `at 2` is the right sum. */
 let test_pattern_value_metavar_indexing = () => {
-  let src = {|theorem t = (1 + 2) + (3 + 4) == 10 proof from 2nd $v + $v do eval end in t|};
+  let src = {|theorem t = (1 + 2) + (3 + 4) == 10 proof from $v + $v at 2 do eval end in t|};
   let (state, _, elab) = src |> parse_exp |> eval_with_proof;
   let entry = proof_entry(state, elab);
   check_exp(

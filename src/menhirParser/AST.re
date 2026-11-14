@@ -212,7 +212,7 @@ and proof =
   /* `rewrite <replacement> end` */
   | ProofAlgebrite(exp)
   | ProofEval
-  /* `from [<ordinal>] <selector> do <proof> end` */
+  /* `from <selector> [at <n>] do <proof> end` */
   | ProofFocus(option(int), exp, proof)
   /* `contradiction <exp> end` */
   | ProofContradiction(exp)

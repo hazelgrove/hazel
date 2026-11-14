@@ -1310,8 +1310,8 @@ let ex5 = list_of_mylist(x) in
         "theorem t = 2 == 2 proof eval in t",
       ),
       menhir_maketerm_equivalent_test(
-        "Proof focus with an ordinal and two steps",
-        "theorem t = (1 + 1) * (1 + 1) == 4 proof from 2nd 1 + 1 do eval; rewrite 2 end end in t",
+        "Proof focus at an occurrence, with two steps",
+        "theorem t = (1 + 1) * (1 + 1) == 4 proof from 1 + 1 at 2 do eval; rewrite 2 end end in t",
       ),
       menhir_maketerm_equivalent_test(
         "Proof induction",

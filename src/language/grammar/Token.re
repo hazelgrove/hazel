@@ -233,38 +233,6 @@ let is_int = str =>
 
 let is_bad_int = str => match(int_regexp, str) && !is_int(str);
 
-/* `1st`, `2nd`, `3rd`, `4th`, …, `11th`, `21st`: which occurrence a proof
-   focus selects, counting from 1. Only the English suffix for the number
-   reads as an ordinal, so `2th` is not one. */
-module Ordinal = {
-  let to_string = (n: int): string => {
-    let suffix =
-      switch (n mod 100, n mod 10) {
-      | (11 | 12 | 13, _) => "th"
-      | (_, 1) => "st"
-      | (_, 2) => "nd"
-      | (_, 3) => "rd"
-      | _ => "th"
-      };
-    string_of_int(n) ++ suffix;
-  };
-
-  let of_string = (t: string): option(int) => {
-    let digits = String.length(t) - 2;
-    if (digits < 1 || t.[0] == '0') {
-      None;
-    } else {
-      switch (int_of_string_opt(String.sub(t, 0, digits))) {
-      | Some(n) when n >= 1 && to_string(n) == t => Some(n)
-      | Some(_)
-      | None => None
-      };
-    };
-  };
-};
-
-let is_ordinal = (t: string): bool => Ordinal.of_string(t) != None;
-
 /* NOTE: As well as making is_float  disjoint from is_int,
    the is_arbitary_int  also prevents ints over int_max from being
    cast as floats. The is_arbitary_float check is necessary to prevent
