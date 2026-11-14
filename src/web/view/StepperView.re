@@ -1418,7 +1418,7 @@ module View = {
     let focused = f => selected == Some(f);
     let code = code(~globals);
     /* The patch writing `steps` at `row`, bridging to the step after a
-     * hole. */
+     * hole, with each focus's selector generalized. */
     let write_steps = (row: Rows.t, steps: list(Proof.t)) =>
       (
         switch (Model.find(row.key, model)) {
@@ -1430,6 +1430,7 @@ module View = {
             row,
             steps,
           )
+          |> StepSearch.generalized(local.goal)
         | None => steps
         }
       )

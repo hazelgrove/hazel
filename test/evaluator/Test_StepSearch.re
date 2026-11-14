@@ -72,6 +72,24 @@ let tests = (
       )
     ),
     test_case(
+      "the steps found are written with their selectors generalized",
+      `Quick,
+      () => {
+        let g = goal(arithmetic);
+        switch (search(g, "4 == 4").status) {
+        | Found(steps) =>
+          check(
+            list(string),
+            "steps",
+            ["from ($e + $e) do eval end", "from $e * $e do eval end"],
+            List.map(written, Search.generalized(g, steps)),
+          )
+        | Searching
+        | NotFound => Alcotest.fail("no steps found")
+        };
+      },
+    ),
+    test_case(
       "at a hole with a step after it, a write keeps the hole unless that step still checks",
       `Quick,
       () => {

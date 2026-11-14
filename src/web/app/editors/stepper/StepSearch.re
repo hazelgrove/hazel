@@ -623,6 +623,74 @@ let items =
   };
 };
 
+/* `steps`, taken one after another from `goal`, with each focus's
+ * selector generalized as the stepper's own picks are (`Picker.target`):
+ * as much of it replaced by `$e` as still selects the same part of the
+ * goal the focus starts from. */
+let generalized = (goal: Picker.Goal.t, steps: list(Proof.t)): list(Proof.t) => {
+  let info_map = Picker.Goal.info_map(goal);
+  let env = Picker.Goal.env(goal);
+  let generalize = (from: Exp.t, step: Proof.t): Proof.t =>
+    switch (step.term) {
+    | Focus({ordinal, selector, body}) =>
+      let index =
+        (
+          ordinal |> Option.map(Annotated.term_of) |> Option.value(~default=1)
+        )
+        - 1;
+      switch (
+        Occurrence.nth_env_target(~info_map, ~env, selector, index, from)
+      ) {
+      | Some(part) =>
+        let (selector, index) =
+          Occurrence.generalize(
+            ~info_map,
+            ~env,
+            ~index,
+            selector,
+            Exp.rep_id(part),
+            from,
+          );
+        Proof.fresh(Picker.Terms.focus(~selector, ~index, body));
+      | None => step
+      };
+    | EmptyHole
+    | Invalid(_)
+    | MultiHole(_)
+    | Seq(_)
+    | Parens(_)
+    | EvalStep
+    | AxiomStep(_)
+    | AlgebriteStep(_)
+    | Forall(_)
+    | Funext(_)
+    | Assume(_)
+    | Have(_)
+    | Generalize(_)
+    | Revert(_)
+    | Alias(_)
+    | Contradiction(_)
+    | Induction(_) => step
+    };
+  let (_, written) =
+    List.fold_left(
+      ((from, written), step) => {
+        let step =
+          Option.fold(
+            ~none=step,
+            ~some=from => generalize(from, step),
+            from,
+          );
+        let next =
+          Option.bind(from, from => Picker.outgoing(goal, from, step));
+        (next, written @ [step]);
+      },
+      (Some(goal.written), []),
+      steps,
+    );
+  written;
+};
+
 /* Writing at a hole with a step after it, as in `?; from 1 + 4 do eval
  * end`. A hole passes its goal through, so that step was written against
  * the hole's goal, and steps written in the hole change the goal it acts
