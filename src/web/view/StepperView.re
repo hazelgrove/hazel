@@ -1751,14 +1751,17 @@ module View = {
           ]
           @ (tab == Step ? [Attr.tabindex(-1)] : []),
         arrow
-        @ [tab_bar]
-        @ (
-          switch (tab) {
-          | Write => input()
-          | Step => []
-          | Strategy => [strategies()]
-          }
-        ),
+        @ [
+          tab_bar,
+          div_c(
+            "box-body",
+            switch (tab) {
+            | Write => input()
+            | Step => []
+            | Strategy => [strategies()]
+            },
+          ),
+        ],
       );
     };
   };

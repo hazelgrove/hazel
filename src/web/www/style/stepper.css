@@ -121,8 +121,10 @@
   transition: padding-left 0.4s ease-in-out;
 }
 
+/* The box keeps room for its tabs and some text, so near the right of a
+ * long goal it stops short of the part, the arrow running into it. */
 .write-box.replacing {
-  padding-left: calc(3.3em + var(--shift));
+  padding-left: min(calc(3.3em + var(--shift)), calc(100% - 1.5em - 22em));
 }
 
 .write-arrow {
@@ -160,6 +162,7 @@
 }
 
 .box-tab {
+  white-space: nowrap;
   cursor: pointer;
   padding-bottom: 2px;
   border-bottom: 2px solid transparent;
@@ -174,13 +177,26 @@
   border-bottom-color: var(--stepper-condition-text);
 }
 
+/* What a tab shows under the tabs, at least as tall as the Write tab's
+ * box, so switching tabs doesn't move what is below. */
+.box-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25em;
+  min-height: 2.2em;
+}
+
 .box-hole-actions {
   margin-left: auto;
   display: flex;
   gap: 0.4em;
 }
 
+/* Above the arrow, which near the right of a long goal ends inside the
+ * box. */
 .box-input {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: row;
   align-items: center;
