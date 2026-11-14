@@ -471,9 +471,8 @@ let tests = (
       "proof patch preserves literal lexemes elsewhere",
       `Quick,
       () => {
-        /* `007` canonicalizes to `7` under the whole-program writer
-           (use_literal_lexemes=false), so its survival proves the
-           patch spliced locally instead of re-serializing. */
+        /* The term records `007`'s spelling, but only as a lexeme the
+           printer may drop; the patch must not. */
         let target = "let k = 007 in theorem t = 1 == 1 proof ? in k";
         let out =
           patch_proof(
@@ -766,13 +765,15 @@ let tests = (
               replacement,
             ),
           );
+        /* The first step's odd hand layout stays; only the new step's
+           line is laid out. */
         check(
           string,
           "second step chains onto the first",
-          "theorem thm = 1 + 4 == 5 proof\n"
-          ++ "  from 1 + 4 do eval end;\n"
+          "theorem thm = 1 + 4 == 5 proof \n"
+          ++ "from 1 + 4 do eval end;\n"
           ++ "  from 5 == 5 do eval end\n"
-          ++ "in?",
+          ++ "  in?",
           serialize(out),
         );
       },

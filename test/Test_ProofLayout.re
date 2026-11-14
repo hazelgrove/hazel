@@ -696,30 +696,17 @@ module Edit = {
       },
     ),
     test_case(
-      "an edit lays out only its own theorem's proof",
+      "an edit that changes nothing keeps the proof's hand layout",
       `Quick,
       () => {
+        /* The examples write fold_cons's first focus on one line, where
+           the printer would make it a block. */
         let z = Lazy.force(examples_zipper);
         check(
           string,
           "fold_cons",
-          replace_first(
-            ~before=
-              {|proof
-  from fold_left(h :: t, add, a) do eval; from add(a, h) do eval end; eval end;
-  from fold_left(t, add, a + h) do eval end;
-  axiom refl_eq end
-in|},
-            ~after=fold_cons_proof,
-            serialize(z),
-          ),
+          serialize(z),
           serialize(patch(~replacement=p => p, "fold_cons", z)),
-        );
-        check_contains(
-          ~msg="total_acc",
-          serialize(patch(~replacement=p => p, "total_acc", z)),
-          "theorem total_acc = forall prices: [Int] -> forall acc: Int -> acc + total(prices) == fold_left(prices, add, acc) "
-          ++ total_acc_proof,
         );
       },
     ),
@@ -830,8 +817,496 @@ in|},
   ];
 };
 
+/* What each stepper write leaves of the text the user wrote: comments
+   and hand layout around and inside the edited steps stay, and only the
+   new text is laid out. Each test checks the whole text after the write,
+   that every comment survives, and that the text parses to the program
+   the write makes. */
+module KeepText = {
+  module Patches = Web.StepperPicker.Patches;
+  module Terms = Web.StepperPicker.Terms;
+  module Exits = Web.Obligations.Exits;
+  module Rewrite = Haz3lcore.EditorTransform.Rewrite;
+  let serialize = Edit.serialize;
+  let zipper_term = Edit.zipper_term;
+
+  let program = {|# about t #
+theorem t = forall xs: [Int] -> rev(rev(xs)) == xs proof
+  # first #
+  induction xs  # scrut #
+  | [] =>
+    from rev([]) do axiom rev_nil end end;  # base one #
+    from rev([]) do  axiom rev_nil  end end;   axiom refl_eq end
+  | x :: t =>
+    # step #
+    from rev(x :: t) do axiom rev_cons end end;
+    from rev(rev(t)) do
+      axiom ih end;   # in focus #
+      eval
+    end;
+    axiom refl_eq end  # last #
+  end
+in t|};
+
+  let rec steps = (p: Proof.t): list(Proof.t) =>
+    switch (p.term) {
+    | Seq(a, b) => steps(a) @ steps(b)
+    | _ => [p]
+    };
+
+  let induction = (z): Proof.t => Edit.proof_of("t", zipper_term(z));
+
+  /* The steps of the induction's `i`th case. */
+  let case = (i: int, z): list(Proof.t) =>
+    switch (induction(z).term) {
+    | Induction(_, _, cases) => steps(snd(List.nth(cases, i)))
+    | _ => Alcotest.fail("not an induction")
+    };
+
+  let row = (kind: Web.StepperRows.kind, step: Proof.t): Web.StepperRows.t => {
+    key: (Proof.rep_id(step), kind == End ? Outgoing : Incoming),
+    step,
+    kind,
+    entry: None,
+    goal: None,
+    acts_on: None,
+    continues: true,
+  };
+
+  let comments = (text: string): list(string) => {
+    let rec from = pos =>
+      switch (String.index_from_opt(text, pos, '#')) {
+      | None => []
+      | Some(start) =>
+        switch (String.index_from_opt(text, start + 1, '#')) {
+        | None => []
+        | Some(stop) => [
+            String.sub(text, start, stop - start + 1),
+            ...from(stop + 1),
+          ]
+        }
+      };
+    from(0) |> List.sort(compare);
+  };
+
+  /* The program the patch makes, printed fresh and parsed back. */
+  let patched = (z, patch: Haz3lcore.EditorTransform.patch): Exp.t => {
+    let root = zipper_term(z);
+    let proof = (target_id, replacement) =>
+      Rewrite.proof_in_exp(~target_id, replacement, root);
+    let new_root =
+      switch (patch) {
+      | ExpPatch({target_id, replacement, _}) =>
+        Rewrite.exp(~target_id, replacement, root) |> Option.map(snd)
+      | ProofPatch({target_id, replacement, _}) =>
+        proof(target_id, replacement) |> Option.map(snd)
+      | ProofRemovePatch({target_id}) =>
+        let (target_id, replacement) =
+          Rewrite.step_removal(
+            ~target_id,
+            Rewrite.seq_parent_in_exp(~target_id, root),
+          );
+        proof(target_id, replacement) |> Option.map(snd);
+      };
+    switch (new_root) {
+    | Some(e) =>
+      e
+      |> Haz3lcore.ExpToSegment.exp_to_segment(
+           ~settings=Haz3lcore.ExpToSegment.Settings.editable(~inline=true),
+         )
+      |> Haz3lcore.Printer.of_segment(~holes="?", ~refractors=[])
+      |> parse_exp
+    | None => Alcotest.fail("the patch's target isn't in the program")
+    };
+  };
+
+  let check_write =
+      (
+        ~src=program,
+        ~lost: list(string)=[],
+        ~expected: string,
+        patch: Haz3lcore.Zipper.t => Haz3lcore.EditorTransform.patch,
+      ) => {
+    let z = parse_zipper(src);
+    let patch = patch(z);
+    let out = serialize(Haz3lcore.EditorTransform.apply_patch(z, patch));
+    check(string, "text", expected, out);
+    check(
+      list(string),
+      "comments",
+      List.filter(c => !List.mem(c, lost), comments(src)),
+      comments(out),
+    );
+    check(
+      bool,
+      "parses to the patched program",
+      true,
+      Exp.fast_equal(patched(z, patch), parse_exp(out)),
+    );
+  };
+
+  let eval = () => Proof.fresh(EvalStep);
+
+  let tests = [
+    test_case("Enter after a case's last step adds one line", `Quick, () =>
+      check_write(
+        ~expected=
+          Edit.replace_first(
+            ~before="   axiom refl_eq end\n",
+            ~after="   axiom refl_eq end;\n    eval\n",
+            program,
+          ),
+        z =>
+        Patches.write(row(End, Util.ListUtil.last(case(0, z))), eval())
+      )
+    ),
+    test_case(
+      "Enter after a line ending in a comment leaves the comment there",
+      `Quick,
+      () =>
+      check_write(
+        ~expected=
+          Edit.replace_first(
+            ~before="axiom refl_eq end  # last #\n",
+            ~after="axiom refl_eq end;  # last #\n    eval\n",
+            program,
+          ),
+        z =>
+        Patches.write(row(End, Util.ListUtil.last(case(1, z))), eval())
+      )
+    ),
+    test_case("Tab before a step adds one line above it", `Quick, () =>
+      check_write(
+        ~expected=
+          Edit.replace_first(
+            ~before="    from rev(rev(t)) do\n",
+            ~after="    eval;\n    from rev(rev(t)) do\n",
+            program,
+          ),
+        z =>
+        Patches.write(row(Step(Leaf), List.nth(case(1, z), 1)), eval())
+      )
+    ),
+    test_case("a step joined to a focus's steps adds one line", `Quick, () =>
+      check_write(
+        ~expected=
+          Edit.replace_first(
+            ~before="      eval\n    end;",
+            ~after="      eval;\n      eval\n    end;",
+            program,
+          ),
+        z =>
+        switch (List.nth(case(1, z), 1).term) {
+        | Focus({body, _}) => Patches.join(body, eval())
+        | _ => Alcotest.fail("not a focus")
+        }
+      )
+    ),
+    test_case(
+      "a strategy's wrapping form goes in above the step and its comment",
+      `Quick,
+      () =>
+      check_write(
+        ~expected=
+          Edit.replace_first(
+            ~before="  | x :: t =>\n",
+            ~after=
+              "  | x :: t =>\n    (\n      generalize t =>\n        ?\n    );\n",
+            program,
+          ),
+        z =>
+        Patches.write(
+          row(Step(Leaf), List.hd(case(1, z))),
+          Proof.fresh(Terms.generalize(~exp=Exp.fresh(Var("t")))),
+        )
+      )
+    ),
+    test_case("removing a step removes it and its `;` only", `Quick, () =>
+      check_write(
+        ~expected=
+          Edit.replace_first(
+            ~before="\n    from rev([]) do  axiom rev_nil  end end;   axiom",
+            ~after="\n    axiom",
+            program,
+          ),
+        z =>
+        Patches.remove(List.nth(case(0, z), 1))
+      )
+    ),
+    test_case("removing a chain's last step removes its `;`", `Quick, () =>
+      check_write(
+        ~expected=
+          Edit.replace_first(
+            ~before="    end;\n    axiom refl_eq end  # last #\n",
+            ~after="    end  # last #\n",
+            program,
+          ),
+        z =>
+        Patches.remove(Util.ListUtil.last(case(1, z)))
+      )
+    ),
+    test_case("Case adds a case and keeps the others as written", `Quick, () =>
+      check_write(
+        ~expected=
+          Edit.replace_first(
+            ~before="  # last #\n  end",
+            ~after="  # last #\n  | ? => ?\n  end",
+            program,
+          ),
+        z =>
+        switch (
+          Patches.add_case(
+            induction(z),
+            ~marks=[Language.ProofMark.InductionNotExhaustive],
+          )
+        ) {
+        | Some(patch) => patch
+        | None => Alcotest.fail("no case to add")
+        }
+      )
+    ),
+    test_case(
+      "a strategy written in place of a hole keeps the text around it",
+      `Quick,
+      () =>
+      check_write(
+        ~src="theorem t = 1 == 1 proof  # todo #\n  ?\nin t",
+        ~expected=
+          "theorem t = 1 == 1 proof  # todo #\n  induction ? end\nin t",
+        z =>
+        Patches.write(
+          row(Hole, Edit.proof_of("t", zipper_term(z))),
+          Proof.fresh(Terms.induction(~scrut=None)),
+        )
+      )
+    ),
+    test_case("a second step turns a one-line proof into a block", `Quick, () =>
+      check_write(
+        ~src="theorem t = 1 == 1 proof  eval # done # in t",
+        ~expected="theorem t = 1 == 1 proof\n  eval;\n  eval # done #\nin t",
+        z =>
+        Patches.write(row(End, Edit.proof_of("t", zipper_term(z))), eval())
+      )
+    ),
+    test_case("Tab keeps steps the user put on one line", `Quick, () =>
+      check_write(
+        ~src=
+          "theorem t = (1 + 1) * (1 + 1) == 4 proof\n  from 2nd 1 + 1 do eval end;   from 1 + 1 do eval end;\n  eval\nin t",
+        ~expected=
+          "theorem t = (1 + 1) * (1 + 1) == 4 proof\n  from 2nd 1 + 1 do eval end;   from 1 + 1 do eval end;\n  eval;\n  eval\nin t",
+        z =>
+        Patches.write(
+          row(End, Edit.last_step(Edit.proof_of("t", zipper_term(z)))),
+          eval(),
+        )
+      )
+    ),
+    test_case(
+      "flipping an axiom's direction rewrites only its keyword", `Quick, () =>
+      check_write(
+        ~src="theorem t = 1 == 1 proof\n  axiom  # which #  refl_eq end\nin t",
+        ~expected=
+          "theorem t = 1 == 1 proof\n  axiomrev  # which #  refl_eq end\nin t",
+        z => {
+          let step = Edit.proof_of("t", zipper_term(z));
+          switch (step.term) {
+          | AxiomStep(a) =>
+            Haz3lcore.EditorTransform.mk_proof_patch(
+              ~target_id=Proof.rep_id(step),
+              {
+                ...step,
+                term:
+                  AxiomStep({
+                    ...a,
+                    direction: Util.Direction.toggle(a.direction),
+                  }),
+              },
+            )
+          | _ => Alcotest.fail("not an axiom step")
+          };
+        },
+      )
+    ),
+    test_case("a rebuilt node keeps its steps' literal spellings", `Quick, () =>
+      check_write(
+        ~src=
+          "theorem t = forall b: Bool -> 1 == 1 proof\n  induction b\n  | true => from 007 + 1 do eval end\n  end\nin t",
+        ~expected=
+          "theorem t = forall b: Bool -> 1 == 1 proof\n  induction b\n  | true => from 007 + 1 do eval end\n  | ? => ?\n  end\nin t",
+        z =>
+        switch (
+          Patches.add_case(
+            Edit.proof_of("t", zipper_term(z)),
+            ~marks=[Language.ProofMark.InductionNotExhaustive],
+          )
+        ) {
+        | Some(patch) => patch
+        | None => Alcotest.fail("no case to add")
+        }
+      )
+    ),
+    test_case(
+      "the caret stays by the text it was at",
+      `Quick,
+      () => {
+        let with_caret = (z: Haz3lcore.Zipper.t) =>
+          Haz3lcore.Printer.of_zipper(~holes="?", ~caret="¦", z);
+        let at = (step: Proof.t, z) =>
+          switch (
+            Haz3lcore.Move.jump_to_side_of_id(Left, z, Proof.rep_id(step))
+          ) {
+          | Some(z) => z
+          | None => Alcotest.fail("can't put the caret at the step")
+          };
+        let write = z =>
+          Haz3lcore.EditorTransform.apply_patch(
+            z,
+            Patches.write(
+              row(End, Util.ListUtil.last(case(0, z))),
+              eval(),
+            ),
+          );
+        let z = parse_zipper(program);
+        let edited = Util.ListUtil.last(case(0, z));
+        let later = List.nth(case(1, z), 1);
+        List.iter(
+          ((name, step, before)) =>
+            check_contains(
+              ~msg=name,
+              with_caret(write(at(step, z))),
+              "¦" ++ before,
+            ),
+          [
+            (
+              "at the step written after",
+              edited,
+              "axiom refl_eq end;\n    eval",
+            ),
+            ("at a later step", later, "from rev(rev(t)) do"),
+          ],
+        );
+      },
+    ),
+  ];
+
+  // Side-condition exits
+
+  module ET = Test_EditorTransform;
+
+  let exits_program = {|let f = fun n ->
+  # the body #
+  8  /  n
+in
+theorem t = forall n: Int ->  # any n #
+  8 / n == 8 / n proof
+  # first #
+  from 8 / n do eval end;  # one #
+  eval
+in t|};
+
+  let first_eval_origin = z =>
+    switch (ET.find_proofs(ET.is_eval_step, ET.exits_ctx_of(z).proof)) {
+    | [first, ..._] => Proof.rep_id(first)
+    | [] => Alcotest.fail("no eval steps")
+    };
+
+  let exit_tests = [
+    test_case("the have exit wraps the steps and keeps their text", `Quick, () =>
+      check_write(
+        ~src=exits_program,
+        ~expected=
+          Edit.replace_first(
+            ~before=
+              "proof\n  # first #\n  from 8 / n do eval end;  # one #\n  eval\n",
+            ~after=
+              "proof\n  have n != 0 proof ? =>\n    # first #\n    from 8 / n do eval end;  # one #\n    eval\n",
+            exits_program,
+          ),
+        z =>
+        ET.require_patch(
+          "have",
+          Exits.have_patch(
+            ~ctx=ET.exits_ctx_of(z),
+            ET.mk_obligation(~origin=first_eval_origin(z), ~goal="n != 0"),
+          ),
+        )
+      )
+    ),
+    test_case(
+      "the split exit wraps the steps and keeps their text", `Quick, () =>
+      check_write(
+        ~src=exits_program,
+        ~expected=
+          Edit.replace_first(
+            ~before="  from 8 / n do eval end;  # one #\n  eval\n",
+            ~after=
+              "  induction n != 0\n  | true =>\n    from 8 / n do eval end;  # one #\n    eval\n  | false => ?\n  end\n",
+            exits_program,
+          ),
+        z =>
+        ET.require_patch(
+          "split",
+          Exits.split_patch(
+            ~ctx=ET.exits_ctx_of(z),
+            ET.mk_obligation(~origin=first_eval_origin(z), ~goal="n != 0"),
+          ),
+        )
+      )
+    ),
+    test_case("the float exit restricts the binder in place", `Quick, () =>
+      check_write(
+        ~src=exits_program,
+        ~expected=
+          Edit.replace_first(
+            ~before="forall n: Int ->",
+            ~after="forall n: (Int) where n != 0 ->",
+            exits_program,
+          ),
+        z => {
+          let ctx = ET.exits_ctx_of(z);
+          ET.require_patch(
+            "float",
+            Exits.float_patch(
+              ~ctx,
+              ET.mk_obligation(
+                ~origin=Proof.rep_id(ctx.proof),
+                ~goal="n != 0",
+              ),
+            ),
+          );
+        },
+      )
+    ),
+    test_case(
+      "the contract exit keeps the function's body as written", `Quick, () =>
+      check_write(
+        ~src=exits_program,
+        ~expected=
+          Edit.replace_first(
+            ~before="fun n ->",
+            ~after="fun n where n != 0 ->",
+            exits_program,
+          ),
+        z => {
+          let func = List.hd(ET.find_funs(zipper_term(z)));
+          switch (
+            Exits.for_contract(
+              ~func=Some(func),
+              ET.mk_obligation(~origin=Exp.rep_id(func), ~goal="n != 0"),
+            )
+          ) {
+          | [{patch: Some(patch), _}, ..._] => patch
+          | _ => Alcotest.fail("no contract exit")
+          };
+        },
+      )
+    ),
+  ];
+};
+
 let tests = [
   ("ProofLayout.Forms", form_tests),
   ("ProofLayout.Examples", examples_tests),
   ("ProofLayout.Edits", Edit.tests),
+  ("ProofLayout.KeepText", KeepText.tests @ KeepText.exit_tests),
 ];
