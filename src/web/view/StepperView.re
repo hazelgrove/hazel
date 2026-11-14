@@ -272,7 +272,8 @@ module Update = {
       chosen: None,
       generation: box.generation + 1,
       edits: box.edits + 1,
-      paused: false,
+      /* An empty box has nothing to hold back. */
+      paused: Model.is_empty(box),
     };
   };
 
