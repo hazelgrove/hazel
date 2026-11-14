@@ -2724,7 +2724,8 @@ module Focusing = {
 /* What a write leaves for the next one: focus on the box where the proof
  * goes on, open on the same tab. */
 module Writing = {
-  /* A theorem's cell, with the zipper of its program, which writes patch. */
+  /* A theorem's cell, and the zipper of its program, which patches are
+   * written into. */
   type t = {
     zipper: Zipper.t,
     f: Fixture.t,

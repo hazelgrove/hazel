@@ -1894,32 +1894,44 @@ module View = {
         @ focus,
       );
     };
-    /* A form with an argument takes the caret into it instead of the box:
-     * the backing editor's caret moves into the new argument (a sub-editor
-     * takes no edits, and draws no caret, while the caret is outside it),
-     * the new step's sub-editor takes focus, and DOM focus follows after
-     * the render, as the click left it on the button. */
+    /* A form with an argument to fill in takes the caret into it instead of
+     * the box: the backing editor's caret moves into the new argument (a
+     * sub-editor takes no edits, and draws no caret, while the caret is
+     * outside it), the new step's sub-editor takes focus, and DOM focus
+     * follows after the render, as the click left it on the button. */
     let write = (row: Rows.t, pick: Picker.pick) => {
       let step = pick.step;
       let steps = final_steps(row, [Picker.focused(pick)]);
-      switch (
-        pick.at,
-        Picker.Terms.arg_id(step.term),
-        Picker.write_steps(row, steps),
-      ) {
-      | (_, _, None) => Ui_effect.Ignore
-      | (None, Some(arg_id), Some(patch)) =>
+      let into = (patch, id, slot: Focus.slot) =>
         Ui_effect.Many([
           globals.inject_global(Set(Evaluation(ForceShowRecord))),
           edit_syntax(patch),
-          backing.inject(Perform(Move(Goal(TileId(arg_id))))),
-          take_focus(Splice(Proof.rep_id(step), Arg)),
+          backing.inject(Perform(Move(Goal(TileId(id))))),
+          take_focus(Splice(Proof.rep_id(step), slot)),
           Ui_effect.of_sync_fun(
             () => Haz3lcore.FocusEffect.schedule_cell(),
             (),
           ),
-        ])
-      | (_, _, Some(patch)) => write_patch(row, steps, patch)
+        ]);
+      switch (
+        Picker.write_steps(row, steps),
+        pick.at,
+        Picker.Terms.arg_id(step.term),
+        step.term,
+      ) {
+      | (None, _, _, _) => Ui_effect.Ignore
+      | (Some(patch), None, Some(arg_id), _) => into(patch, arg_id, Arg)
+      /* An induction on a scrutinee still to fill in has no case, and so
+       * no box, yet. */
+      | (
+          Some(patch),
+          None,
+          None,
+          Induction({term: EmptyHole, _} as scrut, _, []),
+        ) =>
+        into(patch, Exp.rep_id(scrut), Scrut)
+      | (Some(patch), None, None, _)
+      | (Some(patch), Some(_), _, _) => write_patch(row, steps, patch)
       };
     };
     let write_steps = (row: Rows.t, steps: list(Proof.t)) => {
