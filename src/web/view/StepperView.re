@@ -80,18 +80,36 @@ module Model = {
     tab: option(tab),
   };
 
+  /* A step deleted with steps inside it, which the stepper offers to put
+   * back. */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type deletion = {
+    step: Proof.t,
+    /* The steps it took with it, itself included. */
+    count: int,
+    place,
+  }
+  /* Where it goes back: before or after the step it was chained with, or
+   * in place of the hole it left. */
+  and place =
+    | Before(Id.t)
+    | After(Id.t)
+    | Over(Id.t);
+
   /* Each row's state, by its key (StepperRows.key). */
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     incoming: Id.Map.t(local),
     outgoing: Id.Map.t(local),
     last_write: option(write),
+    deletion: option(deletion),
   };
 
   let init = {
     incoming: Id.Map.empty,
     outgoing: Id.Map.empty,
     last_write: None,
+    deletion: None,
   };
 
   let find = ((id, side): Rows.key, model: t): option(local) =>
@@ -150,7 +168,10 @@ module Update = {
     | ToggleCondition(int)
     /* A step was written at the row, and the proof goes on at the box
      * with this key, which keeps the row's tab. */
-    | Wrote(Rows.key);
+    | Wrote(Rows.key)
+    /* The stepper's own actions, whatever the row. */
+    | Deleted(Model.deletion)
+    | ForgetDeletion;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = (Rows.key, action);
@@ -290,9 +311,21 @@ module Update = {
   let update =
       (~settings: Settings.t, (key, action): t, model: Model.t)
       : Updated.t(Model.t) =>
-    switch (Model.find(key, model)) {
-    | None => model |> Updated.raise_invalid_action
-    | Some(local) =>
+    switch (action, Model.find(key, model)) {
+    | (Deleted(deletion), _) =>
+      {
+        ...model,
+        deletion: Some(deletion),
+      }
+      |> Updated.return_quiet
+    | (ForgetDeletion, _) =>
+      {
+        ...model,
+        deletion: None,
+      }
+      |> Updated.return_quiet
+    | (_, None) => model |> Updated.raise_invalid_action
+    | (_, Some(local)) =>
       open Updated;
       let set = (local: Model.local) =>
         Model.add(
@@ -485,6 +518,7 @@ module Update = {
       | (Wrote(next), _) =>
         {
           ...model,
+          deletion: None,
           last_write:
             Some({
               from: local.goal,
@@ -500,6 +534,7 @@ module Update = {
         |> return_quiet
       | (Tab(_) | BoxEditor(_) | Choose(_) | Complete(_) | Menu(_), None) =>
         model |> raise_invalid_action
+      | (Deleted(_) | ForgetDeletion, _) => model |> return_quiet
       };
     };
 
@@ -698,6 +733,7 @@ module Update = {
       {
         ...Model.init,
         last_write: checking ? model.last_write : None,
+        deletion: model.deletion,
       },
       Rows.all(rows),
     );
@@ -1987,6 +2023,73 @@ module View = {
         goal_editor(~hints, ~previewing, ~into_box, row, local)
       | (None, None) => div_c("step-placeholder", [Node.text("—")])
       };
+    /* Deletes `step`, its `;` with it, or leaves a hole when it is the
+     * whole proof. A step with others inside it is remembered with where
+     * it was, so that the note above the stepper can put it back. */
+    let delete = (step: Proof.t) => {
+      let id = Proof.rep_id(step);
+      let rec beside = (p: Proof.t): option(Model.place) =>
+        switch (p.term) {
+        | Seq(a, b) when Proof.rep_id(a) == id =>
+          Some(Before(Proof.rep_id(b)))
+        | Seq(a, b) when Proof.rep_id(b) == id =>
+          Some(After(Proof.rep_id(a)))
+        | _ => List.find_map(beside, Proof.children(p))
+        };
+      let (patch, place) =
+        switch (beside(proof)) {
+        | Some(place) => (Picker.Patches.remove(step), place)
+        | None =>
+          let hole = Proof.fresh(EmptyHole);
+          (
+            Haz3lcore.EditorTransform.mk_proof_patch(~target_id=id, hole),
+            Model.Over(Proof.rep_id(hole)),
+          );
+        };
+      let rec count = (p: Proof.t) =>
+        List.fold_left(
+          (n, child) => n + count(child),
+          switch (p.term) {
+          | Seq(_)
+          | Parens(_)
+          | EmptyHole
+          | Invalid(_)
+          | MultiHole(_) => 0
+          | AxiomStep(_)
+          | AlgebriteStep(_)
+          | EvalStep
+          | Focus(_)
+          | Contradiction(_)
+          | Forall(_)
+          | Funext(_)
+          | Assume(_)
+          | Revert(_)
+          | Generalize(_)
+          | Have(_)
+          | Alias(_)
+          | Induction(_) => 1
+          },
+          Proof.children(p),
+        );
+      let count = count(step);
+      Ui_effect.Many(
+        (
+          count > 1
+            ? [
+              inject((
+                (id, Incoming),
+                Deleted({
+                  step,
+                  count,
+                  place,
+                }),
+              )),
+            ]
+            : []
+        )
+        @ [edit_syntax(patch)],
+      );
+    };
     let checking = (row: Rows.t) =>
       switch (Model.find(row.key, model)) {
       | Some(local) => local.checking
@@ -2018,11 +2121,17 @@ module View = {
      * at: a quiet row shaped like a step row, so the chain reads evenly. A
      * focus's chain rewrites part of a goal, so it aims at nothing. */
     let rec chain =
-            (~top=false, ~target=!is_toplevel, rows: list(Rows.t))
+            (
+              ~top=false,
+              ~target=!is_toplevel,
+              ~note: list(Node.t)=[],
+              rows: list(Rows.t),
+            )
             : list(Node.t) => [
       Node.div(
         ~attrs=[Attr.classes(["stepper", "cell-result"])],
-        rows_view(~top, ~prev_broken=None, rows)
+        note
+        @ rows_view(~top, ~prev_broken=None, rows)
         @ (
           target && !ProofCheck.is_true(Rows.reached(rows))
             ? [Row.target(~globals)] : []
@@ -2119,7 +2228,7 @@ module View = {
           ~status,
           ~show_equiv=prev_broken == None,
           ~checking=checking(row),
-          ~delete=Some(edit_syntax(Picker.Patches.remove(step))),
+          ~delete=Some(delete(step)),
           ~popup_extra,
           ~repair=
             Row.repairs(~edit_syntax, ~info_map, ~proof_map, status, step),
@@ -2505,6 +2614,74 @@ module View = {
             globals.settings.core.evaluation,
           )
         : [];
-    settings_modal @ chain(~top=true, Rows.chain(~proof_map, proof));
+    /* After a delete that took several steps, a note offering to put them
+     * back, for as long as where they go is still there. */
+    let deletion_note =
+      switch (model.deletion) {
+      | Some({step, count, place}) =>
+        let rec find = (id, p: Proof.t) =>
+          Proof.rep_id(p) == id
+            ? Some(p) : List.find_map(find(id), Proof.children(p));
+        let put_back =
+          switch (place) {
+          | Before(id) =>
+            find(id, proof)
+            |> Option.map(next => Proof.fresh(Seq(step, next)))
+            |> Option.map(
+                 Haz3lcore.EditorTransform.mk_proof_patch(~target_id=id),
+               )
+          | After(id) =>
+            find(id, proof)
+            |> Option.map(prev => Proof.fresh(Seq(prev, step)))
+            |> Option.map(
+                 Haz3lcore.EditorTransform.mk_proof_patch(~target_id=id),
+               )
+          | Over(id) =>
+            find(id, proof)
+            |> Option.map(_ =>
+                 Haz3lcore.EditorTransform.mk_proof_patch(~target_id=id, step)
+               )
+          };
+        let forget =
+          inject(((Proof.rep_id(proof), Incoming), ForgetDeletion));
+        switch (put_back) {
+        | Some(patch) => [
+            div_c(
+              "deletion-note",
+              [
+                Node.text(Printf.sprintf("Deleted %d steps", count)),
+                Node.button(
+                  ~attrs=[
+                    Attr.classes(["deletion-undo"]),
+                    Attr.title("Put them back"),
+                    Attr.on_click(_ =>
+                      Ui_effect.Many([
+                        forget,
+                        globals.inject_global(
+                          Set(Evaluation(ForceShowRecord)),
+                        ),
+                        edit_syntax(patch),
+                      ])
+                    ),
+                  ],
+                  [Node.text("Undo")],
+                ),
+                Node.button(
+                  ~attrs=[
+                    Attr.classes(["deletion-dismiss"]),
+                    Attr.title("Dismiss"),
+                    Attr.on_click(_ => forget),
+                  ],
+                  [Node.text("×")],
+                ),
+              ],
+            ),
+          ]
+        | None => []
+        };
+      | None => []
+      };
+    settings_modal
+    @ chain(~top=true, ~note=deletion_note, Rows.chain(~proof_map, proof));
   };
 };
