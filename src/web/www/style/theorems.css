@@ -84,3 +84,16 @@
   padding-top: 0;
   padding-right: calc(1em + 22px);
 }
+
+/* A theorem the program no longer reaches, drawn as it was last checked
+ * until it is back. */
+.theorem.stale > :not(.theorem-header) {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.theorem-status.stale {
+  background-color: transparent;
+  border: 1px dashed var(--cell-result-text);
+  color: var(--cell-result-text);
+}

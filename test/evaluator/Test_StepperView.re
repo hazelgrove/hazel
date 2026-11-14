@@ -2859,6 +2859,57 @@ module Writing = {
       },
     ),
     test_case(
+      "a typo above a theorem keeps its stepper and its state until it is fixed",
+      `Quick,
+      () => {
+        let w = mk("theorem t = (1 + 1) * (2 + 0) == 4 proof ? in t");
+        let w = {
+          ...w,
+          f: type_(w.f, "4"),
+        };
+        let edit = (actions, w: t) => {
+          let zipper = Test_Editing.perform(w.zipper, actions);
+          {
+            zipper,
+            f: check_zipper(zipper, w.f.cell),
+          };
+        };
+        let typo = [
+          Action.Move(Start),
+          ...List.map(
+               c => Action.Insert(c),
+               ["e", "t", " ", "z", " ", "=", " ", "1", " ", "i", "n", " "],
+             ),
+        ];
+        let broken = edit(typo, w);
+        check(bool, "stale", true, broken.f.theorem.stale != None);
+        check(
+          string,
+          "the box keeps its text",
+          "4",
+          Printer.of_zipper(
+            ~holes="?",
+            box(broken.f).editor.editor.state.zipper,
+          ),
+        );
+        let fixed =
+          edit(
+            List.init(12, _ => Action.Destruct(Local(Left, ByChar))),
+            broken,
+          );
+        check(bool, "not stale", true, fixed.f.theorem.stale == None);
+        check(
+          string,
+          "the box still has its text",
+          "4",
+          Printer.of_zipper(
+            ~holes="?",
+            box(fixed.f).editor.editor.state.zipper,
+          ),
+        );
+      },
+    ),
+    test_case(
       "after each Tab, focus goes to the box where the proof goes on",
       `Quick,
       () => {

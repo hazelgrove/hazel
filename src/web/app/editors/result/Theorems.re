@@ -36,6 +36,11 @@ module Model = {
     contracts: list(Obligation.t),
     /* The contracts shown open, by index into `contracts`. */
     open_contracts: list(int),
+    /* While the program no longer reaches the theorem, or its proof can't
+     * be found, the stepper is drawn as it last was, with the proof map
+     * it was checked with, and keeps its state for when the theorem is
+     * back. */
+    stale: option(ProofMap.t),
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -63,7 +68,8 @@ module Model = {
     );
 
   let get_score = (model: t): option((float, float)) => {
-    let thms = theorems(model);
+    let thms =
+      List.filter(((_, thm)) => thm.stale == None, theorems(model));
     let proven =
       List.filter(
         ((_, thm)) =>
@@ -209,42 +215,75 @@ module Update = {
           | Some(info) => Some(info)
           | None => Statics.Map.lookup_exp(id, checked_statics.info_map)
           };
-        /* Each theorem keeps its stepper's state from the last pass, and a
-         * theorem the evaluation didn't reach goes with its state. */
-        let theorem = ((id, name, _, _)) => {
-          let (stmt, proof) =
-            switch (
-              syntax(id)
-              |> Option.map((info: Info.exp) => Exp.term_of(info.user_term))
-            ) {
-            | Some(Theorem(_, stmt, proof, _)) => (Some(stmt), proof)
-            | _ => (None, Proof.fresh(EmptyHole))
-            };
-          let (stepper, open_contracts) =
-            switch (Id.Map.find_opt(id, model.thm_map)) {
-            | Some(thm) => (thm.stepper, thm.open_contracts)
-            | None => (StepperView.Model.init, [])
-            };
-          let stepper =
-            StepperView.Update.calculate(
-              ~settings,
-              ~checking,
-              StepperRows.chain(~proof_map, proof),
-              stepper,
-            );
-          (
-            id,
-            Model.{
-              name,
-              stmt,
-              proof,
-              stepper,
-              contracts: contracts_of(id),
-              open_contracts,
-            },
-          );
+        let stale = (thm: Model.theorem) => {
+          ...thm,
+          stale: Some(Option.value(~default=model.proof_map, thm.stale)),
         };
-        let theorems = List.rev_map(theorem, dynamics.theorems);
+        /* Each theorem keeps its stepper's state from the last pass. */
+        let theorem = ((id, name, _, _)) =>
+          switch (
+            syntax(id)
+            |> Option.map((info: Info.exp) => Exp.term_of(info.user_term)),
+            Id.Map.find_opt(id, model.thm_map),
+          ) {
+          | (Some(Theorem(_, stmt, proof, _)), last) =>
+            let (stepper, open_contracts) =
+              switch (last) {
+              | Some(thm) => (thm.stepper, thm.open_contracts)
+              | None => (StepperView.Model.init, [])
+              };
+            let stepper =
+              StepperView.Update.calculate(
+                ~settings,
+                ~checking,
+                StepperRows.chain(~proof_map, proof),
+                stepper,
+              );
+            (
+              id,
+              Model.{
+                name,
+                stmt: Some(stmt),
+                proof,
+                stepper,
+                contracts: contracts_of(id),
+                open_contracts,
+                stale: None,
+              },
+            );
+          | (_, Some(thm)) => (id, stale(thm))
+          | (_, None) => (
+              id,
+              Model.{
+                name,
+                stmt: None,
+                proof: Proof.fresh(EmptyHole),
+                stepper: StepperView.Model.init,
+                contracts: contracts_of(id),
+                open_contracts: [],
+                stale: None,
+              },
+            )
+          };
+        let reached = List.rev_map(theorem, dynamics.theorems);
+        /* A theorem the evaluation didn't reach, after a typo above it,
+         * stays while it is still in the program. */
+        let unreached =
+          List.filter_map(
+            id =>
+              switch (
+                List.mem_assoc(id, reached),
+                Id.Map.find_opt(id, model.thm_map),
+                Statics.Map.lookup_exp(id, info_map),
+              ) {
+              | (false, Some(thm), Some(_)) => Some((id, stale(thm)))
+              | (true, _, _)
+              | (false, None, _)
+              | (false, _, None) => None
+              },
+            model.thms,
+          );
+        let theorems = reached @ unreached;
         {
           thms: List.map(fst, theorems),
           thm_map: Id.Map.of_list(theorems),
@@ -298,14 +337,17 @@ module View = {
         core: with_proof_settings(globals.settings.core),
       },
     };
-    let proof_map = model.proof_map;
     let theorem =
         (
           (
             id,
-            {name, stmt, proof, stepper, contracts, open_contracts}: Model.theorem,
+            {name, stmt, proof, stepper, contracts, open_contracts, stale}: Model.theorem,
           ),
         ) => {
+      let proof_map = Option.value(~default=model.proof_map, stale);
+      /* A stale stepper is for reading: its proof may not be where it was
+       * in the program. */
+      let edit_syntax = stale == None ? edit_syntax : (_ => Ui_effect.Ignore);
       let status = ProofMap.full_status_of_proof(proof_map, proof);
       let counter =
         switch (Obligations.Status.open_count(proof_map, proof)) {
@@ -365,15 +407,28 @@ module View = {
           [
             Node.strong([Node.text("Proof of theorem ")]),
             Node.text(name),
-            Node.div(
-              ~attrs=[
-                Attr.classes([
-                  "theorem-status",
-                  Obligations.Status.class_(status),
-                ]),
-              ],
-              [Node.text(Obligations.Status.label(status))],
-            ),
+            switch (stale) {
+            | Some(_) =>
+              Node.div(
+                ~attrs=[
+                  Attr.classes(["theorem-status", "stale"]),
+                  Attr.title(
+                    "The program doesn't run as far as this theorem, or its proof can't be found. This is how it was last checked.",
+                  ),
+                ],
+                [Node.text("not checked")],
+              )
+            | None =>
+              Node.div(
+                ~attrs=[
+                  Attr.classes([
+                    "theorem-status",
+                    Obligations.Status.class_(status),
+                  ]),
+                ],
+                [Node.text(Obligations.Status.label(status))],
+              )
+            },
           ]
           @ counter
           @ (dots == [] ? [] : [div_c("theorem-contracts", dots)]),
@@ -411,7 +466,12 @@ module View = {
           proof,
           stepper,
         );
-      div_c("theorem", [header] @ contracts @ stepper);
+      Node.div(
+        ~attrs=[
+          Attr.classes(["theorem"] @ (stale == None ? [] : ["stale"])),
+        ],
+        [header] @ contracts @ stepper,
+      );
     };
     List.map(theorem, Model.theorems(model));
   };
