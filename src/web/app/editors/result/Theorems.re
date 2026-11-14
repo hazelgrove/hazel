@@ -398,6 +398,8 @@ module View = {
               ~ctx={
                 stmt,
                 proof,
+                proof_map,
+                info_map: model.info_map,
               },
             ),
           proof,

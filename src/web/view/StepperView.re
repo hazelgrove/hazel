@@ -717,6 +717,8 @@ module View = {
     let repairs =
         (
           ~edit_syntax: Picker.Patches.patch => Ui_effect.t(unit),
+          ~info_map: Statics.Map.t,
+          ~proof_map: ProofMap.t,
           status: Rows.Status.t,
           step: Proof.t,
         )
@@ -728,14 +730,16 @@ module View = {
       switch (status) {
       | Broken(mark) =>
         let flip =
-          switch (mark, Picker.Patches.flip_direction(step)) {
-          | (RuleDoesNotApply(_), Some(patch)) => [
-              button(
-                ~tooltip="Apply the equality in the other direction",
-                "Try other direction",
-                patch,
-              ),
-            ]
+          switch (mark) {
+          | RuleDoesNotApply(_) =>
+            Picker.Patches.flip_direction(~info_map, ~proof_map, step)
+            |> Option.map(
+                 button(
+                   ~tooltip="Apply the equality in the other direction",
+                   "Try other direction",
+                 ),
+               )
+            |> Option.to_list
           | _ => []
           };
         flip
@@ -1661,7 +1665,8 @@ module View = {
           ~show_equiv=prev_broken == None,
           ~delete=Some(edit_syntax(Picker.Patches.remove(step))),
           ~popup_extra,
-          ~repair=Row.repairs(~edit_syntax, status, step),
+          ~repair=
+            Row.repairs(~edit_syntax, ~info_map, ~proof_map, status, step),
           ~editor_view=goal_view(~hints=false, ~prev_broken, row),
           ~justification=Node.text(justification(step)),
           ~dots,
@@ -1986,15 +1991,25 @@ module View = {
         ];
       };
       let add_case =
-        Widgets.button(
-          Node.text("Case ..."),
-          ~tooltip="Add case",
-          ~clss=["subtle-button", "add-case-button"],
-          _ =>
-          set_cases(
-            cases @ [(Pat.fresh(EmptyHole), Proof.fresh(EmptyHole))],
-          )
-        );
+        Picker.Patches.add_case(
+          step,
+          ~marks=
+            Option.fold(
+              ~none=[],
+              ~some=(e: ProofMap.entry) => e.marks,
+              row.entry,
+            ),
+        )
+        |> Option.map(patch =>
+             Widgets.button(
+               Node.text("Case ..."),
+               ~tooltip="Add case",
+               ~clss=["subtle-button", "add-case-button"],
+               _ =>
+               edit_syntax(patch)
+             )
+           )
+        |> Option.to_list;
       /* The scrutinee is edited in place, in the bar that opens the C. */
       let scrut_bar =
         div_c(
@@ -2016,9 +2031,7 @@ module View = {
       [
         div_c(
           "step-section arm",
-          [scrut_bar]
-          @ List.concat(List.mapi(case, case_rows))
-          @ [add_case],
+          [scrut_bar] @ List.concat(List.mapi(case, case_rows)) @ add_case,
         ),
       ];
     };

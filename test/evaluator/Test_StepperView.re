@@ -329,9 +329,9 @@ module Walk = {
       () => {
         let f =
           Fixture.mk(
-            "theorem t = 1 + 4 == 5 proof from 1 + 4 == 5 do axiom refl_eq end end in t",
+            "theorem t = forall x: Int -> x == 1 ==> 1 + 1 == 2 proof assume x == 1 => from 1 do axiom assume end end in t",
           );
-        let row = first(f.rows);
+        let row = first(body(first(f.rows)));
         switch (Rows.Status.of_row(row)) {
         | Broken(RuleDoesNotApply(_)) => ()
         | status =>
@@ -343,11 +343,59 @@ module Walk = {
             ),
           )
         };
+        let flips = (f: Fixture.t, row: Rows.t) =>
+          Picker.Patches.flip_direction(
+            ~info_map=f.statics.info_map,
+            ~proof_map=f.cell.theorems.proof_map,
+            row.step,
+          )
+          != None;
+        check(bool, "it can be flipped", true, flips(f, row));
+        let f =
+          Fixture.mk(
+            "theorem t = 1 + 4 == 5 proof from 1 + 4 == 5 do axiom refl_eq end end in t",
+          );
         check(
           bool,
-          "it can be flipped",
+          "reflexivity, the same both ways, can't",
+          false,
+          flips(f, first(f.rows)),
+        );
+      },
+    ),
+    test_case(
+      "an induction offers another case only while its cases don't cover its scrutinee",
+      `Quick,
+      () => {
+        let adds_case = src => {
+          let f = Fixture.mk(src);
+          let row = first(f.rows);
+          Picker.Patches.add_case(
+            row.step,
+            ~marks=
+              Option.fold(
+                ~none=[],
+                ~some=(e: ProofMap.entry) => e.marks,
+                row.entry,
+              ),
+          )
+          != None;
+        };
+        check(
+          bool,
+          "one case of two",
           true,
-          Picker.Patches.flip_direction(row.step) != None,
+          adds_case(
+            "theorem t = forall b: Bool -> b || !b proof induction b | true => ? end in t",
+          ),
+        );
+        check(
+          bool,
+          "both",
+          false,
+          adds_case(
+            "theorem t = forall b: Bool -> b || !b proof induction b | true => ? | false => ? end in t",
+          ),
         );
       },
     ),

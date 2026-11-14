@@ -162,28 +162,73 @@ module Patches = {
     );
 
   /* The repair for an axiom step that doesn't apply: the same step in
-   * the other direction. A one-step focus is drawn as its step, so it
-   * offers its step's repair. */
-  let rec flip_direction = (step: Proof.t): option(patch) =>
+   * the other direction, when that checks from the step's goal. A
+   * one-step focus is drawn as its step, so it offers its step's repair. */
+  let rec flip_direction =
+          (~info_map: Statics.Map.t, ~proof_map: ProofMap.t, step: Proof.t)
+          : option(patch) =>
     switch (step.term, StepperRows.single_step(step)) {
     | (AxiomStep({direction, equality, instantiation}), _) =>
+      let flipped: Proof.t = {
+        ...step,
+        term:
+          AxiomStep({
+            direction: Direction.toggle(direction),
+            equality,
+            instantiation,
+          }),
+      };
+      switch (ProofMap.lookup(Proof.rep_id(step), proof_map)) {
+      | Some({incoming: Some(goal), ctx, _})
+          when
+            Evaluator.Proofs.check_proof(
+              ~statics=info_map,
+              ~ctx,
+              ~goal,
+              flipped,
+            )
+            |> ProofMap.error_ids == [] =>
+        Some(
+          EditorTransform.mk_proof_patch(
+            ~target_id=Proof.rep_id(step),
+            flipped,
+          ),
+        )
+      | _ => None
+      };
+    | (_, Some(inner)) => flip_direction(~info_map, ~proof_map, inner)
+    | (_, None) => None
+    };
+
+  /* A new case for an induction whose cases don't yet cover its
+   * scrutinee, as the checker's `marks` on it say. */
+  let add_case = (step: Proof.t, ~marks: list(ProofMark.t)): option(patch) => {
+    let uncovered =
+      List.exists(
+        mark =>
+          List.mem(
+            mark,
+            ProofMark.[InductionEmptyCases, InductionNotExhaustive],
+          ),
+        marks,
+      );
+    switch (step.term) {
+    | Induction(scrut, as_name, cases) when uncovered =>
       Some(
         EditorTransform.mk_proof_patch(
           ~target_id=Proof.rep_id(step),
-          {
-            ...step,
-            term:
-              AxiomStep({
-                direction: Direction.toggle(direction),
-                equality,
-                instantiation,
-              }),
-          },
+          Proof.fresh(
+            Induction(
+              scrut,
+              as_name,
+              cases @ [(Pat.fresh(EmptyHole), Proof.fresh(EmptyHole))],
+            ),
+          ),
         ),
       )
-    | (_, Some(inner)) => flip_direction(inner)
-    | (_, None) => None
+    | _ => None
     };
+  };
 
   /* Adding or removing an induction's case rewrites the whole node. */
   let set_cases =

@@ -43,6 +43,9 @@ module Status = {
  *   3. Split on it: wrap the region in `induction <goal> | true =>
  *      <region> | false => ? end`. The `true` case's equation covers the
  *      obligation; the `false` case is left open.
+ * Exits 2 and 3 are checked before they are offered: the wrapped proof is
+ * checked again, and an exit that would break a step or leave the
+ * obligation pending shows disabled.
  *
  * For a function's contract, which no theorem's text can discharge:
  *   Add to contract: `fun x ->` becomes `fun x where <goal> ->`. */
@@ -55,10 +58,13 @@ module Exits = {
   };
 
   /* The theorem a step's exits patch: exit 1 rewrites a binder of the
-   * statement, exits 2 and 3 wrap a region of the proof. */
+   * statement, exits 2 and 3 wrap a region of the proof, checked with
+   * the program's statics. */
   type ctx = {
     stmt: option(Exp.t),
     proof: Proof.t,
+    proof_map: ProofMap.t,
+    info_map: Statics.Map.t,
   };
 
   /* One theorem-level `forall` binder of the statement, kept whole so the
@@ -179,9 +185,30 @@ module Exits = {
     /* The goal mentions a case-local binder: a restriction there is
      * unsound, so the exit is disabled with this reason. */
     | UnsoundAtCase
+    /* The goal mentions this variable, bound inside the statement or by
+     * the proof, which isn't in scope at the statement's binders. */
+    | BoundLater(Var.t)
     /* No theorem binder is mentioned, so there is nothing to restrict
      * (ground obligations, or a goal over local definitions only). */
     | NoBinder;
+
+  /* The names of the variables in `e`. */
+  let variables = (e: Exp.t): list(Var.t) => {
+    let names = ref([]);
+    let _: Exp.t =
+      Exp.map_term(
+        ~f_exp=
+          (continue, e) =>
+            switch (Exp.term_of(e)) {
+            | Var(x) =>
+              names := [x, ...names^];
+              e;
+            | _ => continue(e)
+            },
+        e,
+      );
+    names^;
+  };
 
   let float_target_of = (~ctx: ctx, ob: Obligation.t): float_target => {
     let goal = ob.goal;
@@ -191,9 +218,38 @@ module Exits = {
         ? case_vars_to(~origin=ob.origin, ~acc=[], ctx.proof) : [];
     /* Case-scoping wins: even if the goal also mentions a theorem binder,
      * the restriction would have to hold at the case to be usable there. */
-    if (List.exists(mentions, case_vars)) {
-      UnsoundAtCase;
-    } else {
+    /* The proof's own scope, before any of its steps, once it is checked. */
+    let outer =
+      ProofMap.lookup(Proof.rep_id(ctx.proof), ctx.proof_map)
+      |> Option.map((entry: ProofMap.entry) =>
+           SemanticCtx.get_ctx(entry.ctx)
+         );
+    let in_step_scope = x =>
+      List.exists(
+        (entry: Ctx.entry) =>
+          switch (entry) {
+          | VarEntry({name, _}) => name == x
+          | ConstructorEntry(_)
+          | TVarEntry(_)
+          | LivelitEntry(_)
+          | TheoremEntry(_) => false
+          },
+        ob.bindings,
+      );
+    let bound_later =
+      Option.bind(outer, outer =>
+        List.find_opt(
+          x =>
+            mentions(x)
+            && in_step_scope(x)
+            && Ctx.lookup_var(outer, x) == None,
+          variables(goal),
+        )
+      );
+    switch (bound_later) {
+    | _ when List.exists(mentions, case_vars) => UnsoundAtCase
+    | Some(x) => BoundLater(x)
+    | None =>
       let binders =
         switch (ctx.stmt) {
         | Some(stmt) => binders_of_stmt(stmt)
@@ -237,6 +293,7 @@ module Exits = {
         ),
       )
     | UnsoundAtCase
+    | BoundLater(_)
     | NoBinder => None
     };
 
@@ -294,47 +351,128 @@ module Exits = {
   };
 
   /* `have <goal> proof ? => <region>`. */
-  let have_patch =
-      (~ctx: ctx, ob: Obligation.t): option(Haz3lcore.EditorTransform.patch) =>
-    region_of(~ctx, ob)
-    |> Option.map(region =>
-         Haz3lcore.EditorTransform.mk_proof_patch(
-           ~target_id=Proof.rep_id(region),
-           Proof.fresh(
-             Have(embed_goal(ob), Proof.fresh(EmptyHole), region),
-           ),
-         )
-       );
+  let have = (ob: Obligation.t, region: Proof.t): Proof.t =>
+    Proof.fresh(Have(embed_goal(ob), Proof.fresh(EmptyHole), region));
 
   /* `induction <goal> | true => <region> | false => ? end`: an ordinary
    * case split on a bool, checked like any other. */
-  let split_patch =
-      (~ctx: ctx, ob: Obligation.t): option(Haz3lcore.EditorTransform.patch) =>
+  let split = (ob: Obligation.t, region: Proof.t): Proof.t =>
+    Proof.fresh(
+      Induction(
+        embed_goal(ob),
+        None,
+        [
+          (Pat.fresh(Atom(Bool(true))), region),
+          (Pat.fresh(Atom(Bool(false))), Proof.fresh(EmptyHole)),
+        ],
+      ),
+    );
+
+  let wrap_patch =
+      (wrapper, ~ctx: ctx, ob: Obligation.t)
+      : option(Haz3lcore.EditorTransform.patch) =>
     region_of(~ctx, ob)
     |> Option.map(region =>
          Haz3lcore.EditorTransform.mk_proof_patch(
            ~target_id=Proof.rep_id(region),
-           Proof.fresh(
-             Induction(
-               embed_goal(ob),
-               None,
-               [
-                 (Pat.fresh(Atom(Bool(true))), region),
-                 (Pat.fresh(Atom(Bool(false))), Proof.fresh(EmptyHole)),
-               ],
-             ),
-           ),
+           wrapper(ob, region),
          )
        );
+  let have_patch = wrap_patch(have);
+  let split_patch = wrap_patch(split);
+
+  /* Answers of `wrap_problem` for one proof map. A long proof takes a
+   * while to check, and the view asks again on every redraw while the
+   * condition is open, so answers are kept until the proof is checked
+   * again. */
+  let checked_wraps:
+    ref((ProofMap.t, list(((string, Id.t, Id.t), option(string))))) =
+    ref((ProofMap.empty, []));
+
+  /* Why `wrapper` can't wrap `ob`'s region, if it can't. The theorem's
+   * proof is checked again with the region wrapped, without the new
+   * syntax's statics, so marks on the wrapper itself (an untyped split)
+   * don't count: the wrap must keep every clean step clean and discharge
+   * `ob`. Splitting on a condition the goal mentions rewrites the goal of
+   * the steps below, for one. */
+  let wrap_problem =
+      (wrapper, ~ctx: ctx, ob: Obligation.t, region: Proof.t): option(string) =>
+    switch (ProofMap.lookup(Proof.rep_id(ctx.proof), ctx.proof_map)) {
+    | Some({incoming: Some(goal), ctx: scope, _}) =>
+      let wrapped =
+        Proof.map_term(
+          ~f_proof=
+            (continue, p) =>
+              Proof.rep_id(p) == Proof.rep_id(region)
+                ? wrapper(ob, region) : continue(p),
+          ctx.proof,
+        );
+      let checked =
+        Evaluator.Proofs.check_proof(
+          ~statics=ctx.info_map,
+          ~ctx=scope,
+          ~goal,
+          wrapped,
+        );
+      let breaks =
+        Id.Map.exists(
+          (id, entry: ProofMap.entry) =>
+            entry.marks == [] && ProofMap.marks_of(id, checked) != [],
+          ctx.proof_map,
+        );
+      let pending =
+        switch (ProofMap.lookup(ob.origin, checked)) {
+        | Some(entry) =>
+          List.exists(
+            (o: Obligation.t) =>
+              Obligation.is_pending(o) && Exp.fast_equal(o.goal, ob.goal),
+            entry.obligations,
+          )
+        | None => false
+        };
+      breaks
+        ? Some("Unavailable: it would break a step of the proof")
+        : pending
+            ? Some("Unavailable: it wouldn't discharge this condition") : None;
+    | Some(_)
+    | None => None
+    };
 
   /* A step's exits: none once the obligation is discharged. */
   let for_step = (~ctx: ctx, ob: Obligation.t): list(t) => {
-    let outside = "Unavailable: the step that needs this isn't in the theorem's proof";
-    let wrap = (~label, ~title, patch) => {
-      label,
-      title: Option.is_none(patch) ? outside : title,
-      patch,
+    let wrap_problem = (~label, wrapper, region) => {
+      let (proof_map, answers) = checked_wraps^;
+      let answers = proof_map === ctx.proof_map ? answers : [];
+      let key = (label, ob.origin, Exp.rep_id(ob.goal));
+      switch (List.assoc_opt(key, answers)) {
+      | Some(answer) => answer
+      | None =>
+        let answer = wrap_problem(wrapper, ~ctx, ob, region);
+        checked_wraps := (ctx.proof_map, [(key, answer), ...answers]);
+        answer;
+      };
     };
+    let wrap = (~label, ~title, wrapper) =>
+      switch (region_of(~ctx, ob)) {
+      | None => {
+          label,
+          title: "Unavailable: the step that needs this isn't in the theorem's proof",
+          patch: None,
+        }
+      | Some(region) =>
+        switch (wrap_problem(~label, wrapper, region)) {
+        | Some(problem) => {
+            label,
+            title: problem,
+            patch: None,
+          }
+        | None => {
+            label,
+            title,
+            patch: wrap_patch(wrapper, ~ctx, ob),
+          }
+        }
+      };
     let float =
       switch (float_target_of(~ctx, ob)) {
       | FloatTo(b) => {
@@ -350,6 +488,14 @@ module Exits = {
           title: "Unavailable: a restriction at a case is unsound — it would break exhaustiveness",
           patch: None,
         }
+      | BoundLater(x) => {
+          label: "Add to statement",
+          title:
+            "Unavailable: this goal mentions `"
+            ++ x
+            ++ "`, which isn't in scope at the statement's binders",
+          patch: None,
+        }
       | NoBinder => {
           label: "Add to statement",
           title: "Unavailable: this goal mentions no quantified variable of the statement",
@@ -363,13 +509,13 @@ module Exits = {
           ~label="Prove here",
           ~title=
             "Wrap this part of the proof in `have <goal> proof ? => …` and prove it later",
-          have_patch(~ctx, ob),
+          have,
         ),
         wrap(
           ~label="Split on it",
           ~title=
             "Case-split on this condition: the `true` branch gets it as a fact, the `false` branch stays open",
-          split_patch(~ctx, ob),
+          split,
         ),
       ]
       : [];

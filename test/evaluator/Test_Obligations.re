@@ -211,14 +211,17 @@ let stmt_of = (elab: Exp.t): option(Exp.t) => {
 };
 
 let run_with_ctx = (src: string): (ProofMap.t, Proof.t, Exits.ctx) => {
-  let (state, _, elab) = src |> parse_exp |> eval_with_proof;
+  let (state, info_map, elab) = src |> parse_exp |> eval_with_proof;
   let proof = proof_of(elab);
+  let proof_map = EvaluatorState.get_proof_map(state);
   (
-    EvaluatorState.get_proof_map(state),
+    proof_map,
     proof,
     {
       stmt: stmt_of(elab),
       proof,
+      proof_map,
+      info_map,
     },
   );
 };
@@ -251,6 +254,7 @@ let test_float_available_at_theorem_binder = () => {
       String.concat(",", b.vars),
     )
   | UnsoundAtCase => Alcotest.fail("expected FloatTo, got UnsoundAtCase")
+  | BoundLater(_) => Alcotest.fail("expected FloatTo, got BoundLater")
   | NoBinder => Alcotest.fail("expected FloatTo, got NoBinder")
   };
   let actions = Exits.for_step(~ctx, ob);
@@ -281,6 +285,7 @@ let test_float_target_is_innermost = () => {
   | FloatTo(b) =>
     str_check("target is the inner binder", "b", String.concat(",", b.vars))
   | UnsoundAtCase => Alcotest.fail("expected FloatTo, got UnsoundAtCase")
+  | BoundLater(_) => Alcotest.fail("expected FloatTo, got BoundLater")
   | NoBinder => Alcotest.fail("expected FloatTo, got NoBinder")
   };
 };
@@ -380,6 +385,8 @@ let test_exits_disabled_outside_the_theorem = () => {
   let ctx: Exits.ctx = {
     stmt: None,
     proof: Proof.fresh(EmptyHole),
+    proof_map: ProofMap.empty,
+    info_map: Statics.Map.empty,
   };
   bool_check(
     "no statement means nothing to float onto",
@@ -436,6 +443,8 @@ let ctx_of_zipper = (z: Haz3lcore.Zipper.t): Exits.ctx => {
       | Some(p) => p
       | None => Alcotest.fail("no theorem proof in the zipper term")
       },
+    proof_map: ProofMap.empty,
+    info_map: Statics.Map.empty,
   };
 };
 
@@ -603,9 +612,55 @@ let test_contract_exit_discharges_after_recheck = () => {
   );
 };
 
+/* An exit that would break the proof shows disabled. Splitting on a
+ * condition the goal mentions rewrites the goal of the steps below it. */
+let test_split_disabled_when_it_breaks_a_step = () => {
+  let (pm, proof, ctx) =
+    run_with_ctx(
+      "theorem t = forall x: Int -> x == 1 proof assume x == 1 => from x do axiom assume end end; from 1 == 1 do axiom refl_eq end end in t",
+    );
+  let ob = one_pending("split", pm, proof);
+  switch (Exits.for_step(~ctx, ob)) {
+  | [_, prove, split] =>
+    bool_check("prove here enabled", true, prove.patch != None);
+    bool_check("split disabled", true, split.patch == None);
+    str_check(
+      "and says why",
+      "Unavailable: it would break a step of the proof",
+      split.title,
+    );
+  | exits => Alcotest.fail(string_of_int(List.length(exits)) ++ " exits")
+  };
+};
+
+/* A condition on a variable the proof binds can't restrict the
+ * statement's binders. */
+let test_float_disabled_for_a_later_variable = () => {
+  let (pm, proof, ctx) =
+    run_with_ctx(
+      "theorem t = forall x: Int -> x == x ==> (forall y: Int -> (y == x ==> y == x)) proof assume x == x => forall y => assume y == x => ? in t",
+    );
+  let ob = one_pending("later", pm, proof);
+  bool_check(
+    "bound later",
+    true,
+    Exits.float_target_of(~ctx, ob) == BoundLater("y"),
+  );
+};
+
 let tests = (
   "Obligations",
   [
+    test_case(
+      "an exit that would break a step is disabled, with a reason",
+      `Quick,
+      test_split_disabled_when_it_breaks_a_step,
+    ),
+    test_case(
+      "float is disabled for a variable the proof binds",
+      `Quick,
+      test_float_disabled_for_a_later_variable,
+    ),
     test_case(
       "float is available at a theorem binder, all three exits live",
       `Quick,

@@ -204,6 +204,8 @@ let exits_ctx_of = (z: Haz3lcore.Zipper.t): Exits.ctx => {
       | Some(p) => p
       | None => Alcotest.fail("no proof")
       },
+    proof_map: ProofMap.empty,
+    info_map: Statics.Map.empty,
   };
 };
 
