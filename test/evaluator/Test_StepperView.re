@@ -1194,14 +1194,7 @@ module Picking = {
         check(
           list(string),
           "strategies",
-          [
-            "Induction",
-            "Cases",
-            "Have",
-            "Contradiction",
-            "Generalize",
-            "Revert",
-          ],
+          ["Induction", "Cases", "Have", "Generalize", "Revert"],
           labels(general),
         );
         check(
@@ -1216,7 +1209,7 @@ module Picking = {
       },
     ),
     test_case(
-      "Contradiction and Revert choose among the scope's facts, not the axioms, then a hole",
+      "Revert chooses among the scope's facts, not the axioms, then a hole",
       `Quick,
       () => {
         let f =
@@ -1227,18 +1220,64 @@ module Picking = {
         let general = Picker.Strategies.general(goal);
         check(
           list(pair(string, string)),
-          "contradiction",
-          [
-            ("x == 1", "contradiction x == 1 end"),
-            ("?", "contradiction ? end"),
-          ],
-          writes(general, "Contradiction"),
-        );
-        check(
-          list(pair(string, string)),
           "revert",
           [("x == 1", "revert x == 1 => ?"), ("?", "revert ? => ?")],
           writes(general, "Revert"),
+        );
+        check(
+          bool,
+          "no fact here is false, so no Contradiction",
+          false,
+          List.mem("Contradiction", labels(general)),
+        );
+      },
+    ),
+    test_case(
+      "Contradiction chooses among the facts that evaluate to false, with the rewrite that makes them",
+      `Quick,
+      () => {
+        let f =
+          Fixture.mk(
+            "theorem t = forall x: Int -> x == 1 ==> x > 5 ==> false proof assume x == 1 => assume x > 5 => ? in t",
+          );
+        let goal =
+          Fixture.goal(f, first(body(first(body(first(f.rows))))));
+        check(
+          list(pair(string, string)),
+          "contradiction",
+          [
+            ("x > 5", "contradiction x > 5 with x = 1 end"),
+            ("?", "contradiction ? end"),
+          ],
+          writes(Picker.Strategies.general(goal), "Contradiction"),
+        );
+      },
+    ),
+    test_case(
+      "Forall is offered on a forall goal, and Cases not on a call under a case arm",
+      `Quick,
+      () => {
+        let f =
+          Fixture.mk(
+            "theorem t = forall x: Int -> x > 0 ==> (forall y: Int -> y == y) proof assume x > 0 => ? in t",
+          );
+        let goal = Fixture.goal(f, first(body(first(f.rows))));
+        check(
+          bool,
+          "Forall",
+          true,
+          List.mem("Forall", labels(Picker.Strategies.intros(goal))),
+        );
+        let f =
+          Fixture.mk(
+            "let len = fun xs -> case xs | [] => 0 | _ :: t => 1 + len(t) end in theorem t = forall xs: [Int] -> len(xs) >= 0 proof from len(xs) do eval end; ? in t",
+          );
+        let goal = Fixture.goal(f, last(f.rows));
+        check(
+          list(string),
+          "cases",
+          ["xs", "?"],
+          List.map(fst, writes(Picker.Strategies.general(goal), "Cases")),
         );
       },
     ),

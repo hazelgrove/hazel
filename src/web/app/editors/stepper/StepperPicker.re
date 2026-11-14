@@ -40,10 +40,14 @@ module Terms = {
       body: step,
     });
 
-  /* The stepper writes the plain forms; `with` clauses (`contradiction`,
-   * `revert`) and `as` names (`induction`) are typed in afterwards. */
-  let contradiction = (~exp: Exp.t): TermBase.Proof.term =>
-    Contradiction(embed_exp(exp), None);
+  /* `with` clauses on `revert` and `as` names are typed in afterwards.
+   * `contradiction` takes the `with` rewrite that makes its fact false. */
+  let contradiction =
+      (~with_: option((Exp.t, Exp.t)), ~exp: Exp.t): TermBase.Proof.term =>
+    Contradiction(
+      embed_exp(exp),
+      Option.map(((x, v)) => (embed_exp(x), embed_exp(v)), with_),
+    );
 
   /* With no cases: the user adds them in the induction row. */
   let induction = (~scrut: option(Exp.t)): TermBase.Proof.term =>
@@ -693,7 +697,7 @@ module Strategies = {
     let info_map = Goal.info_map(goal);
     let env = Goal.env(goal);
     let forall =
-      Exp.is_fun(written)
+      ProofCheck.peel_binder(written) != None
         ? [
           {
             label: "Forall",
@@ -762,9 +766,22 @@ module Strategies = {
       ...List.concat_map(nodes, Occurrence.children(e)),
     ];
     let distinct = ListUtil.dedup_f(Exp.fast_equal);
+    /* Parts of the goal that mean the same in the row's scope: not under
+     * a binder of the goal, such as a case arm's pattern, that binds one
+     * of their variables. */
+    let in_scope =
+      nodes(goal.written)
+      |> List.filter((e: Exp.t) =>
+           !
+             ProofRule.occurs_free_any(
+               Occurrence.binders(Exp.rep_id(e), goal.written)
+               |> List.concat_map(Pat.bound_vars),
+               e,
+             )
+         );
     /* The goal's variables that name values in scope, not functions. */
     let variables =
-      nodes(goal.written)
+      in_scope
       |> List.filter_map((e: Exp.t) =>
            switch (Exp.term_of(e)) {
            | Var(x) =>
@@ -795,7 +812,7 @@ module Strategies = {
       |> distinct;
     /* What a case split can split on: a variable, or a call. */
     let splittable =
-      nodes(goal.written)
+      in_scope
       |> List.filter((e: Exp.t) =>
            switch (Exp.term_of(e)) {
            | Ap(_) => true
@@ -809,6 +826,37 @@ module Strategies = {
       |> List.filter((entry: ProofCtx.entry) => !entry.is_captured)
       |> List.map((entry: ProofCtx.entry) => entry.exp)
       |> distinct;
+    /* The facts the checker refutes, each with the step that does: the
+     * fact as it stands, or rewritten by one of the scope's equations
+     * `x == v` as `contradiction <fact> with x = v end`. */
+    let refuted = {
+      let var = (e: Exp.t) =>
+        ProofSyntax.exp_to_name(e) == None ? None : Some(e);
+      let rewrites =
+        facts
+        |> List.concat_map((fact: Exp.t) =>
+             switch (Exp.term_of(ProofSyntax.unwrap(fact))) {
+             | BinOp(Poly(Equals), a, b) =>
+               Option.to_list(Option.map(x => (x, b), var(a)))
+               @ Option.to_list(Option.map(x => (x, a), var(b)))
+             | _ => []
+             }
+           );
+      facts
+      |> List.filter_map(fact =>
+           [None, ...List.map(Option.some, rewrites)]
+           |> List.find_map(with_ => {
+                let term = Terms.contradiction(~with_, ~exp=fact);
+                check(goal, goal.written, Proof.fresh(term))
+                |> Option.map(_ =>
+                     {
+                       label: fact,
+                       term,
+                     }
+                   );
+              })
+         );
+    };
     let induction = (~exp) => Terms.induction(~scrut=Some(exp));
     [
       {
@@ -829,12 +877,29 @@ module Strategies = {
         argument: None,
         writes: Writes(Terms.have(~exp=hole)),
       },
-      {
-        label: "Contradiction",
-        tooltip: "Writes `contradiction <fact> end`: closes an impossible case with a fact that evaluates to false",
-        argument: None,
-        writes: choose(Terms.contradiction, facts),
-      },
+    ]
+    @ (
+      refuted == []
+        ? []
+        : [
+          {
+            label: "Contradiction",
+            tooltip: "Writes `contradiction <fact> end`: closes an impossible case with a fact that evaluates to false",
+            argument: None,
+            writes:
+              Chooses(
+                refuted
+                @ [
+                  {
+                    label: hole,
+                    term: Terms.contradiction(~with_=None, ~exp=hole),
+                  },
+                ],
+              ),
+          },
+        ]
+    )
+    @ [
       {
         label: "Generalize",
         tooltip: "Writes `generalize x =>`: makes x arbitrary again, a forall in the goal, e.g. before induction",
