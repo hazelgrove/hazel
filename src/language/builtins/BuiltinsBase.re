@@ -217,7 +217,7 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
         if (n == Bigint.zero) {
           Some(
             dynamic_error_hole(
-              ap(Forward, builtin_fun("mod"), d1),
+              ap(Forward, builtin_fun("int_mod"), d1),
               DivideByZero,
             ),
           );
@@ -239,7 +239,7 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
         if (n == 0) {
           Some(
             dynamic_error_hole(
-              ap(Forward, builtin_fun("mod"), d1),
+              ap(Forward, builtin_fun("sint_mod"), d1),
               DivideByZero,
             ),
           );
@@ -261,7 +261,7 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
         if (n == Bigint.zero) {
           Some(
             dynamic_error_hole(
-              ap(Forward, builtin_fun("mod"), d1),
+              ap(Forward, builtin_fun("nat_mod"), d1),
               DivideByZero,
             ),
           );
@@ -283,7 +283,7 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
         if (n == 0.0) {
           Some(
             dynamic_error_hole(
-              ap(Forward, builtin_fun("mod"), d1),
+              ap(Forward, builtin_fun("float_mod"), d1),
               DivideByZero,
             ),
           );

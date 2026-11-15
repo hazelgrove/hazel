@@ -7,6 +7,28 @@ open Exp;
 let tests = (
   "Evaluator.Builtins",
   [
+    /* (^ticket(764)) each modulo builtin by zero is the error, Divide by Zero, not a crash: its error hole named a
+       builtin "mod" that does not exist, and evaluating it raised InvalidBuiltin("mod") */
+    test_case("Modulo by zero is an error, not a crash", `Quick, () =>
+      List.iter(
+        ((name, src)) =>
+          check(
+            Alcotest.bool,
+            name ++ " by zero",
+            true,
+            switch (Exp.term_of(parse_and_evaluate(src))) {
+            | DynamicErrorHole(_, InvalidOperationError.DivideByZero) => true
+            | _ => false
+            },
+          ),
+        [
+          ("int_mod", "int_mod(7, 0)"),
+          ("sint_mod", "sint_mod(7, 0)"),
+          ("nat_mod", "nat_mod(7, 0)"),
+          ("float_mod", "float_mod(7., 0.)"),
+        ],
+      )
+    ),
     test_case("Builtin Function application", `Quick, () =>
       evaluation_test(
         "float_of_int(1)",
