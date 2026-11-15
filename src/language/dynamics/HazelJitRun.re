@@ -556,6 +556,10 @@ let prime = (c: compiled): unit => {
   };
 };
 
+/* (^ticket(760)) whether the noted program has type errors, asked once, when it is compiled: a program with type errors,
+   like one with holes, is the interpreter's (its run-time type checks fail where compiled code, types erased, would
+   return a value: the sweep's 30 ill-typed programs, ^ticket(756)) */
+let program_errors: ref(Lazy.t(bool)) = ref(Lazy.from_val(false));
 let current = (): option(compiled) =>
   switch (kept()) {
   | Some(c) => Some(c)
@@ -567,7 +571,12 @@ let current = (): option(compiled) =>
         switch (compiled^) {
         | Some(Error((p, why))) when p === e => Error(why)
         | _ =>
-          let c = compile(e);
+          let c =
+            Lazy.force(program_errors^)
+              ? Error(
+                  "the program has type errors: the interpreter's, as with holes",
+                )
+              : compile(e);
           compiled :=
             Some(
               switch (c) {
@@ -594,12 +603,13 @@ let on_retire: ref(unit => unit) = ref(() => ());
 
 /* The page draws livelits from this program now. Compared or compiled soon after, off this frame, after the paint
    (run 42651798712: compared in the view, its 29 to 47 ms came before the paint) */
-let note_program = (e: Exp.t): unit =>
+let note_program = (~has_errors=Lazy.from_val(false), e: Exp.t): unit =>
   if (HazelJitValue.enabled^) {
     switch (program^) {
     | Some(p) when p === e => ()
     | _ =>
       program := Some(e);
+      program_errors := has_errors;
       ignore(
         U.fun_call(
           U.get(U.global, "setTimeout"),

@@ -999,7 +999,10 @@ let mk_view =
      check when it has not changed) */
   switch (p.kind, elaborated) {
   | (ProjectorCore.Kind.Livelit, Some(e)) =>
-    Language.HazelJitRun.note_program(e)
+    Language.HazelJitRun.note_program(
+      ~has_errors=lazy(Language.Statics.Map.error_ids(statics_map) != []),
+      e,
+    )
   | _ => ()
   };
   /* Splice-bearing projectors render live sub-editors whose caret and
