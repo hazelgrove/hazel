@@ -18,6 +18,17 @@
    given): an OCaml builtin is the runtime's JS version of it, by name; a builtin written in Hazel (List.map, say) is
    compiled once, as a definition before the program's code. */
 
+/* (^ticket(760); Matthew and Cyrus, 2026-11-13: "for the output of hazel-jit, we should continue to avoid translating code
+   with holes, and we should exclude "stepper functions"") What hazel-jit leaves to the interpreter, by rule, not by gap:
+     - code with a hole: an empty hole, a multihole, a dynamic error hole, invalid text (Unsupported "a hole"); the
+       interpreter evaluates around holes, and its indeterminate results are the point of them;
+     - the stepper's filters, hide/eval/pause/debug P in e, which say which steps the stepper shows (Unsupported "a stepper
+       filter"), and anything the stepper shows: the stepper evaluates by the interpreter's own steps (StepperView), and a
+       livelit in a probe drawer's stepper over one of its samples is drawn by the interpreter, never from a compiled
+       run's answer (LivelitProj.draw_answer ~stepping);
+     - an operation the interpreter stops at with an error (Runtime.invalid, ^ticket(759)), and a run past its budget
+       (Runtime.out, ^ticket(763)): the compiled run stops, and the interpreter's run is the answer.
+   The rest of what it does not compile yet is a limit to overcome (^ticket(761)), each one Unsupported(reason) below. */
 exception Unsupported(string);
 
 let unsupported = reason => raise(Unsupported(reason));
