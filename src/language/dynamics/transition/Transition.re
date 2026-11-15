@@ -826,7 +826,13 @@ module Transition = (EV: EV_MODE) => {
                   RecordStackFrame(Some(ident), Some(d2'), None),
                 ],
                 kind: BuiltinAp(ident),
-                is_value: false,
+                /* (^ticket(764)) a builtin's error (int_mod by zero) is final, as an operator's is: stepped again, the
+                   hole's inside ran on and the error was lost (or, naming a builtin that is not one, crashed) */
+                is_value:
+                  switch (DHExp.term_of(expr)) {
+                  | DynamicErrorHole(_) => true
+                  | _ => false
+                  },
               })
             | None => Indet
             };
