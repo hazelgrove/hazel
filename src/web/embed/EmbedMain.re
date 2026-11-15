@@ -1,6 +1,7 @@
 /* Embed mode, index.html#embed: Hazel in another page's iframe. The page
    posts a program; the frame shows it as one read-only cell of tiles with
-   statics on and Hazel's own error marks, and posts back its size and the
+   statics on and Hazel's own error marks, which a click, a drag or the
+   arrow keys select in (EmbedModel.View), and posts back its size and the
    program's errors and holes (EmbedProtocol has the messages, and
    EmbedModel the state).
 
@@ -80,11 +81,118 @@ let set_soon = (~link, program: EmbedModel.Program.t): unit => {
   };
 };
 
+/* (ticket 578, Matthew 2026-10-23: dark mode and high contrast when the
+   page around is dark, "I want that default in general everywhere") the
+   theme a page asks for: Hazel's own Colors slide, its dark_mode and
+   high_contrast switches set as asked, evaluated as the app does at
+   startup, its colors put on the frame's document. Once per choice. */
+let themes: Hashtbl.t((bool, bool), list((string, string))) =
+  Hashtbl.create(4);
+let apply_theme = (~dark: bool, ~contrast: bool): unit => {
+  let vars =
+    switch (Hashtbl.find_opt(themes, (dark, contrast))) {
+    | Some(vars) => vars
+    | None =>
+      let set = (name, on, text) =>
+        StringUtil.plain_replace(
+          "let " ++ name ++ " = \\^\\^check\\((true|false)\\)",
+          text,
+          "let " ++ name ++ " = ^^check(" ++ string_of_bool(on) ++ ")",
+        );
+      let text =
+        ColorConfiguration.source.backup_text
+        |> set("dark_mode", dark)
+        |> set("high_contrast", contrast);
+      let vars =
+        ColorConfiguration.vars_of_source(
+          Haz3lcore.PersistentZipper.of_text(text),
+        );
+      Hashtbl.replace(themes, (dark, contrast), vars);
+      vars;
+    };
+  if (vars != []) {
+    ConfigurationMode.apply_colors(vars);
+  };
+};
+
+let set_font_metrics = (~link, ~col_width: float, ~row_height: float): unit => {
+  JsUtil.set_css_custom_property(
+    "--row-height-px",
+    Printf.sprintf("%fpx", row_height),
+  );
+  update(
+    ~link,
+    SetFontMetrics({
+      row_height,
+      col_width,
+    }),
+  );
+};
+
+/* (^ticket(587), Matthew 2026-10-23: "font size chips don't affect hazel
+   tile editor yet?") the page's font for the code: Hazel's own two
+   settings set (--base-font-size, --code-font, as variables.css has
+   them), and the font measured again from the specimen, as a zoom does */
+let apply_font =
+    (~link, ~size: option(float), ~family: option(string)): unit => {
+  switch (size) {
+  | Some(px) when px >= 6. && px <= 48. =>
+    JsUtil.set_css_custom_property(
+      "--base-font-size",
+      Printf.sprintf("%gpx", px),
+    )
+  | _ => ()
+  };
+  switch (family) {
+  | Some(f) when String.length(f) > 0 && String.length(f) < 200 =>
+    JsUtil.set_css_custom_property("--code-font", f)
+  | _ => ()
+  };
+  let (col_width, row_height) = JsUtil.font_metrics_from_specimen();
+  set_font_metrics(~link, ~col_width, ~row_height);
+};
+
 let on_message = (~link, event: Js.Unsafe.any): unit =>
   try(
     switch (EmbedLink.receive(link, event)) {
     | Some(program) => set_soon(~link, program)
-    | None => ()
+    | None =>
+      switch (link.editable) {
+      | Some(on) =>
+        link.editable = None;
+        update(~link, SetEditable(on));
+      | None => ()
+      };
+      switch (link.font) {
+      | Some((size, family)) =>
+        link.font = None;
+        apply_font(~link, ~size, ~family);
+      | None => ()
+      };
+      switch (link.reveal) {
+      | Some(name) =>
+        link.reveal = None;
+        update(~link, Reveal(name));
+      | None => ()
+      };
+      switch (link.lines) {
+      | Some(on) =>
+        link.lines = None;
+        update(~link, SetLineNumbers(on));
+      | None => ()
+      };
+      switch (link.theme) {
+      | Some((dark, contrast)) =>
+        link.theme = None;
+        apply_theme(~dark, ~contrast);
+      | None => ()
+      };
+      switch (link.focus) {
+      | Some(name) =>
+        link.focus = None;
+        update(~link, SetFocus(name));
+      | None => ()
+      };
     }
   ) {
   | exn => crash(~link, Printexc.to_string(exn))
@@ -111,27 +219,42 @@ let report = (~link, model: EmbedModel.Model.t): unit =>
   | Some(page) =>
     let rect: Js.Unsafe.any =
       Js.Unsafe.meth_call(page, "getBoundingClientRect", [||]);
+    /* (an open menu below the code: its bottom too, for the page to
+       grow the frame to, so the menu is not cut off) */
+    let menu_bottom =
+      switch (
+        Js.Opt.to_option(
+          Dom_html.document##querySelector(Js.string(".context-menu")),
+        )
+      ) {
+      | Some(m) =>
+        let r: Js.Unsafe.any =
+          Js.Unsafe.meth_call(m, "getBoundingClientRect", [||]);
+        Js.float_of_number(Js.Unsafe.get(r, "bottom")) +. 8.;
+      | None => 0.
+      };
     let height =
       int_of_float(
-        Float.ceil(Js.float_of_number(Js.Unsafe.get(rect, "height"))),
+        Float.ceil(
+          Float.max(
+            Js.float_of_number(Js.Unsafe.get(rect, "height")),
+            menu_bottom,
+          ),
+        ),
       );
-    EmbedLink.report(link, ~height, model);
+    /* (^ticket(587)) the caret's top, for the page to scroll to after a
+       reveal */
+    let caret =
+      switch (JsUtil.get_elem_by_id_opt("caret")) {
+      | Some(c) =>
+        let r: Js.Unsafe.any =
+          Js.Unsafe.meth_call(c, "getBoundingClientRect", [||]);
+        Some(int_of_float(Js.float_of_number(Js.Unsafe.get(r, "top"))));
+      | None => None
+      };
+    EmbedLink.report(link, ~caret?, ~height, model);
   | None => ()
   };
-
-let set_font_metrics = (~link, ~col_width: float, ~row_height: float): unit => {
-  JsUtil.set_css_custom_property(
-    "--row-height-px",
-    Printf.sprintf("%fpx", row_height),
-  );
-  update(
-    ~link,
-    SetFontMetrics({
-      row_height,
-      col_width,
-    }),
-  );
-};
 
 let note =
   Node.div(
@@ -156,11 +279,17 @@ let page = (children: list(Node.t)): Node.t =>
     [FontSpecimen.view, Node.div(~attrs=[Attr.id("main")], children)],
   );
 
-let view = (~standalone: bool, model: EmbedModel.Model.t): Node.t =>
+let view = (~link, ~standalone: bool, model: EmbedModel.Model.t): Node.t =>
   page(
     switch (model.program) {
     | None => standalone ? [note] : []
-    | Some(_) => [EmbedModel.View.view(model)]
+    | Some(_) => [
+        EmbedModel.View.view(
+          ~inject=
+            action => Effect.of_sync_fun(() => update(~link, action), ()),
+          model,
+        ),
+      ]
     },
   );
 
@@ -222,7 +351,7 @@ let app = (~link, ~standalone: bool) => {
       },
     );
   let%arr model = Bonsai.Var.value(model);
-  try(view(~standalone, model)) {
+  try(view(~link, ~standalone, model)) {
   | exn =>
     crash(~link, Printexc.to_string(exn));
     page([Node.text("This program could not be shown.")]);
@@ -240,6 +369,42 @@ let go = () => {
     classes##add(Js.string("framed"));
   };
   listen("message", on_message(~link));
+  /* (^ticket(682)) the history's keys in an editable cell go to the page,
+     which keeps the history (the frame keeps none): Ctrl+Z (Cmd+Z on a Mac)
+     to undo, Ctrl+Shift+Z or Ctrl+Y to redo. Taken before the cell sees
+     them, and only once a page has asked for an editable cell. */
+  ignore(
+    Dom.addEventListener(
+      Dom_html.window,
+      Dom.Event.make("keydown"),
+      Dom.handler(event => {
+        let e = Js.Unsafe.inject(event);
+        let flag = name => Js.to_bool(Js.Unsafe.get(e, name));
+        let key =
+          switch (Js.Optdef.to_option(Js.Unsafe.get(e, "key"))) {
+          | Some(k) => String.lowercase_ascii(Js.to_string(k))
+          | None => ""
+          };
+        switch (link.editable, link.page_origin) {
+        | (Some(true), Some(target))
+            when
+              (flag("ctrlKey") || flag("metaKey"))
+              && !flag("altKey")
+              && (key == "z" || key == "y") =>
+          ignore(Js.Unsafe.meth_call(e, "preventDefault", [||]));
+          ignore(Js.Unsafe.meth_call(e, "stopPropagation", [||]));
+          EmbedLink.send(
+            link,
+            ~target,
+            History(key == "y" || flag("shiftKey")),
+          );
+          Js._false;
+        | _ => Js._true
+        };
+      }),
+      Js._true,
+    ): Dom.event_listener_id,
+  );
   /* an exception nothing else caught */
   listen("error", event =>
     crash(

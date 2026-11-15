@@ -488,8 +488,26 @@ type available_space = {
   right: float,
 };
 
+/* (Hazel's embed mode, index.html#embed: the frame is as tall as its code,
+   and the page grows it to what it reports, an open menu's bottom with it;
+   so below is never short, and a menu opens down, not up and cut off at
+   the frame's top: Matthew 2026-10-23, "Right click menu is cut off") */
+let in_embed = () =>
+  Js.to_bool(
+    Dom_html.document##.documentElement##.classList##contains(
+      Js.string("hazel-embed"),
+    ),
+  );
+
 let main_viewport_rect = () =>
   switch (JsUtil.get_elem_by_id_opt("main")) {
+  | Some(_) when in_embed() =>
+    Js.Unsafe.obj([|
+      ("top", Js.Unsafe.inject(0.0)),
+      ("bottom", Js.Unsafe.inject(1e6)),
+      ("left", Js.Unsafe.inject(0.0)),
+      ("right", Js.Unsafe.inject(Js.Unsafe.global##.innerWidth)),
+    |])
   | Some(main) => main##getBoundingClientRect
   | None =>
     Js.Unsafe.obj([|
