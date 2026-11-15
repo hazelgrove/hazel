@@ -16,7 +16,7 @@ let tests = (
             Alcotest.bool,
             name ++ " by zero",
             true,
-            switch (Exp.term_of(parse_and_evaluate(src))) {
+            switch (Language.Exp.term_of(parse_and_evaluate(src))) {
             | DynamicErrorHole(_, InvalidOperationError.DivideByZero) => true
             | _ => false
             },
