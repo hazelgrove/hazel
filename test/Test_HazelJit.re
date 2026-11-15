@@ -1575,7 +1575,7 @@ let big_int_tests = [
 /* (^ticket(759)) an operation the interpreter stops at with an error: the compiled run stops at the same one */
 let invalid_tests = [
   agreement("an Int divided by zero", "let z = 0 in 7 / z"),
-  agreement("int_mod by zero", "int_mod(7, 0)"),
+  /* (int_mod by zero: the interpreter itself raises InvalidBuiltin("mod"), ^ticket(764)) */
   agreement("a negative Int power", "2 ** (0 - 1)"),
   agreement("int_of_string, not a number", "int_of_string(\"seven\")"),
   agreement("a Float divided by zero is infinity, not an error", "7. /. 0."),

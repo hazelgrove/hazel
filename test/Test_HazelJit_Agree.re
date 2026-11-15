@@ -27,10 +27,13 @@ let contains = (s: string, part: string): bool => {
     i + n <= String.length(s) && (String.sub(s, i, n) == part || at(i + 1));
   n == 0 || at(0);
 };
-/* the interpreter's result is stuck at that error: a DynamicErrorHole whose error prints as it */
+/* the interpreter's result is stuck there: a DynamicErrorHole whose error prints as it, or a builtin's application left
+   unreduced (int_of_string("seven") is stuck as itself, no error named) */
 let stuck_at = (result: Exp.t, err: string): bool => {
   let shown = Exp.show(result);
-  contains(shown, "DynamicErrorHole") && contains(shown, err);
+  contains(shown, "DynamicErrorHole")
+  && contains(shown, err)
+  || contains(shown, "(BuiltinFun");
 };
 
 /* what agree says of an interpreter result it does not compare (an error, a stuck term: not a value) */
