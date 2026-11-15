@@ -20,26 +20,36 @@ let agrees = src => {
   switch (HazelJit.try_compile(~env=Builtins.env_init, elab)) {
   | Error(reason) => fail("not compiled: " ++ reason)
   | Ok(js_src) =>
-    let got =
-      try(run_js(HazelJit.Runtime.source, js_src)) {
-      | Js_error.Exn(e) =>
-        fail(
-          "the compiled JS threw: "
-          ++ Js_error.message(e)
-          ++ "\n"
-          ++ clip(js_src),
-        )
-      };
-    switch (agree(expected, got)) {
-    | None => ()
-    | Some(diff) =>
+    switch (run_js(HazelJit.Runtime.source, js_src)) {
+    /* (^ticket(759)) both stop at the same error: the compiled run at an invalid operation, the interpreter's stuck at it */
+    | exception (Js_error.Exn(e))
+        when
+          switch (invalid_of(Js_error.message(e))) {
+          | Some(err) => stuck_at(expected, err)
+          | None => false
+          } =>
+      ()
+    | exception (Js_error.Exn(e)) =>
       fail(
-        "differs from the interpreter: "
-        ++ diff
-        ++ "\nthe compiled JS: "
+        "the compiled JS threw: "
+        ++ Js_error.message(e)
+        ++ "\nthe interpreter: "
+        ++ clip(Exp.show(expected))
+        ++ "\n"
         ++ clip(js_src),
       )
-    };
+    | got =>
+      switch (agree(expected, got)) {
+      | None => ()
+      | Some(diff) =>
+        fail(
+          "differs from the interpreter: "
+          ++ diff
+          ++ "\nthe compiled JS: "
+          ++ clip(js_src),
+        )
+      }
+    }
   };
 };
 let agreement = (name, src) => test_case(name, `Quick, () => agrees(src));
@@ -1562,9 +1572,19 @@ let big_int_tests = [
   ),
 ];
 
+/* (^ticket(759)) an operation the interpreter stops at with an error: the compiled run stops at the same one */
+let invalid_tests = [
+  agreement("an Int divided by zero", "let z = 0 in 7 / z"),
+  agreement("int_mod by zero", "int_mod(7, 0)"),
+  agreement("a negative Int power", "2 ** (0 - 1)"),
+  agreement("int_of_string, not a number", "int_of_string(\"seven\")"),
+  agreement("a Float divided by zero is infinity, not an error", "7. /. 0."),
+];
+
 let tests = (
   "HazelJit",
-  big_int_tests
+  invalid_tests
+  @ big_int_tests
   @ [
     agreement("arithmetic", "1 + 2 * 3 - 4 / 2"),
     agreement("floats", "1.5 *. 2. +. 0.25"),

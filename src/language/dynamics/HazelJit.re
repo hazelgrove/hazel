@@ -55,6 +55,9 @@ module Runtime = {
   /* An operation the interpreter stops at with an error (Error: Divide by Zero, a stuck term): the compiled run stops
      too, and its caller falls back to the interpreter, which makes the stuck term (^ticket(759)) */
   invalid(err) { const e = new Error("hazel-jit: invalid operation: " + err); e.$invalid = err; throw e; },
+  /* (^ticket(759)) SInt's division and power, with the interpreter's errors (its width, its overflow: ^ticket(758)) */
+  sdiv(a, b) { if (b === 0) this.invalid("DivideByZero"); return Math.trunc(a / b); },
+  spow(a, b) { if (b < 0) this.invalid("NegativeExponent"); return a ** b; },
   /* (^ticket(722)) a slide's run with its livelits' models as parameters: params, when set, maps a model's id to its
      value, in place of the literal the program holds; samples, when set, gets each livelit use's view answer, by its
      projector's id, as the interpreter samples it */
@@ -101,7 +104,8 @@ module Runtime = {
     float_min: ([a, b]) => Math.min(a, b), float_max: ([a, b]) => Math.max(a, b),
     int_mod: ([a, b]) => { if (b === 0 || b === 0n) { const e = new Error("hazel-jit: invalid operation: DivideByZero"); e.$invalid = "DivideByZero"; throw e; }
       if (typeof a === "number" && typeof b === "number") return a % b; const r = BigInt(a) % BigInt(b); return r <= 9007199254740991n && r >= -9007199254740991n ? Number(r) : r; },
-    sint_mod: ([a, b]) => a % b, float_mod: ([a, b]) => a % b,
+    sint_mod: ([a, b]) => { if (b === 0) { const e = new Error("hazel-jit: invalid operation: DivideByZero"); e.$invalid = "DivideByZero"; throw e; } return a % b; },
+    float_mod: ([a, b]) => a % b,
     to_fixed: ([x, n]) => x.toFixed(Math.min(Math.max(Number(n), 0), 20)),
     fst: p => p[0], snd: p => p[1],
     is_nan: Number.isNaN, is_finite: Number.isFinite,
@@ -652,8 +656,8 @@ and exp_inner =
       | Plus => infix("+")
       | Minus => infix("-")
       | Times => infix("*")
-      | Power => infix("**")
-      | Divide => "Math.trunc(" ++ a ++ " / " ++ b ++ ")"
+      | Power => "$R.spow(" ++ a ++ ", " ++ b ++ ")"
+      | Divide => "$R.sdiv(" ++ a ++ ", " ++ b ++ ")"
       | LessThan => infix("<")
       | LessThanOrEqual => infix("<=")
       | GreaterThan => infix(">")
