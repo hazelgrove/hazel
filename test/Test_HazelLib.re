@@ -228,6 +228,83 @@ let tests = (
         );
       },
     ),
+    /* (^ticket(736)) a JS array is a tuple where the type wants a tuple, a
+       list where it wants a list: by the parameter's declared type, down
+       through a constructor's value and a recursive type */
+    test_case(
+      "an array where a tuple is expected",
+      `Quick,
+      () => {
+        let f =
+          value(
+            "type S = + Two(Int, Bool) + One(Int) in\n"
+            ++ "fun s : S -> case s | Two(m, t) => m + (if t then 100 else 0) | One(n) => n end",
+          );
+        check(
+          string,
+          "{tag: Two, value: [3, true]}",
+          "103",
+          json(call(f, [as_js("{\"tag\":\"Two\",\"value\":[3,true]}")])),
+        );
+        check(
+          string,
+          "{tag: One, value: 4}, as before",
+          "4",
+          json(call(f, [as_js("{\"tag\":\"One\",\"value\":4}")])),
+        );
+        let g =
+          value("fun (m, t) : (Int, Bool) -> m + (if t then 100 else 0)");
+        check(
+          string,
+          "one argument, [3, true]",
+          "103",
+          json(call(g, [as_js("[3,true]")])),
+        );
+        check(
+          string,
+          "two arguments, 3 and true, as before",
+          "103",
+          json(call(g, [num(3.), as_js("true")])),
+        );
+        let xs = value("fun xs : [Int] -> xs");
+        check(
+          string,
+          "a list is still a list",
+          "[1,2]",
+          json(call(xs, [as_js("[1,2]")])),
+        );
+        let half = value("fun x : Float -> x /. 2.");
+        check(
+          string,
+          "a whole number where a Float is expected",
+          "1",
+          json(call(half, [num(2.)])),
+        );
+        let tree = "{\"tag\":\"Flip\",\"value\":[2,{\"tag\":\"Flip\",\"value\":[3,{\"tag\":\"Done\"}]}]}";
+        let sum =
+          value(
+            "type Cmd = + Done + Flip(Int, Cmd) in\n"
+            ++ "let sum = fun c : Cmd -> case c | Done => 0 | Flip(l, rest) => l + sum(rest) end in sum",
+          );
+        check(
+          string,
+          "a command tree back in from JS, a recursive type",
+          "5",
+          json(call(sum, [as_js(tree)])),
+        );
+        let typed =
+          value(
+            "type Cmd = + Done + Flip(Int, Cmd) in\n"
+            ++ "let sum : Cmd -> Int = fun c -> case c | Done => 0 | Flip(l, rest) => l + sum(rest) end in sum",
+          );
+        check(
+          string,
+          "the same, its type on the let rather than the parameter",
+          "5",
+          json(call(typed, [as_js(tree)])),
+        );
+      },
+    ),
     test_case(
       "a lever rule returns a command tree to interpret",
       `Quick,
