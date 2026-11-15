@@ -536,24 +536,49 @@ let parsed_of_text =
   let fail = (): result(parsed, string) =>
     Error(Option.value(bail_note^, ~default="no note"));
   if (root == Sort.Mod) {
-    /* Module-member chunks (update_binding_clause on a member): parse
-       as a braced module body, then unwrap the brace tile. Chunks with
-       spliced separators (leading/trailing ;) fail the wrap parse and
-       fall back — they are small. */
-    switch (attempt(~materialize, "{" ++ String.trim(text) ++ "}")) {
-    | Some({segment: [Tile({children: [inner], _} as bt)], refractors})
-        when Tile.has_label(bt, ["{", "}"]) =>
-      Ok({
-        segment: inner,
-        refractors,
-      })
-    | _ =>
-      /* keep the attempt's own note when it bailed; the generic wrap
-         message only describes a successful parse of the wrong shape */
-      if (bail_note^ == None) {
-        note("mod-root wrap did not yield a single module body");
+    /* Module bodies and member chunks (update_binding_clause on a
+       member): parse as a braced module body, then unwrap the brace
+       tile. A body whose last member is still being written (`let x =`,
+       a last `;`) is retried with a hole after it, as the Exp root
+       retries, and the hole is stripped inside the braces. A leading
+       separator still fails both and falls back. */
+    let braced = (body: string): option(parsed) =>
+      switch (attempt(~materialize, "{" ++ body ++ "}")) {
+      | Some({segment: [Tile({children: [inner], _} as bt)], refractors})
+          when Tile.has_label(bt, ["{", "}"]) =>
+        Some({
+          segment: inner,
+          refractors,
+        })
+      | _ =>
+        /* keep the attempt's own note when it bailed; the generic wrap
+           message only describes a successful parse of the wrong shape */
+        if (bail_note^ == None) {
+          note("mod-root wrap did not yield a single module body");
+        };
+        None;
       };
-      fail();
+    let body = String.trim(text);
+    switch (braced(body)) {
+    | Some(p) => Ok(p)
+    | None =>
+      let first_note = bail_note^;
+      switch (braced(body ++ " ?")) {
+      | Some(p) =>
+        switch (strip_appended_hole(p.segment)) {
+        | Some(segment) =>
+          Ok({
+            ...p,
+            segment,
+          })
+        | None =>
+          bail_note := first_note;
+          fail();
+        }
+      | None =>
+        bail_note := first_note;
+        fail();
+      };
     };
   } else if (root != Sort.Exp) {
     note("root sort is not fast-parseable (Exp and Mod only)");

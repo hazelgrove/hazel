@@ -352,6 +352,8 @@ let start = default_model => {
 
 switch (JsUtil.Fragment.get_current()) {
 | Some("debug") => DebugMode.go()
+/* Hazel in another page's frame (src/web/embed) */
+| Some("embed") => EmbedMain.go()
 | _ =>
   /* Load all IndexedDB data, then construct model and start Bonsai.
      The hazelnut loading spinner (in index.html) stays visible until
