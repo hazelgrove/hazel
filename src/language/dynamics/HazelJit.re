@@ -102,6 +102,18 @@ module Runtime = {
     string_capitalize: s => { const g = (t => Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(t), x => x.segment))(s); return g.length ? g[0].toUpperCase() + g.slice(1).join("") : s; },
     string_uncapitalize: s => { const g = (t => Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(t), x => x.segment))(s); return g.length ? g[0].toLowerCase() + g.slice(1).join("") : s; },
     omit_all_labels: t => Array.isArray(t) ? Array.from(t) : t,
+    /* the compare builtins (BuiltinsADT.of_atom_compare), Lt, Eq or Gt as Atom.compare_of_cls has them: Int, SInt, Nat by
+       value (a number and a BigInt compare as they are); Float as OCaml's Float.compare, nan equal to itself and below
+       every other float; String as String.compare, byte by byte in UTF-8, which is code point order */
+    int_compare: ([a, b]) => ({ c: a < b ? "Lt" : a > b ? "Gt" : "Eq" }),
+    sint_compare: ([a, b]) => ({ c: a < b ? "Lt" : a > b ? "Gt" : "Eq" }),
+    nat_compare: ([a, b]) => ({ c: a < b ? "Lt" : a > b ? "Gt" : "Eq" }),
+    float_compare: ([a, b]) => { const x = a !== a, y = b !== b;
+      return { c: x ? (y ? "Eq" : "Lt") : y ? "Gt" : a < b ? "Lt" : a > b ? "Gt" : "Eq" }; },
+    string_compare: ([a, b]) => { const x = Array.from(a, ch => ch.codePointAt(0)), y = Array.from(b, ch => ch.codePointAt(0));
+      for (let i = 0; i < x.length && i < y.length; i++) if (x[i] !== y[i]) return { c: x[i] < y[i] ? "Lt" : "Gt" };
+      return { c: x.length < y.length ? "Lt" : x.length > y.length ? "Gt" : "Eq" }; },
+    invert_ord: o => o.c === "Lt" ? { c: "Gt" } : o.c === "Gt" ? { c: "Lt" } : o,
     abs: Math.abs, abs_float: Math.abs, ceil: Math.ceil, floor: Math.floor, round: Math.round,
     sqrt: Math.sqrt, exp: Math.exp, log: Math.log, log10: Math.log10,
     sin: Math.sin, cos: Math.cos, tan: Math.tan, asin: Math.asin, acos: Math.acos, atan: Math.atan,
@@ -142,6 +154,12 @@ module Runtime = {
     "string_capitalize",
     "string_uncapitalize",
     "omit_all_labels",
+    "int_compare",
+    "sint_compare",
+    "nat_compare",
+    "float_compare",
+    "string_compare",
+    "invert_ord",
     "abs",
     "abs_float",
     "ceil",

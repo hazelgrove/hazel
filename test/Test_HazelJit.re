@@ -1693,6 +1693,18 @@ let string_builtin_tests = [
     "string_capitalize and string_uncapitalize",
     "(string_capitalize(\"élan\"), string_uncapitalize(\"ÉLAN\"))",
   ),
+  agreement(
+    "string_compare",
+    "(string_compare(\"a\", \"b\"), string_compare(\"b\", \"a\"), string_compare(\"ab\", \"ab\"), string_compare(\"ab\", \"a\"))",
+  ),
+  agreement(
+    "int_compare and invert_ord",
+    "(int_compare(1, 2), int_compare(5, 5), invert_ord(int_compare(1, 2)))",
+  ),
+  agreement(
+    "float_compare, nan below every float",
+    "(float_compare(nan, 1.), float_compare(nan, nan), float_compare(2., 1.))",
+  ),
 ];
 
 let tests = (
