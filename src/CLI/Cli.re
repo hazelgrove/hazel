@@ -765,7 +765,7 @@ let jit_eval =
         switch (
           Js_of_ocaml.Js.Unsafe.fun_call(
             Js_of_ocaml.Js.Unsafe.pure_js_expr(
-              "(function (v) { try { return JSON.stringify(v) || String(v); } catch (e) { return 'unprintable: ' + e; } })",
+              "(function (v) { try { return JSON.stringify(v, (k, x) => typeof x === 'bigint' ? x.toString() + 'n' : x) || String(v); } catch (e) { return 'unprintable: ' + e; } })",
             ),
             [|v|],
           )

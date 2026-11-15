@@ -5,7 +5,9 @@
    Unsupported(reason), and the caller runs the term on the interpreter as before.
 
    Values in JS:
-     Int, SInt, Nat, Float  a JS number
+     Int, Nat               exact, as the interpreter's Bigint (^ticket(757)): a JS number while it is a safe integer
+                            (|n| <= 2^53 - 1), a BigInt past that, every result normalized, so === still compares
+     SInt, Float            a JS number
      Bool, String           a JS boolean, a JS string
      a tuple                a JS array of its components; a labeled component is also a property of the array, by its label
      a list                 null for [], {h, t} for a cons, so :: is O(1)
@@ -39,6 +41,20 @@ module Runtime = {
     return p === q;
   },
   nomatch(where) { throw new Error("hazel-jit: no pattern matched in " + where); },
+  /* (^ticket(757)) Int and Nat, exact as the interpreter's Bigint: a JS number while it is a safe integer, a BigInt past
+     that; each result normalized (inorm), so equal values are one value and === compares them. Measured in Node against
+     plain numbers: fib x1.6, list walks x0.7-0.9, arithmetic-heavy updates x3.7 (plain BigInt: x4.1, x1.5, x9.6) */
+  inorm(r) { return r <= 9007199254740991n && r >= -9007199254740991n ? Number(r) : r; },
+  iadd(a, b) { if (typeof a === "number" && typeof b === "number") { const r = a + b; if (r <= 9007199254740991 && r >= -9007199254740991) return r; } return this.inorm(BigInt(a) + BigInt(b)); },
+  isub(a, b) { if (typeof a === "number" && typeof b === "number") { const r = a - b; if (r <= 9007199254740991 && r >= -9007199254740991) return r; } return this.inorm(BigInt(a) - BigInt(b)); },
+  imul(a, b) { if (typeof a === "number" && typeof b === "number") { const r = a * b; if (r <= 9007199254740991 && r >= -9007199254740991) return r; } return this.inorm(BigInt(a) * BigInt(b)); },
+  ineg(a) { return typeof a === "number" ? (a === 0 ? 0 : -a) : this.inorm(-a); },
+  /* toward zero, as Bigint's and BigInt's; (a - a % b) / b is exact where Math.trunc(a / b) rounds */
+  idiv(a, b) { if (b === 0 || b === 0n) this.invalid("DivideByZero"); if (typeof a === "number" && typeof b === "number") return (a - a % b) / b; return this.inorm(BigInt(a) / BigInt(b)); },
+  ipow(a, b) { if (b < 0) this.invalid("NegativeExponent"); return this.inorm(BigInt(a) ** BigInt(b)); },
+  /* An operation the interpreter stops at with an error (Error: Divide by Zero, a stuck term): the compiled run stops
+     too, and its caller falls back to the interpreter, which makes the stuck term (^ticket(759)) */
+  invalid(err) { const e = new Error("hazel-jit: invalid operation: " + err); e.$invalid = err; throw e; },
   /* (^ticket(722)) a slide's run with its livelits' models as parameters: params, when set, maps a model's id to its
      value, in place of the literal the program holds; samples, when set, gets each livelit use's view answer, by its
      projector's id, as the interpreter samples it */
@@ -69,20 +85,24 @@ module Runtime = {
     },
     string_of_int: n => String(n), string_of_sint: n => String(n), string_of_nat: n => String(n),
     string_of_bool: b => String(b),
-    float_of_int: n => n, float_of_sint: n => n, float_of_nat: n => n,
-    int_of_float: f => Math.trunc(f), sint_of_float: f => Math.trunc(f),
-    int_of_sint: n => n, sint_of_int: n => n,
-    int_of_string: s => { const n = Number(s); if (!Number.isInteger(n)) throw new Error("int_of_string"); return n; },
+    float_of_int: n => Number(n), float_of_sint: n => n, float_of_nat: n => Number(n),
+    int_of_float: f => { if (!Number.isFinite(f)) throw new Error("hazel-jit: invalid operation: int_of_float"); const t = Math.trunc(f); return Number.isSafeInteger(t) ? t : BigInt(t); },
+    sint_of_float: f => Math.trunc(f),
+    int_of_sint: n => n, sint_of_int: n => Number(n),
+    int_of_string: s => { let r; try { if (s.trim() === "") throw 0; r = BigInt(s); } catch (_) { const e = new Error("hazel-jit: invalid operation: InvalidOfString"); e.$invalid = "InvalidOfString"; throw e; }
+      return r <= 9007199254740991n && r >= -9007199254740991n ? Number(r) : r; },
     float_of_string: s => Number(s),
     string_length: s => s.length, string_uppercase: s => s.toUpperCase(), string_lowercase: s => s.toLowerCase(),
     string_trim: s => s.trim(),
-    abs: Math.abs, abs_float: Math.abs, ceil: Math.ceil, floor: Math.floor, round: Math.round,
+    abs: n => typeof n === "number" ? Math.abs(n) : (n < 0n ? -n : n), abs_float: Math.abs, ceil: Math.ceil, floor: Math.floor, round: Math.round,
     sqrt: Math.sqrt, exp: Math.exp, log: Math.log, log10: Math.log10,
     sin: Math.sin, cos: Math.cos, tan: Math.tan, asin: Math.asin, acos: Math.acos, atan: Math.atan,
     atan2: ([y, x]) => Math.atan2(y, x),
     float_min: ([a, b]) => Math.min(a, b), float_max: ([a, b]) => Math.max(a, b),
-    int_mod: ([a, b]) => a % b, sint_mod: ([a, b]) => a % b, float_mod: ([a, b]) => a % b,
-    to_fixed: ([x, n]) => x.toFixed(Math.min(Math.max(n, 0), 20)),
+    int_mod: ([a, b]) => { if (b === 0 || b === 0n) { const e = new Error("hazel-jit: invalid operation: DivideByZero"); e.$invalid = "DivideByZero"; throw e; }
+      if (typeof a === "number" && typeof b === "number") return a % b; const r = BigInt(a) % BigInt(b); return r <= 9007199254740991n && r >= -9007199254740991n ? Number(r) : r; },
+    sint_mod: ([a, b]) => a % b, float_mod: ([a, b]) => a % b,
+    to_fixed: ([x, n]) => x.toFixed(Math.min(Math.max(Number(n), 0), 20)),
     fst: p => p[0], snd: p => p[1],
     is_nan: Number.isNaN, is_finite: Number.isFinite,
     pi: Math.PI, infinity: Infinity, neg_infinity: -Infinity, nan: NaN
@@ -175,6 +195,18 @@ let js_bigint = (n: Bigint.t): string => {
   let s = Bigint.to_string(n);
   String.length(s) > 0 && s.[0] == '-' ? "(" ++ s ++ ")" : s;
 };
+/* (^ticket(757)) an Int or a Nat as the compiled code holds it: a JS number while it is a safe integer, a BigInt literal
+   past that (Runtime's iadd and the rest keep it so) */
+let max_safe = Bigint.of_string("9007199254740991");
+let safe_int = (n: Bigint.t): bool =>
+  Bigint.compare(Bigint.abs(n), max_safe) <= 0;
+let js_int = (n: Bigint.t): string =>
+  safe_int(n)
+    ? js_bigint(n)
+    : {
+      let s = Bigint.to_string(n) ++ "n";
+      String.length(s) > 0 && s.[0] == '-' ? "(" ++ s ++ ")" : s;
+    };
 
 /* An identifier made from a Hazel name: letters, digits and _ kept, the rest as _ */
 let sanitize = (name: string): string =>
@@ -283,7 +315,7 @@ let rec pat =
   | Parens(p)
   | Asc(p, _) => pat(st, scope, lex, p, v)
   | Atom(Int(n))
-  | Atom(Nat(n)) => ([v ++ " === " ++ js_bigint(n)], [], lex)
+  | Atom(Nat(n)) => ([v ++ " === " ++ js_int(n)], [], lex)
   | Atom(SInt(n)) => ([v ++ " === " ++ string_of_int(n)], [], lex)
   | Atom(Float(f)) => ([v ++ " === " ++ js_float(f)], [], lex)
   | Atom(Bool(b)) => ([v ++ " === " ++ string_of_bool(b)], [], lex)
@@ -423,7 +455,7 @@ and exp_inner =
   let go = exp(st, scope, lex);
   switch (Exp.term_of(e)) {
   | Atom(Int(n))
-  | Atom(Nat(n)) => js_bigint(n)
+  | Atom(Nat(n)) => js_int(n)
   | Atom(SInt(n)) =>
     n < 0 ? "(" ++ string_of_int(n) ++ ")" : string_of_int(n)
   | Atom(Float(f)) => js_float(f)
@@ -593,16 +625,29 @@ and exp_inner =
         "$R.nomatch(\"case\")",
       );
     "(" ++ tmp ++ " = " ++ go(scrut) ++ ", " ++ arms ++ ")";
-  | UnOp(Int(Minus) | SInt(Minus) | Nat(Minus) | Float(Minus), e) =>
-    "(-(" ++ go(e) ++ "))"
+  | UnOp(Int(Minus) | Nat(Minus), e) => "$R.ineg(" ++ go(e) ++ ")"
+  | UnOp(SInt(Minus) | Float(Minus), e) => "(-(" ++ go(e) ++ "))"
   | UnOp(Bool(Not), e) => "(!(" ++ go(e) ++ "))"
   | BinOp(op, a, b) =>
     let (a, b) = (go(a), go(b));
     let infix = o => "(" ++ a ++ " " ++ o ++ " " ++ b ++ ")";
     switch (op) {
+    /* (^ticket(757)) exact, through the runtime; a number and a BigInt compare correctly as they are */
     | Int(op)
-    | SInt(op)
     | Nat(op) =>
+      let call = f => "$R." ++ f ++ "(" ++ a ++ ", " ++ b ++ ")";
+      switch (op) {
+      | Plus => call("iadd")
+      | Minus => call("isub")
+      | Times => call("imul")
+      | Power => call("ipow")
+      | Divide => call("idiv")
+      | LessThan => infix("<")
+      | LessThanOrEqual => infix("<=")
+      | GreaterThan => infix(">")
+      | GreaterThanOrEqual => infix(">=")
+      };
+    | SInt(op) =>
       switch (op) {
       | Plus => infix("+")
       | Minus => infix("-")

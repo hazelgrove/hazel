@@ -193,8 +193,15 @@ let rec to_js = (v: Exp.t): Js.Unsafe.any =>
   switch (Exp.term_of(v)) {
   | Parens(v)
   | Asc(v, _) => to_js(v)
+  /* (^ticket(757)) as the compiled code holds it: a number while safe, a BigInt past that */
   | Atom(Int(n))
-  | Atom(Nat(n)) => number(Bigint.to_float(n))
+  | Atom(Nat(n)) =>
+    HazelJit.safe_int(n)
+      ? number(Bigint.to_float(n))
+      : Js.Unsafe.fun_call(
+          Js.Unsafe.js_expr("BigInt"),
+          [|jstr(Bigint.to_string(n))|],
+        )
   | Atom(SInt(n)) => number(float_of_int(n))
   | Atom(Float(f)) => number(f)
   /* (^ticket(716)) a negative number as the syntax has it, a minus before it: a model read from the program's text, before
@@ -203,9 +210,11 @@ let rec to_js = (v: Exp.t): Js.Unsafe.any =>
     let v = to_js(e);
     typeof(v) == "number"
       ? number(-. Js.float_of_number(Js.Unsafe.coerce(v)))
-      : unsupported(
-          "a value hazel-jit does not carry into JS: a minus before a non-number",
-        );
+      : typeof(v) == "bigint"
+          ? Js.Unsafe.fun_call(Js.Unsafe.js_expr("(x => -x)"), [|v|])
+          : unsupported(
+              "a value hazel-jit does not carry into JS: a minus before a non-number",
+            );
   | Atom(Bool(b)) => inject(Js.bool(b))
   | Atom(String(s)) => jstr(s)
   | ListLit(vs) =>
@@ -295,6 +304,18 @@ let rec of_js =
     | Some(Atom(Nat)) => G.Exp.nat(whole(f))
     | Some(Atom(Int)) => G.Exp.big_int(whole(f))
     | _ => Float.is_integer(f) ? G.Exp.big_int(whole(f)) : G.Exp.float(f)
+    };
+  /* (^ticket(757)) an Int or a Nat past a safe integer */
+  | "bigint" =>
+    let n =
+      Bigint.of_string(
+        Js.to_string(
+          Js.Unsafe.fun_call(Js.Unsafe.js_expr("String"), [|v|]),
+        ),
+      );
+    switch (Option.map((t: Typ.t) => t.term, ty)) {
+    | Some(Atom(Nat)) => G.Exp.nat(n)
+    | _ => G.Exp.big_int(n)
     };
   | "string" => G.Exp.string(Js.to_string(Js.Unsafe.coerce(v)))
   | "boolean" => G.Exp.bool(Js.to_bool(Js.Unsafe.coerce(v)))
