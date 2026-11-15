@@ -1688,7 +1688,7 @@ let string_builtin_tests = [
     "string_search(\"c\", \"a👍🏽bc\", 0)",
   ),
   agreement("string_join", "string_join(\", \", [\"a\", \"b\", \"c\"])"),
-  agreement("string_escaped", "string_escaped(\"a\\\"b\\\\c\\n\")"),
+  agreement("string_escaped", "string_escaped(\"\\hello é\")"),
   agreement(
     "string_capitalize and string_uncapitalize",
     "(string_capitalize(\"élan\"), string_uncapitalize(\"ÉLAN\"))",
