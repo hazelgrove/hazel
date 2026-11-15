@@ -1669,9 +1669,86 @@ let witch_view_run = (~n=15, ()) => {
   );
 };
 
+/* (^ticket(763)) a compiled term run with a step budget: its runtime's fuel set for this run */
+let run_js_limited = (runtime: string, src: string, fuel: int): Js.Unsafe.any =>
+  Js.Unsafe.fun_call(
+    Js.Unsafe.pure_js_expr(
+      "(function (rt, src, fuel) { const R = eval('(' + rt + ')'); R.limit(fuel, null); return new Function('$R', src)(R); })",
+    ),
+    [|
+      Js.Unsafe.inject(Js.string(runtime)),
+      Js.Unsafe.inject(Js.string(src)),
+      Js.Unsafe.inject(fuel),
+    |],
+  );
+let fib_src = n =>
+  "let fib = fun n -> if n < 2 then n else fib(n - 1) + fib(n - 2) in fib("
+  ++ string_of_int(n)
+  ++ ")";
+let compiled_src = src =>
+  switch (
+    HazelJit.try_compile(~env=Builtins.env_init, elaborate(parse_exp(src)))
+  ) {
+  | Ok(js) => js
+  | Error(why) => fail("not compiled: " ++ why)
+  };
+let step_limit_tests = [
+  test_case("a long run stops at its step limit", `Quick, () =>
+    switch (
+      run_js_limited(
+        HazelJit.Runtime.source,
+        compiled_src(fib_src(25)),
+        1000,
+      )
+    ) {
+    | _ => fail("ran past 1000 calls")
+    | exception (Js_error.Exn(e)) =>
+      check(
+        string,
+        "the error",
+        "hazel-jit: step limit (the run's calls)",
+        Js_error.message(e),
+      )
+    }
+  ),
+  test_case("under its step limit, a run goes to the end", `Quick, () =>
+    check(
+      string,
+      "fib(15)",
+      "610",
+      Js.to_string(
+        Js.Unsafe.meth_call(
+          run_js_limited(
+            HazelJit.Runtime.source,
+            compiled_src(fib_src(15)),
+            100000,
+          ),
+          "toString",
+          [||],
+        ),
+      ),
+    )
+  ),
+  test_case("with no budget set, no limit", `Quick, () =>
+    check(
+      string,
+      "fib(20)",
+      "6765",
+      Js.to_string(
+        Js.Unsafe.meth_call(
+          run_js(HazelJit.Runtime.source, compiled_src(fib_src(20))),
+          "toString",
+          [||],
+        ),
+      ),
+    )
+  ),
+];
+
 let tests = (
   "HazelJit",
-  [
+  step_limit_tests
+  @ [
     agreement("arithmetic", "1 + 2 * 3 - 4 / 2"),
     agreement("floats", "1.5 *. 2. +. 0.25"),
     agreement("a function", "let f = fun x -> x * 2 in f(21)"),

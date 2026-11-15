@@ -13,6 +13,31 @@ open Util;
 open Js_of_ocaml;
 module U = Js.Unsafe;
 
+/* (^ticket(763)) a compiled run's budget on the main thread: 50 ms (three frames), or 50 million calls; a run usually takes
+   2-3 ms (^report(45)), and one past the budget stops, the page drawing from the worker's run as on any other failure */
+let main_thread_ms = 50.;
+let main_thread_fuel = 50_000_000;
+/* f () with that budget on the compiled code's runtime, taken off after, whatever happens */
+let with_budget = (f: unit => 'a): 'a => {
+  let r = Lazy.force(HazelJitValue.runtime);
+  let off = () => ignore(U.meth_call(r, "unlimit", [||]));
+  ignore(
+    U.meth_call(
+      r,
+      "limit",
+      [|U.inject(main_thread_fuel), U.inject(main_thread_ms)|],
+    ),
+  );
+  switch (f()) {
+  | v =>
+    off();
+    v;
+  | exception exn =>
+    off();
+    raise(exn);
+  };
+};
+
 type compiled = {
   /* the latest program found to be this one but for its livelits' models (^report(50)'s next step 3), the one it was
      compiled from at first */
@@ -533,7 +558,7 @@ let prime = (c: compiled): unit => {
   U.set(r, "samples", samples);
   let ran =
     Util.BenchMarks.time("hazel-jit: the run, after its compilation", () =>
-      switch (U.fun_call(c.fn, [|r|])) {
+      switch (with_budget(() => U.fun_call(c.fn, [|r|]))) {
       | _ => true
       | exception _ => false
       }
@@ -683,9 +708,10 @@ let step = (~projector: Id.t, ~model: Exp.t): result(int, string) =>
           let samples = U.obj([||]);
           U.set(r, "params", c.params);
           U.set(r, "samples", samples);
+          /* (^ticket(763)) on the main thread, a budget: a run past it stops, and the page draws from the worker's run */
           let ran =
             Util.BenchMarks.time("hazel-jit: the run", () =>
-              switch (U.fun_call(c.fn, [|r|])) {
+              switch (with_budget(() => U.fun_call(c.fn, [|r|]))) {
               | _ => Ok()
               | exception exn => Error(HazelJitValue.message(exn))
               }
