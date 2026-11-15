@@ -159,8 +159,8 @@ let rec agree = (e: Exp.t, js: Js.Unsafe.any): option(string) => {
    with CI") Every program of the evaluator's own tests (Test_Evaluator_Prelude.evaluation_test: 314 checks) is run by
    hazel-jit too, where it compiles, and its value compared with the interpreter's. Reported, not yet checked: at the end of
    the run, a summary in the log, how many compiled, agreed, differ, threw, or have an interpreter result that is not a value
-   (an error or a stuck term, what ^ticket(758) and ^ticket(759) are about), each by its test's name. Next, the partings it
-   finds are listed here as known, and a new one fails the test. */
+   (an error or a stuck term, what ^ticket(758) and ^ticket(759) are about), each by its test's name. The partings it
+   found first are listed below as known; any other fails its test. */
 type parting = {
   test: string,
   what: string,
@@ -181,63 +181,133 @@ let starts_with = (pre, s) =>
   String.length(s) >= String.length(pre)
   && String.sub(s, 0, String.length(pre)) == pre;
 
-let sweep = (test: string, elab: Exp.t, result: Exp.t): unit =>
-  try(
-    {
-      incr(swept);
-      switch (HazelJit.try_compile(~env=Builtins.env_init, elab)) {
-      | Error(reason) =>
-        Hashtbl.replace(
-          not_compiled,
-          reason,
-          1
-          + Option.value(~default=0, Hashtbl.find_opt(not_compiled, reason)),
-        )
-      | Ok(js_src) =>
-        incr(compiled);
-        switch (run_js(HazelJit.Runtime.source, js_src)) {
-        | exception (Js_error.Exn(e)) =>
-          threw :=
-            [
-              {
-                test,
-                what:
-                  one_line(
-                    Js_error.message(e)
-                    ++ "; the interpreter: "
-                    ++ Exp.show(result),
-                  ),
-              },
-              ...threw^,
-            ]
-        | got =>
-          switch (agree(result, got)) {
-          | None => incr(agreed)
-          | Some(d) when starts_with(not_a_value, d) =>
-            not_compared :=
+/* (^ticket(756), next) the partings the first sweep found (CI 43754503317), by test name, whitespace as one space: all 30
+   are ill-typed programs, which the interpreter stops at a failed run-time type check and compiled code, its types
+   erased, runs on (^ticket(760): the page compiles no program with type errors). Any other parting fails its test. */
+let known_not_a_value = [
+  "(a=3 : Bool, b= \"\": Float) == (a=3, b=\"\") : (c=Bool, d=Float)",
+  "(a=1,b=2).c == (a=1,b=2).c",
+  "(true) . a == (true) . a",
+  "((true) . a): Int == ((true) . a): Int",
+  "Duplicate labels projected are indet",
+  "mismatched types",
+  "1 : String == case 1 | (x : String) =>x end",
+  "case 1 | (\"hello\") => false | (x : String) => true end == case 1 | (\"hello\") => false | (x : String) => true end",
+  "(case () | (1, 2) => true | _ => false end) == (case () | (1, 2) => true | _ => false end)",
+  "[1 : String,2 : String,3 : String] == [1,2,3] : [String]",
+  "[1 : String,2 : String,3 : String] == type T = [String] in [1,2,3] : T",
+  "[1, \"hello\" : Int] == 1 :: [\"hello\"]",
+  "4 : String == 4 : String",
+  "true : String == true : String",
+  "1. : String == 1. : String",
+  "Nat",
+  "SInt",
+  "(4 : String) == let x : String = 4 in x",
+  "1 + (4 : String) == 1 + (4 : String)",
+  "Hidden inconsistency caught in dynamics",
+  "Hidden containing arrow caught in dynamics",
+  "Labeled tuple with different labels",
+  "Labeled tuple with rearragned labels",
+  "Typfun is not comparable",
+  "Hidden containing arrow in tuple caught in dynamics",
+  "A : (+A +B) : (+A +C)",
+  "Indet when unboxing constructor as bool",
+  "Indet when unboxing constructor as typfun",
+  "Indet when unboxing constructor as string",
+  "Indet when unboxing constructor as int",
+];
+let words = s =>
+  String.split_on_char(
+    ' ',
+    String.map(c => c == '\n' || c == '\t' ? ' ' : c, s),
+  )
+  |> List.filter(w => w != "")
+  |> String.concat(" ");
+let known = test => List.mem(words(test), known_not_a_value);
+
+type verdict =
+  | Fine
+  | Parts(string);
+
+let sweep = (test: string, elab: Exp.t, result: Exp.t): unit => {
+  let verdict =
+    try(
+      {
+        incr(swept);
+        switch (HazelJit.try_compile(~env=Builtins.env_init, elab)) {
+        | Error(reason) =>
+          Hashtbl.replace(
+            not_compiled,
+            reason,
+            1
+            + Option.value(
+                ~default=0,
+                Hashtbl.find_opt(not_compiled, reason),
+              ),
+          );
+          Fine;
+        | Ok(js_src) =>
+          incr(compiled);
+          switch (run_js(HazelJit.Runtime.source, js_src)) {
+          | exception (Js_error.Exn(e)) =>
+            let what =
+              one_line(
+                Js_error.message(e)
+                ++ "; the interpreter: "
+                ++ Exp.show(result),
+              );
+            threw :=
               [
                 {
                   test,
-                  what: one_line(d),
+                  what,
                 },
-                ...not_compared^,
-              ]
-          | Some(d) =>
-            differs :=
-              [
-                {
-                  test,
-                  what: one_line(d),
-                },
-                ...differs^,
-              ]
-          }
+                ...threw^,
+              ];
+            Parts("the compiled JS threw: " ++ what);
+          | got =>
+            switch (agree(result, got)) {
+            | None =>
+              incr(agreed);
+              Fine;
+            | Some(d) when starts_with(not_a_value, d) =>
+              not_compared :=
+                [
+                  {
+                    test,
+                    what: one_line(d),
+                  },
+                  ...not_compared^,
+                ];
+              known(test) ? Fine : Parts(one_line(d));
+            | Some(d) =>
+              differs :=
+                [
+                  {
+                    test,
+                    what: one_line(d),
+                  },
+                  ...differs^,
+                ];
+              Parts("differs: " ++ one_line(d));
+            }
+          };
         };
-      };
-    }
-  ) {
-  | _ => incr(sweep_failed)
+      }
+    ) {
+    | _ =>
+      incr(sweep_failed);
+      Fine;
+    };
+  /* (outside the guard above, which would catch Alcotest's failure too) */
+  switch (verdict) {
+  | Fine => ()
+  | Parts(why) =>
+    Alcotest.fail(
+      "hazel-jit parts from the interpreter (ticket 756): " ++ why,
+    )
   };
+};
 
 let report = () =>
   if (swept^ > 0) {
