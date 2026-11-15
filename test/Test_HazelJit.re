@@ -1669,9 +1669,36 @@ let witch_view_run = (~n=15, ()) => {
   );
 };
 
+/* (^ticket(761)) the string builtins the sweep found missing, each against the interpreter's */
+let string_builtin_tests = [
+  agreement(
+    "string_match",
+    "(string_match(\"b+\", \"abbbc\"), string_match(\"^z\", \"abc\"))",
+  ),
+  agreement(
+    "string_replace, a $ kept",
+    "string_replace(\"o\", \"foo boo\", \"$0\")",
+  ),
+  agreement(
+    "string_search",
+    "(string_search(\"a\", \"banana\", 2), string_search(\"z\", \"banana\", 0))",
+  ),
+  agreement(
+    "string_search, by graphemes",
+    "string_search(\"c\", \"a👍🏽bc\", 0)",
+  ),
+  agreement("string_join", "string_join(\", \", [\"a\", \"b\", \"c\"])"),
+  agreement("string_escaped", "string_escaped(\"a\\\"b\\\\c\\n\")"),
+  agreement(
+    "string_capitalize and string_uncapitalize",
+    "(string_capitalize(\"élan\"), string_uncapitalize(\"ÉLAN\"))",
+  ),
+];
+
 let tests = (
   "HazelJit",
-  [
+  string_builtin_tests
+  @ [
     agreement("arithmetic", "1 + 2 * 3 - 4 / 2"),
     agreement("floats", "1.5 *. 2. +. 0.25"),
     agreement("a function", "let f = fun x -> x * 2 in f(21)"),

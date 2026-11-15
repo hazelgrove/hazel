@@ -76,6 +76,32 @@ module Runtime = {
     float_of_string: s => Number(s),
     string_length: s => s.length, string_uppercase: s => s.toUpperCase(), string_lowercase: s => s.toLowerCase(),
     string_trim: s => s.trim(),
+    /* (^ticket(761), the sweep's most frequent missing builtins) as HazelString has them: a pattern a JS RegExp with the
+       u flag (without it where u will not compile), global; a string's offsets in grapheme clusters, by Intl.Segmenter */
+    string_match: ([p, s]) => { const re = (q => { try { return new RegExp(q, "gu"); } catch (e) { return new RegExp(q, "g"); } })(p); re.lastIndex = 0; return re.test(s); },
+    string_replace: ([p, s, by]) => s.replace((q => { try { return new RegExp(q, "gu"); } catch (e) { return new RegExp(q, "g"); } })(p), by.split("$").join("$$")),
+    string_search: ([p, s, start]) => {
+      if (typeof start === "bigint" || start > 2147483647 || start < -2147483648) return -1;
+      const g = (t => Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(t), x => x.segment))(s), n = g.length, k = start < 0 ? 0 : start > n ? n : start;
+      let u = 0; for (let i = 0; i < k; i++) u += g[i].length;
+      const re = (q => { try { return new RegExp(q, "gu"); } catch (e) { return new RegExp(q, "g"); } })(p); re.lastIndex = u; const m = re.exec(s);
+      if (m === null) return -1;
+      if (m.index <= 0) return 0;
+      let acc = 0; for (let i = 0; i < n; i++) { acc += g[i].length; if (acc > m.index) return i; } return n;
+    },
+    string_join: ([sep, xs]) => { const a = []; for (let p = xs; p !== null; p = p.t) a.push(p.h); return a.join(sep); },
+    string_escaped: s => {
+      let out = "";
+      for (const c of s) {
+        const k = c.charCodeAt(0);
+        out += c === "\\" ? "\\\\" : c === "\"" ? "\\\"" : c === "\n" ? "\\n" : c === "\t" ? "\\t" : c === "\r" ? "\\r" : c === "\b" ? "\\b"
+          : (k < 0x20 || k === 0x7f) ? "\\" + String(k).padStart(3, "0") : c;
+      }
+      return out;
+    },
+    string_capitalize: s => { const g = (t => Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(t), x => x.segment))(s); return g.length ? g[0].toUpperCase() + g.slice(1).join("") : s; },
+    string_uncapitalize: s => { const g = (t => Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(t), x => x.segment))(s); return g.length ? g[0].toLowerCase() + g.slice(1).join("") : s; },
+    omit_all_labels: t => Array.isArray(t) ? Array.from(t) : t,
     abs: Math.abs, abs_float: Math.abs, ceil: Math.ceil, floor: Math.floor, round: Math.round,
     sqrt: Math.sqrt, exp: Math.exp, log: Math.log, log10: Math.log10,
     sin: Math.sin, cos: Math.cos, tan: Math.tan, asin: Math.asin, acos: Math.acos, atan: Math.atan,
@@ -108,6 +134,14 @@ module Runtime = {
     "string_uppercase",
     "string_lowercase",
     "string_trim",
+    "string_match",
+    "string_replace",
+    "string_search",
+    "string_join",
+    "string_escaped",
+    "string_capitalize",
+    "string_uncapitalize",
+    "omit_all_labels",
     "abs",
     "abs_float",
     "ceil",
