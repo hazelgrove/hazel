@@ -1707,9 +1707,26 @@ let string_builtin_tests = [
   ),
 ];
 
+/* (^ticket(761)) partial application, f(a, _): one deferred, several, and one handed to List.map */
+let partial_tests = [
+  agreement(
+    "a partial application",
+    "let add = fun (a, b) -> a + b in let inc = add(1, _) in inc(41)",
+  ),
+  agreement(
+    "two deferred, filled in order",
+    "let f = fun (a, b, c) -> a * 100 + b * 10 + c in let g = f(_, 2, _) in g(1, 3)",
+  ),
+  agreement(
+    "a partial application to List.map",
+    "let add = fun (a, b) -> a + b in List.map(add(10, _), [1, 2, 3])",
+  ),
+];
+
 let tests = (
   "HazelJit",
-  string_builtin_tests
+  partial_tests
+  @ string_builtin_tests
   @ [
     agreement("arithmetic", "1 + 2 * 3 - 4 / 2"),
     agreement("floats", "1.5 *. 2. +. 0.25"),

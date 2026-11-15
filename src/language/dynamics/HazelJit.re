@@ -726,7 +726,61 @@ and exp_inner =
   | Forall(_)
   | DrvQuote(_) => unsupported("this kind of term")
   | Deferral(_)
-  | DeferredAp(_) => unsupported("a partial application")
+  /* (^ticket(761), the sweep's 8 partial applications) f(a, _, c): f and the arguments given evaluated now, in order, as
+     Transition's DeferredAp is a value once they are; then a function of the deferred ones, filled in order (one deferred:
+     the argument itself; several: a tuple of them), applying f to all of them, one alone as itself */
+  | DeferredAp(f, args) =>
+    let ftmp = fresh(st, scope, "pf");
+    let slots =
+      List.map(
+        (a: Exp.t) =>
+          switch (Exp.term_of(a)) {
+          | Deferral(_) => None
+          | TupLabel(_) =>
+            unsupported("a partial application with a labeled argument")
+          | _ => Some((fresh(st, scope, "pa"), go(a)))
+          },
+        args,
+      );
+    let deferred = List.length(List.filter(Option.is_none, slots));
+    st.counter = st.counter + 1;
+    let x = "d$" ++ string_of_int(st.counter);
+    let next = ref(0);
+    let elems =
+      List.map(
+        slot =>
+          switch (slot) {
+          | Some((tmp, _)) => tmp
+          | None =>
+            let k = next^;
+            next := k + 1;
+            deferred == 1 ? x : x ++ "[" ++ string_of_int(k) ++ "]";
+          },
+        slots,
+      );
+    let given =
+      List.filter_map(
+        slot => Option.map(((tmp, code)) => tmp ++ " = " ++ code, slot),
+        slots,
+      );
+    "("
+    ++ String.concat(
+         ", ",
+         [ftmp ++ " = " ++ go(f), ...given]
+         @ [
+           "(("
+           ++ x
+           ++ ") => "
+           ++ ftmp
+           ++ "("
+           ++ (
+             List.length(elems) == 1
+               ? List.hd(elems) : "[" ++ String.concat(", ", elems) ++ "]"
+           )
+           ++ "))",
+         ],
+       )
+    ++ ")";
   | Undefined => unsupported("undefined")
   | Label(_)
   | ExplicitNonlabel
