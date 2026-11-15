@@ -725,7 +725,7 @@ and exp_inner =
   | ProofObject(_)
   | Forall(_)
   | DrvQuote(_) => unsupported("this kind of term")
-  | Deferral(_)
+  | Deferral(_) => unsupported("a partial application's _ outside one")
   /* (^ticket(761), the sweep's 8 partial applications) f(a, _, c): f and the arguments given evaluated now, in order, as
      Transition's DeferredAp is a value once they are; then a function of the deferred ones, filled in order (one deferred:
      the argument itself; several: a tuple of them), applying f to all of them, one alone as itself */
