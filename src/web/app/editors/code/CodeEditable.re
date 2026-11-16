@@ -999,8 +999,39 @@ module View = {
       };
     };
 
-    let move_or_select = (mouse: Pointer.Event.t, pointer_id: int) =>
+    /* a refactor drag grabbed at the press: candidate tracks are
+       enumerated by CodeDrag.sync once the caret lands there */
+    let arm_drag = (~click, mouse: Pointer.Event.t, pointer_id: int) =>
+      CodeDrag.arm(
+        /* the path to the rung reached, one undo step */
+        ~commit=
+          steps =>
+            Bonsai.Effect.Expert.handle(
+              inject(Perform(RefactorPath(steps))),
+            ),
+        ~focus=
+          id =>
+            Bonsai.Effect.Expert.handle(
+              inject(Perform(Move(Goal(TileId(id))))),
+            ),
+        ~click,
+        ~pointer_id,
+        ~ladders=
+          globals.settings.core.drag_chain
+          != Language.CoreSettings.DragChain.Off,
+        ~push=globals.settings.core.drag_push,
+        ~show_labels=globals.settings.core.drag_labels,
+        ~show_tracks=globals.settings.core.drag_tracks,
+        ~text_box=container_target(mouse.current_target),
+        ~client=(float_of_int(mouse.loc.col), float_of_int(mouse.loc.row)),
+        ~goal=loc(mouse),
+      );
+
+    let move_or_select = (~touch, mouse: Pointer.Event.t, pointer_id: int) =>
       switch (mouse) {
+      | _ when touch && CodeDrag.active() =>
+        /* another finger while one holds a construct */
+        Effect.Ignore
       | {button: Left, shift: Down, _} =>
         /* Shift+click extends (or starts) a selection and arms a
          * drag-resize. Registered without click-counting so a
@@ -1021,37 +1052,15 @@ module View = {
       | {button: Left, sys: PC, ctrl: Down, _}
       | {button: Left, sys: Mac, meta: Down, _} =>
         /* Cmd/Ctrl: a drag pulls the grabbed construct along candidate
-           tracks (enumerated by CodeDrag.sync once the caret lands at
-           the grab point); a click jumps to the binding site */
-        CodeDrag.arm(
-          /* the path to the rung reached, one undo step */
-          ~commit=
-            steps =>
-              Bonsai.Effect.Expert.handle(
-                inject(Perform(RefactorPath(steps))),
-              ),
-          ~focus=
-            id =>
-              Bonsai.Effect.Expert.handle(
-                inject(Perform(Move(Goal(TileId(id))))),
-              ),
+           tracks; a click jumps to the binding site */
+        arm_drag(
           ~click=
             () =>
               Bonsai.Effect.Expert.handle(
                 inject(Perform(Move(Goal(BindingSiteOfIndicatedVar)))),
               ),
-          ~ladders=
-            globals.settings.core.drag_chain
-            != Language.CoreSettings.DragChain.Off,
-          ~push=globals.settings.core.drag_push,
-          ~show_labels=globals.settings.core.drag_labels,
-          ~show_tracks=globals.settings.core.drag_tracks,
-          ~text_box=container_target(mouse.current_target),
-          ~client=(
-            float_of_int(mouse.loc.col),
-            float_of_int(mouse.loc.row),
-          ),
-          ~goal=loc(mouse),
+          mouse,
+          pointer_id,
         );
         Effect.Many([
           signal(MakeActive),
@@ -1092,6 +1101,24 @@ module View = {
         | 1 =>
           /* prepare to drag if the mouse moves */
           PointerCapture.set(mouse.current_target, pointer_id);
+          if (touch) {
+            /* touch has no Cmd: a finger held still picks up instead;
+               the re-sent Move renders, which is when CodeDrag.sync
+               enumerates the tracks */
+            CodeDrag.hold(
+              ~pointer_id,
+              ~client=(
+                float_of_int(mouse.loc.col),
+                float_of_int(mouse.loc.row),
+              ),
+              () => {
+                arm_drag(~click=() => (), mouse, pointer_id);
+                Bonsai.Effect.Expert.handle(
+                  inject(Perform(Move(Point(loc(mouse), None)))),
+                );
+              },
+            );
+          };
           Effect.Many([
             signal(MakeActive),
             inject(Perform(Move(Point(loc(mouse), None)))),
@@ -1323,7 +1350,11 @@ module View = {
           }
         ),
         Attr.on_pointerdown(evt =>
-          move_or_select(Pointer.Event.mk(evt), Pointer.Event.id_of(evt))
+          move_or_select(
+            ~touch=Pointer.Event.is_touch(evt),
+            Pointer.Event.mk(evt),
+            Pointer.Event.id_of(evt),
+          )
         ),
         Attr.on_pointerup(evt =>
           toggle_button(Pointer.Event.mk(evt), Pointer.Event.id_of(evt))

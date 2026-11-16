@@ -49,6 +49,8 @@ module Event = {
 
   /* Not incoporate into above to preserve MouseEvent compatibility */
   let id_of = (evt: Js.t(Dom_html.pointerEvent)): int => evt##.pointerId;
+  let is_touch = (evt: Js.t(Dom_html.pointerEvent)): bool =>
+    Js.to_string(Js.Unsafe.coerce(evt)##.pointerType) == "touch";
 
   /* Works with both MouseEvents or PointerEvents */
   let mk = (evt): t => {

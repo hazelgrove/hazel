@@ -125,6 +125,8 @@ type session = {
   focus: Id.t => unit,
   /* released before the drag began */
   click: unit => unit,
+  /* the pointer that armed; others (a second finger) are ignored */
+  pointer_id: int,
   ladders: bool,
   push: bool,
   show_labels: bool,
@@ -1282,10 +1284,12 @@ let local = (s: session, e: Js.t(Dom_html.event)): vec => {
   };
 };
 
+let mine = (s: session, e: Js.t(Dom_html.event)): bool =>
+  Js.Unsafe.coerce(e)##.pointerId == s.pointer_id;
+
 let on_move = (e: Js.t(Dom_html.event)): unit =>
   switch (session^) {
-  | None => ()
-  | Some(s) =>
+  | Some(s) when mine(s, e) =>
     let p = local(s, e);
     if (!s.began) {
       let d = sqrt((p.x -. s.down_at.x) ** 2. +. (p.y -. s.down_at.y) ** 2.);
@@ -1322,12 +1326,12 @@ let on_move = (e: Js.t(Dom_html.event)): unit =>
           },
       );
     };
+  | _ => ()
   };
 
-let on_up = (_e: Js.t(Dom_html.event)): unit =>
+let on_up = (e: Js.t(Dom_html.event)): unit =>
   switch (session^) {
-  | None => ()
-  | Some(s) =>
+  | Some(s) when mine(s, e) =>
     if (!s.began) {
       s.click();
     };
@@ -1379,6 +1383,7 @@ let on_up = (_e: Js.t(Dom_html.event)): unit =>
     | _ => ()
     };
     end_session();
+  | _ => ()
   };
 
 let listen = (name: string, f: Js.t(Dom_html.event) => unit) =>
@@ -1397,6 +1402,7 @@ let arm =
       ~commit: list((Action.refactor, Id.t)) => unit,
       ~focus: Id.t => unit,
       ~click: unit => unit,
+      ~pointer_id: int,
       ~ladders: bool,
       ~push: bool,
       ~show_labels: bool,
@@ -1413,6 +1419,7 @@ let arm =
     commit,
     focus,
     click,
+    pointer_id,
     ladders,
     push,
     show_labels,
@@ -1448,6 +1455,14 @@ let arm =
   s.listeners = [
     listen("pointermove", on_move),
     listen("pointerup", on_up),
+    /* the browser took the gesture (a touch became a pan or zoom):
+       nothing lands */
+    listen("pointercancel", e =>
+      switch (session^) {
+      | Some(s) when mine(s, e) => end_session()
+      | _ => ()
+      }
+    ),
     listen("keydown", e => {
       let key: string = Js.to_string(Js.Unsafe.coerce(e)##.key);
       if (key == "Escape") {
@@ -1457,6 +1472,148 @@ let arm =
   ];
   session := Some(s);
 };
+
+/* === touch: hold, then drag ===
+   Touch has no Cmd. A finger resting on a token for hold_ms picks it
+   up (then the drag runs as from a Cmd-press); moving sooner leaves the
+   gesture to the browser's scroll, lifting sooner is a plain tap. */
+
+let hold_ms = 350.;
+let hold_slop = 8.; /* px of finger wobble a hold tolerates */
+
+type hold = {
+  timer: Dom_html.timeout_id_safe,
+  listeners: list(Dom.event_listener_id),
+};
+let hold_pending: ref(option(hold)) = ref(None);
+
+/* the pick-up cue: a ring that opens out from under the finger (wide
+   enough to show around it) and fades */
+let pickup_ring = (x: float, y: float): unit => {
+  let id = "code-drag-pickup";
+  let el =
+    switch (
+      Js.Opt.to_option(Dom_html.document##getElementById(Js.string(id)))
+    ) {
+    | Some(el) => el
+    | None =>
+      let el = Dom_html.createDiv(Dom_html.document);
+      el##.id := Js.string(id);
+      Dom.appendChild(Dom_html.document##.body, el);
+      el;
+    };
+  el##.style##.left := Js.string(Printf.sprintf("%fpx", x));
+  el##.style##.top := Js.string(Printf.sprintf("%fpx", y));
+  ignore(
+    Js.Unsafe.meth_call(
+      el,
+      "animate",
+      [|
+        Js.Unsafe.inject(
+          Js.array([|
+            Js.Unsafe.obj([|
+              ("transform", Js.Unsafe.inject(Js.string("scale(0.4)"))),
+              ("opacity", Js.Unsafe.inject(Js.string("0.9"))),
+            |]),
+            Js.Unsafe.obj([|
+              ("transform", Js.Unsafe.inject(Js.string("scale(1)"))),
+              ("opacity", Js.Unsafe.inject(Js.string("0"))),
+            |]),
+          |]),
+        ),
+        Js.Unsafe.inject(
+          Js.Unsafe.obj([|
+            ("duration", Js.Unsafe.inject(Js.number_of_float(380.))),
+            ("easing", Js.Unsafe.inject(Js.string("ease-out"))),
+          |]),
+        ),
+      |],
+    ),
+  );
+};
+
+let cancel_hold = () => {
+  switch (hold_pending^) {
+  | Some(h) =>
+    Dom_html.clearTimeout(h.timer);
+    h.listeners |> List.iter(Dom.removeEventListener);
+  | None => ()
+  };
+  hold_pending := None;
+};
+
+let hold =
+    (
+      ~pointer_id: int,
+      ~client as (x0, y0): (float, float),
+      grab: unit => unit,
+    )
+    : unit => {
+  cancel_hold();
+  let this = (e: Js.t(Dom_html.event)) =>
+    Js.Unsafe.coerce(e)##.pointerId == pointer_id;
+  let timer =
+    Dom_html.setTimeout(
+      () => {
+        cancel_hold();
+        pickup_ring(x0, y0);
+        grab();
+      },
+      hold_ms,
+    );
+  hold_pending :=
+    Some({
+      timer,
+      listeners: [
+        listen("pointermove", e =>
+          if (this(e)) {
+            let x: float = Js.Unsafe.coerce(e)##.clientX
+            and y: float = Js.Unsafe.coerce(e)##.clientY;
+            if (sqrt((x -. x0) ** 2. +. (y -. y0) ** 2.) > hold_slop) {
+              cancel_hold();
+            };
+          }
+        ),
+        listen("pointerup", e =>
+          if (this(e)) {
+            cancel_hold();
+          }
+        ),
+        listen("pointercancel", e =>
+          if (this(e)) {
+            cancel_hold();
+          }
+        ),
+      ],
+    });
+};
+
+/* While something is held the page must not pan under the finger, nor
+   open the long-press menu. Installed once, before any touch: a
+   touchmove listener added mid-gesture cannot cancel (the browser
+   decides at touchstart whether to wait for one). */
+let touch_guard_installed = ref(false);
+let install_touch_guard = () =>
+  if (! touch_guard_installed^) {
+    touch_guard_installed := true;
+    let guard = name =>
+      ignore(
+        Dom_html.addEventListenerWithOptions(
+          Dom_html.document,
+          Dom.Event.make(name),
+          ~capture=Js._true,
+          ~passive=Js._false,
+          Dom_html.handler(e => {
+            if (active()) {
+              Dom.preventDefault(e);
+            };
+            Js._true;
+          }),
+        ),
+      );
+    guard("touchmove");
+    guard("contextmenu");
+  };
 
 /* Called from the editor view on every render: when a drag session
    needs candidates (just armed, or just committed a chain step),

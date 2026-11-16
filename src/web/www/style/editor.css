@@ -206,6 +206,24 @@
   cursor: pointer;
 }
 
+/* touch: a held finger picks a token up, so no iOS long-press callout */
+.code-editor {
+  -webkit-touch-callout: none;
+}
+
+/* the ring that marks a touch hold picking something up */
+#code-drag-pickup {
+  position: fixed;
+  width: 56px;
+  height: 56px;
+  margin: -28px 0 0 -28px;
+  border: 2px solid #c2483b;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 1000;
+  opacity: 0;
+}
+
 /* mid-drag the caret RIDES the grabbed token's scrub (CodeDrag adds
    #caret to the winner's paused animations); kill the blink so it
    reads as solid cargo, not an active insertion point (pausing

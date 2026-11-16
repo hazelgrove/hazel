@@ -709,6 +709,7 @@ module View = {
     MetaListener.sync(down =>
       Bonsai.Effect.Expert.handle(inject(Globals(SetMetaDown(down))))
     );
+    CodeDrag.install_touch_guard();
     let handle_key_event = (key: Key.t): Effect.t(unit) => {
       /* meta state is maintained by MetaListener (document capture);
          the page's bubble listener misses keys the editor consumes */
