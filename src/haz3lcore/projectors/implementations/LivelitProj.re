@@ -1151,8 +1151,11 @@ module M: Projector = {
   /* A view's answer drawn: straight from its JS when it has one, and every
      form in it is one HazelJitDOM draws; otherwise its Hazel Html, by
      HazelDOM, as before (and the console says why, once) */
+  /* (^ticket(760)) in a probe drawer's stepper over one of its samples (info.stepping), never from JS: that view is
+     the stepped sample's, from the interpreter, step by step, not the compiled run's latest answer. (The main stepper,
+     StepperView, evaluates by the interpreter's own steps; hazel-jit runs only for livelits' views and events.) */
   let draw_answer =
-      (mvu: HazelDOM.t, a: view_answer)
+      (~stepping=false, mvu: HazelDOM.t, a: view_answer)
       : result(Virtual_dom.Vdom.Node.t, string) => {
     let through_hazel = () =>
       switch (Lazy.force(a.html)) {
@@ -1162,7 +1165,7 @@ module M: Projector = {
       | Error(_) as err => err
       };
     switch (a.js) {
-    | Some((js, types)) when HazelJitValue.enabled^ =>
+    | Some((js, types)) when HazelJitValue.enabled^ && !stepping =>
       switch (HazelJitDOM.go(mvu, types, js)) {
       | node =>
         HazelJitValue.count("drawn from JS");
@@ -1328,6 +1331,7 @@ module M: Projector = {
 
   let event_inject =
       (
+        ~stepping: bool,
         ~id: Id.t,
         ~print_term: TermBase.Exp.t => string,
         ~ll_name: string,
@@ -1416,10 +1420,15 @@ module M: Projector = {
              as its parameter: every livelit's view answer, for each to be
              drawn from (below) before the worker's run comes back. Its own
              failures only leave the samples to draw, as before. */
-          ignore(HazelJitRun.step(~projector=id, ~model=new_model));
+          /* (^ticket(760)) not in a probe drawer's stepper, which shows its sample's own steps */
+          if (!stepping) {
+            ignore(HazelJitRun.step(~projector=id, ~model=new_model));
+          };
           /* this livelit, and each whose answer from the run changed */
           touch(id);
-          List.iter(touch_key, HazelJitRun.changed^);
+          if (!stepping) {
+            List.iter(touch_key, HazelJitRun.changed^);
+          };
           Hashtbl.replace(
             optimistic,
             id,
@@ -1627,6 +1636,7 @@ module M: Projector = {
 
   let user_view =
       (
+        ~stepping: bool,
         ~id: Id.t,
         ~print_term: TermBase.Exp.t => string,
         ~ll_name: string,
@@ -1667,6 +1677,7 @@ module M: Projector = {
     let seed = (~model, ~model_value): HazelDOM.t => {
       inject:
         event_inject(
+          ~stepping,
           ~id,
           ~print_term,
           ~ll_name,
@@ -1804,6 +1815,7 @@ module M: Projector = {
     | (Some(entry), _) =>
       switch (
         draw_answer(
+          ~stepping,
           seed(~model=entry.opt_model, ~model_value=Some(entry.opt_model)),
           entry.opt_view,
         )
@@ -1856,7 +1868,10 @@ module M: Projector = {
         ~compiled=
           () => {
             let a = eval_view_answer(~def_elab, view_fn, view_model);
-            switch (a.js, draw_answer(seed(~model, ~model_value), a)) {
+            switch (
+              a.js,
+              draw_answer(~stepping, seed(~model, ~model_value), a),
+            ) {
             | (Some(_), Ok(_)) => "compiled"
             | (None, Ok(_)) => "on the interpreter"
             | (_, Error(e)) => "error: " ++ e
@@ -1880,6 +1895,7 @@ module M: Projector = {
           () =>
             switch (
               draw_answer(
+                ~stepping,
                 seed(~model, ~model_value),
                 eval_view_answer(view_fn, view_model),
               )
@@ -1896,7 +1912,7 @@ module M: Projector = {
       switch (answer.js) {
       /* (^ticket(714)) ran compiled: drawn from its JS, or else through Hazel */
       | Some(_) =>
-        switch (draw_answer(seed(~model, ~model_value), answer)) {
+        switch (draw_answer(~stepping, seed(~model, ~model_value), answer)) {
         | Ok(node) => ok(node)
         | Error(e) => err(worded(e))
         }
@@ -2529,6 +2545,7 @@ module M: Projector = {
             ],
             [
               user_view(
+                ~stepping=Option.is_some(info.stepping),
                 ~id=info.id,
                 ~ll_name,
                 ~print_term,
