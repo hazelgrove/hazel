@@ -199,6 +199,8 @@ let equality =
           };
         }
       )
+    | (Var(x), _) when List.exists(((bound, _)) => bound == x, alphas_exp) =>
+      false
     | (Var(x), _) =>
       open OptUtil.Syntax;
       let lookup1 = {
@@ -213,6 +215,8 @@ let equality =
         | None => false // If no handler, just check if they are equal.
         }
       };
+    | (_, Var(y)) when List.exists(((_, bound)) => bound == y, alphas_exp) =>
+      false
     | (_, Var(y)) =>
       open OptUtil.Syntax;
       let lookup2 = {
