@@ -40,6 +40,7 @@ let tests =
     Test_Generalize.tests,
     Test_Revert.tests,
     Test_CasesInduction.tests,
+    Test_Contradiction.tests,
     Test_Instantiation.tests,
     Test_Milestone_STLC.tests,
     Test_RootMissingRepro.tests,

@@ -4940,6 +4940,35 @@ and proof_to_info_map =
       }),
       m,
     );
+  | Contradiction(e, instantiation) =>
+    /* `contradiction F end` cites the in-scope fact `F`, given by name or
+       as a proposition. Terminal: no body, no new bindings. */
+    let (e, m) =
+      switch (go_fact_name(e, m)) {
+      | Some((_, e, m)) => (e, m)
+      | None => go_prop(e, m)
+      };
+    /* `with <var> = <exp>`: unlike in the axiom and revert steps, `<var>`
+       is an in-scope program variable (the left side of an equation the
+       branch already knows), not a binder of the cited rule. So it is
+       walked in the plain ctx, where an unbound name is `Free`, and
+       `<exp>` analyzes against the variable's type. */
+    let (instantiation, m) =
+      switch (instantiation) {
+      | None => (None, m)
+      | Some((var, inst)) =>
+        let ana =
+          switch (unwrap_head(var).term) {
+          | Var(name) =>
+            Ctx.lookup_var(ctx, name)
+            |> Option.map(~f=(entry: Ctx.var_entry) => entry.typ)
+          | _ => None
+          };
+        let (_, var, m) = go_exp(var, m);
+        let (_, inst, m) = go_exp(~ana?, inst, m);
+        (Some((var, inst)), m);
+      };
+    add(Contradiction(e, instantiation), m);
   | Cases(scrut, cases) =>
     let (scrut, cases, marks, m) =
       go_split(~case_eq_name=Some("case_eq"), scrut, cases, m);

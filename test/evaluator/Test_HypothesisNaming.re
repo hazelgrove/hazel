@@ -81,6 +81,7 @@ let rec find_revert = (p: Proof.t): option(Proof.t) =>
   | MultiHole(_)
   | AxiomStep(_)
   | AlgebriteStep(_)
+  | Contradiction(_)
   | EvalStep => None
   | Focus({body, _}) => find_revert(body)
   };

@@ -173,6 +173,8 @@ type example_id =
   | ProofGeneralize1
   | ProofRevert1
   | ProofRevertWith1
+  | ProofContradiction1
+  | ProofContradictionWith1
   | ProofHave1
   | ProofHaveNamed1
   | ProofAssumeNamed1
@@ -343,6 +345,7 @@ type form_id =
   | ProofAssumeStep
   | ProofGeneralizeStep
   | ProofRevertStep
+  | ProofContradictionStep
   | ProofHaveStep
   /* Hypothesis naming: the named forms and `alias`. */
   | ProofHaveNamedStep

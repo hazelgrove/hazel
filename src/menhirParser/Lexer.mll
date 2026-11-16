@@ -27,7 +27,8 @@ let prover_keywords : (string, token) Stdlib.Hashtbl.t =
     [ ("theorem", THEOREM); ("proof", PROOF); ("forall", FORALL);
       ("funext", FUNEXT); ("assume", ASSUME);
       ("generalize", GENERALIZE); ("have", HAVE); ("revert", REVERT);
-      ("cases", CASES); ("induction", INDUCTION);
+      ("cases", CASES); ("contradiction", CONTRADICTION);
+      ("induction", INDUCTION);
       ("alias", ALIAS); ("rewrite", REWRITE);
       ("algebra", ALGEBRA); ("with", WITH);
       ("from", FROM); ("at", AT); ("do", DO) ];

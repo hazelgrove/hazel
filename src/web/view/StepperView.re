@@ -1903,6 +1903,7 @@ module View = {
     | Focus(_) =>
       Rows.single_step(step)
       |> Option.value_map(~default="focus", ~f=justification)
+    | Contradiction(_) => "contradiction"
     | Forall(_) => "forall"
     | Funext(_) => "extensionality"
     | Assume(_) => "assume"

@@ -277,7 +277,8 @@ let rec find_have = (p: Proof.t): option(Proof.t) =>
   | MultiHole(_)
   | AxiomStep(_)
   | AlgebriteStep(_)
-  | EvalStep => None
+  | EvalStep
+  | Contradiction(_) => None
   | Focus({body, _}) => find_have(body)
   };
 

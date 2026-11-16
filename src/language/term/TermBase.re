@@ -1504,6 +1504,14 @@ and Proof: {
             ),
             proof_map_term(body),
           )
+        | Contradiction(e, inst) =>
+          Contradiction(
+            exp_map_term(e),
+            Option.map(
+              ~f=((v, i)) => (exp_map_term(v), exp_map_term(i)),
+              inst,
+            ),
+          )
         | Have(e, name, sub, body) =>
           Have(
             exp_map_term(e),

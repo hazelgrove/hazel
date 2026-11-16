@@ -153,6 +153,8 @@ type family =
   | ProofAxiomWith
   | RewriteBack
   | ProofAlgebrite
+  | ProofContradiction
+  | ProofContradictionWith
   | ProofEval
   | ProofCases
   | ProofInduction
@@ -287,6 +289,8 @@ let label_of_family: family => Label.t =
   | ProofAxiomWith => ["rewrite", "with", "=", "end"]
   | RewriteBack => ["<-"]
   | ProofAlgebrite => ["algebra", "end"]
+  | ProofContradiction => ["contradiction", "end"]
+  | ProofContradictionWith => ["contradiction", "with", "=", "end"]
   | ProofEval => ["step"]
   | ProofCases => ["cases", "end"]
   | ProofInduction => ["induction", "end"]

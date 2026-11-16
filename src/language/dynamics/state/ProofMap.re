@@ -14,6 +14,10 @@ type entry = {
   auto_incoming: list((string, Exp.t)),
   auto_outgoing: list((Exp.t, string)),
   outgoing: option(Exp.t),
+  /* Receipt for a `contradiction` step: the variable equations the
+   * checker substituted into the cited fact before evaluating it, in the
+   * order applied. Empty for every other step. */
+  substitutions: list((string, Exp.t)),
   marks: list(ProofMark.t),
   /* Obligations incurred by this step (e.g. an `assume`'s hypothesis),
    * with their discharge provenance. Empty for most steps. */
@@ -92,6 +96,7 @@ let rec cases_closed = (pm: t, proof: Proof.t): bool =>
     | Alias(_)
     | Generalize(_)
     | Revert(_)
+    | Contradiction(_)
     | Have(_) => true
     }
   )

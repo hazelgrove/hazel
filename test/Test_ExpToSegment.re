@@ -1071,6 +1071,20 @@ end|}),
       {|RevertWith: compound instantiation|},
       {|theorem x = 1 proof revert y with n = 2 + 3 => from y do rewrite y end end in x|},
     ),
+    /* `contradiction <fact> with <var> = <exp> end` reuses the same
+       with-clause shards on a step with no body. */
+    roundtrip_test(
+      {|ContradictionWith: simple|},
+      {|theorem x = 1 proof contradiction y with n = 2 end in x|},
+    ),
+    roundtrip_test(
+      {|ContradictionWith: compound rewrite|},
+      {|theorem x = 1 proof contradiction y == 1 with n = 2 + 3 end in x|},
+    ),
+    roundtrip_test(
+      {|Contradiction: plain still round-trips|},
+      {|theorem x = 1 proof contradiction y == 1 end in x|},
+    ),
     /* The plain forms must keep round-tripping unchanged: `with` is only
        absorbed by a citation step that is still missing its own shards. */
     roundtrip_test(
@@ -2136,6 +2150,11 @@ let proof_embedded_paren_tests = {
         {|assume hypothesis: fun in application head|},
         Assume(built_fun_ap(), None, Proof.fresh(EmptyHole)),
         {|theorem t = 1 == 1 proof assume(fun x -> 100 / x)(y) => ? in t|},
+      ),
+      proof_paren_test(
+        {|contradiction argument: fun in application head|},
+        Contradiction(built_fun_ap(), None),
+        {|theorem t = 1 == 1 proof contradiction(fun x -> 100 / x)(y) end in t|},
       ),
       /* A built `Seq` whose left arm is a wrapping form: the wrapping
          form's body slot extends rightward (P.fun_ is looser than P.semi),

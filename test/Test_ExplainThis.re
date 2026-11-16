@@ -837,6 +837,10 @@ let representatives = (cls: Proof.cls): list(Proof.t) =>
       Proof.fresh(Revert(some_exp(), None, hole_proof())),
       Proof.fresh(Revert(some_exp(), inst(), hole_proof())),
     ]
+  | Contradiction => [
+      Proof.fresh(Contradiction(some_exp(), None)),
+      Proof.fresh(Contradiction(some_exp(), inst())),
+    ]
   | Have => [
       Proof.fresh(Have(some_exp(), None, hole_proof(), hole_proof())),
       Proof.fresh(
@@ -868,6 +872,7 @@ let example_free = (cls: Proof.cls): bool =>
   | Assume
   | Generalize
   | Revert
+  | Contradiction
   | Have
   | Alias
   | Parens => false
@@ -962,6 +967,8 @@ let proof_sources = [
   "theorem t = (true && false) == (false && true) proof from false && true do rewrite <- and_comm end end in 0",
   "theorem t = forall x -> x == x proof forall x => from x == x do rewrite refl end end in 0",
   "theorem t = forall n: Int -> n == 1 ==> n == 1 proof assume n == 1 => from n == 1 do rewrite assume end end in 0",
+  "theorem t = forall n: Int -> false ==> n == n proof assume false => contradiction false end in 0",
+  "theorem t = forall n: Int -> n == 1 ==> n == 2 ==> false proof assume n == 1 => assume n == 2 => contradiction n == 1 with n = 2 end in 0",
   "theorem t = forall x -> x == 1 proof have 1 == 1 proof from 1 == 1 do rewrite refl end end => ? in 0",
   "theorem t = forall x -> x == 1 proof have h = 1 == 1 proof from 1 == 1 do rewrite refl end end => ? in 0",
   "theorem inv = forall w -> w / w == 1 proof ? in theorem t = forall n -> n / n == 1 proof generalize n => forall n => from n / n do rewrite inv end end in 0",

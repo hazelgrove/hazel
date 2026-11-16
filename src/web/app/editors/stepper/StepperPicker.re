@@ -41,6 +41,10 @@ module Terms = {
       body: step,
     });
 
+  /* `with` clauses and `as` names are typed in afterwards. */
+  let contradiction = (~exp: Exp.t): TermBase.Proof.term =>
+    Contradiction(embed_exp(exp), None);
+
   /* The splits start with no cases: the user adds them in the split's
    * row. */
   let cases = (~exp: Exp.t): TermBase.Proof.term =>
@@ -90,7 +94,8 @@ module Terms = {
     | Alias(_, e, _)
     | Revert(e, _, _)
     | Generalize(e, _)
-    | Have(e, _, _, _) => Some(Exp.rep_id(e))
+    | Have(e, _, _, _)
+    | Contradiction(e, _) => Some(Exp.rep_id(e))
     | Forall(p, _)
     | Funext(p, _) => Some(Pat.rep_id(p))
     | EmptyHole
@@ -871,6 +876,11 @@ module Strategies = {
         label: "Have",
         tooltip: "Writes `have ? proof ? =>`: proves a stepping-stone fact first, then uses it here",
         writes: Terms.have(~exp=hole),
+      },
+      {
+        label: "Contradiction",
+        tooltip: "Writes `contradiction <fact> end`: closes an impossible case with a fact that evaluates to false",
+        writes: Terms.contradiction(~exp=hole),
       },
       {
         label: "Generalize",

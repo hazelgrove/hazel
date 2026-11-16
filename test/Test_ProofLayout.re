@@ -143,6 +143,20 @@ t|},
     (),
   ),
   layout(
+    ~name="wrapping forms nest",
+    ~input=
+      "theorem t = 1 == 1 proof alias h = assume => revert x with n = 2 => from y do rewrite h with n = 2 end end; contradiction y == 1 with n = 2 + 3 end in t",
+    ~expected=
+      {|theorem t = 1 == 1 proof
+  alias h = assume =>
+    revert x with n = 2 =>
+      from y do rewrite h with n = 2 end end;
+      contradiction y == 1 with n = 2 + 3 end
+in
+t|},
+    (),
+  ),
+  layout(
     ~name="a wrapping form after other steps takes the steps after it",
     ~input="theorem t = 1 == 1 proof step; forall x => step; step in t",
     ~expected=

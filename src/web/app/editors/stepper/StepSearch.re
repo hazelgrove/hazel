@@ -687,6 +687,7 @@ let generalized = (goal: Picker.Goal.t, steps: list(Proof.t)): list(Proof.t) => 
     | Revert(_)
     | Alias(_)
     | Cases(_)
+    | Contradiction(_)
     | Induction(_) => step
     };
   let (_, written) =
@@ -770,6 +771,7 @@ module Bridge = {
     | Revert(_)
     | Alias(_)
     | Cases(_)
+    | Contradiction(_)
     | Induction(_) => false
     };
 

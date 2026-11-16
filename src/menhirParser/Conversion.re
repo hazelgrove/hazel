@@ -682,6 +682,9 @@ and Proof: {
       focus(~ordinal, Exp.of_menhir_ast(selector), of_menhir_ast(body))
     | ProofCases(scrut, cs) =>
       IndicatedG.Proof.cases(Exp.of_menhir_ast(scrut), cases(cs))
+    | ProofContradiction(e) => contradiction(Exp.of_menhir_ast(e))
+    | ProofContradictionWith(e, v, i) =>
+      contradiction(~instantiation=Some(inst(v, i)), Exp.of_menhir_ast(e))
     | ProofInduction(scrut, cs) =>
       induction(Exp.of_menhir_ast(scrut), cases(cs))
     };
@@ -748,6 +751,13 @@ and Proof: {
           ~f=((p, body)) => (Pat.of_core(p), of_core(body)),
           cases,
         ),
+      )
+    | Contradiction(e, None) => ProofContradiction(Exp.of_core(e))
+    | Contradiction(e, Some((v, i))) =>
+      ProofContradictionWith(
+        Exp.of_core(e),
+        Exp.of_core(v),
+        Exp.of_core(i),
       )
     | Induction(scrut, cases) =>
       ProofInduction(

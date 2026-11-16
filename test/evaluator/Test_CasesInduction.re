@@ -182,22 +182,22 @@ let test_cases_on_a_computed_scrutinee = () => {
 
 /* Induction on `[1]` gives the `::` case `ih_t: false`, the goal itself.
  * Sound only because the `[]` case has no case equation `[1] == []` to
- * close it with, so it stays open. */
+ * contradict, so it stays open. */
 let test_induction_on_a_literal_proves_nothing = () => {
   let (pm, proof) =
     run_named(
       "bad",
-      "theorem bad = false proof induction [1] | [] => rewrite case_eq end | h :: t => rewrite ih_t end end in bad",
+      "theorem bad = false proof induction [1] | [] => contradiction case_eq end | h :: t => contradiction ih_t end end in bad",
     );
   check(
     bool,
-    "the [] case can't cite a case equation",
+    "the [] case has no case equation to contradict",
     true,
     has_mark_kind(
       pm,
       proof,
       fun
-      | ProofMark.UnknownEquality("case_eq") => true
+      | ProofMark.UnknownFactContradicted => true
       | _ => false,
     ),
   );

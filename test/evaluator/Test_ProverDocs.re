@@ -94,6 +94,7 @@ let tests = (
         ("div_pos", "proven"),
         ("div_neg", "proven"),
         ("sum_three", "proven"),
+        ("vacuous", "proven"),
         ("sign_pos", "proven"),
         ("sign_le", "proven"),
       ],

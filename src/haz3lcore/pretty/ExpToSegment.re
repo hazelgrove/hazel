@@ -384,6 +384,7 @@ let external_precedence_proof = (p: Proof.t) =>
   | EvalStep
   | Focus(_)
   | Cases(_, _)
+  | Contradiction(_)
   | Induction(_, _) => Precedence.max
   | Seq(_, _) => Precedence.semi
   | Forall(_, _)
@@ -1191,6 +1192,12 @@ and parenthesize_proof =
     })
     |> rewrap
   | AlgebriteStep(e) => AlgebriteStep(go_exp(e)) |> rewrap
+  | Contradiction(e, inst) =>
+    Contradiction(
+      go_exp(e),
+      Option.map(~f=((v, i)) => (go_exp(v), go_exp(i)), inst),
+    )
+    |> rewrap
   | EvalStep => proof
   | Focus({ordinal, selector, body}) =>
     Focus({
@@ -3644,6 +3651,14 @@ and proof_to_pretty = (~settings: Settings.t, p: Proof.t): pretty => {
   | AlgebriteStep(e) =>
     let+ e = exp_to_pretty(~settings, e);
     wrap(p, [mk_form(ProofAlgebrite, id, [e])]);
+  | Contradiction(e, None) =>
+    let+ e = exp_to_pretty(~settings, e);
+    wrap(p, [mk_form(ProofContradiction, id, [e])]);
+  | Contradiction(e, Some((v, inst))) =>
+    let+ e = exp_to_pretty(~settings, e)
+    and+ v = exp_to_pretty(~settings, v)
+    and+ inst = exp_to_pretty(~settings, inst);
+    wrap(p, [mk_form(ProofContradictionWith, id, [e, v, inst])]);
   | EvalStep => p_just(wrap(p, [mk_form(ProofEval, id, [])]))
   | Focus({ordinal, selector, body}) =>
     let+ sel = exp_to_pretty(~settings, selector)

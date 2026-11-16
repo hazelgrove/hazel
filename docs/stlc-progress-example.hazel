@@ -51,7 +51,7 @@ theorem progress = forall e0: Term -> forall t0: Ty -> infer(([], e0)) == SomeTy
             | SomeTm(u0) => from is_some_tm(case SomeTm(u0) | NoTm => NoTm | SomeTm(xp) => SomeTm(TmAp(xp, y0)) end) do step end
             end
           | true => cases x0
-            | TmVar(m0) => revert is_value(x0) == true => from x0 do rewrite case_eq end end; from is_value(TmVar(m0)) do step end; from false == true do step end; from false ==> $e do step end
+            | TmVar(m0) => contradiction is_value(x0) == true with x0 = TmVar(m0) end
             | TmLam(w0, q0) => from is_value(TmAp(TmLam(w0, q0), y0)) do step end; from false || $e do step end; cases is_value(y0) as vy
               | true => from step(TmAp(TmLam(w0, q0), y0)) do rewrite step_beta end end; from is_some_tm(SomeTm(subst((0, y0, q0)))) do rewrite some_tm_is_some end end
               | false => from step(TmAp(TmLam(w0, q0), y0)) do rewrite step_lam_ap2 end end; cases step(y0) as sy
@@ -67,7 +67,7 @@ theorem progress = forall e0: Term -> forall t0: Ty -> infer(([], e0)) == SomeTy
                 | SomeTm(u0) => from is_some_tm(case SomeTm(u0) | NoTm => NoTm | SomeTm(yp) => SomeTm(TmAp(TmLam(w0, q0), yp)) end) do step end
                 end
               end
-            | TmAp(f0, a0) => revert is_value(x0) == true => from x0 do rewrite case_eq end end; from is_value(TmAp(f0, a0)) do step end; from false == true do step end; from false ==> $e do step end
+            | TmAp(f0, a0) => contradiction is_value(x0) == true with x0 = TmAp(f0, a0) end
             end
           end
         end

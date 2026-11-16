@@ -199,6 +199,7 @@ let with_variant = (t: Tile.t): option(Form.family) =>
   switch (t.form, t.shards) {
   | (Compound(ProofAxiom), [0]) => Some(ProofAxiomWith)
   | (Compound(ProofRevert), [0]) => Some(ProofRevertWith)
+  | (Compound(ProofContradiction), [0]) => Some(ProofContradictionWith)
   | _ => None
   };
 

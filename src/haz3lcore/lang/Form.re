@@ -319,6 +319,8 @@ let rows_of: family => list(row) =
      Outside a rewrite it is an error. */
   | RewriteBack => [mk_prefix(Exp, P.fun_)]
   | ProofAlgebrite => [mk_op_c(L, Proof, [Exp])]
+  | ProofContradiction => [mk_op_c(L, Proof, [Exp])]
+  | ProofContradictionWith => [mk_op_c(L, Proof, [Exp, Exp, Exp])]
   | ProofEval => [mk_op_c(L, Proof, [])]
   | ProofCases
   | ProofInduction => [mk_op_c(L, Proof, [PRul])]
