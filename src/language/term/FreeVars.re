@@ -20,6 +20,10 @@
    or sealed further in), so nothing outside the closure reaches it. Sealed
    is sealed: nesting needs no levels.
 
+ A constructor's name, and a builtin's, is open, but no substitution
+ replaces it: each prints as its bare name, so a binder of that name
+ (`module A`, `fun abs`) captures it once the term is read back by name.
+
  Substituting an environment into a term (Substitution.in_exp) replaces the
  term's open variables, and sealed names pass through. An entry `x ↦ x`
  replaces nothing. A closure is expanded with its own environment, and a
@@ -37,28 +41,33 @@
  both see are elaborated, so their modules are already lowered to `let`s:
  neither treats a module item as a binder.
 
- `exp` sorts a term's free names: `vars` are its open variables, `sealed` its
- sealed names. */
+ `exp` sorts a term's free names: `vars` are its open variables, `fixed`
+ its open names no substitution replaces (constructors and builtins),
+ `sealed` its sealed names. */
 
 module Names = Util.Sets.StringSet;
 
 type t = {
   vars: Names.t,
+  fixed: Names.t,
   sealed: Names.t,
 };
 
 let empty = {
   vars: Names.empty,
+  fixed: Names.empty,
   sealed: Names.empty,
 };
 
 let union = (a: t, b: t): t => {
   vars: Names.union(a.vars, b.vars),
+  fixed: Names.union(a.fixed, b.fixed),
   sealed: Names.union(a.sealed, b.sealed),
 };
 
 /* Every name free in the term, of either kind. */
-let all = (names: t): Names.t => Names.union(names.vars, names.sealed);
+let all = (names: t): Names.t =>
+  Names.union(names.vars, Names.union(names.fixed, names.sealed));
 
 /* The value `env` puts in place of `x`, if it replaces `x`. */
 let replacement = (env: Environment.t(Exp.t), x: Var.t): option(Exp.t) =>
@@ -83,6 +92,7 @@ let rec exp = (~memo: option(Memo.t(t))=?, e: Exp.t): t =>
     /* Names met directly, and the names of the parts below a binder or in
        a closure, combined once at the end. */
     let vars = ref([]);
+    let fixed = ref([]);
     let parts = ref([]);
     let add = names => parts := [names, ...parts^];
     let under = (p: Pat.t, body: Exp.t) => {
@@ -105,6 +115,10 @@ let rec exp = (~memo: option(Memo.t(t))=?, e: Exp.t): t =>
             | Var(x) =>
               vars := [x, ...vars^];
               e;
+            | Constructor(name, _)
+            | BuiltinFun(name) =>
+              fixed := [name, ...fixed^];
+              e;
             | Fun(p, body, _, _)
             | Forall(p, body)
             | FixF(p, body, None) =>
@@ -126,7 +140,6 @@ let rec exp = (~memo: option(Memo.t(t))=?, e: Exp.t): t =>
               add(seal(~memo?, env, under(p, body)));
               e;
             | Invalid(_)
-            | Constructor(_)
             | EmptyHole
             | MultiHole(_)
             | Deferral(_)
@@ -134,8 +147,7 @@ let rec exp = (~memo: option(Memo.t(t))=?, e: Exp.t): t =>
             | Atom(_)
             | Label(_)
             | ExplicitNonlabel
-            | LivelitName(_)
-            | BuiltinFun(_) => e
+            | LivelitName(_) => e
             | DynamicErrorHole(_)
             | DrvQuote(_)
             | ListLit(_)
@@ -172,6 +184,7 @@ let rec exp = (~memo: option(Memo.t(t))=?, e: Exp.t): t =>
         ~f=union,
         ~init={
           vars: Names.of_list(vars^),
+          fixed: Names.of_list(fixed^),
           sealed: Names.empty,
         },
         parts^,
@@ -193,6 +206,6 @@ and seal =
         | None => Names.add(x, sealed)
         },
       inner.vars,
-      inner.sealed,
+      Names.union(inner.fixed, inner.sealed),
     ),
 };

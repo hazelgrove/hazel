@@ -18,6 +18,11 @@ module Rules = {
       QCheck.Gen.oneof([
         QCheck.Gen.map(Exp.var, gen_name),
         QCheck.Gen.return(Exp.int(1)),
+        /* A builtin prints as its name, like a variable of that name. */
+        QCheck.Gen.map(
+          (x): Language.Exp.t => Language.Exp.fresh(BuiltinFun(x)),
+          gen_name,
+        ),
       ]);
     if (depth <= 0) {
       leaf;
@@ -93,6 +98,7 @@ module Rules = {
   let rec show_term = (e: Language.Exp.t): string =>
     switch (e.term) {
     | Var(x) => x
+    | BuiltinFun(x) => "builtin " ++ x
     | Atom(_) => "1"
     | Fun({term: Var(x), _}, body, _, _) =>
       "(fun " ++ x ++ " -> " ++ show_term(body) ++ ")"
@@ -138,7 +144,7 @@ module Rules = {
         | None => Names.add(x, acc)
         },
       names.vars,
-      names.sealed,
+      Names.union(names.fixed, names.sealed),
     );
   };
 
@@ -546,6 +552,106 @@ let tests = (
             Exp.var("x"),
           );
         check(exp, "x -> 1 in let x = (x, 2) in x", expected, result);
+      },
+    ),
+    /* Substituting a constructor under a module binding of the same name:
+       read back by name, `let A = 1 in A` would make `A` the binding. The
+       binder is renamed, with a digit (a capitalized name can't take a
+       prime). Checked by name: `exp` compares up to renaming. */
+    test_case(
+      "y -> A in let A = 1 in y renames the binder to A2",
+      `Quick,
+      () => {
+        let env = Environment.of_list([("y", Exp.constructor("A", None))]);
+        let expr = Exp.let_(Pat.var("A"), Exp.int(1), Exp.var("y"));
+        let result = Substitution.in_exp(env, expr);
+        switch (result.term) {
+        | Let({term: Var(binder), _}, _, {term: Constructor(c, _), _}) =>
+          check(string, "renamed binder", "A2", binder);
+          check(string, "the constructor is unchanged", "A", c);
+        | _ =>
+          fail("expected let A2 = 1 in A, got " ++ Language.Exp.show(result))
+        };
+      },
+    ),
+    /* A builtin prints as its bare name, so inserting one under a binder
+       of that name renames the binder: `fun abs -> abs(abs)` would read
+       as the parameter applied to itself. */
+    test_case(
+      "f -> abs in fun abs -> f(abs) renames the binder",
+      `Quick,
+      () => {
+        let env =
+          Environment.of_list([
+            ("f", Language.Exp.fresh(BuiltinFun("abs"))),
+          ]);
+        let expr =
+          Exp.fn(
+            Pat.var("abs"),
+            Exp.ap(Forward, Exp.var("f"), Exp.var("abs")),
+            None,
+            None,
+          );
+        let result = Substitution.in_exp(env, expr);
+        switch (result.term) {
+        | Fun(
+            {term: Var(binder), _},
+            {
+              term: Ap(_, {term: BuiltinFun(f), _}, {term: Var(arg), _}),
+              _,
+            },
+            _,
+            _,
+          ) =>
+          check(string, "the builtin is unchanged", "abs", f);
+          check(
+            bool,
+            "the binder is renamed",
+            false,
+            String.equal(binder, "abs"),
+          );
+          check(string, "the argument follows the binder", binder, arg);
+        | _ =>
+          fail(
+            "expected fun abs' -> abs(abs'), got "
+            ++ Language.Exp.show(result),
+          )
+        };
+      },
+    ),
+    test_case(
+      "Renamed names stay names of the same kind",
+      `Quick,
+      () => {
+        check(string, "x", "x'", Var.next_name("x"));
+        check(string, "A", "A2", Var.next_name("A"));
+        check(string, "A2", "A3", Var.next_name("A2"));
+        check(string, "A9", "A10", Var.next_name("A9"));
+        check(string, "B12x", "B12x2", Var.next_name("B12x"));
+        /* A suffix at the largest int, or too long to read as one, gets
+           a `2` appended rather than wrapping around. */
+        let max = Int.to_string(Int.max_value);
+        check(
+          string,
+          "A<max>",
+          "A" ++ max ++ "2",
+          Var.next_name("A" ++ max),
+        );
+        check(
+          string,
+          "A<long>",
+          "A" ++ max ++ "02",
+          Var.next_name("A" ++ max ++ "0"),
+        );
+        /* Any uppercase or titlecase letter starts a constructor name. */
+        check(string, "Ä", "Ä2", Var.next_name("Ä"));
+        check(string, "ǅ", "ǅ2", Var.next_name("ǅ"));
+        check(
+          bool,
+          "Ä2 is a constructor name",
+          true,
+          Token.is_ctr(Var.next_name("Ä")),
+        );
       },
     ),
     QCheck_alcotest.to_alcotest(Rules.property),
