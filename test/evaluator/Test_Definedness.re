@@ -24,6 +24,32 @@ let is_float_algebrite: ProofMark.t => bool =
   | ProofMark.FloatAlgebrite => true
   | _ => false;
 
+/* --- Guarded division lemma, end to end ------------------------------ */
+
+/* Using `inv : forall x where x != 0 -> x / x == 1` at a closed nonzero
+ * value: the instantiated guard `2 != 0` discharges by closed
+ * evaluation; the instantiation `x := 2` itself scans to nothing. */
+let test_guarded_division_closed = () => {
+  let src = {|theorem inv = forall x where x != 0 -> x / x == 1 proof ? in theorem u = 2 / 2 == 1 proof from 2 / 2 do rewrite inv end end; from 1 == 1 do rewrite refl end end in u|};
+  let (state, _, elab) = src |> parse_exp |> eval_with_proof;
+  let pm = EvaluatorState.get_proof_map(state);
+  let use_proof = proof_of_named("u", elab);
+  let obs = without_citations(ProofMap.obligations_of_proof(pm, use_proof));
+  check_count("exactly the guard obligation", 1, obs);
+  switch (obs) {
+  | [ob] =>
+    check_exp("the obligation is the instantiated guard", "2 != 0", ob.goal);
+    Alcotest.check(
+      Alcotest.bool,
+      "discharged by closed evaluation",
+      true,
+      ob.discharge == Obligation.Evaluated,
+    );
+  | _ => ()
+  };
+  check_proven_given_lemmas("use is fully Proven", pm, use_proof);
+};
+
 /* An open instantiation containing division: `x := y / z` scans to the
  * denominator condition `z != 0`, which stays Pending (open goals are
  * never evaluated). */
@@ -52,13 +78,120 @@ let test_open_division_instantiation_pending = () => {
   };
 };
 
+/* A conditional rule instantiated at a term containing division emits
+ * both the instantiated guard and the scanned denominator condition. */
+let test_conditional_rule_plus_domain_scan = () => {
+  let src = {|theorem inv = forall x where x != 0 -> x / x == 1 proof ? in theorem u = forall a -> forall b -> (a / b) / (a / b) == 1 proof from (a / b) / (a / b) do rewrite inv end end; from 1 == 1 do rewrite refl end end in u|};
+  let (state, _, elab) = src |> parse_exp |> eval_with_proof;
+  let pm = EvaluatorState.get_proof_map(state);
+  let use_proof = proof_of_named("u", elab);
+  let obs = without_citations(ProofMap.obligations_of_proof(pm, use_proof));
+  check_count("guard + scanned denominator", 2, obs);
+  let has_goal = (expected: string) =>
+    List.exists(
+      ~f=
+        (ob: Obligation.t) =>
+          Exp.fast_equal(elaborated_exp(expected), ob.goal),
+      obs,
+    );
+  Alcotest.check(
+    Alcotest.bool,
+    "instantiated guard a / b != 0 is incurred",
+    true,
+    has_goal("a / b != 0"),
+  );
+  Alcotest.check(
+    Alcotest.bool,
+    "scanned denominator b != 0 is incurred",
+    true,
+    has_goal("b != 0"),
+  );
+};
+
+/* --- A `where` restriction covers the scanned domain condition -------
+ *
+ * What the obligations panel's "Add to statement" exit produces, written
+ * by hand. `8 / z` scans to `z != 0` (DomainConditions.neq_zero), and
+ * the statement's own `where z != 0` is installed as a hypothesis by
+ * `ProofCheck.peel_stmt_binders`, so `Discharge.lookup` must discharge it
+ * Remote. If this fails, the panel's exit can't work either.
+ *
+ * Both sides must be elaborated (see `Occurrence.nth_env_target`). */
+let test_where_covers_scanned_condition = () => {
+  let src = {|theorem t = forall z where z != 0 -> 8 / z == 8 / z proof from 8 / z == 8 / z do rewrite refl end end in t|};
+  let (pm, proof, obs) = obligations(src);
+  check_count("exactly the scanned denominator condition", 1, obs);
+  switch (obs) {
+  | [ob] =>
+    check_exp("the obligation is z != 0", "z != 0", ob.goal);
+    Alcotest.check(
+      Alcotest.bool,
+      "discharged Remote against the where-restriction — got: "
+      ++ Obligation.show_discharge(ob.discharge),
+      true,
+      switch (ob.discharge) {
+      | Obligation.Remote(_) => true
+      | _ => false
+      },
+    );
+  | _ => ()
+  };
+  switch (ProofMap.full_status_of_proof(pm, proof)) {
+  | ProofMap.Proven => ()
+  | other =>
+    Alcotest.fail(
+      "expected fully Proven, got: " ++ ProofMap.show_full_status(other),
+    )
+  };
+};
+
+/* The same, with the restriction extended by `&&`, as the panel's exit
+ * does when the binder already carries a guard. */
+let test_where_conjunct_covers_scanned_condition = () => {
+  let src = {|theorem t = forall z where z > 0 && z != 0 -> 8 / z == 8 / z proof from 8 / z == 8 / z do rewrite refl end end in t|};
+  let (_pm, _proof, obs) = obligations(src);
+  check_count("exactly the scanned denominator condition", 1, obs);
+  switch (obs) {
+  | [ob] =>
+    Alcotest.check(
+      Alcotest.bool,
+      "discharged Remote against the conjoined restriction — got: "
+      ++ Obligation.show_discharge(ob.discharge),
+      true,
+      switch (ob.discharge) {
+      | Obligation.Remote(_) => true
+      | _ => false
+      },
+    )
+  | _ => ()
+  };
+};
+
 /* A parenthesized inner binder. `EditorTransform` wraps a spliced
  * sub-term in `Parens` whenever it shares a segment level with
- * siblings. Binder peeling must look through the parens, or the inner
- * binder is never peeled. */
-let test_parenthesized_binder_still_peels = () => {
-  let src = {|theorem t = forall y -> (forall z -> y + z == y + z) proof from y + z == y + z do rewrite refl end end in t|};
-  let (pm, proof, _) = obligations(src);
+ * siblings, so "Add to statement" on the inner binder of
+ * `forall y where ... -> forall z -> ...` emits
+ * `forall y where ... -> (forall z where z != 0 -> ...)`. Binder peeling
+ * must look through the parens, or the restriction is never installed
+ * and the floated condition stays Pending. */
+let test_parenthesized_where_binder_still_installs = () => {
+  let src = {|theorem t = forall y -> (forall z where z != 0 -> y + 8 / z == y + 8 / z) proof from y + 8 / z == y + 8 / z do rewrite refl end end in t|};
+  let (pm, proof, obs) = obligations(src);
+  check_count("exactly the scanned denominator condition", 1, obs);
+  switch (obs) {
+  | [ob] =>
+    Alcotest.check(
+      Alcotest.bool,
+      "a parenthesised binder's restriction still discharges — got: "
+      ++ Obligation.show_discharge(ob.discharge),
+      true,
+      switch (ob.discharge) {
+      | Obligation.Remote(_) => true
+      | _ => false
+      },
+    )
+  | _ => ()
+  };
   switch (ProofMap.full_status_of_proof(pm, proof)) {
   | ProofMap.Proven => ()
   | other =>
@@ -246,9 +379,9 @@ let check_mark = (msg, src, pred) => {
 /* (1) The scrutinee `z != 0` is a comparison, so it is `Bool`-typed even
  * though `z` is an unannotated binder: an ordinary missing-`false`-case
  * failure. */
-let user_repro = {|let f = fun x -> 100 / x in
+let user_repro = {|let f = fun x where x != 0 -> 100 / x in
 let g = fun w -> 100 / w in
-theorem t = forall y -> forall z -> f(y) + 4 / 2 + 8 / z == f(y) + 4 / 2 + 8 / z
+theorem t = forall y where y != 0 -> forall z -> f(y) + 4 / 2 + 8 / z == f(y) + 4 / 2 + 8 / z
 proof induction z != 0 | true => from f(y) + 4 / 2 + 8 / z == f(y) + 4 / 2 + 8 / z do rewrite refl end end end
 in 0|};
 
@@ -555,9 +688,19 @@ let tests = (
       test_closed_evaluation_stops_at_an_error,
     ),
     test_case(
+      "guarded division lemma at a closed value (Evaluated)",
+      `Quick,
+      test_guarded_division_closed,
+    ),
+    test_case(
       "open instantiation with division stays Pending",
       `Quick,
       test_open_division_instantiation_pending,
+    ),
+    test_case(
+      "conditional rule adds its guard on top of the domain scan",
+      `Quick,
+      test_conditional_rule_plus_domain_scan,
     ),
     test_case(
       "instantiation at a quantified variable emits nothing",
@@ -671,9 +814,19 @@ let tests = (
       test_of_float_is_finite_condition,
     ),
     test_case(
-      "a parenthesized binder still peels",
+      "a where-restriction discharges the scanned domain condition",
       `Quick,
-      test_parenthesized_binder_still_peels,
+      test_where_covers_scanned_condition,
+    ),
+    test_case(
+      "an AND-extended where-restriction discharges it too",
+      `Quick,
+      test_where_conjunct_covers_scanned_condition,
+    ),
+    test_case(
+      "a parenthesized where-binder still installs its restriction",
+      `Quick,
+      test_parenthesized_where_binder_still_installs,
     ),
   ],
 );

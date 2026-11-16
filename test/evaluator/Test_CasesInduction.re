@@ -129,6 +129,45 @@ let test_cases_keeps_facts_about_a_variable = () => {
   );
 };
 
+/* A `where` restriction on the statement's binder is a fact like any
+ * other: about `xs`, so out of scope in an induction case on `xs`. */
+let test_induction_hides_a_where_fact_about_the_scrutinee = () => {
+  let (pm, nil, cons) =
+    both_cases(
+      "theorem t = forall xs: [Int] where xs == [1] -> xs == xs proof induction xs | [] => ? | y :: rest => ? end in t",
+    );
+  check_fact("out of scope for []", ~name="where", None, pm, nil);
+  check_fact("out of scope for ::", ~name="where", None, pm, cons);
+};
+
+let test_cases_keeps_a_where_fact_about_the_scrutinee = () => {
+  let (pm, _, cons) =
+    both_cases(
+      "theorem t = forall xs: [Int] where xs == [1] -> xs == xs proof cases xs | [] => ? | y :: rest => ? end in t",
+    );
+  check_fact(
+    "the restriction stays",
+    ~name="where",
+    Some("xs==[1]"),
+    pm,
+    cons,
+  );
+};
+
+/* A guarded arm's guard is about the arm's own variables, so an
+ * induction case keeps it. */
+let test_induction_keeps_an_arm_guard = () => {
+  let (pm, proof) =
+    run(
+      "theorem t = forall xs: [Int] -> xs == xs proof induction xs | [] => ? | y :: rest where y > 0 => ? | y :: rest => ? end in t",
+    );
+  switch (case_bodies(proof)) {
+  | [_, guarded, _] =>
+    check_fact("the guard", ~name="where", Some("y>0"), pm, guarded)
+  | _ => Alcotest.fail("expected three cases")
+  };
+};
+
 /* Induction on a computed value is induction on a fresh variable in its
  * place. The cases' goals and hypotheses have the pattern in place of
  * `tl(xs)`, and nothing in scope says what `tl(xs)` is. */
@@ -304,6 +343,21 @@ let tests = (
       "a cases case keeps facts about its scrutinee",
       `Quick,
       test_cases_keeps_facts_about_a_variable,
+    ),
+    test_case(
+      "an induction case hides a where fact about its scrutinee",
+      `Quick,
+      test_induction_hides_a_where_fact_about_the_scrutinee,
+    ),
+    test_case(
+      "a cases case keeps a where fact about its scrutinee",
+      `Quick,
+      test_cases_keeps_a_where_fact_about_the_scrutinee,
+    ),
+    test_case(
+      "an induction case keeps its arm's guard",
+      `Quick,
+      test_induction_keeps_an_arm_guard,
     ),
     test_case(
       "induction generalizes a computed scrutinee",

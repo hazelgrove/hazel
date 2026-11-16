@@ -134,6 +134,29 @@ let test_open_term_does_not_step = () => {
   );
 };
 
+let test_outer_fact_does_not_reach_under_a_binder = () => {
+  let control = {|theorem t = forall b: Bool where b -> b && true == true proof from b do rewrite where end end; ? in t|};
+  let (pm, proof) = run_named("t", control);
+  check_mark_free("control: the fact rewrites the outer `b`", pm, proof);
+  let (pm, proof) =
+    run_named(
+      "t",
+      {|theorem t = forall b: Bool where b -> (fun b: Bool -> b) == (fun b: Bool -> true) proof from b do rewrite where end end in t|},
+    );
+  check(
+    bool,
+    "the `where` fact is about the outer `b`, not the lambda's",
+    true,
+    has(
+      fun
+      | UnknownEquality("where") => true
+      | _ => false,
+      pm,
+      proof,
+    ),
+  );
+};
+
 /* Anything but a positive literal after `at` makes the focus a hole. */
 let test_occurrence_is_a_positive_literal = () =>
   List.iter(
@@ -270,6 +293,16 @@ let test_contraction_avoids_capture = () => {
       "theorem t = forall y: Int -> (fun x -> fun y -> x)(y + (1 + 1)) == (fun z -> y) proof from (fun x -> fun y -> x)(y + (1 + 1)) do step end; ? in t",
     ),
   );
+  let guarded =
+    first_outgoing(
+      "theorem t = forall y: Int -> (fun x where x > 0 -> fun y -> x)(y) == (fun z -> y) proof from (fun x where x > 0 -> fun y -> x)(y) do step end; ? in t",
+    );
+  check(
+    bool,
+    "a guarded parameter (got " ++ guarded ++ ")",
+    true,
+    Test_WherePat.contains(guarded, "then fun y'"),
+  );
   let (pm, proof) =
     run_named(
       "t",
@@ -357,6 +390,11 @@ let tests = (
       "an open term does not step",
       `Quick,
       test_open_term_does_not_step,
+    ),
+    test_case(
+      "an outer fact does not reach under a binder",
+      `Quick,
+      test_outer_fact_does_not_reach_under_a_binder,
     ),
     test_case(
       "a selector naming a definition finds it",

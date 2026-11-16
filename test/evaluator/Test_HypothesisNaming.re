@@ -7,7 +7,7 @@ open Test_ProofMap.Harness;
  * The rules under test:
  *
  *   1. Every auto-installed fact takes its base name (`case_eq`,
- *      `ih_<var>`, `assume`, `have`) with no freshening, so a second
+ *      `ih_<var>`, `where`, `assume`, `have`) with no freshening, so a second
  *      introduction in an inner scope shadows the first
  *      (`SemanticCtx.add_hypothesis`).
  *   2. Citation resolves innermost first, because `Ctx.extend` prepends

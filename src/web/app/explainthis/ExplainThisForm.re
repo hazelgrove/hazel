@@ -149,6 +149,7 @@ type example_id =
   | Asc2
   | Asc3
   | Module1
+  | FunWhere1
   | ModLet1
   | ModType1
   | Sig1
@@ -157,6 +158,7 @@ type example_id =
   | ModuleKeyword1
   | ModuleKeywordDecl1
   /* Prover forms */
+  | ForallWhere1
   | ProofSeq1
   | ProofAxiom1
   | ProofAxiomWith1
@@ -319,6 +321,7 @@ type form_id =
   | AscExp
   | TupleExtensionExp
   | ModuleExp
+  | FunWhereExp
   | ModLetDecl
   | ModTypeDecl
   | SigTyp
@@ -326,7 +329,8 @@ type form_id =
   | SigTypeDecl
   | ModuleKeywordExp
   | ModuleKeywordDecl
-  /* Prover forms: the Proof sort's own steps. */
+  /* Prover forms: the Proof sort's own steps, plus `forall p where g`. */
+  | ForallWhereExp
   | ProofEmptyHole
   | ProofMultiHole
   | ProofInvalid

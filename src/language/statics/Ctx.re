@@ -34,7 +34,7 @@ type node_or_list =
   | List(list(Virtual_dom.Vdom.Node.t));
 
 /* The theorem namespace. A theorem entry names a judgment, not a value:
-   theorems, axioms, and the hypotheses that `assume`/`case_eq`/
+   theorems, axioms, and the hypotheses that `assume`/`where`/`case_eq`/
    `ih_<var>`/`have` install. Like the type namespace (`TVarEntry`), it is
    separate from variables: a theorem and a variable of the same name
    don't shadow each other. */

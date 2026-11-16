@@ -1,8 +1,8 @@
 /* Building the cases of a split (`cases` or `induction`), for the checker
  * and the UI stepper: the goal with the scrutinee replaced by a case's
- * pattern, an induction case's inductive hypotheses, and which facts
- * leave its scope. The statics use it to scope a case body as the checker
- * does. */
+ * pattern, an induction case's inductive hypotheses, a case's `where`
+ * facts, and which facts leave an induction case's scope. The statics use
+ * it to scope a case body as the checker does. */
 
 /* Returns all sub-pattern of the original pattern that
        1. Have the same type as the original pattern
@@ -34,7 +34,8 @@ let rec hypotheses = (statics: ProofStatics.t, t, pat) => {
    * pattern in parens would be its own hypothesis: its goal. */
   | Parens(e)
   | Projector(_, e)
-  | Asc(e, _) => hypotheses(statics, t, e)
+  | Asc(e, _)
+  | Where(e, _) => hypotheses(statics, t, e)
   | Ap(e1, e2) =>
     hypotheses_inner(statics, t, e1) @ hypotheses_inner(statics, t, e2)
   | Label(_) => []
@@ -56,7 +57,8 @@ and hypotheses_inner = (statics: ProofStatics.t, t, pat) =>
   switch (pat |> Pat.term_of) {
   | Parens(x)
   | Projector(_, x)
-  | Asc(x, _) => hypotheses_inner(statics, t, x)
+  | Asc(x, _)
+  | Where(x, _) => hypotheses_inner(statics, t, x)
   | Invalid(_)
   | EmptyHole
   | MultiHole(_)
@@ -76,9 +78,10 @@ and hypotheses_inner = (statics: ProofStatics.t, t, pat) =>
 /* The name an inductive hypothesis is cited by: `ih_t` for the
    sub-pattern `t`. A sub-pattern that isn't a variable, like `S(n)` in
    `S(S(n))`, has no variable to name it after, so it is plain `ih`. */
-let hypothesis_name = (pat: Pat.t): string =>
+let rec hypothesis_name = (pat: Pat.t): string =>
   switch (pat |> Pat.term_of) {
   | Var(x) => "ih_" ++ x
+  | Where(p, _) => hypothesis_name(p)
   | _ => "ih"
   };
 
@@ -106,6 +109,61 @@ let mentions = (e: Exp.t, fact: Exp.t): bool =>
       );
     found^;
   };
+
+/* Could `p1` and `p2` match the same value? Conservatively yes unless
+   their head constructors are both known and different. */
+let pats_overlap = (p1: Pat.t, p2: Pat.t): bool => {
+  /* A coarse head-constructor key. `None` means "matches anything"
+     (variable / wildcard / hole), which overlaps everything. */
+  let rec head_key = (p: Pat.t): option(string) =>
+    switch (p |> Pat.term_of) {
+    | Where(p, _)
+    | Parens(p)
+    | Projector(_, p)
+    | Asc(p, _)
+    | TupLabel(_, p) => head_key(p)
+    | Constructor(c, _) => Some("ctr:" ++ c)
+    | Ap(c, _) => Pat.ctr_name(c) |> Option.map(~f=c => "ctr:" ++ c)
+    | Cons(_, _) => Some("cons")
+    | ListLit(ps) => Some("list:" ++ string_of_int(List.length(ps)))
+    | Tuple(ps) => Some("tuple:" ++ string_of_int(List.length(ps)))
+    | Atom(a) => Some("atom:" ++ Atom.show(a))
+    | Label(l) => Some("label:" ++ l)
+    | Var(_)
+    | Wild
+    | EmptyHole
+    | MultiHole(_)
+    | Invalid(_)
+    | ExplicitNonlabel => None
+    };
+  switch (head_key(p1), head_key(p2)) {
+  | (Some(k1), Some(k2)) => String.equal(k1, k2)
+  | _ => true
+  };
+};
+
+/* The facts the case arm `pat`, below the `earlier` arms, can cite as
+   `where`, in the order they are installed, so the last one is what the
+   name resolves to. An arm is only reached when every earlier arm
+   failed, so an earlier arm guarded by `g` that could have matched this
+   value contributes `!g`; a constructor-disjoint one contributes
+   nothing, so `| Z =>` doesn't import the `S` arm's negated guard. The
+   arm's own guard comes last. A negation is one fact, never split into
+   conjuncts: `!(a && b)` doesn't entail `!a`. */
+let where_facts = (~earlier: list(Pat.t), pat: Pat.t): list(Exp.t) => {
+  let negations =
+    List.filter_map(
+      ~f=
+        prev =>
+          switch (Exp.split_pat_guard(prev)) {
+          | (prev_base, Some(g)) when pats_overlap(prev_base, pat) =>
+            Some(Exp.fresh(UnOp(Bool(Not), g)))
+          | _ => None
+          },
+      earlier,
+    );
+  negations @ Option.to_list(Exp.pat_guard(pat));
+};
 
 /* Replace all occurrences of `replace` in `in_exp` with `with_exp`.
    The coctx is used to prevent capture inside binders. `None` when a
@@ -162,7 +220,7 @@ let replace =
               exp;
             } else {
               Fun(
-                p,
+                replace_pat(p, restrict_blacklist(p, blacklist_vars)),
                 replace_exp(d1, restrict_blacklist(p, blacklist_vars)),
                 x,
                 y,
@@ -231,7 +289,7 @@ let replace =
               exp;
             } else {
               Forall(
-                p,
+                replace_pat(p, restrict_blacklist(p, blacklist_vars)),
                 replace_exp(e, restrict_blacklist(p, blacklist_vars)),
               )
               |> rewrap;
@@ -284,7 +342,23 @@ let replace =
           };
         },
       in_exp,
-    );
+    )
+  /* Rewrite inside a binder pattern's `where` guard, which lives under
+     the binder and so needs the same rewrite the body gets. */
+  and replace_pat = (pat: Pat.t, blacklist_vars): Pat.t => {
+    let (pterm, prewrap) = Pat.unwrap(pat);
+    switch (pterm) {
+    | Where(p1, g) =>
+      prewrap(
+        Where(
+          replace_pat(p1, blacklist_vars),
+          replace_exp(g, blacklist_vars),
+        ),
+      )
+    | Parens(p1) => prewrap(Parens(replace_pat(p1, blacklist_vars)))
+    | _ => pat
+    };
+  };
   let replaced = replace_exp(in_exp, blacklist_vars);
   captured^ ? None : Some(replaced);
 };

@@ -6,7 +6,7 @@ open Example;
 /* ExplainThis documentation for the Proof sort — the prover's step forms.
  *
  * House rule for this file: every message names the facts the step brings
- * into scope (`assume`, `case_eq`, `ih_t`, `have`) and says whether the
+ * into scope (`where`, `assume`, `case_eq`, `ih_t`, `have`) and says whether the
  * step adds a side condition, in the words the Prover slides use, because
  * that is what a user sitting on the step needs to write the next one. */
 
@@ -81,7 +81,7 @@ let axiom = (~name_id: Id.t): Simple.t => {
     abstract: ([mk_axiom([slot(nm)])], [(Piece.id(nm), name_id)]),
     explanation:
       sprintf(
-        "Uses the [*fact*](%s) — a theorem, a builtin rule, or a fact in scope such as `assume`, `case_eq`, `ih_t` or `have` — as a rule: on a goal that matches its left side, replaces the goal with its right side; inside a `from`, rewrites just the focused part. A fact that is a proposition `P` rather than an equation reads as `P == true`, so it rewrites `P` to `true`. A name means the nearest fact with that name; `alias` reaches one that a nearer fact hides. A rule with `==>` conditions adds them as side conditions of this step. Add `with x = e` when matching can't determine one of the rule's variables.",
+        "Uses the [*fact*](%s) — a theorem, a builtin rule, or a fact in scope such as `where`, `assume`, `case_eq`, `ih_t` or `have` — as a rule: on a goal that matches its left side, replaces the goal with its right side; inside a `from`, rewrites just the focused part. A fact that is a proposition `P` rather than an equation reads as `P == true`, so it rewrites `P` to `true`. A name means the nearest fact with that name; `alias` reaches one that a nearer fact hides. A rule with `==>` conditions adds them as side conditions of this step. Add `with x = e` when matching can't determine one of the rule's variables.",
         name_id |> Id.to_string,
       ),
     examples: [
@@ -347,7 +347,7 @@ let forall_step = (~pat_id: Id.t, ~body_id: Id.t): Simple.t => {
     ),
     explanation:
       sprintf(
-        "Names the [*variable*](%s) of a `forall` goal; the [*rest of the proof*](%s) proves the body for it, an unknown value. A theorem's outer `forall`s are named for you, so this is for a `forall` a later goal starts with, such as after `assume` or `generalize`.",
+        "Names the [*variable*](%s) of a `forall` goal; the [*rest of the proof*](%s) proves the body for it, an unknown value. A theorem's outer `forall`s are named for you, so this is for a `forall` a later goal starts with, such as after `assume` or `generalize`. If the variable has a `where` restriction, the restriction becomes a fact named `where` inside; a deeper restricted `forall` takes that name again and hides it.",
         pat_id |> Id.to_string,
         body_id |> Id.to_string,
       ),
@@ -434,7 +434,7 @@ let generalize = (~exp_id: Id.t, ~body_id: Id.t): Simple.t => {
     ),
     explanation:
       sprintf(
-        "Turns the named [*variable*](%s) back into a `forall`: the [*rest of the proof*](%s) proves `forall x -> goal`. Before `induction`, this makes the `ih_` facts `forall`s, so they can be used at values other than the one in hand. Facts that mention the variable (`assume`, `case_eq`, earlier `ih_` facts) leave scope inside, since they are about the old value.",
+        "Turns the named [*variable*](%s) back into a `forall`: the [*rest of the proof*](%s) proves `forall x -> goal`. Before `induction`, this makes the `ih_` facts `forall`s, so they can be used at values other than the one in hand. Facts that mention the variable (`assume`, `case_eq`, earlier `ih_` facts) leave scope inside, since they are about the old value. A `where` restriction on the variable goes back onto the new `forall`, and is a fact named `where` again once `forall` names the variable.",
         exp_id |> Id.to_string,
         body_id |> Id.to_string,
       ),
@@ -443,9 +443,9 @@ let generalize = (~exp_id: Id.t, ~body_id: Id.t): Simple.t => {
         sub_id: ProofGeneralize1,
         term:
           mk_example(
-            "theorem t = forall n: Int -> n + 0 == n proof generalize n => forall n => from n + 0 do algebra n end end; rewrite refl end in 0",
+            "theorem inv = forall w: Int where w != 0 -> w / w == 1 proof from w / w do algebra 1 end end; rewrite refl end in\ntheorem t = forall n: Int where n != 0 -> n / n == 1 proof generalize n => forall n => from n / n do rewrite inv end end; rewrite refl end in 0",
           ),
-        message: "`generalize n` turns the goal back into `forall n -> n + 0 == n`, and `forall n` names the variable again.",
+        message: "`generalize n` carries `n`'s `where` restriction back onto the new `forall`, and `forall n` makes it a fact named `where` again. That fact closes the side condition `n != 0` that rewriting with `inv` adds.",
       },
     ],
   };
@@ -498,7 +498,7 @@ let revert_with =
     ),
     explanation:
       sprintf(
-        "Moves one instance of the [*fact*](%s) into the goal: the fact must be a `forall` over the [*variable*](%s), which is set to the [*value*](%s), and the [*rest of the proof*](%s) gets that instance as an antecedent. The value must visibly terminate, and its side conditions are added here. This is how a `forall` fact, such as an `ih_` fact after `generalize`, is used at a value other than its own.",
+        "Moves one instance of the [*fact*](%s) into the goal: the fact must be a `forall` over the [*variable*](%s), which is set to the [*value*](%s), and the [*rest of the proof*](%s) gets that instance as an antecedent. The value must visibly terminate, and its side conditions are added here. A `where` restriction on the variable stays as a further antecedent: dropping it would be unsound. This is how a `forall` fact, such as an `ih_` fact after `generalize`, is used at a value other than its own.",
         exp_id |> Id.to_string,
         var_id |> Id.to_string,
         inst_id |> Id.to_string,

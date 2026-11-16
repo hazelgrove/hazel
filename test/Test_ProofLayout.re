@@ -1237,6 +1237,54 @@ in t|};
         )
       )
     ),
+    test_case("the float exit restricts the binder in place", `Quick, () =>
+      check_write(
+        ~src=exits_program,
+        ~expected=
+          Edit.replace_first(
+            ~before="forall n: Int ->",
+            ~after="forall n: (Int) where n != 0 ->",
+            exits_program,
+          ),
+        z => {
+          let ctx = ET.exits_ctx_of(z);
+          ET.require_patch(
+            "float",
+            Exits.float_patch(
+              ~ctx,
+              ET.mk_obligation(
+                ~origin=Proof.rep_id(ctx.proof),
+                ~goal="n != 0",
+              ),
+            ),
+          );
+        },
+      )
+    ),
+    test_case(
+      "the contract exit keeps the function's body as written", `Quick, () =>
+      check_write(
+        ~src=exits_program,
+        ~expected=
+          Edit.replace_first(
+            ~before="fun n ->",
+            ~after="fun n where n != 0 ->",
+            exits_program,
+          ),
+        z => {
+          let func = List.hd_exn(ET.find_funs(zipper_term(z)));
+          switch (
+            Exits.for_contract(
+              ~func=Some(func),
+              ET.mk_obligation(~origin=Exp.rep_id(func), ~goal="n != 0"),
+            )
+          ) {
+          | [{patch: Some(patch), _}, ..._] => patch
+          | _ => Alcotest.fail("no contract exit")
+          };
+        },
+      )
+    ),
   ];
 };
 

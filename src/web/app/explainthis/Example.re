@@ -100,6 +100,12 @@ let mk_pause = mk_tile(FilterPause, Exp);
 let mk_debug = mk_tile(FilterDebug, Exp);
 let mk_theorem = mk_tile(Theorem, Exp);
 let mk_forall = mk_tile(Forall, Exp);
+/* `fun p where g -> e` and `forall p where g -> e` are the `fun` and
+   `forall` tiles with the infix `where` pattern in their parameter slot. */
+let mk_fun_where = (p: list(Piece.t), g: list(Piece.t)) =>
+  mk_fun([p @ [mk_monotile(Where, Pat)] @ g]);
+let mk_forall_where = (p: list(Piece.t), g: list(Piece.t)) =>
+  mk_forall([p @ [mk_monotile(Where, Pat)] @ g]);
 let proof_seq = () => mk_monotile(CellJoin, Proof);
 let mk_proof_forall = mk_tile(ProofForall, Proof);
 let mk_proof_funext = mk_tile(ProofFunext, Proof);

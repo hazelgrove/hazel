@@ -796,8 +796,40 @@ let rec of_pat = (pat: Pat.t): t => {
   | Label(l) => rewrap(Label(l))
   | ExplicitNonlabel => rewrap(ExplicitNonlabel)
   | TupLabel(l, e) => rewrap(TupLabel(of_pat(l), of_pat(e)))
+  /* The case equation is about `p` alone; the checker installs the
+     guard as a separate `where` hypothesis (`ProofCheck.Where.add_facts`). */
+  | Where(p, _) => of_pat(p)
   };
 };
+
+/* Split a binder pattern into its base pattern and its `where` guard:
+ * `fun p where g -> e` is `Fun(Where(p, g), e)`, and likewise for
+ * `forall`.
+ *
+ * Parens are looked through only when there is a guard under them, so an
+ * unguarded pattern comes back unchanged. Nested guards are joined with
+ * `&&`, as `ProofCheck.Where.add_facts` reads a conjunctive restriction. */
+let rec split_pat_guard = (p: Pat.t): (Pat.t, option(t)) =>
+  switch (p |> Pat.term_of) {
+  | Where(p', g) =>
+    let (base, inner) = split_pat_guard(p');
+    let g =
+      switch (inner) {
+      | None => g
+      | Some(g0) => fresh(BinOp(Bool(And), g0, g))
+      };
+    (base, Some(g));
+  | Parens(p') =>
+    let (base, g) = split_pat_guard(p');
+    switch (g) {
+    | None => (p, None)
+    | Some(_) => (base, g)
+    };
+  | _ => (p, None)
+  };
+
+/* The guard a binder pattern carries, if any. */
+let pat_guard = (p: Pat.t): option(t) => split_pat_guard(p) |> snd;
 
 /* Does any name in `vs` occur free in `e`, given `bound` already in scope?
  *
@@ -835,7 +867,12 @@ let occurs_free_any = (~bound: list(Var.t)=[], vs: list(Var.t), e: t): bool => {
         under(Pat.bound_vars(p) @ bound, [stmt, body]);
       | Forall(p, body) =>
         go_pat(bound, p);
-        under(Pat.bound_vars(p) @ bound, [body]);
+        /* A `where` guard on the binder pattern is an Exp under the
+           binder, like the body. */
+        under(
+          Pat.bound_vars(p) @ bound,
+          Option.to_list(pat_guard(p)) @ [body],
+        );
       | Match(scrut, cases) =>
         go(bound, scrut);
         List.iter(

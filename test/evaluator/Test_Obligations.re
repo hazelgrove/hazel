@@ -40,13 +40,19 @@ let contains_substring = (haystack: string, needle: string): bool => {
 let str_check = (msg, expected, actual) =>
   Alcotest.check(Alcotest.string, msg, expected, actual);
 
-/* A sample program with two obligations in its proof:
+/* A sample program with one obligation per discharge state: one theorem
+ * with three obligations in its proof, and one definition-time obligation
+ * from the unguarded `g`:
  *
  *   z != 0   Pending    (open; nothing in scope covers it)
  *   2 != 0   Evaluated  (ground; closed evaluation, channel 2)
+ *   y != 0   Remote     (covered by the theorem's `where` restriction)
+ *   w != 0   Pending    at the definition of `g`, whose body divides by an
+ *                        unconstrained parameter
  */
-let repro = {|let f = fun x -> 100 / x in
-theorem t = forall y -> forall z -> f(y) + 4 / 2 + 8 / z == f(y) + 4 / 2 + 8 / z
+let repro = {|let f = fun x where x != 0 -> 100 / x in
+let g = fun w -> 100 / w in
+theorem t = forall y where y != 0 -> forall z -> f(y) + 4 / 2 + 8 / z == f(y) + 4 / 2 + 8 / z
 proof from f(y) + 4 / 2 + 8 / z == f(y) + 4 / 2 + 8 / z do rewrite refl end end
 in t|};
 
@@ -90,6 +96,13 @@ let test_status = () => {
     status(
       {|theorem t = forall z: Int -> 8 / z == 8 / z proof rewrite refl end in t|},
     ),
+  );
+  /* The repro's pending contract, at `g`, is the function's, not the
+   * theorem's. */
+  str_check(
+    "a function's contract isn't the theorem's",
+    "incomplete · 1 open",
+    status(repro),
   );
   str_check(
     "a hole",
@@ -170,17 +183,14 @@ let test_status_proven_and_incomplete = () => {
 /* A Remote discharge recovers its covering fact from the obligation's own
  * recorded bindings: an open closed circle's justification names it. */
 let test_remote_fact_is_the_covering_fact = () => {
-  let (pm, proof) =
-    run(
-      {|theorem t = forall y -> y != 0 ==> 8 / y == 8 / y proof assume y != 0 => from 8 / y == 8 / y do rewrite refl end end in t|},
-    );
+  let (pm, proof) = run(repro);
   let obs = ProofMap.obligations_of_proof(pm, proof);
   List.iter(
     ~f=
       (ob: Obligation.t) =>
         switch (ob.discharge, Obligation.remote_fact(ob)) {
         | (Remote(_), Some((name, fact))) =>
-          str_check("the hypothesis that covers it", "assume", name);
+          str_check("the binder that covers it", "where", name);
           check_exp("the fact's statement", "y != 0", fact);
         | (Remote(_), None) =>
           Alcotest.fail("no covering fact recovered for a Remote discharge")
@@ -190,7 +200,7 @@ let test_remote_fact_is_the_covering_fact = () => {
     obs,
   );
   bool_check(
-    "the program has a Remote discharge",
+    "the repro has a Remote discharge",
     true,
     List.exists(
       ~f=(ob: Obligation.t) => Obligation.remote_fact(ob) != None,
@@ -220,9 +230,23 @@ in t|};
 /* --- a step's exits ------------------------------------------------- */
 
 /* Availability is computed from the obligation's own data plus the
- * theorem's syntax, so these tests run the real checker. (The
- * patch/round-trip side is Test_EditorTransform's: ids are per-parse, so
- * patches must be applied to the zipper they were built from.) */
+ * theorem's syntax, so these tests run the real checker and read the real
+ * float target. (The patch/round-trip side is Test_EditorTransform's: ids
+ * are per-parse, so patches must be applied to the zipper they were built
+ * from.) */
+
+let stmt_of = (elab: Exp.t): option(Exp.t) => {
+  let found = ref(None);
+  let f_exp = (continue, e: Exp.t): Exp.t =>
+    switch (e.term) {
+    | Theorem(_, stmt, _, _) when found^ == None =>
+      found := Some(stmt);
+      e;
+    | _ => continue(e)
+    };
+  let _ = TermBase.Exp.map_term(~f_exp, elab);
+  found^;
+};
 
 let run_with_ctx = (src: string): (ProofMap.t, Proof.t, Exits.ctx) => {
   let (state, info_map, elab) = src |> parse_exp |> eval_with_proof;
@@ -232,6 +256,7 @@ let run_with_ctx = (src: string): (ProofMap.t, Proof.t, Exits.ctx) => {
     proof_map,
     proof,
     {
+      stmt: stmt_of(elab),
       proof,
       proof_map,
       info_map,
@@ -254,13 +279,68 @@ let one_pending = (msg, pm, proof): Obligation.t =>
     )
   };
 
-/* The obligation arises inside an induction case and mentions that
- * case's own binder. */
+/* A pending obligation over a theorem binder floats: the target is that
+ * binder, and all three exits are live. */
+let test_float_available_at_theorem_binder = () => {
+  let (pm, proof, ctx) = run_with_ctx(repro);
+  let ob = one_pending("repro", pm, proof);
+  switch (Exits.float_target_of(~ctx, ob)) {
+  | FloatTo(b) =>
+    str_check(
+      "the float target is the binder of the goal's variable",
+      "z",
+      String.concat(~sep=",", b.vars),
+    )
+  | UnsoundAtCase => Alcotest.fail("expected FloatTo, got UnsoundAtCase")
+  | BoundLater(_) => Alcotest.fail("expected FloatTo, got BoundLater")
+  | NoBinder => Alcotest.fail("expected FloatTo, got NoBinder")
+  };
+  let actions = Exits.for_step(~ctx, ob);
+  int_check("three exits offered", 3, List.length(actions));
+  bool_check(
+    "all three are enabled",
+    true,
+    List.for_all(~f=(a: Exits.t) => a.patch != None, actions),
+  );
+  str_check(
+    "labels, in menu order",
+    "Add to statement|Prove here|Split on it",
+    String.concat(~sep="|", List.map(~f=(a: Exits.t) => a.label, actions)),
+  );
+};
+
+/* The innermost mentioned binder wins: the float target is computed, not
+ * chosen. Both `a` and `b` are theorem binders; the goal mentions only
+ * `b`, so the guard lands on `b`'s binder. */
+let inner_binder_src = {|theorem t = forall a: Int -> forall b: Int -> a + 8 / b == a + 8 / b
+proof from a + 8 / b == a + 8 / b do rewrite refl end end
+in t|};
+
+let test_float_target_is_innermost = () => {
+  let (pm, proof, ctx) = run_with_ctx(inner_binder_src);
+  let ob = one_pending("inner binder", pm, proof);
+  switch (Exits.float_target_of(~ctx, ob)) {
+  | FloatTo(b) =>
+    str_check(
+      "target is the inner binder",
+      "b",
+      String.concat(~sep=",", b.vars),
+    )
+  | UnsoundAtCase => Alcotest.fail("expected FloatTo, got UnsoundAtCase")
+  | BoundLater(_) => Alcotest.fail("expected FloatTo, got BoundLater")
+  | NoBinder => Alcotest.fail("expected FloatTo, got NoBinder")
+  };
+};
+
+/* The unsound float: the obligation arises inside an induction case and
+ * mentions that case's own binder, so floating it would put a restriction
+ * on a case and break exhaustiveness. The option must be offered and
+ * disabled, with the reason — never silently dropped, never enabled. */
 let case_scoped_src = {|theorem t = forall n: Int -> 8 / n == 8 / n
 proof induction n | 0 => ? | m => from 8 / m == 8 / m do rewrite refl end end end
 in t|};
 
-let test_exits_at_case_binder = () => {
+let test_float_disabled_at_case_binder = () => {
   let (pm, proof, ctx) = run_with_ctx(case_scoped_src);
   let obs = pending_of(pm, proof);
   let ob =
@@ -277,13 +357,25 @@ let test_exits_at_case_binder = () => {
         ++ string_of_int(List.length(obs)),
       )
     };
+  bool_check(
+    "the float target is the unsound one",
+    true,
+    Exits.float_target_of(~ctx, ob) == UnsoundAtCase,
+  );
   switch (Exits.for_step(~ctx, ob)) {
-  | [prove, split] =>
+  | [float, prove, split] =>
+    bool_check("float is disabled", true, float.patch == None);
+    bool_check(
+      "and says why",
+      true,
+      contains_substring(float.title, "unsound"),
+    );
+    /* The other two exits stay available at a case. */
     bool_check("prove here is available", true, prove.patch != None);
     bool_check("split is available", true, split.patch != None);
   | actions =>
     Alcotest.fail(
-      "expected two actions, got " ++ string_of_int(List.length(actions)),
+      "expected three actions, got " ++ string_of_int(List.length(actions)),
     )
   };
   /* And the wrapping region is inside the case, so the emitted `have`'s
@@ -327,18 +419,26 @@ let test_no_exits_when_discharged = () => {
   );
 };
 
-/* Against a theorem whose proof doesn't hold the incurring step, the
+/* Against a theorem whose statement has no binder and whose proof
+ * doesn't hold the incurring step, float reports NoBinder and the wrapping
  * exits are disabled, with a reason, rather than misdirected. */
 let test_exits_disabled_outside_the_theorem = () => {
   let (pm, proof, _) = run_with_ctx(repro);
   let ob = one_pending("repro", pm, proof);
   let ctx: Exits.ctx = {
+    stmt: None,
     proof: Proof.fresh(EmptyHole),
     proof_map: ProofMap.empty,
     info_map: Statics.Map.empty,
   };
+  bool_check(
+    "no statement means nothing to float onto",
+    true,
+    Exits.float_target_of(~ctx, ob) == NoBinder,
+  );
   switch (Exits.for_step(~ctx, ob)) {
-  | [prove, split] =>
+  | [float, prove, split] =>
+    bool_check("float disabled", true, float.patch == None);
     bool_check("prove here disabled", true, prove.patch == None);
     bool_check("split disabled", true, split.patch == None);
     bool_check(
@@ -348,9 +448,213 @@ let test_exits_disabled_outside_the_theorem = () => {
     );
   | actions =>
     Alcotest.fail(
-      "expected two actions, got " ++ string_of_int(List.length(actions)),
+      "expected three actions, got " ++ string_of_int(List.length(actions)),
     )
   };
+};
+
+/* --- exit 1 end to end: float, reparse, re-check -------------------
+ *
+ * The unit tests above only inspect the patch; this one drives the whole
+ * loop — check → patch → print → reparse → check — and asserts that the
+ * floated restriction discharges the obligation, not just that the binder
+ * was edited.
+ *
+ * The patch target ids come from the zipper (per-parse ids), so the
+ * exits' ctx is built from the zipper's own term; the obligation is the
+ * real one from a checker run on the same source, so its display_goal is
+ * exactly what the browser would embed. */
+
+let zipper_of = (s: string): Haz3lcore.Zipper.t =>
+  switch (Haz3lcore.Parser.to_zipper(s, ~root=Exp)) {
+  | Some(z) => z
+  | None => Alcotest.fail("failed to parse zipper: " ++ s)
+  };
+
+let serialize = (z: Haz3lcore.Zipper.t): string =>
+  Haz3lcore.Printer.of_zipper(~holes="?", z);
+
+let zipper_term = (z: Haz3lcore.Zipper.t): Exp.t =>
+  Haz3lcore.MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+
+let ctx_of_zipper = (z: Haz3lcore.Zipper.t): Exits.ctx => {
+  let term = zipper_term(z);
+  {
+    stmt: stmt_of(term),
+    proof:
+      switch (Test_ProofMap.find_theorem_proof(term)) {
+      | Some(p) => p
+      | None => Alcotest.fail("no theorem proof in the zipper term")
+      },
+    proof_map: ProofMap.empty,
+    info_map: Statics.Map.empty,
+  };
+};
+
+/* `8 / z` incurs a pending `z != 0`; floating it restricts `z`'s binder. */
+let float_e2e_src = {|let f = fun x where x != 0 -> 100 / x in
+let g = fun w -> 100 / w in
+theorem t = forall y where y != 0 -> forall z -> f(y) + 4 / 2 + 8 / z == f(y) + 4 / 2 + 8 / z
+proof from f(y) + 4 / 2 + 8 / z == f(y) + 4 / 2 + 8 / z do rewrite refl end end
+in 0|};
+
+let test_float_discharges_after_recheck = () => {
+  /* 1. check the original: one pending obligation, `z != 0`. */
+  let (pm, proof, _) = run_with_ctx(float_e2e_src);
+  let ob = one_pending("the repro", pm, proof);
+  check_exp("the pending obligation is z != 0", "z != 0", ob.goal);
+
+  /* 2. build and apply the float patch against the editor's own zipper. */
+  let z = zipper_of(float_e2e_src);
+  let ctx = ctx_of_zipper(z);
+  let patch =
+    switch (Exits.float_patch(~ctx, ob)) {
+    | Some(p) => p
+    | None => Alcotest.fail("float patch unavailable for the repro")
+    };
+  let out = Haz3lcore.EditorTransform.apply_patch(z, patch) |> serialize;
+  bool_check(
+    "the binder carries a where-restriction — got:\n" ++ out,
+    true,
+    contains_substring(out, "where"),
+  );
+
+  /* 3. re-check the patched program: the obligation must be Remote. */
+  let (pm', proof') = run(out);
+  let obs' = ProofMap.obligations_of_proof(pm', proof');
+  let pendings = obs' |> List.filter(~f=Obligation.is_pending) |> List.length;
+  int_check(
+    "no pending obligations after the float — patched program:\n"
+    ++ out
+    ++ "\nobligations: "
+    ++ String.concat(
+         ~sep=", ",
+         List.map(
+           ~f=
+             (o: Obligation.t) =>
+               Obligation.show_discharge(o.discharge)
+               ++ " "
+               ++ Test_ProofMap.print_exp(o.goal),
+           obs',
+         ),
+       ),
+    0,
+    pendings,
+  );
+  bool_check(
+    "the floated condition is discharged Remote",
+    true,
+    List.exists(
+      ~f=
+        (o: Obligation.t) =>
+          switch (o.discharge) {
+          | Obligation.Remote(_) => true
+          | _ => false
+          },
+      obs',
+    ),
+  );
+  switch (ProofMap.full_status_of_proof(pm', proof')) {
+  | ProofMap.Proven => ()
+  | other =>
+    Alcotest.fail(
+      "expected the theorem chip fully Proven, got: "
+      ++ ProofMap.show_full_status(other)
+      ++ "\npatched program:\n"
+      ++ out,
+    )
+  };
+};
+
+/* --- a contract's exit ----------------------------------------------- */
+
+/* Definition-time obligations sit at the function's id, in an entry with
+ * no goals and no marks. */
+let contract_obligations = (pm: ProofMap.t): list(Obligation.t) =>
+  Id.Map.fold(
+    (_, entry: ProofMap.entry, acc) =>
+      switch (entry) {
+      | {incoming: None, outgoing: None, marks: [], obligations, _} =>
+        acc @ obligations
+      | _ => acc
+      },
+    pm,
+    [],
+  );
+
+/* The first `fun` in the term. */
+let first_fun = (e: Exp.t): option(Exp.t) => {
+  let found = ref(None);
+  let f_exp = (continue, e: Exp.t): Exp.t =>
+    switch (e.term) {
+    | Fun(_) when found^ == None =>
+      found := Some(e);
+      e;
+    | _ => continue(e)
+    };
+  let _ = TermBase.Exp.map_term(~f_exp, e);
+  found^;
+};
+
+let contract_src = {|let g = fun w -> 100 / w in
+theorem t = 1 == 1 proof from 1 == 1 do rewrite refl end end
+in 0|};
+
+let one_contract = (src: string): Obligation.t => {
+  let (pm, _) = run(src);
+  switch (contract_obligations(pm)) {
+  | [ob] => ob
+  | obs =>
+    Alcotest.fail(
+      "expected one contract obligation, got "
+      ++ string_of_int(List.length(obs)),
+    )
+  };
+};
+
+/* Without the function's syntax (it is in another cell), the one exit
+ * shows disabled, saying why. */
+let test_contract_exit_needs_the_function = () => {
+  let ob = one_contract(contract_src);
+  switch (Exits.for_contract(~func=None, ob)) {
+  | [exit] =>
+    str_check("the exit", "Add to contract", exit.label);
+    bool_check("disabled", true, exit.patch == None);
+    bool_check(
+      "and says why",
+      true,
+      contains_substring(exit.title, "Unavailable"),
+    );
+  | exits =>
+    Alcotest.fail(
+      "expected one exit, got " ++ string_of_int(List.length(exits)),
+    )
+  };
+};
+
+/* Check, patch with Add to contract, reparse, check again: the guard
+ * covers the body, so no contract obligation is left. */
+let test_contract_exit_discharges_after_recheck = () => {
+  let ob = one_contract(contract_src);
+  check_exp("the contract's goal", "w != 0", ob.goal);
+  let z = zipper_of(contract_src);
+  let patch =
+    switch (Exits.for_contract(~func=first_fun(zipper_term(z)), ob)) {
+    | [{patch: Some(p), _}] => p
+    | _ => Alcotest.fail("Add to contract unavailable")
+    };
+  let out = Haz3lcore.EditorTransform.apply_patch(z, patch) |> serialize;
+  bool_check(
+    "the parameter carries the guard — got:\n" ++ out,
+    true,
+    contains_substring(out, "fun w where w != 0"),
+  );
+  let (pm', _) = run(out);
+  int_check(
+    "no contract obligation after the patch — patched program:\n" ++ out,
+    0,
+    List.length(contract_obligations(pm')),
+  );
 };
 
 /* An exit that would break the proof shows disabled. Splitting on a
@@ -362,7 +666,7 @@ let test_split_disabled_when_it_breaks_a_step = () => {
     );
   let ob = one_pending("split", pm, proof);
   switch (Exits.for_step(~ctx, ob)) {
-  | [prove, split] =>
+  | [_, prove, split] =>
     bool_check("prove here enabled", true, prove.patch != None);
     bool_check("split disabled", true, split.patch == None);
     str_check(
@@ -374,6 +678,33 @@ let test_split_disabled_when_it_breaks_a_step = () => {
   };
 };
 
+/* A condition on a variable the proof binds can't restrict the
+ * statement's binders. */
+let test_float_disabled_for_a_later_variable = () => {
+  let (pm, proof, ctx) =
+    run_with_ctx(
+      "theorem t = forall x: Int -> x == x ==> (forall y: Int -> y == x) proof assume x == x => forall y => have y == x proof ? => from y do rewrite have end end; rewrite refl end in t",
+    );
+  let ob = one_pending("later", pm, proof);
+  bool_check(
+    "bound later",
+    true,
+    Exits.float_target_of(~ctx, ob) == BoundLater("y"),
+  );
+};
+
+/* A contract's goal names the definitions it uses, as written. */
+let test_contract_goal_as_written = () => {
+  let ob =
+    one_contract(
+      {|let k = 3 in
+let g = fun w -> 100 / (w - k) in
+theorem t = 1 == 1 proof from 1 == 1 do rewrite refl end end
+in 0|},
+    );
+  check_exp("the contract's goal", "w - k != 0", ob.goal);
+};
+
 let tests = (
   "Obligations",
   [
@@ -383,9 +714,29 @@ let tests = (
       test_split_disabled_when_it_breaks_a_step,
     ),
     test_case(
-      "the exits at an induction case wrap the case's body",
+      "float is disabled for a variable the proof binds",
       `Quick,
-      test_exits_at_case_binder,
+      test_float_disabled_for_a_later_variable,
+    ),
+    test_case(
+      "a contract's goal names definitions as written",
+      `Quick,
+      test_contract_goal_as_written,
+    ),
+    test_case(
+      "float is available at a theorem binder, all three exits live",
+      `Quick,
+      test_float_available_at_theorem_binder,
+    ),
+    test_case(
+      "the float target is the innermost mentioned binder",
+      `Quick,
+      test_float_target_is_innermost,
+    ),
+    test_case(
+      "float is greyed out (with reason) at an induction-case binder",
+      `Quick,
+      test_float_disabled_at_case_binder,
     ),
     test_case(
       "a discharged obligation has no exits",
@@ -396,6 +747,16 @@ let tests = (
       "exits outside the theorem are disabled, with a reason",
       `Quick,
       test_exits_disabled_outside_the_theorem,
+    ),
+    test_case(
+      "Add to contract is disabled without the function's syntax",
+      `Quick,
+      test_contract_exit_needs_the_function,
+    ),
+    test_case(
+      "Add to contract: no contract obligation after reparse and re-check",
+      `Quick,
+      test_contract_exit_discharges_after_recheck,
     ),
     test_case(
       "the header reads proven, proven* or incomplete with a count",
@@ -421,6 +782,11 @@ let tests = (
       "an obligation's goal is as written",
       `Quick,
       test_goal_is_as_written,
+    ),
+    test_case(
+      "float patch: obligation discharges after reparse and re-check",
+      `Quick,
+      test_float_discharges_after_recheck,
     ),
   ],
 );

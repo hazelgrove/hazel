@@ -160,6 +160,8 @@ let bind_pattern = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) => {
       Typ.equal(ty, Atom(Atom.cls_of_t(c)) |> Typ.temp) ? Some([]) : None
     | Constructor(_) => Some([]) // TODO: make this stricter
     | Asc(dhp, ty1) => dhpat_var_entry(dhp, ty1)
+    /* `p where g` binds what `p` binds at the same type. */
+    | Where(dhp, _) => dhpat_var_entry(dhp, ty)
     };
   };
   let+ l = dhpat_var_entry(dhpat, ty);

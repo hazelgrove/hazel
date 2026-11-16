@@ -973,7 +973,7 @@ let test_no_assume_full_status_proven = () => {
   );
 };
 
-/* --- Implication ---------------------------------------------------- */
+/* --- Implication and restrictions ------------------------------------ */
 
 /* `==>` parses right-associative, just below `||`, and round-trips
  * through printing. */
@@ -1016,6 +1016,52 @@ let test_implies_parse_and_roundtrip = () => {
   roundtrip("a == b ==> c == d");
   roundtrip("a ==> b ==> c");
   roundtrip("(a ==> b) ==> c");
+};
+
+/* `forall p where g -> e` parses, prints, and round-trips; exp_to_rule
+ * reads the guard as an assumption. */
+let test_forall_where_parse_and_rule = () => {
+  let src = "forall x where x != 0 -> x == x";
+  let e = parse_exp(src);
+  Alcotest.check(
+    Alcotest.bool,
+    "parses to a Forall whose binder pattern carries the guard",
+    true,
+    switch (Exp.term_of(e)) {
+    | Forall(p, _) => Exp.pat_guard(p) != None
+    | _ => false
+    },
+  );
+  Alcotest.check(
+    Alcotest.bool,
+    "round-trips through printing",
+    true,
+    Exp.fast_equal(e, parse_exp(print_exp(e))),
+  );
+  let rule = ProofRule.exp_to_rule(e);
+  Alcotest.check(
+    Alcotest.int,
+    "guard becomes one assumption",
+    1,
+    List.length(rule.assumptions),
+  );
+  check_exp(
+    "the assumption is the guard",
+    "x != 0",
+    List.hd_exn(rule.assumptions),
+  );
+  Alcotest.check(
+    Alcotest.bool,
+    "conclusion is the equality",
+    true,
+    switch (rule.conclusion) {
+    | Equality(_, _) => true
+    /* `exp_to_rule` never grants the bare-boolean reading; only
+       `ProofRule.BoolReading.apply` does, at the point of use. */
+    | BoolFact(_)
+    | Other(_) => false
+    },
+  );
 };
 
 /* Implication intro via assume: when the assumed exp is the antecedent of
@@ -1082,11 +1128,11 @@ let test_assume_needs_an_implication = () => {
   );
 };
 
-/* Conditional rule via `==>`: a use site with a closed
- * instantiation incurs the instantiated antecedent, which closed evaluation
+/* Conditional rule via a restricted binder: a use site with a closed
+ * instantiation incurs the instantiated guard, which closed evaluation
  * discharges (`Evaluated`), so full status is Proven. */
 let test_conditional_rule_closed_discharges = () => {
-  let src = {|theorem inv = forall x -> x != 0 ==> x == x proof assume x != 0 => from x == x do rewrite refl end end in theorem u = 2 == 2 proof from 2 do rewrite inv end end; from 2 == 2 do rewrite refl end end in u|};
+  let src = {|theorem inv = forall x where x != 0 -> x == x proof from x == x do rewrite refl end end in theorem u = 2 == 2 proof from 2 do rewrite inv end end; from 2 == 2 do rewrite refl end end in u|};
   let (state, _, elab) = src |> parse_exp |> eval_with_proof;
   let pm = EvaluatorState.get_proof_map(state);
   let use_proof = proof_of_named("u", elab);
@@ -1120,7 +1166,7 @@ let test_conditional_rule_closed_discharges = () => {
  * evaluated (open goals never are) and nothing in scope covers it, so it
  * is Pending and the use is ProvenModulo. */
 let test_conditional_rule_open_pending = () => {
-  let src = {|theorem inv = forall x -> x != 0 ==> x == x proof assume x != 0 => from x == x do rewrite refl end end in theorem u = forall y -> y == y proof from y do rewrite inv end end; from y == y do rewrite refl end end in u|};
+  let src = {|theorem inv = forall x where x != 0 -> x == x proof from x == x do rewrite refl end end in theorem u = forall y -> y == y proof from y do rewrite inv end end; from y == y do rewrite refl end end in u|};
   let (state, _, elab) = src |> parse_exp |> eval_with_proof;
   let pm = EvaluatorState.get_proof_map(state);
   let use_proof = proof_of_named("u", elab);
@@ -1133,6 +1179,28 @@ let test_conditional_rule_open_pending = () => {
       ++ ProofMap.show_full_status(other),
     )
   };
+};
+
+/* Peeling a restricted binder installs the guard as a citable hypothesis
+ * named `where`, with no obligation: the proof can rewrite with it and
+ * close with no obligations. */
+let test_forall_where_hypothesis_cited = () => {
+  let src = {|theorem t = forall x where x == 1 -> x == 1 proof from x do rewrite where end end; from 1 == 1 do rewrite refl end end in t|};
+  let (state, _, elab) = src |> parse_exp |> eval_with_proof;
+  let pm = EvaluatorState.get_proof_map(state);
+  let proof = proof_of(elab);
+  Alcotest.check(
+    Alcotest.int,
+    "where-intro incurs no obligations",
+    0,
+    List.length(ProofMap.obligations_of_proof(pm, proof)),
+  );
+  Alcotest.check(
+    Alcotest.bool,
+    "full status is Proven",
+    true,
+    ProofMap.full_status_of_proof(pm, proof) == ProofMap.Proven,
+  );
 };
 
 /* Underdetermined instantiation: a conditional rule whose assumption
@@ -1761,6 +1829,11 @@ let tests = (
       test_implies_parse_and_roundtrip,
     ),
     test_case(
+      "forall-where parses and reads as a conditional rule",
+      `Quick,
+      test_forall_where_parse_and_rule,
+    ),
+    test_case(
       "implication intro via assume (no obligation)",
       `Quick,
       test_impl_intro_via_assume,
@@ -1779,6 +1852,11 @@ let tests = (
       "conditional rule: open instantiation stays Pending",
       `Quick,
       test_conditional_rule_open_pending,
+    ),
+    test_case(
+      "forall-where restriction is a citable hypothesis",
+      `Quick,
+      test_forall_where_hypothesis_cited,
     ),
     test_case(
       "underdetermined instantiation is refused",

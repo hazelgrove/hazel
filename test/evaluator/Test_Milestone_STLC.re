@@ -164,6 +164,38 @@ let test_canonical_impl_proven = () => {
   check_proven("canonical (==> form) is fully Proven", pm, proof);
 };
 
+/* The phrasing with a `where`-restricted binder is fully provable too.
+ * The guard `is_value(e)` is a boolean hypothesis about the scrutinee,
+ * so the split is `cases`, which keeps it in scope. The TmAp case is
+ * closed by `revert`ing it into the goal, where the case_eq
+ * `e == TmAp(x, y)` rewrites it into a closed computation, evaluation
+ * falsifies it, and McCarthy `==>` returns `true`: the revert-based ex
+ * falso idiom. */
+let canonical_where_src =
+  program(
+    "theorem canonicalw = forall e0: Term where is_value(e0) -> forall t1: Ty -> forall t2: Ty -> infer(([], e0)) == SomeTy(TArr(t1, t2)) ==> is_lam(e0) proof cases e0 "
+    ++ "| TmVar(n) => from infer(([], TmVar(n))) do step end; from nth_ty(([], n)) do step end; from NoTy == SomeTy(TArr(t1, t2)) do step end; from false ==> is_lam(TmVar(n)) do step end "
+    ++ "| TmLam(t, b) => assume infer(([], TmLam(t, b))) == SomeTy(TArr(t1, t2)) => from is_lam(TmLam(t, b)) do step end "
+    ++ "| TmAp(x, y) => revert is_value(e0) => from e0 do rewrite case_eq end end; from is_value(TmAp(x, y)) do step end; from false ==> (infer(([], TmAp(x, y))) == SomeTy(TArr(t1, t2)) ==> is_lam(TmAp(x, y))) do step end "
+    ++ "end in canonicalw",
+  );
+
+let test_canonical_where_partial = () => {
+  let (pm, proof) = run_named("canonicalw", canonical_where_src);
+  check_obligation_count(
+    "canonical (where form): no obligations",
+    0,
+    pm,
+    proof,
+  );
+  if (Option.is_some(Test_ProofMap.find_marked_sub(pm, proof))) {
+    Alcotest.fail(
+      "canonical (where form) should be mark-free\n" ++ dump(pm, proof),
+    );
+  };
+  check_proven("canonical (where form) is fully Proven", pm, proof);
+};
+
 /* A small genuine theorem exercising the full TmVar eval chain of
  * progress (an unbound variable types as nothing, so anything follows):
  * 4 eval steps unfold infer/nth_ty, falsify the antecedent, and
@@ -494,7 +526,7 @@ let test_unfolded_call_addressable = (piece: string, ()) => {
   };
 };
 
-/* --- Pins: inductive hypotheses --------------------------------------- */
+/* --- Pins: inductive hypotheses and where-facts ----------------------- */
 
 /* Structural induction over a user ADT generates inductive hypotheses,
  * although recursive-ADT constructor payloads carry the unrolled `rec`
@@ -621,6 +653,31 @@ let test_ih_instantiation_unknown_binder = () => {
   };
 };
 
+/* A where-guard that is a boolean fact has a rewrite reading
+ * (`F == true`, see Test_Revert), but it only rewrites occurrences of `F`
+ * itself: citing it at an unrelated target is RuleDoesNotApply. */
+let test_pin_where_fact_uncitable = () => {
+  let src =
+    program(
+      "theorem wprobe = forall u1: Term where is_value(u1) -> is_lam(u1) proof from is_lam(u1) do rewrite where end end in wprobe",
+    );
+  let (pm, proof) = run_named("wprobe", src);
+  if (!
+        has_mark_kind(
+          pm,
+          proof,
+          fun
+          | ProofMark.RuleDoesNotApply(_) => true
+          | _ => false,
+        )) {
+    Alcotest.fail(
+      "citing the boolean where-fact at a non-matching target should be "
+      ++ "RuleDoesNotApply\n"
+      ++ dump(pm, proof),
+    );
+  };
+};
+
 let tests = (
   "Evaluator.MilestoneSTLC",
   [
@@ -655,6 +712,11 @@ let tests = (
       `Quick,
       test_canonical_impl_proven,
     ),
+    test_case(
+      "canonical forms (where form) fully proven",
+      `Quick,
+      test_canonical_where_partial,
+    ),
     test_case("var_never_types fully proven", `Quick, test_var_never_types),
     test_case("lemma step_ap_val1", `Quick, test_lemma_step_ap_val1),
     test_case("lemma step_lam_ap2", `Quick, test_lemma_step_lam_ap2),
@@ -685,6 +747,11 @@ let tests = (
       "`with` must name a binder the IH quantifies",
       `Quick,
       test_ih_instantiation_unknown_binder,
+    ),
+    test_case(
+      "pin: boolean where-fact does not rewrite an unrelated target",
+      `Quick,
+      test_pin_where_fact_uncitable,
     ),
     test_case(
       "a call to another definition in an unfolded body is addressable",

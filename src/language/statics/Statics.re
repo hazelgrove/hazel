@@ -11,6 +11,35 @@ include StaticsBase;
 let add_info = Map.add_info;
 let add_missing_info = Map.add_missing_info;
 
+/* What the `where` guards in `p` use, once `p` is in `m`. Those uses
+   count as uses in the scope `p` binds into: a guard can name `p`'s
+   variables as well as outer ones. */
+let guard_co_ctx = (p: Pat.t, m: Map.t): CoCtx.t => {
+  let uses = ref([]);
+  let _: Pat.t =
+    Pat.map_term(
+      ~f_pat=
+        (continue, p: Pat.t) => {
+          switch (p.term) {
+          | Where(_, g) =>
+            switch (Id.Map.find_opt(Exp.rep_id(g), m)) {
+            | Some(InfoExp(info)) => uses := [info.co_ctx, ...uses^]
+            | _ => ()
+            }
+          | _ => ()
+          };
+          continue(p);
+        },
+      p,
+    );
+  CoCtx.union(uses^);
+};
+
+/* The uses a binder of `p` exposes: those in the scope `p` binds into
+   (`body_co_ctx`) and in `p`'s guards, less what `p` binds. */
+let binder_co_ctx = (ctx, p_ctx, p: Pat.t, m: Map.t, body_co_ctx) =>
+  CoCtx.mk(ctx, p_ctx, CoCtx.union([body_co_ctx, guard_co_ctx(p, m)]));
+
 let rec any_to_info_map =
         (
           ~ctx: Ctx.t,
@@ -320,8 +349,26 @@ and uexp_to_info_map =
       );
     (List.unzip(pairs), m);
   };
-  let go_pat =
-    upat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, ~probe_ids);
+  /* A binder's pattern, which sees uses in its own guards as well as
+     `co_ctx`, the uses in the scope it binds into. */
+  let go_pat = (~is_synswitch, ~co_ctx, ~ana=?, ~warn_unused=?, p, m) => {
+    let go = co_ctx =>
+      upat_to_info_map(
+        ~ctx,
+        ~ancestors=ancestors_inclusive,
+        ~probe_ids,
+        ~is_synswitch,
+        ~co_ctx,
+        ~ana?,
+        ~warn_unused?,
+        p,
+        m,
+      );
+    let (_, _, m') as result = go(co_ctx);
+    let guard_uses = guard_co_ctx(p, m');
+    List.is_empty(guard_uses)
+      ? result : go(CoCtx.union([co_ctx, guard_uses]));
+  };
   let go_typ = utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive);
   /* A theorem's statement, a proposition, and its proof. The proof can't
      cite the theorem it proves, but sees the variables bound by the
@@ -334,9 +381,11 @@ and uexp_to_info_map =
        binder patterns keep their info entries. */
     let rec proof_ctx_of_goal = (ctx, goal: Exp.t, m): (Ctx.t, Map.t) =>
       switch (goal |> Exp.term_of) {
-      /* Look through parens, as `ProofCheck.peel_stmt_binders` does.
-         Stopping at the paren would leave the inner binder free in the
-         proof. */
+      /* Look through parens, as `ProofCheck.peel_stmt_binders` does:
+         `EditorTransform` parenthesizes spliced sub-terms, giving goals
+         like `forall y where g -> (forall z where c -> P)`. Stopping at
+         the paren would leave `z` free in the proof and drop the inner
+         `where` hypothesis that the checker installs. */
       | Parens(e1) => proof_ctx_of_goal(ctx, e1, m)
       | Forall(fp, fbody) =>
         /* Only the binder's ctx is needed. The statement's own walk has
@@ -352,7 +401,25 @@ and uexp_to_info_map =
             fp,
             m,
           );
-        proof_ctx_of_goal(fp'.ctx, fbody, m);
+        /* A binder restriction (`forall p where g -> _` is
+           `Forall(Where(p, g), _)`) also enters the proof's scope as a
+           citable hypothesis named `where`, the name the checker gives
+           it. The name is fixed, so an inner `where` shadows an outer
+           one. */
+        let ctx =
+          switch (Exp.pat_guard(fp)) {
+          | None => fp'.ctx
+          | Some(g) =>
+            Ctx.extend_theorem(
+              fp'.ctx,
+              {
+                name: "where",
+                id: IdTagged.rep_id(g),
+                prop: Some(g),
+              },
+            )
+          };
+        proof_ctx_of_goal(ctx, fbody, m);
       | _ => (ctx, m)
       };
     let (proof_ctx, m) = proof_ctx_of_goal(ctx, stmt, m);
@@ -2053,7 +2120,11 @@ and uexp_to_info_map =
         ~elab_term,
         ~elab_syn_ty=syn_ty_fun,
         ~marks=marks_fun,
-        ~co_ctx=CoCtx.union([CoCtx.mk(ctx, p.ctx, e.co_ctx), pat_typ_refs]),
+        ~co_ctx=
+          CoCtx.union([
+            binder_co_ctx(ctx, p.ctx, p.user_term, m, e.co_ctx),
+            pat_typ_refs,
+          ]),
         ~probe_targets=
           SubexpProbeTargets.union_all([p.probe_targets, e.probe_targets]),
         m,
@@ -2072,7 +2143,7 @@ and uexp_to_info_map =
         ~elab_syn_ty=Atom(Bool) |> Typ.temp,
         ~marks=[],
         ~warnings=forall_warnings,
-        ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx),
+        ~co_ctx=binder_co_ctx(ctx, p.ctx, p.user_term, m, e.co_ctx),
         ~probe_targets=
           SubexpProbeTargets.union_all([p.probe_targets, e.probe_targets]),
         m,
@@ -2362,7 +2433,7 @@ and uexp_to_info_map =
         ~co_ctx=
           CoCtx.union([
             def.co_ctx,
-            CoCtx.mk(ctx, p_ana.ctx, body.co_ctx),
+            binder_co_ctx(ctx, p_ana.ctx, p, m, body.co_ctx),
             pat_typ_refs,
           ]),
         ~probe_targets=
@@ -2481,7 +2552,10 @@ and uexp_to_info_map =
         ~elab_syn_ty=p'.elab_syn_ty,
         ~marks=[],
         ~co_ctx=
-          CoCtx.union([CoCtx.mk(ctx, p''.ctx, e'.co_ctx), pat_typ_refs]),
+          CoCtx.union([
+            binder_co_ctx(ctx, p''.ctx, p, m, e'.co_ctx),
+            pat_typ_refs,
+          ]),
         ~probe_targets=
           SubexpProbeTargets.union_all([p''.probe_targets, e'.probe_targets]),
         m,
@@ -2604,7 +2678,10 @@ and uexp_to_info_map =
 
       let normalized_scrut_ty = Typ.normalize(ctx, scrut.ty);
       let Coverage.CheckMatrix.{exhaustiveness, redundant_rows} =
-        Coverage.check(constraints, normalized_scrut_ty);
+        Coverage.check_rows(
+          List.zip_exn(ps, constraints),
+          normalized_scrut_ty,
+        );
 
       let marks_match' =
         switch (exhaustiveness) {
@@ -2634,7 +2711,12 @@ and uexp_to_info_map =
       let co_ctx =
         CoCtx.union([
           scrut.co_ctx,
-          ...List.map2_exn(p_ctxs, e_co_ctxs, ~f=CoCtx.mk(ctx)),
+          ...List.map2_exn(
+               p_ctxs,
+               List.zip_exn(ps, e_co_ctxs),
+               ~f=(p_ctx, (p, e_co_ctx)) =>
+               binder_co_ctx(ctx, p_ctx, p, m, e_co_ctx)
+             ),
         ]);
       let probe_targets =
         SubexpProbeTargets.union_all(
@@ -3817,6 +3899,32 @@ and upat_to_info_map =
         ~constraint_=p.constraint_,
         m,
       );
+    | Where(p, g) =>
+      /* `p where g` types as `p` does. `g` analyzes against Bool in `p`'s
+         context, which holds everything bound to its left in the
+         enclosing pattern, `p` included. */
+      let (p, p_elab, m) = go(p, m);
+      let (g', g_elab, m) =
+        uexp_to_info_map(
+          ~ctx=p.ctx,
+          ~ana=Atom(Bool) |> Typ.temp,
+          ~ancestors=ancestors_inclusive,
+          ~probe_ids,
+          g,
+          m,
+        );
+      add(
+        ~elab_term=Where(p_elab, g_elab) |> rewrap,
+        ~elab_syn_ty=p.elab_syn_ty,
+        ~ctx=p.ctx,
+        ~probe_targets=
+          SubexpProbeTargets.union_all([p.probe_targets, g'.probe_targets]),
+        /* A `fun` or `let` pattern's guard narrows its domain; it doesn't
+           split the value. `case` drops guarded rows instead
+           (`Coverage.check_rows`). */
+        ~constraint_=p.constraint_,
+        m,
+      );
     };
 
   // This is to allow lifting single values into a singleton labeled tuple when the label is not present
@@ -4671,10 +4779,11 @@ and proof_to_info_map =
   let go_binder_instantiation =
       (~prop: option(Exp.t), instantiation: option((Exp.t, Exp.t)), m) => {
     /* The ascribed type of the binder `x` among `prop`'s outer `forall`
-       binders. */
+       (and `forall-where`) binders. */
     let rec binder_typ_in_pat = (x: Var.t, pat: Pat.t): option(Typ.t) =>
       switch (pat.term) {
-      | Parens(p1) => binder_typ_in_pat(x, p1)
+      | Parens(p1)
+      | Where(p1, _) => binder_typ_in_pat(x, p1)
       | Asc(p1, ty) =>
         switch (p1.term) {
         | Var(y) when String.equal(y, x) => Some(ty)
@@ -4734,24 +4843,32 @@ and proof_to_info_map =
         m,
       );
     /* Each case body sees the facts `ProofCheck.check_split` installs,
-       so a name shadows as it does there. A `cases` case gets the case
-       equation `scrut == pat`, absent when the pattern rebinds a variable
-       of the scrutinee. An `induction` case loses the facts that mention
-       the scrutinee and gets an `ih_<var>` per recursive position: the
-       goal at the induction with that position in place of the
-       scrutinee. The statics don't track the goal, so an inductive
-       hypothesis's statement is left unknown. */
-    let body_ctx = ((info: Info.pat, pat: Pat.t)) => {
+       so a name shadows as it does there. Every case gets the arm's
+       `where` facts. A `cases` case gets the case equation `scrut == pat`,
+       absent when the pattern rebinds a variable of the scrutinee. An
+       `induction` case loses the facts that mention the scrutinee and
+       gets an `ih_<var>` per recursive position: the goal at the
+       induction with that position in place of the scrutinee. The statics
+       don't track the goal, so an inductive hypothesis's statement is left
+       unknown. */
+    let body_ctx = (i, (info: Info.pat, pat: Pat.t)) => {
       let id = IdTagged.rep_id(pat);
+      let earlier = List.filteri(~f=(j, _) => j < i, ps);
+      let case_ctx =
+        List.fold_left(
+          ~f=(case_ctx, g) => with_fact(~ctx=case_ctx, "where", ~id, g),
+          ~init=info.ctx,
+          Induction.where_facts(~earlier, pat),
+        );
       switch (case_eq_name) {
       | Some(name) =>
         CoCtx.has_any(
           scrut_info.co_ctx,
           pat |> Pat.bindings |> Binding.variable_names,
         )
-          ? info.ctx
+          ? case_ctx
           : with_fact(
-              ~ctx=info.ctx,
+              ~ctx=case_ctx,
               name,
               ~id,
               Exp.fresh(BinOp(Poly(Equals), scrut, Exp.of_pat(pat))),
@@ -4768,7 +4885,7 @@ and proof_to_info_map =
                   prop: None,
                 },
               ),
-          ~init=Ctx.forget_facts(Induction.mentions(scrut), info.ctx),
+          ~init=Ctx.forget_facts(Induction.mentions(scrut), case_ctx),
           Induction.hypotheses(
             ProofStatics.of_info_map(m),
             Typ.normalize(ctx, scrut_info.ty),
@@ -4780,7 +4897,7 @@ and proof_to_info_map =
     let (bodies, m) =
       map_m2(
         (ctx, body, m) => go(~ctx, body, m),
-        List.map(~f=body_ctx, pats),
+        List.mapi(~f=body_ctx, pats),
         bodies,
         m,
       );
@@ -4807,8 +4924,8 @@ and proof_to_info_map =
       | _ => normalized_scrut_ty
       };
     let Coverage.CheckMatrix.{exhaustiveness, redundant_rows} =
-      Coverage.check(
-        List.map(~f=Info.pat_constraint, pat_infos),
+      Coverage.check_rows(
+        List.zip_exn(ps, List.map(~f=Info.pat_constraint, pat_infos)),
         coverage_ty,
       );
     /* The mark goes on the split's own form, not the scrutinee. */

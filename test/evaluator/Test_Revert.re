@@ -69,6 +69,18 @@ let test_revert_unknown = () => {
   );
 };
 
+/* --- Bare-boolean facts read as `F == true` --------------------------- */
+
+/* A `where` guard that is not an equation still has a rewrite reading: a
+ * cited fact holds, so it reads as `F == true`. */
+let bool_fact_src = "theorem t = forall b: Bool where b -> b == true proof from b do rewrite where end end; from true == true do rewrite refl end end in t";
+
+let test_bool_fact_rewrite = () => {
+  let (pm, proof) = run_named("t", bool_fact_src);
+  check_mark_free("bare-boolean where-fact as a rewrite", pm, proof);
+  check_proven("bare-boolean where-fact rewrite is Proven", pm, proof);
+};
+
 /* --- Bare-boolean theorem conclusions used as rules ------------------- */
 
 /* The reading is uniform: it applies to every rule, not just to
@@ -203,6 +215,11 @@ let tests = (
       test_revert_keeps_fact,
     ),
     test_case("revert of an unknown fact marks", `Quick, test_revert_unknown),
+    test_case(
+      "bare-boolean fact reads as F == true",
+      `Quick,
+      test_bool_fact_rewrite,
+    ),
     test_case(
       "bare-boolean theorem as a rule (forward), vs the == true spelling",
       `Quick,

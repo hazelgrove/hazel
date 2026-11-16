@@ -1041,6 +1041,14 @@ let decide =
             ~fallback=basic,
             FunctionExp.functions_ctr(~pat_id, ~body_id, ~name=v),
           )
+        | Where(p, g) =>
+          message_single(
+            FunWhereExp.single(
+              ~pat_id=IdTagged.rep_id(p),
+              ~guard_id=IdTagged.rep_id(g),
+              ~body_id,
+            ),
+          )
         | TupLabel(_)
         | Invalid(_)
         | Parens(_)
@@ -1228,6 +1236,10 @@ let decide =
             ~fallback=basic,
             LetExp.lets_ctr(~def_id, ~pat_id, ~name=v, ~body_id),
           )
+        | Where(_) =>
+          basic(
+            ExplainThisForm.singleton(LetExp.let_base_exp(~def_id, ~pat_id)),
+          )
         | TupLabel(_)
         | ExplicitNonlabel
         | Label(_)
@@ -1242,6 +1254,18 @@ let decide =
         let proof_id = IdTagged.rep_id(pf);
         let body_id = IdTagged.rep_id(body);
         get_message(TheoremExp.tests(~pat_id, ~thm_id, ~proof_id, ~body_id));
+      /* A `forall` whose binder pattern carries a `where` guard gets its own
+         docs, since the restriction is citable in the proof and incurred at
+         every use. */
+      | Forall(pat, body) when Option.is_some(Exp.pat_guard(pat)) =>
+        let (bare, guard) = Exp.split_pat_guard(pat);
+        message_single(
+          ForallExp.where_single(
+            ~pat_id=Pat.rep_id(bare),
+            ~guard_id=Exp.rep_id(Option.value_exn(guard)),
+            ~body_id=Exp.rep_id(body),
+          ),
+        );
       | Forall(pat, typ) =>
         let pat_id = IdTagged.rep_id(pat);
         let body_id = IdTagged.rep_id(typ);
@@ -1527,6 +1551,10 @@ let decide =
       let typ_id = IdTagged.rep_id(typ);
       get_message(TypAnnPat.typann(~pat_id, ~typ_id));
     | Invalid(_) => Prose("Not a valid pattern")
+    | Where(_) =>
+      Markdown(
+        "Guarded pattern. Matches when the pattern on the left matches and then the boolean condition on the right is `true`. The condition can use the variables bound to its left. In a proof, the condition is a citable `where` fact.",
+      )
     | Parens(_)
     | Projector(_) =>
       // Shouldn't be hit?

@@ -30,7 +30,8 @@ let prover_keywords : (string, token) Stdlib.Hashtbl.t =
       ("cases", CASES); ("induction", INDUCTION);
       ("alias", ALIAS); ("rewrite", REWRITE);
       ("algebra", ALGEBRA); ("with", WITH);
-      ("from", FROM); ("at", AT); ("do", DO) ];
+      ("from", FROM); ("at", AT); ("do", DO);
+      ("where", WHERE) ];
   t
 
 let advance_line lexbuf =

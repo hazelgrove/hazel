@@ -663,7 +663,7 @@ module Scopes = {
       () => {
         let f =
           Fixture.mk(
-            "let f = fun x -> 100 / x in theorem t = forall y -> f(y) == f(y) proof have y != 0 proof ? => ? in t",
+            "let f = fun x where x != 0 -> 100 / x in theorem t = forall y -> f(y) == f(y) proof have y != 0 proof ? => ? in t",
           );
         let (sub, body) = premises(first(f.rows));
         check(string, "the subproof's goal", "y != 0", goal(first(sub)));
@@ -2100,7 +2100,7 @@ in
       () => {
         let f =
           Fixture.mk(
-            "let f = fun x -> 100 / x in theorem t = forall y -> f(y) == f(y) proof ? in t",
+            "let f = fun x where x != 0 -> 100 / x in theorem t = forall y where y != 0 -> f(y) == f(y) proof ? in t",
           );
         let goal = Fixture.goal(f, first(f.rows));
         check(string, "as written", "f(y) == f(y)", print(goal.written));
@@ -2200,7 +2200,7 @@ in
 /* How a step draws below its row: a line, or a block of side conditions
  * and the goals it creates. */
 module Structure = {
-  let inv = {|theorem inv = forall x -> x != 0 ==> x / x == 1 proof ? in theorem t = forall x -> forall y -> x / x + y / y == 2 proof from x / x do rewrite inv end end; from y / y do rewrite inv end end in t|};
+  let inv = {|theorem inv = forall x where x != 0 -> x / x == 1 proof ? in theorem t = forall x where x != 0 -> forall y -> x / x + y / y == 2 proof from x / x do rewrite inv end end; from y / y do rewrite inv end end in t|};
 
   let layout =
     Alcotest.testable(
@@ -2242,8 +2242,8 @@ module Structure = {
         );
         check(
           list(bool),
-          "all open",
-          [true, true, true, true],
+          "x's premise closed by its where fact, the rest open",
+          [false, true, true, true],
           List.map(
             ~f=Obligation.is_pending,
             Rows.side_conditions(x) @ Rows.side_conditions(y),
@@ -2343,7 +2343,7 @@ module Structure = {
       () => {
         let have =
           Fixture.mk(
-            "theorem t = forall z -> 8 / z == 8 / z proof have z != 0 proof ? => from 8 / z == 8 / z do rewrite refl end end in t",
+            "theorem t = forall z where z != 0 -> 8 / z == 8 / z proof have z != 0 proof from z != 0 do rewrite where end end => from 8 / z == 8 / z do rewrite refl end end in t",
           );
         let row = first(have.rows);
         check(
@@ -2397,7 +2397,7 @@ module Structure = {
           "a division the instantiation brings in",
           ["Definedness"],
           kinds_at(
-            "theorem t = forall z -> 8 / z == 8 / z proof from 8 / z == 8 / z do rewrite refl end end in t",
+            "theorem t = forall z where z != 0 -> 8 / z == 8 / z proof from 8 / z == 8 / z do rewrite refl end end in t",
             first,
           ),
         );

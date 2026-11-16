@@ -7,7 +7,8 @@ type t =
   | NegativeNat
   | IntegerTooBig
   | NonFiniteFloat
-  | Incomparable;
+  | Incomparable
+  | UnsatisfiedWhere;
 
 let err_msg = (err: t): string =>
   switch (err) {
@@ -19,4 +20,5 @@ let err_msg = (err: t): string =>
   | IntegerTooBig => "Error: Integer too big"
   | NonFiniteFloat => "Error: Cannot convert non-finite float (nan or infinity)"
   | Incomparable => "Error: Incomparable Types"
+  | UnsatisfiedWhere => "Error: The value doesn't satisfy the pattern's `where` condition"
   };

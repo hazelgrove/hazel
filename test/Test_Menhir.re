@@ -306,7 +306,7 @@ let qcheck_menhir_serialized_equivalent_test =
     },
   );
 
-/* Proof keywords that are ordinary names outside proof syntax. */
+/* Keywords of the prover's syntax that are ordinary names everywhere else. */
 let soft_proof_keywords = [
   "proof",
   "funext",
@@ -323,6 +323,7 @@ let soft_proof_keywords = [
   "from",
   "at",
   "do",
+  "where",
 ];
 
 let tests =
@@ -333,6 +334,41 @@ let tests =
          ascription (arrow types need parens), single-caret livelits.
          Equivalence against MakeTerm is the contract that matters. */
       menhir_maketerm_equivalent_test("multi-param fun", "fun a, b -> a + b"),
+      /* `where` patterns: the guard takes whole operators on either side
+         and ends at `,`, `->`, `=>` and `=`. */
+      full_parser_test(
+        "FunWhere",
+        fn(
+          Pat.where_(
+            Pat.var("x"),
+            bin_op(Poly(NotEquals), var("x"), int(0)),
+          ),
+          bin_op(Int(Divide), int(100), var("x")),
+          None,
+          None,
+        ),
+        "fun x where x != 0 -> 100 / x",
+      ),
+      menhir_maketerm_equivalent_test(
+        "FunWhere guard takes a conjunction",
+        "fun x where x != 0 && x != 1 -> x",
+      ),
+      menhir_maketerm_equivalent_test(
+        "FunWhere with an ascribed parameter",
+        "fun b : Bool where b -> 1",
+      ),
+      menhir_maketerm_equivalent_test(
+        "LetWhere",
+        "let x where x > 0 = 1 in x",
+      ),
+      menhir_maketerm_equivalent_test(
+        "CaseWhere on a cons",
+        "case [1] | h :: t where h != 0 => 1 | _ => 2 end",
+      ),
+      menhir_maketerm_equivalent_test(
+        "CaseWhere on a tuple component",
+        "case (1, 2) | (x where x > 0, y) => y | _ => 0 end",
+      ),
       /* Gap fill 2026-08-14: ascribed unit parameter (UNIT lives at the
          funPat level, which had no ascription production). */
       menhir_maketerm_equivalent_test(
@@ -1169,7 +1205,7 @@ let ex5 = list_of_mylist(x) in
         ),
         "a && b ==> c",
       ),
-      /* --- `forall` ---------------------------------------------------- */
+      /* --- `forall` and the `where` binders ---------------------------- */
       full_parser_test(
         "Forall",
         forall(Pat.var("x"), bin_op(Poly(Equals), var("x"), var("x"))),
@@ -1195,6 +1231,60 @@ let ex5 = list_of_mylist(x) in
           ),
         ),
         "forall n : Int -> n == 0 ==> n == 1",
+      ),
+      full_parser_test(
+        "ForallWhere",
+        forall(
+          Pat.where_(
+            Pat.var("x"),
+            bin_op(Poly(NotEquals), var("x"), int(0)),
+          ),
+          bin_op(
+            Poly(Equals),
+            bin_op(Int(Divide), var("x"), var("x")),
+            int(1),
+          ),
+        ),
+        "forall x where x != 0 -> x / x == 1",
+      ),
+      full_parser_test(
+        "ForallWhere with ascribed binder",
+        forall(
+          Pat.where_(Pat.asc(Pat.var("b"), Typ.bool()), var("b")),
+          bin_op(Poly(Equals), var("b"), bool(true)),
+        ),
+        "forall b : Bool where b -> b == true",
+      ),
+      full_parser_test(
+        "FunWhere",
+        fn(
+          Pat.where_(
+            Pat.var("x"),
+            bin_op(Poly(NotEquals), var("x"), int(0)),
+          ),
+          bin_op(Int(Divide), int(100), var("x")),
+          None,
+          None,
+        ),
+        "fun x where x != 0 -> 100 / x",
+      ),
+      /* The guard extends across `&&` (and_ 32 is tighter than fun_ 37). */
+      full_parser_test(
+        "FunWhere guard swallows conjunction",
+        fn(
+          Pat.where_(
+            Pat.var("x"),
+            bin_op(
+              Bool(And),
+              bin_op(Poly(NotEquals), var("x"), int(0)),
+              bin_op(Poly(NotEquals), var("x"), int(1)),
+            ),
+          ),
+          var("x"),
+          None,
+          None,
+        ),
+        "fun x where x != 0 && x != 1 -> x",
       ),
       /* --- proof prefix forms ------------------------------------------ */
       menhir_maketerm_equivalent_test(
@@ -1264,11 +1354,27 @@ let ex5 = list_of_mylist(x) in
         "Focus selector with a metavariable",
         "let rev = fun xs -> xs in theorem t = rev([]) == [] proof from $e([]) do step end; rewrite refl end in t",
       ),
+      /* `where` and `assume` are ProofCheck's base names for where-guard
+         and assume-intro hypotheses, so they also appear as cited fact
+         names in expression position. */
+      menhir_maketerm_equivalent_test(
+        "Hypothesis names `assume` and `where` in expression position",
+        "theorem t = forall b : Bool where b -> b == true proof from b do rewrite where end end; from b do rewrite assume end end in t",
+      ),
+      menhir_maketerm_equivalent_test(
+        "`where` as a name inside a where-guarded pattern",
+        "let where = 1 in (fun where where where > 0 -> case where | x where x == where => x | _ => 0 end)(where)",
+      ),
       /* --- full prover programs (from test/evaluator) ------------------ */
       /* Test_Revert.ex_falso_src */
       menhir_maketerm_equivalent_test(
         "Full program: ex falso via assume/revert",
         "theorem t = forall n: Int -> n == 0 ==> n == 1 ==> false proof assume n == 0 => assume n == 1 => revert n == 1 => from n do rewrite assume end end; from 0 == 1 do step end; from false ==> false do step end in t",
+      ),
+      /* Test_Revert.bool_fact_src: a where-binder plus axiom steps. */
+      menhir_maketerm_equivalent_test(
+        "Full program: bare-boolean where-fact",
+        "theorem t = forall b: Bool where b -> b == true proof from b do rewrite where end end; from true == true do rewrite refl end end in t",
       ),
       /* Test_Revert.adt_ih_src: ADT induction with a reverted IH. */
       menhir_maketerm_equivalent_test(
@@ -1308,8 +1414,21 @@ let ex5 = list_of_mylist(x) in
         "plain cases with an assume in a case body",
         "theorem t = forall n: Int -> n == n proof cases n > 0 | true => assume n == 1 => ? | false => ? end in t",
       ),
+      /* Test_FunContracts style: a fun-contract used by a theorem. */
+      menhir_maketerm_equivalent_test(
+        "Full program: fun contract plus theorem",
+        "let f = fun x where x != 0 -> 100 / x in theorem t = forall y where y != 0 -> f(y) == 100 / y proof ? in t",
+      ),
       /* --- core -> menhir AST (Conversion.of_core) ---------------------- */
       of_core_renders_test("of_core: implies", "a ==> b ==> c"),
+      of_core_renders_test(
+        "of_core: fun where",
+        "fun x where x != 0 -> 100 / x",
+      ),
+      of_core_renders_test(
+        "of_core: forall where",
+        "forall x where x != 0 -> x / x == 1",
+      ),
       of_core_renders_test(
         "of_core: theorem with assume/revert",
         "theorem t = forall n : Int -> n == 0 ==> 1 == 1 proof assume n == 0 => revert n == 0 => ? in t",

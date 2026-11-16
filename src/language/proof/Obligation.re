@@ -12,8 +12,8 @@ open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type discharge =
-  /* Discharged by syntactic lookup of an in-scope fact (case_eq,
-   * hypothesis), identified by the fact's id. */
+  /* Discharged by syntactic lookup of an in-scope fact (binder
+   * restriction, case_eq, hypothesis), identified by the fact's id. */
   | Remote(Id.t)
   /* The goal was closed and evaluated to `true`, so the stepper can
    * replay it. */
@@ -26,6 +26,9 @@ type kind =
   /* A term the step introduces is defined: a divisor is nonzero, a
    * list is nonempty (DomainConditions). */
   | Definedness
+  /* A function definition's body is defined wherever its `where`
+   * contract admits an argument. */
+  | Contract
   /* A cited rule's assumption, `A` of `A ==> …`, as the match
    * instantiated it; or a premise of `have`'s cut rule. */
   | Premise

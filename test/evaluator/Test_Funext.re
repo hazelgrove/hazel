@@ -201,7 +201,7 @@ let test_two_arrow_inner_goal = () => {
   );
 };
 
-/* --- 6. Partiality: no automatic restriction on the body goal ---------- */
+/* --- 6. Partiality: no automatic `where` on the body goal -------------- */
 
 /* Funext doesn't wrap the body goal in a domain restriction: partiality
  * shows up when a later step applies `f(x)`. So proving
@@ -558,7 +558,7 @@ let tests = (
       test_two_arrow_inner_goal,
     ),
     test_case(
-      "partiality: no automatic restriction, so `inv == ...` is not clean",
+      "partiality: no automatic `where`, so `inv == ...` is not clean",
       `Quick,
       test_partial_function_not_cleanly_proven,
     ),
