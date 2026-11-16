@@ -69,6 +69,17 @@ module Runtime = {
   /* (^ticket(759)) SInt's division and power, with the interpreter's errors (its width, its overflow: ^ticket(758)) */
   sdiv(a, b) { if (b === 0) this.invalid("DivideByZero"); return Math.trunc(a / b); },
   spow(a, b) { if (b < 0) this.invalid("NegativeExponent"); return a ** b; },
+  /* (^ticket(763); Cyrus, 2026-11-13: "We need a way to limit compiled hazel functions that diverge --- we need a step
+     limit. esp if we continue to optimize by including certain jit-compiled hazel functions into the main thread") Each
+     compiled function counts its call (fuel, exact) and every 16384 calls reads the clock (deadline): a run past either
+     throws, and its caller falls back to the interpreter. None by default; a caller sets a budget for one run (limit) and
+     takes it off after (unlimit). (Endless recursion overflows JS's stack first, a RangeError, also thrown; what the budget
+     catches is a run that is finite but long, fib(45), as the interpreter's own timer does.) */
+  fuel: Number.MAX_SAFE_INTEGER,
+  deadline: Infinity,
+  limit(fuel, ms) { this.fuel = fuel; this.deadline = ms === null ? Infinity : performance.now() + ms; },
+  unlimit() { this.fuel = Number.MAX_SAFE_INTEGER; this.deadline = Infinity; },
+  out() { const e = new Error(this.fuel < 0 ? "hazel-jit: step limit (the run's calls)" : "hazel-jit: step limit (the run's time)"); e.$limit = true; throw e; },
   /* (^ticket(722)) a slide's run with its livelits' models as parameters: params, when set, maps a model's id to its
      value, in place of the literal the program holds; samples, when set, gets each livelit use's view answer, by its
      projector's id, as the interpreter samples it */
@@ -343,6 +354,9 @@ let fresh = (st: state, scope: scope, base: string): string => {
 };
 
 /* A function's body: its declarations, then its value */
+/* (^ticket(763)) the step a compiled function counts, first in its body: the runtime's fuel and deadline (Runtime.limit) */
+let step = "if (--$R.fuel < 0 || (($R.fuel & 16383) === 0 && performance.now() > $R.deadline)) $R.out(); ";
+
 let body_with_decls = (scope: scope, expr: string): string =>
   switch (scope.decls) {
   | [] => "return " ++ expr ++ ";"
@@ -943,6 +957,7 @@ and func = (st: state, lex, ~term: Exp.t, p: Pat.t, body: Exp.t): string => {
   "$R.fn(("
   ++ arg
   ++ ") => { "
+  ++ step
   ++ body_with_decls(inner, value)
   ++ " }, "
   ++ string_of_int(k)

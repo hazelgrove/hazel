@@ -463,7 +463,17 @@ let rec run = (types, cmd: any): any => {
 
 /* A view's answer, a command, run and drawn as HazelDOM.go draws the Html it runs to */
 let go = (mvu: HazelDOM.t, types: V.types, answer: any): Node.t => {
-  let html = run(types, answer);
+  /* (^ticket(763)) the view's compiled functions under the main thread's budget; one that stops (past the budget, or
+     JS's stack overflowing) is Unsupported, so the view is drawn through Hazel instead */
+  let html =
+    try(HazelJitRun.with_budget(() => run(types, answer))) {
+    | Js_error.Exn(e) =>
+      raise(
+        HazelJit.Unsupported(
+          "a compiled view stopped: " ++ Js_error.message(e),
+        ),
+      )
+    };
   Node.div(
     ~attrs=[Attr.tabindex(2), Attr.classes(["MVU-render"])],
     [elem(mvu, types, html)],
