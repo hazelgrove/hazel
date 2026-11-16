@@ -699,7 +699,9 @@ and exp_inner =
   | Constructor(name, t) =>
     note_ctor(st, name, t);
     "{c: " ++ js_string(name) ++ "}";
-  | Ap(Forward, f, arg) =>
+  /* (^ticket(761)) x |> f is Ap(Reverse, f, x) (MakeTerm), stepped as f(x) is (Transition's Ap(dir, ...)): only how it
+     is written differs */
+  | Ap(Forward | Reverse, f, arg) =>
     switch (Exp.term_of(f), Exp.term_of(arg)) {
     | (Constructor(name, t), _) =>
       note_ctor(st, name, t);
@@ -721,7 +723,6 @@ and exp_inner =
       ++ "))";
     | _ => "(" ++ go(f) ++ ")(" ++ go(arg) ++ ")"
     }
-  | Ap(Reverse, _, _) => unsupported("a reverse application")
   | Fun(p, body, _, _) => func(st, lex, ~term=e, p, body)
   | FixF(p, body, _) =>
     let rec name_of = (p: Pat.t): option(string) =>

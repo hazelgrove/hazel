@@ -1758,8 +1758,12 @@ let undefined_tests = [
   ),
 ];
 
-/* (^ticket(761)) tuple extension and the label builtins, as the evaluator's own tests have them */
+/* (^ticket(761)) tuple extension and the label builtins, as the evaluator's own tests have them; and x |> f */
 let label_tests = [
+  agreement(
+    "a reverse application, and one to a constructor",
+    "let inc = fun x -> x + 1 in (41 |> inc, 3 |> Some)",
+  ),
   agreement("a tuple extended", "(a=1, b=2) ... (c=3)"),
   agreement("an unlabeled tuple extended", "(1, 2) ... (3, 4)"),
   agreement("an extension replacing a label", "(a=0, b=2) ... (a=1, 3, c=4)"),
