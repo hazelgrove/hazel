@@ -169,6 +169,7 @@ let pattern_equivalence_testable =
         ignore_unknown_provenance: true,
         ignore_explicit_unlabelling: true,
         ignore_ascriptions: true,
+        ignore_list_types: true,
       })
     ).
       exp,
@@ -1282,6 +1283,53 @@ let one_step_preserves = (src: string) => {
   };
 };
 
+let stepper_agrees = (~testable=testable_core_exp, src: string) =>
+  check_evaluator_stepper_consistent(
+    ~step_limit=1000,
+    ~testable,
+    ~msg=src ++ ": small step and big step agree",
+    ~require_comparison=true,
+    Canonicalize.exp(parse_exp(src)),
+  );
+
+let evaluates_to_type = (src: string, expected: Typ.term) => {
+  let result = parse_and_evaluate(src);
+  let (statics, _) =
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(None), result);
+  check(
+    option(
+      testable(
+        Fmt.using(QCheck_Util.show_core_typ, Fmt.string),
+        Typ.fast_equal,
+      ),
+    ),
+    src ++ ": the value's type",
+    Some(Typ.fresh(expected)),
+    Statics.Map.ty_of(Exp.rep_id(result), statics),
+  );
+};
+
+/* The value `src` evaluates to re-checks at a type at least as precise as
+   the program's. */
+let keeps_its_type = (src: string) => {
+  let uexp = parse_exp(src);
+  let (statics, elab) =
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), uexp);
+  let ty = elaborated_type(statics, uexp);
+  let result = evaluate(elab);
+  let (statics', _) =
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(None), result);
+  check(
+    bool,
+    src ++ ": the value keeps the program's type",
+    true,
+    switch (Statics.Map.ty_of(Exp.rep_id(result), statics')) {
+    | Some(ty') => Typ.is_more_precise(Ctx.empty, ty', ty)
+    | None => false
+    },
+  );
+};
+
 let survey_tests = [
   /* Negation's kind decided by the context, then re-decided by the operand
      once a step exposes it. */
@@ -1320,7 +1368,345 @@ let survey_tests = [
   test_case("Preservation: { module y = A; module A = 1 }", `Quick, () =>
     one_step_preserves("{ module y = A; module A = 1 }")
   ),
+  /* A list carries its element type, so a list left with no elements
+     still has the type its program gave it. */
+  test_case("[] : [Int] evaluates to a value of type [Int]", `Quick, () =>
+    evaluates_to_type("[] : [Int]", List(Atom(Int) |> Typ.fresh))
+  ),
+  test_case("Consing onto a typed empty list", `Quick, () =>
+    parse_and_evaluate_test("[1]", "let xs : [Int] = [] in 1 :: xs")
+  ),
+  test_case("Matching a typed empty list against []", `Quick, () =>
+    parse_and_evaluate_test("1", "case ([] : [Int]) | [] => 1 | _ => 2 end")
+  ),
+  test_case("Matching a typed empty list against a cons", `Quick, () =>
+    parse_and_evaluate_test(
+      "2",
+      "case ([] : [Int]) | x :: xs => 1 | _ => 2 end",
+    )
+  ),
+  test_case("Concatenating onto a typed empty list", `Quick, () =>
+    parse_and_evaluate_test("[1]", "([] : [Int]) @ [1]")
+  ),
+  test_case("Concatenating two typed empty lists keeps the type", `Quick, () =>
+    evaluates_to_type(
+      "([] : [Int]) @ ([] : [Int])",
+      List(Atom(Int) |> Typ.fresh),
+    )
+  ),
+  test_case("The tail of a one-element list keeps the type", `Quick, () =>
+    evaluates_to_type(
+      "case [1] | _ :: xs => xs | [] => [] end",
+      List(Atom(Int) |> Typ.fresh),
+    )
+  ),
+  test_case("A cast to [?] evaluates to the empty list", `Quick, () =>
+    parse_and_evaluate_test("[]", "[] : [?]")
+  ),
+  test_case("Matching a typed empty list of a recursive list type", `Quick, () =>
+    parse_and_evaluate_test(
+      "1",
+      "type T = rec t -> [t] in let x : T = [] in case x | [] => 1 | _ => 2 end",
+    )
+  ),
+  test_case("Stepper agrees: consing onto a typed empty list", `Quick, () =>
+    stepper_agrees("let xs : [Int] = [] in 1 :: xs")
+  ),
+  test_case("Stepper agrees: a typed empty list", `Quick, () =>
+    stepper_agrees("[] : [Int]")
+  ),
+  test_case("A projection from a typed empty list keeps its type", `Quick, () =>
+    evaluates_to_type("([] : [(a=Int)]).a", List(Atom(Int) |> Typ.fresh))
+  ),
+  test_case("A projection from the tail of a list keeps its type", `Quick, () =>
+    evaluates_to_type(
+      "(case [(a=1, b=2)] | _ :: xs => xs | [] => [] end).a",
+      List(Atom(Int) |> Typ.fresh),
+    )
+  ),
+  /* A saved stepper state holds terms. A list literal saved before list
+     literals had a type is its elements alone, `(ListLit (elements…))`. */
+  test_case(
+    "A list literal saved without its type still loads",
+    `Quick,
+    () => {
+      let hole = Exp.sexp_of_t(Exp.fresh(EmptyHole));
+      let loads = (saved: Sexplib.Sexp.t, n: int) =>
+        switch (Exp.term_of_sexp(saved)) {
+        | ListLit((es, None)) => List.length(es) == n
+        | _ => false
+        };
+      check(
+        bool,
+        "[]",
+        true,
+        loads(Sexplib.Sexp.of_string("(ListLit ())"), 0),
+      );
+      check(
+        bool,
+        "[?]",
+        true,
+        loads(List([Atom("ListLit"), List([hole])]), 1),
+      );
+    },
+  ),
+  test_case(
+    "A typed list survives saving and loading",
+    `Quick,
+    () => {
+      let value = parse_and_evaluate("[] : [Int]");
+      check(
+        bool,
+        "still a list of Int",
+        true,
+        switch ((value |> Exp.sexp_of_t |> Exp.t_of_sexp).term) {
+        | ListLit(([], Some({term: Atom(Int), _}))) => true
+        | _ => false
+        },
+      );
+    },
+  ),
+  test_case("to_lvs of an empty tuple keeps its declared type", `Quick, () =>
+    keeps_its_type("to_lvs(())")
+  ),
+  /* A proof of `[1] == [1]` meets a `proof_of` quoting the user's `[1] == [1]`:
+     the proof's lists carry types the quoted ones don't. */
+  test_case("A proof matches its proposition up to list types", `Quick, () =>
+    parse_and_evaluate_test(
+      "true",
+      "theorem t = [1] == [1] in (fun (h : proof_of [1] == [1] end) -> true)(t)",
+    )
+  ),
+  /* Through `?`, the proof meets the `proof_of` cast at runtime: its
+     proposition's lists carry types the quoted ones don't. */
+  test_case(
+    "A proof meets its proposition's cast up to list types", `Quick, () =>
+    check(
+      bool,
+      "the cast is gone",
+      true,
+      switch (
+        parse_and_evaluate(
+          "theorem t = [1] == [1] in let u : ? = t in (fun (p : proof_of [1] == [1] end) -> p)(u)",
+        ).
+          term
+      ) {
+      | ProofObject(_) => true
+      | _ => false
+      },
+    )
+  ),
+  /* The tail of `[1]` carries `Int`; a `[]` checked against `[?]` does not.
+     They are the same term, as induction joining the cases' results needs. */
+  test_case(
+    "Equal lists reached along different paths are the same term",
+    `Quick,
+    () => {
+      let tail =
+        parse_and_evaluate("case [1] | _ :: xs => xs | [] => [] end");
+      let written = parse_and_evaluate("[] : [?]");
+      check(
+        bool,
+        "same term",
+        true,
+        Exp.fast_equal_ignoring_list_types(tail, written),
+      );
+      check(
+        bool,
+        "but a changed elaboration",
+        false,
+        Exp.fast_equal(tail, written),
+      );
+    },
+  ),
+  /* Elaboration puts types where the runtime reads them without a context,
+     so it expands every user alias: `[v]` checked against `[T]` carries
+     and casts to `+ A(Int) + B`, not `T`. */
+  test_case(
+    "An elaborated list carries no user alias",
+    `Quick,
+    () => {
+      let e =
+        elaborate(
+          parse_exp(
+            "type T = + A(Int) + B in let v : ? = A(3) in let xs : [T] = [v] in xs",
+          ),
+        );
+      let found = ref([]);
+      let _ =
+        Exp.map_term(
+          ~f_typ=
+            (cont, t: Typ.t) => {
+              switch (t.term) {
+              | Var("T") => found := ["T", ...found^]
+              | _ => ()
+              };
+              cont(t);
+            },
+          e,
+        );
+      check(list(string), "user aliases in the elaboration", [], found^);
+    },
+  ),
+  test_case("An empty range keeps its declared type", `Quick, () =>
+    evaluates_to_type("range(1, 0)", List(Atom(Int) |> Typ.fresh))
+  ),
+  test_case("Stepper agrees: a projection from a typed empty list", `Quick, () =>
+    stepper_agrees("([] : [(a=Int, b=Bool)]).a")
+  ),
 ];
+
+/* A list keeps its type through every step, even once it has no elements
+   left to show it. The generator writes programs that build lists and take
+   them apart: literals, casts, cons, concatenation, matching a cons and
+   keeping the tail, projecting a field from a list of records, and `range`. */
+module ListTypes = {
+  let gen_digit = QCheck.Gen.map(string_of_int, QCheck.Gen.int_bound(9));
+
+  let rec gen_ints = (depth: int): QCheck.Gen.t(string) => {
+    let leaf =
+      QCheck.Gen.oneof([
+        QCheck.Gen.return("[]"),
+        QCheck.Gen.return("([] : [Int])"),
+        QCheck.Gen.map(n => "[" ++ n ++ "]", gen_digit),
+        QCheck.Gen.map2(
+          (a, b) => "[" ++ a ++ ", " ++ b ++ "]",
+          gen_digit,
+          gen_digit,
+        ),
+        QCheck.Gen.map2(
+          (a, b) => "range(" ++ a ++ ", " ++ b ++ ")",
+          gen_digit,
+          gen_digit,
+        ),
+      ]);
+    if (depth <= 0) {
+      leaf;
+    } else {
+      let sub = gen_ints(depth - 1);
+      QCheck.Gen.frequency([
+        (2, leaf),
+        (
+          1,
+          QCheck.Gen.map2(
+            (n, l) => "(" ++ n ++ " :: " ++ l ++ ")",
+            gen_digit,
+            sub,
+          ),
+        ),
+        (
+          1,
+          QCheck.Gen.map2((a, b) => "(" ++ a ++ " @ " ++ b ++ ")", sub, sub),
+        ),
+        (1, QCheck.Gen.map(l => "(" ++ l ++ " : [Int])", sub)),
+        (
+          2,
+          QCheck.Gen.map(
+            l => "(case " ++ l ++ " | x :: xs => xs | [] => [] end)",
+            sub,
+          ),
+        ),
+        (
+          1,
+          QCheck.Gen.map(
+            l =>
+              "(let tl : [Int] -> [Int] = fun l -> case l | _ :: rest => rest | [] => [] end in tl("
+              ++ l
+              ++ "))",
+            sub,
+          ),
+        ),
+        (1, QCheck.Gen.map(l => "(" ++ l ++ ").a", gen_records(depth - 1))),
+      ]);
+    };
+  }
+  and gen_records = (depth: int): QCheck.Gen.t(string) => {
+    let record =
+      QCheck.Gen.map2(
+        (a, b) => "(a=" ++ a ++ ", b=" ++ b ++ ")",
+        gen_digit,
+        gen_digit,
+      );
+    let leaf =
+      QCheck.Gen.oneof([
+        QCheck.Gen.return("([] : [(a=Int, b=Int)])"),
+        QCheck.Gen.map(r => "[" ++ r ++ "]", record),
+      ]);
+    if (depth <= 0) {
+      leaf;
+    } else {
+      let sub = gen_records(depth - 1);
+      QCheck.Gen.frequency([
+        (2, leaf),
+        (
+          1,
+          QCheck.Gen.map2((a, b) => "(" ++ a ++ " @ " ++ b ++ ")", sub, sub),
+        ),
+        (
+          1,
+          QCheck.Gen.map(
+            l => "(case " ++ l ++ " | x :: xs => xs | [] => [] end)",
+            sub,
+          ),
+        ),
+      ]);
+    };
+  };
+
+  /* Each step's type is at least as precise as the program's. */
+  let unpreserved = (src: string): option(string) => {
+    let uexp = Canonicalize.exp(parse_exp(src));
+    let (statics, elab) =
+      Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), uexp);
+    if (!List.is_empty(Statics.Map.error_ids(statics))) {
+      None;
+    } else {
+      let orig_ty = elaborated_type(statics, uexp);
+      let rec go = (steps, e) =>
+        if (steps > 200) {
+          None;
+        } else {
+          switch (single_step(e)) {
+          | None => None
+          | Some(next) =>
+            let (statics', _) =
+              Statics.mk(CoreSettings.on, Builtins.ctx_init(None), next);
+            switch (Statics.Map.ty_of(Exp.rep_id(next), statics')) {
+            | Some(ty) when Typ.is_more_precise(Ctx.empty, ty, orig_ty) =>
+              go(steps + 1, next)
+            | ty =>
+              Some(
+                Printf.sprintf(
+                  "step %d: %s : %s, from %s",
+                  steps + 1,
+                  QCheck_Util.show_core_exp(next),
+                  Option.value_map(
+                    ~default="none",
+                    ~f=QCheck_Util.show_core_typ,
+                    ty,
+                  ),
+                  QCheck_Util.show_core_typ(orig_ty),
+                ),
+              )
+            };
+          };
+        };
+      go(0, elab);
+    };
+  };
+
+  let property =
+    QCheck.Test.make(
+      ~name="A list keeps its type through every step",
+      ~count=500,
+      QCheck.make(~print=s => s, gen_ints(3)),
+      src =>
+      switch (unpreserved(src)) {
+      | None => true
+      | Some(msg) => QCheck.Test.fail_report(msg)
+      }
+    );
+};
 
 let tests = (
   "Evaluator.Properties",
@@ -1386,6 +1772,7 @@ let tests = (
     QCheck_alcotest.to_alcotest(qcheck_incremental_matches_fresh_for_values),
     incremental_literal_edit_regression_test,
     QCheck_alcotest.to_alcotest(qcheck_preservation_test),
+    QCheck_alcotest.to_alcotest(ListTypes.property),
     incremental_reused_function_regression_test,
     preservation_rec_unused_binder_pin,
   ]

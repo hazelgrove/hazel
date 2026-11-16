@@ -37,7 +37,7 @@ type unbox_request('a) =
   | Label: unbox_request(string)
   | Tuple(int): unbox_request(list(DHExp.t))
   | TupLabel(DHPat.t): unbox_request(DHExp.t)
-  | ListLit: unbox_request(list(DHExp.t)) // Unboxes to a known length list LITERAL. Not all list final forms land in this category (e.g. Cons: 1 :: ?)
+  | ListLit: unbox_request((list(DHExp.t), option(Typ.t))) // Unboxes to a known length list LITERAL, with its element type. Not all list final forms land in this category (e.g. Cons: 1 :: ?)
   | ListLitn(int): unbox_request(list(DHExp.t)) // This request is used for performance reasons to prevent matching lists of the wrong length and for matching list lits against cons expressions
   | Cons: unbox_request((DHExp.t, DHExp.t))
   | SumNoArg(string): unbox_request(unit)
@@ -141,8 +141,9 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       }
 
     /* Lists can be either lists or cons with indet tail */
-    | (ListLit, ListLit(l)) => Matches(l)
-    | (ListLitn(n), ListLit(l)) when ListUtil.is_length(n, l) => Matches(l)
+    | (ListLit, ListLit((l, ty))) => Matches((l, ty))
+    | (ListLitn(n), ListLit((l, _))) when ListUtil.is_length(n, l) =>
+      Matches(l)
     | (ListLitn(_), ListLit(_)) => DoesNotMatch
     /* A cons final form is always indet, so either does NOT match or indet matches with a listliteral*/
     | (ListLitn(0), Cons(_)) => DoesNotMatch // Cons is not an empty list
@@ -151,9 +152,9 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       Matches([x, ...tail]);
     | (ListLit, Cons(_)) => IndetMatch // Without length of ListLit we cannot know
 
-    | (Cons, ListLit([x, ...xs])) =>
-      Matches((x, ListLit(xs) |> DHExp.fresh))
-    | (Cons, ListLit([])) => DoesNotMatch
+    | (Cons, ListLit(([x, ...xs], ty))) =>
+      Matches((x, ListLit((xs, ty)) |> DHExp.fresh))
+    | (Cons, ListLit(([], _))) => DoesNotMatch
     | (Cons, Cons(x, xs)) => Matches((x, xs))
     /* Tuples  */
     | (Tuple(n), Tuple(t)) when List.length(t) == n => Matches(t)

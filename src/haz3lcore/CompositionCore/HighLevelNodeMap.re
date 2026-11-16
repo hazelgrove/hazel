@@ -85,7 +85,7 @@ module Utils = {
     | ListConcat(e1, e2)
     | BinOp(_, e1, e2) => [e1, e2]
     | Tuple(es)
-    | ListLit(es) => es
+    | ListLit((es, _)) => es
     | If(e1, e2, e3) => [e1, e2, e3]
     | Match(e, branches) => [e, ...List.map(~f=snd, branches)]
     | BuiltinFun(_)

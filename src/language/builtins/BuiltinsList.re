@@ -258,11 +258,25 @@ let builtins =
                   [
                     (
                       Pat.tuple([Pat.list_lit([]), Pat.wild()]),
-                      list_lit([]),
+                      list_lit(
+                        ~ty=
+                          Typ.prod([
+                            Typ.unknown(Internal),
+                            Typ.unknown(Internal),
+                          ]),
+                        [],
+                      ),
                     ),
                     (
                       Pat.tuple([Pat.wild(), Pat.list_lit([])]),
-                      list_lit([]),
+                      list_lit(
+                        ~ty=
+                          Typ.prod([
+                            Typ.unknown(Internal),
+                            Typ.unknown(Internal),
+                          ]),
+                        [],
+                      ),
                     ),
                     (
                       Pat.tuple([
@@ -484,7 +498,7 @@ let builtins =
                 Pat.tuple([Pat.var("start"), Pat.var("stop")]),
                 if_(
                   bin_op(Int(GreaterThan), var("start"), var("stop")),
-                  list_lit([]),
+                  list_lit(~ty=Typ.int(), []),
                   cons(
                     var("start"),
                     ap(
@@ -532,7 +546,14 @@ let builtins =
                       match(
                         var("xs"),
                         [
-                          (Pat.list_lit([]), list_lit([])),
+                          (
+                            Pat.list_lit([]),
+                            list_lit(
+                              ~ty=
+                                Typ.prod([Typ.int(), Typ.unknown(Internal)]),
+                              [],
+                            ),
+                          ),
                           (
                             Pat.cons(Pat.var("x"), Pat.var("xs")),
                             cons(
@@ -2305,7 +2326,17 @@ let builtins =
                 match(
                   var("xs"),
                   [
-                    (Pat.list_lit([]), list_lit([])),
+                    (
+                      Pat.list_lit([]),
+                      list_lit(
+                        ~ty=
+                          Typ.prod([
+                            Typ.unknown(Internal),
+                            Typ.unknown(Internal),
+                          ]),
+                        [],
+                      ),
+                    ),
                     (
                       Pat.cons(
                         Pat.tuple([Pat.var("k"), Pat.var("v")]),
@@ -3164,7 +3195,14 @@ let go: ([?], [?], [?]) -> [?] =
                         None,
                       ),
                     ),
-                    list_lit([]),
+                    list_lit(
+                      ~ty=
+                        Typ.prod([
+                          Typ.unknown(Internal),
+                          Typ.list(Typ.unknown(Internal)),
+                        ]),
+                      [],
+                    ),
                   ]),
                 ),
                 None,

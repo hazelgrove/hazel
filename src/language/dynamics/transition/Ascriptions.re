@@ -171,14 +171,19 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       | (SInt(_), _)
       | (Bool(_), _) => None
       }
-    | (ListLit(ds), List(ty)) =>
+    | (ListLit((ds, ty0)), List(ty)) =>
       let ds' = List.map(~f=d => recur(ascribe(d, ty)), ds);
-      unchanged(ds, ds')
+      let same_ty =
+        switch (ty0) {
+        | Some(ty0) => Typ.fast_equal(ty0, ty)
+        | None => false
+        };
+      unchanged(ds, ds') && same_ty
         ? Some(e)
         : Some(
             IdTagged.fast_copy(
               DHExp.rep_id(e),
-              ListLit(ds') |> DHExp.fresh,
+              ListLit((ds', Some(ty))) |> DHExp.fresh,
             ),
           );
     | (Cons(d1, d2), List(ty)) =>
@@ -255,7 +260,8 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Constructor(_, Some(Some(t))), t')
         when unrolled_consistent(t, t' |> Typ.temp) =>
       Some(e)
-    | (ProofObject(e1), ProofOf(e2)) when Exp.fast_equal(e1, e2) =>
+    | (ProofObject(e1), ProofOf(e2))
+        when Exp.fast_equal_ignoring_list_types(e1, e2) =>
       Some(
         IdTagged.fast_copy(DHExp.rep_id(e), ProofObject(e1) |> DHExp.fresh),
       )

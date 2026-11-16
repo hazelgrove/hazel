@@ -1113,10 +1113,15 @@ module Transition = (EV: EV_MODE) => {
                   is_value: true,
                 })
               : Indet
-          | ListLit(ds) =>
+          | ListLit((ds, ty)) =>
             let mapped =
               List.map(~f=d => generated(Dot(d, generated(lab))), ds);
-            let ls = generated(ListLit(mapped));
+            let ty =
+              switch (Option.bind(ty, ~f=Typ.unroll)) {
+              | Some({term: Prod(tys), _}) => Typ.project_type(tys, name)
+              | _ => None
+              };
+            let ls = generated(ListLit((mapped, ty)));
             Step({
               expr: ls,
               side_effects: [],
@@ -1173,9 +1178,9 @@ module Transition = (EV: EV_MODE) => {
       and. d1' = req_final(req(env), d1 => Cons1(d1, d2) |> wrap_ctx, d1)
       and. d2' = req_final(req(env), d2 => Cons2(d1, d2) |> wrap_ctx, d2);
       switch (Unboxing.unbox(ListLit, d2')) {
-      | Matches(ds) =>
+      | Matches((ds, ty)) =>
         Step({
-          expr: list_lit([d1', ...ds]),
+          expr: list_lit(~ty?, [d1', ...ds]),
           side_effects: [],
           kind: ListCons,
           is_value: true,
@@ -1189,20 +1194,27 @@ module Transition = (EV: EV_MODE) => {
         req_final(req(env), d1 => ListConcat1(d1, d2) |> wrap_ctx, d1)
       and. d2' =
         req_final(req(env), d2 => ListConcat2(d1, d2) |> wrap_ctx, d2);
-      let-unbox ds1 = (ListLit, d1');
-      let-unbox ds2 = (ListLit, d2');
+      let-unbox (ds1, ty1) = (ListLit, d1');
+      let-unbox (ds2, ty2) = (ListLit, d2');
+      let ty =
+        switch (ty1, ty2) {
+        | (Some(ty1), Some(ty2)) => Typ.meet(Ctx.empty, ty1, ty2)
+        | (Some(ty), None)
+        | (None, Some(ty)) => Some(ty)
+        | (None, None) => None
+        };
       Step({
-        expr: list_lit(ds1 @ ds2),
+        expr: list_lit(~ty?, ds1 @ ds2),
         side_effects: [],
         kind: ListConcat,
         is_value: true,
       });
-    | ListLit(ds) =>
-      let. _ = otherwise(env, ds => ListLit(ds) |> rewrap)
+    | ListLit((ds, ty)) =>
+      let. _ = otherwise(env, ds => ListLit((ds, ty)) |> rewrap)
       and. _ =
         req_all_final(
           req(env),
-          (d1, ds) => ListLit(d1, ds) |> wrap_ctx,
+          (d1, ds) => ListLit(d1, ds, ty) |> wrap_ctx,
           ds,
         );
       Constructor;

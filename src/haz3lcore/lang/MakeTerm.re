@@ -482,7 +482,7 @@ let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
    defined operator stranded at a foreign sort (a Compound) counts too. */
 let op_lexeme = (f: Form.t): option(Token.t) =>
   switch (Form.label_of(f)) {
-  | [t] when t != " " => Some(t)
+  | [t] when !String.equal(t, " ") => Some(t)
   | _ => None
   };
 
@@ -855,7 +855,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       switch (t) {
       | (F(f), []) when is_empty_tuple_form(f) => ret(Tuple([]))
       | (F(Tok(t)), []) when Token.is_wild(t) => ret(Deferral(OutsideAp))
-      | (F(Tok(t)), []) when Token.is_empty_list(t) => ret(ListLit([]))
+      | (F(Tok(t)), []) when Token.is_empty_list(t) =>
+        ret(ListLit(([], None)))
       | (F(Tok(t)), []) when Token.is_empty_module(t) => ret(Module([]))
       | (F(Tok(t)), []) when Token.is_bool(t) =>
         ret(Atom(Bool(bool_of_string(t))))
@@ -899,7 +900,12 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | (ProjWrap, [Exp(body)]) => ret(body.term)
       | (F(Compound(ListLit)), [kid]) when !is_exp_kid(kid) =>
         /* Cross-sort list brackets (see the cross-sort parens case) */
-        ret(ListLit([IdTagged.mk_internal([Id.mk()], Exp.hole([kid]))]))
+        ret(
+          ListLit((
+            [IdTagged.mk_internal([Id.mk()], Exp.hole([kid]))],
+            None,
+          )),
+        )
       | (F(Compound(ListLit)), [Exp(body)]) =>
         /* ListLit absorption: inner Tuple's comma IDs become part of ListLit.
            ID order: [bracket_id] @ comma_ids (outer first, then adopted).
@@ -912,16 +918,16 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
              printer's singleton-unwrap restores the id (adopting its
              ids as comma ids would strand them: a one-element list
              has no commas) */
-          ret(ListLit([body]))
+          ret(ListLit(([body], None)))
         | {term: Tuple([]), _} =>
           /* Unit literal body: [()] is a one-element list of unit, not
              an empty element list (#1792) */
-          ret(ListLit([body]))
+          ret(ListLit(([body], None)))
         | {annotation: {ids, _}, term: Tuple(es)} =>
           adopted_ids := ids @ adopted_ids^;
           // Addresses tup_labels in lists like: [l=32, 1]
           (
-            ListLit(
+            ListLit((
               List.map(
                 ~f=
                   (list_item: Grammar.exp_t(IdTagged.IdTag.t)) => {
@@ -934,10 +940,11 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
                   },
                 es,
               ),
-            ),
+              None,
+            )),
             ids,
           );
-        | term => ret(ListLit([term]))
+        | term => ret(ListLit(([term], None)))
         }
       | (F(Compound(Test)), [Exp(test)]) => ret(Test(test))
       | (F(Compound(ProofObject)), [Exp(proof)]) =>

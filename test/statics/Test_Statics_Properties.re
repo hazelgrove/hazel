@@ -496,6 +496,75 @@ let qcheck_elab_nested_ids_persist =
     },
   );
 
+/* The user aliases an elaborated term's types mention. The runtime reads
+   those types with no context, so there should be none. A node's context
+   is its own info's, else its nearest enclosing node's; a type's own
+   binders (`rec`, `forall`) rebind their names. */
+let elab_user_aliases = (info_map: Statics.Map.t, elab: Exp.t): list(string) => {
+  let ctx = ref(Builtins.ctx_init(Some(Int)));
+  let bound = ref([]);
+  let found = ref([]);
+  let is_user_alias = (ctx, x) =>
+    switch (Ctx.lookup_tvar(ctx, x), Ctx.lookup_tvar_id(ctx, x)) {
+    | (Some(Singleton(_)), Some(id)) => !Id.equal(id, Id.invalid)
+    | _ => false
+    };
+  let f_typ = (cont, t: Typ.t) => {
+    switch (t.term) {
+    | Var(x)
+        when
+          !List.mem(bound^, x, ~equal=String.equal) && is_user_alias(ctx^, x) =>
+      found := [x, ...found^]
+    | _ => ()
+    };
+    let outer = bound^;
+    switch (t.term) {
+    | Rec(tp, _)
+    | Poly(tp, _) =>
+      bound := Option.to_list(TPat.tyvar_of_utpat(tp)) @ outer
+    | _ => ()
+    };
+    let t = cont(t);
+    bound := outer;
+    t;
+  };
+  let f_exp = (cont, e: Exp.t) => {
+    let outer = ctx^;
+    switch (Statics.Map.lookup_exp(Exp.rep_id(e), info_map)) {
+    | Some(info) => ctx := info.ctx
+    | None => ()
+    };
+    let e = cont(e);
+    ctx := outer;
+    e;
+  };
+  let _ = Exp.map_term(~f_exp, ~f_typ, elab);
+  List.rev(found^);
+};
+
+let qcheck_elab_carries_no_user_alias =
+  QCheck.Test.make(
+    ~name="An elaborated term carries no user alias",
+    ~count=2000,
+    QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
+    exp => {
+      let exp = Canonicalize.exp(exp);
+      switch (safe_statics(exp)) {
+      | `Skip => true
+      | `Ok(info_map, elab) =>
+        switch (elab_user_aliases(info_map, elab)) {
+        | [] => true
+        | aliases =>
+          QCheck.Test.fail_reportf(
+            "user aliases %s in %s",
+            String.concat(~sep=", ", aliases),
+            QCheck_Util.show_core_exp(elab),
+          )
+        }
+      };
+    },
+  );
+
 let parse = (src: string): Language.Exp.t =>
   switch (Haz3lcore.Parser.to_term(src, ~root=Exp)) {
   | Some(e) => e
@@ -659,6 +728,25 @@ let tests = (
     QCheck_alcotest.to_alcotest(qcheck_subexp_synthesis_agrees),
     QCheck_alcotest.to_alcotest(qcheck_elab_ids_persist),
     QCheck_alcotest.to_alcotest(qcheck_elab_nested_ids_persist),
+    QCheck_alcotest.to_alcotest(qcheck_elab_carries_no_user_alias),
+    Alcotest.test_case(
+      "An explicit fixpoint's body cast carries no user alias",
+      `Quick,
+      () => {
+        let exp =
+          parse("type T = Int -> Int in (fix (f : T) -> fun x -> x)(1)");
+        let (info_map, elab) =
+          Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), exp);
+        Alcotest.(
+          check(
+            list(string),
+            "user aliases in the elaboration",
+            [],
+            elab_user_aliases(info_map, elab),
+          )
+        );
+      },
+    ),
   ]
   @ regression_tests
   @ survey_tests,

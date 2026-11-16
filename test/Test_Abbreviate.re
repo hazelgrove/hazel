@@ -121,7 +121,7 @@ let rec exp_contains_flat_ellipses = (exp: Exp.t): bool =>
   } else {
     switch (exp.term) {
     | Tuple(elements)
-    | ListLit(elements) =>
+    | ListLit((elements, _)) =>
       List.exists(~f=exp_contains_flat_ellipses, elements)
     | _ => false
     };

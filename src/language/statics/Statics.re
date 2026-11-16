@@ -571,7 +571,7 @@ and uexp_to_info_map =
         ~co_ctx=CoCtx.singleton(name, Exp.rep_id(uexp), ana),
         m,
       );
-    | ListLit(es) =>
+    | ListLit((es, elab_ty)) =>
       let ids = List.map(~f=Exp.rep_id, es);
       let inner_ana_ty = MatchedTyp.list_tolerant(ctx, ana);
       let anas = List.init(List.length(es), ~f=_ => inner_ana_ty);
@@ -582,7 +582,23 @@ and uexp_to_info_map =
          wrappings on elements that already syn to the meet type. */
       let syn_tys = List.map(~f=(e: Info.exp) => e.elab_syn_ty, es);
       let meet_ty =
-        Typ.meet_all(~empty=Unknown(Internal) |> Typ.temp, ctx, syn_tys);
+        Typ.meet_all(
+          ~empty=
+            Option.value(elab_ty, ~default=Unknown(Internal) |> Typ.temp),
+          ctx,
+          syn_tys,
+        );
+      /* Checked against `[t]`, a literal is a list of `t` where it is
+         written: its elements are cast to `t` and it carries `t`. Elements
+         inconsistent with `t` keep their own meet, so the marks stay on
+         them. */
+      let meet_ty =
+        switch (meet_ty, Typ.term_of(inner_ana_ty)) {
+        | (None, _)
+        | (Some(_), Unknown(_)) => meet_ty
+        | (Some(ty), _) =>
+          Some(Typ.meet(ctx, ty, inner_ana_ty) |> Option.value(~default=ty))
+        };
       let ds =
         List.map2_exn(es_elabs, syn_tys, ~f=(d, t) =>
           fresh_ascription(ctx, d, t, meet_ty)
@@ -591,7 +607,7 @@ and uexp_to_info_map =
       | None =>
         let syn_no_meet = SynTy.meet_of(List, Unknown(Internal) |> Typ.temp);
         add(
-          ~elab_term=ListLit(ds) |> rewrap,
+          ~elab_term=ListLit((ds, None)) |> rewrap,
           ~elab_syn_ty=syn_no_meet,
           ~marks=
             should_emit_nomeet_mark(ctx, ana, syn_no_meet)
@@ -605,7 +621,7 @@ and uexp_to_info_map =
         );
       | Some(ty) =>
         add(
-          ~elab_term=ListLit(ds) |> rewrap,
+          ~elab_term=ListLit((ds, Some(elab_typ(ctx, ty)))) |> rewrap,
           ~elab_syn_ty=List(ty) |> Typ.temp,
           ~marks=[],
           ~co_ctx=CoCtx.union(List.map(~f=Info.exp_co_ctx, es)),
@@ -2021,11 +2037,11 @@ and uexp_to_info_map =
             ]
           };
         };
-      /* Normalize like every other elaborated type position: `p.ty` is a meet
-         with the analyzed type, so it can still carry surface-only sugar —
-         `Parens`, aliases, or a `Sig` whose `SigLet` items hold patterns. */
+      /* `p.ty` is a meet with the analyzed type, so it can still carry
+         surface-only sugar: `Parens`, aliases, or a `Sig` whose `SigLet`
+         items hold patterns. */
       let elab_term =
-        Fun(p_elab, e_elab, Some(Typ.normalize(ctx, p.ty)), n) |> rewrap;
+        Fun(p_elab, e_elab, Some(elab_typ(ctx, p.ty)), n) |> rewrap;
       add(
         ~elab_term,
         ~elab_syn_ty=syn_ty_fun,
@@ -2288,7 +2304,7 @@ and uexp_to_info_map =
              unannotated `let f = fun _ -> f` would elaborate to a fixpoint
              that re-checks as `?`. Annotate the binder with the type the
              name is bound at, as `let f : ? -> ? = …` already gets. */
-          let ty_fix = Typ.normalize(ctx, ty_p_ana);
+          let ty_fix = elab_typ(ctx, ty_p_ana);
           let p_fix =
             switch (Pat.term_of(p_elab)) {
             | Asc(_) => p_elab
@@ -2442,14 +2458,16 @@ and uexp_to_info_map =
          `fast_equal` drops identity casts only, never a consistency cast
          such as `?` => Int. The wrapper is recorded in the info map, so its
          id derives from the body it wraps: the same on every run. */
-      let body_elab =
-        Typ.fast_equal(e'.elab_syn_ty, p'.ty)
+      let body_elab = {
+        let ty = elab_typ(ctx, p'.ty);
+        Typ.fast_equal(elab_typ(ctx, e'.elab_syn_ty), ty)
           ? e_elab
           : IdTagged.derived(
               ~salt="fixf-body-ascription",
               Exp.rep_id(e_elab),
-              Asc(e_elab, p'.ty): Exp.term,
+              Asc(e_elab, ty): Exp.term,
             );
+      };
       let elab_term = FixF(p_elab, body_elab, env) |> rewrap;
       add(
         ~elab_term,
