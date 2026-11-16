@@ -1001,7 +1001,7 @@ module View = {
 
     /* a refactor drag grabbed at the press: candidate tracks are
        enumerated by CodeDrag.sync once the caret lands there */
-    let arm_drag = (~click, mouse: Pointer.Event.t, pointer_id: int) =>
+    let arm_drag = (~click, ~touch, mouse: Pointer.Event.t, pointer_id: int) =>
       CodeDrag.arm(
         /* the path to the rung reached, one undo step */
         ~commit=
@@ -1016,6 +1016,7 @@ module View = {
             ),
         ~click,
         ~pointer_id,
+        ~readout=touch,
         ~ladders=
           globals.settings.core.drag_chain
           != Language.CoreSettings.DragChain.Off,
@@ -1054,6 +1055,7 @@ module View = {
         /* Cmd/Ctrl: a drag pulls the grabbed construct along candidate
            tracks; a click jumps to the binding site */
         arm_drag(
+          ~touch=false,
           ~click=
             () =>
               Bonsai.Effect.Expert.handle(
@@ -1112,7 +1114,7 @@ module View = {
                 float_of_int(mouse.loc.row),
               ),
               () => {
-                arm_drag(~click=() => (), mouse, pointer_id);
+                arm_drag(~click=() => (), ~touch=true, mouse, pointer_id);
                 Bonsai.Effect.Expert.handle(
                   inject(Perform(Move(Point(loc(mouse), None)))),
                 );

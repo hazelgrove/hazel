@@ -134,7 +134,35 @@ module Store =
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = Model.persistent;
     let key = Store.Settings;
-    let default = () => Model.init;
+    /* a phone (a touch screen whose short side is phone-sized, in
+       either orientation) starts with the sidebar closed: open, it
+       takes half the screen. Only a first visit; after that the saved
+       choice holds. */
+    let default = () => {
+      let global = Js_of_ocaml.Js.Unsafe.global;
+      let phone =
+        switch (
+          Js_of_ocaml.Js.Optdef.to_option(global##.screen),
+          Js_of_ocaml.Js.Optdef.to_option(global##.matchMedia),
+        ) {
+        | (Some(screen), Some(_)) =>
+          let w: float = screen##.width
+          and h: float = screen##.height;
+          let coarse: bool =
+            Js_of_ocaml.Js.to_bool(
+              global##matchMedia(Js_of_ocaml.Js.string("(pointer: coarse)"))##.matches,
+            );
+          coarse && min(w, h) <= 600.;
+        | _ => false
+        };
+      {
+        ...Model.init,
+        sidebar: {
+          ...Model.init.sidebar,
+          show: !phone,
+        },
+      };
+    };
   });
 
 module Update = {

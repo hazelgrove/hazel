@@ -211,6 +211,27 @@
   -webkit-touch-callout: none;
 }
 
+/* touch drag: the move a release would land, over the status bar (the
+   finger covers the track's own label) */
+#code-drag-readout {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  pointer-events: none;
+  background-color: var(--ui-bkg);
+  border-top: 0.6px solid var(--border-default);
+  font-family: var(--code-font);
+  color: #8a94a2;
+}
+
+#code-drag-readout.lands {
+  color: #c2483b;
+  font-weight: bold;
+}
+
 /* the ring that marks a touch hold picking something up */
 #code-drag-pickup {
   position: fixed;

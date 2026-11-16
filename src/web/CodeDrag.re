@@ -127,6 +127,9 @@ type session = {
   click: unit => unit,
   /* the pointer that armed; others (a second finger) are ignored */
   pointer_id: int,
+  /* name the move a release would land in the status bar (touch: the
+     finger covers the track's label) */
+  readout: bool,
   ladders: bool,
   push: bool,
   show_labels: bool,
@@ -1246,6 +1249,71 @@ let resolve = (s: session, p: vec): unit => {
 
 /* === lifecycle === */
 
+/* === readout: the winning move's name over the status bar === */
+
+let readout_id = "code-drag-readout";
+
+let remove_readout = () =>
+  switch (
+    Js.Opt.to_option(
+      Dom_html.document##getElementById(Js.string(readout_id)),
+    )
+  ) {
+  | Some(el) => Js.Opt.iter(el##.parentNode, p => Dom.removeChild(p, el))
+  | None => ()
+  };
+
+let update_readout = (s: session): unit =>
+  if (s.readout) {
+    let shown =
+      switch (
+        s.winner |> Option.map(i => List.nth_opt(s.cands, i)) |> Option.join
+      ) {
+      | Some(c) when s.began =>
+        let k = max(0, min(n_rungs(c), int_of_float(Float.round(s.u))));
+        Some(
+          k >= 1
+            ? (List.nth(c.rungs, k - 1).label, true) : (c.label, false),
+        );
+      | _ => None
+      };
+    switch (
+      shown,
+      Js.Opt.to_option(
+        Dom_html.document##getElementById(Js.string("bottom-bar")),
+      ),
+    ) {
+    | (Some((label, lands)), Some(bar)) =>
+      let el =
+        switch (
+          Js.Opt.to_option(
+            Dom_html.document##getElementById(Js.string(readout_id)),
+          )
+        ) {
+        | Some(el) => el
+        | None =>
+          let el = Dom_html.createDiv(Dom_html.document);
+          el##.id := Js.string(readout_id);
+          Dom.appendChild(Dom_html.document##.body, el);
+          el;
+        };
+      let r = bar##getBoundingClientRect;
+      el##.style##.cssText :=
+        Js.string(
+          Printf.sprintf(
+            "left:%fpx;top:%fpx;width:%fpx;height:%fpx;",
+            r##.left,
+            r##.top,
+            r##.right -. r##.left,
+            r##.bottom -. r##.top,
+          ),
+        );
+      el##.className := Js.string(lands ? "lands" : "");
+      el##.textContent := Js.some(Js.string(label));
+    | _ => remove_readout()
+    };
+  };
+
 let end_session = () => {
   switch (session^) {
   | Some(s) =>
@@ -1271,6 +1339,7 @@ let end_session = () => {
   Dom_html.document##.body##.style##.cursor := Js.string("");
   Dom_html.document##.body##.classList##remove(Js.string("code-dragging"));
   remove_overlay();
+  remove_readout();
   session := None;
 };
 
@@ -1304,6 +1373,7 @@ let on_move = (e: Js.t(Dom_html.event)): unit =>
     if (s.began && s.pending == Idle) {
       resolve(s, p);
       draw(s);
+      update_readout(s);
     } else if (s.began) {
       /* nothing draggable here (zero candidates park the session in
          AwaitChange, so resolve never runs) — the token still leans
@@ -1403,6 +1473,7 @@ let arm =
       ~focus: Id.t => unit,
       ~click: unit => unit,
       ~pointer_id: int,
+      ~readout: bool,
       ~ladders: bool,
       ~push: bool,
       ~show_labels: bool,
@@ -1420,6 +1491,7 @@ let arm =
     focus,
     click,
     pointer_id,
+    readout,
     ladders,
     push,
     show_labels,
