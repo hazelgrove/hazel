@@ -311,7 +311,11 @@ type typ =
   | InvalidTyp([@gen gen_invalid_token] string)
   | PolyType(tpat, typ)
   | RecType(tpat, typ)
-  | ProofOfType(exp)
+  /* Not generated (weight 0): proofs are to be separated from expressions
+     (#2753), and a `proof_of` type quoting a term exposes term-level
+     differences no other type can (an inserted cast re-read as an
+     ascription turns `0` into `0.0` inside it). */
+  | [@weight 0] ProofOfType(exp)
   /* Also injected as tuple fields via TupleType above. */
   | LabelType([@gen gen_ppx_ident] string)
   | ExplicitNonlabelType
@@ -400,7 +404,8 @@ and exp =
   | UnOp(op_un, exp)
   | Let(pat, exp, exp)
   | Theorem(pat, exp, exp)
-  | ProofObject(exp)
+  /* Not generated, for the same reason as `ProofOfType`. */
+  | [@weight 0] ProofObject(exp)
   /* Named funs print as plain `fun`; Canonicalize drops the name. */
   | Fun(pat, exp, [@gen QCheck.Gen.option(gen_ppx_ident)] option(string))
   | ForallExp(pat, exp)
