@@ -1717,9 +1717,10 @@ let partial_tests = [
     "two deferred, filled in order",
     "let f = fun (a, b, c) -> a * 100 + b * 10 + c in let g = f(_, 2, _) in g(1, 3)",
   ),
+  /* (its own map: List is no module in the tests' environment, where List.map read as a constructor's projection) */
   agreement(
-    "a partial application to List.map",
-    "let add = fun (a, b) -> a + b in List.map(add(10, _), [1, 2, 3])",
+    "a partial application handed to a map",
+    "let map = fun (f, xs) -> case xs | [] => [] | x :: rest => f(x) :: map(f, rest) end in let add = fun (a, b) -> a + b in map(add(10, _), [1, 2, 3])",
   ),
 ];
 
