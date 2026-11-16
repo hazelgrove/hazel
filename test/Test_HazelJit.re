@@ -1758,6 +1758,19 @@ let undefined_tests = [
   ),
 ];
 
+/* (^ticket(761)) tuple extension and the label builtins, as the evaluator's own tests have them */
+let label_tests = [
+  agreement("a tuple extended", "(a=1, b=2) ... (c=3)"),
+  agreement("an unlabeled tuple extended", "(1, 2) ... (3, 4)"),
+  agreement("an extension replacing a label", "(a=0, b=2) ... (a=1, 3, c=4)"),
+  agreement(
+    "project_labels",
+    "project_labels((a=1, b=2, c=3), `c`, `a`, `c`)",
+  ),
+  agreement("select_labels", "select_labels((a=1, b=2, c=3), `a`, `b`)"),
+  agreement("omit_labels", "omit_labels((a=1, b=2, c=3), `a`, `b`)"),
+];
+
 let tests = (
   "HazelJit",
   invalid_tests
@@ -1767,6 +1780,7 @@ let tests = (
   @ string_builtin_tests
   @ step_limit_tests
   @ undefined_tests
+  @ label_tests
   @ [
     agreement("arithmetic", "1 + 2 * 3 - 4 / 2"),
     agreement("floats", "1.5 *. 2. +. 0.25"),

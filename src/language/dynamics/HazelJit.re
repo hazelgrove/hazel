@@ -66,6 +66,24 @@ module Runtime = {
   append(a, b) { if (a === null) return b; const xs = []; for (let p = a; p !== null; p = p.t) xs.push(p.h);
     let r = b; for (let i = xs.length - 1; i >= 0; i--) r = {h: xs[i], t: r}; return r; },
   tup(vs, ls) { for (let i = 0; i < ls.length; i++) if (ls[i] !== null) vs[ls[i]] = vs[i]; return vs; },
+  /* (^ticket(761)) a tuple's labels by index, null where unlabeled, read as HazelJitValue.of_tuple reads them: each
+     property that is not an index labels the first unlabeled index holding the very same value */
+  labels(t) {
+    const ls = t.map(() => null);
+    for (const k of Object.keys(t)) { if (/^[0-9]+$/.test(k)) continue;
+      const i = ls.findIndex((x, j) => x === null && t[j] === t[k]); if (i >= 0) ls[i] = k; }
+    return ls;
+  },
+  /* (^ticket(761)) a tuple extended, e1 ... e2, as LabeledTuple.extension: e1's components in order, a label e2 also has
+     taking e2's value; then e2's unlabeled components and its labels e1 lacks. Not tuples: the interpreter's is stuck. */
+  ext(a, b) {
+    if (!Array.isArray(a) || !Array.isArray(b)) this.indet("a tuple extension of something not a tuple");
+    const la = this.labels(a), lb = this.labels(b), by = new Map(), vs = [], ls = [];
+    lb.forEach((l, i) => { if (l !== null) by.set(l, b[i]); });
+    la.forEach((l, i) => { vs.push(l !== null && by.has(l) ? by.get(l) : a[i]); ls.push(l); });
+    lb.forEach((l, i) => { if (l === null || !la.includes(l)) { vs.push(b[i]); ls.push(l); } });
+    return this.tup(vs, ls);
+  },
   eq(a, b) {
     if (a === b) return true;
     if (a === null || b === null || typeof a !== "object" || typeof b !== "object") return false;
@@ -174,6 +192,15 @@ module Runtime = {
     string_capitalize: s => { const g = (t => Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(t), x => x.segment))(s); return g.length ? g[0].toUpperCase() + g.slice(1).join("") : s; },
     string_uncapitalize: s => { const g = (t => Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(t), x => x.segment))(s); return g.length ? g[0].toLowerCase() + g.slice(1).join("") : s; },
     omit_all_labels: t => Array.isArray(t) ? Array.from(t) : t,
+    /* (^ticket(761)) BuiltinsTupleOperations' label builtins: a tuple, then label literals ({lab: name}); a label the
+       tuple lacks stops the run (the interpreter's projection is stuck there), as an invalid operation's does */
+    project_labels: ([t, ...ls]) => ls.map(({ lab }) => { if (!Array.isArray(t) || !Object.prototype.hasOwnProperty.call(t, lab)) { const e = new Error("hazel-jit: indeterminate: a projection by " + lab); e.$indet = lab; throw e; } return t[lab]; }),
+    select_labels: ([t, ...ls]) => { const vs = ls.map(({ lab }) => { if (!Array.isArray(t) || !Object.prototype.hasOwnProperty.call(t, lab)) { const e = new Error("hazel-jit: indeterminate: a projection by " + lab); e.$indet = lab; throw e; } return t[lab]; });
+      ls.forEach(({ lab }, i) => { vs[lab] = vs[i]; }); return vs; },
+    omit_labels: ([t, ...ls]) => { const drop = new Set(ls.map(({ lab }) => lab)), tl = t.map(() => null), vs = [], out = [];
+      for (const k of Object.keys(t)) { if (/^[0-9]+$/.test(k)) continue; const i = tl.findIndex((x, j) => x === null && t[j] === t[k]); if (i >= 0) tl[i] = k; }
+      t.forEach((v, i) => { if (tl[i] === null || !drop.has(tl[i])) { vs.push(v); out.push(tl[i]); } });
+      out.forEach((l, i) => { if (l !== null) vs[l] = vs[i]; }); return vs; },
     /* the compare builtins (BuiltinsADT.of_atom_compare), Lt, Eq or Gt as Atom.compare_of_cls has them: Int, SInt, Nat by
        value (a number and a BigInt compare as they are); Float as OCaml's Float.compare, nan equal to itself and below
        every other float; String as String.compare, byte by byte in UTF-8, which is code point order */
@@ -229,6 +256,9 @@ module Runtime = {
     "string_capitalize",
     "string_uncapitalize",
     "omit_all_labels",
+    "project_labels",
+    "select_labels",
+    "omit_labels",
     "int_compare",
     "sint_compare",
     "nat_compare",
@@ -958,10 +988,11 @@ and exp_inner =
        )
     ++ ")";
   | Undefined => "$R.indet(\"undefined\")"
-  | Label(_)
+  /* (^ticket(761)) a label as a value, which the label builtins take: {lab: name} */
+  | Label(name) => "({lab: " ++ js_string(name) ++ "})"
+  | TupleExtension(e1, e2) => "$R.ext(" ++ go(e1) ++ ", " ++ go(e2) ++ ")"
   | ExplicitNonlabel
-  | LivelitName(_)
-  | TupleExtension(_) => unsupported("this kind of term")
+  | LivelitName(_) => unsupported("this kind of term")
   };
 }
 /* A function: its own JS function, its parameter matched against its pattern */
