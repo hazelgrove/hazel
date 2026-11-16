@@ -284,12 +284,18 @@ type un_semantics =
   | Undefined(string);
 
 let just = (f, x) => Either.L(f(x));
+/* an SInt result, if it fits in 32 bits (Atom.sint_fits): exact, the int's; else IntegerOverflow */
+let sint_checked =
+    (exact: float, r: int): Either.t(int, InvalidOperationError.t) =>
+  Atom.sint_fits(exact)
+    ? Either.L(r) : Either.R(InvalidOperationError.IntegerOverflow);
 
 let semantics_of_un_op = (op: op_un): un_semantics =>
   switch (op) {
   | Int(Minus) => Defined(Int, Int, just(Bigint.neg))
   | Float(Minus) => Defined(Float, Float, just(x => -. x))
-  | SInt(Minus) => Defined(SInt, SInt, just(x => - x))
+  | SInt(Minus) =>
+    Defined(SInt, SInt, x => sint_checked(-. float_of_int(x), - x))
   | Nat(Minus) => Undefined("Cannot negate a natural number")
   | Bool(Not) => Defined(Bool, Bool, just(x => !x))
   };
@@ -316,7 +322,10 @@ let sint_power = (x, y) =>
   if (y < 0) {
     Either.R(InvalidOperationError.NegativeExponent);
   } else {
-    Either.L(IntUtil.ipow(x, y));
+    sint_checked(
+      Float.pow(float_of_int(x), float_of_int(y)),
+      IntUtil.ipow(x, y),
+    );
   };
 let int_divide = (x, y) =>
   if (Bigint.equal(y, Bigint.zero)) {
@@ -328,7 +337,11 @@ let sint_divide = (x, y) =>
   if (y == 0) {
     Either.R(InvalidOperationError.DivideByZero);
   } else {
-    Either.L(x / y);
+    /* (the one quotient too big: the least SInt by -1) */
+    sint_checked(
+      Float.trunc(float_of_int(x) /. float_of_int(y)),
+      x / y,
+    );
   };
 
 let semantics_of_bin_op = (op: op_bin): bin_semantics =>
@@ -343,9 +356,27 @@ let semantics_of_bin_op = (op: op_bin): bin_semantics =>
   | Int(GreaterThan) => Defined(Int, Int, Bool, just((>)))
   | Int(GreaterThanOrEqual) => Defined(Int, Int, Bool, just((>=)))
 
-  | SInt(Plus) => Defined(SInt, SInt, SInt, just((+)))
-  | SInt(Minus) => Defined(SInt, SInt, SInt, just((-)))
-  | SInt(Times) => Defined(SInt, SInt, SInt, just(( * )))
+  | SInt(Plus) =>
+    Defined(
+      SInt,
+      SInt,
+      SInt,
+      (x, y) => sint_checked(float_of_int(x) +. float_of_int(y), x + y),
+    )
+  | SInt(Minus) =>
+    Defined(
+      SInt,
+      SInt,
+      SInt,
+      (x, y) => sint_checked(float_of_int(x) -. float_of_int(y), x - y),
+    )
+  | SInt(Times) =>
+    Defined(
+      SInt,
+      SInt,
+      SInt,
+      (x, y) => sint_checked(float_of_int(x) *. float_of_int(y), x * y),
+    )
   | SInt(Power) => Defined(SInt, SInt, SInt, sint_power)
   | SInt(Divide) => Defined(SInt, SInt, SInt, sint_divide)
   | SInt(LessThan) => Defined(SInt, SInt, Bool, just((<)))
