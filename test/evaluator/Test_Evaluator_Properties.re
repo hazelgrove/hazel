@@ -1325,6 +1325,15 @@ let keeps_its_type = (src: string) => {
   );
 };
 
+let incremental_agrees = (~testable=testable_core_exp, ~literal_index, src) =>
+  check_incremental_against_fresh_after_edit(
+    ~literal_index,
+    ~testable,
+    ~msg=src ++ ": incremental and fresh agree",
+    ~require_comparison=true,
+    parse_exp(src),
+  );
+
 let survey_tests = [
   /* Negation's kind decided by the context, then re-decided by the operand
      once a step exposes it. */
@@ -1548,6 +1557,31 @@ let survey_tests = [
   ),
   test_case("Stepper agrees: a projection from a typed empty list", `Quick, () =>
     stepper_agrees("([] : [(a=Int, b=Bool)]).a")
+  ),
+  /* A cast pushed into a cons tail's `let`: passes since the survey's fixes
+     (seed 36); kept as a regression test. */
+  test_case("Incremental: a cast pushed into a let in a cons tail", `Quick, () =>
+    incremental_agrees(
+      ~literal_index=0,
+      "(0, proof_object 0 end:: (let `a` = y in ?))",
+    )
+  ),
+  /* Known bug: a cast pushed into a `let` keeps the `let`'s id, so the cache
+     serves the old cast after an edit changes only the cast's type. Pinned
+     with the disagreement; goes red once fixed. */
+  test_case("Known bug: a cast pushed into a module-let is cached", `Quick, () =>
+    incremental_agrees(
+      ~testable=neg(testable_core_exp),
+      ~literal_index=0,
+      "(0, (module ? = _ in ()):proof_of 0 end)",
+    )
+  ),
+  /* A cast to a `rec` type keeps the `rec` whether it reaches the value
+     through a closure (stepper) or after evaluation (evaluator). */
+  test_case("Stepper and evaluator agree on a cast to a rec type", `Quick, () =>
+    stepper_agrees(
+      "(hide undefined in if ? then _ else _):(rec ?_? -> (x=?))",
+    )
   ),
 ];
 

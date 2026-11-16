@@ -153,8 +153,8 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       let field: DHExp.t =
         TupLabel(label, recur(ascribe(e, field_ty))) |> DHExp.fresh;
       Some(Tuple([field]) |> DHExp.fresh);
-    | (Closure(ce, d), t) =>
-      transition(~recursive, Asc(d, t |> Typ.fresh) |> DHExp.fresh)
+    | (Closure(ce, d), _) =>
+      transition(~recursive, Asc(d, t) |> DHExp.fresh)
       |> Option.map(~f=d => Closure(ce, d) |> DHExp.fresh)
     | (Fun(p, body, closure_ty, name), Arrow(t1, t2)) =>
       Some(
