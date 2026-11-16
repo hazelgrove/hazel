@@ -34,13 +34,17 @@ let evaluation_test =
       msg,
       expected,
       unevaluated,
-    ) =>
+    ) => {
+  let result = evaluate(unevaluated);
+  /* (^ticket(756)) and by hazel-jit, where it compiles: compared, and reported at the end of the run */
+  Test_HazelJit_Agree.sweep(msg, unevaluated, result);
   check(
     testable_exp(~ignore_constructor_types?, ~ignore_dynamic_errors?, ()),
     msg,
     expected,
-    evaluate(unevaluated),
+    result,
   );
+};
 
 let parse_exp = (s: string) => {
   switch (Haz3lcore.Parser.to_term(s, ~root=Exp)) {
