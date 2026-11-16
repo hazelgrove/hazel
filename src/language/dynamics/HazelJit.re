@@ -444,6 +444,18 @@ let body_with_decls = (scope: scope, expr: string): string =>
     "let " ++ String.concat(", ", List.rev(ds)) ++ "; return " ++ expr ++ ";"
   };
 
+/* (^ticket(765), found compiling hazeljs-oracles' I Ching, whose module Lines has a member named length) A label is a
+   property of its tuple's JS array, as is a module's member. A label an array already has a use for, length (which holds
+   only a number: a function there threw "Invalid array length") and __proto__ (its prototype), is kept under the key
+   "$" ++ label instead, and so is any label beginning with $, to keep keys and labels one to one. Every place a label
+   meets JS uses these: the compile here, HazelJitValue both ways, the agreement harness. */
+let label_key = (l: string): string =>
+  l == "length" || l == "__proto__" || String.length(l) > 0 && l.[0] == '$'
+    ? "$" ++ l : l;
+let label_of_key = (k: string): string =>
+  String.length(k) > 1 && k.[0] == '$'
+    ? String.sub(k, 1, String.length(k) - 1) : k;
+
 let label_of = (e: Exp.t): option(string) =>
   switch (Exp.term_of(e)) {
   | Label(name) => Some(name)
@@ -507,7 +519,10 @@ let rec pat =
           switch (Pat.term_of(p)) {
           | TupLabel(l, p') =>
             switch (pat_label_of(l)) {
-            | Some(name) => (v ++ "[" ++ js_string(name) ++ "]", p')
+            | Some(name) => (
+                v ++ "[" ++ js_string(label_key(name)) ++ "]",
+                p',
+              )
             | None => unsupported("a tuple label that is not a name")
             }
           | _ => (v ++ "[" ++ string_of_int(i) ++ "]", p)
@@ -522,7 +537,7 @@ let rec pat =
   | TupLabel(l, p') =>
     switch (pat_label_of(l)) {
     | Some(name) =>
-      pat(st, scope, lex, p', v ++ "[" ++ js_string(name) ++ "]")
+      pat(st, scope, lex, p', v ++ "[" ++ js_string(label_key(name)) ++ "]")
     | None => unsupported("a tuple label that is not a name")
     }
   | Constructor(name, _) => ([v ++ ".c === " ++ js_string(name)], [], lex)
@@ -686,7 +701,7 @@ and exp_inner =
              List.map(
                ((l, _)) =>
                  switch (l) {
-                 | Some(name) => js_string(name)
+                 | Some(name) => js_string(label_key(name))
                  | None => "null"
                  },
                parts,
@@ -697,12 +712,13 @@ and exp_inner =
   | TupLabel(l, e') =>
     switch (label_of(l)) {
     | Some(name) =>
-      "$R.tup([" ++ go(e') ++ "], [" ++ js_string(name) ++ "])"
+      "$R.tup([" ++ go(e') ++ "], [" ++ js_string(label_key(name)) ++ "])"
     | None => unsupported("a tuple label that is not a name")
     }
   | Dot(e1, l) =>
     switch (label_of(l)) {
-    | Some(name) => "(" ++ go(e1) ++ ")[" ++ js_string(name) ++ "]"
+    | Some(name) =>
+      "(" ++ go(e1) ++ ")[" ++ js_string(label_key(name)) ++ "]"
     | None => unsupported("a projection by something other than a label")
     }
   | Constructor(name, t) =>
@@ -1012,7 +1028,7 @@ and exp_inner =
     ++ ")";
   | Undefined => "$R.indet(\"undefined\")"
   /* (^ticket(761)) a label as a value, which the label builtins take: {lab: name} */
-  | Label(name) => "({lab: " ++ js_string(name) ++ "})"
+  | Label(name) => "({lab: " ++ js_string(label_key(name)) ++ "})"
   | TupleExtension(e1, e2) => "$R.ext(" ++ go(e1) ++ ", " ++ go(e2) ++ ")"
   | ExplicitNonlabel
   | LivelitName(_) => unsupported("this kind of term")
@@ -1130,7 +1146,7 @@ and module_ = (st: state, lex, items: list(Mod.t)): string => {
     "$R.tup(["
     ++ String.concat(", ", List.map(x => List.assoc(x, exports), names))
     ++ "], ["
-    ++ String.concat(", ", List.map(js_string, names))
+    ++ String.concat(", ", List.map(x => js_string(label_key(x)), names))
     ++ "])";
   "(() => { "
   ++ body_with_decls(

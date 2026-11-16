@@ -1764,6 +1764,19 @@ let label_tests = [
     "a reverse application, and one to a constructor",
     "let inc = fun x -> x + 1 in (41 |> inc, 3 |> Some)",
   ),
+  /* (^ticket(765)) labels a JS array already has a use for: kept under another key (HazelJit.label_key) */
+  agreement(
+    "a label named length",
+    "let r = (length = 3, width = 4) in (r.length * r.width, r)",
+  ),
+  agreement(
+    "a label named length, in a pattern",
+    "let (length = n, width = w) = (length = 5, width = 2) in n * w",
+  ),
+  agreement(
+    "a module's member named length",
+    "module M = { let length = fun xs -> case xs | [] => 0 | _ :: r => 1 + length(r) end } in M.length([1, 2, 3])",
+  ),
   agreement("a tuple extended", "(a=1, b=2) ... (c=3)"),
   agreement("an unlabeled tuple extended", "(1, 2) ... (3, 4)"),
   agreement("an extension replacing a label", "(a=0, b=2) ... (a=1, 3, c=4)"),

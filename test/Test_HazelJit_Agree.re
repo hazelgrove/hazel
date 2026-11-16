@@ -156,7 +156,8 @@ let rec agree = (e: Exp.t, js: Js.Unsafe.any): option(string) => {
               | Some(_) => acc
               | None =>
                 switch (Exp.match_tup_label(e)) {
-                | Some((l, e')) => agree(e', get(js, l))
+                | Some((l, e')) =>
+                  agree(e', get(js, HazelJit.label_key(l)))
                 | None => agree(e, Js.Unsafe.get(js, i))
                 }
               },
@@ -168,7 +169,7 @@ let rec agree = (e: Exp.t, js: Js.Unsafe.any): option(string) => {
         |> fst
   | TupLabel(_) =>
     switch (Exp.match_tup_label(e)) {
-    | Some((l, e')) => agree(e', get(js, l))
+    | Some((l, e')) => agree(e', get(js, HazelJit.label_key(l)))
     | None => Some("a label")
     }
   | Constructor(name, _) =>

@@ -246,7 +246,7 @@ and tuple = (vs: list(Exp.t)): Js.Unsafe.any => {
   List.iter(
     ((l, js)) =>
       switch (l) {
-      | Some(l) => Js.Unsafe.set(arr, Js.string(l), js)
+      | Some(l) => Js.Unsafe.set(arr, Js.string(HazelJit.label_key(l)), js)
       | None => ()
       },
     parts,
@@ -430,7 +430,7 @@ and of_tuple = (~seen, ts: types, ty: option(Typ.t), v: Js.Unsafe.any): Exp.t =>
         ) {
         | Some(k) =>
           used := [k, ...used^];
-          (Some(k), None);
+          (Some(HazelJit.label_of_key(k)), None);
         | None => (None, None)
         }
       );
