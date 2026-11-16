@@ -23,7 +23,8 @@
 /* (^ticket(760); Matthew and Cyrus, 2026-11-13: "for the output of hazel-jit, we should continue to avoid translating code
    with holes, and we should exclude "stepper functions"") What hazel-jit leaves to the interpreter, by rule, not by gap:
      - code with a hole: an empty hole, a multihole, a dynamic error hole, invalid text (Unsupported "a hole"); the
-       interpreter evaluates around holes, and its indeterminate results are the point of them;
+       interpreter evaluates around holes, and its indeterminate results are the point of them; and a type with a hole
+       written in it, ? (Unsupported "a type hole"; no_type_hole, below);
      - the stepper's filters, hide/eval/pause/debug P in e, which say which steps the stepper shows (Unsupported "a stepper
        filter"), and anything the stepper shows: the stepper evaluates by the interpreter's own steps (StepperView), and a
        livelit in a probe drawer's stepper over one of its samples is drawn by the interpreter, never from a compiled
@@ -34,6 +35,29 @@
 exception Unsupported(string);
 
 let unsupported = reason => raise(Unsupported(reason));
+
+/* (^ticket(760), found by ^ticket(756)'s sweep) A type with a hole written in it, ?, is a hole too: a cast through it
+   can fail at run time with no static error, where the interpreter stops at the failed cast and compiled code, its
+   types erased, runs on (Evaluator.Function's "Ascription around deferral": f([1.0, 2.0] : ?), f taking [Int], is
+   [1.0 : Int, 2.0 : Int] to the interpreter; a Float and an Int are both a JS number here, so no check could tell). */
+let no_type_hole = (t: Typ.t): unit => {
+  let found = ref(false);
+  let _ =
+    Typ.map_term(
+      ~f_typ=
+        (cont, t) => {
+          switch (Typ.term_of(t)) {
+          | Unknown(Hole(_)) => found := true
+          | _ => ()
+          };
+          cont(t);
+        },
+      t,
+    );
+  if (found^) {
+    unsupported("a type hole");
+  };
+};
 
 /* What a compiled term needs at run time, passed to the compiled function as $R (Runtime.source is its JS text). */
 module Runtime = {
@@ -393,8 +417,10 @@ let rec pat =
   | Var(x) =>
     let j = fresh(st, scope, x);
     ([], [j ++ " = " ++ v], [(x, j), ...lex]);
-  | Parens(p)
-  | Asc(p, _) => pat(st, scope, lex, p, v)
+  | Parens(p) => pat(st, scope, lex, p, v)
+  | Asc(p, t) =>
+    no_type_hole(t);
+    pat(st, scope, lex, p, v);
   | Atom(Int(n))
   | Atom(Nat(n)) => ([v ++ " === " ++ js_int(n)], [], lex)
   | Atom(SInt(n)) => ([v ++ " === " ++ string_of_int(n)], [], lex)
@@ -545,9 +571,11 @@ and exp_inner =
   | TyAlias(tp, ty, e) =>
     note_alias(st, tp, ty);
     go(e);
+  | Asc(e, t)
+  | TypAp(e, t) =>
+    no_type_hole(t);
+    go(e);
   | Parens(e)
-  | Asc(e, _)
-  | TypAp(e, _)
   | TypFun(_, e, _)
   | Use(_, e) => go(e)
   | Var(x) =>

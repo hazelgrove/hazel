@@ -1887,6 +1887,13 @@ let tests = (
       }
     ),
     not_compiled("a hole", "1 + ?", "a hole"),
+    /* (a cast through ? can fail at run time, where the interpreter stops and erased types run on) */
+    not_compiled("a type hole", "(1 : ?) + 1", "a type hole"),
+    not_compiled(
+      "a cast through a type hole, the evaluator's ascription around a deferral",
+      "let f : [Int] -> ? = fun xs -> xs in f([1.0, 2.0] : ?)",
+      "a type hole",
+    ),
     timing("the Petri net rule, four events", petri, 30),
     polygons_view("timing: the Polygons slide's view", `Slow, src =>
       timing_run("the Polygons slide's view", src, 30)
