@@ -4567,26 +4567,52 @@ let paste_funnel_tests = (
         ),
       )
     }),
-    test_case("insert of `let eval = ...` fails naming keyword", `Quick, () => {
+    test_case("insert of `let debug = ...` fails naming keyword", `Quick, () => {
       expect_failure_mentioning(
         "let a = 1 in a",
-        Insert(After, "a", "let eval = 1 in"),
+        Insert(After, "a", "let debug = 1 in"),
         [
-          "Note: `eval` is a reserved keyword in Hazel and cannot be used as a variable name.",
+          "Note: `debug` is a reserved keyword in Hazel and cannot be used as a variable name.",
         ],
-        "insert_let_eval",
+        "insert_let_debug",
       )
     }),
-    test_case("insert of `let evalStep = ...` succeeds", `Quick, () => {
+    test_case("insert of `let debugStep = ...` succeeds", `Quick, () => {
       check_rendered(
-        "insert_let_evalStep",
-        "let a = 1 in let evalStep = 1 in a",
+        "insert_let_debugStep",
+        "let a = 1 in let debugStep = 1 in a",
         apply_and_render(
           "let a = 1 in a",
-          Insert(After, "a", "let evalStep = 1 in"),
+          Insert(After, "a", "let debugStep = 1 in"),
         ),
       )
     }),
+    test_case(
+      "eval is accepted as an ordinary identifier",
+      `Quick,
+      () => {
+        check_rendered(
+          "insert_let_eval",
+          "let a = 1 in let eval = 1 in a",
+          apply_and_render(
+            "let a = 1 in a",
+            Insert(After, "a", "let eval = 1 in"),
+          ),
+        );
+        check_rendered(
+          "update_body_let_eval",
+          "let a = 1 in let eval : Int -> Int = fun t -> t in eval(a)",
+          apply_and_render(
+            "let a = 1 in a",
+            Update(
+              Body,
+              "a",
+              "let eval : Int -> Int = fun t -> t in eval(a)",
+            ),
+          ),
+        );
+      },
+    ),
     test_case("unannotated binding without self-ref succeeds", `Quick, () => {
       check_rendered(
         "insert_unannotated_no_self_ref",
@@ -4624,25 +4650,25 @@ let paste_funnel_tests = (
       )
     }),
     test_case(
-      "update_body with annotated `let eval` fails naming keyword", `Quick, () => {
+      "update_body with annotated `let debug` fails naming keyword", `Quick, () => {
       expect_failure_mentioning(
         "let a = 1 in a",
-        Update(Body, "a", "let eval : Int -> Int = fun t -> t in ?"),
-        ["`eval` is a reserved keyword"],
-        "update_body_let_eval",
+        Update(Body, "a", "let debug : Int -> Int = fun t -> t in ?"),
+        ["`debug` is a reserved keyword"],
+        "update_body_let_debug",
       )
     }),
     test_case(
       "reserved word inside a string literal is not rejected", `Quick, () => {
-      /* the binder text scan alone fires on `let eval` INSIDE the
+      /* the binder text scan alone fires on `let debug` INSIDE the
          string; the structural witness (an incomplete tile the word
          actually leads) keeps legitimate code insertable */
       check_rendered(
         "insert_reserved_in_string",
-        "let a = 1 in let msg = \"let eval\" in a",
+        "let a = 1 in let msg = \"let debug\" in a",
         apply_and_render(
           "let a = 1 in a",
-          Insert(After, "a", "let msg = \"let eval\" in"),
+          Insert(After, "a", "let msg = \"let debug\" in"),
         ),
       )
     }),

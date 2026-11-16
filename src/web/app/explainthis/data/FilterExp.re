@@ -222,9 +222,9 @@ let filter_selector_exp_exp: form = {
   let e = exp("$e");
   {
     id: FilterSelector(Exp),
-    syntactic_form: [_e],
+    syntactic_form: [e],
     colorings: [],
-    expandable_id: Some((Piece.id(_e), [_e])),
+    expandable_id: Some((Piece.id(e), [e])),
     explanation: "Matches expression, i.e. anything when apply filters to an expression.",
     examples: [filter_selector_exp_example],
   };
@@ -249,9 +249,9 @@ let filter_selector_val_exp: form = {
   let v = exp("$v");
   {
     id: FilterSelector(Val),
-    syntactic_form: [_v],
+    syntactic_form: [v],
     colorings: [],
-    expandable_id: Some((Piece.id(_v), [_v])),
+    expandable_id: Some((Piece.id(v), [v])),
     explanation: "Matches value, i.e. fully evaluated expressions when apply filters to an expression.",
     examples: [filter_selector_val_example],
   };

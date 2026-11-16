@@ -635,11 +635,11 @@ let rec find_tile_id = (~label: Label.t, seg: Segment.t): option(Id.t) => {
 
   switch (seg) {
   | [] => None
-  | [Tile({id, label: tile_label, children, _}), ...rest] =>
-    if (tile_label == label) {
-      Some(id);
+  | [Tile(tile), ...rest] =>
+    if (Tile.label(tile) == label) {
+      Some(tile.id);
     } else {
-      switch (find_in_children(children)) {
+      switch (find_in_children(tile.children)) {
       | Some(_) as found => found
       | None => find_tile_id(~label, rest)
       };
