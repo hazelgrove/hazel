@@ -1737,6 +1737,27 @@ let step_limit_tests = [
   ),
 ];
 
+/* (^ticket(761)) undefined compiled: List.head's empty case, say; a run that reaches it stops, for the interpreter */
+let head_src = "let head = fun xs -> case xs | [] => undefined | x :: _ => x end in ";
+let undefined_tests = [
+  agreement("undefined, not reached", head_src ++ "head([4, 5]) + 1"),
+  test_case(
+    "undefined, reached: the run stops for the interpreter", `Quick, () =>
+    switch (
+      run_js(HazelJit.Runtime.source, compiled_src(head_src ++ "head([])"))
+    ) {
+    | _ => fail("ran past undefined")
+    | exception (Js_error.Exn(e)) =>
+      check(
+        string,
+        "the error",
+        "hazel-jit: indeterminate: undefined",
+        Js_error.message(e),
+      )
+    }
+  ),
+];
+
 let tests = (
   "HazelJit",
   invalid_tests
@@ -1745,6 +1766,7 @@ let tests = (
   @ partial_tests
   @ string_builtin_tests
   @ step_limit_tests
+  @ undefined_tests
   @ [
     agreement("arithmetic", "1 + 2 * 3 - 4 / 2"),
     agreement("floats", "1.5 *. 2. +. 0.25"),

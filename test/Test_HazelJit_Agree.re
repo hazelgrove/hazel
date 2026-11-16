@@ -36,6 +36,15 @@ let stuck_at = (result: Exp.t, err: string): bool => {
   || contains(shown, "(BuiltinFun");
 };
 
+/* (^ticket(761)) a compiled run that reached undefined ("hazel-jit: indeterminate: undefined") agrees with an interpreter's
+   result left indeterminate there, an Undefined in it: the page falls back to the interpreter */
+let indet_reached = (message: string, result: Exp.t): bool => {
+  let pre = "hazel-jit: indeterminate: ";
+  String.length(message) >= String.length(pre)
+  && String.sub(message, 0, String.length(pre)) == pre
+  && contains(Exp.show(result), "Undefined");
+};
+
 /* what agree says of an interpreter result it does not compare (an error, a stuck term: not a value) */
 let not_a_value = "a value hazel-jit's tests do not compare";
 
@@ -294,6 +303,10 @@ let sweep = (test: string, elab: Exp.t, result: Exp.t): unit => {
                 | None => false
                 } =>
             /* (^ticket(759)) an invalid operation, where the interpreter stops at the same error */
+            incr(agreed);
+            Fine;
+          | exception (Js_error.Exn(e))
+              when indet_reached(Js_error.message(e), result) =>
             incr(agreed);
             Fine;
           | exception (Js_error.Exn(e)) =>

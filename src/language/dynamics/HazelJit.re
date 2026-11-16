@@ -29,8 +29,9 @@
        filter"), and anything the stepper shows: the stepper evaluates by the interpreter's own steps (StepperView), and a
        livelit in a probe drawer's stepper over one of its samples is drawn by the interpreter, never from a compiled
        run's answer (LivelitProj.draw_answer ~stepping);
-     - an operation the interpreter stops at with an error (Runtime.invalid, ^ticket(759)), and a run past its budget
-       (Runtime.out, ^ticket(763)): the compiled run stops, and the interpreter's run is the answer.
+     - an operation the interpreter stops at with an error (Runtime.invalid, ^ticket(759)), undefined where a run reaches
+       it (Runtime.indet, ^ticket(761)), and a run past its budget (Runtime.out, ^ticket(763)): the compiled run stops,
+       and the interpreter's run is the answer.
    The rest of what it does not compile yet is a limit to overcome (^ticket(761)), each one Unsupported(reason) below. */
 exception Unsupported(string);
 
@@ -90,6 +91,10 @@ module Runtime = {
   /* An operation the interpreter stops at with an error (Error: Divide by Zero, a stuck term): the compiled run stops
      too, and its caller falls back to the interpreter, which makes the stuck term (^ticket(759)) */
   invalid(err) { const e = new Error("hazel-jit: invalid operation: " + err); e.$invalid = err; throw e; },
+  /* (^ticket(761)) undefined, reached: the interpreter's result is indeterminate there, so the compiled run stops and its
+     caller falls back to the interpreter, as for an invalid operation. Not reached (List.head's empty case, on a list
+     with a head), it costs nothing. */
+  indet(what) { const e = new Error("hazel-jit: indeterminate: " + what); e.$indet = what; throw e; },
   /* (^ticket(759)) SInt's division and power, with the interpreter's errors (its width, its overflow: ^ticket(758)) */
   sdiv(a, b) { if (b === 0) this.invalid("DivideByZero"); return Math.trunc(a / b); },
   spow(a, b) { if (b < 0) this.invalid("NegativeExponent"); return a ** b; },
@@ -952,7 +957,7 @@ and exp_inner =
          ],
        )
     ++ ")";
-  | Undefined => unsupported("undefined")
+  | Undefined => "$R.indet(\"undefined\")"
   | Label(_)
   | ExplicitNonlabel
   | LivelitName(_)
