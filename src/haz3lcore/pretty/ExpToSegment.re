@@ -616,9 +616,10 @@ let rec parenthesize =
       parenthesize(r) |> paren_assoc_at(Precedence.dot),
     )
     |> rewrap
-  | ListLit(es) =>
+  | ListLit(es, ty) =>
     ListLit(
       es |> List.map(parenthesize) |> List.map(paren_at(Precedence.comma)),
+      ty,
     )
     |> rewrap
   | Let(p, e1, e2) =>
@@ -2165,13 +2166,13 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     wrap(exp, e);
   // @ [mk_form("typeasc", id, [])]
   // @ (t |> fold_if(settings.fold_cast_types));
-  | ListLit([]) =>
+  | ListLit([], _) =>
     wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, Token.empty_list))
   | Deferral(_) =>
     wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, Token.wild))
   | ExplicitNonlabel =>
     wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, Token.wild))
-  | ListLit([x, ...xs]) =>
+  | ListLit([x, ...xs], _) =>
     /* ID order: [bracket_id] @ comma_ids (outer first, then adopted).
        IMPORTANT: Must align with MakeTerm.exp_term ListLit case,
        which produces IDs in this order during absorption. */

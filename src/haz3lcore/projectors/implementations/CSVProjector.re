@@ -24,7 +24,7 @@ module M: Projector = {
 
   let init = (a: Language.Any.t): option(model) => {
     switch (a) {
-    | Exp({term: ListLit([]), _}) => Some(NoFile) // No file selected
+    | Exp({term: ListLit([], _), _}) => Some(NoFile) // No file selected
     | _ => None
     };
   };
@@ -51,6 +51,7 @@ module M: Projector = {
               ),
             rows,
           ),
+          None,
         )
       | CsvUtil.WithoutHeaders(rows) =>
         ListLit(
@@ -69,6 +70,7 @@ module M: Projector = {
               ),
             rows,
           ),
+          None,
         )
       };
 

@@ -62,7 +62,7 @@ let adt_node_ids = exp => {
     | Tuple(es) =>
       ids := [Exp.rep_id(e), ...ids^];
       List.iter(go, es);
-    | ListLit(es) => List.iter(go, es)
+    | ListLit(es, _) => List.iter(go, es)
     | TupLabel(label, body) =>
       go(label);
       go(body);

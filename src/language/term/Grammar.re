@@ -33,7 +33,20 @@ and exp_term('a) =
   | Undefined
   | Atom(Atom.t)
   | DrvQuote(DrvGrammar.any_t('a), DrvSort.t)
-  | ListLit(list(exp_t('a)))
+  /* The type is the element type of a list built at runtime, so a list with
+     no elements still has one. It is `None` in a term a user wrote, which
+     statics types by its elements. Elaboration sets it, and every step that
+     builds a list sets it on the result:
+     - a literal gets the element type statics found for it, which is the
+       expected one when it is checked against a list type, and pushing a
+       cast to `[t]` into a literal gives it `t`;
+     - `x :: l`, and the tail taken from it by matching a cons, keep `l`'s;
+     - `a @ b` gets the meet of `a`'s and `b`'s, as statics types it;
+     - projecting `.a` from a list of tuples gives the type of field `a`;
+     - a builtin implemented in OCaml gives the element type it declares.
+     Statics meets it with the elements' types, so `[]` of `[t]` has type
+     `[t]`. Printing, equality and Canonicalize ignore it. */
+  | ListLit(list(exp_t('a)), option(typ_t('a)))
   /* The type double-option field of this constructor is required to assign the correct
      statics to constructors after evaluation. In dynamic expressions `Some(None)` means
      that it is a free constructor, while Some(Some(t)) means it has type t. In user expressions
@@ -186,7 +199,11 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
         | Atom(c) => Atom(c)
         | DrvQuote(d, s) => DrvQuote(DrvGrammar.map_any_annotation(f, d), s)
         | LivelitName(s) => LivelitName(s)
-        | ListLit(l) => ListLit(List.map(x => map_exp_annotation(f, x), l))
+        | ListLit(l, t) =>
+          ListLit(
+            List.map(x => map_exp_annotation(f, x), l),
+            Option.map(map_typ_annotation(f), t),
+          )
         | Constructor(s, t) =>
           Constructor(s, Option.map(Option.map(map_typ_annotation(f)), t))
         | Fun(p, e, t, v) =>
@@ -612,8 +629,8 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: DrvQuote(d, s),
       annotation: default_annotation(ann),
     };
-    let list_lit = (~ann=?, l): exp_t(DefaultAnnotation.t) => {
-      term: ListLit(l),
+    let list_lit = (~ann=?, ~ty=?, l): exp_t(DefaultAnnotation.t) => {
+      term: ListLit(l, ty),
       annotation: default_annotation(ann),
     };
     let constructor = (~ann=?, s, t): exp_t(DefaultAnnotation.t) => {

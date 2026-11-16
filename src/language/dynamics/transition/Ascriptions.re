@@ -125,14 +125,19 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       | (SInt(_), _)
       | (Bool(_), _) => None
       }
-    | (ListLit(ds), List(ty)) =>
+    | (ListLit(ds, ty0), List(ty)) =>
       let ds' = List.map(d => recur(ascribe(d, ty)), ds);
-      unchanged(ds, ds')
+      let same_ty =
+        switch (ty0) {
+        | Some(ty0) => Typ.fast_equal(ty0, ty)
+        | None => false
+        };
+      unchanged(ds, ds') && same_ty
         ? Some(e)
         : Some(
             IdTagged.fast_copy(
               DHExp.rep_id(e),
-              ListLit(ds') |> DHExp.fresh,
+              ListLit(ds', Some(ty)) |> DHExp.fresh,
             ),
           );
     | (Cons(d1, d2), List(ty)) =>

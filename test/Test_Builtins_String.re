@@ -51,7 +51,7 @@ let as_strings = (d: option(DHExp.t)): list(string) =>
   switch (d) {
   | Some(d) =>
     switch (DHExp.term_of(d)) {
-    | ListLit(ds) => List.map(d => as_string(Some(d)), ds)
+    | ListLit(ds, _) => List.map(d => as_string(Some(d)), ds)
     | _ => failwith("expected a list result, got " ++ DHExp.show(d))
     }
   | None => failwith("builtin did not reduce")

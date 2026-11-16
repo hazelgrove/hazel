@@ -386,7 +386,7 @@ module rec Exp: {
     | Var(x) => Var(x)
     | LivelitName(s) => LivelitName("^" ++ s)
     | Deferral(InAp) => Deferral
-    | ListLit(l) => ListExp(List.map(of_core, l))
+    | ListLit(l, _) => ListExp(List.map(of_core, l))
     | Tuple(l) => TupleExp(List.map(of_core, l))
     | TupleExtension(e1, e2) => TupleExtension(of_core(e1), of_core(e2))
     | Let(p, e1, e2) => Let(Pat.of_core(p), of_core(e1), of_core(e2))

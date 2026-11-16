@@ -562,7 +562,7 @@ and uexp_to_info_map =
         ~co_ctx=CoCtx.singleton(name, Exp.rep_id(uexp), ana),
         m,
       );
-    | ListLit(es) =>
+    | ListLit(es, elab_ty) =>
       let ids = List.map(Exp.rep_id, es);
       let inner_ana_ty = MatchedTyp.list_tolerant(ctx, ana);
       let anas = List.init(List.length(es), _ => inner_ana_ty);
@@ -573,7 +573,23 @@ and uexp_to_info_map =
          wrappings on elements that already syn to the meet type. */
       let syn_tys = List.map((e: Info.exp) => e.elab_syn_ty, es);
       let meet_ty =
-        Typ.meet_all(~empty=Unknown(Internal) |> Typ.temp, ctx, syn_tys);
+        Typ.meet_all(
+          ~empty=
+            Option.value(elab_ty, ~default=Unknown(Internal) |> Typ.temp),
+          ctx,
+          syn_tys,
+        );
+      /* Checked against `[t]`, a literal is a list of `t` where it is
+         written: its elements are cast to `t` and it carries `t`. Elements
+         inconsistent with `t` keep their own meet, so the marks stay on
+         them. */
+      let meet_ty =
+        switch (meet_ty, Typ.term_of(inner_ana_ty)) {
+        | (None, _)
+        | (Some(_), Unknown(_)) => meet_ty
+        | (Some(ty), _) =>
+          Some(Typ.meet(ctx, ty, inner_ana_ty) |> Option.value(~default=ty))
+        };
       let ds =
         List.map2(
           (d, t) => fresh_ascription(ctx, d, t, meet_ty),
@@ -584,7 +600,7 @@ and uexp_to_info_map =
       | None =>
         let syn_no_meet = SynTy.meet_of(List, Unknown(Internal) |> Typ.temp);
         add(
-          ~elab_term=ListLit(ds) |> rewrap,
+          ~elab_term=ListLit(ds, None) |> rewrap,
           ~elab_syn_ty=syn_no_meet,
           ~marks=
             should_emit_nomeet_mark(ctx, ana, syn_no_meet)
@@ -598,7 +614,7 @@ and uexp_to_info_map =
         );
       | Some(ty) =>
         add(
-          ~elab_term=ListLit(ds) |> rewrap,
+          ~elab_term=ListLit(ds, Some(ty)) |> rewrap,
           ~elab_syn_ty=List(ty) |> Typ.temp,
           ~marks=[],
           ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es)),

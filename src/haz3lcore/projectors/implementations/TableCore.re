@@ -57,7 +57,7 @@ let rec normalize_row = (e: Exp.t): Exp.t =>
 
 let parse_table = (exp: Exp.t): option(table_data) =>
   switch (exp.term) {
-  | ListLit(es) =>
+  | ListLit(es, _) =>
     let data =
       List.map(
         (e: Exp.t) =>

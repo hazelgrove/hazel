@@ -202,7 +202,7 @@ let rec ty_comparable = (d1, d2) => {
   | (ExplicitNonlabel, _) => false
   /* [ListLit] checks that *all* elements (across both literals) are mutually
      consistent, unlike [Tuple] below, which checks pairwise consistency. */
-  | (ListLit(ds1), ListLit(ds2)) =>
+  | (ListLit(ds1, _), ListLit(ds2, _)) =>
     switch (ds1 @ ds2) {
     | [] => true
     | [hd, ...tl] => List.for_all(ty_comparable(hd), tl)
@@ -315,7 +315,8 @@ let rec poly_equal = (d1, d2): option(bool) => {
     let* d_eq = poly_equal(d1, d2);
     Some(l_eq && d_eq);
   | (TupLabel(_), _) => None
-  | (ListLit(ds1), ListLit(ds2)) when List.length(ds1) == List.length(ds2) =>
+  | (ListLit(ds1, _), ListLit(ds2, _))
+      when List.length(ds1) == List.length(ds2) =>
     ListUtil.forall2_opt(poly_equal, ds1, ds2)
   | (ListLit(_), ListLit(_)) => Some(false)
   | (ListLit(_), _) => None

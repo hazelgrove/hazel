@@ -86,7 +86,7 @@ module AbbrevSequence = {
     | TupLabel(_, _) => 3 /* …=… (label 1 + "=" 1 + value 1) */
     | Ap(Forward, {term: Constructor(_, _), _}, _) => 4 /* …(…) */
     | Parens(_) => 3 /* (…) */
-    | ListLit([_, ..._]) => 3 /* […] */
+    | ListLit([_, ..._], _) => 3 /* […] */
     | Tuple([_, _, ..._]) => 1 /* bare tuple has no parens */
     | _ => 1
     };
@@ -528,13 +528,13 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
       | EmptyHole =>
         available := available^ - 1;
         EmptyHole;
-      | ListLit([]) =>
+      | ListLit([], t) =>
         if (available^ < 2) {
           available := available^ - ellipsis_cost;
           Invalid(flat_ellipses);
         } else {
           available := available^ - 2;
-          ListLit([]);
+          ListLit([], t);
         }
       | Tuple([]) =>
         if (available^ < 2) {
@@ -557,13 +557,13 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
         Invalid(abbreviate_str(available^, string_of_float(f)))
 
       // composite literal cases
-      | ListLit(xs) =>
+      | ListLit(xs, t) =>
         if (available^ < 3) {
           available := available^ - ellipsis_cost;
           Invalid(flat_ellipses);
         } else {
           available := available^ - 2; /* brackets */
-          ListLit(abbreviate_list_seq(xs));
+          ListLit(abbreviate_list_seq(xs), t);
         }
       | Tuple([_, _, ..._] as xs) =>
         if (available^ < 1) {

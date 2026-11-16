@@ -305,7 +305,7 @@ module Shortcut = {
             Unboxing.unbox(ListLit, mods),
             Unboxing.unbox(Atom(String), key),
           ) {
-          | (Matches(ms), Matches(k)) =>
+          | (Matches((ms, _)), Matches(k)) =>
             Some(Bound(List.filter_map(key_mod_of_exp, ms), k))
           | _ => None
           }

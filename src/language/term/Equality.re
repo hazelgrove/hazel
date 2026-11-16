@@ -358,7 +358,8 @@ let equality =
     | (Tuple(xs1), Tuple(xs2)) when List.length(xs1) == List.length(xs2) =>
       List.equal(exp', xs1, xs2)
     | (Tuple(_), _) => false
-    | (ListLit(xs1), ListLit(xs2)) when List.length(xs1) == List.length(xs2) =>
+    | (ListLit(xs1, _), ListLit(xs2, _))
+        when List.length(xs1) == List.length(xs2) =>
       List.equal(exp', xs1, xs2)
     | (ListLit(_), _) => false
     | (Use(t1, e1), Use(t2, e2)) => typ'(t1, t2) && exp'(e1, e2)

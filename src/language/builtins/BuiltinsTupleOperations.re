@@ -11,7 +11,7 @@ let builtins: list(BuiltinsUtil.fn) = [
       binary((d: DHExp.t, lab: DHExp.t) => {
         switch (lab.term) {
         | Label(name) =>
-          let-unbox l = (ListLit, d);
+          let-unbox (l, _) = (ListLit, d);
           let unboxed:
             option(list((LabeledTuple.label, list(TermBase.exp_t)))) =
             List.map(
@@ -91,7 +91,7 @@ let builtins: list(BuiltinsUtil.fn) = [
     ret: Unknown(Internal),
     imp: (e: DHExp.t) => {
       open OptUtil.Syntax;
-      let-unbox elems: list(Exp.t) = (ListLit, e);
+      let-unbox (elems: list(Exp.t), _) = (ListLit, e);
       let* tuple_entries =
         OptUtil.traverse(
           elem => {

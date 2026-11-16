@@ -111,7 +111,7 @@ module JsonADT = {
         }
       | Constructor("List", _) =>
         switch (Exp.term_of(arg)) {
-        | ListLit(elements) =>
+        | ListLit(elements, _) =>
           elements
           |> List.map(exp_to_yojson)
           |> Result.all
@@ -120,7 +120,7 @@ module JsonADT = {
         }
       | Constructor("Assoc", _) =>
         switch (Exp.term_of(arg)) {
-        | ListLit(elements) =>
+        | ListLit(elements, _) =>
           elements
           |> List.map(convert_assoc_pair)
           |> Result.all
