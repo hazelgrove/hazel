@@ -355,27 +355,6 @@ let dynamic_ids_and_printed =
   };
 };
 
-/* Carved out of the two properties below: `Typ.all_ids` reaches into a
-   `proof_of`'s expression, including type annotations the printer hides, and
-   printing that expression mints ids the type padding never supplied, so
-   neither direction holds for it yet. */
-let contains_proof_of = (typ: Typ.t): bool => {
-  let found = ref(false);
-  let _ =
-    Typ.map_term(
-      ~f_typ=
-        (cont, ty) => {
-          switch (Typ.term_of(ty)) {
-          | ProofOf(_) => found := true
-          | _ => ()
-          };
-          cont(ty);
-        },
-      typ,
-    );
-  found^;
-};
-
 /* SOUNDNESS. Every id in the set must appear somewhere in the segment. An id that
    appears nowhere describes nothing, and means the dynamic_ids and the segment were
    computed from different types. */
@@ -388,7 +367,6 @@ let qcheck_dynamic_ids_are_emitted =
       QCheck_Util.arb_typ_full(~minimal_idents=false, 5),
     ),
     ((static_typ, dynamic_typ)) => {
-      QCheck.assume(!contains_proof_of(dynamic_typ));
       let {dynamic_ids, emitted, _} =
         dynamic_ids_and_printed(~static_typ, ~dynamic_typ);
       Id.Set.subset(dynamic_ids, emitted);
@@ -417,7 +395,6 @@ let qcheck_fully_dynamic_colours_everything =
         | _ => true
         },
       );
-      QCheck.assume(!contains_proof_of(dynamic_typ));
       let {dynamic_ids, tiles, _} =
         dynamic_ids_and_printed(
           ~static_typ=Typ.fresh(Unknown(Internal)),
