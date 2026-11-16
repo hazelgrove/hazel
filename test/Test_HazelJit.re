@@ -1793,6 +1793,188 @@ let unicode_string_tests = [
   ),
 ];
 
+/* (^ticket(765)) hazeljs-oracles' I Ching, compiled ahead of time: its program as hazeljs joins it (the preamble, then
+   module Name = { body } in for each module, then the tail; ModuleProgram.stitch on js-library-embed), from the oracles'
+   0.0.10 rules. Agreement on a reading and casts, and the whole program's JS printed to the log after the run, between
+   markers, for the oracles' prototype of shipping it compiled */
+let iching_program = {iching|# How a line is cast: three coins, or the yarrow stalks #
+type Method = + Coins + Yarrow in
+# A line, by its value: 6 old yin, 7 young yang, 8 young yin, 9 old yang. Old lines are changing lines. #
+type Line = + OldYin + YoungYang + YoungYin + OldYang in
+# One line cast: the line, its value, and how it came: the three coins (3 heads, 2 tails), or the stalks set aside at each of the three divisions #
+type Cast = (line = Line, value = Int, counts = [Int]) in
+# A trigram, three lines: its number (0 to 7), name and image #
+type Trigram = (number = Int, name = String, image = String) in
+# A hexagram: its number in the King Wen order (1 to 64), and its name #
+type Hexagram = (number = Int, name = String) in
+# The reading so far, from the lines cast, bottom first #
+type Reading = (cast = Int, lower = Trigram, upper = Trigram, primary = Hexagram, changing = [Int], relating = Hexagram) in
+module Lines = {
+# n mod m, for n at least 0 (Hazel has no mod of its own) #
+let modulo : (Int, Int) -> Int = fun (n, m) -> n - (n / m) * m;
+let line_of : Int -> Line = fun v ->
+  if v == 6 then OldYin
+  else if v == 7 then YoungYang
+  else if v == 8 then YoungYin
+  else OldYang;
+let value_of : Line -> Int = fun l ->
+  case l | OldYin => 6 | YoungYang => 7 | YoungYin => 8 | OldYang => 9 end;
+let is_yang : Line -> Bool = fun l ->
+  case l | YoungYang => true | OldYang => true | _ => false end;
+let is_changing : Line -> Bool = fun l ->
+  case l | OldYin => true | OldYang => true | _ => false end;
+# an old line turns into its opposite in the relating hexagram; a young line stays as it is #
+let becomes : Line -> Line = fun l ->
+  case l | OldYin => YoungYang | OldYang => YoungYin | _ => l end;
+let bit : Line -> Int = fun l -> if is_yang(l) then 1 else 0;
+# where the changing lines are, counting from 1 at the bottom #
+let changing_from : ([Line], Int) -> [Int] = fun (ls, i) ->
+  case ls
+  | [] => []
+  | l :: rest =>
+    if is_changing(l) then i :: changing_from(rest, i + 1)
+    else changing_from(rest, i + 1)
+  end;
+let length : [Line] -> Int = fun ls ->
+  case ls | [] => 0 | _ :: rest => 1 + length(rest) end
+} in
+module Casting = {
+# Each way of casting takes three random numbers from the page, each at least 0 and less than 1. #
+# Three coins: heads counts 3 and tails 2, and the line is their sum: 6 with odds 1/8, 7 with 3/8, 8 with 3/8, 9 with 1/8. #
+let coin : Float -> Int = fun u -> if u <. 0.5 then 2 else 3;
+let by_coins : (Float, Float, Float) -> Cast = fun (a, b, c) ->
+  let v = coin(a) + coin(b) + coin(c) in
+  (line = Lines.line_of(v), value = v, counts = [coin(a), coin(b), coin(c)]);
+# The yarrow stalks: of fifty, one is set aside and 49 are used. #
+# A heap counted off by fours leaves 1 to 4 stalks (a heap that divides evenly leaves 4). #
+let leftover : Int -> Int = fun n ->
+  let r = Lines.modulo(n, 4) in if r == 0 then 4 else r;
+# One division of n stalks: split them where u falls, take one from the right heap and hold it, count off each heap by fours; the one held and both leftovers are set aside #
+let divide : (Int, Float) -> Int = fun (n, u) ->
+  let left = 1 + int_of_float(u *. float_of_int(n - 2)) in
+  let right = n - left - 1 in
+  1 + leftover(left) + leftover(right);
+# Three divisions; what is left, counted by fours, is the line. The books give its odds as 1/16 for 6, 5/16 for 7, 7/16 for 8 and 3/16 for 9, which holds when each heap is as likely to leave 1, 2, 3 or 4; a split that falls anywhere, as here, leaves 4 a little less often, and 6 comes about 1 time in 20 #
+let by_yarrow : (Float, Float, Float) -> Cast = fun (a, b, c) ->
+  let x = divide(49, a) in
+  let y = divide(49 - x, b) in
+  let z = divide(49 - x - y, c) in
+  let v = (49 - x - y - z) / 4 in
+  (line = Lines.line_of(v), value = v, counts = [x, y, z]);
+let cast : (Method, Float, Float, Float) -> Cast = fun (m, a, b, c) ->
+  case m | Coins => by_coins(a, b, c) | Yarrow => by_yarrow(a, b, c) end
+} in
+module Book = {
+# The eight trigrams, numbered by their lines from the bottom, a yang line counting 1, 2 and 4 #
+let trigrams : [Trigram] = [
+  (number = 0, name = "Kun", image = "earth"),
+  (number = 1, name = "Zhen", image = "thunder"),
+  (number = 2, name = "Kan", image = "water"),
+  (number = 3, name = "Dui", image = "lake"),
+  (number = 4, name = "Gen", image = "mountain"),
+  (number = 5, name = "Li", image = "fire"),
+  (number = 6, name = "Xun", image = "wind"),
+  (number = 7, name = "Qian", image = "heaven")
+];
+# The King Wen number of each hexagram: row by its upper trigram, column by its lower, in the trigrams' order #
+let king_wen : [Int] = [
+  2, 24, 7, 19, 15, 36, 46, 11,
+  16, 51, 40, 54, 62, 55, 32, 34,
+  8, 3, 29, 60, 39, 63, 48, 5,
+  45, 17, 47, 58, 31, 49, 28, 43,
+  23, 27, 4, 41, 52, 22, 18, 26,
+  35, 21, 64, 38, 56, 30, 50, 14,
+  20, 42, 59, 61, 53, 37, 57, 9,
+  12, 25, 6, 10, 33, 13, 44, 1
+];
+let names : [String] = [
+  "Qian, the Creative", "Kun, the Receptive", "Zhun, Difficulty at the Beginning", "Meng, Youthful Folly",
+  "Xu, Waiting", "Song, Conflict", "Shi, the Army", "Bi, Holding Together",
+  "Xiao Chu, Small Taming", "Lu, Treading", "Tai, Peace", "Pi, Standstill",
+  "Tong Ren, Fellowship", "Da You, Great Possession", "Qian, Modesty", "Yu, Enthusiasm",
+  "Sui, Following", "Gu, Work on the Decayed", "Lin, Approach", "Guan, Contemplation",
+  "Shi He, Biting Through", "Bi, Grace", "Bo, Splitting Apart", "Fu, Return",
+  "Wu Wang, Innocence", "Da Chu, Great Taming", "Yi, Nourishment", "Da Guo, Great Exceeding",
+  "Kan, the Abysmal (Water)", "Li, the Clinging (Fire)", "Xian, Influence", "Heng, Duration",
+  "Dun, Retreat", "Da Zhuang, Great Power", "Jin, Progress", "Ming Yi, Darkening of the Light",
+  "Jia Ren, the Family", "Kui, Opposition", "Jian, Obstruction", "Xie, Deliverance",
+  "Sun, Decrease", "Yi, Increase", "Guai, Breakthrough", "Gou, Coming to Meet",
+  "Cui, Gathering Together", "Sheng, Pushing Upward", "Kun, Oppression", "Jing, the Well",
+  "Ge, Revolution", "Ding, the Cauldron", "Zhen, the Arousing (Thunder)", "Gen, Keeping Still (Mountain)",
+  "Jian, Development", "Gui Mei, the Marrying Maiden", "Feng, Abundance", "Lu, the Wanderer",
+  "Xun, the Gentle (Wind)", "Dui, the Joyous (Lake)", "Huan, Dispersion", "Jie, Limitation",
+  "Zhong Fu, Inner Truth", "Xiao Guo, Small Exceeding", "Ji Ji, After Completion", "Wei Ji, Before Completion"
+];
+let nth_int : ([Int], Int) -> Int = fun (xs, i) ->
+  case xs | [] => 0 | x :: rest => if i == 0 then x else nth_int(rest, i - 1) end;
+let nth_name : ([String], Int) -> String = fun (xs, i) ->
+  case xs | [] => "" | x :: rest => if i == 0 then x else nth_name(rest, i - 1) end;
+let nth_trigram : ([Trigram], Int) -> Trigram = fun (ts, i) ->
+  case ts
+  | [] => (number = 0 - 1, name = "", image = "")
+  | t :: rest => if i == 0 then t else nth_trigram(rest, i - 1)
+  end;
+let trigram : (Line, Line, Line) -> Trigram = fun (a, b, c) ->
+  nth_trigram(trigrams, Lines.bit(a) + 2 * Lines.bit(b) + 4 * Lines.bit(c));
+let hexagram : (Trigram, Trigram) -> Hexagram = fun (lower, upper) ->
+  let k = nth_int(king_wen, upper.number * 8 + lower.number) in
+  (number = k, name = nth_name(names, k - 1));
+# not yet cast #
+let none : Trigram = (number = 0 - 1, name = "", image = "");
+let unknown : Hexagram = (number = 0, name = "")
+} in
+module Reading = {
+# The reading so far, from the lines cast, bottom first: after three lines, the lower trigram; after six, the hexagram, its changing lines, and the relating hexagram they turn it into #
+let reading : [Line] -> Reading = fun ls ->
+  let changing = Lines.changing_from(ls, 1) in
+  case ls
+  | a :: b :: c :: d :: e :: f :: _ =>
+    let lo = Book.trigram(a, b, c) in
+    let up = Book.trigram(d, e, f) in
+    let lo2 = Book.trigram(Lines.becomes(a), Lines.becomes(b), Lines.becomes(c)) in
+    let up2 = Book.trigram(Lines.becomes(d), Lines.becomes(e), Lines.becomes(f)) in
+    (cast = 6, lower = lo, upper = up, primary = Book.hexagram(lo, up), changing = changing,
+     relating = case changing | [] => Book.unknown | _ => Book.hexagram(lo2, up2) end)
+  | a :: b :: c :: _ =>
+    (cast = Lines.length(ls), lower = Book.trigram(a, b, c), upper = Book.none, primary = Book.unknown,
+     changing = changing, relating = Book.unknown)
+  | _ =>
+    (cast = Lines.length(ls), lower = Book.none, upper = Book.none, primary = Book.unknown,
+     changing = changing, relating = Book.unknown)
+  end
+} in
+|iching};
+let iching_tail = "(cast = Casting.cast, reading = Reading.reading)";
+let iching_tests = [
+  agreement(
+    "the I Ching: a reading of six lines, two changing",
+    iching_program
+    ++ "Reading.reading([OldYang, YoungYang, YoungYin, YoungYang, OldYin, YoungYin])",
+  ),
+  agreement(
+    "the I Ching: a reading of three lines",
+    iching_program ++ "Reading.reading([YoungYin, YoungYang, YoungYang])",
+  ),
+  agreement(
+    "the I Ching: casts by coins and by yarrow",
+    iching_program
+    ++ "(Casting.cast(Coins, 0.3, 0.6, 0.1), Casting.cast(Yarrow, 0.3, 0.6, 0.1), Casting.cast(Yarrow, 0.9, 0.05, 0.5))",
+  ),
+  test_case(
+    "the I Ching compiles whole, its JS printed after the run",
+    `Quick,
+    () => {
+      let js = compiled_src(iching_program ++ iching_tail);
+      at_exit(() => {
+        print_endline("HAZEL-JIT-ICHING-BEGIN");
+        print_endline(js);
+        print_endline("HAZEL-JIT-ICHING-END");
+        flush(stdout);
+      });
+    },
+  ),
+];
+
 let tests = (
   "HazelJit",
   invalid_tests
@@ -1804,6 +1986,7 @@ let tests = (
   @ undefined_tests
   @ label_tests
   @ unicode_string_tests
+  @ iching_tests
   @ [
     agreement("arithmetic", "1 + 2 * 3 - 4 / 2"),
     agreement("floats", "1.5 *. 2. +. 0.25"),
