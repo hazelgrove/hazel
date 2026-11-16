@@ -132,7 +132,7 @@ module Rules = {
         | None => Names.add(x, acc)
         },
       names.vars,
-      names.sealed,
+      Names.union(names.ctrs, names.sealed),
     );
   };
 
@@ -528,6 +528,46 @@ let tests = (
             Exp.var("x"),
           );
         check(exp, "x -> 1 in let x = (x, 2) in x", expected, result);
+      },
+    ),
+    /* Substituting a constructor under a module binding of the same name:
+       read back by name, `let A = 1 in A` would make `A` the binding. The
+       binder is renamed, with a digit (a capitalized name can't take a
+       prime). Checked by name: `exp` compares up to renaming. */
+    test_case(
+      "y -> A in let A = 1 in y renames the binder to A2",
+      `Quick,
+      () => {
+        let env = Environment.of_list([("y", Exp.constructor("A", None))]);
+        let expr = Exp.let_(Pat.var("A"), Exp.int(1), Exp.var("y"));
+        let result = Substitution.in_exp(env, expr);
+        switch (result.term) {
+        | Let({term: Var(binder), _}, _, {term: Constructor(c, _), _}) =>
+          check(string, "renamed binder", "A2", binder);
+          check(string, "the constructor is unchanged", "A", c);
+        | _ =>
+          fail("expected let A2 = 1 in A, got " ++ Language.Exp.show(result))
+        };
+      },
+    ),
+    test_case(
+      "Renamed names stay names of the same kind",
+      `Quick,
+      () => {
+        check(string, "x", "x'", Var.next_name("x"));
+        check(string, "A", "A2", Var.next_name("A"));
+        check(string, "A2", "A3", Var.next_name("A2"));
+        check(string, "A9", "A10", Var.next_name("A9"));
+        check(string, "B12x", "B12x2", Var.next_name("B12x"));
+        /* Any uppercase or titlecase letter starts a constructor name. */
+        check(string, "Ä", "Ä2", Var.next_name("Ä"));
+        check(string, "ǅ", "ǅ2", Var.next_name("ǅ"));
+        check(
+          bool,
+          "Ä2 is a constructor name",
+          true,
+          Token.is_ctr(Var.next_name("Ä")),
+        );
       },
     ),
     QCheck_alcotest.to_alcotest(Rules.property),

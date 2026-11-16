@@ -20,6 +20,9 @@
    or sealed further in), so nothing outside the closure reaches it. Sealed
    is sealed: nesting needs no levels.
 
+ A constructor name is open, but no substitution replaces it; a capitalized
+ binder (`module A`) captures it once the term is read back by name.
+
  Substituting an environment into a term (Substitution.in_exp) replaces the
  term's open variables, and sealed names pass through. An entry `x ↦ x`
  replaces nothing. A closure is expanded with its own environment, and a
@@ -35,28 +38,32 @@
 
  Expressions inside types (`proof_of`) are outside these rules.
 
- `exp` sorts a term's free names: `vars` are its open variables, `sealed` its
- sealed names. */
+ `exp` sorts a term's free names: `vars` and `ctrs` are its open variables
+ and constructor names, `sealed` its sealed names. */
 
 module Names = Util.Sets.StringSet;
 
 type t = {
   vars: Names.t,
+  ctrs: Names.t,
   sealed: Names.t,
 };
 
 let empty = {
   vars: Names.empty,
+  ctrs: Names.empty,
   sealed: Names.empty,
 };
 
 let union = (a: t, b: t): t => {
   vars: Names.union(a.vars, b.vars),
+  ctrs: Names.union(a.ctrs, b.ctrs),
   sealed: Names.union(a.sealed, b.sealed),
 };
 
 /* Every name free in the term, of either kind. */
-let all = (names: t): Names.t => Names.union(names.vars, names.sealed);
+let all = (names: t): Names.t =>
+  Names.union(names.vars, Names.union(names.ctrs, names.sealed));
 
 /* The value `env` puts in place of `x`, if it replaces `x`. */
 let replacement = (env: Environment.t(Exp.t), x: Var.t): option(Exp.t) =>
@@ -81,6 +88,7 @@ let rec exp = (~memo: option(Memo.t(t))=?, e: Exp.t): t =>
     /* Names met directly, and the names of the parts below a binder or in
        a closure, combined once at the end. */
     let vars = ref([]);
+    let ctrs = ref([]);
     let parts = ref([]);
     let add = names => parts := [names, ...parts^];
     let under = (p: Pat.t, body: Exp.t) => {
@@ -103,6 +111,9 @@ let rec exp = (~memo: option(Memo.t(t))=?, e: Exp.t): t =>
             | Var(x) =>
               vars := [x, ...vars^];
               e;
+            | Constructor(c, _) =>
+              ctrs := [c, ...ctrs^];
+              e;
             | Fun(p, body, _, _)
             | Forall(p, body)
             | FixF(p, body, None) =>
@@ -124,7 +135,6 @@ let rec exp = (~memo: option(Memo.t(t))=?, e: Exp.t): t =>
               add(seal(~memo?, env, under(p, body)));
               e;
             | Invalid(_)
-            | Constructor(_)
             | EmptyHole
             | MultiHole(_)
             | Deferral(_)
@@ -170,6 +180,7 @@ let rec exp = (~memo: option(Memo.t(t))=?, e: Exp.t): t =>
         union,
         {
           vars: Names.of_list(vars^),
+          ctrs: Names.of_list(ctrs^),
           sealed: Names.empty,
         },
         parts^,
@@ -191,6 +202,6 @@ and seal =
         | None => Names.add(x, sealed)
         },
       inner.vars,
-      inner.sealed,
+      Names.union(inner.ctrs, inner.sealed),
     ),
 };
