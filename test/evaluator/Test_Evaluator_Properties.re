@@ -1285,6 +1285,68 @@ let repro_explicit_nonlabel_incremental =
     },
   );
 
+/* Preservation as the property checks it: one step, the stepped term
+   re-checked with no ambient mode, its type at least as precise. */
+let one_step_preserves = (src: string) => {
+  let uexp = Canonicalize.exp(parse_exp(src));
+  let (statics, elab) =
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), uexp);
+  let orig_ty = elaborated_type(statics, uexp);
+  switch (single_step(elab)) {
+  /* As in the property: a final term has nothing to preserve. */
+  | None => ()
+  | Some(next) =>
+    let (statics', _) =
+      Statics.mk(CoreSettings.on, Builtins.ctx_init(None), next);
+    switch (Statics.Map.ty_of(next.annotation.ids |> List.hd_exn, statics')) {
+    | None => fail(src ++ ": no type for the stepped term")
+    | Some(ty) =>
+      check(
+        bool,
+        src
+        ++ ": "
+        ++ QCheck_Util.show_core_typ(ty)
+        ++ " (after a step) is at least as precise as "
+        ++ QCheck_Util.show_core_typ(orig_ty),
+        true,
+        Typ.is_more_precise(Ctx.empty, ty, orig_ty),
+      )
+    };
+  };
+};
+
+let survey_tests = [
+  /* Negation's kind decided by the context, then re-decided by the operand
+     once a step exposes it. */
+  test_case("Preservation: - undefined:Float:?_?", `Quick, () =>
+    one_step_preserves("- undefined:Float:?_?")
+  ),
+  test_case("Preservation: negating a case that yields a float", `Quick, () =>
+    one_step_preserves("- case _ | ? => 1.5| ? => proof_object x end end")
+  ),
+  /* And the negation chosen first must be the right one. */
+  test_case("Negating a float literal is float negation", `Quick, () =>
+    check(
+      testable_core_exp,
+      "-1.5",
+      parse_and_evaluate("-1.5"),
+      parse_and_evaluate("- 1.5"),
+    )
+  ),
+  test_case("A float-annotated negation is float negation", `Quick, () =>
+    check(
+      testable_core_exp,
+      "-5.",
+      parse_and_evaluate("-5."),
+      parse_and_evaluate("let x : Float = -5 in x"),
+    )
+  ),
+  /* A `fix` stepping to a bare `_` in an argument slot. */
+  test_case("Preservation: ()(_, fix _ -> _, _, `a`)", `Quick, () =>
+    one_step_preserves("()(_, fix _ -> _, _, `a`)")
+  ),
+];
+
 let tests = (
   "Evaluator.Properties",
   [
@@ -1352,5 +1414,6 @@ let tests = (
     incremental_reused_function_regression_test,
     preservation_rec_unused_binder_pin,
   ]
-  @ incremental_recursive_lets_tests,
+  @ incremental_recursive_lets_tests
+  @ survey_tests,
 );

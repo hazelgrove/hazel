@@ -622,6 +622,33 @@ let found_cause_tests = [
   Alcotest.test_case("Elaboration ids persist: ():: []", `Quick, () =>
     no_nested_id_drift("():: []")
   ),
+  /* A placeholder `_` outside an application, behind a type alias that
+     elaboration erases, must not become a second placeholder. */
+  Alcotest.test_case(
+    "Elaboration preserves type: _(_, (type t = Int in _))", `Quick, () =>
+    check_elaboration_preserves_type(parse("_(_, (type t = Int in _))"))
+  ),
+  Alcotest.test_case(
+    "Sub-expression synthesis: _(_, (type ? = () in _))", `Quick, () =>
+    check_no_violations(
+      ~violations=differing_subs,
+      ~show=show_syn_disagreement,
+      ~msg=
+        "every sub-expression's recorded elab_syn_ty agrees with a fresh synthesis",
+      parse("_(_, (type ? = () in _))"),
+    )
+  ),
+  /* A negation's kind must not be re-decided when its elaboration is
+     re-checked. */
+  Alcotest.test_case("Sub-expression synthesis: () <= - 0.000002", `Quick, () =>
+    check_no_violations(
+      ~violations=differing_subs,
+      ~show=show_syn_disagreement,
+      ~msg=
+        "every sub-expression's recorded elab_syn_ty agrees with a fresh synthesis",
+      parse("() <= - 0.000002"),
+    )
+  ),
 ];
 
 let tests = (
