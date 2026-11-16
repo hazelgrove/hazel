@@ -1307,6 +1307,14 @@ let survey_tests = [
   test_case("Preservation: ()(_, fix _ -> _, _, `a`)", `Quick, () =>
     one_step_preserves("()(_, fix _ -> _, _, `a`)")
   ),
+  /* Stepping substitutes a constructor under a module binding of the same
+     name; read back by name, it would mean the module. */
+  test_case("Preservation: let y = A in module A = 1 in y", `Quick, () =>
+    one_step_preserves("let y = A in module A = 1 in y")
+  ),
+  test_case("Preservation: { module y = A; module A = 1 }", `Quick, () =>
+    one_step_preserves("{ module y = A; module A = 1 }")
+  ),
 ];
 
 let tests = (
