@@ -1771,6 +1771,24 @@ let label_tests = [
   agreement("omit_labels", "omit_labels((a=1, b=2, c=3), `a`, `b`)"),
 ];
 
+/* (^ticket(761), found 11-16) strings beyond ASCII, which the evaluator's tests never use: lengths and offsets in
+   graphemes, as HazelString counts them (an emoji, an e with a combining accent, a flag of two code points) */
+let unicode_string_tests = [
+  agreement(
+    "string_length in graphemes",
+    "(string_length(\"\u{1F44B}\"), string_length(\"e\u{301}\"), string_length(\"h\u{e9}llo\"), string_length(\"\u{1F1FA}\u{1F1F8}\"))",
+  ),
+  agreement(
+    "string_sub in graphemes",
+    "string_sub(\"\u{1F44B}h\u{e9}llo\", 1, 3)",
+  ),
+  agreement("string_sub out of range", "string_sub(\"abc\", 2, 5)"),
+  agreement(
+    "string_split, a separator and none",
+    "(string_split(\",\", \"a,b,,c\"), string_split(\"\", \"\u{1F44B}e\u{301}x\"))",
+  ),
+];
+
 let tests = (
   "HazelJit",
   invalid_tests
@@ -1781,6 +1799,7 @@ let tests = (
   @ step_limit_tests
   @ undefined_tests
   @ label_tests
+  @ unicode_string_tests
   @ [
     agreement("arithmetic", "1 + 2 * 3 - 4 / 2"),
     agreement("floats", "1.5 *. 2. +. 0.25"),
