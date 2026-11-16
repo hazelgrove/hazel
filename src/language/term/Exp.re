@@ -62,6 +62,20 @@ let fast_equal =
     exp;
 let equal = fast_equal;
 
+/* Whether two terms are the same term, one of them perhaps reached at
+   runtime: a list built along another path carries a different element
+   type, which is not part of the term. */
+let fast_equal_ignoring_list_types =
+  Equality.(
+    equality({
+      ...syntactic_settings,
+      ignore_parens: true,
+      ignore_projectors: true,
+      ignore_list_types: true,
+    })
+  ).
+    exp;
+
 /* In-order trace of annotation lexemes. Paired with fast_equal (which
    guarantees aligned structure), comparing traces detects lexeme-only
    differences — e.g. editing an unknown operator @@ -> @@@ changes

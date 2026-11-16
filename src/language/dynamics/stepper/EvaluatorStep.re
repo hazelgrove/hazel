@@ -163,9 +163,9 @@ let rec matches =
       | Parens(ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Parens(ctx) |> rewrap;
-      | ListLit(ctx, ds) =>
+      | ListLit(ctx, ds, ty) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        ListLit(ctx, ds) |> rewrap;
+        ListLit(ctx, ds, ty) |> rewrap;
       | Cons1(ctx, d2) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Cons1(ctx, d2) |> rewrap;

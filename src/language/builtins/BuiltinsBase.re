@@ -436,7 +436,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
             Some(s);
           };
         let-unbox s1 = (Atom(String), d1);
-        let-unbox xs = (ListLit, d2);
+        let-unbox (xs, _) = (ListLit, d2);
         let* xs' = List.map(~f=string_of, xs) |> Util.OptUtil.sequence;
         Some(Exp.string(String.concat(~sep=s1, xs')));
       }),
@@ -481,7 +481,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
         let-unbox sep = (Atom(String), d1);
         let-unbox s = (Atom(String), d2);
         let parts = HazelString.split(sep, s) |> List.map(~f=s => string(s));
-        Some(list_lit(parts));
+        Some(list_lit(~ty=Typ.string(), parts));
       }),
     custom_statics: None,
   },

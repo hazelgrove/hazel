@@ -457,5 +457,7 @@ let roundtrip_eq =
       ignore_parens: true,
       /* Projector wrappers are print-invisible. */
       ignore_projectors: true,
+      /* Evaluated lists carry their element type, which text can't write. */
+      ignore_list_types: true,
     })
   );

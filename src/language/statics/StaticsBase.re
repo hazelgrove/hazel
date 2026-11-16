@@ -393,6 +393,23 @@ let prepend_pat_mark =
   };
 };
 
+/* An elaborated term carries no user alias: the runtime reads its types
+   with no context to look one up in. Types elaboration inserts go through
+   here. A builtin alias stays compact, as Typ.canonicalize leaves it:
+   expanding a large builtin sum at every inserted type made such programs
+   slow. */
+let elab_typ = (ctx: Ctx.t, ty: Typ.t): Typ.t =>
+  Typ.normalize(
+    ~expand=
+      name =>
+        switch (Ctx.lookup_tvar_id(ctx, name)) {
+        | Some(id) => !Id.equal(id, Id.invalid)
+        | None => false
+        },
+    ctx,
+    ty,
+  );
+
 /* Add an ascription wrapper if the types differ after normalization. */
 let fresh_ascription = (ctx: Ctx.t, d: Exp.t, t: Typ.t, t': option(Typ.t)) => {
   switch (t') {
@@ -405,7 +422,7 @@ let fresh_ascription = (ctx: Ctx.t, d: Exp.t, t: Typ.t, t': option(Typ.t)) => {
     IdTagged.derived(
       ~salt="elab-ascription",
       Exp.rep_id(d),
-      Asc(d, ty): Exp.term,
+      Asc(d, elab_typ(ctx, ty)): Exp.term,
     )
   | _ => d
   };

@@ -254,7 +254,7 @@ module F =
             | (None, Calc.Calculated(last_exp)) => Some(last_exp)
             | (Some(acc), Calc.Pending) => Some(acc)
             | (Some(acc), Calc.Calculated(last_exp))
-                when Exp.fast_equal(acc, last_exp) =>
+                when Exp.fast_equal_ignoring_list_types(acc, last_exp) =>
               Some(acc)
             | (Some(_), Calc.Calculated(_)) => Some(Exp.fresh(EmptyHole))
             },

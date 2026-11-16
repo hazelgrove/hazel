@@ -81,6 +81,9 @@ type settings = {
   ignore_dynamic_errors: bool,
   ignore_function_types: bool,
   ignore_constructor_types: bool,
+  /* A list literal's element type, which only an elaborated or evaluated
+     list carries. */
+  ignore_list_types: bool,
   ignore_function_names: bool,
   ignore_explicit_unlabelling: bool, // TupLabel(ExplicitNonlabel, e) ≈ e
   closures_by_id: bool, /* Currently "false" option is not implemented.
@@ -109,6 +112,7 @@ let equality =
         ignore_dynamic_errors,
         ignore_function_types,
         ignore_constructor_types,
+        ignore_list_types,
         ignore_function_names,
         ignore_explicit_unlabelling,
         closures_by_id,
@@ -361,8 +365,10 @@ let equality =
     | (Tuple(xs1), Tuple(xs2)) when List.length(xs1) == List.length(xs2) =>
       List.equal(exp', xs1, xs2)
     | (Tuple(_), _) => false
-    | (ListLit(xs1), ListLit(xs2)) when List.length(xs1) == List.length(xs2) =>
+    | (ListLit((xs1, t1)), ListLit((xs2, t2)))
+        when List.length(xs1) == List.length(xs2) =>
       List.equal(exp', xs1, xs2)
+      && (ignore_list_types || Option.equal(typ', t1, t2))
     | (ListLit(_), _) => false
     | (Use(t1, e1), Use(t2, e2)) => typ'(t1, t2) && exp'(e1, e2)
     | (Use(_, _), _) => false
@@ -941,6 +947,7 @@ let syntactic_settings = {
   ignore_ascriptions: false,
   ignore_function_types: false,
   ignore_constructor_types: false,
+  ignore_list_types: false,
   ignore_function_names: false,
   ignore_explicit_unlabelling: false,
   closures_by_id: true,
@@ -964,6 +971,7 @@ let semantic_settings = {
   ignore_ascriptions: false,
   ignore_function_types: false,
   ignore_constructor_types: false,
+  ignore_list_types: true,
   ignore_function_names: true,
   ignore_explicit_unlabelling: true,
   closures_by_id: true, // Ideally substitute all closures before using semantic equality

@@ -14,6 +14,7 @@ let dhexp_typ =
         ignore_parens: true,
         ignore_projectors: true,
         ignore_unknown_provenance: true,
+        ignore_list_types: true,
       })
     ).
       exp,
@@ -63,7 +64,7 @@ let adt_node_ids = exp => {
     | Tuple(es) =>
       ids := [Exp.rep_id(e), ...ids^];
       List.iter(~f=go, es);
-    | ListLit(es) => List.iter(~f=go, es)
+    | ListLit((es, _)) => List.iter(~f=go, es)
     | TupLabel(label, body) =>
       go(label);
       go(body);

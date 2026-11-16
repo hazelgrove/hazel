@@ -1756,10 +1756,47 @@ let lexeme_edit_test =
     },
   );
 
+/* Changes the `Int`s in a program's types to `String`, keeping every id: an
+   edit to an annotation alone. */
+let retype_int_to_string = (exp: Exp.t): Exp.t =>
+  TermBase.Exp.map_term(
+    ~f_typ=
+      (continue, t: Typ.t) =>
+        switch (t.term) {
+        | Atom(Int) => {
+            ...t,
+            term: Atom(String),
+          }
+        | _ => continue(t)
+        },
+    exp,
+  );
+
+/* Only the annotation changes, so the `[]` keeps its id while its
+   elaboration carries a new element type. */
+let test_list_annotation_edit = () => {
+  let exp = parse_exp("let xs : [Int] = [] in xs");
+  let (_, _, incr) = eval_incr(exp);
+  let (result, _, _) = eval_incr(~prev=incr, retype_int_to_string(exp));
+  let (statics, _) =
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(None), result);
+  check(
+    option(testable(Fmt.using(Typ.show, Fmt.string), Typ.fast_equal)),
+    "the result's type",
+    Some(List(Atom(String) |> Typ.fresh) |> Typ.fresh),
+    Statics.Map.ty_of(Exp.rep_id(result), statics),
+  );
+};
+
 let tests = (
   "Evaluator.Incremental",
   [
     lexeme_edit_test,
+    test_case(
+      "Editing a list's annotation re-evaluates the list it types",
+      `Quick,
+      test_list_annotation_edit,
+    ),
     test_case(
       "Top-level cast call: incremental reuse preserves result",
       `Quick,

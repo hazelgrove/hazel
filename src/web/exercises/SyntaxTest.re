@@ -68,7 +68,7 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
     l |> find_in_let(name, up, def) |> find_fn(name, body)
   | Theorem(up, def, body) =>
     l |> find_in_let(name, up, def) |> find_fn(name, body)
-  | ListLit(ul)
+  | ListLit((ul, _))
   | Tuple(ul) =>
     List.fold_left(~f=(acc, u1) => {find_fn(name, u1, acc)}, ~init=l, ul)
   | TypFun(_, body, _)
@@ -221,7 +221,7 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
     || (var_mention_mpat(name, mp) ? false : var_mention(name, body))
   | Fun(args, body, _, _) =>
     var_mention_upat(name, args) ? false : var_mention(name, body)
-  | ListLit(l)
+  | ListLit((l, _))
   | Tuple(l) =>
     List.fold_left(
       ~f=(acc, ue) => {acc || var_mention(name, ue)},
@@ -320,7 +320,7 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
     var_mention_upat(name, args) ? false : var_applied(name, body)
   | Forall(args, body) =>
     var_mention_upat(name, args) ? false : var_applied(name, body)
-  | ListLit(l)
+  | ListLit((l, _))
   | Tuple(l) =>
     List.fold_left(
       ~f=(acc, ue) => {acc || var_applied(name, ue)},
@@ -456,7 +456,7 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
     var_mention_upat(name, p) || var_mention(name, thm)
       ? false : tail_check(name, body)
   | ProofObject(_) => false
-  | ListLit(l)
+  | ListLit((l, _))
   | Tuple(l) =>
     //If l has no recursive calls then true
     !
