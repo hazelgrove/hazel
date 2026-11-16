@@ -1764,6 +1764,19 @@ let label_tests = [
     "a reverse application, and one to a constructor",
     "let inc = fun x -> x + 1 in (41 |> inc, 3 |> Some)",
   ),
+  /* (^ticket(765)) labels a JS array already has a use for: kept under another key (HazelJit.label_key) */
+  agreement(
+    "a label named length",
+    "let r = (length = 3, width = 4) in (r.length * r.width, r)",
+  ),
+  agreement(
+    "a label named length, in a pattern",
+    "let (length = n, width = w) = (length = 5, width = 2) in n * w",
+  ),
+  agreement(
+    "a module's member named length",
+    "module M = { let length = fun xs -> case xs | [] => 0 | _ :: r => 1 + length(r) end } in M.length([1, 2, 3])",
+  ),
   agreement("a tuple extended", "(a=1, b=2) ... (c=3)"),
   agreement("an unlabeled tuple extended", "(1, 2) ... (3, 4)"),
   agreement("an extension replacing a label", "(a=0, b=2) ... (a=1, 3, c=4)"),
@@ -1975,6 +1988,30 @@ let iching_tests = [
   ),
 ];
 
+/* (^ticket(758); Matthew, 2026-11-16: "Yes, 32 bits") an SInt has 32 bits in the interpreter and here alike: a result past
+   them stops both runs at IntegerOverflow (a value too big made into an SInt, at IntegerTooBig); within them, as before */
+let sint_tests = [
+  agreement(
+    "an SInt sum past 32 bits stops at IntegerOverflow",
+    "use SInt in 2147483647 + 1",
+  ),
+  agreement(
+    "an SInt difference past 32 bits",
+    "use SInt in 0 - 2147483647 - 2",
+  ),
+  agreement("an SInt product past 32 bits", "use SInt in 65536 * 65536"),
+  agreement("an SInt power past 32 bits", "use SInt in 2 ** 31"),
+  agreement(
+    "the least SInt divided by -1",
+    "use SInt in (0 - 2147483647 - 1) / (0 - 1)",
+  ),
+  agreement("an Int too big for an SInt", "sint_of_int(3000000000)"),
+  agreement(
+    "SInt at the edges of 32 bits, unchanged",
+    "use SInt in (2147483646 + 1, 46340 * 46340, 2 ** 30, (0 - 2147483647 - 1) / 2, 0 - 2147483647 - 1)",
+  ),
+];
+
 let tests = (
   "HazelJit",
   invalid_tests
@@ -1987,6 +2024,7 @@ let tests = (
   @ label_tests
   @ unicode_string_tests
   @ iching_tests
+  @ sint_tests
   @ [
     agreement("arithmetic", "1 + 2 * 3 - 4 / 2"),
     agreement("floats", "1.5 *. 2. +. 0.25"),

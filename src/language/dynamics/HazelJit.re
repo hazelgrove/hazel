@@ -1,13 +1,14 @@
 /* hazel-jit (^ticket(694); Matthew, 2026-11-05 and 06: "Reason code (hazel-jit let's call this component and code for it)
    compile some hazel ast into a mostly-equivalent JS code and call that instead"): an elaborated Hazel term compiled to the
-   source text of a JavaScript function, for the best case of how much faster JS could run some Hazel code. Numbers are JS's
-   (overflow and rounding may differ from Hazel's: allowed, for the best case). A form it does not compile raises
+   source text of a JavaScript function, for the best case of how much faster JS could run some Hazel code. Its numbers are
+   Hazel's (^ticket(756)): Int and Nat exact, SInt 32 bits with each result checked, Float a double. A form it does not compile raises
    Unsupported(reason), and the caller runs the term on the interpreter as before.
 
    Values in JS:
      Int, Nat               exact, as the interpreter's Bigint (^ticket(757)): a JS number while it is a safe integer
                             (|n| <= 2^53 - 1), a BigInt past that, every result normalized, so === still compares
-     SInt, Float            a JS number
+     SInt                   a JS number within 32 bits, each result checked (^ticket(758)): outside, IntegerOverflow
+     Float                  a JS number
      Bool, String           a JS boolean, a JS string
      a tuple                a JS array of its components; a labeled component is also a property of the array, by its label
      a list                 null for [], {h, t} for a cons, so :: is O(1)
@@ -113,9 +114,15 @@ module Runtime = {
      caller falls back to the interpreter, as for an invalid operation. Not reached (List.head's empty case, on a list
      with a head), it costs nothing. */
   indet(what) { const e = new Error("hazel-jit: indeterminate: " + what); e.$indet = what; throw e; },
-  /* (^ticket(759)) SInt's division and power, with the interpreter's errors (its width, its overflow: ^ticket(758)) */
-  sdiv(a, b) { if (b === 0) this.invalid("DivideByZero"); return Math.trunc(a / b); },
-  spow(a, b) { if (b < 0) this.invalid("NegativeExponent"); return a ** b; },
+  /* (^ticket(758); Matthew, 2026-11-16: "Yes, 32 bits") An SInt has 32 bits, as in the interpreter (Atom.sint_fits): a
+     result outside [-2^31, 2^31 - 1] stops the run at IntegerOverflow, where the interpreter's run is stuck at it. Exact for
+     32-bit operands' sums; a product past 2^53 is not exact, but surely outside. (-0 is 0, as an int has no -0.) */
+  s32(r) { if (r > 2147483647 || r < -2147483648) this.invalid("IntegerOverflow"); return r === 0 ? 0 : r; },
+  sadd(a, b) { return this.s32(a + b); }, ssub(a, b) { return this.s32(a - b); },
+  smul(a, b) { return this.s32(a * b); }, sneg(a) { return this.s32(-a); },
+  /* (^ticket(759)) SInt's division and power, with the interpreter's errors; the least SInt by -1 overflows */
+  sdiv(a, b) { if (b === 0) this.invalid("DivideByZero"); return this.s32(Math.trunc(a / b)); },
+  spow(a, b) { if (b < 0) this.invalid("NegativeExponent"); return this.s32(a ** b); },
   /* (^ticket(763); Cyrus, 2026-11-13: "We need a way to limit compiled hazel functions that diverge --- we need a step
      limit. esp if we continue to optimize by including certain jit-compiled hazel functions into the main thread") Each
      compiled function counts its call (fuel, exact) and every 16384 calls reads the clock (deadline): a run past either
@@ -159,8 +166,10 @@ module Runtime = {
     string_of_bool: b => String(b),
     float_of_int: n => Number(n), float_of_sint: n => n, float_of_nat: n => Number(n),
     int_of_float: f => { if (!Number.isFinite(f)) throw new Error("hazel-jit: invalid operation: int_of_float"); const t = Math.trunc(f); return Number.isSafeInteger(t) ? t : BigInt(t); },
-    sint_of_float: f => Math.trunc(f),
-    int_of_sint: n => n, sint_of_int: n => Number(n),
+    /* (^ticket(758)) into an SInt only what fits in 32 bits, as Atom.convert: else IntegerTooBig */
+    sint_of_float: f => { const t = Math.trunc(f); if (!(t >= -2147483648 && t <= 2147483647)) { const e = new Error("hazel-jit: invalid operation: IntegerTooBig"); e.$invalid = "IntegerTooBig"; throw e; } return t === 0 ? 0 : t; },
+    int_of_sint: n => n,
+    sint_of_int: n => { if (n > 2147483647 || n < -2147483648) { const e = new Error("hazel-jit: invalid operation: IntegerTooBig"); e.$invalid = "IntegerTooBig"; throw e; } return Number(n); },
     int_of_string: s => { let r; try { if (s.trim() === "") throw 0; r = BigInt(s); } catch (_) { const e = new Error("hazel-jit: invalid operation: InvalidOfString"); e.$invalid = "InvalidOfString"; throw e; }
       return r <= 9007199254740991n && r >= -9007199254740991n ? Number(r) : r; },
     float_of_string: s => Number(s),
@@ -435,6 +444,18 @@ let body_with_decls = (scope: scope, expr: string): string =>
     "let " ++ String.concat(", ", List.rev(ds)) ++ "; return " ++ expr ++ ";"
   };
 
+/* (^ticket(765), found compiling hazeljs-oracles' I Ching, whose module Lines has a member named length) A label is a
+   property of its tuple's JS array, as is a module's member. A label an array already has a use for, length (which holds
+   only a number: a function there threw "Invalid array length") and __proto__ (its prototype), is kept under the key
+   "$" ++ label instead, and so is any label beginning with $, to keep keys and labels one to one. Every place a label
+   meets JS uses these: the compile here, HazelJitValue both ways, the agreement harness. */
+let label_key = (l: string): string =>
+  l == "length" || l == "__proto__" || String.length(l) > 0 && l.[0] == '$'
+    ? "$" ++ l : l;
+let label_of_key = (k: string): string =>
+  String.length(k) > 1 && k.[0] == '$'
+    ? String.sub(k, 1, String.length(k) - 1) : k;
+
 let label_of = (e: Exp.t): option(string) =>
   switch (Exp.term_of(e)) {
   | Label(name) => Some(name)
@@ -498,7 +519,10 @@ let rec pat =
           switch (Pat.term_of(p)) {
           | TupLabel(l, p') =>
             switch (pat_label_of(l)) {
-            | Some(name) => (v ++ "[" ++ js_string(name) ++ "]", p')
+            | Some(name) => (
+                v ++ "[" ++ js_string(label_key(name)) ++ "]",
+                p',
+              )
             | None => unsupported("a tuple label that is not a name")
             }
           | _ => (v ++ "[" ++ string_of_int(i) ++ "]", p)
@@ -513,7 +537,7 @@ let rec pat =
   | TupLabel(l, p') =>
     switch (pat_label_of(l)) {
     | Some(name) =>
-      pat(st, scope, lex, p', v ++ "[" ++ js_string(name) ++ "]")
+      pat(st, scope, lex, p', v ++ "[" ++ js_string(label_key(name)) ++ "]")
     | None => unsupported("a tuple label that is not a name")
     }
   | Constructor(name, _) => ([v ++ ".c === " ++ js_string(name)], [], lex)
@@ -677,7 +701,7 @@ and exp_inner =
              List.map(
                ((l, _)) =>
                  switch (l) {
-                 | Some(name) => js_string(name)
+                 | Some(name) => js_string(label_key(name))
                  | None => "null"
                  },
                parts,
@@ -688,12 +712,13 @@ and exp_inner =
   | TupLabel(l, e') =>
     switch (label_of(l)) {
     | Some(name) =>
-      "$R.tup([" ++ go(e') ++ "], [" ++ js_string(name) ++ "])"
+      "$R.tup([" ++ go(e') ++ "], [" ++ js_string(label_key(name)) ++ "])"
     | None => unsupported("a tuple label that is not a name")
     }
   | Dot(e1, l) =>
     switch (label_of(l)) {
-    | Some(name) => "(" ++ go(e1) ++ ")[" ++ js_string(name) ++ "]"
+    | Some(name) =>
+      "(" ++ go(e1) ++ ")[" ++ js_string(label_key(name)) ++ "]"
     | None => unsupported("a projection by something other than a label")
     }
   | Constructor(name, t) =>
@@ -852,7 +877,8 @@ and exp_inner =
       );
     "(" ++ tmp ++ " = " ++ go(scrut) ++ ", " ++ arms ++ ")";
   | UnOp(Int(Minus) | Nat(Minus), e) => "$R.ineg(" ++ go(e) ++ ")"
-  | UnOp(SInt(Minus) | Float(Minus), e) => "(-(" ++ go(e) ++ "))"
+  | UnOp(SInt(Minus), e) => "$R.sneg(" ++ go(e) ++ ")"
+  | UnOp(Float(Minus), e) => "(-(" ++ go(e) ++ "))"
   | UnOp(Bool(Not), e) => "(!(" ++ go(e) ++ "))"
   | BinOp(op, a, b) =>
     let (a, b) = (go(a), go(b));
@@ -875,9 +901,9 @@ and exp_inner =
       };
     | SInt(op) =>
       switch (op) {
-      | Plus => infix("+")
-      | Minus => infix("-")
-      | Times => infix("*")
+      | Plus => "$R.sadd(" ++ a ++ ", " ++ b ++ ")"
+      | Minus => "$R.ssub(" ++ a ++ ", " ++ b ++ ")"
+      | Times => "$R.smul(" ++ a ++ ", " ++ b ++ ")"
       | Power => "$R.spow(" ++ a ++ ", " ++ b ++ ")"
       | Divide => "$R.sdiv(" ++ a ++ ", " ++ b ++ ")"
       | LessThan => infix("<")
@@ -1002,7 +1028,7 @@ and exp_inner =
     ++ ")";
   | Undefined => "$R.indet(\"undefined\")"
   /* (^ticket(761)) a label as a value, which the label builtins take: {lab: name} */
-  | Label(name) => "({lab: " ++ js_string(name) ++ "})"
+  | Label(name) => "({lab: " ++ js_string(label_key(name)) ++ "})"
   | TupleExtension(e1, e2) => "$R.ext(" ++ go(e1) ++ ", " ++ go(e2) ++ ")"
   | ExplicitNonlabel
   | LivelitName(_) => unsupported("this kind of term")
@@ -1120,7 +1146,7 @@ and module_ = (st: state, lex, items: list(Mod.t)): string => {
     "$R.tup(["
     ++ String.concat(", ", List.map(x => List.assoc(x, exports), names))
     ++ "], ["
-    ++ String.concat(", ", List.map(js_string, names))
+    ++ String.concat(", ", List.map(x => js_string(label_key(x)), names))
     ++ "])";
   "(() => { "
   ++ body_with_decls(
