@@ -237,5 +237,46 @@ Ok(Lam("yo", Var("yo"))))|},
         ),
       )
     ),
+    /* The stepper substitutes rather than keeping environments, but a term
+       it is handed can still hold a closure: applying it substitutes the
+       closure's environment too. */
+    test_case("Stepper applies a closure under its environment", `Quick, () =>
+      check(
+        step_limited,
+        "(fun x -> (x, y) with y = 1)(2)",
+        LimitedCompleted((tuple([int(2), int(1)]), EvaluatorState.empty)),
+        full_small_step_reduction(
+          ap(
+            Forward,
+            Language.Exp.fresh(
+              Closure(
+                Environment.of_list([("y", int(1))]),
+                fn(Pat.var("x"), tuple([var("x"), var("y")]), None, None),
+              ),
+            ),
+            int(2),
+          ),
+        ),
+      )
+    ),
+    /* Likewise a fixpoint the evaluator closed over its environment. */
+    test_case("Stepper unrolls a fixpoint under its environment", `Quick, () =>
+      check(
+        step_limited,
+        "(fix f -> fun x -> (x, y) with y = 1)(2)",
+        LimitedCompleted((tuple([int(2), int(1)]), EvaluatorState.empty)),
+        full_small_step_reduction(
+          ap(
+            Forward,
+            fix_f(
+              Pat.var("f"),
+              fn(Pat.var("x"), tuple([var("x"), var("y")]), None, None),
+              Some(Environment.of_list([("y", int(1))])),
+            ),
+            int(2),
+          ),
+        ),
+      )
+    ),
   ],
 );

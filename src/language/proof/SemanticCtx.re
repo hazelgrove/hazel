@@ -87,4 +87,15 @@ let add_hypothesis = (t: t, name: Var.t, hyp: Exp.t): (t, Binding.t) => {
 };
 
 let get_ctx = (t: t): Ctx.t => t.ctx;
+
+/* For a term the user types against this context (a rewrite, an induction
+   scrutinee). The new term is not elaborated yet, so statics must still
+   decide its operators (`-x` with `x : Float` is float negation): a context
+   built from the elaborated program has no use mode, so it gets the default.
+   One taken from the program's info map keeps the program's (`use Float`). */
+let ctx_for_new_term = (t: t): Ctx.t =>
+  switch (t.ctx.use_mode) {
+  | Some(_) => t.ctx
+  | None => Ctx.set_use_mode(t.ctx, Some(Operators.default_mode))
+  };
 let get_env = (t: t): Environment.t(Exp.t) => t.env;

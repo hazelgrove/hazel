@@ -1,6 +1,35 @@
 open Alcotest;
 open Test_Evaluator_Prelude;
 
+let fix_binder_names = (e: Language.Exp.t): list(string) => {
+  let names = ref([]);
+  let _ =
+    Language.Exp.map_term(
+      ~f_exp=
+        (continue, e: Language.Exp.t) => {
+          switch (e.term) {
+          | FixF(p, _, _) =>
+            Option.iter(
+              ~f=f => names := [f, ...names^],
+              Language.Pat.get_var(p),
+            )
+          | _ => ()
+          };
+          continue(e);
+        },
+      e,
+    );
+  names^;
+};
+
+let check_fix_binders = (msg, e) =>
+  check(
+    list(string),
+    msg,
+    [],
+    List.filter(~f=f => !String.equal(f, "f"), fix_binder_names(e)),
+  );
+
 let tests = (
   "Evaluator.Fixpoints",
   [
@@ -102,6 +131,36 @@ fun n -> if n == 0 then false else even(n - 1))) in even(1)|},
     ),
     test_case("Fixpoint that evaluates to the correct form", `Quick, () =>
       parse_and_evaluate_test("(1, 2)", {|let x = (1, 2) in fix f -> x|})
+    ),
+    test_case(
+      "Stepping keeps a recursive function's name",
+      `Quick,
+      () => {
+        let rec go = (n, e) => {
+          check_fix_binders(
+            "binders after " ++ string_of_int(n) ++ " steps",
+            e,
+          );
+          switch (n < 100 ? single_step(e) : None) {
+          | Some(e) => go(n + 1, e)
+          | None => ()
+          };
+        };
+        go(
+          0,
+          elaborate(
+            parse_exp(
+              "let f = fun n -> if n == 0 then 0 else f(n - 1) in f(3)",
+            ),
+          ),
+        );
+      },
+    ),
+    test_case("A recursive function's value keeps its name", `Quick, () =>
+      check_fix_binders(
+        "binders in the result",
+        evaluate(elaborate(parse_exp("let f = fun x -> f(x) in f"))),
+      )
     ),
   ],
 );
