@@ -2012,6 +2012,179 @@ let sint_tests = [
   ),
 ];
 
+/* (^ticket(765)) hazeljs-oracles' Tarot, compiled ahead of time, as the I Ching above: its program as hazeljs joins it,
+   from the oracles' 0.0.12 rules; five deals against the interpreter (one card, the Celtic Cross, the year ahead, whose
+   spread is a labeled tuple, three paths, a trio), with 40 draws from a fixed stream; and the whole program's JS printed
+   after the run between markers */
+let tarot_program = {tarot|# The four suits of the minor arcana #
+type Suit = + Wands + Cups + Swords + Pentacles in
+# A card: one of the 22 major arcana (0, the Fool, to 21, the World), or a suit's card, its rank 1 (the Ace) to 10, then 11 Page, 12 Knight, 13 Queen, 14 King #
+type Card = + Major(Int) + Minor(Suit, Int) in
+# Three cards can be read three ways #
+type Trio = + PastPresentFuture + SituationChallengeAdvice + MindBodySpirit in
+# The year ahead: the month it starts from (0 for January to 11 for December), and whether a card speaks to the year's theme #
+type Year = (start = Int, theme = Bool) in
+# The spreads: one card; three; the Celtic Cross of ten; a relationship; a choice between some number of paths; the year ahead #
+type Spread = + One + Three(Trio) + CelticCross + Relationship + Choice(Int) + YearAhead(Year) in
+# A place in a spread: its name and what a card there speaks to #
+type Position = (name = String, about = String) in
+# A card dealt into its place, upright or reversed #
+type Dealt = (card = Card, name = String, reversed = Bool, position = String, about = String) in
+module Deck = {
+let majors = [
+  "The Fool", "The Magician", "The High Priestess", "The Empress", "The Emperor", "The Hierophant",
+  "The Lovers", "The Chariot", "Strength", "The Hermit", "Wheel of Fortune", "Justice", "The Hanged Man",
+  "Death", "Temperance", "The Devil", "The Tower", "The Star", "The Moon", "The Sun", "Judgement", "The World"
+];
+let ranks = ["Ace", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Page", "Knight", "Queen", "King"];
+let nth_name : ([String], Int) -> String = fun (xs, i) ->
+  case xs | [] => "" | x :: rest => if i == 0 then x else nth_name(rest, i - 1) end;
+let suit_name : Suit -> String = fun s ->
+  case s | Wands => "Wands" | Cups => "Cups" | Swords => "Swords" | Pentacles => "Pentacles" end;
+let name : Card -> String = fun c ->
+  case c
+  | Major(i) => nth_name(majors, i)
+  | Minor(s, r) => nth_name(ranks, r - 1) ++ " of " ++ suit_name(s)
+  end;
+let cat : ([Card], [Card]) -> [Card] = fun (xs, ys) ->
+  case xs | [] => ys | x :: rest => x :: cat(rest, ys) end;
+let majors_from : Int -> [Card] = fun i ->
+  if i > 21 then [] else Major(i) :: majors_from(i + 1);
+let suit_from : (Suit, Int) -> [Card] = fun (s, r) ->
+  if r > 14 then [] else Minor(s, r) :: suit_from(s, r + 1);
+# The whole deck, 78 cards: the major arcana, then each suit from Ace to King #
+let deck : [Card] =
+  cat(majors_from(0), cat(suit_from(Wands, 1), cat(suit_from(Cups, 1), cat(suit_from(Swords, 1), suit_from(Pentacles, 1)))));
+let size : [Card] -> Int = fun cs ->
+  case cs | [] => 0 | _ :: rest => 1 + size(rest) end;
+let nth_card : ([Card], Int) -> Card = fun (cs, k) ->
+  case cs | [] => Major(0) | c :: rest => if k == 0 then c else nth_card(rest, k - 1) end;
+# the k-th card, and the deck without it, in one walk #
+let take : ([Card], Int) -> (Card, [Card]) = fun (cs, k) ->
+  case cs
+  | [] => (Major(0), [])
+  | c :: rest =>
+    if k == 0 then (c, rest)
+    else let (d, left) = take(rest, k - 1) in (d, c :: left)
+  end
+} in
+module Spreads = {
+let three : Trio -> [Position] = fun t ->
+  case t
+  | PastPresentFuture => [
+      (name = "Past", about = "what has led here"),
+      (name = "Present", about = "where things stand"),
+      (name = "Future", about = "where things are heading")]
+  | SituationChallengeAdvice => [
+      (name = "Situation", about = "where things stand"),
+      (name = "Challenge", about = "what stands in the way"),
+      (name = "Advice", about = "what would help")]
+  | MindBodySpirit => [
+      (name = "Mind", about = "your thoughts"),
+      (name = "Body", about = "your body and your days"),
+      (name = "Spirit", about = "what moves you")]
+  end;
+let celtic_cross = [
+  (name = "1. The present", about = "what covers the question"),
+  (name = "2. The challenge", about = "what crosses it"),
+  (name = "3. The root", about = "what lies beneath it"),
+  (name = "4. The recent past", about = "what is passing away"),
+  (name = "5. The crown", about = "what may come to be"),
+  (name = "6. The near future", about = "what comes next"),
+  (name = "7. Yourself", about = "how you stand in it"),
+  (name = "8. Your surroundings", about = "the people and places around it"),
+  (name = "9. Hopes and fears", about = "what you hope, or dread"),
+  (name = "10. The outcome", about = "where it leads")];
+let relationship = [
+  (name = "You", about = "what you bring"),
+  (name = "The other", about = "what they bring"),
+  (name = "The bond", about = "what passes between you"),
+  (name = "Its strength", about = "what holds you together"),
+  (name = "Its tension", about = "what pulls you apart"),
+  (name = "A way forward", about = "what could come next")];
+let join : ([Position], [Position]) -> [Position] = fun (xs, ys) ->
+  case xs | [] => ys | x :: rest => x :: join(rest, ys) end;
+# A choice: the crossroads, then three cards for each path, A, B, C and so on: what it opens, what it asks, where it leads #
+let letters = ["A", "B", "C", "D", "E", "F"];
+let path : Int -> [Position] = fun i ->
+  let p = "Path " ++ Deck.nth_name(letters, i) in [
+    (name = p ++ ": opportunity", about = "what this path opens"),
+    (name = p ++ ": difficulty", about = "what this path asks of you"),
+    (name = p ++ ": direction", about = "where this path is likely to lead")];
+let paths : (Int, Int) -> [Position] = fun (i, n) ->
+  if i >= n then [] else join(path(i), paths(i + 1, n));
+# The year ahead: a card for each of twelve months, from the month the reading is made #
+let months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+let year : (Int, Int) -> [Position] = fun (m, k) ->
+  if k >= 12 then []
+  else
+    let i = if m + k >= 12 then m + k - 12 else m + k in
+    (name = Deck.nth_name(months, i), about = "what this month brings") :: year(m, k + 1);
+let positions : Spread -> [Position] = fun s ->
+  case s
+  | One => [(name = "The card", about = "the heart of the matter")]
+  | Three(t) => three(t)
+  | CelticCross => celtic_cross
+  | Relationship => relationship
+  | Choice(n) =>
+    (name = "The crossroads", about = "the choice before you")
+    :: paths(0, if n < 2 then 2 else if n > 6 then 6 else n)
+  | YearAhead(y) =>
+    if y.theme then (name = "The year", about = "the theme of the year ahead") :: year(y.start, 0)
+    else year(y.start, 0)
+  end
+} in
+module Reading = {
+# Deal a spread from the deck: for each place, take a card from what is left of the deck, where the first random number falls, and turn it reversed if the second falls below 1/2 (when reversals are on). Taking each card from where a number falls is the same as shuffling and dealing from the top. #
+# (n is how many cards are left in cs, counted down rather than measured each time) #
+let deal_from : ([Card], Int, [Position], [Float], Bool) -> [Dealt] = fun (cs, n, ps, us, reversals) ->
+  case ps
+  | [] => []
+  | p :: rest =>
+    case us
+    | a :: b :: more =>
+      let k = int_of_float(a *. float_of_int(n)) in
+      let (c, left) = Deck.take(cs, k) in
+      (card = c, name = Deck.name(c), reversed = reversals && b <. 0.5, position = p.name, about = p.about)
+      :: deal_from(left, n - 1, rest, more, reversals)
+    | _ => []
+    end
+  end;
+# The page passes two random numbers a card, each at least 0 and less than 1 #
+let deal : (Spread, [Float], Bool) -> [Dealt] = fun (s, us, reversals) ->
+  deal_from(Deck.deck, 78, Spreads.positions(s), us, reversals)
+} in
+|tarot};
+let tarot_us = "[0.00005478458481598, 0.92076451700216366, 0.28923725536523259, 0.21055092346414500, 0.72937066188518451, 0.53271430429663247, 0.32931231350140289, 0.75205301807823266, 0.75507484085628518, 0.54285027158579335, 0.68451454242901622, 0.63591460447568193, 0.81675742278655872, 0.24200477369223011, 0.37423144531167646, 0.70790135334613791, 0.69804568854069604, 0.05388730347803203, 0.68390955528426434, 0.46789566262992827, 0.92240182120464831, 0.80740898652347226, 0.12283649999780417, 0.51305546309475580, 0.92316823356001088, 0.68850144310318928, 0.64375423530291498, 0.57743273609198287, 0.91199549795686985, 0.90833416111224063, 0.37224581342760743, 0.33538627779827745, 0.83717095564919097, 0.33225159595359655, 0.15257319209751355, 0.29763958291040715, 0.42846997521280777, 0.29487340165994752, 0.93726169873832799, 0.55737069507938375]";
+let tarot_deal = spread =>
+  tarot_program ++ "Reading.deal(" ++ spread ++ ", " ++ tarot_us ++ ", true)";
+let tarot_tests = [
+  agreement("the Tarot: one card", tarot_deal("One")),
+  agreement("the Tarot: the Celtic Cross", tarot_deal("CelticCross")),
+  agreement(
+    "the Tarot: the year ahead, from November, with its theme",
+    tarot_deal("YearAhead((start = 10, theme = true))"),
+  ),
+  agreement("the Tarot: three paths", tarot_deal("Choice(3)")),
+  agreement(
+    "the Tarot: mind, body, spirit",
+    tarot_deal("Three(MindBodySpirit)"),
+  ),
+  test_case(
+    "the Tarot compiles whole, its JS printed after the run",
+    `Quick,
+    () => {
+      let js = compiled_src(tarot_program ++ "(deal = Reading.deal)");
+      at_exit(() => {
+        print_endline("HAZEL-JIT-TAROT-BEGIN");
+        print_endline(js);
+        print_endline("HAZEL-JIT-TAROT-END");
+        flush(stdout);
+      });
+    },
+  ),
+];
+
 let tests = (
   "HazelJit",
   invalid_tests
@@ -2024,6 +2197,7 @@ let tests = (
   @ label_tests
   @ unicode_string_tests
   @ iching_tests
+  @ tarot_tests
   @ sint_tests
   @ [
     agreement("arithmetic", "1 + 2 * 3 - 4 / 2"),
