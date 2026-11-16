@@ -598,6 +598,32 @@ let regression_tests = [
   ),
 ];
 
+/* One example of each cause the statics properties have found. */
+let no_nested_id_drift = (src: string) =>
+  switch (elab_nested_ids_drifting(Statics.Map.empty, parse(src))) {
+  | [] => ()
+  | violations =>
+    Alcotest.fail(
+      src
+      ++ ": elaboration ids drift:\n"
+      ++ String.concat(~sep="\n", violations),
+    )
+  };
+
+let found_cause_tests = [
+  /* A cons whose tail is not a list gets a cast at elaboration, which was
+     built with a fresh id. */
+  Alcotest.test_case("Elaboration ids persist: ?:: ?", `Quick, () =>
+    no_nested_id_drift("?:: ?")
+  ),
+  Alcotest.test_case("Elaboration ids persist: 1:: 2", `Quick, () =>
+    no_nested_id_drift("1:: 2")
+  ),
+  Alcotest.test_case("Elaboration ids persist: ():: []", `Quick, () =>
+    no_nested_id_drift("():: []")
+  ),
+];
+
 let tests = (
   "Statics.Properties",
   [
@@ -607,5 +633,6 @@ let tests = (
     QCheck_alcotest.to_alcotest(qcheck_elab_ids_persist),
     QCheck_alcotest.to_alcotest(qcheck_elab_nested_ids_persist),
   ]
-  @ regression_tests,
+  @ regression_tests
+  @ found_cause_tests,
 );
