@@ -56,7 +56,13 @@ let retire = (): unit => {
 let print_js = (v: U.any): string =>
   switch (
     Js.Optdef.to_option(
-      U.fun_call(U.js_expr("JSON.stringify"), [|U.inject(v)|]),
+      /* (^ticket(757)) a BigInt printed by its digits, which JSON.stringify alone throws on */
+      U.fun_call(
+        U.js_expr(
+          "(v => JSON.stringify(v, (k, x) => typeof x === 'bigint' ? x.toString() + 'n' : x))",
+        ),
+        [|U.inject(v)|],
+      ),
     )
   ) {
   | Some(s) => Js.to_string(s)

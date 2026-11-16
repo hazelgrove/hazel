@@ -5,6 +5,37 @@
 open Language;
 open Js_of_ocaml;
 
+/* (^ticket(759)) a compiled run that stopped at an invalid operation ("hazel-jit: invalid operation: DivideByZero") agrees
+   with an interpreter's result stuck at that error (a DynamicErrorHole holding it): the page falls back to the interpreter,
+   which makes the stuck term. The error's name, if the JS error was one of these. */
+let invalid_of = (message: string): option(string) => {
+  let pre = "hazel-jit: invalid operation: ";
+  String.length(message) > String.length(pre)
+  && String.sub(message, 0, String.length(pre)) == pre
+    ? Some(
+        String.sub(
+          message,
+          String.length(pre),
+          String.length(message) - String.length(pre),
+        ),
+      )
+    : None;
+};
+let contains = (s: string, part: string): bool => {
+  let n = String.length(part);
+  let rec at = i =>
+    i + n <= String.length(s) && (String.sub(s, i, n) == part || at(i + 1));
+  n == 0 || at(0);
+};
+/* the interpreter's result is stuck there: a DynamicErrorHole whose error prints as it, or a builtin's application left
+   unreduced (int_of_string("seven") is stuck as itself, no error named) */
+let stuck_at = (result: Exp.t, err: string): bool => {
+  let shown = Exp.show(result);
+  contains(shown, "DynamicErrorHole")
+  && contains(shown, err)
+  || contains(shown, "(BuiltinFun");
+};
+
 /* what agree says of an interpreter result it does not compare (an error, a stuck term: not a value) */
 let not_a_value = "a value hazel-jit's tests do not compare";
 
@@ -42,10 +73,15 @@ let rec agree = (e: Exp.t, js: Js.Unsafe.any): option(string) => {
     );
   switch (Exp.term_of(e)) {
   | Parens(e) => agree(e, js)
+  /* (^tickets(756, 757)) exactly: its digits, a JS number's or a BigInt's, against the interpreter's Bigint */
   | Atom(Int(n))
   | Atom(Nat(n)) =>
     want(
-      typeof(js) == "number" && num(js) == Bigint.to_float(n),
+      (typeof(js) == "number" || typeof(js) == "bigint")
+      && Js.to_string(
+           Js.Unsafe.fun_call(Js.Unsafe.js_expr("String"), [|js|]),
+         )
+      == Bigint.to_string(n),
       "an integer",
     )
   | Atom(SInt(n)) =>
@@ -57,7 +93,9 @@ let rec agree = (e: Exp.t, js: Js.Unsafe.any): option(string) => {
     want(
       typeof(js) == "number"
       && (
-        Float.is_nan(f)
+        /* (^ticket(759)) equal first, so an infinity agrees with itself (inf - inf is nan) */
+        num(js) == f
+        || Float.is_nan(f)
         && Float.is_nan(num(js))
         || Float.abs(num(js) -. f) <= 1e-9
         *. Float.max(1., Float.abs(f))
@@ -249,6 +287,15 @@ let sweep = (test: string, elab: Exp.t, result: Exp.t): unit => {
         | Ok(js_src) =>
           incr(compiled);
           switch (run_js(HazelJit.Runtime.source, js_src)) {
+          | exception (Js_error.Exn(e))
+              when
+                switch (invalid_of(Js_error.message(e))) {
+                | Some(err) => stuck_at(result, err)
+                | None => false
+                } =>
+            /* (^ticket(759)) an invalid operation, where the interpreter stops at the same error */
+            incr(agreed);
+            Fine;
           | exception (Js_error.Exn(e)) =>
             let what =
               one_line(

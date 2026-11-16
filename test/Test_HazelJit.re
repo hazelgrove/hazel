@@ -20,26 +20,36 @@ let agrees = src => {
   switch (HazelJit.try_compile(~env=Builtins.env_init, elab)) {
   | Error(reason) => fail("not compiled: " ++ reason)
   | Ok(js_src) =>
-    let got =
-      try(run_js(HazelJit.Runtime.source, js_src)) {
-      | Js_error.Exn(e) =>
-        fail(
-          "the compiled JS threw: "
-          ++ Js_error.message(e)
-          ++ "\n"
-          ++ clip(js_src),
-        )
-      };
-    switch (agree(expected, got)) {
-    | None => ()
-    | Some(diff) =>
+    switch (run_js(HazelJit.Runtime.source, js_src)) {
+    /* (^ticket(759)) both stop at the same error: the compiled run at an invalid operation, the interpreter's stuck at it */
+    | exception (Js_error.Exn(e))
+        when
+          switch (invalid_of(Js_error.message(e))) {
+          | Some(err) => stuck_at(expected, err)
+          | None => false
+          } =>
+      ()
+    | exception (Js_error.Exn(e)) =>
       fail(
-        "differs from the interpreter: "
-        ++ diff
-        ++ "\nthe compiled JS: "
+        "the compiled JS threw: "
+        ++ Js_error.message(e)
+        ++ "\nthe interpreter: "
+        ++ clip(Exp.show(expected))
+        ++ "\n"
         ++ clip(js_src),
       )
-    };
+    | got =>
+      switch (agree(expected, got)) {
+      | None => ()
+      | Some(diff) =>
+        fail(
+          "differs from the interpreter: "
+          ++ diff
+          ++ "\nthe compiled JS: "
+          ++ clip(js_src),
+        )
+      }
+    }
   };
 };
 let agreement = (name, src) => test_case(name, `Quick, () => agrees(src));
@@ -1525,9 +1535,57 @@ let witch_view_run = (~n=15, ()) => {
   );
 };
 
+/* (^ticket(757)) Int and Nat exact past 2^53, as the interpreter's Bigint; and an invalid operation stops the run */
+let big_int_tests = [
+  agreement("an Int past 2^53", "9007199254740991 + 2"),
+  agreement(
+    "a factorial past 2^53",
+    "let fact = fun n -> if n == 0 then 1 else n * fact(n - 1) in fact(25)",
+  ),
+  agreement("a big Int divided, toward zero", "100000000000000000000 / 7"),
+  agreement("a negative one, toward zero", "(0 - 100000000000000000001) / 2"),
+  agreement("back under 2^53", "(9007199254740991 + 10) - 20"),
+  agreement("a power", "3 ** 40"),
+  agreement("compared", "9007199254740993 > 9007199254740992"),
+  agreement("as a string", "string_of_int(2 ** 70)"),
+  agreement("as a float", "float_of_int(2 ** 60)"),
+  test_case("dividing by zero stops the compiled run", `Quick, () =>
+    switch (
+      HazelJit.try_compile(
+        ~env=Builtins.env_init,
+        elaborate(parse_exp("let z = 0 in 7 / z")),
+      )
+    ) {
+    | Error(why) => fail("not compiled: " ++ why)
+    | Ok(js) =>
+      switch (run_js(HazelJit.Runtime.source, js)) {
+      | _ => fail("ran on past a division by zero")
+      | exception (Js_error.Exn(e)) =>
+        check(
+          string,
+          "the error",
+          "hazel-jit: invalid operation: DivideByZero",
+          Js_error.message(e),
+        )
+      }
+    }
+  ),
+];
+
+/* (^ticket(759)) an operation the interpreter stops at with an error: the compiled run stops at the same one */
+let invalid_tests = [
+  agreement("an Int divided by zero", "let z = 0 in 7 / z"),
+  /* (int_mod by zero: the interpreter itself raises InvalidBuiltin("mod"), ^ticket(764)) */
+  agreement("a negative Int power", "2 ** (0 - 1)"),
+  agreement("int_of_string, not a number", "int_of_string(\"seven\")"),
+  agreement("a Float divided by zero is infinity, not an error", "7. /. 0."),
+];
+
 let tests = (
   "HazelJit",
-  [
+  invalid_tests
+  @ big_int_tests
+  @ [
     agreement("arithmetic", "1 + 2 * 3 - 4 / 2"),
     agreement("floats", "1.5 *. 2. +. 0.25"),
     agreement("a function", "let f = fun x -> x * 2 in f(21)"),
