@@ -120,6 +120,12 @@ let (let.cls) = (type b, cls: cls, f: cls_wrapper => b): b =>
 
 /* ========== CONVERSION ========== */
 
+/* (^ticket(758); Matthew, 2026-11-16: "Yes, 32 bits") An SInt has 32 bits everywhere: in the browser (js_of_ocaml) the
+   OCaml int it is held in has 32 bits, natively 63, and Hazel's answers must not depend on which. A value made into an
+   SInt, or an SInt operation's result (Operators), is checked against [-2^31, 2^31 - 1] as a float: exact for any
+   32-bit operands' sum or product below 2^53, and surely out of range past it, whatever the int's own width. */
+let sint_fits = (f: float): bool => f >= (-2147483648.) && f <= 2147483647.;
+
 let convert =
     (type a, type b, from: kind(a), to_: kind(b), v: a)
     : Either.t(b, InvalidOperationError.t) => {
@@ -127,8 +133,8 @@ let convert =
   | (Int, Int) => L(v)
   | (Int, SInt) =>
     switch (Bigint.to_int(v)) {
-    | Some(i) => L(i)
-    | None => R(InvalidOperationError.IntegerTooBig)
+    | Some(i) when sint_fits(Bigint.to_float(v)) => L(i)
+    | _ => R(InvalidOperationError.IntegerTooBig)
     }
   | (Int, Nat) =>
     v < Bigint.zero ? R(InvalidOperationError.NegativeNat) : L(v)
@@ -147,8 +153,8 @@ let convert =
   | (Nat, Nat) => L(v)
   | (Nat, SInt) =>
     switch (Bigint.to_int(v)) {
-    | Some(i) => L(i)
-    | None => R(InvalidOperationError.IntegerTooBig)
+    | Some(i) when sint_fits(Bigint.to_float(v)) => L(i)
+    | _ => R(InvalidOperationError.IntegerTooBig)
     }
   | (Nat, Int) => L(v)
   | (Nat, Bool) => L(v != Bigint.zero)
@@ -156,7 +162,9 @@ let convert =
   | (Nat, String) => L(Bigint.to_string(v))
 
   | (Float, Float) => L(v)
-  | (Float, SInt) => L(int_of_float(v))
+  | (Float, SInt) =>
+    sint_fits(Float.trunc(v))
+      ? L(int_of_float(v)) : R(InvalidOperationError.IntegerTooBig)
   | (Float, Int) => L(Bigint.of_float(v))
   | (Float, Nat) =>
     v < 0.0 ? R(InvalidOperationError.NegativeNat) : L(Bigint.of_float(v))

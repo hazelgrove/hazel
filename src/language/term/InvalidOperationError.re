@@ -6,6 +6,8 @@ type t =
   | NegativeExponent
   | NegativeNat
   | IntegerTooBig
+  /* (^ticket(758)) an SInt result outside 32 bits */
+  | IntegerOverflow
   | Incomparable;
 
 let err_msg = (err: t): string =>
@@ -16,5 +18,6 @@ let err_msg = (err: t): string =>
   | NegativeExponent => "Error: Negative Exponent in Integer Exponentiation (Consider using **.)"
   | NegativeNat => "Error: Cannot convert negative number to Nat"
   | IntegerTooBig => "Error: Integer too big"
+  | IntegerOverflow => "Error: Integer overflow (an SInt has 32 bits)"
   | Incomparable => "Error: Incomparable Types"
   };
