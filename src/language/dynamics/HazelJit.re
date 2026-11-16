@@ -108,6 +108,44 @@ module Runtime = {
     float_of_string: s => Number(s),
     string_length: s => s.length, string_uppercase: s => s.toUpperCase(), string_lowercase: s => s.toLowerCase(),
     string_trim: s => s.trim(),
+    /* (^ticket(761), the sweep's most frequent missing builtins) as HazelString has them: a pattern a JS RegExp with the
+       u flag (without it where u will not compile), global; a string's offsets in grapheme clusters, by Intl.Segmenter */
+    string_match: ([p, s]) => { const re = (q => { try { return new RegExp(q, "gu"); } catch (e) { return new RegExp(q, "g"); } })(p); re.lastIndex = 0; return re.test(s); },
+    string_replace: ([p, s, by]) => s.replace((q => { try { return new RegExp(q, "gu"); } catch (e) { return new RegExp(q, "g"); } })(p), by.split("$").join("$$")),
+    string_search: ([p, s, start]) => {
+      if (typeof start === "bigint" || start > 2147483647 || start < -2147483648) return -1;
+      const g = (t => Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(t), x => x.segment))(s), n = g.length, k = start < 0 ? 0 : start > n ? n : start;
+      let u = 0; for (let i = 0; i < k; i++) u += g[i].length;
+      const re = (q => { try { return new RegExp(q, "gu"); } catch (e) { return new RegExp(q, "g"); } })(p); re.lastIndex = u; const m = re.exec(s);
+      if (m === null) return -1;
+      if (m.index <= 0) return 0;
+      let acc = 0; for (let i = 0; i < n; i++) { acc += g[i].length; if (acc > m.index) return i; } return n;
+    },
+    string_join: ([sep, xs]) => { const a = []; for (let p = xs; p !== null; p = p.t) a.push(p.h); return a.join(sep); },
+    string_escaped: s => {
+      let out = "";
+      for (const c of s) {
+        const k = c.charCodeAt(0);
+        out += c === "\\" ? "\\\\" : c === "\"" ? "\\\"" : c === "\n" ? "\\n" : c === "\t" ? "\\t" : c === "\r" ? "\\r" : c === "\b" ? "\\b"
+          : (k < 0x20 || k === 0x7f) ? "\\" + String(k).padStart(3, "0") : c;
+      }
+      return out;
+    },
+    string_capitalize: s => { const g = (t => Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(t), x => x.segment))(s); return g.length ? g[0].toUpperCase() + g.slice(1).join("") : s; },
+    string_uncapitalize: s => { const g = (t => Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(t), x => x.segment))(s); return g.length ? g[0].toLowerCase() + g.slice(1).join("") : s; },
+    omit_all_labels: t => Array.isArray(t) ? Array.from(t) : t,
+    /* the compare builtins (BuiltinsADT.of_atom_compare), Lt, Eq or Gt as Atom.compare_of_cls has them: Int, SInt, Nat by
+       value (a number and a BigInt compare as they are); Float as OCaml's Float.compare, nan equal to itself and below
+       every other float; String as String.compare, byte by byte in UTF-8, which is code point order */
+    int_compare: ([a, b]) => ({ c: a < b ? "Lt" : a > b ? "Gt" : "Eq" }),
+    sint_compare: ([a, b]) => ({ c: a < b ? "Lt" : a > b ? "Gt" : "Eq" }),
+    nat_compare: ([a, b]) => ({ c: a < b ? "Lt" : a > b ? "Gt" : "Eq" }),
+    float_compare: ([a, b]) => { const x = a !== a, y = b !== b;
+      return { c: x ? (y ? "Eq" : "Lt") : y ? "Gt" : a < b ? "Lt" : a > b ? "Gt" : "Eq" }; },
+    string_compare: ([a, b]) => { const x = Array.from(a, ch => ch.codePointAt(0)), y = Array.from(b, ch => ch.codePointAt(0));
+      for (let i = 0; i < x.length && i < y.length; i++) if (x[i] !== y[i]) return { c: x[i] < y[i] ? "Lt" : "Gt" };
+      return { c: x.length < y.length ? "Lt" : x.length > y.length ? "Gt" : "Eq" }; },
+    invert_ord: o => o.c === "Lt" ? { c: "Gt" } : o.c === "Gt" ? { c: "Lt" } : o,
     abs: n => typeof n === "number" ? Math.abs(n) : (n < 0n ? -n : n), abs_float: Math.abs, ceil: Math.ceil, floor: Math.floor, round: Math.round,
     sqrt: Math.sqrt, exp: Math.exp, log: Math.log, log10: Math.log10,
     sin: Math.sin, cos: Math.cos, tan: Math.tan, asin: Math.asin, acos: Math.acos, atan: Math.atan,
@@ -143,6 +181,20 @@ module Runtime = {
     "string_uppercase",
     "string_lowercase",
     "string_trim",
+    "string_match",
+    "string_replace",
+    "string_search",
+    "string_join",
+    "string_escaped",
+    "string_capitalize",
+    "string_uncapitalize",
+    "omit_all_labels",
+    "int_compare",
+    "sint_compare",
+    "nat_compare",
+    "float_compare",
+    "string_compare",
+    "invert_ord",
     "abs",
     "abs_float",
     "ceil",
@@ -583,20 +635,89 @@ and exp_inner =
   | Ap(Reverse, _, _) => unsupported("a reverse application")
   | Fun(p, body, _, _) => func(st, lex, ~term=e, p, body)
   | FixF(p, body, _) =>
-    let rec name_of = (p: Pat.t) =>
+    let rec name_of = (p: Pat.t): option(string) =>
       switch (Pat.term_of(p)) {
-      | Var(x) => x
+      | Var(x) => Some(x)
       | Parens(p)
       | Asc(p, _) => name_of(p)
-      | _ => unsupported("a recursive definition of more than one name")
+      | _ => None
       };
-    let x = name_of(p);
-    let inner = {decls: []};
-    let j = fresh(st, inner, x);
-    let body = exp(st, inner, [(x, j), ...lex], body);
-    "(() => { "
-    ++ body_with_decls(inner, "(" ++ j ++ " = " ++ body ++ ", " ++ j ++ ")")
-    ++ " })()";
+    /* (even, odd): a tuple of names, each a plain name */
+    let rec names_of = (p: Pat.t): option(list(string)) =>
+      switch (Pat.term_of(p)) {
+      | Parens(p)
+      | Asc(p, _) => names_of(p)
+      | Tuple(ps) =>
+        let xs = List.filter_map(name_of, ps);
+        List.length(xs) == List.length(ps) ? Some(xs) : None;
+      | _ => None
+      };
+    let rec parts_of = (e: Exp.t): option(list(Exp.t)) =>
+      switch (Exp.term_of(e)) {
+      | Parens(e)
+      | Asc(e, _) => parts_of(e)
+      | Tuple(es) => Some(es)
+      | _ => None
+      };
+    let rec is_fun = (e: Exp.t): bool =>
+      switch (Exp.term_of(e)) {
+      | Fun(_) => true
+      | Parens(e)
+      | Asc(e, _)
+      | TypFun(_, e, _) => is_fun(e)
+      | _ => false
+      };
+    switch (name_of(p)) {
+    | Some(x) =>
+      let inner = {decls: []};
+      let j = fresh(st, inner, x);
+      let body = exp(st, inner, [(x, j), ...lex], body);
+      "(() => { "
+      ++ body_with_decls(
+           inner,
+           "(" ++ j ++ " = " ++ body ++ ", " ++ j ++ ")",
+         )
+      ++ " })()";
+    | None =>
+      /* Mutual recursion. The interpreter binds each name to the fixpoint
+         unrolled and projected, each time it is used; here each name is
+         assigned once, in order, then the tuple of them returned. The same
+         when every part is a function: a name is read only when a function
+         runs, after every name has its value. */
+      switch (names_of(p), parts_of(body)) {
+      | (Some(xs), Some(es))
+          when
+            List.length(xs) == List.length(es) && List.for_all(is_fun, es) =>
+        let inner = {decls: []};
+        let js = List.map(x => fresh(st, inner, x), xs);
+        let lex' =
+          List.fold_left2((lex, x, j) => [(x, j), ...lex], lex, xs, js);
+        let assigns =
+          List.map2(
+            (j, e) => j ++ " = " ++ exp(st, inner, lex', e),
+            js,
+            es,
+          );
+        "(() => { "
+        ++ body_with_decls(
+             inner,
+             "("
+             ++ String.concat(", ", assigns)
+             ++ ", ["
+             ++ String.concat(", ", js)
+             ++ "])",
+           )
+        ++ " })()";
+      | (Some(_), _) =>
+        unsupported(
+          "a recursive definition of more than one name, not a tuple of functions",
+        )
+      | (None, _) =>
+        unsupported(
+          "a recursive definition by a pattern that is not a name or a tuple of names",
+        )
+      }
+    };
   | Let(p, e1, e2) =>
     let tmp = fresh(st, scope, "let");
     let v1 =
@@ -733,8 +854,62 @@ and exp_inner =
   | ProofObject(_)
   | Forall(_)
   | DrvQuote(_) => unsupported("this kind of term")
-  | Deferral(_)
-  | DeferredAp(_) => unsupported("a partial application")
+  | Deferral(_) => unsupported("a partial application's _ outside one")
+  /* (^ticket(761), the sweep's 8 partial applications) f(a, _, c): f and the arguments given evaluated now, in order, as
+     Transition's DeferredAp is a value once they are; then a function of the deferred ones, filled in order (one deferred:
+     the argument itself; several: a tuple of them), applying f to all of them, one alone as itself */
+  | DeferredAp(f, args) =>
+    let ftmp = fresh(st, scope, "pf");
+    let slots =
+      List.map(
+        (a: Exp.t) =>
+          switch (Exp.term_of(a)) {
+          | Deferral(_) => None
+          | TupLabel(_) =>
+            unsupported("a partial application with a labeled argument")
+          | _ => Some((fresh(st, scope, "pa"), go(a)))
+          },
+        args,
+      );
+    let deferred = List.length(List.filter(Option.is_none, slots));
+    st.counter = st.counter + 1;
+    let x = "d$" ++ string_of_int(st.counter);
+    let next = ref(0);
+    let elems =
+      List.map(
+        slot =>
+          switch (slot) {
+          | Some((tmp, _)) => tmp
+          | None =>
+            let k = next^;
+            next := k + 1;
+            deferred == 1 ? x : x ++ "[" ++ string_of_int(k) ++ "]";
+          },
+        slots,
+      );
+    let given =
+      List.filter_map(
+        slot => Option.map(((tmp, code)) => tmp ++ " = " ++ code, slot),
+        slots,
+      );
+    "("
+    ++ String.concat(
+         ", ",
+         [ftmp ++ " = " ++ go(f), ...given]
+         @ [
+           "(("
+           ++ x
+           ++ ") => "
+           ++ ftmp
+           ++ "("
+           ++ (
+             List.length(elems) == 1
+               ? List.hd(elems) : "[" ++ String.concat(", ", elems) ++ "]"
+           )
+           ++ "))",
+         ],
+       )
+    ++ ")";
   | Undefined => unsupported("undefined")
   | Label(_)
   | ExplicitNonlabel

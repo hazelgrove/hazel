@@ -1581,10 +1581,93 @@ let invalid_tests = [
   agreement("a Float divided by zero is infinity, not an error", "7. /. 0."),
 ];
 
+/* (^ticket(761)) the string builtins the sweep found missing, each against the interpreter's */
+let string_builtin_tests = [
+  agreement(
+    "string_match",
+    "(string_match(\"b+\", \"abbbc\"), string_match(\"^z\", \"abc\"))",
+  ),
+  agreement(
+    "string_replace, a $ kept",
+    "string_replace(\"o\", \"foo boo\", \"$0\")",
+  ),
+  agreement(
+    "string_search",
+    "(string_search(\"a\", \"banana\", 2), string_search(\"z\", \"banana\", 0))",
+  ),
+  agreement(
+    "string_search, by graphemes",
+    "string_search(\"c\", \"a👍🏽bc\", 0)",
+  ),
+  agreement("string_join", "string_join(\", \", [\"a\", \"b\", \"c\"])"),
+  agreement("string_escaped", "string_escaped(\"\\hello é\")"),
+  agreement(
+    "string_capitalize and string_uncapitalize",
+    "(string_capitalize(\"élan\"), string_uncapitalize(\"ÉLAN\"))",
+  ),
+  agreement(
+    "string_compare",
+    "(string_compare(\"a\", \"b\"), string_compare(\"b\", \"a\"), string_compare(\"ab\", \"ab\"), string_compare(\"ab\", \"a\"))",
+  ),
+  agreement(
+    "int_compare and invert_ord",
+    "(int_compare(1, 2), int_compare(5, 5), invert_ord(int_compare(1, 2)))",
+  ),
+  agreement(
+    "float_compare, nan below every float",
+    "(float_compare(nan, 1.), float_compare(nan, nan), float_compare(2., 1.))",
+  ),
+];
+
+/* (^ticket(761)) partial application, f(a, _): one deferred, several, and one handed to List.map */
+let partial_tests = [
+  agreement(
+    "a partial application",
+    "let add = fun (a, b) -> a + b in let inc = add(1, _) in inc(41)",
+  ),
+  agreement(
+    "two deferred, filled in order",
+    "let f = fun (a, b, c) -> a * 100 + b * 10 + c in let g = f(_, 2, _) in g(1, 3)",
+  ),
+  /* (its own map: List is no module in the tests' environment, where List.map read as a constructor's projection) */
+  agreement(
+    "a partial application handed to a map",
+    "let map = fun (f, xs) -> case xs | [] => [] | x :: rest => f(x) :: map(f, rest) end in let add = fun (a, b) -> a + b in map(add(10, _), [1, 2, 3])",
+  ),
+];
+
+/* (^ticket(761)) recursion over more than one name, a tuple of functions */
+let mutual_tests = [
+  agreement(
+    "even and odd",
+    "let (even, odd) = (fun n -> if n == 0 then true else odd(n - 1), fun n -> if n == 0 then false else even(n - 1)) in (even(10), odd(7), even(3))",
+  ),
+  agreement(
+    "even and odd, the names' types declared",
+    "let (even : Int -> Bool, odd : Int -> Bool) = (fun n -> if n == 0 then true else odd(n - 1), fun n -> if n == 0 then false else even(n - 1)) in even(4)",
+  ),
+  agreement(
+    "three in a cycle, closing over an outer name",
+    "let t = 100 in let (a, b, c) = (fun n -> if n > 8 then t + n else b(n + 1), fun n -> c(n + 2), fun n -> a(n * 2)) in a(1)",
+  ),
+  agreement(
+    "the fixpoint written out",
+    "let (even, odd) = (fix (even, odd) -> (fun n -> if n == 0 then true else odd(n - 1), fun n -> if n == 0 then false else even(n - 1))) in even(1)",
+  ),
+  not_compiled(
+    "a part that is not a function stays with the interpreter",
+    "fix (a, b) -> (1, fun n -> a + n)",
+    "a recursive definition of more than one name, not a tuple of functions",
+  ),
+];
+
 let tests = (
   "HazelJit",
   invalid_tests
   @ big_int_tests
+  @ mutual_tests
+  @ partial_tests
+  @ string_builtin_tests
   @ [
     agreement("arithmetic", "1 + 2 * 3 - 4 / 2"),
     agreement("floats", "1.5 *. 2. +. 0.25"),
