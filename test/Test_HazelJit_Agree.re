@@ -178,7 +178,8 @@ let rec agree = (e: Exp.t, js: Js.Unsafe.any): option(string) => {
       && Js.to_string(Js.Unsafe.coerce(get(js, "c"))) == name,
       "the constructor " ++ name,
     )
-  | Ap(Forward, {term: Constructor(name, _), _}, arg) =>
+  /* (a constructor applied either way, Some(3) or 3 |> Some, is the same value; the interpreter keeps how it was written) */
+  | Ap(Forward | Reverse, {term: Constructor(name, _), _}, arg) =>
     typeof(js) == "object"
     && !is_null(js)
     && Js.to_string(Js.Unsafe.coerce(get(js, "c"))) == name
