@@ -463,14 +463,16 @@ module Transition = (EV: EV_MODE) => {
       };
 
     /* Environment mode evaluates `expr` under `env` on the next step
-       (`SetEnv`). Substitution mode writes `env` into the term. */
-    let under_env = (env, expr, side_effects) =>
+       (`SetEnv`). Substitution mode writes `delta` into the term: the part
+       of `env` not already substituted there, which is the bindings this
+       step added plus any closure's environment. */
+    let under_env = (env, delta, expr, side_effects) =>
       switch (mode) {
       | `Environment => (
           expr,
           [EvaluatorState.SetEnv(env), ...side_effects],
         )
-      | `Substitution => (expr |> Substitution.in_exp(env), side_effects)
+      | `Substitution => (expr |> Substitution.in_exp(delta), side_effects)
       };
 
     // Transition rules
@@ -529,11 +531,12 @@ module Transition = (EV: EV_MODE) => {
       switch (matches) {
       | IndetMatch
       | DoesNotMatch => Indet
-      | Matches(env') =>
-        let env' = Environment.add_bindings(env, env');
+      | Matches(new_bindings) =>
+        let env' = Environment.add_bindings(env, new_bindings);
         let (expr, side_effects) =
           under_env(
             env',
+            Environment.of_bindings(new_bindings),
             d2,
             [
               RecordPatMatch({
@@ -556,11 +559,11 @@ module Transition = (EV: EV_MODE) => {
       switch (Pat.theorem_binder(dp)) {
       | Some(n) =>
         let e' = Substitution.in_exp(env, e);
-        let env' =
-          Environment.extend(env, (n, generated(ProofObject(e'))));
+        let proof = generated(ProofObject(e'));
         let (expr, side_effects) =
           under_env(
-            env',
+            Environment.extend(env, (n, proof)),
+            Environment.of_bindings([(n, proof)]),
             d1,
             [
               RecordTheorem(DHExp.rep_id(d), n, env, e'),
@@ -637,6 +640,7 @@ module Transition = (EV: EV_MODE) => {
       let (expr, side_effects) =
         under_env(
           env'',
+          Option.is_some(fix_env) ? env'' : Environment.of_bindings(env'),
           d1,
           [
             RecordPatMatch({
@@ -714,7 +718,7 @@ module Transition = (EV: EV_MODE) => {
           );
         let (expr, side_effects) =
           switch (closure_env) {
-          | Some(env) => under_env(env, substituted, [])
+          | Some(env) => under_env(env, env, substituted, [])
           | None => (substituted, [])
           };
         Step({
@@ -773,6 +777,7 @@ module Transition = (EV: EV_MODE) => {
             let (expr, side_effects) =
               under_env(
                 env'',
+                env'',
                 d3,
                 [
                   RecordStackFrame(fn_name, Some(d2'), fn_def_id),
@@ -798,9 +803,11 @@ module Transition = (EV: EV_MODE) => {
           | IndetMatch
           | DoesNotMatch => Indet
           | Matches(added_env) =>
+            let env = Environment.of_bindings(added_env);
             let (expr, side_effects) =
               under_env(
-                Environment.add_bindings(Environment.empty, added_env),
+                env,
+                env,
                 d3,
                 [
                   RecordStackFrame(fn_name, Some(d2'), fn_def_id),
@@ -1205,6 +1212,7 @@ module Transition = (EV: EV_MODE) => {
         let (expr, side_effects) =
           under_env(
             Environment.add_bindings(env, env'),
+            Environment.of_bindings(env'),
             d2,
             /* Use the pre-req_final scrutinee `d1` (not `d1'`) so dirty
              * propagation walks its stable source ids, which carry cache

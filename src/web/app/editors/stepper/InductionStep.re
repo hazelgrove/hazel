@@ -188,7 +188,7 @@ module F =
     let scrut =
       CodeEditable.Update.calculate(
         ~settings=Calc.get_value(settings),
-        ~ctx=Calc.get_value(ctx).ctx,
+        ~ctx=Calc.get_value(ctx) |> SemanticCtx.ctx_for_new_term,
         ~dynamics=Dynamics.Map.empty,
         ~is_edited=true,
         ~stitch=x => x,

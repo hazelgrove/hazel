@@ -488,13 +488,19 @@ and uexp_to_info_map =
         m,
       )
     | Deferral(position) =>
-      let (marks: list(Mark.t), message: option(Message.t)) =
+      let (elab_term, marks: list(Mark.t), message: option(Message.t)) =
         switch (position) {
-        | InAp => ([], Some(Exp(AnaDeferralConsistent(ana))))
-        | OutsideAp => ([IsDeferral(position)], None)
+        | InAp => (
+            Deferral(position) |> rewrap,
+            [],
+            Some(Exp(AnaDeferralConsistent(ana))),
+          )
+        /* A deferral anywhere else would survive elaboration and could be
+           moved around by later rewrites, so it elaborates to a hole. */
+        | OutsideAp => (EmptyHole |> rewrap, [IsDeferral(position)], None)
         };
       add(
-        ~elab_term=Deferral(position) |> rewrap,
+        ~elab_term,
         ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
         ~marks,
         ~message?,
@@ -760,26 +766,28 @@ and uexp_to_info_map =
       );
     | UnOp(op, e) =>
       let op = Operators.replace_un_op(op, ctx.use_mode); // Replace op if necessary due to `use`
-      /* Re-kind numeric negation by the analyzed class, else by the
-         operand's own class (peeked with a discarded pass) — mirrors
-         replace_literal, so `-1.5` and `let x: Float = -5` type as float
-         negation instead of locking the operand to Int. */
+      /* Re-kind numeric negation by the ana class, else by the operand's
+         class, so `-1.5` is float negation. Only under an ambient mode:
+         use_mode None means the term is already elaborated, and re-deciding
+         the op there would read a class it was not elaborated with. Boolean
+         negation is never re-kinded, so it doesn't peek at its operand. */
       let op =
-        switch (Typ.is_ana_atom(ana)) {
-        | Some(Int | Nat | Float | SInt) as ana_cls =>
-          Operators.replace_un_op_cls(op, ana_cls, None)
-        /* A non-numeric class (`- 33` analyzed against Bool, as in
-           `proof_object - 33 end`) says nothing about which negation this
-           is; decide by the operand, as a fresh synthesis of the same term
-           would. */
-        | Some(Bool | String)
-        | None =>
-          let (peek, _, _) = go(~ana=syn, e, m);
-          Operators.replace_un_op_cls(
-            op,
-            None,
-            Typ.is_ana_atom(peek.elab_syn_ty),
-          );
+        switch (ctx.use_mode, op) {
+        | (None, _)
+        | (_, Bool(_)) => op
+        | (Some(_), Int(_) | Nat(_) | Float(_) | SInt(_)) =>
+          switch (Typ.is_ana_atom(ana)) {
+          | Some(Int | Nat | Float | SInt) as ana_cls =>
+            Operators.replace_un_op_cls(op, ana_cls, None)
+          | Some(Bool | String)
+          | None =>
+            let (peek, _, _) = go(~ana=syn, e, m);
+            Operators.replace_un_op_cls(
+              op,
+              None,
+              Typ.is_ana_atom(peek.elab_syn_ty),
+            );
+          }
         };
       let op_semantics = Operators.semantics_of_un_op(op);
       switch (op_semantics) {

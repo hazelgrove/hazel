@@ -984,6 +984,69 @@ let tests = (
         );
       },
     ),
+    /* The stepper's context describes the elaborated program; a term typed
+       against it in a rewrite editor still gets its negation decided. */
+    test_case(
+      "A negation typed in a stepper editor is re-kinded",
+      `Quick,
+      () => {
+        let ctx =
+          SemanticCtx.of_ctx_and_env(
+            Builtins.ctx_init(None),
+            Builtins.env_init,
+          )
+          |> SemanticCtx.ctx_for_new_term;
+        let (m, _) =
+          Statics.mk(
+            CoreSettings.on,
+            ctx,
+            parse_exp("let x : Float = 1.0 in -x"),
+          );
+        check(
+          int,
+          "static errors",
+          0,
+          List.length(Statics.Map.error_ids(m)),
+        );
+      },
+    ),
+    /* A context that already has a use mode keeps it: the theorem list
+       builds its context from the program's, which `use Float` sets. */
+    test_case(
+      "A stepper editor keeps the program's use mode",
+      `Quick,
+      () => {
+        let ctx =
+          SemanticCtx.of_ctx_and_env(
+            Ctx.set_use_mode(Builtins.ctx_init(None), Some(Float)),
+            Builtins.env_init,
+          )
+          |> SemanticCtx.ctx_for_new_term;
+        check(bool, "use mode is Float", true, ctx.use_mode == Some(Float));
+      },
+    ),
+    /* Boolean negation is never re-kinded, so checking it mustn't peek at
+       its operand: each `!` would double the work. */
+    test_case(
+      "Nested boolean negation checks in linear time",
+      `Quick,
+      () => {
+        let exp =
+          parse_exp(
+            "if "
+            ++ String.concat("", List.init(24, _ => "! "))
+            ++ "true then 1 else 2",
+          );
+        let (m, _) =
+          Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), exp);
+        check(
+          int,
+          "static errors",
+          0,
+          List.length(Statics.Map.error_ids(m)),
+        );
+      },
+    ),
   ]
   @ derive_typ_tests,
 );

@@ -232,7 +232,7 @@ module Update = {
             ~is_dynamic_term=true,
             ~dynamics=Dynamics.Map.empty,
             ~stitch=x => x,
-            ~ctx=Calc.get_value(ctx) |> SemanticCtx.get_ctx,
+            ~ctx=Calc.get_value(ctx) |> SemanticCtx.ctx_for_new_term,
             editor,
           );
         // Extract an exp from the editor
@@ -569,6 +569,12 @@ module View = {
                         model.selected_exp,
                       ),
                     );
+                  let substitute = e => {
+                    let env =
+                      model.cached_env
+                      |> Calc.get_saved_exc(~print="env not cached");
+                    Substitution.in_exp(env, e);
+                  };
                   [
                     // one element list with a div
                     // with a list containing two elements
@@ -633,13 +639,7 @@ module View = {
                                     |> Calc.get_saved_exc(~print="full_exp"),
                                   ),
                                   unboxed_selected_exp,
-                                  unboxed_cached_exp
-                                  |> Substitution.in_exp(
-                                       model.cached_env
-                                       |> Calc.get_saved_exc(
-                                            ~print="env not cached",
-                                          ),
-                                     ),
+                                  substitute(unboxed_cached_exp),
                                 ),
                               )
                             ),
@@ -653,20 +653,8 @@ module View = {
                                 inject(
                                   UpdateResult(
                                     RewriteChecker.check_rewrite(
-                                      unboxed_selected_exp
-                                      |> Substitution.in_exp(
-                                           model.cached_env
-                                           |> Calc.get_saved_exc(
-                                                ~print="env not cached",
-                                              ),
-                                         ),
-                                      unboxed_cached_exp
-                                      |> Substitution.in_exp(
-                                           model.cached_env
-                                           |> Calc.get_saved_exc(
-                                                ~print="env not cached",
-                                              ),
-                                         ),
+                                      substitute(unboxed_selected_exp),
+                                      substitute(unboxed_cached_exp),
                                     ),
                                   ),
                                 ),
