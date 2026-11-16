@@ -588,20 +588,89 @@ and exp_inner =
   | Ap(Reverse, _, _) => unsupported("a reverse application")
   | Fun(p, body, _, _) => func(st, lex, ~term=e, p, body)
   | FixF(p, body, _) =>
-    let rec name_of = (p: Pat.t) =>
+    let rec name_of = (p: Pat.t): option(string) =>
       switch (Pat.term_of(p)) {
-      | Var(x) => x
+      | Var(x) => Some(x)
       | Parens(p)
       | Asc(p, _) => name_of(p)
-      | _ => unsupported("a recursive definition of more than one name")
+      | _ => None
       };
-    let x = name_of(p);
-    let inner = {decls: []};
-    let j = fresh(st, inner, x);
-    let body = exp(st, inner, [(x, j), ...lex], body);
-    "(() => { "
-    ++ body_with_decls(inner, "(" ++ j ++ " = " ++ body ++ ", " ++ j ++ ")")
-    ++ " })()";
+    /* (even, odd): a tuple of names, each a plain name */
+    let rec names_of = (p: Pat.t): option(list(string)) =>
+      switch (Pat.term_of(p)) {
+      | Parens(p)
+      | Asc(p, _) => names_of(p)
+      | Tuple(ps) =>
+        let xs = List.filter_map(name_of, ps);
+        List.length(xs) == List.length(ps) ? Some(xs) : None;
+      | _ => None
+      };
+    let rec parts_of = (e: Exp.t): option(list(Exp.t)) =>
+      switch (Exp.term_of(e)) {
+      | Parens(e)
+      | Asc(e, _) => parts_of(e)
+      | Tuple(es) => Some(es)
+      | _ => None
+      };
+    let rec is_fun = (e: Exp.t): bool =>
+      switch (Exp.term_of(e)) {
+      | Fun(_) => true
+      | Parens(e)
+      | Asc(e, _)
+      | TypFun(_, e, _) => is_fun(e)
+      | _ => false
+      };
+    switch (name_of(p)) {
+    | Some(x) =>
+      let inner = {decls: []};
+      let j = fresh(st, inner, x);
+      let body = exp(st, inner, [(x, j), ...lex], body);
+      "(() => { "
+      ++ body_with_decls(
+           inner,
+           "(" ++ j ++ " = " ++ body ++ ", " ++ j ++ ")",
+         )
+      ++ " })()";
+    | None =>
+      /* Mutual recursion. The interpreter binds each name to the fixpoint
+         unrolled and projected, each time it is used; here each name is
+         assigned once, in order, then the tuple of them returned. The same
+         when every part is a function: a name is read only when a function
+         runs, after every name has its value. */
+      switch (names_of(p), parts_of(body)) {
+      | (Some(xs), Some(es))
+          when
+            List.length(xs) == List.length(es) && List.for_all(is_fun, es) =>
+        let inner = {decls: []};
+        let js = List.map(x => fresh(st, inner, x), xs);
+        let lex' =
+          List.fold_left2((lex, x, j) => [(x, j), ...lex], lex, xs, js);
+        let assigns =
+          List.map2(
+            (j, e) => j ++ " = " ++ exp(st, inner, lex', e),
+            js,
+            es,
+          );
+        "(() => { "
+        ++ body_with_decls(
+             inner,
+             "("
+             ++ String.concat(", ", assigns)
+             ++ ", ["
+             ++ String.concat(", ", js)
+             ++ "])",
+           )
+        ++ " })()";
+      | (Some(_), _) =>
+        unsupported(
+          "a recursive definition of more than one name, not a tuple of functions",
+        )
+      | (None, _) =>
+        unsupported(
+          "a recursive definition by a pattern that is not a name or a tuple of names",
+        )
+      }
+    };
   | Let(p, e1, e2) =>
     let tmp = fresh(st, scope, "let");
     let v1 =

@@ -1724,9 +1724,35 @@ let partial_tests = [
   ),
 ];
 
+/* (^ticket(761)) recursion over more than one name, a tuple of functions */
+let mutual_tests = [
+  agreement(
+    "even and odd",
+    "let (even, odd) = (fun n -> if n == 0 then true else odd(n - 1), fun n -> if n == 0 then false else even(n - 1)) in (even(10), odd(7), even(3))",
+  ),
+  agreement(
+    "even and odd, the names' types declared",
+    "let (even : Int -> Bool, odd : Int -> Bool) = (fun n -> if n == 0 then true else odd(n - 1), fun n -> if n == 0 then false else even(n - 1)) in even(4)",
+  ),
+  agreement(
+    "three in a cycle, closing over an outer name",
+    "let t = 100 in let (a, b, c) = (fun n -> if n > 8 then t + n else b(n + 1), fun n -> c(n + 2), fun n -> a(n * 2)) in a(1)",
+  ),
+  agreement(
+    "the fixpoint written out",
+    "let (even, odd) = (fix (even, odd) -> (fun n -> if n == 0 then true else odd(n - 1), fun n -> if n == 0 then false else even(n - 1))) in even(1)",
+  ),
+  not_compiled(
+    "a part that is not a function stays with the interpreter",
+    "fix (a, b) -> (1, fun n -> a + n)",
+    "a recursive definition of more than one name, not a tuple of functions",
+  ),
+];
+
 let tests = (
   "HazelJit",
-  partial_tests
+  mutual_tests
+  @ partial_tests
   @ string_builtin_tests
   @ [
     agreement("arithmetic", "1 + 2 * 3 - 4 / 2"),
