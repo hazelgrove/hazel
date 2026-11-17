@@ -1830,6 +1830,95 @@ let sint_tests = [
   ),
 ];
 
+/* (^ticket(767)) the interpreter's step counts for small programs, each a construct apart from the last, to learn what
+   each construct costs, so compiled code can count the same (EvaluatorState.step_count, as Evaluator.evaluate leaves it).
+   Prints only. */
+let step_calibration = () => {
+  let programs = [
+    "1",
+    "1 + 2",
+    "1 + 2 + 3",
+    "(1)",
+    "((1))",
+    "-1",
+    "!true",
+    "true && false",
+    "false && true",
+    "1.0 +. 2.0",
+    {|"a" ++ "b"|},
+    "let x = 1 in 2",
+    "let x = 1 in x",
+    "let x = 1 in x + x",
+    "let x = 1 in let y = 2 in x + y",
+    "let (a, b) = (1, 2) in a",
+    "fun x -> x",
+    "(fun x -> x)(1)",
+    "(fun x -> 1)(2)",
+    "(fun (x, y) -> x + y)(1, 2)",
+    "let f = fun x -> x in f(1)",
+    "let f = fun x -> x in f(f(1))",
+    "((fun x -> fun y -> x + y)(1))(2)",
+    "let f = fun n -> if n == 0 then 0 else f(n - 1) in f(0)",
+    "let f = fun n -> if n == 0 then 0 else f(n - 1) in f(1)",
+    "let f = fun n -> if n == 0 then 0 else f(n - 1) in f(2)",
+    "let f = fun n -> if n == 0 then 0 else f(n - 1) in f(3)",
+    "if true then 1 else 2",
+    "if 1 == 1 then 1 else 2",
+    "case 1 | 1 => 2 | _ => 3 end",
+    "case 2 | 1 => 2 | _ => 3 end",
+    "case 3 | 1 => 2 | 2 => 3 | _ => 4 end",
+    "(1, 2)",
+    "(1 + 1, 2)",
+    "(a = 1, b = 2)",
+    "(a = 1, b = 2).a",
+    "[1, 2]",
+    "[1 + 1, 2]",
+    "1 :: []",
+    "1 :: 2 :: []",
+    "[1] @ [2]",
+    "Some(1)",
+    "case Some(1) | Some(x) => x | None => 0 end",
+    "string_length(\"ab\")",
+    "string_length(\"ab\") + 1",
+    "(1 : Int)",
+    "let f : Int -> Int = fun x -> x in f(1)",
+    "let f = fun x : Int -> x in f(1)",
+    "let f : Int -> Int = fun x -> x in f(f(1))",
+    "let xs : [Int] = [1, 2, 3] in xs",
+    "let f : [Int] -> Int = fun xs -> case xs | [] => 0 | x :: _ => x end in f([1, 2, 3])",
+    "type T = + A + B(Int) in B(1)",
+    "type T = + A + B(Int) in case B(1) | A => 0 | B(n) => n end",
+    "use SInt in 1 + 2",
+    "module M = { let x = 1 } in M.x",
+    "let x = 1 in (x, x)",
+    "let f = fun x -> fun y -> x in f(1)(2)",
+  ];
+  List.iter(
+    src =>
+      switch (
+        Evaluator.evaluate(
+          ~env=Builtins.env_init,
+          elaborate(parse_exp(src)),
+        )
+      ) {
+      | (_, state) =>
+        Printf.printf(
+          "hazel-jit steps calib: %d\t%s\n",
+          EvaluatorState.get_step_count(state),
+          src,
+        )
+      | exception exn =>
+        Printf.printf(
+          "hazel-jit steps calib: raised %s\t%s\n",
+          Printexc.to_string(exn),
+          src,
+        )
+      },
+    programs,
+  );
+  flush(stdout);
+};
+
 let tests = (
   "HazelJit",
   invalid_tests
@@ -1842,6 +1931,13 @@ let tests = (
   @ label_tests
   @ unicode_string_tests
   @ sint_tests
+  @ [
+    test_case(
+      "the interpreter's steps, calibration",
+      `Quick,
+      step_calibration,
+    ),
+  ]
   @ [
     agreement("arithmetic", "1 + 2 * 3 - 4 / 2"),
     agreement("floats", "1.5 *. 2. +. 0.25"),
