@@ -67,6 +67,16 @@ module Runtime = {
   append(a, b) { if (a === null) return b; const xs = []; for (let p = a; p !== null; p = p.t) xs.push(p.h);
     let r = b; for (let i = xs.length - 1; i >= 0; i--) r = {h: xs[i], t: r}; return r; },
   tup(vs, ls) { for (let i = 0; i < ls.length; i++) if (ls[i] !== null) vs[ls[i]] = vs[i]; return vs; },
+  /* (^ticket(761); the slides' check, CI run 44184122601) e.k, as Transition's Dot: a tuple's component; through a list,
+     each element's (a table's column, t.get_acne in the b2t2 examples), so a list of rows gives a list; anything else, the
+     interpreter's projection is stuck */
+  dot(t, k) {
+    if (Array.isArray(t)) return t[k];
+    if (t === null) return null;
+    if (typeof t === "object" && "h" in t) { const xs = []; for (let p = t; p !== null; p = p.t) xs.push(this.dot(p.h, k));
+      let r = null; for (let i = xs.length - 1; i >= 0; i--) r = {h: xs[i], t: r}; return r; }
+    this.indet("a projection by " + k);
+  },
   /* (^ticket(761)) a tuple's labels by index, null where unlabeled, read as HazelJitValue.of_tuple reads them: each
      property that is not an index labels the first unlabeled index holding the very same value */
   labels(t) {
@@ -786,7 +796,7 @@ and exp_inner =
   | Dot(e1, l) =>
     switch (label_of(l)) {
     | Some(name) =>
-      "(" ++ go(e1) ++ ")[" ++ js_string(label_key(name)) ++ "]"
+      "$R.dot(" ++ go(e1) ++ ", " ++ js_string(label_key(name)) ++ ")"
     | None => unsupported("a projection by something other than a label")
     }
   | Constructor(name, t) =>

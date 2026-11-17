@@ -2444,6 +2444,14 @@ let tests = (
   @ [
     agreement("arithmetic", "1 + 2 * 3 - 4 / 2"),
     agreement("floats", "1.5 *. 2. +. 0.25"),
+    agreement(
+      "a projection through a list, a table's column",
+      "let t = [(name=\"a\", acne=true), (name=\"b\", acne=false)] in t.acne",
+    ),
+    agreement(
+      "a projection of a tuple and of a list together",
+      "let r = (a=1, rows=[(a=2), (a=3)]) in (r.a, r.rows.a)",
+    ),
     agreement("a function", "let f = fun x -> x * 2 in f(21)"),
     agreement(
       "recursion",
