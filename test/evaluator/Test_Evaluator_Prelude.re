@@ -35,9 +35,12 @@ let evaluation_test =
       expected,
       unevaluated,
     ) => {
+  /* (timed, for the sweep's timings: the interpreter's run as the test makes it) */
+  let t0 = Test_HazelJit_Agree.now();
   let result = evaluate(unevaluated);
+  let interp_ms = Test_HazelJit_Agree.now() -. t0;
   /* (^ticket(756)) and by hazel-jit, where it compiles: compared, and reported at the end of the run */
-  Test_HazelJit_Agree.sweep(msg, unevaluated, result);
+  Test_HazelJit_Agree.sweep(~interp_ms, msg, unevaluated, result);
   check(
     testable_exp(~ignore_constructor_types?, ~ignore_dynamic_errors?, ()),
     msg,

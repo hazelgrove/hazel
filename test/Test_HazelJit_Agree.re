@@ -375,7 +375,69 @@ let mixed_sweep = (test: string, elab: Exp.t, result: Exp.t): unit =>
     };
   };
 
-let sweep = (test: string, elab: Exp.t, result: Exp.t): unit => {
+/* (^ticket(756); Matthew, 2026-11-17: "please time the tests in interpreter vs jit and present those results in report 54")
+   Each evaluator program that compiles and gives the interpreter's value, timed: the interpreter's first run (as the
+   evaluator test ran it), hazel-jit's compile (OCaml, to the JS source), and the JS parsed once (new Function) and run once,
+   as a page would. Then each again and again (Matthew: "can we repeat the work 100 or 1000 times to get a multi ms number in
+   the interpreter?"): the interpreter until its runs add to 20 ms, 10 times at least and 1000 at most; the JS until its runs
+   add to 5 ms, 100000 times at most; each the time a run. All in the same Node process, on GitHub's machines. */
+let now = (): float =>
+  Js.float_of_number(
+    Js.Unsafe.meth_call(
+      Js.Unsafe.get(Js.Unsafe.global, "performance"),
+      "now",
+      [||],
+    ),
+  );
+type timing = {
+  t_test: string,
+  interp_ms: float,
+  interp_mean: float,
+  interp_n: int,
+  compile_ms: float,
+  parse_ms: float,
+  run1_ms: float,
+  run_mean: float,
+  run_n: int,
+};
+let timings: ref(list(timing)) = ref([]);
+/* the runtime, made once, for the timed runs */
+let timed_runtime: Lazy.t(Js.Unsafe.any) =
+  lazy(Js.Unsafe.eval_string("(" ++ HazelJit.Runtime.source ++ ")"));
+/* (parse, first run, a run's time over the repeats, the repeats) */
+let time_js = (src: string): (float, float, float, int) => {
+  let r =
+    Js.Unsafe.fun_call(
+      Js.Unsafe.pure_js_expr(
+        "(function (R, src) { const t0 = performance.now(); const f = new Function('$R', src); const t1 = performance.now(); f(R); const t2 = performance.now(); let n = 0; const t3 = performance.now(); let t4 = t3; while (n < 100000 && t4 - t3 < 5) { f(R); n++; t4 = performance.now(); } return [t1 - t0, t2 - t1, (t4 - t3) / n, n]; })",
+      ),
+      [|Lazy.force(timed_runtime), Js.Unsafe.inject(Js.string(src))|],
+    );
+  let at = (i: int) =>
+    Js.float_of_number(Js.Unsafe.coerce(Js.Unsafe.get(r, i)));
+  (at(0), at(1), at(2), int_of_float(at(3)));
+};
+/* the interpreter, again and again: (a run's time over the repeats, the repeats) */
+let time_interp = (elab: Exp.t): (float, int) => {
+  let run = () => ignore(Evaluator.evaluate(~env=Builtins.env_init, elab));
+  let t0 = now();
+  run();
+  let one = now() -. t0;
+  let n =
+    Int.min(
+      1000,
+      Int.max(10, int_of_float(Float.ceil(20. /. Float.max(one, 0.02)))),
+    );
+  let t0 = now();
+  for (_ in 1 to n) {
+    run();
+  };
+  ((now() -. t0) /. float_of_int(n), n);
+};
+
+let sweep =
+    (~interp_ms: option(float)=?, test: string, elab: Exp.t, result: Exp.t)
+    : unit => {
   try(mixed_sweep(test, elab, result)) {
   | _ => ()
   };
@@ -383,7 +445,10 @@ let sweep = (test: string, elab: Exp.t, result: Exp.t): unit => {
     try(
       {
         incr(swept);
-        switch (HazelJit.try_compile(~env=Builtins.env_init, elab)) {
+        let t0 = now();
+        let compiled_src = HazelJit.try_compile(~env=Builtins.env_init, elab);
+        let compile_ms = now() -. t0;
+        switch (compiled_src) {
         | Error(reason) =>
           Hashtbl.replace(
             not_compiled,
@@ -431,6 +496,32 @@ let sweep = (test: string, elab: Exp.t, result: Exp.t): unit => {
             switch (agree(result, got)) {
             | None =>
               incr(agreed);
+              switch (interp_ms) {
+              | Some(interp_ms) =>
+                switch (time_js(js_src), time_interp(elab)) {
+                | (
+                    (parse_ms, run1_ms, run_mean, run_n),
+                    (interp_mean, interp_n),
+                  ) =>
+                  timings :=
+                    [
+                      {
+                        t_test: test,
+                        interp_ms,
+                        interp_mean,
+                        interp_n,
+                        compile_ms,
+                        parse_ms,
+                        run1_ms,
+                        run_mean,
+                        run_n,
+                      },
+                      ...timings^,
+                    ]
+                | exception _ => ()
+                }
+              | None => ()
+              };
               Fine;
             | Some(d) when starts_with(not_a_value, d) =>
               not_compared :=
@@ -493,6 +584,43 @@ let report = () =>
         (x: parting) => p("  %s  %s: %s\n", label, x.test, x.what),
         List.rev(xs),
       );
+    /* the timings: in all, then each program's, tab-separated, for ^report(54) */
+    let ts = List.rev(timings^);
+    if (ts != []) {
+      let total = f => List.fold_left((a, t) => a +. f(t), 0., ts);
+      let median = f =>
+        List.map(f, ts)
+        |> List.sort(compare)
+        |> (rs => List.nth(rs, List.length(rs) / 2));
+      p(
+        "hazel-jit timing (ticket 756): %d programs compiled whose values agree. A run's time, repeated (the interpreter until 20 ms, 10 to 1000 times; the JS until 5 ms): the interpreter %.1f ms in all, the JS %.3f ms; the median program's ratio %.0f. First runs: the interpreter %.1f ms in all, hazel-jit compiling %.1f ms, the JS parsed %.1f ms and run %.1f ms; the median program's ratio, the interpreter over the JS parsed and run, %.1f\n",
+        List.length(ts),
+        total(t => t.interp_mean),
+        total(t => t.run_mean),
+        median(t => t.interp_mean /. Float.max(t.run_mean, 0.00001)),
+        total(t => t.interp_ms),
+        total(t => t.compile_ms),
+        total(t => t.parse_ms),
+        total(t => t.run1_ms),
+        median(t => t.interp_ms /. Float.max(t.parse_ms +. t.run1_ms, 0.001)),
+      );
+      List.iter(
+        t =>
+          p(
+            "hazel-jit time\t%.5f\t%.5f\t%d\t%.5f\t%.5f\t%.5f\t%.6f\t%d\t%s\n",
+            t.interp_ms,
+            t.interp_mean,
+            t.interp_n,
+            t.compile_ms,
+            t.parse_ms,
+            t.run1_ms,
+            t.run_mean,
+            t.run_n,
+            one_line(t.t_test),
+          ),
+        ts,
+      );
+    };
     each("DIFFERS", differs^);
     each("THREW", threw^);
     each("NOT A VALUE", not_compared^);
