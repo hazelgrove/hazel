@@ -287,7 +287,98 @@ type verdict =
   | Fine
   | Parts(string);
 
+/* (^ticket(766)) mixed mode, a third way: the program rewritten (HazelJitMixed), its top-level functions with declared
+   types compiled and called as builtins, the rest interpreted; its answer against the interpreter's alone. Reported,
+   not yet a failure of the build. */
+/* two interpreter results the same, as the evaluator's tests judge (Test_Evaluator_Prelude.testable_exp) */
+let same_value = (a: Exp.t, b: Exp.t): bool =>
+  Equality.(
+    equality({
+      ...syntactic_settings,
+      ignore_parens: true,
+      ignore_function_names: true,
+      ignore_function_types: true,
+      ignore_unknown_provenance: true,
+      ignore_explicit_unlabelling: true,
+      ignore_dynamic_errors: false,
+      ignore_constructor_types: false,
+    })
+  ).
+    exp(
+    a,
+    b,
+  );
+let mixed_programs = ref(0);
+let mixed_functions = ref(0);
+let mixed_agreed = ref(0);
+let mixed_differs: ref(list(parting)) = ref([]);
+let mixed_failed: ref(list(parting)) = ref([]);
+let mixed_not_compiled: Hashtbl.t(string, int) = Hashtbl.create(8);
+let mixed_sweep = (test: string, elab: Exp.t, result: Exp.t): unit =>
+  switch (HazelJitMixed.rewrite(elab)) {
+  | exception exn =>
+    mixed_failed :=
+      [
+        {
+          test,
+          what: "the rewrite: " ++ Printexc.to_string(exn),
+        },
+        ...mixed_failed^,
+      ]
+  | rewritten =>
+    List.iter(
+      ((_, why)) =>
+        Hashtbl.replace(
+          mixed_not_compiled,
+          why,
+          1
+          + Option.value(
+              ~default=0,
+              Hashtbl.find_opt(mixed_not_compiled, why),
+            ),
+        ),
+      HazelJitMixed.not_compiled^,
+    );
+    let names = HazelJitMixed.compiled_names^;
+    if (names != []) {
+      incr(mixed_programs);
+      mixed_functions := mixed_functions^ + List.length(names);
+      switch (Evaluator.evaluate(~env=Builtins.env_init, rewritten)) {
+      | exception exn =>
+        mixed_failed :=
+          [
+            {
+              test,
+              what: "the run: " ++ Printexc.to_string(exn),
+            },
+            ...mixed_failed^,
+          ]
+      | (got, _) =>
+        same_value(result, got)
+          ? incr(mixed_agreed)
+          : mixed_differs :=
+              [
+                {
+                  test,
+                  what:
+                    one_line(
+                      String.concat(", ", names)
+                      ++ " compiled; the interpreter: "
+                      ++ Exp.show(result)
+                      ++ "; mixed: "
+                      ++ Exp.show(got),
+                    ),
+                },
+                ...mixed_differs^,
+              ]
+      };
+    };
+  };
+
 let sweep = (test: string, elab: Exp.t, result: Exp.t): unit => {
+  try(mixed_sweep(test, elab, result)) {
+  | _ => ()
+  };
   let verdict =
     try(
       {
@@ -405,6 +496,30 @@ let report = () =>
     each("DIFFERS", differs^);
     each("THREW", threw^);
     each("NOT A VALUE", not_compared^);
+    p(
+      "hazel-jit mixed (ticket 766): %d programs with a function compiled (%d functions); %d agreed, %d differ, %d failed; %d calls compiled, %d fell back\n",
+      mixed_programs^,
+      mixed_functions^,
+      mixed_agreed^,
+      List.length(mixed_differs^),
+      List.length(mixed_failed^),
+      HazelJitMixed.calls^,
+      HazelJitMixed.fallbacks^,
+    );
+    Hashtbl.fold((r, n, acc) => [(n, r), ...acc], mixed_not_compiled, [])
+    |> List.sort(compare)
+    |> List.rev
+    |> List.iter(((n, r)) => p("  mixed, not compiled, %d: %s\n", n, r));
+    Hashtbl.fold(
+      (r, n, acc) => [(n, r), ...acc],
+      HazelJitMixed.fallback_reasons,
+      [],
+    )
+    |> List.sort(compare)
+    |> List.rev
+    |> List.iter(((n, r)) => p("  mixed, fell back, %d: %s\n", n, r));
+    each("MIXED DIFFERS", mixed_differs^);
+    each("MIXED FAILED", mixed_failed^);
     flush(stdout);
   };
 let () = at_exit(report);

@@ -12,7 +12,8 @@
  (deps
   (glob_files modaudit/*.hz)
   (glob_files golden/*.txt)
-  (glob_files petri/*.hz))
+  (glob_files petri/*.hz)
+  (glob_files iching/*.hz))
  (action
   (setenv
    IDB_STUB
@@ -27,7 +28,8 @@
  (deps
   (glob_files modaudit/*.hz)
   (glob_files golden/*.txt)
-  (glob_files petri/*.hz))
+  (glob_files petri/*.hz)
+  (glob_files iching/*.hz))
  (action
   (setenv
    IDB_STUB

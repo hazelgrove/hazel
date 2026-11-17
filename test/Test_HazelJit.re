@@ -54,6 +54,50 @@ let agrees = src => {
 };
 let agreement = (name, src) => test_case(name, `Quick, () => agrees(src));
 
+/* (^ticket(766)) mixed mode: the program rewritten, the functions named compiled, and its answer the interpreter's alone;
+   ~fell_back, whether some call went back to the interpreter */
+let mixed = (~fell_back=false, name, src, names) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let elab = elaborate(parse_exp(src));
+      let expected = Test_Evaluator_Prelude.evaluate(elab);
+      let rewritten = HazelJitMixed.rewrite(elab);
+      check(
+        list(string),
+        "compiled (not: "
+        ++ String.concat(
+             "; ",
+             List.map(
+               ((f, why)) => f ++ ", " ++ why,
+               HazelJitMixed.not_compiled^,
+             ),
+           )
+        ++ ")",
+        names,
+        HazelJitMixed.compiled_names^,
+      );
+      let fell_before = HazelJitMixed.fallbacks^;
+      let got = Test_Evaluator_Prelude.evaluate(rewritten);
+      check(
+        bool,
+        "the interpreter's answer: "
+        ++ Exp.show(expected)
+        ++ "\nmixed: "
+        ++ Exp.show(got),
+        true,
+        same_value(expected, got),
+      );
+      check(
+        bool,
+        "a call fell back",
+        fell_back,
+        HazelJitMixed.fallbacks^ > fell_before,
+      );
+    },
+  );
+
 let not_compiled = (name, src, reason) =>
   test_case(name, `Quick, () =>
     switch (
@@ -1764,6 +1808,216 @@ let undefined_tests = [
 ];
 
 /* (^ticket(761)) tuple extension and the label builtins, as the evaluator's own tests have them; and x |> f */
+/* (^ticket(766)) mixed mode measured: the interpreter alone against mixed, the same answer, each timed once after a
+   first run (which also warms the JIT of the JS engine), printed for ^report(54) */
+let petri_typed = {|
+type Arc = (place = Int, weight = Int) in
+type Transition = (name = String, inputs = [Arc], outputs = [Arc]) in
+type Net = (marking = [Int], transitions = [Transition], draw = Float) in
+type Event = + Fire(Int) + Step in
+type Cmd = + Done + Take(Int, Int, Cmd) + Put(Int, Int, Cmd) + Say(String, Cmd) in
+type Picked = + NoTransition + Found(Transition) in
+let nth : ([Int], Int) -> Int = fun (xs, i) ->
+  case xs | [] => 0 | x :: rest => if i == 0 then x else nth(rest, i - 1) end in
+let len : [Int] -> Int = fun xs -> case xs | [] => 0 | _ :: rest => 1 + len(rest) end in
+let pick : ([Transition], Int) -> Picked = fun (ts, i) ->
+  case ts | [] => NoTransition | t :: rest => if i == 0 then Found(t) else pick(rest, i - 1) end in
+let has : ([Int], [Arc]) -> Bool = fun (m, arcs) ->
+  case arcs | [] => true | a :: rest => nth(m, a.place) >= a.weight && has(m, rest) end in
+let enabled : ([Int], Transition) -> Bool = fun (m, t) -> has(m, t.inputs) in
+let ready : ([Int], [Transition], Int) -> [Int] = fun (m, ts, i) ->
+  case ts | [] => [] | t :: rest =>
+    if enabled(m, t) then i :: ready(m, rest, i + 1) else ready(m, rest, i + 1) end in
+let takes : ([Arc], Cmd) -> Cmd = fun (arcs, k) ->
+  case arcs | [] => k | a :: rest => Take(a.place, a.weight, takes(rest, k)) end in
+let puts : ([Arc], Cmd) -> Cmd = fun (arcs, k) ->
+  case arcs | [] => k | a :: rest => Put(a.place, a.weight, puts(rest, k)) end in
+let fire : Transition -> Cmd = fun t -> Say(t.name, takes(t.inputs, puts(t.outputs, Done))) in
+let fire_at : (Net, Int) -> Cmd = fun (n, i) ->
+  case pick(n.transitions, i)
+  | NoTransition => Say("there is no transition " ++ string_of_int(i), Done)
+  | Found(t) => if enabled(n.marking, t) then fire(t) else Say(t.name ++ " cannot fire now", Done)
+  end in
+let on_event : (Net, Event) -> Cmd = fun (n, e) ->
+  case e
+  | Fire(i) => fire_at(n, i)
+  | Step =>
+    let r = ready(n.marking, n.transitions, 0) in
+    let k = len(r) in
+    if k == 0 then Say("deadlock: nothing can fire", Done)
+    else fire_at(n, nth(r, int_of_float(n.draw *. float_of_int(k))))
+  end in
+let a : Int -> Arc = fun p -> (place = p, weight = 1) in
+let net = (marking = [1, 0, 1, 0, 1], transitions = [
+  (name = "enter1", inputs = [a(0), a(4)], outputs = [a(1)]),
+  (name = "leave1", inputs = [a(1)], outputs = [a(0), a(4)]),
+  (name = "enter2", inputs = [a(2), a(4)], outputs = [a(3)]),
+  (name = "leave2", inputs = [a(3)], outputs = [a(2), a(4)])], draw = 0.7) in
+let events = fun (k, acc) -> if k == 0 then acc else events(k - 1, on_event(net, Step) :: on_event(net, Fire(k)) :: acc) in
+events(50, [])
+|};
+
+let mixed_measured = (name, src) =>
+  test_case(
+    "mixed measured: " ++ name,
+    `Quick,
+    () => {
+      let elab = elaborate(parse_exp(src));
+      let time = f => {
+        let t0 = HazelJitValue.now();
+        let v = f();
+        (v, HazelJitValue.now() -. t0);
+      };
+      let _ = Test_Evaluator_Prelude.evaluate(elab);
+      let (expected, interp_ms) =
+        time(() => Test_Evaluator_Prelude.evaluate(elab));
+      let (rewritten, rewrite_ms) = time(() => HazelJitMixed.rewrite(elab));
+      let names = HazelJitMixed.compiled_names^;
+      let _ = Test_Evaluator_Prelude.evaluate(rewritten);
+      let calls0 = HazelJitMixed.calls^
+      and fell0 = HazelJitMixed.fallbacks^;
+      let (got, mixed_ms) =
+        time(() => Test_Evaluator_Prelude.evaluate(rewritten));
+      /* (printed at the end of the run: a passing test's own output is kept in its log file) */
+      let line =
+        Printf.sprintf(
+          "hazel-jit mixed measured, %s: the interpreter %.1f ms, mixed %.1f ms (its rewrite and compile %.1f ms); %d functions compiled (%s); %d calls compiled, %d fell back\n",
+          name,
+          interp_ms,
+          mixed_ms,
+          rewrite_ms,
+          List.length(names),
+          String.concat(" ", names),
+          HazelJitMixed.calls^ - calls0,
+          HazelJitMixed.fallbacks^ - fell0,
+        );
+      at_exit(() => {
+        print_string(line);
+        flush(stdout);
+      });
+      check(
+        bool,
+        "the interpreter's answer: "
+        ++ Exp.show(expected)
+        ++ "\nmixed: "
+        ++ Exp.show(got),
+        true,
+        same_value(expected, got),
+      );
+    },
+  );
+
+/* (^ticket(766)) the I Ching of hazeljs-oracles (a9e72e0, its rules folder, copied to test/iching), joined as hazeljs
+   joins it (the preamble, then module Name = { its file } in, for each), and an interpreted loop asking it for 200
+   readings: every member declares its whole type, so mixed mode compiles all of them */
+let iching_program = () => {
+  let read = name => {
+    let candidates = [
+      "test/iching/" ++ name ++ ".hz",
+      "iching/" ++ name ++ ".hz",
+      "../test/iching/" ++ name ++ ".hz",
+    ];
+    let path =
+      switch (List.find_opt(Sys.file_exists, candidates)) {
+      | Some(p) => p
+      | None => List.hd(candidates)
+      };
+    switch (CorpusUtil.read_file(path)) {
+    | Some(t) => t
+    | None => fail("no " ++ path)
+    };
+  };
+  read("preamble")
+  ++ String.concat(
+       "",
+       List.map(
+         m => "\nmodule " ++ m ++ " = {\n" ++ read(m) ++ "\n} in",
+         ["Lines", "Casting", "Book", "Reading"],
+       ),
+     )
+  ++ {|
+let six = fun k -> [Lines.line_of(6 + Lines.modulo(k, 4)), Lines.line_of(6 + Lines.modulo(k / 4, 4)),
+  Lines.line_of(6 + Lines.modulo(k / 16, 4)), Lines.line_of(6 + Lines.modulo(k / 64, 4)),
+  Lines.line_of(6 + Lines.modulo(k / 256, 4)), Lines.line_of(6 + Lines.modulo(k / 1024, 4))] in
+let go = fun (k, acc) -> if k == 0 then acc else go(k - 1, acc + (Reading.reading(six(k))).primary.number) in
+go(200, 0)
+|};
+};
+
+let mixed_measured_tests = [
+  mixed_measured(
+    "fib(16), all compiled",
+    "let fib : Int -> Int = fun n -> if n < 2 then n else fib(n - 1) + fib(n - 2) in fib(16)",
+  ),
+  mixed_measured(
+    "500 calls across, from an interpreted loop",
+    "let sq : Int -> Int = fun x -> x * x in let loop = fun (i, acc) -> if i == 0 then acc else loop(i - 1, acc + sq(i)) in loop(500, 0)",
+  ),
+  mixed_measured(
+    "the Petri net rule, whole types declared, 100 events",
+    petri_typed,
+  ),
+];
+
+/* (the I Ching's program is read from files, so it is measured in a test of its own) */
+let iching_measured = () => {
+  let t =
+    mixed_measured("the I Ching's rules, 200 readings", iching_program());
+  let (_, _, run) = t;
+  run();
+};
+
+/* (^ticket(766)) mixed mode's first step */
+let mixed_tests = [
+  mixed(
+    "mixed: a recursive function, its type declared",
+    "let fact : Int -> Int = fun n -> if n == 0 then 1 else n * fact(n - 1) in fact(10)",
+    ["fact"],
+  ),
+  mixed(
+    "mixed: a function calling one before it",
+    "let sq : Int -> Int = fun x -> x * x in let sum_sq : (Int, Int) -> Int = fun (a, b) -> sq(a) + sq(b) in sum_sq(3, 4)",
+    ["sq", "sum_sq"],
+  ),
+  mixed(
+    "mixed: a hole elsewhere in the program, the function still compiled",
+    "let double : Int -> Int = fun x -> x * 2 in (double(21), ?)",
+    ["double"],
+  ),
+  mixed(
+    ~fell_back=true,
+    "mixed: a hole in the argument, that call the interpreter's",
+    "let inc : Int -> Int = fun x -> x + 1 in inc(?)",
+    ["inc"],
+  ),
+  mixed(
+    ~fell_back=true,
+    "mixed: divide by zero, that call the interpreter's, stuck at the error",
+    "let d : Int -> Int = fun x -> 10 / x in (d(5), d(0))",
+    ["d"],
+  ),
+  mixed(
+    "mixed: lists and a constructor across",
+    "type Shape = + Circle(Float) + Square(Float) in let areas : [Shape] -> [Float] = fun shapes -> case shapes | [] => [] | Circle(r) :: rest => (3.0 *. r *. r) :: areas(rest) | Square(s) :: rest => (s *. s) :: areas(rest) end in areas([Circle(1.0), Square(2.0)])",
+    ["areas"],
+  ),
+  mixed(
+    "mixed: a module's members, one calling another",
+    "module M = { let sq : Int -> Int = fun x -> x * x; let cube : Int -> Int = fun x -> x * sq(x) } in M.cube(3) + M.sq(4)",
+    ["sq", "cube"],
+  ),
+  mixed(
+    "mixed: a module's member calling a function before the module",
+    "let inc : Int -> Int = fun x -> x + 1 in module M = { let twice : Int -> Int = fun x -> inc(inc(x)) } in M.twice(40)",
+    ["inc", "twice"],
+  ),
+  mixed(
+    "mixed: a Float that is whole comes back a Float",
+    "let half : Float -> Float = fun x -> x /. 2.0 in half(4.0)",
+    ["half"],
+  ),
+];
+
 let label_tests = [
   agreement(
     "a reverse application, and one to a constructor",
@@ -1867,6 +2121,9 @@ let tests = (
   @ step_limit_tests
   @ undefined_tests
   @ label_tests
+  @ mixed_tests
+  @ mixed_measured_tests
+  @ [test_case("mixed measured: the I Ching", `Quick, iching_measured)]
   @ unicode_string_tests
   @ sint_tests
   @ [
