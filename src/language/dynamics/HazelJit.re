@@ -477,6 +477,14 @@ let rec pat_label_of = (p: Pat.t): option(string) =>
 /* (^ticket(761)) an explicitly unlabeled entry, (_=e): to the interpreter a value form, TupLabel(ExplicitNonlabel, e),
    which a pattern (_=p) matches as an unlabeled entry (Unboxing: no label on either side). Here it is the entry
    itself: an unlabeled component of a tuple, and alone a tuple of one, a JS array of one, as project_labels makes */
+/* a label that is a hole, (?=1, 2): a hole, as the rule has it, not a limit */
+let label_hole = (l: Exp.t): unit =>
+  switch (Exp.term_of(l)) {
+  | EmptyHole
+  | MultiHole(_)
+  | Invalid(_) => unsupported("a hole")
+  | _ => ()
+  };
 let is_nonlabel = (l: Exp.t): bool =>
   switch (Exp.term_of(l)) {
   | ExplicitNonlabel => true
@@ -558,8 +566,8 @@ let rec pat =
       ps,
     )
     |> (((t, b, lex, _)) => (t, b, lex))
-  | TupLabel(l, p') when pat_is_nonlabel(l) =>
-    pat(st, scope, lex, p', v ++ "[0]")
+  /* (alone, the interpreter's match is the whole value's: let (_=x) = (_=1) in x is (_=1), found by CI 11-17) */
+  | TupLabel(l, p') when pat_is_nonlabel(l) => pat(st, scope, lex, p', v)
   | TupLabel(l, p') =>
     switch (pat_label_of(l)) {
     | Some(name) =>
@@ -710,10 +718,11 @@ and exp_inner =
           switch (Exp.term_of(e)) {
           | TupLabel(l, e') when is_nonlabel(l) => (None, go(e'))
           | TupLabel(l, e') =>
+            label_hole(l);
             switch (label_of(l)) {
             | Some(name) => (Some(name), go(e'))
             | None => unsupported("a tuple label that is not a name")
-            }
+            };
           | _ => (None, go(e))
           },
         es,

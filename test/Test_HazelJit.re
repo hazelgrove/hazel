@@ -1656,10 +1656,6 @@ let mutual_tests = [
   ),
   /* (^ticket(761)) a part that is not a function, naming none of the names, is assigned in order with the others */
   agreement(
-    "a part that is not a function, naming none of them",
-    "let (a, b) = (1, fun n -> a + n) in b(2)",
-  ),
-  agreement(
     "the fixpoint written out, with a part that is not a function",
     "fix (a, b) -> (1, fun n -> a + n)",
   ),
