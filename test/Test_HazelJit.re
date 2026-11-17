@@ -2042,7 +2042,7 @@ let today : Moment = (year = 2026, month = 11, day = 17, hour = 19.) in
 
 let astrology_timed = () => {
   let t0 = now();
-  let elab = elaborate(parse_fast(astrology_program(~readings=3)));
+  let elab = elaborate(parse_fast(astrology_program(~readings=1)));
   let built_ms = now() -. t0;
   let t0 = now();
   let result = Test_Evaluator_Prelude.evaluate(elab);
@@ -2052,7 +2052,7 @@ let astrology_timed = () => {
     | exception exn => "the compiler raised " ++ Printexc.to_string(exn)
     | Error(reason) => "not compiled whole: " ++ reason
     | Ok(js_src) =>
-      switch (run_js(HazelJit.Runtime.source, js_src)) {
+      switch (run_js_limited(HazelJit.Runtime.source, js_src, 50_000_000)) {
       | exception (Js_error.Exn(e)) =>
         "the compiled JS threw: " ++ one_line(Js_error.message(e))
       | got =>
@@ -2062,7 +2062,9 @@ let astrology_timed = () => {
           ++ one_line(diff)
         | None =>
           let (parse_ms, run1_ms, run_mean, run_n) = time_js(js_src);
-          let (interp_mean, interp_n) = time_interp(elab);
+          /* (the interpreter's one run: the test bundle's interpreter is slow, and with three readings run three times
+             each, and mixed mode, the quick tests went past their 20 minutes twice, CI runs 44161411855 and 44165529371) */
+          let (interp_mean, interp_n) = (first_ms, 1);
           Printf.sprintf(
             "compiled whole, the interpreter's answer; the interpreter %.1f ms a run (%d runs), compiled %.3f ms a run (%d runs), %.0f times faster; the compiled JS %d kB, parsed in %.1f ms, its first run %.1f ms",
             interp_mean,
@@ -2079,7 +2081,7 @@ let astrology_timed = () => {
     };
   let line =
     Printf.sprintf(
-      "hazel-jit astrology, three readings: parsed and elaborated in %.0f ms, the interpreter's first run %.0f ms; %s\n",
+      "hazel-jit astrology, one reading: parsed and elaborated in %.0f ms, the interpreter's first run %.0f ms; %s\n",
       built_ms,
       first_ms,
       line,
@@ -2502,7 +2504,7 @@ let tests = (
   @ [test_case("mixed measured: the I Ching", `Quick, iching_measured)]
   @ [
     test_case("astrology, compiled whole and timed", `Quick, astrology_timed),
-    test_case("mixed measured: astrology", `Quick, astrology_mixed),
+    test_case("mixed measured: astrology", `Slow, astrology_mixed),
   ]
   @ unicode_string_tests
   @ sint_tests
