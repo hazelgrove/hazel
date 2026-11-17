@@ -9,7 +9,8 @@
    names anything else (an earlier let that is not such a function, say) is not compiled, and the reason kept.
 
    How it is called: the program is rewritten so that the interpreter still evaluates each such definition to its own
-   value (a closure), then hands that value to a builtin made at run time (Builtins.made_at_run_time), which keeps it
+   value (a closure), then hands that value to a builtin made at run time (bound by the definition's own pattern, so
+   its declared type still casts each argument and answer, as it does for the interpreter alone) (Builtins.made_at_run_time), which keeps it
    and gives back another, the compiled function, which the rest of the program sees under the name. Applying that
    builtin carries the argument into JS, runs the compiled function under a budget, and carries the answer back by the
    declared result type. On any stop (an argument that will not carry, a hole in it say; an invalid operation; the
@@ -221,8 +222,11 @@ let rewrite = (program: Exp.t): Exp.t => {
           );
           chain := [(b => Exp.fresh(Let(p, def, b))), ...chain^];
           compiled_names := [f, ...compiled_names^];
+          /* the definition's own pattern, its ascription and all: that cast is the interpreter's, on every argument
+             and answer (let inc : Int -> Int = ... in inc(?) is (? : Int) + 1, falling back; a bare name lost the
+             cast, found by CI 11-17) */
           Some((
-            Pat.fresh(Var(f)),
+            p,
             Exp.fresh(Ap(Forward, Exp.fresh(BuiltinFun(keep_name)), def)),
           ));
         }
