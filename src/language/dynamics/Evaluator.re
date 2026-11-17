@@ -265,6 +265,16 @@ module Proofs = {
       );
     (proof_map, checks);
   };
+
+  let recheck_theorems = (~statics, ~elaborated, theorems): ProofMap.t =>
+    check_theorems(
+      ~statics,
+      ~prev=IncrEval.empty,
+      ~inputs=Id.Map.empty,
+      ~elaborated,
+      theorems,
+    )
+    |> fst;
 };
 
 let rec evaluate =

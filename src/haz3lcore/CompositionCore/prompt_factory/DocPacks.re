@@ -10,11 +10,19 @@ type pack = {
   body: string,
 };
 
-/* No packs yet on this branch: the existing guides (mvu, livelits,
-   creative) document features that are not on dev. The registry, the
-   read_docs tool, and the prompt splice all key off this list, so packs
-   added here become available everywhere at once. */
-let all: list(pack) = [];
+/* The registry, the read_docs tool, and the prompt splice all key off
+   this list, so packs added here become available everywhere at once. */
+let all: list(pack) = [
+  {
+    name: "proofs",
+    blurb: "how to write a theorem's proof: the steps, focusing, case analysis and induction, citing facts, and the builtin axioms. Read it before using check_proof or fill_proof.",
+    body:
+      String.concat(
+        ~sep="\n",
+        ProofGrammarNotes.self @ ProofGrammarNotes.axioms,
+      ),
+  },
+];
 
 let lookup = (name: string): option(pack) =>
   List.find(all, ~f=p => String.equal(p.name, String.strip(name)));

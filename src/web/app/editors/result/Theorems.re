@@ -44,6 +44,9 @@ module Model = {
     proof_map: ProofMap.t,
     /* The statics of the proofs' syntax. */
     info_map: Statics.Map.t,
+    /* The evaluation the proof map was checked against, which the agent
+     * checks its attempts against too. */
+    checked: option((Haz3lcore.CachedStatics.t, Dynamics.t)),
   };
 
   let init = {
@@ -51,6 +54,7 @@ module Model = {
     thm_map: Id.Map.empty,
     proof_map: ProofMap.empty,
     info_map: Statics.Map.empty,
+    checked: None,
   };
 
   let theorems = (model: t): list((Id.t, theorem)) =>
@@ -342,6 +346,7 @@ module Update = {
           thm_map: Id.Map.of_list(theorems),
           proof_map,
           info_map,
+          checked: Calc.get_value(checked),
         });
       };
     };

@@ -1025,6 +1025,7 @@ let insert_tests = (
           )
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
         | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
+        | ProofRequest(_) => Alcotest.fail("Parsed to ProofRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -1049,6 +1050,7 @@ let insert_tests = (
           )
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
         | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
+        | ProofRequest(_) => Alcotest.fail("Parsed to ProofRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -1954,6 +1956,7 @@ let composition_utils_tests = (
         | Action(EditorAction(Update(Definition, "a", "42"))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
         | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
+        | ProofRequest(_) => Alcotest.fail("Parsed to ProofRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -1969,6 +1972,7 @@ let composition_utils_tests = (
         | Action(EditorAction(Update(Body, "b", "x + 1"))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
         | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
+        | ProofRequest(_) => Alcotest.fail("Parsed to ProofRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -1987,6 +1991,7 @@ let composition_utils_tests = (
         | Action(EditorAction(Update(Pattern, "x", "y"))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
         | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
+        | ProofRequest(_) => Alcotest.fail("Parsed to ProofRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2009,6 +2014,7 @@ let composition_utils_tests = (
           ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
         | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
+        | ProofRequest(_) => Alcotest.fail("Parsed to ProofRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2024,6 +2030,7 @@ let composition_utils_tests = (
         | Action(EditorAction(Insert(After, "a", "let b = 2 in"))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
         | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
+        | ProofRequest(_) => Alcotest.fail("Parsed to ProofRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2039,6 +2046,7 @@ let composition_utils_tests = (
         | Action(EditorAction(Insert(Before, "b", "let x = 0 in"))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
         | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
+        | ProofRequest(_) => Alcotest.fail("Parsed to ProofRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2057,6 +2065,7 @@ let composition_utils_tests = (
         | Action(EditorAction(Delete(BindingClause, "b"))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
         | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
+        | ProofRequest(_) => Alcotest.fail("Parsed to ProofRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2072,6 +2081,7 @@ let composition_utils_tests = (
         | Action(EditorAction(Delete(Body, "c"))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
         | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
+        | ProofRequest(_) => Alcotest.fail("Parsed to ProofRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2087,6 +2097,7 @@ let composition_utils_tests = (
         | Action(InsertAtProgramBoundary(After, "let x = 1 in")) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
         | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
+        | ProofRequest(_) => Alcotest.fail("Parsed to ProofRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2102,6 +2113,7 @@ let composition_utils_tests = (
         | Action(InsertAtProgramBoundary(Before, "let x = 1 in")) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
         | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
+        | ProofRequest(_) => Alcotest.fail("Parsed to ProofRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2117,6 +2129,7 @@ let composition_utils_tests = (
         | Action(InsertAtProgramBoundary(After, "let x = 1 in")) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
         | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
+        | ProofRequest(_) => Alcotest.fail("Parsed to ProofRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2131,6 +2144,7 @@ let composition_utils_tests = (
         | Action(AgentContextAction(Expand(["a", "b"]))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
         | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
+        | ProofRequest(_) => Alcotest.fail("Parsed to ProofRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2146,6 +2160,7 @@ let composition_utils_tests = (
         | Action(AgentContextAction(Collapse(["a"]))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
         | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
+        | ProofRequest(_) => Alcotest.fail("Parsed to ProofRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2162,6 +2177,7 @@ let composition_utils_tests = (
         | Action(ProbeAction(PlaceProbe(["a", "b"]))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
         | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
+        | ProofRequest(_) => Alcotest.fail("Parsed to ProofRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2177,6 +2193,7 @@ let composition_utils_tests = (
         | Action(ProbeAction(RemoveProbe(["result"]))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
         | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
+        | ProofRequest(_) => Alcotest.fail("Parsed to ProofRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2192,6 +2209,7 @@ let composition_utils_tests = (
         | Action(ProbeAction(ToggleProbe(["f"]))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
         | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
+        | ProofRequest(_) => Alcotest.fail("Parsed to ProofRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2208,6 +2226,7 @@ let composition_utils_tests = (
         | Action(StaticsAction(PlaceStatics(["x", "y"]))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
         | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
+        | ProofRequest(_) => Alcotest.fail("Parsed to ProofRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2226,6 +2245,7 @@ let composition_utils_tests = (
         | Action(StaticsAction(RemoveStatics(["foo"]))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
         | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
+        | ProofRequest(_) => Alcotest.fail("Parsed to ProofRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2244,6 +2264,7 @@ let composition_utils_tests = (
         | Action(StaticsAction(ToggleStatics(["bar"]))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
         | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
+        | ProofRequest(_) => Alcotest.fail("Parsed to ProofRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2269,6 +2290,7 @@ let composition_utils_tests = (
           ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
         | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
+        | ProofRequest(_) => Alcotest.fail("Parsed to ProofRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2287,6 +2309,7 @@ let composition_utils_tests = (
         | Action(SyntaxProjectorAction(RemoveSyntaxProjector(["x"]))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
         | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
+        | ProofRequest(_) => Alcotest.fail("Parsed to ProofRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2314,6 +2337,7 @@ let composition_utils_tests = (
           ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
         | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
+        | ProofRequest(_) => Alcotest.fail("Parsed to ProofRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2335,6 +2359,7 @@ let composition_utils_tests = (
         ) {
         | Action(_) => Alcotest.fail("Expected Failure when kind is probe")
         | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
+        | ProofRequest(_) => Alcotest.fail("Parsed to ProofRequest")
         | Failure(_) => ()
         };
       },
@@ -2352,6 +2377,7 @@ let composition_utils_tests = (
         ) {
         | Action(_) => Alcotest.fail("Expected Failure for unknown tool")
         | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
+        | ProofRequest(_) => Alcotest.fail("Parsed to ProofRequest")
         | Failure(_) => ()
         };
       },
@@ -2369,6 +2395,7 @@ let composition_utils_tests = (
         ) {
         | Action(_) => Alcotest.fail("Expected Failure for missing code arg")
         | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
+        | ProofRequest(_) => Alcotest.fail("Parsed to ProofRequest")
         | Failure(_) => ()
         };
       },
@@ -2387,6 +2414,7 @@ let composition_utils_tests = (
         | Action(WorkbenchAction(SetActiveTask("My Task"))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
         | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
+        | ProofRequest(_) => Alcotest.fail("Parsed to ProofRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2405,6 +2433,7 @@ let composition_utils_tests = (
         | Action(WorkbenchAction(UnsetActiveTask)) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
         | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
+        | ProofRequest(_) => Alcotest.fail("Parsed to ProofRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2423,6 +2452,7 @@ let composition_utils_tests = (
         | Action(WorkbenchAction(MarkActiveTaskComplete("All done"))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
         | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
+        | ProofRequest(_) => Alcotest.fail("Parsed to ProofRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2441,6 +2471,7 @@ let composition_utils_tests = (
         | Action(WorkbenchAction(MarkActiveTaskIncomplete)) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
         | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
+        | ProofRequest(_) => Alcotest.fail("Parsed to ProofRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2459,6 +2490,7 @@ let composition_utils_tests = (
         | Action(WorkbenchAction(SetActiveSubtask("Step 1"))) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
         | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
+        | ProofRequest(_) => Alcotest.fail("Parsed to ProofRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2477,6 +2509,7 @@ let composition_utils_tests = (
         | Action(WorkbenchAction(UnsetActiveSubtask)) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
         | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
+        | ProofRequest(_) => Alcotest.fail("Parsed to ProofRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2496,6 +2529,7 @@ let composition_utils_tests = (
           ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
         | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
+        | ProofRequest(_) => Alcotest.fail("Parsed to ProofRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -2514,6 +2548,7 @@ let composition_utils_tests = (
         | Action(WorkbenchAction(MarkActiveSubtaskIncomplete)) => ()
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
         | DocsRequest(_) => Alcotest.fail("Parsed to DocsRequest")
+        | ProofRequest(_) => Alcotest.fail("Parsed to ProofRequest")
         | Failure(msg) => Alcotest.fail("Failed to parse: " ++ msg)
         };
       },
@@ -3374,8 +3409,8 @@ let tool_json_tests = (
       `Quick,
       () => {
         let tools = CompositionUtils.Public.tools;
-        /* 36 while DocPacks is empty (read_docs is not offered) */
-        check(int, "tool count", 36, List.length(tools));
+        /* read_docs is offered while DocPacks has a pack */
+        check(int, "tool count", 40, List.length(tools));
       },
     ),
     test_case(
@@ -3584,11 +3619,13 @@ let tool_json_tests = (
           cat("update_active_task"),
         );
         check(string, "delete_task", "Other", cat("delete_task"));
+        check(string, "check_proof", "Proof", cat("check_proof"));
         check(string, "unknown name", "Other", cat("no_such_tool"));
         check(
           list(string),
           "edit tool names",
           [
+            "fill_proof",
             "update_definition",
             "update_body",
             "update_pattern",
