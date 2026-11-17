@@ -2153,9 +2153,21 @@ let slides_sweep = () => {
       r,
       1 + Option.value(~default=0, Hashtbl.find_opt(reasons, r)),
     );
+  let t_slides = now();
+  trail("slides: the check starts");
   List.iter(
     ((path, src)) => {
       incr(n);
+      if (n^ mod 10 == 0) {
+        trail(
+          Printf.sprintf(
+            "slides: %d read, %.0f s, now %s",
+            n^,
+            (now() -. t_slides) /. 1000.,
+            path,
+          ),
+        );
+      };
       switch (Haz3lcore.Parser.to_term(src, ~root=Exp)) {
       | exception _ => incr(not_parsed)
       | None => incr(not_parsed)
