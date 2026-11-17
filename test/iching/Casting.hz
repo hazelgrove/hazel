@@ -1,0 +1,24 @@
+# Each way of casting takes three random numbers from the page, each at least 0 and less than 1. #
+# Three coins: heads counts 3 and tails 2, and the line is their sum: 6 with odds 1/8, 7 with 3/8, 8 with 3/8, 9 with 1/8. #
+let coin : Float -> Int = fun u -> if u <. 0.5 then 2 else 3;
+let by_coins : (Float, Float, Float) -> Cast = fun (a, b, c) ->
+  let v = coin(a) + coin(b) + coin(c) in
+  (line = Lines.line_of(v), value = v, counts = [coin(a), coin(b), coin(c)]);
+# The yarrow stalks: of fifty, one is set aside and 49 are used. #
+# A heap counted off by fours leaves 1 to 4 stalks (a heap that divides evenly leaves 4). #
+let leftover : Int -> Int = fun n ->
+  let r = Lines.modulo(n, 4) in if r == 0 then 4 else r;
+# One division of n stalks: split them where u falls, take one from the right heap and hold it, count off each heap by fours; the one held and both leftovers are set aside #
+let divide : (Int, Float) -> Int = fun (n, u) ->
+  let left = 1 + int_of_float(u *. float_of_int(n - 2)) in
+  let right = n - left - 1 in
+  1 + leftover(left) + leftover(right);
+# Three divisions; what is left, counted by fours, is the line. The books give its odds as 1/16 for 6, 5/16 for 7, 7/16 for 8 and 3/16 for 9, which holds when each heap is as likely to leave 1, 2, 3 or 4; a split that falls anywhere, as here, leaves 4 a little less often, and 6 comes about 1 time in 20 #
+let by_yarrow : (Float, Float, Float) -> Cast = fun (a, b, c) ->
+  let x = divide(49, a) in
+  let y = divide(49 - x, b) in
+  let z = divide(49 - x - y, c) in
+  let v = (49 - x - y - z) / 4 in
+  (line = Lines.line_of(v), value = v, counts = [x, y, z]);
+let cast : (Method, Float, Float, Float) -> Cast = fun (m, a, b, c) ->
+  case m | Coins => by_coins(a, b, c) | Yarrow => by_yarrow(a, b, c) end

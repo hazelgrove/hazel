@@ -1896,6 +1896,43 @@ let mixed_measured = (name, src) =>
     },
   );
 
+/* (^ticket(766)) the I Ching of hazeljs-oracles (a9e72e0, its rules folder, copied to test/iching), joined as hazeljs
+   joins it (the preamble, then module Name = { its file } in, for each), and an interpreted loop asking it for 200
+   readings: every member declares its whole type, so mixed mode compiles all of them */
+let iching_program = () => {
+  let read = name => {
+    let candidates = [
+      "test/iching/" ++ name ++ ".hz",
+      "iching/" ++ name ++ ".hz",
+      "../test/iching/" ++ name ++ ".hz",
+    ];
+    let path =
+      switch (List.find_opt(Sys.file_exists, candidates)) {
+      | Some(p) => p
+      | None => List.hd(candidates)
+      };
+    switch (CorpusUtil.read_file(path)) {
+    | Some(t) => t
+    | None => fail("no " ++ path)
+    };
+  };
+  read("preamble")
+  ++ String.concat(
+       "",
+       List.map(
+         m => "\nmodule " ++ m ++ " = {\n" ++ read(m) ++ "\n} in",
+         ["Lines", "Casting", "Book", "Reading"],
+       ),
+     )
+  ++ {|
+let six = fun k -> [Lines.line_of(6 + Lines.modulo(k, 4)), Lines.line_of(6 + Lines.modulo(k / 4, 4)),
+  Lines.line_of(6 + Lines.modulo(k / 16, 4)), Lines.line_of(6 + Lines.modulo(k / 64, 4)),
+  Lines.line_of(6 + Lines.modulo(k / 256, 4)), Lines.line_of(6 + Lines.modulo(k / 1024, 4))] in
+let go = fun (k, acc) -> if k == 0 then acc else go(k - 1, acc + (Reading.reading(six(k))).primary.number) in
+go(200, 0)
+|};
+};
+
 let mixed_measured_tests = [
   mixed_measured(
     "fib(16), all compiled",
@@ -1910,6 +1947,14 @@ let mixed_measured_tests = [
     petri_typed,
   ),
 ];
+
+/* (the I Ching's program is read from files, so it is measured in a test of its own) */
+let iching_measured = () => {
+  let t =
+    mixed_measured("the I Ching's rules, 200 readings", iching_program());
+  let (_, _, run) = t;
+  run();
+};
 
 /* (^ticket(766)) mixed mode's first step */
 let mixed_tests = [
@@ -2045,6 +2090,7 @@ let tests = (
   @ label_tests
   @ mixed_tests
   @ mixed_measured_tests
+  @ [test_case("mixed measured: the I Ching", `Quick, iching_measured)]
   @ unicode_string_tests
   @ sint_tests
   @ [
