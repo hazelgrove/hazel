@@ -222,6 +222,18 @@ module Runtime = {
       for (let p = l; p !== null; p = p.t) { const k = p.h.label; vs.push(p.h.value);
         ks.push(k === "length" || k === "__proto__" || k[0] === "$" ? "$" + k : k); }
       ks.forEach((k, i) => { vs[k] = vs[i]; }); return vs; },
+    /* (^ticket(761), found by the slides' check) to_lvs: a tuple's labeled entries as a list of (label = String,
+       value = v), in order (BuiltinsTupleOperations); an unlabeled entry, or not a tuple, and the interpreter's is stuck */
+    to_lvs: t => {
+      const stuck = () => { const e = new Error("hazel-jit: indeterminate: to_lvs"); e.$indet = "to_lvs"; throw e; };
+      if (!Array.isArray(t)) stuck();
+      const ls = t.map(() => null);
+      for (const k of Object.keys(t)) { if (/^[0-9]+$/.test(k)) continue; const i = ls.findIndex((x, j) => x === null && t[j] === t[k]); if (i >= 0) ls[i] = k; }
+      if (ls.some(l => l === null)) stuck();
+      let r = null;
+      for (let i = t.length - 1; i >= 0; i--) { const k = ls[i], name = k.length > 1 && k[0] === "$" ? k.slice(1) : k;
+        const e = [name, t[i]]; e.label = name; e.value = t[i]; r = { h: e, t: r }; }
+      return r; },
     omit_labels: ([t, ...ls]) => { const drop = new Set(ls.map(({ lab }) => lab)), tl = t.map(() => null), vs = [], out = [];
       for (const k of Object.keys(t)) { if (/^[0-9]+$/.test(k)) continue; const i = tl.findIndex((x, j) => x === null && t[j] === t[k]); if (i >= 0) tl[i] = k; }
       t.forEach((v, i) => { if (tl[i] === null || !drop.has(tl[i])) { vs.push(v); out.push(tl[i]); } });
@@ -285,6 +297,7 @@ module Runtime = {
     "string_split",
     "project_labels",
     "from_lvs",
+    "to_lvs",
     "select_labels",
     "omit_labels",
     "int_compare",
@@ -456,6 +469,24 @@ let body_with_decls = (scope: scope, expr: string): string =>
    only a number: a function there threw "Invalid array length") and __proto__ (its prototype), is kept under the key
    "$" ++ label instead, and so is any label beginning with $, to keep keys and labels one to one. Every place a label
    meets JS uses these: the compile here, HazelJitValue both ways, the agreement harness. */
+/* an operator's builtin (Operators.builtins: int_plus, float_lt, string_concat ...) as the Hazel function it is,
+   fun (a, b) -> a op b */
+let op_fun = (name: string): option(Exp.t) =>
+  List.find_opt(
+    (op: Operators.op_bin) => Operators.op_name(op) == name,
+    Operators.all_of_op_bin,
+  )
+  |> Option.map((op: Operators.op_bin) => {
+       let (a, b) = ("op$a", "op$b");
+       Exp.fresh(
+         Fun(
+           Pat.fresh(Tuple([Pat.fresh(Var(a)), Pat.fresh(Var(b))])),
+           Exp.fresh(BinOp(op, Exp.fresh(Var(a)), Exp.fresh(Var(b)))),
+           None,
+           None,
+         ),
+       );
+     });
 let label_key = (l: string): string =>
   l == "length" || l == "__proto__" || String.length(l) > 0 && l.[0] == '$'
     ? "$" ++ l : l;
@@ -1224,6 +1255,17 @@ and global = (st: state, x: string): string =>
     switch (Environment.lookup(st.env, x)) {
     | None => unsupported("the free variable " ++ x)
     | Some(d) =>
+      /* (^ticket(761), found by the slides' check) an operator as a builtin, int_plus and the rest: compiled as a
+         function of a pair whose body is the operator, so it is the operator's own code */
+      let d =
+        switch (Exp.term_of(d)) {
+        | BuiltinFun(name) when !List.mem(name, Runtime.builtins) =>
+          switch (op_fun(name)) {
+          | Some(f) => f
+          | None => d
+          }
+        | _ => d
+        };
       switch (Exp.term_of(d)) {
       | BuiltinFun(name) => builtin(name)
       | _ when List.mem(x, Runtime.constants) => "$R.b." ++ x
@@ -1254,7 +1296,7 @@ and global = (st: state, x: string): string =>
           ...st.globals,
         ];
         j;
-      }
+      };
     }
   }
 and builtin = (name: string): string =>

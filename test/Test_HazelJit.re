@@ -2059,6 +2059,20 @@ let label_tests = [
   ),
   agreement("from_lvs of one", {|from_lvs([(label="col", value=3)])|}),
   agreement("from_lvs of none", "from_lvs([])"),
+  /* (^ticket(761), found by the slides' check) */
+  agreement("to_lvs", "to_lvs((a=1, b=true))"),
+  agreement(
+    "to_lvs, then from_lvs",
+    "from_lvs(to_lvs((col1=3, col2=\"x\")))",
+  ),
+  agreement(
+    "an operator as a builtin",
+    "(int_plus(1, 2), float_times(1.5, 2.), string_concat(\"a\", \"b\"), int_lt(1, 2))",
+  ),
+  agreement(
+    "an operator as a builtin, passed along",
+    "let apply = fun (f, a, b) -> f(a, b) in apply(int_times, 6, 7)",
+  ),
   agreement(
     "a module's member that is an expression",
     "{ 1 + 1; let x = 2 }",
