@@ -1857,12 +1857,12 @@ let events = fun (k, acc) -> if k == 0 then acc else events(k - 1, on_event(net,
 events(50, [])
 |};
 
-let mixed_measured = (name, src) =>
+let mixed_measured = (~parse=parse_exp, name, src) =>
   test_case(
     "mixed measured: " ++ name,
     `Quick,
     () => {
-      let elab = elaborate(parse_exp(src));
+      let elab = elaborate(parse(src));
       let time = f => {
         let t0 = HazelJitValue.now();
         let v = f();
@@ -1972,7 +1972,20 @@ let iching_measured = () => {
    trigonometry of the ascendant, Kepler's equation by iteration) whose answer is data. Compiled whole, the answer
    compared with the interpreter's and both timed; and in mixed mode. Printed for ^report(54); a measurement, so a limit
    met or an answer that differs is printed, not failed. */
-let astrology_program = () => {
+/* the fast parser, as hazeljs parses (FastParse): the first run of these tests read the 30 kB program with parse_exp's
+   insertion parser, and the quick tests ran past CI's 20 minutes (CI run 44161411855) */
+let parse_fast = (src: string): Exp.t =>
+  switch (CorpusUtil.parse(src)) {
+  | Some(seg) =>
+    Haz3lcore.MakeTerm.from_zip_for_sem(
+      Haz3lcore.Zipper.unzip(seg),
+      ~root=Exp,
+    ).
+      term
+  | None => fail("FastParse did not read the program")
+  };
+
+let astrology_program = (~readings: int) => {
   let read = name => {
     let candidates = [
       "test/astrology/" ++ name ++ ".hz",
@@ -2011,15 +2024,25 @@ let astrology_program = () => {
      )
   ++ {|
 let today : Moment = (year = 2026, month = 11, day = 17, hour = 19.) in
-[Reading.reading((year = 2026, month = 11, day = 17, hour = 18.064167), (latitude = 40.046313, longitude = -105.286695), today),
- Reading.reading((year = 1990, month = 6, day = 15, hour = 14.5), (latitude = 51.5074, longitude = -0.1278), today),
- Reading.reading((year = 1969, month = 7, day = 20, hour = 20.283333), (latitude = 28.5729, longitude = -80.649), today)]
-|};
+|}
+  ++ "["
+  ++ String.concat(
+       ", ",
+       List.filteri(
+         (i, _) => i < readings,
+         [
+           "Reading.reading((year = 2026, month = 11, day = 17, hour = 18.064167), (latitude = 40.046313, longitude = -105.286695), today)",
+           "Reading.reading((year = 1990, month = 6, day = 15, hour = 14.5), (latitude = 51.5074, longitude = -0.1278), today)",
+           "Reading.reading((year = 1969, month = 7, day = 20, hour = 20.283333), (latitude = 28.5729, longitude = -80.649), today)",
+         ],
+       ),
+     )
+  ++ "]";
 };
 
 let astrology_timed = () => {
   let t0 = now();
-  let elab = elaborate(parse_exp(astrology_program()));
+  let elab = elaborate(parse_fast(astrology_program(~readings=3)));
   let built_ms = now() -. t0;
   let t0 = now();
   let result = Test_Evaluator_Prelude.evaluate(elab);
@@ -2070,8 +2093,9 @@ let astrology_timed = () => {
 let astrology_mixed = () => {
   let t =
     mixed_measured(
-      "the astrology rules, three readings",
-      astrology_program(),
+      ~parse=parse_fast,
+      "the astrology rules, one reading",
+      astrology_program(~readings=1),
     );
   let (_, _, run) = t;
   run();
