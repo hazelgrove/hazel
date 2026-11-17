@@ -1893,6 +1893,7 @@ let step_calibration = () => {
     "let x = 1 in (x, x)",
     "let f = fun x -> fun y -> x in f(1)(2)",
   ];
+  let lines = ref([]);
   List.iter(
     src =>
       switch (
@@ -1902,21 +1903,34 @@ let step_calibration = () => {
         )
       ) {
       | (_, state) =>
-        Printf.printf(
-          "hazel-jit steps calib: %d\t%s\n",
-          EvaluatorState.get_step_count(state),
-          src,
-        )
+        lines :=
+          [
+            Printf.sprintf(
+              "hazel-jit steps calib: %d\t%s\n",
+              EvaluatorState.get_step_count(state),
+              src,
+            ),
+            ...lines^,
+          ]
       | exception exn =>
-        Printf.printf(
-          "hazel-jit steps calib: raised %s\t%s\n",
-          Printexc.to_string(exn),
-          src,
-        )
+        lines :=
+          [
+            Printf.sprintf(
+              "hazel-jit steps calib: raised %s\t%s\n",
+              Printexc.to_string(exn),
+              src,
+            ),
+            ...lines^,
+          ]
       },
     programs,
   );
-  flush(stdout);
+  /* (at the end of the run, as the sweep's report: a passing test's own output is kept in its log file) */
+  let lines = List.rev(lines^);
+  at_exit(() => {
+    List.iter(print_string, lines);
+    flush(stdout);
+  });
 };
 
 let tests = (
