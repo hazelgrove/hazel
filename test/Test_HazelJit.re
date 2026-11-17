@@ -54,6 +54,50 @@ let agrees = src => {
 };
 let agreement = (name, src) => test_case(name, `Quick, () => agrees(src));
 
+/* (^ticket(766)) mixed mode: the program rewritten, the functions named compiled, and its answer the interpreter's alone;
+   ~fell_back, whether some call went back to the interpreter */
+let mixed = (~fell_back=false, name, src, names) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let elab = elaborate(parse_exp(src));
+      let expected = Test_Evaluator_Prelude.evaluate(elab);
+      let rewritten = HazelJitMixed.rewrite(elab);
+      check(
+        list(string),
+        "compiled (not: "
+        ++ String.concat(
+             "; ",
+             List.map(
+               ((f, why)) => f ++ ", " ++ why,
+               HazelJitMixed.not_compiled^,
+             ),
+           )
+        ++ ")",
+        names,
+        HazelJitMixed.compiled_names^,
+      );
+      let fell_before = HazelJitMixed.fallbacks^;
+      let got = Test_Evaluator_Prelude.evaluate(rewritten);
+      check(
+        bool,
+        "the interpreter's answer: "
+        ++ Exp.show(expected)
+        ++ "\nmixed: "
+        ++ Exp.show(got),
+        true,
+        Exp.fast_equal(expected, got),
+      );
+      check(
+        bool,
+        "a call fell back",
+        fell_back,
+        HazelJitMixed.fallbacks^ > fell_before,
+      );
+    },
+  );
+
 let not_compiled = (name, src, reason) =>
   test_case(name, `Quick, () =>
     switch (
@@ -1759,6 +1803,47 @@ let undefined_tests = [
 ];
 
 /* (^ticket(761)) tuple extension and the label builtins, as the evaluator's own tests have them; and x |> f */
+/* (^ticket(766)) mixed mode's first step */
+let mixed_tests = [
+  mixed(
+    "mixed: a recursive function, its type declared",
+    "let fact : Int -> Int = fun n -> if n == 0 then 1 else n * fact(n - 1) in fact(10)",
+    ["fact"],
+  ),
+  mixed(
+    "mixed: a function calling one before it",
+    "let sq : Int -> Int = fun x -> x * x in let sum_sq : (Int, Int) -> Int = fun (a, b) -> sq(a) + sq(b) in sum_sq(3, 4)",
+    ["sq", "sum_sq"],
+  ),
+  mixed(
+    "mixed: a hole elsewhere in the program, the function still compiled",
+    "let double : Int -> Int = fun x -> x * 2 in (double(21), ?)",
+    ["double"],
+  ),
+  mixed(
+    ~fell_back=true,
+    "mixed: a hole in the argument, that call the interpreter's",
+    "let inc : Int -> Int = fun x -> x + 1 in inc(?)",
+    ["inc"],
+  ),
+  mixed(
+    ~fell_back=true,
+    "mixed: divide by zero, that call the interpreter's, stuck at the error",
+    "let d : Int -> Int = fun x -> 10 / x in (d(5), d(0))",
+    ["d"],
+  ),
+  mixed(
+    "mixed: lists and a constructor across",
+    "type Shape = + Circle(Float) + Square(Float) in let areas : [Shape] -> [Float] = fun shapes -> case shapes | [] => [] | Circle(r) :: rest => (3.0 *. r *. r) :: areas(rest) | Square(s) :: rest => (s *. s) :: areas(rest) end in areas([Circle(1.0), Square(2.0)])",
+    ["areas"],
+  ),
+  mixed(
+    "mixed: a Float that is whole comes back a Float",
+    "let half : Float -> Float = fun x -> x /. 2.0 in half(4.0)",
+    ["half"],
+  ),
+];
+
 let label_tests = [
   agreement(
     "a reverse application, and one to a constructor",
@@ -1840,6 +1925,7 @@ let tests = (
   @ step_limit_tests
   @ undefined_tests
   @ label_tests
+  @ mixed_tests
   @ unicode_string_tests
   @ sint_tests
   @ [
