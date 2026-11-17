@@ -1873,17 +1873,23 @@ let mixed_measured = (name, src) =>
       and fell0 = HazelJitMixed.fallbacks^;
       let (got, mixed_ms) =
         time(() => Test_Evaluator_Prelude.evaluate(rewritten));
-      Printf.printf(
-        "hazel-jit mixed measured, %s: the interpreter %.1f ms, mixed %.1f ms (its rewrite and compile %.1f ms); %d functions compiled (%s); %d calls compiled, %d fell back\n",
-        name,
-        interp_ms,
-        mixed_ms,
-        rewrite_ms,
-        List.length(names),
-        String.concat(" ", names),
-        HazelJitMixed.calls^ - calls0,
-        HazelJitMixed.fallbacks^ - fell0,
-      );
+      /* (printed at the end of the run: a passing test's own output is kept in its log file) */
+      let line =
+        Printf.sprintf(
+          "hazel-jit mixed measured, %s: the interpreter %.1f ms, mixed %.1f ms (its rewrite and compile %.1f ms); %d functions compiled (%s); %d calls compiled, %d fell back\n",
+          name,
+          interp_ms,
+          mixed_ms,
+          rewrite_ms,
+          List.length(names),
+          String.concat(" ", names),
+          HazelJitMixed.calls^ - calls0,
+          HazelJitMixed.fallbacks^ - fell0,
+        );
+      at_exit(() => {
+        print_string(line);
+        flush(stdout);
+      });
       check(
         bool,
         "the interpreter's answer: "

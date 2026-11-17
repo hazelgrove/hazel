@@ -9,8 +9,7 @@
    names anything else (an earlier let that is not such a function, say) is not compiled, and the reason kept.
 
    How it is called: the program is rewritten so that the interpreter still evaluates each such definition to its own
-   value (a closure), then hands that value to a builtin made at run time (bound by the definition's own pattern, so
-   its declared type still casts each argument and answer, as it does for the interpreter alone) (Builtins.made_at_run_time), which keeps it
+   value (a closure), then hands that value to a builtin made at run time (Builtins.made_at_run_time), which keeps it
    and gives back another, the compiled function, which the rest of the program sees under the name. Applying that
    builtin carries the argument into JS, runs the compiled function under a budget, and carries the answer back by the
    declared result type. On any stop (an argument that will not carry, a hole in it say; an invalid operation; the
@@ -75,10 +74,11 @@ let rec name_of = (p: Pat.t): option(string) =>
   | Asc(p, _) => name_of(p)
   | _ => None
   };
-let rec arrow_result = (t: Typ.t): option(Typ.t) =>
+/* a declared function type's parameter and result */
+let rec arrow_parts = (t: Typ.t): option((Typ.t, Typ.t)) =>
   switch (Typ.term_of(t)) {
-  | Parens(t) => arrow_result(t)
-  | Arrow(_, b) => Some(b)
+  | Parens(t) => arrow_parts(t)
+  | Arrow(a, b) => Some((a, b))
   | _ => None
   };
 let has_unknown = (t: Typ.t): bool => {
@@ -97,13 +97,13 @@ let has_unknown = (t: Typ.t): bool => {
     );
   found^;
 };
-/* the declared type's result: an ascription on the name, or around the definition */
-let declared_result = (p: Pat.t, def: Exp.t): option(Typ.t) => {
+/* the declared type's parameter and result: an ascription on the name, or around the definition */
+let declared_result = (p: Pat.t, def: Exp.t): option((Typ.t, Typ.t)) => {
   let rec of_pat = (p: Pat.t) =>
     switch (Pat.term_of(p)) {
     | Parens(p) => of_pat(p)
     | Asc(p, t) =>
-      switch (arrow_result(t)) {
+      switch (arrow_parts(t)) {
       | Some(_) as r when !has_unknown(t) => r
       | _ => of_pat(p)
       }
@@ -113,7 +113,7 @@ let declared_result = (p: Pat.t, def: Exp.t): option(Typ.t) => {
     switch (Exp.term_of(e)) {
     | Parens(e) => of_exp(e)
     | Asc(e, t) =>
-      switch (arrow_result(t)) {
+      switch (arrow_parts(t)) {
       | Some(_) as r when !has_unknown(t) => r
       | _ => of_exp(e)
       }
@@ -128,6 +128,7 @@ let declared_result = (p: Pat.t, def: Exp.t): option(Typ.t) => {
 type entry = {
   fn: U.any,
   ts: HazelJitValue.types,
+  param: Typ.t,
   result: Typ.t,
   closure: ref(option(Exp.t)),
 };
@@ -139,6 +140,13 @@ let fall_back = (why: string, entry: entry, arg: Exp.t): option(Exp.t) => {
     why,
     1 + Option.value(~default=0, Hashtbl.find_opt(fallback_reasons, why)),
   );
+  /* the argument cast to the declared parameter type, as the interpreter alone has it at the call (let inc : Int -> Int =
+     ... in inc(?) is (? : Int) + 1; CI 11-17), unless it carries a cast already */
+  let arg =
+    switch (Exp.term_of(arg)) {
+    | Asc(_) => arg
+    | _ => Exp.fresh(Asc(arg, entry.param))
+    };
   switch (entry.closure^) {
   | Some(c) => Some(Exp.fresh(Ap(Forward, c, arg)))
   | None => None
@@ -183,7 +191,7 @@ let rewrite = (program: Exp.t): Exp.t => {
   /* a definition of a function with its whole type declared, compiled: the pattern and definition that replace it */
   let accept = (p: Pat.t, def: Exp.t): option((Pat.t, Exp.t)) =>
     switch (name_of(p), declared_result(p, def), is_function(strip(def))) {
-    | (Some(f), Some(result), true) =>
+    | (Some(f), Some((param, result)), true) =>
       let unit = Exp.fresh(Let(p, def, Exp.fresh(Var(f)))) |> unit_for;
       switch (HazelJit.compile_full(~env=Builtins.env_init, unit)) {
       | exception (HazelJit.Unsupported(why)) =>
@@ -204,6 +212,7 @@ let rewrite = (program: Exp.t): Exp.t => {
           let entry = {
             fn,
             ts: HazelJitValue.types_of(c),
+            param,
             result,
             closure: ref(None),
           };
@@ -222,11 +231,10 @@ let rewrite = (program: Exp.t): Exp.t => {
           );
           chain := [(b => Exp.fresh(Let(p, def, b))), ...chain^];
           compiled_names := [f, ...compiled_names^];
-          /* the definition's own pattern, its ascription and all: that cast is the interpreter's, on every argument
-             and answer (let inc : Int -> Int = ... in inc(?) is (? : Int) + 1, falling back; a bare name lost the
-             cast, found by CI 11-17) */
+          /* (a bare name: the definition's own ascription, kept, cast the builtin's answers again, and a stuck answer
+             showed the cast, (10 / 0 : Int), where the interpreter alone has none; CI 11-17) */
           Some((
-            p,
+            Pat.fresh(Var(f)),
             Exp.fresh(Ap(Forward, Exp.fresh(BuiltinFun(keep_name)), def)),
           ));
         }
