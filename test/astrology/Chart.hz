@@ -1,0 +1,43 @@
+# Degrees and radians #
+let rad : Float -> Float = fun d -> d *. pi /. 180.;
+let deg : Float -> Float = fun r -> r *. 180. /. pi;
+# The angle of the point (x, y), from -pi to pi, written here from atan (the library of hazeljs 0.0.4, which these pages load, has no atan2) #
+let arctan2 : (Float, Float) -> Float = fun (y, x) ->
+  if x >. 0. then atan(y /. x)
+  else if x <. 0. then (if y >=. 0. then atan(y /. x) +. pi else atan(y /. x) -. pi)
+  else if y >. 0. then pi /. 2. else if y <. 0. then 0. -. pi /. 2. else 0.;
+# The Julian day of a moment in Universal Time: days since noon at Greenwich, 1 January 4713 BC (Jean Meeus, Astronomical Algorithms, 2nd ed., chapter 7, for the Gregorian calendar) #
+let julian_day : Moment -> Float = fun m ->
+  let y = if m.month <= 2 then m.year - 1 else m.year in
+  let mo = if m.month <= 2 then m.month + 12 else m.month in
+  let a = y / 100 in
+  let b = 2 - a + a / 4 in
+  floor(365.25 *. float_of_int(y + 4716)) +. floor(30.6001 *. float_of_int(mo + 1))
+    +. float_of_int(m.day + b) -. 1524.5 +. m.hour /. 24.;
+# Julian centuries since the start of 2000 (J2000.0) #
+let centuries : Float -> Float = fun jd -> (jd -. 2451545.) /. 36525.;
+# Greenwich mean sidereal time, as an angle in degrees (Meeus 12.4) #
+let sidereal : Float -> Float = fun jd ->
+  let t = centuries(jd) in
+  Zodiac.normalize((28046061837. /. 100000000.) +. (36098564736629. /. 100000000000.) *. (jd -. 2451545.) +. (387933. /. 1000000000.) *. t *. t -. t *. t *. t /. 38710000.);
+# The tilt of the ecliptic to the equator, in degrees (Meeus 22.2, its first two terms) #
+let obliquity : Float -> Float = fun jd -> (23439291111. /. 1000000000.) -. (13004167. /. 1000000000.) *. centuries(jd);
+# The midheaven: the degree of the ecliptic on the meridian, from the local sidereal time (ramc) and the obliquity #
+let midheaven : (Float, Float) -> Float = fun (ramc, eps) ->
+  Zodiac.normalize(deg(arctan2(sin(rad(ramc)), cos(rad(ramc)) *. cos(rad(eps)))));
+# The ascendant: the degree of the ecliptic rising in the east, also from the latitude #
+let ascendant : (Float, Float, Float) -> Float = fun (ramc, eps, lat) ->
+  Zodiac.normalize(deg(arctan2(cos(rad(ramc)), 0. -. (sin(rad(ramc)) *. cos(rad(eps)) +. tan(rad(lat)) *. sin(rad(eps))))));
+# The houses' first degrees: twelve, 30 degrees apart, from a start #
+let houses_from : (Float, Int) -> [Float] = fun (start, k) ->
+  if k == 12 then [] else Zodiac.normalize(start +. 30. *. float_of_int(k)) :: houses_from(start, k + 1);
+# Equal houses start at the ascendant; whole-sign houses at the start of the ascendant's sign #
+let equal_houses : Float -> [Float] = fun asc -> houses_from(asc, 0);
+let whole_sign_houses : Float -> [Float] = fun asc -> houses_from(30. *. floor(asc /. 30.), 0);
+# A chart's angles and whole-sign houses, for a moment and a site #
+let chart : (Moment, Site) -> Chart = fun (m, s) ->
+  let jd = julian_day(m) in
+  let ramc = Zodiac.normalize(sidereal(jd) +. s.longitude) in
+  let eps = obliquity(jd) in
+  let asc = ascendant(ramc, eps, s.latitude) in
+  (ascendant = asc, midheaven = midheaven(ramc, eps), houses = whole_sign_houses(asc))

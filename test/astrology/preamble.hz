@@ -1,0 +1,28 @@
+# A sign of the zodiac: the ecliptic, the Sun's yearly path, in twelve parts of 30 degrees each, Aries first from the March equinox #
+type Sign = + Aries + Taurus + Gemini + Cancer + Leo + Virgo + Libra + Scorpio + Sagittarius + Capricorn + Aquarius + Pisces in
+# A sign's element and its modality #
+type Element = + Fire + Earth + Air + Water in
+type Modality = + Cardinal + Fixed + Mutable in
+# The bodies a chart places: the two lights, the five planets seen by eye, and the three found since #
+type Body = + Sun + Moon + Mercury + Venus + Mars + Jupiter + Saturn + Uranus + Neptune + Pluto in
+# Where a body stands: its ecliptic longitude, in degrees from the start of Aries #
+type Place = (body = Body, longitude = Float) in
+# The five major aspects, named by the angle between two bodies #
+type Kind = + Conjunction + Sextile + Square + Trine + Opposition in
+# Two bodies in aspect, and how far the angle between them is from exact, in degrees #
+type Aspect = (a = Body, b = Body, kind = Kind, orb = Float) in
+# A moment, as the page gives it: the date, and the hour in Universal Time #
+type Moment = (year = Int, month = Int, day = Int, hour = Float) in
+# A place on Earth: latitude, north positive, and longitude, east positive, in degrees #
+type Site = (latitude = Float, longitude = Float) in
+# A chart's two angles, and the first degree of each of its twelve houses #
+type Chart = (ascendant = Float, midheaven = Float, houses = [Float]) in
+# A line of a reading: what it is about, and its words #
+type Note = (head = String, text = String) in
+# The wheel, drawn in a square 100 across, its centre at (50, 50): each body's glyph and where it goes (ring 0 the birth chart's, ring 1 today's), the lines of the birth chart's aspects, each sign's glyph, and the lines between the signs #
+type Mark = (body = Body, x = Float, y = Float, ring = Int) in
+type Line = (x1 = Float, y1 = Float, x2 = Float, y2 = Float, kind = Kind) in
+type SignMark = (sign = Sign, element = Element, x = Float, y = Float) in
+type Wheel = (marks = [Mark], lines = [Line], signs = [SignMark], cusps = [Line], axes = [Line]) in
+# A reading: the birth chart's places, angles and aspects, today's sky and its aspects to the chart, the words, and the wheel #
+type Reading = (natal = [Place], chart = Chart, aspects = [Aspect], today = [Place], transits = [Aspect], notes = [Note], today_notes = [Note], wheel = Wheel) in

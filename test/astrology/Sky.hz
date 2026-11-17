@@ -1,0 +1,19 @@
+# Where the Sun, the Moon and the planets are, as seen from the Earth: each one's ecliptic longitude, of the date's equinox, in degrees. Rewritten in Hazel from astronomia (https://github.com/commenthol/astronomia, MIT), Sonia Keys's and commenthol's port of Jean Meeus's Astronomical Algorithms (2nd ed., 1998): the Sun as its solar.js has it (Meeus 25), the Moon as its moonposition.js (Meeus 47, the longitude's 60 terms), Mercury to Mars from their mean orbital elements of date (planetelements.js, Meeus 31) by Kepler's equation, Jupiter to Neptune by Paul Schlyter's elements and perturbations (below), and Pluto from its periodic terms (pluto.js, Meeus 37). The modules: Orbit (helpers), MoonOrbit, Planets (Mercury to Mars, and the Earth), Outer (Jupiter to Neptune), PlutoOrbit, and this one, the Sun and every body's place; their tables are made by tools/make-sky-tables.py from astronomia's source. The time is taken as Universal Time throughout: the difference from the dynamical time Meeus means, about a minute today, moves the Moon about 0.01 degrees. #
+# The Sun's apparent longitude, nutation and aberration included (Meeus 25.2 to 25.8, astronomia's solar.apparentLongitude) #
+let sun : Float -> Float = fun t ->
+  let m = Chart.rad(Orbit.horner([357.52911, 35999.05029, -(1537. /. 10000000.)], t)) in
+  let c = Orbit.horner([1.914602, -0.004817, -0.000014], t) *. sin(m) +. (0.019993 -. 0.000101 *. t) *. sin(2. *. m) +. 0.000289 *. sin(3. *. m) in
+  Zodiac.normalize(Orbit.horner([280.46646, 36000.76983, (3032. /. 10000000.)], t) +. c -. 0.00569 -. 0.00478 *. sin(Chart.rad(125.04 -. 1934.136 *. t)));
+# A body's longitude at a Julian day #
+let longitude : (Body, Float) -> Float = fun (b, jd) ->
+  let t = Chart.centuries(jd) in
+  case b
+  | Sun => sun(t) | Moon => MoonOrbit.moon(t) | Pluto => PlutoOrbit.pluto(t)
+  | Jupiter => Outer.outer(b, t) | Saturn => Outer.outer(b, t) | Uranus => Outer.outer(b, t) | Neptune => Outer.outer(b, t)
+  | _ => Planets.planet(b, t)
+  end;
+let bodies : [Body] = [Sun, Moon, Mercury, Venus, Mars, Jupiter, Saturn, Uranus, Neptune, Pluto];
+let places_of : ([Body], Float) -> [Place] = fun (bs, jd) ->
+  case bs | [] => [] | b :: rest => (body = b, longitude = longitude(b, jd)) :: places_of(rest, jd) end;
+# Every body's place at a moment #
+let places : Moment -> [Place] = fun m -> places_of(bodies, Chart.julian_day(m))

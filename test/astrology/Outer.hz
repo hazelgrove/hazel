@@ -1,0 +1,47 @@
+
+# The outer planets, Jupiter to Neptune, from Paul Schlyter's "How to compute planetary positions" (https://stjarnhimlen.se/comp/ppcomp.html), which fits their orbital elements to our times and adds the largest perturbations, the planets' pulls on each other (Jupiter and Saturn's "great term", of 918 years, the largest), for about an arc minute: better here than the mean elements, which leave those out. Each element (value, rate per day) from day 0, 2000 January 0.0 UT: the node N, the inclination i, the argument of perihelion w, the semi-major axis a (AU), the eccentricity e, the mean anomaly M (degrees) #
+let schlyter : Body -> ((Float, Float), (Float, Float), (Float, Float), (Float, Float), (Float, Float), (Float, Float)) = fun b ->
+  case b
+  | Jupiter => ((100.4542, (276854. /. 10000000000.)), (1.3030, -(1557. /. 10000000000.)), (273.8777, (164505. /. 10000000000.)), (5.20256, 0.), (0.048498, (4469. /. 1000000000000.)), (19.8950, (830853001. /. 10000000000.)))
+  | Saturn => ((113.6634, (23898. /. 1000000000.)), (2.4886, -(1081. /. 10000000000.)), (339.3939, (297661. /. 10000000000.)), (9.55475, 0.), (0.055546, -(9499. /. 1000000000000.)), (316.9670, (334442282. /. 10000000000.)))
+  | Uranus => ((74.0005, (13978. /. 1000000000.)), (0.7733, (19. /. 1000000000.)), (96.6612, (30565. /. 1000000000.)), (19.18171, -(155. /. 10000000000.)), (0.047318, (745. /. 100000000000.)), (142.5905, (11725806. /. 1000000000.)))
+  | _ => ((131.7806, (30173. /. 1000000000.)), (1.7700, -(255. /. 1000000000.)), (272.8461, -(6027. /. 1000000000.)), (30.05826, (3313. /. 100000000000.)), (0.008606, (215. /. 100000000000.)), (260.2471, (5995147. /. 1000000000.)))
+  end;
+let mean_anomaly : (Body, Float) -> Float = fun (b, d) -> let (n, i, w, a, e, m) = schlyter(b) in Orbit.at(m, d);
+# The perturbations, in degrees, of heliocentric longitude and latitude (Schlyter's section 10; Uranus's by Neptune he leaves out) #
+let perturbation : (Body, Float) -> (Float, Float) = fun (b, d) ->
+  let mj = mean_anomaly(Jupiter, d) in
+  let ms = mean_anomaly(Saturn, d) in
+  let mu = mean_anomaly(Uranus, d) in
+  case b
+  | Jupiter =>
+    (0. -. 0.332 *. Orbit.sind(2. *. mj -. 5. *. ms -. 67.6) -. 0.056 *. Orbit.sind(2. *. mj -. 2. *. ms +. 21.)
+       +. 0.042 *. Orbit.sind(3. *. mj -. 5. *. ms +. 21.) -. 0.036 *. Orbit.sind(mj -. 2. *. ms) +. 0.022 *. Orbit.cosd(mj -. ms)
+       +. 0.023 *. Orbit.sind(2. *. mj -. 3. *. ms +. 52.) -. 0.016 *. Orbit.sind(mj -. 5. *. ms -. 69.), 0.)
+  | Saturn =>
+    (0.812 *. Orbit.sind(2. *. mj -. 5. *. ms -. 67.6) -. 0.229 *. Orbit.cosd(2. *. mj -. 4. *. ms -. 2.)
+       +. 0.119 *. Orbit.sind(mj -. 2. *. ms -. 3.) +. 0.046 *. Orbit.sind(2. *. mj -. 6. *. ms -. 69.) +. 0.014 *. Orbit.sind(mj -. 3. *. ms +. 32.),
+     0. -. 0.020 *. Orbit.cosd(2. *. mj -. 4. *. ms -. 2.) +. 0.018 *. Orbit.sind(2. *. mj -. 6. *. ms -. 49.))
+  | Uranus =>
+    (0.040 *. Orbit.sind(ms -. 2. *. mu +. 6.) +. 0.035 *. Orbit.sind(ms -. 3. *. mu +. 33.) -. 0.015 *. Orbit.sind(mj -. mu +. 20.), 0.)
+  | _ => (0., 0.)
+  end;
+# An outer planet's longitude as seen from the Earth: around the Sun by Schlyter's elements and perturbations, of the date's equinox, then less the Earth's place (above) #
+let outer : (Body, Float) -> Float = fun (b, t) ->
+  let d = t *. 36525. +. 1.5 in
+  let (nn, ii, ww, aa, ee, mm) = schlyter(b) in
+  let (n, i, w, a, e, m) = (Orbit.at(nn, d), Orbit.at(ii, d), Orbit.at(ww, d), Orbit.at(aa, d), Orbit.at(ee, d), Orbit.at(mm, d)) in
+  let ma = Chart.rad(m) in
+  let ea = Orbit.kepler(ma, e, ma, 8) in
+  let xv = a *. (cos(ea) -. e) in
+  let yv = a *. sqrt(1. -. e *. e) *. sin(ea) in
+  let r = sqrt(xv *. xv +. yv *. yv) in
+  let u = Chart.arctan2(yv, xv) +. Chart.rad(w) in
+  let xh = r *. (Orbit.cosd(n) *. cos(u) -. Orbit.sind(n) *. sin(u) *. Orbit.cosd(i)) in
+  let yh = r *. (Orbit.sind(n) *. cos(u) +. Orbit.cosd(n) *. sin(u) *. Orbit.cosd(i)) in
+  let zh = r *. sin(u) *. Orbit.sind(i) in
+  let (dlon, dlat) = perturbation(b, d) in
+  let lon = Chart.rad(Chart.deg(Chart.arctan2(yh, xh)) +. dlon) in
+  let lat = Chart.rad(Chart.deg(Chart.arctan2(zh, sqrt(xh *. xh +. yh *. yh))) +. dlat) in
+  let (xe, ye, ze) = Planets.heliocentric(Sun, t) in
+  Zodiac.normalize(Chart.deg(Chart.arctan2(r *. cos(lat) *. sin(lon) -. ye, r *. cos(lat) *. cos(lon) -. xe)) +. Orbit.nutation(t))

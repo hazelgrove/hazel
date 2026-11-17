@@ -1,0 +1,30 @@
+let cat : ([Aspect], [Aspect]) -> [Aspect] = fun (xs, ys) ->
+  case xs | [] => ys | x :: rest => x :: cat(rest, ys) end;
+# The angle between two longitudes, the shorter way round: 0 to 180 degrees #
+let separation : (Float, Float) -> Float = fun (a, b) ->
+  let d = float_mod(abs_float(a -. b), 360.) in if d >. 180. then 360. -. d else d;
+let kinds : [Kind] = [Conjunction, Sextile, Square, Trine, Opposition];
+let angle : Kind -> Float = fun k ->
+  case k | Conjunction => 0. | Sextile => 60. | Square => 90. | Trine => 120. | Opposition => 180. end;
+# How far from exact an aspect may be and still count: wider for the conjunction and opposition, narrower for the sextile #
+let orb_allowed : Kind -> Float = fun k ->
+  case k | Conjunction => 8. | Opposition => 8. | Square => 7. | Trine => 7. | Sextile => 5. end;
+# The aspect two places make, if any: the first kind whose angle the separation is within the orb of #
+let within : ([Kind], Float, Place, Place) -> [Aspect] = fun (ks, s, p, q) ->
+  case ks
+  | [] => []
+  | k :: rest =>
+    let off = abs_float(s -. angle(k)) in
+    if off <=. orb_allowed(k) then [(a = p.body, b = q.body, kind = k, orb = off)] else within(rest, s, p, q)
+  end;
+let aspect_of : (Place, Place) -> [Aspect] = fun (p, q) ->
+  within(kinds, separation(p.longitude, q.longitude), p, q);
+# One place against each of others #
+let with_each : (Place, [Place]) -> [Aspect] = fun (p, qs) ->
+  case qs | [] => [] | q :: rest => cat(aspect_of(p, q), with_each(p, rest)) end;
+# Every pair of a chart's places in aspect, each pair once #
+let among : [Place] -> [Aspect] = fun ps ->
+  case ps | [] => [] | p :: rest => cat(with_each(p, rest), among(rest)) end;
+# The sky at a moment against a chart's places: the transits #
+let transits : ([Place], [Place]) -> [Aspect] = fun (now, natal) ->
+  case now | [] => [] | p :: rest => cat(with_each(p, natal), transits(rest, natal)) end

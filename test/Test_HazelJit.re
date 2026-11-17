@@ -1967,6 +1967,116 @@ let iching_measured = () => {
   run();
 };
 
+/* (^ticket(768)) the astrology oracle of hazeljs-oracles (fbfc59f, its rules folder, copied to test/astrology), joined as
+   hazeljs joins it, asked for three readings: a numeric program of eleven modules (Meeus's and Schlyter's series, the
+   trigonometry of the ascendant, Kepler's equation by iteration) whose answer is data. Compiled whole, the answer
+   compared with the interpreter's and both timed; and in mixed mode. Printed for ^report(54); a measurement, so a limit
+   met or an answer that differs is printed, not failed. */
+let astrology_program = () => {
+  let read = name => {
+    let candidates = [
+      "test/astrology/" ++ name ++ ".hz",
+      "astrology/" ++ name ++ ".hz",
+      "../test/astrology/" ++ name ++ ".hz",
+    ];
+    let path =
+      switch (List.find_opt(Sys.file_exists, candidates)) {
+      | Some(p) => p
+      | None => List.hd(candidates)
+      };
+    switch (CorpusUtil.read_file(path)) {
+    | Some(t) => t
+    | None => fail("no " ++ path)
+    };
+  };
+  read("preamble")
+  ++ String.concat(
+       "",
+       List.map(
+         m => "\nmodule " ++ m ++ " = {\n" ++ read(m) ++ "\n} in",
+         [
+           "Zodiac",
+           "Aspects",
+           "Chart",
+           "Orbit",
+           "MoonOrbit",
+           "Planets",
+           "Outer",
+           "PlutoOrbit",
+           "Sky",
+           "Wheel",
+           "Reading",
+         ],
+       ),
+     )
+  ++ {|
+let today : Moment = (year = 2026, month = 11, day = 17, hour = 19.) in
+[Reading.reading((year = 2026, month = 11, day = 17, hour = 18.064167), (latitude = 40.046313, longitude = -105.286695), today),
+ Reading.reading((year = 1990, month = 6, day = 15, hour = 14.5), (latitude = 51.5074, longitude = -0.1278), today),
+ Reading.reading((year = 1969, month = 7, day = 20, hour = 20.283333), (latitude = 28.5729, longitude = -80.649), today)]
+|};
+};
+
+let astrology_timed = () => {
+  let t0 = now();
+  let elab = elaborate(parse_exp(astrology_program()));
+  let built_ms = now() -. t0;
+  let t0 = now();
+  let result = Test_Evaluator_Prelude.evaluate(elab);
+  let first_ms = now() -. t0;
+  let line =
+    switch (HazelJit.try_compile(~env=Builtins.env_init, elab)) {
+    | exception exn => "the compiler raised " ++ Printexc.to_string(exn)
+    | Error(reason) => "not compiled whole: " ++ reason
+    | Ok(js_src) =>
+      switch (run_js(HazelJit.Runtime.source, js_src)) {
+      | exception (Js_error.Exn(e)) =>
+        "the compiled JS threw: " ++ one_line(Js_error.message(e))
+      | got =>
+        switch (agree(result, got)) {
+        | Some(diff) =>
+          "compiled whole, but its answer is not the interpreter's: "
+          ++ one_line(diff)
+        | None =>
+          let (parse_ms, run1_ms, run_mean, run_n) = time_js(js_src);
+          let (interp_mean, interp_n) = time_interp(elab);
+          Printf.sprintf(
+            "compiled whole, the interpreter's answer; the interpreter %.1f ms a run (%d runs), compiled %.3f ms a run (%d runs), %.0f times faster; the compiled JS %d kB, parsed in %.1f ms, its first run %.1f ms",
+            interp_mean,
+            interp_n,
+            run_mean,
+            run_n,
+            interp_mean /. run_mean,
+            String.length(js_src) / 1024,
+            parse_ms,
+            run1_ms,
+          );
+        }
+      }
+    };
+  let line =
+    Printf.sprintf(
+      "hazel-jit astrology, three readings: parsed and elaborated in %.0f ms, the interpreter's first run %.0f ms; %s\n",
+      built_ms,
+      first_ms,
+      line,
+    );
+  at_exit(() => {
+    print_string(line);
+    flush(stdout);
+  });
+};
+
+let astrology_mixed = () => {
+  let t =
+    mixed_measured(
+      "the astrology rules, three readings",
+      astrology_program(),
+    );
+  let (_, _, run) = t;
+  run();
+};
+
 /* (^ticket(766)) mixed mode's first step */
 let mixed_tests = [
   mixed(
@@ -2366,6 +2476,10 @@ let tests = (
   @ mixed_tests
   @ mixed_measured_tests
   @ [test_case("mixed measured: the I Ching", `Quick, iching_measured)]
+  @ [
+    test_case("astrology, compiled whole and timed", `Quick, astrology_timed),
+    test_case("mixed measured: astrology", `Quick, astrology_mixed),
+  ]
   @ unicode_string_tests
   @ sint_tests
   @ [test_case("the slides' programs", `Quick, slides_sweep)]

@@ -1,0 +1,16 @@
+# Helpers for the Sky's modules (MoonOrbit, Planets, Outer, PlutoOrbit, Sky): polynomials, the nutation, Kepler's equation, degrees. The sky is in six modules rather than one, as hazeljs 0.0.4 (the version these pages load) parses a module with long numbers in it the slow way, at a cost that grows much faster than the module #
+# A polynomial in t, its coefficients from the constant up (Horner's rule) #
+let horner : ([Float], Float) -> Float = fun (cs, t) ->
+  case cs | [] => 0. | c :: rest => c +. t *. horner(rest, t) end;
+# The nutation in longitude, in degrees: the wobble of the Earth's axis that shifts the equinox (Meeus 22, its four largest terms) #
+let nutation : Float -> Float = fun t ->
+  let om = Chart.rad(125.04452 -. 1934.136261 *. t) in
+  let l = Chart.rad(280.4665 +. 36000.7698 *. t) in
+  let l2 = Chart.rad(218.3165 +. 481267.8813 *. t) in
+  (0. -. 17.2 *. sin(om) -. 1.32 *. sin(2. *. l) -. 0.23 *. sin(2. *. l2) +. 0.21 *. sin(2. *. om)) /. 3600.;
+# Kepler's equation, E - e sin E = M, solved by Newton's method from E = M (radians) #
+let kepler : (Float, Float, Float, Int) -> Float = fun (m, e, ea, n) ->
+  if n == 0 then ea else kepler(m, e, ea -. (ea -. e *. sin(ea) -. m) /. (1. -. e *. cos(ea)), n - 1);
+let at : ((Float, Float), Float) -> Float = fun (vr, d) -> let (v, r) = vr in v +. r *. d;
+let sind : Float -> Float = fun x -> sin(Chart.rad(x));
+let cosd : Float -> Float = fun x -> cos(Chart.rad(x))

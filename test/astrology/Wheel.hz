@@ -1,0 +1,64 @@
+let cat : ([Mark], [Mark]) -> [Mark] = fun (xs, ys) ->
+  case xs | [] => ys | x :: rest => x :: cat(rest, ys) end;
+# Where a longitude lies on the wheel, at a radius: the ascendant at the left, the signs going round counterclockwise, as charts are drawn #
+let point : (Float, Float, Float) -> (Float, Float) = fun (lon, asc, r) ->
+  let th = Chart.rad(180. +. lon -. asc) in (50. +. r *. cos(th), 50. -. r *. sin(th));
+# Places in order of longitude (an insertion sort) #
+let insert : (Place, [Place]) -> [Place] = fun (p, ps) ->
+  case ps
+  | [] => [p]
+  | q :: rest => if p.longitude <=. q.longitude then p :: ps else q :: insert(p, rest)
+  end;
+let sorted : [Place] -> [Place] = fun ps -> case ps | [] => [] | p :: rest => insert(p, sorted(rest)) end;
+# Glyphs too near each other are spread apart: in order of longitude, each at least gap degrees after the one before #
+let spread : ([Place], Float, Float) -> [(Place, Float)] = fun (ps, prev, gap) ->
+  case ps
+  | [] => []
+  | p :: rest =>
+    let at = if p.longitude <. prev +. gap then prev +. gap else p.longitude in
+    (p, at) :: spread(rest, at, gap)
+  end;
+let marks_of : ([(Place, Float)], Float, Float, Int) -> [Mark] = fun (pas, asc, r, ring) ->
+  case pas
+  | [] => []
+  | (p, at) :: rest =>
+    let (x, y) = point(at, asc, r) in (body = p.body, x = x, y = y, ring = ring) :: marks_of(rest, asc, r, ring)
+  end;
+let marks : ([Place], Float, Float, Int) -> [Mark] = fun (ps, asc, r, ring) ->
+  marks_of(spread(sorted(ps), -1000., 7.), asc, r, ring);
+# The longitude of a body among places #
+let longitude_of : (Body, [Place]) -> Float = fun (b, ps) ->
+  case ps | [] => 0. | p :: rest => if p.body == b then p.longitude else longitude_of(b, rest) end;
+# An aspect drawn as a line between its two bodies, inside the inner ring #
+let lines : ([Aspect], [Place], Float) -> [Line] = fun (asps, ps, asc) ->
+  case asps
+  | [] => []
+  | a :: rest =>
+    let (x1, y1) = point(longitude_of(a.a, ps), asc, 24.) in
+    let (x2, y2) = point(longitude_of(a.b, ps), asc, 24.) in
+    (x1 = x1, y1 = y1, x2 = x2, y2 = y2, kind = a.kind) :: lines(rest, ps, asc)
+  end;
+# The signs' glyphs at the middle of each sign, and the lines between the signs #
+let sign_marks : ([Sign], Float) -> [SignMark] = fun (ss, asc) ->
+  case ss
+  | [] => []
+  | s :: rest =>
+    let (x, y) = point(30. *. float_of_int(Zodiac.index(s)) +. 15., asc, 45.5) in (sign = s, element = Zodiac.element(s), x = x, y = y) :: sign_marks(rest, asc)
+  end;
+let cusps : (Int, Float) -> [Line] = fun (k, asc) ->
+  if k == 12 then []
+  else
+    let lon = 30. *. float_of_int(k) in
+    let (x1, y1) = point(lon, asc, 41.) in
+    let (x2, y2) = point(lon, asc, 50.) in
+    (x1 = x1, y1 = y1, x2 = x2, y2 = y2, kind = Conjunction) :: cusps(k + 1, asc);
+# The horizon (the ascendant at the left, the descendant across from it) and the meridian (the midheaven, the IC across from it), from the inner circle to the outer, an opposition each #
+let axis : (Float, Float) -> Line = fun (lon, asc) ->
+  let (x1, y1) = point(lon, asc, 50.) in
+  let (x2, y2) = point(lon +. 180., asc, 50.) in
+  (x1 = x1, y1 = y1, x2 = x2, y2 = y2, kind = Opposition);
+# The wheel of a birth chart, with today's sky round it #
+let wheel : ([Place], [Place], [Aspect], Chart) -> Wheel = fun (natal, today, asps, c) ->
+  let asc = c.ascendant in
+  (marks = cat(marks(natal, asc, 31., 0), marks(today, asc, 37.5, 1)), lines = lines(asps, natal, asc),
+   signs = sign_marks(Zodiac.signs, asc), cusps = cusps(0, asc), axes = [axis(asc, asc), axis(c.midheaven, asc)])

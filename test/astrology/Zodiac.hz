@@ -1,0 +1,48 @@
+# The twelve signs in order, and each one's place among them, 0 for Aries #
+let signs : [Sign] = [Aries, Taurus, Gemini, Cancer, Leo, Virgo, Libra, Scorpio, Sagittarius, Capricorn, Aquarius, Pisces];
+let index : Sign -> Int = fun s ->
+  case s
+  | Aries => 0 | Taurus => 1 | Gemini => 2 | Cancer => 3 | Leo => 4 | Virgo => 5
+  | Libra => 6 | Scorpio => 7 | Sagittarius => 8 | Capricorn => 9 | Aquarius => 10 | Pisces => 11
+  end;
+let nth : ([Sign], Int) -> Sign = fun (ss, i) ->
+  case ss | [] => Pisces | s :: rest => if i == 0 then s else nth(rest, i - 1) end;
+# A longitude brought into 0 to 360 degrees #
+let normalize : Float -> Float = fun x ->
+  let r = float_mod(x, 360.) in if r <. 0. then r +. 360. else r;
+# The sign a longitude falls in, and how many degrees into it #
+let sign_of : Float -> Sign = fun lon -> nth(signs, int_of_float(floor(normalize(lon) /. 30.)));
+let degree_in : Float -> Float = fun lon -> float_mod(normalize(lon), 30.);
+# The elements go round in fours (fire, earth, air, water) and the modalities in threes (cardinal, fixed, mutable) #
+let element : Sign -> Element = fun s ->
+  let i = index(s) - 4 * (index(s) / 4) in
+  if i == 0 then Fire else if i == 1 then Earth else if i == 2 then Air else Water;
+let modality : Sign -> Modality = fun s ->
+  let i = index(s) - 3 * (index(s) / 3) in
+  if i == 0 then Cardinal else if i == 1 then Fixed else Mutable;
+# Each sign's ruler as tradition has it, among the seven bodies seen by eye #
+let ruler : Sign -> Body = fun s ->
+  case s
+  | Aries => Mars | Taurus => Venus | Gemini => Mercury | Cancer => Moon | Leo => Sun | Virgo => Mercury
+  | Libra => Venus | Scorpio => Mars | Sagittarius => Jupiter | Capricorn => Saturn | Aquarius => Saturn | Pisces => Jupiter
+  end;
+# and as modern astrology has it, giving three signs to the outer planets #
+let modern_ruler : Sign -> Body = fun s ->
+  case s | Scorpio => Pluto | Aquarius => Uranus | Pisces => Neptune | _ => ruler(s) end;
+let name : Sign -> String = fun s ->
+  case s
+  | Aries => "Aries" | Taurus => "Taurus" | Gemini => "Gemini" | Cancer => "Cancer" | Leo => "Leo" | Virgo => "Virgo"
+  | Libra => "Libra" | Scorpio => "Scorpio" | Sagittarius => "Sagittarius" | Capricorn => "Capricorn"
+  | Aquarius => "Aquarius" | Pisces => "Pisces"
+  end;
+let gloss : Sign -> String = fun s ->
+  case s
+  | Aries => "the Ram" | Taurus => "the Bull" | Gemini => "the Twins" | Cancer => "the Crab" | Leo => "the Lion"
+  | Virgo => "the Maiden" | Libra => "the Scales" | Scorpio => "the Scorpion" | Sagittarius => "the Archer"
+  | Capricorn => "the Sea-Goat" | Aquarius => "the Water-Bearer" | Pisces => "the Fish"
+  end;
+let body_name : Body -> String = fun b ->
+  case b
+  | Sun => "the Sun" | Moon => "the Moon" | Mercury => "Mercury" | Venus => "Venus" | Mars => "Mars"
+  | Jupiter => "Jupiter" | Saturn => "Saturn" | Uranus => "Uranus" | Neptune => "Neptune" | Pluto => "Pluto"
+  end

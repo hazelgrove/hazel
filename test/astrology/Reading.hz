@@ -1,0 +1,99 @@
+# The words of a reading are this oracle's own, short, after the common meanings: what each body speaks to, the way of each element and modality, each house's matters, and how each aspect joins two bodies #
+let short : Body -> String = fun b ->
+  case b
+  | Sun => "Sun" | Moon => "Moon" | Mercury => "Mercury" | Venus => "Venus" | Mars => "Mars"
+  | Jupiter => "Jupiter" | Saturn => "Saturn" | Uranus => "Uranus" | Neptune => "Neptune" | Pluto => "Pluto"
+  end;
+let theme : Body -> String = fun b ->
+  case b
+  | Sun => "who you are, and what gives you life" | Moon => "your feelings, and what comforts you"
+  | Mercury => "how you think and speak" | Venus => "what and whom you love" | Mars => "your drive, and your temper"
+  | Jupiter => "where you grow, and your luck" | Saturn => "your limits, duties and lessons"
+  | Uranus => "change, surprise and freedom" | Neptune => "dreams, intuition and longing" | Pluto => "power, endings and renewal"
+  end;
+let element_word : Element -> String = fun e ->
+  case e | Fire => "a fire" | Earth => "an earth" | Air => "an air" | Water => "a water" end;
+let traits : Element -> String = fun e ->
+  case e
+  | Fire => "eager, bold and warm" | Earth => "steady, practical and patient"
+  | Air => "curious, quick and sociable" | Water => "feeling, intuitive and deep"
+  end;
+let modality_word : Modality -> String = fun m ->
+  case m | Cardinal => "starts things" | Fixed => "holds on" | Mutable => "adapts" end;
+# What a body is about, as two plural things, for today's aspects #
+let force : Body -> String = fun b ->
+  case b
+  | Sun => "self and vitality" | Moon => "feelings and comforts" | Mercury => "thoughts and words"
+  | Venus => "loves and pleasures" | Mars => "drive and temper" | Jupiter => "growth and luck"
+  | Saturn => "limits and duties" | Uranus => "changes and freedoms" | Neptune => "dreams and longings"
+  | Pluto => "power and renewals"
+  end;
+let house_word : Int -> String = fun h ->
+  if h == 1 then "the self, and how you meet the world" else if h == 2 then "money, things, and what you value"
+  else if h == 3 then "talk, learning, siblings and short trips" else if h == 4 then "home, family and roots"
+  else if h == 5 then "pleasure, romance, children and making things" else if h == 6 then "work, health and daily habits"
+  else if h == 7 then "partners, close and contracted" else if h == 8 then "what is shared, debts, and deep change"
+  else if h == 9 then "far travel, beliefs and higher learning" else if h == 10 then "career, standing and aims"
+  else if h == 11 then "friends, groups and hopes" else "what is hidden, rest and retreat";
+let ordinal : Int -> String = fun n ->
+  string_of_int(n) ++ (if n == 1 then "st" else if n == 2 then "nd" else if n == 3 then "rd" else "th");
+let kind_word : Kind -> String = fun k ->
+  case k | Conjunction => "conjunct" | Sextile => "sextile" | Square => "square" | Trine => "trine" | Opposition => "opposite" end;
+let verb : Kind -> String = fun k ->
+  case k
+  | Conjunction => "join with" | Sextile => "open a way for" | Square => "press on"
+  | Trine => "flow easily with" | Opposition => "pull against"
+  end;
+# A number of degrees to one decimal place, as words show it #
+let tenths : Float -> String = fun x ->
+  let t = int_of_float(floor(x *. 10. +. 0.5)) in string_of_int(t / 10) ++ "." ++ string_of_int(t - 10 * (t / 10));
+let whole_degrees : Float -> String = fun lon -> string_of_int(int_of_float(floor(Zodiac.degree_in(lon)))) ++ "°";
+# A longitude's house, counting whole signs from the ascendant's #
+let house_of : (Float, Float) -> Int = fun (lon, asc) ->
+  let k = Zodiac.index(Zodiac.sign_of(lon)) - Zodiac.index(Zodiac.sign_of(asc)) in (if k < 0 then k + 12 else k) + 1;
+# A sign in a sentence: Gemini is the Twins, an air sign that adapts: curious, quick and sociable #
+let manner : Sign -> String = fun s ->
+  let e = Zodiac.element(s) in
+  Zodiac.name(s) ++ " is " ++ Zodiac.gloss(s) ++ ", " ++ element_word(e) ++ " sign that " ++ modality_word(Zodiac.modality(s))
+  ++ ": " ++ traits(e) ++ ".";
+# The birth chart's notes: the rising sign, then each body #
+let natal_note : (Place, Float) -> Note = fun (p, asc) ->
+  let s = Zodiac.sign_of(p.longitude) in
+  let h = house_of(p.longitude, asc) in
+  (head = short(p.body) ++ " in " ++ Zodiac.name(s) ++ ", " ++ whole_degrees(p.longitude) ++ ", in the " ++ ordinal(h) ++ " house",
+   text = "About " ++ theme(p.body) ++ ". " ++ manner(s) ++ " The " ++ ordinal(h) ++ " house holds " ++ house_word(h) ++ ".");
+let natal_notes : ([Place], Float) -> [Note] = fun (ps, asc) ->
+  case ps | [] => [] | p :: rest => natal_note(p, asc) :: natal_notes(rest, asc) end;
+let rising_note : Float -> Note = fun asc ->
+  let s = Zodiac.sign_of(asc) in
+  (head = "Rising: " ++ Zodiac.name(s) ++ ", " ++ whole_degrees(asc), text = "How you meet the world, and how it first sees you. " ++ manner(s));
+# Today's notes: the Moon's sign, then the closest of today's aspects to the chart #
+let insert_by_orb : (Aspect, [Aspect]) -> [Aspect] = fun (a, asps) ->
+  case asps | [] => [a] | b :: rest => if a.orb <=. b.orb then a :: asps else b :: insert_by_orb(a, rest) end;
+let by_orb : [Aspect] -> [Aspect] = fun asps -> case asps | [] => [] | a :: rest => insert_by_orb(a, by_orb(rest)) end;
+let first : ([Note], Int) -> [Note] = fun (ns, k) ->
+  case ns | [] => [] | n :: rest => if k == 0 then [] else n :: first(rest, k - 1) end;
+# A body today conjunct its own place at birth is a return (the Sun's, each birthday) #
+let transit_note : Aspect -> Note = fun a ->
+  if a.a == a.b && a.kind == Conjunction then
+    (head = "Today's " ++ short(a.a) ++ ", back where it was at your birth",
+     text = "A return: your " ++ force(a.a) ++ " begin a new round (" ++ tenths(a.orb) ++ "° from exact).")
+  else
+    (head = "Today's " ++ short(a.a) ++ ", " ++ kind_word(a.kind) ++ " your " ++ short(a.b),
+     text = "Today's " ++ force(a.a) ++ " " ++ verb(a.kind) ++ " your " ++ force(a.b) ++ " (" ++ tenths(a.orb) ++ "° from exact).");
+let transit_notes : [Aspect] -> [Note] = fun asps ->
+  case asps | [] => [] | a :: rest => transit_note(a) :: transit_notes(rest) end;
+let moon_note : [Place] -> Note = fun today ->
+  let s = Zodiac.sign_of(Wheel.longitude_of(Moon, today)) in
+  (head = "Today's Moon in " ++ Zodiac.name(s), text = "The mood of the day. " ++ manner(s));
+# A reading for a birth (its moment and site) and a day #
+let reading : (Moment, Site, Moment) -> Reading = fun (birth, site, day) ->
+  let natal = Sky.places(birth) in
+  let c = Chart.chart(birth, site) in
+  let today = Sky.places(day) in
+  let asps = Aspects.among(natal) in
+  let trs = by_orb(Aspects.transits(today, natal)) in
+  (natal = natal, chart = c, aspects = asps, today = today, transits = trs,
+   notes = rising_note(c.ascendant) :: natal_notes(natal, c.ascendant),
+   today_notes = moon_note(today) :: first(transit_notes(trs), 6),
+   wheel = Wheel.wheel(natal, today, asps, c))
