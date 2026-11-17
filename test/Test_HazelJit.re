@@ -87,7 +87,7 @@ let mixed = (~fell_back=false, name, src, names) =>
         ++ "\nmixed: "
         ++ Exp.show(got),
         true,
-        Exp.fast_equal(expected, got),
+        same_value(expected, got),
       );
       check(
         bool,
@@ -1803,6 +1803,114 @@ let undefined_tests = [
 ];
 
 /* (^ticket(761)) tuple extension and the label builtins, as the evaluator's own tests have them; and x |> f */
+/* (^ticket(766)) mixed mode measured: the interpreter alone against mixed, the same answer, each timed once after a
+   first run (which also warms the JIT of the JS engine), printed for ^report(54) */
+let petri_typed = {|
+type Arc = (place = Int, weight = Int) in
+type Transition = (name = String, inputs = [Arc], outputs = [Arc]) in
+type Net = (marking = [Int], transitions = [Transition], draw = Float) in
+type Event = + Fire(Int) + Step in
+type Cmd = + Done + Take(Int, Int, Cmd) + Put(Int, Int, Cmd) + Say(String, Cmd) in
+type Picked = + NoTransition + Found(Transition) in
+let nth : ([Int], Int) -> Int = fun (xs, i) ->
+  case xs | [] => 0 | x :: rest => if i == 0 then x else nth(rest, i - 1) end in
+let len : [Int] -> Int = fun xs -> case xs | [] => 0 | _ :: rest => 1 + len(rest) end in
+let pick : ([Transition], Int) -> Picked = fun (ts, i) ->
+  case ts | [] => NoTransition | t :: rest => if i == 0 then Found(t) else pick(rest, i - 1) end in
+let has : ([Int], [Arc]) -> Bool = fun (m, arcs) ->
+  case arcs | [] => true | a :: rest => nth(m, a.place) >= a.weight && has(m, rest) end in
+let enabled : ([Int], Transition) -> Bool = fun (m, t) -> has(m, t.inputs) in
+let ready : ([Int], [Transition], Int) -> [Int] = fun (m, ts, i) ->
+  case ts | [] => [] | t :: rest =>
+    if enabled(m, t) then i :: ready(m, rest, i + 1) else ready(m, rest, i + 1) end in
+let takes : ([Arc], Cmd) -> Cmd = fun (arcs, k) ->
+  case arcs | [] => k | a :: rest => Take(a.place, a.weight, takes(rest, k)) end in
+let puts : ([Arc], Cmd) -> Cmd = fun (arcs, k) ->
+  case arcs | [] => k | a :: rest => Put(a.place, a.weight, puts(rest, k)) end in
+let fire : Transition -> Cmd = fun t -> Say(t.name, takes(t.inputs, puts(t.outputs, Done))) in
+let fire_at : (Net, Int) -> Cmd = fun (n, i) ->
+  case pick(n.transitions, i)
+  | NoTransition => Say("there is no transition " ++ string_of_int(i), Done)
+  | Found(t) => if enabled(n.marking, t) then fire(t) else Say(t.name ++ " cannot fire now", Done)
+  end in
+let on_event : (Net, Event) -> Cmd = fun (n, e) ->
+  case e
+  | Fire(i) => fire_at(n, i)
+  | Step =>
+    let r = ready(n.marking, n.transitions, 0) in
+    let k = len(r) in
+    if k == 0 then Say("deadlock: nothing can fire", Done)
+    else fire_at(n, nth(r, int_of_float(n.draw *. float_of_int(k))))
+  end in
+let a : Int -> Arc = fun p -> (place = p, weight = 1) in
+let net = (marking = [1, 0, 1, 0, 1], transitions = [
+  (name = "enter1", inputs = [a(0), a(4)], outputs = [a(1)]),
+  (name = "leave1", inputs = [a(1)], outputs = [a(0), a(4)]),
+  (name = "enter2", inputs = [a(2), a(4)], outputs = [a(3)]),
+  (name = "leave2", inputs = [a(3)], outputs = [a(2), a(4)])], draw = 0.7) in
+let events = fun (k, acc) -> if k == 0 then acc else events(k - 1, on_event(net, Step) :: on_event(net, Fire(k)) :: acc) in
+events(50, [])
+|};
+
+let mixed_measured = (name, src) =>
+  test_case(
+    "mixed measured: " ++ name,
+    `Quick,
+    () => {
+      let elab = elaborate(parse_exp(src));
+      let time = f => {
+        let t0 = HazelJitValue.now();
+        let v = f();
+        (v, HazelJitValue.now() -. t0);
+      };
+      let _ = Test_Evaluator_Prelude.evaluate(elab);
+      let (expected, interp_ms) =
+        time(() => Test_Evaluator_Prelude.evaluate(elab));
+      let (rewritten, rewrite_ms) = time(() => HazelJitMixed.rewrite(elab));
+      let names = HazelJitMixed.compiled_names^;
+      let _ = Test_Evaluator_Prelude.evaluate(rewritten);
+      let calls0 = HazelJitMixed.calls^
+      and fell0 = HazelJitMixed.fallbacks^;
+      let (got, mixed_ms) =
+        time(() => Test_Evaluator_Prelude.evaluate(rewritten));
+      Printf.printf(
+        "hazel-jit mixed measured, %s: the interpreter %.1f ms, mixed %.1f ms (its rewrite and compile %.1f ms); %d functions compiled (%s); %d calls compiled, %d fell back\n",
+        name,
+        interp_ms,
+        mixed_ms,
+        rewrite_ms,
+        List.length(names),
+        String.concat(" ", names),
+        HazelJitMixed.calls^ - calls0,
+        HazelJitMixed.fallbacks^ - fell0,
+      );
+      check(
+        bool,
+        "the interpreter's answer: "
+        ++ Exp.show(expected)
+        ++ "\nmixed: "
+        ++ Exp.show(got),
+        true,
+        same_value(expected, got),
+      );
+    },
+  );
+
+let mixed_measured_tests = [
+  mixed_measured(
+    "fib(16), all compiled",
+    "let fib : Int -> Int = fun n -> if n < 2 then n else fib(n - 1) + fib(n - 2) in fib(16)",
+  ),
+  mixed_measured(
+    "500 calls across, from an interpreted loop",
+    "let sq : Int -> Int = fun x -> x * x in let loop = fun (i, acc) -> if i == 0 then acc else loop(i - 1, acc + sq(i)) in loop(500, 0)",
+  ),
+  mixed_measured(
+    "the Petri net rule, whole types declared, 100 events",
+    petri_typed,
+  ),
+];
+
 /* (^ticket(766)) mixed mode's first step */
 let mixed_tests = [
   mixed(
@@ -1926,6 +2034,7 @@ let tests = (
   @ undefined_tests
   @ label_tests
   @ mixed_tests
+  @ mixed_measured_tests
   @ unicode_string_tests
   @ sint_tests
   @ [

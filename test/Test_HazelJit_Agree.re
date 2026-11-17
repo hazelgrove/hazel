@@ -281,6 +281,24 @@ type verdict =
 /* (^ticket(766)) mixed mode, a third way: the program rewritten (HazelJitMixed), its top-level functions with declared
    types compiled and called as builtins, the rest interpreted; its answer against the interpreter's alone. Reported,
    not yet a failure of the build. */
+/* two interpreter results the same, as the evaluator's tests judge (Test_Evaluator_Prelude.testable_exp) */
+let same_value = (a: Exp.t, b: Exp.t): bool =>
+  Equality.(
+    equality({
+      ...syntactic_settings,
+      ignore_parens: true,
+      ignore_function_names: true,
+      ignore_function_types: true,
+      ignore_unknown_provenance: true,
+      ignore_explicit_unlabelling: true,
+      ignore_dynamic_errors: false,
+      ignore_constructor_types: false,
+    })
+  ).
+    exp(
+    a,
+    b,
+  );
 let mixed_programs = ref(0);
 let mixed_functions = ref(0);
 let mixed_agreed = ref(0);
@@ -327,7 +345,7 @@ let mixed_sweep = (test: string, elab: Exp.t, result: Exp.t): unit =>
             ...mixed_failed^,
           ]
       | (got, _) =>
-        Exp.fast_equal(result, got)
+        same_value(result, got)
           ? incr(mixed_agreed)
           : mixed_differs :=
               [
