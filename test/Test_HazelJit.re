@@ -2111,6 +2111,107 @@ let sint_tests = [
   ),
 ];
 
+/* (^ticket(756)) the slides' own programs, beside the evaluator's tests: every program under hazel-programs (outside
+   mega/), parsed as the evaluator's tests parse; one with a static error stays with the interpreter (^ticket(760)), as
+   does one hazel-jit does not compile; the rest are run both ways and their values compared as the sweep compares
+   them. Printed for ^report(54); a difference, or compiled JS that throws where the interpreter has a value, fails. */
+let slides_sweep = () => {
+  let programs = CorpusUtil.slide_corpus();
+  let n = ref(0)
+  and not_parsed = ref(0)
+  and with_errors = ref(0)
+  and compiled = ref(0)
+  and agreed = ref(0)
+  and not_compared = ref(0);
+  let reasons: Hashtbl.t(string, int) = Hashtbl.create(16);
+  let partings = ref([]);
+  let count = r =>
+    Hashtbl.replace(
+      reasons,
+      r,
+      1 + Option.value(~default=0, Hashtbl.find_opt(reasons, r)),
+    );
+  List.iter(
+    ((path, src)) => {
+      incr(n);
+      switch (Haz3lcore.Parser.to_term(src, ~root=Exp)) {
+      | exception _ => incr(not_parsed)
+      | None => incr(not_parsed)
+      | Some(term) =>
+        let (map, elab) =
+          Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+        if (Statics.Map.error_ids(map) != []) {
+          incr(with_errors);
+        } else {
+          switch (HazelJit.try_compile(~env=Builtins.env_init, elab)) {
+          | exception exn =>
+            count("the compiler raised " ++ Printexc.to_string(exn))
+          | Error(reason) => count(reason)
+          | Ok(js_src) =>
+            incr(compiled);
+            let result = Test_Evaluator_Prelude.evaluate(elab);
+            switch (run_js(HazelJit.Runtime.source, js_src)) {
+            | exception (Js_error.Exn(e))
+                when
+                  (
+                    switch (invalid_of(Js_error.message(e))) {
+                    | Some(err) => stuck_at(result, err)
+                    | None => false
+                    }
+                  )
+                  || indet_reached(Js_error.message(e), result) =>
+              incr(agreed)
+            | exception (Js_error.Exn(e)) =>
+              partings :=
+                [
+                  path
+                  ++ ": the compiled JS threw: "
+                  ++ one_line(Js_error.message(e)),
+                  ...partings^,
+                ]
+            | got =>
+              switch (agree(result, got)) {
+              | None => incr(agreed)
+              | Some(d) when starts_with(not_a_value, d) =>
+                incr(not_compared)
+              | Some(d) =>
+                partings :=
+                  [path ++ ": differs: " ++ one_line(d), ...partings^]
+              }
+            };
+          };
+        };
+      };
+    },
+    programs,
+  );
+  Printf.printf(
+    "\nhazel-jit slides (ticket 756): %d programs; %d not parsed, %d with a static error; %d compiled, %d agreed, %d part, %d with an interpreter result that is not a value\n",
+    n^,
+    not_parsed^,
+    with_errors^,
+    compiled^,
+    agreed^,
+    List.length(partings^),
+    not_compared^,
+  );
+  Hashtbl.fold((r, k, acc) => [(k, r), ...acc], reasons, [])
+  |> List.sort(compare)
+  |> List.rev
+  |> List.iter(((k, r)) =>
+       Printf.printf("  slides, not compiled, %d: %s\n", k, r)
+     );
+  List.iter(Printf.printf("  SLIDES PART  %s\n"), List.rev(partings^));
+  flush(stdout);
+  check(bool, "the corpus was there", true, n^ >= 40);
+  check(
+    list(string),
+    "the slides' compiled programs give the interpreter's values",
+    [],
+    List.rev(partings^),
+  );
+};
+
 let tests = (
   "HazelJit",
   invalid_tests
@@ -2126,6 +2227,7 @@ let tests = (
   @ [test_case("mixed measured: the I Ching", `Quick, iching_measured)]
   @ unicode_string_tests
   @ sint_tests
+  @ [test_case("the slides' programs", `Slow, slides_sweep)]
   @ [
     agreement("arithmetic", "1 + 2 * 3 - 4 / 2"),
     agreement("floats", "1.5 *. 2. +. 0.25"),
