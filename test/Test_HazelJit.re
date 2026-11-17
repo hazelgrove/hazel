@@ -2125,6 +2125,9 @@ let slides_sweep = () => {
   and not_compared = ref(0);
   let reasons: Hashtbl.t(string, int) = Hashtbl.create(16);
   let partings = ref([]);
+  /* (each agreeing slide timed as the sweep times the evaluator's programs: the interpreter repeated to 20 ms, the JS to
+     5 ms; with its first run, as a page would meet it) */
+  let times = ref([]);
   let count = r =>
     Hashtbl.replace(
       reasons,
@@ -2149,7 +2152,9 @@ let slides_sweep = () => {
           | Error(reason) => count(reason)
           | Ok(js_src) =>
             incr(compiled);
+            let t0 = now();
             let result = Test_Evaluator_Prelude.evaluate(elab);
+            let interp_ms = now() -. t0;
             switch (run_js(HazelJit.Runtime.source, js_src)) {
             | exception (Js_error.Exn(e))
                 when
@@ -2171,7 +2176,30 @@ let slides_sweep = () => {
                 ]
             | got =>
               switch (agree(result, got)) {
-              | None => incr(agreed)
+              | None =>
+                incr(agreed);
+                switch (time_js(js_src), time_interp(elab)) {
+                | (
+                    (parse_ms, run1_ms, run_mean, run_n),
+                    (interp_mean, interp_n),
+                  ) =>
+                  times :=
+                    [
+                      Printf.sprintf(
+                        "hazel-jit slide time\t%.5f\t%.5f\t%d\t%.5f\t%.5f\t%.6f\t%d\t%s\n",
+                        interp_ms,
+                        interp_mean,
+                        interp_n,
+                        parse_ms,
+                        run1_ms,
+                        run_mean,
+                        run_n,
+                        path,
+                      ),
+                      ...times^,
+                    ]
+                | exception _ => ()
+                };
               | Some(d) when starts_with(not_a_value, d) =>
                 incr(not_compared)
               | Some(d) =>
@@ -2185,24 +2213,34 @@ let slides_sweep = () => {
     },
     programs,
   );
-  Printf.printf(
-    "\nhazel-jit slides (ticket 756): %d programs; %d not parsed, %d with a static error; %d compiled, %d agreed, %d part, %d with an interpreter result that is not a value\n",
-    n^,
-    not_parsed^,
-    with_errors^,
-    compiled^,
-    agreed^,
-    List.length(partings^),
-    not_compared^,
-  );
-  Hashtbl.fold((r, k, acc) => [(k, r), ...acc], reasons, [])
-  |> List.sort(compare)
-  |> List.rev
-  |> List.iter(((k, r)) =>
-       Printf.printf("  slides, not compiled, %d: %s\n", k, r)
-     );
-  List.iter(Printf.printf("  SLIDES PART  %s\n"), List.rev(partings^));
-  flush(stdout);
+  /* (printed at the end of the run: a passing test's own output is kept in its log file) */
+  let report =
+    [
+      Printf.sprintf(
+        "\nhazel-jit slides (ticket 756): %d programs; %d not parsed, %d with a static error; %d compiled, %d agreed, %d part, %d with an interpreter result that is not a value\n",
+        n^,
+        not_parsed^,
+        with_errors^,
+        compiled^,
+        agreed^,
+        List.length(partings^),
+        not_compared^,
+      ),
+    ]
+    @ (
+      Hashtbl.fold((r, k, acc) => [(k, r), ...acc], reasons, [])
+      |> List.sort(compare)
+      |> List.rev
+      |> List.map(((k, r)) =>
+           Printf.sprintf("  slides, not compiled, %d: %s\n", k, r)
+         )
+    )
+    @ List.map(Printf.sprintf("  SLIDES PART  %s\n"), List.rev(partings^))
+    @ List.rev(times^);
+  at_exit(() => {
+    List.iter(print_string, report);
+    flush(stdout);
+  });
   check(bool, "the corpus was there", true, n^ >= 40);
   check(
     list(string),
@@ -2210,6 +2248,109 @@ let slides_sweep = () => {
     [],
     List.rev(partings^),
   );
+};
+
+/* (^ticket(767)) the interpreter's step counts for small programs, each a construct apart from the last, to learn what
+   each construct costs, so compiled code can count the same (EvaluatorState.step_count, as Evaluator.evaluate leaves it).
+   Prints only. */
+let step_calibration = () => {
+  let programs = [
+    "1",
+    "1 + 2",
+    "1 + 2 + 3",
+    "(1)",
+    "((1))",
+    "-1",
+    "!true",
+    "true && false",
+    "false && true",
+    "1.0 +. 2.0",
+    {|"a" ++ "b"|},
+    "let x = 1 in 2",
+    "let x = 1 in x",
+    "let x = 1 in x + x",
+    "let x = 1 in let y = 2 in x + y",
+    "let (a, b) = (1, 2) in a",
+    "fun x -> x",
+    "(fun x -> x)(1)",
+    "(fun x -> 1)(2)",
+    "(fun (x, y) -> x + y)(1, 2)",
+    "let f = fun x -> x in f(1)",
+    "let f = fun x -> x in f(f(1))",
+    "((fun x -> fun y -> x + y)(1))(2)",
+    "let f = fun n -> if n == 0 then 0 else f(n - 1) in f(0)",
+    "let f = fun n -> if n == 0 then 0 else f(n - 1) in f(1)",
+    "let f = fun n -> if n == 0 then 0 else f(n - 1) in f(2)",
+    "let f = fun n -> if n == 0 then 0 else f(n - 1) in f(3)",
+    "if true then 1 else 2",
+    "if 1 == 1 then 1 else 2",
+    "case 1 | 1 => 2 | _ => 3 end",
+    "case 2 | 1 => 2 | _ => 3 end",
+    "case 3 | 1 => 2 | 2 => 3 | _ => 4 end",
+    "(1, 2)",
+    "(1 + 1, 2)",
+    "(a = 1, b = 2)",
+    "(a = 1, b = 2).a",
+    "[1, 2]",
+    "[1 + 1, 2]",
+    "1 :: []",
+    "1 :: 2 :: []",
+    "[1] @ [2]",
+    "Some(1)",
+    "case Some(1) | Some(x) => x | None => 0 end",
+    "string_length(\"ab\")",
+    "string_length(\"ab\") + 1",
+    "(1 : Int)",
+    "let f : Int -> Int = fun x -> x in f(1)",
+    "let f = fun x : Int -> x in f(1)",
+    "let f : Int -> Int = fun x -> x in f(f(1))",
+    "let xs : [Int] = [1, 2, 3] in xs",
+    "let f : [Int] -> Int = fun xs -> case xs | [] => 0 | x :: _ => x end in f([1, 2, 3])",
+    "type T = + A + B(Int) in B(1)",
+    "type T = + A + B(Int) in case B(1) | A => 0 | B(n) => n end",
+    "use SInt in 1 + 2",
+    "module M = { let x = 1 } in M.x",
+    "let x = 1 in (x, x)",
+    "let f = fun x -> fun y -> x in f(1)(2)",
+  ];
+  let lines = ref([]);
+  List.iter(
+    src =>
+      switch (
+        Evaluator.evaluate(
+          ~env=Builtins.env_init,
+          elaborate(parse_exp(src)),
+        )
+      ) {
+      | (_, state) =>
+        lines :=
+          [
+            Printf.sprintf(
+              "hazel-jit steps calib: %d\t%s\n",
+              EvaluatorState.get_step_count(state),
+              src,
+            ),
+            ...lines^,
+          ]
+      | exception exn =>
+        lines :=
+          [
+            Printf.sprintf(
+              "hazel-jit steps calib: raised %s\t%s\n",
+              Printexc.to_string(exn),
+              src,
+            ),
+            ...lines^,
+          ]
+      },
+    programs,
+  );
+  /* (at the end of the run, as the sweep's report: a passing test's own output is kept in its log file) */
+  let lines = List.rev(lines^);
+  at_exit(() => {
+    List.iter(print_string, lines);
+    flush(stdout);
+  });
 };
 
 let tests = (
@@ -2227,7 +2368,21 @@ let tests = (
   @ [test_case("mixed measured: the I Ching", `Quick, iching_measured)]
   @ unicode_string_tests
   @ sint_tests
-  @ [test_case("the slides' programs", `Slow, slides_sweep)]
+  @ [test_case("the slides' programs", `Quick, slides_sweep)]
+  @ [
+    test_case(
+      "the interpreter's steps, calibration",
+      `Quick,
+      step_calibration,
+    ),
+  ]
+  @ [
+    test_case(
+      "the interpreter's steps, calibration",
+      `Quick,
+      step_calibration,
+    ),
+  ]
   @ [
     agreement("arithmetic", "1 + 2 * 3 - 4 / 2"),
     agreement("floats", "1.5 *. 2. +. 0.25"),
