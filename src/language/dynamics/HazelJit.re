@@ -566,8 +566,8 @@ let rec pat =
       ps,
     )
     |> (((t, b, lex, _)) => (t, b, lex))
-  /* (alone, the interpreter's match is the whole value's: let (_=x) = (_=1) in x is (_=1), found by CI 11-17) */
-  | TupLabel(l, p') when pat_is_nonlabel(l) => pat(st, scope, lex, p', v)
+  | TupLabel(l, p') when pat_is_nonlabel(l) =>
+    pat(st, scope, lex, p', v ++ "[0]")
   | TupLabel(l, p') =>
     switch (pat_label_of(l)) {
     | Some(name) =>

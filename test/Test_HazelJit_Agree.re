@@ -170,10 +170,12 @@ let rec agree = (e: Exp.t, js: Js.Unsafe.any): option(string) => {
           es,
         )
         |> fst
-  /* (^ticket(761)) (_=e) alone, a tuple of one: a JS array of one */
+  /* (^ticket(761)) (_=e) alone, a tuple of one: a JS array of one, or the entry itself; the evaluator's own tests ignore
+     explicit unlabelling (Test_Evaluator_Prelude.testable_exp), and so does this: let (_=x) = (_=1) in x is (_=1) to the
+     interpreter and 1 compiled (CI 11-17) */
   | TupLabel(l, e') when HazelJit.is_nonlabel(l) =>
     is_array(js) && num(get(js, "length")) == 1.
-      ? agree(e', Js.Unsafe.get(js, 0)) : Some("a tuple of one")
+      ? agree(e', Js.Unsafe.get(js, 0)) : agree(e', js)
   | TupLabel(_) =>
     switch (Exp.match_tup_label(e)) {
     | Some((l, e')) => agree(e', get(js, HazelJit.label_key(l)))
