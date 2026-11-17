@@ -70,3 +70,25 @@
   border: 1px dashed var(--cell-result-text);
   color: var(--cell-result-text);
 }
+
+.agent-fill-status {
+  align-self: center;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 0.8em;
+  opacity: 0.8;
+}
+
+/* The status of a fill started by typing `??`, above the cell's result. */
+.agent-fill {
+  display: flex;
+  padding: 0.2em 1em;
+}
+
+.agent-fill-stop {
+  align-self: center;
+  font-size: 0.75em;
+  cursor: pointer;
+}

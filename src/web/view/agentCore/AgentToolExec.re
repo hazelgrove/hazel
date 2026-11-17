@@ -348,6 +348,28 @@ let execute_one_tool_call =
       cell_editor |> Updated.return_quiet,
       Message.Utils.mk_tool_result_message(tool_result),
     );
+  | ProofRequest(request) =>
+    let (success, content, edited) =
+      AgentProofTools.answer(~settings, request, cell_editor);
+    let tool_result: AgentToolResult.tool_result = {
+      tool_call,
+      success,
+      skipped: false,
+      expanded: false,
+      diff: None,
+      before_text: None,
+      after_text: None,
+      content,
+      content_is_payload: false,
+    };
+    (
+      model,
+      switch (edited) {
+      | Some(cell) => cell |> Updated.return
+      | None => cell_editor |> Updated.return_quiet
+      },
+      Message.Utils.mk_tool_result_message(tool_result),
+    );
   | Failure(msg) =>
     let tool_result: AgentToolResult.tool_result = {
       tool_call,
