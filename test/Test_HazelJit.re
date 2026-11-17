@@ -2040,18 +2040,38 @@ let today : Moment = (year = 2026, month = 11, day = 17, hour = 19.) in
   ++ "]";
 };
 
+/* (CI run 44173654112: in the full tests too, the run went past its 100 minutes, and a killed run prints nothing) Each
+   phase goes on a trail file as it ends, which CI prints after the tests, pass or fail (checks.yml) */
+let astro_trail = (line: string): unit =>
+  switch (
+    open_out_gen(
+      [Open_append, Open_creat, Open_text],
+      0o644,
+      "hazel-jit-trail.txt",
+    )
+  ) {
+  | oc =>
+    output_string(oc, "astrology: " ++ line ++ "\n");
+    close_out(oc);
+  | exception _ => ()
+  };
+
 let astrology_timed = () => {
+  astro_trail("starts");
   /* (each phase timed apart: one reading ran the quick tests past their 20 minutes three times, where hazeljs builds and
      runs it in 1.3 s; CI run 44169666681) */
   let t0 = now();
   let term = parse_fast(astrology_program(~readings=1));
   let parse_ms = now() -. t0;
+  astro_trail(Printf.sprintf("parsed in %.0f ms", parse_ms));
   let t0 = now();
   let elab = elaborate(term);
   let elab_ms = now() -. t0;
+  astro_trail(Printf.sprintf("elaborated in %.0f ms", elab_ms));
   let t0 = now();
   let result = Test_Evaluator_Prelude.evaluate(elab);
   let first_ms = now() -. t0;
+  astro_trail(Printf.sprintf("the interpreter's run %.0f ms", first_ms));
   let t0 = now();
   let compiled =
     switch (HazelJit.try_compile(~env=Builtins.env_init, elab)) {
@@ -2060,6 +2080,7 @@ let astrology_timed = () => {
     | r => r
     };
   let compile_ms = now() -. t0;
+  astro_trail(Printf.sprintf("compiled in %.0f ms", compile_ms));
   let line =
     switch (compiled) {
     | Error(reason) => "not compiled whole: " ++ reason
@@ -2100,6 +2121,7 @@ let astrology_timed = () => {
       compile_ms,
       line,
     );
+  astro_trail(line);
   at_exit(() => {
     print_string(line);
     flush(stdout);
@@ -2517,7 +2539,7 @@ let tests = (
   @ mixed_measured_tests
   @ [test_case("mixed measured: the I Ching", `Quick, iching_measured)]
   @ [
-    test_case("astrology, compiled whole and timed", `Slow, astrology_timed),
+    test_case("astrology, compiled whole and timed", `Quick, astrology_timed),
     test_case("mixed measured: astrology", `Slow, astrology_mixed),
   ]
   @ unicode_string_tests
