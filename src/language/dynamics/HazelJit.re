@@ -216,6 +216,12 @@ module Runtime = {
     project_labels: ([t, ...ls]) => ls.map(({ lab }) => { if (!Array.isArray(t) || !Object.prototype.hasOwnProperty.call(t, lab)) { const e = new Error("hazel-jit: indeterminate: a projection by " + lab); e.$indet = lab; throw e; } return t[lab]; }),
     select_labels: ([t, ...ls]) => { const vs = ls.map(({ lab }) => { if (!Array.isArray(t) || !Object.prototype.hasOwnProperty.call(t, lab)) { const e = new Error("hazel-jit: indeterminate: a projection by " + lab); e.$indet = lab; throw e; } return t[lab]; });
       ls.forEach(({ lab }, i) => { vs[lab] = vs[i]; }); return vs; },
+    /* (^ticket(761)) from_lvs: a list of (label = String, value = v), as a tuple with those labels, in order
+       (BuiltinsTupleOperations); one entry is a tuple of one, none the empty tuple */
+    from_lvs: l => { const vs = [], ks = [];
+      for (let p = l; p !== null; p = p.t) { const k = p.h.label; vs.push(p.h.value);
+        ks.push(k === "length" || k === "__proto__" || k[0] === "$" ? "$" + k : k); }
+      ks.forEach((k, i) => { vs[k] = vs[i]; }); return vs; },
     omit_labels: ([t, ...ls]) => { const drop = new Set(ls.map(({ lab }) => lab)), tl = t.map(() => null), vs = [], out = [];
       for (const k of Object.keys(t)) { if (/^[0-9]+$/.test(k)) continue; const i = tl.findIndex((x, j) => x === null && t[j] === t[k]); if (i >= 0) tl[i] = k; }
       t.forEach((v, i) => { if (tl[i] === null || !drop.has(tl[i])) { vs.push(v); out.push(tl[i]); } });
@@ -278,6 +284,7 @@ module Runtime = {
     "string_sub",
     "string_split",
     "project_labels",
+    "from_lvs",
     "select_labels",
     "omit_labels",
     "int_compare",
@@ -467,6 +474,19 @@ let rec pat_label_of = (p: Pat.t): option(string) =>
   | Parens(p) => pat_label_of(p)
   | _ => None
   };
+/* (^ticket(761)) an explicitly unlabeled entry, (_=e): to the interpreter a value form, TupLabel(ExplicitNonlabel, e),
+   which a pattern (_=p) matches as an unlabeled entry (Unboxing: no label on either side). Here it is the entry
+   itself: an unlabeled component of a tuple, and alone a tuple of one, a JS array of one, as project_labels makes */
+let is_nonlabel = (l: Exp.t): bool =>
+  switch (Exp.term_of(l)) {
+  | ExplicitNonlabel => true
+  | _ => false
+  };
+let pat_is_nonlabel = (l: Pat.t): bool =>
+  switch (Pat.term_of(l)) {
+  | ExplicitNonlabel => true
+  | _ => false
+  };
 
 /* A pattern, matched against the JS value at the expression `v`: a JS test (true when it matches), and the assignments
    that bind its variables, each to a fresh variable of the scope, and the lexical environment with them. The test only
@@ -517,6 +537,10 @@ let rec pat =
       ((tests, binds, lex, i), p: Pat.t) => {
         let (key, p) =
           switch (Pat.term_of(p)) {
+          | TupLabel(l, p') when pat_is_nonlabel(l) => (
+              v ++ "[" ++ string_of_int(i) ++ "]",
+              p',
+            )
           | TupLabel(l, p') =>
             switch (pat_label_of(l)) {
             | Some(name) => (
@@ -534,6 +558,8 @@ let rec pat =
       ps,
     )
     |> (((t, b, lex, _)) => (t, b, lex))
+  | TupLabel(l, p') when pat_is_nonlabel(l) =>
+    pat(st, scope, lex, p', v ++ "[0]")
   | TupLabel(l, p') =>
     switch (pat_label_of(l)) {
     | Some(name) =>
@@ -682,6 +708,7 @@ and exp_inner =
       List.map(
         (e: Exp.t) =>
           switch (Exp.term_of(e)) {
+          | TupLabel(l, e') when is_nonlabel(l) => (None, go(e'))
           | TupLabel(l, e') =>
             switch (label_of(l)) {
             | Some(name) => (Some(name), go(e'))
@@ -709,6 +736,7 @@ and exp_inner =
            )
         ++ "])"
       : arr;
+  | TupLabel(l, e') when is_nonlabel(l) => "[" ++ go(e') ++ "]"
   | TupLabel(l, e') =>
     switch (label_of(l)) {
     | Some(name) =>
@@ -799,10 +827,30 @@ and exp_inner =
          assigned once, in order, then the tuple of them returned. The same
          when every part is a function: a name is read only when a function
          runs, after every name has its value. */
+      /* (^ticket(761)) a part that is not a function joins in when it names none of them: it reads no name, so its
+         value is the same assigned in order. One that does is evaluated by the interpreter with the whole
+         definition unrolled again inside it, every time, so it does not end; it stays with the interpreter. */
+      let names_any = (xs, e: Exp.t): bool => {
+        let found = ref(false);
+        let _ =
+          Exp.map_term(
+            ~f_exp=
+              (cont, e: Exp.t) => {
+                switch (Exp.term_of(e)) {
+                | Var(x) when List.mem(x, xs) => found := true
+                | _ => ()
+                };
+                cont(e);
+              },
+            e,
+          );
+        found^;
+      };
       switch (names_of(p), parts_of(body)) {
       | (Some(xs), Some(es))
           when
-            List.length(xs) == List.length(es) && List.for_all(is_fun, es) =>
+            List.length(xs) == List.length(es)
+            && List.for_all(e => is_fun(e) || !names_any(xs, e), es) =>
         let inner = {decls: []};
         let js = List.map(x => fresh(st, inner, x), xs);
         let lex' =
@@ -825,13 +873,13 @@ and exp_inner =
         ++ " })()";
       | (Some(_), _) =>
         unsupported(
-          "a recursive definition of more than one name, not a tuple of functions",
+          "a recursive definition of more than one name whose part that is not a function names one of them",
         )
       | (None, _) =>
         unsupported(
           "a recursive definition by a pattern that is not a name or a tuple of names",
         )
-      }
+      };
     };
   | Let(p, e1, e2) =>
     let tmp = fresh(st, scope, "let");
@@ -1127,7 +1175,11 @@ and module_ = (st: state, lex, items: list(Mod.t)): string => {
         | ModType(tp, ty) =>
           note_alias(st, tp, ty);
           (steps, exports, lex);
-        | ModExp(_) => unsupported("an expression as a module member")
+        /* (^ticket(761)) an expression as a member is evaluated and its value dropped, as the elaborated module's
+           let _ = e in ... (ModuleHelpers) */
+        | ModExp(e) =>
+          let tmp = fresh(st, inner, "exp");
+          (steps @ [tmp ++ " = " ++ exp(st, inner, lex, e)], exports, lex);
         | Invalid(_)
         | EmptyHole
         | MultiHole(_) => unsupported("a hole in a module")

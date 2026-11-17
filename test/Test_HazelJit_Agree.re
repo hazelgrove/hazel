@@ -155,10 +155,13 @@ let rec agree = (e: Exp.t, js: Js.Unsafe.any): option(string) => {
               switch (acc) {
               | Some(_) => acc
               | None =>
-                switch (Exp.match_tup_label(e)) {
-                | Some((l, e')) =>
+                switch (Exp.match_tup_label(e), Exp.term_of(e)) {
+                | (Some((l, e')), _) =>
                   agree(e', get(js, HazelJit.label_key(l)))
-                | None => agree(e, Js.Unsafe.get(js, i))
+                /* (^ticket(761)) an explicitly unlabeled entry, (_=e), is the entry itself */
+                | (None, TupLabel(l, e')) when HazelJit.is_nonlabel(l) =>
+                  agree(e', Js.Unsafe.get(js, i))
+                | (None, _) => agree(e, Js.Unsafe.get(js, i))
                 }
               },
               i + 1,
@@ -167,6 +170,10 @@ let rec agree = (e: Exp.t, js: Js.Unsafe.any): option(string) => {
           es,
         )
         |> fst
+  /* (^ticket(761)) (_=e) alone, a tuple of one: a JS array of one */
+  | TupLabel(l, e') when HazelJit.is_nonlabel(l) =>
+    is_array(js) && num(get(js, "length")) == 1.
+      ? agree(e', Js.Unsafe.get(js, 0)) : Some("a tuple of one")
   | TupLabel(_) =>
     switch (Exp.match_tup_label(e)) {
     | Some((l, e')) => agree(e', get(js, HazelJit.label_key(l)))

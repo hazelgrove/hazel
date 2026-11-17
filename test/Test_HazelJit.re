@@ -1654,10 +1654,19 @@ let mutual_tests = [
     "the fixpoint written out",
     "let (even, odd) = (fix (even, odd) -> (fun n -> if n == 0 then true else odd(n - 1), fun n -> if n == 0 then false else even(n - 1))) in even(1)",
   ),
-  not_compiled(
-    "a part that is not a function stays with the interpreter",
+  /* (^ticket(761)) a part that is not a function, naming none of the names, is assigned in order with the others */
+  agreement(
+    "a part that is not a function, naming none of them",
+    "let (a, b) = (1, fun n -> a + n) in b(2)",
+  ),
+  agreement(
+    "the fixpoint written out, with a part that is not a function",
     "fix (a, b) -> (1, fun n -> a + n)",
-    "a recursive definition of more than one name, not a tuple of functions",
+  ),
+  not_compiled(
+    "a part that is not a function and names one of them stays with the interpreter",
+    "fix (a, b) -> (b(1), fun n -> n)",
+    "a recursive definition of more than one name whose part that is not a function names one of them",
   ),
 ];
 
@@ -1786,6 +1795,28 @@ let label_tests = [
   ),
   agreement("select_labels", "select_labels((a=1, b=2, c=3), `a`, `b`)"),
   agreement("omit_labels", "omit_labels((a=1, b=2, c=3), `a`, `b`)"),
+  /* (^ticket(761)) the sweep's last limits: an explicitly unlabeled entry, from_lvs, a module member that is an
+     expression */
+  agreement("an explicitly unlabeled entry", "let (_=x) = (_=1) in x"),
+  agreement("an explicitly unlabeled entry, kept", "(_=1)"),
+  agreement(
+    "project_labels to a tuple of one",
+    "project_labels((a=1, b=2), `a`)",
+  ),
+  agreement(
+    "from_lvs",
+    {|from_lvs([(label="col1", value=3), (label="col2", value=true)])|},
+  ),
+  agreement("from_lvs of one", {|from_lvs([(label="col", value=3)])|}),
+  agreement("from_lvs of none", "from_lvs([])"),
+  agreement(
+    "a module's member that is an expression",
+    "{ 1 + 1; let x = 2 }",
+  ),
+  agreement(
+    "a module's member that is an expression, between two others",
+    "module M = { let x = 1; x + 1; let y = x + 2 } in M.y",
+  ),
 ];
 
 /* (^ticket(761), found 11-16) strings beyond ASCII, which the evaluator's tests never use: lengths and offsets in

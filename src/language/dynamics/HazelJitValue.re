@@ -236,9 +236,14 @@ and tuple = (vs: list(Exp.t)): Js.Unsafe.any => {
   let parts =
     List.map(
       (v: Exp.t) =>
-        switch (Exp.match_tup_label(v)) {
-        | Some((l, v)) => (Some(l), to_js(v))
-        | None => (None, to_js(v))
+        switch (Exp.match_tup_label(v), Exp.term_of(v)) {
+        | (Some((l, v)), _) => (Some(l), to_js(v))
+        /* (^ticket(761)) an explicitly unlabeled entry, (_=v), is the entry itself (HazelJit.is_nonlabel) */
+        | (None, TupLabel(l, v)) when HazelJit.is_nonlabel(l) => (
+            None,
+            to_js(v),
+          )
+        | (None, _) => (None, to_js(v))
         },
       vs,
     );
