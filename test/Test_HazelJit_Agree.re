@@ -423,11 +423,18 @@ let time_interp = (elab: Exp.t): (float, int) => {
   let t0 = now();
   run();
   let one = now() -. t0;
+  /* (at least 10 runs where a run is short; a program whose one run already takes 20 ms runs once more, as a slide may
+     take seconds: ten of those ran the quick tests past CI's 20 minutes, 11-17) */
   let n =
-    Int.min(
-      1000,
-      Int.max(10, int_of_float(Float.ceil(20. /. Float.max(one, 0.02)))),
-    );
+    one >= 20.
+      ? 1
+      : Int.min(
+          1000,
+          Int.max(
+            10,
+            int_of_float(Float.ceil(20. /. Float.max(one, 0.02))),
+          ),
+        );
   let t0 = now();
   for (_ in 1 to n) {
     run();

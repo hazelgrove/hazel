@@ -2382,7 +2382,7 @@ let tests = (
   @ [test_case("mixed measured: the I Ching", `Quick, iching_measured)]
   @ unicode_string_tests
   @ sint_tests
-  @ [test_case("the slides' programs", `Quick, slides_sweep)]
+  @ [test_case("the slides' programs", `Slow, slides_sweep)]
   @ [
     test_case(
       "the interpreter's steps, calibration",
