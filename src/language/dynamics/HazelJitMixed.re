@@ -1,8 +1,9 @@
 /* (^ticket(766)) Mixed mode, a first step: the interpreter keeps running the program, around its holes, with probes and
    the stepper as they are, and calls the program's complete functions compiled, as it calls builtins.
 
-   Which functions: a let at the top of the program (a chain of lets and type aliases, before its first other form)
-   that binds a name to a function whose whole type is declared, let f : A -> B = fun ... , with no unknown in it. The
+   Which functions: a let at the top of the program (a chain of lets and type aliases, before its first other form), or
+   a member of a module bound there, that binds a name to a function whose whole type is declared,
+   let f : A -> B = fun ... , with no unknown in it. The
    declared result type reads the compiled answer back (a JS number does not say whether it was an Int or a Float). Each
    is compiled with the ones accepted before it and the type aliases among them, so it may call them; a function that
    names anything else (an earlier let that is not such a function, say) is not compiled, and the reason kept.
@@ -167,16 +168,71 @@ let call = (entry: entry, arg: Exp.t): option(Exp.t) => {
 
 let made = ref(0);
 
-/* The program rewritten for mixed mode, and the names compiled. The candidates are the lets at its top; the chain
-   compiled for each is the ones accepted before it, with the type aliases among them, ending in its name. */
+/* The program rewritten for mixed mode, and the names compiled. The candidates are the lets at its top, and the members
+   of its modules (each module's own, seen with what is in scope there); the chain compiled for each is the ones
+   accepted before it, with the type aliases among them, ending in its name. */
 let rewrite = (program: Exp.t): Exp.t => {
   compiled_names := [];
   not_compiled := [];
   Hashtbl.reset(Builtins.made_at_run_time);
-  /* the accepted definitions so far, newest first: a let's pattern and definition, or a type alias */
+  /* the accepted definitions in scope, newest first: a let's pattern and definition, or a type alias */
   let chain: ref(list(Exp.t => Exp.t)) = ref([]);
   let unit_for = (last: Exp.t): Exp.t =>
     List.fold_left((body, wrap) => wrap(body), last, chain^);
+  /* a definition of a function with its whole type declared, compiled: the pattern and definition that replace it */
+  let accept = (p: Pat.t, def: Exp.t): option((Pat.t, Exp.t)) =>
+    switch (name_of(p), declared_result(p, def), is_function(strip(def))) {
+    | (Some(f), Some(result), true) =>
+      let unit = Exp.fresh(Let(p, def, Exp.fresh(Var(f)))) |> unit_for;
+      switch (HazelJit.compile_full(~env=Builtins.env_init, unit)) {
+      | exception (HazelJit.Unsupported(why)) =>
+        not_compiled := [(f, why), ...not_compiled^];
+        None;
+      | c =>
+        switch (HazelJitValue.instantiate(c.src)) {
+        | exception exn =>
+          not_compiled :=
+            [
+              (f, "its JS did not run: " ++ HazelJitValue.message(exn)),
+              ...not_compiled^,
+            ];
+          None;
+        | fn =>
+          incr(made);
+          let n = string_of_int(made^);
+          let entry = {
+            fn,
+            ts: HazelJitValue.types_of(c),
+            result,
+            closure: ref(None),
+          };
+          let compiled_name = "%jit:" ++ f ++ ":" ++ n;
+          let keep_name = "%jit-keep:" ++ f ++ ":" ++ n;
+          Hashtbl.replace(Builtins.made_at_run_time, compiled_name, arg =>
+            call(entry, arg)
+          );
+          Hashtbl.replace(
+            Builtins.made_at_run_time,
+            keep_name,
+            closure => {
+              entry.closure := Some(closure);
+              Some(Exp.fresh(BuiltinFun(compiled_name)));
+            },
+          );
+          chain := [(b => Exp.fresh(Let(p, def, b))), ...chain^];
+          compiled_names := [f, ...compiled_names^];
+          Some((
+            Pat.fresh(Var(f)),
+            Exp.fresh(Ap(Forward, Exp.fresh(BuiltinFun(keep_name)), def)),
+          ));
+        }
+      };
+    | (Some(f), None, true) =>
+      not_compiled :=
+        [(f, "its whole type is not declared"), ...not_compiled^];
+      None;
+    | _ => None
+    };
   let rec go = (e: Exp.t): Exp.t =>
     switch (Exp.term_of(e)) {
     | TyAlias(tp, t, body) =>
@@ -186,83 +242,60 @@ let rewrite = (program: Exp.t): Exp.t => {
         term: TyAlias(tp, t, go(body)),
       };
     | Let(p, def, body) =>
-      switch (
-        name_of(p),
-        declared_result(p, def),
-        is_function(strip(def)),
-      ) {
-      | (Some(f), Some(result), true) =>
-        let wrap = b => Exp.fresh(Let(p, def, b));
-        let unit = Exp.fresh(Let(p, def, Exp.fresh(Var(f)))) |> unit_for;
-        switch (HazelJit.compile_full(~env=Builtins.env_init, unit)) {
-        | exception (HazelJit.Unsupported(why)) =>
-          not_compiled := [(f, why), ...not_compiled^];
-          {
-            ...e,
-            term: Let(p, def, go(body)),
-          };
-        | c =>
-          switch (HazelJitValue.instantiate(c.src)) {
-          | exception exn =>
-            not_compiled :=
-              [
-                (f, "its JS did not run: " ++ HazelJitValue.message(exn)),
-                ...not_compiled^,
-              ];
-            {
-              ...e,
-              term: Let(p, def, go(body)),
-            };
-          | fn =>
-            incr(made);
-            let n = string_of_int(made^);
-            let entry = {
-              fn,
-              ts: HazelJitValue.types_of(c),
-              result,
-              closure: ref(None),
-            };
-            let compiled_name = "%jit:" ++ f ++ ":" ++ n;
-            let keep_name = "%jit-keep:" ++ f ++ ":" ++ n;
-            Hashtbl.replace(Builtins.made_at_run_time, compiled_name, arg =>
-              call(entry, arg)
-            );
-            Hashtbl.replace(
-              Builtins.made_at_run_time,
-              keep_name,
-              closure => {
-                entry.closure := Some(closure);
-                Some(Exp.fresh(BuiltinFun(compiled_name)));
-              },
-            );
-            chain := [wrap, ...chain^];
-            compiled_names := [f, ...compiled_names^];
-            {
-              ...e,
-              term:
-                Let(
-                  Pat.fresh(Var(f)),
-                  Exp.fresh(
-                    Ap(Forward, Exp.fresh(BuiltinFun(keep_name)), def),
-                  ),
-                  go(body),
-                ),
-            };
-          }
-        };
-      | (Some(f), None, true) =>
-        not_compiled :=
-          [(f, "its whole type is not declared"), ...not_compiled^];
-        {
+      switch (accept(p, def)) {
+      | Some((p', def')) => {
           ...e,
-          term: Let(p, def, go(body)),
-        };
-      | _ => {
+          term: Let(p', def', go(body)),
+        }
+      | None => {
           ...e,
-          term: Let(p, def, go(body)),
+          term: Let(p, into(def), go(body)),
         }
       }
     | _ => e
+    }
+  /* a module's members, each module seen with what is in scope where it is; the chain as it was after it */
+  and into = (def: Exp.t): Exp.t =>
+    switch (Exp.term_of(def)) {
+    | Parens(d) => {
+        ...def,
+        term: Parens(into(d)),
+      }
+    | Asc(d, t) => {
+        ...def,
+        term: Asc(into(d), t),
+      }
+    | Module(items) =>
+      let saved = chain^;
+      let items = List.map(member, items);
+      chain := saved;
+      {
+        ...def,
+        term: Module(items),
+      };
+    | _ => def
+    }
+  and member = (item: Mod.t): Mod.t =>
+    switch (item.term) {
+    | ModLet(p, def) =>
+      switch (accept(p, def)) {
+      | Some((p', def')) => {
+          ...item,
+          term: ModLet(p', def'),
+        }
+      | None => {
+          ...item,
+          term: ModLet(p, into(def)),
+        }
+      }
+    | ModType(tp, t) =>
+      chain := [(b => Exp.fresh(TyAlias(tp, t, b))), ...chain^];
+      item;
+    | ModuleMod(mp, def) => {
+        ...item,
+        term: ModuleMod(mp, into(def)),
+      }
+    | _ => item
     };
   let out = go(program);
   compiled_names := List.rev(compiled_names^);

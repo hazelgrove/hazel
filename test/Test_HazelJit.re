@@ -1946,6 +1946,16 @@ let mixed_tests = [
     ["areas"],
   ),
   mixed(
+    "mixed: a module's members, one calling another",
+    "module M = { let sq : Int -> Int = fun x -> x * x; let cube : Int -> Int = fun x -> x * sq(x) } in M.cube(3) + M.sq(4)",
+    ["sq", "cube"],
+  ),
+  mixed(
+    "mixed: a module's member calling a function before the module",
+    "let inc : Int -> Int = fun x -> x + 1 in module M = { let twice : Int -> Int = fun x -> inc(inc(x)) } in M.twice(40)",
+    ["inc", "twice"],
+  ),
+  mixed(
     "mixed: a Float that is whole comes back a Float",
     "let half : Float -> Float = fun x -> x /. 2.0 in half(4.0)",
     ["half"],
