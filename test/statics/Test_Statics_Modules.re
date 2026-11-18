@@ -815,6 +815,31 @@ let test_lowering_ids_persist =
     )
   );
 
+/* A name bound to a value takes the value's type alias. An occurrence of
+   the name inside that alias means what it meant where the alias was
+   written, not the new binding: read as the binding, these made `x` an
+   alias of itself and normalization never finished. Each is an error. */
+let test_inherited_alias_mentioning_its_name =
+  Alcotest.test_case("An inherited alias that mentions the name", `Quick, () =>
+    List.iter(
+      ~f=
+        src =>
+          Alcotest.check(
+            Alcotest.bool,
+            src ++ " reports an error",
+            true,
+            !List.is_empty(errors(statics(parse_exp(src)))),
+          ),
+      [
+        "{ type y = x; module x = y; type z = x }",
+        "{ type y = _ ... x; module x = y; type ? = x }",
+        "{ type y = ? ... x; module x = y; type z = x }",
+        "type y = ? ... x in let x = y in type z = x in ?",
+        "type x = Int in type y = x in let x = y in type z = x in (1 : z)",
+      ],
+    )
+  );
+
 let tests = (
   "Statics.Modules",
   [
@@ -915,5 +940,6 @@ let tests = (
     test_sig_folded_var,
     test_sig_parenthesized_ascription,
     test_duplicate_binder_export_ids,
+    test_inherited_alias_mentioning_its_name,
   ],
 );

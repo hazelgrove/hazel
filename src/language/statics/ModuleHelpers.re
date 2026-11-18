@@ -227,6 +227,25 @@ let type_exports_alias_type =
   | _ => Some(type_exports_type(exports))
   };
 
+/* The alias a name takes from the value it is bound to (`let x = y`,
+   `module x = y`, a module's type exports). The alias was written where the
+   value was defined, so if it mentions the name, that occurrence keeps the
+   meaning it had there: the name's earlier alias, or an unbound name's
+   hole. Read as the new binding, `x` in `type y = x; module x = y` would
+   make `x` an alias of itself. */
+let inherited_alias = (ctx: Ctx.t, name: Var.t, ty: Typ.t): Typ.t =>
+  if (List.mem(Typ.free_vars(ty), name, ~equal=String.equal)) {
+    let outer: Typ.t =
+      switch (Ctx.lookup_tvar(ctx, name)) {
+      | Some(Singleton(outer)) => outer
+      | Some(Abstract) => Unknown(Internal) |> Typ.temp
+      | None => Unknown(Hole(Invalid(name))) |> Typ.temp
+      };
+    Typ.subst(outer, Var(name) |> TPat.temp, ty);
+  } else {
+    ty;
+  };
+
 let rec collect_type_exports =
         (ctx: Ctx.t, items: list(Mod.t)): list((Var.t, Typ.t)) =>
   items
@@ -272,6 +291,7 @@ let rec collect_type_exports =
                };
              switch (mpat_names(mp), rhs_exports_ty) {
              | ([name], Some(exports_ty)) =>
+               let exports_ty = inherited_alias(ctx, name, exports_ty);
                let ctx =
                  Ctx.extend_alias(ctx, name, MPat.rep_id(mp), exports_ty);
                (ctx, [(name, exports_ty), ...acc]);
