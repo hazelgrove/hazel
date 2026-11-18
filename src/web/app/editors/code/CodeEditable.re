@@ -456,10 +456,28 @@ module View = {
       };
   };
 
+  /* The pieces drawn as selected. An editor that expands its selection
+   * draws the projectors in the part it names as selected too. */
+  let selection_ids = (~expand_selection: bool, model: Model.t): list(Id.t) => {
+    let syntax = model.editor.syntax;
+    expand_selection
+      ? SelectedPart.expanded(
+          ~measured=CachedSyntax.measured(syntax),
+          ~term_data=syntax.term_data,
+          ~term=model.statics.term,
+          model.editor.state.zipper,
+        )
+        |> Option.value_map(~default=syntax.selection_ids, ~f=seg =>
+             Segment.ids(seg) @ syntax.selection_ids
+           )
+      : syntax.selection_ids;
+  };
+
   let deco =
       (
         ~expand_selection=false,
         ~syntax: CachedSyntax.t,
+        ~term: Language.Exp.t,
         ~info_map: Language.Statics.Map.t,
         ~globals: Globals.t,
         ~on_apply: option(Id.t => Ui_effect.t(unit))=None,
@@ -492,7 +510,7 @@ module View = {
       ),
       (
         expand_selection
-          ? Highlight.selection_expanded(~term_data=syntax.term_data)
+          ? Highlight.selection_expanded(~term_data=syntax.term_data, ~term)
           : Highlight.selection
       )(
         ~measured=CachedSyntax.measured(syntax),
@@ -800,6 +818,7 @@ module View = {
           ? deco(
               ~expand_selection?,
               ~syntax=model.editor.syntax,
+              ~term=model.statics.term,
               ~info_map=model.statics.info_map,
               ~globals,
               ~on_apply=
@@ -851,6 +870,11 @@ module View = {
     let visible =
       cull && globals.settings.autoprobe_mode != Haz3lcore.AutoProbe.Off
         ? globals.visible_rows : None;
+    let selection_ids =
+      selection_ids(
+        ~expand_selection=Option.value(expand_selection, ~default=false),
+        model,
+      );
     let refractors_model =
       if (is_sub) {
         [];
@@ -869,6 +893,7 @@ module View = {
             ~dynamics,
             ~sample_focus=zipper.refractors.sample_focus,
             ~editor_active=selected,
+            ~selection_ids,
             ~visible?,
             ~refractor_rows=model.editor.syntax.refractor_rows,
             (),
@@ -905,6 +930,7 @@ module View = {
               ~sample_focus=zipper.refractors.sample_focus,
               ~editor_active=selected,
               ~elaborated=Some(model.statics.elaborated),
+              ~selection_ids,
             ),
             model.editor.syntax.projector_list,
           );

@@ -75,6 +75,13 @@ type t = {
   seen: list(Exp.t),
   checks: int,
   depth: int,
+  /* With a run of the goal selected, the search goes from the run, in a
+   * goal of its own, and what it finds is written in a focus on the run. */
+  within: option(within),
+}
+and within = {
+  goal: Picker.Goal.t,
+  at: Picker.target,
 };
 
 /* Goals compared up to ascriptions and the names of binders. */
@@ -163,6 +170,26 @@ let start = (goal: Picker.Goal.t, ~wanted: Exp.t): t => {
     depth:
       goal.settings.evaluation.write_out_steps
         ? 1 : size(here) <= small_goal ? max_depth + 1 : max_depth,
+    within: None,
+  };
+};
+
+/* A search for steps taking the run `at` focuses on to `wanted`. */
+let start_within = (goal: Picker.Goal.t, at: Picker.target, ~wanted): t => {
+  let run =
+    Picker.Goal.mk(
+      ~settings=goal.settings,
+      ~program=goal.program,
+      ~ctx=goal.ctx,
+      Occurrence.exp(at.occurrence),
+    );
+  {
+    ...start(run, ~wanted),
+    within:
+      Some({
+        goal: run,
+        at,
+      }),
   };
 };
 
@@ -410,6 +437,12 @@ let run =
       search: t,
     )
     : t => {
+  let outer = goal;
+  let goal =
+    switch (search.within) {
+    | Some({goal, _}) => goal
+    | None => goal
+    };
   let rec loop = (t: t) =>
     switch (t.status, t.expanding, t.frontier) {
     | (Found(_) | NotFound, _, _) => t
@@ -495,7 +528,31 @@ let run =
         })
       }
     };
-  loop(search);
+  let searched = loop(search);
+  /* Steps found from a run go in a focus on it, checked from the goal. */
+  switch (searched.within, search.status, searched.status) {
+  | (Some({at, _}), Searching, Found([_, ..._] as steps)) =>
+    let focus =
+      Picker.seq(steps)
+      |> Option.map(~f=step =>
+           Picker.focused({
+             at: Some(at),
+             step,
+           })
+         );
+    {
+      ...searched,
+      status:
+        switch (focus) {
+        | Some(focus)
+            when Picker.outgoing(outer, outer.written, focus) != None =>
+          Found([focus])
+        | Some(_)
+        | None => NotFound
+        },
+    };
+  | _ => searched
+  };
 };
 
 /* What the box lists under itself: the goal each use of a rule would
@@ -515,14 +572,14 @@ module Suggestions = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     rule: option(string),
-    /* The selected part, by its id in the written goal. */
-    at: option(Id.t),
+    /* The selected part of the written goal. */
+    at: option(Occurrence.t),
     /* The uses not yet checked, None until they are listed. */
     pending: option(list((Exp.t, Proof.t))),
     found: list(suggestion),
   };
 
-  let start = (~rule: option(string), ~at: option(Id.t)): t => {
+  let start = (~rule: option(string), ~at: option(Occurrence.t)): t => {
     rule,
     at,
     pending: None,
@@ -547,11 +604,22 @@ module Suggestions = {
                 ~keep=(_, _) => true,
                 goal,
                 p,
-                Prepared.parts(
-                  p,
-                  Option.bind(t.at, ~f=id => Exp.find_by_id(id, goal.written))
-                  |> Option.value(~default=goal.written),
-                ),
+                switch (t.at) {
+                | Some(Run({operands, _})) =>
+                  List.concat_map(
+                    ~f=
+                      (o: Occurrence.Chain.operand) =>
+                        Prepared.parts(p, o.exp),
+                    operands,
+                  )
+                | Some(Node(node)) =>
+                  Prepared.parts(
+                    p,
+                    Exp.find_by_id(Exp.rep_id(node), goal.written)
+                    |> Option.value(~default=goal.written),
+                  )
+                | None => Prepared.parts(p, goal.written)
+                },
               ),
             ),
         });

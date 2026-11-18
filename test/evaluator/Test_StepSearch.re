@@ -548,6 +548,34 @@ let tests = (
       },
     ),
     test_case(
+      "with a run selected, the steps found go in a focus on the run",
+      `Quick,
+      () => {
+        let f = Fixture.mk("theorem t = 1 + 2 + 3 == 6 proof ? in t");
+        let row = first(f.rows);
+        let f = Test_StepperView.Runs.select(f, row, ~from="2", ~to_="3");
+        let f = Fixture.act(f, (row.key, BoxEditor(Perform(Paste("5")))));
+        let box = (f: Fixture.t) =>
+          switch (Fixture.local(f, row).box) {
+          | Some(box) => box
+          | None => Alcotest.fail("no box")
+          };
+        let rec slices = (n, f: Fixture.t) =>
+          Web.StepperView.Model.running(box(f)) && n < 100
+            ? slices(
+                n + 1,
+                Fixture.act(f, (row.key, SearchSlice(box(f).generation))),
+              )
+            : box(f);
+        check(
+          steps,
+          "found",
+          Some(["from 2 + $e do step end"]),
+          Option.bind(slices(0, f).search, ~f=s => found(s)),
+        );
+      },
+    ),
+    test_case(
       "run in slices, the search finds what it finds in one go",
       `Quick,
       () => {
