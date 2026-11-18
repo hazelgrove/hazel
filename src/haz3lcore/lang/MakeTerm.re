@@ -953,6 +953,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         switch (t) {
         | (F(Compound(UnaryMinus)), []) => UnOp(Int(Minus), r)
         | (F(Compound(Not)), []) => UnOp(Bool(Not), r)
+        | (F(Compound(Standard)), []) => Standard(r)
         | (F(Compound(Fun)), [Pat(pat)]) => Fun(pat, r, None, None)
         | (F(Compound(Forall)), [Pat(pat)]) => Forall(pat, r)
         | (F(Compound(Fix)), [Pat(pat)]) => FixF(pat, r, None)

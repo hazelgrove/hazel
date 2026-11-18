@@ -187,6 +187,7 @@ module BoolReading = {
     | Atom(Bool(_)) => Boolean
     | Atom(Int(_) | Nat(_) | SInt(_) | Float(_) | String(_)) => NotBoolean
     | UnOp(op, _) => un_op_is_bool(op) ? Boolean : NotBoolean
+    | Standard(_) => Boolean
     | BinOp(op, _, _) => bin_op_is_bool(op) ? Boolean : NotBoolean
     | ListLit(_)
     | Tuple(_)
