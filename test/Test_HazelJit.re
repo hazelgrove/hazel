@@ -1926,13 +1926,18 @@ let mixed_measured = (~parse=parse_exp, name, src) =>
                 around(sg),
               );
         };
+      /* (and on the trail CI prints after the tests: dune cut the middle of the test output, where this was printed,
+         CI run 44337523695) */
+      if (!same) {
+        trail(line ++ parted);
+      };
       at_exit(() => {
         print_string(line ++ parted);
         flush(stdout);
       });
       check(
         bool,
-        "mixed mode's answer is the interpreter's (where they part: printed after the run)",
+        "mixed mode's answer is the interpreter's (where they part: printed after the run, and on the trail)",
         true,
         same,
       );
