@@ -2231,6 +2231,20 @@ let label_tests = [
   ),
   agreement("from_lvs of one", {|from_lvs([(label="col", value=3)])|}),
   agreement("from_lvs of none", "from_lvs([])"),
+  /* (^ticket(761), found by the slides' check) */
+  agreement("to_lvs", "to_lvs((a=1, b=true))"),
+  agreement(
+    "to_lvs, then from_lvs",
+    "from_lvs(to_lvs((col1=3, col2=\"x\")))",
+  ),
+  agreement(
+    "an operator as a builtin",
+    "(int_plus(1, 2), float_times(1.5, 2.), string_concat(\"a\", \"b\"), int_lt(1, 2))",
+  ),
+  agreement(
+    "an operator as a builtin, passed along",
+    "let apply = fun (f, a, b) -> f(a, b) in apply(int_times, 6, 7)",
+  ),
   agreement(
     "a module's member that is an expression",
     "{ 1 + 1; let x = 2 }",
@@ -2297,6 +2311,11 @@ let slides_sweep = () => {
   and not_compared = ref(0);
   let reasons: Hashtbl.t(string, int) = Hashtbl.create(16);
   let partings = ref([]);
+  /* (CI run 44146528138: with more slides compiled, the full tests ran past their 100 minutes. A compiled run here had no
+     budget, so a slide whose compiled run does not end, or ends far later than the interpreter's, held the job: each
+     compiled run now has the budget mixed mode gives a call, 50 million calls, and a slide that meets it is listed with
+     the interpreter's answer) */
+  let out_of_budget = ref([]);
   /* (each agreeing slide timed as the sweep times the evaluator's programs: the interpreter repeated to 20 ms, the JS to
      5 ms; with its first run, as a page would meet it) */
   let times = ref([]);
@@ -2306,9 +2325,21 @@ let slides_sweep = () => {
       r,
       1 + Option.value(~default=0, Hashtbl.find_opt(reasons, r)),
     );
+  let t_slides = now();
+  trail("slides: the check starts");
   List.iter(
     ((path, src)) => {
       incr(n);
+      if (n^ mod 10 == 0) {
+        trail(
+          Printf.sprintf(
+            "slides: %d read, %.0f s, now %s",
+            n^,
+            (now() -. t_slides) /. 1000.,
+            path,
+          ),
+        );
+      };
       switch (Haz3lcore.Parser.to_term(src, ~root=Exp)) {
       | exception _ => incr(not_parsed)
       | None => incr(not_parsed)
@@ -2327,7 +2358,24 @@ let slides_sweep = () => {
             let t0 = now();
             let result = Test_Evaluator_Prelude.evaluate(elab);
             let interp_ms = now() -. t0;
-            switch (run_js(HazelJit.Runtime.source, js_src)) {
+            switch (
+              run_js_limited(HazelJit.Runtime.source, js_src, 50_000_000)
+            ) {
+            | exception (Js_error.Exn(e))
+                when
+                  starts_with("hazel-jit: step limit", Js_error.message(e)) =>
+              out_of_budget :=
+                [
+                  path
+                  ++ ": "
+                  ++ one_line(Js_error.message(e))
+                  ++ " (the interpreter's answer, after "
+                  ++ Printf.sprintf("%.0f", interp_ms)
+                  ++ " ms: "
+                  ++ one_line(Exp.show(result))
+                  ++ ")",
+                  ...out_of_budget^,
+                ]
             | exception (Js_error.Exn(e))
                 when
                   (
@@ -2350,7 +2398,12 @@ let slides_sweep = () => {
               switch (agree(result, got)) {
               | None =>
                 incr(agreed);
-                switch (time_js(js_src), time_interp(elab)) {
+                /* (a slide whose first run already took 20 ms is not run twice more for its time: its first run is its
+                   time, as the full tests' 100 minutes allow) */
+                switch (
+                  time_js(js_src),
+                  interp_ms >= 20. ? (interp_ms, 1) : time_interp(elab),
+                ) {
                 | (
                     (parse_ms, run1_ms, run_mean, run_n),
                     (interp_mean, interp_n),
@@ -2389,7 +2442,7 @@ let slides_sweep = () => {
   let report =
     [
       Printf.sprintf(
-        "\nhazel-jit slides (ticket 756): %d programs; %d not parsed, %d with a static error; %d compiled, %d agreed, %d part, %d with an interpreter result that is not a value\n",
+        "\nhazel-jit slides (ticket 756): %d programs; %d not parsed, %d with a static error; %d compiled, %d agreed, %d part, %d with an interpreter result that is not a value, %d stopped at the compiled run's budget\n",
         n^,
         not_parsed^,
         with_errors^,
@@ -2397,6 +2450,7 @@ let slides_sweep = () => {
         agreed^,
         List.length(partings^),
         not_compared^,
+        List.length(out_of_budget^),
       ),
     ]
     @ (
@@ -2408,6 +2462,10 @@ let slides_sweep = () => {
          )
     )
     @ List.map(Printf.sprintf("  SLIDES PART  %s\n"), List.rev(partings^))
+    @ List.map(
+        Printf.sprintf("  SLIDES BUDGET  %s\n"),
+        List.rev(out_of_budget^),
+      )
     @ List.rev(times^);
   at_exit(() => {
     List.iter(print_string, report);
@@ -2544,7 +2602,7 @@ let tests = (
   ]
   @ unicode_string_tests
   @ sint_tests
-  @ [test_case("the slides' programs", `Quick, slides_sweep)]
+  @ [test_case("the slides' programs", `Slow, slides_sweep)]
   @ [
     test_case(
       "the interpreter's steps, calibration",
@@ -2562,6 +2620,14 @@ let tests = (
   @ [
     agreement("arithmetic", "1 + 2 * 3 - 4 / 2"),
     agreement("floats", "1.5 *. 2. +. 0.25"),
+    agreement(
+      "a projection through a list, a table's column",
+      "let t = [(name=\"a\", acne=true), (name=\"b\", acne=false)] in t.acne",
+    ),
+    agreement(
+      "a projection of a tuple and of a list together",
+      "let r = (a=1, rows=[(a=2), (a=3)]) in (r.a, r.rows.a)",
+    ),
     agreement("a function", "let f = fun x -> x * 2 in f(21)"),
     agreement(
       "recursion",

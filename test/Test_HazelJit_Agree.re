@@ -38,11 +38,27 @@ let stuck_at = (result: Exp.t, err: string): bool => {
 
 /* (^ticket(761)) a compiled run that reached undefined ("hazel-jit: indeterminate: undefined") agrees with an interpreter's
    result left indeterminate there, an Undefined in it: the page falls back to the interpreter */
+/* (^ticket(761)) A compiled run that stopped as indeterminate agrees with an interpreter result stuck at the same thing:
+   undefined reached; or (CI run 44197056910, Evaluator.LabeledTuples' "Indet projection", (true).a) a projection the
+   interpreter leaves stuck, where the compiled code once read undefined and carried on */
 let indet_reached = (message: string, result: Exp.t): bool => {
   let pre = "hazel-jit: indeterminate: ";
+  let shown = Exp.show(result);
   String.length(message) >= String.length(pre)
   && String.sub(message, 0, String.length(pre)) == pre
-  && contains(Exp.show(result), "Undefined");
+  && {
+    let what =
+      String.sub(
+        message,
+        String.length(pre),
+        String.length(message) - String.length(pre),
+      );
+    let by = "a projection by ";
+    contains(shown, "Undefined")
+    || String.length(what) >= String.length(by)
+    && String.sub(what, 0, String.length(by)) == by
+    && contains(shown, "(Dot");
+  };
 };
 
 /* what agree says of an interpreter result it does not compare (an error, a stuck term: not a value) */
@@ -401,6 +417,27 @@ type timing = {
   run_n: int,
 };
 let timings: ref(list(timing)) = ref([]);
+/* (CI runs 44146528138 and 44165874889: the full tests ran past their 100 minutes, and a run killed at its limit prints
+   nothing of its tests) A trail, appended to as the run goes, so a killed run still shows where its time went; CI prints
+   it after the tests, pass or fail (checks.yml) */
+let trail = (line: string): unit =>
+  switch (
+    open_out_gen(
+      [Open_append, Open_creat, Open_text],
+      0o644,
+      "hazel-jit-trail.txt",
+    )
+  ) {
+  | oc =>
+    output_string(oc, line ++ "\n");
+    close_out(oc);
+  | exception _ => ()
+  };
+/* the quick tests run with -q; the full tests keep the sweep's check and skip its timing, which repeats each program's
+   runs (the report's timings come from the quick tests) */
+let quick_run =
+  Array.exists(a => a == "-q" || a == "--quick-tests", Sys.argv);
+
 /* the runtime, made once, for the timed runs */
 let timed_runtime: Lazy.t(Js.Unsafe.any) =
   lazy(Js.Unsafe.eval_string("(" ++ HazelJit.Runtime.source ++ ")"));
@@ -423,11 +460,18 @@ let time_interp = (elab: Exp.t): (float, int) => {
   let t0 = now();
   run();
   let one = now() -. t0;
+  /* (at least 10 runs where a run is short; a program whose one run already takes 20 ms runs once more, as a slide may
+     take seconds: ten of those ran the quick tests past CI's 20 minutes, 11-17) */
   let n =
-    Int.min(
-      1000,
-      Int.max(10, int_of_float(Float.ceil(20. /. Float.max(one, 0.02)))),
-    );
+    one >= 20.
+      ? 1
+      : Int.min(
+          1000,
+          Int.max(
+            10,
+            int_of_float(Float.ceil(20. /. Float.max(one, 0.02))),
+          ),
+        );
   let t0 = now();
   for (_ in 1 to n) {
     run();
@@ -435,7 +479,7 @@ let time_interp = (elab: Exp.t): (float, int) => {
   ((now() -. t0) /. float_of_int(n), n);
 };
 
-let sweep =
+let sweep_one =
     (~interp_ms: option(float)=?, test: string, elab: Exp.t, result: Exp.t)
     : unit => {
   try(mixed_sweep(test, elab, result)) {
@@ -559,6 +603,41 @@ let sweep =
     Alcotest.fail(
       "hazel-jit parts from the interpreter (ticket 756): " ++ why,
     )
+  };
+};
+
+/* each program's sweep, timed: a program whose sweep takes over 2 s, and every 500 programs the sweep's time against the
+   tests' own runs, go on the trail */
+let swept_ms = ref(0.);
+let tests_ms = ref(0.);
+let sweep =
+    (~interp_ms: option(float)=?, test: string, elab: Exp.t, result: Exp.t)
+    : unit => {
+  let t0 = now();
+  sweep_one(~interp_ms=?quick_run ? interp_ms : None, test, elab, result);
+  let ms = now() -. t0;
+  let own = Option.value(~default=0., interp_ms);
+  swept_ms := swept_ms^ +. ms;
+  tests_ms := tests_ms^ +. own;
+  if (ms > 2000.) {
+    trail(
+      Printf.sprintf(
+        "slow sweep %.1f s (the test's own run %.0f ms): %s",
+        ms /. 1000.,
+        own,
+        one_line(test),
+      ),
+    );
+  };
+  if (swept^ mod 500 == 0) {
+    trail(
+      Printf.sprintf(
+        "swept %d programs: the sweep %.0f s, the tests' own runs %.0f s",
+        swept^,
+        swept_ms^ /. 1000.,
+        tests_ms^ /. 1000.,
+      ),
+    );
   };
 };
 
