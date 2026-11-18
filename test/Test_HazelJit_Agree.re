@@ -38,11 +38,27 @@ let stuck_at = (result: Exp.t, err: string): bool => {
 
 /* (^ticket(761)) a compiled run that reached undefined ("hazel-jit: indeterminate: undefined") agrees with an interpreter's
    result left indeterminate there, an Undefined in it: the page falls back to the interpreter */
+/* (^ticket(761)) A compiled run that stopped as indeterminate agrees with an interpreter result stuck at the same thing:
+   undefined reached; or (CI run 44197056910, Evaluator.LabeledTuples' "Indet projection", (true).a) a projection the
+   interpreter leaves stuck, where the compiled code once read undefined and carried on */
 let indet_reached = (message: string, result: Exp.t): bool => {
   let pre = "hazel-jit: indeterminate: ";
+  let shown = Exp.show(result);
   String.length(message) >= String.length(pre)
   && String.sub(message, 0, String.length(pre)) == pre
-  && contains(Exp.show(result), "Undefined");
+  && {
+    let what =
+      String.sub(
+        message,
+        String.length(pre),
+        String.length(message) - String.length(pre),
+      );
+    let by = "a projection by ";
+    contains(shown, "Undefined")
+    || String.length(what) >= String.length(by)
+    && String.sub(what, 0, String.length(by)) == by
+    && contains(shown, "(Dot");
+  };
 };
 
 /* what agree says of an interpreter result it does not compare (an error, a stuck term: not a value) */
