@@ -246,6 +246,8 @@ let differs: ref(list(parting)) = ref([]);
 let threw: ref(list(parting)) = ref([]);
 let not_compared: ref(list(parting)) = ref([]);
 let not_compiled: Hashtbl.t(string, int) = Hashtbl.create(16);
+/* (^report(56)) each program not compiled, by name, with its reason, so the report can list them */
+let not_compiled_tests: ref(list((string, string))) = ref([]);
 let sweep_failed = ref(0);
 
 let clip = (n, s) =>
@@ -494,6 +496,7 @@ let sweep_one =
         let compile_ms = now() -. t0;
         switch (compiled_src) {
         | Error(reason) =>
+          not_compiled_tests := [(reason, test), ...not_compiled_tests^];
           Hashtbl.replace(
             not_compiled,
             reason,
@@ -658,6 +661,10 @@ let report = () =>
     |> List.sort(compare)
     |> List.rev
     |> List.iter(((n, r)) => p("  not compiled, %d: %s\n", n, r));
+    List.iter(
+      ((r, t)) => p("  NOT COMPILED  %s: %s\n", one_line(t), r),
+      List.rev(not_compiled_tests^),
+    );
     let each = (label, xs) =>
       List.iter(
         (x: parting) => p("  %s  %s: %s\n", label, x.test, x.what),
