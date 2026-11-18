@@ -374,6 +374,21 @@ let node = (target: t): Exp.t =>
   | Run({chain, _}) => chain
   };
 
+/* The goal's nodes the target starts and ends with: a node twice, or a
+ * run's first and last operands. */
+let ends = (target: t): (Exp.t, Exp.t) =>
+  switch (target) {
+  | Node(e) => (e, e)
+  | Run({operands, chain, _}) =>
+    switch (List.map(~f=(o: Chain.operand) => o.exp, operands)) {
+    | [] => (chain, chain)
+    | [first, ...rest] => (
+        first,
+        ListUtil.last_opt(rest) |> Option.value(~default=first),
+      )
+    }
+  };
+
 let same = (t1: t, t2: t): bool =>
   switch (t1, t2) {
   | (Node(e1), Node(e2)) => Id.equal(Exp.rep_id(e1), Exp.rep_id(e2))
@@ -547,6 +562,113 @@ let generalize =
     ~init=(selector, index),
     in_source_order(~stop=_ => false, selector),
   );
+};
+
+/* The index `nth_env_target` finds `target` at with its own expression
+ * as the selector. */
+let index_of =
+    (
+      ~statics: ProofStatics.t,
+      ~env: Environment.t(Exp.t),
+      target: t,
+      goal: Exp.t,
+    )
+    : option(int) => {
+  let rec from = n =>
+    switch (nth_env_target(~statics, ~env, exp(target), n, goal)) {
+    | Some(found) when same(found, target) => Some(n)
+    | Some(_) => from(n + 1)
+    | None => None
+    };
+  from(0);
+};
+
+/* What a selection of the nodes `ids` in `goal` names, given `node`, the
+ * smallest node holding them. When `node` is part of a chain, that is
+ * the run of the operands the selection touches: those it is in, and the
+ * two an operator it holds joins. The run is written as the parser
+ * groups it. */
+let of_selection = (~ids: list(Id.t), ~goal: Exp.t, node: Exp.t): t => {
+  let in_spine = (op, chain) =>
+    List.exists(Chain.spine(op, chain), ~f=s =>
+      Id.equal(Exp.rep_id(s), Exp.rep_id(node))
+    );
+  let chain =
+    Option.bind(Chain.op_of(node), ~f=op =>
+      Chain.all(op, goal)
+      |> List.find(~f=in_spine(op))
+      |> Option.map(~f=chain => (op, chain))
+    );
+  switch (chain) {
+  | None => Node(node)
+  | Some((op, chain)) =>
+    let operands = Chain.operands(op, chain);
+    let index = (e: Exp.t) =>
+      ListUtil.findi_opt(
+        (o: Chain.operand) => Id.equal(Exp.rep_id(o.exp), Exp.rep_id(e)),
+        operands,
+      )
+      |> Option.map(~f=fst);
+    let rec holds = (id, e: Exp.t) =>
+      List.mem(IdTagged.ids(e), id, ~equal=Id.equal)
+      || List.exists(children(e), ~f=holds(id));
+    let spine = Chain.spine(op, chain);
+    let touched = id =>
+      switch (
+        ListUtil.findi_opt((o: Chain.operand) => holds(id, o.exp), operands)
+      ) {
+      | Some((i, _)) => [i]
+      | None =>
+        switch (
+          List.find(spine, ~f=s =>
+            List.mem(IdTagged.ids(s), id, ~equal=Id.equal)
+          )
+        ) {
+        | Some({term: BinOp(_, l, r) | ListConcat(l, r), _} as s) =>
+          let last_of_left =
+            ListUtil.last_opt(Chain.operands(op, l))
+            |> Option.map(~f=(o: Chain.operand) => o.exp);
+          let first_of_right =
+            Chain.subtracts(s)
+              ? Some(r)
+              : ListUtil.hd_opt(Chain.operands(op, r))
+                |> Option.map(~f=(o: Chain.operand) => o.exp);
+          Option.to_list(Option.bind(last_of_left, ~f=index))
+          @ Option.to_list(Option.bind(first_of_right, ~f=index));
+        | Some(_)
+        | None => []
+        }
+      };
+    let span = List.map(~f=(o: Chain.operand) => Exp.rep_id(o.exp));
+    switch (List.concat_map(ids, ~f=touched)) {
+    | [] => Node(node)
+    | [i, ...is] =>
+      let (lo, hi) = (
+        List.fold(is, ~init=i, ~f=min),
+        List.fold(is, ~init=i, ~f=max),
+      );
+      let (before, rest) = ListUtil.split_n(lo, operands);
+      let (run, after) = ListUtil.split_n(hi - lo + 1, rest);
+      switch (
+        List.find(spine, ~f=s =>
+          List.equal(Id.equal, span(Chain.operands(op, s)), span(run))
+        ),
+        run,
+      ) {
+      | (Some(s), _) => Node(s)
+      | (None, [{subtracted: false, exp: first}, second, ...rest]) =>
+        Run({
+          op,
+          chain,
+          before,
+          operands: run,
+          after,
+          exp: Chain.join_all(op, first, [second, ...rest]),
+        })
+      | (None, _) => Node(node)
+      };
+    };
+  };
 };
 
 /* The node of `onto` at the position the node with id `id` has in

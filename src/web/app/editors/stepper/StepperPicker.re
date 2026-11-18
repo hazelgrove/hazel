@@ -456,8 +456,12 @@ module Goal = {
    * the editor's term but not drawn, so the underline goes on the nearest
    * drawn node around it there, the fold. A hidden ascription isn't in the
    * editor's term at all, so the underline goes on the first drawn node
-   * inside it. */
-  let acts_on = (goal: t, row: StepperRows.t): option(Id.t) => {
+   * inside it.
+   *
+   * A focus on a run starts from the run, which is not a node of
+   * `row.goal`, so the underline runs from its first operand to its last.
+   * The result is the first and last node it covers. */
+  let acts_on = (goal: t, row: StepperRows.t): option((Id.t, Id.t)) => {
     let syntax = goal.editor.editor.syntax;
     let drawn = (e: Exp.t) =>
       TermData.extreme_measures(
@@ -476,54 +480,95 @@ module Goal = {
           }
         );
     let editor_term = CodeEditable.Model.get_statics(goal.editor).term;
-    switch (row.goal, row.acts_on) {
-    | (Some(row_goal), Some(part)) =>
-      Occurrence.at_same_position(~from=row_goal, ~onto=goal.written, part)
+    let place = (row_goal, part: Exp.t) =>
+      Occurrence.at_same_position(
+        ~from=row_goal,
+        ~onto=goal.written,
+        Exp.rep_id(part),
+      )
       |> Option.bind(_, ~f=(node: Exp.t) =>
            switch (self_and_ancestors(Exp.rep_id(node), editor_term)) {
            | Some(path) => List.find(~f=drawn, path)
            | None => inside(node)
            }
          )
-      |> Option.map(~f=Exp.rep_id)
+      |> Option.map(~f=Exp.rep_id);
+    switch (row.goal, row.acts_on) {
+    | (Some(row_goal), Some(part)) =>
+      let (first, last) =
+        switch (
+          Exp.find_by_id(Exp.rep_id(part), row_goal),
+          Occurrence.Chain.op_of(part),
+        ) {
+        | (None, Some(op)) =>
+          let operands =
+            Occurrence.Chain.operands(op, part)
+            |> List.map(~f=(o: Occurrence.Chain.operand) => o.exp);
+          (
+            ListUtil.hd_opt(operands) |> Option.value(~default=part),
+            ListUtil.last_opt(operands) |> Option.value(~default=part),
+          );
+        | (Some(_), _)
+        | (None, None) => (part, part)
+        };
+      switch (place(row_goal, first), place(row_goal, last)) {
+      | (Some(first), Some(last)) => Some((first, last))
+      | _ => None
+      };
     | (None, _)
     | (_, None) => None
     };
   };
 
-  /* The node the user selected in the goal's editor, read off the editor
-   * itself so it can't lag the selection. */
-  let selected = (goal: t): option(Exp.t) => {
+  /* What the user selected in the goal's editor, read off the editor
+   * itself so it can't lag the selection: a node, or a run of a chain
+   * when the selection spans part of one. */
+  let selected = (goal: t): option(Occurrence.t) => {
     let editor = goal.editor.editor;
-    TermData.get_root_id_using_ranges(
-      editor.state.zipper.selection.content,
-      editor.syntax.term_data,
-      CachedSyntax.measured(editor.syntax),
-    )
-    |> Option.bind(_, ~f=id => Exp.find_by_id(id, goal.written));
+    SelectedPart.of_zipper(
+      ~measured=CachedSyntax.measured(editor.syntax),
+      ~term_data=editor.syntax.term_data,
+      ~term=goal.written,
+      editor.state.zipper,
+    );
   };
 
-  /* `goal` built again with `settings`. The node that was selected is
-   * selected again, or the caret goes back to the node it was at. */
+  /* `goal` built again with `settings`. What was selected is selected
+   * again, or the caret goes back to the node it was at. */
   let rebuild = (~settings: CoreSettings.t, goal: t): t => {
     let rebuilt = mk(~settings, ~ctx=goal.ctx, goal.written);
     let zipper = goal.editor.editor.state.zipper;
-    let (node, restore) =
+    let syntax = rebuilt.editor.editor.syntax;
+    let restore =
       switch (selected(goal)) {
-      | Some(node) => (
-          Some(Exp.rep_id(node)),
-          (id => Action.Select(Term(Id(id, zipper.selection.focus)))),
+      | Some(Node(node)) =>
+        Some(
+          Action.Select(
+            Term(Id(Exp.rep_id(node), zipper.selection.focus)),
+          ),
         )
-      | None => (
-          Indicated.index(zipper),
-          (id => Action.Move(Goal(TileId(id)))),
-        )
+      | Some(Run(_) as run) =>
+        let (first, last) = Occurrence.ends(run);
+        let measure = (e: Exp.t) =>
+          TermData.extreme_measures(
+            Exp.rep_id(e),
+            syntax.term_data,
+            CachedSyntax.measured(syntax),
+          );
+        switch (measure(first), measure(last)) {
+        | (Some((start, _)), Some((_, end_))) =>
+          Some(Action.Select(PointToPoint((start, end_))))
+        | _ => None
+        };
+      | None =>
+        Indicated.index(zipper)
+        |> Option.map(~f=id => Action.Move(Goal(TileId(id))))
       };
     let moved =
-      Option.bind(node, ~f=id =>
+      Option.bind(restore, ~f=action =>
         Editor.Update.update(
           ~settings,
-          restore(id),
+          action,
           rebuilt.editor.statics,
           rebuilt.editor.dynamics,
           rebuilt.editor.editor,
@@ -553,38 +598,47 @@ type pick = {
   step: Proof.t,
 }
 and target = {
-  /* The occurrence, a node of the goal. */
-  node: Exp.t,
+  /* The occurrence: a node of the goal, or a run of a chain in it. */
+  occurrence: Occurrence.t,
   /* What the focus writes, and which of its matches the occurrence is,
    * counting from 0. */
   selector: Exp.t,
   index: int,
 };
 
-/* Where a step picked on `node` acts: through a focus, unless `node` is
- * the whole goal. The focus writes `node` with as much of it replaced by
- * `$e` as still selects `node`, so the step survives edits to the parts
- * of the goal it doesn't need. */
-let target = (goal: Goal.t, node: Exp.t): option(target) =>
-  Id.equal(Exp.rep_id(node), Exp.rep_id(goal.written))
-    ? None
-    : {
-      let (selector, index) =
-        Occurrence.generalize(
-          ~statics=ProofStatics.of_info_map(Goal.info_map(goal)),
-          ~env=Goal.env(goal),
-          ~index=
-            Occurrence.index(node, goal.written) |> Option.value(~default=0),
-          node,
-          Node(node),
-          goal.written,
-        );
-      Some({
-        node,
-        selector,
-        index,
-      });
-    };
+/* Where a step picked on `occurrence` acts: through a focus, unless it
+ * is the whole goal. The focus writes the occurrence with as much of it
+ * replaced by `$e` as still selects it, so the step survives edits to the
+ * parts of the goal it doesn't need. */
+let target = (goal: Goal.t, occurrence: Occurrence.t): option(target) =>
+  switch (occurrence) {
+  | Node(node) when Id.equal(Exp.rep_id(node), Exp.rep_id(goal.written)) =>
+    None
+  | Node(_)
+  | Run(_) =>
+    let statics = ProofStatics.of_info_map(Goal.info_map(goal));
+    let env = Goal.env(goal);
+    let index =
+      switch (occurrence) {
+      | Node(node) => Occurrence.index(node, goal.written)
+      | Run(_) =>
+        Occurrence.index_of(~statics, ~env, occurrence, goal.written)
+      };
+    let (selector, index) =
+      Occurrence.generalize(
+        ~statics,
+        ~env,
+        ~index=Option.value(index, ~default=0),
+        Occurrence.exp(occurrence),
+        occurrence,
+        goal.written,
+      );
+    Some({
+      occurrence,
+      selector,
+      index,
+    });
+  };
 
 /* The proof `pick` writes on its own: its step, focused on its target. */
 let focused = (pick: pick): Proof.t =>
@@ -598,24 +652,25 @@ let focused = (pick: pick): Proof.t =>
 let write = (row: StepperRows.t, pick: pick): Patches.patch =>
   Patches.write(row, focused(pick));
 
-/* The patch writing `steps` after `row`'s goal, one row each, or None
- * for no steps. */
-let write_steps =
-    (row: StepperRows.t, steps: list(Proof.t)): option(Patches.patch) =>
+/* `steps` one after another, or None for no steps. */
+let seq = (steps: list(Proof.t)): option(Proof.t) =>
   switch (List.rev(steps)) {
   | [] => None
   | [last, ...earlier] =>
     Some(
-      Patches.write(
-        row,
-        List.fold_left(
-          ~f=(rest, step) => Proof.fresh(Seq(step, rest)),
-          ~init=last,
-          earlier,
-        ),
+      List.fold_left(
+        ~f=(rest, step) => Proof.fresh(Seq(step, rest)),
+        ~init=last,
+        earlier,
       ),
     )
   };
+
+/* The patch writing `steps` after `row`'s goal, one row each, or None
+ * for no steps. */
+let write_steps =
+    (row: StepperRows.t, steps: list(Proof.t)): option(Patches.patch) =>
+  Option.map(seq(steps), ~f=Patches.write(row));
 
 /* What taking the `idx`-th offered step writes: `step`, focused on the
  * step's source. */
@@ -628,14 +683,14 @@ let take_step = (goal: Goal.t, idx: int): option(pick) => {
     Id.equal(source, Exp.rep_id(goal.written))
       ? Some(0) : EvalSteps.checker_idx(goal.written, node);
   {
-    at: target(goal, node),
+    at: target(goal, Node(node)),
     step: Proof.fresh(EvalStep),
   };
 };
 
 /* Reflexivity is the `refl` axiom at the equality `node`. */
 let refl = (goal: Goal.t, node: Exp.t): pick => {
-  at: target(goal, node),
+  at: target(goal, Node(node)),
   step:
     Proof.fresh(
       Terms.axiom_step(~direction=Direction.Right, ~equality="refl"),
@@ -697,7 +752,7 @@ module Ghost = {
     result: Exp.t,
   };
 
-  let mk = (goal: Goal.t, ~selected: option(Exp.t)): option(t) => {
+  let on_node = (goal: Goal.t, ~selected: option(Exp.t)): option(t) => {
     open OptUtil.Syntax;
     /* A step on `(1 + 1)` has the parens as its source, so a selection of
      * `1 + 1` takes in the parens around it. */
@@ -785,8 +840,9 @@ module Ghost = {
      * its id. */
     let+ result =
       switch (pick.at) {
-      | Some({node: part, _})
-          when !Id.equal(Exp.rep_id(part), Exp.rep_id(node)) =>
+      | Some({occurrence: part, _})
+          when
+            !Id.equal(Exp.rep_id(Occurrence.node(part)), Exp.rep_id(node)) =>
         outgoing_of(checked, proof)
         |> Option.bind(_, ~f=Exp.find_by_id(Exp.rep_id(node)))
       | Some(_)
@@ -798,6 +854,76 @@ module Ghost = {
       result,
     };
   };
+
+  /* On a run: the outermost step in the first operand that has one, as
+   * on a selected node, or else the step of the run itself, as `2 + 3` of
+   * `1 + 2 + 3` steps. */
+  let on_run = (goal: Goal.t, run: Occurrence.run): option(t) => {
+    open OptUtil.Syntax;
+    let outermost_in = (o: Occurrence.Chain.operand) => {
+      let depth = id =>
+        self_and_ancestors(id, o.exp) |> Option.map(~f=List.length);
+      Goal.step_ids(goal)
+      |> List.mapi(~f=(idx, id) => Option.map(depth(id), ~f=d => (d, idx)))
+      |> List.filter_map(~f=Fn.id)
+      |> List.stable_sort(~compare=((a, _), (b, _)) => Int.compare(a, b))
+      |> List.map(~f=snd)
+      |> ListUtil.hd_opt;
+    };
+    let* pick =
+      switch (List.find_map(run.operands, ~f=outermost_in)) {
+      | Some(idx) => take_step(goal, idx)
+      | None =>
+        target(goal, Run(run))
+        |> Option.map(~f=at =>
+             {
+               at: Some(at),
+               step: Proof.fresh(EvalStep),
+             }
+           )
+      };
+    let proof = focused(pick);
+    let* checked = check(goal, goal.written, proof);
+    /* What the run becomes. A step inside an operand leaves the chain's
+     * id and the operands around the run. The stepped operand can become
+     * several, as `inc(2 + 3)` contracts to `2 + 3 + 1`, which joins the
+     * chain. */
+    let+ result =
+      switch (pick.at) {
+      | Some({occurrence: Run(_), _}) => outgoing_of(checked, pick.step)
+      | Some({occurrence: Node(_), _})
+      | None =>
+        let* outgoing = outgoing_of(checked, proof);
+        let* chain = Exp.find_by_id(Exp.rep_id(run.chain), outgoing);
+        let* (_, rest) =
+          ListUtil.split_n_opt(
+            List.length(run.before),
+            Occurrence.Chain.operands(run.op, chain),
+          );
+        let* (operands, _) =
+          ListUtil.split_n_opt(
+            List.length(rest) - List.length(run.after),
+            rest,
+          );
+        switch (operands) {
+        | [first, ...others] =>
+          Some(Occurrence.Chain.join_all(run.op, first.exp, others))
+        | [] => None
+        };
+      };
+    {
+      rule: "step",
+      pick,
+      result,
+    };
+  };
+
+  let mk = (goal: Goal.t, ~selected: option(Occurrence.t)): option(t) =>
+    switch (selected) {
+    | Some(Run(run)) => on_run(goal, run)
+    | Some(Node(node)) => on_node(goal, ~selected=Some(node))
+    | None => on_node(goal, ~selected=None)
+    };
 };
 
 /* The Proof strategy tab: the goal's own introduction, then the

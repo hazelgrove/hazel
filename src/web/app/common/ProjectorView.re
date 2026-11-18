@@ -197,8 +197,9 @@ module Model = {
         ~sample_focus: Language.Sample.Focus.t,
         ~editor_active: bool,
         ~elaborated: option(Language.Exp.t),
+        ~selection_ids: list(Id.t),
       ) => {
-    let {projectors, term_data, selection_ids, _}: CachedSyntax.t = syntax;
+    let {projectors, term_data, _}: CachedSyntax.t = syntax;
     let measured = CachedSyntax.measured(syntax);
     List.filter_map(
       ~f=

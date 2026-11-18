@@ -60,7 +60,10 @@ let offered = (goal: Picker.Goal.t): list(EvaluatorStep.step) =>
  * of its match. */
 let written_focus = (goal: Picker.Goal.t, n, ~exp: string): (string, int) =>
   switch (Picker.take_step(goal, n)) {
-  | Some({at: Some({node, selector, index}), step: {term: EvalStep, _}}) =>
+  | Some({
+      at: Some({occurrence: Node(node), selector, index}),
+      step: {term: EvalStep, _},
+    }) =>
     check(string, "focuses on", exp, Test_ProofMap.print_exp(node));
     (Test_ProofMap.print_exp(selector), index);
   | Some(_) => Alcotest.fail("taking the step writes something else")

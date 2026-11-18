@@ -49,12 +49,13 @@ let mk_data =
       ~dynamics: Language.Dynamics.Map.t,
       ~sample_focus: Language.Sample.Focus.t,
       ~editor_active: bool,
+      ~selection_ids: list(Id.t),
       ~visible: option(Globals.VisibleRows.t)=?,
       ~refractor_rows: Id.Map.t(int)=Id.Map.empty,
       (),
     )
     : list(ProjectorView.Model.projector_data) => {
-  let {term_data, selection_ids, _}: CachedSyntax.t = syntax;
+  let {term_data, _}: CachedSyntax.t = syntax;
   let measured = CachedSyntax.measured(syntax);
   /* measure + cull BEFORE building per-refractor data: in All mode there are
    * hundreds of refractors but few on screen, so building all then discarding dominated cost */
