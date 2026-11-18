@@ -194,6 +194,8 @@ let check =
       let* _ = go(~assumed, e1);
       go(~assumed, e2);
     | UnOp(_, e1) => go(~assumed, e1)
+    /* `!!e` terminates when `e` does. */
+    | Standard(e1) => go(~assumed, e1)
     /* Non-recursive let (recursive lets carry a FixF in their definiens
      * after elaboration). The let's bindings shadow any assumed
      * self-names in its body, but the definiens was checked total, so

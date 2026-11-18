@@ -839,6 +839,16 @@ and uexp_to_info_map =
         ~probe_targets=e.probe_targets,
         m,
       );
+    | Standard(e) =>
+      let (e, e_elab, m) = go(~ana=syn, e, m);
+      add(
+        ~elab_term=Standard(e_elab) |> rewrap,
+        ~elab_syn_ty=Atom(Bool) |> Typ.temp,
+        ~marks=[],
+        ~co_ctx=e.co_ctx,
+        ~probe_targets=e.probe_targets,
+        m,
+      );
     | UnOp(op, e) =>
       let op = Operators.replace_un_op(op, ctx.use_mode); // Replace op if necessary due to `use`
       /* Re-kind numeric negation by the analyzed class, else by the

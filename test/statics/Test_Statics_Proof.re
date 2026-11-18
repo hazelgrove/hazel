@@ -115,6 +115,16 @@ let snoc_citing = (~split="induction", fact) =>
 let tests = (
   "Statics.Proof",
   [
+    expects_no_mark(
+      "!! of a function is a Bool",
+      {|let b : Bool = !!(fun (x : Int) -> 1 / x) in b|},
+      is_expectation_mismatch,
+    ),
+    expects_mark(
+      "!! is not an Int",
+      {|let n : Int = !!3 in n|},
+      is_expectation_mismatch,
+    ),
     /* Built-in axiom `refl` is a hypothesis, so an axiom step
        referring to it should not produce a FreeHypothesis mark. */
     expects_no_mark(

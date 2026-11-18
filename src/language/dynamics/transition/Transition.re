@@ -586,7 +586,8 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d);
       Indet;
     // Note[Matt]: we could make this spin, but for now it's indet
-    | Forall(_) =>
+    | Forall(_)
+    | Standard(_) =>
       let. _ = otherwise(env, d);
       Indet;
     | TypFun(_)

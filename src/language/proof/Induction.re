@@ -275,6 +275,7 @@ let replace =
           | Cons(_, _)
           | ListConcat(_, _)
           | UnOp(_, _)
+          | Standard(_)
           | BinOp(_, _, _)
           | BuiltinFun(_)
           | Asc(_, _)

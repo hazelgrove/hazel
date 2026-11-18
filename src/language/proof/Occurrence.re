@@ -69,6 +69,7 @@ let rec in_source_order = (~stop: Exp.t => bool, e: Exp.t): list(Exp.t) => {
     | Parens(a)
     | Projector(_, a)
     | UnOp(_, a)
+    | Standard(a)
     | Asc(a, _) => [a]
     | TupLabel(a, b)
     | Dot(a, b)

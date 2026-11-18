@@ -50,6 +50,7 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | ListConcat(_)
   | LivelitName(_)
   | UnOp(_)
+  | Standard(_)
   | BinOp(_)
   | BuiltinFun(_)
   | Asc(_)
