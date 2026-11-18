@@ -1985,7 +1985,8 @@ let parse_fast = (src: string): Exp.t =>
   | None => fail("FastParse did not read the program")
   };
 
-let astrology_program = (~readings: int) => {
+/* the rules alone: the preamble and the eleven modules, joined as hazeljs joins them, each `module Name = { ... } in` */
+let astrology_rules = () => {
   let read = name => {
     let candidates = [
       "test/astrology/" ++ name ++ ".hz",
@@ -2021,7 +2022,11 @@ let astrology_program = (~readings: int) => {
            "Reading",
          ],
        ),
-     )
+     );
+};
+
+let astrology_program = (~readings: int) =>
+  astrology_rules()
   ++ {|
 let today : Moment = (year = 2026, month = 11, day = 17, hour = 19.) in
 |}
@@ -2038,7 +2043,27 @@ let today : Moment = (year = 2026, month = 11, day = 17, hour = 19.) in
        ),
      )
   ++ "]";
-};
+
+/* (ticket 768, hazeljs-oracles 0.0.16; Matthew, 2026-11-18: "does our astrology app use compiled code by default, like the
+   others seem to? ... It seems like we should, if possible") The rules compiled whole, as the page will ask for them, its
+   answer a function: printed after the run for tools/make-compiled.py, as the I Ching's and the Tarot's were */
+let astrology_tail = "\n(reading = Reading.reading)";
+let astrology_aot = () =>
+  switch (
+    HazelJit.try_compile(
+      ~env=Builtins.env_init,
+      elaborate(parse_fast(astrology_rules() ++ astrology_tail)),
+    )
+  ) {
+  | Ok(js) =>
+    at_exit(() => {
+      print_endline("HAZEL-JIT-ASTROLOGY-BEGIN");
+      print_endline(js);
+      print_endline("HAZEL-JIT-ASTROLOGY-END");
+      flush(stdout);
+    })
+  | Error(why) => fail("the astrology rules, not compiled: " ++ why)
+  };
 
 /* (CI run 44173654112: in the full tests too, the run went past its 100 minutes, and a killed run prints nothing) Each
    phase goes on a trail file as it ends, which CI prints after the tests, pass or fail (checks.yml) */
@@ -2598,6 +2623,11 @@ let tests = (
   @ [test_case("mixed measured: the I Ching", `Quick, iching_measured)]
   @ [
     test_case("astrology, compiled whole and timed", `Quick, astrology_timed),
+    test_case(
+      "astrology, the rules compiled whole, their JS printed after the run",
+      `Quick,
+      astrology_aot,
+    ),
     test_case("mixed measured: astrology", `Slow, astrology_mixed),
   ]
   @ unicode_string_tests
