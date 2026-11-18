@@ -2214,7 +2214,12 @@ and uexp_to_info_map =
               |> ModuleHelpers.type_exports_alias_type;
             switch (exports_ty) {
             | Some(exports_ty) =>
-              Ctx.extend_alias(p_ana_ctx, name, Pat.rep_id(p), exports_ty)
+              Ctx.extend_alias(
+                p_ana_ctx,
+                name,
+                Pat.rep_id(p),
+                ModuleHelpers.inherited_alias(ctx, name, exports_ty),
+              )
             | None => p_ana_ctx
             };
           | None => p_ana_ctx
@@ -2225,7 +2230,12 @@ and uexp_to_info_map =
           | (Some(name), Some(rhs)) =>
             switch (Ctx.lookup_tvar(ctx, rhs)) {
             | Some(Singleton(exports_ty)) =>
-              Ctx.extend_alias(p_ana_ctx, name, Pat.rep_id(p), exports_ty)
+              Ctx.extend_alias(
+                p_ana_ctx,
+                name,
+                Pat.rep_id(p),
+                ModuleHelpers.inherited_alias(ctx, name, exports_ty),
+              )
             | _ => p_ana_ctx
             }
           | _ => p_ana_ctx
