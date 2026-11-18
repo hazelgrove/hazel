@@ -517,9 +517,9 @@ let basic_tests = [
   ),
   //wrong caret placement (and its in weird escapee mode...)
   test(
-    ~name="Merge 2 prefix ops ! into infix op !!",
+    ~name="Merge 2 prefix ops ! into the prefix op !!",
     ~acts=mk("! ! X¦") @ mv_l(3) @ [Destruct(Local(Left, ByChar))],
-    ~goal={|?!¦! X|},
+    ~goal={|!¦! X|},
   ),
   // wrong caret placement (and its in weird escapee mode...)
   test(

@@ -108,6 +108,7 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
         | Cons(_)
         | ListConcat(_)
         | UnOp(_)
+        | Standard(_)
         | BinOp(_)
         | BuiltinFun(_)
         | Asc(_)

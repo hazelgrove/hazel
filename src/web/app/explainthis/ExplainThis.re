@@ -876,6 +876,10 @@ let decide =
       | Undefined => get_message(UndefinedExp.undefined_exps)
       | Deferral(_) => get_message(TerminalExp.deferral_exps)
       | ExplicitNonlabel => Prose("Explicitly unlabeled entry")
+      | Standard(_) =>
+        Prose(
+          "Standardness: `!!e` holds when `e` evaluates to a value whose parts are standard. A function is standard when it gives a standard result on every standard argument.",
+        )
       | Atom(Bool(b)) => get_message(TerminalExp.bool_exps(b))
       | Atom(Int(i)) => get_message(TerminalExp.int_exps(i))
       | Atom(SInt(i)) => get_message(TerminalExp.sint_exps(i))

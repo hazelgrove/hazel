@@ -273,7 +273,8 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Ap(Forward, _, _)
   | DeferredAp(_)
   | TypAp(_) => Precedence.ap
-  | UnOp(Bool(Not), _) => Precedence.not_
+  | UnOp(Bool(Not), _)
+  | Standard(_) => Precedence.not_
   | UnOp(Int(Minus) | Nat(Minus) | Float(Minus) | SInt(Minus), _) => Precedence.neg
   | Cons(_) => Precedence.cons
   | Ap(Reverse, _, _) => Precedence.eqs
@@ -750,6 +751,8 @@ let rec parenthesize =
     |> rewrap
   | UnOp(Bool(Not), e) =>
     UnOp(Bool(Not), parenthesize(e) |> paren_at(Precedence.not_)) |> rewrap
+  | Standard(e) =>
+    Standard(parenthesize(e) |> paren_at(Precedence.not_)) |> rewrap
   | UnOp(Float(Minus), e) =>
     /* Rewrite float negation as 0.0 -. e so that the segment round-trips
        correctly through MakeTerm (which parses unary - as Int(Minus)) */
@@ -2585,6 +2588,10 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let id = exp |> Exp.rep_id;
     let+ e = go(e);
     wrap(exp, [mk_form(Not, id, [])] @ e);
+  | Standard(e) =>
+    let id = exp |> Exp.rep_id;
+    let+ e = go(e);
+    wrap(exp, [mk_form(Standard, id, [])] @ e);
   | UnOp(Int(Minus) | Nat(Minus) | SInt(Minus), e) =>
     let id = exp |> Exp.rep_id;
     let+ e = go(e);

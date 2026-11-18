@@ -957,6 +957,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           set_lexeme("<-");
           hole(tm);
         | (F(Compound(Not)), []) => UnOp(Bool(Not), r)
+        | (F(Compound(Standard)), []) => Standard(r)
         | (F(Compound(Fun)), [Pat(pat)]) => Fun(pat, r, None, None)
         | (F(Compound(Forall)), [Pat(pat)]) => Forall(pat, r)
         | (F(Compound(Fix)), [Pat(pat)]) => FixF(pat, r, None)

@@ -70,6 +70,10 @@ and exp_term('a) =
   | Cons(exp_t('a), exp_t('a))
   | ListConcat(exp_t('a), exp_t('a))
   | UnOp(Operators.op_un, exp_t('a))
+  /* `!!e`, "e is standard": e evaluates to a value whose parts are
+   * standard, and a function is standard when it gives a standard result
+   * on every standard argument. A Bool whatever e's type; never `false`. */
+  | Standard(exp_t('a))
   | BinOp(Operators.op_bin, exp_t('a), exp_t('a))
   | BuiltinFun(string)
   | Match(exp_t('a), list((pat_t('a), exp_t('a))))
@@ -368,6 +372,7 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
         | ListConcat(e1, e2) =>
           ListConcat(map_exp_annotation(f, e1), map_exp_annotation(f, e2))
         | UnOp(op, e) => UnOp(op, map_exp_annotation(f, e))
+        | Standard(e) => Standard(map_exp_annotation(f, e))
         | BinOp(op, e1, e2) =>
           BinOp(op, map_exp_annotation(f, e1), map_exp_annotation(f, e2))
         | BuiltinFun(s) => BuiltinFun(s)
@@ -937,6 +942,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let un_op = (~ann=?, op, e): exp_t(DefaultAnnotation.t) => {
       term: UnOp(op, e),
+      annotation: default_annotation(ann),
+    };
+    let standard = (~ann=?, e): exp_t(DefaultAnnotation.t) => {
+      term: Standard(e),
       annotation: default_annotation(ann),
     };
     let bin_op = (~ann=?, op, e1, e2): exp_t(DefaultAnnotation.t) => {

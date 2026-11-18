@@ -38,6 +38,7 @@ type cls =
   | Projector
   | Cons
   | UnOp(Operators.op_un)
+  | Standard
   | BinOp(Operators.op_bin)
   | BuiltinFun
   | Match
@@ -171,6 +172,7 @@ let rec strip_wrappers = (e: t): t =>
   | Cons(_)
   | ListConcat(_)
   | UnOp(_)
+  | Standard(_)
   | BinOp(_)
   | BuiltinFun(_)
   | Match(_)
@@ -227,6 +229,7 @@ let rec cls_of_term: type a. Grammar.exp_term(a) => cls =
   | Cons(_) => Cons
   | ListConcat(_) => ListConcat
   | UnOp(op, _) => UnOp(op)
+  | Standard(_) => Standard
   | BinOp(op, _, _) => BinOp(op)
   | BuiltinFun(_) => BuiltinFun
   | Match(_) => Match
@@ -281,6 +284,7 @@ let show_cls: cls => string =
   | ListConcat => "List Concatenation"
   | BinOp(op) => Operators.show_binop(op)
   | UnOp(op) => Operators.show_unop(op)
+  | Standard => "Standardness"
   | BuiltinFun => "Built-in Function"
   | Match => "Case expression"
   | LivelitName => "Livelit name"
@@ -337,6 +341,7 @@ let rec match_tup_label: t => option((LabeledTuple.label, t)) = {
     | Cons(_)
     | ListConcat(_)
     | UnOp(_)
+    | Standard(_)
     | BinOp(_)
     | BuiltinFun(_)
     | Match(_)
@@ -407,6 +412,7 @@ let rec is_fun = (e: t) => {
   | ListConcat(_)
   | Closure(_)
   | UnOp(_)
+  | Standard(_)
   | BinOp(_)
   | Match(_)
   | LivelitName(_)
@@ -464,6 +470,7 @@ let rec is_tuple_of_functions = (e: t) =>
     | Cons(_)
     | ListConcat(_)
     | UnOp(_)
+    | Standard(_)
     | BinOp(_)
     | Match(_)
     | LivelitName(_)
@@ -514,6 +521,7 @@ let rec ctr_name = (e: t): option(Constructor.t) =>
   | Cons(_)
   | ListConcat(_)
   | UnOp(_)
+  | Standard(_)
   | BinOp(_)
   | BuiltinFun(_)
   | Match(_)
@@ -574,6 +582,7 @@ let rec get_num_of_functions = (e: t) =>
     | Cons(_)
     | ListConcat(_)
     | UnOp(_)
+    | Standard(_)
     | BinOp(_)
     | Match(_)
     | LivelitName(_)
@@ -662,6 +671,7 @@ let rec get_fn_name = (e: t) => {
   | Cons(_)
   | ListConcat(_)
   | UnOp(_)
+  | Standard(_)
   | BinOp(_)
   | BuiltinFun(_)
   | Match(_)
@@ -717,6 +727,7 @@ let rec map_fn_name = (f: option(Var.t) => option(Var.t), e: t): t => {
   | Cons(_)
   | ListConcat(_)
   | UnOp(_)
+  | Standard(_)
   | BinOp(_)
   | BuiltinFun(_)
   | Match(_)

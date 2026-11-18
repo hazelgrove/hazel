@@ -269,14 +269,14 @@ let tests = (
       },
     ),
     test_case(
-      "a rule that only wraps a part, as `rewrite <- not_not` turns b into !!b, isn't tried",
+      "a rule that only wraps a part, as `rewrite <- not_not` turns b into !(!b), isn't tried",
       `Quick,
       () =>
       check(
         steps,
         "steps",
         None,
-        found(search(goal(arithmetic), "!!((1 + 1) * 2 == 4)")),
+        found(search(goal(arithmetic), "!(!((1 + 1) * 2 == 4))")),
       )
     ),
     test_case(

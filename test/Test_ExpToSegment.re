@@ -705,6 +705,9 @@ let roundtrip_tests = (
     roundtrip_test({|Prefix: negation with space|}, {|- x|}),
     roundtrip_test({|Prefix: not|}, {|!x|}),
     roundtrip_test({|Prefix: not with space|}, {|! x|}),
+    roundtrip_test({|Prefix: standard|}, {|!!x|}),
+    roundtrip_test({|Prefix: standard of a tuple|}, {|!!(1, [2])|}),
+    roundtrip_test({|Prefix: double negation|}, {|!(!x)|}),
     /* Mixed prefix and binary */
     roundtrip_test({|Mixed: prefix then binary|}, {|-x + y|}),
     roundtrip_test({|Mixed: binary then prefix|}, {|x + -y|}),
@@ -1276,6 +1279,34 @@ let defensive_idempotence_tests = (
     defensive_idempotence_test(
       {|Forall with arrow-type ascription|},
       {|forall f:(Int -> Int) -> f == f|},
+    ),
+    /* `!!` is its own token, so nested prefix `!`s must print apart. */
+    test_case(
+      {|Nested negation and standard print parenthesized|},
+      `Quick,
+      () => {
+        let x = Exp.fresh(Var("x"));
+        let not_ = e => Exp.fresh(UnOp(Bool(Not), e));
+        let standard = e => Exp.fresh(Standard(e));
+        check(
+          string,
+          "not not",
+          {|! (! x)|},
+          editable_print(not_(not_(x))),
+        );
+        check(
+          string,
+          "standard not",
+          {|!! (! x)|},
+          editable_print(standard(not_(x))),
+        );
+        check(
+          string,
+          "not standard",
+          {|! (!! x)|},
+          editable_print(not_(standard(x))),
+        );
+      },
     ),
     /* The stepper builds left-nested chains. */
     test_case(

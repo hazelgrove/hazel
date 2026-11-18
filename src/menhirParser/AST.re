@@ -139,6 +139,7 @@ and exp =
   | TupleExp(list(exp))
   | BinExp(exp, bin_op, exp)
   | UnOp(op_un, exp)
+  | Standard(exp)
   | Let(pat, exp, exp)
   | Theorem(pat, exp, proof, exp)
   | Fun(pat, exp, option(string))
@@ -877,6 +878,12 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
           <+> {
             let* shrunk = shrink_exp(e);
             return(UnOp(op, shrunk));
+          }
+        | Standard(e) =>
+          return(e)
+          <+> {
+            let* shrunk = shrink_exp(e);
+            return(Standard(shrunk));
           }
         | Let(p, e1, e2) =>
           of_list([e1, e2])

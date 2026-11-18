@@ -1196,6 +1196,23 @@ let ex5 = list_of_mylist(x) in
         ),
         "forall n : Int -> n == 0 ==> n == 1",
       ),
+      /* --- `!!` --------------------------------------------------------- */
+      full_parser_test("Standard", standard(var("x")), "!!x"),
+      full_parser_test(
+        "Standard binds like not",
+        bin_op(Bool(And), standard(var("a")), var("b")),
+        "!!a && b",
+      ),
+      full_parser_test(
+        "Standard of a tuple",
+        standard(tuple([int(1), list_lit([int(2)])])),
+        "!!(1, [2])",
+      ),
+      full_parser_test(
+        "Double negation is not standard",
+        un_op(Bool(Not), un_op(Bool(Not), var("b"))),
+        "!(!b)",
+      ),
       /* --- proof prefix forms ------------------------------------------ */
       menhir_maketerm_equivalent_test(
         "Theorem with an empty-hole proof",

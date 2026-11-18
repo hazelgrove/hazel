@@ -87,6 +87,7 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | Parens => parens(empty_hole())
       | Cons => cons(empty_hole(), empty_hole())
       | UnOp(op) => un_op(op, empty_hole())
+      | Standard => standard(empty_hole())
       | BinOp(op) => bin_op(op, empty_hole(), empty_hole())
       | BuiltinFun => builtin_fun("string_compare")
       | Match => match(empty_hole(), [])
