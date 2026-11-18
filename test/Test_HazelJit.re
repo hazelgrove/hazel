@@ -1891,18 +1891,50 @@ let mixed_measured = (~parse=parse_exp, name, src) =>
           HazelJitMixed.calls^ - calls0,
           HazelJitMixed.fallbacks^ - fell0,
         );
+      /* (ticket 768: the astrology rules' answer parted in mixed mode, CI run 44320263066, and the whole terms in the
+         message were too long for the log to keep their start) where the two shown terms first differ, printed after the
+         run; none, when they show the same and part only beyond what is shown */
+      let same = same_value(expected, got);
+      let parted =
+        if (same) {
+          "";
+        } else {
+          let (se, sg) = (Exp.show(expected), Exp.show(got));
+          let n = min(String.length(se), String.length(sg));
+          let i = ref(0);
+          while (i^ < n && se.[i^] == sg.[i^]) {
+            incr(i);
+          };
+          let flat = s => String.map(c => c == '\n' ? ' ' : c, s);
+          let around = s => {
+            let a = max(0, i^ - 400);
+            flat(String.sub(s, a, min(String.length(s) - a, 800)));
+          };
+          i^ >= n && String.length(se) == String.length(sg)
+            ? Printf.sprintf(
+                "hazel-jit mixed parted, %s: the two answers show the same (%d characters), so they part only beyond what is shown\n",
+                name,
+                n,
+              )
+            : Printf.sprintf(
+                "hazel-jit mixed parted, %s: the shown answers first differ at character %d of %d and %d\n  the interpreter: %s\n  mixed: %s\n",
+                name,
+                i^,
+                String.length(se),
+                String.length(sg),
+                around(se),
+                around(sg),
+              );
+        };
       at_exit(() => {
-        print_string(line);
+        print_string(line ++ parted);
         flush(stdout);
       });
       check(
         bool,
-        "the interpreter's answer: "
-        ++ Exp.show(expected)
-        ++ "\nmixed: "
-        ++ Exp.show(got),
+        "mixed mode's answer is the interpreter's (where they part: printed after the run)",
         true,
-        same_value(expected, got),
+        same,
       );
     },
   );
@@ -2628,7 +2660,8 @@ let tests = (
       `Quick,
       astrology_aot,
     ),
-    test_case("mixed measured: astrology", `Slow, astrology_mixed),
+    /* (quick on this branch, to see where it parts within the quick tests' 20 minutes) */
+    test_case("mixed measured: astrology", `Quick, astrology_mixed),
   ]
   @ unicode_string_tests
   @ sint_tests
