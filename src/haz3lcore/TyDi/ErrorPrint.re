@@ -133,6 +133,8 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   | DotOperatorRequiresTuple => "Expected a tuple"
   | TupleExtensionRequiresTuples => "Expected tuples for both arguments"
   | BadOperator(_) => "Invalid operator"
+  | BadAddPattern(NoConstant) => "Addition pattern needs a number on one side"
+  | BadAddPattern(Float) => "Addition patterns match whole numbers, not floats"
   | BadLivelitModel(_) => "Bad internal livelit model"
   | BadTheorem(typ) =>
     prn("Theorem pattern is not of the form p : t, got %s", Print.typ(typ))

@@ -980,6 +980,16 @@ let decide =
             ~fallback=basic,
             FunctionExp.functions_cons(~hd_id, ~tl_id, ~pat_id, ~body_id),
           );
+        | Add(left, right) =>
+          leveled(
+            ~fallback=basic,
+            FunctionExp.functions_add(
+              ~left_id=Pat.rep_id(left),
+              ~right_id=Pat.rep_id(right),
+              ~pat_id,
+              ~body_id,
+            ),
+          )
         | Var(var) =>
           leveled(
             ~fallback=basic,
@@ -1160,6 +1170,16 @@ let decide =
             ~fallback=basic,
             LetExp.lets_cons(~def_id, ~hd_id, ~tl_id, ~pat_id),
           );
+        | Add(left, right) =>
+          leveled(
+            ~fallback=basic,
+            LetExp.lets_add(
+              ~def_id,
+              ~left_id=Pat.rep_id(left),
+              ~right_id=Pat.rep_id(right),
+              ~pat_id,
+            ),
+          )
         | Var(var) =>
           leveled(
             ~fallback=basic,
@@ -1478,6 +1498,10 @@ let decide =
         );
       | _ => basic(ListPat.cons(~hd_id, ~tl_id))
       };
+    | Add(left, right) =>
+      get_message(
+        AddPat.add(~left_id=Pat.rep_id(left), ~right_id=Pat.rep_id(right)),
+      )
     | Var(v) => get_message(TerminalPat.var(v))
     | ExplicitNonlabel => Prose("Explicitly unlabeled entry")
     | Label(name) => get_message(LabelTerm.labels(name))

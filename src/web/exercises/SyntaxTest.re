@@ -52,6 +52,7 @@ let rec find_in_let =
       ListLit(_) |
       Constructor(_) |
       Cons(_, _) |
+      Add(_, _) |
       Ap(_, _) |
       ExplicitNonlabel,
       _,
@@ -155,7 +156,8 @@ let rec var_mention_upat = (name: string, upat: Pat.t): bool => {
   | Label(_)
   | ExplicitNonlabel
   | Constructor(_) => false
-  | Cons(up1, up2) =>
+  | Cons(up1, up2)
+  | Add(up1, up2) =>
     var_mention_upat(name, up1) || var_mention_upat(name, up2)
   | ListLit(l)
   | Tuple(l) =>

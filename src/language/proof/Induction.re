@@ -26,6 +26,17 @@ let rec hypotheses = (statics: ProofStatics.t, t, pat) => {
   | Constructor(_) => []
   | Cons(e1, e2) =>
     hypotheses_inner(statics, t, e1) @ hypotheses_inner(statics, t, e2)
+  /* `p + k` is smaller than the number it matches only for a Nat and
+     `k >= 1`: Int has no least element, and `p + 0` is the number itself.
+     The constant is never a hypothesis even though it has the
+     scrutinee's type: in `m + 1`, nothing says `1` is smaller. */
+  | Add(p1, p2) =>
+    switch (Pat.Addition.split(p1, p2)) {
+    | Some((p, Nat(k))) when Bigint.(k > zero) =>
+      hypotheses_inner(statics, t, p)
+    | Some(_)
+    | None => []
+    }
   | Var(_) => []
   | Tuple(xs) =>
     List.concat(List.map(~f=hypotheses_inner(statics, t, _), xs))
@@ -66,6 +77,7 @@ and hypotheses_inner = (statics: ProofStatics.t, t, pat) =>
   | ListLit(_)
   | Constructor(_)
   | Cons(_)
+  | Add(_)
   | Var(_)
   | Tuple(_)
   | Label(_)

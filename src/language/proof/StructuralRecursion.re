@@ -9,8 +9,10 @@
  * destructuring the parameter through at least one constructor layer
  * (case patterns, destructuring lets, cons patterns `h :: t`, list
  * literal patterns, or constructor patterns directly in a `fun` binder).
- * When this holds, every recursive-call chain descends strictly in the
- * well-founded subterm order on position i, so — provided everything
+ * A Nat pattern `m + k` with k >= 1 counts as k layers, so `m` is
+ * strict too. When this holds, every recursive-call chain descends
+ * strictly in a well-founded order on position i (subterms, with a Nat
+ * above its predecessors), so — provided everything
  * else in the body terminates, which Totality.re verifies separately —
  * evaluation terminates.
  *
@@ -86,7 +88,8 @@ let var_status = (env: env, e: Exp.t): option(status) =>
   };
 
 /* Bindings introduced by matching a term of status `st` against pattern
- * `p`. Constructor layers (Ap/Cons/ListLit) switch on strictness —
+ * `p`. Constructor layers (Ap/Cons/ListLit, and Nat `q + k` for k >= 1)
+ * switch on strictness —
  * transitively, so nested patterns like `Ap(Lam(b), a)` mark `b` strict
  * through both layers. Tuple layers: strict components of a strict
  * tuple stay strict (a component is a subterm); components of a
@@ -114,6 +117,13 @@ let rec pat_bind = (~origin: origin, ~strict: bool, p: Pat.t): env =>
     pat_bind(~origin, ~strict=true, q1) @ pat_bind(~origin, ~strict=true, q2)
   | ListLit(qs) =>
     List.concat_map(~f=q => pat_bind(~origin, ~strict=true, q), qs)
+  | Add(q1, q2) =>
+    switch (Pat.Addition.split(q1, q2)) {
+    | Some((q, Nat(k))) when Bigint.(k > zero) =>
+      pat_bind(~origin, ~strict=true, q)
+    | Some(_)
+    | None => []
+    }
   | Tuple(qs) =>
     if (strict) {
       List.concat_map(~f=q => pat_bind(~origin, ~strict=true, q), qs);

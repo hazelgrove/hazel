@@ -288,6 +288,7 @@ let modlet_pat = (ana_labels: list((Var.t, Typ.t)), pat: Pat.t): Pat.t =>
   | ListLit(_)
   | Constructor(_)
   | Cons(_)
+  | Add(_)
   | Tuple(_)
   | Label(_)
   | TupLabel(_)

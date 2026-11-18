@@ -333,6 +333,9 @@ let pat_provenance = (~source_id: Id.t, ~flag: flag, pat: Pat.t): reuse_map => {
       |> List.concat;
     | Cons(hd, tl) =>
       go([ConsHead, ...path], hd) @ go([ConsTail, ...path], tl)
+    /* `m` in `m + 1` is a number computed from the source, not a part of
+       it, so it has no provenance and isn't reused. */
+    | Add(_) => []
     };
   go([], pat) |> Maps.StringMap.of_list;
 };
@@ -340,8 +343,9 @@ let pat_provenance = (~source_id: Id.t, ~flag: flag, pat: Pat.t): reuse_map => {
 let with_pat_provenance =
     (~source_id: Id.t, ~flag: flag, pat: Pat.t, reuse_map: reuse_map)
     : reuse_map =>
-  /* Domains are disjoint: remove_pat_bindings removes exactly the names
-   * pat_provenance produces. Prefer the pattern's entry regardless. */
+  /* Domains are disjoint: remove_pat_bindings removes every name the
+   * pattern binds, a superset of those pat_provenance produces. Prefer
+   * the pattern's entry regardless. */
   Maps.StringMap.union(
     (_name, from_pat, _outer) => Some(from_pat),
     pat_provenance(~source_id, ~flag, pat),

@@ -95,6 +95,26 @@ let test_two_step_case_passes = () =>
     {|type Term = +Var(Int)+Lam(Term)+Ap(Term, Term) in let h = fun e -> case e | Ap(l, a) => case l | Lam(b) => h(b) | Var(n) => 0 | Ap(e1, e2) => h(e1) end | Lam(b) => 0 | Var(n) => 0 end in theorem t = forall x -> h(x) == h(x) proof from h(x) == h(x) do rewrite refl end end in t|},
   );
 
+/* --- Nat addition patterns -------------------------------------------- */
+
+/* `m` in the Nat pattern `m + 1` is one below the argument. */
+let test_nat_predecessor_passes = () =>
+  expect_pass(
+    {|let double = fun (n : Nat) -> case n | 0 => n | m + 1 => double(m) end in theorem t = forall x: Nat -> double(x) == double(x) proof from double(x) == double(x) do rewrite refl end end in t|},
+  );
+
+/* Every Int is `m + 1` for some Int `m`, so this never stops. */
+let test_int_predecessor_refused = () =>
+  expect_refused(
+    {|let f = fun (n : Int) -> case n | m + 1 => f(m) end in theorem t = f(1) == f(1) proof from f(1) == f(1) do rewrite refl end end in t|},
+  );
+
+/* `m + 0` is the argument itself. */
+let test_nat_plus_zero_refused = () =>
+  expect_refused(
+    {|let f = fun (n : Nat) -> case n | m + 0 => f(m) end in theorem t = forall x: Nat -> f(x) == f(x) proof from f(x) == f(x) do rewrite refl end end in t|},
+  );
+
 /* --- Non-structural recursion is refused ----------------------------- */
 
 /* `n - 1` is arithmetic, not a subterm. */
@@ -152,6 +172,21 @@ let tests = (
       "casing on an already-strict variable stays strict",
       `Quick,
       test_two_step_case_passes,
+    ),
+    test_case(
+      "Nat recursion through m + 1 passes",
+      `Quick,
+      test_nat_predecessor_passes,
+    ),
+    test_case(
+      "Int recursion through m + 1 is refused",
+      `Quick,
+      test_int_predecessor_refused,
+    ),
+    test_case(
+      "Nat recursion through m + 0 is refused",
+      `Quick,
+      test_nat_plus_zero_refused,
     ),
     test_case(
       "arithmetic recursion is refused",

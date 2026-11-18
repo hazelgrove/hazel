@@ -1919,6 +1919,7 @@ and check_split =
     | ListLit(ps)
     | Tuple(ps) => List.exists(~f=has_wild, ps)
     | Cons(a, b)
+    | Add(a, b)
     | TupLabel(a, b)
     | Ap(a, b) => has_wild(a) || has_wild(b)
     | Parens(q)

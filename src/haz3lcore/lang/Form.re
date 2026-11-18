@@ -104,6 +104,7 @@ let rows_of: family => list(row) =
     ]
   | Plus => [
       mk_infix(Exp, P.plus),
+      mk_infix(Pat, P.plus),
       mk_infix(Typ, P.type_plus),
       mk_infix(Drv(Exp), P.plus),
       mk_infix(Drv(Typ), P.type_plus),

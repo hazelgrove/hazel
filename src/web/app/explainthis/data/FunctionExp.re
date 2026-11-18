@@ -62,6 +62,11 @@ let cons_snd_fun_ex = {
   term: mk_example("fun fst::snd::tl -> snd"),
   message: "When given an argument that is a list with at least two elements, the function evaluates to the second element of that list.",
 };
+let add_fun_ex = {
+  sub_id: Fun(Add),
+  term: mk_example("fun x + 1 -> x"),
+  message: "When given an argument n, the function evaluates to n - 1.",
+};
 let var_incr_fun_ex = {
   sub_id: Fun(VarIncr),
   term: mk_example("fun x -> x + 1"),
@@ -433,6 +438,46 @@ let function_cons_exp = (~hd_id: Id.t, ~tl_id: Id.t, ~body_id: Id.t): form => {
       Id.to_string(body_id),
     ),
   examples: [cons_hd_fun_ex, cons_snd_fun_ex],
+};
+let pat_left = pat("p1");
+let pat_right = pat("p2");
+let e = exp("e");
+let function_add_exp_plus = plus_pat();
+let function_add_exp = (~left_id: Id.t, ~right_id: Id.t, ~body_id: Id.t): form => {
+  id: FunctionExp(Add),
+  syntactic_form: [
+    mk_fun([
+      [
+        space(),
+        pat_left,
+        space(),
+        function_add_exp_plus,
+        space(),
+        pat_right,
+        space(),
+      ],
+    ]),
+    space(),
+    e,
+  ],
+  colorings: [
+    (Piece.id(pat_left), left_id),
+    (Piece.id(pat_right), right_id),
+    (Piece.id(e), body_id),
+  ],
+  expandable_id:
+    Some((
+      Piece.id(function_add_exp_plus),
+      [pat("p1"), plus_pat(), pat("p2")],
+    )),
+  explanation:
+    Printf.sprintf(
+      "The only values that match the *argument pattern* are whole numbers that are the sum of the [*left*](%s) and [*right*](%s) patterns, one of which must be a number. When applied to an argument which matches the *argument pattern*, evaluates to the function [*body*](%s).",
+      Id.to_string(left_id),
+      Id.to_string(right_id),
+      Id.to_string(body_id),
+    ),
+  examples: [add_fun_ex],
 };
 let p = pat("x");
 let e = exp("e");
@@ -814,6 +859,15 @@ let functions_ctr = (~pat_id: Id.t, ~body_id: Id.t, ~name: string): group => {
   id: FunctionExp(Ctr),
   forms: [
     function_ctr_exp(~pat_id, ~body_id, ~name),
+    function_exp(~pat_id, ~body_id),
+  ],
+};
+
+let functions_add =
+    (~left_id: Id.t, ~right_id: Id.t, ~pat_id: Id.t, ~body_id: Id.t): group => {
+  id: FunctionExp(Add),
+  forms: [
+    function_add_exp(~left_id, ~right_id, ~body_id),
     function_exp(~pat_id, ~body_id),
   ],
 };

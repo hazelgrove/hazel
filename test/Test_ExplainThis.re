@@ -206,9 +206,11 @@ let corpus = [
   ("fun-cons", "fun h::t -> h"),
   ("fun-intlit", "fun 1 -> 2"),
   ("fun-wild", "fun _ -> 3"),
+  ("fun-add", "fun x + 1 -> x"),
   ("let-var", "let x = 1 in x"),
   ("let-tuple2", "let (a, b) = (1, 2) in a"),
   ("let-cons", "let h::t = [1] in h"),
+  ("let-add", "let x + 1 = 5 in x"),
   ("binop-plus", "1 + 2"),
   ("ascription", "1 : Int"),
   ("if", "if true then 1 else 2"),
@@ -319,6 +321,15 @@ fun _ -> 3 => (FunctionExp Base) colorings=[3,_]
 fun _ -> 3 => (FunctionExp Wild) colorings=[3]|},
   ),
   (
+    "fun-add",
+    {|1 => IntPat colorings=[]
+fun x + 1 -> x => (FunctionExp Add) colorings=[1,x,x]
+fun x + 1 -> x => (FunctionExp Base) colorings=[x,x + 1]
+x + 1 => AddPat colorings=[1,x]
+x => VarExp colorings=[]
+x => VarPat colorings=[]|},
+  ),
+  (
     "let-var",
     {|1 => IntExp colorings=[]
 let x = 1 in x => (LetExp Base) colorings=[1,x]
@@ -351,6 +362,16 @@ h:: t => ConsPat colorings=[h,t]
 let h:: t = [1] in h => (LetExp Base) colorings=[[1],h:: t]
 let h:: t = [1] in h => (LetExp ListCons) colorings=[[1],h,t]
 t => VarPat colorings=[]|},
+  ),
+  (
+    "let-add",
+    {|1 => IntPat colorings=[]
+5 => IntExp colorings=[]
+let x + 1 = 5 in x => (LetExp Add) colorings=[1,5,x]
+let x + 1 = 5 in x => (LetExp Base) colorings=[5,x + 1]
+x + 1 => AddPat colorings=[1,x]
+x => VarExp colorings=[]
+x => VarPat colorings=[]|},
   ),
   (
     "binop-plus",
@@ -616,6 +637,7 @@ let expected_groups = [
   "(BinOpExp (Int Plus))",
   "(BinOpExp (Int Power))",
   "(BinOpExp (Int Times))",
+  "(FunctionExp Add)",
   "(FunctionExp Int)",
   "(FunctionExp ListCons)",
   "(FunctionExp TupLabel)",
@@ -623,11 +645,13 @@ let expected_groups = [
   "(FunctionExp Tuple3)",
   "(FunctionExp Var)",
   "(FunctionExp Wild)",
+  "(LetExp Add)",
   "(LetExp ApFunc)",
   "(LetExp ListCons)",
   "(LetExp Tuple2)",
   "(LetExp Var)",
   "(UnOpExp (Bool Not))",
+  "AddPat",
   "ApFuncPat",
   "Arrow3Typ",
   "ArrowTyp",

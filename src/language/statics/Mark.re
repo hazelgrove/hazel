@@ -29,6 +29,11 @@ type error_builtin =
   | Exactly2Arguments;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
+type bad_add_pattern =
+  | NoConstant
+  | Float;
+
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type tpat_shadow_src =
   | BaseTyp
   | TyAlias
@@ -66,6 +71,7 @@ type t =
   | TupleExtensionRequiresTuples
   | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label))
   | BadOperator(string)
+  | BadAddPattern(bad_add_pattern)
   | BadLivelitModel(Typ.t)
   | BadTheorem(Typ.t)
   | IsLivelitName({
