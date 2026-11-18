@@ -1258,6 +1258,12 @@ and check_subgoal =
  * a binder is then sound because the body's steps hold for every value
  * of the variable.
  *
+ * A selector can also name a run of operands of an associative operator
+ * (`b + c` in `a + b + c`). The body starts from the run, grouped as the
+ * selector is, and the chain is put back together as the parser groups
+ * it. Regrouping these operators keeps the operands in order, so it
+ * changes neither the value nor which error comes first.
+ *
  * A selector with no such occurrence is marked, the goal passes through,
  * and the body is checked with no goal. */
 and check_focus =
@@ -1300,7 +1306,8 @@ and check_focus =
       ),
     );
   | (Some(_), Some((goal, target))) =>
-    let binders = Occurrence.binders(Exp.rep_id(target), goal);
+    let binders =
+      Occurrence.binders(Exp.rep_id(Occurrence.node(target)), goal);
     let body_ctx =
       List.fold_left(
         ~f=(ctx, p) => bind(ctx, p, Typ.fresh(Unknown(Internal))),
@@ -1308,11 +1315,16 @@ and check_focus =
         binders,
       );
     let (out_body, m) =
-      check(~step, ~statics, ~ctx=body_ctx, Some(target), body);
+      check(
+        ~step,
+        ~statics,
+        ~ctx=body_ctx,
+        Some(Occurrence.exp(target)),
+        body,
+      );
     let outgoing =
       switch (out_body) {
-      | Some(out) =>
-        Some(Occurrence.replace_by_id(Exp.rep_id(target), goal, out))
+      | Some(out) => Some(Occurrence.replace(target, goal, out))
       | None => incoming
       };
     (outgoing, record(~ctx, id, incoming, outgoing, m));
