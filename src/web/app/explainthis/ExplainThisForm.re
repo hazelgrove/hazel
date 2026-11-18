@@ -165,6 +165,7 @@ type example_id =
   | ProofRewrite1
   | ProofEval1
   | ProofFocus1
+  | ProofFocus2
   | ProofCases1
   | ProofInduction1
   | ProofForall1
