@@ -5,7 +5,11 @@ open Util;
  * `from <nth> <exp> do` selects the nth subterm of the goal that equals
  * `<exp>`, counting left to right in the source and not descending into a
  * counted match. The stepper counts with `index`, which is 0-based; the checker
- * reads the occurrence back with `nth_env_target`. */
+ * reads the occurrence back with `nth_env_target`.
+ *
+ * Past the subterms, a selector can also name a run of consecutive operands
+ * of an associative operator: `b + c` in `a + b + c`, which the parser
+ * groups as `(a + b) + c`, so `b + c` is not a subterm (`Run`). */
 
 /* Immediate expression children, in `map_term` order, including those
  * inside patterns. */
@@ -143,10 +147,18 @@ let nth_pattern =
     : option(Exp.t) =>
   nth_matching(MatchExp.matches_pattern(~statics, ~env, pat), n, e2);
 
-/* The subterm a selector names. Pattern matching
- * (MatchExp) and the equality `nth` uses (Equality) are different
- * relations, so only a target that uses the pattern language goes
- * through the matcher; a ground target is compared with Equality. */
+/* Whether a subterm is one `selector` names as written. Pattern
+ * matching (MatchExp) and the equality `nth` uses (Equality) are
+ * different relations, so only a selector that uses the pattern language
+ * goes through the matcher; a ground selector is compared with Equality. */
+let names_as_written =
+    (~statics: ProofStatics.t, ~env: Environment.t(Exp.t), selector: Exp.t)
+    : (Exp.t => bool) =>
+  MetaVar.has_meta(selector)
+    ? MatchExp.matches_pattern(~statics, ~env, selector)
+    : (e => Equality.ignoring_ascriptions.exp(e, selector));
+
+/* The (n+1)th subterm of `e2` that `selector` names as written. */
 let nth_target =
     (
       ~statics: ProofStatics.t=ProofStatics.empty,
@@ -156,13 +168,293 @@ let nth_target =
       e2: Exp.t,
     )
     : option(Exp.t) =>
-  MetaVar.has_meta(selector)
-    ? nth_pattern(~statics, ~env, selector, n, e2) : nth(selector, n, e2);
+  nth_matching(names_as_written(~statics, ~env, selector), n, e2);
 
-/* `nth_target` modulo the definitions in `env`. The goal is searched as
- * written first. Only if it has too few occurrences there is it searched
- * again, unfolding a name where it hides structure the selector has
- * (`MatchExp`'s `~defs`).
+/* `exp` with the node whose id is `id` replaced by `new_exp`, ids and
+ * all, so `new_exp` can be found again in the result. The caller ensures
+ * none of its ids occur elsewhere in `exp`. */
+let replace_by_id = (id: Id.t, exp: Exp.t, new_exp: Exp.t) =>
+  Exp.map_term(
+    ~f_exp=
+      (cont, exp) => Id.equal(Exp.rep_id(exp), id) ? new_exp : cont(exp),
+    exp,
+  );
+
+/* A chain of an associative operator, read as its list of operands. */
+module Chain = {
+  /* An operator whose grouping can't change a value or an error, named
+   * by its `+` for a sum. Int and SInt sums subtract too, since
+   * `(a + b) - c` is `a + (b - c)`; Nat's `-` stops at 0, so Nat sums
+   * don't. Float arithmetic isn't regrouped: it rounds. */
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type op =
+    | Bin(Operators.op_bin)
+    | ListConcat;
+
+  let rec op_of = (e: Exp.t): option(op) =>
+    switch (Exp.term_of(e)) {
+    | Parens(inner) => op_of(inner)
+    | BinOp(Int(Plus | Minus), _, _) => Some(Bin(Int(Plus)))
+    | BinOp(SInt(Plus | Minus), _, _) => Some(Bin(SInt(Plus)))
+    | BinOp(
+        (
+          Int(Times) | SInt(Times) | Nat(Plus | Times) | Bool(And | Or) |
+          String(Concat)
+        ) as op,
+        _,
+        _,
+      ) =>
+      Some(Bin(op))
+    | ListConcat(_) => Some(ListConcat)
+    | _ => None
+    };
+
+  let is = (op: op, e: Exp.t): bool =>
+    Option.equal(equal_op, op_of(e), Some(op));
+
+  let subtracts = (e: Exp.t): bool =>
+    switch (Exp.term_of(e)) {
+    | BinOp(Int(Minus) | SInt(Minus), _, _) => true
+    | _ => false
+    };
+
+  /* An operand, and whether the chain subtracts it, as it does `c` in
+   * `a + b - c`. */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type operand = {
+    exp: Exp.t,
+    subtracted: bool,
+  };
+
+  /* An operand keeps its own parentheses; those around a part of the
+   * chain are looked through. What is subtracted is one operand, so
+   * `a - (b + c)` has two. */
+  let rec operands = (op: op, e: Exp.t): list(operand) =>
+    switch (Exp.term_of(e)) {
+    | Parens(inner) when is(op, inner) => operands(op, inner)
+    | BinOp(_, l, r) when is(op, e) && subtracts(e) =>
+      operands(op, l)
+      @ [
+        {
+          exp: r,
+          subtracted: true,
+        },
+      ]
+    | BinOp(_, l, r)
+    | ListConcat(l, r) when is(op, e) => operands(op, l) @ operands(op, r)
+    | _ => [
+        {
+          exp: e,
+          subtracted: false,
+        },
+      ]
+    };
+
+  let join = (op: op, l: Exp.t, r: operand): Exp.t =>
+    Exp.fresh(
+      switch (op) {
+      | Bin(Int(_)) when r.subtracted => BinOp(Int(Minus), l, r.exp)
+      | Bin(SInt(_)) when r.subtracted => BinOp(SInt(Minus), l, r.exp)
+      | Bin(op) => BinOp(op, l, r.exp)
+      | ListConcat => ListConcat(l, r.exp)
+      },
+    );
+
+  /* `first` and `rest` joined as the parser groups them (Precedence.re):
+   * arithmetic to the left, the others to the right. Only arithmetic
+   * subtracts, so a right-grouped chain has nothing subtracted. */
+  let rec join_all = (op: op, first: Exp.t, rest: list(operand)): Exp.t => {
+    let to_left =
+      switch (op) {
+      | Bin(Int(_) | SInt(_) | Nat(_)) => true
+      | Bin(Float(_) | Bool(_) | String(_) | Poly(_))
+      | ListConcat => false
+      };
+    switch (rest) {
+    | [] => first
+    | [next, ...rest] when to_left =>
+      join_all(op, join(op, first, next), rest)
+    | [next, ...rest] =>
+      join(
+        op,
+        first,
+        {
+          exp: join_all(op, next.exp, rest),
+          subtracted: false,
+        },
+      )
+    };
+  };
+
+  /* `operands` joined as `like`, a chain with as many operands, is
+   * grouped, with its operators. None unless `like` subtracts the same
+   * operands, as only then are the two equal. */
+  let group_like = (op: op, like: Exp.t, run: list(operand)): option(Exp.t) => {
+    let rec go = (like: Exp.t, run: list(operand)) =>
+      switch (Exp.term_of(like), run) {
+      | (Parens(inner), _) when is(op, inner) => go(inner, run)
+      | (BinOp(o, l, r), _) when is(op, like) =>
+        let (l, run) = go(l, run);
+        let (r, run) =
+          switch (subtracts(like), run) {
+          | (true, [operand, ...run]) => (operand.exp, run)
+          | _ => go(r, run)
+          };
+        (Exp.fresh(BinOp(o, l, r)), run);
+      | (ListConcat(l, r), _) when is(op, like) =>
+        let (l, run) = go(l, run);
+        let (r, run) = go(r, run);
+        (Exp.fresh(ListConcat(l, r)), run);
+      | (_, [operand, ...run]) => (operand.exp, run)
+      | (_, []) => (like, [])
+      };
+    let signs = List.map(~f=o => o.subtracted);
+    List.equal(Bool.equal, signs(operands(op, like)), signs(run))
+      ? Some(fst(go(like, run))) : None;
+  };
+
+  /* `e` and the parts of it that are chains of `op` too. */
+  let rec spine = (op: op, e: Exp.t): list(Exp.t) =>
+    switch (Exp.term_of(e)) {
+    | Parens(inner) when is(op, inner) => [e, ...spine(op, inner)]
+    | BinOp(_, l, r) when is(op, e) => [
+        e,
+        ...spine(op, l) @ (subtracts(e) ? [] : spine(op, r)),
+      ]
+    | ListConcat(l, r) when is(op, e) => [
+        e,
+        ...spine(op, l) @ spine(op, r),
+      ]
+    | _ => []
+    };
+
+  /* The chains of `op` in `e` that aren't part of a larger one: outer
+   * chains before the chains in their operands. */
+  let rec all = (op: op, e: Exp.t): list(Exp.t) =>
+    in_source_order(~stop=is(op), e)
+    |> List.filter(~f=is(op))
+    |> List.concat_map(~f=chain =>
+         [
+           chain,
+           ...List.concat_map(~f=o => all(op, o.exp), operands(op, chain)),
+         ]
+       );
+};
+
+/* What a selector names in a goal. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type t =
+  | Node(Exp.t)
+  /* Consecutive operands of a chain in the goal, which needn't be a
+   * node of it. */
+  | Run(run)
+and run = {
+  op: Chain.op,
+  /* The whole chain, a node of the goal. */
+  chain: Exp.t,
+  before: list(Chain.operand),
+  /* The first isn't subtracted. */
+  operands: list(Chain.operand),
+  after: list(Chain.operand),
+  /* `operands` joined as the selector that names them is grouped. */
+  exp: Exp.t,
+};
+
+/* What a focus on the target starts from. */
+let exp = (target: t): Exp.t =>
+  switch (target) {
+  | Node(e) => e
+  | Run({exp, _}) => exp
+  };
+
+/* The goal's node that is the target, or that its run is in. */
+let node = (target: t): Exp.t =>
+  switch (target) {
+  | Node(e) => e
+  | Run({chain, _}) => chain
+  };
+
+let same = (t1: t, t2: t): bool =>
+  switch (t1, t2) {
+  | (Node(e1), Node(e2)) => Id.equal(Exp.rep_id(e1), Exp.rep_id(e2))
+  | (Run(r1), Run(r2)) =>
+    let ids = List.map(~f=(o: Chain.operand) => Exp.rep_id(o.exp));
+    Id.equal(Exp.rep_id(r1.chain), Exp.rep_id(r2.chain))
+    && List.equal(Id.equal, ids(r1.operands), ids(r2.operands));
+  | (Node(_), Run(_))
+  | (Run(_), Node(_)) => false
+  };
+
+/* `goal` with `target` replaced by `e`. A run's chain is joined again as
+ * the parser groups it, with `e`'s operands among its own when `e` is a
+ * chain of the same operator, so the goal reads as if it were typed. */
+let replace = (target: t, goal: Exp.t, e: Exp.t): Exp.t =>
+  switch (target) {
+  | Node(node) => replace_by_id(Exp.rep_id(node), goal, e)
+  | Run({op, chain, before, after, _}) =>
+    let joined =
+      switch (before @ Chain.operands(op, e) @ after) {
+      | [first, ...rest] => Chain.join_all(op, first.exp, rest)
+      | [] => e
+      };
+    replace_by_id(Exp.rep_id(chain), goal, joined);
+  };
+
+/* The runs `matches` accepts, for a selector that is a chain: outer
+ * chains before the chains in their operands, and in a chain by first
+ * operand. A run that is a node `matches` accepts is left out, as the
+ * search for subterms finds it. So is a run whose first operand is
+ * subtracted: as a node of its own it would be added. */
+let runs = (~matches: Exp.t => bool, selector: Exp.t, goal: Exp.t): list(run) =>
+  switch (Chain.op_of(selector)) {
+  | None => []
+  | Some(op) =>
+    let length = List.length(Chain.operands(op, selector));
+    let ids = List.map(~f=(o: Chain.operand) => Exp.rep_id(o.exp));
+    let in_chain = (chain: Exp.t) => {
+      let all = Chain.operands(op, chain);
+      let matched_nodes =
+        Chain.spine(op, chain)
+        |> List.filter(~f=matches)
+        |> List.map(~f=node => ids(Chain.operands(op, node)));
+      List.init(max(0, List.length(all) - length + 1), ~f=first =>
+        switch (ListUtil.split_n(first, all)) {
+        | (_, [{subtracted: true, _}, ..._]) => None
+        | (before, rest) =>
+          let (operands, after) = ListUtil.split_n(length, rest);
+          Chain.group_like(op, selector, operands)
+          |> Option.map(~f=exp =>
+               {
+                 op,
+                 chain,
+                 before,
+                 operands,
+                 after,
+                 exp,
+               }
+             );
+        }
+      )
+      |> List.filter_map(~f=Fn.id)
+      |> List.filter(~f=run =>
+           !
+             List.mem(
+               matched_nodes,
+               ids(run.operands),
+               ~equal=List.equal(Id.equal),
+             )
+           && matches(run.exp)
+         );
+    };
+    List.concat_map(Chain.all(op, goal), ~f=in_chain);
+  };
+
+/* The (n+1)th target of `selector` in `e2`, modulo the definitions in
+ * `env`. The goal is searched as written first. Only if it has too few
+ * occurrences there is it searched again, unfolding a name where it
+ * hides structure the selector has (`MatchExp`'s `~defs`). The runs the
+ * selector names are numbered after the subterms it names either way, so
+ * a subterm's number doesn't depend on them.
  *
  * Equality compares up to parens/projectors, ascriptions,
  * alpha-renaming (expression and type), function names, filters and
@@ -183,33 +475,35 @@ let nth_env_target =
       n: int,
       e2: Exp.t,
     )
-    : option(Exp.t) =>
-  switch (nth_target(~statics, ~env, selector, n, e2)) {
-  | Some(_) as found => found
+    : option(t) => {
+  let as_written = names_as_written(~statics, ~env, selector);
+  let unfolding =
+    MatchExp.matches_pattern(~statics, ~env, ~defs=env, selector);
+  let subterms = matches =>
+    in_source_order(~stop=matches, e2) |> List.filter(~f=matches);
+  let written = subterms(as_written);
+  switch (List.nth(written, n)) {
+  | Some(node) => Some(Node(node))
   | None =>
-    nth_matching(
-      MatchExp.matches_pattern(~statics, ~env, ~defs=env, selector),
-      n,
-      e2,
-    )
+    let unfolded = subterms(unfolding);
+    switch (List.nth(unfolded, n)) {
+    | Some(node) => Some(Node(node))
+    | None =>
+      List.nth(
+        runs(~matches=e => as_written(e) || unfolding(e), selector, e2),
+        n - max(List.length(written), List.length(unfolded)),
+      )
+      |> Option.map(~f=run => Run(run))
+    };
   };
-
-/* `exp` with the node whose id is `id` replaced by `new_exp`, ids and
- * all, so `new_exp` can be found again in the result. The caller ensures
- * none of its ids occur elsewhere in `exp`. */
-let replace_by_id = (id: Id.t, exp: Exp.t, new_exp: Exp.t) =>
-  Exp.map_term(
-    ~f_exp=
-      (cont, exp) => Id.equal(Exp.rep_id(exp), id) ? new_exp : cont(exp),
-    exp,
-  );
+};
 
 /* `selector` with as many of its subterms replaced by `$e` as keep
- * `nth_env_target` resolving it to the node with id `node` in `goal`, at
- * an index no greater than `index`, and the index it resolves at. Only a
- * replacement that passes this check is kept, so a `selector` that misses
- * the node comes back unchanged. Subterms are tried outermost first, then
- * left to right, so a whole argument becomes one `$e` before its parts are
+ * `nth_env_target` resolving it to `target` in `goal`, at an index no
+ * greater than `index`, and the index it resolves at. Only a replacement
+ * that passes this check is kept, so a `selector` that misses the target
+ * comes back unchanged. Subterms are tried outermost first, then left to
+ * right, so a whole argument becomes one `$e` before its parts are
  * tried. */
 let generalize =
     (
@@ -217,21 +511,17 @@ let generalize =
       ~env: Environment.t(Exp.t),
       ~index: int,
       selector: Exp.t,
-      node: Id.t,
+      target: t,
       goal: Exp.t,
     )
     : (Exp.t, int) => {
   let index_of = candidate =>
     List.init(index + 1, ~f=n => n)
     |> List.find(~f=n =>
-         Option.equal(
-           Id.equal,
-           Option.map(
-             ~f=Exp.rep_id,
-             nth_env_target(~statics, ~env, candidate, n, goal),
-           ),
-           Some(node),
-         )
+         switch (nth_env_target(~statics, ~env, candidate, n, goal)) {
+         | Some(found) => same(found, target)
+         | None => false
+         }
        );
   List.fold_left(
     ~f=

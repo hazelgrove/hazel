@@ -576,7 +576,7 @@ let target = (goal: Goal.t, node: Exp.t): option(target) =>
           ~index=
             Occurrence.index(node, goal.written) |> Option.value(~default=0),
           node,
-          Exp.rep_id(node),
+          Node(node),
           goal.written,
         );
       Some({

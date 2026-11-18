@@ -660,14 +660,7 @@ let generalized = (goal: Picker.Goal.t, steps: list(Proof.t)): list(Proof.t) => 
       ) {
       | Some(part) =>
         let (selector, index) =
-          Occurrence.generalize(
-            ~statics,
-            ~env,
-            ~index,
-            selector,
-            Exp.rep_id(part),
-            from,
-          );
+          Occurrence.generalize(~statics, ~env, ~index, selector, part, from);
         Proof.fresh(Picker.Terms.focus(~selector, ~index, body));
       | None => step
       };
