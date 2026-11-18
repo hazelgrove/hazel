@@ -155,6 +155,13 @@ let message =
   | MalformedFunext => [
       text("`funext` needs a variable pattern to name the argument."),
     ]
+  | FunextNotFirstOrder({domain}) => [
+      text(
+        "`funext` needs functions whose argument is data of a known type, with no functions in it. Here the argument type is ",
+      ),
+      view_any(~globals, Typ(domain)),
+      text("."),
+    ]
   | BinderCaptures({var}) => [
       text(
         "`" ++ var ++ "` is already used in the goal. Choose another name.",
