@@ -362,7 +362,35 @@ let rec of_js =
   | "object" when is_array(v) => of_tuple(~seen, ts, ty, v)
   | "object" when has(v, "c") =>
     let name = Js.to_string(Js.Unsafe.coerce(get(v, "c")));
-    let t = Option.join(Hashtbl.find_opt(ts.ctors, name));
+    /* (ticket 768: the astrology rules' answer in mixed mode, CI run 44339771193) a constructor met in compiled code
+       under annotations that are not fast_equal has none in the table, and came back bare, so the interpreter kept the
+       declared result's cast around it as an ascription: Sun : Body, where its own value is Sun with Body's sum as its
+       annotation. With none in the table, the sum it is expected at gives it, as the interpreter's value carries it:
+       the sum itself, or for one with an argument, an arrow from the argument's type to the sum. */
+    let t =
+      switch (Option.join(Hashtbl.find_opt(ts.ctors, name))) {
+      | Some(t) => Some(t)
+      | None =>
+        switch (ty) {
+        | Some({term: Sum(vs), _} as sum) =>
+          switch (
+            List.find_opt(
+              (v: ConstructorMap.variant(Typ.t)) =>
+                switch (v) {
+                | ConstructorMap.Variant(c, _, _) => c == name
+                | ConstructorMap.BadEntry(_) => false
+                },
+              vs,
+            )
+          ) {
+          | Some(ConstructorMap.Variant(_, _, None)) => Some(sum)
+          | Some(ConstructorMap.Variant(_, _, Some(arg))) =>
+            Some(Typ.fresh(Arrow(arg, sum)))
+          | _ => None
+          }
+        | _ => None
+        }
+      };
     let ann = Option.map(t => Some(t), t);
     if (has(v, "v")) {
       let arg_ty =
