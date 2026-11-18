@@ -125,6 +125,7 @@ let sample_pattern = (cls_pat: Pat.cls): Grammar.UnitGrammar.pat => {
       | Var => var("x")
       | Tuple => tuple([])
       | Cons => cons(empty_hole(), empty_hole())
+      | Add => add(empty_hole(), int(1))
       | Label => label("label")
       | TupLabel => tup_label(label("label"), empty_hole())
       | Parens => parens(empty_hole())

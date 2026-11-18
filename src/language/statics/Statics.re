@@ -3296,6 +3296,57 @@ and upat_to_info_map =
         ~constraint_=Coverage.Constraint.cons(hd.constraint_, tl.constraint_),
         m,
       );
+    | Add(p1, p2) =>
+      let cls: Atom.cls =
+        switch (Typ.is_ana_atom(ana), ctx.use_mode) {
+        | (Some((Int | Nat | SInt | Float) as cls), _) => cls
+        | (_, Some(Nat)) => Nat
+        | (_, Some(SInt)) => SInt
+        | (_, Some(Float)) => Float
+        | (_, Some(Int) | None) => Int
+        };
+      let num_ty = Atom(cls) |> Typ.temp;
+      let (p1, p1_elab, m) = go(~ctx, ~ana=num_ty, p1, m);
+      let (p2, p2_elab, m) = go(~ctx=p1.ctx, ~ana=num_ty, p2, m);
+      let consts = (
+        Pat.Addition.const(p1_elab),
+        Pat.Addition.const(p2_elab),
+      );
+      let marks: list(Mark.t) =
+        switch (cls, consts) {
+        | (Float, _) => [BadAddPattern(Float)]
+        | (_, (None, None)) => [BadAddPattern(NoConstant)]
+        | _ => []
+        };
+      /* Adding a constant is a bijection on Int and SInt, so `p + k`
+         covers what `p` does. */
+      let constraint_: Coverage.Constraint.t =
+        switch (consts) {
+        | (Some(c1), Some(c2)) =>
+          switch (Pat.Addition.plus(c1, c2)) {
+          | Some(Int(n) | Nat(n)) => BigInt(n)
+          | Some(SInt(n)) => SInt(n)
+          | Some(Float(_) | Bool(_) | String(_))
+          | None => Truth
+          }
+        | (Some(Nat(k)), None) =>
+          Coverage.Constraint.plus_nat(k, p2.constraint_)
+        | (None, Some(Nat(k))) =>
+          Coverage.Constraint.plus_nat(k, p1.constraint_)
+        | (Some(_), None) => p2.constraint_
+        | (None, Some(_)) => p1.constraint_
+        | (None, None) => Truth
+        };
+      add(
+        ~elab_term=Add(p1_elab, p2_elab) |> rewrap,
+        ~elab_syn_ty=num_ty,
+        ~marks,
+        ~ctx=p2.ctx,
+        ~probe_targets=
+          SubexpProbeTargets.union_all([p1.probe_targets, p2.probe_targets]),
+        ~constraint_,
+        m,
+      );
     | Wild =>
       add(
         ~elab_syn_ty=unknown,

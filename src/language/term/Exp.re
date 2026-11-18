@@ -787,6 +787,15 @@ let rec of_pat = (pat: Pat.t): t => {
   | ListLit(xs) => rewrap(ListLit(List.map(~f=of_pat, xs)))
   | Constructor(c, t) => rewrap(Constructor(c, t))
   | Cons(e1, e2) => rewrap(Cons(of_pat(e1), of_pat(e2)))
+  | Add(p1, p2) =>
+    let op: Operators.op_bin =
+      switch (Pat.Addition.split(p1, p2)) {
+      | Some((_, Nat(_))) => Nat(Plus)
+      | Some((_, SInt(_))) => SInt(Plus)
+      | Some((_, Int(_) | Float(_) | Bool(_) | String(_)))
+      | None => Int(Plus)
+      };
+    rewrap(BinOp(op, of_pat(p1), of_pat(p2)));
   | Var(x) => rewrap(Var(x))
   | Tuple(xs) => rewrap(Tuple(List.map(~f=of_pat, xs)))
   | Parens(e) => rewrap(Parens(of_pat(e)))

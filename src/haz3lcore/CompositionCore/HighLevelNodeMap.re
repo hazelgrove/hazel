@@ -227,6 +227,8 @@ module Namer = {
     | Asc(pat, _) => mk_name_from_pat(pat)
     | Cons(pat1, pat2) =>
       mk_name_from_pat(pat1) ++ "::" ++ mk_name_from_pat(pat2)
+    | Add(pat1, pat2) =>
+      mk_name_from_pat(pat1) ++ "+" ++ mk_name_from_pat(pat2)
     | Tuple(pats) =>
       "("
       ++ String.concat(~sep=", ", List.map(~f=mk_name_from_pat, pats))

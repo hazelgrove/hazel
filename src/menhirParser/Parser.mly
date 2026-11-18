@@ -395,7 +395,7 @@ funAscElem:
 
 (* KNOWN CONFLICT FAMILIES (menhir default resolutions, all pinned by
    the MenhirParser/MenhirFuzz/MenhirCorpus differential suites):
-   1. fun-parameter CONS/COLON (below) — shift keeps them parameter-level.
+   1. fun-parameter PLUS/CONS/COLON (below) — they stay parameter-level.
    2. ~53 s/r states after `<form> ... exp` with COMMA/UNIT lookahead,
       introduced by the bare-tuple-at-let and nullary-ap productions —
       shift continues the inner exp, which is MakeTerm parity.
@@ -405,14 +405,20 @@ funAscElem:
       and UNIT completions across head/tail contexts — identical
       semantic actions, either wins.
    Adding grammar rules? Rerun the three suites; do not trust silence. *)
-(* KNOWN CONFLICT (one s/r + one r/r state, resolved by default): after
-   `FUN nonAscriptingPat`, CONS/COLON could continue at the parameter
-   level (funConsPat/funAscElem) or inside a generic `pat`. The default
-   shift keeps them at the parameter level, which is MakeTerm parity —
-   pinned by the MenhirParser equivalence tests. *)
+(* KNOWN CONFLICT (one s/r + two r/r states, resolved by default): after
+   `FUN nonAscriptingPat`, or after a parameter-level `+`, PLUS/CONS/COLON
+   could continue at the parameter level (funAddPat/funConsPat/funAscElem)
+   or inside a generic `pat`. The defaults keep them at the parameter
+   level, which is MakeTerm parity — pinned by the MenhirParser
+   equivalence tests. *)
 funConsPat:
+    | p = funAddPat; { p }
+    | p = funAddPat; CONS; rest = funConsPat; { ConsPat(p, rest) }
+
+(* `+` binds tighter than `::` and associates left, as in `pat`. *)
+funAddPat:
     | p = nonAscriptingPat; { p }
-    | p = nonAscriptingPat; CONS; rest = funConsPat; { ConsPat(p, rest) }
+    | p = funAddPat; PLUS; q = nonAscriptingPat; { AddPat(p, q) }
 
 funPat:
     | OPEN_PAREN; p1 = pat; COLON; t1 = typ; CLOSE_PAREN;  { ParenPat(AscPat(p1, t1)) }
@@ -425,6 +431,7 @@ pat:
     | p1 = pat; COLON; t1 = typ;  { AscPat(p1, t1) }
     (* | p1 = pat; AS; p2 = pat; { AsPat(p1, p2) } *)
     | p1 = pat; CONS; p2 = pat { ConsPat(p1, p2) } 
+    | p1 = pat; PLUS; p2 = pat { AddPat(p1, p2) }
     | p = nonAscriptingPat; { p }
 
 

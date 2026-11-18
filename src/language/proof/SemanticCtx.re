@@ -139,6 +139,10 @@ let bind_pattern = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) => {
       let* l1 = dhpat_var_entry(dhp1, t);
       let* l2 = dhpat_var_entry(dhp2, List(t) |> Typ.temp);
       Some(l1 @ l2);
+    | Add(dhp1, dhp2) =>
+      let* l1 = dhpat_var_entry(dhp1, ty);
+      let* l2 = dhpat_var_entry(dhp2, ty);
+      Some(l1 @ l2);
     | ListLit(l) =>
       let* t = MatchedTyp.list_strict(ctx, ty);
       let* l =

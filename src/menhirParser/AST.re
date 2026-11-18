@@ -121,6 +121,7 @@ and pat =
   | ConstructorPat(string, option(option(typ)))
   | TuplePat(list(pat))
   | ConsPat(pat, pat)
+  | AddPat(pat, pat)
   | ListPat(list(pat))
   | ApPat(pat, pat)
   | InvalidPat(string) // Menhir parser doesn't actually support invalid pats
@@ -754,6 +755,11 @@ and gen_pat_sized: (~minimal_idents: bool, int) => QCheck.Gen.t(pat) =
                 ConsPat(p1, p2);
               },
               {
+                let* p1 = self((n - 1) / 2);
+                let+ p2 = self((n - 1) / 2);
+                AddPat(p1, p2);
+              },
+              {
                 let* sizes = gen_non_singleton_array(n - 1);
                 let+ pats =
                   flatten_a(
@@ -1302,6 +1308,18 @@ and shrink_pat: QCheck.Shrink.t(pat) =
           <+> {
             let* shrunk = shrink_pat(p2);
             return(ConsPat(p1, shrunk));
+          }
+        | AddPat(p1, p2) =>
+          {
+            of_list([p1, p2]);
+          }
+          <+> {
+            let* shrunk = shrink_pat(p1);
+            return(AddPat(shrunk, p2));
+          }
+          <+> {
+            let* shrunk = shrink_pat(p2);
+            return(AddPat(p1, shrunk));
           }
         | TupLabelPat(p1, p2) =>
           {

@@ -62,6 +62,11 @@ let let_cons_snd_ex = {
   term: mk_example("let fst::snd::tl = true::false::[] in \nsnd"),
   message: "The fst is bound to true, the snd is bound to false, and the tl is bound to the empty list, so the expression evaluates to false.",
 };
+let let_add_ex = {
+  sub_id: Let(Add),
+  term: mk_example("let x + 1 = 5 in \nx"),
+  message: "The variable x is bound to 4, so the expression evaluates to 4.",
+};
 let let_var_ex = {
   sub_id: Let(Var),
   term: mk_example("let x = 1 in \nx + 2"),
@@ -505,6 +510,47 @@ let let_cons_exp = (~def_id: Id.t, ~hd_id: Id.t, ~tl_id: Id.t): form => {
       Id.to_string(tl_id),
     ),
   examples: [let_cons_hd_ex, let_cons_snd_ex],
+};
+let pat_left = pat("p1");
+let pat_right = pat("p2");
+let exp_def = exp("e_def");
+let let_add_exp_plus = plus_pat();
+let let_add_exp = (~def_id: Id.t, ~left_id: Id.t, ~right_id: Id.t): form => {
+  id: LetExp(Add),
+  syntactic_form: [
+    mk_let([
+      [
+        space(),
+        pat_left,
+        space(),
+        let_add_exp_plus,
+        space(),
+        pat_right,
+        space(),
+      ],
+      [space(), exp_def, space()],
+    ]),
+    linebreak(),
+    exp("e_body"),
+  ],
+  colorings: [
+    (Piece.id(pat_left), left_id),
+    (Piece.id(pat_right), right_id),
+    (Piece.id(exp_def), def_id),
+  ],
+  expandable_id:
+    Some((
+      Piece.id(let_add_exp_plus),
+      [pat("p1"), plus_pat(), pat("p2")],
+    )),
+  explanation:
+    Printf.sprintf(
+      "The only values for the [*definition*](%s) that match the *pattern* are whole numbers that are the sum of the [*left*](%s) and [*right*](%s) patterns, one of which must be a number.",
+      Id.to_string(def_id),
+      Id.to_string(left_id),
+      Id.to_string(right_id),
+    ),
+  examples: [let_add_ex],
 };
 let p = pat("x");
 let exp_def = exp("e_def");
@@ -955,6 +1001,15 @@ let lets_ctr =
   id: LetExp(Ctr),
   forms: [
     let_ctr_exp(~def_id, ~pat_id, ~name, ~body_id),
+    let_base_exp(~def_id, ~pat_id),
+  ],
+};
+
+let lets_add =
+    (~def_id: Id.t, ~left_id: Id.t, ~right_id: Id.t, ~pat_id: Id.t): group => {
+  id: LetExp(Add),
+  forms: [
+    let_add_exp(~def_id, ~left_id, ~right_id),
     let_base_exp(~def_id, ~pat_id),
   ],
 };

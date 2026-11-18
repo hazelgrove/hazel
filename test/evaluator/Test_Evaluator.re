@@ -49,6 +49,7 @@ let tests =
     Test_Funext.tests,
     Test_FunctionTotality.tests,
     Test_Equiv_Inductions.tests,
+    Test_AddPattern.tests,
     Test_ListFoldLibrary.tests,
     Test_Focus.tests,
   ];

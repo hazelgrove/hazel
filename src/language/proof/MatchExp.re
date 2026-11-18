@@ -363,6 +363,11 @@ and match_pat = (pat_r: Pat.t, pat: Pat.t): option(alphas) =>
     let* alphas2 = match_pat(x2, y2);
     Some(alphas1 @ alphas2);
   | (Cons(_, _), _) => None
+  | (Add(x1, x2), Add(y1, y2)) =>
+    let* alphas1 = match_pat(x1, y1);
+    let* alphas2 = match_pat(x2, y2);
+    Some(alphas1 @ alphas2);
+  | (Add(_, _), _) => None
   | (Tuple(xs), Tuple(ys)) when List.length(xs) == List.length(ys) =>
     ListUtil.fold_left_opt(
       (alphas, (x, y)) =>

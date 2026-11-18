@@ -9,6 +9,7 @@ type cls =
   | ListLit
   | Constructor
   | Cons
+  | Add
   | Var
   | Label
   | TupLabel
@@ -57,6 +58,7 @@ let rec strip_wrappers = (p: t): t =>
   | ListLit(_)
   | Constructor(_)
   | Cons(_)
+  | Add(_)
   | Var(_)
   | Tuple(_)
   | Label(_)
@@ -79,6 +81,7 @@ let rec ctr_name = (p: Grammar.pat_t('a)): option(Constructor.t) =>
   | Atom(_)
   | ListLit(_)
   | Cons(_)
+  | Add(_)
   | Var(_)
   | Tuple(_)
   | Label(_)
@@ -96,6 +99,7 @@ let cls_of_term: Grammar.pat_term('a) => cls =
   | ListLit(_) => ListLit
   | Constructor(_) => Constructor
   | Cons(_) => Cons
+  | Add(_) => Add
   | Var(_) => Var
   | Label(_) => Label
   | ExplicitNonlabel => ExplicitNonlabel
@@ -122,6 +126,7 @@ let show_cls: cls => string =
   | ListLit => "List literal"
   | Constructor => "Constructor"
   | Cons => "Cons"
+  | Add => "Addition pattern"
   | Var => "Variable binding"
   | Label => "Label"
   | TupLabel => "Tuple Item"
@@ -146,6 +151,7 @@ let rec is_var = (pat: t): option(Var.t) => {
   | Atom(_)
   | ListLit(_)
   | Cons(_, _)
+  | Add(_, _)
   | Tuple(_)
   | Label(_)
   | ExplicitNonlabel
@@ -173,6 +179,7 @@ let rec is_tuple_of_vars = (pat: t) =>
     | Atom(_)
     | ListLit(_)
     | Cons(_, _)
+    | Add(_, _)
     | Var(_)
     | Constructor(_)
     | Ap(_) => false
@@ -193,6 +200,7 @@ let rec get_var = (pat: t) => {
   | Atom(_)
   | ListLit(_)
   | Cons(_, _)
+  | Add(_, _)
   | Label(_)
   | ExplicitNonlabel
   | Tuple(_)
@@ -220,6 +228,7 @@ let rec get_num_of_vars = (pat: t) =>
     | Atom(_)
     | ListLit(_)
     | Cons(_, _)
+    | Add(_, _)
     | Var(_)
     | Constructor(_)
     | Ap(_) => None
@@ -245,6 +254,7 @@ let rec match_tup_label: t => option((LabeledTuple.label, t)) =
     | ListLit(_)
     | Constructor(_)
     | Cons(_)
+    | Add(_)
     | Var(_)
     | Tuple(_)
     | Label(_)
@@ -276,7 +286,8 @@ let rec bindings = (dp: t): Binding.s =>
       },
     ]
   | Tuple(dps) => List.concat_map(~f=bindings, dps)
-  | Cons(dp1, dp2) => bindings(dp1) @ bindings(dp2)
+  | Cons(dp1, dp2)
+  | Add(dp1, dp2) => bindings(dp1) @ bindings(dp2)
   | ListLit(dps) => List.concat_map(~f=bindings, dps)
   | Ap(_, dp1) => bindings(dp1)
   };
@@ -294,4 +305,64 @@ let get_duplicate_bindings = (pat: t) => {
       },
     bindings,
   );
+};
+
+/* Arithmetic for addition patterns `p + c`, where `c` folds to a number
+   literal. Elaboration gives `c` the kind of the number it is matched
+   against, so on an elaborated pattern `c` says whether it is a Nat. */
+module Addition = {
+  let plus = (a: Atom.t, b: Atom.t): option(Atom.t) =>
+    switch (a, b) {
+    | (Int(a), Int(b)) => Some(Int(Bigint.(a + b)))
+    | (Nat(a), Nat(b)) => Some(Nat(Bigint.(a + b)))
+    | (SInt(a), SInt(b)) => Some(SInt(a + b))
+    | _ => None
+    };
+
+  /* `None` for a negative Nat: `p + 2` doesn't match 1. */
+  let minus = (a: Atom.t, b: Atom.t): option(Atom.t) =>
+    switch (a, b) {
+    | (Int(a), Int(b)) => Some(Int(Bigint.(a - b)))
+    | (Nat(a), Nat(b)) => Bigint.(a >= b) ? Some(Nat(Bigint.(a - b))) : None
+    | (SInt(a), SInt(b)) => Some(SInt(a - b))
+    | _ => None
+    };
+
+  /* The number a pattern of literals and additions stands for. */
+  let rec const = (p: t): option(Atom.t) =>
+    switch (p.term) {
+    | Atom((Int(_) | Nat(_) | SInt(_)) as a) => Some(a)
+    | Parens(p)
+    | Asc(p, _) => const(p)
+    | Add(p1, p2) =>
+      switch (const(p1), const(p2)) {
+      | (Some(c1), Some(c2)) => plus(c1, c2)
+      | _ => None
+      }
+    | Atom(Float(_) | Bool(_) | String(_))
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | Wild
+    | ExplicitNonlabel
+    | ListLit(_)
+    | Constructor(_)
+    | Cons(_)
+    | Var(_)
+    | Tuple(_)
+    | Label(_)
+    | TupLabel(_)
+    | Projector(_)
+    | Ap(_) => None
+    };
+
+  /* `p1 + p2` as the operand left to match and the constant to take off
+     the number. The right operand is the constant when both are. `None`
+     when neither is, which the statics mark. */
+  let split = (p1: t, p2: t): option((t, Atom.t)) =>
+    switch (const(p2), const(p1)) {
+    | (Some(c), _) => Some((p1, c))
+    | (None, Some(c)) => Some((p2, c))
+    | (None, None) => None
+    };
 };

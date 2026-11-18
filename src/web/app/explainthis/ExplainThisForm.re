@@ -37,7 +37,8 @@ type fun_examples =
   | Tuple2
   | Tuple3
   | Ctr
-  | Ap;
+  | Ap
+  | Add;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type let_examples =
@@ -57,7 +58,8 @@ type let_examples =
   | Tuple2
   | Tuple3
   | Ctr
-  | Ap;
+  | Ap
+  | Add;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type numeric_bin_op_examples =
@@ -210,7 +212,8 @@ type pat_sub_form_id =
   | Tuple3
   | Ctr
   | ApFunc
-  | ApCons;
+  | ApCons
+  | Add;
 
 /* `enumerate` gives all_of_form_id, which the characterization test uses to
    tell "this doc is not covered by the corpus" apart from "this doc cannot be
@@ -274,6 +277,7 @@ type form_id =
   | ListNilPat
   | ConsPat
   | Cons2Pat
+  | AddPat
   | LabeledPat
   | TuplePat
   | Tuple2Pat

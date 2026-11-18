@@ -1365,6 +1365,17 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
           };
         }
 
+      | Add(p1, p2) =>
+        if (available^ < 3) {
+          available := available^ - ellipsis_cost;
+          Invalid(flat_ellipses);
+        } else {
+          available := available^ - 3; // " + "
+          let p1' = abbreviate_pat(p1);
+          let p2' = abbreviate_pat(p2);
+          Add(p1', p2');
+        }
+
       | Ap(p1, p2) =>
         if (available^ < 3) {
           available := available^ - ellipsis_cost;

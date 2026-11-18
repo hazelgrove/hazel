@@ -237,7 +237,8 @@ let rec var_names_of_pat = (pat: Pat.t): list(string) => {
   | Var(name) => [name]
   | Ap(pat1, pat2)
   | TupLabel(pat1, pat2)
-  | Cons(pat1, pat2) => var_names_of_pat(pat1) @ var_names_of_pat(pat2)
+  | Cons(pat1, pat2)
+  | Add(pat1, pat2) => var_names_of_pat(pat1) @ var_names_of_pat(pat2)
   | Parens(pat)
   | Asc(pat, _) => var_names_of_pat(pat)
   | ListLit(pats)

@@ -88,6 +88,9 @@ and pat_term('a) =
   | ListLit(list(pat_t('a)))
   | Constructor(string, option(option(typ_t('a)))) // see comment on constructor expressions
   | Cons(pat_t('a), pat_t('a))
+  /* `p + 1` matches n when `p` matches n - 1, and for a Nat only when
+     n >= 1. One side must fold to a number literal: see `Pat.Addition`. */
+  | Add(pat_t('a), pat_t('a))
   | Var(Var.t)
   | Tuple(list(pat_t('a)))
   | Label(string)
@@ -505,6 +508,8 @@ and map_pat_annotation: 'a 'b. ('a => 'b, pat_t('a)) => pat_t('b) =
           )
         | Cons(p1, p2) =>
           Cons(map_pat_annotation(f, p1), map_pat_annotation(f, p2))
+        | Add(p1, p2) =>
+          Add(map_pat_annotation(f, p1), map_pat_annotation(f, p2))
         | Var(v) => Var(v)
         | Tuple(l) => Tuple(List.map(~f=x => map_pat_annotation(f, x), l))
         | ExplicitNonlabel => ExplicitNonlabel
@@ -1021,6 +1026,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let cons = (~ann=?, p1, p2): pat_t(DefaultAnnotation.t) => {
       term: Cons(p1, p2),
+      annotation: default_annotation(ann),
+    };
+    let add = (~ann=?, p1, p2): pat_t(DefaultAnnotation.t) => {
+      term: Add(p1, p2),
       annotation: default_annotation(ann),
     };
     let var = (~ann=?, v): pat_t(DefaultAnnotation.t) => {
