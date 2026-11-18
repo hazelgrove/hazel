@@ -1335,13 +1335,38 @@ module Picking = {
       () => {
         let goal =
           root_goal(
-            "theorem t = (fun x -> x + 1) == (fun x -> 1 + x) proof ? in t",
+            "theorem t = (fun x: Int -> x + 1) == (fun x: Int -> 1 + x) proof ? in t",
           );
         check(
           string,
           "funext",
           "funext ? => ?",
           writes(Picker.Strategies.intros(goal), "Funext"),
+        );
+      },
+    ),
+    test_case(
+      "no Funext for functions whose argument isn't data",
+      `Quick,
+      () => {
+        let offered = src =>
+          Picker.Strategies.intros(root_goal(src))
+          |> List.exists(~f=(s: Picker.Strategies.strategy) =>
+               String.equal(s.label, "Funext")
+             );
+        check(
+          bool,
+          "function argument",
+          false,
+          offered(
+            "theorem t = (fun h: (Int -> Int) -> 0) == (fun h: (Int -> Int) -> 0) proof ? in t",
+          ),
+        );
+        check(
+          bool,
+          "unknown argument type",
+          false,
+          offered("theorem t = (fun x -> x) == (fun x -> x) proof ? in t"),
         );
       },
     ),
@@ -1956,7 +1981,7 @@ module Insertion = {
 /* Goals as rows show them: as written, naming the program's
  * definitions. */
 module Display = {
-  let sum = {|let sum(xs) = case xs
+  let sum = {|let sum(xs: [Int]) = case xs
 | [] => 0
 | x::xs => x + sum(xs)
 end

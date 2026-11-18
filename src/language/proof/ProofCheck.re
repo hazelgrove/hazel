@@ -871,11 +871,53 @@ module Eval = {
  *      `inv == (fun x -> 1 / x)` has a lambda on the right, so this is
  *      mostly for the both-sides-named case. */
 module Funext = {
+  /* Whether `ty` is data: built from atoms, lists, tuples and sums, with
+   * no function and no unknown type anywhere in it. A type variable could
+   * stand for a function type, unless a recursive type binds it. */
+  let first_order = (ctx: Ctx.t, ty: Typ.t): bool => {
+    let rec go = (bound: list(string), t: Typ.t) =>
+      switch (Typ.term_of(t)) {
+      | Atom(_)
+      | Label(_)
+      | ExplicitNonlabel => true
+      | Parens(t)
+      | Projector(_, t)
+      | List(t)
+      | TupLabel(_, t) => go(bound, t)
+      | Prod(ts) => List.for_all(~f=go(bound), ts)
+      | Sum(variants) =>
+        List.for_all(
+          ~f=
+            fun
+            | ConstructorMap.Variant(_, _, None) => true
+            | ConstructorMap.Variant(_, _, Some(t)) => go(bound, t)
+            | ConstructorMap.BadEntry(_) => false,
+          variants,
+        )
+      | Rec(tp, body) =>
+        switch (TPat.tyvar_of_utpat(tp)) {
+        | Some(a) => go([a, ...bound], body)
+        | None => false
+        }
+      | Var(a) => List.mem(bound, a, ~equal=String.equal)
+      | Unknown(_)
+      | Arrow(_)
+      | Poly(_)
+      | DrvQuoteTy(_)
+      | ProdProjection(_)
+      | ProdExtension(_)
+      | Sig(_) => false
+      };
+    go([], Typ.normalize(ctx, ty));
+  };
+
   /* Follows a bare variable through the env to its definition. */
   let rec syntactic_domain =
           (~env: Environment.t(Exp.t), e: Exp.t): option(Typ.t) =>
     switch (e |> Exp.term_of) {
     | Parens(inner) => syntactic_domain(~env, inner)
+    /* The parameter's written ascription, or else the parameter type the
+     * statics store in an elaborated lambda. */
     | Fun(p, _, t, _) =>
       let rec ascribed = (p: Pat.t) =>
         switch (Pat.term_of(p)) {
@@ -883,10 +925,10 @@ module Funext = {
         | Asc(_, t) => Some(t)
         | _ => None
         };
-      switch (ascribed(p), Option.map(~f=Typ.term_of, t)) {
+      switch (ascribed(p), t) {
       | (Some(d), _)
-      | (None, Some(Arrow(d, _))) => Some(d)
-      | (None, _) => Some(Typ.fresh(Unknown(Internal)))
+      | (None, Some(d)) => Some(d)
+      | (None, None) => Some(Typ.fresh(Unknown(Internal)))
       };
     /* A closure/fix wrapper around a lambda still denotes a function. */
     | Closure(_, inner)
@@ -902,9 +944,11 @@ module Funext = {
     };
 
   /* `Some((l, r, domain))` when `goal` is `l == r` at an arrow type. The
-   * domain is the type to bind the funext binder at: `Unknown(Internal)`
-   * when the sides are known to be functions but not at what type, as
-   * `peel_binder` does for a `Forall` binder. */
+   * domain is the type to bind the funext binder at, the first known one
+   * the evidence gives, since the equation is at the two sides' common
+   * type: `(fun x -> f(x)) == (fun x : Int -> x)` is about Int arguments.
+   * It is `Unknown(Internal)` when the sides are known to be functions but
+   * not at what type, as `peel_binder` does for a `Forall` binder. */
   let rec goal =
           (~statics: ProofStatics.t, ~env: Environment.t(Exp.t), g: Exp.t)
           : option((Exp.t, Exp.t, Typ.t)) =>
@@ -919,15 +963,21 @@ module Funext = {
         | Some(_)
         | None => None
         };
+      let evidence = [
+        statics_domain(l),
+        statics_domain(r),
+        syntactic_domain(~env, l),
+        syntactic_domain(~env, r),
+      ];
+      let is_known = (d: Typ.t) =>
+        switch (Typ.term_of(d)) {
+        | Unknown(_) => false
+        | _ => true
+        };
       let domain =
-        switch (statics_domain(l), statics_domain(r)) {
-        | (Some(d), _)
-        | (None, Some(d)) => Some(d)
-        | (None, None) =>
-          switch (syntactic_domain(~env, l)) {
-          | Some(d) => Some(d)
-          | None => syntactic_domain(~env, r)
-          }
+        switch (List.find(~f=is_known, List.filter_map(~f=Fn.id, evidence))) {
+        | Some(_) as known => known
+        | None => List.find_map(~f=Fn.id, evidence)
         };
       domain |> Option.map(~f=d => (l, r, d));
     | _ => None
@@ -1371,6 +1421,12 @@ and check_forall = (~step, ~statics, ~ctx, ~id, incoming, pat, body) =>
  * rewrite equality it would have to quantify over functions at unknown
  * or hole types.
  *
+ * Only for functions on data (`Funext.first_order`). Quantifiers range
+ * over standard values, and at a function type some values aren't
+ * standard: `fun h -> !!h` and `fun h -> true` agree on every standard
+ * `h`, but not on the value `fun y -> loop()`, so equating them would
+ * prove a falsehood.
+ *
  * Incoming `f == g` at an arrow type; the body's incoming is the
  * pointwise `f(x) == g(x)`, with `x` bound at the domain type. One arrow
  * per `funext`: for a curried `a -> b -> c`, `f(x) == g(x)` is still at
@@ -1395,6 +1451,9 @@ and check_funext = (~step, ~statics, ~ctx, ~id, incoming, pat, body) => {
   | Some(goal) =>
     switch (Funext.goal(~statics, ~env=SemanticCtx.get_env(ctx), goal)) {
     | None => fail(ProofMark.ExpectedFunEqGoal)
+    | Some((_, _, domain))
+        when !Funext.first_order(SemanticCtx.get_ctx(ctx), domain) =>
+      fail(ProofMark.FunextNotFirstOrder({domain: domain}))
     /* The binder must be something we can actually bind, else the
      * pointwise goal would mention a name nothing introduces. */
     | Some((_, _, domain))

@@ -77,6 +77,9 @@ type t =
   /* Funext: the binder is not a pattern that can be added to the semantic
      context (so the pointwise goal would have a free/unbindable name). */
   | MalformedFunext
+  /* Funext: the functions' argument type isn't data: it has a function
+     type or an unknown type in it (`ProofCheck.check_funext` says why). */
+  | FunextNotFirstOrder({domain: Typ.t})
   /* Funext / induction: a variable the binder or case pattern binds is
    * also free in the goal it would be put around, so it would capture
    * that use. */
