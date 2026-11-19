@@ -193,7 +193,7 @@ let rec range = (skel: t): (int, int) =>
    tokens, so those count too. */
 let rec has_range = ((first, last): (int, int), skel: t): bool =>
   range(skel) == (first, last)
-  || List.exists(has_range((first, last)), Aba.get_bs(root(skel)))
+  || List.exists(Aba.get_bs(root(skel)), ~f=has_range((first, last)))
   || (
     switch (skel) {
     | Op(_) => false

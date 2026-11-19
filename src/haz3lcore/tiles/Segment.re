@@ -1226,7 +1226,7 @@ let unparenthesize = (seg: t): t =>
 type extent = (Id.t, Id.t);
 
 let index_of_piece = (id: Id.t, seg: t): option(int) =>
-  ListUtil.findi_opt(p => Piece.id(p) == id, seg) |> Option.map(fst);
+  ListUtil.findi_opt(p => Piece.id(p) == id, seg) |> Option.map(~f=fst);
 
 /* Keep the grouping refractor triggers spell when a whole text is parsed
    at once (loading, paste). The editor splices a trigger's target into
@@ -1255,13 +1255,13 @@ let rec group_refractor_targets =
     (seg, targets);
   } else {
     let group = ((seg, targets): (t, list(extent)), k: int) => {
-      let (first, last) = List.nth(targets, k);
+      let (first, last) = List.nth_exn(targets, k);
       switch (index_of_piece(first, seg), index_of_piece(last, seg)) {
       | (Some(i), Some(j)) when i <= j =>
         let sub = range => ListUtil.sublist(range, seg);
         let solid =
-          List.init(j - i + 1, k => i + k)
-          |> List.filter(k => !Piece.is_secondary(List.nth(seg, k)));
+          List.init(j - i + 1, ~f=k => i + k)
+          |> List.filter(~f=k => !Piece.is_secondary(List.nth_exn(seg, k)));
         let grouped =
           switch (solid) {
           | [] => true
@@ -1286,47 +1286,44 @@ let rec group_refractor_targets =
             };
           (
             sub((0, i)) @ [parens] @ sub((j + 1, List.length(seg))),
-            List.map(retarget, targets),
+            List.map(targets, ~f=retarget),
           );
         };
       | _ => (seg, targets)
       };
     };
     let (seg, targets) =
-      List.fold_left(
-        group,
-        (seg, targets),
-        List.init(List.length(targets), Fun.id),
+      List.fold(
+        List.init(List.length(targets), ~f=Fn.id),
+        ~init=(seg, targets),
+        ~f=group,
       );
     let (rev_seg, targets) =
-      List.fold_left(
-        ((acc, targets), p: Piece.t) =>
-          switch (p) {
-          | Tile(t) =>
-            let (rev_children, targets) =
-              List.fold_left(
-                ((cs, targets), child) => {
-                  let (child, targets) =
-                    group_refractor_targets(targets, child);
-                  ([child, ...cs], targets);
-                },
-                ([], targets),
-                t.children,
-              );
-            (
-              [
-                Piece.Tile({
-                  ...t,
-                  children: List.rev(rev_children),
-                }),
-                ...acc,
-              ],
-              targets,
+      List.fold(seg, ~init=([], targets), ~f=((acc, targets), p: Piece.t) =>
+        switch (p) {
+        | Tile(t) =>
+          let (rev_children, targets) =
+            List.fold(
+              t.children,
+              ~init=([], targets),
+              ~f=((cs, targets), child) => {
+                let (child, targets) =
+                  group_refractor_targets(targets, child);
+                ([child, ...cs], targets);
+              },
             );
-          | _ => ([p, ...acc], targets)
-          },
-        ([], targets),
-        seg,
+          (
+            [
+              Piece.Tile({
+                ...t,
+                children: List.rev(rev_children),
+              }),
+              ...acc,
+            ],
+            targets,
+          );
+        | _ => ([p, ...acc], targets)
+        }
       );
     (List.rev(rev_seg), targets);
   };
@@ -1342,13 +1339,11 @@ let rec target_root = ((first, last): extent, seg: t): option(Id.t) =>
     | exception _ => None
     };
   | _ =>
-    List.find_map(
-      (p: Piece.t) =>
-        switch (p) {
-        | Tile(t) => List.find_map(target_root((first, last)), t.children)
-        | _ => None
-        },
-      seg,
+    List.find_map(seg, ~f=(p: Piece.t) =>
+      switch (p) {
+      | Tile(t) => List.find_map(t.children, ~f=target_root((first, last)))
+      | _ => None
+      }
     )
   };
 

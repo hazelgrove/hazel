@@ -128,13 +128,8 @@ let check_file = (path: string): unit => {
    the tree with no ParenExp, so a shipped program whose load needed parens
    would differ here: none does, and their text loads as before. */
 let has_refractor_trigger = (txt: string): bool =>
-  List.exists(
-    trigger =>
-      switch (Str.search_forward(Str.regexp_string(trigger), txt, 0)) {
-      | _ => true
-      | exception Not_found => false
-      },
-    ["^^probe", "^^statics"],
+  List.exists(["^^probe", "^^statics"], ~f=trigger =>
+    String.is_substring(txt, ~substring=trigger)
   );
 
 let check_load = (path: string): unit => {
@@ -158,7 +153,7 @@ let check_load = (path: string): unit => {
     )
   | (None, _) => fail("load failed: " ++ path)
   | exception e =>
-    fail("menhir rejects " ++ path ++ ": " ++ Printexc.to_string(e))
+    fail("menhir rejects " ++ path ++ ": " ++ Exn.to_string(e))
   };
 };
 
@@ -184,11 +179,16 @@ let tests = (
       )
       @ (
         files
-        |> List.filter(path =>
-             !List.mem_assoc(Filename.basename(path), known_gaps)
+        |> List.filter(~f=path =>
+             !
+               List.Assoc.mem(
+                 known_gaps,
+                 Filename.basename(path),
+                 ~equal=Poly.equal,
+               )
              && has_refractor_trigger(read_file(path))
            )
-        |> List.map(path =>
+        |> List.map(~f=path =>
              test_case(
                "refractor triggers load as menhir groups them: " ++ path,
                `Slow,

@@ -350,7 +350,10 @@ let weave =
           (
             Segment.root_id(Segment.skel(inner), inner),
             trigger,
-            (Piece.id(List.hd(inner)), Piece.id(ListUtil.last(inner))),
+            (
+              Piece.id(List.hd_exn(inner)),
+              Piece.id(ListUtil.last(inner)),
+            ),
           ),
           ...refractors^,
         ];
@@ -521,23 +524,20 @@ let attempt =
         | (woven, found) =>
           let (woven, targets) =
             Segment.group_refractor_targets(
-              List.map(((_, _, target)) => target, found),
+              List.map(found, ~f=((_, _, target)) => target),
               woven,
             );
           /* re-find each root: a target that encloses one that gained
              parens has a new root (`^^probe(^^probe(1 + 2) * 3)`) */
           let refractors =
-            List.map2(
-              ((root, trigger, _), target) =>
-                (
-                  Option.value(
-                    Segment.target_root(target, woven),
-                    ~default=root,
-                  ),
-                  trigger,
+            List.map2_exn(found, targets, ~f=((root, trigger, _), target) =>
+              (
+                Option.value(
+                  Segment.target_root(target, woven),
+                  ~default=root,
                 ),
-              found,
-              targets,
+                trigger,
+              )
             );
           Some({
             segment: woven @ gap_pieces(trailing_gap),

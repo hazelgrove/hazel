@@ -202,10 +202,8 @@ let run = (z: Zipper.t): (Language.Exp.t, Language.Sample.Map.t) => {
   let (_, elaborated) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term_of(z));
   let targets =
-    List.fold_left(
-      (acc, (id, _)) => Id.Map.add(id, Sample.{refs: []}, acc),
-      Id.Map.empty,
-      z.refractors.manuals,
+    List.fold(z.refractors.manuals, ~init=Id.Map.empty, ~f=(acc, (id, _)) =>
+      Id.Map.add(id, Sample.{refs: []}, acc)
     );
   let (result, state) =
     Evaluator.evaluate(
@@ -236,8 +234,10 @@ let grouping_tests = [
         "probe samples",
         [[Some(3)]],
         Id.Map.bindings(probes)
-        |> List.map(((_, samples)) =>
-             List.map((s: Language.Sample.t) => int_value(s.value), samples)
+        |> List.map(~f=((_, samples)) =>
+             List.map(samples, ~f=(s: Language.Sample.t) =>
+               int_value(s.value)
+             )
            ),
       );
     },
@@ -411,8 +411,8 @@ let grouping_tests = [
         program,
         String.sub(
           text,
-          0,
-          min(String.length(program), String.length(text)),
+          ~pos=0,
+          ~len=min(String.length(program), String.length(text)),
         ),
       );
     },
