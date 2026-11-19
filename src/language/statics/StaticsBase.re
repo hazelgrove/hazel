@@ -71,33 +71,53 @@ module Map = {
       Id.Set.singleton(binding_id),
     );
 
+  /* The binding site of a name: where a use was bound, or the binder
+   * itself. None if `ci` isn't a name. */
+  let binding_site_of = (ci: Info.t): option(Id.t) =>
+    switch (Info.get_binding_site(ci)) {
+    | Some(_) as b => b
+    | None =>
+      switch (ci) {
+      | Info.InfoPat({user_term: {term: Var(_), _}, _})
+      | Info.InfoTPat({user_term: {term: Var(_), _}, _})
+      | Info.InfoTyp({
+          user_term: {term: Var(_), _},
+          expects:
+            TypExpectation.ConstructorExpected(_, _) |
+            TypExpectation.VariantExpected(_),
+          _,
+        }) =>
+        Some(Info.id_of(ci))
+      | _ => None
+      }
+    };
+
   /* IDs to highlight for a variable/type/constructor reference:
    * all infos that resolve to the same binding site id, plus the binding id. */
-  let var_highlight_ids = (m: t, ci: Info.t): list(Id.t) => {
-    let binding_id =
-      switch (Info.get_binding_site(ci)) {
-      | Some(_) as b => b
-      | None =>
-        switch (ci) {
-        | Info.InfoPat({user_term: {term: Var(_), _}, _})
-        | Info.InfoTPat({user_term: {term: Var(_), _}, _})
-        | Info.InfoTyp({
-            user_term: {term: Var(_), _},
-            expects:
-              TypExpectation.ConstructorExpected(_, _) |
-              TypExpectation.VariantExpected(_),
-            _,
-          }) =>
-          Some(Info.id_of(ci))
-        | _ => None
-        }
-      };
-    switch (binding_id) {
+  let var_highlight_ids = (m: t, ci: Info.t): list(Id.t) =>
+    switch (binding_site_of(ci)) {
     | None => []
     | Some(binding_id) =>
       Id.Set.elements(ids_referencing_binding(m, binding_id))
     };
-  };
+
+  /* Ids of the uses of the name `ci` refers to or binds, excluding the
+   * binding site itself. Unordered. */
+  let usage_ids = (m: t, ci: Info.t): list(Id.t) =>
+    switch (binding_site_of(ci)) {
+    | None => []
+    | Some(binding_id) =>
+      ids_referencing_binding(m, binding_id)
+      |> Id.Set.remove(binding_id)
+      |> Id.Set.elements
+      /* Keep only each term's representative id, the one with a position */
+      |> List.filter(id =>
+           switch (lookup(id, m)) {
+           | Some(info) => Id.equal(id, Info.id_of(info))
+           | None => false
+           }
+         )
+    };
 
   let parent_ci_of = (map: t, id: Id.t): option(Info.t) => {
     let* ci = lookup(id, map);

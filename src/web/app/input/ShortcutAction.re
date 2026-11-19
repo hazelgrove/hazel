@@ -75,6 +75,8 @@ type t =
   | GoToDefinition
   | GoToPreviousProblem
   | GoToNextProblem
+  | GoToNextUsage
+  | GoToPreviousUsage
   | SelectCurrentTerm
   | SelectAll
   | ToggleSelectionFocus
@@ -170,6 +172,18 @@ let meta = (a: t): action_meta =>
       section: Navigation,
       mdIcon: "arrow_downward",
       default_binding: Unbound,
+    }
+  | GoToNextUsage => {
+      label: "Go to Next Usage",
+      section: Navigation,
+      mdIcon: "arrow_forward",
+      default_binding: Bound([Shift], "F12"),
+    }
+  | GoToPreviousUsage => {
+      label: "Go to Previous Usage",
+      section: Navigation,
+      mdIcon: "arrow_back",
+      default_binding: Bound([Alt, Shift], "F12"),
     }
   | SelectCurrentTerm => {
       label: "Select current term",
