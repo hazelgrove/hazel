@@ -9,6 +9,7 @@ hazel-programs/
 ├── docs/
 │   ├── reference/   # THE documentation-mode slides (compiled into src/docslides)
 │   └── b2t2/        # THE B2T2 table-API slides (compiled into src/b2t2)
+├── exercises/       # Exercises-mode code and theorem exercises, .hzt (see exercises/README.md)
 └── tutorial/        # Tutorial-mode lesson sources, .hzt (see tutorial/README.md)
 ```
 
@@ -16,7 +17,7 @@ hazel-programs/
 
 Hazel programs use the `.hz` extension and contain plain text Hazel syntax.
 Every `.hz` file here must parse (the corpus tests check that). Tutorial
-lesson sources, which mix prose with `@`-marker sections, use `.hzt`.
+lessons and exercises, which mix prose with `@`-marker sections, use `.hzt`.
 
 ```hazel
 # Example: recursive function (requires arrow type annotation)

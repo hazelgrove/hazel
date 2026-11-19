@@ -1,0 +1,34 @@
+@title
+Reverse! Reverse!
+
+@flags
+id=f2132f9f-a452-481b-ba9a-c40e7d2346aa
+
+@points
+max=10
+
+@prompt
+Show that this implementation of list reverse is its own inverse (i.e. that `rev` is *involutive*).
+
+@prelude
+let snoc = fun (t, h) ->
+  case t
+  | [] => h :: []
+  | h' :: t => h' :: snoc(t, h)
+  end
+in
+
+let rev = fun l ->
+  case l
+  | [] => []
+  | h :: t => snoc(rev(t), h)
+  end
+in ¿
+
+@lemmas
+¿
+
+@theorem
+theorem rev_rev =
+  forall xs:[Int] -> rev(rev(xs)) == xs
+in ¿
