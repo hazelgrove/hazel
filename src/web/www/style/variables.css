@@ -17,11 +17,10 @@
   --line-height: 1.45;
   --base-font-size: 13pt;
   --code-font: "Source Code Pro", monospace;
-  /* The interface's font, from the reader's own machine: Hazel ships no copy
-     (Helvetica Neue is a commercial typeface, and its files' notice forbids
-     redistribution). A Mac has Helvetica Neue; elsewhere, Helvetica's usual
-     stand-ins. */
-  --ui-font: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  /* The interface's font: IBM Plex Sans, shipped with Hazel (style/fonts.css)
+     under the SIL Open Font License, so it looks the same everywhere. A
+     character outside its Latin subset comes from the reader's sans-serif. */
+  --ui-font: "IBM Plex Sans", sans-serif;
   --eval-recalc-visual-delay: 180ms;
 
 
