@@ -483,7 +483,10 @@ let stitch_term = (eds: p('a)): stitched(TermItem.t) => {
          ),
   };
 };
-let stitch_term = Core.Memo.general(stitch_term);
+/* Hits come from calculate re-stitching editors stitched a call or two
+   earlier (by of_spec or MapEditor's update, or by calculate itself as
+   worker results land), so 8 entries keep them. Keys hold whole exercises. */
+let stitch_term = Core.Memo.general(~cache_size_bound=8, stitch_term);
 
 let prelude_key = "prelude";
 let setup_key = "setup";
