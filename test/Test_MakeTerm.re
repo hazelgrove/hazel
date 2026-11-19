@@ -462,15 +462,17 @@ let remold_past_projector_test =
       let form_of_minus =
         Segment.remold(seg, d)
         |> List.find_map(
-             fun
-             | Piece.Tile(t) when t.id == Piece.id(minus) => Some(t.form)
-             | _ => None,
+             ~f=
+               fun
+               | Piece.Tile(t) when Id.equal(t.id, Piece.id(minus)) =>
+                 Some(t.form)
+               | _ => None,
            );
       check(
         option(string),
         "minus form",
         Some(Form.show(Compound(Minus))),
-        Option.map(Form.show, form_of_minus),
+        Option.map(~f=Form.show, form_of_minus),
       );
     },
   );

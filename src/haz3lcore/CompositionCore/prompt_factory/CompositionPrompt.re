@@ -392,7 +392,7 @@ let session_modes = [
    (DocPacks), so they cost context when pulled, not on every turn.
    Empty when the registry has no packs (the tool is not offered then). */
 let on_demand_docs =
-  DocPacks.all == []
+  List.is_empty(DocPacks.all)
     ? []
     : [
       "## On-demand guides",

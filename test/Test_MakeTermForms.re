@@ -119,7 +119,7 @@ let instance =
     let seg = kid_atom(fam, mold.out, pos, s);
     wrap ? wrap_projector(s, seg) : seg;
   };
-  let children = List.map(kid(In), mold.in_);
+  let children = List.map(~f=kid(In), mold.in_);
   let tile = Piece.mk_tile((Compound(fam), mold.out), children);
   let (l, r) = mold.nibs;
   let left = is_concave(l) ? [kid(L, l.sort)] : [];
@@ -178,9 +178,10 @@ let is_hole = (any: Language.Any.t): bool =>
     | Unknown(Hole(_)) => true
     | Sum(entries) =>
       List.exists(
-        fun
-        | Language.ConstructorMap.BadEntry(_) => true
-        | Variant(_) => false,
+        ~f=
+          fun
+          | Language.ConstructorMap.BadEntry(_) => true
+          | Variant(_) => false,
         entries,
       )
     | _ => false
@@ -221,7 +222,7 @@ let is_hole = (any: Language.Any.t): bool =>
   | Mod(m) =>
     switch (m.term) {
     | MultiHole(kids) =>
-      List.length(kids) < 2 || !List.for_all(is_mod_kid, kids)
+      List.length(kids) < 2 || !List.for_all(~f=is_mod_kid, kids)
     | EmptyHole
     | Invalid(_) => true
     | ModLet(_)
@@ -232,7 +233,7 @@ let is_hole = (any: Language.Any.t): bool =>
   | Sig(s) =>
     switch (s.term) {
     | MultiHole(kids) =>
-      List.length(kids) < 2 || !List.for_all(is_sig_kid, kids)
+      List.length(kids) < 2 || !List.for_all(~f=is_sig_kid, kids)
     | EmptyHole
     | Invalid(_) => true
     | SigLet(_)
@@ -251,7 +252,7 @@ let is_hole = (any: Language.Any.t): bool =>
 
 /* The top-level piece ids of a kid segment (tile or projector ids). */
 let kid_ids = (seg: Segment.t): list(Id.t) =>
-  seg |> List.filter(p => !Piece.is_secondary(p)) |> List.map(Piece.id);
+  seg |> List.filter(~f=p => !Piece.is_secondary(p)) |> List.map(~f=Piece.id);
 
 let case_name = (~wrap, fam, sort) =>
   Form.show_family(fam)
@@ -263,15 +264,15 @@ let case_name = (~wrap, fam, sort) =>
 let check_row = (~wrap: bool, fam: Form.family, mold: Mold.t): option(string) => {
   let (seg, kids) = instance(~wrap, fam, mold);
   switch (parse_at(mold.out, seg)) {
-  | exception e => Some("raised " ++ Printexc.to_string(e))
+  | exception e => Some("raised " ++ Exn.to_string(e))
   | (root, map) =>
     if (is_hole(root)) {
       Some("root parses as a hole");
     } else {
       let bad_kid =
         kids
-        |> List.concat_map(kid_ids)
-        |> List.exists(id =>
+        |> List.concat_map(~f=kid_ids)
+        |> List.exists(~f=id =>
              switch (Id.Map.find_opt(id, map)) {
              | Some(t) => is_hole(t)
              | None => false
@@ -324,15 +325,15 @@ let known_failures: list((Form.family, Sort.t, bool, string)) = {
 
 let failures = (): list((Form.family, Sort.t, bool, string)) =>
   Form.forms
-  |> List.concat_map(((fam, def: Form.def)) =>
+  |> List.concat_map(~f=((fam, def: Form.def)) =>
        [false, true]
-       |> List.filter_map(wrap =>
+       |> List.filter_map(~f=wrap =>
             check_row(~wrap, fam, def.mold)
-            |> Option.map(why => (fam, def.mold.out, wrap, why))
+            |> Option.map(~f=why => (fam, def.mold.out, wrap, why))
           )
      )
   /* the duplicated Typ Dot row (see Form.rows_of) */
-  |> List.sort_uniq(compare);
+  |> List.dedup_and_sort(~compare=Poly.compare);
 
 let show_failure = ((fam, sort, wrap, why)) =>
   case_name(~wrap, fam, sort) ++ ": " ++ why;
@@ -344,24 +345,32 @@ let form_coverage_test =
     () => {
       let actual =
         failures()
-        |> List.map(((f, s, w, _)) => (f, s, w))
-        |> List.sort(compare);
+        |> List.map(~f=((f, s, w, _)) => (f, s, w))
+        |> List.sort(~compare=Poly.compare);
       let expected =
         known_failures
-        |> List.map(((f, s, w, _)) => (f, s, w))
-        |> List.sort(compare);
+        |> List.map(~f=((f, s, w, _)) => (f, s, w))
+        |> List.sort(~compare=Poly.compare);
       let show = l =>
         l
-        |> List.map(((f, s, w)) => case_name(~wrap=w, f, s))
-        |> String.concat("\n");
-      if (actual != expected) {
-        let unexpected = List.filter(x => !List.mem(x, expected), actual);
-        let fixed = List.filter(x => !List.mem(x, actual), expected);
+        |> List.map(~f=((f, s, w)) => case_name(~wrap=w, f, s))
+        |> String.concat(~sep="\n");
+      if (!Poly.equal(actual, expected)) {
+        let unexpected =
+          List.filter(
+            ~f=x => !List.mem(expected, x, ~equal=Poly.equal),
+            actual,
+          );
+        let fixed =
+          List.filter(
+            ~f=x => !List.mem(actual, x, ~equal=Poly.equal),
+            expected,
+          );
         Alcotest.failf(
           "Form/MakeTerm coverage mismatch.\nUnexpected failures:\n%s\n\nListed as known failures but now parse (remove from known_failures):\n%s\n\nAll failures with reasons:\n%s",
           show(unexpected),
           show(fixed),
-          failures() |> List.map(show_failure) |> String.concat("\n"),
+          failures() |> List.map(~f=show_failure) |> String.concat(~sep="\n"),
         );
       };
     },
@@ -396,8 +405,8 @@ let no_static_errors = (name, s) =>
       let errs =
         Test_Statics_Prelude.statics(e)
         |> Test_Statics_Prelude.errors
-        |> List.concat_map(snd)
-        |> List.map(Language.Mark.show);
+        |> List.concat_map(~f=snd)
+        |> List.map(~f=Language.Mark.show);
       check(list(string), "static errors", [], errs);
     },
   );
@@ -407,10 +416,11 @@ let sum_entries = (e: Language.Exp.t): list(string) =>
   | TyAlias(_, {term: Sum(entries), _}, _) =>
     entries
     |> List.map(
-         fun
-         | Language.ConstructorMap.Variant(c, _, None) => c
-         | Variant(c, _, Some(_)) => c ++ "(_)"
-         | BadEntry(_) => "BadEntry",
+         ~f=
+           fun
+           | Language.ConstructorMap.Variant(c, _, None) => c
+           | Variant(c, _, Some(_)) => c ++ "(_)"
+           | BadEntry(_) => "BadEntry",
        )
   | _ => Alcotest.fail("expected a sum-type alias")
   };
@@ -451,7 +461,7 @@ let tuple_label_names = (e: Language.Exp.t): list(string) =>
   switch (e.term) {
   | Parens({term: Tuple(es), _}) =>
     es
-    |> List.map((e: Language.Exp.t) =>
+    |> List.map(~f=(e: Language.Exp.t) =>
          switch (e.term) {
          | TupLabel({term: Label(l), _}, _) => l
          | _ => "not a label"
