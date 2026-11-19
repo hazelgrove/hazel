@@ -1792,9 +1792,17 @@ and uexp_to_info_map =
           };
         /* Manually emit ExpectationMismatch based on the clean syn_res
            (not ctor_ty), since ctor_ty has already been reconciled with ana
-           and would otherwise silently meet. */
+           and would otherwise silently meet. A polymorphic constructor
+           instantiated implicitly above is checked at its instance, so a
+           constructor the expected type says nothing about (`D(true)` in
+           synthetic position) is used at unknown type arguments. */
+        let syn_checked =
+          switch (type_args) {
+          | [] => syn_res
+          | [_, ..._] => elab_syn_ty
+          };
         let marks_res =
-          switch (expectation_mismatch_mark(ctx, ana, syn_res)) {
+          switch (expectation_mismatch_mark(ctx, ana, syn_checked)) {
           | None => marks_res
           | Some(m) when marks_res == [] => [m]
           | Some(_) => marks_res
