@@ -29,12 +29,12 @@ let tests = (
         k =>
           check(bool, show_step_kind(k) ++ " proper", true, is_proper(k)),
         [
-          FunAp,
+          FunAp(["x"]),
           DeferredAp,
           TypFunAp,
           BuiltinAp("string_length"),
-          LetBind("x"),
-          CaseApply,
+          LetBind(["x"]),
+          CaseApply([]),
           Conditional(true),
           BinOp(Operators.Int(Operators.Plus)),
           Seq,
@@ -94,14 +94,14 @@ let tests = (
           List.exists(
             may_delegate,
             [
-              FunAp,
+              FunAp(["x"]),
               DeferredAp,
               WrapClosure,
               FixClosure,
               FixUnwrap,
               CompleteClosure,
               RemoveParens,
-              CaseApply,
+              CaseApply([]),
               VarLookup,
             ],
           ),

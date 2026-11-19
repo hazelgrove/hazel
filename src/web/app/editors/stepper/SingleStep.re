@@ -143,13 +143,36 @@ module F =
         ~undo as _: option(Ui_effect.t(unit)),
         ~is_toplevel as _: bool,
         m: model,
-      ) =>
-    WebUtil.Node.text(
+      ) => {
+    let kind =
       m.evalobj
       |> Calc.get_saved_exc(~print="EvaluatorStep not calculated")
-      |> EvaluatorStep.get_step_kind
-      |> Transition.stepper_justification,
-    );
+      |> EvaluatorStep.get_step_kind;
+    let text = WebUtil.Node.text(Transition.stepper_justification(kind));
+    switch (Transition.stepper_justification_vars(kind)) {
+    | [] => text
+    | vars =>
+      /* The substituted variables pop up over the steps below on hover. */
+      WebUtil.(
+        div_c(
+          "stepper-justification",
+          [
+            span_c("substitutions-hint", [text]),
+            div_c(
+              "substitutions-popup",
+              [
+                div_c("substitutions-label", [Node.text("substituted")]),
+                ...List.map(
+                     x => div_c("substituted-var", [Node.text(x)]),
+                     vars,
+                   ),
+              ],
+            ),
+          ],
+        )
+      )
+    };
+  };
 
   let view_content =
       (
