@@ -150,6 +150,30 @@ map@<Int, Int>((fun x -> x + 1), [1, 2, 3])|},
        with the new syntax and use it through a polymorphic
        constructor — `Some(3)` should evaluate to a fully-
        specialized constructor (not stuck on a `TypAp` wrapper). */
+    /* Constructors of a curried typfun alias get a schema over both
+       parameters (Max's "D is not found" on #2254). */
+    test_case("curried typfun alias constructors evaluate", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|(D(true), E("no"))|},
+        {|type PResult = typfun err -> typfun ok -> + E(err) + D(ok) in
+let x : PResult(String)(Bool) = D(true) in
+let y : PResult(String)(Bool) = E("no") in
+(x, y)|},
+      )
+    ),
+    /* A polymorphic constructor in synthetic position runs at unknown
+       type arguments. */
+    test_case("synthetic-position constructors evaluate", `Quick, () =>
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|(Some(3), [Some(1), None], Some(2))|},
+        {|let a = Some(3) in
+let b = [Some(1), None] in
+let f = Some in
+(a, b, f(2))|},
+      )
+    ),
     test_case(
       "type-level typfun: type Option = typfun a -> + None + Some(a)",
       `Quick,

@@ -130,6 +130,16 @@ let rec equal_mark: (Mark.t, Mark.t) => bool =
       s1 == s2 && src1 == src2
     | (TPatNotAVar(e1), TPatNotAVar(e2)) => e1 == e2
     | (TPatParamNotAtAliasHead(s1), TPatParamNotAtAliasHead(s2)) => s1 == s2
+    | (
+        TypAbsApplyArityMismatch({expected: e1, actual: a1}),
+        TypAbsApplyArityMismatch({expected: e2, actual: a2}),
+      ) =>
+      e1 == e2 && a1 == a2
+    | (
+        TypParamApplyArityMismatch({expected: e1, actual: a1, _}),
+        TypParamApplyArityMismatch({expected: e2, actual: a2, _}),
+      ) =>
+      e1 == e2 && a1 == a2
     | _ => false
     };
 

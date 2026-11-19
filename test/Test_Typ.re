@@ -1089,8 +1089,185 @@ let normalize_tests = (
   ],
 );
 
+/* Type functions, recursive families and multi-binder quantifiers. */
+let type_function_tests = {
+  let parse = (src: string): Typ.t =>
+    switch (
+      Haz3lcore.Parser.to_segment(src, ~root=Typ)
+      |> Option.map(Haz3lcore.MakeTerm.for_projection)
+    ) {
+    | Some(Some(Typ(t))) => t
+    | _ => Alcotest.failf("could not parse the type `%s`", src)
+    };
+  let ctx = Builtins.ctx_init(Some(Int));
+  let consistent = (a, b) => Typ.is_consistent(ctx, parse(a), parse(b));
+  /* `type NU(a) = + Nil + Cons(a, NU((Int, a)))`, as statics stores it */
+  let nu = {
+    let body = parse("+ Nil + Cons(a, NU((Int, a)))");
+    Typ.fresh(
+      Rec(
+        TPat.fresh(Var("NU")),
+        Typ.fresh(TypFun(TPat.fresh(Var("a")), body)),
+      ),
+    );
+  };
+  let nu_at = arg => Typ.fresh(TypParamAp(nu, parse(arg)));
+  (
+    "Typ.type_functions",
+    [
+      test_case("multi-binder poly meets up to renaming", `Quick, () =>
+        check(
+          bool,
+          "consistent",
+          true,
+          consistent("poly a, b -> (a, b)", "poly c, d -> (c, d)"),
+        )
+      ),
+      test_case("multi-binder poly binder order matters", `Quick, () =>
+        check(
+          bool,
+          "inconsistent",
+          false,
+          consistent("poly a, b -> (a, b)", "poly c, d -> (d, c)"),
+        )
+      ),
+      test_case("poly binder counts must agree", `Quick, () =>
+        check(
+          bool,
+          "inconsistent",
+          false,
+          consistent("poly a, b -> a", "poly a -> a"),
+        )
+      ),
+      test_case("multi-binder typfun meets up to renaming", `Quick, () =>
+        check(
+          bool,
+          "consistent",
+          true,
+          consistent("typfun a, b -> (a, b)", "typfun x, y -> (x, y)"),
+        )
+      ),
+      test_case("beta takes a TypTuple for a multi-binder typfun", `Quick, () =>
+        check(
+          typ,
+          "reduced",
+          parse("(Int, Bool)"),
+          Typ.normalize(ctx, parse("(typfun a, b -> (a, b))(Int, Bool)")),
+        )
+      ),
+      test_case("a single tuple argument is not two arguments", `Quick, () =>
+        check(
+          bool,
+          "stuck",
+          true,
+          switch (
+            Typ.weak_head_normalize(
+              ctx,
+              parse("(typfun a, b -> (a, b))((Int, Bool))"),
+            ).
+              term
+          ) {
+          | TypParamAp(_) => true
+          | _ => false
+          },
+        )
+      ),
+      test_case("canonicalize keeps an applied alias compact", `Quick, () =>
+        check(
+          string,
+          "compact",
+          "Option(Int)",
+          Typ.pretty_print(Typ.canonicalize(ctx, parse("Option(Int)"))),
+        )
+      ),
+      test_case("normalize expands an applied alias", `Quick, () =>
+        check(
+          bool,
+          "a sum",
+          true,
+          switch (Typ.normalize(ctx, parse("Option(Int)")).term) {
+          | Sum(_) => true
+          | _ => false
+          },
+        )
+      ),
+      test_case("a recursive family at an argument unfolds once", `Quick, () =>
+        check(
+          bool,
+          "Cons payload refers to the family at (Int, Bool)",
+          true,
+          switch (Typ.get_sum_constructors(ctx, nu_at("Bool"))) {
+          | Some(sm) =>
+            switch (ConstructorMap.get_entry("Cons", sm)) {
+            | Some(Some({term: Prod([_, tail]), _})) =>
+              Typ.fast_equal(tail, nu_at("(Int, Bool)"))
+            | _ => false
+            }
+          | None => false
+          },
+        )
+      ),
+      test_case("a non-uniform family meets itself", `Quick, () =>
+        check(
+          bool,
+          "consistent",
+          true,
+          Typ.is_consistent(ctx, nu_at("Bool"), nu_at("Bool")),
+        )
+      ),
+      test_case(
+        "a non-uniform family at different arguments: no meet, terminates",
+        `Quick,
+        () =>
+        check(
+          bool,
+          "inconsistent",
+          false,
+          Typ.is_consistent(ctx, nu_at("Bool"), nu_at("Int")),
+        )
+      ),
+      test_case("a family meets its own unfolding", `Quick, () =>
+        check(
+          bool,
+          "consistent",
+          true,
+          switch (Typ.unfold_family(nu_at("Bool"))) {
+          | Some(unfolded) =>
+            Typ.is_consistent(ctx, nu_at("Bool"), unfolded)
+          | None => false
+          },
+        )
+      ),
+      test_case("a non-contractive family does not unfold", `Quick, () =>
+        check(
+          bool,
+          "no unfolding",
+          true,
+          Typ.unfold_family(
+            Typ.fresh(
+              TypParamAp(
+                Typ.fresh(
+                  Rec(
+                    TPat.fresh(Var("L")),
+                    Typ.fresh(
+                      TypFun(TPat.fresh(Var("a")), parse("L((a, a))")),
+                    ),
+                  ),
+                ),
+                parse("Int"),
+              ),
+            ),
+          )
+          == None,
+        )
+      ),
+    ],
+  );
+};
+
 let tests = [
   meet_tests,
+  type_function_tests,
   normalize_tests,
   meet_rec_binder_tests,
   meet_rec_tests,
