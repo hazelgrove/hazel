@@ -133,13 +133,15 @@ let first_token = (p: Piece.t): option(Token.t) =>
  * whose junction has no secondary (and, canonicalizing, collapse
  * token-to-token space runs to policy width); recurse into children,
  * including the shard<->child junctions (a tile's child segment sits
- * between two shard tokens) */
-let rec go = (~canonicalize=false, seg: Segment.t): Segment.t =>
+ * between two shard tokens). ~skip: pieces whose interior is left as
+ * is (still judged at their outer junctions) */
+let rec go =
+        (~canonicalize=false, ~skip=_ => false, seg: Segment.t): Segment.t =>
   switch (seg) {
   | [] => []
-  | [p] => [normalize_piece(~canonicalize, p)]
+  | [p] => [normalize_piece(~canonicalize, ~skip, p)]
   | [p1, ...rest] =>
-    let p1 = normalize_piece(~canonicalize, p1);
+    let p1 = normalize_piece(~canonicalize, ~skip, p1);
     let (run, rest) =
       canonicalize ? Segment.split_space_run(rest) : ([], rest);
     switch (last_token(p1), rest) {
@@ -163,20 +165,22 @@ let rec go = (~canonicalize=false, seg: Segment.t): Segment.t =>
           } else {
             needs_space(a, b) ? [space()] : [];
           };
-        [p1] @ sep @ go(~canonicalize, rest);
-      | None => [p1] @ run @ go(~canonicalize, rest)
+        [p1] @ sep @ go(~canonicalize, ~skip, rest);
+      | None => [p1] @ run @ go(~canonicalize, ~skip, rest)
       }
-    | _ => [p1] @ run @ go(~canonicalize, rest)
+    | _ => [p1] @ run @ go(~canonicalize, ~skip, rest)
     };
   }
-and normalize_piece = (~canonicalize=false, p: Piece.t): Piece.t =>
+and normalize_piece =
+    (~canonicalize=false, ~skip=_ => false, p: Piece.t): Piece.t =>
   switch (p) {
+  | _ when skip(p) => p
   | Tile(t) =>
     let shards_tokens = Tile.effective_label(t);
     let children =
       t.children
       |> List.mapi((i, child) => {
-           let child = go(~canonicalize, child);
+           let child = go(~canonicalize, ~skip, child);
            /* pad the child against its surrounding shards */
            let left = List.nth_opt(shards_tokens, i);
            let right = List.nth_opt(shards_tokens, i + 1);

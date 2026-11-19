@@ -512,20 +512,32 @@ let rec build_children =
          enclosing binding). Statics checks module literals by expansion
          into nested Let/TyAlias wrappers KEYED BY THE MOD ITEM IDS
          (ModuleHelpers.lower; reclassify only rewrites cls), so the first
-         item's wrapper info chains through the remaining members exactly
+         named item's wrapper info chains through the remaining members exactly
          like a top-level binding chain — the Let/TyAlias cases above walk
          it, making members siblings of one another. Wrapper pat/def ids
          are the members' real syntax ids, so downstream span selection
-         works unchanged. */
-      switch (items) {
-      | [] => node_map
-      | [first, ..._] =>
+         works unchanged. Expression and hole items get fresh, unkeyed
+         wrappers (their item id keys the inner expression instead), so they
+         can't be the entry; ones after it still appear as "{wild}" nodes. */
+      let is_named = (item: Mod.t) =>
+        switch (item.term) {
+        | ModLet(_)
+        | ModType(_)
+        | ModuleMod(_) => true
+        | ModExp(_)
+        | EmptyHole
+        | Invalid(_)
+        | MultiHole(_) => false
+        };
+      switch (List.find_opt(is_named, items)) {
+      | None => node_map
+      | Some(first) =>
         switch (Id.Map.find_opt(Mod.rep_id(first), info_map)) {
         | Some(wrapper_info) =>
           build_children(wrapper_info, path, node_map, info_map)
         | None => node_map
         }
-      }
+      };
     | _ =>
       let es = Utils.child_expressions_of_exp(term);
       let es_mapped = List.map(exp_to_info, es);
