@@ -44,7 +44,7 @@
 open Haz3lcore;
 open Web;
 
-let reindent = Array.mem("--reindent", Sys.argv);
+let reindent = Array.mem(Sys.get_argv(), "--reindent", ~equal=String.equal);
 
 /* Reset non-persistable refractor state before serialization (keeps
  * manuals, resets multis/sample_focus). */
@@ -123,7 +123,7 @@ let emit_item = (item: item): string =>
   };
 
 let emit_file = (f: file): string =>
-  f.items |> List.map(emit_item) |> String.concat("\n");
+  f.items |> List.map(~f=emit_item) |> String.concat(~sep="\n");
 
 /* ---------- safety checks ----------
  * The backup_text fallback re-parses program text and the exercise loader
@@ -142,15 +142,16 @@ let rec equal_segment = (a: Base.segment, b: Base.segment) =>
 and equal_piece = (a: Base.piece, b: Base.piece) =>
   switch (a, b) {
   | (Tile(t1), Tile(t2)) =>
-    Tile.label(t1) == Tile.label(t2)
+    Label.equal(Tile.label(t1), Tile.label(t2))
     && List.equal(equal_segment, t1.children, t2.children)
-    && Tile.mold(t1) == Tile.mold(t2)
-    && t1.shards == t2.shards
-  | (Grout(g1), Grout(g2)) => g1.shape == g2.shape
-  | (Secondary(s1), Secondary(s2)) => s1.content == s2.content
+    && Mold.equal(Tile.mold(t1), Tile.mold(t2))
+    && List.equal(Int.equal, t1.shards, t2.shards)
+  | (Grout(g1), Grout(g2)) => Grout.equal_shape(g1.shape, g2.shape)
+  | (Secondary(s1), Secondary(s2)) =>
+    Language.Secondary.equal_secondary_content(s1.content, s2.content)
   | (Projector(p1), Projector(p2)) =>
-    p1.kind == p2.kind
-    && p1.model == p2.model
+    ProjectorCore.Kind.equal(p1.kind, p2.kind)
+    && String.equal(p1.model, p2.model)
     && equal_piece(p1.syntax, p2.syntax)
   | _ => false
   };
@@ -198,7 +199,7 @@ let check_field = ({label, root, zipper}: field): option(string) => {
   | None => Some(label ++ ": reparse FAILED (PersistentZipper.parse_text)")
   | Some(z2) =>
     let code2 = PersistentZipper.persist(z2).backup_text;
-    if (code2 != code) {
+    if (!String.equal(code2, code)) {
       Some(
         label
         ++ ": fixpoint MISMATCH\n  original: "
@@ -215,7 +216,7 @@ let check_field = ({label, root, zipper}: field): option(string) => {
         Some(
           label
           ++ ": persistent sexp decode FAILED ("
-          ++ Printexc.to_string(exn)
+          ++ Exn.to_string(exn)
           ++ ")",
         )
       | decoded =>
@@ -235,7 +236,9 @@ let check_field = ({label, root, zipper}: field): option(string) => {
 };
 
 let check_file = (f: file): list(string) =>
-  f.items |> List.concat_map(fields_of_item) |> List.filter_map(check_field);
+  f.items
+  |> List.concat_map(~f=fields_of_item)
+  |> List.filter_map(~f=check_field);
 
 /* ---------- registry coverage cross-check ----------
  * Make sure every registered exercise/tutorial/derivation-slide is reached
@@ -245,14 +248,15 @@ let check_file = (f: file): list(string) =>
 let registry_warnings = (): list(string) => {
   let covered_ids =
     files
-    |> List.concat_map(f => f.items)
+    |> List.concat_map(~f=f => f.items)
     |> List.map(
-         fun
-         | DrvEx(_, s)
-         | DrvSpec(_, s) => s.id,
+         ~f=
+           fun
+           | DrvEx(_, s)
+           | DrvSpec(_, s) => s.id,
        );
   let missing = (kind, title, id) =>
-    List.mem(id, covered_ids)
+    List.mem(covered_ids, id, ~equal=Id.equal)
       ? None
       : Some(
           "registered "
@@ -263,17 +267,19 @@ let registry_warnings = (): list(string) => {
   /* Tutorial lessons and code/theorem exercises are .hzt text (no zipper
      literals) — nothing to migrate. */
   List.filter_map(
-    (e: Exercise.t) =>
-      switch (e) {
-      | Derivation(s) => missing("exercise", s.title, s.id)
-      | Code(_)
-      | Theorem(_) => None
-      },
+    ~f=
+      (e: Exercise.t) =>
+        switch (e) {
+        | Derivation(s) => missing("exercise", s.title, s.id)
+        | Code(_)
+        | Theorem(_) => None
+        },
     ExerciseSettings_base.exercises,
   )
   @ List.filter_map(
-      ((name, s): (string, DerivationExercise.spec)) =>
-        missing("derivation slide", name, s.id),
+      ~f=
+        ((name, s): (string, DerivationExercise.spec)) =>
+          missing("derivation slide", name, s.id),
       Init.documentation_drv_slides,
     );
 };
@@ -283,7 +289,7 @@ let registry_warnings = (): list(string) => {
 let () = {
   let summary = ref([]);
   files
-  |> List.iter(f => {
+  |> List.iter(~f=f => {
        switch (check_file(f)) {
        | [] =>
          print_string("===FILE: " ++ f.path ++ "===\n");
@@ -292,20 +298,20 @@ let () = {
          summary := [f.path ++ ": PASS", ...summary^];
        | errors =>
          prerr_endline("FIXPOINT FAILURE — NOT converting " ++ f.path);
-         List.iter(prerr_endline, errors);
+         List.iter(~f=prerr_endline, errors);
          summary :=
            [
              f.path
              ++ ": FAIL (left unconverted)\n  "
-             ++ String.concat("\n  ", errors),
+             ++ String.concat(~sep="\n  ", errors),
              ...summary^,
            ];
        }
      });
   let warnings = registry_warnings();
   print_string("===SUMMARY===\n");
-  List.iter(print_endline, List.rev(summary^));
-  List.iter(print_endline, warnings);
+  List.iter(~f=print_endline, List.rev(summary^));
+  List.iter(~f=print_endline, warnings);
   print_string("===END===\n");
-  List.iter(prerr_endline, warnings);
+  List.iter(~f=prerr_endline, warnings);
 };

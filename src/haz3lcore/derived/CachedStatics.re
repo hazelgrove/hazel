@@ -165,25 +165,25 @@ let entry = (~settings, z: Zipper.t, statics: t): cache_entry => {
   statics,
 };
 let matches = (~settings, z: Zipper.t, e: cache_entry): bool =>
-  settings == e.settings
-  && Id.Map.equal((==), probe_ids_of_zipper(z), e.probes)
-  && compare(Zipper.unselect_and_zip(~erase_buffer=true, z), e.source) == 0;
+  Poly.equal(settings, e.settings)
+  && Id.Map.equal(Unit.equal, probe_ids_of_zipper(z), e.probes)
+  && Poly.compare(Zipper.unselect_and_zip(~erase_buffer=true, z), e.source)
+  == 0;
 let remember = e =>
-  last_inits := [e, ...List.filteri((i, _) => i < 5, last_inits^)];
+  last_inits := [e, ...List.filteri(last_inits^, ~f=(i, _) => i < 5)];
 let offer = (~settings, z: Zipper.t, st: t): unit => {
   let e = entry(~settings, z, st);
-  offered := [e, ...List.filteri((i, _) => i < 3, offered^)];
+  offered := [e, ...List.filteri(offered^, ~f=(i, _) => i < 3)];
   remember(e);
 };
 let offered_for = (~settings, z: Zipper.t): option(t) =>
-  List.find_opt(matches(~settings, z), offered^)
-  |> Option.map(e => e.statics);
+  List.find(offered^, ~f=matches(~settings, z))
+  |> Option.map(~f=e => e.statics);
 let for_zipper = (~settings, z: Zipper.t, st: t): option(t) =>
-  List.find_opt(
-    e => e.statics.info_map === st.info_map && matches(~settings, z, e),
-    last_inits^,
+  List.find(last_inits^, ~f=e =>
+    phys_equal(e.statics.info_map, st.info_map) && matches(~settings, z, e)
   )
-  |> Option.map(_ => st);
+  |> Option.map(~f=_ => st);
 
 let init =
     (
@@ -216,10 +216,10 @@ let init =
   /* The agent's handoff is only valid for the ordinary, unstitched Exp
      editor. Contextual/analysis editors compute their own statics. */
   if (!is_dynamic_term
-      && root == Sort.Exp
-      && ctx == None
-      && ana == None
-      && term === make_term_result.term) {
+      && Sort.equal(root, Sort.Exp)
+      && Option.is_none(ctx)
+      && Option.is_none(ana)
+      && phys_equal(term, make_term_result.term)) {
     remember(entry(~settings, z, st));
   };
   st;

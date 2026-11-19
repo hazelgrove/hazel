@@ -15,12 +15,12 @@ let title = "Frame Timing";
    frames overall. */
 let columns: list(PerfFormat.column(PerfMetrics.frame)) = [
   PerfFormat.action_column((f: PerfMetrics.frame) =>
-    Option.map(fst, f.perform)
+    Option.map(~f=fst, f.perform)
   ),
   {
     label: "perform",
     tooltip: "Update phase: applying the edit action to the zipper (Perform.go).",
-    cell: f => PerfFormat.heat_cell(Option.map(snd, f.perform)),
+    cell: f => PerfFormat.heat_cell(Option.map(~f=snd, f.perform)),
   },
   {
     label: "statics",
@@ -54,5 +54,5 @@ let view = (~globals as _: Globals.t): list(Node.t) =>
     ~columns,
     ~empty="No frames recorded yet — type in the editor.",
     ~legend=true,
-    List.map(f => PerfFormat.Row(f), PerfMetrics.history^),
+    List.map(~f=f => PerfFormat.Row(f), PerfMetrics.history^),
   );
