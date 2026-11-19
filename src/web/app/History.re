@@ -7,10 +7,16 @@ module Model = {
   type state = Page.Model.t;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type entry = {
+    state,
+    focus: option(Haz3lcore.FocusEffect.snapshot),
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     current: state,
-    undo_stack: list(Updated.t(state)),
-    redo_stack: list(Updated.t(state)),
+    undo_stack: list(Updated.t(entry)),
+    redo_stack: list(Updated.t(entry)),
   };
 
   let equal = (===);
@@ -43,47 +49,60 @@ module Update = {
         action: t,
         model: Model.t,
       )
-      : Updated.t(Model.t) =>
+      : Updated.t(Model.t) => {
+    let focus = Haz3lcore.FocusEffect.capture();
     switch (action) {
     | Globals(Undo) =>
       switch (model.undo_stack) {
       | [] =>
         print_endline("Cannot undo");
         model |> Updated.raise_invalid_action;
-      | [x, ...rest] => {
+      | [x, ...rest] =>
+        Haz3lcore.FocusEffect.restore(x.model.focus);
+        {
           ...x,
           model: {
-            current: x.model,
+            current: x.model.state,
             undo_stack: rest,
             redo_stack: [
               {
                 ...x,
-                model: model.current,
+                model:
+                  Model.{
+                    state: model.current,
+                    focus,
+                  },
               },
               ...model.redo_stack,
             ],
           },
-        }
+        };
       }
     | Globals(Redo) =>
       switch (model.redo_stack) {
       | [] =>
         print_endline("Cannot redo");
         model |> Updated.raise_invalid_action;
-      | [x, ...rest] => {
+      | [x, ...rest] =>
+        Haz3lcore.FocusEffect.restore(x.model.focus);
+        {
           ...x,
           model: {
-            current: x.model,
+            current: x.model.state,
             undo_stack: [
               {
                 ...x,
-                model: model.current,
+                model:
+                  Model.{
+                    state: model.current,
+                    focus,
+                  },
               },
               ...model.undo_stack,
             ],
             redo_stack: rest,
           },
-        }
+        };
       }
     | action =>
       let current =
@@ -98,7 +117,11 @@ module Update = {
         let new_stack = [
           {
             ...current,
-            model: model.current,
+            model:
+              Model.{
+                state: model.current,
+                focus,
+              },
           },
           ...model.undo_stack,
         ];
@@ -127,6 +150,7 @@ module Update = {
         };
       };
     };
+  };
 
   let calculate =
       (
