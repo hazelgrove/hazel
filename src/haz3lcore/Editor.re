@@ -173,6 +173,17 @@ module Update = {
     let+ zipper =
       Perform.go(~settings, ~statics=old_statics, ~syntax, a, state, ~root);
 
+    /* Layout-level edits (projector SetModel) are run through `calculate`
+     * with is_edited=false so statics/evaluation are reused, but the
+     * syntax cache must still be rebuilt: the model lives in the segment
+     * and feeds placeholder shapes/measured. Mark it old here so
+     * CachedSyntax.calculate takes the full-rebuild path. */
+    let syntax =
+      switch (Action.recompute_level(a)) {
+      | Layout => CachedSyntax.mark_old(syntax)
+      | Full => syntax
+      };
+
     Model.{
       root,
       state: {

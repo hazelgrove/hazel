@@ -1,0 +1,167 @@
+# Planting List #
+
+# Tonight's chores, added through a real Form with OnSubmit, Required and a #
+# Disabled submit button. #
+
+type Action =
+  + AddTodo
+  + RemoveTodo(Int)
+  + UpdateInput(String)
+in
+
+type Todo = String in
+
+type Model = (
+  todos = [Todo],
+  input_value = String
+) in
+
+let init: Model = (
+  todos = ["Water the moonmelons", "Sow starfruit seeds"],
+  input_value = ""
+) in
+
+let remove_at(xs: [Todo], idx: Int) : [Todo] =
+  let indexed = mapi(xs, fun (i, x) -> (i, x)) in
+  let filtered = filter(indexed, fun pair -> fst(pair) != idx) in
+  map(filtered, fun pair -> snd(pair))
+in
+
+let update(model: Model, action: Action): Model =
+  case action
+  | AddTodo =>
+      if model.input_value == ""
+      then model
+      else (todos = model.todos @ [model.input_value], input_value = "")
+  | RemoveTodo(idx) =>
+      (todos = remove_at(model.todos, idx), input_value = model.input_value)
+  | UpdateInput(value) =>
+      (todos = model.todos, input_value = value)
+  end
+in
+
+# The entry row needs only the pending text, not the whole model #
+let choreForm(pending: String): HTML =
+  Form(
+    [OnSubmit(AddTodo),
+     Style([("display", "flex"), ("gap", "0.4em"), ("padding", "0.7em 1em"),
+            ("background", "var(--T2)"),
+            ("border-top", "1px solid var(--BR1)"),
+            ("border-bottom", "1px solid var(--BR1)")])],
+    [
+      Input([
+        Type("text"),
+        Value(pending),
+        Placeholder("Add a garden chore..."),
+        Required(true),
+        OnInput(fun value -> UpdateInput(value)),
+        Style([("flex", "1"), ("min-width", "0"), ("padding", "0.35em 0.5em"),
+               ("font-family", "inherit"), ("font-size", "0.85em"),
+               ("color", "var(--STONE)"), ("background", "var(--SAND)"),
+               ("border", "1px solid var(--BR1)"), ("border-radius", "3px")])
+      ]),
+      Button(
+        [
+          Type("submit"),
+          Disabled(pending == ""),
+          Style([("padding", "0.35em 0.8em"), ("background", "var(--G0)"),
+                 ("color", "var(--SAND)"), ("border", "1px solid var(--G0)"),
+                 ("border-radius", "3px"), ("cursor", "pointer"),
+                 ("font-family", "inherit"), ("font-size", "0.85em")])
+        ],
+        [Text("Plant")]
+      )
+    ]
+  )
+in
+
+let choreItem(index: Int, chore: Todo): HTML =
+  Li(
+    [Style([("padding", "0.4em 1em"), ("display", "flex"),
+            ("align-items", "center"), ("gap", "0.5em"),
+            ("justify-content", "space-between")])],
+    [
+      Span([], [Text(chore)]),
+      Button(
+        [
+          OnClick(RemoveTodo(index)),
+          Style([("padding", "0.1em 0.4em"), ("background", "var(--T1)"),
+                 ("color", "var(--BR3)"), ("border", "1px solid var(--BR1)"),
+                 ("border-radius", "3px"), ("cursor", "pointer"),
+                 ("font-family", "inherit"), ("font-size", "0.75em")])
+        ],
+        [Text("remove")]
+      )
+    ]
+  )
+in
+
+let choreList(chores: [Todo]): HTML =
+  Ul(
+    [Style([("list-style", "none"), ("padding", "0"), ("margin", "0")])],
+    if length(chores) == 0
+    then [
+      Li([Style([("padding", "1.2em 1em"), ("text-align", "center"),
+                 ("color", "var(--BR3)")])],
+         [Text("Nothing planted yet")])
+    ]
+    else mapi(chores, choreItem)
+  )
+in
+
+let view(model: Model): HTML =
+  Div(
+    [Class("todo-app"),
+     Style([("max-width", "340px"), ("margin", "0 auto"),
+            ("font-family", "var(--code-font)"), ("font-size", "0.85em"),
+            ("background", "var(--SAND)"), ("color", "var(--STONE)"),
+            ("border", "1px solid var(--BR1)"), ("border-radius", "0.4em"),
+            ("overflow", "hidden")])],
+    [
+      Div(
+        [Style([("padding", "0.9em 1em 0.8em"), ("text-align", "center"),
+                ("font-size", "1.2em"), ("font-weight", "bold"), ("color", "var(--BR4)")])],
+        [Text("🌙 Planting List")]
+      ),
+      choreForm(model.input_value),
+      choreList(model.todos),
+      Div(
+        [Style([("padding", "0.6em 1em"), ("text-align", "center"),
+                ("font-size", "0.75em"), ("color", "var(--BR3)"),
+                ("border-top", "1px solid var(--BR1)")])],
+        [Text("🌱 " ++ string_of_int(length(model.todos)) ++ " chores tonight")]
+      )
+    ]
+  )
+in
+
+let subs(_model: Model): Sub = SubNone in
+
+# Tests #
+
+hint "submitting the form appends the chore"
+test
+  let m = update((todos=["A"], input_value="B"), AddTodo) in
+  m.todos == ["A", "B"] && m.input_value == ""
+end;
+
+hint "submitting an empty input does nothing"
+test update((todos=["A"], input_value=""), AddTodo).todos == ["A"] end;
+
+hint "removing drops just that chore"
+test
+  let m = update((todos=["A", "B", "C"], input_value=""), RemoveTodo(1)) in
+  m.todos == ["A", "C"]
+end;
+
+hint "typing updates the pending chore"
+test update(init, UpdateInput("hello")).input_value == "hello" end;
+
+# Nothing here issues a command, so `update` returns a bare Model and is #
+# lifted into the (Model, Cmd) shape the app tuple expects. #
+
+let noCmd(f: (Model, Action) -> Model): (Model, Action) -> (Model, Cmd) =
+  fun (model, action) -> (f(model, action), CmdNone)
+in
+
+^^html_sidebar((init, noCmd(update), view, subs))

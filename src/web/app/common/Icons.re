@@ -288,6 +288,9 @@ let prev = Node.text("⮕");
 
 let infoIcon = Node.text("❖");
 
+// Play icon for App View - simple triangle
+let play = simple_icon(~view="0 0 24 24", ["M8 5v14l11-7z"]);
+
 /* Entailment turnstile (⊢), drawn to match `new_buffer` so the two icons
    sit side-by-side in the scratch toolbar with identical stroke width,
    bar length, and vertical extent. Two rounded rectangles:
