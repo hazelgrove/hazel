@@ -4,8 +4,6 @@
    Prefer these over ad hoc `Typ.term_of` switches — parens, unknowns, SynSwitch.
  */
 
-open Util;
-open Either;
 open Typ;
 
 /* [ty] in weak head normal form, a recursive type unrolled. A self-loop has
@@ -90,7 +88,9 @@ let rec prod_strict:
       }
     | Unknown(SynSwitch) => (
         es,
-        Some(List.init(List.length(es), _ => Unknown(SynSwitch) |> temp)),
+        Some(
+          List.init(List.length(es), ~f=_ => Unknown(SynSwitch) |> temp),
+        ),
       )
     | _ => (es, None)
     };
@@ -102,7 +102,8 @@ let prod = (ctx, es, get_label_es, ty, constructor) => {
     es,
     tys_opt
     |> Option.value(
-         ~default=List.init(List.length(es), _ => Unknown(Internal) |> temp),
+         ~default=
+           List.init(List.length(es), ~f=_ => Unknown(Internal) |> temp),
        ),
   );
 };
@@ -118,14 +119,16 @@ let rec list_strict = (ctx, ty) =>
 let list_tolerant = (ctx, ty) =>
   list_strict(ctx, ty) |> Option.value(~default=Unknown(Internal) |> temp);
 
-let rec args = (ctx, ty, arity): Either.t('a, int) => {
+/* Ok: the component types at the requested arity. Error: the arity the type
+   actually has, when it disagrees. */
+let rec args = (ctx, ty, arity): result(list(Typ.t), int) => {
   switch (term_of(head(ctx, ty))) {
   | Parens(ty) => args(ctx, ty, arity)
-  | Prod(tys) when List.length(tys) == arity => L(tys)
-  | Prod(tys) => R(List.length(tys))
-  | _ when arity == 1 => L([ty])
-  | Unknown(_) => L(List.init(arity, _ => Unknown(Internal) |> temp))
-  | _ => R(1)
+  | Prod(tys) when List.length(tys) == arity => Ok(tys)
+  | Prod(tys) => Error(List.length(tys))
+  | _ when arity == 1 => Ok([ty])
+  | Unknown(_) => Ok(List.init(arity, ~f=_ => Unknown(Internal) |> temp))
+  | _ => Error(1)
   };
 };
 
