@@ -2101,27 +2101,47 @@ let unicode_string_tests = [
   ),
 ];
 
-/* (^ticket(758); Matthew, 2026-11-16: "Yes, 32 bits") an SInt has 32 bits in the interpreter and here alike: a result past
-   them stops both runs at IntegerOverflow (a value too big made into an SInt, at IntegerTooBig); within them, as before */
+/* (^ticket(758)) an SInt has 64 bits in the interpreter and here alike: a result past them stops both runs at
+   IntegerOverflow (a value too big made into an SInt, at IntegerTooBig); within them, the same values, past 2^53 too */
 let sint_tests = [
   agreement(
-    "an SInt sum past 32 bits stops at IntegerOverflow",
-    "use SInt in 2147483647 + 1",
+    "an SInt sum past 64 bits stops at IntegerOverflow",
+    "use SInt in 9223372036854775807 + 1",
   ),
   agreement(
-    "an SInt difference past 32 bits",
-    "use SInt in 0 - 2147483647 - 2",
+    "an SInt difference past 64 bits",
+    "use SInt in 0 - 9223372036854775807 - 2",
   ),
-  agreement("an SInt product past 32 bits", "use SInt in 65536 * 65536"),
-  agreement("an SInt power past 32 bits", "use SInt in 2 ** 31"),
+  agreement(
+    "an SInt product past 64 bits",
+    "use SInt in 4294967296 * 4294967296",
+  ),
+  agreement("an SInt power past 64 bits", "use SInt in 2 ** 63"),
+  agreement("an SInt power far past 64 bits", "use SInt in 3 ** 1000000"),
   agreement(
     "the least SInt divided by -1",
-    "use SInt in (0 - 2147483647 - 1) / (0 - 1)",
+    "use SInt in (0 - 9223372036854775807 - 1) / (0 - 1)",
   ),
-  agreement("an Int too big for an SInt", "sint_of_int(3000000000)"),
+  agreement("an Int too big for an SInt", "sint_of_int(9223372036854775808)"),
   agreement(
-    "SInt at the edges of 32 bits, unchanged",
-    "use SInt in (2147483646 + 1, 46340 * 46340, 2 ** 30, (0 - 2147483647 - 1) / 2, 0 - 2147483647 - 1)",
+    "a Float too big for an SInt",
+    "sint_of_float(9223372036854775808.)",
+  ),
+  agreement(
+    "SInt at the edges of 64 bits, unchanged",
+    "use SInt in (9223372036854775806 + 1, 3037000499 * 3037000499, 2 ** 62, (0 - 9223372036854775807 - 1) / 2, 0 - 9223372036854775807 - 1, 2147483647 + 1)",
+  ),
+  agreement(
+    "SInt across 2^53, both ways",
+    "use SInt in (9007199254740991 + 1, 9007199254740993 - 2, 0 - 9007199254740991 - 2, 94906267 * 94906267, -(9007199254740992), 9007199254740993 / 3)",
+  ),
+  agreement(
+    "SInt powers of -1, 0 and 1 past 64",
+    "use SInt in ((0 - 1) ** 1000001, (0 - 1) ** 1000000, 0 ** 1000000, 1 ** 1000000)",
+  ),
+  agreement(
+    "SInt conversions and mod past 2^53",
+    "(int_of_sint(sint_of_int(9223372036854775807)), float_of_sint(sint_of_int(9007199254740993)), sint_of_float(9223372036854774784.), sint_mod(sint_of_int(9223372036854775807), sint_of_int(1000)), sint_mod(sint_of_int(0 - 7), sint_of_int(2)), string_of_sint(sint_of_int(0 - 9223372036854775808)))",
   ),
 ];
 

@@ -195,14 +195,14 @@ let rec to_js = (v: Exp.t): Js.Unsafe.any =>
   | Asc(v, _) => to_js(v)
   /* (^ticket(757)) as the compiled code holds it: a number while safe, a BigInt past that */
   | Atom(Int(n))
-  | Atom(Nat(n)) =>
+  | Atom(Nat(n))
+  | Atom(SInt(n)) =>
     HazelJit.safe_int(n)
       ? number(Bigint.to_float(n))
       : Js.Unsafe.fun_call(
           Js.Unsafe.js_expr("BigInt"),
           [|jstr(Bigint.to_string(n))|],
         )
-  | Atom(SInt(n)) => number(float_of_int(n))
   | Atom(Float(f)) => number(f)
   /* (^ticket(716)) a negative number as the syntax has it, a minus before it: a model read from the program's text, before
      its run has a value (current = -1, found by the browser check on the Polygons slide) */
@@ -305,12 +305,12 @@ let rec of_js =
     let f = Js.float_of_number(Js.Unsafe.coerce(v));
     switch (Option.map((t: Typ.t) => t.term, ty)) {
     | Some(Atom(Float)) => G.Exp.float(f)
-    | Some(Atom(SInt)) => G.Exp.sint(int_of_float(f))
+    | Some(Atom(SInt)) => G.Exp.sint(whole(f))
     | Some(Atom(Nat)) => G.Exp.nat(whole(f))
     | Some(Atom(Int)) => G.Exp.big_int(whole(f))
     | _ => Float.is_integer(f) ? G.Exp.big_int(whole(f)) : G.Exp.float(f)
     };
-  /* (^ticket(757)) an Int or a Nat past a safe integer */
+  /* (^ticket(757)) an Int, a Nat or an SInt past a safe integer */
   | "bigint" =>
     let n =
       Bigint.of_string(
@@ -320,6 +320,7 @@ let rec of_js =
       );
     switch (Option.map((t: Typ.t) => t.term, ty)) {
     | Some(Atom(Nat)) => G.Exp.nat(n)
+    | Some(Atom(SInt)) => G.Exp.sint(n)
     | _ => G.Exp.big_int(n)
     };
   | "string" => G.Exp.string(Js.to_string(Js.Unsafe.coerce(v)))
@@ -540,7 +541,7 @@ let rec patch =
       | (None, "number", Atom(Float(_))) =>
         G.Exp.float(Js.float_of_number(Js.Unsafe.coerce(v)))
       | (None, "number", Atom(SInt(_))) =>
-        G.Exp.sint(int_of_float(Js.float_of_number(Js.Unsafe.coerce(v))))
+        G.Exp.sint(whole(Js.float_of_number(Js.Unsafe.coerce(v))))
       | _ => of_js(ts, ty, v)
       };
     } else {

@@ -100,7 +100,7 @@ module Data = {
     | Atom(Int(b))
     | Atom(Nat(b)) => Js.Unsafe.inject(Js.string(Bigint.to_string(b)))
     | Atom(SInt(i)) =>
-      Js.Unsafe.inject(Js.number_of_float(float_of_int(i)))
+      Js.Unsafe.inject(Js.number_of_float(Bigint.to_float(i)))
     | Atom(Float(f)) => Js.Unsafe.inject(Js.number_of_float(f))
     | Atom(Bool(b)) => Js.Unsafe.inject(Js.bool(b))
     | Atom(String(s)) => Js.Unsafe.inject(Js.string(s))
@@ -136,7 +136,7 @@ let rec data_to_string = (d: Data.t): string =>
   switch (d) {
   | Atom(Int(b))
   | Atom(Nat(b)) => Bigint.to_string(b)
-  | Atom(SInt(i)) => string_of_int(i)
+  | Atom(SInt(i)) => Bigint.to_string(i)
   | Atom(Float(f)) => Printf.sprintf("%g", f)
   | Atom(Bool(b)) => b ? "true" : "false"
   | Atom(String(s)) => "\"" ++ s ++ "\""

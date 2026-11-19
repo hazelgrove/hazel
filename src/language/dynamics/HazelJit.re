@@ -1,13 +1,13 @@
 /* hazel-jit (^ticket(694); Matthew, 2026-11-05 and 06: "Reason code (hazel-jit let's call this component and code for it)
    compile some hazel ast into a mostly-equivalent JS code and call that instead"): an elaborated Hazel term compiled to the
    source text of a JavaScript function, for the best case of how much faster JS could run some Hazel code. Its numbers are
-   Hazel's (^ticket(756)): Int and Nat exact, SInt 32 bits with each result checked, Float a double. A form it does not compile raises
+   Hazel's (^ticket(756)): Int and Nat exact, SInt 64 bits with each result checked, Float a double. A form it does not compile raises
    Unsupported(reason), and the caller runs the term on the interpreter as before.
 
    Values in JS:
      Int, Nat               exact, as the interpreter's Bigint (^ticket(757)): a JS number while it is a safe integer
                             (|n| <= 2^53 - 1), a BigInt past that, every result normalized, so === still compares
-     SInt                   a JS number within 32 bits, each result checked (^ticket(758)): outside, IntegerOverflow
+     SInt                   as an Int, within 64 bits, each result checked (^ticket(758)): outside, IntegerOverflow
      Float                  a JS number
      Bool, String           a JS boolean, a JS string
      a tuple                a JS array of its components; a labeled component is also a property of the array, by its label
@@ -124,15 +124,19 @@ module Runtime = {
      caller falls back to the interpreter, as for an invalid operation. Not reached (List.head's empty case, on a list
      with a head), it costs nothing. */
   indet(what) { const e = new Error("hazel-jit: indeterminate: " + what); e.$indet = what; throw e; },
-  /* (^ticket(758); Matthew, 2026-11-16: "Yes, 32 bits") An SInt has 32 bits, as in the interpreter (Atom.sint_fits): a
-     result outside [-2^31, 2^31 - 1] stops the run at IntegerOverflow, where the interpreter's run is stuck at it. Exact for
-     32-bit operands' sums; a product past 2^53 is not exact, but surely outside. (-0 is 0, as an int has no -0.) */
-  s32(r) { if (r > 2147483647 || r < -2147483648) this.invalid("IntegerOverflow"); return r === 0 ? 0 : r; },
-  sadd(a, b) { return this.s32(a + b); }, ssub(a, b) { return this.s32(a - b); },
-  smul(a, b) { return this.s32(a * b); }, sneg(a) { return this.s32(-a); },
-  /* (^ticket(759)) SInt's division and power, with the interpreter's errors; the least SInt by -1 overflows */
-  sdiv(a, b) { if (b === 0) this.invalid("DivideByZero"); return this.s32(Math.trunc(a / b)); },
-  spow(a, b) { if (b < 0) this.invalid("NegativeExponent"); return this.s32(a ** b); },
+  /* (^ticket(758)) An SInt has 64 bits, as in the interpreter (Atom.sint_fits), and is held as an Int is: a JS number
+     while it is a safe integer, a BigInt past that. Only a BigInt can be past 64 bits, so only that path checks
+     [-2^63, 2^63 - 1]; outside, the run stops at IntegerOverflow, where the interpreter's run is stuck at it. */
+  s64(r) { if (r > 9223372036854775807n || r < -9223372036854775808n) this.invalid("IntegerOverflow"); return r <= 9007199254740991n && r >= -9007199254740991n ? Number(r) : r; },
+  sadd(a, b) { if (typeof a === "number" && typeof b === "number") { const r = a + b; if (r <= 9007199254740991 && r >= -9007199254740991) return r; } return this.s64(BigInt(a) + BigInt(b)); },
+  ssub(a, b) { if (typeof a === "number" && typeof b === "number") { const r = a - b; if (r <= 9007199254740991 && r >= -9007199254740991) return r; } return this.s64(BigInt(a) - BigInt(b)); },
+  smul(a, b) { if (typeof a === "number" && typeof b === "number") { const r = a * b; if (r <= 9007199254740991 && r >= -9007199254740991) return r; } return this.s64(BigInt(a) * BigInt(b)); },
+  sneg(a) { return typeof a === "number" ? (a === 0 ? 0 : -a) : this.s64(-a); },
+  /* (^ticket(759)) SInt's division, truncated toward zero, and power, with the interpreter's errors: the least SInt by -1
+     overflows; a power of 64 or more is not computed (Operators.sint_power): -1, 0 and 1 repeat with period 2 from the
+     second power on, and any other base overflows */
+  sdiv(a, b) { if (b === 0 || b === 0n) this.invalid("DivideByZero"); if (typeof a === "number" && typeof b === "number") return (a - a % b) / b; return this.s64(BigInt(a) / BigInt(b)); },
+  spow(a, b) { if (b < 0) this.invalid("NegativeExponent"); if (b >= 64) { if (a > 1 || a < -1) this.invalid("IntegerOverflow"); b = 2 + Number(BigInt(b) % 2n); } return this.s64(BigInt(a) ** BigInt(b)); },
   /* (^ticket(763); Cyrus, 2026-11-13: "We need a way to limit compiled hazel functions that diverge --- we need a step
      limit. esp if we continue to optimize by including certain jit-compiled hazel functions into the main thread") Each
      compiled function counts its call (fuel, exact) and every 16384 calls reads the clock (deadline): a run past either
@@ -174,12 +178,13 @@ module Runtime = {
     },
     string_of_int: n => String(n), string_of_sint: n => String(n), string_of_nat: n => String(n),
     string_of_bool: b => String(b),
-    float_of_int: n => Number(n), float_of_sint: n => n, float_of_nat: n => Number(n),
+    float_of_int: n => Number(n), float_of_sint: n => Number(n), float_of_nat: n => Number(n),
     int_of_float: f => { if (!Number.isFinite(f)) throw new Error("hazel-jit: invalid operation: int_of_float"); const t = Math.trunc(f); return Number.isSafeInteger(t) ? t : BigInt(t); },
-    /* (^ticket(758)) into an SInt only what fits in 32 bits, as Atom.convert: else IntegerTooBig */
-    sint_of_float: f => { const t = Math.trunc(f); if (!(t >= -2147483648 && t <= 2147483647)) { const e = new Error("hazel-jit: invalid operation: IntegerTooBig"); e.$invalid = "IntegerTooBig"; throw e; } return t === 0 ? 0 : t; },
+    /* (^ticket(758)) into an SInt only what fits in 64 bits, as Atom.convert: else IntegerTooBig. A Float is truncated toward
+       zero; 2^63 is a Float, and the least one too big */
+    sint_of_float: f => { const t = Math.trunc(f); if (!(t >= -9223372036854775808 && t < 9223372036854775808)) { const e = new Error("hazel-jit: invalid operation: IntegerTooBig"); e.$invalid = "IntegerTooBig"; throw e; } return Number.isSafeInteger(t) ? (t === 0 ? 0 : t) : BigInt(t); },
     int_of_sint: n => n,
-    sint_of_int: n => { if (n > 2147483647 || n < -2147483648) { const e = new Error("hazel-jit: invalid operation: IntegerTooBig"); e.$invalid = "IntegerTooBig"; throw e; } return Number(n); },
+    sint_of_int: n => { if (n > 9223372036854775807n || n < -9223372036854775808n) { const e = new Error("hazel-jit: invalid operation: IntegerTooBig"); e.$invalid = "IntegerTooBig"; throw e; } return n; },
     int_of_string: s => { let r; try { if (s.trim() === "") throw 0; r = BigInt(s); } catch (_) { const e = new Error("hazel-jit: invalid operation: InvalidOfString"); e.$invalid = "InvalidOfString"; throw e; }
       return r <= 9007199254740991n && r >= -9007199254740991n ? Number(r) : r; },
     float_of_string: s => Number(s),
@@ -267,7 +272,8 @@ module Runtime = {
     float_min: ([a, b]) => Math.min(a, b), float_max: ([a, b]) => Math.max(a, b),
     int_mod: ([a, b]) => { if (b === 0 || b === 0n) { const e = new Error("hazel-jit: invalid operation: DivideByZero"); e.$invalid = "DivideByZero"; throw e; }
       if (typeof a === "number" && typeof b === "number") return a % b; const r = BigInt(a) % BigInt(b); return r <= 9007199254740991n && r >= -9007199254740991n ? Number(r) : r; },
-    sint_mod: ([a, b]) => { if (b === 0) { const e = new Error("hazel-jit: invalid operation: DivideByZero"); e.$invalid = "DivideByZero"; throw e; } return a % b; },
+    sint_mod: ([a, b]) => { if (b === 0 || b === 0n) { const e = new Error("hazel-jit: invalid operation: DivideByZero"); e.$invalid = "DivideByZero"; throw e; }
+      if (typeof a === "number" && typeof b === "number") return a % b; const r = BigInt(a) % BigInt(b); return r <= 9007199254740991n && r >= -9007199254740991n ? Number(r) : r; },
     float_mod: ([a, b]) => a % b,
     to_fixed: ([x, n]) => x.toFixed(Math.min(Math.max(Number(n), 0), 20)),
     fst: p => p[0], snd: p => p[1],
@@ -559,8 +565,8 @@ let rec pat =
     no_type_hole(t);
     pat(st, scope, lex, p, v);
   | Atom(Int(n))
-  | Atom(Nat(n)) => ([v ++ " === " ++ js_int(n)], [], lex)
-  | Atom(SInt(n)) => ([v ++ " === " ++ string_of_int(n)], [], lex)
+  | Atom(Nat(n))
+  | Atom(SInt(n)) => ([v ++ " === " ++ js_int(n)], [], lex)
   | Atom(Float(f)) => ([v ++ " === " ++ js_float(f)], [], lex)
   | Atom(Bool(b)) => ([v ++ " === " ++ string_of_bool(b)], [], lex)
   | Atom(String(s)) => ([v ++ " === " ++ js_string(s)], [], lex)
@@ -708,9 +714,8 @@ and exp_inner =
   let go = exp(st, scope, lex);
   switch (Exp.term_of(e)) {
   | Atom(Int(n))
-  | Atom(Nat(n)) => js_int(n)
-  | Atom(SInt(n)) =>
-    n < 0 ? "(" ++ string_of_int(n) ++ ")" : string_of_int(n)
+  | Atom(Nat(n))
+  | Atom(SInt(n)) => js_int(n)
   | Atom(Float(f)) => js_float(f)
   | Atom(Bool(b)) => string_of_bool(b)
   | Atom(String(s)) => js_string(s)

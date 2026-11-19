@@ -337,7 +337,7 @@ module Wire = {
                 incr(n);
                 datas := [d, ...datas^];
                 let p: Exp.t = {
-                  term: Atom(SInt(i)),
+                  term: Atom(SInt(Bigint.of_int(i))),
                   annotation: marker,
                 };
                 p;
@@ -536,7 +536,7 @@ module Wire = {
         | _ => []
         };
       let bare: Exp.t = {
-        term: Atom(SInt(0)),
+        term: Atom(SInt(Bigint.zero)),
         annotation: IdTagged.IdTag.fresh(),
       };
       let values_only =
@@ -626,15 +626,19 @@ module Wire = {
       let conv = (v: Exp.t): Exp.t =>
         if (v.annotation === marker) {
           switch (v.term) {
-          | Atom(SInt(i)) when i >= 0 && i < Array.length(datas) =>
-            switch (terms[i]) {
-            | Some(t) => t
-            | None =>
-              let t0 = Util.BenchMarks.now();
-              let t = FirstOrder.to_term(datas[i]);
-              to_term_ms := to_term_ms^ +. (Util.BenchMarks.now() -. t0);
-              terms[i] = Some(t);
-              t;
+          | Atom(SInt(b)) =>
+            switch (Bigint.to_int(b)) {
+            | Some(i) when i >= 0 && i < Array.length(datas) =>
+              switch (terms[i]) {
+              | Some(t) => t
+              | None =>
+                let t0 = Util.BenchMarks.now();
+                let t = FirstOrder.to_term(datas[i]);
+                to_term_ms := to_term_ms^ +. (Util.BenchMarks.now() -. t0);
+                terms[i] = Some(t);
+                t;
+              }
+            | _ => v
             }
           | _ => v
           };
