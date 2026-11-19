@@ -7,7 +7,7 @@
  (instrumentation
   (backend bisect_ppx))
  (preprocess
-  (pps
+  (pps ppx_fuse_fun
    ppx_yojson_conv
    js_of_ocaml-ppx
    ppx_let

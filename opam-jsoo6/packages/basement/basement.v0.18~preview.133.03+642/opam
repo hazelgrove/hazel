@@ -7,7 +7,6 @@ dev-repo: "git+https://github.com/janestreet/basement.git"
 doc: "https://ocaml.janestreet.com/ocaml-core/latest/doc/basement/index.html"
 license: "MIT"
 x-maintenance-intent: ["(latest)"]
-patches: ["macos-fallthrough.patch"]
 build: [
   ["dune" "build" "-p" name "-j" jobs]
 ]
@@ -29,4 +28,5 @@ url {
   checksum:
     "sha256=abf1b302a935569d2d083f596522e1d032f4186b8492a387cb590b3107060ca7"
 }
-extra-files: [["macos-fallthrough.patch" "sha256=20ebb0d7e659b520e9f747fbf9dc073ace39887b6e9f1aada5ffc7350f27db2d"]]
+patches: ["basement-mainline.patch"]
+extra-files: [["basement-mainline.patch" "sha256=1d0b29e311c8a08bad05ad9416dc636b1d0f14ad378239a9f0b5171893777d54"]]
