@@ -9,7 +9,7 @@ open Web;
 let mk_model = (): History.Model.t => {
   let globals = Globals.Model.init();
   let (default_current, slides) = Lazy.force(Init.startup).scratch;
-  let default_names = List.map(fst, slides);
+  let default_names = List.map(~f=fst, slides);
   let scratch =
     ScratchMode.Persist.load_all(
       "scratch",
@@ -66,7 +66,12 @@ let tests = (
         let m0 = mk_model();
         let t0 = text_of(m0);
         let m1 = apply(m0, insert("1"));
-        check(bool, "insert changed the program", true, text_of(m1) != t0);
+        check(
+          bool,
+          "insert changed the program",
+          true,
+          !String.equal(text_of(m1), t0),
+        );
         check(int, "edit pushed one undo entry", 1, undo_len(m1));
         let m2 = apply(m1, undo);
         check(string, "undo restores original text", t0, text_of(m2));
@@ -74,7 +79,7 @@ let tests = (
           bool,
           "undo restores the exact pre-edit model",
           true,
-          m2.current === m0.current,
+          phys_equal(m2.current, m0.current),
         );
         check(int, "undo stack is empty again", 0, undo_len(m2));
         check(int, "undone edit moved to redo stack", 1, redo_len(m2));
@@ -135,7 +140,7 @@ let tests = (
           bool,
           "redo restores the exact post-edit model",
           true,
-          m3.current === m1.current,
+          phys_equal(m3.current, m1.current),
         );
         check(int, "redo moved the entry back to undo", 1, undo_len(m3));
         check(int, "redo stack is empty again", 0, redo_len(m3));
@@ -197,7 +202,7 @@ let tests = (
           bool,
           "undo kept the measured font",
           true,
-          m3.current.globals.font_metrics == fm,
+          FontMetrics.equal(m3.current.globals.font_metrics, fm),
         );
         /* Re-measure (e.g. zoom) while undone: redo keeps the new metrics,
            not the ones the redo entry was taken with */
@@ -211,7 +216,7 @@ let tests = (
           bool,
           "redo kept the re-measured font",
           true,
-          m5.current.globals.font_metrics == fm2,
+          FontMetrics.equal(m5.current.globals.font_metrics, fm2),
         );
       },
     ),
@@ -255,7 +260,11 @@ let tests = (
           bool,
           "undo kept the scrolled range",
           true,
-          m3.current.globals.visible_rows == Some(rows(30, 70)),
+          Option.equal(
+            Globals.VisibleRows.equal,
+            m3.current.globals.visible_rows,
+            Some(rows(30, 70)),
+          ),
         );
       },
     ),
@@ -275,7 +284,12 @@ let tests = (
           apply(mk_model(), Globals(UpdateVisibleRows(rows(0, 40))));
         /* Adding a slide is undoable and switches to the new slide */
         let m1 = apply(m0, Editors(Scratch(AddSlide)));
-        check(bool, "switched to another slide", true, key(m1) != key(m0));
+        check(
+          bool,
+          "switched to another slide",
+          true,
+          !String.equal(key(m1), key(m0)),
+        );
         let m2 = apply(m1, Globals(UpdateVisibleRows(rows(30, 70))));
         let m3 = apply(m2, undo);
         check(
@@ -288,7 +302,7 @@ let tests = (
           bool,
           "undo reset the range",
           true,
-          m3.current.globals.visible_rows == None,
+          Option.is_none(m3.current.globals.visible_rows),
         );
       },
     ),

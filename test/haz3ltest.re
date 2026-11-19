@@ -1,6 +1,6 @@
 open Junit_alcotest;
 
-Printexc.register_printer(exn => {
+Stdlib.Printexc.register_printer(exn => {
   switch (exn) {
   | Language.EvaluatorError.Exception(msg) =>
     Some(Language.EvaluatorError.show(msg))
@@ -14,7 +14,7 @@ Printexc.register_printer(exn => {
 let (suite, exit_with_test_status) =
   run_and_report(
     ~and_exit=true,
-    ~argv=Sys.argv,
+    ~argv=Stdlib.Sys.argv,
     "HazelTests",
     [
       Test_LazyHydration.tests,

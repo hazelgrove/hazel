@@ -51,6 +51,7 @@ let folder_indices = (~current: int, paths: list(t)): list(int) =>
     |> List.filter_map(~f=((i, p)) => same_folder(p, cur) ? Some(i) : None)
   };
 
+[@deriving eq]
 type folder_position = {
   index_in_folder: int,
   folder_size: int,
