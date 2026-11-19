@@ -105,16 +105,8 @@ and typ_term('a) =
   | Arrow(typ_t('a), typ_t('a))
   | TypFun(tpat_t('a), typ_t('a))
   | TypParamAp(typ_t('a), typ_t('a))
-  /* TypTuple is the multi-argument bundle for type parameter
-     applications like `Either(a, b)`. It only appears as the second
-     argument of `TypParamAp` and never as a stand-alone type — it has
-     no kind by
-     itself; its arguments must match the tuple-arrow kind of the
-     callee. Single-argument applications and applications whose
-     argument is itself a parenthesized tuple use plain `TypParamAp(T, t)`
-     without `TypTuple` (so `Either((Int, Bool))` is a partial
-     application of `Either` to a `Prod`, distinct from `Either(Int,
-     Bool)` which becomes `TypParamAp(Either, TypTuple([Int, Bool]))`). */
+  /* The arguments of `T(a, b)`, only ever as a `TypParamAp` argument;
+     `T((a, b))` applies `T` to one argument, the tuple. */
   | TypTuple(list(typ_t('a)))
   | Sum(ConstructorMap.t(typ_t('a)))
   | Prod(list(typ_t('a)))
@@ -136,20 +128,8 @@ and tpat_term('a) =
   | MultiHole(list(any_t('a)))
   | Var(string)
   | Param(tpat_t('a), list(tpat_t('a)))
-  /* Tuple is a multi-binder type pattern, used as the binder of `Poly`,
-     `TypAbs`, `TypFun`, and `Rec` when the user wrote a comma-separated
-     list of binders, e.g. `poly a, b -> t` parses as
-     `Poly(TPat.Tuple([a, b]), t)` and `typfun a, b -> e` parses as
-     `TypAbs(TPat.Tuple([a, b]), e, _)`. The corresponding type-level
-     application supplies a `TypTuple` argument of matching arity, and
-     substitution / reduction zip the pair element-by-element. Tuple
-     never appears as a stand-alone tpat outside a binder position. */
+  /* the binder list of `poly a, b -> …` (also `abs`, `typfun`) */
   | Tuple(list(tpat_t('a)))
-  /* Parens is a transparent wrapper for displaying the user's
-     parenthesization, e.g. `poly (a, b) -> …` parses as
-     `Poly(Parens(Tuple([a, b])), …)`. Semantic operations
-     (`tyvars_of`, `binders_of`, etc.) look through it; the
-     structured-editor pretty-printer renders it as `(…)`. */
   | Parens(tpat_t('a))
 and tpat_t('a) = Annotated.t(tpat_term('a), 'a)
 and rul_term('a) =

@@ -1569,7 +1569,7 @@ let decide =
         TypFunTyp.typfun(
           ~tpat_ids=List.map(IdTagged.rep_id, TPat.binders_of(tpat)),
           ~tbody_id=IdTagged.rep_id(body),
-          ~kind=TypKind.to_string(Statics.kind_of_typ(typ_info.ctx, typ)),
+          ~kind=TypKind.to_string(Kinding.kind_of_typ(typ_info.ctx, typ)),
         ),
       )
     | TypParamAp(callee, arg) =>

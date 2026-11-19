@@ -11,120 +11,6 @@ include StaticsBase;
 let add_info = Map.add_info;
 let add_missing_info = Map.add_missing_info;
 
-/* Compute a type's kind without descending into descendants. The
-   recursive `utyp_to_info_map` traversal puts kind marks on each node
-   individually, so this helper is purely for "what kind does the
-   surface produce here?" callsites (alias-body kind, callee kind for
-   `TypParamAp`, expected-Type checks).
-
-   `Var(name)` falls back to `Unknown` (not `Type`) when the name is
-   neither a base type nor in the context, so a free `L` in
-   `Cons(a, L(a))` produces only the free-variable mark on `L` and
-   doesn't pile a "cannot apply" mark on the surrounding application.
-
-   Top-level (rather than nested inside `utyp_to_info_map`) so
-   `TyAlias` can use it to compute the kind threaded through
-   `extend_alias` and the cursor-inspector entry on the alias name. */
-let rec kind_of_typ = (ctx: Ctx.t, ty: Typ.t): TypKind.t => {
-  let type_ = TypKind.Type;
-  switch (ty.term) {
-  | Unknown(_) => TypKind.Unknown
-  | Atom(_)
-  | DrvQuoteTy(_)
-  | Label(_)
-  | ExplicitNonlabel => type_
-  | Var(name) =>
-    switch (Ctx.lookup_tvar_typ_kind(ctx, name)) {
-    | Some(kind) => kind
-    | None when Ctx.is_base_typ(name) => TypKind.Type
-    | None => TypKind.Unknown
-    }
-  | Parens(t)
-  | Projector(_, t) => kind_of_typ(ctx, t)
-  | ProdProjection(_) =>
-    /* `M.T`: resolve through the module's labeled-tuple exports so
-       a parameterized export reports its full `(Type, …) -> Type`
-       kind. Same path `weak_head_normalize` follows. */
-    let resolved = Typ.weak_head_normalize(ctx, ty);
-    switch (resolved.term) {
-    | ProdProjection(_) => type_
-    | Unknown(_)
-    | Atom(_)
-    | DrvQuoteTy(_)
-    | Label(_)
-    | ExplicitNonlabel
-    | Var(_)
-    | Parens(_)
-    | Projector(_)
-    | List(_)
-    | Arrow(_)
-    | TupLabel(_)
-    | ProdExtension(_)
-    | Prod(_)
-    | Sum(_)
-    | Poly(_)
-    | ProofOf(_)
-    | Sig(_)
-    | TypTuple(_)
-    | TypFun(_)
-    | TypParamAp(_)
-    | Rec(_) => kind_of_typ(ctx, resolved)
-    };
-  | List(_)
-  | Arrow(_)
-  | TupLabel(_)
-  | ProdExtension(_)
-  | Prod(_)
-  | Sum(_)
-  | Poly(_)
-  | ProofOf(_)
-  | Sig(_) => type_
-  | TypTuple(_) =>
-    /* No kind on its own — only ever the second arg of `TypParamAp`,
-       checked there. `Type` is a neutral fallback so an isolated
-       `TypTuple` doesn't poison surrounding kind checks. */
-    type_
-  | TypFun(param, body) =>
-    let n = List.length(TPat.binders_of(param));
-    let body_ctx = Ctx.extend_dummy_tvar(ctx, param);
-    TypKind.arrows(List.init(n, _ => type_), kind_of_typ(body_ctx, body));
-  | TypParamAp(fn, arg) =>
-    let fn_kind = kind_of_typ(ctx, fn);
-    let arg_kinds =
-      switch (arg.term) {
-      | TypTuple(ts) => List.map(kind_of_typ(ctx), ts)
-      | Unknown(_)
-      | Atom(_)
-      | DrvQuoteTy(_)
-      | Label(_)
-      | ExplicitNonlabel
-      | Var(_)
-      | Parens(_)
-      | Projector(_)
-      | ProdProjection(_)
-      | List(_)
-      | Arrow(_)
-      | TupLabel(_)
-      | ProdExtension(_)
-      | Prod(_)
-      | Sum(_)
-      | Poly(_)
-      | ProofOf(_)
-      | Sig(_)
-      | TypFun(_)
-      | TypParamAp(_)
-      | Rec(_) => [kind_of_typ(ctx, arg)]
-      };
-    switch (TypKind.apply_all(fn_kind, arg_kinds)) {
-    | Some(result) => result
-    | None => type_
-    };
-  | Rec(param, body) =>
-    let body_ctx = Ctx.extend_dummy_tvar(ctx, param);
-    kind_of_typ(body_ctx, body);
-  };
-};
-
 let rec any_to_info_map =
         (
           ~ctx: Ctx.t,
@@ -2837,7 +2723,7 @@ and uexp_to_info_map =
             (group, kind) =>
               TypKind.arrows(List.map(_ => TypKind.Type, group), kind),
             param_groups,
-            kind_of_typ(extend_params(ctx), def_body),
+            Kinding.kind_of_typ(extend_params(ctx), def_body),
           );
         /* What the alias stands for: its type function (built from the
            head's parameters for `type T(a, b) = …`), recursive when the
@@ -4074,7 +3960,7 @@ and utyp_to_info_map =
     | ProductExpected
     | ConstructorExpected(_)
     | VariantExpected(_) =>
-      let actual = kind_of_typ(ctx, utyp);
+      let actual = Kinding.kind_of_typ(ctx, utyp);
       TypKind.consistent(actual, TypKind.Type)
         ? []
         : [
@@ -4247,10 +4133,10 @@ and utyp_to_info_map =
          application `T(String) :: Type -> Type`), and the alias
          just inherits it. In `TypeExpected` position the result
          must be `Type`. */
-      let fn_kind = kind_of_typ(ctx, fn);
+      let fn_kind = Kinding.kind_of_typ(ctx, fn);
       let arg_kinds =
         switch (arg.term) {
-        | TypTuple(ts) => List.map(kind_of_typ(ctx), ts)
+        | TypTuple(ts) => List.map(Kinding.kind_of_typ(ctx), ts)
         | Unknown(_)
         | Atom(_)
         | DrvQuoteTy(_)
@@ -4271,7 +4157,7 @@ and utyp_to_info_map =
         | Sig(_)
         | TypFun(_)
         | TypParamAp(_)
-        | Rec(_) => [kind_of_typ(ctx, arg)]
+        | Rec(_) => [Kinding.kind_of_typ(ctx, arg)]
         };
       switch (fn_kind) {
       | TypKind.Unknown =>
@@ -4380,7 +4266,7 @@ and utyp_to_info_map =
        still get info entries, then overwrite `t1`'s own info entry
        with a callee-context one (drops the spurious kind-arrow
        marks and shows a "has kind …" summary). */
-    let fn_kind = kind_of_typ(ctx, t1);
+    let fn_kind = Kinding.kind_of_typ(ctx, t1);
     let m = go(t1, m) |> snd;
     let prior_marks =
       switch (Map.lookup(Typ.rep_id(t1), m)) {

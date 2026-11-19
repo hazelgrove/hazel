@@ -1102,7 +1102,14 @@ let shared_binders =
 let max_family_unfoldings = 64;
 
 /* [seen] holds the (recursive type, other type) pairs being met through an
-   unrolling on the way here. */
+   unrolling on the way here.
+
+   Binding forms (`rec`, `poly`, `typfun`) meet when their bodies do under
+   a shared binder ([shared_binders]); a `poly ? -> …` binder of holes, the
+   expected type of a type application's callee, matches a quantifier over
+   any number of variables and takes its binders. A type application meets
+   through beta reduction, and a recursive family at an argument through
+   one unfolding at a time (see the family cases). */
 let rec meet =
         (~seen: list((t, t))=[], ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   let meet' = meet(~seen, ctx);
