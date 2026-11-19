@@ -25,9 +25,7 @@ let rezip = (z: Zipper.t, seg: Segment.t): Zipper.t => {
 };
 
 let prepared = (z: Zipper.t): Segment.t =>
-  z
-  |> Zipper.clear_unparsed_buffer
-  |> Zipper.unselect_and_zip(~erase_buffer=true);
+  z |> Zipper.unselect_and_zip(~erase_buffer=true);
 
 /* Materialized shards splice in without lexing, so a synthesized
    delimiter can land glued to its neighbor (end|in re-lexes as one

@@ -9,7 +9,7 @@ let exercise : DerivationExercise.spec =
       prelude =
         {
           zipper =
-            "((selection((focus Left)(content())(mode Normal)(anchor_caret \
+            "((selection((focus Left)(content())(anchor_caret \
              Outer)(smart_rounded false)))(relatives((siblings(()((Grout((id \
              4608e291-678c-449b-b492-663b763b207b)(shape \
              Convex))))))(ancestors())))(caret \
@@ -21,7 +21,7 @@ let exercise : DerivationExercise.spec =
       setup =
         {
           zipper =
-            "((selection((focus Left)(content())(mode Normal)(anchor_caret \
+            "((selection((focus Left)(content())(anchor_caret \
              Outer)(smart_rounded false)))(relatives((siblings(((Tile((id \
              f5af2ad7-8ec7-4b18-a593-74b71be3a765)(form(Compound \
              Let))(shards(0 1 2))(children(((Secondary((id \
@@ -68,8 +68,8 @@ let exercise : DerivationExercise.spec =
                   jdmt =
                     {
                       zipper =
-                        "((selection((focus Left)(content())(mode \
-                         Normal)(anchor_caret Outer)(smart_rounded \
+                        "((selection((focus Left)(content())(anchor_caret \
+                         Outer)(smart_rounded \
                          false)))(relatives((siblings(((Tile((id \
                          2015673a-36fd-4910-b26b-c31c817d053a)(form(Tok \
                          $ab))(sort(Drv Exp))))(Secondary((id \
@@ -103,8 +103,8 @@ let exercise : DerivationExercise.spec =
                   jdmt =
                     {
                       zipper =
-                        "((selection((focus Left)(content())(mode \
-                         Normal)(anchor_caret Outer)(smart_rounded \
+                        "((selection((focus Left)(content())(anchor_caret \
+                         Outer)(smart_rounded \
                          false)))(relatives((siblings(((Tile((id \
                          702881a5-280c-4060-a1e0-b6ddbc80723b)(form(Tok \
                          []))(sort(Drv Exp))))(Secondary((id \
@@ -160,8 +160,9 @@ let exercise : DerivationExercise.spec =
                         jdmt =
                           {
                             zipper =
-                              "((selection((focus Left)(content())(mode \
-                               Normal)(anchor_caret Outer)(smart_rounded \
+                              "((selection((focus \
+                               Left)(content())(anchor_caret \
+                               Outer)(smart_rounded \
                                false)))(relatives((siblings(((Tile((id \
                                3c7eccb5-b10c-4144-bae1-791529ea05a0)(form(Tok \
                                $ab))(sort(Drv Exp))))(Secondary((id \
@@ -195,8 +196,9 @@ let exercise : DerivationExercise.spec =
                               jdmt =
                                 {
                                   zipper =
-                                    "((selection((focus Left)(content())(mode \
-                                     Normal)(anchor_caret Outer)(smart_rounded \
+                                    "((selection((focus \
+                                     Left)(content())(anchor_caret \
+                                     Outer)(smart_rounded \
                                      false)))(relatives((siblings(((Tile((id \
                                      e5f44296-5619-4178-a579-5d4d0b7a82ae)(form(Tok \
                                      $ab))(sort(Drv Exp))))(Secondary((id \
@@ -223,8 +225,9 @@ let exercise : DerivationExercise.spec =
                               jdmt =
                                 {
                                   zipper =
-                                    "((selection((focus Left)(content())(mode \
-                                     Normal)(anchor_caret Outer)(smart_rounded \
+                                    "((selection((focus \
+                                     Left)(content())(anchor_caret \
+                                     Outer)(smart_rounded \
                                      false)))(relatives((siblings(((Tile((id \
                                      e52a13c3-434f-42b0-ae0a-c8f880bdaf3f)(form(Tok \
                                      $ab))(sort(Drv Exp))))(Secondary((id \

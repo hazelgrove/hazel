@@ -420,25 +420,6 @@ svg.shard.selected-expanded > path {
   z-index: 2;
 }
 
-/* Code completion decoration */
-
-svg.shard.selected.buffer-unparsed {
-  filter: none;
-}
-svg.shard.selected.buffer-unparsed > path {
-  fill: transparent;
-  stroke-width: 0;
-}
-svg.shard.selected.buffer-parsed {
-  filter: drop-shadow(
-    var(--off-x) var(--off-y) var(--blur) var(--shard-lines-exp)
-  );
-}
-svg.shard.selected.buffer-parsed > path {
-  fill: var(--text-surface);
-  stroke: var(--border-surface);
-}
-
 /* VAR HIGHLIGHT DECO */
 
 .var-highlights {
