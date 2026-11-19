@@ -582,20 +582,23 @@ module NinjaKeys = {
   let ( let* ) = Js.Opt.case(_, () => Js._false);
 
   // Wrap a function (to be called by Js setInterval) in a loop call.
-  // Clear the interval if the function returns true.
-  let loop = (f: unit => bool, interval: float) => {
+  // Clear the interval if the function returns true, or after max_tries
+  // calls (so a function that never succeeds, or throws, cannot leak it).
+  let loop = (~max_tries=50, f: unit => bool, interval: float) => {
     let id_ref = ref(Option.None);
+    let tries = ref(0);
     id_ref :=
       Some(
         Dom_html.window##setInterval(
-          Js.wrap_callback(_ =>
-            if (f()) {
+          Js.wrap_callback(_ => {
+            incr(tries);
+            if (tries^ > max_tries || f()) {
               switch (id_ref^) {
               | Some(id) => Dom_html.window##clearInterval(id)
               | None => ()
               };
-            }
-          ),
+            };
+          }),
           Js.float(interval),
         ),
       );
@@ -619,7 +622,8 @@ module NinjaKeys = {
   /* Lazy: module init must not touch the DOM (the test binary links
      this module under node). */
   let elem = Lazy.from_fun(() => JsUtil.get_elem_by_id("ninja-keys-rules"));
-  let shadow_root = Js.Unsafe.get(_, "shadowRoot");
+  /* shadowRoot is JS null (not OCaml None) until one is attached. */
+  let shadow_root = e => Js.Opt.to_option(Js.Unsafe.get(e, "shadowRoot"));
 
   module Open =
          (
@@ -658,29 +662,34 @@ module NinjaKeys = {
       ();
     };
 
-    let bind_event_handler_all = () => {
-      let elem_root = shadow_root(elem);
-      if (elem_root != None) {
+    /* Returns true once the actions are bound; false means retry. */
+    let bind_event_handler_all = () =>
+      switch (shadow_root(Lazy.force(elem))) {
+      | Some(elem_root) =>
         let actions = elem_root##querySelectorAll(Js.string("ninja-action"));
         let _ = actions##forEach(Js.wrap_callback(bind_event_handler));
         actions##.length != 0;
-      } else {
-        true;
+      | None => false
       };
-    };
 
-    let bind_event_handler_search = () => {
-      let elem_root = shadow_root(elem);
-      if (elem_root != None) {
-        let ninja_header =
-          elem_root##querySelector(Js.string("ninja-header"));
-        let shadow_root = shadow_root(ninja_header);
-        let search: Js.t(Dom_html.inputElement) =
-          shadow_root##querySelector(Js.string("#search"));
-        search##.oninput :=
-          Dom.handler(_ev => Js.bool(bind_event_handler_all()));
+    let bind_event_handler_search = () =>
+      switch (shadow_root(Lazy.force(elem))) {
+      | Some(elem_root) =>
+        Js.Opt.iter(
+          elem_root##querySelector(Js.string("ninja-header")), header =>
+          switch (shadow_root(header)) {
+          | Some(header_root) =>
+            Js.Opt.iter(
+              header_root##querySelector(Js.string("#search")),
+              (search: Js.t(Dom_html.inputElement)) =>
+              search##.oninput :=
+                Dom.handler(_ev => Js.bool(bind_event_handler_all()))
+            )
+          | None => ()
+          }
+        )
+      | None => ()
       };
-    };
 
     let from_rule =
         (rule: RuleImage.t)
