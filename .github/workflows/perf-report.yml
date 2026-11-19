@@ -6,11 +6,14 @@
 # a shared runner is too noisy to gate on; the deterministic step budgets in
 # test/evaluator/Test_PerfBudgets.re (part of Fast checks) are the gate. The
 # report job succeeds whatever it finds, and fails only if the tooling breaks.
+# A head whose harness crashes or hangs (where the base's ran) is a finding,
+# reported as significant, not a tooling failure.
 #
 # The full tables are in the report job's summary (click into the check). A PR
-# comment is posted only for a significant change, and is the one comment,
-# edited in place on later pushes: updated while the change persists, marked
-# resolved (keeping the old report, collapsed) once a push no longer shows it.
+# comment is posted only for a significant change, and is the one comment:
+# updated in place while the change persists, marked resolved (keeping the old
+# report, collapsed) once a push no longer shows it, and replaced by a new
+# comment, which notifies, if a later push makes a change significant again.
 #
 # Two jobs, so that the one running the pull request's code holds no write
 # token. `Performance report` builds and runs PR code with a read-only token;
@@ -34,7 +37,8 @@ jobs:
     # Drafts are skipped: the report runs again when one is marked ready.
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    # Without this, GitHub's 360-min default applies.
+    # Without this, GitHub's 360-min default applies. A harness that hangs is
+    # stopped after 15 minutes per run (bench/perf_report.py), well inside it.
     timeout-minutes: 60
     permissions:
       contents: read
@@ -47,16 +51,19 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
 
+      # From the base commit recorded in the event, not dev's live tip: dev
+      # moving on mid-run (or the PR being merged) must not change what this
+      # run, or a re-run of it, compares against.
       - name: Find the merge base with dev
         id: base
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         # The compare API answers without a deep clone of either branch.
         run: |
-          sha=$(gh api "repos/$REPO/compare/$BASE_REF...$HEAD_SHA" --jq .merge_base_commit.sha)
+          sha=$(gh api "repos/$REPO/compare/$BASE_SHA...$HEAD_SHA" --jq .merge_base_commit.sha)
           echo "Merge base: $sha"
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
 
@@ -73,10 +80,10 @@ jobs:
       # dependencies is therefore measured on the new ones for both sides.
       - uses: ./.github/actions/setup-hazel-toolchain
 
-      # Builds both sides (the head's harness copied into the base) and
-      # alternates their timing rounds in this one job, so both see the same
-      # machine. DUNE_CACHE lets the second build reuse the first's unchanged
-      # modules.
+      # Builds both sides (the head's harness copied into the base, or the
+      # base's own if the head's does not build there) and alternates their
+      # timing rounds in this one job, so both see the same machine.
+      # DUNE_CACHE lets the second build reuse the first's unchanged modules.
       - name: Measure base and head
         run: |
           export DUNE_CACHE=enabled
@@ -90,7 +97,11 @@ jobs:
             cat _perf/report/report.md
           } >> "$GITHUB_STEP_SUMMARY"
 
+      # Also when measuring failed, for the build logs. The comment job only
+      # runs after a successful report job, so a partial upload is never
+      # commented on.
       - name: Upload the report
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: perf-report
@@ -106,7 +117,9 @@ jobs:
     name: Comment on a significant change
     needs: report
     # Fork PRs get a read-only token, so this could not comment anyway.
-    if: github.event.pull_request.head.repo.fork == false
+    # Compared by name rather than `head.repo.fork == false`, which is also
+    # true when the fork has been deleted (head.repo is null).
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -119,18 +132,33 @@ jobs:
           path: perf-report
 
       # One sticky comment, found by its marker:
-      #   significant, no comment yet  -> post one
-      #   significant, comment exists  -> replace its report
-      #   not significant, comment     -> mark it resolved, old report collapsed
-      #   not significant, no comment  -> nothing
+      #   significant, no comment yet           -> post one
+      #   significant, comment shows a change   -> replace its report in place
+      #   significant, comment says resolved    -> delete it and post a new
+      #                                            one: an edit notifies no one
+      #   not significant, comment              -> mark it resolved, old
+      #                                            report collapsed
+      #   not significant, no comment           -> nothing
+      # A run for a commit that is no longer the PR's head (a re-run of an old
+      # run) does nothing, so it cannot overwrite newer results.
       - name: Post, update or resolve the comment
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
             const MARKER = '<!-- hazel-perf-report -->';
+            const RESOLVED = '<!-- hazel-perf-report:resolved -->';
             const START = '<!-- report-start -->';
             const END = '<!-- report-end -->';
+
+            // What to do, from this run's finding and the sticky comment's
+            // body (null if there is none).
+            function decide(significant, existingBody) {
+              if (existingBody == null) return significant ? 'create' : 'nothing';
+              if (!significant) return 'resolve';
+              return existingBody.includes(RESOLVED) ? 'recreate' : 'update';
+            }
+
             const significant =
               fs.readFileSync('perf-report/significant', 'utf8').trim() === 'true';
             const { owner, repo } = context.repo;
@@ -138,14 +166,46 @@ jobs:
             const sha = pr.head.sha.slice(0, 7);
             const run = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
 
+            const { data: live } = await github.rest.pulls.get({
+              owner, repo, pull_number: pr.number,
+            });
+            if (live.head.sha !== pr.head.sha) {
+              core.info(`This run is for ${sha}, but the PR's head is now ` +
+                `${live.head.sha.slice(0, 7)}: leaving the comment to its run.`);
+              return;
+            }
+
             const comments = await github.paginate(github.rest.issues.listComments, {
               owner, repo, issue_number: pr.number, per_page: 100,
             });
-            const existing = comments.find(
-              c => c.user.login === 'github-actions[bot]' && c.body.includes(MARKER));
+            const existing = comments.filter(
+              c => c.user.login === 'github-actions[bot]' && c.body.includes(MARKER)).pop();
+            const action = decide(significant, existing ? existing.body : null);
+            core.info(`Significant: ${significant}; comment: ` +
+              `${existing ? existing.html_url : 'none'}; action: ${action}`);
 
             let body;
-            if (significant) {
+            if (action === 'nothing') {
+              return;
+            } else if (action === 'resolve') {
+              const prev = existing.body;
+              const i = prev.indexOf(START), j = prev.indexOf(END);
+              const old = i >= 0 && j > i ? prev.slice(i, j + END.length) : '';
+              body = [
+                MARKER,
+                RESOLVED,
+                '## Performance report',
+                '',
+                `✅ **Resolved** as of ${sha}: no significant change any more ` +
+                  `([job summary](${run})).`,
+                '',
+                '<details><summary>Previous report</summary>',
+                '',
+                old,
+                '',
+                '</details>',
+              ].join('\n');
+            } else {
               const report = fs.readFileSync('perf-report/comment.md', 'utf8');
               body = [
                 MARKER,
@@ -159,29 +219,17 @@ jobs:
                   'This comment is updated on each push, and marked resolved once ' +
                   'a push no longer shows a significant change.</sub>',
               ].join('\n');
-            } else if (existing) {
-              const prev = existing.body;
-              const i = prev.indexOf(START), j = prev.indexOf(END);
-              const old = i >= 0 && j > i ? prev.slice(i, j + END.length) : '';
-              body = [
-                MARKER,
-                '## Performance report',
-                '',
-                `✅ **Resolved** as of ${sha}: no significant change any more ` +
-                  `([job summary](${run})).`,
-                '',
-                '<details><summary>Previous report</summary>',
-                '',
-                old,
-                '',
-                '</details>',
-              ].join('\n');
-            } else {
-              core.info('No significant change and no earlier comment: nothing to do.');
-              return;
             }
 
-            if (existing) {
+            if (action === 'recreate') {
+              // Deleted first: if posting then failed, the next run would
+              // post afresh, rather than find two comments.
+              await github.rest.issues.deleteComment({
+                owner, repo, comment_id: existing.id,
+              });
+              core.info(`Deleted the resolved comment ${existing.html_url}`);
+            }
+            if (action === 'update' || action === 'resolve') {
               await github.rest.issues.updateComment({
                 owner, repo, comment_id: existing.id, body,
               });
