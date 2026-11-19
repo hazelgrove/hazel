@@ -97,6 +97,16 @@ let tests = (
       },
     ),
     test_case(
+      "String escape equality",
+      `Quick,
+      () => {
+        parse_and_evaluate_test("true", {|"\x41" == "A"|});
+        parse_and_evaluate_test("true", {|"\x41" == r"A"|});
+        parse_and_evaluate_test("true", {|r"A" == "A"|});
+        parse_and_evaluate_test("true", {|r"\x41" != "\x41"|});
+      },
+    ),
+    test_case(
       "Polymorphic Equality Type Inconsistency Dynamics",
       `Quick,
       () => {

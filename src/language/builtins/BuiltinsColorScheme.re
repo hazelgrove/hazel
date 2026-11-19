@@ -148,6 +148,7 @@ let role_groups: list((string, list(string))) = [
       "derivation",
       "locked-cell",
       "string",
+      "string-escape",
       "comment",
       "selection",
       "waiting-1",
