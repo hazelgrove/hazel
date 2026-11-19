@@ -53,6 +53,8 @@ type ok_typ =
     })
   | Kind(TypKind.t)
   | Type(Typ.t)
+  /* a type function (arrow kind), where one is allowed */
+  | TypeFunction(Typ.t, TypKind.t)
   | EmptyLabel
   | Default /* show just the class label, no extra message body */
   | TypeUnderdetermined(underdetermined_typ);

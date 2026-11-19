@@ -22,7 +22,8 @@ let poly_pair_ex = {
 
 /* `abs a -> e`, `abs a, b -> e`: a value-level type abstraction, the
    values of `poly` types. [tpat_ids] are the binders' terms. */
-let typ_abs = (~tpat_ids: list(Id.t), ~body_id: Id.t): form => {
+let typ_abs = (~binders: list((string, Id.t)), ~body_id: Id.t): form => {
+  let tpat_ids = List.map(snd, binders);
   let n = List.length(tpat_ids);
   let (binder_seg, binder_pieces) = tpat_list("a", n);
   let e = exp("e");
@@ -38,16 +39,21 @@ let typ_abs = (~tpat_ids: list(Id.t), ~body_id: Id.t): form => {
     expandable_id: None,
     explanation:
       Printf.sprintf(
-        "A type abstraction: a value that takes %s as %s. Its type is a `poly` type. Apply it with `e@<%s>` to substitute types for the %s in the [*body*](%s).",
-        links("type variable", tpat_ids),
+        "A type abstraction: a value that takes %s as %s. Its type is a `poly` type. Apply it with `e@<%s>` to substitute types for %s in the [*body*](%s).",
+        named_links(binders),
         n == 1 ? "a type argument" : "type arguments",
-        n == 1 ? "T" : String.concat(", ", List.init(n, _ => "T")),
-        n == 1 ? "type variable" : "type variables",
+        n == 1
+          ? "T"
+          : String.concat(
+              ", ",
+              List.init(n, i => Printf.sprintf("T%d", i + 1)),
+            ),
+        n == 1 ? "it" : "them",
         Id.to_string(body_id),
       ),
     examples: n == 1 ? [poly_id_ex] : [poly_pair_ex],
   };
 };
 
-let typ_abss = (~tpat_ids: list(Id.t), ~body_id: Id.t): group =>
-  singleton(typ_abs(~tpat_ids, ~body_id));
+let typ_abss = (~binders: list((string, Id.t)), ~body_id: Id.t): group =>
+  singleton(typ_abs(~binders, ~body_id));

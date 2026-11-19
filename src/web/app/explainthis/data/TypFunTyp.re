@@ -24,7 +24,8 @@ let curried_ex = {
    proper type (its kind is an arrow), so it is used by applying it to
    type arguments, `T(Int)`, never as the type of a value. */
 let typfun_typ =
-    (~tpat_ids: list(Id.t), ~tbody_id: Id.t, ~kind: string): form => {
+    (~binders: list((string, Id.t)), ~tbody_id: Id.t, ~kind: string): form => {
+  let tpat_ids = List.map(snd, binders);
   let n = List.length(tpat_ids);
   let (binder_seg, binder_pieces) = tpat_list("a", n);
   let typ_body = typ("ty");
@@ -32,6 +33,7 @@ let typfun_typ =
     id: TypFunTyp,
     syntactic_form: [
       mk_typfun([[space()] @ binder_seg @ [space()]]),
+      space(),
       typ_body,
     ],
     colorings:
@@ -40,11 +42,11 @@ let typfun_typ =
     expandable_id: None,
     explanation:
       Printf.sprintf(
-        "A type function (kind `%s`): applied to %s, it gives the [*body*](%s) with the arguments substituted for the %s. It is not itself the type of any value: write `T(%s)` to get one. Usually written through an alias, `type T(%s) = …`. Compare `poly`, the type of values that work at every type.",
+        "A type function (kind `%s`): applied to %s, it gives the [*body*](%s) with the arguments substituted for %s. It is not itself the type of any value: write `T(%s)` to get one. Usually written through an alias, `type T(%s) = …`. Compare `poly`, the type of values that work at every type.",
         kind,
         n == 1 ? "a type argument" : Printf.sprintf("%d type arguments", n),
         Id.to_string(tbody_id),
-        links("type variable", tpat_ids),
+        named_links(binders),
         n == 1 ? "Int" : String.concat(", ", List.init(n, _ => "Int")),
         n == 1
           ? "a"
@@ -57,5 +59,6 @@ let typfun_typ =
   };
 };
 
-let typfun = (~tpat_ids: list(Id.t), ~tbody_id: Id.t, ~kind: string): group =>
-  singleton(typfun_typ(~tpat_ids, ~tbody_id, ~kind));
+let typfun =
+    (~binders: list((string, Id.t)), ~tbody_id: Id.t, ~kind: string): group =>
+  singleton(typfun_typ(~binders, ~tbody_id, ~kind));

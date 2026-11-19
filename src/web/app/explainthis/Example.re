@@ -153,3 +153,15 @@ let links = (label: string, ids: list(Id.t)): string =>
   ids
   |> List.map(id => Printf.sprintf("[*%s*](%s)", label, Id.to_string(id)))
   |> String.concat(", ");
+
+/* Links labelled with the names they stand for, `a` and `b` */
+let named_links = (named: list((string, Id.t))): string => {
+  let link = ((name, id)) =>
+    Printf.sprintf("[*%s*](%s)", name, Id.to_string(id));
+  switch (List.rev(named)) {
+  | [] => ""
+  | [last] => link(last)
+  | [last, ...rest] =>
+    String.concat(", ", List.rev_map(link, rest)) ++ " and " ++ link(last)
+  };
+};

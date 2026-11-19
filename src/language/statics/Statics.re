@@ -4202,12 +4202,21 @@ and utyp_to_info_map =
             }),
           );
         } else {
-          ok(Message.Type(utyp));
+          switch (result) {
+          | Arrow(_) => ok(Message.TypeFunction(utyp, result))
+          | Type
+          | Unknown => ok(Message.Type(utyp))
+          };
         };
       };
     | (TypeExpected | AnyKindExpected, _) =>
       switch (kind_marks_for_expected_type(~expects, utyp)) {
-      | [] => ok(Message.Type(utyp))
+      | [] =>
+        switch (Kinding.kind_of_typ(ctx, utyp)) {
+        | Arrow(_) as kind => ok(Message.TypeFunction(utyp, kind))
+        | Type
+        | Unknown => ok(Message.Type(utyp))
+        }
       | [mark, ..._] => err(mark)
       }
     };

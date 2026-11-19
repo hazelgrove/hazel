@@ -196,7 +196,7 @@ let show_cls: cls => string =
   | ListLit => "List literal"
   | Constructor => "Constructor"
   | Fun => "Function literal"
-  | TypAbs => "Type Function Literal"
+  | TypAbs => "Type abstraction"
   | Tuple => "Tuple literal"
   | Label => "Label"
   | ExplicitNonlabel => "Explicitly unlabeled entry"

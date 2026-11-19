@@ -519,6 +519,16 @@ let rec bypass_parens_pat = (pat: Pat.t) => {
 /* Representative id of the nth element of a tuple/list child sequence. */
 let nth_rep_id = (elements, n) => IdTagged.rep_id(List.nth(elements, n));
 
+/* The variables a binder binds, as names and ids (`?` for a hole). */
+let binder_names = (tpat: TPat.t): list((string, Id.t)) =>
+  TPat.binders_of(tpat)
+  |> List.map((b: TPat.t) =>
+       (
+         Option.value(~default="?", TPat.tyvar_of_utpat(b)),
+         IdTagged.rep_id(b),
+       )
+     );
+
 /* The type arguments of a type application: a `TypTuple` supplies
    several at once. */
 let type_args = (ty: Typ.t): list(Typ.t) =>
@@ -888,7 +898,7 @@ let decide =
       | TypAbs(tpat, body, _) =>
         get_message(
           TypAbsExp.typ_abss(
-            ~tpat_ids=List.map(IdTagged.rep_id, TPat.binders_of(tpat)),
+            ~binders=binder_names(tpat),
             ~body_id=IdTagged.rep_id(body),
           ),
         )
@@ -1560,14 +1570,14 @@ let decide =
     | Poly(tpat, body) =>
       get_message(
         PolyTyp.poly(
-          ~tpat_ids=List.map(IdTagged.rep_id, TPat.binders_of(tpat)),
+          ~binders=binder_names(tpat),
           ~tbody_id=IdTagged.rep_id(body),
         ),
       )
     | TypFun(tpat, body) =>
       get_message(
         TypFunTyp.typfun(
-          ~tpat_ids=List.map(IdTagged.rep_id, TPat.binders_of(tpat)),
+          ~binders=binder_names(tpat),
           ~tbody_id=IdTagged.rep_id(body),
           ~kind=TypKind.to_string(Kinding.kind_of_typ(typ_info.ctx, typ)),
         ),
