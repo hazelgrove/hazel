@@ -424,6 +424,7 @@ funPat:
 
 pat:
     | p1 = pat; COLON; t1 = typ;  { AscPat(p1, t1) }
+    | p1 = pat; STANDARD; h = pat;  { StandardPat(p1, h) }
     (* | p1 = pat; AS; p2 = pat; { AsPat(p1, p2) } *)
     | p1 = pat; CONS; p2 = pat { ConsPat(p1, p2) } 
     | p = nonAscriptingPat; { p }

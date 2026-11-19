@@ -69,7 +69,8 @@ let match_pattern =
     List.map2_exn(ps, ds, ~f=recur)
     |> List.fold_left(~f=combine_result, ~init=Matches([]));
   | Parens(p)
-  | Projector(_, p) => recur(p, d)
+  | Projector(_, p)
+  | Standard(p, _) => recur(p, d)
   | Asc(p, t1) =>
     recur(p, Ascriptions.transition_multiple(Asc(d, t1) |> DHExp.fresh))
   };

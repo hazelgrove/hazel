@@ -648,6 +648,7 @@ and Pat: {
         | Parens(e) => Parens(pat_map_term(e))
         | Projector(data, p) => Projector(data, pat_map_term(p))
         | Asc(e, t) => Asc(pat_map_term(e), typ_map_term(t))
+        | Standard(p, h) => Standard(pat_map_term(p), pat_map_term(h))
         },
     };
     x |> f_pat(rec_call);

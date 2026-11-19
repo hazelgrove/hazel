@@ -326,6 +326,7 @@ let external_precedence_pat = (dp: Pat.t) =>
   | Cons(_) => Precedence.cons
   | Ap(_) => Precedence.ap
   | Asc(_) => Precedence.asc
+  | Standard(_) => Precedence.eqs
   | Tuple([]) => Precedence.max // the atomic () token (#2296)
   | Tuple(_) => Precedence.comma
 
@@ -905,6 +906,12 @@ and parenthesize_pat =
     )
     |> rewrap
   | Asc(p, _) => parenthesize_pat(p) // skip ascription if not showing
+  | Standard(p, h) =>
+    Standard(
+      parenthesize_pat(p) |> paren_pat_assoc_at(Precedence.eqs),
+      parenthesize_pat(h) |> paren_pat_at(Precedence.eqs),
+    )
+    |> rewrap
   };
 }
 
@@ -3003,6 +3010,11 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
     let+ p = go(p)
     and+ t = typ_to_pretty(~settings: Settings.t, t);
     wrap(pat, p @ [mk_form(TypeAsc, id, [])] @ t);
+  | Standard(p, h) =>
+    let id = pat |> Pat.rep_id;
+    let+ p = go(p)
+    and+ h = go(h);
+    wrap(pat, p @ [mk_form(StandardFact, id, [])] @ h);
   };
 }
 and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {

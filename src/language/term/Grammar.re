@@ -100,6 +100,9 @@ and pat_term('a) =
   | Projector(projector_data, pat_t('a))
   | Ap(pat_t('a), pat_t('a))
   | Asc(pat_t('a), typ_t('a))
+  /* `p !! h`: in a proof's `forall` step, the binder `p` with `h` naming
+   * the fact that it is standard, `!!p`. */
+  | Standard(pat_t('a), pat_t('a))
 and pat_t('a) = Annotated.t(pat_term('a), 'a)
 and typ_term('a) =
   | Unknown(type_provenance('a))
@@ -522,6 +525,8 @@ and map_pat_annotation: 'a 'b. ('a => 'b, pat_t('a)) => pat_t('b) =
           Ap(map_pat_annotation(f, p1), map_pat_annotation(f, p2))
         | Asc(p, t) =>
           Asc(map_pat_annotation(f, p), map_typ_annotation(f, t))
+        | Standard(p, h) =>
+          Standard(map_pat_annotation(f, p), map_pat_annotation(f, h))
         },
       annotation: new_annotation,
     };
@@ -1067,6 +1072,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
 
     let asc = (~ann=?, p, t): pat_t(DefaultAnnotation.t) => {
       term: Asc(p, t),
+      annotation: default_annotation(ann),
+    };
+    let standard = (~ann=?, p, h): pat_t(DefaultAnnotation.t) => {
+      term: Standard(p, h),
       annotation: default_annotation(ann),
     };
   };

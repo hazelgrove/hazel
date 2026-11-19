@@ -108,7 +108,10 @@ type t =
   | DuplicateLabel(LabeledTuple.label, Typ.t)
   | DuplicateVar(string, Typ.t)
   | FreeHypothesis(Var.t)
-  | AxiomSlotNotHypothesis(Grammar.any_t(IdTagged.IdTag.t));
+  | AxiomSlotNotHypothesis(Grammar.any_t(IdTagged.IdTag.t))
+  /* `p !! h` outside a proof's `forall` step, the one place a binder can
+   * name its standardness fact. */
+  | StandardFactOutsideForall;
 
 /* Declaration-order tag index, derived by ppx_variants_conv. */
 let compare = (a: t, b: t): int =>

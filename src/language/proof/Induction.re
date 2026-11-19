@@ -34,7 +34,8 @@ let rec hypotheses = (statics: ProofStatics.t, t, pat) => {
    * pattern in parens would be its own hypothesis: its goal. */
   | Parens(e)
   | Projector(_, e)
-  | Asc(e, _) => hypotheses(statics, t, e)
+  | Asc(e, _)
+  | Standard(e, _) => hypotheses(statics, t, e)
   | Ap(e1, e2) =>
     hypotheses_inner(statics, t, e1) @ hypotheses_inner(statics, t, e2)
   | Label(_) => []
@@ -56,7 +57,8 @@ and hypotheses_inner = (statics: ProofStatics.t, t, pat) =>
   switch (pat |> Pat.term_of) {
   | Parens(x)
   | Projector(_, x)
-  | Asc(x, _) => hypotheses_inner(statics, t, x)
+  | Asc(x, _)
+  | Standard(x, _) => hypotheses_inner(statics, t, x)
   | Invalid(_)
   | EmptyHole
   | MultiHole(_)

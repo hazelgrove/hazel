@@ -114,6 +114,7 @@ and sumtype = list(sumterm)
 and pat =
   | ParenPat(pat)
   | AscPat(pat, typ)
+  | StandardPat(pat, pat)
   | EmptyHolePat
   | WildPat
   | AtomPat(Language.Atom.t)
@@ -1278,6 +1279,12 @@ and shrink_pat: QCheck.Shrink.t(pat) =
           <+> {
             let* shrunk = shrink_typ(t);
             return(AscPat(p, shrunk));
+          }
+        | StandardPat(p, h) =>
+          return(p)
+          <+> {
+            let* shrunk = shrink_pat(p);
+            return(StandardPat(shrunk, h));
           }
         | ApPat(p1, p2) =>
           {

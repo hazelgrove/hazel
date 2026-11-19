@@ -1336,7 +1336,14 @@ and check_focus =
 /* The binder comes from the incoming goal. A different name written in
  * the proof renames it, as `funext` names its argument, unless the goal
  * already uses that name. */
-and check_forall = (~step, ~statics, ~ctx, ~id, incoming, pat, body) =>
+and check_forall = (~step, ~statics, ~ctx, ~id, incoming, pat, body) => {
+  /* `forall (x : T !! h) =>` also gives the body the fact `h : !!x`.
+   * Quantifiers range over standard values, so it holds. */
+  let (pat, fact) =
+    switch (Pat.standard_fact(pat)) {
+    | Some((p, h)) => (p, ProofSyntax.pat_to_name(h))
+    | None => (pat, None)
+    };
   switch (Option.map(~f=peel_binder, incoming)) {
   | None =>
     check_subgoal(
@@ -1350,17 +1357,25 @@ and check_forall = (~step, ~statics, ~ctx, ~id, incoming, pat, body) =>
       body,
     )
   | Some(Some((p, t, inner))) =>
-    let open_body = (p, inner) =>
+    let open_body = (p, inner) => {
+      let body_ctx = bind(ctx, p, t);
+      let body_ctx =
+        switch (fact) {
+        | Some(h) =>
+          fst(SemanticCtx.add_hypothesis(body_ctx, h, Exp.standard_fact(p)))
+        | None => body_ctx
+        };
       check_subgoal(
         ~step,
         ~statics,
         ~ctx,
-        ~body_ctx=bind(ctx, p, t),
+        ~body_ctx,
         ~id,
         incoming,
         Some(inner),
         body,
       );
+    };
     switch (ProofSyntax.pat_to_name(p), ProofSyntax.pat_to_name(pat)) {
     | (Some(from), Some(to_)) when !String.equal(from, to_) =>
       if (Exp.occurs_free_any([to_], inner)) {
@@ -1415,7 +1430,8 @@ and check_forall = (~step, ~statics, ~ctx, ~id, incoming, pat, body) =>
       incoming,
       body,
     )
-  }
+  };
+}
 
 /* Functional extensionality as an intro rule rather than an axiom: as a
  * rewrite equality it would have to quantify over functions at unknown
@@ -1953,7 +1969,8 @@ and check_split =
     | Ap(a, b) => has_wild(a) || has_wild(b)
     | Parens(q)
     | Projector(_, q)
-    | Asc(q, _) => has_wild(q)
+    | Asc(q, _)
+    | Standard(q, _) => has_wild(q)
     };
   let (outgoing, marks, m) =
     if (List.exists(~f=((p, _)) => has_wild(p), cases)) {

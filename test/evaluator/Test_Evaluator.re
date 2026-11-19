@@ -20,6 +20,7 @@ let tests =
     Test_Evaluator_Let.tests,
     Test_Evaluator_Operators.tests,
     Test_Evaluator_Standard.tests,
+    Test_Standardness.tests,
     Test_Evaluator_Poly_Equal.tests,
     Test_Evaluator_Sum_Types.tests,
     Test_Evaluator_BuiltinsTupleOperations.tests,

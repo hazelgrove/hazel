@@ -1897,12 +1897,13 @@ let clippable_guard_tests = {
            by the next test) rather than bumping the number. An Exp
            frontier is vacuous (70 of 106 labels carry an Exp mold),
            while Pat, Typ and TPat stay narrow. Pat counts negative
-           literal patterns; Typ and TPat count the
+           literal patterns and a binder's `!!` fact name; Typ and TPat
+           count the
            symbolic delimiter-prefix backup molds
            (Form.symbolic_delim_prefixes = `-`, `=`), which mold at all
            four sorts. All four also count the proof's one-token `step`,
            which as a bare word takes the atomic molds. */
-        "Exp 70/106 | Pat 10/106 | Typ 15/106 | TPat 5/106 | Rul 1/106",
+        "Exp 70/106 | Pat 11/106 | Typ 15/106 | TPat 5/106 | Rul 1/106",
         table,
       )
     ),

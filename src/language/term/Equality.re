@@ -623,6 +623,12 @@ let equality =
       let* alphas2 = pat'(p2, p4);
       Some(Alphas.combine(alphas1, alphas2));
     | (Ap(_, _), _) => None
+    | (Standard(p1, h1), Standard(p2, h2)) =>
+      open OptUtil.Syntax;
+      let* alphas1 = pat'(p1, p2);
+      let* alphas2 = pat'(h1, h2);
+      Some(Alphas.combine(alphas1, alphas2));
+    | (Standard(_, _), _) => None
     };
   }
   and typ =

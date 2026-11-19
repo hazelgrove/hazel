@@ -1016,6 +1016,10 @@ end|}),
       {|Forall: simple|},
       {|theorem x = 1 proof forall y => from y do rewrite y end end in x|},
     ),
+    roundtrip_test(
+      {|Forall: naming the binder's standardness fact|},
+      {|theorem x = 1 proof forall (y : Bool !! h) => rewrite h end in x|},
+    ),
     /* Proof: assume (hypothesized proposition) */
     roundtrip_test(
       {|Assume: simple|},

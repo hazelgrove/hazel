@@ -155,7 +155,8 @@ let bind_pattern = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) => {
     | Invalid(_)
     | MultiHole(_) => Some([])
     | Parens(dhp)
-    | Projector(_, dhp) => dhpat_var_entry(dhp, ty)
+    | Projector(_, dhp)
+    | Standard(dhp, _) => dhpat_var_entry(dhp, ty)
     | Atom(c) =>
       Typ.equal(ty, Atom(Atom.cls_of_t(c)) |> Typ.temp) ? Some([]) : None
     | Constructor(_) => Some([]) // TODO: make this stricter

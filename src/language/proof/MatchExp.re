@@ -319,8 +319,10 @@ and match_pat = (pat_r: Pat.t, pat: Pat.t): option(alphas) =>
   | (Projector(_, p1), _) => match_pat(p1, pat)
   | (_, Parens(p2))
   | (_, Projector(_, p2)) => match_pat(pat_r, p2)
-  | (Asc(p1, _), _) => match_pat(p1, pat)
-  | (_, Asc(p2, _)) => match_pat(pat_r, p2)
+  | (Asc(p1, _), _)
+  | (Standard(p1, _), _) => match_pat(p1, pat)
+  | (_, Asc(p2, _))
+  | (_, Standard(p2, _)) => match_pat(pat_r, p2)
   | (Invalid(x), Invalid(y)) when String.equal(x, y) => Some([])
   | (Invalid(_), _) => None
   | (EmptyHole, EmptyHole) => Some([])

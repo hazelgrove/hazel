@@ -318,6 +318,11 @@ let core_mark_err_view =
     | AxiomSlotNotHypothesis(_) => [
         text("Axiom slot must be a hypothesis name"),
       ]
+    | StandardFactOutsideForall => [
+        text(
+          "Only a proof's `forall` step can name its binder's standardness fact",
+        ),
+      ]
     }
   )
   @ (
@@ -837,6 +842,12 @@ let exp_mark_err_view =
     div_err([code(name), text(" is not a hypothesis in scope")])
   | AxiomSlotNotHypothesis(_) =>
     div_err([text("Axiom slot must be a hypothesis name")])
+  | StandardFactOutsideForall =>
+    div_err([
+      text(
+        "Only a proof's `forall` step can name its binder's standardness fact",
+      ),
+    ])
   };
 };
 
