@@ -122,7 +122,7 @@ let standalone_tup_label_self_type =
 
 /* Compute expected labels from an analysis type. */
 let expected_labels_of_ana = (ctx: Ctx.t, ana: Typ.t): option(list(string)) =>
-  switch (Typ.weak_head_normalize(ctx, ana).term) {
+  switch (MatchedTyp.head(ctx, ana).term) {
   | Prod(ts) =>
     Some(
       List.filter_map(t => Typ.match_tup_label(t) |> Option.map(fst), ts),

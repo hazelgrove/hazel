@@ -302,9 +302,12 @@ let initial_model = {
    the graph livelit slide: 2.0s -> see the commit message.) */
 let incremental_min_statics = 2500;
 
+let incremental_min_prev_steps = 100_000;
+
 let wants_incremental = (req_value: Request.value): bool =>
   Util.Id.Map.cardinal(req_value.eval_info_map.statics)
-  >= incremental_min_statics;
+  >= incremental_min_statics
+  || req_value.prev.steps >= incremental_min_prev_steps;
 
 /* the reuse plan computed for a batch item, handed to its evaluation so
    the pre-pass runs once per request (keyed by the item's expr identity:

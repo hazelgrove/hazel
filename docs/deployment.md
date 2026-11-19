@@ -100,6 +100,11 @@ eligible for cache, honoring the object's `Cache-Control`, with the query
 string excluded from the cache key so random query strings can't force cache
 misses through to R2.
 
+**Tiered Cache** (Caching → Tiered Cache): on, with Smart Tiered Caching.
+Edge locations fetch through one upper-tier location near the bucket rather
+than each reading R2 on its own, so the first fetch anywhere warms the cache
+for everyone and R2 sees far fewer reads.
+
 ## Things that must keep working
 
 - **`hazel.org/livelits`** is the URL printed in the PLDI '21 livelits paper.
@@ -129,7 +134,10 @@ spend crosses its threshold.
   its root: link to `build.hazel.org/<branch>/` with the slash.
 - Saved Hazel state (IndexedDB) is per origin, so previews on
   `build.hazel.org` don't see state saved under `hazel.org/build/…` before
-  the move.
+  the move. Within `build.hazel.org`, each branch's build uses its own
+  database (`hazel:<branch>`; `dev` keeps plain `hazel`), so previews don't
+  share saved state either. localStorage (only the color-theme cache) is
+  still shared across the origin.
 - A branch that hasn't merged `dev` since the move still has the old
   `deploy.yml`, which pushes to `hazelgrove/build`. That repository is
   archived and its push token revoked, so the old Deploy job fails visibly.

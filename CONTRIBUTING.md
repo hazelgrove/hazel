@@ -140,7 +140,7 @@ Since source maps are generated, browser developer tools should show reason code
 If Hazel is hanging on load or when you perform certain actions, you can load into Debug Mode by appending `#debug` to the URL and reloading. From there, you have some buttons that will change settings or reset local storage. Refresh without the `#debug` flag and hopefully you can resolve the situation from there.
 
 ### Manual Reset
-If you want to do a fully clean reset and debug mode isn't working, you need to manually clear local storage by going into your browser development tools. In Chrome devtools, you do so via Application > Storage > Local Storage. You may also want to clear the IndexedDB, which logs edit actions.
+If you want to do a fully clean reset and debug mode isn't working, you need to manually clear local storage by going into your browser development tools. In Chrome devtools, you do so via Application > Storage > Local Storage. You may also want to clear the IndexedDB, which holds saved state and logs edit actions. Each git branch's build has its own IndexedDB database, named `hazel:<branch>` (`dev` and builds outside a git checkout use plain `hazel`), so delete the one for the build you're resetting.
 
 ## Testing
 You can run all of the unit tests located in `test` by running `make test`. Unit tests are written using the [Alcotest framework](https://github.com/mirage/alcotest). See more documentation in the [test README](test/README.md).
