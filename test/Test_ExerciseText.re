@@ -325,6 +325,14 @@ let format_tests = [
       );
       check(
         bool,
+        "a code section in a theorem exercise",
+        true,
+        fails_to_load(
+          "@title\nT\n@flags\nid=3335e34d-d211-4332-91e2-815e9e183885\n@theorem\n¿\n@bug b\n¿\n",
+        ),
+      );
+      check(
+        bool,
         "bad predicate",
         true,
         fails_to_load(

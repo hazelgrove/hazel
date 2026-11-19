@@ -132,6 +132,18 @@ let of_text = (~rel: string, text: string): Exercise.t => {
       }
     };
   let is_theorem = has(Lemmas) || has(Theorem);
+  if (is_theorem) {
+    switch (
+      List.find_opt(
+        has,
+        [Code, YourTests, Solution, Bug, Test, Hints, Syntax],
+      )
+    ) {
+    | Some(m) =>
+      fail("@" ++ name_of(m) ++ " is not part of a theorem exercise")
+    | None => ()
+    };
+  };
   let flags =
     settings(
       Flags,
