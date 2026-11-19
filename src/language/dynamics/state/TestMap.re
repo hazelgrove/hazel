@@ -11,12 +11,12 @@ type instance_report = {
 let get_status: instance_report => TestStatus.t = report => report.status;
 
 let joint_status: list(instance_report) => TestStatus.t =
-  reports => TestStatus.join_all(List.map(get_status, reports));
+  reports => TestStatus.join_all(List.map(~f=get_status, reports));
 
 let get_hint: instance_report => string = report => report.hint;
 
 let joint_hints: list(instance_report) => list(string) =
-  reports => List.map(get_hint, reports);
+  reports => List.map(~f=get_hint, reports);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type report = (Id.t, list(instance_report));
@@ -25,15 +25,17 @@ type report = (Id.t, list(instance_report));
 type t = list(report);
 
 let hints: list(report) => list(string) =
-  reports => joint_hints(List.flatten(List.map(snd, reports)));
+  reports => joint_hints(List.concat(List.map(~f=snd, reports)));
 
 let empty: t = [];
 
-let lookup = List.assoc_opt;
+let lookup = (id, test_map) =>
+  List.Assoc.find(test_map, id, ~equal=Id.equal);
 
 let extend = ((id, report), test_map) => {
-  switch (List.assoc_opt(id, test_map)) {
-  | Some(a) => List.remove_assoc(id, test_map) @ [(id, a @ [report])]
+  switch (List.Assoc.find(test_map, id, ~equal=Id.equal)) {
+  | Some(a) =>
+    List.Assoc.remove(test_map, id, ~equal=Id.equal) @ [(id, a @ [report])]
   | None => test_map @ [(id, [report])]
   };
 };
@@ -42,7 +44,7 @@ let count = List.length;
 
 let count_status = (status, test_map) =>
   List.filter(
-    ((_, instances)) => status == joint_status(instances),
+    ~f=((_, instances)) => Poly.equal(status, joint_status(instances)),
     test_map,
   )
   |> List.length;

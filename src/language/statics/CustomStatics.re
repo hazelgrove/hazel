@@ -44,11 +44,16 @@ let extract_type = (entry: tuple_entry): Typ.t =>
   };
 
 let extract_labels = (entries: tuple_type) =>
-  List.filter_map((entry: tuple_entry) => extract_label(entry), entries);
+  List.filter_map(~f=(entry: tuple_entry) => extract_label(entry), entries);
 
 let get_tuple_label = (tuple: tuple_type, label: string): Typ.t => {
   switch (
-    List.find_opt(entry => extract_label(entry) == Some(label), tuple)
+    List.find(
+      ~f=
+        entry =>
+          Option.equal(String.equal, extract_label(entry), Some(label)),
+      tuple,
+    )
   ) {
   | Some(entry) => extract_type(entry)
   | None => unknown
@@ -75,7 +80,7 @@ let analyze_argument =
 
   switch (extract_entries(Typ.normalize(ctx, arg_info.ty))) {
   | Success(entries) => (
-      Some(List.map(typ_entry_to_tuple_entry, entries)),
+      Some(List.map(~f=typ_entry_to_tuple_entry, entries)),
       arg_info,
       m,
     )
@@ -174,26 +179,28 @@ let labels_to_info_map =
     )
     : (list(option(string)), Map.t) => {
   List.fold_left(
-    ((labels: list(option(string)), m: Map.t), label) => {
-      let (lab_name, lab_info, _, m) =
-        analyze_label_to_info_map((module S), ~ctx, syn, label, m);
-      /* If expected_labels provided and this label isn't in the set,
-         patch as InvalidLabel and suppress the label name */
-      let (lab_name, m) =
-        switch (label.term, expected_labels, lab_name) {
-        | (Label(name), Some(expected), _) when !List.mem(name, expected) =>
-          let m =
-            set_marks_exp(
-              m,
-              lab_info.user_term,
-              lab_info.marks @ [InvalidLabel(name, expected)],
-            );
-          (None, m);
-        | _ => (lab_name, m)
-        };
-      (labels @ [lab_name], m);
-    },
-    ([], m),
+    ~f=
+      ((labels: list(option(string)), m: Map.t), label) => {
+        let (lab_name, lab_info, _, m) =
+          analyze_label_to_info_map((module S), ~ctx, syn, label, m);
+        /* If expected_labels provided and this label isn't in the set,
+           patch as InvalidLabel and suppress the label name */
+        let (lab_name, m) =
+          switch (label.term, expected_labels, lab_name) {
+          | (Label(name), Some(expected), _)
+              when !List.mem(expected, name, ~equal=String.equal) =>
+            let m =
+              set_marks_exp(
+                m,
+                lab_info.user_term,
+                lab_info.marks @ [InvalidLabel(name, expected)],
+              );
+            (None, m);
+          | _ => (lab_name, m)
+          };
+        (labels @ [lab_name], m);
+      },
+    ~init=([], m),
     labs,
   );
 };
@@ -242,12 +249,12 @@ let handle_tuple_operation =
       let (labeled_tup_info: option(tuple_type), tup_info, m: Map.t) =
         analyze_tuple_argument((module S), ~ctx, m, tup);
 
-      let expected_labels = Option.map(extract_labels, labeled_tup_info);
+      let expected_labels = Option.map(~f=extract_labels, labeled_tup_info);
       let (labels, m) =
         labels_to_info_map((module S), ~ctx, ~expected_labels?, labs, m);
 
       let args_typ =
-        Typ.to_product([tup_info.ty] @ List.map(__ => unknown, labs));
+        Typ.to_product([tup_info.ty] @ List.map(~f=__ => unknown, labs));
 
       let m =
         Map.add_info(
@@ -316,14 +323,15 @@ let project_labels_statics =
       (labeled_tup_info, labels) => {
         let val_types =
           List.map(
-            (optional_lab: option(string)) => {
-              Util.OptUtil.map2(
-                get_tuple_label,
-                labeled_tup_info,
-                optional_lab,
-              )
-              |> Option.value(~default=unknown)
-            },
+            ~f=
+              (optional_lab: option(string)) => {
+                Util.OptUtil.map2(
+                  get_tuple_label,
+                  labeled_tup_info,
+                  optional_lab,
+                )
+                |> Option.value(~default=unknown)
+              },
             labels,
           );
         Typ.to_product(val_types);
@@ -353,16 +361,17 @@ let select_labels_statics =
       (labeled_tup_info, labels) => {
         let val_types =
           List.map(
-            (optional_lab: option(string)) => {
-              Util.OptUtil.map2(
-                (a, b) =>
-                  TupLabel(Label(b) |> Typ.temp, get_tuple_label(a, b))
-                  |> Typ.temp,
-                labeled_tup_info,
-                optional_lab,
-              )
-              |> Option.value(~default=unknown)
-            },
+            ~f=
+              (optional_lab: option(string)) => {
+                Util.OptUtil.map2(
+                  (a, b) =>
+                    TupLabel(Label(b) |> Typ.temp, get_tuple_label(a, b))
+                    |> Typ.temp,
+                  labeled_tup_info,
+                  optional_lab,
+                )
+                |> Option.value(~default=unknown)
+              },
             labels,
           );
         Typ.to_product(val_types);
@@ -390,25 +399,28 @@ let omit_labels_statics =
     ~ctx,
     ~compute_result_type=
       (labeled_tup_info, labels) => {
-        let labels_to_drop = List.filter_map(Fun.id, labels);
+        let labels_to_drop = List.filter_map(~f=Fn.id, labels);
         switch (labeled_tup_info) {
         | None => unknown
         | Some(labeled_tup_info) =>
           let tys =
             List.filter_map(
-              entry => {
-                switch (entry) {
-                | Unlabeled(typ) => Some(typ)
-                | Labeled(None, typ) =>
-                  Some(TupLabel(unknown, typ) |> Typ.temp)
-                | Labeled(Some(lab), typ) =>
-                  if (List.mem(lab, labels_to_drop)) {
-                    None;
-                  } else {
-                    Some(TupLabel(Label(lab) |> Typ.temp, typ) |> Typ.temp);
+              ~f=
+                entry => {
+                  switch (entry) {
+                  | Unlabeled(typ) => Some(typ)
+                  | Labeled(None, typ) =>
+                    Some(TupLabel(unknown, typ) |> Typ.temp)
+                  | Labeled(Some(lab), typ) =>
+                    if (List.mem(labels_to_drop, lab, ~equal=String.equal)) {
+                      None;
+                    } else {
+                      Some(
+                        TupLabel(Label(lab) |> Typ.temp, typ) |> Typ.temp,
+                      );
+                    }
                   }
-                }
-              },
+                },
               labeled_tup_info,
             );
           Typ.to_product(tys);
@@ -436,12 +448,13 @@ let group_by_label_statics =
       let (row_info: option(tuple_type), table_info, m) =
         analyze_table_argument((module S), ~ctx, m, table);
 
-      let expected_labels = Option.map(extract_labels, row_info);
+      let expected_labels = Option.map(~f=extract_labels, row_info);
       let (label, _, _, m) =
         analyze_label_to_info_map((module S), ~ctx, syn, pivot_label, m);
       let m =
         switch (pivot_label.term, expected_labels) {
-        | (Label(name), Some(expected)) when !List.mem(name, expected) =>
+        | (Label(name), Some(expected))
+            when !List.mem(expected, name, ~equal=String.equal) =>
           append_mark_exp(m, pivot_label, [InvalidLabel(name, expected)])
         | _ => m
         };
@@ -480,9 +493,14 @@ let group_by_label_statics =
         Util.OptUtil.map2(
           (entries: list(tuple_entry), label: string) => {
             List.find_map(
-              entry =>
-                extract_label(entry) == Some(label)
-                  ? Some(extract_type(entry)) : None,
+              ~f=
+                entry =>
+                  Option.equal(
+                    String.equal,
+                    extract_label(entry),
+                    Some(label),
+                  )
+                    ? Some(extract_type(entry)) : None,
               entries,
             )
           },
@@ -543,7 +561,7 @@ let to_lvs_statics =
       Util.OptUtil.traverse(Typ.match_tup_optional_label, entries);
     switch (entries) {
     | Some(entries) =>
-      let val_typs = List.map(snd, entries);
+      let val_typs = List.map(~f=snd, entries);
       let joined_typ =
         Util.OptUtil.fold_left_opt(
           (acc, t) => Typ.meet(ctx, acc, t),
@@ -613,11 +631,12 @@ let omit_all_labels_statics =
     | Prod(entries) =>
       let entries =
         List.map(
-          (e: Typ.t) =>
-            switch (e.term) {
-            | TupLabel(_, typ) => typ
-            | _ => e
-            },
+          ~f=
+            (e: Typ.t) =>
+              switch (e.term) {
+              | TupLabel(_, typ) => typ
+              | _ => e
+              },
           entries,
         );
 
@@ -722,8 +741,8 @@ let custom_statics_deferred_ap =
       let (args_info, m) = analyze_args_syn((module S), ~ctx, args, m);
       let combined_co_ctx =
         List.fold_left(
-          (acc, info) => CoCtx.union([acc, Info.exp_co_ctx(info)]),
-          fn_info.co_ctx,
+          ~f=(acc, info) => CoCtx.union([acc, Info.exp_co_ctx(info)]),
+          ~init=fn_info.co_ctx,
           args_info,
         );
 
@@ -740,8 +759,8 @@ let custom_statics_deferred_ap =
       let (args_info, m) = analyze_args_syn((module S), ~ctx, args, m);
       let combined_co_ctx =
         List.fold_left(
-          (acc, info) => CoCtx.union([acc, Info.exp_co_ctx(info)]),
-          fn_info.co_ctx,
+          ~f=(acc, info) => CoCtx.union([acc, Info.exp_co_ctx(info)]),
+          ~init=fn_info.co_ctx,
           args_info,
         );
 
@@ -757,14 +776,14 @@ let custom_statics_deferred_ap =
       let (args_info, m) = analyze_args_syn((module S), ~ctx, args, m);
       let combined_co_ctx =
         List.fold_left(
-          (acc, info) => CoCtx.union([acc, Info.exp_co_ctx(info)]),
-          fn_info.co_ctx,
+          ~f=(acc, info) => CoCtx.union([acc, Info.exp_co_ctx(info)]),
+          ~init=fn_info.co_ctx,
           args_info,
         );
 
       let ty_in' =
-        List.filter(e => Exp.is_deferral(e), args)
-        |> List.map(_ => unknown)
+        List.filter(~f=e => Exp.is_deferral(e), args)
+        |> List.map(~f=_ => unknown)
         |> Typ.to_product;
 
       add(
