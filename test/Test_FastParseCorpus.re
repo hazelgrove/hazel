@@ -181,8 +181,7 @@ let tests = (
                    committed indentation; the reader strips only the file's
                    final newline — other edge whitespace is content) */
                 let src =
-                  read_file(path)
-                  |> Util.StringUtil.strip_final_newline;
+                  read_file(path) |> Util.StringUtil.strip_final_newline;
                 let f0 = Stdlib.Sys.time();
                 let known_gap =
                   List.mem(
