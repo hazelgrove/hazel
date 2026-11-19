@@ -109,7 +109,8 @@ module Structural = {
     | Definition /* RHS of `=`, before `in` */
     | Body /* expression after `in` */
     | Pattern /* LHS of `=`, after `let`/`type`; updates also rename use sites */
-    | BindingClause; /* entire `let ... = ... in` / `type ... = ... in` */
+    | BindingClause /* entire `let ... = ... in` / `type ... = ... in` */
+    | TypeAnnotation; /* type annotation in `let x : T = ...`; the `T` part */
 
   /* Where to insert relative to the target binding */
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -117,12 +118,21 @@ module Structural = {
     | After /* insert within body (after target binding) */
     | Before; /* insert before target binding (wrapping around it) */
 
+  /* Selector string (e.g. "let x = *", "\\... | Foo => *") */
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type selector = string;
+
   /* Targeted structural edits on bindings identified by path */
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t =
     | Update(target, path, code)
     | Delete(target, path)
-    | Insert(insert_target, path, code);
+    | Insert(insert_target, path, code)
+    /* Selector-driven edits: resolve via selector language */
+    | SelectorUpdate(selector, code)
+    | SelectorDelete(selector)
+    | SelectorInsertBefore(selector, code)
+    | SelectorInsertAfter(selector, code);
 };
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
