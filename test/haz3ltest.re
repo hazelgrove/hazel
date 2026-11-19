@@ -80,6 +80,7 @@ let (suite, exit_with_test_status) =
     @ Test_RoundtripFuzz.tests
     @ Test_LocalReformat.tests
     @ Test_MatchExp.tests
+    @ [Test_ProofHacks.tests]
     @ Test_RefractorSerialization.tests
     @ [
       Test_TableCore.tests,
