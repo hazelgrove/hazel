@@ -246,6 +246,14 @@ let rec go =
     |> return(CantIntroduce)
   | Paste(clipboard) =>
     let clipboard = Unicode.nfc_outside_strings(clipboard);
+    /* A char-level selection (one starting or ending inside a token) holds
+       whole pieces, but only part of them is selected: split off and keep
+       the unselected characters first, as typing over it does
+       (Insert.go), so every paste path below sees a token-aligned caret
+       and never replaces the unselected rest of a token. */
+    let z =
+      Zipper.has_char_selection(z)
+        ? Zipper.normalize_char_selection(z) |> Zipper.destroy_selection : z;
     /* pasted material can complete enclosing tiles (the completion
        trigger) AND carries its source indentation (the region
        trigger re-indents the pasted lines themselves) */

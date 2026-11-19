@@ -15,14 +15,19 @@ let set_segment_cache = (seg: option(Segment.t), str: string): unit =>
 
 /* Would splicing [text] at the caret merge with a neighboring token
    (e.g. pasting `+2` right after `x1`)? Shared by the segment-cache
-   paste and the FastParse paste gate. A selection is replaced by the
-   paste, so its own edge tokens are not neighbors. */
+   paste, the FastParse paste gate and the splice-paste gate. A whole-piece
+   selection is replaced by the paste, so its own edge tokens are not
+   neighbors. A char-level selection (an edge inside a token) cannot be
+   spliced over at all — replacing its pieces would drop their unselected
+   characters — so it counts as a merge; Perform's Paste splits such a
+   selection off (normalize_char_selection) before any path runs. */
 let boundary_merges = (text: string, z: Zipper.t): bool => {
-  let z = Zipper.destroy_selection(z);
   let chars = Token.to_list(text);
   switch (chars) {
+  | _ when Zipper.has_char_selection(z) => true
   | [] => false
   | _ =>
+    let z = Zipper.destroy_selection(z);
     let first_char = List.hd(chars);
     let last_char = Util.ListUtil.last(chars);
     let left =
@@ -264,22 +269,7 @@ let can_splice_paste = (clipboard: string, z: Zipper.t, ~root): bool => {
   && Zipper.local_missing_shards(z) == []
   && Relatives.sort(~root, z.relatives) == Sort.Exp
   && has_balanced_delimiters(clipboard)
-  && {
-    let chars = Token.to_list(clipboard);
-    let first_char = List.hd(chars);
-    let last_char = Util.ListUtil.last(chars);
-    let no_left_merge =
-      switch (Zipper.neighbor_token(Left, z)) {
-      | None => true
-      | Some(t) => !Token.is_potential_token(Token.append(t, first_char))
-      };
-    let no_right_merge =
-      switch (Zipper.neighbor_token(Right, z)) {
-      | None => true
-      | Some(t) => !Token.is_potential_token(Token.append(last_char, t))
-      };
-    no_left_merge && no_right_merge;
-  };
+  && !boundary_merges(clipboard, z);
 };
 
 let splice_paste = (clipboard: string, z: Zipper.t, ~root): option(Zipper.t) => {

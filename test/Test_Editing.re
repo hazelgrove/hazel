@@ -4369,6 +4369,168 @@ let char_selection_tests = [
   ),
 ];
 
+/* Paste over a selection (#2707). A paste replaces exactly the selected
+   text, whichever path it takes: the segment cache (a matching copy), the
+   FastParse splice, the typing-parser splice, or char-by-char typing.
+   A char-level selection (an edge inside a token) must keep the token's
+   unselected characters; a whole-piece selection's own edge tokens are
+   not neighbors the pasted text can merge with. */
+
+/* Mirror CodeEditable.copy_selection: the clipboard text of the selection,
+   cached as a segment when nothing was trimmed */
+let copy_selection = (z: Zipper.t): string => {
+  let segment = z.selection.content;
+  let full =
+    Printer.of_segment(
+      ~indent=" ",
+      ~refractors=z.refractors.manuals,
+      segment,
+    );
+  let str = Zipper.trim_selected_text(z, full);
+  if (str == full && z.refractors.manuals == []) {
+    Parser.set_segment_cache(Some(segment), str);
+  };
+  str;
+};
+
+/* Paste [text] after [acts], with the segment cache cold, or warm with
+   [text] (as when it was just copied); the cache is set inside the test
+   so other tests' copies cannot interfere. */
+let paste_test = (~cache, ~name, ~acts, ~text, ~goal): test_case(_) =>
+  test_case(
+    name ++ (cache ? " (warm cache)" : " (cold cache)"),
+    `Quick,
+    () => {
+      let z = perform(Zipper.init(), acts);
+      if (cache) {
+        Parser.set_segment_cache(Parser.to_segment(text, ~root=Exp), text);
+      } else {
+        Parser.segment_cache := None;
+      };
+      check(
+        testable(Fmt.string, String.equal),
+        name,
+        goal,
+        perform(z, [Paste(text)]) |> printer,
+      );
+    },
+  );
+
+let paste_both = (~name, ~acts, ~text, ~goal): list(test_case(_)) => [
+  paste_test(~cache=false, ~name, ~acts, ~text, ~goal),
+  paste_test(~cache=true, ~name, ~acts, ~text, ~goal),
+];
+
+let crop_plotter_select_all_copy_paste = () => {
+  let lesson =
+    List.find(
+      (spec: Web.Tutorial.spec) =>
+        String.ends_with(~suffix="Task - Crop Plotter", spec.title),
+      Web.TutorialText.all,
+    );
+  let z0 = lesson.your_impl;
+  let z1 = perform(z0, [Select(All)]);
+  let clipboard = copy_selection(z1);
+  let z2 = perform(z1, [Paste(StringUtil.trim_leading(clipboard))]);
+  /* Paste re-indents the pasted region, so compare the lines' content */
+  let lines = z =>
+    MarkerParse.to_text(z)
+    |> String.split_on_char('\n')
+    |> List.map(String.trim);
+  let set_col = "let setCol(grove: Grove, col: Col, plant: Plant): Grove =";
+  let rec after = (l: string) =>
+    fun
+    | [x, y, ..._] when x == l => Some(y)
+    | [_, ...rest] => after(l, rest)
+    | [] => None;
+  check(
+    option(string),
+    "the setCol stub's hole stays on its own line",
+    Some("¿"),
+    after(set_col, lines(z2)),
+  );
+  check(list(string), "same lines", lines(z0), lines(z2));
+};
+
+let paste_over_selection_tests =
+  [
+    test_case(
+      "Crop Plotter: select all, copy, paste keeps the program",
+      `Quick,
+      crop_plotter_select_all_copy_paste,
+    ),
+  ]
+  /* Char-level selections: the unselected rest of the word survives */
+  @ paste_both(
+      ~name="Paste over the end of a word",
+      ~acts=mk({|foo¦bar|}) @ sel_r(3),
+      ~text="qux",
+      ~goal={|fooqux¦|},
+    )
+  @ paste_both(
+      ~name="Paste over the start of a word",
+      ~acts=mk({|foo¦bar|}) @ sel_l(3),
+      ~text="qux",
+      ~goal={|qux¦bar|},
+    )
+  @ paste_both(
+      ~name="Paste over the end of a bound word",
+      ~acts=mk({|let foobar = 1 in foo¦bar|}) @ sel_r(3),
+      ~text="baz",
+      ~goal={|let foobar = 1 in foobaz¦|},
+    )
+  @ paste_both(
+      ~name="Paste over the middle of a word",
+      ~acts=mk({|fo¦obar|}) @ sel_r(2),
+      ~text="x",
+      ~goal={|fox¦ar|},
+    )
+  @ paste_both(
+      ~name="Paste over part of a string literal's text",
+      ~acts=mk({|"he¦llo"|}) @ sel_r(2),
+      ~text="x",
+      ~goal={|"hex¦o"|},
+    )
+  @ paste_both(
+      ~name="Paste non-merging text over a selection from inside a word",
+      ~acts=mk({|foob¦ar + baz|}) @ sel_r(8),
+      ~text="(1 + 2)",
+      ~goal={|foob(1 + 2)¦|},
+    )
+  /* No selection */
+  @ paste_both(
+      ~name="Paste with no selection",
+      ~acts=mk({|1 + ¦|}),
+      ~text="2 * 3",
+      ~goal={|1 + 2 * 3¦|},
+    )
+  @ paste_both(
+      ~name="Paste with no selection merging into the word on the left",
+      ~acts=mk({|foo¦|}),
+      ~text="bar",
+      ~goal={|foobar¦|},
+    )
+  /* Whole-word selections: the selection's edge words are replaced, not
+     merged with */
+  @ paste_both(
+      ~name="Paste over a whole word",
+      ~acts=mk({|let x = ¦foo + bar in x|}) @ sel_r(3),
+      ~text="baz",
+      ~goal={|let x = baz¦ + bar in x|},
+    )
+  @ paste_both(
+      ~name="Paste over whole words spanning an operator",
+      ~acts=mk({|let x = ¦foo + bar in x|}) @ sel_r(9),
+      ~text="qux",
+      ~goal={|let x = qux¦ in x|},
+    )
+  @ paste_both(
+      ~name="Select all, paste the same word back",
+      ~acts=mk({|foo¦|}) @ [Select(All)],
+      ~text="foo",
+      ~goal={|foo¦|},
+    );
+
 /* Regression tests for Inner-caret/multi-shard interactions: shift-
  * arrow extension and plain-arrow break-out from positions inside the
  * shards of multi-delimiter tiles (let-in, case-end, if-then-else). */
@@ -6015,6 +6177,7 @@ let tests = [
   ("Editing.IncompleteListDump", incomplete_list_dump_tests),
   ("Editing.CrossBoundaryPaste", cross_boundary_paste_tests),
   ("Editing.CharSelection", char_selection_tests),
+  ("Editing.PasteOverSelection", paste_over_selection_tests),
   ("Editing.MultiDelimSelectionBugs", multi_delim_selection_bug_tests),
   ("Editing.MultiDelimBackpackBugs", multi_delim_backpack_tests),
   ("Editing.CrossBoundary", cross_boundary_tests),

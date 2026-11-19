@@ -179,5 +179,45 @@ let tests = (
         );
       },
     ),
+    test_case(
+      "undo after pasting over part of a word restores the word",
+      `Quick,
+      () => {
+        let act = (a: Haz3lcore.Action.t): Page.Update.t =>
+          Globals(ActiveEditor(a));
+        let m0 = mk_model();
+        let m1 = apply(m0, act(Select(All)));
+        let m2 = apply(m1, act(Paste("let foobar = 1 in foobar")));
+        let t2 = text_of(m2);
+        check(string, "program pasted", "let foobar = 1 in foobar", t2);
+        let n2 = undo_len(m2);
+        /* caret after `foo`, then Shift+Right three times selects `bar` */
+        let left = act(Move(Local(Left, ByChar)));
+        let sel_right = act(Select(Resize(Local(Right, ByChar))));
+        let m3 =
+          List.fold_left(
+            apply,
+            m2,
+            [left, left, left, sel_right, sel_right, sel_right],
+          );
+        let m4 = apply(m3, act(Paste("baz")));
+        check(
+          string,
+          "only the selected characters are replaced",
+          "let foobar = 1 in foobaz",
+          text_of(m4),
+        );
+        check(int, "the paste is one undo entry", n2 + 1, undo_len(m4));
+        let m5 = apply(m4, undo);
+        check(string, "undo restores the word", t2, text_of(m5));
+        let m6 = apply(m5, redo);
+        check(
+          string,
+          "redo pastes again",
+          "let foobar = 1 in foobaz",
+          text_of(m6),
+        );
+      },
+    ),
   ],
 );
