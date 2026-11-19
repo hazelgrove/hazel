@@ -16,7 +16,7 @@ let exercise : DerivationExercise.spec =
              Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
              -1)(pinned_stack())(indicated_call())(time())(seq \
              0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
-          backup_text = "";
+          backup_text = "\194\191\n";
         };
       setup =
         {
@@ -57,7 +57,7 @@ let exercise : DerivationExercise.spec =
              Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
              -1)(pinned_stack())(indicated_call())(time())(seq \
              0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
-          backup_text = "let $ab = of_ctx [A /\\ B] end in ";
+          backup_text = "let $ab = of_ctx [A /\\ B] end in \194\191\n";
         };
       rule_set = PropositionalLogic;
       trees =
@@ -92,7 +92,7 @@ let exercise : DerivationExercise.spec =
                          Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
                          -1)(pinned_stack())(indicated_call())(time())(seq \
                          0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
-                      backup_text = "$ab |- A /\\ B";
+                      backup_text = "$ab |- A /\\ B\n";
                     };
                   rule = Some Assumption;
                 },
@@ -149,7 +149,7 @@ let exercise : DerivationExercise.spec =
                          Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
                          -1)(pinned_stack())(indicated_call())(time())(seq \
                          0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
-                      backup_text = "[] |- (A /\\ B) ==> (B /\\ A)";
+                      backup_text = "[] |- (A /\\ B) ==> (B /\\ A)\n";
                     };
                   rule = Some Implies_I;
                 },
@@ -184,7 +184,7 @@ let exercise : DerivationExercise.spec =
                                Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
                                -1)(pinned_stack())(indicated_call())(time())(seq \
                                0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
-                            backup_text = "$ab |- B /\\ A";
+                            backup_text = "$ab |- B /\\ A\n";
                           };
                         rule = Some And_I;
                       },
@@ -212,7 +212,7 @@ let exercise : DerivationExercise.spec =
                                      Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
                                      -1)(pinned_stack())(indicated_call())(time())(seq \
                                      0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
-                                  backup_text = "$ab |- B";
+                                  backup_text = "$ab |- B\n";
                                 };
                               rule = Some And_E_R;
                             },
@@ -240,7 +240,7 @@ let exercise : DerivationExercise.spec =
                                      Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
                                      -1)(pinned_stack())(indicated_call())(time())(seq \
                                      0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
-                                  backup_text = "$ab |- A";
+                                  backup_text = "$ab |- A\n";
                                 };
                               rule = Some And_E_L;
                             },
